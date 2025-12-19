@@ -2,7 +2,9 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import path from 'node:path'
 import { spawn, ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
+import os from 'node:os'
 
+// ディレクトリ設定
 process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(__dirname, '../public')
 
@@ -24,6 +26,9 @@ function createWindow() {
     },
     titleBarStyle: 'hiddenInset',
   })
+
+  // 開発ツールを開く (デバッグ用: 必要に応じてコメントアウト)
+  // win.webContents.openDevTools()
 
   win.webContents.on('did-finish-load', () => {
     win?.webContents.send('main-process-message', (new Date).toLocaleString())
@@ -51,10 +56,23 @@ app.on('activate', () => {
 app.whenReady().then(() => {
   createWindow()
 
-  // --- FFmpeg Handlers ---
+  // --- IPC Handlers ---
 
-  // 1. エンコード開始 (FFmpeg起動)
-  ipcMain.handle('start-export', async (event, { width, height, fps }) => {
+  // 1. 音声ファイルの一時保存 (Web Audio APIでレンダリングしたWAVを保存)
+  ipcMain.handle('save-temp-audio', async (event, buffer: ArrayBuffer) => {
+    try {
+      const tempPath = path.join(os.tmpdir(), `uxfilm_audio_${Date.now()}.wav`);
+      // ArrayBufferをBufferに変換して書き込み
+      fs.writeFileSync(tempPath, Buffer.from(buffer));
+      return { success: true, path: tempPath };
+    } catch (e) {
+      console.error('Failed to save temp audio:', e);
+      return { success: false, error: String(e) };
+    }
+  });
+
+  // 2. エンコード開始 (FFmpeg起動)
+  ipcMain.handle('start-export', async (event, { width, height, fps, audioPath }) => {
     // 保存先を選択
     const { filePath } = await dialog.showSaveDialog({
       title: 'Export Video',
@@ -65,39 +83,63 @@ app.whenReady().then(() => {
     if (!filePath) return { success: false, reason: 'cancelled' };
 
     // FFmpeg引数構築
-    // -f image2pipe: 画像をパイプで受け取る
-    // -vcodec mjpeg: 入力はJPEGデータ (Base64から変換)
-    // -c:v h264_videotoolbox: Mac用ハードウェアエンコーダ
-    // -b:v 6000k: ビットレート
     const args = [
       '-y', // 上書き許可
+
+      // --- Input 0: Video Pipe (標準入力から画像を受け取る) ---
       '-f', 'image2pipe',
-      '-vcodec', 'mjpeg',
+      '-vcodec', 'mjpeg', // 送られてくる画像はJPEG
       '-r', fps.toString(),
-      '-i', '-', // 標準入力から読み込み
+      '-i', '-', 
+      
+      // --- Input 1: Audio File (もしあれば) ---
+      ...(audioPath ? ['-i', audioPath] : []),
+      
+      // --- Video Encoding Settings ---
       '-c:v', 'h264_videotoolbox', // Apple Silicon Hardware Encoder
-      '-b:v', '8000k', // 高画質
-      '-pix_fmt', 'yuv420p', // 互換性のため
+      '-b:v', '8000k', // ビットレート (高画質)
+      '-pix_fmt', 'yuv420p', // 互換性確保
+      
+      // --- Audio Encoding Settings (もしあれば) ---
+      // 映像(0:v:0)と音声(1:a:0)をマッピング
+      ...(audioPath ? ['-c:a', 'aac', '-b:a', '192k', '-map', '0:v:0', '-map', '1:a:0'] : []),
+      
+      // 一番短いストリームに合わせて終了 (映像が終わったら音声も切る)
+      '-shortest',
+      
+      // Output Path
       filePath
     ];
 
-    // FFmpegパスの探索 (brew等のパスを含める)
+    // FFmpegパス
+    // Mac (Homebrew / Apple Silicon) の標準パス。
+    // 環境によっては 'ffmpeg' だけで通る場合やパスが異なる場合があるので注意。
     const ffmpegPath = '/opt/homebrew/bin/ffmpeg'; 
-    // ※注意: ユーザー環境に合わせてパスを探すロジックが必要ですが、今回は固定で試します
-    // もし動かない場合は 'ffmpeg' だけで動くか試してください
 
     try {
-      // ユーザーのPATHにffmpegがあることを期待して spawn('ffmpeg', ...) でも可
-      ffmpegProcess = spawn('ffmpeg', args);
+      // プロセス起動
+      // ffmpegPathで見つからない場合は 'ffmpeg' を試すフォールバックを入れても良いですが、今回は指定パスで実行
+      ffmpegProcess = spawn(ffmpegPath, args);
       
+      // ログ出力
       ffmpegProcess.stderr?.on('data', (data) => {
-        console.log(`FFmpeg: ${data}`); // ログ出力
+        console.log(`FFmpeg: ${data}`); 
       });
 
       ffmpegProcess.on('close', (code) => {
         console.log(`FFmpeg process exited with code ${code}`);
         event.sender.send('export-complete', code === 0);
         ffmpegProcess = null;
+
+        // 一時オーディオファイルの削除 (クリーンアップ)
+        if (audioPath && fs.existsSync(audioPath)) {
+          try {
+            fs.unlinkSync(audioPath);
+            console.log('Temp audio deleted:', audioPath);
+          } catch (err) {
+            console.error('Failed to delete temp audio:', err);
+          }
+        }
       });
 
       return { success: true, filePath };
@@ -107,26 +149,29 @@ app.whenReady().then(() => {
     }
   });
 
-  // 2. フレームデータの書き込み
+  // 3. フレームデータの書き込み
   ipcMain.handle('write-frame', async (event, base64Data: string) => {
     if (!ffmpegProcess || !ffmpegProcess.stdin) return false;
 
-    // Base64 (data:image/jpeg;base64,...) からバッファを作成
-    const data = base64Data.replace(/^data:image\/jpeg;base64,/, '');
-    const buffer = Buffer.from(data, 'base64');
+    try {
+      // Base64 (data:image/jpeg;base64,...) からバッファを作成
+      const data = base64Data.replace(/^data:image\/jpeg;base64,/, '');
+      const buffer = Buffer.from(data, 'base64');
 
-    // FFmpegのstdinに書き込み
-    const result = ffmpegProcess.stdin.write(buffer);
-    
-    // バッファがいっぱいの場合はdrainを待つ (簡易実装では省略可だが安定性のためには必要)
-    // 今回は同期的に書き込めたかだけ返す
-    return true;
+      // FFmpegのstdinに書き込み
+      // writeはバッファがいっぱいの時 false を返すが、今回は簡易的に待たずに進める
+      ffmpegProcess.stdin.write(buffer);
+      return true;
+    } catch (error) {
+      console.error('Error writing frame:', error);
+      return false;
+    }
   });
 
-  // 3. エンコード終了
+  // 4. エンコード終了 (ストリームを閉じる)
   ipcMain.handle('end-export', async () => {
     if (ffmpegProcess && ffmpegProcess.stdin) {
-      ffmpegProcess.stdin.end(); // ストリームを閉じてエンコード完了を指示
+      ffmpegProcess.stdin.end(); // EOFを送信してエンコード完了を指示
     }
     return true;
   });

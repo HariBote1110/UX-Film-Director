@@ -2,6 +2,8 @@
 const electron = require("electron");
 const path = require("node:path");
 const node_child_process = require("node:child_process");
+const fs = require("node:fs");
+const os = require("node:os");
 process.env.DIST = path.join(__dirname, "../dist");
 process.env.VITE_PUBLIC = electron.app.isPackaged ? process.env.DIST : path.join(__dirname, "../public");
 let win;
@@ -41,7 +43,17 @@ electron.app.on("activate", () => {
 });
 electron.app.whenReady().then(() => {
   createWindow();
-  electron.ipcMain.handle("start-export", async (event, { width, height, fps }) => {
+  electron.ipcMain.handle("save-temp-audio", async (event, buffer) => {
+    try {
+      const tempPath = path.join(os.tmpdir(), `uxfilm_audio_${Date.now()}.wav`);
+      fs.writeFileSync(tempPath, Buffer.from(buffer));
+      return { success: true, path: tempPath };
+    } catch (e) {
+      console.error("Failed to save temp audio:", e);
+      return { success: false, error: String(e) };
+    }
+  });
+  electron.ipcMain.handle("start-export", async (event, { width, height, fps, audioPath }) => {
     var _a;
     const { filePath } = await electron.dialog.showSaveDialog({
       title: "Export Video",
@@ -52,28 +64,39 @@ electron.app.whenReady().then(() => {
     const args = [
       "-y",
       // 上書き許可
+      // --- Input 0: Video Pipe (標準入力から画像を受け取る) ---
       "-f",
       "image2pipe",
       "-vcodec",
       "mjpeg",
+      // 送られてくる画像はJPEG
       "-r",
       fps.toString(),
       "-i",
       "-",
-      // 標準入力から読み込み
+      // --- Input 1: Audio File (もしあれば) ---
+      ...audioPath ? ["-i", audioPath] : [],
+      // --- Video Encoding Settings ---
       "-c:v",
       "h264_videotoolbox",
       // Apple Silicon Hardware Encoder
       "-b:v",
       "8000k",
-      // 高画質
+      // ビットレート (高画質)
       "-pix_fmt",
       "yuv420p",
-      // 互換性のため
+      // 互換性確保
+      // --- Audio Encoding Settings (もしあれば) ---
+      // 映像(0:v:0)と音声(1:a:0)をマッピング
+      ...audioPath ? ["-c:a", "aac", "-b:a", "192k", "-map", "0:v:0", "-map", "1:a:0"] : [],
+      // 一番短いストリームに合わせて終了 (映像が終わったら音声も切る)
+      "-shortest",
+      // Output Path
       filePath
     ];
+    const ffmpegPath = "/opt/homebrew/bin/ffmpeg";
     try {
-      ffmpegProcess = node_child_process.spawn("ffmpeg", args);
+      ffmpegProcess = node_child_process.spawn(ffmpegPath, args);
       (_a = ffmpegProcess.stderr) == null ? void 0 : _a.on("data", (data) => {
         console.log(`FFmpeg: ${data}`);
       });
@@ -81,6 +104,14 @@ electron.app.whenReady().then(() => {
         console.log(`FFmpeg process exited with code ${code}`);
         event.sender.send("export-complete", code === 0);
         ffmpegProcess = null;
+        if (audioPath && fs.existsSync(audioPath)) {
+          try {
+            fs.unlinkSync(audioPath);
+            console.log("Temp audio deleted:", audioPath);
+          } catch (err) {
+            console.error("Failed to delete temp audio:", err);
+          }
+        }
       });
       return { success: true, filePath };
     } catch (e) {
@@ -90,10 +121,15 @@ electron.app.whenReady().then(() => {
   });
   electron.ipcMain.handle("write-frame", async (event, base64Data) => {
     if (!ffmpegProcess || !ffmpegProcess.stdin) return false;
-    const data = base64Data.replace(/^data:image\/jpeg;base64,/, "");
-    const buffer = Buffer.from(data, "base64");
-    ffmpegProcess.stdin.write(buffer);
-    return true;
+    try {
+      const data = base64Data.replace(/^data:image\/jpeg;base64,/, "");
+      const buffer = Buffer.from(data, "base64");
+      ffmpegProcess.stdin.write(buffer);
+      return true;
+    } catch (error) {
+      console.error("Error writing frame:", error);
+      return false;
+    }
   });
   electron.ipcMain.handle("end-export", async () => {
     if (ffmpegProcess && ffmpegProcess.stdin) {
