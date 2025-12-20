@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { TimelineObject } from '../types';
 import TimelineItem from './TimelineItem';
+import { parseLabFile } from '../utils/labParser';
 
 export const PX_PER_SEC = 30;
 export const ROW_HEIGHT = 40;
@@ -57,7 +58,7 @@ const Timeline: React.FC = () => {
     e.dataTransfer.dropEffect = 'copy';
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     if (isExporting) return;
 
@@ -77,15 +78,28 @@ const Timeline: React.FC = () => {
     if (dropLayer < 0 || dropLayer >= MAX_LAYERS) return;
 
     const files = Array.from(e.dataTransfer.files);
+    
+    // Labファイルを事前に収集
+    const labFiles = new Map<string, File>();
+    files.forEach(f => {
+        if (f.name.toLowerCase().endsWith('.lab')) {
+            // 拡張子を除いたベース名をキーにする
+            const baseName = f.name.substring(0, f.name.lastIndexOf('.'));
+            labFiles.set(baseName, f);
+        }
+    });
 
-    files.forEach((file) => {
+    for (const file of files) {
         const url = URL.createObjectURL(file);
         const lowerName = file.name.toLowerCase();
+        // 拡張子を除いた名前
+        const baseName = file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name;
 
         if (lowerName.endsWith('.psd')) {
             const newPsd: TimelineObject = {
                 id: crypto.randomUUID(), type: 'psd', name: file.name, layer: dropLayer, startTime: dropTime, duration: 10,
-                x: 960, y: 540, width: 500, height: 500, scale: 1.0, enableAnimation: false, endX: 960, endY: 540, easing: 'linear', offset: 0,
+                x: 960, y: 540, width: 500, height: 500, scale: 1.0, 
+                enableAnimation: false, endX: 960, endY: 540, easing: 'linear', offset: 0,
                 rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
                 file: file, src: '', layerTree: []
             };
@@ -115,20 +129,33 @@ const Timeline: React.FC = () => {
                 };
                 addObject(newVideo);
             };
-        } else if (file.type.startsWith('audio/')) {
+        } else if (file.type.startsWith('audio/') || lowerName.endsWith('.wav')) {
             const audio = document.createElement('audio');
             audio.src = url;
+            
+            // 同名のLabファイルがあればパースしてセット
+            let labData = undefined;
+            if (labFiles.has(baseName)) {
+                try {
+                    labData = await parseLabFile(labFiles.get(baseName)!);
+                    console.log(`Loaded lab data for ${file.name}: ${labData.length} phonemes`);
+                } catch (e) {
+                    console.error("Failed to parse lab file", e);
+                }
+            }
+
             audio.onloadedmetadata = () => {
                  const newAudio: TimelineObject = {
                     id: crypto.randomUUID(), type: 'audio', name: file.name, layer: dropLayer, startTime: dropTime, duration: audio.duration || 10,
                     src: url, volume: 1.0, muted: false,
                     x: 0, y: 0, enableAnimation: false, endX: 0, endY: 0, easing: 'linear', offset: 0,
                     rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
+                    labData: labData
                 };
                 addObject(newAudio);
             };
         }
-    });
+    }
   };
 
   const handleCanvasContextMenu = (e: React.MouseEvent) => {
@@ -167,7 +194,6 @@ const Timeline: React.FC = () => {
     return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); };
   }, [isScrubbing, setTime]);
 
-  // オブジェクト追加ヘルパー
   const addShapeAt = (startTime: number, layer: number) => {
     const newShape: TimelineObject = { 
         id: crypto.randomUUID(), type: 'shape', shapeType: 'rect', name: 'Rectangle', layer, startTime, duration: 3, 

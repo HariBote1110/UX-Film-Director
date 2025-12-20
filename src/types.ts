@@ -1,4 +1,5 @@
 import { EasingType } from './utils/easings';
+import { LabPhoneme } from './utils/labParser';
 
 export interface ProjectSettings {
   width: number;
@@ -14,14 +15,14 @@ export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' 
 export interface GradientFill {
   enabled: boolean;
   type: 'linear' | 'radial';
-  colours: string[]; // colors -> colours
+  colours: string[];
   stops: number[];
   direction: number;
 }
 
 export interface ShadowEffect {
   enabled: boolean;
-  colour: string; // color -> colour
+  colour: string;
   blur: number;
   offsetX: number;
   offsetY: number;
@@ -32,6 +33,25 @@ export interface PathPoint {
   time: number;
   x: number;
   y: number;
+}
+
+// リップシンク設定
+export interface LipSyncSetting {
+  enabled: boolean;
+  
+  // 変更: 音声ソースの指定方法
+  sourceMode: 'layer' | 'object'; // 'layer'推奨
+  targetLayer: number;            // 参照するタイムラインレイヤー番号 (0-based)
+  audioId: string | null;         // 特定のオブジェクト指定用（後方互換）
+
+  mapping: {
+      a: string; // レイヤーのsequence ID (seq)
+      i: string;
+      u: string;
+      e: string;
+      o: string;
+      n: string;
+  };
 }
 
 // --- オブジェクト定義 ---
@@ -45,26 +65,20 @@ export interface BaseObject {
   duration: number;
   offset?: number; 
   
-  // 基本座標
   x: number;
   y: number;
   
-  // 共通変形プロパティ
   rotation: number;
   scaleX: number;
   scaleY: number;
   opacity: number;
 
-  // アニメーション
   enableAnimation: boolean;
   endX: number;
   endY: number;
   easing: EasingType;
 
-  // 軌道アニメーション
   motionPath?: PathPoint[];
-
-  // シャドウ
   shadow?: ShadowEffect;
 }
 
@@ -73,7 +87,7 @@ export interface TextObject extends BaseObject {
   text: string;
   fontSize: number;
   fontFamily: string;
-  fill: string; // "Fill" is generic enough, but effectively represents colour
+  fill: string;
 }
 
 export interface ShapeObject extends BaseObject {
@@ -106,6 +120,7 @@ export interface AudioObject extends BaseObject {
   src: string;
   volume: number;
   muted: boolean;
+  labData?: LabPhoneme[];
 }
 
 export interface GroupControlObject extends BaseObject {
@@ -121,6 +136,7 @@ export interface PsdLayerStruct {
   checked: boolean;
   isRadio: boolean; 
   children: PsdLayerStruct[];
+  blobUrl?: string; 
 }
 
 export interface PsdObject extends BaseObject {
@@ -131,6 +147,8 @@ export interface PsdObject extends BaseObject {
   height: number;
   scale: number;
   layerTree: PsdLayerStruct[];
+  
+  lipSync?: LipSyncSetting;
 }
 
 export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject;

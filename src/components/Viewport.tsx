@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as PIXI from 'pixi.js';
 import { useStore } from '../store/useStore';
-import { TimelineObject, GroupControlObject } from '../types';
+import { TimelineObject, GroupControlObject, AudioObject, PsdObject } from '../types';
 import { easingFunctions } from '../utils/easings';
-import { createGradientTexture, drawShape, createShadowGraphics } from '../utils/pixiUtils';
+import { createGradientTexture, drawShape, createShadowGraphics, getCurrentViseme } from '../utils/pixiUtils';
 
 const { ipcRenderer } = window;
 
@@ -129,6 +129,29 @@ const Viewport: React.FC = () => {
 
       if (obj.type === 'group_control' && selectedId !== obj.id && isPlaying) return;
 
+      // リップシンク計算
+      let lipSyncViseme: string | null = null;
+      if (obj.type === 'psd' && obj.lipSync?.enabled) {
+          let audioSource: AudioObject | undefined;
+
+          if (obj.lipSync.sourceMode === 'layer' && obj.lipSync.targetLayer !== undefined) {
+             // ターゲットレイヤー上の音声を探索
+             audioSource = currentObjects.find(o => 
+                 o.type === 'audio' && 
+                 o.layer === obj.lipSync!.targetLayer && 
+                 time >= o.startTime && time < o.startTime + o.duration
+             ) as AudioObject;
+          } else if (obj.lipSync.audioId) {
+             // 従来のID指定（一応残す）
+             audioSource = currentObjects.find(o => o.id === obj.lipSync!.audioId) as AudioObject;
+          }
+
+          if (audioSource) {
+              const viseme = getCurrentViseme(audioSource, time);
+              if (viseme) lipSyncViseme = viseme;
+          }
+      }
+
       let container = currentPixiObjects.get(obj.id);
       const isSelected = selectedId === obj.id;
       if (!container) {
@@ -151,7 +174,7 @@ const Viewport: React.FC = () => {
 
       if (obj.type === 'shape') {
         const graphics = new PIXI.Graphics();
-        drawShape(graphics, obj); // パス定義
+        drawShape(graphics, obj);
         if (obj.gradient && obj.gradient.enabled) {
              const texture = createGradientTexture(obj.width, obj.height, obj.gradient);
              graphics.fill({ texture });
@@ -178,6 +201,14 @@ const Viewport: React.FC = () => {
                 }
             }
         }
+        
+        if (lipSyncViseme && obj.type === 'psd' && obj.lipSync) {
+            // @ts-ignore
+            const targetSeq = obj.lipSync.mapping[lipSyncViseme];
+            // ここで本来はレイヤー切り替え処理を行う (targetSeq以外非表示など)
+            // console.log(`LipSync: ${lipSyncViseme} on Layer ${obj.lipSync.targetLayer} -> Seq ${targetSeq}`);
+        }
+
       } else if (obj.type === 'video') {
         let video = currentVideoElements.get(obj.id);
         if (!video) {
@@ -243,8 +274,7 @@ const Viewport: React.FC = () => {
   }, [selectedId, isExporting, isPlaying]);
 
   useEffect(() => { if (!isExporting) renderScene(currentTime, objects); }, [currentTime, objects, renderScene, renderTick, isExporting]);
-  // (Export logic omitted for brevity, logic remains the same)
-  // ... (use similar logic for export useEffect as previous response) ...
+  
   useEffect(() => {
     if (!isExporting) return;
     const runExport = async () => {
