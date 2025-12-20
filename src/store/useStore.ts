@@ -32,11 +32,10 @@ interface AppState {
   selectObject: (id: string | null) => void;
 }
 
-// 修正: 余計な +5 を削除し、コンテンツの長さに合わせる
+// 期間計算ヘルパー
 const calculateAutoDuration = (objects: TimelineObject[]) => {
   if (objects.length === 0) return 30;
   const maxEndTime = Math.max(...objects.map(o => o.startTime + o.duration));
-  // 最低10秒は確保しつつ、基本はオブジェクトの末尾に合わせる
   return Math.max(maxEndTime, 10);
 };
 
@@ -65,7 +64,6 @@ export const useStore = create<AppState>((set, get) => ({
     const { currentTime, duration, isPlaying } = get();
     if (!isPlaying) return;
     let nextTime = currentTime + deltaTime;
-    // 再生時は duration で止める（ループはさせない）
     if (nextTime >= duration) {
       nextTime = duration;
       set({ isPlaying: false });

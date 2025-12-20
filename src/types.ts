@@ -7,7 +7,7 @@ export interface ProjectSettings {
   sampleRate: number;
 }
 
-export type ObjectType = 'text' | 'shape' | 'image' | 'video';
+export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'psd';
 
 export interface BaseObject {
   id: string;
@@ -16,16 +16,9 @@ export interface BaseObject {
   layer: number;
   startTime: number;
   duration: number;
-  
-  // 再生開始位置のオフセット (動画・音声用)
-  // 例: 10秒の動画を5秒地点で切った後半クリップは、offset=5.0 になる
-  offset: number; 
-
-  // Coordinates
+  offset?: number; 
   x: number;
   y: number;
-
-  // Animation
   enableAnimation: boolean;
   endX: number;
   endY: number;
@@ -63,4 +56,27 @@ export interface VideoObject extends BaseObject {
   muted: boolean;
 }
 
-export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject;
+// --- PSD連携用 ---
+
+// PSDToolから取得したレイヤーノード情報
+export interface PsdLayerStruct {
+  seq: string; // data-seq
+  name: string;
+  checked: boolean;
+  isRadio: boolean; // 名前が*で始まるか
+  children: PsdLayerStruct[];
+}
+
+export interface PsdObject extends BaseObject {
+  type: 'psd';
+  file: File;
+  src: string;
+  width: number;
+  height: number;
+  scale: number;
+  
+  // レイヤー構造データ (これがUIの元になる)
+  layerTree: PsdLayerStruct[];
+}
+
+export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | PsdObject;

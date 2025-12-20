@@ -17,8 +17,9 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false
-      // ローカル画像の読み込み許可 (Dev用)
+      webSecurity: false,
+      webviewTag: true
+      // 重要: webviewタグを有効化
     },
     titleBarStyle: "hiddenInset"
   });
@@ -63,35 +64,23 @@ electron.app.whenReady().then(() => {
     if (!filePath) return { success: false, reason: "cancelled" };
     const args = [
       "-y",
-      // 上書き許可
-      // --- Input 0: Video Pipe (標準入力から画像を受け取る) ---
       "-f",
       "image2pipe",
       "-vcodec",
       "mjpeg",
-      // 送られてくる画像はJPEG
       "-r",
       fps.toString(),
       "-i",
       "-",
-      // --- Input 1: Audio File (もしあれば) ---
       ...audioPath ? ["-i", audioPath] : [],
-      // --- Video Encoding Settings ---
       "-c:v",
       "h264_videotoolbox",
-      // Apple Silicon Hardware Encoder
       "-b:v",
       "8000k",
-      // ビットレート (高画質)
       "-pix_fmt",
       "yuv420p",
-      // 互換性確保
-      // --- Audio Encoding Settings (もしあれば) ---
-      // 映像(0:v:0)と音声(1:a:0)をマッピング
       ...audioPath ? ["-c:a", "aac", "-b:a", "192k", "-map", "0:v:0", "-map", "1:a:0"] : [],
-      // 一番短いストリームに合わせて終了 (映像が終わったら音声も切る)
       "-shortest",
-      // Output Path
       filePath
     ];
     const ffmpegPath = "/opt/homebrew/bin/ffmpeg";
@@ -107,7 +96,6 @@ electron.app.whenReady().then(() => {
         if (audioPath && fs.existsSync(audioPath)) {
           try {
             fs.unlinkSync(audioPath);
-            console.log("Temp audio deleted:", audioPath);
           } catch (err) {
             console.error("Failed to delete temp audio:", err);
           }
