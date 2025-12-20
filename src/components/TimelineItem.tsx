@@ -28,7 +28,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
   const handleMouseDown = (e: React.MouseEvent, type: 'move' | 'resize') => {
     e.stopPropagation();
     
-    // 右クリックの場合はドラッグを開始せず、メニュー処理を親に任せる
+    // 右クリック
     if (e.button === 2) {
         selectObject(object.id); 
         onContextMenu(e, object.id);
@@ -36,9 +36,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
     }
     if (e.button !== 0) return;
 
-    // Undo履歴に保存
     pushHistory();
-
     selectObject(object.id);
     setIsDragging(true);
     setDragType(type);
@@ -63,7 +61,6 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
         const deltaY = e.clientY - startMouseY;
         const deltaTime = deltaX / pxPerSec;
         
-        // 時間を小数点2位で丸める
         let rawNewStartTime = Math.max(0, parseFloat((initialState.startTime + deltaTime).toFixed(2)));
         
         let layerDiff = 0;
@@ -124,7 +121,6 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
 
       } else if (dragType === 'resize') {
         const deltaTime = deltaX / pxPerSec;
-        // 期間も丸める
         let rawNewDuration = Math.max(0.1, parseFloat((initialState.duration + deltaTime).toFixed(2)));
         let constrainedDuration = rawNewDuration;
 
@@ -168,8 +164,9 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
       if (object.type === 'text') return '#3498db';
       if (object.type === 'image') return '#2ecc71';
       if (object.type === 'video') return '#9b59b6';
-      if (object.type === 'audio') return '#e67e22'; // Audio color
+      if (object.type === 'audio') return '#e67e22';
       if (object.type === 'psd') return '#2b5c85';
+      if (object.type === 'group_control') return '#27ae60';
       return '#95a5a6';
   };
 

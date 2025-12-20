@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { easingNames, EasingType } from '../utils/easings';
 import { PsdLayerStruct } from '../types';
@@ -13,15 +13,28 @@ const FONT_FAMILIES = [
 const PropertyPanel: React.FC = () => {
   const { selectedId, objects, updateObject, pushHistory } = useStore();
   const selectedObject = objects.find(obj => obj.id === selectedId);
+  const [isPathMode, setIsPathMode] = useState(false);
 
   if (!selectedObject) {
     return <div style={{ padding: '20px', color: '#666', textAlign: 'center', fontSize: '12px' }}>No object selected</div>;
   }
 
   const handleChange = (key: string, value: any) => {
-    // 変更前に履歴を保存
     pushHistory();
     updateObject(selectedObject.id, { [key]: value });
+  };
+  
+  const handleDeepChange = (parentKey: string, key: string, value: any) => {
+      pushHistory();
+      const parent = (selectedObject as any)[parentKey] || {};
+      updateObject(selectedObject.id, { [parentKey]: { ...parent, [key]: value } });
+  };
+
+  const togglePathRecord = () => {
+      const next = !isPathMode;
+      setIsPathMode(next);
+      (window as any).isPathRecordingMode = next;
+      alert(next ? "Recording Mode ON: Drag the object in Viewport to record path." : "Recording Mode OFF");
   };
 
   // --- PSD Controls ---
@@ -36,7 +49,6 @@ const PropertyPanel: React.FC = () => {
         return nodes.map((node, index) => {
             const uniqueKey = `${node.seq || 'noseq'}-${depth}-${index}`;
             const indent = depth * 12;
-
             if (!node.seq && (!node.children || node.children.length === 0)) return null;
 
             if (node.isRadio) {
@@ -63,21 +75,9 @@ const PropertyPanel: React.FC = () => {
             } else if (node.children && node.children.length > 0) {
                 return (
                     <div key={uniqueKey}>
-                        <div style={{ 
-                            marginLeft: `${indent}px`, 
-                            marginBottom: '4px', 
-                            color: '#ccc', 
-                            fontSize: '12px', 
-                            fontWeight: 'bold',
-                            display: 'flex', alignItems: 'center'
-                        }}>
+                        <div style={{ marginLeft: `${indent}px`, marginBottom: '4px', color: '#ccc', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
                             {node.seq && (
-                                <input 
-                                    type="checkbox" 
-                                    checked={node.checked} 
-                                    onChange={() => handleNodeClick(node.seq)}
-                                    style={{ marginRight: '6px' }}
-                                />
+                                <input type="checkbox" checked={node.checked} onChange={() => handleNodeClick(node.seq)} style={{ marginRight: '6px' }} />
                             )}
                             {node.name}
                         </div>
@@ -89,12 +89,7 @@ const PropertyPanel: React.FC = () => {
                 return (
                     <div key={uniqueKey} style={{ marginLeft: `${indent}px`, marginBottom: '4px' }}>
                         <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '12px' }}>
-                            <input 
-                                type="checkbox" 
-                                checked={node.checked} 
-                                onChange={() => handleNodeClick(node.seq)}
-                                style={{ marginRight: '6px' }} 
-                            />
+                            <input type="checkbox" checked={node.checked} onChange={() => handleNodeClick(node.seq)} style={{ marginRight: '6px' }} />
                             <span style={{ color: node.checked ? '#fff' : '#999' }}>{node.name}</span>
                         </label>
                     </div>
@@ -105,28 +100,20 @@ const PropertyPanel: React.FC = () => {
 
     return (
         <div style={{ marginTop: '15px', padding: '10px', background: '#222', borderRadius: '4px', border: '1px solid #333' }}>
-            <div style={{marginBottom: '10px', fontWeight: 'bold', color: '#eee', borderBottom:'1px solid #444', paddingBottom:'5px', fontSize:'12px'}}>
-                PSD Controls
-            </div>
-            <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                {renderNodes(selectedObject.layerTree)}
-            </div>
+            <div style={{marginBottom: '10px', fontWeight: 'bold', color: '#eee', borderBottom:'1px solid #444', paddingBottom:'5px', fontSize:'12px'}}>PSD Controls</div>
+            <div style={{ maxHeight: '400px', overflowY: 'auto' }}>{renderNodes(selectedObject.layerTree)}</div>
         </div>
     );
   };
 
-  // 共通スタイル定義
   const rowStyle = { display: 'grid', gridTemplateColumns: '70px 1fr', gap: '8px', alignItems: 'center', marginBottom: '8px' };
   const labelStyle = { color: '#aaa', fontSize: '12px' };
   const inputStyle = { background: '#333', border: '1px solid #555', color: '#eee', padding: '4px', fontSize: '12px', width: '100%', boxSizing: 'border-box' as const };
 
   return (
     <div className="property-panel" style={{ padding: '15px', color: '#eee', fontSize: '12px' }}>
-      <h3 style={{ margin: '0 0 15px 0', borderBottom: '1px solid #444', paddingBottom: '8px', fontSize: '14px', fontWeight: 'bold' }}>
-          {selectedObject.name}
-      </h3>
+      <h3 style={{ margin: '0 0 15px 0', borderBottom: '1px solid #444', paddingBottom: '8px', fontSize: '14px', fontWeight: 'bold' }}>{selectedObject.name}</h3>
 
-      {/* Basic Props */}
       <div style={rowStyle}>
         <label style={labelStyle}>Name</label>
         <input type="text" value={selectedObject.name} onChange={(e) => handleChange('name', e.target.value)} style={inputStyle}/>
@@ -134,7 +121,6 @@ const PropertyPanel: React.FC = () => {
 
       <div style={{ borderBottom: '1px solid #444', margin: '12px 0' }}></div>
       
-      {/* Audio does not have position */}
       {selectedObject.type !== 'audio' && (
           <>
             <div style={rowStyle}>
@@ -145,19 +131,13 @@ const PropertyPanel: React.FC = () => {
                 <label style={labelStyle}>Start Y</label>
                 <input type="number" value={selectedObject.y} onChange={(e) => handleChange('y', parseFloat(e.target.value))} style={inputStyle}/>
             </div>
-
             <div style={rowStyle}>
                 <label style={labelStyle}>Anim</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <input 
-                    type="checkbox" 
-                    checked={selectedObject.enableAnimation} 
-                    onChange={(e) => handleChange('enableAnimation', e.target.checked)} 
-                    />
-                    {selectedObject.enableAnimation && <span style={{fontSize: '11px', color: '#aaa'}}>Enable Linear Move</span>}
+                    <input type="checkbox" checked={selectedObject.enableAnimation} onChange={(e) => handleChange('enableAnimation', e.target.checked)} />
+                    {selectedObject.enableAnimation && <span style={{fontSize: '11px', color: '#aaa'}}>Linear Move</span>}
                 </div>
             </div>
-
             {selectedObject.enableAnimation && (
                 <>
                 <div style={rowStyle}>
@@ -170,23 +150,41 @@ const PropertyPanel: React.FC = () => {
                 </div>
                 <div style={rowStyle}>
                     <label style={{...labelStyle, color: '#f1c40f'}}>Easing</label>
-                    <select 
-                        value={selectedObject.easing} 
-                        onChange={(e) => handleChange('easing', e.target.value)}
-                        style={inputStyle}
-                    >
-                        {(Object.keys(easingNames) as EasingType[]).map(key => (
-                            <option key={key} value={key}>{easingNames[key]}</option>
-                        ))}
+                    <select value={selectedObject.easing} onChange={(e) => handleChange('easing', e.target.value)} style={inputStyle}>
+                        {(Object.keys(easingNames) as EasingType[]).map(key => (<option key={key} value={key}>{easingNames[key]}</option>))}
                     </select>
                 </div>
                 </>
             )}
+            <div style={rowStyle}>
+                <label style={labelStyle}>Rotate</label>
+                <input type="number" value={selectedObject.rotation || 0} onChange={(e) => handleChange('rotation', parseFloat(e.target.value))} style={inputStyle}/>
+            </div>
+            <div style={rowStyle}>
+                <label style={labelStyle}>Scale</label>
+                <div style={{display:'flex', gap:'4px'}}>
+                    <input type="number" step="0.1" value={selectedObject.scaleX ?? 1} onChange={(e) => handleChange('scaleX', parseFloat(e.target.value))} style={{width:'50%', ...inputStyle}} placeholder="X"/>
+                    <input type="number" step="0.1" value={selectedObject.scaleY ?? 1} onChange={(e) => handleChange('scaleY', parseFloat(e.target.value))} style={{width:'50%', ...inputStyle}} placeholder="Y"/>
+                </div>
+            </div>
+            <div style={rowStyle}>
+                <label style={labelStyle}>Opacity</label>
+                <input type="range" min="0" max="1" step="0.01" value={selectedObject.opacity ?? 1} onChange={(e) => handleChange('opacity', parseFloat(e.target.value))} style={{width:'100%'}}/>
+            </div>
             <div style={{ borderBottom: '1px solid #444', margin: '12px 0' }}></div>
           </>
       )}
 
-      {/* Specific Props */}
+      {selectedObject.type === 'group_control' && (
+          <div style={{background:'#2a2a2a', padding:'8px', borderRadius:'4px', marginBottom:'10px', border:'1px solid #00ff00'}}>
+              <div style={{fontWeight:'bold', marginBottom:'4px', color:'#00ff00'}}>Group Control</div>
+              <div style={rowStyle}>
+                  <label style={labelStyle}>Layers</label>
+                  <input type="number" min="0" value={selectedObject.targetLayerCount} onChange={(e) => handleChange('targetLayerCount', parseInt(e.target.value))} title="0 for infinite" style={inputStyle}/>
+              </div>
+          </div>
+      )}
+
       {(selectedObject.type === 'shape' || selectedObject.type === 'image' || selectedObject.type === 'video' || selectedObject.type === 'psd') && (
         <>
           <div style={rowStyle}>
@@ -198,6 +196,60 @@ const PropertyPanel: React.FC = () => {
             <input type="number" value={selectedObject.height} onChange={(e) => handleChange('height', parseFloat(e.target.value))} style={inputStyle}/>
           </div>
         </>
+      )}
+
+      {selectedObject.type === 'shape' && (
+          <div style={rowStyle}>
+              <label style={labelStyle}>Type</label>
+              <select value={selectedObject.shapeType} onChange={(e) => handleChange('shapeType', e.target.value)} style={inputStyle}>
+                  <option value="rect">Rectangle</option>
+                  <option value="circle">Circle</option>
+                  <option value="triangle">Triangle</option>
+                  <option value="star">Star</option>
+                  <option value="pentagon">Pentagon</option>
+              </select>
+          </div>
+      )}
+
+      {selectedObject.type === 'shape' && (
+          <>
+          <div style={rowStyle}>
+              <label style={labelStyle}>Gradient</label>
+              <input type="checkbox" checked={selectedObject.gradient?.enabled || false} onChange={(e) => handleDeepChange('gradient', 'enabled', e.target.checked)} />
+          </div>
+          {selectedObject.gradient?.enabled && (
+              <div style={{paddingLeft:'10px', borderLeft:'2px solid #555', marginBottom:'10px'}}>
+                  <div style={rowStyle}>
+                      <label style={labelStyle}>Mode</label>
+                      <select value={selectedObject.gradient.type} onChange={(e) => handleDeepChange('gradient', 'type', e.target.value)} style={inputStyle}>
+                          <option value="linear">Linear</option>
+                          <option value="radial">Radial</option>
+                      </select>
+                  </div>
+                  <div style={rowStyle}>
+                      <label style={labelStyle}>Angle</label>
+                      <input type="number" value={selectedObject.gradient.direction || 0} onChange={(e) => handleDeepChange('gradient', 'direction', parseFloat(e.target.value))} style={inputStyle}/>
+                  </div>
+                  {/* Color -> Colour */}
+                  <div style={rowStyle}>
+                      <label style={labelStyle}>Colour 1</label>
+                      <input type="color" value={selectedObject.gradient.colours?.[0] || '#ffffff'} onChange={(e) => {
+                          const newColours = [...(selectedObject.gradient?.colours || ['#fff', '#000'])];
+                          newColours[0] = e.target.value;
+                          handleDeepChange('gradient', 'colours', newColours);
+                      }} style={{width:'100%', border:'none', height:'24px', padding:0}}/>
+                  </div>
+                  <div style={rowStyle}>
+                      <label style={labelStyle}>Colour 2</label>
+                      <input type="color" value={selectedObject.gradient.colours?.[1] || '#000000'} onChange={(e) => {
+                          const newColours = [...(selectedObject.gradient?.colours || ['#fff', '#000'])];
+                          newColours[1] = e.target.value;
+                          handleDeepChange('gradient', 'colours', newColours);
+                      }} style={{width:'100%', border:'none', height:'24px', padding:0}}/>
+                  </div>
+              </div>
+          )}
+          </>
       )}
       
       {selectedObject.type === 'psd' && (
@@ -237,20 +289,68 @@ const PropertyPanel: React.FC = () => {
             <input type="number" value={selectedObject.fontSize} onChange={(e) => handleChange('fontSize', parseFloat(e.target.value))} style={inputStyle}/>
           </div>
           <div style={rowStyle}>
-            <label style={labelStyle}>Color</label>
+            <label style={labelStyle}>Colour</label>
             <input type="color" value={selectedObject.fill} onChange={(e) => handleChange('fill', e.target.value)} style={{width: '100%', height: '24px', padding:0, border:'none'}}/>
           </div>
         </>
       )}
 
-      {selectedObject.type === 'shape' && (
+      {/* Shape Colour */}
+      {selectedObject.type === 'shape' && !selectedObject.gradient?.enabled && (
          <div style={rowStyle}>
-            <label style={labelStyle}>Color</label>
+            <label style={labelStyle}>Colour</label>
             <input type="color" value={selectedObject.fill} onChange={(e) => handleChange('fill', e.target.value)} style={{width: '100%', height: '24px', padding:0, border:'none'}}/>
          </div>
       )}
 
-      {/* PSD Tree View */}
+      {/* Shadow */}
+      {selectedObject.type !== 'audio' && selectedObject.type !== 'group_control' && (
+          <>
+            <div style={{ borderBottom: '1px solid #444', margin: '12px 0' }}></div>
+            <div style={rowStyle}>
+                <label style={labelStyle}>Shadow</label>
+                <input type="checkbox" checked={selectedObject.shadow?.enabled || false} onChange={(e) => handleDeepChange('shadow', 'enabled', e.target.checked)} />
+            </div>
+            {selectedObject.shadow?.enabled && (
+                <div style={{paddingLeft:'10px', borderLeft:'2px solid #555', marginBottom:'10px'}}>
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Colour</label>
+                        <input type="color" value={selectedObject.shadow.colour || '#000000'} onChange={(e) => handleDeepChange('shadow', 'colour', e.target.value)} style={{width: '100%', height: '24px', padding:0, border:'none'}}/>
+                    </div>
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Blur</label>
+                        <input type="number" value={selectedObject.shadow.blur || 0} onChange={(e) => handleDeepChange('shadow', 'blur', parseFloat(e.target.value))} style={inputStyle}/>
+                    </div>
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Offset</label>
+                        <div style={{display:'flex', gap:'4px'}}>
+                            <input type="number" value={selectedObject.shadow.offsetX || 0} onChange={(e) => handleDeepChange('shadow', 'offsetX', parseFloat(e.target.value))} style={{width:'50%', ...inputStyle}} placeholder="X"/>
+                            <input type="number" value={selectedObject.shadow.offsetY || 0} onChange={(e) => handleDeepChange('shadow', 'offsetY', parseFloat(e.target.value))} style={{width:'50%', ...inputStyle}} placeholder="Y"/>
+                        </div>
+                    </div>
+                    <div style={rowStyle}>
+                        <label style={labelStyle}>Opacity</label>
+                        <input type="range" min="0" max="1" step="0.1" value={selectedObject.shadow.opacity ?? 0.5} onChange={(e) => handleDeepChange('shadow', 'opacity', parseFloat(e.target.value))} style={{width:'100%'}}/>
+                    </div>
+                </div>
+            )}
+          </>
+      )}
+
+      {selectedObject.type !== 'audio' && selectedObject.type !== 'group_control' && (
+          <div style={{marginTop:'15px', borderTop:'1px solid #444', paddingTop:'10px'}}>
+              <button onClick={togglePathRecord} style={{width:'100%', background: isPathMode ? '#e74c3c' : '#444', color:'white', border:'none', padding:'8px', cursor:'pointer', borderRadius:'4px'}}>
+                  {isPathMode ? '● Recording Path...' : '○ Record Motion Path'}
+              </button>
+              {selectedObject.motionPath && (
+                  <div style={{fontSize:'10px', color:'#aaa', marginTop:'4px', textAlign:'center'}}>
+                      Path data: {selectedObject.motionPath.length} points
+                      <button onClick={() => handleChange('motionPath', undefined)} style={{marginLeft:'8px', fontSize:'9px', background:'#333', border:'1px solid #555', color:'#ccc', padding:'2px 6px'}}>Clear</button>
+                  </div>
+              )}
+          </div>
+      )}
+
       {renderPsdTree()}
 
       <div style={{ marginTop: '20px', borderTop: '1px solid #444', paddingTop: '10px', fontSize: '11px', color: '#666' }}>

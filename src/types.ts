@@ -7,7 +7,34 @@ export interface ProjectSettings {
   sampleRate: number;
 }
 
-export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd';
+export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control';
+
+// --- グラデーション・シャドウ・軌道 ---
+
+export interface GradientFill {
+  enabled: boolean;
+  type: 'linear' | 'radial';
+  colours: string[]; // colors -> colours
+  stops: number[];
+  direction: number;
+}
+
+export interface ShadowEffect {
+  enabled: boolean;
+  colour: string; // color -> colour
+  blur: number;
+  offsetX: number;
+  offsetY: number;
+  opacity: number;
+}
+
+export interface PathPoint {
+  time: number;
+  x: number;
+  y: number;
+}
+
+// --- オブジェクト定義 ---
 
 export interface BaseObject {
   id: string;
@@ -17,28 +44,45 @@ export interface BaseObject {
   startTime: number;
   duration: number;
   offset?: number; 
+  
+  // 基本座標
   x: number;
   y: number;
+  
+  // 共通変形プロパティ
+  rotation: number;
+  scaleX: number;
+  scaleY: number;
+  opacity: number;
+
+  // アニメーション
   enableAnimation: boolean;
   endX: number;
   endY: number;
   easing: EasingType;
+
+  // 軌道アニメーション
+  motionPath?: PathPoint[];
+
+  // シャドウ
+  shadow?: ShadowEffect;
 }
 
 export interface TextObject extends BaseObject {
   type: 'text';
   text: string;
   fontSize: number;
-  fontFamily: string; // フォント指定を追加
-  fill: string;
+  fontFamily: string;
+  fill: string; // "Fill" is generic enough, but effectively represents colour
 }
 
 export interface ShapeObject extends BaseObject {
   type: 'shape';
-  shapeType: 'rect' | 'circle';
+  shapeType: 'rect' | 'circle' | 'triangle' | 'star' | 'pentagon';
   width: number;
   height: number;
   fill: string;
+  gradient?: GradientFill;
 }
 
 export interface ImageObject extends BaseObject {
@@ -64,14 +108,18 @@ export interface AudioObject extends BaseObject {
   muted: boolean;
 }
 
+export interface GroupControlObject extends BaseObject {
+  type: 'group_control';
+  targetLayerCount: number;
+}
+
 // --- PSD連携用 ---
 
-// PSDToolから取得したレイヤーノード情報
 export interface PsdLayerStruct {
-  seq: string; // data-seq
+  seq: string; 
   name: string;
   checked: boolean;
-  isRadio: boolean; // 名前が*で始まるか
+  isRadio: boolean; 
   children: PsdLayerStruct[];
 }
 
@@ -82,9 +130,7 @@ export interface PsdObject extends BaseObject {
   width: number;
   height: number;
   scale: number;
-  
-  // レイヤー構造データ (これがUIの元になる)
   layerTree: PsdLayerStruct[];
 }
 
-export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject;
+export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject;
