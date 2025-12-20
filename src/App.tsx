@@ -6,57 +6,48 @@ import ProjectSetup from './components/ProjectSetup';
 import { useAppLogic } from './hooks/useAppLogic';
 import { useStore } from './store/useStore';
 import { PsdToolBridge } from './utils/psdToolBridge';
+import { PsdRenderer } from './components/PsdRenderer';
+import { PsdObject } from './types';
 import './index.css';
 
 const App: React.FC = () => {
   useAppLogic();
   
-  const { isProjectLoaded, isExporting, setExporting, objects, updateObject, selectedId } = useStore();
+  const { isProjectLoaded, isExporting, setExporting, objects, selectedId } = useStore();
   
-  const psdWebviewRef = useRef<any>(null);
-  const bridgeRef = useRef<PsdToolBridge | null>(null);
+  // Registry to hold active bridges for each PSD object
+  const bridgeMapRef = useRef<Map<string, PsdToolBridge>>(new Map());
 
-  const selectedObject = objects.find(o => o.id === selectedId);
-  const isPsdSelected = selectedObject?.type === 'psd';
-
-  // ブリッジ初期化
-  useEffect(() => {
-    if (psdWebviewRef.current && !bridgeRef.current) {
-        bridgeRef.current = new PsdToolBridge(psdWebviewRef.current);
+  // Callback when a bridge is initialised
+  const handleBridgeReady = (id: string, bridge: PsdToolBridge) => {
+    bridgeMapRef.current.set(id, bridge);
+    // If the newly ready bridge happens to be the selected one, update the global reference immediately
+    if (id === selectedId) {
+        (window as any).psdBridge = bridge;
     }
-  }, [isProjectLoaded]);
+  };
 
-  // PSD選択時の処理
+  // Callback when a bridge is destroyed
+  const handleBridgeDestroy = (id: string) => {
+    bridgeMapRef.current.delete(id);
+    if (selectedId === id) {
+        (window as any).psdBridge = null;
+    }
+  };
+
+  // Update the global bridge reference whenever selection changes
   useEffect(() => {
-    if (isPsdSelected && selectedObject?.type === 'psd' && bridgeRef.current) {
-        const psdObj = selectedObject;
-        const bridge = bridgeRef.current;
-
-        // ファイルロード (まだsrcがない、つまり初回ロード時のみ実行などの判定を入れると良いが、今回は簡易的に実行)
-        // ※毎回ロードすると重いので、本来はファイル名チェックなどを推奨
-        bridge.loadFile(psdObj.file);
-
-        // 同期開始 (画像とツリー構造の両方を受け取る)
-        bridge.startSync(
-            (dataUrl) => {
-                updateObject(psdObj.id, { src: dataUrl });
-            },
-            (tree) => {
-                // ツリー構造（チェック状態含む）をストアに保存し、PropertyPanelへ反映
-                updateObject(psdObj.id, { layerTree: tree });
-            }
-        );
+    if (selectedId && bridgeMapRef.current.has(selectedId)) {
+        (window as any).psdBridge = bridgeMapRef.current.get(selectedId);
     } else {
-        bridgeRef.current?.stopSync();
+        (window as any).psdBridge = null;
     }
-  }, [selectedId]); 
+  }, [selectedId]);
 
-  // PropertyPanelからの操作を受け取るためのグローバル関数
-  // （Reactコンポーネント間でrefを受け渡すのが複雑なため、簡易的にwindow経由でブリッジにアクセスさせる）
+  // Expose the bridge map for debugging if needed
   useEffect(() => {
-    (window as any).psdBridge = bridgeRef.current;
-  }, [bridgeRef.current]);
-
+    (window as any).psdBridgeMap = bridgeMapRef.current;
+  }, []);
 
   const handleExport = () => {
     if (isExporting) return;
@@ -74,19 +65,25 @@ const App: React.FC = () => {
     );
   }
 
+  // Filter for PSD objects to render their background renderers
+  const psdObjects = objects.filter(o => o.type === 'psd') as PsdObject[];
+
   return (
     <div className="app-container" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       
-      {/* PSDTool Render Engine (Hidden) 
-          ユーザーには見せないが、裏で動作させる
+      {/* Multi-Session PSD Renderers
+          Render a hidden PsdRenderer for each PSD object found in the store.
+          They run in the background and sync image data to the store.
       */}
-      <div style={{ position: 'absolute', top: -9999, left: -9999, width: '1280px', height: '720px', visibility: 'hidden' }}>
-          <webview 
-                ref={psdWebviewRef}
-                src="https://oov.github.io/psdtool/"
-                style={{ width: '100%', height: '100%' }}
-                webpreferences="contextIsolation=no" 
-          />
+      <div style={{ position: 'absolute', top: -9999, left: -9999, visibility: 'hidden' }}>
+          {psdObjects.map(obj => (
+              <PsdRenderer 
+                  key={obj.id} 
+                  object={obj} 
+                  onBridgeReady={handleBridgeReady}
+                  onBridgeDestroy={handleBridgeDestroy}
+              />
+          ))}
       </div>
 
       <header className="title-bar" style={{ height: '38px', background: '#2d2d2d', display: 'flex', alignItems: 'center', padding: '0 10px 0 80px', color: '#ccc', fontSize: '12px', borderBottom: '1px solid #000', flexShrink: 0 }}>
