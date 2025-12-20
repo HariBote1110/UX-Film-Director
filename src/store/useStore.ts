@@ -16,6 +16,10 @@ interface AppState {
   objects: TimelineObject[];
   selectedId: string | null;
   
+  // History State for Undo/Redo
+  pastStates: TimelineObject[][];
+  futureStates: TimelineObject[][];
+
   // Actions
   initializeProject: (settings: ProjectSettings) => void;
   setTime: (time: number) => void;
@@ -25,6 +29,11 @@ interface AppState {
   setIsPlaying: (isPlaying: boolean) => void;
   setExporting: (isExporting: boolean) => void;
   
+  // History Actions
+  pushHistory: () => void;
+  undo: () => void;
+  redo: () => void;
+
   addObject: (obj: TimelineObject) => void;
   updateObject: (id: string, newProps: Partial<TimelineObject>) => void;
   deleteObject: (id: string) => void;
@@ -49,6 +58,9 @@ export const useStore = create<AppState>((set, get) => ({
   isPlaying: false,
   objects: [],
   selectedId: null,
+
+  pastStates: [],
+  futureStates: [],
 
   initializeProject: (settings) => set({ 
     projectSettings: settings,
@@ -81,23 +93,60 @@ export const useStore = create<AppState>((set, get) => ({
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setExporting: (isExporting) => set({ isExporting }),
   
-  addObject: (obj) => set((state) => {
-    const newObjects = [...state.objects, { 
-      ...obj, 
-      enableAnimation: obj.enableAnimation ?? false,
-      endX: obj.endX ?? obj.x,
-      endY: obj.endY ?? obj.y,
-      easing: obj.easing ?? 'linear',
-      offset: obj.offset ?? 0
-    }];
-    return { 
-      objects: newObjects,
-      selectedId: obj.id,
-      duration: calculateAutoDuration(newObjects)
+  // 変更前の状態を履歴に保存する
+  pushHistory: () => set((state) => ({
+    pastStates: [...state.pastStates, state.objects],
+    futureStates: [] // 新しい操作をしたらRedoスタックはクリア
+  })),
+
+  undo: () => set((state) => {
+    if (state.pastStates.length === 0) return {};
+    const previous = state.pastStates[state.pastStates.length - 1];
+    const newPast = state.pastStates.slice(0, -1);
+    return {
+      objects: previous,
+      pastStates: newPast,
+      futureStates: [state.objects, ...state.futureStates],
+      duration: calculateAutoDuration(previous)
     };
   }),
+
+  redo: () => set((state) => {
+    if (state.futureStates.length === 0) return {};
+    const next = state.futureStates[0];
+    const newFuture = state.futureStates.slice(1);
+    return {
+      objects: next,
+      pastStates: [...state.pastStates, state.objects],
+      futureStates: newFuture,
+      duration: calculateAutoDuration(next)
+    };
+  }),
+
+  addObject: (obj) => {
+    // アクション内でpushHistoryを呼ぶと、state更新のタイミングがずれることがあるため
+    // ここで明示的に履歴保存してから更新する
+    get().pushHistory();
+    set((state) => {
+      const newObjects = [...state.objects, { 
+        ...obj, 
+        enableAnimation: obj.enableAnimation ?? false,
+        endX: obj.endX ?? obj.x,
+        endY: obj.endY ?? obj.y,
+        easing: obj.easing ?? 'linear',
+        offset: obj.offset ?? 0
+      }];
+      return { 
+        objects: newObjects,
+        selectedId: obj.id,
+        duration: calculateAutoDuration(newObjects)
+      };
+    });
+  },
   
   updateObject: (id, newProps) => set((state) => {
+    // updateObjectは頻繁に呼ばれる（ドラッグ中など）ため、
+    // ここでは履歴保存を行わない。呼び出し側（onDragStart等）でpushHistoryする。
     const newObjects = state.objects.map((obj) => 
       obj.id === id ? { ...obj, ...newProps } : obj
     );
@@ -107,22 +156,29 @@ export const useStore = create<AppState>((set, get) => ({
     };
   }),
 
-  deleteObject: (id) => set((state) => {
-    const newObjects = state.objects.filter(obj => obj.id !== id);
-    return {
-      objects: newObjects,
-      selectedId: state.selectedId === id ? null : state.selectedId,
-      duration: calculateAutoDuration(newObjects)
-    };
-  }),
+  deleteObject: (id) => {
+    get().pushHistory();
+    set((state) => {
+      const newObjects = state.objects.filter(obj => obj.id !== id);
+      return {
+        objects: newObjects,
+        selectedId: state.selectedId === id ? null : state.selectedId,
+        duration: calculateAutoDuration(newObjects)
+      };
+    });
+  },
 
-  splitObject: () => set((state) => {
-    const { objects, selectedId, currentTime } = state;
+  splitObject: () => {
+    // 履歴保存は変更が発生する場合のみ行いたいが、簡易的にここで保存してもよい
+    // ただしsplitが発生しない条件分岐があるため、条件チェック後に保存する
+    const { objects, selectedId, currentTime } = get();
     const target = objects.find(o => o.id === selectedId);
 
     if (!target || currentTime <= target.startTime || currentTime >= target.startTime + target.duration) {
-        return {};
+        return;
     }
+
+    get().pushHistory();
 
     const splitPoint = currentTime - target.startTime;
 
@@ -142,12 +198,12 @@ export const useStore = create<AppState>((set, get) => ({
     const newObjects = objects.map(o => o.id === target.id ? firstPart : o);
     newObjects.push(secondPart);
 
-    return {
+    set({
         objects: newObjects,
         selectedId: secondPart.id,
         duration: calculateAutoDuration(newObjects)
-    };
-  }),
+    });
+  },
 
   selectObject: (id) => set({ selectedId: id }),
 }));

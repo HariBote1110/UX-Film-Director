@@ -4,8 +4,14 @@ import { easingNames, EasingType } from '../utils/easings';
 import { PsdLayerStruct } from '../types';
 import { PsdToolBridge } from '../utils/psdToolBridge';
 
+const FONT_FAMILIES = [
+    'Arial', 'Verdana', 'Helvetica', 'Times New Roman', 'Courier New', 
+    'Georgia', 'Palatino', 'Garamond', 'Bookman', 'Comic Sans MS', 
+    'Trebuchet MS', 'Arial Black', 'Impact'
+];
+
 const PropertyPanel: React.FC = () => {
-  const { selectedId, objects, updateObject } = useStore();
+  const { selectedId, objects, updateObject, pushHistory } = useStore();
   const selectedObject = objects.find(obj => obj.id === selectedId);
 
   if (!selectedObject) {
@@ -13,32 +19,28 @@ const PropertyPanel: React.FC = () => {
   }
 
   const handleChange = (key: string, value: any) => {
+    // 変更前に履歴を保存
+    pushHistory();
     updateObject(selectedObject.id, { [key]: value });
   };
 
   // --- PSD Controls ---
   const renderPsdTree = () => {
     if (selectedObject.type !== 'psd' || !selectedObject.layerTree) return null;
-
     const bridge = (window as any).psdBridge as PsdToolBridge;
-
     const handleNodeClick = (seq: string) => {
         if (bridge && seq) bridge.toggleNode(seq);
     };
 
-    // 再帰的レンダラー
     const renderNodes = (nodes: PsdLayerStruct[], depth: number = 0) => {
         return nodes.map((node, index) => {
-            // key重複防止のため、seq + depth + index を組み合わせる
             const uniqueKey = `${node.seq || 'noseq'}-${depth}-${index}`;
             const indent = depth * 12;
 
             if (!node.seq && (!node.children || node.children.length === 0)) return null;
 
             if (node.isRadio) {
-                // ラジオグループ (*)
                 const selectedChild = node.children.find(c => c.checked);
-                
                 return (
                     <div key={uniqueKey} style={{ marginBottom: '8px', marginLeft: `${indent}px` }}>
                         <div style={{color: '#f1c40f', marginBottom: '2px', fontSize: '12px'}}>
@@ -49,7 +51,6 @@ const PropertyPanel: React.FC = () => {
                             onChange={(e) => handleNodeClick(e.target.value)}
                             style={{ width: '100%', background: '#333', color: '#eee', border: '1px solid #555', fontSize: '12px', padding: '4px' }}
                         >
-                            {/* 空の選択肢（選択解除用） */}
                             <option value="">(None)</option>
                             {node.children.map((child, i) => (
                                 <option key={`${child.seq}-${i}`} value={child.seq}>
@@ -60,7 +61,6 @@ const PropertyPanel: React.FC = () => {
                     </div>
                 );
             } else if (node.children && node.children.length > 0) {
-                // フォルダ
                 return (
                     <div key={uniqueKey}>
                         <div style={{ 
@@ -71,7 +71,6 @@ const PropertyPanel: React.FC = () => {
                             fontWeight: 'bold',
                             display: 'flex', alignItems: 'center'
                         }}>
-                            {/* フォルダ自体のチェックボックス */}
                             {node.seq && (
                                 <input 
                                     type="checkbox" 
@@ -86,7 +85,6 @@ const PropertyPanel: React.FC = () => {
                     </div>
                 );
             } else {
-                // 通常レイヤー
                 if (!node.seq) return null;
                 return (
                     <div key={uniqueKey} style={{ marginLeft: `${indent}px`, marginBottom: '4px' }}>
@@ -136,53 +134,57 @@ const PropertyPanel: React.FC = () => {
 
       <div style={{ borderBottom: '1px solid #444', margin: '12px 0' }}></div>
       
-      <div style={rowStyle}>
-        <label style={labelStyle}>Start X</label>
-        <input type="number" value={selectedObject.x} onChange={(e) => handleChange('x', parseFloat(e.target.value))} style={inputStyle}/>
-      </div>
-      <div style={rowStyle}>
-        <label style={labelStyle}>Start Y</label>
-        <input type="number" value={selectedObject.y} onChange={(e) => handleChange('y', parseFloat(e.target.value))} style={inputStyle}/>
-      </div>
+      {/* Audio does not have position */}
+      {selectedObject.type !== 'audio' && (
+          <>
+            <div style={rowStyle}>
+                <label style={labelStyle}>Start X</label>
+                <input type="number" value={selectedObject.x} onChange={(e) => handleChange('x', parseFloat(e.target.value))} style={inputStyle}/>
+            </div>
+            <div style={rowStyle}>
+                <label style={labelStyle}>Start Y</label>
+                <input type="number" value={selectedObject.y} onChange={(e) => handleChange('y', parseFloat(e.target.value))} style={inputStyle}/>
+            </div>
 
-      <div style={rowStyle}>
-        <label style={labelStyle}>Anim</label>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <input 
-            type="checkbox" 
-            checked={selectedObject.enableAnimation} 
-            onChange={(e) => handleChange('enableAnimation', e.target.checked)} 
-            />
-            {selectedObject.enableAnimation && <span style={{fontSize: '11px', color: '#aaa'}}>Enable Linear Move</span>}
-        </div>
-      </div>
+            <div style={rowStyle}>
+                <label style={labelStyle}>Anim</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <input 
+                    type="checkbox" 
+                    checked={selectedObject.enableAnimation} 
+                    onChange={(e) => handleChange('enableAnimation', e.target.checked)} 
+                    />
+                    {selectedObject.enableAnimation && <span style={{fontSize: '11px', color: '#aaa'}}>Enable Linear Move</span>}
+                </div>
+            </div>
 
-      {selectedObject.enableAnimation && (
-        <>
-          <div style={rowStyle}>
-            <label style={{...labelStyle, color: '#4ec9b0'}}>End X</label>
-            <input type="number" value={selectedObject.endX} onChange={(e) => handleChange('endX', parseFloat(e.target.value))} style={inputStyle}/>
-          </div>
-          <div style={rowStyle}>
-            <label style={{...labelStyle, color: '#4ec9b0'}}>End Y</label>
-            <input type="number" value={selectedObject.endY} onChange={(e) => handleChange('endY', parseFloat(e.target.value))} style={inputStyle}/>
-          </div>
-          <div style={rowStyle}>
-            <label style={{...labelStyle, color: '#f1c40f'}}>Easing</label>
-            <select 
-                value={selectedObject.easing} 
-                onChange={(e) => handleChange('easing', e.target.value)}
-                style={inputStyle}
-            >
-                {(Object.keys(easingNames) as EasingType[]).map(key => (
-                    <option key={key} value={key}>{easingNames[key]}</option>
-                ))}
-            </select>
-          </div>
-        </>
+            {selectedObject.enableAnimation && (
+                <>
+                <div style={rowStyle}>
+                    <label style={{...labelStyle, color: '#4ec9b0'}}>End X</label>
+                    <input type="number" value={selectedObject.endX} onChange={(e) => handleChange('endX', parseFloat(e.target.value))} style={inputStyle}/>
+                </div>
+                <div style={rowStyle}>
+                    <label style={{...labelStyle, color: '#4ec9b0'}}>End Y</label>
+                    <input type="number" value={selectedObject.endY} onChange={(e) => handleChange('endY', parseFloat(e.target.value))} style={inputStyle}/>
+                </div>
+                <div style={rowStyle}>
+                    <label style={{...labelStyle, color: '#f1c40f'}}>Easing</label>
+                    <select 
+                        value={selectedObject.easing} 
+                        onChange={(e) => handleChange('easing', e.target.value)}
+                        style={inputStyle}
+                    >
+                        {(Object.keys(easingNames) as EasingType[]).map(key => (
+                            <option key={key} value={key}>{easingNames[key]}</option>
+                        ))}
+                    </select>
+                </div>
+                </>
+            )}
+            <div style={{ borderBottom: '1px solid #444', margin: '12px 0' }}></div>
+          </>
       )}
-
-      <div style={{ borderBottom: '1px solid #444', margin: '12px 0' }}></div>
 
       {/* Specific Props */}
       {(selectedObject.type === 'shape' || selectedObject.type === 'image' || selectedObject.type === 'video' || selectedObject.type === 'psd') && (
@@ -205,7 +207,7 @@ const PropertyPanel: React.FC = () => {
           </div>
       )}
 
-      {selectedObject.type === 'video' && (
+      {(selectedObject.type === 'video' || selectedObject.type === 'audio') && (
         <>
           <div style={rowStyle}>
             <label style={labelStyle}>Volume</label>
@@ -223,6 +225,12 @@ const PropertyPanel: React.FC = () => {
           <div style={rowStyle}>
             <label style={labelStyle}>Text</label>
             <textarea rows={3} value={selectedObject.text} onChange={(e) => handleChange('text', e.target.value)} style={inputStyle}/>
+          </div>
+          <div style={rowStyle}>
+            <label style={labelStyle}>Font</label>
+            <select value={selectedObject.fontFamily} onChange={(e) => handleChange('fontFamily', e.target.value)} style={inputStyle}>
+                {FONT_FAMILIES.map(font => <option key={font} value={font}>{font}</option>)}
+            </select>
           </div>
           <div style={rowStyle}>
             <label style={labelStyle}>Size</label>

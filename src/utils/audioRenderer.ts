@@ -74,17 +74,17 @@ export const renderTimelineAudio = async (
   // durationが短すぎるとエラーになるので最低1秒確保
   const ctx = new OfflineAudioContext(2, Math.max(1, duration) * sampleRate, sampleRate);
 
-  // 2. 音声を持つオブジェクト（Video）をフィルタリング
-  const audioObjects = objects.filter(obj => obj.type === 'video');
+  // 2. 音声を持つオブジェクト（Video, Audio）をフィルタリング
+  const audioObjects = objects.filter(obj => obj.type === 'video' || obj.type === 'audio');
 
   // 3. 各オブジェクトの音声を配置
   // 並列でデコードして配置
   await Promise.all(audioObjects.map(async (obj) => {
-    if (obj.type !== 'video' || obj.muted) return;
+    if ((obj.type !== 'video' && obj.type !== 'audio') || (obj as any).muted) return;
 
     try {
       // Blob URLからデータを取得
-      const response = await fetch(obj.src);
+      const response = await fetch((obj as any).src);
       const arrayBuffer = await response.arrayBuffer();
       
       // デコード (mp4などのコンテナから音声を抽出)
@@ -96,7 +96,7 @@ export const renderTimelineAudio = async (
 
       // GainNode (音量)
       const gainNode = ctx.createGain();
-      gainNode.gain.value = obj.volume;
+      gainNode.gain.value = (obj as any).volume ?? 1.0;
 
       // 接続
       source.connect(gainNode);

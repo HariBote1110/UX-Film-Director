@@ -8,7 +8,9 @@ export const useAppLogic = () => {
     advanceTime, 
     selectedId, 
     deleteObject, 
-    selectObject 
+    selectObject,
+    undo,
+    redo
   } = useStore();
 
   // --- 1. Animation Loop (Playback Engine) ---
@@ -48,6 +50,22 @@ export const useAppLogic = () => {
         return;
       }
 
+      // Undo/Redo
+      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyZ') {
+          e.preventDefault();
+          if (e.shiftKey) {
+              redo();
+          } else {
+              undo();
+          }
+          return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyY') {
+          e.preventDefault();
+          redo();
+          return;
+      }
+
       switch (e.code) {
         case 'Space':
           e.preventDefault(); // Prevent scrolling
@@ -67,5 +85,5 @@ export const useAppLogic = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedId, togglePlay, deleteObject, selectObject]);
+  }, [selectedId, togglePlay, deleteObject, selectObject, undo, redo]);
 };

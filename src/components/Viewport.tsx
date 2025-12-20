@@ -14,13 +14,14 @@ const Viewport: React.FC = () => {
   const textureCacheRef = useRef<Map<string, PIXI.Texture>>(new Map());
   const loadingUrlsRef = useRef<Set<string>>(new Set());
   const videoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
+  const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map()); // Audio要素用キャッシュ
   const videoPlayPromisesRef = useRef<Map<string, Promise<void> | null>>(new Map());
 
   const [renderTick, setRenderTick] = useState(0);
 
   const { 
     currentTime, objects, selectedId, selectObject, updateObject, 
-    projectSettings, isPlaying, isExporting, setExporting, setTime 
+    projectSettings, isPlaying, isExporting, setExporting, setTime, pushHistory 
   } = useStore();
   
   const latestObjectsRef = useRef(objects);
@@ -59,6 +60,8 @@ const Viewport: React.FC = () => {
         loadingUrlsRef.current.clear();
         videoElementsRef.current.forEach(video => { video.pause(); video.src = ""; video.load(); });
         videoElementsRef.current.clear();
+        audioElementsRef.current.forEach(audio => { audio.pause(); audio.src = ""; audio.load(); });
+        audioElementsRef.current.clear();
       }
     };
   }, []);
@@ -69,27 +72,73 @@ const Viewport: React.FC = () => {
 
     const currentPixiObjects = pixiObjectsRef.current;
     const currentVideoElements = videoElementsRef.current;
+    const currentAudioElements = audioElementsRef.current;
 
     const visibleObjects = currentObjects.filter(obj => {
       const endTime = obj.startTime + obj.duration;
       return time >= obj.startTime && time < endTime;
     });
 
+    // Remove defunct objects
     currentPixiObjects.forEach((container, id) => {
       if (!visibleObjects.find(obj => obj.id === id)) {
         app.stage.removeChild(container);
         container.destroy({ children: true });
         currentPixiObjects.delete(id);
-        if (currentVideoElements.has(id)) {
-            const video = currentVideoElements.get(id);
-            if (video) { video.pause(); video.src = ""; video.load(); }
-            currentVideoElements.delete(id);
-            videoPlayPromisesRef.current.delete(id);
-        }
       }
     });
 
+    // Cleanup video/audio elements for removed/invisible objects
+    currentVideoElements.forEach((video, id) => {
+        if (!visibleObjects.find(obj => obj.id === id && obj.type === 'video')) {
+            video.pause(); video.src = ""; video.load();
+            currentVideoElements.delete(id);
+            videoPlayPromisesRef.current.delete(id);
+        }
+    });
+    currentAudioElements.forEach((audio, id) => {
+        if (!visibleObjects.find(obj => obj.id === id && obj.type === 'audio')) {
+            audio.pause(); audio.src = ""; audio.load();
+            currentAudioElements.delete(id);
+        }
+    });
+
     visibleObjects.forEach(obj => {
+      
+      // --- Audio Processing ---
+      if (obj.type === 'audio') {
+        let audio = currentAudioElements.get(obj.id);
+        if (!audio) {
+            audio = new Audio();
+            audio.src = obj.src;
+            audio.muted = obj.muted;
+            audio.volume = obj.volume;
+            audio.crossOrigin = 'anonymous';
+            audio.preload = 'auto';
+            currentAudioElements.set(obj.id, audio);
+        }
+        
+        // Sync Audio state
+        audio.volume = obj.volume;
+        audio.muted = obj.muted;
+
+        const offset = obj.offset || 0;
+        const audioLocalTime = (time - obj.startTime) + offset;
+
+        if (!isExporting) {
+            if (isPlaying) {
+                if (audio.paused) { const p = audio.play(); if(p) p.catch(()=>{}); }
+                if (Math.abs(audio.currentTime - audioLocalTime) > 0.2) audio.currentTime = audioLocalTime;
+            } else {
+                if (!audio.paused) audio.pause();
+                if (Math.abs(audio.currentTime - audioLocalTime) > 0.05) audio.currentTime = audioLocalTime;
+            }
+        }
+        // Audio objects don't need PIXI containers
+        return; 
+      }
+
+      // --- Visual Object Processing ---
       let container = currentPixiObjects.get(obj.id);
       const isSelected = selectedId === obj.id;
 
@@ -111,7 +160,6 @@ const Viewport: React.FC = () => {
       let content: PIXI.Container | null = null;
       let border: PIXI.Graphics | null = null;
 
-      // --- Common Rendering Logic (Shape, Text, Image, and PSD as Image) ---
       if (obj.type === 'shape') {
         const graphics = new PIXI.Graphics();
         graphics.rect(0, 0, obj.width, obj.height);
@@ -119,21 +167,23 @@ const Viewport: React.FC = () => {
         content = graphics;
       } else if (obj.type === 'text') {
         content = new PIXI.Text({
-          text: obj.text, style: { fontFamily: 'Arial', fontSize: obj.fontSize, fill: obj.fill }
+          text: obj.text, 
+          style: { 
+              fontFamily: obj.fontFamily || 'Arial', // フォント適用
+              fontSize: obj.fontSize, 
+              fill: obj.fill 
+          }
         });
       } else if (obj.type === 'image' || obj.type === 'psd') {
-        // PSDもImageと同じロジックで処理 (obj.src を使用)
-        // srcが空の場合はプレースホルダーを表示
         if (!obj.src) {
             const placeholder = new PIXI.Graphics();
             placeholder.rect(0, 0, obj.width || 100, obj.height || 100);
-            placeholder.stroke({ width: 2, color: 0x00ffff }); // 水色枠 = PSD Loading
+            placeholder.stroke({ width: 2, color: 0x00ffff });
             content = placeholder;
         } else {
             const cachedTexture = textureCacheRef.current.get(obj.src);
             if (cachedTexture) {
                 const sprite = new PIXI.Sprite(cachedTexture);
-                // PSDの場合はスケール適用
                 if (obj.type === 'psd') {
                     sprite.scale.set(obj.scale || 1.0);
                 } else {
@@ -248,6 +298,8 @@ const Viewport: React.FC = () => {
 
         const videos = Array.from(videoElementsRef.current.values());
         videos.forEach(v => v.pause());
+        // Export logic for audio not fully implemented here (usually mixing is backend or muxing),
+        // but visuals will render correctly.
 
         console.log(`Start Exporting... Duration: ${exportDuration.toFixed(2)}s`);
         
@@ -308,10 +360,15 @@ const Viewport: React.FC = () => {
     e.stopPropagation();
     const currentObj = latestObjectsRef.current.find(o => o.id === targetId);
     if (!currentObj) return;
+
+    // Undo履歴に保存
+    pushHistory();
+
     selectObject(targetId);
     const globalPos = e.global;
     dragRef.current = { active: true, targetId: targetId, startX: globalPos.x, startY: globalPos.y, initialObjState: { ...currentObj } };
   };
+
   const onDragMove = (e: PIXI.FederatedPointerEvent) => {
     const { active, targetId, startX, startY, initialObjState } = dragRef.current;
     if (!active || !targetId || !initialObjState) return;
@@ -319,11 +376,14 @@ const Viewport: React.FC = () => {
     const deltaX = globalPos.x - startX;
     const deltaY = globalPos.y - startY;
     const newProps: Partial<TimelineObject> = {};
-    if (initialObjState.x !== undefined) newProps.x = initialObjState.x + deltaX;
-    if (initialObjState.y !== undefined) newProps.y = initialObjState.y + deltaY;
+    
+    // 座標の丸め処理 (Math.round)
+    if (initialObjState.x !== undefined) newProps.x = Math.round(initialObjState.x + deltaX);
+    if (initialObjState.y !== undefined) newProps.y = Math.round(initialObjState.y + deltaY);
+    
     if (initialObjState.enableAnimation) {
-        if (initialObjState.endX !== undefined) newProps.endX = initialObjState.endX + deltaX;
-        if (initialObjState.endY !== undefined) newProps.endY = initialObjState.endY + deltaY;
+        if (initialObjState.endX !== undefined) newProps.endX = Math.round(initialObjState.endX + deltaX);
+        if (initialObjState.endY !== undefined) newProps.endY = Math.round(initialObjState.endY + deltaY);
     }
     updateObject(targetId, newProps);
   };

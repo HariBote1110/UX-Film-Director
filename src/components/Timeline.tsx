@@ -28,6 +28,7 @@ const Timeline: React.FC = () => {
   const timelineRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
   const psdInputRef = useRef<HTMLInputElement>(null);
   
   const [insertTarget, setInsertTarget] = useState<{time: number, layer: number} | null>(null);
@@ -48,6 +49,111 @@ const Timeline: React.FC = () => {
     if (e.button !== 0) return;
     setIsScrubbing(true);
     setTime(calculateTimeFromEvent(e.clientX));
+  };
+
+  // --- D&D Handlers ---
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (isExporting) return;
+
+    if (!timelineRef.current) return;
+    const rect = timelineRef.current.getBoundingClientRect();
+    const scrollLeft = timelineRef.current.scrollLeft;
+    const scrollTop = timelineRef.current.scrollTop;
+
+    // Check if drop is inside the tracks area (offset by headers)
+    if (e.clientX - rect.left < HEADER_WIDTH || e.clientY - rect.top < RULER_HEIGHT) return;
+
+    const relX = e.clientX - rect.left + scrollLeft;
+    const relY = e.clientY - rect.top + scrollTop;
+
+    const dropTime = Math.max(0, (relX - HEADER_WIDTH) / PX_PER_SEC);
+    const dropLayer = Math.floor((relY - RULER_HEIGHT) / ROW_HEIGHT);
+
+    if (dropLayer < 0 || dropLayer >= MAX_LAYERS) return;
+
+    const files = Array.from(e.dataTransfer.files);
+
+    files.forEach((file) => {
+        const url = URL.createObjectURL(file);
+        const lowerName = file.name.toLowerCase();
+
+        if (lowerName.endsWith('.psd')) {
+            const newPsd: TimelineObject = {
+                id: crypto.randomUUID(),
+                type: 'psd',
+                name: file.name,
+                layer: dropLayer,
+                startTime: dropTime,
+                duration: 10,
+                x: 960, y: 540, width: 500, height: 500, scale: 1.0,
+                enableAnimation: false, endX: 960, endY: 540, easing: 'linear', offset: 0,
+                file: file,
+                src: '',
+                layerTree: []
+            };
+            addObject(newPsd);
+        } else if (file.type.startsWith('image/')) {
+            const img = new Image();
+            img.src = url;
+            img.onload = () => {
+                const newImage: TimelineObject = {
+                    id: crypto.randomUUID(),
+                    type: 'image',
+                    name: file.name,
+                    layer: dropLayer,
+                    startTime: dropTime,
+                    duration: 5,
+                    x: 640 - (img.width / 2), y: 360 - (img.height / 2),
+                    width: img.width, height: img.height,
+                    src: url,
+                    enableAnimation: false, endX: 640 - (img.width / 2), endY: 360 - (img.height / 2), easing: 'linear', offset: 0
+                };
+                addObject(newImage);
+            };
+        } else if (file.type.startsWith('video/')) {
+            const video = document.createElement('video');
+            video.src = url;
+            video.onloadedmetadata = () => {
+                const newVideo: TimelineObject = {
+                    id: crypto.randomUUID(),
+                    type: 'video',
+                    name: file.name,
+                    layer: dropLayer,
+                    startTime: dropTime,
+                    duration: video.duration || 10,
+                    x: 640 - (video.videoWidth / 2), y: 360 - (video.videoHeight / 2),
+                    width: video.videoWidth, height: video.videoHeight,
+                    src: url,
+                    volume: 1.0, muted: false,
+                    enableAnimation: false, endX: 640 - (video.videoWidth / 2), endY: 360 - (video.videoHeight / 2), easing: 'linear', offset: 0
+                };
+                addObject(newVideo);
+            };
+        } else if (file.type.startsWith('audio/')) {
+            const audio = document.createElement('audio');
+            audio.src = url;
+            audio.onloadedmetadata = () => {
+                 const newAudio: TimelineObject = {
+                    id: crypto.randomUUID(),
+                    type: 'audio',
+                    name: file.name,
+                    layer: dropLayer,
+                    startTime: dropTime,
+                    duration: audio.duration || 10,
+                    src: url,
+                    volume: 1.0, muted: false,
+                    x: 0, y: 0, enableAnimation: false, endX: 0, endY: 0, easing: 'linear', offset: 0
+                };
+                addObject(newAudio);
+            };
+        }
+    });
   };
 
   const handleCanvasContextMenu = (e: React.MouseEvent) => {
@@ -91,11 +197,12 @@ const Timeline: React.FC = () => {
     addObject(newShape);
   };
   const addTextAt = (startTime: number, layer: number) => {
-    const newText: TimelineObject = { id: crypto.randomUUID(), type: 'text', name: 'Subtitle', layer, startTime, duration: 3, x: 640, y: 600, text: 'New Text', fontSize: 48, fill: '#ffffff', enableAnimation: false, endX: 640, endY: 600, easing: 'linear', offset: 0 };
+    const newText: TimelineObject = { id: crypto.randomUUID(), type: 'text', name: 'Subtitle', layer, startTime, duration: 3, x: 640, y: 600, text: 'New Text', fontSize: 48, fontFamily: 'Arial', fill: '#ffffff', enableAnimation: false, endX: 640, endY: 600, easing: 'linear', offset: 0 };
     addObject(newText);
   };
   const triggerImageUpload = (startTime: number, layer: number) => { setInsertTarget({ time: startTime, layer }); fileInputRef.current?.click(); };
   const triggerVideoUpload = (startTime: number, layer: number) => { setInsertTarget({ time: startTime, layer }); videoInputRef.current?.click(); };
+  const triggerAudioUpload = (startTime: number, layer: number) => { setInsertTarget({ time: startTime, layer }); audioInputRef.current?.click(); };
   const triggerPsdUpload = (startTime: number) => { setInsertTarget({ time: startTime, layer: 0 }); psdInputRef.current?.click(); };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -115,6 +222,20 @@ const Timeline: React.FC = () => {
     };
     video.onerror = () => { alert("Failed to load video."); if (videoInputRef.current) videoInputRef.current.value = ''; setInsertTarget(null); };
   };
+  const handleAudioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file || !insertTarget) return;
+    const url = URL.createObjectURL(file); const audio = document.createElement('audio'); audio.src = url;
+    audio.onloadedmetadata = () => {
+      const newAudio: TimelineObject = { 
+          id: crypto.randomUUID(), type: 'audio', name: file.name, layer: insertTarget.layer, 
+          startTime: insertTarget.time, duration: audio.duration || 10, 
+          src: url, volume: 1.0, muted: false, 
+          x: 0, y: 0, enableAnimation: false, endX: 0, endY: 0, easing: 'linear', offset: 0 
+      };
+      addObject(newAudio); if (audioInputRef.current) audioInputRef.current.value = ''; setInsertTarget(null);
+    };
+    audio.onerror = () => { alert("Failed to load audio."); if (audioInputRef.current) audioInputRef.current.value = ''; setInsertTarget(null); };
+  };
   const handlePsdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file || !insertTarget) return;
     const newPsd: TimelineObject = {
@@ -128,6 +249,7 @@ const Timeline: React.FC = () => {
   const addText = () => addTextAt(currentTime, 1);
   const addImage = () => triggerImageUpload(currentTime, 2);
   const addVideo = () => triggerVideoUpload(currentTime, 3);
+  const addAudio = () => triggerAudioUpload(currentTime, 4);
   const addPsd = () => triggerPsdUpload(currentTime);
 
   const totalWidth = Math.max(duration * PX_PER_SEC + 500, window.innerWidth - 300) + HEADER_WIDTH;
@@ -139,6 +261,7 @@ const Timeline: React.FC = () => {
 
       <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleImageChange} />
       <input type="file" ref={videoInputRef} style={{ display: 'none' }} accept="video/*" onChange={handleVideoChange} />
+      <input type="file" ref={audioInputRef} style={{ display: 'none' }} accept="audio/*" onChange={handleAudioChange} />
       <input type="file" ref={psdInputRef} style={{ display: 'none' }} accept=".psd" onChange={handlePsdChange} />
 
       {/* Toolbar */}
@@ -149,6 +272,7 @@ const Timeline: React.FC = () => {
         <button onClick={addText} disabled={isExporting} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:'pointer'}}>+ Text</button>
         <button onClick={addImage} disabled={isExporting} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:'pointer'}}>+ Image</button>
         <button onClick={addVideo} disabled={isExporting} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:'pointer'}}>+ Video</button>
+        <button onClick={addAudio} disabled={isExporting} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:'pointer'}}>+ Audio</button>
         <button onClick={addPsd} disabled={isExporting} style={{ background: '#2b5c85', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:'pointer' }}>+ PSD</button>
         <div style={{ width: '1px', height: '16px', background: '#555', margin: '0 4px' }}></div>
         <button onClick={splitObject} disabled={isExporting} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:'pointer'}}>Split</button>
@@ -162,21 +286,26 @@ const Timeline: React.FC = () => {
         </div>
       </div>
 
-      <div ref={timelineRef} className="timeline-tracks" style={{ flex: 1, overflow: 'auto', position: 'relative', background: '#1e1e1e' }} onClick={(e) => { if (!isExporting && e.button === 0 && e.target === e.currentTarget) selectObject(null); }} onContextMenu={handleCanvasContextMenu}>
+      <div ref={timelineRef} className="timeline-tracks" style={{ flex: 1, overflow: 'auto', position: 'relative', background: '#1e1e1e' }} 
+           onClick={(e) => { if (!isExporting && e.button === 0 && e.target === e.currentTarget) selectObject(null); }} 
+           onContextMenu={handleCanvasContextMenu}
+           onDragOver={handleDragOver}
+           onDrop={handleDrop}
+      >
         
         <div style={{ width: `${totalWidth}px`, height: `${(MAX_LAYERS * ROW_HEIGHT) + RULER_HEIGHT}px`, position: 'relative' }}>
           
-          {/* Ruler: overflow: hidden を追加して赤い線のはみ出しを防止 */}
+          {/* Ruler */}
           <div style={{ 
               position: 'sticky', top: 0, height: `${RULER_HEIGHT}px`, background: '#252526', zIndex: 800, 
-              overflow: 'hidden', // 修正: これで赤い線が下にはみ出さなくなる
-              borderBottom: '1px solid #444' // 境界線
+              overflow: 'hidden',
+              borderBottom: '1px solid #444'
           }} onMouseDown={handleSeekMouseDown}>
              <div style={{ position: 'sticky', left: 0, width: HEADER_WIDTH, height: '100%', background: '#333', borderRight: '1px solid #111', zIndex: 810, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#888' }}>Timeline</div>
              {Array.from({ length: Math.ceil(duration / 5) + 1 }).map((_, i) => (
                 <div key={i} style={{ position: 'absolute', left: HEADER_WIDTH + (i * 5 * PX_PER_SEC), top: 0, height: '100%', borderLeft: '1px solid #555', paddingLeft: '4px', fontSize: '10px', color: '#888', pointerEvents: 'none' }}>{i * 5}s</div>
              ))}
-             {/* Ruler内の赤い線 */}
+             {/* Ruler Line */}
              <div style={{ position: 'absolute', left: HEADER_WIDTH + (currentTime * PX_PER_SEC), height: '100%', width: '2px', background: 'red', zIndex: 805, pointerEvents: 'none' }} />
           </div>
 
@@ -185,7 +314,7 @@ const Timeline: React.FC = () => {
              {/* Tracks Background */}
              {Array.from({ length: MAX_LAYERS }).map((_, i) => (
                 <div key={i} style={{ height: ROW_HEIGHT, borderBottom: '1px solid #2a2a2a', display: 'flex', alignItems: 'center' }}>
-                    {/* Layer Header: zIndexを高くして再生バーの上に来るようにする */}
+                    {/* Layer Header */}
                     <div style={{ 
                         position: 'sticky', 
                         left: 0, 
@@ -194,7 +323,7 @@ const Timeline: React.FC = () => {
                         background: '#2d2d2d', 
                         borderRight: '1px solid #111',
                         borderBottom: '1px solid #111',
-                        zIndex: 700, // 修正: 再生バー(600)より高く設定
+                        zIndex: 700,
                         display: 'flex',
                         alignItems: 'center',
                         paddingLeft: '10px',
@@ -208,7 +337,7 @@ const Timeline: React.FC = () => {
                 </div>
              ))}
 
-             {/* Playhead Line (in Tracks area) */}
+             {/* Playhead Line */}
              <div style={{ position: 'absolute', left: HEADER_WIDTH + (currentTime * PX_PER_SEC), top: 0, bottom: 0, width: '1px', background: 'rgba(255,0,0,0.5)', pointerEvents: 'none', zIndex: 600 }} />
              
              {/* Objects */}
@@ -229,6 +358,7 @@ const Timeline: React.FC = () => {
                 <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { addTextAt(contextMenu.time, contextMenu.layer); setContextMenu(prev => ({ ...prev, visible: false })); }}>Add Text</div>
                 <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { triggerImageUpload(contextMenu.time, contextMenu.layer); setContextMenu(prev => ({ ...prev, visible: false })); }}>Add Image</div>
                 <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { triggerVideoUpload(contextMenu.time, contextMenu.layer); setContextMenu(prev => ({ ...prev, visible: false })); }}>Add Video</div>
+                <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { triggerAudioUpload(contextMenu.time, contextMenu.layer); setContextMenu(prev => ({ ...prev, visible: false })); }}>Add Audio</div>
                 <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { triggerPsdUpload(contextMenu.time); setContextMenu(prev => ({ ...prev, visible: false })); }}>Add PSD</div>
             </>
           )}

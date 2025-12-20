@@ -7,11 +7,11 @@ interface TimelineItemProps {
   pxPerSec: number;
   rowHeight: number;
   headerWidth: number;
-  onContextMenu: (e: React.MouseEvent, id: string) => void; // 追加
+  onContextMenu: (e: React.MouseEvent, id: string) => void;
 }
 
 const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight, headerWidth, onContextMenu }) => {
-  const { updateObject, selectedId, selectObject, objects } = useStore();
+  const { updateObject, selectedId, selectObject, objects, pushHistory } = useStore();
   const isSelected = selectedId === object.id;
 
   const [isDragging, setIsDragging] = useState(false);
@@ -30,11 +30,14 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
     
     // 右クリックの場合はドラッグを開始せず、メニュー処理を親に任せる
     if (e.button === 2) {
-        selectObject(object.id); // 右クリックでも一応選択状態にする
+        selectObject(object.id); 
         onContextMenu(e, object.id);
         return;
     }
     if (e.button !== 0) return;
+
+    // Undo履歴に保存
+    pushHistory();
 
     selectObject(object.id);
     setIsDragging(true);
@@ -60,7 +63,8 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
         const deltaY = e.clientY - startMouseY;
         const deltaTime = deltaX / pxPerSec;
         
-        let rawNewStartTime = Math.max(0, initialState.startTime + deltaTime);
+        // 時間を小数点2位で丸める
+        let rawNewStartTime = Math.max(0, parseFloat((initialState.startTime + deltaTime).toFixed(2)));
         
         let layerDiff = 0;
         const absDeltaY = Math.abs(deltaY);
@@ -120,7 +124,8 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
 
       } else if (dragType === 'resize') {
         const deltaTime = deltaX / pxPerSec;
-        let rawNewDuration = Math.max(0.1, initialState.duration + deltaTime);
+        // 期間も丸める
+        let rawNewDuration = Math.max(0.1, parseFloat((initialState.duration + deltaTime).toFixed(2)));
         let constrainedDuration = rawNewDuration;
 
         const othersInLayer = objects.filter(o => 
@@ -158,6 +163,16 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
   const leftPos = headerWidth + (Math.max(0, object.startTime) * pxPerSec);
   const width = object.duration * pxPerSec;
 
+  const getBackgroundColor = () => {
+      if (object.type === 'shape') return '#e74c3c';
+      if (object.type === 'text') return '#3498db';
+      if (object.type === 'image') return '#2ecc71';
+      if (object.type === 'video') return '#9b59b6';
+      if (object.type === 'audio') return '#e67e22'; // Audio color
+      if (object.type === 'psd') return '#2b5c85';
+      return '#95a5a6';
+  };
+
   return (
     <div
       style={{
@@ -166,7 +181,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
         top: `${object.layer * rowHeight}px`,
         width: `${width}px`,
         height: `${rowHeight - 2}px`,
-        backgroundColor: object.type === 'shape' ? '#e74c3c' : '#3498db',
+        backgroundColor: getBackgroundColor(),
         border: isSelected ? '2px solid #f1c40f' : '1px solid rgba(255,255,255,0.3)',
         borderRadius: '4px',
         cursor: 'move',
@@ -179,7 +194,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
         transition: isDragging ? 'none' : 'background-color 0.2s, top 0.1s ease-out'
       }}
       onMouseDown={(e) => handleMouseDown(e, 'move')}
-      onContextMenu={(e) => handleMouseDown(e, 'move')} // 右クリックもMouseDownハンドラに通す
+      onContextMenu={(e) => handleMouseDown(e, 'move')}
     >
       <div style={{ padding: '2px 4px', fontSize: '11px', color: 'white', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
         {object.name} {object.enableAnimation ? '⇗' : ''}

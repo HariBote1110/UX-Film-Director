@@ -7,7 +7,7 @@ export interface ProjectSettings {
   sampleRate: number;
 }
 
-export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'psd';
+export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd';
 
 export interface BaseObject {
   id: string;
@@ -29,6 +29,7 @@ export interface TextObject extends BaseObject {
   type: 'text';
   text: string;
   fontSize: number;
+  fontFamily: string; // フォント指定を追加
   fill: string;
 }
 
@@ -56,6 +57,13 @@ export interface VideoObject extends BaseObject {
   muted: boolean;
 }
 
+export interface AudioObject extends BaseObject {
+  type: 'audio';
+  src: string;
+  volume: number;
+  muted: boolean;
+}
+
 // --- PSD連携用 ---
 
 // PSDToolから取得したレイヤーノード情報
@@ -79,4 +87,4 @@ export interface PsdObject extends BaseObject {
   layerTree: PsdLayerStruct[];
 }
 
-export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | PsdObject;
+export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject;
