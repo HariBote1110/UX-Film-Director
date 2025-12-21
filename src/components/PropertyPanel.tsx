@@ -182,8 +182,32 @@ const PropertyPanel: React.FC = () => {
       {selectedObject.type === 'group_control' && ( <div style={{background:'#2a2a2a', padding:'8px', borderRadius:'4px', marginBottom:'10px', border:'1px solid #00ff00'}}> <div style={{fontWeight:'bold', marginBottom:'4px', color:'#00ff00'}}>Group Control</div> <div style={rowStyle}> <label style={labelStyle}>Layers</label> <input type="number" min="0" value={selectedObject.targetLayerCount} onChange={(e) => handleChange('targetLayerCount', parseInt(e.target.value))} title="0 for infinite" style={inputStyle}/> </div> </div> )}
       {/* Size */}
       {(selectedObject.type === 'shape' || selectedObject.type === 'image' || selectedObject.type === 'video' || selectedObject.type === 'psd') && ( <> <div style={rowStyle}> <label style={labelStyle}>Width</label> <input type="number" value={selectedObject.width} onChange={(e) => handleChange('width', parseFloat(e.target.value))} style={inputStyle}/> </div> <div style={rowStyle}> <label style={labelStyle}>Height</label> <input type="number" value={selectedObject.height} onChange={(e) => handleChange('height', parseFloat(e.target.value))} style={inputStyle}/> </div> </> )}
+      
       {/* Shape */}
-      {selectedObject.type === 'shape' && ( <> <div style={rowStyle}> <label style={labelStyle}>Type</label> <select value={selectedObject.shapeType} onChange={(e) => handleChange('shapeType', e.target.value)} style={inputStyle}> <option value="rect">Rectangle</option> <option value="circle">Circle</option> <option value="triangle">Triangle</option> <option value="star">Star</option> <option value="pentagon">Pentagon</option> </select> </div> </> )}
+      {selectedObject.type === 'shape' && ( 
+        <> 
+          <div style={rowStyle}> 
+            <label style={labelStyle}>Type</label> 
+            <select value={selectedObject.shapeType} onChange={(e) => handleChange('shapeType', e.target.value)} style={inputStyle}> 
+              <option value="rect">Rectangle</option> 
+              <option value="rounded_rect">Rounded Rect</option>
+              <option value="circle">Circle</option> 
+              <option value="ellipse">Ellipse</option>
+              <option value="triangle">Triangle</option> 
+              <option value="diamond">Diamond</option>
+              <option value="star">Star</option> 
+              <option value="pentagon">Pentagon</option> 
+              <option value="arrow">Arrow</option>
+              <option value="heart">Heart</option>
+              <option value="cross">Cross</option>
+            </select> 
+          </div> 
+          {selectedObject.shapeType === 'rounded_rect' && (
+             <div style={rowStyle}> <label style={labelStyle}>Radius</label> <input type="number" value={selectedObject.cornerRadius || 20} onChange={(e) => handleChange('cornerRadius', parseFloat(e.target.value))} style={inputStyle}/> </div>
+          )}
+        </> 
+      )}
+
       {/* Gradient */}
       {selectedObject.type === 'shape' && ( <> <div style={rowStyle}> <label style={labelStyle}>Gradient</label> <input type="checkbox" checked={selectedObject.gradient?.enabled || false} onChange={(e) => handleDeepChange('gradient', 'enabled', e.target.checked)} /> </div> {selectedObject.gradient?.enabled && ( <div style={{paddingLeft:'10px', borderLeft:'2px solid #555', marginBottom:'10px'}}> <div style={rowStyle}> <label style={labelStyle}>Mode</label> <select value={selectedObject.gradient.type} onChange={(e) => handleDeepChange('gradient', 'type', e.target.value)} style={inputStyle}> <option value="linear">Linear</option> <option value="radial">Radial</option> </select> </div> <div style={rowStyle}> <label style={labelStyle}>Angle</label> <input type="number" value={selectedObject.gradient.direction || 0} onChange={(e) => handleDeepChange('gradient', 'direction', parseFloat(e.target.value))} style={inputStyle}/> </div> <div style={rowStyle}> <label style={labelStyle}>Colour 1</label> <input type="color" value={selectedObject.gradient.colours?.[0] || '#ffffff'} onChange={(e) => { const newColours = [...(selectedObject.gradient?.colours || ['#fff', '#000'])]; newColours[0] = e.target.value; handleDeepChange('gradient', 'colours', newColours); }} style={{width:'100%', border:'none', height:'24px', padding:0}}/> </div> <div style={rowStyle}> <label style={labelStyle}>Colour 2</label> <input type="color" value={selectedObject.gradient.colours?.[1] || '#000000'} onChange={(e) => { const newColours = [...(selectedObject.gradient?.colours || ['#fff', '#000'])]; newColours[1] = e.target.value; handleDeepChange('gradient', 'colours', newColours); }} style={{width:'100%', border:'none', height:'24px', padding:0}}/> </div> </div> )} </> )}
       {/* Shape Colour */}

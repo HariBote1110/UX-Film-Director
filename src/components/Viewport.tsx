@@ -25,7 +25,8 @@ const Viewport: React.FC = () => {
 
   const { 
     currentTime, objects, selectedId, selectObject, updateObject, 
-    projectSettings, isPlaying, isExporting, setExporting, setTime, pushHistory 
+    projectSettings, isPlaying, isExporting, setExporting, setTime, pushHistory,
+    isSnapshotRequested, finishSnapshot
   } = useStore();
   
   const latestObjectsRef = useRef(objects);
@@ -62,6 +63,25 @@ const Viewport: React.FC = () => {
       }
     };
   }, []);
+
+  // Snapshot Logic
+  useEffect(() => {
+      if (isSnapshotRequested && pixiAppRef.current) {
+          const app = pixiAppRef.current;
+          app.render(); // Ensure latest state
+          const dataUrl = app.canvas.toDataURL('image/png');
+          
+          const link = document.createElement('a');
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          link.download = `frame_${timestamp}.png`;
+          link.href = dataUrl;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          finishSnapshot();
+      }
+  }, [isSnapshotRequested, finishSnapshot]);
 
   const getGroupTransforms = (obj: TimelineObject, time: number, allObjects: TimelineObject[]) => {
       let x = 0, y = 0, rotation = 0, scaleX = 1, scaleY = 1, alpha = 1;
@@ -238,7 +258,7 @@ const Viewport: React.FC = () => {
           const t = new PIXI.Text({ text: 'Group\nControl', style: { fontSize: 14, fill: 0x00ff00, fontWeight: 'bold' } }); g.addChild(t); content = g;
       }
 
-      if (isSelected && !isExporting) { 
+      if (isSelected && !isExporting && !isSnapshotRequested) { 
         border = new PIXI.Graphics();
         const w = content ? content.width : (obj as any).width || 100; const h = content ? content.height : (obj as any).height || 100;
         border.rect(0, 0, w, h); border.stroke({ width: 2, color: 0xffd700 });
@@ -271,7 +291,7 @@ const Viewport: React.FC = () => {
 
     app.stage.sortChildren();
     app.render();
-  }, [selectedId, isExporting, isPlaying]);
+  }, [selectedId, isExporting, isPlaying, isSnapshotRequested]);
 
   useEffect(() => { if (!isExporting) renderScene(currentTime, objects); }, [currentTime, objects, renderScene, renderTick, isExporting]);
   

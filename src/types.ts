@@ -92,11 +92,13 @@ export interface TextObject extends BaseObject {
 
 export interface ShapeObject extends BaseObject {
   type: 'shape';
-  shapeType: 'rect' | 'circle' | 'triangle' | 'star' | 'pentagon';
+  // 図形タイプを追加
+  shapeType: 'rect' | 'rounded_rect' | 'circle' | 'ellipse' | 'triangle' | 'star' | 'pentagon' | 'diamond' | 'arrow' | 'heart' | 'cross';
   width: number;
   height: number;
   fill: string;
   gradient?: GradientFill;
+  cornerRadius?: number; // 角丸四角形用
 }
 
 export interface ImageObject extends BaseObject {

@@ -8,6 +8,9 @@ interface AppState {
   
   // Export State
   isExporting: boolean;
+  
+  // Snapshot State
+  isSnapshotRequested: boolean;
 
   // Editor State
   currentTime: number;
@@ -28,6 +31,10 @@ interface AppState {
   togglePlay: () => void;
   setIsPlaying: (isPlaying: boolean) => void;
   setExporting: (isExporting: boolean) => void;
+  
+  // Snapshot Actions
+  requestSnapshot: () => void;
+  finishSnapshot: () => void;
   
   // History Actions
   pushHistory: () => void;
@@ -52,6 +59,7 @@ export const useStore = create<AppState>((set, get) => ({
   isProjectLoaded: false,
   projectSettings: { width: 1920, height: 1080, fps: 60, sampleRate: 44100 },
   isExporting: false,
+  isSnapshotRequested: false,
 
   currentTime: 0,
   duration: 30,
@@ -93,6 +101,9 @@ export const useStore = create<AppState>((set, get) => ({
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setExporting: (isExporting) => set({ isExporting }),
   
+  requestSnapshot: () => set({ isSnapshotRequested: true }),
+  finishSnapshot: () => set({ isSnapshotRequested: false }),
+  
   // 変更前の状態を履歴に保存する
   pushHistory: () => set((state) => ({
     pastStates: [...state.pastStates, state.objects],
@@ -124,8 +135,6 @@ export const useStore = create<AppState>((set, get) => ({
   }),
 
   addObject: (obj) => {
-    // アクション内でpushHistoryを呼ぶと、state更新のタイミングがずれることがあるため
-    // ここで明示的に履歴保存してから更新する
     get().pushHistory();
     set((state) => {
       const newObjects = [...state.objects, { 
@@ -145,8 +154,6 @@ export const useStore = create<AppState>((set, get) => ({
   },
   
   updateObject: (id, newProps) => set((state) => {
-    // updateObjectは頻繁に呼ばれる（ドラッグ中など）ため、
-    // ここでは履歴保存を行わない。呼び出し側（onDragStart等）でpushHistoryする。
     const newObjects = state.objects.map((obj) => 
       obj.id === id ? { ...obj, ...newProps } : obj
     );
@@ -169,8 +176,6 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   splitObject: () => {
-    // 履歴保存は変更が発生する場合のみ行いたいが、簡易的にここで保存してもよい
-    // ただしsplitが発生しない条件分岐があるため、条件チェック後に保存する
     const { objects, selectedId, currentTime } = get();
     const target = objects.find(o => o.id === selectedId);
 

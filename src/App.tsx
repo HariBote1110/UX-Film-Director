@@ -13,7 +13,7 @@ import './index.css';
 const App: React.FC = () => {
   useAppLogic();
   
-  const { isProjectLoaded, isExporting, setExporting, objects, selectedId } = useStore();
+  const { isProjectLoaded, isExporting, setExporting, objects, selectedId, requestSnapshot } = useStore();
   
   // Registry to hold active bridges for each PSD object
   const bridgeMapRef = useRef<Map<string, PsdToolBridge>>(new Map());
@@ -88,9 +88,14 @@ const App: React.FC = () => {
 
       <header className="title-bar" style={{ height: '38px', background: '#2d2d2d', display: 'flex', alignItems: 'center', padding: '0 10px 0 80px', color: '#ccc', fontSize: '12px', borderBottom: '1px solid #000', flexShrink: 0 }}>
         <span style={{ fontWeight: 'bold' }}>UX Film Director (Dev Prototype)</span>
-        <button onClick={handleExport} disabled={isExporting} style={{ marginLeft: 'auto', background: isExporting ? '#555' : '#007acc', border: 'none', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: isExporting ? 'default' : 'pointer' }}>
-            {isExporting ? 'Exporting...' : 'Export Video'}
-        </button>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+          <button onClick={requestSnapshot} disabled={isExporting} style={{ background: '#444', border: 'none', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: isExporting ? 'default' : 'pointer' }}>
+            Snapshot
+          </button>
+          <button onClick={handleExport} disabled={isExporting} style={{ background: isExporting ? '#555' : '#007acc', border: 'none', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: isExporting ? 'default' : 'pointer' }}>
+              {isExporting ? 'Exporting...' : 'Export Video'}
+          </button>
+        </div>
       </header>
       
       <div className="workspace-main" style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
