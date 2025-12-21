@@ -10,9 +10,15 @@ let win;
 let ffmpegProcess = null;
 const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
 function createWindow() {
+  const iconPath = path.join(process.env.VITE_PUBLIC, "icon.jpg");
+  if (process.platform === "darwin") {
+    electron.app.dock.setIcon(iconPath);
+  }
   win = new electron.BrowserWindow({
     width: 1280,
     height: 800,
+    icon: iconPath,
+    // Windows/Linux用のウィンドウアイコン設定
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,

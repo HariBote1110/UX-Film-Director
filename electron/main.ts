@@ -13,9 +13,19 @@ let ffmpegProcess: ChildProcess | null = null;
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
 function createWindow() {
+  // アイコン画像のパスを設定 (publicフォルダ内の 'icon.jpg' を参照)
+  // ※ 実際のファイル名が 'icon.jpeg' の場合は修正してください
+  const iconPath = path.join(process.env.VITE_PUBLIC, 'icon.jpg')
+
+  // macOS用のDockアイコン設定
+  if (process.platform === 'darwin') {
+    app.dock.setIcon(iconPath)
+  }
+
   win = new BrowserWindow({
     width: 1280,
     height: 800,
+    icon: iconPath, // Windows/Linux用のウィンドウアイコン設定
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
