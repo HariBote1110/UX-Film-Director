@@ -4,7 +4,19 @@ import { spawn, ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 
+// --- GPU Acceleration Flags ---
+// 高画質動画の再生負荷を下げるための重要な設定
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+// WebGPUを明示的に有効化 (環境によってはデフォルトで無効な場合があるため)
+app.commandLine.appendSwitch('enable-unsafe-webgpu');
+// ビデオデコードのハードウェア加速を強制
+app.commandLine.appendSwitch('disable-features', 'UseChromeOSDirectVideoDecoder');
+app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder,CanvasOopRasterization'); 
+
 process.env.DIST = path.join(__dirname, '../dist')
+process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(__dirname, '../public')
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(__dirname, '../public')
 
 let win: BrowserWindow | null

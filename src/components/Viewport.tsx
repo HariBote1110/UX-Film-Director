@@ -1,11 +1,10 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as PIXI from 'pixi.js';
 import { useStore } from '../store/useStore';
-import { TimelineObject } from '../types';
+import { TimelineObject, AudioObject } from '../types';
 import { createShadowGraphics } from '../utils/pixiUtils';
 import { easingFunctions } from '../utils/easings';
 
-// Refactored Imports
 import { usePixiInteraction } from '../hooks/usePixiInteraction';
 import { useProjectExport } from '../hooks/useProjectExport';
 import { getGroupTransforms, getLipSyncViseme, updatePixiContent, applyObjectEffects, getVibrationOffset } from '../utils/pixiRenderHelper';
@@ -15,14 +14,12 @@ const Viewport: React.FC = () => {
   const pixiAppRef = useRef<PIXI.Application | null>(null);
   const pixiObjectsRef = useRef<Map<string, PIXI.Container>>(new Map());
   
-  // Resource Cache & Refs
   const textureCacheRef = useRef<Map<string, PIXI.Texture>>(new Map());
   const loadingUrlsRef = useRef<Set<string>>(new Set());
   const videoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const videoPlayPromisesRef = useRef<Map<string, Promise<void> | null>>(new Map());
   
-  // Audio Buffers for Visualization
   const audioBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
 
   const [renderTick, setRenderTick] = useState(0);
@@ -36,14 +33,24 @@ const Viewport: React.FC = () => {
   const latestObjectsRef = useRef(objects);
   latestObjectsRef.current = objects;
 
-  // --- Interaction Hook ---
   const { onDragStart, onDragMove, onDragEnd, dragRef } = usePixiInteraction(latestObjectsRef);
 
   // --- Initialize Pixi App ---
   useEffect(() => {
     if (!containerRef.current) return;
     const app = new PIXI.Application();
-    app.init({ width: projectSettings.width, height: projectSettings.height, backgroundColor: '#1e1e1e', preference: 'webgpu' }).then(() => {
+    
+    // 【重要】autoStart: false に設定。
+    // PixiJSの勝手なTickerループを止め、React側の制御下でのみ描画させることで
+    // 二重描画によるCPU負荷を回避する。
+    app.init({ 
+        width: projectSettings.width, 
+        height: projectSettings.height, 
+        backgroundColor: '#1e1e1e', 
+        preference: 'webgpu',
+        autoStart: false, // 自動描画停止
+        sharedTicker: false
+    }).then(() => {
       if (containerRef.current && !containerRef.current.hasChildNodes()) {
         containerRef.current.appendChild(app.canvas);
         pixiAppRef.current = app;
@@ -54,6 +61,9 @@ const Viewport: React.FC = () => {
           if (useStore.getState().isExporting) return;
           if (e.target === app.stage) selectObject(null);
         });
+        
+        // 初回描画
+        app.render();
       }
     });
     return () => {
@@ -69,7 +79,7 @@ const Viewport: React.FC = () => {
         audioElementsRef.current.clear();
       }
     };
-  }, []); // Run once
+  }, []); 
 
   // --- Snapshot Logic ---
   useEffect(() => {
@@ -88,14 +98,12 @@ const Viewport: React.FC = () => {
       }
   }, [isSnapshotRequested, finishSnapshot]);
 
-  // --- Load Audio Buffers for Visualization ---
+  // --- Audio Buffer Loading ---
   useEffect(() => {
     const loadBuffers = async () => {
-        // 音声波形オブジェクトが存在するかチェック
         const hasViz = objects.some(o => o.type === 'audio_visualization');
         if (!hasViz) return;
 
-        // まだロードされていない音声をロード
         const audioContext = new AudioContext();
         for (const obj of objects) {
             if (obj.type === 'audio' && obj.src && !audioBuffersRef.current.has(obj.id)) {
@@ -114,7 +122,6 @@ const Viewport: React.FC = () => {
     loadBuffers();
   }, [objects]);
 
-
   // --- Main Render Logic ---
   const renderScene = useCallback((time: number, currentObjects: TimelineObject[]) => {
     const app = pixiAppRef.current;
@@ -125,7 +132,7 @@ const Viewport: React.FC = () => {
     const currentAudioElements = audioElementsRef.current;
     const visibleObjects = currentObjects.filter(obj => time >= obj.startTime && time < obj.startTime + obj.duration);
 
-    // 1. Cleanup invisible objects
+    // 1. Cleanup
     currentPixiObjects.forEach((container, id) => {
       if (!visibleObjects.find(obj => obj.id === id)) {
         app.stage.removeChild(container);
@@ -146,7 +153,7 @@ const Viewport: React.FC = () => {
 
     // 2. Render visible objects
     visibleObjects.forEach(obj => {
-      // Audio Playback
+      // Audio Logic
       if (obj.type === 'audio') {
         let audio = currentAudioElements.get(obj.id);
         if (!audio) {
@@ -169,10 +176,8 @@ const Viewport: React.FC = () => {
 
       if (obj.type === 'group_control' && selectedId !== obj.id && isPlaying) return;
 
-      // LipSync Calculation
       const lipSyncViseme = getLipSyncViseme(obj, time, currentObjects);
 
-      // Container Management
       let container = currentPixiObjects.get(obj.id);
       const isSelected = selectedId === obj.id;
       if (!container) {
@@ -182,40 +187,73 @@ const Viewport: React.FC = () => {
         container.on('pointerup', onDragEnd); container.on('pointerupoutside', onDragEnd); container.on('globalpointermove', onDragMove); 
         app.stage.addChild(container); currentPixiObjects.set(obj.id, container);
       }
-      container.removeChildren(); 
 
-      // Shadow
-      if (obj.shadow && obj.shadow.enabled) {
-          const w = (obj as any).width || 100; const h = (obj as any).height || 100;
-          const shadow = createShadowGraphics(obj, w, h, obj.shadow);
-          if (shadow) container.addChild(shadow);
-      }
-      
-      // Content Generation (with new resources)
+      // Content Update
       const content = updatePixiContent(obj, container, time, {
           textureCache: textureCacheRef.current,
           loadingUrls: loadingUrlsRef.current,
           videoElements: videoElementsRef.current,
-          audioBuffers: audioBuffersRef.current, // Pass AudioBuffers
-          allObjects: currentObjects,            // Pass context for linking
+          audioBuffers: audioBuffersRef.current, 
+          allObjects: currentObjects,            
           isExporting,
           isPlaying,
           setRenderTick
       });
 
-      // Apply Color Correction
+      // Shadow Handling (Simplified for performance)
+      if (content && obj.shadow && obj.shadow.enabled) {
+          let shadow = container.children.find(c => c.label === 'shadow') as PIXI.Graphics;
+          if (shadow) {
+               // 既存のシャドウがあれば作り直さずにパラメータ更新したいところだが、
+               // 簡易実装として再作成（頻度は高くないため許容）
+               // container.removeChild(shadow); shadow.destroy(); shadow = null;
+               // 最適化: clearして再描画
+               shadow.clear();
+          }
+          if (!shadow) {
+              // 新規作成
+              shadow = new PIXI.Graphics();
+              shadow.label = 'shadow';
+              container.addChildAt(shadow, 0);
+          }
+          // 描画処理をここで行うべきだが、コード量の都合上、既存のcreateShadowGraphicsロジックを利用するため
+          // 一旦破棄して再生成するパターンに戻す（またはcreateShadowGraphicsをGraphicsを受け取る形にリファクタ推奨）
+          // 今回は一番確実な「破棄->再生成」で行く（Shadowは静止画が多いのでコスト低い）
+           container.removeChild(shadow); shadow.destroy();
+           const s = createShadowGraphics(obj, (content as any).width, (content as any).height, obj.shadow);
+           if (s) {
+               s.label = 'shadow';
+               container.addChildAt(s, 0); 
+           }
+      } else {
+          const shadow = container.children.find(c => c.label === 'shadow');
+          if (shadow) { container.removeChild(shadow); shadow.destroy(); }
+      }
+
       applyObjectEffects(container, obj);
 
       // Selection Border
+      let border = container.children.find(c => c.label === 'border') as PIXI.Graphics;
       if (isSelected && !isExporting && !isSnapshotRequested) { 
-        const border = new PIXI.Graphics();
+        if (!border) {
+            border = new PIXI.Graphics();
+            border.label = 'border';
+            container.addChild(border);
+        }
+        border.clear();
         const w = content ? content.width : (obj as any).width || 100; 
         const h = content ? content.height : (obj as any).height || 100;
-        border.rect(0, 0, w, h); border.stroke({ width: 2, color: 0xffd700 });
-        container.addChild(border);
+        border.rect(0, 0, w, h); 
+        border.stroke({ width: 2, color: 0xffd700 });
+        container.setChildIndex(border, container.children.length - 1);
+      } else {
+        if (border) {
+            container.removeChild(border);
+            border.destroy();
+        }
       }
 
-      // Transform Calculation
+      // Transform
       let currentX = obj.x; let currentY = obj.y;
       const rawProgress = (time - obj.startTime) / obj.duration; const progress = Math.max(0, Math.min(1, rawProgress));
 
@@ -231,8 +269,6 @@ const Viewport: React.FC = () => {
       }
       
       const groupEffects = getGroupTransforms(obj, time, currentObjects);
-      
-      // Vibration Offset
       const vib = getVibrationOffset(obj, time);
 
       container.x = currentX + groupEffects.x + vib.x; 
@@ -247,28 +283,15 @@ const Viewport: React.FC = () => {
       }
     });
 
-    // 3. Clipping Mask Logic
-    // PixiJSのmaskは、「maskに指定されたオブジェクトの形状で切り抜く」
-    // 「上のオブジェクトでクリッピング」 => 「このオブジェクトを、直下のレイヤー(layer-1)のオブジェクトで切り抜く」
-    // PixiJSでは mask プロパティに DisplayObject を渡す
+    // 3. Clipping Mask
     visibleObjects.forEach(obj => {
         const container = currentPixiObjects.get(obj.id);
         if (!container) return;
-
         if (obj.clipping) {
-            // 直下のレイヤー (layer - 1) のオブジェクトを探す
-            // 同じ時間に存在している必要がある
             const targetObj = visibleObjects.find(o => o.layer === obj.layer - 1);
             if (targetObj) {
                 const targetContainer = currentPixiObjects.get(targetObj.id);
-                if (targetContainer) {
-                    // 注意: PixiJSのmaskは、maskとして使われるオブジェクトを描画しないモードになることがある
-                    // また、同じオブジェクトを複数のmaskに使うことはできない場合がある
-                    // ここでは単純に参照を渡すが、描画が消える場合は mask用の複製を作る必要があるかも知れない
-                    container.mask = targetContainer;
-                } else {
-                    container.mask = null;
-                }
+                container.mask = targetContainer || null;
             } else {
                 container.mask = null;
             }
@@ -278,15 +301,15 @@ const Viewport: React.FC = () => {
     });
 
     app.stage.sortChildren();
+    
+    // 手動レンダリング実行 (Ticker停止中のため必須)
     app.render();
   }, [selectedId, isExporting, isPlaying, isSnapshotRequested]);
 
-  // --- Effects ---
   useEffect(() => { 
       if (!isExporting) renderScene(currentTime, objects); 
   }, [currentTime, objects, renderScene, renderTick, isExporting]);
   
-  // --- Export Hook ---
   useProjectExport(pixiAppRef, videoElementsRef, renderScene);
 
   const scale = 800 / Math.max(projectSettings.width, 1);
