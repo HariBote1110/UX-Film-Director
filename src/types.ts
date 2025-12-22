@@ -8,7 +8,7 @@ export interface ProjectSettings {
   sampleRate: number;
 }
 
-export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control';
+export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization';
 
 // --- グラデーション・シャドウ・軌道 ---
 
@@ -38,20 +38,45 @@ export interface PathPoint {
 // リップシンク設定
 export interface LipSyncSetting {
   enabled: boolean;
-  
-  // 変更: 音声ソースの指定方法
-  sourceMode: 'layer' | 'object'; // 'layer'推奨
-  targetLayer: number;            // 参照するタイムラインレイヤー番号 (0-based)
-  audioId: string | null;         // 特定のオブジェクト指定用（後方互換）
+  sourceMode: 'layer' | 'object';
+  targetLayer: number;
+  audioId: string | null;
 
   mapping: {
-      a: string; // レイヤーのsequence ID (seq)
+      a: string;
       i: string;
       u: string;
       e: string;
       o: string;
       n: string;
   };
+}
+
+// --- エフェクト定義 ---
+
+export interface ColorCorrection {
+  enabled: boolean;
+  brightness: number; 
+  contrast: number;   
+  saturation: number; 
+  hue: number;        
+}
+
+export interface Vibration {
+  enabled: boolean;
+  strength: number; 
+  speed: number;    
+}
+
+// AviUtl互換クリッピング (斜めクリッピング対応)
+export interface ClippingParams {
+  enabled: boolean;
+  top: number;    // 上からの切り取り量 (px)
+  bottom: number; // 下からの切り取り量 (px)
+  left: number;   // 左からの切り取り量 (px)
+  right: number;  // 右からの切り取り量 (px)
+  angle: number;  // クリッピングの回転角度 (度)
+  radius: number; // ぼかし等の用途（今回はコーナー半径や簡易ぼかしとして予約、現状未使用でも可）
 }
 
 // --- オブジェクト定義 ---
@@ -80,6 +105,12 @@ export interface BaseObject {
 
   motionPath?: PathPoint[];
   shadow?: ShadowEffect;
+  
+  // 新機能用プロパティ
+  clipping?: boolean;          // 上のオブジェクトでクリッピング (マスク)
+  customClipping?: ClippingParams; // クリッピングエフェクト (フィルタ)
+  colorCorrection?: ColorCorrection; 
+  vibration?: Vibration;       
 }
 
 export interface TextObject extends BaseObject {
@@ -92,13 +123,12 @@ export interface TextObject extends BaseObject {
 
 export interface ShapeObject extends BaseObject {
   type: 'shape';
-  // 図形タイプを追加
   shapeType: 'rect' | 'rounded_rect' | 'circle' | 'ellipse' | 'triangle' | 'star' | 'pentagon' | 'diamond' | 'arrow' | 'heart' | 'cross';
   width: number;
   height: number;
   fill: string;
   gradient?: GradientFill;
-  cornerRadius?: number; // 角丸四角形用
+  cornerRadius?: number;
 }
 
 export interface ImageObject extends BaseObject {
@@ -130,6 +160,19 @@ export interface GroupControlObject extends BaseObject {
   targetLayerCount: number;
 }
 
+// 音声波形表示オブジェクト
+export interface AudioVisualizationObject extends BaseObject {
+    type: 'audio_visualization';
+    targetAudioId: string | null; 
+    targetLayer?: number;         
+    visualizationType: 'waveform'; 
+    color: string;
+    thickness: number;
+    width: number;
+    height: number;
+    amplitude: number; 
+}
+
 // --- PSD連携用 ---
 
 export interface PsdLayerStruct {
@@ -153,4 +196,4 @@ export interface PsdObject extends BaseObject {
   lipSync?: LipSyncSetting;
 }
 
-export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject;
+export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject;

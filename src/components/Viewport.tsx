@@ -1,14 +1,14 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as PIXI from 'pixi.js';
 import { useStore } from '../store/useStore';
-import { TimelineObject, AudioObject } from '../types';
+import { TimelineObject } from '../types';
 import { createShadowGraphics } from '../utils/pixiUtils';
 import { easingFunctions } from '../utils/easings';
 
 // Refactored Imports
 import { usePixiInteraction } from '../hooks/usePixiInteraction';
 import { useProjectExport } from '../hooks/useProjectExport';
-import { getGroupTransforms, getLipSyncViseme, updatePixiContent } from '../utils/pixiRenderHelper';
+import { getGroupTransforms, getLipSyncViseme, updatePixiContent, applyObjectEffects, getVibrationOffset } from '../utils/pixiRenderHelper';
 
 const Viewport: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -21,6 +21,9 @@ const Viewport: React.FC = () => {
   const videoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const videoPlayPromisesRef = useRef<Map<string, Promise<void> | null>>(new Map());
+  
+  // Audio Buffers for Visualization
+  const audioBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
 
   const [renderTick, setRenderTick] = useState(0);
 
@@ -85,6 +88,33 @@ const Viewport: React.FC = () => {
       }
   }, [isSnapshotRequested, finishSnapshot]);
 
+  // --- Load Audio Buffers for Visualization ---
+  useEffect(() => {
+    const loadBuffers = async () => {
+        // 音声波形オブジェクトが存在するかチェック
+        const hasViz = objects.some(o => o.type === 'audio_visualization');
+        if (!hasViz) return;
+
+        // まだロードされていない音声をロード
+        const audioContext = new AudioContext();
+        for (const obj of objects) {
+            if (obj.type === 'audio' && obj.src && !audioBuffersRef.current.has(obj.id)) {
+                try {
+                    const resp = await fetch(obj.src);
+                    const ab = await resp.arrayBuffer();
+                    const decoded = await audioContext.decodeAudioData(ab);
+                    audioBuffersRef.current.set(obj.id, decoded);
+                } catch (e) {
+                    console.error("Failed to load audio buffer:", e);
+                }
+            }
+        }
+        audioContext.close();
+    };
+    loadBuffers();
+  }, [objects]);
+
+
   // --- Main Render Logic ---
   const renderScene = useCallback((time: number, currentObjects: TimelineObject[]) => {
     const app = pixiAppRef.current;
@@ -116,7 +146,7 @@ const Viewport: React.FC = () => {
 
     // 2. Render visible objects
     visibleObjects.forEach(obj => {
-      // Audio Handling
+      // Audio Playback
       if (obj.type === 'audio') {
         let audio = currentAudioElements.get(obj.id);
         if (!audio) {
@@ -152,7 +182,7 @@ const Viewport: React.FC = () => {
         container.on('pointerup', onDragEnd); container.on('pointerupoutside', onDragEnd); container.on('globalpointermove', onDragMove); 
         app.stage.addChild(container); currentPixiObjects.set(obj.id, container);
       }
-      container.removeChildren();
+      container.removeChildren(); 
 
       // Shadow
       if (obj.shadow && obj.shadow.enabled) {
@@ -161,15 +191,20 @@ const Viewport: React.FC = () => {
           if (shadow) container.addChild(shadow);
       }
       
-      // Content Generation (delegated to helper)
+      // Content Generation (with new resources)
       const content = updatePixiContent(obj, container, time, {
           textureCache: textureCacheRef.current,
           loadingUrls: loadingUrlsRef.current,
           videoElements: videoElementsRef.current,
+          audioBuffers: audioBuffersRef.current, // Pass AudioBuffers
+          allObjects: currentObjects,            // Pass context for linking
           isExporting,
           isPlaying,
           setRenderTick
       });
+
+      // Apply Color Correction
+      applyObjectEffects(container, obj);
 
       // Selection Border
       if (isSelected && !isExporting && !isSnapshotRequested) { 
@@ -196,7 +231,12 @@ const Viewport: React.FC = () => {
       }
       
       const groupEffects = getGroupTransforms(obj, time, currentObjects);
-      container.x = currentX + groupEffects.x; container.y = currentY + groupEffects.y;
+      
+      // Vibration Offset
+      const vib = getVibrationOffset(obj, time);
+
+      container.x = currentX + groupEffects.x + vib.x; 
+      container.y = currentY + groupEffects.y + vib.y;
       container.rotation = ((obj.rotation || 0) + groupEffects.rotation) * (Math.PI / 180);
       container.scale.set((obj.scaleX ?? 1) * groupEffects.scaleX, (obj.scaleY ?? 1) * groupEffects.scaleY);
       container.alpha = (obj.opacity ?? 1) * groupEffects.alpha;
@@ -205,6 +245,36 @@ const Viewport: React.FC = () => {
       if (!isExporting && dragRef.current.active && dragRef.current.targetId === obj.id) {
           container.alpha *= 0.6;
       }
+    });
+
+    // 3. Clipping Mask Logic
+    // PixiJSのmaskは、「maskに指定されたオブジェクトの形状で切り抜く」
+    // 「上のオブジェクトでクリッピング」 => 「このオブジェクトを、直下のレイヤー(layer-1)のオブジェクトで切り抜く」
+    // PixiJSでは mask プロパティに DisplayObject を渡す
+    visibleObjects.forEach(obj => {
+        const container = currentPixiObjects.get(obj.id);
+        if (!container) return;
+
+        if (obj.clipping) {
+            // 直下のレイヤー (layer - 1) のオブジェクトを探す
+            // 同じ時間に存在している必要がある
+            const targetObj = visibleObjects.find(o => o.layer === obj.layer - 1);
+            if (targetObj) {
+                const targetContainer = currentPixiObjects.get(targetObj.id);
+                if (targetContainer) {
+                    // 注意: PixiJSのmaskは、maskとして使われるオブジェクトを描画しないモードになることがある
+                    // また、同じオブジェクトを複数のmaskに使うことはできない場合がある
+                    // ここでは単純に参照を渡すが、描画が消える場合は mask用の複製を作る必要があるかも知れない
+                    container.mask = targetContainer;
+                } else {
+                    container.mask = null;
+                }
+            } else {
+                container.mask = null;
+            }
+        } else {
+            container.mask = null;
+        }
     });
 
     app.stage.sortChildren();
