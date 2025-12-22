@@ -1,31 +1,37 @@
-/// <reference types="vite/client" />
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import electron from 'vite-plugin-electron/simple'
+import path from 'node:path'
 
-interface Window {
-  ipcRenderer: {
-    on: (channel: string, listener: (event: any, ...args: any[]) => void) => void;
-    off: (channel: string, listener: (...args: any[]) => void) => void;
-    send: (channel: string, ...args: any[]) => void;
-    invoke: (channel: string, ...args: any[]) => Promise<any>;
-  };
-}
-
-// Webview Tag Definition
-declare namespace JSX {
-  interface IntrinsicElements {
-    webview: React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement> & {
-      src?: string;
-      autosize?: string;
-      nodeintegration?: string;
-      plugins?: string;
-      preload?: string;
-      httpreferrer?: string;
-      useragent?: string;
-      disablewebsecurity?: string;
-      partition?: string;
-      allowpopups?: string;
-      webpreferences?: string;
-      enableblinkfeatures?: string;
-      disableblinkfeatures?: string;
-    }, HTMLElement>;
-  }
-}
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [
+    react(),
+    electron({
+      main: {
+        entry: 'electron/main.ts',
+      },
+      preload: {
+        input: 'electron/preload.ts',
+      },
+      renderer: {},
+    }),
+  ],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+  // --- 追記ここから ---
+  server: {
+    headers: {
+      // FFmpeg.wasmのためのセキュリティ設定 (Cross-Origin Isolation)
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    },
+  },
+  optimizeDeps: {
+    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
+  },
+  // --- 追記ここまで ---
+})

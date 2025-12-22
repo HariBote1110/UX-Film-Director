@@ -1,13 +1,15 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as PIXI from 'pixi.js';
 import { useStore } from '../store/useStore';
-import { TimelineObject, AudioObject } from '../types';
+import { TimelineObject } from '../types';
 import { createShadowGraphics } from '../utils/pixiUtils';
 import { easingFunctions } from '../utils/easings';
 
 import { usePixiInteraction } from '../hooks/usePixiInteraction';
 import { useProjectExport } from '../hooks/useProjectExport';
 import { getGroupTransforms, getLipSyncViseme, updatePixiContent, applyObjectEffects, getVibrationOffset } from '../utils/pixiRenderHelper';
+import { VideoFrameProvider } from '../utils/VideoFrameProvider';
+import VideoDebugPanel from './VideoDebugPanel'; // 新規追加
 
 const Viewport: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -16,10 +18,12 @@ const Viewport: React.FC = () => {
   
   const textureCacheRef = useRef<Map<string, PIXI.Texture>>(new Map());
   const loadingUrlsRef = useRef<Set<string>>(new Set());
-  const videoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
-  const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
-  const videoPlayPromisesRef = useRef<Map<string, Promise<void> | null>>(new Map());
   
+  // VideoProvider管理
+  const videoProvidersRef = useRef<Map<string, VideoFrameProvider>>(new Map());
+  const videoFramesRef = useRef<Map<string, VideoFrame | null>>(new Map());
+
+  const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const audioBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
 
   const [renderTick, setRenderTick] = useState(0);
@@ -40,15 +44,12 @@ const Viewport: React.FC = () => {
     if (!containerRef.current) return;
     const app = new PIXI.Application();
     
-    // 【重要】autoStart: false に設定。
-    // PixiJSの勝手なTickerループを止め、React側の制御下でのみ描画させることで
-    // 二重描画によるCPU負荷を回避する。
     app.init({ 
         width: projectSettings.width, 
         height: projectSettings.height, 
         backgroundColor: '#1e1e1e', 
-        preference: 'webgpu',
-        autoStart: false, // 自動描画停止
+        preference: 'webgpu', 
+        autoStart: false,
         sharedTicker: false
     }).then(() => {
       if (containerRef.current && !containerRef.current.hasChildNodes()) {
@@ -62,7 +63,6 @@ const Viewport: React.FC = () => {
           if (e.target === app.stage) selectObject(null);
         });
         
-        // 初回描画
         app.render();
       }
     });
@@ -73,8 +73,13 @@ const Viewport: React.FC = () => {
         pixiObjectsRef.current.clear();
         textureCacheRef.current.clear();
         loadingUrlsRef.current.clear();
-        videoElementsRef.current.forEach(video => { video.pause(); video.src = ""; video.load(); });
-        videoElementsRef.current.clear();
+        
+        videoProvidersRef.current.forEach(p => p.dispose());
+        videoProvidersRef.current.clear();
+        
+        videoFramesRef.current.forEach(f => f?.close());
+        videoFramesRef.current.clear();
+
         audioElementsRef.current.forEach(audio => { audio.pause(); audio.src = ""; audio.load(); });
         audioElementsRef.current.clear();
       }
@@ -122,17 +127,39 @@ const Viewport: React.FC = () => {
     loadBuffers();
   }, [objects]);
 
+  // --- Video Provider Management ---
+  useEffect(() => {
+    const currentProviders = videoProvidersRef.current;
+    
+    objects.forEach(obj => {
+        if (obj.type === 'video' && !currentProviders.has(obj.id)) {
+            const provider = new VideoFrameProvider(obj.src);
+            currentProviders.set(obj.id, provider);
+        }
+    });
+
+    currentProviders.forEach((provider, id) => {
+        if (!objects.find(o => o.id === id)) {
+            provider.dispose();
+            currentProviders.delete(id);
+            const frame = videoFramesRef.current.get(id);
+            if (frame) frame.close();
+            videoFramesRef.current.delete(id);
+        }
+    });
+  }, [objects]);
+
+
   // --- Main Render Logic ---
-  const renderScene = useCallback((time: number, currentObjects: TimelineObject[]) => {
+  const renderScene = useCallback(async (time: number, currentObjects: TimelineObject[]) => {
     const app = pixiAppRef.current;
     if (!app) return;
 
     const currentPixiObjects = pixiObjectsRef.current;
-    const currentVideoElements = videoElementsRef.current;
     const currentAudioElements = audioElementsRef.current;
     const visibleObjects = currentObjects.filter(obj => time >= obj.startTime && time < obj.startTime + obj.duration);
 
-    // 1. Cleanup
+    // Cleanup Pixi Objects
     currentPixiObjects.forEach((container, id) => {
       if (!visibleObjects.find(obj => obj.id === id)) {
         app.stage.removeChild(container);
@@ -140,20 +167,36 @@ const Viewport: React.FC = () => {
         currentPixiObjects.delete(id);
       }
     });
-    currentVideoElements.forEach((video, id) => {
-        if (!visibleObjects.find(obj => obj.id === id && obj.type === 'video')) {
-            video.pause(); video.src = ""; video.load(); currentVideoElements.delete(id); videoPlayPromisesRef.current.delete(id);
-        }
-    });
+
+    // Fetch Video Frames
+    const videoUpdatePromises = visibleObjects
+        .filter(obj => obj.type === 'video')
+        .map(async (obj) => {
+            const provider = videoProvidersRef.current.get(obj.id);
+            if (provider) {
+                const offset = obj.offset || 0;
+                const videoLocalTime = (time - obj.startTime) + offset;
+                const newFrame = await provider.getFrame(videoLocalTime);
+                
+                if (newFrame) {
+                    const oldFrame = videoFramesRef.current.get(obj.id);
+                    if (oldFrame) oldFrame.close();
+                    videoFramesRef.current.set(obj.id, newFrame);
+                }
+            }
+        });
+    
+    await Promise.all(videoUpdatePromises);
+
+    // Audio Cleanup
     currentAudioElements.forEach((audio, id) => {
         if (!visibleObjects.find(obj => obj.id === id && obj.type === 'audio')) {
             audio.pause(); audio.src = ""; audio.load(); currentAudioElements.delete(id);
         }
     });
 
-    // 2. Render visible objects
+    // Render visible objects
     visibleObjects.forEach(obj => {
-      // Audio Logic
       if (obj.type === 'audio') {
         let audio = currentAudioElements.get(obj.id);
         if (!audio) {
@@ -188,11 +231,10 @@ const Viewport: React.FC = () => {
         app.stage.addChild(container); currentPixiObjects.set(obj.id, container);
       }
 
-      // Content Update
       const content = updatePixiContent(obj, container, time, {
           textureCache: textureCacheRef.current,
           loadingUrls: loadingUrlsRef.current,
-          videoElements: videoElementsRef.current,
+          videoFrames: videoFramesRef.current, 
           audioBuffers: audioBuffersRef.current, 
           allObjects: currentObjects,            
           isExporting,
@@ -200,25 +242,14 @@ const Viewport: React.FC = () => {
           setRenderTick
       });
 
-      // Shadow Handling (Simplified for performance)
       if (content && obj.shadow && obj.shadow.enabled) {
           let shadow = container.children.find(c => c.label === 'shadow') as PIXI.Graphics;
-          if (shadow) {
-               // 既存のシャドウがあれば作り直さずにパラメータ更新したいところだが、
-               // 簡易実装として再作成（頻度は高くないため許容）
-               // container.removeChild(shadow); shadow.destroy(); shadow = null;
-               // 最適化: clearして再描画
-               shadow.clear();
-          }
+          if (shadow) { shadow.clear(); }
           if (!shadow) {
-              // 新規作成
               shadow = new PIXI.Graphics();
               shadow.label = 'shadow';
               container.addChildAt(shadow, 0);
           }
-          // 描画処理をここで行うべきだが、コード量の都合上、既存のcreateShadowGraphicsロジックを利用するため
-          // 一旦破棄して再生成するパターンに戻す（またはcreateShadowGraphicsをGraphicsを受け取る形にリファクタ推奨）
-          // 今回は一番確実な「破棄->再生成」で行く（Shadowは静止画が多いのでコスト低い）
            container.removeChild(shadow); shadow.destroy();
            const s = createShadowGraphics(obj, (content as any).width, (content as any).height, obj.shadow);
            if (s) {
@@ -232,7 +263,6 @@ const Viewport: React.FC = () => {
 
       applyObjectEffects(container, obj);
 
-      // Selection Border
       let border = container.children.find(c => c.label === 'border') as PIXI.Graphics;
       if (isSelected && !isExporting && !isSnapshotRequested) { 
         if (!border) {
@@ -247,13 +277,9 @@ const Viewport: React.FC = () => {
         border.stroke({ width: 2, color: 0xffd700 });
         container.setChildIndex(border, container.children.length - 1);
       } else {
-        if (border) {
-            container.removeChild(border);
-            border.destroy();
-        }
+        if (border) { container.removeChild(border); border.destroy(); }
       }
 
-      // Transform
       let currentX = obj.x; let currentY = obj.y;
       const rawProgress = (time - obj.startTime) / obj.duration; const progress = Math.max(0, Math.min(1, rawProgress));
 
@@ -283,7 +309,6 @@ const Viewport: React.FC = () => {
       }
     });
 
-    // 3. Clipping Mask
     visibleObjects.forEach(obj => {
         const container = currentPixiObjects.get(obj.id);
         if (!container) return;
@@ -301,8 +326,6 @@ const Viewport: React.FC = () => {
     });
 
     app.stage.sortChildren();
-    
-    // 手動レンダリング実行 (Ticker停止中のため必須)
     app.render();
   }, [selectedId, isExporting, isPlaying, isSnapshotRequested]);
 
@@ -310,12 +333,16 @@ const Viewport: React.FC = () => {
       if (!isExporting) renderScene(currentTime, objects); 
   }, [currentTime, objects, renderScene, renderTick, isExporting]);
   
-  useProjectExport(pixiAppRef, videoElementsRef, renderScene);
+  const dummyVideoMap = useRef(new Map<string, HTMLVideoElement>());
+  useProjectExport(pixiAppRef, dummyVideoMap, renderScene);
 
   const scale = 800 / Math.max(projectSettings.width, 1);
 
   return (
     <div className="viewport-container" style={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#000', overflow: 'hidden' }}>
+      {/* デバッグパネルを配置 */}
+      <VideoDebugPanel providers={videoProvidersRef.current} currentTime={currentTime} />
+      
       {isExporting && <div style={{ position: 'absolute', top: 20, left: 0, right: 0, textAlign: 'center', color: '#00ff00', zIndex: 9999, fontSize: '20px', fontWeight: 'bold', textShadow: '0 0 5px black' }}>EXPORTING...</div>}
       <div ref={containerRef} style={{ width: projectSettings.width, height: projectSettings.height, transform: `scale(${Math.min(0.7, scale)})`, transformOrigin: 'center center', boxShadow: '0 0 20px rgba(0,0,0,0.5)' }} />
     </div>

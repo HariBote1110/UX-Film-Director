@@ -2,7 +2,7 @@ import * as PIXI from 'pixi.js';
 import { TimelineObject, GroupControlObject, AudioVisualizationObject, AudioObject, ClippingParams } from '../types';
 import { createGradientTexture, drawShape, getCurrentViseme } from './pixiUtils';
 
-// ... (Shader definitions omitted for brevity - same as previous) ...
+// --- Shader Definitions ---
 const vertexShader = `
 attribute vec2 aVertexPosition;
 attribute vec2 aTextureCoord;
@@ -57,7 +57,8 @@ class DiagonalClippingFilter extends PIXI.Filter {
     }
 }
 
-// ... (Helper functions: getGroupTransforms, getLipSyncViseme, getVibrationOffset, drawAudioWaveform are same as previous) ...
+// --- Helper Functions ---
+
 export const getGroupTransforms = (obj: TimelineObject, time: number, allObjects: TimelineObject[]) => {
     let x = 0, y = 0, rotation = 0, scaleX = 1, scaleY = 1, alpha = 1;
     const groups = allObjects.filter(o => o.type === 'group_control' && o.layer < obj.layer && time >= o.startTime && time < o.startTime + o.duration) as GroupControlObject[];
@@ -72,6 +73,7 @@ export const getGroupTransforms = (obj: TimelineObject, time: number, allObjects
     });
     return { x, y, rotation, scaleX, scaleY, alpha };
 };
+
 export const getLipSyncViseme = (obj: TimelineObject, time: number, currentObjects: TimelineObject[]) => {
     if (obj.type !== 'psd' || !obj.lipSync?.enabled) return null;
     let audioSource: any = undefined;
@@ -82,6 +84,7 @@ export const getLipSyncViseme = (obj: TimelineObject, time: number, currentObjec
     }
     return audioSource ? getCurrentViseme(audioSource, time) : null;
 };
+
 export const getVibrationOffset = (obj: TimelineObject, time: number) => {
     if (!obj.vibration || !obj.vibration.enabled) return { x: 0, y: 0 };
     const { strength, speed } = obj.vibration;
@@ -92,6 +95,7 @@ export const getVibrationOffset = (obj: TimelineObject, time: number) => {
         y: Math.cos(t * 12.9898) * strength + Math.sin(t * 78.233) * strength * 0.5 
     };
 };
+
 const drawAudioWaveform = (graphics: PIXI.Graphics, obj: AudioVisualizationObject, time: number, audioBuffers: Map<string, AudioBuffer>, allObjects: TimelineObject[]) => {
     graphics.clear();
     let targetAudio: AudioObject | undefined;
@@ -135,6 +139,8 @@ export const applyObjectEffects = (container: PIXI.Container, obj: TimelineObjec
     container.filters = filters.length > 0 ? filters : null;
 };
 
+// --- Update Content ---
+
 export const updatePixiContent = (
     obj: TimelineObject,
     container: PIXI.Container,
@@ -142,7 +148,7 @@ export const updatePixiContent = (
     resources: {
         textureCache: Map<string, PIXI.Texture>;
         loadingUrls: Set<string>;
-        videoElements: Map<string, HTMLVideoElement>;
+        videoFrames?: Map<string, VideoFrame | null>; // Changed to VideoFrame
         audioBuffers?: Map<string, AudioBuffer>; 
         allObjects?: TimelineObject[];           
         isExporting: boolean;
@@ -150,7 +156,7 @@ export const updatePixiContent = (
         setRenderTick: React.Dispatch<React.SetStateAction<number>>;
     }
 ) => {
-    const { textureCache, loadingUrls, videoElements, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick } = resources;
+    const { textureCache, loadingUrls, videoFrames, audioBuffers, allObjects, setRenderTick } = resources;
     let content = container.children[0] as (PIXI.Sprite | PIXI.Graphics | PIXI.Text | PIXI.Container | undefined);
     
     // Check for recreation
@@ -165,8 +171,17 @@ export const updatePixiContent = (
     }
 
     if (needsRecreation) {
-        const children = container.removeChildren();
-        children.forEach(c => c.destroy({ children: true, texture: false, context: true }));
+        // テクスチャ(VideoFrame含む)が管理下にある場合は破棄に注意
+        // ここでは children=true で子要素を削除するが、テクスチャ自体の破棄はキャッシュ戦略による
+        if (content && content instanceof PIXI.Sprite) {
+             // 既存のテクスチャが VideoFrame ベースのものであれば破棄が必要
+             // ただしここでは一律 destroy({ children: true, texture: false }) とし、
+             // 動画の場合は個別ロジックで古いテクスチャを破棄する
+             content.destroy({ children: true, texture: false });
+        } else if (content) {
+             content.destroy({ children: true });
+        }
+        container.removeChildren();
         content = undefined;
     }
 
@@ -206,46 +221,41 @@ export const updatePixiContent = (
 
     } else if (obj.type === 'video') {
         let sprite = content as PIXI.Sprite;
-        let video = videoElements.get(obj.id);
-        if (!video) {
-            video = document.createElement('video');
-            video.src = obj.src; video.muted = obj.muted; video.volume = obj.volume; video.crossOrigin = 'anonymous'; video.preload = 'auto'; video.playsInline = true;
-            video.addEventListener('canplay', () => setRenderTick(p => p+1), { once: true });
-            videoElements.set(obj.id, video);
-        }
+        const newFrame = videoFrames?.get(obj.id);
         
-        if (video.readyState >= 2 && video.videoWidth > 0) {
+        if (newFrame) {
             if (!sprite) {
-                const texture = PIXI.Texture.from(video); // Pixi v8 handles VideoSource
-                sprite = new PIXI.Sprite(texture);
+                sprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
                 container.addChild(sprite);
             }
-            sprite.width = obj.width; sprite.height = obj.height;
-            content = sprite;
 
-            // --- Optimized Sync Logic ---
-            const offset = obj.offset || 0;
-            const videoLocalTime = (time - obj.startTime) + offset;
-            if (!isExporting) {
-                if (isPlaying) {
-                    if (video.paused) { 
-                        const pp = video.play(); if (pp) pp.catch(()=>{}); 
-                        if (Math.abs(video.currentTime - videoLocalTime) > 0.1) video.currentTime = videoLocalTime;
-                    } else {
-                        // Allow 0.5s drift to avoid frequent seeking overhead
-                        if (Math.abs(video.currentTime - videoLocalTime) > 0.5) video.currentTime = videoLocalTime;
-                    }
-                    // REMOVED: sprite.texture.source.update(); -> Let Pixi/WebGPU handle it automatically
-                } else {
-                    if (!video.paused) video.pause();
-                    if (Math.abs(video.currentTime - videoLocalTime) > 0.05) video.currentTime = videoLocalTime;
+            const oldTexture = sprite.texture;
+            
+            // VideoFrameから新しいテクスチャを作成
+            const newTexture = PIXI.Texture.from(newFrame);
+            
+            // テクスチャが変わった場合のみ更新
+            if (oldTexture !== newTexture) {
+                sprite.texture = newTexture;
+                sprite.width = obj.width;
+                sprite.height = obj.height;
+
+                // 重要: メモリリーク防止
+                // 古いテクスチャが空でなければ破棄し、そのソース(以前のVideoFrame)も閉じる
+                // PIXI.Texture.EMPTYはシングルトンなので破棄しない
+                if (oldTexture && oldTexture !== PIXI.Texture.EMPTY) {
+                    oldTexture.destroy(true); 
                 }
-            } else {
-                if (Math.abs(video.currentTime - videoLocalTime) > 0.05) video.currentTime = videoLocalTime;
             }
+            content = sprite;
         } else {
+            // フレームがまだない場合
             if (!sprite) {
-                const placeholder = new PIXI.Graphics(); placeholder.rect(0, 0, obj.width, obj.height); placeholder.stroke({ width: 2, color: 0x0000ff }); container.addChild(placeholder); return placeholder;
+                 const placeholder = new PIXI.Graphics(); 
+                 placeholder.rect(0, 0, obj.width, obj.height); 
+                 placeholder.stroke({ width: 2, color: 0x0000ff }); 
+                 container.addChild(placeholder); 
+                 return placeholder;
             }
             content = sprite;
         }
