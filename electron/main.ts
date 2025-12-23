@@ -3,33 +3,39 @@ import path from 'node:path'
 import { spawn, ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
+import ffmpeg from 'fluent-ffmpeg'
+// requireを使って読み込むことで、TypeScriptのimport周りのトラブルを回避
+const ffmpegStatic = require('ffmpeg-static');
 
-// --- GPU Acceleration Flags ---
-// 高画質動画の再生負荷を下げるための重要な設定
+// FFmpegのパス設定とログ出力
+let ffmpegPath = ffmpegStatic;
+if (ffmpegPath) {
+    // asarパッケージ化されている場合、unpackedなパスに書き換える
+    ffmpegPath = ffmpegPath.replace('app.asar', 'app.asar.unpacked');
+    ffmpeg.setFfmpegPath(ffmpegPath);
+    console.log(`[Main] FFmpeg Path set to: ${ffmpegPath}`);
+} else {
+    console.error('[Main] FFmpeg binary not found!');
+}
+
+// ... (以下、GPU設定などは以前のコードを維持) ...
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('enable-zero-copy');
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
-// WebGPUを明示的に有効化 (環境によってはデフォルトで無効な場合があるため)
 app.commandLine.appendSwitch('enable-unsafe-webgpu');
-// ビデオデコードのハードウェア加速を強制
 app.commandLine.appendSwitch('disable-features', 'UseChromeOSDirectVideoDecoder');
 app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder,CanvasOopRasterization'); 
 
 process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(__dirname, '../public')
-process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(__dirname, '../public')
 
 let win: BrowserWindow | null
-let ffmpegProcess: ChildProcess | null = null;
+let exportProcess: ChildProcess | null = null;
 
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
 function createWindow() {
-  // アイコン画像のパスを設定 (publicフォルダ内の 'icon.jpg' を参照)
-  // ※ 実際のファイル名が 'icon.jpeg' の場合は修正してください
   const iconPath = path.join(process.env.VITE_PUBLIC, 'icon.jpg')
-
-  // macOS用のDockアイコン設定
   if (process.platform === 'darwin') {
     app.dock.setIcon(iconPath)
   }
@@ -37,13 +43,13 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1280,
     height: 800,
-    icon: iconPath, // Windows/Linux用のウィンドウアイコン設定
+    icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false,
-      webviewTag: true, // 重要: webviewタグを有効化
+      webSecurity: false, 
+      webviewTag: true,
     },
     titleBarStyle: 'hiddenInset',
   })
@@ -74,7 +80,41 @@ app.on('activate', () => {
 app.whenReady().then(() => {
   createWindow()
 
-  // --- IPC Handlers ---
+  ipcMain.handle('convert-video', async (event, filePath: string) => {
+    return new Promise((resolve, reject) => {
+      const fileName = path.basename(filePath, path.extname(filePath)) + '_proxy.mp4';
+      const outputPath = path.join(os.tmpdir(), `uxfilm_${fileName}`);
+
+      console.log(`[Main] Request to convert: ${filePath}`);
+
+      if (fs.existsSync(outputPath)) {
+        console.log('[Main] Using cached proxy.');
+        resolve(outputPath);
+        return;
+      }
+
+      ffmpeg(filePath)
+        .outputOptions([
+          '-c:v libx264',
+          '-preset ultrafast',
+          '-crf 23',
+          '-g 30',
+          '-vf scale=-2:720',
+          '-an',
+          '-movflags faststart',
+          '-pix_fmt yuv420p'
+        ])
+        .save(outputPath)
+        .on('end', () => {
+          console.log('[Main] Conversion complete:', outputPath);
+          resolve(outputPath);
+        })
+        .on('error', (err) => {
+          console.error('[Main] Conversion failed:', err);
+          reject(err);
+        });
+    });
+  });
 
   ipcMain.handle('save-temp-audio', async (event, buffer: ArrayBuffer) => {
     try {
@@ -103,34 +143,31 @@ app.whenReady().then(() => {
       '-r', fps.toString(),
       '-i', '-', 
       ...(audioPath ? ['-i', audioPath] : []),
-      '-c:v', 'h264_videotoolbox', 
-      '-b:v', '8000k',
+      '-c:v', 'libx264',
+      '-preset', 'fast',
       '-pix_fmt', 'yuv420p',
       ...(audioPath ? ['-c:a', 'aac', '-b:a', '192k', '-map', '0:v:0', '-map', '1:a:0'] : []),
       '-shortest',
       filePath
     ];
 
-    const ffmpegPath = '/opt/homebrew/bin/ffmpeg'; 
-
     try {
-      ffmpegProcess = spawn(ffmpegPath, args);
+      if(!ffmpegPath) throw new Error("FFmpeg binary not found");
       
-      ffmpegProcess.stderr?.on('data', (data) => {
-        console.log(`FFmpeg: ${data}`); 
+      console.log(`[Main] Spawning export process with: ${ffmpegPath}`);
+      exportProcess = spawn(ffmpegPath, args); // ここも修正
+      
+      exportProcess.stderr?.on('data', (data) => {
+        console.log(`FFmpeg Export: ${data}`); 
       });
 
-      ffmpegProcess.on('close', (code) => {
+      exportProcess.on('close', (code) => {
         console.log(`FFmpeg process exited with code ${code}`);
         event.sender.send('export-complete', code === 0);
-        ffmpegProcess = null;
+        exportProcess = null;
 
         if (audioPath && fs.existsSync(audioPath)) {
-          try {
-            fs.unlinkSync(audioPath);
-          } catch (err) {
-            console.error('Failed to delete temp audio:', err);
-          }
+          try { fs.unlinkSync(audioPath); } catch {}
         }
       });
 
@@ -142,11 +179,11 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle('write-frame', async (event, base64Data: string) => {
-    if (!ffmpegProcess || !ffmpegProcess.stdin) return false;
+    if (!exportProcess || !exportProcess.stdin) return false;
     try {
       const data = base64Data.replace(/^data:image\/jpeg;base64,/, '');
       const buffer = Buffer.from(data, 'base64');
-      ffmpegProcess.stdin.write(buffer);
+      exportProcess.stdin.write(buffer);
       return true;
     } catch (error) {
       console.error('Error writing frame:', error);
@@ -155,8 +192,8 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle('end-export', async () => {
-    if (ffmpegProcess && ffmpegProcess.stdin) {
-      ffmpegProcess.stdin.end();
+    if (exportProcess && exportProcess.stdin) {
+      exportProcess.stdin.end();
     }
     return true;
   });

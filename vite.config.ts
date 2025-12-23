@@ -10,6 +10,16 @@ export default defineConfig({
     electron({
       main: {
         entry: 'electron/main.ts',
+        // --- 修正: バンドル設定を追加 ---
+        vite: {
+          build: {
+            rollupOptions: {
+              // ここに指定したモジュールはバンドルされず、require()で読み込まれます
+              external: ['ffmpeg-static', 'fluent-ffmpeg'],
+            },
+          },
+        },
+        // -----------------------------
       },
       preload: {
         input: 'electron/preload.ts',
@@ -22,10 +32,8 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  // --- 追記ここから ---
   server: {
     headers: {
-      // FFmpeg.wasmのためのセキュリティ設定 (Cross-Origin Isolation)
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Embedder-Policy': 'require-corp',
     },
@@ -33,5 +41,4 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
   },
-  // --- 追記ここまで ---
 })

@@ -2,6 +2,12 @@ import * as PIXI from 'pixi.js';
 import { TimelineObject, GroupControlObject, AudioVisualizationObject, AudioObject, ClippingParams } from '../types';
 import { createGradientTexture, drawShape, getCurrentViseme } from './pixiUtils';
 
+// --- キャッシュ ---
+const videoCanvasCache = new Map<string, HTMLCanvasElement>();
+const videoCtxCache = new Map<string, CanvasRenderingContext2D>();
+// Texture自体もキャッシュする
+const videoTextureCache = new Map<string, PIXI.Texture>();
+
 // --- Shader Definitions ---
 const vertexShader = `
 attribute vec2 aVertexPosition;
@@ -148,7 +154,7 @@ export const updatePixiContent = (
     resources: {
         textureCache: Map<string, PIXI.Texture>;
         loadingUrls: Set<string>;
-        videoFrames?: Map<string, VideoFrame | null>; // Changed to VideoFrame
+        videoFrames?: Map<string, VideoFrame | null>; 
         audioBuffers?: Map<string, AudioBuffer>; 
         allObjects?: TimelineObject[];           
         isExporting: boolean;
@@ -171,12 +177,8 @@ export const updatePixiContent = (
     }
 
     if (needsRecreation) {
-        // テクスチャ(VideoFrame含む)が管理下にある場合は破棄に注意
-        // ここでは children=true で子要素を削除するが、テクスチャ自体の破棄はキャッシュ戦略による
         if (content && content instanceof PIXI.Sprite) {
-             // 既存のテクスチャが VideoFrame ベースのものであれば破棄が必要
-             // ただしここでは一律 destroy({ children: true, texture: false }) とし、
-             // 動画の場合は個別ロジックで古いテクスチャを破棄する
+             // テクスチャはキャッシュしている(使い回す)ので、破棄しない
              content.destroy({ children: true, texture: false });
         } else if (content) {
              content.destroy({ children: true });
@@ -223,42 +225,71 @@ export const updatePixiContent = (
         let sprite = content as PIXI.Sprite;
         const newFrame = videoFrames?.get(obj.id);
         
+        // 1. Canvas & Context の取得/作成 (キャッシュから)
+        let canvas = videoCanvasCache.get(obj.id);
+        let ctx = videoCtxCache.get(obj.id);
+        let texture = videoTextureCache.get(obj.id);
+        
+        if (!canvas) {
+            canvas = document.createElement('canvas');
+            // 初期サイズは適当で良いが、VideoFrameが来るまで0かもしれない
+            canvas.width = obj.width || 1280; 
+            canvas.height = obj.height || 720;
+            ctx = canvas.getContext('2d', { alpha: false, desynchronized: true }) as CanvasRenderingContext2D;
+            
+            // Textureもここで一度だけ作る！
+            texture = PIXI.Texture.from(canvas);
+            
+            videoCanvasCache.set(obj.id, canvas);
+            videoCtxCache.set(obj.id, ctx);
+            videoTextureCache.set(obj.id, texture);
+        }
+
         if (newFrame) {
-            if (!sprite) {
-                sprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
-                container.addChild(sprite);
+            // サイズ変更検知
+            if (canvas.width !== newFrame.displayWidth || canvas.height !== newFrame.displayHeight) {
+                canvas.width = newFrame.displayWidth;
+                canvas.height = newFrame.displayHeight;
+                // Canvasのサイズを変えたらTextureも更新が必要な場合があるが、
+                // PixiのTextureはsourceのサイズ変更を自動検知する場合が多い。
+                // 明示的にupdateを呼ぶ。
             }
 
-            const oldTexture = sprite.texture;
+            // Canvasへ転写
+            ctx?.drawImage(newFrame, 0, 0, canvas.width, canvas.height);
             
-            // VideoFrameから新しいテクスチャを作成
-            const newTexture = PIXI.Texture.from(newFrame);
-            
-            // テクスチャが変わった場合のみ更新
-            if (oldTexture !== newTexture) {
-                sprite.texture = newTexture;
-                sprite.width = obj.width;
-                sprite.height = obj.height;
+            // --- 重要: 即時クローズ ---
+            // 描画が終わったら即座にメモリを開放する。これでGCが起きなくなる。
+            // (注: Provider側で clone() して渡してくれている前提。もし生ならProviderが壊れるが、
+            //  Providerのコードでは getFrame() で clone() しているので安全)
+            newFrame.close();
 
-                // 重要: メモリリーク防止
-                // 古いテクスチャが空でなければ破棄し、そのソース(以前のVideoFrame)も閉じる
-                // PIXI.Texture.EMPTYはシングルトンなので破棄しない
-                if (oldTexture && oldTexture !== PIXI.Texture.EMPTY) {
-                    oldTexture.destroy(true); 
+            // PixiJSに更新通知
+            if (texture) {
+                // v8: texture.source.update()
+                // v7: texture.update()
+                // 両対応または型定義に合わせて呼び出す
+                if ((texture as any).source) {
+                    (texture as any).source.update();
+                } else {
+                    texture.update();
                 }
             }
-            content = sprite;
-        } else {
-            // フレームがまだない場合
-            if (!sprite) {
-                 const placeholder = new PIXI.Graphics(); 
-                 placeholder.rect(0, 0, obj.width, obj.height); 
-                 placeholder.stroke({ width: 2, color: 0x0000ff }); 
-                 container.addChild(placeholder); 
-                 return placeholder;
-            }
-            content = sprite;
         }
+
+        // Spriteが無ければ作成 (一度だけ)
+        if (!sprite) {
+            sprite = new PIXI.Sprite(texture || PIXI.Texture.EMPTY);
+            sprite.width = obj.width;
+            sprite.height = obj.height;
+            container.addChild(sprite);
+        }
+        
+        // スプライトのサイズ同期（エディタ上のリサイズ対応）
+        if (sprite.width !== obj.width) sprite.width = obj.width;
+        if (sprite.height !== obj.height) sprite.height = obj.height;
+
+        content = sprite;
 
     } else if (obj.type === 'audio_visualization') {
         let graphics = content as PIXI.Graphics || new PIXI.Graphics();

@@ -44,6 +44,9 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
 
     for (const file of files) {
         const url = URL.createObjectURL(file);
+        // Electron環境ではファイルの絶対パスが取得できる
+        const filePath = (file as any).path || url;
+        
         const lowerName = file.name.toLowerCase();
         const baseName = file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name;
 
@@ -70,11 +73,14 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
             };
         } else if (file.type.startsWith('video/')) {
             const video = document.createElement('video');
+            // メタデータ取得用にはBlob URLを使用（高速かつ安全）
             video.src = url;
             video.onloadedmetadata = () => {
                 const newVideo: TimelineObject = {
                     id: crypto.randomUUID(), type: 'video', name: file.name, layer: dropLayer, startTime: dropTime, duration: video.duration || 10,
-                    x: 640 - (video.videoWidth / 2), y: 360 - (video.videoHeight / 2), width: video.videoWidth, height: video.videoHeight, src: url,
+                    x: 640 - (video.videoWidth / 2), y: 360 - (video.videoHeight / 2), width: video.videoWidth, height: video.videoHeight, 
+                    // 重要: FFmpegに渡すために、Blob URLではなく絶対パスを保存する
+                    src: filePath,
                     volume: 1.0, muted: false,
                     enableAnimation: false, endX: 640 - (video.videoWidth / 2), endY: 360 - (video.videoHeight / 2), easing: 'linear', offset: 0,
                     rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
