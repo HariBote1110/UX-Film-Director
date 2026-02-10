@@ -1,9 +1,8 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import path from 'node:path'
-import { spawn, ChildProcess, ChildProcessWithoutNullStreams } from 'node:child_process'
+import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
-import { once } from 'node:events'
 
 // --- GPU Acceleration Flags ---
 // 高画質動画の再生負荷を下げるための重要な設定
@@ -20,7 +19,6 @@ process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(__dirname, '../public')
 
 let win: BrowserWindow | null
-let ffmpegProcess: ChildProcess | null = null;
 let rustBackendProcess: ChildProcessWithoutNullStreams | null = null;
 let rustNextRequestId = 1;
 let rustStdoutBuffer = '';
@@ -44,6 +42,25 @@ type RustRpcResponse = {
 const rustPendingRequests = new Map<number, PendingRustRequest>();
 
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
+
+const resolveDefaultFfmpegPath = () => {
+  if (process.env.UXFD_FFMPEG_BIN) {
+    return process.env.UXFD_FFMPEG_BIN;
+  }
+
+  const candidates = [
+    '/opt/homebrew/bin/ffmpeg',
+    '/usr/local/bin/ffmpeg',
+    'ffmpeg',
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate === 'ffmpeg') return candidate;
+    if (fs.existsSync(candidate)) return candidate;
+  }
+
+  return 'ffmpeg';
+};
 
 const getRustBackendBinaryName = () => {
   return process.platform === 'win32' ? 'uxfd-rust-backend.exe' : 'uxfd-rust-backend';
@@ -284,59 +301,30 @@ app.whenReady().then(() => {
 
     if (!filePath) return { success: false, reason: 'cancelled' };
 
-    const args = [
-      '-y',
-      '-f', 'image2pipe',
-      '-vcodec', 'mjpeg',
-      '-r', fps.toString(),
-      '-i', '-', 
-      ...(audioPath ? ['-i', audioPath] : []),
-      '-c:v', 'h264_videotoolbox', 
-      '-b:v', '8000k',
-      '-pix_fmt', 'yuv420p',
-      ...(audioPath ? ['-c:a', 'aac', '-b:a', '192k', '-map', '0:v:0', '-map', '1:a:0'] : []),
-      '-shortest',
-      filePath
-    ];
-
-    const ffmpegPath = '/opt/homebrew/bin/ffmpeg'; 
-
     try {
-      ffmpegProcess = spawn(ffmpegPath, args);
-      
-      ffmpegProcess.stderr?.on('data', (data) => {
-        console.log(`FFmpeg: ${data}`); 
-      });
-
-      ffmpegProcess.on('close', (code) => {
-        console.log(`FFmpeg process exited with code ${code}`);
-        event.sender.send('export-complete', code === 0);
-        ffmpegProcess = null;
-
-        if (audioPath && fs.existsSync(audioPath)) {
-          try {
-            fs.unlinkSync(audioPath);
-          } catch (err) {
-            console.error('Failed to delete temp audio:', err);
-          }
-        }
-      });
+      await callRustBackend('export.start', {
+        width,
+        height,
+        fps,
+        filePath,
+        audioPath: audioPath ?? null,
+        ffmpegPath: resolveDefaultFfmpegPath(),
+      }, 15000);
 
       return { success: true, filePath };
-    } catch (e) {
-      console.error('Failed to spawn ffmpeg', e);
-      return { success: false, error: String(e) };
+    } catch (error) {
+      console.error('Failed to start export via Rust backend', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
     }
   });
 
   ipcMain.handle('write-frame', async (event, frameData: ArrayBuffer) => {
-    if (!ffmpegProcess || !ffmpegProcess.stdin) return false;
     try {
-      const buffer = Buffer.from(frameData);
-      const canContinue = ffmpegProcess.stdin.write(buffer);
-      if (!canContinue) {
-        await once(ffmpegProcess.stdin, 'drain');
-      }
+      const frameBase64 = Buffer.from(frameData).toString('base64');
+      await callRustBackend('export.write_frame', { frameBase64 }, 20000);
       return true;
     } catch (error) {
       console.error('Error writing frame:', error);
@@ -345,10 +333,13 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle('end-export', async () => {
-    if (ffmpegProcess && ffmpegProcess.stdin) {
-      ffmpegProcess.stdin.end();
+    try {
+      await callRustBackend('export.end', {}, 60000);
+      return true;
+    } catch (error) {
+      console.error('Failed to end export via Rust backend', error);
+      return false;
     }
-    return true;
   });
 
   ipcMain.handle('rust-backend-health', async () => {

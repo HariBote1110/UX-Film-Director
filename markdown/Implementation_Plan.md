@@ -28,3 +28,6 @@ Electron 側は `stdin` バックプレッシャーを考慮して書き込み�
 7. Rust バックエンドの第1段階を構築する  
 `rust-backend/` を新設し、`stdio` JSON-RPC で `health` 応答できる最小プロセスを実装する。  
 Electron メインプロセスに Rust プロセス管理と IPC ラッパーを追加し、将来の書き出し移管の土台を整える。
+
+8. 書き出しパイプライン制御を Rust 側へ移管する  
+`export.start` / `export.write_frame` / `export.end` を Rust 側に実装し、Electron の `start-export` / `write-frame` / `end-export` ハンドラは Rust API 呼び出しへ切り替える。

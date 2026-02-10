@@ -61,6 +61,21 @@
 - `package.json`
 - Rust のビルド/実行スクリプト (`rust:build:debug`, `rust:build:release`, `rust:run`) を追加。
 
+## 8. 書き出しパイプライン制御の Rust 移管
+- `rust-backend/src/main.rs`
+- `export.start` / `export.write_frame` / `export.end` を追加し、Rust 側で FFmpeg プロセスを保持するセッション管理を実装。
+- フレームは `base64` デコード後に FFmpeg stdin へ書き込み、`export.end` で待機して終了コードを判定する。
+- `rust-backend/Cargo.toml`
+- `base64` 依存を追加。
+- `electron/main.ts`
+- 既存 IPC (`start-export`, `write-frame`, `end-export`) を維持しつつ、内部実装を Rust バックエンド呼び出しへ切り替え。
+- 出力先ファイル選択は従来どおり Electron ダイアログで行い、選択結果を Rust `export.start` に渡す。
+- `FFmpeg` パスは `UXFD_FFMPEG_BIN` または既定候補 (`/opt/homebrew/bin/ffmpeg`, `/usr/local/bin/ffmpeg`, `ffmpeg`) を解決して渡す。
+- `src/hooks/useProjectExport.ts`
+- フレーム書き込み失敗時の例外処理と、キャンセル時の `end-export` 呼び出しを追加して Rust セッションが残らないように調整。
+
 ## 確認
 - `npx tsc --noEmit` を実行し、成功を確認。
-- Rust ツールチェーン (`cargo`) がこの実行環境に無いため、`rust-backend` のコンパイルは未実施。
+- `cargo build --manifest-path rust-backend/Cargo.toml` を実行し、成功を確認。
+- `printf '{"id":1,"method":"health"}' | rust-backend/target/debug/uxfd-rust-backend` を実行し、`status: ok` 応答を確認。
+- Node から `export.start -> export.write_frame -> export.end` の順で呼び出し、MP4 ファイルが生成されることを確認。
