@@ -1,6 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { TimelineObject, GroupControlObject, AudioVisualizationObject, AudioObject, ClippingParams } from '../types';
-import { createGradientTexture, drawShape, getCurrentViseme } from './pixiUtils';
+import { createGradientTexture, drawShape, getCurrentViseme, renderPsdTree } from './pixiUtils';
 
 // ... (Shader definitions omitted for brevity - same as previous) ...
 const vertexShader = `
@@ -167,7 +167,8 @@ export const updatePixiContent = (
     else {
         if (obj.type === 'shape' && !(content instanceof PIXI.Graphics)) needsRecreation = true;
         else if (obj.type === 'text' && !(content instanceof PIXI.Text)) needsRecreation = true;
-        else if ((obj.type === 'image' || obj.type === 'video' || obj.type === 'psd') && !(content instanceof PIXI.Sprite)) needsRecreation = true;
+        else if ((obj.type === 'image' || obj.type === 'video') && !(content instanceof PIXI.Sprite)) needsRecreation = true;
+        else if (obj.type === 'psd' && !(content instanceof PIXI.Container)) needsRecreation = true;
         else if (obj.type === 'audio_visualization' && !(content instanceof PIXI.Graphics)) needsRecreation = true;
         else if (obj.type === 'group_control' && !(content instanceof PIXI.Graphics)) needsRecreation = true;
     }
@@ -196,7 +197,7 @@ export const updatePixiContent = (
         textObj.style = { fontFamily: obj.fontFamily || 'Arial', fontSize: obj.fontSize, fill: obj.fill };
         content = textObj;
 
-    } else if (obj.type === 'image' || obj.type === 'psd') {
+    } else if (obj.type === 'image') {
         let sprite = content as PIXI.Sprite;
         let texture: PIXI.Texture | undefined;
         if (obj.src) {
@@ -209,8 +210,50 @@ export const updatePixiContent = (
         }
         if (!sprite) { sprite = new PIXI.Sprite(texture || PIXI.Texture.EMPTY); container.addChild(sprite); }
         if (texture && sprite.texture !== texture) sprite.texture = texture;
-        if (obj.type === 'psd') sprite.scale.set(obj.scale || 1.0); else { sprite.width = obj.width; sprite.height = obj.height; }
+        sprite.width = obj.width; sprite.height = obj.height;
         content = sprite;
+
+    } else if (obj.type === 'psd') {
+        let psdContent = content as PIXI.Container;
+        if (!psdContent) {
+            psdContent = new PIXI.Container();
+            container.addChild(psdContent);
+        }
+
+        const existingChildren = psdContent.removeChildren();
+        existingChildren.forEach((child) => {
+            child.destroy({ children: true, texture: false, context: true });
+        });
+
+        if (obj.rootLayer && obj.activeLayerIds) {
+            obj.rootLayer.children.forEach((child) => {
+                renderPsdTree(
+                    child,
+                    psdContent,
+                    obj.activeLayerIds!,
+                    textureCache,
+                    loadingUrls,
+                    () => setRenderTick((prev) => prev + 1)
+                );
+            });
+        } else if (obj.src) {
+            const texture = textureCache.get(obj.src);
+            if (texture) {
+                psdContent.addChild(new PIXI.Sprite(texture));
+            } else if (!loadingUrls.has(obj.src)) {
+                loadingUrls.add(obj.src);
+                const img = new Image();
+                img.src = obj.src;
+                img.onload = () => {
+                    textureCache.set(obj.src, PIXI.Texture.from(img));
+                    loadingUrls.delete(obj.src);
+                    setRenderTick((prev) => prev + 1);
+                };
+            }
+        }
+
+        psdContent.scale.set(obj.scale || 1.0);
+        content = psdContent;
 
     } else if (obj.type === 'video') {
         let sprite = content as PIXI.Sprite;

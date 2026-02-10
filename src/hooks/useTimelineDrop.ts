@@ -5,11 +5,13 @@ import { parseLabFile } from '../utils/labParser';
 import { HEADER_WIDTH, RULER_HEIGHT, ROW_HEIGHT, MAX_LAYERS, PX_PER_SEC } from '../components/timelineConstants';
 import { shallow } from 'zustand/shallow';
 import { resolveAudioMetadata, resolveVideoMetadata } from '../utils/mediaMetadata';
+import { parsePsdAsObject } from '../utils/psdParser';
 
 export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) => {
-  const { isExporting, addObject } = useStore((state) => ({
+  const { isExporting, addObject, projectSettings } = useStore((state) => ({
     isExporting: state.isExporting,
     addObject: state.addObject,
+    projectSettings: state.projectSettings,
   }), shallow);
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -48,20 +50,29 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
     });
 
     for (const file of files) {
-        const url = URL.createObjectURL(file);
         const lowerName = file.name.toLowerCase();
         const baseName = file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name;
 
         if (lowerName.endsWith('.psd')) {
-            const newPsd: TimelineObject = {
-                id: crypto.randomUUID(), type: 'psd', name: file.name, layer: dropLayer, startTime: dropTime, duration: 10,
-                x: 960, y: 540, width: 500, height: 500, scale: 1.0, 
-                enableAnimation: false, endX: 960, endY: 540, easing: 'linear', offset: 0,
-                rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
-                file: file, src: '', layerTree: []
-            };
-            addObject(newPsd);
+            try {
+                const { psdObject } = await parsePsdAsObject(
+                    file,
+                    dropTime,
+                    projectSettings.width,
+                    projectSettings.height
+                );
+
+                const newPsd: TimelineObject = {
+                    ...psdObject,
+                    layer: dropLayer,
+                    startTime: dropTime,
+                };
+                addObject(newPsd);
+            } catch (error) {
+                console.error('Failed to parse dropped PSD file', error);
+            }
         } else if (file.type.startsWith('image/')) {
+            const url = URL.createObjectURL(file);
             const img = new Image();
             img.src = url;
             img.onload = () => {
@@ -74,6 +85,7 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
                 addObject(newImage);
             };
         } else if (file.type.startsWith('video/')) {
+            const url = URL.createObjectURL(file);
             try {
                 const metadata = await resolveVideoMetadata(file, url);
                 const newVideo: TimelineObject = {
@@ -89,6 +101,7 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
                 URL.revokeObjectURL(url);
             }
         } else if (file.type.startsWith('audio/') || lowerName.endsWith('.wav')) {
+            const url = URL.createObjectURL(file);
             let labData = undefined;
             if (labFiles.has(baseName)) {
                 try {

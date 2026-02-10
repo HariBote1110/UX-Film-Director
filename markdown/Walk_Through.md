@@ -105,3 +105,20 @@
 ## 11. 署名無効化
 - `package.json`
 - `build` スクリプトを `CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder` に変更し、macOS 証明書自動検出を無効化。
+
+## 12. PSDToolKit 依存の撤廃
+- `src/App.tsx`
+- hidden webview (`PsdRenderer`) と bridge レジストリを削除し、PSD 表示パイプラインをストアデータ駆動へ一本化した。
+- `src/utils/psdParser.ts`
+- `buildPsdLayerTree` / `togglePsdLayer` を追加し、`parsePsdAsObject` で `layerTree` / `rootLayer` / `activeLayerIds` を初期生成するよう変更した。
+- `src/components/Timeline.tsx`
+- PSD ファイル追加時に `parsePsdAsObject` を実行し、解析済みオブジェクトを直接タイムラインへ追加するよう変更。
+- `src/hooks/useTimelineDrop.ts`
+- PSD ドロップ時も同様に `parsePsdAsObject` を実行し、追加経路の挙動差を解消。
+- `src/components/PropertyPanel.tsx`
+- `window.psdBridge` 依存を削除し、`togglePsdLayer` で `activeLayerIds` を直接更新して表情切り替えを反映する方式へ置換。
+- `src/utils/pixiRenderHelper.ts`
+- PSD を `Sprite` 1枚で扱う方式から、`renderPsdTree` によるレイヤー合成レンダリング方式へ切り替え。
+- `src/components/PsdRenderer.tsx`
+- `src/utils/psdToolBridge.ts`
+- 役割を失ったため削除。

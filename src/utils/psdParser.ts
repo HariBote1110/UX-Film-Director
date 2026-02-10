@@ -1,5 +1,5 @@
 import { readPsd, Layer } from 'ag-psd';
-import { PsdLayerNode, PsdObject, TimelineObject } from '../types';
+import { PsdLayerNode, PsdLayerStruct, PsdObject, TimelineObject } from '../types';
 
 type LayerWithBounds = Layer & {
   width?: number;
@@ -41,7 +41,75 @@ export interface PsdParseResult {
   psdObject: PsdObject;
 }
 
-export const parsePsdAsObject = async (file: File, startTime: number): Promise<PsdParseResult> => {
+const findNodePath = (node: PsdLayerNode, targetId: string, path: PsdLayerNode[] = []): PsdLayerNode[] | null => {
+  const nextPath = [...path, node];
+  if (node.id === targetId) return nextPath;
+
+  for (const child of node.children) {
+    const found = findNodePath(child, targetId, nextPath);
+    if (found) return found;
+  }
+
+  return null;
+};
+
+const toLayerStruct = (node: PsdLayerNode, activeLayerIds: Record<string, boolean>): PsdLayerStruct => {
+  return {
+    seq: node.isGroup ? null : node.id,
+    name: node.name,
+    checked: node.isGroup ? true : Boolean(activeLayerIds[node.id]),
+    isRadio: node.isRadio,
+    children: node.children.map((child) => toLayerStruct(child, activeLayerIds)),
+  };
+};
+
+export const buildPsdLayerTree = (rootNode: PsdLayerNode, activeLayerIds: Record<string, boolean>): PsdLayerStruct[] => {
+  return rootNode.children.map((child) => toLayerStruct(child, activeLayerIds));
+};
+
+export const togglePsdLayer = (
+  rootNode: PsdLayerNode,
+  currentActiveLayerIds: Record<string, boolean>,
+  targetLayerId: string
+): Record<string, boolean> => {
+  const path = findNodePath(rootNode, targetLayerId);
+  if (!path) return currentActiveLayerIds;
+
+  const targetNode = path[path.length - 1];
+  if (targetNode.isGroup) return currentActiveLayerIds;
+
+  const parentNode = path.length >= 2 ? path[path.length - 2] : null;
+  const nextActiveLayerIds = { ...currentActiveLayerIds };
+
+  // ターゲットに到達する経路上のグループは常に表示する。
+  path.forEach((node) => {
+    if (node.isGroup) {
+      nextActiveLayerIds[node.id] = true;
+    }
+  });
+
+  if (parentNode?.isRadio) {
+    parentNode.children
+      .filter((child) => !child.isGroup)
+      .forEach((child) => {
+        nextActiveLayerIds[child.id] = false;
+      });
+
+    nextActiveLayerIds[targetLayerId] = true;
+  } else {
+    nextActiveLayerIds[targetLayerId] = !Boolean(nextActiveLayerIds[targetLayerId]);
+  }
+
+  nextActiveLayerIds[rootNode.id] = true;
+  return nextActiveLayerIds;
+};
+
+export const parsePsdAsObject = async (
+  file: File,
+  startTime: number,
+  projectWidth: number = 1280,
+  projectHeight: number = 720
+): Promise<PsdParseResult> => {
   const arrayBuffer = await file.arrayBuffer();
   
   // 読み込み
@@ -202,14 +270,14 @@ export const parsePsdAsObject = async (file: File, startTime: number): Promise<P
     layer: 0,
     startTime: startTime,
     duration: 5,
-    x: 640 - (psd.width / 2),
-    y: 360 - (psd.height / 2),
+    x: (projectWidth / 2) - (psd.width / 2),
+    y: (projectHeight / 2) - (psd.height / 2),
     width: psd.width,
     height: psd.height,
     scale: 1.0,
     enableAnimation: false,
-    endX: 640 - (psd.width / 2),
-    endY: 360 - (psd.height / 2),
+    endX: (projectWidth / 2) - (psd.width / 2),
+    endY: (projectHeight / 2) - (psd.height / 2),
     easing: 'linear',
     offset: 0,
     src: '',
@@ -217,6 +285,8 @@ export const parsePsdAsObject = async (file: File, startTime: number): Promise<P
     scaleY: 1,
     rotation: 0,
     opacity: 1,
+    file: file,
+    layerTree: buildPsdLayerTree(rootNode, activeLayerIds),
     rootLayer: rootNode,
     activeLayerIds: activeLayerIds
   };

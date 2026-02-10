@@ -42,3 +42,7 @@ Electron メインプロセスに Rust プロセス管理と IPC ラッパーを
 
 11. ビルド署名を無効化する  
 `build` スクリプトに `CSC_IDENTITY_AUTO_DISCOVERY=false` を適用し、macOS 証明書がない環境でもパッケージングを進められるようにする。
+
+12. PSDToolKit 依存を撤廃して再構築する  
+PSD の追加時に `ag-psd` で `rootLayer` / `activeLayerIds` / `layerTree` を生成し、Pixi 描画はレイヤーツリーを直接レンダリングする。  
+PropertyPanel の表情切り替えは `activeLayerIds` を直接更新する方式へ置き換え、webview ブリッジを削除する。

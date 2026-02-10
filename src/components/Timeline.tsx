@@ -8,11 +8,12 @@ import { TimelineControlBar } from './TimelineControlBar';
 import { TimelineContextMenu, ContextMenuState } from './TimelineContextMenu';
 import { shallow } from 'zustand/shallow';
 import { resolveAudioMetadata, resolveVideoMetadata } from '../utils/mediaMetadata';
+import { parsePsdAsObject } from '../utils/psdParser';
 
 const Timeline: React.FC = () => {
   const { 
     currentTime, duration, setTime, addObject, deleteObject, 
-    objects, selectObject, isExporting
+    objects, selectObject, isExporting, projectSettings
   } = useStore((state) => ({
     currentTime: state.currentTime,
     duration: state.duration,
@@ -22,6 +23,7 @@ const Timeline: React.FC = () => {
     objects: state.objects,
     selectObject: state.selectObject,
     isExporting: state.isExporting,
+    projectSettings: state.projectSettings,
   }), shallow);
   
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -184,15 +186,34 @@ const Timeline: React.FC = () => {
       setInsertTarget(null);
     }
   };
-  const handlePsdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file || !insertTarget) return;
-    const newPsd: TimelineObject = {
-        id: crypto.randomUUID(), type: 'psd', name: file.name, layer: insertTarget.layer, startTime: insertTarget.time, duration: 10, x: 960, y: 540, width: 500, height: 500, scale: 1.0, 
-        enableAnimation: false, endX: 960, endY: 540, easing: 'linear', offset: 0, rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
-        file: file, src: '', layerTree: []
-    };
-    addObject(newPsd); selectObject(newPsd.id);
-    if (psdInputRef.current) psdInputRef.current.value = ''; setInsertTarget(null);
+  const handlePsdChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const target = insertTarget;
+    if (!file || !target) return;
+
+    try {
+      const { psdObject } = await parsePsdAsObject(
+        file,
+        target.time,
+        projectSettings.width,
+        projectSettings.height
+      );
+
+      const newPsd: TimelineObject = {
+        ...psdObject,
+        layer: target.layer,
+        startTime: target.time,
+      };
+
+      addObject(newPsd);
+      selectObject(newPsd.id);
+    } catch (error) {
+      console.error('Failed to parse PSD file', error);
+      alert('Failed to parse PSD file.');
+    } finally {
+      if (psdInputRef.current) psdInputRef.current.value = '';
+      setInsertTarget(null);
+    }
   };
 
   // Action Wrappers for Child Components
