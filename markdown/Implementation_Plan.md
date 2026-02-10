@@ -24,3 +24,7 @@ Electron 側は `stdin` バックプレッシャーを考慮して書き込み�
 
 6. TypeScript エラーを解消する  
 型定義不足（`PsdLayerNode` 等）を補完し、Pixi v8 API と合わない箇所を修正する。
+
+7. Rust バックエンドの第1段階を構築する  
+`rust-backend/` を新設し、`stdio` JSON-RPC で `health` 応答できる最小プロセスを実装する。  
+Electron メインプロセスに Rust プロセス管理と IPC ラッパーを追加し、将来の書き出し移管の土台を整える。

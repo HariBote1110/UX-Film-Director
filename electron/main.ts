@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import path from 'node:path'
-import { spawn, ChildProcess } from 'node:child_process'
+import { spawn, ChildProcess, ChildProcessWithoutNullStreams } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import { once } from 'node:events'
@@ -21,8 +21,187 @@ process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(__dirnam
 
 let win: BrowserWindow | null
 let ffmpegProcess: ChildProcess | null = null;
+let rustBackendProcess: ChildProcessWithoutNullStreams | null = null;
+let rustNextRequestId = 1;
+let rustStdoutBuffer = '';
+
+type PendingRustRequest = {
+  resolve: (value: unknown) => void;
+  reject: (reason: Error) => void;
+  timeout: NodeJS.Timeout;
+};
+
+type RustRpcResponse = {
+  id: number;
+  ok: boolean;
+  result?: unknown;
+  error?: {
+    code: number;
+    message: string;
+  };
+};
+
+const rustPendingRequests = new Map<number, PendingRustRequest>();
 
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
+
+const getRustBackendBinaryName = () => {
+  return process.platform === 'win32' ? 'uxfd-rust-backend.exe' : 'uxfd-rust-backend';
+};
+
+const getRustBackendCandidates = () => {
+  const binaryName = getRustBackendBinaryName();
+  const candidates: string[] = [];
+
+  if (process.env.UXFD_RUST_BACKEND_BIN) {
+    candidates.push(process.env.UXFD_RUST_BACKEND_BIN);
+  }
+
+  if (app.isPackaged) {
+    candidates.push(path.join(process.resourcesPath, 'rust-backend', binaryName));
+    candidates.push(path.join(process.resourcesPath, binaryName));
+  } else {
+    const appPath = app.getAppPath();
+    candidates.push(path.join(appPath, 'rust-backend', 'target', 'debug', binaryName));
+    candidates.push(path.join(appPath, 'rust-backend', 'target', 'release', binaryName));
+  }
+
+  return candidates;
+};
+
+const resolveRustBackendPath = () => {
+  for (const candidate of getRustBackendCandidates()) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+};
+
+const rejectAllRustPending = (reason: string) => {
+  rustPendingRequests.forEach((pending, id) => {
+    clearTimeout(pending.timeout);
+    pending.reject(new Error(reason));
+    rustPendingRequests.delete(id);
+  });
+};
+
+const handleRustStdout = (chunk: string) => {
+  rustStdoutBuffer += chunk;
+  const lines = rustStdoutBuffer.split('\n');
+  rustStdoutBuffer = lines.pop() ?? '';
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    let response: RustRpcResponse;
+    try {
+      response = JSON.parse(line) as RustRpcResponse;
+    } catch (error) {
+      console.error(`[RustBackend] Invalid response JSON: ${line}`);
+      continue;
+    }
+
+    if (typeof response.id !== 'number') {
+      continue;
+    }
+
+    const pending = rustPendingRequests.get(response.id);
+    if (!pending) {
+      continue;
+    }
+
+    clearTimeout(pending.timeout);
+    rustPendingRequests.delete(response.id);
+
+    if (response.ok) {
+      pending.resolve(response.result ?? null);
+    } else {
+      pending.reject(new Error(response.error?.message ?? 'Rust backend returned an error'));
+    }
+  }
+};
+
+const ensureRustBackendProcess = () => {
+  if (rustBackendProcess && !rustBackendProcess.killed) {
+    return rustBackendProcess;
+  }
+
+  const rustBackendPath = resolveRustBackendPath();
+  if (!rustBackendPath) {
+    throw new Error(
+      `Rust backend binary not found. Build it with "cargo build --manifest-path rust-backend/Cargo.toml" or set UXFD_RUST_BACKEND_BIN.`
+    );
+  }
+
+  const child = spawn(rustBackendPath, [], { stdio: ['pipe', 'pipe', 'pipe'] });
+  if (!child.stdout || !child.stderr || !child.stdin) {
+    throw new Error('Failed to start Rust backend stdio streams.');
+  }
+
+  const backend = child as ChildProcessWithoutNullStreams;
+  backend.stdout.setEncoding('utf8');
+  backend.stderr.setEncoding('utf8');
+
+  backend.stdout.on('data', (chunk: string) => {
+    handleRustStdout(chunk);
+  });
+
+  backend.stderr.on('data', (chunk: string) => {
+    const text = chunk.trim();
+    if (text) console.log(`[RustBackend] ${text}`);
+  });
+
+  backend.on('error', (error) => {
+    console.error('Rust backend process error:', error);
+    rejectAllRustPending(`Rust backend process error: ${error.message}`);
+  });
+
+  backend.on('exit', (code, signal) => {
+    rustBackendProcess = null;
+    const reason = `Rust backend exited (code=${code ?? 'null'}, signal=${signal ?? 'null'})`;
+    rejectAllRustPending(reason);
+  });
+
+  rustBackendProcess = backend;
+  return backend;
+};
+
+const callRustBackend = (method: string, params: unknown = {}, timeoutMs = 8000): Promise<unknown> => {
+  return new Promise((resolve, reject) => {
+    let backend: ChildProcessWithoutNullStreams;
+
+    try {
+      backend = ensureRustBackendProcess();
+    } catch (error) {
+      reject(error as Error);
+      return;
+    }
+
+    const requestId = rustNextRequestId++;
+    const timeout = setTimeout(() => {
+      rustPendingRequests.delete(requestId);
+      reject(new Error(`Rust backend request timed out: ${method}`));
+    }, timeoutMs);
+
+    rustPendingRequests.set(requestId, {
+      resolve,
+      reject,
+      timeout,
+    });
+
+    const payload = JSON.stringify({ id: requestId, method, params }) + '\n';
+    backend.stdin.write(payload, (error) => {
+      if (!error) return;
+      const pending = rustPendingRequests.get(requestId);
+      if (!pending) return;
+      clearTimeout(pending.timeout);
+      rustPendingRequests.delete(requestId);
+      reject(new Error(`Failed to write request to Rust backend: ${error.message}`));
+    });
+  });
+};
 
 function createWindow() {
   const vitePublicPath = process.env.VITE_PUBLIC ?? path.join(__dirname, '../public')
@@ -71,6 +250,12 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow()
+  }
+})
+
+app.on('before-quit', () => {
+  if (rustBackendProcess && !rustBackendProcess.killed) {
+    rustBackendProcess.kill();
   }
 })
 
@@ -164,5 +349,29 @@ app.whenReady().then(() => {
       ffmpegProcess.stdin.end();
     }
     return true;
+  });
+
+  ipcMain.handle('rust-backend-health', async () => {
+    try {
+      const result = await callRustBackend('health');
+      return { success: true, result };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  ipcMain.handle('rust-backend-echo', async (_event, payload: unknown) => {
+    try {
+      const result = await callRustBackend('echo', payload);
+      return { success: true, result };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
   });
 })

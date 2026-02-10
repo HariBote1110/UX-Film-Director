@@ -47,7 +47,20 @@
 - `src/main.tsx`
 - `.tsx` 拡張子付き import を拡張子なしへ修正。
 
+## 7. Rust バックエンド基盤の追加
+- `rust-backend/Cargo.toml`
+- `rust-backend/src/main.rs`
+- `stdio` ベースの JSON-RPC 風プロトコルを実装し、`health` / `echo` メソッドを追加。
+- `electron/main.ts`
+- Rust バイナリ探索、プロセス起動、リクエスト送信、レスポンス待機、タイムアウト処理を追加。
+- IPC ハンドラ `rust-backend-health` / `rust-backend-echo` を追加。
+- `electron/preload.ts`
+- `window.rustBackend` を公開し、Renderer から直接 `health` / `echo` を呼べるようにした。
+- `src/vite-env.d.ts`
+- `window.rustBackend` の型定義を追加。
+- `package.json`
+- Rust のビルド/実行スクリプト (`rust:build:debug`, `rust:build:release`, `rust:run`) を追加。
+
 ## 確認
 - `npx tsc --noEmit` を実行し、成功を確認。
-- `npm run build` を実行し、`tsc` と `vite build` は成功を確認。
-- `electron-builder` はネットワーク制限により Electron バイナリ取得で失敗（コード起因ではない環境要因）。
+- Rust ツールチェーン (`cargo`) がこの実行環境に無いため、`rust-backend` のコンパイルは未実施。

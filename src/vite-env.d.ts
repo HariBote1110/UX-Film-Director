@@ -7,6 +7,10 @@ interface Window {
     send: (channel: string, ...args: any[]) => void;
     invoke: (channel: string, ...args: any[]) => Promise<any>;
   };
+  rustBackend: {
+    health: () => Promise<{ success: boolean; result?: unknown; error?: string }>;
+    echo: (payload: unknown) => Promise<{ success: boolean; result?: unknown; error?: string }>;
+  };
 }
 
 // Webview Tag Definition

@@ -10,8 +10,10 @@
 - 再生中の UI 再描画コストを下げる。
 - エクスポート時のフレーム転送を軽量化し、書き出し処理を安定化する。
 - TypeScript の残存エラーを解消し、ビルド可能状態を回復する。
+- Rust 別プロセス化に向けた第1段階として、Electron との IPC 疎通基盤を構築する。
 
 ## 成果物
 - `markdown/Implementation_Plan.md`: 実装方針と優先順位。
 - `markdown/Walk_Through.md`: 実施内容と確認結果。
 - ストア購読・タイムライン描画・エクスポート処理の最適化コード。
+- Rust バックエンドの最小実装 (`rust-backend/`) と Electron 連携コード。
