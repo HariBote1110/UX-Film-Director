@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
-import { TimelineObject, AudioVisualizationObject, ColorCorrection, Vibration, ClippingParams } from '../types';
+import { TimelineObject, AudioVisualizationObject, ColorCorrection, Vibration, ClippingParams, PsdLayerStruct, PsdObject } from '../types';
 
 const PropertyPanel: React.FC = () => {
   const selectedObject = useStore((state) => state.objects.find(obj => obj.id === state.selectedId));
   const updateObject = useStore((state) => state.updateObject);
+  const [isRefreshingPsdTree, setIsRefreshingPsdTree] = useState(false);
 
   if (!selectedObject) {
     return (
@@ -44,6 +45,78 @@ const PropertyPanel: React.FC = () => {
       const current = selectedObject.customClipping || { enabled: false, top: 0, bottom: 0, left: 0, right: 0, angle: 0, radius: 0 };
       updateObject(selectedObject.id, {
           customClipping: { ...current, [key]: value }
+      });
+  };
+
+  const toggleTreeNodeChecked = (nodes: PsdLayerStruct[], seq: string): PsdLayerStruct[] => {
+      return nodes.map((node) => {
+          const nextChildren = toggleTreeNodeChecked(node.children || [], seq);
+          if (node.seq === seq) {
+              return { ...node, checked: !node.checked, children: nextChildren };
+          }
+          return { ...node, children: nextChildren };
+      });
+  };
+
+  const handlePsdLayerToggle = async (seq: string | null) => {
+      if (!seq || selectedObject.type !== 'psd') return;
+
+      const psdObject = selectedObject as PsdObject;
+      const currentTree = psdObject.layerTree || [];
+
+      // Optimistic update to make UI responsive even before bridge sync.
+      updateObject(psdObject.id, { layerTree: toggleTreeNodeChecked(currentTree, seq) });
+
+      const bridge = (window as any).psdBridge;
+      if (!bridge || typeof bridge.toggleNode !== 'function') return;
+
+      try {
+          await bridge.toggleNode(seq);
+      } catch (e) {
+          console.error('Failed to toggle PSD layer:', e);
+      }
+  };
+
+  const handleRefreshPsdTree = async () => {
+      if (selectedObject.type !== 'psd') return;
+      const bridge = (window as any).psdBridge;
+      if (!bridge || typeof bridge.getLayerTree !== 'function') return;
+
+      try {
+          setIsRefreshingPsdTree(true);
+          const tree = await bridge.getLayerTree();
+          updateObject(selectedObject.id, { layerTree: tree });
+      } catch (e) {
+          console.error('Failed to refresh PSD layer tree:', e);
+      } finally {
+          setIsRefreshingPsdTree(false);
+      }
+  };
+
+  const renderPsdTree = (nodes: PsdLayerStruct[], depth: number = 0): React.ReactNode => {
+      return nodes.map((node, idx) => {
+          const key = `${node.seq ?? 'group'}-${depth}-${idx}-${node.name}`;
+          const isGroupNode = !node.seq;
+          const label = node.name.startsWith('*') ? node.name.slice(1) : node.name;
+
+          return (
+              <div key={key} style={{ marginLeft: depth * 12, marginBottom: '4px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: isGroupNode ? '#9aa' : '#ddd' }}>
+                      <input
+                          type="checkbox"
+                          checked={!!node.checked}
+                          disabled={isGroupNode}
+                          onChange={() => handlePsdLayerToggle(node.seq)}
+                      />
+                      <span>{label || '(Unnamed)'}</span>
+                  </label>
+                  {node.children && node.children.length > 0 && (
+                      <div style={{ marginTop: '4px' }}>
+                          {renderPsdTree(node.children, depth + 1)}
+                      </div>
+                  )}
+              </div>
+          );
       });
   };
 
@@ -237,6 +310,41 @@ const PropertyPanel: React.FC = () => {
                 </Row>
                 <div style={{ fontSize: '11px', color: '#888', marginTop: '5px' }}>
                     * Specify the Layer number where the audio is placed.
+                </div>
+            </>
+        )}
+
+        {selectedObject.type === 'psd' && (
+            <>
+                <SectionHeader label="PSD Layers" />
+                <div style={{ marginBottom: '8px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button
+                        onClick={handleRefreshPsdTree}
+                        disabled={isRefreshingPsdTree}
+                        style={{
+                            padding: '4px 8px',
+                            background: '#333',
+                            border: '1px solid #555',
+                            borderRadius: '4px',
+                            color: '#eee',
+                            cursor: isRefreshingPsdTree ? 'default' : 'pointer',
+                            fontSize: '11px'
+                        }}
+                    >
+                        {isRefreshingPsdTree ? 'Refreshing...' : 'Reload Layers'}
+                    </button>
+                    <span style={{ fontSize: '11px', color: '#888' }}>
+                        表情が反映されるまで最大1秒ほどかかります
+                    </span>
+                </div>
+                <div style={{ maxHeight: '260px', overflowY: 'auto', background: '#1e1e1e', border: '1px solid #333', borderRadius: '4px', padding: '8px' }}>
+                    {selectedObject.layerTree && selectedObject.layerTree.length > 0 ? (
+                        renderPsdTree(selectedObject.layerTree)
+                    ) : (
+                        <div style={{ fontSize: '12px', color: '#888' }}>
+                            レイヤー情報がまだありません。`Reload Layers` を押してください。
+                        </div>
+                    )}
                 </div>
             </>
         )}
