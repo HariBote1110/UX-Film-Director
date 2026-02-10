@@ -128,3 +128,12 @@
 - `layer.imageData` を `ImageData` / `Uint8Array` / `Uint8ClampedArray` から正規化する処理を追加。
 - `ImageData` を直接 `Array.from` して 0 要素になる不具合を解消し、`Failed to construct 'ImageData': The input data has zero elements.` を回避。
 - ピクセル配列長と `width * height * 4` を検証し、過不足がある場合は安全にスキップまたはトリムするよう変更。
+
+## 14. PSD レイヤー表示互換性の追加修正
+- `src/utils/psdParser.ts`
+- `Uint16Array` / `Float32Array` / `Int16Array` / `Int32Array` / `Uint32Array` の `PixelArray` を 8bit RGBA へ正規化する処理を追加。
+- 一部レイヤー（顔パーツなど）が `imageData` 形式差異で欠落する問題を解消。
+- `src/utils/pixiUtils.ts`
+- `cacheTextureFromUrl` を追加し、`Texture.from(img)` ではなく canvas 経由でテクスチャ化する方式へ変更。
+- `src/utils/pixiRenderHelper.ts`
+- 画像/PSD フォールバック読込時のテクスチャ生成を `cacheTextureFromUrl` に統一し、`Image element passed` 警告を抑制。

@@ -51,6 +51,51 @@ const toClampedCopy = (source: Uint8Array | Uint8ClampedArray): Uint8ClampedArra
   return new Uint8ClampedArray(sliced);
 };
 
+const toClampedFromNumericView = (
+  source: Uint16Array | Float32Array | Int16Array | Int32Array | Uint32Array
+): Uint8ClampedArray => {
+  const result = new Uint8ClampedArray(source.length);
+
+  if (source instanceof Uint16Array) {
+    for (let i = 0; i < source.length; i++) {
+      result[i] = Math.max(0, Math.min(255, Math.round(source[i] / 257)));
+    }
+    return result;
+  }
+
+  if (source instanceof Float32Array) {
+    for (let i = 0; i < source.length; i++) {
+      const value = source[i];
+      const scaled = value >= 0 && value <= 1 ? value * 255 : value;
+      result[i] = Math.max(0, Math.min(255, Math.round(scaled)));
+    }
+    return result;
+  }
+
+  for (let i = 0; i < source.length; i++) {
+    result[i] = Math.max(0, Math.min(255, Math.round(source[i])));
+  }
+  return result;
+};
+
+const normalisePixelArray = (rawData: unknown): Uint8ClampedArray | null => {
+  if (rawData instanceof Uint8ClampedArray || rawData instanceof Uint8Array) {
+    return toClampedCopy(rawData);
+  }
+
+  if (
+    rawData instanceof Uint16Array ||
+    rawData instanceof Float32Array ||
+    rawData instanceof Int16Array ||
+    rawData instanceof Int32Array ||
+    rawData instanceof Uint32Array
+  ) {
+    return toClampedFromNumericView(rawData);
+  }
+
+  return null;
+};
+
 const normaliseLayerImageData = (
   imageDataLike: unknown,
   fallbackWidth: number,
@@ -63,15 +108,24 @@ const normaliseLayerImageData = (
   let height = fallbackHeight;
 
   if (typeof ImageData !== 'undefined' && imageDataLike instanceof ImageData) {
-    data = toClampedCopy(imageDataLike.data);
+    data = normalisePixelArray(imageDataLike.data);
     width = imageDataLike.width > 0 ? imageDataLike.width : fallbackWidth;
     height = imageDataLike.height > 0 ? imageDataLike.height : fallbackHeight;
-  } else if (imageDataLike instanceof Uint8Array || imageDataLike instanceof Uint8ClampedArray) {
-    data = toClampedCopy(imageDataLike);
+  } else if (
+    imageDataLike instanceof Uint8Array ||
+    imageDataLike instanceof Uint8ClampedArray ||
+    imageDataLike instanceof Uint16Array ||
+    imageDataLike instanceof Float32Array ||
+    imageDataLike instanceof Int16Array ||
+    imageDataLike instanceof Int32Array ||
+    imageDataLike instanceof Uint32Array
+  ) {
+    data = normalisePixelArray(imageDataLike);
   } else if (typeof imageDataLike === 'object' && imageDataLike !== null && 'data' in imageDataLike) {
     const maybeData = (imageDataLike as { data?: unknown }).data;
-    if (maybeData instanceof Uint8Array || maybeData instanceof Uint8ClampedArray) {
-      data = toClampedCopy(maybeData);
+    const normalisedPixelArray = normalisePixelArray(maybeData);
+    if (normalisedPixelArray) {
+      data = normalisedPixelArray;
       const maybeWidth = (imageDataLike as { width?: unknown }).width;
       const maybeHeight = (imageDataLike as { height?: unknown }).height;
       width = typeof maybeWidth === 'number' && maybeWidth > 0 ? maybeWidth : fallbackWidth;

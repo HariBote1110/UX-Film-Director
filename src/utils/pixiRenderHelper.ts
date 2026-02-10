@@ -1,6 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { TimelineObject, GroupControlObject, AudioVisualizationObject, AudioObject, ClippingParams } from '../types';
-import { createGradientTexture, drawShape, getCurrentViseme, renderPsdTree } from './pixiUtils';
+import { createGradientTexture, drawShape, getCurrentViseme, renderPsdTree, cacheTextureFromUrl } from './pixiUtils';
 
 // ... (Shader definitions omitted for brevity - same as previous) ...
 const vertexShader = `
@@ -202,11 +202,7 @@ export const updatePixiContent = (
         let texture: PIXI.Texture | undefined;
         if (obj.src) {
             texture = textureCache.get(obj.src);
-            if (!texture && !loadingUrls.has(obj.src)) {
-                loadingUrls.add(obj.src);
-                const img = new Image(); img.src = obj.src;
-                img.onload = () => { textureCache.set(obj.src, PIXI.Texture.from(img)); loadingUrls.delete(obj.src); setRenderTick(p => p + 1); };
-            }
+            if (!texture) cacheTextureFromUrl(obj.src, textureCache, loadingUrls, () => setRenderTick((p) => p + 1));
         }
         if (!sprite) { sprite = new PIXI.Sprite(texture || PIXI.Texture.EMPTY); container.addChild(sprite); }
         if (texture && sprite.texture !== texture) sprite.texture = texture;
@@ -240,15 +236,8 @@ export const updatePixiContent = (
             const texture = textureCache.get(obj.src);
             if (texture) {
                 psdContent.addChild(new PIXI.Sprite(texture));
-            } else if (!loadingUrls.has(obj.src)) {
-                loadingUrls.add(obj.src);
-                const img = new Image();
-                img.src = obj.src;
-                img.onload = () => {
-                    textureCache.set(obj.src, PIXI.Texture.from(img));
-                    loadingUrls.delete(obj.src);
-                    setRenderTick((prev) => prev + 1);
-                };
+            } else {
+                cacheTextureFromUrl(obj.src, textureCache, loadingUrls, () => setRenderTick((prev) => prev + 1));
             }
         }
 

@@ -49,3 +49,7 @@ PropertyPanel の表情切り替えは `activeLayerIds` を直接更新する方
 
 13. PSD 画像データ変換の互換性不具合を修正する  
 `layer.imageData` が `ImageData` 形式で返るケースを考慮した正規化処理を追加し、0 要素配列による `ImageData` 生成失敗を防止する。
+
+14. PSD レイヤーテクスチャ生成の互換性を改善する  
+`Texture.from(img)` をやめ、canvas 経由でテクスチャを生成して Pixi の WebGPU 警告を抑制する。  
+同時に `Uint16Array` / `Float32Array` などの `PixelArray` を 8bit RGBA へ正規化する。

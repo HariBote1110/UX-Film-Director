@@ -17,6 +17,7 @@
 - ローカルビルド時の macOS コード署名を無効化し、証明書依存でビルドが止まらない状態にする。
 - PSDToolKit(webview) 依存を撤廃し、`ag-psd` ベースのローカル解析・描画・レイヤー制御へ再構築する。
 - PSD レイヤー画像の `ImageData` 互換性問題を解消し、表示欠落しない状態へ修正する。
+- Pixi の `Image element passed` 警告を抑制し、PSD レイヤーテクスチャの取込経路を安定化する。
 
 ## 成果物
 - `markdown/Implementation_Plan.md`: 実装方針と優先順位。
@@ -28,3 +29,4 @@
 - 署名無効化済みの `build` スクリプト設定。
 - PSDToolKit を使わない PSD 解析/表示/表情トグルの実装。
 - `ImageData` / `Uint8Array` / `Uint8ClampedArray` を正規化する PSD 画像変換処理。
+- canvas 経由のテクスチャ生成による Pixi 警告抑制実装。
