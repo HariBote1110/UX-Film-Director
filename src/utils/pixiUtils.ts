@@ -179,17 +179,46 @@ export const renderPsdTree = (
                 sprite.y = node.top;
                 container.addChild(sprite);
             } else {
-                if (!loadingUrls.has(node.src)) {
-                    loadingUrls.add(node.src);
-                    const img = new Image();
-                    img.src = node.src;
-                    img.onload = () => {
-                        textureCache.set(node.src!, PIXI.Texture.from(img));
-                        loadingUrls.delete(node.src!);
-                        requestRender();
-                    };
-                }
+                cacheTextureFromUrl(node.src, textureCache, loadingUrls, requestRender);
             }
         }
     }
+};
+
+export const cacheTextureFromUrl = (
+    url: string,
+    textureCache: Map<string, PIXI.Texture>,
+    loadingUrls: Set<string>,
+    requestRender: () => void
+) => {
+    if (!url || textureCache.has(url) || loadingUrls.has(url)) return;
+
+    loadingUrls.add(url);
+
+    const img = new Image();
+    img.onload = () => {
+        try {
+            const width = img.naturalWidth || img.width;
+            const height = img.naturalHeight || img.height;
+            if (width <= 0 || height <= 0) return;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            ctx.drawImage(img, 0, 0, width, height);
+            textureCache.set(url, PIXI.Texture.from(canvas));
+        } finally {
+            loadingUrls.delete(url);
+            requestRender();
+        }
+    };
+
+    img.onerror = () => {
+        loadingUrls.delete(url);
+    };
+
+    img.src = url;
 };

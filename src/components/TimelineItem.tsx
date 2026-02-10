@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TimelineObject } from '../types';
 import { useStore } from '../store/useStore';
+import { shallow } from 'zustand/shallow';
 
 interface TimelineItemProps {
   object: TimelineObject;
@@ -11,8 +12,13 @@ interface TimelineItemProps {
 }
 
 const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight, headerWidth, onContextMenu }) => {
-  const { updateObject, selectedId, selectObject, objects, pushHistory } = useStore();
-  const isSelected = selectedId === object.id;
+  const { updateObject, selectObject, objects, pushHistory } = useStore((state) => ({
+    updateObject: state.updateObject,
+    selectObject: state.selectObject,
+    objects: state.objects,
+    pushHistory: state.pushHistory,
+  }), shallow);
+  const isSelected = useStore((state) => state.selectedId === object.id);
 
   const [isDragging, setIsDragging] = useState(false);
   const [dragType, setDragType] = useState<'move' | 'resize' | null>(null);
@@ -207,4 +213,13 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
     </div>
   );
 };
-export default TimelineItem;
+
+const areEqual = (prev: TimelineItemProps, next: TimelineItemProps) => {
+  return prev.object === next.object
+    && prev.pxPerSec === next.pxPerSec
+    && prev.rowHeight === next.rowHeight
+    && prev.headerWidth === next.headerWidth
+    && prev.onContextMenu === next.onContextMenu;
+};
+
+export default React.memo(TimelineItem, areEqual);

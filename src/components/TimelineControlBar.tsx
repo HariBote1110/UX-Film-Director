@@ -1,5 +1,6 @@
 import React from 'react';
 import { useStore } from '../store/useStore';
+import { shallow } from 'zustand/shallow';
 
 interface TimelineControlBarProps {
   onAddShape: () => void;
@@ -22,7 +23,15 @@ export const TimelineControlBar: React.FC<TimelineControlBarProps> = ({
 }) => {
   const { 
     isPlaying, togglePlay, splitObject, isExporting, duration, setDuration, currentTime 
-  } = useStore();
+  } = useStore((state) => ({
+    isPlaying: state.isPlaying,
+    togglePlay: state.togglePlay,
+    splitObject: state.splitObject,
+    isExporting: state.isExporting,
+    duration: state.duration,
+    setDuration: state.setDuration,
+    currentTime: state.currentTime,
+  }), shallow);
 
   return (
     <div className="no-drag" style={{ padding: '8px', borderBottom: '1px solid #111', display: 'flex', gap: '8px', alignItems: 'center', background: '#333', zIndex: 1000, fontSize: '12px' }}>

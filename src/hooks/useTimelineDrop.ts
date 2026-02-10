@@ -3,9 +3,16 @@ import { useStore } from '../store/useStore';
 import { TimelineObject } from '../types';
 import { parseLabFile } from '../utils/labParser';
 import { HEADER_WIDTH, RULER_HEIGHT, ROW_HEIGHT, MAX_LAYERS, PX_PER_SEC } from '../components/timelineConstants';
+import { shallow } from 'zustand/shallow';
+import { resolveAudioMetadata, resolveVideoMetadata } from '../utils/mediaMetadata';
+import { parsePsdAsObject } from '../utils/psdParser';
 
 export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) => {
-  const { isExporting, addObject } = useStore();
+  const { isExporting, addObject, projectSettings } = useStore((state) => ({
+    isExporting: state.isExporting,
+    addObject: state.addObject,
+    projectSettings: state.projectSettings,
+  }), shallow);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -43,20 +50,29 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
     });
 
     for (const file of files) {
-        const url = URL.createObjectURL(file);
         const lowerName = file.name.toLowerCase();
         const baseName = file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name;
 
         if (lowerName.endsWith('.psd')) {
-            const newPsd: TimelineObject = {
-                id: crypto.randomUUID(), type: 'psd', name: file.name, layer: dropLayer, startTime: dropTime, duration: 10,
-                x: 960, y: 540, width: 500, height: 500, scale: 1.0, 
-                enableAnimation: false, endX: 960, endY: 540, easing: 'linear', offset: 0,
-                rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
-                file: file, src: '', layerTree: []
-            };
-            addObject(newPsd);
+            try {
+                const { psdObject } = await parsePsdAsObject(
+                    file,
+                    dropTime,
+                    projectSettings.width,
+                    projectSettings.height
+                );
+
+                const newPsd: TimelineObject = {
+                    ...psdObject,
+                    layer: dropLayer,
+                    startTime: dropTime,
+                };
+                addObject(newPsd);
+            } catch (error) {
+                console.error('Failed to parse dropped PSD file', error);
+            }
         } else if (file.type.startsWith('image/')) {
+            const url = URL.createObjectURL(file);
             const img = new Image();
             img.src = url;
             img.onload = () => {
@@ -69,22 +85,23 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
                 addObject(newImage);
             };
         } else if (file.type.startsWith('video/')) {
-            const video = document.createElement('video');
-            video.src = url;
-            video.onloadedmetadata = () => {
+            const url = URL.createObjectURL(file);
+            try {
+                const metadata = await resolveVideoMetadata(file, url);
                 const newVideo: TimelineObject = {
-                    id: crypto.randomUUID(), type: 'video', name: file.name, layer: dropLayer, startTime: dropTime, duration: video.duration || 10,
-                    x: 640 - (video.videoWidth / 2), y: 360 - (video.videoHeight / 2), width: video.videoWidth, height: video.videoHeight, src: url,
+                    id: crypto.randomUUID(), type: 'video', name: file.name, layer: dropLayer, startTime: dropTime, duration: metadata.duration,
+                    x: 640 - (metadata.width / 2), y: 360 - (metadata.height / 2), width: metadata.width, height: metadata.height, src: url,
                     volume: 1.0, muted: false,
-                    enableAnimation: false, endX: 640 - (video.videoWidth / 2), endY: 360 - (video.videoHeight / 2), easing: 'linear', offset: 0,
+                    enableAnimation: false, endX: 640 - (metadata.width / 2), endY: 360 - (metadata.height / 2), easing: 'linear', offset: 0,
                     rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
                 };
                 addObject(newVideo);
-            };
+            } catch (error) {
+                console.error('Failed to load dropped video metadata', error);
+                URL.revokeObjectURL(url);
+            }
         } else if (file.type.startsWith('audio/') || lowerName.endsWith('.wav')) {
-            const audio = document.createElement('audio');
-            audio.src = url;
-            
+            const url = URL.createObjectURL(file);
             let labData = undefined;
             if (labFiles.has(baseName)) {
                 try {
@@ -95,16 +112,20 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
                 }
             }
 
-            audio.onloadedmetadata = () => {
+            try {
+                const metadata = await resolveAudioMetadata(file, url);
                  const newAudio: TimelineObject = {
-                    id: crypto.randomUUID(), type: 'audio', name: file.name, layer: dropLayer, startTime: dropTime, duration: audio.duration || 10,
+                    id: crypto.randomUUID(), type: 'audio', name: file.name, layer: dropLayer, startTime: dropTime, duration: metadata.duration,
                     src: url, volume: 1.0, muted: false,
                     x: 0, y: 0, enableAnimation: false, endX: 0, endY: 0, easing: 'linear', offset: 0,
                     rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
                     labData: labData
                 };
                 addObject(newAudio);
-            };
+            } catch (error) {
+                console.error('Failed to load dropped audio metadata', error);
+                URL.revokeObjectURL(url);
+            }
         }
     }
   };

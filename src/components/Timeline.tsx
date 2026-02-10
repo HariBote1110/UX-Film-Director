@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { useStore } from '../store/useStore';
 import { TimelineObject } from '../types';
 import TimelineItem from './TimelineItem';
@@ -6,12 +6,25 @@ import { PX_PER_SEC, ROW_HEIGHT, HEADER_WIDTH, RULER_HEIGHT, MAX_LAYERS } from '
 import { useTimelineDrop } from '../hooks/useTimelineDrop';
 import { TimelineControlBar } from './TimelineControlBar';
 import { TimelineContextMenu, ContextMenuState } from './TimelineContextMenu';
+import { shallow } from 'zustand/shallow';
+import { resolveAudioMetadata, resolveVideoMetadata } from '../utils/mediaMetadata';
+import { parsePsdAsObject } from '../utils/psdParser';
 
 const Timeline: React.FC = () => {
   const { 
     currentTime, duration, setTime, addObject, deleteObject, 
-    objects, selectObject, isExporting
-  } = useStore();
+    objects, selectObject, isExporting, projectSettings
+  } = useStore((state) => ({
+    currentTime: state.currentTime,
+    duration: state.duration,
+    setTime: state.setTime,
+    addObject: state.addObject,
+    deleteObject: state.deleteObject,
+    objects: state.objects,
+    selectObject: state.selectObject,
+    isExporting: state.isExporting,
+    projectSettings: state.projectSettings,
+  }), shallow);
   
   const timelineRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -42,7 +55,7 @@ const Timeline: React.FC = () => {
     setTime(calculateTimeFromEvent(e.clientX));
   };
 
-  const handleCanvasContextMenu = (e: React.MouseEvent) => {
+  const handleCanvasContextMenu = useCallback((e: React.MouseEvent) => {
     if (isExporting) return;
     e.preventDefault();
     if (!timelineRef.current) return;
@@ -57,14 +70,14 @@ const Timeline: React.FC = () => {
     if (layer >= 0 && layer < MAX_LAYERS) {
       setContextMenu({ visible: true, x: e.clientX, y: e.clientY, type: 'canvas', time, layer });
     }
-  };
+  }, [isExporting]);
 
-  const handleObjectContextMenu = (e: React.MouseEvent, objectId: string) => {
+  const handleObjectContextMenu = useCallback((e: React.MouseEvent, objectId: string) => {
     if (isExporting) return;
     e.preventDefault();
     e.stopPropagation();
     setContextMenu({ visible: true, x: e.clientX, y: e.clientY, type: 'object', time: 0, layer: 0, targetObjectId: objectId });
-  };
+  }, [isExporting]);
 
   useEffect(() => {
     const handleClick = () => { if (contextMenu.visible) setContextMenu(prev => ({ ...prev, visible: false })); };
@@ -126,48 +139,84 @@ const Timeline: React.FC = () => {
       addObject(newImage); if (fileInputRef.current) fileInputRef.current.value = ''; setInsertTarget(null);
     };
   };
-  const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file || !insertTarget) return;
-    const url = URL.createObjectURL(file); const video = document.createElement('video'); video.src = url;
-    video.onloadedmetadata = () => {
-      const newVideo: TimelineObject = { 
-          id: crypto.randomUUID(), type: 'video', name: file.name, layer: insertTarget.layer, startTime: insertTarget.time, duration: video.duration || 10, 
-          x: 640 - (video.videoWidth / 2), y: 360 - (video.videoHeight / 2), width: video.videoWidth, height: video.videoHeight, src: url, volume: 1.0, muted: false, 
-          enableAnimation: false, endX: 640 - (video.videoWidth / 2), endY: 360 - (video.videoHeight / 2), easing: 'linear', offset: 0,
+  const handleVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const target = insertTarget;
+    if (!file || !target) return;
+
+    const url = URL.createObjectURL(file);
+
+    try {
+      const metadata = await resolveVideoMetadata(file, url);
+      const newVideo: TimelineObject = {
+          id: crypto.randomUUID(), type: 'video', name: file.name, layer: target.layer, startTime: target.time, duration: metadata.duration,
+          x: 640 - (metadata.width / 2), y: 360 - (metadata.height / 2), width: metadata.width, height: metadata.height, src: url, volume: 1.0, muted: false,
+          enableAnimation: false, endX: 640 - (metadata.width / 2), endY: 360 - (metadata.height / 2), easing: 'linear', offset: 0,
           rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
       };
-      addObject(newVideo); if (videoInputRef.current) videoInputRef.current.value = ''; setInsertTarget(null);
-    };
-    video.onerror = () => { alert("Failed to load video."); if (videoInputRef.current) videoInputRef.current.value = ''; setInsertTarget(null); };
+      addObject(newVideo);
+    } catch {
+      alert('Failed to load video.');
+      URL.revokeObjectURL(url);
+    } finally {
+      if (videoInputRef.current) videoInputRef.current.value = '';
+      setInsertTarget(null);
+    }
   };
-  const handleAudioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file || !insertTarget) return;
-    const url = URL.createObjectURL(file); const audio = document.createElement('audio'); audio.src = url;
-    audio.onloadedmetadata = () => {
-      const newAudio: TimelineObject = { 
-          id: crypto.randomUUID(), type: 'audio', name: file.name, layer: insertTarget.layer, startTime: insertTarget.time, duration: audio.duration || 10, src: url, volume: 1.0, muted: false, 
+  const handleAudioChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const target = insertTarget;
+    if (!file || !target) return;
+
+    const url = URL.createObjectURL(file);
+
+    try {
+      const metadata = await resolveAudioMetadata(file, url);
+      const newAudio: TimelineObject = {
+          id: crypto.randomUUID(), type: 'audio', name: file.name, layer: target.layer, startTime: target.time, duration: metadata.duration, src: url, volume: 1.0, muted: false,
           x: 0, y: 0, enableAnimation: false, endX: 0, endY: 0, easing: 'linear', offset: 0,
           rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
       };
-      addObject(newAudio); if (audioInputRef.current) audioInputRef.current.value = ''; setInsertTarget(null);
-    };
-    audio.onerror = () => { alert("Failed to load audio."); if (audioInputRef.current) audioInputRef.current.value = ''; setInsertTarget(null); };
+      addObject(newAudio);
+    } catch {
+      alert('Failed to load audio.');
+      URL.revokeObjectURL(url);
+    } finally {
+      if (audioInputRef.current) audioInputRef.current.value = '';
+      setInsertTarget(null);
+    }
   };
-  const handlePsdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file || !insertTarget) return;
-    const newPsd: TimelineObject = {
-        id: crypto.randomUUID(), type: 'psd', name: file.name, layer: insertTarget.layer, startTime: insertTarget.time, duration: 10, x: 960, y: 540, width: 500, height: 500, scale: 1.0, 
-        enableAnimation: false, endX: 960, endY: 540, easing: 'linear', offset: 0, rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
-        file: file, src: '', layerTree: []
-    };
-    addObject(newPsd); selectObject(newPsd.id);
-    if (psdInputRef.current) psdInputRef.current.value = ''; setInsertTarget(null);
+  const handlePsdChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const target = insertTarget;
+    if (!file || !target) return;
+
+    try {
+      const { psdObject } = await parsePsdAsObject(
+        file,
+        target.time,
+        projectSettings.width,
+        projectSettings.height
+      );
+
+      const newPsd: TimelineObject = {
+        ...psdObject,
+        layer: target.layer,
+        startTime: target.time,
+      };
+
+      addObject(newPsd);
+      selectObject(newPsd.id);
+    } catch (error) {
+      console.error('Failed to parse PSD file', error);
+      alert('Failed to parse PSD file.');
+    } finally {
+      if (psdInputRef.current) psdInputRef.current.value = '';
+      setInsertTarget(null);
+    }
   };
 
   // Action Wrappers for Child Components
-  const wrapperTime = contextMenu.visible ? contextMenu.time : currentTime;
-  const wrapperLayer = contextMenu.visible ? contextMenu.layer : (contextMenu.visible ? contextMenu.layer : (insertTarget?.layer || 0)); 
-  // Note: ControlBar uses specific layers in original code (0,1,2,3,4).
   // ControlBar handlers:
   const cbAddShape = () => addShapeAt(currentTime, 0);
   const cbAddText = () => addTextAt(currentTime, 1);
@@ -186,7 +235,10 @@ const Timeline: React.FC = () => {
   const cmAddPsd = () => triggerPsdUpload(contextMenu.time);
   const cmAddGroup = () => addGroupControlAt(contextMenu.time, contextMenu.layer);
 
-  const totalWidth = Math.max(duration * PX_PER_SEC + 500, window.innerWidth - 300) + HEADER_WIDTH;
+  const totalWidth = useMemo(
+    () => Math.max(duration * PX_PER_SEC + 500, window.innerWidth - 300) + HEADER_WIDTH,
+    [duration]
+  );
 
   return (
     <div className="timeline-panel" style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#222', color: '#ccc', position: 'relative' }}>

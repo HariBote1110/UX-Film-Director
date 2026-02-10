@@ -176,7 +176,7 @@ export interface AudioVisualizationObject extends BaseObject {
 // --- PSD連携用 ---
 
 export interface PsdLayerStruct {
-  seq: string; 
+  seq: string | null;
   name: string;
   checked: boolean;
   isRadio: boolean; 
@@ -184,14 +184,30 @@ export interface PsdLayerStruct {
   blobUrl?: string; 
 }
 
+export interface PsdLayerNode {
+  id: string;
+  name: string;
+  isGroup: boolean;
+  isRadio: boolean;
+  children: PsdLayerNode[];
+  width: number;
+  height: number;
+  left: number;
+  top: number;
+  defaultVisible: boolean;
+  src?: string;
+}
+
 export interface PsdObject extends BaseObject {
   type: 'psd';
-  file: File;
+  file?: File;
   src: string;
   width: number;
   height: number;
   scale: number;
-  layerTree: PsdLayerStruct[];
+  layerTree?: PsdLayerStruct[];
+  rootLayer?: PsdLayerNode;
+  activeLayerIds?: Record<string, boolean>;
   
   lipSync?: LipSyncSetting;
 }

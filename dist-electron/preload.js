@@ -18,3 +18,11 @@ electron.contextBridge.exposeInMainWorld("ipcRenderer", {
     return electron.ipcRenderer.invoke(channel, ...omit);
   }
 });
+electron.contextBridge.exposeInMainWorld("rustBackend", {
+  health() {
+    return electron.ipcRenderer.invoke("rust-backend-health");
+  },
+  echo(payload) {
+    return electron.ipcRenderer.invoke("rust-backend-echo", payload);
+  }
+});

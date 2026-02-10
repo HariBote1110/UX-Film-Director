@@ -18,3 +18,12 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     return ipcRenderer.invoke(channel, ...omit)
   },
 })
+
+contextBridge.exposeInMainWorld('rustBackend', {
+  health() {
+    return ipcRenderer.invoke('rust-backend-health')
+  },
+  echo(payload: unknown) {
+    return ipcRenderer.invoke('rust-backend-echo', payload)
+  },
+})

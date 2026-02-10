@@ -1,12 +1,15 @@
 {
   "name": "ux-film-director",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1-Beta-1n",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && electron-builder",
-    "preview": "vite preview"
+    "build": "tsc && vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
+    "preview": "vite preview",
+    "rust:build:debug": "cargo build --manifest-path rust-backend/Cargo.toml",
+    "rust:build:release": "cargo build --release --manifest-path rust-backend/Cargo.toml",
+    "rust:run": "cargo run --manifest-path rust-backend/Cargo.toml"
   },
   "dependencies": {
     "ag-psd": "^29.0.0",

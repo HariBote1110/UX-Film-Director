@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
-import { TimelineObject, AudioVisualizationObject, ColorCorrection, Vibration, ClippingParams } from '../types';
+import { TimelineObject, AudioVisualizationObject, ColorCorrection, Vibration, ClippingParams, PsdLayerStruct, PsdObject } from '../types';
+import { buildPsdLayerTree, togglePsdLayer } from '../utils/psdParser';
 
 const PropertyPanel: React.FC = () => {
-  const { selectedId, objects, updateObject } = useStore();
-
-  const selectedObject = objects.find(obj => obj.id === selectedId);
+  const selectedObject = useStore((state) => state.objects.find(obj => obj.id === state.selectedId));
+  const updateObject = useStore((state) => state.updateObject);
+  const [isRefreshingPsdTree, setIsRefreshingPsdTree] = useState(false);
 
   if (!selectedObject) {
     return (
@@ -15,15 +16,42 @@ const PropertyPanel: React.FC = () => {
     );
   }
 
-  const handleChange = (key: keyof TimelineObject, value: any) => {
-    updateObject(selectedObject.id, { [key]: value });
+  const handleChange = (key: string, value: unknown) => {
+    updateObject(selectedObject.id, { [key]: value } as Partial<TimelineObject>);
   };
 
-  const handleNumericChange = (key: keyof TimelineObject, value: string) => {
+  const handleNumericChange = (key: string, value: string) => {
     const num = parseFloat(value);
     if (!isNaN(num)) {
-      updateObject(selectedObject.id, { [key]: num });
+      updateObject(selectedObject.id, { [key]: num } as Partial<TimelineObject>);
     }
+  };
+
+  const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+  const handleMediaVolumeChange = (rawValue: string) => {
+    if (selectedObject.type !== 'video' && selectedObject.type !== 'audio') return;
+    const next = parseFloat(rawValue);
+    if (Number.isNaN(next)) return;
+    updateObject(selectedObject.id, { volume: clamp(next, 0, 1) } as Partial<TimelineObject>);
+  };
+
+  const handleMediaVolumePercentChange = (rawValue: string) => {
+    const next = parseFloat(rawValue);
+    if (Number.isNaN(next)) return;
+    handleMediaVolumeChange(String(next / 100));
+  };
+
+  const handleMediaMuteChange = (muted: boolean) => {
+    if (selectedObject.type !== 'video' && selectedObject.type !== 'audio') return;
+    updateObject(selectedObject.id, { muted } as Partial<TimelineObject>);
+  };
+
+  const handlePsdScaleChange = (rawValue: string) => {
+      if (selectedObject.type !== 'psd') return;
+      const next = parseFloat(rawValue);
+      if (Number.isNaN(next)) return;
+      updateObject(selectedObject.id, { scale: clamp(next, 0.1, 10) } as Partial<TimelineObject>);
   };
 
   // Helper for Nested Objects
@@ -45,6 +73,64 @@ const PropertyPanel: React.FC = () => {
       const current = selectedObject.customClipping || { enabled: false, top: 0, bottom: 0, left: 0, right: 0, angle: 0, radius: 0 };
       updateObject(selectedObject.id, {
           customClipping: { ...current, [key]: value }
+      });
+  };
+
+  const handlePsdLayerToggle = (seq: string | null) => {
+      if (!seq || selectedObject.type !== 'psd') return;
+
+      const psdObject = selectedObject as PsdObject;
+      if (!psdObject.rootLayer || !psdObject.activeLayerIds) return;
+
+      const nextActiveLayerIds = togglePsdLayer(psdObject.rootLayer, psdObject.activeLayerIds, seq);
+      const nextLayerTree = buildPsdLayerTree(psdObject.rootLayer, nextActiveLayerIds);
+
+      updateObject(psdObject.id, {
+          activeLayerIds: nextActiveLayerIds,
+          layerTree: nextLayerTree
+      });
+  };
+
+  const handleRefreshPsdTree = async () => {
+      if (selectedObject.type !== 'psd') return;
+      const psdObject = selectedObject as PsdObject;
+      if (!psdObject.rootLayer || !psdObject.activeLayerIds) return;
+
+      try {
+          setIsRefreshingPsdTree(true);
+          const tree = buildPsdLayerTree(psdObject.rootLayer, psdObject.activeLayerIds);
+          updateObject(selectedObject.id, { layerTree: tree });
+      } catch (e) {
+          console.error('Failed to refresh PSD layer tree:', e);
+      } finally {
+          setIsRefreshingPsdTree(false);
+      }
+  };
+
+  const renderPsdTree = (nodes: PsdLayerStruct[], depth: number = 0): React.ReactNode => {
+      return nodes.map((node, idx) => {
+          const key = `${node.seq ?? 'group'}-${depth}-${idx}-${node.name}`;
+          const isGroupNode = !node.seq;
+          const label = node.name.startsWith('*') ? node.name.slice(1) : node.name;
+
+          return (
+              <div key={key} style={{ marginLeft: depth * 12, marginBottom: '4px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: isGroupNode ? '#9aa' : '#ddd' }}>
+                      <input
+                          type="checkbox"
+                          checked={!!node.checked}
+                          disabled={isGroupNode}
+                          onChange={() => handlePsdLayerToggle(node.seq)}
+                      />
+                      <span>{label || '(Unnamed)'}</span>
+                  </label>
+                  {node.children && node.children.length > 0 && (
+                      <div style={{ marginTop: '4px' }}>
+                          {renderPsdTree(node.children, depth + 1)}
+                      </div>
+                  )}
+              </div>
+          );
       });
   };
 
@@ -170,6 +256,38 @@ const PropertyPanel: React.FC = () => {
             </>
         )}
 
+        {(selectedObject.type === 'video' || selectedObject.type === 'audio') && (
+            <>
+                <SectionHeader label="Audio" />
+                <Row label="Mute">
+                    <input type="checkbox" checked={selectedObject.muted || false} onChange={(e) => handleMediaMuteChange(e.target.checked)} />
+                </Row>
+                <Row label="Volume">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.01"
+                            value={selectedObject.volume ?? 1}
+                            onChange={(e) => handleMediaVolumeChange(e.target.value)}
+                            style={{ flex: 1 }}
+                        />
+                        <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="1"
+                            value={Math.round((selectedObject.volume ?? 1) * 100)}
+                            onChange={(e) => handleMediaVolumePercentChange(e.target.value)}
+                            style={{ width: '56px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                        />
+                        <span style={{ fontSize: '11px', color: '#999' }}>%</span>
+                    </div>
+                </Row>
+            </>
+        )}
+
         {/* --- オブジェクト固有設定 --- */}
         {selectedObject.type === 'text' && (
             <>
@@ -238,6 +356,66 @@ const PropertyPanel: React.FC = () => {
                 </Row>
                 <div style={{ fontSize: '11px', color: '#888', marginTop: '5px' }}>
                     * Specify the Layer number where the audio is placed.
+                </div>
+            </>
+        )}
+
+        {selectedObject.type === 'psd' && (
+            <>
+                <SectionHeader label="PSD Transform" />
+                <Row label="Scale">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <input
+                            type="range"
+                            min="0.1"
+                            max="3"
+                            step="0.01"
+                            value={selectedObject.scale ?? 1}
+                            onChange={(e) => handlePsdScaleChange(e.target.value)}
+                            style={{ flex: 1 }}
+                        />
+                        <input
+                            type="number"
+                            min="0.1"
+                            max="10"
+                            step="0.1"
+                            value={selectedObject.scale ?? 1}
+                            onChange={(e) => handlePsdScaleChange(e.target.value)}
+                            style={{ width: '64px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                        />
+                        <span style={{ fontSize: '11px', color: '#999' }}>x</span>
+                    </div>
+                </Row>
+
+                <SectionHeader label="PSD Layers" />
+                <div style={{ marginBottom: '8px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button
+                        onClick={handleRefreshPsdTree}
+                        disabled={isRefreshingPsdTree}
+                        style={{
+                            padding: '4px 8px',
+                            background: '#333',
+                            border: '1px solid #555',
+                            borderRadius: '4px',
+                            color: '#eee',
+                            cursor: isRefreshingPsdTree ? 'default' : 'pointer',
+                            fontSize: '11px'
+                        }}
+                    >
+                        {isRefreshingPsdTree ? 'Refreshing...' : 'Reload Layers'}
+                    </button>
+                    <span style={{ fontSize: '11px', color: '#888' }}>
+                        Toggle で即時反映されます。必要なら Reload Layers で再同期できます。
+                    </span>
+                </div>
+                <div style={{ maxHeight: '260px', overflowY: 'auto', background: '#1e1e1e', border: '1px solid #333', borderRadius: '4px', padding: '8px' }}>
+                    {selectedObject.layerTree && selectedObject.layerTree.length > 0 ? (
+                        renderPsdTree(selectedObject.layerTree)
+                    ) : (
+                        <div style={{ fontSize: '12px', color: '#888' }}>
+                            レイヤー情報がまだありません。`Reload Layers` を押してください。
+                        </div>
+                    )}
                 </div>
             </>
         )}

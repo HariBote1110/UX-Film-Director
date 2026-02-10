@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
+import { shallow } from 'zustand/shallow';
 
 export const useAppLogic = () => {
   const { 
@@ -11,7 +12,16 @@ export const useAppLogic = () => {
     selectObject,
     undo,
     redo
-  } = useStore();
+  } = useStore((state) => ({
+    isPlaying: state.isPlaying,
+    togglePlay: state.togglePlay,
+    advanceTime: state.advanceTime,
+    selectedId: state.selectedId,
+    deleteObject: state.deleteObject,
+    selectObject: state.selectObject,
+    undo: state.undo,
+    redo: state.redo,
+  }), shallow);
 
   // --- 1. Animation Loop (Playback Engine) ---
   const lastTimeRef = useRef<number>(0);
