@@ -66,3 +66,6 @@ PropertyPanel の表情切り替えは `activeLayerIds` を直接更新する方
 
 18. ffmpeg の stderr パイプ詰まりを回避する  
 Rust バックエンドの `export.start` で `stderr` を未読 `pipe` にしない構成へ変更し、長尺エクスポート時のバックプレッシャーで `export.write_frame` が停止するリスクを除去する。
+
+19. ラジオグループ排他制御を祖先まで拡張する  
+`togglePsdLayer` の排他判定を直近親だけでなく経路上の全ラジオグループに適用し、サブグループ配下の枝も含めて非選択側を無効化する。

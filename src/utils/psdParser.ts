@@ -166,6 +166,17 @@ const findNodePath = (node: PsdLayerNode, targetId: string, path: PsdLayerNode[]
   return null;
 };
 
+const setSubtreeActiveState = (
+  node: PsdLayerNode,
+  activeLayerIds: Record<string, boolean>,
+  enabled: boolean
+) => {
+  activeLayerIds[node.id] = enabled;
+  node.children.forEach((child) => {
+    setSubtreeActiveState(child, activeLayerIds, enabled);
+  });
+};
+
 const toLayerStruct = (node: PsdLayerNode, activeLayerIds: Record<string, boolean>): PsdLayerStruct => {
   return {
     seq: node.isGroup ? null : node.id,
@@ -191,7 +202,6 @@ export const togglePsdLayer = (
   const targetNode = path[path.length - 1];
   if (targetNode.isGroup) return currentActiveLayerIds;
 
-  const parentNode = path.length >= 2 ? path[path.length - 2] : null;
   const nextActiveLayerIds = { ...currentActiveLayerIds };
 
   // ターゲットに到達する経路上のグループは常に表示する。
@@ -201,12 +211,25 @@ export const togglePsdLayer = (
     }
   });
 
-  if (parentNode?.isRadio) {
-    parentNode.children
-      .filter((child) => !child.isGroup)
-      .forEach((child) => {
-        nextActiveLayerIds[child.id] = false;
+  const radioAncestors = path.filter((node, index) => node.isRadio && index < path.length - 1);
+
+  if (radioAncestors.length > 0) {
+    path.forEach((node, index) => {
+      if (!node.isRadio || index >= path.length - 1) return;
+
+      const selectedBranchNode = path[index + 1];
+      node.children.forEach((child) => {
+        if (child.id === selectedBranchNode.id) {
+          nextActiveLayerIds[child.id] = true;
+          return;
+        }
+
+        // ラジオグループ外の枝は、サブグループ配下を含めて全停止する。
+        setSubtreeActiveState(child, nextActiveLayerIds, false);
       });
+
+      nextActiveLayerIds[node.id] = true;
+    });
 
     nextActiveLayerIds[targetLayerId] = true;
   } else {

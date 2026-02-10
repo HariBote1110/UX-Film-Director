@@ -159,3 +159,9 @@
 - `rust-backend/src/main.rs`
 - `export.start` の `ffmpeg` 起動時に `stderr(Stdio::piped())` を `stderr(Stdio::null())` へ変更した。
 - 未読 `stderr` パイプが長尺エクスポート中に埋まって `ffmpeg` 側が停止する経路を除去し、`export.write_frame` タイムアウトの再発を防止した。
+
+## 19. ラジオグループ排他制御の祖先適用
+- `src/utils/psdParser.ts`
+- `togglePsdLayer` の排他判定を「直近の親がラジオか」から「ターゲットへ至る経路上の全ラジオ祖先」へ拡張した。
+- ラジオ祖先の非選択枝は `setSubtreeActiveState` でサブグループ配下まで再帰的に無効化し、ネスト構造でも同時有効が残らないように修正した。
+- これにより、ラジオグループ配下の孫以深レイヤーを選択した場合でも PSDTool 互換の「1つだけ有効」挙動を維持できるようにした。
