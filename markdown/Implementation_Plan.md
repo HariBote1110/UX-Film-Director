@@ -46,3 +46,6 @@ Electron メインプロセスに Rust プロセス管理と IPC ラッパーを
 12. PSDToolKit 依存を撤廃して再構築する  
 PSD の追加時に `ag-psd` で `rootLayer` / `activeLayerIds` / `layerTree` を生成し、Pixi 描画はレイヤーツリーを直接レンダリングする。  
 PropertyPanel の表情切り替えは `activeLayerIds` を直接更新する方式へ置き換え、webview ブリッジを削除する。
+
+13. PSD 画像データ変換の互換性不具合を修正する  
+`layer.imageData` が `ImageData` 形式で返るケースを考慮した正規化処理を追加し、0 要素配列による `ImageData` 生成失敗を防止する。

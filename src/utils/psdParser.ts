@@ -8,7 +8,13 @@ type LayerWithBounds = Layer & {
   top?: number;
   right?: number;
   bottom?: number;
-  imageData?: Uint8Array | Uint8ClampedArray;
+  imageData?: unknown;
+};
+
+type LayerImageDataNormalised = {
+  data: Uint8ClampedArray;
+  width: number;
+  height: number;
 };
 
 const getLayerWidth = (layer: LayerWithBounds) => {
@@ -34,6 +40,59 @@ const canvasToUrl = (canvas: HTMLCanvasElement): Promise<string> => {
       resolve(blob ? URL.createObjectURL(blob) : '');
     }, 'image/png');
   });
+};
+
+const toClampedCopy = (source: Uint8Array | Uint8ClampedArray): Uint8ClampedArray => {
+  if (source instanceof Uint8ClampedArray) {
+    return new Uint8ClampedArray(source);
+  }
+
+  const sliced = source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength);
+  return new Uint8ClampedArray(sliced);
+};
+
+const normaliseLayerImageData = (
+  imageDataLike: unknown,
+  fallbackWidth: number,
+  fallbackHeight: number
+): LayerImageDataNormalised | null => {
+  if (!imageDataLike) return null;
+
+  let data: Uint8ClampedArray | null = null;
+  let width = fallbackWidth;
+  let height = fallbackHeight;
+
+  if (typeof ImageData !== 'undefined' && imageDataLike instanceof ImageData) {
+    data = toClampedCopy(imageDataLike.data);
+    width = imageDataLike.width > 0 ? imageDataLike.width : fallbackWidth;
+    height = imageDataLike.height > 0 ? imageDataLike.height : fallbackHeight;
+  } else if (imageDataLike instanceof Uint8Array || imageDataLike instanceof Uint8ClampedArray) {
+    data = toClampedCopy(imageDataLike);
+  } else if (typeof imageDataLike === 'object' && imageDataLike !== null && 'data' in imageDataLike) {
+    const maybeData = (imageDataLike as { data?: unknown }).data;
+    if (maybeData instanceof Uint8Array || maybeData instanceof Uint8ClampedArray) {
+      data = toClampedCopy(maybeData);
+      const maybeWidth = (imageDataLike as { width?: unknown }).width;
+      const maybeHeight = (imageDataLike as { height?: unknown }).height;
+      width = typeof maybeWidth === 'number' && maybeWidth > 0 ? maybeWidth : fallbackWidth;
+      height = typeof maybeHeight === 'number' && maybeHeight > 0 ? maybeHeight : fallbackHeight;
+    }
+  }
+
+  if (!data || width <= 0 || height <= 0) {
+    return null;
+  }
+
+  const expectedLength = width * height * 4;
+  if (!Number.isFinite(expectedLength) || expectedLength <= 0 || data.length < expectedLength) {
+    return null;
+  }
+
+  if (data.length > expectedLength) {
+    data = data.slice(0, expectedLength);
+  }
+
+  return { data, width, height };
 };
 
 // PSD読み込み結果
@@ -148,18 +207,20 @@ export const parsePsdAsObject = async (
       try {
         if (layer.canvas) {
           currentNode.src = await canvasToUrl(layer.canvas as HTMLCanvasElement);
-        } else if (layerWithBounds.imageData && width > 0 && height > 0) {
-          const cvs = document.createElement('canvas');
-          cvs.width = width;
-          cvs.height = height;
-          const ctx = cvs.getContext('2d');
-          if (ctx) {
-            const pixelData = layerWithBounds.imageData instanceof Uint8ClampedArray
-              ? new Uint8ClampedArray(Array.from(layerWithBounds.imageData))
-              : new Uint8ClampedArray(Array.from(layerWithBounds.imageData));
-            const imgData = new ImageData(pixelData, width, height);
-            ctx.putImageData(imgData, 0, 0);
-            currentNode.src = await canvasToUrl(cvs);
+        } else if (layerWithBounds.imageData) {
+          const normalised = normaliseLayerImageData(layerWithBounds.imageData, width, height);
+          if (normalised) {
+            const cvs = document.createElement('canvas');
+            cvs.width = normalised.width;
+            cvs.height = normalised.height;
+            const ctx = cvs.getContext('2d');
+            if (ctx) {
+              const pixelData = new Uint8ClampedArray(normalised.data.length);
+              pixelData.set(normalised.data);
+              const imgData = new ImageData(pixelData, normalised.width, normalised.height);
+              ctx.putImageData(imgData, 0, 0);
+              currentNode.src = await canvasToUrl(cvs);
+            }
           }
         }
       } catch (e) {

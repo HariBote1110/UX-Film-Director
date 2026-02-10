@@ -122,3 +122,9 @@
 - `src/components/PsdRenderer.tsx`
 - `src/utils/psdToolBridge.ts`
 - 役割を失ったため削除。
+
+## 13. PSD 画像変換不具合の修正
+- `src/utils/psdParser.ts`
+- `layer.imageData` を `ImageData` / `Uint8Array` / `Uint8ClampedArray` から正規化する処理を追加。
+- `ImageData` を直接 `Array.from` して 0 要素になる不具合を解消し、`Failed to construct 'ImageData': The input data has zero elements.` を回避。
+- ピクセル配列長と `width * height * 4` を検証し、過不足がある場合は安全にスキップまたはトリムするよう変更。
