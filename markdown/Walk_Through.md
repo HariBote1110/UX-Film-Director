@@ -35,7 +35,19 @@
 - ポーリング間隔を 300ms に調整。
 - レイヤーツリー同期を 1 秒間隔に間引き。
 
+## 6. TypeScript エラー解消
+- `src/types.ts`
+- `PsdLayerNode` の定義追加、`PsdObject` の実態に合わせた型補完（`rootLayer`/`activeLayerIds` 等）を追加。
+- `src/components/PropertyPanel.tsx`
+- ユニオン型キー制約で発生していた更新ハンドラの型不整合を修正。
+- `src/utils/psdParser.ts`
+- `ag-psd` のレイヤ型差分を吸収する補助型を追加し、`ImageData` 生成の型不整合を修正。
+- `src/utils/pixiRenderHelper.ts`
+- `DiagonalClippingFilter` を Pixi v8 の初期化形式へ変更。
+- `src/main.tsx`
+- `.tsx` 拡張子付き import を拡張子なしへ修正。
+
 ## 確認
-- `npx tsc --noEmit` を実行。
-- 本リポジトリには既存の TypeScript エラーが多数あり、今回の変更範囲外でもビルドは失敗する状態。
-- 今回追加した最適化差分で新たに発生した型エラーは解消済み（`src/store/useStore.ts` の更新差分は型通過する形に調整）。
+- `npx tsc --noEmit` を実行し、成功を確認。
+- `npm run build` を実行し、`tsc` と `vite build` は成功を確認。
+- `electron-builder` はネットワーク制限により Electron バイナリ取得で失敗（コード起因ではない環境要因）。

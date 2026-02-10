@@ -43,17 +43,25 @@ void main(void) {
 `;
 class DiagonalClippingFilter extends PIXI.Filter {
     constructor(params: ClippingParams, width: number, height: number) {
-        super(undefined, fragmentShader, {
-            uClip: new Float32Array([params.top, params.bottom, params.left, params.right]),
-            uAngle: (params.angle * Math.PI) / 180,
-            uDimensions: new Float32Array([width, height]),
-        });
+        super({
+            glProgram: PIXI.GlProgram.from({
+                vertex: vertexShader,
+                fragment: fragmentShader,
+            }),
+            resources: {
+                clippingUniforms: {
+                    uClip: { value: new Float32Array([params.top, params.bottom, params.left, params.right]), type: 'vec4<f32>' },
+                    uAngle: { value: (params.angle * Math.PI) / 180, type: 'f32' },
+                    uDimensions: { value: new Float32Array([width, height]), type: 'vec2<f32>' },
+                },
+            },
+        } as any);
     }
     updateParams(params: ClippingParams, width: number, height: number) {
-        this.resources.uClip = new Float32Array([params.top, params.bottom, params.left, params.right]);
-        this.uniforms.uClip = new Float32Array([params.top, params.bottom, params.left, params.right]);
-        this.uniforms.uAngle = (params.angle * Math.PI) / 180;
-        this.uniforms.uDimensions = new Float32Array([width, height]);
+        const uniforms = (this.resources as any).clippingUniforms.uniforms;
+        uniforms.uClip = new Float32Array([params.top, params.bottom, params.left, params.right]);
+        uniforms.uAngle = (params.angle * Math.PI) / 180;
+        uniforms.uDimensions = new Float32Array([width, height]);
     }
 }
 

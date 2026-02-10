@@ -1,6 +1,32 @@
 import { readPsd, Layer } from 'ag-psd';
 import { PsdLayerNode, PsdObject, TimelineObject } from '../types';
 
+type LayerWithBounds = Layer & {
+  width?: number;
+  height?: number;
+  left?: number;
+  top?: number;
+  right?: number;
+  bottom?: number;
+  imageData?: Uint8Array | Uint8ClampedArray;
+};
+
+const getLayerWidth = (layer: LayerWithBounds) => {
+  if (typeof layer.width === 'number') return layer.width;
+  if (typeof layer.left === 'number' && typeof layer.right === 'number') {
+    return Math.max(0, layer.right - layer.left);
+  }
+  return 0;
+};
+
+const getLayerHeight = (layer: LayerWithBounds) => {
+  if (typeof layer.height === 'number') return layer.height;
+  if (typeof layer.top === 'number' && typeof layer.bottom === 'number') {
+    return Math.max(0, layer.bottom - layer.top);
+  }
+  return 0;
+};
+
 // キャンバス -> BlobURL
 const canvasToUrl = (canvas: HTMLCanvasElement): Promise<string> => {
   return new Promise((resolve) => {
@@ -31,16 +57,20 @@ export const parsePsdAsObject = async (file: File, startTime: number): Promise<P
   // 再帰的にノードを構築
   // 修正: offsetX, offsetY 引数を削除（ag-psdの座標は絶対座標のため）
   const buildNode = async (layer: Layer): Promise<PsdLayerNode> => {
+    const layerWithBounds = layer as LayerWithBounds;
+    const width = getLayerWidth(layerWithBounds);
+    const height = getLayerHeight(layerWithBounds);
+
     const currentNode: PsdLayerNode = {
       id: generateId(),
       name: layer.name || 'Layer',
       isGroup: !!layer.children,
       isRadio: (layer.name || '').startsWith('*'), // PSDTool仕様: *はラジオグループ
       children: [],
-      width: layer.width || 0,
-      height: layer.height || 0,
-      left: layer.left || 0, // 絶対座標をそのまま使用
-      top: layer.top || 0,   // 絶対座標をそのまま使用
+      width,
+      height,
+      left: layerWithBounds.left || 0, // 絶対座標をそのまま使用
+      top: layerWithBounds.top || 0,   // 絶対座標をそのまま使用
       defaultVisible: !layer.hidden,
       src: undefined
     };
@@ -50,13 +80,16 @@ export const parsePsdAsObject = async (file: File, startTime: number): Promise<P
       try {
         if (layer.canvas) {
           currentNode.src = await canvasToUrl(layer.canvas as HTMLCanvasElement);
-        } else if (layer.imageData && layer.width && layer.height) {
+        } else if (layerWithBounds.imageData && width > 0 && height > 0) {
           const cvs = document.createElement('canvas');
-          cvs.width = layer.width;
-          cvs.height = layer.height;
+          cvs.width = width;
+          cvs.height = height;
           const ctx = cvs.getContext('2d');
           if (ctx) {
-            const imgData = new ImageData(layer.imageData, layer.width, layer.height);
+            const pixelData = layerWithBounds.imageData instanceof Uint8ClampedArray
+              ? new Uint8ClampedArray(Array.from(layerWithBounds.imageData))
+              : new Uint8ClampedArray(Array.from(layerWithBounds.imageData));
+            const imgData = new ImageData(pixelData, width, height);
             ctx.putImageData(imgData, 0, 0);
             currentNode.src = await canvasToUrl(cvs);
           }
@@ -120,7 +153,7 @@ export const parsePsdAsObject = async (file: File, startTime: number): Promise<P
         node.children.forEach(initVisibility);
 
         // このラジオグループの中で、現在アクティブになっている子を探す
-        const activeChild = node.children.find(child => activeLayerIds[child.id]);
+        const activeChild = node.children.find((child) => activeLayerIds[child.id]);
 
         // もしアクティブな子が一つもなければ、強制的に「一番下（配列の先頭＝リストの一番上）」の子をアクティブにする
         // ※ node.children は reverse() 済みで [奥...手前] の順だが、
@@ -179,6 +212,11 @@ export const parsePsdAsObject = async (file: File, startTime: number): Promise<P
     endY: 360 - (psd.height / 2),
     easing: 'linear',
     offset: 0,
+    src: '',
+    scaleX: 1,
+    scaleY: 1,
+    rotation: 0,
+    opacity: 1,
     rootLayer: rootNode,
     activeLayerIds: activeLayerIds
   };

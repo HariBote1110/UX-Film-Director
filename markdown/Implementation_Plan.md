@@ -21,3 +21,6 @@ Electron 側は `stdin` バックプレッシャーを考慮して書き込み�
 
 5. PSD 同期処理を間引く  
 ポーリング間隔とレイヤーツリー取得頻度を調整し、`executeJavaScript` の連打を減らす。
+
+6. TypeScript エラーを解消する  
+型定義不足（`PsdLayerNode` 等）を補完し、Pixi v8 API と合わない箇所を修正する。

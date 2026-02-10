@@ -4,6 +4,7 @@ const path = require("node:path");
 const node_child_process = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
+const node_events = require("node:events");
 electron.app.commandLine.appendSwitch("enable-gpu-rasterization");
 electron.app.commandLine.appendSwitch("enable-zero-copy");
 electron.app.commandLine.appendSwitch("ignore-gpu-blocklist");
@@ -12,12 +13,13 @@ electron.app.commandLine.appendSwitch("disable-features", "UseChromeOSDirectVide
 electron.app.commandLine.appendSwitch("enable-features", "VaapiVideoDecoder,CanvasOopRasterization");
 process.env.DIST = path.join(__dirname, "../dist");
 process.env.VITE_PUBLIC = electron.app.isPackaged ? process.env.DIST : path.join(__dirname, "../public");
-process.env.VITE_PUBLIC = electron.app.isPackaged ? process.env.DIST : path.join(__dirname, "../public");
 let win;
 let ffmpegProcess = null;
 const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
 function createWindow() {
-  const iconPath = path.join(process.env.VITE_PUBLIC, "icon.jpg");
+  const vitePublicPath = process.env.VITE_PUBLIC ?? path.join(__dirname, "../public");
+  const distPath = process.env.DIST ?? path.join(__dirname, "../dist");
+  const iconPath = path.join(vitePublicPath, "icon.jpg");
   if (process.platform === "darwin") {
     electron.app.dock.setIcon(iconPath);
   }
@@ -42,7 +44,7 @@ function createWindow() {
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);
   } else {
-    win.loadFile(path.join(process.env.DIST, "index.html"));
+    win.loadFile(path.join(distPath, "index.html"));
   }
 }
 electron.app.on("window-all-closed", () => {
@@ -120,12 +122,14 @@ electron.app.whenReady().then(() => {
       return { success: false, error: String(e) };
     }
   });
-  electron.ipcMain.handle("write-frame", async (event, base64Data) => {
+  electron.ipcMain.handle("write-frame", async (event, frameData) => {
     if (!ffmpegProcess || !ffmpegProcess.stdin) return false;
     try {
-      const data = base64Data.replace(/^data:image\/jpeg;base64,/, "");
-      const buffer = Buffer.from(data, "base64");
-      ffmpegProcess.stdin.write(buffer);
+      const buffer = Buffer.from(frameData);
+      const canContinue = ffmpegProcess.stdin.write(buffer);
+      if (!canContinue) {
+        await node_events.once(ffmpegProcess.stdin, "drain");
+      }
       return true;
     } catch (error) {
       console.error("Error writing frame:", error);

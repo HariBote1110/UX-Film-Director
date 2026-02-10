@@ -14,14 +14,14 @@ const PropertyPanel: React.FC = () => {
     );
   }
 
-  const handleChange = (key: keyof TimelineObject, value: any) => {
-    updateObject(selectedObject.id, { [key]: value });
+  const handleChange = (key: string, value: unknown) => {
+    updateObject(selectedObject.id, { [key]: value } as Partial<TimelineObject>);
   };
 
-  const handleNumericChange = (key: keyof TimelineObject, value: string) => {
+  const handleNumericChange = (key: string, value: string) => {
     const num = parseFloat(value);
     if (!isNaN(num)) {
-      updateObject(selectedObject.id, { [key]: num });
+      updateObject(selectedObject.id, { [key]: num } as Partial<TimelineObject>);
     }
   };
 
