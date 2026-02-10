@@ -311,7 +311,12 @@ app.whenReady().then(() => {
     }
   });
 
-  ipcMain.handle('probe-media', async (_event, { filePath }) => {
+  ipcMain.handle('probe-media', async (_event, payload: { filePath?: string }) => {
+    const filePath = typeof payload?.filePath === 'string' ? payload.filePath.trim() : '';
+    if (!filePath) {
+      return { success: false, error: 'filePath is required.' };
+    }
+
     try {
       const result = await callRustBackend('media.probe', {
         filePath,

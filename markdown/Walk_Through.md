@@ -74,8 +74,21 @@
 - `src/hooks/useProjectExport.ts`
 - フレーム書き込み失敗時の例外処理と、キャンセル時の `end-export` 呼び出しを追加して Rust セッションが残らないように調整。
 
+## 9. メディアメタデータ解析の Rust 移管
+- `rust-backend/src/main.rs`
+- `media.probe` を追加し、`ffprobe` から `duration` / `width` / `height` / `hasAudio` / `hasVideo` を抽出して返すようにした。
+- `electron/main.ts`
+- IPC `probe-media` を追加し、`filePath` バリデーション後に Rust `media.probe` を呼び出す経路を実装。
+- `src/utils/mediaMetadata.ts`
+- `probe-media` 優先 + `HTMLVideoElement` / `HTMLAudioElement` フォールバックの共通ロジックを追加。
+- `src/components/Timeline.tsx`
+- ファイル選択アップロード時（動画/音声）に共通メタデータ解決ロジックを適用。
+- `src/hooks/useTimelineDrop.ts`
+- ドラッグ&ドロップ時（動画/音声）にも同ロジックを適用し、入力経路差を解消。
+
 ## 確認
 - `npx tsc --noEmit` を実行し、成功を確認。
 - `cargo build --manifest-path rust-backend/Cargo.toml` を実行し、成功を確認。
 - `printf '{"id":1,"method":"health"}' | rust-backend/target/debug/uxfd-rust-backend` を実行し、`status: ok` 応答を確認。
 - Node から `export.start -> export.write_frame -> export.end` の順で呼び出し、MP4 ファイルが生成されることを確認。
+- `probe-media` 経由で `ffprobe` が利用可能な場合、DOM メタデータ解析なしで動画/音声の長さ・解像度が取り込まれることを確認。

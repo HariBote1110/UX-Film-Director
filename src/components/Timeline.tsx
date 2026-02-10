@@ -7,6 +7,7 @@ import { useTimelineDrop } from '../hooks/useTimelineDrop';
 import { TimelineControlBar } from './TimelineControlBar';
 import { TimelineContextMenu, ContextMenuState } from './TimelineContextMenu';
 import { shallow } from 'zustand/shallow';
+import { resolveAudioMetadata, resolveVideoMetadata } from '../utils/mediaMetadata';
 
 const Timeline: React.FC = () => {
   const { 
@@ -136,32 +137,52 @@ const Timeline: React.FC = () => {
       addObject(newImage); if (fileInputRef.current) fileInputRef.current.value = ''; setInsertTarget(null);
     };
   };
-  const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file || !insertTarget) return;
-    const url = URL.createObjectURL(file); const video = document.createElement('video'); video.src = url;
-    video.onloadedmetadata = () => {
-      const newVideo: TimelineObject = { 
-          id: crypto.randomUUID(), type: 'video', name: file.name, layer: insertTarget.layer, startTime: insertTarget.time, duration: video.duration || 10, 
-          x: 640 - (video.videoWidth / 2), y: 360 - (video.videoHeight / 2), width: video.videoWidth, height: video.videoHeight, src: url, volume: 1.0, muted: false, 
-          enableAnimation: false, endX: 640 - (video.videoWidth / 2), endY: 360 - (video.videoHeight / 2), easing: 'linear', offset: 0,
+  const handleVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const target = insertTarget;
+    if (!file || !target) return;
+
+    const url = URL.createObjectURL(file);
+
+    try {
+      const metadata = await resolveVideoMetadata(file, url);
+      const newVideo: TimelineObject = {
+          id: crypto.randomUUID(), type: 'video', name: file.name, layer: target.layer, startTime: target.time, duration: metadata.duration,
+          x: 640 - (metadata.width / 2), y: 360 - (metadata.height / 2), width: metadata.width, height: metadata.height, src: url, volume: 1.0, muted: false,
+          enableAnimation: false, endX: 640 - (metadata.width / 2), endY: 360 - (metadata.height / 2), easing: 'linear', offset: 0,
           rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
       };
-      addObject(newVideo); if (videoInputRef.current) videoInputRef.current.value = ''; setInsertTarget(null);
-    };
-    video.onerror = () => { alert("Failed to load video."); if (videoInputRef.current) videoInputRef.current.value = ''; setInsertTarget(null); };
+      addObject(newVideo);
+    } catch {
+      alert('Failed to load video.');
+      URL.revokeObjectURL(url);
+    } finally {
+      if (videoInputRef.current) videoInputRef.current.value = '';
+      setInsertTarget(null);
+    }
   };
-  const handleAudioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file || !insertTarget) return;
-    const url = URL.createObjectURL(file); const audio = document.createElement('audio'); audio.src = url;
-    audio.onloadedmetadata = () => {
-      const newAudio: TimelineObject = { 
-          id: crypto.randomUUID(), type: 'audio', name: file.name, layer: insertTarget.layer, startTime: insertTarget.time, duration: audio.duration || 10, src: url, volume: 1.0, muted: false, 
+  const handleAudioChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const target = insertTarget;
+    if (!file || !target) return;
+
+    const url = URL.createObjectURL(file);
+
+    try {
+      const metadata = await resolveAudioMetadata(file, url);
+      const newAudio: TimelineObject = {
+          id: crypto.randomUUID(), type: 'audio', name: file.name, layer: target.layer, startTime: target.time, duration: metadata.duration, src: url, volume: 1.0, muted: false,
           x: 0, y: 0, enableAnimation: false, endX: 0, endY: 0, easing: 'linear', offset: 0,
           rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
       };
-      addObject(newAudio); if (audioInputRef.current) audioInputRef.current.value = ''; setInsertTarget(null);
-    };
-    audio.onerror = () => { alert("Failed to load audio."); if (audioInputRef.current) audioInputRef.current.value = ''; setInsertTarget(null); };
+      addObject(newAudio);
+    } catch {
+      alert('Failed to load audio.');
+      URL.revokeObjectURL(url);
+    } finally {
+      if (audioInputRef.current) audioInputRef.current.value = '';
+      setInsertTarget(null);
+    }
   };
   const handlePsdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file || !insertTarget) return;

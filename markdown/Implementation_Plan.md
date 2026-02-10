@@ -31,3 +31,7 @@ Electron メインプロセスに Rust プロセス管理と IPC ラッパーを
 
 8. 書き出しパイプライン制御を Rust 側へ移管する  
 `export.start` / `export.write_frame` / `export.end` を Rust 側に実装し、Electron の `start-export` / `write-frame` / `end-export` ハンドラは Rust API 呼び出しへ切り替える。
+
+9. メディアメタデータ解析を Rust 側へ移管する  
+`media.probe` を Rust 側に実装し、動画/音声の追加時は `probe-media` を優先して `duration`・`width`・`height` を取得する。  
+`filePath` が取れない環境や `ffprobe` 失敗時のみ、`HTMLMediaElement` での既存メタデータ取得へフォールバックする。

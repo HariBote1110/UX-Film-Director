@@ -12,9 +12,11 @@
 - TypeScript の残存エラーを解消し、ビルド可能状態を回復する。
 - Rust 別プロセス化に向けた第1段階として、Electron との IPC 疎通基盤を構築する。
 - Rust 別プロセス化の第2段階として、書き出しパイプラインの制御を Rust 側へ移管する。
+- Rust 別プロセス化の第3段階として、メディアメタデータ解析（`ffprobe`）を Rust 側へ移管する。
 
 ## 成果物
 - `markdown/Implementation_Plan.md`: 実装方針と優先順位。
 - `markdown/Walk_Through.md`: 実施内容と確認結果。
 - ストア購読・タイムライン描画・エクスポート処理の最適化コード。
 - Rust バックエンドの最小実装 (`rust-backend/`) と Electron 連携コード。
+- メディア読込時に `probe-media` を優先利用するフロント実装とフォールバック処理。

@@ -4,6 +4,7 @@ import { TimelineObject } from '../types';
 import { parseLabFile } from '../utils/labParser';
 import { HEADER_WIDTH, RULER_HEIGHT, ROW_HEIGHT, MAX_LAYERS, PX_PER_SEC } from '../components/timelineConstants';
 import { shallow } from 'zustand/shallow';
+import { resolveAudioMetadata, resolveVideoMetadata } from '../utils/mediaMetadata';
 
 export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) => {
   const { isExporting, addObject } = useStore((state) => ({
@@ -73,22 +74,21 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
                 addObject(newImage);
             };
         } else if (file.type.startsWith('video/')) {
-            const video = document.createElement('video');
-            video.src = url;
-            video.onloadedmetadata = () => {
+            try {
+                const metadata = await resolveVideoMetadata(file, url);
                 const newVideo: TimelineObject = {
-                    id: crypto.randomUUID(), type: 'video', name: file.name, layer: dropLayer, startTime: dropTime, duration: video.duration || 10,
-                    x: 640 - (video.videoWidth / 2), y: 360 - (video.videoHeight / 2), width: video.videoWidth, height: video.videoHeight, src: url,
+                    id: crypto.randomUUID(), type: 'video', name: file.name, layer: dropLayer, startTime: dropTime, duration: metadata.duration,
+                    x: 640 - (metadata.width / 2), y: 360 - (metadata.height / 2), width: metadata.width, height: metadata.height, src: url,
                     volume: 1.0, muted: false,
-                    enableAnimation: false, endX: 640 - (video.videoWidth / 2), endY: 360 - (video.videoHeight / 2), easing: 'linear', offset: 0,
+                    enableAnimation: false, endX: 640 - (metadata.width / 2), endY: 360 - (metadata.height / 2), easing: 'linear', offset: 0,
                     rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
                 };
                 addObject(newVideo);
-            };
+            } catch (error) {
+                console.error('Failed to load dropped video metadata', error);
+                URL.revokeObjectURL(url);
+            }
         } else if (file.type.startsWith('audio/') || lowerName.endsWith('.wav')) {
-            const audio = document.createElement('audio');
-            audio.src = url;
-            
             let labData = undefined;
             if (labFiles.has(baseName)) {
                 try {
@@ -99,16 +99,20 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
                 }
             }
 
-            audio.onloadedmetadata = () => {
+            try {
+                const metadata = await resolveAudioMetadata(file, url);
                  const newAudio: TimelineObject = {
-                    id: crypto.randomUUID(), type: 'audio', name: file.name, layer: dropLayer, startTime: dropTime, duration: audio.duration || 10,
+                    id: crypto.randomUUID(), type: 'audio', name: file.name, layer: dropLayer, startTime: dropTime, duration: metadata.duration,
                     src: url, volume: 1.0, muted: false,
                     x: 0, y: 0, enableAnimation: false, endX: 0, endY: 0, easing: 'linear', offset: 0,
                     rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
                     labData: labData
                 };
                 addObject(newAudio);
-            };
+            } catch (error) {
+                console.error('Failed to load dropped audio metadata', error);
+                URL.revokeObjectURL(url);
+            }
         }
     }
   };
