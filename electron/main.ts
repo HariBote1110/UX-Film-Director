@@ -62,6 +62,25 @@ const resolveDefaultFfmpegPath = () => {
   return 'ffmpeg';
 };
 
+const resolveDefaultFfprobePath = () => {
+  if (process.env.UXFD_FFPROBE_BIN) {
+    return process.env.UXFD_FFPROBE_BIN;
+  }
+
+  const candidates = [
+    '/opt/homebrew/bin/ffprobe',
+    '/usr/local/bin/ffprobe',
+    'ffprobe',
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate === 'ffprobe') return candidate;
+    if (fs.existsSync(candidate)) return candidate;
+  }
+
+  return 'ffprobe';
+};
+
 const getRustBackendBinaryName = () => {
   return process.platform === 'win32' ? 'uxfd-rust-backend.exe' : 'uxfd-rust-backend';
 };
@@ -289,6 +308,22 @@ app.whenReady().then(() => {
     } catch (e) {
       console.error('Failed to save temp audio:', e);
       return { success: false, error: String(e) };
+    }
+  });
+
+  ipcMain.handle('probe-media', async (_event, { filePath }) => {
+    try {
+      const result = await callRustBackend('media.probe', {
+        filePath,
+        ffprobePath: resolveDefaultFfprobePath(),
+      }, 15000);
+
+      return { success: true, result };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
     }
   });
 

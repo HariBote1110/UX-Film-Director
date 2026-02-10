@@ -114,6 +114,14 @@ struct ExportWriteFrameParams {
     frame_base64: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MediaProbeParams {
+    file_path: String,
+    #[serde(default)]
+    ffprobe_path: Option<String>,
+}
+
 fn handle_request(request: RpcRequest, state: &mut BackendState) -> RpcResponse {
     match request.method.as_str() {
         "health" => {
@@ -136,6 +144,7 @@ fn handle_request(request: RpcRequest, state: &mut BackendState) -> RpcResponse 
             result: Some(request.params),
             error: None,
         },
+        "media.probe" => handle_media_probe(request.id, request.params),
         "export.start" => handle_export_start(request.id, request.params, state),
         "export.write_frame" => handle_export_write_frame(request.id, request.params, state),
         "export.end" => handle_export_end(request.id, state),
@@ -148,6 +157,103 @@ fn handle_request(request: RpcRequest, state: &mut BackendState) -> RpcResponse 
                 message: format!("Method not found: {}", request.method),
             }),
         },
+    }
+}
+
+fn handle_media_probe(id: u64, params: Value) -> RpcResponse {
+    let parsed = match serde_json::from_value::<MediaProbeParams>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(id, -32602, &format!("Invalid media.probe params: {error}"));
+        }
+    };
+
+    if parsed.file_path.trim().is_empty() {
+        return response_error(id, -32602, "filePath must not be empty");
+    }
+
+    let ffprobe_path = parsed
+        .ffprobe_path
+        .or_else(|| std::env::var("UXFD_FFPROBE_BIN").ok())
+        .unwrap_or_else(|| "ffprobe".to_string());
+
+    let output = match Command::new(&ffprobe_path)
+        .arg("-v")
+        .arg("quiet")
+        .arg("-print_format")
+        .arg("json")
+        .arg("-show_streams")
+        .arg("-show_format")
+        .arg(&parsed.file_path)
+        .output()
+    {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32020,
+                &format!("Failed to run ffprobe ({ffprobe_path}): {error}"),
+            );
+        }
+    };
+
+    if !output.status.success() {
+        return response_error(
+            id,
+            -32021,
+            &format!("ffprobe failed with status: {:?}", output.status.code()),
+        );
+    }
+
+    let parsed_json = match serde_json::from_slice::<Value>(&output.stdout) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(id, -32022, &format!("Invalid ffprobe output: {error}"));
+        }
+    };
+
+    let duration = parsed_json
+        .get("format")
+        .and_then(|format| format.get("duration"))
+        .and_then(|value| value.as_str())
+        .and_then(|value| value.parse::<f64>().ok())
+        .unwrap_or(0.0);
+
+    let mut width: Option<u64> = None;
+    let mut height: Option<u64> = None;
+    let mut has_audio = false;
+    let mut has_video = false;
+
+    if let Some(streams) = parsed_json.get("streams").and_then(|value| value.as_array()) {
+        for stream in streams {
+            let codec_type = stream.get("codec_type").and_then(|value| value.as_str()).unwrap_or("");
+            if codec_type == "video" {
+                has_video = true;
+                if width.is_none() {
+                    width = stream.get("width").and_then(|value| value.as_u64());
+                }
+                if height.is_none() {
+                    height = stream.get("height").and_then(|value| value.as_u64());
+                }
+            } else if codec_type == "audio" {
+                has_audio = true;
+            }
+        }
+    }
+
+    RpcResponse {
+        id,
+        ok: true,
+        result: Some(json!({
+            "filePath": parsed.file_path,
+            "duration": duration,
+            "width": width,
+            "height": height,
+            "hasAudio": has_audio,
+            "hasVideo": has_video,
+            "ffprobePath": ffprobe_path,
+        })),
+        error: None,
     }
 }
 
