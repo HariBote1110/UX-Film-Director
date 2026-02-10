@@ -252,9 +252,23 @@ const Viewport: React.FC = () => {
             container.addChild(border);
         }
         border.clear();
-        const w = content ? content.width : (obj as any).width || 100; 
-        const h = content ? content.height : (obj as any).height || 100;
-        border.rect(0, 0, w, h); 
+        let bx = 0;
+        let by = 0;
+        let bw = (obj as any).width || 100;
+        let bh = (obj as any).height || 100;
+
+        if (content) {
+          const globalBounds = content.getBounds();
+          const topLeft = container.toLocal(new PIXI.Point(globalBounds.x, globalBounds.y));
+          const bottomRight = container.toLocal(new PIXI.Point(globalBounds.x + globalBounds.width, globalBounds.y + globalBounds.height));
+
+          bx = topLeft.x;
+          by = topLeft.y;
+          bw = Math.max(1, bottomRight.x - topLeft.x);
+          bh = Math.max(1, bottomRight.y - topLeft.y);
+        }
+
+        border.rect(bx, by, bw, bh); 
         border.stroke({ width: 2, color: 0xffd700 });
         container.setChildIndex(border, container.children.length - 1);
       } else {

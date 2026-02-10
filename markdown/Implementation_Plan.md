@@ -60,3 +60,6 @@ PropertyPanel の表情切り替えは `activeLayerIds` を直接更新する方
 16. プロパティパネルにメディア音量/PSDスケール編集を追加する  
 `video` / `audio` 選択時に `Mute` と `Volume` (0〜100%) を編集可能にし、既存再生経路へ即時反映する。  
 `psd` 選択時に `scale` (0.1〜10) を編集可能にし、Pixi 側の `psdContent.scale` へ反映させる。
+
+17. 選択枠の境界計算を実描画ベースへ修正する  
+`Viewport` の黄色枠描画を `width/height` 固定から `content` の実境界 (`getBounds`) 基準へ変更し、PSD レイヤーオフセットを含む表示ずれを解消する。

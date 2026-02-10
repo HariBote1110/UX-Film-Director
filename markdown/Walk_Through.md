@@ -149,3 +149,8 @@
 - 音量入力は 0〜1 にクランプし、ミュート切り替えは `updateObject` へ即時反映するよう実装。
 - `psd` 選択時に `PSD Transform` セクションを追加し、`scale`（0.1〜10）をスライダーと数値入力の両方で編集可能にした。
 - 既存の `pixiRenderHelper` 側 `psdContent.scale.set(obj.scale || 1.0)` へそのまま反映されるため、追加の描画側改修なしで即時プレビューされる構成にした。
+
+## 17. 立ち絵選択枠の位置ずれ修正
+- `src/components/Viewport.tsx`
+- 選択時の黄色枠を `content.width/height` 固定値で描く方式から、`content.getBounds()` を `container.toLocal()` へ変換した実境界ベースへ変更した。
+- PSD レイヤーの `left/top` オフセットや内部スケールを含めて枠を計算することで、立ち絵左端が枠中央に来るズレを解消した。
