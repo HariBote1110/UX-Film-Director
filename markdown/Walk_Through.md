@@ -154,3 +154,8 @@
 - `src/components/Viewport.tsx`
 - 選択時の黄色枠を `content.width/height` 固定値で描く方式から、`content.getBounds()` を `container.toLocal()` へ変換した実境界ベースへ変更した。
 - PSD レイヤーの `left/top` オフセットや内部スケールを含めて枠を計算することで、立ち絵左端が枠中央に来るズレを解消した。
+
+## 18. ffmpeg stderr 詰まりによる書き出し停止の防止
+- `rust-backend/src/main.rs`
+- `export.start` の `ffmpeg` 起動時に `stderr(Stdio::piped())` を `stderr(Stdio::null())` へ変更した。
+- 未読 `stderr` パイプが長尺エクスポート中に埋まって `ffmpeg` 側が停止する経路を除去し、`export.write_frame` タイムアウトの再発を防止した。

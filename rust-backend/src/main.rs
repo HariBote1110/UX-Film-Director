@@ -323,7 +323,9 @@ fn handle_export_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
         .arg(&parsed.file_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
-        .stderr(Stdio::piped());
+        // ffmpeg progress logs can fill stderr pipe on long exports and stall writes.
+        // Discard stderr to avoid pipe back-pressure blocking export.write_frame.
+        .stderr(Stdio::null());
 
     let mut child = match cmd.spawn() {
         Ok(process) => process,

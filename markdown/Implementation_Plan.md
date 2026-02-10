@@ -63,3 +63,6 @@ PropertyPanel の表情切り替えは `activeLayerIds` を直接更新する方
 
 17. 選択枠の境界計算を実描画ベースへ修正する  
 `Viewport` の黄色枠描画を `width/height` 固定から `content` の実境界 (`getBounds`) 基準へ変更し、PSD レイヤーオフセットを含む表示ずれを解消する。
+
+18. ffmpeg の stderr パイプ詰まりを回避する  
+Rust バックエンドの `export.start` で `stderr` を未読 `pipe` にしない構成へ変更し、長尺エクスポート時のバックプレッシャーで `export.write_frame` が停止するリスクを除去する。
