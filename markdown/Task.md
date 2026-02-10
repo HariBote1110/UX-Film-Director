@@ -19,6 +19,8 @@
 - PSD レイヤー画像の `ImageData` 互換性問題を解消し、表示欠落しない状態へ修正する。
 - Pixi の `Image element passed` 警告を抑制し、PSD レイヤーテクスチャの取込経路を安定化する。
 - PSD レイヤーの描画前後関係（Z順）を PSD 側の順序と一致させる。
+- 動画/音声オブジェクトの音量とミュートをプロパティパネルから編集できるようにする。
+- PSD オブジェクトのスケーリングをプロパティパネルから編集できるようにする。
 
 ## 成果物
 - `markdown/Implementation_Plan.md`: 実装方針と優先順位。
@@ -32,3 +34,5 @@
 - `ImageData` / `Uint8Array` / `Uint8ClampedArray` を正規化する PSD 画像変換処理。
 - canvas 経由のテクスチャ生成による Pixi 警告抑制実装。
 - PSD レイヤー順序を保持した描画順制御。
+- `PropertyPanel` の動画/音声用 `Volume` / `Mute` UI と反映ロジック。
+- `PropertyPanel` の PSD 用 `Scale` UI と反映ロジック。

@@ -142,3 +142,10 @@
 - `src/utils/psdParser.ts`
 - `layer.children` / `psd.children` の取り込み時に使っていた `reverse()` を除去。
 - `ag-psd` の順序をそのまま保持することで、髪・顔などの前後関係が PSD 上の見え方と一致するように修正。
+
+## 16. 動画/音声の音量調整と PSD スケーリング追加
+- `src/components/PropertyPanel.tsx`
+- `video` / `audio` 選択時に `Audio` セクションを追加し、`Mute` と `Volume`（スライダー 0〜1 + 数値 0〜100%）を編集可能にした。
+- 音量入力は 0〜1 にクランプし、ミュート切り替えは `updateObject` へ即時反映するよう実装。
+- `psd` 選択時に `PSD Transform` セクションを追加し、`scale`（0.1〜10）をスライダーと数値入力の両方で編集可能にした。
+- 既存の `pixiRenderHelper` 側 `psdContent.scale.set(obj.scale || 1.0)` へそのまま反映されるため、追加の描画側改修なしで即時プレビューされる構成にした。

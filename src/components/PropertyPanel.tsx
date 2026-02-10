@@ -27,6 +27,33 @@ const PropertyPanel: React.FC = () => {
     }
   };
 
+  const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+  const handleMediaVolumeChange = (rawValue: string) => {
+    if (selectedObject.type !== 'video' && selectedObject.type !== 'audio') return;
+    const next = parseFloat(rawValue);
+    if (Number.isNaN(next)) return;
+    updateObject(selectedObject.id, { volume: clamp(next, 0, 1) } as Partial<TimelineObject>);
+  };
+
+  const handleMediaVolumePercentChange = (rawValue: string) => {
+    const next = parseFloat(rawValue);
+    if (Number.isNaN(next)) return;
+    handleMediaVolumeChange(String(next / 100));
+  };
+
+  const handleMediaMuteChange = (muted: boolean) => {
+    if (selectedObject.type !== 'video' && selectedObject.type !== 'audio') return;
+    updateObject(selectedObject.id, { muted } as Partial<TimelineObject>);
+  };
+
+  const handlePsdScaleChange = (rawValue: string) => {
+      if (selectedObject.type !== 'psd') return;
+      const next = parseFloat(rawValue);
+      if (Number.isNaN(next)) return;
+      updateObject(selectedObject.id, { scale: clamp(next, 0.1, 10) } as Partial<TimelineObject>);
+  };
+
   // Helper for Nested Objects
   const handleColorCorrectionChange = (key: keyof ColorCorrection, value: any) => {
       const current = selectedObject.colorCorrection || { enabled: false, brightness: 1, contrast: 1, saturation: 1, hue: 0 };
@@ -229,6 +256,38 @@ const PropertyPanel: React.FC = () => {
             </>
         )}
 
+        {(selectedObject.type === 'video' || selectedObject.type === 'audio') && (
+            <>
+                <SectionHeader label="Audio" />
+                <Row label="Mute">
+                    <input type="checkbox" checked={selectedObject.muted || false} onChange={(e) => handleMediaMuteChange(e.target.checked)} />
+                </Row>
+                <Row label="Volume">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.01"
+                            value={selectedObject.volume ?? 1}
+                            onChange={(e) => handleMediaVolumeChange(e.target.value)}
+                            style={{ flex: 1 }}
+                        />
+                        <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="1"
+                            value={Math.round((selectedObject.volume ?? 1) * 100)}
+                            onChange={(e) => handleMediaVolumePercentChange(e.target.value)}
+                            style={{ width: '56px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                        />
+                        <span style={{ fontSize: '11px', color: '#999' }}>%</span>
+                    </div>
+                </Row>
+            </>
+        )}
+
         {/* --- オブジェクト固有設定 --- */}
         {selectedObject.type === 'text' && (
             <>
@@ -303,6 +362,31 @@ const PropertyPanel: React.FC = () => {
 
         {selectedObject.type === 'psd' && (
             <>
+                <SectionHeader label="PSD Transform" />
+                <Row label="Scale">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <input
+                            type="range"
+                            min="0.1"
+                            max="3"
+                            step="0.01"
+                            value={selectedObject.scale ?? 1}
+                            onChange={(e) => handlePsdScaleChange(e.target.value)}
+                            style={{ flex: 1 }}
+                        />
+                        <input
+                            type="number"
+                            min="0.1"
+                            max="10"
+                            step="0.1"
+                            value={selectedObject.scale ?? 1}
+                            onChange={(e) => handlePsdScaleChange(e.target.value)}
+                            style={{ width: '64px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                        />
+                        <span style={{ fontSize: '11px', color: '#999' }}>x</span>
+                    </div>
+                </Row>
+
                 <SectionHeader label="PSD Layers" />
                 <div style={{ marginBottom: '8px', display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <button

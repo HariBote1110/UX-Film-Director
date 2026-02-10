@@ -56,3 +56,7 @@ PropertyPanel の表情切り替えは `activeLayerIds` を直接更新する方
 
 15. PSD レイヤー順序の逆転を修正する  
 `ag-psd` から取得した `children` の順序を保持し、不要な `reverse()` を除去して PSD 上の前後関係と一致させる。
+
+16. プロパティパネルにメディア音量/PSDスケール編集を追加する  
+`video` / `audio` 選択時に `Mute` と `Volume` (0〜100%) を編集可能にし、既存再生経路へ即時反映する。  
+`psd` 選択時に `scale` (0.1〜10) を編集可能にし、Pixi 側の `psdContent.scale` へ反映させる。
