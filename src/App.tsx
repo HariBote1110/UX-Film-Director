@@ -62,6 +62,12 @@ const App: React.FC = () => {
     setExporting(true);
   };
 
+  // Filter for PSD objects to render their background renderers
+  const psdObjects = useMemo(
+    () => objects.filter(o => o.type === 'psd') as PsdObject[],
+    [objects]
+  );
+
   if (!isProjectLoaded) {
     return (
       <div className="app-container" style={{ height: '100vh', background: '#1a1a1a', color: '#ccc' }}>
@@ -72,12 +78,6 @@ const App: React.FC = () => {
       </div>
     );
   }
-
-  // Filter for PSD objects to render their background renderers
-  const psdObjects = useMemo(
-    () => objects.filter(o => o.type === 'psd') as PsdObject[],
-    [objects]
-  );
 
   return (
     <div className="app-container" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
