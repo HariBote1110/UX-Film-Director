@@ -53,3 +53,6 @@ PropertyPanel の表情切り替えは `activeLayerIds` を直接更新する方
 14. PSD レイヤーテクスチャ生成の互換性を改善する  
 `Texture.from(img)` をやめ、canvas 経由でテクスチャを生成して Pixi の WebGPU 警告を抑制する。  
 同時に `Uint16Array` / `Float32Array` などの `PixelArray` を 8bit RGBA へ正規化する。
+
+15. PSD レイヤー順序の逆転を修正する  
+`ag-psd` から取得した `children` の順序を保持し、不要な `reverse()` を除去して PSD 上の前後関係と一致させる。

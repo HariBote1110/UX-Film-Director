@@ -284,8 +284,8 @@ export const parsePsdAsObject = async (
 
     // 子要素の処理
     if (layer.children) {
-      // 描画順序（奥→手前）にするため reverse()
-      const children = [...layer.children].reverse();
+      // ag-psd の children 順をそのまま保持して描画順を一致させる。
+      const children = [...layer.children];
       for (const child of children) {
         // 修正: 座標オフセットを渡さない
         const childNode = await buildNode(child);
@@ -311,7 +311,7 @@ export const parsePsdAsObject = async (
   };
 
   if (psd.children) {
-    const children = [...psd.children].reverse();
+    const children = [...psd.children];
     for (const child of children) {
       // 修正: 座標オフセットを渡さない
       rootNode.children.push(await buildNode(child));
@@ -338,17 +338,8 @@ export const parsePsdAsObject = async (
         // このラジオグループの中で、現在アクティブになっている子を探す
         const activeChild = node.children.find((child) => activeLayerIds[child.id]);
 
-        // もしアクティブな子が一つもなければ、強制的に「一番下（配列の先頭＝リストの一番上）」の子をアクティブにする
-        // ※ node.children は reverse() 済みで [奥...手前] の順だが、
-        //   UIのリスト上では逆順表示されることが多い。
-        //   ここでは「リストの先頭にあるもの」をデフォルトにしたいので、末尾(length-1)を選ぶか、
-        //   あるいは単純に「データ上の先頭」を選ぶか。
-        //   通常、目パチなどは「開眼」がデフォルトで入っていることが多い。
+        // もしアクティブな子が一つもなければ、先頭の子をデフォルト選択にする。
         if (!activeChild && node.children.length > 0) {
-           // データ構造上、奥にあるレイヤーから順に入っている。
-           // UI的には手前のレイヤー（配列の末尾）をデフォルトにするのが自然な場合が多いが、
-           // ここでは「一番奥（配列の先頭）」をデフォルトにしてみる
-           // (PSDの作りによるが、とりあえずどれか一つを選択状態にする)
            const defaultChild = node.children[0];
            activeLayerIds[defaultChild.id] = true;
         }

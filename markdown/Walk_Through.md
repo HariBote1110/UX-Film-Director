@@ -137,3 +137,8 @@
 - `cacheTextureFromUrl` を追加し、`Texture.from(img)` ではなく canvas 経由でテクスチャ化する方式へ変更。
 - `src/utils/pixiRenderHelper.ts`
 - 画像/PSD フォールバック読込時のテクスチャ生成を `cacheTextureFromUrl` に統一し、`Image element passed` 警告を抑制。
+
+## 15. PSD レイヤー順序逆転の修正
+- `src/utils/psdParser.ts`
+- `layer.children` / `psd.children` の取り込み時に使っていた `reverse()` を除去。
+- `ag-psd` の順序をそのまま保持することで、髪・顔などの前後関係が PSD 上の見え方と一致するように修正。
