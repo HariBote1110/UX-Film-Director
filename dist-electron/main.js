@@ -237,7 +237,11 @@ electron.app.whenReady().then(() => {
       return { success: false, error: String(e) };
     }
   });
-  electron.ipcMain.handle("probe-media", async (_event, { filePath }) => {
+  electron.ipcMain.handle("probe-media", async (_event, payload) => {
+    const filePath = typeof (payload == null ? void 0 : payload.filePath) === "string" ? payload.filePath.trim() : "";
+    if (!filePath) {
+      return { success: false, error: "filePath is required." };
+    }
     try {
       const result = await callRustBackend("media.probe", {
         filePath,
