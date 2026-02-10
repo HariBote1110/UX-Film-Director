@@ -3,6 +3,7 @@ import path from 'node:path'
 import { spawn, ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
+import { once } from 'node:events'
 
 // --- GPU Acceleration Flags ---
 // 高画質動画の再生負荷を下げるための重要な設定
@@ -17,7 +18,6 @@ app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder,CanvasOopRast
 
 process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(__dirname, '../public')
-process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(__dirname, '../public')
 
 let win: BrowserWindow | null
 let ffmpegProcess: ChildProcess | null = null;
@@ -25,9 +25,12 @@ let ffmpegProcess: ChildProcess | null = null;
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
 function createWindow() {
+  const vitePublicPath = process.env.VITE_PUBLIC ?? path.join(__dirname, '../public')
+  const distPath = process.env.DIST ?? path.join(__dirname, '../dist')
+
   // アイコン画像のパスを設定 (publicフォルダ内の 'icon.jpg' を参照)
   // ※ 実際のファイル名が 'icon.jpeg' の場合は修正してください
-  const iconPath = path.join(process.env.VITE_PUBLIC, 'icon.jpg')
+  const iconPath = path.join(vitePublicPath, 'icon.jpg')
 
   // macOS用のDockアイコン設定
   if (process.platform === 'darwin') {
@@ -55,7 +58,7 @@ function createWindow() {
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)
   } else {
-    win.loadFile(path.join(process.env.DIST, 'index.html'))
+    win.loadFile(path.join(distPath, 'index.html'))
   }
 }
 
@@ -141,12 +144,14 @@ app.whenReady().then(() => {
     }
   });
 
-  ipcMain.handle('write-frame', async (event, base64Data: string) => {
+  ipcMain.handle('write-frame', async (event, frameData: ArrayBuffer) => {
     if (!ffmpegProcess || !ffmpegProcess.stdin) return false;
     try {
-      const data = base64Data.replace(/^data:image\/jpeg;base64,/, '');
-      const buffer = Buffer.from(data, 'base64');
-      ffmpegProcess.stdin.write(buffer);
+      const buffer = Buffer.from(frameData);
+      const canContinue = ffmpegProcess.stdin.write(buffer);
+      if (!canContinue) {
+        await once(ffmpegProcess.stdin, 'drain');
+      }
       return true;
     } catch (error) {
       console.error('Error writing frame:', error);

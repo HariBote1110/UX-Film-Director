@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import * as PIXI from 'pixi.js';
 import { useStore } from '../store/useStore';
 import { TimelineObject } from '../types';
+import { shallow } from 'zustand/shallow';
 
 const { ipcRenderer } = window;
 
@@ -10,18 +11,25 @@ export const useProjectExport = (
   videoElementsRef: React.MutableRefObject<Map<string, HTMLVideoElement>>,
   renderScene: (time: number, objects: TimelineObject[]) => void
 ) => {
-  const { isExporting, setExporting, objects, setTime } = useStore();
+  const { isExporting, setExporting, setTime } = useStore((state) => ({
+    isExporting: state.isExporting,
+    setExporting: state.setExporting,
+    setTime: state.setTime,
+  }), shallow);
 
   useEffect(() => {
     if (!isExporting) return;
+
+    let cancelled = false;
 
     const runExport = async () => {
         const app = pixiAppRef.current;
         if (!app) return;
 
-        const { projectSettings } = useStore.getState();
+        const { projectSettings, objects } = useStore.getState();
         const fps = projectSettings.fps;
         const dt = 1 / fps;
+        const videoObjects = objects.filter((obj): obj is Extract<TimelineObject, { type: 'video' }> => obj.type === 'video');
         
         // Calculate total duration
         const lastObjectEndTime = Math.max(...objects.map(o => o.startTime + o.duration), 0);
@@ -47,11 +55,15 @@ export const useProjectExport = (
 
         // Frame Rendering Loop
         for (let i = 0; i < totalFrames; i++) {
+            if (cancelled) break;
+
             const t = i * dt;
-            setTime(t);
+            if (i % Math.max(1, Math.floor(fps / 2)) === 0) {
+                setTime(t);
+            }
 
             // Handle Video Seeking
-            const activeVideos = objects.filter(obj => obj.type === 'video' && t >= obj.startTime && t < obj.startTime + obj.duration);
+            const activeVideos = videoObjects.filter(obj => t >= obj.startTime && t < obj.startTime + obj.duration);
             if (activeVideos.length > 0) {
                 const seekPromises = activeVideos.map(obj => {
                     const video = videoElementsRef.current.get(obj.id);
@@ -83,13 +95,17 @@ export const useProjectExport = (
             // Render Frame
             renderScene(t, objects);
             
-            // Wait for GPU/DOM update
-            await new Promise(r => setTimeout(r, 10));
-            
             // Capture and write frame
-            const base64 = app.canvas.toDataURL('image/jpeg', 0.90);
-            await ipcRenderer.invoke('write-frame', base64);
+            const blob = await new Promise<Blob | null>((resolve) => {
+              app.canvas.toBlob(resolve, 'image/jpeg', 0.90);
+            });
+            if (!blob) continue;
+
+            const frameBuffer = await blob.arrayBuffer();
+            await ipcRenderer.invoke('write-frame', frameBuffer);
         }
+
+        if (cancelled) return;
 
         await ipcRenderer.invoke('end-export');
         alert("Export Finished!");
@@ -97,5 +113,8 @@ export const useProjectExport = (
     };
 
     runExport();
-  }, [isExporting, objects, renderScene, setExporting, setTime, pixiAppRef, videoElementsRef]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isExporting, renderScene, setExporting, setTime, pixiAppRef, videoElementsRef]);
 };

@@ -55,6 +55,11 @@ const calculateAutoDuration = (objects: TimelineObject[]) => {
   return Math.max(maxEndTime, 10);
 };
 
+const needsDurationRecalculation = (newProps: Partial<TimelineObject>) => {
+  return Object.prototype.hasOwnProperty.call(newProps, 'startTime')
+    || Object.prototype.hasOwnProperty.call(newProps, 'duration');
+};
+
 export const useStore = create<AppState>((set, get) => ({
   isProjectLoaded: false,
   projectSettings: { width: 1920, height: 1080, fps: 60, sampleRate: 44100 },
@@ -77,8 +82,16 @@ export const useStore = create<AppState>((set, get) => ({
     isPlaying: false
   }),
 
-  setTime: (time) => set({ currentTime: Math.max(0, time) }),
-  setDuration: (duration) => set({ duration: Math.max(1, duration) }),
+  setTime: (time) => set((state) => {
+    const nextTime = Math.max(0, time);
+    if (Math.abs(state.currentTime - nextTime) < 0.0001) return {};
+    return { currentTime: nextTime };
+  }),
+  setDuration: (duration) => set((state) => {
+    const nextDuration = Math.max(1, duration);
+    if (Math.abs(state.duration - nextDuration) < 0.0001) return {};
+    return { duration: nextDuration };
+  }),
 
   advanceTime: (deltaTime) => {
     const { currentTime, duration, isPlaying } = get();
@@ -88,7 +101,9 @@ export const useStore = create<AppState>((set, get) => ({
       nextTime = duration;
       set({ isPlaying: false });
     }
-    set({ currentTime: nextTime });
+    if (Math.abs(nextTime - currentTime) >= 0.0001) {
+      set({ currentTime: nextTime });
+    }
   },
 
   togglePlay: () => set((state) => {
@@ -154,9 +169,25 @@ export const useStore = create<AppState>((set, get) => ({
   },
   
   updateObject: (id, newProps) => set((state) => {
-    const newObjects = state.objects.map((obj) => 
-      obj.id === id ? { ...obj, ...newProps } : obj
-    );
+    const targetIndex = state.objects.findIndex((obj) => obj.id === id);
+    if (targetIndex < 0) return {};
+
+    const currentObject = state.objects[targetIndex];
+    const changedKeys = Object.keys(newProps) as (keyof TimelineObject)[];
+    const hasAnyDiff = changedKeys.some((key) => {
+      return !Object.is(currentObject[key], newProps[key]);
+    });
+
+    if (!hasAnyDiff) return {};
+
+    const updatedObject = { ...currentObject, ...newProps } as TimelineObject;
+    const newObjects = state.objects.slice();
+    newObjects[targetIndex] = updatedObject;
+
+    if (!needsDurationRecalculation(newProps)) {
+      return { objects: newObjects };
+    }
+
     return {
       objects: newObjects,
       duration: calculateAutoDuration(newObjects)

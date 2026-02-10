@@ -5,7 +5,7 @@ import { ProjectSettings } from '../types';
 const STORAGE_KEY = 'ux-film-director-last-settings';
 
 const ProjectSetup: React.FC = () => {
-  const { initializeProject } = useStore();
+  const initializeProject = useStore((state) => state.initializeProject);
   
   const [settings, setSettings] = useState<ProjectSettings>({
     width: 1920,

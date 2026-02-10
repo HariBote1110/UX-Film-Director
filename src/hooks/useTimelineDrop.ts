@@ -3,9 +3,13 @@ import { useStore } from '../store/useStore';
 import { TimelineObject } from '../types';
 import { parseLabFile } from '../utils/labParser';
 import { HEADER_WIDTH, RULER_HEIGHT, ROW_HEIGHT, MAX_LAYERS, PX_PER_SEC } from '../components/timelineConstants';
+import { shallow } from 'zustand/shallow';
 
 export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) => {
-  const { isExporting, addObject } = useStore();
+  const { isExporting, addObject } = useStore((state) => ({
+    isExporting: state.isExporting,
+    addObject: state.addObject,
+  }), shallow);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();

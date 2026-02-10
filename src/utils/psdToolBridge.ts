@@ -7,6 +7,8 @@ export class PsdToolBridge {
   private webview: any;
   private checkInterval: number | null = null;
   private lastDataUrl: string = '';
+  private lastTreeSyncAt: number = 0;
+  private hasSyncedTree: boolean = false;
 
   constructor(webview: any) {
     this.webview = webview;
@@ -115,6 +117,9 @@ export class PsdToolBridge {
   ) {
     this.stopSync();
     if (!this.webview) return;
+    this.lastDataUrl = '';
+    this.lastTreeSyncAt = 0;
+    this.hasSyncedTree = false;
 
     this.checkInterval = window.setInterval(async () => {
         try {
@@ -133,17 +138,16 @@ export class PsdToolBridge {
             if (dataUrl && dataUrl !== this.lastDataUrl) {
                 this.lastDataUrl = dataUrl;
                 onImageUpdate(dataUrl);
-                const tree = await this.getLayerTree();
-                onTreeUpdate(tree);
-            } else if (!this.lastDataUrl && dataUrl) {
-                // 初回検出
-                this.lastDataUrl = dataUrl;
-                onImageUpdate(dataUrl);
-                const tree = await this.getLayerTree();
-                onTreeUpdate(tree);
+                const now = Date.now();
+                if (!this.hasSyncedTree || now - this.lastTreeSyncAt >= 1000) {
+                  const tree = await this.getLayerTree();
+                  onTreeUpdate(tree);
+                  this.lastTreeSyncAt = now;
+                  this.hasSyncedTree = true;
+                }
             }
         } catch (e) {}
-    }, 200);
+    }, 300);
   }
 
   public stopSync() {

@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import * as PIXI from 'pixi.js';
 import { useStore } from '../store/useStore';
 import { TimelineObject } from '../types';
+import { shallow } from 'zustand/shallow';
 
 interface DragState {
   active: boolean;
@@ -16,7 +17,13 @@ export const usePixiInteraction = (
 ) => {
   const { 
     updateObject, selectObject, pushHistory, isPlaying, togglePlay 
-  } = useStore();
+  } = useStore((state) => ({
+    updateObject: state.updateObject,
+    selectObject: state.selectObject,
+    pushHistory: state.pushHistory,
+    isPlaying: state.isPlaying,
+    togglePlay: state.togglePlay,
+  }), shallow);
 
   const dragRef = useRef<DragState>({ 
     active: false, targetId: null, startX: 0, startY: 0, initialObjState: null 

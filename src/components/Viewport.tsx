@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as PIXI from 'pixi.js';
 import { useStore } from '../store/useStore';
-import { TimelineObject, AudioObject } from '../types';
+import { TimelineObject } from '../types';
 import { createShadowGraphics } from '../utils/pixiUtils';
 import { easingFunctions } from '../utils/easings';
+import { shallow } from 'zustand/shallow';
 
 import { usePixiInteraction } from '../hooks/usePixiInteraction';
 import { useProjectExport } from '../hooks/useProjectExport';
@@ -28,7 +29,17 @@ const Viewport: React.FC = () => {
     currentTime, objects, selectedId, selectObject,
     projectSettings, isPlaying, isExporting, 
     isSnapshotRequested, finishSnapshot
-  } = useStore();
+  } = useStore((state) => ({
+    currentTime: state.currentTime,
+    objects: state.objects,
+    selectedId: state.selectedId,
+    selectObject: state.selectObject,
+    projectSettings: state.projectSettings,
+    isPlaying: state.isPlaying,
+    isExporting: state.isExporting,
+    isSnapshotRequested: state.isSnapshotRequested,
+    finishSnapshot: state.finishSnapshot,
+  }), shallow);
   
   const latestObjectsRef = useRef(objects);
   latestObjectsRef.current = objects;

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import Viewport from './components/Viewport';
 import Timeline from './components/Timeline';
 import PropertyPanel from './components/PropertyPanel';
@@ -8,12 +8,20 @@ import { useStore } from './store/useStore';
 import { PsdToolBridge } from './utils/psdToolBridge';
 import { PsdRenderer } from './components/PsdRenderer';
 import { PsdObject } from './types';
+import { shallow } from 'zustand/shallow';
 import './index.css';
 
 const App: React.FC = () => {
   useAppLogic();
   
-  const { isProjectLoaded, isExporting, setExporting, objects, selectedId, requestSnapshot } = useStore();
+  const { isProjectLoaded, isExporting, setExporting, objects, selectedId, requestSnapshot } = useStore((state) => ({
+    isProjectLoaded: state.isProjectLoaded,
+    isExporting: state.isExporting,
+    setExporting: state.setExporting,
+    objects: state.objects,
+    selectedId: state.selectedId,
+    requestSnapshot: state.requestSnapshot,
+  }), shallow);
   
   // Registry to hold active bridges for each PSD object
   const bridgeMapRef = useRef<Map<string, PsdToolBridge>>(new Map());
@@ -66,7 +74,10 @@ const App: React.FC = () => {
   }
 
   // Filter for PSD objects to render their background renderers
-  const psdObjects = objects.filter(o => o.type === 'psd') as PsdObject[];
+  const psdObjects = useMemo(
+    () => objects.filter(o => o.type === 'psd') as PsdObject[],
+    [objects]
+  );
 
   return (
     <div className="app-container" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>

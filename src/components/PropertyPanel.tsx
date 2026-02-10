@@ -3,9 +3,8 @@ import { useStore } from '../store/useStore';
 import { TimelineObject, AudioVisualizationObject, ColorCorrection, Vibration, ClippingParams } from '../types';
 
 const PropertyPanel: React.FC = () => {
-  const { selectedId, objects, updateObject } = useStore();
-
-  const selectedObject = objects.find(obj => obj.id === selectedId);
+  const selectedObject = useStore((state) => state.objects.find(obj => obj.id === state.selectedId));
+  const updateObject = useStore((state) => state.updateObject);
 
   if (!selectedObject) {
     return (

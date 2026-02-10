@@ -1,5 +1,6 @@
 import React, { useRef, useLayoutEffect, useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
+import { shallow } from 'zustand/shallow';
 
 export interface ContextMenuState {
   visible: boolean;
@@ -34,7 +35,12 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
   onAddPsd,
   onAddGroup,
 }) => {
-  const { deleteObject, selectObject, splitObject, addObject } = useStore();
+  const { deleteObject, selectObject, splitObject, addObject } = useStore((state) => ({
+    deleteObject: state.deleteObject,
+    selectObject: state.selectObject,
+    splitObject: state.splitObject,
+    addObject: state.addObject,
+  }), shallow);
   const menuRef = useRef<HTMLDivElement>(null);
   
   const [position, setPosition] = useState({ top: state.y, left: state.x });

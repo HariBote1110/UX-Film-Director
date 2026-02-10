@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { useStore } from '../store/useStore';
 import { TimelineObject } from '../types';
 import TimelineItem from './TimelineItem';
@@ -6,12 +6,22 @@ import { PX_PER_SEC, ROW_HEIGHT, HEADER_WIDTH, RULER_HEIGHT, MAX_LAYERS } from '
 import { useTimelineDrop } from '../hooks/useTimelineDrop';
 import { TimelineControlBar } from './TimelineControlBar';
 import { TimelineContextMenu, ContextMenuState } from './TimelineContextMenu';
+import { shallow } from 'zustand/shallow';
 
 const Timeline: React.FC = () => {
   const { 
     currentTime, duration, setTime, addObject, deleteObject, 
     objects, selectObject, isExporting
-  } = useStore();
+  } = useStore((state) => ({
+    currentTime: state.currentTime,
+    duration: state.duration,
+    setTime: state.setTime,
+    addObject: state.addObject,
+    deleteObject: state.deleteObject,
+    objects: state.objects,
+    selectObject: state.selectObject,
+    isExporting: state.isExporting,
+  }), shallow);
   
   const timelineRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -42,7 +52,7 @@ const Timeline: React.FC = () => {
     setTime(calculateTimeFromEvent(e.clientX));
   };
 
-  const handleCanvasContextMenu = (e: React.MouseEvent) => {
+  const handleCanvasContextMenu = useCallback((e: React.MouseEvent) => {
     if (isExporting) return;
     e.preventDefault();
     if (!timelineRef.current) return;
@@ -57,14 +67,14 @@ const Timeline: React.FC = () => {
     if (layer >= 0 && layer < MAX_LAYERS) {
       setContextMenu({ visible: true, x: e.clientX, y: e.clientY, type: 'canvas', time, layer });
     }
-  };
+  }, [isExporting]);
 
-  const handleObjectContextMenu = (e: React.MouseEvent, objectId: string) => {
+  const handleObjectContextMenu = useCallback((e: React.MouseEvent, objectId: string) => {
     if (isExporting) return;
     e.preventDefault();
     e.stopPropagation();
     setContextMenu({ visible: true, x: e.clientX, y: e.clientY, type: 'object', time: 0, layer: 0, targetObjectId: objectId });
-  };
+  }, [isExporting]);
 
   useEffect(() => {
     const handleClick = () => { if (contextMenu.visible) setContextMenu(prev => ({ ...prev, visible: false })); };
@@ -165,9 +175,6 @@ const Timeline: React.FC = () => {
   };
 
   // Action Wrappers for Child Components
-  const wrapperTime = contextMenu.visible ? contextMenu.time : currentTime;
-  const wrapperLayer = contextMenu.visible ? contextMenu.layer : (contextMenu.visible ? contextMenu.layer : (insertTarget?.layer || 0)); 
-  // Note: ControlBar uses specific layers in original code (0,1,2,3,4).
   // ControlBar handlers:
   const cbAddShape = () => addShapeAt(currentTime, 0);
   const cbAddText = () => addTextAt(currentTime, 1);
@@ -186,7 +193,10 @@ const Timeline: React.FC = () => {
   const cmAddPsd = () => triggerPsdUpload(contextMenu.time);
   const cmAddGroup = () => addGroupControlAt(contextMenu.time, contextMenu.layer);
 
-  const totalWidth = Math.max(duration * PX_PER_SEC + 500, window.innerWidth - 300) + HEADER_WIDTH;
+  const totalWidth = useMemo(
+    () => Math.max(duration * PX_PER_SEC + 500, window.innerWidth - 300) + HEADER_WIDTH,
+    [duration]
+  );
 
   return (
     <div className="timeline-panel" style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#222', color: '#ccc', position: 'relative' }}>

@@ -13,7 +13,7 @@ export const PsdRenderer: React.FC<PsdRendererProps> = ({ object, onBridgeReady,
   const webviewRef = useRef<any>(null);
   const bridgeRef = useRef<PsdToolBridge | null>(null);
   const loadedFileRef = useRef<File | null>(null);
-  const { updateObject } = useStore();
+  const updateObject = useStore((state) => state.updateObject);
 
   useEffect(() => {
     const webview = webviewRef.current;
