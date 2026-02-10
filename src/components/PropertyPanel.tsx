@@ -72,6 +72,9 @@ const PropertyPanel: React.FC = () => {
 
       try {
           await bridge.toggleNode(seq);
+          if (typeof bridge.requestImmediateSync === 'function') {
+              await bridge.requestImmediateSync(true);
+          }
       } catch (e) {
           console.error('Failed to toggle PSD layer:', e);
       }
@@ -80,12 +83,19 @@ const PropertyPanel: React.FC = () => {
   const handleRefreshPsdTree = async () => {
       if (selectedObject.type !== 'psd') return;
       const bridge = (window as any).psdBridge;
-      if (!bridge || typeof bridge.getLayerTree !== 'function') return;
+      if (!bridge) return;
 
       try {
           setIsRefreshingPsdTree(true);
-          const tree = await bridge.getLayerTree();
-          updateObject(selectedObject.id, { layerTree: tree });
+          if (typeof bridge.requestImmediateSync === 'function') {
+              await bridge.requestImmediateSync(true);
+              return;
+          }
+
+          if (typeof bridge.getLayerTree === 'function') {
+              const tree = await bridge.getLayerTree();
+              updateObject(selectedObject.id, { layerTree: tree });
+          }
       } catch (e) {
           console.error('Failed to refresh PSD layer tree:', e);
       } finally {
@@ -334,7 +344,7 @@ const PropertyPanel: React.FC = () => {
                         {isRefreshingPsdTree ? 'Refreshing...' : 'Reload Layers'}
                     </button>
                     <span style={{ fontSize: '11px', color: '#888' }}>
-                        表情が反映されるまで最大1秒ほどかかります
+                        通常は即時反映されます。遅い場合は Reload Layers を押してください。
                     </span>
                 </div>
                 <div style={{ maxHeight: '260px', overflowY: 'auto', background: '#1e1e1e', border: '1px solid #333', borderRadius: '4px', padding: '8px' }}>

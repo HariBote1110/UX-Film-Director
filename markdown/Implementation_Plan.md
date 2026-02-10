@@ -35,3 +35,10 @@ Electron メインプロセスに Rust プロセス管理と IPC ラッパーを
 9. メディアメタデータ解析を Rust 側へ移管する  
 `media.probe` を Rust 側に実装し、動画/音声の追加時は `probe-media` を優先して `duration`・`width`・`height` を取得する。  
 `filePath` が取れない環境や `ffprobe` 失敗時のみ、`HTMLMediaElement` での既存メタデータ取得へフォールバックする。
+
+10. PSD 同期処理を即時反映 + 低負荷化する  
+`PsdToolBridge` に即時同期 API を追加し、レイヤートグル後は強制同期でプレビューとツリーを更新する。  
+常時ポーリング間隔を緩め、重い処理（`toDataURL` / ツリー収集）の実行回数を削減する。
+
+11. ビルド署名を無効化する  
+`build` スクリプトに `CSC_IDENTITY_AUTO_DISCOVERY=false` を適用し、macOS 証明書がない環境でもパッケージングを進められるようにする。

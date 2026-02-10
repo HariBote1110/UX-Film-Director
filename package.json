@@ -1,11 +1,11 @@
 {
   "name": "ux-film-director",
   "private": true,
-  "version": "0.1.1-Beta-1e",
+  "version": "0.1.1-Beta-1f",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && electron-builder",
+    "build": "tsc && vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
     "preview": "vite preview",
     "rust:build:debug": "cargo build --manifest-path rust-backend/Cargo.toml",
     "rust:build:release": "cargo build --release --manifest-path rust-backend/Cargo.toml",

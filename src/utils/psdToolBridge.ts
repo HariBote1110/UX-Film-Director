@@ -7,8 +7,11 @@ export class PsdToolBridge {
   private webview: any;
   private checkInterval: number | null = null;
   private lastDataUrl: string = '';
-  private lastTreeSyncAt: number = 0;
   private hasSyncedTree: boolean = false;
+  private onImageUpdate: ((dataUrl: string) => void) | null = null;
+  private onTreeUpdate: ((tree: PsdLayerStruct[]) => void) | null = null;
+  private syncRunning: boolean = false;
+  private queuedTreeSync: boolean = false;
 
   constructor(webview: any) {
     this.webview = webview;
@@ -22,12 +25,15 @@ export class PsdToolBridge {
     
     reader.onload = async () => {
         const base64 = reader.result as string;
+        const fileName = JSON.stringify(file.name);
+        const fileType = JSON.stringify(file.type);
+        const encodedFile = JSON.stringify(base64);
         const code = `
             (async () => {
                 try {
-                    const res = await fetch("${base64}");
+                    const res = await fetch(${encodedFile});
                     const blob = await res.blob();
-                    const file = new File([blob], "${file.name}", { type: "${file.type}" });
+                    const file = new File([blob], ${fileName}, { type: ${fileType} });
                     const dt = new DataTransfer();
                     dt.items.add(file);
                     const dropEvent = new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt });
@@ -36,8 +42,71 @@ export class PsdToolBridge {
                 } catch(e) { console.error(e); }
             })();
         `;
-        try { await this.webview.executeJavaScript(code); } catch (e) {}
+        try {
+          await this.webview.executeJavaScript(code);
+          this.scheduleWarmupSync();
+        } catch (e) {}
     };
+  }
+
+  private scheduleWarmupSync() {
+    window.setTimeout(() => {
+      void this.requestImmediateSync(true);
+    }, 150);
+    window.setTimeout(() => {
+      void this.requestImmediateSync(true);
+    }, 800);
+  }
+
+  private async getPreviewDataUrl(): Promise<string | null> {
+    if (!this.webview) return null;
+    try {
+      return await this.webview.executeJavaScript(`
+        (() => {
+            const canvas = document.getElementById('preview');
+            if (!canvas || canvas.width === 0) return null;
+            return canvas.toDataURL('image/png');
+        })()
+      `);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  private async runSync(forceTree: boolean) {
+    const dataUrl = await this.getPreviewDataUrl();
+    let shouldSyncTree = forceTree || !this.hasSyncedTree;
+
+    if (dataUrl && dataUrl !== this.lastDataUrl) {
+      this.lastDataUrl = dataUrl;
+      this.onImageUpdate?.(dataUrl);
+      shouldSyncTree = true;
+    }
+
+    if (shouldSyncTree && this.onTreeUpdate) {
+      const tree = await this.getLayerTree();
+      this.onTreeUpdate(tree);
+      this.hasSyncedTree = true;
+    }
+  }
+
+  public async requestImmediateSync(forceTree: boolean = false): Promise<void> {
+    if (!this.webview) return;
+    if (forceTree) {
+      this.queuedTreeSync = true;
+    }
+    if (this.syncRunning) return;
+
+    this.syncRunning = true;
+    try {
+      do {
+        const shouldSyncTree = this.queuedTreeSync;
+        this.queuedTreeSync = false;
+        await this.runSync(shouldSyncTree);
+      } while (this.queuedTreeSync);
+    } finally {
+      this.syncRunning = false;
+    }
   }
 
   public async getLayerTree(): Promise<PsdLayerStruct[]> {
@@ -109,6 +178,12 @@ export class PsdToolBridge {
       })();
     `;
     await this.webview.executeJavaScript(code);
+    window.setTimeout(() => {
+      void this.requestImmediateSync(true);
+    }, 60);
+    window.setTimeout(() => {
+      void this.requestImmediateSync(true);
+    }, 260);
   }
 
   public startSync(
@@ -117,37 +192,17 @@ export class PsdToolBridge {
   ) {
     this.stopSync();
     if (!this.webview) return;
+    this.onImageUpdate = onImageUpdate;
+    this.onTreeUpdate = onTreeUpdate;
     this.lastDataUrl = '';
-    this.lastTreeSyncAt = 0;
     this.hasSyncedTree = false;
+    this.queuedTreeSync = true;
+    this.syncRunning = false;
 
-    this.checkInterval = window.setInterval(async () => {
-        try {
-            const dataUrl = await this.webview.executeJavaScript(`
-                (() => {
-                    const canvas = document.getElementById('preview');
-                    if (!canvas || canvas.width === 0) return null;
-                    return canvas.toDataURL('image/png');
-                })()
-            `);
-
-            // 画像が変わっていなくても、前回取得失敗時などのためにツリーは定期チェックしても良いが
-            // 負荷軽減のため画像変更時のみツリー更新を行う
-            // ただし初回ロード直後などは画像が変わらなくてもツリーが欲しい場合があるため
-            // 簡易的に毎回ツリーをとる手もあるが、ここでは画像変更トリガーとする
-            if (dataUrl && dataUrl !== this.lastDataUrl) {
-                this.lastDataUrl = dataUrl;
-                onImageUpdate(dataUrl);
-                const now = Date.now();
-                if (!this.hasSyncedTree || now - this.lastTreeSyncAt >= 1000) {
-                  const tree = await this.getLayerTree();
-                  onTreeUpdate(tree);
-                  this.lastTreeSyncAt = now;
-                  this.hasSyncedTree = true;
-                }
-            }
-        } catch (e) {}
-    }, 300);
+    void this.requestImmediateSync(true);
+    this.checkInterval = window.setInterval(() => {
+      void this.requestImmediateSync(false);
+    }, 800);
   }
 
   public stopSync() {
@@ -155,5 +210,9 @@ export class PsdToolBridge {
       clearInterval(this.checkInterval);
       this.checkInterval = null;
     }
+    this.onImageUpdate = null;
+    this.onTreeUpdate = null;
+    this.queuedTreeSync = false;
+    this.syncRunning = false;
   }
 }

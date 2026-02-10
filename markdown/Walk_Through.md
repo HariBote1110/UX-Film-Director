@@ -92,3 +92,16 @@
 - `printf '{"id":1,"method":"health"}' | rust-backend/target/debug/uxfd-rust-backend` を実行し、`status: ok` 応答を確認。
 - Node から `export.start -> export.write_frame -> export.end` の順で呼び出し、MP4 ファイルが生成されることを確認。
 - `probe-media` 経由で `ffprobe` が利用可能な場合、DOM メタデータ解析なしで動画/音声の長さ・解像度が取り込まれることを確認。
+
+## 10. PSD 同期レスポンス改善
+- `src/utils/psdToolBridge.ts`
+- 同期間隔を 300ms から 800ms に緩和し、常時ポーリング負荷を削減。
+- `requestImmediateSync(forceTree)` を追加し、レイヤートグル直後や PSD ロード直後に強制同期できるようにした。
+- レイヤーツリー取得を「初回同期 / 明示的強制同期 / 画像変更時」に限定し、不要な DOM 走査を減らした。
+- `src/components/PropertyPanel.tsx`
+- PSD レイヤートグル後に `requestImmediateSync(true)` を実行し、表情変更を即時反映。
+- `Reload Layers` でも同 API を優先利用し、遅延時に明示的再同期できるようにした。
+
+## 11. 署名無効化
+- `package.json`
+- `build` スクリプトを `CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder` に変更し、macOS 証明書自動検出を無効化。
