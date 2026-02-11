@@ -3,12 +3,12 @@ import * as PIXI from 'pixi.js';
 import { useStore } from '../store/useStore';
 import { TimelineObject } from '../types';
 import { createShadowGraphics } from '../utils/pixiUtils';
-import { easingFunctions } from '../utils/easings';
 import { shallow } from 'zustand/shallow';
 
 import { usePixiInteraction } from '../hooks/usePixiInteraction';
 import { useProjectExport } from '../hooks/useProjectExport';
 import { getGroupTransforms, getLipSyncViseme, updatePixiContent, applyObjectEffects, getVibrationOffset } from '../utils/pixiRenderHelper';
+import { evaluateObjectPositionAtTime } from '../utils/keyframes';
 
 const Viewport: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -288,15 +288,20 @@ const Viewport: React.FC = () => {
       let currentX = obj.x; let currentY = obj.y;
       const rawProgress = (time - obj.startTime) / obj.duration; const progress = Math.max(0, Math.min(1, rawProgress));
 
-      if (obj.motionPath && obj.motionPath.length > 1) {
+      if (obj.keyframes && obj.keyframes.length > 1) {
+          const keyed = evaluateObjectPositionAtTime(obj, time);
+          currentX = keyed.x;
+          currentY = keyed.y;
+      } else if (obj.motionPath && obj.motionPath.length > 1) {
           const path = obj.motionPath; let idx = 0;
           while (idx < path.length - 1 && path[idx+1].time < progress) idx++;
           const p1 = path[idx]; const p2 = path[idx+1] || p1;
           const range = p2.time - p1.time; const localRatio = range <= 0 ? 0 : (progress - p1.time) / range;
           currentX = p1.x + (p2.x - p1.x) * localRatio; currentY = p1.y + (p2.y - p1.y) * localRatio;
       } else if (obj.enableAnimation) {
-          const easeFunc = easingFunctions[obj.easing] || easingFunctions.linear; const easedProgress = easeFunc(progress);
-          currentX = obj.x + (obj.endX - obj.x) * easedProgress; currentY = obj.y + (obj.endY - obj.y) * easedProgress;
+          const keyed = evaluateObjectPositionAtTime(obj, time);
+          currentX = keyed.x;
+          currentY = keyed.y;
       }
       
       const groupEffects = getGroupTransforms(obj, time, currentObjects);

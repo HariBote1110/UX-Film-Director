@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType } from '../types';
+import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe } from '../types';
 import { buildPsdLayerTree, togglePsdLayer } from '../utils/psdParser';
+import { easingNames, EasingType } from '../utils/easings';
+import { buildEndpointKeyframes, evaluateObjectPositionAtTime } from '../utils/keyframes';
 
 const PropertyPanel: React.FC = () => {
-  const { selectedObject, selectedCount } = useStore((state) => ({
+  const { selectedObject, selectedCount, currentTime } = useStore((state) => ({
     selectedObject: state.objects.find(obj => obj.id === state.selectedId),
-    selectedCount: state.selectedIds.length
+    selectedCount: state.selectedIds.length,
+    currentTime: state.currentTime
   }));
   const updateObject = useStore((state) => state.updateObject);
   const addObjectFilter = useStore((state) => state.addObjectFilter);
@@ -37,6 +40,10 @@ const PropertyPanel: React.FC = () => {
   };
 
   const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+  const toNumberOr = (rawValue: string, fallback: number) => {
+    const parsed = parseFloat(rawValue);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
   const filterLabel: Record<FilterType, string> = {
     color_correction: '色調補正',
     clipping: 'クリッピング',
@@ -103,6 +110,69 @@ const PropertyPanel: React.FC = () => {
 
   const handleFilterParamChange = (filter: ObjectFilter, params: Record<string, unknown>) => {
     updateObjectFilterParams(selectedObject.id, filter.id, params);
+  };
+
+  const canEditKeyframes = selectedObject.type !== 'audio';
+  const keyframes = (selectedObject.keyframes ?? []).slice().sort((a, b) => a.time - b.time);
+
+  const applyKeyframes = (nextKeyframes: PositionKeyframe[]) => {
+    const sorted = nextKeyframes.slice().sort((a, b) => a.time - b.time);
+    if (sorted.length === 0) {
+      updateObject(selectedObject.id, {
+        keyframes: [],
+        enableAnimation: false
+      } as Partial<TimelineObject>);
+      return;
+    }
+
+    const first = sorted[0];
+    const last = sorted[sorted.length - 1];
+    updateObject(selectedObject.id, {
+      keyframes: sorted,
+      enableAnimation: sorted.length >= 2,
+      x: first.x,
+      y: first.y,
+      endX: last.x,
+      endY: last.y,
+      easing: first.easing ?? selectedObject.easing
+    } as Partial<TimelineObject>);
+  };
+
+  const handleCreateEndpointKeyframes = () => {
+    const created = buildEndpointKeyframes(selectedObject);
+    applyKeyframes(created);
+  };
+
+  const handleAddCurrentKeyframe = () => {
+    const keyTime = clamp(
+      currentTime,
+      selectedObject.startTime,
+      selectedObject.startTime + selectedObject.duration
+    );
+    const position = evaluateObjectPositionAtTime(selectedObject, keyTime);
+    const nextKeyframe: PositionKeyframe = {
+      id: crypto.randomUUID(),
+      time: keyTime,
+      x: position.x,
+      y: position.y,
+      easing: selectedObject.easing
+    };
+
+    const merged = keyframes.filter((keyframe) => Math.abs(keyframe.time - keyTime) > 0.001);
+    merged.push(nextKeyframe);
+    applyKeyframes(merged);
+  };
+
+  const handleUpdateKeyframe = (keyframeId: string, patch: Partial<PositionKeyframe>) => {
+    const next = keyframes.map((keyframe) => {
+      if (keyframe.id !== keyframeId) return keyframe;
+      return { ...keyframe, ...patch };
+    });
+    applyKeyframes(next);
+  };
+
+  const handleDeleteKeyframe = (keyframeId: string) => {
+    applyKeyframes(keyframes.filter((keyframe) => keyframe.id !== keyframeId));
   };
 
   const handlePsdLayerToggle = (seq: string | null) => {
@@ -213,6 +283,85 @@ const PropertyPanel: React.FC = () => {
         <Row label="Opacity">
             <input type="range" min="0" max="1" step="0.01" value={selectedObject.opacity} onChange={(e) => handleNumericChange('opacity', e.target.value)} style={{ width: '100%' }} />
         </Row>
+
+        {canEditKeyframes && (
+            <>
+                <SectionHeader label="Keyframes" />
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                    <button
+                        type="button"
+                        onClick={handleAddCurrentKeyframe}
+                        style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}
+                    >
+                        現在位置を追加
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleCreateEndpointKeyframes}
+                        style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}
+                    >
+                        始点/終点を生成
+                    </button>
+                </div>
+                <div style={{ border: '1px solid #333', borderRadius: '4px', padding: '8px', marginBottom: '8px', background: '#1f1f1f' }}>
+                    {keyframes.length === 0 && (
+                        <div style={{ fontSize: '11px', color: '#888' }}>中間点はまだありません。</div>
+                    )}
+                    {keyframes.map((keyframe, index) => (
+                        <div key={keyframe.id} style={{ borderTop: index === 0 ? 'none' : '1px solid #333', paddingTop: index === 0 ? '0' : '8px', marginTop: index === 0 ? '0' : '8px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                <span style={{ fontSize: '11px', color: '#bbb' }}>中間点 {index + 1}</span>
+                                <button type="button" onClick={() => handleDeleteKeyframe(keyframe.id)} style={{ border: '1px solid #553333', background: '#3b2020', color: '#ffb0b0', borderRadius: '3px', padding: '0 6px', cursor: 'pointer' }}>削除</button>
+                            </div>
+                            <Row label="Time">
+                                <input
+                                    type="number"
+                                    min={selectedObject.startTime}
+                                    max={selectedObject.startTime + selectedObject.duration}
+                                    step="0.01"
+                                    value={keyframe.time}
+                                    onChange={(e) => handleUpdateKeyframe(keyframe.id, {
+                                      time: clamp(
+                                        toNumberOr(e.target.value, keyframe.time),
+                                        selectedObject.startTime,
+                                        selectedObject.startTime + selectedObject.duration
+                                      )
+                                    })}
+                                    style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                                />
+                            </Row>
+                            <Row label="X">
+                                <input
+                                    type="number"
+                                    value={keyframe.x}
+                                    onChange={(e) => handleUpdateKeyframe(keyframe.id, { x: toNumberOr(e.target.value, keyframe.x) })}
+                                    style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                                />
+                            </Row>
+                            <Row label="Y">
+                                <input
+                                    type="number"
+                                    value={keyframe.y}
+                                    onChange={(e) => handleUpdateKeyframe(keyframe.id, { y: toNumberOr(e.target.value, keyframe.y) })}
+                                    style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                                />
+                            </Row>
+                            <Row label="Ease">
+                                <select
+                                    value={keyframe.easing ?? selectedObject.easing}
+                                    onChange={(e) => handleUpdateKeyframe(keyframe.id, { easing: e.target.value as EasingType })}
+                                    style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                                >
+                                    {Object.entries(easingNames).map(([value, label]) => (
+                                        <option key={value} value={value}>{label}</option>
+                                    ))}
+                                </select>
+                            </Row>
+                        </div>
+                    ))}
+                </div>
+            </>
+        )}
 
         {/* --- 合成設定 (マスク) --- */}
         <SectionHeader label="Composition" />

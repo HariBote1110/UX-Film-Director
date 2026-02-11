@@ -228,7 +228,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
       onContextMenu={(e) => handleMouseDown(e, 'move')}
     >
       <div style={{ padding: '2px 4px', fontSize: '11px', color: 'white', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-        {object.name} {object.groupId ? '[G]' : ''} {object.enableAnimation ? '⇗' : ''}
+        {object.name} {object.groupId ? '[G]' : ''} {object.keyframes && object.keyframes.length > 1 ? '◆' : ''} {object.enableAnimation ? '⇗' : ''}
       </div>
 
       <div

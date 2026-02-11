@@ -41,6 +41,14 @@ export interface PathPoint {
   y: number;
 }
 
+export interface PositionKeyframe {
+  id: string;
+  time: number;
+  x: number;
+  y: number;
+  easing?: EasingType;
+}
+
 // リップシンク設定
 export interface LipSyncSetting {
   enabled: boolean;
@@ -141,6 +149,7 @@ export interface BaseObject {
   easing: EasingType;
 
   motionPath?: PathPoint[];
+  keyframes?: PositionKeyframe[];
   shadow?: ShadowEffect;
   filters?: ObjectFilter[];
   

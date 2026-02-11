@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import { TimelineObject, GroupControlObject, AudioVisualizationObject, AudioObject, ClippingParams } from '../types';
 import { createGradientTexture, drawShape, getCurrentViseme, renderPsdTree, cacheTextureFromUrl } from './pixiUtils';
+import { evaluateObjectPositionAtTime } from './keyframes';
 
 // ... (Shader definitions omitted for brevity - same as previous) ...
 const vertexShader = `
@@ -71,9 +72,9 @@ export const getGroupTransforms = (obj: TimelineObject, time: number, allObjects
     const groups = allObjects.filter(o => o.type === 'group_control' && o.layer < obj.layer && time >= o.startTime && time < o.startTime + o.duration) as GroupControlObject[];
     groups.forEach(group => {
         if (group.targetLayerCount === 0 || (obj.layer <= group.layer + group.targetLayerCount)) {
-            const progress = Math.max(0, Math.min(1, (time - group.startTime) / group.duration));
-            const gx = group.enableAnimation ? group.x + (group.endX - group.x) * progress : group.x;
-            const gy = group.enableAnimation ? group.y + (group.endY - group.y) * progress : group.y;
+            const position = evaluateObjectPositionAtTime(group, time);
+            const gx = position.x;
+            const gy = position.y;
             x += gx; y += gy; rotation += group.rotation || 0;
             scaleX *= (group.scaleX ?? 1); scaleY *= (group.scaleY ?? 1); alpha *= (group.opacity ?? 1);
         }

@@ -98,6 +98,23 @@
 - `electron/main.ts`
 - 一時 WAV 削除用 IPC `delete-temp-file` を追加した。
 
+## 26. P1-1 中間点 UI と補間管理
+- `src/types.ts`
+- `PositionKeyframe` を追加し、オブジェクトへ `keyframes` を保持できるようにした。
+- `src/utils/keyframes.ts`（新規）
+- キーフレーム正規化、補間計算、オブジェクト位置評価、複製/移動時シフト処理、始点終点生成処理を実装した。
+- `src/store/useStore.ts`
+- `loadProject` / `addObject` / `updateObject` でキーフレーム整合を取るようにし、`startTime` / `duration` / `x` / `y` 更新時のキーフレーム追従を追加した。
+- 複製/貼り付け/分割時にキーフレームを再計算・再ID化するよう変更した。
+- `src/components/Viewport.tsx`
+- 位置計算でキーフレーム補間を優先し、既存 `enableAnimation` はフォールバックとして扱うようにした。
+- `src/utils/pixiRenderHelper.ts`
+- `group_control` の位置補間にもキーフレーム評価を適用した。
+- `src/components/PropertyPanel.tsx`
+- `Keyframes` セクションを追加し、現在時刻への中間点追加、始点/終点生成、時刻/座標/easing 編集、削除を実装した。
+- `src/components/TimelineItem.tsx`
+- キーフレーム保持オブジェクトに `◆` マーカーを表示し、識別しやすくした。
+
 ## 確認
 - `npx tsc --noEmit` を実行し、型エラーなしを確認。
 

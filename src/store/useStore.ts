@@ -10,6 +10,7 @@ import {
   toggleFilterEnabledInObject,
   updateFilterParamsInObject
 } from '../utils/filterStack';
+import { normaliseKeyframesForObject, shiftKeyframesForObject } from '../utils/keyframes';
 
 interface ClipboardState {
   objects: TimelineObject[];
@@ -163,6 +164,27 @@ const getSelectedObjects = (state: AppState): TimelineObject[] => {
   return state.objects.filter((obj) => selectedSet.has(obj.id));
 };
 
+const syncObjectKeyframes = (object: TimelineObject): TimelineObject => {
+  const keyframes = normaliseKeyframesForObject(object, object.keyframes);
+  if (keyframes.length === 0) {
+    if (!object.keyframes || object.keyframes.length === 0) return object;
+    return { ...object, keyframes: undefined };
+  }
+
+  const first = keyframes[0];
+  const last = keyframes[keyframes.length - 1];
+  return {
+    ...object,
+    keyframes,
+    enableAnimation: keyframes.length >= 2,
+    x: first.x,
+    y: first.y,
+    endX: last.x,
+    endY: last.y,
+    easing: first.easing ?? object.easing ?? 'linear'
+  };
+};
+
 export const useStore = create<AppState>((set, get) => ({
   isProjectLoaded: false,
   projectSettings: { width: 1920, height: 1080, fps: 60, sampleRate: 44100 },
@@ -199,7 +221,8 @@ export const useStore = create<AppState>((set, get) => ({
   loadProject: (settings, objects, duration, layers) => {
     const normalisedObjects = objects
       .map(normaliseObjectLayer)
-      .map(syncLegacyEffectsWithFilters);
+      .map(syncLegacyEffectsWithFilters)
+      .map(syncObjectKeyframes);
     set({
       projectSettings: settings,
       isProjectLoaded: true,
@@ -325,7 +348,7 @@ export const useStore = create<AppState>((set, get) => ({
       easing: obj.easing ?? 'linear',
       offset: obj.offset ?? 0
     } as TimelineObject;
-    const syncedObject = syncLegacyEffectsWithFilters(objectWithDefaults);
+    const syncedObject = syncObjectKeyframes(syncLegacyEffectsWithFilters(objectWithDefaults));
 
     get().pushHistory();
     set((state) => {
@@ -358,29 +381,81 @@ export const useStore = create<AppState>((set, get) => ({
       ? { ...newProps, layer: nextLayer } as Partial<TimelineObject>
       : newProps;
 
-    const changedKeys = Object.keys(normalisedNewProps) as (keyof TimelineObject)[];
+    const hasStartUpdate = Object.prototype.hasOwnProperty.call(normalisedNewProps, 'startTime');
+    const hasDurationUpdate = Object.prototype.hasOwnProperty.call(normalisedNewProps, 'duration');
+    const hasXUpdate = Object.prototype.hasOwnProperty.call(normalisedNewProps, 'x');
+    const hasYUpdate = Object.prototype.hasOwnProperty.call(normalisedNewProps, 'y');
+    const hasExplicitKeyframesUpdate = Object.prototype.hasOwnProperty.call(normalisedNewProps, 'keyframes');
+
+    let adjustedNewProps = normalisedNewProps;
+    const nextStartTime = hasStartUpdate && typeof normalisedNewProps.startTime === 'number' && Number.isFinite(normalisedNewProps.startTime)
+      ? Math.max(0, normalisedNewProps.startTime)
+      : currentObject.startTime;
+    const nextDuration = hasDurationUpdate && typeof normalisedNewProps.duration === 'number' && Number.isFinite(normalisedNewProps.duration)
+      ? Math.max(0.1, normalisedNewProps.duration)
+      : currentObject.duration;
+
+    if (hasExplicitKeyframesUpdate) {
+      const keyframesRaw = Array.isArray(normalisedNewProps.keyframes) ? normalisedNewProps.keyframes : [];
+      adjustedNewProps = {
+        ...adjustedNewProps,
+        keyframes: normaliseKeyframesForObject(
+          { ...currentObject, ...adjustedNewProps, startTime: nextStartTime, duration: nextDuration },
+          keyframesRaw
+        )
+      };
+    } else if (currentObject.keyframes && currentObject.keyframes.length > 0) {
+      const nextX = hasXUpdate && typeof normalisedNewProps.x === 'number' && Number.isFinite(normalisedNewProps.x)
+        ? normalisedNewProps.x
+        : currentObject.x;
+      const nextY = hasYUpdate && typeof normalisedNewProps.y === 'number' && Number.isFinite(normalisedNewProps.y)
+        ? normalisedNewProps.y
+        : currentObject.y;
+      const deltaTime = hasStartUpdate ? nextStartTime - currentObject.startTime : 0;
+      const deltaX = hasXUpdate ? nextX - currentObject.x : 0;
+      const deltaY = hasYUpdate ? nextY - currentObject.y : 0;
+      const needsKeyframeShift = Math.abs(deltaTime) > 0.0001
+        || Math.abs(deltaX) > 0.0001
+        || Math.abs(deltaY) > 0.0001
+        || hasDurationUpdate;
+      if (needsKeyframeShift) {
+        const shiftedKeyframes = shiftKeyframesForObject(
+          { ...currentObject, startTime: nextStartTime, duration: nextDuration },
+          currentObject.keyframes,
+          deltaTime,
+          deltaX,
+          deltaY
+        );
+        adjustedNewProps = {
+          ...adjustedNewProps,
+          keyframes: shiftedKeyframes
+        };
+      }
+    }
+
+    const changedKeys = Object.keys(adjustedNewProps) as (keyof TimelineObject)[];
     const hasAnyDiff = changedKeys.some((key) => {
-      return !Object.is(currentObject[key], normalisedNewProps[key]);
+      return !Object.is(currentObject[key], adjustedNewProps[key]);
     });
 
     if (!hasAnyDiff) return {};
 
-    const hasFilterUpdate = Object.prototype.hasOwnProperty.call(normalisedNewProps, 'filters');
-    const hasLegacyEffectUpdate = Object.prototype.hasOwnProperty.call(normalisedNewProps, 'colorCorrection')
-      || Object.prototype.hasOwnProperty.call(normalisedNewProps, 'customClipping')
-      || Object.prototype.hasOwnProperty.call(normalisedNewProps, 'vibration')
-      || Object.prototype.hasOwnProperty.call(normalisedNewProps, 'shadow');
+    const hasFilterUpdate = Object.prototype.hasOwnProperty.call(adjustedNewProps, 'filters');
+    const hasLegacyEffectUpdate = Object.prototype.hasOwnProperty.call(adjustedNewProps, 'colorCorrection')
+      || Object.prototype.hasOwnProperty.call(adjustedNewProps, 'customClipping')
+      || Object.prototype.hasOwnProperty.call(adjustedNewProps, 'vibration')
+      || Object.prototype.hasOwnProperty.call(adjustedNewProps, 'shadow');
 
-    const mergedObject = { ...currentObject, ...normalisedNewProps } as TimelineObject;
-    const updatedObject = hasFilterUpdate
+    const mergedObject = { ...currentObject, ...adjustedNewProps } as TimelineObject;
+    const updatedObject = syncObjectKeyframes(hasFilterUpdate
       ? syncLegacyEffectsWithFilters(mergedObject)
       : (hasLegacyEffectUpdate
         ? syncFiltersFromLegacyValues(mergedObject)
-        : syncLegacyEffectsWithFilters(mergedObject));
+        : syncLegacyEffectsWithFilters(mergedObject)));
     const newObjects = state.objects.slice();
     newObjects[targetIndex] = updatedObject;
 
-    if (!needsDurationRecalculation(normalisedNewProps)) {
+    if (!needsDurationRecalculation(adjustedNewProps)) {
       return { objects: newObjects };
     }
 
@@ -534,14 +609,24 @@ export const useStore = create<AppState>((set, get) => ({
         offset: (target.offset || 0) + splitPoint,
     };
 
+    if (target.keyframes && target.keyframes.length > 0) {
+        const splitTime = currentTime;
+        firstPart.keyframes = target.keyframes.filter((keyframe) => keyframe.time <= splitTime + 0.0001);
+        secondPart.keyframes = target.keyframes
+          .filter((keyframe) => keyframe.time >= splitTime - 0.0001)
+          .map((keyframe) => ({ ...keyframe, id: crypto.randomUUID() }));
+    }
+
     const newObjects = objects.map(o => o.id === target.id ? firstPart : o);
     newObjects.push(secondPart);
 
+    const syncedObjects = newObjects.map(syncObjectKeyframes);
+
     set({
-        objects: newObjects,
+        objects: syncedObjects,
         selectedId: secondPart.id,
         selectedIds: [secondPart.id],
-        duration: calculateAutoDuration(newObjects)
+        duration: calculateAutoDuration(syncedObjects)
     });
   },
 
@@ -586,6 +671,7 @@ export const useStore = create<AppState>((set, get) => ({
 
       cloned.id = crypto.randomUUID();
       cloned.startTime = Math.max(0, state.currentTime + (template.startTime - clipboard.anchorStartTime));
+      const startTimeDelta = cloned.startTime - template.startTime;
       cloned.layer = targetLayer;
       cloned.x = clipboard.anchorX + xOffset + 16;
       cloned.y = clipboard.anchorY + yOffset + 16;
@@ -598,6 +684,15 @@ export const useStore = create<AppState>((set, get) => ({
           y: point.y + 16
         }));
       }
+      if (cloned.keyframes) {
+        cloned.keyframes = cloned.keyframes.map((keyframe) => ({
+          ...keyframe,
+          id: crypto.randomUUID(),
+          time: keyframe.time + startTimeDelta,
+          x: keyframe.x + 16,
+          y: keyframe.y + 16
+        }));
+      }
 
       if (cloned.groupId) {
         if (!groupIdMap.has(cloned.groupId)) {
@@ -606,7 +701,7 @@ export const useStore = create<AppState>((set, get) => ({
         cloned.groupId = groupIdMap.get(cloned.groupId);
       }
 
-      pastedObjects.push(syncLegacyEffectsWithFilters(cloned));
+      pastedObjects.push(syncObjectKeyframes(syncLegacyEffectsWithFilters(cloned)));
     });
 
     if (pastedObjects.length === 0) return;
@@ -641,6 +736,7 @@ export const useStore = create<AppState>((set, get) => ({
       const cloned = cloneTimelineObject(template);
       cloned.id = crypto.randomUUID();
       cloned.startTime = template.startTime + 0.2;
+      const startTimeDelta = cloned.startTime - template.startTime;
       cloned.layer = targetLayer;
       cloned.x = template.x + 20;
       cloned.y = template.y + 20;
@@ -653,6 +749,15 @@ export const useStore = create<AppState>((set, get) => ({
           y: point.y + 20
         }));
       }
+      if (cloned.keyframes) {
+        cloned.keyframes = cloned.keyframes.map((keyframe) => ({
+          ...keyframe,
+          id: crypto.randomUUID(),
+          time: keyframe.time + startTimeDelta,
+          x: keyframe.x + 20,
+          y: keyframe.y + 20
+        }));
+      }
 
       if (cloned.groupId) {
         if (!groupIdMap.has(cloned.groupId)) {
@@ -661,7 +766,7 @@ export const useStore = create<AppState>((set, get) => ({
         cloned.groupId = groupIdMap.get(cloned.groupId);
       }
 
-      duplicatedObjects.push(syncLegacyEffectsWithFilters(cloned));
+      duplicatedObjects.push(syncObjectKeyframes(syncLegacyEffectsWithFilters(cloned)));
     });
 
     if (duplicatedObjects.length === 0) return;
