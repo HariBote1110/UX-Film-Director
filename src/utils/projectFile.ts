@@ -59,6 +59,56 @@ const parseLayers = (value: unknown): LayerState[] | undefined => {
   return value.map((layer) => ({ ...layer }));
 };
 
+const isFiniteNumber = (value: unknown): value is number => {
+  return typeof value === 'number' && Number.isFinite(value);
+};
+
+const TIMELINE_OBJECT_TYPES = new Set([
+  'text',
+  'shape',
+  'image',
+  'video',
+  'audio',
+  'psd',
+  'group_control',
+  'audio_visualization'
+]);
+
+const isPositionKeyframe = (value: unknown): boolean => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.id === 'string' &&
+    isFiniteNumber(candidate.time) &&
+    isFiniteNumber(candidate.x) &&
+    isFiniteNumber(candidate.y) &&
+    (candidate.easing === undefined || typeof candidate.easing === 'string')
+  );
+};
+
+const isTimelineObject = (value: unknown): value is TimelineObject => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  if (typeof candidate.id !== 'string' || candidate.id.trim() === '') return false;
+  if (typeof candidate.name !== 'string') return false;
+  if (typeof candidate.type !== 'string' || !TIMELINE_OBJECT_TYPES.has(candidate.type)) return false;
+  if (!isFiniteNumber(candidate.layer)) return false;
+  if (!isFiniteNumber(candidate.startTime)) return false;
+  if (!isFiniteNumber(candidate.duration)) return false;
+  if (!isFiniteNumber(candidate.x) || !isFiniteNumber(candidate.y)) return false;
+  if (!isFiniteNumber(candidate.endX) || !isFiniteNumber(candidate.endY)) return false;
+  if (!isFiniteNumber(candidate.rotation)) return false;
+  if (!isFiniteNumber(candidate.scaleX) || !isFiniteNumber(candidate.scaleY)) return false;
+  if (!isFiniteNumber(candidate.opacity)) return false;
+  if (typeof candidate.enableAnimation !== 'boolean') return false;
+  if (typeof candidate.easing !== 'string') return false;
+  if (candidate.keyframes !== undefined) {
+    if (!Array.isArray(candidate.keyframes)) return false;
+    if (!candidate.keyframes.every((keyframe) => isPositionKeyframe(keyframe))) return false;
+  }
+  return true;
+};
+
 const sanitiseObjectForSave = (obj: TimelineObject): TimelineObject => {
   const serialised = JSON.parse(JSON.stringify(obj)) as TimelineObject;
   if (serialised.type === 'psd') {
@@ -233,8 +283,12 @@ export const openProjectFileWithDialog = async (): Promise<{
   if (!isProjectSettings(candidate.projectSettings)) {
     throw new Error('プロジェクト設定が不正です。');
   }
-  if (!Array.isArray(candidate.objects)) {
+  const objectCandidates = (parsed as Record<string, unknown>).objects;
+  if (!Array.isArray(objectCandidates)) {
     throw new Error('オブジェクト一覧が不正です。');
+  }
+  if (!objectCandidates.every((obj) => isTimelineObject(obj))) {
+    throw new Error('オブジェクト一覧に不正な要素が含まれています。');
   }
 
   return {
@@ -248,7 +302,7 @@ export const openProjectFileWithDialog = async (): Promise<{
         ? Math.max(1, candidate.duration)
         : 30,
       layers: parseLayers(candidate.layers),
-      objects: candidate.objects as TimelineObject[],
+      objects: objectCandidates as TimelineObject[],
     },
   };
 };

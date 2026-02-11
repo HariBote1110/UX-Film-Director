@@ -10,7 +10,11 @@ import {
   toggleFilterEnabledInObject,
   updateFilterParamsInObject
 } from '../utils/filterStack';
-import { normaliseKeyframesForObject, shiftKeyframesForObject } from '../utils/keyframes';
+import {
+  evaluateObjectPositionAtTime,
+  normaliseKeyframesForObject,
+  shiftKeyframesForObject
+} from '../utils/keyframes';
 
 interface ClipboardState {
   objects: TimelineObject[];
@@ -100,6 +104,8 @@ const needsDurationRecalculation = (newProps: Partial<TimelineObject>) => {
   return Object.prototype.hasOwnProperty.call(newProps, 'startTime')
     || Object.prototype.hasOwnProperty.call(newProps, 'duration');
 };
+
+const KEYFRAME_TIME_EPSILON = 0.0001;
 
 const clampLayerIndex = (value: number): number => {
   return Math.max(0, Math.min(MAX_LAYERS - 1, Math.round(value)));
@@ -609,25 +615,52 @@ export const useStore = create<AppState>((set, get) => ({
     get().pushHistory();
 
     const splitPoint = currentTime - target.startTime;
+    const splitTime = currentTime;
+    const splitPosition = evaluateObjectPositionAtTime(target, splitTime);
 
     const firstPart = {
         ...target,
-        duration: splitPoint
+        duration: splitPoint,
+        endX: splitPosition.x,
+        endY: splitPosition.y
     };
 
     const secondPart: TimelineObject = {
         ...target,
         id: crypto.randomUUID(),
-        startTime: currentTime,
+        startTime: splitTime,
         duration: target.duration - splitPoint,
         offset: (target.offset || 0) + splitPoint,
+        x: splitPosition.x,
+        y: splitPosition.y,
     };
 
     if (target.keyframes && target.keyframes.length > 0) {
-        const splitTime = currentTime;
-        firstPart.keyframes = target.keyframes.filter((keyframe) => keyframe.time <= splitTime + 0.0001);
-        secondPart.keyframes = target.keyframes
-          .filter((keyframe) => keyframe.time >= splitTime - 0.0001)
+        const normalisedKeyframes = normaliseKeyframesForObject(target, target.keyframes);
+        const firstKeyframes = normalisedKeyframes.filter((keyframe) => keyframe.time <= splitTime + KEYFRAME_TIME_EPSILON);
+        const secondKeyframes = normalisedKeyframes.filter((keyframe) => keyframe.time >= splitTime - KEYFRAME_TIME_EPSILON);
+        const hasBoundaryKeyframe = normalisedKeyframes.some((keyframe) => (
+          Math.abs(keyframe.time - splitTime) <= KEYFRAME_TIME_EPSILON
+        ));
+
+        if (!hasBoundaryKeyframe) {
+          const leftKeyframe = normalisedKeyframes
+            .slice()
+            .reverse()
+            .find((keyframe) => keyframe.time < splitTime);
+          const boundaryKeyframe = {
+            id: crypto.randomUUID(),
+            time: splitTime,
+            x: splitPosition.x,
+            y: splitPosition.y,
+            easing: leftKeyframe?.easing ?? target.easing
+          };
+          firstKeyframes.push(boundaryKeyframe);
+          secondKeyframes.unshift(boundaryKeyframe);
+        }
+
+        firstPart.keyframes = firstKeyframes;
+        secondPart.keyframes = secondKeyframes
           .map((keyframe) => ({ ...keyframe, id: crypto.randomUUID() }));
     }
 

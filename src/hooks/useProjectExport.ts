@@ -31,17 +31,18 @@ export const useProjectExport = (
         let tempAudioPath: string | null = null;
 
         try {
-            const { projectSettings, objects } = useStore.getState();
+            const { projectSettings, objects, layers } = useStore.getState();
+            const visibleObjects = objects.filter((obj) => layers[obj.layer]?.visible !== false);
             const fps = projectSettings.fps;
             const dt = 1 / fps;
-            const videoObjects = objects.filter((obj): obj is Extract<TimelineObject, { type: 'video' }> => obj.type === 'video');
+            const videoObjects = visibleObjects.filter((obj): obj is Extract<TimelineObject, { type: 'video' }> => obj.type === 'video');
             
             // Calculate total duration
-            const lastObjectEndTime = Math.max(...objects.map(o => o.startTime + o.duration), 0);
+            const lastObjectEndTime = Math.max(...visibleObjects.map(o => o.startTime + o.duration), 0);
             const exportDuration = Math.max(lastObjectEndTime, 1);
             const totalFrames = Math.ceil(exportDuration * fps);
             const mixedAudio = await buildExportAudioMixWav(
-              objects,
+              visibleObjects,
               exportDuration,
               projectSettings.sampleRate || 44100
             );
