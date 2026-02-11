@@ -383,6 +383,25 @@ app.whenReady().then(() => {
     }
   });
 
+  ipcMain.handle('delete-temp-file', async (_event, payload: { filePath?: string }) => {
+    const filePath = typeof payload?.filePath === 'string' ? payload.filePath.trim() : '';
+    if (!filePath) {
+      return { success: false, error: 'filePath が必要です。' };
+    }
+
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+
   ipcMain.handle('probe-media', async (_event, payload: { filePath?: string }) => {
     const filePath = typeof payload?.filePath === 'string' ? payload.filePath.trim() : '';
     if (!filePath) {

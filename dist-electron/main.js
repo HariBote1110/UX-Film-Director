@@ -297,6 +297,23 @@ electron.app.whenReady().then(() => {
       return { success: false, error: String(e) };
     }
   });
+  electron.ipcMain.handle("delete-temp-file", async (_event, payload) => {
+    const filePath = typeof (payload == null ? void 0 : payload.filePath) === "string" ? payload.filePath.trim() : "";
+    if (!filePath) {
+      return { success: false, error: "filePath が必要です。" };
+    }
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
   electron.ipcMain.handle("probe-media", async (_event, payload) => {
     const filePath = typeof (payload == null ? void 0 : payload.filePath) === "string" ? payload.filePath.trim() : "";
     if (!filePath) {

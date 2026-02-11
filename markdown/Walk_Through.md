@@ -88,6 +88,16 @@
 - `Filter Stack` セクションを追加し、フィルタ追加・有効無効・並び替え・削除と、選択フィルタのパラメータ編集を実装した。
 - 既存エフェクト UI をフィルタスタック編集へ集約した。
 
+## 25. P0-5 音声統合エクスポート
+- `src/utils/audioMixdown.ts`（新規）
+- タイムラインの `audio` / `video` オブジェクトを対象に、`startTime` / `duration` / `offset` / `volume` / `muted` を反映したオフライン音声ミックスを生成する処理を追加した。
+- ミックス結果を WAV (`ArrayBuffer`) へエンコードする処理を実装した。
+- `src/hooks/useProjectExport.ts`
+- 書き出し開始前に音声ミックスを生成し、`save-temp-audio` で一時 WAV ファイルへ保存したうえで `start-export.audioPath` に渡すよう変更した。
+- 書き出し完了/失敗時に `delete-temp-file` を呼び出し、一時ファイルを削除するようにした。
+- `electron/main.ts`
+- 一時 WAV 削除用 IPC `delete-temp-file` を追加した。
+
 ## 確認
 - `npx tsc --noEmit` を実行し、型エラーなしを確認。
 
