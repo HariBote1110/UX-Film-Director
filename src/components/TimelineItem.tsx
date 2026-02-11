@@ -206,6 +206,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
 
   return (
     <div
+      data-timeline-item="true"
       style={{
         position: 'absolute',
         left: `${leftPos}px`,

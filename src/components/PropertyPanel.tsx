@@ -6,11 +6,24 @@ import { easingNames, EasingType } from '../utils/easings';
 import { buildEndpointKeyframes, evaluateObjectPositionAtTime } from '../utils/keyframes';
 
 const PropertyPanel: React.FC = () => {
-  const { selectedObject, selectedCount, currentTime } = useStore((state) => ({
-    selectedObject: state.objects.find(obj => obj.id === state.selectedId),
-    selectedCount: state.selectedIds.length,
-    currentTime: state.currentTime
-  }));
+  const { selectedObject, selectedCount, selectedObjects, currentTime } = useStore((state) => {
+    const normalisedSelectedIds = state.selectedIds.length > 0
+      ? state.selectedIds
+      : (state.selectedId ? [state.selectedId] : []);
+    const selectedObject = state.objects.find((obj) => obj.id === state.selectedId)
+      ?? state.objects.find((obj) => normalisedSelectedIds.includes(obj.id))
+      ?? null;
+    return {
+      selectedObject,
+      selectedCount: normalisedSelectedIds.length,
+      selectedObjects: state.objects.filter((obj) => (
+        normalisedSelectedIds.includes(obj.id)
+        && state.layers[obj.layer]?.locked !== true
+      )),
+      currentTime: state.currentTime
+    };
+  });
+  const pushHistory = useStore((state) => state.pushHistory);
   const updateObject = useStore((state) => state.updateObject);
   const addObjectFilter = useStore((state) => state.addObjectFilter);
   const toggleObjectFilter = useStore((state) => state.toggleObjectFilter);
@@ -19,6 +32,12 @@ const PropertyPanel: React.FC = () => {
   const updateObjectFilterParams = useStore((state) => state.updateObjectFilterParams);
   const [isRefreshingPsdTree, setIsRefreshingPsdTree] = useState(false);
   const [activeFilterId, setActiveFilterId] = useState<string | null>(null);
+  const [batchMoveX, setBatchMoveX] = useState('0');
+  const [batchMoveY, setBatchMoveY] = useState('0');
+  const [batchScaleXPercent, setBatchScaleXPercent] = useState('100');
+  const [batchScaleYPercent, setBatchScaleYPercent] = useState('100');
+  const [batchRotation, setBatchRotation] = useState('0');
+  const [batchOpacityPercent, setBatchOpacityPercent] = useState('0');
 
   const filters = selectedObject?.filters ?? [];
   const activeFilter = filters.find((filter) => filter.id === activeFilterId) ?? null;
@@ -62,6 +81,55 @@ const PropertyPanel: React.FC = () => {
     clipping: 'クリッピング',
     vibration: '振動',
     shadow: '影'
+  };
+
+  const resetBatchTransformInputs = () => {
+    setBatchMoveX('0');
+    setBatchMoveY('0');
+    setBatchScaleXPercent('100');
+    setBatchScaleYPercent('100');
+    setBatchRotation('0');
+    setBatchOpacityPercent('0');
+  };
+
+  const handleApplyBatchTransform = () => {
+    if (selectedObjects.length < 2) return;
+
+    const moveX = toNumberOr(batchMoveX, 0);
+    const moveY = toNumberOr(batchMoveY, 0);
+    const scaleXRatio = Math.max(0, toNumberOr(batchScaleXPercent, 100) / 100);
+    const scaleYRatio = Math.max(0, toNumberOr(batchScaleYPercent, 100) / 100);
+    const rotationDelta = toNumberOr(batchRotation, 0);
+    const opacityDelta = toNumberOr(batchOpacityPercent, 0) / 100;
+
+    const hasTransform =
+      Math.abs(moveX) > 0.0001
+      || Math.abs(moveY) > 0.0001
+      || Math.abs(scaleXRatio - 1) > 0.0001
+      || Math.abs(scaleYRatio - 1) > 0.0001
+      || Math.abs(rotationDelta) > 0.0001
+      || Math.abs(opacityDelta) > 0.0001;
+    if (!hasTransform) return;
+
+    const updates = selectedObjects
+      .map((obj) => {
+        const patch: Partial<TimelineObject> = {};
+        if (Math.abs(moveX) > 0.0001) patch.x = obj.x + moveX;
+        if (Math.abs(moveY) > 0.0001) patch.y = obj.y + moveY;
+        if (Math.abs(scaleXRatio - 1) > 0.0001) patch.scaleX = (obj.scaleX ?? 1) * scaleXRatio;
+        if (Math.abs(scaleYRatio - 1) > 0.0001) patch.scaleY = (obj.scaleY ?? 1) * scaleYRatio;
+        if (Math.abs(rotationDelta) > 0.0001) patch.rotation = (obj.rotation ?? 0) + rotationDelta;
+        if (Math.abs(opacityDelta) > 0.0001) patch.opacity = clamp((obj.opacity ?? 1) + opacityDelta, 0, 1);
+        if (Object.keys(patch).length === 0) return null;
+        return { id: obj.id, patch };
+      })
+      .filter((entry): entry is { id: string; patch: Partial<TimelineObject> } => entry !== null);
+    if (updates.length === 0) return;
+
+    pushHistory();
+    updates.forEach((entry) => {
+      updateObject(entry.id, entry.patch);
+    });
   };
 
   const handleMediaVolumeChange = (rawValue: string) => {
@@ -259,6 +327,79 @@ const PropertyPanel: React.FC = () => {
       </div>
       
       <div style={{ padding: '10px' }}>
+        {selectedCount > 1 && (
+            <>
+                <SectionHeader label="一括変形" />
+                <div style={{ fontSize: '11px', color: '#8fb9ff', marginBottom: '8px' }}>
+                    {selectedCount}個のオブジェクトに同時適用します
+                </div>
+                <Row label="移動 X">
+                    <input
+                        type="number"
+                        value={batchMoveX}
+                        onChange={(e) => setBatchMoveX(e.target.value)}
+                        style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                    />
+                </Row>
+                <Row label="移動 Y">
+                    <input
+                        type="number"
+                        value={batchMoveY}
+                        onChange={(e) => setBatchMoveY(e.target.value)}
+                        style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                    />
+                </Row>
+                <Row label="Scale X %">
+                    <input
+                        type="number"
+                        value={batchScaleXPercent}
+                        onChange={(e) => setBatchScaleXPercent(e.target.value)}
+                        style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                    />
+                </Row>
+                <Row label="Scale Y %">
+                    <input
+                        type="number"
+                        value={batchScaleYPercent}
+                        onChange={(e) => setBatchScaleYPercent(e.target.value)}
+                        style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                    />
+                </Row>
+                <Row label="回転 Δ">
+                    <input
+                        type="number"
+                        value={batchRotation}
+                        onChange={(e) => setBatchRotation(e.target.value)}
+                        style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                    />
+                </Row>
+                <Row label="Opacity Δ%">
+                    <input
+                        type="number"
+                        value={batchOpacityPercent}
+                        onChange={(e) => setBatchOpacityPercent(e.target.value)}
+                        style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                    />
+                </Row>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                    <button
+                        type="button"
+                        onClick={handleApplyBatchTransform}
+                        style={{ flex: 1, border: '1px solid #2c5f9e', background: '#244a79', color: '#fff', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer' }}
+                    >
+                        選択中へ適用
+                    </button>
+                    <button
+                        type="button"
+                        onClick={resetBatchTransformInputs}
+                        style={{ border: '1px solid #555', background: '#333', color: '#ddd', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer' }}
+                    >
+                        リセット
+                    </button>
+                </div>
+            </>
+        )}
+
         <Row label="Name">
             <input type="text" value={selectedObject.name} onChange={(e) => handleChange('name', e.target.value)} style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee', padding: '4px' }} />
         </Row>

@@ -13,7 +13,7 @@ import { parsePsdAsObject } from '../utils/psdParser';
 const Timeline: React.FC = () => {
   const { 
     currentTime, duration, setTime, addObject,
-    objects, selectObject, isExporting, projectSettings,
+    objects, selectedIds, selectObject, selectObjects, clearSelection, isExporting, projectSettings,
     layers, setLayerName, toggleLayerVisibility, toggleLayerLock
   } = useStore((state) => ({
     currentTime: state.currentTime,
@@ -21,7 +21,10 @@ const Timeline: React.FC = () => {
     setTime: state.setTime,
     addObject: state.addObject,
     objects: state.objects,
+    selectedIds: state.selectedIds,
     selectObject: state.selectObject,
+    selectObjects: state.selectObjects,
+    clearSelection: state.clearSelection,
     isExporting: state.isExporting,
     projectSettings: state.projectSettings,
     layers: state.layers,
@@ -41,6 +44,14 @@ const Timeline: React.FC = () => {
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, type: 'canvas', time: 0, layer: 0 });
   const [editingLayer, setEditingLayer] = useState<number | null>(null);
   const [editingLayerName, setEditingLayerName] = useState('');
+  const [marqueeSelection, setMarqueeSelection] = useState<{
+    active: boolean;
+    append: boolean;
+    startX: number;
+    startY: number;
+    currentX: number;
+    currentY: number;
+  } | null>(null);
 
   // Custom Hooks
   const { handleDragOver, handleDrop } = useTimelineDrop(timelineRef);
@@ -76,6 +87,77 @@ const Timeline: React.FC = () => {
     const x = clientX - rect.left + scrollLeft - HEADER_WIDTH;
     return Math.max(0, x / PX_PER_SEC);
   };
+
+  const getContentPositionFromEvent = useCallback((clientX: number, clientY: number) => {
+    if (!timelineRef.current) return null;
+    const rect = timelineRef.current.getBoundingClientRect();
+    return {
+      x: clientX - rect.left + timelineRef.current.scrollLeft,
+      y: clientY - rect.top + timelineRef.current.scrollTop
+    };
+  }, []);
+
+  const commitMarqueeSelection = useCallback((selection: NonNullable<typeof marqueeSelection>) => {
+    const minX = Math.min(selection.startX, selection.currentX);
+    const maxX = Math.max(selection.startX, selection.currentX);
+    const minY = Math.min(selection.startY, selection.currentY);
+    const maxY = Math.max(selection.startY, selection.currentY);
+    const width = maxX - minX;
+    const height = maxY - minY;
+
+    const isClickWithoutDrag = width < 3 && height < 3;
+    if (isClickWithoutDrag) {
+      if (!selection.append) clearSelection();
+      return;
+    }
+
+    const hitIds = objects
+      .filter((obj) => {
+        const objectLeft = HEADER_WIDTH + Math.max(0, obj.startTime) * PX_PER_SEC;
+        const objectRight = objectLeft + Math.max(1, obj.duration * PX_PER_SEC);
+        const objectTop = RULER_HEIGHT + (obj.layer * ROW_HEIGHT);
+        const objectBottom = objectTop + ROW_HEIGHT;
+        return minX < objectRight && maxX > objectLeft && minY < objectBottom && maxY > objectTop;
+      })
+      .map((obj) => obj.id);
+
+    if (selection.append) {
+      if (hitIds.length === 0) return;
+      const merged = Array.from(new Set([...selectedIds, ...hitIds]));
+      selectObjects(merged, merged[merged.length - 1] ?? null);
+      return;
+    }
+
+    if (hitIds.length === 0) {
+      clearSelection();
+      return;
+    }
+
+    selectObjects(hitIds, hitIds[hitIds.length - 1]);
+  }, [clearSelection, objects, selectedIds, selectObjects]);
+
+  const handleTimelineMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (isExporting) return;
+    if (e.button !== 0) return;
+    if (isScrubbing) return;
+
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('[data-timeline-item="true"]')) return;
+
+    const position = getContentPositionFromEvent(e.clientX, e.clientY);
+    if (!position) return;
+    if (position.x < HEADER_WIDTH || position.y < RULER_HEIGHT) return;
+
+    setMarqueeSelection({
+      active: true,
+      append: e.metaKey || e.ctrlKey || e.shiftKey,
+      startX: position.x,
+      startY: position.y,
+      currentX: position.x,
+      currentY: position.y
+    });
+    e.preventDefault();
+  }, [getContentPositionFromEvent, isExporting, isScrubbing]);
 
   const handleSeekMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isExporting) return;
@@ -120,6 +202,39 @@ const Timeline: React.FC = () => {
     if (isScrubbing) { window.addEventListener('mousemove', handleMouseMove); window.addEventListener('mouseup', handleMouseUp); }
     return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); };
   }, [isScrubbing, setTime]);
+
+  useEffect(() => {
+    if (!marqueeSelection?.active) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const position = getContentPositionFromEvent(e.clientX, e.clientY);
+      if (!position) return;
+      setMarqueeSelection((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          currentX: position.x,
+          currentY: position.y
+        };
+      });
+    };
+
+    const handleMouseUp = () => {
+      setMarqueeSelection((prev) => {
+        if (prev) {
+          commitMarqueeSelection(prev);
+        }
+        return null;
+      });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [commitMarqueeSelection, getContentPositionFromEvent, marqueeSelection?.active]);
 
   // Object Creation Helpers
   const addShapeAt = (startTime: number, layer: number) => {
@@ -289,6 +404,15 @@ const Timeline: React.FC = () => {
   const cmAddPsd = () => triggerPsdUpload(contextMenu.time, contextMenu.layer);
   const cmAddGroup = () => addGroupControlAt(contextMenu.time, contextMenu.layer);
 
+  const marqueeRect = useMemo(() => {
+    if (!marqueeSelection) return null;
+    const left = Math.min(marqueeSelection.startX, marqueeSelection.currentX);
+    const top = Math.min(marqueeSelection.startY, marqueeSelection.currentY);
+    const width = Math.abs(marqueeSelection.currentX - marqueeSelection.startX);
+    const height = Math.abs(marqueeSelection.currentY - marqueeSelection.startY);
+    return { left, top, width, height };
+  }, [marqueeSelection]);
+
   const totalWidth = useMemo(
     () => Math.max(duration * PX_PER_SEC + 500, window.innerWidth - 300) + HEADER_WIDTH,
     [duration]
@@ -315,7 +439,8 @@ const Timeline: React.FC = () => {
       />
 
       <div ref={timelineRef} className="timeline-tracks" style={{ flex: 1, overflow: 'auto', position: 'relative', background: '#1e1e1e' }} 
-           onClick={(e) => { if (!isExporting && e.button === 0 && e.target === e.currentTarget) selectObject(null); }} 
+           onMouseDown={handleTimelineMouseDown}
+           onClick={(e) => { if (!isExporting && e.button === 0 && e.target === e.currentTarget) clearSelection(); }} 
            onContextMenu={handleCanvasContextMenu}
            onDragOver={handleDragOver}
            onDrop={handleDrop}
@@ -434,6 +559,21 @@ const Timeline: React.FC = () => {
              <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10 }}>
                 {objects.map(obj => <TimelineItem key={obj.id} object={obj} pxPerSec={PX_PER_SEC} rowHeight={ROW_HEIGHT} headerWidth={HEADER_WIDTH} onContextMenu={handleObjectContextMenu} />)}
              </div>
+             {marqueeRect && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: marqueeRect.left,
+                    top: marqueeRect.top,
+                    width: marqueeRect.width,
+                    height: marqueeRect.height,
+                    border: '1px dashed #5ba8ff',
+                    background: 'rgba(91, 168, 255, 0.18)',
+                    pointerEvents: 'none',
+                    zIndex: 650
+                  }}
+                />
+             )}
           </div>
         </div>
       </div>

@@ -127,6 +127,17 @@
 - `src/components/TimelineContextMenu.tsx`
 - オブジェクト右クリックメニューに `切り取り` を追加し、対象未選択時は自動選択して実行する既存挙動に統一した。
 
+## 28. P0-3 追加: 範囲選択と選択一括変形の実装
+- `src/components/Timeline.tsx`
+- タイムライン空白領域のドラッグで選択矩形を表示し、矩形と交差したオブジェクトを複数選択する処理を追加した。
+- `Shift/Ctrl/Cmd` 修飾時は既存選択への加算、非修飾時は選択置き換えになるよう制御した。
+- ドラッグ量がほぼ 0 の場合は空白クリックとして扱い、非修飾時は選択解除できるようにした。
+- `src/components/TimelineItem.tsx`
+- 範囲選択開始判定のため、タイムラインアイテムに識別属性（`data-timeline-item`）を追加した。
+- `src/components/PropertyPanel.tsx`
+- 複数選択時に `一括変形` セクションを表示し、移動 X/Y、拡大率 X/Y %、回転 Δ、不透明度 Δ% を入力して同時適用できる UI を追加した。
+- 適用時は `pushHistory` を 1 回だけ実行し、`updateObject` を各選択オブジェクトへ反映することで Undo/Redo の粒度を保った。
+
 ## 確認
 - `npx tsc --noEmit` を実行し、型エラーなしを確認。
 
