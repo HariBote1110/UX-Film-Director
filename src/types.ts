@@ -85,6 +85,36 @@ export interface ClippingParams {
   radius: number; // ぼかし等の用途（今回はコーナー半径や簡易ぼかしとして予約、現状未使用でも可）
 }
 
+export type FilterType = 'color_correction' | 'clipping' | 'vibration' | 'shadow';
+
+interface BaseFilter {
+  id: string;
+  type: FilterType;
+  enabled: boolean;
+}
+
+export interface ColorCorrectionFilter extends BaseFilter {
+  type: 'color_correction';
+  params: Omit<ColorCorrection, 'enabled'>;
+}
+
+export interface ClippingFilter extends BaseFilter {
+  type: 'clipping';
+  params: Omit<ClippingParams, 'enabled'>;
+}
+
+export interface VibrationFilter extends BaseFilter {
+  type: 'vibration';
+  params: Omit<Vibration, 'enabled'>;
+}
+
+export interface ShadowFilter extends BaseFilter {
+  type: 'shadow';
+  params: Omit<ShadowEffect, 'enabled'>;
+}
+
+export type ObjectFilter = ColorCorrectionFilter | ClippingFilter | VibrationFilter | ShadowFilter;
+
 // --- オブジェクト定義 ---
 
 export interface BaseObject {
@@ -112,6 +142,7 @@ export interface BaseObject {
 
   motionPath?: PathPoint[];
   shadow?: ShadowEffect;
+  filters?: ObjectFilter[];
   
   // 新機能用プロパティ
   clipping?: boolean;          // 上のオブジェクトでクリッピング (マスク)

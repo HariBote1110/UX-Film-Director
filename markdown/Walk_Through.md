@@ -76,6 +76,18 @@
 - `src/components/PropertyPanel.tsx`
 - 複数選択中は件数表示（`(N objects selected)`）を表示し、編集中オブジェクトを明示した。
 
+## 24. P0-4 フィルタスタック基盤
+- `src/types.ts`
+- `FilterType` / `ObjectFilter` を追加し、オブジェクトへ `filters` 配列を保持できるようにした。
+- `src/utils/filterStack.ts`（新規）
+- フィルタ生成、正規化、追加/削除/順序変更/ON-OFF、パラメータ更新、既存エフェクトとの同期ロジックを実装した。
+- `src/store/useStore.ts`
+- `addObjectFilter` / `toggleObjectFilter` / `moveObjectFilter` / `removeObjectFilter` / `updateObjectFilterParams` を追加した。
+- `addObject` / `loadProject` / `updateObject` / 複製系処理でフィルタ同期を行い、既存プロジェクトと新形式を共存できるようにした。
+- `src/components/PropertyPanel.tsx`
+- `Filter Stack` セクションを追加し、フィルタ追加・有効無効・並び替え・削除と、選択フィルタのパラメータ編集を実装した。
+- 既存エフェクト UI をフィルタスタック編集へ集約した。
+
 ## 確認
 - `npx tsc --noEmit` を実行し、型エラーなしを確認。
 

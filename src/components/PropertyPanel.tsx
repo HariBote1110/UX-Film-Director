@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { TimelineObject, AudioVisualizationObject, ColorCorrection, Vibration, ClippingParams, PsdLayerStruct, PsdObject } from '../types';
+import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType } from '../types';
 import { buildPsdLayerTree, togglePsdLayer } from '../utils/psdParser';
 
 const PropertyPanel: React.FC = () => {
@@ -9,7 +9,13 @@ const PropertyPanel: React.FC = () => {
     selectedCount: state.selectedIds.length
   }));
   const updateObject = useStore((state) => state.updateObject);
+  const addObjectFilter = useStore((state) => state.addObjectFilter);
+  const toggleObjectFilter = useStore((state) => state.toggleObjectFilter);
+  const moveObjectFilter = useStore((state) => state.moveObjectFilter);
+  const removeObjectFilter = useStore((state) => state.removeObjectFilter);
+  const updateObjectFilterParams = useStore((state) => state.updateObjectFilterParams);
   const [isRefreshingPsdTree, setIsRefreshingPsdTree] = useState(false);
+  const [activeFilterId, setActiveFilterId] = useState<string | null>(null);
 
   if (!selectedObject) {
     return (
@@ -31,6 +37,25 @@ const PropertyPanel: React.FC = () => {
   };
 
   const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+  const filterLabel: Record<FilterType, string> = {
+    color_correction: '色調補正',
+    clipping: 'クリッピング',
+    vibration: '振動',
+    shadow: '影'
+  };
+
+  const filters = selectedObject.filters ?? [];
+  const activeFilter = filters.find((filter) => filter.id === activeFilterId) ?? null;
+
+  useEffect(() => {
+    if (filters.length === 0) {
+      if (activeFilterId !== null) setActiveFilterId(null);
+      return;
+    }
+    if (!activeFilterId || !filters.some((filter) => filter.id === activeFilterId)) {
+      setActiveFilterId(filters[filters.length - 1].id);
+    }
+  }, [activeFilterId, filters]);
 
   const handleMediaVolumeChange = (rawValue: string) => {
     if (selectedObject.type !== 'video' && selectedObject.type !== 'audio') return;
@@ -57,26 +82,27 @@ const PropertyPanel: React.FC = () => {
       updateObject(selectedObject.id, { scale: clamp(next, 0.1, 10) } as Partial<TimelineObject>);
   };
 
-  // Helper for Nested Objects
-  const handleColorCorrectionChange = (key: keyof ColorCorrection, value: any) => {
-      const current = selectedObject.colorCorrection || { enabled: false, brightness: 1, contrast: 1, saturation: 1, hue: 0 };
-      updateObject(selectedObject.id, {
-          colorCorrection: { ...current, [key]: value }
-      });
+  const handleAddFilter = (type: FilterType) => {
+    addObjectFilter(selectedObject.id, type);
   };
 
-  const handleVibrationChange = (key: keyof Vibration, value: any) => {
-      const current = selectedObject.vibration || { enabled: false, strength: 0, speed: 1 };
-      updateObject(selectedObject.id, {
-          vibration: { ...current, [key]: value }
-      });
+  const handleToggleFilter = (filterId: string) => {
+    toggleObjectFilter(selectedObject.id, filterId);
   };
 
-  const handleClippingChange = (key: keyof ClippingParams, value: any) => {
-      const current = selectedObject.customClipping || { enabled: false, top: 0, bottom: 0, left: 0, right: 0, angle: 0, radius: 0 };
-      updateObject(selectedObject.id, {
-          customClipping: { ...current, [key]: value }
-      });
+  const handleMoveFilter = (filterId: string, direction: 'up' | 'down') => {
+    moveObjectFilter(selectedObject.id, filterId, direction);
+  };
+
+  const handleRemoveFilter = (filterId: string) => {
+    removeObjectFilter(selectedObject.id, filterId);
+    if (activeFilterId === filterId) {
+      setActiveFilterId(null);
+    }
+  };
+
+  const handleFilterParamChange = (filter: ObjectFilter, params: Record<string, unknown>) => {
+    updateObjectFilterParams(selectedObject.id, filter.id, params);
   };
 
   const handlePsdLayerToggle = (seq: string | null) => {
@@ -197,71 +223,164 @@ const PropertyPanel: React.FC = () => {
             </label>
         </Row>
 
-        {/* --- 新機能: クリッピングエフェクト (フィルタ) --- */}
-        <SectionHeader label="Clipping Effect" />
-        <Row label="Enable">
-            <input type="checkbox" checked={selectedObject.customClipping?.enabled || false} onChange={(e) => handleClippingChange('enabled', e.target.checked)} />
-        </Row>
-        {selectedObject.customClipping?.enabled && (
-            <>
-                <Row label="Top">
-                    <input type="number" value={selectedObject.customClipping.top} onChange={(e) => handleClippingChange('top', parseFloat(e.target.value))} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
-                </Row>
-                <Row label="Bottom">
-                    <input type="number" value={selectedObject.customClipping.bottom} onChange={(e) => handleClippingChange('bottom', parseFloat(e.target.value))} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
-                </Row>
-                <Row label="Left">
-                    <input type="number" value={selectedObject.customClipping.left} onChange={(e) => handleClippingChange('left', parseFloat(e.target.value))} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
-                </Row>
-                <Row label="Right">
-                    <input type="number" value={selectedObject.customClipping.right} onChange={(e) => handleClippingChange('right', parseFloat(e.target.value))} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
-                </Row>
-                <Row label="Angle">
-                    <input type="number" value={selectedObject.customClipping.angle} onChange={(e) => handleClippingChange('angle', parseFloat(e.target.value))} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
-                </Row>
-            </>
-        )}
+        <SectionHeader label="Filter Stack" />
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
+            <button type="button" onClick={() => handleAddFilter('color_correction')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ 色調補正</button>
+            <button type="button" onClick={() => handleAddFilter('clipping')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ クリッピング</button>
+            <button type="button" onClick={() => handleAddFilter('vibration')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ 振動</button>
+            <button type="button" onClick={() => handleAddFilter('shadow')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ 影</button>
+        </div>
+        <div style={{ border: '1px solid #333', borderRadius: '4px', overflow: 'hidden', marginBottom: '8px' }}>
+            {filters.length === 0 && (
+                <div style={{ padding: '8px', fontSize: '11px', color: '#888' }}>フィルタはまだありません。</div>
+            )}
+            {filters.map((filter, index) => {
+                const isActiveFilter = activeFilterId === filter.id;
+                return (
+                    <div
+                        key={filter.id}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '6px 8px',
+                            borderTop: index === 0 ? 'none' : '1px solid #333',
+                            background: isActiveFilter ? '#2f2f2f' : '#222',
+                            fontSize: '11px',
+                            color: '#ddd'
+                        }}
+                    >
+                        <input
+                            type="checkbox"
+                            checked={filter.enabled}
+                            onChange={() => handleToggleFilter(filter.id)}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setActiveFilterId(filter.id)}
+                            style={{
+                                flex: 1,
+                                textAlign: 'left',
+                                border: 'none',
+                                background: 'transparent',
+                                color: isActiveFilter ? '#fff' : '#ccc',
+                                cursor: 'pointer',
+                                padding: 0
+                            }}
+                        >
+                            {filterLabel[filter.type]}
+                        </button>
+                        <button type="button" onClick={() => handleMoveFilter(filter.id, 'up')} style={{ border: '1px solid #444', background: '#2a2a2a', color: '#ddd', borderRadius: '3px', padding: '0 4px', cursor: 'pointer' }}>↑</button>
+                        <button type="button" onClick={() => handleMoveFilter(filter.id, 'down')} style={{ border: '1px solid #444', background: '#2a2a2a', color: '#ddd', borderRadius: '3px', padding: '0 4px', cursor: 'pointer' }}>↓</button>
+                        <button type="button" onClick={() => handleRemoveFilter(filter.id)} style={{ border: '1px solid #553333', background: '#3b2020', color: '#ffb0b0', borderRadius: '3px', padding: '0 4px', cursor: 'pointer' }}>×</button>
+                    </div>
+                );
+            })}
+        </div>
 
-        {/* --- 色調補正 --- */}
-        {(selectedObject.type === 'image' || selectedObject.type === 'video' || selectedObject.type === 'psd' || selectedObject.type === 'shape') && (
-            <>
-                <SectionHeader label="Color Correction" />
-                <Row label="Enable">
-                    <input type="checkbox" checked={selectedObject.colorCorrection?.enabled || false} onChange={(e) => handleColorCorrectionChange('enabled', e.target.checked)} />
-                </Row>
-                {selectedObject.colorCorrection?.enabled && (
+        {activeFilter && (
+            <div style={{ marginBottom: '8px', padding: '8px', border: '1px solid #333', borderRadius: '4px', background: '#1f1f1f' }}>
+                <div style={{ fontSize: '11px', color: '#aaa', marginBottom: '8px' }}>編集中: {filterLabel[activeFilter.type]}</div>
+                {activeFilter.type === 'color_correction' && (
                     <>
                         <Row label="Brightness">
-                            <input type="range" min="0" max="2" step="0.1" value={selectedObject.colorCorrection.brightness} onChange={(e) => handleColorCorrectionChange('brightness', parseFloat(e.target.value))} style={{ width: '100%' }} />
+                            <input
+                                type="range"
+                                min="0"
+                                max="2"
+                                step="0.1"
+                                value={activeFilter.params.brightness}
+                                onChange={(e) => handleFilterParamChange(activeFilter, { brightness: parseFloat(e.target.value) })}
+                                style={{ width: '100%' }}
+                            />
                         </Row>
                         <Row label="Contrast">
-                            <input type="range" min="0" max="2" step="0.1" value={selectedObject.colorCorrection.contrast} onChange={(e) => handleColorCorrectionChange('contrast', parseFloat(e.target.value))} style={{ width: '100%' }} />
+                            <input
+                                type="range"
+                                min="0"
+                                max="2"
+                                step="0.1"
+                                value={activeFilter.params.contrast}
+                                onChange={(e) => handleFilterParamChange(activeFilter, { contrast: parseFloat(e.target.value) })}
+                                style={{ width: '100%' }}
+                            />
                         </Row>
                         <Row label="Saturation">
-                            <input type="range" min="-1" max="1" step="0.1" value={selectedObject.colorCorrection.saturation} onChange={(e) => handleColorCorrectionChange('saturation', parseFloat(e.target.value))} style={{ width: '100%' }} />
+                            <input
+                                type="range"
+                                min="-1"
+                                max="1"
+                                step="0.1"
+                                value={activeFilter.params.saturation}
+                                onChange={(e) => handleFilterParamChange(activeFilter, { saturation: parseFloat(e.target.value) })}
+                                style={{ width: '100%' }}
+                            />
                         </Row>
                         <Row label="Hue">
-                            <input type="range" min="0" max="360" step="1" value={selectedObject.colorCorrection.hue} onChange={(e) => handleColorCorrectionChange('hue', parseFloat(e.target.value))} style={{ width: '100%' }} />
+                            <input
+                                type="range"
+                                min="0"
+                                max="360"
+                                step="1"
+                                value={activeFilter.params.hue}
+                                onChange={(e) => handleFilterParamChange(activeFilter, { hue: parseFloat(e.target.value) })}
+                                style={{ width: '100%' }}
+                            />
                         </Row>
                     </>
                 )}
-            </>
-        )}
-
-        {/* --- 振動 --- */}
-        <SectionHeader label="Vibration" />
-        <Row label="Enable">
-            <input type="checkbox" checked={selectedObject.vibration?.enabled || false} onChange={(e) => handleVibrationChange('enabled', e.target.checked)} />
-        </Row>
-        {selectedObject.vibration?.enabled && (
-            <>
-                <Row label="Strength">
-                    <input type="number" value={selectedObject.vibration.strength} onChange={(e) => handleVibrationChange('strength', parseFloat(e.target.value))} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
-                </Row>
-                <Row label="Speed">
-                    <input type="number" value={selectedObject.vibration.speed} onChange={(e) => handleVibrationChange('speed', parseFloat(e.target.value))} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
-                </Row>
-            </>
+                {activeFilter.type === 'clipping' && (
+                    <>
+                        <Row label="Top">
+                            <input type="number" value={activeFilter.params.top} onChange={(e) => handleFilterParamChange(activeFilter, { top: parseFloat(e.target.value) })} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
+                        </Row>
+                        <Row label="Bottom">
+                            <input type="number" value={activeFilter.params.bottom} onChange={(e) => handleFilterParamChange(activeFilter, { bottom: parseFloat(e.target.value) })} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
+                        </Row>
+                        <Row label="Left">
+                            <input type="number" value={activeFilter.params.left} onChange={(e) => handleFilterParamChange(activeFilter, { left: parseFloat(e.target.value) })} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
+                        </Row>
+                        <Row label="Right">
+                            <input type="number" value={activeFilter.params.right} onChange={(e) => handleFilterParamChange(activeFilter, { right: parseFloat(e.target.value) })} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
+                        </Row>
+                        <Row label="Angle">
+                            <input type="number" value={activeFilter.params.angle} onChange={(e) => handleFilterParamChange(activeFilter, { angle: parseFloat(e.target.value) })} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
+                        </Row>
+                        <Row label="Radius">
+                            <input type="number" value={activeFilter.params.radius} onChange={(e) => handleFilterParamChange(activeFilter, { radius: parseFloat(e.target.value) })} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
+                        </Row>
+                    </>
+                )}
+                {activeFilter.type === 'vibration' && (
+                    <>
+                        <Row label="Strength">
+                            <input type="number" value={activeFilter.params.strength} onChange={(e) => handleFilterParamChange(activeFilter, { strength: parseFloat(e.target.value) })} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
+                        </Row>
+                        <Row label="Speed">
+                            <input type="number" value={activeFilter.params.speed} onChange={(e) => handleFilterParamChange(activeFilter, { speed: parseFloat(e.target.value) })} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
+                        </Row>
+                    </>
+                )}
+                {activeFilter.type === 'shadow' && (
+                    <>
+                        <Row label="Colour">
+                            <input type="color" value={activeFilter.params.colour} onChange={(e) => handleFilterParamChange(activeFilter, { colour: e.target.value })} />
+                        </Row>
+                        <Row label="Blur">
+                            <input type="number" value={activeFilter.params.blur} onChange={(e) => handleFilterParamChange(activeFilter, { blur: parseFloat(e.target.value) })} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
+                        </Row>
+                        <Row label="Offset X">
+                            <input type="number" value={activeFilter.params.offsetX} onChange={(e) => handleFilterParamChange(activeFilter, { offsetX: parseFloat(e.target.value) })} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
+                        </Row>
+                        <Row label="Offset Y">
+                            <input type="number" value={activeFilter.params.offsetY} onChange={(e) => handleFilterParamChange(activeFilter, { offsetY: parseFloat(e.target.value) })} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
+                        </Row>
+                        <Row label="Opacity">
+                            <input type="range" min="0" max="1" step="0.05" value={activeFilter.params.opacity} onChange={(e) => handleFilterParamChange(activeFilter, { opacity: parseFloat(e.target.value) })} style={{ width: '100%' }} />
+                        </Row>
+                    </>
+                )}
+            </div>
         )}
 
         {(selectedObject.type === 'video' || selectedObject.type === 'audio') && (

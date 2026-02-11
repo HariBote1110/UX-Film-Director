@@ -1,6 +1,15 @@
 import { create } from 'zustand';
-import { TimelineObject, ProjectSettings, LayerState } from '../types';
+import { TimelineObject, ProjectSettings, LayerState, FilterType } from '../types';
 import { MAX_LAYERS } from '../components/timelineConstants';
+import {
+  addFilterToObject,
+  moveFilterInObject,
+  removeFilterFromObject,
+  syncFiltersFromLegacyValues,
+  syncLegacyEffectsWithFilters,
+  toggleFilterEnabledInObject,
+  updateFilterParamsInObject
+} from '../utils/filterStack';
 
 interface ClipboardState {
   objects: TimelineObject[];
@@ -59,6 +68,11 @@ interface AppState {
 
   addObject: (obj: TimelineObject) => void;
   updateObject: (id: string, newProps: Partial<TimelineObject>) => void;
+  addObjectFilter: (objectId: string, filterType: FilterType) => void;
+  toggleObjectFilter: (objectId: string, filterId: string) => void;
+  moveObjectFilter: (objectId: string, filterId: string, direction: 'up' | 'down') => void;
+  removeObjectFilter: (objectId: string, filterId: string) => void;
+  updateObjectFilterParams: (objectId: string, filterId: string, params: Record<string, unknown>) => void;
   deleteObject: (id: string) => void;
   deleteSelectedObjects: () => void;
   splitObject: () => void;
@@ -183,7 +197,9 @@ export const useStore = create<AppState>((set, get) => ({
   }),
 
   loadProject: (settings, objects, duration, layers) => {
-    const normalisedObjects = objects.map(normaliseObjectLayer);
+    const normalisedObjects = objects
+      .map(normaliseObjectLayer)
+      .map(syncLegacyEffectsWithFilters);
     set({
       projectSettings: settings,
       isProjectLoaded: true,
@@ -300,21 +316,24 @@ export const useStore = create<AppState>((set, get) => ({
     const state = get();
     if (isLayerLocked(state.layers, targetLayer)) return;
 
+    const objectWithDefaults = {
+      ...obj,
+      layer: targetLayer,
+      enableAnimation: obj.enableAnimation ?? false,
+      endX: obj.endX ?? obj.x,
+      endY: obj.endY ?? obj.y,
+      easing: obj.easing ?? 'linear',
+      offset: obj.offset ?? 0
+    } as TimelineObject;
+    const syncedObject = syncLegacyEffectsWithFilters(objectWithDefaults);
+
     get().pushHistory();
     set((state) => {
-      const newObjects = [...state.objects, { 
-        ...obj, 
-        layer: targetLayer,
-        enableAnimation: obj.enableAnimation ?? false,
-        endX: obj.endX ?? obj.x,
-        endY: obj.endY ?? obj.y,
-        easing: obj.easing ?? 'linear',
-        offset: obj.offset ?? 0
-      }];
+      const newObjects = [...state.objects, syncedObject];
       return { 
         objects: newObjects,
-        selectedId: obj.id,
-        selectedIds: [obj.id],
+        selectedId: syncedObject.id,
+        selectedIds: [syncedObject.id],
         duration: calculateAutoDuration(newObjects)
       };
     });
@@ -346,7 +365,18 @@ export const useStore = create<AppState>((set, get) => ({
 
     if (!hasAnyDiff) return {};
 
-    const updatedObject = { ...currentObject, ...normalisedNewProps } as TimelineObject;
+    const hasFilterUpdate = Object.prototype.hasOwnProperty.call(normalisedNewProps, 'filters');
+    const hasLegacyEffectUpdate = Object.prototype.hasOwnProperty.call(normalisedNewProps, 'colorCorrection')
+      || Object.prototype.hasOwnProperty.call(normalisedNewProps, 'customClipping')
+      || Object.prototype.hasOwnProperty.call(normalisedNewProps, 'vibration')
+      || Object.prototype.hasOwnProperty.call(normalisedNewProps, 'shadow');
+
+    const mergedObject = { ...currentObject, ...normalisedNewProps } as TimelineObject;
+    const updatedObject = hasFilterUpdate
+      ? syncLegacyEffectsWithFilters(mergedObject)
+      : (hasLegacyEffectUpdate
+        ? syncFiltersFromLegacyValues(mergedObject)
+        : syncLegacyEffectsWithFilters(mergedObject));
     const newObjects = state.objects.slice();
     newObjects[targetIndex] = updatedObject;
 
@@ -358,6 +388,77 @@ export const useStore = create<AppState>((set, get) => ({
       objects: newObjects,
       duration: calculateAutoDuration(newObjects)
     };
+  }),
+
+  addObjectFilter: (objectId, filterType) => {
+    const targetObject = get().objects.find((obj) => obj.id === objectId);
+    if (!targetObject) return;
+    if (isLayerLocked(get().layers, clampLayerIndex(targetObject.layer))) return;
+
+    get().pushHistory();
+    set((state) => {
+      const targetIndex = state.objects.findIndex((obj) => obj.id === objectId);
+      if (targetIndex < 0) return {};
+      const nextObjects = state.objects.slice();
+      nextObjects[targetIndex] = addFilterToObject(nextObjects[targetIndex], filterType);
+      return { objects: nextObjects };
+    });
+  },
+
+  toggleObjectFilter: (objectId, filterId) => {
+    const targetObject = get().objects.find((obj) => obj.id === objectId);
+    if (!targetObject) return;
+    if (isLayerLocked(get().layers, clampLayerIndex(targetObject.layer))) return;
+
+    get().pushHistory();
+    set((state) => {
+      const targetIndex = state.objects.findIndex((obj) => obj.id === objectId);
+      if (targetIndex < 0) return {};
+      const nextObjects = state.objects.slice();
+      nextObjects[targetIndex] = toggleFilterEnabledInObject(nextObjects[targetIndex], filterId);
+      return { objects: nextObjects };
+    });
+  },
+
+  moveObjectFilter: (objectId, filterId, direction) => {
+    const targetObject = get().objects.find((obj) => obj.id === objectId);
+    if (!targetObject) return;
+    if (isLayerLocked(get().layers, clampLayerIndex(targetObject.layer))) return;
+
+    get().pushHistory();
+    set((state) => {
+      const targetIndex = state.objects.findIndex((obj) => obj.id === objectId);
+      if (targetIndex < 0) return {};
+      const nextObjects = state.objects.slice();
+      nextObjects[targetIndex] = moveFilterInObject(nextObjects[targetIndex], filterId, direction);
+      return { objects: nextObjects };
+    });
+  },
+
+  removeObjectFilter: (objectId, filterId) => {
+    const targetObject = get().objects.find((obj) => obj.id === objectId);
+    if (!targetObject) return;
+    if (isLayerLocked(get().layers, clampLayerIndex(targetObject.layer))) return;
+
+    get().pushHistory();
+    set((state) => {
+      const targetIndex = state.objects.findIndex((obj) => obj.id === objectId);
+      if (targetIndex < 0) return {};
+      const nextObjects = state.objects.slice();
+      nextObjects[targetIndex] = removeFilterFromObject(nextObjects[targetIndex], filterId);
+      return { objects: nextObjects };
+    });
+  },
+
+  updateObjectFilterParams: (objectId, filterId, params) => set((state) => {
+    const targetIndex = state.objects.findIndex((obj) => obj.id === objectId);
+    if (targetIndex < 0) return {};
+    const targetObject = state.objects[targetIndex];
+    if (isLayerLocked(state.layers, clampLayerIndex(targetObject.layer))) return {};
+
+    const nextObjects = state.objects.slice();
+    nextObjects[targetIndex] = updateFilterParamsInObject(nextObjects[targetIndex], filterId, params);
+    return { objects: nextObjects };
   }),
 
   deleteObject: (id) => {
@@ -505,7 +606,7 @@ export const useStore = create<AppState>((set, get) => ({
         cloned.groupId = groupIdMap.get(cloned.groupId);
       }
 
-      pastedObjects.push(cloned);
+      pastedObjects.push(syncLegacyEffectsWithFilters(cloned));
     });
 
     if (pastedObjects.length === 0) return;
@@ -560,7 +661,7 @@ export const useStore = create<AppState>((set, get) => ({
         cloned.groupId = groupIdMap.get(cloned.groupId);
       }
 
-      duplicatedObjects.push(cloned);
+      duplicatedObjects.push(syncLegacyEffectsWithFilters(cloned));
     });
 
     if (duplicatedObjects.length === 0) return;
