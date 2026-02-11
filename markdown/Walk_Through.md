@@ -1,5 +1,11 @@
 # 実施内容
 
+## 20. AviUtl互換ギャップ分析と優先順位策定
+- `markdown/AviUtl_Gap_Analysis.md` を新規作成し、AviUtl 本体 (`aviutl110`) / 拡張編集 (`exedit92`) と現行実装の差分を整理。
+- 不足機能を「編集基盤」「オブジェクト/エフェクト」「入出力/運用」に分類し、P0〜P3 の優先順位を定義。
+- 直近着手順として、`プロジェクト永続化 -> レイヤー拡張 -> 複数選択編集 -> フィルタスタック基盤 -> 音声統合エクスポート` を明文化。
+- `markdown/Task.md` と `markdown/Implementation_Plan.md` にも今回タスクとロードマップを反映し、`markdown/` を単一の正とする方針に合わせて同期。
+
 ## 1. ストア更新最適化
 - `src/store/useStore.ts`
 - `setTime` / `setDuration` に同値更新ガードを追加。
