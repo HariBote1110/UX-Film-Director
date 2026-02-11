@@ -349,7 +349,7 @@ const PropertyPanel: React.FC = () => {
                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
                     />
                 </Row>
-                <Row label="Scale X %">
+                <Row label="拡大率X %">
                     <input
                         type="number"
                         value={batchScaleXPercent}
@@ -357,7 +357,7 @@ const PropertyPanel: React.FC = () => {
                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
                     />
                 </Row>
-                <Row label="Scale Y %">
+                <Row label="拡大率Y %">
                     <input
                         type="number"
                         value={batchScaleYPercent}
@@ -373,7 +373,7 @@ const PropertyPanel: React.FC = () => {
                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
                     />
                 </Row>
-                <Row label="Opacity Δ%">
+                <Row label="不透明度 Δ%">
                     <input
                         type="number"
                         value={batchOpacityPercent}
