@@ -115,6 +115,18 @@
 - `src/components/TimelineItem.tsx`
 - キーフレーム保持オブジェクトに `◆` マーカーを表示し、識別しやすくした。
 
+## 27. P0-3 追加: 切り取り（Cut）操作の実装
+- `src/store/useStore.ts`
+- `cutSelectedObjects` を追加し、選択オブジェクトを `clipboard` へ保存してからタイムラインから削除する処理を実装。
+- ロックレイヤー上のオブジェクトは切り取り対象から除外し、編集制約を維持した。
+- 既存 `copySelectedObjects` とアンカー計算を共有する `buildClipboardState` を追加し、貼り付け位置の一貫性を確保した。
+- `src/hooks/useAppLogic.ts`
+- `Ctrl/Cmd + X` ショートカットを追加し、キーボードから切り取りできるようにした。
+- `src/components/TimelineControlBar.tsx`
+- `切り取り` ボタンを追加し、コピー/貼り付けと同列の操作導線を追加した。
+- `src/components/TimelineContextMenu.tsx`
+- オブジェクト右クリックメニューに `切り取り` を追加し、対象未選択時は自動選択して実行する既存挙動に統一した。
+
 ## 確認
 - `npx tsc --noEmit` を実行し、型エラーなしを確認。
 

@@ -11,6 +11,7 @@ export const useAppLogic = () => {
     deleteSelectedObjects,
     clearSelection,
     copySelectedObjects,
+    cutSelectedObjects,
     pasteClipboardObjects,
     duplicateSelectedObjects,
     groupSelectedObjects,
@@ -25,6 +26,7 @@ export const useAppLogic = () => {
     deleteSelectedObjects: state.deleteSelectedObjects,
     clearSelection: state.clearSelection,
     copySelectedObjects: state.copySelectedObjects,
+    cutSelectedObjects: state.cutSelectedObjects,
     pasteClipboardObjects: state.pasteClipboardObjects,
     duplicateSelectedObjects: state.duplicateSelectedObjects,
     groupSelectedObjects: state.groupSelectedObjects,
@@ -90,6 +92,11 @@ export const useAppLogic = () => {
           copySelectedObjects();
           return;
       }
+      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyX') {
+          e.preventDefault();
+          cutSelectedObjects();
+          return;
+      }
       if ((e.metaKey || e.ctrlKey) && e.code === 'KeyV') {
           e.preventDefault();
           pasteClipboardObjects();
@@ -135,6 +142,7 @@ export const useAppLogic = () => {
     deleteSelectedObjects,
     clearSelection,
     copySelectedObjects,
+    cutSelectedObjects,
     pasteClipboardObjects,
     duplicateSelectedObjects,
     groupSelectedObjects,

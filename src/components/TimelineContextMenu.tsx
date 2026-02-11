@@ -37,7 +37,7 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
 }) => {
   const {
     deleteObject, deleteSelectedObjects, selectObject, splitObject, addObject,
-    copySelectedObjects, pasteClipboardObjects, duplicateSelectedObjects,
+    copySelectedObjects, cutSelectedObjects, pasteClipboardObjects, duplicateSelectedObjects,
     groupSelectedObjects, ungroupSelectedObjects, selectedIds
   } = useStore((state) => ({
     deleteObject: state.deleteObject,
@@ -46,6 +46,7 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
     splitObject: state.splitObject,
     addObject: state.addObject,
     copySelectedObjects: state.copySelectedObjects,
+    cutSelectedObjects: state.cutSelectedObjects,
     pasteClipboardObjects: state.pasteClipboardObjects,
     duplicateSelectedObjects: state.duplicateSelectedObjects,
     groupSelectedObjects: state.groupSelectedObjects,
@@ -161,6 +162,7 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
          <>
             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { splitObject(); onClose(); }}>ここで分割</div>
             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { if (ensureObjectSelection(state.targetObjectId!)) copySelectedObjects(); onClose(); }}>コピー</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { if (ensureObjectSelection(state.targetObjectId!)) cutSelectedObjects(); onClose(); }}>切り取り</div>
             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { if (ensureObjectSelection(state.targetObjectId!)) duplicateSelectedObjects(); onClose(); }}>複製</div>
             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { pasteClipboardObjects(); onClose(); }}>貼り付け</div>
             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { if (ensureObjectSelection(state.targetObjectId!)) groupSelectedObjects(); onClose(); }}>グループ化</div>

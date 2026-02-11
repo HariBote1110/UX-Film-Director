@@ -78,6 +78,7 @@ interface AppState {
   deleteSelectedObjects: () => void;
   splitObject: () => void;
   copySelectedObjects: () => void;
+  cutSelectedObjects: () => void;
   pasteClipboardObjects: () => void;
   duplicateSelectedObjects: () => void;
   groupSelectedObjects: () => void;
@@ -145,6 +146,19 @@ const isLayerLocked = (layers: LayerState[], layer: number): boolean => {
 
 const cloneTimelineObject = (object: TimelineObject): TimelineObject => {
   return JSON.parse(JSON.stringify(object)) as TimelineObject;
+};
+
+const buildClipboardState = (objects: TimelineObject[]): ClipboardState => {
+  const sorted = objects
+    .slice()
+    .sort((a, b) => a.startTime - b.startTime || a.layer - b.layer);
+  return {
+    objects: sorted.map(cloneTimelineObject),
+    anchorStartTime: Math.min(...sorted.map((obj) => obj.startTime)),
+    anchorLayer: Math.min(...sorted.map((obj) => obj.layer)),
+    anchorX: Math.min(...sorted.map((obj) => obj.x)),
+    anchorY: Math.min(...sorted.map((obj) => obj.y))
+  };
 };
 
 const getCurrentSelection = (state: AppState): string[] => {
@@ -634,24 +648,34 @@ export const useStore = create<AppState>((set, get) => ({
     const selectedObjects = getSelectedObjects(state);
     if (selectedObjects.length === 0) return {};
 
-    const sorted = selectedObjects
-      .slice()
-      .sort((a, b) => a.startTime - b.startTime || a.layer - b.layer);
-    const anchorStartTime = Math.min(...sorted.map((obj) => obj.startTime));
-    const anchorLayer = Math.min(...sorted.map((obj) => obj.layer));
-    const anchorX = Math.min(...sorted.map((obj) => obj.x));
-    const anchorY = Math.min(...sorted.map((obj) => obj.y));
-
     return {
-      clipboard: {
-        objects: sorted.map(cloneTimelineObject),
-        anchorStartTime,
-        anchorLayer,
-        anchorX,
-        anchorY
-      }
+      clipboard: buildClipboardState(selectedObjects)
     };
   }),
+
+  cutSelectedObjects: () => {
+    const state = get();
+    const selectedObjects = getSelectedObjects(state);
+    if (selectedObjects.length === 0) return;
+
+    const cutObjects = selectedObjects.filter((obj) => !isLayerLocked(state.layers, clampLayerIndex(obj.layer)));
+    if (cutObjects.length === 0) return;
+
+    const cutObjectIdSet = new Set(cutObjects.map((obj) => obj.id));
+    const clipboard = buildClipboardState(cutObjects);
+
+    get().pushHistory();
+    set((currentState) => {
+      const newObjects = currentState.objects.filter((obj) => !cutObjectIdSet.has(obj.id));
+      return {
+        clipboard,
+        objects: newObjects,
+        selectedId: null,
+        selectedIds: [],
+        duration: calculateAutoDuration(newObjects)
+      };
+    });
+  },
 
   pasteClipboardObjects: () => {
     const state = get();
