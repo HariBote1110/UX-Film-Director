@@ -8,6 +8,12 @@ export interface ProjectSettings {
   sampleRate: number;
 }
 
+export interface LayerState {
+  name: string;
+  visible: boolean;
+  locked: boolean;
+}
+
 export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization';
 
 // --- グラデーション・シャドウ・軌道 ---

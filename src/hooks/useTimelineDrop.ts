@@ -8,10 +8,11 @@ import { getElectronFilePath, resolveAudioMetadata, resolveVideoMetadata } from 
 import { parsePsdAsObject } from '../utils/psdParser';
 
 export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) => {
-  const { isExporting, addObject, projectSettings } = useStore((state) => ({
+  const { isExporting, addObject, projectSettings, layers } = useStore((state) => ({
     isExporting: state.isExporting,
     addObject: state.addObject,
     projectSettings: state.projectSettings,
+    layers: state.layers,
   }), shallow);
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -37,6 +38,7 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
     const dropLayer = Math.floor((relY - RULER_HEIGHT) / ROW_HEIGHT);
 
     if (dropLayer < 0 || dropLayer >= MAX_LAYERS) return;
+    if (layers[dropLayer]?.locked) return;
 
     const files = Array.from(e.dataTransfer.files);
     

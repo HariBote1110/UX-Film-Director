@@ -16,13 +16,14 @@ export const usePixiInteraction = (
   latestObjectsRef: React.MutableRefObject<TimelineObject[]>
 ) => {
   const { 
-    updateObject, selectObject, pushHistory, isPlaying, togglePlay 
+    updateObject, selectObject, pushHistory, isPlaying, togglePlay, layers
   } = useStore((state) => ({
     updateObject: state.updateObject,
     selectObject: state.selectObject,
     pushHistory: state.pushHistory,
     isPlaying: state.isPlaying,
     togglePlay: state.togglePlay,
+    layers: state.layers,
   }), shallow);
 
   const dragRef = useRef<DragState>({ 
@@ -37,15 +38,19 @@ export const usePixiInteraction = (
     if (useStore.getState().isExporting) return;
     e.stopPropagation();
 
+    const currentObj = latestObjectsRef.current.find(o => o.id === targetId);
+    if (!currentObj) return;
+    if (layers[currentObj.layer]?.locked) {
+        selectObject(targetId);
+        return;
+    }
+
     if ((window as any).isPathRecordingMode) {
         isRecordingPathRef.current = true;
         recordedPathRef.current = [];
         recordingStartTimeRef.current = Date.now();
         if (!isPlaying) togglePlay();
     }
-
-    const currentObj = latestObjectsRef.current.find(o => o.id === targetId);
-    if (!currentObj) return;
 
     if (!isRecordingPathRef.current) {
         pushHistory();
@@ -67,6 +72,8 @@ export const usePixiInteraction = (
     if (isRecordingPathRef.current && dragRef.current.active) {
         const { targetId } = dragRef.current;
         if (!targetId) return;
+        const recordingTarget = latestObjectsRef.current.find(o => o.id === targetId);
+        if (recordingTarget && layers[recordingTarget.layer]?.locked) return;
         
         const globalPos = e.global;
         recordedPathRef.current.push({ time: 0, x: globalPos.x, y: globalPos.y });
@@ -76,6 +83,8 @@ export const usePixiInteraction = (
 
     const { active, targetId, startX, startY, initialObjState } = dragRef.current;
     if (!active || !targetId || !initialObjState) return;
+    const targetObject = latestObjectsRef.current.find(o => o.id === targetId);
+    if (targetObject && layers[targetObject.layer]?.locked) return;
 
     const globalPos = e.global;
     const deltaX = globalPos.x - startX;

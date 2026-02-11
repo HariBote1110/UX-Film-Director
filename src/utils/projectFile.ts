@@ -1,4 +1,4 @@
-import { ProjectSettings, TimelineObject, PsdObject } from '../types';
+import { ProjectSettings, TimelineObject, PsdObject, LayerState } from '../types';
 import { buildPsdLayerTree, parsePsdArrayBufferAsObject } from './psdParser';
 import { toFileProtocolUrl } from './mediaMetadata';
 
@@ -11,6 +11,7 @@ type ProjectFileV1 = {
   savedAt: string;
   projectSettings: ProjectSettings;
   duration: number;
+  layers?: LayerState[];
   objects: TimelineObject[];
 };
 
@@ -39,6 +40,23 @@ const isProjectSettings = (value: unknown): value is ProjectSettings => {
     typeof candidate.sampleRate === 'number' &&
     Number.isFinite(candidate.sampleRate)
   );
+};
+
+const isLayerState = (value: unknown): value is LayerState => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.name === 'string' &&
+    typeof candidate.visible === 'boolean' &&
+    typeof candidate.locked === 'boolean'
+  );
+};
+
+const parseLayers = (value: unknown): LayerState[] | undefined => {
+  if (value == null) return undefined;
+  if (!Array.isArray(value)) return undefined;
+  if (!value.every((layer) => isLayerState(layer))) return undefined;
+  return value.map((layer) => ({ ...layer }));
 };
 
 const sanitiseObjectForSave = (obj: TimelineObject): TimelineObject => {
@@ -157,7 +175,8 @@ const restoreObjectFromProject = async (
 export const buildProjectFileData = (
   projectSettings: ProjectSettings,
   duration: number,
-  objects: TimelineObject[]
+  objects: TimelineObject[],
+  layers: LayerState[]
 ): ProjectFileV1 => {
   return {
     format: PROJECT_FILE_FORMAT,
@@ -165,6 +184,7 @@ export const buildProjectFileData = (
     savedAt: new Date().toISOString(),
     projectSettings,
     duration,
+    layers,
     objects: objects.map(sanitiseObjectForSave),
   };
 };
@@ -227,6 +247,7 @@ export const openProjectFileWithDialog = async (): Promise<{
       duration: typeof candidate.duration === 'number' && Number.isFinite(candidate.duration)
         ? Math.max(1, candidate.duration)
         : 30,
+      layers: parseLayers(candidate.layers),
       objects: candidate.objects as TimelineObject[],
     },
   };

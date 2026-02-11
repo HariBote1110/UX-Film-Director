@@ -13,7 +13,7 @@ const App: React.FC = () => {
   useAppLogic();
   const [projectIoAction, setProjectIoAction] = useState<'idle' | 'opening' | 'saving'>('idle');
   
-  const { isProjectLoaded, isExporting, setExporting, requestSnapshot, loadProject, projectSettings, duration, objects } = useStore((state) => ({
+  const { isProjectLoaded, isExporting, setExporting, requestSnapshot, loadProject, projectSettings, duration, objects, layers } = useStore((state) => ({
     isProjectLoaded: state.isProjectLoaded,
     isExporting: state.isExporting,
     setExporting: state.setExporting,
@@ -22,6 +22,7 @@ const App: React.FC = () => {
     projectSettings: state.projectSettings,
     duration: state.duration,
     objects: state.objects,
+    layers: state.layers,
   }), shallow);
 
   const handleOpenProject = async () => {
@@ -41,7 +42,8 @@ const App: React.FC = () => {
       loadProject(
         loaded.project.projectSettings,
         restoredObjects,
-        loaded.project.duration
+        loaded.project.duration,
+        loaded.project.layers
       );
     } catch (error) {
       alert(`プロジェクト読み込みに失敗しました: ${error instanceof Error ? error.message : String(error)}`);
@@ -56,7 +58,7 @@ const App: React.FC = () => {
 
     try {
       setProjectIoAction('saving');
-      const projectFile = buildProjectFileData(projectSettings, duration, objects);
+      const projectFile = buildProjectFileData(projectSettings, duration, objects, layers);
       const result = await saveProjectFileWithDialog(projectFile);
       if (!result.success && !result.cancelled) {
         throw new Error(result.error || '不明な保存エラー');

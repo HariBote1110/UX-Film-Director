@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { TimelineObject, ProjectSettings } from '../types';
+import { TimelineObject, ProjectSettings, LayerState } from '../types';
+import { MAX_LAYERS } from '../components/timelineConstants';
 
 interface AppState {
   // Project State
@@ -16,6 +17,7 @@ interface AppState {
   currentTime: number;
   duration: number;
   isPlaying: boolean;
+  layers: LayerState[];
   objects: TimelineObject[];
   selectedId: string | null;
   
@@ -25,7 +27,10 @@ interface AppState {
 
   // Actions
   initializeProject: (settings: ProjectSettings) => void;
-  loadProject: (settings: ProjectSettings, objects: TimelineObject[], duration?: number) => void;
+  loadProject: (settings: ProjectSettings, objects: TimelineObject[], duration?: number, layers?: LayerState[]) => void;
+  setLayerName: (layer: number, name: string) => void;
+  toggleLayerVisibility: (layer: number) => void;
+  toggleLayerLock: (layer: number) => void;
   setTime: (time: number) => void;
   setDuration: (duration: number) => void;
   advanceTime: (deltaTime: number) => void;
@@ -61,6 +66,49 @@ const needsDurationRecalculation = (newProps: Partial<TimelineObject>) => {
     || Object.prototype.hasOwnProperty.call(newProps, 'duration');
 };
 
+const clampLayerIndex = (value: number): number => {
+  return Math.max(0, Math.min(MAX_LAYERS - 1, Math.round(value)));
+};
+
+const createDefaultLayers = (): LayerState[] => {
+  return Array.from({ length: MAX_LAYERS }, (_, index) => ({
+    name: `Layer ${index + 1}`,
+    visible: true,
+    locked: false
+  }));
+};
+
+const normaliseLayers = (layers?: LayerState[]): LayerState[] => {
+  const defaults = createDefaultLayers();
+  if (!Array.isArray(layers)) return defaults;
+
+  return defaults.map((defaultLayer, index) => {
+    const candidate = layers[index];
+    if (!candidate || typeof candidate !== 'object') {
+      return defaultLayer;
+    }
+    const normalisedName = typeof candidate.name === 'string' && candidate.name.trim() !== ''
+      ? candidate.name
+      : defaultLayer.name;
+    return {
+      name: normalisedName,
+      visible: candidate.visible !== false,
+      locked: candidate.locked === true
+    };
+  });
+};
+
+const normaliseObjectLayer = (object: TimelineObject): TimelineObject => {
+  const nextLayer = clampLayerIndex(object.layer);
+  if (nextLayer === object.layer) return object;
+  return { ...object, layer: nextLayer };
+};
+
+const isLayerLocked = (layers: LayerState[], layer: number): boolean => {
+  if (layer < 0 || layer >= layers.length) return false;
+  return layers[layer].locked;
+};
+
 export const useStore = create<AppState>((set, get) => ({
   isProjectLoaded: false,
   projectSettings: { width: 1920, height: 1080, fps: 60, sampleRate: 44100 },
@@ -70,6 +118,7 @@ export const useStore = create<AppState>((set, get) => ({
   currentTime: 0,
   duration: 30,
   isPlaying: false,
+  layers: createDefaultLayers(),
   objects: [],
   selectedId: null,
 
@@ -82,22 +131,51 @@ export const useStore = create<AppState>((set, get) => ({
     currentTime: 0,
     duration: 30,
     isPlaying: false,
+    layers: createDefaultLayers(),
     objects: [],
     selectedId: null,
     pastStates: [],
     futureStates: []
   }),
 
-  loadProject: (settings, objects, duration) => set({
-    projectSettings: settings,
-    isProjectLoaded: true,
-    currentTime: 0,
-    duration: Math.max(1, duration ?? calculateAutoDuration(objects)),
-    isPlaying: false,
-    objects,
-    selectedId: null,
-    pastStates: [],
-    futureStates: []
+  loadProject: (settings, objects, duration, layers) => {
+    const normalisedObjects = objects.map(normaliseObjectLayer);
+    set({
+      projectSettings: settings,
+      isProjectLoaded: true,
+      currentTime: 0,
+      duration: Math.max(1, duration ?? calculateAutoDuration(normalisedObjects)),
+      isPlaying: false,
+      layers: normaliseLayers(layers),
+      objects: normalisedObjects,
+      selectedId: null,
+      pastStates: [],
+      futureStates: []
+    });
+  },
+
+  setLayerName: (layer, name) => set((state) => {
+    if (!Number.isInteger(layer) || layer < 0 || layer >= state.layers.length) return {};
+    const trimmedName = name.trim();
+    const nextName = trimmedName === '' ? `Layer ${layer + 1}` : trimmedName;
+    if (state.layers[layer].name === nextName) return {};
+    const nextLayers = state.layers.slice();
+    nextLayers[layer] = { ...nextLayers[layer], name: nextName };
+    return { layers: nextLayers };
+  }),
+
+  toggleLayerVisibility: (layer) => set((state) => {
+    if (!Number.isInteger(layer) || layer < 0 || layer >= state.layers.length) return {};
+    const nextLayers = state.layers.slice();
+    nextLayers[layer] = { ...nextLayers[layer], visible: !nextLayers[layer].visible };
+    return { layers: nextLayers };
+  }),
+
+  toggleLayerLock: (layer) => set((state) => {
+    if (!Number.isInteger(layer) || layer < 0 || layer >= state.layers.length) return {};
+    const nextLayers = state.layers.slice();
+    nextLayers[layer] = { ...nextLayers[layer], locked: !nextLayers[layer].locked };
+    return { layers: nextLayers };
   }),
 
   setTime: (time) => set((state) => {
@@ -168,10 +246,15 @@ export const useStore = create<AppState>((set, get) => ({
   }),
 
   addObject: (obj) => {
+    const targetLayer = clampLayerIndex(obj.layer);
+    const state = get();
+    if (isLayerLocked(state.layers, targetLayer)) return;
+
     get().pushHistory();
     set((state) => {
       const newObjects = [...state.objects, { 
         ...obj, 
+        layer: targetLayer,
         enableAnimation: obj.enableAnimation ?? false,
         endX: obj.endX ?? obj.x,
         endY: obj.endY ?? obj.y,
@@ -191,18 +274,32 @@ export const useStore = create<AppState>((set, get) => ({
     if (targetIndex < 0) return {};
 
     const currentObject = state.objects[targetIndex];
-    const changedKeys = Object.keys(newProps) as (keyof TimelineObject)[];
+    const currentLayer = clampLayerIndex(currentObject.layer);
+    if (isLayerLocked(state.layers, currentLayer)) return {};
+
+    const hasLayerUpdate = Object.prototype.hasOwnProperty.call(newProps, 'layer');
+    const parsedLayer = Number(newProps.layer);
+    const nextLayer = hasLayerUpdate && Number.isFinite(parsedLayer)
+      ? clampLayerIndex(parsedLayer)
+      : currentLayer;
+    if (isLayerLocked(state.layers, nextLayer)) return {};
+
+    const normalisedNewProps = hasLayerUpdate
+      ? { ...newProps, layer: nextLayer } as Partial<TimelineObject>
+      : newProps;
+
+    const changedKeys = Object.keys(normalisedNewProps) as (keyof TimelineObject)[];
     const hasAnyDiff = changedKeys.some((key) => {
-      return !Object.is(currentObject[key], newProps[key]);
+      return !Object.is(currentObject[key], normalisedNewProps[key]);
     });
 
     if (!hasAnyDiff) return {};
 
-    const updatedObject = { ...currentObject, ...newProps } as TimelineObject;
+    const updatedObject = { ...currentObject, ...normalisedNewProps } as TimelineObject;
     const newObjects = state.objects.slice();
     newObjects[targetIndex] = updatedObject;
 
-    if (!needsDurationRecalculation(newProps)) {
+    if (!needsDurationRecalculation(normalisedNewProps)) {
       return { objects: newObjects };
     }
 
@@ -213,6 +310,12 @@ export const useStore = create<AppState>((set, get) => ({
   }),
 
   deleteObject: (id) => {
+    const currentObject = get().objects.find((obj) => obj.id === id);
+    if (!currentObject) return;
+
+    const layer = clampLayerIndex(currentObject.layer);
+    if (isLayerLocked(get().layers, layer)) return;
+
     get().pushHistory();
     set((state) => {
       const newObjects = state.objects.filter(obj => obj.id !== id);
@@ -225,10 +328,14 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   splitObject: () => {
-    const { objects, selectedId, currentTime } = get();
+    const { objects, selectedId, currentTime, layers } = get();
     const target = objects.find(o => o.id === selectedId);
 
     if (!target || currentTime <= target.startTime || currentTime >= target.startTime + target.duration) {
+        return;
+    }
+
+    if (isLayerLocked(layers, clampLayerIndex(target.layer))) {
         return;
     }
 

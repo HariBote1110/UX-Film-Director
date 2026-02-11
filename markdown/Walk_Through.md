@@ -28,6 +28,31 @@
 - `src/utils/mediaMetadata.ts`
 - `filePath` から `file://` URL を生成する `toFileProtocolUrl` を追加。
 
+## 22. P0-2 レイヤー運用拡張（100レイヤー/表示/ロック/名称）
+- `src/components/timelineConstants.ts`
+- レイヤー上限を `20 -> 100` に拡張した。
+- `src/types.ts`
+- `LayerState`（`name` / `visible` / `locked`）を追加した。
+- `src/store/useStore.ts`
+- `layers` 状態と `setLayerName` / `toggleLayerVisibility` / `toggleLayerLock` を追加した。
+- `initializeProject` / `loadProject` でレイヤー状態を初期化・復元するように変更した。
+- ロックレイヤー上の `addObject` / `updateObject` / `deleteObject` / `splitObject` を拒否し、編集禁止をストア層で保証した。
+- `src/components/Timeline.tsx`
+- タイムライン左ヘッダに表示切替（`V`）/ロック切替（`L`）/名称編集（ダブルクリック）を追加した。
+- PSD 追加位置をコンテキストレイヤーに合わせ、ロックレイヤーへの追加を抑止した。
+- `src/components/TimelineItem.tsx`
+- レイヤー状態に応じて見た目を反映し、ロック時のドラッグ/リサイズを禁止した。
+- `src/hooks/useTimelineDrop.ts`
+- ドロップ追加時にロックレイヤーへの投入を抑止した。
+- `src/hooks/usePixiInteraction.ts`
+- ビューポート上ドラッグ時にロックレイヤーを編集対象外にした。
+- `src/components/Viewport.tsx`
+- レイヤー非表示時は描画対象から除外し、ロック時カーソルを `not-allowed` に変更した。
+- `src/utils/projectFile.ts`
+- プロジェクトファイルに `layers` を保存し、読込時に復元するように拡張した（既存ファイルは `layers` なしでも読込可能）。
+- `src/App.tsx`
+- 保存時に `layers` を含め、読込時に `loadProject(..., layers)` へ渡すように変更した。
+
 ## 確認
 - `npx tsc --noEmit` を実行し、型エラーなしを確認。
 

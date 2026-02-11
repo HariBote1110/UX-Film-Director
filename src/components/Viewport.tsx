@@ -27,7 +27,8 @@ const Viewport: React.FC = () => {
 
   const { 
     currentTime, objects, selectedId, selectObject,
-    projectSettings, isPlaying, isExporting, 
+    projectSettings, isPlaying, isExporting,
+    layers,
     isSnapshotRequested, finishSnapshot
   } = useStore((state) => ({
     currentTime: state.currentTime,
@@ -37,6 +38,7 @@ const Viewport: React.FC = () => {
     projectSettings: state.projectSettings,
     isPlaying: state.isPlaying,
     isExporting: state.isExporting,
+    layers: state.layers,
     isSnapshotRequested: state.isSnapshotRequested,
     finishSnapshot: state.finishSnapshot,
   }), shallow);
@@ -141,7 +143,10 @@ const Viewport: React.FC = () => {
     const currentPixiObjects = pixiObjectsRef.current;
     const currentVideoElements = videoElementsRef.current;
     const currentAudioElements = audioElementsRef.current;
-    const visibleObjects = currentObjects.filter(obj => time >= obj.startTime && time < obj.startTime + obj.duration);
+    const visibleObjects = currentObjects.filter((obj) => {
+      if (layers[obj.layer]?.visible === false) return false;
+      return time >= obj.startTime && time < obj.startTime + obj.duration;
+    });
 
     // 1. Cleanup
     currentPixiObjects.forEach((container, id) => {
@@ -198,6 +203,7 @@ const Viewport: React.FC = () => {
         container.on('pointerup', onDragEnd); container.on('pointerupoutside', onDragEnd); container.on('globalpointermove', onDragMove); 
         app.stage.addChild(container); currentPixiObjects.set(obj.id, container);
       }
+      container.cursor = layers[obj.layer]?.locked ? 'not-allowed' : 'pointer';
 
       // Content Update
       const content = updatePixiContent(obj, container, time, {
@@ -329,7 +335,7 @@ const Viewport: React.FC = () => {
     
     // 手動レンダリング実行 (Ticker停止中のため必須)
     app.render();
-  }, [selectedId, isExporting, isPlaying, isSnapshotRequested]);
+  }, [selectedId, isExporting, isPlaying, isSnapshotRequested, layers]);
 
   useEffect(() => { 
       if (!isExporting) renderScene(currentTime, objects); 

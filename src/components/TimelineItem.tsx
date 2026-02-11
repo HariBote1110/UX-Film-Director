@@ -18,6 +18,13 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
     objects: state.objects,
     pushHistory: state.pushHistory,
   }), shallow);
+  const { isLayerLocked, isLayerVisible } = useStore((state) => {
+    const layerState = state.layers[object.layer];
+    return {
+      isLayerLocked: layerState?.locked ?? false,
+      isLayerVisible: layerState?.visible ?? true
+    };
+  }, shallow);
   const isSelected = useStore((state) => state.selectedId === object.id);
 
   const [isDragging, setIsDragging] = useState(false);
@@ -41,6 +48,10 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
         return;
     }
     if (e.button !== 0) return;
+    if (isLayerLocked) {
+      selectObject(object.id);
+      return;
+    }
 
     pushHistory();
     selectObject(object.id);
@@ -60,6 +71,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDragging) return;
+      if (isLayerLocked) return;
 
       const deltaX = e.clientX - startMouseX;
 
@@ -160,7 +172,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, dragType, startMouseX, startMouseY, initialState, object, pxPerSec, rowHeight, updateObject, objects]);
+  }, [isDragging, dragType, startMouseX, startMouseY, initialState, object, pxPerSec, rowHeight, updateObject, objects, isLayerLocked]);
 
   const leftPos = headerWidth + (Math.max(0, object.startTime) * pxPerSec);
   const width = object.duration * pxPerSec;
@@ -187,13 +199,13 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
         backgroundColor: getBackgroundColor(),
         border: isSelected ? '2px solid #f1c40f' : '1px solid rgba(255,255,255,0.3)',
         borderRadius: '4px',
-        cursor: 'move',
+        cursor: isLayerLocked ? 'not-allowed' : 'move',
         userSelect: 'none',
         overflow: 'hidden',
         zIndex: isDragging ? 300 : 10,
         pointerEvents: 'auto',
         boxShadow: isDragging ? '0 5px 15px rgba(0,0,0,0.5)' : 'none',
-        opacity: isDragging ? 0.9 : 1,
+        opacity: isLayerVisible ? (isDragging ? 0.9 : 1) : (isDragging ? 0.65 : 0.45),
         transition: isDragging ? 'none' : 'background-color 0.2s, top 0.1s ease-out'
       }}
       onMouseDown={(e) => handleMouseDown(e, 'move')}
@@ -206,7 +218,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
       <div
         style={{
           position: 'absolute', right: 0, top: 0, bottom: 0, width: '10px',
-          cursor: 'col-resize', background: 'rgba(0,0,0,0.2)',
+          cursor: isLayerLocked ? 'not-allowed' : 'col-resize', background: 'rgba(0,0,0,0.2)',
         }}
         onMouseDown={(e) => handleMouseDown(e, 'resize')}
       />
