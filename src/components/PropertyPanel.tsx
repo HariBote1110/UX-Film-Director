@@ -20,6 +20,19 @@ const PropertyPanel: React.FC = () => {
   const [isRefreshingPsdTree, setIsRefreshingPsdTree] = useState(false);
   const [activeFilterId, setActiveFilterId] = useState<string | null>(null);
 
+  const filters = selectedObject?.filters ?? [];
+  const activeFilter = filters.find((filter) => filter.id === activeFilterId) ?? null;
+
+  useEffect(() => {
+    if (!selectedObject || filters.length === 0) {
+      if (activeFilterId !== null) setActiveFilterId(null);
+      return;
+    }
+    if (!activeFilterId || !filters.some((filter) => filter.id === activeFilterId)) {
+      setActiveFilterId(filters[filters.length - 1].id);
+    }
+  }, [activeFilterId, filters, selectedObject]);
+
   if (!selectedObject) {
     return (
       <div className="property-panel" style={{ width: '300px', background: '#252526', borderLeft: '1px solid #111', padding: '10px', color: '#ccc' }}>
@@ -50,19 +63,6 @@ const PropertyPanel: React.FC = () => {
     vibration: '振動',
     shadow: '影'
   };
-
-  const filters = selectedObject.filters ?? [];
-  const activeFilter = filters.find((filter) => filter.id === activeFilterId) ?? null;
-
-  useEffect(() => {
-    if (filters.length === 0) {
-      if (activeFilterId !== null) setActiveFilterId(null);
-      return;
-    }
-    if (!activeFilterId || !filters.some((filter) => filter.id === activeFilterId)) {
-      setActiveFilterId(filters[filters.length - 1].id);
-    }
-  }, [activeFilterId, filters]);
 
   const handleMediaVolumeChange = (rawValue: string) => {
     if (selectedObject.type !== 'video' && selectedObject.type !== 'audio') return;
