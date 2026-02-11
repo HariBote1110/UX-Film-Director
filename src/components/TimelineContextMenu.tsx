@@ -35,11 +35,22 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
   onAddPsd,
   onAddGroup,
 }) => {
-  const { deleteObject, selectObject, splitObject, addObject } = useStore((state) => ({
+  const {
+    deleteObject, deleteSelectedObjects, selectObject, splitObject, addObject,
+    copySelectedObjects, pasteClipboardObjects, duplicateSelectedObjects,
+    groupSelectedObjects, ungroupSelectedObjects, selectedIds
+  } = useStore((state) => ({
     deleteObject: state.deleteObject,
+    deleteSelectedObjects: state.deleteSelectedObjects,
     selectObject: state.selectObject,
     splitObject: state.splitObject,
     addObject: state.addObject,
+    copySelectedObjects: state.copySelectedObjects,
+    pasteClipboardObjects: state.pasteClipboardObjects,
+    duplicateSelectedObjects: state.duplicateSelectedObjects,
+    groupSelectedObjects: state.groupSelectedObjects,
+    ungroupSelectedObjects: state.ungroupSelectedObjects,
+    selectedIds: state.selectedIds,
   }), shallow);
   const menuRef = useRef<HTMLDivElement>(null);
   
@@ -106,6 +117,13 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
       onClose();
   };
 
+  const ensureObjectSelection = (objectId: string) => {
+    if (!selectedIds.includes(objectId)) {
+      selectObject(objectId);
+    }
+    return true;
+  };
+
   return (
     <div 
       ref={menuRef}
@@ -142,7 +160,20 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
       {state.type === 'object' && state.targetObjectId && (
          <>
             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { splitObject(); onClose(); }}>ここで分割</div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#ff6b6b' }} onClick={() => { deleteObject(state.targetObjectId!); selectObject(null); onClose(); }}>削除</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { if (ensureObjectSelection(state.targetObjectId!)) copySelectedObjects(); onClose(); }}>コピー</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { if (ensureObjectSelection(state.targetObjectId!)) duplicateSelectedObjects(); onClose(); }}>複製</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { pasteClipboardObjects(); onClose(); }}>貼り付け</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { if (ensureObjectSelection(state.targetObjectId!)) groupSelectedObjects(); onClose(); }}>グループ化</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { if (ensureObjectSelection(state.targetObjectId!)) ungroupSelectedObjects(); onClose(); }}>グループ解除</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#ff6b6b' }} onClick={() => {
+              if (selectedIds.includes(state.targetObjectId!)) {
+                deleteSelectedObjects();
+              } else {
+                deleteObject(state.targetObjectId!);
+              }
+              selectObject(null);
+              onClose();
+            }}>削除</div>
          </>
       )}
     </div>

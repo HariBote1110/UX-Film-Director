@@ -89,6 +89,7 @@ export interface ClippingParams {
 
 export interface BaseObject {
   id: string;
+  groupId?: string;
   type: ObjectType;
   name: string;
   layer: number;

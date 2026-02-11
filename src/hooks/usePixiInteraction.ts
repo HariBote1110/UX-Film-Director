@@ -16,10 +16,13 @@ export const usePixiInteraction = (
   latestObjectsRef: React.MutableRefObject<TimelineObject[]>
 ) => {
   const { 
-    updateObject, selectObject, pushHistory, isPlaying, togglePlay, layers
+    updateObject, selectObject, toggleObjectSelection, selectObjects, selectedIds, pushHistory, isPlaying, togglePlay, layers
   } = useStore((state) => ({
     updateObject: state.updateObject,
     selectObject: state.selectObject,
+    toggleObjectSelection: state.toggleObjectSelection,
+    selectObjects: state.selectObjects,
+    selectedIds: state.selectedIds,
     pushHistory: state.pushHistory,
     isPlaying: state.isPlaying,
     togglePlay: state.togglePlay,
@@ -37,6 +40,17 @@ export const usePixiInteraction = (
   const onDragStart = (e: PIXI.FederatedPointerEvent, targetId: string) => {
     if (useStore.getState().isExporting) return;
     e.stopPropagation();
+
+    const nativeEvent = e.nativeEvent as MouseEvent | PointerEvent | undefined;
+    const isToggleSelect = Boolean(nativeEvent && (nativeEvent.metaKey || nativeEvent.ctrlKey));
+    if (isToggleSelect) {
+        toggleObjectSelection(targetId);
+        return;
+    }
+    if (nativeEvent?.shiftKey) {
+        selectObjects([...selectedIds, targetId], targetId);
+        return;
+    }
 
     const currentObj = latestObjectsRef.current.find(o => o.id === targetId);
     if (!currentObj) return;

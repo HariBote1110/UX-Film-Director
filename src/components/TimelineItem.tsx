@@ -12,11 +12,14 @@ interface TimelineItemProps {
 }
 
 const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight, headerWidth, onContextMenu }) => {
-  const { updateObject, selectObject, objects, pushHistory } = useStore((state) => ({
+  const { updateObject, selectObject, toggleObjectSelection, selectObjects, objects, pushHistory, selectedIds } = useStore((state) => ({
     updateObject: state.updateObject,
     selectObject: state.selectObject,
+    toggleObjectSelection: state.toggleObjectSelection,
+    selectObjects: state.selectObjects,
     objects: state.objects,
     pushHistory: state.pushHistory,
+    selectedIds: state.selectedIds,
   }), shallow);
   const { isLayerLocked, isLayerVisible } = useStore((state) => {
     const layerState = state.layers[object.layer];
@@ -25,7 +28,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
       isLayerVisible: layerState?.visible ?? true
     };
   }, shallow);
-  const isSelected = useStore((state) => state.selectedId === object.id);
+  const isSelected = selectedIds.includes(object.id);
 
   const [isDragging, setIsDragging] = useState(false);
   const [dragType, setDragType] = useState<'move' | 'resize' | null>(null);
@@ -43,11 +46,24 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
     
     // 右クリック
     if (e.button === 2) {
-        selectObject(object.id); 
+        if (isSelected) {
+          selectObjects(selectedIds, object.id);
+        } else {
+          selectObject(object.id);
+        }
         onContextMenu(e, object.id);
         return;
     }
     if (e.button !== 0) return;
+    const isToggleSelect = e.metaKey || e.ctrlKey;
+    if (isToggleSelect) {
+      toggleObjectSelection(object.id);
+      return;
+    }
+    if (e.shiftKey) {
+      selectObjects([...selectedIds, object.id], object.id);
+      return;
+    }
     if (isLayerLocked) {
       selectObject(object.id);
       return;
@@ -212,7 +228,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
       onContextMenu={(e) => handleMouseDown(e, 'move')}
     >
       <div style={{ padding: '2px 4px', fontSize: '11px', color: 'white', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-        {object.name} {object.enableAnimation ? '⇗' : ''}
+        {object.name} {object.groupId ? '[G]' : ''} {object.enableAnimation ? '⇗' : ''}
       </div>
 
       <div

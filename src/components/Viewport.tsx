@@ -26,15 +26,15 @@ const Viewport: React.FC = () => {
   const [renderTick, setRenderTick] = useState(0);
 
   const { 
-    currentTime, objects, selectedId, selectObject,
+    currentTime, objects, selectedIds, clearSelection,
     projectSettings, isPlaying, isExporting,
     layers,
     isSnapshotRequested, finishSnapshot
   } = useStore((state) => ({
     currentTime: state.currentTime,
     objects: state.objects,
-    selectedId: state.selectedId,
-    selectObject: state.selectObject,
+    selectedIds: state.selectedIds,
+    clearSelection: state.clearSelection,
     projectSettings: state.projectSettings,
     isPlaying: state.isPlaying,
     isExporting: state.isExporting,
@@ -72,7 +72,7 @@ const Viewport: React.FC = () => {
         app.stage.sortableChildren = true;
         app.stage.on('pointerdown', (e) => {
           if (useStore.getState().isExporting) return;
-          if (e.target === app.stage) selectObject(null);
+          if (e.target === app.stage) clearSelection();
         });
         
         // 初回描画
@@ -190,12 +190,12 @@ const Viewport: React.FC = () => {
         return; 
       }
 
-      if (obj.type === 'group_control' && selectedId !== obj.id && isPlaying) return;
+      const isSelected = selectedIds.includes(obj.id);
+      if (obj.type === 'group_control' && !isSelected && isPlaying) return;
 
       const lipSyncViseme = getLipSyncViseme(obj, time, currentObjects);
 
       let container = currentPixiObjects.get(obj.id);
-      const isSelected = selectedId === obj.id;
       if (!container) {
         container = new PIXI.Container();
         container.label = obj.id; container.eventMode = 'static'; container.cursor = 'pointer';
@@ -335,7 +335,7 @@ const Viewport: React.FC = () => {
     
     // 手動レンダリング実行 (Ticker停止中のため必須)
     app.render();
-  }, [selectedId, isExporting, isPlaying, isSnapshotRequested, layers]);
+  }, [selectedIds, isExporting, isPlaying, isSnapshotRequested, layers]);
 
   useEffect(() => { 
       if (!isExporting) renderScene(currentTime, objects); 

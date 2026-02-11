@@ -2,6 +2,14 @@ import { create } from 'zustand';
 import { TimelineObject, ProjectSettings, LayerState } from '../types';
 import { MAX_LAYERS } from '../components/timelineConstants';
 
+interface ClipboardState {
+  objects: TimelineObject[];
+  anchorStartTime: number;
+  anchorLayer: number;
+  anchorX: number;
+  anchorY: number;
+}
+
 interface AppState {
   // Project State
   isProjectLoaded: boolean;
@@ -20,6 +28,8 @@ interface AppState {
   layers: LayerState[];
   objects: TimelineObject[];
   selectedId: string | null;
+  selectedIds: string[];
+  clipboard: ClipboardState | null;
   
   // History State for Undo/Redo
   pastStates: TimelineObject[][];
@@ -50,8 +60,17 @@ interface AppState {
   addObject: (obj: TimelineObject) => void;
   updateObject: (id: string, newProps: Partial<TimelineObject>) => void;
   deleteObject: (id: string) => void;
+  deleteSelectedObjects: () => void;
   splitObject: () => void;
+  copySelectedObjects: () => void;
+  pasteClipboardObjects: () => void;
+  duplicateSelectedObjects: () => void;
+  groupSelectedObjects: () => void;
+  ungroupSelectedObjects: () => void;
   selectObject: (id: string | null) => void;
+  toggleObjectSelection: (id: string) => void;
+  selectObjects: (ids: string[], primaryId?: string | null) => void;
+  clearSelection: () => void;
 }
 
 // 期間計算ヘルパー
@@ -109,6 +128,27 @@ const isLayerLocked = (layers: LayerState[], layer: number): boolean => {
   return layers[layer].locked;
 };
 
+const cloneTimelineObject = (object: TimelineObject): TimelineObject => {
+  return JSON.parse(JSON.stringify(object)) as TimelineObject;
+};
+
+const getCurrentSelection = (state: AppState): string[] => {
+  if (state.selectedIds.length > 0) {
+    return state.selectedIds.filter((id, index, list) => list.indexOf(id) === index);
+  }
+  if (state.selectedId) {
+    return [state.selectedId];
+  }
+  return [];
+};
+
+const getSelectedObjects = (state: AppState): TimelineObject[] => {
+  const selectedIds = getCurrentSelection(state);
+  if (selectedIds.length === 0) return [];
+  const selectedSet = new Set(selectedIds);
+  return state.objects.filter((obj) => selectedSet.has(obj.id));
+};
+
 export const useStore = create<AppState>((set, get) => ({
   isProjectLoaded: false,
   projectSettings: { width: 1920, height: 1080, fps: 60, sampleRate: 44100 },
@@ -121,6 +161,8 @@ export const useStore = create<AppState>((set, get) => ({
   layers: createDefaultLayers(),
   objects: [],
   selectedId: null,
+  selectedIds: [],
+  clipboard: null,
 
   pastStates: [],
   futureStates: [],
@@ -134,6 +176,8 @@ export const useStore = create<AppState>((set, get) => ({
     layers: createDefaultLayers(),
     objects: [],
     selectedId: null,
+    selectedIds: [],
+    clipboard: null,
     pastStates: [],
     futureStates: []
   }),
@@ -149,6 +193,8 @@ export const useStore = create<AppState>((set, get) => ({
       layers: normaliseLayers(layers),
       objects: normalisedObjects,
       selectedId: null,
+      selectedIds: [],
+      clipboard: null,
       pastStates: [],
       futureStates: []
     });
@@ -229,7 +275,9 @@ export const useStore = create<AppState>((set, get) => ({
       objects: previous,
       pastStates: newPast,
       futureStates: [state.objects, ...state.futureStates],
-      duration: calculateAutoDuration(previous)
+      duration: calculateAutoDuration(previous),
+      selectedId: null,
+      selectedIds: []
     };
   }),
 
@@ -241,7 +289,9 @@ export const useStore = create<AppState>((set, get) => ({
       objects: next,
       pastStates: [...state.pastStates, state.objects],
       futureStates: newFuture,
-      duration: calculateAutoDuration(next)
+      duration: calculateAutoDuration(next),
+      selectedId: null,
+      selectedIds: []
     };
   }),
 
@@ -264,6 +314,7 @@ export const useStore = create<AppState>((set, get) => ({
       return { 
         objects: newObjects,
         selectedId: obj.id,
+        selectedIds: [obj.id],
         duration: calculateAutoDuration(newObjects)
       };
     });
@@ -319,9 +370,35 @@ export const useStore = create<AppState>((set, get) => ({
     get().pushHistory();
     set((state) => {
       const newObjects = state.objects.filter(obj => obj.id !== id);
+      const nextSelectedIds = state.selectedIds.filter((selectedId) => selectedId !== id);
+      const lastSelectedId = nextSelectedIds.length > 0 ? nextSelectedIds[nextSelectedIds.length - 1] : null;
       return {
         objects: newObjects,
-        selectedId: state.selectedId === id ? null : state.selectedId,
+        selectedId: state.selectedId === id ? lastSelectedId : state.selectedId,
+        selectedIds: nextSelectedIds,
+        duration: calculateAutoDuration(newObjects)
+      };
+    });
+  },
+
+  deleteSelectedObjects: () => {
+    const state = get();
+    const selectedObjects = getSelectedObjects(state);
+    if (selectedObjects.length === 0) return;
+
+    const deletableIds = selectedObjects
+      .filter((obj) => !isLayerLocked(state.layers, clampLayerIndex(obj.layer)))
+      .map((obj) => obj.id);
+    if (deletableIds.length === 0) return;
+
+    const deletableSet = new Set(deletableIds);
+    get().pushHistory();
+    set((currentState) => {
+      const newObjects = currentState.objects.filter((obj) => !deletableSet.has(obj.id));
+      return {
+        objects: newObjects,
+        selectedId: null,
+        selectedIds: [],
         duration: calculateAutoDuration(newObjects)
       };
     });
@@ -362,9 +439,241 @@ export const useStore = create<AppState>((set, get) => ({
     set({
         objects: newObjects,
         selectedId: secondPart.id,
+        selectedIds: [secondPart.id],
         duration: calculateAutoDuration(newObjects)
     });
   },
 
-  selectObject: (id) => set({ selectedId: id }),
+  copySelectedObjects: () => set((state) => {
+    const selectedObjects = getSelectedObjects(state);
+    if (selectedObjects.length === 0) return {};
+
+    const sorted = selectedObjects
+      .slice()
+      .sort((a, b) => a.startTime - b.startTime || a.layer - b.layer);
+    const anchorStartTime = Math.min(...sorted.map((obj) => obj.startTime));
+    const anchorLayer = Math.min(...sorted.map((obj) => obj.layer));
+    const anchorX = Math.min(...sorted.map((obj) => obj.x));
+    const anchorY = Math.min(...sorted.map((obj) => obj.y));
+
+    return {
+      clipboard: {
+        objects: sorted.map(cloneTimelineObject),
+        anchorStartTime,
+        anchorLayer,
+        anchorX,
+        anchorY
+      }
+    };
+  }),
+
+  pasteClipboardObjects: () => {
+    const state = get();
+    const clipboard = state.clipboard;
+    if (!clipboard || clipboard.objects.length === 0) return;
+
+    const groupIdMap = new Map<string, string>();
+    const pastedObjects: TimelineObject[] = [];
+
+    clipboard.objects.forEach((template) => {
+      const targetLayer = clampLayerIndex(template.layer);
+      if (isLayerLocked(state.layers, targetLayer)) return;
+
+      const cloned = cloneTimelineObject(template);
+      const xOffset = template.x - clipboard.anchorX;
+      const yOffset = template.y - clipboard.anchorY;
+
+      cloned.id = crypto.randomUUID();
+      cloned.startTime = Math.max(0, state.currentTime + (template.startTime - clipboard.anchorStartTime));
+      cloned.layer = targetLayer;
+      cloned.x = clipboard.anchorX + xOffset + 16;
+      cloned.y = clipboard.anchorY + yOffset + 16;
+      cloned.endX = cloned.endX + 16;
+      cloned.endY = cloned.endY + 16;
+      if (cloned.motionPath) {
+        cloned.motionPath = cloned.motionPath.map((point) => ({
+          ...point,
+          x: point.x + 16,
+          y: point.y + 16
+        }));
+      }
+
+      if (cloned.groupId) {
+        if (!groupIdMap.has(cloned.groupId)) {
+          groupIdMap.set(cloned.groupId, crypto.randomUUID());
+        }
+        cloned.groupId = groupIdMap.get(cloned.groupId);
+      }
+
+      pastedObjects.push(cloned);
+    });
+
+    if (pastedObjects.length === 0) return;
+
+    get().pushHistory();
+    set((currentState) => {
+      const newObjects = [...currentState.objects, ...pastedObjects];
+      return {
+        objects: newObjects,
+        selectedId: pastedObjects[pastedObjects.length - 1].id,
+        selectedIds: pastedObjects.map((obj) => obj.id),
+        duration: calculateAutoDuration(newObjects)
+      };
+    });
+  },
+
+  duplicateSelectedObjects: () => {
+    const state = get();
+    const selectedObjects = getSelectedObjects(state);
+    if (selectedObjects.length === 0) return;
+
+    const sorted = selectedObjects
+      .slice()
+      .sort((a, b) => a.startTime - b.startTime || a.layer - b.layer);
+    const groupIdMap = new Map<string, string>();
+    const duplicatedObjects: TimelineObject[] = [];
+
+    sorted.forEach((template) => {
+      const targetLayer = clampLayerIndex(template.layer + 1);
+      if (isLayerLocked(state.layers, targetLayer)) return;
+
+      const cloned = cloneTimelineObject(template);
+      cloned.id = crypto.randomUUID();
+      cloned.startTime = template.startTime + 0.2;
+      cloned.layer = targetLayer;
+      cloned.x = template.x + 20;
+      cloned.y = template.y + 20;
+      cloned.endX = cloned.endX + 20;
+      cloned.endY = cloned.endY + 20;
+      if (cloned.motionPath) {
+        cloned.motionPath = cloned.motionPath.map((point) => ({
+          ...point,
+          x: point.x + 20,
+          y: point.y + 20
+        }));
+      }
+
+      if (cloned.groupId) {
+        if (!groupIdMap.has(cloned.groupId)) {
+          groupIdMap.set(cloned.groupId, crypto.randomUUID());
+        }
+        cloned.groupId = groupIdMap.get(cloned.groupId);
+      }
+
+      duplicatedObjects.push(cloned);
+    });
+
+    if (duplicatedObjects.length === 0) return;
+
+    get().pushHistory();
+    set((currentState) => {
+      const newObjects = [...currentState.objects, ...duplicatedObjects];
+      return {
+        objects: newObjects,
+        selectedId: duplicatedObjects[duplicatedObjects.length - 1].id,
+        selectedIds: duplicatedObjects.map((obj) => obj.id),
+        duration: calculateAutoDuration(newObjects)
+      };
+    });
+  },
+
+  groupSelectedObjects: () => {
+    const state = get();
+    const selectedObjects = getSelectedObjects(state);
+    if (selectedObjects.length < 2) return;
+
+    const editableIds = selectedObjects
+      .filter((obj) => !isLayerLocked(state.layers, clampLayerIndex(obj.layer)))
+      .map((obj) => obj.id);
+    if (editableIds.length < 2) return;
+
+    const editableSet = new Set(editableIds);
+    const newGroupId = crypto.randomUUID();
+    get().pushHistory();
+    set((currentState) => {
+      const newObjects = currentState.objects.map((obj) => {
+        if (!editableSet.has(obj.id)) return obj;
+        return { ...obj, groupId: newGroupId };
+      });
+      return { objects: newObjects };
+    });
+  },
+
+  ungroupSelectedObjects: () => {
+    const state = get();
+    const selectedObjects = getSelectedObjects(state);
+    if (selectedObjects.length === 0) return;
+
+    const groupIds = new Set(
+      selectedObjects
+        .map((obj) => obj.groupId)
+        .filter((groupId): groupId is string => typeof groupId === 'string' && groupId.trim() !== '')
+    );
+    if (groupIds.size === 0) return;
+
+    get().pushHistory();
+    set((currentState) => {
+      const newObjects = currentState.objects.map((obj) => {
+        if (!obj.groupId || !groupIds.has(obj.groupId)) return obj;
+        if (isLayerLocked(currentState.layers, clampLayerIndex(obj.layer))) return obj;
+        return { ...obj, groupId: undefined };
+      });
+      return { objects: newObjects };
+    });
+  },
+
+  selectObject: (id) => set((state) => {
+    if (id === null) {
+      if (state.selectedId === null && state.selectedIds.length === 0) return {};
+      return { selectedId: null, selectedIds: [] };
+    }
+
+    if (state.selectedId === id && state.selectedIds.length === 1 && state.selectedIds[0] === id) {
+      return {};
+    }
+
+    return { selectedId: id, selectedIds: [id] };
+  }),
+
+  toggleObjectSelection: (id) => set((state) => {
+    const exists = state.selectedIds.includes(id);
+    if (exists) {
+      const nextSelectedIds = state.selectedIds.filter((selectedId) => selectedId !== id);
+      const lastSelectedId = nextSelectedIds.length > 0 ? nextSelectedIds[nextSelectedIds.length - 1] : null;
+      return {
+        selectedIds: nextSelectedIds,
+        selectedId: state.selectedId === id ? lastSelectedId : state.selectedId
+      };
+    }
+
+    return {
+      selectedIds: [...state.selectedIds, id],
+      selectedId: id
+    };
+  }),
+
+  selectObjects: (ids, primaryId = null) => set((state) => {
+    const uniqueIds = ids.filter((id, index, array) => array.indexOf(id) === index);
+    const existingIdSet = new Set(state.objects.map((obj) => obj.id));
+    const nextSelectedIds = uniqueIds.filter((id) => existingIdSet.has(id));
+
+    if (nextSelectedIds.length === 0) {
+      return { selectedId: null, selectedIds: [] };
+    }
+
+    const fallbackSelectedId = nextSelectedIds[nextSelectedIds.length - 1];
+    const nextSelectedId = primaryId && nextSelectedIds.includes(primaryId)
+      ? primaryId
+      : fallbackSelectedId;
+
+    return {
+      selectedId: nextSelectedId,
+      selectedIds: nextSelectedIds
+    };
+  }),
+
+  clearSelection: () => set((state) => {
+    if (state.selectedId === null && state.selectedIds.length === 0) return {};
+    return { selectedId: null, selectedIds: [] };
+  }),
 }));

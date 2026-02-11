@@ -53,6 +53,29 @@
 - `src/App.tsx`
 - 保存時に `layers` を含め、読込時に `loadProject(..., layers)` へ渡すように変更した。
 
+## 23. P0-3 複数選択/コピー貼り付け/複製/グループ化
+- `src/store/useStore.ts`
+- `selectedIds` / `clipboard` を追加し、複数選択状態とコピー元スナップショットを管理するようにした。
+- `copySelectedObjects` / `pasteClipboardObjects` / `duplicateSelectedObjects` / `groupSelectedObjects` / `ungroupSelectedObjects` / `deleteSelectedObjects` を追加した。
+- 既存 `selectObject` と併用できるように `toggleObjectSelection` / `selectObjects` / `clearSelection` を追加し、単一選択との後方互換を維持した。
+- `src/types.ts`
+- オブジェクト同士の論理グループ識別用に `groupId?: string` を追加した。
+- `src/components/TimelineItem.tsx`
+- `Ctrl/Cmd` クリックで選択トグル、`Shift` クリックで選択追加できるようにした。
+- 複数選択時の視覚反映と、グループ所属オブジェクトの `[G]` 表示を追加した。
+- `src/hooks/usePixiInteraction.ts`
+- ビューポート上でも `Ctrl/Cmd` / `Shift` を使った選択操作を追加し、タイムライン操作と整合させた。
+- `src/components/Viewport.tsx`
+- 選択枠描画を `selectedIds` ベースに変更し、複数選択を可視化した。
+- `src/hooks/useAppLogic.ts`
+- キー操作を拡張し、`Ctrl/Cmd + C/V/D/G`、`Ctrl/Cmd + Shift + G`、`Delete` を複数選択対応にした。
+- `src/components/TimelineControlBar.tsx`
+- `Copy` / `Paste` / `Dup` / `Group` / `Ungroup` ボタンを追加した。
+- `src/components/TimelineContextMenu.tsx`
+- オブジェクト右クリックメニューに `コピー/複製/貼り付け/グループ化/グループ解除` を追加した。
+- `src/components/PropertyPanel.tsx`
+- 複数選択中は件数表示（`(N objects selected)`）を表示し、編集中オブジェクトを明示した。
+
 ## 確認
 - `npx tsc --noEmit` を実行し、型エラーなしを確認。
 

@@ -4,7 +4,10 @@ import { TimelineObject, AudioVisualizationObject, ColorCorrection, Vibration, C
 import { buildPsdLayerTree, togglePsdLayer } from '../utils/psdParser';
 
 const PropertyPanel: React.FC = () => {
-  const selectedObject = useStore((state) => state.objects.find(obj => obj.id === state.selectedId));
+  const { selectedObject, selectedCount } = useStore((state) => ({
+    selectedObject: state.objects.find(obj => obj.id === state.selectedId),
+    selectedCount: state.selectedIds.length
+  }));
   const updateObject = useStore((state) => state.updateObject);
   const [isRefreshingPsdTree, setIsRefreshingPsdTree] = useState(false);
 
@@ -152,6 +155,11 @@ const PropertyPanel: React.FC = () => {
     <div className="property-panel" style={{ width: '300px', height: '100%', background: '#252526', borderLeft: '1px solid #111', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
       <div style={{ padding: '10px', borderBottom: '1px solid #333', background: '#333', fontWeight: 'bold' }}>
         Property: {selectedObject.name}
+        {selectedCount > 1 && (
+          <span style={{ marginLeft: '8px', fontWeight: 'normal', fontSize: '11px', color: '#aaa' }}>
+            ({selectedCount} objects selected)
+          </span>
+        )}
       </div>
       
       <div style={{ padding: '10px' }}>
