@@ -58,11 +58,11 @@ export const TimelineControlBar: React.FC<TimelineControlBarProps> = ({
       
       <div style={{ width: '1px', height: '16px', background: '#555', margin: '0 4px' }}></div>
       <button onClick={splitObject} disabled={isExporting} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:'pointer'}}>Split</button>
-      <button onClick={copySelectedObjects} disabled={isExporting || !hasSelection} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:isExporting || !hasSelection ? 'default' : 'pointer'}}>Copy</button>
-      <button onClick={pasteClipboardObjects} disabled={isExporting} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:isExporting ? 'default' : 'pointer'}}>Paste</button>
-      <button onClick={duplicateSelectedObjects} disabled={isExporting || !hasSelection} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:isExporting || !hasSelection ? 'default' : 'pointer'}}>Dup</button>
-      <button onClick={groupSelectedObjects} disabled={isExporting || !hasMultipleSelection} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:isExporting || !hasMultipleSelection ? 'default' : 'pointer'}}>Group</button>
-      <button onClick={ungroupSelectedObjects} disabled={isExporting || !hasSelection} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:isExporting || !hasSelection ? 'default' : 'pointer'}}>Ungroup</button>
+      <button onClick={copySelectedObjects} disabled={isExporting || !hasSelection} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:isExporting || !hasSelection ? 'default' : 'pointer'}}>コピー</button>
+      <button onClick={pasteClipboardObjects} disabled={isExporting} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:isExporting ? 'default' : 'pointer'}}>貼り付け</button>
+      <button onClick={duplicateSelectedObjects} disabled={isExporting || !hasSelection} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:isExporting || !hasSelection ? 'default' : 'pointer'}}>複製</button>
+      <button onClick={groupSelectedObjects} disabled={isExporting || !hasMultipleSelection} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:isExporting || !hasMultipleSelection ? 'default' : 'pointer'}}>グループ化</button>
+      <button onClick={ungroupSelectedObjects} disabled={isExporting || !hasSelection} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:isExporting || !hasSelection ? 'default' : 'pointer'}}>グループ解除</button>
       
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span>Duration:</span>

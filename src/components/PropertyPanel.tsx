@@ -157,7 +157,7 @@ const PropertyPanel: React.FC = () => {
         Property: {selectedObject.name}
         {selectedCount > 1 && (
           <span style={{ marginLeft: '8px', fontWeight: 'normal', fontSize: '11px', color: '#aaa' }}>
-            ({selectedCount} objects selected)
+            ({selectedCount}個選択中)
           </span>
         )}
       </div>
