@@ -55,6 +55,20 @@ export const getElectronFilePath = (file: File): string | null => {
   return trimmed.length > 0 ? trimmed : null;
 };
 
+export const toFileProtocolUrl = (filePath: string): string => {
+  const trimmed = filePath.trim();
+  if (!trimmed) return '';
+
+  const normalised = trimmed.replace(/\\/g, '/');
+  if (/^[A-Za-z]:\//.test(normalised)) {
+    return encodeURI(`file:///${normalised}`);
+  }
+  if (normalised.startsWith('/')) {
+    return encodeURI(`file://${normalised}`);
+  }
+  return encodeURI(`file://${normalised}`);
+};
+
 export const probeMediaWithRust = async (file: File): Promise<RustMediaProbeResult | null> => {
   const filePath = getElectronFilePath(file);
   if (!filePath || !hasIpcRenderer()) {

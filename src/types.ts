@@ -134,6 +134,7 @@ export interface ShapeObject extends BaseObject {
 export interface ImageObject extends BaseObject {
   type: 'image';
   src: string;
+  filePath?: string;
   width: number;
   height: number;
 }
@@ -141,6 +142,7 @@ export interface ImageObject extends BaseObject {
 export interface VideoObject extends BaseObject {
   type: 'video';
   src: string;
+  filePath?: string;
   width: number;
   height: number;
   volume: number;
@@ -150,6 +152,7 @@ export interface VideoObject extends BaseObject {
 export interface AudioObject extends BaseObject {
   type: 'audio';
   src: string;
+  filePath?: string;
   volume: number;
   muted: boolean;
   labData?: LabPhoneme[];
@@ -201,6 +204,7 @@ export interface PsdLayerNode {
 export interface PsdObject extends BaseObject {
   type: 'psd';
   file?: File;
+  filePath?: string;
   src: string;
   width: number;
   height: number;

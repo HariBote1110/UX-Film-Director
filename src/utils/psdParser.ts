@@ -240,14 +240,14 @@ export const togglePsdLayer = (
   return nextActiveLayerIds;
 };
 
-export const parsePsdAsObject = async (
-  file: File,
+export const parsePsdArrayBufferAsObject = async (
+  arrayBuffer: ArrayBuffer,
+  fileName: string,
   startTime: number,
   projectWidth: number = 1280,
-  projectHeight: number = 720
+  projectHeight: number = 720,
+  originalFile?: File
 ): Promise<PsdParseResult> => {
-  const arrayBuffer = await file.arrayBuffer();
-  
   // 読み込み
   const psd = readPsd(arrayBuffer, {
     skipLayerImageData: false,
@@ -395,7 +395,7 @@ export const parsePsdAsObject = async (
   const psdObject: TimelineObject = {
     id: crypto.randomUUID(),
     type: 'psd',
-    name: file.name,
+    name: fileName,
     layer: 0,
     startTime: startTime,
     duration: 5,
@@ -414,11 +414,28 @@ export const parsePsdAsObject = async (
     scaleY: 1,
     rotation: 0,
     opacity: 1,
-    file: file,
+    file: originalFile,
     layerTree: buildPsdLayerTree(rootNode, activeLayerIds),
     rootLayer: rootNode,
     activeLayerIds: activeLayerIds
   };
 
   return { psdObject: psdObject as PsdObject };
+};
+
+export const parsePsdAsObject = async (
+  file: File,
+  startTime: number,
+  projectWidth: number = 1280,
+  projectHeight: number = 720
+): Promise<PsdParseResult> => {
+  const arrayBuffer = await file.arrayBuffer();
+  return parsePsdArrayBufferAsObject(
+    arrayBuffer,
+    file.name,
+    startTime,
+    projectWidth,
+    projectHeight,
+    file
+  );
 };

@@ -86,3 +86,7 @@ Rust バックエンドの `export.start` で `stderr` を未読 `pipe` にし�
 
 19. ラジオグループ排他制御を祖先まで拡張する  
 `togglePsdLayer` の排他判定を直近親だけでなく経路上の全ラジオグループに適用し、サブグループ配下の枝も含めて非選択側を無効化する。
+
+20. P0-1 プロジェクト保存/読込を実装する  
+Electron IPC で `save-project-file` / `open-project-file` / `read-file-bytes` を追加し、`*.uxfd.json` を入出力できるようにする。  
+Renderer 側では `projectFile` ユーティリティを新設し、PSD を含むオブジェクト復元（ファイルパス再解決・PSD 再解析・レイヤー状態復元）を行う。

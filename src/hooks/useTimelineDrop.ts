@@ -4,7 +4,7 @@ import { TimelineObject } from '../types';
 import { parseLabFile } from '../utils/labParser';
 import { HEADER_WIDTH, RULER_HEIGHT, ROW_HEIGHT, MAX_LAYERS, PX_PER_SEC } from '../components/timelineConstants';
 import { shallow } from 'zustand/shallow';
-import { resolveAudioMetadata, resolveVideoMetadata } from '../utils/mediaMetadata';
+import { getElectronFilePath, resolveAudioMetadata, resolveVideoMetadata } from '../utils/mediaMetadata';
 import { parsePsdAsObject } from '../utils/psdParser';
 
 export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) => {
@@ -55,6 +55,7 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
 
         if (lowerName.endsWith('.psd')) {
             try {
+                const filePath = getElectronFilePath(file);
                 const { psdObject } = await parsePsdAsObject(
                     file,
                     dropTime,
@@ -64,6 +65,7 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
 
                 const newPsd: TimelineObject = {
                     ...psdObject,
+                    filePath: filePath ?? undefined,
                     layer: dropLayer,
                     startTime: dropTime,
                 };
@@ -72,25 +74,28 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
                 console.error('Failed to parse dropped PSD file', error);
             }
         } else if (file.type.startsWith('image/')) {
+            const filePath = getElectronFilePath(file);
             const url = URL.createObjectURL(file);
             const img = new Image();
             img.src = url;
             img.onload = () => {
                 const newImage: TimelineObject = {
                     id: crypto.randomUUID(), type: 'image', name: file.name, layer: dropLayer, startTime: dropTime, duration: 5,
-                    x: 640 - (img.width / 2), y: 360 - (img.height / 2), width: img.width, height: img.height, src: url,
+                    x: 640 - (img.width / 2), y: 360 - (img.height / 2), width: img.width, height: img.height, src: url, filePath: filePath ?? undefined,
                     enableAnimation: false, endX: 640 - (img.width / 2), endY: 360 - (img.height / 2), easing: 'linear', offset: 0,
                     rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
                 };
                 addObject(newImage);
             };
         } else if (file.type.startsWith('video/')) {
+            const filePath = getElectronFilePath(file);
             const url = URL.createObjectURL(file);
             try {
                 const metadata = await resolveVideoMetadata(file, url);
                 const newVideo: TimelineObject = {
                     id: crypto.randomUUID(), type: 'video', name: file.name, layer: dropLayer, startTime: dropTime, duration: metadata.duration,
                     x: 640 - (metadata.width / 2), y: 360 - (metadata.height / 2), width: metadata.width, height: metadata.height, src: url,
+                    filePath: filePath ?? undefined,
                     volume: 1.0, muted: false,
                     enableAnimation: false, endX: 640 - (metadata.width / 2), endY: 360 - (metadata.height / 2), easing: 'linear', offset: 0,
                     rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
@@ -101,6 +106,7 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
                 URL.revokeObjectURL(url);
             }
         } else if (file.type.startsWith('audio/') || lowerName.endsWith('.wav')) {
+            const filePath = getElectronFilePath(file);
             const url = URL.createObjectURL(file);
             let labData = undefined;
             if (labFiles.has(baseName)) {
@@ -116,7 +122,7 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
                 const metadata = await resolveAudioMetadata(file, url);
                  const newAudio: TimelineObject = {
                     id: crypto.randomUUID(), type: 'audio', name: file.name, layer: dropLayer, startTime: dropTime, duration: metadata.duration,
-                    src: url, volume: 1.0, muted: false,
+                    src: url, filePath: filePath ?? undefined, volume: 1.0, muted: false,
                     x: 0, y: 0, enableAnimation: false, endX: 0, endY: 0, easing: 'linear', offset: 0,
                     rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
                     labData: labData

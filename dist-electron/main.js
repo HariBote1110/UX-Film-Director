@@ -227,6 +227,66 @@ electron.app.on("before-quit", () => {
 });
 electron.app.whenReady().then(() => {
   createWindow();
+  electron.ipcMain.handle("save-project-file", async (_event, payload) => {
+    const data = typeof (payload == null ? void 0 : payload.data) === "string" ? payload.data : "";
+    if (!data) {
+      return { success: false, error: "保存データが必要です。" };
+    }
+    const defaultName = typeof (payload == null ? void 0 : payload.defaultName) === "string" && payload.defaultName.trim() !== "" ? payload.defaultName.trim() : "project.uxfd.json";
+    const { filePath } = await electron.dialog.showSaveDialog({
+      title: "プロジェクトを保存",
+      defaultPath: defaultName,
+      filters: [{ name: "UXFD Project", extensions: ["json", "uxfd"] }]
+    });
+    if (!filePath) {
+      return { success: false, cancelled: true };
+    }
+    try {
+      fs.writeFileSync(filePath, data, "utf8");
+      return { success: true, filePath };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+  electron.ipcMain.handle("open-project-file", async () => {
+    const result = await electron.dialog.showOpenDialog({
+      title: "プロジェクトを開く",
+      properties: ["openFile"],
+      filters: [{ name: "UXFD Project", extensions: ["json", "uxfd"] }]
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+      return { success: false, cancelled: true };
+    }
+    const filePath = result.filePaths[0];
+    try {
+      const data = fs.readFileSync(filePath, "utf8");
+      return { success: true, filePath, data };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+  electron.ipcMain.handle("read-file-bytes", async (_event, payload) => {
+    const filePath = typeof (payload == null ? void 0 : payload.filePath) === "string" ? payload.filePath.trim() : "";
+    if (!filePath) {
+      return { success: false, error: "filePath が必要です。" };
+    }
+    try {
+      const data = fs.readFileSync(filePath);
+      const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+      return { success: true, data: buffer };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
   electron.ipcMain.handle("save-temp-audio", async (event, buffer) => {
     try {
       const tempPath = path.join(os.tmpdir(), `uxfilm_audio_${Date.now()}.wav`);

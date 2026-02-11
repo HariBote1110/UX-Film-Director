@@ -6,6 +6,31 @@
 - 直近着手順として、`プロジェクト永続化 -> レイヤー拡張 -> 複数選択編集 -> フィルタスタック基盤 -> 音声統合エクスポート` を明文化。
 - `markdown/Task.md` と `markdown/Implementation_Plan.md` にも今回タスクとロードマップを反映し、`markdown/` を単一の正とする方針に合わせて同期。
 
+## 21. P0-1 プロジェクト保存/読込の実装
+- `electron/main.ts`
+- `save-project-file` / `open-project-file` / `read-file-bytes` の IPC を追加し、プロジェクト JSON 保存・読み込みとファイルバイト読込を実装。
+- `src/utils/projectFile.ts`（新規）
+- プロジェクトファイル形式（`uxfd-project` / version `1`）を定義し、保存時シリアライズと読込時バリデーションを実装。
+- 読込時に `filePath` からメディア `src` を再解決し、PSD はバイナリ再読込 + `ag-psd` 再解析で復元する処理を追加。
+- PSD の `activeLayerIds` は保存値を優先してマージし、`layerTree` を再構築して表情状態が復元されるようにした。
+- `src/App.tsx`
+- タイトルバーへ「プロジェクトを開く」「プロジェクトを保存」を追加し、保存/読込導線を実装。
+- 読込完了時は `useStore.loadProject` で `projectSettings` / `objects` / `duration` / 履歴を一括復元するようにした。
+- `src/store/useStore.ts`
+- `loadProject` を追加し、プロジェクト読込時に状態を初期化しつつ復元できるようにした。
+- `src/components/ProjectSetup.tsx`
+- 初期画面に「既存プロジェクトを開く」ボタンを追加。
+- `src/components/Timeline.tsx`
+- `src/hooks/useTimelineDrop.ts`
+- 画像/動画/音声/PSD 追加時に `filePath` を保持するよう変更し、保存後の再読込で再解決可能にした。
+- `src/types.ts`
+- `image` / `video` / `audio` / `psd` に `filePath?: string` を追加。
+- `src/utils/mediaMetadata.ts`
+- `filePath` から `file://` URL を生成する `toFileProtocolUrl` を追加。
+
+## 確認
+- `npx tsc --noEmit` を実行し、型エラーなしを確認。
+
 ## 1. ストア更新最適化
 - `src/store/useStore.ts`
 - `setTime` / `setDuration` に同値更新ガードを追加。

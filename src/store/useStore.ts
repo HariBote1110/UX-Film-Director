@@ -25,6 +25,7 @@ interface AppState {
 
   // Actions
   initializeProject: (settings: ProjectSettings) => void;
+  loadProject: (settings: ProjectSettings, objects: TimelineObject[], duration?: number) => void;
   setTime: (time: number) => void;
   setDuration: (duration: number) => void;
   advanceTime: (deltaTime: number) => void;
@@ -79,7 +80,24 @@ export const useStore = create<AppState>((set, get) => ({
     projectSettings: settings,
     isProjectLoaded: true,
     currentTime: 0,
-    isPlaying: false
+    duration: 30,
+    isPlaying: false,
+    objects: [],
+    selectedId: null,
+    pastStates: [],
+    futureStates: []
+  }),
+
+  loadProject: (settings, objects, duration) => set({
+    projectSettings: settings,
+    isProjectLoaded: true,
+    currentTime: 0,
+    duration: Math.max(1, duration ?? calculateAutoDuration(objects)),
+    isPlaying: false,
+    objects,
+    selectedId: null,
+    pastStates: [],
+    futureStates: []
   }),
 
   setTime: (time) => set((state) => {
