@@ -1,3 +1,401 @@
-"use strict";const n=require("electron"),c=require("node:path"),k=require("node:child_process"),u=require("node:fs"),v=require("node:os");n.app.commandLine.appendSwitch("enable-gpu-rasterization");n.app.commandLine.appendSwitch("enable-zero-copy");n.app.commandLine.appendSwitch("ignore-gpu-blocklist");n.app.commandLine.appendSwitch("enable-unsafe-webgpu");n.app.commandLine.appendSwitch("disable-features","UseChromeOSDirectVideoDecoder");n.app.commandLine.appendSwitch("enable-features","VaapiVideoDecoder,CanvasOopRasterization");process.env.DIST=c.join(__dirname,"../dist");process.env.VITE_PUBLIC=n.app.isPackaged?process.env.DIST:c.join(__dirname,"../public");let d,f=null,E=1,m="";const l=new Map,w=process.env.VITE_DEV_SERVER_URL,R=()=>{if(process.env.UXFD_FFMPEG_BIN)return process.env.UXFD_FFMPEG_BIN;const r=["/opt/homebrew/bin/ffmpeg","/usr/local/bin/ffmpeg","ffmpeg"];for(const e of r)if(e==="ffmpeg"||u.existsSync(e))return e;return"ffmpeg"},B=()=>{if(process.env.UXFD_FFPROBE_BIN)return process.env.UXFD_FFPROBE_BIN;const r=["/opt/homebrew/bin/ffprobe","/usr/local/bin/ffprobe","ffprobe"];for(const e of r)if(e==="ffprobe"||u.existsSync(e))return e;return"ffprobe"},F=()=>process.platform==="win32"?"uxfd-rust-backend.exe":"uxfd-rust-backend",x=()=>{const r=F(),e=[];if(process.env.UXFD_RUST_BACKEND_BIN&&e.push(process.env.UXFD_RUST_BACKEND_BIN),n.app.isPackaged)e.push(c.join(process.resourcesPath,"rust-backend",r)),e.push(c.join(process.resourcesPath,r));else{const t=n.app.getAppPath();e.push(c.join(t,"rust-backend","target","debug",r)),e.push(c.join(t,"rust-backend","target","release",r))}return e},D=()=>{for(const r of x())if(u.existsSync(r))return r;return null},P=r=>{l.forEach((e,t)=>{clearTimeout(e.timeout),e.reject(new Error(r)),l.delete(t)})},y=r=>{var t;m+=r;const e=m.split(`
-`);m=e.pop()??"";for(const s of e){const o=s.trim();if(!o)continue;let i;try{i=JSON.parse(o)}catch{console.error(`[RustBackend] Invalid response JSON: ${o}`);continue}if(typeof i.id!="number")continue;const a=l.get(i.id);a&&(clearTimeout(a.timeout),l.delete(i.id),i.ok?a.resolve(i.result??null):a.reject(new Error(((t=i.error)==null?void 0:t.message)??"Rust backend returned an error")))}},I=()=>{if(f&&!f.killed)return f;const r=D();if(!r)throw new Error('Rust backend binary not found. Build it with "cargo build --manifest-path rust-backend/Cargo.toml" or set UXFD_RUST_BACKEND_BIN.');const e=k.spawn(r,[],{stdio:["pipe","pipe","pipe"]});if(!e.stdout||!e.stderr||!e.stdin)throw new Error("Failed to start Rust backend stdio streams.");const t=e;return t.stdout.setEncoding("utf8"),t.stderr.setEncoding("utf8"),t.stdout.on("data",s=>{y(s)}),t.stderr.on("data",s=>{const o=s.trim();o&&console.log(`[RustBackend] ${o}`)}),t.on("error",s=>{console.error("Rust backend process error:",s),P(`Rust backend process error: ${s.message}`)}),t.on("exit",(s,o)=>{f=null;const i=`Rust backend exited (code=${s??"null"}, signal=${o??"null"})`;P(i)}),f=t,t},p=(r,e={},t=8e3)=>new Promise((s,o)=>{let i;try{i=I()}catch(h){o(h);return}const a=E++,g=setTimeout(()=>{l.delete(a),o(new Error(`Rust backend request timed out: ${r}`))},t);l.set(a,{resolve:s,reject:o,timeout:g});const S=JSON.stringify({id:a,method:r,params:e})+`
-`;i.stdin.write(S,h=>{if(!h)return;const b=l.get(a);b&&(clearTimeout(b.timeout),l.delete(a),o(new Error(`Failed to write request to Rust backend: ${h.message}`)))})});function _(){const r=process.env.VITE_PUBLIC??c.join(__dirname,"../public"),e=process.env.DIST??c.join(__dirname,"../dist"),t=c.join(r,"icon.jpg");process.platform==="darwin"&&n.app.dock.setIcon(t),d=new n.BrowserWindow({width:1280,height:800,icon:t,webPreferences:{preload:c.join(__dirname,"preload.js"),nodeIntegration:!1,contextIsolation:!0,webSecurity:!1,webviewTag:!0},titleBarStyle:"hiddenInset"}),d.webContents.on("did-finish-load",()=>{d==null||d.webContents.send("main-process-message",new Date().toLocaleString())}),w?d.loadURL(w):d.loadFile(c.join(e,"index.html"))}n.app.on("window-all-closed",()=>{process.platform!=="darwin"&&n.app.quit()});n.app.on("activate",()=>{n.BrowserWindow.getAllWindows().length===0&&_()});n.app.on("before-quit",()=>{f&&!f.killed&&f.kill()});n.app.whenReady().then(()=>{_(),n.ipcMain.handle("save-project-file",async(r,e)=>{const t=typeof(e==null?void 0:e.data)=="string"?e.data:"";if(!t)return{success:!1,error:"保存データが必要です。"};const s=typeof(e==null?void 0:e.defaultName)=="string"&&e.defaultName.trim()!==""?e.defaultName.trim():"project.uxfd.json",{filePath:o}=await n.dialog.showSaveDialog({title:"プロジェクトを保存",defaultPath:s,filters:[{name:"UXFD Project",extensions:["json","uxfd"]}]});if(!o)return{success:!1,cancelled:!0};try{return u.writeFileSync(o,t,"utf8"),{success:!0,filePath:o}}catch(i){return{success:!1,error:i instanceof Error?i.message:String(i)}}}),n.ipcMain.handle("open-project-file",async()=>{const r=await n.dialog.showOpenDialog({title:"プロジェクトを開く",properties:["openFile"],filters:[{name:"UXFD Project",extensions:["json","uxfd"]}]});if(r.canceled||r.filePaths.length===0)return{success:!1,cancelled:!0};const e=r.filePaths[0];try{const t=u.readFileSync(e,"utf8");return{success:!0,filePath:e,data:t}}catch(t){return{success:!1,error:t instanceof Error?t.message:String(t)}}}),n.ipcMain.handle("read-file-bytes",async(r,e)=>{const t=typeof(e==null?void 0:e.filePath)=="string"?e.filePath.trim():"";if(!t)return{success:!1,error:"filePath が必要です。"};try{const s=u.readFileSync(t);return{success:!0,data:s.buffer.slice(s.byteOffset,s.byteOffset+s.byteLength)}}catch(s){return{success:!1,error:s instanceof Error?s.message:String(s)}}}),n.ipcMain.handle("save-temp-audio",async(r,e)=>{try{const t=c.join(v.tmpdir(),`uxfilm_audio_${Date.now()}.wav`);return u.writeFileSync(t,Buffer.from(e)),{success:!0,path:t}}catch(t){return console.error("Failed to save temp audio:",t),{success:!1,error:String(t)}}}),n.ipcMain.handle("delete-temp-file",async(r,e)=>{const t=typeof(e==null?void 0:e.filePath)=="string"?e.filePath.trim():"";if(!t)return{success:!1,error:"filePath が必要です。"};try{return u.existsSync(t)&&u.unlinkSync(t),{success:!0}}catch(s){return{success:!1,error:s instanceof Error?s.message:String(s)}}}),n.ipcMain.handle("probe-media",async(r,e)=>{const t=typeof(e==null?void 0:e.filePath)=="string"?e.filePath.trim():"";if(!t)return{success:!1,error:"filePath is required."};try{return{success:!0,result:await p("media.probe",{filePath:t,ffprobePath:B()},15e3)}}catch(s){return{success:!1,error:s instanceof Error?s.message:String(s)}}}),n.ipcMain.handle("start-export",async(r,{width:e,height:t,fps:s,audioPath:o})=>{const{filePath:i}=await n.dialog.showSaveDialog({title:"Export Video",defaultPath:"output.mp4",filters:[{name:"MP4 Video",extensions:["mp4"]}]});if(!i)return{success:!1,reason:"cancelled"};try{return await p("export.start",{width:e,height:t,fps:s,filePath:i,audioPath:o??null,ffmpegPath:R()},15e3),{success:!0,filePath:i}}catch(a){return console.error("Failed to start export via Rust backend",a),{success:!1,error:a instanceof Error?a.message:String(a)}}}),n.ipcMain.handle("write-frame",async(r,e)=>{try{const t=Buffer.from(e).toString("base64");return await p("export.write_frame",{frameBase64:t},2e4),!0}catch(t){return console.error("Error writing frame:",t),!1}}),n.ipcMain.handle("end-export",async()=>{try{return await p("export.end",{},6e4),!0}catch(r){return console.error("Failed to end export via Rust backend",r),!1}}),n.ipcMain.handle("rust-backend-health",async()=>{try{return{success:!0,result:await p("health")}}catch(r){return{success:!1,error:r instanceof Error?r.message:String(r)}}}),n.ipcMain.handle("rust-backend-echo",async(r,e)=>{try{return{success:!0,result:await p("echo",e)}}catch(t){return{success:!1,error:t instanceof Error?t.message:String(t)}}})});
+"use strict";
+const electron = require("electron");
+const path = require("node:path");
+const node_child_process = require("node:child_process");
+const fs = require("node:fs");
+const os = require("node:os");
+electron.app.commandLine.appendSwitch("enable-gpu-rasterization");
+electron.app.commandLine.appendSwitch("enable-zero-copy");
+electron.app.commandLine.appendSwitch("ignore-gpu-blocklist");
+electron.app.commandLine.appendSwitch("enable-unsafe-webgpu");
+electron.app.commandLine.appendSwitch("disable-features", "UseChromeOSDirectVideoDecoder");
+electron.app.commandLine.appendSwitch("enable-features", "VaapiVideoDecoder,CanvasOopRasterization");
+process.env.DIST = path.join(__dirname, "../dist");
+process.env.VITE_PUBLIC = electron.app.isPackaged ? process.env.DIST : path.join(__dirname, "../public");
+let win;
+let rustBackendProcess = null;
+let rustNextRequestId = 1;
+let rustStdoutBuffer = "";
+const rustPendingRequests = /* @__PURE__ */ new Map();
+const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
+const resolveDefaultFfmpegPath = () => {
+  if (process.env.UXFD_FFMPEG_BIN) {
+    return process.env.UXFD_FFMPEG_BIN;
+  }
+  const candidates = [
+    "/opt/homebrew/bin/ffmpeg",
+    "/usr/local/bin/ffmpeg",
+    "ffmpeg"
+  ];
+  for (const candidate of candidates) {
+    if (candidate === "ffmpeg") return candidate;
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return "ffmpeg";
+};
+const resolveDefaultFfprobePath = () => {
+  if (process.env.UXFD_FFPROBE_BIN) {
+    return process.env.UXFD_FFPROBE_BIN;
+  }
+  const candidates = [
+    "/opt/homebrew/bin/ffprobe",
+    "/usr/local/bin/ffprobe",
+    "ffprobe"
+  ];
+  for (const candidate of candidates) {
+    if (candidate === "ffprobe") return candidate;
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return "ffprobe";
+};
+const getRustBackendBinaryName = () => {
+  return process.platform === "win32" ? "uxfd-rust-backend.exe" : "uxfd-rust-backend";
+};
+const getRustBackendCandidates = () => {
+  const binaryName = getRustBackendBinaryName();
+  const candidates = [];
+  if (process.env.UXFD_RUST_BACKEND_BIN) {
+    candidates.push(process.env.UXFD_RUST_BACKEND_BIN);
+  }
+  if (electron.app.isPackaged) {
+    candidates.push(path.join(process.resourcesPath, "rust-backend", binaryName));
+    candidates.push(path.join(process.resourcesPath, binaryName));
+  } else {
+    const appPath = electron.app.getAppPath();
+    candidates.push(path.join(appPath, "rust-backend", "target", "debug", binaryName));
+    candidates.push(path.join(appPath, "rust-backend", "target", "release", binaryName));
+  }
+  return candidates;
+};
+const resolveRustBackendPath = () => {
+  for (const candidate of getRustBackendCandidates()) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+};
+const rejectAllRustPending = (reason) => {
+  rustPendingRequests.forEach((pending, id) => {
+    clearTimeout(pending.timeout);
+    pending.reject(new Error(reason));
+    rustPendingRequests.delete(id);
+  });
+};
+const handleRustStdout = (chunk) => {
+  var _a;
+  rustStdoutBuffer += chunk;
+  const lines = rustStdoutBuffer.split("\n");
+  rustStdoutBuffer = lines.pop() ?? "";
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    let response;
+    try {
+      response = JSON.parse(line);
+    } catch (error) {
+      console.error(`[RustBackend] Invalid response JSON: ${line}`);
+      continue;
+    }
+    if (typeof response.id !== "number") {
+      continue;
+    }
+    const pending = rustPendingRequests.get(response.id);
+    if (!pending) {
+      continue;
+    }
+    clearTimeout(pending.timeout);
+    rustPendingRequests.delete(response.id);
+    if (response.ok) {
+      pending.resolve(response.result ?? null);
+    } else {
+      pending.reject(new Error(((_a = response.error) == null ? void 0 : _a.message) ?? "Rust backend returned an error"));
+    }
+  }
+};
+const ensureRustBackendProcess = () => {
+  if (rustBackendProcess && !rustBackendProcess.killed) {
+    return rustBackendProcess;
+  }
+  const rustBackendPath = resolveRustBackendPath();
+  if (!rustBackendPath) {
+    throw new Error(
+      `Rust backend binary not found. Build it with "cargo build --manifest-path rust-backend/Cargo.toml" or set UXFD_RUST_BACKEND_BIN.`
+    );
+  }
+  const child = node_child_process.spawn(rustBackendPath, [], { stdio: ["pipe", "pipe", "pipe"] });
+  if (!child.stdout || !child.stderr || !child.stdin) {
+    throw new Error("Failed to start Rust backend stdio streams.");
+  }
+  const backend = child;
+  backend.stdout.setEncoding("utf8");
+  backend.stderr.setEncoding("utf8");
+  backend.stdout.on("data", (chunk) => {
+    handleRustStdout(chunk);
+  });
+  backend.stderr.on("data", (chunk) => {
+    const text = chunk.trim();
+    if (text) console.log(`[RustBackend] ${text}`);
+  });
+  backend.on("error", (error) => {
+    console.error("Rust backend process error:", error);
+    rejectAllRustPending(`Rust backend process error: ${error.message}`);
+  });
+  backend.on("exit", (code, signal) => {
+    rustBackendProcess = null;
+    const reason = `Rust backend exited (code=${code ?? "null"}, signal=${signal ?? "null"})`;
+    rejectAllRustPending(reason);
+  });
+  rustBackendProcess = backend;
+  return backend;
+};
+const callRustBackend = (method, params = {}, timeoutMs = 8e3) => {
+  return new Promise((resolve, reject) => {
+    let backend;
+    try {
+      backend = ensureRustBackendProcess();
+    } catch (error) {
+      reject(error);
+      return;
+    }
+    const requestId = rustNextRequestId++;
+    const timeout = setTimeout(() => {
+      rustPendingRequests.delete(requestId);
+      reject(new Error(`Rust backend request timed out: ${method}`));
+    }, timeoutMs);
+    rustPendingRequests.set(requestId, {
+      resolve,
+      reject,
+      timeout
+    });
+    const payload = JSON.stringify({ id: requestId, method, params }) + "\n";
+    backend.stdin.write(payload, (error) => {
+      if (!error) return;
+      const pending = rustPendingRequests.get(requestId);
+      if (!pending) return;
+      clearTimeout(pending.timeout);
+      rustPendingRequests.delete(requestId);
+      reject(new Error(`Failed to write request to Rust backend: ${error.message}`));
+    });
+  });
+};
+function createWindow() {
+  const vitePublicPath = process.env.VITE_PUBLIC ?? path.join(__dirname, "../public");
+  const distPath = process.env.DIST ?? path.join(__dirname, "../dist");
+  const iconPath = path.join(vitePublicPath, "icon.jpg");
+  if (process.platform === "darwin") {
+    electron.app.dock.setIcon(iconPath);
+  }
+  win = new electron.BrowserWindow({
+    width: 1280,
+    height: 800,
+    icon: iconPath,
+    // Windows/Linux用のウィンドウアイコン設定
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: false,
+      webviewTag: true
+      // 重要: webviewタグを有効化
+    },
+    titleBarStyle: "hiddenInset"
+  });
+  win.webContents.on("did-finish-load", () => {
+    win == null ? void 0 : win.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
+  });
+  if (VITE_DEV_SERVER_URL) {
+    win.loadURL(VITE_DEV_SERVER_URL);
+  } else {
+    win.loadFile(path.join(distPath, "index.html"));
+  }
+}
+electron.app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    electron.app.quit();
+  }
+});
+electron.app.on("activate", () => {
+  if (electron.BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
+});
+electron.app.on("before-quit", () => {
+  if (rustBackendProcess && !rustBackendProcess.killed) {
+    rustBackendProcess.kill();
+  }
+});
+electron.app.whenReady().then(() => {
+  createWindow();
+  electron.ipcMain.handle("save-project-file", async (_event, payload) => {
+    const data = typeof (payload == null ? void 0 : payload.data) === "string" ? payload.data : "";
+    if (!data) {
+      return { success: false, error: "保存データが必要です。" };
+    }
+    const defaultName = typeof (payload == null ? void 0 : payload.defaultName) === "string" && payload.defaultName.trim() !== "" ? payload.defaultName.trim() : "project.uxfd.json";
+    const { filePath } = await electron.dialog.showSaveDialog({
+      title: "プロジェクトを保存",
+      defaultPath: defaultName,
+      filters: [{ name: "UXFD Project", extensions: ["json", "uxfd"] }]
+    });
+    if (!filePath) {
+      return { success: false, cancelled: true };
+    }
+    try {
+      fs.writeFileSync(filePath, data, "utf8");
+      return { success: true, filePath };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+  electron.ipcMain.handle("open-project-file", async () => {
+    const result = await electron.dialog.showOpenDialog({
+      title: "プロジェクトを開く",
+      properties: ["openFile"],
+      filters: [{ name: "UXFD Project", extensions: ["json", "uxfd"] }]
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+      return { success: false, cancelled: true };
+    }
+    const filePath = result.filePaths[0];
+    try {
+      const data = fs.readFileSync(filePath, "utf8");
+      return { success: true, filePath, data };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+  electron.ipcMain.handle("read-file-bytes", async (_event, payload) => {
+    const filePath = typeof (payload == null ? void 0 : payload.filePath) === "string" ? payload.filePath.trim() : "";
+    if (!filePath) {
+      return { success: false, error: "filePath が必要です。" };
+    }
+    try {
+      const data = fs.readFileSync(filePath);
+      const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+      return { success: true, data: buffer };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+  electron.ipcMain.handle("save-temp-audio", async (event, buffer) => {
+    try {
+      const tempPath = path.join(os.tmpdir(), `uxfilm_audio_${Date.now()}.wav`);
+      fs.writeFileSync(tempPath, Buffer.from(buffer));
+      return { success: true, path: tempPath };
+    } catch (e) {
+      console.error("Failed to save temp audio:", e);
+      return { success: false, error: String(e) };
+    }
+  });
+  electron.ipcMain.handle("delete-temp-file", async (_event, payload) => {
+    const filePath = typeof (payload == null ? void 0 : payload.filePath) === "string" ? payload.filePath.trim() : "";
+    if (!filePath) {
+      return { success: false, error: "filePath が必要です。" };
+    }
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+  electron.ipcMain.handle("probe-media", async (_event, payload) => {
+    const filePath = typeof (payload == null ? void 0 : payload.filePath) === "string" ? payload.filePath.trim() : "";
+    if (!filePath) {
+      return { success: false, error: "filePath is required." };
+    }
+    try {
+      const result = await callRustBackend("media.probe", {
+        filePath,
+        ffprobePath: resolveDefaultFfprobePath()
+      }, 15e3);
+      return { success: true, result };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+  electron.ipcMain.handle("start-export", async (event, { width, height, fps, audioPath }) => {
+    const { filePath } = await electron.dialog.showSaveDialog({
+      title: "Export Video",
+      defaultPath: "output.mp4",
+      filters: [{ name: "MP4 Video", extensions: ["mp4"] }]
+    });
+    if (!filePath) return { success: false, reason: "cancelled" };
+    try {
+      await callRustBackend("export.start", {
+        width,
+        height,
+        fps,
+        filePath,
+        audioPath: audioPath ?? null,
+        ffmpegPath: resolveDefaultFfmpegPath()
+      }, 15e3);
+      return { success: true, filePath };
+    } catch (error) {
+      console.error("Failed to start export via Rust backend", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+  electron.ipcMain.handle("write-frame", async (event, frameData) => {
+    try {
+      const frameBase64 = Buffer.from(frameData).toString("base64");
+      await callRustBackend("export.write_frame", { frameBase64 }, 2e4);
+      return true;
+    } catch (error) {
+      console.error("Error writing frame:", error);
+      return false;
+    }
+  });
+  electron.ipcMain.handle("end-export", async () => {
+    try {
+      await callRustBackend("export.end", {}, 6e4);
+      return true;
+    } catch (error) {
+      console.error("Failed to end export via Rust backend", error);
+      return false;
+    }
+  });
+  electron.ipcMain.handle("rust-backend-health", async () => {
+    try {
+      const result = await callRustBackend("health");
+      return { success: true, result };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+  electron.ipcMain.handle("rust-backend-echo", async (_event, payload) => {
+    try {
+      const result = await callRustBackend("echo", payload);
+      return { success: true, result };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+});
