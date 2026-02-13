@@ -64,3 +64,9 @@ input:focus, textarea:focus {
   outline: 1px solid #007acc;
   border-color: #007acc;
 }
+
+/* Electron titlebar drag 領域と競合しないよう、スライダーは明示的に no-drag */
+input[type="range"] {
+  -webkit-app-region: no-drag;
+  user-select: auto;
+}

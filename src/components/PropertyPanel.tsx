@@ -534,7 +534,7 @@ const PropertyPanel: React.FC = () => {
             <input type="number" value={selectedObject.rotation} onChange={(e) => handleNumericChange('rotation', e.target.value)} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
         </Row>
         <Row label="Opacity">
-            <input type="range" min="0" max="1" step="0.01" value={selectedObject.opacity} onChange={(e) => handleNumericChange('opacity', e.target.value)} style={{ width: '100%' }} />
+            <input type="range" min="0" max="1" step="0.01" value={selectedObject.opacity} onInput={(e) => handleNumericChange('opacity', e.currentTarget.value)} style={{ width: '100%' }} />
         </Row>
 
         {canEditKeyframes && (
@@ -729,7 +729,7 @@ const PropertyPanel: React.FC = () => {
                                 max="1"
                                 step="0.01"
                                 value={groupGradientState.stops[0]}
-                                onChange={(e) => handleGroupGradientStopChange(0, e.target.value)}
+                                onInput={(e) => handleGroupGradientStopChange(0, e.currentTarget.value)}
                                 style={{ width: '100%' }}
                             />
                         </Row>
@@ -740,7 +740,7 @@ const PropertyPanel: React.FC = () => {
                                 max="1"
                                 step="0.01"
                                 value={groupGradientState.stops[1]}
-                                onChange={(e) => handleGroupGradientStopChange(1, e.target.value)}
+                                onInput={(e) => handleGroupGradientStopChange(1, e.currentTarget.value)}
                                 style={{ width: '100%' }}
                             />
                         </Row>
@@ -775,7 +775,7 @@ const PropertyPanel: React.FC = () => {
                                 max="2"
                                 step="0.1"
                                 value={activeFilter.params.brightness}
-                                onChange={(e) => handleFilterParamChange(activeFilter, { brightness: parseFloat(e.target.value) })}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { brightness: parseFloat(e.currentTarget.value) })}
                                 style={{ width: '100%' }}
                             />
                         </Row>
@@ -786,7 +786,7 @@ const PropertyPanel: React.FC = () => {
                                 max="2"
                                 step="0.1"
                                 value={activeFilter.params.contrast}
-                                onChange={(e) => handleFilterParamChange(activeFilter, { contrast: parseFloat(e.target.value) })}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { contrast: parseFloat(e.currentTarget.value) })}
                                 style={{ width: '100%' }}
                             />
                         </Row>
@@ -797,7 +797,7 @@ const PropertyPanel: React.FC = () => {
                                 max="1"
                                 step="0.1"
                                 value={activeFilter.params.saturation}
-                                onChange={(e) => handleFilterParamChange(activeFilter, { saturation: parseFloat(e.target.value) })}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { saturation: parseFloat(e.currentTarget.value) })}
                                 style={{ width: '100%' }}
                             />
                         </Row>
@@ -808,7 +808,7 @@ const PropertyPanel: React.FC = () => {
                                 max="360"
                                 step="1"
                                 value={activeFilter.params.hue}
-                                onChange={(e) => handleFilterParamChange(activeFilter, { hue: parseFloat(e.target.value) })}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { hue: parseFloat(e.currentTarget.value) })}
                                 style={{ width: '100%' }}
                             />
                         </Row>
@@ -861,7 +861,7 @@ const PropertyPanel: React.FC = () => {
                             <input type="number" value={activeFilter.params.offsetY} onChange={(e) => handleFilterParamChange(activeFilter, { offsetY: parseFloat(e.target.value) })} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
                         </Row>
                         <Row label="Opacity">
-                            <input type="range" min="0" max="1" step="0.05" value={activeFilter.params.opacity} onChange={(e) => handleFilterParamChange(activeFilter, { opacity: parseFloat(e.target.value) })} style={{ width: '100%' }} />
+                            <input type="range" min="0" max="1" step="0.05" value={activeFilter.params.opacity} onInput={(e) => handleFilterParamChange(activeFilter, { opacity: parseFloat(e.currentTarget.value) })} style={{ width: '100%' }} />
                         </Row>
                     </>
                 )}
@@ -898,7 +898,7 @@ const PropertyPanel: React.FC = () => {
                                 max="1"
                                 step="0.01"
                                 value={getGradientEditorState(activeFilter).stops[0]}
-                                onChange={(e) => handleGradientStopChange(activeFilter, 0, e.target.value)}
+                                onInput={(e) => handleGradientStopChange(activeFilter, 0, e.currentTarget.value)}
                                 style={{ width: '100%' }}
                             />
                         </Row>
@@ -909,7 +909,7 @@ const PropertyPanel: React.FC = () => {
                                 max="1"
                                 step="0.01"
                                 value={getGradientEditorState(activeFilter).stops[1]}
-                                onChange={(e) => handleGradientStopChange(activeFilter, 1, e.target.value)}
+                                onInput={(e) => handleGradientStopChange(activeFilter, 1, e.currentTarget.value)}
                                 style={{ width: '100%' }}
                             />
                         </Row>
@@ -946,7 +946,7 @@ const PropertyPanel: React.FC = () => {
                             max="1"
                             step="0.01"
                             value={selectedObject.volume ?? 1}
-                            onChange={(e) => handleMediaVolumeChange(e.target.value)}
+                            onInput={(e) => handleMediaVolumeChange(e.currentTarget.value)}
                             style={{ flex: 1 }}
                         />
                         <input
@@ -1047,7 +1047,7 @@ const PropertyPanel: React.FC = () => {
                             max="3"
                             step="0.01"
                             value={selectedObject.scale ?? 1}
-                            onChange={(e) => handlePsdScaleChange(e.target.value)}
+                            onInput={(e) => handlePsdScaleChange(e.currentTarget.value)}
                             style={{ flex: 1 }}
                         />
                         <input

@@ -362,3 +362,9 @@
 - `Group Gradient` に `Scope` UI を追加した（現在は一時的に非表示）。
 - `src/components/Viewport.tsx`
 - `Scope` が `group` の場合はグループ全体へ一本の勾配、`connected` の場合は連結コンポーネント単位の勾配を適用するよう分岐を追加した。
+
+## 35. プロパティパネルのスライダー操作改善
+- `src/components/PropertyPanel.tsx`
+- `type="range"` の入力処理を `onInput` ベースへ変更し、ドラッグ中の値更新を安定化した。
+- `src/index.css`
+- `input[type="range"]` を `-webkit-app-region: no-drag` に固定し、Electron のウィンドウドラッグ領域と競合しないようにした。
