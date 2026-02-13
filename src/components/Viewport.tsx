@@ -1,19 +1,20 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as PIXI from 'pixi.js';
 import { useStore } from '../store/useStore';
-import { TimelineObject } from '../types';
+import { TimelineObject, GradientFill } from '../types';
 import { createShadowGraphics } from '../utils/pixiUtils';
 import { shallow } from 'zustand/shallow';
 
 import { usePixiInteraction } from '../hooks/usePixiInteraction';
 import { useProjectExport } from '../hooks/useProjectExport';
-import { getGroupTransforms, getLipSyncViseme, updatePixiContent, applyObjectEffects, getVibrationOffset } from '../utils/pixiRenderHelper';
+import { getGroupTransforms, getLipSyncViseme, updatePixiContent, applyObjectEffects, getVibrationOffset, applyGroupGradientEffect } from '../utils/pixiRenderHelper';
 import { evaluateObjectPositionAtTime } from '../utils/keyframes';
 
 const Viewport: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const pixiAppRef = useRef<PIXI.Application | null>(null);
   const pixiObjectsRef = useRef<Map<string, PIXI.Container>>(new Map());
+  const groupContainersRef = useRef<Map<string, PIXI.Container>>(new Map());
   
   const textureCacheRef = useRef<Map<string, PIXI.Texture>>(new Map());
   const loadingUrlsRef = useRef<Set<string>>(new Set());
@@ -84,6 +85,7 @@ const Viewport: React.FC = () => {
         pixiAppRef.current.destroy(true, { children: true, texture: true });
         pixiAppRef.current = null;
         pixiObjectsRef.current.clear();
+        groupContainersRef.current.clear();
         textureCacheRef.current.clear();
         loadingUrlsRef.current.clear();
         videoElementsRef.current.forEach(video => { video.pause(); video.src = ""; video.load(); });
@@ -143,18 +145,30 @@ const Viewport: React.FC = () => {
     const currentPixiObjects = pixiObjectsRef.current;
     const currentVideoElements = videoElementsRef.current;
     const currentAudioElements = audioElementsRef.current;
+    const currentGroupContainers = groupContainersRef.current;
     const visibleObjects = currentObjects.filter((obj) => {
       if (layers[obj.layer]?.visible === false) return false;
       return time >= obj.startTime && time < obj.startTime + obj.duration;
     });
+    const visibleGroupIds = new Set(
+      visibleObjects
+        .map((obj) => obj.groupId)
+        .filter((groupId): groupId is string => typeof groupId === 'string' && groupId.trim() !== '')
+    );
 
     // 1. Cleanup
     currentPixiObjects.forEach((container, id) => {
       if (!visibleObjects.find(obj => obj.id === id)) {
-        app.stage.removeChild(container);
+        container.parent?.removeChild(container);
         container.destroy({ children: true });
         currentPixiObjects.delete(id);
       }
+    });
+    currentGroupContainers.forEach((groupContainer, groupId) => {
+      if (visibleGroupIds.has(groupId)) return;
+      app.stage.removeChild(groupContainer);
+      groupContainer.destroy({ children: false });
+      currentGroupContainers.delete(groupId);
     });
     currentVideoElements.forEach((video, id) => {
         if (!visibleObjects.find(obj => obj.id === id && obj.type === 'video')) {
@@ -165,6 +179,15 @@ const Viewport: React.FC = () => {
         if (!visibleObjects.find(obj => obj.id === id && obj.type === 'audio')) {
             audio.pause(); audio.src = ""; audio.load(); currentAudioElements.delete(id);
         }
+    });
+
+    visibleGroupIds.forEach((groupId) => {
+      if (currentGroupContainers.has(groupId)) return;
+      const groupContainer = new PIXI.Container();
+      groupContainer.label = `group-${groupId}`;
+      groupContainer.sortableChildren = true;
+      app.stage.addChild(groupContainer);
+      currentGroupContainers.set(groupId, groupContainer);
     });
 
     // 2. Render visible objects
@@ -201,9 +224,16 @@ const Viewport: React.FC = () => {
         container.label = obj.id; container.eventMode = 'static'; container.cursor = 'pointer';
         container.on('pointerdown', (e) => onDragStart(e, obj.id));
         container.on('pointerup', onDragEnd); container.on('pointerupoutside', onDragEnd); container.on('globalpointermove', onDragMove); 
-        app.stage.addChild(container); currentPixiObjects.set(obj.id, container);
+        currentPixiObjects.set(obj.id, container);
       }
       container.cursor = layers[obj.layer]?.locked ? 'not-allowed' : 'pointer';
+      const targetParent = obj.groupId && currentGroupContainers.has(obj.groupId)
+        ? currentGroupContainers.get(obj.groupId)!
+        : app.stage;
+      if (container.parent !== targetParent) {
+        container.parent?.removeChild(container);
+        targetParent.addChild(container);
+      }
 
       // Content Update
       const content = updatePixiContent(obj, container, time, {
@@ -334,6 +364,24 @@ const Viewport: React.FC = () => {
         } else {
             container.mask = null;
         }
+    });
+
+    // 4. Group Gradient Filter
+    const groupTopLayerMap = new Map<string, number>();
+    const groupGradientMap = new Map<string, GradientFill | undefined>();
+    visibleObjects.forEach((obj) => {
+      if (!obj.groupId || !currentGroupContainers.has(obj.groupId)) return;
+      const prevTop = groupTopLayerMap.get(obj.groupId);
+      if (prevTop === undefined || obj.layer > prevTop) {
+        groupTopLayerMap.set(obj.groupId, obj.layer);
+      }
+      if (obj.groupGradient && !groupGradientMap.has(obj.groupId)) {
+        groupGradientMap.set(obj.groupId, obj.groupGradient);
+      }
+    });
+    currentGroupContainers.forEach((groupContainer, groupId) => {
+      groupContainer.zIndex = groupTopLayerMap.get(groupId) ?? 0;
+      applyGroupGradientEffect(groupContainer, groupGradientMap.get(groupId));
     });
 
     app.stage.sortChildren();

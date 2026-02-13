@@ -157,6 +157,7 @@ export interface BaseObject {
   keyframes?: PositionKeyframe[];
   shadow?: ShadowEffect;
   filters?: ObjectFilter[];
+  groupGradient?: GradientFill;
   
   // 新機能用プロパティ
   clipping?: boolean;          // 上のオブジェクトでクリッピング (マスク)

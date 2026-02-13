@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-import { TimelineObject, GroupControlObject, AudioVisualizationObject, AudioObject, ClippingParams } from '../types';
+import { TimelineObject, GroupControlObject, AudioVisualizationObject, AudioObject, ClippingParams, GradientFill } from '../types';
 import { createGradientTexture, drawShape, getCurrentViseme, renderPsdTree, cacheTextureFromUrl } from './pixiUtils';
 import { evaluateObjectPositionAtTime } from './keyframes';
 
@@ -65,6 +65,144 @@ class DiagonalClippingFilter extends PIXI.Filter {
         uniforms.uDimensions = new Float32Array([width, height]);
     }
 }
+
+const groupGradientFragmentShader = `
+varying vec2 vTextureCoord;
+uniform sampler2D uSampler;
+uniform float uDirection;
+uniform float uStopA;
+uniform float uStopB;
+uniform float uIsRadial;
+uniform vec4 uColourA;
+uniform vec4 uColourB;
+
+void main(void) {
+    vec4 src = texture2D(uSampler, vTextureCoord);
+    float t;
+    if (uIsRadial > 0.5) {
+        vec2 centred = vTextureCoord - vec2(0.5, 0.5);
+        t = length(centred) * 2.0;
+    } else {
+        vec2 dir = vec2(cos(uDirection), sin(uDirection));
+        vec2 centred = vTextureCoord - vec2(0.5, 0.5);
+        t = dot(centred, dir) + 0.5;
+    }
+
+    float start = min(uStopA, uStopB);
+    float end = max(uStopA, uStopB);
+    float denom = max(0.0001, end - start);
+    float ratio = clamp((t - start) / denom, 0.0, 1.0);
+    vec4 grad = mix(uColourA, uColourB, ratio);
+
+    gl_FragColor = vec4(grad.rgb, grad.a * src.a);
+}
+`;
+
+const normaliseGradientForGroupFilter = (gradient: GradientFill) => {
+    let colours = Array.isArray(gradient.colours)
+        ? gradient.colours.filter((entry): entry is string => typeof entry === 'string' && entry.trim() !== '')
+        : [];
+    if (colours.length === 0) colours = ['#ffffff', '#000000'];
+    if (colours.length === 1) colours = [colours[0], colours[0]];
+
+    const rawStops = Array.isArray(gradient.stops)
+        ? gradient.stops.filter((entry): entry is number => typeof entry === 'number' && Number.isFinite(entry))
+        : [];
+    const stops = colours.map((_, index) => {
+        const fallback = colours.length === 1 ? 0 : index / (colours.length - 1);
+        const value = rawStops[index];
+        return Math.max(0, Math.min(1, typeof value === 'number' ? value : fallback));
+    });
+
+    return {
+        type: gradient.type === 'radial' ? 'radial' as const : 'linear' as const,
+        direction: Number.isFinite(gradient.direction) ? gradient.direction : 0,
+        colourA: colours[0],
+        colourB: colours[1],
+        stopA: stops[0],
+        stopB: stops[1]
+    };
+};
+
+const parseHexColour = (input: string): Float32Array => {
+    const value = input.trim();
+    const hex = value.startsWith('#') ? value.slice(1) : value;
+
+    const parse = (raw: string): number => {
+        const next = Number.parseInt(raw, 16);
+        if (!Number.isFinite(next)) return 0;
+        return Math.max(0, Math.min(255, next));
+    };
+
+    if (hex.length === 3 || hex.length === 4) {
+        const r = parse(hex[0] + hex[0]);
+        const g = parse(hex[1] + hex[1]);
+        const b = parse(hex[2] + hex[2]);
+        const a = hex.length === 4 ? parse(hex[3] + hex[3]) : 255;
+        return new Float32Array([r / 255, g / 255, b / 255, a / 255]);
+    }
+
+    if (hex.length === 6 || hex.length === 8) {
+        const r = parse(hex.slice(0, 2));
+        const g = parse(hex.slice(2, 4));
+        const b = parse(hex.slice(4, 6));
+        const a = hex.length === 8 ? parse(hex.slice(6, 8)) : 255;
+        return new Float32Array([r / 255, g / 255, b / 255, a / 255]);
+    }
+
+    return new Float32Array([1, 1, 1, 1]);
+};
+
+class GroupGradientFilter extends PIXI.Filter {
+    constructor(gradient: GradientFill) {
+        super({
+            glProgram: PIXI.GlProgram.from({
+                vertex: vertexShader,
+                fragment: groupGradientFragmentShader
+            }),
+            resources: {
+                groupGradientUniforms: {
+                    uDirection: { value: 0, type: 'f32' },
+                    uStopA: { value: 0, type: 'f32' },
+                    uStopB: { value: 1, type: 'f32' },
+                    uIsRadial: { value: 0, type: 'f32' },
+                    uColourA: { value: new Float32Array([1, 1, 1, 1]), type: 'vec4<f32>' },
+                    uColourB: { value: new Float32Array([0, 0, 0, 1]), type: 'vec4<f32>' }
+                }
+            }
+        } as any);
+        this.updateGradient(gradient);
+    }
+
+    updateGradient(gradient: GradientFill) {
+        const uniforms = (this.resources as any).groupGradientUniforms.uniforms;
+        const normalised = normaliseGradientForGroupFilter(gradient);
+        uniforms.uDirection = (normalised.direction * Math.PI) / 180;
+        uniforms.uStopA = normalised.stopA;
+        uniforms.uStopB = normalised.stopB;
+        uniforms.uIsRadial = normalised.type === 'radial' ? 1 : 0;
+        uniforms.uColourA = parseHexColour(normalised.colourA);
+        uniforms.uColourB = parseHexColour(normalised.colourB);
+    }
+}
+
+export const applyGroupGradientEffect = (container: PIXI.Container, gradient: GradientFill | undefined) => {
+    const currentFilters = container.filters ?? [];
+    const otherFilters = currentFilters.filter((filter) => !(filter instanceof GroupGradientFilter));
+    if (!gradient || !gradient.enabled) {
+        container.filters = otherFilters.length > 0 ? otherFilters : null;
+        return;
+    }
+
+    const existing = currentFilters.find((filter) => filter instanceof GroupGradientFilter) as GroupGradientFilter | undefined;
+    if (existing) {
+        existing.updateGradient(gradient);
+        container.filters = [...otherFilters, existing];
+        return;
+    }
+
+    container.filters = [...otherFilters, new GroupGradientFilter(gradient)];
+};
 
 // ... (Helper functions: getGroupTransforms, getLipSyncViseme, getVibrationOffset, drawAudioWaveform are same as previous) ...
 export const getGroupTransforms = (obj: TimelineObject, time: number, allObjects: TimelineObject[]) => {

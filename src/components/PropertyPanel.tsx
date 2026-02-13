@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe } from '../types';
+import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill } from '../types';
 import { buildPsdLayerTree, togglePsdLayer } from '../utils/psdParser';
 import { easingNames, EasingType } from '../utils/easings';
 import { buildEndpointKeyframes, evaluateObjectPositionAtTime } from '../utils/keyframes';
 
 const PropertyPanel: React.FC = () => {
-  const { selectedObject, selectedCount, selectedObjects, currentTime } = useStore((state) => {
+  const { selectedObject, selectedCount, selectedObjects, currentTime, objects } = useStore((state) => {
     const normalisedSelectedIds = state.selectedIds.length > 0
       ? state.selectedIds
       : (state.selectedId ? [state.selectedId] : []);
@@ -20,7 +20,8 @@ const PropertyPanel: React.FC = () => {
         normalisedSelectedIds.includes(obj.id)
         && state.layers[obj.layer]?.locked !== true
       )),
-      currentTime: state.currentTime
+      currentTime: state.currentTime,
+      objects: state.objects
     };
   });
   const pushHistory = useStore((state) => state.pushHistory);
@@ -30,6 +31,7 @@ const PropertyPanel: React.FC = () => {
   const moveObjectFilter = useStore((state) => state.moveObjectFilter);
   const removeObjectFilter = useStore((state) => state.removeObjectFilter);
   const updateObjectFilterParams = useStore((state) => state.updateObjectFilterParams);
+  const setGroupGradient = useStore((state) => state.setGroupGradient);
   const [isRefreshingPsdTree, setIsRefreshingPsdTree] = useState(false);
   const [activeFilterId, setActiveFilterId] = useState<string | null>(null);
   const [batchMoveX, setBatchMoveX] = useState('0');
@@ -84,6 +86,14 @@ const PropertyPanel: React.FC = () => {
     gradient: 'グラデーション'
   };
   const canUseGradientFilter = selectedObject.type === 'shape';
+  const currentGroupId = selectedObject.groupId ?? null;
+  const currentGroupObjects = currentGroupId
+    ? objects.filter((obj) => obj.groupId === currentGroupId)
+    : [];
+  const canEditGroupGradient = currentGroupId !== null && currentGroupObjects.length >= 2;
+  const currentGroupGradient = (canEditGroupGradient
+    ? currentGroupObjects.find((obj) => obj.groupGradient)?.groupGradient
+    : null) ?? null;
 
   const resetBatchTransformInputs = () => {
     setBatchMoveX('0');
@@ -215,6 +225,71 @@ const PropertyPanel: React.FC = () => {
     handleFilterParamChange(filter, { colours, stops });
   };
 
+  const normaliseGroupGradient = (gradient: GradientFill | null): GradientFill => {
+    const fallback: GradientFill = {
+      enabled: false,
+      type: 'linear',
+      colours: ['#ffffff', '#000000'],
+      stops: [0, 1],
+      direction: 0
+    };
+    if (!gradient) return fallback;
+
+    let colours = Array.isArray(gradient.colours)
+      ? gradient.colours.filter((entry): entry is string => typeof entry === 'string' && entry.trim() !== '')
+      : [];
+    if (colours.length === 0) colours = [...fallback.colours];
+    if (colours.length === 1) colours = [colours[0], colours[0]];
+    colours = colours.slice(0, 8);
+
+    const rawStops = Array.isArray(gradient.stops)
+      ? gradient.stops.filter((entry): entry is number => typeof entry === 'number' && Number.isFinite(entry))
+      : [];
+    const stops = colours.map((_, index) => {
+      const defaultStop = colours.length === 1 ? 0 : index / (colours.length - 1);
+      return clamp(rawStops[index] ?? defaultStop, 0, 1);
+    });
+
+    return {
+      enabled: gradient.enabled === true,
+      type: gradient.type === 'radial' ? 'radial' : 'linear',
+      colours,
+      stops,
+      direction: Number.isFinite(gradient.direction) ? gradient.direction : 0
+    };
+  };
+
+  const applyGroupGradientPatch = (patch: Partial<GradientFill>) => {
+    if (!currentGroupId) return;
+    const current = normaliseGroupGradient(currentGroupGradient);
+    const next: GradientFill = {
+      ...current,
+      ...patch
+    };
+    setGroupGradient(currentGroupId, {
+      ...next,
+      colours: next.colours.slice(),
+      stops: next.stops.slice()
+    });
+  };
+
+  const handleGroupGradientColourChange = (index: number, value: string) => {
+    const current = normaliseGroupGradient(currentGroupGradient);
+    const nextColours = current.colours.slice();
+    nextColours[index] = value;
+    applyGroupGradientPatch({ colours: nextColours, stops: current.stops.slice() });
+  };
+
+  const handleGroupGradientStopChange = (index: number, rawValue: string) => {
+    const parsed = parseFloat(rawValue);
+    if (Number.isNaN(parsed)) return;
+    const current = normaliseGroupGradient(currentGroupGradient);
+    const nextStops = current.stops.slice();
+    nextStops[index] = clamp(parsed, 0, 1);
+    applyGroupGradientPatch({ colours: current.colours.slice(), stops: nextStops });
+  };
+
+  const groupGradientState = normaliseGroupGradient(currentGroupGradient);
   const canEditKeyframes = selectedObject.type !== 'audio';
   const keyframes = (selectedObject.keyframes ?? []).slice().sort((a, b) => a.time - b.time);
 
@@ -605,6 +680,86 @@ const PropertyPanel: React.FC = () => {
                 );
             })}
         </div>
+
+        {canEditGroupGradient && (
+            <>
+                <SectionHeader label="Group Gradient" />
+                <div style={{ fontSize: '11px', color: '#8fb9ff', marginBottom: '8px' }}>
+                    グループ全体（{currentGroupObjects.length}オブジェクト）へ1つのグラデーションを適用します
+                </div>
+                <Row label="Enable">
+                    <input
+                        type="checkbox"
+                        checked={groupGradientState.enabled}
+                        onChange={(e) => applyGroupGradientPatch({ enabled: e.target.checked })}
+                    />
+                </Row>
+                {groupGradientState.enabled && (
+                    <div style={{ marginBottom: '8px', padding: '8px', border: '1px solid #333', borderRadius: '4px', background: '#1f1f1f' }}>
+                        <Row label="Type">
+                            <select
+                                value={groupGradientState.type}
+                                onChange={(e) => applyGroupGradientPatch({ type: e.target.value === 'radial' ? 'radial' : 'linear' })}
+                                style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                            >
+                                <option value="linear">Linear</option>
+                                <option value="radial">Radial</option>
+                            </select>
+                        </Row>
+                        <Row label="Colour A">
+                            <input
+                                type="color"
+                                value={groupGradientState.colours[0]}
+                                onChange={(e) => handleGroupGradientColourChange(0, e.target.value)}
+                            />
+                        </Row>
+                        <Row label="Colour B">
+                            <input
+                                type="color"
+                                value={groupGradientState.colours[1]}
+                                onChange={(e) => handleGroupGradientColourChange(1, e.target.value)}
+                            />
+                        </Row>
+                        <Row label="Stop A">
+                            <input
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                value={groupGradientState.stops[0]}
+                                onChange={(e) => handleGroupGradientStopChange(0, e.target.value)}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                        <Row label="Stop B">
+                            <input
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                value={groupGradientState.stops[1]}
+                                onChange={(e) => handleGroupGradientStopChange(1, e.target.value)}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                        {groupGradientState.type === 'linear' && (
+                            <Row label="Direction">
+                                <input
+                                    type="number"
+                                    value={groupGradientState.direction}
+                                    onChange={(e) => {
+                                      const parsed = parseFloat(e.target.value);
+                                      if (Number.isNaN(parsed)) return;
+                                      applyGroupGradientPatch({ direction: parsed });
+                                    }}
+                                    style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                                />
+                            </Row>
+                        )}
+                    </div>
+                )}
+            </>
+        )}
 
         {activeFilter && (
             <div style={{ marginBottom: '8px', padding: '8px', border: '1px solid #333', borderRadius: '4px', background: '#1f1f1f' }}>

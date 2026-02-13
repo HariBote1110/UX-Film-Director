@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { TimelineObject, ProjectSettings, LayerState, FilterType } from '../types';
+import { TimelineObject, ProjectSettings, LayerState, FilterType, GradientFill } from '../types';
 import { MAX_LAYERS } from '../components/timelineConstants';
 import {
   addFilterToObject,
@@ -87,6 +87,7 @@ interface AppState {
   duplicateSelectedObjects: () => void;
   groupSelectedObjects: () => void;
   ungroupSelectedObjects: () => void;
+  setGroupGradient: (groupId: string, gradient: GradientFill | undefined) => void;
   selectObject: (id: string | null) => void;
   toggleObjectSelection: (id: string) => void;
   selectObjects: (ids: string[], primaryId?: string | null) => void;
@@ -857,7 +858,7 @@ export const useStore = create<AppState>((set, get) => ({
     set((currentState) => {
       const newObjects = currentState.objects.map((obj) => {
         if (!editableSet.has(obj.id)) return obj;
-        return { ...obj, groupId: newGroupId };
+        return { ...obj, groupId: newGroupId, groupGradient: undefined };
       });
       return { objects: newObjects };
     });
@@ -880,8 +881,40 @@ export const useStore = create<AppState>((set, get) => ({
       const newObjects = currentState.objects.map((obj) => {
         if (!obj.groupId || !groupIds.has(obj.groupId)) return obj;
         if (isLayerLocked(currentState.layers, clampLayerIndex(obj.layer))) return obj;
-        return { ...obj, groupId: undefined };
+        return { ...obj, groupId: undefined, groupGradient: undefined };
       });
+      return { objects: newObjects };
+    });
+  },
+
+  setGroupGradient: (groupId, gradient) => {
+    if (!groupId || groupId.trim() === '') return;
+    const clonedGradient = gradient
+      ? {
+        ...gradient,
+        colours: Array.isArray(gradient.colours) ? gradient.colours.slice() : [],
+        stops: Array.isArray(gradient.stops) ? gradient.stops.slice() : []
+      }
+      : undefined;
+
+    set((state) => {
+      let changed = false;
+      const newObjects = state.objects.map((obj) => {
+        if (obj.groupId !== groupId) return obj;
+        if (isLayerLocked(state.layers, clampLayerIndex(obj.layer))) return obj;
+        changed = true;
+        return {
+          ...obj,
+          groupGradient: clonedGradient
+            ? {
+              ...clonedGradient,
+              colours: clonedGradient.colours.slice(),
+              stops: clonedGradient.stops.slice()
+            }
+            : undefined
+        };
+      });
+      if (!changed) return {};
       return { objects: newObjects };
     });
   },

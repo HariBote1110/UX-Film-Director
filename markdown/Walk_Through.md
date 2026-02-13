@@ -335,3 +335,17 @@
 - `shape` 選択時のみ `+ グラデーション` を追加し、`Type`（Linear/Radial）・`Colour A/B`・`Stop A/B`・`Direction` の編集 UI を実装した。
 - `markdown/Task.md` / `markdown/Implementation_Plan.md` / `markdown/User_Guide.md`
 - フィルタスタックの対象一覧に `グラデーション` を追記し、仕様ドキュメントと実装の整合を取った。
+
+## 32. グループ単位グラデーションの実装
+- `src/types.ts`
+- オブジェクトへ `groupGradient` を追加し、グループ単位のグラデーション設定を保持できるようにした。
+- `src/store/useStore.ts`
+- `setGroupGradient` を追加し、同一 `groupId` のオブジェクトへ設定を同期反映できるようにした。
+- `groupSelectedObjects` / `ungroupSelectedObjects` 時に `groupGradient` を初期化し、古い設定の持ち越しを防止した。
+- `src/components/PropertyPanel.tsx`
+- グループ化済みオブジェクト選択時に `Group Gradient` セクションを表示し、`Enable` / `Type` / `Colour A/B` / `Stop A/B` / `Direction` を編集可能にした。
+- `src/utils/pixiRenderHelper.ts`
+- `GroupGradientFilter`（シェーダーフィルタ）を追加し、入力アルファ形状を維持したままグラデーション色を適用できるようにした。
+- `src/components/Viewport.tsx`
+- `groupId` ごとに Pixi コンテナを生成し、グループ内オブジェクトを再配置した。
+- グループコンテナへ `applyGroupGradientEffect` を適用し、複数図形を1つの形状として勾配処理できるようにした。
