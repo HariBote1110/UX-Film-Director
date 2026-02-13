@@ -410,7 +410,12 @@ const Timeline: React.FC = () => {
     const top = Math.min(marqueeSelection.startY, marqueeSelection.currentY);
     const width = Math.abs(marqueeSelection.currentX - marqueeSelection.startX);
     const height = Math.abs(marqueeSelection.currentY - marqueeSelection.startY);
-    return { left, top, width, height };
+    return {
+      left,
+      top: Math.max(0, top - RULER_HEIGHT),
+      width,
+      height
+    };
   }, [marqueeSelection]);
 
   const totalWidth = useMemo(

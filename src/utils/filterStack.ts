@@ -246,7 +246,7 @@ const findLastFilter = (filters: ObjectFilter[], type: FilterType): ObjectFilter
 };
 
 export const syncLegacyEffectsWithFilters = <T extends TimelineObject>(object: T): T => {
-  const filters = object.filters && object.filters.length > 0
+  const filters = Array.isArray(object.filters)
     ? normaliseObjectFilters(object.filters)
     : buildFiltersFromLegacyEffects(object);
 

@@ -715,8 +715,8 @@ const PropertyPanel: React.FC = () => {
                 <Row label="Size">
                     <input type="number" value={selectedObject.fontSize} onChange={(e) => handleNumericChange('fontSize', e.target.value)} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
                 </Row>
-                <Row label="Color">
-                    <input type="color" value={selectedObject.fill} onChange={(e) => handleChange('fill', e.target.value)} />
+                <Row label="Colour">
+                     <input type="color" value={selectedObject.fill} onChange={(e) => handleChange('fill', e.target.value)} />
                 </Row>
             </>
         )}
@@ -732,7 +732,7 @@ const PropertyPanel: React.FC = () => {
                         <option value="star">Star</option>
                     </select>
                 </Row>
-                <Row label="Color">
+                <Row label="Colour">
                     <input type="color" value={selectedObject.fill} onChange={(e) => handleChange('fill', e.target.value)} />
                 </Row>
                 <Row label="Width">
@@ -748,7 +748,7 @@ const PropertyPanel: React.FC = () => {
         {selectedObject.type === 'audio_visualization' && (
             <>
                 <SectionHeader label="Waveform Settings" />
-                <Row label="Color">
+                <Row label="Colour">
                      <input type="color" value={(selectedObject as AudioVisualizationObject).color} onChange={(e) => handleChange('color', e.target.value)} />
                 </Row>
                 <Row label="Thickness">
