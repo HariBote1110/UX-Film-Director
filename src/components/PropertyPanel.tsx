@@ -5,6 +5,26 @@ import { buildPsdLayerTree, togglePsdLayer } from '../utils/psdParser';
 import { easingNames, EasingType } from '../utils/easings';
 import { buildEndpointKeyframes, evaluateObjectPositionAtTime } from '../utils/keyframes';
 
+const Slider = ({
+  className,
+  onPointerDown,
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement>) => (
+  <input
+    {...props}
+    type="range"
+    className={className ? `no-drag ${className}` : 'no-drag'}
+    onPointerDown={(event) => {
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        // Ignore environments where pointer capture is not available.
+      }
+      onPointerDown?.(event);
+    }}
+  />
+);
+
 const PropertyPanel: React.FC = () => {
   const { selectedObject, selectedCount, selectedObjects, currentTime, objects } = useStore((state) => {
     const normalisedSelectedIds = state.selectedIds.length > 0
@@ -425,26 +445,6 @@ const PropertyPanel: React.FC = () => {
       <div style={{ marginTop: '16px', marginBottom: '8px', paddingBottom: '4px', borderBottom: '1px solid #444', fontSize: '11px', fontWeight: 'bold', color: '#eee', textTransform: 'uppercase' }}>
           {label}
       </div>
-  );
-
-  const Slider = ({
-    className,
-    onPointerDown,
-    ...props
-  }: React.InputHTMLAttributes<HTMLInputElement>) => (
-    <input
-      {...props}
-      type="range"
-      className={className ? `no-drag ${className}` : 'no-drag'}
-      onPointerDown={(event) => {
-        try {
-          event.currentTarget.setPointerCapture(event.pointerId);
-        } catch {
-          // Ignore environments where pointer capture is not available.
-        }
-        onPointerDown?.(event);
-      }}
-    />
   );
 
   return (

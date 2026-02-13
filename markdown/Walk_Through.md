@@ -373,3 +373,8 @@
 - `src/components/PropertyPanel.tsx`
 - `Slider` コンポーネントを追加し、`pointerdown` で `setPointerCapture` を行うようにした。
 - これにより、ドラッグ中にポインタがスライダー領域外へ出ても操作が中断しにくくなるようにした。
+
+## 37. スライダー再マウントによるドラッグ中断の修正
+- `src/components/PropertyPanel.tsx`
+- `Slider` を `PropertyPanel` の関数内定義からモジュールスコープへ移動し、値更新ごとの再生成・再マウントを防止した。
+- これにより、ドラッグ中の再レンダリングでスライダーが一瞬で外れる問題を解消した。
