@@ -10,6 +10,65 @@ import { useProjectExport } from '../hooks/useProjectExport';
 import { getGroupTransforms, getLipSyncViseme, updatePixiContent, applyObjectEffects, getVibrationOffset, applyGroupGradientEffect } from '../utils/pixiRenderHelper';
 import { evaluateObjectPositionAtTime } from '../utils/keyframes';
 
+const GROUP_GRADIENT_COMPONENT_PREFIX = 'group-gradient-component-';
+
+type BoundsLike = { x: number; y: number; width: number; height: number };
+
+const boundsIntersect = (a: BoundsLike, b: BoundsLike) => (
+  a.x <= b.x + b.width
+  && a.x + a.width >= b.x
+  && a.y <= b.y + b.height
+  && a.y + a.height >= b.y
+);
+
+const buildConnectedComponents = (containers: PIXI.Container[]): number[][] => {
+  if (containers.length <= 1) return containers.length === 1 ? [[0]] : [];
+
+  const boundsList = containers.map((container) => container.getBounds());
+  const visited = new Array(containers.length).fill(false);
+  const components: number[][] = [];
+
+  for (let startIndex = 0; startIndex < containers.length; startIndex += 1) {
+    if (visited[startIndex]) continue;
+
+    const queue: number[] = [startIndex];
+    visited[startIndex] = true;
+    const component: number[] = [];
+
+    while (queue.length > 0) {
+      const currentIndex = queue.shift()!;
+      component.push(currentIndex);
+
+      for (let nextIndex = 0; nextIndex < containers.length; nextIndex += 1) {
+        if (visited[nextIndex]) continue;
+        if (!boundsIntersect(boundsList[currentIndex], boundsList[nextIndex])) continue;
+        visited[nextIndex] = true;
+        queue.push(nextIndex);
+      }
+    }
+
+    components.push(component);
+  }
+
+  return components;
+};
+
+const flattenGroupGradientComponents = (groupContainer: PIXI.Container) => {
+  const componentContainers = groupContainer.children.filter((child) => (
+    typeof child.label === 'string' && child.label.startsWith(GROUP_GRADIENT_COMPONENT_PREFIX)
+  )) as PIXI.Container[];
+
+  componentContainers.forEach((componentContainer) => {
+    const members = componentContainer.removeChildren() as PIXI.Container[];
+    members.forEach((member) => {
+      groupContainer.addChild(member);
+    });
+    applyGroupGradientEffect(componentContainer, undefined);
+    groupContainer.removeChild(componentContainer);
+    componentContainer.destroy({ children: false });
+  });
+};
+
 const Viewport: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const pixiAppRef = useRef<PIXI.Application | null>(null);
@@ -227,12 +286,16 @@ const Viewport: React.FC = () => {
         currentPixiObjects.set(obj.id, container);
       }
       container.cursor = layers[obj.layer]?.locked ? 'not-allowed' : 'pointer';
-      const targetParent = obj.groupId && currentGroupContainers.has(obj.groupId)
-        ? currentGroupContainers.get(obj.groupId)!
-        : app.stage;
-      if (container.parent !== targetParent) {
+      if (obj.groupId && currentGroupContainers.has(obj.groupId)) {
+        const groupParent = currentGroupContainers.get(obj.groupId)!;
+        const isAlreadyInsideGroup = container.parent === groupParent || container.parent?.parent === groupParent;
+        if (!isAlreadyInsideGroup) {
+          container.parent?.removeChild(container);
+          groupParent.addChild(container);
+        }
+      } else if (container.parent !== app.stage) {
         container.parent?.removeChild(container);
-        targetParent.addChild(container);
+        app.stage.addChild(container);
       }
 
       // Content Update
@@ -369,6 +432,7 @@ const Viewport: React.FC = () => {
     // 4. Group Gradient Filter
     const groupTopLayerMap = new Map<string, number>();
     const groupGradientMap = new Map<string, GradientFill | undefined>();
+    const groupObjectContainersMap = new Map<string, PIXI.Container[]>();
     visibleObjects.forEach((obj) => {
       if (!obj.groupId || !currentGroupContainers.has(obj.groupId)) return;
       const prevTop = groupTopLayerMap.get(obj.groupId);
@@ -378,10 +442,49 @@ const Viewport: React.FC = () => {
       if (obj.groupGradient && !groupGradientMap.has(obj.groupId)) {
         groupGradientMap.set(obj.groupId, obj.groupGradient);
       }
+      const objectContainer = currentPixiObjects.get(obj.id);
+      if (!objectContainer) return;
+      const members = groupObjectContainersMap.get(obj.groupId) ?? [];
+      members.push(objectContainer);
+      groupObjectContainersMap.set(obj.groupId, members);
     });
     currentGroupContainers.forEach((groupContainer, groupId) => {
+      flattenGroupGradientComponents(groupContainer);
+
+      const gradient = groupGradientMap.get(groupId);
+      const members = groupObjectContainersMap.get(groupId) ?? [];
+      const canSplitComponents = gradient?.enabled === true && members.length >= 2;
+
+      if (canSplitComponents) {
+        const components = buildConnectedComponents(members);
+        if (components.length > 1) {
+          applyGroupGradientEffect(groupContainer, undefined);
+          components.forEach((componentMemberIndexes, componentIndex) => {
+            const componentContainer = new PIXI.Container();
+            componentContainer.label = `${GROUP_GRADIENT_COMPONENT_PREFIX}${groupId}-${componentIndex}`;
+            componentContainer.sortableChildren = true;
+
+            let topLayer = Number.NEGATIVE_INFINITY;
+            componentMemberIndexes.forEach((memberIndex) => {
+              const member = members[memberIndex];
+              topLayer = Math.max(topLayer, member.zIndex);
+              member.parent?.removeChild(member);
+              componentContainer.addChild(member);
+            });
+
+            componentContainer.zIndex = Number.isFinite(topLayer) ? topLayer : 0;
+            groupContainer.addChild(componentContainer);
+            applyGroupGradientEffect(componentContainer, gradient);
+          });
+
+          groupContainer.sortChildren();
+          groupContainer.zIndex = groupTopLayerMap.get(groupId) ?? 0;
+          return;
+        }
+      }
+
       groupContainer.zIndex = groupTopLayerMap.get(groupId) ?? 0;
-      applyGroupGradientEffect(groupContainer, groupGradientMap.get(groupId));
+      applyGroupGradientEffect(groupContainer, gradient);
     });
 
     app.stage.sortChildren();
