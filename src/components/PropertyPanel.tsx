@@ -25,6 +25,19 @@ const Slider = ({
   />
 );
 
+const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', fontSize: '12px' }}>
+    <div style={{ width: '80px', color: '#aaa' }}>{label}</div>
+    <div style={{ flex: 1 }}>{children}</div>
+  </div>
+);
+
+const SectionHeader = ({ label }: { label: string }) => (
+  <div style={{ marginTop: '16px', marginBottom: '8px', paddingBottom: '4px', borderBottom: '1px solid #444', fontSize: '11px', fontWeight: 'bold', color: '#eee', textTransform: 'uppercase' }}>
+    {label}
+  </div>
+);
+
 const PropertyPanel: React.FC = () => {
   const { selectedObject, selectedCount, selectedObjects, currentTime, objects } = useStore((state) => {
     const normalisedSelectedIds = state.selectedIds.length > 0
@@ -432,20 +445,6 @@ const PropertyPanel: React.FC = () => {
           );
       });
   };
-
-  // Common UI Components
-  const Row = ({ label, children }: { label: string, children: React.ReactNode }) => (
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', fontSize: '12px' }}>
-          <div style={{ width: '80px', color: '#aaa' }}>{label}</div>
-          <div style={{ flex: 1 }}>{children}</div>
-      </div>
-  );
-  
-  const SectionHeader = ({ label }: { label: string }) => (
-      <div style={{ marginTop: '16px', marginBottom: '8px', paddingBottom: '4px', borderBottom: '1px solid #444', fontSize: '11px', fontWeight: 'bold', color: '#eee', textTransform: 'uppercase' }}>
-          {label}
-      </div>
-  );
 
   return (
     <div className="property-panel no-drag" style={{ width: '300px', height: '100%', background: '#252526', borderLeft: '1px solid #111', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>

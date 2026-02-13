@@ -378,3 +378,8 @@
 - `src/components/PropertyPanel.tsx`
 - `Slider` を `PropertyPanel` の関数内定義からモジュールスコープへ移動し、値更新ごとの再生成・再マウントを防止した。
 - これにより、ドラッグ中の再レンダリングでスライダーが一瞬で外れる問題を解消した。
+
+## 38. Row/SectionHeader再生成による入力中断の修正
+- `src/components/PropertyPanel.tsx`
+- `Row` と `SectionHeader` もモジュールスコープへ移動し、各入力行が更新ごとに再マウントされる問題を解消した。
+- これにより、スライダーを含む入力コンポーネントのドラッグ/フォーカスが継続するようにした。
