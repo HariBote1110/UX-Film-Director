@@ -1,1 +1,28 @@
-"use strict";const n=require("electron");n.contextBridge.exposeInMainWorld("ipcRenderer",{on(...e){const[r,t]=e;return n.ipcRenderer.on(r,(c,...o)=>t(c,...o))},off(...e){const[r,...t]=e;return n.ipcRenderer.off(r,...t)},send(...e){const[r,...t]=e;return n.ipcRenderer.send(r,...t)},invoke(...e){const[r,...t]=e;return n.ipcRenderer.invoke(r,...t)}});n.contextBridge.exposeInMainWorld("rustBackend",{health(){return n.ipcRenderer.invoke("rust-backend-health")},echo(e){return n.ipcRenderer.invoke("rust-backend-echo",e)}});
+"use strict";
+const electron = require("electron");
+electron.contextBridge.exposeInMainWorld("ipcRenderer", {
+  on(...args) {
+    const [channel, listener] = args;
+    return electron.ipcRenderer.on(channel, (event, ...args2) => listener(event, ...args2));
+  },
+  off(...args) {
+    const [channel, ...omit] = args;
+    return electron.ipcRenderer.off(channel, ...omit);
+  },
+  send(...args) {
+    const [channel, ...omit] = args;
+    return electron.ipcRenderer.send(channel, ...omit);
+  },
+  invoke(...args) {
+    const [channel, ...omit] = args;
+    return electron.ipcRenderer.invoke(channel, ...omit);
+  }
+});
+electron.contextBridge.exposeInMainWorld("rustBackend", {
+  health() {
+    return electron.ipcRenderer.invoke("rust-backend-health");
+  },
+  echo(payload) {
+    return electron.ipcRenderer.invoke("rust-backend-echo", payload);
+  }
+});
