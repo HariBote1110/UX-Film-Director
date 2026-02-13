@@ -80,8 +80,10 @@ const PropertyPanel: React.FC = () => {
     color_correction: '色調補正',
     clipping: 'クリッピング',
     vibration: '振動',
-    shadow: '影'
+    shadow: '影',
+    gradient: 'グラデーション'
   };
+  const canUseGradientFilter = selectedObject.type === 'shape';
 
   const resetBatchTransformInputs = () => {
     setBatchMoveX('0');
@@ -178,6 +180,39 @@ const PropertyPanel: React.FC = () => {
 
   const handleFilterParamChange = (filter: ObjectFilter, params: Record<string, unknown>) => {
     updateObjectFilterParams(selectedObject.id, filter.id, params);
+  };
+
+  const getGradientEditorState = (filter: Extract<ObjectFilter, { type: 'gradient' }>) => {
+    let colours = Array.isArray(filter.params.colours)
+      ? filter.params.colours.filter((entry): entry is string => typeof entry === 'string' && entry.trim() !== '')
+      : [];
+    if (colours.length === 0) colours = ['#ffffff', '#000000'];
+    if (colours.length === 1) colours = [colours[0], colours[0]];
+    colours = colours.slice(0, 8);
+
+    const rawStops = Array.isArray(filter.params.stops)
+      ? filter.params.stops.filter((entry): entry is number => typeof entry === 'number' && Number.isFinite(entry))
+      : [];
+    const stops = colours.map((_, index) => {
+      const fallback = colours.length === 1 ? 0 : index / (colours.length - 1);
+      return clamp(rawStops[index] ?? fallback, 0, 1);
+    });
+
+    return { colours, stops };
+  };
+
+  const handleGradientColourChange = (filter: Extract<ObjectFilter, { type: 'gradient' }>, index: number, value: string) => {
+    const { colours, stops } = getGradientEditorState(filter);
+    colours[index] = value;
+    handleFilterParamChange(filter, { colours, stops });
+  };
+
+  const handleGradientStopChange = (filter: Extract<ObjectFilter, { type: 'gradient' }>, index: number, rawValue: string) => {
+    const parsed = parseFloat(rawValue);
+    if (Number.isNaN(parsed)) return;
+    const { colours, stops } = getGradientEditorState(filter);
+    stops[index] = clamp(parsed, 0, 1);
+    handleFilterParamChange(filter, { colours, stops });
   };
 
   const canEditKeyframes = selectedObject.type !== 'audio';
@@ -519,6 +554,9 @@ const PropertyPanel: React.FC = () => {
             <button type="button" onClick={() => handleAddFilter('clipping')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ クリッピング</button>
             <button type="button" onClick={() => handleAddFilter('vibration')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ 振動</button>
             <button type="button" onClick={() => handleAddFilter('shadow')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ 影</button>
+            {canUseGradientFilter && (
+                <button type="button" onClick={() => handleAddFilter('gradient')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ グラデーション</button>
+            )}
         </div>
         <div style={{ border: '1px solid #333', borderRadius: '4px', overflow: 'hidden', marginBottom: '8px' }}>
             {filters.length === 0 && (
@@ -668,6 +706,70 @@ const PropertyPanel: React.FC = () => {
                         <Row label="Opacity">
                             <input type="range" min="0" max="1" step="0.05" value={activeFilter.params.opacity} onChange={(e) => handleFilterParamChange(activeFilter, { opacity: parseFloat(e.target.value) })} style={{ width: '100%' }} />
                         </Row>
+                    </>
+                )}
+                {activeFilter.type === 'gradient' && (
+                    <>
+                        <Row label="Type">
+                            <select
+                                value={activeFilter.params.type}
+                                onChange={(e) => handleFilterParamChange(activeFilter, { type: e.target.value === 'radial' ? 'radial' : 'linear' })}
+                                style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                            >
+                                <option value="linear">Linear</option>
+                                <option value="radial">Radial</option>
+                            </select>
+                        </Row>
+                        <Row label="Colour A">
+                            <input
+                                type="color"
+                                value={getGradientEditorState(activeFilter).colours[0]}
+                                onChange={(e) => handleGradientColourChange(activeFilter, 0, e.target.value)}
+                            />
+                        </Row>
+                        <Row label="Colour B">
+                            <input
+                                type="color"
+                                value={getGradientEditorState(activeFilter).colours[1]}
+                                onChange={(e) => handleGradientColourChange(activeFilter, 1, e.target.value)}
+                            />
+                        </Row>
+                        <Row label="Stop A">
+                            <input
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                value={getGradientEditorState(activeFilter).stops[0]}
+                                onChange={(e) => handleGradientStopChange(activeFilter, 0, e.target.value)}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                        <Row label="Stop B">
+                            <input
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                value={getGradientEditorState(activeFilter).stops[1]}
+                                onChange={(e) => handleGradientStopChange(activeFilter, 1, e.target.value)}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                        {activeFilter.params.type === 'linear' && (
+                            <Row label="Direction">
+                                <input
+                                    type="number"
+                                    value={activeFilter.params.direction}
+                                    onChange={(e) => {
+                                      const parsed = parseFloat(e.target.value);
+                                      if (Number.isNaN(parsed)) return;
+                                      handleFilterParamChange(activeFilter, { direction: parsed });
+                                    }}
+                                    style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                                />
+                            </Row>
+                        )}
                     </>
                 )}
             </div>

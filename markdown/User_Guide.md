@@ -40,7 +40,7 @@
 ## 5. プロパティパネル主要項目
 - `Transform`: 位置・拡大縮小・回転・不透明度
 - `Keyframes`: 中間点の追加/編集/削除、補間設定
-- `Filter Stack`: フィルタ追加、順序変更、ON/OFF、パラメータ編集
+- `Filter Stack`: フィルタ追加、順序変更、ON/OFF、パラメータ編集（色調補正/クリッピング/振動/影/グラデーション）
 - `Audio`（動画/音声選択時）: `Mute` / `Volume`
 - `PSD`（PSD選択時）: `Scale`、レイヤーON/OFF
 

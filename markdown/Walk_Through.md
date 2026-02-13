@@ -322,3 +322,16 @@
 - `src/utils/projectFile.ts`
 - プロジェクト読込時に `objects` を要素単位で検証し、必須の基本フィールド・キーフレーム配列形式が不正な場合は明示的エラーを返すようにした。
 - 破損した JSON の混入時に、復元処理中の実行時クラッシュを起こさず読込段階で停止できるようにした。
+
+## 31. グラデーションフィルタの実装
+- `src/types.ts`
+- `FilterType` / `ObjectFilter` に `gradient` を追加し、フィルタスタック上で型安全に扱えるようにした。
+- `src/utils/filterStack.ts`
+- `gradient` のデフォルト値・正規化処理を追加し、`shape.gradient`（既存プロパティ）との双方向同期を実装した。
+- `filters` 側で追加/削除/有効無効を操作すると `shape.gradient` が追従し、逆にレガシー値からの復元時も `gradient` フィルタが生成されるようにした。
+- `src/store/useStore.ts`
+- `updateObject` のレガシー効果更新判定に `gradient` を追加し、直接更新時も同期経路を通るようにした。
+- `src/components/PropertyPanel.tsx`
+- `shape` 選択時のみ `+ グラデーション` を追加し、`Type`（Linear/Radial）・`Colour A/B`・`Stop A/B`・`Direction` の編集 UI を実装した。
+- `markdown/Task.md` / `markdown/Implementation_Plan.md` / `markdown/User_Guide.md`
+- フィルタスタックの対象一覧に `グラデーション` を追記し、仕様ドキュメントと実装の整合を取った。

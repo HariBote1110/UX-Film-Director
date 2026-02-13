@@ -5,7 +5,8 @@ import {
   ColorCorrection,
   ClippingParams,
   Vibration,
-  ShadowEffect
+  ShadowEffect,
+  GradientFill
 } from '../types';
 
 const DEFAULT_COLOR_CORRECTION: Omit<ColorCorrection, 'enabled'> = {
@@ -37,6 +38,13 @@ const DEFAULT_SHADOW: Omit<ShadowEffect, 'enabled'> = {
   opacity: 0.5
 };
 
+const DEFAULT_GRADIENT: Omit<GradientFill, 'enabled'> = {
+  type: 'linear',
+  colours: ['#ffffff', '#000000'],
+  stops: [0, 1],
+  direction: 0
+};
+
 const createFilterId = (type: FilterType): string => {
   return `${type}-${crypto.randomUUID()}`;
 };
@@ -57,7 +65,8 @@ const isFilterType = (value: unknown): value is FilterType => {
   return value === 'color_correction'
     || value === 'clipping'
     || value === 'vibration'
-    || value === 'shadow';
+    || value === 'shadow'
+    || value === 'gradient';
 };
 
 const normaliseColorParams = (params: unknown): Omit<ColorCorrection, 'enabled'> => {
@@ -103,6 +112,33 @@ const normaliseShadowParams = (params: unknown): Omit<ShadowEffect, 'enabled'> =
   };
 };
 
+const normaliseGradientParams = (params: unknown): Omit<GradientFill, 'enabled'> => {
+  const source = isRecord(params) ? params : {};
+  const type = source.type === 'radial' ? 'radial' : 'linear';
+  const rawColours = Array.isArray(source.colours)
+    ? source.colours.filter((entry): entry is string => typeof entry === 'string' && entry.trim() !== '')
+    : [];
+  let colours = rawColours.slice(0, 8);
+  if (colours.length === 0) colours = [...DEFAULT_GRADIENT.colours];
+  if (colours.length === 1) colours = [colours[0], colours[0]];
+
+  const rawStops = Array.isArray(source.stops)
+    ? source.stops.filter((entry): entry is number => typeof entry === 'number' && Number.isFinite(entry))
+    : [];
+  const stops = colours.map((_, index) => {
+    const fallback = colours.length === 1 ? 0 : index / (colours.length - 1);
+    const value = rawStops[index];
+    return Math.max(0, Math.min(1, typeof value === 'number' ? value : fallback));
+  });
+
+  return {
+    type,
+    colours,
+    stops,
+    direction: toNumber(source.direction, DEFAULT_GRADIENT.direction)
+  };
+};
+
 export const createDefaultFilter = (type: FilterType): ObjectFilter => {
   switch (type) {
     case 'color_correction':
@@ -132,6 +168,17 @@ export const createDefaultFilter = (type: FilterType): ObjectFilter => {
         type,
         enabled: true,
         params: { ...DEFAULT_SHADOW }
+      };
+    case 'gradient':
+      return {
+        id: createFilterId(type),
+        type,
+        enabled: true,
+        params: {
+          ...DEFAULT_GRADIENT,
+          colours: [...DEFAULT_GRADIENT.colours],
+          stops: [...DEFAULT_GRADIENT.stops]
+        }
       };
     default:
       return {
@@ -178,6 +225,13 @@ const normaliseFilter = (value: unknown): ObjectFilter | null => {
         type: 'shadow',
         enabled,
         params: normaliseShadowParams(value.params)
+      };
+    case 'gradient':
+      return {
+        id,
+        type: 'gradient',
+        enabled,
+        params: normaliseGradientParams(value.params)
       };
     default:
       return null;
@@ -235,6 +289,15 @@ export const buildFiltersFromLegacyEffects = (object: TimelineObject): ObjectFil
     });
   }
 
+  if (object.type === 'shape' && object.gradient) {
+    filters.push({
+      id: createFilterId('gradient'),
+      type: 'gradient',
+      enabled: object.gradient.enabled,
+      params: normaliseGradientParams(object.gradient)
+    });
+  }
+
   return filters;
 };
 
@@ -254,8 +317,9 @@ export const syncLegacyEffectsWithFilters = <T extends TimelineObject>(object: T
   const clippingFilter = findLastFilter(filters, 'clipping');
   const vibrationFilter = findLastFilter(filters, 'vibration');
   const shadowFilter = findLastFilter(filters, 'shadow');
+  const gradientFilter = findLastFilter(filters, 'gradient');
 
-  return {
+  const syncedBase = {
     ...object,
     filters,
     colorCorrection: colorFilter && colorFilter.type === 'color_correction'
@@ -271,6 +335,17 @@ export const syncLegacyEffectsWithFilters = <T extends TimelineObject>(object: T
       ? { enabled: shadowFilter.enabled, ...shadowFilter.params }
       : undefined
   };
+
+  if (object.type !== 'shape') {
+    return syncedBase as T;
+  }
+
+  return {
+    ...syncedBase,
+    gradient: gradientFilter && gradientFilter.type === 'gradient'
+      ? { enabled: gradientFilter.enabled, ...gradientFilter.params }
+      : undefined
+  } as T;
 };
 
 const upsertLegacyFilter = (
@@ -328,6 +403,11 @@ export const syncFiltersFromLegacyValues = <T extends TimelineObject>(object: T)
   nextFilters = upsertLegacyFilter(nextFilters, 'shadow', object.shadow
     ? { enabled: object.shadow.enabled, params: object.shadow }
     : null);
+  if (object.type === 'shape') {
+    nextFilters = upsertLegacyFilter(nextFilters, 'gradient', object.gradient
+      ? { enabled: object.gradient.enabled, params: object.gradient }
+      : null);
+  }
 
   return syncLegacyEffectsWithFilters({ ...object, filters: nextFilters });
 };

@@ -464,7 +464,8 @@ export const useStore = create<AppState>((set, get) => ({
     const hasLegacyEffectUpdate = Object.prototype.hasOwnProperty.call(adjustedNewProps, 'colorCorrection')
       || Object.prototype.hasOwnProperty.call(adjustedNewProps, 'customClipping')
       || Object.prototype.hasOwnProperty.call(adjustedNewProps, 'vibration')
-      || Object.prototype.hasOwnProperty.call(adjustedNewProps, 'shadow');
+      || Object.prototype.hasOwnProperty.call(adjustedNewProps, 'shadow')
+      || Object.prototype.hasOwnProperty.call(adjustedNewProps, 'gradient');
 
     const mergedObject = { ...currentObject, ...adjustedNewProps } as TimelineObject;
     const updatedObject = syncObjectKeyframes(hasFilterUpdate

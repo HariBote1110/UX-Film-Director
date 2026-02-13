@@ -93,7 +93,7 @@ export interface ClippingParams {
   radius: number; // ぼかし等の用途（今回はコーナー半径や簡易ぼかしとして予約、現状未使用でも可）
 }
 
-export type FilterType = 'color_correction' | 'clipping' | 'vibration' | 'shadow';
+export type FilterType = 'color_correction' | 'clipping' | 'vibration' | 'shadow' | 'gradient';
 
 interface BaseFilter {
   id: string;
@@ -121,7 +121,12 @@ export interface ShadowFilter extends BaseFilter {
   params: Omit<ShadowEffect, 'enabled'>;
 }
 
-export type ObjectFilter = ColorCorrectionFilter | ClippingFilter | VibrationFilter | ShadowFilter;
+export interface GradientFilter extends BaseFilter {
+  type: 'gradient';
+  params: Omit<GradientFill, 'enabled'>;
+}
+
+export type ObjectFilter = ColorCorrectionFilter | ClippingFilter | VibrationFilter | ShadowFilter | GradientFilter;
 
 // --- オブジェクト定義 ---
 
