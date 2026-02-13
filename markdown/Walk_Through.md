@@ -359,6 +359,6 @@
 - `src/types.ts`
 - `GradientFill` に `scope`（`group` / `connected`）を追加し、グループグラデーションの適用範囲を指定できるようにした。
 - `src/components/PropertyPanel.tsx`
-- `Group Gradient` に `Scope` UI を追加し、`Group (Scene)` と `Connected` を切り替え可能にした。
+- `Group Gradient` に `Scope` UI を追加した（現在は一時的に非表示）。
 - `src/components/Viewport.tsx`
 - `Scope` が `group` の場合はグループ全体へ一本の勾配、`connected` の場合は連結コンポーネント単位の勾配を適用するよう分岐を追加した。

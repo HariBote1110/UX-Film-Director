@@ -56,7 +56,7 @@ const PropertyPanel: React.FC = () => {
 
   if (!selectedObject) {
     return (
-      <div className="property-panel" style={{ width: '300px', background: '#252526', borderLeft: '1px solid #111', padding: '10px', color: '#ccc' }}>
+      <div className="property-panel no-drag" style={{ width: '300px', background: '#252526', borderLeft: '1px solid #111', padding: '10px', color: '#ccc' }}>
         <div style={{ fontSize: '12px', color: '#888' }}>No object selected</div>
       </div>
     );
@@ -428,7 +428,7 @@ const PropertyPanel: React.FC = () => {
   );
 
   return (
-    <div className="property-panel" style={{ width: '300px', height: '100%', background: '#252526', borderLeft: '1px solid #111', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+    <div className="property-panel no-drag" style={{ width: '300px', height: '100%', background: '#252526', borderLeft: '1px solid #111', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
       <div style={{ padding: '10px', borderBottom: '1px solid #333', background: '#333', fontWeight: 'bold' }}>
         Property: {selectedObject.name}
         {selectedCount > 1 && (
@@ -706,16 +706,6 @@ const PropertyPanel: React.FC = () => {
                             >
                                 <option value="linear">Linear</option>
                                 <option value="radial">Radial</option>
-                            </select>
-                        </Row>
-                        <Row label="Scope">
-                            <select
-                                value={groupGradientState.scope}
-                                onChange={(e) => applyGroupGradientPatch({ scope: e.target.value === 'group' ? 'group' : 'connected' })}
-                                style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
-                            >
-                                <option value="group">Group (Scene)</option>
-                                <option value="connected">Connected</option>
                             </select>
                         </Row>
                         <Row label="Colour A">

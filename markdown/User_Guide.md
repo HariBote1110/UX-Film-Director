@@ -41,7 +41,7 @@
 - `Transform`: 位置・拡大縮小・回転・不透明度
 - `Keyframes`: 中間点の追加/編集/削除、補間設定
 - `Filter Stack`: フィルタ追加、順序変更、ON/OFF、パラメータ編集（色調補正/クリッピング/振動/影/グラデーション）
-- `Group Gradient`（グループ選択時）: 同一グループへグラデーションを適用。`Scope` で `Group (Scene)`（全体一括）/`Connected`（連結単位）を切替可能
+- `Group Gradient`（グループ選択時）: 同一グループへグラデーションを適用（`Scope` 切替UIは現在一時非表示）
 - `Audio`（動画/音声選択時）: `Mute` / `Volume`
 - `PSD`（PSD選択時）: `Scale`、レイヤーON/OFF
 
