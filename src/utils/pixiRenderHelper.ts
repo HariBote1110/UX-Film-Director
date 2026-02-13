@@ -98,6 +98,84 @@ void main(void) {
 }
 `;
 
+const groupGradientWgslShader = `
+struct GlobalFilterUniforms {
+  uInputSize: vec4<f32>,
+  uInputPixel: vec4<f32>,
+  uInputClamp: vec4<f32>,
+  uOutputFrame: vec4<f32>,
+  uGlobalFrame: vec4<f32>,
+  uOutputTexture: vec4<f32>,
+};
+
+struct GroupGradientUniforms {
+  uDirection: f32,
+  uStopA: f32,
+  uStopB: f32,
+  uIsRadial: f32,
+  uColourA: vec4<f32>,
+  uColourB: vec4<f32>,
+};
+
+@group(0) @binding(0) var<uniform> gfu: GlobalFilterUniforms;
+@group(0) @binding(1) var uTexture: texture_2d<f32>;
+@group(0) @binding(2) var uSampler: sampler;
+
+@group(1) @binding(0) var<uniform> groupGradientUniforms: GroupGradientUniforms;
+
+struct VSOutput {
+  @builtin(position) position: vec4<f32>,
+  @location(0) uv: vec2<f32>,
+};
+
+fn filterVertexPosition(aPosition: vec2<f32>) -> vec4<f32> {
+  var position = aPosition * gfu.uOutputFrame.zw + gfu.uOutputFrame.xy;
+  position.x = position.x * (2.0 / gfu.uOutputTexture.x) - 1.0;
+  position.y = position.y * (2.0 * gfu.uOutputTexture.z / gfu.uOutputTexture.y) - gfu.uOutputTexture.z;
+  return vec4<f32>(position, 0.0, 1.0);
+}
+
+fn filterTextureCoord(aPosition: vec2<f32>) -> vec2<f32> {
+  return aPosition * (gfu.uOutputFrame.zw * gfu.uInputSize.zw);
+}
+
+@vertex
+fn mainVertex(
+  @location(0) aPosition: vec2<f32>
+) -> VSOutput {
+  return VSOutput(
+    filterVertexPosition(aPosition),
+    filterTextureCoord(aPosition)
+  );
+}
+
+@fragment
+fn mainFragment(
+  @location(0) uv: vec2<f32>,
+  @builtin(position) position: vec4<f32>
+) -> @location(0) vec4<f32> {
+  let src = textureSample(uTexture, uSampler, uv);
+  var t: f32;
+
+  if (groupGradientUniforms.uIsRadial > 0.5) {
+    let centred = uv - vec2<f32>(0.5, 0.5);
+    t = length(centred) * 2.0;
+  } else {
+    let dir = vec2<f32>(cos(groupGradientUniforms.uDirection), sin(groupGradientUniforms.uDirection));
+    let centred = uv - vec2<f32>(0.5, 0.5);
+    t = dot(centred, dir) + 0.5;
+  }
+
+  let start = min(groupGradientUniforms.uStopA, groupGradientUniforms.uStopB);
+  let end = max(groupGradientUniforms.uStopA, groupGradientUniforms.uStopB);
+  let denom = max(0.0001, end - start);
+  let ratio = clamp((t - start) / denom, 0.0, 1.0);
+  let grad = mix(groupGradientUniforms.uColourA, groupGradientUniforms.uColourB, ratio);
+
+  return vec4<f32>(grad.rgb, grad.a * src.a);
+}
+`;
+
 const normaliseGradientForGroupFilter = (gradient: GradientFill) => {
     let colours = Array.isArray(gradient.colours)
         ? gradient.colours.filter((entry): entry is string => typeof entry === 'string' && entry.trim() !== '')
@@ -156,6 +234,16 @@ const parseHexColour = (input: string): Float32Array => {
 class GroupGradientFilter extends PIXI.Filter {
     constructor(gradient: GradientFill) {
         super({
+            gpuProgram: PIXI.GpuProgram.from({
+                vertex: {
+                    source: groupGradientWgslShader,
+                    entryPoint: 'mainVertex'
+                },
+                fragment: {
+                    source: groupGradientWgslShader,
+                    entryPoint: 'mainFragment'
+                }
+            }),
             glProgram: PIXI.GlProgram.from({
                 vertex: vertexShader,
                 fragment: groupGradientFragmentShader

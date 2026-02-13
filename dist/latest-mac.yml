@@ -1,11 +1,11 @@
-version: 0.1.1-Beta-2c
+version: 0.1.1-Beta-2d
 files:
-  - url: ux-film-director-0.1.1-Beta-2c-arm64-mac.zip
-    sha512: egPfDKc5EV/49sd8CRyABxKfF5xQewqCXYL+sVrYF6410ywy1ZhZjXRUXa1Vq/ariaos3YVkUbSahTsMKGGN9A==
-    size: 129340177
-  - url: ux-film-director-0.1.1-Beta-2c-arm64.dmg
-    sha512: GY4sbbmzFFZkqoA/+nDwfbsVF3XoXCnkV1eOQtHbcKHfquZ99SNEm1JF/LLsBJvxzQkx9R2zlDyPIFG0HMZRew==
-    size: 133976522
-path: ux-film-director-0.1.1-Beta-2c-arm64-mac.zip
-sha512: egPfDKc5EV/49sd8CRyABxKfF5xQewqCXYL+sVrYF6410ywy1ZhZjXRUXa1Vq/ariaos3YVkUbSahTsMKGGN9A==
-releaseDate: '2026-02-13T07:21:12.072Z'
+  - url: ux-film-director-0.1.1-Beta-2d-arm64-mac.zip
+    sha512: sShvFVA1Q9ij1albtJBg+HF5/lNpyFlKGB8EvW3aAYGvhLFaSO0seyH5BSKALa4uypPC5k0O2Rwf1Q7uTPW7CQ==
+    size: 129341046
+  - url: ux-film-director-0.1.1-Beta-2d-arm64.dmg
+    sha512: FD6Aj4Rtk9UbVVhIleTJPCq8mO+q5R+1lahQMwyKJqfAyEZQ6dzwAJJ7ZAVQaRAZit9DSXhYQE5x2/Zv9pYHJg==
+    size: 133982713
+path: ux-film-director-0.1.1-Beta-2d-arm64-mac.zip
+sha512: sShvFVA1Q9ij1albtJBg+HF5/lNpyFlKGB8EvW3aAYGvhLFaSO0seyH5BSKALa4uypPC5k0O2Rwf1Q7uTPW7CQ==
+releaseDate: '2026-02-13T07:32:38.197Z'
