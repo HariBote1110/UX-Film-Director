@@ -368,3 +368,8 @@
 - `type="range"` の入力処理を `onInput` ベースへ変更し、ドラッグ中の値更新を安定化した。
 - `src/index.css`
 - `input[type="range"]` を `-webkit-app-region: no-drag` に固定し、Electron のウィンドウドラッグ領域と競合しないようにした。
+
+## 36. スライダーのドラッグ継続性を改善
+- `src/components/PropertyPanel.tsx`
+- `Slider` コンポーネントを追加し、`pointerdown` で `setPointerCapture` を行うようにした。
+- これにより、ドラッグ中にポインタがスライダー領域外へ出ても操作が中断しにくくなるようにした。

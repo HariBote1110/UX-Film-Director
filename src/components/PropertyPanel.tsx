@@ -427,6 +427,26 @@ const PropertyPanel: React.FC = () => {
       </div>
   );
 
+  const Slider = ({
+    className,
+    onPointerDown,
+    ...props
+  }: React.InputHTMLAttributes<HTMLInputElement>) => (
+    <input
+      {...props}
+      type="range"
+      className={className ? `no-drag ${className}` : 'no-drag'}
+      onPointerDown={(event) => {
+        try {
+          event.currentTarget.setPointerCapture(event.pointerId);
+        } catch {
+          // Ignore environments where pointer capture is not available.
+        }
+        onPointerDown?.(event);
+      }}
+    />
+  );
+
   return (
     <div className="property-panel no-drag" style={{ width: '300px', height: '100%', background: '#252526', borderLeft: '1px solid #111', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
       <div style={{ padding: '10px', borderBottom: '1px solid #333', background: '#333', fontWeight: 'bold' }}>
@@ -534,7 +554,7 @@ const PropertyPanel: React.FC = () => {
             <input type="number" value={selectedObject.rotation} onChange={(e) => handleNumericChange('rotation', e.target.value)} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
         </Row>
         <Row label="Opacity">
-            <input type="range" min="0" max="1" step="0.01" value={selectedObject.opacity} onInput={(e) => handleNumericChange('opacity', e.currentTarget.value)} style={{ width: '100%' }} />
+            <Slider min="0" max="1" step="0.01" value={selectedObject.opacity} onInput={(e) => handleNumericChange('opacity', e.currentTarget.value)} style={{ width: '100%' }} />
         </Row>
 
         {canEditKeyframes && (
@@ -723,8 +743,7 @@ const PropertyPanel: React.FC = () => {
                             />
                         </Row>
                         <Row label="Stop A">
-                            <input
-                                type="range"
+                            <Slider
                                 min="0"
                                 max="1"
                                 step="0.01"
@@ -734,8 +753,7 @@ const PropertyPanel: React.FC = () => {
                             />
                         </Row>
                         <Row label="Stop B">
-                            <input
-                                type="range"
+                            <Slider
                                 min="0"
                                 max="1"
                                 step="0.01"
@@ -769,8 +787,7 @@ const PropertyPanel: React.FC = () => {
                 {activeFilter.type === 'color_correction' && (
                     <>
                         <Row label="Brightness">
-                            <input
-                                type="range"
+                            <Slider
                                 min="0"
                                 max="2"
                                 step="0.1"
@@ -780,8 +797,7 @@ const PropertyPanel: React.FC = () => {
                             />
                         </Row>
                         <Row label="Contrast">
-                            <input
-                                type="range"
+                            <Slider
                                 min="0"
                                 max="2"
                                 step="0.1"
@@ -791,8 +807,7 @@ const PropertyPanel: React.FC = () => {
                             />
                         </Row>
                         <Row label="Saturation">
-                            <input
-                                type="range"
+                            <Slider
                                 min="-1"
                                 max="1"
                                 step="0.1"
@@ -802,8 +817,7 @@ const PropertyPanel: React.FC = () => {
                             />
                         </Row>
                         <Row label="Hue">
-                            <input
-                                type="range"
+                            <Slider
                                 min="0"
                                 max="360"
                                 step="1"
@@ -861,7 +875,7 @@ const PropertyPanel: React.FC = () => {
                             <input type="number" value={activeFilter.params.offsetY} onChange={(e) => handleFilterParamChange(activeFilter, { offsetY: parseFloat(e.target.value) })} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
                         </Row>
                         <Row label="Opacity">
-                            <input type="range" min="0" max="1" step="0.05" value={activeFilter.params.opacity} onInput={(e) => handleFilterParamChange(activeFilter, { opacity: parseFloat(e.currentTarget.value) })} style={{ width: '100%' }} />
+                            <Slider min="0" max="1" step="0.05" value={activeFilter.params.opacity} onInput={(e) => handleFilterParamChange(activeFilter, { opacity: parseFloat(e.currentTarget.value) })} style={{ width: '100%' }} />
                         </Row>
                     </>
                 )}
@@ -892,8 +906,7 @@ const PropertyPanel: React.FC = () => {
                             />
                         </Row>
                         <Row label="Stop A">
-                            <input
-                                type="range"
+                            <Slider
                                 min="0"
                                 max="1"
                                 step="0.01"
@@ -903,8 +916,7 @@ const PropertyPanel: React.FC = () => {
                             />
                         </Row>
                         <Row label="Stop B">
-                            <input
-                                type="range"
+                            <Slider
                                 min="0"
                                 max="1"
                                 step="0.01"
@@ -940,8 +952,7 @@ const PropertyPanel: React.FC = () => {
                 </Row>
                 <Row label="Volume">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <input
-                            type="range"
+                        <Slider
                             min="0"
                             max="1"
                             step="0.01"
@@ -1041,8 +1052,7 @@ const PropertyPanel: React.FC = () => {
                 <SectionHeader label="PSD Transform" />
                 <Row label="Scale">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <input
-                            type="range"
+                        <Slider
                             min="0.1"
                             max="3"
                             step="0.01"
