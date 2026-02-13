@@ -21,6 +21,7 @@ export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' 
 export interface GradientFill {
   enabled: boolean;
   type: 'linear' | 'radial';
+  scope?: 'group' | 'connected';
   colours: string[];
   stops: number[];
   direction: number;

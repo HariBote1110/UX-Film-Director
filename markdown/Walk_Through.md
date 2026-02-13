@@ -354,3 +354,11 @@
 - `src/components/Viewport.tsx`
 - グループ内図形の表示境界が接しているものを同一コンポーネントとして扱い、離れている図形はコンポーネントごとに自動分割してグラデーションを適用するようにした。
 - これにより、離れた図形配置で外接矩形全体に引き伸ばされた見え方になる問題を抑えた。
+
+## 34. Group Gradient の適用範囲モード追加
+- `src/types.ts`
+- `GradientFill` に `scope`（`group` / `connected`）を追加し、グループグラデーションの適用範囲を指定できるようにした。
+- `src/components/PropertyPanel.tsx`
+- `Group Gradient` に `Scope` UI を追加し、`Group (Scene)` と `Connected` を切り替え可能にした。
+- `src/components/Viewport.tsx`
+- `Scope` が `group` の場合はグループ全体へ一本の勾配、`connected` の場合は連結コンポーネント単位の勾配を適用するよう分岐を追加した。

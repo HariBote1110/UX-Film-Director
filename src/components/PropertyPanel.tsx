@@ -229,6 +229,7 @@ const PropertyPanel: React.FC = () => {
     const fallback: GradientFill = {
       enabled: false,
       type: 'linear',
+      scope: 'connected',
       colours: ['#ffffff', '#000000'],
       stops: [0, 1],
       direction: 0
@@ -253,6 +254,7 @@ const PropertyPanel: React.FC = () => {
     return {
       enabled: gradient.enabled === true,
       type: gradient.type === 'radial' ? 'radial' : 'linear',
+      scope: gradient.scope === 'group' ? 'group' : 'connected',
       colours,
       stops,
       direction: Number.isFinite(gradient.direction) ? gradient.direction : 0
@@ -704,6 +706,16 @@ const PropertyPanel: React.FC = () => {
                             >
                                 <option value="linear">Linear</option>
                                 <option value="radial">Radial</option>
+                            </select>
+                        </Row>
+                        <Row label="Scope">
+                            <select
+                                value={groupGradientState.scope}
+                                onChange={(e) => applyGroupGradientPatch({ scope: e.target.value === 'group' ? 'group' : 'connected' })}
+                                style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                            >
+                                <option value="group">Group (Scene)</option>
+                                <option value="connected">Connected</option>
                             </select>
                         </Row>
                         <Row label="Colour A">

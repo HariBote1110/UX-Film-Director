@@ -453,7 +453,8 @@ const Viewport: React.FC = () => {
 
       const gradient = groupGradientMap.get(groupId);
       const members = groupObjectContainersMap.get(groupId) ?? [];
-      const canSplitComponents = gradient?.enabled === true && members.length >= 2;
+      const useConnectedScope = gradient?.scope !== 'group';
+      const canSplitComponents = gradient?.enabled === true && useConnectedScope && members.length >= 2;
 
       if (canSplitComponents) {
         const components = buildConnectedComponents(members);
