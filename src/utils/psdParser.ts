@@ -17,6 +17,9 @@ type LayerImageDataNormalised = {
   height: number;
 };
 
+const LAYER_NAME_DECODE_ENCODINGS = ['utf-8', 'shift_jis', 'euc-jp'] as const;
+const JAPANESE_CHAR_RE = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
+
 const getLayerWidth = (layer: LayerWithBounds) => {
   if (typeof layer.width === 'number') return layer.width;
   if (typeof layer.left === 'number' && typeof layer.right === 'number') {
@@ -149,6 +152,89 @@ const normaliseLayerImageData = (
   return { data, width, height };
 };
 
+const toSingleByteNameBytes = (value: string): Uint8Array | null => {
+  const bytes = new Uint8Array(value.length);
+
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code > 0xff) return null;
+    bytes[i] = code;
+  }
+
+  return bytes;
+};
+
+const scoreLayerName = (value: string): number => {
+  let score = 0;
+
+  for (const char of value) {
+    const code = char.charCodeAt(0);
+
+    if (char === '\uFFFD') {
+      score -= 8;
+      continue;
+    }
+
+    if ((code >= 0x00 && code <= 0x1f) || (code >= 0x7f && code <= 0x9f)) {
+      score -= 6;
+      continue;
+    }
+
+    if (JAPANESE_CHAR_RE.test(char)) {
+      score += 5;
+      continue;
+    }
+
+    if (code >= 0x20 && code <= 0x7e) {
+      score += 2;
+      continue;
+    }
+
+    score += 1;
+  }
+
+  return score;
+};
+
+const hasSuspiciousNameBytes = (value: string): boolean => {
+  for (const char of value) {
+    const code = char.charCodeAt(0);
+    if (char === '\uFFFD') return true;
+    if ((code >= 0x00 && code <= 0x1f) || (code >= 0x7f && code <= 0x9f)) return true;
+  }
+  return false;
+};
+
+const containsJapanese = (value: string): boolean => {
+  return JAPANESE_CHAR_RE.test(value);
+};
+
+const restoreLayerNameEncoding = (name: string): string => {
+  const bytes = toSingleByteNameBytes(name);
+  if (!bytes || bytes.length === 0) return name;
+  if (!hasSuspiciousNameBytes(name)) return name;
+
+  let bestName = name;
+  let bestScore = scoreLayerName(name);
+
+  for (const encoding of LAYER_NAME_DECODE_ENCODINGS) {
+    try {
+      const decoded = new TextDecoder(encoding, { fatal: false }).decode(bytes).replace(/\u0000+$/u, '');
+      if (decoded.length === 0) continue;
+
+      const decodedScore = scoreLayerName(decoded);
+      if (decodedScore > bestScore + 2 && containsJapanese(decoded)) {
+        bestName = decoded;
+        bestScore = decodedScore;
+      }
+    } catch {
+      // 一部環境での未対応エンコードは無視する。
+    }
+  }
+
+  return bestName;
+};
+
 // PSD読み込み結果
 export interface PsdParseResult {
   psdObject: PsdObject;
@@ -264,12 +350,13 @@ export const parsePsdArrayBufferAsObject = async (
     const layerWithBounds = layer as LayerWithBounds;
     const width = getLayerWidth(layerWithBounds);
     const height = getLayerHeight(layerWithBounds);
+    const layerName = restoreLayerNameEncoding(layer.name || 'Layer');
 
     const currentNode: PsdLayerNode = {
       id: generateId(),
-      name: layer.name || 'Layer',
+      name: layerName,
       isGroup: !!layer.children,
-      isRadio: (layer.name || '').startsWith('*'), // PSDTool仕様: *はラジオグループ
+      isRadio: layerName.startsWith('*'), // PSDTool仕様: *はラジオグループ
       children: [],
       width,
       height,

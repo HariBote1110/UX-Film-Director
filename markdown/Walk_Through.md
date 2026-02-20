@@ -143,6 +143,16 @@
 - 現行実装の操作方法を、画面構成・最短手順・主要操作・ショートカットに分けて整理した。
 - 複数選択（矩形選択/一括変形/切り取り）と保存・書き出しの流れを初心者向けに追記した。
 
+## 30. PSD レイヤー名文字化けの修正
+- `src/utils/psdParser.ts`
+- `restoreLayerNameEncoding` を追加し、制御文字を含む 1 バイト文字列レイヤー名のみ `utf-8` / `shift_jis` / `euc-jp` で再デコードして可読性を比較する処理を実装した。
+- `layer.name` が Unicode（> `0xFF` を含む）として取得できている場合は再解釈せず、既存の正常ケースを破壊しないようにした。
+- `buildNode` で補正済み名称を `name` と `isRadio` 判定の双方へ適用し、文字化け名でも PSD レイヤーツリー表示とラジオ判定が崩れないようにした。
+- `package.json`
+- バージョンを `0.1.1-Beta-2l` に更新した。
+- `markdown/Task.md` / `markdown/Implementation_Plan.md`
+- 本修正タスクと実装計画を追記し、`markdown/` を単一の正として同期した。
+
 ## 確認
 - `npx tsc --noEmit` を実行し、型エラーなしを確認。
 
