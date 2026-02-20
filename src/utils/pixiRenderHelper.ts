@@ -1,7 +1,8 @@
 import * as PIXI from 'pixi.js';
-import { TimelineObject, GroupControlObject, AudioVisualizationObject, AudioObject, ClippingParams, GradientFill } from '../types';
+import { TimelineObject, GroupControlObject, AudioVisualizationObject, AudioObject, ClippingParams, GradientFill, ObjectFilter } from '../types';
 import { createGradientTexture, drawShape, getCurrentViseme, renderPsdTree, cacheTextureFromUrl } from './pixiUtils';
 import { evaluateObjectPositionAtTime } from './keyframes';
+import { getEnabledObjectFiltersInOrder } from './filterStack';
 
 // ... (Shader definitions omitted for brevity - same as previous) ...
 const vertexShader = `
@@ -43,7 +44,7 @@ void main(void) {
 }
 `;
 class DiagonalClippingFilter extends PIXI.Filter {
-    constructor(params: ClippingParams, width: number, height: number) {
+    constructor(params: Omit<ClippingParams, 'enabled'>, width: number, height: number) {
         super({
             glProgram: PIXI.GlProgram.from({
                 vertex: vertexShader,
@@ -58,7 +59,7 @@ class DiagonalClippingFilter extends PIXI.Filter {
             },
         } as any);
     }
-    updateParams(params: ClippingParams, width: number, height: number) {
+    updateParams(params: Omit<ClippingParams, 'enabled'>, width: number, height: number) {
         const uniforms = (this.resources as any).clippingUniforms.uniforms;
         uniforms.uClip = new Float32Array([params.top, params.bottom, params.left, params.right]);
         uniforms.uAngle = (params.angle * Math.PI) / 180;
@@ -317,15 +318,25 @@ export const getLipSyncViseme = (obj: TimelineObject, time: number, currentObjec
     }
     return audioSource ? getCurrentViseme(audioSource, time) : null;
 };
+
+const isVibrationFilter = (filter: ObjectFilter): filter is Extract<ObjectFilter, { type: 'vibration' }> => {
+    return filter.type === 'vibration';
+};
+
 export const getVibrationOffset = (obj: TimelineObject, time: number) => {
-    if (!obj.vibration || !obj.vibration.enabled) return { x: 0, y: 0 };
-    const { strength, speed } = obj.vibration;
-    if (strength === 0) return { x: 0, y: 0 };
-    const t = time * speed;
-    return { 
-        x: Math.sin(t * 12.9898) * strength + Math.cos(t * 78.233) * strength * 0.5, 
-        y: Math.cos(t * 12.9898) * strength + Math.sin(t * 78.233) * strength * 0.5 
-    };
+    const vibrationFilters = getEnabledObjectFiltersInOrder(obj).filter(isVibrationFilter);
+    if (vibrationFilters.length === 0) return { x: 0, y: 0 };
+
+    return vibrationFilters.reduce((acc, filter, index) => {
+        const { strength, speed } = filter.params;
+        if (strength === 0) return acc;
+        const phase = index * 1.618;
+        const t = time * speed + phase;
+        return {
+            x: acc.x + (Math.sin(t * 12.9898) * strength + Math.cos(t * 78.233) * strength * 0.5),
+            y: acc.y + (Math.cos(t * 12.9898) * strength + Math.sin(t * 78.233) * strength * 0.5)
+        };
+    }, { x: 0, y: 0 });
 };
 const drawAudioWaveform = (graphics: PIXI.Graphics, obj: AudioVisualizationObject, time: number, audioBuffers: Map<string, AudioBuffer>, allObjects: TimelineObject[]) => {
     graphics.clear();
@@ -354,20 +365,40 @@ const drawAudioWaveform = (graphics: PIXI.Graphics, obj: AudioVisualizationObjec
 };
 
 export const applyObjectEffects = (container: PIXI.Container, obj: TimelineObject) => {
-    const filters: PIXI.Filter[] = [];
-    if (obj.colorCorrection && obj.colorCorrection.enabled) {
-        const matrix = new PIXI.ColorMatrixFilter();
-        const { brightness, contrast, saturation, hue } = obj.colorCorrection;
-        matrix.hue(hue, false); matrix.saturate(saturation, true); matrix.contrast(contrast, true); matrix.brightness(brightness, true);
-        filters.push(matrix);
-    }
-    if (obj.customClipping && obj.customClipping.enabled) {
-        const w = (obj as any).width || 100; const h = (obj as any).height || 100;
-        let existingFilter = container.filters?.find(f => f instanceof DiagonalClippingFilter) as DiagonalClippingFilter | undefined;
-        if (existingFilter) { existingFilter.updateParams(obj.customClipping, w, h); filters.push(existingFilter); }
-        else { filters.push(new DiagonalClippingFilter(obj.customClipping, w, h)); }
-    }
-    container.filters = filters.length > 0 ? filters : null;
+    const enabledFilters = getEnabledObjectFiltersInOrder(obj);
+    const reusableClippingFilters = (container.filters ?? []).filter((filter): filter is DiagonalClippingFilter => {
+        return filter instanceof DiagonalClippingFilter;
+    });
+    let clippingCursor = 0;
+    const nextPixiFilters: PIXI.Filter[] = [];
+
+    enabledFilters.forEach((filter) => {
+        if (filter.type === 'color_correction') {
+            const matrix = new PIXI.ColorMatrixFilter();
+            const { brightness, contrast, saturation, hue } = filter.params;
+            matrix.hue(hue, false);
+            matrix.saturate(saturation, true);
+            matrix.contrast(contrast, true);
+            matrix.brightness(brightness, true);
+            nextPixiFilters.push(matrix);
+            return;
+        }
+
+        if (filter.type === 'clipping') {
+            const width = (obj as any).width || 100;
+            const height = (obj as any).height || 100;
+            const existingFilter = reusableClippingFilters[clippingCursor];
+            if (existingFilter) {
+                existingFilter.updateParams(filter.params, width, height);
+                nextPixiFilters.push(existingFilter);
+            } else {
+                nextPixiFilters.push(new DiagonalClippingFilter(filter.params, width, height));
+            }
+            clippingCursor += 1;
+        }
+    });
+
+    container.filters = nextPixiFilters.length > 0 ? nextPixiFilters : null;
 };
 
 export const updatePixiContent = (

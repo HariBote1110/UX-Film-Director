@@ -620,7 +620,7 @@ export const useStore = create<AppState>((set, get) => ({
     const splitTime = currentTime;
     const splitPosition = evaluateObjectPositionAtTime(target, splitTime);
 
-    const firstPart = {
+    const firstPart: TimelineObject = {
         ...target,
         duration: splitPoint,
         endX: splitPosition.x,

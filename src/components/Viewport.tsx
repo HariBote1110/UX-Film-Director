@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as PIXI from 'pixi.js';
 import { useStore } from '../store/useStore';
-import { TimelineObject, GradientFill } from '../types';
+import { TimelineObject, GradientFill, ObjectFilter } from '../types';
 import { createShadowGraphics } from '../utils/pixiUtils';
 import { shallow } from 'zustand/shallow';
 
@@ -9,6 +9,7 @@ import { usePixiInteraction } from '../hooks/usePixiInteraction';
 import { useProjectExport } from '../hooks/useProjectExport';
 import { getGroupTransforms, getLipSyncViseme, updatePixiContent, applyObjectEffects, getVibrationOffset, applyGroupGradientEffect } from '../utils/pixiRenderHelper';
 import { evaluateObjectPositionAtTime } from '../utils/keyframes';
+import { getEnabledObjectFiltersInOrder } from '../utils/filterStack';
 
 const GROUP_GRADIENT_COMPONENT_PREFIX = 'group-gradient-component-';
 
@@ -310,34 +311,26 @@ const Viewport: React.FC = () => {
           setRenderTick
       });
 
-      // Shadow Handling (Simplified for performance)
-      if (content && obj.shadow && obj.shadow.enabled) {
-          let shadow = container.children.find(c => c.label === 'shadow') as PIXI.Graphics;
-          if (shadow) {
-               // 既存のシャドウがあれば作り直さずにパラメータ更新したいところだが、
-               // 簡易実装として再作成（頻度は高くないため許容）
-               // container.removeChild(shadow); shadow.destroy(); shadow = null;
-               // 最適化: clearして再描画
-               shadow.clear();
-          }
-          if (!shadow) {
-              // 新規作成
-              shadow = new PIXI.Graphics();
-              shadow.label = 'shadow';
-              container.addChildAt(shadow, 0);
-          }
-          // 描画処理をここで行うべきだが、コード量の都合上、既存のcreateShadowGraphicsロジックを利用するため
-          // 一旦破棄して再生成するパターンに戻す（またはcreateShadowGraphicsをGraphicsを受け取る形にリファクタ推奨）
-          // 今回は一番確実な「破棄->再生成」で行く（Shadowは静止画が多いのでコスト低い）
-           container.removeChild(shadow); shadow.destroy();
-           const s = createShadowGraphics(obj, (content as any).width, (content as any).height, obj.shadow);
-           if (s) {
-               s.label = 'shadow';
-               container.addChildAt(s, 0); 
-           }
-      } else {
-          const shadow = container.children.find(c => c.label === 'shadow');
-          if (shadow) { container.removeChild(shadow); shadow.destroy(); }
+      const shadowFilters = getEnabledObjectFiltersInOrder(obj).filter((filter): filter is Extract<ObjectFilter, { type: 'shadow' }> => {
+        return filter.type === 'shadow';
+      });
+      const currentShadowNodes = container.children.filter((child) => (child.label ?? '').startsWith('shadow'));
+      currentShadowNodes.forEach((shadowNode) => {
+        container.removeChild(shadowNode);
+        shadowNode.destroy({ children: true });
+      });
+      if (content && shadowFilters.length > 0) {
+        const shadowWidth = (content as any).width || (obj as any).width || 100;
+        const shadowHeight = (content as any).height || (obj as any).height || 100;
+        shadowFilters.forEach((shadowFilter, index) => {
+          const shadow = createShadowGraphics(obj, shadowWidth, shadowHeight, {
+            enabled: true,
+            ...shadowFilter.params
+          });
+          if (!shadow) return;
+          shadow.label = `shadow-${index}`;
+          container.addChildAt(shadow, Math.min(index, container.children.length));
+        });
       }
 
       applyObjectEffects(container, obj);

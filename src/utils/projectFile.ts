@@ -52,13 +52,6 @@ const isLayerState = (value: unknown): value is LayerState => {
   );
 };
 
-const parseLayers = (value: unknown): LayerState[] | undefined => {
-  if (value == null) return undefined;
-  if (!Array.isArray(value)) return undefined;
-  if (!value.every((layer) => isLayerState(layer))) return undefined;
-  return value.map((layer) => ({ ...layer }));
-};
-
 const isFiniteNumber = (value: unknown): value is number => {
   return typeof value === 'number' && Number.isFinite(value);
 };
@@ -107,6 +100,13 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!candidate.keyframes.every((keyframe) => isPositionKeyframe(keyframe))) return false;
   }
   return true;
+};
+
+const parseLayers = (value: unknown): LayerState[] | undefined => {
+  if (value == null) return undefined;
+  if (!Array.isArray(value)) return undefined;
+  if (!value.every((layer) => isLayerState(layer))) return undefined;
+  return value.map((layer) => ({ ...layer }));
 };
 
 const sanitiseObjectForSave = (obj: TimelineObject): TimelineObject => {

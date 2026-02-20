@@ -32,17 +32,17 @@ export const useProjectExport = (
 
         try {
             const { projectSettings, objects, layers } = useStore.getState();
-            const visibleObjects = objects.filter((obj) => layers[obj.layer]?.visible !== false);
             const fps = projectSettings.fps;
             const dt = 1 / fps;
-            const videoObjects = visibleObjects.filter((obj): obj is Extract<TimelineObject, { type: 'video' }> => obj.type === 'video');
+            const exportObjects = objects.filter((obj) => layers[obj.layer]?.visible !== false);
+            const videoObjects = exportObjects.filter((obj): obj is Extract<TimelineObject, { type: 'video' }> => obj.type === 'video');
             
             // Calculate total duration
-            const lastObjectEndTime = Math.max(...visibleObjects.map(o => o.startTime + o.duration), 0);
+            const lastObjectEndTime = Math.max(...exportObjects.map(o => o.startTime + o.duration), 0);
             const exportDuration = Math.max(lastObjectEndTime, 1);
             const totalFrames = Math.ceil(exportDuration * fps);
             const mixedAudio = await buildExportAudioMixWav(
-              visibleObjects,
+              exportObjects,
               exportDuration,
               projectSettings.sampleRate || 44100
             );
@@ -111,7 +111,7 @@ export const useProjectExport = (
                 }
 
                 // Render Frame
-                renderScene(t, objects);
+                renderScene(t, exportObjects);
                 
                 // Capture and write frame
                 const blob = await new Promise<Blob | null>((resolve) => {

@@ -159,8 +159,14 @@ const PropertyPanel: React.FC = () => {
     const updates = selectedObjects
       .map((obj) => {
         const patch: Partial<TimelineObject> = {};
-        if (Math.abs(moveX) > 0.0001) patch.x = obj.x + moveX;
-        if (Math.abs(moveY) > 0.0001) patch.y = obj.y + moveY;
+        const hasMoveX = Math.abs(moveX) > 0.0001;
+        const hasMoveY = Math.abs(moveY) > 0.0001;
+        if (hasMoveX) patch.x = obj.x + moveX;
+        if (hasMoveY) patch.y = obj.y + moveY;
+        if (obj.enableAnimation) {
+          if (hasMoveX) patch.endX = (obj.endX ?? obj.x) + moveX;
+          if (hasMoveY) patch.endY = (obj.endY ?? obj.y) + moveY;
+        }
         if (Math.abs(scaleXRatio - 1) > 0.0001) patch.scaleX = (obj.scaleX ?? 1) * scaleXRatio;
         if (Math.abs(scaleYRatio - 1) > 0.0001) patch.scaleY = (obj.scaleY ?? 1) * scaleYRatio;
         if (Math.abs(rotationDelta) > 0.0001) patch.rotation = (obj.rotation ?? 0) + rotationDelta;

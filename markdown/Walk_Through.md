@@ -393,3 +393,13 @@
 - `src/components/PropertyPanel.tsx`
 - `Row` と `SectionHeader` もモジュールスコープへ移動し、各入力行が更新ごとに再マウントされる問題を解消した。
 - これにより、スライダーを含む入力コンポーネントのドラッグ/フォーカスが継続するようにした。
+
+## 39. PR 指摘対応（フィルタスタック整合）
+- `src/components/PropertyPanel.tsx`
+- 複数選択の一括移動で `enableAnimation` オブジェクトの `endX/endY` も平行移動するように修正し、通常ドラッグとの挙動差を解消した。
+- `src/utils/filterStack.ts`
+- `filters` が配列として存在する場合は空配列でもそれを正とするよう変更し、legacy 逆流で順序・削除結果が崩れる経路を遮断した。
+- `src/utils/pixiRenderHelper.ts`
+- 描画時エフェクトを `filters` 配列順で適用する方式に切り替え、同種複数フィルタと順序入替を反映するようにした。
+- `src/components/Viewport.tsx`
+- 影エフェクトも `filters` から評価して描画し、フィルタスタック UI と実描画の不一致を解消した。
