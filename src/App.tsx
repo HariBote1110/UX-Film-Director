@@ -7,12 +7,16 @@ import { useAppLogic } from './hooks/useAppLogic';
 import { useStore } from './store/useStore';
 import { shallow } from 'zustand/shallow';
 import { buildProjectFileData, openProjectFileWithDialog, restoreProjectObjects, saveProjectFileWithDialog } from './utils/projectFile';
+import { buildExportAudioMixWav } from './utils/audioMixdown';
 import './index.css';
+
+const { ipcRenderer } = window;
 
 const App: React.FC = () => {
   useAppLogic();
   const [projectIoAction, setProjectIoAction] = useState<'idle' | 'opening' | 'saving'>('idle');
-  
+  const [isMp3Exporting, setIsMp3Exporting] = useState(false);
+
   const { isProjectLoaded, isExporting, setExporting, requestSnapshot, loadProject, projectSettings, duration, objects, layers } = useStore((state) => ({
     isProjectLoaded: state.isProjectLoaded,
     isExporting: state.isExporting,
@@ -75,7 +79,41 @@ const App: React.FC = () => {
     setExporting(true);
   };
 
+  const handleExportMp3 = async () => {
+    if (isExporting || isMp3Exporting) return;
+
+    try {
+      setIsMp3Exporting(true);
+      const exportObjects = objects.filter((obj) => layers[obj.layer]?.visible !== false);
+      const lastObjectEndTime = Math.max(...exportObjects.map((obj) => obj.startTime + obj.duration), 0);
+      const exportDuration = Math.max(lastObjectEndTime, 1);
+      const mixedAudio = await buildExportAudioMixWav(
+        exportObjects,
+        exportDuration,
+        projectSettings.sampleRate || 44100
+      );
+
+      if (!mixedAudio) {
+        alert('出力可能な音声が見つかりませんでした。');
+        return;
+      }
+
+      const result = await ipcRenderer.invoke('export-audio-mp3', { wavBuffer: mixedAudio });
+      if (!result?.success) {
+        if (result?.reason === 'cancelled') return;
+        throw new Error(result?.error || 'MP3 書き出しに失敗しました。');
+      }
+
+      alert('MP3 書き出しが完了しました。');
+    } catch (error) {
+      alert(`MP3 書き出しに失敗しました: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsMp3Exporting(false);
+    }
+  };
+
   const isProjectIoBusy = projectIoAction !== 'idle';
+  const isUiBusy = isProjectIoBusy || isExporting || isMp3Exporting;
 
   if (!isProjectLoaded) {
     return (
@@ -94,21 +132,24 @@ const App: React.FC = () => {
       <header className="title-bar" style={{ height: '38px', background: '#2d2d2d', display: 'flex', alignItems: 'center', padding: '0 10px 0 80px', color: '#ccc', fontSize: '12px', borderBottom: '1px solid #000', flexShrink: 0 }}>
         <span style={{ fontWeight: 'bold' }}>UX Film Director (Dev Prototype)</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-          <button onClick={handleOpenProject} disabled={isExporting || isProjectIoBusy} style={{ background: '#444', border: 'none', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: isExporting || isProjectIoBusy ? 'default' : 'pointer' }}>
+          <button onClick={handleOpenProject} disabled={isUiBusy} style={{ background: '#444', border: 'none', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: isUiBusy ? 'default' : 'pointer' }}>
             {projectIoAction === 'opening' ? '読み込み中...' : 'プロジェクトを開く'}
           </button>
-          <button onClick={handleSaveProject} disabled={isExporting || isProjectIoBusy} style={{ background: '#444', border: 'none', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: isExporting || isProjectIoBusy ? 'default' : 'pointer' }}>
+          <button onClick={handleSaveProject} disabled={isUiBusy} style={{ background: '#444', border: 'none', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: isUiBusy ? 'default' : 'pointer' }}>
             {projectIoAction === 'saving' ? '保存中...' : 'プロジェクトを保存'}
           </button>
-          <button onClick={requestSnapshot} disabled={isExporting} style={{ background: '#444', border: 'none', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: isExporting ? 'default' : 'pointer' }}>
+          <button onClick={requestSnapshot} disabled={isUiBusy} style={{ background: '#444', border: 'none', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: isUiBusy ? 'default' : 'pointer' }}>
             Snapshot
           </button>
-          <button onClick={handleExport} disabled={isExporting} style={{ background: isExporting ? '#555' : '#007acc', border: 'none', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: isExporting ? 'default' : 'pointer' }}>
-              {isExporting ? 'Exporting...' : 'Export Video'}
+          <button onClick={handleExportMp3} disabled={isUiBusy} style={{ background: isMp3Exporting ? '#555' : '#2c9a65', border: 'none', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: isUiBusy ? 'default' : 'pointer' }}>
+            {isMp3Exporting ? 'Exporting MP3...' : 'Export MP3'}
+          </button>
+          <button onClick={handleExport} disabled={isUiBusy} style={{ background: isExporting ? '#555' : '#007acc', border: 'none', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: isUiBusy ? 'default' : 'pointer' }}>
+            {isExporting ? 'Exporting...' : 'Export Video'}
           </button>
         </div>
       </header>
-      
+
       <div className="workspace-main" style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
         <div className="preview-area" style={{ flex: 1, background: '#111', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', minWidth: 0 }}>
           <Viewport />
@@ -117,7 +158,7 @@ const App: React.FC = () => {
           <PropertyPanel />
         </div>
       </div>
-      
+
       <div className="timeline-area" style={{ height: '300px', minHeight: '300px', borderTop: '2px solid #000', zIndex: 10, flexShrink: 0 }}>
         <Timeline />
       </div>

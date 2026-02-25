@@ -38,7 +38,7 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
   const {
     deleteObject, deleteSelectedObjects, selectObject, splitObject, addObject,
     copySelectedObjects, cutSelectedObjects, pasteClipboardObjects, duplicateSelectedObjects,
-    groupSelectedObjects, ungroupSelectedObjects, selectedIds
+    groupSelectedObjects, ungroupSelectedObjects, selectedIds, projectSettings
   } = useStore((state) => ({
     deleteObject: state.deleteObject,
     deleteSelectedObjects: state.deleteSelectedObjects,
@@ -52,6 +52,7 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
     groupSelectedObjects: state.groupSelectedObjects,
     ungroupSelectedObjects: state.ungroupSelectedObjects,
     selectedIds: state.selectedIds,
+    projectSettings: state.projectSettings,
   }), shallow);
   const menuRef = useRef<HTMLDivElement>(null);
   
@@ -97,6 +98,10 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
 
   // 音声波形追加ハンドラ
   const handleAddWaveform = () => {
+      const waveformWidth = Math.max(120, Math.round(projectSettings.width * 0.4));
+      const waveformHeight = Math.max(80, Math.round(projectSettings.height * 0.14));
+      const centredX = Math.round((projectSettings.width - waveformWidth) / 2);
+      const centredY = Math.round((projectSettings.height - waveformHeight) / 2);
       addObject({
           id: crypto.randomUUID(),
           type: 'audio_visualization',
@@ -104,10 +109,10 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
           layer: state.layer,
           startTime: state.time,
           duration: 5,
-          x: 400, y: 300,
-          width: 400, height: 100,
+          x: centredX, y: centredY,
+          width: waveformWidth, height: waveformHeight,
           rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
-          enableAnimation: false, endX: 400, endY: 300, easing: 'linear',
+          enableAnimation: false, endX: centredX, endY: centredY, easing: 'linear',
           targetAudioId: null,
           targetLayer: state.layer - 1 >= 0 ? state.layer - 1 : -1, // デフォルトで一つ上のレイヤーを対象に
           visualizationType: 'waveform',

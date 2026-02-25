@@ -403,3 +403,24 @@
 - 描画時エフェクトを `filters` 配列順で適用する方式に切り替え、同種複数フィルタと順序入替を反映するようにした。
 - `src/components/Viewport.tsx`
 - 影エフェクトも `filters` から評価して描画し、フィルタスタック UI と実描画の不一致を解消した。
+
+## 40. クリッピング・範囲選択移動・初期配置・MP3 書き出し
+- `src/utils/pixiRenderHelper.ts`
+- `DiagonalClippingFilter` へ WebGPU 用 `gpuProgram`（WGSL）を追加し、`webgpu` 優先環境で `clipping` フィルタが無効化される問題を修正した。
+- クリッピングサイズを `obj.width/height` 固定から `container.getLocalBounds()` 優先に変更し、テキスト/PSD でも切り取り範囲が実表示と合うようにした。
+- `src/components/Viewport.tsx`
+- マスク式クリッピング（`obj.clipping`）で、対象レイヤーの「実際に描画中コンテナがあるオブジェクト」を優先して解決するように変更した。
+- `src/components/TimelineItem.tsx`
+- 範囲選択後に単一選択へ潰れないよう、複数選択を保持したままドラッグ移動できる処理を追加した。
+- 複数移動時は `startTime` と `layer` を同時更新し、レイヤー範囲外やロックレイヤー遷移を抑止する制御を入れた。
+- `src/components/Timeline.tsx` / `src/hooks/useTimelineDrop.ts` / `src/components/TimelineContextMenu.tsx`
+- 追加・ドロップ・音声波形追加の初期座標を固定値（`640/360`, `400/300` など）から `projectSettings.width/height` 基準の中央配置へ変更した。
+- `src/App.tsx` / `electron/main.ts`
+- タイトルバーに `Export MP3` を追加し、タイムライン音声ミックス（WAV）を IPC `export-audio-mp3` で `ffmpeg` 変換して保存できるようにした。
+- MP3 書き出し中は主要 UI ボタンを一時的に無効化し、動画書き出しと競合しないようにした。
+- `package.json`
+- バージョンを `0.1.1-Beta-2n` に更新した。
+
+## 確認
+- `npx tsc --noEmit` を実行し、型エラーなしを確認。
+- `cargo build --manifest-path rust-backend/Cargo.toml` を実行し、成功を確認。

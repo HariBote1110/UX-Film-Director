@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { TimelineObject } from '../types';
 import { useStore } from '../store/useStore';
 import { shallow } from 'zustand/shallow';
+import { MAX_LAYERS } from './timelineConstants';
 
 interface TimelineItemProps {
   object: TimelineObject;
@@ -11,8 +12,15 @@ interface TimelineItemProps {
   onContextMenu: (e: React.MouseEvent, id: string) => void;
 }
 
+interface DragTargetState {
+  id: string;
+  startTime: number;
+  duration: number;
+  layer: number;
+}
+
 const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight, headerWidth, onContextMenu }) => {
-  const { updateObject, selectObject, toggleObjectSelection, selectObjects, objects, pushHistory, selectedIds } = useStore((state) => ({
+  const { updateObject, selectObject, toggleObjectSelection, selectObjects, objects, pushHistory, selectedIds, layers } = useStore((state) => ({
     updateObject: state.updateObject,
     selectObject: state.selectObject,
     toggleObjectSelection: state.toggleObjectSelection,
@@ -20,6 +28,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
     objects: state.objects,
     pushHistory: state.pushHistory,
     selectedIds: state.selectedIds,
+    layers: state.layers,
   }), shallow);
   const { isLayerLocked, isLayerVisible } = useStore((state) => {
     const layerState = state.layers[object.layer];
@@ -40,6 +49,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
     duration: 0,
     layer: 0
   });
+  const [dragTargets, setDragTargets] = useState<DragTargetState[]>([]);
 
   const handleMouseDown = (e: React.MouseEvent, type: 'move' | 'resize') => {
     e.stopPropagation();
@@ -69,8 +79,34 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
       return;
     }
 
+    const selectedSet = new Set(selectedIds);
+    const selectedMovableTargets = objects
+      .filter((candidate) => selectedSet.has(candidate.id))
+      .filter((candidate) => !(layers[candidate.layer]?.locked ?? false))
+      .map((candidate) => ({
+        id: candidate.id,
+        startTime: candidate.startTime,
+        duration: candidate.duration,
+        layer: candidate.layer
+      }));
+    const canGroupMove = type === 'move'
+      && isSelected
+      && selectedIds.length > 1
+      && selectedMovableTargets.length > 1;
+
     pushHistory();
-    selectObject(object.id);
+    if (canGroupMove) {
+      selectObjects(selectedIds, object.id);
+      setDragTargets(selectedMovableTargets);
+    } else {
+      selectObject(object.id);
+      setDragTargets([{
+        id: object.id,
+        startTime: object.startTime,
+        duration: object.duration,
+        layer: object.layer
+      }]);
+    }
     setIsDragging(true);
     setDragType(type);
     
@@ -90,11 +126,63 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
       if (isLayerLocked) return;
 
       const deltaX = e.clientX - startMouseX;
+      const deltaTime = parseFloat((deltaX / pxPerSec).toFixed(2));
 
       if (dragType === 'move') {
+        if (dragTargets.length > 1) {
+          const deltaY = e.clientY - startMouseY;
+          let layerDiff = 0;
+          const absDeltaY = Math.abs(deltaY);
+          const signY = Math.sign(deltaY);
+
+          if (absDeltaY > rowHeight * 0.7) {
+            layerDiff = Math.round(absDeltaY / rowHeight) * signY;
+          }
+
+          const minLayer = Math.min(...dragTargets.map((target) => target.layer));
+          const maxLayer = Math.max(...dragTargets.map((target) => target.layer));
+          const minStartTime = Math.min(...dragTargets.map((target) => target.startTime));
+
+          const clampedLayerDiff = Math.max(
+            -minLayer,
+            Math.min(MAX_LAYERS - 1 - maxLayer, layerDiff)
+          );
+          const clampedDeltaTime = Math.max(-minStartTime, deltaTime);
+
+          const hasLockedLayerTarget = dragTargets.some((target) => {
+            const nextLayer = target.layer + clampedLayerDiff;
+            return layers[nextLayer]?.locked ?? false;
+          });
+          const finalLayerDiff = hasLockedLayerTarget ? 0 : clampedLayerDiff;
+
+          const movingIds = new Set(dragTargets.map((target) => target.id));
+          const staticObjects = objects.filter((candidate) => !movingIds.has(candidate.id));
+
+          const hasCollision = dragTargets.some((target) => {
+            const nextStartTime = Math.max(0, parseFloat((target.startTime + clampedDeltaTime).toFixed(2)));
+            const nextEndTime = nextStartTime + target.duration;
+            const nextLayer = target.layer + finalLayerDiff;
+            return staticObjects.some((candidate) => {
+              if (candidate.layer !== nextLayer) return false;
+              return nextStartTime < candidate.startTime + candidate.duration
+                && nextEndTime > candidate.startTime;
+            });
+          });
+
+          if (hasCollision) {
+            return;
+          }
+
+          dragTargets.forEach((target) => {
+            updateObject(target.id, {
+              startTime: Math.max(0, parseFloat((target.startTime + clampedDeltaTime).toFixed(2))),
+              layer: target.layer + finalLayerDiff
+            });
+          });
+          return;
+        }
+
         const deltaY = e.clientY - startMouseY;
-        const deltaTime = deltaX / pxPerSec;
-        
         let rawNewStartTime = Math.max(0, parseFloat((initialState.startTime + deltaTime).toFixed(2)));
         
         let layerDiff = 0;
@@ -177,6 +265,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
       if (isDragging) {
         setIsDragging(false);
         setDragType(null);
+        setDragTargets([]);
       }
     };
 
@@ -188,7 +277,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, dragType, startMouseX, startMouseY, initialState, object, pxPerSec, rowHeight, updateObject, objects, isLayerLocked]);
+  }, [dragTargets, isDragging, dragType, startMouseX, startMouseY, initialState, object, pxPerSec, rowHeight, updateObject, objects, isLayerLocked, layers]);
 
   const leftPos = headerWidth + (Math.max(0, object.startTime) * pxPerSec);
   const width = object.duration * pxPerSec;

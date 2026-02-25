@@ -1,7 +1,7 @@
 # UX Film Director 使い方ガイド
 
 ## 1. 画面構成
-- 上部バー: `プロジェクトを開く` / `プロジェクトを保存` / `Snapshot` / `Export Video`
+- 上部バー: `プロジェクトを開く` / `プロジェクトを保存` / `Snapshot` / `Export MP3` / `Export Video`
 - 中央: プレビュー（Viewport）
 - 右: プロパティ（PropertyPanel）
 - 下: タイムライン（編集の中心）
@@ -12,7 +12,7 @@
 3. 右パネル `Transform` で `X/Y/Scale/Rotation/Opacity` を調整する。
 4. 必要に応じて `Filter Stack` と `Keyframes` を設定する。
 5. `プロジェクトを保存` で `*.uxfd.json` として保存する。
-6. `Export Video` で動画を書き出す。
+6. `Export Video` で動画を書き出す、または `Export MP3` で音声のみを書き出す。
 
 ## 3. タイムライン操作
 - 再生/停止: `Space`
@@ -55,6 +55,7 @@
 - 保存形式: `*.uxfd.json`
 - 再開: `プロジェクトを開く`
 - 書き出し: `Export Video`
+- 音声のみ書き出し: `Export MP3`
 - 静止画保存: `Snapshot`
 
 ## 8. ショートカット一覧

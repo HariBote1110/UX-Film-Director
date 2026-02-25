@@ -81,6 +81,22 @@ const resolveDefaultFfprobePath = () => {
   return 'ffprobe';
 };
 
+const toNodeBuffer = (value: unknown): Buffer | null => {
+  if (value instanceof ArrayBuffer) {
+    return Buffer.from(value);
+  }
+
+  if (ArrayBuffer.isView(value)) {
+    return Buffer.from(value.buffer, value.byteOffset, value.byteLength);
+  }
+
+  if (Array.isArray(value) && value.every((entry) => typeof entry === 'number')) {
+    return Buffer.from(value);
+  }
+
+  return null;
+};
+
 const getRustBackendBinaryName = () => {
   return process.platform === 'win32' ? 'uxfd-rust-backend.exe' : 'uxfd-rust-backend';
 };
@@ -399,6 +415,74 @@ app.whenReady().then(() => {
         success: false,
         error: error instanceof Error ? error.message : String(error),
       };
+    }
+  });
+
+  ipcMain.handle('export-audio-mp3', async (_event, payload: { wavBuffer?: unknown }) => {
+    const wavBuffer = toNodeBuffer(payload?.wavBuffer);
+    if (!wavBuffer || wavBuffer.byteLength === 0) {
+      return { success: false, error: 'wavBuffer が必要です。' };
+    }
+
+    const { filePath } = await dialog.showSaveDialog({
+      title: 'Export Audio (MP3)',
+      defaultPath: 'output.mp3',
+      filters: [{ name: 'MP3 Audio', extensions: ['mp3'] }]
+    });
+
+    if (!filePath) {
+      return { success: false, reason: 'cancelled' };
+    }
+
+    const tempWavPath = path.join(
+      os.tmpdir(),
+      `uxfilm_audio_${Date.now()}_${Math.random().toString(16).slice(2)}.wav`
+    );
+
+    try {
+      fs.writeFileSync(tempWavPath, wavBuffer);
+      const ffmpegPath = resolveDefaultFfmpegPath();
+
+      await new Promise<void>((resolve, reject) => {
+        const ffmpeg = spawn(
+          ffmpegPath,
+          ['-y', '-i', tempWavPath, '-vn', '-codec:a', 'libmp3lame', '-b:a', '192k', filePath],
+          { stdio: ['ignore', 'ignore', 'pipe'] }
+        );
+
+        let stderrText = '';
+        ffmpeg.stderr.setEncoding('utf8');
+        ffmpeg.stderr.on('data', (chunk: string) => {
+          stderrText += chunk;
+        });
+
+        ffmpeg.on('error', (error) => {
+          reject(new Error(`ffmpeg の起動に失敗しました: ${error.message}`));
+        });
+
+        ffmpeg.on('close', (code) => {
+          if (code === 0) {
+            resolve();
+            return;
+          }
+          reject(new Error(stderrText.trim() || `ffmpeg が異常終了しました (code=${code ?? 'null'})`));
+        });
+      });
+
+      return { success: true, filePath };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    } finally {
+      try {
+        if (fs.existsSync(tempWavPath)) {
+          fs.unlinkSync(tempWavPath);
+        }
+      } catch {
+        // no-op
+      }
     }
   });
 

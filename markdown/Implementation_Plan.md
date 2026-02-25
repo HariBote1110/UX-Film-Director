@@ -138,3 +138,9 @@ PropertyPanel では `Group Gradient` を編集可能にし、同一グループ
 31. PSD レイヤー名の文字化けを補正する  
 `ag-psd` の 1 バイト名読み込みで文字化けしたレイヤー名を `utf-8` / `shift_jis` / `euc-jp` で再評価し、可読性スコアの高い結果を採用する。  
 Unicode 名は再解釈せずそのまま保持し、既存の ASCII レイヤー名の挙動を維持する。
+
+32. クリッピング不具合・複数移動・初期配置・MP3 出力をまとめて修正する  
+`DiagonalClippingFilter` に WebGPU 用 `gpuProgram` を追加し、`webgpu` 優先環境でも `clipping` フィルタを有効化する。  
+範囲選択後のドラッグで選択集合を維持したまま複数オブジェクトを同時移動（時間 + レイヤー）できるようにする。  
+追加/ドロップ/波形追加の初期座標を固定値から `projectSettings.width/height` 基準の中央配置へ置き換える。  
+`Export MP3` ボタンと `export-audio-mp3` IPC を追加し、既存音声ミックス（WAV）を `ffmpeg` で MP3 へ変換して保存する。

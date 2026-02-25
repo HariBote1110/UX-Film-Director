@@ -97,6 +97,13 @@ const Timeline: React.FC = () => {
     };
   }, []);
 
+  const getCentredPosition = useCallback((width: number, height: number) => {
+    return {
+      x: Math.round((projectSettings.width - width) / 2),
+      y: Math.round((projectSettings.height - height) / 2)
+    };
+  }, [projectSettings.height, projectSettings.width]);
+
   const commitMarqueeSelection = useCallback((selection: NonNullable<typeof marqueeSelection>) => {
     const minX = Math.min(selection.startX, selection.currentX);
     const maxX = Math.max(selection.startX, selection.currentX);
@@ -239,20 +246,25 @@ const Timeline: React.FC = () => {
   // Object Creation Helpers
   const addShapeAt = (startTime: number, layer: number) => {
     if (isLayerLocked(layer)) return;
+    const shapeWidth = 200;
+    const shapeHeight = 100;
+    const centred = getCentredPosition(shapeWidth, shapeHeight);
     const newShape: TimelineObject = { 
         id: crypto.randomUUID(), type: 'shape', shapeType: 'rect', name: 'Rectangle', layer, startTime, duration: 3, 
-        x: 640, y: 360, width: 200, height: 100, fill: '#ff0000', 
-        enableAnimation: false, endX: 640, endY: 360, easing: 'linear', offset: 0,
+        x: centred.x, y: centred.y, width: shapeWidth, height: shapeHeight, fill: '#ff0000', 
+        enableAnimation: false, endX: centred.x, endY: centred.y, easing: 'linear', offset: 0,
         rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
     };
     addObject(newShape);
   };
   const addTextAt = (startTime: number, layer: number) => {
     if (isLayerLocked(layer)) return;
+    const textX = Math.round(projectSettings.width * 0.5);
+    const textY = Math.max(0, Math.round(projectSettings.height - 120));
     const newText: TimelineObject = { 
         id: crypto.randomUUID(), type: 'text', name: 'Subtitle', layer, startTime, duration: 3, 
-        x: 640, y: 600, text: 'New Text', fontSize: 48, fontFamily: 'Arial', fill: '#ffffff', 
-        enableAnimation: false, endX: 640, endY: 600, easing: 'linear', offset: 0,
+        x: textX, y: textY, text: 'New Text', fontSize: 48, fontFamily: 'Arial', fill: '#ffffff', 
+        enableAnimation: false, endX: textX, endY: textY, easing: 'linear', offset: 0,
         rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
     };
     addObject(newText);
@@ -295,10 +307,11 @@ const Timeline: React.FC = () => {
     const filePath = getElectronFilePath(file);
     const url = URL.createObjectURL(file); const img = new Image(); img.src = url;
     img.onload = () => {
+      const centred = getCentredPosition(img.width, img.height);
       const newImage: TimelineObject = { 
           id: crypto.randomUUID(), type: 'image', name: file.name, layer: insertTarget.layer, startTime: insertTarget.time, duration: 5, 
-          x: 640 - (img.width / 2), y: 360 - (img.height / 2), width: img.width, height: img.height, src: url, filePath: filePath ?? undefined,
-          enableAnimation: false, endX: 640 - (img.width / 2), endY: 360 - (img.height / 2), easing: 'linear', offset: 0,
+          x: centred.x, y: centred.y, width: img.width, height: img.height, src: url, filePath: filePath ?? undefined,
+          enableAnimation: false, endX: centred.x, endY: centred.y, easing: 'linear', offset: 0,
           rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
       };
       addObject(newImage); if (fileInputRef.current) fileInputRef.current.value = ''; setInsertTarget(null);
@@ -314,10 +327,11 @@ const Timeline: React.FC = () => {
 
     try {
       const metadata = await resolveVideoMetadata(file, url);
+      const centred = getCentredPosition(metadata.width, metadata.height);
       const newVideo: TimelineObject = {
           id: crypto.randomUUID(), type: 'video', name: file.name, layer: target.layer, startTime: target.time, duration: metadata.duration,
-          x: 640 - (metadata.width / 2), y: 360 - (metadata.height / 2), width: metadata.width, height: metadata.height, src: url, filePath: filePath ?? undefined, volume: 1.0, muted: false,
-          enableAnimation: false, endX: 640 - (metadata.width / 2), endY: 360 - (metadata.height / 2), easing: 'linear', offset: 0,
+          x: centred.x, y: centred.y, width: metadata.width, height: metadata.height, src: url, filePath: filePath ?? undefined, volume: 1.0, muted: false,
+          enableAnimation: false, endX: centred.x, endY: centred.y, easing: 'linear', offset: 0,
           rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
       };
       addObject(newVideo);

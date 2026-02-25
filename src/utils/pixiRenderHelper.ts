@@ -43,9 +43,97 @@ void main(void) {
     }
 }
 `;
+const clippingWgslShader = `
+struct GlobalFilterUniforms {
+  uInputSize: vec4<f32>,
+  uInputPixel: vec4<f32>,
+  uInputClamp: vec4<f32>,
+  uOutputFrame: vec4<f32>,
+  uGlobalFrame: vec4<f32>,
+  uOutputTexture: vec4<f32>,
+};
+
+struct ClippingUniforms {
+  uClip: vec4<f32>,
+  uAngle: f32,
+  uDimensions: vec2<f32>,
+};
+
+@group(0) @binding(0) var<uniform> gfu: GlobalFilterUniforms;
+@group(0) @binding(1) var uTexture: texture_2d<f32>;
+@group(0) @binding(2) var uSampler: sampler;
+
+@group(1) @binding(0) var<uniform> clippingUniforms: ClippingUniforms;
+
+struct VSOutput {
+  @builtin(position) position: vec4<f32>,
+  @location(0) uv: vec2<f32>,
+};
+
+fn filterVertexPosition(aPosition: vec2<f32>) -> vec4<f32> {
+  var position = aPosition * gfu.uOutputFrame.zw + gfu.uOutputFrame.xy;
+  position.x = position.x * (2.0 / gfu.uOutputTexture.x) - 1.0;
+  position.y = position.y * (2.0 * gfu.uOutputTexture.z / gfu.uOutputTexture.y) - gfu.uOutputTexture.z;
+  return vec4<f32>(position, 0.0, 1.0);
+}
+
+fn filterTextureCoord(aPosition: vec2<f32>) -> vec2<f32> {
+  return aPosition * (gfu.uOutputFrame.zw * gfu.uInputSize.zw);
+}
+
+@vertex
+fn mainVertex(
+  @location(0) aPosition: vec2<f32>
+) -> VSOutput {
+  return VSOutput(
+    filterVertexPosition(aPosition),
+    filterTextureCoord(aPosition)
+  );
+}
+
+@fragment
+fn mainFragment(
+  @location(0) uv: vec2<f32>
+) -> @location(0) vec4<f32> {
+  let dimensions = clippingUniforms.uDimensions;
+  let coord = uv * dimensions;
+  let centre = dimensions * 0.5;
+  let p = coord - centre;
+  let c = cos(-clippingUniforms.uAngle);
+  let s = sin(-clippingUniforms.uAngle);
+  let pRot = vec2<f32>(p.x * c - p.y * s, p.x * s + p.y * c);
+  let pCheck = pRot + centre;
+
+  let topLimit = clippingUniforms.uClip.x;
+  let bottomLimit = dimensions.y - clippingUniforms.uClip.y;
+  let leftLimit = clippingUniforms.uClip.z;
+  let rightLimit = dimensions.x - clippingUniforms.uClip.w;
+
+  if (
+    pCheck.y < topLimit
+    || pCheck.y > bottomLimit
+    || pCheck.x < leftLimit
+    || pCheck.x > rightLimit
+  ) {
+    discard;
+  }
+
+  return textureSample(uTexture, uSampler, uv);
+}
+`;
 class DiagonalClippingFilter extends PIXI.Filter {
     constructor(params: Omit<ClippingParams, 'enabled'>, width: number, height: number) {
         super({
+            gpuProgram: PIXI.GpuProgram.from({
+                vertex: {
+                    source: clippingWgslShader,
+                    entryPoint: 'mainVertex'
+                },
+                fragment: {
+                    source: clippingWgslShader,
+                    entryPoint: 'mainFragment'
+                }
+            }),
             glProgram: PIXI.GlProgram.from({
                 vertex: vertexShader,
                 fragment: fragmentShader,
@@ -369,6 +457,13 @@ export const applyObjectEffects = (container: PIXI.Container, obj: TimelineObjec
     const reusableClippingFilters = (container.filters ?? []).filter((filter): filter is DiagonalClippingFilter => {
         return filter instanceof DiagonalClippingFilter;
     });
+    const localBounds = container.getLocalBounds();
+    const clippingWidth = Math.max(1, Number.isFinite(localBounds.width) && localBounds.width > 0
+        ? localBounds.width
+        : ((obj as any).width || 100));
+    const clippingHeight = Math.max(1, Number.isFinite(localBounds.height) && localBounds.height > 0
+        ? localBounds.height
+        : ((obj as any).height || 100));
     let clippingCursor = 0;
     const nextPixiFilters: PIXI.Filter[] = [];
 
@@ -385,14 +480,12 @@ export const applyObjectEffects = (container: PIXI.Container, obj: TimelineObjec
         }
 
         if (filter.type === 'clipping') {
-            const width = (obj as any).width || 100;
-            const height = (obj as any).height || 100;
             const existingFilter = reusableClippingFilters[clippingCursor];
             if (existingFilter) {
-                existingFilter.updateParams(filter.params, width, height);
+                existingFilter.updateParams(filter.params, clippingWidth, clippingHeight);
                 nextPixiFilters.push(existingFilter);
             } else {
-                nextPixiFilters.push(new DiagonalClippingFilter(filter.params, width, height));
+                nextPixiFilters.push(new DiagonalClippingFilter(filter.params, clippingWidth, clippingHeight));
             }
             clippingCursor += 1;
         }

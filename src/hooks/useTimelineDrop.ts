@@ -15,6 +15,11 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
     layers: state.layers,
   }), shallow);
 
+  const getCentredPosition = (width: number, height: number) => ({
+    x: Math.round((projectSettings.width - width) / 2),
+    y: Math.round((projectSettings.height - height) / 2)
+  });
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
@@ -81,10 +86,11 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
             const img = new Image();
             img.src = url;
             img.onload = () => {
+                const centred = getCentredPosition(img.width, img.height);
                 const newImage: TimelineObject = {
                     id: crypto.randomUUID(), type: 'image', name: file.name, layer: dropLayer, startTime: dropTime, duration: 5,
-                    x: 640 - (img.width / 2), y: 360 - (img.height / 2), width: img.width, height: img.height, src: url, filePath: filePath ?? undefined,
-                    enableAnimation: false, endX: 640 - (img.width / 2), endY: 360 - (img.height / 2), easing: 'linear', offset: 0,
+                    x: centred.x, y: centred.y, width: img.width, height: img.height, src: url, filePath: filePath ?? undefined,
+                    enableAnimation: false, endX: centred.x, endY: centred.y, easing: 'linear', offset: 0,
                     rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
                 };
                 addObject(newImage);
@@ -94,12 +100,13 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
             const url = URL.createObjectURL(file);
             try {
                 const metadata = await resolveVideoMetadata(file, url);
+                const centred = getCentredPosition(metadata.width, metadata.height);
                 const newVideo: TimelineObject = {
                     id: crypto.randomUUID(), type: 'video', name: file.name, layer: dropLayer, startTime: dropTime, duration: metadata.duration,
-                    x: 640 - (metadata.width / 2), y: 360 - (metadata.height / 2), width: metadata.width, height: metadata.height, src: url,
+                    x: centred.x, y: centred.y, width: metadata.width, height: metadata.height, src: url,
                     filePath: filePath ?? undefined,
                     volume: 1.0, muted: false,
-                    enableAnimation: false, endX: 640 - (metadata.width / 2), endY: 360 - (metadata.height / 2), easing: 'linear', offset: 0,
+                    enableAnimation: false, endX: centred.x, endY: centred.y, easing: 'linear', offset: 0,
                     rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
                 };
                 addObject(newVideo);

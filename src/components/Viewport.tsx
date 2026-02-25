@@ -410,13 +410,12 @@ const Viewport: React.FC = () => {
         const container = currentPixiObjects.get(obj.id);
         if (!container) return;
         if (obj.clipping) {
-            const targetObj = visibleObjects.find(o => o.layer === obj.layer - 1);
-            if (targetObj) {
-                const targetContainer = currentPixiObjects.get(targetObj.id);
-                container.mask = targetContainer || null;
-            } else {
-                container.mask = null;
-            }
+            const targetLayer = obj.layer - 1;
+            const targetObj = [...visibleObjects]
+              .reverse()
+              .find((candidate) => candidate.layer === targetLayer && currentPixiObjects.has(candidate.id));
+            const targetContainer = targetObj ? currentPixiObjects.get(targetObj.id) : null;
+            container.mask = targetContainer || null;
         } else {
             container.mask = null;
         }
