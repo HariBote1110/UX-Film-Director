@@ -363,6 +363,66 @@ class GroupGradientFilter extends PIXI.Filter {
     }
 }
 
+export interface VideoFrameTextureState {
+    canvas: HTMLCanvasElement;
+    context: CanvasRenderingContext2D;
+    texture: PIXI.Texture;
+    width: number;
+    height: number;
+}
+
+const ensureVideoFrameTextureState = (
+    videoId: string,
+    video: HTMLVideoElement,
+    videoFrameTextures: Map<string, VideoFrameTextureState>
+): VideoFrameTextureState | null => {
+    const width = Math.max(1, Math.floor(video.videoWidth));
+    const height = Math.max(1, Math.floor(video.videoHeight));
+
+    const existing = videoFrameTextures.get(videoId);
+    if (existing && existing.width === width && existing.height === height) {
+        return existing;
+    }
+
+    if (existing) {
+        existing.texture.destroy(true);
+        videoFrameTextures.delete(videoId);
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) return null;
+
+    const texture = PIXI.Texture.from(canvas);
+    const next: VideoFrameTextureState = {
+        canvas,
+        context,
+        texture,
+        width,
+        height
+    };
+    videoFrameTextures.set(videoId, next);
+    return next;
+};
+
+const drawVideoFrameToTexture = (state: VideoFrameTextureState, video: HTMLVideoElement): boolean => {
+    try {
+        state.context.clearRect(0, 0, state.width, state.height);
+        state.context.drawImage(video, 0, 0, state.width, state.height);
+        const source = (state.texture as any).source;
+        if (source && typeof source.update === 'function') {
+            source.update();
+        } else if (typeof (state.texture as any).update === 'function') {
+            (state.texture as any).update();
+        }
+        return true;
+    } catch {
+        return false;
+    }
+};
+
 export const applyGroupGradientEffect = (container: PIXI.Container, gradient: GradientFill | undefined) => {
     const currentFilters = container.filters ?? [];
     const otherFilters = currentFilters.filter((filter) => !(filter instanceof GroupGradientFilter));
@@ -502,6 +562,7 @@ export const updatePixiContent = (
         textureCache: Map<string, PIXI.Texture>;
         loadingUrls: Set<string>;
         videoElements: Map<string, HTMLVideoElement>;
+        videoFrameTextures: Map<string, VideoFrameTextureState>;
         audioBuffers?: Map<string, AudioBuffer>; 
         allObjects?: TimelineObject[];           
         isExporting: boolean;
@@ -509,7 +570,7 @@ export const updatePixiContent = (
         setRenderTick: React.Dispatch<React.SetStateAction<number>>;
     }
 ) => {
-    const { textureCache, loadingUrls, videoElements, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick } = resources;
+    const { textureCache, loadingUrls, videoElements, videoFrameTextures, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick } = resources;
     let content = container.children[0] as (PIXI.Sprite | PIXI.Graphics | PIXI.Text | PIXI.Container | undefined);
     
     // Check for recreation
@@ -604,15 +665,30 @@ export const updatePixiContent = (
             video.addEventListener('canplay', () => setRenderTick(p => p+1), { once: true });
             videoElements.set(obj.id, video);
         }
-        
-        if (video.readyState >= 2 && video.videoWidth > 0) {
-            if (!sprite) {
-                const texture = PIXI.Texture.from(video); // Pixi v8 handles VideoSource
-                sprite = new PIXI.Sprite(texture);
-                container.addChild(sprite);
+
+        if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+            const frameState = ensureVideoFrameTextureState(obj.id, video, videoFrameTextures);
+            const didDrawFrame = frameState ? drawVideoFrameToTexture(frameState, video) : false;
+
+            if (didDrawFrame && frameState) {
+                if (!sprite) {
+                    sprite = new PIXI.Sprite(frameState.texture);
+                    container.addChild(sprite);
+                } else if (sprite.texture !== frameState.texture) {
+                    sprite.texture = frameState.texture;
+                }
+                sprite.width = obj.width;
+                sprite.height = obj.height;
+                content = sprite;
             }
-            sprite.width = obj.width; sprite.height = obj.height;
-            content = sprite;
+
+            if (!content) {
+                const placeholder = new PIXI.Graphics();
+                placeholder.rect(0, 0, obj.width, obj.height);
+                placeholder.stroke({ width: 2, color: 0x0000ff });
+                container.addChild(placeholder);
+                return placeholder;
+            }
 
             // --- Optimized Sync Logic ---
             const offset = obj.offset || 0;
@@ -626,7 +702,6 @@ export const updatePixiContent = (
                         // Allow 0.5s drift to avoid frequent seeking overhead
                         if (Math.abs(video.currentTime - videoLocalTime) > 0.5) video.currentTime = videoLocalTime;
                     }
-                    // REMOVED: sprite.texture.source.update(); -> Let Pixi/WebGPU handle it automatically
                 } else {
                     if (!video.paused) video.pause();
                     if (Math.abs(video.currentTime - videoLocalTime) > 0.05) video.currentTime = videoLocalTime;

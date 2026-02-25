@@ -8,6 +8,7 @@ import { shallow } from 'zustand/shallow';
 import { usePixiInteraction } from '../hooks/usePixiInteraction';
 import { useProjectExport } from '../hooks/useProjectExport';
 import { getGroupTransforms, getLipSyncViseme, updatePixiContent, applyObjectEffects, getVibrationOffset, applyGroupGradientEffect } from '../utils/pixiRenderHelper';
+import type { VideoFrameTextureState } from '../utils/pixiRenderHelper';
 import { evaluateObjectPositionAtTime } from '../utils/keyframes';
 import { getEnabledObjectFiltersInOrder } from '../utils/filterStack';
 
@@ -79,6 +80,7 @@ const Viewport: React.FC = () => {
   const textureCacheRef = useRef<Map<string, PIXI.Texture>>(new Map());
   const loadingUrlsRef = useRef<Set<string>>(new Set());
   const videoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
+  const videoFrameTexturesRef = useRef<Map<string, VideoFrameTextureState>>(new Map());
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const videoPlayPromisesRef = useRef<Map<string, Promise<void> | null>>(new Map());
   
@@ -150,6 +152,10 @@ const Viewport: React.FC = () => {
         loadingUrlsRef.current.clear();
         videoElementsRef.current.forEach(video => { video.pause(); video.src = ""; video.load(); });
         videoElementsRef.current.clear();
+        videoFrameTexturesRef.current.forEach((entry) => {
+          entry.texture.destroy(true);
+        });
+        videoFrameTexturesRef.current.clear();
         audioElementsRef.current.forEach(audio => { audio.pause(); audio.src = ""; audio.load(); });
         audioElementsRef.current.clear();
       }
@@ -233,6 +239,11 @@ const Viewport: React.FC = () => {
     currentVideoElements.forEach((video, id) => {
         if (!visibleObjects.find(obj => obj.id === id && obj.type === 'video')) {
             video.pause(); video.src = ""; video.load(); currentVideoElements.delete(id); videoPlayPromisesRef.current.delete(id);
+            const frameTexture = videoFrameTexturesRef.current.get(id);
+            if (frameTexture) {
+                frameTexture.texture.destroy(true);
+                videoFrameTexturesRef.current.delete(id);
+            }
         }
     });
     currentAudioElements.forEach((audio, id) => {
@@ -304,6 +315,7 @@ const Viewport: React.FC = () => {
           textureCache: textureCacheRef.current,
           loadingUrls: loadingUrlsRef.current,
           videoElements: videoElementsRef.current,
+          videoFrameTextures: videoFrameTexturesRef.current,
           audioBuffers: audioBuffersRef.current, 
           allObjects: currentObjects,            
           isExporting,

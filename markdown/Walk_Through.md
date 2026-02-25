@@ -424,3 +424,16 @@
 ## 確認
 - `npx tsc --noEmit` を実行し、型エラーなしを確認。
 - `cargo build --manifest-path rust-backend/Cargo.toml` を実行し、成功を確認。
+
+## 41. iPhone 画面収録動画の WebGPU 例外修正
+- `src/utils/pixiRenderHelper.ts`
+- `video` 描画経路を `PIXI.Texture.from(video)` から「`canvas` にフレーム描画してテクスチャ更新する方式」へ変更した。
+- `video.videoWidth/video.videoHeight` が確定している場合のみフレームを描画し、解像度が変化した場合は canvas/texture を再生成する処理を追加した。
+- これにより `GPUQueue.copyExternalImageToTexture: Copy rect is out of bounds of external image` が発生する経路を回避した。
+- `src/components/Viewport.tsx`
+- 動画フレームテクスチャキャッシュを `useRef` で保持し、動画オブジェクトの非表示化・削除・アンマウント時に `texture.destroy(true)` で明示解放するようにした。
+- `package.json`
+- バージョンを `0.1.1-Beta-2o` に更新した。
+
+## 確認
+- `npx tsc --noEmit` を実行し、型エラーなしを確認。

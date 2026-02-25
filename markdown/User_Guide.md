@@ -57,6 +57,7 @@
 - 書き出し: `Export Video`
 - 音声のみ書き出し: `Export MP3`
 - 静止画保存: `Snapshot`
+- iPhone 画面収録素材など一部動画は内部で canvas 経由描画し、WebGPU での読込安定性を優先する。
 
 ## 8. ショートカット一覧
 - `Space`: 再生/停止
