@@ -3,6 +3,7 @@ import * as PIXI from 'pixi.js';
 import { useStore } from '../store/useStore';
 import { TimelineObject } from '../types';
 import { shallow } from 'zustand/shallow';
+import { buildExportAudioMixWav } from '../utils/audioMixdown';
 
 const { ipcRenderer } = window;
 
@@ -27,17 +28,31 @@ export const useProjectExport = (
         if (!app) return;
 
         let exportSessionOpened = false;
+        let tempAudioPath: string | null = null;
 
         try {
-            const { projectSettings, objects } = useStore.getState();
+            const { projectSettings, objects, layers } = useStore.getState();
             const fps = projectSettings.fps;
             const dt = 1 / fps;
-            const videoObjects = objects.filter((obj): obj is Extract<TimelineObject, { type: 'video' }> => obj.type === 'video');
+            const exportObjects = objects.filter((obj) => layers[obj.layer]?.visible !== false);
+            const videoObjects = exportObjects.filter((obj): obj is Extract<TimelineObject, { type: 'video' }> => obj.type === 'video');
             
             // Calculate total duration
-            const lastObjectEndTime = Math.max(...objects.map(o => o.startTime + o.duration), 0);
+            const lastObjectEndTime = Math.max(...exportObjects.map(o => o.startTime + o.duration), 0);
             const exportDuration = Math.max(lastObjectEndTime, 1);
             const totalFrames = Math.ceil(exportDuration * fps);
+            const mixedAudio = await buildExportAudioMixWav(
+              exportObjects,
+              exportDuration,
+              projectSettings.sampleRate || 44100
+            );
+            if (mixedAudio) {
+              const saved = await ipcRenderer.invoke('save-temp-audio', mixedAudio);
+              if (!saved?.success || !saved.path) {
+                throw new Error(saved?.error || '音声ミックスの一時保存に失敗しました');
+              }
+              tempAudioPath = saved.path;
+            }
 
             // Pause all videos initially
             const videos = Array.from(videoElementsRef.current.values());
@@ -47,7 +62,8 @@ export const useProjectExport = (
             const result = await ipcRenderer.invoke('start-export', { 
                 width: projectSettings.width, 
                 height: projectSettings.height, 
-                fps: fps 
+                fps: fps,
+                audioPath: tempAudioPath
             });
 
             if (!result.success) {
@@ -95,7 +111,7 @@ export const useProjectExport = (
                 }
 
                 // Render Frame
-                renderScene(t, objects);
+                renderScene(t, exportObjects);
                 
                 // Capture and write frame
                 const blob = await new Promise<Blob | null>((resolve) => {
@@ -126,6 +142,13 @@ export const useProjectExport = (
         } finally {
             if (exportSessionOpened) {
                 await ipcRenderer.invoke('end-export');
+            }
+            if (tempAudioPath) {
+                try {
+                    await ipcRenderer.invoke('delete-temp-file', { filePath: tempAudioPath });
+                } catch {
+                    // no-op
+                }
             }
             setExporting(false);
         }

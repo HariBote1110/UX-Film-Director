@@ -12,13 +12,23 @@ interface TimelineItemProps {
 }
 
 const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight, headerWidth, onContextMenu }) => {
-  const { updateObject, selectObject, objects, pushHistory } = useStore((state) => ({
+  const { updateObject, selectObject, toggleObjectSelection, selectObjects, objects, pushHistory, selectedIds } = useStore((state) => ({
     updateObject: state.updateObject,
     selectObject: state.selectObject,
+    toggleObjectSelection: state.toggleObjectSelection,
+    selectObjects: state.selectObjects,
     objects: state.objects,
     pushHistory: state.pushHistory,
+    selectedIds: state.selectedIds,
   }), shallow);
-  const isSelected = useStore((state) => state.selectedId === object.id);
+  const { isLayerLocked, isLayerVisible } = useStore((state) => {
+    const layerState = state.layers[object.layer];
+    return {
+      isLayerLocked: layerState?.locked ?? false,
+      isLayerVisible: layerState?.visible ?? true
+    };
+  }, shallow);
+  const isSelected = selectedIds.includes(object.id);
 
   const [isDragging, setIsDragging] = useState(false);
   const [dragType, setDragType] = useState<'move' | 'resize' | null>(null);
@@ -36,11 +46,28 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
     
     // 右クリック
     if (e.button === 2) {
-        selectObject(object.id); 
+        if (isSelected) {
+          selectObjects(selectedIds, object.id);
+        } else {
+          selectObject(object.id);
+        }
         onContextMenu(e, object.id);
         return;
     }
     if (e.button !== 0) return;
+    const isToggleSelect = e.metaKey || e.ctrlKey;
+    if (isToggleSelect) {
+      toggleObjectSelection(object.id);
+      return;
+    }
+    if (e.shiftKey) {
+      selectObjects([...selectedIds, object.id], object.id);
+      return;
+    }
+    if (isLayerLocked) {
+      selectObject(object.id);
+      return;
+    }
 
     pushHistory();
     selectObject(object.id);
@@ -60,6 +87,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDragging) return;
+      if (isLayerLocked) return;
 
       const deltaX = e.clientX - startMouseX;
 
@@ -160,7 +188,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, dragType, startMouseX, startMouseY, initialState, object, pxPerSec, rowHeight, updateObject, objects]);
+  }, [isDragging, dragType, startMouseX, startMouseY, initialState, object, pxPerSec, rowHeight, updateObject, objects, isLayerLocked]);
 
   const leftPos = headerWidth + (Math.max(0, object.startTime) * pxPerSec);
   const width = object.duration * pxPerSec;
@@ -178,6 +206,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
 
   return (
     <div
+      data-timeline-item="true"
       style={{
         position: 'absolute',
         left: `${leftPos}px`,
@@ -187,26 +216,26 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
         backgroundColor: getBackgroundColor(),
         border: isSelected ? '2px solid #f1c40f' : '1px solid rgba(255,255,255,0.3)',
         borderRadius: '4px',
-        cursor: 'move',
+        cursor: isLayerLocked ? 'not-allowed' : 'move',
         userSelect: 'none',
         overflow: 'hidden',
         zIndex: isDragging ? 300 : 10,
         pointerEvents: 'auto',
         boxShadow: isDragging ? '0 5px 15px rgba(0,0,0,0.5)' : 'none',
-        opacity: isDragging ? 0.9 : 1,
+        opacity: isLayerVisible ? (isDragging ? 0.9 : 1) : (isDragging ? 0.65 : 0.45),
         transition: isDragging ? 'none' : 'background-color 0.2s, top 0.1s ease-out'
       }}
       onMouseDown={(e) => handleMouseDown(e, 'move')}
       onContextMenu={(e) => handleMouseDown(e, 'move')}
     >
       <div style={{ padding: '2px 4px', fontSize: '11px', color: 'white', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-        {object.name} {object.enableAnimation ? '⇗' : ''}
+        {object.name} {object.groupId ? '[G]' : ''} {object.keyframes && object.keyframes.length > 1 ? '◆' : ''} {object.enableAnimation ? '⇗' : ''}
       </div>
 
       <div
         style={{
           position: 'absolute', right: 0, top: 0, bottom: 0, width: '10px',
-          cursor: 'col-resize', background: 'rgba(0,0,0,0.2)',
+          cursor: isLayerLocked ? 'not-allowed' : 'col-resize', background: 'rgba(0,0,0,0.2)',
         }}
         onMouseDown={(e) => handleMouseDown(e, 'resize')}
       />

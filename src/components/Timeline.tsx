@@ -7,23 +7,30 @@ import { useTimelineDrop } from '../hooks/useTimelineDrop';
 import { TimelineControlBar } from './TimelineControlBar';
 import { TimelineContextMenu, ContextMenuState } from './TimelineContextMenu';
 import { shallow } from 'zustand/shallow';
-import { resolveAudioMetadata, resolveVideoMetadata } from '../utils/mediaMetadata';
+import { getElectronFilePath, resolveAudioMetadata, resolveVideoMetadata } from '../utils/mediaMetadata';
 import { parsePsdAsObject } from '../utils/psdParser';
 
 const Timeline: React.FC = () => {
   const { 
-    currentTime, duration, setTime, addObject, deleteObject, 
-    objects, selectObject, isExporting, projectSettings
+    currentTime, duration, setTime, addObject,
+    objects, selectedIds, selectObject, selectObjects, clearSelection, isExporting, projectSettings,
+    layers, setLayerName, toggleLayerVisibility, toggleLayerLock
   } = useStore((state) => ({
     currentTime: state.currentTime,
     duration: state.duration,
     setTime: state.setTime,
     addObject: state.addObject,
-    deleteObject: state.deleteObject,
     objects: state.objects,
+    selectedIds: state.selectedIds,
     selectObject: state.selectObject,
+    selectObjects: state.selectObjects,
+    clearSelection: state.clearSelection,
     isExporting: state.isExporting,
     projectSettings: state.projectSettings,
+    layers: state.layers,
+    setLayerName: state.setLayerName,
+    toggleLayerVisibility: state.toggleLayerVisibility,
+    toggleLayerLock: state.toggleLayerLock,
   }), shallow);
   
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -35,9 +42,43 @@ const Timeline: React.FC = () => {
   const [insertTarget, setInsertTarget] = useState<{time: number, layer: number} | null>(null);
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, type: 'canvas', time: 0, layer: 0 });
+  const [editingLayer, setEditingLayer] = useState<number | null>(null);
+  const [editingLayerName, setEditingLayerName] = useState('');
+  const [marqueeSelection, setMarqueeSelection] = useState<{
+    active: boolean;
+    append: boolean;
+    startX: number;
+    startY: number;
+    currentX: number;
+    currentY: number;
+  } | null>(null);
 
   // Custom Hooks
   const { handleDragOver, handleDrop } = useTimelineDrop(timelineRef);
+
+  const getLayerState = useCallback((layer: number) => {
+    return layers[layer] ?? { name: `Layer ${layer + 1}`, visible: true, locked: false };
+  }, [layers]);
+
+  const isLayerLocked = useCallback((layer: number) => {
+    return getLayerState(layer).locked;
+  }, [getLayerState]);
+
+  const beginLayerRename = useCallback((layer: number) => {
+    setEditingLayer(layer);
+    setEditingLayerName(getLayerState(layer).name);
+  }, [getLayerState]);
+
+  const commitLayerRename = useCallback(() => {
+    if (editingLayer === null) return;
+    setLayerName(editingLayer, editingLayerName);
+    setEditingLayer(null);
+  }, [editingLayer, editingLayerName, setLayerName]);
+
+  const cancelLayerRename = useCallback(() => {
+    setEditingLayer(null);
+    setEditingLayerName('');
+  }, []);
 
   const calculateTimeFromEvent = (clientX: number) => {
     if (!timelineRef.current) return 0;
@@ -46,6 +87,77 @@ const Timeline: React.FC = () => {
     const x = clientX - rect.left + scrollLeft - HEADER_WIDTH;
     return Math.max(0, x / PX_PER_SEC);
   };
+
+  const getContentPositionFromEvent = useCallback((clientX: number, clientY: number) => {
+    if (!timelineRef.current) return null;
+    const rect = timelineRef.current.getBoundingClientRect();
+    return {
+      x: clientX - rect.left + timelineRef.current.scrollLeft,
+      y: clientY - rect.top + timelineRef.current.scrollTop
+    };
+  }, []);
+
+  const commitMarqueeSelection = useCallback((selection: NonNullable<typeof marqueeSelection>) => {
+    const minX = Math.min(selection.startX, selection.currentX);
+    const maxX = Math.max(selection.startX, selection.currentX);
+    const minY = Math.min(selection.startY, selection.currentY);
+    const maxY = Math.max(selection.startY, selection.currentY);
+    const width = maxX - minX;
+    const height = maxY - minY;
+
+    const isClickWithoutDrag = width < 3 && height < 3;
+    if (isClickWithoutDrag) {
+      if (!selection.append) clearSelection();
+      return;
+    }
+
+    const hitIds = objects
+      .filter((obj) => {
+        const objectLeft = HEADER_WIDTH + Math.max(0, obj.startTime) * PX_PER_SEC;
+        const objectRight = objectLeft + Math.max(1, obj.duration * PX_PER_SEC);
+        const objectTop = RULER_HEIGHT + (obj.layer * ROW_HEIGHT);
+        const objectBottom = objectTop + ROW_HEIGHT;
+        return minX < objectRight && maxX > objectLeft && minY < objectBottom && maxY > objectTop;
+      })
+      .map((obj) => obj.id);
+
+    if (selection.append) {
+      if (hitIds.length === 0) return;
+      const merged = Array.from(new Set([...selectedIds, ...hitIds]));
+      selectObjects(merged, merged[merged.length - 1] ?? null);
+      return;
+    }
+
+    if (hitIds.length === 0) {
+      clearSelection();
+      return;
+    }
+
+    selectObjects(hitIds, hitIds[hitIds.length - 1]);
+  }, [clearSelection, objects, selectedIds, selectObjects]);
+
+  const handleTimelineMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (isExporting) return;
+    if (e.button !== 0) return;
+    if (isScrubbing) return;
+
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('[data-timeline-item="true"]')) return;
+
+    const position = getContentPositionFromEvent(e.clientX, e.clientY);
+    if (!position) return;
+    if (position.x < HEADER_WIDTH || position.y < RULER_HEIGHT) return;
+
+    setMarqueeSelection({
+      active: true,
+      append: e.metaKey || e.ctrlKey || e.shiftKey,
+      startX: position.x,
+      startY: position.y,
+      currentX: position.x,
+      currentY: position.y
+    });
+    e.preventDefault();
+  }, [getContentPositionFromEvent, isExporting, isScrubbing]);
 
   const handleSeekMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isExporting) return;
@@ -91,8 +203,42 @@ const Timeline: React.FC = () => {
     return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); };
   }, [isScrubbing, setTime]);
 
+  useEffect(() => {
+    if (!marqueeSelection?.active) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const position = getContentPositionFromEvent(e.clientX, e.clientY);
+      if (!position) return;
+      setMarqueeSelection((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          currentX: position.x,
+          currentY: position.y
+        };
+      });
+    };
+
+    const handleMouseUp = () => {
+      setMarqueeSelection((prev) => {
+        if (prev) {
+          commitMarqueeSelection(prev);
+        }
+        return null;
+      });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [commitMarqueeSelection, getContentPositionFromEvent, marqueeSelection?.active]);
+
   // Object Creation Helpers
   const addShapeAt = (startTime: number, layer: number) => {
+    if (isLayerLocked(layer)) return;
     const newShape: TimelineObject = { 
         id: crypto.randomUUID(), type: 'shape', shapeType: 'rect', name: 'Rectangle', layer, startTime, duration: 3, 
         x: 640, y: 360, width: 200, height: 100, fill: '#ff0000', 
@@ -102,6 +248,7 @@ const Timeline: React.FC = () => {
     addObject(newShape);
   };
   const addTextAt = (startTime: number, layer: number) => {
+    if (isLayerLocked(layer)) return;
     const newText: TimelineObject = { 
         id: crypto.randomUUID(), type: 'text', name: 'Subtitle', layer, startTime, duration: 3, 
         x: 640, y: 600, text: 'New Text', fontSize: 48, fontFamily: 'Arial', fill: '#ffffff', 
@@ -111,6 +258,7 @@ const Timeline: React.FC = () => {
     addObject(newText);
   };
   const addGroupControlAt = (startTime: number, layer: number) => {
+    if (isLayerLocked(layer)) return;
     const newGroup: TimelineObject = {
         id: crypto.randomUUID(), type: 'group_control', name: 'Group Control', layer, startTime, duration: 5,
         x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
@@ -121,18 +269,35 @@ const Timeline: React.FC = () => {
   };
 
   // File Upload Handlers
-  const triggerImageUpload = (startTime: number, layer: number) => { setInsertTarget({ time: startTime, layer }); fileInputRef.current?.click(); };
-  const triggerVideoUpload = (startTime: number, layer: number) => { setInsertTarget({ time: startTime, layer }); videoInputRef.current?.click(); };
-  const triggerAudioUpload = (startTime: number, layer: number) => { setInsertTarget({ time: startTime, layer }); audioInputRef.current?.click(); };
-  const triggerPsdUpload = (startTime: number) => { setInsertTarget({ time: startTime, layer: 0 }); psdInputRef.current?.click(); };
+  const triggerImageUpload = (startTime: number, layer: number) => {
+    if (isLayerLocked(layer)) return;
+    setInsertTarget({ time: startTime, layer });
+    fileInputRef.current?.click();
+  };
+  const triggerVideoUpload = (startTime: number, layer: number) => {
+    if (isLayerLocked(layer)) return;
+    setInsertTarget({ time: startTime, layer });
+    videoInputRef.current?.click();
+  };
+  const triggerAudioUpload = (startTime: number, layer: number) => {
+    if (isLayerLocked(layer)) return;
+    setInsertTarget({ time: startTime, layer });
+    audioInputRef.current?.click();
+  };
+  const triggerPsdUpload = (startTime: number, layer: number) => {
+    if (isLayerLocked(layer)) return;
+    setInsertTarget({ time: startTime, layer });
+    psdInputRef.current?.click();
+  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file || !insertTarget) return;
+    const filePath = getElectronFilePath(file);
     const url = URL.createObjectURL(file); const img = new Image(); img.src = url;
     img.onload = () => {
       const newImage: TimelineObject = { 
           id: crypto.randomUUID(), type: 'image', name: file.name, layer: insertTarget.layer, startTime: insertTarget.time, duration: 5, 
-          x: 640 - (img.width / 2), y: 360 - (img.height / 2), width: img.width, height: img.height, src: url, 
+          x: 640 - (img.width / 2), y: 360 - (img.height / 2), width: img.width, height: img.height, src: url, filePath: filePath ?? undefined,
           enableAnimation: false, endX: 640 - (img.width / 2), endY: 360 - (img.height / 2), easing: 'linear', offset: 0,
           rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
       };
@@ -144,13 +309,14 @@ const Timeline: React.FC = () => {
     const target = insertTarget;
     if (!file || !target) return;
 
+    const filePath = getElectronFilePath(file);
     const url = URL.createObjectURL(file);
 
     try {
       const metadata = await resolveVideoMetadata(file, url);
       const newVideo: TimelineObject = {
           id: crypto.randomUUID(), type: 'video', name: file.name, layer: target.layer, startTime: target.time, duration: metadata.duration,
-          x: 640 - (metadata.width / 2), y: 360 - (metadata.height / 2), width: metadata.width, height: metadata.height, src: url, volume: 1.0, muted: false,
+          x: 640 - (metadata.width / 2), y: 360 - (metadata.height / 2), width: metadata.width, height: metadata.height, src: url, filePath: filePath ?? undefined, volume: 1.0, muted: false,
           enableAnimation: false, endX: 640 - (metadata.width / 2), endY: 360 - (metadata.height / 2), easing: 'linear', offset: 0,
           rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
       };
@@ -168,12 +334,13 @@ const Timeline: React.FC = () => {
     const target = insertTarget;
     if (!file || !target) return;
 
+    const filePath = getElectronFilePath(file);
     const url = URL.createObjectURL(file);
 
     try {
       const metadata = await resolveAudioMetadata(file, url);
       const newAudio: TimelineObject = {
-          id: crypto.randomUUID(), type: 'audio', name: file.name, layer: target.layer, startTime: target.time, duration: metadata.duration, src: url, volume: 1.0, muted: false,
+          id: crypto.randomUUID(), type: 'audio', name: file.name, layer: target.layer, startTime: target.time, duration: metadata.duration, src: url, filePath: filePath ?? undefined, volume: 1.0, muted: false,
           x: 0, y: 0, enableAnimation: false, endX: 0, endY: 0, easing: 'linear', offset: 0,
           rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
       };
@@ -191,6 +358,7 @@ const Timeline: React.FC = () => {
     const target = insertTarget;
     if (!file || !target) return;
 
+    const filePath = getElectronFilePath(file);
     try {
       const { psdObject } = await parsePsdAsObject(
         file,
@@ -201,6 +369,7 @@ const Timeline: React.FC = () => {
 
       const newPsd: TimelineObject = {
         ...psdObject,
+        filePath: filePath ?? undefined,
         layer: target.layer,
         startTime: target.time,
       };
@@ -223,7 +392,7 @@ const Timeline: React.FC = () => {
   const cbAddImage = () => triggerImageUpload(currentTime, 2);
   const cbAddVideo = () => triggerVideoUpload(currentTime, 3);
   const cbAddAudio = () => triggerAudioUpload(currentTime, 4);
-  const cbAddPsd = () => triggerPsdUpload(currentTime);
+  const cbAddPsd = () => triggerPsdUpload(currentTime, 0);
   const cbAddGroup = () => addGroupControlAt(currentTime, 0);
   
   // Context Menu handlers:
@@ -232,8 +401,22 @@ const Timeline: React.FC = () => {
   const cmAddImage = () => triggerImageUpload(contextMenu.time, contextMenu.layer);
   const cmAddVideo = () => triggerVideoUpload(contextMenu.time, contextMenu.layer);
   const cmAddAudio = () => triggerAudioUpload(contextMenu.time, contextMenu.layer);
-  const cmAddPsd = () => triggerPsdUpload(contextMenu.time);
+  const cmAddPsd = () => triggerPsdUpload(contextMenu.time, contextMenu.layer);
   const cmAddGroup = () => addGroupControlAt(contextMenu.time, contextMenu.layer);
+
+  const marqueeRect = useMemo(() => {
+    if (!marqueeSelection) return null;
+    const left = Math.min(marqueeSelection.startX, marqueeSelection.currentX);
+    const top = Math.min(marqueeSelection.startY, marqueeSelection.currentY);
+    const width = Math.abs(marqueeSelection.currentX - marqueeSelection.startX);
+    const height = Math.abs(marqueeSelection.currentY - marqueeSelection.startY);
+    return {
+      left,
+      top: Math.max(0, top - RULER_HEIGHT),
+      width,
+      height
+    };
+  }, [marqueeSelection]);
 
   const totalWidth = useMemo(
     () => Math.max(duration * PX_PER_SEC + 500, window.innerWidth - 300) + HEADER_WIDTH,
@@ -261,7 +444,8 @@ const Timeline: React.FC = () => {
       />
 
       <div ref={timelineRef} className="timeline-tracks" style={{ flex: 1, overflow: 'auto', position: 'relative', background: '#1e1e1e' }} 
-           onClick={(e) => { if (!isExporting && e.button === 0 && e.target === e.currentTarget) selectObject(null); }} 
+           onMouseDown={handleTimelineMouseDown}
+           onClick={(e) => { if (!isExporting && e.button === 0 && e.target === e.currentTarget) clearSelection(); }} 
            onContextMenu={handleCanvasContextMenu}
            onDragOver={handleDragOver}
            onDrop={handleDrop}
@@ -280,22 +464,121 @@ const Timeline: React.FC = () => {
           </div>
 
           <div style={{ position: 'relative' }}>
-             {Array.from({ length: MAX_LAYERS }).map((_, i) => (
+             {Array.from({ length: MAX_LAYERS }).map((_, i) => {
+                const layerState = getLayerState(i);
+                return (
                 <div key={i} style={{ height: ROW_HEIGHT, borderBottom: '1px solid #2a2a2a', display: 'flex', alignItems: 'center' }}>
                     <div style={{ 
                         position: 'sticky', left: 0, width: HEADER_WIDTH, height: '100%', background: '#2d2d2d', 
                         borderRight: '1px solid #111', borderBottom: '1px solid #111', zIndex: 700,
-                        display: 'flex', alignItems: 'center', paddingLeft: '10px', fontSize: '11px', color: '#ccc',
+                        display: 'flex', alignItems: 'center', padding: '0 6px', gap: '4px', fontSize: '11px', color: '#ccc',
                         boxShadow: '2px 0 5px rgba(0,0,0,0.3)', boxSizing: 'border-box'
-                    }}>
-                        Layer {i+1}
+                    }} onDoubleClick={(e) => { e.stopPropagation(); beginLayerRename(i); }}>
+                        <button
+                          type="button"
+                          title={layerState.visible ? 'レイヤーを非表示' : 'レイヤーを表示'}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); if (!isExporting) toggleLayerVisibility(i); }}
+                          style={{
+                            width: '18px',
+                            height: '18px',
+                            border: '1px solid #555',
+                            background: layerState.visible ? '#2f6f3a' : '#3a3a3a',
+                            color: '#fff',
+                            fontSize: '10px',
+                            borderRadius: '3px',
+                            padding: 0,
+                            cursor: isExporting ? 'default' : 'pointer'
+                          }}
+                        >
+                          {layerState.visible ? 'V' : '-'}
+                        </button>
+                        <button
+                          type="button"
+                          title={layerState.locked ? 'ロックを解除' : 'レイヤーをロック'}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); if (!isExporting) toggleLayerLock(i); }}
+                          style={{
+                            width: '18px',
+                            height: '18px',
+                            border: '1px solid #555',
+                            background: layerState.locked ? '#8a3c3c' : '#3a3a3a',
+                            color: '#fff',
+                            fontSize: '10px',
+                            borderRadius: '3px',
+                            padding: 0,
+                            cursor: isExporting ? 'default' : 'pointer'
+                          }}
+                        >
+                          {layerState.locked ? 'L' : '-'}
+                        </button>
+                        {editingLayer === i ? (
+                          <input
+                            autoFocus
+                            value={editingLayerName}
+                            onChange={(e) => setEditingLayerName(e.target.value)}
+                            onBlur={commitLayerRename}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                commitLayerRename();
+                              }
+                              if (e.key === 'Escape') {
+                                e.preventDefault();
+                                cancelLayerRename();
+                              }
+                            }}
+                            style={{
+                              flex: 1,
+                              minWidth: 0,
+                              height: '20px',
+                              border: '1px solid #666',
+                              borderRadius: '3px',
+                              background: '#1f1f1f',
+                              color: '#ddd',
+                              fontSize: '11px',
+                              padding: '0 4px'
+                            }}
+                          />
+                        ) : (
+                          <span
+                            title={`${layerState.name} (Layer ${i + 1})`}
+                            style={{
+                              flex: 1,
+                              minWidth: 0,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              color: layerState.visible ? '#ccc' : '#888',
+                              opacity: layerState.locked ? 0.8 : 1
+                            }}
+                          >
+                            {layerState.name}
+                          </span>
+                        )}
                     </div>
                 </div>
-             ))}
+             )})}
              <div style={{ position: 'absolute', left: HEADER_WIDTH + (currentTime * PX_PER_SEC), top: 0, bottom: 0, width: '1px', background: 'rgba(255,0,0,0.5)', pointerEvents: 'none', zIndex: 600 }} />
              <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10 }}>
                 {objects.map(obj => <TimelineItem key={obj.id} object={obj} pxPerSec={PX_PER_SEC} rowHeight={ROW_HEIGHT} headerWidth={HEADER_WIDTH} onContextMenu={handleObjectContextMenu} />)}
              </div>
+             {marqueeRect && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: marqueeRect.left,
+                    top: marqueeRect.top,
+                    width: marqueeRect.width,
+                    height: marqueeRect.height,
+                    border: '1px dashed #5ba8ff',
+                    background: 'rgba(91, 168, 255, 0.18)',
+                    pointerEvents: 'none',
+                    zIndex: 650
+                  }}
+                />
+             )}
           </div>
         </div>
       </div>

@@ -8,6 +8,12 @@ export interface ProjectSettings {
   sampleRate: number;
 }
 
+export interface LayerState {
+  name: string;
+  visible: boolean;
+  locked: boolean;
+}
+
 export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization';
 
 // --- グラデーション・シャドウ・軌道 ---
@@ -15,6 +21,7 @@ export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' 
 export interface GradientFill {
   enabled: boolean;
   type: 'linear' | 'radial';
+  scope?: 'group' | 'connected';
   colours: string[];
   stops: number[];
   direction: number;
@@ -33,6 +40,14 @@ export interface PathPoint {
   time: number;
   x: number;
   y: number;
+}
+
+export interface PositionKeyframe {
+  id: string;
+  time: number;
+  x: number;
+  y: number;
+  easing?: EasingType;
 }
 
 // リップシンク設定
@@ -79,10 +94,46 @@ export interface ClippingParams {
   radius: number; // ぼかし等の用途（今回はコーナー半径や簡易ぼかしとして予約、現状未使用でも可）
 }
 
+export type FilterType = 'color_correction' | 'clipping' | 'vibration' | 'shadow' | 'gradient';
+
+interface BaseFilter {
+  id: string;
+  type: FilterType;
+  enabled: boolean;
+}
+
+export interface ColorCorrectionFilter extends BaseFilter {
+  type: 'color_correction';
+  params: Omit<ColorCorrection, 'enabled'>;
+}
+
+export interface ClippingFilter extends BaseFilter {
+  type: 'clipping';
+  params: Omit<ClippingParams, 'enabled'>;
+}
+
+export interface VibrationFilter extends BaseFilter {
+  type: 'vibration';
+  params: Omit<Vibration, 'enabled'>;
+}
+
+export interface ShadowFilter extends BaseFilter {
+  type: 'shadow';
+  params: Omit<ShadowEffect, 'enabled'>;
+}
+
+export interface GradientFilter extends BaseFilter {
+  type: 'gradient';
+  params: Omit<GradientFill, 'enabled'>;
+}
+
+export type ObjectFilter = ColorCorrectionFilter | ClippingFilter | VibrationFilter | ShadowFilter | GradientFilter;
+
 // --- オブジェクト定義 ---
 
 export interface BaseObject {
   id: string;
+  groupId?: string;
   type: ObjectType;
   name: string;
   layer: number;
@@ -104,7 +155,10 @@ export interface BaseObject {
   easing: EasingType;
 
   motionPath?: PathPoint[];
+  keyframes?: PositionKeyframe[];
   shadow?: ShadowEffect;
+  filters?: ObjectFilter[];
+  groupGradient?: GradientFill;
   
   // 新機能用プロパティ
   clipping?: boolean;          // 上のオブジェクトでクリッピング (マスク)
@@ -134,6 +188,7 @@ export interface ShapeObject extends BaseObject {
 export interface ImageObject extends BaseObject {
   type: 'image';
   src: string;
+  filePath?: string;
   width: number;
   height: number;
 }
@@ -141,6 +196,7 @@ export interface ImageObject extends BaseObject {
 export interface VideoObject extends BaseObject {
   type: 'video';
   src: string;
+  filePath?: string;
   width: number;
   height: number;
   volume: number;
@@ -150,6 +206,7 @@ export interface VideoObject extends BaseObject {
 export interface AudioObject extends BaseObject {
   type: 'audio';
   src: string;
+  filePath?: string;
   volume: number;
   muted: boolean;
   labData?: LabPhoneme[];
@@ -201,6 +258,7 @@ export interface PsdLayerNode {
 export interface PsdObject extends BaseObject {
   type: 'psd';
   file?: File;
+  filePath?: string;
   src: string;
   width: number;
   height: number;

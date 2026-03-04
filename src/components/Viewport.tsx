@@ -1,19 +1,80 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as PIXI from 'pixi.js';
 import { useStore } from '../store/useStore';
-import { TimelineObject } from '../types';
+import { TimelineObject, GradientFill, ObjectFilter } from '../types';
 import { createShadowGraphics } from '../utils/pixiUtils';
-import { easingFunctions } from '../utils/easings';
 import { shallow } from 'zustand/shallow';
 
 import { usePixiInteraction } from '../hooks/usePixiInteraction';
 import { useProjectExport } from '../hooks/useProjectExport';
-import { getGroupTransforms, getLipSyncViseme, updatePixiContent, applyObjectEffects, getVibrationOffset } from '../utils/pixiRenderHelper';
+import { getGroupTransforms, getLipSyncViseme, updatePixiContent, applyObjectEffects, getVibrationOffset, applyGroupGradientEffect } from '../utils/pixiRenderHelper';
+import { evaluateObjectPositionAtTime } from '../utils/keyframes';
+import { getEnabledObjectFiltersInOrder } from '../utils/filterStack';
+
+const GROUP_GRADIENT_COMPONENT_PREFIX = 'group-gradient-component-';
+
+type BoundsLike = { x: number; y: number; width: number; height: number };
+
+const boundsIntersect = (a: BoundsLike, b: BoundsLike) => (
+  a.x <= b.x + b.width
+  && a.x + a.width >= b.x
+  && a.y <= b.y + b.height
+  && a.y + a.height >= b.y
+);
+
+const buildConnectedComponents = (containers: PIXI.Container[]): number[][] => {
+  if (containers.length <= 1) return containers.length === 1 ? [[0]] : [];
+
+  const boundsList = containers.map((container) => container.getBounds());
+  const visited = new Array(containers.length).fill(false);
+  const components: number[][] = [];
+
+  for (let startIndex = 0; startIndex < containers.length; startIndex += 1) {
+    if (visited[startIndex]) continue;
+
+    const queue: number[] = [startIndex];
+    visited[startIndex] = true;
+    const component: number[] = [];
+
+    while (queue.length > 0) {
+      const currentIndex = queue.shift()!;
+      component.push(currentIndex);
+
+      for (let nextIndex = 0; nextIndex < containers.length; nextIndex += 1) {
+        if (visited[nextIndex]) continue;
+        if (!boundsIntersect(boundsList[currentIndex], boundsList[nextIndex])) continue;
+        visited[nextIndex] = true;
+        queue.push(nextIndex);
+      }
+    }
+
+    components.push(component);
+  }
+
+  return components;
+};
+
+const flattenGroupGradientComponents = (groupContainer: PIXI.Container) => {
+  const componentContainers = groupContainer.children.filter((child) => (
+    typeof child.label === 'string' && child.label.startsWith(GROUP_GRADIENT_COMPONENT_PREFIX)
+  )) as PIXI.Container[];
+
+  componentContainers.forEach((componentContainer) => {
+    const members = componentContainer.removeChildren() as PIXI.Container[];
+    members.forEach((member) => {
+      groupContainer.addChild(member);
+    });
+    applyGroupGradientEffect(componentContainer, undefined);
+    groupContainer.removeChild(componentContainer);
+    componentContainer.destroy({ children: false });
+  });
+};
 
 const Viewport: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const pixiAppRef = useRef<PIXI.Application | null>(null);
   const pixiObjectsRef = useRef<Map<string, PIXI.Container>>(new Map());
+  const groupContainersRef = useRef<Map<string, PIXI.Container>>(new Map());
   
   const textureCacheRef = useRef<Map<string, PIXI.Texture>>(new Map());
   const loadingUrlsRef = useRef<Set<string>>(new Set());
@@ -26,17 +87,19 @@ const Viewport: React.FC = () => {
   const [renderTick, setRenderTick] = useState(0);
 
   const { 
-    currentTime, objects, selectedId, selectObject,
-    projectSettings, isPlaying, isExporting, 
+    currentTime, objects, selectedIds, clearSelection,
+    projectSettings, isPlaying, isExporting,
+    layers,
     isSnapshotRequested, finishSnapshot
   } = useStore((state) => ({
     currentTime: state.currentTime,
     objects: state.objects,
-    selectedId: state.selectedId,
-    selectObject: state.selectObject,
+    selectedIds: state.selectedIds,
+    clearSelection: state.clearSelection,
     projectSettings: state.projectSettings,
     isPlaying: state.isPlaying,
     isExporting: state.isExporting,
+    layers: state.layers,
     isSnapshotRequested: state.isSnapshotRequested,
     finishSnapshot: state.finishSnapshot,
   }), shallow);
@@ -70,7 +133,7 @@ const Viewport: React.FC = () => {
         app.stage.sortableChildren = true;
         app.stage.on('pointerdown', (e) => {
           if (useStore.getState().isExporting) return;
-          if (e.target === app.stage) selectObject(null);
+          if (e.target === app.stage) clearSelection();
         });
         
         // 初回描画
@@ -82,6 +145,7 @@ const Viewport: React.FC = () => {
         pixiAppRef.current.destroy(true, { children: true, texture: true });
         pixiAppRef.current = null;
         pixiObjectsRef.current.clear();
+        groupContainersRef.current.clear();
         textureCacheRef.current.clear();
         loadingUrlsRef.current.clear();
         videoElementsRef.current.forEach(video => { video.pause(); video.src = ""; video.load(); });
@@ -141,15 +205,30 @@ const Viewport: React.FC = () => {
     const currentPixiObjects = pixiObjectsRef.current;
     const currentVideoElements = videoElementsRef.current;
     const currentAudioElements = audioElementsRef.current;
-    const visibleObjects = currentObjects.filter(obj => time >= obj.startTime && time < obj.startTime + obj.duration);
+    const currentGroupContainers = groupContainersRef.current;
+    const visibleObjects = currentObjects.filter((obj) => {
+      if (layers[obj.layer]?.visible === false) return false;
+      return time >= obj.startTime && time < obj.startTime + obj.duration;
+    });
+    const visibleGroupIds = new Set(
+      visibleObjects
+        .map((obj) => obj.groupId)
+        .filter((groupId): groupId is string => typeof groupId === 'string' && groupId.trim() !== '')
+    );
 
     // 1. Cleanup
     currentPixiObjects.forEach((container, id) => {
       if (!visibleObjects.find(obj => obj.id === id)) {
-        app.stage.removeChild(container);
+        container.parent?.removeChild(container);
         container.destroy({ children: true });
         currentPixiObjects.delete(id);
       }
+    });
+    currentGroupContainers.forEach((groupContainer, groupId) => {
+      if (visibleGroupIds.has(groupId)) return;
+      app.stage.removeChild(groupContainer);
+      groupContainer.destroy({ children: false });
+      currentGroupContainers.delete(groupId);
     });
     currentVideoElements.forEach((video, id) => {
         if (!visibleObjects.find(obj => obj.id === id && obj.type === 'video')) {
@@ -160,6 +239,15 @@ const Viewport: React.FC = () => {
         if (!visibleObjects.find(obj => obj.id === id && obj.type === 'audio')) {
             audio.pause(); audio.src = ""; audio.load(); currentAudioElements.delete(id);
         }
+    });
+
+    visibleGroupIds.forEach((groupId) => {
+      if (currentGroupContainers.has(groupId)) return;
+      const groupContainer = new PIXI.Container();
+      groupContainer.label = `group-${groupId}`;
+      groupContainer.sortableChildren = true;
+      app.stage.addChild(groupContainer);
+      currentGroupContainers.set(groupId, groupContainer);
     });
 
     // 2. Render visible objects
@@ -185,18 +273,30 @@ const Viewport: React.FC = () => {
         return; 
       }
 
-      if (obj.type === 'group_control' && selectedId !== obj.id && isPlaying) return;
+      const isSelected = selectedIds.includes(obj.id);
+      if (obj.type === 'group_control' && !isSelected && isPlaying) return;
 
       const lipSyncViseme = getLipSyncViseme(obj, time, currentObjects);
 
       let container = currentPixiObjects.get(obj.id);
-      const isSelected = selectedId === obj.id;
       if (!container) {
         container = new PIXI.Container();
         container.label = obj.id; container.eventMode = 'static'; container.cursor = 'pointer';
         container.on('pointerdown', (e) => onDragStart(e, obj.id));
         container.on('pointerup', onDragEnd); container.on('pointerupoutside', onDragEnd); container.on('globalpointermove', onDragMove); 
-        app.stage.addChild(container); currentPixiObjects.set(obj.id, container);
+        currentPixiObjects.set(obj.id, container);
+      }
+      container.cursor = layers[obj.layer]?.locked ? 'not-allowed' : 'pointer';
+      if (obj.groupId && currentGroupContainers.has(obj.groupId)) {
+        const groupParent = currentGroupContainers.get(obj.groupId)!;
+        const isAlreadyInsideGroup = container.parent === groupParent || container.parent?.parent === groupParent;
+        if (!isAlreadyInsideGroup) {
+          container.parent?.removeChild(container);
+          groupParent.addChild(container);
+        }
+      } else if (container.parent !== app.stage) {
+        container.parent?.removeChild(container);
+        app.stage.addChild(container);
       }
 
       // Content Update
@@ -211,34 +311,26 @@ const Viewport: React.FC = () => {
           setRenderTick
       });
 
-      // Shadow Handling (Simplified for performance)
-      if (content && obj.shadow && obj.shadow.enabled) {
-          let shadow = container.children.find(c => c.label === 'shadow') as PIXI.Graphics;
-          if (shadow) {
-               // 既存のシャドウがあれば作り直さずにパラメータ更新したいところだが、
-               // 簡易実装として再作成（頻度は高くないため許容）
-               // container.removeChild(shadow); shadow.destroy(); shadow = null;
-               // 最適化: clearして再描画
-               shadow.clear();
-          }
-          if (!shadow) {
-              // 新規作成
-              shadow = new PIXI.Graphics();
-              shadow.label = 'shadow';
-              container.addChildAt(shadow, 0);
-          }
-          // 描画処理をここで行うべきだが、コード量の都合上、既存のcreateShadowGraphicsロジックを利用するため
-          // 一旦破棄して再生成するパターンに戻す（またはcreateShadowGraphicsをGraphicsを受け取る形にリファクタ推奨）
-          // 今回は一番確実な「破棄->再生成」で行く（Shadowは静止画が多いのでコスト低い）
-           container.removeChild(shadow); shadow.destroy();
-           const s = createShadowGraphics(obj, (content as any).width, (content as any).height, obj.shadow);
-           if (s) {
-               s.label = 'shadow';
-               container.addChildAt(s, 0); 
-           }
-      } else {
-          const shadow = container.children.find(c => c.label === 'shadow');
-          if (shadow) { container.removeChild(shadow); shadow.destroy(); }
+      const shadowFilters = getEnabledObjectFiltersInOrder(obj).filter((filter): filter is Extract<ObjectFilter, { type: 'shadow' }> => {
+        return filter.type === 'shadow';
+      });
+      const currentShadowNodes = container.children.filter((child) => (child.label ?? '').startsWith('shadow'));
+      currentShadowNodes.forEach((shadowNode) => {
+        container.removeChild(shadowNode);
+        shadowNode.destroy({ children: true });
+      });
+      if (content && shadowFilters.length > 0) {
+        const shadowWidth = (content as any).width || (obj as any).width || 100;
+        const shadowHeight = (content as any).height || (obj as any).height || 100;
+        shadowFilters.forEach((shadowFilter, index) => {
+          const shadow = createShadowGraphics(obj, shadowWidth, shadowHeight, {
+            enabled: true,
+            ...shadowFilter.params
+          });
+          if (!shadow) return;
+          shadow.label = `shadow-${index}`;
+          container.addChildAt(shadow, Math.min(index, container.children.length));
+        });
       }
 
       applyObjectEffects(container, obj);
@@ -282,15 +374,20 @@ const Viewport: React.FC = () => {
       let currentX = obj.x; let currentY = obj.y;
       const rawProgress = (time - obj.startTime) / obj.duration; const progress = Math.max(0, Math.min(1, rawProgress));
 
-      if (obj.motionPath && obj.motionPath.length > 1) {
+      if (obj.keyframes && obj.keyframes.length > 1) {
+          const keyed = evaluateObjectPositionAtTime(obj, time);
+          currentX = keyed.x;
+          currentY = keyed.y;
+      } else if (obj.motionPath && obj.motionPath.length > 1) {
           const path = obj.motionPath; let idx = 0;
           while (idx < path.length - 1 && path[idx+1].time < progress) idx++;
           const p1 = path[idx]; const p2 = path[idx+1] || p1;
           const range = p2.time - p1.time; const localRatio = range <= 0 ? 0 : (progress - p1.time) / range;
           currentX = p1.x + (p2.x - p1.x) * localRatio; currentY = p1.y + (p2.y - p1.y) * localRatio;
       } else if (obj.enableAnimation) {
-          const easeFunc = easingFunctions[obj.easing] || easingFunctions.linear; const easedProgress = easeFunc(progress);
-          currentX = obj.x + (obj.endX - obj.x) * easedProgress; currentY = obj.y + (obj.endY - obj.y) * easedProgress;
+          const keyed = evaluateObjectPositionAtTime(obj, time);
+          currentX = keyed.x;
+          currentY = keyed.y;
       }
       
       const groupEffects = getGroupTransforms(obj, time, currentObjects);
@@ -325,11 +422,70 @@ const Viewport: React.FC = () => {
         }
     });
 
+    // 4. Group Gradient Filter
+    const groupTopLayerMap = new Map<string, number>();
+    const groupGradientMap = new Map<string, GradientFill | undefined>();
+    const groupObjectContainersMap = new Map<string, PIXI.Container[]>();
+    visibleObjects.forEach((obj) => {
+      if (!obj.groupId || !currentGroupContainers.has(obj.groupId)) return;
+      const prevTop = groupTopLayerMap.get(obj.groupId);
+      if (prevTop === undefined || obj.layer > prevTop) {
+        groupTopLayerMap.set(obj.groupId, obj.layer);
+      }
+      if (obj.groupGradient && !groupGradientMap.has(obj.groupId)) {
+        groupGradientMap.set(obj.groupId, obj.groupGradient);
+      }
+      const objectContainer = currentPixiObjects.get(obj.id);
+      if (!objectContainer) return;
+      const members = groupObjectContainersMap.get(obj.groupId) ?? [];
+      members.push(objectContainer);
+      groupObjectContainersMap.set(obj.groupId, members);
+    });
+    currentGroupContainers.forEach((groupContainer, groupId) => {
+      flattenGroupGradientComponents(groupContainer);
+
+      const gradient = groupGradientMap.get(groupId);
+      const members = groupObjectContainersMap.get(groupId) ?? [];
+      const useConnectedScope = gradient?.scope !== 'group';
+      const canSplitComponents = gradient?.enabled === true && useConnectedScope && members.length >= 2;
+
+      if (canSplitComponents) {
+        const components = buildConnectedComponents(members);
+        if (components.length > 1) {
+          applyGroupGradientEffect(groupContainer, undefined);
+          components.forEach((componentMemberIndexes, componentIndex) => {
+            const componentContainer = new PIXI.Container();
+            componentContainer.label = `${GROUP_GRADIENT_COMPONENT_PREFIX}${groupId}-${componentIndex}`;
+            componentContainer.sortableChildren = true;
+
+            let topLayer = Number.NEGATIVE_INFINITY;
+            componentMemberIndexes.forEach((memberIndex) => {
+              const member = members[memberIndex];
+              topLayer = Math.max(topLayer, member.zIndex);
+              member.parent?.removeChild(member);
+              componentContainer.addChild(member);
+            });
+
+            componentContainer.zIndex = Number.isFinite(topLayer) ? topLayer : 0;
+            groupContainer.addChild(componentContainer);
+            applyGroupGradientEffect(componentContainer, gradient);
+          });
+
+          groupContainer.sortChildren();
+          groupContainer.zIndex = groupTopLayerMap.get(groupId) ?? 0;
+          return;
+        }
+      }
+
+      groupContainer.zIndex = groupTopLayerMap.get(groupId) ?? 0;
+      applyGroupGradientEffect(groupContainer, gradient);
+    });
+
     app.stage.sortChildren();
     
     // 手動レンダリング実行 (Ticker停止中のため必須)
     app.render();
-  }, [selectedId, isExporting, isPlaying, isSnapshotRequested]);
+  }, [selectedIds, isExporting, isPlaying, isSnapshotRequested, layers]);
 
   useEffect(() => { 
       if (!isExporting) renderScene(currentTime, objects); 

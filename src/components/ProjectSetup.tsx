@@ -4,7 +4,12 @@ import { ProjectSettings } from '../types';
 
 const STORAGE_KEY = 'ux-film-director-last-settings';
 
-const ProjectSetup: React.FC = () => {
+interface ProjectSetupProps {
+  onOpenProject: () => void;
+  isProjectIoBusy?: boolean;
+}
+
+const ProjectSetup: React.FC<ProjectSetupProps> = ({ onOpenProject, isProjectIoBusy = false }) => {
   const initializeProject = useStore((state) => state.initializeProject);
   
   const [settings, setSettings] = useState<ProjectSettings>({
@@ -81,6 +86,7 @@ const ProjectSetup: React.FC = () => {
           <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid #333' }}>
             <button 
               onClick={handleContinue}
+              disabled={isProjectIoBusy}
               style={{
                 width: '100%',
                 padding: '12px',
@@ -97,6 +103,25 @@ const ProjectSetup: React.FC = () => {
             </button>
           </div>
         )}
+
+        <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid #333' }}>
+          <button
+            onClick={onOpenProject}
+            disabled={isProjectIoBusy}
+            style={{
+              width: '100%',
+              padding: '12px',
+              background: '#444',
+              border: '1px solid #666',
+              color: 'white',
+              borderRadius: '4px',
+              cursor: isProjectIoBusy ? 'default' : 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            {isProjectIoBusy ? '読み込み中...' : '既存プロジェクトを開く'}
+          </button>
+        </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div>
