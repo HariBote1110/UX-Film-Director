@@ -356,6 +356,8 @@ export interface PsdLayerNode {
   top: number;
   defaultVisible: boolean;
   src?: string;
+  /** In-memory raster for Pixi (not JSON-serialisable; strip before project save). */
+  textureSource?: ImageBitmap;
 }
 
 export interface PsdObject extends BaseObject {

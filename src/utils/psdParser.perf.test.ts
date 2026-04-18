@@ -69,6 +69,9 @@ function installDomMocksForParser(): void {
       this.height = height;
     }
   } as unknown as typeof ImageData;
+
+  globalThis.createImageBitmap = async (image: ImageBitmapSource) =>
+    image as unknown as ImageBitmap;
 }
 
 describe('psdParser performance (葵ちゃん.psd)', () => {
@@ -94,6 +97,7 @@ describe('psdParser performance (葵ちゃん.psd)', () => {
         skipLayerImageData: false,
         useImageData: true,
         skipThumbnail: true,
+        skipCompositeImageData: true,
       });
       times.push(performance.now() - t0);
     }
@@ -112,6 +116,7 @@ describe('psdParser performance (葵ちゃん.psd)', () => {
         skipLayerImageData: false,
         useImageData: true,
         skipThumbnail: false,
+        skipCompositeImageData: true,
       });
       legacyMs.push(performance.now() - t0);
       t0 = performance.now();
@@ -119,6 +124,7 @@ describe('psdParser performance (葵ちゃん.psd)', () => {
         skipLayerImageData: false,
         useImageData: true,
         skipThumbnail: true,
+        skipCompositeImageData: true,
       });
       skipMs.push(performance.now() - t0);
     }

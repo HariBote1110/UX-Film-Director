@@ -1,5 +1,5 @@
 import { ProjectSettings, TimelineObject, PsdObject, LayerState, SceneData, CameraState } from '../types';
-import { buildPsdLayerTree, parsePsdArrayBufferAsObject } from './psdParser';
+import { buildPsdLayerTree, parsePsdArrayBufferAsObject, stripPsdLayerNodeForPersistence } from './psdParser';
 import { toFileProtocolUrl } from './mediaMetadata';
 import {
   createDefaultCamera,
@@ -220,11 +220,16 @@ const migrateV1ToV2 = (candidate: ProjectFileV1): ProjectFileV2 => {
 };
 
 const sanitiseObjectForSave = (obj: TimelineObject): TimelineObject => {
-  const serialised = JSON.parse(JSON.stringify(obj)) as TimelineObject;
-  if (serialised.type === 'psd') {
-    delete (serialised as PsdObject).file;
+  if (obj.type === 'psd') {
+    const psd = obj as PsdObject;
+    const snapshot: PsdObject = {
+      ...psd,
+      file: undefined,
+      rootLayer: psd.rootLayer ? stripPsdLayerNodeForPersistence(psd.rootLayer) : psd.rootLayer,
+    };
+    return JSON.parse(JSON.stringify(snapshot)) as TimelineObject;
   }
-  return serialised;
+  return JSON.parse(JSON.stringify(obj)) as TimelineObject;
 };
 
 const normaliseBinaryData = (value: unknown): ArrayBuffer | null => {

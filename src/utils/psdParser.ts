@@ -1,5 +1,6 @@
 import { readPsd, Layer } from 'ag-psd';
 import { PsdLayerNode, PsdLayerStruct, PsdObject, TimelineObject } from '../types';
+import { psdLayerTextureUrl } from './psdTextureUrl';
 
 type LayerWithBounds = Layer & {
   width?: number;
@@ -48,13 +49,27 @@ const getLayerHeight = (layer: LayerWithBounds) => {
   return 0;
 };
 
-// キャンバス -> BlobURL
+// キャンバス -> BlobURL（createImageBitmap 非対応時のフォールバック）
 const canvasToUrl = (canvas: HTMLCanvasElement): Promise<string> => {
   return new Promise((resolve) => {
     canvas.toBlob((blob) => {
       resolve(blob ? URL.createObjectURL(blob) : '');
     }, 'image/png');
   });
+};
+
+const rasterCanvasToLayerSource = async (
+  canvas: HTMLCanvasElement
+): Promise<{ src: string; textureSource?: ImageBitmap }> => {
+  try {
+    if (typeof createImageBitmap === 'function') {
+      const bitmap = await createImageBitmap(canvas);
+      return { src: '', textureSource: bitmap };
+    }
+  } catch {
+    // fall through to PNG blob
+  }
+  return { src: await canvasToUrl(canvas), textureSource: undefined };
 };
 
 const toClampedCopy = (source: Uint8Array | Uint8ClampedArray): Uint8ClampedArray => {
@@ -302,6 +317,21 @@ export const buildPsdLayerTree = (rootNode: PsdLayerNode, activeLayerIds: Record
   return rootNode.children.map((child) => toLayerStruct(child, activeLayerIds));
 };
 
+/** Remove GPU-only fields before JSON serialisation (project save). */
+export const stripPsdLayerNodeForPersistence = (node: PsdLayerNode): PsdLayerNode => ({
+  id: node.id,
+  name: node.name,
+  isGroup: node.isGroup,
+  isRadio: node.isRadio,
+  children: node.children.map(stripPsdLayerNodeForPersistence),
+  width: node.width,
+  height: node.height,
+  left: node.left,
+  top: node.top,
+  defaultVisible: node.defaultVisible,
+  src: node.src,
+});
+
 export const togglePsdLayer = (
   rootNode: PsdLayerNode,
   currentActiveLayerIds: Record<string, boolean>,
@@ -364,6 +394,7 @@ export const parsePsdArrayBufferAsObject = async (
     skipLayerImageData: false,
     useImageData: true,
     skipThumbnail: true,
+    skipCompositeImageData: true,
   });
 
   // レイヤーID生成用
@@ -392,11 +423,17 @@ export const parsePsdArrayBufferAsObject = async (
       src: undefined
     };
 
-    // 画像データの変換
+    // 画像データの変換（ImageBitmap で Pixi へ直渡しし、PNG 往復を避ける）
     if (!currentNode.isGroup) {
       try {
         if (layer.canvas) {
-          currentNode.src = await canvasToUrl(layer.canvas as HTMLCanvasElement);
+          const { src, textureSource } = await rasterCanvasToLayerSource(layer.canvas as HTMLCanvasElement);
+          if (textureSource) {
+            currentNode.textureSource = textureSource;
+            currentNode.src = psdLayerTextureUrl(currentNode.id);
+          } else {
+            currentNode.src = src;
+          }
         } else if (layerWithBounds.imageData) {
           const normalised = normaliseLayerImageData(layerWithBounds.imageData, width, height);
           if (normalised) {
@@ -411,7 +448,13 @@ export const parsePsdArrayBufferAsObject = async (
                 normalised.height
               );
               ctx.putImageData(imgData, 0, 0);
-              currentNode.src = await canvasToUrl(cvs);
+              const { src, textureSource } = await rasterCanvasToLayerSource(cvs);
+              if (textureSource) {
+                currentNode.textureSource = textureSource;
+                currentNode.src = psdLayerTextureUrl(currentNode.id);
+              } else {
+                currentNode.src = src;
+              }
             }
           }
         }

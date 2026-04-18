@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import { ShapeObject, GradientFill, ShadowEffect, AudioObject, PsdLayerNode } from '../types';
 import { phonemeToViseme } from './labParser';
+import { isPsdLayerTextureUrl } from './psdTextureUrl';
 
 // --- グラデーション・図形・シャドウ ---
 
@@ -172,13 +173,17 @@ export const renderPsdTree = (
         }
     } else {
         if (node.src) {
-            const texture = textureCache.get(node.src);
+            let texture = textureCache.get(node.src);
+            if (!texture && node.textureSource) {
+                texture = PIXI.Texture.from(node.textureSource);
+                textureCache.set(node.src, texture);
+            }
             if (texture) {
                 const sprite = new PIXI.Sprite(texture);
                 sprite.x = node.left;
                 sprite.y = node.top;
                 container.addChild(sprite);
-            } else {
+            } else if (!isPsdLayerTextureUrl(node.src)) {
                 cacheTextureFromUrl(node.src, textureCache, loadingUrls, requestRender);
             }
         }
@@ -191,7 +196,7 @@ export const cacheTextureFromUrl = (
     loadingUrls: Set<string>,
     requestRender: () => void
 ) => {
-    if (!url || textureCache.has(url) || loadingUrls.has(url)) return;
+    if (!url || isPsdLayerTextureUrl(url) || textureCache.has(url) || loadingUrls.has(url)) return;
 
     loadingUrls.add(url);
 
