@@ -20,7 +20,7 @@ type LayerImageDataNormalised = {
 
 const LAYER_NAME_DECODE_ENCODINGS = ['utf-8', 'shift_jis', 'euc-jp'] as const;
 
-/** Avoids per-code-point \\p{Script=} regex in hot paths (layer names). */
+/** Avoids per-code-point \p{Script=} regex in hot paths (layer names). */
 const isJapaneseScriptCodePoint = (code: number): boolean => {
   return (
     (code >= 0x3040 && code <= 0x309f) ||
@@ -87,8 +87,10 @@ const toClampedFromNumericView = (
   const result = new Uint8ClampedArray(source.length);
 
   if (source instanceof Uint16Array) {
+    // Bitwise unsigned right-shift by 8 maps [0, 65535] → [0, 255] without
+    // floating-point division or Math.round call overhead.
     for (let i = 0; i < source.length; i++) {
-      result[i] = Math.max(0, Math.min(255, Math.round(source[i] / 257)));
+      result[i] = source[i] >>> 8;
     }
     return result;
   }
@@ -138,9 +140,23 @@ const normaliseLayerImageData = (
   let height = fallbackHeight;
 
   if (typeof ImageData !== 'undefined' && imageDataLike instanceof ImageData) {
-    data = normalisePixelArray(imageDataLike.data);
     width = imageDataLike.width > 0 ? imageDataLike.width : fallbackWidth;
     height = imageDataLike.height > 0 ? imageDataLike.height : fallbackHeight;
+
+    const expectedLength = width * height * 4;
+    if (
+      Number.isFinite(expectedLength) &&
+      expectedLength > 0 &&
+      imageDataLike.data.length >= expectedLength
+    ) {
+      // Reuse the existing Uint8ClampedArray directly — avoids a full pixel-buffer copy.
+      data =
+        imageDataLike.data.length === expectedLength
+          ? imageDataLike.data
+          : imageDataLike.data.slice(0, expectedLength);
+    } else {
+      return null;
+    }
   } else if (
     imageDataLike instanceof Uint8Array ||
     imageDataLike instanceof Uint8ClampedArray ||
@@ -381,6 +397,83 @@ export const togglePsdLayer = (
   return nextActiveLayerIds;
 };
 
+/**
+ * Load image data for a single leaf layer node and attach textureSource / src.
+ *
+ * Called in parallel for all sibling layers (Phase 2 of two-phase parsing).
+ * Canvas creation is skipped when ag-psd already provides an ImageData object —
+ * createImageBitmap accepts ImageData directly, saving one DOM element allocation
+ * and one putImageData call per raster layer.
+ */
+const loadLayerImage = async (node: PsdLayerNode, layer: Layer): Promise<void> => {
+  const layerWithBounds = layer as LayerWithBounds;
+  try {
+    if ((layer as unknown as { canvas?: HTMLCanvasElement }).canvas) {
+      const canvas = (layer as unknown as { canvas: HTMLCanvasElement }).canvas;
+      const { src, textureSource } = await rasterCanvasToLayerSource(canvas);
+      if (textureSource) {
+        node.textureSource = textureSource;
+        node.src = psdLayerTextureUrl(node.id);
+      } else {
+        node.src = src;
+      }
+      return;
+    }
+
+    if (layerWithBounds.imageData) {
+      // Fast path: ag-psd with useImageData:true gives a proper ImageData —
+      // pass it straight to createImageBitmap without touching a canvas element.
+      if (
+        typeof ImageData !== 'undefined' &&
+        layerWithBounds.imageData instanceof ImageData &&
+        typeof createImageBitmap === 'function'
+      ) {
+        try {
+          const bitmap = await createImageBitmap(layerWithBounds.imageData as unknown as ImageData);
+          node.textureSource = bitmap;
+          node.src = psdLayerTextureUrl(node.id);
+          return;
+        } catch {
+          // fall through to normalised path
+        }
+      }
+
+      // Normalised fallback path (exotic pixel formats or environments without createImageBitmap).
+      const normalised = normaliseLayerImageData(layerWithBounds.imageData, node.width, node.height);
+      if (normalised) {
+        const imgData = new ImageData(normalised.data as unknown as ImageData['data'], normalised.width, normalised.height);
+        if (typeof createImageBitmap === 'function') {
+          try {
+            const bitmap = await createImageBitmap(imgData);
+            node.textureSource = bitmap;
+            node.src = psdLayerTextureUrl(node.id);
+            return;
+          } catch {
+            // fall through to canvas
+          }
+        }
+        // Last resort: canvas + toBlob
+        const cvs = document.createElement('canvas');
+        cvs.width = normalised.width;
+        cvs.height = normalised.height;
+        const ctx = cvs.getContext('2d');
+        if (ctx) {
+          ctx.putImageData(imgData, 0, 0);
+          const { src, textureSource } = await rasterCanvasToLayerSource(cvs);
+          if (textureSource) {
+            node.textureSource = textureSource;
+            node.src = psdLayerTextureUrl(node.id);
+          } else {
+            node.src = src;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to convert layer image', e);
+  }
+};
+
 export const parsePsdArrayBufferAsObject = async (
   arrayBuffer: ArrayBuffer,
   fileName: string,
@@ -401,80 +494,55 @@ export const parsePsdArrayBufferAsObject = async (
   let idCounter = 0;
   const generateId = () => `psd-layer-${idCounter++}`;
 
-  // 再帰的にノードを構築
-  // 修正: offsetX, offsetY 引数を削除（ag-psdの座標は絶対座標のため）
-  const buildNode = async (layer: Layer): Promise<PsdLayerNode> => {
+  /**
+   * Phase 1 — synchronous skeleton build.
+   *
+   * IDs are assigned via a deterministic DFS walk so the order is stable even
+   * when image loading is later parallelised.  No async work happens here.
+   */
+  const buildSkeleton = (layer: Layer): PsdLayerNode => {
     const layerWithBounds = layer as LayerWithBounds;
     const width = getLayerWidth(layerWithBounds);
     const height = getLayerHeight(layerWithBounds);
     const layerName = restoreLayerNameEncoding(layer.name || 'Layer');
 
-    const currentNode: PsdLayerNode = {
+    const node: PsdLayerNode = {
       id: generateId(),
       name: layerName,
       isGroup: !!layer.children,
-      isRadio: layerName.startsWith('*'), // PSDTool仕様: *はラジオグループ
-      children: [],
+      isRadio: layerName.startsWith('*'),
+      children: layer.children ? layer.children.map(buildSkeleton) : [],
       width,
       height,
-      left: layerWithBounds.left || 0, // 絶対座標をそのまま使用
-      top: layerWithBounds.top || 0,   // 絶対座標をそのまま使用
+      left: layerWithBounds.left || 0,
+      top: layerWithBounds.top || 0,
       defaultVisible: !layer.hidden,
-      src: undefined
+      src: undefined,
     };
+    return node;
+  };
 
-    // 画像データの変換（ImageBitmap で Pixi へ直渡しし、PNG 往復を避ける）
-    if (!currentNode.isGroup) {
-      try {
-        if (layer.canvas) {
-          const { src, textureSource } = await rasterCanvasToLayerSource(layer.canvas as HTMLCanvasElement);
-          if (textureSource) {
-            currentNode.textureSource = textureSource;
-            currentNode.src = psdLayerTextureUrl(currentNode.id);
-          } else {
-            currentNode.src = src;
-          }
-        } else if (layerWithBounds.imageData) {
-          const normalised = normaliseLayerImageData(layerWithBounds.imageData, width, height);
-          if (normalised) {
-            const cvs = document.createElement('canvas');
-            cvs.width = normalised.width;
-            cvs.height = normalised.height;
-            const ctx = cvs.getContext('2d');
-            if (ctx) {
-              const imgData = new ImageData(
-                normalised.data as unknown as ImageData['data'],
-                normalised.width,
-                normalised.height
-              );
-              ctx.putImageData(imgData, 0, 0);
-              const { src, textureSource } = await rasterCanvasToLayerSource(cvs);
-              if (textureSource) {
-                currentNode.textureSource = textureSource;
-                currentNode.src = psdLayerTextureUrl(currentNode.id);
-              } else {
-                currentNode.src = src;
-              }
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to convert layer image', e);
-      }
+  /**
+   * Phase 2 — parallel image loading.
+   *
+   * Sibling layers within every group are processed concurrently via
+   * Promise.all.  This overlaps GPU uploads (createImageBitmap) across layers,
+   * which is the dominant cost after ag-psd decoding.
+   */
+  const loadImages = (node: PsdLayerNode, layer: Layer): Promise<void> => {
+    const tasks: Promise<void>[] = [];
+
+    if (!node.isGroup) {
+      tasks.push(loadLayerImage(node, layer));
     }
 
-    // 子要素の処理
     if (layer.children) {
-      // ag-psd の children 順をそのまま保持して描画順を一致させる。
-      // 子は逐次処理し、generateId の付与順を安定させる（並列化すると ID が非決定になる）。
-      const children = [...layer.children];
-      for (const child of children) {
-        const childNode = await buildNode(child);
-        currentNode.children.push(childNode);
-      }
+      layer.children.forEach((child, i) => {
+        tasks.push(loadImages(node.children[i], child));
+      });
     }
 
-    return currentNode;
+    return Promise.all(tasks).then(() => undefined);
   };
 
   // ルートノード構築
@@ -492,61 +560,43 @@ export const parsePsdArrayBufferAsObject = async (
   };
 
   if (psd.children) {
-    const children = [...psd.children];
-    for (const child of children) {
-      rootNode.children.push(await buildNode(child));
-    }
+    rootNode.children = psd.children.map(buildSkeleton);
+    await Promise.all(psd.children.map((child, i) => loadImages(rootNode.children[i], child)));
   } else if (psd.imageData) {
     const layer = psd as unknown as Layer;
-    // 修正: 座標オフセットを渡さない
-    rootNode.children.push(await buildNode(layer));
+    const skeleton = buildSkeleton(layer);
+    rootNode.children.push(skeleton);
+    await loadImages(skeleton, layer);
   }
 
   // 初期表示状態の計算
   const activeLayerIds: Record<string, boolean> = {};
-  
-  // 再帰的に初期化
-  // ラジオグループ内の初期選択ロジックを強化
+
   const initVisibility = (node: PsdLayerNode) => {
-    // グループの場合、子要素をチェック
     if (node.isGroup) {
-      // ラジオグループの場合の特別処理
       if (node.isRadio) {
-        // まず子要素の初期化を呼び出す
         node.children.forEach(initVisibility);
 
-        // このラジオグループの中で、現在アクティブになっている子を探す
         const activeChild = node.children.find((child) => activeLayerIds[child.id]);
-
-        // もしアクティブな子が一つもなければ、先頭の子をデフォルト選択にする。
         if (!activeChild && node.children.length > 0) {
-           const defaultChild = node.children[0];
-           activeLayerIds[defaultChild.id] = true;
+          const defaultChild = node.children[0];
+          activeLayerIds[defaultChild.id] = true;
         }
-        
-        // ラジオグループ自体は常に表示扱いでOK（中身の可視性は子が制御）
         activeLayerIds[node.id] = true;
-
       } else {
-        // 通常グループ
-        // 自身の可視性を設定
         if (node.defaultVisible) {
           activeLayerIds[node.id] = true;
         }
-        // 子要素へ
         node.children.forEach(initVisibility);
       }
     } else {
-      // 葉ノード（レイヤー）
       if (node.defaultVisible) {
         activeLayerIds[node.id] = true;
       }
     }
   };
-  
-  initVisibility(rootNode);
 
-  // ルートは常にアクティブ
+  initVisibility(rootNode);
   activeLayerIds['root'] = true;
 
   const psdObject: TimelineObject = {
