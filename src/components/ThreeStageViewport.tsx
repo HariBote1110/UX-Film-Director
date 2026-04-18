@@ -41,6 +41,26 @@ const STAGE_BACKGROUND = 0x1e1e1e;
 
 const BILLBOARD_MESH_PREFIX = 'psd-billboard-';
 
+const VISUAL_CHILD_NAME = 'billboard-visual';
+const HIT_CHILD_NAME = 'billboard-hit';
+
+/** 画像面と同じ W×H。奥行きは斜め視点でのレイ拾い用（画像サイズに比例） */
+const hitVolumeDepth = (planeW: number, planeH: number): number => {
+  const m = Math.min(planeW, planeH);
+  return Math.max(0.05, Math.min(0.35, m * 0.08));
+};
+
+const disposeBillboardGroup = (group: THREE.Group) => {
+  group.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      child.geometry?.dispose();
+      const mat = child.material;
+      if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+      else mat?.dispose();
+    }
+  });
+};
+
 export const ThreeStageViewport = forwardRef<ThreeStageViewportHandle, ThreeStageViewportProps>(
   function ThreeStageViewport(
     {
@@ -61,7 +81,7 @@ export const ThreeStageViewport = forwardRef<ThreeStageViewportHandle, ThreeStag
     const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
     const controlsRef = useRef<OrbitControls | null>(null);
     const transformControlsRef = useRef<TransformControls | null>(null);
-    const meshMapRef = useRef<Map<string, THREE.Mesh>>(new Map());
+    const billboardGroupRef = useRef<Map<string, THREE.Group>>(new Map());
     const textureMapRef = useRef<Map<string, THREE.CanvasTexture>>(new Map());
     const rafRef = useRef<number>(0);
     const userAdjustingRef = useRef(false);
@@ -103,20 +123,17 @@ export const ThreeStageViewport = forwardRef<ThreeStageViewportHandle, ThreeStag
 
         const activeIds = new Set(entries.map((e) => e.id));
 
-        meshMapRef.current.forEach((mesh, id) => {
+        billboardGroupRef.current.forEach((group, id) => {
           if (!activeIds.has(id)) {
-            scene.remove(mesh);
-            const mat = mesh.material as THREE.MeshBasicMaterial;
-            mat.map?.dispose();
-            mat.dispose();
-            mesh.geometry.dispose();
-            meshMapRef.current.delete(id);
+            scene.remove(group);
+            disposeBillboardGroup(group);
+            billboardGroupRef.current.delete(id);
             textureMapRef.current.delete(id);
           }
         });
 
         for (const entry of entries) {
-          let mesh = meshMapRef.current.get(entry.id);
+          let group = billboardGroupRef.current.get(entry.id);
           let tex = textureMapRef.current.get(entry.id);
 
           if (!tex) {
@@ -133,31 +150,69 @@ export const ThreeStageViewport = forwardRef<ThreeStageViewportHandle, ThreeStag
             entry.heightPx > 0 ? entry.widthPx / entry.heightPx : 1;
           const planeH = Math.max(0.01, entry.placement.scale * 2);
           const planeW = planeH * aspect;
+          const depth = hitVolumeDepth(planeW, planeH);
 
-          if (!mesh) {
-            const geom = new THREE.PlaneGeometry(planeW, planeH);
-            const mat = new THREE.MeshBasicMaterial({
+          if (!group) {
+            group = new THREE.Group();
+            group.name = `${BILLBOARD_MESH_PREFIX}${entry.id}`;
+
+            const hitGeom = new THREE.BoxGeometry(planeW, planeH, depth);
+            const hitMat = new THREE.MeshBasicMaterial({
+              transparent: true,
+              opacity: 0,
+              depthWrite: false,
+              side: THREE.DoubleSide
+            });
+            const hitMesh = new THREE.Mesh(hitGeom, hitMat);
+            hitMesh.name = HIT_CHILD_NAME;
+            hitMesh.renderOrder = 0;
+            group.add(hitMesh);
+
+            const visGeom = new THREE.PlaneGeometry(planeW, planeH);
+            const visMat = new THREE.MeshBasicMaterial({
               map: tex,
               transparent: true,
               side: THREE.DoubleSide,
               depthWrite: true
             });
-            mesh = new THREE.Mesh(geom, mat);
-            mesh.name = `${BILLBOARD_MESH_PREFIX}${entry.id}`;
-            scene.add(mesh);
-            meshMapRef.current.set(entry.id, mesh);
+            const visMesh = new THREE.Mesh(visGeom, visMat);
+            visMesh.name = VISUAL_CHILD_NAME;
+            visMesh.position.z = depth / 2 + 0.002;
+            visMesh.renderOrder = 1;
+            group.add(visMesh);
+
+            scene.add(group);
+            billboardGroupRef.current.set(entry.id, group);
           } else {
-            const geom = mesh.geometry as THREE.PlaneGeometry;
-            if (Math.abs(geom.parameters.width - planeW) > 0.001 || Math.abs(geom.parameters.height - planeH) > 0.001) {
-              geom.dispose();
-              mesh.geometry = new THREE.PlaneGeometry(planeW, planeH);
+            const hitMesh = group.getObjectByName(HIT_CHILD_NAME) as THREE.Mesh | undefined;
+            const visMesh = group.getObjectByName(VISUAL_CHILD_NAME) as THREE.Mesh | undefined;
+            if (hitMesh?.geometry) {
+              const g = hitMesh.geometry as THREE.BoxGeometry;
+              const p = g.parameters;
+              if (
+                Math.abs(p.width - planeW) > 0.001
+                || Math.abs(p.height - planeH) > 0.001
+                || Math.abs(p.depth - depth) > 0.001
+              ) {
+                hitMesh.geometry.dispose();
+                hitMesh.geometry = new THREE.BoxGeometry(planeW, planeH, depth);
+              }
             }
-            const mat = mesh.material as THREE.MeshBasicMaterial;
-            mat.map = tex;
-            mat.needsUpdate = true;
+            if (visMesh?.geometry) {
+              const g = visMesh.geometry as THREE.PlaneGeometry;
+              if (Math.abs(g.parameters.width - planeW) > 0.001 || Math.abs(g.parameters.height - planeH) > 0.001) {
+                visMesh.geometry.dispose();
+                visMesh.geometry = new THREE.PlaneGeometry(planeW, planeH);
+              }
+              visMesh.position.z = depth / 2 + 0.002;
+            }
+            if (visMesh?.material instanceof THREE.MeshBasicMaterial) {
+              visMesh.material.map = tex;
+              visMesh.material.needsUpdate = true;
+            }
           }
 
-          mesh.position.set(
+          group.position.set(
             entry.placement.position.x,
             entry.placement.position.y,
             entry.placement.position.z
@@ -171,9 +226,9 @@ export const ThreeStageViewport = forwardRef<ThreeStageViewportHandle, ThreeStag
               entry.placement.position.z,
               entry.placement.rotationYDeg
             );
-            mesh.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+            group.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
           } else {
-            mesh.rotation.set(0, (entry.placement.rotationYDeg * Math.PI) / 180, 0);
+            group.rotation.set(0, (entry.placement.rotationYDeg * Math.PI) / 180, 0);
           }
         }
 
@@ -185,10 +240,10 @@ export const ThreeStageViewport = forwardRef<ThreeStageViewportHandle, ThreeStag
           } else {
             tc.enabled = true;
             const sel = selectedBillboardIdRef.current;
-            if (sel && meshMapRef.current.has(sel)) {
-              const mesh = meshMapRef.current.get(sel)!;
-              if (tc.object !== mesh) {
-                tc.attach(mesh);
+            if (sel && billboardGroupRef.current.has(sel)) {
+              const grp = billboardGroupRef.current.get(sel)!;
+              if (tc.object !== grp) {
+                tc.attach(grp);
               }
             } else {
               tc.detach();
@@ -273,10 +328,10 @@ export const ThreeStageViewport = forwardRef<ThreeStageViewportHandle, ThreeStag
         controls.enabled = true;
       });
       transformControls.addEventListener('objectChange', () => {
-        const mesh = transformControls.object as THREE.Mesh | null;
-        if (!mesh?.name.startsWith(BILLBOARD_MESH_PREFIX)) return;
-        const id = mesh.name.slice(BILLBOARD_MESH_PREFIX.length);
-        const pos = mesh.position;
+        const obj = transformControls.object as THREE.Object3D | null;
+        if (!obj?.name.startsWith(BILLBOARD_MESH_PREFIX)) return;
+        const id = obj.name.slice(BILLBOARD_MESH_PREFIX.length);
+        const pos = obj.position;
         onBillboardWorldPositionChangeRef.current?.(id, { x: pos.x, y: pos.y, z: pos.z });
       });
 
@@ -302,15 +357,11 @@ export const ThreeStageViewport = forwardRef<ThreeStageViewportHandle, ThreeStag
         }
         transformControlsRef.current = null;
         controls.dispose();
-        meshMapRef.current.forEach((mesh) => {
-          scene.remove(mesh);
-          const mat = mesh.material as THREE.MeshBasicMaterial;
-          mat.map?.dispose();
-          mat.dispose();
-          mesh.geometry.dispose();
+        billboardGroupRef.current.forEach((group) => {
+          scene.remove(group);
+          disposeBillboardGroup(group);
         });
-        meshMapRef.current.clear();
-        textureMapRef.current.forEach((t) => t.dispose());
+        billboardGroupRef.current.clear();
         textureMapRef.current.clear();
         renderer.dispose();
         if (renderer.domElement.parentElement === mount) {
