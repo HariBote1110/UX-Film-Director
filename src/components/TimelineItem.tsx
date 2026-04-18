@@ -302,6 +302,7 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
         top: `${object.layer * rowHeight}px`,
         width: `${width}px`,
         height: `${rowHeight - 2}px`,
+        boxSizing: 'border-box',
         backgroundColor: getBackgroundColor(),
         border: isSelected ? '2px solid #f1c40f' : '1px solid rgba(255,255,255,0.3)',
         borderRadius: '4px',
