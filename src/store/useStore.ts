@@ -38,6 +38,7 @@ interface HistorySnapshot {
 
 interface AppState {
   // Project State
+  language: 'ja' | 'en';
   isProjectLoaded: boolean;
   projectSettings: ProjectSettings;
   
@@ -65,6 +66,7 @@ interface AppState {
   futureStates: HistorySnapshot[];
 
   // Actions
+  setLanguage: (lang: 'ja' | 'en') => void;
   initializeProject: (settings: ProjectSettings) => void;
   loadProject: (settings: ProjectSettings, scenes: SceneData[], activeSceneId: string) => void;
   setCamera: (patch: Partial<CameraState>) => void;
@@ -230,6 +232,7 @@ const syncObjectKeyframes = (object: TimelineObject): TimelineObject => {
 };
 
 export const useStore = create<AppState>((set, get) => ({
+  language: 'ja',
   isProjectLoaded: false,
   projectSettings: { width: 1920, height: 1080, fps: 60, sampleRate: 44100 },
   isExporting: false,
@@ -249,6 +252,8 @@ export const useStore = create<AppState>((set, get) => ({
 
   pastStates: [],
   futureStates: [],
+
+  setLanguage: (lang) => set({ language: lang }),
 
   initializeProject: (settings) => {
     const sceneId = crypto.randomUUID();

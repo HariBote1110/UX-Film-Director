@@ -4,6 +4,7 @@ import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, Ob
 import { buildPsdLayerTree, togglePsdLayer } from '../utils/psdParser';
 import { easingNames, EasingType } from '../utils/easings';
 import { buildEndpointKeyframes, evaluateObjectPositionAtTime } from '../utils/keyframes';
+import { useTranslation } from '../i18n';
 
 const Slider = ({
   className,
@@ -42,6 +43,7 @@ const SceneAndCameraPanel: React.FC = () => {
   const scenes = useStore((state) => state.scenes);
   const activeSceneId = useStore((state) => state.activeSceneId);
   const camera = useStore((state) => state.camera);
+  const language = useStore((state) => state.language);
   const switchScene = useStore((state) => state.switchScene);
   const addScene = useStore((state) => state.addScene);
   const deleteScene = useStore((state) => state.deleteScene);
@@ -63,7 +65,7 @@ const SceneAndCameraPanel: React.FC = () => {
   return (
     <>
       <SectionHeader label="Scene" />
-      <Row label="アクティブ">
+      <Row label={language === 'en' ? 'Active' : 'アクティブ'}>
         <select
           value={activeSceneId}
           onChange={(e) => switchScene(e.target.value)}
@@ -74,7 +76,7 @@ const SceneAndCameraPanel: React.FC = () => {
           ))}
         </select>
       </Row>
-      <Row label="シーン名">
+      <Row label={language === 'en' ? 'Scene Name' : 'シーン名'}>
         <input
           type="text"
           value={renameDraft}
@@ -85,7 +87,7 @@ const SceneAndCameraPanel: React.FC = () => {
       </Row>
       <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
         <button type="button" onClick={() => addScene()} style={{ flex: 1, background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '11px', cursor: 'pointer' }}>
-          ＋ シーン
+          {language === 'en' ? '+ Scene' : '＋ シーン'}
         </button>
         <button
           type="button"
@@ -106,7 +108,7 @@ const SceneAndCameraPanel: React.FC = () => {
             cursor: scenes.length <= 1 ? 'default' : 'pointer'
           }}
         >
-          削除
+          {language === 'en' ? 'Delete' : '削除'}
         </button>
       </div>
 
@@ -156,6 +158,8 @@ const PropertyPanel: React.FC = () => {
   const selectedIds = useStore((state) => state.selectedIds);
   const objects = useStore((state) => state.objects);
   const layers = useStore((state) => state.layers);
+  const language = useStore((state) => state.language);
+  const t = useTranslation(language);
 
   const selectedObject = useMemo(() => {
     const normalisedSelectedIds = selectedIds.length > 0
@@ -238,14 +242,14 @@ const PropertyPanel: React.FC = () => {
     return Number.isFinite(parsed) ? parsed : fallback;
   };
   const filterLabel: Record<FilterType, string> = {
-    color_correction: '色調補正',
-    clipping: 'クリッピング',
-    vibration: '振動',
-    shadow: '影',
-    gradient: 'グラデーション',
-    blur: 'ぼかし',
-    fade: 'フェード（不透明度）',
-    wipe: 'ワイプ'
+    color_correction: language === 'en' ? 'Color Correction' : '色調補正',
+    clipping: language === 'en' ? 'Clipping' : 'クリッピング',
+    vibration: language === 'en' ? 'Vibration' : '振動',
+    shadow: language === 'en' ? 'Shadow' : '影',
+    gradient: language === 'en' ? 'Gradient' : 'グラデーション',
+    blur: language === 'en' ? 'Blur' : 'ぼかし',
+    fade: language === 'en' ? 'Fade' : 'フェード（不透明度）',
+    wipe: language === 'en' ? 'Wipe' : 'ワイプ'
   };
   const canUseGradientFilter = selectedObject.type === 'shape';
   const currentGroupId = selectedObject.groupId ?? null;
@@ -785,15 +789,15 @@ const PropertyPanel: React.FC = () => {
 
         <SectionHeader label="Filter Stack" />
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
-            <button type="button" onClick={() => handleAddFilter('color_correction')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ 色調補正</button>
-            <button type="button" onClick={() => handleAddFilter('clipping')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ クリッピング</button>
-            <button type="button" onClick={() => handleAddFilter('vibration')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ 振動</button>
-            <button type="button" onClick={() => handleAddFilter('shadow')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ 影</button>
-            <button type="button" onClick={() => handleAddFilter('blur')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ ぼかし</button>
-            <button type="button" onClick={() => handleAddFilter('fade')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ フェード</button>
-            <button type="button" onClick={() => handleAddFilter('wipe')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ ワイプ</button>
+            <button type="button" onClick={() => handleAddFilter('color_correction')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ {filterLabel.color_correction}</button>
+            <button type="button" onClick={() => handleAddFilter('clipping')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ {filterLabel.clipping}</button>
+            <button type="button" onClick={() => handleAddFilter('vibration')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ {filterLabel.vibration}</button>
+            <button type="button" onClick={() => handleAddFilter('shadow')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ {filterLabel.shadow}</button>
+            <button type="button" onClick={() => handleAddFilter('blur')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ {filterLabel.blur}</button>
+            <button type="button" onClick={() => handleAddFilter('fade')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ {filterLabel.fade}</button>
+            <button type="button" onClick={() => handleAddFilter('wipe')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ {filterLabel.wipe}</button>
             {canUseGradientFilter && (
-                <button type="button" onClick={() => handleAddFilter('gradient')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ グラデーション</button>
+                <button type="button" onClick={() => handleAddFilter('gradient')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ {filterLabel.gradient}</button>
             )}
         </div>
         <div style={{ border: '1px solid #333', borderRadius: '4px', overflow: 'hidden', marginBottom: '8px' }}>

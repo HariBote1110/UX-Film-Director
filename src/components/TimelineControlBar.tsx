@@ -1,6 +1,7 @@
 import React from 'react';
 import { useStore } from '../store/useStore';
 import { shallow } from 'zustand/shallow';
+import { useTranslation } from '../i18n';
 
 interface TimelineControlBarProps {
   onAddShape: () => void;
@@ -24,7 +25,7 @@ export const TimelineControlBar: React.FC<TimelineControlBarProps> = ({
   const { 
     isPlaying, togglePlay, splitObject, isExporting, duration, setDuration, currentTime,
     selectedIds, copySelectedObjects, cutSelectedObjects, pasteClipboardObjects, duplicateSelectedObjects,
-    groupSelectedObjects, ungroupSelectedObjects
+    groupSelectedObjects, ungroupSelectedObjects, language
   } = useStore((state) => ({
     isPlaying: state.isPlaying,
     togglePlay: state.togglePlay,
@@ -40,7 +41,10 @@ export const TimelineControlBar: React.FC<TimelineControlBarProps> = ({
     duplicateSelectedObjects: state.duplicateSelectedObjects,
     groupSelectedObjects: state.groupSelectedObjects,
     ungroupSelectedObjects: state.ungroupSelectedObjects,
+    language: state.language,
   }), shallow);
+
+  const t = useTranslation(language);
 
   const hasSelection = selectedIds.length > 0;
   const hasMultipleSelection = selectedIds.length > 1;
@@ -49,25 +53,25 @@ export const TimelineControlBar: React.FC<TimelineControlBarProps> = ({
     <div className="no-drag" style={{ padding: '8px', borderBottom: '1px solid #111', display: 'flex', gap: '8px', alignItems: 'center', background: '#333', zIndex: 1000, fontSize: '12px' }}>
       <button onClick={togglePlay} disabled={isExporting} style={{ width: '30px', height: '24px', background: isPlaying ? '#a00' : '#444', border:'none', color:'white', borderRadius:'2px', cursor:'pointer' }}>{isPlaying ? '❚❚' : '▶'}</button>
       <div style={{ width: '1px', height: '16px', background: '#555', margin: '0 4px' }}></div>
-      <button onClick={onAddShape} disabled={isExporting} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:'pointer'}}>+ Shape</button>
+      <button onClick={onAddShape} disabled={isExporting} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:'pointer'}}>+ {t('shapeType')}</button>
       <button onClick={onAddText} disabled={isExporting} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:'pointer'}}>+ Text</button>
       <button onClick={onAddImage} disabled={isExporting} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:'pointer'}}>+ Image</button>
       <button onClick={onAddVideo} disabled={isExporting} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:'pointer'}}>+ Video</button>
       <button onClick={onAddAudio} disabled={isExporting} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:'pointer'}}>+ Audio</button>
       <button onClick={onAddPsd} disabled={isExporting} style={{ background: '#2b5c85', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:'pointer' }}>+ PSD</button>
-      <button onClick={onAddGroup} disabled={isExporting} style={{background:'#2ecc71', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:'pointer'}}>+ Group</button>
+      <button onClick={onAddGroup} disabled={isExporting} style={{background:'#2ecc71', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:'pointer'}}>+ {t('group')}</button>
       
       <div style={{ width: '1px', height: '16px', background: '#555', margin: '0 4px' }}></div>
-      <button onClick={splitObject} disabled={isExporting} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:'pointer'}}>Split</button>
-      <button onClick={copySelectedObjects} disabled={isExporting || !hasSelection} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:isExporting || !hasSelection ? 'default' : 'pointer'}}>コピー</button>
-      <button onClick={cutSelectedObjects} disabled={isExporting || !hasSelection} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:isExporting || !hasSelection ? 'default' : 'pointer'}}>切り取り</button>
-      <button onClick={pasteClipboardObjects} disabled={isExporting} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:isExporting ? 'default' : 'pointer'}}>貼り付け</button>
-      <button onClick={duplicateSelectedObjects} disabled={isExporting || !hasSelection} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:isExporting || !hasSelection ? 'default' : 'pointer'}}>複製</button>
-      <button onClick={groupSelectedObjects} disabled={isExporting || !hasMultipleSelection} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:isExporting || !hasMultipleSelection ? 'default' : 'pointer'}}>グループ化</button>
-      <button onClick={ungroupSelectedObjects} disabled={isExporting || !hasSelection} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:isExporting || !hasSelection ? 'default' : 'pointer'}}>グループ解除</button>
+      <button onClick={splitObject} disabled={isExporting} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:'pointer'}}>{t('split')}</button>
+      <button onClick={copySelectedObjects} disabled={isExporting || !hasSelection} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:isExporting || !hasSelection ? 'default' : 'pointer'}}>{t('copy')}</button>
+      <button onClick={cutSelectedObjects} disabled={isExporting || !hasSelection} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:isExporting || !hasSelection ? 'default' : 'pointer'}}>{t('cut')}</button>
+      <button onClick={pasteClipboardObjects} disabled={isExporting} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:isExporting ? 'default' : 'pointer'}}>{t('paste')}</button>
+      <button onClick={duplicateSelectedObjects} disabled={isExporting || !hasSelection} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:isExporting || !hasSelection ? 'default' : 'pointer'}}>{t('duplicate')}</button>
+      <button onClick={groupSelectedObjects} disabled={isExporting || !hasMultipleSelection} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:isExporting || !hasMultipleSelection ? 'default' : 'pointer'}}>{t('group')}</button>
+      <button onClick={ungroupSelectedObjects} disabled={isExporting || !hasSelection} style={{background:'#444', border:'none', color:'white', borderRadius:'2px', padding:'4px 8px', cursor:isExporting || !hasSelection ? 'default' : 'pointer'}}>{t('ungroup')}</button>
       
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>Duration:</span>
+          <span>{t('duration')}:</span>
           <input type="number" value={duration} onChange={(e) => setDuration(parseFloat(e.target.value))} disabled={isExporting} style={{ width: '50px', background: '#222', border: '1px solid #555', color: '#fff', padding: '2px 4px', borderRadius:'2px', fontSize:'12px' }}/>
           <span>s</span>
           <div style={{ width: '1px', height: '16px', background: '#555', margin: '0 4px' }}></div>

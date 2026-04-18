@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
+import { useTranslation } from '../i18n';
 import { ProjectSettings } from '../types';
 
 const STORAGE_KEY = 'ux-film-director-last-settings';
@@ -11,6 +12,8 @@ interface ProjectSetupProps {
 
 const ProjectSetup: React.FC<ProjectSetupProps> = ({ onOpenProject, isProjectIoBusy = false }) => {
   const initializeProject = useStore((state) => state.initializeProject);
+  const language = useStore((state) => state.language);
+  const t = useTranslation(language);
   
   const [settings, setSettings] = useState<ProjectSettings>({
     width: 1920,
@@ -80,7 +83,7 @@ const ProjectSetup: React.FC<ProjectSetupProps> = ({ onOpenProject, isProjectIoB
         boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
         border: '1px solid #333'
       }}>
-        <h2 style={{ marginTop: 0, marginBottom: '20px', textAlign: 'center' }}>New Project</h2>
+        <h2 style={{ marginTop: 0, marginBottom: '20px', textAlign: 'center' }}>{t('createNewProject')}</h2>
 
         {hasLastSettings && (
           <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid #333' }}>
@@ -99,7 +102,7 @@ const ProjectSetup: React.FC<ProjectSetupProps> = ({ onOpenProject, isProjectIoB
                 fontWeight: 'bold'
               }}
             >
-              Continue with previous settings
+              {language === 'en' ? 'Continue with previous settings' : '前回の設定で続ける'}
             </button>
           </div>
         )}
@@ -119,13 +122,13 @@ const ProjectSetup: React.FC<ProjectSetupProps> = ({ onOpenProject, isProjectIoB
               fontSize: '14px'
             }}
           >
-            {isProjectIoBusy ? '読み込み中...' : '既存プロジェクトを開く'}
+            {isProjectIoBusy ? t('loading') : t('openExistingProject')}
           </button>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div>
-            <label style={labelStyle}>Width (px)</label>
+            <label style={labelStyle}>{t('width')} (px)</label>
             <input 
               type="number" 
               value={settings.width} 
@@ -134,7 +137,7 @@ const ProjectSetup: React.FC<ProjectSetupProps> = ({ onOpenProject, isProjectIoB
             />
           </div>
           <div>
-            <label style={labelStyle}>Height (px)</label>
+            <label style={labelStyle}>{t('height')} (px)</label>
             <input 
               type="number" 
               value={settings.height} 
@@ -144,7 +147,7 @@ const ProjectSetup: React.FC<ProjectSetupProps> = ({ onOpenProject, isProjectIoB
           </div>
         </div>
 
-        <label style={labelStyle}>Frame Rate (fps)</label>
+        <label style={labelStyle}>{t('fps')}</label>
         <select 
           value={settings.fps} 
           onChange={(e) => handleChange('fps', parseInt(e.target.value))}
@@ -155,7 +158,7 @@ const ProjectSetup: React.FC<ProjectSetupProps> = ({ onOpenProject, isProjectIoB
           <option value="60">60 fps</option>
         </select>
 
-        <label style={labelStyle}>Audio Sample Rate (Hz)</label>
+        <label style={labelStyle}>{t('sampleRate')} (Hz)</label>
         <select 
           value={settings.sampleRate} 
           onChange={(e) => handleChange('sampleRate', parseInt(e.target.value))}
@@ -181,7 +184,7 @@ const ProjectSetup: React.FC<ProjectSetupProps> = ({ onOpenProject, isProjectIoB
           onMouseEnter={(e) => e.currentTarget.style.background = '#444'}
           onMouseLeave={(e) => e.currentTarget.style.background = '#333'}
         >
-          Create New Project
+          {t('create')}
         </button>
       </div>
     </div>
