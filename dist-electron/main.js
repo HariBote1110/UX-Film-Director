@@ -4,6 +4,32 @@ const path = require("node:path");
 const node_child_process = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
+const PERF_HEAVY_VIDEO_BASE_NAMES = ["20000kbps_60fps.mp4", "10000kbps_60fps.mp4"];
+const buildOrderedPerfHeavyVideoPaths = (appRoot, join) => {
+  const heavyDir = join(appRoot, "perf", "heavy-media");
+  const paths = [];
+  for (const name of PERF_HEAVY_VIDEO_BASE_NAMES) {
+    paths.push(join(heavyDir, name));
+    paths.push(join(appRoot, name));
+  }
+  return paths;
+};
+const serialisePerfAgentPayload = (payload) => JSON.stringify(payload, null, 2);
+const CSV_COLUMNS = [
+  "timestamp_utc",
+  "run_id",
+  "scenario",
+  "duration_ms",
+  "object_count_before",
+  "object_count_after",
+  "raf_mean_ms",
+  "raf_p95_ms",
+  "raf_max_ms",
+  "long_task_count",
+  "notes"
+];
+const PERFORMANCE_CSV_HEADER_LINE = `${CSV_COLUMNS.join(",")}
+`;
 electron.app.commandLine.appendSwitch("enable-gpu-rasterization");
 electron.app.commandLine.appendSwitch("enable-zero-copy");
 electron.app.commandLine.appendSwitch("ignore-gpu-blocklist");
@@ -283,6 +309,19 @@ electron.app.whenReady().then(() => {
       };
     }
   });
+  electron.ipcMain.handle("resolve-perf-heavy-video", async () => {
+    const candidates = buildOrderedPerfHeavyVideoPaths(electron.app.getAppPath(), path.join);
+    for (const filePath of candidates) {
+      if (fs.existsSync(filePath)) {
+        return {
+          success: true,
+          filePath,
+          fileName: path.basename(filePath)
+        };
+      }
+    }
+    return { success: false };
+  });
   electron.ipcMain.handle("read-file-bytes", async (_event, payload) => {
     const filePath = typeof (payload == null ? void 0 : payload.filePath) === "string" ? payload.filePath.trim() : "";
     if (!filePath) {
@@ -298,6 +337,54 @@ electron.app.whenReady().then(() => {
         error: error instanceof Error ? error.message : String(error)
       };
     }
+  });
+  electron.ipcMain.handle("append-performance-csv", async (_event, payload) => {
+    const fileName = typeof (payload == null ? void 0 : payload.fileName) === "string" && payload.fileName.trim() !== "" ? payload.fileName.trim() : "harness-runs.csv";
+    const lines = typeof (payload == null ? void 0 : payload.lines) === "string" ? payload.lines : "";
+    const directory = path.join(electron.app.getPath("userData"), "performance-reports");
+    fs.mkdirSync(directory, { recursive: true });
+    const filePath = path.join(directory, fileName);
+    try {
+      const exists = fs.existsSync(filePath);
+      const isEmpty = !exists || fs.statSync(filePath).size === 0;
+      if (isEmpty) {
+        fs.appendFileSync(filePath, PERFORMANCE_CSV_HEADER_LINE, "utf8");
+      }
+      fs.appendFileSync(filePath, lines, "utf8");
+      return { success: true, filePath };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+  electron.ipcMain.handle("perf-harness-agent-done", async (_event, payload) => {
+    const agentPayload = payload;
+    const outputDir = typeof process.env.UXFD_PERF_OUTPUT_DIR === "string" && process.env.UXFD_PERF_OUTPUT_DIR.trim() !== "" ? path.resolve(process.env.UXFD_PERF_OUTPUT_DIR.trim()) : process.cwd();
+    const outputPath = path.join(outputDir, "perf-agent-output.json");
+    try {
+      fs.mkdirSync(outputDir, { recursive: true });
+      fs.writeFileSync(outputPath, serialisePerfAgentPayload(agentPayload), "utf8");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[perf] Failed to write ${outputPath}:`, message);
+    }
+    const marker = JSON.stringify({
+      type: "uxfd-perf-result",
+      success: agentPayload.success,
+      runId: agentPayload.runId,
+      csvFilePath: agentPayload.csvFilePath,
+      jsonFilePath: outputPath,
+      rowCount: agentPayload.rows.length,
+      errorMessage: agentPayload.errorMessage
+    });
+    console.log(`UXFD_PERF_RESULT_JSON:${marker}`);
+    const exitCode = agentPayload.success ? 0 : 1;
+    setTimeout(() => {
+      electron.app.exit(exitCode);
+    }, 250);
+    return { success: true, jsonFilePath: outputPath };
   });
   electron.ipcMain.handle("save-temp-audio", async (event, buffer) => {
     try {
