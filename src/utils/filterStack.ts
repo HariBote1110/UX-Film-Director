@@ -399,37 +399,81 @@ export const getObjectFiltersInOrder = (object: TimelineObject): ObjectFilter[] 
 };
 
 export const getEnabledObjectFiltersInOrder = (object: TimelineObject): ObjectFilter[] => {
-  return resolveOrderedFilters(object).filter((filter) => filter.enabled);
+  const resolved = resolveOrderedFilters(object);
+  const enabled: ObjectFilter[] = [];
+  for (let i = 0; i < resolved.length; i += 1) {
+    if (resolved[i].enabled) enabled.push(resolved[i]);
+  }
+  return enabled;
 };
 
 export const getFadeOpacityMultiplier = (object: TimelineObject): number => {
-  return getEnabledObjectFiltersInOrder(object)
-    .filter((filter): filter is Extract<ObjectFilter, { type: 'fade' }> => filter.type === 'fade')
-    .reduce((acc, filter) => acc * Math.max(0, Math.min(1, filter.params.opacity)), 1);
+  const resolved = resolveOrderedFilters(object);
+  let acc = 1;
+  for (let i = 0; i < resolved.length; i += 1) {
+    const filter = resolved[i];
+    if (filter.enabled && filter.type === 'fade') {
+      acc *= Math.max(0, Math.min(1, filter.params.opacity));
+    }
+  }
+  return acc;
 };
 
 export const getPrimaryWipeFilter = (
   object: TimelineObject
 ): Extract<ObjectFilter, { type: 'wipe' }> | null => {
-  const found = getEnabledObjectFiltersInOrder(object).find((filter) => filter.type === 'wipe');
-  return found && found.type === 'wipe' ? found : null;
-};
-
-const findLastFilter = (filters: ObjectFilter[], type: FilterType): ObjectFilter | null => {
-  for (let i = filters.length - 1; i >= 0; i -= 1) {
-    if (filters[i].type === type) return filters[i];
+  const resolved = resolveOrderedFilters(object);
+  for (let i = 0; i < resolved.length; i += 1) {
+    const filter = resolved[i];
+    if (filter.enabled && filter.type === 'wipe') {
+      return filter;
+    }
   }
   return null;
 };
 
-export const syncLegacyEffectsWithFilters = <T extends TimelineObject>(object: T): T => {
-  const filters = resolveOrderedFilters(object);
+type LastLegacyFilters = {
+  color: ObjectFilter | null;
+  clipping: ObjectFilter | null;
+  vibration: ObjectFilter | null;
+  shadow: ObjectFilter | null;
+  gradient: ObjectFilter | null;
+};
 
-  const colorFilter = findLastFilter(filters, 'color_correction');
-  const clippingFilter = findLastFilter(filters, 'clipping');
-  const vibrationFilter = findLastFilter(filters, 'vibration');
-  const shadowFilter = findLastFilter(filters, 'shadow');
-  const gradientFilter = findLastFilter(filters, 'gradient');
+const collectLastLegacyFilters = (filters: ObjectFilter[]): LastLegacyFilters => {
+  let color: ObjectFilter | null = null;
+  let clipping: ObjectFilter | null = null;
+  let vibration: ObjectFilter | null = null;
+  let shadow: ObjectFilter | null = null;
+  let gradient: ObjectFilter | null = null;
+  for (let i = filters.length - 1; i >= 0; i -= 1) {
+    const entry = filters[i];
+    switch (entry.type) {
+      case 'color_correction':
+        if (!color) color = entry;
+        break;
+      case 'clipping':
+        if (!clipping) clipping = entry;
+        break;
+      case 'vibration':
+        if (!vibration) vibration = entry;
+        break;
+      case 'shadow':
+        if (!shadow) shadow = entry;
+        break;
+      case 'gradient':
+        if (!gradient) gradient = entry;
+        break;
+      default:
+        break;
+    }
+    if (color && clipping && vibration && shadow && gradient) break;
+  }
+  return { color, clipping, vibration, shadow, gradient };
+};
+
+const materialiseSyncedObject = <T extends TimelineObject>(object: T, filters: ObjectFilter[]): T => {
+  const { color: colorFilter, clipping: clippingFilter, vibration: vibrationFilter, shadow: shadowFilter, gradient: gradientFilter } = collectLastLegacyFilters(filters);
 
   const syncedBase = {
     ...object,
@@ -458,6 +502,10 @@ export const syncLegacyEffectsWithFilters = <T extends TimelineObject>(object: T
       ? { enabled: gradientFilter.enabled, ...gradientFilter.params }
       : undefined
   } as T;
+};
+
+export const syncLegacyEffectsWithFilters = <T extends TimelineObject>(object: T): T => {
+  return materialiseSyncedObject(object, resolveOrderedFilters(object));
 };
 
 const upsertLegacyFilter = (
@@ -521,13 +569,13 @@ export const syncFiltersFromLegacyValues = <T extends TimelineObject>(object: T)
       : null);
   }
 
-  return syncLegacyEffectsWithFilters({ ...object, filters: nextFilters });
+  return materialiseSyncedObject({ ...object, filters: nextFilters }, nextFilters);
 };
 
 export const addFilterToObject = (object: TimelineObject, type: FilterType): TimelineObject => {
   const currentFilters = getObjectFiltersInOrder(object);
   const nextFilters = [...currentFilters, createDefaultFilter(type)];
-  return syncLegacyEffectsWithFilters({ ...object, filters: nextFilters });
+  return materialiseSyncedObject({ ...object, filters: nextFilters }, nextFilters);
 };
 
 export const toggleFilterEnabledInObject = (object: TimelineObject, filterId: string): TimelineObject => {
@@ -536,29 +584,29 @@ export const toggleFilterEnabledInObject = (object: TimelineObject, filterId: st
     if (filter.id !== filterId) return filter;
     return { ...filter, enabled: !filter.enabled };
   });
-  return syncLegacyEffectsWithFilters({ ...object, filters: nextFilters });
+  return materialiseSyncedObject({ ...object, filters: nextFilters }, nextFilters);
 };
 
 export const removeFilterFromObject = (object: TimelineObject, filterId: string): TimelineObject => {
   const currentFilters = getObjectFiltersInOrder(object);
   const nextFilters = currentFilters.filter((filter) => filter.id !== filterId);
-  return syncLegacyEffectsWithFilters({ ...object, filters: nextFilters });
+  return materialiseSyncedObject({ ...object, filters: nextFilters }, nextFilters);
 };
 
 export const moveFilterInObject = (object: TimelineObject, filterId: string, direction: 'up' | 'down'): TimelineObject => {
   const currentFilters = getObjectFiltersInOrder(object);
   const index = currentFilters.findIndex((filter) => filter.id === filterId);
-  if (index < 0) return syncLegacyEffectsWithFilters({ ...object, filters: currentFilters });
+  if (index < 0) return materialiseSyncedObject({ ...object, filters: currentFilters }, currentFilters);
 
   const targetIndex = direction === 'up' ? index - 1 : index + 1;
   if (targetIndex < 0 || targetIndex >= currentFilters.length) {
-    return syncLegacyEffectsWithFilters({ ...object, filters: currentFilters });
+    return materialiseSyncedObject({ ...object, filters: currentFilters }, currentFilters);
   }
 
   const nextFilters = currentFilters.slice();
   const [moved] = nextFilters.splice(index, 1);
   nextFilters.splice(targetIndex, 0, moved);
-  return syncLegacyEffectsWithFilters({ ...object, filters: nextFilters });
+  return materialiseSyncedObject({ ...object, filters: nextFilters }, nextFilters);
 };
 
 export const updateFilterParamsInObject = (
@@ -579,5 +627,5 @@ export const updateFilterParamsInObject = (
     const normalised = normaliseFilter(nextCandidate);
     return normalised ?? filter;
   });
-  return syncLegacyEffectsWithFilters({ ...object, filters: nextFilters });
+  return materialiseSyncedObject({ ...object, filters: nextFilters }, nextFilters);
 };
