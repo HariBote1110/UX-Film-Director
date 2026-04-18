@@ -184,7 +184,7 @@ fn handle_media_probe(id: u64, params: Value) -> RpcResponse {
         .arg("json")
         .arg("-show_streams")
         .arg("-show_format")
-        .arg(&parsed.file_path)
+        .arg(secure_path(&parsed.file_path))
         .output()
     {
         Ok(value) => value,
@@ -224,9 +224,15 @@ fn handle_media_probe(id: u64, params: Value) -> RpcResponse {
     let mut has_audio = false;
     let mut has_video = false;
 
-    if let Some(streams) = parsed_json.get("streams").and_then(|value| value.as_array()) {
+    if let Some(streams) = parsed_json
+        .get("streams")
+        .and_then(|value| value.as_array())
+    {
         for stream in streams {
-            let codec_type = stream.get("codec_type").and_then(|value| value.as_str()).unwrap_or("");
+            let codec_type = stream
+                .get("codec_type")
+                .and_then(|value| value.as_str())
+                .unwrap_or("");
             if codec_type == "video" {
                 has_video = true;
                 if width.is_none() {
@@ -291,7 +297,7 @@ fn handle_export_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
 
     if let Some(audio_path) = &parsed.audio_path {
         if !audio_path.is_empty() {
-            cmd.arg("-i").arg(audio_path);
+            cmd.arg("-i").arg(secure_path(audio_path));
         }
     }
 
@@ -320,7 +326,7 @@ fn handle_export_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
     }
 
     cmd.arg("-shortest")
-        .arg(&parsed.file_path)
+        .arg(secure_path(&parsed.file_path))
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         // ffmpeg progress logs can fill stderr pipe on long exports and stall writes.
@@ -453,6 +459,14 @@ fn get_video_codec() -> &'static str {
     }
 }
 
+fn secure_path(path: &str) -> String {
+    if path.starts_with('-') {
+        format!("./{}", path)
+    } else {
+        path.to_string()
+    }
+}
+
 fn response_error(id: u64, code: i64, message: &str) -> RpcResponse {
     RpcResponse {
         id,
@@ -462,5 +476,21 @@ fn response_error(id: u64, code: i64, message: &str) -> RpcResponse {
             code,
             message: message.to_string(),
         }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_secure_path() {
+        assert_eq!(secure_path("normal_file.mp4"), "normal_file.mp4");
+        assert_eq!(
+            secure_path("/absolute/path/file.mp4"),
+            "/absolute/path/file.mp4"
+        );
+        assert_eq!(secure_path("-malicious_flag.mp4"), "./-malicious_flag.mp4");
+        assert_eq!(secure_path("-"), "./-");
     }
 }
