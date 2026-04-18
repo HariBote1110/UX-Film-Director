@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState } from '../types';
 import { buildPsdLayerTree, togglePsdLayer } from '../utils/psdParser';
@@ -152,24 +152,34 @@ const SceneAndCameraPanel: React.FC = () => {
 };
 
 const PropertyPanel: React.FC = () => {
-  const { selectedObject, selectedCount, selectedObjects, currentTime, objects } = useStore((state) => {
-    const normalisedSelectedIds = state.selectedIds.length > 0
-      ? state.selectedIds
-      : (state.selectedId ? [state.selectedId] : []);
-    const selectedObject = state.objects.find((obj) => obj.id === state.selectedId)
-      ?? state.objects.find((obj) => normalisedSelectedIds.includes(obj.id))
+  const selectedId = useStore((state) => state.selectedId);
+  const selectedIds = useStore((state) => state.selectedIds);
+  const objects = useStore((state) => state.objects);
+  const layers = useStore((state) => state.layers);
+
+  const selectedObject = useMemo(() => {
+    const normalisedSelectedIds = selectedIds.length > 0
+      ? selectedIds
+      : (selectedId ? [selectedId] : []);
+    return objects.find((obj) => obj.id === selectedId)
+      ?? objects.find((obj) => normalisedSelectedIds.includes(obj.id))
       ?? null;
-    return {
-      selectedObject,
-      selectedCount: normalisedSelectedIds.length,
-      selectedObjects: state.objects.filter((obj) => (
-        normalisedSelectedIds.includes(obj.id)
-        && state.layers[obj.layer]?.locked !== true
-      )),
-      currentTime: state.currentTime,
-      objects: state.objects
-    };
-  });
+  }, [objects, selectedId, selectedIds]);
+
+  const selectedCount = useMemo(
+    () => (selectedIds.length > 0 ? selectedIds.length : (selectedId ? 1 : 0)),
+    [selectedId, selectedIds]
+  );
+
+  const selectedObjects = useMemo(() => {
+    const normalisedSelectedIds = selectedIds.length > 0
+      ? selectedIds
+      : (selectedId ? [selectedId] : []);
+    return objects.filter((obj) => (
+      normalisedSelectedIds.includes(obj.id)
+      && layers[obj.layer]?.locked !== true
+    ));
+  }, [layers, objects, selectedId, selectedIds]);
   const pushHistory = useStore((state) => state.pushHistory);
   const updateObject = useStore((state) => state.updateObject);
   const addObjectFilter = useStore((state) => state.addObjectFilter);
@@ -482,6 +492,7 @@ const PropertyPanel: React.FC = () => {
   };
 
   const handleAddCurrentKeyframe = () => {
+    const currentTime = useStore.getState().currentTime;
     const keyTime = clamp(
       currentTime,
       selectedObject.startTime,
