@@ -7,6 +7,17 @@
 - 計測は **Electron ウィンドウ**内のレンダラーで実行されます（Pixi プレビューと同一プロセス）。
 - 完了後にプロセスが終了するのは **`npm run perf:agent`**（`VITE_PERF_AGENT_MODE=1`）のときのみです。
 
+## 重い MP4 フィクスチャ（任意）
+
+高ビットレート動画を含むシナリオ（`raf_heavy_video_scrub`）用に、次のいずれかにファイルを置けます（先に見つかったものが使われます）。
+
+1. `perf/heavy-media/20000kbps_60fps.mp4`
+2. リポジトリ直下の `20000kbps_60fps.mp4`
+3. `perf/heavy-media/10000kbps_60fps.mp4`
+4. リポジトリ直下の `10000kbps_60fps.mp4`
+
+これらのファイルは **Git に含めない**でください（`.gitignore` と `perf/heavy-media/.gitignore` で除外済み）。無い場合は当該シナリオは `skipped_no_heavy_mp4` としてスキップされ、他シナリオは実行されます。
+
 ## 実行コマンド
 
 リポジトリルートで:
@@ -24,7 +35,7 @@ npm run perf:agent
 1. **`perf-agent-output.json`**（既定では **カレントワーキングディレクトリ**＝多くの場合リポジトリルート）
    - 各シナリオの行データ（`rows`）、成功可否、`csvFilePath` などが入ります。
 2. **`UXFD_PERF_RESULT_JSON:` 行**（親プロセスの標準出力）
-   - ターミナルログに 1 行で出ます。`jsonFilePath` の所在確認に使えます。
+   - ターミナルログに 1 行で出ます。`jsonFilePath` の所在確認に使えます。`rowCount` は **4**（4 シナリオ。MP4 が無いときはうち 1 行が `skipped_no_heavy_mp4` になります）。
 3. **累積 CSV**（Electron の `userData` 配下）
    - `performance-reports/harness-runs.csv` に追記されます（手動比較・履歴用）。
 

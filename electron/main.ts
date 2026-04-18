@@ -3,6 +3,7 @@ import path from 'node:path'
 import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
+import { buildOrderedPerfHeavyVideoPaths } from '../src/perf/perfHeavyVideo';
 import { serialisePerfAgentPayload, type PerfHarnessAgentPayload } from '../src/perf/perfAgentPayload';
 import { PERFORMANCE_CSV_HEADER_LINE } from '../src/perf/performanceReport';
 
@@ -370,6 +371,20 @@ app.whenReady().then(() => {
         error: error instanceof Error ? error.message : String(error),
       };
     }
+  });
+
+  ipcMain.handle('resolve-perf-heavy-video', async () => {
+    const candidates = buildOrderedPerfHeavyVideoPaths(app.getAppPath(), path.join);
+    for (const filePath of candidates) {
+      if (fs.existsSync(filePath)) {
+        return {
+          success: true as const,
+          filePath,
+          fileName: path.basename(filePath),
+        };
+      }
+    }
+    return { success: false as const };
   });
 
   ipcMain.handle('read-file-bytes', async (_event, payload: { filePath?: string }) => {
