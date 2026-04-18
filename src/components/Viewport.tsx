@@ -8,6 +8,7 @@ import { shallow } from 'zustand/shallow';
 
 import { usePixiInteraction } from '../hooks/usePixiInteraction';
 import { useProjectExport } from '../hooks/useProjectExport';
+import { useVisionRealtimeDetection } from '../hooks/useVisionRealtimeDetection';
 import { getGroupTransforms, getLipSyncViseme, updatePixiContent, applyObjectEffects, getVibrationOffset, applyGroupGradientEffect } from '../utils/pixiRenderHelper';
 import type { VideoFrameTextureState } from '../utils/pixiRenderHelper';
 import { evaluateObjectPositionAtTime } from '../utils/keyframes';
@@ -133,6 +134,8 @@ const Viewport: React.FC = () => {
     visionDetectionPreviewEnabled: state.visionDetectionPreviewEnabled,
     visionDetectionOverlay: state.visionDetectionOverlay,
   }), shallow);
+
+  useVisionRealtimeDetection();
 
   const editorMode = projectSettings.editorMode ?? '2d';
 
@@ -479,11 +482,12 @@ const Viewport: React.FC = () => {
         const stale = Math.abs(mediaT - visionOverlay!.mediaTimeSec) > 0.35;
         detG.alpha = stale ? 0.42 : 1;
 
+        const strokeWidth = 5;
         const colours = [0x22c55e, 0x38bdf8, 0xfbbf24, 0xf472b6, 0xa78bfa];
         visionOverlay!.observations.forEach((obs, i) => {
           const r = visionNormBoundingBoxToVideoLocalRect(obs.boundingBox, video.width, video.height);
           detG!.rect(r.x, r.y, r.width, r.height);
-          detG!.stroke({ width: 2, color: colours[i % colours.length] });
+          detG!.stroke({ width: strokeWidth, color: colours[i % colours.length], alignment: 0.5 });
         });
       }
 

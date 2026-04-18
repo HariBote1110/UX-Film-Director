@@ -270,6 +270,9 @@ const PropertyPanel: React.FC = () => {
   const currentTime = useStore((state) => state.currentTime);
   const visionDetectionPreviewEnabled = useStore((state) => state.visionDetectionPreviewEnabled);
   const setVisionDetectionPreviewEnabled = useStore((state) => state.setVisionDetectionPreviewEnabled);
+  const visionDetectionRealtimeEnabled = useStore((state) => state.visionDetectionRealtimeEnabled);
+  const setVisionDetectionRealtimeEnabled = useStore((state) => state.setVisionDetectionRealtimeEnabled);
+  const visionDetectionOverlay = useStore((state) => state.visionDetectionOverlay);
   const setVisionDetectionOverlay = useStore((state) => state.setVisionDetectionOverlay);
   const [isRefreshingPsdTree, setIsRefreshingPsdTree] = useState(false);
   const [activeFilterId, setActiveFilterId] = useState<string | null>(null);
@@ -358,6 +361,14 @@ const PropertyPanel: React.FC = () => {
     setVisionPickOpen(false);
     setVisionPickUrl(null);
   }, [selectedObject?.id]);
+
+  useEffect(() => {
+    if (selectedObject?.type !== 'video') return;
+    const ov = visionDetectionOverlay;
+    if (ov && ov.videoId === selectedObject.id) {
+      setVisionDetectedAnimals(ov.observations);
+    }
+  }, [visionDetectionOverlay, selectedObject?.id, selectedObject?.type]);
 
   if (!selectedObject) {
     return (
@@ -1625,10 +1636,39 @@ const PropertyPanel: React.FC = () => {
                             />
                             {language === 'en' ? 'Show detection boxes on preview' : '検出枠をプレビューに表示'}
                         </label>
+                        <label
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              fontSize: '11px',
+                              cursor:
+                                coreMlTrackSupported && visionDetectionPreviewEnabled ? 'pointer' : 'not-allowed',
+                              opacity: coreMlTrackSupported && visionDetectionPreviewEnabled ? 1 : 0.45
+                            }}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={visionDetectionRealtimeEnabled}
+                                disabled={
+                                  !coreMlTrackSupported
+                                  || !visionDetectionPreviewEnabled
+                                  || !resolveVideoFsPath(selectedObject as VideoObject)
+                                }
+                                onChange={(e) => {
+                                  const next = e.target.checked;
+                                  setVisionDetectionRealtimeEnabled(next);
+                                  if (next) {
+                                    setVisionDetectionPreviewEnabled(true);
+                                  }
+                                }}
+                            />
+                            {language === 'en' ? 'Real-time detection (while playing / scrubbing)' : 'リアルタイム検出（再生・スクラブ）'}
+                        </label>
                         <div style={{ fontSize: '10px', color: '#888', lineHeight: 1.35 }}>
                             {language === 'en'
-                              ? 'Runs on macOS with local Vision. Boxes fade when the playhead media time differs from the last detection.'
-                              : 'macOS の Vision（ローカル）で検出した枠を重ねます。再生位置が最終検出時刻とずれると枠が薄くなります。'}
+                              ? 'Local Vision on macOS. While playing, detection runs about 4× per second; when paused, ~300ms after you scrub. Boxes fade if the overlay is from another frame. CPU load increases while real-time is on.'
+                              : 'macOS のローカル Vision です。再生中は約毎秒4回、停止中はスクラブから約300ms後に検出します。別フレームの結果のままだと枠が薄くなります。リアルタイム ON 中は負荷が増えます。'}
                         </div>
                         <select
                             value={visionSelectedAnimalIndex}

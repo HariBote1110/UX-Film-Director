@@ -86,6 +86,8 @@ interface AppState {
 
   /** macOS Vision: 検出した猫/犬の枠をプレビュー動画上に重ね描きする */
   visionDetectionPreviewEnabled: boolean;
+  /** 再生・スクラブに合わせて detectSubjects を自動実行する（プレビュー ON 推奨） */
+  visionDetectionRealtimeEnabled: boolean;
   visionDetectionOverlay: VisionDetectionOverlayState | null;
 
   // Editor State
@@ -139,6 +141,7 @@ interface AppState {
 
   setPreviewDisplayMode: (mode: PreviewDisplayMode) => void;
   setVisionDetectionPreviewEnabled: (enabled: boolean) => void;
+  setVisionDetectionRealtimeEnabled: (enabled: boolean) => void;
   setVisionDetectionOverlay: (overlay: VisionDetectionOverlayState | null) => void;
   
   // History Actions
@@ -301,6 +304,7 @@ export const useStore = create<AppState>((set, get) => ({
   isSnapshotRequested: false,
   previewDisplayMode: readStoredPreviewMode(),
   visionDetectionPreviewEnabled: false,
+  visionDetectionRealtimeEnabled: false,
   visionDetectionOverlay: null,
 
   currentTime: 0,
@@ -330,7 +334,12 @@ export const useStore = create<AppState>((set, get) => ({
     set({ previewDisplayMode: mode });
   },
 
-  setVisionDetectionPreviewEnabled: (enabled) => set({ visionDetectionPreviewEnabled: enabled }),
+  setVisionDetectionPreviewEnabled: (enabled) => set((state) => ({
+    visionDetectionPreviewEnabled: enabled,
+    ...(enabled ? {} : { visionDetectionRealtimeEnabled: false })
+  })),
+
+  setVisionDetectionRealtimeEnabled: (enabled) => set({ visionDetectionRealtimeEnabled: enabled }),
 
   setVisionDetectionOverlay: (overlay) => set({ visionDetectionOverlay: overlay }),
 
@@ -369,6 +378,7 @@ export const useStore = create<AppState>((set, get) => ({
       pastStates: [],
       futureStates: [],
       visionDetectionPreviewEnabled: false,
+      visionDetectionRealtimeEnabled: false,
       visionDetectionOverlay: null
     });
   },
@@ -407,6 +417,7 @@ export const useStore = create<AppState>((set, get) => ({
       pastStates: [],
       futureStates: [],
       visionDetectionPreviewEnabled: false,
+      visionDetectionRealtimeEnabled: false,
       visionDetectionOverlay: null
     });
   },
@@ -547,6 +558,7 @@ export const useStore = create<AppState>((set, get) => ({
       pastStates: [],
       futureStates: [],
       visionDetectionPreviewEnabled: false,
+      visionDetectionRealtimeEnabled: false,
       visionDetectionOverlay: null
     });
   },
@@ -590,6 +602,7 @@ export const useStore = create<AppState>((set, get) => ({
       pastStates: [],
       futureStates: [],
       visionDetectionPreviewEnabled: false,
+      visionDetectionRealtimeEnabled: false,
       visionDetectionOverlay: null
     });
   },
@@ -636,6 +649,7 @@ export const useStore = create<AppState>((set, get) => ({
       pastStates: [],
       futureStates: [],
       visionDetectionPreviewEnabled: false,
+      visionDetectionRealtimeEnabled: false,
       visionDetectionOverlay: null
     });
   },
