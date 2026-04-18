@@ -1,18 +1,30 @@
-import { ProjectSettings, TimelineObject, PsdObject, LayerState } from '../types';
+import { ProjectSettings, TimelineObject, PsdObject, LayerState, SceneData, CameraState } from '../types';
 import { buildPsdLayerTree, parsePsdArrayBufferAsObject } from './psdParser';
 import { toFileProtocolUrl } from './mediaMetadata';
+import { createDefaultCamera, createDefaultLayers, flushActiveIntoScenes } from './sceneState';
 
 const PROJECT_FILE_FORMAT = 'uxfd-project';
-const PROJECT_FILE_VERSION = 1;
+const PROJECT_FILE_VERSION_V1 = 1;
+const PROJECT_FILE_VERSION_V2 = 2;
+const LEGACY_SCENE_ID = 'legacy-scene-1';
 
 type ProjectFileV1 = {
   format: typeof PROJECT_FILE_FORMAT;
-  version: typeof PROJECT_FILE_VERSION;
+  version: typeof PROJECT_FILE_VERSION_V1;
   savedAt: string;
   projectSettings: ProjectSettings;
   duration: number;
   layers?: LayerState[];
   objects: TimelineObject[];
+};
+
+export type ProjectFileV2 = {
+  format: typeof PROJECT_FILE_FORMAT;
+  version: typeof PROJECT_FILE_VERSION_V2;
+  savedAt: string;
+  projectSettings: ProjectSettings;
+  activeSceneId: string;
+  scenes: SceneData[];
 };
 
 type SaveProjectResponse =
@@ -107,6 +119,59 @@ const parseLayers = (value: unknown): LayerState[] | undefined => {
   if (!Array.isArray(value)) return undefined;
   if (!value.every((layer) => isLayerState(layer))) return undefined;
   return value.map((layer) => ({ ...layer }));
+};
+
+const isCameraState = (value: unknown): value is CameraState => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    isFiniteNumber(candidate.centreOffsetX)
+    && isFiniteNumber(candidate.centreOffsetY)
+    && isFiniteNumber(candidate.zoom)
+    && isFiniteNumber(candidate.rotationDeg)
+  );
+};
+
+const parseSceneEntry = (value: unknown): SceneData | null => {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as Record<string, unknown>;
+  if (typeof candidate.id !== 'string' || candidate.id.trim() === '') return null;
+  if (typeof candidate.name !== 'string') return null;
+  if (!isFiniteNumber(candidate.duration)) return null;
+  const layers = parseLayers(candidate.layers) ?? createDefaultLayers();
+  const objectCandidates = candidate.objects;
+  if (!Array.isArray(objectCandidates)) return null;
+  if (!objectCandidates.every((obj) => isTimelineObject(obj))) return null;
+  const camera = isCameraState(candidate.camera) ? candidate.camera : createDefaultCamera();
+  return {
+    id: candidate.id,
+    name: candidate.name,
+    duration: Math.max(1, candidate.duration as number),
+    layers,
+    objects: objectCandidates as TimelineObject[],
+    camera
+  };
+};
+
+const migrateV1ToV2 = (candidate: ProjectFileV1): ProjectFileV2 => {
+  const layers = parseLayers(candidate.layers) ?? createDefaultLayers();
+  return {
+    format: PROJECT_FILE_FORMAT,
+    version: PROJECT_FILE_VERSION_V2,
+    savedAt: typeof candidate.savedAt === 'string' ? candidate.savedAt : new Date().toISOString(),
+    projectSettings: candidate.projectSettings,
+    activeSceneId: LEGACY_SCENE_ID,
+    scenes: [{
+      id: LEGACY_SCENE_ID,
+      name: 'Scene 1',
+      duration: typeof candidate.duration === 'number' && Number.isFinite(candidate.duration)
+        ? Math.max(1, candidate.duration)
+        : 30,
+      layers,
+      objects: candidate.objects,
+      camera: createDefaultCamera()
+    }]
+  };
 };
 
 const sanitiseObjectForSave = (obj: TimelineObject): TimelineObject => {
@@ -222,25 +287,40 @@ const restoreObjectFromProject = async (
   return obj;
 };
 
-export const buildProjectFileData = (
-  projectSettings: ProjectSettings,
-  duration: number,
-  objects: TimelineObject[],
-  layers: LayerState[]
-): ProjectFileV1 => {
+export const buildProjectFileData = (input: {
+  projectSettings: ProjectSettings;
+  scenes: SceneData[];
+  activeSceneId: string;
+  objects: TimelineObject[];
+  layers: LayerState[];
+  duration: number;
+  camera: CameraState;
+}): ProjectFileV2 => {
+  const flushed = flushActiveIntoScenes(
+    input.scenes,
+    input.activeSceneId,
+    input.objects,
+    input.layers,
+    input.duration,
+    input.camera
+  );
   return {
     format: PROJECT_FILE_FORMAT,
-    version: PROJECT_FILE_VERSION,
+    version: PROJECT_FILE_VERSION_V2,
     savedAt: new Date().toISOString(),
-    projectSettings,
-    duration,
-    layers,
-    objects: objects.map(sanitiseObjectForSave),
+    projectSettings: input.projectSettings,
+    activeSceneId: input.activeSceneId,
+    scenes: flushed.map((scene) => ({
+      ...scene,
+      layers: scene.layers.map((layer) => ({ ...layer })),
+      camera: { ...scene.camera },
+      objects: scene.objects.map(sanitiseObjectForSave)
+    }))
   };
 };
 
 export const saveProjectFileWithDialog = async (
-  projectFile: ProjectFileV1
+  projectFile: ProjectFileV2
 ): Promise<SaveProjectResponse> => {
   try {
     const response = await window.ipcRenderer.invoke('save-project-file', {
@@ -258,7 +338,7 @@ export const saveProjectFileWithDialog = async (
 
 export const openProjectFileWithDialog = async (): Promise<{
   filePath: string;
-  project: ProjectFileV1;
+  project: ProjectFileV2;
 } | null> => {
   const response = await window.ipcRenderer.invoke('open-project-file') as OpenProjectResponse;
   if (!response || response.success !== true) {
@@ -276,35 +356,70 @@ export const openProjectFileWithDialog = async (): Promise<{
     throw new Error('プロジェクトファイル形式が不正です。');
   }
 
-  const candidate = parsed as Partial<ProjectFileV1>;
-  if (candidate.format !== PROJECT_FILE_FORMAT || candidate.version !== PROJECT_FILE_VERSION) {
+  const candidate = parsed as Partial<ProjectFileV1> & Partial<ProjectFileV2>;
+  if (candidate.format !== PROJECT_FILE_FORMAT) {
     throw new Error('対応していないプロジェクトファイル形式です。');
   }
   if (!isProjectSettings(candidate.projectSettings)) {
     throw new Error('プロジェクト設定が不正です。');
   }
-  const objectCandidates = (parsed as Record<string, unknown>).objects;
-  if (!Array.isArray(objectCandidates)) {
-    throw new Error('オブジェクト一覧が不正です。');
-  }
-  if (!objectCandidates.every((obj) => isTimelineObject(obj))) {
-    throw new Error('オブジェクト一覧に不正な要素が含まれています。');
-  }
 
-  return {
-    filePath: response.filePath,
-    project: {
+  if (candidate.version === PROJECT_FILE_VERSION_V1) {
+    const objectCandidates = (parsed as Record<string, unknown>).objects;
+    if (!Array.isArray(objectCandidates)) {
+      throw new Error('オブジェクト一覧が不正です。');
+    }
+    if (!objectCandidates.every((obj) => isTimelineObject(obj))) {
+      throw new Error('オブジェクト一覧に不正な要素が含まれています。');
+    }
+    const v1: ProjectFileV1 = {
       format: PROJECT_FILE_FORMAT,
-      version: PROJECT_FILE_VERSION,
+      version: PROJECT_FILE_VERSION_V1,
       savedAt: typeof candidate.savedAt === 'string' ? candidate.savedAt : new Date().toISOString(),
       projectSettings: candidate.projectSettings,
       duration: typeof candidate.duration === 'number' && Number.isFinite(candidate.duration)
         ? Math.max(1, candidate.duration)
         : 30,
       layers: parseLayers(candidate.layers),
-      objects: objectCandidates as TimelineObject[],
-    },
-  };
+      objects: objectCandidates as TimelineObject[]
+    };
+    return {
+      filePath: response.filePath,
+      project: migrateV1ToV2(v1)
+    };
+  }
+
+  if (candidate.version === PROJECT_FILE_VERSION_V2) {
+    const rawScenes = (parsed as Record<string, unknown>).scenes;
+    if (!Array.isArray(rawScenes) || rawScenes.length === 0) {
+      throw new Error('シーン一覧が不正です。');
+    }
+    const scenes = rawScenes
+      .map((entry) => parseSceneEntry(entry))
+      .filter((entry): entry is SceneData => entry !== null);
+    if (scenes.length !== rawScenes.length) {
+      throw new Error('シーン一覧に不正な要素が含まれています。');
+    }
+    const activeSceneId = typeof candidate.activeSceneId === 'string' && candidate.activeSceneId.trim() !== ''
+      ? candidate.activeSceneId
+      : scenes[0].id;
+    if (!scenes.some((scene) => scene.id === activeSceneId)) {
+      throw new Error('アクティブシーン ID が存在しません。');
+    }
+    return {
+      filePath: response.filePath,
+      project: {
+        format: PROJECT_FILE_FORMAT,
+        version: PROJECT_FILE_VERSION_V2,
+        savedAt: typeof candidate.savedAt === 'string' ? candidate.savedAt : new Date().toISOString(),
+        projectSettings: candidate.projectSettings,
+        activeSceneId,
+        scenes
+      }
+    };
+  }
+
+  throw new Error('対応していないプロジェクトファイル形式です。');
 };
 
 export const restoreProjectObjects = async (

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill } from '../types';
+import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState } from '../types';
 import { buildPsdLayerTree, togglePsdLayer } from '../utils/psdParser';
 import { easingNames, EasingType } from '../utils/easings';
 import { buildEndpointKeyframes, evaluateObjectPositionAtTime } from '../utils/keyframes';
@@ -37,6 +37,119 @@ const SectionHeader = ({ label }: { label: string }) => (
     {label}
   </div>
 );
+
+const SceneAndCameraPanel: React.FC = () => {
+  const scenes = useStore((state) => state.scenes);
+  const activeSceneId = useStore((state) => state.activeSceneId);
+  const camera = useStore((state) => state.camera);
+  const switchScene = useStore((state) => state.switchScene);
+  const addScene = useStore((state) => state.addScene);
+  const deleteScene = useStore((state) => state.deleteScene);
+  const renameScene = useStore((state) => state.renameScene);
+  const setCamera = useStore((state) => state.setCamera);
+  const pushHistory = useStore((state) => state.pushHistory);
+  const activeScene = scenes.find((scene) => scene.id === activeSceneId);
+  const [renameDraft, setRenameDraft] = useState(activeScene?.name ?? '');
+
+  useEffect(() => {
+    setRenameDraft(activeScene?.name ?? '');
+  }, [activeSceneId, activeScene?.name]);
+
+  const applyCamera = (patch: Partial<CameraState>) => {
+    pushHistory();
+    setCamera(patch);
+  };
+
+  return (
+    <>
+      <SectionHeader label="Scene" />
+      <Row label="アクティブ">
+        <select
+          value={activeSceneId}
+          onChange={(e) => switchScene(e.target.value)}
+          style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee', fontSize: '12px' }}
+        >
+          {scenes.map((scene) => (
+            <option key={scene.id} value={scene.id}>{scene.name}</option>
+          ))}
+        </select>
+      </Row>
+      <Row label="シーン名">
+        <input
+          type="text"
+          value={renameDraft}
+          onChange={(e) => setRenameDraft(e.target.value)}
+          onBlur={() => renameScene(activeSceneId, renameDraft)}
+          style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee', fontSize: '12px' }}
+        />
+      </Row>
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
+        <button type="button" onClick={() => addScene()} style={{ flex: 1, background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '11px', cursor: 'pointer' }}>
+          ＋ シーン
+        </button>
+        <button
+          type="button"
+          disabled={scenes.length <= 1}
+          onClick={() => {
+            if (scenes.length <= 1) return;
+            if (!window.confirm('このシーンを削除します。よろしいですか？')) return;
+            deleteScene(activeSceneId);
+          }}
+          style={{
+            flex: 1,
+            background: scenes.length <= 1 ? '#333' : '#553333',
+            border: '1px solid #444',
+            color: scenes.length <= 1 ? '#666' : '#ffb0b0',
+            borderRadius: '4px',
+            padding: '4px 8px',
+            fontSize: '11px',
+            cursor: scenes.length <= 1 ? 'default' : 'pointer'
+          }}
+        >
+          削除
+        </button>
+      </div>
+
+      <SectionHeader label="Camera" />
+      <Row label="Pan X">
+        <input
+          type="number"
+          value={camera.centreOffsetX}
+          onChange={(e) => applyCamera({ centreOffsetX: parseFloat(e.target.value) || 0 })}
+          style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+        />
+      </Row>
+      <Row label="Pan Y">
+        <input
+          type="number"
+          value={camera.centreOffsetY}
+          onChange={(e) => applyCamera({ centreOffsetY: parseFloat(e.target.value) || 0 })}
+          style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+        />
+      </Row>
+      <Row label="Zoom">
+        <Slider
+          min="0.1"
+          max="3"
+          step="0.05"
+          value={camera.zoom}
+          onInput={(e) => applyCamera({ zoom: parseFloat(e.currentTarget.value) })}
+          style={{ width: '100%' }}
+        />
+      </Row>
+      <Row label="Rotation °">
+        <Slider
+          min="-180"
+          max="180"
+          step="1"
+          value={camera.rotationDeg}
+          onInput={(e) => applyCamera({ rotationDeg: parseFloat(e.currentTarget.value) })}
+          style={{ width: '100%' }}
+        />
+      </Row>
+    </>
+  );
+};
 
 const PropertyPanel: React.FC = () => {
   const { selectedObject, selectedCount, selectedObjects, currentTime, objects } = useStore((state) => {
@@ -89,8 +202,11 @@ const PropertyPanel: React.FC = () => {
 
   if (!selectedObject) {
     return (
-      <div className="property-panel no-drag" style={{ width: '300px', background: '#252526', borderLeft: '1px solid #111', padding: '10px', color: '#ccc' }}>
-        <div style={{ fontSize: '12px', color: '#888' }}>No object selected</div>
+      <div className="property-panel no-drag" style={{ width: '300px', height: '100%', background: '#252526', borderLeft: '1px solid #111', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+        <div style={{ padding: '10px' }}>
+          <SceneAndCameraPanel />
+          <div style={{ marginTop: '16px', fontSize: '12px', color: '#888' }}>オブジェクトが選択されていません</div>
+        </div>
       </div>
     );
   }
@@ -116,7 +232,10 @@ const PropertyPanel: React.FC = () => {
     clipping: 'クリッピング',
     vibration: '振動',
     shadow: '影',
-    gradient: 'グラデーション'
+    gradient: 'グラデーション',
+    blur: 'ぼかし',
+    fade: 'フェード（不透明度）',
+    wipe: 'ワイプ'
   };
   const canUseGradientFilter = selectedObject.type === 'shape';
   const currentGroupId = selectedObject.groupId ?? null;
@@ -454,6 +573,9 @@ const PropertyPanel: React.FC = () => {
 
   return (
     <div className="property-panel no-drag" style={{ width: '300px', height: '100%', background: '#252526', borderLeft: '1px solid #111', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+      <div style={{ padding: '10px', borderBottom: '1px solid #333', background: '#2a2a2a' }}>
+        <SceneAndCameraPanel />
+      </div>
       <div style={{ padding: '10px', borderBottom: '1px solid #333', background: '#333', fontWeight: 'bold' }}>
         Property: {selectedObject.name}
         {selectedCount > 1 && (
@@ -656,6 +778,9 @@ const PropertyPanel: React.FC = () => {
             <button type="button" onClick={() => handleAddFilter('clipping')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ クリッピング</button>
             <button type="button" onClick={() => handleAddFilter('vibration')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ 振動</button>
             <button type="button" onClick={() => handleAddFilter('shadow')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ 影</button>
+            <button type="button" onClick={() => handleAddFilter('blur')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ ぼかし</button>
+            <button type="button" onClick={() => handleAddFilter('fade')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ フェード</button>
+            <button type="button" onClick={() => handleAddFilter('wipe')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ ワイプ</button>
             {canUseGradientFilter && (
                 <button type="button" onClick={() => handleAddFilter('gradient')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ グラデーション</button>
             )}
@@ -881,6 +1006,68 @@ const PropertyPanel: React.FC = () => {
                         </Row>
                         <Row label="Opacity">
                             <Slider min="0" max="1" step="0.05" value={activeFilter.params.opacity} onInput={(e) => handleFilterParamChange(activeFilter, { opacity: parseFloat(e.currentTarget.value) })} style={{ width: '100%' }} />
+                        </Row>
+                    </>
+                )}
+                {activeFilter.type === 'blur' && (
+                    <>
+                        <Row label="Strength">
+                            <Slider
+                                min="0"
+                                max="20"
+                                step="0.5"
+                                value={activeFilter.params.strength}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { strength: parseFloat(e.currentTarget.value) })}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                        <Row label="Quality">
+                            <input
+                                type="number"
+                                min={1}
+                                max={4}
+                                value={activeFilter.params.quality}
+                                onChange={(e) => handleFilterParamChange(activeFilter, { quality: Math.round(parseFloat(e.target.value) || 3) })}
+                                style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                            />
+                        </Row>
+                    </>
+                )}
+                {activeFilter.type === 'fade' && (
+                    <Row label="Opacity ×">
+                        <Slider
+                            min="0"
+                            max="1"
+                            step="0.05"
+                            value={activeFilter.params.opacity}
+                            onInput={(e) => handleFilterParamChange(activeFilter, { opacity: parseFloat(e.currentTarget.value) })}
+                            style={{ width: '100%' }}
+                        />
+                    </Row>
+                )}
+                {activeFilter.type === 'wipe' && (
+                    <>
+                        <Row label="Edge">
+                            <select
+                                value={activeFilter.params.edge}
+                                onChange={(e) => handleFilterParamChange(activeFilter, { edge: e.target.value as WipeEdge })}
+                                style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                            >
+                                <option value="left">左</option>
+                                <option value="right">右</option>
+                                <option value="top">上</option>
+                                <option value="bottom">下</option>
+                            </select>
+                        </Row>
+                        <Row label="Reverse">
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={activeFilter.params.reverse}
+                                    onChange={(e) => handleFilterParamChange(activeFilter, { reverse: e.target.checked })}
+                                />
+                                退場方向
+                            </label>
                         </Row>
                     </>
                 )}

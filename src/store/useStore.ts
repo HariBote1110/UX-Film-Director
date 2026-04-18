@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { TimelineObject, ProjectSettings, LayerState, FilterType, GradientFill } from '../types';
+import { TimelineObject, ProjectSettings, LayerState, FilterType, GradientFill, CameraState, SceneData } from '../types';
 import { MAX_LAYERS } from '../components/timelineConstants';
+import { createDefaultCamera, createDefaultLayers, flushActiveIntoScenes, sanitiseCamera } from '../utils/sceneState';
 import {
   addFilterToObject,
   moveFilterInObject,
@@ -32,6 +33,7 @@ interface ClipboardState {
 interface HistorySnapshot {
   objects: TimelineObject[];
   layers: LayerState[];
+  camera?: CameraState;
 }
 
 interface AppState {
@@ -51,6 +53,9 @@ interface AppState {
   isPlaying: boolean;
   layers: LayerState[];
   objects: TimelineObject[];
+  camera: CameraState;
+  scenes: SceneData[];
+  activeSceneId: string;
   selectedId: string | null;
   selectedIds: string[];
   clipboard: ClipboardState | null;
@@ -61,7 +66,12 @@ interface AppState {
 
   // Actions
   initializeProject: (settings: ProjectSettings) => void;
-  loadProject: (settings: ProjectSettings, objects: TimelineObject[], duration?: number, layers?: LayerState[]) => void;
+  loadProject: (settings: ProjectSettings, scenes: SceneData[], activeSceneId: string) => void;
+  setCamera: (patch: Partial<CameraState>) => void;
+  switchScene: (sceneId: string) => void;
+  addScene: () => void;
+  deleteScene: (sceneId: string) => void;
+  renameScene: (sceneId: string, name: string) => void;
   setLayerName: (layer: number, name: string) => void;
   toggleLayerVisibility: (layer: number) => void;
   toggleLayerLock: (layer: number) => void;
@@ -123,14 +133,6 @@ const KEYFRAME_TIME_EPSILON = 0.0001;
 
 const clampLayerIndex = (value: number): number => {
   return Math.max(0, Math.min(MAX_LAYERS - 1, Math.round(value)));
-};
-
-const createDefaultLayers = (): LayerState[] => {
-  return Array.from({ length: MAX_LAYERS }, (_, index) => ({
-    name: `Layer ${index + 1}`,
-    visible: true,
-    locked: false
-  }));
 };
 
 const normaliseLayers = (layers?: LayerState[]): LayerState[] => {
@@ -198,6 +200,14 @@ const getSelectedObjects = (state: AppState): TimelineObject[] => {
   return state.objects.filter((obj) => selectedSet.has(obj.id));
 };
 
+const normaliseSceneObjectList = (objects: TimelineObject[]): TimelineObject[] => {
+  return objects
+    .map(cloneTimelineObject)
+    .map(normaliseObjectLayer)
+    .map(syncLegacyEffectsWithFilters)
+    .map(syncObjectKeyframes);
+};
+
 const syncObjectKeyframes = (object: TimelineObject): TimelineObject => {
   const keyframes = normaliseKeyframesForObject(object, object.keyframes);
   if (keyframes.length === 0) {
@@ -230,6 +240,9 @@ export const useStore = create<AppState>((set, get) => ({
   isPlaying: false,
   layers: createDefaultLayers(),
   objects: [],
+  camera: createDefaultCamera(),
+  scenes: [],
+  activeSceneId: '',
   selectedId: null,
   selectedIds: [],
   clipboard: null,
@@ -237,34 +250,58 @@ export const useStore = create<AppState>((set, get) => ({
   pastStates: [],
   futureStates: [],
 
-  initializeProject: (settings) => set({ 
-    projectSettings: settings,
-    isProjectLoaded: true,
-    currentTime: 0,
-    duration: 30,
-    isPlaying: false,
-    layers: createDefaultLayers(),
-    objects: [],
-    selectedId: null,
-    selectedIds: [],
-    clipboard: null,
-    pastStates: [],
-    futureStates: []
-  }),
-
-  loadProject: (settings, objects, duration, layers) => {
-    const normalisedObjects = objects
-      .map(normaliseObjectLayer)
-      .map(syncLegacyEffectsWithFilters)
-      .map(syncObjectKeyframes);
+  initializeProject: (settings) => {
+    const sceneId = crypto.randomUUID();
+    const initialLayers = createDefaultLayers();
+    const cam = createDefaultCamera();
     set({
       projectSettings: settings,
       isProjectLoaded: true,
       currentTime: 0,
-      duration: Math.max(1, duration ?? calculateAutoDuration(normalisedObjects)),
+      duration: 30,
       isPlaying: false,
-      layers: normaliseLayers(layers),
-      objects: normalisedObjects,
+      layers: initialLayers,
+      objects: [],
+      camera: { ...cam },
+      scenes: [{
+        id: sceneId,
+        name: 'Scene 1',
+        duration: 30,
+        layers: initialLayers,
+        objects: [],
+        camera: { ...cam }
+      }],
+      activeSceneId: sceneId,
+      selectedId: null,
+      selectedIds: [],
+      clipboard: null,
+      pastStates: [],
+      futureStates: []
+    });
+  },
+
+  loadProject: (settings, scenesInput, activeSceneId) => {
+    if (!Array.isArray(scenesInput) || scenesInput.length === 0) {
+      return;
+    }
+    const normalisedScenes: SceneData[] = scenesInput.map((scene) => ({
+      ...scene,
+      layers: normaliseLayers(scene.layers),
+      camera: sanitiseCamera(scene.camera),
+      objects: normaliseSceneObjectList(scene.objects)
+    }));
+    const active = normalisedScenes.find((s) => s.id === activeSceneId) ?? normalisedScenes[0];
+    set({
+      projectSettings: settings,
+      isProjectLoaded: true,
+      currentTime: 0,
+      duration: Math.max(1, active.duration),
+      isPlaying: false,
+      layers: active.layers.map((layer) => ({ ...layer })),
+      objects: active.objects,
+      camera: { ...active.camera },
+      scenes: normalisedScenes,
+      activeSceneId: active.id,
       selectedId: null,
       selectedIds: [],
       clipboard: null,
@@ -346,6 +383,137 @@ export const useStore = create<AppState>((set, get) => ({
     });
   },
 
+  setCamera: (patch) => set((state) => ({
+    camera: sanitiseCamera({ ...state.camera, ...patch })
+  })),
+
+  switchScene: (sceneId) => {
+    const state = get();
+    if (sceneId === state.activeSceneId) return;
+    const targetScene = state.scenes.find((scene) => scene.id === sceneId);
+    if (!targetScene) return;
+
+    const flushed = flushActiveIntoScenes(
+      state.scenes,
+      state.activeSceneId,
+      state.objects,
+      state.layers,
+      state.duration,
+      state.camera
+    );
+    const target = flushed.find((scene) => scene.id === sceneId);
+    if (!target) return;
+
+    const nextObjects = normaliseSceneObjectList(target.objects);
+    const nextLayers = target.layers.map((layer) => ({ ...layer }));
+
+    set({
+      scenes: flushed.map((scene) => (
+        scene.id === sceneId
+          ? { ...scene, objects: nextObjects, layers: nextLayers.map((l) => ({ ...l })) }
+          : scene
+      )),
+      activeSceneId: sceneId,
+      objects: nextObjects,
+      layers: nextLayers,
+      duration: Math.max(1, target.duration),
+      camera: { ...target.camera },
+      currentTime: 0,
+      isPlaying: false,
+      selectedId: null,
+      selectedIds: [],
+      pastStates: [],
+      futureStates: []
+    });
+  },
+
+  addScene: () => {
+    const state = get();
+    const flushed = flushActiveIntoScenes(
+      state.scenes,
+      state.activeSceneId,
+      state.objects,
+      state.layers,
+      state.duration,
+      state.camera
+    );
+    const newId = crypto.randomUUID();
+    const freshLayers = createDefaultLayers();
+    const freshCam = createDefaultCamera();
+    const newScene: SceneData = {
+      id: newId,
+      name: `Scene ${flushed.length + 1}`,
+      duration: 30,
+      layers: freshLayers,
+      objects: [],
+      camera: freshCam
+    };
+    set({
+      scenes: [...flushed, newScene],
+      activeSceneId: newId,
+      objects: [],
+      layers: freshLayers,
+      duration: 30,
+      camera: { ...freshCam },
+      currentTime: 0,
+      isPlaying: false,
+      selectedId: null,
+      selectedIds: [],
+      pastStates: [],
+      futureStates: []
+    });
+  },
+
+  deleteScene: (sceneId) => {
+    const state = get();
+    if (state.scenes.length <= 1) return;
+    const flushed = flushActiveIntoScenes(
+      state.scenes,
+      state.activeSceneId,
+      state.objects,
+      state.layers,
+      state.duration,
+      state.camera
+    );
+    const nextScenes = flushed.filter((scene) => scene.id !== sceneId);
+    if (nextScenes.length === 0) return;
+
+    if (state.activeSceneId !== sceneId) {
+      set({ scenes: nextScenes });
+      return;
+    }
+
+    const fallback = nextScenes[0];
+    const nextObjects = normaliseSceneObjectList(fallback.objects);
+    const nextLayers = fallback.layers.map((layer) => ({ ...layer }));
+    set({
+      scenes: nextScenes.map((scene) => (
+        scene.id === fallback.id
+          ? { ...scene, objects: nextObjects, layers: nextLayers.map((l) => ({ ...l })) }
+          : scene
+      )),
+      activeSceneId: fallback.id,
+      objects: nextObjects,
+      layers: nextLayers,
+      duration: Math.max(1, fallback.duration),
+      camera: { ...fallback.camera },
+      currentTime: 0,
+      isPlaying: false,
+      selectedId: null,
+      selectedIds: [],
+      pastStates: [],
+      futureStates: []
+    });
+  },
+
+  renameScene: (sceneId, name) => set((state) => ({
+    scenes: state.scenes.map((scene) => (
+      scene.id === sceneId
+        ? { ...scene, name: name.trim() === '' ? scene.name : name.trim() }
+        : scene
+    ))
+  })),
+
   setTime: (time) => set((state) => {
     const nextTime = Math.max(0, time);
     if (Math.abs(state.currentTime - nextTime) < 0.0001) return {};
@@ -389,7 +557,8 @@ export const useStore = create<AppState>((set, get) => ({
       ...state.pastStates,
       {
         objects: state.objects,
-        layers: state.layers.map((layer) => ({ ...layer }))
+        layers: state.layers.map((layer) => ({ ...layer })),
+        camera: { ...state.camera }
       }
     ],
     futureStates: [] // 新しい操作をしたらRedoスタックはクリア
@@ -402,11 +571,13 @@ export const useStore = create<AppState>((set, get) => ({
     return {
       objects: previous.objects,
       layers: previous.layers.map((layer) => ({ ...layer })),
+      camera: sanitiseCamera(previous.camera),
       pastStates: newPast,
       futureStates: [
         {
           objects: state.objects,
-          layers: state.layers.map((layer) => ({ ...layer }))
+          layers: state.layers.map((layer) => ({ ...layer })),
+          camera: { ...state.camera }
         },
         ...state.futureStates
       ],
@@ -423,11 +594,13 @@ export const useStore = create<AppState>((set, get) => ({
     return {
       objects: next.objects,
       layers: next.layers.map((layer) => ({ ...layer })),
+      camera: sanitiseCamera(next.camera),
       pastStates: [
         ...state.pastStates,
         {
           objects: state.objects,
-          layers: state.layers.map((layer) => ({ ...layer }))
+          layers: state.layers.map((layer) => ({ ...layer })),
+          camera: { ...state.camera }
         }
       ],
       futureStates: newFuture,

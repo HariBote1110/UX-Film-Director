@@ -548,6 +548,18 @@ export const applyObjectEffects = (container: PIXI.Container, obj: TimelineObjec
                 nextPixiFilters.push(new DiagonalClippingFilter(filter.params, clippingWidth, clippingHeight));
             }
             clippingCursor += 1;
+            return;
+        }
+
+        if (filter.type === 'blur') {
+            const strength = Math.max(0, filter.params.strength);
+            const quality = Math.max(1, Math.min(4, Math.round(filter.params.quality)));
+            if (strength > 0.05) {
+                nextPixiFilters.push(new PIXI.BlurFilter({
+                    strength,
+                    quality
+                }));
+            }
         }
     });
 

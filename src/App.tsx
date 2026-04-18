@@ -17,7 +17,7 @@ const App: React.FC = () => {
   const [projectIoAction, setProjectIoAction] = useState<'idle' | 'opening' | 'saving'>('idle');
   const [isMp3Exporting, setIsMp3Exporting] = useState(false);
 
-  const { isProjectLoaded, isExporting, setExporting, requestSnapshot, loadProject, projectSettings, duration, objects, layers } = useStore((state) => ({
+  const { isProjectLoaded, isExporting, setExporting, requestSnapshot, loadProject, projectSettings, duration, objects, layers, scenes, activeSceneId, camera } = useStore((state) => ({
     isProjectLoaded: state.isProjectLoaded,
     isExporting: state.isExporting,
     setExporting: state.setExporting,
@@ -27,6 +27,9 @@ const App: React.FC = () => {
     duration: state.duration,
     objects: state.objects,
     layers: state.layers,
+    scenes: state.scenes,
+    activeSceneId: state.activeSceneId,
+    camera: state.camera,
   }), shallow);
 
   const handleOpenProject = async () => {
@@ -38,17 +41,14 @@ const App: React.FC = () => {
       const loaded = await openProjectFileWithDialog();
       if (!loaded) return;
 
-      const restoredObjects = await restoreProjectObjects(
-        loaded.project.objects,
-        loaded.project.projectSettings
+      const scenesRestored = await Promise.all(
+        loaded.project.scenes.map(async (scene) => ({
+          ...scene,
+          objects: await restoreProjectObjects(scene.objects, loaded.project.projectSettings)
+        }))
       );
 
-      loadProject(
-        loaded.project.projectSettings,
-        restoredObjects,
-        loaded.project.duration,
-        loaded.project.layers
-      );
+      loadProject(loaded.project.projectSettings, scenesRestored, loaded.project.activeSceneId);
     } catch (error) {
       alert(`プロジェクト読み込みに失敗しました: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
@@ -62,7 +62,15 @@ const App: React.FC = () => {
 
     try {
       setProjectIoAction('saving');
-      const projectFile = buildProjectFileData(projectSettings, duration, objects, layers);
+      const projectFile = buildProjectFileData({
+        projectSettings,
+        scenes,
+        activeSceneId,
+        objects,
+        layers,
+        duration,
+        camera
+      });
       const result = await saveProjectFileWithDialog(projectFile);
       if (!result.success && !result.cancelled) {
         throw new Error(result.error || '不明な保存エラー');

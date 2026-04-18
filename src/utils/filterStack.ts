@@ -45,6 +45,20 @@ const DEFAULT_GRADIENT: Omit<GradientFill, 'enabled'> = {
   direction: 0
 };
 
+const DEFAULT_BLUR = {
+  strength: 4,
+  quality: 3
+};
+
+const DEFAULT_FADE = {
+  opacity: 1
+};
+
+const DEFAULT_WIPE = {
+  edge: 'left' as const,
+  reverse: false
+};
+
 const createFilterId = (type: FilterType): string => {
   return `${type}-${crypto.randomUUID()}`;
 };
@@ -66,7 +80,37 @@ const isFilterType = (value: unknown): value is FilterType => {
     || value === 'clipping'
     || value === 'vibration'
     || value === 'shadow'
-    || value === 'gradient';
+    || value === 'gradient'
+    || value === 'blur'
+    || value === 'fade'
+    || value === 'wipe';
+};
+
+const normaliseBlurParams = (params: unknown): import('../types').BlurFilterParams => {
+  const source = isRecord(params) ? params : {};
+  return {
+    strength: Math.max(0, toNumber(source.strength, DEFAULT_BLUR.strength)),
+    quality: Math.max(1, Math.min(4, Math.round(toNumber(source.quality, DEFAULT_BLUR.quality))))
+  };
+};
+
+const normaliseFadeParams = (params: unknown): import('../types').FadeFilterParams => {
+  const source = isRecord(params) ? params : {};
+  return {
+    opacity: Math.max(0, Math.min(1, toNumber(source.opacity, DEFAULT_FADE.opacity)))
+  };
+};
+
+const isWipeEdge = (value: unknown): value is import('../types').WipeEdge => {
+  return value === 'left' || value === 'right' || value === 'top' || value === 'bottom';
+};
+
+const normaliseWipeParams = (params: unknown): import('../types').WipeFilterParams => {
+  const source = isRecord(params) ? params : {};
+  return {
+    edge: isWipeEdge(source.edge) ? source.edge : DEFAULT_WIPE.edge,
+    reverse: toBoolean(source.reverse, DEFAULT_WIPE.reverse)
+  };
 };
 
 const normaliseColorParams = (params: unknown): Omit<ColorCorrection, 'enabled'> => {
@@ -180,6 +224,27 @@ export const createDefaultFilter = (type: FilterType): ObjectFilter => {
           stops: [...DEFAULT_GRADIENT.stops]
         }
       };
+    case 'blur':
+      return {
+        id: createFilterId(type),
+        type,
+        enabled: true,
+        params: { ...DEFAULT_BLUR }
+      };
+    case 'fade':
+      return {
+        id: createFilterId(type),
+        type,
+        enabled: true,
+        params: { ...DEFAULT_FADE }
+      };
+    case 'wipe':
+      return {
+        id: createFilterId(type),
+        type,
+        enabled: true,
+        params: { ...DEFAULT_WIPE }
+      };
     default:
       return {
         id: createFilterId('color_correction'),
@@ -232,6 +297,27 @@ const normaliseFilter = (value: unknown): ObjectFilter | null => {
         type: 'gradient',
         enabled,
         params: normaliseGradientParams(value.params)
+      };
+    case 'blur':
+      return {
+        id,
+        type: 'blur',
+        enabled,
+        params: normaliseBlurParams(value.params)
+      };
+    case 'fade':
+      return {
+        id,
+        type: 'fade',
+        enabled,
+        params: normaliseFadeParams(value.params)
+      };
+    case 'wipe':
+      return {
+        id,
+        type: 'wipe',
+        enabled,
+        params: normaliseWipeParams(value.params)
       };
     default:
       return null;
@@ -314,6 +400,19 @@ export const getObjectFiltersInOrder = (object: TimelineObject): ObjectFilter[] 
 
 export const getEnabledObjectFiltersInOrder = (object: TimelineObject): ObjectFilter[] => {
   return resolveOrderedFilters(object).filter((filter) => filter.enabled);
+};
+
+export const getFadeOpacityMultiplier = (object: TimelineObject): number => {
+  return getEnabledObjectFiltersInOrder(object)
+    .filter((filter): filter is Extract<ObjectFilter, { type: 'fade' }> => filter.type === 'fade')
+    .reduce((acc, filter) => acc * Math.max(0, Math.min(1, filter.params.opacity)), 1);
+};
+
+export const getPrimaryWipeFilter = (
+  object: TimelineObject
+): Extract<ObjectFilter, { type: 'wipe' }> | null => {
+  const found = getEnabledObjectFiltersInOrder(object).find((filter) => filter.type === 'wipe');
+  return found && found.type === 'wipe' ? found : null;
 };
 
 const findLastFilter = (filters: ObjectFilter[], type: FilterType): ObjectFilter | null => {

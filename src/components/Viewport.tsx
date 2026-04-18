@@ -10,7 +10,7 @@ import { useProjectExport } from '../hooks/useProjectExport';
 import { getGroupTransforms, getLipSyncViseme, updatePixiContent, applyObjectEffects, getVibrationOffset, applyGroupGradientEffect } from '../utils/pixiRenderHelper';
 import type { VideoFrameTextureState } from '../utils/pixiRenderHelper';
 import { evaluateObjectPositionAtTime } from '../utils/keyframes';
-import { getEnabledObjectFiltersInOrder } from '../utils/filterStack';
+import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier, getPrimaryWipeFilter } from '../utils/filterStack';
 
 const GROUP_GRADIENT_COMPONENT_PREFIX = 'group-gradient-component-';
 
@@ -74,6 +74,7 @@ const flattenGroupGradientComponents = (groupContainer: PIXI.Container) => {
 const Viewport: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const pixiAppRef = useRef<PIXI.Application | null>(null);
+  const worldContainerRef = useRef<PIXI.Container | null>(null);
   const pixiObjectsRef = useRef<Map<string, PIXI.Container>>(new Map());
   const groupContainersRef = useRef<Map<string, PIXI.Container>>(new Map());
   
@@ -92,6 +93,7 @@ const Viewport: React.FC = () => {
     currentTime, objects, selectedIds, clearSelection,
     projectSettings, isPlaying, isExporting,
     layers,
+    camera,
     isSnapshotRequested, finishSnapshot
   } = useStore((state) => ({
     currentTime: state.currentTime,
@@ -102,6 +104,7 @@ const Viewport: React.FC = () => {
     isPlaying: state.isPlaying,
     isExporting: state.isExporting,
     layers: state.layers,
+    camera: state.camera,
     isSnapshotRequested: state.isSnapshotRequested,
     finishSnapshot: state.finishSnapshot,
   }), shallow);
@@ -133,9 +136,16 @@ const Viewport: React.FC = () => {
         app.stage.eventMode = 'static';
         app.stage.hitArea = app.screen;
         app.stage.sortableChildren = true;
+        const world = new PIXI.Container();
+        world.label = 'world-root';
+        world.sortableChildren = true;
+        app.stage.addChildAt(world, 0);
+        worldContainerRef.current = world;
         app.stage.on('pointerdown', (e) => {
           if (useStore.getState().isExporting) return;
-          if (e.target === app.stage) clearSelection();
+          const target = e.target as PIXI.Container;
+          const label = typeof target?.label === 'string' ? target.label : '';
+          if (e.target === app.stage || label === 'world-root') clearSelection();
         });
         
         // 初回描画
@@ -146,6 +156,7 @@ const Viewport: React.FC = () => {
       if (pixiAppRef.current) {
         pixiAppRef.current.destroy(true, { children: true, texture: true });
         pixiAppRef.current = null;
+        worldContainerRef.current = null;
         pixiObjectsRef.current.clear();
         groupContainersRef.current.clear();
         textureCacheRef.current.clear();
@@ -230,9 +241,10 @@ const Viewport: React.FC = () => {
         currentPixiObjects.delete(id);
       }
     });
+    const worldRoot = worldContainerRef.current;
     currentGroupContainers.forEach((groupContainer, groupId) => {
       if (visibleGroupIds.has(groupId)) return;
-      app.stage.removeChild(groupContainer);
+      groupContainer.parent?.removeChild(groupContainer);
       groupContainer.destroy({ children: false });
       currentGroupContainers.delete(groupId);
     });
@@ -257,7 +269,7 @@ const Viewport: React.FC = () => {
       const groupContainer = new PIXI.Container();
       groupContainer.label = `group-${groupId}`;
       groupContainer.sortableChildren = true;
-      app.stage.addChild(groupContainer);
+      if (worldRoot) worldRoot.addChild(groupContainer);
       currentGroupContainers.set(groupId, groupContainer);
     });
 
@@ -305,9 +317,9 @@ const Viewport: React.FC = () => {
           container.parent?.removeChild(container);
           groupParent.addChild(container);
         }
-      } else if (container.parent !== app.stage) {
+      } else if (worldRoot && container.parent !== worldRoot) {
         container.parent?.removeChild(container);
-        app.stage.addChild(container);
+        worldRoot.addChild(container);
       }
 
       // Content Update
@@ -409,7 +421,7 @@ const Viewport: React.FC = () => {
       container.y = currentY + groupEffects.y + vib.y;
       container.rotation = ((obj.rotation || 0) + groupEffects.rotation) * (Math.PI / 180);
       container.scale.set((obj.scaleX ?? 1) * groupEffects.scaleX, (obj.scaleY ?? 1) * groupEffects.scaleY);
-      container.alpha = (obj.opacity ?? 1) * groupEffects.alpha;
+      container.alpha = (obj.opacity ?? 1) * groupEffects.alpha * getFadeOpacityMultiplier(obj);
       container.zIndex = obj.layer; 
       
       if (!isExporting && dragRef.current.active && dragRef.current.targetId === obj.id) {
@@ -417,20 +429,67 @@ const Viewport: React.FC = () => {
       }
     });
 
-    // 3. Clipping Mask
-    visibleObjects.forEach(obj => {
-        const container = currentPixiObjects.get(obj.id);
-        if (!container) return;
-        if (obj.clipping) {
-            const targetLayer = obj.layer - 1;
-            const targetObj = [...visibleObjects]
-              .reverse()
-              .find((candidate) => candidate.layer === targetLayer && currentPixiObjects.has(candidate.id));
-            const targetContainer = targetObj ? currentPixiObjects.get(targetObj.id) : null;
-            container.mask = targetContainer || null;
-        } else {
-            container.mask = null;
+    // 3. Clipping / Wipe masks
+    visibleObjects.forEach((obj) => {
+      const container = currentPixiObjects.get(obj.id);
+      if (!container) return;
+
+      const removeWipeMask = () => {
+        const wipeNode = container.children.find((child) => child.label === 'wipe-mask');
+        if (wipeNode) {
+          container.removeChild(wipeNode);
+          wipeNode.destroy();
         }
+      };
+
+      if (obj.clipping) {
+        removeWipeMask();
+        const targetLayer = obj.layer - 1;
+        const targetObj = [...visibleObjects]
+          .reverse()
+          .find((candidate) => candidate.layer === targetLayer && currentPixiObjects.has(candidate.id));
+        const targetContainer = targetObj ? currentPixiObjects.get(targetObj.id) : null;
+        container.mask = targetContainer || null;
+        return;
+      }
+
+      const wipe = getPrimaryWipeFilter(obj);
+      if (wipe) {
+        const bounds = container.getLocalBounds();
+        const pad = 4;
+        const bx = bounds.x - pad;
+        const by = bounds.y - pad;
+        const bw = Math.max(1, bounds.width + pad * 2);
+        const bh = Math.max(1, bounds.height + pad * 2);
+        let progress = (time - obj.startTime) / obj.duration;
+        progress = Math.max(0, Math.min(1, progress));
+        if (wipe.params.reverse) progress = 1 - progress;
+
+        let maskGraphics = container.children.find((child) => child.label === 'wipe-mask') as PIXI.Graphics | undefined;
+        if (!maskGraphics) {
+          maskGraphics = new PIXI.Graphics();
+          maskGraphics.label = 'wipe-mask';
+          container.addChild(maskGraphics);
+        }
+        maskGraphics.clear();
+        const edge = wipe.params.edge;
+        if (edge === 'left') {
+          maskGraphics.rect(bx, by, bw * progress, bh).fill({ color: 0xffffff });
+        } else if (edge === 'right') {
+          const wv = bw * progress;
+          maskGraphics.rect(bx + bw - wv, by, wv, bh).fill({ color: 0xffffff });
+        } else if (edge === 'top') {
+          maskGraphics.rect(bx, by, bw, bh * progress).fill({ color: 0xffffff });
+        } else {
+          const hv = bh * progress;
+          maskGraphics.rect(bx, by + bh - hv, bw, hv).fill({ color: 0xffffff });
+        }
+        container.mask = maskGraphics;
+        return;
+      }
+
+      removeWipeMask();
+      container.mask = null;
     });
 
     // 4. Group Gradient Filter
@@ -492,11 +551,23 @@ const Viewport: React.FC = () => {
       applyGroupGradientEffect(groupContainer, gradient);
     });
 
-    app.stage.sortChildren();
+    const world = worldContainerRef.current;
+    if (world) {
+      const w = projectSettings.width;
+      const h = projectSettings.height;
+      world.pivot.set(w / 2, h / 2);
+      world.position.set(w / 2 + camera.centreOffsetX, h / 2 + camera.centreOffsetY);
+      const zoom = Math.max(0.05, camera.zoom);
+      world.scale.set(zoom, zoom);
+      world.rotation = camera.rotationDeg * (Math.PI / 180);
+      world.sortChildren();
+    } else {
+      app.stage.sortChildren();
+    }
     
     // 手動レンダリング実行 (Ticker停止中のため必須)
     app.render();
-  }, [selectedIds, isExporting, isPlaying, isSnapshotRequested, layers]);
+  }, [selectedIds, isExporting, isPlaying, isSnapshotRequested, layers, camera, projectSettings.width, projectSettings.height]);
 
   useEffect(() => { 
       if (!isExporting) renderScene(currentTime, objects); 

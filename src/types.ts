@@ -94,7 +94,43 @@ export interface ClippingParams {
   radius: number; // ぼかし等の用途（今回はコーナー半径や簡易ぼかしとして予約、現状未使用でも可）
 }
 
-export type FilterType = 'color_correction' | 'clipping' | 'vibration' | 'shadow' | 'gradient';
+export type FilterType =
+  | 'color_correction'
+  | 'clipping'
+  | 'vibration'
+  | 'shadow'
+  | 'gradient'
+  | 'blur'
+  | 'fade'
+  | 'wipe';
+
+/** プレビュー／書き出し共通の仮想カメラ（シーン単位） */
+export interface CameraState {
+  centreOffsetX: number;
+  centreOffsetY: number;
+  /** 1 = 100% */
+  zoom: number;
+  rotationDeg: number;
+}
+
+export interface BlurFilterParams {
+  strength: number;
+  /** 1–4（Pixi BlurFilter 品質） */
+  quality: number;
+}
+
+export interface FadeFilterParams {
+  /** 表示不透明度に掛ける係数（0–1） */
+  opacity: number;
+}
+
+export type WipeEdge = 'left' | 'right' | 'top' | 'bottom';
+
+export interface WipeFilterParams {
+  edge: WipeEdge;
+  /** true のときクリップ進行を反転（退場ワイプ） */
+  reverse: boolean;
+}
 
 interface BaseFilter {
   id: string;
@@ -127,7 +163,30 @@ export interface GradientFilter extends BaseFilter {
   params: Omit<GradientFill, 'enabled'>;
 }
 
-export type ObjectFilter = ColorCorrectionFilter | ClippingFilter | VibrationFilter | ShadowFilter | GradientFilter;
+export interface BlurObjectFilter extends BaseFilter {
+  type: 'blur';
+  params: BlurFilterParams;
+}
+
+export interface FadeObjectFilter extends BaseFilter {
+  type: 'fade';
+  params: FadeFilterParams;
+}
+
+export interface WipeObjectFilter extends BaseFilter {
+  type: 'wipe';
+  params: WipeFilterParams;
+}
+
+export type ObjectFilter =
+  | ColorCorrectionFilter
+  | ClippingFilter
+  | VibrationFilter
+  | ShadowFilter
+  | GradientFilter
+  | BlurObjectFilter
+  | FadeObjectFilter
+  | WipeObjectFilter;
 
 // --- オブジェクト定義 ---
 
@@ -271,3 +330,13 @@ export interface PsdObject extends BaseObject {
 }
 
 export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject;
+
+/** タイムライン1本分（シーン） */
+export interface SceneData {
+  id: string;
+  name: string;
+  duration: number;
+  layers: LayerState[];
+  objects: TimelineObject[];
+  camera: CameraState;
+}
