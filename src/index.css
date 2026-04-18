@@ -1,72 +1,412 @@
+:root {
+  --bg-app: #09090b;
+  --bg-surface: rgba(24, 24, 27, 0.8);
+  --bg-panel: #18181b;
+  --bg-card: #27272a;
+  
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.15);
+  
+  --text-primary: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  
+  --accent-primary: #3f51b5;
+  --accent-hover: #5c6bc0;
+  --accent-success: #10b981;
+  --accent-blue: #0ea5e9;
+  
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
 body {
   margin: 0;
   padding: 0;
-  background-color: #1a1a1a;
-  color: #f0f0f0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  overflow: hidden; /* アプリ全体でスクロールバーを出さない */
-  user-select: none; /* UIのテキスト選択を防止 */
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  overflow: hidden;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ウィンドウドラッグ用のクラス */
+/* Glassmorphism utility */
+.glass {
+  background: var(--bg-surface);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Title bar */
 .title-bar {
-  -webkit-app-region: drag; /* ここが重要：ウィンドウを掴めるようにする */
+  -webkit-app-region: drag;
+  height: 48px !important;
+  background: #000000 !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  padding: 0 16px 0 80px !important;
+  display: flex;
+  align-items: center;
 }
 
-/* ボタンなどはドラッグ対象外にしないとクリックできない */
+.app-title-text {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.title-bar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .title-bar button, 
 .title-bar input,
+.title-bar select,
 .no-drag {
   -webkit-app-region: no-drag;
 }
 
-/* 以下、既存のスクロールバー設定など */
+/* Scrollbar */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #2b2b2b;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #555;
-  border-radius: 5px;
+  background: var(--border-strong);
+  border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #666;
+  background: var(--text-muted);
 }
 
+/* Form Elements */
 button {
-  background: #444;
-  color: white;
-  border: 1px solid #111;
-  padding: 4px 12px;
-  border-radius: 2px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+button:hover:not(:disabled) {
+  background: var(--text-muted);
+  border-color: var(--text-secondary);
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--accent-blue);
+  border-color: transparent;
+}
+.btn-primary:hover:not(:disabled) {
+  background: #38bdf8;
+}
+
+.btn-success {
+  background: var(--accent-success);
+  border-color: transparent;
+}
+
+select {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  outline: none;
   cursor: pointer;
   font-size: 12px;
-}
-button:hover {
-  background: #505050;
 }
 
 input[type="text"],
 input[type="number"],
 textarea {
-  background: #111;
-  border: 1px solid #444;
-  color: #fff;
-  padding: 4px;
-  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
   width: 100%;
   box-sizing: border-box;
-}
-input:focus, textarea:focus {
-  outline: 1px solid #007acc;
-  border-color: #007acc;
+  font-family: inherit;
+  font-size: 13px;
+  transition: border-color 0.2s;
 }
 
-/* Electron titlebar drag 領域と競合しないよう、スライダーは明示的に no-drag */
+input:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+}
+
 input[type="range"] {
   -webkit-app-region: no-drag;
-  user-select: auto;
+  accent-color: var(--accent-blue);
+  height: 4px;
+  cursor: pointer;
+}
+
+/* Layout classes */
+.workspace-main {
+  background: var(--bg-app);
+}
+
+.properties-area {
+  background: var(--bg-panel) !important;
+  border-left: 1px solid var(--border-subtle) !important;
+}
+
+.timeline-area {
+  background: var(--bg-panel) !important;
+  border-top: 1px solid var(--border-strong) !important;
+}
+
+.input-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.property-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.property-label {
+  width: 90px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.property-value {
+  flex: 1;
+  min-width: 0;
+}
+
+.property-section-header {
+  margin: 20px 0 12px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--accent-blue);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* Specific Panel Styling */
+.property-panel {
+  background: var(--bg-panel);
+  color: var(--text-primary);
+}
+
+.panel-header {
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.panel-content {
+  padding: 16px;
+}
+
+/* Setup Screen Specific */
+.setup-screen {
+  background: radial-gradient(circle at center, #18181b 0%, #09090b 100%);
+}
+
+.setup-card {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.export-indicator {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  padding: 8px 16px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--accent-success);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.05em;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+}
+
+.export-dot {
+  width: 10px;
+  height: 10px;
+  background: var(--accent-success);
+  border-radius: 50%;
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.preview-canvas-container {
+  box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.8), 
+              0 0 0 1px var(--border-subtle);
+  background: #000;
+}
+
+/* Timeline Specific */
+.timeline-panel {
+  background: var(--bg-app);
+  display: flex;
+  flex-direction: column;
+}
+
+.timeline-ruler {
+  background: #18181b;
+  border-bottom: 1px solid var(--border-strong);
+  height: 32px;
+  position: sticky;
+  top: 0;
+  z-index: 800;
+}
+
+.timeline-ruler-time {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-left: 1px solid var(--border-subtle);
+  padding-left: 4px;
+  font-size: 9px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.layer-header {
+  position: sticky;
+  left: 0;
+  background: #27272a;
+  border-right: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-subtle);
+  z-index: 700;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 4px 0 10px rgba(0, 0, 0, 0.2);
+}
+
+.layer-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.seek-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent-blue);
+  z-index: 805;
+  pointer-events: none;
+}
+
+.seek-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -4px;
+  width: 10px;
+  height: 10px;
+  background: var(--accent-blue);
+  clip-path: polygon(0% 0%, 100% 0%, 50% 100%);
+}
+
+.timeline-track {
+  display: flex;
+  height: 40px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.layer-control-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  font-size: 10px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+}
+
+.layer-control-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.layer-control-btn.active-visible {
+  color: var(--accent-success);
+}
+
+.layer-control-btn.active-locked {
+  color: #ef4444;
+}
+
+.control-bar {
+  padding: 8px 16px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-strong);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  box-sizing: border-box;
+}
+
+.divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border-subtle);
+  margin: 0 4px;
 }

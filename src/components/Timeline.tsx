@@ -450,9 +450,15 @@ const Timeline: React.FC = () => {
   );
 
   return (
-    <div className="timeline-panel" style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#222', color: '#ccc', position: 'relative' }}>
+    <div className="timeline-panel">
       
-      {isExporting && <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'white' }}>Exporting...</div>}
+      {isExporting && (
+        <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <div className="glass" style={{ padding: '20px 40px', borderRadius: 'var(--radius-lg)' }}>
+            Exporting...
+          </div>
+        </div>
+      )}
 
       <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleImageChange} />
       <input type="file" ref={videoInputRef} style={{ display: 'none' }} accept="video/*" onChange={handleVideoChange} />
@@ -469,7 +475,7 @@ const Timeline: React.FC = () => {
         onAddGroup={cbAddGroup}
       />
 
-      <div ref={timelineRef} className="timeline-tracks" style={{ flex: 1, overflow: 'auto', position: 'relative', background: '#1e1e1e' }} 
+      <div ref={timelineRef} className="timeline-tracks" style={{ flex: 1, overflow: 'auto' }} 
            onMouseDown={handleTimelineMouseDown}
            onClick={(e) => { if (!isExporting && e.button === 0 && e.target === e.currentTarget) clearSelection(); }} 
            onContextMenu={handleCanvasContextMenu}
@@ -478,28 +484,22 @@ const Timeline: React.FC = () => {
       >
         <div style={{ width: `${totalWidth}px`, height: `${(MAX_LAYERS * ROW_HEIGHT) + RULER_HEIGHT}px`, position: 'relative' }}>
           
-          <div style={{ 
-              position: 'sticky', top: 0, height: `${RULER_HEIGHT}px`, background: '#252526', zIndex: 800, 
-              overflow: 'hidden', borderBottom: '1px solid #444'
-          }} onMouseDown={handleSeekMouseDown}>
-             <div style={{ position: 'sticky', left: 0, width: HEADER_WIDTH, height: '100%', background: '#333', borderRight: '1px solid #111', zIndex: 810, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#888' }}>Timeline</div>
+          <div className="timeline-ruler" onMouseDown={handleSeekMouseDown}>
+             <div className="layer-header" style={{ position: 'sticky', width: HEADER_WIDTH, height: '100%', fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Timeline</div>
              {Array.from({ length: Math.ceil(duration / 5) + 1 }).map((_, i) => (
-                <div key={i} style={{ position: 'absolute', left: HEADER_WIDTH + (i * 5 * PX_PER_SEC), top: 0, height: '100%', borderLeft: '1px solid #555', paddingLeft: '4px', fontSize: '10px', color: '#888', pointerEvents: 'none' }}>{i * 5}s</div>
+                <div key={i} className="timeline-ruler-time" style={{ left: HEADER_WIDTH + (i * 5 * PX_PER_SEC) }}>{i * 5}s</div>
              ))}
-             <div style={{ position: 'absolute', left: HEADER_WIDTH + (currentTime * PX_PER_SEC), height: '100%', width: '2px', background: 'red', zIndex: 805, pointerEvents: 'none' }} />
+             <div className="seek-bar" style={{ left: HEADER_WIDTH + (currentTime * PX_PER_SEC) }} />
           </div>
 
           <div style={{ position: 'relative' }}>
              {Array.from({ length: MAX_LAYERS }).map((_, i) => {
                 const layerState = getLayerState(i);
                 return (
-                <div key={i} style={{ height: ROW_HEIGHT, borderBottom: '1px solid #2a2a2a', display: 'flex', alignItems: 'center' }}>
-                    <div style={{ 
-                        position: 'sticky', left: 0, width: HEADER_WIDTH, height: '100%', background: '#2d2d2d', 
-                        borderRight: '1px solid #111', borderBottom: '1px solid #111', zIndex: 700,
-                        display: 'flex', alignItems: 'center', padding: '0 6px', gap: '4px', fontSize: '11px', color: '#ccc',
-                        boxShadow: '2px 0 5px rgba(0,0,0,0.3)', boxSizing: 'border-box'
-                    }}
+                <div key={i} className="timeline-track">
+                    <div 
+                        className="layer-header" 
+                        style={{ width: HEADER_WIDTH, height: '100%' }}
                         onContextMenu={(e) => {
                           if (isExporting) return;
                           e.preventDefault();
@@ -509,40 +509,18 @@ const Timeline: React.FC = () => {
                         onDoubleClick={(e) => { e.stopPropagation(); beginLayerRename(i); }}
                     >
                         <button
+                          className={`layer-control-btn ${layerState.visible ? 'active-visible' : ''}`}
                           type="button"
                           title={layerState.visible ? 'レイヤーを非表示' : 'レイヤーを表示'}
-                          onMouseDown={(e) => e.stopPropagation()}
                           onClick={(e) => { e.stopPropagation(); if (!isExporting) toggleLayerVisibility(i); }}
-                          style={{
-                            width: '18px',
-                            height: '18px',
-                            border: '1px solid #555',
-                            background: layerState.visible ? '#2f6f3a' : '#3a3a3a',
-                            color: '#fff',
-                            fontSize: '10px',
-                            borderRadius: '3px',
-                            padding: 0,
-                            cursor: isExporting ? 'default' : 'pointer'
-                          }}
                         >
                           {layerState.visible ? 'V' : '-'}
                         </button>
                         <button
+                          className={`layer-control-btn ${layerState.locked ? 'active-locked' : ''}`}
                           type="button"
                           title={layerState.locked ? 'ロックを解除' : 'レイヤーをロック'}
-                          onMouseDown={(e) => e.stopPropagation()}
                           onClick={(e) => { e.stopPropagation(); if (!isExporting) toggleLayerLock(i); }}
-                          style={{
-                            width: '18px',
-                            height: '18px',
-                            border: '1px solid #555',
-                            background: layerState.locked ? '#8a3c3c' : '#3a3a3a',
-                            color: '#fff',
-                            fontSize: '10px',
-                            borderRadius: '3px',
-                            padding: 0,
-                            cursor: isExporting ? 'default' : 'pointer'
-                          }}
                         >
                           {layerState.locked ? 'L' : '-'}
                         </button>
@@ -554,40 +532,14 @@ const Timeline: React.FC = () => {
                             onBlur={commitLayerRename}
                             onMouseDown={(e) => e.stopPropagation()}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                commitLayerRename();
-                              }
-                              if (e.key === 'Escape') {
-                                e.preventDefault();
-                                cancelLayerRename();
-                              }
+                              if (e.key === 'Enter') { e.preventDefault(); commitLayerRename(); }
+                              if (e.key === 'Escape') { e.preventDefault(); cancelLayerRename(); }
                             }}
-                            style={{
-                              flex: 1,
-                              minWidth: 0,
-                              height: '20px',
-                              border: '1px solid #666',
-                              borderRadius: '3px',
-                              background: '#1f1f1f',
-                              color: '#ddd',
-                              fontSize: '11px',
-                              padding: '0 4px'
-                            }}
+                            className="no-drag"
+                            style={{ flex: 1, minWidth: 0, height: '20px', fontSize: '11px', padding: '0 4px' }}
                           />
                         ) : (
-                          <span
-                            title={`${layerState.name} (Layer ${i + 1})`}
-                            style={{
-                              flex: 1,
-                              minWidth: 0,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                              color: layerState.visible ? '#ccc' : '#888',
-                              opacity: layerState.locked ? 0.8 : 1
-                            }}
-                          >
+                          <span className="layer-name" style={{ opacity: layerState.visible ? 1 : 0.5 }}>
                             {layerState.name}
                           </span>
                         )}
@@ -606,8 +558,9 @@ const Timeline: React.FC = () => {
                     top: marqueeRect.top,
                     width: marqueeRect.width,
                     height: marqueeRect.height,
-                    border: '1px dashed #5ba8ff',
-                    background: 'rgba(91, 168, 255, 0.18)',
+                    border: '1px solid var(--accent-blue)',
+                    background: 'rgba(14, 165, 233, 0.1)',
+                    borderRadius: 'var(--radius-sm)',
                     pointerEvents: 'none',
                     zIndex: 650
                   }}

@@ -11,6 +11,7 @@ import { getGroupTransforms, getLipSyncViseme, updatePixiContent, applyObjectEff
 import type { VideoFrameTextureState } from '../utils/pixiRenderHelper';
 import { evaluateObjectPositionAtTime } from '../utils/keyframes';
 import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier, getPrimaryWipeFilter } from '../utils/filterStack';
+import { useTranslation } from '../i18n';
 
 const GROUP_GRADIENT_COMPONENT_PREFIX = 'group-gradient-component-';
 
@@ -94,7 +95,8 @@ const Viewport: React.FC = () => {
     projectSettings, isPlaying, isExporting,
     layers,
     camera,
-    isSnapshotRequested, finishSnapshot
+    isSnapshotRequested, finishSnapshot,
+    language
   } = useStore((state) => ({
     currentTime: state.currentTime,
     objects: state.objects,
@@ -107,7 +109,10 @@ const Viewport: React.FC = () => {
     camera: state.camera,
     isSnapshotRequested: state.isSnapshotRequested,
     finishSnapshot: state.finishSnapshot,
+    language: state.language,
   }), shallow);
+  
+  const t = useTranslation(language);
   
   const latestObjectsRef = useRef(objects);
   latestObjectsRef.current = objects;
@@ -578,9 +583,23 @@ const Viewport: React.FC = () => {
   const scale = 800 / Math.max(projectSettings.width, 1);
 
   return (
-    <div className="viewport-container" style={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#000', overflow: 'hidden' }}>
-      {isExporting && <div style={{ position: 'absolute', top: 20, left: 0, right: 0, textAlign: 'center', color: '#00ff00', zIndex: 9999, fontSize: '20px', fontWeight: 'bold', textShadow: '0 0 5px black' }}>EXPORTING...</div>}
-      <div ref={containerRef} style={{ width: projectSettings.width, height: projectSettings.height, transform: `scale(${Math.min(0.7, scale)})`, transformOrigin: 'center center', boxShadow: '0 0 20px rgba(0,0,0,0.5)' }} />
+    <div className="viewport-container" style={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'var(--bg-app)', position: 'relative' }}>
+      {isExporting && (
+        <div className="export-indicator glass">
+          <div className="export-dot"></div>
+          {t('exportingVideo') || 'EXPORTING...'}
+        </div>
+      )}
+      <div 
+        ref={containerRef} 
+        className="preview-canvas-container"
+        style={{ 
+          width: projectSettings.width, 
+          height: projectSettings.height, 
+          transform: `scale(${Math.min(0.7, scale)})`, 
+          transformOrigin: 'center center'
+        }} 
+      />
     </div>
   );
 };

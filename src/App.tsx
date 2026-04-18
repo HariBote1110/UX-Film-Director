@@ -130,11 +130,11 @@ const App: React.FC = () => {
 
   if (!isProjectLoaded) {
     return (
-      <div className="app-container" style={{ height: '100vh', background: '#1a1a1a', color: '#ccc' }}>
-        <header className="title-bar" style={{ height: '38px', background: '#2d2d2d', display: 'flex', alignItems: 'center', padding: '0 10px 0 80px', color: '#ccc', fontSize: '12px', borderBottom: '1px solid #000', flexShrink: 0 }}>
-          <span style={{ fontWeight: 'bold' }}>{t('appTitle')}</span>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-            <select value={language} onChange={(e) => setLanguage(e.target.value as 'ja' | 'en')} style={{ background: '#444', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 8px' }}>
+      <div className="app-container" style={{ height: '100vh' }}>
+        <header className="title-bar">
+          <span className="app-title-text">{t('appTitle')}</span>
+          <div className="title-bar-actions">
+            <select value={language} onChange={(e) => setLanguage(e.target.value as 'ja' | 'en')}>
               <option value="ja">日本語</option>
               <option value="en">English</option>
             </select>
@@ -148,41 +148,41 @@ const App: React.FC = () => {
   return (
     <div className="app-container" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
 
-      <header className="title-bar" style={{ height: '38px', background: '#2d2d2d', display: 'flex', alignItems: 'center', padding: '0 10px 0 80px', color: '#ccc', fontSize: '12px', borderBottom: '1px solid #000', flexShrink: 0 }}>
-        <span style={{ fontWeight: 'bold' }}>{t('appTitle')}</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-          <select value={language} onChange={(e) => setLanguage(e.target.value as 'ja' | 'en')} style={{ background: '#444', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 8px' }}>
+      <header className="title-bar">
+        <span className="app-title-text">{t('appTitle')}</span>
+        <div className="title-bar-actions">
+          <select value={language} onChange={(e) => setLanguage(e.target.value as 'ja' | 'en')}>
             <option value="ja">日本語</option>
             <option value="en">English</option>
           </select>
-          <button onClick={handleOpenProject} disabled={isUiBusy} style={{ background: '#444', border: 'none', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: isUiBusy ? 'default' : 'pointer' }}>
+          <button onClick={handleOpenProject} disabled={isUiBusy}>
             {projectIoAction === 'opening' ? t('loading') : t('openProject')}
           </button>
-          <button onClick={handleSaveProject} disabled={isUiBusy} style={{ background: '#444', border: 'none', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: isUiBusy ? 'default' : 'pointer' }}>
+          <button onClick={handleSaveProject} disabled={isUiBusy}>
             {projectIoAction === 'saving' ? t('saving') : t('saveProject')}
           </button>
-          <button onClick={requestSnapshot} disabled={isUiBusy} style={{ background: '#444', border: 'none', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: isUiBusy ? 'default' : 'pointer' }}>
+          <button onClick={requestSnapshot} disabled={isUiBusy}>
             {t('snapshot')}
           </button>
-          <button onClick={handleExportMp3} disabled={isUiBusy} style={{ background: isMp3Exporting ? '#555' : '#2c9a65', border: 'none', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: isUiBusy ? 'default' : 'pointer' }}>
+          <button className="btn-success" onClick={handleExportMp3} disabled={isUiBusy}>
             {isMp3Exporting ? t('exportingMp3') : t('exportMp3')}
           </button>
-          <button onClick={handleExport} disabled={isUiBusy} style={{ background: isExporting ? '#555' : '#007acc', border: 'none', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: isUiBusy ? 'default' : 'pointer' }}>
+          <button className="btn-primary" onClick={handleExport} disabled={isUiBusy}>
             {isExporting ? t('exportingVideo') : t('exportVideo')}
           </button>
         </div>
       </header>
 
       <div className="workspace-main" style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
-        <div className="preview-area" style={{ flex: 1, background: '#111', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', minWidth: 0 }}>
+        <div className="preview-area" style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', minWidth: 0 }}>
           <Viewport />
         </div>
-        <div className="properties-area no-drag" style={{ width: '300px', minWidth: '300px', background: '#252526', borderLeft: '1px solid #000', overflowY: 'auto', flexShrink: 0 }}>
+        <div className="properties-area no-drag" style={{ width: '300px', flexShrink: 0, overflowY: 'auto' }}>
           <PropertyPanel />
         </div>
       </div>
 
-      <div className="timeline-area" style={{ height: '300px', minHeight: '300px', borderTop: '2px solid #000', zIndex: 10, flexShrink: 0 }}>
+      <div className="timeline-area" style={{ height: '300px', flexShrink: 0, zIndex: 10 }}>
         <Timeline />
       </div>
     </div>

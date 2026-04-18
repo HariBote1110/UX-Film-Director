@@ -27,14 +27,14 @@ const Slider = ({
 );
 
 const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
-  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', fontSize: '12px' }}>
-    <div style={{ width: '80px', color: '#aaa' }}>{label}</div>
-    <div style={{ flex: 1 }}>{children}</div>
+  <div className="property-row">
+    <div className="property-label">{label}</div>
+    <div className="property-value">{children}</div>
   </div>
 );
 
 const SectionHeader = ({ label }: { label: string }) => (
-  <div style={{ marginTop: '16px', marginBottom: '8px', paddingBottom: '4px', borderBottom: '1px solid #444', fontSize: '11px', fontWeight: 'bold', color: '#eee', textTransform: 'uppercase' }}>
+  <div className="property-section-header">
     {label}
   </div>
 );
@@ -63,13 +63,12 @@ const SceneAndCameraPanel: React.FC = () => {
   };
 
   return (
-    <>
+    <div className="panel-content">
       <SectionHeader label="Scene" />
       <Row label={language === 'en' ? 'Active' : 'アクティブ'}>
         <select
           value={activeSceneId}
           onChange={(e) => switchScene(e.target.value)}
-          style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee', fontSize: '12px' }}
         >
           {scenes.map((scene) => (
             <option key={scene.id} value={scene.id}>{scene.name}</option>
@@ -82,14 +81,14 @@ const SceneAndCameraPanel: React.FC = () => {
           value={renameDraft}
           onChange={(e) => setRenameDraft(e.target.value)}
           onBlur={() => renameScene(activeSceneId, renameDraft)}
-          style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee', fontSize: '12px' }}
         />
       </Row>
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
-        <button type="button" onClick={() => addScene()} style={{ flex: 1, background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '11px', cursor: 'pointer' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+        <button type="button" onClick={() => addScene()} style={{ flex: 1 }}>
           {language === 'en' ? '+ Scene' : '＋ シーン'}
         </button>
         <button
+          className="btn-danger"
           type="button"
           disabled={scenes.length <= 1}
           onClick={() => {
@@ -97,16 +96,7 @@ const SceneAndCameraPanel: React.FC = () => {
             if (!window.confirm('このシーンを削除します。よろしいですか？')) return;
             deleteScene(activeSceneId);
           }}
-          style={{
-            flex: 1,
-            background: scenes.length <= 1 ? '#333' : '#553333',
-            border: '1px solid #444',
-            color: scenes.length <= 1 ? '#666' : '#ffb0b0',
-            borderRadius: '4px',
-            padding: '4px 8px',
-            fontSize: '11px',
-            cursor: scenes.length <= 1 ? 'default' : 'pointer'
-          }}
+          style={{ flex: 1 }}
         >
           {language === 'en' ? 'Delete' : '削除'}
         </button>
@@ -118,7 +108,6 @@ const SceneAndCameraPanel: React.FC = () => {
           type="number"
           value={camera.centreOffsetX}
           onChange={(e) => applyCamera({ centreOffsetX: parseFloat(e.target.value) || 0 })}
-          style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
         />
       </Row>
       <Row label="Pan Y">
@@ -126,7 +115,6 @@ const SceneAndCameraPanel: React.FC = () => {
           type="number"
           value={camera.centreOffsetY}
           onChange={(e) => applyCamera({ centreOffsetY: parseFloat(e.target.value) || 0 })}
-          style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
         />
       </Row>
       <Row label="Zoom">
@@ -149,7 +137,7 @@ const SceneAndCameraPanel: React.FC = () => {
           style={{ width: '100%' }}
         />
       </Row>
-    </>
+    </div>
   );
 };
 
@@ -216,10 +204,14 @@ const PropertyPanel: React.FC = () => {
 
   if (!selectedObject) {
     return (
-      <div className="property-panel no-drag" style={{ width: '300px', height: '100%', background: '#252526', borderLeft: '1px solid #111', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-        <div style={{ padding: '10px' }}>
+      <div className="property-panel no-drag">
+        <div className="panel-header">
           <SceneAndCameraPanel />
-          <div style={{ marginTop: '16px', fontSize: '12px', color: '#888' }}>オブジェクトが選択されていません</div>
+        </div>
+        <div className="panel-content">
+          <div style={{ fontSize: '13px', color: 'var(--text-muted)', textAlign: 'center', padding: '40px 20px' }}>
+            {language === 'en' ? 'No object selected' : 'オブジェクトが選択されていません'}
+          </div>
         </div>
       </div>
     );
@@ -587,20 +579,23 @@ const PropertyPanel: React.FC = () => {
   };
 
   return (
-    <div className="property-panel no-drag" style={{ width: '300px', height: '100%', background: '#252526', borderLeft: '1px solid #111', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-      <div style={{ padding: '10px', borderBottom: '1px solid #333', background: '#2a2a2a' }}>
+    <div className="property-panel no-drag">
+      <div className="panel-header">
         <SceneAndCameraPanel />
       </div>
-      <div style={{ padding: '10px', borderBottom: '1px solid #333', background: '#333', fontWeight: 'bold' }}>
-        Property: {selectedObject.name}
-        {selectedCount > 1 && (
-          <span style={{ marginLeft: '8px', fontWeight: 'normal', fontSize: '11px', color: '#aaa' }}>
-            ({selectedCount}個選択中)
-          </span>
-        )}
+      
+      <div className="panel-content" style={{ borderTop: '1px solid var(--border-subtle)', background: 'rgba(0,0,0,0.1)' }}>
+        <div style={{ fontWeight: 700, fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>{selectedObject.name}</span>
+          {selectedCount > 1 && (
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 400 }}>
+              ({selectedCount} objects)
+            </span>
+          )}
+        </div>
       </div>
       
-      <div style={{ padding: '10px' }}>
+      <div className="panel-content">
         {selectedCount > 1 && (
             <>
                 <SectionHeader label="一括変形" />
