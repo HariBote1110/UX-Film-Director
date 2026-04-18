@@ -1,5 +1,39 @@
 import { describe, expect, it } from 'vitest';
-import { createDefaultCamera, createDefaultLayers, flushActiveIntoScenes } from './sceneState';
+import { MAX_LAYERS } from '../components/timelineConstants';
+import {
+  createDefaultCamera,
+  createDefaultLayers,
+  createDefaultLayerRow,
+  flushActiveIntoScenes,
+  sanitiseCamera
+} from './sceneState';
+
+describe('createDefaultLayers', () => {
+  it('creates one row per MAX_LAYERS slot', () => {
+    const layers = createDefaultLayers();
+    expect(layers).toHaveLength(MAX_LAYERS);
+    expect(layers[0].visible).toBe(true);
+  });
+});
+
+describe('createDefaultLayerRow', () => {
+  it('names rows with a human-readable index', () => {
+    expect(createDefaultLayerRow(0).name).toContain('1');
+    expect(createDefaultLayerRow(4).name).toContain('5');
+  });
+});
+
+describe('sanitiseCamera', () => {
+  it('returns defaults for invalid input', () => {
+    expect(sanitiseCamera(undefined).zoom).toBe(1);
+    expect(sanitiseCamera({} as never).zoom).toBe(1);
+  });
+
+  it('clamps zoom into supported range', () => {
+    expect(sanitiseCamera({ ...createDefaultCamera(), zoom: 0.001 }).zoom).toBe(0.05);
+    expect(sanitiseCamera({ ...createDefaultCamera(), zoom: 100 }).zoom).toBe(20);
+  });
+});
 
 describe('flushActiveIntoScenes', () => {
   it('writes live editor state into the active scene only', () => {
