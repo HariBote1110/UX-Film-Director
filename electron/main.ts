@@ -3,7 +3,8 @@ import path from 'node:path'
 import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
-import { PERFORMANCE_CSV_HEADER_LINE } from '../src/perf/performanceReport'
+import { serialisePerfAgentPayload, type PerfHarnessAgentPayload } from '../src/perf/perfAgentPayload';
+import { PERFORMANCE_CSV_HEADER_LINE } from '../src/perf/performanceReport';
 
 // --- GPU Acceleration Flags ---
 // 高画質動画の再生負荷を下げるための重要な設定
@@ -413,6 +414,40 @@ app.whenReady().then(() => {
         error: error instanceof Error ? error.message : String(error),
       };
     }
+  });
+
+  ipcMain.handle('perf-harness-agent-done', async (_event, payload: unknown) => {
+    const agentPayload = payload as PerfHarnessAgentPayload;
+    const outputDir = typeof process.env.UXFD_PERF_OUTPUT_DIR === 'string' && process.env.UXFD_PERF_OUTPUT_DIR.trim() !== ''
+      ? path.resolve(process.env.UXFD_PERF_OUTPUT_DIR.trim())
+      : process.cwd();
+    const outputPath = path.join(outputDir, 'perf-agent-output.json');
+
+    try {
+      fs.mkdirSync(outputDir, { recursive: true });
+      fs.writeFileSync(outputPath, serialisePerfAgentPayload(agentPayload), 'utf8');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[perf] Failed to write ${outputPath}:`, message);
+    }
+
+    const marker = JSON.stringify({
+      type: 'uxfd-perf-result',
+      success: agentPayload.success,
+      runId: agentPayload.runId,
+      csvFilePath: agentPayload.csvFilePath,
+      jsonFilePath: outputPath,
+      rowCount: agentPayload.rows.length,
+      errorMessage: agentPayload.errorMessage,
+    });
+    console.log(`UXFD_PERF_RESULT_JSON:${marker}`);
+
+    const exitCode = agentPayload.success ? 0 : 1;
+    setTimeout(() => {
+      app.exit(exitCode);
+    }, 250);
+
+    return { success: true, jsonFilePath: outputPath };
   });
 
   ipcMain.handle('save-temp-audio', async (event, buffer: ArrayBuffer) => {

@@ -1,11 +1,12 @@
 {
   "name": "ux-film-director",
   "private": true,
-  "version": "0.1.1-Beta-5a",
+  "version": "0.1.1-Beta-5b",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
     "perf": "VITE_PERF_AUTORUN=1 vite",
+    "perf:agent": "VITE_PERF_AGENT_MODE=1 vite",
     "test": "vitest run",
     "build": "tsc && vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
     "preview": "vite preview",

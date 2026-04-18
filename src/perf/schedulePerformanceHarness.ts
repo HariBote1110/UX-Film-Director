@@ -1,10 +1,10 @@
+import { isPerfAutorun } from './perfEnv';
 import { runPerformanceHarness } from './performanceHarness';
 
 let scheduled = false;
 
 const detectAutorun = (): boolean => {
-  const envFlag = import.meta.env.VITE_PERF_AUTORUN;
-  if (envFlag === 'true' || envFlag === '1') {
+  if (isPerfAutorun()) {
     return true;
   }
 

@@ -1,5 +1,7 @@
 import { useStore } from '../store/useStore';
 import type { ShapeObject } from '../types';
+import { isPerfAgentMode } from './perfEnv';
+import type { PerfHarnessAgentPayload } from './perfAgentPayload';
 import {
   buildPerformanceCsvHeader,
   formatPerformanceCsvRow,
@@ -109,7 +111,7 @@ const seedTimelineObjects = (count: number) => {
 
 const timestampUtc = () => new Date().toISOString();
 
-const persistHarnessRows = async (rows: PerformanceHarnessRow[]) => {
+const persistHarnessRows = async (rows: PerformanceHarnessRow[]): Promise<string> => {
   const chunk = rows.map((row) => formatPerformanceCsvRow(row)).join('');
   const hasElectronIpc = typeof window !== 'undefined'
     && typeof window.ipcRenderer?.invoke === 'function';
@@ -137,6 +139,26 @@ const persistHarnessRows = async (rows: PerformanceHarnessRow[]) => {
   URL.revokeObjectURL(url);
   console.info('[perf] Downloaded CSV (no Electron IPC).');
   return '';
+};
+
+const notifyPerfAgentIfNeeded = async (payload: PerfHarnessAgentPayload) => {
+  if (!isPerfAgentMode()) {
+    return;
+  }
+
+  const hasElectronIpc = typeof window !== 'undefined'
+    && typeof window.ipcRenderer?.invoke === 'function';
+
+  if (!hasElectronIpc) {
+    console.warn('[perf] Agent mode requires Electron IPC; skipping perf-harness-agent-done.');
+    return;
+  }
+
+  try {
+    await window.ipcRenderer.invoke('perf-harness-agent-done', payload);
+  } catch (error) {
+    console.error('[perf] perf-harness-agent-done failed:', error);
+  }
 };
 
 const runScenarioPlayheadScrubSync = (runId: string): PerformanceHarnessRow => {
@@ -251,43 +273,70 @@ const runScenarioUpdateObjectThrash = (runId: string): PerformanceHarnessRow => 
   };
 };
 
-export const runPerformanceHarness = async (): Promise<void> => {
+export const runPerformanceHarness = async (): Promise<PerfHarnessAgentPayload> => {
   const runId = crypto.randomUUID();
   const rows: PerformanceHarnessRow[] = [];
 
-  const store = useStore.getState();
-  if (!store.isProjectLoaded) {
-    store.initializeProject({
-      width: 1280,
-      height: 720,
-      fps: 60,
-      sampleRate: 44100,
+  const finish = async (partial: Omit<PerfHarnessAgentPayload, 'finishedAtUtc'>): Promise<PerfHarnessAgentPayload> => {
+    const payload: PerfHarnessAgentPayload = {
+      ...partial,
+      finishedAtUtc: new Date().toISOString(),
+    };
+    await notifyPerfAgentIfNeeded(payload);
+    return payload;
+  };
+
+  try {
+    const store = useStore.getState();
+    if (!store.isProjectLoaded) {
+      store.initializeProject({
+        width: 1280,
+        height: 720,
+        fps: 60,
+        sampleRate: 44100,
+      });
+    }
+
+    await waitForReactPaint();
+
+    const countBeforeSeed = useStore.getState().objects.length;
+    if (countBeforeSeed < 6) {
+      seedTimelineObjects(6 - countBeforeSeed);
+      await waitForReactPaint();
+    }
+
+    rows.push(runScenarioPlayheadScrubSync(runId));
+    await waitForReactPaint();
+
+    rows.push(await runScenarioRafPlayhead(runId));
+    await waitForReactPaint();
+
+    rows.push(runScenarioUpdateObjectThrash(runId));
+
+    const csvFilePath = await persistHarnessRows(rows);
+    return await finish({
+      success: true,
+      runId,
+      csvFilePath,
+      rows,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[perf] Harness error:', error);
+    return await finish({
+      success: false,
+      runId,
+      csvFilePath: '',
+      rows,
+      errorMessage: message,
     });
   }
-
-  await waitForReactPaint();
-
-  const countBeforeSeed = useStore.getState().objects.length;
-  if (countBeforeSeed < 6) {
-    seedTimelineObjects(6 - countBeforeSeed);
-    await waitForReactPaint();
-  }
-
-  rows.push(runScenarioPlayheadScrubSync(runId));
-  await waitForReactPaint();
-
-  rows.push(await runScenarioRafPlayhead(runId));
-  await waitForReactPaint();
-
-  rows.push(runScenarioUpdateObjectThrash(runId));
-
-  await persistHarnessRows(rows);
 };
 
 declare global {
   interface Window {
     /** DevTools: await window.__UXFD_RUN_PERF_HARNESS__() */
-    __UXFD_RUN_PERF_HARNESS__?: () => Promise<void>;
+    __UXFD_RUN_PERF_HARNESS__?: () => Promise<PerfHarnessAgentPayload>;
   }
 }
 
