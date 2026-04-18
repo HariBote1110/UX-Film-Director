@@ -489,7 +489,7 @@ const Timeline: React.FC = () => {
              {Array.from({ length: Math.ceil(duration / 5) + 1 }).map((_, i) => (
                 <div key={i} className="timeline-ruler-time" style={{ left: HEADER_WIDTH + (i * 5 * PX_PER_SEC) }}>{i * 5}s</div>
              ))}
-             <div className="seek-bar" style={{ left: HEADER_WIDTH + (currentTime * PX_PER_SEC) }} />
+             <div className="seek-bar" style={{ left: HEADER_WIDTH + (Math.max(0, currentTime) * PX_PER_SEC) }} />
           </div>
 
           <div style={{ position: 'relative' }}>
@@ -546,7 +546,7 @@ const Timeline: React.FC = () => {
                     </div>
                 </div>
              )})}
-             <div style={{ position: 'absolute', left: HEADER_WIDTH + (currentTime * PX_PER_SEC), top: 0, bottom: 0, width: '1px', background: 'rgba(255,0,0,0.5)', pointerEvents: 'none', zIndex: 600 }} />
+             <div style={{ position: 'absolute', left: HEADER_WIDTH + (Math.max(0, currentTime) * PX_PER_SEC), top: 0, bottom: 0, width: '1px', background: 'rgba(255,0,0,0.5)', pointerEvents: 'none', zIndex: 600 }} />
              <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10 }}>
                 {objects.map(obj => <TimelineItem key={obj.id} object={obj} pxPerSec={PX_PER_SEC} rowHeight={ROW_HEIGHT} headerWidth={HEADER_WIDTH} onContextMenu={handleObjectContextMenu} />)}
              </div>

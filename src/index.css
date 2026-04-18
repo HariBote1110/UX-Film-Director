@@ -348,7 +348,8 @@ input[type="range"] {
   bottom: 0;
   width: 2px;
   background: var(--accent-blue);
-  z-index: 805;
+  /* Below .layer-header (700) so the marker does not paint over the sticky gutter */
+  z-index: 650;
   pointer-events: none;
 }
 

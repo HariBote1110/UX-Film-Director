@@ -534,6 +534,7 @@ export const useStore = create<AppState>((set, get) => ({
     const { currentTime, duration, isPlaying } = get();
     if (!isPlaying) return;
     let nextTime = currentTime + deltaTime;
+    if (nextTime < 0) nextTime = 0;
     if (nextTime >= duration) {
       nextTime = duration;
       set({ isPlaying: false });
