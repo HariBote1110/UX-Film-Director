@@ -4,3 +4,5 @@
 # Heavy MP4 fixtures for perf harness (optional; also see perf/heavy-media/.gitignore)
 /20000kbps_60fps.mp4
 /10000kbps_60fps.mp4
+dist/
+perf-agent-output.json
