@@ -102,6 +102,45 @@ const loadVideoElementMetadata = (url: string): Promise<VideoMetadata> => {
   });
 };
 
+/**
+ * `ffprobe` は回転メタデータを反映しない width/height を返すことがある一方、
+ * ブラウザの `videoWidth` / `videoHeight` は表示向け（回転後）と一致する。
+ * タイムライン上の `width` / `height` は後者に合わせないとスプライトが引き伸ばされる。
+ */
+export const mergeResolvedVideoMetadata = (
+  probed: RustMediaProbeResult | null,
+  elementMeta: VideoMetadata | null
+): VideoMetadata => {
+  if (elementMeta) {
+    const duration = isPositiveNumber(probed?.duration)
+      ? probed.duration
+      : isPositiveNumber(elementMeta.duration)
+        ? elementMeta.duration
+        : DEFAULT_DURATION_SECONDS;
+    return {
+      duration,
+      width: elementMeta.width,
+      height: elementMeta.height,
+    };
+  }
+
+  if (!probed || !probed.hasVideo) {
+    throw new Error('Failed to load video metadata.');
+  }
+
+  return {
+    duration: isPositiveNumber(probed.duration)
+      ? probed.duration
+      : DEFAULT_DURATION_SECONDS,
+    width: isPositiveNumber(probed.width)
+      ? probed.width
+      : DEFAULT_VIDEO_WIDTH,
+    height: isPositiveNumber(probed.height)
+      ? probed.height
+      : DEFAULT_VIDEO_HEIGHT,
+  };
+};
+
 const loadAudioElementMetadata = (url: string): Promise<AudioMetadata> => {
   return new Promise((resolve, reject) => {
     const audio = document.createElement('audio');
@@ -117,25 +156,11 @@ const loadAudioElementMetadata = (url: string): Promise<AudioMetadata> => {
 };
 
 export const resolveVideoMetadata = async (file: File, url: string): Promise<VideoMetadata> => {
-  const probed = await probeMediaWithRust(file);
-  if (!probed || !probed.hasVideo) {
-    return loadVideoElementMetadata(url);
-  }
-
-  const needsFallback = !isPositiveNumber(probed.width) || !isPositiveNumber(probed.height);
-  const fallback = needsFallback ? await loadVideoElementMetadata(url) : null;
-
-  return {
-    duration: isPositiveNumber(probed.duration)
-      ? probed.duration
-      : fallback?.duration ?? DEFAULT_DURATION_SECONDS,
-    width: isPositiveNumber(probed.width)
-      ? probed.width
-      : fallback?.width ?? DEFAULT_VIDEO_WIDTH,
-    height: isPositiveNumber(probed.height)
-      ? probed.height
-      : fallback?.height ?? DEFAULT_VIDEO_HEIGHT,
-  };
+  const [probed, elementMeta] = await Promise.all([
+    probeMediaWithRust(file),
+    loadVideoElementMetadata(url).catch((): null => null),
+  ]);
+  return mergeResolvedVideoMetadata(probed, elementMeta);
 };
 
 export const resolveAudioMetadata = async (file: File, url: string): Promise<AudioMetadata> => {
