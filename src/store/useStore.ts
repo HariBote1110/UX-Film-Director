@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { TimelineObject, ProjectSettings, LayerState, FilterType, GradientFill, CameraState, SceneData } from '../types';
+import { TimelineObject, ProjectSettings, LayerState, FilterType, GradientFill, CameraState, SceneData, PreviewDisplayMode } from '../types';
 import { MAX_LAYERS } from '../components/timelineConstants';
 import { createDefaultCamera, createDefaultLayers, flushActiveIntoScenes, sanitiseCamera } from '../utils/sceneState';
 import {
@@ -48,6 +48,9 @@ interface AppState {
   // Snapshot State
   isSnapshotRequested: boolean;
 
+  // Preview panel (workspace)
+  previewDisplayMode: PreviewDisplayMode;
+
   // Editor State
   currentTime: number;
   duration: number;
@@ -90,6 +93,8 @@ interface AppState {
   // Snapshot Actions
   requestSnapshot: () => void;
   finishSnapshot: () => void;
+
+  setPreviewDisplayMode: (mode: PreviewDisplayMode) => void;
   
   // History Actions
   pushHistory: () => void;
@@ -210,6 +215,18 @@ const normaliseSceneObjectList = (objects: TimelineObject[]): TimelineObject[] =
     .map(syncObjectKeyframes);
 };
 
+const PREVIEW_MODE_STORAGE_KEY = 'uxfd-preview-display-mode';
+
+const readStoredPreviewMode = (): PreviewDisplayMode => {
+  try {
+    const raw = localStorage.getItem(PREVIEW_MODE_STORAGE_KEY);
+    if (raw === 'autoFit' || raw === 'pixelPerfect') return raw;
+  } catch {
+    /* ignore */
+  }
+  return 'autoFit';
+};
+
 const syncObjectKeyframes = (object: TimelineObject): TimelineObject => {
   const keyframes = normaliseKeyframesForObject(object, object.keyframes);
   if (keyframes.length === 0) {
@@ -237,6 +254,7 @@ export const useStore = create<AppState>((set, get) => ({
   projectSettings: { width: 1920, height: 1080, fps: 60, sampleRate: 44100 },
   isExporting: false,
   isSnapshotRequested: false,
+  previewDisplayMode: readStoredPreviewMode(),
 
   currentTime: 0,
   duration: 30,
@@ -254,6 +272,15 @@ export const useStore = create<AppState>((set, get) => ({
   futureStates: [],
 
   setLanguage: (lang) => set({ language: lang }),
+
+  setPreviewDisplayMode: (mode) => {
+    try {
+      localStorage.setItem(PREVIEW_MODE_STORAGE_KEY, mode);
+    } catch {
+      /* ignore */
+    }
+    set({ previewDisplayMode: mode });
+  },
 
   initializeProject: (settings) => {
     const sceneId = crypto.randomUUID();

@@ -8,6 +8,9 @@ export interface ProjectSettings {
   sampleRate: number;
 }
 
+/** Preview: fit to the panel vs one project pixel per CSS pixel (scroll when larger than the panel). */
+export type PreviewDisplayMode = 'autoFit' | 'pixelPerfect';
+
 export interface LayerState {
   name: string;
   visible: boolean;

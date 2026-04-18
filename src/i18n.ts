@@ -10,6 +10,8 @@ export const locales = {
   exportingMp3: { ja: 'MP3書き出し中...', en: 'Exporting MP3...' },
   exportVideo: { ja: '動画で書き出し', en: 'Export Video' },
   exportingVideo: { ja: '書き出し中...', en: 'Exporting...' },
+  previewModeAuto: { ja: '自動スケール', en: 'Auto scale' },
+  previewModePixelPerfect: { ja: 'ドットバイドット', en: 'Pixel-for-pixel' },
 
   // ProjectSetup
   createNewProject: { ja: '新規プロジェクト作成', en: 'Create New Project' },

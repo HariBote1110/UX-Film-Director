@@ -12,6 +12,7 @@ import type { VideoFrameTextureState } from '../utils/pixiRenderHelper';
 import { evaluateObjectPositionAtTime } from '../utils/keyframes';
 import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier, getPrimaryWipeFilter } from '../utils/filterStack';
 import { useTranslation } from '../i18n';
+import { computePreviewDisplayScale } from '../utils/previewDisplayScale';
 
 const GROUP_GRADIENT_COMPONENT_PREFIX = 'group-gradient-component-';
 
@@ -74,6 +75,7 @@ const flattenGroupGradientComponents = (groupContainer: PIXI.Container) => {
 
 const Viewport: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const viewportShellRef = useRef<HTMLDivElement>(null);
   const pixiAppRef = useRef<PIXI.Application | null>(null);
   const worldContainerRef = useRef<PIXI.Container | null>(null);
   const pixiObjectsRef = useRef<Map<string, PIXI.Container>>(new Map());
@@ -89,6 +91,8 @@ const Viewport: React.FC = () => {
   const audioBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
 
   const [renderTick, setRenderTick] = useState(0);
+  const [pixiReady, setPixiReady] = useState(false);
+  const [panelSize, setPanelSize] = useState({ w: 0, h: 0 });
 
   const { 
     currentTime, objects, selectedIds, clearSelection,
@@ -96,7 +100,9 @@ const Viewport: React.FC = () => {
     layers,
     camera,
     isSnapshotRequested, finishSnapshot,
-    language
+    language,
+    previewDisplayMode,
+    setPreviewDisplayMode
   } = useStore((state) => ({
     currentTime: state.currentTime,
     objects: state.objects,
@@ -110,6 +116,8 @@ const Viewport: React.FC = () => {
     isSnapshotRequested: state.isSnapshotRequested,
     finishSnapshot: state.finishSnapshot,
     language: state.language,
+    previewDisplayMode: state.previewDisplayMode,
+    setPreviewDisplayMode: state.setPreviewDisplayMode,
   }), shallow);
   
   const t = useTranslation(language);
@@ -119,25 +127,58 @@ const Viewport: React.FC = () => {
 
   const { onDragStart, onDragMove, onDragEnd, dragRef } = usePixiInteraction(latestObjectsRef);
 
+  useEffect(() => {
+    const el = viewportShellRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+
+    const applySize = () => {
+      setPanelSize({ w: el.clientWidth, h: el.clientHeight });
+    };
+
+    const ro = new ResizeObserver(() => {
+      applySize();
+    });
+    ro.observe(el);
+    applySize();
+    return () => {
+      ro.disconnect();
+    };
+  }, []);
+
+  const displayScale = computePreviewDisplayScale(
+    previewDisplayMode,
+    projectSettings.width,
+    projectSettings.height,
+    panelSize.w,
+    panelSize.h
+  );
+
   // --- Initialize Pixi App ---
   useEffect(() => {
     if (!containerRef.current) return;
+    let cancelled = false;
     const app = new PIXI.Application();
-    
+    const { width, height } = useStore.getState().projectSettings;
+
     // 【重要】autoStart: false に設定。
     // PixiJSの勝手なTickerループを止め、React側の制御下でのみ描画させることで
     // 二重描画によるCPU負荷を回避する。
-    app.init({ 
-        width: projectSettings.width, 
-        height: projectSettings.height, 
-        backgroundColor: '#1e1e1e', 
+    app.init({
+        width,
+        height,
+        backgroundColor: '#1e1e1e',
         preference: 'webgpu',
         autoStart: false, // 自動描画停止
         sharedTicker: false
     }).then(() => {
-      if (containerRef.current && !containerRef.current.hasChildNodes()) {
+      if (cancelled || !containerRef.current || containerRef.current.hasChildNodes()) {
+        app.destroy(true, { children: true, texture: true });
+        return;
+      }
+      if (containerRef.current) {
         containerRef.current.appendChild(app.canvas);
         pixiAppRef.current = app;
+        setPixiReady(true);
         app.stage.eventMode = 'static';
         app.stage.hitArea = app.screen;
         app.stage.sortableChildren = true;
@@ -152,12 +193,14 @@ const Viewport: React.FC = () => {
           const label = typeof target?.label === 'string' ? target.label : '';
           if (e.target === app.stage || label === 'world-root') clearSelection();
         });
-        
+
         // 初回描画
         app.render();
       }
     });
     return () => {
+      cancelled = true;
+      setPixiReady(false);
       if (pixiAppRef.current) {
         pixiAppRef.current.destroy(true, { children: true, texture: true });
         pixiAppRef.current = null;
@@ -176,7 +219,22 @@ const Viewport: React.FC = () => {
         audioElementsRef.current.clear();
       }
     };
-  }, []); 
+  }, []);
+
+  useEffect(() => {
+    if (!pixiReady) return;
+    const app = pixiAppRef.current;
+    if (!app?.canvas) return;
+
+    app.renderer.resize(projectSettings.width, projectSettings.height);
+    app.stage.hitArea = app.screen;
+
+    const w = projectSettings.width;
+    const h = projectSettings.height;
+    app.canvas.style.width = `${w * displayScale}px`;
+    app.canvas.style.height = `${h * displayScale}px`;
+    app.render();
+  }, [pixiReady, projectSettings.width, projectSettings.height, displayScale]);
 
   // --- Snapshot Logic ---
   useEffect(() => {
@@ -580,26 +638,100 @@ const Viewport: React.FC = () => {
   
   useProjectExport(pixiAppRef, videoElementsRef, renderScene);
 
-  const scale = 800 / Math.max(projectSettings.width, 1);
+  const previewW = projectSettings.width * displayScale;
+  const previewH = projectSettings.height * displayScale;
+  const alignStart = previewDisplayMode === 'pixelPerfect';
 
   return (
-    <div className="viewport-container" style={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'var(--bg-app)', position: 'relative' }}>
+    <div
+      ref={viewportShellRef}
+      className="viewport-container"
+      style={{
+        width: '100%',
+        height: '100%',
+        position: 'relative',
+        background: 'var(--bg-app)',
+        overflow: previewDisplayMode === 'pixelPerfect' ? 'auto' : 'hidden',
+      }}
+    >
+      <div
+        className="glass"
+        style={{
+          position: 'absolute',
+          top: 8,
+          right: 8,
+          zIndex: 20,
+          display: 'flex',
+          gap: 4,
+          padding: 4,
+          borderRadius: 8,
+          pointerEvents: 'auto',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setPreviewDisplayMode('autoFit')}
+          title={t('previewModeAuto')}
+          style={{
+            fontSize: 11,
+            padding: '4px 8px',
+            borderRadius: 6,
+            border: 'none',
+            cursor: 'pointer',
+            background: previewDisplayMode === 'autoFit' ? 'var(--accent, #3b82f6)' : 'transparent',
+            color: previewDisplayMode === 'autoFit' ? '#fff' : 'var(--text-primary)',
+          }}
+        >
+          {t('previewModeAuto')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setPreviewDisplayMode('pixelPerfect')}
+          title={t('previewModePixelPerfect')}
+          style={{
+            fontSize: 11,
+            padding: '4px 8px',
+            borderRadius: 6,
+            border: 'none',
+            cursor: 'pointer',
+            background: previewDisplayMode === 'pixelPerfect' ? 'var(--accent, #3b82f6)' : 'transparent',
+            color: previewDisplayMode === 'pixelPerfect' ? '#fff' : 'var(--text-primary)',
+          }}
+        >
+          {t('previewModePixelPerfect')}
+        </button>
+      </div>
+
       {isExporting && (
         <div className="export-indicator glass">
           <div className="export-dot"></div>
           {t('exportingVideo') || 'EXPORTING...'}
         </div>
       )}
-      <div 
-        ref={containerRef} 
-        className="preview-canvas-container"
-        style={{ 
-          width: projectSettings.width, 
-          height: projectSettings.height, 
-          transform: `scale(${Math.min(0.7, scale)})`, 
-          transformOrigin: 'center center'
-        }} 
-      />
+      <div
+        style={{
+          display: 'flex',
+          width: '100%',
+          height: '100%',
+          minWidth: 0,
+          minHeight: 0,
+          boxSizing: 'border-box',
+          alignItems: alignStart ? 'flex-start' : 'center',
+          justifyContent: alignStart ? 'flex-start' : 'center',
+          padding: alignStart ? 12 : 0,
+        }}
+      >
+        <div
+          ref={containerRef}
+          className="preview-canvas-container"
+          style={{
+            width: previewW,
+            height: previewH,
+            flexShrink: 0,
+            position: 'relative',
+          }}
+        />
+      </div>
     </div>
   );
 };
