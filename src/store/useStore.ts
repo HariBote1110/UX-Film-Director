@@ -45,6 +45,7 @@ import {
   insertLayerTrack as applyInsertLayerTrack,
   swapLayerTracks as applySwapLayerTracks
 } from '../utils/layerTrackOps';
+import type { CoreMlAnimalObservation } from '../utils/coremlTrackIpc';
 
 interface ClipboardState {
   objects: TimelineObject[];
@@ -61,6 +62,13 @@ interface HistorySnapshot {
   stageCamera3D?: StageCamera3D;
 }
 
+/** プレビュー上の Vision 検出枠（トラッキングなし・単フレーム）。プロジェクトには保存しない。 */
+export type VisionDetectionOverlayState = {
+  videoId: string;
+  mediaTimeSec: number;
+  observations: CoreMlAnimalObservation[];
+};
+
 interface AppState {
   // Project State
   language: 'ja' | 'en';
@@ -75,6 +83,10 @@ interface AppState {
 
   // Preview panel (workspace)
   previewDisplayMode: PreviewDisplayMode;
+
+  /** macOS Vision: 検出した猫/犬の枠をプレビュー動画上に重ね描きする */
+  visionDetectionPreviewEnabled: boolean;
+  visionDetectionOverlay: VisionDetectionOverlayState | null;
 
   // Editor State
   currentTime: number;
@@ -126,6 +138,8 @@ interface AppState {
   finishSnapshot: () => void;
 
   setPreviewDisplayMode: (mode: PreviewDisplayMode) => void;
+  setVisionDetectionPreviewEnabled: (enabled: boolean) => void;
+  setVisionDetectionOverlay: (overlay: VisionDetectionOverlayState | null) => void;
   
   // History Actions
   pushHistory: () => void;
@@ -286,6 +300,8 @@ export const useStore = create<AppState>((set, get) => ({
   isExporting: false,
   isSnapshotRequested: false,
   previewDisplayMode: readStoredPreviewMode(),
+  visionDetectionPreviewEnabled: false,
+  visionDetectionOverlay: null,
 
   currentTime: 0,
   duration: 30,
@@ -313,6 +329,10 @@ export const useStore = create<AppState>((set, get) => ({
     }
     set({ previewDisplayMode: mode });
   },
+
+  setVisionDetectionPreviewEnabled: (enabled) => set({ visionDetectionPreviewEnabled: enabled }),
+
+  setVisionDetectionOverlay: (overlay) => set({ visionDetectionOverlay: overlay }),
 
   initializeProject: (settings) => {
     const sceneId = crypto.randomUUID();
@@ -347,7 +367,9 @@ export const useStore = create<AppState>((set, get) => ({
       selectedIds: [],
       clipboard: null,
       pastStates: [],
-      futureStates: []
+      futureStates: [],
+      visionDetectionPreviewEnabled: false,
+      visionDetectionOverlay: null
     });
   },
 
@@ -383,7 +405,9 @@ export const useStore = create<AppState>((set, get) => ({
       selectedIds: [],
       clipboard: null,
       pastStates: [],
-      futureStates: []
+      futureStates: [],
+      visionDetectionPreviewEnabled: false,
+      visionDetectionOverlay: null
     });
   },
 
@@ -521,7 +545,9 @@ export const useStore = create<AppState>((set, get) => ({
       selectedId: null,
       selectedIds: [],
       pastStates: [],
-      futureStates: []
+      futureStates: [],
+      visionDetectionPreviewEnabled: false,
+      visionDetectionOverlay: null
     });
   },
 
@@ -562,7 +588,9 @@ export const useStore = create<AppState>((set, get) => ({
       selectedId: null,
       selectedIds: [],
       pastStates: [],
-      futureStates: []
+      futureStates: [],
+      visionDetectionPreviewEnabled: false,
+      visionDetectionOverlay: null
     });
   },
 
@@ -606,7 +634,9 @@ export const useStore = create<AppState>((set, get) => ({
       selectedId: null,
       selectedIds: [],
       pastStates: [],
-      futureStates: []
+      futureStates: [],
+      visionDetectionPreviewEnabled: false,
+      visionDetectionOverlay: null
     });
   },
 

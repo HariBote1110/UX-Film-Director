@@ -3,6 +3,7 @@ import {
   localTopLeftPointToWorld,
   visionNormBoundingBoxCentreToLocalTopLeft,
   visionNormBoundingBoxToPixiNormRect,
+  visionNormBoundingBoxToVideoLocalRect,
   type VisionNormBoundingBox
 } from './visionTrackingGeometry';
 
@@ -14,6 +15,29 @@ describe('visionNormBoundingBoxToPixiNormRect', () => {
       y: 0.55,
       width: 0.3,
       height: 0.25
+    });
+  });
+});
+
+describe('visionNormBoundingBoxToVideoLocalRect', () => {
+  it('scales normalised top-left rect to sprite pixels', () => {
+    const box: VisionNormBoundingBox = { x: 0, y: 0, width: 1, height: 1 };
+    expect(visionNormBoundingBoxToVideoLocalRect(box, 800, 600)).toEqual({
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600
+    });
+  });
+
+  it('matches Pixi norm rect times display size', () => {
+    const box: VisionNormBoundingBox = { x: 0.1, y: 0.2, width: 0.3, height: 0.25 };
+    const pn = visionNormBoundingBoxToPixiNormRect(box);
+    expect(visionNormBoundingBoxToVideoLocalRect(box, 1000, 500)).toEqual({
+      x: pn.x * 1000,
+      y: pn.y * 500,
+      width: Math.max(1, pn.width * 1000),
+      height: Math.max(1, pn.height * 500)
     });
   });
 });

@@ -33,6 +33,23 @@ export const visionNormBoundingBoxToPixiNormRect = (
   height: box.height
 });
 
+/** Vision 正規化 bbox を、動画クリップの表示サイズ（スプライトローカル・左上原点）の矩形へ。 */
+export const visionNormBoundingBoxToVideoLocalRect = (
+  box: VisionNormBoundingBox,
+  videoDisplayWidth: number,
+  videoDisplayHeight: number
+): { x: number; y: number; width: number; height: number } => {
+  const pn = visionNormBoundingBoxToPixiNormRect(box);
+  const w = Math.max(1, pn.width * videoDisplayWidth);
+  const h = Math.max(1, pn.height * videoDisplayHeight);
+  return {
+    x: pn.x * videoDisplayWidth,
+    y: pn.y * videoDisplayHeight,
+    width: w,
+    height: h
+  };
+};
+
 /** Vision 正規化 bbox の中心を、動画スプライトローカル（左上原点・ピクセル）へ。 */
 export const visionNormBoundingBoxCentreToLocalTopLeft = (
   box: VisionNormBoundingBox,

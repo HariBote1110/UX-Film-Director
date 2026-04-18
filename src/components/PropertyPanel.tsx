@@ -268,6 +268,9 @@ const PropertyPanel: React.FC = () => {
   const updateObjectFilterParams = useStore((state) => state.updateObjectFilterParams);
   const setGroupGradient = useStore((state) => state.setGroupGradient);
   const currentTime = useStore((state) => state.currentTime);
+  const visionDetectionPreviewEnabled = useStore((state) => state.visionDetectionPreviewEnabled);
+  const setVisionDetectionPreviewEnabled = useStore((state) => state.setVisionDetectionPreviewEnabled);
+  const setVisionDetectionOverlay = useStore((state) => state.setVisionDetectionOverlay);
   const [isRefreshingPsdTree, setIsRefreshingPsdTree] = useState(false);
   const [activeFilterId, setActiveFilterId] = useState<string | null>(null);
   const [batchMoveX, setBatchMoveX] = useState('0');
@@ -502,6 +505,22 @@ const PropertyPanel: React.FC = () => {
     return offset + local;
   };
 
+  const publishVisionDetectionToPreview = (video: VideoObject, mediaT: number, animals: CoreMlAnimalObservation[]) => {
+    setVisionDetectionOverlay(
+      animals.length === 0
+        ? null
+        : {
+            videoId: video.id,
+            mediaTimeSec: mediaT,
+            observations: animals.map((a) => ({
+              identifier: a.identifier,
+              confidence: a.confidence,
+              boundingBox: { ...a.boundingBox }
+            }))
+          }
+    );
+  };
+
   const handleVisionDetectAnimals = async () => {
     if (selectedObject.type !== 'video') return;
     const video = selectedObject as VideoObject;
@@ -519,6 +538,7 @@ const PropertyPanel: React.FC = () => {
       }
       setVisionDetectedAnimals(res.animals);
       setVisionSelectedAnimalIndex(-1);
+      publishVisionDetectionToPreview(video, mediaTimeForSelectedVideo(video), res.animals);
       if (res.animals.length === 0) {
         window.alert(language === 'en' ? 'No cats or dogs detected at the playhead.' : '再生ヘッド位置で猫/犬が検出されませんでした。');
       }
@@ -549,6 +569,7 @@ const PropertyPanel: React.FC = () => {
       if (detectRes.ok) {
         setVisionDetectedAnimals(detectRes.animals);
         setVisionSelectedAnimalIndex(-1);
+        publishVisionDetectionToPreview(video, mediaT, detectRes.animals);
       }
       setVisionPickUrl(`data:image/jpeg;base64,${frameRes.jpegBase64}`);
       setVisionPickOpen(true);
@@ -1586,6 +1607,29 @@ const PropertyPanel: React.FC = () => {
                         >
                             {language === 'en' ? 'Detect cat/dog at playhead' : '再生位置で猫/犬を検出'}
                         </button>
+                        <label
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              fontSize: '11px',
+                              cursor: coreMlTrackSupported ? 'pointer' : 'not-allowed',
+                              opacity: coreMlTrackSupported ? 1 : 0.45
+                            }}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={visionDetectionPreviewEnabled}
+                                disabled={!coreMlTrackSupported}
+                                onChange={(e) => setVisionDetectionPreviewEnabled(e.target.checked)}
+                            />
+                            {language === 'en' ? 'Show detection boxes on preview' : '検出枠をプレビューに表示'}
+                        </label>
+                        <div style={{ fontSize: '10px', color: '#888', lineHeight: 1.35 }}>
+                            {language === 'en'
+                              ? 'Runs on macOS with local Vision. Boxes fade when the playhead media time differs from the last detection.'
+                              : 'macOS の Vision（ローカル）で検出した枠を重ねます。再生位置が最終検出時刻とずれると枠が薄くなります。'}
+                        </div>
                         <select
                             value={visionSelectedAnimalIndex}
                             onChange={(e) => {

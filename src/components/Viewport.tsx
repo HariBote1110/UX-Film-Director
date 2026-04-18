@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import * as PIXI from 'pixi.js';
 import { useStore } from '../store/useStore';
-import { TimelineObject, GradientFill, ObjectFilter, PsdObject } from '../types';
+import { TimelineObject, VideoObject, GradientFill, ObjectFilter, PsdObject } from '../types';
 import { ThreeStageViewport, type BillboardTextureEntry, type ThreeStageViewportHandle } from './ThreeStageViewport';
 import { createShadowGraphics } from '../utils/pixiUtils';
 import { shallow } from 'zustand/shallow';
@@ -14,6 +14,7 @@ import { evaluateObjectPositionAtTime } from '../utils/keyframes';
 import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier, getPrimaryWipeFilter } from '../utils/filterStack';
 import { useTranslation } from '../i18n';
 import { computePreviewDisplayScale } from '../utils/previewDisplayScale';
+import { visionNormBoundingBoxToVideoLocalRect } from '../utils/visionTrackingGeometry';
 
 const GROUP_GRADIENT_COMPONENT_PREFIX = 'group-gradient-component-';
 
@@ -107,7 +108,9 @@ const Viewport: React.FC = () => {
     isSnapshotRequested, finishSnapshot,
     language,
     previewDisplayMode,
-    setPreviewDisplayMode
+    setPreviewDisplayMode,
+    visionDetectionPreviewEnabled,
+    visionDetectionOverlay
   } = useStore((state) => ({
     currentTime: state.currentTime,
     objects: state.objects,
@@ -127,6 +130,8 @@ const Viewport: React.FC = () => {
     language: state.language,
     previewDisplayMode: state.previewDisplayMode,
     setPreviewDisplayMode: state.setPreviewDisplayMode,
+    visionDetectionPreviewEnabled: state.visionDetectionPreviewEnabled,
+    visionDetectionOverlay: state.visionDetectionOverlay,
   }), shallow);
 
   const editorMode = projectSettings.editorMode ?? '2d';
@@ -440,6 +445,48 @@ const Viewport: React.FC = () => {
 
       applyObjectEffects(container, obj);
 
+      // Vision detection preview (cat/dog boxes on video — single-frame, no tracking)
+      const visionPreviewOn = useStore.getState().visionDetectionPreviewEnabled;
+      const visionOverlay = useStore.getState().visionDetectionOverlay;
+      const existingDet = container.children.find((c) => c.label === 'vision-detection-overlay');
+      const showVisionDet =
+        !isExporting
+        && !isSnapshotRequested
+        && visionPreviewOn
+        && visionOverlay !== null
+        && obj.type === 'video'
+        && visionOverlay.videoId === obj.id
+        && visionOverlay.observations.length > 0;
+
+      if (!showVisionDet) {
+        if (existingDet) {
+          container.removeChild(existingDet);
+          existingDet.destroy({ children: true });
+        }
+      } else {
+        const video = obj as VideoObject;
+        let detG = existingDet as PIXI.Graphics | undefined;
+        if (!detG || detG.destroyed) {
+          detG = new PIXI.Graphics();
+          detG.label = 'vision-detection-overlay';
+          detG.eventMode = 'none';
+          container.addChild(detG);
+        }
+        detG.clear();
+        const localT = time - video.startTime;
+        const clampedLocal = Math.max(0, Math.min(video.duration, localT));
+        const mediaT = (video.offset ?? 0) + clampedLocal;
+        const stale = Math.abs(mediaT - visionOverlay!.mediaTimeSec) > 0.35;
+        detG.alpha = stale ? 0.42 : 1;
+
+        const colours = [0x22c55e, 0x38bdf8, 0xfbbf24, 0xf472b6, 0xa78bfa];
+        visionOverlay!.observations.forEach((obs, i) => {
+          const r = visionNormBoundingBoxToVideoLocalRect(obs.boundingBox, video.width, video.height);
+          detG!.rect(r.x, r.y, r.width, r.height);
+          detG!.stroke({ width: 2, color: colours[i % colours.length] });
+        });
+      }
+
       // Selection Border
       let border = container.children.find(c => c.label === 'border') as PIXI.Graphics;
       if (isSelected && !isExporting && !isSnapshotRequested) { 
@@ -690,7 +737,15 @@ const Viewport: React.FC = () => {
 
   useEffect(() => { 
       if (!isExporting) renderScene(currentTime, objects); 
-  }, [currentTime, objects, renderScene, renderTick, isExporting]);
+  }, [
+    currentTime,
+    objects,
+    renderScene,
+    renderTick,
+    isExporting,
+    visionDetectionPreviewEnabled,
+    visionDetectionOverlay
+  ]);
 
   const getExportCanvas = useCallback((): HTMLCanvasElement | null => {
     if (useStore.getState().projectSettings.editorMode === '3d_stage') {
