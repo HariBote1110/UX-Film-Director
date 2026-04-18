@@ -1,10 +1,11 @@
 {
   "name": "ux-film-director",
   "private": true,
-  "version": "0.1.1-Beta-2o",
+  "version": "0.1.1-Beta-3a",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
+    "test": "vitest run",
     "build": "tsc && vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
     "preview": "vite preview",
     "rust:build:debug": "cargo build --manifest-path rust-backend/Cargo.toml",
@@ -27,6 +28,7 @@
     "typescript": "^5.2.2",
     "vite": "^5.2.0",
     "vite-plugin-electron": "^0.28.4",
-    "vite-plugin-electron-renderer": "^0.14.5"
+    "vite-plugin-electron-renderer": "^0.14.5",
+    "vitest": "^2.1.9"
   }
 }

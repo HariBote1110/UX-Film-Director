@@ -3,6 +3,8 @@ import { useStore } from '../store/useStore';
 import { TimelineObject } from '../types';
 import TimelineItem from './TimelineItem';
 import { PX_PER_SEC, ROW_HEIGHT, HEADER_WIDTH, RULER_HEIGHT, MAX_LAYERS } from './timelineConstants';
+
+type LayerTrackMenuState = { x: number; y: number; layer: number };
 import { useTimelineDrop } from '../hooks/useTimelineDrop';
 import { TimelineControlBar } from './TimelineControlBar';
 import { TimelineContextMenu, ContextMenuState } from './TimelineContextMenu';
@@ -14,7 +16,8 @@ const Timeline: React.FC = () => {
   const { 
     currentTime, duration, setTime, addObject,
     objects, selectedIds, selectObject, selectObjects, clearSelection, isExporting, projectSettings,
-    layers, setLayerName, toggleLayerVisibility, toggleLayerLock
+    layers, setLayerName, toggleLayerVisibility, toggleLayerLock,
+    swapLayerTracks, insertLayerTrackAt, deleteLayerTrackAt
   } = useStore((state) => ({
     currentTime: state.currentTime,
     duration: state.duration,
@@ -31,6 +34,9 @@ const Timeline: React.FC = () => {
     setLayerName: state.setLayerName,
     toggleLayerVisibility: state.toggleLayerVisibility,
     toggleLayerLock: state.toggleLayerLock,
+    swapLayerTracks: state.swapLayerTracks,
+    insertLayerTrackAt: state.insertLayerTrackAt,
+    deleteLayerTrackAt: state.deleteLayerTrackAt,
   }), shallow);
   
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -44,6 +50,8 @@ const Timeline: React.FC = () => {
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, type: 'canvas', time: 0, layer: 0 });
   const [editingLayer, setEditingLayer] = useState<number | null>(null);
   const [editingLayerName, setEditingLayerName] = useState('');
+  const [layerTrackMenu, setLayerTrackMenu] = useState<LayerTrackMenuState | null>(null);
+
   const [marqueeSelection, setMarqueeSelection] = useState<{
     active: boolean;
     append: boolean;
@@ -199,9 +207,13 @@ const Timeline: React.FC = () => {
   }, [isExporting]);
 
   useEffect(() => {
-    const handleClick = () => { if (contextMenu.visible) setContextMenu(prev => ({ ...prev, visible: false })); };
-    window.addEventListener('click', handleClick); return () => window.removeEventListener('click', handleClick);
-  }, [contextMenu.visible]);
+    const handleClick = () => {
+      if (contextMenu.visible) setContextMenu((prev) => ({ ...prev, visible: false }));
+      if (layerTrackMenu) setLayerTrackMenu(null);
+    };
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, [contextMenu.visible, layerTrackMenu]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => { if (isScrubbing) setTime(calculateTimeFromEvent(e.clientX)); };
@@ -487,7 +499,15 @@ const Timeline: React.FC = () => {
                         borderRight: '1px solid #111', borderBottom: '1px solid #111', zIndex: 700,
                         display: 'flex', alignItems: 'center', padding: '0 6px', gap: '4px', fontSize: '11px', color: '#ccc',
                         boxShadow: '2px 0 5px rgba(0,0,0,0.3)', boxSizing: 'border-box'
-                    }} onDoubleClick={(e) => { e.stopPropagation(); beginLayerRename(i); }}>
+                    }}
+                        onContextMenu={(e) => {
+                          if (isExporting) return;
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setLayerTrackMenu({ x: e.clientX, y: e.clientY, layer: i });
+                        }}
+                        onDoubleClick={(e) => { e.stopPropagation(); beginLayerRename(i); }}
+                    >
                         <button
                           type="button"
                           title={layerState.visible ? 'レイヤーを非表示' : 'レイヤーを表示'}
@@ -609,6 +629,88 @@ const Timeline: React.FC = () => {
             onAddPsd={cmAddPsd}
             onAddGroup={cmAddGroup}
         />
+      )}
+
+      {layerTrackMenu && !isExporting && (
+        <div
+          role="menu"
+          style={{
+            position: 'fixed',
+            left: layerTrackMenu.x,
+            top: layerTrackMenu.y,
+            zIndex: 10000,
+            minWidth: '200px',
+            background: '#2d2d2d',
+            border: '1px solid #444',
+            borderRadius: '6px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+            padding: '4px 0',
+            fontSize: '12px',
+            color: '#ddd'
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          {([
+            { label: '上にレイヤーを挿入', onClick: () => insertLayerTrackAt(layerTrackMenu.layer) },
+            {
+              label: '下にレイヤーを挿入',
+              onClick: () => insertLayerTrackAt(Math.min(layerTrackMenu.layer + 1, MAX_LAYERS - 1))
+            },
+            {
+              label: 'レイヤーを削除…',
+              disabled: getLayerState(layerTrackMenu.layer).locked,
+              onClick: () => {
+                if (!window.confirm('このレイヤー上のクリップも削除されます。続行しますか？')) return;
+                deleteLayerTrackAt(layerTrackMenu.layer);
+              }
+            },
+            { divider: true as const },
+            {
+              label: 'レイヤーを上へ移動',
+              disabled: layerTrackMenu.layer <= 0
+                || getLayerState(layerTrackMenu.layer).locked
+                || getLayerState(layerTrackMenu.layer - 1).locked,
+              onClick: () => swapLayerTracks(layerTrackMenu.layer, layerTrackMenu.layer - 1)
+            },
+            {
+              label: 'レイヤーを下へ移動',
+              disabled: layerTrackMenu.layer >= MAX_LAYERS - 1
+                || getLayerState(layerTrackMenu.layer).locked
+                || getLayerState(layerTrackMenu.layer + 1).locked,
+              onClick: () => swapLayerTracks(layerTrackMenu.layer, layerTrackMenu.layer + 1)
+            }
+          ] as const).map((item, idx) => {
+            if ('divider' in item && item.divider) {
+              return <div key={`d-${idx}`} style={{ height: '1px', background: '#444', margin: '4px 0' }} />;
+            }
+            const row = item as { label: string; onClick: () => void; disabled?: boolean };
+            return (
+              <button
+                key={row.label}
+                type="button"
+                disabled={Boolean(row.disabled)}
+                onClick={() => {
+                  row.onClick();
+                  setLayerTrackMenu(null);
+                }}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '6px 12px',
+                  border: 'none',
+                  background: 'transparent',
+                  color: row.disabled ? '#666' : '#eee',
+                  cursor: row.disabled ? 'default' : 'pointer',
+                  fontSize: '12px'
+                }}
+              >
+                {row.label}
+              </button>
+            );
+          })}
+        </div>
       )}
     </div>
   );

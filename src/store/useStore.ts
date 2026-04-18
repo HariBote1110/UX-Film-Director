@@ -15,6 +15,11 @@ import {
   normaliseKeyframesForObject,
   shiftKeyframesForObject
 } from '../utils/keyframes';
+import {
+  deleteLayerTrack as applyDeleteLayerTrack,
+  insertLayerTrack as applyInsertLayerTrack,
+  swapLayerTracks as applySwapLayerTracks
+} from '../utils/layerTrackOps';
 
 interface ClipboardState {
   objects: TimelineObject[];
@@ -22,6 +27,11 @@ interface ClipboardState {
   anchorLayer: number;
   anchorX: number;
   anchorY: number;
+}
+
+interface HistorySnapshot {
+  objects: TimelineObject[];
+  layers: LayerState[];
 }
 
 interface AppState {
@@ -46,8 +56,8 @@ interface AppState {
   clipboard: ClipboardState | null;
   
   // History State for Undo/Redo
-  pastStates: TimelineObject[][];
-  futureStates: TimelineObject[][];
+  pastStates: HistorySnapshot[];
+  futureStates: HistorySnapshot[];
 
   // Actions
   initializeProject: (settings: ProjectSettings) => void;
@@ -55,6 +65,9 @@ interface AppState {
   setLayerName: (layer: number, name: string) => void;
   toggleLayerVisibility: (layer: number) => void;
   toggleLayerLock: (layer: number) => void;
+  swapLayerTracks: (indexA: number, indexB: number) => void;
+  insertLayerTrackAt: (insertAt: number) => void;
+  deleteLayerTrackAt: (layerIndex: number) => void;
   setTime: (time: number) => void;
   setDuration: (duration: number) => void;
   advanceTime: (deltaTime: number) => void;
@@ -284,6 +297,55 @@ export const useStore = create<AppState>((set, get) => ({
     return { layers: nextLayers };
   }),
 
+  swapLayerTracks: (indexA, indexB) => {
+    const state = get();
+    if (!Number.isInteger(indexA) || !Number.isInteger(indexB)) return;
+    if (indexA < 0 || indexA >= state.layers.length || indexB < 0 || indexB >= state.layers.length) return;
+    if (indexA === indexB) return;
+    if (state.layers[indexA]?.locked || state.layers[indexB]?.locked) return;
+
+    get().pushHistory();
+    const { layers, objects } = applySwapLayerTracks(state.layers, state.objects, indexA, indexB);
+    set({
+      layers: normaliseLayers(layers),
+      objects,
+      duration: calculateAutoDuration(objects),
+      selectedId: null,
+      selectedIds: []
+    });
+  },
+
+  insertLayerTrackAt: (insertAt) => {
+    const state = get();
+    if (!Number.isInteger(insertAt) || insertAt < 0 || insertAt >= state.layers.length) return;
+
+    get().pushHistory();
+    const { layers, objects } = applyInsertLayerTrack(state.layers, state.objects, insertAt);
+    set({
+      layers: normaliseLayers(layers),
+      objects,
+      duration: calculateAutoDuration(objects),
+      selectedId: null,
+      selectedIds: []
+    });
+  },
+
+  deleteLayerTrackAt: (layerIndex) => {
+    const state = get();
+    if (!Number.isInteger(layerIndex) || layerIndex < 0 || layerIndex >= state.layers.length) return;
+    if (state.layers[layerIndex]?.locked) return;
+
+    get().pushHistory();
+    const { layers, objects } = applyDeleteLayerTrack(state.layers, state.objects, layerIndex);
+    set({
+      layers: normaliseLayers(layers),
+      objects,
+      duration: calculateAutoDuration(objects),
+      selectedId: null,
+      selectedIds: []
+    });
+  },
+
   setTime: (time) => set((state) => {
     const nextTime = Math.max(0, time);
     if (Math.abs(state.currentTime - nextTime) < 0.0001) return {};
@@ -323,7 +385,13 @@ export const useStore = create<AppState>((set, get) => ({
   
   // 変更前の状態を履歴に保存する
   pushHistory: () => set((state) => ({
-    pastStates: [...state.pastStates, state.objects],
+    pastStates: [
+      ...state.pastStates,
+      {
+        objects: state.objects,
+        layers: state.layers.map((layer) => ({ ...layer }))
+      }
+    ],
     futureStates: [] // 新しい操作をしたらRedoスタックはクリア
   })),
 
@@ -332,10 +400,17 @@ export const useStore = create<AppState>((set, get) => ({
     const previous = state.pastStates[state.pastStates.length - 1];
     const newPast = state.pastStates.slice(0, -1);
     return {
-      objects: previous,
+      objects: previous.objects,
+      layers: previous.layers.map((layer) => ({ ...layer })),
       pastStates: newPast,
-      futureStates: [state.objects, ...state.futureStates],
-      duration: calculateAutoDuration(previous),
+      futureStates: [
+        {
+          objects: state.objects,
+          layers: state.layers.map((layer) => ({ ...layer }))
+        },
+        ...state.futureStates
+      ],
+      duration: calculateAutoDuration(previous.objects),
       selectedId: null,
       selectedIds: []
     };
@@ -346,10 +421,17 @@ export const useStore = create<AppState>((set, get) => ({
     const next = state.futureStates[0];
     const newFuture = state.futureStates.slice(1);
     return {
-      objects: next,
-      pastStates: [...state.pastStates, state.objects],
+      objects: next.objects,
+      layers: next.layers.map((layer) => ({ ...layer })),
+      pastStates: [
+        ...state.pastStates,
+        {
+          objects: state.objects,
+          layers: state.layers.map((layer) => ({ ...layer }))
+        }
+      ],
       futureStates: newFuture,
-      duration: calculateAutoDuration(next),
+      duration: calculateAutoDuration(next.objects),
       selectedId: null,
       selectedIds: []
     };

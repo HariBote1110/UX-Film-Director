@@ -321,6 +321,31 @@ const TimelineItem: React.FC<TimelineItemProps> = ({ object, pxPerSec, rowHeight
         {object.name} {object.groupId ? '[G]' : ''} {object.keyframes && object.keyframes.length > 1 ? '◆' : ''} {object.enableAnimation ? '⇗' : ''}
       </div>
 
+      {object.keyframes && object.keyframes.length >= 2 && object.keyframes.map((keyframe) => {
+        const offsetPx = (keyframe.time - object.startTime) * pxPerSec;
+        if (offsetPx < -4 || offsetPx > width + 4) return null;
+        return (
+          <div
+            key={keyframe.id}
+            title={`Keyframe ${keyframe.time.toFixed(2)}s`}
+            style={{
+              position: 'absolute',
+              left: `${offsetPx}px`,
+              top: '50%',
+              width: '7px',
+              height: '7px',
+              marginLeft: '-4px',
+              marginTop: '-4px',
+              background: '#f1c40f',
+              transform: 'rotate(45deg)',
+              pointerEvents: 'none',
+              boxShadow: '0 0 0 1px rgba(0,0,0,0.35)',
+              zIndex: 2
+            }}
+          />
+        );
+      })}
+
       <div
         style={{
           position: 'absolute', right: 0, top: 0, bottom: 0, width: '10px',
