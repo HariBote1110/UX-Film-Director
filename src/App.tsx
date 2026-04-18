@@ -149,27 +149,40 @@ const App: React.FC = () => {
     <div className="app-container" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
 
       <header className="title-bar">
-        <span className="app-title-text">{t('appTitle')}</span>
+        <span className="app-title-text" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+          {t('appTitle')}
+        </span>
         <div className="title-bar-actions">
-          <select value={language} onChange={(e) => setLanguage(e.target.value as 'ja' | 'en')}>
-            <option value="ja">日本語</option>
-            <option value="en">English</option>
+          <div className="divider" style={{ height: '14px', opacity: 0.3 }}></div>
+          <button onClick={handleOpenProject} disabled={isUiBusy} title={t('openProject')}>
+            📂
+          </button>
+          <button onClick={handleSaveProject} disabled={isUiBusy} title={t('saveProject')}>
+            💾
+          </button>
+          <button onClick={requestSnapshot} disabled={isUiBusy} title={t('snapshot')}>
+            📸
+          </button>
+          
+          <div className="divider"></div>
+          
+          <button className="btn-success" onClick={handleExportMp3} disabled={isUiBusy} style={{ fontSize: '11px' }}>
+            {isMp3Exporting ? '...' : 'MP3'}
+          </button>
+          <button className="btn-primary" onClick={handleExport} disabled={isUiBusy} style={{ fontSize: '11px' }}>
+            {isExporting ? '...' : language === 'ja' ? '動画出力' : 'Export'}
+          </button>
+
+          <div className="divider" style={{ height: '14px', opacity: 0.3 }}></div>
+          
+          <select 
+            value={language} 
+            onChange={(e) => setLanguage(e.target.value as 'ja' | 'en')}
+            style={{ border: 'none', background: 'transparent', fontSize: '10px', padding: '0 4px', color: 'var(--text-muted)' }}
+          >
+            <option value="ja">JA</option>
+            <option value="en">EN</option>
           </select>
-          <button onClick={handleOpenProject} disabled={isUiBusy}>
-            {projectIoAction === 'opening' ? t('loading') : t('openProject')}
-          </button>
-          <button onClick={handleSaveProject} disabled={isUiBusy}>
-            {projectIoAction === 'saving' ? t('saving') : t('saveProject')}
-          </button>
-          <button onClick={requestSnapshot} disabled={isUiBusy}>
-            {t('snapshot')}
-          </button>
-          <button className="btn-success" onClick={handleExportMp3} disabled={isUiBusy}>
-            {isMp3Exporting ? t('exportingMp3') : t('exportMp3')}
-          </button>
-          <button className="btn-primary" onClick={handleExport} disabled={isUiBusy}>
-            {isExporting ? t('exportingVideo') : t('exportVideo')}
-          </button>
         </div>
       </header>
 

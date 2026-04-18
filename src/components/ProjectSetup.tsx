@@ -49,52 +49,35 @@ const ProjectSetup: React.FC<ProjectSetupProps> = ({ onOpenProject, isProjectIoB
     }
   };
 
-  const inputStyle = {
-    background: '#333',
-    border: '1px solid #555',
-    color: '#fff',
-    padding: '8px',
-    borderRadius: '4px',
-    width: '100%',
-    marginBottom: '16px'
-  };
-
-  const labelStyle = {
-    display: 'block',
-    marginBottom: '6px',
-    fontSize: '12px',
-    color: '#aaa'
-  };
-
   return (
-    <div className="setup-screen" style={{ height: 'calc(100vh - 48px)', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-      <div className="glass setup-card" style={{ width: '420px', padding: '40px', borderRadius: 'var(--radius-lg)' }}>
-        <h2 style={{ marginTop: 0, marginBottom: '24px', textAlign: 'center', fontSize: '24px', fontWeight: 700, letterSpacing: '-0.5px' }}>{t('createNewProject')}</h2>
+    <div className="setup-screen" style={{ height: 'calc(100vh - 40px)', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <div className="glass setup-card" style={{ width: '400px', padding: '32px', borderRadius: 'var(--radius-lg)' }}>
+        <h2 style={{ marginTop: 0, marginBottom: '24px', textAlign: 'center', fontSize: '20px', fontWeight: 700, letterSpacing: '-0.5px' }}>{t('createNewProject')}</h2>
 
         {hasLastSettings && (
-          <div style={{ marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--border-subtle)' }}>
+          <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid var(--border-subtle)' }}>
             <button 
               className="btn-primary"
               onClick={handleContinue}
               disabled={isProjectIoBusy}
-              style={{ width: '100%', height: '44px', fontSize: '14px' }}
+              style={{ width: '100%', height: '40px' }}
             >
-              {language === 'en' ? 'Continue with previous settings' : '前回の設定で続ける'}
+              {language === 'en' ? 'Continue' : '前回の設定で続ける'}
             </button>
           </div>
         )}
 
-        <div style={{ marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--border-subtle)' }}>
+        <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid var(--border-subtle)' }}>
           <button
             onClick={onOpenProject}
             disabled={isProjectIoBusy}
-            style={{ width: '100%', height: '44px', fontSize: '14px' }}
+            style={{ width: '100%', height: '40px' }}
           >
             {isProjectIoBusy ? t('loading') : t('openExistingProject')}
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
           <div className="input-group">
             <label className="input-label">{t('width')} (px)</label>
             <input 
@@ -118,7 +101,7 @@ const ProjectSetup: React.FC<ProjectSetupProps> = ({ onOpenProject, isProjectIoB
           <select 
             value={settings.fps} 
             onChange={(e) => handleChange('fps', parseInt(e.target.value))}
-            style={{ width: '100%', height: '36px' }}
+            style={{ width: '100%' }}
           >
             <option value="24">24 fps</option>
             <option value="30">30 fps</option>
@@ -126,12 +109,12 @@ const ProjectSetup: React.FC<ProjectSetupProps> = ({ onOpenProject, isProjectIoB
           </select>
         </div>
 
-        <div style={{ marginBottom: '32px' }}>
+        <div style={{ marginBottom: '28px' }}>
           <label className="input-label">{t('sampleRate')} (Hz)</label>
           <select 
             value={settings.sampleRate} 
             onChange={(e) => handleChange('sampleRate', parseInt(e.target.value))}
-            style={{ width: '100%', height: '36px' }}
+            style={{ width: '100%' }}
           >
             <option value="44100">44100 Hz</option>
             <option value="48000">48000 Hz</option>
@@ -141,7 +124,7 @@ const ProjectSetup: React.FC<ProjectSetupProps> = ({ onOpenProject, isProjectIoB
         <button 
           className="btn-primary"
           onClick={handleCreate}
-          style={{ width: '100%', height: '48px', fontSize: '15px', fontWeight: 600 }}
+          style={{ width: '100%', height: '44px', fontWeight: 600 }}
         >
           {t('create')}
         </button>

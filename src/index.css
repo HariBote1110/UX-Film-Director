@@ -394,19 +394,46 @@ input[type="range"] {
 }
 
 .control-bar {
-  padding: 8px 16px;
+  padding: 0 16px;
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border-strong);
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 48px;
+  gap: 6px;
+  height: 44px;
   box-sizing: border-box;
 }
 
 .divider {
   width: 1px;
-  height: 20px;
+  height: 18px;
   background: var(--border-subtle);
-  margin: 0 4px;
+  margin: 0 6px;
+}
+
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+/* Fix button text wrap issues */
+button {
+  white-space: nowrap;
+}
+
+/* Refine Title Bar Layout */
+.title-bar {
+  height: 40px !important;
+  padding: 0 12px 0 80px !important;
+}
+
+.title-bar-actions {
+  gap: 8px;
+}
+
+.title-bar button {
+  padding: 4px 10px;
+  font-size: 12px;
 }

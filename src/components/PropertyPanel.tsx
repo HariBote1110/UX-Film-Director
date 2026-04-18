@@ -85,7 +85,7 @@ const SceneAndCameraPanel: React.FC = () => {
       </Row>
       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
         <button type="button" onClick={() => addScene()} style={{ flex: 1 }}>
-          {language === 'en' ? '+ Scene' : '＋ シーン'}
+          + {language === 'en' ? 'Scene' : 'シーン'}
         </button>
         <button
           className="btn-danger"
@@ -607,7 +607,7 @@ const PropertyPanel: React.FC = () => {
                         type="number"
                         value={batchMoveX}
                         onChange={(e) => setBatchMoveX(e.target.value)}
-                        style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                        style={{ width: '80px' }}
                     />
                 </Row>
                 <Row label="移動 Y">
@@ -615,7 +615,7 @@ const PropertyPanel: React.FC = () => {
                         type="number"
                         value={batchMoveY}
                         onChange={(e) => setBatchMoveY(e.target.value)}
-                        style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                        style={{ width: '80px' }}
                     />
                 </Row>
                 <Row label="拡大率X %">
@@ -623,7 +623,7 @@ const PropertyPanel: React.FC = () => {
                         type="number"
                         value={batchScaleXPercent}
                         onChange={(e) => setBatchScaleXPercent(e.target.value)}
-                        style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                        style={{ width: '80px' }}
                     />
                 </Row>
                 <Row label="拡大率Y %">
@@ -631,7 +631,7 @@ const PropertyPanel: React.FC = () => {
                         type="number"
                         value={batchScaleYPercent}
                         onChange={(e) => setBatchScaleYPercent(e.target.value)}
-                        style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                        style={{ width: '80px' }}
                     />
                 </Row>
                 <Row label="回転 Δ">
@@ -639,7 +639,7 @@ const PropertyPanel: React.FC = () => {
                         type="number"
                         value={batchRotation}
                         onChange={(e) => setBatchRotation(e.target.value)}
-                        style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                        style={{ width: '80px' }}
                     />
                 </Row>
                 <Row label="不透明度 Δ%">
@@ -647,48 +647,48 @@ const PropertyPanel: React.FC = () => {
                         type="number"
                         value={batchOpacityPercent}
                         onChange={(e) => setBatchOpacityPercent(e.target.value)}
-                        style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                        style={{ width: '80px' }}
                     />
                 </Row>
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                     <button
                         type="button"
+                        className="btn-primary"
                         onClick={handleApplyBatchTransform}
-                        style={{ flex: 1, border: '1px solid #2c5f9e', background: '#244a79', color: '#fff', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer' }}
+                        style={{ flex: 1 }}
                     >
-                        選択中へ適用
+                        {language === 'ja' ? '選択中に適用' : 'Apply to Selected'}
                     </button>
                     <button
                         type="button"
                         onClick={resetBatchTransformInputs}
-                        style={{ border: '1px solid #555', background: '#333', color: '#ddd', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer' }}
                     >
-                        リセット
+                        {language === 'ja' ? 'リセット' : 'Reset'}
                     </button>
                 </div>
             </>
         )}
 
         <Row label="Name">
-            <input type="text" value={selectedObject.name} onChange={(e) => handleChange('name', e.target.value)} style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee', padding: '4px' }} />
+            <input type="text" value={selectedObject.name} onChange={(e) => handleChange('name', e.target.value)} />
         </Row>
         
         {/* --- 基本座標 --- */}
         <SectionHeader label="Transform" />
         <Row label="X">
-            <input type="number" value={selectedObject.x} onChange={(e) => handleNumericChange('x', e.target.value)} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
+            <input type="number" value={selectedObject.x} onChange={(e) => handleNumericChange('x', e.target.value)} style={{ width: '80px' }} />
         </Row>
         <Row label="Y">
-            <input type="number" value={selectedObject.y} onChange={(e) => handleNumericChange('y', e.target.value)} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
+            <input type="number" value={selectedObject.y} onChange={(e) => handleNumericChange('y', e.target.value)} style={{ width: '80px' }} />
         </Row>
         <Row label="Scale X">
-            <input type="number" step="0.1" value={selectedObject.scaleX ?? 1} onChange={(e) => handleNumericChange('scaleX', e.target.value)} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
+            <input type="number" step="0.1" value={selectedObject.scaleX ?? 1} onChange={(e) => handleNumericChange('scaleX', e.target.value)} style={{ width: '80px' }} />
         </Row>
         <Row label="Scale Y">
-            <input type="number" step="0.1" value={selectedObject.scaleY ?? 1} onChange={(e) => handleNumericChange('scaleY', e.target.value)} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
+            <input type="number" step="0.1" value={selectedObject.scaleY ?? 1} onChange={(e) => handleNumericChange('scaleY', e.target.value)} style={{ width: '80px' }} />
         </Row>
         <Row label="Rotation">
-            <input type="number" value={selectedObject.rotation} onChange={(e) => handleNumericChange('rotation', e.target.value)} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
+            <input type="number" value={selectedObject.rotation} onChange={(e) => handleNumericChange('rotation', e.target.value)} style={{ width: '80px' }} />
         </Row>
         <Row label="Opacity">
             <Slider min="0" max="1" step="0.01" value={selectedObject.opacity} onInput={(e) => handleNumericChange('opacity', e.currentTarget.value)} style={{ width: '100%' }} />
@@ -701,16 +701,14 @@ const PropertyPanel: React.FC = () => {
                     <button
                         type="button"
                         onClick={handleAddCurrentKeyframe}
-                        style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}
                     >
-                        現在位置を追加
+                        {language === 'ja' ? '＋キー' : 'Add Key'}
                     </button>
                     <button
                         type="button"
                         onClick={handleCreateEndpointKeyframes}
-                        style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}
                     >
-                        始点/終点を生成
+                        {language === 'ja' ? '両端生成' : 'Endpoints'}
                     </button>
                 </div>
                 <div style={{ border: '1px solid #333', borderRadius: '4px', padding: '8px', marginBottom: '8px', background: '#1f1f1f' }}>
@@ -720,8 +718,10 @@ const PropertyPanel: React.FC = () => {
                     {keyframes.map((keyframe, index) => (
                         <div key={keyframe.id} style={{ borderTop: index === 0 ? 'none' : '1px solid #333', paddingTop: index === 0 ? '0' : '8px', marginTop: index === 0 ? '0' : '8px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                <span style={{ fontSize: '11px', color: '#bbb' }}>中間点 {index + 1}</span>
-                                <button type="button" onClick={() => handleDeleteKeyframe(keyframe.id)} style={{ border: '1px solid #553333', background: '#3b2020', color: '#ffb0b0', borderRadius: '3px', padding: '0 6px', cursor: 'pointer' }}>削除</button>
+                                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>#{index + 1}</span>
+                                <button type="button" onClick={() => handleDeleteKeyframe(keyframe.id)} className="btn-danger" style={{ padding: '0 6px', height: '20px', fontSize: '10px' }}>
+                                  {language === 'ja' ? '削除' : 'Del'}
+                                </button>
                             </div>
                             <Row label="Time">
                                 <input
@@ -737,7 +737,7 @@ const PropertyPanel: React.FC = () => {
                                         selectedObject.startTime + selectedObject.duration
                                       )
                                     })}
-                                    style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                                    style={{ width: '80px' }}
                                 />
                             </Row>
                             <Row label="X">
@@ -745,7 +745,7 @@ const PropertyPanel: React.FC = () => {
                                     type="number"
                                     value={keyframe.x}
                                     onChange={(e) => handleUpdateKeyframe(keyframe.id, { x: toNumberOr(e.target.value, keyframe.x) })}
-                                    style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                                    style={{ width: '80px' }}
                                 />
                             </Row>
                             <Row label="Y">
@@ -753,14 +753,14 @@ const PropertyPanel: React.FC = () => {
                                     type="number"
                                     value={keyframe.y}
                                     onChange={(e) => handleUpdateKeyframe(keyframe.id, { y: toNumberOr(e.target.value, keyframe.y) })}
-                                    style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                                    style={{ width: '80px' }}
                                 />
                             </Row>
                             <Row label="Ease">
                                 <select
                                     value={keyframe.easing ?? selectedObject.easing}
                                     onChange={(e) => handleUpdateKeyframe(keyframe.id, { easing: e.target.value as EasingType })}
-                                    style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                                    style={{ width: '100%' }}
                                 >
                                     {Object.entries(easingNames).map(([value, label]) => (
                                         <option key={value} value={value}>{label}</option>
@@ -777,22 +777,22 @@ const PropertyPanel: React.FC = () => {
         <SectionHeader label="Composition" />
         <Row label="Masking">
             <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                <input type="checkbox" checked={selectedObject.clipping || false} onChange={(e) => handleChange('clipping', e.target.checked)} style={{ marginRight: '6px' }} />
-                <span style={{ fontSize: '11px', color: '#888' }}>Clip by object above (Layer-1)</span>
+                <input type="checkbox" checked={selectedObject.clipping || false} onChange={(e) => handleChange('clipping', e.target.checked)} style={{ marginRight: '8px' }} />
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Clip by object above</span>
             </label>
         </Row>
 
         <SectionHeader label="Filter Stack" />
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
-            <button type="button" onClick={() => handleAddFilter('color_correction')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ {filterLabel.color_correction}</button>
-            <button type="button" onClick={() => handleAddFilter('clipping')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ {filterLabel.clipping}</button>
-            <button type="button" onClick={() => handleAddFilter('vibration')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ {filterLabel.vibration}</button>
-            <button type="button" onClick={() => handleAddFilter('shadow')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ {filterLabel.shadow}</button>
-            <button type="button" onClick={() => handleAddFilter('blur')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ {filterLabel.blur}</button>
-            <button type="button" onClick={() => handleAddFilter('fade')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ {filterLabel.fade}</button>
-            <button type="button" onClick={() => handleAddFilter('wipe')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ {filterLabel.wipe}</button>
+        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '8px' }}>
+            <button type="button" onClick={() => handleAddFilter('color_correction')}>+ {filterLabel.color_correction}</button>
+            <button type="button" onClick={() => handleAddFilter('clipping')}>+ {filterLabel.clipping}</button>
+            <button type="button" onClick={() => handleAddFilter('vibration')}>+ {filterLabel.vibration}</button>
+            <button type="button" onClick={() => handleAddFilter('shadow')}>+ {filterLabel.shadow}</button>
+            <button type="button" onClick={() => handleAddFilter('blur')}>+ {filterLabel.blur}</button>
+            <button type="button" onClick={() => handleAddFilter('fade')}>+ {filterLabel.fade}</button>
+            <button type="button" onClick={() => handleAddFilter('wipe')}>+ {filterLabel.wipe}</button>
             {canUseGradientFilter && (
-                <button type="button" onClick={() => handleAddFilter('gradient')} style={{ background: '#2d3e50', border: '1px solid #4a5f77', color: '#fff', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+ {filterLabel.gradient}</button>
+                <button type="button" onClick={() => handleAddFilter('gradient')}>+ {filterLabel.gradient}</button>
             )}
         </div>
         <div style={{ border: '1px solid #333', borderRadius: '4px', overflow: 'hidden', marginBottom: '8px' }}>
