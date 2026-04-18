@@ -346,6 +346,15 @@ export const ThreeStageViewport = forwardRef<ThreeStageViewportHandle, ThreeStag
       }
     }, [isExporting]);
 
+    /** 選択解除・書き出しは renderScene より先に反映したいので、ここで必ずギズモを外す */
+    useEffect(() => {
+      const tc = transformControlsRef.current;
+      if (!tc) return;
+      if (!selectedBillboardId || isExporting) {
+        tc.detach();
+      }
+    }, [selectedBillboardId, isExporting]);
+
     useEffect(() => {
       if (userAdjustingRef.current || isExporting) return;
       const camera = cameraRef.current;
