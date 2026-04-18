@@ -10,6 +10,8 @@ import { shallow } from 'zustand/shallow';
 import { resolveAudioMetadata, resolveVideoMetadata } from '../utils/mediaMetadata';
 import { parsePsdAsObject } from '../utils/psdParser';
 
+const LAYER_ARRAY = Array.from({ length: MAX_LAYERS });
+
 const Timeline: React.FC = () => {
   const { 
     currentTime, duration, setTime, addObject, deleteObject, 
@@ -240,6 +242,11 @@ const Timeline: React.FC = () => {
     [duration]
   );
 
+  const timelineTicks = useMemo(
+    () => Array.from({ length: Math.ceil(duration / 5) + 1 }),
+    [duration]
+  );
+
   return (
     <div className="timeline-panel" style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#222', color: '#ccc', position: 'relative' }}>
       
@@ -273,14 +280,14 @@ const Timeline: React.FC = () => {
               overflow: 'hidden', borderBottom: '1px solid #444'
           }} onMouseDown={handleSeekMouseDown}>
              <div style={{ position: 'sticky', left: 0, width: HEADER_WIDTH, height: '100%', background: '#333', borderRight: '1px solid #111', zIndex: 810, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#888' }}>Timeline</div>
-             {Array.from({ length: Math.ceil(duration / 5) + 1 }).map((_, i) => (
+             {timelineTicks.map((_, i) => (
                 <div key={i} style={{ position: 'absolute', left: HEADER_WIDTH + (i * 5 * PX_PER_SEC), top: 0, height: '100%', borderLeft: '1px solid #555', paddingLeft: '4px', fontSize: '10px', color: '#888', pointerEvents: 'none' }}>{i * 5}s</div>
              ))}
              <div style={{ position: 'absolute', left: HEADER_WIDTH + (currentTime * PX_PER_SEC), height: '100%', width: '2px', background: 'red', zIndex: 805, pointerEvents: 'none' }} />
           </div>
 
           <div style={{ position: 'relative' }}>
-             {Array.from({ length: MAX_LAYERS }).map((_, i) => (
+             {LAYER_ARRAY.map((_, i) => (
                 <div key={i} style={{ height: ROW_HEIGHT, borderBottom: '1px solid #2a2a2a', display: 'flex', alignItems: 'center' }}>
                     <div style={{ 
                         position: 'sticky', left: 0, width: HEADER_WIDTH, height: '100%', background: '#2d2d2d', 
