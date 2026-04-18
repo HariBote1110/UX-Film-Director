@@ -680,6 +680,13 @@ const PropertyPanel: React.FC = () => {
         window.alert(res.error);
         return;
       }
+      if (res.message) {
+        window.alert(
+          language === 'en'
+            ? res.message
+            : `トラッキングが途中で終了しました。\n\n${res.message}`
+        );
+      }
       setLastVisionTrackSamples(res.samples);
       const built = buildOverlayPositionKeyframesFromVisionTrack({
         samples: res.samples,

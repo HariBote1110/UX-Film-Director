@@ -35,6 +35,8 @@ struct TrackSampleDTO: Codable {
 struct TrackOutputSuccess: Codable {
     var ok: Bool = true
     var samples: [TrackSampleDTO]
+    /// Set when tracking stopped early (lost target or Vision error) but partial samples are returned.
+    var message: String?
 }
 
 struct AnimalObservationDTO: Codable {
@@ -86,6 +88,10 @@ func fail(_ message: String) -> Never {
     exit(1)
 }
 
+/// Minimum width/height in Vision normalised space so `VNTrackObjectRequest` does not hit
+/// "unexpected tracked object bounding box size" (degenerate boxes).
+private let kVisionMinTrackedDimension: CGFloat = 0.004
+
 func cgRect(from box: BoundingBoxDTO) -> CGRect {
     CGRect(
         x: box.x,
@@ -93,6 +99,58 @@ func cgRect(from box: BoundingBoxDTO) -> CGRect {
         width: box.width,
         height: box.height
     )
+}
+
+/// Vision normalised coords: origin bottom-left, +y up. Clamps into [0,1] with a minimum size.
+func clampVisionInitialBoundingBox(_ rect: CGRect) -> CGRect {
+    var x = CGFloat(rect.origin.x)
+    var y = CGFloat(rect.origin.y)
+    var w = CGFloat(rect.size.width)
+    var h = CGFloat(rect.size.height)
+    if !x.isFinite || !y.isFinite || !w.isFinite || !h.isFinite {
+        return CGRect(x: 0.25, y: 0.25, width: 0.5, height: 0.5)
+    }
+    x = max(0, min(1, x))
+    y = max(0, min(1, y))
+    w = max(kVisionMinTrackedDimension, w)
+    h = max(kVisionMinTrackedDimension, h)
+    w = min(w, 1 - x)
+    h = min(h, 1 - y)
+    if w < kVisionMinTrackedDimension {
+        w = kVisionMinTrackedDimension
+        x = max(0, min(x, 1 - w))
+    }
+    if h < kVisionMinTrackedDimension {
+        h = kVisionMinTrackedDimension
+        y = max(0, min(y, 1 - h))
+    }
+    return CGRect(x: x, y: y, width: w, height: h)
+}
+
+/// After `perform`, reject boxes that would likely cause the next `perform` to throw internally.
+func isVisionTrackedBoxHealthy(_ rect: CGRect) -> Bool {
+    guard rect.origin.x.isFinite,
+          rect.origin.y.isFinite,
+          rect.size.width.isFinite,
+          rect.size.height.isFinite
+    else {
+        return false
+    }
+    guard rect.width >= kVisionMinTrackedDimension,
+          rect.height >= kVisionMinTrackedDimension
+    else {
+        return false
+    }
+    // Allow a little slack for sub-pixel drift; still reject clearly invalid frames.
+    let maxSlack: CGFloat = 0.02
+    guard rect.minX >= -maxSlack,
+          rect.minY >= -maxSlack,
+          rect.maxX <= 1 + maxSlack,
+          rect.maxY <= 1 + maxSlack
+    else {
+        return false
+    }
+    return true
 }
 
 func dto(from rect: CGRect) -> BoundingBoxDTO {
@@ -251,7 +309,16 @@ func runTrack(
         fail("AVAssetReader failed to start: \(reader.error?.localizedDescription ?? "unknown")")
     }
 
-    let initialRect = cgRect(from: initialBox)
+    let rawInitial = cgRect(from: initialBox)
+    let initialRect = clampVisionInitialBoundingBox(rawInitial)
+    let clampedInitial =
+        abs(Double(rawInitial.origin.x - initialRect.origin.x)) > 1e-6
+        || abs(Double(rawInitial.origin.y - initialRect.origin.y)) > 1e-6
+        || abs(Double(rawInitial.size.width - initialRect.size.width)) > 1e-6
+        || abs(Double(rawInitial.size.height - initialRect.size.height)) > 1e-6
+    if clampedInitial {
+        fputs("uxfd-coreml-tracker: initial bounding box was clamped to Vision-safe values.\n", stderr)
+    }
     let observation = VNDetectedObjectObservation(boundingBox: initialRect)
 
     let stride = max(1, frameStride ?? 1)
@@ -261,6 +328,7 @@ func runTrack(
     var samples: [TrackSampleDTO] = []
     var frameIndex = 0
     var lastEmittedMediaSec: Double?
+    var earlyExitMessage: String?
 
     let sequenceHandler = VNSequenceRequestHandler()
     let request = VNTrackObjectRequest(detectedObjectObservation: observation)
@@ -282,7 +350,10 @@ func runTrack(
         do {
             try sequenceHandler.perform([request], on: pixelBuffer)
         } catch {
-            fail("Vision perform failed at t=\(mediaSec): \(error.localizedDescription)")
+            let desc = error.localizedDescription
+            earlyExitMessage =
+                "Vision perform failed at t=\(mediaSec)s (\(desc)). Returning \(samples.count) sample(s) collected so far."
+            break
         }
 
         guard let results = request.results as? [VNDetectedObjectObservation],
@@ -293,6 +364,11 @@ func runTrack(
         }
 
         let box = first.boundingBox
+        if !isVisionTrackedBoxHealthy(box) {
+            earlyExitMessage =
+                "Tracking stopped at t=\(mediaSec)s: bounding box no longer usable for Vision (too small or out of range). Returning \(samples.count) sample(s)."
+            break
+        }
         let shouldEmit: Bool
         if frameIndex % stride != 0 {
             shouldEmit = false
@@ -318,7 +394,7 @@ func runTrack(
         fail("reader failed: \(reader.error?.localizedDescription ?? "unknown")")
     }
 
-    return TrackOutputSuccess(samples: samples)
+    return TrackOutputSuccess(samples: samples, message: earlyExitMessage)
 }
 
 // MARK: - Entry

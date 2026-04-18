@@ -15,7 +15,7 @@ export type CoreMlTrackSample = {
 };
 
 export type CoreMlTrackObjectResponse =
-  | { ok: true; samples: CoreMlTrackSample[] }
+  | { ok: true; samples: CoreMlTrackSample[]; message?: string }
   | { ok: false; error: string };
 
 export type CoreMlAnimalObservation = {
@@ -51,16 +51,23 @@ const parseVisionError = (raw: Record<string, unknown>): string | null => {
   return null;
 };
 
-export const invokeCoreMlTrackObject = async (
-  request: CoreMlTrackObjectRequest
-): Promise<CoreMlTrackObjectResponse> => {
-  const raw = (await window.ipcRenderer.invoke('coreml-track-object', request)) as Record<string, unknown>;
+/** Normalises the renderer IPC payload for `coreml-track-object` track command (unit-testable). */
+export const normaliseCoreMlTrackObjectResponse = (raw: Record<string, unknown>): CoreMlTrackObjectResponse => {
   const err = parseVisionError(raw);
   if (err) return { ok: false, error: err };
   if (!raw || !Array.isArray(raw.samples)) {
     return { ok: false, error: 'Unexpected response from coreml-track-object.' };
   }
-  return { ok: true, samples: raw.samples as CoreMlTrackSample[] };
+  const message = typeof raw.message === 'string' ? raw.message : undefined;
+  const base = { ok: true as const, samples: raw.samples as CoreMlTrackSample[] };
+  return message === undefined ? base : { ...base, message };
+};
+
+export const invokeCoreMlTrackObject = async (
+  request: CoreMlTrackObjectRequest
+): Promise<CoreMlTrackObjectResponse> => {
+  const raw = (await window.ipcRenderer.invoke('coreml-track-object', request)) as Record<string, unknown>;
+  return normaliseCoreMlTrackObjectResponse(raw);
 };
 
 export const invokeCoreMlDetectSubjects = async (
