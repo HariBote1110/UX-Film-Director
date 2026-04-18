@@ -9,6 +9,7 @@ import { shallow } from 'zustand/shallow';
 import { buildProjectFileData, openProjectFileWithDialog, restoreProjectObjects, saveProjectFileWithDialog } from './utils/projectFile';
 import { buildExportAudioMixWav } from './utils/audioMixdown';
 import { useTranslation } from './i18n';
+import { FolderOpen, Save, Camera } from 'lucide-react';
 import './index.css';
 
 const { ipcRenderer } = window;
@@ -155,13 +156,13 @@ const App: React.FC = () => {
         <div className="title-bar-actions">
           <div className="divider" style={{ height: '14px', opacity: 0.3 }}></div>
           <button onClick={handleOpenProject} disabled={isUiBusy} title={t('openProject')}>
-            📂
+            <FolderOpen size={14} />
           </button>
           <button onClick={handleSaveProject} disabled={isUiBusy} title={t('saveProject')}>
-            💾
+            <Save size={14} />
           </button>
           <button onClick={requestSnapshot} disabled={isUiBusy} title={t('snapshot')}>
-            📸
+            <Camera size={14} />
           </button>
           
           <div className="divider"></div>

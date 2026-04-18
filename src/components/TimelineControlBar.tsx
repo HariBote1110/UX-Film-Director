@@ -2,6 +2,11 @@ import React from 'react';
 import { useStore } from '../store/useStore';
 import { shallow } from 'zustand/shallow';
 import { useTranslation } from '../i18n';
+import { 
+  Play, Pause, 
+  Square, Type, Image as ImageIcon, Film, Music, 
+  SplitSquareHorizontal, Copy, Scissors, ClipboardPaste, CopyPlus, Link, Unlink 
+} from 'lucide-react';
 
 interface TimelineControlBarProps {
   onAddShape: () => void;
@@ -56,16 +61,16 @@ export const TimelineControlBar: React.FC<TimelineControlBarProps> = ({
         onClick={togglePlay} 
         disabled={isExporting}
       >
-        {isPlaying ? '❚❚' : '▶'}
+        {isPlaying ? <Pause size={14} /> : <Play size={14} />}
       </button>
 
       <div className="divider"></div>
 
-      <button className="btn-icon" onClick={onAddShape} title={t('shapeType')}>＋■</button>
-      <button className="btn-icon" onClick={onAddText} title="Text">＋Ｔ</button>
-      <button className="btn-icon" onClick={onAddImage} title="Image">＋🖼</button>
-      <button className="btn-icon" onClick={onAddVideo} title="Video">＋🎬</button>
-      <button className="btn-icon" onClick={onAddAudio} title="Audio">＋🎵</button>
+      <button className="btn-icon" onClick={onAddShape} title={t('shapeType')}><Square size={14} /></button>
+      <button className="btn-icon" onClick={onAddText} title="Text"><Type size={14} /></button>
+      <button className="btn-icon" onClick={onAddImage} title="Image"><ImageIcon size={14} /></button>
+      <button className="btn-icon" onClick={onAddVideo} title="Video"><Film size={14} /></button>
+      <button className="btn-icon" onClick={onAddAudio} title="Audio"><Music size={14} /></button>
       <button 
         className="btn-primary"
         onClick={onAddPsd} 
@@ -85,13 +90,13 @@ export const TimelineControlBar: React.FC<TimelineControlBarProps> = ({
       
       <div className="divider"></div>
 
-      <button onClick={splitObject} disabled={isExporting} title={t('split')}>✂</button>
-      <button onClick={copySelectedObjects} disabled={isExporting || !hasSelection} title={t('copy')}>📋</button>
-      <button onClick={cutSelectedObjects} disabled={isExporting || !hasSelection} title={t('cut')}>✂️</button>
-      <button onClick={pasteClipboardObjects} disabled={isExporting} title={t('paste')}>📥</button>
-      <button onClick={duplicateSelectedObjects} disabled={isExporting || !hasSelection} title={t('duplicate')}>📑</button>
-      <button onClick={groupSelectedObjects} disabled={isExporting || !hasMultipleSelection} title={t('group')}>🤝</button>
-      <button onClick={ungroupSelectedObjects} disabled={isExporting || !hasSelection} title={t('ungroup')}>🔓</button>
+      <button onClick={splitObject} disabled={isExporting} title={t('split')}><SplitSquareHorizontal size={14} /></button>
+      <button onClick={copySelectedObjects} disabled={isExporting || !hasSelection} title={t('copy')}><Copy size={14} /></button>
+      <button onClick={cutSelectedObjects} disabled={isExporting || !hasSelection} title={t('cut')}><Scissors size={14} /></button>
+      <button onClick={pasteClipboardObjects} disabled={isExporting} title={t('paste')}><ClipboardPaste size={14} /></button>
+      <button onClick={duplicateSelectedObjects} disabled={isExporting || !hasSelection} title={t('duplicate')}><CopyPlus size={14} /></button>
+      <button onClick={groupSelectedObjects} disabled={isExporting || !hasMultipleSelection} title={t('group')}><Link size={14} /></button>
+      <button onClick={ungroupSelectedObjects} disabled={isExporting || !hasSelection} title={t('ungroup')}><Unlink size={14} /></button>
       
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>

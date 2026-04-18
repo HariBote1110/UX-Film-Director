@@ -1,7 +1,7 @@
 {
   "name": "ux-film-director",
   "private": true,
-  "version": "0.1.1-Beta-5k",
+  "version": "0.1.1-Beta-5l",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "ag-psd": "^29.0.0",
+    "lucide-react": "^1.8.0",
     "pixi.js": "^8.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
