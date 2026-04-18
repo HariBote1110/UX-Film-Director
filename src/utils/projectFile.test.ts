@@ -1,14 +1,46 @@
 import { describe, expect, it } from 'vitest';
-import type { ProjectSettings, ShapeObject } from '../types';
+import type { ProjectSettings, PsdObject, ShapeObject } from '../types';
 import { MAX_LAYERS } from '../components/timelineConstants';
-import { createDefaultCamera, createDefaultLayers } from './sceneState';
-import { buildProjectFileData } from './projectFile';
+import { createDefaultCamera, createDefaultLayers, createDefaultStageCamera3D } from './sceneState';
+import { buildProjectFileData, parseProjectPayloadV2 } from './projectFile';
 
 const projectSettings = (): ProjectSettings => ({
   width: 1920,
   height: 1080,
   fps: 30,
   sampleRate: 48000
+});
+
+const defaultStage = () => createDefaultStageCamera3D();
+
+const minimalPsdWithWorldPlacement = (): PsdObject => ({
+  id: 'psd-1',
+  type: 'psd',
+  name: 'Stand',
+  layer: 0,
+  startTime: 0,
+  duration: 5,
+  x: 0,
+  y: 0,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 0,
+  endY: 0,
+  easing: 'linear',
+  src: 'blob:mock',
+  width: 256,
+  height: 512,
+  scale: 1,
+  worldPlacement: {
+    enabled: true,
+    position: { x: -1, y: 0, z: 2 },
+    rotationYDeg: 15,
+    scale: 1.2,
+    billboard: true
+  }
 });
 
 const minimalShape = (): ShapeObject => ({
@@ -45,7 +77,8 @@ describe('buildProjectFileData', () => {
         duration: 12,
         layers,
         objects: [] as ShapeObject[],
-        camera: { ...camera, zoom: 1.25 }
+        camera: { ...camera, zoom: 1.25 },
+        stageCamera3D: defaultStage()
       },
       {
         id: 'scene-b',
@@ -53,7 +86,8 @@ describe('buildProjectFileData', () => {
         duration: 8,
         layers: createDefaultLayers(),
         objects: [],
-        camera
+        camera,
+        stageCamera3D: defaultStage()
       }
     ];
     const liveLayers = createDefaultLayers();
@@ -66,7 +100,8 @@ describe('buildProjectFileData', () => {
       objects: [shape],
       layers: liveLayers,
       duration: 99,
-      camera: { ...camera, zoom: 2 }
+      camera: { ...camera, zoom: 2 },
+      stageCamera3D: defaultStage()
     });
 
     expect(file.format).toBe('uxfd-project');
@@ -96,7 +131,8 @@ describe('buildProjectFileData', () => {
         duration: 10,
         layers,
         objects: [] as ShapeObject[],
-        camera
+        camera,
+        stageCamera3D: defaultStage()
       }
     ];
     const file = buildProjectFileData({
@@ -106,10 +142,79 @@ describe('buildProjectFileData', () => {
       objects: [],
       layers,
       duration: 10,
-      camera
+      camera,
+      stageCamera3D: defaultStage()
     });
     expect(file.scenes[0].layers).not.toBe(layers);
     expect(file.scenes[0].layers).toHaveLength(MAX_LAYERS);
     expect(file.scenes[0].camera).not.toBe(camera);
+  });
+});
+
+describe('parseProjectPayloadV2', () => {
+  it('round-trips PSD worldPlacement through JSON payload', () => {
+    const layers = createDefaultLayers();
+    const camera = createDefaultCamera();
+    const psd = minimalPsdWithWorldPlacement();
+    const file = buildProjectFileData({
+      projectSettings: { ...projectSettings(), editorMode: '3d_stage' },
+      scenes: [
+        {
+          id: 's1',
+          name: 'One',
+          duration: 10,
+          layers,
+          objects: [psd],
+          camera,
+          stageCamera3D: {
+            position: { x: 0, y: 3, z: 8 },
+            target: { x: 0, y: 1, z: 0 }
+          }
+        }
+      ],
+      activeSceneId: 's1',
+      objects: [psd],
+      layers,
+      duration: 10,
+      camera,
+      stageCamera3D: defaultStage()
+    });
+
+    const wire = JSON.parse(JSON.stringify(file)) as unknown;
+    const parsed = parseProjectPayloadV2(wire);
+    const obj = parsed.scenes[0].objects[0];
+    expect(obj.type).toBe('psd');
+    if (obj.type !== 'psd') throw new Error('expected psd');
+    expect(obj.worldPlacement?.enabled).toBe(true);
+    expect(obj.worldPlacement?.position).toEqual({ x: -1, y: 0, z: 2 });
+    expect(obj.worldPlacement?.billboard).toBe(true);
+    expect(parsed.projectSettings.editorMode).toBe('3d_stage');
+  });
+
+  it('rejects invalid worldPlacement on psd objects', () => {
+    const bad = {
+      format: 'uxfd-project',
+      version: 2,
+      savedAt: new Date().toISOString(),
+      projectSettings: projectSettings(),
+      activeSceneId: 's1',
+      scenes: [
+        {
+          id: 's1',
+          name: 'One',
+          duration: 10,
+          layers: createDefaultLayers(),
+          camera: createDefaultCamera(),
+          stageCamera3D: defaultStage(),
+          objects: [
+            {
+              ...minimalPsdWithWorldPlacement(),
+              worldPlacement: { enabled: 'yes' }
+            }
+          ]
+        }
+      ]
+    };
+    expect(() => parseProjectPayloadV2(bad)).toThrow();
   });
 });

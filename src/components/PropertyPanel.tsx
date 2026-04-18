@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState } from '../types';
+import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState, PsdWorldPlacement } from '../types';
 import { buildPsdLayerTree, togglePsdLayer } from '../utils/psdParser';
 import { easingNames, EasingType } from '../utils/easings';
 import { buildEndpointKeyframes, evaluateObjectPositionAtTime } from '../utils/keyframes';
@@ -39,17 +39,30 @@ const SectionHeader = ({ label }: { label: string }) => (
   </div>
 );
 
+const defaultPsdWorldPlacement = (): PsdWorldPlacement => ({
+  enabled: true,
+  position: { x: 0, y: 0, z: 0 },
+  rotationYDeg: 0,
+  scale: 1.5,
+  billboard: true,
+});
+
 const SceneAndCameraPanel: React.FC = () => {
   const scenes = useStore((state) => state.scenes);
   const activeSceneId = useStore((state) => state.activeSceneId);
   const camera = useStore((state) => state.camera);
+  const projectSettings = useStore((state) => state.projectSettings);
+  const stageCamera3D = useStore((state) => state.stageCamera3D);
+  const setStageCamera3D = useStore((state) => state.setStageCamera3D);
   const language = useStore((state) => state.language);
+  const t = useTranslation(language);
   const switchScene = useStore((state) => state.switchScene);
   const addScene = useStore((state) => state.addScene);
   const deleteScene = useStore((state) => state.deleteScene);
   const renameScene = useStore((state) => state.renameScene);
   const setCamera = useStore((state) => state.setCamera);
   const pushHistory = useStore((state) => state.pushHistory);
+  const editorMode = projectSettings.editorMode ?? '2d';
   const activeScene = scenes.find((scene) => scene.id === activeSceneId);
   const [renameDraft, setRenameDraft] = useState(activeScene?.name ?? '');
 
@@ -60,6 +73,11 @@ const SceneAndCameraPanel: React.FC = () => {
   const applyCamera = (patch: Partial<CameraState>) => {
     pushHistory();
     setCamera(patch);
+  };
+
+  const applyStageCamera3D = (patch: Parameters<typeof setStageCamera3D>[0]) => {
+    pushHistory();
+    setStageCamera3D(patch);
   };
 
   return (
@@ -137,6 +155,60 @@ const SceneAndCameraPanel: React.FC = () => {
           style={{ width: '100%' }}
         />
       </Row>
+
+      {editorMode === '3d_stage' && (
+        <>
+          <SectionHeader label={t('stageCamera3dTitle')} />
+          <Row label={t('camEyeX')}>
+            <input
+              type="number"
+              step="0.1"
+              value={stageCamera3D.position.x}
+              onChange={(e) => applyStageCamera3D({ position: { x: parseFloat(e.target.value) || 0 } })}
+            />
+          </Row>
+          <Row label={t('camEyeY')}>
+            <input
+              type="number"
+              step="0.1"
+              value={stageCamera3D.position.y}
+              onChange={(e) => applyStageCamera3D({ position: { y: parseFloat(e.target.value) || 0 } })}
+            />
+          </Row>
+          <Row label={t('camEyeZ')}>
+            <input
+              type="number"
+              step="0.1"
+              value={stageCamera3D.position.z}
+              onChange={(e) => applyStageCamera3D({ position: { z: parseFloat(e.target.value) || 0 } })}
+            />
+          </Row>
+          <Row label={t('camTargetX')}>
+            <input
+              type="number"
+              step="0.1"
+              value={stageCamera3D.target.x}
+              onChange={(e) => applyStageCamera3D({ target: { x: parseFloat(e.target.value) || 0 } })}
+            />
+          </Row>
+          <Row label={t('camTargetY')}>
+            <input
+              type="number"
+              step="0.1"
+              value={stageCamera3D.target.y}
+              onChange={(e) => applyStageCamera3D({ target: { y: parseFloat(e.target.value) || 0 } })}
+            />
+          </Row>
+          <Row label={t('camTargetZ')}>
+            <input
+              type="number"
+              step="0.1"
+              value={stageCamera3D.target.z}
+              onChange={(e) => applyStageCamera3D({ target: { z: parseFloat(e.target.value) || 0 } })}
+            />
+          </Row>
+        </>
+      )}
     </div>
   );
 };
@@ -146,8 +218,10 @@ const PropertyPanel: React.FC = () => {
   const selectedIds = useStore((state) => state.selectedIds);
   const objects = useStore((state) => state.objects);
   const layers = useStore((state) => state.layers);
+  const projectSettings = useStore((state) => state.projectSettings);
   const language = useStore((state) => state.language);
   const t = useTranslation(language);
+  const editorMode = projectSettings.editorMode ?? '2d';
 
   const selectedObject = useMemo(() => {
     const normalisedSelectedIds = selectedIds.length > 0
@@ -1274,6 +1348,124 @@ const PropertyPanel: React.FC = () => {
                         <span style={{ fontSize: '11px', color: '#999' }}>x</span>
                     </div>
                 </Row>
+
+                {editorMode === '3d_stage' && (
+                  <>
+                    <SectionHeader label={t('worldPlacementTitle')} />
+                    <Row label={t('worldPlacementEnabled')}>
+                      <input
+                        type="checkbox"
+                        checked={(selectedObject as PsdObject).worldPlacement?.enabled ?? false}
+                        onChange={(e) => {
+                          const psd = selectedObject as PsdObject;
+                          const next = e.target.checked
+                            ? { ...(psd.worldPlacement ?? defaultPsdWorldPlacement()), enabled: true }
+                            : { ...(psd.worldPlacement ?? defaultPsdWorldPlacement()), enabled: false };
+                          updateObject(psd.id, { worldPlacement: next });
+                        }}
+                      />
+                    </Row>
+                    <Row label={t('worldPosX')}>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={(selectedObject as PsdObject).worldPlacement?.position.x ?? 0}
+                        onChange={(e) => {
+                          const psd = selectedObject as PsdObject;
+                          const base = psd.worldPlacement ?? defaultPsdWorldPlacement();
+                          updateObject(psd.id, {
+                            worldPlacement: {
+                              ...base,
+                              position: { ...base.position, x: parseFloat(e.target.value) || 0 },
+                            },
+                          });
+                        }}
+                      />
+                    </Row>
+                    <Row label={t('worldPosY')}>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={(selectedObject as PsdObject).worldPlacement?.position.y ?? 0}
+                        onChange={(e) => {
+                          const psd = selectedObject as PsdObject;
+                          const base = psd.worldPlacement ?? defaultPsdWorldPlacement();
+                          updateObject(psd.id, {
+                            worldPlacement: {
+                              ...base,
+                              position: { ...base.position, y: parseFloat(e.target.value) || 0 },
+                            },
+                          });
+                        }}
+                      />
+                    </Row>
+                    <Row label={t('worldPosZ')}>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={(selectedObject as PsdObject).worldPlacement?.position.z ?? 0}
+                        onChange={(e) => {
+                          const psd = selectedObject as PsdObject;
+                          const base = psd.worldPlacement ?? defaultPsdWorldPlacement();
+                          updateObject(psd.id, {
+                            worldPlacement: {
+                              ...base,
+                              position: { ...base.position, z: parseFloat(e.target.value) || 0 },
+                            },
+                          });
+                        }}
+                      />
+                    </Row>
+                    <Row label={t('worldRotY')}>
+                      <input
+                        type="number"
+                        step="1"
+                        value={(selectedObject as PsdObject).worldPlacement?.rotationYDeg ?? 0}
+                        onChange={(e) => {
+                          const psd = selectedObject as PsdObject;
+                          const base = psd.worldPlacement ?? defaultPsdWorldPlacement();
+                          updateObject(psd.id, {
+                            worldPlacement: {
+                              ...base,
+                              rotationYDeg: parseFloat(e.target.value) || 0,
+                            },
+                          });
+                        }}
+                      />
+                    </Row>
+                    <Row label={t('worldScale3d')}>
+                      <input
+                        type="number"
+                        min="0.05"
+                        step="0.05"
+                        value={(selectedObject as PsdObject).worldPlacement?.scale ?? 1.5}
+                        onChange={(e) => {
+                          const psd = selectedObject as PsdObject;
+                          const base = psd.worldPlacement ?? defaultPsdWorldPlacement();
+                          updateObject(psd.id, {
+                            worldPlacement: {
+                              ...base,
+                              scale: Math.max(0.05, parseFloat(e.target.value) || 0),
+                            },
+                          });
+                        }}
+                      />
+                    </Row>
+                    <Row label={t('worldBillboard')}>
+                      <input
+                        type="checkbox"
+                        checked={(selectedObject as PsdObject).worldPlacement?.billboard ?? true}
+                        onChange={(e) => {
+                          const psd = selectedObject as PsdObject;
+                          const base = psd.worldPlacement ?? defaultPsdWorldPlacement();
+                          updateObject(psd.id, {
+                            worldPlacement: { ...base, billboard: e.target.checked },
+                          });
+                        }}
+                      />
+                    </Row>
+                  </>
+                )}
 
                 <SectionHeader label="PSD Layers" />
                 <div style={{ marginBottom: '8px', display: 'flex', gap: '8px', alignItems: 'center' }}>

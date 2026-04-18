@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as PIXI from 'pixi.js';
 import { useStore } from '../store/useStore';
-import { TimelineObject, GradientFill, ObjectFilter } from '../types';
+import { TimelineObject, GradientFill, ObjectFilter, PsdObject } from '../types';
+import { ThreeStageViewport, type BillboardTextureEntry, type ThreeStageViewportHandle } from './ThreeStageViewport';
 import { createShadowGraphics } from '../utils/pixiUtils';
 import { shallow } from 'zustand/shallow';
 
@@ -76,6 +77,7 @@ const flattenGroupGradientComponents = (groupContainer: PIXI.Container) => {
 const Viewport: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportShellRef = useRef<HTMLDivElement>(null);
+  const threeStageRef = useRef<ThreeStageViewportHandle | null>(null);
   const pixiAppRef = useRef<PIXI.Application | null>(null);
   const worldContainerRef = useRef<PIXI.Container | null>(null);
   const pixiObjectsRef = useRef<Map<string, PIXI.Container>>(new Map());
@@ -99,6 +101,9 @@ const Viewport: React.FC = () => {
     projectSettings, isPlaying, isExporting,
     layers,
     camera,
+    stageCamera3D,
+    setStageCamera3D,
+    setEditorMode,
     isSnapshotRequested, finishSnapshot,
     language,
     previewDisplayMode,
@@ -113,12 +118,17 @@ const Viewport: React.FC = () => {
     isExporting: state.isExporting,
     layers: state.layers,
     camera: state.camera,
+    stageCamera3D: state.stageCamera3D,
+    setStageCamera3D: state.setStageCamera3D,
+    setEditorMode: state.setEditorMode,
     isSnapshotRequested: state.isSnapshotRequested,
     finishSnapshot: state.finishSnapshot,
     language: state.language,
     previewDisplayMode: state.previewDisplayMode,
     setPreviewDisplayMode: state.setPreviewDisplayMode,
   }), shallow);
+
+  const editorMode = projectSettings.editorMode ?? '2d';
   
   const t = useTranslation(language);
   
@@ -235,23 +245,6 @@ const Viewport: React.FC = () => {
     app.canvas.style.height = `${h * displayScale}px`;
     app.render();
   }, [pixiReady, projectSettings.width, projectSettings.height, displayScale]);
-
-  // --- Snapshot Logic ---
-  useEffect(() => {
-      if (isSnapshotRequested && pixiAppRef.current) {
-          const app = pixiAppRef.current;
-          app.render();
-          const dataUrl = app.canvas.toDataURL('image/png');
-          const link = document.createElement('a');
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          link.download = `frame_${timestamp}.png`;
-          link.href = dataUrl;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          finishSnapshot();
-      }
-  }, [isSnapshotRequested, finishSnapshot]);
 
   // --- Audio Buffer Loading ---
   useEffect(() => {
@@ -630,13 +623,96 @@ const Viewport: React.FC = () => {
     
     // 手動レンダリング実行 (Ticker停止中のため必須)
     app.render();
+
+    const workspaceMode = useStore.getState().projectSettings.editorMode ?? '2d';
+    if (workspaceMode === '3d_stage' && threeStageRef.current) {
+      const billboardEntries: BillboardTextureEntry[] = [];
+      for (const obj of visibleObjects) {
+        if (obj.type !== 'psd') continue;
+        const psd = obj as PsdObject;
+        if (!psd.worldPlacement?.enabled) continue;
+        const wrap = currentPixiObjects.get(obj.id);
+        if (!wrap) continue;
+        const extractRoot = wrap.children.find((ch) => {
+          const label = typeof ch.label === 'string' ? ch.label : '';
+          return label !== 'border' && !label.startsWith('shadow');
+        }) as PIXI.Container | undefined;
+        if (!extractRoot) continue;
+        const bounds = extractRoot.getLocalBounds();
+        const bw = Math.max(1, Math.ceil(bounds.width));
+        const bh = Math.max(1, Math.ceil(bounds.height));
+        const frame = new PIXI.Rectangle(bounds.x, bounds.y, bw, bh);
+        try {
+          const canvas = app.renderer.extract.canvas({
+            target: extractRoot,
+            frame,
+            clearColor: 'rgba(0,0,0,0)',
+          }) as HTMLCanvasElement;
+          billboardEntries.push({
+            id: obj.id,
+            canvas,
+            placement: psd.worldPlacement,
+            widthPx: canvas.width,
+            heightPx: canvas.height,
+          });
+        } catch {
+          /* ignore extract failure */
+        }
+      }
+      threeStageRef.current.syncBillboards(billboardEntries, useStore.getState().stageCamera3D);
+    }
   }, [selectedIds, isExporting, isPlaying, isSnapshotRequested, layers, camera, projectSettings.width, projectSettings.height]);
 
   useEffect(() => { 
       if (!isExporting) renderScene(currentTime, objects); 
   }, [currentTime, objects, renderScene, renderTick, isExporting]);
+
+  const getExportCanvas = useCallback((): HTMLCanvasElement | null => {
+    if (useStore.getState().projectSettings.editorMode === '3d_stage') {
+      return threeStageRef.current?.getCanvas() ?? null;
+    }
+    const pixiCanvas = pixiAppRef.current?.canvas;
+    return pixiCanvas != null ? (pixiCanvas as HTMLCanvasElement) : null;
+  }, []);
   
-  useProjectExport(pixiAppRef, videoElementsRef, renderScene);
+  useProjectExport(pixiAppRef, videoElementsRef, renderScene, getExportCanvas);
+
+  // --- Snapshot Logic (after renderScene is defined) ---
+  useEffect(() => {
+      if (!isSnapshotRequested) return;
+
+      const mode = useStore.getState().projectSettings.editorMode ?? '2d';
+      if (mode === '3d_stage') {
+        renderScene(currentTime, objects);
+        const canvas3d = threeStageRef.current?.getCanvas();
+        if (canvas3d) {
+          const dataUrl = canvas3d.toDataURL('image/png');
+          const link = document.createElement('a');
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          link.download = `frame_${timestamp}.png`;
+          link.href = dataUrl;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          finishSnapshot();
+          return;
+        }
+      }
+
+      if (pixiAppRef.current) {
+          const app = pixiAppRef.current;
+          app.render();
+          const dataUrl = app.canvas.toDataURL('image/png');
+          const link = document.createElement('a');
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          link.download = `frame_${timestamp}.png`;
+          link.href = dataUrl;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          finishSnapshot();
+      }
+  }, [isSnapshotRequested, finishSnapshot, renderScene, currentTime, objects]);
 
   const previewW = projectSettings.width * displayScale;
   const previewH = projectSettings.height * displayScale;
@@ -700,6 +776,39 @@ const Viewport: React.FC = () => {
         >
           {t('previewModePixelPerfect')}
         </button>
+        <div className="divider" style={{ width: 1, height: 14, background: 'var(--border-subtle)', margin: '0 2px' }} />
+        <button
+          type="button"
+          onClick={() => setEditorMode('2d')}
+          title={t('editorMode2d')}
+          style={{
+            fontSize: 11,
+            padding: '4px 8px',
+            borderRadius: 6,
+            border: 'none',
+            cursor: 'pointer',
+            background: editorMode === '2d' ? 'var(--accent, #3b82f6)' : 'transparent',
+            color: editorMode === '2d' ? '#fff' : 'var(--text-primary)',
+          }}
+        >
+          {t('editorMode2d')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setEditorMode('3d_stage')}
+          title={t('editorMode3d')}
+          style={{
+            fontSize: 11,
+            padding: '4px 8px',
+            borderRadius: 6,
+            border: 'none',
+            cursor: 'pointer',
+            background: editorMode === '3d_stage' ? 'var(--accent, #3b82f6)' : 'transparent',
+            color: editorMode === '3d_stage' ? '#fff' : 'var(--text-primary)',
+          }}
+        >
+          {t('editorMode3d')}
+        </button>
       </div>
 
       {isExporting && (
@@ -722,7 +831,6 @@ const Viewport: React.FC = () => {
         }}
       >
         <div
-          ref={containerRef}
           className="preview-canvas-container"
           style={{
             width: previewW,
@@ -730,7 +838,28 @@ const Viewport: React.FC = () => {
             flexShrink: 0,
             position: 'relative',
           }}
-        />
+        >
+          <div
+            ref={containerRef}
+            style={{
+              width: '100%',
+              height: '100%',
+              visibility: editorMode === '3d_stage' ? 'hidden' : 'visible',
+              pointerEvents: editorMode === '3d_stage' ? 'none' : 'auto',
+            }}
+          />
+          {editorMode === '3d_stage' && (
+            <ThreeStageViewport
+              ref={threeStageRef}
+              width={projectSettings.width}
+              height={projectSettings.height}
+              displayScale={displayScale}
+              stageCamera3D={stageCamera3D}
+              setStageCamera3D={setStageCamera3D}
+              isExporting={isExporting}
+            />
+          )}
+        </div>
       </div>
     </div>
   );

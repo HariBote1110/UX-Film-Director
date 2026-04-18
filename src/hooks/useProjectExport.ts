@@ -10,7 +10,8 @@ const { ipcRenderer } = window;
 export const useProjectExport = (
   pixiAppRef: React.MutableRefObject<PIXI.Application | null>,
   videoElementsRef: React.MutableRefObject<Map<string, HTMLVideoElement>>,
-  renderScene: (time: number, objects: TimelineObject[]) => void
+  renderScene: (time: number, objects: TimelineObject[]) => void,
+  getExportCanvas?: () => HTMLCanvasElement | null
 ) => {
   const { isExporting, setExporting, setTime } = useStore((state) => ({
     isExporting: state.isExporting,
@@ -113,9 +114,10 @@ export const useProjectExport = (
                 // Render Frame
                 renderScene(t, exportObjects);
                 
+                const exportCanvas = getExportCanvas?.() ?? app.canvas;
                 // Capture and write frame
                 const blob = await new Promise<Blob | null>((resolve) => {
-                  app.canvas.toBlob(resolve, 'image/jpeg', 0.90);
+                  exportCanvas.toBlob(resolve, 'image/jpeg', 0.90);
                 });
                 if (!blob) continue;
 
@@ -158,5 +160,5 @@ export const useProjectExport = (
     return () => {
       cancelled = true;
     };
-  }, [isExporting, renderScene, setExporting, setTime, pixiAppRef, videoElementsRef]);
+  }, [isExporting, renderScene, setExporting, setTime, pixiAppRef, videoElementsRef, getExportCanvas]);
 };

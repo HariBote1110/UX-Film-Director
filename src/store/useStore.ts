@@ -1,7 +1,25 @@
 import { create } from 'zustand';
-import { TimelineObject, ProjectSettings, LayerState, FilterType, GradientFill, CameraState, SceneData, PreviewDisplayMode } from '../types';
+import {
+  TimelineObject,
+  ProjectSettings,
+  LayerState,
+  FilterType,
+  GradientFill,
+  CameraState,
+  SceneData,
+  PreviewDisplayMode,
+  StageCamera3D,
+  EditorMode
+} from '../types';
 import { MAX_LAYERS } from '../components/timelineConstants';
-import { createDefaultCamera, createDefaultLayers, flushActiveIntoScenes, sanitiseCamera } from '../utils/sceneState';
+import {
+  createDefaultCamera,
+  createDefaultLayers,
+  createDefaultStageCamera3D,
+  flushActiveIntoScenes,
+  sanitiseCamera,
+  sanitiseStageCamera3D
+} from '../utils/sceneState';
 import {
   addFilterToObject,
   moveFilterInObject,
@@ -34,6 +52,7 @@ interface HistorySnapshot {
   objects: TimelineObject[];
   layers: LayerState[];
   camera?: CameraState;
+  stageCamera3D?: StageCamera3D;
 }
 
 interface AppState {
@@ -58,6 +77,7 @@ interface AppState {
   layers: LayerState[];
   objects: TimelineObject[];
   camera: CameraState;
+  stageCamera3D: StageCamera3D;
   scenes: SceneData[];
   activeSceneId: string;
   selectedId: string | null;
@@ -73,6 +93,11 @@ interface AppState {
   initializeProject: (settings: ProjectSettings) => void;
   loadProject: (settings: ProjectSettings, scenes: SceneData[], activeSceneId: string) => void;
   setCamera: (patch: Partial<CameraState>) => void;
+  setStageCamera3D: (patch: {
+    position?: Partial<StageCamera3D['position']>;
+    target?: Partial<StageCamera3D['target']>;
+  }) => void;
+  setEditorMode: (mode: EditorMode) => void;
   switchScene: (sceneId: string) => void;
   addScene: () => void;
   deleteScene: (sceneId: string) => void;
@@ -262,6 +287,7 @@ export const useStore = create<AppState>((set, get) => ({
   layers: createDefaultLayers(),
   objects: [],
   camera: createDefaultCamera(),
+  stageCamera3D: createDefaultStageCamera3D(),
   scenes: [],
   activeSceneId: '',
   selectedId: null,
@@ -286,8 +312,13 @@ export const useStore = create<AppState>((set, get) => ({
     const sceneId = crypto.randomUUID();
     const initialLayers = createDefaultLayers();
     const cam = createDefaultCamera();
+    const stageCam = createDefaultStageCamera3D();
+    const nextSettings: ProjectSettings = {
+      ...settings,
+      editorMode: settings.editorMode ?? '2d'
+    };
     set({
-      projectSettings: settings,
+      projectSettings: nextSettings,
       isProjectLoaded: true,
       currentTime: 0,
       duration: 30,
@@ -295,13 +326,15 @@ export const useStore = create<AppState>((set, get) => ({
       layers: initialLayers,
       objects: [],
       camera: { ...cam },
+      stageCamera3D: { ...stageCam, position: { ...stageCam.position }, target: { ...stageCam.target } },
       scenes: [{
         id: sceneId,
         name: 'Scene 1',
         duration: 30,
         layers: initialLayers,
         objects: [],
-        camera: { ...cam }
+        camera: { ...cam },
+        stageCamera3D: { ...stageCam, position: { ...stageCam.position }, target: { ...stageCam.target } }
       }],
       activeSceneId: sceneId,
       selectedId: null,
@@ -320,11 +353,16 @@ export const useStore = create<AppState>((set, get) => ({
       ...scene,
       layers: normaliseLayers(scene.layers),
       camera: sanitiseCamera(scene.camera),
+      stageCamera3D: sanitiseStageCamera3D(scene.stageCamera3D),
       objects: normaliseSceneObjectList(scene.objects)
     }));
     const active = normalisedScenes.find((s) => s.id === activeSceneId) ?? normalisedScenes[0];
+    const loadedSettings: ProjectSettings = {
+      ...settings,
+      editorMode: settings.editorMode ?? '2d'
+    };
     set({
-      projectSettings: settings,
+      projectSettings: loadedSettings,
       isProjectLoaded: true,
       currentTime: 0,
       duration: Math.max(1, active.duration),
@@ -332,6 +370,7 @@ export const useStore = create<AppState>((set, get) => ({
       layers: active.layers.map((layer) => ({ ...layer })),
       objects: active.objects,
       camera: { ...active.camera },
+      stageCamera3D: sanitiseStageCamera3D(active.stageCamera3D),
       scenes: normalisedScenes,
       activeSceneId: active.id,
       selectedId: null,
@@ -419,6 +458,25 @@ export const useStore = create<AppState>((set, get) => ({
     camera: sanitiseCamera({ ...state.camera, ...patch })
   })),
 
+  setStageCamera3D: (patch) => set((state) => {
+    const current = state.stageCamera3D;
+    const nextPosition = patch.position
+      ? { ...current.position, ...patch.position }
+      : { ...current.position };
+    const nextTarget = patch.target
+      ? { ...current.target, ...patch.target }
+      : { ...current.target };
+    const merged: StageCamera3D = sanitiseStageCamera3D({
+      position: nextPosition,
+      target: nextTarget
+    });
+    return { stageCamera3D: merged };
+  }),
+
+  setEditorMode: (mode) => set((state) => ({
+    projectSettings: { ...state.projectSettings, editorMode: mode }
+  })),
+
   switchScene: (sceneId) => {
     const state = get();
     if (sceneId === state.activeSceneId) return;
@@ -431,7 +489,8 @@ export const useStore = create<AppState>((set, get) => ({
       state.objects,
       state.layers,
       state.duration,
-      state.camera
+      state.camera,
+      state.stageCamera3D
     );
     const target = flushed.find((scene) => scene.id === sceneId);
     if (!target) return;
@@ -450,6 +509,7 @@ export const useStore = create<AppState>((set, get) => ({
       layers: nextLayers,
       duration: Math.max(1, target.duration),
       camera: { ...target.camera },
+      stageCamera3D: sanitiseStageCamera3D(target.stageCamera3D),
       currentTime: 0,
       isPlaying: false,
       selectedId: null,
@@ -467,18 +527,21 @@ export const useStore = create<AppState>((set, get) => ({
       state.objects,
       state.layers,
       state.duration,
-      state.camera
+      state.camera,
+      state.stageCamera3D
     );
     const newId = crypto.randomUUID();
     const freshLayers = createDefaultLayers();
     const freshCam = createDefaultCamera();
+    const freshStageCam = createDefaultStageCamera3D();
     const newScene: SceneData = {
       id: newId,
       name: `Scene ${flushed.length + 1}`,
       duration: 30,
       layers: freshLayers,
       objects: [],
-      camera: freshCam
+      camera: freshCam,
+      stageCamera3D: { ...freshStageCam, position: { ...freshStageCam.position }, target: { ...freshStageCam.target } }
     };
     set({
       scenes: [...flushed, newScene],
@@ -487,6 +550,7 @@ export const useStore = create<AppState>((set, get) => ({
       layers: freshLayers,
       duration: 30,
       camera: { ...freshCam },
+      stageCamera3D: { ...freshStageCam, position: { ...freshStageCam.position }, target: { ...freshStageCam.target } },
       currentTime: 0,
       isPlaying: false,
       selectedId: null,
@@ -505,7 +569,8 @@ export const useStore = create<AppState>((set, get) => ({
       state.objects,
       state.layers,
       state.duration,
-      state.camera
+      state.camera,
+      state.stageCamera3D
     );
     const nextScenes = flushed.filter((scene) => scene.id !== sceneId);
     if (nextScenes.length === 0) return;
@@ -529,6 +594,7 @@ export const useStore = create<AppState>((set, get) => ({
       layers: nextLayers,
       duration: Math.max(1, fallback.duration),
       camera: { ...fallback.camera },
+      stageCamera3D: sanitiseStageCamera3D(fallback.stageCamera3D),
       currentTime: 0,
       isPlaying: false,
       selectedId: null,
@@ -591,7 +657,11 @@ export const useStore = create<AppState>((set, get) => ({
       {
         objects: state.objects,
         layers: state.layers.map((layer) => ({ ...layer })),
-        camera: { ...state.camera }
+        camera: { ...state.camera },
+        stageCamera3D: {
+          position: { ...state.stageCamera3D.position },
+          target: { ...state.stageCamera3D.target }
+        }
       }
     ],
     futureStates: [] // 新しい操作をしたらRedoスタックはクリア
@@ -605,12 +675,17 @@ export const useStore = create<AppState>((set, get) => ({
       objects: previous.objects,
       layers: previous.layers.map((layer) => ({ ...layer })),
       camera: sanitiseCamera(previous.camera),
+      stageCamera3D: sanitiseStageCamera3D(previous.stageCamera3D),
       pastStates: newPast,
       futureStates: [
         {
           objects: state.objects,
           layers: state.layers.map((layer) => ({ ...layer })),
-          camera: { ...state.camera }
+          camera: { ...state.camera },
+          stageCamera3D: {
+            position: { ...state.stageCamera3D.position },
+            target: { ...state.stageCamera3D.target }
+          }
         },
         ...state.futureStates
       ],
@@ -628,12 +703,17 @@ export const useStore = create<AppState>((set, get) => ({
       objects: next.objects,
       layers: next.layers.map((layer) => ({ ...layer })),
       camera: sanitiseCamera(next.camera),
+      stageCamera3D: sanitiseStageCamera3D(next.stageCamera3D),
       pastStates: [
         ...state.pastStates,
         {
           objects: state.objects,
           layers: state.layers.map((layer) => ({ ...layer })),
-          camera: { ...state.camera }
+          camera: { ...state.camera },
+          stageCamera3D: {
+            position: { ...state.stageCamera3D.position },
+            target: { ...state.stageCamera3D.target }
+          }
         }
       ],
       futureStates: newFuture,

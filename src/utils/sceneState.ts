@@ -1,5 +1,30 @@
 import { MAX_LAYERS } from '../components/timelineConstants';
-import { CameraState, LayerState, SceneData, TimelineObject } from '../types';
+import { CameraState, LayerState, SceneData, StageCamera3D, TimelineObject, Vec3 } from '../types';
+
+const defaultVec3 = (x: number, y: number, z: number): Vec3 => ({ x, y, z });
+
+export const createDefaultStageCamera3D = (): StageCamera3D => ({
+  position: defaultVec3(0, 1.6, 6),
+  target: defaultVec3(0, 1, 0)
+});
+
+export const sanitiseVec3 = (value: Vec3 | undefined, fallback: Vec3): Vec3 => {
+  if (!value || typeof value !== 'object') return { ...fallback };
+  return {
+    x: Number.isFinite(value.x) ? value.x : fallback.x,
+    y: Number.isFinite(value.y) ? value.y : fallback.y,
+    z: Number.isFinite(value.z) ? value.z : fallback.z
+  };
+};
+
+export const sanitiseStageCamera3D = (camera: StageCamera3D | undefined): StageCamera3D => {
+  const fallback = createDefaultStageCamera3D();
+  if (!camera || typeof camera !== 'object') return fallback;
+  return {
+    position: sanitiseVec3(camera.position, fallback.position),
+    target: sanitiseVec3(camera.target, fallback.target)
+  };
+};
 
 export const createDefaultCamera = (): CameraState => ({
   centreOffsetX: 0,
@@ -34,7 +59,8 @@ export const flushActiveIntoScenes = (
   objects: TimelineObject[],
   layers: LayerState[],
   duration: number,
-  camera: CameraState
+  camera: CameraState,
+  stageCamera3D: StageCamera3D
 ): SceneData[] => {
   return scenes.map((scene) => {
     if (scene.id !== activeSceneId) return scene;
@@ -43,7 +69,8 @@ export const flushActiveIntoScenes = (
       objects,
       layers: layers.map((layer) => ({ ...layer })),
       duration,
-      camera: { ...camera }
+      camera: { ...camera },
+      stageCamera3D: sanitiseStageCamera3D(stageCamera3D)
     };
   });
 };

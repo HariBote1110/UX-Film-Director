@@ -19,7 +19,7 @@ const App: React.FC = () => {
   const [projectIoAction, setProjectIoAction] = useState<'idle' | 'opening' | 'saving'>('idle');
   const [isMp3Exporting, setIsMp3Exporting] = useState(false);
 
-  const { isProjectLoaded, isExporting, setExporting, requestSnapshot, loadProject, projectSettings, duration, objects, layers, scenes, activeSceneId, camera, language, setLanguage } = useStore((state) => ({
+  const { isProjectLoaded, isExporting, setExporting, requestSnapshot, loadProject, projectSettings, duration, objects, layers, scenes, activeSceneId, camera, stageCamera3D, language, setLanguage } = useStore((state) => ({
     isProjectLoaded: state.isProjectLoaded,
     isExporting: state.isExporting,
     setExporting: state.setExporting,
@@ -32,6 +32,7 @@ const App: React.FC = () => {
     scenes: state.scenes,
     activeSceneId: state.activeSceneId,
     camera: state.camera,
+    stageCamera3D: state.stageCamera3D,
     language: state.language,
     setLanguage: state.setLanguage,
   }), shallow);
@@ -75,7 +76,8 @@ const App: React.FC = () => {
         objects,
         layers,
         duration,
-        camera
+        camera,
+        stageCamera3D
       });
       const result = await saveProjectFileWithDialog(projectFile);
       if (!result.success && !result.cancelled) {

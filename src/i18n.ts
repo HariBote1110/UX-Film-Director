@@ -12,6 +12,8 @@ export const locales = {
   exportingVideo: { ja: '書き出し中...', en: 'Exporting...' },
   previewModeAuto: { ja: '自動スケール', en: 'Auto scale' },
   previewModePixelPerfect: { ja: 'ドットバイドット', en: 'Pixel-for-pixel' },
+  editorMode2d: { ja: '2D', en: '2D' },
+  editorMode3d: { ja: '3D ステージ', en: '3D stage' },
 
   // ProjectSetup
   createNewProject: { ja: '新規プロジェクト作成', en: 'Create New Project' },
@@ -52,6 +54,22 @@ export const locales = {
   volume: { ja: '音量', en: 'Volume' },
   pan: { ja: 'パン', en: 'Pan' },
   shapeType: { ja: '図形の形', en: 'Shape Type' },
+
+  worldPlacementTitle: { ja: '3D ワールド配置 (PSD)', en: '3D world placement (PSD)' },
+  worldPlacementEnabled: { ja: '3D に表示', en: 'Show in 3D' },
+  worldPosX: { ja: 'ワールド X', en: 'World X' },
+  worldPosY: { ja: 'ワールド Y', en: 'World Y' },
+  worldPosZ: { ja: 'ワールド Z', en: 'World Z' },
+  worldRotY: { ja: 'Y 回転 (°)', en: 'Y rotation (°)' },
+  worldScale3d: { ja: '3D スケール', en: '3D scale' },
+  worldBillboard: { ja: 'カメラ向き (ビルボード)', en: 'Face camera (billboard)' },
+  stageCamera3dTitle: { ja: '3D ステージカメラ', en: '3D stage camera' },
+  camEyeX: { ja: '視点 X', en: 'Eye X' },
+  camEyeY: { ja: '視点 Y', en: 'Eye Y' },
+  camEyeZ: { ja: '視点 Z', en: 'Eye Z' },
+  camTargetX: { ja: '注視 X', en: 'Target X' },
+  camTargetY: { ja: '注視 Y', en: 'Target Y' },
+  camTargetZ: { ja: '注視 Z', en: 'Target Z' },
 
   // Project Settings (in PropertyPanel)
   projectSettings: { ja: 'プロジェクト設定', en: 'Project Settings' },

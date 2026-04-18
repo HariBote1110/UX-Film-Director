@@ -1,7 +1,13 @@
 import { ProjectSettings, TimelineObject, PsdObject, LayerState, SceneData, CameraState } from '../types';
 import { buildPsdLayerTree, parsePsdArrayBufferAsObject } from './psdParser';
 import { toFileProtocolUrl } from './mediaMetadata';
-import { createDefaultCamera, createDefaultLayers, flushActiveIntoScenes } from './sceneState';
+import {
+  createDefaultCamera,
+  createDefaultLayers,
+  createDefaultStageCamera3D,
+  flushActiveIntoScenes,
+  sanitiseStageCamera3D
+} from './sceneState';
 
 const PROJECT_FILE_FORMAT = 'uxfd-project';
 const PROJECT_FILE_VERSION_V1 = 1;
@@ -42,16 +48,22 @@ type ReadFileBytesResponse =
 const isProjectSettings = (value: unknown): value is ProjectSettings => {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate.width === 'number' &&
-    Number.isFinite(candidate.width) &&
-    typeof candidate.height === 'number' &&
-    Number.isFinite(candidate.height) &&
-    typeof candidate.fps === 'number' &&
-    Number.isFinite(candidate.fps) &&
-    typeof candidate.sampleRate === 'number' &&
-    Number.isFinite(candidate.sampleRate)
-  );
+  if (
+    typeof candidate.width !== 'number' ||
+    !Number.isFinite(candidate.width) ||
+    typeof candidate.height !== 'number' ||
+    !Number.isFinite(candidate.height) ||
+    typeof candidate.fps !== 'number' ||
+    !Number.isFinite(candidate.fps) ||
+    typeof candidate.sampleRate !== 'number' ||
+    !Number.isFinite(candidate.sampleRate)
+  ) {
+    return false;
+  }
+  if (candidate.editorMode !== undefined && candidate.editorMode !== '2d' && candidate.editorMode !== '3d_stage') {
+    return false;
+  }
+  return true;
 };
 
 const isLayerState = (value: unknown): value is LayerState => {
@@ -78,6 +90,30 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'group_control',
   'audio_visualization'
 ]);
+
+const isVec3 = (value: unknown): boolean => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return isFiniteNumber(candidate.x) && isFiniteNumber(candidate.y) && isFiniteNumber(candidate.z);
+};
+
+const isStageCamera3D = (value: unknown): boolean => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return isVec3(candidate.position) && isVec3(candidate.target);
+};
+
+const isPsdWorldPlacement = (value: unknown): boolean => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.enabled === 'boolean'
+    && isVec3(candidate.position)
+    && isFiniteNumber(candidate.rotationYDeg)
+    && isFiniteNumber(candidate.scale)
+    && typeof candidate.billboard === 'boolean'
+  );
+};
 
 const isPositionKeyframe = (value: unknown): boolean => {
   if (!value || typeof value !== 'object') return false;
@@ -111,6 +147,10 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!Array.isArray(candidate.keyframes)) return false;
     if (!candidate.keyframes.every((keyframe) => isPositionKeyframe(keyframe))) return false;
   }
+  if (candidate.type === 'psd') {
+    const wp = candidate.worldPlacement;
+    if (wp !== undefined && !isPsdWorldPlacement(wp)) return false;
+  }
   return true;
 };
 
@@ -143,13 +183,17 @@ const parseSceneEntry = (value: unknown): SceneData | null => {
   if (!Array.isArray(objectCandidates)) return null;
   if (!objectCandidates.every((obj) => isTimelineObject(obj))) return null;
   const camera = isCameraState(candidate.camera) ? candidate.camera : createDefaultCamera();
+  const stageCamera3D = isStageCamera3D(candidate.stageCamera3D)
+    ? sanitiseStageCamera3D(candidate.stageCamera3D as SceneData['stageCamera3D'])
+    : createDefaultStageCamera3D();
   return {
     id: candidate.id,
     name: candidate.name,
     duration: Math.max(1, candidate.duration as number),
     layers,
     objects: objectCandidates as TimelineObject[],
-    camera
+    camera,
+    stageCamera3D
   };
 };
 
@@ -169,7 +213,8 @@ const migrateV1ToV2 = (candidate: ProjectFileV1): ProjectFileV2 => {
         : 30,
       layers,
       objects: candidate.objects,
-      camera: createDefaultCamera()
+      camera: createDefaultCamera(),
+      stageCamera3D: createDefaultStageCamera3D()
     }]
   };
 };
@@ -295,6 +340,7 @@ export const buildProjectFileData = (input: {
   layers: LayerState[];
   duration: number;
   camera: CameraState;
+  stageCamera3D: SceneData['stageCamera3D'];
 }): ProjectFileV2 => {
   const flushed = flushActiveIntoScenes(
     input.scenes,
@@ -302,7 +348,8 @@ export const buildProjectFileData = (input: {
     input.objects,
     input.layers,
     input.duration,
-    input.camera
+    input.camera,
+    input.stageCamera3D
   );
   return {
     format: PROJECT_FILE_FORMAT,
@@ -314,8 +361,50 @@ export const buildProjectFileData = (input: {
       ...scene,
       layers: scene.layers.map((layer) => ({ ...layer })),
       camera: { ...scene.camera },
+      stageCamera3D: sanitiseStageCamera3D(scene.stageCamera3D),
       objects: scene.objects.map(sanitiseObjectForSave)
     }))
+  };
+};
+
+/** テストおよび検証用：パース済み JSON を v2 プロジェクトとして検証する */
+export const parseProjectPayloadV2 = (parsed: unknown): ProjectFileV2 => {
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('プロジェクトファイル形式が不正です。');
+  }
+  const candidate = parsed as Partial<ProjectFileV1> & Partial<ProjectFileV2>;
+  if (candidate.format !== PROJECT_FILE_FORMAT) {
+    throw new Error('対応していないプロジェクトファイル形式です。');
+  }
+  if (!isProjectSettings(candidate.projectSettings)) {
+    throw new Error('プロジェクト設定が不正です。');
+  }
+  if (candidate.version !== PROJECT_FILE_VERSION_V2) {
+    throw new Error('対応していないプロジェクトファイル形式です。');
+  }
+  const rawScenes = (parsed as Record<string, unknown>).scenes;
+  if (!Array.isArray(rawScenes) || rawScenes.length === 0) {
+    throw new Error('シーン一覧が不正です。');
+  }
+  const scenes = rawScenes
+    .map((entry) => parseSceneEntry(entry))
+    .filter((entry): entry is SceneData => entry !== null);
+  if (scenes.length !== rawScenes.length) {
+    throw new Error('シーン一覧に不正な要素が含まれています。');
+  }
+  const activeSceneId = typeof candidate.activeSceneId === 'string' && candidate.activeSceneId.trim() !== ''
+    ? candidate.activeSceneId
+    : scenes[0].id;
+  if (!scenes.some((scene) => scene.id === activeSceneId)) {
+    throw new Error('アクティブシーン ID が存在しません。');
+  }
+  return {
+    format: PROJECT_FILE_FORMAT,
+    version: PROJECT_FILE_VERSION_V2,
+    savedAt: typeof candidate.savedAt === 'string' ? candidate.savedAt : new Date().toISOString(),
+    projectSettings: candidate.projectSettings,
+    activeSceneId,
+    scenes
   };
 };
 
@@ -390,32 +479,9 @@ export const openProjectFileWithDialog = async (): Promise<{
   }
 
   if (candidate.version === PROJECT_FILE_VERSION_V2) {
-    const rawScenes = (parsed as Record<string, unknown>).scenes;
-    if (!Array.isArray(rawScenes) || rawScenes.length === 0) {
-      throw new Error('シーン一覧が不正です。');
-    }
-    const scenes = rawScenes
-      .map((entry) => parseSceneEntry(entry))
-      .filter((entry): entry is SceneData => entry !== null);
-    if (scenes.length !== rawScenes.length) {
-      throw new Error('シーン一覧に不正な要素が含まれています。');
-    }
-    const activeSceneId = typeof candidate.activeSceneId === 'string' && candidate.activeSceneId.trim() !== ''
-      ? candidate.activeSceneId
-      : scenes[0].id;
-    if (!scenes.some((scene) => scene.id === activeSceneId)) {
-      throw new Error('アクティブシーン ID が存在しません。');
-    }
     return {
       filePath: response.filePath,
-      project: {
-        format: PROJECT_FILE_FORMAT,
-        version: PROJECT_FILE_VERSION_V2,
-        savedAt: typeof candidate.savedAt === 'string' ? candidate.savedAt : new Date().toISOString(),
-        projectSettings: candidate.projectSettings,
-        activeSceneId,
-        scenes
-      }
+      project: parseProjectPayloadV2(parsed)
     };
   }
 

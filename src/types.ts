@@ -1,11 +1,39 @@
 import { EasingType } from './utils/easings';
 import { LabPhoneme } from './utils/labParser';
 
+/** ワークスペース：2D Pixi プレビュー vs 3D ステージ（Three.js） */
+export type EditorMode = '2d' | '3d_stage';
+
 export interface ProjectSettings {
   width: number;
   height: number;
   fps: number;
   sampleRate: number;
+  /** 既定は 2d（後方互換） */
+  editorMode?: EditorMode;
+}
+
+/** 3D ステージ用ワールド座標 */
+export interface Vec3 {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/** 透視カメラ（lookAt target） */
+export interface StageCamera3D {
+  position: Vec3;
+  target: Vec3;
+}
+
+/** PSD を 3D 空間に配置するときのパラメータ */
+export interface PsdWorldPlacement {
+  enabled: boolean;
+  position: Vec3;
+  rotationYDeg: number;
+  scale: number;
+  /** true のときカメラ方向へ Y 回転を合わせる（立ち絵向け） */
+  billboard: boolean;
 }
 
 /** Preview: fit to the panel vs one project pixel per CSS pixel (scroll when larger than the panel). */
@@ -330,6 +358,8 @@ export interface PsdObject extends BaseObject {
   activeLayerIds?: Record<string, boolean>;
   
   lipSync?: LipSyncSetting;
+  /** 3D ステージでの板ポリ配置（未設定時はワールドに出さない） */
+  worldPlacement?: PsdWorldPlacement;
 }
 
 export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject;
@@ -342,4 +372,6 @@ export interface SceneData {
   layers: LayerState[];
   objects: TimelineObject[];
   camera: CameraState;
+  /** 3D ステージ用カメラ（シーン単位） */
+  stageCamera3D: StageCamera3D;
 }
