@@ -1,7 +1,8 @@
 import * as PIXI from 'pixi.js';
-import { TimelineObject, GroupControlObject, AudioVisualizationObject, AudioObject, ClippingParams, GradientFill, ObjectFilter } from '../types';
+import { TimelineObject, VideoObject, GroupControlObject, AudioVisualizationObject, AudioObject, ClippingParams, GradientFill, ObjectFilter } from '../types';
 import { createGradientTexture, drawShape, getCurrentViseme, renderPsdTree, cacheTextureFromUrl } from './pixiUtils';
 import { evaluateObjectPositionAtTime } from './keyframes';
+import { evaluateSubjectCropNormRectAtTime } from './subjectCropKeyframes';
 import { getEnabledObjectFiltersInOrder } from './filterStack';
 
 // ... (Shader definitions omitted for brevity - same as previous) ...
@@ -566,6 +567,61 @@ export const applyObjectEffects = (container: PIXI.Container, obj: TimelineObjec
     container.filters = nextPixiFilters.length > 0 ? nextPixiFilters : null;
 };
 
+const applyVideoSubjectCropMask = (
+  container: PIXI.Container,
+  videoObj: VideoObject,
+  sprite: PIXI.Sprite | undefined,
+  timelineTime: number
+) => {
+  const existing = container.children.find((child) => child.label === 'subject-crop-mask') as PIXI.Graphics | undefined;
+
+  if (
+    !videoObj.subjectCropEnabled
+    || !videoObj.subjectCropKeyframes
+    || videoObj.subjectCropKeyframes.length === 0
+  ) {
+    if (sprite) sprite.mask = null;
+    if (existing) {
+      container.removeChild(existing);
+      existing.destroy();
+    }
+    return;
+  }
+
+  if (!sprite) {
+    if (existing) {
+      container.removeChild(existing);
+      existing.destroy();
+    }
+    return;
+  }
+
+  const crop = evaluateSubjectCropNormRectAtTime(videoObj, timelineTime);
+  if (!crop || crop.width <= 1e-6 || crop.height <= 1e-6) {
+    sprite.mask = null;
+    if (existing) {
+      container.removeChild(existing);
+      existing.destroy();
+    }
+    return;
+  }
+
+  let maskG = existing;
+  if (!maskG) {
+    maskG = new PIXI.Graphics();
+    maskG.label = 'subject-crop-mask';
+    container.addChild(maskG);
+  }
+
+  const gx = crop.x * videoObj.width;
+  const gy = crop.y * videoObj.height;
+  const gw = Math.max(1, crop.width * videoObj.width);
+  const gh = Math.max(1, crop.height * videoObj.height);
+  maskG.clear();
+  maskG.rect(gx, gy, gw, gh).fill({ color: 0xffffff });
+  sprite.mask = maskG;
+};
+
 export const updatePixiContent = (
     obj: TimelineObject,
     container: PIXI.Container,
@@ -695,6 +751,7 @@ export const updatePixiContent = (
             }
 
             if (!content) {
+                applyVideoSubjectCropMask(container, obj as VideoObject, undefined, time);
                 const placeholder = new PIXI.Graphics();
                 placeholder.rect(0, 0, obj.width, obj.height);
                 placeholder.stroke({ width: 2, color: 0x0000ff });
@@ -723,10 +780,15 @@ export const updatePixiContent = (
             }
         } else {
             if (!sprite) {
+                applyVideoSubjectCropMask(container, obj as VideoObject, undefined, time);
                 const placeholder = new PIXI.Graphics(); placeholder.rect(0, 0, obj.width, obj.height); placeholder.stroke({ width: 2, color: 0x0000ff }); container.addChild(placeholder); return placeholder;
             }
             content = sprite;
         }
+
+        const videoObj = obj as VideoObject;
+        const spriteForMask = content instanceof PIXI.Sprite ? content : undefined;
+        applyVideoSubjectCropMask(container, videoObj, spriteForMask, time);
 
     } else if (obj.type === 'audio_visualization') {
         let graphics = content as PIXI.Graphics || new PIXI.Graphics();

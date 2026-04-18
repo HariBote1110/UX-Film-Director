@@ -283,6 +283,16 @@ export interface ImageObject extends BaseObject {
   height: number;
 }
 
+/** 動画フレーム内の矩形切り抜き（左上原点・0–1 正規化）。タイムライン秒 `time`。 */
+export interface SubjectCropNormKeyframe {
+  id: string;
+  time: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface VideoObject extends BaseObject {
   type: 'video';
   src: string;
@@ -291,6 +301,9 @@ export interface VideoObject extends BaseObject {
   height: number;
   volume: number;
   muted: boolean;
+  /** true のとき `subjectCropKeyframes` でスプライトを矩形マスク */
+  subjectCropEnabled?: boolean;
+  subjectCropKeyframes?: SubjectCropNormKeyframe[];
 }
 
 export interface AudioObject extends BaseObject {

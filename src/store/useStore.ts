@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import {
   TimelineObject,
+  VideoObject,
+  SubjectCropNormKeyframe,
   ProjectSettings,
   LayerState,
   FilterType,
@@ -34,6 +36,10 @@ import {
   normaliseKeyframesForObject,
   shiftKeyframesForObject
 } from '../utils/keyframes';
+import {
+  normaliseSubjectCropKeyframesForVideo,
+  shiftSubjectCropKeyframesForObject
+} from '../utils/subjectCropKeyframes';
 import {
   deleteLayerTrack as applyDeleteLayerTrack,
   insertLayerTrack as applyInsertLayerTrack,
@@ -775,6 +781,10 @@ export const useStore = create<AppState>((set, get) => ({
     const hasXUpdate = Object.prototype.hasOwnProperty.call(normalisedNewProps, 'x');
     const hasYUpdate = Object.prototype.hasOwnProperty.call(normalisedNewProps, 'y');
     const hasExplicitKeyframesUpdate = Object.prototype.hasOwnProperty.call(normalisedNewProps, 'keyframes');
+    const hasExplicitSubjectCropKeyframesUpdate = Object.prototype.hasOwnProperty.call(
+      normalisedNewProps,
+      'subjectCropKeyframes'
+    );
 
     let adjustedNewProps = normalisedNewProps;
     const nextStartTime = hasStartUpdate && typeof normalisedNewProps.startTime === 'number' && Number.isFinite(normalisedNewProps.startTime)
@@ -818,6 +828,36 @@ export const useStore = create<AppState>((set, get) => ({
         adjustedNewProps = {
           ...adjustedNewProps,
           keyframes: shiftedKeyframes
+        };
+      }
+    }
+
+    if (currentObject.type === 'video' && hasExplicitSubjectCropKeyframesUpdate) {
+      const videoPatch = normalisedNewProps as Partial<VideoObject>;
+      const raw = Array.isArray(videoPatch.subjectCropKeyframes) ? videoPatch.subjectCropKeyframes : [];
+      adjustedNewProps = {
+        ...adjustedNewProps,
+        subjectCropKeyframes: normaliseSubjectCropKeyframesForVideo(
+          { ...currentObject, ...adjustedNewProps, startTime: nextStartTime, duration: nextDuration },
+          raw as SubjectCropNormKeyframe[]
+        )
+      };
+    } else if (
+      currentObject.type === 'video'
+      && currentObject.subjectCropKeyframes
+      && currentObject.subjectCropKeyframes.length > 0
+    ) {
+      const deltaTime = hasStartUpdate ? nextStartTime - currentObject.startTime : 0;
+      const needsSubjectCropShift = Math.abs(deltaTime) > KEYFRAME_TIME_EPSILON || hasDurationUpdate;
+      if (needsSubjectCropShift) {
+        adjustedNewProps = {
+          ...adjustedNewProps,
+          subjectCropKeyframes: shiftSubjectCropKeyframesForObject(
+            currentObject.subjectCropKeyframes,
+            deltaTime,
+            nextStartTime,
+            nextDuration
+          )
         };
       }
     }

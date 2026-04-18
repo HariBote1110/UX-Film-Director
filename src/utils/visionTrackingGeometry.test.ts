@@ -2,8 +2,21 @@ import { describe, expect, it } from 'vitest';
 import {
   localTopLeftPointToWorld,
   visionNormBoundingBoxCentreToLocalTopLeft,
+  visionNormBoundingBoxToPixiNormRect,
   type VisionNormBoundingBox
 } from './visionTrackingGeometry';
+
+describe('visionNormBoundingBoxToPixiNormRect', () => {
+  it('converts Vision lower-left origin to top-left normalised rect', () => {
+    const box: VisionNormBoundingBox = { x: 0.1, y: 0.2, width: 0.3, height: 0.25 };
+    expect(visionNormBoundingBoxToPixiNormRect(box)).toEqual({
+      x: 0.1,
+      y: 0.55,
+      width: 0.3,
+      height: 0.25
+    });
+  });
+});
 
 describe('visionNormBoundingBoxCentreToLocalTopLeft', () => {
   it('maps full-frame Vision box centre to sprite centre', () => {

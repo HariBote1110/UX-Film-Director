@@ -5,9 +5,19 @@ import { buildPsdLayerTree, togglePsdLayer } from '../utils/psdParser';
 import { easingNames, EasingType } from '../utils/easings';
 import { buildEndpointKeyframes, evaluateObjectPositionAtTime } from '../utils/keyframes';
 import { useTranslation } from '../i18n';
-import { invokeCoreMlTrackObject, invokeCoreMlTrackObjectSupported } from '../utils/coremlTrackIpc';
+import {
+  invokeCoreMlTrackObject,
+  invokeCoreMlTrackObjectSupported,
+  invokeCoreMlDetectSubjects,
+  invokeCoreMlSegmentPerson,
+  invokeCoreMlFramePreview,
+  type CoreMlAnimalObservation,
+  type CoreMlTrackSample
+} from '../utils/coremlTrackIpc';
 import { resolveVideoFsPath } from '../utils/resolveVideoFsPath';
 import { buildOverlayPositionKeyframesFromVisionTrack } from '../utils/visionTrackingKeyframes';
+import { buildSubjectCropKeyframesFromVisionTrackSamples } from '../utils/subjectCropKeyframes';
+import type { VisionNormBoundingBox } from '../utils/visionTrackingGeometry';
 
 const Slider = ({
   className,
@@ -257,6 +267,7 @@ const PropertyPanel: React.FC = () => {
   const removeObjectFilter = useStore((state) => state.removeObjectFilter);
   const updateObjectFilterParams = useStore((state) => state.updateObjectFilterParams);
   const setGroupGradient = useStore((state) => state.setGroupGradient);
+  const currentTime = useStore((state) => state.currentTime);
   const [isRefreshingPsdTree, setIsRefreshingPsdTree] = useState(false);
   const [activeFilterId, setActiveFilterId] = useState<string | null>(null);
   const [batchMoveX, setBatchMoveX] = useState('0');
@@ -273,6 +284,12 @@ const PropertyPanel: React.FC = () => {
   const [visionBoxH, setVisionBoxH] = useState('0.3');
   const [visionFrameStride, setVisionFrameStride] = useState('2');
   const [visionTrackBusy, setVisionTrackBusy] = useState(false);
+  const [visionDetectedAnimals, setVisionDetectedAnimals] = useState<CoreMlAnimalObservation[]>([]);
+  const [visionSelectedAnimalIndex, setVisionSelectedAnimalIndex] = useState(-1);
+  const [visionPickOpen, setVisionPickOpen] = useState(false);
+  const [visionPickUrl, setVisionPickUrl] = useState<string | null>(null);
+  const [visionPersonMaskUrl, setVisionPersonMaskUrl] = useState<string | null>(null);
+  const [lastVisionTrackSamples, setLastVisionTrackSamples] = useState<CoreMlTrackSample[]>([]);
 
   const filters = selectedObject?.filters ?? [];
   const activeFilter = filters.find((filter) => filter.id === activeFilterId) ?? null;
@@ -329,6 +346,15 @@ const PropertyPanel: React.FC = () => {
       visionTrackOverlayCandidates.some((o) => o.id === prev) ? prev : visionTrackOverlayCandidates[0].id
     ));
   }, [selectedObject?.id, selectedObject?.type, visionTrackOverlayCandidates]);
+
+  useEffect(() => {
+    setLastVisionTrackSamples([]);
+    setVisionDetectedAnimals([]);
+    setVisionSelectedAnimalIndex(-1);
+    setVisionPersonMaskUrl(null);
+    setVisionPickOpen(false);
+    setVisionPickUrl(null);
+  }, [selectedObject?.id]);
 
   if (!selectedObject) {
     return (
@@ -454,6 +480,161 @@ const PropertyPanel: React.FC = () => {
     updateObject(selectedObject.id, { muted } as Partial<TimelineObject>);
   };
 
+  const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+
+  const applyVisionBBoxFields = (b: VisionNormBoundingBox) => {
+    const x = clamp01(b.x);
+    const y = clamp01(b.y);
+    const w = Math.max(0.02, clamp01(b.width));
+    const h = Math.max(0.02, clamp01(b.height));
+    setVisionBoxX(String(x));
+    setVisionBoxY(String(y));
+    setVisionBoxW(String(w));
+    setVisionBoxH(String(h));
+  };
+
+  const mediaTimeForSelectedVideo = (video: VideoObject): number => {
+    const offset = video.offset ?? 0;
+    const local = currentTime - video.startTime;
+    if (local < 0 || local > video.duration) {
+      return offset;
+    }
+    return offset + local;
+  };
+
+  const handleVisionDetectAnimals = async () => {
+    if (selectedObject.type !== 'video') return;
+    const video = selectedObject as VideoObject;
+    const diskPath = resolveVideoFsPath(video);
+    if (!diskPath) {
+      window.alert(language === 'en' ? 'Local video file required.' : 'ローカル動画ファイルが必要です。');
+      return;
+    }
+    setVisionTrackBusy(true);
+    try {
+      const res = await invokeCoreMlDetectSubjects(diskPath, mediaTimeForSelectedVideo(video));
+      if (!res.ok) {
+        window.alert(res.error);
+        return;
+      }
+      setVisionDetectedAnimals(res.animals);
+      setVisionSelectedAnimalIndex(-1);
+      if (res.animals.length === 0) {
+        window.alert(language === 'en' ? 'No cats or dogs detected at the playhead.' : '再生ヘッド位置で猫/犬が検出されませんでした。');
+      }
+    } finally {
+      setVisionTrackBusy(false);
+    }
+  };
+
+  const handleVisionOpenPickModal = async () => {
+    if (selectedObject.type !== 'video') return;
+    const video = selectedObject as VideoObject;
+    const diskPath = resolveVideoFsPath(video);
+    if (!diskPath) {
+      window.alert(language === 'en' ? 'Local video file required.' : 'ローカル動画ファイルが必要です。');
+      return;
+    }
+    const mediaT = mediaTimeForSelectedVideo(video);
+    setVisionTrackBusy(true);
+    try {
+      const [frameRes, detectRes] = await Promise.all([
+        invokeCoreMlFramePreview(diskPath, mediaT),
+        invokeCoreMlDetectSubjects(diskPath, mediaT)
+      ]);
+      if (!frameRes.ok) {
+        window.alert(frameRes.error);
+        return;
+      }
+      if (detectRes.ok) {
+        setVisionDetectedAnimals(detectRes.animals);
+        setVisionSelectedAnimalIndex(-1);
+      }
+      setVisionPickUrl(`data:image/jpeg;base64,${frameRes.jpegBase64}`);
+      setVisionPickOpen(true);
+    } finally {
+      setVisionTrackBusy(false);
+    }
+  };
+
+  const handleVisionPickImageClick: React.MouseEventHandler<HTMLImageElement> = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const nx = (e.clientX - rect.left) / Math.max(1, rect.width);
+    const nyTop = (e.clientY - rect.top) / Math.max(1, rect.height);
+    const vx = nx;
+    const vy = 1 - nyTop;
+    const hit = visionDetectedAnimals.find((a) => {
+      const b = a.boundingBox;
+      return vx >= b.x - 1e-4
+        && vx <= b.x + b.width + 1e-4
+        && vy >= b.y - 1e-4
+        && vy <= b.y + b.height + 1e-4;
+    });
+    if (hit) {
+      applyVisionBBoxFields(hit.boundingBox);
+    } else {
+      const half = 0.14;
+      let bx = vx - half;
+      let by = vy - half;
+      let bw = half * 2;
+      let bh = half * 2;
+      bx = clamp01(bx);
+      by = clamp01(by);
+      bw = Math.min(bw, 1 - bx);
+      bh = Math.min(bh, 1 - by);
+      applyVisionBBoxFields({ x: bx, y: by, width: Math.max(0.02, bw), height: Math.max(0.02, bh) });
+    }
+    setVisionPickOpen(false);
+    setVisionPickUrl(null);
+  };
+
+  const handleVisionSegmentPerson = async () => {
+    if (selectedObject.type !== 'video') return;
+    const video = selectedObject as VideoObject;
+    const diskPath = resolveVideoFsPath(video);
+    if (!diskPath) {
+      window.alert(language === 'en' ? 'Local video file required.' : 'ローカル動画ファイルが必要です。');
+      return;
+    }
+    setVisionTrackBusy(true);
+    try {
+      const res = await invokeCoreMlSegmentPerson(diskPath, mediaTimeForSelectedVideo(video));
+      if (!res.ok) {
+        window.alert(res.error);
+        return;
+      }
+      if (res.maskPngBase64) {
+        setVisionPersonMaskUrl(`data:image/png;base64,${res.maskPngBase64}`);
+      } else {
+        setVisionPersonMaskUrl(null);
+        window.alert(
+          res.message
+            ?? (language === 'en'
+              ? 'No person mask at the playhead (Vision person segmentation).'
+              : '再生ヘッド位置で人物マスクを取得できませんでした（Vision の人物セグメンテーション）。')
+        );
+      }
+    } finally {
+      setVisionTrackBusy(false);
+    }
+  };
+
+  const handleVisionApplyCropFromLastTrack = () => {
+    if (selectedObject.type !== 'video') return;
+    const video = selectedObject as VideoObject;
+    if (lastVisionTrackSamples.length === 0) {
+      window.alert(language === 'en' ? 'Run tracking first.' : '先にトラッキングを実行してください。');
+      return;
+    }
+    const kfs = buildSubjectCropKeyframesFromVisionTrackSamples(lastVisionTrackSamples, video);
+    if (kfs.length === 0) return;
+    pushHistory();
+    updateObject(video.id, {
+      subjectCropEnabled: true,
+      subjectCropKeyframes: kfs
+    } as Partial<TimelineObject>);
+  };
+
   const handleVisionTrackRun = async () => {
     if (selectedObject.type !== 'video') return;
     const video = selectedObject as VideoObject;
@@ -499,6 +680,7 @@ const PropertyPanel: React.FC = () => {
         window.alert(res.error);
         return;
       }
+      setLastVisionTrackSamples(res.samples);
       const built = buildOverlayPositionKeyframesFromVisionTrack({
         samples: res.samples,
         video,
@@ -785,6 +967,7 @@ const PropertyPanel: React.FC = () => {
   };
 
   return (
+    <>
     <div className="property-panel no-drag">
       <div className="panel-header">
         <SceneAndCameraPanel />
@@ -1386,6 +1569,87 @@ const PropertyPanel: React.FC = () => {
         {selectedObject.type === 'video' && coreMlTrackSupported && (
             <>
                 <SectionHeader label={language === 'en' ? 'Vision track (macOS)' : 'Vision トラック (macOS)'} />
+                <Row label={language === 'en' ? 'Subject (pets)' : '被写体（ペット）'}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+                        <button
+                            type="button"
+                            disabled={visionTrackBusy || !resolveVideoFsPath(selectedObject as VideoObject)}
+                            onClick={() => { void handleVisionDetectAnimals(); }}
+                            style={{ width: '100%', fontSize: '11px' }}
+                        >
+                            {language === 'en' ? 'Detect cat/dog at playhead' : '再生位置で猫/犬を検出'}
+                        </button>
+                        <select
+                            value={visionSelectedAnimalIndex}
+                            onChange={(e) => {
+                              const idx = parseInt(e.target.value, 10);
+                              setVisionSelectedAnimalIndex(idx);
+                              if (idx >= 0 && visionDetectedAnimals[idx]) {
+                                applyVisionBBoxFields(visionDetectedAnimals[idx].boundingBox);
+                              }
+                            }}
+                            disabled={visionDetectedAnimals.length === 0 || visionTrackBusy}
+                            style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee', fontSize: '11px' }}
+                        >
+                            <option value={-1}>{language === 'en' ? '— pick detection —' : '— 検出結果を選択 —'}</option>
+                            {visionDetectedAnimals.map((a, i) => (
+                              <option key={`${a.identifier}-${i}`} value={i}>
+                                {a.identifier} ({Math.round(a.confidence * 100)}%)
+                              </option>
+                            ))}
+                        </select>
+                        <button
+                            type="button"
+                            disabled={visionTrackBusy || !resolveVideoFsPath(selectedObject as VideoObject)}
+                            onClick={() => { void handleVisionOpenPickModal(); }}
+                            style={{ width: '100%', fontSize: '11px' }}
+                        >
+                            {language === 'en' ? 'Pick on frame…' : 'フレーム上で選択…'}
+                        </button>
+                        <button
+                            type="button"
+                            disabled={visionTrackBusy || !resolveVideoFsPath(selectedObject as VideoObject)}
+                            onClick={() => { void handleVisionSegmentPerson(); }}
+                            style={{ width: '100%', fontSize: '11px' }}
+                        >
+                            {language === 'en' ? 'Person mask preview' : '人物マスク（プレビュー）'}
+                        </button>
+                    </div>
+                </Row>
+                {visionPersonMaskUrl && (
+                    <div style={{ marginBottom: '8px' }}>
+                        <div style={{ fontSize: '10px', color: '#888', marginBottom: '4px' }}>
+                            {language === 'en'
+                              ? 'Person segmentation (reference). Timeline uses rectangular crop from tracking.'
+                              : '人物セグメンテーション（参考）。タイムラインではトラッキング矩形の切り抜きを使用します。'}
+                        </div>
+                        <img src={visionPersonMaskUrl} alt="" style={{ maxWidth: '100%', border: '1px solid #444' }} />
+                    </div>
+                )}
+                <Row label={language === 'en' ? 'Rect crop (tracked)' : '矩形切り抜き（追従）'}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', cursor: 'pointer' }}>
+                            <input
+                                type="checkbox"
+                                checked={(selectedObject as VideoObject).subjectCropEnabled ?? false}
+                                onChange={(e) => {
+                                  updateObject(selectedObject.id, {
+                                    subjectCropEnabled: e.target.checked
+                                  } as Partial<TimelineObject>);
+                                }}
+                            />
+                            {language === 'en' ? 'Enable' : '有効'}
+                        </label>
+                        <button
+                            type="button"
+                            disabled={lastVisionTrackSamples.length === 0 || visionTrackBusy}
+                            onClick={handleVisionApplyCropFromLastTrack}
+                            style={{ width: '100%', fontSize: '11px' }}
+                        >
+                            {language === 'en' ? 'Apply last track to crop' : '直近のトラックを切り抜きに適用'}
+                        </button>
+                    </div>
+                </Row>
                 <Row label={language === 'en' ? 'Overlay target' : 'オーバーレイ'}>
                     <select
                         value={visionTrackOverlayId}
@@ -1732,6 +1996,62 @@ const PropertyPanel: React.FC = () => {
 
       </div>
     </div>
+
+    {visionPickOpen && visionPickUrl && (
+      <div
+        className="no-drag"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.75)',
+          zIndex: 10000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px'
+        }}
+        onClick={() => {
+          setVisionPickOpen(false);
+          setVisionPickUrl(null);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            setVisionPickOpen(false);
+            setVisionPickUrl(null);
+          }
+        }}
+        role="presentation"
+      >
+        <div
+          style={{ maxWidth: 'min(900px, 95vw)', background: '#222', padding: '12px', borderRadius: '8px' }}
+          onClick={(ev) => ev.stopPropagation()}
+          role="presentation"
+        >
+          <div style={{ fontSize: '12px', color: '#ccc', marginBottom: '8px' }}>
+            {language === 'en'
+              ? 'Click the subject. If a pet was detected, its box is used; otherwise a default box is placed.'
+              : '被写体をクリック。ペットが検出されていればその矩形を、なければ既定サイズの矩形を設定します。'}
+          </div>
+          <img
+            src={visionPickUrl}
+            alt=""
+            style={{ maxWidth: '100%', maxHeight: '70vh', cursor: 'crosshair', display: 'block' }}
+            onClick={handleVisionPickImageClick}
+          />
+          <button
+            type="button"
+            style={{ marginTop: '10px', width: '100%' }}
+            onClick={() => {
+              setVisionPickOpen(false);
+              setVisionPickUrl(null);
+            }}
+          >
+            {language === 'en' ? 'Cancel' : 'キャンセル'}
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 

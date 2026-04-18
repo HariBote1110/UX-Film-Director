@@ -23,6 +23,16 @@ export type VideoObjectTransform = {
   scaleY: number;
 };
 
+/** Vision 正規化矩形（左下原点）を、動画テクスチャと同じ左上原点・0–1 正規化矩形へ。 */
+export const visionNormBoundingBoxToPixiNormRect = (
+  box: VisionNormBoundingBox
+): { x: number; y: number; width: number; height: number } => ({
+  x: box.x,
+  y: 1 - box.y - box.height,
+  width: box.width,
+  height: box.height
+});
+
 /** Vision 正規化 bbox の中心を、動画スプライトローカル（左上原点・ピクセル）へ。 */
 export const visionNormBoundingBoxCentreToLocalTopLeft = (
   box: VisionNormBoundingBox,

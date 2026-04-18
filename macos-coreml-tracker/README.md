@@ -1,6 +1,6 @@
 # uxfd-coreml-tracker
 
-macOS 専用の Vision `VNTrackObjectRequest` CLI。stdin に JSON を渡し、stdout に 1 行の JSON を返す。
+macOS 専用の Vision CLI。stdin に JSON を渡し、stdout に 1 行の JSON を返す。
 
 ## ビルド
 
@@ -13,18 +13,22 @@ swift build -c release
 
 開発時は `UXFD_COREML_TRACKER_BIN` でパスを指定できる。
 
-## 入力 JSON
+## `command` 別入力
 
-| フィールド | 説明 |
-| --- | --- |
-| `videoPath` | 動画ファイルの絶対パス |
-| `startSec` / `endSec` | メディア内の読み取り区間（秒） |
-| `initialBoundingBox` | Vision 正規化矩形（原点は画像**左下**） |
-| `frameStride` | 任意。`N` ごとに 1 サンプル出力（トラッキングは毎フレーム実行） |
-| `targetFps` | 任意。`frameStride` 未指定時、出力をおおよそこの間隔（秒）で間引く |
+共通: `videoPath`（絶対パス）
 
-## 出力 JSON
+| command | 追加フィールド | 説明 |
+| --- | --- | --- |
+| `track`（省略可） | `startSec`, `endSec`, `initialBoundingBox`, 任意 `frameStride`, `targetFps` | 既存の逐次トラッキング |
+| `detectSubjects` | `timeSec` | `VNRecognizeAnimalsRequest`（猫/犬）の bbox 一覧 |
+| `segmentPerson` | `timeSec` | `VNGeneratePersonSegmentationRequest` のマスク PNG（base64） |
+| `framePreview` | `timeSec` | 1 フレーム JPEG（base64）プレビュー用 |
 
-成功: `{"ok":true,"samples":[{"tSec":0.0,"boundingBox":{"x":...,"y":...,"width":...,"height":...}}, ...]}`
+## 出力（成功例）
+
+- **track**: `{"ok":true,"samples":[...]}`
+- **detectSubjects**: `{"ok":true,"animals":[{"identifier","confidence","boundingBox"},...]}`
+- **segmentPerson**: `{"ok":true,"maskPngBase64":"..." | null, "message": "..."}`
+- **framePreview**: `{"ok":true,"width":1920,"height":1080,"jpegBase64":"..."}`
 
 失敗: `{"ok":false,"error":"..."}`

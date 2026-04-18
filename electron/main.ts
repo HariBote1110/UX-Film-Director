@@ -176,16 +176,7 @@ const normaliseFsPathForCoreMl = (input: string): string => {
   return trimmed;
 };
 
-type CoreMlTrackObjectPayload = {
-  videoPath: string;
-  startSec: number;
-  endSec: number;
-  initialBoundingBox: { x: number; y: number; width: number; height: number };
-  frameStride?: number;
-  targetFps?: number;
-};
-
-const runCoreMlTrackerCli = (payload: CoreMlTrackObjectPayload): Promise<unknown> => {
+const runCoreMlTrackerCli = (payload: Record<string, unknown>, timeoutMs: number = 900_000): Promise<unknown> => {
   const trackerPath = resolveCoreMlTrackerPath();
   if (!trackerPath) {
     return Promise.reject(
@@ -200,7 +191,6 @@ const runCoreMlTrackerCli = (payload: CoreMlTrackObjectPayload): Promise<unknown
     let stdoutText = '';
     let stderrText = '';
 
-    const timeoutMs = 900_000;
     const timer = setTimeout(() => {
       child.kill('SIGTERM');
       reject(new Error('uxfd-coreml-tracker timed out.'));
@@ -808,52 +798,78 @@ app.whenReady().then(() => {
       return { ok: false as const, error: 'videoPath must be an existing file.' };
     }
 
-    const startSec = typeof payload.startSec === 'number' && Number.isFinite(payload.startSec) ? payload.startSec : NaN;
-    const endSec = typeof payload.endSec === 'number' && Number.isFinite(payload.endSec) ? payload.endSec : NaN;
-    if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || endSec <= startSec) {
-      return { ok: false as const, error: 'startSec and endSec must be finite numbers with endSec > startSec.' };
-    }
+    const commandRaw = typeof payload.command === 'string' ? payload.command.trim().toLowerCase() : 'track';
 
-    const box = payload.initialBoundingBox;
-    if (!box || typeof box !== 'object') {
-      return { ok: false as const, error: 'initialBoundingBox is required.' };
-    }
-    const b = box as Record<string, unknown>;
-    const bx = typeof b.x === 'number' && Number.isFinite(b.x) ? b.x : NaN;
-    const by = typeof b.y === 'number' && Number.isFinite(b.y) ? b.y : NaN;
-    const bw = typeof b.width === 'number' && Number.isFinite(b.width) ? b.width : NaN;
-    const bh = typeof b.height === 'number' && Number.isFinite(b.height) ? b.height : NaN;
-    if (!Number.isFinite(bx) || !Number.isFinite(by) || !Number.isFinite(bw) || !Number.isFinite(bh)) {
-      return { ok: false as const, error: 'initialBoundingBox must have finite x, y, width, height.' };
-    }
-
-    const frameStride =
-      typeof payload.frameStride === 'number' && Number.isFinite(payload.frameStride) && payload.frameStride >= 1
-        ? Math.floor(payload.frameStride)
-        : undefined;
-    const targetFps =
-      typeof payload.targetFps === 'number' && Number.isFinite(payload.targetFps) && payload.targetFps > 0
-        ? payload.targetFps
-        : undefined;
-
-    const cliPayload: CoreMlTrackObjectPayload = {
-      videoPath,
-      startSec,
-      endSec,
-      initialBoundingBox: { x: bx, y: by, width: bw, height: bh },
-      frameStride,
-      targetFps,
+    const readTimeSec = (): number | null => {
+      const t = typeof payload.timeSec === 'number' && Number.isFinite(payload.timeSec) ? payload.timeSec : NaN;
+      return Number.isFinite(t) ? t : null;
     };
 
+    let cliPayload: Record<string, unknown>;
+    let timeoutMs = 900_000;
+
+    if (commandRaw === 'detectsubjects' || commandRaw === 'segmentperson' || commandRaw === 'framepreview') {
+      const timeSec = readTimeSec();
+      if (timeSec === null) {
+        return { ok: false as const, error: 'timeSec must be a finite number.' };
+      }
+      if (commandRaw === 'detectsubjects') {
+        cliPayload = { command: 'detectSubjects', videoPath, timeSec };
+      } else if (commandRaw === 'segmentperson') {
+        cliPayload = { command: 'segmentPerson', videoPath, timeSec };
+      } else {
+        cliPayload = { command: 'framePreview', videoPath, timeSec };
+      }
+      timeoutMs = 120_000;
+    } else {
+      const startSec = typeof payload.startSec === 'number' && Number.isFinite(payload.startSec) ? payload.startSec : NaN;
+      const endSec = typeof payload.endSec === 'number' && Number.isFinite(payload.endSec) ? payload.endSec : NaN;
+      if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || endSec <= startSec) {
+        return { ok: false as const, error: 'startSec and endSec must be finite numbers with endSec > startSec.' };
+      }
+
+      const box = payload.initialBoundingBox;
+      if (!box || typeof box !== 'object') {
+        return { ok: false as const, error: 'initialBoundingBox is required.' };
+      }
+      const b = box as Record<string, unknown>;
+      const bx = typeof b.x === 'number' && Number.isFinite(b.x) ? b.x : NaN;
+      const by = typeof b.y === 'number' && Number.isFinite(b.y) ? b.y : NaN;
+      const bw = typeof b.width === 'number' && Number.isFinite(b.width) ? b.width : NaN;
+      const bh = typeof b.height === 'number' && Number.isFinite(b.height) ? b.height : NaN;
+      if (!Number.isFinite(bx) || !Number.isFinite(by) || !Number.isFinite(bw) || !Number.isFinite(bh)) {
+        return { ok: false as const, error: 'initialBoundingBox must have finite x, y, width, height.' };
+      }
+
+      const frameStride =
+        typeof payload.frameStride === 'number' && Number.isFinite(payload.frameStride) && payload.frameStride >= 1
+          ? Math.floor(payload.frameStride)
+          : undefined;
+      const targetFps =
+        typeof payload.targetFps === 'number' && Number.isFinite(payload.targetFps) && payload.targetFps > 0
+          ? payload.targetFps
+          : undefined;
+
+      cliPayload = {
+        command: 'track',
+        videoPath,
+        startSec,
+        endSec,
+        initialBoundingBox: { x: bx, y: by, width: bw, height: bh },
+        frameStride,
+        targetFps,
+      };
+    }
+
     try {
-      const result = (await runCoreMlTrackerCli(cliPayload)) as {
+      const result = (await runCoreMlTrackerCli(cliPayload, timeoutMs)) as {
         ok?: boolean;
         samples?: unknown;
         error?: string;
       };
 
       if (result && typeof result === 'object' && result.ok === false) {
-        return { ok: false as const, error: typeof result.error === 'string' ? result.error : 'Tracker error.' };
+        return { ok: false as const, error: typeof result.error === 'string' ? result.error : 'Vision job error.' };
       }
 
       return result;
