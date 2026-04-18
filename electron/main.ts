@@ -3,6 +3,7 @@ import path from 'node:path'
 import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
+import { PERFORMANCE_CSV_HEADER_LINE } from '../src/perf/performanceReport'
 
 // --- GPU Acceleration Flags ---
 // 高画質動画の再生負荷を下げるための重要な設定
@@ -380,6 +381,32 @@ app.whenReady().then(() => {
       const data = fs.readFileSync(filePath);
       const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
       return { success: true, data: buffer };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+
+  ipcMain.handle('append-performance-csv', async (_event, payload: { fileName?: string; lines?: string }) => {
+    const fileName = typeof payload?.fileName === 'string' && payload.fileName.trim() !== ''
+      ? payload.fileName.trim()
+      : 'harness-runs.csv';
+    const lines = typeof payload?.lines === 'string' ? payload.lines : '';
+
+    const directory = path.join(app.getPath('userData'), 'performance-reports');
+    fs.mkdirSync(directory, { recursive: true });
+    const filePath = path.join(directory, fileName);
+
+    try {
+      const exists = fs.existsSync(filePath);
+      const isEmpty = !exists || fs.statSync(filePath).size === 0;
+      if (isEmpty) {
+        fs.appendFileSync(filePath, PERFORMANCE_CSV_HEADER_LINE, 'utf8');
+      }
+      fs.appendFileSync(filePath, lines, 'utf8');
+      return { success: true, filePath };
     } catch (error) {
       return {
         success: false,
