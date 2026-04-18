@@ -18,7 +18,19 @@ type LayerImageDataNormalised = {
 };
 
 const LAYER_NAME_DECODE_ENCODINGS = ['utf-8', 'shift_jis', 'euc-jp'] as const;
-const JAPANESE_CHAR_RE = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
+
+/** Avoids per-code-point \\p{Script=} regex in hot paths (layer names). */
+const isJapaneseScriptCodePoint = (code: number): boolean => {
+  return (
+    (code >= 0x3040 && code <= 0x309f) ||
+    (code >= 0x30a0 && code <= 0x30ff) ||
+    (code >= 0x31f0 && code <= 0x31ff) ||
+    (code >= 0xff65 && code <= 0xff9f) ||
+    (code >= 0x3400 && code <= 0x4dbf) ||
+    (code >= 0x4e00 && code <= 0x9fff) ||
+    (code >= 0xf900 && code <= 0xfaff)
+  );
+};
 
 const getLayerWidth = (layer: LayerWithBounds) => {
   if (typeof layer.width === 'number') return layer.width;
@@ -168,7 +180,7 @@ const scoreLayerName = (value: string): number => {
   let score = 0;
 
   for (const char of value) {
-    const code = char.charCodeAt(0);
+    const code = char.codePointAt(0) ?? 0;
 
     if (char === '\uFFFD') {
       score -= 8;
@@ -180,7 +192,7 @@ const scoreLayerName = (value: string): number => {
       continue;
     }
 
-    if (JAPANESE_CHAR_RE.test(char)) {
+    if (isJapaneseScriptCodePoint(code)) {
       score += 5;
       continue;
     }
@@ -206,7 +218,20 @@ const hasSuspiciousNameBytes = (value: string): boolean => {
 };
 
 const containsJapanese = (value: string): boolean => {
-  return JAPANESE_CHAR_RE.test(value);
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code >= 0xd800 && code <= 0xdbff && i + 1 < value.length) {
+      const low = value.charCodeAt(i + 1);
+      if (low >= 0xdc00 && low <= 0xdfff) {
+        const cp = (code - 0xd800) * 0x400 + (low - 0xdc00) + 0x10000;
+        if (isJapaneseScriptCodePoint(cp)) return true;
+        i++;
+        continue;
+      }
+    }
+    if (isJapaneseScriptCodePoint(code)) return true;
+  }
+  return false;
 };
 
 const restoreLayerNameEncoding = (name: string): string => {
@@ -338,6 +363,7 @@ export const parsePsdArrayBufferAsObject = async (
   const psd = readPsd(arrayBuffer, {
     skipLayerImageData: false,
     useImageData: true,
+    skipThumbnail: true,
   });
 
   // レイヤーID生成用
@@ -379,9 +405,11 @@ export const parsePsdArrayBufferAsObject = async (
             cvs.height = normalised.height;
             const ctx = cvs.getContext('2d');
             if (ctx) {
-              const pixelData = new Uint8ClampedArray(normalised.data.length);
-              pixelData.set(normalised.data);
-              const imgData = new ImageData(pixelData, normalised.width, normalised.height);
+              const imgData = new ImageData(
+                normalised.data as unknown as ImageData['data'],
+                normalised.width,
+                normalised.height
+              );
               ctx.putImageData(imgData, 0, 0);
               currentNode.src = await canvasToUrl(cvs);
             }
@@ -395,9 +423,9 @@ export const parsePsdArrayBufferAsObject = async (
     // 子要素の処理
     if (layer.children) {
       // ag-psd の children 順をそのまま保持して描画順を一致させる。
+      // 子は逐次処理し、generateId の付与順を安定させる（並列化すると ID が非決定になる）。
       const children = [...layer.children];
       for (const child of children) {
-        // 修正: 座標オフセットを渡さない
         const childNode = await buildNode(child);
         currentNode.children.push(childNode);
       }
@@ -423,7 +451,6 @@ export const parsePsdArrayBufferAsObject = async (
   if (psd.children) {
     const children = [...psd.children];
     for (const child of children) {
-      // 修正: 座標オフセットを渡さない
       rootNode.children.push(await buildNode(child));
     }
   } else if (psd.imageData) {
