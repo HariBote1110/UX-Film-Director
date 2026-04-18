@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState, PsdWorldPlacement } from '../types';
+import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState, PsdWorldPlacement, VideoObject } from '../types';
 import { buildPsdLayerTree, togglePsdLayer } from '../utils/psdParser';
 import { easingNames, EasingType } from '../utils/easings';
 import { buildEndpointKeyframes, evaluateObjectPositionAtTime } from '../utils/keyframes';
 import { useTranslation } from '../i18n';
+import { invokeCoreMlTrackObject, invokeCoreMlTrackObjectSupported } from '../utils/coremlTrackIpc';
+import { resolveVideoFsPath } from '../utils/resolveVideoFsPath';
+import { buildOverlayPositionKeyframesFromVisionTrack } from '../utils/visionTrackingKeyframes';
 
 const Slider = ({
   className,
@@ -262,6 +265,14 @@ const PropertyPanel: React.FC = () => {
   const [batchScaleYPercent, setBatchScaleYPercent] = useState('100');
   const [batchRotation, setBatchRotation] = useState('0');
   const [batchOpacityPercent, setBatchOpacityPercent] = useState('0');
+  const [coreMlTrackSupported, setCoreMlTrackSupported] = useState(false);
+  const [visionTrackOverlayId, setVisionTrackOverlayId] = useState('');
+  const [visionBoxX, setVisionBoxX] = useState('0.35');
+  const [visionBoxY, setVisionBoxY] = useState('0.35');
+  const [visionBoxW, setVisionBoxW] = useState('0.3');
+  const [visionBoxH, setVisionBoxH] = useState('0.3');
+  const [visionFrameStride, setVisionFrameStride] = useState('2');
+  const [visionTrackBusy, setVisionTrackBusy] = useState(false);
 
   const filters = selectedObject?.filters ?? [];
   const activeFilter = filters.find((filter) => filter.id === activeFilterId) ?? null;
@@ -275,6 +286,49 @@ const PropertyPanel: React.FC = () => {
       setActiveFilterId(filters[filters.length - 1].id);
     }
   }, [activeFilterId, filters, selectedObject]);
+
+  useEffect(() => {
+    let cancelled = false;
+    invokeCoreMlTrackObjectSupported()
+      .then((supported) => {
+        if (!cancelled) setCoreMlTrackSupported(supported);
+      })
+      .catch(() => {
+        if (!cancelled) setCoreMlTrackSupported(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const visionTrackOverlayCandidates = useMemo(() => {
+    if (selectedObject?.type !== 'video') return [];
+    const video = selectedObject as VideoObject;
+    const v0 = video.startTime;
+    const v1 = video.startTime + video.duration;
+    const types: TimelineObject['type'][] = ['image', 'shape', 'text', 'psd'];
+    return objects.filter((o) => {
+      if (o.id === video.id) return false;
+      if (!types.includes(o.type)) return false;
+      const o0 = o.startTime;
+      const o1 = o.startTime + o.duration;
+      return o0 < v1 && o1 > v0;
+    });
+  }, [objects, selectedObject]);
+
+  useEffect(() => {
+    if (selectedObject?.type !== 'video') {
+      setVisionTrackOverlayId('');
+      return;
+    }
+    if (visionTrackOverlayCandidates.length === 0) {
+      setVisionTrackOverlayId('');
+      return;
+    }
+    setVisionTrackOverlayId((prev) => (
+      visionTrackOverlayCandidates.some((o) => o.id === prev) ? prev : visionTrackOverlayCandidates[0].id
+    ));
+  }, [selectedObject?.id, selectedObject?.type, visionTrackOverlayCandidates]);
 
   if (!selectedObject) {
     return (
@@ -398,6 +452,84 @@ const PropertyPanel: React.FC = () => {
   const handleMediaMuteChange = (muted: boolean) => {
     if (selectedObject.type !== 'video' && selectedObject.type !== 'audio') return;
     updateObject(selectedObject.id, { muted } as Partial<TimelineObject>);
+  };
+
+  const handleVisionTrackRun = async () => {
+    if (selectedObject.type !== 'video') return;
+    const video = selectedObject as VideoObject;
+    const diskPath = resolveVideoFsPath(video);
+    if (!diskPath) {
+      window.alert(
+        language === 'en'
+          ? 'Video must be a local file (drop a file or open a project with file paths).'
+          : '動画がローカルファイルである必要があります（ファイルをドロップするか、filePath のあるプロジェクトを開いてください）。'
+      );
+      return;
+    }
+    const overlay = objects.find((o) => o.id === visionTrackOverlayId);
+    if (!overlay) {
+      window.alert(language === 'en' ? 'Select an overlay object to move.' : '移動させるオーバーレイを選んでください。');
+      return;
+    }
+    const bx = parseFloat(visionBoxX);
+    const by = parseFloat(visionBoxY);
+    const bw = parseFloat(visionBoxW);
+    const bh = parseFloat(visionBoxH);
+    if ([bx, by, bw, bh].some((n) => Number.isNaN(n)) || bw <= 0 || bh <= 0) {
+      window.alert(language === 'en' ? 'Invalid bounding box.' : '初期矩形が無効です。');
+      return;
+    }
+    const strideParsed = parseInt(visionFrameStride, 10);
+    const frameStride = Number.isFinite(strideParsed) && strideParsed >= 1 ? strideParsed : 2;
+    const offsetSec = video.offset ?? 0;
+    const startSec = offsetSec;
+    const endSec = offsetSec + video.duration;
+
+    setVisionTrackBusy(true);
+    try {
+      const res = await invokeCoreMlTrackObject({
+        videoPath: diskPath,
+        startSec,
+        endSec,
+        initialBoundingBox: { x: bx, y: by, width: bw, height: bh },
+        frameStride,
+        targetFps: projectSettings.fps,
+      });
+      if (!res.ok) {
+        window.alert(res.error);
+        return;
+      }
+      const built = buildOverlayPositionKeyframesFromVisionTrack({
+        samples: res.samples,
+        video,
+        overlay,
+        allObjects: objects,
+      });
+      if (built.length === 0) {
+        window.alert(language === 'en' ? 'No tracking samples returned.' : 'トラッキング結果が空です。');
+        return;
+      }
+      const merge =
+        overlay.keyframes && overlay.keyframes.length > 0
+          ? window.confirm(
+              language === 'en'
+                ? 'Merge with existing position keyframes? (Cancel replaces them.)'
+                : '既存の位置キーフレームとマージしますか？（キャンセルで置き換え）'
+            )
+          : false;
+      pushHistory();
+      let nextKeyframes = built;
+      if (merge && overlay.keyframes && overlay.keyframes.length > 0) {
+        const keyOf = (t: number) => Math.round(t * 1000);
+        const byTime = new Map<number, PositionKeyframe>();
+        overlay.keyframes.forEach((k) => byTime.set(keyOf(k.time), k));
+        built.forEach((k) => byTime.set(keyOf(k.time), k));
+        nextKeyframes = Array.from(byTime.values()).sort((a, b) => a.time - b.time);
+      }
+      updateObject(overlay.id, { keyframes: nextKeyframes, enableAnimation: false } as Partial<TimelineObject>);
+    } finally {
+      setVisionTrackBusy(false);
+    }
   };
 
   const handlePsdScaleChange = (rawValue: string) => {
@@ -1248,6 +1380,104 @@ const PropertyPanel: React.FC = () => {
                         <span style={{ fontSize: '11px', color: '#999' }}>%</span>
                     </div>
                 </Row>
+            </>
+        )}
+
+        {selectedObject.type === 'video' && coreMlTrackSupported && (
+            <>
+                <SectionHeader label={language === 'en' ? 'Vision track (macOS)' : 'Vision トラック (macOS)'} />
+                <Row label={language === 'en' ? 'Overlay target' : 'オーバーレイ'}>
+                    <select
+                        value={visionTrackOverlayId}
+                        onChange={(e) => setVisionTrackOverlayId(e.target.value)}
+                        style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                        disabled={visionTrackOverlayCandidates.length === 0 || visionTrackBusy}
+                    >
+                        {visionTrackOverlayCandidates.length === 0 ? (
+                            <option value="">{language === 'en' ? 'No overlapping clip' : '重なるクリップなし'}</option>
+                        ) : (
+                            visionTrackOverlayCandidates.map((o) => (
+                                <option key={o.id} value={o.id}>
+                                    {o.name || o.type} ({o.type})
+                                </option>
+                            ))
+                        )}
+                    </select>
+                </Row>
+                <Row label={language === 'en' ? 'BBox x,y (Vision)' : '矩形 x,y (Vision)'}>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        <input
+                            type="text"
+                            inputMode="decimal"
+                            value={visionBoxX}
+                            onChange={(e) => setVisionBoxX(e.target.value)}
+                            disabled={visionTrackBusy}
+                            style={{ width: '52px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                        />
+                        <input
+                            type="text"
+                            inputMode="decimal"
+                            value={visionBoxY}
+                            onChange={(e) => setVisionBoxY(e.target.value)}
+                            disabled={visionTrackBusy}
+                            style={{ width: '52px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                        />
+                    </div>
+                </Row>
+                <Row label={language === 'en' ? 'BBox w,h' : '幅・高さ'}>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        <input
+                            type="text"
+                            inputMode="decimal"
+                            value={visionBoxW}
+                            onChange={(e) => setVisionBoxW(e.target.value)}
+                            disabled={visionTrackBusy}
+                            style={{ width: '52px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                        />
+                        <input
+                            type="text"
+                            inputMode="decimal"
+                            value={visionBoxH}
+                            onChange={(e) => setVisionBoxH(e.target.value)}
+                            disabled={visionTrackBusy}
+                            style={{ width: '52px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                        />
+                    </div>
+                </Row>
+                <Row label={language === 'en' ? 'Frame stride' : 'フレーム間引き'}>
+                    <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={visionFrameStride}
+                        onChange={(e) => setVisionFrameStride(e.target.value)}
+                        disabled={visionTrackBusy}
+                        style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                    />
+                </Row>
+                <div style={{ marginBottom: '12px' }}>
+                    <button
+                        type="button"
+                        disabled={
+                            visionTrackBusy
+                            || visionTrackOverlayCandidates.length === 0
+                            || !resolveVideoFsPath(selectedObject as VideoObject)
+                        }
+                        onClick={() => {
+                          void handleVisionTrackRun();
+                        }}
+                        style={{ width: '100%' }}
+                    >
+                        {visionTrackBusy
+                          ? (language === 'en' ? 'Tracking…' : 'トラッキング中…')
+                          : (language === 'en' ? 'Run tracking' : 'トラッキング実行')}
+                    </button>
+                </div>
+                <div style={{ fontSize: '11px', color: '#888', lineHeight: 1.4, marginBottom: '8px' }}>
+                    {language === 'en'
+                      ? 'Bounding box uses Vision normalised coordinates (origin bottom-left of the frame).'
+                      : '矩形は Vision 正規化座標（フレーム左下が原点）です。'}
+                </div>
             </>
         )}
 

@@ -6,3 +6,6 @@
 /10000kbps_60fps.mp4
 dist/
 perf-agent-output.json
+
+# SwiftPM build artefacts
+macos-coreml-tracker/.build/

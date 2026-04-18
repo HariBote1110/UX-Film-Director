@@ -1,7 +1,7 @@
 {
   "name": "ux-film-director",
   "private": true,
-  "version": "0.1.1-Beta-7d",
+  "version": "0.1.1-Beta-8a",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -12,7 +12,39 @@
     "preview": "vite preview",
     "rust:build:debug": "cargo build --manifest-path rust-backend/Cargo.toml",
     "rust:build:release": "cargo build --release --manifest-path rust-backend/Cargo.toml",
-    "rust:run": "cargo run --manifest-path rust-backend/Cargo.toml"
+    "rust:run": "cargo run --manifest-path rust-backend/Cargo.toml",
+    "swift:build:tracker": "swift build -c release --package-path macos-coreml-tracker"
+  },
+  "build": {
+    "appId": "com.uxfd.film-director",
+    "productName": "UX Film Director",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "rust-backend/target/release/",
+        "to": "rust-backend",
+        "filter": [
+          "uxfd-rust-backend"
+        ]
+      },
+      {
+        "from": "macos-coreml-tracker/.build/release/",
+        "to": "macos-coreml-tracker",
+        "filter": [
+          "uxfd-coreml-tracker"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.video"
+    }
   },
   "dependencies": {
     "ag-psd": "^29.0.0",

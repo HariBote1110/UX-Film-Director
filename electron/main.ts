@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -131,6 +132,135 @@ const resolveRustBackendPath = () => {
     }
   }
   return null;
+};
+
+const COREML_TRACKER_BINARY = 'uxfd-coreml-tracker';
+
+const getCoreMlTrackerCandidates = (): string[] => {
+  const candidates: string[] = [];
+
+  if (process.env.UXFD_COREML_TRACKER_BIN) {
+    candidates.push(process.env.UXFD_COREML_TRACKER_BIN);
+  }
+
+  if (app.isPackaged) {
+    candidates.push(path.join(process.resourcesPath, 'macos-coreml-tracker', COREML_TRACKER_BINARY));
+    candidates.push(path.join(process.resourcesPath, COREML_TRACKER_BINARY));
+  } else {
+    const appPath = app.getAppPath();
+    candidates.push(path.join(appPath, 'macos-coreml-tracker', '.build', 'release', COREML_TRACKER_BINARY));
+    candidates.push(path.join(appPath, 'macos-coreml-tracker', '.build', 'debug', COREML_TRACKER_BINARY));
+  }
+
+  return candidates;
+};
+
+const resolveCoreMlTrackerPath = (): string | null => {
+  for (const candidate of getCoreMlTrackerCandidates()) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+};
+
+const normaliseFsPathForCoreMl = (input: string): string => {
+  const trimmed = input.trim();
+  if (trimmed.startsWith('file:')) {
+    try {
+      return fileURLToPath(trimmed);
+    } catch {
+      return trimmed;
+    }
+  }
+  return trimmed;
+};
+
+type CoreMlTrackObjectPayload = {
+  videoPath: string;
+  startSec: number;
+  endSec: number;
+  initialBoundingBox: { x: number; y: number; width: number; height: number };
+  frameStride?: number;
+  targetFps?: number;
+};
+
+const runCoreMlTrackerCli = (payload: CoreMlTrackObjectPayload): Promise<unknown> => {
+  const trackerPath = resolveCoreMlTrackerPath();
+  if (!trackerPath) {
+    return Promise.reject(
+      new Error(
+        'uxfd-coreml-tracker binary not found. Run "swift build -c release" in macos-coreml-tracker/ or set UXFD_COREML_TRACKER_BIN.'
+      )
+    );
+  }
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(trackerPath, [], { stdio: ['pipe', 'pipe', 'pipe'] });
+    let stdoutText = '';
+    let stderrText = '';
+
+    const timeoutMs = 900_000;
+    const timer = setTimeout(() => {
+      child.kill('SIGTERM');
+      reject(new Error('uxfd-coreml-tracker timed out.'));
+    }, timeoutMs);
+
+    if (child.stdout) {
+      child.stdout.setEncoding('utf8');
+      child.stdout.on('data', (chunk: string) => {
+        stdoutText += chunk;
+      });
+    }
+
+    if (child.stderr) {
+      child.stderr.setEncoding('utf8');
+      child.stderr.on('data', (chunk: string) => {
+        stderrText += chunk;
+      });
+    }
+
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      const line = stdoutText.trim().split(/\r?\n/).filter(Boolean).pop();
+      if (line) {
+        try {
+          const parsed = JSON.parse(line) as { ok?: boolean; error?: string };
+          if (parsed && parsed.ok === false && typeof parsed.error === 'string') {
+            reject(new Error(parsed.error));
+            return;
+          }
+        } catch {
+          // fall through to generic handling
+        }
+      }
+
+      if (code !== 0) {
+        const detail = stderrText.trim() || stdoutText.trim() || `exit code ${code ?? 'null'}`;
+        reject(new Error(`uxfd-coreml-tracker failed: ${detail}`));
+        return;
+      }
+
+      if (!line) {
+        reject(new Error('uxfd-coreml-tracker returned empty stdout.'));
+        return;
+      }
+
+      try {
+        resolve(JSON.parse(line));
+      } catch (error) {
+        reject(new Error(`uxfd-coreml-tracker returned invalid JSON: ${String(error)}`));
+      }
+    });
+
+    child.stdin.write(JSON.stringify(payload), 'utf8');
+    child.stdin.end();
+  });
 };
 
 const rejectAllRustPending = (reason: string) => {
@@ -654,6 +784,83 @@ app.whenReady().then(() => {
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  ipcMain.handle('coreml-track-object-supported', () => ({
+    supported: process.platform === 'darwin',
+  }));
+
+  ipcMain.handle('coreml-track-object', async (_event, raw: unknown) => {
+    if (process.platform !== 'darwin') {
+      return { ok: false as const, error: 'Object tracking is available on macOS only.' };
+    }
+
+    if (!raw || typeof raw !== 'object') {
+      return { ok: false as const, error: 'Invalid payload.' };
+    }
+
+    const payload = raw as Record<string, unknown>;
+    const videoPathRaw = typeof payload.videoPath === 'string' ? payload.videoPath : '';
+    const videoPath = normaliseFsPathForCoreMl(videoPathRaw);
+    if (!videoPath || !fs.existsSync(videoPath)) {
+      return { ok: false as const, error: 'videoPath must be an existing file.' };
+    }
+
+    const startSec = typeof payload.startSec === 'number' && Number.isFinite(payload.startSec) ? payload.startSec : NaN;
+    const endSec = typeof payload.endSec === 'number' && Number.isFinite(payload.endSec) ? payload.endSec : NaN;
+    if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || endSec <= startSec) {
+      return { ok: false as const, error: 'startSec and endSec must be finite numbers with endSec > startSec.' };
+    }
+
+    const box = payload.initialBoundingBox;
+    if (!box || typeof box !== 'object') {
+      return { ok: false as const, error: 'initialBoundingBox is required.' };
+    }
+    const b = box as Record<string, unknown>;
+    const bx = typeof b.x === 'number' && Number.isFinite(b.x) ? b.x : NaN;
+    const by = typeof b.y === 'number' && Number.isFinite(b.y) ? b.y : NaN;
+    const bw = typeof b.width === 'number' && Number.isFinite(b.width) ? b.width : NaN;
+    const bh = typeof b.height === 'number' && Number.isFinite(b.height) ? b.height : NaN;
+    if (!Number.isFinite(bx) || !Number.isFinite(by) || !Number.isFinite(bw) || !Number.isFinite(bh)) {
+      return { ok: false as const, error: 'initialBoundingBox must have finite x, y, width, height.' };
+    }
+
+    const frameStride =
+      typeof payload.frameStride === 'number' && Number.isFinite(payload.frameStride) && payload.frameStride >= 1
+        ? Math.floor(payload.frameStride)
+        : undefined;
+    const targetFps =
+      typeof payload.targetFps === 'number' && Number.isFinite(payload.targetFps) && payload.targetFps > 0
+        ? payload.targetFps
+        : undefined;
+
+    const cliPayload: CoreMlTrackObjectPayload = {
+      videoPath,
+      startSec,
+      endSec,
+      initialBoundingBox: { x: bx, y: by, width: bw, height: bh },
+      frameStride,
+      targetFps,
+    };
+
+    try {
+      const result = (await runCoreMlTrackerCli(cliPayload)) as {
+        ok?: boolean;
+        samples?: unknown;
+        error?: string;
+      };
+
+      if (result && typeof result === 'object' && result.ok === false) {
+        return { ok: false as const, error: typeof result.error === 'string' ? result.error : 'Tracker error.' };
+      }
+
+      return result;
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   });
