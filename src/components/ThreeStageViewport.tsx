@@ -1,8 +1,10 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import type { PsdWorldPlacement, StageCamera3D } from '../types';
 import { billboardYawRadians } from '../utils/stage3dMath';
+import { useStore } from '../store/useStore';
 
 export type BillboardTextureEntry = {
   id: string;
@@ -30,13 +32,27 @@ type ThreeStageViewportProps = {
     target?: Partial<StageCamera3D['target']>;
   }) => void;
   isExporting: boolean;
+  /** 3D ワールド配置 PSD のうち、移動ギズモを付けるオブジェクト ID */
+  selectedBillboardId: string | null;
+  onBillboardWorldPositionChange: (id: string, position: { x: number; y: number; z: number }) => void;
 };
 
 const STAGE_BACKGROUND = 0x1e1e1e;
 
+const BILLBOARD_MESH_PREFIX = 'psd-billboard-';
+
 export const ThreeStageViewport = forwardRef<ThreeStageViewportHandle, ThreeStageViewportProps>(
   function ThreeStageViewport(
-    { width, height, displayScale, stageCamera3D, setStageCamera3D, isExporting },
+    {
+      width,
+      height,
+      displayScale,
+      stageCamera3D,
+      setStageCamera3D,
+      isExporting,
+      selectedBillboardId,
+      onBillboardWorldPositionChange,
+    },
     ref
   ) {
     const mountRef = useRef<HTMLDivElement>(null);
@@ -44,12 +60,19 @@ export const ThreeStageViewport = forwardRef<ThreeStageViewportHandle, ThreeStag
     const sceneRef = useRef<THREE.Scene | null>(null);
     const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
     const controlsRef = useRef<OrbitControls | null>(null);
+    const transformControlsRef = useRef<TransformControls | null>(null);
     const meshMapRef = useRef<Map<string, THREE.Mesh>>(new Map());
     const textureMapRef = useRef<Map<string, THREE.CanvasTexture>>(new Map());
     const rafRef = useRef<number>(0);
     const userAdjustingRef = useRef(false);
     const displayScaleRef = useRef(displayScale);
     displayScaleRef.current = displayScale;
+    const selectedBillboardIdRef = useRef<string | null>(null);
+    selectedBillboardIdRef.current = selectedBillboardId;
+    const onBillboardWorldPositionChangeRef = useRef(onBillboardWorldPositionChange);
+    onBillboardWorldPositionChangeRef.current = onBillboardWorldPositionChange;
+    const isExportingRef = useRef(isExporting);
+    isExportingRef.current = isExporting;
 
     useImperativeHandle(ref, () => ({
       getCanvas: () => rendererRef.current?.domElement ?? null,
@@ -120,7 +143,7 @@ export const ThreeStageViewport = forwardRef<ThreeStageViewportHandle, ThreeStag
               depthWrite: true
             });
             mesh = new THREE.Mesh(geom, mat);
-            mesh.name = `psd-billboard-${entry.id}`;
+            mesh.name = `${BILLBOARD_MESH_PREFIX}${entry.id}`;
             scene.add(mesh);
             meshMapRef.current.set(entry.id, mesh);
           } else {
@@ -151,6 +174,25 @@ export const ThreeStageViewport = forwardRef<ThreeStageViewportHandle, ThreeStag
             mesh.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
           } else {
             mesh.rotation.set(0, (entry.placement.rotationYDeg * Math.PI) / 180, 0);
+          }
+        }
+
+        const tc = transformControlsRef.current;
+        if (tc) {
+          if (isExportingRef.current) {
+            tc.detach();
+            tc.enabled = false;
+          } else {
+            tc.enabled = true;
+            const sel = selectedBillboardIdRef.current;
+            if (sel && meshMapRef.current.has(sel)) {
+              const mesh = meshMapRef.current.get(sel)!;
+              if (tc.object !== mesh) {
+                tc.attach(mesh);
+              }
+            } else {
+              tc.detach();
+            }
           }
         }
       }
@@ -215,6 +257,29 @@ export const ThreeStageViewport = forwardRef<ThreeStageViewportHandle, ThreeStag
         });
       });
 
+      const transformControls = new TransformControls(camera, renderer.domElement);
+      transformControls.setMode('translate');
+      transformControls.setSpace('world');
+      transformControls.setSize(1.15);
+      transformControls.enabled = true;
+      transformControlsRef.current = transformControls;
+      scene.add(transformControls.getHelper());
+
+      transformControls.addEventListener('mouseDown', () => {
+        useStore.getState().pushHistory();
+        controls.enabled = false;
+      });
+      transformControls.addEventListener('mouseUp', () => {
+        controls.enabled = true;
+      });
+      transformControls.addEventListener('objectChange', () => {
+        const mesh = transformControls.object as THREE.Mesh | null;
+        if (!mesh?.name.startsWith(BILLBOARD_MESH_PREFIX)) return;
+        const id = mesh.name.slice(BILLBOARD_MESH_PREFIX.length);
+        const pos = mesh.position;
+        onBillboardWorldPositionChangeRef.current?.(id, { x: pos.x, y: pos.y, z: pos.z });
+      });
+
       sceneRef.current = scene;
       cameraRef.current = camera;
       rendererRef.current = renderer;
@@ -230,6 +295,12 @@ export const ThreeStageViewport = forwardRef<ThreeStageViewportHandle, ThreeStag
 
       return () => {
         cancelAnimationFrame(rafRef.current);
+        const tcCleanup = transformControlsRef.current;
+        if (tcCleanup) {
+          scene.remove(tcCleanup.getHelper());
+          tcCleanup.dispose();
+        }
+        transformControlsRef.current = null;
         controls.dispose();
         meshMapRef.current.forEach((mesh) => {
           scene.remove(mesh);
@@ -266,6 +337,12 @@ export const ThreeStageViewport = forwardRef<ThreeStageViewportHandle, ThreeStag
     useEffect(() => {
       if (controlsRef.current) {
         controlsRef.current.enabled = !isExporting;
+      }
+      if (transformControlsRef.current) {
+        transformControlsRef.current.enabled = !isExporting;
+        if (isExporting) {
+          transformControlsRef.current.detach();
+        }
       }
     }, [isExporting]);
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import * as PIXI from 'pixi.js';
 import { useStore } from '../store/useStore';
 import { TimelineObject, GradientFill, ObjectFilter, PsdObject } from '../types';
@@ -97,7 +97,7 @@ const Viewport: React.FC = () => {
   const [panelSize, setPanelSize] = useState({ w: 0, h: 0 });
 
   const { 
-    currentTime, objects, selectedIds, clearSelection,
+    currentTime, objects, selectedIds, selectedId, clearSelection,
     projectSettings, isPlaying, isExporting,
     layers,
     camera,
@@ -112,6 +112,7 @@ const Viewport: React.FC = () => {
     currentTime: state.currentTime,
     objects: state.objects,
     selectedIds: state.selectedIds,
+    selectedId: state.selectedId,
     clearSelection: state.clearSelection,
     projectSettings: state.projectSettings,
     isPlaying: state.isPlaying,
@@ -129,6 +130,30 @@ const Viewport: React.FC = () => {
   }), shallow);
 
   const editorMode = projectSettings.editorMode ?? '2d';
+
+  const selectedBillboardPsdId = useMemo(() => {
+    if (editorMode !== '3d_stage') return null;
+    const candidates = selectedIds.length > 0 ? selectedIds : (selectedId ? [selectedId] : []);
+    for (const cid of candidates) {
+      const o = objects.find((x) => x.id === cid);
+      if (
+        o?.type === 'psd'
+        && o.worldPlacement?.enabled === true
+        && layers[o.layer]?.locked !== true
+      ) {
+        return cid;
+      }
+    }
+    return null;
+  }, [editorMode, selectedIds, selectedId, objects, layers]);
+
+  const handleBillboardWorldMove = useCallback((id: string, position: { x: number; y: number; z: number }) => {
+    const o = useStore.getState().objects.find((x) => x.id === id);
+    if (!o || o.type !== 'psd' || !o.worldPlacement) return;
+    useStore.getState().updateObject(id, {
+      worldPlacement: { ...o.worldPlacement, position: { ...position } },
+    });
+  }, []);
   
   const t = useTranslation(language);
   
@@ -857,6 +882,8 @@ const Viewport: React.FC = () => {
               stageCamera3D={stageCamera3D}
               setStageCamera3D={setStageCamera3D}
               isExporting={isExporting}
+              selectedBillboardId={selectedBillboardPsdId}
+              onBillboardWorldPositionChange={handleBillboardWorldMove}
             />
           )}
         </div>
