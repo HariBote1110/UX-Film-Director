@@ -40,6 +40,37 @@ export const normaliseKeyframesForObject = (
   return normalised;
 };
 
+const areKeyframesSortedByTime = (keyframes: PositionKeyframe[]): boolean => {
+  for (let i = 1; i < keyframes.length; i += 1) {
+    if (keyframes[i - 1].time > keyframes[i].time + EPSILON) return false;
+  }
+  return true;
+};
+
+const sortKeyframesByTimeStable = (keyframes: PositionKeyframe[]): PositionKeyframe[] => (
+  keyframes.slice().sort((a, b) => {
+    if (Math.abs(a.time - b.time) > EPSILON) return a.time - b.time;
+    return a.id.localeCompare(b.id);
+  })
+);
+
+const resolveSortedKeyframesForEvaluation = (
+  keyframes: PositionKeyframe[]
+): PositionKeyframe[] => (
+  areKeyframesSortedByTime(keyframes) ? keyframes : sortKeyframesByTimeStable(keyframes)
+);
+
+const largestIndexWithTimeAtMost = (sorted: PositionKeyframe[], time: number): number => {
+  let lo = 0;
+  let hi = sorted.length - 1;
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi + 1) / 2);
+    if (sorted[mid].time <= time) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
+};
+
 export const evaluateKeyframesPositionAtTime = (
   keyframes: PositionKeyframe[] | undefined,
   time: number,
@@ -47,7 +78,7 @@ export const evaluateKeyframesPositionAtTime = (
 ): { x: number; y: number } | null => {
   if (!Array.isArray(keyframes) || keyframes.length < 2) return null;
 
-  const sorted = keyframes.slice().sort((a, b) => a.time - b.time);
+  const sorted = resolveSortedKeyframesForEvaluation(keyframes);
   const first = sorted[0];
   const last = sorted[sorted.length - 1];
   if (time <= first.time) {
@@ -57,28 +88,28 @@ export const evaluateKeyframesPositionAtTime = (
     return { x: last.x, y: last.y };
   }
 
-  for (let index = 0; index < sorted.length - 1; index += 1) {
-    const left = sorted[index];
-    const right = sorted[index + 1];
-    if (time < left.time || time > right.time) continue;
-
-    const duration = right.time - left.time;
-    if (duration <= EPSILON) {
-      return { x: right.x, y: right.y };
-    }
-
-    const rawProgress = (time - left.time) / duration;
-    const easingName = left.easing ?? defaultEasing;
-    const easing = easingFunctions[easingName] ?? easingFunctions.linear;
-    const progress = clamp(easing(rawProgress), 0, 1);
-
-    return {
-      x: left.x + (right.x - left.x) * progress,
-      y: left.y + (right.y - left.y) * progress
-    };
+  const segmentLeft = largestIndexWithTimeAtMost(sorted, time);
+  if (segmentLeft >= sorted.length - 1) {
+    return { x: last.x, y: last.y };
   }
 
-  return null;
+  const left = sorted[segmentLeft];
+  const right = sorted[segmentLeft + 1];
+
+  const duration = right.time - left.time;
+  if (duration <= EPSILON) {
+    return { x: right.x, y: right.y };
+  }
+
+  const rawProgress = (time - left.time) / duration;
+  const easingName = left.easing ?? defaultEasing;
+  const easing = easingFunctions[easingName] ?? easingFunctions.linear;
+  const progress = clamp(easing(rawProgress), 0, 1);
+
+  return {
+    x: left.x + (right.x - left.x) * progress,
+    y: left.y + (right.y - left.y) * progress
+  };
 };
 
 export const evaluateObjectPositionAtTime = (

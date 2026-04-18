@@ -82,6 +82,14 @@ describe('evaluateKeyframesPositionAtTime', () => {
     ];
     expect(evaluateKeyframesPositionAtTime(keyframes, 5)).toEqual({ x: 50, y: -25 });
   });
+
+  it('accepts keyframes that are not yet sorted by time', () => {
+    const keyframes = [
+      { id: 'late', time: 10, x: 100, y: 200, easing: 'linear' as const },
+      { id: 'early', time: 0, x: 0, y: 0, easing: 'linear' as const }
+    ];
+    expect(evaluateKeyframesPositionAtTime(keyframes, 5)).toEqual({ x: 50, y: 100 });
+  });
 });
 
 describe('evaluateObjectPositionAtTime', () => {
