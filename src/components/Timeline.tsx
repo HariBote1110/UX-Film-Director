@@ -11,7 +11,7 @@ import { TimelineContextMenu, ContextMenuState } from './TimelineContextMenu';
 import { shallow } from 'zustand/shallow';
 import { getElectronFilePath, resolveAudioMetadata, resolveVideoMetadata } from '../utils/mediaMetadata';
 import { parsePsdAsObject } from '../utils/psdParser';
-import { isPointerInTimelineTrackColumn, timeFromTimelineContentX } from '../utils/timelineSeek';
+import { isPointerInTimelineTrackColumn, timeFromTimelineContentX, timeFromTimelineViewportClientX } from '../utils/timelineSeek';
 
 const Timeline: React.FC = () => {
   const { 
@@ -92,11 +92,7 @@ const Timeline: React.FC = () => {
   const calculateTimeFromEvent = (clientX: number) => {
     if (!timelineRef.current) return 0;
     const rect = timelineRef.current.getBoundingClientRect();
-    const scrollLeft = timelineRef.current.scrollLeft;
-    // 画面上の見えているXY座標において、レイヤーヘッダー領域にはみ出ないよう制限する
-    const visibleX = Math.max(HEADER_WIDTH, clientX - rect.left);
-    const contentX = visibleX + scrollLeft;
-    return timeFromTimelineContentX(contentX);
+    return timeFromTimelineViewportClientX(clientX, rect.left, timelineRef.current.scrollLeft);
   };
 
   const getContentPositionFromEvent = useCallback((clientX: number, clientY: number) => {
@@ -493,10 +489,21 @@ const Timeline: React.FC = () => {
           
           <div className="timeline-ruler" onMouseDown={handleSeekMouseDown}>
              <div className="layer-header" style={{ position: 'sticky', width: HEADER_WIDTH, height: '100%', fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Timeline</div>
-             {Array.from({ length: Math.ceil(duration / 5) + 1 }).map((_, i) => (
-                <div key={i} className="timeline-ruler-time" style={{ left: HEADER_WIDTH + i * 5 * PX_PER_SEC }}>{i * 5}s</div>
-             ))}
-             <div className="seek-bar" style={{ left: HEADER_WIDTH + Math.max(0, currentTime) * PX_PER_SEC }} />
+             <div
+               style={{
+                 position: 'absolute',
+                 left: HEADER_WIDTH,
+                 top: 0,
+                 height: '100%',
+                 width: trackColumnWidth,
+                 overflow: 'hidden',
+               }}
+             >
+               {Array.from({ length: Math.ceil(duration / 5) + 1 }).map((_, i) => (
+                  <div key={i} className="timeline-ruler-time" style={{ left: i * 5 * PX_PER_SEC }}>{i * 5}s</div>
+               ))}
+               <div className="seek-bar" style={{ left: Math.max(0, currentTime) * PX_PER_SEC }} />
+             </div>
           </div>
 
           <div style={{ position: 'relative' }}>
@@ -553,7 +560,20 @@ const Timeline: React.FC = () => {
                     </div>
                 </div>
              )})}
-             <div style={{ position: 'absolute', left: HEADER_WIDTH + Math.max(0, currentTime) * PX_PER_SEC, top: 0, bottom: 0, width: '1px', background: 'rgba(255,0,0,0.5)', pointerEvents: 'none', zIndex: 600 }} />
+             <div
+               style={{
+                 position: 'absolute',
+                 left: HEADER_WIDTH,
+                 top: 0,
+                 width: trackColumnWidth,
+                 bottom: 0,
+                 overflow: 'hidden',
+                 pointerEvents: 'none',
+                 zIndex: 600,
+               }}
+             >
+               <div style={{ position: 'absolute', left: Math.max(0, currentTime) * PX_PER_SEC, top: 0, bottom: 0, width: '1px', background: 'rgba(255,0,0,0.5)' }} />
+             </div>
              <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10 }}>
                 {objects.map(obj => <TimelineItem key={obj.id} object={obj} pxPerSec={PX_PER_SEC} rowHeight={ROW_HEIGHT} headerWidth={HEADER_WIDTH} onContextMenu={handleObjectContextMenu} />)}
              </div>
