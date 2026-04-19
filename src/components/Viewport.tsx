@@ -272,6 +272,8 @@ const Viewport: React.FC = () => {
         videoElementsRef.current.clear();
         videoFrameTexturesRef.current.forEach((entry) => {
           entry.texture.destroy(true);
+          entry.latestBitmap?.close();
+          entry.pendingBitmap?.close();
         });
         videoFrameTexturesRef.current.clear();
         audioElementsRef.current.forEach(audio => { audio.pause(); audio.src = ""; audio.load(); });
@@ -359,6 +361,8 @@ const Viewport: React.FC = () => {
             const frameTexture = videoFrameTexturesRef.current.get(id);
             if (frameTexture) {
                 frameTexture.texture.destroy(true);
+                frameTexture.latestBitmap?.close();
+                frameTexture.pendingBitmap?.close();
                 videoFrameTexturesRef.current.delete(id);
             }
         }

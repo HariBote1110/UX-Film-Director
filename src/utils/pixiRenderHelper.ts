@@ -365,17 +365,20 @@ class GroupGradientFilter extends PIXI.Filter {
 }
 
 export interface VideoFrameTextureState {
-    canvas: HTMLCanvasElement;
-    context: CanvasRenderingContext2D;
     texture: PIXI.Texture;
     width: number;
     height: number;
+    // Phase 1-a: requestVideoFrameCallback による正確なフレームタイミング管理
+    latestBitmap: ImageBitmap | null;
+    pendingBitmap: ImageBitmap | null;
+    rvfcHandle: number;
 }
 
 const ensureVideoFrameTextureState = (
     videoId: string,
     video: HTMLVideoElement,
-    videoFrameTextures: Map<string, VideoFrameTextureState>
+    videoFrameTextures: Map<string, VideoFrameTextureState>,
+    onNewFrame: () => void
 ): VideoFrameTextureState | null => {
     const width = Math.max(1, Math.floor(video.videoWidth));
     const height = Math.max(1, Math.floor(video.videoHeight));
@@ -387,36 +390,59 @@ const ensureVideoFrameTextureState = (
 
     if (existing) {
         existing.texture.destroy(true);
+        existing.latestBitmap?.close();
+        existing.pendingBitmap?.close();
+        if (existing.rvfcHandle) video.cancelVideoFrameCallback(existing.rvfcHandle);
         videoFrameTextures.delete(videoId);
     }
 
+    // 初期テクスチャ: 単色プレースホルダー（1x1 黒）
     const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext('2d');
-    if (!context) return null;
-
+    canvas.width = width; canvas.height = height;
     const texture = PIXI.Texture.from(canvas);
-    const next: VideoFrameTextureState = {
-        canvas,
-        context,
+
+    const state: VideoFrameTextureState = {
         texture,
         width,
-        height
+        height,
+        latestBitmap: null,
+        pendingBitmap: null,
+        rvfcHandle: 0,
     };
-    videoFrameTextures.set(videoId, next);
-    return next;
+
+    // requestVideoFrameCallback で新フレーム到着時に createImageBitmap を発行
+    const scheduleRvfc = () => {
+        state.rvfcHandle = video.requestVideoFrameCallback(async () => {
+            if (video.readyState < 2 || video.videoWidth === 0) { scheduleRvfc(); return; }
+            try {
+                const bitmap = await createImageBitmap(video);
+                // 古い pending を破棄して最新のみ保持
+                state.pendingBitmap?.close();
+                state.pendingBitmap = bitmap;
+                onNewFrame();
+            } catch { /* ignore */ }
+            scheduleRvfc();
+        });
+    };
+    scheduleRvfc();
+
+    videoFrameTextures.set(videoId, state);
+    return state;
 };
 
-const drawVideoFrameToTexture = (state: VideoFrameTextureState, video: HTMLVideoElement): boolean => {
+const drawVideoFrameToTexture = (state: VideoFrameTextureState): boolean => {
+    if (!state.pendingBitmap) return !!state.latestBitmap;
+
+    // pendingBitmap を latestBitmap に昇格し PixiJS テクスチャを更新
+    state.latestBitmap?.close();
+    state.latestBitmap = state.pendingBitmap;
+    state.pendingBitmap = null;
+
     try {
-        state.context.clearRect(0, 0, state.width, state.height);
-        state.context.drawImage(video, 0, 0, state.width, state.height);
         const source = (state.texture as any).source;
-        if (source && typeof source.update === 'function') {
-            source.update();
-        } else if (typeof (state.texture as any).update === 'function') {
-            (state.texture as any).update();
+        if (source) {
+            source.resource = state.latestBitmap;
+            if (typeof source.update === 'function') source.update();
         }
         return true;
     } catch {
@@ -735,8 +761,8 @@ export const updatePixiContent = (
         }
 
         if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
-            const frameState = ensureVideoFrameTextureState(obj.id, video, videoFrameTextures);
-            const didDrawFrame = frameState ? drawVideoFrameToTexture(frameState, video) : false;
+            const frameState = ensureVideoFrameTextureState(obj.id, video, videoFrameTextures, () => setRenderTick(p => p + 1));
+            const didDrawFrame = frameState ? drawVideoFrameToTexture(frameState) : false;
 
             if (didDrawFrame && frameState) {
                 if (!sprite) {
