@@ -9,6 +9,7 @@
     "perf:agent": "VITE_PERF_AGENT_MODE=1 vite",
     "test": "vitest run --exclude **/psdParser.perf.test.ts",
     "test:psd-perf": "vitest run src/utils/psdParser.perf.test.ts",
+    "test:export": "VITE_EXPORT_TEST=1 vite",
     "build": "tsc && vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
     "preview": "vite preview",
     "rust:build:debug": "cargo build --manifest-path rust-backend/Cargo.toml",
