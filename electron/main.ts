@@ -22,8 +22,10 @@ app.commandLine.appendSwitch('enable-unsafe-webgpu');
 app.commandLine.appendSwitch('disable-features', 'UseChromeOSDirectVideoDecoder');
 app.commandLine.appendSwitch('enable-features',
   'VideoToolboxVideoCodecFactory,VaapiVideoDecoder,VaapiVideoEncoder,CanvasOopRasterization');
-// GPU プロセスのサンドボックスを解除: macOS で VideoToolbox HW エンコードを WebCodecs から利用するために必要
+// GPU プロセスをレンダラー内で実行: macOS で VideoToolbox HW エンコードを WebCodecs から利用するために必要
+// disable-gpu-sandbox では不十分で、in-process-gpu により GPU プロセス境界を排除する
 app.commandLine.appendSwitch('disable-gpu-sandbox');
+app.commandLine.appendSwitch('in-process-gpu');
 
 process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(__dirname, '../public')
