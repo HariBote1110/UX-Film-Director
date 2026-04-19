@@ -29,27 +29,38 @@ const H264_CANDIDATES = [
 ];
 
 // isConfigSupported は「設定上は可」でも実エンコード時に落ちる場合がある（HW アクセラレータ初期化失敗）。
-// 1フレームだけ試し打ちして本当に使えるか確認する。
+// 1フレームをエンコードして flush() まで完走できるか確認する。
 const probeEncoder = async (config: VideoEncoderConfig): Promise<boolean> => {
   const w = config.width as number;
   const h = config.height as number;
-  return new Promise<boolean>(resolve => {
-    const enc = new VideoEncoder({
-      output: () => { enc.close(); resolve(true); },
-      error: () => { resolve(false); },
-    });
-    try {
+  try {
+    let resolved = false;
+    const result = await new Promise<boolean>((resolve) => {
+      const enc = new VideoEncoder({
+        output: () => { if (!resolved) { resolved = true; enc.close(); resolve(true); } },
+        error: (e) => { if (!resolved) { resolved = true; console.warn('[VideoExport] probe error:', e.message); resolve(false); } },
+      });
       enc.configure(config);
-      const canvas = new OffscreenCanvas(w, h);
-      const frame = new VideoFrame(canvas, { timestamp: 0 });
-      enc.encode(frame, { keyFrame: true });
-      frame.close();
-      // 500ms 以内に output か error が来なければ失敗とみなす
-      setTimeout(() => { try { enc.close(); } catch { /* already closed */ } resolve(false); }, 500);
-    } catch {
-      resolve(false);
-    }
-  });
+
+      // 塗りつぶし済み ImageBitmap を VideoFrame ソースに使う（OffscreenCanvas 未描画問題を回避）
+      const imageData = new ImageData(w, h);
+      createImageBitmap(imageData).then(bitmap => {
+        const frame = new VideoFrame(bitmap, { timestamp: 0 });
+        enc.encode(frame, { keyFrame: true });
+        frame.close();
+        bitmap.close();
+        // flush() で出力コールバックを確実に呼び出す
+        return enc.flush();
+      }).then(() => {
+        if (!resolved) { resolved = true; try { enc.close(); } catch { /* ignore */ } resolve(true); }
+      }).catch(() => {
+        if (!resolved) { resolved = true; resolve(false); }
+      });
+    });
+    return result;
+  } catch {
+    return false;
+  }
 };
 
 export const detectSupportedH264Codec = async (

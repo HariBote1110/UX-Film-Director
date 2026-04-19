@@ -81,20 +81,16 @@ const testEncodeBlankFrames = async (): Promise<string> => {
 };
 
 const testEncodeFromVideoFile = async (): Promise<string> => {
-  // perf/heavy-media の動画を fetch してデコード → 再エンコード
-  const candidates = [
-    'perf/heavy-media/10000kbps_60fps.mp4',
-    '10000kbps_60fps.mp4',
-  ];
+  // Electron IPC 経由で perf 動画の絶対パスを取得
+  const { ipcRenderer } = window as any;
+  if (!ipcRenderer) throw new Error('ipcRenderer が利用できません（Electron 以外の環境）');
 
-  let videoUrl: string | null = null;
-  for (const path of candidates) {
-    try {
-      const res = await fetch(path, { method: 'HEAD' });
-      if (res.ok) { videoUrl = path; break; }
-    } catch { /* try next */ }
-  }
-  if (!videoUrl) throw new Error('テスト動画が見つかりません（perf/heavy-media/10000kbps_60fps.mp4）');
+  const res = await ipcRenderer.invoke('resolve-perf-heavy-video');
+  if (!res?.success || !res.filePath) throw new Error('テスト動画が見つかりません（perf/heavy-media/10000kbps_60fps.mp4）');
+  const videoPath: string = res.filePath;
+
+  // file:// URL に変換して HTMLVideoElement で読み込む
+  const videoUrl = `file://${videoPath}`;
 
   const W = 640, H = 360, FPS = 30, SAMPLE_SEC = 2;
   const totalFrames = FPS * SAMPLE_SEC;
