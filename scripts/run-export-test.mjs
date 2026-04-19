@@ -38,7 +38,7 @@ const findVitePort = (output) => {
 
 console.log('[run-export-test] Vite 起動中...');
 
-const vite = spawn('npx', ['vite', '--port', '5299', '--strictPort'], {
+const vite = spawn('npx', ['vite', '--port', '5299', '--strictPort', '--force'], {
   cwd: ROOT,
   env: { ...process.env, VITE_EXPORT_TEST: '1' },
   stdio: ['ignore', 'pipe', 'pipe'],
