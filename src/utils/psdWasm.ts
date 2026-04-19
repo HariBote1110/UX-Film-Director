@@ -1,48 +1,18 @@
 /**
- * WASM + ag-psd ハイブリッド PSD パーサー。
+ * ag-psd Worker ベースの PSD パーサー。
  *
- * アーキテクチャ（最終版）:
- *   Phase 1 — メインスレッド: WASM `PsdLayout` でメタデータのみ解析 (~5 ms)
- *             → レイヤー名・位置・グループ構造を即座に取得
- *   Phase 2 — 単一 Worker: ag-psd で全レイヤーを展開 (~310 ms、メインスレッドをブロックしない)
- *             → OffscreenCanvas でピクセルデータを取り出し転送
+ * ag-psd を Web Worker 内で実行し、メインスレッドのブロッキングを解消する。
+ * メタデータとピクセルデータの両方を Worker から取得するため、
+ * 順序不一致は原理的に発生しない。
  *
- * フォールバック（SharedArrayBuffer / crossOriginIsolated 非対応環境）:
- *   WASM PsdParser でシングルスレッド展開。
- *
- * ── なぜ WASM 並列展開をやめたか ────────────────────────────────────────────────
- * 8 Worker で並列 WASM 展開を試みたが、ブラウザの V8 は TypedArray ループの JIT を
- * WASM より優秀に最適化するため、WASM は Node.js 比で ~14 倍遅かった。
- * さらに ag-psd はシーケンシャルアクセスでキャッシュ効率が高く、
- * ランダムアクセス並列アプローチでは根本的に不利と判明。
- * → Worker で ag-psd を実行し「メインスレッドのブロッキング解消」のみを目的とした。
+ * フォールバック: Worker 起動失敗時は ag-psd をメインスレッドで実行。
  */
 
-import init, { PsdLayout, PsdParser } from '../wasm/psd/psd_wasm.js';
-
-// ── WASM 初期化 ───────────────────────────────────────────────────────────────
-
-let wasmReady: Promise<void> | null = null;
-
-function ensureWasm(): Promise<void> {
-  if (!wasmReady) wasmReady = init().then(() => undefined);
-  return wasmReady;
-}
+import { type AgPsdLayerMeta } from './psdAgPsdWorker.js';
 
 // ── 公開型 ────────────────────────────────────────────────────────────────────
 
-export type WasmLayerMeta = {
-  name: string;
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-  visible: boolean;
-  isGroup: boolean;
-  ownGroupId: number | null;
-  parentGroupId: number | null;
-  pixelByteLen: number;
-};
+export type WasmLayerMeta = AgPsdLayerMeta;
 
 export type WasmPsdMeta = {
   width: number;
@@ -58,7 +28,7 @@ export type ParsedWasmPsd = {
   pixels: Uint8Array[];
 };
 
-// ── ag-psd Worker（Phase 2） ───────────────────────────────────────────────────
+// ── ag-psd Worker ─────────────────────────────────────────────────────────────
 
 let agPsdWorker: Worker | null = null;
 let agPsdWorkerReady: Promise<void> | null = null;
@@ -73,112 +43,121 @@ function getAgPsdWorker(): Promise<Worker> {
       worker.onmessage = (e) => {
         if (e.data?.type === 'ready') { agPsdWorker = worker; resolve(); }
       };
-      worker.onerror = (err) => reject(new Error(`ag-psd Worker init failed: ${err.message}`));
+      worker.onerror = (err) => reject(new Error(`ag-psd Worker init: ${err.message}`));
       worker.postMessage({ type: 'init' });
     });
   }
   return agPsdWorkerReady.then(() => agPsdWorker!);
 }
 
-/**
- * ag-psd Worker に PSD を送って全レイヤーの RGBA を取得する。
- * WASM のフラットレイヤーリストと同じ pre-order DFS 順でピクセルが返る。
- */
-async function parseWithAgPsdWorker(psdBuffer: ArrayBuffer): Promise<Uint8Array[]> {
+async function parseWithWorker(data: ArrayBuffer): Promise<ParsedWasmPsd> {
   const worker = await getAgPsdWorker();
+  const t0 = performance.now();
 
-  return new Promise<Uint8Array[]>((resolve, reject) => {
+  return new Promise<ParsedWasmPsd>((resolve, reject) => {
     const handler = (e: MessageEvent) => {
       worker.removeEventListener('message', handler);
+
       if (e.data?.type === 'result') {
-        const pixelBuffers: (ArrayBuffer | null)[] = e.data.pixelBuffers;
-        resolve(
-          pixelBuffers.map((buf) =>
-            buf ? new Uint8Array(buf) : new Uint8Array(0),
-          ),
+        const { docWidth, docHeight, layers, pixelBuffers } = e.data as {
+          docWidth: number;
+          docHeight: number;
+          layers: WasmLayerMeta[];
+          pixelBuffers: (ArrayBuffer | null)[];
+        };
+
+        const pixels = pixelBuffers.map((buf) =>
+          buf ? new Uint8Array(buf) : new Uint8Array(0),
         );
+
+        console.log(
+          `[psdWasm Worker] total=${(performance.now() - t0).toFixed(1)}ms  layers=${layers.length}`,
+        );
+
+        resolve({
+          meta: { width: docWidth, height: docHeight, depth: 8, isPsb: false, layers },
+          pixels,
+        });
       } else if (e.data?.type === 'error') {
         reject(new Error(e.data.message));
       }
     };
+
     worker.addEventListener('message', handler);
-    // ArrayBuffer を Worker に転送（ゼロコピー。呼び出し元は以後アクセス不可）
-    worker.postMessage({ type: 'parse', psdBuffer }, [psdBuffer]);
+    // ArrayBuffer を Worker に転送（ゼロコピー）
+    worker.postMessage({ type: 'parse', psdBuffer: data }, [data]);
   });
 }
 
-// ── シングルスレッド fallback ──────────────────────────────────────────────────
+// ── フォールバック: メインスレッド ag-psd ────────────────────────────────────
 
-async function parseSingleThreaded(data: ArrayBuffer): Promise<ParsedWasmPsd> {
-  await ensureWasm();
-  const t0 = performance.now();
-  const psdU8 = new Uint8Array(data);
-  const parser = new PsdParser(psdU8);
+async function parseMainThread(data: ArrayBuffer): Promise<ParsedWasmPsd> {
+  const { readPsd, initializeCanvas } = await import('ag-psd');
 
-  try {
-    const meta = parser.metadata() as WasmPsdMeta;
-    const pixels: Uint8Array[] = [];
-    for (let i = 0; i < meta.layers.length; i++) {
-      const l = meta.layers[i];
-      pixels.push(!l.isGroup && l.pixelByteLen > 0 ? parser.get_layer_rgba(i) : new Uint8Array(0));
-    }
-    console.log(`[WASM single-thread] total=${(performance.now() - t0).toFixed(1)}ms`);
-    return { meta, pixels };
-  } finally {
-    parser.free();
-  }
-}
-
-// ── メインパス（Phase 1 WASM + Phase 2 ag-psd Worker） ───────────────────────
-
-async function parseHybrid(data: ArrayBuffer): Promise<ParsedWasmPsd> {
-  await ensureWasm();
-  const t0 = performance.now();
-
-  // Phase 1: WASM でメタデータのみ高速解析（グループ構造・名前・位置）
-  const psdU8 = new Uint8Array(data);
-  const layout = new PsdLayout(psdU8);
-  let meta: WasmPsdMeta;
-  try {
-    meta = layout.metadata() as WasmPsdMeta;
-  } finally {
-    layout.free();
-  }
-  const tPhase1 = performance.now();
-
-  // Phase 2: ag-psd Worker でピクセル展開（メインスレッド非ブロック）
-  // data の所有権を Worker に転送するため、ここで slice してコピーを渡す。
-  // （Worker は ArrayBuffer を transfer するので元の data は無効になる）
-  const psdCopy = data.slice(0);
-  const pixels = await parseWithAgPsdWorker(psdCopy);
-  const tPhase2 = performance.now();
-
-  // WASM レイヤー数と ag-psd レイヤー数が一致しない場合は不整合として後続で空配列を使う
-  if (pixels.length !== meta.layers.length) {
-    console.warn(
-      `[psdWasm] レイヤー数不一致: WASM=${meta.layers.length}, ag-psd=${pixels.length}`,
-    );
-  }
-
-  console.log(
-    `[psdWasm hybrid] phase1(WASM meta)=${(tPhase1 - t0).toFixed(1)}ms  phase2(ag-psd Worker)=${(tPhase2 - tPhase1).toFixed(1)}ms  total=${(tPhase2 - t0).toFixed(1)}ms`,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (initializeCanvas as any)(
+    (w: number, h: number) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      return canvas;
+    },
+    (w: number, h: number, d?: Uint8ClampedArray) =>
+      d ? new ImageData(new Uint8ClampedArray(d.buffer as ArrayBuffer), w, h) : new ImageData(w, h),
   );
 
-  return { meta, pixels };
+  const t0 = performance.now();
+  const psd = readPsd(data);
+
+  type LayerMeta = WasmLayerMeta;
+  type WalkResult = { meta: LayerMeta; rgba: Uint8Array | null };
+
+  function walk(
+    layers: import('ag-psd').Layer[],
+    parentGroupId: number | null,
+    results: WalkResult[],
+    counter: { n: number },
+  ): void {
+    for (const layer of layers) {
+      const isGroup = Array.isArray(layer.children);
+      const ownGroupId = isGroup ? counter.n++ : null;
+      const canvas = layer.canvas as HTMLCanvasElement | undefined;
+      const w = canvas?.width  ?? Math.max(0, (layer.right  ?? 0) - (layer.left ?? 0));
+      const h = canvas?.height ?? Math.max(0, (layer.bottom ?? 0) - (layer.top  ?? 0));
+      let rgba: Uint8Array | null = null;
+      if (!isGroup && canvas && w > 0 && h > 0) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) rgba = new Uint8Array(ctx.getImageData(0, 0, w, h).data.buffer);
+      }
+      results.push({
+        meta: {
+          name: layer.name ?? '', top: layer.top ?? 0, left: layer.left ?? 0,
+          width: w, height: h, visible: layer.hidden !== true,
+          isGroup, ownGroupId, parentGroupId,
+          pixelByteLen: rgba ? rgba.byteLength : 0,
+        },
+        rgba,
+      });
+      if (isGroup && layer.children) walk(layer.children, ownGroupId, results, counter);
+    }
+  }
+
+  const results: WalkResult[] = [];
+  walk(psd.children ?? [], null, results, { n: 0 });
+  console.log(`[psdWasm main-thread fallback] total=${(performance.now() - t0).toFixed(1)}ms`);
+
+  return {
+    meta: { width: psd.width, height: psd.height, depth: 8, isPsb: false, layers: results.map(r => r.meta) },
+    pixels: results.map(r => r.rgba ?? new Uint8Array(0)),
+  };
 }
 
 // ── 公開 API ──────────────────────────────────────────────────────────────────
 
-/**
- * PSD ファイルを解析する。
- * crossOriginIsolated 環境では ag-psd Worker を使い、そうでなければ WASM fallback。
- */
 export async function parsePsdWithWasm(data: ArrayBuffer): Promise<ParsedWasmPsd> {
-  // ag-psd Worker は SAB 不要。crossOriginIsolated に関わらず利用可能。
   try {
-    return await parseHybrid(data);
+    return await parseWithWorker(data);
   } catch (e) {
-    console.warn('[psdWasm] Hybrid parse failed, falling back to single-thread WASM:', e);
-    return parseSingleThreaded(data);
+    console.warn('[psdWasm] Worker parse failed, falling back to main thread:', e);
+    return parseMainThread(data);
   }
 }

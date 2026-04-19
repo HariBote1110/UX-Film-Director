@@ -1,21 +1,22 @@
 /**
- * Web Worker — ag-psd を使った PSD レイヤー展開。
+ * Web Worker — ag-psd を使った PSD 解析。
  *
- * メインスレッドのブロッキングを避けるため、ag-psd の readPsd() を
- * Worker 内で実行する。OffscreenCanvas で Canvas を初期化し、
- * 各レイヤーの RGBA 生データを ArrayBuffer として転送する。
+ * メタデータとピクセルデータの両方を ag-psd から取得し返す。
+ * WASM のレイヤーリストと照合しないことで順序不一致を根絶する。
  *
  * Message protocol:
  *   IN:  { type: 'init' }
  *   IN:  { type: 'parse', psdBuffer: ArrayBuffer }
  *   OUT: { type: 'ready' }
- *   OUT: { type: 'result', layerCount: number, pixelBuffers: (ArrayBuffer | null)[] }
+ *   OUT: { type: 'result',
+ *           docWidth: number, docHeight: number,
+ *           layers: AgPsdLayerMeta[],
+ *           pixelBuffers: (ArrayBuffer | null)[] }
  *   OUT: { type: 'error', message: string }
  */
 
 import { readPsd, initializeCanvas, type Layer } from 'ag-psd';
 
-// ag-psd に Worker 内の Canvas 実装を渡す（型は HTMLCanvasElement を要求するが実行時は OffscreenCanvas で動作する）
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (initializeCanvas as any)(
   (w: number, h: number) => new OffscreenCanvas(w, h),
@@ -25,11 +26,67 @@ import { readPsd, initializeCanvas, type Layer } from 'ag-psd';
       : new ImageData(w, h),
 );
 
-/** ag-psd のネストツリーを PSD ファイル順（pre-order DFS）でフラット化する。 */
-function* walkLayers(children: Layer[]): Generator<Layer> {
-  for (const layer of children) {
-    yield layer;
-    if (layer.children) yield* walkLayers(layer.children);
+export type AgPsdLayerMeta = {
+  name: string;
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+  visible: boolean;
+  isGroup: boolean;
+  ownGroupId: number | null;
+  parentGroupId: number | null;
+  pixelByteLen: number;
+};
+
+type WalkResult = { meta: AgPsdLayerMeta; rgba: ArrayBuffer | null };
+
+/**
+ * ag-psd のネストツリーを pre-order DFS でフラット化し、
+ * 各レイヤーのメタデータとピクセルデータを同じ順番で返す。
+ * ownGroupId / parentGroupId は WASM と同じ方式で採番する。
+ */
+function walkLayers(
+  layers: Layer[],
+  parentGroupId: number | null,
+  results: WalkResult[],
+  counter: { n: number },
+): void {
+  for (const layer of layers) {
+    const isGroup = Array.isArray(layer.children);
+    const ownGroupId = isGroup ? counter.n++ : null;
+
+    const canvas = layer.canvas as unknown as OffscreenCanvas | undefined;
+    const w = canvas?.width  ?? Math.max(0, (layer.right  ?? 0) - (layer.left ?? 0));
+    const h = canvas?.height ?? Math.max(0, (layer.bottom ?? 0) - (layer.top  ?? 0));
+
+    let rgba: ArrayBuffer | null = null;
+    if (!isGroup && canvas && w > 0 && h > 0) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        rgba = ctx.getImageData(0, 0, w, h).data.buffer;
+      }
+    }
+
+    results.push({
+      meta: {
+        name: layer.name ?? '',
+        top:  layer.top  ?? 0,
+        left: layer.left ?? 0,
+        width: w,
+        height: h,
+        visible: layer.hidden !== true,
+        isGroup,
+        ownGroupId,
+        parentGroupId,
+        pixelByteLen: rgba ? rgba.byteLength : 0,
+      },
+      rgba,
+    });
+
+    if (isGroup && layer.children) {
+      walkLayers(layer.children, ownGroupId, results, counter);
+    }
   }
 }
 
@@ -47,34 +104,30 @@ self.onmessage = async (event: MessageEvent) => {
     try {
       const t0 = performance.now();
 
-      // skipCompositing は型定義に無いが実行時に動作する ag-psd オプション
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const psd = readPsd(msg.psdBuffer, { skipCompositing: true } as any);
-
+      // レイヤーピクセルを読む（skipCompositing は合成済み画像のみスキップ）
+      const psd = readPsd(msg.psdBuffer);
       const tRead = performance.now();
-      console.log(`[ag-psd Worker] readPsd=${(tRead - t0).toFixed(1)}ms`);
 
-      const flat = [...walkLayers(psd.children ?? [])];
+      const results: WalkResult[] = [];
+      walkLayers(psd.children ?? [], null, results, { n: 0 });
 
-      // 各レイヤーの RGBA データを取り出す（グループは null）
-      const pixelBuffers: (ArrayBuffer | null)[] = flat.map((layer) => {
-        if (!layer.canvas) return null;
-        const canvas = layer.canvas as unknown as OffscreenCanvas;
-        if (canvas.width === 0 || canvas.height === 0) return null;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return null;
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        return imageData.data.buffer;
-      });
-
+      const tWalk = performance.now();
       console.log(
-        `[ag-psd Worker] pixelExtract=${(performance.now() - tRead).toFixed(1)}ms  total=${(performance.now() - t0).toFixed(1)}ms  layers=${flat.length}`,
+        `[ag-psd Worker] readPsd=${(tRead - t0).toFixed(1)}ms  walk=${(tWalk - tRead).toFixed(1)}ms  layers=${results.length}`,
       );
 
-      // 非 null の ArrayBuffer のみ転送（ゼロコピー）
+      const layers      = results.map((r) => r.meta);
+      const pixelBuffers = results.map((r) => r.rgba);
       const transferables = pixelBuffers.filter((b): b is ArrayBuffer => b !== null);
+
       (self as unknown as Worker).postMessage(
-        { type: 'result', layerCount: flat.length, pixelBuffers },
+        {
+          type: 'result',
+          docWidth:  psd.width,
+          docHeight: psd.height,
+          layers,
+          pixelBuffers,
+        },
         transferables,
       );
     } catch (e) {
