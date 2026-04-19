@@ -82,8 +82,12 @@ export const detectSupportedH264Codec = async (
   // HW → SW の順で試す
   const accelModes: HardwareAcceleration[] = ['prefer-hardware', 'prefer-software', 'no-preference'];
 
+  // latencyMode: 'realtime' は VideoToolbox の max frame delay 制約を緩和する
+  const latencyModeFlags: LatencyMode[] = ['quality', 'realtime'];
+
   for (const codec of H264_CANDIDATES) {
     for (const hardwareAcceleration of accelModes) {
+      for (const latencyMode of latencyModeFlags) {
       const config: VideoEncoderConfig = {
         codec,
         width: encWidth,
@@ -91,18 +95,20 @@ export const detectSupportedH264Codec = async (
         bitrate: 10_000_000,
         framerate: fps,
         hardwareAcceleration,
+        latencyMode,
       };
       const declared = await VideoEncoder.isConfigSupported(config);
       if (!declared.supported) continue;
 
       const works = await probeEncoder(config);
-      console.log(`[VideoExport] codec=${codec} accel=${hardwareAcceleration} probe=${works}`);
+      console.log(`[VideoExport] codec=${codec} accel=${hardwareAcceleration} latency=${latencyMode} probe=${works}`);
       if (works) {
         const label = hardwareAcceleration === 'prefer-hardware' ? '🔥 HW (VideoToolbox)' : '🐢 SW (OpenH264)';
-        console.log(`[VideoExport] 確定: ${label} codec=${codec}`);
+        console.log(`[VideoExport] 確定: ${label} codec=${codec} latency=${latencyMode}`);
         cachedCodecResult = { codec, config };
         return cachedCodecResult;
       }
+      } // latencyMode loop
     }
   }
   cachedCodecResult = null;
