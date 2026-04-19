@@ -630,12 +630,224 @@ export const parsePsdArrayBufferAsObject = async (
   return { psdObject: psdObject as PsdObject };
 };
 
+// ── Rust-backed fast path ────────────────────────────────────────────────────
+
+type RustPsdNode = {
+  psdId: number;
+  parentPsdId: number | null;
+  isGroup: boolean;
+  name: string;
+  width: number;
+  height: number;
+  top: number;
+  left: number;
+  defaultVisible: boolean;
+  order: number;
+  pixelOffset: number | null;
+  pixelByteLen: number;
+  /** Attached by the Electron main process after reading the blob. */
+  pixelData: ArrayBuffer | null;
+};
+
+/**
+ * Parse a PSD file using the Rust backend process.
+ *
+ * The Rust backend decompresses each layer's RLE/ZIP pixel data natively,
+ * writes the raw RGBA bytes to a temp directory, and the Electron main process
+ * reads those files back and transfers them as ArrayBuffers via IPC.
+ *
+ * The renderer then creates ImageBitmaps from the ArrayBuffers in parallel,
+ * which is the same GPU-upload path as the ag-psd implementation.
+ *
+ * Requires Electron (file.path) + window.ipcRenderer.
+ */
+const parsePsdViaRust = async (
+  file: File,
+  filePath: string,
+  startTime: number,
+  projectWidth: number,
+  projectHeight: number
+): Promise<PsdParseResult> => {
+  const ipc = window.ipcRenderer;
+
+  const rustResult = await ipc.invoke('parse-psd', { filePath }) as {
+    success: boolean;
+    error?: string;
+    width: number;
+    height: number;
+    nodes: RustPsdNode[];
+  };
+
+  if (!rustResult.success) {
+    throw new Error(rustResult.error ?? 'psd.parse failed in Rust backend');
+  }
+
+  let idCounter = 0;
+  const generateId = () => `psd-layer-${idCounter++}`;
+
+  // Build parent → [child, ...] map keyed by the parent's psdId.
+  // parentPsdId values are GROUP IDs (from the psd crate), so only group nodes
+  // are valid parents.  null = top-level.
+  const groupChildren = new Map<number | null, RustPsdNode[]>();
+  for (const node of rustResult.nodes) {
+    const key = node.parentPsdId;
+    let bucket = groupChildren.get(key);
+    if (!bucket) {
+      bucket = [];
+      groupChildren.set(key, bucket);
+    }
+    bucket.push(node);
+  }
+  // Sort siblings by their PSD visual stack order.
+  for (const bucket of groupChildren.values()) {
+    bucket.sort((a, b) => a.order - b.order);
+  }
+
+  // Collect leaf nodes that have pixel data so we can load them in parallel
+  // AFTER the synchronous DFS tree build (IDs must be stable).
+  const pendingImageLoads: Array<{ node: PsdLayerNode; pixelData: ArrayBuffer }> = [];
+
+  const buildNodeFromRust = (rustNode: RustPsdNode): PsdLayerNode => {
+    const layerName = restoreLayerNameEncoding(rustNode.name || 'Layer');
+    const node: PsdLayerNode = {
+      id: generateId(),
+      name: layerName,
+      isGroup: rustNode.isGroup,
+      isRadio: layerName.startsWith('*'),
+      children: [],
+      width: rustNode.width,
+      height: rustNode.height,
+      left: rustNode.left,
+      top: rustNode.top,
+      defaultVisible: rustNode.defaultVisible,
+      src: undefined,
+    };
+
+    if (!rustNode.isGroup && rustNode.pixelData && node.width > 0 && node.height > 0) {
+      pendingImageLoads.push({ node, pixelData: rustNode.pixelData });
+    }
+
+    // Only groups can have children; leaf nodes never do.
+    if (rustNode.isGroup) {
+      const children = groupChildren.get(rustNode.psdId) ?? [];
+      node.children = children.map(buildNodeFromRust);
+    }
+
+    return node;
+  };
+
+  const rootLevelNodes = groupChildren.get(null) ?? [];
+  const rootNode: PsdLayerNode = {
+    id: 'root',
+    name: 'Root',
+    isGroup: true,
+    isRadio: false,
+    children: rootLevelNodes.map(buildNodeFromRust),
+    width: rustResult.width,
+    height: rustResult.height,
+    left: 0,
+    top: 0,
+    defaultVisible: true,
+  };
+
+  // Load all ImageBitmaps in parallel (GPU upload).
+  await Promise.all(
+    pendingImageLoads.map(async ({ node, pixelData }) => {
+      try {
+        const data = new Uint8ClampedArray(pixelData);
+        const imgData = new ImageData(
+          data as unknown as ImageData['data'],
+          node.width,
+          node.height
+        );
+        if (typeof createImageBitmap === 'function') {
+          node.textureSource = await createImageBitmap(imgData);
+          node.src = psdLayerTextureUrl(node.id);
+        }
+      } catch (e) {
+        console.warn('Failed to create ImageBitmap for layer', node.name, e);
+      }
+    })
+  );
+
+  // Compute initial visibility state.
+  const activeLayerIds: Record<string, boolean> = {};
+
+  const initVisibility = (node: PsdLayerNode) => {
+    if (node.isGroup) {
+      if (node.isRadio) {
+        node.children.forEach(initVisibility);
+        const activeChild = node.children.find((c) => activeLayerIds[c.id]);
+        if (!activeChild && node.children.length > 0) {
+          activeLayerIds[node.children[0].id] = true;
+        }
+        activeLayerIds[node.id] = true;
+      } else {
+        if (node.defaultVisible) activeLayerIds[node.id] = true;
+        node.children.forEach(initVisibility);
+      }
+    } else {
+      if (node.defaultVisible) activeLayerIds[node.id] = true;
+    }
+  };
+
+  initVisibility(rootNode);
+  activeLayerIds['root'] = true;
+
+  const psdObject: TimelineObject = {
+    id: crypto.randomUUID(),
+    type: 'psd',
+    name: file.name,
+    layer: 0,
+    startTime,
+    duration: 5,
+    x: (projectWidth / 2) - (rustResult.width / 2),
+    y: (projectHeight / 2) - (rustResult.height / 2),
+    width: rustResult.width,
+    height: rustResult.height,
+    scale: 1.0,
+    enableAnimation: false,
+    endX: (projectWidth / 2) - (rustResult.width / 2),
+    endY: (projectHeight / 2) - (rustResult.height / 2),
+    easing: 'linear',
+    offset: 0,
+    src: '',
+    scaleX: 1,
+    scaleY: 1,
+    rotation: 0,
+    opacity: 1,
+    file,
+    layerTree: buildPsdLayerTree(rootNode, activeLayerIds),
+    rootLayer: rootNode,
+    activeLayerIds,
+  };
+
+  return { psdObject: psdObject as PsdObject };
+};
+
+// ── Public entry points ───────────────────────────────────────────────────────
+
 export const parsePsdAsObject = async (
   file: File,
   startTime: number,
   projectWidth: number = 1280,
   projectHeight: number = 720
 ): Promise<PsdParseResult> => {
+  // Use Rust backend when running inside Electron (file.path is available).
+  const electronFilePath = (file as File & { path?: string }).path;
+  if (
+    electronFilePath &&
+    typeof window !== 'undefined' &&
+    typeof window.ipcRenderer?.invoke === 'function'
+  ) {
+    try {
+      return await parsePsdViaRust(file, electronFilePath, startTime, projectWidth, projectHeight);
+    } catch (e) {
+      console.warn('Rust PSD parse failed, falling back to ag-psd:', e);
+    }
+  }
+
+  // Fallback: ag-psd (used in test environments or if the Rust path fails).
   const arrayBuffer = await file.arrayBuffer();
   return parsePsdArrayBufferAsObject(
     arrayBuffer,

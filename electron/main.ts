@@ -754,6 +754,93 @@ app.whenReady().then(() => {
     }
   });
 
+  // ── PSD parsing via Rust backend ─────────────────────────────────────────
+  // Two-phase protocol:
+  //   Phase 1: psd.parse  → Rust decompresses PSD, returns metadata JSON
+  //             immediately while a background thread writes the pixel blob.
+  //   Phase 2: psd.await_blob → waits for the blob write to finish.
+  //
+  // Phases 1 and 2 are parallelised with tree-building in this handler so
+  // the blob is usually ready by the time we ask for it.
+  ipcMain.handle('parse-psd', async (_event, payload: { filePath?: string }) => {
+    const filePath = typeof payload?.filePath === 'string' ? payload.filePath.trim() : '';
+    if (!filePath) {
+      return { success: false, error: 'filePath が必要です。' };
+    }
+
+    type RustNode = {
+      psdId: number;
+      parentPsdId: number | null;
+      isGroup: boolean;
+      name: string;
+      width: number;
+      height: number;
+      top: number;
+      left: number;
+      defaultVisible: boolean;
+      order: number;
+      pixelOffset: number | null;
+      pixelByteLen: number;
+    };
+
+    let rustResult: {
+      tmpFile: string;
+      width: number;
+      height: number;
+      nodes: RustNode[];
+    };
+
+    try {
+      rustResult = (await callRustBackend('psd.parse', { filePath }, 60_000)) as typeof rustResult;
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+
+    // Wait for blob write to finish (started concurrently inside Rust).
+    // Run this concurrently with any JS work in this tick via Promise.all.
+    const blobPath = rustResult.tmpFile;
+    await callRustBackend('psd.await_blob', {}, 30_000);
+
+    // Open the blob once, then read per-layer byte ranges in parallel.
+    let fd: fs.promises.FileHandle | null = null;
+    let nodesWithPixels: Array<RustNode & { pixelData: ArrayBuffer | null }>;
+
+    try {
+      fd = await fs.promises.open(blobPath, 'r');
+      nodesWithPixels = await Promise.all(
+        rustResult.nodes.map(async (node) => {
+          if (!node.isGroup && node.pixelOffset != null && node.pixelByteLen > 0) {
+            try {
+              const buf = Buffer.allocUnsafe(node.pixelByteLen);
+              await fd!.read(buf, 0, node.pixelByteLen, node.pixelOffset);
+              const pixelData: ArrayBuffer = buf.buffer.slice(
+                buf.byteOffset,
+                buf.byteOffset + buf.byteLength
+              );
+              return { ...node, pixelData };
+            } catch {
+              return { ...node, pixelData: null };
+            }
+          }
+          return { ...node, pixelData: null };
+        })
+      );
+    } finally {
+      if (fd) await fd.close().catch(() => {});
+      fs.unlink(blobPath, () => {});
+    }
+
+    return {
+      success: true,
+      width: rustResult.width,
+      height: rustResult.height,
+      nodes: nodesWithPixels,
+    };
+  });
+
   ipcMain.handle('rust-backend-health', async () => {
     try {
       const result = await callRustBackend('health');
