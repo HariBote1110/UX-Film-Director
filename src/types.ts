@@ -297,6 +297,8 @@ export interface VideoObject extends BaseObject {
   type: 'video';
   src: string;
   filePath?: string;
+  /** プロキシファイルの絶対パス（例: /path/to/clip.proxy.mp4）。存在する場合は再生に使用する */
+  proxyFilePath?: string;
   width: number;
   height: number;
   volume: number;

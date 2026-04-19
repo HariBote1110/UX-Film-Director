@@ -99,12 +99,17 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
             const filePath = getElectronFilePath(file);
             const url = URL.createObjectURL(file);
             try {
-                const metadata = await resolveVideoMetadata(file, url);
+                const { detectExistingProxy } = await import('../utils/proxyUtils');
+                const [metadata, proxyFilePath] = await Promise.all([
+                    resolveVideoMetadata(file, url),
+                    detectExistingProxy(filePath ?? undefined),
+                ]);
                 const centred = getCentredPosition(metadata.width, metadata.height);
                 const newVideo: TimelineObject = {
                     id: crypto.randomUUID(), type: 'video', name: file.name, layer: dropLayer, startTime: dropTime, duration: metadata.duration,
                     x: centred.x, y: centred.y, width: metadata.width, height: metadata.height, src: url,
                     filePath: filePath ?? undefined,
+                    proxyFilePath: proxyFilePath,
                     volume: 1.0, muted: false,
                     enableAnimation: false, endX: centred.x, endY: centred.y, easing: 'linear', offset: 0,
                     rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,

@@ -296,6 +296,8 @@ const PropertyPanel: React.FC = () => {
   const [visionPickUrl, setVisionPickUrl] = useState<string | null>(null);
   const [visionPersonMaskUrl, setVisionPersonMaskUrl] = useState<string | null>(null);
   const [lastVisionTrackSamples, setLastVisionTrackSamples] = useState<CoreMlTrackSample[]>([]);
+  const [proxyGenerating, setProxyGenerating] = useState(false);
+  const [proxyMessage, setProxyMessage] = useState('');
 
   const filters = selectedObject?.filters ?? [];
   const activeFilter = filters.find((filter) => filter.id === activeFilterId) ?? null;
@@ -665,6 +667,33 @@ const PropertyPanel: React.FC = () => {
       subjectCropEnabled: true,
       subjectCropKeyframes: kfs
     } as Partial<TimelineObject>);
+  };
+
+  const handleGenerateProxy = async () => {
+    if (selectedObject?.type !== 'video') return;
+    const video = selectedObject as VideoObject;
+    const diskPath = resolveVideoFsPath(video);
+    if (!diskPath) {
+      window.alert('ローカルファイルが必要です（filePath が未設定）。');
+      return;
+    }
+    setProxyGenerating(true);
+    setProxyMessage('プロキシ生成中...');
+    const { generateProxy } = await import('../utils/proxyUtils');
+    const result = await generateProxy({ filePath: diskPath });
+    setProxyGenerating(false);
+    if (result.success && result.proxyFilePath) {
+      updateObject(video.id, { proxyFilePath: result.proxyFilePath } as Partial<TimelineObject>);
+      setProxyMessage(`完了: ${result.proxyFilePath.split('/').pop()}`);
+    } else {
+      setProxyMessage(`失敗: ${result.error ?? '不明なエラー'}`);
+    }
+  };
+
+  const handleRemoveProxy = () => {
+    if (selectedObject?.type !== 'video') return;
+    updateObject(selectedObject.id, { proxyFilePath: undefined } as Partial<TimelineObject>);
+    setProxyMessage('');
   };
 
   const handleVisionTrackRun = async () => {
@@ -1602,6 +1631,47 @@ const PropertyPanel: React.FC = () => {
                         <span style={{ fontSize: '11px', color: '#999' }}>%</span>
                     </div>
                 </Row>
+            </>
+        )}
+
+        {selectedObject.type === 'video' && (
+            <>
+                <SectionHeader label={language === 'en' ? 'Proxy' : 'プロキシ'} />
+                <Row label={language === 'en' ? 'Status' : '状態'}>
+                    <span style={{ fontSize: '11px', color: (selectedObject as VideoObject).proxyFilePath ? '#4caf50' : '#999' }}>
+                        {(selectedObject as VideoObject).proxyFilePath
+                            ? `✓ ${(selectedObject as VideoObject).proxyFilePath!.split('/').pop()}`
+                            : (language === 'en' ? 'None' : 'なし')}
+                    </span>
+                </Row>
+                <Row label="">
+                    <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
+                        <button
+                            type="button"
+                            disabled={proxyGenerating || !resolveVideoFsPath(selectedObject as VideoObject)}
+                            onClick={() => { void handleGenerateProxy(); }}
+                            style={{ flex: 1, fontSize: '11px' }}
+                        >
+                            {proxyGenerating
+                                ? (language === 'en' ? 'Generating...' : '生成中...')
+                                : (language === 'en' ? 'Generate proxy' : 'プロキシ生成')}
+                        </button>
+                        {(selectedObject as VideoObject).proxyFilePath && (
+                            <button
+                                type="button"
+                                onClick={handleRemoveProxy}
+                                style={{ fontSize: '11px', background: '#333', color: '#f88' }}
+                            >
+                                {language === 'en' ? 'Remove' : '解除'}
+                            </button>
+                        )}
+                    </div>
+                </Row>
+                {proxyMessage && (
+                    <Row label="">
+                        <span style={{ fontSize: '10px', color: '#aaa', wordBreak: 'break-all' }}>{proxyMessage}</span>
+                    </Row>
+                )}
             </>
         )}
 

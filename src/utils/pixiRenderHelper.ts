@@ -724,7 +724,9 @@ export const updatePixiContent = (
         let video = videoElements.get(obj.id);
         if (!video) {
             video = document.createElement('video');
-            video.src = obj.src; video.muted = obj.muted; video.volume = obj.volume; video.crossOrigin = 'anonymous'; video.preload = 'auto'; video.playsInline = true;
+            // プロキシが存在する場合は再生に使用する（エクスポート時は obj.src を使う）
+            const playSrc = obj.proxyFilePath ? `file://${obj.proxyFilePath}` : obj.src;
+            video.src = playSrc; video.muted = obj.muted; video.volume = obj.volume; video.crossOrigin = 'anonymous'; video.preload = 'auto'; video.playsInline = true;
             video.addEventListener('canplay', () => setRenderTick(p => p+1), { once: true });
             videoElements.set(obj.id, video);
         }

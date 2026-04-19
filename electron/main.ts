@@ -720,6 +720,34 @@ app.whenReady().then(() => {
     }
   });
 
+  // プロキシファイルが存在するか確認する（インポート時の自動検出用）
+  ipcMain.handle('check-proxy', async (_event, payload: { filePath?: string }) => {
+    const filePath = typeof payload?.filePath === 'string' ? payload.filePath.trim() : '';
+    if (!filePath) return { exists: false };
+    const ext = path.extname(filePath);
+    const proxyPath = filePath.slice(0, -ext.length) + '.proxy.mp4';
+    return { exists: fs.existsSync(proxyPath), proxyPath };
+  });
+
+  // プロキシを生成する（FFmpeg libx264、1280px 幅にダウンスケール）
+  ipcMain.handle('generate-proxy', async (_event, payload: { filePath?: string; width?: number }) => {
+    const filePath = typeof payload?.filePath === 'string' ? payload.filePath.trim() : '';
+    if (!filePath) return { success: false, error: 'filePath が必要です' };
+    const ext = path.extname(filePath);
+    const proxyPath = filePath.slice(0, -ext.length) + '.proxy.mp4';
+    try {
+      const result = await callRustBackend('proxy.generate', {
+        inputPath: filePath,
+        outputPath: proxyPath,
+        width: payload?.width ?? 1280,
+        ffmpegPath: resolveDefaultFfmpegPath(),
+      }, 600_000); // 最大 10 分
+      return { success: true, proxyPath, result };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
   ipcMain.handle('probe-media', async (_event, payload: { filePath?: string }) => {
     const filePath = typeof payload?.filePath === 'string' ? payload.filePath.trim() : '';
     if (!filePath) {
