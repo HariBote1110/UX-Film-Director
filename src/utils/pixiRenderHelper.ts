@@ -366,12 +366,10 @@ class GroupGradientFilter extends PIXI.Filter {
 
 export interface VideoFrameTextureState {
     texture: PIXI.Texture;
+    // Phase 1-b: PixiJS VideoSource を利用した GPU ダイレクトアップロード
+    videoSource: PIXI.VideoSource;
     width: number;
     height: number;
-    // Phase 1-a: requestVideoFrameCallback による正確なフレームタイミング管理
-    latestBitmap: ImageBitmap | null;
-    pendingBitmap: ImageBitmap | null;
-    rvfcHandle: number;
 }
 
 const ensureVideoFrameTextureState = (
@@ -389,65 +387,36 @@ const ensureVideoFrameTextureState = (
     }
 
     if (existing) {
-        existing.texture.destroy(true);
-        existing.latestBitmap?.close();
-        existing.pendingBitmap?.close();
-        if (existing.rvfcHandle) video.cancelVideoFrameCallback(existing.rvfcHandle);
+        existing.videoSource.destroy();
+        existing.texture.destroy(false);
         videoFrameTextures.delete(videoId);
     }
 
-    // 初期テクスチャ: 単色プレースホルダー（1x1 黒）
-    const canvas = document.createElement('canvas');
-    canvas.width = width; canvas.height = height;
-    const texture = PIXI.Texture.from(canvas);
+    // PixiJS VideoSource: 内部で requestVideoFrameCallback + copyExternalImageToTexture を使用
+    // Canvas 2D drawImage パスを完全に排除した GPU ダイレクトアップロード
+    const videoSource = new PIXI.VideoSource({
+        resource: video,
+        autoPlay: false,
+        autoLoad: false,
+        updateFPS: 0,  // 0 = requestVideoFrameCallback に任せる（フレーム精度）
+        alphaMode: 'premultiply-alpha-on-upload',
+    });
+    // load() でイベントリスナー（play/pause/seeked）を登録させる
+    // HTMLVideoElement は既にロード済みなので src は変更されない
+    void videoSource.load();
+    const texture = new PIXI.Texture({ source: videoSource });
 
-    const state: VideoFrameTextureState = {
-        texture,
-        width,
-        height,
-        latestBitmap: null,
-        pendingBitmap: null,
-        rvfcHandle: 0,
-    };
+    // フレーム更新通知で PixiJS の renderTick を駆動
+    videoSource.on('update', () => onNewFrame());
 
-    // requestVideoFrameCallback で新フレーム到着時に createImageBitmap を発行
-    const scheduleRvfc = () => {
-        state.rvfcHandle = video.requestVideoFrameCallback(async () => {
-            if (video.readyState < 2 || video.videoWidth === 0) { scheduleRvfc(); return; }
-            try {
-                const bitmap = await createImageBitmap(video);
-                // 古い pending を破棄して最新のみ保持
-                state.pendingBitmap?.close();
-                state.pendingBitmap = bitmap;
-                onNewFrame();
-            } catch { /* ignore */ }
-            scheduleRvfc();
-        });
-    };
-    scheduleRvfc();
-
+    const state: VideoFrameTextureState = { texture, videoSource, width, height };
     videoFrameTextures.set(videoId, state);
     return state;
 };
 
 const drawVideoFrameToTexture = (state: VideoFrameTextureState): boolean => {
-    if (!state.pendingBitmap) return !!state.latestBitmap;
-
-    // pendingBitmap を latestBitmap に昇格し PixiJS テクスチャを更新
-    state.latestBitmap?.close();
-    state.latestBitmap = state.pendingBitmap;
-    state.pendingBitmap = null;
-
-    try {
-        const source = (state.texture as any).source;
-        if (source) {
-            source.resource = state.latestBitmap;
-            if (typeof source.update === 'function') source.update();
-        }
-        return true;
-    } catch {
-        return false;
-    }
+    // VideoSource が有効かつ動画が再生可能であれば描画済みとみなす
+    return !state.videoSource.destroyed && state.videoSource.isValid;
 };
 
 export const applyGroupGradientEffect = (container: PIXI.Container, gradient: GradientFill | undefined) => {

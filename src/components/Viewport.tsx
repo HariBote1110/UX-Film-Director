@@ -271,9 +271,8 @@ const Viewport: React.FC = () => {
         videoElementsRef.current.forEach(video => { video.pause(); video.src = ""; video.load(); });
         videoElementsRef.current.clear();
         videoFrameTexturesRef.current.forEach((entry) => {
-          entry.texture.destroy(true);
-          entry.latestBitmap?.close();
-          entry.pendingBitmap?.close();
+          entry.videoSource?.destroy();
+          entry.texture.destroy(false);
         });
         videoFrameTexturesRef.current.clear();
         audioElementsRef.current.forEach(audio => { audio.pause(); audio.src = ""; audio.load(); });
@@ -360,9 +359,8 @@ const Viewport: React.FC = () => {
             video.pause(); video.src = ""; video.load(); currentVideoElements.delete(id); videoPlayPromisesRef.current.delete(id);
             const frameTexture = videoFrameTexturesRef.current.get(id);
             if (frameTexture) {
-                frameTexture.texture.destroy(true);
-                frameTexture.latestBitmap?.close();
-                frameTexture.pendingBitmap?.close();
+                frameTexture.videoSource?.destroy();
+                frameTexture.texture.destroy(false);
                 videoFrameTexturesRef.current.delete(id);
             }
         }
