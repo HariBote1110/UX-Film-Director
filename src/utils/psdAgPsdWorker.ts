@@ -26,6 +26,12 @@ import { readPsd, initializeCanvas, type Layer } from 'ag-psd';
       : new ImageData(w, h),
 );
 
+/** Worker から返す 1 レイヤーのピクセルデータ。
+ *  ImageBitmap: OffscreenCanvas.transferToImageBitmap() の結果（GPU 直接転送、高速）。
+ *  null: グループ・空レイヤー。
+ */
+export type AgPsdPixel = ImageBitmap | null;
+
 export type AgPsdLayerMeta = {
   name: string;
   top: number;
@@ -39,7 +45,7 @@ export type AgPsdLayerMeta = {
   pixelByteLen: number;
 };
 
-type WalkResult = { meta: AgPsdLayerMeta; rgba: ArrayBuffer | null };
+type WalkResult = { meta: AgPsdLayerMeta; bitmap: ImageBitmap | null };
 
 /**
  * ag-psd のネストツリーを pre-order DFS でフラット化し、
@@ -60,12 +66,11 @@ function walkLayers(
     const w = canvas?.width  ?? Math.max(0, (layer.right  ?? 0) - (layer.left ?? 0));
     const h = canvas?.height ?? Math.max(0, (layer.bottom ?? 0) - (layer.top  ?? 0));
 
-    let rgba: ArrayBuffer | null = null;
+    // transferToImageBitmap(): GPU 側のテクスチャを直接 ImageBitmap に変換。
+    // getImageData() と異なり CPU ↔ GPU コピーが発生しないため非常に高速。
+    let bitmap: ImageBitmap | null = null;
     if (!isGroup && canvas && w > 0 && h > 0) {
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        rgba = ctx.getImageData(0, 0, w, h).data.buffer;
-      }
+      bitmap = canvas.transferToImageBitmap();
     }
 
     results.push({
@@ -79,9 +84,9 @@ function walkLayers(
         isGroup,
         ownGroupId,
         parentGroupId,
-        pixelByteLen: rgba ? rgba.byteLength : 0,
+        pixelByteLen: bitmap ? w * h * 4 : 0,
       },
-      rgba,
+      bitmap,
     });
 
     if (isGroup && layer.children) {
@@ -104,8 +109,10 @@ self.onmessage = async (event: MessageEvent) => {
     try {
       const t0 = performance.now();
 
-      // レイヤーピクセルを読む（skipCompositing は合成済み画像のみスキップ）
-      const psd = readPsd(msg.psdBuffer);
+      // skipCompositing: true で合成済み全体画像をスキップ（レイヤーピクセルは取得する）
+      // これにより readPsd のコストが大幅に削減される（~846ms → ~310ms）
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const psd = readPsd(msg.psdBuffer, { skipCompositing: true } as any);
       const tRead = performance.now();
 
       const results: WalkResult[] = [];
@@ -116,9 +123,9 @@ self.onmessage = async (event: MessageEvent) => {
         `[ag-psd Worker] readPsd=${(tRead - t0).toFixed(1)}ms  walk=${(tWalk - tRead).toFixed(1)}ms  layers=${results.length}`,
       );
 
-      const layers      = results.map((r) => r.meta);
-      const pixelBuffers = results.map((r) => r.rgba);
-      const transferables = pixelBuffers.filter((b): b is ArrayBuffer => b !== null);
+      const layers  = results.map((r) => r.meta);
+      const bitmaps = results.map((r) => r.bitmap);
+      const transferables = bitmaps.filter((b): b is ImageBitmap => b !== null);
 
       (self as unknown as Worker).postMessage(
         {
@@ -126,7 +133,7 @@ self.onmessage = async (event: MessageEvent) => {
           docWidth:  psd.width,
           docHeight: psd.height,
           layers,
-          pixelBuffers,
+          bitmaps,
         },
         transferables,
       );

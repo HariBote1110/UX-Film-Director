@@ -838,13 +838,17 @@ const parsePsdViaWasm = async (
   projectWidth: number,
   projectHeight: number
 ): Promise<PsdParseResult> => {
+  const t0 = performance.now();
   const arrayBuffer = await file.arrayBuffer();
+  const tRead = performance.now();
   const { meta, pixels } = await parsePsdWithWasm(arrayBuffer);
+  const tWasm = performance.now();
+  console.log(`[psdParser WASM] fileRead=${(tRead - t0).toFixed(1)}ms  wasmTotal=${(tWasm - tRead).toFixed(1)}ms`);
 
   let idCounter = 0;
   const generateId = () => `psd-layer-${idCounter++}`;
 
-  const pendingImageLoads: Array<{ node: PsdLayerNode; pixelData: Uint8Array }> = [];
+  const pendingImageLoads: Array<{ node: PsdLayerNode; pixelData: ImageBitmap | Uint8Array }> = [];
 
   const buildNode = (idx: number): PsdLayerNode => {
     const layer = meta.layers[idx];
@@ -864,7 +868,8 @@ const parsePsdViaWasm = async (
     };
 
     const px = pixels[idx];
-    if (!layer.isGroup && px && px.length > 0 && layer.width > 0 && layer.height > 0) {
+    const hasPixels = px instanceof ImageBitmap || (px instanceof Uint8Array && px.length > 0);
+    if (!layer.isGroup && hasPixels && layer.width > 0 && layer.height > 0) {
       pendingImageLoads.push({ node, pixelData: px });
     }
 
@@ -907,24 +912,33 @@ const parsePsdViaWasm = async (
   };
 
   // Load ImageBitmaps in parallel.
+  // pixelData は ImageBitmap（ag-psd Worker 経由）または Uint8Array（fallback）のどちらか。
+  const tBitmapStart = performance.now();
   await Promise.all(
     pendingImageLoads.map(async ({ node, pixelData }) => {
       try {
-        const data = new Uint8ClampedArray(pixelData.buffer, pixelData.byteOffset, pixelData.byteLength);
-        const imgData = new ImageData(
-          data as unknown as ImageData['data'],
-          node.width,
-          node.height
-        );
-        if (typeof createImageBitmap === 'function') {
-          node.textureSource = await createImageBitmap(imgData);
+        if (pixelData instanceof ImageBitmap) {
+          // Worker 内で transferToImageBitmap() 済み → そのまま使用（変換コストなし）
+          node.textureSource = pixelData;
           node.src = psdLayerTextureUrl(node.id);
+        } else {
+          const data = new Uint8ClampedArray(pixelData.buffer, pixelData.byteOffset, pixelData.byteLength);
+          const imgData = new ImageData(
+            data as unknown as ImageData['data'],
+            node.width,
+            node.height
+          );
+          if (typeof createImageBitmap === 'function') {
+            node.textureSource = await createImageBitmap(imgData);
+            node.src = psdLayerTextureUrl(node.id);
+          }
         }
       } catch (e) {
         console.warn('Failed to create ImageBitmap (WASM path):', node.name, e);
       }
     })
   );
+  console.log(`[psdParser WASM] imageBitmap=${(performance.now() - tBitmapStart).toFixed(1)}ms  END-TO-END=${(performance.now() - t0).toFixed(1)}ms`);
 
   const activeLayerIds: Record<string, boolean> = {};
 

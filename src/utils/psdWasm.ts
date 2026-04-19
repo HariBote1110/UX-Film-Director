@@ -24,8 +24,13 @@ export type WasmPsdMeta = {
 
 export type ParsedWasmPsd = {
   meta: WasmPsdMeta;
-  /** レイヤー順の RGBA Uint8Array。グループは空配列。 */
-  pixels: Uint8Array[];
+  /**
+   * レイヤー順のピクセルデータ。
+   * - ImageBitmap: ag-psd Worker 経由（transferToImageBitmap、高速）
+   * - Uint8Array:  fallback パス（RGBA バイト列）
+   * - 空 Uint8Array: グループ・空レイヤー
+   */
+  pixels: (ImageBitmap | Uint8Array)[];
 };
 
 // ── ag-psd Worker ─────────────────────────────────────────────────────────────
@@ -59,15 +64,16 @@ async function parseWithWorker(data: ArrayBuffer): Promise<ParsedWasmPsd> {
       worker.removeEventListener('message', handler);
 
       if (e.data?.type === 'result') {
-        const { docWidth, docHeight, layers, pixelBuffers } = e.data as {
+        const { docWidth, docHeight, layers, bitmaps } = e.data as {
           docWidth: number;
           docHeight: number;
           layers: WasmLayerMeta[];
-          pixelBuffers: (ArrayBuffer | null)[];
+          bitmaps: (ImageBitmap | null)[];
         };
 
-        const pixels = pixelBuffers.map((buf) =>
-          buf ? new Uint8Array(buf) : new Uint8Array(0),
+        // ImageBitmap は転送済みなのでそのまま使用。null はグループ等。
+        const pixels: (ImageBitmap | Uint8Array)[] = bitmaps.map((bm) =>
+          bm ?? new Uint8Array(0),
         );
 
         console.log(
