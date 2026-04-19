@@ -217,6 +217,11 @@ export const runExportTests = async (): Promise<ExportTestResult> => {
     ]).catch((e: unknown) => console.warn('[ExportTest] ログ書き出し失敗:', e));
 
     console.log('[ExportTest] 結果を perf/export-test-results.{log,json} に保存しました');
+
+    // テスト専用起動時は結果書き出し後にアプリを終了する
+    if (import.meta.env.VITE_EXPORT_TEST === '1') {
+      await ipcRenderer.invoke('quit-app', { exitCode: passed ? 0 : 1 });
+    }
   }
 
   return report;

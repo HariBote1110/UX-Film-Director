@@ -787,6 +787,10 @@ app.whenReady().then(() => {
     }
   });
 
+  ipcMain.handle('quit-app', (_event, payload?: { exitCode?: number }) => {
+    app.exit(payload?.exitCode ?? 0);
+  });
+
   // テスト結果をプロジェクトルート配下のファイルに書き出す
   ipcMain.handle('write-test-log', async (_event, payload: { fileName?: string; content?: string }) => {
     const fileName = typeof payload?.fileName === 'string' ? payload.fileName : 'test-results.log';
