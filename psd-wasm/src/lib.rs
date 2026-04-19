@@ -1,9 +1,23 @@
 mod psd_fast;
 
 use wasm_bindgen::prelude::*;
-use serde::{Serialize, Deserialize};
+use serde::Serialize;
 
 // ── Serialisable types ────────────────────────────────────────────────────────
+
+/// Per-layer task descriptor sent from the main thread to Workers.
+/// Workers use this to call `decompress_layer_raw()` without re-parsing metadata.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LayerDecompressTask {
+    pub idx: usize,
+    pub offset: u64,
+    pub channel_ids: Vec<i32>,
+    /// Each channel's compressed byte count (u32 is safe: no single channel exceeds 4 GB).
+    pub channel_lens: Vec<u32>,
+    pub width: u32,
+    pub height: u32,
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -110,6 +124,32 @@ impl PsdLayout {
     pub fn layer_count(&self) -> usize {
         self.inner.layers.len()
     }
+
+    /// Returns a JSON array of `LayerDecompressTask` for every leaf layer.
+    /// Workers parse this once and call `decompress_layer_raw()` directly,
+    /// avoiding the cost of creating a full `PsdLayout` in each Worker.
+    pub fn leaf_tasks_json(&self) -> String {
+        let tasks: Vec<LayerDecompressTask> = self
+            .inner
+            .layers
+            .iter()
+            .enumerate()
+            .filter(|(_, l)| l.layer_type == 0)
+            .map(|(idx, l)| {
+                let w = (l.right - l.left).max(0) as u32;
+                let h = (l.bottom - l.top).max(0) as u32;
+                LayerDecompressTask {
+                    idx,
+                    offset: l.channel_data_offset,
+                    channel_ids: l.channels.iter().map(|ch| ch.channel_id as i32).collect(),
+                    channel_lens: l.channels.iter().map(|ch| ch.data_len as u32).collect(),
+                    width: w,
+                    height: h,
+                }
+            })
+            .collect();
+        serde_json::to_string(&tasks).unwrap_or_else(|_| "[]".to_string())
+    }
 }
 
 // ── Phase 2: full single-threaded parser (fallback) ──────────────────────────
@@ -175,4 +215,36 @@ impl PsdParser {
     pub fn layer_count(&self) -> usize {
         self.result.layers.len()
     }
+}
+
+// ── Standalone decompressor (used by Workers with pre-computed offsets) ───────
+
+/// Decompress a single PSD layer without constructing a `PsdLayout`.
+///
+/// Workers receive `LayerDecompressTask` JSON from the main thread and call this
+/// function directly, eliminating the ~50–85 ms `PsdLayout::new()` overhead per Worker.
+///
+/// `channel_ids`  — signed channel identifiers (0=R, 1=G, 2=B, –1=A, etc.)
+/// `channel_lens` — compressed byte count for each channel (same order as ids)
+#[wasm_bindgen]
+pub fn decompress_layer_raw(
+    data: &[u8],
+    offset: u64,
+    channel_ids: &[i32],
+    channel_lens: &[u32],
+    width: u32,
+    height: u32,
+    depth: u16,
+    is_psb: bool,
+) -> Vec<u8> {
+    let channels: Vec<psd_fast::ChannelInfo> = channel_ids
+        .iter()
+        .zip(channel_lens.iter())
+        .map(|(&id, &len)| psd_fast::ChannelInfo {
+            channel_id: id as i16,
+            data_len: len as u64,
+        })
+        .collect();
+    psd_fast::decode_layer_rgba_at(data, offset, &channels, width, height, depth, is_psb)
+        .unwrap_or_default()
 }

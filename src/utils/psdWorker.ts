@@ -1,17 +1,28 @@
 /**
  * Web Worker — PSD layer decompressor.
  *
- * Receives a slice of layer indices and the shared PSD bytes, decompresses
- * the assigned layers using the WASM module, and posts RGBA results back.
- *
  * Message protocol:
- *   IN:  { type: 'init', wasmUrl: string }
- *   IN:  { type: 'decompress', psdShared: SharedArrayBuffer, layerIndices: number[] }
+ *   IN:  { type: 'init' }
+ *   IN:  { type: 'decompress_raw', psdShared: SharedArrayBuffer,
+ *           tasks: LayerDecompressTask[], depth: number, isPsb: boolean }
  *   OUT: { type: 'result', results: { idx, rgba: Uint8Array }[] }
  *   OUT: { type: 'error', message: string }
+ *
+ * Workers receive pre-computed LayerDecompressTask descriptors (channel offsets
+ * and channel byte-lengths) from the main thread.  This eliminates the
+ * PsdLayout::new() metadata re-parse (~50–85 ms) that previously ran in every Worker.
  */
 
-import init, { PsdLayout } from '../wasm/psd/psd_wasm.js';
+import init, { decompress_layer_raw } from '../wasm/psd/psd_wasm.js';
+
+type LayerDecompressTask = {
+  idx: number;
+  offset: number;
+  channelIds: number[];
+  channelLens: number[];
+  width: number;
+  height: number;
+};
 
 let wasmReady = false;
 let initPromise: Promise<void> | null = null;
@@ -27,7 +38,7 @@ async function ensureWasm(): Promise<void> {
 self.onmessage = async (event: MessageEvent) => {
   const msg = event.data as
     | { type: 'init' }
-    | { type: 'decompress'; psdShared: SharedArrayBuffer; layerIndices: number[] };
+    | { type: 'decompress_raw'; psdShared: SharedArrayBuffer; tasks: LayerDecompressTask[]; depth: number; isPsb: boolean };
 
   if (msg.type === 'init') {
     try {
@@ -39,24 +50,33 @@ self.onmessage = async (event: MessageEvent) => {
     return;
   }
 
-  if (msg.type === 'decompress') {
+  if (msg.type === 'decompress_raw') {
     try {
       await ensureWasm();
 
+      const t0 = performance.now();
       const psdBytes = new Uint8Array(msg.psdShared);
-      // Phase 1: parse metadata only (fast — no pixel decompression).
-      const layout = new PsdLayout(psdBytes);
-
       const results: Array<{ idx: number; rgba: Uint8Array }> = [];
-      for (const idx of msg.layerIndices) {
-        // Phase 2: decompress only the assigned layer from shared bytes.
-        const rgba = layout.decompress_layer(psdBytes, idx);
-        if (rgba.length > 0) {
-          results.push({ idx, rgba });
-        }
+
+      for (const task of msg.tasks) {
+        const ids  = new Int32Array(task.channelIds);
+        const lens = new Uint32Array(task.channelLens);
+        const rgba = decompress_layer_raw(
+          psdBytes,
+          BigInt(task.offset),
+          ids,
+          lens,
+          task.width,
+          task.height,
+          msg.depth,
+          msg.isPsb,
+        );
+        if (rgba.length > 0) results.push({ idx: task.idx, rgba });
       }
 
-      layout.free();
+      console.log(
+        `[Worker] decompress=${(performance.now() - t0).toFixed(1)}ms  layers=${msg.tasks.length}`
+      );
 
       // Transfer the RGBA buffers to the main thread (zero-copy move).
       const transferables = results.map((r) => r.rgba.buffer as ArrayBuffer);

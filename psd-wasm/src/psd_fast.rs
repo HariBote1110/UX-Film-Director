@@ -569,6 +569,24 @@ pub fn decode_layout_layer_rgba(
     decode_layer_rgba(&mut c, &layer.channels, w, h, depth, is_psb)
 }
 
+/// Decompress a layer directly from a pre-computed byte offset — no metadata re-parse needed.
+pub fn decode_layer_rgba_at(
+    bytes: &[u8],
+    offset: u64,
+    channels: &[ChannelInfo],
+    w: u32,
+    h: u32,
+    depth: u16,
+    is_psb: bool,
+) -> Option<Vec<u8>> {
+    if w == 0 || h == 0 {
+        return None;
+    }
+    let mut c = Cursor::new(bytes);
+    c.set_position(offset);
+    decode_layer_rgba(&mut c, channels, w, h, depth, is_psb)
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /// A parsed PSD layer, including decompressed RGBA pixel data.

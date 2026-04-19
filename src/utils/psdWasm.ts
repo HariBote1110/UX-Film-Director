@@ -12,6 +12,15 @@
 
 import init, { PsdLayout, PsdParser } from '../wasm/psd/psd_wasm.js';
 
+type LayerDecompressTask = {
+  idx: number;
+  offset: number;         // u64 fits in JS number (max 2^53)
+  channelIds: number[];
+  channelLens: number[];  // u32 per channel
+  width: number;
+  height: number;
+};
+
 // ── WASM initialisation ───────────────────────────────────────────────────────
 
 let wasmReady: Promise<void> | null = null;
@@ -98,19 +107,27 @@ function createWorkerPool(): Promise<void> {
 /** Decompress layers in parallel using the Worker pool. */
 async function decompressParallel(
   psdShared: SharedArrayBuffer,
-  leafIndices: number[]
+  allTasks: LayerDecompressTask[],
+  depth: number,
+  isPsb: boolean,
 ): Promise<Map<number, Uint8Array>> {
   const workers = pool!;
 
-  // Distribute layers round-robin across workers
-  const groups: number[][] = Array.from({ length: workers.length }, () => []);
-  leafIndices.forEach((idx, i) => groups[i % workers.length].push(idx));
+  // Weighted distribution: assign each task to the worker with the least pending pixel bytes.
+  const groups: LayerDecompressTask[][] = Array.from({ length: workers.length }, () => []);
+  const workerLoad = new Array<number>(workers.length).fill(0);
+  for (const task of allTasks) {
+    const totalBytes = task.channelLens.reduce((s, n) => s + n, 0);
+    const minWorker = workerLoad.indexOf(Math.min(...workerLoad));
+    groups[minWorker].push(task);
+    workerLoad[minWorker] += totalBytes;
+  }
 
   const results = new Map<number, Uint8Array>();
 
   await Promise.all(
-    groups.map((layerIndices, wi) => {
-      if (layerIndices.length === 0) return Promise.resolve();
+    groups.map((tasks, wi) => {
+      if (tasks.length === 0) return Promise.resolve();
       const entry = workers[wi];
 
       return new Promise<void>((resolve, reject) => {
@@ -130,8 +147,9 @@ async function decompressParallel(
 
         entry.worker.addEventListener('message', handler);
         entry.busy = true;
+        // Workers receive pre-computed task descriptors — no PsdLayout::new() needed.
         entry.worker.postMessage(
-          { type: 'decompress', psdShared, layerIndices },
+          { type: 'decompress_raw', psdShared, tasks, depth, isPsb },
           [] // SharedArrayBuffer is shared by reference — no transfer needed
         );
       });
@@ -145,8 +163,10 @@ async function decompressParallel(
 
 async function parseSingleThreaded(data: ArrayBuffer): Promise<ParsedWasmPsd> {
   await ensureWasm();
+  const t0 = performance.now();
   const psdU8 = new Uint8Array(data);
   const parser = new PsdParser(psdU8);
+  const tParse = performance.now();
 
   try {
     const meta = parser.metadata() as WasmPsdMeta;
@@ -161,6 +181,11 @@ async function parseSingleThreaded(data: ArrayBuffer): Promise<ParsedWasmPsd> {
       }
     }
 
+    const tTotal = performance.now();
+    console.log(
+      `[WASM single-thread] parse=${(tParse - t0).toFixed(1)}ms  decompress=${(tTotal - tParse).toFixed(1)}ms  total=${(tTotal - t0).toFixed(1)}ms`
+    );
+
     return { meta, pixels };
   } finally {
     parser.free();
@@ -173,30 +198,35 @@ async function parseParallel(data: ArrayBuffer): Promise<ParsedWasmPsd> {
   await ensureWasm();
   await createWorkerPool();
 
+  const t0 = performance.now();
+
   // Copy PSD into a SharedArrayBuffer so all Workers can read without copying
   const psdShared = new SharedArrayBuffer(data.byteLength);
   new Uint8Array(psdShared).set(new Uint8Array(data));
+  const tCopy = performance.now();
 
-  // Phase 1: fast metadata extraction (no pixel decompression)
+  // Phase 1: fast metadata extraction + collect per-layer decompress task descriptors.
   const psdU8 = new Uint8Array(psdShared);
   const layout = new PsdLayout(psdU8);
   let meta: WasmPsdMeta;
+  let allTasks: LayerDecompressTask[];
 
   try {
     meta = layout.metadata() as WasmPsdMeta;
+    // leaf_tasks_json returns channel offsets pre-computed — Workers won't re-parse metadata.
+    allTasks = JSON.parse(layout.leaf_tasks_json()) as LayerDecompressTask[];
   } finally {
     layout.free();
   }
+  const tPhase1 = performance.now();
 
-  // Collect leaf layer indices that need decompression
-  const leafIndices: number[] = [];
-  for (let i = 0; i < meta.layers.length; i++) {
-    const l = meta.layers[i];
-    if (!l.isGroup && l.pixelByteLen > 0) leafIndices.push(i);
-  }
+  // Phase 2: parallel decompression via Worker pool (weighted by compressed byte size)
+  const rgbaMap = await decompressParallel(psdShared, allTasks, meta.depth, meta.isPsb);
+  const tPhase2 = performance.now();
 
-  // Phase 2: parallel decompression via Worker pool
-  const rgbaMap = await decompressParallel(psdShared, leafIndices);
+  console.log(
+    `[WASM parallel ×${WORKER_COUNT}] copy=${(tCopy - t0).toFixed(1)}ms  phase1(meta+tasks)=${(tPhase1 - tCopy).toFixed(1)}ms  phase2(decompress)=${(tPhase2 - tPhase1).toFixed(1)}ms  total=${(tPhase2 - t0).toFixed(1)}ms  leafLayers=${allTasks.length}`
+  );
 
   // Assemble pixels array in layer order
   const pixels: Uint8Array[] = meta.layers.map((_, i) =>
