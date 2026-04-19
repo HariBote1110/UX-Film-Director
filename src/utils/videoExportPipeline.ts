@@ -20,7 +20,7 @@ export interface EncodeResult {
   durationMs: number;
 }
 
-// H.264 対応コーデック候補（Apple Silicon 優先）
+// H.264 コーデック候補（Apple Silicon 優先）
 const H264_CANDIDATES = [
   'avc1.640028', // High Level 4.0
   'avc1.4d0028', // Main Level 4.0
@@ -28,22 +28,58 @@ const H264_CANDIDATES = [
   'avc1.42001f', // Baseline Level 3.1
 ];
 
+// isConfigSupported は「設定上は可」でも実エンコード時に落ちる場合がある（HW アクセラレータ初期化失敗）。
+// 1フレームだけ試し打ちして本当に使えるか確認する。
+const probeEncoder = async (config: VideoEncoderConfig): Promise<boolean> => {
+  const w = config.width as number;
+  const h = config.height as number;
+  return new Promise<boolean>(resolve => {
+    const enc = new VideoEncoder({
+      output: () => { enc.close(); resolve(true); },
+      error: () => { resolve(false); },
+    });
+    try {
+      enc.configure(config);
+      const canvas = new OffscreenCanvas(w, h);
+      const frame = new VideoFrame(canvas, { timestamp: 0 });
+      enc.encode(frame, { keyFrame: true });
+      frame.close();
+      // 500ms 以内に output か error が来なければ失敗とみなす
+      setTimeout(() => { try { enc.close(); } catch { /* already closed */ } resolve(false); }, 500);
+    } catch {
+      resolve(false);
+    }
+  });
+};
+
 export const detectSupportedH264Codec = async (
   width: number,
   height: number,
   fps: number
 ): Promise<{ codec: string; config: VideoEncoderConfig } | null> => {
-  const base = {
-    width: width % 2 === 0 ? width : width - 1,
-    height: height % 2 === 0 ? height : height - 1,
-    bitrate: 10_000_000,
-    framerate: fps,
-    hardwareAcceleration: 'prefer-hardware' as HardwareAcceleration,
-  };
+  const encWidth = width % 2 === 0 ? width : width - 1;
+  const encHeight = height % 2 === 0 ? height : height - 1;
+
+  // HW → SW の順で試す
+  const accelModes: HardwareAcceleration[] = ['prefer-hardware', 'prefer-software', 'no-preference'];
+
   for (const codec of H264_CANDIDATES) {
-    const result = await VideoEncoder.isConfigSupported({ ...base, codec });
-    console.log(`[VideoExport] codec ${codec} supported =`, result.supported);
-    if (result.supported) return { codec, config: { ...base, codec } };
+    for (const hardwareAcceleration of accelModes) {
+      const config: VideoEncoderConfig = {
+        codec,
+        width: encWidth,
+        height: encHeight,
+        bitrate: 10_000_000,
+        framerate: fps,
+        hardwareAcceleration,
+      };
+      const declared = await VideoEncoder.isConfigSupported(config);
+      if (!declared.supported) continue;
+
+      const works = await probeEncoder(config);
+      console.log(`[VideoExport] codec=${codec} accel=${hardwareAcceleration} probe=${works}`);
+      if (works) return { codec, config };
+    }
   }
   return null;
 };
