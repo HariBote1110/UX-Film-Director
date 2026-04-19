@@ -97,19 +97,35 @@ export const useProjectExport = (
         const totalFrames = Math.ceil(exportDuration * fps);
 
         // VideoEncoder のコーデックサポート確認
-        const videoConfig: VideoEncoderConfig = {
-          codec: 'avc1.42001f',  // H.264 Baseline Level 3.1
+        // Apple Silicon / 各環境で使えるコーデックを順番に試す
+        const codecCandidates = [
+          'avc1.640028', // H.264 High Level 4.0（Apple Silicon で推奨）
+          'avc1.4d0028', // H.264 Main Level 4.0
+          'avc1.42E01E', // H.264 Baseline Level 3.0
+          'avc1.42001f', // H.264 Baseline Level 3.1
+          'avc1.420034', // H.264 Baseline Level 5.2
+        ];
+        const baseConfig = {
           width,
           height,
           bitrate: 10_000_000,
           framerate: fps,
-          hardwareAcceleration: 'prefer-hardware',
-          latencyMode: 'quality',
+          hardwareAcceleration: 'prefer-hardware' as VideoHardwareAcceleration,
         };
-        const videoSupport = await VideoEncoder.isConfigSupported(videoConfig);
-        if (!videoSupport.supported) {
-          throw new Error('VideoEncoder H.264 がサポートされていません');
+        let videoConfig: VideoEncoderConfig | null = null;
+        for (const codec of codecCandidates) {
+          const cfg: VideoEncoderConfig = { ...baseConfig, codec };
+          const result = await VideoEncoder.isConfigSupported(cfg);
+          console.log(`[Export] VideoEncoder codec ${codec} supported =`, result.supported);
+          if (result.supported) { videoConfig = cfg; break; }
         }
+        if (!videoConfig) {
+          throw new Error(
+            'VideoEncoder H.264 がサポートされていません。\n' +
+            '試したコーデック: ' + codecCandidates.join(', ')
+          );
+        }
+        console.log('[Export] 使用コーデック:', videoConfig.codec);
 
         // ファイル保存先を先に決定（ユーザー操作が必要なため）
         const savePath = await ipcRenderer.invoke('show-save-dialog', {
