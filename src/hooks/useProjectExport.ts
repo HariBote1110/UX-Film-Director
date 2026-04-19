@@ -3,10 +3,22 @@ import * as PIXI from 'pixi.js';
 import { useStore } from '../store/useStore';
 import { TimelineObject } from '../types';
 import { shallow } from 'zustand/shallow';
-import { buildExportAudioBuffer } from '../utils/audioMixdown';
-import { encodeVideoToMp4 } from '../utils/videoExportPipeline';
+import { buildExportAudioMixWav } from '../utils/audioMixdown';
 
 const { ipcRenderer } = window;
+
+const canvasToJpegBuffer = (canvas: HTMLCanvasElement | OffscreenCanvas): Promise<ArrayBuffer> => {
+  if (canvas instanceof OffscreenCanvas) {
+    return canvas.convertToBlob({ type: 'image/jpeg', quality: 0.92 })
+      .then(blob => blob.arrayBuffer());
+  }
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => {
+      if (!blob) { reject(new Error('toBlob returned null')); return; }
+      blob.arrayBuffer().then(resolve).catch(reject);
+    }, 'image/jpeg', 0.92);
+  });
+};
 
 export const useProjectExport = (
   pixiAppRef: React.MutableRefObject<PIXI.Application | null>,
@@ -29,6 +41,8 @@ export const useProjectExport = (
       const app = pixiAppRef.current;
       if (!app) return;
 
+      let tempAudioPath: string | null = null;
+
       try {
         const { projectSettings, objects, layers } = useStore.getState();
         const fps = projectSettings.fps;
@@ -44,80 +58,94 @@ export const useProjectExport = (
         const exportDuration = Math.max(lastEnd, 1);
         const totalFrames = Math.ceil(exportDuration * fps);
 
-        // ファイル保存先を先に決定（ユーザー操作が必要なため）
-        const savePath = await ipcRenderer.invoke('show-save-dialog', {
-          defaultPath: 'output.mp4',
-          filters: [{ name: 'MP4 Video', extensions: ['mp4'] }],
-        });
-        if (!savePath) { setExporting(false); return; }
+        // 音声を一時 WAV ファイルとして保存
+        const wavBuffer = await buildExportAudioMixWav(exportObjects, exportDuration, sampleRate);
+        if (wavBuffer && wavBuffer.byteLength > 0) {
+          const audioResult = await ipcRenderer.invoke('save-temp-audio', wavBuffer);
+          if (audioResult?.success) tempAudioPath = audioResult.path;
+        }
 
-        const audioBuffer = await buildExportAudioBuffer(exportObjects, exportDuration, sampleRate);
+        // エクスポート開始（保存ダイアログ + FFmpeg VideoToolbox 起動）
+        const startResult = await ipcRenderer.invoke('start-export', {
+          width,
+          height,
+          fps,
+          audioPath: tempAudioPath,
+        });
+
+        if (!startResult?.success) {
+          if (startResult?.reason === 'cancelled') { setExporting(false); return; }
+          throw new Error(startResult?.error || 'エクスポート開始に失敗しました');
+        }
+
+        const savedPath: string = startResult.filePath;
 
         // 動画を一時停止
         Array.from(videoElementsRef.current.values()).forEach(v => v.pause());
 
-        // フレームイテレータ: PixiJS レンダー → ImageBitmap
         const encWidth = width % 2 === 0 ? width : width - 1;
         const encHeight = height % 2 === 0 ? height : height - 1;
 
-        async function* renderFrames() {
-          for (let i = 0; i < totalFrames; i++) {
-            if (cancelled) break;
+        // フレームを 1 枚ずつ JPEG → Rust FFmpeg に送信
+        for (let i = 0; i < totalFrames; i++) {
+          if (cancelled) break;
 
-            const t = i * dt;
-            if (i % Math.max(1, Math.floor(fps / 2)) === 0) setTime(t);
+          const t = i * dt;
+          if (i % Math.max(1, Math.floor(fps / 2)) === 0) setTime(t);
 
-            // 動画シーク
-            const activeVideos = videoObjects.filter(
-              obj => t >= obj.startTime && t < obj.startTime + obj.duration
-            );
-            if (activeVideos.length > 0) {
-              await Promise.all(activeVideos.map(obj => {
-                const video = videoElementsRef.current.get(obj.id);
-                if (!video || video.readyState < 1) return Promise.resolve();
-                const targetTime = (t - obj.startTime) + (obj.offset || 0);
-                if (Math.abs(video.currentTime - targetTime) < 0.001) return Promise.resolve();
-                return new Promise<void>(resolve => {
-                  const onSeeked = () => { video.removeEventListener('seeked', onSeeked); resolve(); };
-                  setTimeout(() => { video.removeEventListener('seeked', onSeeked); resolve(); }, 1000);
-                  video.addEventListener('seeked', onSeeked);
-                  video.currentTime = targetTime;
-                });
-              }));
-            }
-
-            renderScene(t, exportObjects);
-            const canvas = getExportCanvas?.() ?? app!.canvas;
-            const bitmap = await createImageBitmap(canvas, 0, 0, encWidth, encHeight);
-            yield { timestamp: Math.round(i * 1_000_000 / fps), bitmap };
-            bitmap.close();
+          const activeVideos = videoObjects.filter(
+            obj => t >= obj.startTime && t < obj.startTime + obj.duration
+          );
+          if (activeVideos.length > 0) {
+            await Promise.all(activeVideos.map(obj => {
+              const video = videoElementsRef.current.get(obj.id);
+              if (!video || video.readyState < 1) return Promise.resolve();
+              const targetTime = (t - obj.startTime) + (obj.offset || 0);
+              if (Math.abs(video.currentTime - targetTime) < 0.001) return Promise.resolve();
+              return new Promise<void>(resolve => {
+                const onSeeked = () => { video.removeEventListener('seeked', onSeeked); resolve(); };
+                setTimeout(() => { video.removeEventListener('seeked', onSeeked); resolve(); }, 1000);
+                video.addEventListener('seeked', onSeeked);
+                video.currentTime = targetTime;
+              });
+            }));
           }
+
+          renderScene(t, exportObjects);
+          const rawCanvas = getExportCanvas?.() ?? app!.canvas;
+
+          // OffscreenCanvas の場合は encWidth/encHeight でクロップした ImageBitmap 経由
+          let jpegBuffer: ArrayBuffer;
+          if (rawCanvas instanceof OffscreenCanvas) {
+            const bmp = await createImageBitmap(rawCanvas, 0, 0, encWidth, encHeight);
+            const oc = new OffscreenCanvas(encWidth, encHeight);
+            oc.getContext('2d')!.drawImage(bmp, 0, 0);
+            bmp.close();
+            jpegBuffer = await oc.convertToBlob({ type: 'image/jpeg', quality: 0.92 }).then(b => b.arrayBuffer());
+          } else {
+            jpegBuffer = await canvasToJpegBuffer(rawCanvas);
+          }
+
+          await ipcRenderer.invoke('write-frame', jpegBuffer);
         }
 
-        const result = await encodeVideoToMp4({
-          width,
-          height,
-          fps,
-          frames: renderFrames(),
-          audioBuffer,
-        });
-
-        // ファイル保存（IPC 経由で一括書き込み）
-        const saved = await ipcRenderer.invoke('save-buffer-to-file', {
-          filePath: savePath,
-          buffer: result.buffer,
-        });
-        if (!saved?.success) throw new Error(saved?.error || 'ファイル保存に失敗しました');
+        await ipcRenderer.invoke('end-export');
 
         if (!cancelled) {
-          alert(`エクスポート完了！\nコーデック: ${result.codecUsed}\nサイズ: ${(result.buffer.byteLength / 1024 / 1024).toFixed(1)}MB\n処理時間: ${(result.durationMs / 1000).toFixed(1)}秒`);
+          const sizeMb = '—'; // FFmpeg が直接ファイルに書き込むためサイズ不明
+          alert(`エクスポート完了！\nコーデック: h264_videotoolbox\nファイル: ${savedPath}`);
         }
 
       } catch (error) {
         if (!cancelled) {
+          // エラー時も FFmpeg を終了しておく
+          await ipcRenderer.invoke('end-export').catch(() => {});
           alert(`エクスポート失敗: ${error instanceof Error ? error.message : String(error)}`);
         }
       } finally {
+        if (tempAudioPath) {
+          await ipcRenderer.invoke('delete-temp-file', { filePath: tempAudioPath }).catch(() => {});
+        }
         setExporting(false);
       }
     };
