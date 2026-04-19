@@ -1,11 +1,48 @@
 import { EasingType } from './utils/easings';
 import { LabPhoneme } from './utils/labParser';
 
+/** ワークスペース：2D Pixi プレビュー vs 3D ステージ（Three.js） */
+export type EditorMode = '2d' | '3d_stage';
+
 export interface ProjectSettings {
   width: number;
   height: number;
   fps: number;
   sampleRate: number;
+  /** 既定は 2d（後方互換） */
+  editorMode?: EditorMode;
+}
+
+/** 3D ステージ用ワールド座標 */
+export interface Vec3 {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/** 透視カメラ（lookAt target） */
+export interface StageCamera3D {
+  position: Vec3;
+  target: Vec3;
+}
+
+/** PSD を 3D 空間に配置するときのパラメータ */
+export interface PsdWorldPlacement {
+  enabled: boolean;
+  position: Vec3;
+  rotationYDeg: number;
+  scale: number;
+  /** true のときカメラ方向へ Y 回転を合わせる（立ち絵向け） */
+  billboard: boolean;
+}
+
+/** Preview: fit to the panel vs one project pixel per CSS pixel (scroll when larger than the panel). */
+export type PreviewDisplayMode = 'autoFit' | 'pixelPerfect';
+
+export interface LayerState {
+  name: string;
+  visible: boolean;
+  locked: boolean;
 }
 
 export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization';
@@ -15,6 +52,7 @@ export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' 
 export interface GradientFill {
   enabled: boolean;
   type: 'linear' | 'radial';
+  scope?: 'group' | 'connected';
   colours: string[];
   stops: number[];
   direction: number;
@@ -33,6 +71,14 @@ export interface PathPoint {
   time: number;
   x: number;
   y: number;
+}
+
+export interface PositionKeyframe {
+  id: string;
+  time: number;
+  x: number;
+  y: number;
+  easing?: EasingType;
 }
 
 // リップシンク設定
@@ -79,10 +125,105 @@ export interface ClippingParams {
   radius: number; // ぼかし等の用途（今回はコーナー半径や簡易ぼかしとして予約、現状未使用でも可）
 }
 
+export type FilterType =
+  | 'color_correction'
+  | 'clipping'
+  | 'vibration'
+  | 'shadow'
+  | 'gradient'
+  | 'blur'
+  | 'fade'
+  | 'wipe';
+
+/** プレビュー／書き出し共通の仮想カメラ（シーン単位） */
+export interface CameraState {
+  centreOffsetX: number;
+  centreOffsetY: number;
+  /** 1 = 100% */
+  zoom: number;
+  rotationDeg: number;
+}
+
+export interface BlurFilterParams {
+  strength: number;
+  /** 1–4（Pixi BlurFilter 品質） */
+  quality: number;
+}
+
+export interface FadeFilterParams {
+  /** 表示不透明度に掛ける係数（0–1） */
+  opacity: number;
+}
+
+export type WipeEdge = 'left' | 'right' | 'top' | 'bottom';
+
+export interface WipeFilterParams {
+  edge: WipeEdge;
+  /** true のときクリップ進行を反転（退場ワイプ） */
+  reverse: boolean;
+}
+
+interface BaseFilter {
+  id: string;
+  type: FilterType;
+  enabled: boolean;
+}
+
+export interface ColorCorrectionFilter extends BaseFilter {
+  type: 'color_correction';
+  params: Omit<ColorCorrection, 'enabled'>;
+}
+
+export interface ClippingFilter extends BaseFilter {
+  type: 'clipping';
+  params: Omit<ClippingParams, 'enabled'>;
+}
+
+export interface VibrationFilter extends BaseFilter {
+  type: 'vibration';
+  params: Omit<Vibration, 'enabled'>;
+}
+
+export interface ShadowFilter extends BaseFilter {
+  type: 'shadow';
+  params: Omit<ShadowEffect, 'enabled'>;
+}
+
+export interface GradientFilter extends BaseFilter {
+  type: 'gradient';
+  params: Omit<GradientFill, 'enabled'>;
+}
+
+export interface BlurObjectFilter extends BaseFilter {
+  type: 'blur';
+  params: BlurFilterParams;
+}
+
+export interface FadeObjectFilter extends BaseFilter {
+  type: 'fade';
+  params: FadeFilterParams;
+}
+
+export interface WipeObjectFilter extends BaseFilter {
+  type: 'wipe';
+  params: WipeFilterParams;
+}
+
+export type ObjectFilter =
+  | ColorCorrectionFilter
+  | ClippingFilter
+  | VibrationFilter
+  | ShadowFilter
+  | GradientFilter
+  | BlurObjectFilter
+  | FadeObjectFilter
+  | WipeObjectFilter;
+
 // --- オブジェクト定義 ---
 
 export interface BaseObject {
   id: string;
+  groupId?: string;
   type: ObjectType;
   name: string;
   layer: number;
@@ -104,7 +245,10 @@ export interface BaseObject {
   easing: EasingType;
 
   motionPath?: PathPoint[];
+  keyframes?: PositionKeyframe[];
   shadow?: ShadowEffect;
+  filters?: ObjectFilter[];
+  groupGradient?: GradientFill;
   
   // 新機能用プロパティ
   clipping?: boolean;          // 上のオブジェクトでクリッピング (マスク)
@@ -134,6 +278,17 @@ export interface ShapeObject extends BaseObject {
 export interface ImageObject extends BaseObject {
   type: 'image';
   src: string;
+  filePath?: string;
+  width: number;
+  height: number;
+}
+
+/** 動画フレーム内の矩形切り抜き（左上原点・0–1 正規化）。タイムライン秒 `time`。 */
+export interface SubjectCropNormKeyframe {
+  id: string;
+  time: number;
+  x: number;
+  y: number;
   width: number;
   height: number;
 }
@@ -141,15 +296,20 @@ export interface ImageObject extends BaseObject {
 export interface VideoObject extends BaseObject {
   type: 'video';
   src: string;
+  filePath?: string;
   width: number;
   height: number;
   volume: number;
   muted: boolean;
+  /** true のとき `subjectCropKeyframes` でスプライトを矩形マスク */
+  subjectCropEnabled?: boolean;
+  subjectCropKeyframes?: SubjectCropNormKeyframe[];
 }
 
 export interface AudioObject extends BaseObject {
   type: 'audio';
   src: string;
+  filePath?: string;
   volume: number;
   muted: boolean;
   labData?: LabPhoneme[];
@@ -196,11 +356,14 @@ export interface PsdLayerNode {
   top: number;
   defaultVisible: boolean;
   src?: string;
+  /** In-memory raster for Pixi (not JSON-serialisable; strip before project save). */
+  textureSource?: ImageBitmap;
 }
 
 export interface PsdObject extends BaseObject {
   type: 'psd';
   file?: File;
+  filePath?: string;
   src: string;
   width: number;
   height: number;
@@ -210,6 +373,20 @@ export interface PsdObject extends BaseObject {
   activeLayerIds?: Record<string, boolean>;
   
   lipSync?: LipSyncSetting;
+  /** 3D ステージでの板ポリ配置（未設定時はワールドに出さない） */
+  worldPlacement?: PsdWorldPlacement;
 }
 
 export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject;
+
+/** タイムライン1本分（シーン） */
+export interface SceneData {
+  id: string;
+  name: string;
+  duration: number;
+  layers: LayerState[];
+  objects: TimelineObject[];
+  camera: CameraState;
+  /** 3D ステージ用カメラ（シーン単位） */
+  stageCamera3D: StageCamera3D;
+}

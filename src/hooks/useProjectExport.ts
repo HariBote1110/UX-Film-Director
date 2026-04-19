@@ -3,13 +3,15 @@ import * as PIXI from 'pixi.js';
 import { useStore } from '../store/useStore';
 import { TimelineObject } from '../types';
 import { shallow } from 'zustand/shallow';
+import { buildExportAudioMixWav } from '../utils/audioMixdown';
 
 const { ipcRenderer } = window;
 
 export const useProjectExport = (
   pixiAppRef: React.MutableRefObject<PIXI.Application | null>,
   videoElementsRef: React.MutableRefObject<Map<string, HTMLVideoElement>>,
-  renderScene: (time: number, objects: TimelineObject[]) => void
+  renderScene: (time: number, objects: TimelineObject[]) => void,
+  getExportCanvas?: () => HTMLCanvasElement | null
 ) => {
   const { isExporting, setExporting, setTime } = useStore((state) => ({
     isExporting: state.isExporting,
@@ -27,17 +29,31 @@ export const useProjectExport = (
         if (!app) return;
 
         let exportSessionOpened = false;
+        let tempAudioPath: string | null = null;
 
         try {
-            const { projectSettings, objects } = useStore.getState();
+            const { projectSettings, objects, layers } = useStore.getState();
             const fps = projectSettings.fps;
             const dt = 1 / fps;
-            const videoObjects = objects.filter((obj): obj is Extract<TimelineObject, { type: 'video' }> => obj.type === 'video');
+            const exportObjects = objects.filter((obj) => layers[obj.layer]?.visible !== false);
+            const videoObjects = exportObjects.filter((obj): obj is Extract<TimelineObject, { type: 'video' }> => obj.type === 'video');
             
             // Calculate total duration
-            const lastObjectEndTime = Math.max(...objects.map(o => o.startTime + o.duration), 0);
+            const lastObjectEndTime = Math.max(...exportObjects.map(o => o.startTime + o.duration), 0);
             const exportDuration = Math.max(lastObjectEndTime, 1);
             const totalFrames = Math.ceil(exportDuration * fps);
+            const mixedAudio = await buildExportAudioMixWav(
+              exportObjects,
+              exportDuration,
+              projectSettings.sampleRate || 44100
+            );
+            if (mixedAudio) {
+              const saved = await ipcRenderer.invoke('save-temp-audio', mixedAudio);
+              if (!saved?.success || !saved.path) {
+                throw new Error(saved?.error || '音声ミックスの一時保存に失敗しました');
+              }
+              tempAudioPath = saved.path;
+            }
 
             // Pause all videos initially
             const videos = Array.from(videoElementsRef.current.values());
@@ -47,7 +63,8 @@ export const useProjectExport = (
             const result = await ipcRenderer.invoke('start-export', { 
                 width: projectSettings.width, 
                 height: projectSettings.height, 
-                fps: fps 
+                fps: fps,
+                audioPath: tempAudioPath
             });
 
             if (!result.success) {
@@ -95,11 +112,12 @@ export const useProjectExport = (
                 }
 
                 // Render Frame
-                renderScene(t, objects);
+                renderScene(t, exportObjects);
                 
+                const exportCanvas = getExportCanvas?.() ?? app.canvas;
                 // Capture and write frame
                 const blob = await new Promise<Blob | null>((resolve) => {
-                  app.canvas.toBlob(resolve, 'image/jpeg', 0.90);
+                  exportCanvas.toBlob(resolve, 'image/jpeg', 0.90);
                 });
                 if (!blob) continue;
 
@@ -127,6 +145,13 @@ export const useProjectExport = (
             if (exportSessionOpened) {
                 await ipcRenderer.invoke('end-export');
             }
+            if (tempAudioPath) {
+                try {
+                    await ipcRenderer.invoke('delete-temp-file', { filePath: tempAudioPath });
+                } catch {
+                    // no-op
+                }
+            }
             setExporting(false);
         }
     };
@@ -135,5 +160,5 @@ export const useProjectExport = (
     return () => {
       cancelled = true;
     };
-  }, [isExporting, renderScene, setExporting, setTime, pixiAppRef, videoElementsRef]);
+  }, [isExporting, renderScene, setExporting, setTime, pixiAppRef, videoElementsRef, getExportCanvas]);
 };

@@ -1,5 +1,14 @@
 /// <reference types="vite/client" />
 
+interface ImportMetaEnv {
+  readonly VITE_PERF_AUTORUN?: string;
+  readonly VITE_PERF_AGENT_MODE?: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}
+
 interface Window {
   ipcRenderer: {
     on: (channel: string, listener: (event: any, ...args: any[]) => void) => void;

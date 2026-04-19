@@ -1,6 +1,7 @@
 import React, { useRef, useLayoutEffect, useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { shallow } from 'zustand/shallow';
+import { useTranslation } from '../i18n';
 
 export interface ContextMenuState {
   visible: boolean;
@@ -35,13 +36,28 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
   onAddPsd,
   onAddGroup,
 }) => {
-  const { deleteObject, selectObject, splitObject, addObject } = useStore((state) => ({
+  const {
+    deleteObject, deleteSelectedObjects, selectObject, splitObject, addObject,
+    copySelectedObjects, cutSelectedObjects, pasteClipboardObjects, duplicateSelectedObjects,
+    groupSelectedObjects, ungroupSelectedObjects, selectedIds, projectSettings, language
+  } = useStore((state) => ({
     deleteObject: state.deleteObject,
+    deleteSelectedObjects: state.deleteSelectedObjects,
     selectObject: state.selectObject,
     splitObject: state.splitObject,
     addObject: state.addObject,
+    copySelectedObjects: state.copySelectedObjects,
+    cutSelectedObjects: state.cutSelectedObjects,
+    pasteClipboardObjects: state.pasteClipboardObjects,
+    duplicateSelectedObjects: state.duplicateSelectedObjects,
+    groupSelectedObjects: state.groupSelectedObjects,
+    ungroupSelectedObjects: state.ungroupSelectedObjects,
+    selectedIds: state.selectedIds,
+    projectSettings: state.projectSettings,
+    language: state.language,
   }), shallow);
   const menuRef = useRef<HTMLDivElement>(null);
+  const t = useTranslation(language);
   
   const [position, setPosition] = useState({ top: state.y, left: state.x });
 
@@ -85,6 +101,10 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
 
   // 音声波形追加ハンドラ
   const handleAddWaveform = () => {
+      const waveformWidth = Math.max(120, Math.round(projectSettings.width * 0.4));
+      const waveformHeight = Math.max(80, Math.round(projectSettings.height * 0.14));
+      const centredX = Math.round((projectSettings.width - waveformWidth) / 2);
+      const centredY = Math.round((projectSettings.height - waveformHeight) / 2);
       addObject({
           id: crypto.randomUUID(),
           type: 'audio_visualization',
@@ -92,10 +112,10 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
           layer: state.layer,
           startTime: state.time,
           duration: 5,
-          x: 400, y: 300,
-          width: 400, height: 100,
+          x: centredX, y: centredY,
+          width: waveformWidth, height: waveformHeight,
           rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
-          enableAnimation: false, endX: 400, endY: 300, easing: 'linear',
+          enableAnimation: false, endX: centredX, endY: centredY, easing: 'linear',
           targetAudioId: null,
           targetLayer: state.layer - 1 >= 0 ? state.layer - 1 : -1, // デフォルトで一つ上のレイヤーを対象に
           visualizationType: 'waveform',
@@ -104,6 +124,13 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
           amplitude: 1.0
       });
       onClose();
+  };
+
+  const ensureObjectSelection = (objectId: string) => {
+    if (!selectedIds.includes(objectId)) {
+      selectObject(objectId);
+    }
+    return true;
   };
 
   return (
@@ -129,20 +156,34 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
             <div style={{ padding: '4px 12px', color: '#888', borderBottom: '1px solid #333', marginBottom: '4px' }}>
               Time: {state.time.toFixed(2)}s <br/> Layer: {state.layer + 1}
             </div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddShape(); onClose(); }}>図形を追加</div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddText(); onClose(); }}>テキストを追加</div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddImage(); onClose(); }}>画像を追加</div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddVideo(); onClose(); }}>動画を追加</div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddAudio(); onClose(); }}>音声を追加</div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddPsd(); onClose(); }}>PSD立ち絵を追加</div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddGroup(); onClose(); }}>グループ制御を追加</div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddWaveform}>音声波形を追加</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddShape(); onClose(); }}>{t('addShape')}</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddText(); onClose(); }}>{t('addText')}</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddImage(); onClose(); }}>{t('addImage')}</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddVideo(); onClose(); }}>{t('addVideo')}</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddAudio(); onClose(); }}>{t('addAudio')}</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddPsd(); onClose(); }}>{language === 'en' ? 'Add PSD' : 'PSD立ち絵を追加'}</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddGroup(); onClose(); }}>{language === 'en' ? 'Add Group Control' : 'グループ制御を追加'}</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddWaveform}>{language === 'en' ? 'Add Waveform' : '音声波形を追加'}</div>
         </>
       )}
       {state.type === 'object' && state.targetObjectId && (
          <>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { splitObject(); onClose(); }}>ここで分割</div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#ff6b6b' }} onClick={() => { deleteObject(state.targetObjectId!); selectObject(null); onClose(); }}>削除</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { splitObject(); onClose(); }}>{t('split')}</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { if (ensureObjectSelection(state.targetObjectId!)) copySelectedObjects(); onClose(); }}>{t('copy')}</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { if (ensureObjectSelection(state.targetObjectId!)) cutSelectedObjects(); onClose(); }}>{t('cut')}</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { if (ensureObjectSelection(state.targetObjectId!)) duplicateSelectedObjects(); onClose(); }}>{t('duplicate')}</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { pasteClipboardObjects(); onClose(); }}>{t('paste')}</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { if (ensureObjectSelection(state.targetObjectId!)) groupSelectedObjects(); onClose(); }}>{t('group')}</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { if (ensureObjectSelection(state.targetObjectId!)) ungroupSelectedObjects(); onClose(); }}>{t('ungroup')}</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#ff6b6b' }} onClick={() => {
+              if (selectedIds.includes(state.targetObjectId!)) {
+                deleteSelectedObjects();
+              } else {
+                deleteObject(state.targetObjectId!);
+              }
+              selectObject(null);
+              onClose();
+            }}>{t('delete')}</div>
          </>
       )}
     </div>

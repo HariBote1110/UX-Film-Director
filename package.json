@@ -1,21 +1,59 @@
 {
   "name": "ux-film-director",
   "private": true,
-  "version": "0.1.1-Beta-1n",
+  "version": "0.1.1-Beta-9d",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
+    "perf": "VITE_PERF_AUTORUN=1 vite",
+    "perf:agent": "VITE_PERF_AGENT_MODE=1 vite",
+    "test": "vitest run --exclude **/psdParser.perf.test.ts",
+    "test:psd-perf": "vitest run src/utils/psdParser.perf.test.ts",
     "build": "tsc && vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
     "preview": "vite preview",
     "rust:build:debug": "cargo build --manifest-path rust-backend/Cargo.toml",
     "rust:build:release": "cargo build --release --manifest-path rust-backend/Cargo.toml",
-    "rust:run": "cargo run --manifest-path rust-backend/Cargo.toml"
+    "rust:run": "cargo run --manifest-path rust-backend/Cargo.toml",
+    "swift:build:tracker": "swift build -c release --package-path macos-coreml-tracker"
+  },
+  "build": {
+    "appId": "com.uxfd.film-director",
+    "productName": "UX Film Director",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "rust-backend/target/release/",
+        "to": "rust-backend",
+        "filter": [
+          "uxfd-rust-backend"
+        ]
+      },
+      {
+        "from": "macos-coreml-tracker/.build/release/",
+        "to": "macos-coreml-tracker",
+        "filter": [
+          "uxfd-coreml-tracker"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.video"
+    }
   },
   "dependencies": {
     "ag-psd": "^29.0.0",
+    "lucide-react": "^1.8.0",
     "pixi.js": "^8.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "three": "^0.172.0",
     "zustand": "^4.5.2"
   },
   "devDependencies": {
@@ -27,6 +65,9 @@
     "typescript": "^5.2.2",
     "vite": "^5.2.0",
     "vite-plugin-electron": "^0.28.4",
-    "vite-plugin-electron-renderer": "^0.14.5"
+    "vite-plugin-electron-renderer": "^0.14.5",
+    "vite-plugin-top-level-await": "^1.6.0",
+    "vite-plugin-wasm": "^3.6.0",
+    "vitest": "^2.1.9"
   }
 }

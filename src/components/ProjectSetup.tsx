@@ -1,11 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
+import { useTranslation } from '../i18n';
 import { ProjectSettings } from '../types';
 
 const STORAGE_KEY = 'ux-film-director-last-settings';
 
-const ProjectSetup: React.FC = () => {
+interface ProjectSetupProps {
+  onOpenProject: () => void;
+  isProjectIoBusy?: boolean;
+}
+
+const ProjectSetup: React.FC<ProjectSetupProps> = ({ onOpenProject, isProjectIoBusy = false }) => {
   const initializeProject = useStore((state) => state.initializeProject);
+  const language = useStore((state) => state.language);
+  const t = useTranslation(language);
   
   const [settings, setSettings] = useState<ProjectSettings>({
     width: 1920,
@@ -41,122 +49,84 @@ const ProjectSetup: React.FC = () => {
     }
   };
 
-  const inputStyle = {
-    background: '#333',
-    border: '1px solid #555',
-    color: '#fff',
-    padding: '8px',
-    borderRadius: '4px',
-    width: '100%',
-    marginBottom: '16px'
-  };
-
-  const labelStyle = {
-    display: 'block',
-    marginBottom: '6px',
-    fontSize: '12px',
-    color: '#aaa'
-  };
-
   return (
-    <div style={{
-      height: '100vh',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      background: '#1a1a1a',
-      color: '#fff'
-    }}>
-      <div style={{
-        width: '400px',
-        padding: '30px',
-        background: '#252526',
-        borderRadius: '8px',
-        boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-        border: '1px solid #333'
-      }}>
-        <h2 style={{ marginTop: 0, marginBottom: '20px', textAlign: 'center' }}>New Project</h2>
+    <div className="setup-screen" style={{ height: 'calc(100vh - 40px)', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <div className="glass setup-card" style={{ width: '400px', padding: '32px', borderRadius: 'var(--radius-lg)' }}>
+        <h2 style={{ marginTop: 0, marginBottom: '24px', textAlign: 'center', fontSize: '20px', fontWeight: 700, letterSpacing: '-0.5px' }}>{t('createNewProject')}</h2>
 
         {hasLastSettings && (
-          <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid #333' }}>
+          <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid var(--border-subtle)' }}>
             <button 
+              className="btn-primary"
               onClick={handleContinue}
-              style={{
-                width: '100%',
-                padding: '12px',
-                background: '#094771',
-                border: 'none',
-                color: 'white',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: 'bold'
-              }}
+              disabled={isProjectIoBusy}
+              style={{ width: '100%', height: '40px' }}
             >
-              Continue with previous settings
+              {language === 'en' ? 'Continue' : '前回の設定で続ける'}
             </button>
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          <div>
-            <label style={labelStyle}>Width (px)</label>
+        <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid var(--border-subtle)' }}>
+          <button
+            onClick={onOpenProject}
+            disabled={isProjectIoBusy}
+            style={{ width: '100%', height: '40px' }}
+          >
+            {isProjectIoBusy ? t('loading') : t('openExistingProject')}
+          </button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+          <div className="input-group">
+            <label className="input-label">{t('width')} (px)</label>
             <input 
               type="number" 
               value={settings.width} 
               onChange={(e) => handleChange('width', parseInt(e.target.value))}
-              style={inputStyle}
             />
           </div>
-          <div>
-            <label style={labelStyle}>Height (px)</label>
+          <div className="input-group">
+            <label className="input-label">{t('height')} (px)</label>
             <input 
               type="number" 
               value={settings.height} 
               onChange={(e) => handleChange('height', parseInt(e.target.value))}
-              style={inputStyle}
             />
           </div>
         </div>
 
-        <label style={labelStyle}>Frame Rate (fps)</label>
-        <select 
-          value={settings.fps} 
-          onChange={(e) => handleChange('fps', parseInt(e.target.value))}
-          style={inputStyle}
-        >
-          <option value="24">24 fps</option>
-          <option value="30">30 fps</option>
-          <option value="60">60 fps</option>
-        </select>
+        <div style={{ marginBottom: '16px' }}>
+          <label className="input-label">{t('fps')}</label>
+          <select 
+            value={settings.fps} 
+            onChange={(e) => handleChange('fps', parseInt(e.target.value))}
+            style={{ width: '100%' }}
+          >
+            <option value="24">24 fps</option>
+            <option value="30">30 fps</option>
+            <option value="60">60 fps</option>
+          </select>
+        </div>
 
-        <label style={labelStyle}>Audio Sample Rate (Hz)</label>
-        <select 
-          value={settings.sampleRate} 
-          onChange={(e) => handleChange('sampleRate', parseInt(e.target.value))}
-          style={inputStyle}
-        >
-          <option value="44100">44100 Hz</option>
-          <option value="48000">48000 Hz</option>
-        </select>
+        <div style={{ marginBottom: '28px' }}>
+          <label className="input-label">{t('sampleRate')} (Hz)</label>
+          <select 
+            value={settings.sampleRate} 
+            onChange={(e) => handleChange('sampleRate', parseInt(e.target.value))}
+            style={{ width: '100%' }}
+          >
+            <option value="44100">44100 Hz</option>
+            <option value="48000">48000 Hz</option>
+          </select>
+        </div>
 
         <button 
+          className="btn-primary"
           onClick={handleCreate}
-          style={{
-            width: '100%',
-            padding: '12px',
-            background: '#333',
-            border: '1px solid #555',
-            color: 'white',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            marginTop: '10px'
-          }}
-          onMouseEnter={(e) => e.currentTarget.style.background = '#444'}
-          onMouseLeave={(e) => e.currentTarget.style.background = '#333'}
+          style={{ width: '100%', height: '44px', fontWeight: 600 }}
         >
-          Create New Project
+          {t('create')}
         </button>
       </div>
     </div>

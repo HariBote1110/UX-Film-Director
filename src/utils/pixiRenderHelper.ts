@@ -1,6 +1,9 @@
 import * as PIXI from 'pixi.js';
-import { TimelineObject, GroupControlObject, AudioVisualizationObject, AudioObject, ClippingParams } from '../types';
+import { TimelineObject, VideoObject, GroupControlObject, AudioVisualizationObject, AudioObject, ClippingParams, GradientFill, ObjectFilter } from '../types';
 import { createGradientTexture, drawShape, getCurrentViseme, renderPsdTree, cacheTextureFromUrl } from './pixiUtils';
+import { evaluateObjectPositionAtTime } from './keyframes';
+import { evaluateSubjectCropNormRectAtTime } from './subjectCropKeyframes';
+import { getEnabledObjectFiltersInOrder } from './filterStack';
 
 // ... (Shader definitions omitted for brevity - same as previous) ...
 const vertexShader = `
@@ -41,9 +44,97 @@ void main(void) {
     }
 }
 `;
+const clippingWgslShader = `
+struct GlobalFilterUniforms {
+  uInputSize: vec4<f32>,
+  uInputPixel: vec4<f32>,
+  uInputClamp: vec4<f32>,
+  uOutputFrame: vec4<f32>,
+  uGlobalFrame: vec4<f32>,
+  uOutputTexture: vec4<f32>,
+};
+
+struct ClippingUniforms {
+  uClip: vec4<f32>,
+  uAngle: f32,
+  uDimensions: vec2<f32>,
+};
+
+@group(0) @binding(0) var<uniform> gfu: GlobalFilterUniforms;
+@group(0) @binding(1) var uTexture: texture_2d<f32>;
+@group(0) @binding(2) var uSampler: sampler;
+
+@group(1) @binding(0) var<uniform> clippingUniforms: ClippingUniforms;
+
+struct VSOutput {
+  @builtin(position) position: vec4<f32>,
+  @location(0) uv: vec2<f32>,
+};
+
+fn filterVertexPosition(aPosition: vec2<f32>) -> vec4<f32> {
+  var position = aPosition * gfu.uOutputFrame.zw + gfu.uOutputFrame.xy;
+  position.x = position.x * (2.0 / gfu.uOutputTexture.x) - 1.0;
+  position.y = position.y * (2.0 * gfu.uOutputTexture.z / gfu.uOutputTexture.y) - gfu.uOutputTexture.z;
+  return vec4<f32>(position, 0.0, 1.0);
+}
+
+fn filterTextureCoord(aPosition: vec2<f32>) -> vec2<f32> {
+  return aPosition * (gfu.uOutputFrame.zw * gfu.uInputSize.zw);
+}
+
+@vertex
+fn mainVertex(
+  @location(0) aPosition: vec2<f32>
+) -> VSOutput {
+  return VSOutput(
+    filterVertexPosition(aPosition),
+    filterTextureCoord(aPosition)
+  );
+}
+
+@fragment
+fn mainFragment(
+  @location(0) uv: vec2<f32>
+) -> @location(0) vec4<f32> {
+  let dimensions = clippingUniforms.uDimensions;
+  let coord = uv * dimensions;
+  let centre = dimensions * 0.5;
+  let p = coord - centre;
+  let c = cos(-clippingUniforms.uAngle);
+  let s = sin(-clippingUniforms.uAngle);
+  let pRot = vec2<f32>(p.x * c - p.y * s, p.x * s + p.y * c);
+  let pCheck = pRot + centre;
+
+  let topLimit = clippingUniforms.uClip.x;
+  let bottomLimit = dimensions.y - clippingUniforms.uClip.y;
+  let leftLimit = clippingUniforms.uClip.z;
+  let rightLimit = dimensions.x - clippingUniforms.uClip.w;
+
+  if (
+    pCheck.y < topLimit
+    || pCheck.y > bottomLimit
+    || pCheck.x < leftLimit
+    || pCheck.x > rightLimit
+  ) {
+    discard;
+  }
+
+  return textureSample(uTexture, uSampler, uv);
+}
+`;
 class DiagonalClippingFilter extends PIXI.Filter {
-    constructor(params: ClippingParams, width: number, height: number) {
+    constructor(params: Omit<ClippingParams, 'enabled'>, width: number, height: number) {
         super({
+            gpuProgram: PIXI.GpuProgram.from({
+                vertex: {
+                    source: clippingWgslShader,
+                    entryPoint: 'mainVertex'
+                },
+                fragment: {
+                    source: clippingWgslShader,
+                    entryPoint: 'mainFragment'
+                }
+            }),
             glProgram: PIXI.GlProgram.from({
                 vertex: vertexShader,
                 fragment: fragmentShader,
@@ -57,7 +148,7 @@ class DiagonalClippingFilter extends PIXI.Filter {
             },
         } as any);
     }
-    updateParams(params: ClippingParams, width: number, height: number) {
+    updateParams(params: Omit<ClippingParams, 'enabled'>, width: number, height: number) {
         const uniforms = (this.resources as any).clippingUniforms.uniforms;
         uniforms.uClip = new Float32Array([params.top, params.bottom, params.left, params.right]);
         uniforms.uAngle = (params.angle * Math.PI) / 180;
@@ -65,15 +156,301 @@ class DiagonalClippingFilter extends PIXI.Filter {
     }
 }
 
+const groupGradientFragmentShader = `
+varying vec2 vTextureCoord;
+uniform sampler2D uSampler;
+uniform float uDirection;
+uniform float uStopA;
+uniform float uStopB;
+uniform float uIsRadial;
+uniform vec4 uColourA;
+uniform vec4 uColourB;
+
+void main(void) {
+    vec4 src = texture2D(uSampler, vTextureCoord);
+    float t;
+    if (uIsRadial > 0.5) {
+        vec2 centred = vTextureCoord - vec2(0.5, 0.5);
+        t = length(centred) * 2.0;
+    } else {
+        vec2 dir = vec2(cos(uDirection), sin(uDirection));
+        vec2 centred = vTextureCoord - vec2(0.5, 0.5);
+        t = dot(centred, dir) + 0.5;
+    }
+
+    float start = min(uStopA, uStopB);
+    float end = max(uStopA, uStopB);
+    float denom = max(0.0001, end - start);
+    float ratio = clamp((t - start) / denom, 0.0, 1.0);
+    vec4 grad = mix(uColourA, uColourB, ratio);
+
+    gl_FragColor = vec4(grad.rgb, grad.a * src.a);
+}
+`;
+
+const groupGradientWgslShader = `
+struct GlobalFilterUniforms {
+  uInputSize: vec4<f32>,
+  uInputPixel: vec4<f32>,
+  uInputClamp: vec4<f32>,
+  uOutputFrame: vec4<f32>,
+  uGlobalFrame: vec4<f32>,
+  uOutputTexture: vec4<f32>,
+};
+
+struct GroupGradientUniforms {
+  uDirection: f32,
+  uStopA: f32,
+  uStopB: f32,
+  uIsRadial: f32,
+  uColourA: vec4<f32>,
+  uColourB: vec4<f32>,
+};
+
+@group(0) @binding(0) var<uniform> gfu: GlobalFilterUniforms;
+@group(0) @binding(1) var uTexture: texture_2d<f32>;
+@group(0) @binding(2) var uSampler: sampler;
+
+@group(1) @binding(0) var<uniform> groupGradientUniforms: GroupGradientUniforms;
+
+struct VSOutput {
+  @builtin(position) position: vec4<f32>,
+  @location(0) uv: vec2<f32>,
+};
+
+fn filterVertexPosition(aPosition: vec2<f32>) -> vec4<f32> {
+  var position = aPosition * gfu.uOutputFrame.zw + gfu.uOutputFrame.xy;
+  position.x = position.x * (2.0 / gfu.uOutputTexture.x) - 1.0;
+  position.y = position.y * (2.0 * gfu.uOutputTexture.z / gfu.uOutputTexture.y) - gfu.uOutputTexture.z;
+  return vec4<f32>(position, 0.0, 1.0);
+}
+
+fn filterTextureCoord(aPosition: vec2<f32>) -> vec2<f32> {
+  return aPosition * (gfu.uOutputFrame.zw * gfu.uInputSize.zw);
+}
+
+@vertex
+fn mainVertex(
+  @location(0) aPosition: vec2<f32>
+) -> VSOutput {
+  return VSOutput(
+    filterVertexPosition(aPosition),
+    filterTextureCoord(aPosition)
+  );
+}
+
+@fragment
+fn mainFragment(
+  @location(0) uv: vec2<f32>,
+  @builtin(position) position: vec4<f32>
+) -> @location(0) vec4<f32> {
+  let src = textureSample(uTexture, uSampler, uv);
+  var t: f32;
+
+  if (groupGradientUniforms.uIsRadial > 0.5) {
+    let centred = uv - vec2<f32>(0.5, 0.5);
+    t = length(centred) * 2.0;
+  } else {
+    let dir = vec2<f32>(cos(groupGradientUniforms.uDirection), sin(groupGradientUniforms.uDirection));
+    let centred = uv - vec2<f32>(0.5, 0.5);
+    t = dot(centred, dir) + 0.5;
+  }
+
+  let start = min(groupGradientUniforms.uStopA, groupGradientUniforms.uStopB);
+  let end = max(groupGradientUniforms.uStopA, groupGradientUniforms.uStopB);
+  let denom = max(0.0001, end - start);
+  let ratio = clamp((t - start) / denom, 0.0, 1.0);
+  let grad = mix(groupGradientUniforms.uColourA, groupGradientUniforms.uColourB, ratio);
+
+  return vec4<f32>(grad.rgb, grad.a * src.a);
+}
+`;
+
+const normaliseGradientForGroupFilter = (gradient: GradientFill) => {
+    let colours = Array.isArray(gradient.colours)
+        ? gradient.colours.filter((entry): entry is string => typeof entry === 'string' && entry.trim() !== '')
+        : [];
+    if (colours.length === 0) colours = ['#ffffff', '#000000'];
+    if (colours.length === 1) colours = [colours[0], colours[0]];
+
+    const rawStops = Array.isArray(gradient.stops)
+        ? gradient.stops.filter((entry): entry is number => typeof entry === 'number' && Number.isFinite(entry))
+        : [];
+    const stops = colours.map((_, index) => {
+        const fallback = colours.length === 1 ? 0 : index / (colours.length - 1);
+        const value = rawStops[index];
+        return Math.max(0, Math.min(1, typeof value === 'number' ? value : fallback));
+    });
+
+    return {
+        type: gradient.type === 'radial' ? 'radial' as const : 'linear' as const,
+        direction: Number.isFinite(gradient.direction) ? gradient.direction : 0,
+        colourA: colours[0],
+        colourB: colours[1],
+        stopA: stops[0],
+        stopB: stops[1]
+    };
+};
+
+const parseHexColour = (input: string): Float32Array => {
+    const value = input.trim();
+    const hex = value.startsWith('#') ? value.slice(1) : value;
+
+    const parse = (raw: string): number => {
+        const next = Number.parseInt(raw, 16);
+        if (!Number.isFinite(next)) return 0;
+        return Math.max(0, Math.min(255, next));
+    };
+
+    if (hex.length === 3 || hex.length === 4) {
+        const r = parse(hex[0] + hex[0]);
+        const g = parse(hex[1] + hex[1]);
+        const b = parse(hex[2] + hex[2]);
+        const a = hex.length === 4 ? parse(hex[3] + hex[3]) : 255;
+        return new Float32Array([r / 255, g / 255, b / 255, a / 255]);
+    }
+
+    if (hex.length === 6 || hex.length === 8) {
+        const r = parse(hex.slice(0, 2));
+        const g = parse(hex.slice(2, 4));
+        const b = parse(hex.slice(4, 6));
+        const a = hex.length === 8 ? parse(hex.slice(6, 8)) : 255;
+        return new Float32Array([r / 255, g / 255, b / 255, a / 255]);
+    }
+
+    return new Float32Array([1, 1, 1, 1]);
+};
+
+class GroupGradientFilter extends PIXI.Filter {
+    constructor(gradient: GradientFill) {
+        super({
+            gpuProgram: PIXI.GpuProgram.from({
+                vertex: {
+                    source: groupGradientWgslShader,
+                    entryPoint: 'mainVertex'
+                },
+                fragment: {
+                    source: groupGradientWgslShader,
+                    entryPoint: 'mainFragment'
+                }
+            }),
+            glProgram: PIXI.GlProgram.from({
+                vertex: vertexShader,
+                fragment: groupGradientFragmentShader
+            }),
+            resources: {
+                groupGradientUniforms: {
+                    uDirection: { value: 0, type: 'f32' },
+                    uStopA: { value: 0, type: 'f32' },
+                    uStopB: { value: 1, type: 'f32' },
+                    uIsRadial: { value: 0, type: 'f32' },
+                    uColourA: { value: new Float32Array([1, 1, 1, 1]), type: 'vec4<f32>' },
+                    uColourB: { value: new Float32Array([0, 0, 0, 1]), type: 'vec4<f32>' }
+                }
+            }
+        } as any);
+        this.updateGradient(gradient);
+    }
+
+    updateGradient(gradient: GradientFill) {
+        const uniforms = (this.resources as any).groupGradientUniforms.uniforms;
+        const normalised = normaliseGradientForGroupFilter(gradient);
+        uniforms.uDirection = (normalised.direction * Math.PI) / 180;
+        uniforms.uStopA = normalised.stopA;
+        uniforms.uStopB = normalised.stopB;
+        uniforms.uIsRadial = normalised.type === 'radial' ? 1 : 0;
+        uniforms.uColourA = parseHexColour(normalised.colourA);
+        uniforms.uColourB = parseHexColour(normalised.colourB);
+    }
+}
+
+export interface VideoFrameTextureState {
+    canvas: HTMLCanvasElement;
+    context: CanvasRenderingContext2D;
+    texture: PIXI.Texture;
+    width: number;
+    height: number;
+}
+
+const ensureVideoFrameTextureState = (
+    videoId: string,
+    video: HTMLVideoElement,
+    videoFrameTextures: Map<string, VideoFrameTextureState>
+): VideoFrameTextureState | null => {
+    const width = Math.max(1, Math.floor(video.videoWidth));
+    const height = Math.max(1, Math.floor(video.videoHeight));
+
+    const existing = videoFrameTextures.get(videoId);
+    if (existing && existing.width === width && existing.height === height) {
+        return existing;
+    }
+
+    if (existing) {
+        existing.texture.destroy(true);
+        videoFrameTextures.delete(videoId);
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) return null;
+
+    const texture = PIXI.Texture.from(canvas);
+    const next: VideoFrameTextureState = {
+        canvas,
+        context,
+        texture,
+        width,
+        height
+    };
+    videoFrameTextures.set(videoId, next);
+    return next;
+};
+
+const drawVideoFrameToTexture = (state: VideoFrameTextureState, video: HTMLVideoElement): boolean => {
+    try {
+        state.context.clearRect(0, 0, state.width, state.height);
+        state.context.drawImage(video, 0, 0, state.width, state.height);
+        const source = (state.texture as any).source;
+        if (source && typeof source.update === 'function') {
+            source.update();
+        } else if (typeof (state.texture as any).update === 'function') {
+            (state.texture as any).update();
+        }
+        return true;
+    } catch {
+        return false;
+    }
+};
+
+export const applyGroupGradientEffect = (container: PIXI.Container, gradient: GradientFill | undefined) => {
+    const currentFilters = container.filters ?? [];
+    const otherFilters = currentFilters.filter((filter) => !(filter instanceof GroupGradientFilter));
+    if (!gradient || !gradient.enabled) {
+        container.filters = otherFilters.length > 0 ? otherFilters : null;
+        return;
+    }
+
+    const existing = currentFilters.find((filter) => filter instanceof GroupGradientFilter) as GroupGradientFilter | undefined;
+    if (existing) {
+        existing.updateGradient(gradient);
+        container.filters = [...otherFilters, existing];
+        return;
+    }
+
+    container.filters = [...otherFilters, new GroupGradientFilter(gradient)];
+};
+
 // ... (Helper functions: getGroupTransforms, getLipSyncViseme, getVibrationOffset, drawAudioWaveform are same as previous) ...
 export const getGroupTransforms = (obj: TimelineObject, time: number, allObjects: TimelineObject[]) => {
     let x = 0, y = 0, rotation = 0, scaleX = 1, scaleY = 1, alpha = 1;
     const groups = allObjects.filter(o => o.type === 'group_control' && o.layer < obj.layer && time >= o.startTime && time < o.startTime + o.duration) as GroupControlObject[];
     groups.forEach(group => {
         if (group.targetLayerCount === 0 || (obj.layer <= group.layer + group.targetLayerCount)) {
-            const progress = Math.max(0, Math.min(1, (time - group.startTime) / group.duration));
-            const gx = group.enableAnimation ? group.x + (group.endX - group.x) * progress : group.x;
-            const gy = group.enableAnimation ? group.y + (group.endY - group.y) * progress : group.y;
+            const position = evaluateObjectPositionAtTime(group, time);
+            const gx = position.x;
+            const gy = position.y;
             x += gx; y += gy; rotation += group.rotation || 0;
             scaleX *= (group.scaleX ?? 1); scaleY *= (group.scaleY ?? 1); alpha *= (group.opacity ?? 1);
         }
@@ -90,15 +467,25 @@ export const getLipSyncViseme = (obj: TimelineObject, time: number, currentObjec
     }
     return audioSource ? getCurrentViseme(audioSource, time) : null;
 };
+
+const isVibrationFilter = (filter: ObjectFilter): filter is Extract<ObjectFilter, { type: 'vibration' }> => {
+    return filter.type === 'vibration';
+};
+
 export const getVibrationOffset = (obj: TimelineObject, time: number) => {
-    if (!obj.vibration || !obj.vibration.enabled) return { x: 0, y: 0 };
-    const { strength, speed } = obj.vibration;
-    if (strength === 0) return { x: 0, y: 0 };
-    const t = time * speed;
-    return { 
-        x: Math.sin(t * 12.9898) * strength + Math.cos(t * 78.233) * strength * 0.5, 
-        y: Math.cos(t * 12.9898) * strength + Math.sin(t * 78.233) * strength * 0.5 
-    };
+    const vibrationFilters = getEnabledObjectFiltersInOrder(obj).filter(isVibrationFilter);
+    if (vibrationFilters.length === 0) return { x: 0, y: 0 };
+
+    return vibrationFilters.reduce((acc, filter, index) => {
+        const { strength, speed } = filter.params;
+        if (strength === 0) return acc;
+        const phase = index * 1.618;
+        const t = time * speed + phase;
+        return {
+            x: acc.x + (Math.sin(t * 12.9898) * strength + Math.cos(t * 78.233) * strength * 0.5),
+            y: acc.y + (Math.cos(t * 12.9898) * strength + Math.sin(t * 78.233) * strength * 0.5)
+        };
+    }, { x: 0, y: 0 });
 };
 const drawAudioWaveform = (graphics: PIXI.Graphics, obj: AudioVisualizationObject, time: number, audioBuffers: Map<string, AudioBuffer>, allObjects: TimelineObject[]) => {
     graphics.clear();
@@ -127,20 +514,112 @@ const drawAudioWaveform = (graphics: PIXI.Graphics, obj: AudioVisualizationObjec
 };
 
 export const applyObjectEffects = (container: PIXI.Container, obj: TimelineObject) => {
-    const filters: PIXI.Filter[] = [];
-    if (obj.colorCorrection && obj.colorCorrection.enabled) {
-        const matrix = new PIXI.ColorMatrixFilter();
-        const { brightness, contrast, saturation, hue } = obj.colorCorrection;
-        matrix.hue(hue, false); matrix.saturate(saturation, true); matrix.contrast(contrast, true); matrix.brightness(brightness, true);
-        filters.push(matrix);
+    const enabledFilters = getEnabledObjectFiltersInOrder(obj);
+    const reusableClippingFilters = (container.filters ?? []).filter((filter): filter is DiagonalClippingFilter => {
+        return filter instanceof DiagonalClippingFilter;
+    });
+    const localBounds = container.getLocalBounds();
+    const clippingWidth = Math.max(1, Number.isFinite(localBounds.width) && localBounds.width > 0
+        ? localBounds.width
+        : ((obj as any).width || 100));
+    const clippingHeight = Math.max(1, Number.isFinite(localBounds.height) && localBounds.height > 0
+        ? localBounds.height
+        : ((obj as any).height || 100));
+    let clippingCursor = 0;
+    const nextPixiFilters: PIXI.Filter[] = [];
+
+    enabledFilters.forEach((filter) => {
+        if (filter.type === 'color_correction') {
+            const matrix = new PIXI.ColorMatrixFilter();
+            const { brightness, contrast, saturation, hue } = filter.params;
+            matrix.hue(hue, false);
+            matrix.saturate(saturation, true);
+            matrix.contrast(contrast, true);
+            matrix.brightness(brightness, true);
+            nextPixiFilters.push(matrix);
+            return;
+        }
+
+        if (filter.type === 'clipping') {
+            const existingFilter = reusableClippingFilters[clippingCursor];
+            if (existingFilter) {
+                existingFilter.updateParams(filter.params, clippingWidth, clippingHeight);
+                nextPixiFilters.push(existingFilter);
+            } else {
+                nextPixiFilters.push(new DiagonalClippingFilter(filter.params, clippingWidth, clippingHeight));
+            }
+            clippingCursor += 1;
+            return;
+        }
+
+        if (filter.type === 'blur') {
+            const strength = Math.max(0, filter.params.strength);
+            const quality = Math.max(1, Math.min(4, Math.round(filter.params.quality)));
+            if (strength > 0.05) {
+                nextPixiFilters.push(new PIXI.BlurFilter({
+                    strength,
+                    quality
+                }));
+            }
+        }
+    });
+
+    container.filters = nextPixiFilters.length > 0 ? nextPixiFilters : null;
+};
+
+const applyVideoSubjectCropMask = (
+  container: PIXI.Container,
+  videoObj: VideoObject,
+  sprite: PIXI.Sprite | undefined,
+  timelineTime: number
+) => {
+  const existing = container.children.find((child) => child.label === 'subject-crop-mask') as PIXI.Graphics | undefined;
+
+  if (
+    !videoObj.subjectCropEnabled
+    || !videoObj.subjectCropKeyframes
+    || videoObj.subjectCropKeyframes.length === 0
+  ) {
+    if (sprite) sprite.mask = null;
+    if (existing) {
+      container.removeChild(existing);
+      existing.destroy();
     }
-    if (obj.customClipping && obj.customClipping.enabled) {
-        const w = (obj as any).width || 100; const h = (obj as any).height || 100;
-        let existingFilter = container.filters?.find(f => f instanceof DiagonalClippingFilter) as DiagonalClippingFilter | undefined;
-        if (existingFilter) { existingFilter.updateParams(obj.customClipping, w, h); filters.push(existingFilter); }
-        else { filters.push(new DiagonalClippingFilter(obj.customClipping, w, h)); }
+    return;
+  }
+
+  if (!sprite) {
+    if (existing) {
+      container.removeChild(existing);
+      existing.destroy();
     }
-    container.filters = filters.length > 0 ? filters : null;
+    return;
+  }
+
+  const crop = evaluateSubjectCropNormRectAtTime(videoObj, timelineTime);
+  if (!crop || crop.width <= 1e-6 || crop.height <= 1e-6) {
+    sprite.mask = null;
+    if (existing) {
+      container.removeChild(existing);
+      existing.destroy();
+    }
+    return;
+  }
+
+  let maskG = existing;
+  if (!maskG) {
+    maskG = new PIXI.Graphics();
+    maskG.label = 'subject-crop-mask';
+    container.addChild(maskG);
+  }
+
+  const gx = crop.x * videoObj.width;
+  const gy = crop.y * videoObj.height;
+  const gw = Math.max(1, crop.width * videoObj.width);
+  const gh = Math.max(1, crop.height * videoObj.height);
+  maskG.clear();
+  maskG.rect(gx, gy, gw, gh).fill({ color: 0xffffff });
+  sprite.mask = maskG;
 };
 
 export const updatePixiContent = (
@@ -151,6 +630,7 @@ export const updatePixiContent = (
         textureCache: Map<string, PIXI.Texture>;
         loadingUrls: Set<string>;
         videoElements: Map<string, HTMLVideoElement>;
+        videoFrameTextures: Map<string, VideoFrameTextureState>;
         audioBuffers?: Map<string, AudioBuffer>; 
         allObjects?: TimelineObject[];           
         isExporting: boolean;
@@ -158,7 +638,7 @@ export const updatePixiContent = (
         setRenderTick: React.Dispatch<React.SetStateAction<number>>;
     }
 ) => {
-    const { textureCache, loadingUrls, videoElements, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick } = resources;
+    const { textureCache, loadingUrls, videoElements, videoFrameTextures, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick } = resources;
     let content = container.children[0] as (PIXI.Sprite | PIXI.Graphics | PIXI.Text | PIXI.Container | undefined);
     
     // Check for recreation
@@ -253,15 +733,31 @@ export const updatePixiContent = (
             video.addEventListener('canplay', () => setRenderTick(p => p+1), { once: true });
             videoElements.set(obj.id, video);
         }
-        
-        if (video.readyState >= 2 && video.videoWidth > 0) {
-            if (!sprite) {
-                const texture = PIXI.Texture.from(video); // Pixi v8 handles VideoSource
-                sprite = new PIXI.Sprite(texture);
-                container.addChild(sprite);
+
+        if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+            const frameState = ensureVideoFrameTextureState(obj.id, video, videoFrameTextures);
+            const didDrawFrame = frameState ? drawVideoFrameToTexture(frameState, video) : false;
+
+            if (didDrawFrame && frameState) {
+                if (!sprite) {
+                    sprite = new PIXI.Sprite(frameState.texture);
+                    container.addChild(sprite);
+                } else if (sprite.texture !== frameState.texture) {
+                    sprite.texture = frameState.texture;
+                }
+                sprite.width = obj.width;
+                sprite.height = obj.height;
+                content = sprite;
             }
-            sprite.width = obj.width; sprite.height = obj.height;
-            content = sprite;
+
+            if (!content) {
+                applyVideoSubjectCropMask(container, obj as VideoObject, undefined, time);
+                const placeholder = new PIXI.Graphics();
+                placeholder.rect(0, 0, obj.width, obj.height);
+                placeholder.stroke({ width: 2, color: 0x0000ff });
+                container.addChild(placeholder);
+                return placeholder;
+            }
 
             // --- Optimized Sync Logic ---
             const offset = obj.offset || 0;
@@ -275,7 +771,6 @@ export const updatePixiContent = (
                         // Allow 0.5s drift to avoid frequent seeking overhead
                         if (Math.abs(video.currentTime - videoLocalTime) > 0.5) video.currentTime = videoLocalTime;
                     }
-                    // REMOVED: sprite.texture.source.update(); -> Let Pixi/WebGPU handle it automatically
                 } else {
                     if (!video.paused) video.pause();
                     if (Math.abs(video.currentTime - videoLocalTime) > 0.05) video.currentTime = videoLocalTime;
@@ -285,10 +780,15 @@ export const updatePixiContent = (
             }
         } else {
             if (!sprite) {
+                applyVideoSubjectCropMask(container, obj as VideoObject, undefined, time);
                 const placeholder = new PIXI.Graphics(); placeholder.rect(0, 0, obj.width, obj.height); placeholder.stroke({ width: 2, color: 0x0000ff }); container.addChild(placeholder); return placeholder;
             }
             content = sprite;
         }
+
+        const videoObj = obj as VideoObject;
+        const spriteForMask = content instanceof PIXI.Sprite ? content : undefined;
+        applyVideoSubjectCropMask(container, videoObj, spriteForMask, time);
 
     } else if (obj.type === 'audio_visualization') {
         let graphics = content as PIXI.Graphics || new PIXI.Graphics();

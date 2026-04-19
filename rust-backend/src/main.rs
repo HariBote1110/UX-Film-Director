@@ -1,8 +1,12 @@
+mod psd_fast;
+
 use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::fs;
 use std::io::{self, BufRead, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Deserialize)]
 struct RpcRequest {
@@ -34,9 +38,15 @@ struct ExportSession {
     output_path: String,
 }
 
+/// Shared state for the in-progress PSD pixel blob write.
+/// `None` = no write pending; `Some(Ok(path))` = done; `Some(Err(msg))` = failed.
+type BlobWriteResult = Arc<Mutex<Option<Result<String, String>>>>;
+
 #[derive(Default)]
 struct BackendState {
     export_session: Option<ExportSession>,
+    /// Background blob writer: set by psd.parse, drained by psd.await_blob.
+    psd_blob_result: Option<BlobWriteResult>,
 }
 
 #[derive(Debug, Serialize)]
@@ -122,6 +132,12 @@ struct MediaProbeParams {
     ffprobe_path: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PsdParseParams {
+    file_path: String,
+}
+
 fn handle_request(request: RpcRequest, state: &mut BackendState) -> RpcResponse {
     match request.method.as_str() {
         "health" => {
@@ -145,6 +161,8 @@ fn handle_request(request: RpcRequest, state: &mut BackendState) -> RpcResponse 
             error: None,
         },
         "media.probe" => handle_media_probe(request.id, request.params),
+        "psd.parse" => handle_psd_parse(request.id, request.params, state),
+        "psd.await_blob" => handle_psd_await_blob(request.id, state),
         "export.start" => handle_export_start(request.id, request.params, state),
         "export.write_frame" => handle_export_write_frame(request.id, request.params, state),
         "export.end" => handle_export_end(request.id, state),
@@ -254,6 +272,147 @@ fn handle_media_probe(id: u64, params: Value) -> RpcResponse {
             "ffprobePath": ffprobe_path,
         })),
         error: None,
+    }
+}
+
+fn handle_psd_parse(id: u64, params: Value, state: &mut BackendState) -> RpcResponse {
+    let parsed = match serde_json::from_value::<PsdParseParams>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(id, -32602, &format!("Invalid psd.parse params: {error}"));
+        }
+    };
+
+    if parsed.file_path.trim().is_empty() {
+        return response_error(id, -32602, "filePath must not be empty");
+    }
+
+    let bytes = match fs::read(&parsed.file_path) {
+        Ok(b) => b,
+        Err(e) => return response_error(id, -32020, &format!("Failed to read PSD file: {e}")),
+    };
+
+    let result = match psd_fast::parse_psd_fast(&bytes) {
+        Ok(r) => r,
+        Err(e) => return response_error(id, -32021, &format!("Failed to parse PSD: {e}")),
+    };
+
+    // Determine blob path (written by background thread)
+    let tmp_path = {
+        let pid = std::process::id();
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        std::env::temp_dir().join(format!("uxfd-psd-{pid}-{ts}.raw"))
+    };
+    let tmp_path_str = tmp_path.to_string_lossy().into_owned();
+
+    // Build metadata nodes and concatenate blob in memory
+    let mut blob: Vec<u8> = Vec::new();
+    let mut nodes: Vec<Value> = Vec::new();
+
+    for (idx, layer) in result.layers.iter().enumerate() {
+        let pixel_offset: Option<u64>;
+        let pixel_byte_len: u64;
+        let (w, h);
+
+        if let Some(rgba) = &layer.rgba {
+            pixel_offset = Some(blob.len() as u64);
+            pixel_byte_len = rgba.len() as u64;
+            blob.extend_from_slice(rgba);
+            w = layer.width;
+            h = layer.height;
+        } else {
+            pixel_offset = None;
+            pixel_byte_len = 0;
+            w = 0;
+            h = 0;
+        }
+
+        let psd_id: Value = if layer.is_group {
+            layer.own_group_id.map(|v| json!(v)).unwrap_or(json!(idx))
+        } else {
+            json!(idx)
+        };
+
+        let parent_psd_id: Value = layer
+            .parent_group_id
+            .map(|v| json!(v))
+            .unwrap_or(Value::Null);
+
+        nodes.push(json!({
+            "psdId": psd_id,
+            "parentPsdId": parent_psd_id,
+            "isGroup": layer.is_group,
+            "name": layer.name,
+            "width": w,
+            "height": h,
+            "top": layer.top,
+            "left": layer.left,
+            "defaultVisible": layer.visible,
+            "order": idx,
+            "pixelOffset": pixel_offset,
+            "pixelByteLen": pixel_byte_len,
+        }));
+    }
+
+    // Spawn background thread to write the pixel blob to disk.
+    // The main thread returns the metadata JSON immediately (before the write completes).
+    // Electron calls psd.await_blob to wait for the write to finish.
+    let blob_result: BlobWriteResult = Arc::new(Mutex::new(None));
+    let blob_result_clone = Arc::clone(&blob_result);
+    let write_path = tmp_path.clone();
+    std::thread::spawn(move || {
+        let outcome = fs::write(&write_path, &blob)
+            .map(|_| write_path.to_string_lossy().into_owned())
+            .map_err(|e| e.to_string());
+        *blob_result_clone.lock().unwrap() = Some(outcome);
+    });
+
+    state.psd_blob_result = Some(blob_result);
+
+    RpcResponse {
+        id,
+        ok: true,
+        result: Some(json!({
+            "tmpFile": tmp_path_str,
+            "width": result.width,
+            "height": result.height,
+            "nodes": nodes,
+        })),
+        error: None,
+    }
+}
+
+/// Block until the background blob writer (started by psd.parse) finishes,
+/// then return the blob path or an error.
+fn handle_psd_await_blob(id: u64, state: &mut BackendState) -> RpcResponse {
+    let shared = match state.psd_blob_result.take() {
+        Some(s) => s,
+        None => return response_error(id, -32030, "No pending PSD blob write"),
+    };
+
+    // Spin-wait (the blob should finish in <500ms; polling avoids blocking stdin).
+    loop {
+        {
+            let guard = shared.lock().unwrap();
+            if guard.is_some() {
+                break;
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+
+    let result = shared.lock().unwrap().take().unwrap();
+    match result {
+        Ok(path) => RpcResponse {
+            id,
+            ok: true,
+            result: Some(json!({ "blobPath": path })),
+            error: None,
+        },
+        Err(e) => response_error(id, -32031, &format!("Blob write failed: {e}")),
     }
 }
 

@@ -7,18 +7,30 @@ export const useAppLogic = () => {
     isPlaying, 
     togglePlay, 
     advanceTime, 
-    selectedId, 
-    deleteObject, 
-    selectObject,
+    selectedIds,
+    deleteSelectedObjects,
+    clearSelection,
+    copySelectedObjects,
+    cutSelectedObjects,
+    pasteClipboardObjects,
+    duplicateSelectedObjects,
+    groupSelectedObjects,
+    ungroupSelectedObjects,
     undo,
     redo
   } = useStore((state) => ({
     isPlaying: state.isPlaying,
     togglePlay: state.togglePlay,
     advanceTime: state.advanceTime,
-    selectedId: state.selectedId,
-    deleteObject: state.deleteObject,
-    selectObject: state.selectObject,
+    selectedIds: state.selectedIds,
+    deleteSelectedObjects: state.deleteSelectedObjects,
+    clearSelection: state.clearSelection,
+    copySelectedObjects: state.copySelectedObjects,
+    cutSelectedObjects: state.cutSelectedObjects,
+    pasteClipboardObjects: state.pasteClipboardObjects,
+    duplicateSelectedObjects: state.duplicateSelectedObjects,
+    groupSelectedObjects: state.groupSelectedObjects,
+    ungroupSelectedObjects: state.ungroupSelectedObjects,
     undo: state.undo,
     redo: state.redo,
   }), shallow);
@@ -75,6 +87,35 @@ export const useAppLogic = () => {
           redo();
           return;
       }
+      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyC') {
+          e.preventDefault();
+          copySelectedObjects();
+          return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyX') {
+          e.preventDefault();
+          cutSelectedObjects();
+          return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyV') {
+          e.preventDefault();
+          pasteClipboardObjects();
+          return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyD') {
+          e.preventDefault();
+          duplicateSelectedObjects();
+          return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyG') {
+          e.preventDefault();
+          if (e.shiftKey) {
+            ungroupSelectedObjects();
+          } else {
+            groupSelectedObjects();
+          }
+          return;
+      }
 
       switch (e.code) {
         case 'Space':
@@ -83,17 +124,30 @@ export const useAppLogic = () => {
           break;
         case 'Delete':
         case 'Backspace':
-          if (selectedId) {
-            deleteObject(selectedId);
+          if (selectedIds.length > 0) {
+            deleteSelectedObjects();
           }
           break;
         case 'Escape':
-          selectObject(null);
+          clearSelection();
           break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedId, togglePlay, deleteObject, selectObject, undo, redo]);
+  }, [
+    selectedIds,
+    togglePlay,
+    deleteSelectedObjects,
+    clearSelection,
+    copySelectedObjects,
+    cutSelectedObjects,
+    pasteClipboardObjects,
+    duplicateSelectedObjects,
+    groupSelectedObjects,
+    ungroupSelectedObjects,
+    undo,
+    redo
+  ]);
 };
