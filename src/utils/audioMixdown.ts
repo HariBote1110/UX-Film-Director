@@ -178,3 +178,66 @@ export const buildExportAudioMixWav = async (
   const rendered = await offline.startRendering();
   return encodeWavBuffer(rendered);
 };
+
+// WAV エンコードを行わず AudioBuffer をそのまま返す（WebCodecs AudioEncoder 向け）
+export const buildExportAudioBuffer = async (
+  objects: TimelineObject[],
+  exportDuration: number,
+  sampleRate: number
+): Promise<AudioBuffer | null> => {
+  const candidates = objects.filter((obj): obj is MediaWithAudio => {
+    if (obj.type !== 'audio' && obj.type !== 'video') return false;
+    if (obj.muted) return false;
+    if ((obj.volume ?? 1) <= 0) return false;
+    return typeof obj.src === 'string' && obj.src.trim() !== '';
+  });
+  if (candidates.length === 0) return null;
+
+  let decodeContext: AudioContext | null = null;
+  try { decodeContext = createAudioContext(sampleRate); } catch { return null; }
+
+  const decodedItems: Array<{ media: MediaWithAudio; buffer: AudioBuffer }> = [];
+  try {
+    for (const media of candidates) {
+      const bytes = await readMediaBytes(media);
+      if (!bytes || bytes.byteLength === 0) continue;
+      try {
+        const decoded = await decodeContext.decodeAudioData(bytes.slice(0));
+        if (decoded.length === 0) continue;
+        decodedItems.push({ media, buffer: decoded });
+      } catch { /* ignore undecoadable */ }
+    }
+  } finally {
+    decodeContext.close();
+  }
+
+  if (decodedItems.length === 0) return null;
+
+  const totalDuration = Math.min(
+    exportDuration,
+    Math.max(...decodedItems.map(({ media, buffer }) => {
+      const offset = Math.max(0, media.offset || 0);
+      const available = Math.max(0, buffer.duration - offset);
+      const playback = Math.max(0, Math.min(media.duration, available));
+      return media.startTime + playback;
+    }))
+  );
+  const length = Math.ceil(totalDuration * sampleRate);
+  const offline = createOfflineAudioContext(2, length, sampleRate);
+
+  decodedItems.forEach(({ media, buffer }) => {
+    const offset = Math.max(0, media.offset || 0);
+    const available = Math.max(0, buffer.duration - offset);
+    const clipDuration = Math.max(0, Math.min(media.duration, available, totalDuration - media.startTime));
+    if (clipDuration <= 0) return;
+    const source = offline.createBufferSource();
+    source.buffer = buffer;
+    const gain = offline.createGain();
+    gain.gain.value = Math.max(0, Math.min(4, media.volume ?? 1));
+    source.connect(gain);
+    gain.connect(offline.destination);
+    source.start(Math.max(0, media.startTime), offset, clipDuration);
+  });
+
+  return await offline.startRendering();
+};

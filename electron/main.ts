@@ -767,6 +767,29 @@ app.whenReady().then(() => {
     }
   });
 
+  // ── WebCodecs エクスポート用ハンドラ（Phase 3）────────────────────────────
+  // ファイル保存先ダイアログを表示してパスだけを返す
+  ipcMain.handle('show-save-dialog', async (_event, options: { defaultPath?: string; filters?: Electron.FileFilter[] }) => {
+    const { filePath } = await dialog.showSaveDialog({
+      title: 'Export Video',
+      defaultPath: options.defaultPath ?? 'output.mp4',
+      filters: options.filters ?? [{ name: 'MP4 Video', extensions: ['mp4'] }],
+    });
+    return filePath ?? null;
+  });
+
+  // JS 側で mp4-muxer が生成した ArrayBuffer をまとめてファイルに書き込む
+  ipcMain.handle('save-buffer-to-file', async (_event, payload: { filePath?: string; buffer?: ArrayBuffer }) => {
+    const filePath = typeof payload?.filePath === 'string' ? payload.filePath.trim() : '';
+    if (!filePath || !payload?.buffer) return { success: false, error: 'filePath または buffer が未指定' };
+    try {
+      await fs.promises.writeFile(filePath, Buffer.from(payload.buffer));
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
   // ── PSD parsing via Rust backend ─────────────────────────────────────────
   // Two-phase protocol:
   //   Phase 1: psd.parse  → Rust decompresses PSD, returns metadata JSON
