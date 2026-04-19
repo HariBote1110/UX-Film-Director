@@ -105,12 +105,15 @@ export const useProjectExport = (
           'avc1.42001f', // H.264 Baseline Level 3.1
           'avc1.420034', // H.264 Baseline Level 5.2
         ];
+        // H.264 は幅・高さが偶数でなければならない
+        const encWidth = width % 2 === 0 ? width : width - 1;
+        const encHeight = height % 2 === 0 ? height : height - 1;
         const baseConfig = {
-          width,
-          height,
+          width: encWidth,
+          height: encHeight,
           bitrate: 10_000_000,
           framerate: fps,
-          hardwareAcceleration: 'prefer-hardware' as VideoHardwareAcceleration,
+          hardwareAcceleration: 'prefer-hardware' as HardwareAcceleration,
         };
         let videoConfig: VideoEncoderConfig | null = null;
         for (const codec of codecCandidates) {
@@ -139,16 +142,17 @@ export const useProjectExport = (
         const audioBuffer = await buildExportAudioBuffer(exportObjects, exportDuration, sampleRate);
         const muxer = new Muxer({
           target,
-          video: { codec: 'avc', width, height },
+          video: { codec: 'avc', width: encWidth, height: encHeight },
           ...(audioBuffer ? { audio: { codec: 'aac', sampleRate, numberOfChannels: audioBuffer.numberOfChannels } } : {}),
           fastStart: 'in-memory',
         });
 
-        // VideoEncoder セットアップ
-        let encodeError: Error | null = null;
+        // VideoEncoder セットアップ（エラーは Promise で即時伝播）
+        let rejectEncoding!: (e: Error) => void;
+        const encodingError = new Promise<never>((_, reject) => { rejectEncoding = reject; });
         const videoEncoder = new VideoEncoder({
           output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
-          error: (e) => { encodeError = e; },
+          error: (e) => rejectEncoding(e),
         });
         videoEncoder.configure(videoConfig);
 
@@ -157,7 +161,7 @@ export const useProjectExport = (
 
         // フレームレンダリングループ
         for (let i = 0; i < totalFrames; i++) {
-          if (cancelled || encodeError) break;
+          if (cancelled) break;
 
           const t = i * dt;
           if (i % Math.max(1, Math.floor(fps / 2)) === 0) setTime(t);
@@ -185,21 +189,26 @@ export const useProjectExport = (
           renderScene(t, exportObjects);
           const canvas = getExportCanvas?.() ?? app.canvas;
           const timestamp = Math.round(i * 1_000_000 / fps);
-          const frame = new VideoFrame(canvas as HTMLCanvasElement, { timestamp });
+
+          // OffscreenCanvas / HTMLCanvasElement 両方に対応するため ImageBitmap を経由
+          const bitmap = await createImageBitmap(canvas, 0, 0, encWidth, encHeight);
+          const frame = new VideoFrame(bitmap, { timestamp });
+          bitmap.close();
           // 2 秒ごとにキーフレーム
           videoEncoder.encode(frame, { keyFrame: i % (fps * 2) === 0 });
           frame.close();
 
           // エンコードキューが溜まりすぎないように間引き待機
           if (videoEncoder.encodeQueueSize > 10) {
-            await new Promise(r => setTimeout(r, 0));
+            await Promise.race([
+              new Promise(r => setTimeout(r, 0)),
+              encodingError,
+            ]);
           }
         }
 
-        if (encodeError) throw encodeError;
-
-        // VideoEncoder フラッシュ
-        await videoEncoder.flush();
+        // VideoEncoder フラッシュ（エラー競合）
+        await Promise.race([videoEncoder.flush(), encodingError]);
         videoEncoder.close();
 
         // オーディオエンコード
