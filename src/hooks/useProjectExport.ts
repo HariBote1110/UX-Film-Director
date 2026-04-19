@@ -3,7 +3,8 @@ import * as PIXI from 'pixi.js';
 import { useStore } from '../store/useStore';
 import { TimelineObject } from '../types';
 import { shallow } from 'zustand/shallow';
-import { buildExportAudioMixWav } from '../utils/audioMixdown';
+import { buildExportAudioBuffer } from '../utils/audioMixdown';
+import { encodeVideoToMp4 } from '../utils/videoExportPipeline';
 
 const { ipcRenderer } = window;
 
@@ -25,140 +26,100 @@ export const useProjectExport = (
     let cancelled = false;
 
     const runExport = async () => {
-        const app = pixiAppRef.current;
-        if (!app) return;
+      const app = pixiAppRef.current;
+      if (!app) return;
 
-        let exportSessionOpened = false;
-        let tempAudioPath: string | null = null;
+      try {
+        const { projectSettings, objects, layers } = useStore.getState();
+        const fps = projectSettings.fps;
+        const dt = 1 / fps;
+        const width = projectSettings.width;
+        const height = projectSettings.height;
+        const sampleRate = projectSettings.sampleRate || 44100;
+        const exportObjects = objects.filter((obj) => layers[obj.layer]?.visible !== false);
+        const videoObjects = exportObjects.filter(
+          (obj): obj is Extract<TimelineObject, { type: 'video' }> => obj.type === 'video'
+        );
+        const lastEnd = Math.max(...exportObjects.map(o => o.startTime + o.duration), 0);
+        const exportDuration = Math.max(lastEnd, 1);
+        const totalFrames = Math.ceil(exportDuration * fps);
 
-        try {
-            const { projectSettings, objects, layers } = useStore.getState();
-            const fps = projectSettings.fps;
-            const dt = 1 / fps;
-            const exportObjects = objects.filter((obj) => layers[obj.layer]?.visible !== false);
-            const videoObjects = exportObjects.filter((obj): obj is Extract<TimelineObject, { type: 'video' }> => obj.type === 'video');
-            
-            // Calculate total duration
-            const lastObjectEndTime = Math.max(...exportObjects.map(o => o.startTime + o.duration), 0);
-            const exportDuration = Math.max(lastObjectEndTime, 1);
-            const totalFrames = Math.ceil(exportDuration * fps);
-            const mixedAudio = await buildExportAudioMixWav(
-              exportObjects,
-              exportDuration,
-              projectSettings.sampleRate || 44100
+        // ファイル保存先を先に決定（ユーザー操作が必要なため）
+        const savePath = await ipcRenderer.invoke('show-save-dialog', {
+          defaultPath: 'output.mp4',
+          filters: [{ name: 'MP4 Video', extensions: ['mp4'] }],
+        });
+        if (!savePath) { setExporting(false); return; }
+
+        const audioBuffer = await buildExportAudioBuffer(exportObjects, exportDuration, sampleRate);
+
+        // 動画を一時停止
+        Array.from(videoElementsRef.current.values()).forEach(v => v.pause());
+
+        const encWidth = width % 2 === 0 ? width : width - 1;
+        const encHeight = height % 2 === 0 ? height : height - 1;
+
+        async function* renderFrames() {
+          for (let i = 0; i < totalFrames; i++) {
+            if (cancelled) break;
+
+            const t = i * dt;
+            if (i % Math.max(1, Math.floor(fps / 2)) === 0) setTime(t);
+
+            const activeVideos = videoObjects.filter(
+              obj => t >= obj.startTime && t < obj.startTime + obj.duration
             );
-            if (mixedAudio) {
-              const saved = await ipcRenderer.invoke('save-temp-audio', mixedAudio);
-              if (!saved?.success || !saved.path) {
-                throw new Error(saved?.error || '音声ミックスの一時保存に失敗しました');
-              }
-              tempAudioPath = saved.path;
-            }
-
-            // Pause all videos initially
-            const videos = Array.from(videoElementsRef.current.values());
-            videos.forEach(v => v.pause());
-
-            // Start export process via Electron
-            const result = await ipcRenderer.invoke('start-export', { 
-                width: projectSettings.width, 
-                height: projectSettings.height, 
-                fps: fps,
-                audioPath: tempAudioPath
-            });
-
-            if (!result.success) {
-                throw new Error(result.error || 'Failed to start export');
-            }
-            exportSessionOpened = true;
-
-            // Frame Rendering Loop
-            for (let i = 0; i < totalFrames; i++) {
-                if (cancelled) break;
-
-                const t = i * dt;
-                if (i % Math.max(1, Math.floor(fps / 2)) === 0) {
-                    setTime(t);
-                }
-
-                // Handle Video Seeking
-                const activeVideos = videoObjects.filter(obj => t >= obj.startTime && t < obj.startTime + obj.duration);
-                if (activeVideos.length > 0) {
-                    const seekPromises = activeVideos.map(obj => {
-                        const video = videoElementsRef.current.get(obj.id);
-                        if (video && video.readyState >= 1) {
-                            const offset = obj.offset || 0;
-                            const targetTime = (t - obj.startTime) + offset;
-                            
-                            if (Math.abs(video.currentTime - targetTime) < 0.001) return Promise.resolve();
-
-                            return new Promise<void>((resolve) => {
-                                const onSeeked = () => {
-                                    video.removeEventListener('seeked', onSeeked);
-                                    resolve();
-                                };
-                                // Timeout fallback
-                                setTimeout(() => {
-                                    video.removeEventListener('seeked', onSeeked);
-                                    resolve();
-                                }, 1000);
-                                video.addEventListener('seeked', onSeeked);
-                                video.currentTime = targetTime;
-                            });
-                        }
-                        return Promise.resolve();
-                    });
-                    await Promise.all(seekPromises);
-                }
-
-                // Render Frame
-                renderScene(t, exportObjects);
-                
-                const exportCanvas = getExportCanvas?.() ?? app.canvas;
-                // Capture and write frame
-                const blob = await new Promise<Blob | null>((resolve) => {
-                  exportCanvas.toBlob(resolve, 'image/jpeg', 0.90);
+            if (activeVideos.length > 0) {
+              await Promise.all(activeVideos.map(obj => {
+                const video = videoElementsRef.current.get(obj.id);
+                if (!video || video.readyState < 1) return Promise.resolve();
+                const targetTime = (t - obj.startTime) + (obj.offset || 0);
+                if (Math.abs(video.currentTime - targetTime) < 0.001) return Promise.resolve();
+                return new Promise<void>(resolve => {
+                  const onSeeked = () => { video.removeEventListener('seeked', onSeeked); resolve(); };
+                  setTimeout(() => { video.removeEventListener('seeked', onSeeked); resolve(); }, 1000);
+                  video.addEventListener('seeked', onSeeked);
+                  video.currentTime = targetTime;
                 });
-                if (!blob) continue;
-
-                const frameBuffer = await blob.arrayBuffer();
-                const wrote = await ipcRenderer.invoke('write-frame', frameBuffer);
-                if (!wrote) {
-                    throw new Error(`Failed to write frame ${i + 1}/${totalFrames}`);
-                }
+              }));
             }
 
-            const ended = await ipcRenderer.invoke('end-export');
-            exportSessionOpened = false;
-            if (!ended) {
-                throw new Error('Failed to finalise export');
-            }
-
-            if (!cancelled) {
-                alert("Export Finished!");
-            }
-        } catch (error) {
-            if (!cancelled) {
-                alert(`Export failed: ${error instanceof Error ? error.message : String(error)}`);
-            }
-        } finally {
-            if (exportSessionOpened) {
-                await ipcRenderer.invoke('end-export');
-            }
-            if (tempAudioPath) {
-                try {
-                    await ipcRenderer.invoke('delete-temp-file', { filePath: tempAudioPath });
-                } catch {
-                    // no-op
-                }
-            }
-            setExporting(false);
+            renderScene(t, exportObjects);
+            const canvas = getExportCanvas?.() ?? app!.canvas;
+            const bitmap = await createImageBitmap(canvas, 0, 0, encWidth, encHeight);
+            yield { timestamp: Math.round(i * 1_000_000 / fps), bitmap };
+            bitmap.close();
+          }
         }
+
+        const result = await encodeVideoToMp4({
+          width,
+          height,
+          fps,
+          frames: renderFrames(),
+          audioBuffer,
+        });
+
+        const saved = await ipcRenderer.invoke('save-buffer-to-file', {
+          filePath: savePath,
+          buffer: result.buffer,
+        });
+        if (!saved?.success) throw new Error(saved?.error || 'ファイル保存に失敗しました');
+
+        if (!cancelled) {
+          alert(`エクスポート完了！\nコーデック: ${result.codecUsed}\nサイズ: ${(result.buffer.byteLength / 1024 / 1024).toFixed(1)}MB\n処理時間: ${(result.durationMs / 1000).toFixed(1)}秒`);
+        }
+
+      } catch (error) {
+        if (!cancelled) {
+          alert(`エクスポート失敗: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      } finally {
+        setExporting(false);
+      }
     };
 
     runExport();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [isExporting, renderScene, setExporting, setTime, pixiAppRef, videoElementsRef, getExportCanvas]);
 };

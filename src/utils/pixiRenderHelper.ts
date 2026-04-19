@@ -365,9 +365,9 @@ class GroupGradientFilter extends PIXI.Filter {
 }
 
 export interface VideoFrameTextureState {
-    canvas: HTMLCanvasElement;
-    context: CanvasRenderingContext2D;
     texture: PIXI.Texture;
+    // Phase 1-b: PixiJS VideoSource を利用した GPU ダイレクトアップロード
+    videoSource: PIXI.VideoSource;
     width: number;
     height: number;
 }
@@ -375,7 +375,8 @@ export interface VideoFrameTextureState {
 const ensureVideoFrameTextureState = (
     videoId: string,
     video: HTMLVideoElement,
-    videoFrameTextures: Map<string, VideoFrameTextureState>
+    videoFrameTextures: Map<string, VideoFrameTextureState>,
+    onNewFrame: () => void
 ): VideoFrameTextureState | null => {
     const width = Math.max(1, Math.floor(video.videoWidth));
     const height = Math.max(1, Math.floor(video.videoHeight));
@@ -386,42 +387,36 @@ const ensureVideoFrameTextureState = (
     }
 
     if (existing) {
-        existing.texture.destroy(true);
+        existing.videoSource.destroy();
+        existing.texture.destroy(false);
         videoFrameTextures.delete(videoId);
     }
 
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext('2d');
-    if (!context) return null;
+    // PixiJS VideoSource: 内部で requestVideoFrameCallback + copyExternalImageToTexture を使用
+    // Canvas 2D drawImage パスを完全に排除した GPU ダイレクトアップロード
+    const videoSource = new PIXI.VideoSource({
+        resource: video,
+        autoPlay: false,
+        autoLoad: false,
+        updateFPS: 0,  // 0 = requestVideoFrameCallback に任せる（フレーム精度）
+        alphaMode: 'premultiply-alpha-on-upload',
+    });
+    // load() でイベントリスナー（play/pause/seeked）を登録させる
+    // HTMLVideoElement は既にロード済みなので src は変更されない
+    void videoSource.load();
+    const texture = new PIXI.Texture({ source: videoSource });
 
-    const texture = PIXI.Texture.from(canvas);
-    const next: VideoFrameTextureState = {
-        canvas,
-        context,
-        texture,
-        width,
-        height
-    };
-    videoFrameTextures.set(videoId, next);
-    return next;
+    // フレーム更新通知で PixiJS の renderTick を駆動
+    videoSource.on('update', () => onNewFrame());
+
+    const state: VideoFrameTextureState = { texture, videoSource, width, height };
+    videoFrameTextures.set(videoId, state);
+    return state;
 };
 
-const drawVideoFrameToTexture = (state: VideoFrameTextureState, video: HTMLVideoElement): boolean => {
-    try {
-        state.context.clearRect(0, 0, state.width, state.height);
-        state.context.drawImage(video, 0, 0, state.width, state.height);
-        const source = (state.texture as any).source;
-        if (source && typeof source.update === 'function') {
-            source.update();
-        } else if (typeof (state.texture as any).update === 'function') {
-            (state.texture as any).update();
-        }
-        return true;
-    } catch {
-        return false;
-    }
+const drawVideoFrameToTexture = (state: VideoFrameTextureState): boolean => {
+    // VideoSource が有効かつ動画が再生可能であれば描画済みとみなす
+    return !state.videoSource.destroyed && state.videoSource.isValid;
 };
 
 export const applyGroupGradientEffect = (container: PIXI.Container, gradient: GradientFill | undefined) => {
@@ -735,8 +730,8 @@ export const updatePixiContent = (
         }
 
         if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
-            const frameState = ensureVideoFrameTextureState(obj.id, video, videoFrameTextures);
-            const didDrawFrame = frameState ? drawVideoFrameToTexture(frameState, video) : false;
+            const frameState = ensureVideoFrameTextureState(obj.id, video, videoFrameTextures, () => setRenderTick(p => p + 1));
+            const didDrawFrame = frameState ? drawVideoFrameToTexture(frameState) : false;
 
             if (didDrawFrame && frameState) {
                 if (!sprite) {

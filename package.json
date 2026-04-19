@@ -9,6 +9,8 @@
     "perf:agent": "VITE_PERF_AGENT_MODE=1 vite",
     "test": "vitest run --exclude **/psdParser.perf.test.ts",
     "test:psd-perf": "vitest run src/utils/psdParser.perf.test.ts",
+    "test:export": "VITE_EXPORT_TEST=1 vite",
+    "test:export:ci": "node scripts/run-export-test.mjs",
     "build": "tsc && vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
     "preview": "vite preview",
     "rust:build:debug": "cargo build --manifest-path rust-backend/Cargo.toml",
@@ -50,6 +52,7 @@
   "dependencies": {
     "ag-psd": "^29.0.0",
     "lucide-react": "^1.8.0",
+    "mp4-muxer": "^5.2.2",
     "pixi.js": "^8.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

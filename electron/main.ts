@@ -13,11 +13,19 @@ import { PERFORMANCE_CSV_HEADER_LINE } from '../src/perf/performanceReport';
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('enable-zero-copy');
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
-// WebGPUを明示的に有効化 (環境によってはデフォルトで無効な場合があるため)
+// WebGPU を明示的に有効化
 app.commandLine.appendSwitch('enable-unsafe-webgpu');
-// ビデオデコードのハードウェア加速を強制
+// ハードウェアビデオエンコード/デコードを有効化
+// VideoToolboxVideoCodecFactory: macOS (Apple Silicon) で VideoToolbox 経由の HW エンコードを有効化
+// VaapiVideoDecoder: Linux での HW デコード
+// CanvasOopRasterization: Canvas の GPU ラスタライズ
 app.commandLine.appendSwitch('disable-features', 'UseChromeOSDirectVideoDecoder');
-app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder,CanvasOopRasterization'); 
+app.commandLine.appendSwitch('enable-features',
+  'VideoToolboxVideoCodecFactory,VaapiVideoDecoder,VaapiVideoEncoder,CanvasOopRasterization');
+// GPU プロセスをレンダラー内で実行: macOS で VideoToolbox HW エンコードを WebCodecs から利用するために必要
+// disable-gpu-sandbox では不十分で、in-process-gpu により GPU プロセス境界を排除する
+app.commandLine.appendSwitch('disable-gpu-sandbox');
+app.commandLine.appendSwitch('in-process-gpu');
 
 process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(__dirname, '../public')
@@ -45,6 +53,7 @@ type RustRpcResponse = {
 
 const rustPendingRequests = new Map<number, PendingRustRequest>();
 
+// VITE_EXPORT_TEST=1 のとき devtools を非表示にして余分なウィンドウを出さない
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
 const resolveDefaultFfmpegPath = () => {
@@ -391,16 +400,19 @@ function createWindow() {
     app.dock.setIcon(iconPath)
   }
 
+  const isExportTest = process.env['VITE_EXPORT_TEST'] === '1';
   win = new BrowserWindow({
     width: 1280,
     height: 800,
-    icon: iconPath, // Windows/Linux用のウィンドウアイコン設定
+    icon: iconPath,
+    show: !isExportTest, // テスト実行時はウィンドウを非表示（2窓防止）
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: false,
-      webviewTag: true, // 重要: webviewタグを有効化
+      webviewTag: true,
+      devTools: !isExportTest,
     },
     titleBarStyle: 'hiddenInset',
   })
@@ -516,6 +528,18 @@ app.whenReady().then(() => {
           fileName: path.basename(filePath),
         };
       }
+    }
+    return { success: false as const };
+  });
+
+  ipcMain.handle('resolve-4k-test-video', async () => {
+    const base = app.getAppPath();
+    const candidates = [
+      path.join(base, 'perf', 'heavy-media', 'GX010052.MP4'),
+      path.join(base, '..', 'perf', 'heavy-media', 'GX010052.MP4'),
+    ];
+    for (const filePath of candidates) {
+      if (fs.existsSync(filePath)) return { success: true as const, filePath };
     }
     return { success: false as const };
   });
@@ -764,6 +788,47 @@ app.whenReady().then(() => {
     } catch (error) {
       console.error('Failed to end export via Rust backend', error);
       return false;
+    }
+  });
+
+  ipcMain.handle('quit-app', (_event, payload?: { exitCode?: number }) => {
+    app.exit(payload?.exitCode ?? 0);
+  });
+
+  // テスト結果をプロジェクトルート配下のファイルに書き出す
+  ipcMain.handle('write-test-log', async (_event, payload: { fileName?: string; content?: string }) => {
+    const fileName = typeof payload?.fileName === 'string' ? payload.fileName : 'test-results.log';
+    const content = typeof payload?.content === 'string' ? payload.content : '';
+    try {
+      const logPath = path.join(app.getAppPath(), 'perf', fileName);
+      await fs.promises.mkdir(path.dirname(logPath), { recursive: true });
+      await fs.promises.writeFile(logPath, content, 'utf-8');
+      return { success: true, filePath: logPath };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // ── WebCodecs エクスポート用ハンドラ（Phase 3）────────────────────────────
+  // ファイル保存先ダイアログを表示してパスだけを返す
+  ipcMain.handle('show-save-dialog', async (_event, options: { defaultPath?: string; filters?: Electron.FileFilter[] }) => {
+    const { filePath } = await dialog.showSaveDialog({
+      title: 'Export Video',
+      defaultPath: options.defaultPath ?? 'output.mp4',
+      filters: options.filters ?? [{ name: 'MP4 Video', extensions: ['mp4'] }],
+    });
+    return filePath ?? null;
+  });
+
+  // JS 側で mp4-muxer が生成した ArrayBuffer をまとめてファイルに書き込む
+  ipcMain.handle('save-buffer-to-file', async (_event, payload: { filePath?: string; buffer?: ArrayBuffer }) => {
+    const filePath = typeof payload?.filePath === 'string' ? payload.filePath.trim() : '';
+    if (!filePath || !payload?.buffer) return { success: false, error: 'filePath または buffer が未指定' };
+    try {
+      await fs.promises.writeFile(filePath, Buffer.from(payload.buffer));
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 

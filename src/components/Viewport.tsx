@@ -222,6 +222,22 @@ const Viewport: React.FC = () => {
         containerRef.current.appendChild(app.canvas);
         pixiAppRef.current = app;
         setPixiReady(true);
+
+        // ── Phase 0: PixiJS レンダラー種別確認 ────────────────────
+        {
+          // PixiJS 8: renderer.type は RendererType enum (number)。webgpu=2, webgl=1
+          const rendererType = (app.renderer as unknown as { type: number }).type;
+          const rendererName = rendererType === 2 ? 'webgpu' : rendererType === 1 ? 'webgl' : `unknown(${rendererType})`;
+          console.log('[Phase0] PixiJS renderer =', rendererName, '(raw:', rendererType, ')');
+
+          const gpuDevice = (app.renderer as unknown as { gpu?: { device?: GPUDevice } }).gpu?.device;
+          if (gpuDevice) {
+            console.log('[Phase0] importExternalTexture available =', typeof gpuDevice.importExternalTexture === 'function');
+          } else {
+            console.warn('[Phase0] GPUDevice not accessible from PixiJS renderer');
+          }
+        }
+        // ───────────────────────────────────────────────────────────
         app.stage.eventMode = 'static';
         app.stage.hitArea = app.screen;
         app.stage.sortableChildren = true;
@@ -255,7 +271,8 @@ const Viewport: React.FC = () => {
         videoElementsRef.current.forEach(video => { video.pause(); video.src = ""; video.load(); });
         videoElementsRef.current.clear();
         videoFrameTexturesRef.current.forEach((entry) => {
-          entry.texture.destroy(true);
+          entry.videoSource?.destroy();
+          entry.texture.destroy(false);
         });
         videoFrameTexturesRef.current.clear();
         audioElementsRef.current.forEach(audio => { audio.pause(); audio.src = ""; audio.load(); });
@@ -342,7 +359,8 @@ const Viewport: React.FC = () => {
             video.pause(); video.src = ""; video.load(); currentVideoElements.delete(id); videoPlayPromisesRef.current.delete(id);
             const frameTexture = videoFrameTexturesRef.current.get(id);
             if (frameTexture) {
-                frameTexture.texture.destroy(true);
+                frameTexture.videoSource?.destroy();
+                frameTexture.texture.destroy(false);
                 videoFrameTexturesRef.current.delete(id);
             }
         }
