@@ -117,10 +117,11 @@ async function decompressParallel(
   const groups: LayerDecompressTask[][] = Array.from({ length: workers.length }, () => []);
   const workerLoad = new Array<number>(workers.length).fill(0);
   for (const task of allTasks) {
-    const totalBytes = task.channelLens.reduce((s, n) => s + n, 0);
+    // Weight by output pixel count (width × height) — proportional to decompress time.
+    const pixelCount = task.width * task.height;
     const minWorker = workerLoad.indexOf(Math.min(...workerLoad));
     groups[minWorker].push(task);
-    workerLoad[minWorker] += totalBytes;
+    workerLoad[minWorker] += pixelCount;
   }
 
   const results = new Map<number, Uint8Array>();
