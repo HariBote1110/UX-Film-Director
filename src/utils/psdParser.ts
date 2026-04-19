@@ -1,5 +1,6 @@
 import { readPsd, Layer } from 'ag-psd';
 import { PsdLayerNode, PsdLayerStruct, PsdObject, TimelineObject } from '../types';
+import { parsePsdWithWasm, type WasmLayerMeta } from './psdWasm';
 import { psdLayerTextureUrl } from './psdTextureUrl';
 
 type LayerWithBounds = Layer & {
@@ -825,6 +826,158 @@ const parsePsdViaRust = async (
   return { psdObject: psdObject as PsdObject };
 };
 
+// ── WASM-backed fast path ─────────────────────────────────────────────────────
+
+/**
+ * Parse a PSD file using the WebAssembly module (psd_fast compiled to WASM).
+ * Runs entirely in-process — no disk I/O, no cross-process transfer.
+ */
+const parsePsdViaWasm = async (
+  file: File,
+  startTime: number,
+  projectWidth: number,
+  projectHeight: number
+): Promise<PsdParseResult> => {
+  const arrayBuffer = await file.arrayBuffer();
+  const { meta, pixels } = await parsePsdWithWasm(arrayBuffer);
+
+  let idCounter = 0;
+  const generateId = () => `psd-layer-${idCounter++}`;
+
+  const pendingImageLoads: Array<{ node: PsdLayerNode; pixelData: Uint8Array }> = [];
+
+  const buildNode = (idx: number): PsdLayerNode => {
+    const layer = meta.layers[idx];
+    const layerName = restoreLayerNameEncoding(layer.name || 'Layer');
+    const node: PsdLayerNode = {
+      id: generateId(),
+      name: layerName,
+      isGroup: layer.isGroup,
+      isRadio: layerName.startsWith('*'),
+      children: [],
+      width: layer.width,
+      height: layer.height,
+      left: layer.left,
+      top: layer.top,
+      defaultVisible: layer.visible,
+      src: undefined,
+    };
+
+    const px = pixels[idx];
+    if (!layer.isGroup && px && px.length > 0 && layer.width > 0 && layer.height > 0) {
+      pendingImageLoads.push({ node, pixelData: px });
+    }
+
+    return node;
+  };
+
+  // Build children lookup (parentGroupId → layer indices).
+  const groupChildren = new Map<number | null, number[]>();
+  for (let i = 0; i < meta.layers.length; i++) {
+    const layer = meta.layers[i];
+    const key = layer.parentGroupId ?? null;
+    let bucket = groupChildren.get(key);
+    if (!bucket) { bucket = []; groupChildren.set(key, bucket); }
+    bucket.push(i);
+  }
+
+  // Build node tree via DFS.
+  const buildGroupNode = (idx: number): PsdLayerNode => {
+    const node = buildNode(idx);
+    const layer = meta.layers[idx];
+    if (layer.isGroup && layer.ownGroupId != null) {
+      const childIndices = groupChildren.get(layer.ownGroupId) ?? [];
+      node.children = childIndices.map(buildGroupNode);
+    }
+    return node;
+  };
+
+  const rootIndices = groupChildren.get(null) ?? [];
+  const rootNode: PsdLayerNode = {
+    id: 'root',
+    name: 'Root',
+    isGroup: true,
+    isRadio: false,
+    children: rootIndices.map(buildGroupNode),
+    width: meta.width,
+    height: meta.height,
+    left: 0,
+    top: 0,
+    defaultVisible: true,
+  };
+
+  // Load ImageBitmaps in parallel.
+  await Promise.all(
+    pendingImageLoads.map(async ({ node, pixelData }) => {
+      try {
+        const data = new Uint8ClampedArray(pixelData.buffer, pixelData.byteOffset, pixelData.byteLength);
+        const imgData = new ImageData(
+          data as unknown as ImageData['data'],
+          node.width,
+          node.height
+        );
+        if (typeof createImageBitmap === 'function') {
+          node.textureSource = await createImageBitmap(imgData);
+          node.src = psdLayerTextureUrl(node.id);
+        }
+      } catch (e) {
+        console.warn('Failed to create ImageBitmap (WASM path):', node.name, e);
+      }
+    })
+  );
+
+  const activeLayerIds: Record<string, boolean> = {};
+
+  const initVisibility = (node: PsdLayerNode) => {
+    if (node.isGroup) {
+      if (node.isRadio) {
+        node.children.forEach(initVisibility);
+        const activeChild = node.children.find((c) => activeLayerIds[c.id]);
+        if (!activeChild && node.children.length > 0) activeLayerIds[node.children[0].id] = true;
+        activeLayerIds[node.id] = true;
+      } else {
+        if (node.defaultVisible) activeLayerIds[node.id] = true;
+        node.children.forEach(initVisibility);
+      }
+    } else {
+      if (node.defaultVisible) activeLayerIds[node.id] = true;
+    }
+  };
+
+  initVisibility(rootNode);
+  activeLayerIds['root'] = true;
+
+  const psdObject: TimelineObject = {
+    id: crypto.randomUUID(),
+    type: 'psd',
+    name: file.name,
+    layer: 0,
+    startTime,
+    duration: 5,
+    x: (projectWidth / 2) - (meta.width / 2),
+    y: (projectHeight / 2) - (meta.height / 2),
+    width: meta.width,
+    height: meta.height,
+    scale: 1.0,
+    enableAnimation: false,
+    endX: (projectWidth / 2) - (meta.width / 2),
+    endY: (projectHeight / 2) - (meta.height / 2),
+    easing: 'linear',
+    offset: 0,
+    src: '',
+    scaleX: 1,
+    scaleY: 1,
+    rotation: 0,
+    opacity: 1,
+    file,
+    layerTree: buildPsdLayerTree(rootNode, activeLayerIds),
+    rootLayer: rootNode,
+    activeLayerIds,
+  };
+
+  return { psdObject: psdObject as PsdObject };
+};
+
 // ── Public entry points ───────────────────────────────────────────────────────
 
 export const parsePsdAsObject = async (
@@ -833,7 +986,14 @@ export const parsePsdAsObject = async (
   projectWidth: number = 1280,
   projectHeight: number = 720
 ): Promise<PsdParseResult> => {
-  // Use Rust backend when running inside Electron (file.path is available).
+  // Primary path: WebAssembly (runs in-process, no disk I/O).
+  try {
+    return await parsePsdViaWasm(file, startTime, projectWidth, projectHeight);
+  } catch (e) {
+    console.warn('WASM PSD parse failed, falling back:', e);
+  }
+
+  // Secondary: Rust separate-process path (Electron only).
   const electronFilePath = (file as File & { path?: string }).path;
   if (
     electronFilePath &&
@@ -847,7 +1007,7 @@ export const parsePsdAsObject = async (
     }
   }
 
-  // Fallback: ag-psd (used in test environments or if the Rust path fails).
+  // Final fallback: ag-psd.
   const arrayBuffer = await file.arrayBuffer();
   return parsePsdArrayBufferAsObject(
     arrayBuffer,

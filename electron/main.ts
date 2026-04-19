@@ -405,6 +405,19 @@ function createWindow() {
     titleBarStyle: 'hiddenInset',
   })
 
+  // Enable SharedArrayBuffer for WASM Worker parallel PSD decompression.
+  // SharedArrayBuffer requires Cross-Origin-Opener-Policy: same-origin and
+  // Cross-Origin-Embedder-Policy: require-corp (COOP/COEP) headers.
+  win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Cross-Origin-Opener-Policy': ['same-origin'],
+        'Cross-Origin-Embedder-Policy': ['require-corp'],
+      },
+    });
+  });
+
   win.webContents.on('did-finish-load', () => {
     win?.webContents.send('main-process-message', (new Date).toLocaleString())
   })

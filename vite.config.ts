@@ -2,6 +2,8 @@
 import { defineConfig } from 'vite'
 import electron from 'vite-plugin-electron/simple'
 import react from '@vitejs/plugin-react'
+import wasm from 'vite-plugin-wasm'
+import topLevelAwait from 'vite-plugin-top-level-await'
 
 // https://vitejs.dev/config/
 const electronPlugins =
@@ -10,14 +12,11 @@ const electronPlugins =
     : [
         electron({
           main: {
-            // Entry point of the Main Process
             entry: 'electron/main.ts',
           },
           preload: {
-            // Entry point of the Preload Script
             input: 'electron/preload.ts',
           },
-          // Polyfill the Electron and Node.js built-in modules for Renderer process
           renderer: {},
         }),
       ]
@@ -27,5 +26,5 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.ts'],
   },
-  plugins: [react(), ...electronPlugins],
+  plugins: [wasm(), topLevelAwait(), react(), ...electronPlugins],
 })
