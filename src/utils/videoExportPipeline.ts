@@ -63,11 +63,19 @@ const probeEncoder = async (config: VideoEncoderConfig): Promise<boolean> => {
   }
 };
 
+// プロセスライフタイム中にキャッシュ（detect は重いので1回だけ実行）
+let cachedCodecResult: { codec: string; config: VideoEncoderConfig } | null | undefined = undefined;
+
+/** テスト用: キャッシュをリセットして再検出を強制する */
+export const resetCodecCache = (): void => { cachedCodecResult = undefined; };
+
 export const detectSupportedH264Codec = async (
   width: number,
   height: number,
   fps: number
 ): Promise<{ codec: string; config: VideoEncoderConfig } | null> => {
+  if (cachedCodecResult !== undefined) return cachedCodecResult;
+
   const encWidth = width % 2 === 0 ? width : width - 1;
   const encHeight = height % 2 === 0 ? height : height - 1;
 
@@ -89,9 +97,15 @@ export const detectSupportedH264Codec = async (
 
       const works = await probeEncoder(config);
       console.log(`[VideoExport] codec=${codec} accel=${hardwareAcceleration} probe=${works}`);
-      if (works) return { codec, config };
+      if (works) {
+        const label = hardwareAcceleration === 'prefer-hardware' ? '🔥 HW (VideoToolbox)' : '🐢 SW (OpenH264)';
+        console.log(`[VideoExport] 確定: ${label} codec=${codec}`);
+        cachedCodecResult = { codec, config };
+        return cachedCodecResult;
+      }
     }
   }
+  cachedCodecResult = null;
   return null;
 };
 

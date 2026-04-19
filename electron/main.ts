@@ -13,11 +13,17 @@ import { PERFORMANCE_CSV_HEADER_LINE } from '../src/perf/performanceReport';
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('enable-zero-copy');
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
-// WebGPUを明示的に有効化 (環境によってはデフォルトで無効な場合があるため)
+// WebGPU を明示的に有効化
 app.commandLine.appendSwitch('enable-unsafe-webgpu');
-// ビデオデコードのハードウェア加速を強制
+// ハードウェアビデオエンコード/デコードを有効化
+// VideoToolboxVideoCodecFactory: macOS (Apple Silicon) で VideoToolbox 経由の HW エンコードを有効化
+// VaapiVideoDecoder: Linux での HW デコード
+// CanvasOopRasterization: Canvas の GPU ラスタライズ
 app.commandLine.appendSwitch('disable-features', 'UseChromeOSDirectVideoDecoder');
-app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder,CanvasOopRasterization'); 
+app.commandLine.appendSwitch('enable-features',
+  'VideoToolboxVideoCodecFactory,VaapiVideoDecoder,VaapiVideoEncoder,CanvasOopRasterization');
+// GPU プロセスのサンドボックスを解除: macOS で VideoToolbox HW エンコードを WebCodecs から利用するために必要
+app.commandLine.appendSwitch('disable-gpu-sandbox');
 
 process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(__dirname, '../public')
@@ -516,6 +522,18 @@ app.whenReady().then(() => {
           fileName: path.basename(filePath),
         };
       }
+    }
+    return { success: false as const };
+  });
+
+  ipcMain.handle('resolve-4k-test-video', async () => {
+    const base = app.getAppPath();
+    const candidates = [
+      path.join(base, 'perf', 'heavy-media', 'GX010052.MP4'),
+      path.join(base, '..', 'perf', 'heavy-media', 'GX010052.MP4'),
+    ];
+    for (const filePath of candidates) {
+      if (fs.existsSync(filePath)) return { success: true as const, filePath };
     }
     return { success: false as const };
   });
