@@ -787,6 +787,20 @@ app.whenReady().then(() => {
     }
   });
 
+  // テスト結果をプロジェクトルート配下のファイルに書き出す
+  ipcMain.handle('write-test-log', async (_event, payload: { fileName?: string; content?: string }) => {
+    const fileName = typeof payload?.fileName === 'string' ? payload.fileName : 'test-results.log';
+    const content = typeof payload?.content === 'string' ? payload.content : '';
+    try {
+      const logPath = path.join(app.getAppPath(), 'perf', fileName);
+      await fs.promises.mkdir(path.dirname(logPath), { recursive: true });
+      await fs.promises.writeFile(logPath, content, 'utf-8');
+      return { success: true, filePath: logPath };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
   // ── WebCodecs エクスポート用ハンドラ（Phase 3）────────────────────────────
   // ファイル保存先ダイアログを表示してパスだけを返す
   ipcMain.handle('show-save-dialog', async (_event, options: { defaultPath?: string; filters?: Electron.FileFilter[] }) => {

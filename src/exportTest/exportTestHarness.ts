@@ -170,7 +170,16 @@ const testEncode4KVideo = async (): Promise<string> => {
 
 // ── エントリーポイント ─────────────────────────────────────────────────────
 
+const formatLogLine = (tc: TestCase): string => {
+  const status = tc.passed ? 'PASS' : 'FAIL';
+  const detail = tc.detail ?? tc.error ?? '';
+  return `  [${status}] ${tc.name}\n         ${detail}`;
+};
+
 export const runExportTests = async (): Promise<ExportTestResult> => {
+  // results は module スコープで蓄積されるため、再実行時にリセット
+  results.length = 0;
+
   const t0 = performance.now();
   console.group('[ExportTest] エクスポートパイプライン テスト開始');
 
@@ -187,5 +196,28 @@ export const runExportTests = async (): Promise<ExportTestResult> => {
 
   const report: ExportTestResult = { passed, tests: results, totalMs };
   window.__exportTestResult = report;
+
+  // テスト結果をファイルに書き出す（Claude が直接読めるように）
+  const ipcRenderer = (window as any).ipcRenderer;
+  if (ipcRenderer) {
+    const now = new Date().toISOString();
+    const lines = [
+      `ExportTest Run: ${now}`,
+      `Result: ${passed ? 'ALL PASSED' : 'SOME FAILED'}  (total: ${totalMs.toFixed(0)}ms)`,
+      '',
+      ...results.map(formatLogLine),
+      '',
+    ].join('\n');
+
+    const jsonContent = JSON.stringify({ runAt: now, passed, totalMs, tests: results }, null, 2);
+
+    await Promise.all([
+      ipcRenderer.invoke('write-test-log', { fileName: 'export-test-results.log', content: lines }),
+      ipcRenderer.invoke('write-test-log', { fileName: 'export-test-results.json', content: jsonContent }),
+    ]).catch((e: unknown) => console.warn('[ExportTest] ログ書き出し失敗:', e));
+
+    console.log('[ExportTest] 結果を perf/export-test-results.{log,json} に保存しました');
+  }
+
   return report;
 };
