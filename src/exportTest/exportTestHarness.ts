@@ -182,8 +182,18 @@ const testEncode4KVideoDecoder = async (): Promise<string> => {
   const fileUrl = `file://${res.filePath}`;
   const W = 640, H = 360, SAMPLE_SEC = 5;
 
-  const detected = await detectSupportedH264Codec(W, H, 30);
-  if (!detected) throw new Error('エンコーダが見つかりません');
+  // VideoDecoder→VideoEncoder パイプラインの互換性確認のため SW エンコーダを使用
+  // （HW VideoToolbox は OffscreenCanvas 由来の VideoFrame で colorSpace: null エラーが発生するため）
+  const swConfig: VideoEncoderConfig = {
+    codec: 'avc1.640028',
+    width: W, height: H,
+    bitrate: 4_000_000,
+    framerate: 30,
+    hardwareAcceleration: 'prefer-software',
+    latencyMode: 'realtime',
+  };
+  const swSupport = await VideoEncoder.isConfigSupported(swConfig);
+  if (!swSupport.supported) throw new Error('SW VideoEncoder が avc1.640028 をサポートしていません');
 
   const target = new ArrayBufferTarget();
   const muxer = new Muxer({
@@ -196,7 +206,7 @@ const testEncode4KVideoDecoder = async (): Promise<string> => {
     output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
     error: (e) => { throw e; },
   });
-  encoder.configure(detected.config);
+  encoder.configure(swConfig);
 
   const t0 = performance.now();
   let frameCount = 0;
