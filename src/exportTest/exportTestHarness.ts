@@ -168,16 +168,17 @@ const testEncode4KVideo = async (): Promise<string> => {
   return `codec=${result.codecUsed}, size=${(result.buffer.byteLength / 1024 / 1024).toFixed(1)}MB, elapsed=${elapsedSec.toFixed(1)}s, speed=${speed}fps (${speedRatio}x realtime)`;
 };
 
-/** VideoDecoder ストリームで 4K → FHD を再エンコード（シークなし・VideoFrame 直接渡し） */
+/** VideoDecoder ストリームで H.264 ソース → FHD を再エンコード（シークなし） */
 const testEncode4KVideoDecoder = async (): Promise<string> => {
   const ipcRenderer = (window as any).ipcRenderer;
   if (!ipcRenderer) throw new Error('ipcRenderer が利用できません');
 
-  const res = await ipcRenderer.invoke('resolve-4k-test-video');
-  if (!res?.success || !res.filePath) throw new Error('4K テスト動画が見つかりません');
+  // H.264 ファイルを使用（HEVC は Electron 内で VideoDecoder が非対応の場合がある）
+  const res = await ipcRenderer.invoke('resolve-perf-heavy-video');
+  if (!res?.success || !res.filePath) throw new Error('テスト動画が見つかりません');
 
   const fileUrl = `file://${res.filePath}`;
-  const W = 1920, H = 1080, SAMPLE_SEC = 5;
+  const W = 640, H = 360, SAMPLE_SEC = 5;
 
   const { detectSupportedH264Codec } = await import('../utils/videoExportPipeline');
   const { Muxer, ArrayBufferTarget } = await import('mp4-muxer');
@@ -245,7 +246,7 @@ export const runExportTests = async (): Promise<ExportTestResult> => {
   await run('無地フレームエンコード (1秒 640×360 30fps)', testEncodeBlankFrames);
   await run('動画ファイルからのリエンコード (2秒 640×360) [seek]', testEncodeFromVideoFile);
   await run('4K 動画 FHD エンコード (5秒 1920×1080 60fps) [seek]', testEncode4KVideo);
-  await run('4K 動画 FHD エンコード (5秒 1920×1080) [VideoDecoder]', testEncode4KVideoDecoder);
+  await run('H.264 動画エンコード (5秒 640×360) [VideoDecoder・シークなし]', testEncode4KVideoDecoder);
 
   console.groupEnd();
 
