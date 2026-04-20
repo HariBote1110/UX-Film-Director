@@ -201,13 +201,14 @@ const testEncode4KVideoDecoder = async (): Promise<string> => {
   const t0 = performance.now();
   let frameCount = 0;
 
+  // OffscreenCanvas 経由でカラースペースを RGBA に正規化してから VideoEncoder へ渡す
+  const offscreen = new OffscreenCanvas(W, H);
+  const ctx2d = offscreen.getContext('2d')!;
+
   for await (const { frame, timestampUs } of decodeVideoStream(fileUrl, { endSec: SAMPLE_SEC })) {
-    // リサイズが必要な場合は createImageBitmap で行ってから VideoFrame に包む
-    // （HEVC→H264 の場合フォーマット変換も兼ねる）
-    const bitmap = await createImageBitmap(frame, { resizeWidth: W, resizeHeight: H });
+    ctx2d.drawImage(frame, 0, 0, W, H);
     frame.close();
-    const resizedFrame = new VideoFrame(bitmap, { timestamp: timestampUs });
-    bitmap.close();
+    const resizedFrame = new VideoFrame(offscreen, { timestamp: timestampUs });
     const keyFrame = timestampUs === 0;
     encoder.encode(resizedFrame, { keyFrame });
     resizedFrame.close();
