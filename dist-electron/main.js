@@ -1,6 +1,7 @@
 "use strict";
 const electron = require("electron");
 const path = require("node:path");
+const node_url = require("node:url");
 const node_child_process = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -35,7 +36,12 @@ electron.app.commandLine.appendSwitch("enable-zero-copy");
 electron.app.commandLine.appendSwitch("ignore-gpu-blocklist");
 electron.app.commandLine.appendSwitch("enable-unsafe-webgpu");
 electron.app.commandLine.appendSwitch("disable-features", "UseChromeOSDirectVideoDecoder");
-electron.app.commandLine.appendSwitch("enable-features", "VaapiVideoDecoder,CanvasOopRasterization");
+electron.app.commandLine.appendSwitch(
+  "enable-features",
+  "VideoToolboxVideoCodecFactory,VaapiVideoDecoder,VaapiVideoEncoder,CanvasOopRasterization"
+);
+electron.app.commandLine.appendSwitch("disable-gpu-sandbox");
+electron.app.commandLine.appendSwitch("in-process-gpu");
 process.env.DIST = path.join(__dirname, "../dist");
 process.env.VITE_PUBLIC = electron.app.isPackaged ? process.env.DIST : path.join(__dirname, "../public");
 let win;
@@ -112,6 +118,106 @@ const resolveRustBackendPath = () => {
     }
   }
   return null;
+};
+const COREML_TRACKER_BINARY = "uxfd-coreml-tracker";
+const getCoreMlTrackerCandidates = () => {
+  const candidates = [];
+  if (process.env.UXFD_COREML_TRACKER_BIN) {
+    candidates.push(process.env.UXFD_COREML_TRACKER_BIN);
+  }
+  if (electron.app.isPackaged) {
+    candidates.push(path.join(process.resourcesPath, "macos-coreml-tracker", COREML_TRACKER_BINARY));
+    candidates.push(path.join(process.resourcesPath, COREML_TRACKER_BINARY));
+  } else {
+    const appPath = electron.app.getAppPath();
+    candidates.push(path.join(appPath, "macos-coreml-tracker", ".build", "release", COREML_TRACKER_BINARY));
+    candidates.push(path.join(appPath, "macos-coreml-tracker", ".build", "debug", COREML_TRACKER_BINARY));
+  }
+  return candidates;
+};
+const resolveCoreMlTrackerPath = () => {
+  for (const candidate of getCoreMlTrackerCandidates()) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+};
+const normaliseFsPathForCoreMl = (input) => {
+  const trimmed = input.trim();
+  if (trimmed.startsWith("file:")) {
+    try {
+      return node_url.fileURLToPath(trimmed);
+    } catch {
+      return trimmed;
+    }
+  }
+  return trimmed;
+};
+const runCoreMlTrackerCli = (payload, timeoutMs = 9e5) => {
+  const trackerPath = resolveCoreMlTrackerPath();
+  if (!trackerPath) {
+    return Promise.reject(
+      new Error(
+        'uxfd-coreml-tracker binary not found. Run "swift build -c release" in macos-coreml-tracker/ or set UXFD_COREML_TRACKER_BIN.'
+      )
+    );
+  }
+  return new Promise((resolve, reject) => {
+    const child = node_child_process.spawn(trackerPath, [], { stdio: ["pipe", "pipe", "pipe"] });
+    let stdoutText = "";
+    let stderrText = "";
+    const timer = setTimeout(() => {
+      child.kill("SIGTERM");
+      reject(new Error("uxfd-coreml-tracker timed out."));
+    }, timeoutMs);
+    if (child.stdout) {
+      child.stdout.setEncoding("utf8");
+      child.stdout.on("data", (chunk) => {
+        stdoutText += chunk;
+      });
+    }
+    if (child.stderr) {
+      child.stderr.setEncoding("utf8");
+      child.stderr.on("data", (chunk) => {
+        stderrText += chunk;
+      });
+    }
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      const line = stdoutText.trim().split(/\r?\n/).filter(Boolean).pop();
+      if (line) {
+        try {
+          const parsed = JSON.parse(line);
+          if (parsed && parsed.ok === false && typeof parsed.error === "string") {
+            reject(new Error(parsed.error));
+            return;
+          }
+        } catch {
+        }
+      }
+      if (code !== 0) {
+        const detail = stderrText.trim() || stdoutText.trim() || `exit code ${code ?? "null"}`;
+        reject(new Error(`uxfd-coreml-tracker failed: ${detail}`));
+        return;
+      }
+      if (!line) {
+        reject(new Error("uxfd-coreml-tracker returned empty stdout."));
+        return;
+      }
+      try {
+        resolve(JSON.parse(line));
+      } catch (error) {
+        reject(new Error(`uxfd-coreml-tracker returned invalid JSON: ${String(error)}`));
+      }
+    });
+    child.stdin.write(JSON.stringify(payload), "utf8");
+    child.stdin.end();
+  });
 };
 const rejectAllRustPending = (reason) => {
   rustPendingRequests.forEach((pending, id) => {
@@ -224,20 +330,31 @@ function createWindow() {
   if (process.platform === "darwin") {
     electron.app.dock.setIcon(iconPath);
   }
+  const isExportTest = process.env["VITE_EXPORT_TEST"] === "1";
   win = new electron.BrowserWindow({
     width: 1280,
     height: 800,
     icon: iconPath,
-    // Windows/Linux用のウィンドウアイコン設定
+    show: !isExportTest,
+    // テスト実行時はウィンドウを非表示（2窓防止）
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: false,
-      webviewTag: true
-      // 重要: webviewタグを有効化
+      webviewTag: true,
+      devTools: !isExportTest
     },
     titleBarStyle: "hiddenInset"
+  });
+  win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        "Cross-Origin-Opener-Policy": ["same-origin"],
+        "Cross-Origin-Embedder-Policy": ["require-corp"]
+      }
+    });
   });
   win.webContents.on("did-finish-load", () => {
     win == null ? void 0 : win.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
@@ -319,6 +436,17 @@ electron.app.whenReady().then(() => {
           fileName: path.basename(filePath)
         };
       }
+    }
+    return { success: false };
+  });
+  electron.ipcMain.handle("resolve-4k-test-video", async () => {
+    const base = electron.app.getAppPath();
+    const candidates = [
+      path.join(base, "perf", "heavy-media", "GX010052.MP4"),
+      path.join(base, "..", "perf", "heavy-media", "GX010052.MP4")
+    ];
+    for (const filePath of candidates) {
+      if (fs.existsSync(filePath)) return { success: true, filePath };
     }
     return { success: false };
   });
@@ -470,6 +598,30 @@ electron.app.whenReady().then(() => {
       }
     }
   });
+  electron.ipcMain.handle("check-proxy", async (_event, payload) => {
+    const filePath = typeof (payload == null ? void 0 : payload.filePath) === "string" ? payload.filePath.trim() : "";
+    if (!filePath) return { exists: false };
+    const ext = path.extname(filePath);
+    const proxyPath = filePath.slice(0, -ext.length) + ".proxy.mp4";
+    return { exists: fs.existsSync(proxyPath), proxyPath };
+  });
+  electron.ipcMain.handle("generate-proxy", async (_event, payload) => {
+    const filePath = typeof (payload == null ? void 0 : payload.filePath) === "string" ? payload.filePath.trim() : "";
+    if (!filePath) return { success: false, error: "filePath が必要です" };
+    const ext = path.extname(filePath);
+    const proxyPath = filePath.slice(0, -ext.length) + ".proxy.mp4";
+    try {
+      const result = await callRustBackend("proxy.generate", {
+        inputPath: filePath,
+        outputPath: proxyPath,
+        width: (payload == null ? void 0 : payload.width) ?? 1280,
+        ffmpegPath: resolveDefaultFfmpegPath()
+      }, 6e5);
+      return { success: true, proxyPath, result };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
   electron.ipcMain.handle("probe-media", async (_event, payload) => {
     const filePath = typeof (payload == null ? void 0 : payload.filePath) === "string" ? payload.filePath.trim() : "";
     if (!filePath) {
@@ -532,6 +684,90 @@ electron.app.whenReady().then(() => {
       return false;
     }
   });
+  electron.ipcMain.handle("quit-app", (_event, payload) => {
+    electron.app.exit((payload == null ? void 0 : payload.exitCode) ?? 0);
+  });
+  electron.ipcMain.handle("write-test-log", async (_event, payload) => {
+    const fileName = typeof (payload == null ? void 0 : payload.fileName) === "string" ? payload.fileName : "test-results.log";
+    const content = typeof (payload == null ? void 0 : payload.content) === "string" ? payload.content : "";
+    try {
+      const logPath = path.join(electron.app.getAppPath(), "perf", fileName);
+      await fs.promises.mkdir(path.dirname(logPath), { recursive: true });
+      await fs.promises.writeFile(logPath, content, "utf-8");
+      return { success: true, filePath: logPath };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+  electron.ipcMain.handle("show-save-dialog", async (_event, options) => {
+    const { filePath } = await electron.dialog.showSaveDialog({
+      title: "Export Video",
+      defaultPath: options.defaultPath ?? "output.mp4",
+      filters: options.filters ?? [{ name: "MP4 Video", extensions: ["mp4"] }]
+    });
+    return filePath ?? null;
+  });
+  electron.ipcMain.handle("save-buffer-to-file", async (_event, payload) => {
+    const filePath = typeof (payload == null ? void 0 : payload.filePath) === "string" ? payload.filePath.trim() : "";
+    if (!filePath || !(payload == null ? void 0 : payload.buffer)) return { success: false, error: "filePath または buffer が未指定" };
+    try {
+      await fs.promises.writeFile(filePath, Buffer.from(payload.buffer));
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+  electron.ipcMain.handle("parse-psd", async (_event, payload) => {
+    const filePath = typeof (payload == null ? void 0 : payload.filePath) === "string" ? payload.filePath.trim() : "";
+    if (!filePath) {
+      return { success: false, error: "filePath が必要です。" };
+    }
+    let rustResult;
+    try {
+      rustResult = await callRustBackend("psd.parse", { filePath }, 6e4);
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+    const blobPath = rustResult.tmpFile;
+    await callRustBackend("psd.await_blob", {}, 3e4);
+    let fd = null;
+    let nodesWithPixels;
+    try {
+      fd = await fs.promises.open(blobPath, "r");
+      nodesWithPixels = await Promise.all(
+        rustResult.nodes.map(async (node) => {
+          if (!node.isGroup && node.pixelOffset != null && node.pixelByteLen > 0) {
+            try {
+              const buf = Buffer.allocUnsafe(node.pixelByteLen);
+              await fd.read(buf, 0, node.pixelByteLen, node.pixelOffset);
+              const pixelData = buf.buffer.slice(
+                buf.byteOffset,
+                buf.byteOffset + buf.byteLength
+              );
+              return { ...node, pixelData };
+            } catch {
+              return { ...node, pixelData: null };
+            }
+          }
+          return { ...node, pixelData: null };
+        })
+      );
+    } finally {
+      if (fd) await fd.close().catch(() => {
+      });
+      fs.unlink(blobPath, () => {
+      });
+    }
+    return {
+      success: true,
+      width: rustResult.width,
+      height: rustResult.height,
+      nodes: nodesWithPixels
+    };
+  });
   electron.ipcMain.handle("rust-backend-health", async () => {
     try {
       const result = await callRustBackend("health");
@@ -550,6 +786,85 @@ electron.app.whenReady().then(() => {
     } catch (error) {
       return {
         success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+  electron.ipcMain.handle("coreml-track-object-supported", () => ({
+    supported: process.platform === "darwin"
+  }));
+  electron.ipcMain.handle("coreml-track-object", async (_event, raw) => {
+    if (process.platform !== "darwin") {
+      return { ok: false, error: "Object tracking is available on macOS only." };
+    }
+    if (!raw || typeof raw !== "object") {
+      return { ok: false, error: "Invalid payload." };
+    }
+    const payload = raw;
+    const videoPathRaw = typeof payload.videoPath === "string" ? payload.videoPath : "";
+    const videoPath = normaliseFsPathForCoreMl(videoPathRaw);
+    if (!videoPath || !fs.existsSync(videoPath)) {
+      return { ok: false, error: "videoPath must be an existing file." };
+    }
+    const commandRaw = typeof payload.command === "string" ? payload.command.trim().toLowerCase() : "track";
+    const readTimeSec = () => {
+      const t = typeof payload.timeSec === "number" && Number.isFinite(payload.timeSec) ? payload.timeSec : NaN;
+      return Number.isFinite(t) ? t : null;
+    };
+    let cliPayload;
+    let timeoutMs = 9e5;
+    if (commandRaw === "detectsubjects" || commandRaw === "segmentperson" || commandRaw === "framepreview") {
+      const timeSec = readTimeSec();
+      if (timeSec === null) {
+        return { ok: false, error: "timeSec must be a finite number." };
+      }
+      if (commandRaw === "detectsubjects") {
+        cliPayload = { command: "detectSubjects", videoPath, timeSec };
+      } else if (commandRaw === "segmentperson") {
+        cliPayload = { command: "segmentPerson", videoPath, timeSec };
+      } else {
+        cliPayload = { command: "framePreview", videoPath, timeSec };
+      }
+      timeoutMs = 12e4;
+    } else {
+      const startSec = typeof payload.startSec === "number" && Number.isFinite(payload.startSec) ? payload.startSec : NaN;
+      const endSec = typeof payload.endSec === "number" && Number.isFinite(payload.endSec) ? payload.endSec : NaN;
+      if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || endSec <= startSec) {
+        return { ok: false, error: "startSec and endSec must be finite numbers with endSec > startSec." };
+      }
+      const box = payload.initialBoundingBox;
+      if (!box || typeof box !== "object") {
+        return { ok: false, error: "initialBoundingBox is required." };
+      }
+      const b = box;
+      const bx = typeof b.x === "number" && Number.isFinite(b.x) ? b.x : NaN;
+      const by = typeof b.y === "number" && Number.isFinite(b.y) ? b.y : NaN;
+      const bw = typeof b.width === "number" && Number.isFinite(b.width) ? b.width : NaN;
+      const bh = typeof b.height === "number" && Number.isFinite(b.height) ? b.height : NaN;
+      if (!Number.isFinite(bx) || !Number.isFinite(by) || !Number.isFinite(bw) || !Number.isFinite(bh)) {
+        return { ok: false, error: "initialBoundingBox must have finite x, y, width, height." };
+      }
+      const frameStride = typeof payload.frameStride === "number" && Number.isFinite(payload.frameStride) && payload.frameStride >= 1 ? Math.floor(payload.frameStride) : void 0;
+      const targetFps = typeof payload.targetFps === "number" && Number.isFinite(payload.targetFps) && payload.targetFps > 0 ? payload.targetFps : void 0;
+      cliPayload = {
+        command: "track",
+        videoPath,
+        startSec,
+        endSec,
+        initialBoundingBox: { x: bx, y: by, width: bw, height: bh },
+        frameStride,
+        targetFps
+      };
+    }
+    try {
+      const result = await runCoreMlTrackerCli(cliPayload, timeoutMs);
+      if (result && typeof result === "object" && result.ok === false) {
+        return { ok: false, error: typeof result.error === "string" ? result.error : "Vision job error." };
+      }
+      return result;
+    } catch (error) {
+      return {
+        ok: false,
         error: error instanceof Error ? error.message : String(error)
       };
     }

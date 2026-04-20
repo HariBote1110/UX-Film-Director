@@ -207,16 +207,23 @@ const testEncode4KVideoDecoder = async (): Promise<string> => {
 
   const encoder = new VideoEncoder({
     output: (chunk, meta) => {
-      // mp4-muxer が meta.decoderConfig.colorSpace を必須で参照するため、
-      // null の場合はデフォルト値（BT.709）を補完する
-      if (meta?.decoderConfig && meta.decoderConfig.colorSpace == null) {
-        (meta.decoderConfig as any).colorSpace = {
-          primaries: 'bt709', transfer: 'bt709', matrix: 'bt709', fullRange: false,
+      // WebCodecs が返す meta.decoderConfig は frozen オブジェクトのため直接 mutation 不可。
+      // スプレッドで新しいオブジェクトを生成し、colorSpace が null の場合は BT.709 を補完する。
+      let patchedMeta = meta;
+      if (meta?.decoderConfig) {
+        patchedMeta = {
+          ...meta,
+          decoderConfig: {
+            ...meta.decoderConfig,
+            colorSpace: meta.decoderConfig.colorSpace ?? {
+              primaries: 'bt709', transfer: 'bt709', matrix: 'bt709', fullRange: false,
+            },
+          },
         };
       }
-      muxer.addVideoChunk(chunk, meta);
+      muxer.addVideoChunk(chunk, patchedMeta);
     },
-    error: (e) => { throw e; },
+    error: (e) => { console.error('[ExportTest] VideoEncoder error:', e); },
   });
   encoder.configure(swConfig);
 
@@ -252,7 +259,7 @@ const testEncode4KVideoDecoder = async (): Promise<string> => {
   const speedRatio = (SAMPLE_SEC / elapsedSec).toFixed(1);
   const speed = Math.round(frameCount / elapsedSec);
   const sizeMb = (target.buffer.byteLength / 1024 / 1024).toFixed(1);
-  return `VideoDecoder パス: codec=${detected.codec}, frames=${frameCount}, size=${sizeMb}MB, elapsed=${elapsedSec.toFixed(1)}s, speed=${speed}fps (${speedRatio}x realtime)`;
+  return `VideoDecoder パス: codec=${swConfig.codec}, frames=${frameCount}, size=${sizeMb}MB, elapsed=${elapsedSec.toFixed(1)}s, speed=${speed}fps (${speedRatio}x realtime)`;
 };
 
 // ── エントリーポイント ─────────────────────────────────────────────────────

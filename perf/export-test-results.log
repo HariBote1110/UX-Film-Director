@@ -1,0 +1,13 @@
+ExportTest Run: 2026-04-20T15:24:19.874Z
+Result: SOME FAILED  (total: 119516ms)
+
+  [PASS] コーデック検出（HW/SW 判定）
+         codec=avc1.640028 🔥 HW (VideoToolbox)
+  [PASS] 無地フレームエンコード (1秒 640×360 30fps)
+         codec=avc1.640028, size=16.4KB, time=423ms, speed=71fps
+  [PASS] 動画ファイルからのリエンコード (2秒 640×360) [seek]
+         codec=avc1.640028, size=3516.1KB, time=5552ms, speed=11fps
+  [PASS] 4K 動画 FHD エンコード (5秒 1920×1080 60fps) [seek]
+         codec=avc1.640028, size=11.8MB, elapsed=112.9s, speed=3fps (0.0x realtime)
+  [FAIL] H.264 動画エンコード (5秒 640×360) [VideoDecoder・シークなし]
+         Cannot read properties of null (reading 'colorSpace') || stack: TypeError: Cannot read properties of null (reading 'colorSpace') |     at videoSampleDescription (http://localhost:5299/node_modules/.vite/deps/mp4-muxer.js?v=ba56b32e:390:28) |     at stsd (http://localhost:5299/node_modules/.vite/deps/mp4-muxer.js?v=ba56b32e:351:33) |     at stbl (http://localhost:5299/node_modules/.vite/deps/mp4-muxer.js?v=ba56b32e:338:5) |     at minf (http://localhost:5299/node_modules/.vite/deps/mp4-muxer.js?v=ba56b32e:307:3) |     at mdia (http://localhost:5299/node_modules/.vite/deps/mp4-muxer.js?v=ba56b32e:265:3)
