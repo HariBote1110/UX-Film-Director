@@ -168,6 +168,59 @@ const testEncode4KVideo = async (): Promise<string> => {
   return `codec=${result.codecUsed}, size=${(result.buffer.byteLength / 1024 / 1024).toFixed(1)}MB, elapsed=${elapsedSec.toFixed(1)}s, speed=${speed}fps (${speedRatio}x realtime)`;
 };
 
+/** VideoDecoder ストリームで 4K → FHD を再エンコード（シークなし・VideoFrame 直接渡し） */
+const testEncode4KVideoDecoder = async (): Promise<string> => {
+  const ipcRenderer = (window as any).ipcRenderer;
+  if (!ipcRenderer) throw new Error('ipcRenderer が利用できません');
+
+  const res = await ipcRenderer.invoke('resolve-4k-test-video');
+  if (!res?.success || !res.filePath) throw new Error('4K テスト動画が見つかりません');
+
+  const fileUrl = `file://${res.filePath}`;
+  const W = 1920, H = 1080, SAMPLE_SEC = 5;
+
+  const { detectSupportedH264Codec } = await import('../utils/videoExportPipeline');
+  const { Muxer, ArrayBufferTarget } = await import('mp4-muxer');
+  const { decodeVideoStream } = await import('../utils/videoDecodeStream');
+
+  const detected = await detectSupportedH264Codec(W, H, 60);
+  if (!detected) throw new Error('エンコーダが見つかりません');
+
+  const target = new ArrayBufferTarget();
+  const muxer = new Muxer({
+    target,
+    video: { codec: 'avc', width: W, height: H },
+    fastStart: 'in-memory',
+  });
+
+  const encoder = new VideoEncoder({
+    output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+    error: (e) => { throw e; },
+  });
+  encoder.configure(detected.config);
+
+  const t0 = performance.now();
+  let frameCount = 0;
+
+  for await (const { frame, timestampUs } of decodeVideoStream(fileUrl, { endSec: SAMPLE_SEC, resizeWidth: W, resizeHeight: H })) {
+    // VideoFrame を そのまま VideoEncoder へ（GPU-to-GPU）
+    const keyFrame = timestampUs === 0;
+    encoder.encode(frame, { keyFrame });
+    frame.close();
+    frameCount++;
+  }
+
+  await encoder.flush();
+  encoder.close();
+  muxer.finalize();
+
+  const elapsedSec = (performance.now() - t0) / 1000;
+  const speedRatio = (SAMPLE_SEC / elapsedSec).toFixed(1);
+  const speed = Math.round(frameCount / elapsedSec);
+  const sizeMb = (target.buffer.byteLength / 1024 / 1024).toFixed(1);
+  return `VideoDecoder パス: codec=${detected.codec}, frames=${frameCount}, size=${sizeMb}MB, elapsed=${elapsedSec.toFixed(1)}s, speed=${speed}fps (${speedRatio}x realtime)`;
+};
+
 // ── エントリーポイント ─────────────────────────────────────────────────────
 
 const formatLogLine = (tc: TestCase): string => {
@@ -185,8 +238,9 @@ export const runExportTests = async (): Promise<ExportTestResult> => {
 
   await run('コーデック検出（HW/SW 判定）', testCodecDetection);
   await run('無地フレームエンコード (1秒 640×360 30fps)', testEncodeBlankFrames);
-  await run('動画ファイルからのリエンコード (2秒 640×360)', testEncodeFromVideoFile);
-  await run('4K 動画 FHD ダウンスケールエンコード (5秒 1920×1080 60fps)', testEncode4KVideo);
+  await run('動画ファイルからのリエンコード (2秒 640×360) [seek]', testEncodeFromVideoFile);
+  await run('4K 動画 FHD エンコード (5秒 1920×1080 60fps) [seek]', testEncode4KVideo);
+  await run('4K 動画 FHD エンコード (5秒 1920×1080) [VideoDecoder]', testEncode4KVideoDecoder);
 
   console.groupEnd();
 
