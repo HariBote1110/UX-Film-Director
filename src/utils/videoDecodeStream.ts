@@ -12,7 +12,7 @@
  *   }
  */
 
-import { createFile, type ISOFile, type MP4BoxBuffer, type Track } from 'mp4box';
+import { createFile, DataStream, type ISOFile, type MP4BoxBuffer } from 'mp4box';
 
 export interface DecodedFrame {
   frame: VideoFrame;
@@ -27,6 +27,20 @@ export interface DecodeVideoStreamOptions {
   resizeWidth?: number;
   resizeHeight?: number;
 }
+
+/** mp4box サンプルの description ボックスから VideoDecoder 用 description バイト列を抽出する */
+const extractDescription = (sampleDescription: any): ArrayBuffer | undefined => {
+  const box = sampleDescription?.avcC || sampleDescription?.hvcC || sampleDescription?.vpcC;
+  if (!box) return undefined;
+  try {
+    const stream = new (DataStream as any)(undefined, 0, (DataStream as any).BIG_ENDIAN);
+    box.write(stream);
+    // 先頭8バイトはボックスヘッダー（size + type）をスキップ
+    return (stream.buffer as ArrayBuffer).slice(8, stream.position);
+  } catch {
+    return undefined;
+  }
+};
 
 /**
  * 指定 URL の動画をシークなしでデコードし VideoFrame を yield する。
@@ -46,6 +60,17 @@ export async function* decodeVideoStream(
   let trackWidth = 0;
   let trackHeight = 0;
 
+  // onSamples が onReady より早く呼ばれる競合状態を防ぐため、
+  // デコーダ準備完了前に来たサンプルを一時バッファに蓄積する。
+  const sampleBacklog: any[] = [];
+  let decoderReady = false;
+  let dispatchSamples: ((samples: any[]) => void) | null = null;
+  // H.264 など AVC 形式では最初のサンプルの description から avcC を取得する必要がある
+  let descriptionBuffer: ArrayBuffer | undefined;
+  let descriptionResolved = false;
+  let resolveDescription!: () => void;
+  const descriptionReady = new Promise<void>(r => { resolveDescription = r; });
+
   const trackReady = new Promise<void>((resolve, reject) => {
     mp4.onReady = (info: any) => {
       const track = info.videoTracks?.[0];
@@ -56,6 +81,24 @@ export async function* decodeVideoStream(
       trackWidth = track.video?.width ?? track.track_width ?? 0;
       trackHeight = track.video?.height ?? track.track_height ?? 0;
       mp4.setExtractionOptions(videoTrackId, null, { nbSamples: 100 });
+
+      // onSamples をここで登録（mp4.start() より前）。
+      // デコーダがまだ未初期化の場合はバックログに蓄積し、
+      // 準備完了後に dispatchSamples() 経由で処理する。
+      (mp4 as any).onSamples = (_id: number, _ref: unknown, samples: any[]) => {
+        // description を最初のサンプルから抽出する（AVC H.264 の場合に必要）
+        if (!descriptionResolved && samples.length > 0) {
+          descriptionBuffer = extractDescription(samples[0].description);
+          descriptionResolved = true;
+          resolveDescription();
+        }
+        if (decoderReady && dispatchSamples) {
+          dispatchSamples(samples);
+        } else {
+          sampleBacklog.push(...samples);
+        }
+      };
+
       mp4.start();
       resolve();
     };
@@ -81,6 +124,9 @@ export async function* decodeVideoStream(
 
   await trackReady;
 
+  // description が得られるまで待機（最初の onSamples コールバックまで）
+  await descriptionReady;
+
   // ── 3. VideoDecoder を初期化 ──────────────────────────────────────────
   const frameQueue: DecodedFrame[] = [];
   let decodeError: Error | null = null;
@@ -88,14 +134,12 @@ export async function* decodeVideoStream(
   let resolveWaiter: (() => void) | null = null;
   const notifyWaiter = () => { if (resolveWaiter) { resolveWaiter(); resolveWaiter = null; } };
 
-  const codedWidth = resizeWidth ?? trackWidth;
-  const codedHeight = resizeHeight ?? trackHeight;
-
   const decodeConfig: VideoDecoderConfig = {
     codec: codecString,
     codedWidth: trackWidth,
     codedHeight: trackHeight,
     ...(resizeWidth && resizeHeight ? { displayWidth: resizeWidth, displayHeight: resizeHeight } : {}),
+    ...(descriptionBuffer ? { description: descriptionBuffer } : {}),
     hardwareAcceleration: 'prefer-hardware',
   };
 
@@ -125,7 +169,7 @@ export async function* decodeVideoStream(
   decoder.configure(decodeConfig);
 
   // ── 4. サンプルを VideoDecoder に流す ─────────────────────────────────
-  (mp4 as any).onSamples = (_id: number, _ref: unknown, samples: any[]) => {
+  const sendSamples = (samples: any[]) => {
     for (const s of samples) {
       const tsUs = Math.round((s.cts / timescale) * 1_000_000);
       const durUs = Math.round((s.duration / timescale) * 1_000_000);
@@ -137,6 +181,13 @@ export async function* decodeVideoStream(
       }));
     }
   };
+
+  // デコーダ準備完了：バックログを処理してから、以降のサンプルを直接処理する
+  dispatchSamples = sendSamples;
+  decoderReady = true;
+  if (sampleBacklog.length > 0) {
+    sendSamples(sampleBacklog.splice(0));
+  }
 
   feedPromise.then(async () => {
     await decoder.flush();

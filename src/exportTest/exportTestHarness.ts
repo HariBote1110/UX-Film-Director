@@ -178,9 +178,10 @@ const testEncode4KVideoDecoder = async (): Promise<string> => {
   const ipcRenderer = (window as any).ipcRenderer;
   if (!ipcRenderer) throw new Error('ipcRenderer が利用できません');
 
-  // H.264 ファイルを使用（HEVC は Electron 内で VideoDecoder が非対応の場合がある）
-  const res = await ipcRenderer.invoke('resolve-perf-heavy-video');
-  if (!res?.success || !res.filePath) throw new Error('テスト動画が見つかりません');
+  // H.264 プロキシファイルを使用（元の10000kbps_60fps.mp4 は HEVC で VideoDecoder 非対応）
+  // GX010052.proxy.mp4 は FFmpeg libx264 で生成した H.264 ファイル
+  const res = await ipcRenderer.invoke('resolve-4k-proxy-video');
+  if (!res?.success || !res.filePath) throw new Error('H.264 プロキシ動画が見つかりません（perf/heavy-media/GX010052.proxy.mp4）');
 
   const fileUrl = `file://${res.filePath}`;
   const W = 640, H = 360, SAMPLE_SEC = 5;
@@ -203,25 +204,52 @@ const testEncode4KVideoDecoder = async (): Promise<string> => {
     target,
     video: { codec: 'avc', width: W, height: H },
     fastStart: 'in-memory',
+    // 動画タイムスタンプが 0 以外から始まる場合に自動オフセットする
+    firstTimestampBehavior: 'offset',
   });
+
+  const BT709_COLOR_SPACE = { primaries: 'bt709' as VideoColorPrimaries, transfer: 'bt709' as VideoTransferCharacteristics, matrix: 'bt709' as VideoMatrixCoefficients, fullRange: false };
+
+  // 最初のキーフレームで decoderConfig が来なかった場合のフォールバック用フラグ
+  let decoderConfigReceived = false;
 
   const encoder = new VideoEncoder({
     output: (chunk, meta) => {
-      // WebCodecs が返す meta.decoderConfig は frozen オブジェクトのため直接 mutation 不可。
-      // スプレッドで新しいオブジェクトを生成し、colorSpace が null の場合は BT.709 を補完する。
-      let patchedMeta = meta;
-      if (meta?.decoderConfig) {
-        patchedMeta = {
-          ...meta,
-          decoderConfig: {
-            ...meta.decoderConfig,
-            colorSpace: meta.decoderConfig.colorSpace ?? {
-              primaries: 'bt709', transfer: 'bt709', matrix: 'bt709', fullRange: false,
+      try {
+        // WebCodecs が返す meta.decoderConfig は frozen オブジェクトのため直接 mutation 不可。
+        // スプレッドで新しいオブジェクトを生成し、colorSpace が null/undefined の場合は BT.709 を補完する。
+        let patchedMeta = meta;
+        if (meta?.decoderConfig) {
+          decoderConfigReceived = true;
+          patchedMeta = {
+            ...meta,
+            decoderConfig: {
+              ...meta.decoderConfig,
+              colorSpace: meta.decoderConfig.colorSpace ?? BT709_COLOR_SPACE,
             },
-          },
-        };
+          };
+        } else if (!decoderConfigReceived && chunk.type === 'key') {
+          // SW エンコーダが decoderConfig を返さない場合のフォールバック:
+          // ダミーの decoderConfig を注入して mp4-muxer の null クラッシュを防ぐ
+          patchedMeta = {
+            ...(meta ?? {}),
+            decoderConfig: { codec: swConfig.codec, colorSpace: BT709_COLOR_SPACE },
+          } as EncodedVideoChunkMetadata;
+          decoderConfigReceived = true;
+          console.warn('[ExportTest] SW encoder provided no decoderConfig — injecting fallback');
+        }
+        // EncodedVideoChunk.duration は nullable のため addVideoChunk が duration 検証で throw する場合がある。
+        // addVideoChunkRaw を使い、null の場合はフレーム時間でフォールバックする。
+        const duration = chunk.duration ?? Math.round(1_000_000 / swConfig.framerate!);
+        const rawData = new Uint8Array(chunk.byteLength);
+        chunk.copyTo(rawData);
+        muxer.addVideoChunkRaw(rawData, chunk.type, chunk.timestamp, duration, patchedMeta);
+      } catch (e) {
+        // エラーをログに残しつつ再スローして上位に伝播させる
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error('[ExportTest] addVideoChunkRaw error:', msg);
+        throw e;
       }
-      muxer.addVideoChunk(chunk, patchedMeta);
     },
     error: (e) => { console.error('[ExportTest] VideoEncoder error:', e); },
   });
@@ -244,7 +272,12 @@ const testEncode4KVideoDecoder = async (): Promise<string> => {
     const bitmap = await createImageBitmap(imageData, { resizeWidth: W, resizeHeight: H });
     ctx2d.drawImage(bitmap, 0, 0);
     bitmap.close();
-    const resizedFrame = new VideoFrame(offscreen, { timestamp: timestampUs });
+    // colorSpace を明示することで、SW エンコーダが meta.decoderConfig.colorSpace を設定できるようにする
+    // VideoFrameInit の型定義に colorSpace が含まれていないため as any でキャスト
+    const resizedFrame = new VideoFrame(offscreen, {
+      timestamp: timestampUs,
+      colorSpace: { primaries: 'bt709', transfer: 'bt709', matrix: 'bt709', fullRange: false },
+    } as any);
     const keyFrame = timestampUs === 0;
     encoder.encode(resizedFrame, { keyFrame });
     resizedFrame.close();
@@ -253,6 +286,10 @@ const testEncode4KVideoDecoder = async (): Promise<string> => {
 
   await encoder.flush();
   encoder.close();
+
+  // デコードフレームが 0 件の場合、decoderConfig が設定されず finalize() がクラッシュする
+  if (frameCount === 0) throw new Error('decodeVideoStream が 0 フレームを返しました。VideoDecoder または MP4Box の初期化に失敗した可能性があります');
+
   muxer.finalize();
 
   const elapsedSec = (performance.now() - t0) / 1000;

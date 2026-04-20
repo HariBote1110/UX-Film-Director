@@ -450,6 +450,17 @@ electron.app.whenReady().then(() => {
     }
     return { success: false };
   });
+  electron.ipcMain.handle("resolve-4k-proxy-video", async () => {
+    const base = electron.app.getAppPath();
+    const candidates = [
+      path.join(base, "perf", "heavy-media", "GX010052.proxy.mp4"),
+      path.join(base, "..", "perf", "heavy-media", "GX010052.proxy.mp4")
+    ];
+    for (const filePath of candidates) {
+      if (fs.existsSync(filePath)) return { success: true, filePath };
+    }
+    return { success: false };
+  });
   electron.ipcMain.handle("read-file-bytes", async (_event, payload) => {
     const filePath = typeof (payload == null ? void 0 : payload.filePath) === "string" ? payload.filePath.trim() : "";
     if (!filePath) {
