@@ -206,7 +206,16 @@ const testEncode4KVideoDecoder = async (): Promise<string> => {
   });
 
   const encoder = new VideoEncoder({
-    output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+    output: (chunk, meta) => {
+      // mp4-muxer が meta.decoderConfig.colorSpace を必須で参照するため、
+      // null の場合はデフォルト値（BT.709）を補完する
+      if (meta?.decoderConfig && meta.decoderConfig.colorSpace == null) {
+        (meta.decoderConfig as any).colorSpace = {
+          primaries: 'bt709', transfer: 'bt709', matrix: 'bt709', fullRange: false,
+        };
+      }
+      muxer.addVideoChunk(chunk, meta);
+    },
     error: (e) => { throw e; },
   });
   encoder.configure(swConfig);

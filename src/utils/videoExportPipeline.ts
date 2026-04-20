@@ -137,7 +137,16 @@ export const encodeVideoToMp4 = async (cfg: EncodeVideoConfig): Promise<EncodeRe
   const encodingError = new Promise<never>((_, reject) => { rejectEncoding = reject; });
 
   const videoEncoder = new VideoEncoder({
-    output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+    output: (chunk, meta) => {
+      // mp4-muxer は meta.decoderConfig.colorSpace が null だとクラッシュする
+      // VideoDecoder 由来のチャンクでは colorSpace が null になる場合がある
+      if (meta?.decoderConfig && meta.decoderConfig.colorSpace == null) {
+        (meta.decoderConfig as any).colorSpace = {
+          primaries: 'bt709', transfer: 'bt709', matrix: 'bt709', fullRange: false,
+        };
+      }
+      muxer.addVideoChunk(chunk, meta);
+    },
     error: (e) => { console.error('[VideoExport] VideoEncoder error:', e); rejectEncoding(e); },
   });
   videoEncoder.configure(detected.config);
