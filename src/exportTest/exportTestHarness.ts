@@ -202,11 +202,16 @@ const testEncode4KVideoDecoder = async (): Promise<string> => {
   const t0 = performance.now();
   let frameCount = 0;
 
-  for await (const { frame, timestampUs } of decodeVideoStream(fileUrl, { endSec: SAMPLE_SEC, resizeWidth: W, resizeHeight: H })) {
-    // VideoFrame を そのまま VideoEncoder へ（GPU-to-GPU）
-    const keyFrame = timestampUs === 0;
-    encoder.encode(frame, { keyFrame });
+  for await (const { frame, timestampUs } of decodeVideoStream(fileUrl, { endSec: SAMPLE_SEC })) {
+    // リサイズが必要な場合は createImageBitmap で行ってから VideoFrame に包む
+    // （HEVC→H264 の場合フォーマット変換も兼ねる）
+    const bitmap = await createImageBitmap(frame, { resizeWidth: W, resizeHeight: H });
     frame.close();
+    const resizedFrame = new VideoFrame(bitmap, { timestamp: timestampUs });
+    bitmap.close();
+    const keyFrame = timestampUs === 0;
+    encoder.encode(resizedFrame, { keyFrame });
+    resizedFrame.close();
     frameCount++;
   }
 
