@@ -40,7 +40,10 @@ const run = async (name: string, fn: () => Promise<string>): Promise<void> => {
     console.log(`[ExportTest] ✅ ${name}`, detail ?? '');
     results.push({ name, passed: true, detail });
   } catch (e) {
-    const error = e instanceof Error ? e.message : String(e);
+    const err = e instanceof Error ? e : new Error(String(e));
+    // スタックトレースの先頭5行をエラーメッセージに含める
+    const stackLines = err.stack?.split('\n').slice(0, 6).join(' | ') ?? '';
+    const error = `${err.message} || stack: ${stackLines}`;
     console.error(`[ExportTest] ❌ ${name}:`, error);
     results.push({ name, passed: false, error });
   }
