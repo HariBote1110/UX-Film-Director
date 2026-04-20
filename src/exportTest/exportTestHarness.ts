@@ -211,13 +211,20 @@ const testEncode4KVideoDecoder = async (): Promise<string> => {
   const t0 = performance.now();
   let frameCount = 0;
 
-  // OffscreenCanvas 経由でカラースペースを RGBA に正規化してから VideoEncoder へ渡す
   const offscreen = new OffscreenCanvas(W, H);
   const ctx2d = offscreen.getContext('2d')!;
 
   for await (const { frame, timestampUs } of decodeVideoStream(fileUrl, { endSec: SAMPLE_SEC })) {
-    ctx2d.drawImage(frame, 0, 0, W, H);
+    // colorSpace: null フレームでも動く経路: copyTo(RGBA) → ImageData → createImageBitmap
+    const srcW = frame.codedWidth || frame.displayWidth;
+    const srcH = frame.codedHeight || frame.displayHeight;
+    const rawBuf = new ArrayBuffer(srcW * srcH * 4);
+    await frame.copyTo(rawBuf, { format: 'RGBA' });
     frame.close();
+    const imageData = new ImageData(new Uint8ClampedArray(rawBuf), srcW, srcH);
+    const bitmap = await createImageBitmap(imageData, { resizeWidth: W, resizeHeight: H });
+    ctx2d.drawImage(bitmap, 0, 0);
+    bitmap.close();
     const resizedFrame = new VideoFrame(offscreen, { timestamp: timestampUs });
     const keyFrame = timestampUs === 0;
     encoder.encode(resizedFrame, { keyFrame });
