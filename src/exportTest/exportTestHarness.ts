@@ -10,6 +10,8 @@
  */
 
 import { encodeVideoToMp4, detectSupportedH264Codec, resetCodecCache } from '../utils/videoExportPipeline';
+import { decodeVideoStream } from '../utils/videoDecodeStream';
+import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
 
 declare global {
   interface Window {
@@ -180,11 +182,7 @@ const testEncode4KVideoDecoder = async (): Promise<string> => {
   const fileUrl = `file://${res.filePath}`;
   const W = 640, H = 360, SAMPLE_SEC = 5;
 
-  const { detectSupportedH264Codec } = await import('../utils/videoExportPipeline');
-  const { Muxer, ArrayBufferTarget } = await import('mp4-muxer');
-  const { decodeVideoStream } = await import('../utils/videoDecodeStream');
-
-  const detected = await detectSupportedH264Codec(W, H, 60);
+  const detected = await detectSupportedH264Codec(W, H, 30);
   if (!detected) throw new Error('エンコーダが見つかりません');
 
   const target = new ArrayBufferTarget();
