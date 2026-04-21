@@ -1,10 +1,11 @@
 import { useEffect } from 'react';
 import * as PIXI from 'pixi.js';
 import { useStore } from '../store/useStore';
-import { TimelineObject } from '../types';
+import { TimelineObject, VideoObject } from '../types';
 import { shallow } from 'zustand/shallow';
 import { buildExportAudioBuffer } from '../utils/audioMixdown';
 import { encodeVideoToMp4 } from '../utils/videoExportPipeline';
+import { VideoFrameProvider } from '../utils/videoFrameProvider';
 
 const { ipcRenderer } = window;
 
@@ -12,7 +13,9 @@ export const useProjectExport = (
   pixiAppRef: React.MutableRefObject<PIXI.Application | null>,
   videoElementsRef: React.MutableRefObject<Map<string, HTMLVideoElement>>,
   renderScene: (time: number, objects: TimelineObject[]) => void,
-  getExportCanvas?: () => HTMLCanvasElement | null
+  getExportCanvas?: () => HTMLCanvasElement | null,
+  /** VideoDecoder ハイブリッドパス: フレームを renderScene 前に注入するための ref */
+  exportFrameOverridesRef?: React.MutableRefObject<Map<string, ImageBitmap>>,
 ) => {
   const { isExporting, setExporting, setTime } = useStore((state) => ({
     isExporting: state.isExporting,
@@ -28,6 +31,9 @@ export const useProjectExport = (
     const runExport = async () => {
       const app = pixiAppRef.current;
       if (!app) return;
+
+      // VideoFrameProvider のクリーンアップ用リスト
+      const providers = new Map<string, VideoFrameProvider>();
 
       try {
         const { projectSettings, objects, layers } = useStore.getState();
@@ -59,6 +65,32 @@ export const useProjectExport = (
         const encWidth = width % 2 === 0 ? width : width - 1;
         const encHeight = height % 2 === 0 ? height : height - 1;
 
+        // ── VideoDecoder プロバイダを初期化 ──────────────────────────────────
+        // プロキシがある H.264 素材のみ VideoDecoder 高速パス、それ以外はシーク方式
+        for (const obj of videoObjects) {
+          if (obj.reversed) continue; // 逆再生はシーク方式フォールバック
+          const proxyPath = (obj as VideoObject).proxyFilePath;
+          if (!proxyPath) continue; // プロキシなし → シーク方式フォールバック
+
+          const fileUrl = `file://${proxyPath}`;
+          const startSec = obj.offset || 0;
+          const endSec = startSec + obj.duration + 1; // +1s のマージン
+          const provider = new VideoFrameProvider(fileUrl, startSec, endSec);
+          try {
+            await provider.init();
+            providers.set(obj.id, provider);
+            console.log(`[Export] VideoDecoder パス: ${obj.id} (proxy: ${proxyPath})`);
+          } catch (e) {
+            console.warn(`[Export] VideoDecoder 初期化失敗 → シーク方式フォールバック: ${obj.id}`, e);
+            provider.close();
+          }
+        }
+
+        const usingVideoDecoder = providers.size > 0;
+        if (usingVideoDecoder) {
+          console.log(`[Export] VideoDecoder ハイブリッドパス: ${providers.size} クリップ`);
+        }
+
         async function* renderFrames() {
           for (let i = 0; i < totalFrames; i++) {
             if (cancelled) break;
@@ -69,8 +101,23 @@ export const useProjectExport = (
             const activeVideos = videoObjects.filter(
               obj => t >= obj.startTime && t < obj.startTime + obj.duration
             );
-            if (activeVideos.length > 0) {
-              await Promise.all(activeVideos.map(obj => {
+
+            // ── VideoDecoder パス: フレームを先取りして override に注入 ─────
+            if (exportFrameOverridesRef) {
+              exportFrameOverridesRef.current.clear();
+              await Promise.all(activeVideos.map(async (obj) => {
+                const provider = providers.get(obj.id);
+                if (!provider) return; // シーク方式対象はスキップ
+                const localUs = Math.round(((t - obj.startTime) + (obj.offset || 0)) * 1_000_000);
+                const bitmap = await provider.getFrame(localUs);
+                if (bitmap) exportFrameOverridesRef.current.set(obj.id, bitmap);
+              }));
+            }
+
+            // ── シーク方式フォールバック: providers にないクリップのみシーク ─
+            const seekTargets = activeVideos.filter(obj => !providers.has(obj.id));
+            if (seekTargets.length > 0) {
+              await Promise.all(seekTargets.map(obj => {
                 const video = videoElementsRef.current.get(obj.id);
                 if (!video || video.readyState < 1) return Promise.resolve();
                 const targetTime = (t - obj.startTime) + (obj.offset || 0);
@@ -90,6 +137,9 @@ export const useProjectExport = (
             yield { timestamp: Math.round(i * 1_000_000 / fps), bitmap };
             bitmap.close();
           }
+
+          // フレームループ終了後に override をクリア
+          exportFrameOverridesRef?.current.clear();
         }
 
         const result = await encodeVideoToMp4({
@@ -107,7 +157,8 @@ export const useProjectExport = (
         if (!saved?.success) throw new Error(saved?.error || 'ファイル保存に失敗しました');
 
         if (!cancelled) {
-          alert(`エクスポート完了！\nコーデック: ${result.codecUsed}\nサイズ: ${(result.buffer.byteLength / 1024 / 1024).toFixed(1)}MB\n処理時間: ${(result.durationMs / 1000).toFixed(1)}秒`);
+          const decoderNote = usingVideoDecoder ? '\n（VideoDecoder 高速パス使用）' : '';
+          alert(`エクスポート完了！\nコーデック: ${result.codecUsed}\nサイズ: ${(result.buffer.byteLength / 1024 / 1024).toFixed(1)}MB\n処理時間: ${(result.durationMs / 1000).toFixed(1)}秒${decoderNote}`);
         }
 
       } catch (error) {
@@ -115,11 +166,15 @@ export const useProjectExport = (
           alert(`エクスポート失敗: ${error instanceof Error ? error.message : String(error)}`);
         }
       } finally {
+        // 全プロバイダを解放
+        for (const provider of providers.values()) provider.close();
+        providers.clear();
+        exportFrameOverridesRef?.current.clear();
         setExporting(false);
       }
     };
 
     runExport();
     return () => { cancelled = true; };
-  }, [isExporting, renderScene, setExporting, setTime, pixiAppRef, videoElementsRef, getExportCanvas]);
+  }, [isExporting, renderScene, setExporting, setTime, pixiAppRef, videoElementsRef, getExportCanvas, exportFrameOverridesRef]);
 };

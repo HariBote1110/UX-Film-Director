@@ -617,6 +617,13 @@ const applyVideoSubjectCropMask = (
   sprite.mask = maskG;
 };
 
+/** エクスポート時の VideoDecoder ハイブリッドパス用：クリップ ID → デコード済み ImageBitmap */
+export interface ExportOverlayCanvas {
+    canvas: OffscreenCanvas;
+    ctx: OffscreenCanvasRenderingContext2D;
+    texture: PIXI.Texture;
+}
+
 export const updatePixiContent = (
     obj: TimelineObject,
     container: PIXI.Container,
@@ -626,14 +633,18 @@ export const updatePixiContent = (
         loadingUrls: Set<string>;
         videoElements: Map<string, HTMLVideoElement>;
         videoFrameTextures: Map<string, VideoFrameTextureState>;
-        audioBuffers?: Map<string, AudioBuffer>; 
-        allObjects?: TimelineObject[];           
+        audioBuffers?: Map<string, AudioBuffer>;
+        allObjects?: TimelineObject[];
         isExporting: boolean;
         isPlaying: boolean;
         setRenderTick: React.Dispatch<React.SetStateAction<number>>;
+        /** VideoDecoder ハイブリッドパス: クリップ ID → デコード済み ImageBitmap */
+        exportFrameOverrides?: Map<string, ImageBitmap>;
+        /** exportFrameOverrides を PixiJS テクスチャに変換する OffscreenCanvas キャッシュ */
+        exportOverlayCanvases?: Map<string, ExportOverlayCanvas>;
     }
 ) => {
-    const { textureCache, loadingUrls, videoElements, videoFrameTextures, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick } = resources;
+    const { textureCache, loadingUrls, videoElements, videoFrameTextures, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, exportFrameOverrides, exportOverlayCanvases } = resources;
     let content = container.children[0] as (PIXI.Sprite | PIXI.Graphics | PIXI.Text | PIXI.Container | undefined);
     
     // Check for recreation
@@ -721,6 +732,43 @@ export const updatePixiContent = (
 
     } else if (obj.type === 'video') {
         let sprite = content as PIXI.Sprite;
+
+        // ── VideoDecoder ハイブリッドパス（エクスポート時）────────────────────
+        const overrideBitmap = isExporting ? exportFrameOverrides?.get(obj.id) : undefined;
+        if (overrideBitmap && exportOverlayCanvases) {
+            // OffscreenCanvas キャッシュを取得／作成
+            let overlay = exportOverlayCanvases.get(obj.id);
+            if (!overlay || overlay.canvas.width !== overrideBitmap.width || overlay.canvas.height !== overrideBitmap.height) {
+                overlay?.texture.destroy(true);
+                const canvas = new OffscreenCanvas(overrideBitmap.width, overrideBitmap.height);
+                const ctx = canvas.getContext('2d')!;
+                const source = new PIXI.CanvasSource({ resource: canvas as unknown as HTMLCanvasElement });
+                const texture = new PIXI.Texture({ source });
+                overlay = { canvas, ctx, texture };
+                exportOverlayCanvases.set(obj.id, overlay);
+            }
+            // デコード済みフレームを OffscreenCanvas に描画して Pixi テクスチャを更新
+            overlay.ctx.drawImage(overrideBitmap, 0, 0, overlay.canvas.width, overlay.canvas.height);
+            overlay.texture.source.update();
+
+            if (!sprite) {
+                sprite = new PIXI.Sprite(overlay.texture);
+                container.addChild(sprite);
+            } else if (sprite.texture !== overlay.texture) {
+                sprite.texture = overlay.texture;
+            }
+            sprite.width = obj.width;
+            sprite.height = obj.height;
+            content = sprite;
+
+            const videoObj = obj as VideoObject;
+            const spriteForMask = content instanceof PIXI.Sprite ? content : undefined;
+            applyVideoSubjectCropMask(container, videoObj, spriteForMask, time);
+            // seeked/VideoSource の同期は不要（フレームは既に注入済み）
+
+        } else {
+        // ── 通常パス（プレビュー・シーク方式フォールバック）─────────────────
+
         let video = videoElements.get(obj.id);
         if (!video) {
             video = document.createElement('video');
@@ -761,8 +809,8 @@ export const updatePixiContent = (
             const videoLocalTime = (time - obj.startTime) + offset;
             if (!isExporting) {
                 if (isPlaying) {
-                    if (video.paused) { 
-                        const pp = video.play(); if (pp) pp.catch(()=>{}); 
+                    if (video.paused) {
+                        const pp = video.play(); if (pp) pp.catch(()=>{});
                         if (Math.abs(video.currentTime - videoLocalTime) > 0.1) video.currentTime = videoLocalTime;
                     } else {
                         // Allow 0.5s drift to avoid frequent seeking overhead
@@ -786,6 +834,8 @@ export const updatePixiContent = (
         const videoObj = obj as VideoObject;
         const spriteForMask = content instanceof PIXI.Sprite ? content : undefined;
         applyVideoSubjectCropMask(container, videoObj, spriteForMask, time);
+
+        } // end 通常パス
 
     } else if (obj.type === 'audio_visualization') {
         let graphics = content as PIXI.Graphics || new PIXI.Graphics();

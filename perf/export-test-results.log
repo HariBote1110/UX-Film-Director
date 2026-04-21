@@ -1,13 +1,13 @@
-ExportTest Run: 2026-04-20T15:55:31.923Z
-Result: ALL PASSED  (total: 124178ms)
+ExportTest Run: 2026-04-21T02:43:01.478Z
+Result: ALL PASSED  (total: 120523ms)
 
   [PASS] コーデック検出（HW/SW 判定）
          codec=avc1.640028 🔥 HW (VideoToolbox)
   [PASS] 無地フレームエンコード (1秒 640×360 30fps)
-         codec=avc1.640028, size=16.4KB, time=403ms, speed=74fps
+         codec=avc1.640028, size=16.4KB, time=1984ms, speed=15fps
   [PASS] 動画ファイルからのリエンコード (2秒 640×360) [seek]
-         codec=avc1.640028, size=3516.1KB, time=5875ms, speed=10fps
+         codec=avc1.640028, size=3516.1KB, time=4416ms, speed=14fps
   [PASS] 4K 動画 FHD エンコード (5秒 1920×1080 60fps) [seek]
-         codec=avc1.640028, size=11.8MB, elapsed=112.6s, speed=3fps (0.0x realtime)
+         codec=avc1.640028, size=11.8MB, elapsed=109.5s, speed=3fps (0.0x realtime)
   [PASS] H.264 動画エンコード (5秒 640×360) [VideoDecoder・シークなし]
-         VideoDecoder パス: codec=avc1.640028, frames=610, size=3.2MB, elapsed=4.7s, speed=131fps (1.1x realtime)
+         VideoDecoder パス: codec=avc1.640028, frames=610, size=3.2MB, elapsed=4.2s, speed=144fps (1.2x realtime)

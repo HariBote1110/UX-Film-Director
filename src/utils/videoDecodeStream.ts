@@ -21,6 +21,8 @@ export interface DecodedFrame {
 }
 
 export interface DecodeVideoStreamOptions {
+  /** デコード開始時刻（秒）。未指定なら 0。この時刻より前のフレームはスキップする */
+  startSec?: number;
   /** デコード終了時刻（秒）。未指定なら末尾まで */
   endSec?: number;
   /** リサイズ後の幅。指定時は VideoDecoder の displayWidth に設定 */
@@ -50,7 +52,8 @@ export async function* decodeVideoStream(
   fileUrl: string,
   opts: DecodeVideoStreamOptions = {}
 ): AsyncGenerator<DecodedFrame> {
-  const { endSec = Infinity, resizeWidth, resizeHeight } = opts;
+  const { startSec = 0, endSec = Infinity, resizeWidth, resizeHeight } = opts;
+  const startUs = Math.round(startSec * 1_000_000);
 
   // ── 1. MP4Box でデマックス ─────────────────────────────────────────────
   const mp4: ISOFile = createFile();
@@ -157,6 +160,8 @@ export async function* decodeVideoStream(
       const tsUs = frame.timestamp;
       const tsSec = tsUs / 1_000_000;
       if (tsSec > endSec + 1) { frame.close(); return; }
+      // startSec より前のフレームはスキップ（offset 対応）
+      if (tsUs < startUs) { frame.close(); return; }
       frameQueue.push({ frame, timestampUs: tsUs });
       notifyWaiter();
     },

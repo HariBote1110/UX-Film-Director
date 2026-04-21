@@ -10,7 +10,7 @@ import { usePixiInteraction } from '../hooks/usePixiInteraction';
 import { useProjectExport } from '../hooks/useProjectExport';
 import { useVisionRealtimeDetection } from '../hooks/useVisionRealtimeDetection';
 import { getGroupTransforms, getLipSyncViseme, updatePixiContent, applyObjectEffects, getVibrationOffset, applyGroupGradientEffect } from '../utils/pixiRenderHelper';
-import type { VideoFrameTextureState } from '../utils/pixiRenderHelper';
+import type { VideoFrameTextureState, ExportOverlayCanvas } from '../utils/pixiRenderHelper';
 import { evaluateObjectPositionAtTime } from '../utils/keyframes';
 import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier, getPrimaryWipeFilter } from '../utils/filterStack';
 import { useTranslation } from '../i18n';
@@ -89,6 +89,10 @@ const Viewport: React.FC = () => {
   const loadingUrlsRef = useRef<Set<string>>(new Set());
   const videoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
   const videoFrameTexturesRef = useRef<Map<string, VideoFrameTextureState>>(new Map());
+  /** VideoDecoder ハイブリッドパス: エクスポート時にフレームを注入するためのマップ */
+  const exportFrameOverridesRef = useRef<Map<string, ImageBitmap>>(new Map());
+  /** exportFrameOverrides を Pixi テクスチャに変換する OffscreenCanvas キャッシュ */
+  const exportOverlayCanvasesRef = useRef<Map<string, ExportOverlayCanvas>>(new Map());
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const videoPlayPromisesRef = useRef<Map<string, Promise<void> | null>>(new Map());
   
@@ -435,11 +439,13 @@ const Viewport: React.FC = () => {
           loadingUrls: loadingUrlsRef.current,
           videoElements: videoElementsRef.current,
           videoFrameTextures: videoFrameTexturesRef.current,
-          audioBuffers: audioBuffersRef.current, 
-          allObjects: currentObjects,            
+          audioBuffers: audioBuffersRef.current,
+          allObjects: currentObjects,
           isExporting,
           isPlaying,
-          setRenderTick
+          setRenderTick,
+          exportFrameOverrides: exportFrameOverridesRef.current,
+          exportOverlayCanvases: exportOverlayCanvasesRef.current,
       });
 
       const shadowFilters = getEnabledObjectFiltersInOrder(obj).filter((filter): filter is Extract<ObjectFilter, { type: 'shadow' }> => {
@@ -777,7 +783,7 @@ const Viewport: React.FC = () => {
     return pixiCanvas != null ? (pixiCanvas as HTMLCanvasElement) : null;
   }, []);
   
-  useProjectExport(pixiAppRef, videoElementsRef, renderScene, getExportCanvas);
+  useProjectExport(pixiAppRef, videoElementsRef, renderScene, getExportCanvas, exportFrameOverridesRef);
 
   // --- Snapshot Logic (after renderScene is defined) ---
   useEffect(() => {

@@ -306,6 +306,8 @@ export interface VideoObject extends BaseObject {
   /** true のとき `subjectCropKeyframes` でスプライトを矩形マスク */
   subjectCropEnabled?: boolean;
   subjectCropKeyframes?: SubjectCropNormKeyframe[];
+  /** true のとき逆再生（エクスポート時はシーク方式フォールバック） */
+  reversed?: boolean;
 }
 
 export interface AudioObject extends BaseObject {

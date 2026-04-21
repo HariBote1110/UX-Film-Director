@@ -1,7 +1,7 @@
 {
-  "runAt": "2026-04-20T15:55:31.923Z",
+  "runAt": "2026-04-21T02:43:01.478Z",
   "passed": true,
-  "totalMs": 124178.43999999948,
+  "totalMs": 120522.95499999821,
   "tests": [
     {
       "name": "コーデック検出（HW/SW 判定）",
@@ -11,22 +11,22 @@
     {
       "name": "無地フレームエンコード (1秒 640×360 30fps)",
       "passed": true,
-      "detail": "codec=avc1.640028, size=16.4KB, time=403ms, speed=74fps"
+      "detail": "codec=avc1.640028, size=16.4KB, time=1984ms, speed=15fps"
     },
     {
       "name": "動画ファイルからのリエンコード (2秒 640×360) [seek]",
       "passed": true,
-      "detail": "codec=avc1.640028, size=3516.1KB, time=5875ms, speed=10fps"
+      "detail": "codec=avc1.640028, size=3516.1KB, time=4416ms, speed=14fps"
     },
     {
       "name": "4K 動画 FHD エンコード (5秒 1920×1080 60fps) [seek]",
       "passed": true,
-      "detail": "codec=avc1.640028, size=11.8MB, elapsed=112.6s, speed=3fps (0.0x realtime)"
+      "detail": "codec=avc1.640028, size=11.8MB, elapsed=109.5s, speed=3fps (0.0x realtime)"
     },
     {
       "name": "H.264 動画エンコード (5秒 640×360) [VideoDecoder・シークなし]",
       "passed": true,
-      "detail": "VideoDecoder パス: codec=avc1.640028, frames=610, size=3.2MB, elapsed=4.7s, speed=131fps (1.1x realtime)"
+      "detail": "VideoDecoder パス: codec=avc1.640028, frames=610, size=3.2MB, elapsed=4.2s, speed=144fps (1.2x realtime)"
     }
   ]
 }
