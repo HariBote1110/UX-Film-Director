@@ -299,6 +299,113 @@ const testEncode4KVideoDecoder = async (): Promise<string> => {
   return `VideoDecoder パス: codec=${swConfig.codec}, frames=${frameCount}, size=${sizeMb}MB, elapsed=${elapsedSec.toFixed(1)}s, speed=${speed}fps (${speedRatio}x realtime)`;
 };
 
+/**
+ * 実エクスポート経路の「1フレームあたりコピーコスト」を相対計測する。
+ *
+ * 同じデコード済みフレームに対し、現行の copy-chain と lean パスを実行し、
+ * フェーズ別の累積 ms と実効 fps を出力する。Pixi 自体の描画は含めないが、
+ * 現行経路の主因である「中間コピー＋ canvas 読み戻し」を出力解像度で再現する。
+ */
+const testPipelinePhaseBreakdown = async (): Promise<string> => {
+  const ipcRenderer = (window as any).ipcRenderer;
+  if (!ipcRenderer) throw new Error('ipcRenderer が利用できません');
+
+  const res = await ipcRenderer.invoke('resolve-4k-proxy-video');
+  if (!res?.success || !res.filePath) throw new Error('H.264 プロキシ動画が見つかりません（perf/heavy-media/GX010052.proxy.mp4）');
+  const fileUrl = `file://${res.filePath}`;
+
+  // 出力は 4K ネイティブ（重い動画をそのまま書き出す代表ケース）。
+  // エンコーダは含めない（SW OpenH264 が 4K 非対応のため）。コピー／読み戻し
+  // コストのみを単離計測する。encode コストは FHD 計測（HW≈5ms）を参照。
+  const W = 3840, H = 2160, SAMPLE_SEC = 2;
+  const COLOR = { primaries: 'bt709', transfer: 'bt709', matrix: 'bt709', fullRange: false } as const;
+
+  // ── 計測 A: 現行 copy-chain（エンコード入力 ImageBitmap を作るまで）────────
+  // decode → createImageBitmap(frame) → drawImage → createImageBitmap(canvas)
+  const current = { decode: 0, toBitmap: 0, composite: 0, readback: 0, frames: 0 };
+  {
+    const offscreen = new OffscreenCanvas(W, H);
+    const ctx = offscreen.getContext('2d')!;
+    let t = performance.now();
+    for await (const { frame } of decodeVideoStream(fileUrl, { endSec: SAMPLE_SEC })) {
+      current.decode += performance.now() - t; t = performance.now();
+      const bitmap = await createImageBitmap(frame); frame.close();
+      current.toBitmap += performance.now() - t; t = performance.now();
+      ctx.drawImage(bitmap, 0, 0, W, H); bitmap.close();
+      current.composite += performance.now() - t; t = performance.now();
+      const outBitmap = await createImageBitmap(offscreen, 0, 0, W, H);
+      current.readback += performance.now() - t;
+      outBitmap.close();
+      current.frames++;
+      t = performance.now();
+    }
+  }
+
+  // ── 計測 B: lean パス（エンコード入力 VideoFrame を作るまで）──────────────
+  // decode → drawImage(frame 直接) → VideoFrame(canvas 直接)
+  const lean = { decode: 0, composite: 0, makeVF: 0, frames: 0 };
+  {
+    const offscreen = new OffscreenCanvas(W, H);
+    const ctx = offscreen.getContext('2d')!;
+    let t = performance.now();
+    for await (const { frame, timestampUs } of decodeVideoStream(fileUrl, { endSec: SAMPLE_SEC })) {
+      lean.decode += performance.now() - t; t = performance.now();
+      ctx.drawImage(frame, 0, 0, W, H); frame.close();
+      lean.composite += performance.now() - t; t = performance.now();
+      const vf = new VideoFrame(offscreen, { timestamp: timestampUs, colorSpace: COLOR } as any);
+      lean.makeVF += performance.now() - t;
+      vf.close();
+      lean.frames++;
+      t = performance.now();
+    }
+  }
+
+  // ── 計測 C: seek 方式のフレーム取得コスト（4K 元動画）────────────────────
+  // HTMLVideoElement.currentTime シーク + createImageBitmap を 30 フレーム分計測。
+  let seekInfo = 'seek: 計測スキップ';
+  try {
+    const res4k = await ipcRenderer.invoke('resolve-4k-test-video');
+    if (res4k?.success && res4k.filePath) {
+      const video = document.createElement('video');
+      video.src = `file://${res4k.filePath}`;
+      video.muted = true; video.preload = 'auto';
+      await new Promise<void>((resolve, reject) => {
+        video.oncanplay = () => resolve();
+        video.onerror = () => reject(new Error('4K 動画の読み込み失敗'));
+        video.load();
+      });
+      const N = 30, FPS = 60;
+      let seekMs = 0, bmpMs = 0;
+      let t = performance.now();
+      for (let i = 0; i < N; i++) {
+        const target = i / FPS;
+        await new Promise<void>((resolve) => { video.onseeked = () => resolve(); video.currentTime = target; });
+        seekMs += performance.now() - t; t = performance.now();
+        const bmp = await createImageBitmap(video, { resizeWidth: W, resizeHeight: H });
+        bmpMs += performance.now() - t; bmp.close(); t = performance.now();
+      }
+      const seekFps = Math.round(N / ((seekMs + bmpMs) / 1000));
+      seekInfo = `SEEK(4K元)=${seekFps}fps/枠 [seek=${(seekMs / N).toFixed(1)} toBitmap=${(bmpMs / N).toFixed(1)} ms]`;
+    }
+  } catch (e) {
+    seekInfo = `seek 計測失敗: ${e instanceof Error ? e.message : String(e)}`;
+  }
+
+  const curTotal = current.decode + current.toBitmap + current.composite + current.readback;
+  const leanTotal = lean.decode + lean.composite + lean.makeVF;
+  const per = (v: number, n: number) => (v / n).toFixed(1);
+  // コピーのみの実効スループット（encode 抜き）。
+  const curCopyFps = Math.round(current.frames / (curTotal / 1000));
+  const leanCopyFps = Math.round(lean.frames / (leanTotal / 1000));
+
+  return [
+    `out=${W}x${H} frames=${current.frames}（encode 除外・コピー単離）`,
+    `CURRENT(copy-chain)=${curCopyFps}fps相当 [decode=${per(current.decode, current.frames)} toBitmap=${per(current.toBitmap, current.frames)} composite=${per(current.composite, current.frames)} readback=${per(current.readback, current.frames)} ms]`,
+    `LEAN(direct)=${leanCopyFps}fps相当 [decode=${per(lean.decode, lean.frames)} composite=${per(lean.composite, lean.frames)} makeVF=${per(lean.makeVF, lean.frames)} ms]`,
+    seekInfo,
+  ].join('\n         ');
+};
+
 // ── エントリーポイント ─────────────────────────────────────────────────────
 
 const formatLogLine = (tc: TestCase): string => {
@@ -319,6 +426,7 @@ export const runExportTests = async (): Promise<ExportTestResult> => {
   await run('動画ファイルからのリエンコード (2秒 640×360) [seek]', testEncodeFromVideoFile);
   await run('4K 動画 FHD エンコード (5秒 1920×1080 60fps) [seek]', testEncode4KVideo);
   await run('H.264 動画エンコード (5秒 640×360) [VideoDecoder・シークなし]', testEncode4KVideoDecoder);
+  await run('パイプライン フェーズ別内訳 (4K 出力・seek vs VideoDecoder)', testPipelinePhaseBreakdown);
 
   console.groupEnd();
 

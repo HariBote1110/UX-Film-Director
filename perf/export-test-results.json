@@ -1,7 +1,7 @@
 {
-  "runAt": "2026-04-21T02:43:01.478Z",
+  "runAt": "2026-05-29T13:07:51.744Z",
   "passed": true,
-  "totalMs": 120522.95499999821,
+  "totalMs": 5483.975000023842,
   "tests": [
     {
       "name": "コーデック検出（HW/SW 判定）",
@@ -9,24 +9,9 @@
       "detail": "codec=avc1.640028 🔥 HW (VideoToolbox)"
     },
     {
-      "name": "無地フレームエンコード (1秒 640×360 30fps)",
+      "name": "パイプライン フェーズ別内訳 (FHD 出力・VideoDecoder)",
       "passed": true,
-      "detail": "codec=avc1.640028, size=16.4KB, time=1984ms, speed=15fps"
-    },
-    {
-      "name": "動画ファイルからのリエンコード (2秒 640×360) [seek]",
-      "passed": true,
-      "detail": "codec=avc1.640028, size=3516.1KB, time=4416ms, speed=14fps"
-    },
-    {
-      "name": "4K 動画 FHD エンコード (5秒 1920×1080 60fps) [seek]",
-      "passed": true,
-      "detail": "codec=avc1.640028, size=11.8MB, elapsed=109.5s, speed=3fps (0.0x realtime)"
-    },
-    {
-      "name": "H.264 動画エンコード (5秒 640×360) [VideoDecoder・シークなし]",
-      "passed": true,
-      "detail": "VideoDecoder パス: codec=avc1.640028, frames=610, size=3.2MB, elapsed=4.2s, speed=144fps (1.2x realtime)"
+      "detail": "out=3840x2160 frames=250（encode 除外・コピー単離）\n         CURRENT(copy-chain)=275fps相当 [decode=3.3 toBitmap=0.3 composite=0.0 readback=0.0 ms]\n         LEAN(direct)=390fps相当 [decode=2.0 composite=0.5 makeVF=0.0 ms]\n         SEEK(4K元)=9fps/枠 [seek=100.3 toBitmap=15.7 ms]"
     }
   ]
 }
