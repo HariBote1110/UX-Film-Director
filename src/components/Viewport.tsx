@@ -17,8 +17,19 @@ import { useTranslation } from '../i18n';
 import { computePreviewDisplayScale } from '../utils/previewDisplayScale';
 import { useCanvasVideoUploadForPixiPreview } from '../utils/videoElementForPixi';
 import { visionNormBoundingBoxToVideoLocalRect } from '../utils/visionTrackingGeometry';
+import type { ResizeCorner } from '../utils/transformGeometry';
 
 const GROUP_GRADIENT_COMPONENT_PREFIX = 'group-gradient-component-';
+const RESIZE_HANDLE_PREFIX = 'resize-handle-';
+/** 角ハンドルのスクリーン上の目標サイズ（px）。 */
+const RESIZE_HANDLE_SCREEN_PX = 10;
+
+const RESIZE_CORNER_CURSORS: Record<ResizeCorner, string> = {
+  'top-left': 'nwse-resize',
+  'bottom-right': 'nwse-resize',
+  'top-right': 'nesw-resize',
+  'bottom-left': 'nesw-resize',
+};
 
 type BoundsLike = { x: number; y: number; width: number; height: number };
 
@@ -173,7 +184,10 @@ const Viewport: React.FC = () => {
   const latestObjectsRef = useRef(objects);
   latestObjectsRef.current = objects;
 
-  const { onDragStart, onDragMove, onDragEnd, dragRef } = usePixiInteraction(latestObjectsRef);
+  const {
+    onDragStart, onDragMove, onDragEnd, dragRef,
+    onResizeStart, onResizeMove, onResizeEnd, resizeRef,
+  } = usePixiInteraction(latestObjectsRef);
 
   useEffect(() => {
     const el = viewportShellRef.current;
@@ -425,7 +439,8 @@ const Viewport: React.FC = () => {
         container = new PIXI.Container();
         container.label = obj.id; container.eventMode = 'static'; container.cursor = 'pointer';
         container.on('pointerdown', (e) => onDragStart(e, obj.id));
-        container.on('pointerup', onDragEnd); container.on('pointerupoutside', onDragEnd); container.on('globalpointermove', onDragMove); 
+        container.on('pointerup', onDragEnd); container.on('pointerupoutside', onDragEnd); container.on('globalpointermove', onDragMove);
+        container.on('pointerup', onResizeEnd); container.on('pointerupoutside', onResizeEnd); container.on('globalpointermove', onResizeMove);
         currentPixiObjects.set(obj.id, container);
       }
       container.cursor = layers[obj.layer]?.locked ? 'not-allowed' : 'pointer';
@@ -549,14 +564,64 @@ const Viewport: React.FC = () => {
           bh = Math.max(1, bottomRight.y - topLeft.y);
         }
 
-        border.rect(bx, by, bw, bh); 
+        border.rect(bx, by, bw, bh);
         border.stroke({ width: 2, color: 0xffd700 });
         container.setChildIndex(border, container.children.length - 1);
+
+        // Resize Handles (四隅)
+        const locked = layers[obj.layer]?.locked === true;
+        const handleCorners: { corner: ResizeCorner; cx: number; cy: number }[] = [
+          { corner: 'top-left', cx: bx, cy: by },
+          { corner: 'top-right', cx: bx + bw, cy: by },
+          { corner: 'bottom-left', cx: bx, cy: by + bh },
+          { corner: 'bottom-right', cx: bx + bw, cy: by + bh },
+        ];
+        // ハンドルがコンテナのスケール・カメラズームに依らず一定の見かけサイズに
+        // なるよう、ローカルサイズを補正する。
+        const zoomForHandle = Math.max(0.05, camera.zoom);
+        const handleW = RESIZE_HANDLE_SCREEN_PX / Math.max(1e-3, Math.abs(obj.scaleX ?? 1) * zoomForHandle);
+        const handleH = RESIZE_HANDLE_SCREEN_PX / Math.max(1e-3, Math.abs(obj.scaleY ?? 1) * zoomForHandle);
+        const currentBounds = { bx, by, bw, bh };
+
+        handleCorners.forEach(({ corner, cx, cy }) => {
+          const label = `${RESIZE_HANDLE_PREFIX}${corner}`;
+          let handle = container.children.find((c) => c.label === label) as PIXI.Graphics | undefined;
+          if (locked) {
+            if (handle) {
+              container.removeChild(handle);
+              handle.destroy();
+            }
+            return;
+          }
+          if (!handle || handle.destroyed) {
+            handle = new PIXI.Graphics();
+            handle.label = label;
+            handle.eventMode = 'static';
+            handle.cursor = RESIZE_CORNER_CURSORS[corner];
+            // 現在の角・境界はレンダーごとに更新し、pointerdown 時に最新値を読む。
+            handle.on('pointerdown', (e) => {
+              const data = (handle as unknown as { __resize?: { corner: ResizeCorner; bounds: typeof currentBounds } }).__resize;
+              if (data) onResizeStart(e, obj.id, data.corner, data.bounds);
+            });
+            container.addChild(handle);
+          }
+          (handle as unknown as { __resize?: unknown }).__resize = { corner, bounds: currentBounds };
+          handle.clear();
+          handle.rect(cx - handleW / 2, cy - handleH / 2, handleW, handleH);
+          handle.fill({ color: 0xffffff });
+          handle.stroke({ width: Math.max(handleW, handleH) * 0.12, color: 0xffd700 });
+          container.setChildIndex(handle, container.children.length - 1);
+        });
       } else {
         if (border) {
             container.removeChild(border);
             border.destroy();
         }
+        const handleNodes = container.children.filter((c) => (c.label ?? '').startsWith(RESIZE_HANDLE_PREFIX));
+        handleNodes.forEach((handleNode) => {
+          container.removeChild(handleNode);
+          handleNode.destroy();
+        });
       }
 
       // Transform
@@ -744,7 +809,7 @@ const Viewport: React.FC = () => {
         if (!wrap) continue;
         const extractRoot = wrap.children.find((ch) => {
           const label = typeof ch.label === 'string' ? ch.label : '';
-          return label !== 'border' && !label.startsWith('shadow');
+          return label !== 'border' && !label.startsWith('shadow') && !label.startsWith(RESIZE_HANDLE_PREFIX);
         }) as PIXI.Container | undefined;
         if (!extractRoot) continue;
         const bounds = extractRoot.getLocalBounds();
