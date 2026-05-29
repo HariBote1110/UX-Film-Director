@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import { TimelineObject, VideoObject, GroupControlObject, AudioVisualizationObject, AudioObject, ClippingParams, GradientFill, ObjectFilter } from '../types';
 import { createGradientTexture, drawShape, getCurrentViseme, renderPsdTree, cacheTextureFromUrl } from './pixiUtils';
+import { applyIntrinsicSizeToVideoElement, destroyVideoSourcePreservingPlayUrl } from './videoElementForPixi';
 import { evaluateObjectPositionAtTime } from './keyframes';
 import { evaluateSubjectCropNormRectAtTime } from './subjectCropKeyframes';
 import { getEnabledObjectFiltersInOrder } from './filterStack';
@@ -364,59 +365,124 @@ class GroupGradientFilter extends PIXI.Filter {
     }
 }
 
-export interface VideoFrameTextureState {
-    texture: PIXI.Texture;
-    // Phase 1-b: PixiJS VideoSource を利用した GPU ダイレクトアップロード
-    videoSource: PIXI.VideoSource;
-    width: number;
-    height: number;
-}
+/** プレビュー動画: WebGL は {@link PIXI.VideoSource}、WebGPU は Canvas ラスタライズ（`copyExternalImageToTexture` の不整合を回避） */
+export type VideoFrameTextureState = {
+  texture: PIXI.Texture;
+  width: number;
+  height: number;
+} & (
+  | { uploadMode: 'video-source'; videoSource: PIXI.VideoSource }
+  | {
+      uploadMode: 'canvas';
+      canvas: OffscreenCanvas | HTMLCanvasElement;
+      ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+    }
+);
+
+const create2dDrawSurface = (
+  width: number,
+  height: number
+):
+  | {
+      canvas: OffscreenCanvas | HTMLCanvasElement;
+      ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+    }
+  | null => {
+  if (typeof OffscreenCanvas !== 'undefined') {
+    const canvas = new OffscreenCanvas(width, height);
+    const ctx = canvas.getContext('2d');
+    if (ctx) return { canvas, ctx };
+  }
+  if (typeof document !== 'undefined') {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (ctx) return { canvas, ctx };
+  }
+  return null;
+};
+
+const canvasResourceForPixi = (canvas: OffscreenCanvas | HTMLCanvasElement) =>
+  (canvas instanceof OffscreenCanvas
+    ? (canvas as unknown as HTMLCanvasElement)
+    : canvas);
 
 const ensureVideoFrameTextureState = (
     videoId: string,
     video: HTMLVideoElement,
     videoFrameTextures: Map<string, VideoFrameTextureState>,
-    onNewFrame: () => void
+    onNewFrame: () => void,
+    useCanvasUpload: boolean
 ): VideoFrameTextureState | null => {
     const width = Math.max(1, Math.floor(video.videoWidth));
     const height = Math.max(1, Math.floor(video.videoHeight));
+    const wantedMode = useCanvasUpload ? 'canvas' : 'video-source';
 
     const existing = videoFrameTextures.get(videoId);
-    if (existing && existing.width === width && existing.height === height) {
+    if (existing && existing.width === width && existing.height === height && existing.uploadMode === wantedMode) {
         return existing;
     }
 
     if (existing) {
-        existing.videoSource.destroy();
+        if (existing.uploadMode === 'video-source') {
+            destroyVideoSourcePreservingPlayUrl(video, existing.videoSource);
+        }
         existing.texture.destroy(false);
         videoFrameTextures.delete(videoId);
     }
 
-    // PixiJS VideoSource: 内部で requestVideoFrameCallback + copyExternalImageToTexture を使用
-    // Canvas 2D drawImage パスを完全に排除した GPU ダイレクトアップロード
+    applyIntrinsicSizeToVideoElement(video);
+
+    if (useCanvasUpload) {
+        const surface = create2dDrawSurface(width, height);
+        if (!surface) return null;
+        const { canvas, ctx } = surface;
+        try {
+            ctx.drawImage(video, 0, 0, width, height);
+        } catch {
+            return null;
+        }
+        const source = new PIXI.CanvasSource({ resource: canvasResourceForPixi(canvas) });
+        const texture = new PIXI.Texture({ source });
+        const state: VideoFrameTextureState = { texture, width, height, uploadMode: 'canvas', canvas, ctx };
+        videoFrameTextures.set(videoId, state);
+        return state;
+    }
+
+    // WebGL: PixiJS VideoSource（texSubImage2D; VideoSource 更新）
     const videoSource = new PIXI.VideoSource({
         resource: video,
         autoPlay: false,
         autoLoad: false,
-        updateFPS: 0,  // 0 = requestVideoFrameCallback に任せる（フレーム精度）
+        updateFPS: 0,
         alphaMode: 'premultiply-alpha-on-upload',
     });
-    // load() でイベントリスナー（play/pause/seeked）を登録させる
-    // HTMLVideoElement は既にロード済みなので src は変更されない
-    void videoSource.load();
+    void videoSource.load().catch(() => {
+      /* load() 内の非同期中に destroy した場合など; 未処理拒否を防ぐ */
+    });
     const texture = new PIXI.Texture({ source: videoSource });
-
-    // フレーム更新通知で PixiJS の renderTick を駆動
     videoSource.on('update', () => onNewFrame());
 
-    const state: VideoFrameTextureState = { texture, videoSource, width, height };
+    const state: VideoFrameTextureState = { texture, videoSource, width, height, uploadMode: 'video-source' };
     videoFrameTextures.set(videoId, state);
     return state;
 };
 
-const drawVideoFrameToTexture = (state: VideoFrameTextureState): boolean => {
-    // VideoSource が有効かつ動画が再生可能であれば描画済みとみなす
-    return !state.videoSource.destroyed && state.videoSource.isValid;
+const drawVideoFrameToTexture = (state: VideoFrameTextureState, video: HTMLVideoElement): boolean => {
+    if (state.uploadMode === 'canvas') {
+        if (!video || video.videoWidth <= 0 || video.videoHeight <= 0) return false;
+        try {
+            state.ctx.drawImage(video, 0, 0, state.width, state.height);
+        } catch {
+            return false;
+        }
+        state.texture.source.update();
+        return true;
+    }
+    if (state.videoSource.destroyed) return false;
+    const res = (state.videoSource as unknown as { resource: HTMLVideoElement | null }).resource;
+    return !!(res && res.videoWidth > 0 && res.videoHeight > 0);
 };
 
 export const applyGroupGradientEffect = (container: PIXI.Container, gradient: GradientFill | undefined) => {
@@ -642,9 +708,14 @@ export const updatePixiContent = (
         exportFrameOverrides?: Map<string, ImageBitmap>;
         /** exportFrameOverrides を PixiJS テクスチャに変換する OffscreenCanvas キャッシュ */
         exportOverlayCanvases?: Map<string, ExportOverlayCanvas>;
+        /**
+         * WebGPU（`RendererType` 2）のとき true。動画を VideoSource ではなく 2D Canvas 経由でテクスチャ化し、
+         * `copyExternalImageToTexture` の out-of-bounds を避ける。
+         */
+        useCanvasVideoUpload: boolean;
     }
 ) => {
-    const { textureCache, loadingUrls, videoElements, videoFrameTextures, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, exportFrameOverrides, exportOverlayCanvases } = resources;
+    const { textureCache, loadingUrls, videoElements, videoFrameTextures, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, exportFrameOverrides, exportOverlayCanvases, useCanvasVideoUpload } = resources;
     let content = container.children[0] as (PIXI.Sprite | PIXI.Graphics | PIXI.Text | PIXI.Container | undefined);
     
     // Check for recreation
@@ -780,8 +851,14 @@ export const updatePixiContent = (
         }
 
         if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
-            const frameState = ensureVideoFrameTextureState(obj.id, video, videoFrameTextures, () => setRenderTick(p => p + 1));
-            const didDrawFrame = frameState ? drawVideoFrameToTexture(frameState) : false;
+            const frameState = ensureVideoFrameTextureState(
+                obj.id,
+                video,
+                videoFrameTextures,
+                () => setRenderTick(p => p + 1),
+                useCanvasVideoUpload
+            );
+            const didDrawFrame = frameState ? drawVideoFrameToTexture(frameState, video) : false;
 
             if (didDrawFrame && frameState) {
                 if (!sprite) {

@@ -15,6 +15,7 @@ import { evaluateObjectPositionAtTime } from '../utils/keyframes';
 import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier, getPrimaryWipeFilter } from '../utils/filterStack';
 import { useTranslation } from '../i18n';
 import { computePreviewDisplayScale } from '../utils/previewDisplayScale';
+import { useCanvasVideoUploadForPixiPreview } from '../utils/videoElementForPixi';
 import { visionNormBoundingBoxToVideoLocalRect } from '../utils/visionTrackingGeometry';
 
 const GROUP_GRADIENT_COMPONENT_PREFIX = 'group-gradient-component-';
@@ -275,7 +276,9 @@ const Viewport: React.FC = () => {
         videoElementsRef.current.forEach(video => { video.pause(); video.src = ""; video.load(); });
         videoElementsRef.current.clear();
         videoFrameTexturesRef.current.forEach((entry) => {
-          entry.videoSource?.destroy();
+          if (entry.uploadMode === 'video-source') {
+            entry.videoSource.destroy();
+          }
           entry.texture.destroy(false);
         });
         videoFrameTexturesRef.current.clear();
@@ -329,6 +332,9 @@ const Viewport: React.FC = () => {
     const app = pixiAppRef.current;
     if (!app) return;
 
+    const rendererType = (app.renderer as unknown as { type: number }).type;
+    const useCanvasVideoUpload = useCanvasVideoUploadForPixiPreview(rendererType);
+
     const currentPixiObjects = pixiObjectsRef.current;
     const currentVideoElements = videoElementsRef.current;
     const currentAudioElements = audioElementsRef.current;
@@ -363,7 +369,9 @@ const Viewport: React.FC = () => {
             video.pause(); video.src = ""; video.load(); currentVideoElements.delete(id); videoPlayPromisesRef.current.delete(id);
             const frameTexture = videoFrameTexturesRef.current.get(id);
             if (frameTexture) {
-                frameTexture.videoSource?.destroy();
+                if (frameTexture.uploadMode === 'video-source') {
+                  frameTexture.videoSource.destroy();
+                }
                 frameTexture.texture.destroy(false);
                 videoFrameTexturesRef.current.delete(id);
             }
@@ -446,6 +454,7 @@ const Viewport: React.FC = () => {
           setRenderTick,
           exportFrameOverrides: exportFrameOverridesRef.current,
           exportOverlayCanvases: exportOverlayCanvasesRef.current,
+          useCanvasVideoUpload,
       });
 
       const shadowFilters = getEnabledObjectFiltersInOrder(obj).filter((filter): filter is Extract<ObjectFilter, { type: 'shadow' }> => {
