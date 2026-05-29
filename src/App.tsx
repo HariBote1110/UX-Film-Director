@@ -3,6 +3,7 @@ import Viewport from './components/Viewport';
 import Timeline from './components/Timeline';
 import PropertyPanel from './components/PropertyPanel';
 import ProjectSetup from './components/ProjectSetup';
+import ExportProgressModal from './components/ExportProgressModal';
 import { useAppLogic } from './hooks/useAppLogic';
 import { useStore } from './store/useStore';
 import { shallow } from 'zustand/shallow';
@@ -201,6 +202,8 @@ const App: React.FC = () => {
       <div className="timeline-area" style={{ height: '300px', flexShrink: 0, zIndex: 10 }}>
         <Timeline />
       </div>
+
+      <ExportProgressModal />
     </div>
   );
 };

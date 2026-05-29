@@ -17,16 +17,19 @@ export const useProjectExport = (
   /** VideoDecoder ハイブリッドパス: フレームを renderScene 前に注入するための ref */
   exportFrameOverridesRef?: React.MutableRefObject<Map<string, ImageBitmap>>,
 ) => {
-  const { isExporting, setExporting, setTime } = useStore((state) => ({
+  const { isExporting, setExporting, setTime, setExportProgress } = useStore((state) => ({
     isExporting: state.isExporting,
     setExporting: state.setExporting,
     setTime: state.setTime,
+    setExportProgress: state.setExportProgress,
   }), shallow);
 
   useEffect(() => {
     if (!isExporting) return;
 
     let cancelled = false;
+    // 副作用クリーンアップ（cancelled）とユーザーによるキャンセル要求の双方を見る。
+    const isCancelled = () => cancelled || useStore.getState().exportCancelRequested;
 
     const runExport = async () => {
       const app = pixiAppRef.current;
@@ -49,6 +52,10 @@ export const useProjectExport = (
         const lastEnd = Math.max(...exportObjects.map(o => o.startTime + o.duration), 0);
         const exportDuration = Math.max(lastEnd, 1);
         const totalFrames = Math.ceil(exportDuration * fps);
+        // 進捗更新のスロットル間隔（約 10 回/秒）。
+        const progressStep = Math.max(1, Math.round(fps / 10));
+
+        setExportProgress({ phase: 'preparing', currentFrame: 0, totalFrames });
 
         // ファイル保存先を先に決定（ユーザー操作が必要なため）
         const savePath = await ipcRenderer.invoke('show-save-dialog', {
@@ -93,7 +100,12 @@ export const useProjectExport = (
 
         async function* renderFrames() {
           for (let i = 0; i < totalFrames; i++) {
-            if (cancelled) break;
+            if (isCancelled()) break;
+
+            // 進捗を更新（スロットル）。
+            if (i % progressStep === 0) {
+              setExportProgress({ phase: 'rendering', currentFrame: i, totalFrames });
+            }
 
             const t = i * dt;
             if (i % Math.max(1, Math.floor(fps / 2)) === 0) setTime(t);
@@ -150,19 +162,23 @@ export const useProjectExport = (
           audioBuffer,
         });
 
+        // キャンセルされていた場合はファイル保存を行わない。
+        if (isCancelled()) return;
+
+        setExportProgress({ phase: 'saving', currentFrame: totalFrames, totalFrames });
         const saved = await ipcRenderer.invoke('save-buffer-to-file', {
           filePath: savePath,
           buffer: result.buffer,
         });
         if (!saved?.success) throw new Error(saved?.error || 'ファイル保存に失敗しました');
 
-        if (!cancelled) {
+        if (!isCancelled()) {
           const decoderNote = usingVideoDecoder ? '\n（VideoDecoder 高速パス使用）' : '';
           alert(`エクスポート完了！\nコーデック: ${result.codecUsed}\nサイズ: ${(result.buffer.byteLength / 1024 / 1024).toFixed(1)}MB\n処理時間: ${(result.durationMs / 1000).toFixed(1)}秒${decoderNote}`);
         }
 
       } catch (error) {
-        if (!cancelled) {
+        if (!isCancelled()) {
           alert(`エクスポート失敗: ${error instanceof Error ? error.message : String(error)}`);
         }
       } finally {
@@ -176,5 +192,5 @@ export const useProjectExport = (
 
     runExport();
     return () => { cancelled = true; };
-  }, [isExporting, renderScene, setExporting, setTime, pixiAppRef, videoElementsRef, getExportCanvas, exportFrameOverridesRef]);
+  }, [isExporting, renderScene, setExporting, setTime, setExportProgress, pixiAppRef, videoElementsRef, getExportCanvas, exportFrameOverridesRef]);
 };
