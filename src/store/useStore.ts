@@ -69,6 +69,18 @@ export type VisionDetectionOverlayState = {
   observations: CoreMlAnimalObservation[];
 };
 
+/** 書き出し処理のフェーズ。 */
+export type ExportPhase = 'preparing' | 'rendering' | 'saving' | 'cancelling';
+
+/** 書き出しの進捗状況。 */
+export interface ExportProgress {
+  phase: ExportPhase;
+  /** レンダリング済みフレーム数。 */
+  currentFrame: number;
+  /** 総フレーム数。0 のときは不確定（プログレスバーを不確定表示）。 */
+  totalFrames: number;
+}
+
 interface AppState {
   // Project State
   language: 'ja' | 'en';
@@ -77,7 +89,11 @@ interface AppState {
   
   // Export State
   isExporting: boolean;
-  
+  /** 書き出しの進捗状況（モーダル表示用）。書き出し中以外は null。 */
+  exportProgress: ExportProgress | null;
+  /** ユーザーが書き出しのキャンセルを要求したか。 */
+  exportCancelRequested: boolean;
+
   // Snapshot State
   isSnapshotRequested: boolean;
 
@@ -134,7 +150,9 @@ interface AppState {
   togglePlay: () => void;
   setIsPlaying: (isPlaying: boolean) => void;
   setExporting: (isExporting: boolean) => void;
-  
+  setExportProgress: (progress: ExportProgress | null) => void;
+  requestExportCancel: () => void;
+
   // Snapshot Actions
   requestSnapshot: () => void;
   finishSnapshot: () => void;
@@ -301,6 +319,8 @@ export const useStore = create<AppState>((set, get) => ({
   isProjectLoaded: false,
   projectSettings: { width: 1920, height: 1080, fps: 60, sampleRate: 44100 },
   isExporting: false,
+  exportProgress: null,
+  exportCancelRequested: false,
   isSnapshotRequested: false,
   previewDisplayMode: readStoredPreviewMode(),
   visionDetectionPreviewEnabled: false,
@@ -695,8 +715,25 @@ export const useStore = create<AppState>((set, get) => ({
   }),
 
   setIsPlaying: (isPlaying) => set({ isPlaying }),
-  setExporting: (isExporting) => set({ isExporting }),
-  
+  setExporting: (isExporting) => set(
+    isExporting
+      // 書き出し開始時は進捗・キャンセル要求を初期化する。
+      ? { isExporting: true, exportProgress: { phase: 'preparing', currentFrame: 0, totalFrames: 0 }, exportCancelRequested: false }
+      // 終了時は進捗・キャンセル要求をクリアする。
+      : { isExporting: false, exportProgress: null, exportCancelRequested: false }
+  ),
+  setExportProgress: (exportProgress) => set({ exportProgress }),
+  requestExportCancel: () => set((state) => (
+    state.isExporting
+      ? {
+          exportCancelRequested: true,
+          exportProgress: state.exportProgress
+            ? { ...state.exportProgress, phase: 'cancelling' }
+            : { phase: 'cancelling', currentFrame: 0, totalFrames: 0 },
+        }
+      : {}
+  )),
+
   requestSnapshot: () => set({ isSnapshotRequested: true }),
   finishSnapshot: () => set({ isSnapshotRequested: false }),
   
