@@ -214,6 +214,9 @@ const Viewport: React.FC = () => {
     panelSize.w,
     panelSize.h
   );
+  // renderScene からリサイズハンドルの見かけサイズ補正に用いるため ref で保持する。
+  const displayScaleRef = useRef(displayScale);
+  displayScaleRef.current = displayScale;
 
   // --- Initialize Pixi App ---
   useEffect(() => {
@@ -576,11 +579,12 @@ const Viewport: React.FC = () => {
           { corner: 'bottom-left', cx: bx, cy: by + bh },
           { corner: 'bottom-right', cx: bx + bw, cy: by + bh },
         ];
-        // ハンドルがコンテナのスケール・カメラズームに依らず一定の見かけサイズに
-        // なるよう、ローカルサイズを補正する。
+        // ハンドルがコンテナのスケール・カメラズーム・プレビュー表示倍率に依らず
+        // 一定の見かけサイズ（スクリーン px）になるよう、ローカルサイズを補正する。
         const zoomForHandle = Math.max(0.05, camera.zoom);
-        const handleW = RESIZE_HANDLE_SCREEN_PX / Math.max(1e-3, Math.abs(obj.scaleX ?? 1) * zoomForHandle);
-        const handleH = RESIZE_HANDLE_SCREEN_PX / Math.max(1e-3, Math.abs(obj.scaleY ?? 1) * zoomForHandle);
+        const dispScale = Math.max(1e-3, displayScaleRef.current);
+        const handleW = RESIZE_HANDLE_SCREEN_PX / Math.max(1e-3, Math.abs(obj.scaleX ?? 1) * zoomForHandle * dispScale);
+        const handleH = RESIZE_HANDLE_SCREEN_PX / Math.max(1e-3, Math.abs(obj.scaleY ?? 1) * zoomForHandle * dispScale);
         const currentBounds = { bx, by, bw, bh };
 
         handleCorners.forEach(({ corner, cx, cy }) => {
