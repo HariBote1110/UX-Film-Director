@@ -1,10 +1,8 @@
-ExportTest Run: 2026-05-29T13:07:51.744Z
-Result: ALL PASSED  (total: 5484ms)
+ExportTest Run: 2026-05-29T17:22:50.976Z
+Result: ALL PASSED  (total: 6396ms)
 
   [PASS] コーデック検出（HW/SW 判定）
          codec=avc1.640028 🔥 HW (VideoToolbox)
-  [PASS] パイプライン フェーズ別内訳 (FHD 出力・VideoDecoder)
-         out=3840x2160 frames=250（encode 除外・コピー単離）
-         CURRENT(copy-chain)=275fps相当 [decode=3.3 toBitmap=0.3 composite=0.0 readback=0.0 ms]
-         LEAN(direct)=390fps相当 [decode=2.0 composite=0.5 makeVF=0.0 ms]
-         SEEK(4K元)=9fps/枠 [seek=100.3 toBitmap=15.7 ms]
+  [PASS] 生ソース直接デコード可否 (プロキシ無し・4K)
+         10000kbps(107MB): ⏱️6000ms 以内に初フレーム到達せず（moov末尾 or HW初期化ハングの疑い）
+         proxy(H.264): ✅可 frames=250 731fps相当 起動=218ms 

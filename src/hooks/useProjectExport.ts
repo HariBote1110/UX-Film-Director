@@ -76,17 +76,35 @@ export const useProjectExport = (
         // プロキシがある H.264 素材のみ VideoDecoder 高速パス、それ以外はシーク方式
         for (const obj of videoObjects) {
           if (obj.reversed) continue; // 逆再生はシーク方式フォールバック
-          const proxyPath = (obj as VideoObject).proxyFilePath;
-          if (!proxyPath) continue; // プロキシなし → シーク方式フォールバック
 
-          const fileUrl = `file://${proxyPath}`;
+          // フレーム取得の本命はシークではなく VideoDecoder 逐次デコード。
+          // プロキシ(H.264)があれば最優先、無ければソースを直接デコードする。
+          // 初期化に失敗（例: 一部 HEVC・不正コンテナ）した場合のみ従来のシーク方式へ。
+          const v = obj as VideoObject;
+          const proxyPath = v.proxyFilePath;
+          const sourceUrl = proxyPath
+            ? `file://${proxyPath}`
+            : v.filePath
+              ? `file://${v.filePath}`
+              : v.src;
+          if (!sourceUrl) continue; // URL 不明 → シーク方式フォールバック
+
           const startSec = obj.offset || 0;
           const endSec = startSec + obj.duration + 1; // +1s のマージン
-          const provider = new VideoFrameProvider(fileUrl, startSec, endSec);
+          const provider = new VideoFrameProvider(sourceUrl, startSec, endSec);
           try {
-            await provider.init();
+            // HEVC ソース等は VideoDecoder が無反応のまま hang する（検証で確認）。
+            // また moov 末尾配置のファイルは初期化に時間がかかる。
+            // どちらの場合もタイムアウトで早めにシーク方式へ退避する。
+            // H.264 faststart は起動 ~0.2s なので 5s で十分な余裕。
+            await Promise.race([
+              provider.init(),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('VideoDecoder 初期化タイムアウト(5s) → シーク方式へ')), 5000)
+              ),
+            ]);
             providers.set(obj.id, provider);
-            console.log(`[Export] VideoDecoder パス: ${obj.id} (proxy: ${proxyPath})`);
+            console.log(`[Export] VideoDecoder パス: ${obj.id} (${proxyPath ? 'proxy' : 'source'}: ${sourceUrl})`);
           } catch (e) {
             console.warn(`[Export] VideoDecoder 初期化失敗 → シーク方式フォールバック: ${obj.id}`, e);
             provider.close();

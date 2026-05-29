@@ -406,6 +406,71 @@ const testPipelinePhaseBreakdown = async (): Promise<string> => {
   ].join('\n         ');
 };
 
+/**
+ * プロキシ無しの「生ソース」を VideoDecoder で直接デコードできるかを検証する。
+ * useProjectExport の新経路（ソース直接デコード）の前提確認。
+ */
+const testSourceDirectDecode = async (): Promise<string> => {
+  const ipcRenderer = (window as any).ipcRenderer;
+  if (!ipcRenderer) throw new Error('ipcRenderer が利用できません');
+
+  // 複数ソースを試し、どのコーデック/サイズが直接デコードできるか確認する。
+  const targets: { label: string; channel: string }[] = [
+    { label: '10000kbps(107MB)', channel: 'resolve-perf-heavy-video' },
+    { label: 'proxy(H.264)', channel: 'resolve-4k-proxy-video' },
+  ];
+
+  const SAMPLE_SEC = 2;
+  const TIMEOUT_MS = 6000;
+  const lines: string[] = [];
+
+  // ハングしても run 全体を完走させるため、各ターゲットを 1 つずつ計測し、
+  // タイムアウトを設け、結果は逐次ファイルへ追記する。
+  const writeProgress = async () => {
+    try {
+      await ipcRenderer.invoke('write-test-log', {
+        fileName: 'source-decode-probe.log',
+        content: `probe @ ${new Date().toISOString()}\n` + lines.map((l) => '  ' + l).join('\n') + '\n',
+      });
+    } catch { /* ignore */ }
+  };
+
+  for (const { label, channel } of targets) {
+    const res = await ipcRenderer.invoke(channel);
+    if (!res?.success || !res.filePath) { lines.push(`${label}: 見つからず`); await writeProgress(); continue; }
+    const fileUrl = `file://${res.filePath}`;
+
+    const probe = async (): Promise<string> => {
+      const t0 = performance.now();
+      let frames = 0; let firstError = ''; let firstFrameMs = -1;
+      try {
+        for await (const { frame } of decodeVideoStream(fileUrl, { endSec: SAMPLE_SEC })) {
+          if (firstFrameMs < 0) firstFrameMs = performance.now() - t0; // 初フレーム＝起動(moov探索)時間
+          frame.close(); frames++;
+        }
+      } catch (e) { firstError = e instanceof Error ? e.message : String(e); }
+      const elapsed = (performance.now() - t0) / 1000;
+      const fps = frames > 0 ? Math.round(frames / elapsed) : 0;
+      return frames === 0
+        ? `${label}: ❌不可 ${firstError ? '|' + firstError : ''}`
+        : `${label}: ✅可 frames=${frames} ${fps}fps相当 起動=${firstFrameMs.toFixed(0)}ms ${firstError ? '|後半:' + firstError : ''}`;
+    };
+
+    let line: string;
+    try {
+      line = await Promise.race([
+        probe(),
+        new Promise<string>((_, reject) => setTimeout(() => reject(new Error('timeout')), TIMEOUT_MS)),
+      ]);
+    } catch {
+      line = `${label}: ⏱️${TIMEOUT_MS}ms 以内に初フレーム到達せず（moov末尾 or HW初期化ハングの疑い）`;
+    }
+    lines.push(line);
+    await writeProgress();
+  }
+  return lines.join('\n         ');
+};
+
 // ── エントリーポイント ─────────────────────────────────────────────────────
 
 const formatLogLine = (tc: TestCase): string => {
@@ -427,6 +492,7 @@ export const runExportTests = async (): Promise<ExportTestResult> => {
   await run('4K 動画 FHD エンコード (5秒 1920×1080 60fps) [seek]', testEncode4KVideo);
   await run('H.264 動画エンコード (5秒 640×360) [VideoDecoder・シークなし]', testEncode4KVideoDecoder);
   await run('パイプライン フェーズ別内訳 (4K 出力・seek vs VideoDecoder)', testPipelinePhaseBreakdown);
+  await run('ソース直接デコード可否 (H.264/HEVC)', testSourceDirectDecode);
 
   console.groupEnd();
 
