@@ -30,15 +30,31 @@ export interface DecodeVideoStreamOptions {
   resizeHeight?: number;
 }
 
-/** mp4box サンプルの description ボックスから VideoDecoder 用 description バイト列を抽出する */
-const extractDescription = (sampleDescription: any): ArrayBuffer | undefined => {
-  const box = sampleDescription?.avcC || sampleDescription?.hvcC || sampleDescription?.vpcC;
+/** mp4box の sample entry ボックス（avc1/hvc1 等）から VideoDecoder 用 description バイト列を抽出する */
+const extractDescription = (sampleEntry: any): ArrayBuffer | undefined => {
+  const box = sampleEntry?.avcC || sampleEntry?.hvcC || sampleEntry?.vpcC || sampleEntry?.av1C;
   if (!box) return undefined;
   try {
     const stream = new (DataStream as any)(undefined, 0, (DataStream as any).BIG_ENDIAN);
     box.write(stream);
     // 先頭8バイトはボックスヘッダー（size + type）をスキップ
     return (stream.buffer as ArrayBuffer).slice(8, stream.position);
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * トラックの stsd エントリ（hvc1/avc1 等の SampleEntry）から description を抽出する。
+ *
+ * 一部ファイル（特に HEVC）では `sample.description` が空になるため、
+ * stsd の sample entry を直接参照するほうが堅牢。
+ */
+const extractDescriptionFromTrack = (mp4: ISOFile, trackId: number): ArrayBuffer | undefined => {
+  try {
+    const trak = (mp4 as any).getTrackById?.(trackId);
+    const entry = trak?.mdia?.minf?.stbl?.stsd?.entries?.[0];
+    return entry ? extractDescription(entry) : undefined;
   } catch {
     return undefined;
   }
@@ -85,11 +101,20 @@ export async function* decodeVideoStream(
       trackHeight = track.video?.height ?? track.track_height ?? 0;
       mp4.setExtractionOptions(videoTrackId, null, { nbSamples: 100 });
 
+      // description（avcC/hvcC 等）は stsd エントリから直接抽出する。
+      // HEVC では sample.description が空になることがあるため、こちらが堅牢。
+      const trackDesc = extractDescriptionFromTrack(mp4, videoTrackId);
+      if (trackDesc) {
+        descriptionBuffer = trackDesc;
+        descriptionResolved = true;
+        resolveDescription();
+      }
+
       // onSamples をここで登録（mp4.start() より前）。
       // デコーダがまだ未初期化の場合はバックログに蓄積し、
       // 準備完了後に dispatchSamples() 経由で処理する。
       (mp4 as any).onSamples = (_id: number, _ref: unknown, samples: any[]) => {
-        // description を最初のサンプルから抽出する（AVC H.264 の場合に必要）
+        // stsd から取れなかった場合のフォールバック（一部 AVC 等）
         if (!descriptionResolved && samples.length > 0) {
           descriptionBuffer = extractDescription(samples[0].description);
           descriptionResolved = true;

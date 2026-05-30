@@ -10,3 +10,7 @@ perf-agent-output.json
 # SwiftPM build artefacts
 macos-coreml-tracker/.build/
 葵ちゃん.psd
+
+# export 調査用の逐次ログ（再生成される成果物）
+perf/source-decode-probe.log
+perf/hevc-diagnosis.log

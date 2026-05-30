@@ -12,6 +12,7 @@
 import { encodeVideoToMp4, detectSupportedH264Codec, resetCodecCache } from '../utils/videoExportPipeline';
 import { decodeVideoStream } from '../utils/videoDecodeStream';
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
+import { createFile, DataStream, type ISOFile, type MP4BoxBuffer } from 'mp4box';
 
 declare global {
   interface Window {
@@ -471,6 +472,167 @@ const testSourceDirectDecode = async (): Promise<string> => {
   return lines.join('\n         ');
 };
 
+/**
+ * HEVC ソースが VideoDecoder でデコードできない原因を段階的に切り分ける。
+ * 各段階の結果を hevc-diagnosis.log に逐次追記する（ハングしても途中まで残る）。
+ */
+const testHevcDecodeDiagnosis = async (): Promise<string> => {
+  const ipcRenderer = (window as any).ipcRenderer;
+  if (!ipcRenderer) throw new Error('ipcRenderer が利用できません');
+  const res = await ipcRenderer.invoke('resolve-perf-heavy-video');
+  if (!res?.success || !res.filePath) throw new Error('HEVC サンプルが見つかりません');
+  const fileUrl = `file://${res.filePath}`;
+
+  const log: string[] = [];
+  const flush = async () => {
+    try {
+      await ipcRenderer.invoke('write-test-log', {
+        fileName: 'hevc-diagnosis.log',
+        content: `HEVC 診断 @ ${new Date().toISOString()}\n` + log.map((l) => '  ' + l).join('\n') + '\n',
+      });
+    } catch { /* ignore */ }
+  };
+  const withTimeout = <T>(p: Promise<T>, ms: number, label: string): Promise<T> =>
+    Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error(`${label} timeout(${ms}ms)`)), ms))]);
+
+  const extractDesc = (sampleDescription: any): Uint8Array | undefined => {
+    const box = sampleDescription?.hvcC || sampleDescription?.avcC || sampleDescription?.vpcC;
+    if (!box) return undefined;
+    try {
+      const stream = new (DataStream as any)(undefined, 0, (DataStream as any).BIG_ENDIAN);
+      box.write(stream);
+      return new Uint8Array((stream.buffer as ArrayBuffer).slice(8, stream.position));
+    } catch { return undefined; }
+  };
+
+  // ── Step 1: MP4Box 解析 ───────────────────────────────────────────────
+  const mp4: ISOFile = createFile();
+  let codec = '', tw = 0, th = 0, trackId = -1, timescale = 1;
+  let firstSampleDesc: any = null;
+  let onSamplesCalls = 0;
+  const collected: { data: Uint8Array; cts: number; isSync: boolean }[] = [];
+  const t0 = performance.now();
+  const ready = new Promise<void>((resolve, reject) => {
+    mp4.onReady = (info: any) => {
+      const tr = info.videoTracks?.[0];
+      if (!tr) { reject(new Error('動画トラック無し')); return; }
+      trackId = tr.id; codec = tr.codec ?? ''; tw = tr.video?.width ?? 0; th = tr.video?.height ?? 0;
+      timescale = tr.timescale ?? 1;
+      mp4.setExtractionOptions(trackId, null, { nbSamples: 30 });
+      (mp4 as any).onSamples = (_i: number, _r: unknown, samples: any[]) => {
+        onSamplesCalls++;
+        if (!firstSampleDesc && samples.length) firstSampleDesc = samples[0].description;
+        for (const s of samples) {
+          if (collected.length >= 30) break;
+          if (s.data) collected.push({ data: s.data, cts: s.cts, isSync: !!s.is_sync });
+        }
+      };
+      mp4.start();
+      resolve();
+    };
+    mp4.onError = (e: string) => reject(new Error('MP4Box: ' + e));
+  });
+
+  try {
+    const response = await fetch(fileUrl);
+    if (!response.ok || !response.body) throw new Error('fetch 失敗');
+    const reader = response.body.getReader();
+    let offset = 0;
+    // onReady が来るまで（または 5s）読み続ける
+    const feed = (async () => {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) { mp4.flush(); break; }
+        const buf = value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength) as MP4BoxBuffer;
+        buf.fileStart = offset; offset += buf.byteLength; mp4.appendBuffer(buf);
+        if (trackId >= 0 && collected.length >= 30) break; // サンプル収集済み
+      }
+    })();
+    await withTimeout(ready, 5000, 'onReady');
+    await withTimeout(feed, 20000, 'sampleCollect').catch(() => {});
+    log.push(`Step1 MP4Box: codec="${codec}" ${tw}x${th} onReadyまで=${(performance.now() - t0).toFixed(0)}ms (moov先頭=OK)`);
+  } catch (e) {
+    log.push(`Step1 MP4Box: ❌ ${e instanceof Error ? e.message : String(e)}（moov末尾でファイル全読み必要の可能性）`);
+    await flush();
+    return log.join('\n         ');
+  }
+  await flush();
+
+  // ── Step 2: hvcC description（sample 由来 vs stsd 由来）─────────────────
+  const descFromSample = extractDesc(firstSampleDesc);
+  const stsdEntry = (mp4 as any).getTrackById?.(trackId)?.mdia?.minf?.stbl?.stsd?.entries?.[0];
+  const descFromStsd = extractDesc(stsdEntry);
+  const desc = descFromStsd ?? descFromSample; // 修正後の本命は stsd 由来
+  log.push(`Step2 description: sample由来=${descFromSample ? descFromSample.byteLength + 'B' : '❌'} / stsd由来=${descFromStsd ? descFromStsd.byteLength + 'B' : '❌'}`);
+  // 構造を覗く（hvcC がどこにあるか特定するため）
+  try {
+    const d = firstSampleDesc;
+    const keys = d ? Object.keys(d) : [];
+    log.push(`  Step2-dbg desc.type=${d?.type} keys=[${keys.join(',')}]`);
+    // boxes 配列があれば子ボックス型を列挙
+    if (d?.boxes && Array.isArray(d.boxes)) {
+      log.push(`  Step2-dbg boxes=[${d.boxes.map((b: any) => b?.type).join(',')}]`);
+    }
+    // よくある格納先を直接確認
+    log.push(`  Step2-dbg hvcC=${!!d?.hvcC} avcC=${!!d?.avcC} config=${!!d?.config} hev1=${!!d?.hev1} hvc1=${!!d?.hvc1}`);
+    // トラック全体の mdia 経由でも探す
+    const trak = (mp4 as any).getTrackById?.(trackId);
+    const stsd = trak?.mdia?.minf?.stbl?.stsd;
+    const entry = stsd?.entries?.[0];
+    log.push(`  Step2-dbg stsd.entry.type=${entry?.type} entry.hvcC=${!!entry?.hvcC} entryKeys=[${entry ? Object.keys(entry).join(',') : ''}]`);
+  } catch (e) {
+    log.push(`  Step2-dbg 例外 ${e instanceof Error ? e.message : String(e)}`);
+  }
+  await flush();
+
+  // ── Step 3: isConfigSupported ─────────────────────────────────────────
+  const candidates = [codec, 'hvc1.1.6.L150.90', 'hev1.1.6.L150.90'].filter((c, i, a) => c && a.indexOf(c) === i);
+  for (const c of candidates) {
+    for (const accel of ['prefer-hardware', 'prefer-software', 'no-preference'] as HardwareAcceleration[]) {
+      try {
+        const cfg: VideoDecoderConfig = { codec: c, codedWidth: tw, codedHeight: th, hardwareAcceleration: accel, ...(desc ? { description: desc } : {}) };
+        const s = await withTimeout(VideoDecoder.isConfigSupported(cfg), 3000, 'isConfigSupported');
+        log.push(`Step3 isConfigSupported codec="${c}" accel=${accel}: ${s.supported ? '✅supported' : '❌unsupported'}`);
+      } catch (e) {
+        log.push(`Step3 isConfigSupported codec="${c}" accel=${accel}: ⏱️/err ${e instanceof Error ? e.message : String(e)}`);
+      }
+      await flush();
+    }
+  }
+
+  // ── Step 4: configure + バッファ済みサンプルを decode ───────────────────
+  // stsd 由来 description で HW HEVC が実際にフレームを出すか／エラーするかを確認。
+  log.push(`Step4 準備: collected=${collected.length} サンプル, onSamples呼び出し=${onSamplesCalls}回, timescale=${timescale}`);
+  try {
+    let outCount = 0, firstOut = -1, errMsg = '';
+    const dec = new VideoDecoder({
+      output: (f) => { outCount++; if (firstOut < 0) firstOut = performance.now() - t0; f.close(); },
+      error: (e) => { errMsg = e.message; },
+    });
+    const cfg: VideoDecoderConfig = { codec, codedWidth: tw, codedHeight: th, hardwareAcceleration: 'prefer-hardware', ...(desc ? { description: desc } : {}) };
+    dec.configure(cfg);
+    let fed = 0;
+    for (const s of collected) {
+      dec.decode(new EncodedVideoChunk({
+        type: s.isSync ? 'key' : 'delta',
+        timestamp: Math.round((s.cts / timescale) * 1e6),
+        data: s.data,
+      }));
+      fed++;
+    }
+    try { await withTimeout(dec.flush(), 5000, 'decoder.flush'); } catch (e) { if (!errMsg) errMsg = (e instanceof Error ? e.message : String(e)); }
+    try { dec.close(); } catch { /* ignore */ }
+    if (outCount > 0) log.push(`Step4 configure+decode: ✅ ${outCount}フレーム出力 (fed=${fed}, 初フレーム=${firstOut.toFixed(0)}ms)`);
+    else if (errMsg) log.push(`Step4 configure+decode: ❌ decoderエラー="${errMsg}" (fed=${fed})`);
+    else log.push(`Step4 configure+decode: ⏱️ 0フレーム・無エラー (fed=${fed}) ← HW HEVC が黙って出力しない`);
+  } catch (e) {
+    log.push(`Step4 configure+decode: ❌ configure throw="${e instanceof Error ? e.message : String(e)}"`);
+  }
+  await flush();
+
+  return log.join('\n         ');
+};
+
 // ── エントリーポイント ─────────────────────────────────────────────────────
 
 const formatLogLine = (tc: TestCase): string => {
@@ -493,6 +655,8 @@ export const runExportTests = async (): Promise<ExportTestResult> => {
   await run('H.264 動画エンコード (5秒 640×360) [VideoDecoder・シークなし]', testEncode4KVideoDecoder);
   await run('パイプライン フェーズ別内訳 (4K 出力・seek vs VideoDecoder)', testPipelinePhaseBreakdown);
   await run('ソース直接デコード可否 (H.264/HEVC)', testSourceDirectDecode);
+  // HEVC 詳細診断は調査用ツール（通常 run から除外、必要時に手動で有効化）。
+  void testHevcDecodeDiagnosis;
 
   console.groupEnd();
 
