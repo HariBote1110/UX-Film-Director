@@ -31,13 +31,26 @@ export interface EncodeResult {
   peakQueueSize: number;
 }
 
-// H.264 コーデック候補（Apple Silicon 優先）
-const H264_CANDIDATES = [
-  'avc1.640028', // High Level 4.0
-  'avc1.4d0028', // Main Level 4.0
-  'avc1.42E01E', // Baseline Level 3.0
-  'avc1.42001f', // Baseline Level 3.1
-];
+// 解像度・フレームレートに必要な H.264 レベル(16進)を求める。
+// Level 4.0 は最大 2K 相当までで 4K 非対応。4K では 5.1/5.2 が必須。
+const h264LevelHexFor = (encWidth: number, encHeight: number, fps: number): string => {
+  const frameMbs = Math.ceil(encWidth / 16) * Math.ceil(encHeight / 16);
+  const mbsPerSec = frameMbs * fps;
+  if (frameMbs > 22080 || mbsPerSec > 589824) return '34'; // Level 5.2 (4K@60)
+  if (frameMbs > 8704 || mbsPerSec > 245760) return '33';  // Level 5.1 (4K@30, 1440p)
+  if (frameMbs > 8192) return '29';                         // Level 4.1
+  return '28';                                              // Level 4.0 (1080p@30 まで)
+};
+
+// 解像度相応レベルで High→Main を優先し、低レベルもフォールバックに残す。
+const buildH264Candidates = (encWidth: number, encHeight: number, fps: number): string[] => {
+  const lvl = h264LevelHexFor(encWidth, encHeight, fps);
+  return [
+    `avc1.6400${lvl}`, // High
+    `avc1.4d00${lvl}`, // Main
+    'avc1.640028', 'avc1.4d0028', 'avc1.42E01E', 'avc1.42001f',
+  ].filter((c, i, a) => a.indexOf(c) === i);
+};
 
 // isConfigSupported は「設定上は可」でも実エンコード時に落ちる場合がある（HW アクセラレータ初期化失敗）。
 // 1フレームをエンコードして flush() まで完走できるか確認する。
@@ -74,36 +87,46 @@ const probeEncoder = async (config: VideoEncoderConfig): Promise<boolean> => {
   }
 };
 
-// プロセスライフタイム中にキャッシュ（detect は重いので1回だけ実行）
-let cachedCodecResult: { codec: string; config: VideoEncoderConfig } | null | undefined = undefined;
+// 解像度・fps ごとにキャッシュ（detect は重いので1回だけ実行）。
+// 解像度を無視すると 1080p 検出結果を 4K に流用してしまうため、キーに含める。
+const codecCache = new Map<string, { codec: string; config: VideoEncoderConfig } | null>();
 
 /** テスト用: キャッシュをリセットして再検出を強制する */
-export const resetCodecCache = (): void => { cachedCodecResult = undefined; };
+export const resetCodecCache = (): void => { codecCache.clear(); };
+
+// 解像度に応じたビットレート（4K で 10Mbps は低すぎるため引き上げる）。
+const bitrateFor = (encWidth: number, encHeight: number, fps: number): number =>
+  Math.max(10_000_000, Math.round(encWidth * encHeight * fps * 0.05));
 
 export const detectSupportedH264Codec = async (
   width: number,
   height: number,
   fps: number
 ): Promise<{ codec: string; config: VideoEncoderConfig } | null> => {
-  if (cachedCodecResult !== undefined) return cachedCodecResult;
-
   const encWidth = width % 2 === 0 ? width : width - 1;
   const encHeight = height % 2 === 0 ? height : height - 1;
+  const key = `${encWidth}x${encHeight}@${fps}`;
+  const cached = codecCache.get(key);
+  if (cached !== undefined) return cached;
 
   // HW → SW の順で試す
   const accelModes: HardwareAcceleration[] = ['prefer-hardware', 'prefer-software', 'no-preference'];
 
-  // latencyMode: 'realtime' は VideoToolbox の max frame delay 制約を緩和する
-  const latencyModeFlags: LatencyMode[] = ['quality', 'realtime'];
+  // 'realtime' は VideoToolbox の max frame delay 制約を緩和し、エンコードが速い。
+  // 速度優先のため realtime を先に試す。
+  const latencyModeFlags: LatencyMode[] = ['realtime', 'quality'];
 
-  for (const codec of H264_CANDIDATES) {
+  const candidates = buildH264Candidates(encWidth, encHeight, fps);
+  const bitrate = bitrateFor(encWidth, encHeight, fps);
+
+  for (const codec of candidates) {
     for (const hardwareAcceleration of accelModes) {
       for (const latencyMode of latencyModeFlags) {
       const config: VideoEncoderConfig = {
         codec,
         width: encWidth,
         height: encHeight,
-        bitrate: 10_000_000,
+        bitrate,
         framerate: fps,
         hardwareAcceleration,
         latencyMode,
@@ -115,14 +138,15 @@ export const detectSupportedH264Codec = async (
       console.log(`[VideoExport] codec=${codec} accel=${hardwareAcceleration} latency=${latencyMode} probe=${works}`);
       if (works) {
         const label = hardwareAcceleration === 'prefer-hardware' ? '🔥 HW (VideoToolbox)' : '🐢 SW (OpenH264)';
-        console.log(`[VideoExport] 確定: ${label} codec=${codec} latency=${latencyMode}`);
-        cachedCodecResult = { codec, config };
-        return cachedCodecResult;
+        console.log(`[VideoExport] 確定: ${label} codec=${codec} latency=${latencyMode} ${encWidth}x${encHeight}@${fps} ${(bitrate / 1e6).toFixed(1)}Mbps`);
+        const result = { codec, config };
+        codecCache.set(key, result);
+        return result;
       }
       } // latencyMode loop
     }
   }
-  cachedCodecResult = null;
+  codecCache.set(key, null);
   return null;
 };
 
