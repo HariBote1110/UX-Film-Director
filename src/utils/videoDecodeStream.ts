@@ -133,6 +133,23 @@ export async function* decodeVideoStream(
     mp4.onError = (e: string) => reject(new Error(`MP4Box error: ${e}`));
   });
 
+  // ── フレーム供給と背圧の状態 ──────────────────────────────────────────
+  const frameQueue: DecodedFrame[] = [];
+  let decodeError: Error | null = null;
+  let decoderDone = false;
+  let resolveWaiter: (() => void) | null = null;
+  const notifyWaiter = () => { if (resolveWaiter) { resolveWaiter(); resolveWaiter = null; } };
+  let decoder: VideoDecoder | undefined;
+
+  // 背圧: デコード済み/デコード待ちフレームが溜まりすぎないよう供給を絞る。
+  // これが無いと消費(エンコード)より速くデコードが進み、4K フレーム(~12MB)が
+  // frameQueue に無制限に積まれて長尺で数十GB に膨れる。
+  const HIGH_WATER = 24;
+  let resolveDrain: (() => void) | null = null;
+  const pendingCount = () => frameQueue.length + (decoder?.decodeQueueSize ?? 0) + sampleBacklog.length;
+  const waitForDrain = () => new Promise<void>((r) => { resolveDrain = r; });
+  const notifyDrain = () => { if (resolveDrain) { resolveDrain(); resolveDrain = null; } };
+
   // ── 2. fetch でファイルを逐次読み込み ─────────────────────────────────
   const response = await fetch(fileUrl);
   if (!response.ok || !response.body) throw new Error(`fetch 失敗: ${fileUrl}`);
@@ -141,6 +158,10 @@ export async function* decodeVideoStream(
   const feedPromise = (async () => {
     const reader = response.body!.getReader();
     while (true) {
+      // 背圧: 高水位を超えている間は読み込み（=サンプル供給=デコード）を止める。
+      while (pendingCount() > HIGH_WATER && !decoderDone) {
+        await waitForDrain();
+      }
       const { done, value } = await reader.read();
       if (done) { mp4.flush(); break; }
       const buf = value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength) as MP4BoxBuffer;
@@ -156,12 +177,6 @@ export async function* decodeVideoStream(
   await descriptionReady;
 
   // ── 3. VideoDecoder を初期化 ──────────────────────────────────────────
-  const frameQueue: DecodedFrame[] = [];
-  let decodeError: Error | null = null;
-  let decoderDone = false;
-  let resolveWaiter: (() => void) | null = null;
-  const notifyWaiter = () => { if (resolveWaiter) { resolveWaiter(); resolveWaiter = null; } };
-
   const decodeConfig: VideoDecoderConfig = {
     codec: codecString,
     codedWidth: trackWidth,
@@ -180,13 +195,14 @@ export async function* decodeVideoStream(
     } catch { /* try next */ }
   }
 
-  const decoder = new VideoDecoder({
+  decoder = new VideoDecoder({
     output: (frame: VideoFrame) => {
       const tsUs = frame.timestamp;
       const tsSec = tsUs / 1_000_000;
-      if (tsSec > endSec + 1) { frame.close(); return; }
+      // 範囲外フレームは破棄。デコード待ちが減るので供給を再開させる。
+      if (tsSec > endSec + 1) { frame.close(); notifyDrain(); return; }
       // startSec より前のフレームはスキップ（offset 対応）
-      if (tsUs < startUs) { frame.close(); return; }
+      if (tsUs < startUs) { frame.close(); notifyDrain(); return; }
       frameQueue.push({ frame, timestampUs: tsUs });
       notifyWaiter();
     },
@@ -194,6 +210,7 @@ export async function* decodeVideoStream(
       decodeError = new Error(e.message);
       decoderDone = true;
       notifyWaiter();
+      notifyDrain();
     },
   });
   decoder.configure(decodeConfig);
@@ -203,12 +220,17 @@ export async function* decodeVideoStream(
     for (const s of samples) {
       const tsUs = Math.round((s.cts / timescale) * 1_000_000);
       const durUs = Math.round((s.duration / timescale) * 1_000_000);
-      decoder.decode(new EncodedVideoChunk({
+      decoder!.decode(new EncodedVideoChunk({
         type: s.is_sync ? 'key' : 'delta',
         timestamp: tsUs,
         duration: durUs,
         data: s.data,
       }));
+    }
+    // mp4box が保持する使用済みサンプルデータを解放（蓄積防止）。
+    const last = samples[samples.length - 1];
+    if (last && typeof last.number === 'number') {
+      try { (mp4 as any).releaseUsedSamples(videoTrackId, last.number); } catch { /* ignore */ }
     }
   };
 
@@ -220,7 +242,7 @@ export async function* decodeVideoStream(
   }
 
   feedPromise.then(async () => {
-    await decoder.flush();
+    await decoder!.flush();
     decoderDone = true;
     notifyWaiter();
   }).catch((e: unknown) => {
@@ -236,6 +258,8 @@ export async function* decodeVideoStream(
     if (frameQueue.length > 0) {
       frameQueue.sort((a, b) => a.timestampUs - b.timestampUs);
       const item = frameQueue.shift()!;
+      // 1 枚消費したので供給(背圧)を再開させる。
+      notifyDrain();
       if (item.timestampUs / 1_000_000 > endSec + 0.1) { item.frame.close(); break; }
       yield item;
       continue;
@@ -248,5 +272,5 @@ export async function* decodeVideoStream(
 
   // 残りのフレームを解放
   for (const { frame } of frameQueue) frame.close();
-  try { decoder.close(); } catch { /* ignore */ }
+  try { decoder?.close(); } catch { /* ignore */ }
 }

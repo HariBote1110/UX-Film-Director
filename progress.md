@@ -1,3 +1,22 @@
+## 2026-05-30 — 書き出しのメモリ爆発を修正（背圧の追加）
+
+### 実施内容
+- 症状: 4K 60fps 5分の動画を書き出すとメモリを ~50GB 消費。
+- 原因: `decodeVideoStream`（VideoDecoder 経路）に**背圧が無く**、`feedPromise` が全サンプルを一気に `decoder.decode()` へ流すため、デコード済み 4K VideoFrame（1枚 ~12MB）が `frameQueue` に**無制限に蓄積**していた（消費＝エンコードより圧倒的に速いため）。加えて mp4box の使用済みサンプルも未解放。
+- 修正（`src/utils/videoDecodeStream.ts`）:
+  - **背圧を追加**: `pendingCount = frameQueue + decodeQueueSize + backlog` が `HIGH_WATER(24)` を超えたら fetch 読み込み（=サンプル供給=デコード）を停止し、1 枚消費（yield）ごとに再開。
+  - `releaseUsedSamples` で mp4box 保持の使用済みサンプルを解放。
+  - 範囲外フレーム破棄時も供給を再開（`notifyDrain`）。
+- 結果: 4K でもピークは「デコード待ち ≤24 枚 + 先読み数枚 + 出力 MP4 数百MB」≒ 約1GB に収束。
+
+### 選定理由・判断の根拠
+- 標準的な bounded-queue 背圧パターンを採用。HIGH_WATER=24 はスループット維持（常に先読みが在る）とメモリ上限（4K で ~288MB）の両立点。
+- `PlaybackFrameProvider`（再生方式）は元から maxBuffer=8 で背圧済みのため変更不要。問題は VideoDecoder 経路のみ。
+
+### 残課題・次のステップ
+- 実機（4K 60fps 5分）で再書き出しし、メモリが収束することの体感確認。
+- 出力 MP4 を全てメモリ保持（ArrayBufferTarget）している点は長尺・高ビットレートで効くため、将来はストリーミング書き出し（ファイルへ逐次 flush）も検討余地。
+
 ## 2026-05-30 — HEVC 高速書き出し: rVFC 再生方式プロバイダ追加
 
 ### 実施内容
