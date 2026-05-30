@@ -4,8 +4,9 @@ import { shallow } from 'zustand/shallow';
 import { useTranslation } from '../i18n';
 import type { ExportPhase } from '../store/useStore';
 
-const phaseLabelKey: Record<ExportPhase, 'exportPhasePreparing' | 'exportPhaseRendering' | 'exportPhaseSaving' | 'exportPhaseCancelling'> = {
+const phaseLabelKey: Record<ExportPhase, 'exportPhasePreparing' | 'exportPhaseTranscoding' | 'exportPhaseRendering' | 'exportPhaseSaving' | 'exportPhaseCancelling'> = {
   preparing: 'exportPhasePreparing',
+  transcoding: 'exportPhaseTranscoding',
   rendering: 'exportPhaseRendering',
   saving: 'exportPhaseSaving',
   cancelling: 'exportPhaseCancelling',

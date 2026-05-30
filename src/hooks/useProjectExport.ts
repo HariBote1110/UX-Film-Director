@@ -110,8 +110,43 @@ export const useProjectExport = (
             vdProvider.close();
           }
 
-          // ② 再生方式（rVFC）。OS デコーダ依存なので HEVC 等も可。約 2倍速。
-          if (!attached) {
+          // ② 中間ファイル経路（HEVC 等で本命）。ソースを出力解像度の H.264 へ
+          //    HW(ffmpeg/VideoToolbox) で一度だけ変換・キャッシュし、VideoDecoder で
+          //    高速デコードする。rVFC のリフレッシュ制限やフレーム落ちを回避。
+          if (!attached && v.filePath) {
+            try {
+              setExportProgress({ phase: 'transcoding', currentFrame: 0, totalFrames: 0 });
+              // 変換中にキャンセルされたら ffmpeg を停止する監視。
+              const cancelWatch = setInterval(() => {
+                if (useStore.getState().exportCancelRequested) ipcRenderer.invoke('cancel-intermediate').catch(() => {});
+              }, 300);
+              let gen: { success?: boolean; path?: string; cached?: boolean; error?: string } | undefined;
+              try {
+                gen = await ipcRenderer.invoke('generate-intermediate', { filePath: v.filePath, width });
+              } finally {
+                clearInterval(cancelWatch);
+              }
+              if (!isCancelled() && gen?.success && gen.path) {
+                const ivProvider = new VideoFrameProvider(`file://${gen.path}`, startSec, endSec);
+                try {
+                  await withTimeout(ivProvider.init(), 8000, '中間ファイル init タイムアウト(8s)');
+                  providers.set(obj.id, ivProvider);
+                  attached = true;
+                  console.log(`[Export] 中間ファイル経路: ${obj.id} (${gen.cached ? 'cached' : 'generated'}: ${gen.path})`);
+                } catch (e) {
+                  console.warn(`[Export] 中間ファイルのデコード不可 → 再生方式へ: ${obj.id}`, e);
+                  ivProvider.close();
+                }
+              } else if (gen && !gen.success) {
+                console.warn(`[Export] 中間ファイル生成失敗 → 再生方式へ: ${obj.id}`, gen.error);
+              }
+            } catch (e) {
+              console.warn(`[Export] 中間ファイル処理で例外 → 再生方式へ: ${obj.id}`, e);
+            }
+          }
+
+          // ③ 再生方式（rVFC）。中間ファイルが使えない場合のフォールバック（HEVC 等）。
+          if (!attached && !isCancelled()) {
             const pbProvider = new PlaybackFrameProvider(sourceUrl, startSec, endSec, { playbackRate: 2 });
             try {
               await withTimeout(pbProvider.init(), 8000, '再生方式 初期化タイムアウト(8s)');
@@ -123,7 +158,7 @@ export const useProjectExport = (
               pbProvider.close();
             }
           }
-          // ③ どちらも失敗時は providers に入れず、従来のシーク方式が担当する。
+          // ④ いずれも失敗時は providers に入れず、従来のシーク方式が担当する。
         }
 
         const usingVideoDecoder = providers.size > 0;

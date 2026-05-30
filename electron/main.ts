@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process'
+import { spawn, ChildProcessWithoutNullStreams, type ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import { buildOrderedPerfHeavyVideoPaths } from '../src/perf/perfHeavyVideo';
@@ -759,6 +759,76 @@ app.whenReady().then(() => {
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
+  });
+
+  // ── 書き出し用 H.264 中間ファイルの自動生成（HW・キャッシュ）─────────────
+  // HEVC 等 VideoDecoder で直接デコードできないソースを、出力解像度の H.264 に
+  // HW(VideoToolbox) で一度だけ変換してキャッシュする。書き出し時はこれを
+  // VideoDecoder で高速デコードする。進捗は 'intermediate-progress' で通知。
+  let intermediateFfmpeg: ChildProcess | null = null;
+  ipcMain.handle('generate-intermediate', async (event, payload: { filePath?: string; width?: number }) => {
+    const filePath = typeof payload?.filePath === 'string' ? payload.filePath.trim() : '';
+    if (!filePath || !fs.existsSync(filePath)) return { success: false, error: 'ソースが見つかりません' };
+    const targetW = Math.max(2, Math.round(payload?.width ?? 1920));
+    const w = targetW % 2 === 0 ? targetW : targetW - 1;
+
+    // キャッシュキー: ソースのサイズ・更新時刻・目標幅
+    let stat: fs.Stats;
+    try { stat = fs.statSync(filePath); } catch { return { success: false, error: 'stat 失敗' }; }
+    const cacheDir = path.join(os.tmpdir(), 'uxfd-intermediate');
+    try { fs.mkdirSync(cacheDir, { recursive: true }); } catch { /* ignore */ }
+    const safeBase = path.basename(filePath).replace(/[^\w.-]/g, '_');
+    const outPath = path.join(cacheDir, `${safeBase}.${stat.size}.${Math.round(stat.mtimeMs)}.${w}w.mp4`);
+    if (fs.existsSync(outPath) && fs.statSync(outPath).size > 1000) {
+      return { success: true, path: outPath, cached: true };
+    }
+
+    const tmpOut = `${outPath}.partial.mp4`;
+    const ffmpegPath = resolveDefaultFfmpegPath();
+    const bitrateM = Math.max(10, Math.round(w / 120)); // 目安: FHD≈16M, 4K≈32M
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const ff = spawn(ffmpegPath, [
+          '-y',
+          '-hwaccel', 'videotoolbox',
+          '-i', filePath,
+          '-an',                                   // 音声は別途ミックスするため不要
+          '-vf', `scale=min(iw\\,${w}):-2`,        // 出力幅にダウンスケール（アップスケールしない）
+          '-c:v', 'h264_videotoolbox',
+          '-b:v', `${bitrateM}M`,
+          '-movflags', '+faststart',
+          tmpOut,
+        ], { stdio: ['ignore', 'ignore', 'pipe'] });
+        intermediateFfmpeg = ff;
+        let stderr = '';
+        ff.stderr?.setEncoding('utf8');
+        ff.stderr?.on('data', (chunk: string) => {
+          stderr += chunk;
+          if (stderr.length > 8000) stderr = stderr.slice(-4000);
+          const m = chunk.match(/time=(\d+):(\d+):(\d+(?:\.\d+)?)/);
+          if (m) {
+            const sec = (+m[1]) * 3600 + (+m[2]) * 60 + parseFloat(m[3]);
+            try { event.sender.send('intermediate-progress', { filePath, seconds: sec }); } catch { /* ignore */ }
+          }
+        });
+        ff.on('error', (e) => reject(new Error(`ffmpeg 起動失敗: ${e.message}`)));
+        ff.on('close', (code) => {
+          if (code === 0) resolve();
+          else reject(new Error(stderr.trim().split('\n').slice(-3).join(' | ') || `ffmpeg code=${code}`));
+        });
+      });
+      fs.renameSync(tmpOut, outPath);
+      return { success: true, path: outPath, cached: false };
+    } catch (error) {
+      try { if (fs.existsSync(tmpOut)) fs.unlinkSync(tmpOut); } catch { /* ignore */ }
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    } finally {
+      intermediateFfmpeg = null;
+    }
+  });
+  ipcMain.handle('cancel-intermediate', async () => {
+    try { intermediateFfmpeg?.kill('SIGKILL'); } catch { /* ignore */ }
+    return { success: true };
   });
 
   ipcMain.handle('probe-media', async (_event, payload: { filePath?: string }) => {

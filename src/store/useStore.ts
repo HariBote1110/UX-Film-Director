@@ -70,7 +70,7 @@ export type VisionDetectionOverlayState = {
 };
 
 /** 書き出し処理のフェーズ。 */
-export type ExportPhase = 'preparing' | 'rendering' | 'saving' | 'cancelling';
+export type ExportPhase = 'preparing' | 'transcoding' | 'rendering' | 'saving' | 'cancelling';
 
 /** 書き出しの進捗状況。 */
 export interface ExportProgress {
