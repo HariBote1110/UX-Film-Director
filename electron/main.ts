@@ -803,17 +803,20 @@ app.whenReady().then(() => {
 
     const tmpOut = `${outPath}.partial.mp4`;
     const ffmpegPath = resolveDefaultFfmpegPath();
-    const bitrateM = Math.max(10, Math.round(w / 120)); // 目安: FHD≈16M, 4K≈32M
     try {
       await new Promise<void>((resolve, reject) => {
+        // デコード・エンコードとも SW を使う。VideoToolbox(HW) はアプリ側の
+        // 使用（プレビュー decode / 書き出し encode）と競合して途中失敗・破損
+        // ファイルを生むため。SW でも 4K HEVC→FHD で約1.4倍速と実用範囲。
         const ff = spawn(ffmpegPath, [
           '-y',
-          '-hwaccel', 'videotoolbox',
           '-i', filePath,
           '-an',                                   // 音声は別途ミックスするため不要
           '-vf', `scale=min(iw\\,${w}):-2`,        // 出力幅にダウンスケール（アップスケールしない）
-          '-c:v', 'h264_videotoolbox',
-          '-b:v', `${bitrateM}M`,
+          '-c:v', 'libx264',
+          '-preset', 'veryfast',
+          '-crf', '20',
+          '-pix_fmt', 'yuv420p',
           '-movflags', '+faststart',
           tmpOut,
         ], { stdio: ['ignore', 'ignore', 'pipe'] });
