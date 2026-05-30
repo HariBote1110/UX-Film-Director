@@ -31,10 +31,19 @@ export class VideoFrameProvider implements FrameProvider {
     private readonly endSec: number,
   ) {}
 
-  /** 最初のフレームをデコードして準備完了にする（省略可能・呼ばなくても getFrame で自動初期化） */
+  /**
+   * 最初のフレームをデコードして準備完了にする。
+   *
+   * 1 枚もデコードできなかった場合は例外を投げる。これにより、HEVC のように
+   * VideoDecoder/MP4Box 経路が無言で 0 フレームになるソースを呼び出し側が検知し、
+   * 再生方式（PlaybackFrameProvider）やシーク方式へフォールバックできる。
+   */
   async init(): Promise<void> {
     this.ensureGenerator();
     await this.fillBuffer();
+    if (this.buffer.length === 0) {
+      throw new Error('VideoFrameProvider: フレームを 1 枚も取得できませんでした（コーデック非対応の可能性）');
+    }
   }
 
   /**
