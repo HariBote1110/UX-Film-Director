@@ -13,9 +13,16 @@
 - PixiJS 撤廃・copy-chain 改修は不要と計測で判断：FHD/4K いずれもコピーは実質タダで、遅さの実体はシークだったため。最小変更で目標（重い動画 20〜40fps）に到達できる経路選択変更を採用。
 - フォールバックを残す設計：HEVC 直接デコードが現状不可のため、回帰ゼロを最優先。タイムアウト 5s は faststart H.264 の起動(~0.2s)に十分な余裕かつ HEVC 退避を過度に遅延させない値。
 
+### HEVC 調査の結果（追記）
+- HEVC HW デコードは Electron で **利用可能**（`isConfigSupported`=supported）。
+- 旧バグ: `sample.description` が HEVC で空 → `hvcC` が取れず description 無しで configure → デコーダ無反応。
+  → **stsd の sample entry から抽出するよう修正**（`extractDescriptionFromTrack`）。AV1(av1C) も対応。
+- ただしテストサンプル `10000kbps_60fps.mp4` では **MP4Box の onSamples が発火せず**（サンプル取り出し0件）、デマックス側に別問題が残る。fMP4 等サンプル特有の可能性があり、ユーザー実機の GoPro HEVC で要再検証。
+
 ### 残課題・次のステップ
-- **HEVC ソースの直接デコード対応**（codec 文字列 hvc1.*/hev1.* の正規化、HW HEVC 初期化の確認）。実現すれば HEVC 素材もプロキシ不要に。
-- moov 末尾配置の大容量 H.264 は起動が遅くフォールバックする。range ベースの moov 取得 or 軽量 faststart remux（`-c copy`）の自動化が次の改善候補。
+- **HEVC を確実に無プロキシ高速化する本命案**: HTMLVideoElement の逐次再生（シークなし）＋ `requestVideoFrameCallback`＋ `playbackRate` でフレーム取得する provider。OS デコーダを使うためコーデック非依存で MP4Box 問題を回避できる。
+- まずユーザー実機 HEVC で「description 修正だけで速くなるか」を確認するのが安価。
+- moov 末尾配置の大容量 H.264 は起動が遅くフォールバック → range 取得 or 軽量 faststart remux の自動化が候補。
 - 実プロジェクトでの体感確認（`npm run dev` → 動画出力）は未実施。
 
 ## 2026-05-29 — ブラウザでの実機確認とリサイズハンドルの視認性修正
