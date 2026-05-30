@@ -6,6 +6,8 @@ import { shallow } from 'zustand/shallow';
 import { buildExportAudioBuffer } from '../utils/audioMixdown';
 import { encodeVideoToMp4 } from '../utils/videoExportPipeline';
 import { VideoFrameProvider } from '../utils/videoFrameProvider';
+import { PlaybackFrameProvider } from '../utils/playbackFrameProvider';
+import type { FrameProvider } from '../utils/frameProvider';
 
 const { ipcRenderer } = window;
 
@@ -35,8 +37,8 @@ export const useProjectExport = (
       const app = pixiAppRef.current;
       if (!app) return;
 
-      // VideoFrameProvider のクリーンアップ用リスト
-      const providers = new Map<string, VideoFrameProvider>();
+      // フレームプロバイダ（VideoDecoder or 再生方式）のクリーンアップ用リスト
+      const providers = new Map<string, FrameProvider>();
 
       try {
         const { projectSettings, objects, layers } = useStore.getState();
@@ -72,14 +74,13 @@ export const useProjectExport = (
         const encWidth = width % 2 === 0 ? width : width - 1;
         const encHeight = height % 2 === 0 ? height : height - 1;
 
-        // ── VideoDecoder プロバイダを初期化 ──────────────────────────────────
-        // プロキシがある H.264 素材のみ VideoDecoder 高速パス、それ以外はシーク方式
+        // ── フレームプロバイダを初期化 ───────────────────────────────────────
+        // シーク方式(~9fps)は使わず、①VideoDecoder ②再生方式(rVFC) の順で高速取得を試み、
+        // どちらも不可のときだけ従来のシーク方式へフォールバックする。
         for (const obj of videoObjects) {
           if (obj.reversed) continue; // 逆再生はシーク方式フォールバック
 
-          // フレーム取得の本命はシークではなく VideoDecoder 逐次デコード。
-          // プロキシ(H.264)があれば最優先、無ければソースを直接デコードする。
-          // 初期化に失敗（例: 一部 HEVC・不正コンテナ）した場合のみ従来のシーク方式へ。
+          // プロキシ(H.264)があれば最優先、無ければソースを直接扱う。
           const v = obj as VideoObject;
           const proxyPath = v.proxyFilePath;
           const sourceUrl = proxyPath
@@ -91,24 +92,38 @@ export const useProjectExport = (
 
           const startSec = obj.offset || 0;
           const endSec = startSec + obj.duration + 1; // +1s のマージン
-          const provider = new VideoFrameProvider(sourceUrl, startSec, endSec);
+          const withTimeout = (p: Promise<void>, ms: number, msg: string) => Promise.race([
+            p, new Promise<never>((_, reject) => setTimeout(() => reject(new Error(msg)), ms)),
+          ]);
+
+          // ① VideoDecoder 経路（H.264 等で最速・~700fps）。
+          //    HEVC・moov 末尾配置・不正コンテナでは hang し得るためタイムアウト付き。
+          const vdProvider = new VideoFrameProvider(sourceUrl, startSec, endSec);
+          let attached = false;
           try {
-            // HEVC ソース等は VideoDecoder が無反応のまま hang する（検証で確認）。
-            // また moov 末尾配置のファイルは初期化に時間がかかる。
-            // どちらの場合もタイムアウトで早めにシーク方式へ退避する。
-            // H.264 faststart は起動 ~0.2s なので 5s で十分な余裕。
-            await Promise.race([
-              provider.init(),
-              new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error('VideoDecoder 初期化タイムアウト(5s) → シーク方式へ')), 5000)
-              ),
-            ]);
-            providers.set(obj.id, provider);
-            console.log(`[Export] VideoDecoder パス: ${obj.id} (${proxyPath ? 'proxy' : 'source'}: ${sourceUrl})`);
+            await withTimeout(vdProvider.init(), 5000, 'VideoDecoder 初期化タイムアウト(5s)');
+            providers.set(obj.id, vdProvider);
+            attached = true;
+            console.log(`[Export] VideoDecoder パス: ${obj.id} (${proxyPath ? 'proxy' : 'source'})`);
           } catch (e) {
-            console.warn(`[Export] VideoDecoder 初期化失敗 → シーク方式フォールバック: ${obj.id}`, e);
-            provider.close();
+            console.warn(`[Export] VideoDecoder 不可 → 再生方式を試行: ${obj.id}`, e);
+            vdProvider.close();
           }
+
+          // ② 再生方式（rVFC）。OS デコーダ依存なので HEVC 等も可。約 2倍速。
+          if (!attached) {
+            const pbProvider = new PlaybackFrameProvider(sourceUrl, startSec, endSec, { playbackRate: 2 });
+            try {
+              await withTimeout(pbProvider.init(), 8000, '再生方式 初期化タイムアウト(8s)');
+              providers.set(obj.id, pbProvider);
+              attached = true;
+              console.log(`[Export] 再生方式(rVFC)パス: ${obj.id}`);
+            } catch (e) {
+              console.warn(`[Export] 再生方式も不可 → シーク方式フォールバック: ${obj.id}`, e);
+              pbProvider.close();
+            }
+          }
+          // ③ どちらも失敗時は providers に入れず、従来のシーク方式が担当する。
         }
 
         const usingVideoDecoder = providers.size > 0;

@@ -9,6 +9,7 @@
  */
 
 import { decodeVideoStream } from './videoDecodeStream';
+import type { FrameProvider } from './frameProvider';
 
 interface BufferedFrame {
   timestampUs: number;
@@ -17,7 +18,7 @@ interface BufferedFrame {
 
 const BUFFER_AHEAD = 6; // 先読みフレーム数
 
-export class VideoFrameProvider {
+export class VideoFrameProvider implements FrameProvider {
   private buffer: BufferedFrame[] = [];
   private generator: ReturnType<typeof decodeVideoStream> | null = null;
   private generatorDone = false;

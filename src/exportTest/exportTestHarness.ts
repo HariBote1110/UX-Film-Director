@@ -13,6 +13,7 @@ import { encodeVideoToMp4, detectSupportedH264Codec, resetCodecCache } from '../
 import { decodeVideoStream } from '../utils/videoDecodeStream';
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
 import { createFile, DataStream, type ISOFile, type MP4BoxBuffer } from 'mp4box';
+import { PlaybackFrameProvider } from '../utils/playbackFrameProvider';
 
 declare global {
   interface Window {
@@ -633,6 +634,55 @@ const testHevcDecodeDiagnosis = async (): Promise<string> => {
   return log.join('\n         ');
 };
 
+/**
+ * PlaybackFrameProvider（rVFC 再生方式）で HEVC を取得できるか検証する。
+ * 30fps で 2 秒ぶん getFrame し、取得 fps と取得フレームのユニーク数を計測。
+ */
+const testPlaybackProviderHevc = async (): Promise<string> => {
+  const ipcRenderer = (window as any).ipcRenderer;
+  if (!ipcRenderer) throw new Error('ipcRenderer が利用できません');
+
+  const res = await ipcRenderer.invoke('resolve-perf-heavy-video');
+  if (!res?.success || !res.filePath) throw new Error('HEVC サンプルが見つかりません');
+  const fileUrl = `file://${res.filePath}`;
+
+  // 30fps で 2 秒ぶん（60 枚）を要求。ソースは 60fps なので理想ユニークは ~60。
+  const EXPORT_FPS = 30, SAMPLE_SEC = 2;
+  const total = EXPORT_FPS * SAMPLE_SEC;
+  const lines: string[] = [];
+
+  for (const rate of [1, 2, 3, 4]) {
+    const provider = new PlaybackFrameProvider(fileUrl, 0, SAMPLE_SEC, { playbackRate: rate });
+    let got = 0;
+    const uniq = new Set<unknown>();
+    const t0 = performance.now();
+    try {
+      await Promise.race([
+        provider.init(),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('init timeout(8s)')), 8000)),
+      ]);
+      const tf = performance.now();
+      for (let i = 0; i < total; i += 1) {
+        const localUs = Math.round((i / EXPORT_FPS) * 1_000_000);
+        const bmp = await provider.getFrame(localUs);
+        if (bmp) { got += 1; uniq.add(bmp); }
+      }
+      const wallMs = performance.now() - tf;
+      const fps = got > 0 ? Math.round(got / (wallMs / 1000)) : 0;
+      const coverage = Math.round((uniq.size / total) * 100);
+      lines.push(`rate=${rate}x: got=${got}/${total} uniq=${uniq.size}(${coverage}%) ${fps}fps相当 wall=${wallMs.toFixed(0)}ms`);
+    } catch (e) {
+      lines.push(`rate=${rate}x: ❌ ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      provider.close();
+    }
+    try {
+      await ipcRenderer.invoke('write-test-log', { fileName: 'playback-probe.log', content: lines.map((l) => '  ' + l).join('\n') + '\n' });
+    } catch { /* ignore */ }
+  }
+  return lines.join('\n         ');
+};
+
 // ── エントリーポイント ─────────────────────────────────────────────────────
 
 const formatLogLine = (tc: TestCase): string => {
@@ -655,7 +705,8 @@ export const runExportTests = async (): Promise<ExportTestResult> => {
   await run('H.264 動画エンコード (5秒 640×360) [VideoDecoder・シークなし]', testEncode4KVideoDecoder);
   await run('パイプライン フェーズ別内訳 (4K 出力・seek vs VideoDecoder)', testPipelinePhaseBreakdown);
   await run('ソース直接デコード可否 (H.264/HEVC)', testSourceDirectDecode);
-  // HEVC 詳細診断は調査用ツール（通常 run から除外、必要時に手動で有効化）。
+  await run('rVFC 再生方式で HEVC 取得 (PlaybackFrameProvider)', testPlaybackProviderHevc);
+  // 詳細診断は調査用ツール（通常 run から除外、必要時に手動で有効化）。
   void testHevcDecodeDiagnosis;
 
   console.groupEnd();

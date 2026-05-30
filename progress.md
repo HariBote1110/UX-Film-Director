@@ -1,3 +1,26 @@
+## 2026-05-30 — HEVC 高速書き出し: rVFC 再生方式プロバイダ追加
+
+### 実施内容
+- `PlaybackFrameProvider`（`src/utils/playbackFrameProvider.ts`）を新設。
+  - HTMLVideoElement を「シークせず再生」し `requestVideoFrameCallback` で提示フレームを取得。
+  - OS デコーダ依存なので VideoDecoder/MP4Box が扱えない HEVC 等でも動作。
+  - `playbackRate` で高速化＋リングバッファ＋背圧（満杯で一時停止）。
+- 共通インターフェース `FrameProvider`（`getFrame`/`close`）を導入し、`VideoFrameProvider` と `PlaybackFrameProvider` を多態化。
+- `useProjectExport` を **3 段フォールバック**に変更：①VideoDecoder(最速) → ②再生方式(rVFC・HEVC対応) → ③シーク。
+- 計測（HEVC 10000kbps, 30fps×2s 要求）で `playbackRate` を掃引し最適点を決定：
+  - 1x: uniq 100% / 30fps、2x: **uniq 98% / 59fps**、3x: 68%、4x: 52%。
+  - → 既定 `playbackRate=2`（98% カバレッジ・約2倍速）。
+
+### 選定理由・判断の根拠
+- HEVC は VideoDecoder で description 修正後もデマックス側でサンプルが取れずデコード不可だったため、コーデック非依存で確実な「OS 再生＋rVFC」方式を採用。
+- `playbackRate=2`：高速化とフレーム落ち（カバレッジ低下）のトレードオフの最良点。3x 以上は欠落フレームが増え書き出しがカクつくため不採用。
+- 3 段フォールバックで H.264 は最速(VideoDecoder)、HEVC は再生方式、非対応のみシークと、回帰なく最大速度を選べる。
+
+### 残課題・次のステップ
+- 実プロジェクト（実 GoPro HEVC）での体感・画質確認（`npm run dev` → 動画出力）。
+- 高 `playbackRate` でのフレーム落ちはソース fps 依存。必要なら適応制御（落ち検出で減速）。
+- moov 末尾配置の大容量 H.264 は VideoDecoder 起動が遅く再生方式へ流れる（許容）。
+
 ## 2026-05-30 — 書き出し高速化: 全動画を VideoDecoder 経路へ（プロキシ不要化）
 
 ### 実施内容
