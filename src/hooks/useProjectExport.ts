@@ -80,15 +80,25 @@ export const useProjectExport = (
         for (const obj of videoObjects) {
           if (obj.reversed) continue; // 逆再生はシーク方式フォールバック
 
-          // プロキシ(H.264)があれば最優先、無ければソースを直接扱う。
           const v = obj as VideoObject;
+
+          // 中間ファイル（編集中にバックグラウンド生成した出力解像度の H.264）が
+          // あれば最優先。4K HEVC/H.264 を出力解像度へダウンスケール済みなので
+          // VideoDecoder で最速かつフレーム落ちなし。生成は待たない。
+          let intermediateUrl: string | undefined;
+          if (v.filePath) {
+            try {
+              const chk = await ipcRenderer.invoke('check-intermediate', { filePath: v.filePath, width });
+              if (chk?.exists && chk.path) intermediateUrl = `file://${chk.path}`;
+            } catch { /* ignore */ }
+          }
+
+          // 優先順: 中間ファイル → プロキシ(H.264) → ソース。
           const proxyPath = v.proxyFilePath;
-          const sourceUrl = proxyPath
-            ? `file://${proxyPath}`
-            : v.filePath
-              ? `file://${v.filePath}`
-              : v.src;
+          const sourceUrl = intermediateUrl
+            ?? (proxyPath ? `file://${proxyPath}` : v.filePath ? `file://${v.filePath}` : v.src);
           if (!sourceUrl) continue; // URL 不明 → シーク方式フォールバック
+          const sourceLabel = intermediateUrl ? 'intermediate' : proxyPath ? 'proxy' : 'source';
 
           const startSec = obj.offset || 0;
           const endSec = startSec + obj.duration + 1; // +1s のマージン
@@ -96,56 +106,21 @@ export const useProjectExport = (
             p, new Promise<never>((_, reject) => setTimeout(() => reject(new Error(msg)), ms)),
           ]);
 
-          // ① VideoDecoder 経路（H.264 等で最速・~700fps）。
-          //    HEVC・moov 末尾配置・不正コンテナでは hang し得るためタイムアウト付き。
+          // ① VideoDecoder 経路（H.264/中間ファイルで最速・~700fps）。
+          //    HEVC ソース直叩き・moov 末尾配置・不正コンテナでは hang し得るためタイムアウト付き。
           const vdProvider = new VideoFrameProvider(sourceUrl, startSec, endSec);
           let attached = false;
           try {
             await withTimeout(vdProvider.init(), 5000, 'VideoDecoder 初期化タイムアウト(5s)');
             providers.set(obj.id, vdProvider);
             attached = true;
-            console.log(`[Export] VideoDecoder パス: ${obj.id} (${proxyPath ? 'proxy' : 'source'})`);
+            console.log(`[Export] VideoDecoder パス: ${obj.id} (${sourceLabel})`);
           } catch (e) {
             console.warn(`[Export] VideoDecoder 不可 → 再生方式を試行: ${obj.id}`, e);
             vdProvider.close();
           }
 
-          // ② 中間ファイル経路（HEVC 等で本命）。ソースを出力解像度の H.264 へ
-          //    HW(ffmpeg/VideoToolbox) で一度だけ変換・キャッシュし、VideoDecoder で
-          //    高速デコードする。rVFC のリフレッシュ制限やフレーム落ちを回避。
-          if (!attached && v.filePath) {
-            try {
-              setExportProgress({ phase: 'transcoding', currentFrame: 0, totalFrames: 0 });
-              // 変換中にキャンセルされたら ffmpeg を停止する監視。
-              const cancelWatch = setInterval(() => {
-                if (useStore.getState().exportCancelRequested) ipcRenderer.invoke('cancel-intermediate').catch(() => {});
-              }, 300);
-              let gen: { success?: boolean; path?: string; cached?: boolean; error?: string } | undefined;
-              try {
-                gen = await ipcRenderer.invoke('generate-intermediate', { filePath: v.filePath, width });
-              } finally {
-                clearInterval(cancelWatch);
-              }
-              if (!isCancelled() && gen?.success && gen.path) {
-                const ivProvider = new VideoFrameProvider(`file://${gen.path}`, startSec, endSec);
-                try {
-                  await withTimeout(ivProvider.init(), 8000, '中間ファイル init タイムアウト(8s)');
-                  providers.set(obj.id, ivProvider);
-                  attached = true;
-                  console.log(`[Export] 中間ファイル経路: ${obj.id} (${gen.cached ? 'cached' : 'generated'}: ${gen.path})`);
-                } catch (e) {
-                  console.warn(`[Export] 中間ファイルのデコード不可 → 再生方式へ: ${obj.id}`, e);
-                  ivProvider.close();
-                }
-              } else if (gen && !gen.success) {
-                console.warn(`[Export] 中間ファイル生成失敗 → 再生方式へ: ${obj.id}`, gen.error);
-              }
-            } catch (e) {
-              console.warn(`[Export] 中間ファイル処理で例外 → 再生方式へ: ${obj.id}`, e);
-            }
-          }
-
-          // ③ 再生方式（rVFC）。中間ファイルが使えない場合のフォールバック（HEVC 等）。
+          // ② 再生方式（rVFC）。中間ファイル未生成の HEVC 等のフォールバック。
           if (!attached && !isCancelled()) {
             const pbProvider = new PlaybackFrameProvider(sourceUrl, startSec, endSec, { playbackRate: 2 });
             try {

@@ -765,23 +765,41 @@ app.whenReady().then(() => {
   // HEVC 等 VideoDecoder で直接デコードできないソースを、出力解像度の H.264 に
   // HW(VideoToolbox) で一度だけ変換してキャッシュする。書き出し時はこれを
   // VideoDecoder で高速デコードする。進捗は 'intermediate-progress' で通知。
-  let intermediateFfmpeg: ChildProcess | null = null;
-  ipcMain.handle('generate-intermediate', async (event, payload: { filePath?: string; width?: number }) => {
-    const filePath = typeof payload?.filePath === 'string' ? payload.filePath.trim() : '';
-    if (!filePath || !fs.existsSync(filePath)) return { success: false, error: 'ソースが見つかりません' };
-    const targetW = Math.max(2, Math.round(payload?.width ?? 1920));
-    const w = targetW % 2 === 0 ? targetW : targetW - 1;
-
-    // キャッシュキー: ソースのサイズ・更新時刻・目標幅
+  // 中間ファイルのキャッシュパスを求める（生成・確認で共通）。
+  const intermediateCachePath = (filePath: string, w: number): string | null => {
     let stat: fs.Stats;
-    try { stat = fs.statSync(filePath); } catch { return { success: false, error: 'stat 失敗' }; }
+    try { stat = fs.statSync(filePath); } catch { return null; }
     const cacheDir = path.join(os.tmpdir(), 'uxfd-intermediate');
     try { fs.mkdirSync(cacheDir, { recursive: true }); } catch { /* ignore */ }
     const safeBase = path.basename(filePath).replace(/[^\w.-]/g, '_');
-    const outPath = path.join(cacheDir, `${safeBase}.${stat.size}.${Math.round(stat.mtimeMs)}.${w}w.mp4`);
+    return path.join(cacheDir, `${safeBase}.${stat.size}.${Math.round(stat.mtimeMs)}.${w}w.mp4`);
+  };
+  const evenWidth = (w: number) => { const r = Math.max(2, Math.round(w)); return r % 2 === 0 ? r : r - 1; };
+
+  // 生成せず、キャッシュ済み中間ファイルの有無だけ確認する。
+  ipcMain.handle('check-intermediate', async (_event, payload: { filePath?: string; width?: number }) => {
+    const filePath = typeof payload?.filePath === 'string' ? payload.filePath.trim() : '';
+    if (!filePath) return { exists: false };
+    const outPath = intermediateCachePath(filePath, evenWidth(payload?.width ?? 1920));
+    if (outPath && fs.existsSync(outPath) && fs.statSync(outPath).size > 1000) return { exists: true, path: outPath };
+    return { exists: false };
+  });
+
+  let intermediateFfmpeg: ChildProcess | null = null;
+  let intermediateBusy = false;
+  ipcMain.handle('generate-intermediate', async (event, payload: { filePath?: string; width?: number }) => {
+    const filePath = typeof payload?.filePath === 'string' ? payload.filePath.trim() : '';
+    if (!filePath || !fs.existsSync(filePath)) return { success: false, error: 'ソースが見つかりません' };
+    const w = evenWidth(payload?.width ?? 1920);
+
+    const outPath = intermediateCachePath(filePath, w);
+    if (!outPath) return { success: false, error: 'stat 失敗' };
     if (fs.existsSync(outPath) && fs.statSync(outPath).size > 1000) {
       return { success: true, path: outPath, cached: true };
     }
+    // 同時実行は1本に制限（編集中の負荷・GPU 競合を抑える）。
+    if (intermediateBusy) return { success: false, error: 'busy', busy: true };
+    intermediateBusy = true;
 
     const tmpOut = `${outPath}.partial.mp4`;
     const ffmpegPath = resolveDefaultFfmpegPath();
@@ -824,6 +842,7 @@ app.whenReady().then(() => {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     } finally {
       intermediateFfmpeg = null;
+      intermediateBusy = false;
     }
   });
   ipcMain.handle('cancel-intermediate', async () => {
