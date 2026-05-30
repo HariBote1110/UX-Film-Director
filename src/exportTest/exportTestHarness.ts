@@ -757,19 +757,31 @@ export const runExportTests = async (): Promise<ExportTestResult> => {
   // results は module スコープで蓄積されるため、再実行時にリセット
   results.length = 0;
 
-  const t0 = performance.now();
-  console.group('[ExportTest] エクスポートパイプライン テスト開始');
+  // モード: 'fast' は時間のかかるシーク方式テストを省略する（既定は全実行）。
+  const mode = import.meta.env.VITE_EXPORT_MODE === 'fast' ? 'fast' : 'all';
+  const isFast = mode === 'fast';
 
+  const t0 = performance.now();
+  console.group(`[ExportTest] エクスポートパイプライン テスト開始 (mode=${mode})`);
+
+  // ── コア（常に実行・高速）──────────────────────────────────────────────
   await run('コーデック検出（HW/SW 判定）', testCodecDetection);
   await run('無地フレームエンコード (1秒 640×360 30fps)', testEncodeBlankFrames);
   await run('ストリーミング出力 (StreamTarget で逐次書き込み)', testStreamingEncode);
   await run('エンコーダ背圧 (4K 高速供給でキュー上限を維持)', testEncoderBackpressure);
-  await run('動画ファイルからのリエンコード (2秒 640×360) [seek]', testEncodeFromVideoFile);
-  await run('4K 動画 FHD エンコード (5秒 1920×1080 60fps) [seek]', testEncode4KVideo);
   await run('H.264 動画エンコード (5秒 640×360) [VideoDecoder・シークなし]', testEncode4KVideoDecoder);
   await run('パイプライン フェーズ別内訳 (4K 出力・seek vs VideoDecoder)', testPipelinePhaseBreakdown);
   await run('ソース直接デコード可否 (H.264/HEVC)', testSourceDirectDecode);
   await run('rVFC 再生方式で HEVC 取得 (PlaybackFrameProvider)', testPlaybackProviderHevc);
+
+  // ── 低速（fast モードでは省略）: HTMLVideoElement シーク方式の計測 ────────
+  if (!isFast) {
+    await run('動画ファイルからのリエンコード (2秒 640×360) [seek]', testEncodeFromVideoFile);
+    await run('4K 動画 FHD エンコード (5秒 1920×1080 60fps) [seek]', testEncode4KVideo);
+  } else {
+    void testEncodeFromVideoFile; void testEncode4KVideo;
+    console.log('[ExportTest] fast モード: シーク方式テストを省略');
+  }
   // 詳細診断は調査用ツール（通常 run から除外、必要時に手動で有効化）。
   void testHevcDecodeDiagnosis;
 
