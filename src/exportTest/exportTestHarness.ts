@@ -683,6 +683,34 @@ const testPlaybackProviderHevc = async (): Promise<string> => {
   return lines.join('\n         ');
 };
 
+/**
+ * エンコーダ背圧の検証: 生成がエンコードより速い状況（4K・高速生成）でも
+ * encodeQueueSize（=メモリ）が無制限に積もらないことを確認する。
+ */
+const testEncoderBackpressure = async (): Promise<string> => {
+  const W = 3840, H = 2160, FPS = 60, TOTAL = 600; // 10秒ぶんを即時供給
+  const canvas = new OffscreenCanvas(W, H);
+  const ctx = canvas.getContext('2d')!;
+
+  // ImageBitmap を即座に量産するジェネレータ（エンコードより速い供給を模倣）。
+  async function* fastFrames() {
+    for (let i = 0; i < TOTAL; i += 1) {
+      ctx.fillStyle = `hsl(${(i / TOTAL) * 360}, 70%, 50%)`;
+      ctx.fillRect(0, 0, W, H);
+      const bitmap = await createImageBitmap(canvas);
+      yield { timestamp: Math.round(i * 1_000_000 / FPS), bitmap };
+      bitmap.close();
+    }
+  }
+
+  const result = await encodeVideoToMp4({ width: W, height: H, fps: FPS, frames: fastFrames() });
+  const speed = Math.round(TOTAL / (result.durationMs / 1000));
+  // 背圧が効いていれば peak は MAX_QUEUE(8) 近傍に収まる。壊れていれば TOTAL 近くまで膨らむ。
+  const ok = result.peakQueueSize <= 16;
+  if (!ok) throw new Error(`背圧が効いていない: peakQueueSize=${result.peakQueueSize}（生成が積もっている）`);
+  return `✅ peakQueueSize=${result.peakQueueSize}（上限内） frames=${TOTAL} ${speed}fps相当 size=${(result.buffer.byteLength / 1024 / 1024).toFixed(1)}MB`;
+};
+
 // ── エントリーポイント ─────────────────────────────────────────────────────
 
 const formatLogLine = (tc: TestCase): string => {
@@ -700,6 +728,7 @@ export const runExportTests = async (): Promise<ExportTestResult> => {
 
   await run('コーデック検出（HW/SW 判定）', testCodecDetection);
   await run('無地フレームエンコード (1秒 640×360 30fps)', testEncodeBlankFrames);
+  await run('エンコーダ背圧 (4K 高速供給でキュー上限を維持)', testEncoderBackpressure);
   await run('動画ファイルからのリエンコード (2秒 640×360) [seek]', testEncodeFromVideoFile);
   await run('4K 動画 FHD エンコード (5秒 1920×1080 60fps) [seek]', testEncode4KVideo);
   await run('H.264 動画エンコード (5秒 640×360) [VideoDecoder・シークなし]', testEncode4KVideoDecoder);

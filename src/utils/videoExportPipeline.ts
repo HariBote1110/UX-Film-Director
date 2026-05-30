@@ -18,6 +18,8 @@ export interface EncodeResult {
   buffer: ArrayBuffer;
   codecUsed: string;
   durationMs: number;
+  /** エンコード中に観測した encodeQueueSize のピーク（背圧の有効性確認用）。 */
+  peakQueueSize: number;
 }
 
 // H.264 コーデック候補（Apple Silicon 優先）
@@ -158,19 +160,47 @@ export const encodeVideoToMp4 = async (cfg: EncodeVideoConfig): Promise<EncodeRe
   });
   videoEncoder.configure(detected.config);
 
+  // エンコーダのキューが捌けるのを実際に待つための待機関数。
+  // dequeue イベント（キュー減少時に発火）を待ち、非対応環境では短いポーリングで代替する。
+  const waitForDequeue = () => Promise.race([
+    new Promise<void>((resolve) => {
+      const enc = videoEncoder as unknown as {
+        addEventListener?: (t: string, cb: () => void, o?: { once: boolean }) => void;
+        removeEventListener?: (t: string, cb: () => void) => void;
+      };
+      if (typeof enc.addEventListener === 'function') {
+        const onDeq = () => { enc.removeEventListener?.('dequeue', onDeq); resolve(); };
+        enc.addEventListener('dequeue', onDeq, { once: true });
+        // dequeue が来ない環境・取りこぼし対策のフォールバック。
+        setTimeout(() => { enc.removeEventListener?.('dequeue', onDeq); resolve(); }, 100);
+      } else {
+        setTimeout(resolve, 10);
+      }
+    }),
+    encodingError,
+  ]);
+
+  // 背圧: 生成がエンコードより速いとき、エンコーダ内部キューに VideoFrame が
+  // 無制限に積もってメモリが膨張する。キューが上限以下になるまで送出を止める。
+  const MAX_QUEUE = 8;
+  let peakQueueSize = 0;
+
   for await (const { timestamp, bitmap } of cfg.frames) {
+    // 次フレームを送る前にキューが捌けるのを待つ（ここで上流の生成も自然に止まる）。
+    while (videoEncoder.encodeQueueSize > MAX_QUEUE) {
+      await waitForDequeue();
+    }
+    if (videoEncoder.encodeQueueSize > peakQueueSize) peakQueueSize = videoEncoder.encodeQueueSize;
+
     const frame = new VideoFrame(bitmap, { timestamp });
     const keyFrame = timestamp === 0 || (timestamp % (cfg.fps * 2 * 1_000_000) < (1_000_000 / cfg.fps));
     videoEncoder.encode(frame, { keyFrame });
     frame.close();
-
-    if (videoEncoder.encodeQueueSize > 10) {
-      await Promise.race([new Promise(r => setTimeout(r, 0)), encodingError]);
-    }
   }
 
   await Promise.race([videoEncoder.flush(), encodingError]);
   videoEncoder.close();
+  if (peakQueueSize > 0) console.log(`[VideoExport] peak encodeQueueSize = ${peakQueueSize}`);
 
   if (cfg.audioBuffer) {
     await encodeAudioBufferToMuxer(cfg.audioBuffer, muxer);
@@ -179,7 +209,7 @@ export const encodeVideoToMp4 = async (cfg: EncodeVideoConfig): Promise<EncodeRe
   muxer.finalize();
   const { buffer } = target;
 
-  return { buffer, codecUsed: detected.codec, durationMs: performance.now() - t0 };
+  return { buffer, codecUsed: detected.codec, durationMs: performance.now() - t0, peakQueueSize };
 };
 
 // ── オーディオエンコード ────────────────────────────────────────────────────
