@@ -187,27 +187,46 @@ export const useProjectExport = (
           exportFrameOverridesRef?.current.clear();
         }
 
-        const result = await encodeVideoToMp4({
-          width,
-          height,
-          fps,
-          frames: renderFrames(),
-          audioBuffer,
-        });
+        // 出力をディスクへ逐次書き出す（出力全体をメモリに保持しない）。
+        const openRes = await ipcRenderer.invoke('export-stream-open', { filePath: savePath });
+        if (!openRes?.success) throw new Error(openRes?.error || '出力ファイルを開けませんでした');
+        const streamId = openRes.id as number;
+        let writtenBytes = 0;
+        let streamClosed = false;
+        const closeStream = async () => {
+          if (streamClosed) return;
+          streamClosed = true;
+          await ipcRenderer.invoke('export-stream-close', { id: streamId }).catch(() => {});
+        };
 
-        // キャンセルされていた場合はファイル保存を行わない。
+        let result;
+        try {
+          result = await encodeVideoToMp4({
+            width,
+            height,
+            fps,
+            frames: renderFrames(),
+            audioBuffer,
+            writeChunk: async (data, position) => {
+              const end = position + data.byteLength;
+              if (end > writtenBytes) writtenBytes = end;
+              const w = await ipcRenderer.invoke('export-stream-write', {
+                id: streamId,
+                chunk: data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength),
+                position,
+              });
+              if (!w?.success) throw new Error(w?.error || 'チャンク書き込みに失敗しました');
+            },
+          });
+        } finally {
+          await closeStream();
+        }
+
         if (isCancelled()) return;
-
-        setExportProgress({ phase: 'saving', currentFrame: totalFrames, totalFrames });
-        const saved = await ipcRenderer.invoke('save-buffer-to-file', {
-          filePath: savePath,
-          buffer: result.buffer,
-        });
-        if (!saved?.success) throw new Error(saved?.error || 'ファイル保存に失敗しました');
 
         if (!isCancelled()) {
           const decoderNote = usingVideoDecoder ? '\n（VideoDecoder 高速パス使用）' : '';
-          alert(`エクスポート完了！\nコーデック: ${result.codecUsed}\nサイズ: ${(result.buffer.byteLength / 1024 / 1024).toFixed(1)}MB\n処理時間: ${(result.durationMs / 1000).toFixed(1)}秒${decoderNote}`);
+          alert(`エクスポート完了！\nコーデック: ${result.codecUsed}\nサイズ: ${(writtenBytes / 1024 / 1024).toFixed(1)}MB\n処理時間: ${(result.durationMs / 1000).toFixed(1)}秒${decoderNote}`);
         }
 
       } catch (error) {

@@ -3,7 +3,7 @@
  *
  * useProjectExport から呼び出されるほか、exportTest ハーネスから単体で使用できる。
  */
-import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
+import { Muxer, ArrayBufferTarget, StreamTarget } from 'mp4-muxer';
 
 export interface EncodeVideoConfig {
   width: number;
@@ -12,10 +12,19 @@ export interface EncodeVideoConfig {
   /** フレーム数ぶんの timestamp(μs) と描画コールバックを受け取るイテレータ */
   frames: AsyncIterable<{ timestamp: number; bitmap: ImageBitmap }>;
   audioBuffer?: AudioBuffer | null;
+  /**
+   * 出力チャンクのディスク逐次書き込み用コールバック。指定すると出力全体を
+   * メモリに保持せず（ArrayBufferTarget を使わず）逐次書き出す。
+   * 指定時は moov 末尾配置（fastStart:false）になる。
+   */
+  writeChunk?: (data: Uint8Array, position: number) => void | Promise<void>;
 }
 
 export interface EncodeResult {
+  /** ストリーミング出力時は空（データはディスクへ書き込み済み）。 */
   buffer: ArrayBuffer;
+  /** ディスクへ逐次書き出した場合 true。 */
+  streamed: boolean;
   codecUsed: string;
   durationMs: number;
   /** エンコード中に観測した encodeQueueSize のピーク（背圧の有効性確認用）。 */
@@ -125,14 +134,47 @@ export const encodeVideoToMp4 = async (cfg: EncodeVideoConfig): Promise<EncodeRe
   const detected = await detectSupportedH264Codec(cfg.width, cfg.height, cfg.fps);
   if (!detected) throw new Error('VideoEncoder H.264 がこの環境でサポートされていません');
 
-  const target = new ArrayBufferTarget();
+  // ストリーミング出力時はディスクへ逐次書き込む。onData は同期呼び出しのため、
+  // チャンクをキューに積んで非同期(IPC)書き込みを直列ドレインする。
+  const streaming = typeof cfg.writeChunk === 'function';
+  let writeError: Error | null = null;
+  const writeQueue: { data: Uint8Array; position: number }[] = [];
+  let draining = false;
+  const drainWrites = async () => {
+    if (draining) return;
+    draining = true;
+    try {
+      while (writeQueue.length > 0) {
+        const { data, position } = writeQueue.shift()!;
+        await cfg.writeChunk!(data, position);
+      }
+    } catch (e) {
+      writeError = e instanceof Error ? e : new Error(String(e));
+    } finally {
+      draining = false;
+    }
+  };
+
+  const arrayTarget = streaming ? null : new ArrayBufferTarget();
+  const streamTarget = streaming
+    ? new StreamTarget({
+        onData: (data: Uint8Array, position: number) => {
+          // data は再利用バッファのビューのことがあるため必ずコピーする。
+          writeQueue.push({ data: data.slice(), position });
+          void drainWrites();
+        },
+        chunked: true,
+      })
+    : null;
+
   const muxer = new Muxer({
-    target,
+    target: (streamTarget ?? arrayTarget) as ArrayBufferTarget,
     video: { codec: 'avc', width: encWidth, height: encHeight },
     ...(cfg.audioBuffer
       ? { audio: { codec: 'aac', sampleRate: cfg.audioBuffer.sampleRate, numberOfChannels: cfg.audioBuffer.numberOfChannels } }
       : {}),
-    fastStart: 'in-memory',
+    // ストリーミング時は moov 末尾配置（逐次書き込み・メモリ非保持）。
+    fastStart: streaming ? false : 'in-memory',
   });
 
   let rejectEncoding!: (e: Error) => void;
@@ -185,15 +227,29 @@ export const encodeVideoToMp4 = async (cfg: EncodeVideoConfig): Promise<EncodeRe
   const MAX_QUEUE = 8;
   let peakQueueSize = 0;
 
-  for await (const { timestamp, bitmap } of cfg.frames) {
-    // 次フレームを送る前にキューが捌けるのを待つ（ここで上流の生成も自然に止まる）。
+  // 段のオーバーラップ（パイプライン化）:
+  // VideoFrame は ImageBitmap からデータをコピーして生成されるため、生成直後に
+  // 「次フレームの取得・描画(=iterator.next())」を開始でき、現フレームのエンコードや
+  // 背圧待ちと並行に走らせられる。これで「取得+描画」と「エンコード」の直列を解消する。
+  const iterator = cfg.frames[Symbol.asyncIterator]();
+  let pending = iterator.next();
+  while (true) {
+    const { value, done } = await pending;
+    if (done) break;
+
+    // ImageBitmap を VideoFrame へコピー（この時点で bitmap への依存が切れる）。
+    const frame = new VideoFrame(value.bitmap, { timestamp: value.timestamp });
+    // 次フレームの生成を即開始（エンコード/背圧待ちと並行）。
+    // ジェネレータ側は yield 再開時に自身の bitmap を close するが、既にコピー済みで安全。
+    pending = iterator.next();
+
+    // 背圧: キューが捌けるまで送出を待つ（この待ち時間も次フレーム生成と重なる）。
     while (videoEncoder.encodeQueueSize > MAX_QUEUE) {
       await waitForDequeue();
     }
     if (videoEncoder.encodeQueueSize > peakQueueSize) peakQueueSize = videoEncoder.encodeQueueSize;
 
-    const frame = new VideoFrame(bitmap, { timestamp });
-    const keyFrame = timestamp === 0 || (timestamp % (cfg.fps * 2 * 1_000_000) < (1_000_000 / cfg.fps));
+    const keyFrame = value.timestamp === 0 || (value.timestamp % (cfg.fps * 2 * 1_000_000) < (1_000_000 / cfg.fps));
     videoEncoder.encode(frame, { keyFrame });
     frame.close();
   }
@@ -207,9 +263,20 @@ export const encodeVideoToMp4 = async (cfg: EncodeVideoConfig): Promise<EncodeRe
   }
 
   muxer.finalize();
-  const { buffer } = target;
 
-  return { buffer, codecUsed: detected.codec, durationMs: performance.now() - t0, peakQueueSize };
+  if (streaming) {
+    // finalize() による最終チャンク（moov 等）の書き込み完了を待つ。
+    await drainWrites();
+    while (writeQueue.length > 0 || draining) {
+      await new Promise((r) => setTimeout(r, 5));
+      await drainWrites();
+    }
+    if (writeError) throw writeError;
+    return { buffer: new ArrayBuffer(0), streamed: true, codecUsed: detected.codec, durationMs: performance.now() - t0, peakQueueSize };
+  }
+
+  const { buffer } = arrayTarget!;
+  return { buffer, streamed: false, codecUsed: detected.codec, durationMs: performance.now() - t0, peakQueueSize };
 };
 
 // ── オーディオエンコード ────────────────────────────────────────────────────

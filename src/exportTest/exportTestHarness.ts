@@ -88,6 +88,40 @@ const testEncodeBlankFrames = async (): Promise<string> => {
   return `codec=${result.codecUsed}, size=${(result.buffer.byteLength / 1024).toFixed(1)}KB, time=${result.durationMs.toFixed(0)}ms, speed=${fps}fps`;
 };
 
+/** writeChunk 経由のストリーミング出力（StreamTarget）が有効な MP4 を生成するか確認。 */
+const testStreamingEncode = async (): Promise<string> => {
+  const W = 640, H = 360, FPS = 30, totalFrames = 30;
+  async function* blankFrames() {
+    const canvas = new OffscreenCanvas(W, H);
+    const ctx = canvas.getContext('2d')!;
+    for (let i = 0; i < totalFrames; i++) {
+      ctx.fillStyle = `hsl(${(i / totalFrames) * 360}, 80%, 50%)`;
+      ctx.fillRect(0, 0, W, H);
+      const bitmap = await createImageBitmap(canvas);
+      yield { timestamp: Math.round(i * 1_000_000 / FPS), bitmap };
+      bitmap.close();
+    }
+  }
+
+  // writeChunk を「メモリ上のファイル」に見立てて position 指定で書き込む。
+  const chunks: { data: Uint8Array; position: number }[] = [];
+  let maxEnd = 0;
+  const result = await encodeVideoToMp4({
+    width: W, height: H, fps: FPS,
+    frames: blankFrames(),
+    writeChunk: (data, position) => { chunks.push({ data, position }); maxEnd = Math.max(maxEnd, position + data.byteLength); },
+  });
+  if (!result.streamed) throw new Error('streamed フラグが立っていない');
+  if (result.buffer.byteLength !== 0) throw new Error('ストリーミング時は buffer が空のはず');
+  // 仮想ファイルへ再構成して妥当性チェック（先頭が ftyp ボックスか）。
+  const file = new Uint8Array(maxEnd);
+  for (const { data, position } of chunks) file.set(data, position);
+  const type = String.fromCharCode(file[4], file[5], file[6], file[7]);
+  if (maxEnd < 1000) throw new Error(`出力が小さすぎる: ${maxEnd}B`);
+  if (type !== 'ftyp') throw new Error(`先頭ボックスが ftyp でない: "${type}"`);
+  return `✅ streamed=${result.streamed} chunks=${chunks.length} size=${(maxEnd / 1024).toFixed(1)}KB 先頭=${type}`;
+};
+
 const testEncodeFromVideoFile = async (): Promise<string> => {
   const { ipcRenderer } = window as any;
   if (!ipcRenderer) throw new Error('ipcRenderer が利用できません（Electron 以外の環境）');
@@ -728,6 +762,7 @@ export const runExportTests = async (): Promise<ExportTestResult> => {
 
   await run('コーデック検出（HW/SW 判定）', testCodecDetection);
   await run('無地フレームエンコード (1秒 640×360 30fps)', testEncodeBlankFrames);
+  await run('ストリーミング出力 (StreamTarget で逐次書き込み)', testStreamingEncode);
   await run('エンコーダ背圧 (4K 高速供給でキュー上限を維持)', testEncoderBackpressure);
   await run('動画ファイルからのリエンコード (2秒 640×360) [seek]', testEncodeFromVideoFile);
   await run('4K 動画 FHD エンコード (5秒 1920×1080 60fps) [seek]', testEncode4KVideo);

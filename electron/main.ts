@@ -873,6 +873,47 @@ app.whenReady().then(() => {
     }
   });
 
+  // ── 書き出し出力のディスク逐次書き込み（メモリ全保持を回避）──────────────
+  // mp4-muxer の StreamTarget から (data, position) で呼ばれるチャンクを直接ファイルへ書く。
+  const exportStreams = new Map<number, fs.promises.FileHandle>();
+  let exportStreamSeq = 0;
+  ipcMain.handle('export-stream-open', async (_event, payload: { filePath?: string }) => {
+    const filePath = typeof payload?.filePath === 'string' ? payload.filePath.trim() : '';
+    if (!filePath) return { success: false, error: 'filePath が未指定' };
+    try {
+      const fd = await fs.promises.open(filePath, 'w');
+      const id = ++exportStreamSeq;
+      exportStreams.set(id, fd);
+      return { success: true, id };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+  ipcMain.handle('export-stream-write', async (_event, payload: { id?: number; chunk?: ArrayBuffer; position?: number }) => {
+    const fd = typeof payload?.id === 'number' ? exportStreams.get(payload.id) : undefined;
+    if (!fd || !payload?.chunk) return { success: false, error: 'ストリーム未オープン or chunk 未指定' };
+    try {
+      const buf = Buffer.from(payload.chunk);
+      // position 指定があればその位置へ（faststart 等の seek 書き込みに対応）。
+      await fd.write(buf, 0, buf.byteLength, typeof payload.position === 'number' ? payload.position : null);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+  ipcMain.handle('export-stream-close', async (_event, payload: { id?: number }) => {
+    const id = typeof payload?.id === 'number' ? payload.id : -1;
+    const fd = exportStreams.get(id);
+    if (!fd) return { success: false, error: 'ストリーム未オープン' };
+    try {
+      await fd.close();
+      exportStreams.delete(id);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
   // ── PSD parsing via Rust backend ─────────────────────────────────────────
   // Two-phase protocol:
   //   Phase 1: psd.parse  → Rust decompresses PSD, returns metadata JSON
