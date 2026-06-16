@@ -163,6 +163,11 @@ shared renderer canvas が Pixi 全体の上に重なる構造を前提に、cut
 Pixi 側では該当 shape の children を cleanup して `hitArea` だけ残し、preview の interaction は維持する。  
 export は現行 Pixi canvas を正本にしているため、`isExporting` 中は Pixi shape rendering を維持する。
 
+37. Phase5: Rust backend 実動画フレーム decode gate を追加する  
+`decode.requestFrame` は指定 `frameIndex` を Rust backend 側で `ffmpeg` decode し、GPU row pitch に合わせた descriptor と CRC32 verification を返す。  
+frame bytes / pixel array / base64 は control plane に載せず、WebGPU upload 未完了の間は `videoFrameUploadReady=false` により Pixi preview を維持する。  
+次段では `ffprobe` metadata gate と POSIX shm / mmap への decoded RGBA 書き込み、WebGPU texture upload を接続する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

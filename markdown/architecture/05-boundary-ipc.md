@@ -111,6 +111,17 @@ Phase 3 の renderer parity spike は sidecar decode に依存しない。動画
 の正しさを確認することである。preview / export が同一 decoded buffer を共有する構成では、両者の一致だけでは
 正しさの証明にならない。
 
+Rust backend integration gate:
+
+- `decode.start` は shared ring layout と `sourceRate` を返し、session 内に source path と ring state を保持する。
+- `decode.requestFrame` は `frameIndex` を `ffmpeg` で RGBA decode し、GPU row pitch に合わせた `SharedFrame` descriptor と
+  `FrameVerificationReport` の CRC32 だけを返す。
+- control plane に frame bytes / pixel array / base64 は載せない。
+- 現時点では decoded RGBA は heap 上で padding / checksum されるだけで、POSIX shm / mmap にはまだ書かない。
+- `decode.releaseFrame` は WebGPU upload fence 完了後の `copyOutState=gpuUploadFenceSignalled` でのみ slot を解放する。
+- 次 gate では `ffprobe` metadata を読み、limited range / transfer / matrix を fail-loud または明示変換したうえで、
+  decoded RGBA を shared memory slot へ直接書く。
+
 ## Protocol Contract
 
 Phase 4 の入口として `sidecar-protocol` crate を置く。

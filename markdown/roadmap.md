@@ -279,7 +279,9 @@ shared renderer canvas は Pixi 全体の上に重なるため、実 decoded fra
 z-order safety gate では、candidate video より前面に Pixi-only object がある場合、その video は Pixi owner のままにする。
 前面の `SolidColour` は shared renderer が描けるため許可し、前面の `Video` は同じ cutover candidate に含まれる場合だけ許可する。
 `Image` / PSD / text / unsupported object が前面に残る構成では、video の shared renderer cutover を行わない。
-この段階では実 pixel decode / shared memory / WebGPU texture upload はまだ未実装であり、次 gate で
+この段階で Rust backend は `decode.requestFrame(frameIndex)` から実 pixel decode を行い、descriptor / CRC32 verification
+だけを control plane に返せる。ただし decoded RGBA の POSIX shm / mmap 書き込みと WebGPU texture upload はまだ未実装であり、
+`videoFrameUploadReady=false` のまま Pixi preview を維持する。次 gate で
 sidecar decode -> shared memory -> texture upload を接続する。
 これにより、動画読み込み・current frame availability と GPU import / sampling の問題を分離する。
 ただし HTMLVideoElement / `importExternalTexture` はブラウザの暗黙 YUV->RGB と float 秒 seek に依存するため、
