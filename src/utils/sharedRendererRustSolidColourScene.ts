@@ -13,6 +13,40 @@ export interface SharedRendererRustSolidColourWasmModule {
   ) => unknown;
 }
 
+export type SharedRendererRustSolidColourWasmLoadedModule =
+  SharedRendererRustSolidColourWasmModule & {
+    default?: () => Promise<unknown> | unknown;
+  };
+
+export interface LoadSharedRendererRustSolidColourVertexSceneBuilderInput {
+  enabled?: boolean;
+  importWasmModule?: () => Promise<SharedRendererRustSolidColourWasmLoadedModule>;
+  warn?: (message: string, error: unknown) => void;
+}
+
+let cachedDefaultBuilder: Promise<SharedRendererSolidColourVertexSceneBuilder | null> | null = null;
+
+export const loadSharedRendererRustSolidColourVertexSceneBuilder = async ({
+  enabled = true,
+  importWasmModule,
+  warn = defaultWarn,
+}: LoadSharedRendererRustSolidColourVertexSceneBuilderInput = {}): Promise<SharedRendererSolidColourVertexSceneBuilder | null> => {
+  if (!enabled) return null;
+
+  if (!importWasmModule) {
+    cachedDefaultBuilder ??= loadSharedRendererRustSolidColourVertexSceneBuilderOnce({
+      importWasmModule: defaultImportWasmModule,
+      warn,
+    });
+    return cachedDefaultBuilder;
+  }
+
+  return loadSharedRendererRustSolidColourVertexSceneBuilderOnce({
+    importWasmModule,
+    warn,
+  });
+};
+
 export const createSharedRendererRustSolidColourVertexSceneBuilder = (
   wasmModule: SharedRendererRustSolidColourWasmModule
 ): SharedRendererSolidColourVertexSceneBuilder =>
@@ -25,6 +59,22 @@ export const createSharedRendererRustSolidColourVertexSceneBuilder = (
         input.canvas.height
       )
     );
+
+const loadSharedRendererRustSolidColourVertexSceneBuilderOnce = async ({
+  importWasmModule,
+  warn,
+}: Required<Pick<LoadSharedRendererRustSolidColourVertexSceneBuilderInput, 'importWasmModule' | 'warn'>>): Promise<SharedRendererSolidColourVertexSceneBuilder | null> => {
+  try {
+    const wasmModule = await importWasmModule();
+    if (typeof wasmModule.default === 'function') {
+      await wasmModule.default();
+    }
+    return createSharedRendererRustSolidColourVertexSceneBuilder(wasmModule);
+  } catch (error) {
+    warn('Rust/WASM solid colour scene builder could not be loaded; falling back to TypeScript.', error);
+    return null;
+  }
+};
 
 const normaliseRustSolidColourVertexSceneResult = (
   result: unknown
@@ -75,3 +125,10 @@ const stringValue = (value: unknown): string | null =>
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const defaultImportWasmModule = async (): Promise<SharedRendererRustSolidColourWasmLoadedModule> =>
+  import('../wasm/rust-core/uxfd_rust_core_wasm.js') as Promise<SharedRendererRustSolidColourWasmLoadedModule>;
+
+const defaultWarn = (message: string, error: unknown) => {
+  console.warn(message, error);
+};

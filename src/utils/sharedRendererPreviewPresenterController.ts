@@ -1,10 +1,12 @@
 import type { SharedRendererPreviewSession } from './sharedRendererPreviewSession';
 import { buildSharedRendererSolidColourDrawList } from './sharedRendererSolidColourScene';
+import type { SharedRendererSolidColourVertexSceneBuilder } from './sharedRendererSolidColourScene';
 import {
   createSharedRendererWebGpuPresenter,
   type SharedRendererSolidSrgbSwatch,
   type SharedRendererWebGpuLike,
 } from './sharedRendererWebGpuPresenter';
+import { loadSharedRendererRustSolidColourVertexSceneBuilder } from './sharedRendererRustSolidColourScene';
 import {
   writeSharedRendererPresenterDiagnostics,
   type SharedRendererPresenterDiagnosticState,
@@ -47,6 +49,8 @@ export interface StartSharedRendererPreviewPresenterInput {
   bufferUsageVertex?: number;
   bufferUsageCopyDst?: number;
   diagnosticSwatchEnabled?: boolean;
+  rustSolidColourWasmEnabled?: boolean;
+  rustSolidColourVertexSceneBuilder?: SharedRendererSolidColourVertexSceneBuilder;
 }
 
 export const startSharedRendererPreviewPresenter = async ({
@@ -58,6 +62,8 @@ export const startSharedRendererPreviewPresenter = async ({
   bufferUsageVertex,
   bufferUsageCopyDst,
   diagnosticSwatchEnabled = true,
+  rustSolidColourWasmEnabled = defaultRustSolidColourWasmEnabled(),
+  rustSolidColourVertexSceneBuilder,
 }: StartSharedRendererPreviewPresenterInput): Promise<SharedRendererPreviewPresenterControl> => {
   const writeDiagnostics = (state: SharedRendererPresenterDiagnosticState) => {
     datasets.forEach((dataset) => {
@@ -77,6 +83,31 @@ export const startSharedRendererPreviewPresenter = async ({
     };
   }
 
+  const solidColourDrawList = buildSharedRendererSolidColourDrawList({
+    snapshot: session.surfaceGate.snapshot,
+    media: session.surfaceGate.media,
+    canvas: session.surfaceGate.canvas,
+  });
+  if (!solidColourDrawList.ok) {
+    writeDiagnostics({
+      status: 'fallback',
+      reason: solidColourDrawList.reason,
+    });
+    return {
+      ok: false,
+      reason: solidColourDrawList.reason,
+      dispose: noop,
+    };
+  }
+
+  const hasSolidColourScene = solidColourDrawList.rects.length > 0;
+  const resolvedRustSolidColourVertexSceneBuilder = hasSolidColourScene
+    ? rustSolidColourVertexSceneBuilder
+      ?? await loadSharedRendererRustSolidColourVertexSceneBuilder({
+        enabled: rustSolidColourWasmEnabled,
+      })
+    : null;
+
   const presenter = await createSharedRendererWebGpuPresenter({
     canvas,
     surfaceGate: session.surfaceGate,
@@ -85,6 +116,7 @@ export const startSharedRendererPreviewPresenter = async ({
     textureUsageRenderAttachment,
     bufferUsageVertex,
     bufferUsageCopyDst,
+    solidColourVertexSceneBuilder: resolvedRustSolidColourVertexSceneBuilder ?? undefined,
     onDeviceLost: (event) => {
       writeDiagnostics({
         status: 'deviceLost',
@@ -106,24 +138,6 @@ export const startSharedRendererPreviewPresenter = async ({
     };
   }
 
-  const solidColourDrawList = buildSharedRendererSolidColourDrawList({
-    snapshot: session.surfaceGate.snapshot,
-    media: session.surfaceGate.media,
-    canvas: session.surfaceGate.canvas,
-  });
-  if (!solidColourDrawList.ok) {
-    writeDiagnostics({
-      status: 'fallback',
-      reason: solidColourDrawList.reason,
-    });
-    return {
-      ok: false,
-      reason: solidColourDrawList.reason,
-      dispose: presenter.dispose,
-    };
-  }
-
-  const hasSolidColourScene = solidColourDrawList.rects.length > 0;
   const shouldPassThroughToPixi = !hasSolidColourScene && !diagnosticSwatchEnabled;
   if (hasSolidColourScene || shouldPassThroughToPixi) {
     const presentation = presenter.presentSolidColourScene({
@@ -163,3 +177,6 @@ export const startSharedRendererPreviewPresenter = async ({
 };
 
 const noop = () => undefined;
+
+const defaultRustSolidColourWasmEnabled = (): boolean =>
+  import.meta.env.VITE_UXFD_SHARED_RENDERER_RUST_SHAPES !== '0';

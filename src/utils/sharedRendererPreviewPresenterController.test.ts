@@ -231,6 +231,7 @@ describe('startSharedRendererPreviewPresenter', () => {
       textureUsageRenderAttachment: 16,
       bufferUsageVertex: 1,
       bufferUsageCopyDst: 2,
+      rustSolidColourWasmEnabled: false,
     });
 
     expect(control).toMatchObject({
@@ -272,7 +273,7 @@ describe('startSharedRendererPreviewPresenter', () => {
       canvas: fakeCanvas(() => fakeContext()),
       session: solidShapeSession,
       datasets: [{}],
-      rustSolidColourVertexSceneBuilder: async () => ({
+      rustSolidColourVertexSceneBuilder: () => ({
         ok: true,
         rectCount: 1,
         vertices: rustVertices,

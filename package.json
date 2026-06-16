@@ -1,7 +1,7 @@
 {
   "name": "ux-film-director",
   "private": true,
-  "version": "0.1.1-Beta-34b",
+  "version": "0.1.1-Beta-35a",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -17,6 +17,7 @@
     "rust:build:debug": "cargo build --manifest-path rust-backend/Cargo.toml",
     "rust:build:release": "cargo build --release --manifest-path rust-backend/Cargo.toml",
     "rust:run": "cargo run --manifest-path rust-backend/Cargo.toml",
+    "wasm:build:rust-core": "wasm-pack build rust-core-wasm --target web --out-dir ../src/wasm/rust-core --out-name uxfd_rust_core_wasm",
     "swift:build:tracker": "swift build -c release --package-path macos-coreml-tracker"
   },
   "build": {
