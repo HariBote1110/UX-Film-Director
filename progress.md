@@ -816,6 +816,22 @@
 ### 確認結果
 - `npm test -- src/utils/rustSceneSnapshot.test.ts` -> 3 tests passed。
 
+## 2026-06-16 — Phase5: Rust SceneSnapshot JSON boundary gate
+
+### Red
+- `rust-core/tests/timeline_snapshot_contract.rs` に `SceneSnapshot` の serde JSON contract test を追加した。
+- TS adapter と同じ `frame_index` / `clip_id` / `media_id` / `source_frame` / `sampling` などの field name を固定した。
+- `SceneSnapshot` / `EvaluatedClip` に `Serialize` / `Deserialize` が無いため compile error で Red を確認した。
+
+### Green
+- `rust-core/src/timeline.rs` の `SceneSnapshot` と `EvaluatedClip` に `Serialize` / `Deserialize` derive を追加した。
+- `Effect::LinearGain` は serde の外部タグ付き enum として `{ "LinearGain": { "gain": ... } }` の形を維持した。
+
+### 確認結果
+- `cargo fmt --manifest-path rust-core/Cargo.toml`
+- `cargo test --manifest-path rust-core/Cargo.toml --test timeline_snapshot_contract` -> 4 tests passed。
+- `cargo test --manifest-path rust-core/Cargo.toml` -> passed。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）

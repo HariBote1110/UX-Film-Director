@@ -1,14 +1,15 @@
 use crate::keyframe::evaluate_scalar_keyframes;
 use crate::schema::{Clip, ColourPipeline, Effect, Project, Transform};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SceneSnapshot {
     pub frame_index: u64,
     pub colour: ColourPipeline,
     pub clips: Vec<EvaluatedClip>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EvaluatedClip {
     pub clip_id: String,
     pub track_id: String,
