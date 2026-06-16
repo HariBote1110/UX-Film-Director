@@ -1,7 +1,7 @@
 use uxfd_sidecar_protocol::{
     AcquireReadError, AcquireWriteError, AtomicOrdering, ColourMetadata, ConsumerTopology,
     CopyOutState, FrameFormat, FrameRingLayout, MultiConsumerPolicy, SharedFrameRing, SlotState,
-    SlotStateStorage, SlotTransitionError,
+    SlotRecoveryReason, SlotStateStorage, SlotTransitionError,
 };
 
 fn layout(slot_count: u32) -> FrameRingLayout {
@@ -31,9 +31,11 @@ fn layout_derives_stable_descriptor_offsets_for_each_slot() {
 
     assert_eq!(first.memory_id, "uxfd-frame-ring-1");
     assert_eq!(first.slot_index, 0);
+    assert_eq!(first.generation, 0);
     assert_eq!(first.byte_offset, 0);
     assert_eq!(first.byte_len, 33_177_600);
     assert_eq!(third.slot_index, 2);
+    assert_eq!(third.generation, 0);
     assert_eq!(third.byte_offset, 66_355_200);
     assert_eq!(third.byte_len, 33_177_600);
 }
@@ -71,6 +73,7 @@ fn producer_consumer_cycle_returns_slot_to_free() {
     let write_slot = ring.acquire_write_slot().expect("free slot");
 
     assert_eq!(write_slot.slot_index, 0);
+    assert_eq!(write_slot.descriptor.generation, 1);
     assert_eq!(write_slot.descriptor.byte_offset, 0);
     assert_eq!(ring.slot_state(0), Some(SlotState::Writing));
 
@@ -166,6 +169,48 @@ fn reading_slot_is_not_freed_until_copy_out_completion_is_signalled() {
     ring.release_read_slot(ready_frame, CopyOutState::GpuUploadFenceSignalled)
         .expect("GPU upload fence permits release");
 
+    assert_eq!(ring.slot_state(0), Some(SlotState::Free));
+}
+
+#[test]
+fn recovered_slot_generation_rejects_stale_consumer_release() {
+    let mut ring = SharedFrameRing::new(layout(1));
+
+    let first_write = ring.acquire_write_slot().expect("first writer lease");
+    assert_eq!(first_write.descriptor.generation, 1);
+
+    ring.mark_slot_ready(first_write, 11)
+        .expect("first frame becomes ready");
+    let stale_ready_frame = ring.acquire_ready_slot().expect("first reader lease");
+    assert_eq!(stale_ready_frame.frame.descriptor.generation, 1);
+
+    let recovered = ring
+        .recover_stuck_slot(0, SlotRecoveryReason::ConsumerTimeout)
+        .expect("watchdog recovers stuck reader");
+    assert_eq!(recovered.previous_state, SlotState::Reading);
+    assert_eq!(ring.slot_state(0), Some(SlotState::Free));
+
+    let second_write = ring.acquire_write_slot().expect("second writer lease");
+    assert!(second_write.descriptor.generation > stale_ready_frame.frame.descriptor.generation);
+    ring.mark_slot_ready(second_write, 12)
+        .expect("second frame becomes ready");
+    let second_ready_frame = ring.acquire_ready_slot().expect("second reader lease");
+
+    assert_eq!(
+        ring.release_read_slot(
+            stale_ready_frame.clone(),
+            CopyOutState::GpuUploadFenceSignalled
+        ),
+        Err(SlotTransitionError::LeaseGenerationMismatch {
+            slot_index: 0,
+            expected: second_ready_frame.frame.descriptor.generation,
+            actual: stale_ready_frame.frame.descriptor.generation,
+        })
+    );
+    assert_eq!(ring.slot_state(0), Some(SlotState::Reading));
+
+    ring.release_read_slot(second_ready_frame, CopyOutState::GpuUploadFenceSignalled)
+        .expect("current reader lease can release");
     assert_eq!(ring.slot_state(0), Some(SlotState::Free));
 }
 
