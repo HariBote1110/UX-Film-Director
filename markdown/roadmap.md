@@ -272,6 +272,9 @@ Pixi video を降ろす切替は、shared renderer が ownership を明示でき
 Pixi 側は対象 video の `HTMLVideoElement` / video texture / children を cleanup して video 分岐を抜ける。
 ただし export は現行 Pixi canvas を読むため、`isExporting` 中は Pixi video を維持する。
 shared renderer canvas は Pixi 全体の上に重なるため、実 decoded frame upload を有効化する前に z-order parity gate を追加する。
+z-order safety gate では、candidate video より前面に Pixi-only object がある場合、その video は Pixi owner のままにする。
+前面の `SolidColour` は shared renderer が描けるため許可し、前面の `Video` は同じ cutover candidate に含まれる場合だけ許可する。
+`Image` / PSD / text / unsupported object が前面に残る構成では、video の shared renderer cutover を行わない。
 この段階では実 pixel decode / shared memory / WebGPU texture upload はまだ未実装であり、次 gate で
 sidecar decode -> shared memory -> texture upload を接続する。
 これにより、動画読み込み・current frame availability と GPU import / sampling の問題を分離する。

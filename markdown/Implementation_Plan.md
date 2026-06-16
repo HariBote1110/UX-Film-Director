@@ -154,6 +154,10 @@ shared renderer が `rust-wasm` video decode request と decoded frame upload re
 `Viewport` は ownership 対象 clip id を Pixi 更新へ渡し、`pixiRenderHelper` は該当 video の Pixi children / `HTMLVideoElement` / video texture を cleanup して video 分岐を抜ける。  
 actual pixel decode / shared memory / WebGPU texture upload が未実装の間は `videoFrameUploadReady=false` により Pixi preview を維持する。
 
+35. Phase5: video cutover z-order safety を追加する  
+shared renderer canvas が Pixi 全体の上に重なる構造を前提に、cutover 候補 video より前面に Pixi-only object がある場合は video ownership を Pixi に戻す。  
+前面の `SolidColour` と同時 cutover 対象の `Video` は shared renderer stack として許可し、`Image` / PSD / text / unsupported object は blocker とする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

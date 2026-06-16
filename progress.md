@@ -1,3 +1,26 @@
+## 2026-06-16 — Phase5: video cutover z-order safety を追加
+
+### 実施内容
+- `sharedRendererVideoCutoverStack` を追加し、video cutover 候補より前面に Pixi-only object がある場合は cutover しない契約を TDD で固定した。
+  - 前面の `Image` は Pixi-only として blocker にする。
+  - 前面の `SolidColour` は shared renderer が描けるため blocker にしない。
+  - 前面の `Video` は同じ cutover 候補に含まれる時だけ shared renderer owned とみなす。
+- `sharedRendererVideoOwnership` は stack safety で許可された video id だけを `sharedRenderer` owner として返すようにした。
+- `sharedRendererPreviewPresenterController` は Rust/WASM video decode request から candidate video id を取り、stack safety を通した id だけを ownership 判定へ渡すようにした。
+- package version を `0.1.1-Beta-39a` に更新した。
+
+### 選定理由・判断の根拠
+- shared renderer canvas は Pixi 全体の上に重なるため、video だけを shared renderer へ移すと、video より前面にある Pixi-only image / PSD / text などを上書きして見える危険がある。
+- actual frame upload を有効化する前に stack safety を ownership gate に入れることで、将来の切替時に z-order 破壊を避けられる。
+- SolidColour は既に shared renderer で描けるため、video の前面にあっても同じ shared renderer stack 内で扱える。
+
+### 検証
+- `npm test -- src/utils/sharedRendererVideoCutoverStack.test.ts src/utils/sharedRendererVideoOwnership.test.ts src/utils/sharedRendererPresenterDiagnostics.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/pixiVideoCutover.test.ts`
+  - 5 files / 23 tests passed。
+- `npx tsc --noEmit --pretty false`
+  - 既存残件として `ThreeStageViewport.tsx` の `three` 型定義不足、`heavyEffectsStress.test.ts` の `PositionKeyframe`、`filterStack.test.ts` の fixture 型不整合で失敗。
+  - 今回追加した stack safety / ownership gate 由来の新規エラーはなし。
+
 ## 2026-06-16 — Phase5: Pixi video cutover ownership gate を追加
 
 ### 実施内容
