@@ -894,6 +894,24 @@
 - `npm test -- src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererPreviewBridge.test.ts` -> 8 tests passed。
 - `npx tsc --noEmit` は既存の `three` 型不足と既存 test 型エラーで失敗するため、今回追加分の全体型検査は未完了。
 
+## 2026-06-16 — Phase5: TS SceneSnapshot boundary validation gate
+
+### Red
+- `src/utils/rustSceneSnapshotBoundary.test.ts` を追加し、TS adapter output が rust-core JSON 境界として妥当かを
+  unknown payload から検査する契約を固定した。
+- `frame_index` / `clip_id` など snake_case field を要求し、camelCase drift、非有限数、非整数 frame、
+  未対応 enum、範囲外 opacity、未対応 effect、未対応 media kind を拒否する test を追加した。
+- 未実装の `validateRustSceneSnapshotBoundary` で Red を確認した。
+
+### Green
+- `src/utils/rustSceneSnapshot.ts` に `validateRustSceneSnapshotBoundary` を追加した。
+- Rust / shared renderer へ渡す前の JSON 境界として、`SceneSnapshot`、clip transform、effect stack、media references を
+  実行時に検査できるようにした。
+- `package.json` / `package-lock.json` を `0.1.1-Beta-23a` に更新した。
+
+### 確認結果
+- `npm test -- src/utils/rustSceneSnapshotBoundary.test.ts` -> 3 tests passed。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）
