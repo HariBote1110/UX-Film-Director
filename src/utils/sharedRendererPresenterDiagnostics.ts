@@ -24,10 +24,10 @@ export const writeSharedRendererPresenterDiagnostics = (
   state: SharedRendererPresenterDiagnosticState
 ): void => {
   dataset.uxfdSharedRendererPresenterStatus = state.status;
-  dataset.uxfdSharedRendererPresenterFormat = undefined;
-  dataset.uxfdSharedRendererPresenterSwatch = undefined;
-  dataset.uxfdSharedRendererPresenterFailureReason = undefined;
-  dataset.uxfdSharedRendererPresenterStaleSharedFrameAllowed = undefined;
+  delete dataset.uxfdSharedRendererPresenterFormat;
+  delete dataset.uxfdSharedRendererPresenterSwatch;
+  delete dataset.uxfdSharedRendererPresenterFailureReason;
+  delete dataset.uxfdSharedRendererPresenterStaleSharedFrameAllowed;
 
   if (state.status === 'ready') {
     dataset.uxfdSharedRendererPresenterFormat = state.format;
