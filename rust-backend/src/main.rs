@@ -7,6 +7,10 @@ use std::fs;
 use std::io::{self, BufRead, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::{Arc, Mutex};
+use uxfd_sidecar_protocol::{
+    rgba8_srgb_ring_layout, validate_renderer_handoff_descriptor, CopyOutState, DecodeFrameRequest,
+    DecodeReleaseFrameRequest, DecodeStartRequest, DecodeStartResponse, FrameFormat,
+};
 
 #[derive(Debug, Deserialize)]
 struct RpcRequest {
@@ -38,6 +42,10 @@ struct ExportSession {
     output_path: String,
 }
 
+struct DecodeSession {
+    start_response: DecodeStartResponse,
+}
+
 /// Shared state for the in-progress PSD pixel blob write.
 /// `None` = no write pending; `Some(Ok(path))` = done; `Some(Err(msg))` = failed.
 type BlobWriteResult = Arc<Mutex<Option<Result<String, String>>>>;
@@ -45,6 +53,7 @@ type BlobWriteResult = Arc<Mutex<Option<Result<String, String>>>>;
 #[derive(Default)]
 struct BackendState {
     export_session: Option<ExportSession>,
+    decode_session: Option<DecodeSession>,
     /// Background blob writer: set by psd.parse, drained by psd.await_blob.
     psd_blob_result: Option<BlobWriteResult>,
 }
@@ -163,6 +172,9 @@ fn handle_request(request: RpcRequest, state: &mut BackendState) -> RpcResponse 
         "media.probe" => handle_media_probe(request.id, request.params),
         "psd.parse" => handle_psd_parse(request.id, request.params, state),
         "psd.await_blob" => handle_psd_await_blob(request.id, state),
+        "decode.start" => handle_decode_start(request.id, request.params, state),
+        "decode.requestFrame" => handle_decode_request_frame(request.id, request.params, state),
+        "decode.releaseFrame" => handle_decode_release_frame(request.id, request.params, state),
         "export.start" => handle_export_start(request.id, request.params, state),
         "export.write_frame" => handle_export_write_frame(request.id, request.params, state),
         "export.end" => handle_export_end(request.id, state),
@@ -243,9 +255,15 @@ fn handle_media_probe(id: u64, params: Value) -> RpcResponse {
     let mut has_audio = false;
     let mut has_video = false;
 
-    if let Some(streams) = parsed_json.get("streams").and_then(|value| value.as_array()) {
+    if let Some(streams) = parsed_json
+        .get("streams")
+        .and_then(|value| value.as_array())
+    {
         for stream in streams {
-            let codec_type = stream.get("codec_type").and_then(|value| value.as_str()).unwrap_or("");
+            let codec_type = stream
+                .get("codec_type")
+                .and_then(|value| value.as_str())
+                .unwrap_or("");
             if codec_type == "video" {
                 has_video = true;
                 if width.is_none() {
@@ -414,6 +432,160 @@ fn handle_psd_await_blob(id: u64, state: &mut BackendState) -> RpcResponse {
             error: None,
         },
         Err(e) => response_error(id, -32031, &format!("Blob write failed: {e}")),
+    }
+}
+
+fn handle_decode_start(id: u64, params: Value, state: &mut BackendState) -> RpcResponse {
+    if state.decode_session.is_some() {
+        return response_error(id, -32040, "Decode session already active");
+    }
+
+    let parsed = match serde_json::from_value::<DecodeStartRequest>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(id, -32602, &format!("Invalid decode.start params: {error}"));
+        }
+    };
+
+    if parsed.job_id.trim().is_empty() {
+        return response_error(id, -32602, "jobId must not be empty");
+    }
+    if parsed.source.trim().is_empty() {
+        return response_error(id, -32602, "source must not be empty");
+    }
+    if parsed.format != FrameFormat::Rgba8Srgb {
+        return response_error(id, -32602, "Only rgba8Srgb decode output is supported");
+    }
+
+    let memory_id = format!("{}-ring", parsed.job_id);
+    let layout = match rgba8_srgb_ring_layout(
+        memory_id.clone(),
+        parsed.slot_count,
+        parsed.width,
+        parsed.height,
+        parsed.colour.clone(),
+    ) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32602,
+                &format!("Invalid decode ring layout: {error:?}"),
+            );
+        }
+    };
+    let descriptor = match layout.descriptor_for_slot(0) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32602,
+                &format!("Invalid decode ring descriptor: {error:?}"),
+            );
+        }
+    };
+
+    if let Err(error) = validate_renderer_handoff_descriptor(&descriptor) {
+        return response_error(
+            id,
+            -32602,
+            &format!("Unsupported decode renderer handoff descriptor: {error:?}"),
+        );
+    }
+
+    let response = DecodeStartResponse {
+        job_id: parsed.job_id,
+        memory_id,
+        slot_count: layout.slot_count(),
+        slot_byte_len: descriptor.byte_len,
+        width: descriptor.width,
+        height: descriptor.height,
+        stride_bytes: descriptor.stride_bytes,
+        format: descriptor.format,
+        colour: descriptor.colour,
+    };
+
+    state.decode_session = Some(DecodeSession {
+        start_response: response.clone(),
+    });
+
+    RpcResponse {
+        id,
+        ok: true,
+        result: Some(serde_json::to_value(response).unwrap_or(Value::Null)),
+        error: None,
+    }
+}
+
+fn handle_decode_request_frame(id: u64, params: Value, state: &mut BackendState) -> RpcResponse {
+    let Some(session) = state.decode_session.as_ref() else {
+        return response_error(id, -32041, "No active decode session");
+    };
+
+    let parsed = match serde_json::from_value::<DecodeFrameRequest>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32602,
+                &format!("Invalid decode.requestFrame params: {error}"),
+            );
+        }
+    };
+
+    if parsed.job_id != session.start_response.job_id {
+        return response_error(id, -32042, "Decode jobId does not match active session");
+    }
+
+    RpcResponse {
+        id,
+        ok: true,
+        result: Some(json!({
+            "accepted": true,
+            "jobId": parsed.job_id,
+            "frameIndex": parsed.frame_index,
+        })),
+        error: None,
+    }
+}
+
+fn handle_decode_release_frame(id: u64, params: Value, state: &mut BackendState) -> RpcResponse {
+    let Some(session) = state.decode_session.as_ref() else {
+        return response_error(id, -32041, "No active decode session");
+    };
+
+    let parsed = match serde_json::from_value::<DecodeReleaseFrameRequest>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32602,
+                &format!("Invalid decode.releaseFrame params: {error}"),
+            );
+        }
+    };
+
+    if parsed.job_id != session.start_response.job_id {
+        return response_error(id, -32042, "Decode jobId does not match active session");
+    }
+    if parsed.copy_out_state != CopyOutState::GpuUploadFenceSignalled {
+        return response_error(
+            id,
+            -32602,
+            "copyOutState must be gpuUploadFenceSignalled before releasing a frame",
+        );
+    }
+
+    RpcResponse {
+        id,
+        ok: true,
+        result: Some(json!({
+            "released": true,
+            "jobId": parsed.job_id,
+            "slotIndex": parsed.slot_index,
+            "generation": parsed.generation,
+        })),
+        error: None,
     }
 }
 
@@ -627,7 +799,9 @@ struct ProxyGenerateParams {
 fn handle_proxy_generate(id: u64, params: Value) -> RpcResponse {
     let parsed = match serde_json::from_value::<ProxyGenerateParams>(params) {
         Ok(v) => v,
-        Err(e) => return response_error(id, -32602, &format!("Invalid proxy.generate params: {e}")),
+        Err(e) => {
+            return response_error(id, -32602, &format!("Invalid proxy.generate params: {e}"))
+        }
     };
 
     let ffmpeg_path = parsed
@@ -642,14 +816,22 @@ fn handle_proxy_generate(id: u64, params: Value) -> RpcResponse {
     let status = Command::new(&ffmpeg_path)
         .args([
             "-y",
-            "-i", &parsed.input_path,
-            "-vf", &scale_filter,
-            "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "23",
-            "-c:a", "aac",
-            "-b:a", "128k",
-            "-movflags", "+faststart",
+            "-i",
+            &parsed.input_path,
+            "-vf",
+            &scale_filter,
+            "-c:v",
+            "libx264",
+            "-preset",
+            "fast",
+            "-crf",
+            "23",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
+            "-movflags",
+            "+faststart",
             &parsed.output_path,
         ])
         .stdout(Stdio::null())
@@ -663,7 +845,11 @@ fn handle_proxy_generate(id: u64, params: Value) -> RpcResponse {
             result: Some(json!({ "outputPath": parsed.output_path })),
             error: None,
         },
-        Ok(s) => response_error(id, -32007, &format!("ffmpeg exited with code {:?}", s.code())),
+        Ok(s) => response_error(
+            id,
+            -32007,
+            &format!("ffmpeg exited with code {:?}", s.code()),
+        ),
         Err(e) => response_error(id, -32002, &format!("Failed to start ffmpeg: {e}")),
     }
 }

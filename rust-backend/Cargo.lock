@@ -153,6 +153,14 @@ dependencies = [
  "flate2",
  "serde",
  "serde_json",
+ "uxfd-sidecar-protocol",
+]
+
+[[package]]
+name = "uxfd-sidecar-protocol"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

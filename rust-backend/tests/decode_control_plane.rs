@@ -137,7 +137,9 @@ impl BackendProcess {
         self.stdin.flush().expect("flush backend request");
 
         let mut line = String::new();
-        self.stdout.read_line(&mut line).expect("read backend response");
+        self.stdout
+            .read_line(&mut line)
+            .expect("read backend response");
         serde_json::from_str(&line).expect("parse backend response")
     }
 }
