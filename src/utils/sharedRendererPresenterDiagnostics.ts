@@ -5,7 +5,7 @@ export type SharedRendererPresenterDiagnosticState =
   | {
       status: 'ready';
       format: string;
-      swatch: 'solid-srgb';
+      swatch: 'solid-srgb' | 'solid-colour-scene';
     }
   | {
       status: 'fallback';

@@ -1,4 +1,5 @@
 import type { SharedRendererPreviewSession } from './sharedRendererPreviewSession';
+import { buildSharedRendererSolidColourDrawList } from './sharedRendererSolidColourScene';
 import {
   createSharedRendererWebGpuPresenter,
   type SharedRendererSolidSrgbSwatch,
@@ -43,6 +44,8 @@ export interface StartSharedRendererPreviewPresenterInput {
   datasets: PresenterDataset[];
   gpu?: SharedRendererWebGpuLike;
   textureUsageRenderAttachment?: number;
+  bufferUsageVertex?: number;
+  bufferUsageCopyDst?: number;
 }
 
 export const startSharedRendererPreviewPresenter = async ({
@@ -51,6 +54,8 @@ export const startSharedRendererPreviewPresenter = async ({
   datasets,
   gpu,
   textureUsageRenderAttachment,
+  bufferUsageVertex,
+  bufferUsageCopyDst,
 }: StartSharedRendererPreviewPresenterInput): Promise<SharedRendererPreviewPresenterControl> => {
   const writeDiagnostics = (state: SharedRendererPresenterDiagnosticState) => {
     datasets.forEach((dataset) => {
@@ -76,6 +81,8 @@ export const startSharedRendererPreviewPresenter = async ({
     presentationContract: session.presentationContract,
     gpu,
     textureUsageRenderAttachment,
+    bufferUsageVertex,
+    bufferUsageCopyDst,
     onDeviceLost: (event) => {
       writeDiagnostics({
         status: 'deviceLost',
@@ -97,11 +104,48 @@ export const startSharedRendererPreviewPresenter = async ({
     };
   }
 
-  presenter.presentSolidSrgbSwatch(SHARED_RENDERER_SOLID_SWATCH);
+  const solidColourDrawList = buildSharedRendererSolidColourDrawList({
+    snapshot: session.surfaceGate.snapshot,
+    media: session.surfaceGate.media,
+    canvas: session.surfaceGate.canvas,
+  });
+  if (!solidColourDrawList.ok) {
+    writeDiagnostics({
+      status: 'fallback',
+      reason: solidColourDrawList.reason,
+    });
+    return {
+      ok: false,
+      reason: solidColourDrawList.reason,
+      dispose: presenter.dispose,
+    };
+  }
+
+  const hasSolidColourScene = solidColourDrawList.rects.length > 0;
+  if (hasSolidColourScene) {
+    const presentation = presenter.presentSolidColourScene({
+      snapshot: session.surfaceGate.snapshot,
+      media: session.surfaceGate.media,
+    });
+    if (!presentation.ok) {
+      writeDiagnostics({
+        status: 'fallback',
+        reason: presentation.reason,
+      });
+      return {
+        ok: false,
+        reason: presentation.reason,
+        dispose: presenter.dispose,
+      };
+    }
+  } else {
+    presenter.presentSolidSrgbSwatch(SHARED_RENDERER_SOLID_SWATCH);
+  }
+
   writeDiagnostics({
     status: 'ready',
     format: presenter.format,
-    swatch: 'solid-srgb',
+    swatch: hasSolidColourScene ? 'solid-colour-scene' : 'solid-srgb',
   });
 
   return {
