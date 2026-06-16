@@ -1,6 +1,7 @@
 use uxfd_sidecar_protocol::{
     ColourMetadata, ControlEvent, CopyOutState, DecodeFrameRequest, DecodeReleaseFrameRequest,
-    DecodeStartRequest, DecodeStartResponse, FrameDescriptor, FrameFormat, SharedFrame,
+    DecodeStartRequest, DecodeStartResponse, FrameDescriptor, FrameFormat, FrameRate,
+    SharedFrame,
 };
 
 #[test]
@@ -11,6 +12,10 @@ fn decode_start_request_declares_ring_layout_without_frame_bytes() {
         slot_count: 3,
         width: 3840,
         height: 2160,
+        source_rate: FrameRate {
+            numerator: 60,
+            denominator: 1,
+        },
         format: FrameFormat::Rgba8Srgb,
         colour: ColourMetadata::rec709_srgb(),
     };
@@ -20,6 +25,8 @@ fn decode_start_request_declares_ring_layout_without_frame_bytes() {
     assert_eq!(encoded["jobId"], "decode-1");
     assert_eq!(encoded["source"], "/media/input.mp4");
     assert_eq!(encoded["slotCount"], 3);
+    assert_eq!(encoded["sourceRate"]["numerator"], 60);
+    assert_eq!(encoded["sourceRate"]["denominator"], 1);
     assert_eq!(encoded["format"], "rgba8Srgb");
     assert_eq!(encoded["colour"]["transfer"], "srgb");
     assert!(encoded.get("frameBase64").is_none());
@@ -37,6 +44,10 @@ fn decode_start_response_returns_shared_ring_descriptor_without_pixels() {
         width: 3840,
         height: 2160,
         stride_bytes: 15_360,
+        source_rate: FrameRate {
+            numerator: 60,
+            denominator: 1,
+        },
         format: FrameFormat::Rgba8Srgb,
         colour: ColourMetadata::rec709_srgb(),
     };
@@ -47,6 +58,8 @@ fn decode_start_response_returns_shared_ring_descriptor_without_pixels() {
     assert_eq!(encoded["memoryId"], "uxfd-frame-ring-1");
     assert_eq!(encoded["slotByteLen"], 33_177_600);
     assert_eq!(encoded["strideBytes"], 15_360);
+    assert_eq!(encoded["sourceRate"]["numerator"], 60);
+    assert_eq!(encoded["sourceRate"]["denominator"], 1);
     assert!(encoded.get("frameBase64").is_none());
     assert!(encoded.get("bytes").is_none());
     assert!(encoded.get("pixels").is_none());
