@@ -250,6 +250,9 @@ canvas は preview 診断面であり、Pixi preview を置き換えない。
 `SolidColour` plane として `SceneSnapshot` 境界へ入れ、WebGPU presenter は transparent clear の上に
 triangle-list で矩形を描く。円・丸角・グラデーションは coverage / anti-aliasing parity を切り分けるまで
 fail-loud のままにする。
+動画 gate は external texture 描画の前に readiness 診断を挟む。`Video` media reference と既存 preview の
+`HTMLVideoElement` を照合し、`ready` / `pending` / `missingElement` を DOM/window diagnostics に公開する。
+これにより、動画読み込み・current frame availability と GPU import / sampling の問題を分離する。
 
 ## 後回しにするもの
 

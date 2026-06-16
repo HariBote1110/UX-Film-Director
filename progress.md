@@ -1,3 +1,30 @@
+## 2026-06-16 — Phase5: shared renderer video media readiness 診断を追加
+
+### 実施内容
+- `sharedRendererVideoMediaReadiness` を追加し、`SceneSnapshot` の `Video` media reference と既存 preview の
+  `HTMLVideoElement` を照合して、`ready` / `pending` / `missingElement` を診断できるようにした。
+- `Viewport` から `window.__UXFD_SHARED_RENDERER_VIDEO_MEDIA_READINESS__` と DOM dataset に以下を公開した。
+  - `uxfdSharedRendererVideoReadyCount`
+  - `uxfdSharedRendererVideoPendingCount`
+  - `uxfdSharedRendererVideoMissingCount`
+- `renderScene` 後にも shared renderer preview session を publish し、Pixi 側が video element を作った後の readiness が
+  shared renderer diagnostics に反映されるようにした。
+- package version を `0.1.1-Beta-34a` に更新した。
+
+### 選定理由・判断の根拠
+- 動画はいきなり WebGPU external texture に進まず、まず既存 preview loader が video element を作り、
+  current frame data を持っているかを shared renderer 側から観測できる gate にした。
+- これにより、次の external texture 実装で「動画が読めていない」のか「GPU import / sampling が壊れている」のかを分離できる。
+
+### 検証
+- `npm test -- src/utils/sharedRendererVideoMediaReadiness.test.ts src/utils/sharedRendererPresenterSessionKey.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts`
+  - 3 files / 9 tests passed。
+- `npx tsc --noEmit`
+  - shared renderer / Viewport / video readiness 由来の新規エラーなし。
+  - 既存残件として `ThreeStageViewport.tsx` の `three` 型定義不足などは継続。
+- in-app Browser では file chooser へローカル動画をセットする API が見えていないため、動画 upload 後の実ブラウザ確認は未実施。
+  repo 内には `perf/heavy-media/*.mp4` があるため、次は手動または別ブラウザ制御で upload 実確認を行う。
+
 ## 2026-06-16 — Phase5: shared renderer で矩形 shape を表示
 
 ### 実施内容
