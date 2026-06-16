@@ -1014,6 +1014,23 @@
 ### 確認結果
 - `npm test -- src/utils/sharedRendererPresentationContract.test.ts src/utils/sharedRendererPreviewSession.test.ts` -> 5 tests passed。
 
+### Browser 追加確認と修正
+- `VITE_UXFD_SHARED_RENDERER_PREVIEW=1 npm run dev -- --host 127.0.0.1 --port 5174` で起動し、Browser で新規 project を作成した。
+- `data-shared-renderer-preview-surface` canvas は Pixi canvas と同じ 1920x1080 backing size / 同じ CSS size /
+  `pointer-events: none` で mount されることを確認した。
+- 一方で `pixiReady` が render effect の依存に無いため、Pixi 初期化後に `renderScene` が再発火せず
+  `window.__UXFD_SHARED_RENDERER_*` 診断 payload が未設定になることを確認した。
+- `renderScene` の dependency に shared renderer flag / GPU status / editor mode / project settings を含め、
+  render effect が `pixiReady` 後に再実行されるよう修正した。
+- さらに診断 payload 生成を `renderScene` から独立した effect へ分離し、空 scene や初期描画前でも
+  `window.__UXFD_SHARED_RENDERER_*` を観測できるようにした。
+- Browser の read-only evaluation では page world の `window.__UXFD_*` expando を観測できない可能性があったため、
+  `document.documentElement.dataset` と surface canvas dataset に plan / gate / canvas colour / alpha contract を
+  併せて公開するようにした。
+- 再確認で `planMode=parallelCompare`、`surfaceGate=ok`、`colourSpace=srgb`、`alphaMode=premultiplied`、
+  surface canvas は backing size 1920x1080 / CSS size は preview scale / `pointer-events: none`、error log なしを確認した。
+- `package.json` / `package-lock.json` を `0.1.1-Beta-28d` に更新した。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）

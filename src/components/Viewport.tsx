@@ -382,6 +382,64 @@ const Viewport: React.FC = () => {
     loadBuffers();
   }, [objects]);
 
+  const publishSharedRendererPreviewSession = useCallback((time: number, currentObjects: TimelineObject[]) => {
+    if (!sharedRendererPreviewEnabled) return;
+
+    const session = buildSharedRendererPreviewSession({
+      enabled: true,
+      projectSettings,
+      layers,
+      objects: currentObjects,
+      time,
+      editorMode,
+      isExporting,
+      webGpuAvailable: sharedRendererGpuStatus.webGpuAvailable,
+      fallbackAdapter: sharedRendererGpuStatus.fallbackAdapter,
+    });
+    const diagnosticsWindow = window as unknown as {
+      __UXFD_SHARED_RENDERER_PREVIEW_PLAN__?: unknown;
+      __UXFD_SHARED_RENDERER_PREVIEW_SURFACE_GATE__?: unknown;
+      __UXFD_SHARED_RENDERER_PRESENTATION_CONTRACT__?: unknown;
+    };
+    diagnosticsWindow.__UXFD_SHARED_RENDERER_PREVIEW_PLAN__ = session.plan;
+    diagnosticsWindow.__UXFD_SHARED_RENDERER_PREVIEW_SURFACE_GATE__ = session.surfaceGate;
+    diagnosticsWindow.__UXFD_SHARED_RENDERER_PRESENTATION_CONTRACT__ = session.presentationContract;
+
+    document.documentElement.dataset.uxfdSharedRendererPlanMode = session.plan.mode;
+    document.documentElement.dataset.uxfdSharedRendererSurfaceGate = session.surfaceGate.ok
+      ? 'ok'
+      : session.surfaceGate.reason;
+    document.documentElement.dataset.uxfdSharedRendererCanvasColourSpace = session.presentationContract.canvas.colorSpace;
+    document.documentElement.dataset.uxfdSharedRendererCanvasAlphaMode = session.presentationContract.canvas.alphaMode;
+
+    const surfaceCanvas = sharedRendererSurfaceCanvasRef.current;
+    if (surfaceCanvas) {
+      surfaceCanvas.dataset.sharedRendererSurfaceGate = session.surfaceGate.ok
+        ? 'ok'
+        : session.surfaceGate.reason;
+    }
+    if (session.surfaceGate.ok && surfaceCanvas) {
+      if (surfaceCanvas.width !== session.surfaceGate.canvas.width) {
+        surfaceCanvas.width = session.surfaceGate.canvas.width;
+      }
+      if (surfaceCanvas.height !== session.surfaceGate.canvas.height) {
+        surfaceCanvas.height = session.surfaceGate.canvas.height;
+      }
+    }
+  }, [
+    editorMode,
+    isExporting,
+    layers,
+    projectSettings,
+    sharedRendererGpuStatus.fallbackAdapter,
+    sharedRendererGpuStatus.webGpuAvailable,
+    sharedRendererPreviewEnabled,
+  ]);
+
+  useEffect(() => {
+    publishSharedRendererPreviewSession(currentTime, objects);
+  }, [currentTime, objects, publishSharedRendererPreviewSession]);
+
   // --- Main Render Logic ---
   const renderScene = useCallback((time: number, currentObjects: TimelineObject[]) => {
     const app = pixiAppRef.current;
@@ -398,37 +456,6 @@ const Viewport: React.FC = () => {
       if (layers[obj.layer]?.visible === false) return false;
       return time >= obj.startTime && time < obj.startTime + obj.duration;
     });
-    if (sharedRendererPreviewEnabled) {
-      const session = buildSharedRendererPreviewSession({
-        enabled: true,
-        projectSettings,
-        layers,
-        objects: currentObjects,
-        time,
-        editorMode,
-        isExporting,
-        webGpuAvailable: sharedRendererGpuStatus.webGpuAvailable,
-        fallbackAdapter: sharedRendererGpuStatus.fallbackAdapter,
-      });
-      const diagnosticsWindow = window as unknown as {
-        __UXFD_SHARED_RENDERER_PREVIEW_PLAN__?: unknown;
-        __UXFD_SHARED_RENDERER_PREVIEW_SURFACE_GATE__?: unknown;
-        __UXFD_SHARED_RENDERER_PRESENTATION_CONTRACT__?: unknown;
-      };
-      diagnosticsWindow.__UXFD_SHARED_RENDERER_PREVIEW_PLAN__ = session.plan;
-      diagnosticsWindow.__UXFD_SHARED_RENDERER_PREVIEW_SURFACE_GATE__ = session.surfaceGate;
-      diagnosticsWindow.__UXFD_SHARED_RENDERER_PRESENTATION_CONTRACT__ = session.presentationContract;
-
-      const surfaceCanvas = sharedRendererSurfaceCanvasRef.current;
-      if (session.surfaceGate.ok && surfaceCanvas) {
-        if (surfaceCanvas.width !== session.surfaceGate.canvas.width) {
-          surfaceCanvas.width = session.surfaceGate.canvas.width;
-        }
-        if (surfaceCanvas.height !== session.surfaceGate.canvas.height) {
-          surfaceCanvas.height = session.surfaceGate.canvas.height;
-        }
-      }
-    }
     const visibleGroupIds = new Set(
       visibleObjects
         .map((obj) => obj.groupId)
@@ -908,16 +935,29 @@ const Viewport: React.FC = () => {
       }
       threeStageRef.current.syncBillboards(billboardEntries, useStore.getState().stageCamera3D);
     }
-  }, [selectedIds, isExporting, isPlaying, isSnapshotRequested, layers, camera, projectSettings.width, projectSettings.height]);
+  }, [
+    selectedIds,
+    isExporting,
+    isPlaying,
+    isSnapshotRequested,
+    layers,
+    camera,
+    projectSettings,
+    editorMode,
+    sharedRendererPreviewEnabled,
+    sharedRendererGpuStatus.webGpuAvailable,
+    sharedRendererGpuStatus.fallbackAdapter,
+  ]);
 
   useEffect(() => { 
-      if (!isExporting) renderScene(currentTime, objects); 
+      if (!isExporting && pixiReady) renderScene(currentTime, objects); 
   }, [
     currentTime,
     objects,
     renderScene,
     renderTick,
     isExporting,
+    pixiReady,
     visionDetectionPreviewEnabled,
     visionDetectionOverlay
   ]);
