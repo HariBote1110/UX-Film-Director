@@ -1,4 +1,12 @@
 import type { SharedRendererPresentationContract } from './sharedRendererPresentationContract';
+import {
+  buildSharedRendererSolidColourDrawList,
+  type SharedRendererSolidColourRect,
+} from './sharedRendererSolidColourScene';
+import type {
+  RustSceneMediaReference,
+  RustSceneSnapshot,
+} from './rustSceneSnapshot';
 import type {
   SharedRendererPreviewSurfaceBlockedReason,
   SharedRendererPreviewSurfaceGate,
@@ -17,7 +25,11 @@ export interface SharedRendererWebGpuDeviceLike {
   lost?: Promise<unknown>;
   queue?: {
     submit: (commandBuffers: unknown[]) => void;
+    writeBuffer?: (buffer: unknown, offset: number, data: Float32Array) => void;
   };
+  createShaderModule?: (descriptor: { code: string }) => unknown;
+  createRenderPipeline?: (descriptor: unknown) => unknown;
+  createBuffer?: (descriptor: { size: number; usage: number }) => unknown;
   createCommandEncoder?: () => {
     beginRenderPass: (descriptor: {
       colorAttachments: Array<{
@@ -27,6 +39,9 @@ export interface SharedRendererWebGpuDeviceLike {
         storeOp: 'store';
       }>;
     }) => {
+      setPipeline?: (pipeline: unknown) => void;
+      setVertexBuffer?: (slot: number, buffer: unknown) => void;
+      draw?: (vertexCount: number) => void;
       end: () => void;
     };
     finish: () => unknown;
@@ -68,6 +83,7 @@ export type SharedRendererWebGpuPresenterResult =
       presentationContract: SharedRendererPresentationContract;
       dispose: () => void;
       presentSolidSrgbSwatch: (swatch: SharedRendererSolidSrgbSwatch) => void;
+      presentSolidColourScene: (scene: SharedRendererSolidColourSceneInput) => SharedRendererSolidColourScenePresentationResult;
     }
   | {
       ok: false;
@@ -96,12 +112,30 @@ export interface SharedRendererSolidSrgbSwatch {
   alpha: number;
 }
 
+export interface SharedRendererSolidColourSceneInput {
+  snapshot: RustSceneSnapshot;
+  media: RustSceneMediaReference[];
+}
+
+export type SharedRendererSolidColourScenePresentationResult =
+  | {
+      ok: true;
+      rectCount: number;
+    }
+  | {
+      ok: false;
+      reason: 'unsupportedColourSource' | 'webGpuDrawUnavailable';
+      detail: string;
+    };
+
 export interface SharedRendererWebGpuPresenterInput {
   canvas: WebGpuCanvasLike;
   surfaceGate: SharedRendererPreviewSurfaceGate;
   presentationContract: SharedRendererPresentationContract;
   gpu?: SharedRendererWebGpuLike;
   textureUsageRenderAttachment?: number;
+  bufferUsageVertex?: number;
+  bufferUsageCopyDst?: number;
   onDeviceLost?: (event: SharedRendererDeviceLostEvent) => void;
 }
 
@@ -111,6 +145,8 @@ export const createSharedRendererWebGpuPresenter = async ({
   presentationContract,
   gpu = defaultGpu(),
   textureUsageRenderAttachment = defaultRenderAttachmentUsage(),
+  bufferUsageVertex = defaultVertexBufferUsage(),
+  bufferUsageCopyDst = defaultCopyDstBufferUsage(),
   onDeviceLost,
 }: SharedRendererWebGpuPresenterInput): Promise<SharedRendererWebGpuPresenterResult> => {
   if (!surfaceGate.ok) {
@@ -220,6 +256,107 @@ export const createSharedRendererWebGpuPresenter = async ({
     device.queue.submit([encoder.finish()]);
   };
 
+  let solidColourPipeline: unknown | null = null;
+  const presentSolidColourScene = ({
+    snapshot,
+    media,
+  }: SharedRendererSolidColourSceneInput): SharedRendererSolidColourScenePresentationResult => {
+    if (
+      !context.getCurrentTexture
+      || !device.createCommandEncoder
+      || !device.queue
+      || !device.queue.writeBuffer
+      || !device.createBuffer
+      || !device.createShaderModule
+      || !device.createRenderPipeline
+    ) {
+      return {
+        ok: false,
+        reason: 'webGpuDrawUnavailable',
+        detail: 'WebGPU device does not expose the draw APIs needed for SolidColour scene presentation.',
+      };
+    }
+
+    const drawList = buildSharedRendererSolidColourDrawList({
+      snapshot,
+      media,
+      canvas: { width: canvas.width, height: canvas.height },
+    });
+    if (!drawList.ok) {
+      return {
+        ok: false,
+        reason: drawList.reason,
+        detail: drawList.detail,
+      };
+    }
+
+    if (drawList.rects.length === 0) {
+      return {
+        ok: true,
+        rectCount: 0,
+      };
+    }
+
+    if (!solidColourPipeline) {
+      const shader = device.createShaderModule({
+        code: solidColourShaderCode,
+      });
+      solidColourPipeline = device.createRenderPipeline({
+        layout: 'auto',
+        vertex: {
+          module: shader,
+          entryPoint: 'vs_main',
+          buffers: [
+            {
+              arrayStride: 24,
+              attributes: [
+                { shaderLocation: 0, offset: 0, format: 'float32x2' },
+                { shaderLocation: 1, offset: 8, format: 'float32x4' },
+              ],
+            },
+          ],
+        },
+        fragment: {
+          module: shader,
+          entryPoint: 'fs_main',
+          targets: [{ format }],
+        },
+        primitive: {
+          topology: 'triangle-list',
+        },
+      });
+    }
+
+    const vertices = buildSolidColourVertices(drawList.rects, canvas.width, canvas.height);
+    const vertexBuffer = device.createBuffer({
+      size: vertices.byteLength,
+      usage: bufferUsageVertex | bufferUsageCopyDst,
+    });
+    device.queue.writeBuffer(vertexBuffer, 0, vertices);
+
+    const encoder = device.createCommandEncoder();
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: context.getCurrentTexture().createView(),
+          clearValue: { r: 0, g: 0, b: 0, a: 0 },
+          loadOp: 'clear',
+          storeOp: 'store',
+        },
+      ],
+    });
+    pass.setPipeline?.(solidColourPipeline);
+    pass.setVertexBuffer?.(0, vertexBuffer);
+    pass.draw?.(vertices.length / 6);
+    pass.end();
+    device.queue.submit([encoder.finish()]);
+
+    return {
+      ok: true,
+      rectCount: drawList.rects.length,
+    };
+  };
+
   return {
     ok: true,
     device,
@@ -232,8 +369,67 @@ export const createSharedRendererWebGpuPresenter = async ({
     presentationContract,
     dispose,
     presentSolidSrgbSwatch,
+    presentSolidColourScene,
   };
 };
+
+const solidColourShaderCode = `
+struct VertexOut {
+  @builtin(position) position: vec4<f32>,
+  @location(0) colour: vec4<f32>,
+};
+
+@vertex
+fn vs_main(
+  @location(0) position: vec2<f32>,
+  @location(1) colour: vec4<f32>
+) -> VertexOut {
+  var out: VertexOut;
+  out.position = vec4<f32>(position, 0.0, 1.0);
+  out.colour = colour;
+  return out;
+}
+
+@fragment
+fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
+  return in.colour;
+}
+`;
+
+const buildSolidColourVertices = (
+  rects: SharedRendererSolidColourRect[],
+  canvasWidth: number,
+  canvasHeight: number
+): Float32Array => {
+  const vertices = new Float32Array(rects.length * 6 * 6);
+  let offset = 0;
+  rects.forEach((rect) => {
+    const left = pixelXToClip(rect.x, canvasWidth);
+    const right = pixelXToClip(rect.x + rect.width, canvasWidth);
+    const top = pixelYToClip(rect.y, canvasHeight);
+    const bottom = pixelYToClip(rect.y + rect.height, canvasHeight);
+    const colour = [rect.colour.red, rect.colour.green, rect.colour.blue, rect.colour.alpha] as const;
+    const points = [
+      [left, top],
+      [right, top],
+      [left, bottom],
+      [left, bottom],
+      [right, top],
+      [right, bottom],
+    ] as const;
+    points.forEach(([x, y]) => {
+      vertices.set([x, y, ...colour], offset);
+      offset += 6;
+    });
+  });
+  return vertices;
+};
+
+const pixelXToClip = (x: number, canvasWidth: number): number =>
+  (x / canvasWidth) * 2 - 1;
+
+const pixelYToClip = (y: number, canvasHeight: number): number =>
+  1 - (y / canvasHeight) * 2;
 
 const defaultGpu = (): SharedRendererWebGpuLike | undefined => {
   const gpu = navigator.gpu;
@@ -244,6 +440,16 @@ const defaultGpu = (): SharedRendererWebGpuLike | undefined => {
 const defaultRenderAttachmentUsage = (): number => {
   const textureUsage = (globalThis as unknown as { GPUTextureUsage?: { RENDER_ATTACHMENT?: number } }).GPUTextureUsage;
   return textureUsage?.RENDER_ATTACHMENT ?? 0x10;
+};
+
+const defaultVertexBufferUsage = (): number => {
+  const bufferUsage = (globalThis as unknown as { GPUBufferUsage?: { VERTEX?: number } }).GPUBufferUsage;
+  return bufferUsage?.VERTEX ?? 0x20;
+};
+
+const defaultCopyDstBufferUsage = (): number => {
+  const bufferUsage = (globalThis as unknown as { GPUBufferUsage?: { COPY_DST?: number } }).GPUBufferUsage;
+  return bufferUsage?.COPY_DST ?? 0x8;
 };
 
 const deviceLostMessage = (info: unknown): string => {
