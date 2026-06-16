@@ -142,36 +142,38 @@ TDD / 検証タスク:
 
 1. Red: 制御プレーンに frame bytes / base64 / pixel array を載せない protocol test
 2. Green: descriptor + metadata の control event
-3. Red: ring buffer layout / ownership / back pressure の state machine test
-4. Green: `free -> writing -> ready -> reading -> free` と `NoFreeSlot` / `NoReadySlot`
-5. Red: atomic release/acquire と GPU upload fence 前 release 禁止の contract test
-6. Green: SPSC / independent ring / copy-out completion contract
-7. Red: checksum / pixel diff summary の schema test
-8. Green: verification report schema
-9. Red: 既知 CFR H.264 frame の decode correctness test
-10. Green: software `libx264` fallback で既知 frame を encode/decode し、期待 RGBA と比較
-11. Red: unsupported transfer / range を fail-loud にする descriptor validation test
-12. Green: renderer handoff validation
-13. Red: loom で publish / recycle の Release/Acquire は pass、Relaxed perturb は fail する ordering model test
-14. Red: shared memory header の magic / version / layout hash / init handshake test
-15. Green: `repr(C)` shared header と loom init handshake gate
-16. Red: producer / consumer 並行 stress で checksum を検証する atomic ring test
-17. Green: release/acquire を使う in-memory SPSC ring spike
-18. Red: POSIX shm 2プロセス CRC stress と layout hash mismatch fail-loud test
-19. Green: `shm_open` / `mmap(MAP_SHARED)` backing
-20. Red: 既知 CFR H.264 decoded RGBA -> POSIX shm -> 別プロセス consumer の checksum test
-21. Green: decode correctness と data plane backing の統合
-22. Red: POSIX shm decoded RGBA -> native wgpu render -> known swatch 比較 test
-23. Green: input -> decode -> shm -> render の end-to-end correctness
-24. Red: sidecar decode frame と direct decode reference の checksum 一致 test
-25. Green: sidecar + CPU 共有メモリ
-26. Refactor: 制御プレーンとデータプレーンの責務分離
-27. Red: timeline -> wgpu RGBA -> ffmpeg -> 再 decode の 4:4:4 round-trip 比較
-28. Green: explicit `zscale` / `libx264` colour tags による H.264 4:4:4 export pipeline
-29. Refactor: ffmpeg 明示色変換設定と export orchestration を分離
-30. Red: 4K slot footprint と native wgpu stage timing の contract test
-31. Green: RGBA8 / `rgba16float` footprint 計算、`sourceUpload` / `render` / `readbackEncode` 測定 API
-32. 4K throughput を debug / release build で記録し、支配項を分類
+3. Red: cancel request / progress / job lifecycle が control-plane のみで完結する protocol test
+4. Green: `queued -> running -> cancelling -> cancelled` と cancellation pending guard
+5. Red: ring buffer layout / ownership / back pressure の state machine test
+6. Green: `free -> writing -> ready -> reading -> free` と `NoFreeSlot` / `NoReadySlot`
+7. Red: atomic release/acquire と GPU upload fence 前 release 禁止の contract test
+8. Green: SPSC / independent ring / copy-out completion contract
+9. Red: checksum / pixel diff summary の schema test
+10. Green: verification report schema
+11. Red: 既知 CFR H.264 frame の decode correctness test
+12. Green: software `libx264` fallback で既知 frame を encode/decode し、期待 RGBA と比較
+13. Red: unsupported transfer / range を fail-loud にする descriptor validation test
+14. Green: renderer handoff validation
+15. Red: loom で publish / recycle の Release/Acquire は pass、Relaxed perturb は fail する ordering model test
+16. Red: shared memory header の magic / version / layout hash / init handshake test
+17. Green: `repr(C)` shared header と loom init handshake gate
+18. Red: producer / consumer 並行 stress で checksum を検証する atomic ring test
+19. Green: release/acquire を使う in-memory SPSC ring spike
+20. Red: POSIX shm 2プロセス CRC stress と layout hash mismatch fail-loud test
+21. Green: `shm_open` / `mmap(MAP_SHARED)` backing
+22. Red: 既知 CFR H.264 decoded RGBA -> POSIX shm -> 別プロセス consumer の checksum test
+23. Green: decode correctness と data plane backing の統合
+24. Red: POSIX shm decoded RGBA -> native wgpu render -> known swatch 比較 test
+25. Green: input -> decode -> shm -> render の end-to-end correctness
+26. Red: sidecar decode frame と direct decode reference の checksum 一致 test
+27. Green: sidecar + CPU 共有メモリ
+28. Refactor: 制御プレーンとデータプレーンの責務分離
+29. Red: timeline -> wgpu RGBA -> ffmpeg -> 再 decode の 4:4:4 round-trip 比較
+30. Green: explicit `zscale` / `libx264` colour tags による H.264 4:4:4 export pipeline
+31. Refactor: ffmpeg 明示色変換設定と export orchestration を分離
+32. Red: 4K slot footprint と native wgpu stage timing の contract test
+33. Green: RGBA8 / `rgba16float` footprint 計算、`sourceUpload` / `render` / `readbackEncode` 測定 API
+34. 4K throughput を debug / release build で記録し、支配項を分類
 
 完了条件:
 

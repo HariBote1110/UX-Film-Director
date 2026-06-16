@@ -606,6 +606,30 @@
 ### 確認結果
 - `cargo test --manifest-path sidecar-protocol/Cargo.toml` -> 2 tests passed。
 
+## 2026-06-16 — Phase4: sidecar job lifecycle / cancellation control-plane
+
+### Red
+- `sidecar-protocol/tests/job_lifecycle.rs` を追加し、cancel request が `jobId` だけを持ち、frame bytes /
+  pixel array / base64 を制御プレーンに載せない契約を固定した。
+- `jobProgress` と `jobCancelled` event が progress / cancellation metadata のみを JSON に載せることを固定した。
+- cancel request 後に `complete` が成功せず、cleanup 完了後の `jobCancelled` で終端する state machine を先に書いた。
+
+### Green
+- `CancelJobRequest` / `JobState` / `JobLifecycle` / `JobLifecycleError` を実装した。
+- `ControlEvent` に `JobStarted` / `JobProgress` / `JobCompleted` / `JobCancelled` を追加した。
+- job state は `queued -> running -> completed`、または `queued/running -> cancelling -> cancelled` とし、
+  `cancelling` 中の `complete` は `CancellationPending` で拒否する。
+- `jobId` / `completedFrames` / `totalFrames` / `slotIndex` は JSON 側で camelCase になるよう固定した。
+
+### 文書更新
+- `markdown/architecture/05-boundary-ipc.md` に job lifecycle と cancellation の最小 state machine を追記した。
+- `markdown/roadmap.md` の Phase4 タスクに job lifecycle / progress / cancellation control-plane gate を追加した。
+
+### 確認結果
+- `cargo fmt --manifest-path sidecar-protocol/Cargo.toml`
+- `cargo test --manifest-path sidecar-protocol/Cargo.toml --test job_lifecycle` -> 3 tests passed。
+- `cargo test --manifest-path sidecar-protocol/Cargo.toml --test control_plane` -> 2 tests passed。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）

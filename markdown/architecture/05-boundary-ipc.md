@@ -167,6 +167,16 @@ verification report:
 
 verification report も frame bytes / pixel array / base64 を含まない。
 
+job lifecycle:
+
+- `CancelJobRequest` は `jobId` のみを持つ。frame descriptor、bytes、pixel array、base64 は持たない。
+- `ControlEvent` は job 状態を `jobStarted` / `jobProgress` / `jobCompleted` / `jobCancelled` / `jobFailed` で返す。
+- `jobProgress` は `completedFrames` と `totalFrames` のみを持つ。progress event に frame data を混ぜない。
+- job state は `queued -> running -> completed`、または `queued/running -> cancelling -> cancelled` を基本とする。
+- cancel request 後に worker が最後の frame 処理を終えても、`complete` へ進まず `CancellationPending` として止める。
+- cancel の確定は cleanup 完了後の `jobCancelled` event で表す。
+- `request_cancel` は `cancelling` では冪等に扱い、terminal state の job には新しい cancel を適用しない。
+
 renderer handoff validation:
 
 - MVP renderer handoff は `Rgba8Srgb`、`primaries=bt709`、`transfer=srgb`、`matrix=rgb`、`range=full` のみを受け付ける。
@@ -427,4 +437,7 @@ Windows 固有の named shared memory や GPU backend 最適化は MVP の block
   - MVP で完全 recovery までは作らないが、producer が `writing` で落ちる、または consumer が `reading` で落ちる
     stuck slot を無音 deadlock にしない。
   - timeout / heartbeat / generation counter のどれを採るかは未決。
+- cancellation timeout / force kill policy
+  - control-plane の cancel state machine は固定済み。
+  - 実 process が stuck した場合に何秒で kill するか、partial output をどう掃除するかは未決。
 - napi-rs を使う範囲

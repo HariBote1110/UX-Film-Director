@@ -10,11 +10,165 @@ pub struct DecodeFrameRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CancelJobRequest {
+    pub job_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum ControlEvent {
-    FrameReady { job_id: String, frame: SharedFrame },
-    FrameReleased { job_id: String, slot_index: u32 },
-    JobFailed { job_id: String, message: String },
+    JobStarted {
+        #[serde(rename = "jobId")]
+        job_id: String,
+    },
+    JobProgress {
+        #[serde(rename = "jobId")]
+        job_id: String,
+        #[serde(rename = "completedFrames")]
+        completed_frames: u64,
+        #[serde(rename = "totalFrames")]
+        total_frames: u64,
+    },
+    JobCompleted {
+        #[serde(rename = "jobId")]
+        job_id: String,
+    },
+    JobCancelled {
+        #[serde(rename = "jobId")]
+        job_id: String,
+        reason: String,
+    },
+    FrameReady {
+        #[serde(rename = "jobId")]
+        job_id: String,
+        frame: SharedFrame,
+    },
+    FrameReleased {
+        #[serde(rename = "jobId")]
+        job_id: String,
+        #[serde(rename = "slotIndex")]
+        slot_index: u32,
+    },
+    JobFailed {
+        #[serde(rename = "jobId")]
+        job_id: String,
+        message: String,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum JobState {
+    Queued,
+    Running,
+    Cancelling,
+    Cancelled,
+    Completed,
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JobLifecycle {
+    job_id: String,
+    state: JobState,
+}
+
+impl JobLifecycle {
+    pub fn queued(job_id: impl Into<String>) -> Self {
+        Self {
+            job_id: job_id.into(),
+            state: JobState::Queued,
+        }
+    }
+
+    pub fn state(&self) -> JobState {
+        self.state
+    }
+
+    pub fn start(&mut self) -> Result<ControlEvent, JobLifecycleError> {
+        self.expect_state(JobState::Queued)?;
+        self.state = JobState::Running;
+        Ok(ControlEvent::JobStarted {
+            job_id: self.job_id.clone(),
+        })
+    }
+
+    pub fn request_cancel(&mut self) -> Result<(), JobLifecycleError> {
+        match self.state {
+            JobState::Queued | JobState::Running => {
+                self.state = JobState::Cancelling;
+                Ok(())
+            }
+            JobState::Cancelling => Ok(()),
+            actual => Err(JobLifecycleError::UnexpectedState {
+                expected: JobState::Running,
+                actual,
+            }),
+        }
+    }
+
+    pub fn complete(&mut self) -> Result<ControlEvent, JobLifecycleError> {
+        if self.state == JobState::Cancelling {
+            return Err(JobLifecycleError::CancellationPending);
+        }
+
+        self.expect_state(JobState::Running)?;
+        self.state = JobState::Completed;
+        Ok(ControlEvent::JobCompleted {
+            job_id: self.job_id.clone(),
+        })
+    }
+
+    pub fn mark_cancelled(
+        &mut self,
+        reason: impl Into<String>,
+    ) -> Result<ControlEvent, JobLifecycleError> {
+        self.expect_state(JobState::Cancelling)?;
+        self.state = JobState::Cancelled;
+        Ok(ControlEvent::JobCancelled {
+            job_id: self.job_id.clone(),
+            reason: reason.into(),
+        })
+    }
+
+    pub fn fail(&mut self, message: impl Into<String>) -> Result<ControlEvent, JobLifecycleError> {
+        if matches!(
+            self.state,
+            JobState::Cancelled | JobState::Completed | JobState::Failed
+        ) {
+            return Err(JobLifecycleError::TerminalState { actual: self.state });
+        }
+
+        self.state = JobState::Failed;
+        Ok(ControlEvent::JobFailed {
+            job_id: self.job_id.clone(),
+            message: message.into(),
+        })
+    }
+
+    fn expect_state(&self, expected: JobState) -> Result<(), JobLifecycleError> {
+        if self.state == expected {
+            Ok(())
+        } else {
+            Err(JobLifecycleError::UnexpectedState {
+                expected,
+                actual: self.state,
+            })
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JobLifecycleError {
+    CancellationPending,
+    TerminalState {
+        actual: JobState,
+    },
+    UnexpectedState {
+        expected: JobState,
+        actual: JobState,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
