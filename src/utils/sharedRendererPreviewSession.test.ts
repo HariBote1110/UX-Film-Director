@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultLayers } from './sceneState';
 import { buildSharedRendererPreviewSession } from './sharedRendererPreviewSession';
+import { buildSharedRendererPresentationContract } from './sharedRendererPresentationContract';
 import type { ImageObject, ProjectSettings } from '../types';
 
 const settings: ProjectSettings = {
@@ -49,6 +50,7 @@ describe('buildSharedRendererPreviewSession', () => {
     });
 
     expect(session.plan.mode).toBe('parallelCompare');
+    expect(session.presentationContract).toEqual(buildSharedRendererPresentationContract());
     expect(session.surfaceGate.ok).toBe(true);
     if (!session.surfaceGate.ok) throw new Error('expected surface gate to pass');
     expect(session.surfaceGate.canvas).toEqual({ width: 1920, height: 1080 });
