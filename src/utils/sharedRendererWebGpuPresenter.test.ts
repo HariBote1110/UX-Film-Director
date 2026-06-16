@@ -5,7 +5,7 @@ import {
   type SharedRendererWebGpuLike,
 } from './sharedRendererWebGpuPresenter';
 import { buildSharedRendererPresentationContract } from './sharedRendererPresentationContract';
-import type { RustSceneSnapshot } from './rustSceneSnapshot';
+import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
 import type { SharedRendererPreviewSurfaceGate } from './sharedRendererPreviewSurface';
 
 const snapshot: RustSceneSnapshot = {
@@ -24,6 +24,39 @@ const okSurfaceGate: SharedRendererPreviewSurfaceGate = {
   snapshot,
   media: [],
 };
+
+const solidShapeSnapshot: RustSceneSnapshot = {
+  ...snapshot,
+  clips: [
+    {
+      clip_id: 'shape-1',
+      track_id: 'layer-0',
+      media_id: 'shape-1',
+      source_frame: 0,
+      z_index: 0,
+      transform: {
+        translation_x: 300,
+        translation_y: 120,
+        scale_x: 1,
+        scale_y: 1,
+        rotation_degrees: 0,
+        sampling: 'nearest',
+      },
+      opacity: 0.5,
+      effects: [],
+    },
+  ],
+};
+
+const solidShapeMedia: RustSceneMediaReference[] = [
+  {
+    id: 'shape-1',
+    kind: 'SolidColour',
+    source: '#ff0000',
+    width: 200,
+    height: 100,
+  },
+];
 
 describe('createSharedRendererWebGpuPresenter', () => {
   it('does not touch WebGPU when the surface gate is blocked', async () => {
@@ -233,6 +266,104 @@ describe('createSharedRendererWebGpuPresenter', () => {
     ]);
     expect(submittedCommandBuffers).toEqual(['finished-command-buffer']);
   });
+
+  it('presents SolidColour rectangle clips with a vertex pipeline over a transparent clear', async () => {
+    const submittedCommandBuffers: unknown[] = [];
+    const renderPasses: unknown[] = [];
+    const renderPassOperations: string[] = [];
+    const writtenBuffers: Array<{ buffer: unknown; offset: number; data: Float32Array }> = [];
+    const buffers: unknown[] = [];
+    const pipelines: unknown[] = [];
+    const shaderModules: unknown[] = [];
+    const device = fakeDevice({
+      onSubmit: (commandBuffers) => {
+        submittedCommandBuffers.push(...commandBuffers);
+      },
+      onRenderPass: (descriptor) => {
+        renderPasses.push(descriptor);
+      },
+      onRenderPassOperation: (operation) => {
+        renderPassOperations.push(operation);
+      },
+      onWriteBuffer: (buffer, offset, data) => {
+        writtenBuffers.push({ buffer, offset, data });
+      },
+      onCreateBuffer: (descriptor) => {
+        buffers.push(descriptor);
+      },
+      onCreateRenderPipeline: (descriptor) => {
+        pipelines.push(descriptor);
+      },
+      onCreateShaderModule: (descriptor) => {
+        shaderModules.push(descriptor);
+      },
+    });
+
+    const result = await createSharedRendererWebGpuPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      surfaceGate: {
+        ...okSurfaceGate,
+        snapshot: solidShapeSnapshot,
+        media: solidShapeMedia,
+      },
+      presentationContract: buildSharedRendererPresentationContract(),
+      gpu: fakeGpu({
+        onRequestAdapter: () => fakeAdapter({ device }),
+      }),
+      textureUsageRenderAttachment: 16,
+      bufferUsageVertex: 1,
+      bufferUsageCopyDst: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected presenter creation to pass');
+
+    expect(result.presentSolidColourScene({
+      snapshot: solidShapeSnapshot,
+      media: solidShapeMedia,
+    })).toEqual({
+      ok: true,
+      rectCount: 1,
+    });
+
+    expect(shaderModules).toHaveLength(1);
+    expect(pipelines).toHaveLength(1);
+    expect(buffers).toEqual([
+      {
+        size: 144,
+        usage: 3,
+      },
+    ]);
+    expect(writtenBuffers).toHaveLength(1);
+    expect(writtenBuffers[0].offset).toBe(0);
+    expect(Array.from(writtenBuffers[0].data.slice(0, 6))).toEqual([
+      -0.6875,
+      0.7777777910232544,
+      0.5,
+      0,
+      0,
+      0.5,
+    ]);
+    expect(renderPasses).toEqual([
+      {
+        colorAttachments: [
+          {
+            view: 'current-texture-view',
+            clearValue: { r: 0, g: 0, b: 0, a: 0 },
+            loadOp: 'clear',
+            storeOp: 'store',
+          },
+        ],
+      },
+    ]);
+    expect(renderPassOperations).toEqual([
+      'setPipeline:solid-colour-pipeline',
+      'setVertexBuffer:0:solid-colour-vertex-buffer',
+      'draw:6',
+      'end',
+    ]);
+    expect(submittedCommandBuffers).toEqual(['finished-command-buffer']);
+  });
 });
 
 const fakeCanvas = (getContext: () => unknown) =>
@@ -278,20 +409,54 @@ const fakeDevice = ({
   lost = new Promise(() => undefined),
   onSubmit = () => undefined,
   onRenderPass = () => undefined,
+  onRenderPassOperation = () => undefined,
+  onWriteBuffer = () => undefined,
+  onCreateBuffer = () => undefined,
+  onCreateShaderModule = () => undefined,
+  onCreateRenderPipeline = () => undefined,
 }: {
   lost?: Promise<unknown>;
   onSubmit?: (commandBuffers: unknown[]) => void;
   onRenderPass?: (descriptor: unknown) => void;
+  onRenderPassOperation?: (operation: string) => void;
+  onWriteBuffer?: (buffer: unknown, offset: number, data: Float32Array) => void;
+  onCreateBuffer?: (descriptor: unknown) => void;
+  onCreateShaderModule?: (descriptor: unknown) => void;
+  onCreateRenderPipeline?: (descriptor: unknown) => void;
 } = {}) => ({
   lost,
   queue: {
     submit: onSubmit,
+    writeBuffer: onWriteBuffer,
+  },
+  createShaderModule: (descriptor: unknown) => {
+    onCreateShaderModule(descriptor);
+    return 'solid-colour-shader-module';
+  },
+  createRenderPipeline: (descriptor: unknown) => {
+    onCreateRenderPipeline(descriptor);
+    return 'solid-colour-pipeline';
+  },
+  createBuffer: (descriptor: unknown) => {
+    onCreateBuffer(descriptor);
+    return 'solid-colour-vertex-buffer';
   },
   createCommandEncoder: () => ({
     beginRenderPass: (descriptor: unknown) => {
       onRenderPass(descriptor);
       return {
-        end: () => undefined,
+        setPipeline: (pipeline: unknown) => {
+          onRenderPassOperation(`setPipeline:${String(pipeline)}`);
+        },
+        setVertexBuffer: (slot: number, buffer: unknown) => {
+          onRenderPassOperation(`setVertexBuffer:${slot}:${String(buffer)}`);
+        },
+        draw: (vertexCount: number) => {
+          onRenderPassOperation(`draw:${vertexCount}`);
+        },
+        end: () => {
+          onRenderPassOperation('end');
+        },
       };
     },
     finish: () => 'finished-command-buffer',
