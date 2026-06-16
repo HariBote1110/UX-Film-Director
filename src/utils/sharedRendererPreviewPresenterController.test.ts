@@ -39,6 +39,62 @@ const okSession: SharedRendererPreviewSession = {
   presentationContract: buildSharedRendererPresentationContract(),
 };
 
+const solidShapeSnapshot: RustSceneSnapshot = {
+  ...snapshot,
+  clips: [
+    {
+      clip_id: 'shape-1',
+      track_id: 'layer-0',
+      media_id: 'shape-1',
+      source_frame: 0,
+      z_index: 0,
+      transform: {
+        translation_x: 300,
+        translation_y: 120,
+        scale_x: 1,
+        scale_y: 1,
+        rotation_degrees: 0,
+        sampling: 'nearest',
+      },
+      opacity: 1,
+      effects: [],
+    },
+  ],
+};
+
+const solidShapeSession: SharedRendererPreviewSession = {
+  plan: {
+    mode: 'parallelCompare',
+    primary: 'pixi',
+    candidate: 'sharedRenderer',
+    snapshot: solidShapeSnapshot,
+    media: [
+      {
+        id: 'shape-1',
+        kind: 'SolidColour',
+        source: '#ff0000',
+        width: 200,
+        height: 100,
+      },
+    ],
+  },
+  surfaceGate: {
+    ok: true,
+    canvas: { width: 1920, height: 1080 },
+    snapshot: solidShapeSnapshot,
+    media: [
+      {
+        id: 'shape-1',
+        kind: 'SolidColour',
+        source: '#ff0000',
+        width: 200,
+        height: 100,
+      },
+    ],
+  },
+  presentationContract: buildSharedRendererPresentationContract(),
+};
+
 describe('startSharedRendererPreviewPresenter', () => {
   it('exposes a CSS reference colour from the same solid swatch constants', () => {
     expect(getSharedRendererSolidSwatchCssColour()).toBe('rgb(64, 128, 191)');
@@ -97,6 +153,57 @@ describe('startSharedRendererPreviewPresenter', () => {
       uxfdSharedRendererPresenterSwatch: 'solid-srgb',
       uxfdSharedRendererPresenterFailureReason: undefined,
       uxfdSharedRendererPresenterStaleSharedFrameAllowed: undefined,
+    });
+  });
+
+  it('presents SolidColour scene content instead of the diagnostic swatch when rectangle clips exist', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const renderPasses: unknown[] = [];
+    const renderPassOperations: string[] = [];
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: solidShapeSession,
+      datasets: [dataset],
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onRenderPass: (descriptor) => {
+              renderPasses.push(descriptor);
+            },
+            onRenderPassOperation: (operation) => {
+              renderPassOperations.push(operation);
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+      bufferUsageVertex: 1,
+      bufferUsageCopyDst: 2,
+    });
+
+    expect(control).toMatchObject({
+      ok: true,
+      format: 'bgra8unorm',
+    });
+    expect(renderPasses).toEqual([
+      {
+        colorAttachments: [
+          {
+            view: 'current-texture-view',
+            clearValue: { r: 0, g: 0, b: 0, a: 0 },
+            loadOp: 'clear',
+            storeOp: 'store',
+          },
+        ],
+      },
+    ]);
+    expect(renderPassOperations).toContain('draw:6');
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterStatus: 'ready',
+      uxfdSharedRendererPresenterFormat: 'bgra8unorm',
+      uxfdSharedRendererPresenterSwatch: 'solid-colour-scene',
     });
   });
 
@@ -218,22 +325,39 @@ const fakeAdapter = ({
 
 const fakeDevice = ({
   onRenderPass = () => undefined,
+  onRenderPassOperation = () => undefined,
   onSubmit = () => undefined,
   lost = new Promise(() => undefined),
 }: {
   onRenderPass?: (descriptor: unknown) => void;
+  onRenderPassOperation?: (operation: string) => void;
   onSubmit?: (commandBuffers: unknown[]) => void;
   lost?: Promise<unknown>;
 } = {}) => ({
   lost,
   queue: {
     submit: onSubmit,
+    writeBuffer: () => undefined,
   },
+  createShaderModule: () => 'solid-colour-shader-module',
+  createRenderPipeline: () => 'solid-colour-pipeline',
+  createBuffer: () => 'solid-colour-vertex-buffer',
   createCommandEncoder: () => ({
     beginRenderPass: (descriptor: unknown) => {
       onRenderPass(descriptor);
       return {
-        end: () => undefined,
+        setPipeline: (pipeline: unknown) => {
+          onRenderPassOperation(`setPipeline:${String(pipeline)}`);
+        },
+        setVertexBuffer: (slot: number, buffer: unknown) => {
+          onRenderPassOperation(`setVertexBuffer:${slot}:${String(buffer)}`);
+        },
+        draw: (vertexCount: number) => {
+          onRenderPassOperation(`draw:${vertexCount}`);
+        },
+        end: () => {
+          onRenderPassOperation('end');
+        },
       };
     },
     finish: () => 'finished-command-buffer',
