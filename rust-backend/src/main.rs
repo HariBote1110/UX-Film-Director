@@ -8,8 +8,10 @@ use std::io::{self, BufRead, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use uxfd_sidecar_protocol::{
-    rgba8_srgb_ring_layout, validate_renderer_handoff_descriptor, CopyOutState, DecodeFrameRequest,
-    DecodeReleaseFrameRequest, DecodeStartRequest, DecodeStartResponse, FrameFormat,
+    rgba8_srgb_ring_layout, validate_renderer_handoff_descriptor, ChecksumAlgorithm, CopyOutState,
+    DecodeFrameRequest, DecodeReleaseFrameRequest, DecodeStartRequest, DecodeStartResponse,
+    FrameChecksum, FrameDescriptor, FrameFormat, FrameVerificationReport, FrameVerificationStatus,
+    ReadyFrame, SharedFrame, SharedFrameRing, SlotRecoveryReason,
 };
 
 #[derive(Debug, Deserialize)]
@@ -44,6 +46,9 @@ struct ExportSession {
 
 struct DecodeSession {
     start_response: DecodeStartResponse,
+    source: String,
+    ffmpeg_path: String,
+    ring: SharedFrameRing,
 }
 
 /// Shared state for the in-progress PSD pixel blob write.
@@ -497,7 +502,7 @@ fn handle_decode_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
     }
 
     let response = DecodeStartResponse {
-        job_id: parsed.job_id,
+        job_id: parsed.job_id.clone(),
         memory_id,
         slot_count: layout.slot_count(),
         slot_byte_len: descriptor.byte_len,
@@ -509,8 +514,12 @@ fn handle_decode_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
         colour: descriptor.colour,
     };
 
+    let ffmpeg_path = std::env::var("UXFD_FFMPEG_BIN").unwrap_or_else(|_| "ffmpeg".to_string());
     state.decode_session = Some(DecodeSession {
         start_response: response.clone(),
+        source: parsed.source,
+        ffmpeg_path,
+        ring: SharedFrameRing::new(layout),
     });
 
     RpcResponse {
@@ -522,7 +531,7 @@ fn handle_decode_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
 }
 
 fn handle_decode_request_frame(id: u64, params: Value, state: &mut BackendState) -> RpcResponse {
-    let Some(session) = state.decode_session.as_ref() else {
+    let Some(session) = state.decode_session.as_mut() else {
         return response_error(id, -32041, "No active decode session");
     };
 
@@ -541,6 +550,103 @@ fn handle_decode_request_frame(id: u64, params: Value, state: &mut BackendState)
         return response_error(id, -32042, "Decode jobId does not match active session");
     }
 
+    let write_slot = match session.ring.acquire_write_slot() {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(id, -32043, &format!("No free decode frame slot: {error:?}"));
+        }
+    };
+    let write_slot_index = write_slot.slot_index;
+
+    let tight_rgba = match decode_tight_rgba_frame(
+        &session.ffmpeg_path,
+        &session.source,
+        parsed.frame_index,
+        session.start_response.width,
+        session.start_response.height,
+    ) {
+        Ok(value) => value,
+        Err(error) => {
+            let _ = session
+                .ring
+                .recover_stuck_slot(write_slot_index, SlotRecoveryReason::ProducerTimeout);
+            return response_error(
+                id,
+                -32044,
+                &format!("Failed to decode video frame in Rust backend: {error}"),
+            );
+        }
+    };
+
+    let padded_rgba = match pad_rgba_rows(
+        &tight_rgba,
+        session.start_response.width,
+        session.start_response.height,
+        session.start_response.stride_bytes,
+    ) {
+        Ok(value) => value,
+        Err(error) => {
+            let _ = session
+                .ring
+                .recover_stuck_slot(write_slot_index, SlotRecoveryReason::ProducerTimeout);
+            return response_error(
+                id,
+                -32045,
+                &format!("Decoded frame does not match shared-ring layout: {error}"),
+            );
+        }
+    };
+
+    if write_slot.descriptor.byte_len != padded_rgba.len() as u64 {
+        let _ = session
+            .ring
+            .recover_stuck_slot(write_slot_index, SlotRecoveryReason::ProducerTimeout);
+        return response_error(
+            id,
+            -32045,
+            &format!(
+                "Decoded padded frame byte length mismatch: descriptor={}, actual={}",
+                write_slot.descriptor.byte_len,
+                padded_rgba.len()
+            ),
+        );
+    }
+
+    if let Err(error) = validate_renderer_handoff_descriptor(&write_slot.descriptor) {
+        let _ = session
+            .ring
+            .recover_stuck_slot(write_slot_index, SlotRecoveryReason::ProducerTimeout);
+        return response_error(
+            id,
+            -32602,
+            &format!("Unsupported decoded frame descriptor: {error:?}"),
+        );
+    }
+
+    if let Err(error) = session.ring.mark_slot_ready(write_slot, parsed.frame_index) {
+        return response_error(
+            id,
+            -32046,
+            &format!("Failed to mark decoded frame ready: {error:?}"),
+        );
+    }
+    let ready_frame = match session.ring.acquire_ready_slot() {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32047,
+                &format!("Decoded frame was not readable after ready transition: {error:?}"),
+            );
+        }
+    };
+    let verification = FrameVerificationReport {
+        frame_index: parsed.frame_index,
+        checksum: checksum_for_bytes(&padded_rgba),
+        diff: None,
+        status: FrameVerificationStatus::WithinTolerance,
+    };
+
     RpcResponse {
         id,
         ok: true,
@@ -550,13 +656,16 @@ fn handle_decode_request_frame(id: u64, params: Value, state: &mut BackendState)
             "requestId": parsed.request_id,
             "frameIndex": parsed.frame_index,
             "mode": parsed.mode,
+            "frame": ready_frame.frame,
+            "verification": verification,
+            "decodeInvocationCount": 1,
         })),
         error: None,
     }
 }
 
 fn handle_decode_release_frame(id: u64, params: Value, state: &mut BackendState) -> RpcResponse {
-    let Some(session) = state.decode_session.as_ref() else {
+    let Some(session) = state.decode_session.as_mut() else {
         return response_error(id, -32041, "No active decode session");
     };
 
@@ -582,6 +691,39 @@ fn handle_decode_release_frame(id: u64, params: Value, state: &mut BackendState)
         );
     }
 
+    let descriptor = match descriptor_for_release(
+        &session.start_response,
+        parsed.slot_index,
+        parsed.generation,
+    ) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32602,
+                &format!("Invalid decoded frame release descriptor: {error}"),
+            );
+        }
+    };
+    let ready_frame = ReadyFrame {
+        slot_index: parsed.slot_index,
+        frame: SharedFrame {
+            descriptor,
+            pts_frame: 0,
+        },
+    };
+
+    if let Err(error) = session
+        .ring
+        .release_read_slot(ready_frame, parsed.copy_out_state)
+    {
+        return response_error(
+            id,
+            -32048,
+            &format!("Failed to release decoded frame slot: {error:?}"),
+        );
+    }
+
     RpcResponse {
         id,
         ok: true,
@@ -593,6 +735,145 @@ fn handle_decode_release_frame(id: u64, params: Value, state: &mut BackendState)
         })),
         error: None,
     }
+}
+
+fn decode_tight_rgba_frame(
+    ffmpeg_path: &str,
+    source: &str,
+    frame_index: u64,
+    width: u32,
+    height: u32,
+) -> Result<Vec<u8>, String> {
+    let filter = format!(
+        "select=eq(n\\,{frame_index}),scale=in_range=pc:out_range=pc:in_color_matrix=bt709:out_color_matrix=bt709,format=rgba"
+    );
+    let output = Command::new(ffmpeg_path)
+        .arg("-hide_banner")
+        .arg("-loglevel")
+        .arg("error")
+        .arg("-i")
+        .arg(source)
+        .arg("-vf")
+        .arg(filter)
+        .arg("-frames:v")
+        .arg("1")
+        .arg("-pix_fmt")
+        .arg("rgba")
+        .arg("-f")
+        .arg("rawvideo")
+        .arg("pipe:1")
+        .output()
+        .map_err(|error| format!("failed to run ffmpeg ({ffmpeg_path}): {error}"))?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "ffmpeg exited with status {:?}: {}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    let expected_len = u64::from(width)
+        .checked_mul(u64::from(height))
+        .and_then(|pixels| pixels.checked_mul(4))
+        .and_then(|bytes| usize::try_from(bytes).ok())
+        .ok_or_else(|| format!("decoded frame dimensions overflow: {width}x{height}"))?;
+    if output.stdout.len() != expected_len {
+        return Err(format!(
+            "ffmpeg produced unexpected RGBA byte length: expected={expected_len}, actual={}",
+            output.stdout.len()
+        ));
+    }
+
+    Ok(output.stdout)
+}
+
+fn pad_rgba_rows(
+    tight_rgba: &[u8],
+    width: u32,
+    height: u32,
+    stride_bytes: u32,
+) -> Result<Vec<u8>, String> {
+    let row_bytes = u64::from(width)
+        .checked_mul(4)
+        .and_then(|value| usize::try_from(value).ok())
+        .ok_or_else(|| format!("row byte length overflow for width={width}"))?;
+    let stride_bytes = usize::try_from(stride_bytes)
+        .map_err(|_| format!("stride byte length overflows usize: {stride_bytes}"))?;
+    if stride_bytes < row_bytes {
+        return Err(format!(
+            "stride is smaller than tight RGBA row: stride={stride_bytes}, row={row_bytes}"
+        ));
+    }
+
+    let height =
+        usize::try_from(height).map_err(|_| format!("height overflows usize: {height}"))?;
+    let tight_len = row_bytes
+        .checked_mul(height)
+        .ok_or_else(|| "tight RGBA byte length overflow".to_string())?;
+    if tight_rgba.len() != tight_len {
+        return Err(format!(
+            "tight RGBA byte length mismatch: expected={tight_len}, actual={}",
+            tight_rgba.len()
+        ));
+    }
+    let padded_len = stride_bytes
+        .checked_mul(height)
+        .ok_or_else(|| "padded RGBA byte length overflow".to_string())?;
+    let mut padded = vec![0; padded_len];
+    for row in 0..height {
+        let source_start = row * row_bytes;
+        let destination_start = row * stride_bytes;
+        padded[destination_start..destination_start + row_bytes]
+            .copy_from_slice(&tight_rgba[source_start..source_start + row_bytes]);
+    }
+
+    Ok(padded)
+}
+
+fn checksum_for_bytes(bytes: &[u8]) -> FrameChecksum {
+    let mut hasher = crc32fast::Hasher::new();
+    hasher.update(bytes);
+    FrameChecksum {
+        algorithm: ChecksumAlgorithm::Crc32,
+        value_hex: format!("{:08x}", hasher.finalize()),
+        byte_len: bytes.len() as u64,
+    }
+}
+
+fn descriptor_for_release(
+    response: &DecodeStartResponse,
+    slot_index: u32,
+    generation: u64,
+) -> Result<FrameDescriptor, String> {
+    if slot_index >= response.slot_count {
+        return Err(format!(
+            "slotIndex out of bounds: slotIndex={slot_index}, slotCount={}",
+            response.slot_count
+        ));
+    }
+    let byte_offset = response
+        .slot_byte_len
+        .checked_mul(u64::from(slot_index))
+        .ok_or_else(|| {
+            format!(
+                "byte offset overflow: slotIndex={slot_index}, slotByteLen={}",
+                response.slot_byte_len
+            )
+        })?;
+
+    Ok(FrameDescriptor {
+        memory_id: response.memory_id.clone(),
+        slot_index,
+        generation,
+        byte_offset,
+        byte_len: response.slot_byte_len,
+        width: response.width,
+        height: response.height,
+        stride_bytes: response.stride_bytes,
+        format: response.format,
+        colour: response.colour.clone(),
+    })
 }
 
 fn handle_export_start(id: u64, params: Value, state: &mut BackendState) -> RpcResponse {

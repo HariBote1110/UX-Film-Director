@@ -81,7 +81,8 @@ fn decode_request_frame_decodes_requested_source_frame_to_verified_descriptor_wi
         .expect("slot byte length") as usize;
     assert_ne!(stride_bytes, fixture.width as usize * 4);
 
-    let expected_tight_rgba = decode_tight_rgba_frame(&fixture.path, 1, fixture.width, fixture.height);
+    let expected_tight_rgba =
+        decode_tight_rgba_frame(&fixture.path, 1, fixture.width, fixture.height);
     let expected_padded_rgba = pad_rgba_rows(
         &expected_tight_rgba,
         fixture.width,
@@ -136,7 +137,10 @@ fn decode_request_frame_decodes_requested_source_frame_to_verified_descriptor_wi
         response["result"]["verification"]["checksum"]["byteLen"],
         slot_byte_len
     );
-    assert_eq!(response["result"]["verification"]["status"], "withinTolerance");
+    assert_eq!(
+        response["result"]["verification"]["status"],
+        "withinTolerance"
+    );
     assert_no_frame_bytes_recursive(&response["result"]);
 }
 
@@ -151,7 +155,7 @@ fn decode_request_frame_accepts_frame_index_without_float_seconds() {
         "params": {
             "jobId": "decode-1",
             "requestId": 7,
-            "frameIndex": 42,
+            "frameIndex": 1,
             "mode": "latestWins"
         }
     }));
@@ -160,11 +164,11 @@ fn decode_request_frame_accepts_frame_index_without_float_seconds() {
     assert_eq!(response["result"]["accepted"], true);
     assert_eq!(response["result"]["jobId"], "decode-1");
     assert_eq!(response["result"]["requestId"], 7);
-    assert_eq!(response["result"]["frameIndex"], 42);
+    assert_eq!(response["result"]["frameIndex"], 1);
     assert_eq!(response["result"]["mode"], "latestWins");
     assert!(response["result"].get("seconds").is_none());
     assert!(response["result"].get("time").is_none());
-    assert_no_frame_bytes(&response["result"]);
+    assert_no_frame_bytes_recursive(&response["result"]);
 }
 
 #[test]
@@ -172,21 +176,39 @@ fn decode_release_frame_requires_completed_gpu_copy_out() {
     let mut backend = BackendProcess::start();
     backend.start_decode();
 
+    let frame_response = backend.request(json!({
+        "id": 2,
+        "method": "decode.requestFrame",
+        "params": {
+            "jobId": "decode-1",
+            "requestId": 8,
+            "frameIndex": 1,
+            "mode": "latestWins"
+        }
+    }));
+    assert_eq!(frame_response["ok"], true);
+
     let response = backend.request(json!({
         "id": 3,
         "method": "decode.releaseFrame",
         "params": {
             "jobId": "decode-1",
-            "slotIndex": 1,
-            "generation": 7,
+            "slotIndex": frame_response["result"]["frame"]["descriptor"]["slotIndex"],
+            "generation": frame_response["result"]["frame"]["descriptor"]["generation"],
             "copyOutState": "gpuUploadFenceSignalled"
         }
     }));
 
     assert_eq!(response["ok"], true);
     assert_eq!(response["result"]["released"], true);
-    assert_eq!(response["result"]["slotIndex"], 1);
-    assert_eq!(response["result"]["generation"], 7);
+    assert_eq!(
+        response["result"]["slotIndex"],
+        frame_response["result"]["frame"]["descriptor"]["slotIndex"]
+    );
+    assert_eq!(
+        response["result"]["generation"],
+        frame_response["result"]["frame"]["descriptor"]["generation"]
+    );
     assert_no_frame_bytes(&response["result"]);
 }
 
@@ -231,7 +253,8 @@ impl TestTempDir {
             .duration_since(UNIX_EPOCH)
             .expect("system clock should be after unix epoch")
             .as_micros();
-        let path = std::env::temp_dir().join(format!("uxfd-{label}-{}-{micros}", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("uxfd-{label}-{}-{micros}", std::process::id()));
         fs::create_dir_all(&path).expect("create temporary directory");
         Self { path }
     }
@@ -380,6 +403,7 @@ struct BackendProcess {
     child: Child,
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
+    temp_dirs: Vec<TestTempDir>,
 }
 
 impl BackendProcess {
@@ -396,21 +420,24 @@ impl BackendProcess {
             child,
             stdin,
             stdout,
+            temp_dirs: Vec::new(),
         }
     }
 
     fn start_decode(&mut self) {
+        let temp_dir = TestTempDir::new("decode-control-plane-session");
+        let fixture = build_two_frame_h264_fixture(temp_dir.path());
         let response = self.request(json!({
             "id": 1,
             "method": "decode.start",
             "params": {
                 "jobId": "decode-1",
-                "source": "/media/input.mp4",
+                "source": fixture.path,
                 "slotCount": 2,
-                "width": 1280,
-                "height": 720,
+                "width": fixture.width,
+                "height": fixture.height,
                 "sourceRate": {
-                    "numerator": 60,
+                    "numerator": 30,
                     "denominator": 1
                 },
                 "format": "rgba8Srgb",
@@ -424,6 +451,7 @@ impl BackendProcess {
         }));
 
         assert_eq!(response["ok"], true);
+        self.temp_dirs.push(temp_dir);
     }
 
     fn request(&mut self, payload: Value) -> Value {
