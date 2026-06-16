@@ -1,3 +1,36 @@
+## 2026-06-16 — Phase5: solid rectangle 図形の vertex 生成を Rust/WASM に接続
+
+### 実施内容
+- `rust-core` に `solid_colour_scene` module を追加し、`SceneSnapshot + SceneMediaReference + CanvasSize` から
+  SolidColour draw list と WebGPU 用 vertex buffer を生成する契約を TDD で固定した。
+  - `#rrggbb` colour source の parse。
+  - clip opacity を掛けた premultiplied colour の生成。
+  - canvas pixel 座標から clip-space 座標への変換。
+- `rust-core-wasm` crate を追加し、`build_solid_colour_vertex_scene` を browser から呼べる WASM binding として生成した。
+- `sharedRendererWebGpuPresenter` は、自前で矩形 geometry を作るのではなく、生成済み SolidColour vertices を受け取って
+  GPU buffer に upload する形へ変更した。
+- `sharedRendererPreviewPresenterController` は SolidColour clip がある時だけ Rust/WASM builder を読み込み、
+  WASM 読み込みに失敗した場合は TypeScript fallback を使う。
+- `package.json` / `package-lock.json` を `0.1.1-Beta-35a` に更新し、`wasm:build:rust-core` script を追加した。
+
+### 選定理由・判断の根拠
+- 動画の前に図形を Rust 化する方針に合わせ、まず失敗時の影響が小さい solid rectangle を Rust/WASM 境界の縦スライスにした。
+- GPU command 発行はまだ TypeScript/WebGPU に残し、geometry / colour / vertex 生成だけを Rust に寄せた。
+  これにより、次の動画 gate へ進む前に Rust/WASM 呼び出し、fallback、presenter 受け口を確認できる。
+- controller では TS draw list 生成を事前判定から外し、SolidColour clip の有無だけを見るようにした。
+  実際の colour parse と vertex 生成は Rust/WASM builder へ寄せる。
+
+### 検証
+- `cargo test --manifest-path rust-core/Cargo.toml`
+  - 28 tests passed。
+- `cargo check --manifest-path rust-core-wasm/Cargo.toml`
+  - passed。
+- `wasm-pack build rust-core-wasm --target web --out-dir ../src/wasm/rust-core --out-name uxfd_rust_core_wasm`
+  - passed。
+- Node `initSync` で生成済み WASM を直接呼び、`rect_count=1` と先頭 vertex `[-0.6875, 0.777777791, 0.5, 0, 0, 0.5]` を確認した。
+- `npm test -- src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/sharedRendererRustSolidColourScene.test.ts src/utils/sharedRendererSolidColourScene.test.ts`
+  - 4 files / 23 tests passed。
+
 ## 2026-06-16 — Phase5: shared renderer overlay が動画を隠す不具合を修正
 
 ### 実施内容

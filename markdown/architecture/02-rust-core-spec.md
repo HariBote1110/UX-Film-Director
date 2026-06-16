@@ -65,6 +65,7 @@ MVP では以下の clip 種別だけを対象にする。
 
 - video plane
 - image plane
+- solid colour plane（Phase5 の既存 UI bridge では矩形 shape の最小表現として使用）
 
 Clip は以下を持つ。
 
@@ -89,6 +90,22 @@ MVP の `transform` は以下の幾何値と sampling mode で表現する。
 既定値は identity transform（translation 0、scale 1、rotation 0、sampling `nearest`）とする。
 
 `bilinear` は renderer が texture sample を sRGB encoded RGBA8 から linear light へ decode し、linear light 上で補間してから合成する。encoded sRGB 値を直接補間してはならない。
+
+### Solid Colour Plane
+
+Phase5 の既存 UI bridge では、`shapeType: "rect"` かつ gradient 無しの shape を `SolidColour` media と
+`SolidColourPlane` clip として扱う。`rust-core` は `SceneSnapshot + SceneMediaReference + CanvasSize` から、
+premultiplied colour の矩形 draw list と WebGPU vertex buffer 用の float 配列を生成する。
+
+この経路の責務:
+
+- `#rrggbb` colour source の parse。
+- clip opacity を掛けた premultiplied colour の生成。
+- integer translation / identity scale 前提の矩形 vertex 生成。
+- canvas pixel 座標から clip-space 座標への変換。
+
+円、丸角、グラデーション、回転、任意 scale、anti-aliasing coverage はまだ別 gate とし、既存 bridge では
+fail-loud または Pixi fallback に留める。
 
 ### Property
 
