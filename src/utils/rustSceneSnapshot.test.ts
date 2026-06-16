@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { ImageObject, ProjectSettings, TimelineObject, VideoObject } from '../types';
+import type { ImageObject, ProjectSettings, ShapeObject, TimelineObject, VideoObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -64,7 +64,73 @@ const baseVideo = (patch: Partial<VideoObject> = {}): VideoObject => ({
   ...patch,
 });
 
+const baseShape = (patch: Partial<ShapeObject> = {}): ShapeObject => ({
+  id: 'shape-1',
+  type: 'shape',
+  name: 'Rectangle',
+  layer: 0,
+  startTime: 1,
+  duration: 4,
+  x: 300,
+  y: 120,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.5,
+  enableAnimation: false,
+  endX: 300,
+  endY: 120,
+  easing: 'linear',
+  shapeType: 'rect',
+  width: 200,
+  height: 100,
+  fill: '#ff0000',
+  ...patch,
+});
+
 describe('buildRustSceneSnapshotForTimeline', () => {
+  it('builds a solid colour plane for active rectangle shapes', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseShape()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected snapshot build to pass');
+
+    expect(result.snapshot.clips).toEqual([
+      {
+        clip_id: 'shape-1',
+        track_id: 'layer-0',
+        media_id: 'shape-1',
+        source_frame: 0,
+        z_index: 0,
+        transform: {
+          translation_x: 300,
+          translation_y: 120,
+          scale_x: 1,
+          scale_y: 1,
+          rotation_degrees: 0,
+          sampling: 'nearest',
+        },
+        opacity: 0.5,
+        effects: [],
+      },
+    ]);
+    expect(result.media).toEqual([
+      {
+        id: 'shape-1',
+        kind: 'SolidColour',
+        source: '#ff0000',
+        width: 200,
+        height: 100,
+      },
+    ]);
+  });
+
   it('builds a rust-core compatible scene snapshot for active image and video planes', () => {
     const layers = createDefaultLayers();
     const result = buildRustSceneSnapshotForTimeline({
@@ -230,6 +296,39 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       'unsupportedObjectType',
       'unsupportedRotation',
       'unsupportedFilter',
+    ]);
+  });
+
+  it('fails loud for shape geometry outside the first shared renderer rectangle envelope', () => {
+    const layers = createDefaultLayers();
+    const circle = baseShape({
+      id: 'circle',
+      shapeType: 'circle',
+    });
+    const gradient = baseShape({
+      id: 'gradient',
+      gradient: {
+        enabled: true,
+        type: 'linear',
+        colours: ['#ff0000', '#0000ff'],
+        stops: [0, 1],
+        direction: 0,
+      },
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [circle, gradient],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected snapshot build to fail');
+
+    expect(issueCodes(result.issues)).toEqual([
+      'unsupportedShapeGeometry',
+      'unsupportedShapeGeometry',
     ]);
   });
 

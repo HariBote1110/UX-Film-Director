@@ -80,6 +80,57 @@ fn evaluated_clip_carries_effects_for_renderer_contract() {
 }
 
 #[test]
+fn project_schema_accepts_solid_colour_media_for_rectangle_shapes() {
+    let project = Project {
+        id: "project-1".to_string(),
+        version: 1,
+        size: ProjectSize {
+            width: 1920,
+            height: 1080,
+        },
+        fps: Fps {
+            numerator: 60,
+            denominator: 1,
+        },
+        colour: ColourPipeline::rec709_sdr_linear(),
+        media: vec![MediaReference {
+            id: "shape-1".to_string(),
+            kind: MediaKind::SolidColour,
+            source: "#ff0000".to_string(),
+        }],
+        tracks: vec![Track {
+            id: "track-1".to_string(),
+            clips: vec![Clip {
+                id: "shape-clip-1".to_string(),
+                media_id: "shape-1".to_string(),
+                kind: ClipKind::SolidColourPlane,
+                start_frame: 0,
+                duration_frames: 60,
+                transform: Transform {
+                    translation_x: 300.0,
+                    translation_y: 120.0,
+                    scale_x: 1.0,
+                    scale_y: 1.0,
+                    rotation_degrees: 0.0,
+                    sampling: SamplingMode::Nearest,
+                },
+                opacity: 0.5,
+                opacity_keyframes: Vec::new(),
+                effects: Vec::new(),
+            }],
+        }],
+    };
+
+    let encoded = serde_json::to_value(&project).expect("serialise project");
+    assert_eq!(encoded["media"][0]["kind"], "SolidColour");
+    assert_eq!(encoded["tracks"][0]["clips"][0]["kind"], "SolidColourPlane");
+
+    let snapshot = evaluate_frame(&project, 0);
+    assert_eq!(snapshot.clips[0].media_id, "shape-1");
+    assert_eq!(snapshot.clips[0].opacity, 0.5);
+}
+
+#[test]
 fn scene_snapshot_serialises_with_renderer_boundary_field_names() {
     let project = project_with_transform();
     let snapshot = evaluate_frame(&project, 10);
