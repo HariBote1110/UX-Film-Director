@@ -2,6 +2,10 @@ import type {
   SharedRendererVideoCutoverReason,
   SharedRendererVideoOwner,
 } from './sharedRendererVideoOwnership';
+import type {
+  SharedRendererSolidColourCutoverReason,
+  SharedRendererSolidColourOwner,
+} from './sharedRendererSolidColourOwnership';
 
 export type SharedRendererPresenterDiagnosticState =
   | {
@@ -12,6 +16,9 @@ export type SharedRendererPresenterDiagnosticState =
       format: string;
       swatch: 'solid-srgb' | 'solid-colour-scene' | 'pixi-passthrough';
       geometrySource?: 'rust-wasm' | 'typescript';
+      solidColourOwner?: SharedRendererSolidColourOwner;
+      solidColourCutoverReason?: SharedRendererSolidColourCutoverReason;
+      sharedSolidColourObjectCount?: number;
       videoGeometrySource?: 'rust-wasm' | 'typescript';
       videoDecodeRequestSource?: 'rust-wasm' | 'typescript';
       videoDecodeRequestCount?: number;
@@ -39,6 +46,9 @@ export const writeSharedRendererPresenterDiagnostics = (
   delete dataset.uxfdSharedRendererPresenterFormat;
   delete dataset.uxfdSharedRendererPresenterSwatch;
   delete dataset.uxfdSharedRendererPresenterGeometrySource;
+  delete dataset.uxfdSharedRendererPresenterSolidColourOwner;
+  delete dataset.uxfdSharedRendererPresenterSolidColourCutoverReason;
+  delete dataset.uxfdSharedRendererPresenterSharedSolidColourObjectCount;
   delete dataset.uxfdSharedRendererPresenterVideoGeometrySource;
   delete dataset.uxfdSharedRendererPresenterVideoDecodeRequestSource;
   delete dataset.uxfdSharedRendererPresenterVideoDecodeRequestCount;
@@ -53,6 +63,15 @@ export const writeSharedRendererPresenterDiagnostics = (
     dataset.uxfdSharedRendererPresenterSwatch = state.swatch;
     if (state.geometrySource) {
       dataset.uxfdSharedRendererPresenterGeometrySource = state.geometrySource;
+    }
+    if (state.solidColourOwner) {
+      dataset.uxfdSharedRendererPresenterSolidColourOwner = state.solidColourOwner;
+    }
+    if (state.solidColourCutoverReason) {
+      dataset.uxfdSharedRendererPresenterSolidColourCutoverReason = state.solidColourCutoverReason;
+    }
+    if (typeof state.sharedSolidColourObjectCount === 'number') {
+      dataset.uxfdSharedRendererPresenterSharedSolidColourObjectCount = String(state.sharedSolidColourObjectCount);
     }
     if (state.videoGeometrySource) {
       dataset.uxfdSharedRendererPresenterVideoGeometrySource = state.videoGeometrySource;

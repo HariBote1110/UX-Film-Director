@@ -115,6 +115,7 @@ export interface SharedRendererSolidSrgbSwatch {
 export interface SharedRendererSolidColourSceneInput {
   snapshot: RustSceneSnapshot;
   media: RustSceneMediaReference[];
+  solidColourObjectIds?: ReadonlySet<string>;
 }
 
 export type SharedRendererSolidColourScenePresentationResult =
@@ -262,10 +263,12 @@ export const createSharedRendererWebGpuPresenter = async ({
   const presentSolidColourScene = ({
     snapshot,
     media,
+    solidColourObjectIds,
   }: SharedRendererSolidColourSceneInput): SharedRendererSolidColourScenePresentationResult => {
     const vertexScene = solidColourVertexSceneBuilder({
       snapshot,
       media,
+      solidColourObjectIds,
       canvas: { width: canvas.width, height: canvas.height },
     });
     if (!vertexScene.ok) {

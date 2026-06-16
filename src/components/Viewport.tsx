@@ -120,6 +120,7 @@ const Viewport: React.FC = () => {
   const loadingUrlsRef = useRef<Set<string>>(new Set());
   const videoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
   const videoFrameTexturesRef = useRef<Map<string, VideoFrameTextureState>>(new Map());
+  const sharedRendererSolidColourObjectIdsRef = useRef<Set<string>>(new Set());
   const sharedRendererVideoObjectIdsRef = useRef<Set<string>>(new Set());
   /** VideoDecoder ハイブリッドパス: エクスポート時にフレームを注入するためのマップ */
   const exportFrameOverridesRef = useRef<Map<string, ImageBitmap>>(new Map());
@@ -140,6 +141,15 @@ const Viewport: React.FC = () => {
     fallbackAdapter: false,
   });
   const [sharedRendererPreviewSession, setSharedRendererPreviewSession] = useState<SharedRendererPreviewSession | null>(null);
+
+  const updateSharedRendererSolidColourObjectIds = useCallback((objectIds: string[]) => {
+    const current = sharedRendererSolidColourObjectIdsRef.current;
+    const next = new Set(objectIds);
+    const unchanged = current.size === next.size && [...current].every((objectId) => next.has(objectId));
+    if (unchanged) return;
+    sharedRendererSolidColourObjectIdsRef.current = next;
+    setRenderTick((previous) => previous + 1);
+  }, []);
 
   const updateSharedRendererVideoObjectIds = useCallback((objectIds: string[]) => {
     const current = sharedRendererVideoObjectIdsRef.current;
@@ -494,6 +504,7 @@ const Viewport: React.FC = () => {
     if (!sharedRendererPreviewEnabled || !sharedRendererPreviewSession) {
       sharedRendererPresenterControlRef.current?.dispose();
       sharedRendererPresenterControlRef.current = null;
+      updateSharedRendererSolidColourObjectIds([]);
       updateSharedRendererVideoObjectIds([]);
       return;
     }
@@ -505,12 +516,14 @@ const Viewport: React.FC = () => {
         status: 'fallback',
         reason: 'surfaceCanvasUnavailable',
       });
+      updateSharedRendererSolidColourObjectIds([]);
       updateSharedRendererVideoObjectIds([]);
       return;
     }
 
     sharedRendererPresenterControlRef.current?.dispose();
     sharedRendererPresenterControlRef.current = null;
+    updateSharedRendererSolidColourObjectIds([]);
     updateSharedRendererVideoObjectIds([]);
 
     let cancelled = false;
@@ -532,9 +545,11 @@ const Viewport: React.FC = () => {
       }
       currentControl = control;
       sharedRendererPresenterControlRef.current = control;
+      updateSharedRendererSolidColourObjectIds(control.ok ? control.solidColourOwnership.solidColourObjectIds : []);
       updateSharedRendererVideoObjectIds(control.ok ? control.videoOwnership.videoObjectIds : []);
     }).catch(() => {
       if (cancelled) return;
+      updateSharedRendererSolidColourObjectIds([]);
       updateSharedRendererVideoObjectIds([]);
       datasets.forEach((dataset) => {
         writeSharedRendererPresenterDiagnostics(dataset, {
@@ -551,7 +566,7 @@ const Viewport: React.FC = () => {
         sharedRendererPresenterControlRef.current = null;
       }
     };
-  }, [sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, updateSharedRendererVideoObjectIds]);
+  }, [sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, updateSharedRendererSolidColourObjectIds, updateSharedRendererVideoObjectIds]);
 
   // --- Main Render Logic ---
   const renderScene = useCallback((time: number, currentObjects: TimelineObject[]) => {
@@ -683,6 +698,7 @@ const Viewport: React.FC = () => {
           setRenderTick,
           exportFrameOverrides: exportFrameOverridesRef.current,
           exportOverlayCanvases: exportOverlayCanvasesRef.current,
+          sharedRendererSolidColourObjectIds: sharedRendererSolidColourObjectIdsRef.current,
           sharedRendererVideoObjectIds: sharedRendererVideoObjectIdsRef.current,
           useCanvasVideoUpload,
       });

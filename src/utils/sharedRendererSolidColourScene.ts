@@ -69,6 +69,7 @@ export interface SharedRendererSolidColourDrawListInput {
     width: number;
     height: number;
   };
+  solidColourObjectIds?: ReadonlySet<string>;
 }
 
 export type SharedRendererSolidColourVertexSceneBuilder = (
@@ -113,6 +114,7 @@ export const buildSharedRendererSolidColourVertexScene: SharedRendererSolidColou
 export const buildSharedRendererSolidColourDrawList = ({
   snapshot,
   media,
+  solidColourObjectIds,
 }: SharedRendererSolidColourDrawListInput): SharedRendererSolidColourDrawListResult => {
   const mediaById = new Map(media.map((reference) => [reference.id, reference]));
   const rects: SharedRendererSolidColourRect[] = [];
@@ -121,6 +123,7 @@ export const buildSharedRendererSolidColourDrawList = ({
   for (const clip of sortedClips) {
     const reference = mediaById.get(clip.media_id);
     if (!reference || reference.kind !== 'SolidColour') continue;
+    if (solidColourObjectIds && !solidColourObjectIds.has(clip.clip_id)) continue;
 
     const parsed = parseSharedRendererSolidColour(reference.source);
     if (!parsed.ok) {

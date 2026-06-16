@@ -13,6 +13,7 @@ import {
   clearPixiVideoForSharedRenderer,
   shouldSkipPixiVideoForSharedRenderer,
 } from './pixiVideoCutover';
+import { shouldSkipPixiSolidColourForSharedRenderer } from './pixiSolidColourCutover';
 
 // ... (Shader definitions omitted for brevity - same as previous) ...
 const vertexShader = `
@@ -713,6 +714,7 @@ export const updatePixiContent = (
         exportFrameOverrides?: Map<string, ImageBitmap>;
         /** exportFrameOverrides を PixiJS テクスチャに変換する OffscreenCanvas キャッシュ */
         exportOverlayCanvases?: Map<string, ExportOverlayCanvas>;
+        sharedRendererSolidColourObjectIds?: ReadonlySet<string>;
         sharedRendererVideoObjectIds?: ReadonlySet<string>;
         /**
          * WebGPU（`RendererType` 2）のとき true。動画を VideoSource ではなく 2D Canvas 経由でテクスチャ化し、
@@ -721,7 +723,7 @@ export const updatePixiContent = (
         useCanvasVideoUpload: boolean;
     }
 ) => {
-    const { textureCache, loadingUrls, videoElements, videoFrameTextures, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, exportFrameOverrides, exportOverlayCanvases, sharedRendererVideoObjectIds, useCanvasVideoUpload } = resources;
+    const { textureCache, loadingUrls, videoElements, videoFrameTextures, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, exportFrameOverrides, exportOverlayCanvases, sharedRendererSolidColourObjectIds, sharedRendererVideoObjectIds, useCanvasVideoUpload } = resources;
     let content = container.children[0] as (PIXI.Sprite | PIXI.Graphics | PIXI.Text | PIXI.Container | undefined);
     
     // Check for recreation
@@ -743,6 +745,19 @@ export const updatePixiContent = (
     }
 
     if (obj.type === 'shape') {
+        if (shouldSkipPixiSolidColourForSharedRenderer({
+            objectId: obj.id,
+            objectType: obj.type,
+            isExporting,
+            sharedRendererSolidColourObjectIds,
+        })) {
+            const children = container.removeChildren();
+            children.forEach((child) => child.destroy({ children: true, texture: false, context: true }));
+            container.hitArea = new PIXI.Rectangle(0, 0, obj.width, obj.height);
+            return undefined;
+        }
+        container.hitArea = null;
+
         let graphics = content as PIXI.Graphics || new PIXI.Graphics();
         if (!content) container.addChild(graphics);
         graphics.clear();

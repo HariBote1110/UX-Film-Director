@@ -25,6 +25,11 @@ import {
   type SharedRendererVideoOwnership,
 } from './sharedRendererVideoOwnership';
 import { buildSharedRendererVideoCutoverStackSafety } from './sharedRendererVideoCutoverStack';
+import {
+  buildSharedRendererSolidColourOwnership,
+  buildSharedRendererSolidColourStackSafety,
+  type SharedRendererSolidColourOwnership,
+} from './sharedRendererSolidColourOwnership';
 
 export const SHARED_RENDERER_SOLID_SWATCH: SharedRendererSolidSrgbSwatch = {
   red: 0.25,
@@ -46,6 +51,7 @@ export type SharedRendererPreviewPresenterControl =
   | {
       ok: true;
       format: string;
+      solidColourOwnership: SharedRendererSolidColourOwnership;
       videoOwnership: SharedRendererVideoOwnership;
       dispose: () => void;
     }
@@ -70,6 +76,7 @@ export interface StartSharedRendererPreviewPresenterInput {
   rustVideoPlaneVertexSceneBuilder?: SharedRendererVideoPlaneVertexSceneBuilder;
   rustVideoFrameDecodeRequestWasmEnabled?: boolean;
   rustVideoFrameDecodeRequestBuilder?: SharedRendererVideoFrameDecodeRequestBuilder;
+  sharedRendererSolidColourCutoverEnabled?: boolean;
   sharedRendererVideoCutoverEnabled?: boolean;
   sharedRendererVideoFrameUploadReady?: boolean;
 }
@@ -89,6 +96,7 @@ export const startSharedRendererPreviewPresenter = async ({
   rustVideoPlaneVertexSceneBuilder,
   rustVideoFrameDecodeRequestWasmEnabled = defaultRustVideoFrameDecodeRequestWasmEnabled(),
   rustVideoFrameDecodeRequestBuilder,
+  sharedRendererSolidColourCutoverEnabled = defaultSharedRendererSolidColourCutoverEnabled(),
   sharedRendererVideoCutoverEnabled = defaultSharedRendererVideoCutoverEnabled(),
   sharedRendererVideoFrameUploadReady = false,
 }: StartSharedRendererPreviewPresenterInput): Promise<SharedRendererPreviewPresenterControl> => {
@@ -184,6 +192,26 @@ export const startSharedRendererPreviewPresenter = async ({
       ? new Set(videoCutoverStackSafety.safeVideoObjectIds)
       : undefined,
   });
+  const solidColourObjectIds = hasSolidColourScene
+    ? collectSolidColourObjectIds(session)
+    : [];
+  const solidColourStackSafety = hasSolidColourScene
+    ? buildSharedRendererSolidColourStackSafety({
+      snapshot: session.surfaceGate.snapshot,
+      media: session.surfaceGate.media,
+      candidateSolidColourObjectIds: solidColourObjectIds,
+      sharedRendererVideoObjectIds: videoOwnership.videoObjectIds,
+    })
+    : null;
+  const solidColourOwnership = buildSharedRendererSolidColourOwnership({
+    cutoverEnabled: sharedRendererSolidColourCutoverEnabled,
+    hasSolidColourScene,
+    geometrySource: solidColourGeometrySource,
+    solidColourObjectIds,
+    stackSafeSolidColourObjectIds: solidColourStackSafety
+      ? new Set(solidColourStackSafety.safeSolidColourObjectIds)
+      : undefined,
+  });
 
   const presenter = await createSharedRendererWebGpuPresenter({
     canvas,
@@ -217,9 +245,13 @@ export const startSharedRendererPreviewPresenter = async ({
 
   const shouldPassThroughToPixi = !hasSolidColourScene && !diagnosticSwatchEnabled;
   if (hasSolidColourScene || shouldPassThroughToPixi) {
+    const solidColourObjectIdsForPresentation = solidColourGeometrySource === 'rust-wasm'
+      ? new Set(solidColourOwnership.solidColourObjectIds)
+      : undefined;
     const presentation = presenter.presentSolidColourScene({
       snapshot: session.surfaceGate.snapshot,
       media: session.surfaceGate.media,
+      solidColourObjectIds: solidColourObjectIdsForPresentation,
     });
     if (!presentation.ok) {
       writeDiagnostics({
@@ -240,6 +272,9 @@ export const startSharedRendererPreviewPresenter = async ({
     status: 'ready',
     format: presenter.format,
     geometrySource: solidColourGeometrySource,
+    solidColourOwner: hasSolidColourScene ? solidColourOwnership.owner : undefined,
+    solidColourCutoverReason: hasSolidColourScene ? solidColourOwnership.reason : undefined,
+    sharedSolidColourObjectCount: hasSolidColourScene ? solidColourOwnership.solidColourObjectIds.length : undefined,
     videoGeometrySource,
     videoDecodeRequestSource,
     videoDecodeRequestCount,
@@ -256,6 +291,7 @@ export const startSharedRendererPreviewPresenter = async ({
   return {
     ok: true,
     format: presenter.format,
+    solidColourOwnership,
     videoOwnership,
     dispose: presenter.dispose,
   };
@@ -272,6 +308,9 @@ const defaultRustVideoPlaneWasmEnabled = (): boolean =>
 const defaultRustVideoFrameDecodeRequestWasmEnabled = (): boolean =>
   import.meta.env.VITE_UXFD_SHARED_RENDERER_RUST_VIDEO !== '0';
 
+const defaultSharedRendererSolidColourCutoverEnabled = (): boolean =>
+  import.meta.env.VITE_UXFD_SHARED_RENDERER_SHAPE_CUTOVER !== '0';
+
 const defaultSharedRendererVideoCutoverEnabled = (): boolean =>
   import.meta.env.VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER === '1';
 
@@ -280,6 +319,16 @@ const hasSolidColourClip = (session: SharedRendererPreviewSession): boolean => {
 
   const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
   return session.surfaceGate.snapshot.clips.some((clip) => mediaKindById.get(clip.media_id) === 'SolidColour');
+};
+
+const collectSolidColourObjectIds = (session: SharedRendererPreviewSession): string[] => {
+  if (!session.surfaceGate.ok) return [];
+
+  const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
+  return session.surfaceGate.snapshot.clips
+    .filter((clip) => mediaKindById.get(clip.media_id) === 'SolidColour')
+    .sort((left, right) => left.z_index - right.z_index)
+    .map((clip) => clip.clip_id);
 };
 
 const hasVideoClip = (session: SharedRendererPreviewSession): boolean => {
