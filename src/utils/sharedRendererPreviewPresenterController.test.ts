@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildSharedRendererPresentationContract } from './sharedRendererPresentationContract';
 import {
+  getSharedRendererSolidSwatchCssColour,
   SHARED_RENDERER_SOLID_SWATCH,
   startSharedRendererPreviewPresenter,
 } from './sharedRendererPreviewPresenterController';
@@ -39,6 +40,10 @@ const okSession: SharedRendererPreviewSession = {
 };
 
 describe('startSharedRendererPreviewPresenter', () => {
+  it('exposes a CSS reference colour from the same solid swatch constants', () => {
+    expect(getSharedRendererSolidSwatchCssColour()).toBe('rgb(64, 128, 191)');
+  });
+
   it('creates the WebGPU presenter, presents the solid swatch, and publishes ready diagnostics', async () => {
     const dataset: Record<string, string | undefined> = {};
     const renderPasses: unknown[] = [];
