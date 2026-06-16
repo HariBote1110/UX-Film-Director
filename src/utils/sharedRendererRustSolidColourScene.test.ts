@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { createSharedRendererRustSolidColourVertexSceneBuilder } from './sharedRendererRustSolidColourScene';
+import {
+  createSharedRendererRustSolidColourVertexSceneBuilder,
+  loadSharedRendererRustSolidColourVertexSceneBuilder,
+} from './sharedRendererRustSolidColourScene';
 import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
 
 const snapshot: RustSceneSnapshot = {
@@ -70,5 +73,47 @@ describe('createSharedRendererRustSolidColourVertexSceneBuilder', () => {
       detail: 'SolidColour media source must be a #rrggbb hex colour.',
       mediaId: 'shape-1',
     });
+  });
+
+  it('loads and initialises the Rust/WASM module before returning a vertex scene builder', async () => {
+    let initCount = 0;
+    const builder = await loadSharedRendererRustSolidColourVertexSceneBuilder({
+      importWasmModule: async () => ({
+        default: async () => {
+          initCount += 1;
+        },
+        build_solid_colour_vertex_scene: () => ({
+          ok: true,
+          rect_count: 1,
+          vertices: [0, 1, 0.5, 0.25, 0.125, 1],
+        }),
+      }),
+    });
+
+    expect(initCount).toBe(1);
+    expect(builder).not.toBeNull();
+    if (!builder) throw new Error('expected Rust builder to load');
+
+    const result = builder({
+      snapshot,
+      media,
+      canvas: { width: 1920, height: 1080 },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected loaded Rust builder to pass');
+    expect(result.rectCount).toBe(1);
+    expect(Array.from(result.vertices)).toEqual([0, 1, 0.5, 0.25, 0.125, 1]);
+  });
+
+  it('returns null when Rust/WASM shape generation is disabled', async () => {
+    const builder = await loadSharedRendererRustSolidColourVertexSceneBuilder({
+      enabled: false,
+      importWasmModule: async () => {
+        throw new Error('disabled loader must not import wasm');
+      },
+    });
+
+    expect(builder).toBeNull();
   });
 });
