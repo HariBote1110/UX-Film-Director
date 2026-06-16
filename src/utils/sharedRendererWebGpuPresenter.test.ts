@@ -365,6 +365,67 @@ describe('createSharedRendererWebGpuPresenter', () => {
     expect(submittedCommandBuffers).toEqual(['finished-command-buffer']);
   });
 
+  it('accepts prebuilt SolidColour vertices so Rust/WASM can own shape geometry', async () => {
+    const writtenBuffers: Array<{ buffer: unknown; offset: number; data: Float32Array }> = [];
+    const rustVertices = new Float32Array([
+      -0.5, 0.5, 0.25, 0.125, 0.0, 0.75,
+      0.5, 0.5, 0.25, 0.125, 0.0, 0.75,
+      -0.5, -0.5, 0.25, 0.125, 0.0, 0.75,
+      -0.5, -0.5, 0.25, 0.125, 0.0, 0.75,
+      0.5, 0.5, 0.25, 0.125, 0.0, 0.75,
+      0.5, -0.5, 0.25, 0.125, 0.0, 0.75,
+    ]);
+    const builderCalls: unknown[] = [];
+    const device = fakeDevice({
+      onWriteBuffer: (buffer, offset, data) => {
+        writtenBuffers.push({ buffer, offset, data });
+      },
+    });
+
+    const result = await createSharedRendererWebGpuPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      surfaceGate: {
+        ...okSurfaceGate,
+        snapshot: solidShapeSnapshot,
+        media: solidShapeMedia,
+      },
+      presentationContract: buildSharedRendererPresentationContract(),
+      gpu: fakeGpu({
+        onRequestAdapter: () => fakeAdapter({ device }),
+      }),
+      textureUsageRenderAttachment: 16,
+      solidColourVertexSceneBuilder: (input) => {
+        builderCalls.push(input);
+        return {
+          ok: true,
+          rectCount: 1,
+          vertices: rustVertices,
+        };
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected presenter creation to pass');
+
+    expect(result.presentSolidColourScene({
+      snapshot: solidShapeSnapshot,
+      media: solidShapeMedia,
+    })).toEqual({
+      ok: true,
+      rectCount: 1,
+    });
+
+    expect(builderCalls).toEqual([
+      {
+        snapshot: solidShapeSnapshot,
+        media: solidShapeMedia,
+        canvas: { width: 1920, height: 1080 },
+      },
+    ]);
+    expect(writtenBuffers).toHaveLength(1);
+    expect(writtenBuffers[0].data).toBe(rustVertices);
+  });
+
   it('clears transparently for an empty SolidColour scene so Pixi can show through', async () => {
     const renderPasses: unknown[] = [];
     const renderPassOperations: string[] = [];
