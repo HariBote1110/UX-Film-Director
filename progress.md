@@ -520,6 +520,76 @@
   sampling 系 effect、real footage、bt709 / limited range、VFR、4:2:0 tolerance、shader encode / u8 readback、
   sidecar orchestration / cancellation / crash recovery。
 
+## 2026-06-16 — Breadth: bt709 transfer shipping export gate
+
+### Red
+- `decode-spike/tests/bt709_transfer_export_round_trip.rs` を追加し、sRGB encoded RGBA input を
+  bt709 transfer の H.264 4:4:4 へ変換して書き出す filter contract を先に固定した。
+- `native-wgpu-renderer/tests/export_round_trip.rs` に、native wgpu output -> bt709 transfer H.264 4:4:4 ->
+  再 decode -> known swatch / preview output 比較の gate を追加した。
+
+### Green
+- `explicit_rgba_to_h264_444_bt709_filter` / `explicit_h264_444_bt709_to_rgba_filter` /
+  `export_rgba_frame_to_h264_444_bt709` を実装した。
+- encode filter は入力側 `transferin=iec61966-2-1`、出力側 `transfer=bt709` とし、RGB matrix input は
+  `matrixin=gbr`、H.264 側は `matrix=bt709` とした。
+- `libx264` と container tag も `transfer=bt709` / `-color_trc bt709` に揃えた。
+- decode filter は bt709 transfer の H.264 4:4:4 を sRGB RGBA へ戻すため、
+  `transferin=bt709` -> `transfer=iec61966-2-1` を明示した。
+
+### 実測結果
+- RGBA -> bt709 H.264 4:4:4 -> RGBA: `maxDelta=2`、`meanAbsoluteError=0.328125`、
+  `PSNR=52.57532498834205`、`SSIM=0.999975264393527`。
+- native wgpu -> bt709 H.264 4:4:4 -> RGBA: `maxDelta=2`、`meanAbsoluteError=0.328125`、
+  `PSNR=52.57532498834205`、`SSIM=0.999975264393527`。
+- native preview output -> bt709 export round-trip output: `maxDelta=2`、`meanAbsoluteError=0.328125`、
+  `PSNR=52.57532498834205`、`SSIM=0.999975264393527`。
+- ffprobe metadata: `codec=h264`、`avgFrameRate=30/1`、`frameCount=1`、`range=pc`、
+  `space=bt709`、`transfer=bt709`、`primaries=bt709`。
+
+### 確認結果
+- `cargo fmt --manifest-path decode-spike/Cargo.toml`
+- `cargo test --manifest-path decode-spike/Cargo.toml --test bt709_transfer_export_round_trip -- --nocapture` -> 2 tests passed。
+- `cargo fmt --manifest-path native-wgpu-renderer/Cargo.toml`
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test export_round_trip -- --nocapture` -> 2 tests passed。
+
+## 2026-06-16 — Breadth: bt709 H.264 4:2:0 distribution export gate
+
+### Red
+- `decode-spike/tests/bt709_yuv420_export_round_trip.rs` を追加し、bt709 transfer / full range / H.264 4:2:0 の
+  distribution export contract を固定した。
+- `native-wgpu-renderer/tests/export_round_trip.rs` に、native wgpu output -> bt709 H.264 4:2:0 ->
+  再 decode の gate を追加した。
+
+### Green
+- `explicit_rgba_to_h264_420_bt709_filter` / `export_rgba_frame_to_h264_420_bt709` を実装した。
+- `ProbeSummary` に `pixelFormat` を追加し、ffprobe の `pix_fmt` を検証できるようにした。
+- full range 4:2:0 は ffprobe 上 `yuvj420p` と報告されるため、`range=pc` と合わせてその表記を受け入れる。
+- 32x16 の硬い色境界 swatch は 4:2:0 chroma subsampling の影響が内部まで強く出たため、
+  4:2:0 gate では 128x128 の同一色 swatch を使い、full-frame envelope と stable swatch interior を分けて判定した。
+
+### 実測結果
+- RGBA -> bt709 H.264 4:2:0 -> RGBA full-frame: `maxDelta=132`、`meanAbsoluteError=3.0048828125`、
+  `PSNR=27.403575633662975`、`SSIM=0.9915148895704098`。
+- RGBA -> bt709 H.264 4:2:0 -> RGBA swatch interior: `maxDelta=2`、`meanAbsoluteError=0.34375`、
+  `PSNR=52.390490931401914`、`SSIM=0.9999747882512735`。
+- native wgpu -> bt709 H.264 4:2:0 -> RGBA full-frame: `maxDelta=132`、`meanAbsoluteError=3.0048828125`、
+  `PSNR=27.403575633662975`、`SSIM=0.9915148895704098`。
+- native wgpu -> bt709 H.264 4:2:0 -> RGBA swatch interior: `maxDelta=2`、`meanAbsoluteError=0.34375`、
+  `PSNR=52.390490931401914`、`SSIM=0.9999747882512735`。
+
+### 判断
+- 4:2:0 は graphics / text / hard chroma edge で大きな局所劣化を起こす。これは codec/subsampling の性質であり、
+  renderer parity failure と混同しない。
+- distribution export の acceptance は full-frame envelope と stable-region correctness を別々に持つ。
+- 高忠実度が必要な編集確認・中間成果物は 4:4:4 gate、配布用互換性は 4:2:0 gate で扱う。
+
+### 確認結果
+- `cargo fmt --manifest-path decode-spike/Cargo.toml`
+- `cargo test --manifest-path decode-spike/Cargo.toml --test bt709_yuv420_export_round_trip -- --nocapture` -> 2 tests passed。
+- `cargo fmt --manifest-path native-wgpu-renderer/Cargo.toml`
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test export_round_trip -- --nocapture` -> 3 tests passed。
+
 ## 2026-06-16 — Phase4: sidecar protocol 契約の TDD 着手
 
 ### Red

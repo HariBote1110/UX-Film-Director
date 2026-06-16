@@ -364,11 +364,40 @@ YUV 側の colour contract を固定してから RGBA 化する。
 MVP ではまず 4:4:4 の数学 correctness を固定し、配布用 H.264 4:2:0 / HEVC は後続 gate で扱う。
 
 この spike は内部一貫性を優先し、H.264 4:4:4 も `transfer=iec61966-2-1` としてタグ付けしている。
-shipping export では SDR H.264 の一般的な再生環境に合わせ、bt709 transfer 出力を別 gate で確認する。
-ここは gamma misread を避けるための production 課題であり、現時点の architecture correctness gate とは分ける。
+shipping export では SDR H.264 の一般的な再生環境に合わせ、bt709 transfer 出力を使う。
+gamma misread を避けるため、bt709 transfer 版も別 gate として確認済みである。
+
+bt709 transfer shipping gate:
+
+- encode: `primariesin=bt709`、`transferin=iec61966-2-1`、`matrixin=gbr`、`rangein=full` から
+  `primaries=bt709`、`transfer=bt709`、`matrix=bt709`、`range=full` へ変換する。
+- decode verification: `transferin=bt709` から `transfer=iec61966-2-1` へ戻して RGBA 比較する。
+- `libx264` / container tags も `transfer=bt709` / `-color_trc bt709` に揃える。
+- RGBA -> bt709 H.264 4:4:4 -> RGBA: `maxDelta=2`、`meanAbsoluteError=0.328125`、
+  `PSNR=52.57532498834205`、`SSIM=0.999975264393527`。
+- native wgpu -> bt709 H.264 4:4:4 -> RGBA: `maxDelta=2`、`meanAbsoluteError=0.328125`、
+  `PSNR=52.57532498834205`、`SSIM=0.999975264393527`。
+- native preview output -> bt709 export round-trip output: `maxDelta=2`、
+  `meanAbsoluteError=0.328125`、`PSNR=52.57532498834205`、`SSIM=0.999975264393527`。
 
 MVP 縦スライスの WYSIWYG claim は「preview と export は codec 由来の 8-bit YUV 丸め床を除いて一致する」である。
-bit-exact equality は codec export を通した時点で要求しない。現 gate では residual は `maxDelta=1` である。
+bit-exact equality は codec export を通した時点で要求しない。sRGB-tag spike gate では residual は `maxDelta=1`、
+bt709-transfer shipping gate では transfer conversion を含めて `maxDelta=2` である。
+
+H.264 4:2:0 distribution gate:
+
+- encode: bt709 transfer shipping gate と同じ colour conversion を使い、最後を `format=yuv420p` にする。
+- ffprobe は full range 4:2:0 を `pix_fmt=yuvj420p` と報告する。これは `range=pc` と合わせて受け入れる。
+- 4:2:0 は chroma subsampling により、graphics / text / hard chroma edge で大きな局所劣化を起こす。
+  renderer parity failure と混同しない。
+- そのため distribution gate は full-frame envelope と stable swatch interior を分ける。
+- RGBA -> bt709 H.264 4:2:0 -> RGBA full-frame: `maxDelta=132`、
+  `meanAbsoluteError=3.0048828125`、`PSNR=27.403575633662975`、`SSIM=0.9915148895704098`。
+- RGBA -> bt709 H.264 4:2:0 -> RGBA swatch interior: `maxDelta=2`、
+  `meanAbsoluteError=0.34375`、`PSNR=52.390490931401914`、`SSIM=0.9999747882512735`。
+- native wgpu -> bt709 H.264 4:2:0 -> RGBA full-frame / swatch interior も同じ値で gate を通過した。
+
+高忠実度が必要な編集確認・中間成果物は 4:4:4 gate、配布用互換性は 4:2:0 gate で扱う。
 
 ## macOS VideoToolbox
 

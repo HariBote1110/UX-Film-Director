@@ -20,6 +20,7 @@ pub struct ProbeSummary {
     pub codec_name: String,
     pub avg_frame_rate: String,
     pub frame_count: Option<u64>,
+    pub pixel_format: Option<String>,
     pub colour_range: Option<String>,
     pub colour_space: Option<String>,
     pub colour_transfer: Option<String>,
@@ -66,12 +67,24 @@ pub fn explicit_h264_444_to_rgba_filter() -> &'static str {
     "zscale=primariesin=bt709:transferin=iec61966-2-1:matrixin=bt709:rangein=full:primaries=bt709:transfer=iec61966-2-1:matrix=bt709:range=full,format=rgba"
 }
 
+pub fn explicit_rgba_to_h264_444_bt709_filter() -> &'static str {
+    "zscale=primariesin=bt709:transferin=iec61966-2-1:matrixin=gbr:rangein=full:primaries=bt709:transfer=bt709:matrix=bt709:range=full,format=yuv444p"
+}
+
+pub fn explicit_h264_444_bt709_to_rgba_filter() -> &'static str {
+    "zscale=primariesin=bt709:transferin=bt709:matrixin=bt709:rangein=full:primaries=bt709:transfer=iec61966-2-1:matrix=bt709:range=full,format=rgba"
+}
+
+pub fn explicit_rgba_to_h264_420_bt709_filter() -> &'static str {
+    "zscale=primariesin=bt709:transferin=iec61966-2-1:matrixin=gbr:rangein=full:primaries=bt709:transfer=bt709:matrix=bt709:range=full,format=yuv420p"
+}
+
 pub fn build_known_cfr_h264_fixture(
     directory: &Path,
 ) -> Result<KnownCfrH264Fixture, DecodeSpikeError> {
     fs::create_dir_all(directory).map_err(DecodeSpikeError::Io)?;
 
-    let expected_frame = known_colour_matrix_frame(32, 16)?;
+    let expected_frame = known_colour_swatch_frame(32, 16)?;
     let raw_path = directory.join("known-frame.rgba");
     let video_path = directory.join("known-cfr-h264.mp4");
 
@@ -134,10 +147,60 @@ pub fn export_rgba_frame_to_h264_444(
     directory: &Path,
     frame: &RgbaFrame,
 ) -> Result<ExportedH264Frame, DecodeSpikeError> {
+    export_rgba_frame_to_h264_with_transfer(
+        directory,
+        frame,
+        "explicit-export-h264-444.mp4",
+        explicit_rgba_to_h264_444_filter(),
+        explicit_h264_444_to_rgba_filter(),
+        "iec61966-2-1",
+        "yuv444p",
+    )
+}
+
+pub fn export_rgba_frame_to_h264_444_bt709(
+    directory: &Path,
+    frame: &RgbaFrame,
+) -> Result<ExportedH264Frame, DecodeSpikeError> {
+    export_rgba_frame_to_h264_with_transfer(
+        directory,
+        frame,
+        "bt709-transfer-export-h264-444.mp4",
+        explicit_rgba_to_h264_444_bt709_filter(),
+        explicit_h264_444_bt709_to_rgba_filter(),
+        "bt709",
+        "yuv444p",
+    )
+}
+
+pub fn export_rgba_frame_to_h264_420_bt709(
+    directory: &Path,
+    frame: &RgbaFrame,
+) -> Result<ExportedH264Frame, DecodeSpikeError> {
+    export_rgba_frame_to_h264_with_transfer(
+        directory,
+        frame,
+        "bt709-transfer-export-h264-420.mp4",
+        explicit_rgba_to_h264_420_bt709_filter(),
+        explicit_h264_444_bt709_to_rgba_filter(),
+        "bt709",
+        "yuv420p",
+    )
+}
+
+fn export_rgba_frame_to_h264_with_transfer(
+    directory: &Path,
+    frame: &RgbaFrame,
+    file_name: &str,
+    encode_filter: &'static str,
+    decode_filter: &'static str,
+    output_transfer: &'static str,
+    pixel_format: &'static str,
+) -> Result<ExportedH264Frame, DecodeSpikeError> {
     fs::create_dir_all(directory).map_err(DecodeSpikeError::Io)?;
 
     let raw_path = directory.join("explicit-export-source.rgba");
-    let video_path = directory.join("explicit-export-h264-444.mp4");
+    let video_path = directory.join(file_name);
     fs::write(&raw_path, &frame.pixels).map_err(DecodeSpikeError::Io)?;
 
     let mut command = Command::new("ffmpeg");
@@ -159,9 +222,9 @@ pub fn export_rgba_frame_to_h264_444(
         .arg("-frames:v")
         .arg("1")
         .arg("-vf")
-        .arg(explicit_rgba_to_h264_444_filter())
+        .arg(encode_filter)
         .arg("-pix_fmt")
-        .arg("yuv444p")
+        .arg(pixel_format)
         .arg("-c:v")
         .arg("libx264")
         .arg("-preset")
@@ -169,11 +232,13 @@ pub fn export_rgba_frame_to_h264_444(
         .arg("-crf")
         .arg("0")
         .arg("-x264-params")
-        .arg("keyint=1:min-keyint=1:scenecut=0:range=pc:colorprim=bt709:transfer=iec61966-2-1:colormatrix=bt709")
+        .arg(format!(
+            "keyint=1:min-keyint=1:scenecut=0:range=pc:colorprim=bt709:transfer={output_transfer}:colormatrix=bt709"
+        ))
         .arg("-color_primaries")
         .arg("bt709")
         .arg("-color_trc")
-        .arg("iec61966-2-1")
+        .arg(output_transfer)
         .arg("-colorspace")
         .arg("bt709")
         .arg("-color_range")
@@ -190,8 +255,8 @@ pub fn export_rgba_frame_to_h264_444(
         width: frame.width,
         height: frame.height,
         probe,
-        encode_filter: explicit_rgba_to_h264_444_filter(),
-        decode_filter: explicit_h264_444_to_rgba_filter(),
+        encode_filter,
+        decode_filter,
     })
 }
 
@@ -299,7 +364,7 @@ pub fn decode_fixture_to_shared_rgba(
     })
 }
 
-fn known_colour_matrix_frame(width: u32, height: u32) -> Result<RgbaFrame, DecodeSpikeError> {
+pub fn known_colour_swatch_frame(width: u32, height: u32) -> Result<RgbaFrame, DecodeSpikeError> {
     let swatches = [
         [220, 32, 32],
         [32, 220, 32],
@@ -344,7 +409,7 @@ fn probe_video_stream(path: &Path) -> Result<ProbeSummary, DecodeSpikeError> {
         .arg("-select_streams")
         .arg("v:0")
         .arg("-show_entries")
-        .arg("stream=codec_name,avg_frame_rate,nb_frames,color_range,color_space,color_transfer,color_primaries")
+        .arg("stream=codec_name,avg_frame_rate,nb_frames,pix_fmt,color_range,color_space,color_transfer,color_primaries")
         .arg("-of")
         .arg("json")
         .arg(path);
@@ -380,6 +445,7 @@ fn probe_video_stream(path: &Path) -> Result<ProbeSummary, DecodeSpikeError> {
         codec_name,
         avg_frame_rate,
         frame_count,
+        pixel_format: optional_string_field(stream, "pix_fmt"),
         colour_range: optional_string_field(stream, "color_range"),
         colour_space: optional_string_field(stream, "color_space"),
         colour_transfer: optional_string_field(stream, "color_transfer"),

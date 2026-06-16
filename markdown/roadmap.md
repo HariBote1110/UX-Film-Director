@@ -182,6 +182,8 @@ TDD / 検証タスク:
 - 4K single-frame の upload / render / readbackEncode が stage 別に測定できる。
 - known-content swatch が native wgpu -> explicit H.264 4:4:4 -> 再 decode で許容差内に収まる。
 - native preview output と export round-trip output が codec 丸め床の範囲内で直接比較されている。
+- shipping 向け bt709 transfer H.264 4:4:4 export が known-content swatch で許容差内に収まる。
+- distribution 向け bt709 H.264 4:2:0 export の full-frame envelope と stable-region correctness が分離されている。
 
 ## Phase 5: Pixi から shared renderer への移行
 
@@ -205,6 +207,7 @@ Phase 1 から 4 が成立した後に開始する。
 - トランジション
 - GPU texture zero-copy
 - Windows の厳密 golden-frame
+- HEVC の配布用 export tolerance
 
 ## CI 方針
 
