@@ -90,6 +90,30 @@ describe('createSharedRendererWebGpuPresenter', () => {
     ]);
   });
 
+  it('rejects srgb canvas formats because the renderer owns the sRGB encode step', async () => {
+    const configurations: unknown[] = [];
+    const result = await createSharedRendererWebGpuPresenter({
+      canvas: fakeCanvas(() => fakeContext((configuration) => {
+        configurations.push(configuration);
+      })),
+      surfaceGate: okSurfaceGate,
+      presentationContract: buildSharedRendererPresentationContract(),
+      gpu: fakeGpu({
+        format: 'bgra8unorm-srgb',
+        onRequestAdapter: () => fakeAdapter(),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'srgbCanvasFormat',
+      detail: 'Shared renderer canvas format must be non-srgb because the renderer performs sRGB encode explicitly.',
+      format: 'bgra8unorm-srgb',
+    });
+    expect(configurations).toEqual([]);
+  });
+
   it('reports device loss as a Pixi fallback and rejects stale shared frames', async () => {
     let resolveLost!: (value: unknown) => void;
     const lost = new Promise((resolve) => {
