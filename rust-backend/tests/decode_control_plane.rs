@@ -145,6 +145,75 @@ fn decode_request_frame_decodes_requested_source_frame_to_verified_descriptor_wi
 }
 
 #[test]
+fn decode_request_frame_uses_limited_range_source_metadata_for_rgba_handoff() {
+    let temp_dir = TestTempDir::new("decode-control-plane-limited");
+    let fixture = build_limited_range_two_frame_h264_fixture(temp_dir.path());
+    let mut backend = BackendProcess::start();
+
+    let start_response = backend.request(json!({
+        "id": 1,
+        "method": "decode.start",
+        "params": {
+            "jobId": "decode-limited",
+            "source": fixture.path,
+            "slotCount": 2,
+            "width": fixture.width,
+            "height": fixture.height,
+            "sourceRate": {
+                "numerator": 30,
+                "denominator": 1
+            },
+            "format": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+
+    assert_eq!(start_response["ok"], true);
+    let stride_bytes = start_response["result"]["strideBytes"]
+        .as_u64()
+        .expect("stride bytes") as usize;
+    let slot_byte_len = start_response["result"]["slotByteLen"]
+        .as_u64()
+        .expect("slot byte length") as usize;
+    let expected_tight_rgba =
+        decode_tight_rgba_frame_with_input_range(&fixture.path, 1, fixture.width, fixture.height, "tv");
+    let expected_padded_rgba = pad_rgba_rows(
+        &expected_tight_rgba,
+        fixture.width,
+        fixture.height,
+        stride_bytes,
+    );
+    assert_eq!(expected_padded_rgba.len(), slot_byte_len);
+
+    let response = backend.request(json!({
+        "id": 2,
+        "method": "decode.requestFrame",
+        "params": {
+            "jobId": "decode-limited",
+            "requestId": 22,
+            "frameIndex": 1,
+            "mode": "latestWins"
+        }
+    }));
+
+    assert_eq!(response["ok"], true);
+    assert_eq!(
+        response["result"]["verification"]["checksum"]["valueHex"],
+        crc32_hex(&expected_padded_rgba)
+    );
+    assert_eq!(
+        response["result"]["frame"]["descriptor"]["colour"]["range"],
+        "full"
+    );
+    assert_no_frame_bytes_recursive(&response["result"]);
+}
+
+#[test]
 fn decode_request_frame_accepts_frame_index_without_float_seconds() {
     let mut backend = BackendProcess::start();
     backend.start_decode();
@@ -271,10 +340,30 @@ impl Drop for TestTempDir {
 }
 
 fn build_two_frame_h264_fixture(directory: &Path) -> TestVideoFixture {
+    build_two_frame_h264_fixture_with_range(directory, "two-frame-source.mp4", None, "pc", "pc")
+}
+
+fn build_limited_range_two_frame_h264_fixture(directory: &Path) -> TestVideoFixture {
+    build_two_frame_h264_fixture_with_range(
+        directory,
+        "two-frame-source-limited.mp4",
+        Some("zscale=primariesin=bt709:transferin=iec61966-2-1:matrixin=gbr:rangein=full:primaries=bt709:transfer=iec61966-2-1:matrix=bt709:range=limited,format=yuv444p"),
+        "tv",
+        "tv",
+    )
+}
+
+fn build_two_frame_h264_fixture_with_range(
+    directory: &Path,
+    file_name: &str,
+    video_filter: Option<&'static str>,
+    x264_range: &'static str,
+    container_range: &'static str,
+) -> TestVideoFixture {
     let width = 34;
     let height = 16;
     let raw_path = directory.join("two-frame-source.rgba");
-    let video_path = directory.join("two-frame-source.mp4");
+    let video_path = directory.join(file_name);
     let mut raw_frames = Vec::new();
     raw_frames.extend(test_frame_pixels(width, height, 0));
     raw_frames.extend(test_frame_pixels(width, height, 1));
@@ -297,7 +386,13 @@ fn build_two_frame_h264_fixture(directory: &Path) -> TestVideoFixture {
         .arg("-i")
         .arg(&raw_path)
         .arg("-frames:v")
-        .arg("2")
+        .arg("2");
+
+    if let Some(video_filter) = video_filter {
+        command.arg("-vf").arg(video_filter);
+    }
+
+    command
         .arg("-pix_fmt")
         .arg("yuv444p")
         .arg("-c:v")
@@ -307,7 +402,7 @@ fn build_two_frame_h264_fixture(directory: &Path) -> TestVideoFixture {
         .arg("-crf")
         .arg("0")
         .arg("-x264-params")
-        .arg("keyint=1:min-keyint=1:scenecut=0:range=pc:colorprim=bt709:transfer=iec61966-2-1:colormatrix=bt709")
+        .arg(format!("keyint=1:min-keyint=1:scenecut=0:range={x264_range}:colorprim=bt709:transfer=iec61966-2-1:colormatrix=bt709"))
         .arg("-color_primaries")
         .arg("bt709")
         .arg("-color_trc")
@@ -315,7 +410,7 @@ fn build_two_frame_h264_fixture(directory: &Path) -> TestVideoFixture {
         .arg("-colorspace")
         .arg("bt709")
         .arg("-color_range")
-        .arg("pc")
+        .arg(container_range)
         .arg("-video_track_timescale")
         .arg("30")
         .arg(&video_path);
@@ -342,6 +437,16 @@ fn test_frame_pixels(width: u32, height: u32, frame_index: u8) -> Vec<u8> {
 }
 
 fn decode_tight_rgba_frame(path: &Path, frame_index: u64, width: u32, height: u32) -> Vec<u8> {
+    decode_tight_rgba_frame_with_input_range(path, frame_index, width, height, "pc")
+}
+
+fn decode_tight_rgba_frame_with_input_range(
+    path: &Path,
+    frame_index: u64,
+    width: u32,
+    height: u32,
+    input_range: &'static str,
+) -> Vec<u8> {
     let mut command = Command::new("ffmpeg");
     command
         .arg("-hide_banner")
@@ -351,7 +456,7 @@ fn decode_tight_rgba_frame(path: &Path, frame_index: u64, width: u32, height: u3
         .arg(path)
         .arg("-vf")
         .arg(format!(
-            "select=eq(n\\,{frame_index}),scale=in_range=pc:out_range=pc:in_color_matrix=bt709:out_color_matrix=bt709,format=rgba"
+            "select=eq(n\\,{frame_index}),scale=in_range={input_range}:out_range=pc:in_color_matrix=bt709:out_color_matrix=bt709,format=rgba"
         ))
         .arg("-frames:v")
         .arg("1")
