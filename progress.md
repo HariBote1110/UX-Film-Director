@@ -28,6 +28,14 @@
 - `npx tsc --noEmit`
   - shared renderer / rustSceneSnapshot / Viewport 由来の新規エラーなし。
   - 既存残件として `ThreeStageViewport.tsx` の `three` 型定義不足などは継続。
+- ブラウザ実機確認（`VITE_UXFD_SHARED_RENDERER_PREVIEW=1 npm run dev -- --host 127.0.0.1 --port 5174`）:
+  - UI から「図形の形」を追加後、`presenterStatus=ready`, `presenterFormat=bgra8unorm`,
+    `presenterSwatch=solid-colour-scene`, `surfaceGate=ok`。
+  - console error は 0 件。
+  - スクリーンショット上の shape 中心サンプルは RGBA `(218,0,0,255)`、shape 外側は `(35,35,35,255)` で、
+    shared renderer canvas 上に矩形 scene が出ていることを確認。
+  - 途中で presenter session key が canvas contract のみを見ており shape 追加で再描画されない不具合を検出。
+    `buildSharedRendererPresenterSessionKey` を追加し、clips/media を key に含めて修正。
 
 ## 2026-06-16 — Phase5: shared renderer presenter を Viewport に接続
 
