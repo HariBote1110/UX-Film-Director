@@ -241,6 +241,8 @@ macOS P3 display 上の sRGB -> P3 表示カラーマネジメントは offscree
 canvas configure、device lost 時の Pixi fallback 通知だけを責務にする。
 canvas format は `navigator.gpu.getPreferredCanvasFormat()` の非 `-srgb` 形式を使う。shared renderer / export は
 linear -> sRGB encode を自前で行うため、`-srgb` canvas format による二重 encode を禁止する。
+P3 実機 check 用の初回表示は shader / pipeline を使わず、WebGPU render pass の clear による solid sRGB swatch
+だけで行い、canvas presentation の色管理だけを単独で確認する。
 
 ## 後回しにするもの
 

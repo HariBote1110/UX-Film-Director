@@ -15,6 +15,22 @@ export interface SharedRendererWebGpuAdapterLike {
 
 export interface SharedRendererWebGpuDeviceLike {
   lost?: Promise<unknown>;
+  queue?: {
+    submit: (commandBuffers: unknown[]) => void;
+  };
+  createCommandEncoder?: () => {
+    beginRenderPass: (descriptor: {
+      colorAttachments: Array<{
+        view: unknown;
+        clearValue: { r: number; g: number; b: number; a: number };
+        loadOp: 'clear';
+        storeOp: 'store';
+      }>;
+    }) => {
+      end: () => void;
+    };
+    finish: () => unknown;
+  };
 }
 
 export interface SharedRendererWebGpuCanvasContextLike {
@@ -25,6 +41,9 @@ export interface SharedRendererWebGpuCanvasContextLike {
     colorSpace: 'srgb';
     alphaMode: 'premultiplied';
   }) => void;
+  getCurrentTexture?: () => {
+    createView: () => unknown;
+  };
 }
 
 type WebGpuCanvasLike = Pick<HTMLCanvasElement, 'width' | 'height' | 'getContext'>;
@@ -48,6 +67,7 @@ export type SharedRendererWebGpuPresenterResult =
       };
       presentationContract: SharedRendererPresentationContract;
       dispose: () => void;
+      presentSolidSrgbSwatch: (swatch: SharedRendererSolidSrgbSwatch) => void;
     }
   | {
       ok: false;
@@ -67,6 +87,13 @@ export interface SharedRendererDeviceLostEvent {
   fallback: 'pixi';
   staleSharedFrameAllowed: false;
   message: string;
+}
+
+export interface SharedRendererSolidSrgbSwatch {
+  red: number;
+  green: number;
+  blue: number;
+  alpha: number;
 }
 
 export interface SharedRendererWebGpuPresenterInput {
@@ -170,6 +197,29 @@ export const createSharedRendererWebGpuPresenter = async ({
     });
   }
 
+  const presentSolidSrgbSwatch = (swatch: SharedRendererSolidSrgbSwatch) => {
+    if (!context.getCurrentTexture || !device.createCommandEncoder || !device.queue) return;
+
+    const encoder = device.createCommandEncoder();
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: context.getCurrentTexture().createView(),
+          clearValue: {
+            r: swatch.red,
+            g: swatch.green,
+            b: swatch.blue,
+            a: swatch.alpha,
+          },
+          loadOp: 'clear',
+          storeOp: 'store',
+        },
+      ],
+    });
+    pass.end();
+    device.queue.submit([encoder.finish()]);
+  };
+
   return {
     ok: true,
     device,
@@ -181,6 +231,7 @@ export const createSharedRendererWebGpuPresenter = async ({
     },
     presentationContract,
     dispose,
+    presentSolidSrgbSwatch,
   };
 };
 

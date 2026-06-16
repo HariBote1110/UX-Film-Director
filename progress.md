@@ -1074,6 +1074,26 @@
 - `markdown/roadmap.md` に non-srgb canvas format 方針と二重 encode 禁止を追記した。
 - `package.json` / `package-lock.json` を `0.1.1-Beta-29c` に更新した。
 
+## 2026-06-16 — Phase5: presenter solid swatch gate
+
+### Red
+- `src/utils/sharedRendererWebGpuPresenter.test.ts` に、P3 実機確認用の solid sRGB swatch presentation 契約を追加した。
+- presenter が shader module / render pipeline を作らず、`getCurrentTexture()` への render pass clear だけで
+  swatch を canvas に出すことを fake device で固定した。
+- 未実装の `presentSolidSrgbSwatch` で Red を確認した。
+
+### Green
+- `createSharedRendererWebGpuPresenter` の成功結果に `presentSolidSrgbSwatch` を追加した。
+- 実装は `context.getCurrentTexture().createView()` を color attachment にした clear pass のみで、
+  shader / pipeline 抽出前に canvas presentation の P3 表示境界を単独確認できる形にした。
+- `markdown/roadmap.md` に solid swatch による canvas presentation 確認方針を追記した。
+- `package.json` / `package-lock.json` を `0.1.1-Beta-30a` に更新した。
+
+### 確認結果
+- `npm test -- src/utils/sharedRendererWebGpuPresenter.test.ts` -> 6 tests passed。
+- `npx tsc --noEmit` は既存の `src/components/ThreeStageViewport.tsx` の `three` 型不足で失敗するが、
+  `sharedRendererWebGpuPresenter` / shared renderer 追加分の新規エラーは出ていない。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）
