@@ -327,6 +327,7 @@ const validateSnapshot = (
     return;
   }
 
+  validateKnownKeys(snapshot, 'snapshot', ['frame_index', 'colour', 'clips'], issues);
   validateInteger(snapshot.frame_index, 'snapshot.frame_index', issues);
   validateColourPipeline(snapshot.colour, 'snapshot.colour', issues);
 
@@ -350,6 +351,7 @@ const validateColourPipeline = (
     return;
   }
 
+  validateKnownKeys(colour, path, ['profile', 'working_space', 'alpha'], issues);
   validateEnum(colour.profile, `${path}.profile`, ['rec709-sdr'], issues);
   validateEnum(colour.working_space, `${path}.working_space`, ['linear-light'], issues);
   validateEnum(colour.alpha, `${path}.alpha`, ['premultiplied'], issues);
@@ -365,6 +367,12 @@ const validateClip = (
     return;
   }
 
+  validateKnownKeys(
+    clip,
+    path,
+    ['clip_id', 'track_id', 'media_id', 'source_frame', 'z_index', 'transform', 'opacity', 'effects'],
+    issues
+  );
   validateString(clip.clip_id, `${path}.clip_id`, issues);
   validateString(clip.track_id, `${path}.track_id`, issues);
   validateString(clip.media_id, `${path}.media_id`, issues);
@@ -385,6 +393,12 @@ const validateTransform = (
     return;
   }
 
+  validateKnownKeys(
+    transform,
+    path,
+    ['translation_x', 'translation_y', 'scale_x', 'scale_y', 'rotation_degrees', 'sampling'],
+    issues
+  );
   validateFiniteNumber(transform.translation_x, `${path}.translation_x`, issues);
   validateFiniteNumber(transform.translation_y, `${path}.translation_y`, issues);
   validateFiniteNumber(transform.scale_x, `${path}.scale_x`, issues);
@@ -424,25 +438,33 @@ const validateMediaReferences = (
   }
 
   const mediaIds = new Set<string>();
+  const mediaIndexById = new Map<string, number>();
   media.forEach((reference, index) => {
     const path = `media[${index}]`;
     if (!isRecord(reference)) {
       addIssue(issues, 'schemaMismatch', path, 'media reference must be a JSON object.');
       return;
     }
+    validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height'], issues);
     validateString(reference.id, `${path}.id`, issues);
     validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video'], issues);
     validateString(reference.source, `${path}.source`, issues);
     validatePositiveInteger(reference.width, `${path}.width`, issues);
     validatePositiveInteger(reference.height, `${path}.height`, issues);
     if (typeof reference.id === 'string' && reference.id.trim() !== '') {
+      if (mediaIds.has(reference.id)) {
+        addIssue(issues, 'mediaMismatch', `${path}.id`, `Duplicate media reference '${reference.id}'.`);
+      }
       mediaIds.add(reference.id);
+      mediaIndexById.set(reference.id, index);
     }
   });
 
   if (!isRecord(snapshot) || !Array.isArray(snapshot.clips)) return;
+  const referencedMediaIds = new Set<string>();
   snapshot.clips.forEach((clip, index) => {
     if (!isRecord(clip) || typeof clip.media_id !== 'string') return;
+    referencedMediaIds.add(clip.media_id);
     if (!mediaIds.has(clip.media_id)) {
       addIssue(
         issues,
@@ -450,6 +472,12 @@ const validateMediaReferences = (
         `snapshot.clips[${index}].media_id`,
         `No media reference exists for '${clip.media_id}'.`
       );
+    }
+  });
+
+  mediaIndexById.forEach((index, mediaId) => {
+    if (!referencedMediaIds.has(mediaId)) {
+      addIssue(issues, 'mediaMismatch', `media[${index}].id`, `Media reference '${mediaId}' is not used by any clip.`);
     }
   });
 };
@@ -535,6 +563,20 @@ const validateEnum = (
   if (!allowed.includes(value)) {
     addIssue(issues, 'unsupportedEnum', path, `Unsupported value '${value}'.`);
   }
+};
+
+const validateKnownKeys = (
+  record: Record<string, unknown>,
+  path: string,
+  allowedKeys: readonly string[],
+  issues: RustSceneSnapshotBoundaryIssue[]
+) => {
+  const allowed = new Set(allowedKeys);
+  Object.keys(record).forEach((key) => {
+    if (!allowed.has(key)) {
+      addIssue(issues, 'schemaMismatch', `${path}.${key}`, `Unexpected field '${key}'.`);
+    }
+  });
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

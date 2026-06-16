@@ -948,6 +948,23 @@
 ### 確認結果
 - `npm test -- src/utils/sharedRendererPreviewDiagnostics.test.ts` -> 4 tests passed。
 
+## 2026-06-16 — Phase5: SceneSnapshot strict boundary schema gate
+
+### Red
+- `src/utils/rustSceneSnapshotBoundary.test.ts` に strict schema の追加契約を足した。
+- camelCase drift を「必須 field 欠落」だけでなく「未知 field 混入」としても検出し、
+  snapshot / clip / transform / media の unknown field、media id 重複、clip から参照されない orphan media を拒否する
+  test を追加した。
+- 旧 validator は unknown field と duplicate / orphan media を通したため Red を確認した。
+
+### Green
+- `validateRustSceneSnapshotBoundary` に allowed keys の検査、duplicate media id 検出、orphan media reference 検出を追加した。
+- これにより TS 側の実行時 payload が Rust serde contract から緩く広がる drift を早期に検出できるようにした。
+- `package.json` / `package-lock.json` を `0.1.1-Beta-26a` に更新した。
+
+### 確認結果
+- `npm test -- src/utils/rustSceneSnapshotBoundary.test.ts` -> 4 tests passed。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）
