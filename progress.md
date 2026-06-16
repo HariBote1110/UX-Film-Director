@@ -1,3 +1,34 @@
+## 2026-06-16 — Phase5: shared renderer で矩形 shape を表示
+
+### 実施内容
+- `SceneSnapshot` bridge で `shapeType: "rect"` かつ gradient 無しの shape を `SolidColour` plane として許可した。
+  - `media.kind` に `SolidColour` を追加。
+  - `source` は `#rrggbb`、`width` / `height` は shape の矩形サイズを保持。
+  - 円・丸角・グラデーションなどは `unsupportedShapeGeometry` として fail-loud のまま。
+- `rust-core` schema に `MediaKind::SolidColour` / `ClipKind::SolidColourPlane` を追加し、
+  timeline snapshot contract で serialise / evaluate を固定した。
+- `sharedRendererSolidColourScene` を追加し、`SceneSnapshot + media` から premultiplied な矩形 draw list を生成する契約を固定した。
+- WebGPU presenter に SolidColour rect 用の最小 vertex pipeline を追加した。
+  - transparent clear の上に triangle-list で矩形を描く。
+  - SolidColour rect が存在する session では diagnostic swatch ではなく scene content を描く。
+- package version を `0.1.1-Beta-33a` に更新した。
+
+### 選定理由・判断の根拠
+- shape を無理に動画/画像 media として扱わず、`SolidColour` media として境界に入れた理由:
+  既存の `media_id` / `source_frame` 契約を崩さず、最初の「置いた図形が shared renderer に出る」体験を最小変更で作れるため。
+- `rect` のみ許可した理由:
+  circle / rounded rect / polygon / gradient は geometry・coverage・anti-aliasing の parity 論点を持つ。最初の遊べるラインでは
+  1枚の solid rectangle に絞り、WebGPU pipeline と React/Timeline 連動を先に証明する。
+
+### 検証
+- `npm test -- src/utils/rustSceneSnapshot.test.ts src/utils/rustSceneSnapshotBoundary.test.ts src/utils/sharedRendererPreviewBridge.test.ts src/utils/sharedRendererPreviewSurface.test.ts src/utils/sharedRendererPreviewDiagnostics.test.ts src/utils/sharedRendererPreviewSession.test.ts src/utils/sharedRendererPresentationContract.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/sharedRendererPresenterDiagnostics.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererSolidColourScene.test.ts`
+  - 11 files / 44 tests passed。
+- `cargo test --manifest-path rust-core/Cargo.toml --test timeline_snapshot_contract`
+  - 5 tests passed。
+- `npx tsc --noEmit`
+  - shared renderer / rustSceneSnapshot / Viewport 由来の新規エラーなし。
+  - 既存残件として `ThreeStageViewport.tsx` の `three` 型定義不足などは継続。
+
 ## 2026-06-16 — Phase5: shared renderer presenter を Viewport に接続
 
 ### 実施内容

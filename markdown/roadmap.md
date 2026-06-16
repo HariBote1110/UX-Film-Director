@@ -246,6 +246,10 @@ P3 実機 check 用の初回表示は shader / pipeline を使わず、WebGPU re
 `Viewport` への接続は feature flag `VITE_UXFD_SHARED_RENDERER_PREVIEW=1` の下に限定し、presenter の
 `ready` / `fallback` / `deviceLost` は DOM dataset へ公開する。初回 swatch 表示が通るまでは shared renderer
 canvas は preview 診断面であり、Pixi preview を置き換えない。
+次の遊べる gate は solid rectangle shape の表示とする。`shapeType: "rect"` かつ gradient 無しの shape は
+`SolidColour` plane として `SceneSnapshot` 境界へ入れ、WebGPU presenter は transparent clear の上に
+triangle-list で矩形を描く。円・丸角・グラデーションは coverage / anti-aliasing parity を切り分けるまで
+fail-loud のままにする。
 
 ## 後回しにするもの
 
