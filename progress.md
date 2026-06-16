@@ -772,6 +772,26 @@
 - `cargo test --manifest-path shared-memory-spike/Cargo.toml --test sidecar_decode_checksum` -> 1 test passed。
 - `cargo test --manifest-path shared-memory-spike/Cargo.toml` -> passed。
 
+## 2026-06-16 — Phase4: sidecar handoff metadata fail-loud gate
+
+### Red
+- `shared-memory-spike/tests/sidecar_decode_checksum.rs` に、`transfer=bt709` の descriptor を
+  sidecar handoff が shm 書き込み前に拒否する contract test を追加した。
+- 未定義の `SidecarDecodeHandoffError` で Red を確認した。
+
+### Green
+- `write_sidecar_decoded_frame_to_ring` の戻り値を `SidecarDecodeHandoffError` に変更し、
+  `DescriptorValidationError` と shm error を分離した。
+- shm へ bytes を書く前に `validate_renderer_handoff_descriptor` を呼び、未対応 metadata を fail-loud にした。
+
+### 文書更新
+- `markdown/architecture/05-boundary-ipc.md` に sidecar handoff 時の descriptor validation を追記した。
+
+### 確認結果
+- `cargo fmt --manifest-path shared-memory-spike/Cargo.toml`
+- `cargo test --manifest-path shared-memory-spike/Cargo.toml --test sidecar_decode_checksum` -> 2 tests passed。
+- `cargo test --manifest-path shared-memory-spike/Cargo.toml` -> passed。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）

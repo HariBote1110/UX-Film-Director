@@ -315,6 +315,8 @@ POSIX shm two-process spike:
 - sidecar data-plane handoff gate では、direct decode した RGBA bytes を `write_sidecar_decoded_frame_to_ring` で
   POSIX shm に書き込み、`JobStarted -> FrameReady -> JobCompleted` の control events と
   `FrameVerificationReport.checksum` を返す。consumer readback の CRC32 は direct decode reference と一致する。
+- 同 gate は renderer handoff descriptor validation を shm 書き込み前に実行する。未対応 transfer / range /
+  matrix / format は data plane に流さず fail-loud にする。
 - POSIX shm から読み出した decoded RGBA を native wgpu renderer に渡し、render 完了後に slot を release する
   integration test を持つ。
 - shm decoded frame -> native render -> known swatch の実測は `maxDelta=2`、`meanAbsoluteError=0.3125`、

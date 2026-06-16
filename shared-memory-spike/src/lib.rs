@@ -9,8 +9,9 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use uxfd_sidecar_protocol::{
-    ChecksumAlgorithm, ControlEvent, CopyOutState, DecodeFrameRequest, FrameChecksum,
-    FrameDescriptor, FrameVerificationReport, FrameVerificationStatus, SharedFrame,
+    validate_renderer_handoff_descriptor, ChecksumAlgorithm, ControlEvent, CopyOutState,
+    DecodeFrameRequest, DescriptorValidationError, FrameChecksum, FrameDescriptor,
+    FrameVerificationReport, FrameVerificationStatus, SharedFrame,
 };
 
 pub const SHARED_RING_MAGIC: u64 = u64::from_le_bytes(*b"UXFDRNG1");
@@ -475,9 +476,12 @@ pub fn write_sidecar_decoded_frame_to_ring(
     request: DecodeFrameRequest,
     descriptor: FrameDescriptor,
     rgba_bytes: &[u8],
-) -> Result<SidecarDecodedFrameWrite, PosixShmError> {
+) -> Result<SidecarDecodedFrameWrite, SidecarDecodeHandoffError> {
+    validate_renderer_handoff_descriptor(&descriptor)
+        .map_err(SidecarDecodeHandoffError::Descriptor)?;
+
     if descriptor.byte_len != rgba_bytes.len() as u64 {
-        return Err(PosixShmError::FrameLengthMismatch {
+        return Err(SidecarDecodeHandoffError::FrameLengthMismatch {
             expected: descriptor.byte_len.min(usize::MAX as u64) as usize,
             actual: rgba_bytes.len(),
         });
@@ -513,6 +517,19 @@ pub fn write_sidecar_decoded_frame_to_ring(
         verification,
         events,
     })
+}
+
+#[derive(Debug)]
+pub enum SidecarDecodeHandoffError {
+    Descriptor(DescriptorValidationError),
+    SharedMemory(PosixShmError),
+    FrameLengthMismatch { expected: usize, actual: usize },
+}
+
+impl From<PosixShmError> for SidecarDecodeHandoffError {
+    fn from(error: PosixShmError) -> Self {
+        Self::SharedMemory(error)
+    }
 }
 
 fn checksum_for_bytes(bytes: &[u8]) -> FrameChecksum {
