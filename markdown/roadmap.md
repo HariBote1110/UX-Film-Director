@@ -258,6 +258,16 @@ browser preview では `rust-core-wasm` からその vertex buffer を受け取�
 この gate の入口として、`Video` media の plane metadata と WebGPU 用 vertices は `rust-core` /
 `rust-core-wasm` で生成する。DOM diagnostics には `uxfdSharedRendererPresenterVideoGeometrySource` を出し、
 動画 plane geometry が `rust-wasm` と `typescript` fallback のどちらで生成されたかを確認できるようにする。
+続く gate では、動画 frame decode request も `rust-core` / `rust-core-wasm` で生成する。request は
+`source`、`sourceFrame`、`sourceRate`、`timelineFrame`、`rgba8Srgb`、`rec709SrgbFullRange` を持ち、
+frame bytes / pixel array / base64 は含めない。DOM diagnostics には
+`uxfdSharedRendererPresenterVideoDecodeRequestSource` と
+`uxfdSharedRendererPresenterVideoDecodeRequestCount` を出す。
+Electron IPC は `decode.start` / `decode.requestFrame` / `decode.releaseFrame` を Rust backend へ転送する。
+`decode.start` は shared ring layout と `sourceRate` を返し、`decode.requestFrame` は `requestId` と
+`mode=latestWins` を持つ。これは scrub 中に古い request が後から完了しても、consumer が stale frame を破棄できるようにするためである。
+この段階では実 pixel decode / shared memory / WebGPU texture upload はまだ未実装であり、次 gate で
+sidecar decode -> shared memory -> texture upload を接続する。
 これにより、動画読み込み・current frame availability と GPU import / sampling の問題を分離する。
 ただし HTMLVideoElement / `importExternalTexture` はブラウザの暗黙 YUV->RGB と float 秒 seek に依存するため、
 この経路の動画 preview は export parity をまだ主張しない。external texture 表示を入れる前後で、known clip の同一 frame を

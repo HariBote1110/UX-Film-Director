@@ -122,6 +122,25 @@ float 配列を Rust/WASM で生成するところから開始する。
 Rust の責務ではない。動画フレームの実描画は、次 gate で readiness 診断、preview decode / export decode 比較、
 external texture 表示、sidecar decode の順に移す。
 
+### Video Frame Decode Request
+
+Phase5 の動画移行では、video plane geometry の次に `SceneSnapshot + SceneMediaReference` から
+`VideoFrameDecodeRequest` を Rust/WASM で生成する。
+
+この経路の責務:
+
+- `Video` media だけを抽出し、z order 順に decode request を並べる。
+- `clip_id` / `media_id` / `source` / `source_frame` / `timeline_frame` / `width` / `height` を保持する。
+- `source_rate` を rational (`numerator` / `denominator`) として保持し、float 秒を sidecar 境界へ渡さない。
+- MVP の decode output を `rgba8Srgb`、colour contract を `rec709SrgbFullRange` に固定する。
+- Video media に `source_rate` が無い場合、または `0/x`、`x/0` の場合は fail-loud にする。
+
+この段階でも frame bytes は Rust/WASM から browser へ返さない。Rust/WASM は「どの source のどの frame を
+どの colour contract で要求するか」を決めるだけで、実 pixel decode は `rust-backend` / sidecar の責務とする。
+shared renderer の正確性経路では、将来的に sidecar decoded RGBA -> shared memory / mmap -> WebGPU texture
+upload を使う。`HTMLVideoElement` / `importExternalTexture` は parity source ではなく、将来の近似 fast path として
+別 gate に隔離する。
+
 ### Property
 
 MVP の keyframe 対象 property は `opacity` を既定とする。`position` や `scale` は schema 上の拡張余地を持つが、MVP の必須実装にはしない。

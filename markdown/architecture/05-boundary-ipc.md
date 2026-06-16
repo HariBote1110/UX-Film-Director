@@ -152,6 +152,18 @@ Phase 4 の入口として `sidecar-protocol` crate を置く。
 同じ slot が次の frame に再利用された場合でも、古い release が新しい frame を `free` に戻してはいけない。
 
 frame request は float 秒ではなく `frameIndex` を使う。これは `rust-core` の timeline evaluation と同じ時間正本に揃えるためである。
+`decode.start` は `sourceRate` を rational (`numerator` / `denominator`) として固定し、session 内の
+`requestFrame` は同じ source time base の整数 `frameIndex` で要求する。
+
+H.264 / HEVC の任意 frame access は O(1) ではない。`requestFrame(N)` は直前 keyframe から decode forward
+する場合があり、consumer は variable latency を許容して最後の ready frame を保持する。
+interactive scrub では backlog を作らないため、MVP の `DecodeFrameRequest` は `requestId` と
+`mode = latestWins` を持つ。sidecar / scheduler は最新 request を優先し、古い request が完了しても
+consumer は `requestId` / frame index を照合して stale frame を破棄できる必要がある。
+
+ready frame は `SharedFrame.ptsFrame` に実際に decode された frame index を持つ。consumer は
+「最後に要求した frame だから次の ready slot もその frame」と仮定してはいけない。ring は順序付き queue ではなく、
+descriptor / `ptsFrame` / `generation` を照合して読む。
 
 consumer は `strideBytes` を必ず使って行を読む。`width * 4` の tight stride を仮定しない。decoder / GPU upload は
 row pitch alignment を要求することがあり、padding 付き frame を正しく扱う必要がある。

@@ -1,3 +1,55 @@
+## 2026-06-16 — Phase5: video frame decode request と Rust backend 制御プレーンを接続
+
+### 実施内容
+- `rust-core` に `video_decode_request` module を追加し、`SceneSnapshot + SceneMediaReference` から
+  Video frame decode request set を生成する契約を TDD で固定した。
+  - `Video` media のみ抽出。
+  - `source_frame` / `timeline_frame` / `source_rate` を integer / rational で保持。
+  - output format は `rgba8Srgb`、colour contract は `rec709SrgbFullRange` に固定。
+  - Video media の `source_rate` 欠落や `0/x`、`x/0` は fail-loud。
+- `rust-core-wasm` に `build_video_frame_decode_requests` binding を追加し、生成済み WASM を更新した。
+- `sharedRendererVideoDecodeRequest` と `sharedRendererRustVideoDecodeRequest` を追加し、
+  TypeScript fallback と Rust/WASM adapter の両方で `sourceRate` を扱えるようにした。
+- `rustSceneSnapshot` は video media reference に project fps 由来の `source_rate` を付けるようにした。
+  将来は ffprobe の実 source fps に差し替える。
+- `sharedRendererPreviewPresenterController` は Video clip がある時に decode request builder を実行し、
+  DOM diagnostics に以下を公開するようにした。
+  - `uxfdSharedRendererPresenterVideoDecodeRequestSource`
+  - `uxfdSharedRendererPresenterVideoDecodeRequestCount`
+- `sidecar-protocol` に `DecodeStartRequest` / `DecodeStartResponse` / `DecodeReleaseFrameRequest` /
+  `FrameRate` / `DecodeFrameRequestMode::LatestWins` を追加した。
+  - control plane は frame bytes / pixels / base64 を含まない。
+  - `decode.start` は `sourceRate` と shared ring layout を扱う。
+  - `decode.requestFrame` は `requestId` と `mode=latestWins` を持ち、scrub 時の stale frame 破棄に備える。
+- `rust-backend` に `decode.start` / `decode.requestFrame` / `decode.releaseFrame` の JSON-RPC 受け口を追加した。
+  - 現段階では実 decode は行わず、ring layout の返却、frame request 受理、GPU copy 完了後 release の受理まで。
+- Electron IPC / preload / renderer utility に Rust backend video decode control API を追加した。
+- package version を `0.1.1-Beta-37a` に更新した。
+
+### 選定理由・判断の根拠
+- `HTMLVideoElement` / `importExternalTexture` はブラウザ暗黙 decode と色変換に依存するため、shared renderer の
+  parity source にはしない。正確性経路は Rust/sidecar decoded RGBA -> shared memory / mmap -> WebGPU texture upload とする。
+- H.264 の `requestFrame(N)` は O(1) ではないため、API 形に `latestWins` と `requestId` を入れ、
+  scrub 中の古い decode 完了を consumer が破棄できるようにした。
+- `SharedFrame.ptsFrame` / `requestId` / `generation` を照合し、ready slot の順序だけに依存しない方針にした。
+- 実 pixel decode / shared memory 実装へ進む前に、control plane が frame bytes を載せないことを test で固定した。
+
+### 検証
+- `cargo test --manifest-path rust-core/Cargo.toml`
+  - 32 tests passed。
+- `cargo check --manifest-path rust-core-wasm/Cargo.toml`
+  - passed。
+- `npm run wasm:build:rust-core`
+  - passed。
+- Node `initSync` で生成済み WASM を直接呼び、`request_count=1` と
+  `source_rate={ numerator: 60, denominator: 1 }` を確認した。
+- `cargo test --manifest-path sidecar-protocol/Cargo.toml`
+  - 25 tests passed。
+- `cargo test --manifest-path rust-backend/Cargo.toml`
+  - 3 integration tests passed。
+- `npm test -- src/utils/sharedRendererVideoDecodeRequest.test.ts src/utils/sharedRendererRustVideoDecodeRequest.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/rustSceneSnapshotBoundary.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/rustBackendVideoDecodeControl.test.ts`
+  - 6 files / 25 tests passed。
+
 ## 2026-06-16 — Phase5: video plane geometry を Rust/WASM に接続
 
 ### 実施内容
