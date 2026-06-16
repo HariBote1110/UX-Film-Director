@@ -1,4 +1,4 @@
-use crate::schema::MediaKind;
+use crate::schema::{Fps, MediaKind};
 use crate::solid_colour_scene::SceneMediaReference;
 use crate::timeline::SceneSnapshot;
 use serde::{Deserialize, Serialize};
@@ -20,6 +20,7 @@ pub struct VideoFrameDecodeRequest {
     pub media_id: String,
     pub source: String,
     pub source_frame: u64,
+    pub source_rate: Fps,
     pub timeline_frame: u64,
     pub width: u32,
     pub height: u32,
@@ -72,12 +73,28 @@ pub fn build_video_frame_decode_requests(
                 ),
             });
         }
+        let Some(source_rate) = reference.source_rate.clone() else {
+            return Err(VideoFrameDecodeRequestError::InvalidVideoMediaReference {
+                media_id: reference.id.clone(),
+                detail: "Video media source_rate must be present and rational.".to_string(),
+            });
+        };
+        if source_rate.numerator == 0 || source_rate.denominator == 0 {
+            return Err(VideoFrameDecodeRequestError::InvalidVideoMediaReference {
+                media_id: reference.id.clone(),
+                detail: format!(
+                    "Video media source_rate must be positive, got {}/{}.",
+                    source_rate.numerator, source_rate.denominator
+                ),
+            });
+        }
 
         requests.push(VideoFrameDecodeRequest {
             clip_id: clip.clip_id,
             media_id: reference.id.clone(),
             source: reference.source.clone(),
             source_frame: clip.source_frame,
+            source_rate,
             timeline_frame: snapshot.frame_index,
             width: reference.width,
             height: reference.height,

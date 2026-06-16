@@ -47,6 +47,7 @@ fn scene_media() -> Vec<SceneMediaReference> {
             source: "#ff0000".to_string(),
             width: 200,
             height: 100,
+            source_rate: None,
         },
         SceneMediaReference {
             id: "video-1".to_string(),
@@ -54,6 +55,7 @@ fn scene_media() -> Vec<SceneMediaReference> {
             source: "/tmp/video.mp4".to_string(),
             width: 1280,
             height: 720,
+            source_rate: None,
         },
     ]
 }

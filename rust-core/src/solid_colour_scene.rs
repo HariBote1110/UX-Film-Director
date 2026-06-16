@@ -1,4 +1,4 @@
-use crate::schema::MediaKind;
+use crate::schema::{Fps, MediaKind};
 use crate::timeline::SceneSnapshot;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -16,6 +16,8 @@ pub struct SceneMediaReference {
     pub source: String,
     pub width: u32,
     pub height: u32,
+    #[serde(default)]
+    pub source_rate: Option<Fps>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

@@ -48,6 +48,7 @@ fn solid_colour_media(source: &str) -> Vec<SceneMediaReference> {
             source: "/tmp/image.png".to_string(),
             width: 640,
             height: 360,
+            source_rate: None,
         },
         SceneMediaReference {
             id: "shape-1".to_string(),
@@ -55,6 +56,7 @@ fn solid_colour_media(source: &str) -> Vec<SceneMediaReference> {
             source: source.to_string(),
             width: 200,
             height: 100,
+            source_rate: None,
         },
     ]
 }
