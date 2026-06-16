@@ -12,6 +12,7 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
       format: 'bgra8unorm',
       swatch: 'solid-srgb',
       geometrySource: 'rust-wasm',
+      videoGeometrySource: 'rust-wasm',
     });
 
     expect(dataset).toMatchObject({
@@ -19,6 +20,7 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
       uxfdSharedRendererPresenterFormat: 'bgra8unorm',
       uxfdSharedRendererPresenterSwatch: 'solid-srgb',
       uxfdSharedRendererPresenterGeometrySource: 'rust-wasm',
+      uxfdSharedRendererPresenterVideoGeometrySource: 'rust-wasm',
     });
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterFailureReason');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterStaleSharedFrameAllowed');
@@ -42,6 +44,7 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterFormat');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterSwatch');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterGeometrySource');
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoGeometrySource');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterStaleSharedFrameAllowed');
   });
 
@@ -62,5 +65,6 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterFormat');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterSwatch');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterGeometrySource');
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoGeometrySource');
   });
 });

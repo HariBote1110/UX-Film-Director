@@ -95,6 +95,62 @@ const solidShapeSession: SharedRendererPreviewSession = {
   presentationContract: buildSharedRendererPresentationContract(),
 };
 
+const videoSnapshot: RustSceneSnapshot = {
+  ...snapshot,
+  clips: [
+    {
+      clip_id: 'video-1',
+      track_id: 'layer-0',
+      media_id: 'video-1',
+      source_frame: 90,
+      z_index: 0,
+      transform: {
+        translation_x: 10,
+        translation_y: 20,
+        scale_x: 1,
+        scale_y: 1,
+        rotation_degrees: 0,
+        sampling: 'bilinear',
+      },
+      opacity: 0.75,
+      effects: [],
+    },
+  ],
+};
+
+const videoSession: SharedRendererPreviewSession = {
+  plan: {
+    mode: 'parallelCompare',
+    primary: 'pixi',
+    candidate: 'sharedRenderer',
+    snapshot: videoSnapshot,
+    media: [
+      {
+        id: 'video-1',
+        kind: 'Video',
+        source: '/tmp/video.mp4',
+        width: 1280,
+        height: 720,
+      },
+    ],
+  },
+  surfaceGate: {
+    ok: true,
+    canvas: { width: 1920, height: 1080 },
+    snapshot: videoSnapshot,
+    media: [
+      {
+        id: 'video-1',
+        kind: 'Video',
+        source: '/tmp/video.mp4',
+        width: 1280,
+        height: 720,
+      },
+    ],
+  },
+  presentationContract: buildSharedRendererPresentationContract(),
+};
+
 describe('startSharedRendererPreviewPresenter', () => {
   it('exposes a CSS reference colour from the same solid swatch constants', () => {
     expect(getSharedRendererSolidSwatchCssColour()).toBe('rgb(64, 128, 191)');
@@ -300,6 +356,47 @@ describe('startSharedRendererPreviewPresenter', () => {
     expect(writtenBuffers).toEqual([rustVertices]);
     expect(dataset).toMatchObject({
       uxfdSharedRendererPresenterGeometrySource: 'rust-wasm',
+    });
+  });
+
+  it('uses the Rust/WASM VideoPlane vertex builder when video clips exist', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const builderCalls: unknown[] = [];
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustVideoPlaneVertexSceneBuilder: (input) => {
+        builderCalls.push(input);
+        return {
+          ok: true,
+          planeCount: 1,
+          planes: [{
+            clipId: 'video-1',
+            mediaId: 'video-1',
+            sourceFrame: 90,
+            zIndex: 0,
+            opacity: 0.75,
+          }],
+          vertices: new Float32Array([-0.5, 0.5, 0, 0, 0.75, 1, 0, 1]),
+        };
+      },
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter(),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({
+      ok: true,
+      format: 'bgra8unorm',
+    });
+    expect(builderCalls).toHaveLength(1);
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterVideoGeometrySource: 'rust-wasm',
     });
   });
 
