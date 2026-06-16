@@ -11,6 +11,41 @@ pub struct DecodeFrameRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DecodeStartRequest {
+    pub job_id: String,
+    pub source: String,
+    pub slot_count: u32,
+    pub width: u32,
+    pub height: u32,
+    pub format: FrameFormat,
+    pub colour: ColourMetadata,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecodeStartResponse {
+    pub job_id: String,
+    pub memory_id: String,
+    pub slot_count: u32,
+    pub slot_byte_len: u64,
+    pub width: u32,
+    pub height: u32,
+    pub stride_bytes: u32,
+    pub format: FrameFormat,
+    pub colour: ColourMetadata,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecodeReleaseFrameRequest {
+    pub job_id: String,
+    pub slot_index: u32,
+    pub generation: u64,
+    pub copy_out_state: CopyOutState,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CancelJobRequest {
     pub job_id: String,
 }

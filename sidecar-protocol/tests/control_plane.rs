@@ -1,7 +1,6 @@
 use uxfd_sidecar_protocol::{
-    ColourMetadata, ControlEvent, DecodeFrameRequest, DecodeReleaseFrameRequest,
+    ColourMetadata, ControlEvent, CopyOutState, DecodeFrameRequest, DecodeReleaseFrameRequest,
     DecodeStartRequest, DecodeStartResponse, FrameDescriptor, FrameFormat, SharedFrame,
-    CopyOutState,
 };
 
 #[test]
