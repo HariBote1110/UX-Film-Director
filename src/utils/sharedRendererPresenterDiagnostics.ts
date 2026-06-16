@@ -1,3 +1,8 @@
+import type {
+  SharedRendererVideoCutoverReason,
+  SharedRendererVideoOwner,
+} from './sharedRendererVideoOwnership';
+
 export type SharedRendererPresenterDiagnosticState =
   | {
       status: 'idle';
@@ -10,6 +15,9 @@ export type SharedRendererPresenterDiagnosticState =
       videoGeometrySource?: 'rust-wasm' | 'typescript';
       videoDecodeRequestSource?: 'rust-wasm' | 'typescript';
       videoDecodeRequestCount?: number;
+      videoOwner?: SharedRendererVideoOwner;
+      videoCutoverReason?: SharedRendererVideoCutoverReason;
+      sharedVideoObjectCount?: number;
     }
   | {
       status: 'fallback';
@@ -34,6 +42,9 @@ export const writeSharedRendererPresenterDiagnostics = (
   delete dataset.uxfdSharedRendererPresenterVideoGeometrySource;
   delete dataset.uxfdSharedRendererPresenterVideoDecodeRequestSource;
   delete dataset.uxfdSharedRendererPresenterVideoDecodeRequestCount;
+  delete dataset.uxfdSharedRendererPresenterVideoOwner;
+  delete dataset.uxfdSharedRendererPresenterVideoCutoverReason;
+  delete dataset.uxfdSharedRendererPresenterSharedVideoObjectCount;
   delete dataset.uxfdSharedRendererPresenterFailureReason;
   delete dataset.uxfdSharedRendererPresenterStaleSharedFrameAllowed;
 
@@ -51,6 +62,15 @@ export const writeSharedRendererPresenterDiagnostics = (
     }
     if (typeof state.videoDecodeRequestCount === 'number') {
       dataset.uxfdSharedRendererPresenterVideoDecodeRequestCount = String(state.videoDecodeRequestCount);
+    }
+    if (state.videoOwner) {
+      dataset.uxfdSharedRendererPresenterVideoOwner = state.videoOwner;
+    }
+    if (state.videoCutoverReason) {
+      dataset.uxfdSharedRendererPresenterVideoCutoverReason = state.videoCutoverReason;
+    }
+    if (typeof state.sharedVideoObjectCount === 'number') {
+      dataset.uxfdSharedRendererPresenterSharedVideoObjectCount = String(state.sharedVideoObjectCount);
     }
     return;
   }
