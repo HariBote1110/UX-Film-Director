@@ -1,5 +1,4 @@
 import type { SharedRendererPreviewSession } from './sharedRendererPreviewSession';
-import { buildSharedRendererSolidColourDrawList } from './sharedRendererSolidColourScene';
 import type { SharedRendererSolidColourVertexSceneBuilder } from './sharedRendererSolidColourScene';
 import {
   createSharedRendererWebGpuPresenter,
@@ -83,24 +82,7 @@ export const startSharedRendererPreviewPresenter = async ({
     };
   }
 
-  const solidColourDrawList = buildSharedRendererSolidColourDrawList({
-    snapshot: session.surfaceGate.snapshot,
-    media: session.surfaceGate.media,
-    canvas: session.surfaceGate.canvas,
-  });
-  if (!solidColourDrawList.ok) {
-    writeDiagnostics({
-      status: 'fallback',
-      reason: solidColourDrawList.reason,
-    });
-    return {
-      ok: false,
-      reason: solidColourDrawList.reason,
-      dispose: noop,
-    };
-  }
-
-  const hasSolidColourScene = solidColourDrawList.rects.length > 0;
+  const hasSolidColourScene = hasSolidColourClip(session);
   const resolvedRustSolidColourVertexSceneBuilder = hasSolidColourScene
     ? rustSolidColourVertexSceneBuilder
       ?? await loadSharedRendererRustSolidColourVertexSceneBuilder({
@@ -180,3 +162,10 @@ const noop = () => undefined;
 
 const defaultRustSolidColourWasmEnabled = (): boolean =>
   import.meta.env.VITE_UXFD_SHARED_RENDERER_RUST_SHAPES !== '0';
+
+const hasSolidColourClip = (session: SharedRendererPreviewSession): boolean => {
+  if (!session.surfaceGate.ok) return false;
+
+  const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
+  return session.surfaceGate.snapshot.clips.some((clip) => mediaKindById.get(clip.media_id) === 'SolidColour');
+};
