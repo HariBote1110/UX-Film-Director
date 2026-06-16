@@ -1,0 +1,140 @@
+use crate::schema::Project;
+use std::collections::HashSet;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValidationCode {
+    EmptyId,
+    DuplicateMediaId,
+    DuplicateTrackId,
+    DuplicateClipId,
+    InvalidFps,
+    InvalidCanvasSize,
+    MissingMediaReference,
+    InvalidDuration,
+    NonFiniteNumber,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidationIssue {
+    pub code: ValidationCode,
+    pub path: String,
+}
+
+pub fn validate_project(project: &Project) -> Result<(), Vec<ValidationIssue>> {
+    let mut issues = Vec::new();
+
+    if project.id.is_empty() {
+        issues.push(issue(ValidationCode::EmptyId, "project.id"));
+    }
+    if project.fps.numerator == 0 || project.fps.denominator == 0 {
+        issues.push(issue(ValidationCode::InvalidFps, "project.fps"));
+    }
+    if project.size.width == 0 || project.size.height == 0 {
+        issues.push(issue(ValidationCode::InvalidCanvasSize, "project.size"));
+    }
+
+    let mut media_ids = HashSet::new();
+    for media in &project.media {
+        record_id(
+            &mut media_ids,
+            &media.id,
+            "media.id",
+            ValidationCode::DuplicateMediaId,
+            &mut issues,
+        );
+    }
+
+    let mut track_ids = HashSet::new();
+    let mut clip_ids = HashSet::new();
+    for track in &project.tracks {
+        record_id(
+            &mut track_ids,
+            &track.id,
+            "track.id",
+            ValidationCode::DuplicateTrackId,
+            &mut issues,
+        );
+
+        for clip in &track.clips {
+            record_id(
+                &mut clip_ids,
+                &clip.id,
+                "clip.id",
+                ValidationCode::DuplicateClipId,
+                &mut issues,
+            );
+            if clip.duration_frames == 0 {
+                issues.push(issue(
+                    ValidationCode::InvalidDuration,
+                    "clip.duration_frames",
+                ));
+            }
+            if !media_ids.contains(clip.media_id.as_str()) {
+                issues.push(issue(
+                    ValidationCode::MissingMediaReference,
+                    "clip.media_id",
+                ));
+            }
+            if !clip.opacity.is_finite() {
+                issues.push(issue(ValidationCode::NonFiniteNumber, "clip.opacity"));
+            }
+            if !clip.transform.translation_x.is_finite()
+                || !clip.transform.translation_y.is_finite()
+                || !clip.transform.scale_x.is_finite()
+                || !clip.transform.scale_y.is_finite()
+                || !clip.transform.rotation_degrees.is_finite()
+            {
+                issues.push(issue(ValidationCode::NonFiniteNumber, "clip.transform"));
+            }
+            for keyframe in &clip.opacity_keyframes {
+                if !keyframe.value.is_finite() {
+                    issues.push(issue(
+                        ValidationCode::NonFiniteNumber,
+                        "clip.opacity_keyframes.value",
+                    ));
+                }
+            }
+            for effect in &clip.effects {
+                if !effect_is_finite(effect) {
+                    issues.push(issue(ValidationCode::NonFiniteNumber, "clip.effects"));
+                }
+            }
+        }
+    }
+
+    if issues.is_empty() {
+        Ok(())
+    } else {
+        Err(issues)
+    }
+}
+
+fn effect_is_finite(effect: &crate::schema::Effect) -> bool {
+    match effect {
+        crate::schema::Effect::LinearGain { gain } => gain.is_finite(),
+    }
+}
+
+fn issue(code: ValidationCode, path: &str) -> ValidationIssue {
+    ValidationIssue {
+        code,
+        path: path.to_string(),
+    }
+}
+
+fn record_id<'a>(
+    seen: &mut HashSet<&'a str>,
+    id: &'a str,
+    path: &str,
+    duplicate_code: ValidationCode,
+    issues: &mut Vec<ValidationIssue>,
+) {
+    if id.is_empty() {
+        issues.push(issue(ValidationCode::EmptyId, path));
+        return;
+    }
+
+    if !seen.insert(id) {
+        issues.push(issue(duplicate_code, path));
+    }
+}

@@ -1,0 +1,22 @@
+[package]
+name = "uxfd-native-wgpu-renderer"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "uxfd_native_wgpu_renderer"
+
+[dependencies]
+bytemuck = { version = "1.16", features = ["derive"] }
+half = "2"
+pollster = "0.3"
+uxfd-golden-harness = { path = "../golden-harness" }
+uxfd-reference-renderer = { path = "../reference-renderer" }
+uxfd-rust-core = { path = "../rust-core" }
+wgpu = "0.20"
+
+[dev-dependencies]
+tempfile = "3.14"
+uxfd-decode-spike = { path = "../decode-spike" }
+uxfd-shared-memory-spike = { path = "../shared-memory-spike" }
+uxfd-sidecar-protocol = { path = "../sidecar-protocol" }

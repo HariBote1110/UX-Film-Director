@@ -71,6 +71,471 @@
   （SDR/Rec.709、メタのみ保持）。音声は仕様定義のみで実装は後続。
 - rust-core の厳密一致テストは no fast-math / FMA 再順序化前提。
 
+## 2026-06-16 — Phase1: rust-core project model round-trip の TDD 着手
+
+### Red
+- `rust-core` crate の最小骨格を追加し、`tests/project_model_round_trip.rs` に project model の round-trip 期待テストを書いた。
+- 期待 API として `Project` / `Fps` / `ProjectSize` / `ColourPipeline` / `MediaReference` / `Track` / `Clip` を先に固定した。
+- `Fps` は `numerator` / `denominator` を持ち、serialised form に float 秒を含めないことをテストした。
+- `cargo test --manifest-path rust-core/Cargo.toml` は未定義型で失敗し、Red を確認した。
+
+### Green
+- `serde` 対応の最小 schema を実装し、project model の `load -> save -> load` identity を通した。
+- `ColourPipeline::rec709_sdr_linear()` は `rec709-sdr` / `linear-light` / `premultiplied` を返す最小実装にした。
+
+### Refactor
+- schema 定義を `rust-core/src/schema.rs` に分離し、`src/lib.rs` から再 export する構成に整理した。
+- `rust-core/.gitignore` を追加し、`target/` を成果物から除外した。
+
+### 確認結果
+- `cargo test --manifest-path rust-core/Cargo.toml`
+- 結果: 2 tests passed。
+
+## 2026-06-16 — Phase1: timeline / keyframe / validation の TDD 拡張
+
+### Timeline Evaluation
+- Red: `tests/timeline_evaluation.rs` を追加し、clip の有効区間を `[start_frame, start_frame + duration_frames)` として固定した。
+- Green: `evaluate_frame` / `SceneSnapshot` / `EvaluatedClip` を実装し、開始 frame、終了直前 frame、終了 frame、ゼロ duration の挙動を通した。
+- Refactor: `clip_contains_frame` を切り出し、半開区間の判定を明示した。
+
+### Keyframe Evaluation
+- Red: `tests/keyframe_evaluation.rs` を追加し、opacity keyframe を clip-local `frame_offset` として評価する契約を固定した。
+- Green: `ScalarKeyframe` と `opacity_keyframes` を schema に追加し、timeline evaluation の opacity に線形補間を反映した。
+- Refactor: 補間処理を `src/keyframe.rs` に分離した。
+
+### Validation
+- Red: `tests/project_validation.rs` を追加し、不正 FPS、media 参照欠落、重複 ID、非有限 opacity を拒否する契約を固定した。
+- Green: `validate_project` / `ValidationCode` / `ValidationIssue` を実装した。
+- Refactor: ID 検証を `record_id` に切り出し、重複検出の重複を減らした。
+
+### Property-based Test
+- Red: `tests/keyframe_properties.rs` を追加し、`proptest` 未導入で失敗することを確認した。
+- Green: `proptest` を dev dependency に追加し、2 keyframe 間の補間が有限値で端点範囲内に収まることを property test で確認した。
+- 調整: `f32` 丸め誤差を踏んだため、範囲チェックに `1.0e-5` の許容を設け、proptest の failure persistence を無効化して CI で regression file を生成しないようにした。
+
+### 確認結果
+- `cargo test --manifest-path rust-core/Cargo.toml`
+- 結果: 14 tests passed。
+
+## 2026-06-16 — Phase1: command / snapshot contract / effect schema の TDD 拡張
+
+### Command / Undo
+- Red: `tests/command_undo.rs` を追加し、`SetClipOpacity` の do / undo / redo 契約を固定した。
+- Green: `src/command.rs` を追加し、入力 `Project` を破壊せず新しい `Project` と undo command を返す最小実装にした。
+- Validation: 存在しない clip は `ClipNotFound`、NaN opacity など適用後に不正となる command は `ValidationFailed` で拒否する。
+
+### Timeline Snapshot Contract
+- Red: `tests/timeline_snapshot_contract.rs` を追加し、renderer 境界として scene snapshot が `colour` metadata と clip `transform` を持つことを固定した。
+- Green: `Transform` を schema に追加し、`evaluate_frame` の `SceneSnapshot` / `EvaluatedClip` に colour と transform を流すようにした。
+- Validation: transform の NaN / infinite を `NonFiniteNumber` として拒否する。
+
+### Effect Schema
+- Red: MVP effect として `Effect::LinearGain { gain }` を clip に持たせ、evaluated clip にそのまま渡す契約を追加した。
+- Green: `effects: Vec<Effect>` を schema と snapshot に追加し、`LinearGain` の非有限 gain を validation で拒否した。
+
+### 確認結果
+- `cargo fmt --manifest-path rust-core/Cargo.toml`
+- `cargo test --manifest-path rust-core/Cargo.toml`
+- 結果: 22 tests passed。
+
+## 2026-06-16 — Phase2: golden-harness RGBA 比較土台の TDD 着手
+
+### Red
+- `golden-harness` crate を追加し、`tests/rgba_compare.rs` に同一 RGBA frame の pass、channel delta の fail、寸法不一致の fail を先に書いた。
+- SSIM 追加前に、`FrameMetrics.ssim` / `ComparisonThresholds.min_ssim` / `DifferenceCause::StructuralSimilarity` の未定義で Red を確認した。
+
+### Green
+- `RgbaFrame` / `compare_rgba_frames` / `ComparisonThresholds` / `FrameMetrics` / `DifferenceCause` を実装した。
+- 指標は最大 channel 差、平均絶対誤差、PSNR、global SSIM。
+- 失敗原因は `DimensionMismatch` / `PixelValueDelta` / `MeanAbsoluteError` / `PsnrBelowThreshold` / `StructuralSimilarity` に分類する。
+
+### Refactor
+- fixture IO や PNG 依存はまだ入れず、RGBA8 メモリ比較の純粋ロジックだけに閉じた。
+- `markdown/architecture/04-render-parity.md` と `markdown/roadmap.md` を現状の harness 契約に更新した。
+
+### 確認結果
+- `cargo fmt --manifest-path golden-harness/Cargo.toml`
+- `cargo test --manifest-path golden-harness/Cargo.toml`
+- 結果: 5 tests passed。
+
+## 2026-06-16 — Phase2: PNG fixture IO と CPU reference renderer の TDD 拡張
+
+### PNG Fixture IO
+- Red: `golden-harness/tests/png_fixture_io.rs` を追加し、RGBA PNG の保存・読込 round-trip と missing fixture の IO error を固定した。
+- Green: `png` crate を導入し、`save_rgba_png` / `load_rgba_png` を実装した。
+- Red: indexed PNG の palette / transparency が RGBA8 に展開される test を追加し、未正規化の読込で失敗することを確認した。
+- Green: `png::Transformations::normalize_to_color8()` を読込に適用し、palette / indexed / grayscale / 16bit 系入力を比較前に 8bit colour へ正規化するようにした。
+
+### CPU Reference Renderer
+- Red: `reference-renderer` crate を追加し、`rust-core` の `SceneSnapshot` と media id -> `RgbaFrame` map から解析的 reference frame を生成する契約を test 化した。
+- Green: 初回 parity gate 用に、source=canvas 同一解像度、identity transform、no resampling の CPU renderer を実装した。
+- 合成: linear light sample、premultiplied alpha の source-over、`Effect::LinearGain` を premultiply 前の RGB に適用。
+- Error: missing source と source/canvas size mismatch を明示的に返す。
+
+### 文書更新
+- `markdown/architecture/04-render-parity.md` に PNG 正規化と `reference-renderer` の役割を追記した。
+- `markdown/roadmap.md` の Phase2 タスクに PNG fixture IO と CPU reference renderer を追加した。
+
+### 確認結果
+- `cargo fmt --manifest-path rust-core/Cargo.toml`
+- `cargo fmt --manifest-path golden-harness/Cargo.toml`
+- `cargo fmt --manifest-path reference-renderer/Cargo.toml`
+- `cargo test --manifest-path rust-core/Cargo.toml` -> 22 tests passed。
+- `cargo test --manifest-path golden-harness/Cargo.toml` -> 8 tests passed。
+- `cargo test --manifest-path reference-renderer/Cargo.toml` -> 4 tests passed。
+
+## 2026-06-16 — Phase3a: native wgpu 単独 parity spike の TDD 着手
+
+### Claude レビュー反映
+- 現行 Pixi characterization golden は後回しにし、先に Phase3a として native wgpu 単独で解析的 reference と比較する方針にした。
+- 理由: WebGPU preview / native export の二経路比較を先に始めると、不一致時に renderer math の誤りと経路差を切り分けづらいため。
+- `markdown/architecture/04-render-parity.md` と `markdown/roadmap.md` を Phase3a / Phase3b の 2 段構成に更新した。
+
+### Red
+- `native-wgpu-renderer` crate を追加し、`tests/native_reference_parity.rs` で `SceneSnapshot` + RGBA sources を native wgpu で描画し、CPU reference と比較する期待を先に固定した。
+- 未定義の `render_native_wgpu_frame` / `NativeWgpuRenderError` と未導入 `pollster` で Red を確認した。
+
+### Green
+- `wgpu` / `half` / `bytemuck` / `pollster` を導入した。
+- offscreen native wgpu renderer を実装し、`rgba16float` render target に premultiplied alpha の source-over で合成するようにした。
+- source texture は `Rgba8Unorm` とし、shader 側で `textureLoad` により 1:1 no-resample で取得する。
+- readback 後は CPU reference と同じ規則（clamp -> `value * 255.0` -> `round()`）で straight RGBA8 に変換する。
+- 初回 gate は identity transform のみ対応し、CPU reference との比較は max channel delta を主判定にした。
+
+### 確認結果
+- `cargo fmt --manifest-path native-wgpu-renderer/Cargo.toml`
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml`
+- 結果: 1 test passed。
+- 併せて `rust-core` 22 tests、`golden-harness` 8 tests、`reference-renderer` 4 tests も再確認済み。
+
+## 2026-06-16 — Phase3a: sRGB 入力契約と oracle の解析アンカー修正
+
+### Claude レビュー反映
+- Claude から「oracle の正しさを誰が保証するか」「PNG byte を linear sample と見なす曖昧さ」を赤信号として指摘された。
+- これを受け、PNG / RGBA8 入力は sRGB encoded とし、合成前に linear light へ decode、出力比較時に sRGB encode する契約へ修正した。
+
+### Red
+- `reference-renderer/tests/solid_scene.rs` の期待値を、sRGB decode -> linear 合成 -> sRGB encode の手計算値に変更した。
+- 赤 50% over 青は `[128, 0, 128, 255]` ではなく `[188, 0, 188, 255]`。
+- `[255, 128, 0]` に `LinearGain { gain: 0.5 }` を適用する case は `[188, 92, 0, 255]`。
+- 旧実装は encoded byte 値のまま計算していたため Red を確認した。
+
+### Green
+- `reference-renderer` に sRGB -> linear decode と linear -> sRGB encode を追加した。
+- `native-wgpu-renderer` の WGSL shader に sRGB decode を追加し、readback 後の RGBA8 化でも sRGB encode を行うようにした。
+- native wgpu と CPU reference の parity test を Green に戻した。
+- 追加アンカー: white 50% over black の手計算値 `[188, 188, 188, 255]` を CPU reference と native wgpu の両方で確認した。
+- さらに opacity 0.25、source alpha 128 × clip opacity 0.5、gain 2.0 clamp、2 pixel 座標写像の判別ケースを追加した。
+
+### 文書更新
+- `markdown/architecture/03-colour-pipeline.md` に MVP の演算順序を正本として追記した。
+- `markdown/architecture/04-render-parity.md` の Phase3a 量子化規則にも sRGB decode / encode を追記した。
+
+### 確認結果
+- `cargo test --manifest-path rust-core/Cargo.toml` -> 22 tests passed。
+- `cargo test --manifest-path golden-harness/Cargo.toml` -> 8 tests passed。
+- `cargo test --manifest-path reference-renderer/Cargo.toml` -> 9 tests passed。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml` -> 6 tests passed。
+
+## 2026-06-16 — Phase3b: WebGPU preview harness の実測
+
+### Claude レビュー反映
+- Phase3b 前に、共有 WGSL、plain `rgba8unorm` + 手動 sRGB decode、`rgba16float` render target、readback 後 CPU encode / quantise の 4 点を固定した。
+- WGSL は `shared-renderer/shaders/solid_composite.wgsl` の単一ソースに移し、native wgpu と WebGPU harness の両方から読む構成にした。
+
+### WebGPU Harness
+- `phase3b-webgpu-harness/` を追加した。
+- local HTTP server 経由で Chrome 149 / WebGPU を起動し、Phase3a と同じ 6 つの hand anchor case を描画した。
+- source texture は `rgba8unorm`、render target は `rgba16float`、sRGB decode は共有 WGSL、sRGB encode と `round()` は JS 側 readback 後に実行した。
+
+### 実測結果
+- 実行 URL: `http://127.0.0.1:4177/phase3b-webgpu-harness/`
+- Adapter: `vendor=apple` / `architecture=metal-3` / `isFallbackAdapter=false`。
+- red 50% over blue: `maxDelta = 0`
+- white 50% over black: `maxDelta = 0`
+- white 25% over black: `maxDelta = 0`
+- source alpha × clip opacity: `maxDelta = 0`
+- gain above one clamp: `maxDelta = 0`
+- 2 pixel coordinate mapping: `maxDelta = 0`
+- すべて `meanAbsoluteError = 0`。
+
+### 追加確認
+- `?perturb=red-plus` で共有 WGSL 読込後の shader に red channel 加算を入れ、期待通り RED になることを確認した。
+- これにより、WebGPU harness が GPU output を実際に readback / compare していることを確認した。
+- Claude レビューで `3b verified GO` として扱ってよいと確認された。
+- この GO は per-pixel 合成の範囲に限定する。blur / scale / rotate など sampling 系は後続 gate で検証する。
+
+## 2026-06-16 — Phase4: sidecar ring buffer / back pressure contract の TDD 着手
+
+### Red
+- `sidecar-protocol/tests/ring_buffer.rs` を追加し、共有フレーム ring の layout、slot 状態遷移、producer back pressure、consumer empty ring の契約を先に固定した。
+- 期待 API として `FrameRingLayout` / `SharedFrameRing` / `SlotState` / `AcquireWriteError` / `AcquireReadError` を置いた。
+- 未定義 API により `cargo test --manifest-path sidecar-protocol/Cargo.toml` が失敗し、Red を確認した。
+
+### Green
+- `sidecar-protocol` に OS 非依存の純粋な ring buffer state machine を実装した。
+- slot 状態は `free -> writing -> ready -> reading -> free` とした。
+- producer は `free` slot がない場合 `NoFreeSlot` を返し、consumer は `ready` slot がない場合 `NoReadySlot` を返す。
+- `FrameRingLayout` は `memoryId`、slot 数、slot byte length、解像度、stride、format、colour metadata から各 `FrameDescriptor` を導出する。
+- frame bytes は protocol object に載せず、`SharedFrame` は descriptor と `ptsFrame` のみを持つ契約を維持した。
+
+### 文書更新
+- `markdown/architecture/05-boundary-ipc.md` に ring layout、状態遷移、所有権、back pressure の初期契約を追記した。
+- checksum / pixel diff schema と実共有メモリ API は未決として残した。
+
+### 確認結果
+- `cargo fmt --manifest-path sidecar-protocol/Cargo.toml`
+- `cargo test --manifest-path sidecar-protocol/Cargo.toml`
+- 結果: 6 tests passed。
+
+### Claude レビュー反映
+- Claude から、共有メモリ ring contract の MVP blocker として以下の指摘を受けた。
+  - Apple Silicon では plain load/store の slot state だと `ready` が見えても bytes が未可視化の torn frame が起きうる。
+  - `reading -> free` を GPU upload 完了前に行うと、producer が上書きして renderer が読みかけの frame を壊す。
+- Red: `reading_slot_is_not_freed_until_copy_out_completion_is_signalled` と `synchronisation_contract_requires_release_acquire_slot_state` を追加した。
+- Green: `CopyOutState` / `RingSynchronisationContract` / `SlotStateStorage::AtomicU32` / `AtomicOrdering::{Release, Acquire}` を追加した。
+- `release_read_slot` は `CopyOutState::GpuUploadFenceSignalled` が渡されるまで slot を `free` に戻さない契約に変更した。
+- stride padding と colour metadata の退行防止として `layout_preserves_padded_stride_and_colour_metadata` を追加した。
+- `markdown/architecture/05-boundary-ipc.md` に SPSC、atomic release/acquire、GPU upload fence、preview/export の独立 ring、back pressure policy、stuck slot の未決を追記した。
+
+### 再確認結果
+- `cargo fmt --manifest-path sidecar-protocol/Cargo.toml`
+- `cargo test --manifest-path sidecar-protocol/Cargo.toml`
+- 結果: 7 tests passed。
+- Perturbation: `?perturb=red-plus` で shader の red channel を意図的に壊し、5/6 ケースが RED になることを確認した。gain clamp case は saturate して差が出ないため pass のまま。
+
+### 確認結果
+- `node --check phase3b-webgpu-harness/phase3b.js`
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml` -> 6 tests passed。
+
+## 2026-06-16 — Phase4: checksum schema と既知 CFR H.264 decode correctness spike
+
+### Claude レビュー反映
+- Claude から、decode spike の目的は `preview == export` の同語反復ではなく、既知入力に対する
+  decode -> colour conversion -> descriptor の正しさ確認に置くべきと指摘された。
+- そのため、テスト素材は中身が既知の CFR H.264 をテスト中に生成し、期待 RGBA と decoded RGBA を比較する方針にした。
+- 追加レビューで、grayscale ramp は luma 経路だけを確認する identity gate になり、YUV matrix の chroma 項を炙れないと指摘された。
+- Red として pure R / G / B、orange、teal を含むことを test に追加し、grayscale 実装で失敗することを確認した。
+- Green として既知フレームを 32x16 colour swatch に差し替え、x264 VUI / ffprobe metadata で
+  `primaries=bt709`、`matrix=bt709`、`range=pc`、`transfer=iec61966-2-1` を明示した。
+- `markdown/architecture/03-colour-pipeline.md` に、MVP の renderer handoff は `Rgba8Srgb` / sRGB transfer へ
+  正規化する方針を追記した。
+
+### Red
+- `sidecar-protocol/tests/frame_verification.rs` を追加し、`FrameVerificationReport` / `FrameChecksum` /
+  `PixelDiffSummary` / `FrameVerificationStatus` の JSON schema を先に固定した。
+- verification report も frame bytes / pixel array / base64 を載せない契約にした。
+- `decode-spike/tests/known_cfr_h264_decode.rs` を追加し、既知 CFR H.264 1 frame が期待 RGBA と許容差内で
+  一致すること、descriptor が `Rgba8Srgb` と colour metadata を持つこと、decode invocation が 1 回であることを固定した。
+
+### Green
+- `sidecar-protocol` に checksum / pixel diff summary schema を実装した。
+- `decode-spike` crate を追加した。
+- 既知 32x16 RGBA colour swatch を生成し、`ffmpeg` + software `libx264` fallback で `yuv444p` / `crf=0` の
+  1 frame CFR H.264 を作るようにした。
+- `ffprobe` で `codec=h264`、`avgFrameRate=30/1`、`frameCount=1`、colour metadata を確認した。
+- `ffmpeg` decode は 1 回だけ実行し、decoded RGBA8 frame から descriptor / shared frame / verification report を生成した。
+
+### 実測結果
+- decoded RGBA vs 期待 RGBA: `maxDelta=2`、`meanAbsoluteError=0.3125`、`PSNR=52.042869868809795`、
+  `SSIM=0.9999737802566389`。
+- decoded RGBA CRC32: `ef46fca8`。
+- descriptor: `format=Rgba8Srgb`、`colour=rec709_srgb()`、`strideBytes=width*4`。
+
+### 確認結果
+- `cargo fmt --manifest-path sidecar-protocol/Cargo.toml`
+- `cargo test --manifest-path sidecar-protocol/Cargo.toml` -> 11 tests passed。
+- `cargo fmt --manifest-path decode-spike/Cargo.toml`
+- `cargo test --manifest-path decode-spike/Cargo.toml` -> 1 test passed。
+
+## 2026-06-16 — Phase4: renderer handoff validation と atomic ring stress
+
+### Claude レビュー反映
+- Claude から、`transfer=bt709` や `range=tv` の実素材を sRGB/full range として無音処理しないよう、
+  descriptor metadata を読んで未対応なら fail-loud にすべきと指摘された。
+- また、単スレッドの ring buffer state machine test は acquire/release の正しさを証明しないため、
+  producer / consumer を実スレッドで同時に回す checksum stress が必要と指摘された。
+
+### Descriptor Validation
+- Red: `sidecar-protocol/tests/descriptor_validation.rs` を追加し、MVP renderer handoff として
+  `Rgba8Srgb + bt709 primaries + srgb transfer + rgb matrix + full range` だけを受け付ける契約を固定した。
+- Green: `validate_renderer_handoff_descriptor` / `DescriptorValidationError` を実装した。
+- `transfer=bt709` と `range=tv` は、後続 gate で対応するまでは明示的に reject する。
+
+### Atomic Ring Stress
+- Red: `shared-memory-spike/tests/atomic_ring_stress.rs` を追加し、producer / consumer を実スレッドで回して
+  deterministic frame bytes と CRC32 が一致し続けることを固定した。
+- Green: `shared-memory-spike` crate を追加し、`AtomicU32` slot state、`UnsafeCell<Vec<u8>>` buffer、
+  release-store / acquire-load を使う in-memory SPSC ring を実装した。
+- 2,000 frames / 4,096 bytes の stress で、読み出し bytes と checksum が全 iteration で一致した。
+- stress は throughput / 機能確認として残す。メモリ順序 correctness の主証明にはしない。
+
+### Loom Ordering
+- Claude から、stress pass は確率的であり、Release/Acquire が本当に効いている証明にはならないと指摘された。
+- Red/Green: `shared-memory-spike/tests/loom_ordering.rs` を追加し、stable toolchain で `loom` による ordering model を通した。
+- Init handshake: header fields -> `initState` の Release/Acquire model は全 interleaving で pass。
+- Init perturb: `initState` の store/load を Relaxed に落とした model は failure として検出されることを確認した。
+- Publish 方向: frame bytes -> `ready` の Release/Acquire model は全 interleaving で pass。
+- Publish perturb: `ready` の store/load を Relaxed に落とした model は failure として検出されることを `catch_unwind` で確認した。
+- Recycle 方向: copy-out marker -> `free` の Release/Acquire model は、slot を 2 cycle 再利用しても全 interleaving で pass。
+- Recycle perturb: `free` の store/load を Relaxed に落とした model は failure として検出されることを `catch_unwind` で確認した。
+- ThreadSanitizer はローカルに nightly toolchain が無いため未実施。後続 CI / nightly 環境で追加する。
+
+### Shared Header
+- Claude から、cross-process mmap では `repr(C)` だけでは別ビルド間の layout drift を検出できないため、
+  magic / protocol version / layout hash を共有領域先頭に置くべきと指摘された。
+- Red: `shared-memory-spike/tests/shared_header.rs` を追加し、header offset / size、未初期化 attach の拒否、
+  layout hash mismatch の拒否を固定した。
+- Green: `SharedRingHeader` / `SharedRingAttachError` / `expected_shared_ring_layout_hash` を実装した。
+- `SharedRingHeader` は `#[repr(C)]`、現時点で size 40 bytes。主要 offset は test で固定した。
+- producer は初期化完了時に `init_state` を Release store、consumer attach は Acquire load で確認する。
+
+### POSIX Shm Two-Process Spike
+- Red: `shared-memory-spike/tests/posix_shm_two_process.rs` を追加し、consumer を producer より先に起動して
+  shm object の存在 retry を踏む 2 プロセス CRC stress を固定した。
+- Green: `shm_open` / `ftruncate` / `mmap(MAP_SHARED)` を使う `PosixSharedRing` と、
+  `uxfd-shm-producer` / `uxfd-shm-consumer` bin を実装した。
+- producer / consumer は別プロセスで 250 frames / 4,096 bytes の deterministic frame と CRC32 を検証した。
+- Red/Green: 実 mapping 上の layout hash を意図的に壊した場合、attach が `LayoutHashMismatch` で fail-loud になる test を追加した。
+- macOS の POSIX shm 名長制限に当たったため、test 用 shm name は短い形式に調整した。
+
+### Decode -> Shm Integration
+- Red: `shared-memory-spike/tests/decode_to_shm.rs` と `uxfd-shm-raw-consumer` bin を追加し、
+  `decode-spike` の既知 CFR H.264 decoded RGBA を POSIX shm に流して別プロセス consumer が検証する契約を固定した。
+- Green: `run_shm_raw_consumer_from_args` を実装し、consumer が expected raw RGBA file と shm frame の bytes / CRC32 を比較するようにした。
+- 既知 colour swatch H.264 decode -> POSIX shm ring -> 別プロセス raw consumer の統合 test が pass した。
+
+### Shm -> Native Renderer Integration
+- Claude から、decode -> shm で止めず、実 decoded frame を renderer texture upload へ通してから 4K throughput に進むべきと指摘された。
+- Red: `native-wgpu-renderer/tests/shm_decoded_frame_render.rs` を追加し、POSIX shm から読み出した decoded RGBA を
+  native wgpu renderer に渡し、known swatch と比較する契約を固定した。
+- Green: 既存 `render_native_wgpu_frame` で decoded frame を描画し、render 完了後に
+  `CopyOutState::GpuUploadFenceSignalled` として slot release するようにした。
+- 実測: `maxDelta=2`、`meanAbsoluteError=0.3125`、`PSNR=52.042869868809795`、
+  `SSIM=0.9999737802566389`。
+- これにより input -> decode -> POSIX shm -> native wgpu render -> known swatch 比較の end-to-end correctness が通った。
+
+### 確認結果
+- `cargo fmt --manifest-path sidecar-protocol/Cargo.toml`
+- `cargo test --manifest-path sidecar-protocol/Cargo.toml` -> 14 tests passed。
+- `cargo fmt --manifest-path shared-memory-spike/Cargo.toml`
+- `cargo test --manifest-path shared-memory-spike/Cargo.toml` -> 14 tests passed。
+- `cargo fmt --manifest-path native-wgpu-renderer/Cargo.toml`
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test shm_decoded_frame_render` -> 1 test passed。
+
+## 2026-06-16 — Phase4: 4K throughput / slot sizing spike
+
+### Red
+- `sidecar-protocol/tests/frame_memory_sizing.rs` を追加し、4K RGBA8 decode slot と `rgba16float`
+  render target readback の byte footprint を先に固定した。
+- `native-wgpu-renderer/tests/frame_stage_timings.rs` を追加し、native wgpu renderer が
+  `sourceUpload` / `render` / `readbackEncode` / `total` を分離して返す契約を固定した。
+- `native-wgpu-renderer/tests/four_k_throughput.rs` を `#[ignore]` 付きの明示実行 probe として追加した。
+
+### Green
+- `frame_buffer_footprint` と `rgba8_srgb_ring_layout` を実装し、row pitch は 256 byte alignment で計算するようにした。
+- 4K RGBA8 source slot は `33,177,600 bytes`、4K `rgba16float` readback は `66,355,200 bytes` として固定した。
+- `measure_native_wgpu_frame_stages` を実装し、従来の `render_native_wgpu_frame` は測定 API の frame だけを返す互換 API とした。
+- 4K probe の初回実行で `wgpu::Limits::downlevel_defaults()` の `maxTextureDimension2D=2048` に当たり、
+  3840px texture 作成が失敗した。device request limit を frame size に合わせ、adapter limit を超える場合は
+  `FrameSizeExceedsAdapterLimit` として fail-loud にした。
+
+### Claude レビュー反映
+- Claude から、`total` に adapter / device / pipeline 作成などの一回性 setup が混入しているため、
+  throughput 判断では per-frame steady state と分けるべきと指摘された。
+- Red/Green: `NativeWgpuFrameStageTimings` に `setup` と `steadyState` を追加し、
+  `steadyState = sourceUpload + render + readbackEncode` を test で固定した。
+- preview path と export path を分けて読む必要がある。preview は readback を行わず、
+  export だけが `readbackEncode` を支払う。
+
+### 実測結果
+- Debug build: `setup=28.588625ms`、`sourceUpload=13.600083ms`、`render=21.783333ms`、
+  `readbackEncode=1.314205583s`、`steadyState=1.349588999s`、`total=1.379209708s`。
+- Release build observed range: `setup=9.623042ms-25.295542ms`、`sourceUpload=10.807208ms-12.032625ms`、
+  `render=7.610625ms-8.507167ms`、`readbackEncode=112.997ms-136.20175ms`、
+  `steadyState=132.664167ms-155.516125ms`、`total=146.89025ms-181.625625ms`。
+- `sourceUpload` は source texture 作成、CPU bytes の staging copy、queue flush、GPU work completion を含む。
+- `render` は render command submit から GPU work completion までを含む。
+- `readbackEncode` は `copy_texture_to_buffer` completion、buffer map、`f16` readback scan、
+  premultiplied -> straight RGBA8、CPU linear -> sRGB encode を含む。
+- Release の preview 相当 steady state は `sourceUpload + render = 約18.5-20.5ms`、約 49-54fps。
+- Release の export steady state は `約132.7-155.5ms/frame`、約 6.4-7.5fps。
+- 現時点の支配項は export 側の readback + CPU encode。これは後続の shader encode / u8 readback /
+  YUV 直出し最適化の根拠として残すが、MVP では correctness gate を優先する。
+
+### 確認結果
+- `cargo test --manifest-path sidecar-protocol/Cargo.toml --test frame_memory_sizing` -> 4 tests passed。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test frame_stage_timings` -> 1 test passed。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test four_k_throughput` -> 1 ignored。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test four_k_throughput -- --ignored --nocapture` -> 1 test passed。
+- `cargo test --release --manifest-path native-wgpu-renderer/Cargo.toml --test four_k_throughput -- --ignored --nocapture` -> 1 test passed。
+
+## 2026-06-16 — Phase4: export round-trip / explicit ffmpeg colour conversion
+
+### Red
+- `decode-spike/tests/explicit_colour_export_round_trip.rs` を追加し、RGBA -> H.264 4:4:4 export filter が
+  `primariesin` / `transferin` / `matrixin` / `rangein` と出力側 `primaries` / `transfer` / `matrix` / `range`
+  を明示する契約を固定した。
+- 既知 swatch frame を explicit H.264 4:4:4 へ encode し、再 decode して元 swatch と比較する契約を固定した。
+- `native-wgpu-renderer/tests/export_round_trip.rs` を追加し、timeline snapshot -> native wgpu RGBA ->
+  explicit H.264 4:4:4 export -> 再 decode -> known swatch 比較の縦スライスを固定した。
+
+### Green
+- `decode-spike` に `export_rgba_frame_to_h264_444` / `decode_exported_h264_to_rgba` /
+  `explicit_rgba_to_h264_444_filter` を実装した。
+- encode filter は `matrixin=gbr`、出力 `matrix=bt709`、`transfer=iec61966-2-1`、`range=full` を明示した。
+- decode filter は H.264 4:4:4 側の `bt709` / sRGB transfer / full range を明示し、最後に `format=rgba` へ落とす。
+- 最初の decode filter では `matrix=gbr` を zscale 出力に指定して失敗した。zscale は YUV family に RGB matrix を
+  出せないため、YUV 側を明示した上で `format=rgba` に渡す形に修正した。
+
+### 実測結果
+- explicit H.264 4:4:4 export round-trip: `maxDelta=1`、`meanAbsoluteError=0.203125`、
+  `PSNR=55.05316982544961`、`SSIM=0.9999856973166401`。
+- native wgpu -> explicit H.264 4:4:4 export round-trip: `maxDelta=1`、`meanAbsoluteError=0.203125`、
+  `PSNR=55.05316982544961`、`SSIM=0.9999856973166401`。
+- native preview output -> export round-trip output の直接比較: `maxDelta=1`、`meanAbsoluteError=0.203125`、
+  `PSNR=55.05316982544961`、`SSIM=0.9999856973166401`。
+- ffprobe metadata: `codec=h264`、`avgFrameRate=30/1`、`frameCount=1`、`range=pc`、
+  `space=bt709`、`transfer=iec61966-2-1`、`primaries=bt709`。
+- 4:2:0 export は subsampling tolerance が別物になるため未実施。まず 4:4:4 correctness gate を固定した。
+- Spike では sRGB transfer (`iec61966-2-1`) tag を使っている。内部一貫性は取れているが、shipping export では
+  SDR H.264 の一般的な期待に合わせて bt709 transfer 出力を別 gate で確認する。
+
+### 確認結果
+- `cargo fmt --manifest-path decode-spike/Cargo.toml`
+- `cargo test --manifest-path decode-spike/Cargo.toml --test explicit_colour_export_round_trip -- --nocapture` -> 2 tests passed。
+- `cargo fmt --manifest-path native-wgpu-renderer/Cargo.toml`
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test export_round_trip -- --nocapture` -> 1 test passed。
+
+### Consolidated Milestone
+- Claude レビューで、MVP のアーキテクチャ検証 arc は完了と扱ってよいと確認された。
+- central risk はそれぞれ falsification-grade の gate を持った:
+  - preview parity: WebGPU / native wgpu / CPU reference / hand anchor が `maxDelta=0`。
+  - input correctness: known CFR H.264 decode が `maxDelta=2`。
+  - data plane: decode -> POSIX shm -> consumer が byte / CRC exact、Release/Acquire は loom perturb で検証済み。
+  - render integration: shm frame -> native wgpu -> known swatch が `maxDelta=2`。
+  - export correctness: native wgpu -> explicit H.264 4:4:4 -> known swatch が `maxDelta=1`。
+  - WYSIWYG direct check: native preview output -> export round-trip output が `maxDelta=1`。
+- ここから先はアーキテクチャ成立性の証明ではなく、breadth と production 化:
+  sampling 系 effect、real footage、bt709 / limited range、VFR、4:2:0 tolerance、shader encode / u8 readback、
+  sidecar orchestration / cancellation / crash recovery。
+
+## 2026-06-16 — Phase4: sidecar protocol 契約の TDD 着手
+
+### Red
+- `sidecar-protocol` crate を追加し、制御プレーンに frame bytes / base64 / pixel array を載せない契約を `tests/control_plane.rs` で先に固定した。
+- `DecodeFrameRequest` は float 秒ではなく `frameIndex` を使うことを test 化した。
+
+### Green
+- `DecodeFrameRequest` / `ControlEvent` / `SharedFrame` / `FrameDescriptor` / `FrameFormat` / `ColourMetadata` を実装した。
+- `FrameReady` event は shared memory descriptor と colour metadata だけを JSON に載せ、巨大 frame data は data plane に分離する形にした。
+
+### 文書更新
+- `markdown/architecture/05-boundary-ipc.md` に `sidecar-protocol` の制御プレーン / データプレーン契約を追記した。
+
+### 確認結果
+- `cargo test --manifest-path sidecar-protocol/Cargo.toml` -> 2 tests passed。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）

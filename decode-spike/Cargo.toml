@@ -1,0 +1,16 @@
+[package]
+name = "uxfd-decode-spike"
+version = "0.1.0-Alpha-1a"
+edition = "2021"
+
+[lib]
+name = "uxfd_decode_spike"
+
+[dependencies]
+crc32fast = "1.5"
+serde_json = "1.0"
+uxfd-golden-harness = { path = "../golden-harness" }
+uxfd-sidecar-protocol = { path = "../sidecar-protocol" }
+
+[dev-dependencies]
+tempfile = "3.14"

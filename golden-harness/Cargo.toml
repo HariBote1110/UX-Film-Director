@@ -1,0 +1,10 @@
+[package]
+name = "uxfd-golden-harness"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "uxfd_golden_harness"
+
+[dependencies]
+png = "0.17"

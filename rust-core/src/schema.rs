@@ -1,0 +1,114 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Fps {
+    pub numerator: u32,
+    pub denominator: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProjectSize {
+    pub width: u32,
+    pub height: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ColourPipeline {
+    pub profile: String,
+    pub working_space: String,
+    pub alpha: String,
+}
+
+impl ColourPipeline {
+    pub fn rec709_sdr_linear() -> Self {
+        Self {
+            profile: "rec709-sdr".to_string(),
+            working_space: "linear-light".to_string(),
+            alpha: "premultiplied".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MediaKind {
+    Video,
+    Image,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MediaReference {
+    pub id: String,
+    pub kind: MediaKind,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ClipKind {
+    VideoPlane,
+    ImagePlane,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ScalarKeyframe {
+    pub frame_offset: u64,
+    pub value: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Transform {
+    pub translation_x: f32,
+    pub translation_y: f32,
+    pub scale_x: f32,
+    pub scale_y: f32,
+    pub rotation_degrees: f32,
+}
+
+impl Transform {
+    pub fn identity() -> Self {
+        Self {
+            translation_x: 0.0,
+            translation_y: 0.0,
+            scale_x: 1.0,
+            scale_y: 1.0,
+            rotation_degrees: 0.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Effect {
+    LinearGain { gain: f32 },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Clip {
+    pub id: String,
+    pub media_id: String,
+    pub kind: ClipKind,
+    pub start_frame: u64,
+    pub duration_frames: u64,
+    #[serde(default = "Transform::identity")]
+    pub transform: Transform,
+    pub opacity: f32,
+    #[serde(default)]
+    pub opacity_keyframes: Vec<ScalarKeyframe>,
+    #[serde(default)]
+    pub effects: Vec<Effect>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Track {
+    pub id: String,
+    pub clips: Vec<Clip>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Project {
+    pub id: String,
+    pub version: u32,
+    pub size: ProjectSize,
+    pub fps: Fps,
+    pub colour: ColourPipeline,
+    pub media: Vec<MediaReference>,
+    pub tracks: Vec<Track>,
+}

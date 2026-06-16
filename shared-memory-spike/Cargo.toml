@@ -1,0 +1,17 @@
+[package]
+name = "uxfd-shared-memory-spike"
+version = "0.1.0-Alpha-1a"
+edition = "2021"
+
+[lib]
+name = "uxfd_shared_memory_spike"
+
+[dependencies]
+crc32fast = "1.5"
+libc = "0.2"
+uxfd-sidecar-protocol = { path = "../sidecar-protocol" }
+
+[dev-dependencies]
+loom = "0.7"
+tempfile = "3.14"
+uxfd-decode-spike = { path = "../decode-spike" }
