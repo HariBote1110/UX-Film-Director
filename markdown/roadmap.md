@@ -228,6 +228,8 @@ Phase 1 から 4 が成立した後に開始する。
 初回 bridge は Pixi を primary renderer のまま維持し、shared renderer は `parallelCompare` candidate として扱う。
 Pixi との差分は legacy oracle ではなく triage signal とし、解析的 reference / native parity gate と矛盾する場合は
 Pixi 側の旧挙動を疑う。
+比較診断 report は frame bytes / pixel array / base64 を含めず、frame index と max channel delta /
+mean absolute error などの metrics だけを持つ。
 
 ## 後回しにするもの
 

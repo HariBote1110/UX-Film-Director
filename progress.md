@@ -930,6 +930,24 @@
 ### 確認結果
 - `npm test -- src/utils/sharedRendererPreviewSurface.test.ts` -> 3 tests passed。
 
+## 2026-06-16 — Phase5: shared renderer preview diagnostics gate
+
+### Red
+- `src/utils/sharedRendererPreviewDiagnostics.test.ts` を追加し、Pixi diff を正解 oracle として扱わない比較診断契約を固定した。
+- Pixi と candidate が一致しても reference gate 未実行なら `triageOnly`、reference が fail したら Pixi 一致でも
+  `rejected`、reference/native が pass して Pixi だけ差分なら `needsLegacyTriage` とする test を追加した。
+- report に frame bytes / pixel array / base64 を含めない metric-only 契約も固定した。
+- 未実装 module import error で Red を確認した。
+
+### Green
+- `src/utils/sharedRendererPreviewDiagnostics.ts` を追加し、`classifySharedRendererPreviewComparison` を実装した。
+- 判定優先順位を reference correctness / native parity / Pixi triage の順に固定し、Pixi 一致だけで pass しないようにした。
+- `markdown/roadmap.md` に比較診断 report の metric-only 方針を追記した。
+- `package.json` / `package-lock.json` を `0.1.1-Beta-25a` に更新した。
+
+### 確認結果
+- `npm test -- src/utils/sharedRendererPreviewDiagnostics.test.ts` -> 4 tests passed。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）
