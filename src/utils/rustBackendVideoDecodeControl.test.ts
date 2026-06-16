@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isRustBackendDecodedVideoFrameAvailable,
   releaseRustBackendVideoDecodeFrame,
   requestRustBackendVideoDecodeFrame,
   startRustBackendVideoDecode,
@@ -108,5 +109,74 @@ describe('rustBackendVideoDecodeControl', () => {
         copyOutState: 'gpuUploadFenceSignalled',
       }],
     ]);
+  });
+
+  it('recognises a verified Rust backend decoded frame descriptor without JSON pixel payloads', async () => {
+    const calls: unknown[] = [];
+    const mockedBridge: RustBackendVideoDecodeBridge = {
+      startVideoDecode: async (payload) => {
+        calls.push(['startVideoDecode', payload]);
+        return { success: true, result: { jobId: payload.jobId } };
+      },
+      requestVideoDecodeFrame: async (payload) => {
+        calls.push(['requestVideoDecodeFrame', payload]);
+        return {
+          success: true,
+          result: {
+            accepted: true,
+            jobId: payload.jobId,
+            requestId: payload.requestId,
+            frameIndex: payload.frameIndex,
+            mode: payload.mode,
+            frame: {
+              descriptor: {
+                memoryId: 'decode-1-ring',
+                slotIndex: 0,
+                generation: 1,
+                byteOffset: 0,
+                byteLen: 4096,
+                width: 34,
+                height: 16,
+                strideBytes: 256,
+                format: 'rgba8Srgb',
+                colour: {
+                  primaries: 'bt709',
+                  transfer: 'srgb',
+                  matrix: 'rgb',
+                  range: 'full',
+                },
+              },
+              ptsFrame: payload.frameIndex,
+            },
+            verification: {
+              frameIndex: payload.frameIndex,
+              checksum: {
+                algorithm: 'crc32',
+                valueHex: '9f2a1c0b',
+                byteLen: 4096,
+              },
+              status: 'withinTolerance',
+            },
+            decodeInvocationCount: 1,
+          },
+        };
+      },
+      releaseVideoDecodeFrame: async (payload) => {
+        calls.push(['releaseVideoDecodeFrame', payload]);
+        return { success: true, result: { released: true, slotIndex: payload.slotIndex } };
+      },
+    };
+
+    const response = await requestRustBackendVideoDecodeFrame({
+      jobId: 'decode-1',
+      requestId: 12,
+      frameIndex: 1,
+      mode: 'latestWins',
+    }, mockedBridge);
+
+    expect(isRustBackendDecodedVideoFrameAvailable(response)).toBe(true);
+    expect(JSON.stringify(response)).not.toContain('frameBase64');
+    expect(JSON.stringify(response)).not.toContain('"pixels"');
+    expect(JSON.stringify(response)).not.toContain('"bytes"');
   });
 });
