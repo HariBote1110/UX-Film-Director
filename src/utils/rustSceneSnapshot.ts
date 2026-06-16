@@ -102,7 +102,7 @@ export const buildRustSceneSnapshotForTimeline = ({
 }: RustSceneSnapshotBuildInput): RustSceneSnapshotBuildResult => {
   const frameIndex = secondsToFrameIndex(time, projectSettings.fps);
   const visibleObjects = collectVisibleObjects(objects, layers, time);
-  const issues = collectBuildIssues(visibleObjects);
+  const issues = collectBuildIssues(visibleObjects, time);
 
   if (issues.length > 0) {
     return { ok: false, issues };
@@ -160,7 +160,7 @@ const collectVisibleObjects = (
     return time >= object.startTime && time < object.startTime + object.duration;
   });
 
-const collectBuildIssues = (objects: TimelineObject[]): RustSceneSnapshotBuildIssue[] => {
+const collectBuildIssues = (objects: TimelineObject[], time: number): RustSceneSnapshotBuildIssue[] => {
   const issues: RustSceneSnapshotBuildIssue[] = [];
 
   objects.forEach((object) => {
@@ -205,11 +205,19 @@ const collectBuildIssues = (objects: TimelineObject[]): RustSceneSnapshotBuildIs
       });
     }
 
-    if (!Number.isFinite(object.scaleX) || !Number.isFinite(object.scaleY) || object.scaleX <= 0 || object.scaleY <= 0) {
+    const position = evaluateObjectPositionAtTime(object, time);
+    if (
+      !Number.isFinite(object.scaleX)
+      || !Number.isFinite(object.scaleY)
+      || object.scaleX !== 1
+      || object.scaleY !== 1
+      || !isInteger(position.x)
+      || !isInteger(position.y)
+    ) {
       issues.push({
         code: 'unsupportedTransform',
         objectId: object.id,
-        detail: 'Scale must be finite and greater than zero.',
+        detail: 'Phase5 bridge currently allows only identity scale and integer translation.',
       });
     }
 
@@ -269,3 +277,6 @@ const clamp01 = (value: number): number => {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(1, value));
 };
+
+const isInteger = (value: number): boolean =>
+  Number.isFinite(value) && Math.abs(value - Math.round(value)) < 1e-6;

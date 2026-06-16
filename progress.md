@@ -847,6 +847,22 @@
 ### 確認結果
 - `npm test -- src/utils/rustSceneSnapshot.test.ts` -> 4 tests passed。
 
+## 2026-06-16 — Phase5: shared renderer adapter transform envelope gate
+
+### Red
+- `src/utils/rustSceneSnapshot.test.ts` に、非 identity scale と sub-pixel translation を shared renderer adapter が
+  拒否する contract test を追加した。
+- 旧 adapter は scale / sub-pixel translation を通してしまい、`ok=true` になったため Red を確認した。
+
+### Green
+- `buildRustSceneSnapshotForTimeline` は評価後 position が整数でない場合、または `scaleX` / `scaleY` が 1 でない場合に
+  `unsupportedTransform` を返すようにした。
+- Claude review の指摘に従い、Phase5 の最初の bridge は verified envelope に閉じ、Pixi差分を正解扱いせず triage 用にする。
+- `package.json` / `package-lock.json` を `0.1.1-Beta-20c` に更新した。
+
+### 確認結果
+- `npm test -- src/utils/rustSceneSnapshot.test.ts` -> 5 tests passed。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）
