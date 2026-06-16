@@ -156,6 +156,56 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
+  it('keeps Pixi visible with a transparent shared-renderer pass when diagnostic swatch is disabled', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const renderPasses: unknown[] = [];
+    const renderPassOperations: string[] = [];
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: okSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onRenderPass: (descriptor) => {
+              renderPasses.push(descriptor);
+            },
+            onRenderPassOperation: (operation) => {
+              renderPassOperations.push(operation);
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({
+      ok: true,
+      format: 'bgra8unorm',
+    });
+    expect(renderPasses).toEqual([
+      {
+        colorAttachments: [
+          {
+            view: 'current-texture-view',
+            clearValue: { r: 0, g: 0, b: 0, a: 0 },
+            loadOp: 'clear',
+            storeOp: 'store',
+          },
+        ],
+      },
+    ]);
+    expect(renderPassOperations).toEqual(['end']);
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterStatus: 'ready',
+      uxfdSharedRendererPresenterFormat: 'bgra8unorm',
+      uxfdSharedRendererPresenterSwatch: 'pixi-passthrough',
+    });
+  });
+
   it('presents SolidColour scene content instead of the diagnostic swatch when rectangle clips exist', async () => {
     const dataset: Record<string, string | undefined> = {};
     const renderPasses: unknown[] = [];

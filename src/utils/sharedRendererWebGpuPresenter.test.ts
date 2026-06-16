@@ -364,6 +364,60 @@ describe('createSharedRendererWebGpuPresenter', () => {
     ]);
     expect(submittedCommandBuffers).toEqual(['finished-command-buffer']);
   });
+
+  it('clears transparently for an empty SolidColour scene so Pixi can show through', async () => {
+    const renderPasses: unknown[] = [];
+    const renderPassOperations: string[] = [];
+    const submittedCommandBuffers: unknown[] = [];
+
+    const result = await createSharedRendererWebGpuPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      surfaceGate: okSurfaceGate,
+      presentationContract: buildSharedRendererPresentationContract(),
+      gpu: fakeGpu({
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onRenderPass: (descriptor) => {
+              renderPasses.push(descriptor);
+            },
+            onRenderPassOperation: (operation) => {
+              renderPassOperations.push(operation);
+            },
+            onSubmit: (commandBuffers) => {
+              submittedCommandBuffers.push(...commandBuffers);
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected presenter creation to pass');
+
+    expect(result.presentSolidColourScene({
+      snapshot,
+      media: [],
+    })).toEqual({
+      ok: true,
+      rectCount: 0,
+    });
+
+    expect(renderPasses).toEqual([
+      {
+        colorAttachments: [
+          {
+            view: 'current-texture-view',
+            clearValue: { r: 0, g: 0, b: 0, a: 0 },
+            loadOp: 'clear',
+            storeOp: 'store',
+          },
+        ],
+      },
+    ]);
+    expect(renderPassOperations).toEqual(['end']);
+    expect(submittedCommandBuffers).toEqual(['finished-command-buffer']);
+  });
 });
 
 const fakeCanvas = (getContext: () => unknown) =>
