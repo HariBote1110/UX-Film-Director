@@ -149,6 +149,11 @@ Unicode 名は再解釈せずそのまま保持し、既存の ASCII レイヤ�
 `Texture.from(video)` をやめ、動画フレームを canvas へ描画してから Pixi テクスチャへ反映する方式へ切り替える。  
 動画解像度変化時はフレーム用 canvas/texture を再生成し、非表示化・破棄時に関連テクスチャを明示的に `destroy` してリークを防止する。
 
+34. Phase5: Pixi video cutover ownership gate を追加する  
+shared renderer が `rust-wasm` video decode request と decoded frame upload readiness を確認できる時だけ video ownership を取る。  
+`Viewport` は ownership 対象 clip id を Pixi 更新へ渡し、`pixiRenderHelper` は該当 video の Pixi children / `HTMLVideoElement` / video texture を cleanup して video 分岐を抜ける。  
+actual pixel decode / shared memory / WebGPU texture upload が未実装の間は `videoFrameUploadReady=false` により Pixi preview を維持する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
@@ -175,4 +180,3 @@ Unicode 名は再解釈せずそのまま保持し、既存の ASCII レイヤ�
     - `PropertyPanel`: セクション区切りや入力フィールドを整理し、使いやすく。
     - `Timeline`: タイムラインバー、トラック、アイテムの視覚的フィードバックを強化。
     - `Viewport`: プレビュー領域の背景や枠線をプレミアムな質感に。
-

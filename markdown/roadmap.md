@@ -266,6 +266,12 @@ frame bytes / pixel array / base64 は含めない。DOM diagnostics には
 Electron IPC は `decode.start` / `decode.requestFrame` / `decode.releaseFrame` を Rust backend へ転送する。
 `decode.start` は shared ring layout と `sourceRate` を返し、`decode.requestFrame` は `requestId` と
 `mode=latestWins` を持つ。これは scrub 中に古い request が後から完了しても、consumer が stale frame を破棄できるようにするためである。
+Pixi video を降ろす切替は、shared renderer が ownership を明示できる時だけ行う。初期 gate では
+`cutoverEnabled`、Video scene、`rust-wasm` video decode request、decoded frame upload readiness をすべて満たした場合のみ
+`owner=sharedRenderer` とし、対象 `clipId` を `Viewport -> updatePixiContent` へ渡す。
+Pixi 側は対象 video の `HTMLVideoElement` / video texture / children を cleanup して video 分岐を抜ける。
+ただし export は現行 Pixi canvas を読むため、`isExporting` 中は Pixi video を維持する。
+shared renderer canvas は Pixi 全体の上に重なるため、実 decoded frame upload を有効化する前に z-order parity gate を追加する。
 この段階では実 pixel decode / shared memory / WebGPU texture upload はまだ未実装であり、次 gate で
 sidecar decode -> shared memory -> texture upload を接続する。
 これにより、動画読み込み・current frame availability と GPU import / sampling の問題を分離する。

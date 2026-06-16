@@ -1,3 +1,33 @@
+## 2026-06-16 — Phase5: Pixi video cutover ownership gate を追加
+
+### 実施内容
+- `sharedRendererVideoOwnership` を追加し、shared renderer が video ownership を取れる条件を TDD で固定した。
+  - `cutoverEnabled`
+  - Video scene が存在すること
+  - video frame decode request が `rust-wasm` 経路で生成されていること
+  - decoded frame の upload path が ready であること
+- `sharedRendererPreviewPresenterController` は video ownership を計算し、DOM diagnostics に以下を公開するようにした。
+  - `uxfdSharedRendererPresenterVideoOwner`
+  - `uxfdSharedRendererPresenterVideoCutoverReason`
+  - `uxfdSharedRendererPresenterSharedVideoObjectCount`
+- `pixiVideoCutover` を追加し、shared renderer が所有する video object だけ Pixi video 分岐を skip できる判定を TDD で固定した。
+- `Viewport` は presenter の `videoOwnership.videoObjectIds` を `updatePixiContent` に渡すようにした。
+- `pixiRenderHelper` は cutover 対象 video について、Pixi children、`HTMLVideoElement`、`VideoFrameTextureState` を明示 cleanup してから video 分岐を抜けるようにした。
+- package version を `0.1.1-Beta-38a` に更新した。
+
+### 選定理由・判断の根拠
+- `VITE_UXFD_SHARED_RENDERER_PREVIEW` だけで Pixi video を消すと、実 decoded frame upload が未実装の段階で動画が消えるため危険。
+- `videoFrameUploadReady` を必須条件にすることで、現状では Pixi preview を維持しつつ、将来の sidecar decode -> shared memory -> WebGPU upload が入った時だけ切替できる。
+- export は現行 Pixi canvas 経路を読むため、`isExporting === true` では Pixi video を維持する。
+- shared renderer canvas は Pixi 全体の上に重なるため、future cutover では z-order parity が残件。今回の gate は ownership と cleanup の配線に留めた。
+
+### 検証
+- `npm test -- src/utils/sharedRendererVideoOwnership.test.ts src/utils/pixiVideoCutover.test.ts src/utils/sharedRendererPresenterDiagnostics.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts`
+  - 4 files / 19 tests passed。
+- `npx tsc --noEmit --pretty false`
+  - 既存残件として `ThreeStageViewport.tsx` の `three` 型定義不足、`heavyEffectsStress.test.ts` の `PositionKeyframe`、`filterStack.test.ts` の fixture 型不整合で失敗。
+  - 今回変更した `Viewport` / `pixiRenderHelper` / shared renderer ownership 由来の新規エラーはなし。
+
 ## 2026-06-16 — Phase5: video frame decode request と Rust backend 制御プレーンを接続
 
 ### 実施内容
