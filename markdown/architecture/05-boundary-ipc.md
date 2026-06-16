@@ -312,6 +312,9 @@ POSIX shm two-process spike:
 - data plane の frame bytes は disk temporary file ではなく POSIX shm に置く。
 - `decode-spike` の既知 CFR H.264 decode RGBA を POSIX shm ring に流し、別プロセス consumer が raw RGBA
   bytes / CRC32 を検証する統合 test を持つ。
+- sidecar data-plane handoff gate では、direct decode した RGBA bytes を `write_sidecar_decoded_frame_to_ring` で
+  POSIX shm に書き込み、`JobStarted -> FrameReady -> JobCompleted` の control events と
+  `FrameVerificationReport.checksum` を返す。consumer readback の CRC32 は direct decode reference と一致する。
 - POSIX shm から読み出した decoded RGBA を native wgpu renderer に渡し、render 完了後に slot を release する
   integration test を持つ。
 - shm decoded frame -> native render -> known swatch の実測は `maxDelta=2`、`meanAbsoluteError=0.3125`、

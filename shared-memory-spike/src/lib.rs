@@ -8,7 +8,10 @@ use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use uxfd_sidecar_protocol::CopyOutState;
+use uxfd_sidecar_protocol::{
+    ChecksumAlgorithm, ControlEvent, CopyOutState, DecodeFrameRequest, FrameChecksum,
+    FrameDescriptor, FrameVerificationReport, FrameVerificationStatus, SharedFrame,
+};
 
 pub const SHARED_RING_MAGIC: u64 = u64::from_le_bytes(*b"UXFDRNG1");
 pub const SHARED_RING_PROTOCOL_VERSION: u32 = 1;
@@ -457,6 +460,66 @@ impl Drop for PosixSharedRing {
                 libc::shm_unlink(self.name.as_ptr());
             }
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SidecarDecodedFrameWrite {
+    pub shared_frame: SharedFrame,
+    pub verification: FrameVerificationReport,
+    pub events: Vec<ControlEvent>,
+}
+
+pub fn write_sidecar_decoded_frame_to_ring(
+    ring: &PosixSharedRing,
+    request: DecodeFrameRequest,
+    descriptor: FrameDescriptor,
+    rgba_bytes: &[u8],
+) -> Result<SidecarDecodedFrameWrite, PosixShmError> {
+    if descriptor.byte_len != rgba_bytes.len() as u64 {
+        return Err(PosixShmError::FrameLengthMismatch {
+            expected: descriptor.byte_len.min(usize::MAX as u64) as usize,
+            actual: rgba_bytes.len(),
+        });
+    }
+
+    ring.write_frame(request.frame_index, rgba_bytes)?;
+
+    let shared_frame = SharedFrame {
+        descriptor,
+        pts_frame: request.frame_index,
+    };
+    let verification = FrameVerificationReport {
+        frame_index: request.frame_index,
+        checksum: checksum_for_bytes(rgba_bytes),
+        diff: None,
+        status: FrameVerificationStatus::WithinTolerance,
+    };
+    let events = vec![
+        ControlEvent::JobStarted {
+            job_id: request.job_id.clone(),
+        },
+        ControlEvent::FrameReady {
+            job_id: request.job_id.clone(),
+            frame: shared_frame.clone(),
+        },
+        ControlEvent::JobCompleted {
+            job_id: request.job_id,
+        },
+    ];
+
+    Ok(SidecarDecodedFrameWrite {
+        shared_frame,
+        verification,
+        events,
+    })
+}
+
+fn checksum_for_bytes(bytes: &[u8]) -> FrameChecksum {
+    FrameChecksum {
+        algorithm: ChecksumAlgorithm::Crc32,
+        value_hex: format!("{:08x}", crc32(bytes)),
+        byte_len: bytes.len() as u64,
     }
 }
 

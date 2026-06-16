@@ -1,9 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use uxfd_decode_spike::{build_known_cfr_h264_fixture, decode_fixture_to_shared_rgba};
-use uxfd_shared_memory_spike::{
-    crc32, write_sidecar_decoded_frame_to_ring, PosixSharedRing,
-};
+use uxfd_shared_memory_spike::{crc32, write_sidecar_decoded_frame_to_ring, PosixSharedRing};
 use uxfd_sidecar_protocol::{
     ControlEvent, CopyOutState, DecodeFrameRequest, FrameVerificationStatus,
 };

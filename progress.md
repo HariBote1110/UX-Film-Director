@@ -749,6 +749,29 @@
 - `node --check phase3b-webgpu-harness/phase3b.js`
 - WebGPU harness: `http://127.0.0.1:4177/phase3b-webgpu-harness/` を system Chrome 149 で実行し `ok=true`。
 
+## 2026-06-16 — Phase4: sidecar decode checksum handoff gate
+
+### Red
+- `shared-memory-spike/tests/sidecar_decode_checksum.rs` を追加し、既知 CFR H.264 の direct decode RGBA を
+  sidecar handoff API 経由で POSIX shm に書き込む契約を固定した。
+- test は `FrameReady` の `SharedFrame`、`FrameVerificationReport.checksum`、consumer readback CRC32 が
+  direct decode reference と一致することを要求する。
+- 未定義の `write_sidecar_decoded_frame_to_ring` で compile error になり Red を確認した。
+
+### Green
+- `shared-memory-spike` に `write_sidecar_decoded_frame_to_ring` と `SidecarDecodedFrameWrite` を追加した。
+- API は `DecodeFrameRequest`、`FrameDescriptor`、RGBA bytes を受け取り、POSIX shm へ frame を書いて
+  `JobStarted -> FrameReady -> JobCompleted` の control events を返す。
+- `FrameVerificationReport` は CRC32 / byte length を持ち、pixel bytes 自体は control plane に載せない。
+
+### 文書更新
+- `markdown/architecture/05-boundary-ipc.md` に sidecar data-plane handoff gate を追記した。
+
+### 確認結果
+- `cargo fmt --manifest-path shared-memory-spike/Cargo.toml`
+- `cargo test --manifest-path shared-memory-spike/Cargo.toml --test sidecar_decode_checksum` -> 1 test passed。
+- `cargo test --manifest-path shared-memory-spike/Cargo.toml` -> passed。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）
