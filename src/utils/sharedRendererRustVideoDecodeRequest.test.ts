@@ -22,6 +22,10 @@ const media: RustSceneMediaReference[] = [
     source: '/tmp/video.mp4',
     width: 1280,
     height: 720,
+    source_rate: {
+      numerator: 60,
+      denominator: 1,
+    },
   },
 ];
 
@@ -39,6 +43,10 @@ describe('createSharedRendererRustVideoFrameDecodeRequestBuilder', () => {
             media_id: 'video-1',
             source: '/tmp/video.mp4',
             source_frame: 90,
+            source_rate: {
+              numerator: 60,
+              denominator: 1,
+            },
             timeline_frame: 210,
             width: 1280,
             height: 720,
@@ -57,6 +65,10 @@ describe('createSharedRendererRustVideoFrameDecodeRequestBuilder', () => {
         mediaId: 'video-1',
         source: '/tmp/video.mp4',
         sourceFrame: 90,
+        sourceRate: {
+          numerator: 60,
+          denominator: 1,
+        },
         timelineFrame: 210,
         width: 1280,
         height: 720,
