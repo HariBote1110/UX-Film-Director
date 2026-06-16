@@ -1,9 +1,12 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use uxfd_decode_spike::{build_known_cfr_h264_fixture, decode_fixture_to_shared_rgba};
-use uxfd_shared_memory_spike::{crc32, write_sidecar_decoded_frame_to_ring, PosixSharedRing};
+use uxfd_shared_memory_spike::{
+    crc32, write_sidecar_decoded_frame_to_ring, PosixSharedRing, SidecarDecodeHandoffError,
+};
 use uxfd_sidecar_protocol::{
-    ControlEvent, CopyOutState, DecodeFrameRequest, FrameVerificationStatus,
+    ColourMetadata, ControlEvent, CopyOutState, DecodeFrameRequest, DescriptorValidationError,
+    FrameDescriptor, FrameFormat, FrameVerificationStatus,
 };
 
 #[test]
@@ -63,6 +66,46 @@ fn sidecar_decoded_frame_checksum_matches_direct_decode_reference() {
 
     ring.release_frame(CopyOutState::GpuUploadFenceSignalled)
         .expect("release after checksum verification");
+}
+
+#[test]
+fn sidecar_handoff_rejects_unsupported_colour_metadata_before_writing() {
+    let ring = PosixSharedRing::create(&unique_shm_name(), 4).expect("create shm ring");
+    let descriptor = FrameDescriptor {
+        memory_id: "decode-spike-memory".to_string(),
+        slot_index: 0,
+        generation: 0,
+        byte_offset: 0,
+        byte_len: 4,
+        width: 1,
+        height: 1,
+        stride_bytes: 4,
+        format: FrameFormat::Rgba8Srgb,
+        colour: ColourMetadata {
+            primaries: "bt709".to_string(),
+            transfer: "bt709".to_string(),
+            matrix: "rgb".to_string(),
+            range: "full".to_string(),
+        },
+    };
+
+    let error = write_sidecar_decoded_frame_to_ring(
+        &ring,
+        DecodeFrameRequest {
+            job_id: "decode-job-unsupported".to_string(),
+            frame_index: 0,
+        },
+        descriptor,
+        &[0, 0, 0, 255],
+    )
+    .expect_err("unsupported transfer must fail before handoff");
+
+    assert!(matches!(
+        error,
+        SidecarDecodeHandoffError::Descriptor(
+            DescriptorValidationError::UnsupportedTransfer { transfer }
+        ) if transfer == "bt709"
+    ));
 }
 
 fn unique_shm_name() -> String {
