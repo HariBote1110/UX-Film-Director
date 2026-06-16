@@ -223,6 +223,7 @@ describe('buildSharedRendererPreviewSurfaceGate', () => {
     expect(gate.ok).toBe(false);
     if (gate.ok) throw new Error('expected surface gate to fail');
     expect(gate.reason).toBe('invalidBoundaryPayload');
+    if (gate.reason !== 'invalidBoundaryPayload') throw new Error('expected boundary payload failure');
     expect(gate.issues.map((issue) => issue.code)).toEqual(['mediaMismatch']);
   });
 });

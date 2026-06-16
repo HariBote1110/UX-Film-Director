@@ -18,7 +18,7 @@ import { computePreviewDisplayScale } from '../utils/previewDisplayScale';
 import { useCanvasVideoUploadForPixiPreview } from '../utils/videoElementForPixi';
 import { visionNormBoundingBoxToVideoLocalRect } from '../utils/visionTrackingGeometry';
 import type { ResizeCorner } from '../utils/transformGeometry';
-import { buildSharedRendererPreviewPlan } from '../utils/sharedRendererPreviewBridge';
+import { buildSharedRendererPreviewSession } from '../utils/sharedRendererPreviewSession';
 
 const GROUP_GRADIENT_COMPONENT_PREFIX = 'group-gradient-component-';
 const RESIZE_HANDLE_PREFIX = 'resize-handle-';
@@ -95,6 +95,7 @@ const Viewport: React.FC = () => {
   const threeStageRef = useRef<ThreeStageViewportHandle | null>(null);
   const pixiAppRef = useRef<PIXI.Application | null>(null);
   const worldContainerRef = useRef<PIXI.Container | null>(null);
+  const sharedRendererSurfaceCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const pixiObjectsRef = useRef<Map<string, PIXI.Container>>(new Map());
   const groupContainersRef = useRef<Map<string, PIXI.Container>>(new Map());
   
@@ -114,6 +115,11 @@ const Viewport: React.FC = () => {
   const [renderTick, setRenderTick] = useState(0);
   const [pixiReady, setPixiReady] = useState(false);
   const [panelSize, setPanelSize] = useState({ w: 0, h: 0 });
+  const sharedRendererPreviewEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_PREVIEW === '1';
+  const [sharedRendererGpuStatus, setSharedRendererGpuStatus] = useState({
+    webGpuAvailable: false,
+    fallbackAdapter: false,
+  });
 
   const { 
     currentTime, objects, selectedIds, selectedId, clearSelection,
@@ -218,6 +224,37 @@ const Viewport: React.FC = () => {
   // renderScene からリサイズハンドルの見かけサイズ補正に用いるため ref で保持する。
   const displayScaleRef = useRef(displayScale);
   displayScaleRef.current = displayScale;
+
+  useEffect(() => {
+    if (!sharedRendererPreviewEnabled) return;
+    let cancelled = false;
+
+    const probeWebGpu = async () => {
+      const gpu = navigator.gpu;
+      if (!gpu) {
+        if (!cancelled) setSharedRendererGpuStatus({ webGpuAvailable: false, fallbackAdapter: false });
+        return;
+      }
+
+      try {
+        const adapter = await gpu.requestAdapter({ powerPreference: 'high-performance' });
+        if (cancelled) return;
+        if (!adapter) {
+          setSharedRendererGpuStatus({ webGpuAvailable: false, fallbackAdapter: false });
+          return;
+        }
+        const fallbackAdapter = (adapter as unknown as { isFallbackAdapter?: boolean }).isFallbackAdapter === true;
+        setSharedRendererGpuStatus({ webGpuAvailable: true, fallbackAdapter });
+      } catch {
+        if (!cancelled) setSharedRendererGpuStatus({ webGpuAvailable: false, fallbackAdapter: false });
+      }
+    };
+
+    void probeWebGpu();
+    return () => {
+      cancelled = true;
+    };
+  }, [sharedRendererPreviewEnabled]);
 
   // --- Initialize Pixi App ---
   useEffect(() => {
@@ -361,15 +398,34 @@ const Viewport: React.FC = () => {
       if (layers[obj.layer]?.visible === false) return false;
       return time >= obj.startTime && time < obj.startTime + obj.duration;
     });
-    if (!isExporting && import.meta.env.VITE_UXFD_SHARED_RENDERER_PREVIEW === '1') {
-      const plan = buildSharedRendererPreviewPlan({
+    if (sharedRendererPreviewEnabled) {
+      const session = buildSharedRendererPreviewSession({
         enabled: true,
         projectSettings,
         layers,
         objects: currentObjects,
         time,
+        editorMode,
+        isExporting,
+        webGpuAvailable: sharedRendererGpuStatus.webGpuAvailable,
+        fallbackAdapter: sharedRendererGpuStatus.fallbackAdapter,
       });
-      (window as unknown as { __UXFD_SHARED_RENDERER_PREVIEW_PLAN__?: unknown }).__UXFD_SHARED_RENDERER_PREVIEW_PLAN__ = plan;
+      const diagnosticsWindow = window as unknown as {
+        __UXFD_SHARED_RENDERER_PREVIEW_PLAN__?: unknown;
+        __UXFD_SHARED_RENDERER_PREVIEW_SURFACE_GATE__?: unknown;
+      };
+      diagnosticsWindow.__UXFD_SHARED_RENDERER_PREVIEW_PLAN__ = session.plan;
+      diagnosticsWindow.__UXFD_SHARED_RENDERER_PREVIEW_SURFACE_GATE__ = session.surfaceGate;
+
+      const surfaceCanvas = sharedRendererSurfaceCanvasRef.current;
+      if (session.surfaceGate.ok && surfaceCanvas) {
+        if (surfaceCanvas.width !== session.surfaceGate.canvas.width) {
+          surfaceCanvas.width = session.surfaceGate.canvas.width;
+        }
+        if (surfaceCanvas.height !== session.surfaceGate.canvas.height) {
+          surfaceCanvas.height = session.surfaceGate.canvas.height;
+        }
+      }
     }
     const visibleGroupIds = new Set(
       visibleObjects
@@ -1045,6 +1101,23 @@ const Viewport: React.FC = () => {
               pointerEvents: editorMode === '3d_stage' ? 'none' : 'auto',
             }}
           />
+          {sharedRendererPreviewEnabled && (
+            <canvas
+              ref={sharedRendererSurfaceCanvasRef}
+              data-shared-renderer-preview-surface="true"
+              aria-hidden="true"
+              width={projectSettings.width}
+              height={projectSettings.height}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                pointerEvents: 'none',
+                visibility: editorMode === '2d' ? 'visible' : 'hidden',
+              }}
+            />
+          )}
           {editorMode === '3d_stage' && (
             <ThreeStageViewport
               ref={threeStageRef}
