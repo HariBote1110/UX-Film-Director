@@ -23,6 +23,7 @@ import {
   type SharedRendererPreviewSession,
 } from '../utils/sharedRendererPreviewSession';
 import { buildSharedRendererPresenterSessionKey } from '../utils/sharedRendererPresenterSessionKey';
+import { buildSharedRendererVideoMediaReadiness } from '../utils/sharedRendererVideoMediaReadiness';
 import {
   getSharedRendererSolidSwatchCssColour,
   startSharedRendererPreviewPresenter,
@@ -414,10 +415,18 @@ const Viewport: React.FC = () => {
       __UXFD_SHARED_RENDERER_PREVIEW_PLAN__?: unknown;
       __UXFD_SHARED_RENDERER_PREVIEW_SURFACE_GATE__?: unknown;
       __UXFD_SHARED_RENDERER_PRESENTATION_CONTRACT__?: unknown;
+      __UXFD_SHARED_RENDERER_VIDEO_MEDIA_READINESS__?: unknown;
     };
     diagnosticsWindow.__UXFD_SHARED_RENDERER_PREVIEW_PLAN__ = session.plan;
     diagnosticsWindow.__UXFD_SHARED_RENDERER_PREVIEW_SURFACE_GATE__ = session.surfaceGate;
     diagnosticsWindow.__UXFD_SHARED_RENDERER_PRESENTATION_CONTRACT__ = session.presentationContract;
+    const videoReadiness = session.surfaceGate.ok
+      ? buildSharedRendererVideoMediaReadiness({
+        media: session.surfaceGate.media,
+        videoElements: videoElementsRef.current,
+      })
+      : { readyCount: 0, pendingCount: 0, missingCount: 0, videos: [] };
+    diagnosticsWindow.__UXFD_SHARED_RENDERER_VIDEO_MEDIA_READINESS__ = videoReadiness;
 
     document.documentElement.dataset.uxfdSharedRendererPlanMode = session.plan.mode;
     document.documentElement.dataset.uxfdSharedRendererSurfaceGate = session.surfaceGate.ok
@@ -425,6 +434,9 @@ const Viewport: React.FC = () => {
       : session.surfaceGate.reason;
     document.documentElement.dataset.uxfdSharedRendererCanvasColourSpace = session.presentationContract.canvas.colorSpace;
     document.documentElement.dataset.uxfdSharedRendererCanvasAlphaMode = session.presentationContract.canvas.alphaMode;
+    document.documentElement.dataset.uxfdSharedRendererVideoReadyCount = String(videoReadiness.readyCount);
+    document.documentElement.dataset.uxfdSharedRendererVideoPendingCount = String(videoReadiness.pendingCount);
+    document.documentElement.dataset.uxfdSharedRendererVideoMissingCount = String(videoReadiness.missingCount);
 
     const surfaceCanvas = sharedRendererSurfaceCanvasRef.current;
     if (surfaceCanvas) {
@@ -974,6 +986,7 @@ const Viewport: React.FC = () => {
     
     // 手動レンダリング実行 (Ticker停止中のため必須)
     app.render();
+    publishSharedRendererPreviewSession(time, currentObjects);
 
     const workspaceMode = useStore.getState().projectSettings.editorMode ?? '2d';
     if (workspaceMode === '3d_stage' && threeStageRef.current) {
@@ -1024,6 +1037,7 @@ const Viewport: React.FC = () => {
     sharedRendererPreviewEnabled,
     sharedRendererGpuStatus.webGpuAvailable,
     sharedRendererGpuStatus.fallbackAdapter,
+    publishSharedRendererPreviewSession,
   ]);
 
   useEffect(() => { 
