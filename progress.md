@@ -881,6 +881,19 @@
 ### 確認結果
 - `npm test -- src/utils/sharedRendererPreviewBridge.test.ts` -> 3 tests passed。
 
+## 2026-06-16 — Phase5: Viewport shared renderer preview diagnostic wiring
+
+### Green
+- `src/components/Viewport.tsx` で `VITE_UXFD_SHARED_RENDERER_PREVIEW=1` の時だけ
+  `buildSharedRendererPreviewPlan` を呼ぶ diagnostic wiring を追加した。
+- Pixi preview は引き続き primary renderer のまま維持し、shared renderer plan は
+  `window.__UXFD_SHARED_RENDERER_PREVIEW_PLAN__` に公開するだけにした。
+- `package.json` / `package-lock.json` を `0.1.1-Beta-22a` に更新した。
+
+### 確認結果
+- `npm test -- src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererPreviewBridge.test.ts` -> 8 tests passed。
+- `npx tsc --noEmit` は既存の `three` 型不足と既存 test 型エラーで失敗するため、今回追加分の全体型検査は未完了。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）

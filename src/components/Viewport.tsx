@@ -18,6 +18,7 @@ import { computePreviewDisplayScale } from '../utils/previewDisplayScale';
 import { useCanvasVideoUploadForPixiPreview } from '../utils/videoElementForPixi';
 import { visionNormBoundingBoxToVideoLocalRect } from '../utils/visionTrackingGeometry';
 import type { ResizeCorner } from '../utils/transformGeometry';
+import { buildSharedRendererPreviewPlan } from '../utils/sharedRendererPreviewBridge';
 
 const GROUP_GRADIENT_COMPONENT_PREFIX = 'group-gradient-component-';
 const RESIZE_HANDLE_PREFIX = 'resize-handle-';
@@ -360,6 +361,16 @@ const Viewport: React.FC = () => {
       if (layers[obj.layer]?.visible === false) return false;
       return time >= obj.startTime && time < obj.startTime + obj.duration;
     });
+    if (!isExporting && import.meta.env.VITE_UXFD_SHARED_RENDERER_PREVIEW === '1') {
+      const plan = buildSharedRendererPreviewPlan({
+        enabled: true,
+        projectSettings,
+        layers,
+        objects: currentObjects,
+        time,
+      });
+      (window as unknown as { __UXFD_SHARED_RENDERER_PREVIEW_PLAN__?: unknown }).__UXFD_SHARED_RENDERER_PREVIEW_PLAN__ = plan;
+    }
     const visibleGroupIds = new Set(
       visibleObjects
         .map((obj) => obj.groupId)
