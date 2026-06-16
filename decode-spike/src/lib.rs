@@ -325,6 +325,7 @@ pub fn decode_fixture_to_shared_rgba(
     let descriptor = FrameDescriptor {
         memory_id: "decode-spike-memory".to_string(),
         slot_index: 0,
+        generation: 0,
         byte_offset: 0,
         byte_len,
         width: rgba_frame.width,

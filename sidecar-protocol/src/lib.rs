@@ -183,6 +183,7 @@ pub struct SharedFrame {
 pub struct FrameDescriptor {
     pub memory_id: String,
     pub slot_index: u32,
+    pub generation: u64,
     pub byte_offset: u64,
     pub byte_len: u64,
     pub width: u32,
@@ -458,6 +459,14 @@ impl FrameRingLayout {
         &self,
         slot_index: u32,
     ) -> Result<FrameDescriptor, FrameRingLayoutError> {
+        self.descriptor_for_slot_generation(slot_index, 0)
+    }
+
+    pub fn descriptor_for_slot_generation(
+        &self,
+        slot_index: u32,
+        generation: u64,
+    ) -> Result<FrameDescriptor, FrameRingLayoutError> {
         if slot_index >= self.slot_count {
             return Err(FrameRingLayoutError::SlotIndexOutOfBounds {
                 slot_index,
@@ -475,6 +484,7 @@ impl FrameRingLayout {
         Ok(FrameDescriptor {
             memory_id: self.memory_id.clone(),
             slot_index,
+            generation,
             byte_offset,
             byte_len: self.slot_byte_len,
             width: self.width,
@@ -559,10 +569,26 @@ pub struct ReadyFrame {
     pub frame: SharedFrame,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SlotRecoveryReason {
+    ProducerTimeout,
+    ConsumerTimeout,
+    SidecarCrashed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RecoveredSlot {
+    pub slot_index: u32,
+    pub previous_state: SlotState,
+    pub next_generation: u64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AcquireWriteError {
     NoFreeSlot,
     Layout(FrameRingLayoutError),
+    LeaseGenerationOverflow { slot_index: u32 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -585,6 +611,14 @@ pub enum SlotTransitionError {
         slot_index: u32,
     },
     CopyOutNotComplete {
+        slot_index: u32,
+    },
+    LeaseGenerationMismatch {
+        slot_index: u32,
+        expected: u64,
+        actual: u64,
+    },
+    LeaseGenerationOverflow {
         slot_index: u32,
     },
 }
@@ -612,6 +646,7 @@ impl SharedFrameRing {
             RingSlot {
                 state: SlotState::Free,
                 frame: None,
+                generation: 0,
             };
             layout.slot_count() as usize
         ];
@@ -630,9 +665,14 @@ impl SharedFrameRing {
             .position(|slot| slot.state == SlotState::Free)
             .ok_or(AcquireWriteError::NoFreeSlot)? as u32;
 
+        let next_generation = self.slots[slot_index as usize]
+            .generation
+            .checked_add(1)
+            .ok_or(AcquireWriteError::LeaseGenerationOverflow { slot_index })?;
+
         let descriptor = self
             .layout
-            .descriptor_for_slot(slot_index)
+            .descriptor_for_slot_generation(slot_index, next_generation)
             .map_err(AcquireWriteError::Layout)?;
 
         let slot = self
@@ -641,6 +681,7 @@ impl SharedFrameRing {
             .expect("slot index came from slots vector");
         slot.state = SlotState::Writing;
         slot.frame = None;
+        slot.generation = next_generation;
 
         Ok(WriteSlot {
             slot_index,
@@ -659,6 +700,14 @@ impl SharedFrameRing {
                 slot_index: write_slot.slot_index,
                 expected: SlotState::Writing,
                 actual: slot.state,
+            });
+        }
+
+        if write_slot.descriptor.generation != slot.generation {
+            return Err(SlotTransitionError::LeaseGenerationMismatch {
+                slot_index: write_slot.slot_index,
+                expected: slot.generation,
+                actual: write_slot.descriptor.generation,
             });
         }
 
@@ -708,6 +757,14 @@ impl SharedFrameRing {
             });
         }
 
+        if ready_frame.frame.descriptor.generation != slot.generation {
+            return Err(SlotTransitionError::LeaseGenerationMismatch {
+                slot_index: ready_frame.slot_index,
+                expected: slot.generation,
+                actual: ready_frame.frame.descriptor.generation,
+            });
+        }
+
         if copy_out_state != CopyOutState::GpuUploadFenceSignalled {
             return Err(SlotTransitionError::CopyOutNotComplete {
                 slot_index: ready_frame.slot_index,
@@ -726,6 +783,37 @@ impl SharedFrameRing {
         Ok(())
     }
 
+    pub fn recover_stuck_slot(
+        &mut self,
+        slot_index: u32,
+        _reason: SlotRecoveryReason,
+    ) -> Result<RecoveredSlot, SlotTransitionError> {
+        let slot = self.slot_mut(slot_index)?;
+        if slot.state == SlotState::Free {
+            return Err(SlotTransitionError::UnexpectedState {
+                slot_index,
+                expected: SlotState::Reading,
+                actual: SlotState::Free,
+            });
+        }
+
+        let next_generation = slot
+            .generation
+            .checked_add(1)
+            .ok_or(SlotTransitionError::LeaseGenerationOverflow { slot_index })?;
+        let previous_state = slot.state;
+
+        slot.state = SlotState::Free;
+        slot.frame = None;
+        slot.generation = next_generation;
+
+        Ok(RecoveredSlot {
+            slot_index,
+            previous_state,
+            next_generation,
+        })
+    }
+
     fn slot_mut(&mut self, slot_index: u32) -> Result<&mut RingSlot, SlotTransitionError> {
         let slot_count = self.slots.len() as u32;
         self.slots
@@ -741,4 +829,5 @@ impl SharedFrameRing {
 struct RingSlot {
     state: SlotState,
     frame: Option<SharedFrame>,
+    generation: u64,
 }

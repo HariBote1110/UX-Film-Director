@@ -1,7 +1,7 @@
 use uxfd_sidecar_protocol::{
     AcquireReadError, AcquireWriteError, AtomicOrdering, ColourMetadata, ConsumerTopology,
-    CopyOutState, FrameFormat, FrameRingLayout, MultiConsumerPolicy, SharedFrameRing, SlotState,
-    SlotRecoveryReason, SlotStateStorage, SlotTransitionError,
+    CopyOutState, FrameFormat, FrameRingLayout, MultiConsumerPolicy, SharedFrameRing,
+    SlotRecoveryReason, SlotState, SlotStateStorage, SlotTransitionError,
 };
 
 fn layout(slot_count: u32) -> FrameRingLayout {

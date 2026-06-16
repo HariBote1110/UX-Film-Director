@@ -7,6 +7,7 @@ fn descriptor_with_colour(colour: ColourMetadata) -> FrameDescriptor {
     FrameDescriptor {
         memory_id: "decode-ring".to_string(),
         slot_index: 0,
+        generation: 0,
         byte_offset: 0,
         byte_len: 2_048,
         width: 32,

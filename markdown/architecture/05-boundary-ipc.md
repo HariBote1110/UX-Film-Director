@@ -135,6 +135,7 @@ Phase 4 の入口として `sidecar-protocol` crate を置く。
 
 - `memoryId`
 - `slotIndex`
+- `generation`
 - `byteOffset`
 - `byteLen`
 - `width`
@@ -142,6 +143,9 @@ Phase 4 の入口として `sidecar-protocol` crate を置く。
 - `strideBytes`
 - `format`
 - `colour`
+
+`generation` は slot lease token として扱う。consumer が古い `ReadyFrame` を保持したまま watchdog recovery が走り、
+同じ slot が次の frame に再利用された場合でも、古い release が新しい frame を `free` に戻してはいけない。
 
 frame request は float 秒ではなく `frameIndex` を使う。これは `rust-core` の timeline evaluation と同じ時間正本に揃えるためである。
 
@@ -261,6 +265,15 @@ back pressure:
 - frame bytes は制御プレーンに載せず、`SharedFrame` は descriptor と `ptsFrame` だけを持つ。
 - policy は用途で分ける。decode-ahead / export は `NoFreeSlot` で block、realtime preview は必要に応じて
   drop / skip を選べる。ただし primitive は `NoFreeSlot` を返すだけに留め、policy を呼び出し側で名前付けする。
+
+slot lease / recovery:
+
+- `FrameDescriptor.generation` は slot の lease generation を表す。
+- `FrameRingLayout.descriptor_for_slot` の静的 descriptor は `generation=0` を返す。
+- 実 writer lease は `SharedFrameRing.acquire_write_slot` が発行し、slot ごとに generation を 1 ずつ進める。
+- `mark_slot_ready` と `release_read_slot` は、渡された lease generation が現在の slot generation と一致する場合だけ成功する。
+- watchdog が `writing` / `ready` / `reading` の stuck slot を recover する場合、slot を `free` に戻し、generation を進めて古い token を無効化する。
+- 古い consumer が recovery 後に `release_read_slot` を呼んでも `LeaseGenerationMismatch` で拒否し、新しい reader lease を壊さない。
 
 atomic ordering verification:
 
@@ -436,7 +449,8 @@ Windows 固有の named shared memory や GPU backend 最適化は MVP の block
 - sidecar crash recovery
   - MVP で完全 recovery までは作らないが、producer が `writing` で落ちる、または consumer が `reading` で落ちる
     stuck slot を無音 deadlock にしない。
-  - timeout / heartbeat / generation counter のどれを採るかは未決。
+  - generation counter は slot lease として採用済み。
+  - timeout / heartbeat の具体値と、どの process が recover を発火するかは未決。
 - cancellation timeout / force kill policy
   - control-plane の cancel state machine は固定済み。
   - 実 process が stuck した場合に何秒で kill するか、partial output をどう掃除するかは未決。

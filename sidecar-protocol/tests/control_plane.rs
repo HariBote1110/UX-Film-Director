@@ -10,6 +10,7 @@ fn frame_ready_event_serialises_descriptor_without_frame_bytes() {
             descriptor: FrameDescriptor {
                 memory_id: "uxfd-frame-ring-1".to_string(),
                 slot_index: 2,
+                generation: 5,
                 byte_offset: 16_777_216,
                 byte_len: 33_177_600,
                 width: 3840,
