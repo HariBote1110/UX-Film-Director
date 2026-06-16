@@ -107,6 +107,21 @@ premultiplied colour の矩形 draw list と WebGPU vertex buffer 用の float �
 円、丸角、グラデーション、回転、任意 scale、anti-aliasing coverage はまだ別 gate とし、既存 bridge では
 fail-loud または Pixi fallback に留める。
 
+### Video Plane Geometry
+
+Phase5 の動画移行は、まず `Video` media と `VideoPlane` clip から plane metadata と WebGPU vertex buffer 用の
+float 配列を Rust/WASM で生成するところから開始する。
+
+この経路の責務:
+
+- `Video` media だけを抽出し、z order 順に video plane を並べる。
+- `clip_id` / `media_id` / `source_frame` / `opacity` / `z_index` を renderer 境界へ渡す。
+- canvas pixel 座標から clip-space 座標へ変換し、texture UV と opacity を含む vertex 配列を生成する。
+
+この段階では、動画フレームの decode、YUV->RGB、色 metadata 正規化、WebGPU external texture sampling はまだ
+Rust の責務ではない。動画フレームの実描画は、次 gate で readiness 診断、preview decode / export decode 比較、
+external texture 表示、sidecar decode の順に移す。
+
 ### Property
 
 MVP の keyframe 対象 property は `opacity` を既定とする。`position` や `scale` は schema 上の拡張余地を持つが、MVP の必須実装にはしない。

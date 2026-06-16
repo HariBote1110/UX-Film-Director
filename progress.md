@@ -1,3 +1,40 @@
+## 2026-06-16 — Phase5: video plane geometry を Rust/WASM に接続
+
+### 実施内容
+- `rust-core` に `video_plane_scene` module を追加し、`SceneSnapshot + SceneMediaReference + CanvasSize` から
+  Video plane metadata と WebGPU 用 vertex buffer を生成する契約を TDD で固定した。
+  - `Video` media のみ抽出。
+  - `clip_id` / `media_id` / `source_frame` / `z_index` / `opacity` を plane metadata として保持。
+  - texture UV と opacity を含む vertex 配列を生成。
+- `rust-core-wasm` に `build_video_plane_vertex_scene` binding を追加し、生成済み WASM を更新した。
+- `sharedRendererVideoPlaneScene` を追加し、Rust/WASM が使えない時の TypeScript fallback を用意した。
+- `sharedRendererRustVideoPlaneScene` を追加し、WASM の snake_case 結果を TS の video plane scene contract へ正規化した。
+- `sharedRendererPreviewPresenterController` は Video clip がある時に Rust/WASM video plane builder を実行し、
+  DOM diagnostics に `uxfdSharedRendererPresenterVideoGeometrySource` を公開するようにした。
+- package version を `0.1.1-Beta-36a` に更新した。
+
+### 選定理由・判断の根拠
+- 動画は decode / 色変換 / frame accuracy / GPU external texture の論点が重いため、まず video plane の
+  scene geometry と source frame metadata を Rust/WASM へ移した。
+- これにより、動画読み込み readiness と GPU sampling に入る前に、Rust/WASM 呼び出し・fallback・diagnostics の
+  境界を確認できる。
+- この段階では動画フレームの実描画はまだ Pixi / HTMLVideoElement 経路であり、Rust は動画平面の geometry と
+  metadata 生成までを担当する。
+
+### 検証
+- `cargo test --manifest-path rust-core/Cargo.toml --test video_plane_scene`
+  - 2 tests passed。
+- `cargo test --manifest-path rust-core/Cargo.toml`
+  - 30 tests passed。
+- `cargo check --manifest-path rust-core-wasm/Cargo.toml`
+  - passed。
+- `npm run wasm:build:rust-core`
+  - passed。
+- Node `initSync` で生成済み WASM を直接呼び、`plane_count=1`, `source_frame=90`,
+  先頭 vertex `[-0.989583313, 0.962962985, 0, 0, 0.75, 1, 0, 1]` を確認した。
+- `npm test -- src/utils/sharedRendererPresenterDiagnostics.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererRustVideoPlaneScene.test.ts src/utils/sharedRendererVideoPlaneScene.test.ts`
+  - 4 files / 14 tests passed。
+
 ## 2026-06-16 — Phase5: solid rectangle 図形の vertex 生成を Rust/WASM に接続
 
 ### 実施内容

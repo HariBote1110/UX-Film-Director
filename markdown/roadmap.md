@@ -255,6 +255,9 @@ browser preview では `rust-core-wasm` からその vertex buffer を受け取�
 生成済み vertices を GPU に upload する薄い役割へ寄せ、WASM 読み込みに失敗した時だけ TypeScript fallback を使う。
 動画 gate は external texture 描画の前に readiness 診断を挟む。`Video` media reference と既存 preview の
 `HTMLVideoElement` を照合し、`ready` / `pending` / `missingElement` を DOM/window diagnostics に公開する。
+この gate の入口として、`Video` media の plane metadata と WebGPU 用 vertices は `rust-core` /
+`rust-core-wasm` で生成する。DOM diagnostics には `uxfdSharedRendererPresenterVideoGeometrySource` を出し、
+動画 plane geometry が `rust-wasm` と `typescript` fallback のどちらで生成されたかを確認できるようにする。
 これにより、動画読み込み・current frame availability と GPU import / sampling の問題を分離する。
 ただし HTMLVideoElement / `importExternalTexture` はブラウザの暗黙 YUV->RGB と float 秒 seek に依存するため、
 この経路の動画 preview は export parity をまだ主張しない。external texture 表示を入れる前後で、known clip の同一 frame を
