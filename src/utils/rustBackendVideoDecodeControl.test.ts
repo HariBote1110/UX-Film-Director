@@ -83,7 +83,9 @@ describe('rustBackendVideoDecodeControl', () => {
 
     await requestRustBackendVideoDecodeFrame({
       jobId: 'decode-1',
+      requestId: 7,
       frameIndex: 42,
+      mode: 'latestWins',
     }, mocked.bridge);
     await releaseRustBackendVideoDecodeFrame({
       jobId: 'decode-1',
@@ -95,7 +97,9 @@ describe('rustBackendVideoDecodeControl', () => {
     expect(mocked.calls).toEqual([
       ['requestVideoDecodeFrame', {
         jobId: 'decode-1',
+        requestId: 7,
         frameIndex: 42,
+        mode: 'latestWins',
       }],
       ['releaseVideoDecodeFrame', {
         jobId: 'decode-1',
