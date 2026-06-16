@@ -257,6 +257,46 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
+  it('uses the Rust/WASM SolidColour vertex builder when it is available', async () => {
+    const writtenBuffers: Float32Array[] = [];
+    const rustVertices = new Float32Array([
+      -0.5, 0.5, 0.25, 0.125, 0.0, 0.75,
+      0.5, 0.5, 0.25, 0.125, 0.0, 0.75,
+      -0.5, -0.5, 0.25, 0.125, 0.0, 0.75,
+      -0.5, -0.5, 0.25, 0.125, 0.0, 0.75,
+      0.5, 0.5, 0.25, 0.125, 0.0, 0.75,
+      0.5, -0.5, 0.25, 0.125, 0.0, 0.75,
+    ]);
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: solidShapeSession,
+      datasets: [{}],
+      rustSolidColourVertexSceneBuilder: async () => ({
+        ok: true,
+        rectCount: 1,
+        vertices: rustVertices,
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onWriteBuffer: (_buffer, _offset, data) => {
+              writtenBuffers.push(data);
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({
+      ok: true,
+      format: 'bgra8unorm',
+    });
+    expect(writtenBuffers).toEqual([rustVertices]);
+  });
+
   it('publishes Pixi fallback diagnostics without touching WebGPU when the surface gate is blocked', async () => {
     const dataset: Record<string, string | undefined> = {};
     const calls: string[] = [];
@@ -376,18 +416,20 @@ const fakeAdapter = ({
 const fakeDevice = ({
   onRenderPass = () => undefined,
   onRenderPassOperation = () => undefined,
+  onWriteBuffer = () => undefined,
   onSubmit = () => undefined,
   lost = new Promise(() => undefined),
 }: {
   onRenderPass?: (descriptor: unknown) => void;
   onRenderPassOperation?: (operation: string) => void;
+  onWriteBuffer?: (buffer: unknown, offset: number, data: Float32Array) => void;
   onSubmit?: (commandBuffers: unknown[]) => void;
   lost?: Promise<unknown>;
 } = {}) => ({
   lost,
   queue: {
     submit: onSubmit,
-    writeBuffer: () => undefined,
+    writeBuffer: onWriteBuffer,
   },
   createShaderModule: () => 'solid-colour-shader-module',
   createRenderPipeline: () => 'solid-colour-pipeline',
