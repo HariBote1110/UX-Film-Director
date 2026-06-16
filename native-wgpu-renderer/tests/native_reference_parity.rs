@@ -193,6 +193,39 @@ fn native_wgpu_matches_hand_anchored_two_pixel_coordinates() {
     );
 }
 
+#[test]
+fn native_wgpu_matches_reference_for_integer_translation_and_nearest_scale() {
+    assert_native_matches_hand_anchor(
+        scene_snapshot(vec![evaluated_clip_with_transform(
+            "foreground",
+            0,
+            1.0,
+            Vec::new(),
+            Transform {
+                translation_x: 1.0,
+                translation_y: 1.0,
+                scale_x: 2.0,
+                scale_y: 2.0,
+                rotation_degrees: 0.0,
+            },
+        )]),
+        HashMap::from([(
+            "foreground".to_string(),
+            RgbaFrame::from_rgba8(
+                2,
+                2,
+                vec![
+                    255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255,
+                ],
+            )
+            .expect("valid foreground"),
+        )]),
+        5,
+        5,
+        transformed_nearest_anchor(),
+    );
+}
+
 fn assert_native_matches_hand_anchor(
     snapshot: SceneSnapshot,
     sources: HashMap<String, RgbaFrame>,
@@ -249,14 +282,34 @@ fn evaluated_clip(
     opacity: f32,
     effects: Vec<Effect>,
 ) -> EvaluatedClip {
+    evaluated_clip_with_transform(media_id, z_index, opacity, effects, Transform::identity())
+}
+
+fn evaluated_clip_with_transform(
+    media_id: &str,
+    z_index: u32,
+    opacity: f32,
+    effects: Vec<Effect>,
+    transform: Transform,
+) -> EvaluatedClip {
     EvaluatedClip {
         clip_id: format!("clip-{media_id}"),
         track_id: "track-1".to_string(),
         media_id: media_id.to_string(),
         source_frame: 0,
         z_index,
-        transform: Transform::identity(),
+        transform,
         opacity,
         effects,
     }
+}
+
+fn transformed_nearest_anchor() -> Vec<u8> {
+    vec![
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 0, 0,
+        255, 255, 0, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 0, 0, 0, 255, 0, 0, 255,
+        255, 0, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 0, 0, 0, 0, 0, 255, 255, 0, 0,
+        255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 255, 255, 0, 0,
+        255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    ]
 }
