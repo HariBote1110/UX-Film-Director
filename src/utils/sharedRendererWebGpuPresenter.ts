@@ -46,6 +46,7 @@ export type SharedRendererWebGpuPresenterResult =
         height: number;
       };
       presentationContract: SharedRendererPresentationContract;
+      dispose: () => void;
     }
   | {
       ok: false;
@@ -140,8 +141,14 @@ export const createSharedRendererWebGpuPresenter = async ({
     alphaMode: presentationContract.canvas.alphaMode,
   });
 
+  let disposed = false;
+  const dispose = () => {
+    disposed = true;
+  };
+
   if (device.lost && onDeviceLost) {
     void device.lost.then((info) => {
+      if (disposed) return;
       onDeviceLost({
         reason: 'deviceLost',
         fallback: presentationContract.deviceLost.fallback,
@@ -161,6 +168,7 @@ export const createSharedRendererWebGpuPresenter = async ({
       height: surfaceGate.canvas.height,
     },
     presentationContract,
+    dispose,
   };
 };
 

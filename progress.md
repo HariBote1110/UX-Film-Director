@@ -1059,6 +1059,12 @@
 - `npx tsc --noEmit` は既存の `src/components/ThreeStageViewport.tsx` の `three` 型不足で失敗するが、
   `sharedRendererWebGpuPresenter` / shared renderer 追加分の新規エラーは出ていない。
 
+### Dispose guard
+- `src/utils/sharedRendererWebGpuPresenter.test.ts` に、presenter `dispose()` 後に `device.lost` が解決しても
+  Pixi fallback callback を呼ばない契約を追加した。
+- `createSharedRendererWebGpuPresenter` の成功結果に `dispose()` を追加し、unmount 後の遅延 device-lost event を抑止するようにした。
+- `package.json` / `package-lock.json` を `0.1.1-Beta-29b` に更新した。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）
