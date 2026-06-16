@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createSharedRendererWebGpuPresenter } from './sharedRendererWebGpuPresenter';
+import {
+  createSharedRendererWebGpuPresenter,
+  type SharedRendererWebGpuAdapterLike,
+  type SharedRendererWebGpuLike,
+} from './sharedRendererWebGpuPresenter';
 import { buildSharedRendererPresentationContract } from './sharedRendererPresentationContract';
 import type { RustSceneSnapshot } from './rustSceneSnapshot';
 import type { SharedRendererPreviewSurfaceGate } from './sharedRendererPreviewSurface';
@@ -127,7 +131,7 @@ const fakeCanvas = (getContext: () => unknown) =>
     width: 0,
     height: 0,
     getContext,
-  }) as HTMLCanvasElement;
+  }) as unknown as HTMLCanvasElement;
 
 const fakeContext = (configure: (configuration: unknown) => void = () => undefined) => ({
   configure,
@@ -138,10 +142,10 @@ const fakeGpu = ({
   onRequestAdapter,
 }: {
   format?: string;
-  onRequestAdapter: () => unknown;
-}) => ({
+  onRequestAdapter: () => SharedRendererWebGpuAdapterLike;
+}): SharedRendererWebGpuLike => ({
   getPreferredCanvasFormat: () => format,
-  requestAdapter: async (options: unknown) => {
+  requestAdapter: async (options: { powerPreference: 'high-performance' }) => {
     expect(options).toEqual({ powerPreference: 'high-performance' });
     return onRequestAdapter();
   },

@@ -236,6 +236,9 @@ frozen frame index に固定し、unsupported frame は parity metric から除�
 macOS P3 display 上の sRGB -> P3 表示カラーマネジメントは offscreen readback では観測できないため、
 初回 surface go 判定前に、実機 P3 Mac で shared-renderer preview swatch と export-decoded reference swatch を
 並べた visual / sampled check を一度通す。
+初回 presenter は shader / pipeline をまだ持たず、WebGPU adapter / device / canvas context の取得、
+`colorSpace: "srgb"` / `alphaMode: "premultiplied"` / `GPUTextureUsage.RENDER_ATTACHMENT` による
+canvas configure、device lost 時の Pixi fallback 通知だけを責務にする。
 
 ## 後回しにするもの
 

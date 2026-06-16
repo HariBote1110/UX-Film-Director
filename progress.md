@@ -1037,6 +1037,28 @@
   初回 surface go 前に必要と指摘を受けた。
 - この P3 実機 check を `markdown/roadmap.md` の Phase5 gate に追記した。
 
+## 2026-06-16 — Phase5: shared renderer WebGPU presenter init gate
+
+### Red
+- `src/utils/sharedRendererWebGpuPresenter.test.ts` を追加し、実描画前の WebGPU presenter 初期化契約を固定した。
+- surface gate が blocked の時は WebGPU / canvas context に触らないこと、gate OK では
+  `getPreferredCanvasFormat()`、`colorSpace: "srgb"`、`alphaMode: "premultiplied"`、
+  `GPUTextureUsage.RENDER_ATTACHMENT` で `canvas.configure` することを test 化した。
+- `device.lost` 解決時に Pixi fallback と stale shared frame 禁止を通知することも test 化した。
+- 未実装 module import error で Red を確認した。
+
+### Green
+- `src/utils/sharedRendererWebGpuPresenter.ts` を追加し、`createSharedRendererWebGpuPresenter` を実装した。
+- presenter は shader / render pipeline をまだ作らず、adapter / device / canvas context / presentation configure /
+  device lost fallback のみに責務を限定した。
+- `markdown/roadmap.md` に初回 presenter の責務境界を追記した。
+- `package.json` / `package-lock.json` を `0.1.1-Beta-29a` に更新した。
+
+### 確認結果
+- `npm test -- src/utils/sharedRendererWebGpuPresenter.test.ts` -> 3 tests passed。
+- `npx tsc --noEmit` は既存の `src/components/ThreeStageViewport.tsx` の `three` 型不足で失敗するが、
+  `sharedRendererWebGpuPresenter` / shared renderer 追加分の新規エラーは出ていない。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）
