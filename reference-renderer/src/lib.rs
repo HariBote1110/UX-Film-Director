@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use uxfd_golden_harness::{RgbaFrame, RgbaFrameError};
-use uxfd_rust_core::{Effect, EvaluatedClip, SceneSnapshot, Transform};
+use uxfd_rust_core::{Effect, EvaluatedClip, SamplingMode, SceneSnapshot, Transform};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReferenceRenderError {
@@ -58,14 +58,13 @@ pub fn render_reference_frame(
 
         for y in 0..height {
             for x in 0..width {
-                let Some(source_pixel) = sample_nearest_source(source, &clip.transform, x, y)
-                else {
+                let Some(source_colour) = sample_source(source, &clip.transform, x, y) else {
                     continue;
                 };
                 let pixel_index = (y as usize) * (width as usize) + x as usize;
-                let source_colour =
-                    PremultipliedLinearRgba::from_straight_rgba8(source_pixel, clip.opacity, gain);
-                canvas[pixel_index] = source_colour.over(canvas[pixel_index]);
+                canvas[pixel_index] = source_colour
+                    .to_premultiplied(clip.opacity, gain)
+                    .over(canvas[pixel_index]);
             }
         }
     }
@@ -97,14 +96,14 @@ fn validate_transform(clip: &EvaluatedClip) -> Result<(), ReferenceRenderError> 
     Ok(())
 }
 
-fn sample_nearest_source<'a>(
-    source: &'a RgbaFrame,
+fn sample_source(
+    source: &RgbaFrame,
     transform: &Transform,
     output_x: u32,
     output_y: u32,
-) -> Option<&'a [u8]> {
-    let source_x = ((output_x as f32 - transform.translation_x) / transform.scale_x).floor();
-    let source_y = ((output_y as f32 - transform.translation_y) / transform.scale_y).floor();
+) -> Option<StraightLinearRgba> {
+    let source_x = (output_x as f32 - transform.translation_x) / transform.scale_x;
+    let source_y = (output_y as f32 - transform.translation_y) / transform.scale_y;
 
     if source_x < 0.0
         || source_y < 0.0
@@ -114,8 +113,86 @@ fn sample_nearest_source<'a>(
         return None;
     }
 
-    let source_index = (source_y as usize * source.width as usize + source_x as usize) * 4;
-    Some(&source.pixels[source_index..source_index + 4])
+    match transform.sampling {
+        SamplingMode::Nearest => sample_nearest_source(source, source_x, source_y),
+        SamplingMode::Bilinear => sample_bilinear_source(source, source_x, source_y),
+    }
+}
+
+fn sample_nearest_source(
+    source: &RgbaFrame,
+    source_x: f32,
+    source_y: f32,
+) -> Option<StraightLinearRgba> {
+    let x = source_x.floor() as u32;
+    let y = source_y.floor() as u32;
+    Some(load_straight_linear(source, x, y))
+}
+
+fn sample_bilinear_source(
+    source: &RgbaFrame,
+    source_x: f32,
+    source_y: f32,
+) -> Option<StraightLinearRgba> {
+    let x0 = source_x.floor() as u32;
+    let y0 = source_y.floor() as u32;
+    let x1 = (x0 + 1).min(source.width - 1);
+    let y1 = (y0 + 1).min(source.height - 1);
+    let tx = source_x - x0 as f32;
+    let ty = source_y - y0 as f32;
+
+    let top = load_straight_linear(source, x0, y0).lerp(load_straight_linear(source, x1, y0), tx);
+    let bottom =
+        load_straight_linear(source, x0, y1).lerp(load_straight_linear(source, x1, y1), tx);
+
+    Some(top.lerp(bottom, ty))
+}
+
+fn load_straight_linear(source: &RgbaFrame, x: u32, y: u32) -> StraightLinearRgba {
+    let source_index = (y as usize * source.width as usize + x as usize) * 4;
+    StraightLinearRgba::from_straight_rgba8(&source.pixels[source_index..source_index + 4])
+}
+
+#[derive(Debug, Clone, Copy)]
+struct StraightLinearRgba {
+    red: f32,
+    green: f32,
+    blue: f32,
+    alpha: f32,
+}
+
+impl StraightLinearRgba {
+    fn from_straight_rgba8(pixel: &[u8]) -> Self {
+        Self {
+            red: srgb_u8_to_linear(pixel[0]),
+            green: srgb_u8_to_linear(pixel[1]),
+            blue: srgb_u8_to_linear(pixel[2]),
+            alpha: f32::from(pixel[3]) / 255.0,
+        }
+    }
+
+    fn lerp(self, other: Self, t: f32) -> Self {
+        Self {
+            red: lerp(self.red, other.red, t),
+            green: lerp(self.green, other.green, t),
+            blue: lerp(self.blue, other.blue, t),
+            alpha: lerp(self.alpha, other.alpha, t),
+        }
+    }
+
+    fn to_premultiplied(self, opacity: f32, gain: f32) -> PremultipliedLinearRgba {
+        let alpha = self.alpha * opacity;
+        PremultipliedLinearRgba {
+            red: self.red * gain * alpha,
+            green: self.green * gain * alpha,
+            blue: self.blue * gain * alpha,
+            alpha,
+        }
+    }
+}
+
+fn lerp(left: f32, right: f32, t: f32) -> f32 {
+    left + (right - left) * t
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -133,16 +210,6 @@ impl PremultipliedLinearRgba {
             green: 0.0,
             blue: 0.0,
             alpha: 0.0,
-        }
-    }
-
-    fn from_straight_rgba8(pixel: &[u8], opacity: f32, gain: f32) -> Self {
-        let alpha = (f32::from(pixel[3]) / 255.0) * opacity;
-        Self {
-            red: srgb_u8_to_linear(pixel[0]) * gain * alpha,
-            green: srgb_u8_to_linear(pixel[1]) * gain * alpha,
-            blue: srgb_u8_to_linear(pixel[2]) * gain * alpha,
-            alpha,
         }
     }
 

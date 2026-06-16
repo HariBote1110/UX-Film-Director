@@ -173,6 +173,7 @@ fn transformed_clip_uses_integer_translation_and_nearest_scale() {
             scale_x: 2.0,
             scale_y: 2.0,
             rotation_degrees: 0.0,
+            sampling: SamplingMode::Nearest,
         },
     )]);
     let sources = HashMap::from([(
@@ -211,8 +212,7 @@ fn bilinear_sampling_interpolates_in_linear_light() {
     )]);
     let sources = HashMap::from([(
         "foreground".to_string(),
-        RgbaFrame::from_rgba8(2, 1, vec![0, 0, 0, 255, 255, 255, 255, 255])
-            .expect("valid source"),
+        RgbaFrame::from_rgba8(2, 1, vec![0, 0, 0, 255, 255, 255, 255, 255]).expect("valid source"),
     )]);
 
     let rendered =

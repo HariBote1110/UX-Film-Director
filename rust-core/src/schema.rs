@@ -61,6 +61,8 @@ pub struct Transform {
     pub scale_x: f32,
     pub scale_y: f32,
     pub rotation_degrees: f32,
+    #[serde(default = "SamplingMode::nearest")]
+    pub sampling: SamplingMode,
 }
 
 impl Transform {
@@ -71,7 +73,21 @@ impl Transform {
             scale_x: 1.0,
             scale_y: 1.0,
             rotation_degrees: 0.0,
+            sampling: SamplingMode::Nearest,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SamplingMode {
+    Nearest,
+    Bilinear,
+}
+
+impl SamplingMode {
+    pub fn nearest() -> Self {
+        Self::Nearest
     }
 }
 

@@ -1,6 +1,6 @@
 use uxfd_rust_core::{
     evaluate_frame, Clip, ClipKind, ColourPipeline, Effect, Fps, MediaKind, MediaReference,
-    Project, ProjectSize, Track, Transform,
+    Project, ProjectSize, SamplingMode, Track, Transform,
 };
 
 fn project_with_transform() -> Project {
@@ -35,6 +35,7 @@ fn project_with_transform() -> Project {
                     scale_x: 1.5,
                     scale_y: 0.5,
                     rotation_degrees: 15.0,
+                    sampling: SamplingMode::Nearest,
                 },
                 opacity: 0.75,
                 opacity_keyframes: Vec::new(),

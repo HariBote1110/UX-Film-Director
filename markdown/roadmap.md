@@ -123,11 +123,19 @@ TDD / 検証タスク:
 3. Green: shared WGSL と native wgpu renderer を同じ nearest mapping に揃える
 4. WebGPU preview harness に同じ case を追加し、Chrome / Metal で `maxDelta=0` を確認する
 
+### Phase 3d: linear-light bilinear sampling
+
+1. Red: 2x1 source（black / white）の midpoint を `sampling=bilinear` で描画し、期待値 `[188,188,188,255]` を hand anchor にする
+2. Green: `Transform.sampling` に `nearest` / `bilinear` を追加し、既定値は `nearest` とする
+3. Green: CPU reference renderer、shared WGSL、native wgpu renderer で sRGB decode 後の linear-light bilinear 補間を実装する
+4. WebGPU preview harness に同じ case を追加し、Chrome / Metal で `maxDelta=0` を確認する
+
 Go 条件:
 
 - Phase 3a: macOS / Metal 上で native wgpu と CPU reference が max channel delta の許容内に入る。
 - Phase 3b: macOS / Metal 上で preview と export frame が許容誤差内に入る。
 - Phase 3c: integer translation / nearest scale が CPU reference、native wgpu、WebGPU preview で一致する。
+- Phase 3d: linear-light bilinear midpoint が CPU reference、native wgpu、WebGPU preview で一致する。
 
 見直し条件:
 

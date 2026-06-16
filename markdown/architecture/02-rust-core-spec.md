@@ -77,15 +77,18 @@ Clip は以下を持つ。
 - keyframes
 - effects
 
-MVP の `transform` は以下の scalar 値で表現する。
+MVP の `transform` は以下の幾何値と sampling mode で表現する。
 
 - `translation_x`
 - `translation_y`
 - `scale_x`
 - `scale_y`
 - `rotation_degrees`
+- `sampling`（`nearest` / `bilinear`）
 
-既定値は identity transform（translation 0、scale 1、rotation 0）とする。
+既定値は identity transform（translation 0、scale 1、rotation 0、sampling `nearest`）とする。
+
+`bilinear` は renderer が texture sample を sRGB encoded RGBA8 から linear light へ decode し、linear light 上で補間してから合成する。encoded sRGB 値を直接補間してはならない。
 
 ### Property
 

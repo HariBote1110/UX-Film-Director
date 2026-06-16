@@ -709,6 +709,46 @@
 - `node --check phase3b-webgpu-harness/phase3b.js`
 - WebGPU harness: `http://127.0.0.1:4177/phase3b-webgpu-harness/` を system Chrome 149 で実行し `ok=true`。
 
+## 2026-06-16 — Phase3d: linear-light bilinear sampling gate
+
+### Red
+- `reference-renderer/tests/solid_scene.rs` に、2x1 source（black / white）の midpoint を
+  `sampling=bilinear` で 1x1 canvas に描画し、期待値 `[188,188,188,255]` と比較する hand anchor test を追加した。
+- `native-wgpu-renderer/tests/native_reference_parity.rs` に同じ scene を追加し、native wgpu / CPU reference / hand anchor の一致を要求した。
+- 旧 schema には `SamplingMode` と `Transform.sampling` が存在しないため、compile error で Red を確認した。
+
+### Green
+- `rust-core` の `Transform` に `sampling` を追加し、`nearest` / `bilinear` を `SamplingMode` として定義した。
+- 既定値は後方互換のため `nearest` とし、既存 timeline snapshot は明示的に nearest を使う形に更新した。
+- `reference-renderer` は nearest と bilinear の sampling を分岐し、bilinear では 4 texel を sRGB -> linear light decode 後に補間する。
+- `native-wgpu-renderer` と共有 WGSL は `sampling_mode` uniform を受け取り、CPU reference と同じ linear-light bilinear 補間を行う。
+- `phase3b-webgpu-harness` に `linear-light bilinear midpoint` case を追加した。
+
+### 実測結果
+- CPU reference bilinear gate: hand anchor `[188,188,188,255]` と一致。
+- native wgpu bilinear gate: CPU reference / hand anchor と `maxDelta=0`。
+- WebGPU preview harness: Chrome 149、Apple Metal adapter、`linear-light bilinear midpoint` case が
+  `maxDelta=0` / `meanAbsoluteError=0`。
+
+### 文書更新
+- `markdown/architecture/02-rust-core-spec.md` に `Transform.sampling` と linear-light bilinear の契約を追記した。
+- `markdown/architecture/04-render-parity.md` に linear-light bilinear sampling gate を追記した。
+- `markdown/roadmap.md` に Phase3d を追加した。
+
+### 確認結果
+- `cargo fmt --manifest-path rust-core/Cargo.toml`
+- `cargo fmt --manifest-path reference-renderer/Cargo.toml`
+- `cargo fmt --manifest-path native-wgpu-renderer/Cargo.toml`
+- `cargo test --manifest-path rust-core/Cargo.toml` -> passed。
+- `cargo test --manifest-path golden-harness/Cargo.toml` -> passed。
+- `cargo test --manifest-path reference-renderer/Cargo.toml` -> passed。
+- `cargo test --manifest-path sidecar-protocol/Cargo.toml` -> passed。
+- `cargo test --manifest-path decode-spike/Cargo.toml` -> passed。
+- `cargo test --manifest-path shared-memory-spike/Cargo.toml` -> passed。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml` -> passed / 1 ignored。
+- `node --check phase3b-webgpu-harness/phase3b.js`
+- WebGPU harness: `http://127.0.0.1:4177/phase3b-webgpu-harness/` を system Chrome 149 で実行し `ok=true`。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）

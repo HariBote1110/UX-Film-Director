@@ -209,6 +209,7 @@ fn native_wgpu_matches_reference_for_integer_translation_and_nearest_scale() {
                 scale_x: 2.0,
                 scale_y: 2.0,
                 rotation_degrees: 0.0,
+                sampling: SamplingMode::Nearest,
             },
         )]),
         HashMap::from([(

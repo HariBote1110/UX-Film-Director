@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 use uxfd_golden_harness::{RgbaFrame, RgbaFrameError};
-use uxfd_rust_core::{Effect, SceneSnapshot, Transform};
+use uxfd_rust_core::{Effect, SamplingMode, SceneSnapshot, Transform};
 use wgpu::util::DeviceExt;
 
 const OUTPUT_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
@@ -152,6 +152,8 @@ pub async fn measure_native_wgpu_frame_stages(
                 translation_y: clip.transform.translation_y,
                 scale_x: clip.transform.scale_x,
                 scale_y: clip.transform.scale_y,
+                sampling_mode: sampling_mode_value(clip.transform.sampling),
+                _padding: [0.0; 3],
             },
         ));
     }
@@ -253,6 +255,15 @@ struct RenderParams {
     translation_y: f32,
     scale_x: f32,
     scale_y: f32,
+    sampling_mode: f32,
+    _padding: [f32; 3],
+}
+
+fn sampling_mode_value(sampling: SamplingMode) -> f32 {
+    match sampling {
+        SamplingMode::Nearest => 0.0,
+        SamplingMode::Bilinear => 1.0,
+    }
 }
 
 fn create_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {

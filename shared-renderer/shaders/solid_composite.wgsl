@@ -7,6 +7,10 @@ struct RenderParams {
     translation_y: f32,
     scale_x: f32,
     scale_y: f32,
+    sampling_mode: f32,
+    _padding0: f32,
+    _padding1: f32,
+    _padding2: f32,
 }
 
 @group(0) @binding(0)
@@ -29,30 +33,65 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> @builtin(position) vec4<
 @fragment
 fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     let output_pixel = vec2<f32>(vec2<i32>(position.xy));
-    let source_pixel = floor(
+    let source_position =
         (output_pixel - vec2<f32>(params.translation_x, params.translation_y))
-            / vec2<f32>(params.scale_x, params.scale_y)
-    );
+            / vec2<f32>(params.scale_x, params.scale_y);
 
     if (
-        source_pixel.x < 0.0
-        || source_pixel.y < 0.0
-        || source_pixel.x >= params.source_width
-        || source_pixel.y >= params.source_height
+        source_position.x < 0.0
+        || source_position.y < 0.0
+        || source_position.x >= params.source_width
+        || source_position.y >= params.source_height
     ) {
         return vec4<f32>(0.0);
     }
 
-    let source = textureLoad(source_texture, vec2<i32>(source_pixel), 0);
+    let source = sample_source_linear(source_position);
     let alpha = source.a * params.opacity;
-    let linear_rgb = vec3<f32>(
-        srgb_to_linear(source.r),
-        srgb_to_linear(source.g),
-        srgb_to_linear(source.b),
-    );
+    let linear_rgb = source.rgb;
     let premultiplied_rgb = linear_rgb * params.gain * alpha;
 
     return vec4<f32>(premultiplied_rgb, alpha);
+}
+
+fn sample_source_linear(source_position: vec2<f32>) -> vec4<f32> {
+    if params.sampling_mode >= 0.5 {
+        return sample_bilinear_linear(source_position);
+    }
+
+    return load_source_linear(vec2<i32>(floor(source_position)));
+}
+
+fn sample_bilinear_linear(source_position: vec2<f32>) -> vec4<f32> {
+    let source_floor = floor(source_position);
+    let texel_min = vec2<i32>(source_floor);
+    let texel_max = vec2<i32>(
+        min(source_floor + vec2<f32>(1.0), vec2<f32>(params.source_width - 1.0, params.source_height - 1.0))
+    );
+    let amount = source_position - source_floor;
+
+    let top = mix(
+        load_source_linear(texel_min),
+        load_source_linear(vec2<i32>(texel_max.x, texel_min.y)),
+        amount.x,
+    );
+    let bottom = mix(
+        load_source_linear(vec2<i32>(texel_min.x, texel_max.y)),
+        load_source_linear(texel_max),
+        amount.x,
+    );
+
+    return mix(top, bottom, amount.y);
+}
+
+fn load_source_linear(pixel: vec2<i32>) -> vec4<f32> {
+    let source = textureLoad(source_texture, pixel, 0);
+    return vec4<f32>(
+        srgb_to_linear(source.r),
+        srgb_to_linear(source.g),
+        srgb_to_linear(source.b),
+        source.a,
+    );
 }
 
 fn srgb_to_linear(value: f32) -> f32 {

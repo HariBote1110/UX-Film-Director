@@ -158,6 +158,30 @@ const cases = [
     ],
     expected: transformedNearestAnchor(),
   },
+  {
+    name: "linear-light bilinear midpoint",
+    width: 1,
+    height: 1,
+    clips: [
+      {
+        mediaId: "foreground",
+        zIndex: 0,
+        opacity: 1.0,
+        gain: 1.0,
+        width: 2,
+        height: 1,
+        samplingMode: "bilinear",
+        transform: {
+          translationX: -0.5,
+          translationY: 0.0,
+          scaleX: 1.0,
+          scaleY: 1.0,
+        },
+        pixels: [0, 0, 0, 255, 255, 255, 255, 255],
+      },
+    ],
+    expected: [188, 188, 188, 255],
+  },
 ];
 
 async function main() {
@@ -398,6 +422,10 @@ function createParamsBuffer(device, testCase, clip) {
     transform.translationY,
     transform.scaleX,
     transform.scaleY,
+    samplingModeValue(clip.samplingMode),
+    0,
+    0,
+    0,
   ]);
   const buffer = device.createBuffer({
     label: `params: ${clip.mediaId}`,
@@ -406,6 +434,10 @@ function createParamsBuffer(device, testCase, clip) {
   });
   device.queue.writeBuffer(buffer, 0, params);
   return buffer;
+}
+
+function samplingModeValue(mode) {
+  return mode === "bilinear" ? 1 : 0;
 }
 
 async function readAdapterInfo(adapter) {
