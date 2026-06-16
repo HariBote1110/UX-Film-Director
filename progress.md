@@ -15,6 +15,11 @@
 - 動画はいきなり WebGPU external texture に進まず、まず既存 preview loader が video element を作り、
   current frame data を持っているかを shared renderer 側から観測できる gate にした。
 - これにより、次の external texture 実装で「動画が読めていない」のか「GPU import / sampling が壊れている」のかを分離できる。
+- Claude レビュー反映:
+  HTMLVideoElement / `importExternalTexture` はブラウザの暗黙 YUV→RGB と float 秒 seek に依存するため、
+  「動画を読み込める preview」と「preview/export parity が保証された動画」は別物として扱う。次の visible slice では
+  動画表示を許可しても、色・フレーム正確性は parity 未検証として明示し、known clip で preview decode と export/sidecar decode を
+  比較する gate を外さない。
 
 ### 検証
 - `npm test -- src/utils/sharedRendererVideoMediaReadiness.test.ts src/utils/sharedRendererPresenterSessionKey.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts`

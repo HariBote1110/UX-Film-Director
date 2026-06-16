@@ -253,6 +253,10 @@ fail-loud のままにする。
 動画 gate は external texture 描画の前に readiness 診断を挟む。`Video` media reference と既存 preview の
 `HTMLVideoElement` を照合し、`ready` / `pending` / `missingElement` を DOM/window diagnostics に公開する。
 これにより、動画読み込み・current frame availability と GPU import / sampling の問題を分離する。
+ただし HTMLVideoElement / `importExternalTexture` はブラウザの暗黙 YUV->RGB と float 秒 seek に依存するため、
+この経路の動画 preview は export parity をまだ主張しない。external texture 表示を入れる前後で、known clip の同一 frame を
+preview decode と export/sidecar decode で比較し、色変換と frame accuracy の許容差を gate 化する。VFR / HDR / 10bit /
+frame-accuracy 未検証の入力は fail-loud で Pixi fallback に留める。
 
 ## 後回しにするもの
 
