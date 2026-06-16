@@ -2,6 +2,7 @@ import type {
   ImageObject,
   LayerState,
   ProjectSettings,
+  ShapeObject,
   TimelineObject,
   VideoObject,
 } from '../types';
@@ -46,7 +47,7 @@ export interface RustSceneSnapshot {
 
 export interface RustSceneMediaReference {
   id: string;
-  kind: 'Image' | 'Video';
+  kind: 'Image' | 'Video' | 'SolidColour';
   source: string;
   width: number;
   height: number;
@@ -55,6 +56,7 @@ export interface RustSceneMediaReference {
 export type RustSceneSnapshotBuildIssueCode =
   | 'unsupportedObjectType'
   | 'unsupportedFilter'
+  | 'unsupportedShapeGeometry'
   | 'unsupportedRotation'
   | 'unsupportedTransform'
   | 'unsupportedVideoMode'
@@ -113,6 +115,7 @@ export interface RustSceneSnapshotBuildInput {
 }
 
 type SupportedMediaObject = ImageObject | VideoObject;
+type SupportedSceneObject = SupportedMediaObject | ShapeObject;
 
 const rustColourPipeline = (): RustColourPipeline => ({
   profile: 'rec709-sdr',
@@ -135,7 +138,7 @@ export const buildRustSceneSnapshotForTimeline = ({
   }
 
   const supportedObjects = visibleObjects
-    .filter(isSupportedMediaObject)
+    .filter(isSupportedSceneObject)
     .map((object, index) => ({ object, index }))
     .sort((left, right) => {
       if (left.object.layer !== right.object.layer) return left.object.layer - right.object.layer;
@@ -158,7 +161,7 @@ export const buildRustSceneSnapshotForTimeline = ({
         scale_x: object.scaleX,
         scale_y: object.scaleY,
         rotation_degrees: 0,
-        sampling: 'bilinear',
+        sampling: object.type === 'shape' ? 'nearest' : 'bilinear',
       },
       opacity,
       effects: [],
@@ -201,7 +204,7 @@ const collectBuildIssues = (objects: TimelineObject[], time: number): RustSceneS
   const issues: RustSceneSnapshotBuildIssue[] = [];
 
   objects.forEach((object) => {
-    if (!isSupportedMediaObject(object)) {
+    if (!isSupportedSceneObject(object)) {
       issues.push({
         code: 'unsupportedObjectType',
         objectId: object.id,
@@ -210,7 +213,15 @@ const collectBuildIssues = (objects: TimelineObject[], time: number): RustSceneS
       return;
     }
 
-    if (!mediaSourceForObject(object)) {
+    if (object.type === 'shape' && !isSupportedRectangleShape(object)) {
+      issues.push({
+        code: 'unsupportedShapeGeometry',
+        objectId: object.id,
+        detail: 'Only solid rectangle shapes are enabled in the first shared renderer shape bridge.',
+      });
+    }
+
+    if (isSupportedMediaObject(object) && !mediaSourceForObject(object)) {
       issues.push({
         code: 'missingMediaSource',
         objectId: object.id,
@@ -266,7 +277,9 @@ const collectBuildIssues = (objects: TimelineObject[], time: number): RustSceneS
       });
     }
 
-    const unsupportedFilter = getEnabledObjectFiltersInOrder(object).find((filter) => filter.type !== 'fade');
+    const unsupportedFilter = getEnabledObjectFiltersInOrder(object).find((filter) => (
+      filter.type !== 'fade' && !(object.type === 'shape' && filter.type === 'gradient')
+    ));
     if (unsupportedFilter) {
       issues.push({
         code: 'unsupportedFilter',
@@ -282,22 +295,41 @@ const collectBuildIssues = (objects: TimelineObject[], time: number): RustSceneS
 const isSupportedMediaObject = (object: TimelineObject): object is SupportedMediaObject =>
   object.type === 'image' || object.type === 'video';
 
-const mediaReferenceForObject = (object: SupportedMediaObject): RustSceneMediaReference => ({
-  id: object.id,
-  kind: object.type === 'video' ? 'Video' : 'Image',
-  source: mediaSourceForObject(object),
-  width: object.width,
-  height: object.height,
-});
+const isSupportedSceneObject = (object: TimelineObject): object is SupportedSceneObject =>
+  isSupportedMediaObject(object) || object.type === 'shape';
+
+const isSupportedRectangleShape = (object: ShapeObject): boolean =>
+  object.shapeType === 'rect' && object.gradient?.enabled !== true;
+
+const mediaReferenceForObject = (object: SupportedSceneObject): RustSceneMediaReference => {
+  if (object.type === 'shape') {
+    return {
+      id: object.id,
+      kind: 'SolidColour',
+      source: object.fill,
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  return {
+    id: object.id,
+    kind: object.type === 'video' ? 'Video' : 'Image',
+    source: mediaSourceForObject(object),
+    width: object.width,
+    height: object.height,
+  };
+};
 
 const mediaSourceForObject = (object: SupportedMediaObject): string =>
   object.filePath || object.src || '';
 
 const sourceFrameForObject = (
-  object: SupportedMediaObject,
+  object: SupportedSceneObject,
   time: number,
   fps: number
 ): number => {
+  if (object.type === 'shape') return 0;
   if (object.type === 'image') return 0;
   const localTime = Math.max(0, time - object.startTime);
   const mediaTime = localTime + (object.offset ?? 0);
@@ -447,7 +479,7 @@ const validateMediaReferences = (
     }
     validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height'], issues);
     validateString(reference.id, `${path}.id`, issues);
-    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video'], issues);
+    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour'], issues);
     validateString(reference.source, `${path}.source`, issues);
     validatePositiveInteger(reference.width, `${path}.width`, issues);
     validatePositiveInteger(reference.height, `${path}.height`, issues);

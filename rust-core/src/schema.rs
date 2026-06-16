@@ -33,6 +33,7 @@ impl ColourPipeline {
 pub enum MediaKind {
     Video,
     Image,
+    SolidColour,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -46,6 +47,7 @@ pub struct MediaReference {
 pub enum ClipKind {
     VideoPlane,
     ImagePlane,
+    SolidColourPlane,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
