@@ -25,6 +25,7 @@ fn frame_ready_event_serialises_descriptor_without_frame_bytes() {
     let encoded = serde_json::to_value(event).expect("serialise frame-ready event");
 
     assert_eq!(encoded["type"], "frameReady");
+    assert_eq!(encoded["jobId"], "decode-1");
     assert_eq!(
         encoded["frame"]["descriptor"]["memoryId"],
         "uxfd-frame-ring-1"
