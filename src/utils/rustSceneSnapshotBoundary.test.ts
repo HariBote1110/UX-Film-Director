@@ -106,9 +106,16 @@ describe('validateRustSceneSnapshotBoundary', () => {
 
     expect(validation.ok).toBe(false);
     if (validation.ok) throw new Error('expected boundary validation to fail');
-    expect(issueCodes(validation.issues)).toEqual(['schemaMismatch', 'schemaMismatch']);
+    expect(issueCodes(validation.issues)).toEqual([
+      'schemaMismatch',
+      'schemaMismatch',
+      'schemaMismatch',
+      'schemaMismatch',
+    ]);
     expect(validation.issues.map((issue) => issue.path)).toEqual([
+      'snapshot.frameIndex',
       'snapshot.frame_index',
+      'snapshot.clips[0].clipId',
       'snapshot.clips[0].clip_id',
     ]);
   });
@@ -166,6 +173,86 @@ describe('validateRustSceneSnapshotBoundary', () => {
       'outOfRange',
       'schemaMismatch',
       'unsupportedEnum',
+    ]);
+  });
+
+  it('rejects unknown fields, duplicate media ids, and orphan media references', () => {
+    const payload = {
+      snapshot: {
+        frame_index: 60,
+        unexpected: true,
+        colour: {
+          profile: 'rec709-sdr',
+          working_space: 'linear-light',
+          alpha: 'premultiplied',
+        },
+        clips: [
+          {
+            clip_id: 'image-1',
+            track_id: 'layer-1',
+            media_id: 'image-1',
+            source_frame: 0,
+            z_index: 0,
+            unexpected: true,
+            transform: {
+              translation_x: 32,
+              translation_y: 48,
+              scale_x: 1,
+              scale_y: 1,
+              rotation_degrees: 0,
+              sampling: 'bilinear',
+              unexpected: true,
+            },
+            opacity: 1,
+            effects: [],
+          },
+        ],
+      },
+      media: [
+        {
+          id: 'image-1',
+          kind: 'Image',
+          source: '/tmp/image.png',
+          width: 640,
+          height: 360,
+          unexpected: true,
+        },
+        {
+          id: 'image-1',
+          kind: 'Image',
+          source: '/tmp/duplicate.png',
+          width: 640,
+          height: 360,
+        },
+        {
+          id: 'orphan',
+          kind: 'Image',
+          source: '/tmp/orphan.png',
+          width: 640,
+          height: 360,
+        },
+      ],
+    };
+
+    const validation = validateRustSceneSnapshotBoundary(payload);
+
+    expect(validation.ok).toBe(false);
+    if (validation.ok) throw new Error('expected boundary validation to fail');
+    expect(validation.issues.map((issue) => issue.path)).toEqual([
+      'snapshot.unexpected',
+      'snapshot.clips[0].unexpected',
+      'snapshot.clips[0].transform.unexpected',
+      'media[0].unexpected',
+      'media[1].id',
+      'media[2].id',
+    ]);
+    expect(issueCodes(validation.issues)).toEqual([
+      'schemaMismatch',
+      'schemaMismatch',
+      'schemaMismatch',
+      'schemaMismatch',
+      'mediaMismatch',
+      'mediaMismatch',
     ]);
   });
 });
