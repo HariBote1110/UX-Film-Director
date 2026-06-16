@@ -4,6 +4,7 @@ pub mod schema;
 pub mod solid_colour_scene;
 pub mod timeline;
 pub mod validation;
+pub mod video_plane_scene;
 
 pub use command::{apply_command, AppliedCommand, Command, CommandError};
 pub use schema::{
@@ -16,3 +17,6 @@ pub use solid_colour_scene::{
 };
 pub use timeline::{evaluate_frame, EvaluatedClip, SceneSnapshot};
 pub use validation::{validate_project, ValidationCode, ValidationIssue};
+pub use video_plane_scene::{
+    build_video_plane_vertex_scene, VideoPlane, VideoPlaneSceneError, VideoPlaneVertexScene,
+};
