@@ -1,3 +1,21 @@
+## 2026-06-17 — Phase5: Rust backend 動画decodeの limited range gate
+
+### 実施内容
+- サブエージェントレビューで指摘された `color_range=pc` 固定の危険をTDDで修正した。
+- `rust-backend/tests/decode_control_plane.rs` に limited range H.264 fixture を追加し、`frameIndex=1` の decode が
+  `tv -> pc` 明示変換のCRCと一致することを固定した。
+- `rust-backend/src/main.rs` は `decode.requestFrame` ごとに `ffprobe` で `color_range` を読み、
+  `pc` / `tv` のみを `scale=in_range=...:out_range=pc` へ渡すようにした。
+- unknown / missing / unsupported range は無音で full range 扱いせず、Rust decode error として fail-loud にする。
+- package version を `0.1.1-Beta-41b` に更新した。
+
+### 現在の制限
+- transfer / matrix の strict gate はまだ `bt709` 前提で、次の colour metadata gate で `ffprobe` 照合対象にする。
+- POSIX shm / WebGPU upload は引き続き未実装で、Pixi video preview は維持する。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml` -> 5 tests passed。
+
 ## 2026-06-17 — Phase5: Rust backend 実動画フレーム decode gate
 
 ### 実施内容

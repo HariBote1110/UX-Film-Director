@@ -166,7 +166,8 @@ export は現行 Pixi canvas を正本にしているため、`isExporting` 中�
 37. Phase5: Rust backend 実動画フレーム decode gate を追加する  
 `decode.requestFrame` は指定 `frameIndex` を Rust backend 側で `ffmpeg` decode し、GPU row pitch に合わせた descriptor と CRC32 verification を返す。  
 frame bytes / pixel array / base64 は control plane に載せず、WebGPU upload 未完了の間は `videoFrameUploadReady=false` により Pixi preview を維持する。  
-次段では `ffprobe` metadata gate と POSIX shm / mmap への decoded RGBA 書き込み、WebGPU texture upload を接続する。
+`ffprobe` で source `color_range` を読み、`pc` / `tv` を明示して full-range RGBA へ正規化する。  
+次段では transfer / matrix の strict metadata gate と、POSIX shm / mmap への decoded RGBA 書き込み、WebGPU texture upload を接続する。
 
 ## UI 刷新（2026-04-19）
 
