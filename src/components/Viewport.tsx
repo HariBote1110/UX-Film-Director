@@ -129,6 +129,7 @@ const Viewport: React.FC = () => {
   const [pixiReady, setPixiReady] = useState(false);
   const [panelSize, setPanelSize] = useState({ w: 0, h: 0 });
   const sharedRendererPreviewEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_PREVIEW === '1';
+  const sharedRendererDiagnosticSwatchEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_DIAGNOSTIC_SWATCH === '1';
   const [sharedRendererGpuStatus, setSharedRendererGpuStatus] = useState({
     webGpuAvailable: false,
     fallbackAdapter: false,
@@ -503,6 +504,7 @@ const Viewport: React.FC = () => {
       canvas: surfaceCanvas,
       session: sharedRendererPreviewSession,
       datasets,
+      diagnosticSwatchEnabled: sharedRendererDiagnosticSwatchEnabled,
     }).then((control) => {
       if (cancelled) {
         control.dispose();
@@ -527,7 +529,7 @@ const Viewport: React.FC = () => {
         sharedRendererPresenterControlRef.current = null;
       }
     };
-  }, [sharedRendererPreviewEnabled, sharedRendererPreviewSession]);
+  }, [sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession]);
 
   // --- Main Render Logic ---
   const renderScene = useCallback((time: number, currentObjects: TimelineObject[]) => {
@@ -1251,24 +1253,26 @@ const Viewport: React.FC = () => {
                   visibility: editorMode === '2d' ? 'visible' : 'hidden',
                 }}
               />
-              <div
-                data-shared-renderer-css-reference-swatch="true"
-                aria-hidden="true"
-                title="Shared renderer sRGB 参照スウォッチ"
-                style={{
-                  position: 'absolute',
-                  top: 8,
-                  left: 8,
-                  width: 48,
-                  height: 48,
-                  boxSizing: 'border-box',
-                  border: '1px solid rgba(255, 255, 255, 0.68)',
-                  background: sharedRendererCssReferenceColour,
-                  pointerEvents: 'none',
-                  visibility: editorMode === '2d' ? 'visible' : 'hidden',
-                  zIndex: 2,
-                }}
-              />
+              {sharedRendererDiagnosticSwatchEnabled && (
+                <div
+                  data-shared-renderer-css-reference-swatch="true"
+                  aria-hidden="true"
+                  title="Shared renderer sRGB 参照スウォッチ"
+                  style={{
+                    position: 'absolute',
+                    top: 8,
+                    left: 8,
+                    width: 48,
+                    height: 48,
+                    boxSizing: 'border-box',
+                    border: '1px solid rgba(255, 255, 255, 0.68)',
+                    background: sharedRendererCssReferenceColour,
+                    pointerEvents: 'none',
+                    visibility: editorMode === '2d' ? 'visible' : 'hidden',
+                    zIndex: 2,
+                  }}
+                />
+              )}
             </>
           )}
           {editorMode === '3d_stage' && (

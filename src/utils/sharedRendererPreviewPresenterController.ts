@@ -46,6 +46,7 @@ export interface StartSharedRendererPreviewPresenterInput {
   textureUsageRenderAttachment?: number;
   bufferUsageVertex?: number;
   bufferUsageCopyDst?: number;
+  diagnosticSwatchEnabled?: boolean;
 }
 
 export const startSharedRendererPreviewPresenter = async ({
@@ -56,6 +57,7 @@ export const startSharedRendererPreviewPresenter = async ({
   textureUsageRenderAttachment,
   bufferUsageVertex,
   bufferUsageCopyDst,
+  diagnosticSwatchEnabled = true,
 }: StartSharedRendererPreviewPresenterInput): Promise<SharedRendererPreviewPresenterControl> => {
   const writeDiagnostics = (state: SharedRendererPresenterDiagnosticState) => {
     datasets.forEach((dataset) => {
@@ -122,7 +124,8 @@ export const startSharedRendererPreviewPresenter = async ({
   }
 
   const hasSolidColourScene = solidColourDrawList.rects.length > 0;
-  if (hasSolidColourScene) {
+  const shouldPassThroughToPixi = !hasSolidColourScene && !diagnosticSwatchEnabled;
+  if (hasSolidColourScene || shouldPassThroughToPixi) {
     const presentation = presenter.presentSolidColourScene({
       snapshot: session.surfaceGate.snapshot,
       media: session.surfaceGate.media,
@@ -145,7 +148,11 @@ export const startSharedRendererPreviewPresenter = async ({
   writeDiagnostics({
     status: 'ready',
     format: presenter.format,
-    swatch: hasSolidColourScene ? 'solid-colour-scene' : 'solid-srgb',
+    swatch: hasSolidColourScene
+      ? 'solid-colour-scene'
+      : diagnosticSwatchEnabled
+        ? 'solid-srgb'
+        : 'pixi-passthrough',
   });
 
   return {

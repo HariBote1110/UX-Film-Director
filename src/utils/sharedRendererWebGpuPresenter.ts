@@ -261,22 +261,6 @@ export const createSharedRendererWebGpuPresenter = async ({
     snapshot,
     media,
   }: SharedRendererSolidColourSceneInput): SharedRendererSolidColourScenePresentationResult => {
-    if (
-      !context.getCurrentTexture
-      || !device.createCommandEncoder
-      || !device.queue
-      || !device.queue.writeBuffer
-      || !device.createBuffer
-      || !device.createShaderModule
-      || !device.createRenderPipeline
-    ) {
-      return {
-        ok: false,
-        reason: 'webGpuDrawUnavailable',
-        detail: 'WebGPU device does not expose the draw APIs needed for SolidColour scene presentation.',
-      };
-    }
-
     const drawList = buildSharedRendererSolidColourDrawList({
       snapshot,
       media,
@@ -290,10 +274,48 @@ export const createSharedRendererWebGpuPresenter = async ({
       };
     }
 
+    if (
+      !context.getCurrentTexture
+      || !device.createCommandEncoder
+      || !device.queue
+    ) {
+      return {
+        ok: false,
+        reason: 'webGpuDrawUnavailable',
+        detail: 'WebGPU device does not expose the clear APIs needed for SolidColour scene presentation.',
+      };
+    }
+
     if (drawList.rects.length === 0) {
+      const encoder = device.createCommandEncoder();
+      const pass = encoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: context.getCurrentTexture().createView(),
+            clearValue: { r: 0, g: 0, b: 0, a: 0 },
+            loadOp: 'clear',
+            storeOp: 'store',
+          },
+        ],
+      });
+      pass.end();
+      device.queue.submit([encoder.finish()]);
       return {
         ok: true,
         rectCount: 0,
+      };
+    }
+
+    if (
+      !device.queue.writeBuffer
+      || !device.createBuffer
+      || !device.createShaderModule
+      || !device.createRenderPipeline
+    ) {
+      return {
+        ok: false,
+        reason: 'webGpuDrawUnavailable',
+        detail: 'WebGPU device does not expose the draw APIs needed for SolidColour scene presentation.',
       };
     }
 

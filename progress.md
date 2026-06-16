@@ -1,3 +1,24 @@
+## 2026-06-16 — Phase5: shared renderer overlay が動画を隠す不具合を修正
+
+### 実施内容
+- shared renderer preview 有効時、SolidColour scene が無い場合に診断用の青い swatch を全面描画していた挙動を修正した。
+  - 通常 preview では transparent clear を描き、Pixi preview をパススルーする。
+  - 診断 swatch / 左上 CSS reference swatch は `VITE_UXFD_SHARED_RENDERER_DIAGNOSTIC_SWATCH=1` の時だけ表示する。
+- `presentSolidColourScene` は rect が 0 件でも transparent clear pass を実行するようにした。
+- package version を `0.1.1-Beta-34b` に更新した。
+
+### 選定理由・判断の根拠
+- ユーザー実機で「GoPro 動画が Rectangle と一緒に TL にいないと表示されない」「左上に謎の青い刺客がいる」と報告。
+  原因は shared renderer overlay が Pixi の上に乗り、動画だけの scene では診断 swatch が動画を覆っていたため。
+- shared renderer がまだ描けない video / image / unsupported content は、Pixi fallback を見せるのが正しい。
+
+### 検証
+- `npm test -- src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererPresenterDiagnostics.test.ts`
+  - 3 files / 17 tests passed。
+- `npx tsc --noEmit`
+  - shared renderer / Viewport 由来の新規エラーなし。
+  - 既存残件として `ThreeStageViewport.tsx` の `three` 型定義不足などは継続。
+
 ## 2026-06-16 — Phase5: shared renderer video media readiness 診断を追加
 
 ### 実施内容

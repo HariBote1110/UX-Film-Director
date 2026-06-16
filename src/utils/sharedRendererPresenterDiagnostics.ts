@@ -5,7 +5,7 @@ export type SharedRendererPresenterDiagnosticState =
   | {
       status: 'ready';
       format: string;
-      swatch: 'solid-srgb' | 'solid-colour-scene';
+      swatch: 'solid-srgb' | 'solid-colour-scene' | 'pixi-passthrough';
     }
   | {
       status: 'fallback';
