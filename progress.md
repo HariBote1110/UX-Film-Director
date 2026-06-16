@@ -1,3 +1,76 @@
+## 2026-06-16 — vNext（Rust/wgpu 移行）アーキテクチャ方針の確定（Codex と協議）
+
+調査・設計のみのセッション。コード変更なし。Codex（dev チーム）と agmsg 経由で大規模アーキテクチャ
+移行計画をレビュー・往復し、方針を確定。設計文書の正本は `markdown/architecture/` 配下（Codex が作成）に
+置き、ここには**判断の根拠と協議で潰した論点**を残す。
+
+### 確定した方針
+- **層構成**: Electron/React を薄い UI シェルに、`rust-core` を編集状態・時間評価・フィルタ仕様・
+  音声時間評価・色空間メタの**正本**に、`wgpu+WGSL` の**単一レンダラ**を WASM/WebGPU プレビューと
+  native 書き出しで共有、危険な ffmpeg/メディア処理は**別プロセス sidecar に隔離**。
+- **3 前提**: ①レンダラは wgpu で一本化（parity を構造で保証）②ffmpeg/デコードは別プロセス隔離
+  （クラッシュドメイン分離）③golden-frame parity テスト土台を移行の前に作る。
+- **Electron 維持**: WebGPU 挙動の OS 横断一貫性のため Chromium 同梱が必須。Tauri は WKWebView の
+  WebGPU 未成熟のため不採用。
+- **境界技術**: 制御プレーン（小・安全）は napi-rs 可、データプレーン（巨大フレーム）は別プロセス＋
+  **共有メモリ/mmap**。JSON/base64 でフレームを流さない。
+- **書き出しレンダラ**: 既定 (A)wgpu-native。parity 許容超過時のみ (B)Dawn-native へ。
+  (C)headless Chromium は本経路に採らない（GPU 不安定・速度死）。
+- **色/YUV**: 初期は RGBA 出力＋ffmpeg(**zscale で色空間/レンジ/primaries 明示**)。shader-YUV 化は
+  後続最適化（HDR 狙いの時のみ前倒し）。**合成色空間は linear 光で決め打ち**（最大の後戻り不能点）。
+
+### MVP スコープ（厳しく削る）
+- MVP の目的は「使える編集機能」ではなく**「アーキテクチャが崩れない証明」**＝危険な境界を 1 回ずつ
+  通す最薄の縦スライス。
+- **絶対に入れない**: 滑らかな再生（real-time playback）と音声。過去に UXFD がネイティブ/Electron 両方で
+  溺れた沼であり、かつ parity・境界の証明には不要。
+- 入れる: 1 トラック 1 クリップ 1 keyframe / 1 動画平面＋1 画像＋1 エフェクト / スクラブ to frame の
+  WebGPU プレビュー / 同一 timeline の wgpu-native 書き出し / golden 比較 / sidecar デコード（CPU 共有メモリ）。
+
+### 選定理由・判断の根拠
+- **wgpu 一本化**: プレビュー（wasm/WebGPU）と書き出し（native+ffmpeg フィルタ）を別実装にすると
+  "What You See Is Not What You Render" を設計段階で組み込むことになるため。ffmpeg は decode/encode/mux に縮小。
+- **sidecar 隔離**: libav は壊れた HEVC で普通に segfault する。最も落ちる処理を最も落ちてはいけない
+  プロセス（UI 本体）に napi で同居させない。
+- **linear 光合成を先決**: エフェクトを sRGB 合成前提で作って後で linear に変えると全エフェクトが壊れ、
+  後戻り不能度が YUV の置き場所より高い。
+- **却下案**: Tauri（WKWebView WebGPU 未成熟）/ ffmpeg フィルタ合成（parity 断層）/ 単一プロセス napi
+  （クラッシュ結合）/ プレビューと書き出しの別レンダラ 2 実装。
+
+### 過小評価されがちなリスク（初期計画に織り込む）
+- カラーマネジメント（HDR/10bit/広色域）、音声同期、VFR（PTS ドリフト）、クロスプラットフォーム決定性
+  （golden は許容誤差 SSIM/PSNR ベース）、実時間スケジューリング、4K フレームのバッファ/メモリ管理
+  （wasm 4GB 制限、SharedArrayBuffer に COOP/COEP 必須）、CI マトリクス爆発。
+
+### 設計文書（成果物・Codex が作成、本セッションで合意）
+- `markdown/architecture/` に 00-overview / 01-decision-record(ADR) / 02-rust-core-spec / 03-colour-pipeline /
+  04-render-parity / 05-boundary-ipc、＋ `markdown/roadmap.md`。
+- **正本の分担**: 振る舞い＝02-rust-core-spec＋テスト、"なぜ"＝01-ADR、各事実の home は 00 の SSoT 表。
+  コードは正本にしない。
+
+### レビューで潰した重要論点（Claude 指摘 → 文書反映）
+- **後戻り不能な未決定3点を Phase1 前に確定**: ①時間表現は float 秒を正本にせず整数 frame index /
+  rational time base（29.97 等の drift 回避）②合成は premultiplied alpha・linear light ③linear 中間は
+  `rgba16float` 既定（8bit linear のバンディング回避）。
+- **parity の divergence 源を名指し**: preview(Dawn/Tint) と export(wgpu-native/Naga) で WGSL→MSL 翻訳器が
+  別物。完全一致でなく許容誤差 golden を正本にし、原因分類に翻訳器差を含める。
+- **入力側 parity を追加**: 画像・動画を preview/export で別 decode せず、sidecar/Rust の単一経路で
+  decoded RGBA＋色 metadata を両レンダラへ供給（＝レンダラ一本化の入力版）。入力側の YUV→RGB / range /
+  transfer も自動推測に依存しない契約に。
+- **初回 parity gate の純化**: source=canvas 同一解像度・transform identity・1:1・no-resample で、色の正しさと
+  sampling 差を交絡させない。scale/rotation/filtering は後続 gate。
+- **MVP の1エフェクト＝per-pixel gain/exposure**（blur 等 sampling 系は後回し）。YUV round-trip は 4:4:4 で
+  数学検証、4:2:0 は lossy 別許容。閾値は known-correct の noise floor＋margin で導出。
+
+### 残課題・次のステップ
+- **Phase1（rust-core）は着手可**＝project model の serialize round-trip test（Red）から開始。机上の詰めは
+  収穫逓減で、残る未決は spike が答えを出すフェーズへ。
+- 実データ待ちの判断: 初期許容誤差の具体値 / `rgba16float` の perf / VideoToolbox セッション競合の解消可否
+  （sidecar 隔離で改善するか別スパイク）/ Naga・Tint 差の実測量。
+- 解消済みの前提: Windows は準対応＝スモークのみ（厳密 golden は macOS/Metal に集約）。HDR は MVP 対象外
+  （SDR/Rec.709、メタのみ保持）。音声は仕様定義のみで実装は後続。
+- rust-core の厳密一致テストは no fast-math / FMA 再順序化前提。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）
