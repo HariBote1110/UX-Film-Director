@@ -16,6 +16,13 @@ export const SHARED_RENDERER_SOLID_SWATCH: SharedRendererSolidSrgbSwatch = {
   alpha: 1,
 };
 
+export const getSharedRendererSolidSwatchCssColour = (): string => {
+  const red = Math.round(SHARED_RENDERER_SOLID_SWATCH.red * 255);
+  const green = Math.round(SHARED_RENDERER_SOLID_SWATCH.green * 255);
+  const blue = Math.round(SHARED_RENDERER_SOLID_SWATCH.blue * 255);
+  return `rgb(${red}, ${green}, ${blue})`;
+};
+
 type PresenterDataset = Record<string, string | undefined>;
 
 export type SharedRendererPreviewPresenterControl =

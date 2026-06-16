@@ -23,6 +23,7 @@ import {
   type SharedRendererPreviewSession,
 } from '../utils/sharedRendererPreviewSession';
 import {
+  getSharedRendererSolidSwatchCssColour,
   startSharedRendererPreviewPresenter,
   type SharedRendererPreviewPresenterControl,
 } from '../utils/sharedRendererPreviewPresenterController';
@@ -248,6 +249,7 @@ const Viewport: React.FC = () => {
   // renderScene からリサイズハンドルの見かけサイズ補正に用いるため ref で保持する。
   const displayScaleRef = useRef(displayScale);
   displayScaleRef.current = displayScale;
+  const sharedRendererCssReferenceColour = getSharedRendererSolidSwatchCssColour();
 
   useEffect(() => {
     if (!sharedRendererPreviewEnabled) return;
@@ -1231,21 +1233,41 @@ const Viewport: React.FC = () => {
             }}
           />
           {sharedRendererPreviewEnabled && (
-            <canvas
-              ref={sharedRendererSurfaceCanvasRef}
-              data-shared-renderer-preview-surface="true"
-              aria-hidden="true"
-              width={projectSettings.width}
-              height={projectSettings.height}
-              style={{
-                position: 'absolute',
-                inset: 0,
-                width: '100%',
-                height: '100%',
-                pointerEvents: 'none',
-                visibility: editorMode === '2d' ? 'visible' : 'hidden',
-              }}
-            />
+            <>
+              <canvas
+                ref={sharedRendererSurfaceCanvasRef}
+                data-shared-renderer-preview-surface="true"
+                aria-hidden="true"
+                width={projectSettings.width}
+                height={projectSettings.height}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  pointerEvents: 'none',
+                  visibility: editorMode === '2d' ? 'visible' : 'hidden',
+                }}
+              />
+              <div
+                data-shared-renderer-css-reference-swatch="true"
+                aria-hidden="true"
+                title="Shared renderer sRGB 参照スウォッチ"
+                style={{
+                  position: 'absolute',
+                  top: 8,
+                  left: 8,
+                  width: 48,
+                  height: 48,
+                  boxSizing: 'border-box',
+                  border: '1px solid rgba(255, 255, 255, 0.68)',
+                  background: sharedRendererCssReferenceColour,
+                  pointerEvents: 'none',
+                  visibility: editorMode === '2d' ? 'visible' : 'hidden',
+                  zIndex: 2,
+                }}
+              />
+            </>
           )}
           {editorMode === '3d_stage' && (
             <ThreeStageViewport

@@ -9,7 +9,9 @@
   - `VITE_UXFD_SHARED_RENDERER_PREVIEW=1` のときだけ動作する。
   - canvas session key は surface gate と canvas presentation contract で安定化し、毎フレームの再初期化を避ける。
   - device lost は stale shared frame を許可せず、DOM dataset 上で Pixi fallback として見える。
-- package version を `0.1.1-Beta-31a` に更新した。
+- P3 Mac での目視 close 用に、同じ solid swatch 定数から生成した CSS sRGB reference swatch を preview 上に重ねた。
+  実機では canvas 面と CSS reference の境界が同色に見えることを確認する。
+- package version を `0.1.1-Beta-32a` に更新した。
 
 ### 選定理由・判断の根拠
 - React component 直書きではなく controller に切り出した理由:
@@ -18,6 +20,9 @@
 - 初回表示を solid swatch に限定した理由:
   P3 Mac 上の canvas presentation 色管理だけを先に切り分けるため。SceneSnapshot の本描画や offscreen readback は
   後続 gate で追加する。
+- CSS reference swatch を同時表示する理由:
+  スクリーンショット RGBA は physical P3 display 上の見えを証明しない。canvas と CSS の同一 sRGB 色を実機で
+  並べて見ることで、`colorSpace: "srgb"` が wide-gamut panel 上でも正しく扱われているかを切り分ける。
 
 ### 検証
 - `npm test -- src/utils/sharedRendererPresenterDiagnostics.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/sharedRendererPreviewSession.test.ts src/utils/sharedRendererPresentationContract.test.ts`
@@ -25,6 +30,14 @@
 - `npx tsc --noEmit`
   - shared renderer / Viewport 接続由来の新規エラーなし。
   - 既存残件として `ThreeStageViewport.tsx` の `three` 型定義不足などは継続。
+- ブラウザ実機確認（`VITE_UXFD_SHARED_RENDERER_PREVIEW=1 npm run dev -- --host 127.0.0.1 --port 5174`）:
+  - `planMode=parallelCompare`, `surfaceGate=ok`, `canvasColourSpace=srgb`, `canvasAlphaMode=premultiplied`。
+  - `presenterStatus=ready`, `presenterFormat=bgra8unorm`, `presenterSwatch=solid-srgb`。
+  - canvas backing size は 1920x1080、表示は visible、pointer events は none、console error は 0 件。
+  - スクリーンショット上の preview 中央/四分点サンプルは RGBA `(67,115,179,255)` で、solid swatch の表示を確認。
+  - DOMStringMap では `dataset.foo = undefined` が文字列 `"undefined"` になるため、不要診断キーは `delete` する契約へ修正。
+  - 注意: 上記 RGBA は buffer/capture 経路の確認であり、P3 実機 close ではない。P3 close は CSS reference swatch との
+    side-by-side 目視確認で行う。
 
 ## 2026-06-16 — vNext（Rust/wgpu 移行）アーキテクチャ方針の確定（Codex と協議）
 
