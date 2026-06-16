@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use uxfd_golden_harness::RgbaFrame;
 use uxfd_reference_renderer::{render_reference_frame, ReferenceRenderError};
-use uxfd_rust_core::{ColourPipeline, Effect, EvaluatedClip, SceneSnapshot, Transform};
+use uxfd_rust_core::{
+    ColourPipeline, Effect, EvaluatedClip, SamplingMode, SceneSnapshot, Transform,
+};
 
 #[test]
 fn composites_opaque_background_and_half_opacity_foreground_in_linear_light() {
@@ -189,6 +191,34 @@ fn transformed_clip_uses_integer_translation_and_nearest_scale() {
         render_reference_frame(&snapshot, &sources, 5, 5).expect("render reference frame");
 
     assert_eq!(rendered.pixels, transformed_nearest_anchor());
+}
+
+#[test]
+fn bilinear_sampling_interpolates_in_linear_light() {
+    let snapshot = scene_snapshot(vec![evaluated_clip_with_transform(
+        "foreground",
+        0,
+        1.0,
+        Vec::new(),
+        Transform {
+            translation_x: -0.5,
+            translation_y: 0.0,
+            scale_x: 1.0,
+            scale_y: 1.0,
+            rotation_degrees: 0.0,
+            sampling: SamplingMode::Bilinear,
+        },
+    )]);
+    let sources = HashMap::from([(
+        "foreground".to_string(),
+        RgbaFrame::from_rgba8(2, 1, vec![0, 0, 0, 255, 255, 255, 255, 255])
+            .expect("valid source"),
+    )]);
+
+    let rendered =
+        render_reference_frame(&snapshot, &sources, 1, 1).expect("render reference frame");
+
+    assert_eq!(rendered.pixels, vec![188, 188, 188, 255]);
 }
 
 #[test]

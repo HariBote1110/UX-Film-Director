@@ -2,7 +2,9 @@ use std::collections::HashMap;
 use uxfd_golden_harness::{compare_rgba_frames, ComparisonThresholds, RgbaFrame};
 use uxfd_native_wgpu_renderer::{render_native_wgpu_frame, NativeWgpuRenderError};
 use uxfd_reference_renderer::render_reference_frame;
-use uxfd_rust_core::{ColourPipeline, Effect, EvaluatedClip, SceneSnapshot, Transform};
+use uxfd_rust_core::{
+    ColourPipeline, Effect, EvaluatedClip, SamplingMode, SceneSnapshot, Transform,
+};
 
 #[test]
 fn native_wgpu_matches_cpu_reference_for_half_opacity_red_over_blue() {
@@ -223,6 +225,34 @@ fn native_wgpu_matches_reference_for_integer_translation_and_nearest_scale() {
         5,
         5,
         transformed_nearest_anchor(),
+    );
+}
+
+#[test]
+fn native_wgpu_matches_reference_for_linear_light_bilinear_sampling() {
+    assert_native_matches_hand_anchor(
+        scene_snapshot(vec![evaluated_clip_with_transform(
+            "foreground",
+            0,
+            1.0,
+            Vec::new(),
+            Transform {
+                translation_x: -0.5,
+                translation_y: 0.0,
+                scale_x: 1.0,
+                scale_y: 1.0,
+                rotation_degrees: 0.0,
+                sampling: SamplingMode::Bilinear,
+            },
+        )]),
+        HashMap::from([(
+            "foreground".to_string(),
+            RgbaFrame::from_rgba8(2, 1, vec![0, 0, 0, 255, 255, 255, 255, 255])
+                .expect("valid foreground"),
+        )]),
+        1,
+        1,
+        vec![188, 188, 188, 255],
     );
 }
 
