@@ -32,10 +32,28 @@ export interface SharedRendererSolidColourRect {
   colour: SharedRendererNormalisedColour;
 }
 
+export interface SharedRendererSolidColourVertexScene {
+  rectCount: number;
+  vertices: Float32Array;
+}
+
 export type SharedRendererSolidColourDrawListResult =
   | {
       ok: true;
       rects: SharedRendererSolidColourRect[];
+    }
+  | {
+      ok: false;
+      reason: 'unsupportedColourSource';
+      detail: string;
+      mediaId: string;
+    };
+
+export type SharedRendererSolidColourVertexSceneResult =
+  | {
+      ok: true;
+      rectCount: number;
+      vertices: Float32Array;
     }
   | {
       ok: false;
@@ -52,6 +70,10 @@ export interface SharedRendererSolidColourDrawListInput {
     height: number;
   };
 }
+
+export type SharedRendererSolidColourVertexSceneBuilder = (
+  input: SharedRendererSolidColourDrawListInput
+) => SharedRendererSolidColourVertexSceneResult;
 
 export const parseSharedRendererSolidColour = (source: string): SharedRendererSolidColourParseResult => {
   const match = /^#([0-9a-f]{6})$/i.exec(source.trim());
@@ -72,6 +94,19 @@ export const parseSharedRendererSolidColour = (source: string): SharedRendererSo
       blue: hexChannelToUnit(value.slice(4, 6)),
       alpha: 1,
     },
+  };
+};
+
+export const buildSharedRendererSolidColourVertexScene: SharedRendererSolidColourVertexSceneBuilder = (input) => {
+  const drawList = buildSharedRendererSolidColourDrawList(input);
+  if (!drawList.ok) {
+    return drawList;
+  }
+
+  return {
+    ok: true,
+    rectCount: drawList.rects.length,
+    vertices: buildSolidColourVertices(drawList.rects, input.canvas.width, input.canvas.height),
   };
 };
 
@@ -104,6 +139,35 @@ export const buildSharedRendererSolidColourDrawList = ({
   };
 };
 
+const buildSolidColourVertices = (
+  rects: SharedRendererSolidColourRect[],
+  canvasWidth: number,
+  canvasHeight: number
+): Float32Array => {
+  const vertices = new Float32Array(rects.length * 6 * 6);
+  let offset = 0;
+  rects.forEach((rect) => {
+    const left = pixelXToClip(rect.x, canvasWidth);
+    const right = pixelXToClip(rect.x + rect.width, canvasWidth);
+    const top = pixelYToClip(rect.y, canvasHeight);
+    const bottom = pixelYToClip(rect.y + rect.height, canvasHeight);
+    const colour = [rect.colour.red, rect.colour.green, rect.colour.blue, rect.colour.alpha] as const;
+    const points = [
+      [left, top],
+      [right, top],
+      [left, bottom],
+      [left, bottom],
+      [right, top],
+      [right, bottom],
+    ] as const;
+    points.forEach(([x, y]) => {
+      vertices.set([x, y, ...colour], offset);
+      offset += 6;
+    });
+  });
+  return vertices;
+};
+
 const buildRect = (
   clip: RustEvaluatedClip,
   reference: RustSceneMediaReference,
@@ -133,3 +197,9 @@ const clamp01 = (value: number): number => {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(1, value));
 };
+
+const pixelXToClip = (x: number, canvasWidth: number): number =>
+  (x / canvasWidth) * 2 - 1;
+
+const pixelYToClip = (y: number, canvasHeight: number): number =>
+  1 - (y / canvasHeight) * 2;

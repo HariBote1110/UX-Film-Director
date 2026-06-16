@@ -1,7 +1,7 @@
 import type { SharedRendererPresentationContract } from './sharedRendererPresentationContract';
 import {
-  buildSharedRendererSolidColourDrawList,
-  type SharedRendererSolidColourRect,
+  buildSharedRendererSolidColourVertexScene,
+  type SharedRendererSolidColourVertexSceneBuilder,
 } from './sharedRendererSolidColourScene';
 import type {
   RustSceneMediaReference,
@@ -136,6 +136,7 @@ export interface SharedRendererWebGpuPresenterInput {
   textureUsageRenderAttachment?: number;
   bufferUsageVertex?: number;
   bufferUsageCopyDst?: number;
+  solidColourVertexSceneBuilder?: SharedRendererSolidColourVertexSceneBuilder;
   onDeviceLost?: (event: SharedRendererDeviceLostEvent) => void;
 }
 
@@ -147,6 +148,7 @@ export const createSharedRendererWebGpuPresenter = async ({
   textureUsageRenderAttachment = defaultRenderAttachmentUsage(),
   bufferUsageVertex = defaultVertexBufferUsage(),
   bufferUsageCopyDst = defaultCopyDstBufferUsage(),
+  solidColourVertexSceneBuilder = buildSharedRendererSolidColourVertexScene,
   onDeviceLost,
 }: SharedRendererWebGpuPresenterInput): Promise<SharedRendererWebGpuPresenterResult> => {
   if (!surfaceGate.ok) {
@@ -261,16 +263,16 @@ export const createSharedRendererWebGpuPresenter = async ({
     snapshot,
     media,
   }: SharedRendererSolidColourSceneInput): SharedRendererSolidColourScenePresentationResult => {
-    const drawList = buildSharedRendererSolidColourDrawList({
+    const vertexScene = solidColourVertexSceneBuilder({
       snapshot,
       media,
       canvas: { width: canvas.width, height: canvas.height },
     });
-    if (!drawList.ok) {
+    if (!vertexScene.ok) {
       return {
         ok: false,
-        reason: drawList.reason,
-        detail: drawList.detail,
+        reason: vertexScene.reason,
+        detail: vertexScene.detail,
       };
     }
 
@@ -286,7 +288,7 @@ export const createSharedRendererWebGpuPresenter = async ({
       };
     }
 
-    if (drawList.rects.length === 0) {
+    if (vertexScene.rectCount === 0) {
       const encoder = device.createCommandEncoder();
       const pass = encoder.beginRenderPass({
         colorAttachments: [
@@ -349,7 +351,7 @@ export const createSharedRendererWebGpuPresenter = async ({
       });
     }
 
-    const vertices = buildSolidColourVertices(drawList.rects, canvas.width, canvas.height);
+    const vertices = vertexScene.vertices;
     const vertexBuffer = device.createBuffer({
       size: vertices.byteLength,
       usage: bufferUsageVertex | bufferUsageCopyDst,
@@ -375,7 +377,7 @@ export const createSharedRendererWebGpuPresenter = async ({
 
     return {
       ok: true,
-      rectCount: drawList.rects.length,
+      rectCount: vertexScene.rectCount,
     };
   };
 
@@ -417,41 +419,6 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
   return in.colour;
 }
 `;
-
-const buildSolidColourVertices = (
-  rects: SharedRendererSolidColourRect[],
-  canvasWidth: number,
-  canvasHeight: number
-): Float32Array => {
-  const vertices = new Float32Array(rects.length * 6 * 6);
-  let offset = 0;
-  rects.forEach((rect) => {
-    const left = pixelXToClip(rect.x, canvasWidth);
-    const right = pixelXToClip(rect.x + rect.width, canvasWidth);
-    const top = pixelYToClip(rect.y, canvasHeight);
-    const bottom = pixelYToClip(rect.y + rect.height, canvasHeight);
-    const colour = [rect.colour.red, rect.colour.green, rect.colour.blue, rect.colour.alpha] as const;
-    const points = [
-      [left, top],
-      [right, top],
-      [left, bottom],
-      [left, bottom],
-      [right, top],
-      [right, bottom],
-    ] as const;
-    points.forEach(([x, y]) => {
-      vertices.set([x, y, ...colour], offset);
-      offset += 6;
-    });
-  });
-  return vertices;
-};
-
-const pixelXToClip = (x: number, canvasWidth: number): number =>
-  (x / canvasWidth) * 2 - 1;
-
-const pixelYToClip = (y: number, canvasHeight: number): number =>
-  1 - (y / canvasHeight) * 2;
 
 const defaultGpu = (): SharedRendererWebGpuLike | undefined => {
   const gpu = navigator.gpu;
