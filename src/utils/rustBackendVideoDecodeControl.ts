@@ -8,12 +8,18 @@ export interface RustBackendVideoDecodeColour {
   range: 'full';
 }
 
+export interface RustBackendVideoDecodeFrameRate {
+  numerator: number;
+  denominator: number;
+}
+
 export interface RustBackendVideoDecodeStartPayload {
   jobId: string;
   source: string;
   slotCount: number;
   width: number;
   height: number;
+  sourceRate: RustBackendVideoDecodeFrameRate;
   format: RustBackendDecodedVideoFrameFormat;
   colour: RustBackendVideoDecodeColour;
 }

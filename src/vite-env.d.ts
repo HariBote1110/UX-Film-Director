@@ -25,6 +25,10 @@ interface Window {
       slotCount: number;
       width: number;
       height: number;
+      sourceRate: {
+        numerator: number;
+        denominator: number;
+      };
       format: 'rgba8Srgb';
       colour: {
         primaries: 'bt709';
