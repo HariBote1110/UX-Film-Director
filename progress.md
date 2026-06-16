@@ -987,6 +987,33 @@
 - `npx tsc --noEmit` は既存の `src/components/ThreeStageViewport.tsx` の `three` 型不足で失敗するが、
   `Viewport` / `sharedRendererPreview*` / `rustSceneSnapshot` の新規エラーは出ていない。
 
+## 2026-06-16 — Phase5: shared renderer presentation contract gate
+
+### Claude レビュー反映
+- Claude から、Phase3b の readback proof は canvas presentation / display colour management / page compositing を通っていないため、
+  on-screen preview では macOS P3 display、canvas alpha、同一 frame freeze、device lost、unsupported frame partition が
+  盲点になると指摘を受けた。
+
+### Red
+- `src/utils/sharedRendererPresentationContract.test.ts` を追加し、WebGPU canvas presentation を `colorSpace: "srgb"` /
+  `alphaMode: "premultiplied"` に固定する契約を test 化した。
+- 比較 readback は page-composited canvas ではなく offscreen render target から取ること、device lost 時は Pixi fallback、
+  stale shared frame を許さないことを test 化した。
+- Pixi / shared renderer / SceneSnapshot の frame index が一致しない比較を拒否し、unsupported frame を parity metrics から除外して
+  Pixi-only partition に分ける契約を追加した。
+- さらに `src/utils/sharedRendererPreviewSession.test.ts` で session が presentation contract を公開する Red を確認した。
+
+### Green
+- `src/utils/sharedRendererPresentationContract.ts` を追加し、presentation contract、frame lock validation、
+  comparable / Pixi-only frame partition を実装した。
+- `buildSharedRendererPreviewSession` が `presentationContract` を返すようにし、
+  `Viewport` から `window.__UXFD_SHARED_RENDERER_PRESENTATION_CONTRACT__` へ診断公開するようにした。
+- `markdown/roadmap.md` に WebGPU presentation / offscreen readback / frozen frame / partition 方針を追記した。
+- `package.json` / `package-lock.json` を `0.1.1-Beta-28a` に更新した。
+
+### 確認結果
+- `npm test -- src/utils/sharedRendererPresentationContract.test.ts src/utils/sharedRendererPreviewSession.test.ts` -> 5 tests passed。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）

@@ -413,9 +413,11 @@ const Viewport: React.FC = () => {
       const diagnosticsWindow = window as unknown as {
         __UXFD_SHARED_RENDERER_PREVIEW_PLAN__?: unknown;
         __UXFD_SHARED_RENDERER_PREVIEW_SURFACE_GATE__?: unknown;
+        __UXFD_SHARED_RENDERER_PRESENTATION_CONTRACT__?: unknown;
       };
       diagnosticsWindow.__UXFD_SHARED_RENDERER_PREVIEW_PLAN__ = session.plan;
       diagnosticsWindow.__UXFD_SHARED_RENDERER_PREVIEW_SURFACE_GATE__ = session.surfaceGate;
+      diagnosticsWindow.__UXFD_SHARED_RENDERER_PRESENTATION_CONTRACT__ = session.presentationContract;
 
       const surfaceCanvas = sharedRendererSurfaceCanvasRef.current;
       if (session.surfaceGate.ok && surfaceCanvas) {

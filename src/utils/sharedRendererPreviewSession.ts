@@ -7,6 +7,10 @@ import {
   buildSharedRendererPreviewSurfaceGate,
   type SharedRendererPreviewSurfaceGate,
 } from './sharedRendererPreviewSurface';
+import {
+  buildSharedRendererPresentationContract,
+  type SharedRendererPresentationContract,
+} from './sharedRendererPresentationContract';
 
 export interface SharedRendererPreviewSessionInput {
   enabled: boolean;
@@ -23,6 +27,7 @@ export interface SharedRendererPreviewSessionInput {
 export interface SharedRendererPreviewSession {
   plan: SharedRendererPreviewPlan;
   surfaceGate: SharedRendererPreviewSurfaceGate;
+  presentationContract: SharedRendererPresentationContract;
 }
 
 export const buildSharedRendererPreviewSession = ({
@@ -55,5 +60,6 @@ export const buildSharedRendererPreviewSession = ({
   return {
     plan,
     surfaceGate,
+    presentationContract: buildSharedRendererPresentationContract(),
   };
 };

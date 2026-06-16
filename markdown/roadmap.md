@@ -230,6 +230,9 @@ Pixi との差分は legacy oracle ではなく triage signal とし、解析的
 Pixi 側の旧挙動を疑う。
 比較診断 report は frame bytes / pixel array / base64 を含めず、frame index と max channel delta /
 mean absolute error などの metrics だけを持つ。
+WebGPU preview surface は `colorSpace: "srgb"` と `alphaMode: "premultiplied"` を明示し、比較 readback は
+page-composited canvas ではなく offscreen render target から取る。Pixi / shared renderer の比較は同じ
+frozen frame index に固定し、unsupported frame は parity metric から除外して Pixi-only partition として記録する。
 
 ## 後回しにするもの
 
