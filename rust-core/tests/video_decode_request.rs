@@ -1,6 +1,6 @@
 use uxfd_rust_core::{
     build_video_frame_decode_requests, ColourPipeline, DecodedVideoFrameFormat,
-    EvaluatedClip, MediaKind, SamplingMode, SceneMediaReference, SceneSnapshot,
+    EvaluatedClip, Fps, MediaKind, SamplingMode, SceneMediaReference, SceneSnapshot,
     VideoDecodeColourContract, Transform,
 };
 
@@ -58,6 +58,7 @@ fn scene_media() -> Vec<SceneMediaReference> {
             source: "#ff0000".to_string(),
             width: 320,
             height: 180,
+            source_rate: None,
         },
         SceneMediaReference {
             id: "video-front".to_string(),
@@ -65,6 +66,10 @@ fn scene_media() -> Vec<SceneMediaReference> {
             source: "/media/front.mp4".to_string(),
             width: 3840,
             height: 2160,
+            source_rate: Some(Fps {
+                numerator: 60,
+                denominator: 1,
+            }),
         },
         SceneMediaReference {
             id: "video-back".to_string(),
@@ -72,6 +77,10 @@ fn scene_media() -> Vec<SceneMediaReference> {
             source: "/media/back.mp4".to_string(),
             width: 1280,
             height: 720,
+            source_rate: Some(Fps {
+                numerator: 30,
+                denominator: 1,
+            }),
         },
     ]
 }
@@ -87,6 +96,13 @@ fn rust_core_builds_frame_decode_requests_for_video_clips_in_z_order() {
     assert_eq!(request_set.requests[0].source, "/media/back.mp4");
     assert_eq!(request_set.requests[0].source_frame, 42);
     assert_eq!(request_set.requests[0].timeline_frame, 210);
+    assert_eq!(
+        request_set.requests[0].source_rate,
+        Fps {
+            numerator: 30,
+            denominator: 1,
+        }
+    );
     assert_eq!(request_set.requests[0].width, 1280);
     assert_eq!(request_set.requests[0].height, 720);
     assert_eq!(request_set.requests[0].format, DecodedVideoFrameFormat::Rgba8Srgb);
