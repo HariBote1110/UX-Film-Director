@@ -352,10 +352,17 @@ describe('startSharedRendererPreviewPresenter', () => {
     expect(control).toMatchObject({
       ok: true,
       format: 'bgra8unorm',
+      solidColourOwnership: {
+        owner: 'sharedRenderer',
+        reason: 'rustSolidColourReady',
+        solidColourObjectIds: ['shape-1'],
+      },
     });
     expect(writtenBuffers).toEqual([rustVertices]);
     expect(dataset).toMatchObject({
       uxfdSharedRendererPresenterGeometrySource: 'rust-wasm',
+      uxfdSharedRendererPresenterSolidColourOwner: 'sharedRenderer',
+      uxfdSharedRendererPresenterSharedSolidColourObjectCount: '1',
     });
   });
 

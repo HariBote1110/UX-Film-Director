@@ -106,6 +106,18 @@ describe('shared renderer solid colour scene', () => {
     });
   });
 
+  it('filters SolidColour draw commands to shared-renderer-owned object ids', () => {
+    expect(buildSharedRendererSolidColourDrawList({
+      snapshot,
+      media,
+      canvas: { width: 1920, height: 1080 },
+      solidColourObjectIds: new Set<string>(),
+    })).toEqual({
+      ok: true,
+      rects: [],
+    });
+  });
+
   it('fails loud for invalid solid colour sources', () => {
     expect(parseSharedRendererSolidColour('red')).toEqual({
       ok: false,
