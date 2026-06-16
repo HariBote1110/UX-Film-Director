@@ -232,6 +232,44 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       'unsupportedFilter',
     ]);
   });
+
+  it('fails loud for Pixi group composition and mask semantics', () => {
+    const layers = createDefaultLayers();
+    const grouped = baseImage({
+      id: 'grouped',
+      groupId: 'group-a',
+    });
+    const clippingMask = baseImage({
+      id: 'clipping-mask',
+      clipping: true,
+    });
+    const groupedGradient = baseImage({
+      id: 'group-gradient',
+      groupGradient: {
+        enabled: true,
+        type: 'linear',
+        colours: ['#ffffff', '#000000'],
+        stops: [0, 1],
+        direction: 0,
+      },
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [grouped, clippingMask, groupedGradient],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected snapshot build to fail');
+
+    expect(issueCodes(result.issues)).toEqual([
+      'unsupportedGroupComposition',
+      'unsupportedMask',
+      'unsupportedGroupComposition',
+    ]);
+  });
 });
 
 const issueCodes = (issues: RustSceneSnapshotBuildIssue[]) =>
