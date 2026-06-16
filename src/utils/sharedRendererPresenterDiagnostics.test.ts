@@ -15,6 +15,9 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
       videoGeometrySource: 'rust-wasm',
       videoDecodeRequestSource: 'rust-wasm',
       videoDecodeRequestCount: 2,
+      videoOwner: 'sharedRenderer',
+      videoCutoverReason: 'rustDecodedFrameUploadReady',
+      sharedVideoObjectCount: 2,
     });
 
     expect(dataset).toMatchObject({
@@ -25,6 +28,9 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
       uxfdSharedRendererPresenterVideoGeometrySource: 'rust-wasm',
       uxfdSharedRendererPresenterVideoDecodeRequestSource: 'rust-wasm',
       uxfdSharedRendererPresenterVideoDecodeRequestCount: '2',
+      uxfdSharedRendererPresenterVideoOwner: 'sharedRenderer',
+      uxfdSharedRendererPresenterVideoCutoverReason: 'rustDecodedFrameUploadReady',
+      uxfdSharedRendererPresenterSharedVideoObjectCount: '2',
     });
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterFailureReason');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterStaleSharedFrameAllowed');
@@ -51,6 +57,9 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoGeometrySource');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoDecodeRequestSource');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoDecodeRequestCount');
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoOwner');
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoCutoverReason');
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterSharedVideoObjectCount');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterStaleSharedFrameAllowed');
   });
 
@@ -74,5 +83,8 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoGeometrySource');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoDecodeRequestSource');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoDecodeRequestCount');
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoOwner');
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoCutoverReason');
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterSharedVideoObjectCount');
   });
 });

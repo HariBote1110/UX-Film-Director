@@ -454,6 +454,58 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
+  it('publishes shared renderer video ownership when Rust decode and frame upload are ready', async () => {
+    const dataset: Record<string, string | undefined> = {};
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererVideoFrameUploadReady: true,
+      rustVideoFrameDecodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video.mp4',
+          sourceFrame: 90,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 12,
+          width: 1280,
+          height: 720,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter(),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({
+      ok: true,
+      videoOwnership: {
+        owner: 'sharedRenderer',
+        reason: 'rustDecodedFrameUploadReady',
+        videoObjectIds: ['video-1'],
+      },
+    });
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterVideoOwner: 'sharedRenderer',
+      uxfdSharedRendererPresenterVideoCutoverReason: 'rustDecodedFrameUploadReady',
+      uxfdSharedRendererPresenterSharedVideoObjectCount: '1',
+    });
+  });
+
   it('publishes Pixi fallback diagnostics without touching WebGPU when the surface gate is blocked', async () => {
     const dataset: Record<string, string | undefined> = {};
     const calls: string[] = [];
