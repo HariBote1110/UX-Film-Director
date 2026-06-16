@@ -233,6 +233,9 @@ mean absolute error などの metrics だけを持つ。
 WebGPU preview surface は `colorSpace: "srgb"` と `alphaMode: "premultiplied"` を明示し、比較 readback は
 page-composited canvas ではなく offscreen render target から取る。Pixi / shared renderer の比較は同じ
 frozen frame index に固定し、unsupported frame は parity metric から除外して Pixi-only partition として記録する。
+macOS P3 display 上の sRGB -> P3 表示カラーマネジメントは offscreen readback では観測できないため、
+初回 surface go 判定前に、実機 P3 Mac で shared-renderer preview swatch と export-decoded reference swatch を
+並べた visual / sampled check を一度通す。
 
 ## 後回しにするもの
 

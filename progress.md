@@ -1031,6 +1031,12 @@
   surface canvas は backing size 1920x1080 / CSS size は preview scale / `pointer-events: none`、error log なしを確認した。
 - `package.json` / `package-lock.json` を `0.1.1-Beta-28d` に更新した。
 
+### 残る手動 gate
+- Claude から、P3 display 上の OS compositor colour management は unit test / offscreen readback では観測できないため、
+  実機 P3 Mac で shared-renderer preview swatch と export-decoded reference swatch を並べる visual / sampled check が
+  初回 surface go 前に必要と指摘を受けた。
+- この P3 実機 check を `markdown/roadmap.md` の Phase5 gate に追記した。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）
