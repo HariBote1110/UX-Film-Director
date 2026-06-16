@@ -58,6 +58,8 @@ export type RustSceneSnapshotBuildIssueCode =
   | 'unsupportedRotation'
   | 'unsupportedTransform'
   | 'unsupportedVideoMode'
+  | 'unsupportedGroupComposition'
+  | 'unsupportedMask'
   | 'missingMediaSource';
 
 export interface RustSceneSnapshotBuildIssue {
@@ -176,6 +178,22 @@ const collectBuildIssues = (objects: TimelineObject[]): RustSceneSnapshotBuildIs
         code: 'missingMediaSource',
         objectId: object.id,
         detail: 'Image/video object has neither filePath nor src.',
+      });
+    }
+
+    if (object.groupId || object.groupGradient?.enabled) {
+      issues.push({
+        code: 'unsupportedGroupComposition',
+        objectId: object.id,
+        detail: 'Group composition and group gradients are not enabled in the shared renderer bridge yet.',
+      });
+    }
+
+    if (object.clipping) {
+      issues.push({
+        code: 'unsupportedMask',
+        objectId: object.id,
+        detail: 'Layer clipping masks are not enabled in the shared renderer bridge yet.',
       });
     }
 

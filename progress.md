@@ -832,6 +832,21 @@
 - `cargo test --manifest-path rust-core/Cargo.toml --test timeline_snapshot_contract` -> 4 tests passed。
 - `cargo test --manifest-path rust-core/Cargo.toml` -> passed。
 
+## 2026-06-16 — Phase5: shared renderer adapter fail-loud widening
+
+### Red
+- `src/utils/rustSceneSnapshot.test.ts` に、`groupId` / `groupGradient` / `clipping` を持つ media plane を
+  shared renderer adapter が拒否する contract test を追加した。
+- 旧 adapter はこれらの Pixi 固有合成意味論を通してしまい、`ok=true` になったため Red を確認した。
+
+### Green
+- `RustSceneSnapshotBuildIssueCode` に `unsupportedGroupComposition` と `unsupportedMask` を追加した。
+- `buildRustSceneSnapshotForTimeline` は group composition / group gradient / layer clipping mask を issue として返す。
+- `package.json` / `package-lock.json` を `0.1.1-Beta-20b` に更新した。
+
+### 確認結果
+- `npm test -- src/utils/rustSceneSnapshot.test.ts` -> 4 tests passed。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）
