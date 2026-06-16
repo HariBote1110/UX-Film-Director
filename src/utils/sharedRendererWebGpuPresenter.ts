@@ -33,7 +33,8 @@ export type SharedRendererPresenterBlockedReason =
   | 'surfaceGateBlocked'
   | 'webGpuContextUnavailable'
   | 'adapterUnavailable'
-  | 'deviceRequestFailed';
+  | 'deviceRequestFailed'
+  | 'srgbCanvasFormat';
 
 export type SharedRendererWebGpuPresenterResult =
   | {
@@ -58,6 +59,7 @@ export type SharedRendererWebGpuPresenterResult =
       ok: false;
       reason: Exclude<SharedRendererPresenterBlockedReason, 'surfaceGateBlocked'>;
       detail: string;
+      format?: string;
     };
 
 export interface SharedRendererDeviceLostEvent {
@@ -131,8 +133,18 @@ export const createSharedRendererWebGpuPresenter = async ({
   }
 
   const format = gpu.getPreferredCanvasFormat();
+  if (format.endsWith('-srgb')) {
+    return {
+      ok: false,
+      reason: 'srgbCanvasFormat',
+      detail: 'Shared renderer canvas format must be non-srgb because the renderer performs sRGB encode explicitly.',
+      format,
+    };
+  }
+
   canvas.width = surfaceGate.canvas.width;
   canvas.height = surfaceGate.canvas.height;
+  // Keep the canvas format non-srgb: shared renderer/export paths perform the linear -> sRGB encode explicitly.
   context.configure({
     device,
     format,

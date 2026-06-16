@@ -1065,6 +1065,15 @@
 - `createSharedRendererWebGpuPresenter` の成功結果に `dispose()` を追加し、unmount 後の遅延 device-lost event を抑止するようにした。
 - `package.json` / `package-lock.json` を `0.1.1-Beta-29b` に更新した。
 
+### Non-sRGB canvas format gate
+- Claude から、canvas format を `-srgb` にすると renderer 側の linear -> sRGB encode と二重 encode になり、
+  preview / export parity を壊すと指摘を受けた。
+- `src/utils/sharedRendererWebGpuPresenter.test.ts` に `bgra8unorm-srgb` など `-srgb` format を拒否する契約を追加した。
+- `createSharedRendererWebGpuPresenter` は `getPreferredCanvasFormat()` の結果が `-srgb` で終わる場合、
+  `srgbCanvasFormat` として fail-loud にするようにした。
+- `markdown/roadmap.md` に non-srgb canvas format 方針と二重 encode 禁止を追記した。
+- `package.json` / `package-lock.json` を `0.1.1-Beta-29c` に更新した。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）
