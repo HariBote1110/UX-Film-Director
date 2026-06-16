@@ -456,6 +456,9 @@ fn handle_decode_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
     if parsed.format != FrameFormat::Rgba8Srgb {
         return response_error(id, -32602, "Only rgba8Srgb decode output is supported");
     }
+    if parsed.source_rate.numerator == 0 || parsed.source_rate.denominator == 0 {
+        return response_error(id, -32602, "sourceRate must be a positive rational");
+    }
 
     let memory_id = format!("{}-ring", parsed.job_id);
     let layout = match rgba8_srgb_ring_layout(
@@ -501,6 +504,7 @@ fn handle_decode_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
         width: descriptor.width,
         height: descriptor.height,
         stride_bytes: descriptor.stride_bytes,
+        source_rate: parsed.source_rate,
         format: descriptor.format,
         colour: descriptor.colour,
     };
