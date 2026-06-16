@@ -22,6 +22,7 @@ export type SharedRendererPresenterDiagnosticState =
       videoGeometrySource?: 'rust-wasm' | 'typescript';
       videoDecodeRequestSource?: 'rust-wasm' | 'typescript';
       videoDecodeRequestCount?: number;
+      videoFrameUploadReady?: boolean;
       videoOwner?: SharedRendererVideoOwner;
       videoCutoverReason?: SharedRendererVideoCutoverReason;
       sharedVideoObjectCount?: number;
@@ -52,6 +53,7 @@ export const writeSharedRendererPresenterDiagnostics = (
   delete dataset.uxfdSharedRendererPresenterVideoGeometrySource;
   delete dataset.uxfdSharedRendererPresenterVideoDecodeRequestSource;
   delete dataset.uxfdSharedRendererPresenterVideoDecodeRequestCount;
+  delete dataset.uxfdSharedRendererPresenterVideoFrameUploadReady;
   delete dataset.uxfdSharedRendererPresenterVideoOwner;
   delete dataset.uxfdSharedRendererPresenterVideoCutoverReason;
   delete dataset.uxfdSharedRendererPresenterSharedVideoObjectCount;
@@ -81,6 +83,9 @@ export const writeSharedRendererPresenterDiagnostics = (
     }
     if (typeof state.videoDecodeRequestCount === 'number') {
       dataset.uxfdSharedRendererPresenterVideoDecodeRequestCount = String(state.videoDecodeRequestCount);
+    }
+    if (typeof state.videoFrameUploadReady === 'boolean') {
+      dataset.uxfdSharedRendererPresenterVideoFrameUploadReady = String(state.videoFrameUploadReady);
     }
     if (state.videoOwner) {
       dataset.uxfdSharedRendererPresenterVideoOwner = state.videoOwner;

@@ -278,6 +278,7 @@ export const startSharedRendererPreviewPresenter = async ({
     videoGeometrySource,
     videoDecodeRequestSource,
     videoDecodeRequestCount,
+    videoFrameUploadReady: hasVideoScene ? sharedRendererVideoFrameUploadReady : undefined,
     videoOwner: hasVideoScene ? videoOwnership.owner : undefined,
     videoCutoverReason: hasVideoScene ? videoOwnership.reason : undefined,
     sharedVideoObjectCount: hasVideoScene ? videoOwnership.videoObjectIds.length : undefined,

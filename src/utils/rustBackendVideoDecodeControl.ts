@@ -38,6 +38,47 @@ export interface RustBackendVideoDecodeReleaseFramePayload {
   copyOutState: RustBackendVideoDecodeCopyOutState;
 }
 
+export interface RustBackendVideoFrameDescriptor {
+  memoryId: string;
+  slotIndex: number;
+  generation: number;
+  byteOffset: number;
+  byteLen: number;
+  width: number;
+  height: number;
+  strideBytes: number;
+  format: RustBackendDecodedVideoFrameFormat;
+  colour: RustBackendVideoDecodeColour;
+}
+
+export interface RustBackendSharedVideoFrame {
+  descriptor: RustBackendVideoFrameDescriptor;
+  ptsFrame: number;
+}
+
+export interface RustBackendVideoFrameChecksum {
+  algorithm: 'crc32';
+  valueHex: string;
+  byteLen: number;
+}
+
+export interface RustBackendVideoFrameVerification {
+  frameIndex: number;
+  checksum: RustBackendVideoFrameChecksum;
+  status: 'withinTolerance' | 'mismatch' | 'verificationFailed';
+}
+
+export interface RustBackendVideoDecodeFrameResult {
+  accepted: boolean;
+  jobId: string;
+  requestId: number;
+  frameIndex: number;
+  mode: 'latestWins';
+  frame?: RustBackendSharedVideoFrame;
+  verification?: RustBackendVideoFrameVerification;
+  decodeInvocationCount?: number;
+}
+
 export interface RustBackendResult<T = unknown> {
   success: boolean;
   result?: T;
@@ -50,7 +91,7 @@ export interface RustBackendVideoDecodeBridge {
   ) => Promise<RustBackendResult>;
   requestVideoDecodeFrame: (
     payload: RustBackendVideoDecodeFramePayload
-  ) => Promise<RustBackendResult>;
+  ) => Promise<RustBackendResult<RustBackendVideoDecodeFrameResult>>;
   releaseVideoDecodeFrame: (
     payload: RustBackendVideoDecodeReleaseFramePayload
   ) => Promise<RustBackendResult>;
@@ -65,7 +106,7 @@ export const startRustBackendVideoDecode = (
 export const requestRustBackendVideoDecodeFrame = (
   payload: RustBackendVideoDecodeFramePayload,
   bridge: RustBackendVideoDecodeBridge = window.rustBackend
-): Promise<RustBackendResult> =>
+): Promise<RustBackendResult<RustBackendVideoDecodeFrameResult>> =>
   bridge.requestVideoDecodeFrame(payload);
 
 export const releaseRustBackendVideoDecodeFrame = (
@@ -73,3 +114,44 @@ export const releaseRustBackendVideoDecodeFrame = (
   bridge: RustBackendVideoDecodeBridge = window.rustBackend
 ): Promise<RustBackendResult> =>
   bridge.releaseVideoDecodeFrame(payload);
+
+export const isRustBackendDecodedVideoFrameAvailable = (
+  response: RustBackendResult<unknown>
+): response is RustBackendResult<RustBackendVideoDecodeFrameResult> & {
+  success: true;
+  result: RustBackendVideoDecodeFrameResult & {
+    frame: RustBackendSharedVideoFrame;
+    verification: RustBackendVideoFrameVerification;
+  };
+} => {
+  if (response.success !== true || !isRecord(response.result)) return false;
+
+  const result = response.result;
+  if (result.accepted !== true || result.mode !== 'latestWins') return false;
+  if (!isRecord(result.frame) || !isRecord(result.verification)) return false;
+  if (result.verification.status !== 'withinTolerance') return false;
+
+  const descriptor = isRecord(result.frame.descriptor) ? result.frame.descriptor : null;
+  const colour = descriptor && isRecord(descriptor.colour) ? descriptor.colour : null;
+  const checksum = isRecord(result.verification.checksum) ? result.verification.checksum : null;
+
+  return Boolean(
+    descriptor
+    && colour
+    && checksum
+    && descriptor.format === 'rgba8Srgb'
+    && colour.primaries === 'bt709'
+    && colour.transfer === 'srgb'
+    && colour.matrix === 'rgb'
+    && colour.range === 'full'
+    && checksum.algorithm === 'crc32'
+    && typeof checksum.valueHex === 'string'
+    && typeof checksum.byteLen === 'number'
+    && checksum.byteLen === descriptor.byteLen
+    && typeof result.frame.ptsFrame === 'number'
+    && result.frame.ptsFrame === result.frameIndex
+  );
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
