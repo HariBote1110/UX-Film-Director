@@ -90,4 +90,34 @@ describe('buildSharedRendererVideoOwnership', () => {
       reason: 'rustDecodeRequestUnavailable',
     });
   });
+
+  it('keeps Pixi as owner when stack safety blocks every decoded video request', () => {
+    expect(buildSharedRendererVideoOwnership({
+      cutoverEnabled: true,
+      hasVideoScene: true,
+      videoDecodeRequestSource: 'rust-wasm',
+      videoDecodeRequestResult: {
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'video-behind-image',
+          mediaId: 'video-behind-image',
+          source: '/tmp/video.mp4',
+          sourceFrame: 12,
+          sourceRate: { numerator: 30, denominator: 1 },
+          timelineFrame: 24,
+          width: 1280,
+          height: 720,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      },
+      videoFrameUploadReady: true,
+      stackSafeVideoObjectIds: new Set(),
+    })).toEqual({
+      owner: 'pixi',
+      reason: 'pixiOnlyObjectAboveVideo',
+      videoObjectIds: [],
+    });
+  });
 });
