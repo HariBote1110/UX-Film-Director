@@ -11,6 +11,8 @@
   GPU buffer に upload する形へ変更した。
 - `sharedRendererPreviewPresenterController` は SolidColour clip がある時だけ Rust/WASM builder を読み込み、
   WASM 読み込みに失敗した場合は TypeScript fallback を使う。
+- DOM diagnostics に `uxfdSharedRendererPresenterGeometrySource` を追加し、図形 vertex 生成が `rust-wasm` か
+  `typescript` fallback かを確認できるようにした。
 - `package.json` / `package-lock.json` を `0.1.1-Beta-35a` に更新し、`wasm:build:rust-core` script を追加した。
 
 ### 選定理由・判断の根拠
@@ -30,6 +32,10 @@
 - Node `initSync` で生成済み WASM を直接呼び、`rect_count=1` と先頭 vertex `[-0.6875, 0.777777791, 0.5, 0, 0, 0.5]` を確認した。
 - `npm test -- src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/sharedRendererRustSolidColourScene.test.ts src/utils/sharedRendererSolidColourScene.test.ts`
   - 4 files / 23 tests passed。
+- ブラウザ確認（`VITE_UXFD_SHARED_RENDERER_PREVIEW=1 npm run dev -- --host 127.0.0.1 --port 5174`）:
+  - 図形追加後に `presenterStatus=ready`, `presenterSwatch=solid-colour-scene`,
+    `geometrySource=rust-wasm`, `presenterFormat=bgra8unorm`。
+  - console error は 0 件。通常起動では CSS reference swatch も表示されない。
 
 ## 2026-06-16 — Phase5: shared renderer overlay が動画を隠す不具合を修正
 
