@@ -11,12 +11,14 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
       status: 'ready',
       format: 'bgra8unorm',
       swatch: 'solid-srgb',
+      geometrySource: 'rust-wasm',
     });
 
     expect(dataset).toMatchObject({
       uxfdSharedRendererPresenterStatus: 'ready',
       uxfdSharedRendererPresenterFormat: 'bgra8unorm',
       uxfdSharedRendererPresenterSwatch: 'solid-srgb',
+      uxfdSharedRendererPresenterGeometrySource: 'rust-wasm',
     });
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterFailureReason');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterStaleSharedFrameAllowed');
@@ -39,6 +41,7 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
     });
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterFormat');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterSwatch');
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterGeometrySource');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterStaleSharedFrameAllowed');
   });
 
@@ -58,5 +61,6 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
     });
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterFormat');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterSwatch');
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterGeometrySource');
   });
 });

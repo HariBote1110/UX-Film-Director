@@ -255,10 +255,12 @@ describe('startSharedRendererPreviewPresenter', () => {
       uxfdSharedRendererPresenterStatus: 'ready',
       uxfdSharedRendererPresenterFormat: 'bgra8unorm',
       uxfdSharedRendererPresenterSwatch: 'solid-colour-scene',
+      uxfdSharedRendererPresenterGeometrySource: 'typescript',
     });
   });
 
   it('uses the Rust/WASM SolidColour vertex builder when it is available', async () => {
+    const dataset: Record<string, string | undefined> = {};
     const writtenBuffers: Float32Array[] = [];
     const rustVertices = new Float32Array([
       -0.5, 0.5, 0.25, 0.125, 0.0, 0.75,
@@ -272,7 +274,7 @@ describe('startSharedRendererPreviewPresenter', () => {
     const control = await startSharedRendererPreviewPresenter({
       canvas: fakeCanvas(() => fakeContext()),
       session: solidShapeSession,
-      datasets: [{}],
+      datasets: [dataset],
       rustSolidColourVertexSceneBuilder: () => ({
         ok: true,
         rectCount: 1,
@@ -296,6 +298,9 @@ describe('startSharedRendererPreviewPresenter', () => {
       format: 'bgra8unorm',
     });
     expect(writtenBuffers).toEqual([rustVertices]);
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterGeometrySource: 'rust-wasm',
+    });
   });
 
   it('publishes Pixi fallback diagnostics without touching WebGPU when the surface gate is blocked', async () => {
