@@ -196,15 +196,18 @@ const fakeGpu = ({
 
 const fakeAdapter = ({
   lost = new Promise(() => undefined),
-  device = fakeDevice(),
+  device,
 }: {
   lost?: Promise<unknown>;
   device?: ReturnType<typeof fakeDevice>;
-} = {}): SharedRendererWebGpuAdapterLike => ({
-  requestDevice: async () => device,
-  device,
-  lost,
-} as SharedRendererWebGpuAdapterLike & { device: ReturnType<typeof fakeDevice>; lost: Promise<unknown> });
+} = {}): SharedRendererWebGpuAdapterLike => {
+  const resolvedDevice = device ?? fakeDevice({ lost });
+  return {
+    requestDevice: async () => resolvedDevice,
+    device: resolvedDevice,
+    lost,
+  } as SharedRendererWebGpuAdapterLike & { device: ReturnType<typeof fakeDevice>; lost: Promise<unknown> };
+};
 
 const fakeDevice = ({
   onRenderPass = () => undefined,

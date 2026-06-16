@@ -1,0 +1,107 @@
+import type { SharedRendererPreviewSession } from './sharedRendererPreviewSession';
+import {
+  createSharedRendererWebGpuPresenter,
+  type SharedRendererSolidSrgbSwatch,
+  type SharedRendererWebGpuLike,
+} from './sharedRendererWebGpuPresenter';
+import {
+  writeSharedRendererPresenterDiagnostics,
+  type SharedRendererPresenterDiagnosticState,
+} from './sharedRendererPresenterDiagnostics';
+
+export const SHARED_RENDERER_SOLID_SWATCH: SharedRendererSolidSrgbSwatch = {
+  red: 0.25,
+  green: 0.5,
+  blue: 0.75,
+  alpha: 1,
+};
+
+type PresenterDataset = Record<string, string | undefined>;
+
+export type SharedRendererPreviewPresenterControl =
+  | {
+      ok: true;
+      format: string;
+      dispose: () => void;
+    }
+  | {
+      ok: false;
+      reason: string;
+      dispose: () => void;
+    };
+
+export interface StartSharedRendererPreviewPresenterInput {
+  canvas: HTMLCanvasElement;
+  session: SharedRendererPreviewSession;
+  datasets: PresenterDataset[];
+  gpu?: SharedRendererWebGpuLike;
+  textureUsageRenderAttachment?: number;
+}
+
+export const startSharedRendererPreviewPresenter = async ({
+  canvas,
+  session,
+  datasets,
+  gpu,
+  textureUsageRenderAttachment,
+}: StartSharedRendererPreviewPresenterInput): Promise<SharedRendererPreviewPresenterControl> => {
+  const writeDiagnostics = (state: SharedRendererPresenterDiagnosticState) => {
+    datasets.forEach((dataset) => {
+      writeSharedRendererPresenterDiagnostics(dataset, state);
+    });
+  };
+
+  if (!session.surfaceGate.ok) {
+    writeDiagnostics({
+      status: 'fallback',
+      reason: session.surfaceGate.reason,
+    });
+    return {
+      ok: false,
+      reason: session.surfaceGate.reason,
+      dispose: noop,
+    };
+  }
+
+  const presenter = await createSharedRendererWebGpuPresenter({
+    canvas,
+    surfaceGate: session.surfaceGate,
+    presentationContract: session.presentationContract,
+    gpu,
+    textureUsageRenderAttachment,
+    onDeviceLost: (event) => {
+      writeDiagnostics({
+        status: 'deviceLost',
+        reason: 'deviceLost',
+        staleSharedFrameAllowed: event.staleSharedFrameAllowed,
+      });
+    },
+  });
+
+  if (!presenter.ok) {
+    writeDiagnostics({
+      status: 'fallback',
+      reason: presenter.reason,
+    });
+    return {
+      ok: false,
+      reason: presenter.reason,
+      dispose: noop,
+    };
+  }
+
+  presenter.presentSolidSrgbSwatch(SHARED_RENDERER_SOLID_SWATCH);
+  writeDiagnostics({
+    status: 'ready',
+    format: presenter.format,
+    swatch: 'solid-srgb',
+  });
+
+  return {
+    ok: true,
+    format: presenter.format,
+    dispose: presenter.dispose,
+  };
+};
+
+const noop = () => undefined;
