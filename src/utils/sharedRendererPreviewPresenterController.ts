@@ -89,6 +89,11 @@ export const startSharedRendererPreviewPresenter = async ({
         enabled: rustSolidColourWasmEnabled,
       })
     : null;
+  const solidColourGeometrySource = hasSolidColourScene
+    ? resolvedRustSolidColourVertexSceneBuilder
+      ? 'rust-wasm'
+      : 'typescript'
+    : undefined;
 
   const presenter = await createSharedRendererWebGpuPresenter({
     canvas,
@@ -144,6 +149,7 @@ export const startSharedRendererPreviewPresenter = async ({
   writeDiagnostics({
     status: 'ready',
     format: presenter.format,
+    geometrySource: solidColourGeometrySource,
     swatch: hasSolidColourScene
       ? 'solid-colour-scene'
       : diagnosticSwatchEnabled

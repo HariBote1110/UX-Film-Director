@@ -6,6 +6,7 @@ export type SharedRendererPresenterDiagnosticState =
       status: 'ready';
       format: string;
       swatch: 'solid-srgb' | 'solid-colour-scene' | 'pixi-passthrough';
+      geometrySource?: 'rust-wasm' | 'typescript';
     }
   | {
       status: 'fallback';
@@ -26,12 +27,16 @@ export const writeSharedRendererPresenterDiagnostics = (
   dataset.uxfdSharedRendererPresenterStatus = state.status;
   delete dataset.uxfdSharedRendererPresenterFormat;
   delete dataset.uxfdSharedRendererPresenterSwatch;
+  delete dataset.uxfdSharedRendererPresenterGeometrySource;
   delete dataset.uxfdSharedRendererPresenterFailureReason;
   delete dataset.uxfdSharedRendererPresenterStaleSharedFrameAllowed;
 
   if (state.status === 'ready') {
     dataset.uxfdSharedRendererPresenterFormat = state.format;
     dataset.uxfdSharedRendererPresenterSwatch = state.swatch;
+    if (state.geometrySource) {
+      dataset.uxfdSharedRendererPresenterGeometrySource = state.geometrySource;
+    }
     return;
   }
 
