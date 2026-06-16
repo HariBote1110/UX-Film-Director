@@ -792,6 +792,30 @@
 - `cargo test --manifest-path shared-memory-spike/Cargo.toml --test sidecar_decode_checksum` -> 2 tests passed。
 - `cargo test --manifest-path shared-memory-spike/Cargo.toml` -> passed。
 
+## 2026-06-16 — Phase5: Pixi state -> Rust SceneSnapshot adapter gate
+
+### Red
+- `src/utils/rustSceneSnapshot.test.ts` を追加し、既存 `TimelineObject` / layer visibility / fps / timeline time から
+  rust-core serde 互換の `SceneSnapshot` JSON を作る契約を固定した。
+- active image / video plane、position animation、fade opacity、hidden / inactive clip の除外、
+  unsupported Pixi feature の fail-loud を test 化した。
+- 未実装の `rustSceneSnapshot` module import error で Red を確認した。
+
+### Green
+- `src/utils/rustSceneSnapshot.ts` を追加し、Phase5 入口用の `buildRustSceneSnapshotForTimeline` を実装した。
+- 変換対象は `image` / `video` の media plane に限定し、`RustSceneSnapshot` と media references を返す。
+- `frame_index` / `source_frame` は project fps から整数 frame に丸め、video は `offset` を source frame に反映する。
+- `sampling` は shared renderer の Phase3d gate に合わせて `bilinear` とした。
+- text / shape / PSD / audio、rotation、非正 scale、video reversed / subject crop、fade 以外の enabled filter は
+  shared renderer へ黙って渡さず issue として fail-loud にした。
+- `package.json` / `package-lock.json` を `0.1.1-Beta-20a` に更新した。
+
+### 文書更新
+- `markdown/roadmap.md` の Phase5 に Pixi state -> Rust SceneSnapshot adapter gate を追記した。
+
+### 確認結果
+- `npm test -- src/utils/rustSceneSnapshot.test.ts` -> 3 tests passed。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）

@@ -217,6 +217,14 @@ Phase 1 から 4 が成立した後に開始する。
 - React/Zustand は編集正本を持たない。
 - Rust evaluator と shared renderer を段階的に既存 UI へ接続する。
 
+入口 gate:
+
+1. Red: 既存 `TimelineObject` / layer visibility / project fps から rust-core 互換 `SceneSnapshot` JSON を生成する contract test
+2. Green: `image` / `video` の active media plane だけを `RustSceneSnapshot` + media references へ変換する TS adapter
+3. Fail-loud: text / shape / PSD / audio / rotation / blur など未移植 Pixi 機能は shared renderer へ黙って渡さない
+4. Bridge: adapter 出力を WebGPU shared renderer preview surface へ渡し、Pixi preview と並走できる feature flag を作る
+5. Cutover: 代表 scene の preview / native export parity が通った範囲から Pixi 経路を外す
+
 ## 後回しにするもの
 
 - 滑らかなリアルタイム再生
