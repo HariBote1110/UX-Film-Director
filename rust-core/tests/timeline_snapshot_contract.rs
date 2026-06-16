@@ -1,6 +1,7 @@
+use serde_json::json;
 use uxfd_rust_core::{
     evaluate_frame, Clip, ClipKind, ColourPipeline, Effect, Fps, MediaKind, MediaReference,
-    Project, ProjectSize, SamplingMode, Track, Transform,
+    Project, ProjectSize, SamplingMode, SceneSnapshot, Track, Transform,
 };
 
 fn project_with_transform() -> Project {
@@ -76,4 +77,50 @@ fn evaluated_clip_carries_effects_for_renderer_contract() {
         snapshot.clips[0].effects,
         project.tracks[0].clips[0].effects
     );
+}
+
+#[test]
+fn scene_snapshot_serialises_with_renderer_boundary_field_names() {
+    let project = project_with_transform();
+    let snapshot = evaluate_frame(&project, 10);
+
+    let encoded = serde_json::to_value(&snapshot).expect("serialise scene snapshot");
+
+    assert_eq!(
+        encoded,
+        json!({
+            "frame_index": 10,
+            "colour": {
+                "profile": "rec709-sdr",
+                "working_space": "linear-light",
+                "alpha": "premultiplied"
+            },
+            "clips": [{
+                "clip_id": "clip-1",
+                "track_id": "track-1",
+                "media_id": "media-1",
+                "source_frame": 0,
+                "z_index": 0,
+                "transform": {
+                    "translation_x": 32.0,
+                    "translation_y": -8.0,
+                    "scale_x": 1.5,
+                    "scale_y": 0.5,
+                    "rotation_degrees": 15.0,
+                    "sampling": "nearest"
+                },
+                "opacity": 0.75,
+                "effects": [{
+                    "LinearGain": {
+                        "gain": 1.25
+                    }
+                }]
+            }]
+        })
+    );
+
+    let decoded: SceneSnapshot =
+        serde_json::from_value(encoded).expect("deserialise scene snapshot");
+
+    assert_eq!(decoded, snapshot);
 }
