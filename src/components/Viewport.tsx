@@ -22,6 +22,7 @@ import {
   buildSharedRendererPreviewSession,
   type SharedRendererPreviewSession,
 } from '../utils/sharedRendererPreviewSession';
+import { buildSharedRendererPresenterSessionKey } from '../utils/sharedRendererPresenterSessionKey';
 import {
   getSharedRendererSolidSwatchCssColour,
   startSharedRendererPreviewPresenter,
@@ -39,19 +40,6 @@ const RESIZE_CORNER_CURSORS: Record<ResizeCorner, string> = {
   'bottom-right': 'nwse-resize',
   'top-right': 'nesw-resize',
   'bottom-left': 'nesw-resize',
-};
-
-const buildSharedRendererPresenterSessionKey = (session: SharedRendererPreviewSession): string => {
-  if (!session.surfaceGate.ok) {
-    return `blocked:${session.surfaceGate.reason}`;
-  }
-
-  return [
-    'ok',
-    `${session.surfaceGate.canvas.width}x${session.surfaceGate.canvas.height}`,
-    session.presentationContract.canvas.colorSpace,
-    session.presentationContract.canvas.alphaMode,
-  ].join(':');
 };
 
 type BoundsLike = { x: number; y: number; width: number; height: number };
