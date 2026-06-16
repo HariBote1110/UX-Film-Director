@@ -48,6 +48,7 @@ struct DecodeSession {
     start_response: DecodeStartResponse,
     source: String,
     ffmpeg_path: String,
+    ffprobe_path: String,
     ring: SharedFrameRing,
 }
 
@@ -515,10 +516,12 @@ fn handle_decode_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
     };
 
     let ffmpeg_path = std::env::var("UXFD_FFMPEG_BIN").unwrap_or_else(|_| "ffmpeg".to_string());
+    let ffprobe_path = std::env::var("UXFD_FFPROBE_BIN").unwrap_or_else(|_| "ffprobe".to_string());
     state.decode_session = Some(DecodeSession {
         start_response: response.clone(),
         source: parsed.source,
         ffmpeg_path,
+        ffprobe_path,
         ring: SharedFrameRing::new(layout),
     });
 
@@ -560,6 +563,7 @@ fn handle_decode_request_frame(id: u64, params: Value, state: &mut BackendState)
 
     let tight_rgba = match decode_tight_rgba_frame(
         &session.ffmpeg_path,
+        &session.ffprobe_path,
         &session.source,
         parsed.frame_index,
         session.start_response.width,
@@ -739,13 +743,15 @@ fn handle_decode_release_frame(id: u64, params: Value, state: &mut BackendState)
 
 fn decode_tight_rgba_frame(
     ffmpeg_path: &str,
+    ffprobe_path: &str,
     source: &str,
     frame_index: u64,
     width: u32,
     height: u32,
 ) -> Result<Vec<u8>, String> {
+    let input_range = probe_video_input_range(ffprobe_path, source)?;
     let filter = format!(
-        "select=eq(n\\,{frame_index}),scale=in_range=pc:out_range=pc:in_color_matrix=bt709:out_color_matrix=bt709,format=rgba"
+        "select=eq(n\\,{frame_index}),scale=in_range={input_range}:out_range=pc:in_color_matrix=bt709:out_color_matrix=bt709,format=rgba"
     );
     let output = Command::new(ffmpeg_path)
         .arg("-hide_banner")
@@ -786,6 +792,45 @@ fn decode_tight_rgba_frame(
     }
 
     Ok(output.stdout)
+}
+
+fn probe_video_input_range(ffprobe_path: &str, source: &str) -> Result<&'static str, String> {
+    let output = Command::new(ffprobe_path)
+        .arg("-v")
+        .arg("error")
+        .arg("-select_streams")
+        .arg("v:0")
+        .arg("-show_entries")
+        .arg("stream=color_range")
+        .arg("-of")
+        .arg("json")
+        .arg(source)
+        .output()
+        .map_err(|error| format!("failed to run ffprobe ({ffprobe_path}): {error}"))?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "ffprobe exited with status {:?}: {}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    let parsed: Value = serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("invalid ffprobe JSON: {error}"))?;
+    let range = parsed
+        .get("streams")
+        .and_then(Value::as_array)
+        .and_then(|streams| streams.first())
+        .and_then(|stream| stream.get("color_range"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| "ffprobe video stream did not include color_range".to_string())?;
+
+    match range {
+        "pc" => Ok("pc"),
+        "tv" => Ok("tv"),
+        value => Err(format!("unsupported video color_range for Rust decode: {value}")),
+    }
 }
 
 fn pad_rgba_rows(
