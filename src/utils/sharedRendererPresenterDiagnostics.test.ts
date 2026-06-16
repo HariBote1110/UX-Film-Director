@@ -13,6 +13,8 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
       swatch: 'solid-srgb',
       geometrySource: 'rust-wasm',
       videoGeometrySource: 'rust-wasm',
+      videoDecodeRequestSource: 'rust-wasm',
+      videoDecodeRequestCount: 2,
     });
 
     expect(dataset).toMatchObject({
@@ -21,6 +23,8 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
       uxfdSharedRendererPresenterSwatch: 'solid-srgb',
       uxfdSharedRendererPresenterGeometrySource: 'rust-wasm',
       uxfdSharedRendererPresenterVideoGeometrySource: 'rust-wasm',
+      uxfdSharedRendererPresenterVideoDecodeRequestSource: 'rust-wasm',
+      uxfdSharedRendererPresenterVideoDecodeRequestCount: '2',
     });
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterFailureReason');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterStaleSharedFrameAllowed');
@@ -45,6 +49,8 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterSwatch');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterGeometrySource');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoGeometrySource');
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoDecodeRequestSource');
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoDecodeRequestCount');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterStaleSharedFrameAllowed');
   });
 
@@ -66,5 +72,7 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterSwatch');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterGeometrySource');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoGeometrySource');
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoDecodeRequestSource');
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoDecodeRequestCount');
   });
 });

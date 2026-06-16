@@ -400,6 +400,55 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
+  it('uses the Rust/WASM video frame decode request builder when video clips exist', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const builderCalls: unknown[] = [];
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
+      rustVideoFrameDecodeRequestBuilder: (input) => {
+        builderCalls.push(input);
+        return {
+          ok: true,
+          requestCount: 1,
+          requests: [{
+            clipId: 'video-1',
+            mediaId: 'video-1',
+            source: '/tmp/video.mp4',
+            sourceFrame: 90,
+            timelineFrame: 12,
+            width: 1280,
+            height: 720,
+            format: 'rgba8Srgb',
+            colour: 'rec709SrgbFullRange',
+          }],
+        };
+      },
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter(),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({
+      ok: true,
+      format: 'bgra8unorm',
+    });
+    expect(builderCalls).toEqual([{
+      snapshot: videoSession.surfaceGate.ok ? videoSession.surfaceGate.snapshot : null,
+      media: videoSession.surfaceGate.ok ? videoSession.surfaceGate.media : null,
+    }]);
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterVideoDecodeRequestSource: 'rust-wasm',
+      uxfdSharedRendererPresenterVideoDecodeRequestCount: '1',
+    });
+  });
+
   it('publishes Pixi fallback diagnostics without touching WebGPU when the surface gate is blocked', async () => {
     const dataset: Record<string, string | undefined> = {};
     const calls: string[] = [];
