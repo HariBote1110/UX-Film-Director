@@ -1,11 +1,16 @@
 import type { SharedRendererPreviewSession } from './sharedRendererPreviewSession';
 import type { SharedRendererSolidColourVertexSceneBuilder } from './sharedRendererSolidColourScene';
 import {
+  buildSharedRendererVideoPlaneVertexScene,
+  type SharedRendererVideoPlaneVertexSceneBuilder,
+} from './sharedRendererVideoPlaneScene';
+import {
   createSharedRendererWebGpuPresenter,
   type SharedRendererSolidSrgbSwatch,
   type SharedRendererWebGpuLike,
 } from './sharedRendererWebGpuPresenter';
 import { loadSharedRendererRustSolidColourVertexSceneBuilder } from './sharedRendererRustSolidColourScene';
+import { loadSharedRendererRustVideoPlaneVertexSceneBuilder } from './sharedRendererRustVideoPlaneScene';
 import {
   writeSharedRendererPresenterDiagnostics,
   type SharedRendererPresenterDiagnosticState,
@@ -50,6 +55,8 @@ export interface StartSharedRendererPreviewPresenterInput {
   diagnosticSwatchEnabled?: boolean;
   rustSolidColourWasmEnabled?: boolean;
   rustSolidColourVertexSceneBuilder?: SharedRendererSolidColourVertexSceneBuilder;
+  rustVideoPlaneWasmEnabled?: boolean;
+  rustVideoPlaneVertexSceneBuilder?: SharedRendererVideoPlaneVertexSceneBuilder;
 }
 
 export const startSharedRendererPreviewPresenter = async ({
@@ -63,6 +70,8 @@ export const startSharedRendererPreviewPresenter = async ({
   diagnosticSwatchEnabled = true,
   rustSolidColourWasmEnabled = defaultRustSolidColourWasmEnabled(),
   rustSolidColourVertexSceneBuilder,
+  rustVideoPlaneWasmEnabled = defaultRustVideoPlaneWasmEnabled(),
+  rustVideoPlaneVertexSceneBuilder,
 }: StartSharedRendererPreviewPresenterInput): Promise<SharedRendererPreviewPresenterControl> => {
   const writeDiagnostics = (state: SharedRendererPresenterDiagnosticState) => {
     datasets.forEach((dataset) => {
@@ -91,6 +100,27 @@ export const startSharedRendererPreviewPresenter = async ({
     : null;
   const solidColourGeometrySource = hasSolidColourScene
     ? resolvedRustSolidColourVertexSceneBuilder
+      ? 'rust-wasm'
+      : 'typescript'
+    : undefined;
+  const hasVideoScene = hasVideoClip(session);
+  const resolvedRustVideoPlaneVertexSceneBuilder = hasVideoScene
+    ? rustVideoPlaneVertexSceneBuilder
+      ?? await loadSharedRendererRustVideoPlaneVertexSceneBuilder({
+        enabled: rustVideoPlaneWasmEnabled,
+      })
+    : null;
+  if (hasVideoScene) {
+    const videoPlaneVertexSceneBuilder = resolvedRustVideoPlaneVertexSceneBuilder
+      ?? buildSharedRendererVideoPlaneVertexScene;
+    videoPlaneVertexSceneBuilder({
+      snapshot: session.surfaceGate.snapshot,
+      media: session.surfaceGate.media,
+      canvas: session.surfaceGate.canvas,
+    });
+  }
+  const videoGeometrySource = hasVideoScene
+    ? resolvedRustVideoPlaneVertexSceneBuilder
       ? 'rust-wasm'
       : 'typescript'
     : undefined;
@@ -150,6 +180,7 @@ export const startSharedRendererPreviewPresenter = async ({
     status: 'ready',
     format: presenter.format,
     geometrySource: solidColourGeometrySource,
+    videoGeometrySource,
     swatch: hasSolidColourScene
       ? 'solid-colour-scene'
       : diagnosticSwatchEnabled
@@ -169,9 +200,19 @@ const noop = () => undefined;
 const defaultRustSolidColourWasmEnabled = (): boolean =>
   import.meta.env.VITE_UXFD_SHARED_RENDERER_RUST_SHAPES !== '0';
 
+const defaultRustVideoPlaneWasmEnabled = (): boolean =>
+  import.meta.env.VITE_UXFD_SHARED_RENDERER_RUST_VIDEO !== '0';
+
 const hasSolidColourClip = (session: SharedRendererPreviewSession): boolean => {
   if (!session.surfaceGate.ok) return false;
 
   const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
   return session.surfaceGate.snapshot.clips.some((clip) => mediaKindById.get(clip.media_id) === 'SolidColour');
+};
+
+const hasVideoClip = (session: SharedRendererPreviewSession): boolean => {
+  if (!session.surfaceGate.ok) return false;
+
+  const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
+  return session.surfaceGate.snapshot.clips.some((clip) => mediaKindById.get(clip.media_id) === 'Video');
 };
