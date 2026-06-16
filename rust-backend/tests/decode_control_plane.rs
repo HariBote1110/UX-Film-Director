@@ -50,14 +50,18 @@ fn decode_request_frame_accepts_frame_index_without_float_seconds() {
         "method": "decode.requestFrame",
         "params": {
             "jobId": "decode-1",
-            "frameIndex": 42
+            "requestId": 7,
+            "frameIndex": 42,
+            "mode": "latestWins"
         }
     }));
 
     assert_eq!(response["ok"], true);
     assert_eq!(response["result"]["accepted"], true);
     assert_eq!(response["result"]["jobId"], "decode-1");
+    assert_eq!(response["result"]["requestId"], 7);
     assert_eq!(response["result"]["frameIndex"], 42);
+    assert_eq!(response["result"]["mode"], "latestWins");
     assert!(response["result"].get("seconds").is_none());
     assert!(response["result"].get("time").is_none());
     assert_no_frame_bytes(&response["result"]);
