@@ -11,6 +11,18 @@ export function build_solid_colour_vertex_scene(snapshot, media, canvas_width, c
     const ret = wasm.build_solid_colour_vertex_scene(snapshot, media, canvas_width, canvas_height);
     return ret;
 }
+
+/**
+ * @param {any} snapshot
+ * @param {any} media
+ * @param {number} canvas_width
+ * @param {number} canvas_height
+ * @returns {any}
+ */
+export function build_video_plane_vertex_scene(snapshot, media, canvas_width, canvas_height) {
+    const ret = wasm.build_video_plane_vertex_scene(snapshot, media, canvas_width, canvas_height);
+    return ret;
+}
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,

@@ -3,11 +3,14 @@
 
 export function build_solid_colour_vertex_scene(snapshot: any, media: any, canvas_width: number, canvas_height: number): any;
 
+export function build_video_plane_vertex_scene(snapshot: any, media: any, canvas_width: number, canvas_height: number): any;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly build_solid_colour_vertex_scene: (a: any, b: any, c: number, d: number) => any;
+    readonly build_video_plane_vertex_scene: (a: any, b: any, c: number, d: number) => any;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_exn_store: (a: number) => void;
