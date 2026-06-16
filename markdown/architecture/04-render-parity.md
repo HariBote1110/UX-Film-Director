@@ -55,6 +55,8 @@ MVP reference scene:
 最低 1 ケースは解析的に期待値を計算できる reference scene にする。例: 既知色の背景に既知色の foreground を opacity 50% で premultiplied alpha / linear light 合成し、期待 RGBA 値を数学的に検証する。preview と export の一致だけでなく、正しさも確認する。
 
 スケーリング、回転、任意 transform、texture filtering は後続の別 gate で検証する。最初の parity gate では colour / alpha / shader 翻訳差だけを主対象にする。
+後続 gate の第一段として、整数 translation と 2x nearest scale は CPU reference / native wgpu / WebGPU preview で
+検証済み。bilinear filtering、fractional scale、rotation はまだ別 gate とする。
 
 ## MVP Parity Spike
 
@@ -119,10 +121,18 @@ Phase 3b で固定する実装条件:
 - ケース: red 50% over blue、white 50% over black、white 25% over black、source alpha × clip opacity、gain above one clamp、2 pixel coordinate mapping。
 - Perturbation check: `?perturb=red-plus` で共有 WGSL 読込後の shader に red channel 加算を入れると RED になり、GPU output を実際に readback / compare できていることを確認した。
 
+Integer transform / nearest sampling gate:
+
+- 対象: 2x2 source を `translation=(1,1)`、`scale=(2,2)` で 5x5 canvas に配置する。
+- sampling: `textureLoad` と `floor((outputPixel - translation) / scale)` による nearest。sampler / bilinear は使わない。
+- CPU reference と native wgpu の比較: `maxDelta=0`。
+- WebGPU preview harness: Chrome 149 / Apple Metal adapter で `maxDelta=0` / `meanAbsoluteError=0`。
+- rotation、fractional scale、bilinear / bicubic filtering は未対応。未対応 transform は fail-loud とする。
+
 Claude review 後の判定:
 
 - Phase 3b は `3b verified GO` とする。
-- この判定は per-pixel 合成に限る。blur / scale / rotate など sampling を伴う効果は別 gate で扱う。
+- この判定は per-pixel 合成と整数 nearest transform に限る。blur / fractional scale / rotate など sampling を伴う効果は別 gate で扱う。
 - `?perturb=red-plus` による RED と `isFallbackAdapter=false` の Metal adapter 確認により、「CPU 期待値だけを見ている」「fallback adapter で偶然通っている」という偽陽性リスクは退けた。
 - 現時点で確認できた範囲では、WebGPU preview は Dawn / Tint over Metal、native export は wgpu-native / Naga over Metal で、共有 WGSL の per-pixel colour math が CPU reference と一致している。
 

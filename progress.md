@@ -677,6 +677,38 @@
 - `cargo fmt --manifest-path decode-spike/Cargo.toml`
 - `cargo test --manifest-path decode-spike/Cargo.toml --test limited_range_decode -- --nocapture` -> 2 tests passed。
 
+## 2026-06-16 — Phase3c: integer transform / nearest sampling gate
+
+### Red
+- `reference-renderer/tests/solid_scene.rs` と `native-wgpu-renderer/tests/native_reference_parity.rs` に、
+  2x2 source を `translation=(1,1)`、`scale=(2,2)` で 5x5 canvas に配置する hand anchor test を追加した。
+- 旧実装は source と canvas の同一サイズ / identity transform 前提だったため、CPU reference 側で `SourceSizeMismatch` になり Red を確認した。
+
+### Green
+- `reference-renderer` に integer translation / nearest scale / clipping を追加した。
+- `native-wgpu-renderer` と共有 WGSL に同じ nearest mapping を追加した。
+- mapping は `floor((outputPixel - translation) / scale)` とし、sampler / bilinear filtering は使わない。
+- rotation、非正 scale は引き続き unsupported として fail-loud にした。
+- `phase3b-webgpu-harness` に同じ transform case を追加した。
+
+### 実測結果
+- CPU reference transform gate: hand anchor と一致。
+- native wgpu transform gate: CPU reference / hand anchor と `maxDelta=0`。
+- WebGPU preview harness: Chrome 149、Apple Metal adapter、`integer translation and nearest scale` case が
+  `maxDelta=0` / `meanAbsoluteError=0`。
+
+### 文書更新
+- `markdown/architecture/04-render-parity.md` に integer transform / nearest sampling gate を追記した。
+- `markdown/roadmap.md` に Phase3c を追加した。
+
+### 確認結果
+- `cargo fmt --manifest-path reference-renderer/Cargo.toml`
+- `cargo fmt --manifest-path native-wgpu-renderer/Cargo.toml`
+- `cargo test --manifest-path reference-renderer/Cargo.toml` -> 10 tests passed。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml` -> 12 passed / 1 ignored。
+- `node --check phase3b-webgpu-harness/phase3b.js`
+- WebGPU harness: `http://127.0.0.1:4177/phase3b-webgpu-harness/` を system Chrome 149 で実行し `ok=true`。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）

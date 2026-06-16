@@ -1,8 +1,12 @@
 struct RenderParams {
     opacity: f32,
     gain: f32,
-    _padding0: f32,
-    _padding1: f32,
+    source_width: f32,
+    source_height: f32,
+    translation_x: f32,
+    translation_y: f32,
+    scale_x: f32,
+    scale_y: f32,
 }
 
 @group(0) @binding(0)
@@ -24,8 +28,22 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> @builtin(position) vec4<
 
 @fragment
 fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
-    let pixel = vec2<i32>(position.xy);
-    let source = textureLoad(source_texture, pixel, 0);
+    let output_pixel = vec2<f32>(vec2<i32>(position.xy));
+    let source_pixel = floor(
+        (output_pixel - vec2<f32>(params.translation_x, params.translation_y))
+            / vec2<f32>(params.scale_x, params.scale_y)
+    );
+
+    if (
+        source_pixel.x < 0.0
+        || source_pixel.y < 0.0
+        || source_pixel.x >= params.source_width
+        || source_pixel.y >= params.source_height
+    ) {
+        return vec4<f32>(0.0);
+    }
+
+    let source = textureLoad(source_texture, vec2<i32>(source_pixel), 0);
     let alpha = source.a * params.opacity;
     let linear_rgb = vec3<f32>(
         srgb_to_linear(source.r),

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use uxfd_golden_harness::{RgbaFrame, RgbaFrameError};
-use uxfd_rust_core::{Effect, SceneSnapshot};
+use uxfd_rust_core::{Effect, EvaluatedClip, SceneSnapshot, Transform};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReferenceRenderError {
@@ -13,6 +13,9 @@ pub enum ReferenceRenderError {
         expected_height: u32,
         actual_width: u32,
         actual_height: u32,
+    },
+    UnsupportedTransform {
+        media_id: String,
     },
     InvalidFrame(RgbaFrameError),
 }
@@ -36,7 +39,9 @@ pub fn render_reference_frame(
                 .ok_or_else(|| ReferenceRenderError::MissingSource {
                     media_id: clip.media_id.clone(),
                 })?;
-        if source.width != width || source.height != height {
+        if clip.transform == Transform::identity()
+            && (source.width != width || source.height != height)
+        {
             return Err(ReferenceRenderError::SourceSizeMismatch {
                 media_id: clip.media_id,
                 expected_width: width,
@@ -45,15 +50,23 @@ pub fn render_reference_frame(
                 actual_height: source.height,
             });
         }
+        validate_transform(&clip)?;
 
         let gain = clip.effects.iter().fold(1.0_f32, |current_gain, effect| {
             current_gain * effect_gain(effect)
         });
 
-        for (pixel_index, source_pixel) in source.pixels.chunks_exact(4).enumerate() {
-            let source_colour =
-                PremultipliedLinearRgba::from_straight_rgba8(source_pixel, clip.opacity, gain);
-            canvas[pixel_index] = source_colour.over(canvas[pixel_index]);
+        for y in 0..height {
+            for x in 0..width {
+                let Some(source_pixel) = sample_nearest_source(source, &clip.transform, x, y)
+                else {
+                    continue;
+                };
+                let pixel_index = (y as usize) * (width as usize) + x as usize;
+                let source_colour =
+                    PremultipliedLinearRgba::from_straight_rgba8(source_pixel, clip.opacity, gain);
+                canvas[pixel_index] = source_colour.over(canvas[pixel_index]);
+            }
         }
     }
 
@@ -69,6 +82,40 @@ fn effect_gain(effect: &Effect) -> f32 {
     match effect {
         Effect::LinearGain { gain } => *gain,
     }
+}
+
+fn validate_transform(clip: &EvaluatedClip) -> Result<(), ReferenceRenderError> {
+    if clip.transform.rotation_degrees != 0.0
+        || clip.transform.scale_x <= 0.0
+        || clip.transform.scale_y <= 0.0
+    {
+        return Err(ReferenceRenderError::UnsupportedTransform {
+            media_id: clip.media_id.clone(),
+        });
+    }
+
+    Ok(())
+}
+
+fn sample_nearest_source<'a>(
+    source: &'a RgbaFrame,
+    transform: &Transform,
+    output_x: u32,
+    output_y: u32,
+) -> Option<&'a [u8]> {
+    let source_x = ((output_x as f32 - transform.translation_x) / transform.scale_x).floor();
+    let source_y = ((output_y as f32 - transform.translation_y) / transform.scale_y).floor();
+
+    if source_x < 0.0
+        || source_y < 0.0
+        || source_x >= source.width as f32
+        || source_y >= source.height as f32
+    {
+        return None;
+    }
+
+    let source_index = (source_y as usize * source.width as usize + source_x as usize) * 4;
+    Some(&source.pixels[source_index..source_index + 4])
 }
 
 #[derive(Debug, Clone, Copy)]

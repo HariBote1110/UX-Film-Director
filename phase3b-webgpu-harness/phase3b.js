@@ -132,6 +132,32 @@ const cases = [
     ],
     expected: [188, 0, 0, 255, 0, 0, 188, 255],
   },
+  {
+    name: "integer translation and nearest scale",
+    width: 5,
+    height: 5,
+    clips: [
+      {
+        mediaId: "foreground",
+        zIndex: 0,
+        opacity: 1.0,
+        gain: 1.0,
+        width: 2,
+        height: 2,
+        transform: {
+          translationX: 1.0,
+          translationY: 1.0,
+          scaleX: 2.0,
+          scaleY: 2.0,
+        },
+        pixels: [
+          255, 0, 0, 255, 0, 255, 0, 255,
+          0, 0, 255, 255, 255, 255, 255, 255,
+        ],
+      },
+    ],
+    expected: transformedNearestAnchor(),
+  },
 ];
 
 async function main() {
@@ -261,7 +287,7 @@ async function renderCase(device, pipeline, testCase) {
 
   for (const clip of [...testCase.clips].sort((left, right) => left.zIndex - right.zIndex)) {
     const sourceTexture = createSourceTexture(device, testCase, clip);
-    const paramsBuffer = createParamsBuffer(device, clip);
+    const paramsBuffer = createParamsBuffer(device, testCase, clip);
     const bindGroup = device.createBindGroup({
       label: `bind group: ${testCase.name} ${clip.mediaId}`,
       layout: pipeline.getBindGroupLayout(0),
@@ -328,9 +354,11 @@ async function renderCase(device, pipeline, testCase) {
 }
 
 function createSourceTexture(device, testCase, clip) {
+  const sourceWidth = clip.width ?? testCase.width;
+  const sourceHeight = clip.height ?? testCase.height;
   const texture = device.createTexture({
     label: `source: ${testCase.name} ${clip.mediaId}`,
-    size: [testCase.width, testCase.height, 1],
+    size: [sourceWidth, sourceHeight, 1],
     format: sourceFormat,
     usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
   });
@@ -340,20 +368,37 @@ function createSourceTexture(device, testCase, clip) {
     },
     new Uint8Array(clip.pixels),
     {
-      bytesPerRow: testCase.width * bytesPerSourcePixel,
-      rowsPerImage: testCase.height,
+      bytesPerRow: sourceWidth * bytesPerSourcePixel,
+      rowsPerImage: sourceHeight,
     },
     {
-      width: testCase.width,
-      height: testCase.height,
+      width: sourceWidth,
+      height: sourceHeight,
       depthOrArrayLayers: 1,
     },
   );
   return texture;
 }
 
-function createParamsBuffer(device, clip) {
-  const params = new Float32Array([clip.opacity, clip.gain, 0, 0]);
+function createParamsBuffer(device, testCase, clip) {
+  const sourceWidth = clip.width ?? testCase.width;
+  const sourceHeight = clip.height ?? testCase.height;
+  const transform = clip.transform ?? {
+    translationX: 0,
+    translationY: 0,
+    scaleX: 1,
+    scaleY: 1,
+  };
+  const params = new Float32Array([
+    clip.opacity,
+    clip.gain,
+    sourceWidth,
+    sourceHeight,
+    transform.translationX,
+    transform.translationY,
+    transform.scaleX,
+    transform.scaleY,
+  ]);
   const buffer = device.createBuffer({
     label: `params: ${clip.mediaId}`,
     size: params.byteLength,
@@ -401,6 +446,28 @@ function compareRgba(expected, actual) {
     maxDelta,
     meanAbsoluteError: absoluteSum / expected.length,
   };
+}
+
+function transformedNearestAnchor() {
+  const source = [
+    [255, 0, 0, 255],
+    [0, 255, 0, 255],
+    [0, 0, 255, 255],
+    [255, 255, 255, 255],
+  ];
+  const pixels = [];
+  for (let y = 0; y < 5; y += 1) {
+    for (let x = 0; x < 5; x += 1) {
+      const sourceX = Math.floor((x - 1) / 2);
+      const sourceY = Math.floor((y - 1) / 2);
+      if (sourceX < 0 || sourceY < 0 || sourceX >= 2 || sourceY >= 2) {
+        pixels.push(0, 0, 0, 0);
+      } else {
+        pixels.push(...source[sourceY * 2 + sourceX]);
+      }
+    }
+  }
+  return pixels;
 }
 
 function premultipliedToStraightRgba8(red, green, blue, alpha) {

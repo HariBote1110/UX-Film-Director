@@ -116,10 +116,18 @@ TDD / 検証タスク:
 4. 原因分類に WGSL -> MSL 翻訳器差（Dawn/Tint と wgpu-native/Naga）を含める。
 5. Refactor: spike で得た実装を恒久 API と実験コードに分離する。
 
+### Phase 3c: integer transform / nearest sampling
+
+1. Red: 2x2 source を `translation=(1,1)`、`scale=(2,2)` で 5x5 canvas に配置する hand anchor test
+2. Green: CPU reference renderer で integer translation / nearest scale / clipping を実装
+3. Green: shared WGSL と native wgpu renderer を同じ nearest mapping に揃える
+4. WebGPU preview harness に同じ case を追加し、Chrome / Metal で `maxDelta=0` を確認する
+
 Go 条件:
 
 - Phase 3a: macOS / Metal 上で native wgpu と CPU reference が max channel delta の許容内に入る。
 - Phase 3b: macOS / Metal 上で preview と export frame が許容誤差内に入る。
+- Phase 3c: integer translation / nearest scale が CPU reference、native wgpu、WebGPU preview で一致する。
 
 見直し条件:
 

@@ -108,7 +108,10 @@ pub async fn measure_native_wgpu_frame_stages(
     let mut prepared_clips = Vec::with_capacity(clips.len());
     let upload_start = Instant::now();
     for clip in &clips {
-        if clip.transform != Transform::identity() {
+        if clip.transform.rotation_degrees != 0.0
+            || clip.transform.scale_x <= 0.0
+            || clip.transform.scale_y <= 0.0
+        {
             return Err(NativeWgpuRenderError::UnsupportedTransform {
                 clip_id: clip.clip_id.clone(),
             });
@@ -120,7 +123,9 @@ pub async fn measure_native_wgpu_frame_stages(
                 .ok_or_else(|| NativeWgpuRenderError::MissingSource {
                     media_id: clip.media_id.clone(),
                 })?;
-        if source.width != width || source.height != height {
+        if clip.transform == Transform::identity()
+            && (source.width != width || source.height != height)
+        {
             return Err(NativeWgpuRenderError::SourceSizeMismatch {
                 media_id: clip.media_id.clone(),
                 expected_width: width,
@@ -141,7 +146,12 @@ pub async fn measure_native_wgpu_frame_stages(
                     .effects
                     .iter()
                     .fold(1.0, |gain, effect| gain * effect_gain(effect)),
-                _padding: [0.0; 2],
+                source_width: source.width as f32,
+                source_height: source.height as f32,
+                translation_x: clip.transform.translation_x,
+                translation_y: clip.transform.translation_y,
+                scale_x: clip.transform.scale_x,
+                scale_y: clip.transform.scale_y,
             },
         ));
     }
@@ -237,7 +247,12 @@ struct PreparedClip {
 struct RenderParams {
     opacity: f32,
     gain: f32,
-    _padding: [f32; 2],
+    source_width: f32,
+    source_height: f32,
+    translation_x: f32,
+    translation_y: f32,
+    scale_x: f32,
+    scale_y: f32,
 }
 
 fn create_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
