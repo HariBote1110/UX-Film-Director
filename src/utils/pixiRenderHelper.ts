@@ -5,6 +5,10 @@ import { applyIntrinsicSizeToVideoElement, destroyVideoSourcePreservingPlayUrl }
 import { evaluateObjectPositionAtTime } from './keyframes';
 import { evaluateSubjectCropNormRectAtTime } from './subjectCropKeyframes';
 import { getEnabledObjectFiltersInOrder } from './filterStack';
+import {
+  clearPixiVideoForSharedRenderer,
+  shouldSkipPixiVideoForSharedRenderer,
+} from './pixiVideoCutover';
 
 // ... (Shader definitions omitted for brevity - same as previous) ...
 const vertexShader = `
@@ -708,6 +712,7 @@ export const updatePixiContent = (
         exportFrameOverrides?: Map<string, ImageBitmap>;
         /** exportFrameOverrides を PixiJS テクスチャに変換する OffscreenCanvas キャッシュ */
         exportOverlayCanvases?: Map<string, ExportOverlayCanvas>;
+        sharedRendererVideoObjectIds?: ReadonlySet<string>;
         /**
          * WebGPU（`RendererType` 2）のとき true。動画を VideoSource ではなく 2D Canvas 経由でテクスチャ化し、
          * `copyExternalImageToTexture` の out-of-bounds を避ける。
@@ -715,7 +720,7 @@ export const updatePixiContent = (
         useCanvasVideoUpload: boolean;
     }
 ) => {
-    const { textureCache, loadingUrls, videoElements, videoFrameTextures, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, exportFrameOverrides, exportOverlayCanvases, useCanvasVideoUpload } = resources;
+    const { textureCache, loadingUrls, videoElements, videoFrameTextures, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, exportFrameOverrides, exportOverlayCanvases, sharedRendererVideoObjectIds, useCanvasVideoUpload } = resources;
     let content = container.children[0] as (PIXI.Sprite | PIXI.Graphics | PIXI.Text | PIXI.Container | undefined);
     
     // Check for recreation
@@ -802,6 +807,23 @@ export const updatePixiContent = (
         content = psdContent;
 
     } else if (obj.type === 'video') {
+        if (shouldSkipPixiVideoForSharedRenderer({
+            objectId: obj.id,
+            objectType: obj.type,
+            isExporting,
+            sharedRendererVideoObjectIds,
+        })) {
+            clearPixiVideoForSharedRenderer({
+                objectId: obj.id,
+                container,
+                videoElements,
+                videoFrameTextures,
+            });
+            container.hitArea = new PIXI.Rectangle(0, 0, obj.width, obj.height);
+            return undefined;
+        }
+        container.hitArea = null;
+
         let sprite = content as PIXI.Sprite;
 
         // ── VideoDecoder ハイブリッドパス（エクスポート時）────────────────────
