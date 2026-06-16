@@ -1,3 +1,19 @@
+## 2026-06-16 — Pixi video texture cleanup のリーク対策
+
+### 実施内容
+- サブエージェントの軽量レビューで指摘された video texture / export overlay の破棄漏れを修正した。
+- `videoElementForPixi` に cleanup helper を追加し、canvas upload texture は source ごと `destroy(true)`、`VideoSource` 経路は `VideoSource.destroy()` と `texture.destroy(false)` に分けるようにした。
+- export overlay cache は export 終了、clip 非表示化、Viewport unmount 時に texture source ごと破棄するようにした。
+- video object の `src` / `proxyFilePath` が差し替わった時、既存 `HTMLVideoElement` と frame texture を使い続けないようにした。
+- package version を `0.1.1-Beta-39b` に更新した。
+
+### 検証
+- `npm test -- src/utils/videoElementForPixi.test.ts src/utils/pixiVideoCutover.test.ts src/utils/sharedRendererVideoCutoverStack.test.ts src/utils/sharedRendererVideoOwnership.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts`
+  - 5 files / 31 tests passed。
+- `npx tsc --noEmit --pretty false`
+  - 既存残件として `ThreeStageViewport.tsx` の `three` 型定義不足、`heavyEffectsStress.test.ts` の `PositionKeyframe`、`filterStack.test.ts` の fixture 型不整合で失敗。
+  - 今回の cleanup helper / Pixi video cleanup 由来の新規エラーはなし。
+
 ## 2026-06-16 — Phase5: video cutover z-order safety を追加
 
 ### 実施内容
