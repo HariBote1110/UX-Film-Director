@@ -13,12 +13,13 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
       swatch: 'solid-srgb',
     });
 
-    expect(dataset).toEqual({
+    expect(dataset).toMatchObject({
       uxfdSharedRendererPresenterStatus: 'ready',
       uxfdSharedRendererPresenterFormat: 'bgra8unorm',
       uxfdSharedRendererPresenterSwatch: 'solid-srgb',
-      uxfdSharedRendererPresenterFailureReason: undefined,
     });
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterFailureReason');
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterStaleSharedFrameAllowed');
   });
 
   it('publishes fallback reasons and clears ready-only fields', () => {
@@ -32,12 +33,13 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
       reason: 'srgbCanvasFormat',
     });
 
-    expect(dataset).toEqual({
-      uxfdSharedRendererPresenterFormat: undefined,
-      uxfdSharedRendererPresenterSwatch: undefined,
+    expect(dataset).toMatchObject({
       uxfdSharedRendererPresenterStatus: 'fallback',
       uxfdSharedRendererPresenterFailureReason: 'srgbCanvasFormat',
     });
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterFormat');
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterSwatch');
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterStaleSharedFrameAllowed');
   });
 
   it('marks device loss as a Pixi fallback without allowing stale shared frames', () => {
@@ -49,12 +51,12 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
       staleSharedFrameAllowed: false,
     });
 
-    expect(dataset).toEqual({
+    expect(dataset).toMatchObject({
       uxfdSharedRendererPresenterStatus: 'deviceLost',
-      uxfdSharedRendererPresenterFormat: undefined,
-      uxfdSharedRendererPresenterSwatch: undefined,
       uxfdSharedRendererPresenterFailureReason: 'deviceLost',
       uxfdSharedRendererPresenterStaleSharedFrameAllowed: 'false',
     });
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterFormat');
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterSwatch');
   });
 });
