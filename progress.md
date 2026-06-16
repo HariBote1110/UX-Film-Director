@@ -18,6 +18,9 @@
 - `npx tsc --noEmit`
   - shared renderer / Viewport 由来の新規エラーなし。
   - 既存残件として `ThreeStageViewport.tsx` の `three` 型定義不足などは継続。
+- ブラウザ確認（`VITE_UXFD_SHARED_RENDERER_PREVIEW=1 npm run dev -- --host 127.0.0.1 --port 5174`）:
+  - `presenterStatus=ready`, `presenterFormat=bgra8unorm`, `presenterSwatch=pixi-passthrough`, `surfaceGate=ok`。
+  - `data-shared-renderer-css-reference-swatch` は存在せず、console error は 0 件。
 
 ## 2026-06-16 — Phase5: shared renderer video media readiness 診断を追加
 
