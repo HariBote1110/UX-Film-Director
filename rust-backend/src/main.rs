@@ -547,7 +547,9 @@ fn handle_decode_request_frame(id: u64, params: Value, state: &mut BackendState)
         result: Some(json!({
             "accepted": true,
             "jobId": parsed.job_id,
+            "requestId": parsed.request_id,
             "frameIndex": parsed.frame_index,
+            "mode": parsed.mode,
         })),
         error: None,
     }
