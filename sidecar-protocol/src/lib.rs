@@ -6,7 +6,15 @@ const GPU_COPY_BYTES_PER_ROW_ALIGNMENT: u64 = 256;
 #[serde(rename_all = "camelCase")]
 pub struct DecodeFrameRequest {
     pub job_id: String,
+    pub request_id: u64,
     pub frame_index: u64,
+    pub mode: DecodeFrameRequestMode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DecodeFrameRequestMode {
+    LatestWins,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
