@@ -23,8 +23,8 @@ const baseImage = (patch: Partial<ImageObject> = {}): ImageObject => ({
   x: 100,
   y: 200,
   rotation: 0,
-  scaleX: 1.5,
-  scaleY: 0.5,
+  scaleX: 1,
+  scaleY: 1,
   opacity: 0.75,
   enableAnimation: false,
   endX: 100,
@@ -111,8 +111,8 @@ describe('buildRustSceneSnapshotForTimeline', () => {
           transform: {
             translation_x: 100,
             translation_y: 200,
-            scale_x: 1.5,
-            scale_y: 0.5,
+            scale_x: 1,
+            scale_y: 1,
             rotation_degrees: 0,
             sampling: 'bilinear',
           },
@@ -268,6 +268,33 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       'unsupportedGroupComposition',
       'unsupportedMask',
       'unsupportedGroupComposition',
+    ]);
+  });
+
+  it('fails loud for transform sampling cases outside the proven migration envelope', () => {
+    const layers = createDefaultLayers();
+    const scaled = baseImage({
+      id: 'scaled',
+      scaleX: 2,
+    });
+    const subPixel = baseImage({
+      id: 'sub-pixel',
+      x: 10.5,
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [scaled, subPixel],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected snapshot build to fail');
+
+    expect(issueCodes(result.issues)).toEqual([
+      'unsupportedTransform',
+      'unsupportedTransform',
     ]);
   });
 });
