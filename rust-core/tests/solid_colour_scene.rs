@@ -1,8 +1,7 @@
 use uxfd_rust_core::{
     build_solid_colour_draw_list, build_solid_colour_vertex_scene, CanvasSize, ColourPipeline,
     EvaluatedClip, MediaKind, SamplingMode, SceneMediaReference, SceneSnapshot,
-    SolidColourSceneError,
-    Transform,
+    SolidColourSceneError, Transform,
 };
 
 fn solid_colour_snapshot() -> SceneSnapshot {
@@ -101,9 +100,8 @@ fn rust_core_builds_webgpu_vertices_for_solid_colour_rectangles() {
 
 #[test]
 fn rust_core_fails_loud_for_invalid_solid_colour_sources() {
-    let error =
-        build_solid_colour_draw_list(&solid_colour_snapshot(), &solid_colour_media("red"))
-            .expect_err("invalid colour source must fail");
+    let error = build_solid_colour_draw_list(&solid_colour_snapshot(), &solid_colour_media("red"))
+        .expect_err("invalid colour source must fail");
 
     assert_eq!(
         error,
