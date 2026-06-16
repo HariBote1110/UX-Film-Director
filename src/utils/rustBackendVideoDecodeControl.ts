@@ -26,7 +26,9 @@ export interface RustBackendVideoDecodeStartPayload {
 
 export interface RustBackendVideoDecodeFramePayload {
   jobId: string;
+  requestId: number;
   frameIndex: number;
+  mode: 'latestWins';
 }
 
 export interface RustBackendVideoDecodeReleaseFramePayload {

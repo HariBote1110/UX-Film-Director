@@ -39,7 +39,9 @@ interface Window {
     }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
     requestVideoDecodeFrame: (payload: {
       jobId: string;
+      requestId: number;
       frameIndex: number;
+      mode: 'latestWins';
     }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
     releaseVideoDecodeFrame: (payload: {
       jobId: string;
