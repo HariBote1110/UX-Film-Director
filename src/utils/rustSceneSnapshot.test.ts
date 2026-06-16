@@ -194,6 +194,10 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         source: '/tmp/video.mp4',
         width: 1280,
         height: 720,
+        source_rate: {
+          numerator: 60,
+          denominator: 1,
+        },
       },
       {
         id: 'image-1',

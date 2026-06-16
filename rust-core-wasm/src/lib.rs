@@ -67,11 +67,18 @@ struct WasmVideoFrameDecodeRequest {
     media_id: String,
     source: String,
     source_frame: u64,
+    source_rate: WasmFrameRate,
     timeline_frame: u64,
     width: u32,
     height: u32,
     format: &'static str,
     colour: &'static str,
+}
+
+#[derive(Serialize)]
+struct WasmFrameRate {
+    numerator: u32,
+    denominator: u32,
 }
 
 #[derive(Serialize)]
@@ -302,6 +309,10 @@ fn wasm_video_frame_decode_request(
         media_id: request.media_id,
         source: request.source,
         source_frame: request.source_frame,
+        source_rate: WasmFrameRate {
+            numerator: request.source_rate.numerator,
+            denominator: request.source_rate.denominator,
+        },
         timeline_frame: request.timeline_frame,
         width: request.width,
         height: request.height,

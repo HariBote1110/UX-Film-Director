@@ -421,6 +421,10 @@ describe('startSharedRendererPreviewPresenter', () => {
             mediaId: 'video-1',
             source: '/tmp/video.mp4',
             sourceFrame: 90,
+            sourceRate: {
+              numerator: 60,
+              denominator: 1,
+            },
             timelineFrame: 12,
             width: 1280,
             height: 720,

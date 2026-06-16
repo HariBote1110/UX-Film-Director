@@ -11,6 +11,11 @@ import { evaluateObjectPositionAtTime } from './keyframes';
 
 export type RustSamplingMode = 'nearest' | 'bilinear';
 
+export interface RustFrameRate {
+  numerator: number;
+  denominator: number;
+}
+
 export interface RustColourPipeline {
   profile: 'rec709-sdr';
   working_space: 'linear-light';
@@ -51,6 +56,7 @@ export interface RustSceneMediaReference {
   source: string;
   width: number;
   height: number;
+  source_rate?: RustFrameRate;
 }
 
 export type RustSceneSnapshotBuildIssueCode =
@@ -175,7 +181,7 @@ export const buildRustSceneSnapshotForTimeline = ({
       colour: rustColourPipeline(),
       clips,
     },
-    media: supportedObjects.map(mediaReferenceForObject),
+    media: supportedObjects.map((object) => mediaReferenceForObject(object, projectSettings.fps)),
   };
 };
 
@@ -301,7 +307,10 @@ const isSupportedSceneObject = (object: TimelineObject): object is SupportedScen
 const isSupportedRectangleShape = (object: ShapeObject): boolean =>
   object.shapeType === 'rect' && object.gradient?.enabled !== true;
 
-const mediaReferenceForObject = (object: SupportedSceneObject): RustSceneMediaReference => {
+const mediaReferenceForObject = (
+  object: SupportedSceneObject,
+  projectFps: number
+): RustSceneMediaReference => {
   if (object.type === 'shape') {
     return {
       id: object.id,
@@ -318,6 +327,7 @@ const mediaReferenceForObject = (object: SupportedSceneObject): RustSceneMediaRe
     source: mediaSourceForObject(object),
     width: object.width,
     height: object.height,
+    ...(object.type === 'video' ? { source_rate: fpsToFrameRate(projectFps) } : {}),
   };
 };
 
@@ -340,6 +350,36 @@ const secondsToFrameIndex = (seconds: number, fps: number): number => {
   const safeSeconds = Number.isFinite(seconds) ? seconds : 0;
   const safeFps = Number.isFinite(fps) && fps > 0 ? fps : 60;
   return Math.max(0, Math.round(safeSeconds * safeFps));
+};
+
+const fpsToFrameRate = (fps: number): RustFrameRate => {
+  const safeFps = Number.isFinite(fps) && fps > 0 ? fps : 60;
+  const rounded = Math.round(safeFps);
+  if (Math.abs(safeFps - rounded) < 1e-6) {
+    return {
+      numerator: rounded,
+      denominator: 1,
+    };
+  }
+
+  const denominator = 1000;
+  const numerator = Math.max(1, Math.round(safeFps * denominator));
+  const divisor = greatestCommonDivisor(numerator, denominator);
+  return {
+    numerator: numerator / divisor,
+    denominator: denominator / divisor,
+  };
+};
+
+const greatestCommonDivisor = (left: number, right: number): number => {
+  let a = Math.abs(left);
+  let b = Math.abs(right);
+  while (b !== 0) {
+    const remainder = a % b;
+    a = b;
+    b = remainder;
+  }
+  return a || 1;
 };
 
 const clamp01 = (value: number): number => {
@@ -477,12 +517,15 @@ const validateMediaReferences = (
       addIssue(issues, 'schemaMismatch', path, 'media reference must be a JSON object.');
       return;
     }
-    validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height'], issues);
+    validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height', 'source_rate'], issues);
     validateString(reference.id, `${path}.id`, issues);
     validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour'], issues);
     validateString(reference.source, `${path}.source`, issues);
     validatePositiveInteger(reference.width, `${path}.width`, issues);
     validatePositiveInteger(reference.height, `${path}.height`, issues);
+    if (reference.source_rate !== undefined) {
+      validateFrameRate(reference.source_rate, `${path}.source_rate`, issues);
+    }
     if (typeof reference.id === 'string' && reference.id.trim() !== '') {
       if (mediaIds.has(reference.id)) {
         addIssue(issues, 'mediaMismatch', `${path}.id`, `Duplicate media reference '${reference.id}'.`);
@@ -512,6 +555,20 @@ const validateMediaReferences = (
       addIssue(issues, 'mediaMismatch', `media[${index}].id`, `Media reference '${mediaId}' is not used by any clip.`);
     }
   });
+};
+
+const validateFrameRate = (
+  frameRate: unknown,
+  path: string,
+  issues: RustSceneSnapshotBoundaryIssue[]
+) => {
+  if (!isRecord(frameRate)) {
+    addIssue(issues, 'schemaMismatch', path, 'source_rate must be a JSON object when provided.');
+    return;
+  }
+  validateKnownKeys(frameRate, path, ['numerator', 'denominator'], issues);
+  validatePositiveInteger(frameRate.numerator, `${path}.numerator`, issues);
+  validatePositiveInteger(frameRate.denominator, `${path}.denominator`, issues);
 };
 
 const validateString = (

@@ -1,4 +1,5 @@
 import type {
+  RustFrameRate,
   RustSceneMediaReference,
   RustSceneSnapshot,
 } from './rustSceneSnapshot';
@@ -11,6 +12,7 @@ export interface SharedRendererVideoFrameDecodeRequest {
   mediaId: string;
   source: string;
   sourceFrame: number;
+  sourceRate: RustFrameRate;
   timelineFrame: number;
   width: number;
   height: number;
@@ -71,12 +73,21 @@ export const buildSharedRendererVideoFrameDecodeRequests: SharedRendererVideoFra
         mediaId: reference.id,
       };
     }
+    if (!validFrameRate(reference.source_rate)) {
+      return {
+        ok: false,
+        reason: 'invalidVideoMediaReference',
+        detail: 'Video media source_rate must be present and rational.',
+        mediaId: reference.id,
+      };
+    }
 
     requests.push({
       clipId: clip.clip_id,
       mediaId: reference.id,
       source: reference.source,
       sourceFrame: clip.source_frame,
+      sourceRate: reference.source_rate,
       timelineFrame: snapshot.frame_index,
       width: reference.width,
       height: reference.height,
@@ -91,3 +102,10 @@ export const buildSharedRendererVideoFrameDecodeRequests: SharedRendererVideoFra
     requests,
   };
 };
+
+const validFrameRate = (frameRate: RustFrameRate | undefined): frameRate is RustFrameRate =>
+  frameRate !== undefined
+  && Number.isInteger(frameRate.numerator)
+  && Number.isInteger(frameRate.denominator)
+  && frameRate.numerator > 0
+  && frameRate.denominator > 0;

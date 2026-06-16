@@ -6,6 +6,7 @@ import type {
   SharedRendererVideoFrameDecodeRequestInput,
   SharedRendererVideoFrameDecodeRequestResult,
 } from './sharedRendererVideoDecodeRequest';
+import type { RustFrameRate } from './rustSceneSnapshot';
 
 export interface SharedRendererRustVideoFrameDecodeRequestWasmModule {
   build_video_frame_decode_requests: (
@@ -110,6 +111,7 @@ const normaliseRequests = (requests: unknown): SharedRendererVideoFrameDecodeReq
       mediaId: stringValue(request.media_id),
       source: stringValue(request.source),
       sourceFrame: numberValue(request.source_frame),
+      sourceRate: frameRateValue(request.source_rate),
       timelineFrame: numberValue(request.timeline_frame),
       width: numberValue(request.width),
       height: numberValue(request.height),
@@ -123,6 +125,16 @@ const videoFrameFormatValue = (value: unknown): SharedRendererDecodedVideoFrameF
 
 const videoDecodeColourValue = (value: unknown): SharedRendererVideoDecodeColour =>
   value === 'rec709SrgbFullRange' ? 'rec709SrgbFullRange' : 'rec709SrgbFullRange';
+
+const frameRateValue = (value: unknown): RustFrameRate => {
+  if (!isRecord(value)) {
+    return { numerator: 1, denominator: 1 };
+  }
+  return {
+    numerator: numberValue(value.numerator),
+    denominator: numberValue(value.denominator),
+  };
+};
 
 const numberValue = (value: unknown): number =>
   typeof value === 'number' && Number.isFinite(value) ? value : 0;
