@@ -189,6 +189,7 @@ TDD / 検証タスク:
 - shipping 向け bt709 transfer H.264 4:4:4 export が known-content swatch で許容差内に収まる。
 - distribution 向け bt709 H.264 4:2:0 export の full-frame envelope と stable-region correctness が分離されている。
 - watchdog recovery 後の stale slot release が generation mismatch で拒否される。
+- limited range H.264 input が metadata-driven decode で full-range `Rgba8Srgb` に正規化される。
 
 ## Phase 5: Pixi から shared renderer への移行
 

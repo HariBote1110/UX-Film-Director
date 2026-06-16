@@ -102,6 +102,10 @@ Phase 3 の renderer parity spike は sidecar decode に依存しない。動画
 - 期待 RGBA と decoded RGBA を `golden-harness` で比較する。
 - 実測: `maxDelta=2`、`meanAbsoluteError=0.3125`、`PSNR=52.042869868809795`、
   `SSIM=0.9999737802566389`、CRC32=`ef46fca8`。
+- limited range input gate では、同じ swatch を `range=tv` / `color_range=tv` の H.264 4:4:4 として生成し、
+  `ffprobe` の `color_range` を読んで `scale=in_range=tv:out_range=pc` を明示する。
+- limited range decode -> full-range RGBA の実測: `maxDelta=1`、`meanAbsoluteError=0.25`、
+  `PSNR=54.15140352195873`、`SSIM=0.9999824540291767`。
 
 この spike の目的は `preview == export` の一致ではなく、既知入力に対する decode -> colour conversion -> descriptor
 の正しさを確認することである。preview / export が同一 decoded buffer を共有する構成では、両者の一致だけでは

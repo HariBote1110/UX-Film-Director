@@ -61,6 +61,9 @@ PNG / RGBA8 画像入力は sRGB transfer として扱う。
 sRGB transfer に正規化済み」という意味で使う。BT.709 transfer の動画を厳密に扱う場合は、sidecar 側で
 BT.709 EOTF -> linear -> sRGB OETF の正規化を行うか、renderer が `transfer=bt709` を decode できるようにする。
 
+source が limited range (`tv`) の場合も、sidecar decode は metadata を読んで full-range RGBA へ展開し、
+renderer handoff metadata は `range=full` に揃える。limited range を `full` として無音処理してはいけない。
+
 MVP では、まず sidecar handoff を `Rgba8Srgb` に揃えて preview / export parity を閉じる。BT.709 transfer と
 sRGB transfer の差を厳密に保持する HDR / 放送規格向け処理は、後続の colour-management gate で扱う。
 

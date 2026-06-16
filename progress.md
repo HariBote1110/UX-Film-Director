@@ -650,6 +650,33 @@
 - `cargo fmt --manifest-path sidecar-protocol/Cargo.toml`
 - `cargo test --manifest-path sidecar-protocol/Cargo.toml --test ring_buffer` -> 8 tests passed。
 
+## 2026-06-16 — Breadth: limited range H.264 decode gate
+
+### Red
+- `decode-spike/tests/limited_range_decode.rs` を追加し、source H.264 が `color_range=tv` の場合でも
+  sidecar decode が full-range `Rgba8Srgb` descriptor を返す契約を固定した。
+- limited range encode filter が `rangein=full` から `range=limited` へ明示変換することを test 化した。
+
+### Green
+- `explicit_rgba_to_limited_range_h264_444_filter` と
+  `build_known_cfr_h264_limited_range_fixture` を実装した。
+- `decode_fixture_to_shared_rgba` は `ffprobe` の `color_range` を読み、`pc` / `tv` に応じて
+  `scale=in_range=...:out_range=pc` を明示するようにした。
+- unknown / missing range は無音で full range 扱いせず、probe error として扱う。
+
+### 実測結果
+- limited range H.264 4:4:4 -> full-range RGBA: `maxDelta=1`、`meanAbsoluteError=0.25`、
+  `PSNR=54.15140352195873`、`SSIM=0.9999824540291767`。
+
+### 文書更新
+- `markdown/architecture/03-colour-pipeline.md` に limited range source を full-range renderer handoff へ正規化する契約を追記した。
+- `markdown/architecture/05-boundary-ipc.md` に limited range decode gate の実測値を追記した。
+- `markdown/roadmap.md` の Phase4 完了条件に limited range H.264 input gate を追加した。
+
+### 確認結果
+- `cargo fmt --manifest-path decode-spike/Cargo.toml`
+- `cargo test --manifest-path decode-spike/Cargo.toml --test limited_range_decode -- --nocapture` -> 2 tests passed。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）

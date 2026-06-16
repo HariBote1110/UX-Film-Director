@@ -57,6 +57,10 @@ pub enum DecodeSpikeError {
     },
     ProbeJson(serde_json::Error),
     MissingProbeField(&'static str),
+    UnsupportedProbeValue {
+        field: &'static str,
+        value: String,
+    },
 }
 
 pub fn explicit_rgba_to_h264_444_filter() -> &'static str {
@@ -79,14 +83,40 @@ pub fn explicit_rgba_to_h264_420_bt709_filter() -> &'static str {
     "zscale=primariesin=bt709:transferin=iec61966-2-1:matrixin=gbr:rangein=full:primaries=bt709:transfer=bt709:matrix=bt709:range=full,format=yuv420p"
 }
 
+pub fn explicit_rgba_to_limited_range_h264_444_filter() -> &'static str {
+    "zscale=primariesin=bt709:transferin=iec61966-2-1:matrixin=gbr:rangein=full:primaries=bt709:transfer=iec61966-2-1:matrix=bt709:range=limited,format=yuv444p"
+}
+
 pub fn build_known_cfr_h264_fixture(
     directory: &Path,
+) -> Result<KnownCfrH264Fixture, DecodeSpikeError> {
+    build_known_cfr_h264_fixture_with_range(directory, "known-cfr-h264.mp4", None, "pc", "pc")
+}
+
+pub fn build_known_cfr_h264_limited_range_fixture(
+    directory: &Path,
+) -> Result<KnownCfrH264Fixture, DecodeSpikeError> {
+    build_known_cfr_h264_fixture_with_range(
+        directory,
+        "known-cfr-h264-limited.mp4",
+        Some(explicit_rgba_to_limited_range_h264_444_filter()),
+        "tv",
+        "tv",
+    )
+}
+
+fn build_known_cfr_h264_fixture_with_range(
+    directory: &Path,
+    file_name: &str,
+    video_filter: Option<&'static str>,
+    x264_range: &'static str,
+    container_range: &'static str,
 ) -> Result<KnownCfrH264Fixture, DecodeSpikeError> {
     fs::create_dir_all(directory).map_err(DecodeSpikeError::Io)?;
 
     let expected_frame = known_colour_swatch_frame(32, 16)?;
     let raw_path = directory.join("known-frame.rgba");
-    let video_path = directory.join("known-cfr-h264.mp4");
+    let video_path = directory.join(file_name);
 
     fs::write(&raw_path, &expected_frame.pixels).map_err(DecodeSpikeError::Io)?;
 
@@ -110,7 +140,13 @@ pub fn build_known_cfr_h264_fixture(
         .arg("-i")
         .arg(&raw_path)
         .arg("-frames:v")
-        .arg("1")
+        .arg("1");
+
+    if let Some(video_filter) = video_filter {
+        command.arg("-vf").arg(video_filter);
+    }
+
+    command
         .arg("-pix_fmt")
         .arg("yuv444p")
         .arg("-c:v")
@@ -120,7 +156,9 @@ pub fn build_known_cfr_h264_fixture(
         .arg("-crf")
         .arg("0")
         .arg("-x264-params")
-        .arg("keyint=1:min-keyint=1:scenecut=0:range=pc:colorprim=bt709:transfer=iec61966-2-1:colormatrix=bt709")
+        .arg(format!(
+            "keyint=1:min-keyint=1:scenecut=0:range={x264_range}:colorprim=bt709:transfer=iec61966-2-1:colormatrix=bt709"
+        ))
         .arg("-color_primaries")
         .arg("bt709")
         .arg("-color_trc")
@@ -128,7 +166,7 @@ pub fn build_known_cfr_h264_fixture(
         .arg("-colorspace")
         .arg("bt709")
         .arg("-color_range")
-        .arg("pc")
+        .arg(container_range)
         .arg("-video_track_timescale")
         .arg("30")
         .arg(&video_path);
@@ -293,6 +331,10 @@ pub fn decode_fixture_to_shared_rgba(
     fixture: &KnownCfrH264Fixture,
 ) -> Result<DecodedSharedRgba, DecodeSpikeError> {
     let decoded_path = fixture.path.with_extension("decoded.rgba");
+    let input_range = decode_input_range(&fixture.probe)?;
+    let decode_filter = format!(
+        "scale=in_range={input_range}:out_range=pc:in_color_matrix=bt709:out_color_matrix=bt709,format=rgba"
+    );
 
     let mut command = Command::new("ffmpeg");
     command
@@ -305,7 +347,7 @@ pub fn decode_fixture_to_shared_rgba(
         .arg("-frames:v")
         .arg("1")
         .arg("-vf")
-        .arg("scale=in_range=pc:out_range=pc:in_color_matrix=bt709:out_color_matrix=bt709,format=rgba")
+        .arg(decode_filter)
         .arg("-pix_fmt")
         .arg("rgba")
         .arg("-f")
@@ -363,6 +405,18 @@ pub fn decode_fixture_to_shared_rgba(
         decode_invocation_count: 1,
         verification,
     })
+}
+
+fn decode_input_range(probe: &ProbeSummary) -> Result<&'static str, DecodeSpikeError> {
+    match probe.colour_range.as_deref() {
+        Some("pc") => Ok("pc"),
+        Some("tv") => Ok("tv"),
+        Some(value) => Err(DecodeSpikeError::UnsupportedProbeValue {
+            field: "color_range",
+            value: value.to_string(),
+        }),
+        None => Err(DecodeSpikeError::MissingProbeField("color_range")),
+    }
 }
 
 pub fn known_colour_swatch_frame(width: u32, height: u32) -> Result<RgbaFrame, DecodeSpikeError> {
