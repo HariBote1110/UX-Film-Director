@@ -15,6 +15,10 @@ fn decode_start_returns_shared_ring_layout_without_frame_bytes() {
             "slotCount": 3,
             "width": 1919,
             "height": 2,
+            "sourceRate": {
+                "numerator": 60,
+                "denominator": 1
+            },
             "format": "rgba8Srgb",
             "colour": {
                 "primaries": "bt709",
@@ -29,6 +33,8 @@ fn decode_start_returns_shared_ring_layout_without_frame_bytes() {
     assert_eq!(response["result"]["jobId"], "decode-1");
     assert_eq!(response["result"]["memoryId"], "decode-1-ring");
     assert_eq!(response["result"]["slotCount"], 3);
+    assert_eq!(response["result"]["sourceRate"]["numerator"], 60);
+    assert_eq!(response["result"]["sourceRate"]["denominator"], 1);
     assert_eq!(response["result"]["strideBytes"], 7680);
     assert_eq!(response["result"]["slotByteLen"], 15360);
     assert_no_frame_bytes(&response["result"]);
@@ -119,6 +125,10 @@ impl BackendProcess {
                 "slotCount": 2,
                 "width": 1280,
                 "height": 720,
+                "sourceRate": {
+                    "numerator": 60,
+                    "denominator": 1
+                },
                 "format": "rgba8Srgb",
                 "colour": {
                     "primaries": "bt709",
