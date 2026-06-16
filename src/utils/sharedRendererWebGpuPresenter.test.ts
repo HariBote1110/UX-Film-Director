@@ -124,6 +124,35 @@ describe('createSharedRendererWebGpuPresenter', () => {
       },
     ]);
   });
+
+  it('suppresses device-lost callbacks after dispose', async () => {
+    let resolveLost!: (value: unknown) => void;
+    const lost = new Promise((resolve) => {
+      resolveLost = resolve;
+    });
+    const fallbackEvents: unknown[] = [];
+
+    const result = await createSharedRendererWebGpuPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      surfaceGate: okSurfaceGate,
+      presentationContract: buildSharedRendererPresentationContract(),
+      gpu: fakeGpu({
+        onRequestAdapter: () => fakeAdapter({ lost }),
+      }),
+      textureUsageRenderAttachment: 16,
+      onDeviceLost: (event) => {
+        fallbackEvents.push(event);
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected presenter creation to pass');
+    result.dispose();
+    resolveLost({ reason: 'destroyed', message: 'late device lost' });
+    await Promise.resolve();
+
+    expect(fallbackEvents).toEqual([]);
+  });
 });
 
 const fakeCanvas = (getContext: () => unknown) =>
