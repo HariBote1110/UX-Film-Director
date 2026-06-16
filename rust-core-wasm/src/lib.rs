@@ -1,8 +1,10 @@
 use serde::Serialize;
 use uxfd_rust_core::{
     build_solid_colour_vertex_scene as build_solid_colour_scene,
+    build_video_frame_decode_requests as build_video_decode_requests,
     build_video_plane_vertex_scene as build_video_scene, CanvasSize, SceneMediaReference,
-    SceneSnapshot, SolidColourSceneError, VideoPlane, VideoPlaneSceneError,
+    SceneSnapshot, SolidColourSceneError, VideoFrameDecodeRequest, VideoFrameDecodeRequestError,
+    VideoPlane, VideoPlaneSceneError,
 };
 use wasm_bindgen::prelude::*;
 
@@ -57,6 +59,41 @@ struct WasmVideoPlaneVertexSceneFailure {
 enum WasmVideoPlaneVertexSceneResult {
     Success(WasmVideoPlaneVertexSceneSuccess),
     Failure(WasmVideoPlaneVertexSceneFailure),
+}
+
+#[derive(Serialize)]
+struct WasmVideoFrameDecodeRequest {
+    clip_id: String,
+    media_id: String,
+    source: String,
+    source_frame: u64,
+    timeline_frame: u64,
+    width: u32,
+    height: u32,
+    format: &'static str,
+    colour: &'static str,
+}
+
+#[derive(Serialize)]
+struct WasmVideoFrameDecodeRequestSuccess {
+    ok: bool,
+    request_count: u32,
+    requests: Vec<WasmVideoFrameDecodeRequest>,
+}
+
+#[derive(Serialize)]
+struct WasmVideoFrameDecodeRequestFailure {
+    ok: bool,
+    reason: &'static str,
+    detail: String,
+    media_id: String,
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum WasmVideoFrameDecodeRequestResult {
+    Success(WasmVideoFrameDecodeRequestSuccess),
+    Failure(WasmVideoFrameDecodeRequestFailure),
 }
 
 #[wasm_bindgen]
@@ -162,6 +199,51 @@ pub fn build_video_plane_vertex_scene(
     }
 }
 
+#[wasm_bindgen]
+pub fn build_video_frame_decode_requests(snapshot: JsValue, media: JsValue) -> JsValue {
+    let snapshot: SceneSnapshot = match serde_wasm_bindgen::from_value(snapshot) {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            return to_video_decode_js_value(WasmVideoFrameDecodeRequestResult::Failure(
+                video_decode_failure(
+                    "unknown",
+                    format!("SceneSnapshot payload could not be deserialised: {error}"),
+                ),
+            ));
+        }
+    };
+    let media: Vec<SceneMediaReference> = match serde_wasm_bindgen::from_value(media) {
+        Ok(media) => media,
+        Err(error) => {
+            return to_video_decode_js_value(WasmVideoFrameDecodeRequestResult::Failure(
+                video_decode_failure(
+                    "unknown",
+                    format!("Scene media payload could not be deserialised: {error}"),
+                ),
+            ));
+        }
+    };
+
+    match build_video_decode_requests(&snapshot, &media) {
+        Ok(request_set) => to_video_decode_js_value(WasmVideoFrameDecodeRequestResult::Success(
+            WasmVideoFrameDecodeRequestSuccess {
+                ok: true,
+                request_count: request_set.request_count,
+                requests: request_set
+                    .requests
+                    .into_iter()
+                    .map(wasm_video_frame_decode_request)
+                    .collect(),
+            },
+        )),
+        Err(VideoFrameDecodeRequestError::InvalidVideoMediaReference { media_id, detail }) => {
+            to_video_decode_js_value(WasmVideoFrameDecodeRequestResult::Failure(
+                video_decode_failure(media_id, detail),
+            ))
+        }
+    }
+}
+
 fn failure(
     media_id: impl Into<String>,
     detail: impl Into<String>,
@@ -197,5 +279,37 @@ fn wasm_video_plane(plane: VideoPlane) -> WasmVideoPlane {
 }
 
 fn to_video_js_value(result: WasmVideoPlaneVertexSceneResult) -> JsValue {
+    serde_wasm_bindgen::to_value(&result).unwrap_or(JsValue::NULL)
+}
+
+fn video_decode_failure(
+    media_id: impl Into<String>,
+    detail: impl Into<String>,
+) -> WasmVideoFrameDecodeRequestFailure {
+    WasmVideoFrameDecodeRequestFailure {
+        ok: false,
+        reason: "invalidVideoMediaReference",
+        detail: detail.into(),
+        media_id: media_id.into(),
+    }
+}
+
+fn wasm_video_frame_decode_request(
+    request: VideoFrameDecodeRequest,
+) -> WasmVideoFrameDecodeRequest {
+    WasmVideoFrameDecodeRequest {
+        clip_id: request.clip_id,
+        media_id: request.media_id,
+        source: request.source,
+        source_frame: request.source_frame,
+        timeline_frame: request.timeline_frame,
+        width: request.width,
+        height: request.height,
+        format: "rgba8Srgb",
+        colour: "rec709SrgbFullRange",
+    }
+}
+
+fn to_video_decode_js_value(result: WasmVideoFrameDecodeRequestResult) -> JsValue {
     serde_wasm_bindgen::to_value(&result).unwrap_or(JsValue::NULL)
 }

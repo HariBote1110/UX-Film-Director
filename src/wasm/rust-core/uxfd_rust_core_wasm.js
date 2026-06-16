@@ -15,6 +15,16 @@ export function build_solid_colour_vertex_scene(snapshot, media, canvas_width, c
 /**
  * @param {any} snapshot
  * @param {any} media
+ * @returns {any}
+ */
+export function build_video_frame_decode_requests(snapshot, media) {
+    const ret = wasm.build_video_frame_decode_requests(snapshot, media);
+    return ret;
+}
+
+/**
+ * @param {any} snapshot
+ * @param {any} media
  * @param {number} canvas_width
  * @param {number} canvas_height
  * @returns {any}
