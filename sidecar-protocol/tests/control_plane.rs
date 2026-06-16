@@ -1,7 +1,7 @@
 use uxfd_sidecar_protocol::{
-    ColourMetadata, ControlEvent, CopyOutState, DecodeFrameRequest, DecodeReleaseFrameRequest,
-    DecodeStartRequest, DecodeStartResponse, FrameDescriptor, FrameFormat, FrameRate,
-    SharedFrame,
+    ColourMetadata, ControlEvent, CopyOutState, DecodeFrameRequest, DecodeFrameRequestMode,
+    DecodeReleaseFrameRequest, DecodeStartRequest, DecodeStartResponse, FrameDescriptor,
+    FrameFormat, FrameRate, SharedFrame,
 };
 
 #[test]
@@ -106,13 +106,17 @@ fn frame_ready_event_serialises_descriptor_without_frame_bytes() {
 fn decode_frame_request_uses_frame_index_not_float_seconds() {
     let request = DecodeFrameRequest {
         job_id: "decode-1".to_string(),
+        request_id: 7,
         frame_index: 120,
+        mode: DecodeFrameRequestMode::LatestWins,
     };
 
     let encoded = serde_json::to_value(request).expect("serialise decode request");
 
     assert_eq!(encoded["jobId"], "decode-1");
+    assert_eq!(encoded["requestId"], 7);
     assert_eq!(encoded["frameIndex"], 120);
+    assert_eq!(encoded["mode"], "latestWins");
     assert!(encoded.get("seconds").is_none());
     assert!(encoded.get("time").is_none());
 }
