@@ -8,6 +8,8 @@ export type SharedRendererPresenterDiagnosticState =
       swatch: 'solid-srgb' | 'solid-colour-scene' | 'pixi-passthrough';
       geometrySource?: 'rust-wasm' | 'typescript';
       videoGeometrySource?: 'rust-wasm' | 'typescript';
+      videoDecodeRequestSource?: 'rust-wasm' | 'typescript';
+      videoDecodeRequestCount?: number;
     }
   | {
       status: 'fallback';
@@ -30,6 +32,8 @@ export const writeSharedRendererPresenterDiagnostics = (
   delete dataset.uxfdSharedRendererPresenterSwatch;
   delete dataset.uxfdSharedRendererPresenterGeometrySource;
   delete dataset.uxfdSharedRendererPresenterVideoGeometrySource;
+  delete dataset.uxfdSharedRendererPresenterVideoDecodeRequestSource;
+  delete dataset.uxfdSharedRendererPresenterVideoDecodeRequestCount;
   delete dataset.uxfdSharedRendererPresenterFailureReason;
   delete dataset.uxfdSharedRendererPresenterStaleSharedFrameAllowed;
 
@@ -41,6 +45,12 @@ export const writeSharedRendererPresenterDiagnostics = (
     }
     if (state.videoGeometrySource) {
       dataset.uxfdSharedRendererPresenterVideoGeometrySource = state.videoGeometrySource;
+    }
+    if (state.videoDecodeRequestSource) {
+      dataset.uxfdSharedRendererPresenterVideoDecodeRequestSource = state.videoDecodeRequestSource;
+    }
+    if (typeof state.videoDecodeRequestCount === 'number') {
+      dataset.uxfdSharedRendererPresenterVideoDecodeRequestCount = String(state.videoDecodeRequestCount);
     }
     return;
   }

@@ -368,6 +368,7 @@ describe('startSharedRendererPreviewPresenter', () => {
       session: videoSession,
       datasets: [dataset],
       diagnosticSwatchEnabled: false,
+      rustVideoFrameDecodeRequestWasmEnabled: false,
       rustVideoPlaneVertexSceneBuilder: (input) => {
         builderCalls.push(input);
         return {

@@ -5,11 +5,16 @@ import {
   type SharedRendererVideoPlaneVertexSceneBuilder,
 } from './sharedRendererVideoPlaneScene';
 import {
+  buildSharedRendererVideoFrameDecodeRequests,
+  type SharedRendererVideoFrameDecodeRequestBuilder,
+} from './sharedRendererVideoDecodeRequest';
+import {
   createSharedRendererWebGpuPresenter,
   type SharedRendererSolidSrgbSwatch,
   type SharedRendererWebGpuLike,
 } from './sharedRendererWebGpuPresenter';
 import { loadSharedRendererRustSolidColourVertexSceneBuilder } from './sharedRendererRustSolidColourScene';
+import { loadSharedRendererRustVideoFrameDecodeRequestBuilder } from './sharedRendererRustVideoDecodeRequest';
 import { loadSharedRendererRustVideoPlaneVertexSceneBuilder } from './sharedRendererRustVideoPlaneScene';
 import {
   writeSharedRendererPresenterDiagnostics,
@@ -57,6 +62,8 @@ export interface StartSharedRendererPreviewPresenterInput {
   rustSolidColourVertexSceneBuilder?: SharedRendererSolidColourVertexSceneBuilder;
   rustVideoPlaneWasmEnabled?: boolean;
   rustVideoPlaneVertexSceneBuilder?: SharedRendererVideoPlaneVertexSceneBuilder;
+  rustVideoFrameDecodeRequestWasmEnabled?: boolean;
+  rustVideoFrameDecodeRequestBuilder?: SharedRendererVideoFrameDecodeRequestBuilder;
 }
 
 export const startSharedRendererPreviewPresenter = async ({
@@ -72,6 +79,8 @@ export const startSharedRendererPreviewPresenter = async ({
   rustSolidColourVertexSceneBuilder,
   rustVideoPlaneWasmEnabled = defaultRustVideoPlaneWasmEnabled(),
   rustVideoPlaneVertexSceneBuilder,
+  rustVideoFrameDecodeRequestWasmEnabled = defaultRustVideoFrameDecodeRequestWasmEnabled(),
+  rustVideoFrameDecodeRequestBuilder,
 }: StartSharedRendererPreviewPresenterInput): Promise<SharedRendererPreviewPresenterControl> => {
   const writeDiagnostics = (state: SharedRendererPresenterDiagnosticState) => {
     datasets.forEach((dataset) => {
@@ -123,6 +132,30 @@ export const startSharedRendererPreviewPresenter = async ({
     ? resolvedRustVideoPlaneVertexSceneBuilder
       ? 'rust-wasm'
       : 'typescript'
+    : undefined;
+  const resolvedRustVideoFrameDecodeRequestBuilder = hasVideoScene
+    ? rustVideoFrameDecodeRequestBuilder
+      ?? await loadSharedRendererRustVideoFrameDecodeRequestBuilder({
+        enabled: rustVideoFrameDecodeRequestWasmEnabled,
+      })
+    : null;
+  const videoFrameDecodeRequestBuilder = hasVideoScene
+    ? resolvedRustVideoFrameDecodeRequestBuilder
+      ?? buildSharedRendererVideoFrameDecodeRequests
+    : null;
+  const videoDecodeRequestResult = videoFrameDecodeRequestBuilder
+    ? videoFrameDecodeRequestBuilder({
+      snapshot: session.surfaceGate.snapshot,
+      media: session.surfaceGate.media,
+    })
+    : null;
+  const videoDecodeRequestSource = hasVideoScene
+    ? resolvedRustVideoFrameDecodeRequestBuilder
+      ? 'rust-wasm'
+      : 'typescript'
+    : undefined;
+  const videoDecodeRequestCount = videoDecodeRequestResult?.ok
+    ? videoDecodeRequestResult.requestCount
     : undefined;
 
   const presenter = await createSharedRendererWebGpuPresenter({
@@ -181,6 +214,8 @@ export const startSharedRendererPreviewPresenter = async ({
     format: presenter.format,
     geometrySource: solidColourGeometrySource,
     videoGeometrySource,
+    videoDecodeRequestSource,
+    videoDecodeRequestCount,
     swatch: hasSolidColourScene
       ? 'solid-colour-scene'
       : diagnosticSwatchEnabled
@@ -201,6 +236,9 @@ const defaultRustSolidColourWasmEnabled = (): boolean =>
   import.meta.env.VITE_UXFD_SHARED_RENDERER_RUST_SHAPES !== '0';
 
 const defaultRustVideoPlaneWasmEnabled = (): boolean =>
+  import.meta.env.VITE_UXFD_SHARED_RENDERER_RUST_VIDEO !== '0';
+
+const defaultRustVideoFrameDecodeRequestWasmEnabled = (): boolean =>
   import.meta.env.VITE_UXFD_SHARED_RENDERER_RUST_VIDEO !== '0';
 
 const hasSolidColourClip = (session: SharedRendererPreviewSession): boolean => {
