@@ -24,6 +24,7 @@ import {
   buildSharedRendererVideoOwnership,
   type SharedRendererVideoOwnership,
 } from './sharedRendererVideoOwnership';
+import { buildSharedRendererVideoCutoverStackSafety } from './sharedRendererVideoCutoverStack';
 
 export const SHARED_RENDERER_SOLID_SWATCH: SharedRendererSolidSrgbSwatch = {
   red: 0.25,
@@ -166,12 +167,22 @@ export const startSharedRendererPreviewPresenter = async ({
   const videoDecodeRequestCount = videoDecodeRequestResult?.ok
     ? videoDecodeRequestResult.requestCount
     : undefined;
+  const videoCutoverStackSafety = videoDecodeRequestResult?.ok
+    ? buildSharedRendererVideoCutoverStackSafety({
+      snapshot: session.surfaceGate.snapshot,
+      media: session.surfaceGate.media,
+      candidateVideoObjectIds: videoDecodeRequestResult.requests.map((request) => request.clipId),
+    })
+    : null;
   const videoOwnership = buildSharedRendererVideoOwnership({
     cutoverEnabled: sharedRendererVideoCutoverEnabled,
     hasVideoScene,
     videoDecodeRequestSource,
     videoDecodeRequestResult,
     videoFrameUploadReady: sharedRendererVideoFrameUploadReady,
+    stackSafeVideoObjectIds: videoCutoverStackSafety
+      ? new Set(videoCutoverStackSafety.safeVideoObjectIds)
+      : undefined,
   });
 
   const presenter = await createSharedRendererWebGpuPresenter({
