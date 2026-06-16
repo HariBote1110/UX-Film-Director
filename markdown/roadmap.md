@@ -225,6 +225,10 @@ Phase 1 から 4 が成立した後に開始する。
 4. Bridge: adapter 出力を WebGPU shared renderer preview surface へ渡し、Pixi preview と並走できる feature flag を作る
 5. Cutover: 代表 scene の preview / native export parity が通った範囲から Pixi 経路を外す
 
+初回 bridge は Pixi を primary renderer のまま維持し、shared renderer は `parallelCompare` candidate として扱う。
+Pixi との差分は legacy oracle ではなく triage signal とし、解析的 reference / native parity gate と矛盾する場合は
+Pixi 側の旧挙動を疑う。
+
 ## 後回しにするもの
 
 - 滑らかなリアルタイム再生

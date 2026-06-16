@@ -863,6 +863,24 @@
 ### 確認結果
 - `npm test -- src/utils/rustSceneSnapshot.test.ts` -> 5 tests passed。
 
+## 2026-06-16 — Phase5: shared renderer preview bridge plan gate
+
+### Red
+- `src/utils/sharedRendererPreviewBridge.test.ts` を追加し、shared renderer preview の入口方針を固定した。
+- flag disabled では Pixi only、adapter OK では Pixi primary / shared renderer candidate の `parallelCompare`、
+  unsupported scene では Pixi fallback になることを test 化した。
+- 未実装の `sharedRendererPreviewBridge` module import error で Red を確認した。
+
+### Green
+- `src/utils/sharedRendererPreviewBridge.ts` を追加し、`buildSharedRendererPreviewPlan` を実装した。
+- bridge は Pixi を即 cutover せず、shared renderer を comparison candidate として返す。
+- adapter issue がある場合は `pixiFallback` とし、unsupported feature を黙って近似しない。
+- `markdown/roadmap.md` に Pixi は oracle ではなく triage signal として扱う方針を追記した。
+- `package.json` / `package-lock.json` を `0.1.1-Beta-21a` に更新した。
+
+### 確認結果
+- `npm test -- src/utils/sharedRendererPreviewBridge.test.ts` -> 3 tests passed。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）
