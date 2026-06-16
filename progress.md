@@ -912,6 +912,24 @@
 ### 確認結果
 - `npm test -- src/utils/rustSceneSnapshotBoundary.test.ts` -> 3 tests passed。
 
+## 2026-06-16 — Phase5: shared renderer preview surface gate
+
+### Red
+- `src/utils/sharedRendererPreviewSurface.test.ts` を追加し、shared renderer canvas を mount してよい条件を
+  UI から切り離した純粋関数の契約として固定した。
+- `parallelCompare` 以外、export 中、3D editor mode、不正 project size、WebGPU 不在、fallback adapter、
+  Rust boundary validation 失敗を明示理由つきで block する test を追加した。
+- 未実装 module import error で Red を確認した。
+
+### Green
+- `src/utils/sharedRendererPreviewSurface.ts` を追加し、`buildSharedRendererPreviewSurfaceGate` を実装した。
+- Gate が通る時だけ canvas size、snapshot、media references を返し、Pixi primary / shared renderer candidate の
+  read-only 並走条件を固定した。
+- `package.json` / `package-lock.json` を `0.1.1-Beta-24a` に更新した。
+
+### 確認結果
+- `npm test -- src/utils/sharedRendererPreviewSurface.test.ts` -> 3 tests passed。
+
 ## 2026-05-31 — 中間ファイル生成を SW(libx264) 化＋実測ベンチ
 
 ### 実施内容（不具合修正）
