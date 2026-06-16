@@ -1,7 +1,11 @@
 import * as PIXI from 'pixi.js';
 import { TimelineObject, VideoObject, GroupControlObject, AudioVisualizationObject, AudioObject, ClippingParams, GradientFill, ObjectFilter } from '../types';
 import { createGradientTexture, drawShape, getCurrentViseme, renderPsdTree, cacheTextureFromUrl } from './pixiUtils';
-import { applyIntrinsicSizeToVideoElement, destroyVideoSourcePreservingPlayUrl } from './videoElementForPixi';
+import {
+    applyIntrinsicSizeToVideoElement,
+    destroyVideoFrameTextureState,
+    shouldReplacePixiVideoElementSource,
+} from './videoElementForPixi';
 import { evaluateObjectPositionAtTime } from './keyframes';
 import { evaluateSubjectCropNormRectAtTime } from './subjectCropKeyframes';
 import { getEnabledObjectFiltersInOrder } from './filterStack';
@@ -429,10 +433,7 @@ const ensureVideoFrameTextureState = (
     }
 
     if (existing) {
-        if (existing.uploadMode === 'video-source') {
-            destroyVideoSourcePreservingPlayUrl(video, existing.videoSource);
-        }
-        existing.texture.destroy(false);
+        destroyVideoFrameTextureState(existing, video);
         videoFrameTextures.delete(videoId);
     }
 
@@ -863,10 +864,21 @@ export const updatePixiContent = (
         // ── 通常パス（プレビュー・シーク方式フォールバック）─────────────────
 
         let video = videoElements.get(obj.id);
+        const playSrc = obj.proxyFilePath ? `file://${obj.proxyFilePath}` : obj.src;
+        if (video && shouldReplacePixiVideoElementSource(video, playSrc)) {
+            const frameTexture = videoFrameTextures.get(obj.id);
+            if (frameTexture) {
+                destroyVideoFrameTextureState(frameTexture, video);
+                videoFrameTextures.delete(obj.id);
+            }
+            video.pause();
+            video.src = playSrc;
+            video.load();
+            video.addEventListener('canplay', () => setRenderTick(p => p+1), { once: true });
+        }
         if (!video) {
             video = document.createElement('video');
             // プロキシが存在する場合は再生に使用する（エクスポート時は obj.src を使う）
-            const playSrc = obj.proxyFilePath ? `file://${obj.proxyFilePath}` : obj.src;
             video.src = playSrc; video.muted = obj.muted; video.volume = obj.volume; video.crossOrigin = 'anonymous'; video.preload = 'auto'; video.playsInline = true;
             video.addEventListener('canplay', () => setRenderTick(p => p+1), { once: true });
             videoElements.set(obj.id, video);

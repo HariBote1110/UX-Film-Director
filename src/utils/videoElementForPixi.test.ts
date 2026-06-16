@@ -87,8 +87,10 @@ describe('destroyVideoFrameTextureState', () => {
     const video = {
       currentSrc: 'file:///tmp/current.mp4',
       src: 'file:///tmp/current.mp4',
-      load: () => actions.push('load'),
-    } as HTMLVideoElement;
+      load: () => {
+        actions.push('load');
+      },
+    } as unknown as HTMLVideoElement;
 
     destroyVideoFrameTextureState({
       uploadMode: 'video-source',

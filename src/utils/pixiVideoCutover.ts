@@ -1,3 +1,5 @@
+import { destroyVideoFrameTextureState } from './videoElementForPixi';
+
 export interface ShouldSkipPixiVideoForSharedRendererInput {
   objectId: string;
   objectType: string;
@@ -27,16 +29,6 @@ interface PixiVideoElementForCutover {
   pause: () => void;
   src: string;
   load: () => void;
-}
-
-interface PixiVideoFrameTextureForCutover {
-  uploadMode: string;
-  texture?: {
-    destroy: (destroyBase?: boolean) => void;
-  };
-  videoSource?: {
-    destroy: () => void;
-  };
 }
 
 export interface ClearPixiVideoForSharedRendererInput {
@@ -73,10 +65,7 @@ export const clearPixiVideoForSharedRenderer = ({
 
   const frameTexture = videoFrameTextures.get(objectId);
   if (isVideoFrameTextureForCutover(frameTexture)) {
-    if (frameTexture.uploadMode === 'video-source') {
-      frameTexture.videoSource?.destroy();
-    }
-    frameTexture.texture?.destroy(false);
+    destroyVideoFrameTextureState(frameTexture, isVideoElementForCutover(video) ? video : null);
     videoFrameTextures.delete(objectId);
   }
 };
@@ -88,7 +77,17 @@ const isVideoElementForCutover = (value: unknown): value is PixiVideoElementForC
   && typeof (value as PixiVideoElementForCutover).load === 'function'
   && typeof (value as PixiVideoElementForCutover).src === 'string';
 
-const isVideoFrameTextureForCutover = (value: unknown): value is PixiVideoFrameTextureForCutover =>
+const isVideoFrameTextureForCutover = (value: unknown): value is Parameters<typeof destroyVideoFrameTextureState>[0] =>
   typeof value === 'object'
   && value !== null
-  && typeof (value as PixiVideoFrameTextureForCutover).uploadMode === 'string';
+  && (
+    (
+      (value as { uploadMode?: unknown }).uploadMode === 'canvas'
+      && typeof (value as { texture?: { destroy?: unknown } }).texture?.destroy === 'function'
+    )
+    || (
+      (value as { uploadMode?: unknown }).uploadMode === 'video-source'
+      && typeof (value as { texture?: { destroy?: unknown } }).texture?.destroy === 'function'
+      && typeof (value as { videoSource?: { destroy?: unknown } }).videoSource?.destroy === 'function'
+    )
+  );

@@ -15,7 +15,11 @@ import { evaluateObjectPositionAtTime } from '../utils/keyframes';
 import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier, getPrimaryWipeFilter } from '../utils/filterStack';
 import { useTranslation } from '../i18n';
 import { computePreviewDisplayScale } from '../utils/previewDisplayScale';
-import { useCanvasVideoUploadForPixiPreview } from '../utils/videoElementForPixi';
+import {
+  destroyExportOverlayCanvases,
+  destroyVideoFrameTextureState,
+  useCanvasVideoUploadForPixiPreview,
+} from '../utils/videoElementForPixi';
 import { visionNormBoundingBoxToVideoLocalRect } from '../utils/visionTrackingGeometry';
 import type { ResizeCorner } from '../utils/transformGeometry';
 import {
@@ -357,12 +361,10 @@ const Viewport: React.FC = () => {
         videoElementsRef.current.forEach(video => { video.pause(); video.src = ""; video.load(); });
         videoElementsRef.current.clear();
         videoFrameTexturesRef.current.forEach((entry) => {
-          if (entry.uploadMode === 'video-source') {
-            entry.videoSource.destroy();
-          }
-          entry.texture.destroy(false);
+          destroyVideoFrameTextureState(entry);
         });
         videoFrameTexturesRef.current.clear();
+        destroyExportOverlayCanvases(exportOverlayCanvasesRef.current);
         audioElementsRef.current.forEach(audio => { audio.pause(); audio.src = ""; audio.load(); });
         audioElementsRef.current.clear();
       }
@@ -383,6 +385,11 @@ const Viewport: React.FC = () => {
     app.canvas.style.height = `${h * displayScale}px`;
     app.render();
   }, [pixiReady, projectSettings.width, projectSettings.height, displayScale]);
+
+  useEffect(() => {
+    if (isExporting) return;
+    destroyExportOverlayCanvases(exportOverlayCanvasesRef.current);
+  }, [isExporting]);
 
   // --- Audio Buffer Loading ---
   useEffect(() => {
@@ -588,11 +595,13 @@ const Viewport: React.FC = () => {
             video.pause(); video.src = ""; video.load(); currentVideoElements.delete(id); videoPlayPromisesRef.current.delete(id);
             const frameTexture = videoFrameTexturesRef.current.get(id);
             if (frameTexture) {
-                if (frameTexture.uploadMode === 'video-source') {
-                  frameTexture.videoSource.destroy();
-                }
-                frameTexture.texture.destroy(false);
+                destroyVideoFrameTextureState(frameTexture, video);
                 videoFrameTexturesRef.current.delete(id);
+            }
+            const exportOverlay = exportOverlayCanvasesRef.current.get(id);
+            if (exportOverlay) {
+                exportOverlay.texture.destroy(true);
+                exportOverlayCanvasesRef.current.delete(id);
             }
         }
     });
