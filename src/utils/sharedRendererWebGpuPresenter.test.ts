@@ -177,6 +177,62 @@ describe('createSharedRendererWebGpuPresenter', () => {
 
     expect(fallbackEvents).toEqual([]);
   });
+
+  it('presents a solid sRGB swatch with a clear pass and no shader pipeline', async () => {
+    const submittedCommandBuffers: unknown[] = [];
+    const renderPasses: unknown[] = [];
+    const device = fakeDevice({
+      onSubmit: (commandBuffers) => {
+        submittedCommandBuffers.push(...commandBuffers);
+      },
+      onRenderPass: (descriptor) => {
+        renderPasses.push(descriptor);
+      },
+    });
+    const forbiddenDevice = {
+      ...device,
+      createShaderModule: () => {
+        throw new Error('presenter must not create a shader module for solid swatch presentation');
+      },
+      createRenderPipeline: () => {
+        throw new Error('presenter must not create a render pipeline for solid swatch presentation');
+      },
+    };
+
+    const result = await createSharedRendererWebGpuPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      surfaceGate: okSurfaceGate,
+      presentationContract: buildSharedRendererPresentationContract(),
+      gpu: fakeGpu({
+        onRequestAdapter: () => fakeAdapter({ device: forbiddenDevice }),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected presenter creation to pass');
+
+    result.presentSolidSrgbSwatch({
+      red: 0.25,
+      green: 0.5,
+      blue: 0.75,
+      alpha: 1,
+    });
+
+    expect(renderPasses).toEqual([
+      {
+        colorAttachments: [
+          {
+            view: 'current-texture-view',
+            clearValue: { r: 0.25, g: 0.5, b: 0.75, a: 1 },
+            loadOp: 'clear',
+            storeOp: 'store',
+          },
+        ],
+      },
+    ]);
+    expect(submittedCommandBuffers).toEqual(['finished-command-buffer']);
+  });
 });
 
 const fakeCanvas = (getContext: () => unknown) =>
@@ -188,6 +244,9 @@ const fakeCanvas = (getContext: () => unknown) =>
 
 const fakeContext = (configure: (configuration: unknown) => void = () => undefined) => ({
   configure,
+  getCurrentTexture: () => ({
+    createView: () => 'current-texture-view',
+  }),
 });
 
 const fakeGpu = ({
@@ -206,13 +265,35 @@ const fakeGpu = ({
 
 const fakeAdapter = ({
   lost = new Promise(() => undefined),
+  device = fakeDevice({ lost }),
 }: {
   lost?: Promise<unknown>;
+  device?: ReturnType<typeof fakeDevice>;
 } = {}) => ({
-  device: {
-    lost,
+  device,
+  requestDevice: async () => device,
+});
+
+const fakeDevice = ({
+  lost = new Promise(() => undefined),
+  onSubmit = () => undefined,
+  onRenderPass = () => undefined,
+}: {
+  lost?: Promise<unknown>;
+  onSubmit?: (commandBuffers: unknown[]) => void;
+  onRenderPass?: (descriptor: unknown) => void;
+} = {}) => ({
+  lost,
+  queue: {
+    submit: onSubmit,
   },
-  requestDevice: async () => ({
-    lost,
+  createCommandEncoder: () => ({
+    beginRenderPass: (descriptor: unknown) => {
+      onRenderPass(descriptor);
+      return {
+        end: () => undefined,
+      };
+    },
+    finish: () => 'finished-command-buffer',
   }),
 });
