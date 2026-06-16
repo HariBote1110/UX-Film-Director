@@ -19,6 +19,30 @@ interface Window {
   rustBackend: {
     health: () => Promise<{ success: boolean; result?: unknown; error?: string }>;
     echo: (payload: unknown) => Promise<{ success: boolean; result?: unknown; error?: string }>;
+    startVideoDecode: (payload: {
+      jobId: string;
+      source: string;
+      slotCount: number;
+      width: number;
+      height: number;
+      format: 'rgba8Srgb';
+      colour: {
+        primaries: 'bt709';
+        transfer: 'srgb';
+        matrix: 'rgb';
+        range: 'full';
+      };
+    }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
+    requestVideoDecodeFrame: (payload: {
+      jobId: string;
+      frameIndex: number;
+    }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
+    releaseVideoDecodeFrame: (payload: {
+      jobId: string;
+      slotIndex: number;
+      generation: number;
+      copyOutState: 'gpuUploadFenceSignalled';
+    }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
   };
 }
 
