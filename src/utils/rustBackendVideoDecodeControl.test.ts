@@ -40,6 +40,10 @@ describe('rustBackendVideoDecodeControl', () => {
       slotCount: 3,
       width: 1280,
       height: 720,
+      sourceRate: {
+        numerator: 60,
+        denominator: 1,
+      },
       format: 'rgba8Srgb',
       colour: {
         primaries: 'bt709',
@@ -58,6 +62,10 @@ describe('rustBackendVideoDecodeControl', () => {
         slotCount: 3,
         width: 1280,
         height: 720,
+        sourceRate: {
+          numerator: 60,
+          denominator: 1,
+        },
         format: 'rgba8Srgb',
         colour: {
           primaries: 'bt709',
