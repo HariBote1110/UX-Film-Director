@@ -24,6 +24,8 @@ const snapshot: RustSceneSnapshot = {
 const okSession: SharedRendererPreviewSession = {
   plan: {
     mode: 'parallelCompare',
+    primary: 'pixi',
+    candidate: 'sharedRenderer',
     snapshot,
     media: [],
   },

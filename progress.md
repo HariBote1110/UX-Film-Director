@@ -1,3 +1,31 @@
+## 2026-06-16 — Phase5: shared renderer presenter を Viewport に接続
+
+### 実施内容
+- `sharedRendererPresenterDiagnostics` を追加し、WebGPU presenter の `ready` / `fallback` / `deviceLost` 状態を
+  DOM dataset に公開する契約を TDD で固定した。
+- `sharedRendererPreviewPresenterController` を追加し、surface gate が OK のときだけ WebGPU presenter を作成し、
+  `solid-srgb` swatch を clear pass で表示、失敗時は Pixi fallback 診断へ戻す接続契約を TDD で固定した。
+- `Viewport` の shared renderer preview canvas に presenter controller を接続した。
+  - `VITE_UXFD_SHARED_RENDERER_PREVIEW=1` のときだけ動作する。
+  - canvas session key は surface gate と canvas presentation contract で安定化し、毎フレームの再初期化を避ける。
+  - device lost は stale shared frame を許可せず、DOM dataset 上で Pixi fallback として見える。
+- package version を `0.1.1-Beta-31a` に更新した。
+
+### 選定理由・判断の根拠
+- React component 直書きではなく controller に切り出した理由:
+  WebGPU presenter の生成・swatch present・fallback 診断の順序を DOM 非依存でテストでき、以後 shader/pipeline に
+  置き換える時も `Viewport` 側の差分を小さく保てるため。
+- 初回表示を solid swatch に限定した理由:
+  P3 Mac 上の canvas presentation 色管理だけを先に切り分けるため。SceneSnapshot の本描画や offscreen readback は
+  後続 gate で追加する。
+
+### 検証
+- `npm test -- src/utils/sharedRendererPresenterDiagnostics.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/sharedRendererPreviewSession.test.ts src/utils/sharedRendererPresentationContract.test.ts`
+  - 5 files / 17 tests passed。
+- `npx tsc --noEmit`
+  - shared renderer / Viewport 接続由来の新規エラーなし。
+  - 既存残件として `ThreeStageViewport.tsx` の `three` 型定義不足などは継続。
+
 ## 2026-06-16 — vNext（Rust/wgpu 移行）アーキテクチャ方針の確定（Codex と協議）
 
 調査・設計のみのセッション。コード変更なし。Codex（dev チーム）と agmsg 経由で大規模アーキテクチャ

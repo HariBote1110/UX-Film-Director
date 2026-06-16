@@ -18,7 +18,15 @@ import { computePreviewDisplayScale } from '../utils/previewDisplayScale';
 import { useCanvasVideoUploadForPixiPreview } from '../utils/videoElementForPixi';
 import { visionNormBoundingBoxToVideoLocalRect } from '../utils/visionTrackingGeometry';
 import type { ResizeCorner } from '../utils/transformGeometry';
-import { buildSharedRendererPreviewSession } from '../utils/sharedRendererPreviewSession';
+import {
+  buildSharedRendererPreviewSession,
+  type SharedRendererPreviewSession,
+} from '../utils/sharedRendererPreviewSession';
+import {
+  startSharedRendererPreviewPresenter,
+  type SharedRendererPreviewPresenterControl,
+} from '../utils/sharedRendererPreviewPresenterController';
+import { writeSharedRendererPresenterDiagnostics } from '../utils/sharedRendererPresenterDiagnostics';
 
 const GROUP_GRADIENT_COMPONENT_PREFIX = 'group-gradient-component-';
 const RESIZE_HANDLE_PREFIX = 'resize-handle-';
@@ -30,6 +38,19 @@ const RESIZE_CORNER_CURSORS: Record<ResizeCorner, string> = {
   'bottom-right': 'nwse-resize',
   'top-right': 'nesw-resize',
   'bottom-left': 'nesw-resize',
+};
+
+const buildSharedRendererPresenterSessionKey = (session: SharedRendererPreviewSession): string => {
+  if (!session.surfaceGate.ok) {
+    return `blocked:${session.surfaceGate.reason}`;
+  }
+
+  return [
+    'ok',
+    `${session.surfaceGate.canvas.width}x${session.surfaceGate.canvas.height}`,
+    session.presentationContract.canvas.colorSpace,
+    session.presentationContract.canvas.alphaMode,
+  ].join(':');
 };
 
 type BoundsLike = { x: number; y: number; width: number; height: number };
@@ -96,6 +117,8 @@ const Viewport: React.FC = () => {
   const pixiAppRef = useRef<PIXI.Application | null>(null);
   const worldContainerRef = useRef<PIXI.Container | null>(null);
   const sharedRendererSurfaceCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const sharedRendererPresenterControlRef = useRef<SharedRendererPreviewPresenterControl | null>(null);
+  const sharedRendererPresenterSessionKeyRef = useRef<string | null>(null);
   const pixiObjectsRef = useRef<Map<string, PIXI.Container>>(new Map());
   const groupContainersRef = useRef<Map<string, PIXI.Container>>(new Map());
   
@@ -120,6 +143,7 @@ const Viewport: React.FC = () => {
     webGpuAvailable: false,
     fallbackAdapter: false,
   });
+  const [sharedRendererPreviewSession, setSharedRendererPreviewSession] = useState<SharedRendererPreviewSession | null>(null);
 
   const { 
     currentTime, objects, selectedIds, selectedId, clearSelection,
@@ -426,6 +450,12 @@ const Viewport: React.FC = () => {
         surfaceCanvas.height = session.surfaceGate.canvas.height;
       }
     }
+
+    const nextPresenterKey = buildSharedRendererPresenterSessionKey(session);
+    if (sharedRendererPresenterSessionKeyRef.current !== nextPresenterKey) {
+      sharedRendererPresenterSessionKeyRef.current = nextPresenterKey;
+      setSharedRendererPreviewSession(session);
+    }
   }, [
     editorMode,
     isExporting,
@@ -439,6 +469,63 @@ const Viewport: React.FC = () => {
   useEffect(() => {
     publishSharedRendererPreviewSession(currentTime, objects);
   }, [currentTime, objects, publishSharedRendererPreviewSession]);
+
+  useEffect(() => {
+    if (!sharedRendererPreviewEnabled || !sharedRendererPreviewSession) {
+      sharedRendererPresenterControlRef.current?.dispose();
+      sharedRendererPresenterControlRef.current = null;
+      return;
+    }
+
+    const surfaceCanvas = sharedRendererSurfaceCanvasRef.current;
+    const rootDataset = document.documentElement.dataset as Record<string, string | undefined>;
+    if (!surfaceCanvas) {
+      writeSharedRendererPresenterDiagnostics(rootDataset, {
+        status: 'fallback',
+        reason: 'surfaceCanvasUnavailable',
+      });
+      return;
+    }
+
+    sharedRendererPresenterControlRef.current?.dispose();
+    sharedRendererPresenterControlRef.current = null;
+
+    let cancelled = false;
+    let currentControl: SharedRendererPreviewPresenterControl | null = null;
+    const datasets = [
+      rootDataset,
+      surfaceCanvas.dataset as Record<string, string | undefined>,
+    ];
+
+    void startSharedRendererPreviewPresenter({
+      canvas: surfaceCanvas,
+      session: sharedRendererPreviewSession,
+      datasets,
+    }).then((control) => {
+      if (cancelled) {
+        control.dispose();
+        return;
+      }
+      currentControl = control;
+      sharedRendererPresenterControlRef.current = control;
+    }).catch(() => {
+      if (cancelled) return;
+      datasets.forEach((dataset) => {
+        writeSharedRendererPresenterDiagnostics(dataset, {
+          status: 'fallback',
+          reason: 'presenterStartFailed',
+        });
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      currentControl?.dispose();
+      if (sharedRendererPresenterControlRef.current === currentControl) {
+        sharedRendererPresenterControlRef.current = null;
+      }
+    };
+  }, [sharedRendererPreviewEnabled, sharedRendererPreviewSession]);
 
   // --- Main Render Logic ---
   const renderScene = useCallback((time: number, currentObjects: TimelineObject[]) => {

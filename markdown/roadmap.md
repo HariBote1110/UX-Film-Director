@@ -243,6 +243,9 @@ canvas format は `navigator.gpu.getPreferredCanvasFormat()` の非 `-srgb` 形�
 linear -> sRGB encode を自前で行うため、`-srgb` canvas format による二重 encode を禁止する。
 P3 実機 check 用の初回表示は shader / pipeline を使わず、WebGPU render pass の clear による solid sRGB swatch
 だけで行い、canvas presentation の色管理だけを単独で確認する。
+`Viewport` への接続は feature flag `VITE_UXFD_SHARED_RENDERER_PREVIEW=1` の下に限定し、presenter の
+`ready` / `fallback` / `deviceLost` は DOM dataset へ公開する。初回 swatch 表示が通るまでは shared renderer
+canvas は preview 診断面であり、Pixi preview を置き換えない。
 
 ## 後回しにするもの
 
