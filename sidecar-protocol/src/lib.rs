@@ -9,6 +9,13 @@ pub struct DecodeFrameRequest {
     pub frame_index: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FrameRate {
+    pub numerator: u32,
+    pub denominator: u32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DecodeStartRequest {
@@ -17,6 +24,7 @@ pub struct DecodeStartRequest {
     pub slot_count: u32,
     pub width: u32,
     pub height: u32,
+    pub source_rate: FrameRate,
     pub format: FrameFormat,
     pub colour: ColourMetadata,
 }
@@ -31,6 +39,7 @@ pub struct DecodeStartResponse {
     pub width: u32,
     pub height: u32,
     pub stride_bytes: u32,
+    pub source_rate: FrameRate,
     pub format: FrameFormat,
     pub colour: ColourMetadata,
 }
