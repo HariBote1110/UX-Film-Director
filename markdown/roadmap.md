@@ -253,6 +253,10 @@ fail-loud のままにする。
 この gate の実装は、まず `rust-core` が SolidColour draw list と WebGPU 用 vertex buffer を生成し、
 browser preview では `rust-core-wasm` からその vertex buffer を受け取る構成にする。TypeScript presenter は
 生成済み vertices を GPU に upload する薄い役割へ寄せ、WASM 読み込みに失敗した時だけ TypeScript fallback を使う。
+SolidColour rectangle は shared renderer が `rust-wasm` geometry を使えて、かつ z-order safety を満たす時だけ
+shared renderer owner とする。owned SolidColour は presenter の draw list に残し、Pixi 側では children を cleanup して
+`hitArea` だけを残す。owned ではない SolidColour は Pixi owner のままとし、shared renderer draw list からも除外する。
+これにより、Pixi-only object が前面にある場合に shared renderer canvas が上から覆う事故を避ける。
 動画 gate は external texture 描画の前に readiness 診断を挟む。`Video` media reference と既存 preview の
 `HTMLVideoElement` を照合し、`ready` / `pending` / `missingElement` を DOM/window diagnostics に公開する。
 この gate の入口として、`Video` media の plane metadata と WebGPU 用 vertices は `rust-core` /

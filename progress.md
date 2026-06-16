@@ -1,3 +1,32 @@
+## 2026-06-17 — Phase5: SolidColour rectangle を Pixi から shared renderer ownership へ移管
+
+### 実施内容
+- `sharedRendererSolidColourOwnership` を追加し、SolidColour rectangle の cutover 条件を TDD で固定した。
+  - shared renderer preview が ready。
+  - geometry source が `rust-wasm`。
+  - cutover 対象より前面に Pixi-only object がない。
+  - export 中ではない。
+- `sharedRendererSolidColourStackSafety` を追加し、SolidColour より前面に `Image` など Pixi-only plane がある場合は cutover しないようにした。
+- `sharedRendererSolidColourScene` / `sharedRendererWebGpuPresenter` は owned SolidColour object id だけを draw list に残すようにした。
+  - Pixi 側で unsafe shape を残しても shared renderer が上から描いてしまう z-order 破壊を防ぐ。
+- `Viewport` は presenter の `solidColourOwnership.solidColourObjectIds` を `updatePixiContent` へ渡すようにした。
+- `pixiRenderHelper` は owned SolidColour shape について Pixi children を cleanup し、`hitArea` だけ残して shape branch を抜けるようにした。
+- DOM diagnostics に SolidColour ownership / reason / shared object count を追加した。
+- package version を `0.1.1-Beta-40a` に更新した。
+
+### 選定理由・判断の根拠
+- 動画は actual pixel decode / shared memory / WebGPU upload が未実装のため、まだ Pixi から外すと表示を壊す。
+- SolidColour rectangle は Rust/WASM で vertex 生成済み、WebGPU presenter で描画済みなので、PixiJS を剥がす最初の対象として最も安全。
+- shared renderer canvas は Pixi 全体の上に重なるため、draw list 自体を safe id に絞らないと Pixi-only 前面 object を覆ってしまう。
+- export は現行 Pixi canvas を読むため、Pixi shape skip は preview のみとした。
+
+### 検証
+- `npm test -- src/utils/sharedRendererSolidColourOwnership.test.ts src/utils/pixiSolidColourCutover.test.ts src/utils/sharedRendererSolidColourScene.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererPresenterDiagnostics.test.ts src/utils/pixiVideoCutover.test.ts`
+  - 6 files / 26 tests passed。
+- `npx tsc --noEmit --pretty false`
+  - 既存残件として `ThreeStageViewport.tsx` の `three` 型定義不足、`heavyEffectsStress.test.ts` の `PositionKeyframe`、`filterStack.test.ts` の fixture 型不整合で失敗。
+  - 今回の SolidColour ownership / Pixi cutover 由来の新規エラーはなし。
+
 ## 2026-06-16 — Pixi video texture cleanup のリーク対策
 
 ### 実施内容

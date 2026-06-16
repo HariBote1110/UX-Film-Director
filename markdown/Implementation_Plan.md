@@ -158,6 +158,11 @@ actual pixel decode / shared memory / WebGPU texture upload が未実装の間�
 shared renderer canvas が Pixi 全体の上に重なる構造を前提に、cutover 候補 video より前面に Pixi-only object がある場合は video ownership を Pixi に戻す。  
 前面の `SolidColour` と同時 cutover 対象の `Video` は shared renderer stack として許可し、`Image` / PSD / text / unsupported object は blocker とする。
 
+36. Phase5: SolidColour rectangle を Pixi から shared renderer ownership へ移管する  
+`rust-wasm` geometry と z-order safety を満たす SolidColour rectangle だけを shared renderer owner とし、presenter draw list を owned id に絞る。  
+Pixi 側では該当 shape の children を cleanup して `hitArea` だけ残し、preview の interaction は維持する。  
+export は現行 Pixi canvas を正本にしているため、`isExporting` 中は Pixi shape rendering を維持する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
