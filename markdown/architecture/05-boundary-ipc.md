@@ -135,6 +135,7 @@ Rust backend integration gate:
 - `shared-video-frame-bridge-node` は Rust core を N-API addon として wrap し、Node 直 require では
   `Uint8Array` target を in-place mutation できる。
 - preload は native module を `UXFD_SHARED_VIDEO_FRAME_BRIDGE_MODULE` で差し込む形を維持し、未接続時は fail-loud とする。
+- env 未指定時、preload は dev build output と packaged resources の `.node` を順に探す。
 - Electron `contextBridge` 越しでは renderer 側 target mutation が反映されないため、preload は native copy 後の
   cloned `Uint8Array` を `result.rgbaBytes` として返す。renderer helper は returned bytes を優先して upload buffer に採用する。
 - Viewport は video cutover flag が有効なとき、presenter 起動前に Rust backend decode request と shared memory copy を行い、

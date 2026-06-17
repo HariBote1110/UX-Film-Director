@@ -1,3 +1,32 @@
+## 2026-06-18 — Phase5: shared video frame native addon の自動解決を追加
+
+### 実施内容
+- `electron/sharedVideoFrameNativeBridgePath.ts` を追加し、native addon path を
+  env override -> dev build output -> packaged resources の順に解決するようにした。
+- `electron/preload.ts` は resolver を使い、`UXFD_SHARED_VIDEO_FRAME_BRIDGE_MODULE` 未指定でも
+  `shared-video-frame-bridge-node/shared-video-frame-bridge.node` があれば読み込む。
+- `electron-builder` の `extraResources` に `shared-video-frame-bridge.node` の packaged 配置先を追加した。
+- package version を `0.1.1-Beta-51a` に更新した。
+
+### Red
+- `src/utils/sharedVideoFrameNativeBridgePath.test.ts` を追加し、resolver module 未作成で Red になった。
+
+### Green
+- env override を最優先し、dev output と packaged resources は `existsSync` で存在確認してから返す。
+- preload bundle は resolver import を含めた状態で Vite build できることを確認した。
+
+### 現在の制限
+- dev 起動前に `npm run bridge:node:build` で `.node` を生成する必要がある。
+- packaged build では `.node` を release build へ切り替える build pipeline がまだ未整理。
+
+### 検証
+- `npm test -- src/utils/sharedVideoFrameNativeBridgePath.test.ts`
+  -> 1 file / 4 tests passed。
+- `npm run test:bridge-node`
+  -> shared video frame native addon contract passed。
+- `npx vite build`
+  -> renderer / electron main / electron preload build passed。
+
 ## 2026-06-18 — Phase5: Viewport orchestration から Rust video upload を起動
 
 ### 実施内容

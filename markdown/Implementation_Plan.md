@@ -221,6 +221,12 @@ Rust backend `decode.start` / `decode.requestFrame` / shared memory copy を行�
 同じ source/layout の active decode job は再利用する。現段階では Rust backend が単一 decode session 前提のため、
 複数動画や source 切替は stop / replace / multi-session API を追加するまで Pixi fallback を維持する。
 
+47. Phase5: shared video frame native addon の自動解決を追加する
+preload は `UXFD_SHARED_VIDEO_FRAME_BRIDGE_MODULE` を最優先し、未指定時は dev build output
+`shared-video-frame-bridge-node/shared-video-frame-bridge.node`、packaged resources
+`shared-video-frame-bridge/shared-video-frame-bridge.node` の順で native addon を探す。
+electron-builder `extraResources` に `.node` 配置先を追加し、dev / packaged の両方で同じ bridge API を使えるようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

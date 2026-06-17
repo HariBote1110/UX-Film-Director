@@ -298,6 +298,7 @@ Electron `contextBridge` 越しの target mutation は反映されないため�
 `result.rgbaBytes` として返し、renderer helper は returned bytes を upload buffer として採用する。
 Viewport orchestration は video cutover flag 有効時に Rust backend decode / shared memory copy / WebGPU upload object
 準備を行い、presenter に `sharedRendererDecodedVideoFrameUpload` を渡せる。
+preload は env override / dev output / packaged resources の順で shared video frame native addon を解決できる。
 ただし Rust backend decode はまだ単一 session 前提で、複数動画や source 切替には stop / replace / multi-session API が必要。
 次 gate で session lifecycle と transfer / matrix metadata gate を進める。
 これにより、動画読み込み・current frame availability と GPU import / sampling の問題を分離する。
