@@ -37,18 +37,14 @@ fn decode_start_returns_shared_ring_layout_without_frame_bytes() {
 
     assert_eq!(response["ok"], true);
     assert_eq!(response["result"]["jobId"], "decode-1");
-    assert!(
-        response["result"]["memoryId"]
-            .as_str()
-            .expect("memory id")
-            .starts_with("/uxfd-")
-    );
-    assert!(
-        response["result"]["memoryId"]
-            .as_str()
-            .expect("memory id")
-            .contains("decode-1-ring")
-    );
+    assert!(response["result"]["memoryId"]
+        .as_str()
+        .expect("memory id")
+        .starts_with("/uxfd-"));
+    assert!(response["result"]["memoryId"]
+        .as_str()
+        .expect("memory id")
+        .contains("decode-1-ring"));
     assert_eq!(response["result"]["slotCount"], 3);
     assert_eq!(response["result"]["sourceRate"]["numerator"], 60);
     assert_eq!(response["result"]["sourceRate"]["denominator"], 1);
@@ -202,14 +198,12 @@ fn decode_request_frame_writes_decoded_rgba_to_posix_shared_memory() {
         "memoryId must be an attachable POSIX shared memory name"
     );
 
-    let consumer_ring = PosixSharedRing::attach_with_retry(
-        memory_id,
-        slot_byte_len,
-        Duration::from_secs(1),
-    )
-    .expect("attach to backend-created shared frame ring");
+    let consumer_ring =
+        PosixSharedRing::attach_with_retry(memory_id, slot_byte_len, Duration::from_secs(1))
+            .expect("attach to backend-created shared frame ring");
 
-    let expected_tight_rgba = decode_tight_rgba_frame(&fixture.path, 1, fixture.width, fixture.height);
+    let expected_tight_rgba =
+        decode_tight_rgba_frame(&fixture.path, 1, fixture.width, fixture.height);
     let expected_padded_rgba = pad_rgba_rows(
         &expected_tight_rgba,
         fixture.width,
@@ -257,6 +251,137 @@ fn decode_request_frame_writes_decoded_rgba_to_posix_shared_memory() {
 }
 
 #[test]
+fn decode_request_frame_uses_second_shared_memory_slot_while_first_slot_is_reading() {
+    let temp_dir = TestTempDir::new("decode-control-plane-shm-multi-slot");
+    let fixture = build_two_frame_h264_fixture(temp_dir.path());
+    let mut backend = BackendProcess::start();
+
+    let start_response = backend.request(json!({
+        "id": 1,
+        "method": "decode.start",
+        "params": {
+            "jobId": "dms2",
+            "source": fixture.path,
+            "slotCount": 2,
+            "width": fixture.width,
+            "height": fixture.height,
+            "sourceRate": {
+                "numerator": 30,
+                "denominator": 1
+            },
+            "format": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+
+    assert_eq!(start_response["ok"], true);
+    let memory_id = start_response["result"]["memoryId"]
+        .as_str()
+        .expect("memory id");
+    let stride_bytes = start_response["result"]["strideBytes"]
+        .as_u64()
+        .expect("stride bytes") as usize;
+    let slot_byte_len = start_response["result"]["slotByteLen"]
+        .as_u64()
+        .expect("slot byte length") as usize;
+    let consumer_ring = PosixSharedRing::attach_with_retry_for_layout(
+        memory_id,
+        2,
+        slot_byte_len,
+        Duration::from_secs(1),
+    )
+    .expect("attach to backend-created multi-slot shared frame ring");
+
+    let expected_first = pad_rgba_rows(
+        &decode_tight_rgba_frame(&fixture.path, 0, fixture.width, fixture.height),
+        fixture.width,
+        fixture.height,
+        stride_bytes,
+    );
+    let expected_second = pad_rgba_rows(
+        &decode_tight_rgba_frame(&fixture.path, 1, fixture.width, fixture.height),
+        fixture.width,
+        fixture.height,
+        stride_bytes,
+    );
+
+    let first_response = backend.request(json!({
+        "id": 2,
+        "method": "decode.requestFrame",
+        "params": {
+            "jobId": "dms2",
+            "requestId": 41,
+            "frameIndex": 0,
+            "mode": "latestWins"
+        }
+    }));
+    assert_eq!(first_response["ok"], true);
+    assert_eq!(
+        first_response["result"]["frame"]["descriptor"]["slotIndex"],
+        0
+    );
+    let first_mapped_frame = consumer_ring
+        .read_frame(0)
+        .expect("consumer keeps first decoded frame in reading state");
+    assert_eq!(first_mapped_frame.bytes, expected_first);
+
+    let second_response = backend.request(json!({
+        "id": 3,
+        "method": "decode.requestFrame",
+        "params": {
+            "jobId": "dms2",
+            "requestId": 42,
+            "frameIndex": 1,
+            "mode": "latestWins"
+        }
+    }));
+    assert_eq!(second_response["ok"], true);
+    assert_eq!(
+        second_response["result"]["frame"]["descriptor"]["slotIndex"],
+        1
+    );
+    let second_mapped_frame = consumer_ring
+        .read_frame(1)
+        .expect("consumer reads second decoded frame from a different shared memory slot");
+    assert_eq!(second_mapped_frame.bytes, expected_second);
+    assert_no_frame_bytes_recursive(&first_response["result"]);
+    assert_no_frame_bytes_recursive(&second_response["result"]);
+
+    let first_release_response = backend.request(json!({
+        "id": 4,
+        "method": "decode.releaseFrame",
+        "params": {
+            "jobId": "dms2",
+            "slotIndex": first_response["result"]["frame"]["descriptor"]["slotIndex"],
+            "generation": first_response["result"]["frame"]["descriptor"]["generation"],
+            "copyOutState": "gpuUploadFenceSignalled"
+        }
+    }));
+    assert_eq!(first_release_response["ok"], true);
+
+    let second_release_response = backend.request(json!({
+        "id": 5,
+        "method": "decode.releaseFrame",
+        "params": {
+            "jobId": "dms2",
+            "slotIndex": second_response["result"]["frame"]["descriptor"]["slotIndex"],
+            "generation": second_response["result"]["frame"]["descriptor"]["generation"],
+            "copyOutState": "gpuUploadFenceSignalled"
+        }
+    }));
+    assert_eq!(second_release_response["ok"], true);
+
+    consumer_ring
+        .wait_until_free(Duration::from_secs(1))
+        .expect("both shared memory slots return to free");
+}
+
+#[test]
 fn decode_request_frame_uses_limited_range_source_metadata_for_rgba_handoff() {
     let temp_dir = TestTempDir::new("decode-control-plane-limited");
     let fixture = build_limited_range_two_frame_h264_fixture(temp_dir.path());
@@ -292,8 +417,13 @@ fn decode_request_frame_uses_limited_range_source_metadata_for_rgba_handoff() {
     let slot_byte_len = start_response["result"]["slotByteLen"]
         .as_u64()
         .expect("slot byte length") as usize;
-    let expected_tight_rgba =
-        decode_tight_rgba_frame_with_input_range(&fixture.path, 1, fixture.width, fixture.height, "tv");
+    let expected_tight_rgba = decode_tight_rgba_frame_with_input_range(
+        &fixture.path,
+        1,
+        fixture.width,
+        fixture.height,
+        "tv",
+    );
     let expected_padded_rgba = pad_rgba_rows(
         &expected_tight_rgba,
         fixture.width,
@@ -362,12 +492,9 @@ fn decode_release_frame_requires_completed_gpu_copy_out() {
     let slot_byte_len = start_response["result"]["slotByteLen"]
         .as_u64()
         .expect("slot byte length") as usize;
-    let consumer_ring = PosixSharedRing::attach_with_retry(
-        memory_id,
-        slot_byte_len,
-        Duration::from_secs(1),
-    )
-    .expect("attach to backend-created shared frame ring");
+    let consumer_ring =
+        PosixSharedRing::attach_with_retry(memory_id, slot_byte_len, Duration::from_secs(1))
+            .expect("attach to backend-created shared frame ring");
 
     let frame_response = backend.request(json!({
         "id": 2,
