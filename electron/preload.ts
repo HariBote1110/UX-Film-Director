@@ -1,5 +1,6 @@
 import { ipcRenderer, contextBridge } from 'electron'
 import { createRequire } from 'node:module'
+import { resolveSharedVideoFrameNativeBridgeModulePath } from './sharedVideoFrameNativeBridgePath'
 
 const require = createRequire(import.meta.url)
 
@@ -36,7 +37,11 @@ const loadSharedVideoFrameNativeBridge = (): SharedVideoFrameNativeBridge | null
     return sharedVideoFrameNativeBridge
   }
 
-  const modulePath = process.env.UXFD_SHARED_VIDEO_FRAME_BRIDGE_MODULE
+  const modulePath = resolveSharedVideoFrameNativeBridgeModulePath({
+    env: process.env,
+    cwd: process.cwd(),
+    resourcesPath: process.resourcesPath,
+  })
   if (!modulePath) {
     sharedVideoFrameNativeBridge = null
     return sharedVideoFrameNativeBridge

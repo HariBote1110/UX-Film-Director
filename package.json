@@ -47,6 +47,13 @@
         "filter": [
           "uxfd-coreml-tracker"
         ]
+      },
+      {
+        "from": "shared-video-frame-bridge-node/",
+        "to": "shared-video-frame-bridge",
+        "filter": [
+          "shared-video-frame-bridge.node"
+        ]
       }
     ],
     "mac": {
