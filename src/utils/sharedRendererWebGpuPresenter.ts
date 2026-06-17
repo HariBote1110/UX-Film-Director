@@ -4,6 +4,10 @@ import {
   buildSharedRendererSolidColourVertexScene,
   type SharedRendererSolidColourVertexSceneBuilder,
 } from './sharedRendererSolidColourScene';
+import {
+  buildSharedRendererVideoPlaneVertexScene,
+  type SharedRendererVideoPlaneVertexSceneBuilder,
+} from './sharedRendererVideoPlaneScene';
 import type {
   RustSceneMediaReference,
   RustSceneSnapshot,
@@ -43,6 +47,8 @@ export interface SharedRendererWebGpuDeviceLike {
   createRenderPipeline?: (descriptor: unknown) => unknown;
   createBuffer?: (descriptor: { size: number; usage: number }) => unknown;
   createTexture?: (descriptor: SharedRendererVideoTextureDescriptor) => unknown;
+  createSampler?: (descriptor: SharedRendererVideoSamplerDescriptor) => unknown;
+  createBindGroup?: (descriptor: SharedRendererVideoBindGroupDescriptor) => unknown;
   createCommandEncoder?: () => {
     beginRenderPass: (descriptor: {
       colorAttachments: Array<{
@@ -53,6 +59,7 @@ export interface SharedRendererWebGpuDeviceLike {
       }>;
     }) => {
       setPipeline?: (pipeline: unknown) => void;
+      setBindGroup?: (index: number, bindGroup: unknown) => void;
       setVertexBuffer?: (slot: number, buffer: unknown) => void;
       draw?: (vertexCount: number) => void;
       end: () => void;
@@ -98,6 +105,7 @@ export type SharedRendererWebGpuPresenterResult =
       presentSolidSrgbSwatch: (swatch: SharedRendererSolidSrgbSwatch) => void;
       presentSolidColourScene: (scene: SharedRendererSolidColourSceneInput) => SharedRendererSolidColourScenePresentationResult;
       uploadVideoFrameTexture: (input: SharedRendererVideoFrameTextureUploadInput) => SharedRendererVideoFrameTextureUploadResult;
+      presentVideoFrameScene: (scene: SharedRendererVideoFrameSceneInput) => SharedRendererVideoFrameScenePresentationResult;
     }
   | {
       ok: false;
@@ -154,6 +162,7 @@ export interface SharedRendererWebGpuPresenterInput {
   textureUsageTextureBinding?: number;
   textureUsageTextureCopyDst?: number;
   solidColourVertexSceneBuilder?: SharedRendererSolidColourVertexSceneBuilder;
+  videoPlaneVertexSceneBuilder?: SharedRendererVideoPlaneVertexSceneBuilder;
   onDeviceLost?: (event: SharedRendererDeviceLostEvent) => void;
 }
 
@@ -202,6 +211,37 @@ interface SharedRendererVideoTextureDescriptor {
   usage: number;
 }
 
+interface SharedRendererVideoSamplerDescriptor {
+  magFilter: 'linear';
+  minFilter: 'linear';
+  mipmapFilter: 'nearest';
+}
+
+interface SharedRendererVideoBindGroupDescriptor {
+  layout: unknown;
+  entries: Array<{
+    binding: number;
+    resource: unknown;
+  }>;
+}
+
+export interface SharedRendererVideoFrameSceneInput {
+  snapshot: RustSceneSnapshot;
+  media: RustSceneMediaReference[];
+  texture: unknown;
+}
+
+export type SharedRendererVideoFrameScenePresentationResult =
+  | {
+      ok: true;
+      planeCount: number;
+    }
+  | {
+      ok: false;
+      reason: 'unsupportedVideoScene' | 'webGpuDrawUnavailable' | 'videoTextureViewUnavailable';
+      detail: string;
+    };
+
 export const createSharedRendererWebGpuPresenter = async ({
   canvas,
   surfaceGate,
@@ -213,6 +253,7 @@ export const createSharedRendererWebGpuPresenter = async ({
   textureUsageTextureBinding = defaultTextureBindingUsage(),
   textureUsageTextureCopyDst = defaultTextureCopyDstUsage(),
   solidColourVertexSceneBuilder = buildSharedRendererSolidColourVertexScene,
+  videoPlaneVertexSceneBuilder = buildSharedRendererVideoPlaneVertexScene,
   onDeviceLost,
 }: SharedRendererWebGpuPresenterInput): Promise<SharedRendererWebGpuPresenterResult> => {
   if (!surfaceGate.ok) {
@@ -323,6 +364,7 @@ export const createSharedRendererWebGpuPresenter = async ({
   };
 
   let solidColourPipeline: unknown | null = null;
+  let videoFramePipeline: unknown | null = null;
   const presentSolidColourScene = ({
     snapshot,
     media,
@@ -508,6 +550,124 @@ export const createSharedRendererWebGpuPresenter = async ({
     };
   };
 
+  const presentVideoFrameScene = ({
+    snapshot,
+    media,
+    texture,
+  }: SharedRendererVideoFrameSceneInput): SharedRendererVideoFrameScenePresentationResult => {
+    const vertexScene = videoPlaneVertexSceneBuilder({
+      snapshot,
+      media,
+      canvas: { width: canvas.width, height: canvas.height },
+    });
+    if (!vertexScene.ok) {
+      return {
+        ok: false,
+        reason: 'unsupportedVideoScene',
+        detail: 'Shared renderer could not build a video plane scene.',
+      };
+    }
+
+    if (
+      !context.getCurrentTexture
+      || !device.createCommandEncoder
+      || !device.queue
+      || !device.queue.writeBuffer
+      || !device.createBuffer
+      || !device.createShaderModule
+      || !device.createRenderPipeline
+      || !device.createSampler
+      || !device.createBindGroup
+    ) {
+      return {
+        ok: false,
+        reason: 'webGpuDrawUnavailable',
+        detail: 'WebGPU device does not expose the draw APIs needed for video frame scene presentation.',
+      };
+    }
+
+    const textureView = createTextureView(texture);
+    if (!textureView.ok) {
+      return textureView;
+    }
+
+    if (!videoFramePipeline) {
+      const shader = device.createShaderModule({
+        code: videoFrameShaderCode,
+      });
+      videoFramePipeline = device.createRenderPipeline({
+        label: 'video-frame-pipeline',
+        layout: 'auto',
+        vertex: {
+          module: shader,
+          entryPoint: 'vs_main',
+          buffers: [
+            {
+              arrayStride: 32,
+              attributes: [
+                { shaderLocation: 0, offset: 0, format: 'float32x2' },
+                { shaderLocation: 1, offset: 8, format: 'float32x2' },
+                { shaderLocation: 2, offset: 16, format: 'float32' },
+              ],
+            },
+          ],
+        },
+        fragment: {
+          module: shader,
+          entryPoint: 'fs_main',
+          targets: [{ format }],
+        },
+        primitive: {
+          topology: 'triangle-list',
+        },
+      });
+    }
+
+    const vertices = vertexScene.vertices;
+    const vertexBuffer = device.createBuffer({
+      label: 'video-plane-vertex-buffer',
+      size: vertices.byteLength,
+      usage: bufferUsageVertex | bufferUsageCopyDst,
+    });
+    device.queue.writeBuffer(vertexBuffer, 0, vertices);
+
+    const sampler = device.createSampler({
+      magFilter: 'linear',
+      minFilter: 'linear',
+      mipmapFilter: 'nearest',
+    });
+    const bindGroup = device.createBindGroup({
+      layout: pipelineBindGroupLayout(videoFramePipeline, 0),
+      entries: [
+        { binding: 0, resource: sampler },
+        { binding: 1, resource: textureView.value },
+      ],
+    });
+
+    const encoder = device.createCommandEncoder();
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: context.getCurrentTexture().createView(),
+          clearValue: { r: 0, g: 0, b: 0, a: 0 },
+          loadOp: 'clear',
+          storeOp: 'store',
+        },
+      ],
+    });
+    pass.setPipeline?.(videoFramePipeline);
+    pass.setBindGroup?.(0, bindGroup);
+    pass.setVertexBuffer?.(0, vertexBuffer);
+    pass.draw?.(vertices.length / 8);
+    pass.end();
+    device.queue.submit([encoder.finish()]);
+
+    return {
+      ok: true,
+      planeCount: vertexScene.planeCount,
+    };
+  };
+
   return {
     ok: true,
     device,
@@ -522,8 +682,39 @@ export const createSharedRendererWebGpuPresenter = async ({
     presentSolidSrgbSwatch,
     presentSolidColourScene,
     uploadVideoFrameTexture,
+    presentVideoFrameScene,
   };
 };
+
+const videoFrameShaderCode = `
+struct VertexOut {
+  @builtin(position) position: vec4<f32>,
+  @location(0) uv: vec2<f32>,
+  @location(1) opacity: f32,
+};
+
+@group(0) @binding(0) var videoSampler: sampler;
+@group(0) @binding(1) var videoTexture: texture_2d<f32>;
+
+@vertex
+fn vs_main(
+  @location(0) position: vec2<f32>,
+  @location(1) uv: vec2<f32>,
+  @location(2) opacity: f32
+) -> VertexOut {
+  var out: VertexOut;
+  out.position = vec4<f32>(position, 0.0, 1.0);
+  out.uv = uv;
+  out.opacity = opacity;
+  return out;
+}
+
+@fragment
+fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
+  let colour = textureSample(videoTexture, videoSampler, in.uv);
+  return vec4<f32>(colour.rgb, colour.a * in.opacity);
+}
+`;
 
 const solidColourShaderCode = `
 struct VertexOut {
@@ -547,6 +738,41 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
   return in.colour;
 }
 `;
+
+const createTextureView = (texture: unknown):
+  | { ok: true; value: unknown }
+  | { ok: false; reason: 'videoTextureViewUnavailable'; detail: string } => {
+  if (
+    typeof texture === 'object'
+    && texture !== null
+    && 'createView' in texture
+    && typeof texture.createView === 'function'
+  ) {
+    return {
+      ok: true,
+      value: texture.createView(),
+    };
+  }
+
+  return {
+    ok: false,
+    reason: 'videoTextureViewUnavailable',
+    detail: 'Uploaded video texture does not expose createView().',
+  };
+};
+
+const pipelineBindGroupLayout = (pipeline: unknown, index: number): unknown => {
+  if (
+    typeof pipeline === 'object'
+    && pipeline !== null
+    && 'getBindGroupLayout' in pipeline
+    && typeof pipeline.getBindGroupLayout === 'function'
+  ) {
+    return pipeline.getBindGroupLayout(index);
+  }
+
+  return 'auto';
+};
 
 const defaultGpu = (): SharedRendererWebGpuLike | undefined => {
   const gpu = navigator.gpu;
