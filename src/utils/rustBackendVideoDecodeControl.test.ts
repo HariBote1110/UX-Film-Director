@@ -186,6 +186,10 @@ describe('rustBackendVideoDecodeControl', () => {
         calls.push(['releaseVideoDecodeFrame', payload]);
         return { success: true, result: { released: true, slotIndex: payload.slotIndex } };
       },
+      stopVideoDecode: async (payload) => {
+        calls.push(['stopVideoDecode', payload]);
+        return { success: true, result: { stopped: true, jobId: payload.jobId } };
+      },
     };
 
     const response = await requestRustBackendVideoDecodeFrame({

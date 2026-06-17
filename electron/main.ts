@@ -1141,6 +1141,18 @@ app.whenReady().then(() => {
     }
   });
 
+  ipcMain.handle('rust-backend-decode-stop', async (_event, payload: unknown) => {
+    try {
+      const result = await callRustBackend('decode.stop', payload, 8000);
+      return { success: true, result };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
   ipcMain.handle('rust-backend-decode-release-frame', async (_event, payload: unknown) => {
     try {
       const result = await callRustBackend('decode.releaseFrame', payload, 8000);

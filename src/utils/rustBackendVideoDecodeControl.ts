@@ -38,6 +38,10 @@ export interface RustBackendVideoDecodeReleaseFramePayload {
   copyOutState: RustBackendVideoDecodeCopyOutState;
 }
 
+export interface RustBackendVideoDecodeStopPayload {
+  jobId: string;
+}
+
 export interface RustBackendVideoFrameDescriptor {
   memoryId: string;
   slotIndex: number;
@@ -92,6 +96,9 @@ export interface RustBackendVideoDecodeBridge {
   requestVideoDecodeFrame: (
     payload: RustBackendVideoDecodeFramePayload
   ) => Promise<RustBackendResult<RustBackendVideoDecodeFrameResult>>;
+  stopVideoDecode: (
+    payload: RustBackendVideoDecodeStopPayload
+  ) => Promise<RustBackendResult>;
   releaseVideoDecodeFrame: (
     payload: RustBackendVideoDecodeReleaseFramePayload
   ) => Promise<RustBackendResult>;
@@ -108,6 +115,12 @@ export const requestRustBackendVideoDecodeFrame = (
   bridge: RustBackendVideoDecodeBridge = window.rustBackend
 ): Promise<RustBackendResult<RustBackendVideoDecodeFrameResult>> =>
   bridge.requestVideoDecodeFrame(payload);
+
+export const stopRustBackendVideoDecode = (
+  payload: RustBackendVideoDecodeStopPayload,
+  bridge: RustBackendVideoDecodeBridge = window.rustBackend
+): Promise<RustBackendResult> =>
+  bridge.stopVideoDecode(payload);
 
 export const releaseRustBackendVideoDecodeFrame = (
   payload: RustBackendVideoDecodeReleaseFramePayload,
