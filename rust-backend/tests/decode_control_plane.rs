@@ -102,6 +102,128 @@ fn decode_stop_releases_active_session_so_another_source_can_start() {
 }
 
 #[test]
+fn decode_backend_allows_multiple_video_sessions_by_job_id() {
+    let temp_dir = TestTempDir::new("decode-control-plane-multi-session");
+    let first_fixture =
+        build_two_frame_h264_fixture_with_range(temp_dir.path(), "first.mp4", None, "pc", "pc");
+    let second_fixture =
+        build_two_frame_h264_fixture_with_range(temp_dir.path(), "second.mp4", None, "pc", "pc");
+    let mut backend = BackendProcess::start();
+
+    let first_start = backend.request(json!({
+        "id": 1,
+        "method": "decode.start",
+        "params": {
+            "jobId": "decode-a",
+            "source": first_fixture.path,
+            "slotCount": 1,
+            "width": first_fixture.width,
+            "height": first_fixture.height,
+            "sourceRate": {
+                "numerator": 30,
+                "denominator": 1
+            },
+            "format": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(first_start["ok"], true);
+
+    let second_start = backend.request(json!({
+        "id": 2,
+        "method": "decode.start",
+        "params": {
+            "jobId": "decode-b",
+            "source": second_fixture.path,
+            "slotCount": 1,
+            "width": second_fixture.width,
+            "height": second_fixture.height,
+            "sourceRate": {
+                "numerator": 30,
+                "denominator": 1
+            },
+            "format": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(second_start["ok"], true);
+    assert_ne!(
+        first_start["result"]["memoryId"],
+        second_start["result"]["memoryId"]
+    );
+
+    let first_frame = backend.request(json!({
+        "id": 3,
+        "method": "decode.requestFrame",
+        "params": {
+            "jobId": "decode-a",
+            "requestId": 101,
+            "frameIndex": 0,
+            "mode": "latestWins"
+        }
+    }));
+    let second_frame = backend.request(json!({
+        "id": 4,
+        "method": "decode.requestFrame",
+        "params": {
+            "jobId": "decode-b",
+            "requestId": 201,
+            "frameIndex": 1,
+            "mode": "latestWins"
+        }
+    }));
+
+    assert_eq!(first_frame["ok"], true);
+    assert_eq!(second_frame["ok"], true);
+    assert_eq!(first_frame["result"]["jobId"], "decode-a");
+    assert_eq!(second_frame["result"]["jobId"], "decode-b");
+    assert_eq!(
+        first_frame["result"]["frame"]["descriptor"]["memoryId"],
+        first_start["result"]["memoryId"]
+    );
+    assert_eq!(
+        second_frame["result"]["frame"]["descriptor"]["memoryId"],
+        second_start["result"]["memoryId"]
+    );
+
+    let first_release = backend.request(json!({
+        "id": 5,
+        "method": "decode.releaseFrame",
+        "params": {
+            "jobId": "decode-a",
+            "slotIndex": first_frame["result"]["frame"]["descriptor"]["slotIndex"],
+            "generation": first_frame["result"]["frame"]["descriptor"]["generation"],
+            "copyOutState": "gpuUploadFenceSignalled"
+        }
+    }));
+    let second_release = backend.request(json!({
+        "id": 6,
+        "method": "decode.releaseFrame",
+        "params": {
+            "jobId": "decode-b",
+            "slotIndex": second_frame["result"]["frame"]["descriptor"]["slotIndex"],
+            "generation": second_frame["result"]["frame"]["descriptor"]["generation"],
+            "copyOutState": "gpuUploadFenceSignalled"
+        }
+    }));
+
+    assert_eq!(first_release["ok"], true);
+    assert_eq!(second_release["ok"], true);
+    assert_no_frame_bytes_recursive(&first_frame["result"]);
+    assert_no_frame_bytes_recursive(&second_frame["result"]);
+}
+
+#[test]
 fn decode_request_frame_decodes_requested_source_frame_to_verified_descriptor_without_pixels() {
     let temp_dir = TestTempDir::new("decode-control-plane");
     let fixture = build_two_frame_h264_fixture(temp_dir.path());
