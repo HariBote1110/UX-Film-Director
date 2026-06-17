@@ -5,6 +5,8 @@ import {
   type SharedRendererVideoFrameDecodeRequestBuilder,
 } from './sharedRendererVideoDecodeRequest';
 import {
+  isRustBackendDecodedVideoFrameAvailable,
+  releaseRustBackendVideoDecodeFrame,
   requestRustBackendVideoDecodeFrame,
   startRustBackendVideoDecode,
   stopRustBackendVideoDecode,
@@ -56,6 +58,7 @@ export type PrepareSharedRendererViewportVideoUploadResult =
         | 'noVideoDecodeRequest'
         | 'startFailed'
         | 'frameDecodeFailed'
+        | 'staleDecodeResponse'
         | 'uploadFailed';
       detail: string;
       activeJob?: SharedRendererViewportVideoDecodeJob | null;
@@ -126,6 +129,23 @@ export const prepareSharedRendererViewportVideoUpload = async ({
       ok: false,
       reason: 'frameDecodeFailed',
       detail: decodeResponse.error ?? 'Rust backend video frame decode request failed.',
+      activeJob: resolvedJob,
+    };
+  }
+  if (
+    isRustBackendDecodedVideoFrameAvailable(decodeResponse)
+    && decodeResponse.result.requestId !== (requestId ?? session.surfaceGate.snapshot.frame_index)
+  ) {
+    await releaseRustBackendVideoDecodeFrame({
+      jobId: resolvedJob.jobId,
+      slotIndex: decodeResponse.result.frame.descriptor.slotIndex,
+      generation: decodeResponse.result.frame.descriptor.generation,
+      copyOutState: 'rendererUploadAborted',
+    }, rustBackendBridge);
+    return {
+      ok: false,
+      reason: 'staleDecodeResponse',
+      detail: 'Rust backend returned a decoded frame for a stale request id.',
       activeJob: resolvedJob,
     };
   }
