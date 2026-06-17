@@ -227,6 +227,11 @@ preload は `UXFD_SHARED_VIDEO_FRAME_BRIDGE_MODULE` を最優先し、未指定�
 `shared-video-frame-bridge/shared-video-frame-bridge.node` の順で native addon を探す。
 electron-builder `extraResources` に `.node` 配置先を追加し、dev / packaged の両方で同じ bridge API を使えるようにする。
 
+48. Phase5: Rust decode session stop / source 切替を追加する
+Rust backend に `decode.stop(jobId)` を追加し、active decode session を明示的に破棄してから別 source/layout の
+`decode.start` を受けられるようにする。renderer bridge と Electron IPC も `stopVideoDecode` を公開し、
+Viewport orchestration は stale active job を検出したら stop 後に新しい job を start する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

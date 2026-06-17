@@ -141,7 +141,8 @@ Rust backend integration gate:
 - Viewport は video cutover flag が有効なとき、presenter 起動前に Rust backend decode request と shared memory copy を行い、
   decoded upload object を WebGPU presenter に渡す。
 - 現時点の Rust backend decode は単一 session 前提であり、同じ source/layout の active job だけを再利用する。
-  複数動画や source 切替は stop / replace / multi-session API が入るまで fail-loud / Pixi fallback とする。
+  source/layout が変わる場合は `decode.stop` で stale job を破棄してから新しい job を start する。
+  同時複数動画は multi-session API が入るまで fail-loud / Pixi fallback とする。
 - transfer / matrix は次 gate で `ffprobe` metadata により fail-loud または明示変換する。
 
 ## Protocol Contract

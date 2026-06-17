@@ -1,3 +1,32 @@
+## 2026-06-18 — Phase5: Rust decode session stop / source 切替を追加
+
+### 実施内容
+- Rust backend に `decode.stop(jobId)` を追加し、active decode session を破棄してから別 source/layout の
+  `decode.start` を受けられるようにした。
+- Electron main / preload / renderer utility に `stopVideoDecode` / `stopRustBackendVideoDecode` を追加した。
+- `sharedRendererViewportVideoUpload` は active job が次の request と一致しない場合、古い job を stop してから
+  新しい job を start する。
+- package version を `0.1.1-Beta-52a` に更新した。
+
+### Red
+- `rust-backend/tests/decode_control_plane.rs` に、`decode.stop` 後に別 source を start できる契約を追加して Red を確認した。
+- `src/utils/rustBackendVideoDecodeControl.test.ts` に stop bridge 契約を追加して Red を確認した。
+- `src/utils/sharedRendererViewportVideoUpload.test.ts` に stale active job stop 契約を追加して Red を確認した。
+
+### Green
+- `decode.stop` は jobId が active session と一致する場合だけ `{ stopped:true, jobId }` を返す。
+- renderer orchestration は stale job stop が成功した場合だけ次の `decode.start` に進む。
+
+### 現在の制限
+- Rust backend はまだ同時に1 decode sessionのみ。複数動画を同一frameでRust decodeするには multi-session 化が必要。
+- stop 時に未release slotがあっても session drop で破棄するため、GPU upload中の切替順序は今後さらに明示化する必要がある。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane`
+  -> 8 tests passed。
+- `npm test -- src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/rustBackendVideoDecodeControl.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts`
+  -> 3 files / 9 tests passed。
+
 ## 2026-06-18 — Phase5: shared video frame native addon の自動解決を追加
 
 ### 実施内容
