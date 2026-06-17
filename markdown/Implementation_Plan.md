@@ -202,6 +202,13 @@ Rust backend の verified decoded frame response を受け取り、shared memory
 WebGPU upload 後に `decode.releaseFrame(copyOutState=gpuUploadFenceSignalled)` を呼ぶ release callback 付きの
 upload object へ変換する。次段ではこの pipeline を Viewport の preview presenter 起動前に呼ぶ。
 
+44. Phase5: shared video frame N-API addon を追加する
+`shared-video-frame-bridge-node` を追加し、既存 Rust core を N-API 経由で
+`copyIntoUploadBuffer(payload, target)` として Node / preload から呼べるようにする。
+`npm run test:bridge-node` は addon を build し、Node 直 require で `Uint8Array` in-place mutation と
+fail-loud error mapping を確認する。次段では Electron `contextBridge` 越しに target buffer が更新されるかを
+実機テストで確認し、失敗時は return-buffer / transferable 形式へ契約を切り替える。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

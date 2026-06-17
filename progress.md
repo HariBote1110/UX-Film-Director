@@ -1,3 +1,35 @@
+## 2026-06-18 — Phase5: shared video frame N-API addon を追加
+
+### 実施内容
+- `shared-video-frame-bridge-node` crate を追加し、既存の `shared-video-frame-bridge` Rust core を
+  N-API addon として wrap した。
+- `copyIntoUploadBuffer(payload, target)` は POSIX shm copy core を呼び、通常の shm / length error は例外ではなく
+  `{ success:false, error }` として返す。
+- `debugFillForTest(target, value)` を追加し、Node 直 require で `Uint8Array` の in-place mutation を確認できるようにした。
+- `scripts/build-shared-video-frame-node-addon.mjs` と `npm run test:bridge-node` を追加し、
+  `cargo build` 済み dylib を `shared-video-frame-bridge.node` へ copy して contract test を走らせる。
+- package version を `0.1.1-Beta-48a` に更新した。
+
+### Red
+- `scripts/test-shared-video-frame-node-addon.mjs` を追加し、native addon 未作成のため
+  `shared-video-frame-bridge.node` が存在しない Red を確認した。
+
+### Green
+- `napi` / `napi-derive` / `napi-build` を使い、Rust core を呼ぶ薄い addon crate を追加した。
+- Node 直 require では `Uint8Array` target を native 側で更新でき、copy error mapping も fail-loud に返ることを確認した。
+
+### 現在の制限
+- Electron `contextBridge` 越しに renderer 側 `Uint8Array` が in-place 更新されるかは未検証。
+- Viewport はまだ decode response -> native bridge copy -> WebGPU presenter upload を呼んでいない。
+
+### 検証
+- `npm run test:bridge-node`
+  -> shared video frame native addon contract passed。
+- `cargo test --manifest-path shared-video-frame-bridge-node/Cargo.toml`
+  -> 0 tests / compile passed。
+- `npm test -- src/utils/sharedVideoFrameUploadBridge.test.ts src/utils/sharedRendererRustVideoUploadPipeline.test.ts`
+  -> 2 files / 4 tests passed。
+
 ## 2026-06-18 — Phase5: Rust decoded video upload pipeline helper を追加
 
 ### 実施内容
