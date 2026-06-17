@@ -1,0 +1,14 @@
+/Users/yuki/GitHub/UX-Film-Director/shared-video-frame-bridge/target/debug/deps/serde-a6b9040cf1902068.d: /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/yuki/GitHub/UX-Film-Director/shared-video-frame-bridge/target/debug/build/serde-38f8b19ce6b3bd83/out/private.rs
+
+/Users/yuki/GitHub/UX-Film-Director/shared-video-frame-bridge/target/debug/deps/libserde-a6b9040cf1902068.rlib: /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/yuki/GitHub/UX-Film-Director/shared-video-frame-bridge/target/debug/build/serde-38f8b19ce6b3bd83/out/private.rs
+
+/Users/yuki/GitHub/UX-Film-Director/shared-video-frame-bridge/target/debug/deps/libserde-a6b9040cf1902068.rmeta: /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/yuki/GitHub/UX-Film-Director/shared-video-frame-bridge/target/debug/build/serde-38f8b19ce6b3bd83/out/private.rs
+
+/Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/Users/yuki/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/Users/yuki/GitHub/UX-Film-Director/shared-video-frame-bridge/target/debug/build/serde-38f8b19ce6b3bd83/out/private.rs:
+
+# env-dep:OUT_DIR=/Users/yuki/GitHub/UX-Film-Director/shared-video-frame-bridge/target/debug/build/serde-38f8b19ce6b3bd83/out
