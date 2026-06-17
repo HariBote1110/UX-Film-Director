@@ -300,6 +300,8 @@ Viewport orchestration は video cutover flag 有効時に Rust backend decode /
 準備を行い、presenter に `sharedRendererDecodedVideoFrameUpload` を渡せる。
 preload は env override / dev output / packaged resources の順で shared video frame native addon を解決できる。
 Rust backend decode は `decode.stop` で stale session を破棄して source/layout 切替できる。
+review gate 後、uploaded texture は WebGPU video scene として描画され、copy / upload / stale response 失敗時は
+`rendererUploadAborted` release で slot を戻す。in-flight decode job は presenter 完了前に記録される。
 ただし同時複数動画はまだ単一 session 制約により Pixi fallback 対象であり、multi-session API が必要。
 次 gate で multi-session 化と transfer / matrix metadata gate を進める。
 これにより、動画読み込み・current frame availability と GPU import / sampling の問題を分離する。

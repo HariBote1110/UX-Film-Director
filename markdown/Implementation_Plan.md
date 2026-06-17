@@ -232,6 +232,12 @@ Rust backend に `decode.stop(jobId)` を追加し、active decode session を�
 `decode.start` を受けられるようにする。renderer bridge と Electron IPC も `stopVideoDecode` を公開し、
 Viewport orchestration は stale active job を検出したら stop 後に新しい job を start する。
 
+49. Phase5: Rust video upload cutover のレビュー指摘を修正する
+uploaded texture を `presentVideoFrameScene` へ渡して実際に描画し、copy / upload / stale response 失敗時は
+`rendererUploadAborted` で decoded slot を release する。Viewport orchestration は in-flight decode job を
+presenter 完了前に記録し、cancelled effect 後の `decode.start` 連打を避ける。Electron `contextBridge` 返却bytesは
+再コピーせず、そのまま WebGPU upload buffer として採用する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

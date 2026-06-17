@@ -1,3 +1,42 @@
+## 2026-06-18 — Phase5: Rust video upload cutover のレビュー指摘を修正
+
+### 実施内容
+- サブエージェント Parfit のレビュー指摘を受け、uploaded texture を破棄せず
+  `presentVideoFrameScene` へ渡して video plane として描画するようにした。
+- `CopyOutState::RendererUploadAborted` / `rendererUploadAborted` を追加し、copy失敗・WebGPU upload失敗・stale response時に
+  decoded slot を release できるようにした。
+- `sharedRendererViewportPresenterOrchestration` は decode job 解決時点で callback を呼び、
+  Viewport が presenter 完了前に active job ref を更新できるようにした。
+- Rust decode response の `requestId` が現在値と違う場合は copy せず abort release する。
+- `contextBridge` 返却 `Uint8Array` は再コピーせず、そのまま `rgbaBytes` として採用する。
+- package version を `0.1.1-Beta-53a` に更新した。
+
+### Red
+- uploaded Rust video frame が実際に WebGPU draw pass へ進む契約を追加し、旧実装が texture を捨てて Red になることを確認した。
+- copy失敗、WebGPU upload失敗、stale response の各ケースで abort release が呼ばれる契約を追加した。
+- in-flight decode job を presenter 起動前に記録する契約を追加した。
+- contextBridge returned bytes を再コピーせず同一 `Uint8Array` として使う契約を追加した。
+
+### Green
+- video ownership が shared に進む場合、`presentVideoFrameScene` を呼んで uploaded texture を描画する。
+- `rendererUploadAborted` は ring/backend release で free へ戻せる。
+- `releaseAfterUploadAbort` callback を upload object に追加し、controller upload失敗時に呼ぶ。
+- stale request id の decoded frame は copyせず release して fallback する。
+
+### 現在の制限
+- `contextBridge` の isolate 間コピー自体は残る。完全なzero-copyにはSAB/transferable/別window設計が必要。
+- 同時複数動画はまだ Rust backend multi-session 化が必要。
+
+### 検証
+- `npm test -- src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/sharedRendererRustVideoUploadPipeline.test.ts src/utils/sharedVideoFrameUploadBridge.test.ts src/utils/rustBackendVideoDecodeControl.test.ts`
+  -> 7 files / 40 tests passed。
+- `cargo test --manifest-path sidecar-protocol/Cargo.toml --test ring_buffer`
+  -> 9 tests passed。
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane`
+  -> 8 tests passed。
+- `npx vite build`
+  -> renderer / electron main / electron preload build passed。
+
 ## 2026-06-18 — Phase5: Rust decode session stop / source 切替を追加
 
 ### 実施内容

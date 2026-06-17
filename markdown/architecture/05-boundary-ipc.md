@@ -140,6 +140,12 @@ Rust backend integration gate:
   cloned `Uint8Array` を `result.rgbaBytes` として返す。renderer helper は returned bytes を優先して upload buffer に採用する。
 - Viewport は video cutover flag が有効なとき、presenter 起動前に Rust backend decode request と shared memory copy を行い、
   decoded upload object を WebGPU presenter に渡す。
+- WebGPU presenter は upload 済み texture を `presentVideoFrameScene` へ渡して描画する。upload ready だけで
+  shared ownership に進めて Pixi video を消すことは禁止。
+- copy / upload / stale response 失敗時は `rendererUploadAborted` で decoded slot を release し、
+  back pressure による `NoFreeSlot` を避ける。
+- Viewport orchestration は decode job が解決した時点で active job ref を更新し、effect cancellation 後の
+  `decode.start` 連打を避ける。
 - 現時点の Rust backend decode は単一 session 前提であり、同じ source/layout の active job だけを再利用する。
   source/layout が変わる場合は `decode.stop` で stale job を破棄してから新しい job を start する。
   同時複数動画は multi-session API が入るまで fail-loud / Pixi fallback とする。
