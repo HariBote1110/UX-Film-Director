@@ -66,6 +66,7 @@ export type PrepareSharedRendererViewportVideoUploadResult =
         | 'surfaceGateUnavailable'
         | 'decodeRequestUnavailable'
         | 'noVideoDecodeRequest'
+        | 'stopFailed'
         | 'startFailed'
         | 'frameDecodeFailed'
         | 'staleDecodeResponse'
@@ -143,10 +144,31 @@ export const prepareSharedRendererViewportVideoUploads = async ({
     upload: PreparedViewportVideoUpload;
   }> = [];
   const resolvedRequestId = requestId ?? session.surfaceGate.snapshot.frame_index;
+  const requestedJobs = decodeRequests.requests.map((request) => ({
+    request,
+    nextJob: buildViewportVideoDecodeJob(request, slotCount),
+  }));
+  const visibleActiveJobs = activeJobs.filter((job) =>
+    requestedJobs.some(({ nextJob }) => sameDecodeJob(job, nextJob)));
+  const staleActiveJobs = activeJobs.filter((job) =>
+    !requestedJobs.some(({ nextJob }) => sameDecodeJob(job, nextJob)));
 
-  for (const request of decodeRequests.requests) {
-    const nextJob = buildViewportVideoDecodeJob(request, slotCount);
-    const resolvedJob = activeJobs.find((job) => sameDecodeJob(job, nextJob))
+  for (const staleJob of staleActiveJobs) {
+    const stopResponse = await stopRustBackendVideoDecode({
+      jobId: staleJob.jobId,
+    }, rustBackendBridge);
+    if (!stopResponse.success) {
+      return {
+        ok: false,
+        reason: 'stopFailed',
+        detail: stopResponse.error ?? 'Rust backend rejected the stale video decode stop request.',
+        activeJobs: visibleActiveJobs,
+      };
+    }
+  }
+
+  for (const { request, nextJob } of requestedJobs) {
+    const resolvedJob = visibleActiveJobs.find((job) => sameDecodeJob(job, nextJob))
       ?? await startDecodeJob(nextJob, request, rustBackendBridge);
     if ('ok' in resolvedJob && resolvedJob.ok === false) {
       return {
