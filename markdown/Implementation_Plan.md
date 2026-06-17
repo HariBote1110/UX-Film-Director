@@ -179,6 +179,13 @@ POSIX shared memory ring は `slotCount` に合わせて複数 slot を確保し
 Rust backend が2枚目を別 slot へ decode / write できるようにする。
 次段では preload/native bridge で shm から WebGPU upload 用 buffer へ copy し、renderer 側で `queue.writeTexture` する。
 
+40. Phase5: Rust decoded video frame の WebGPU upload / draw gate を追加する
+renderer presenter は `rgba8Srgb` decoded frame descriptor と bridge 由来の `Uint8Array` を受け取り、
+WebGPU `rgba8unorm-srgb` texture へ `queue.writeTexture` する。`bytesPerRow` は必ず `descriptor.strideBytes` を使う。
+upload 成功後だけ `videoFrameUploadReady=true` とし、GPU queue 完了後に release callback を呼ぶ。
+uploaded texture は video plane vertex scene と sampler で描画する。次段では POSIX shm から upload buffer へ copy する
+preload/native bridge を実装する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

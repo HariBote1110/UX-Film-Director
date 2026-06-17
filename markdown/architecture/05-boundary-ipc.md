@@ -124,8 +124,9 @@ Rust backend integration gate:
 - `decode.releaseFrame` は WebGPU upload fence 完了後の `copyOutState=gpuUploadFenceSignalled` でのみ slot を解放する。
 - backend integration は `slotCount` と同じ multi-slot POSIX shm layout を作成し、先行 frame が `READING` でも
   後続 frame を別 slot へ書ける。
-- 次 gate では preload/native bridge で shm から upload 用 buffer へ copy し、renderer の WebGPU
-  `queue.writeTexture` へ接続する。
+- renderer presenter は bridge から渡される decoded RGBA `Uint8Array` を、`descriptor.strideBytes` を
+  `bytesPerRow` として WebGPU `rgba8unorm-srgb` texture へ upload し、video plane vertex scene で描画できる。
+- 次 gate では preload/native bridge で shm から upload 用 buffer へ copy する。
 - transfer / matrix は次 gate で `ffprobe` metadata により fail-loud または明示変換する。
 
 ## Protocol Contract

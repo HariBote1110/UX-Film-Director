@@ -284,9 +284,11 @@ full-range RGBA へ明示正規化し、decoded RGBA を POSIX shared memory rin
 POSIX shared memory ring は `slotCount` と同じ multi-slot layout を持ち、先行 frame が `READING` のままでも
 次 frame を別 slot へ decode / write できる。
 control plane には descriptor / CRC32 verification だけを返す。
-ただし renderer の WebGPU texture upload はまだ未実装であり、`videoFrameUploadReady=false` のまま Pixi preview を維持する。
-次 gate で preload/native bridge から WebGPU upload 用 buffer への copy、renderer の `queue.writeTexture`、
-transfer / matrix metadata gate を接続する。
+renderer presenter は `rgba8Srgb` descriptor + upload buffer を `rgba8unorm-srgb` texture へ upload し、
+video plane vertex scene と sampler で描画できる。
+ただし POSIX shm から renderer upload buffer へ copy する preload/native bridge はまだ未実装であり、
+実アプリの video cutover は bridge 接続まで Pixi preview を維持する。
+次 gate で preload/native bridge から WebGPU upload 用 buffer への copy と、transfer / matrix metadata gate を接続する。
 これにより、動画読み込み・current frame availability と GPU import / sampling の問題を分離する。
 ただし HTMLVideoElement / `importExternalTexture` はブラウザの暗黙 YUV->RGB と float 秒 seek に依存するため、
 この経路の動画 preview は export parity をまだ主張しない。external texture 表示を入れる前後で、known clip の同一 frame を

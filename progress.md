@@ -1,3 +1,41 @@
+## 2026-06-18 — Phase5: Rust decoded video frame の WebGPU upload / draw gate
+
+### 実施内容
+- `sharedRendererWebGpuPresenter` に `uploadVideoFrameTexture` を追加し、
+  Rust backend の `rgba8Srgb` descriptor + `Uint8Array` を WebGPU `rgba8unorm-srgb` texture へ upload できるようにした。
+- upload は `descriptor.strideBytes` を `bytesPerRow`、`descriptor.height` を `rowsPerImage` として使い、
+  `descriptor.byteLen` と実 bytes 長が一致しない場合は upload しない。
+- `startSharedRendererPreviewPresenter` は decoded frame upload が成功した時だけ `videoFrameUploadReady=true` とし、
+  release callback がある場合は `queue.onSubmittedWorkDone()` 後に呼ぶようにした。
+- `sharedRendererWebGpuPresenter` に `presentVideoFrameScene` を追加し、既存の video plane vertices を
+  uploaded texture + sampler で描画する WebGPU pass を追加した。
+- package version を `0.1.1-Beta-44a` に更新した。
+
+### Red
+- `sharedRendererWebGpuPresenter.test.ts` に texture upload 契約を追加し、
+  旧実装では `uploadVideoFrameTexture is not a function` で Red になった。
+- `sharedRendererPreviewPresenterController.test.ts` に upload 成功後の ownership / diagnostics / release timing 契約を追加し、
+  旧実装では `videoFrameUploadUnavailable` のまま Red になった。
+- `sharedRendererWebGpuPresenter.test.ts` に uploaded video texture 描画契約を追加し、
+  旧実装では `presentVideoFrameScene is not a function` で Red になった。
+
+### Green
+- WebGPU upload は control plane JSON ではなく、bridge から渡される `Uint8Array` を入力にする形にした。
+- WebGPU texture format は protocol の `rgba8Srgb` を `rgba8unorm-srgb` へ変換する。
+- video draw pass は transparent clear の上に video plane vertex buffer を描き、sampler + texture view を bind する。
+- controller は upload 結果を ownership gate と diagnostics へ反映する。
+
+### 現在の制限
+- POSIX shm から renderer upload buffer へ bytes を移す preload/native bridge はまだ未実装。
+- `presentVideoFrameScene` は単一 uploaded texture を video plane scene に描く最小実装で、複数 video / texture cache / long-lived presenter 更新は未実装。
+- transfer / matrix metadata gate はまだ `bt709` 前提で、次以降に `ffprobe` 照合と fail-loud 化を進める。
+
+### 検証
+- `npm test -- src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererVideoOwnership.test.ts src/utils/sharedRendererPresenterDiagnostics.test.ts`
+  -> 4 files / 30 tests passed。
+- `cargo test --manifest-path shared-memory-spike/Cargo.toml --test posix_shm_two_process` -> 3 tests passed。
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane` -> 7 tests passed。
+
 ## 2026-06-18 — Phase5: Rust backend decode data-plane を multi-slot shared memory 化
 
 ### 実施内容
