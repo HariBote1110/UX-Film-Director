@@ -280,10 +280,10 @@ z-order safety gate では、candidate video より前面に Pixi-only object �
 前面の `SolidColour` は shared renderer が描けるため許可し、前面の `Video` は同じ cutover candidate に含まれる場合だけ許可する。
 `Image` / PSD / text / unsupported object が前面に残る構成では、video の shared renderer cutover を行わない。
 この段階で Rust backend は `decode.requestFrame(frameIndex)` から実 pixel decode を行い、source `color_range=pc/tv` を
-full-range RGBA へ明示正規化した descriptor / CRC32 verification だけを control plane に返せる。
-ただし decoded RGBA の POSIX shm / mmap 書き込みと WebGPU texture upload はまだ未実装であり、
-`videoFrameUploadReady=false` のまま Pixi preview を維持する。次 gate で transfer / matrix metadata gate と
-sidecar decode -> shared memory -> texture upload を接続する。
+full-range RGBA へ明示正規化し、decoded RGBA を POSIX shared memory ring へ書ける。
+control plane には descriptor / CRC32 verification だけを返す。
+ただし renderer の WebGPU texture upload はまだ未実装であり、`videoFrameUploadReady=false` のまま Pixi preview を維持する。
+次 gate で transfer / matrix metadata gate、production multi-slot ring、WebGPU texture upload を接続する。
 これにより、動画読み込み・current frame availability と GPU import / sampling の問題を分離する。
 ただし HTMLVideoElement / `importExternalTexture` はブラウザの暗黙 YUV->RGB と float 秒 seek に依存するため、
 この経路の動画 preview は export parity をまだ主張しない。external texture 表示を入れる前後で、known clip の同一 frame を

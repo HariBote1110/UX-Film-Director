@@ -1,3 +1,31 @@
+## 2026-06-18 — Phase5: Rust backend decoded RGBA を POSIX shared memory へ書き込む
+
+### 実施内容
+- `rust-backend/tests/decode_control_plane.rs` に、`decode.requestFrame` 後に別 consumer が `memoryId` へ attach し、
+  decoded RGBA bytes を POSIX shared memory から読める契約を追加した。
+- `decode.start` の `memoryId` を attach 可能な POSIX shared memory name (`/uxfd-...`) に変更した。
+- `rust-backend` は unix 環境で `uxfd-shared-memory-spike` の `PosixSharedRing` を保持し、
+  `decode.requestFrame` で padded RGBA を ring に write、`decode.releaseFrame` で shared memory slot を free に戻すようにした。
+- control plane は引き続き descriptor / CRC32 verification のみを返し、frame bytes / pixel array / base64 は載せない。
+- package version を `0.1.1-Beta-42a` に更新した。
+
+### Red
+- `decode_request_frame_writes_decoded_rgba_to_posix_shared_memory` を追加した。
+- 旧実装では `memoryId` が `decode-shm-ring` 形式で、POSIX shm consumer が attach できず Red になった。
+
+### Green
+- `decode_memory_id` で job id から `/uxfd-{pid}-{jobId}-ring` を生成するようにした。
+- `create_decode_data_plane` / `write_decode_data_plane` / `release_decode_data_plane` を追加し、unix では POSIX shm、
+  non-unix では no-op fallback とした。
+- release test は consumer が shared memory から frame を読んだ後に `decode.releaseFrame(copyOutState=gpuUploadFenceSignalled)` を呼ぶ実運用に合わせた。
+
+### 現在の制限
+- `uxfd-shared-memory-spike::PosixSharedRing` は現時点で single-slot smoke 実装のため、production ring の multi-slot 化が次の課題。
+- renderer / Electron から WebGPU texture upload する経路はまだ未接続で、`videoFrameUploadReady=false` のまま Pixi preview を維持する。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml` -> 6 tests passed。
+
 ## 2026-06-17 — Phase5: Rust backend 動画decodeの limited range gate
 
 ### 実施内容

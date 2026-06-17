@@ -119,10 +119,12 @@ Rust backend integration gate:
   GPU row pitch に合わせた `SharedFrame` descriptor と
   `FrameVerificationReport` の CRC32 だけを返す。
 - control plane に frame bytes / pixel array / base64 は載せない。
-- 現時点では decoded RGBA は heap 上で padding / checksum されるだけで、POSIX shm / mmap にはまだ書かない。
+- Rust backend は unix 環境で attach 可能な POSIX shared memory name を `memoryId` として返し、
+  decoded RGBA を shared memory ring へ書く。
 - `decode.releaseFrame` は WebGPU upload fence 完了後の `copyOutState=gpuUploadFenceSignalled` でのみ slot を解放する。
-- 次 gate では transfer / matrix も `ffprobe` metadata で fail-loud または明示変換したうえで、decoded RGBA を
-  shared memory slot へ直接書く。
+- 現時点の backend integration は single-slot smoke であり、次 gate では production multi-slot ring と renderer の
+  WebGPU texture upload を接続する。
+- transfer / matrix は次 gate で `ffprobe` metadata により fail-loud または明示変換する。
 
 ## Protocol Contract
 

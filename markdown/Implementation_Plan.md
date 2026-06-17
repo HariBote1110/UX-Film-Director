@@ -169,6 +169,11 @@ frame bytes / pixel array / base64 は control plane に載せず、WebGPU uploa
 `ffprobe` で source `color_range` を読み、`pc` / `tv` を明示して full-range RGBA へ正規化する。  
 次段では transfer / matrix の strict metadata gate と、POSIX shm / mmap への decoded RGBA 書き込み、WebGPU texture upload を接続する。
 
+38. Phase5: Rust backend decoded RGBA を POSIX shared memory へ書き込む  
+`decode.start` は attach 可能な `/uxfd-...` memory id を返し、Rust backend は decoded RGBA を POSIX shared memory ring へ書く。  
+consumer は `memoryId` / `slotByteLen` / `strideBytes` を使って frame を読み、WebGPU upload fence 完了後に `decode.releaseFrame` で slot を解放する。  
+初期実装は single-slot smoke とし、次段で production multi-slot ring と WebGPU texture upload を接続する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
