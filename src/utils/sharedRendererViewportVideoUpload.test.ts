@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildSharedRendererPresentationContract } from './sharedRendererPresentationContract';
 import {
   prepareSharedRendererViewportVideoUpload,
+  prepareSharedRendererViewportVideoUploads,
   type SharedRendererViewportVideoDecodeJob,
 } from './sharedRendererViewportVideoUpload';
 import type { RustBackendVideoDecodeBridge } from './rustBackendVideoDecodeControl';
@@ -97,6 +98,91 @@ const session: SharedRendererPreviewSession = {
 };
 
 const expectedJobId = 'shared-renderer-video-video-1-64x32-60over1';
+const expectedSecondJobId = 'shared-renderer-video-video-2-80x45-30over1';
+
+const multiVideoSession: SharedRendererPreviewSession = {
+  ...session,
+  plan: {
+    ...session.plan,
+    snapshot: {
+      ...session.plan.snapshot,
+      clips: [
+        ...session.plan.snapshot.clips,
+        {
+          clip_id: 'video-2',
+          track_id: 'layer-1',
+          media_id: 'video-2',
+          source_frame: 7,
+          z_index: 1,
+          transform: {
+            translation_x: 80,
+            translation_y: 45,
+            scale_x: 1,
+            scale_y: 1,
+            rotation_degrees: 0,
+            sampling: 'bilinear',
+          },
+          opacity: 1,
+          effects: [],
+        },
+      ],
+    },
+    media: [
+      ...session.plan.media,
+      {
+        id: 'video-2',
+        kind: 'Video',
+        source: '/tmp/second clip.mp4',
+        width: 80,
+        height: 45,
+        source_rate: {
+          numerator: 30,
+          denominator: 1,
+        },
+      },
+    ],
+  },
+  surfaceGate: {
+    ...session.surfaceGate,
+    snapshot: {
+      ...session.surfaceGate.snapshot,
+      clips: [
+        ...session.surfaceGate.snapshot.clips,
+        {
+          clip_id: 'video-2',
+          track_id: 'layer-1',
+          media_id: 'video-2',
+          source_frame: 7,
+          z_index: 1,
+          transform: {
+            translation_x: 80,
+            translation_y: 45,
+            scale_x: 1,
+            scale_y: 1,
+            rotation_degrees: 0,
+            sampling: 'bilinear',
+          },
+          opacity: 1,
+          effects: [],
+        },
+      ],
+    },
+    media: [
+      ...session.surfaceGate.media,
+      {
+        id: 'video-2',
+        kind: 'Video',
+        source: '/tmp/second clip.mp4',
+        width: 80,
+        height: 45,
+        source_rate: {
+          numerator: 30,
+          denominator: 1,
+        },
+      },
+    ],
+  },
+};
 
 const createBridges = () => {
   const calls: unknown[] = [];
@@ -190,6 +276,93 @@ const createBridges = () => {
 };
 
 describe('sharedRendererViewportVideoUpload', () => {
+  it('prepares Rust decoded uploads for every visible video without stopping other active jobs', async () => {
+    const { calls, rustBackendBridge, copyBridge } = createBridges();
+
+    const result = await prepareSharedRendererViewportVideoUploads({
+      session: multiVideoSession,
+      requestId: 80,
+      slotCount: 2,
+      activeJobs: [],
+      rustBackendBridge,
+      copyBridge,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected multi-video viewport upload preparation to succeed');
+    expect(result.activeJobs.map((job) => job.jobId)).toEqual([
+      expectedJobId,
+      expectedSecondJobId,
+    ]);
+    expect(result.uploads.map(({ request }) => request.mediaId)).toEqual([
+      'video-1',
+      'video-2',
+    ]);
+    expect(calls).toEqual([
+      ['startVideoDecode', {
+        jobId: expectedJobId,
+        source: '/tmp/gopro clip.mp4',
+        slotCount: 2,
+        width: 64,
+        height: 32,
+        sourceRate: {
+          numerator: 60,
+          denominator: 1,
+        },
+        format: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      }],
+      ['requestVideoDecodeFrame', {
+        jobId: expectedJobId,
+        requestId: 80,
+        frameIndex: 42,
+        mode: 'latestWins',
+      }],
+      ['copyIntoUploadBuffer', {
+        memoryId: '/uxfd-node-video-ring',
+        slotCount: 2,
+        slotByteLen: 8192,
+        ptsFrame: 42,
+      }, 8192],
+      ['startVideoDecode', {
+        jobId: expectedSecondJobId,
+        source: '/tmp/second clip.mp4',
+        slotCount: 2,
+        width: 80,
+        height: 45,
+        sourceRate: {
+          numerator: 30,
+          denominator: 1,
+        },
+        format: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      }],
+      ['requestVideoDecodeFrame', {
+        jobId: expectedSecondJobId,
+        requestId: 80,
+        frameIndex: 7,
+        mode: 'latestWins',
+      }],
+      ['copyIntoUploadBuffer', {
+        memoryId: '/uxfd-node-video-ring',
+        slotCount: 2,
+        slotByteLen: 8192,
+        ptsFrame: 7,
+      }, 8192],
+    ]);
+    expect(calls).not.toContainEqual(['stopVideoDecode', expect.anything()]);
+  });
+
   it('starts Rust decode, requests the visible frame, and prepares a WebGPU upload object', async () => {
     const { calls, rustBackendBridge, copyBridge } = createBridges();
 
