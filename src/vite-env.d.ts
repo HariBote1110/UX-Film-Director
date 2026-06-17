@@ -50,7 +50,7 @@ interface Window {
       jobId: string;
       slotIndex: number;
       generation: number;
-      copyOutState: 'gpuUploadFenceSignalled';
+      copyOutState: 'gpuUploadFenceSignalled' | 'rendererUploadAborted';
     }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
   };
   sharedVideoFrame: {

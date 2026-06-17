@@ -41,15 +41,23 @@ export const prepareSharedRendererRustDecodedVideoUpload = async ({
   }
 
   const { frame, jobId } = decodeResponse.result;
-  return prepareSharedRendererDecodedVideoFrameUpload({
-    sharedFrame: frame,
-    slotCount,
-    bridge: copyBridge,
-    releaseAfterGpuUpload: () => releaseRustBackendVideoDecodeFrame({
+  const releaseFrame = (copyOutState: 'gpuUploadFenceSignalled' | 'rendererUploadAborted') =>
+    releaseRustBackendVideoDecodeFrame({
       jobId,
       slotIndex: frame.descriptor.slotIndex,
       generation: frame.descriptor.generation,
-      copyOutState: 'gpuUploadFenceSignalled',
-    }, rustBackendBridge).then(() => undefined),
+      copyOutState,
+    }, rustBackendBridge).then(() => undefined);
+
+  const upload = await prepareSharedRendererDecodedVideoFrameUpload({
+    sharedFrame: frame,
+    slotCount,
+    bridge: copyBridge,
+    releaseAfterGpuUpload: () => releaseFrame('gpuUploadFenceSignalled'),
   });
+  if (!upload.ok) {
+    await releaseFrame('rendererUploadAborted');
+  }
+
+  return upload;
 };

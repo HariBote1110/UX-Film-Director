@@ -1,5 +1,7 @@
 export type RustBackendDecodedVideoFrameFormat = 'rgba8Srgb';
-export type RustBackendVideoDecodeCopyOutState = 'gpuUploadFenceSignalled';
+export type RustBackendVideoDecodeCopyOutState =
+  | 'gpuUploadFenceSignalled'
+  | 'rendererUploadAborted';
 
 export interface RustBackendVideoDecodeColour {
   primaries: 'bt709';
