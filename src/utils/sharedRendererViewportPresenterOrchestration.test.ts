@@ -69,6 +69,7 @@ const control: SharedRendererPreviewPresenterControl = {
 describe('sharedRendererViewportPresenterOrchestration', () => {
   it('passes a prepared Rust decoded video upload into the presenter start input', async () => {
     let presenterInput: unknown;
+    const events: string[] = [];
     const prepareVideoUpload: SharedRendererViewportVideoUploadPreparer = async () => ({
       ok: true,
       activeJob,
@@ -76,6 +77,7 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
       upload,
     });
     const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {
+      events.push('startPresenter');
       presenterInput = input;
       return control;
     };
@@ -90,10 +92,17 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
       requestId: 9,
       prepareVideoUpload,
       startPresenter,
+      onVideoDecodeJobResolved: (job) => {
+        events.push(`job:${job?.jobId ?? 'none'}`);
+      },
     });
 
     expect(result.control).toBe(control);
     expect(result.activeVideoDecodeJob).toBe(activeJob);
+    expect(events).toEqual([
+      'job:shared-renderer-video-video-1-64x32-60over1',
+      'startPresenter',
+    ]);
     expect(presenterInput).toMatchObject({
       sharedRendererVideoCutoverEnabled: true,
       sharedRendererDecodedVideoFrameUpload: upload,
