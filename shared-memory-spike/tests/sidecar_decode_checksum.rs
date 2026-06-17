@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use uxfd_decode_spike::{build_known_cfr_h264_fixture, decode_fixture_to_shared_rgba};
@@ -5,9 +6,11 @@ use uxfd_shared_memory_spike::{
     crc32, write_sidecar_decoded_frame_to_ring, PosixSharedRing, SidecarDecodeHandoffError,
 };
 use uxfd_sidecar_protocol::{
-    ColourMetadata, ControlEvent, CopyOutState, DecodeFrameRequest, DescriptorValidationError,
-    FrameDescriptor, FrameFormat, FrameVerificationStatus,
+    ColourMetadata, ControlEvent, CopyOutState, DecodeFrameRequest, DecodeFrameRequestMode,
+    DescriptorValidationError, FrameDescriptor, FrameFormat, FrameVerificationStatus,
 };
+
+static UNIQUE_SHM_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[test]
 fn sidecar_decoded_frame_checksum_matches_direct_decode_reference() {
@@ -17,7 +20,9 @@ fn sidecar_decoded_frame_checksum_matches_direct_decode_reference() {
     let frame_len = direct.rgba_frame.pixels.len();
     let request = DecodeFrameRequest {
         job_id: "decode-job-1".to_string(),
+        request_id: 1,
         frame_index: 0,
+        mode: DecodeFrameRequestMode::LatestWins,
     };
     let ring = PosixSharedRing::create(&unique_shm_name(), frame_len).expect("create shm ring");
 
@@ -93,7 +98,9 @@ fn sidecar_handoff_rejects_unsupported_colour_metadata_before_writing() {
         &ring,
         DecodeFrameRequest {
             job_id: "decode-job-unsupported".to_string(),
+            request_id: 1,
             frame_index: 0,
+            mode: DecodeFrameRequestMode::LatestWins,
         },
         descriptor,
         &[0, 0, 0, 255],
@@ -109,10 +116,15 @@ fn sidecar_handoff_rejects_unsupported_colour_metadata_before_writing() {
 }
 
 fn unique_shm_name() -> String {
-    let micros = SystemTime::now()
+    let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("system clock should be after unix epoch")
-        .as_micros()
-        % 1_000_000;
-    format!("/uxfd{}-{micros}", std::process::id())
+        .as_nanos() as u64;
+    let counter = UNIQUE_SHM_COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!(
+        "/u{:x}{:x}{:x}",
+        std::process::id(),
+        counter,
+        nanos & 0xfffff
+    )
 }

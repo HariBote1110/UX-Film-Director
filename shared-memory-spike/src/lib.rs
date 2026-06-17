@@ -149,6 +149,7 @@ pub struct PosixSharedRing {
     fd: i32,
     ptr: *mut u8,
     len: usize,
+    slot_count: u32,
     frame_len: usize,
     owner: bool,
 }
@@ -158,8 +159,20 @@ unsafe impl Sync for PosixSharedRing {}
 
 impl PosixSharedRing {
     pub fn create(name: &str, frame_len: usize) -> Result<Self, PosixShmError> {
+        Self::create_with_slot_count(name, 1, frame_len)
+    }
+
+    pub fn create_with_slot_count(
+        name: &str,
+        slot_count: u32,
+        frame_len: usize,
+    ) -> Result<Self, PosixShmError> {
+        if slot_count == 0 || frame_len == 0 {
+            return Err(PosixShmError::InvalidArgs);
+        }
+
         let name = shm_name(name)?;
-        let len = mapping_len(frame_len);
+        let len = mapping_len(slot_count, frame_len);
         let fd = unsafe {
             libc::shm_open(
                 name.as_ptr(),
@@ -179,6 +192,7 @@ impl PosixSharedRing {
             fd,
             ptr: ptr::null_mut(),
             len,
+            slot_count,
             frame_len,
             owner: true,
         };
@@ -201,6 +215,19 @@ impl PosixSharedRing {
         frame_len: usize,
         timeout: Duration,
     ) -> Result<Self, PosixShmError> {
+        Self::attach_with_retry_for_layout(name, 1, frame_len, timeout)
+    }
+
+    pub fn attach_with_retry_for_layout(
+        name: &str,
+        slot_count: u32,
+        frame_len: usize,
+        timeout: Duration,
+    ) -> Result<Self, PosixShmError> {
+        if slot_count == 0 || frame_len == 0 {
+            return Err(PosixShmError::InvalidArgs);
+        }
+
         let name = shm_name(name)?;
         let start = Instant::now();
 
@@ -211,13 +238,14 @@ impl PosixSharedRing {
                     name,
                     fd,
                     ptr: ptr::null_mut(),
-                    len: mapping_len(frame_len),
+                    len: mapping_len(slot_count, frame_len),
+                    slot_count,
                     frame_len,
                     owner: false,
                 };
                 ring.map()?;
                 ring.wait_for_initialised(start, timeout)?;
-                ring.validate_expected_shape(frame_len)?;
+                ring.validate_expected_shape(slot_count, frame_len)?;
                 return Ok(ring);
             }
 
@@ -246,20 +274,26 @@ impl PosixSharedRing {
             });
         }
 
-        let slot = self.slot();
         for spin in 0..MAX_SPINS {
-            if slot
-                .state
-                .compare_exchange(FREE, WRITING, Ordering::Acquire, Ordering::Relaxed)
-                .is_ok()
-            {
-                unsafe {
-                    ptr::copy_nonoverlapping(bytes.as_ptr(), self.bytes_ptr(), self.frame_len);
+            for slot_index in 0..self.slot_count {
+                let slot = self.slot(slot_index);
+                if slot
+                    .state
+                    .compare_exchange(FREE, WRITING, Ordering::Acquire, Ordering::Relaxed)
+                    .is_ok()
+                {
+                    unsafe {
+                        ptr::copy_nonoverlapping(
+                            bytes.as_ptr(),
+                            self.bytes_ptr(slot_index),
+                            self.frame_len,
+                        );
+                    }
+                    slot.sequence.store(sequence, Ordering::Relaxed);
+                    slot.checksum.store(crc32(bytes), Ordering::Relaxed);
+                    slot.state.store(READY, Ordering::Release);
+                    return Ok(());
                 }
-                slot.sequence.store(sequence, Ordering::Relaxed);
-                slot.checksum.store(crc32(bytes), Ordering::Relaxed);
-                slot.state.store(READY, Ordering::Release);
-                return Ok(());
             }
 
             backoff(spin);
@@ -271,45 +305,50 @@ impl PosixSharedRing {
     }
 
     pub fn read_frame(&self, sequence: u64) -> Result<MappedReadFrame, PosixShmError> {
-        let slot = self.slot();
         for spin in 0..MAX_SPINS {
-            if slot.state.load(Ordering::Acquire) != READY {
-                backoff(spin);
-                continue;
-            }
-            if slot.sequence.load(Ordering::Relaxed) != sequence {
-                backoff(spin);
-                continue;
-            }
-            if slot
-                .state
-                .compare_exchange(READY, READING, Ordering::Acquire, Ordering::Relaxed)
-                .is_err()
-            {
-                backoff(spin);
-                continue;
-            }
+            for slot_index in 0..self.slot_count {
+                let slot = self.slot(slot_index);
+                if slot.state.load(Ordering::Acquire) != READY {
+                    continue;
+                }
+                if slot.sequence.load(Ordering::Relaxed) != sequence {
+                    continue;
+                }
+                if slot
+                    .state
+                    .compare_exchange(READY, READING, Ordering::Acquire, Ordering::Relaxed)
+                    .is_err()
+                {
+                    continue;
+                }
 
-            let expected_checksum = slot.checksum.load(Ordering::Relaxed);
-            let mut bytes = vec![0; self.frame_len];
-            unsafe {
-                ptr::copy_nonoverlapping(self.bytes_ptr(), bytes.as_mut_ptr(), self.frame_len);
-            }
-            let actual_checksum = crc32(&bytes);
-            if expected_checksum != actual_checksum {
-                return Err(PosixShmError::ChecksumMismatch {
+                let expected_checksum = slot.checksum.load(Ordering::Relaxed);
+                let mut bytes = vec![0; self.frame_len];
+                unsafe {
+                    ptr::copy_nonoverlapping(
+                        self.bytes_ptr(slot_index),
+                        bytes.as_mut_ptr(),
+                        self.frame_len,
+                    );
+                }
+                let actual_checksum = crc32(&bytes);
+                if expected_checksum != actual_checksum {
+                    return Err(PosixShmError::ChecksumMismatch {
+                        sequence,
+                        expected: expected_checksum,
+                        actual: actual_checksum,
+                    });
+                }
+
+                return Ok(MappedReadFrame {
                     sequence,
-                    expected: expected_checksum,
-                    actual: actual_checksum,
+                    expected_checksum,
+                    actual_checksum,
+                    bytes,
                 });
             }
 
-            return Ok(MappedReadFrame {
-                sequence,
-                expected_checksum,
-                actual_checksum,
-                bytes,
-            });
+            backoff(spin);
         }
 
         Err(PosixShmError::TimedOut {
@@ -322,20 +361,34 @@ impl PosixSharedRing {
             return Err(PosixShmError::CopyOutNotComplete);
         }
 
-        self.slot()
-            .state
-            .compare_exchange(READING, FREE, Ordering::Release, Ordering::Relaxed)
-            .map_err(|actual| PosixShmError::UnexpectedState {
-                expected: READING,
-                actual,
-            })?;
-        Ok(())
+        let mut observed = FREE;
+        for slot_index in 0..self.slot_count {
+            let slot = self.slot(slot_index);
+            observed = slot.state.load(Ordering::Acquire);
+            if observed != READING {
+                continue;
+            }
+            if slot
+                .state
+                .compare_exchange(READING, FREE, Ordering::Release, Ordering::Relaxed)
+                .is_ok()
+            {
+                return Ok(());
+            }
+        }
+
+        Err(PosixShmError::UnexpectedState {
+            expected: READING,
+            actual: observed,
+        })
     }
 
     pub fn wait_until_free(&self, timeout: Duration) -> Result<(), PosixShmError> {
         let start = Instant::now();
         while start.elapsed() < timeout {
-            if self.slot().state.load(Ordering::Acquire) == FREE {
+            if (0..self.slot_count)
+                .all(|slot_index| self.slot(slot_index).state.load(Ordering::Acquire) == FREE)
+            {
                 return Ok(());
             }
             thread::sleep(ATTACH_RETRY_DELAY);
@@ -378,9 +431,11 @@ impl PosixSharedRing {
         unsafe {
             ptr::write(
                 self.header_mut_ptr(),
-                SharedRingHeader::new(1, self.frame_len as u64),
+                SharedRingHeader::new(self.slot_count, self.frame_len as u64),
             );
-            ptr::write(self.slot_mut_ptr(), SharedSlotHeader::new());
+            for slot_index in 0..self.slot_count {
+                ptr::write(self.slot_mut_ptr(slot_index), SharedSlotHeader::new());
+            }
         }
         self.header().mark_initialised();
     }
@@ -397,11 +452,15 @@ impl PosixSharedRing {
         }
     }
 
-    fn validate_expected_shape(&self, frame_len: usize) -> Result<(), PosixShmError> {
+    fn validate_expected_shape(
+        &self,
+        slot_count: u32,
+        frame_len: usize,
+    ) -> Result<(), PosixShmError> {
         let header = self.header();
-        if header.slot_count != 1 {
+        if header.slot_count != slot_count {
             return Err(PosixShmError::SlotCountMismatch {
-                expected: 1,
+                expected: slot_count,
                 actual: header.slot_count,
             });
         }
@@ -418,11 +477,11 @@ impl PosixSharedRing {
         unsafe { &*(self.ptr.cast::<SharedRingHeader>()) }
     }
 
-    fn slot(&self) -> &SharedSlotHeader {
+    fn slot(&self, slot_index: u32) -> &SharedSlotHeader {
         unsafe {
             &*(self
                 .ptr
-                .add(slot_header_offset())
+                .add(slot_header_offset(slot_index))
                 .cast::<SharedSlotHeader>())
         }
     }
@@ -431,16 +490,19 @@ impl PosixSharedRing {
         self.ptr.cast::<SharedRingHeader>()
     }
 
-    fn slot_mut_ptr(&self) -> *mut SharedSlotHeader {
+    fn slot_mut_ptr(&self, slot_index: u32) -> *mut SharedSlotHeader {
         unsafe {
             self.ptr
-                .add(slot_header_offset())
+                .add(slot_header_offset(slot_index))
                 .cast::<SharedSlotHeader>()
         }
     }
 
-    fn bytes_ptr(&self) -> *mut u8 {
-        unsafe { self.ptr.add(bytes_offset()) }
+    fn bytes_ptr(&self, slot_index: u32) -> *mut u8 {
+        unsafe {
+            self.ptr
+                .add(bytes_offset(self.slot_count, slot_index, self.frame_len))
+        }
     }
 }
 
@@ -681,16 +743,18 @@ fn shm_name(name: &str) -> Result<CString, PosixShmError> {
     CString::new(name).map_err(|_| PosixShmError::InvalidName)
 }
 
-fn mapping_len(frame_len: usize) -> usize {
-    bytes_offset() + frame_len
+fn mapping_len(slot_count: u32, frame_len: usize) -> usize {
+    bytes_offset(slot_count, 0, frame_len) + frame_len * slot_count as usize
 }
 
-fn slot_header_offset() -> usize {
+fn slot_header_offset(slot_index: u32) -> usize {
+    size_of::<SharedRingHeader>() + size_of::<SharedSlotHeader>() * slot_index as usize
+}
+
+fn bytes_offset(slot_count: u32, slot_index: u32, frame_len: usize) -> usize {
     size_of::<SharedRingHeader>()
-}
-
-fn bytes_offset() -> usize {
-    slot_header_offset() + size_of::<SharedSlotHeader>()
+        + size_of::<SharedSlotHeader>() * slot_count as usize
+        + frame_len * slot_index as usize
 }
 
 #[derive(Debug)]

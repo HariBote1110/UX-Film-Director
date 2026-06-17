@@ -1,8 +1,11 @@
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use uxfd_shared_memory_spike::{PosixSharedRing, PosixShmError, SharedRingAttachError};
+
+static UNIQUE_SHM_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[test]
 fn two_processes_exchange_frames_after_attach_retry() {
@@ -93,10 +96,15 @@ fn posix_shm_multi_slot_allows_next_frame_while_previous_frame_is_reading() {
 }
 
 fn unique_shm_name() -> String {
-    let micros = SystemTime::now()
+    let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("system clock should be after unix epoch")
-        .as_micros()
-        % 1_000_000;
-    format!("/uxfd{}-{micros}", std::process::id())
+        .as_nanos() as u64;
+    let counter = UNIQUE_SHM_COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!(
+        "/u{:x}{:x}{:x}",
+        std::process::id(),
+        counter,
+        nanos & 0xfffff
+    )
 }
