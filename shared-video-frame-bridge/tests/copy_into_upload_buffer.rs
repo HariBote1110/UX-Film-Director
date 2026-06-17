@@ -30,17 +30,12 @@ fn copies_posix_shared_frame_into_renderer_upload_buffer_without_releasing_slot(
     assert_eq!(report.byte_len, 16);
     assert_eq!(report.actual_checksum, report.expected_checksum);
     assert!(
-        producer_ring
-            .write_frame(43, &source)
-            .is_ok(),
+        producer_ring.write_frame(43, &source).is_ok(),
         "second slot remains available while copied frame is still reading"
     );
     producer_ring
         .release_frame(CopyOutState::GpuUploadFenceSignalled)
         .expect("release copied frame after upload fence");
-    producer_ring
-        .release_frame(CopyOutState::GpuUploadFenceSignalled)
-        .expect("release second frame after upload fence");
 }
 
 fn unique_shm_name() -> String {
@@ -48,9 +43,5 @@ fn unique_shm_name() -> String {
         .duration_since(UNIX_EPOCH)
         .expect("system clock should be after unix epoch")
         .as_nanos() as u64;
-    format!(
-        "/u{:x}{:x}",
-        std::process::id(),
-        nanos & 0xfffff
-    )
+    format!("/u{:x}{:x}", std::process::id(), nanos & 0xfffff)
 }
