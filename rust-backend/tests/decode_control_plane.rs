@@ -41,16 +41,58 @@ fn decode_start_returns_shared_ring_layout_without_frame_bytes() {
         .as_str()
         .expect("memory id")
         .starts_with("/uxfd-"));
-    assert!(response["result"]["memoryId"]
-        .as_str()
-        .expect("memory id")
-        .contains("decode-1-ring"));
+    assert!(
+        response["result"]["memoryId"]
+            .as_str()
+            .expect("memory id")
+            .len()
+            <= 31,
+        "POSIX shm name must stay inside the macOS name limit"
+    );
     assert_eq!(response["result"]["slotCount"], 3);
     assert_eq!(response["result"]["sourceRate"]["numerator"], 60);
     assert_eq!(response["result"]["sourceRate"]["denominator"], 1);
     assert_eq!(response["result"]["strideBytes"], 7680);
     assert_eq!(response["result"]["slotByteLen"], 15360);
     assert_no_frame_bytes(&response["result"]);
+}
+
+#[test]
+fn decode_start_uses_short_shared_memory_name_for_renderer_length_job_id() {
+    let mut backend = BackendProcess::start();
+
+    let response = backend.request(json!({
+        "id": 1,
+        "method": "decode.start",
+        "params": {
+            "jobId": "shared-renderer-video-video-1-64x32-60over1",
+            "source": "/media/input.mp4",
+            "slotCount": 2,
+            "width": 64,
+            "height": 32,
+            "sourceRate": {
+                "numerator": 60,
+                "denominator": 1
+            },
+            "format": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+
+    assert_eq!(response["ok"], true, "{response}");
+    let memory_id = response["result"]["memoryId"]
+        .as_str()
+        .expect("memory id");
+    assert!(
+        memory_id.len() <= 31,
+        "POSIX shm name must stay inside the macOS name limit: {memory_id}"
+    );
+    assert_no_frame_bytes_recursive(&response["result"]);
 }
 
 #[test]
@@ -664,6 +706,66 @@ fn decode_request_frame_uses_limited_range_source_metadata_for_rgba_handoff() {
 }
 
 #[test]
+fn decode_request_frame_rejects_unsupported_transfer_metadata() {
+    let temp_dir = TestTempDir::new("decode-control-plane-unsupported-transfer");
+    let fixture = build_two_frame_h264_fixture_with_colour_metadata(
+        temp_dir.path(),
+        "unsupported-transfer.mp4",
+        None,
+        "pc",
+        "pc",
+        "bt709",
+        "bt709",
+        "bt709",
+    );
+    let mut backend = BackendProcess::start();
+
+    let start_response = backend.request(json!({
+        "id": 1,
+        "method": "decode.start",
+        "params": {
+            "jobId": "dtg",
+            "source": fixture.path,
+            "slotCount": 2,
+            "width": fixture.width,
+            "height": fixture.height,
+            "sourceRate": {
+                "numerator": 30,
+                "denominator": 1
+            },
+            "format": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(start_response["ok"], true, "{start_response}");
+
+    let response = backend.request(json!({
+        "id": 2,
+        "method": "decode.requestFrame",
+        "params": {
+            "jobId": "dtg",
+            "requestId": 52,
+            "frameIndex": 1,
+            "mode": "latestWins"
+        }
+    }));
+
+    assert_eq!(response["ok"], false);
+    assert!(
+        response["error"]["message"]
+            .as_str()
+            .expect("error message")
+            .contains("unsupported video color_transfer for Rust decode")
+    );
+    assert_no_frame_bytes_recursive(&response);
+}
+
+#[test]
 fn decode_request_frame_accepts_frame_index_without_float_seconds() {
     let mut backend = BackendProcess::start();
     backend.start_decode();
@@ -829,6 +931,28 @@ fn build_two_frame_h264_fixture_with_range(
     x264_range: &'static str,
     container_range: &'static str,
 ) -> TestVideoFixture {
+    build_two_frame_h264_fixture_with_colour_metadata(
+        directory,
+        file_name,
+        video_filter,
+        x264_range,
+        container_range,
+        "bt709",
+        "iec61966-2-1",
+        "bt709",
+    )
+}
+
+fn build_two_frame_h264_fixture_with_colour_metadata(
+    directory: &Path,
+    file_name: &str,
+    video_filter: Option<&'static str>,
+    x264_range: &'static str,
+    container_range: &'static str,
+    color_primaries: &'static str,
+    color_trc: &'static str,
+    colorspace: &'static str,
+) -> TestVideoFixture {
     let width = 34;
     let height = 16;
     let raw_path = directory.join("two-frame-source.rgba");
@@ -871,13 +995,13 @@ fn build_two_frame_h264_fixture_with_range(
         .arg("-crf")
         .arg("0")
         .arg("-x264-params")
-        .arg(format!("keyint=1:min-keyint=1:scenecut=0:range={x264_range}:colorprim=bt709:transfer=iec61966-2-1:colormatrix=bt709"))
+        .arg(format!("keyint=1:min-keyint=1:scenecut=0:range={x264_range}:colorprim={color_primaries}:transfer={color_trc}:colormatrix={colorspace}"))
         .arg("-color_primaries")
-        .arg("bt709")
+        .arg(color_primaries)
         .arg("-color_trc")
-        .arg("iec61966-2-1")
+        .arg(color_trc)
         .arg("-colorspace")
-        .arg("bt709")
+        .arg(colorspace)
         .arg("-color_range")
         .arg(container_range)
         .arg("-video_track_timescale")
