@@ -24,6 +24,7 @@ export interface BuildSharedRendererVideoOwnershipInput {
   videoDecodeRequestSource?: 'rust-wasm' | 'typescript';
   videoDecodeRequestResult?: SharedRendererVideoFrameDecodeRequestResult | null;
   videoFrameUploadReady: boolean;
+  uploadedVideoObjectIds?: ReadonlySet<string>;
   stackSafeVideoObjectIds?: ReadonlySet<string>;
 }
 
@@ -33,6 +34,7 @@ export const buildSharedRendererVideoOwnership = ({
   videoDecodeRequestSource,
   videoDecodeRequestResult,
   videoFrameUploadReady,
+  uploadedVideoObjectIds,
   stackSafeVideoObjectIds,
 }: BuildSharedRendererVideoOwnershipInput): SharedRendererVideoOwnership => {
   if (!cutoverEnabled) {
@@ -55,9 +57,17 @@ export const buildSharedRendererVideoOwnership = ({
   }
 
   const decodedVideoObjectIds = [...new Set(videoDecodeRequestResult.requests.map((request) => request.clipId))];
-  const ownedVideoObjectIds = stackSafeVideoObjectIds
-    ? decodedVideoObjectIds.filter((videoObjectId) => stackSafeVideoObjectIds.has(videoObjectId))
+  const uploadedDecodedVideoObjectIds = uploadedVideoObjectIds
+    ? decodedVideoObjectIds.filter((videoObjectId) => uploadedVideoObjectIds.has(videoObjectId))
     : decodedVideoObjectIds;
+
+  if (uploadedDecodedVideoObjectIds.length === 0) {
+    return pixiOwnership('videoFrameUploadUnavailable');
+  }
+
+  const ownedVideoObjectIds = stackSafeVideoObjectIds
+    ? uploadedDecodedVideoObjectIds.filter((videoObjectId) => stackSafeVideoObjectIds.has(videoObjectId))
+    : uploadedDecodedVideoObjectIds;
 
   if (ownedVideoObjectIds.length === 0) {
     return pixiOwnership('pixiOnlyObjectAboveVideo');
