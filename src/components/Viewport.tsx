@@ -116,7 +116,7 @@ const Viewport: React.FC = () => {
   const sharedRendererSurfaceCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const sharedRendererPresenterControlRef = useRef<SharedRendererPreviewPresenterControl | null>(null);
   const sharedRendererPresenterSessionKeyRef = useRef<string | null>(null);
-  const sharedRendererVideoDecodeJobRef = useRef<SharedRendererViewportVideoDecodeJob | null>(null);
+  const sharedRendererVideoDecodeJobsRef = useRef<SharedRendererViewportVideoDecodeJob[]>([]);
   const sharedRendererVideoDecodeRequestIdRef = useRef(0);
   const pixiObjectsRef = useRef<Map<string, PIXI.Container>>(new Map());
   const groupContainersRef = useRef<Map<string, PIXI.Container>>(new Map());
@@ -510,7 +510,7 @@ const Viewport: React.FC = () => {
     if (!sharedRendererPreviewEnabled || !sharedRendererPreviewSession) {
       sharedRendererPresenterControlRef.current?.dispose();
       sharedRendererPresenterControlRef.current = null;
-      sharedRendererVideoDecodeJobRef.current = null;
+      sharedRendererVideoDecodeJobsRef.current = [];
       updateSharedRendererSolidColourObjectIds([]);
       updateSharedRendererVideoObjectIds([]);
       return;
@@ -531,7 +531,7 @@ const Viewport: React.FC = () => {
     sharedRendererPresenterControlRef.current?.dispose();
     sharedRendererPresenterControlRef.current = null;
     if (!sharedRendererVideoCutoverEnabled) {
-      sharedRendererVideoDecodeJobRef.current = null;
+      sharedRendererVideoDecodeJobsRef.current = [];
     }
     updateSharedRendererSolidColourObjectIds([]);
     updateSharedRendererVideoObjectIds([]);
@@ -550,18 +550,24 @@ const Viewport: React.FC = () => {
       diagnosticSwatchEnabled: sharedRendererDiagnosticSwatchEnabled,
       videoCutoverEnabled: sharedRendererVideoCutoverEnabled,
       activeVideoDecodeJob: sharedRendererVideoCutoverEnabled
-        ? sharedRendererVideoDecodeJobRef.current
+        ? sharedRendererVideoDecodeJobsRef.current[0] ?? null
         : null,
+      activeVideoDecodeJobs: sharedRendererVideoCutoverEnabled
+        ? sharedRendererVideoDecodeJobsRef.current
+        : [],
       requestId: (sharedRendererVideoDecodeRequestIdRef.current += 1),
       onVideoDecodeJobResolved: (job) => {
-        sharedRendererVideoDecodeJobRef.current = job;
+        sharedRendererVideoDecodeJobsRef.current = job ? [job] : [];
       },
-    }).then(({ control, activeVideoDecodeJob }) => {
+      onVideoDecodeJobsResolved: (jobs) => {
+        sharedRendererVideoDecodeJobsRef.current = jobs;
+      },
+    }).then(({ control, activeVideoDecodeJobs }) => {
       if (cancelled) {
         control.dispose();
         return;
       }
-      sharedRendererVideoDecodeJobRef.current = activeVideoDecodeJob;
+      sharedRendererVideoDecodeJobsRef.current = activeVideoDecodeJobs;
       currentControl = control;
       sharedRendererPresenterControlRef.current = control;
       updateSharedRendererSolidColourObjectIds(control.ok ? control.solidColourOwnership.solidColourObjectIds : []);
