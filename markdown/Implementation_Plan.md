@@ -191,6 +191,12 @@ POSIX shared memory ring から renderer upload buffer 相当の mutable byte sl
 Rust core crate を追加する。copy 後も slot は `READING` のまま保持し、WebGPU upload fence 後の
 `decode.releaseFrame` で解放する。次段ではこの core を N-API / Electron preload へ接続する。
 
+42. Phase5: shared video frame preload bridge API を追加する
+renderer は `SharedFrame` descriptor から `Uint8Array` upload buffer を確保し、preload の
+`window.sharedVideoFrame.copyIntoUploadBuffer` へ control payload と target buffer を渡す。
+control payload に frame bytes は載せず、native bridge 未接続時は fail-loud で Pixi fallback を維持する。
+次段では `shared-video-frame-bridge` core を N-API module として接続し、Viewport の decode orchestration へ組み込む。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

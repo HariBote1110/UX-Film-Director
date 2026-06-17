@@ -288,9 +288,11 @@ renderer presenter は `rgba8Srgb` descriptor + upload buffer を `rgba8unorm-sr
 video plane vertex scene と sampler で描画できる。
 `shared-video-frame-bridge` crate は POSIX shm ring から renderer upload buffer 相当の mutable slice へ
 decoded frame bytes を copy でき、copy 後も slot ownership は `READING` のまま保持する。
-ただし POSIX shm から renderer upload buffer へ copy する preload/native bridge はまだ未実装であり、
-実アプリの video cutover は bridge 接続まで Pixi preview を維持する。
-次 gate で Rust bridge core を N-API / Electron preload へ接続し、transfer / matrix metadata gate も進める。
+preload は `window.sharedVideoFrame.copyIntoUploadBuffer` を公開し、renderer helper は `SharedFrame` descriptor から
+upload buffer を確保して native bridge へ渡せる。
+ただし native module 実体と Viewport orchestration はまだ未接続であり、実アプリの video cutover は bridge 接続まで
+Pixi preview を維持する。
+次 gate で Rust bridge core を N-API module として接続し、transfer / matrix metadata gate も進める。
 これにより、動画読み込み・current frame availability と GPU import / sampling の問題を分離する。
 ただし HTMLVideoElement / `importExternalTexture` はブラウザの暗黙 YUV->RGB と float 秒 seek に依存するため、
 この経路の動画 preview は export parity をまだ主張しない。external texture 表示を入れる前後で、known clip の同一 frame を

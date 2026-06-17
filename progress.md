@@ -1,3 +1,32 @@
+## 2026-06-18 — Phase5: shared video frame preload bridge API を追加
+
+### 実施内容
+- `sharedVideoFrameUploadBridge` を追加し、Rust backend の `SharedFrame` descriptor から renderer-owned `Uint8Array`
+  upload buffer を確保して、preload/native bridge の `copyIntoUploadBuffer` へ渡す契約を固定した。
+- bridge の control payload は `memoryId` / `slotCount` / `slotByteLen` / `ptsFrame` のみを持ち、
+  `rgbaBytes` / `pixels` / `frameBase64` を JSON 側へ混ぜない。
+- `electron/preload.ts` は `window.sharedVideoFrame.copyIntoUploadBuffer` を公開した。
+  現時点では `UXFD_SHARED_VIDEO_FRAME_BRIDGE_MODULE` で指定された native module を読み、未指定なら fail-loud で返す。
+- `src/vite-env.d.ts` に `window.sharedVideoFrame` 型を追加した。
+- package version を `0.1.1-Beta-46a` に更新した。
+
+### Red
+- `src/utils/sharedVideoFrameUploadBridge.test.ts` を追加し、helper module 未作成で Red になった。
+
+### Green
+- `prepareSharedRendererDecodedVideoFrameUpload` を追加し、copy report の byte length が descriptor と一致した場合だけ
+  controller へ渡せる upload object を返すようにした。
+- preload は native bridge 未接続時に成功扱いせず、`success:false` を返す。
+
+### 現在の制限
+- native module そのものはまだ build / package していないため、実アプリで shm copy を成功させるには
+  `shared-video-frame-bridge` core を N-API module として接続する必要がある。
+- Viewport はまだ decode result -> bridge copy -> presenter upload の orchestration を呼んでいない。
+
+### 検証
+- `npm test -- src/utils/sharedVideoFrameUploadBridge.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts`
+  -> 3 files / 25 tests passed。
+
 ## 2026-06-18 — Phase5: shared video frame bridge core をRustで追加
 
 ### 実施内容
