@@ -92,6 +92,63 @@ const videoMedia: RustSceneMediaReference[] = [
   },
 ];
 
+const multiVideoSnapshot: RustSceneSnapshot = {
+  ...snapshot,
+  clips: [
+    {
+      clip_id: 'video-back',
+      track_id: 'layer-0',
+      media_id: 'video-back',
+      source_frame: 90,
+      z_index: 0,
+      transform: {
+        translation_x: 10,
+        translation_y: 20,
+        scale_x: 1,
+        scale_y: 1,
+        rotation_degrees: 0,
+        sampling: 'bilinear',
+      },
+      opacity: 0.75,
+      effects: [],
+    },
+    {
+      clip_id: 'video-front',
+      track_id: 'layer-1',
+      media_id: 'video-front',
+      source_frame: 120,
+      z_index: 1,
+      transform: {
+        translation_x: 120,
+        translation_y: 80,
+        scale_x: 1,
+        scale_y: 1,
+        rotation_degrees: 0,
+        sampling: 'bilinear',
+      },
+      opacity: 1,
+      effects: [],
+    },
+  ],
+};
+
+const multiVideoMedia: RustSceneMediaReference[] = [
+  {
+    id: 'video-back',
+    kind: 'Video',
+    source: '/tmp/back.mp4',
+    width: 1280,
+    height: 720,
+  },
+  {
+    id: 'video-front',
+    kind: 'Video',
+    source: '/tmp/front.mp4',
+    width: 640,
+    height: 360,
+  },
+];
+
 const decodedVideoDescriptor: RustBackendVideoFrameDescriptor = {
   memoryId: '/uxfd-test-video-ring',
   slotIndex: 1,
@@ -742,6 +799,77 @@ describe('createSharedRendererWebGpuPresenter', () => {
       'setPipeline:video-frame-pipeline',
       'setBindGroup:0:video-frame-bind-group',
       'setVertexBuffer:0:video-plane-vertex-buffer',
+      'draw:6',
+      'end',
+    ]);
+  });
+
+  it('draws multiple uploaded video frame textures with one bind group per video plane', async () => {
+    const renderPassOperations: string[] = [];
+    const bindGroups: unknown[] = [];
+    const uploadedTextures = new Map<string, unknown>([
+      ['video-back', { createView: () => 'video-back-texture-view' }],
+      ['video-front', { createView: () => 'video-front-texture-view' }],
+    ]);
+
+    const result = await createSharedRendererWebGpuPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      surfaceGate: {
+        ...okSurfaceGate,
+        snapshot: multiVideoSnapshot,
+        media: multiVideoMedia,
+      },
+      presentationContract: buildSharedRendererPresentationContract(),
+      gpu: fakeGpu({
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onRenderPassOperation: (operation) => {
+              renderPassOperations.push(operation);
+            },
+            onCreateBindGroup: (descriptor) => {
+              bindGroups.push(descriptor);
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+      bufferUsageVertex: 1,
+      bufferUsageCopyDst: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected presenter creation to pass');
+
+    expect(result.presentVideoFrameScene({
+      snapshot: multiVideoSnapshot,
+      media: multiVideoMedia,
+      texturesByClipId: uploadedTextures,
+    } as any)).toEqual({
+      ok: true,
+      planeCount: 2,
+    });
+    expect(bindGroups).toEqual([
+      {
+        layout: 'video-frame-bind-group-layout',
+        entries: [
+          { binding: 0, resource: 'video-frame-sampler' },
+          { binding: 1, resource: 'video-back-texture-view' },
+        ],
+      },
+      {
+        layout: 'video-frame-bind-group-layout',
+        entries: [
+          { binding: 0, resource: 'video-frame-sampler' },
+          { binding: 1, resource: 'video-front-texture-view' },
+        ],
+      },
+    ]);
+    expect(renderPassOperations).toEqual([
+      'setPipeline:video-frame-pipeline',
+      'setVertexBuffer:0:video-plane-vertex-buffer',
+      'setBindGroup:0:video-frame-bind-group',
+      'draw:6',
+      'setBindGroup:0:video-frame-bind-group',
       'draw:6',
       'end',
     ]);
