@@ -340,4 +340,96 @@ describe('sharedRendererViewportVideoUpload', () => {
       }],
     ]);
   });
+
+  it('rejects a stale decode response request id and releases its slot without copying', async () => {
+    const calls: unknown[] = [];
+    const rustBackendBridge: RustBackendVideoDecodeBridge = {
+      startVideoDecode: async (payload) => {
+        calls.push(['startVideoDecode', payload]);
+        return { success: true };
+      },
+      requestVideoDecodeFrame: async (payload) => {
+        calls.push(['requestVideoDecodeFrame', payload]);
+        return {
+          success: true,
+          result: {
+            accepted: true,
+            jobId: payload.jobId,
+            requestId: payload.requestId - 1,
+            frameIndex: payload.frameIndex,
+            mode: payload.mode,
+            frame: {
+              descriptor: {
+                memoryId: '/uxfd-node-video-ring',
+                slotIndex: 0,
+                generation: 3,
+                byteOffset: 0,
+                byteLen: 8192,
+                width: 64,
+                height: 32,
+                strideBytes: 256,
+                format: 'rgba8Srgb',
+                colour: {
+                  primaries: 'bt709',
+                  transfer: 'srgb',
+                  matrix: 'rgb',
+                  range: 'full',
+                },
+              },
+              ptsFrame: payload.frameIndex,
+            },
+            verification: {
+              frameIndex: payload.frameIndex,
+              checksum: {
+                algorithm: 'crc32',
+                valueHex: '12345678',
+                byteLen: 8192,
+              },
+              status: 'withinTolerance',
+            },
+          },
+        };
+      },
+      releaseVideoDecodeFrame: async (payload) => {
+        calls.push(['releaseVideoDecodeFrame', payload]);
+        return { success: true };
+      },
+      stopVideoDecode: async () => ({ success: true }),
+    };
+
+    const result = await prepareSharedRendererViewportVideoUpload({
+      session,
+      requestId: 79,
+      slotCount: 2,
+      rustBackendBridge,
+      copyBridge: {
+        copyIntoUploadBuffer: async () => {
+          throw new Error('stale decode response must not be copied');
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'staleDecodeResponse',
+      detail: 'Rust backend returned a decoded frame for a stale request id.',
+      activeJob: {
+        jobId: expectedJobId,
+        source: '/tmp/gopro clip.mp4',
+        slotCount: 2,
+        width: 64,
+        height: 32,
+        sourceRate: {
+          numerator: 60,
+          denominator: 1,
+        },
+      },
+    });
+    expect(calls).toContainEqual(['releaseVideoDecodeFrame', {
+      jobId: expectedJobId,
+      slotIndex: 0,
+      generation: 3,
+      copyOutState: 'rendererUploadAborted',
+    }]);
+  });
 });
