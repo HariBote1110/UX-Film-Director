@@ -571,6 +571,7 @@ pub enum SlotState {
 pub enum CopyOutState {
     Started,
     GpuUploadFenceSignalled,
+    RendererUploadAborted,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -817,7 +818,7 @@ impl SharedFrameRing {
             });
         }
 
-        if copy_out_state != CopyOutState::GpuUploadFenceSignalled {
+        if !copy_out_state.permits_read_slot_release() {
             return Err(SlotTransitionError::CopyOutNotComplete {
                 slot_index: ready_frame.slot_index,
             });
@@ -874,6 +875,15 @@ impl SharedFrameRing {
                 slot_index,
                 slot_count,
             })
+    }
+}
+
+impl CopyOutState {
+    pub fn permits_read_slot_release(self) -> bool {
+        matches!(
+            self,
+            CopyOutState::GpuUploadFenceSignalled | CopyOutState::RendererUploadAborted
+        )
     }
 }
 

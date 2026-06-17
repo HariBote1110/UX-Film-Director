@@ -753,11 +753,11 @@ fn handle_decode_release_frame(id: u64, params: Value, state: &mut BackendState)
     if parsed.job_id != session.start_response.job_id {
         return response_error(id, -32042, "Decode jobId does not match active session");
     }
-    if parsed.copy_out_state != CopyOutState::GpuUploadFenceSignalled {
+    if !parsed.copy_out_state.permits_read_slot_release() {
         return response_error(
             id,
             -32602,
-            "copyOutState must be gpuUploadFenceSignalled before releasing a frame",
+            "copyOutState must be gpuUploadFenceSignalled or rendererUploadAborted before releasing a frame",
         );
     }
 
