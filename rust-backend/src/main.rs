@@ -3,6 +3,7 @@ mod psd_fast;
 use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::fs;
 use std::io::{self, BufRead, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
@@ -68,7 +69,7 @@ type BlobWriteResult = Arc<Mutex<Option<Result<String, String>>>>;
 #[derive(Default)]
 struct BackendState {
     export_session: Option<ExportSession>,
-    decode_session: Option<DecodeSession>,
+    decode_sessions: HashMap<String, DecodeSession>,
     /// Background blob writer: set by psd.parse, drained by psd.await_blob.
     psd_blob_result: Option<BlobWriteResult>,
 }
@@ -452,10 +453,6 @@ fn handle_psd_await_blob(id: u64, state: &mut BackendState) -> RpcResponse {
 }
 
 fn handle_decode_start(id: u64, params: Value, state: &mut BackendState) -> RpcResponse {
-    if state.decode_session.is_some() {
-        return response_error(id, -32040, "Decode session already active");
-    }
-
     let parsed = match serde_json::from_value::<DecodeStartRequest>(params) {
         Ok(value) => value,
         Err(error) => {
@@ -474,6 +471,9 @@ fn handle_decode_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
     }
     if parsed.source_rate.numerator == 0 || parsed.source_rate.denominator == 0 {
         return response_error(id, -32602, "sourceRate must be a positive rational");
+    }
+    if state.decode_sessions.contains_key(&parsed.job_id) {
+        return response_error(id, -32040, "Decode session already active for jobId");
     }
 
     let memory_id = decode_memory_id(&parsed.job_id);
@@ -537,14 +537,17 @@ fn handle_decode_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
         format: descriptor.format,
         colour: descriptor.colour,
     };
-    state.decode_session = Some(DecodeSession {
-        start_response: response.clone(),
-        source: parsed.source,
-        ffmpeg_path,
-        ffprobe_path,
-        ring: SharedFrameRing::new(layout),
-        data_plane_ring,
-    });
+    state.decode_sessions.insert(
+        response.job_id.clone(),
+        DecodeSession {
+            start_response: response.clone(),
+            source: parsed.source,
+            ffmpeg_path,
+            ffprobe_path,
+            ring: SharedFrameRing::new(layout),
+            data_plane_ring,
+        },
+    );
 
     RpcResponse {
         id,
@@ -562,7 +565,7 @@ fn handle_decode_stop(id: u64, params: Value, state: &mut BackendState) -> RpcRe
         }
     };
 
-    let Some(session) = state.decode_session.as_ref() else {
+    let Some(session) = state.decode_sessions.get(&parsed.job_id) else {
         return response_error(id, -32041, "No active decode session");
     };
 
@@ -571,7 +574,7 @@ fn handle_decode_stop(id: u64, params: Value, state: &mut BackendState) -> RpcRe
     }
 
     let job_id = session.start_response.job_id.clone();
-    state.decode_session.take();
+    state.decode_sessions.remove(&job_id);
 
     RpcResponse {
         id,
@@ -585,10 +588,6 @@ fn handle_decode_stop(id: u64, params: Value, state: &mut BackendState) -> RpcRe
 }
 
 fn handle_decode_request_frame(id: u64, params: Value, state: &mut BackendState) -> RpcResponse {
-    let Some(session) = state.decode_session.as_mut() else {
-        return response_error(id, -32041, "No active decode session");
-    };
-
     let parsed = match serde_json::from_value::<DecodeFrameRequest>(params) {
         Ok(value) => value,
         Err(error) => {
@@ -600,9 +599,9 @@ fn handle_decode_request_frame(id: u64, params: Value, state: &mut BackendState)
         }
     };
 
-    if parsed.job_id != session.start_response.job_id {
-        return response_error(id, -32042, "Decode jobId does not match active session");
-    }
+    let Some(session) = state.decode_sessions.get_mut(&parsed.job_id) else {
+        return response_error(id, -32041, "No active decode session");
+    };
 
     let write_slot = match session.ring.acquire_write_slot() {
         Ok(value) => value,
@@ -735,10 +734,6 @@ fn handle_decode_request_frame(id: u64, params: Value, state: &mut BackendState)
 }
 
 fn handle_decode_release_frame(id: u64, params: Value, state: &mut BackendState) -> RpcResponse {
-    let Some(session) = state.decode_session.as_mut() else {
-        return response_error(id, -32041, "No active decode session");
-    };
-
     let parsed = match serde_json::from_value::<DecodeReleaseFrameRequest>(params) {
         Ok(value) => value,
         Err(error) => {
@@ -750,9 +745,9 @@ fn handle_decode_release_frame(id: u64, params: Value, state: &mut BackendState)
         }
     };
 
-    if parsed.job_id != session.start_response.job_id {
-        return response_error(id, -32042, "Decode jobId does not match active session");
-    }
+    let Some(session) = state.decode_sessions.get_mut(&parsed.job_id) else {
+        return response_error(id, -32041, "No active decode session");
+    };
     if !parsed.copy_out_state.permits_read_slot_release() {
         return response_error(
             id,

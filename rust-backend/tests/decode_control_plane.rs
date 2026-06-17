@@ -161,6 +161,32 @@ fn decode_backend_allows_multiple_video_sessions_by_job_id() {
         first_start["result"]["memoryId"],
         second_start["result"]["memoryId"]
     );
+    let first_memory_id = first_start["result"]["memoryId"]
+        .as_str()
+        .expect("memory id");
+    let second_memory_id = second_start["result"]["memoryId"]
+        .as_str()
+        .expect("memory id");
+    let first_slot_byte_len = first_start["result"]["slotByteLen"]
+        .as_u64()
+        .expect("slot byte length") as usize;
+    let second_slot_byte_len = second_start["result"]["slotByteLen"]
+        .as_u64()
+        .expect("slot byte length") as usize;
+    let first_consumer_ring = PosixSharedRing::attach_with_retry_for_layout(
+        first_memory_id,
+        1,
+        first_slot_byte_len,
+        Duration::from_secs(1),
+    )
+    .expect("attach to first backend-created shared frame ring");
+    let second_consumer_ring = PosixSharedRing::attach_with_retry_for_layout(
+        second_memory_id,
+        1,
+        second_slot_byte_len,
+        Duration::from_secs(1),
+    )
+    .expect("attach to second backend-created shared frame ring");
 
     let first_frame = backend.request(json!({
         "id": 3,
@@ -195,6 +221,12 @@ fn decode_backend_allows_multiple_video_sessions_by_job_id() {
         second_frame["result"]["frame"]["descriptor"]["memoryId"],
         second_start["result"]["memoryId"]
     );
+    first_consumer_ring
+        .read_frame(0)
+        .expect("consumer reads first session frame before release");
+    second_consumer_ring
+        .read_frame(1)
+        .expect("consumer reads second session frame before release");
 
     let first_release = backend.request(json!({
         "id": 5,
@@ -221,6 +253,12 @@ fn decode_backend_allows_multiple_video_sessions_by_job_id() {
     assert_eq!(second_release["ok"], true);
     assert_no_frame_bytes_recursive(&first_frame["result"]);
     assert_no_frame_bytes_recursive(&second_frame["result"]);
+    first_consumer_ring
+        .wait_until_free(Duration::from_secs(1))
+        .expect("first shared memory slot returns to free");
+    second_consumer_ring
+        .wait_until_free(Duration::from_secs(1))
+        .expect("second shared memory slot returns to free");
 }
 
 #[test]
