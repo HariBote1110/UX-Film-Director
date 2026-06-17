@@ -363,6 +363,62 @@ describe('sharedRendererViewportVideoUpload', () => {
     expect(calls).not.toContainEqual(['stopVideoDecode', expect.anything()]);
   });
 
+  it('stops active Rust decode jobs that are no longer visible', async () => {
+    const { calls, rustBackendBridge, copyBridge } = createBridges();
+    const activeJob: SharedRendererViewportVideoDecodeJob = {
+      jobId: expectedJobId,
+      source: '/tmp/gopro clip.mp4',
+      slotCount: 2,
+      width: 64,
+      height: 32,
+      sourceRate: {
+        numerator: 60,
+        denominator: 1,
+      },
+    };
+    const staleJob: SharedRendererViewportVideoDecodeJob = {
+      jobId: 'shared-renderer-video-stale-64x32-60over1',
+      source: '/tmp/stale clip.mp4',
+      slotCount: 2,
+      width: 64,
+      height: 32,
+      sourceRate: {
+        numerator: 60,
+        denominator: 1,
+      },
+    };
+
+    const result = await prepareSharedRendererViewportVideoUploads({
+      session,
+      requestId: 81,
+      slotCount: 2,
+      activeJobs: [activeJob, staleJob],
+      rustBackendBridge,
+      copyBridge,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected stale job cleanup to preserve visible upload');
+    expect(result.activeJobs).toEqual([activeJob]);
+    expect(calls).toEqual([
+      ['stopVideoDecode', {
+        jobId: 'shared-renderer-video-stale-64x32-60over1',
+      }],
+      ['requestVideoDecodeFrame', {
+        jobId: expectedJobId,
+        requestId: 81,
+        frameIndex: 42,
+        mode: 'latestWins',
+      }],
+      ['copyIntoUploadBuffer', {
+        memoryId: '/uxfd-node-video-ring',
+        slotCount: 2,
+        slotByteLen: 8192,
+        ptsFrame: 42,
+      }, 8192],
+    ]);
+  });
+
   it('starts Rust decode, requests the visible frame, and prepares a WebGPU upload object', async () => {
     const { calls, rustBackendBridge, copyBridge } = createBridges();
 
