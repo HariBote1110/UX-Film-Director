@@ -16,6 +16,8 @@
     "preview": "vite preview",
     "rust:build:debug": "cargo build --manifest-path rust-backend/Cargo.toml",
     "rust:build:release": "cargo build --release --manifest-path rust-backend/Cargo.toml",
+    "bridge:node:build": "node scripts/build-shared-video-frame-node-addon.mjs",
+    "test:bridge-node": "npm run bridge:node:build && node scripts/test-shared-video-frame-node-addon.mjs",
     "rust:run": "cargo run --manifest-path rust-backend/Cargo.toml",
     "wasm:build:rust-core": "wasm-pack build rust-core-wasm --target web --out-dir ../src/wasm/rust-core --out-name uxfd_rust_core_wasm",
     "swift:build:tracker": "swift build -c release --package-path macos-coreml-tracker"
