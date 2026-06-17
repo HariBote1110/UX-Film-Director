@@ -74,6 +74,50 @@ describe('buildSharedRendererVideoOwnership', () => {
     });
   });
 
+  it('limits shared renderer ownership to video objects with uploaded Rust frames', () => {
+    expect(buildSharedRendererVideoOwnership({
+      cutoverEnabled: true,
+      hasVideoScene: true,
+      videoDecodeRequestSource: 'rust-wasm',
+      videoDecodeRequestResult: {
+        ok: true,
+        requestCount: 2,
+        requests: [
+          {
+            clipId: 'video-back',
+            mediaId: 'video-back',
+            source: '/tmp/back.mp4',
+            sourceFrame: 12,
+            sourceRate: { numerator: 30, denominator: 1 },
+            timelineFrame: 24,
+            width: 1280,
+            height: 720,
+            format: 'rgba8Srgb',
+            colour: 'rec709SrgbFullRange',
+          },
+          {
+            clipId: 'video-front',
+            mediaId: 'video-front',
+            source: '/tmp/front.mp4',
+            sourceFrame: 18,
+            sourceRate: { numerator: 30, denominator: 1 },
+            timelineFrame: 24,
+            width: 1280,
+            height: 720,
+            format: 'rgba8Srgb',
+            colour: 'rec709SrgbFullRange',
+          },
+        ],
+      },
+      videoFrameUploadReady: true,
+      uploadedVideoObjectIds: new Set(['video-back']),
+    })).toEqual({
+      owner: 'sharedRenderer',
+      reason: 'rustDecodedFrameUploadReady',
+      videoObjectIds: ['video-back'],
+    });
+  });
+
   it('keeps Pixi as owner when the video decode request path falls back to TypeScript', () => {
     expect(buildSharedRendererVideoOwnership({
       cutoverEnabled: true,
