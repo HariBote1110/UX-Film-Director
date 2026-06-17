@@ -112,4 +112,38 @@ describe('sharedVideoFrameUploadBridge', () => {
       actualByteLength: 511,
     });
   });
+
+  it('uses bytes returned from the bridge when Electron contextBridge cannot mutate the renderer target', async () => {
+    const returnedBytes = new Uint8Array(sharedFrame.descriptor.byteLen);
+    returnedBytes.fill(0x7e);
+    const bridge: SharedVideoFrameCopyBridge = {
+      copyIntoUploadBuffer: async () => ({
+        success: true,
+        result: {
+          sequence: 42,
+          byteLen: sharedFrame.descriptor.byteLen,
+          expectedChecksum: 0x1234,
+          actualChecksum: 0x1234,
+          rgbaBytes: returnedBytes,
+        } as any,
+      }),
+    };
+
+    const upload = await prepareSharedRendererDecodedVideoFrameUpload({
+      sharedFrame,
+      slotCount: 2,
+      bridge,
+    });
+
+    expect(upload).toMatchObject({
+      ok: true,
+      copyReport: {
+        sequence: 42,
+        byteLen: sharedFrame.descriptor.byteLen,
+      },
+    });
+    if (!upload.ok) throw new Error('expected upload preparation to succeed');
+    expect(upload.rgbaBytes[0]).toBe(0x7e);
+    expect(upload.rgbaBytes[upload.rgbaBytes.length - 1]).toBe(0x7e);
+  });
 });
