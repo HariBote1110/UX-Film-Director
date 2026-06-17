@@ -81,12 +81,17 @@ export interface StartSharedRendererPreviewPresenterInput {
   sharedRendererVideoCutoverEnabled?: boolean;
   sharedRendererVideoFrameUploadReady?: boolean;
   sharedRendererDecodedVideoFrameUpload?: SharedRendererDecodedVideoFrameUpload;
+  sharedRendererDecodedVideoFrameUploads?: SharedRendererDecodedVideoFrameUploadForClip[];
 }
 
 export interface SharedRendererDecodedVideoFrameUpload extends SharedRendererVideoFrameTextureUploadInput {
   ptsFrame: number;
   releaseAfterGpuUpload?: () => Promise<void>;
   releaseAfterUploadAbort?: () => Promise<void>;
+}
+
+export interface SharedRendererDecodedVideoFrameUploadForClip extends SharedRendererDecodedVideoFrameUpload {
+  clipId: string;
 }
 
 export const startSharedRendererPreviewPresenter = async ({
@@ -108,6 +113,7 @@ export const startSharedRendererPreviewPresenter = async ({
   sharedRendererVideoCutoverEnabled = defaultSharedRendererVideoCutoverEnabled(),
   sharedRendererVideoFrameUploadReady = false,
   sharedRendererDecodedVideoFrameUpload,
+  sharedRendererDecodedVideoFrameUploads,
 }: StartSharedRendererPreviewPresenterInput): Promise<SharedRendererPreviewPresenterControl> => {
   const writeDiagnostics = (state: SharedRendererPresenterDiagnosticState) => {
     datasets.forEach((dataset) => {
@@ -227,17 +233,34 @@ export const startSharedRendererPreviewPresenter = async ({
 
   let resolvedVideoFrameUploadReady = sharedRendererVideoFrameUploadReady;
   let uploadedVideoFrameTexture: unknown | null = null;
-  if (hasVideoScene && sharedRendererDecodedVideoFrameUpload) {
-    const uploadResult = presenter.uploadVideoFrameTexture(sharedRendererDecodedVideoFrameUpload);
+  const uploadedVideoObjectIds = sharedRendererDecodedVideoFrameUploads
+    ? new Set<string>()
+    : undefined;
+  const decodedVideoFrameUploads = sharedRendererDecodedVideoFrameUploads
+    ? sharedRendererDecodedVideoFrameUploads.map((upload) => ({
+      clipId: upload.clipId,
+      upload,
+    }))
+    : sharedRendererDecodedVideoFrameUpload
+      ? [{
+        clipId: undefined,
+        upload: sharedRendererDecodedVideoFrameUpload,
+      }]
+      : [];
+  for (const decodedVideoFrameUpload of hasVideoScene ? decodedVideoFrameUploads : []) {
+    const uploadResult = presenter.uploadVideoFrameTexture(decodedVideoFrameUpload.upload);
     if (uploadResult.ok) {
-      uploadedVideoFrameTexture = uploadResult.texture;
-      if (sharedRendererDecodedVideoFrameUpload.releaseAfterGpuUpload) {
+      uploadedVideoFrameTexture ??= uploadResult.texture;
+      if (decodedVideoFrameUpload.clipId) {
+        uploadedVideoObjectIds?.add(decodedVideoFrameUpload.clipId);
+      }
+      if (decodedVideoFrameUpload.upload.releaseAfterGpuUpload) {
         await presenter.device.queue?.onSubmittedWorkDone?.();
-        await sharedRendererDecodedVideoFrameUpload.releaseAfterGpuUpload();
+        await decodedVideoFrameUpload.upload.releaseAfterGpuUpload();
       }
       resolvedVideoFrameUploadReady = true;
-    } else if (sharedRendererDecodedVideoFrameUpload.releaseAfterUploadAbort) {
-      await sharedRendererDecodedVideoFrameUpload.releaseAfterUploadAbort();
+    } else if (decodedVideoFrameUpload.upload.releaseAfterUploadAbort) {
+      await decodedVideoFrameUpload.upload.releaseAfterUploadAbort();
     }
   }
 
@@ -247,6 +270,7 @@ export const startSharedRendererPreviewPresenter = async ({
     videoDecodeRequestSource,
     videoDecodeRequestResult,
     videoFrameUploadReady: resolvedVideoFrameUploadReady,
+    uploadedVideoObjectIds,
     stackSafeVideoObjectIds: videoCutoverStackSafety
       ? new Set(videoCutoverStackSafety.safeVideoObjectIds)
       : undefined,
