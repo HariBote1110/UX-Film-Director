@@ -54,6 +54,44 @@ fn posix_shm_attach_rejects_layout_hash_mismatch() {
     ));
 }
 
+#[test]
+fn posix_shm_multi_slot_allows_next_frame_while_previous_frame_is_reading() {
+    let name = unique_shm_name();
+    let producer_ring =
+        PosixSharedRing::create_with_slot_count(&name, 2, 16).expect("create multi-slot ring");
+    let consumer_ring =
+        PosixSharedRing::attach_with_retry_for_layout(&name, 2, 16, Duration::from_secs(1))
+            .expect("attach multi-slot ring");
+    let first = vec![1; 16];
+    let second = vec![2; 16];
+
+    producer_ring
+        .write_frame(0, &first)
+        .expect("write first frame");
+    let first_read = consumer_ring
+        .read_frame(0)
+        .expect("consumer holds first frame");
+    assert_eq!(first_read.bytes, first);
+
+    producer_ring
+        .write_frame(1, &second)
+        .expect("producer uses second slot while first is reading");
+    let second_read = consumer_ring
+        .read_frame(1)
+        .expect("consumer reads second frame");
+    assert_eq!(second_read.bytes, second);
+
+    producer_ring
+        .release_frame(uxfd_sidecar_protocol::CopyOutState::GpuUploadFenceSignalled)
+        .expect("release one reading slot");
+    producer_ring
+        .release_frame(uxfd_sidecar_protocol::CopyOutState::GpuUploadFenceSignalled)
+        .expect("release remaining reading slot");
+    producer_ring
+        .wait_until_free(Duration::from_secs(1))
+        .expect("all slots return to free");
+}
+
 fn unique_shm_name() -> String {
     let micros = SystemTime::now()
         .duration_since(UNIX_EPOCH)
