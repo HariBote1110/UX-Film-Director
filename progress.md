@@ -1,3 +1,32 @@
+## 2026-06-18 — Phase5: Electron contextBridge 返却bytes契約へ切り替え
+
+### 実施内容
+- 一時Electronプローブで、`contextBridge` 越しでは renderer 側 `Uint8Array` target が
+  preload/native側の mutation を反映しないことを確認した。
+- `electron/preload.ts` は native addon に clone 済み target へ copy させた後、その `Uint8Array` を
+  `result.rgbaBytes` として返すようにした。
+- `sharedVideoFrameUploadBridge` は `result.rgbaBytes` がある場合、それを renderer upload buffer に採用する。
+- package version を `0.1.1-Beta-49a` に更新した。
+
+### Red
+- `src/utils/sharedVideoFrameUploadBridge.test.ts` に、bridge が target を直接 mutate できず
+  `result.rgbaBytes` を返すケースを追加し、旧実装が bytes を無視して Red になることを確認した。
+
+### Green
+- returned bytes を `Uint8Array` / `ArrayBuffer` / number array から正規化して採用する処理を追加した。
+- preload は successful copy response に `rgbaBytes: target` を同梱する。
+
+### 現在の制限
+- `contextBridge` のため preload -> renderer の isolate 間コピーは残る。
+- Viewport はまだ decode response -> native bridge copy -> WebGPU presenter upload を呼んでいない。
+
+### 検証
+- `npm test -- src/utils/sharedVideoFrameUploadBridge.test.ts src/utils/sharedRendererRustVideoUploadPipeline.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts`
+  -> 3 files / 16 tests passed。
+- `npm run test:bridge-node`
+  -> shared video frame native addon contract passed。
+- 一時Electronプローブで、元targetは未更新だが `result.rgbaBytes` は renderer 側で `Uint8Array` として読めることを確認した。
+
 ## 2026-06-18 — Phase5: shared video frame N-API addon を追加
 
 ### 実施内容

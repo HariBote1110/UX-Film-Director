@@ -209,6 +209,12 @@ upload object へ変換する。次段ではこの pipeline を Viewport の pre
 fail-loud error mapping を確認する。次段では Electron `contextBridge` 越しに target buffer が更新されるかを
 実機テストで確認し、失敗時は return-buffer / transferable 形式へ契約を切り替える。
 
+45. Phase5: Electron contextBridge 返却bytes契約へ切り替える
+Electron `contextBridge` 越しでは renderer の元 `Uint8Array` target は preload/native 側の mutation を反映しない。
+preload は clone された target へ native addon で copy した後、その `Uint8Array` を `result.rgbaBytes` として返す。
+renderer helper は `result.rgbaBytes` が存在する場合にそれを upload buffer へ採用し、Node 直 require と
+Electron isolated world の両方を扱えるようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

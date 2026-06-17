@@ -294,9 +294,10 @@ Rust decoded video upload pipeline helper は verified decode response だけを
 GPU upload fence 後 release callback を持つ upload object を作れる。
 `shared-video-frame-bridge-node` により Rust bridge core は N-API addon として build でき、Node 直 require では
 `Uint8Array` target を in-place mutation できる。
-ただし Electron `contextBridge` 越しの target mutation と Viewport orchestration はまだ未接続であり、
-実アプリの video cutover は bridge 接続まで Pixi preview を維持する。
-次 gate で Electron preload 実機テストと Viewport orchestration 接続、transfer / matrix metadata gate を進める。
+Electron `contextBridge` 越しの target mutation は反映されないため、preload は native copy 後の bytes を
+`result.rgbaBytes` として返し、renderer helper は returned bytes を upload buffer として採用する。
+ただし Viewport orchestration はまだ未接続であり、実アプリの video cutover は bridge 接続まで Pixi preview を維持する。
+次 gate で Viewport orchestration 接続、transfer / matrix metadata gate を進める。
 これにより、動画読み込み・current frame availability と GPU import / sampling の問題を分離する。
 ただし HTMLVideoElement / `importExternalTexture` はブラウザの暗黙 YUV->RGB と float 秒 seek に依存するため、
 この経路の動画 preview は export parity をまだ主張しない。external texture 表示を入れる前後で、known clip の同一 frame を
