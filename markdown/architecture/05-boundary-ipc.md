@@ -130,6 +130,8 @@ Rust backend integration gate:
   Rust core を持つ。copy 後も slot は `READING` のままで、GPU upload fence 後の release に ownership を委ねる。
 - preload は `window.sharedVideoFrame.copyIntoUploadBuffer` を公開する。control payload は `memoryId` / `slotCount` /
   `slotByteLen` / `ptsFrame` のみで、frame bytes は renderer-owned `Uint8Array` target にだけ入る。
+- renderer utility は verified decoded frame response から upload buffer を準備し、GPU upload fence 後に
+  `decode.releaseFrame(copyOutState=gpuUploadFenceSignalled)` を呼ぶ release callback を組み立てる。
 - 現時点では native module を `UXFD_SHARED_VIDEO_FRAME_BRIDGE_MODULE` で差し込む形で、未接続時は fail-loud とする。
 - 次 gate ではこの Rust bridge core を N-API module として build / package し、Viewport orchestration へ接続する。
 - transfer / matrix は次 gate で `ffprobe` metadata により fail-loud または明示変換する。

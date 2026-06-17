@@ -290,6 +290,8 @@ video plane vertex scene と sampler で描画できる。
 decoded frame bytes を copy でき、copy 後も slot ownership は `READING` のまま保持する。
 preload は `window.sharedVideoFrame.copyIntoUploadBuffer` を公開し、renderer helper は `SharedFrame` descriptor から
 upload buffer を確保して native bridge へ渡せる。
+Rust decoded video upload pipeline helper は verified decode response だけを accepted とし、copy bridge 成功後に
+GPU upload fence 後 release callback を持つ upload object を作れる。
 ただし native module 実体と Viewport orchestration はまだ未接続であり、実アプリの video cutover は bridge 接続まで
 Pixi preview を維持する。
 次 gate で Rust bridge core を N-API module として接続し、transfer / matrix metadata gate も進める。

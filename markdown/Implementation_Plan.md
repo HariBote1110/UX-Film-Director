@@ -197,6 +197,11 @@ renderer は `SharedFrame` descriptor から `Uint8Array` upload buffer を確�
 control payload に frame bytes は載せず、native bridge 未接続時は fail-loud で Pixi fallback を維持する。
 次段では `shared-video-frame-bridge` core を N-API module として接続し、Viewport の decode orchestration へ組み込む。
 
+43. Phase5: Rust decoded video upload pipeline helper を追加する
+Rust backend の verified decoded frame response を受け取り、shared memory copy bridge で renderer upload buffer を満たし、
+WebGPU upload 後に `decode.releaseFrame(copyOutState=gpuUploadFenceSignalled)` を呼ぶ release callback 付きの
+upload object へ変換する。次段ではこの pipeline を Viewport の preview presenter 起動前に呼ぶ。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

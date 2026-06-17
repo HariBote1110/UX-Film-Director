@@ -1,3 +1,29 @@
+## 2026-06-18 — Phase5: Rust decoded video upload pipeline helper を追加
+
+### 実施内容
+- `sharedRendererRustVideoUploadPipeline` を追加し、Rust backend の verified decoded frame response から
+  shared renderer に渡す upload object を作る経路をTDDで固定した。
+- pipeline は `isRustBackendDecodedVideoFrameAvailable` で検証済みの response だけを受け入れ、
+  `sharedVideoFrameUploadBridge` で POSIX shm -> renderer upload buffer copy を行う。
+- `releaseAfterGpuUpload` callback は `releaseRustBackendVideoDecodeFrame(copyOutState=gpuUploadFenceSignalled)` を呼び、
+  controller 側の `queue.onSubmittedWorkDone()` 後 release 契約に接続できる。
+- package version を `0.1.1-Beta-47a` に更新した。
+
+### Red
+- `src/utils/sharedRendererRustVideoUploadPipeline.test.ts` を追加し、helper module 未作成で Red になった。
+
+### Green
+- verified decoded frame 以外は `decodedFrameUnavailable` で fail-loud にし、copy bridge を呼ばない。
+- copy payload と release payload の両方が descriptor / job id / slot lease token から作られることをテストで固定した。
+
+### 現在の制限
+- Viewport はまだこの pipeline を呼んでいない。
+- native module 実体もまだ未接続のため、実アプリでの video cutover は引き続き Pixi fallback 側に留まる。
+
+### 検証
+- `npm test -- src/utils/sharedRendererRustVideoUploadPipeline.test.ts src/utils/sharedVideoFrameUploadBridge.test.ts src/utils/rustBackendVideoDecodeControl.test.ts`
+  -> 3 files / 7 tests passed。
+
 ## 2026-06-18 — Phase5: shared video frame preload bridge API を追加
 
 ### 実施内容
