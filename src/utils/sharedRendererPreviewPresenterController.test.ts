@@ -669,6 +669,7 @@ describe('startSharedRendererPreviewPresenter', () => {
   it('publishes shared video ownership only for clips with uploaded Rust frames', async () => {
     const dataset: Record<string, string | undefined> = {};
     const events: string[] = [];
+    const renderPassOperations: string[] = [];
     const rgbaBytes = new Uint8Array(decodedVideoDescriptor.byteLen);
 
     const control = await startSharedRendererPreviewPresenter({
@@ -730,6 +731,9 @@ describe('startSharedRendererPreviewPresenter', () => {
             onWriteTexture: () => {
               events.push('writeTexture:video-1');
             },
+            onRenderPassOperation: (operation) => {
+              renderPassOperations.push(operation);
+            },
             onSubmittedWorkDone: async () => {
               events.push('gpuUploadDone');
             },
@@ -748,6 +752,8 @@ describe('startSharedRendererPreviewPresenter', () => {
       },
     });
     expect(events).toEqual(['writeTexture:video-1', 'gpuUploadDone', 'release:video-1']);
+    expect(renderPassOperations).toContain('draw:6');
+    expect(renderPassOperations).not.toContain('draw:12');
     expect(dataset).toMatchObject({
       uxfdSharedRendererPresenterVideoFrameUploadReady: 'true',
       uxfdSharedRendererPresenterVideoOwner: 'sharedRenderer',
