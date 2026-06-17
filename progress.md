@@ -1,3 +1,39 @@
+## 2026-06-18 — Phase5: Rust video multi-session / clip別WebGPU描画を追加
+
+### 実施内容
+- Rust backend decode を `jobId` keyed multi-session にし、複数動画sourceを同時に `decode.start` / `decode.requestFrame` / `decode.releaseFrame` できるようにした。
+- renderer upload orchestration に `prepareSharedRendererViewportVideoUploads` を追加し、visible video request をすべて Rust decode / shared memory copy / upload object 化するようにした。
+- stale active decode job は `decode.stop` で停止し、Viewport は active jobs を配列で保持するようにした。
+- controller / ownership / WebGPU presenter を clip id 付き upload に対応させ、Rust upload 済み動画clipだけ shared renderer 所有にして、clip別 texture bind group で描画するようにした。
+- package version を `0.1.1-Beta-54a` に更新した。
+
+### Red
+- Rust backend が2つの `jobId` を同時に開始し、それぞれ別 shared memory ring へ decode できる契約を追加した。
+- 複数visible videoをすべて Rust upload 準備する契約、非表示 stale job を停止する契約を追加した。
+- upload済みclipだけ video ownership をsharedへ進める契約、複数textureをclip別bind groupで描画する契約を追加した。
+- Viewport presenter orchestration が複数uploadを controller へ渡す契約を追加した。
+
+### Green
+- `BackendState.decode_sessions: HashMap<String, DecodeSession>` で `decode.start` / `requestFrame` / `releaseFrame` / `stop` を jobId別に処理する。
+- `sharedRendererViewportVideoUpload` は active jobs を配列で扱い、visible jobを再利用しつつstale jobだけ停止する。
+- `sharedRendererPreviewPresenterController` は `sharedRendererDecodedVideoFrameUploads` から upload成功clip集合を作り、`texturesByClipId` を WebGPU presenter に渡す。
+- `sharedRendererWebGpuPresenter` は複数動画planeを同一vertex buffer上で planeごとに bind group を切り替えて `draw(6, 1, firstVertex)` する。
+
+### 現在の制限
+- Electron `contextBridge` 越しの isolate 間コピーは残る。
+- transfer / matrix / HDR / 10bit metadata gate は未実装。
+- export path はまだ Pixi / HTMLVideoElement 依存が残る。
+
+### 検証
+- `npm test -- src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/sharedRendererVideoOwnership.test.ts src/utils/sharedRendererRustVideoUploadPipeline.test.ts src/utils/sharedVideoFrameUploadBridge.test.ts src/utils/rustBackendVideoDecodeControl.test.ts`
+  -> 8 files / 50 tests passed。
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane`
+  -> 9 tests passed。
+- `cargo test --manifest-path sidecar-protocol/Cargo.toml --test ring_buffer`
+  -> 9 tests passed。
+- `npx vite build`
+  -> renderer / electron main / electron preload build passed。
+
 ## 2026-06-18 — Phase5: Rust video upload cutover のレビュー指摘を修正
 
 ### 実施内容

@@ -297,13 +297,14 @@ GPU upload fence 後 release callback を持つ upload object を作れる。
 Electron `contextBridge` 越しの target mutation は反映されないため、preload は native copy 後の bytes を
 `result.rgbaBytes` として返し、renderer helper は returned bytes を upload buffer として採用する。
 Viewport orchestration は video cutover flag 有効時に Rust backend decode / shared memory copy / WebGPU upload object
-準備を行い、presenter に `sharedRendererDecodedVideoFrameUpload` を渡せる。
+準備を行い、presenter に clip id 付きの `sharedRendererDecodedVideoFrameUploads` を渡せる。
 preload は env override / dev output / packaged resources の順で shared video frame native addon を解決できる。
 Rust backend decode は `decode.stop` で stale session を破棄して source/layout 切替できる。
 review gate 後、uploaded texture は WebGPU video scene として描画され、copy / upload / stale response 失敗時は
 `rendererUploadAborted` release で slot を戻す。in-flight decode job は presenter 完了前に記録される。
-ただし同時複数動画はまだ単一 session 制約により Pixi fallback 対象であり、multi-session API が必要。
-次 gate で multi-session 化と transfer / matrix metadata gate を進める。
+Rust backend decode は jobId keyed multi-session になり、Viewport は active jobs 配列を保持する。
+WebGPU presenter は clip id ごとの texture bind group を切り替えて、Rust upload 済み動画clipだけを描画する。
+次 gate で transfer / matrix metadata gate、export 側のPixi依存除去、decode scheduler の負荷制御を進める。
 これにより、動画読み込み・current frame availability と GPU import / sampling の問題を分離する。
 ただし HTMLVideoElement / `importExternalTexture` はブラウザの暗黙 YUV->RGB と float 秒 seek に依存するため、
 この経路の動画 preview は export parity をまだ主張しない。external texture 表示を入れる前後で、known clip の同一 frame を
