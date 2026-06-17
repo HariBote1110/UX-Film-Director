@@ -28,6 +28,7 @@ export interface StartSharedRendererViewportPresenterInput {
   requestId: number;
   prepareVideoUpload?: SharedRendererViewportVideoUploadPreparer;
   startPresenter?: SharedRendererViewportPresenterStarter;
+  onVideoDecodeJobResolved?: (job: SharedRendererViewportVideoDecodeJob | null) => void;
 }
 
 export interface StartSharedRendererViewportPresenterResult {
@@ -46,6 +47,7 @@ export const startSharedRendererViewportPresenter = async ({
   requestId,
   prepareVideoUpload = prepareSharedRendererViewportVideoUpload,
   startPresenter = startSharedRendererPreviewPresenter,
+  onVideoDecodeJobResolved,
 }: StartSharedRendererViewportPresenterInput): Promise<StartSharedRendererViewportPresenterResult> => {
   let nextActiveVideoDecodeJob = activeVideoDecodeJob;
   const videoUploadResult = videoCutoverEnabled
@@ -62,6 +64,7 @@ export const startSharedRendererViewportPresenter = async ({
   if (videoUploadResult && 'activeJob' in videoUploadResult) {
     nextActiveVideoDecodeJob = videoUploadResult.activeJob ?? null;
   }
+  onVideoDecodeJobResolved?.(nextActiveVideoDecodeJob);
 
   const control = await startPresenter({
     canvas,

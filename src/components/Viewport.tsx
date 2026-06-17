@@ -553,6 +553,9 @@ const Viewport: React.FC = () => {
         ? sharedRendererVideoDecodeJobRef.current
         : null,
       requestId: (sharedRendererVideoDecodeRequestIdRef.current += 1),
+      onVideoDecodeJobResolved: (job) => {
+        sharedRendererVideoDecodeJobRef.current = job;
+      },
     }).then(({ control, activeVideoDecodeJob }) => {
       if (cancelled) {
         control.dispose();
