@@ -535,6 +535,7 @@ describe('startSharedRendererPreviewPresenter', () => {
   it('uploads a decoded Rust video frame before publishing upload readiness and releasing the slot', async () => {
     const dataset: Record<string, string | undefined> = {};
     const events: string[] = [];
+    const renderPassOperations: string[] = [];
     const rgbaBytes = new Uint8Array(decodedVideoDescriptor.byteLen);
 
     const control = await startSharedRendererPreviewPresenter({
@@ -575,6 +576,9 @@ describe('startSharedRendererPreviewPresenter', () => {
         format: 'bgra8unorm',
         onRequestAdapter: () => fakeAdapter({
           device: fakeDevice({
+            onRenderPassOperation: (operation) => {
+              renderPassOperations.push(operation);
+            },
             onWriteTexture: () => {
               events.push('writeTexture');
             },
@@ -596,6 +600,9 @@ describe('startSharedRendererPreviewPresenter', () => {
       },
     });
     expect(events).toEqual(['writeTexture', 'gpuUploadDone', 'release']);
+    expect(renderPassOperations).toContain('setPipeline:video-frame-pipeline');
+    expect(renderPassOperations).toContain('setBindGroup:0:video-frame-bind-group');
+    expect(renderPassOperations).toContain('draw:6');
     expect(dataset).toMatchObject({
       uxfdSharedRendererPresenterVideoFrameUploadReady: 'true',
       uxfdSharedRendererPresenterVideoOwner: 'sharedRenderer',
@@ -748,9 +755,16 @@ const fakeDevice = ({
     writeTexture: onWriteTexture,
     onSubmittedWorkDone,
   },
-  createTexture: () => 'video-frame-texture',
+  createTexture: () => ({
+    createView: () => 'video-frame-texture-view',
+  }),
   createShaderModule: () => 'solid-colour-shader-module',
-  createRenderPipeline: () => 'solid-colour-pipeline',
+  createRenderPipeline: (descriptor?: { label?: string }) => ({
+    toString: () => descriptor?.label ?? 'solid-colour-pipeline',
+    getBindGroupLayout: (index: number) => `bind-group-layout-${index}`,
+  }),
+  createSampler: () => 'video-frame-sampler',
+  createBindGroup: () => 'video-frame-bind-group',
   createBuffer: () => 'solid-colour-vertex-buffer',
   createCommandEncoder: () => ({
     beginRenderPass: (descriptor: unknown) => {
@@ -761,6 +775,9 @@ const fakeDevice = ({
         },
         setVertexBuffer: (slot: number, buffer: unknown) => {
           onRenderPassOperation(`setVertexBuffer:${slot}:${String(buffer)}`);
+        },
+        setBindGroup: (slot: number, bindGroup: unknown) => {
+          onRenderPassOperation(`setBindGroup:${slot}:${String(bindGroup)}`);
         },
         draw: (vertexCount: number) => {
           onRenderPassOperation(`draw:${vertexCount}`);
