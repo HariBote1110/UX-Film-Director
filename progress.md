@@ -1,3 +1,25 @@
+## 2026-06-18 — Phase5: Rust decode colour metadata gate を追加
+
+### 実施内容
+- Rust backend の POSIX shared memory name を jobId全文ではなく CRC32 hash にし、macOS の短い shm name 制限内に収めた。
+- `ffprobe` から `color_range` / `color_primaries` / `color_transfer` / `color_space` を読み、Rust decode が扱える bt709 / sRGB transfer / bt709 matrix 以外を fail-loud にした。
+- package version を `0.1.1-Beta-55a` に更新した。
+
+### Red
+- renderer由来の長い `jobId` でも `decode.start` が短い `memoryId` を返す契約を追加した。
+- `color_transfer=bt709` の素材を Rust decode が拒否する契約を追加した。
+
+### Green
+- `decode_memory_id` は `jobId` の CRC32 hash を使い、`/uxfd-{pid}-{hash}` 形式にした。
+- `probe_video_input_metadata` を追加し、range は `pc` / `tv` のみ、primaries は `bt709` のみ、transfer は `iec61966-2-1` のみ、matrix は `bt709` のみ許可する。
+
+### 現在の制限
+- HDR / 10bit / Rec.2020 / PQ / HLG / bt709 transfer の明示変換は未対応。現時点では安全側に拒否する。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane`
+  -> 11 tests passed。
+
 ## 2026-06-18 — Phase5: Rust video multi-session / clip別WebGPU描画を追加
 
 ### 実施内容

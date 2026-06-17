@@ -150,7 +150,10 @@ Rust backend integration gate:
   `decode.stop` で破棄する。
 - Rust backend decode は jobId keyed multi-session とする。同じ source/layout の active job は再利用し、
   見えている複数動画はそれぞれ独立した shared memory ring / WebGPU texture upload として処理する。
-- transfer / matrix は次 gate で `ffprobe` metadata により fail-loud または明示変換する。
+- Rust backend decode は `ffprobe` metadata により `color_primaries=bt709`、
+  `color_transfer=iec61966-2-1`、`color_space=bt709`、`color_range=pc/tv` を確認する。
+  現在の renderer handoff は `rgba8Srgb` / full range に固定されるため、これ以外の transfer / matrix / primaries は
+  fail-loud とする。HDR / 10bit / 変換対応は後続 gate とする。
 
 ## Protocol Contract
 

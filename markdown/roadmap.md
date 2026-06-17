@@ -304,7 +304,8 @@ review gate 後、uploaded texture は WebGPU video scene として描画され�
 `rendererUploadAborted` release で slot を戻す。in-flight decode job は presenter 完了前に記録される。
 Rust backend decode は jobId keyed multi-session になり、Viewport は active jobs 配列を保持する。
 WebGPU presenter は clip id ごとの texture bind group を切り替えて、Rust upload 済み動画clipだけを描画する。
-次 gate で transfer / matrix metadata gate、export 側のPixi依存除去、decode scheduler の負荷制御を進める。
+Rust backend decode は ffprobe の colour metadata を gate し、bt709 / sRGB transfer / bt709 matrix / pc-tv range 以外を fail-loud にする。
+次 gate で export 側のPixi依存除去、decode scheduler の負荷制御、HDR / 10bit / 明示変換対応を進める。
 これにより、動画読み込み・current frame availability と GPU import / sampling の問題を分離する。
 ただし HTMLVideoElement / `importExternalTexture` はブラウザの暗黙 YUV->RGB と float 秒 seek に依存するため、
 この経路の動画 preview は export parity をまだ主張しない。external texture 表示を入れる前後で、known clip の同一 frame を
