@@ -3,7 +3,10 @@ use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use uxfd_shared_memory_spike::PosixSharedRing;
 
 #[test]
 fn decode_start_returns_shared_ring_layout_without_frame_bytes() {
@@ -142,6 +145,104 @@ fn decode_request_frame_decodes_requested_source_frame_to_verified_descriptor_wi
         "withinTolerance"
     );
     assert_no_frame_bytes_recursive(&response["result"]);
+}
+
+#[test]
+fn decode_request_frame_writes_decoded_rgba_to_posix_shared_memory() {
+    let temp_dir = TestTempDir::new("decode-control-plane-shm");
+    let fixture = build_two_frame_h264_fixture(temp_dir.path());
+    let mut backend = BackendProcess::start();
+
+    let start_response = backend.request(json!({
+        "id": 1,
+        "method": "decode.start",
+        "params": {
+            "jobId": "decode-shm",
+            "source": fixture.path,
+            "slotCount": 1,
+            "width": fixture.width,
+            "height": fixture.height,
+            "sourceRate": {
+                "numerator": 30,
+                "denominator": 1
+            },
+            "format": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+
+    assert_eq!(start_response["ok"], true);
+    let memory_id = start_response["result"]["memoryId"]
+        .as_str()
+        .expect("memory id");
+    let stride_bytes = start_response["result"]["strideBytes"]
+        .as_u64()
+        .expect("stride bytes") as usize;
+    let slot_byte_len = start_response["result"]["slotByteLen"]
+        .as_u64()
+        .expect("slot byte length") as usize;
+    assert!(
+        memory_id.starts_with("/uxfd-"),
+        "memoryId must be an attachable POSIX shared memory name"
+    );
+
+    let consumer_ring = PosixSharedRing::attach_with_retry(
+        memory_id,
+        slot_byte_len,
+        Duration::from_secs(1),
+    )
+    .expect("attach to backend-created shared frame ring");
+
+    let expected_tight_rgba = decode_tight_rgba_frame(&fixture.path, 1, fixture.width, fixture.height);
+    let expected_padded_rgba = pad_rgba_rows(
+        &expected_tight_rgba,
+        fixture.width,
+        fixture.height,
+        stride_bytes,
+    );
+
+    let frame_response = backend.request(json!({
+        "id": 2,
+        "method": "decode.requestFrame",
+        "params": {
+            "jobId": "decode-shm",
+            "requestId": 31,
+            "frameIndex": 1,
+            "mode": "latestWins"
+        }
+    }));
+
+    assert_eq!(frame_response["ok"], true);
+    let mapped_frame = consumer_ring
+        .read_frame(1)
+        .expect("consumer reads decoded RGBA from shared memory");
+    assert_eq!(mapped_frame.bytes, expected_padded_rgba);
+    assert_eq!(
+        frame_response["result"]["verification"]["checksum"]["valueHex"],
+        crc32_hex(&mapped_frame.bytes)
+    );
+    assert_no_frame_bytes_recursive(&frame_response["result"]);
+
+    let release_response = backend.request(json!({
+        "id": 3,
+        "method": "decode.releaseFrame",
+        "params": {
+            "jobId": "decode-shm",
+            "slotIndex": frame_response["result"]["frame"]["descriptor"]["slotIndex"],
+            "generation": frame_response["result"]["frame"]["descriptor"]["generation"],
+            "copyOutState": "gpuUploadFenceSignalled"
+        }
+    }));
+
+    assert_eq!(release_response["ok"], true);
+    consumer_ring
+        .wait_until_free(Duration::from_secs(1))
+        .expect("backend release returns shared memory slot to free");
 }
 
 #[test]

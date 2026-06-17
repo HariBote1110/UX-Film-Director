@@ -46,6 +46,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92ecc6618181def0457392ccd0ee51198e065e016d1d527a7ac1b6dc7c1f09d2"
 
 [[package]]
+name = "libc"
+version = "0.2.186"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
+
+[[package]]
 name = "memchr"
 version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -154,6 +160,16 @@ dependencies = [
  "flate2",
  "serde",
  "serde_json",
+ "uxfd-shared-memory-spike",
+ "uxfd-sidecar-protocol",
+]
+
+[[package]]
+name = "uxfd-shared-memory-spike"
+version = "0.1.0-Alpha-1a"
+dependencies = [
+ "crc32fast",
+ "libc",
  "uxfd-sidecar-protocol",
 ]
 
