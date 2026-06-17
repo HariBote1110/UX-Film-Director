@@ -54,6 +54,7 @@ export const prepareSharedRendererRustDecodedVideoUpload = async ({
     slotCount,
     bridge: copyBridge,
     releaseAfterGpuUpload: () => releaseFrame('gpuUploadFenceSignalled'),
+    releaseAfterUploadAbort: () => releaseFrame('rendererUploadAborted'),
   });
   if (!upload.ok) {
     await releaseFrame('rendererUploadAborted');

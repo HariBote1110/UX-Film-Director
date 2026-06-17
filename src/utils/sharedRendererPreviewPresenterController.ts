@@ -86,6 +86,7 @@ export interface StartSharedRendererPreviewPresenterInput {
 export interface SharedRendererDecodedVideoFrameUpload extends SharedRendererVideoFrameTextureUploadInput {
   ptsFrame: number;
   releaseAfterGpuUpload?: () => Promise<void>;
+  releaseAfterUploadAbort?: () => Promise<void>;
 }
 
 export const startSharedRendererPreviewPresenter = async ({
@@ -235,6 +236,8 @@ export const startSharedRendererPreviewPresenter = async ({
         await sharedRendererDecodedVideoFrameUpload.releaseAfterGpuUpload();
       }
       resolvedVideoFrameUploadReady = true;
+    } else if (sharedRendererDecodedVideoFrameUpload.releaseAfterUploadAbort) {
+      await sharedRendererDecodedVideoFrameUpload.releaseAfterUploadAbort();
     }
   }
 
