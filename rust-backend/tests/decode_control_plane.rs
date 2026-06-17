@@ -37,7 +37,18 @@ fn decode_start_returns_shared_ring_layout_without_frame_bytes() {
 
     assert_eq!(response["ok"], true);
     assert_eq!(response["result"]["jobId"], "decode-1");
-    assert_eq!(response["result"]["memoryId"], "decode-1-ring");
+    assert!(
+        response["result"]["memoryId"]
+            .as_str()
+            .expect("memory id")
+            .starts_with("/uxfd-")
+    );
+    assert!(
+        response["result"]["memoryId"]
+            .as_str()
+            .expect("memory id")
+            .contains("decode-1-ring")
+    );
     assert_eq!(response["result"]["slotCount"], 3);
     assert_eq!(response["result"]["sourceRate"]["numerator"], 60);
     assert_eq!(response["result"]["sourceRate"]["denominator"], 1);
@@ -115,7 +126,7 @@ fn decode_request_frame_decodes_requested_source_frame_to_verified_descriptor_wi
     assert_eq!(response["result"]["frame"]["ptsFrame"], 1);
     assert_eq!(
         response["result"]["frame"]["descriptor"]["memoryId"],
-        "decode-actual-ring"
+        start_response["result"]["memoryId"]
     );
     assert_eq!(response["result"]["frame"]["descriptor"]["slotIndex"], 0);
     assert_eq!(response["result"]["frame"]["descriptor"]["generation"], 1);
@@ -344,7 +355,19 @@ fn decode_request_frame_accepts_frame_index_without_float_seconds() {
 #[test]
 fn decode_release_frame_requires_completed_gpu_copy_out() {
     let mut backend = BackendProcess::start();
-    backend.start_decode();
+    let start_response = backend.start_decode();
+    let memory_id = start_response["result"]["memoryId"]
+        .as_str()
+        .expect("memory id");
+    let slot_byte_len = start_response["result"]["slotByteLen"]
+        .as_u64()
+        .expect("slot byte length") as usize;
+    let consumer_ring = PosixSharedRing::attach_with_retry(
+        memory_id,
+        slot_byte_len,
+        Duration::from_secs(1),
+    )
+    .expect("attach to backend-created shared frame ring");
 
     let frame_response = backend.request(json!({
         "id": 2,
@@ -357,6 +380,9 @@ fn decode_release_frame_requires_completed_gpu_copy_out() {
         }
     }));
     assert_eq!(frame_response["ok"], true);
+    consumer_ring
+        .read_frame(1)
+        .expect("consumer reads frame before release");
 
     let response = backend.request(json!({
         "id": 3,
@@ -380,6 +406,9 @@ fn decode_release_frame_requires_completed_gpu_copy_out() {
         frame_response["result"]["frame"]["descriptor"]["generation"]
     );
     assert_no_frame_bytes(&response["result"]);
+    consumer_ring
+        .wait_until_free(Duration::from_secs(1))
+        .expect("backend release returns shared memory slot to free");
 }
 
 fn assert_no_frame_bytes(value: &Value) {
@@ -630,7 +659,7 @@ impl BackendProcess {
         }
     }
 
-    fn start_decode(&mut self) {
+    fn start_decode(&mut self) -> Value {
         let temp_dir = TestTempDir::new("decode-control-plane-session");
         let fixture = build_two_frame_h264_fixture(temp_dir.path());
         let response = self.request(json!({
@@ -658,6 +687,7 @@ impl BackendProcess {
 
         assert_eq!(response["ok"], true);
         self.temp_dirs.push(temp_dir);
+        response
     }
 
     fn request(&mut self, payload: Value) -> Value {

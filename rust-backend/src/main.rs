@@ -13,6 +13,8 @@ use uxfd_sidecar_protocol::{
     FrameChecksum, FrameDescriptor, FrameFormat, FrameVerificationReport, FrameVerificationStatus,
     ReadyFrame, SharedFrame, SharedFrameRing, SlotRecoveryReason,
 };
+#[cfg(unix)]
+use uxfd_shared_memory_spike::PosixSharedRing;
 
 #[derive(Debug, Deserialize)]
 struct RpcRequest {
@@ -50,6 +52,7 @@ struct DecodeSession {
     ffmpeg_path: String,
     ffprobe_path: String,
     ring: SharedFrameRing,
+    data_plane_ring: Option<DecodeDataPlaneRing>,
 }
 
 /// Shared state for the in-progress PSD pixel blob write.
@@ -466,7 +469,7 @@ fn handle_decode_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
         return response_error(id, -32602, "sourceRate must be a positive rational");
     }
 
-    let memory_id = format!("{}-ring", parsed.job_id);
+    let memory_id = decode_memory_id(&parsed.job_id);
     let layout = match rgba8_srgb_ring_layout(
         memory_id.clone(),
         parsed.slot_count,
@@ -502,6 +505,18 @@ fn handle_decode_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
         );
     }
 
+    let ffmpeg_path = std::env::var("UXFD_FFMPEG_BIN").unwrap_or_else(|_| "ffmpeg".to_string());
+    let ffprobe_path = std::env::var("UXFD_FFPROBE_BIN").unwrap_or_else(|_| "ffprobe".to_string());
+    let data_plane_ring = match create_decode_data_plane(&memory_id, descriptor.byte_len) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32049,
+                &format!("Failed to create decode shared memory: {error}"),
+            );
+        }
+    };
     let response = DecodeStartResponse {
         job_id: parsed.job_id.clone(),
         memory_id,
@@ -514,15 +529,13 @@ fn handle_decode_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
         format: descriptor.format,
         colour: descriptor.colour,
     };
-
-    let ffmpeg_path = std::env::var("UXFD_FFMPEG_BIN").unwrap_or_else(|_| "ffmpeg".to_string());
-    let ffprobe_path = std::env::var("UXFD_FFPROBE_BIN").unwrap_or_else(|_| "ffprobe".to_string());
     state.decode_session = Some(DecodeSession {
         start_response: response.clone(),
         source: parsed.source,
         ffmpeg_path,
         ffprobe_path,
         ring: SharedFrameRing::new(layout),
+        data_plane_ring,
     });
 
     RpcResponse {
@@ -627,6 +640,19 @@ fn handle_decode_request_frame(id: u64, params: Value, state: &mut BackendState)
         );
     }
 
+    if let Err(error) =
+        write_decode_data_plane(session.data_plane_ring.as_ref(), parsed.frame_index, &padded_rgba)
+    {
+        let _ = session
+            .ring
+            .recover_stuck_slot(write_slot_index, SlotRecoveryReason::ProducerTimeout);
+        return response_error(
+            id,
+            -32050,
+            &format!("Failed to write decoded frame to shared memory: {error}"),
+        );
+    }
+
     if let Err(error) = session.ring.mark_slot_ready(write_slot, parsed.frame_index) {
         return response_error(
             id,
@@ -727,6 +753,15 @@ fn handle_decode_release_frame(id: u64, params: Value, state: &mut BackendState)
             &format!("Failed to release decoded frame slot: {error:?}"),
         );
     }
+    if let Err(error) =
+        release_decode_data_plane(session.data_plane_ring.as_ref(), parsed.copy_out_state)
+    {
+        return response_error(
+            id,
+            -32051,
+            &format!("Failed to release decoded shared memory slot: {error}"),
+        );
+    }
 
     RpcResponse {
         id,
@@ -739,6 +774,84 @@ fn handle_decode_release_frame(id: u64, params: Value, state: &mut BackendState)
         })),
         error: None,
     }
+}
+
+#[cfg(unix)]
+type DecodeDataPlaneRing = PosixSharedRing;
+
+#[cfg(not(unix))]
+struct DecodeDataPlaneRing;
+
+fn decode_memory_id(job_id: &str) -> String {
+    let sanitised: String = job_id
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || character == '-' || character == '_' {
+                character
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    format!("/uxfd-{}-{sanitised}-ring", std::process::id())
+}
+
+#[cfg(unix)]
+fn create_decode_data_plane(
+    memory_id: &str,
+    slot_byte_len: u64,
+) -> Result<Option<DecodeDataPlaneRing>, String> {
+    let frame_len = usize::try_from(slot_byte_len)
+        .map_err(|_| format!("slotByteLen overflows usize: {slot_byte_len}"))?;
+    PosixSharedRing::create(memory_id, frame_len)
+        .map(Some)
+        .map_err(|error| format!("{error:?}"))
+}
+
+#[cfg(not(unix))]
+fn create_decode_data_plane(
+    _memory_id: &str,
+    _slot_byte_len: u64,
+) -> Result<Option<DecodeDataPlaneRing>, String> {
+    Ok(None)
+}
+
+#[cfg(unix)]
+fn write_decode_data_plane(
+    ring: Option<&DecodeDataPlaneRing>,
+    frame_index: u64,
+    bytes: &[u8],
+) -> Result<(), String> {
+    let ring = ring.ok_or_else(|| "decode shared memory ring is unavailable".to_string())?;
+    ring.write_frame(frame_index, bytes)
+        .map_err(|error| format!("{error:?}"))
+}
+
+#[cfg(not(unix))]
+fn write_decode_data_plane(
+    _ring: Option<&DecodeDataPlaneRing>,
+    _frame_index: u64,
+    _bytes: &[u8],
+) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(unix)]
+fn release_decode_data_plane(
+    ring: Option<&DecodeDataPlaneRing>,
+    copy_out_state: CopyOutState,
+) -> Result<(), String> {
+    let ring = ring.ok_or_else(|| "decode shared memory ring is unavailable".to_string())?;
+    ring.release_frame(copy_out_state)
+        .map_err(|error| format!("{error:?}"))
+}
+
+#[cfg(not(unix))]
+fn release_decode_data_plane(
+    _ring: Option<&DecodeDataPlaneRing>,
+    _copy_out_state: CopyOutState,
+) -> Result<(), String> {
+    Ok(())
 }
 
 fn decode_tight_rgba_frame(
