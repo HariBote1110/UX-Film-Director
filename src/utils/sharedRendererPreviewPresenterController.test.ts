@@ -152,6 +152,62 @@ const videoSession: SharedRendererPreviewSession = {
   presentationContract: buildSharedRendererPresentationContract(),
 };
 
+const multiVideoSnapshot: RustSceneSnapshot = {
+  ...snapshot,
+  clips: [
+    ...videoSnapshot.clips,
+    {
+      clip_id: 'video-2',
+      track_id: 'layer-1',
+      media_id: 'video-2',
+      source_frame: 120,
+      z_index: 1,
+      transform: {
+        translation_x: 120,
+        translation_y: 80,
+        scale_x: 1,
+        scale_y: 1,
+        rotation_degrees: 0,
+        sampling: 'bilinear',
+      },
+      opacity: 1,
+      effects: [],
+    },
+  ],
+};
+
+const multiVideoSession: SharedRendererPreviewSession = {
+  ...videoSession,
+  plan: {
+    ...videoSession.plan,
+    snapshot: multiVideoSnapshot,
+    media: [
+      ...videoSession.plan.media,
+      {
+        id: 'video-2',
+        kind: 'Video',
+        source: '/tmp/video-2.mp4',
+        width: 640,
+        height: 360,
+      },
+    ],
+  },
+  surfaceGate: {
+    ...videoSession.surfaceGate,
+    snapshot: multiVideoSnapshot,
+    media: [
+      ...videoSession.surfaceGate.media,
+      {
+        id: 'video-2',
+        kind: 'Video',
+        source: '/tmp/video-2.mp4',
+        width: 640,
+        height: 360,
+      },
+    ],
+  },
+};
+
 const decodedVideoDescriptor: RustBackendVideoFrameDescriptor = {
   memoryId: '/uxfd-controller-video-ring',
   slotIndex: 0,
@@ -607,6 +663,95 @@ describe('startSharedRendererPreviewPresenter', () => {
       uxfdSharedRendererPresenterVideoFrameUploadReady: 'true',
       uxfdSharedRendererPresenterVideoOwner: 'sharedRenderer',
       uxfdSharedRendererPresenterVideoCutoverReason: 'rustDecodedFrameUploadReady',
+    });
+  });
+
+  it('publishes shared video ownership only for clips with uploaded Rust frames', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const events: string[] = [];
+    const rgbaBytes = new Uint8Array(decodedVideoDescriptor.byteLen);
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: multiVideoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererDecodedVideoFrameUploads: [{
+        clipId: 'video-1',
+        descriptor: decodedVideoDescriptor,
+        ptsFrame: 90,
+        rgbaBytes,
+        releaseAfterGpuUpload: async () => {
+          events.push('release:video-1');
+        },
+      }],
+      rustVideoFrameDecodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 2,
+        requests: [
+          {
+            clipId: 'video-1',
+            mediaId: 'video-1',
+            source: '/tmp/video.mp4',
+            sourceFrame: 90,
+            sourceRate: {
+              numerator: 60,
+              denominator: 1,
+            },
+            timelineFrame: 12,
+            width: 1280,
+            height: 720,
+            format: 'rgba8Srgb',
+            colour: 'rec709SrgbFullRange',
+          },
+          {
+            clipId: 'video-2',
+            mediaId: 'video-2',
+            source: '/tmp/video-2.mp4',
+            sourceFrame: 120,
+            sourceRate: {
+              numerator: 30,
+              denominator: 1,
+            },
+            timelineFrame: 12,
+            width: 640,
+            height: 360,
+            format: 'rgba8Srgb',
+            colour: 'rec709SrgbFullRange',
+          },
+        ],
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onWriteTexture: () => {
+              events.push('writeTexture:video-1');
+            },
+            onSubmittedWorkDone: async () => {
+              events.push('gpuUploadDone');
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    } as any);
+
+    expect(control).toMatchObject({
+      ok: true,
+      videoOwnership: {
+        owner: 'sharedRenderer',
+        reason: 'rustDecodedFrameUploadReady',
+        videoObjectIds: ['video-1'],
+      },
+    });
+    expect(events).toEqual(['writeTexture:video-1', 'gpuUploadDone', 'release:video-1']);
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterVideoFrameUploadReady: 'true',
+      uxfdSharedRendererPresenterVideoOwner: 'sharedRenderer',
+      uxfdSharedRendererPresenterSharedVideoObjectCount: '1',
     });
   });
 
