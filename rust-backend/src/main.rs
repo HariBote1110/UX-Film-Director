@@ -818,17 +818,9 @@ type DecodeDataPlaneRing = PosixSharedRing;
 struct DecodeDataPlaneRing;
 
 fn decode_memory_id(job_id: &str) -> String {
-    let sanitised: String = job_id
-        .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() || character == '-' || character == '_' {
-                character
-            } else {
-                '-'
-            }
-        })
-        .collect();
-    format!("/uxfd-{}-{sanitised}-ring", std::process::id())
+    let mut hasher = crc32fast::Hasher::new();
+    hasher.update(job_id.as_bytes());
+    format!("/uxfd-{}-{:08x}", std::process::id(), hasher.finalize())
 }
 
 #[cfg(unix)]
@@ -899,9 +891,10 @@ fn decode_tight_rgba_frame(
     width: u32,
     height: u32,
 ) -> Result<Vec<u8>, String> {
-    let input_range = probe_video_input_range(ffprobe_path, source)?;
+    let input_metadata = probe_video_input_metadata(ffprobe_path, source)?;
     let filter = format!(
-        "select=eq(n\\,{frame_index}),scale=in_range={input_range}:out_range=pc:in_color_matrix=bt709:out_color_matrix=bt709,format=rgba"
+        "select=eq(n\\,{frame_index}),scale=in_range={}:out_range=pc:in_color_matrix=bt709:out_color_matrix=bt709,format=rgba",
+        input_metadata.range
     );
     let output = Command::new(ffmpeg_path)
         .arg("-hide_banner")
@@ -944,14 +937,21 @@ fn decode_tight_rgba_frame(
     Ok(output.stdout)
 }
 
-fn probe_video_input_range(ffprobe_path: &str, source: &str) -> Result<&'static str, String> {
+struct VideoInputMetadata {
+    range: &'static str,
+}
+
+fn probe_video_input_metadata(
+    ffprobe_path: &str,
+    source: &str,
+) -> Result<VideoInputMetadata, String> {
     let output = Command::new(ffprobe_path)
         .arg("-v")
         .arg("error")
         .arg("-select_streams")
         .arg("v:0")
         .arg("-show_entries")
-        .arg("stream=color_range")
+        .arg("stream=color_range,color_primaries,color_transfer,color_space")
         .arg("-of")
         .arg("json")
         .arg(source)
@@ -968,21 +968,47 @@ fn probe_video_input_range(ffprobe_path: &str, source: &str) -> Result<&'static 
 
     let parsed: Value = serde_json::from_slice(&output.stdout)
         .map_err(|error| format!("invalid ffprobe JSON: {error}"))?;
-    let range = parsed
+    let stream = parsed
         .get("streams")
         .and_then(Value::as_array)
         .and_then(|streams| streams.first())
-        .and_then(|stream| stream.get("color_range"))
-        .and_then(Value::as_str)
-        .ok_or_else(|| "ffprobe video stream did not include color_range".to_string())?;
+        .ok_or_else(|| "ffprobe did not return a video stream".to_string())?;
+    let range = stream_metadata_string(stream, "color_range")?;
+    let primaries = stream_metadata_string(stream, "color_primaries")?;
+    let transfer = stream_metadata_string(stream, "color_transfer")?;
+    let matrix = stream_metadata_string(stream, "color_space")?;
 
-    match range {
+    let range = match range {
         "pc" => Ok("pc"),
         "tv" => Ok("tv"),
         value => Err(format!(
             "unsupported video color_range for Rust decode: {value}"
         )),
+    }?;
+    if primaries != "bt709" {
+        return Err(format!(
+            "unsupported video color_primaries for Rust decode: {primaries}"
+        ));
     }
+    if transfer != "iec61966-2-1" {
+        return Err(format!(
+            "unsupported video color_transfer for Rust decode: {transfer}"
+        ));
+    }
+    if matrix != "bt709" {
+        return Err(format!(
+            "unsupported video color_space for Rust decode: {matrix}"
+        ));
+    }
+
+    Ok(VideoInputMetadata { range })
+}
+
+fn stream_metadata_string<'a>(stream: &'a Value, key: &str) -> Result<&'a str, String> {
+    stream
+        .get(key)
+        .and_then(Value::as_str)
+        .ok_or_else(|| format!("ffprobe video stream did not include {key}"))
 }
 
 fn pad_rgba_rows(

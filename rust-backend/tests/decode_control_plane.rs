@@ -85,9 +85,7 @@ fn decode_start_uses_short_shared_memory_name_for_renderer_length_job_id() {
     }));
 
     assert_eq!(response["ok"], true, "{response}");
-    let memory_id = response["result"]["memoryId"]
-        .as_str()
-        .expect("memory id");
+    let memory_id = response["result"]["memoryId"].as_str().expect("memory id");
     assert!(
         memory_id.len() <= 31,
         "POSIX shm name must stay inside the macOS name limit: {memory_id}"
@@ -756,12 +754,10 @@ fn decode_request_frame_rejects_unsupported_transfer_metadata() {
     }));
 
     assert_eq!(response["ok"], false);
-    assert!(
-        response["error"]["message"]
-            .as_str()
-            .expect("error message")
-            .contains("unsupported video color_transfer for Rust decode")
-    );
+    assert!(response["error"]["message"]
+        .as_str()
+        .expect("error message")
+        .contains("unsupported video color_transfer for Rust decode"));
     assert_no_frame_bytes_recursive(&response);
 }
 
