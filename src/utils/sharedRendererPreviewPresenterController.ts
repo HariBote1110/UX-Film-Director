@@ -233,6 +233,7 @@ export const startSharedRendererPreviewPresenter = async ({
 
   let resolvedVideoFrameUploadReady = sharedRendererVideoFrameUploadReady;
   let uploadedVideoFrameTexture: unknown | null = null;
+  const uploadedVideoFrameTexturesByClipId = new Map<string, unknown>();
   const uploadedVideoObjectIds = sharedRendererDecodedVideoFrameUploads
     ? new Set<string>()
     : undefined;
@@ -253,6 +254,7 @@ export const startSharedRendererPreviewPresenter = async ({
       uploadedVideoFrameTexture ??= uploadResult.texture;
       if (decodedVideoFrameUpload.clipId) {
         uploadedVideoObjectIds?.add(decodedVideoFrameUpload.clipId);
+        uploadedVideoFrameTexturesByClipId.set(decodedVideoFrameUpload.clipId, uploadResult.texture);
       }
       if (decodedVideoFrameUpload.upload.releaseAfterGpuUpload) {
         await presenter.device.queue?.onSubmittedWorkDone?.();
@@ -298,11 +300,18 @@ export const startSharedRendererPreviewPresenter = async ({
     && videoOwnership.owner === 'sharedRenderer';
   const shouldPassThroughToPixi = !hasSolidColourScene && !diagnosticSwatchEnabled;
   if (shouldPresentUploadedVideoFrame) {
-    const presentation = presenter.presentVideoFrameScene({
-      snapshot: session.surfaceGate.snapshot,
-      media: session.surfaceGate.media,
-      texture: uploadedVideoFrameTexture,
-    });
+    const presentation = uploadedVideoFrameTexturesByClipId.size > 0
+      ? presenter.presentVideoFrameScene({
+        snapshot: session.surfaceGate.snapshot,
+        media: session.surfaceGate.media,
+        texturesByClipId: uploadedVideoFrameTexturesByClipId,
+        videoObjectIds: new Set(videoOwnership.videoObjectIds),
+      })
+      : presenter.presentVideoFrameScene({
+        snapshot: session.surfaceGate.snapshot,
+        media: session.surfaceGate.media,
+        texture: uploadedVideoFrameTexture,
+      });
     if (!presentation.ok) {
       writeDiagnostics({
         status: 'fallback',
