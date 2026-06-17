@@ -143,6 +143,7 @@ describe('sharedVideoFrameUploadBridge', () => {
       },
     });
     if (!upload.ok) throw new Error('expected upload preparation to succeed');
+    expect(upload.rgbaBytes).toBe(returnedBytes);
     expect(upload.rgbaBytes[0]).toBe(0x7e);
     expect(upload.rgbaBytes[upload.rgbaBytes.length - 1]).toBe(0x7e);
   });
