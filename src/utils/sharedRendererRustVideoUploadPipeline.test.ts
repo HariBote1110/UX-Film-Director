@@ -140,4 +140,42 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
       detail: 'Rust backend did not return a verified decoded video frame.',
     });
   });
+
+  it('releases the decoded backend slot as aborted when shared memory copy fails', async () => {
+    const calls: unknown[] = [];
+    const upload = await prepareSharedRendererRustDecodedVideoUpload({
+      decodeResponse: decodedFrameResponse,
+      slotCount: 2,
+      copyBridge: {
+        copyIntoUploadBuffer: async () => ({
+          success: false,
+          error: 'copy failed',
+        }),
+      },
+      rustBackendBridge: {
+        startVideoDecode: async () => ({ success: true }),
+        requestVideoDecodeFrame: async () => ({ success: true, result: decodedFrameResponse.result! }),
+        releaseVideoDecodeFrame: async (payload) => {
+          calls.push(['releaseVideoDecodeFrame', payload]);
+          return { success: true };
+        },
+        stopVideoDecode: async () => ({ success: true }),
+      },
+    });
+
+    expect(upload).toEqual({
+      ok: false,
+      reason: 'copyFailed',
+      detail: 'copy failed',
+    });
+    expect(calls).toEqual([[
+      'releaseVideoDecodeFrame',
+      {
+        jobId: 'decode-job-1',
+        slotIndex: 1,
+        generation: 5,
+        copyOutState: 'rendererUploadAborted',
+      },
+    ]]);
+  });
 });
