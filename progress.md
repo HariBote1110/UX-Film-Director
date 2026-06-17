@@ -1,3 +1,31 @@
+## 2026-06-18 — Phase5: shared video frame bridge core をRustで追加
+
+### 実施内容
+- `shared-video-frame-bridge` crate を追加し、POSIX shared memory ring から renderer upload buffer 相当の
+  `&mut [u8]` へ decoded frame bytes を copy する core を実装した。
+- `copy_shared_frame_into_upload_buffer` は `memoryId` / `slotCount` / `slotByteLen` / `sequence` を受け取り、
+  `PosixSharedRing::attach_with_retry_for_layout` で attach して対象 frame を読む。
+- copy 後も slot は `READING` のままにし、GPU upload fence 後の `decode.releaseFrame` が ownership を戻す。
+- package version を `0.1.1-Beta-45a` に更新した。
+
+### Red
+- `shared-video-frame-bridge/tests/copy_into_upload_buffer.rs` に、shared memory から upload buffer へ copy し、
+  copy 済み frame を release するまで別 slot が利用可能である契約を追加した。
+- 旧状態では `copy_shared_frame_into_upload_buffer` が未実装で Red になった。
+
+### Green
+- `SharedVideoFrameCopyReport` と `SharedVideoFrameBridgeError` を追加した。
+- upload buffer 長が `slotByteLen` と一致しない場合は shared memory を読まずに fail-loud する。
+- target build output を誤って追跡したため、直後の commit で `shared-video-frame-bridge/.gitignore` を追加し、
+  `target/` を追跡対象外に戻した。
+
+### 現在の制限
+- Rust core はできたが、N-API / Electron preload へはまだ接続していない。
+- renderer から直接使うには、次段でこの core を native addon として build し、`copyIntoUploadBuffer` API を露出する必要がある。
+
+### 検証
+- `cargo test --manifest-path shared-video-frame-bridge/Cargo.toml` -> 1 test passed。
+
 ## 2026-06-18 — Phase5: Rust decoded video frame の WebGPU upload / draw gate
 
 ### 実施内容

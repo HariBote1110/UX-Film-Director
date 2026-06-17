@@ -186,6 +186,11 @@ upload 成功後だけ `videoFrameUploadReady=true` とし、GPU queue 完了後
 uploaded texture は video plane vertex scene と sampler で描画する。次段では POSIX shm から upload buffer へ copy する
 preload/native bridge を実装する。
 
+41. Phase5: shared video frame bridge core をRustで追加する
+POSIX shared memory ring から renderer upload buffer 相当の mutable byte slice へ decoded frame を copy する
+Rust core crate を追加する。copy 後も slot は `READING` のまま保持し、WebGPU upload fence 後の
+`decode.releaseFrame` で解放する。次段ではこの core を N-API / Electron preload へ接続する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
