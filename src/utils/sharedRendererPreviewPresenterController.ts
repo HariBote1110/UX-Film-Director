@@ -225,9 +225,11 @@ export const startSharedRendererPreviewPresenter = async ({
   }
 
   let resolvedVideoFrameUploadReady = sharedRendererVideoFrameUploadReady;
+  let uploadedVideoFrameTexture: unknown | null = null;
   if (hasVideoScene && sharedRendererDecodedVideoFrameUpload) {
     const uploadResult = presenter.uploadVideoFrameTexture(sharedRendererDecodedVideoFrameUpload);
     if (uploadResult.ok) {
+      uploadedVideoFrameTexture = uploadResult.texture;
       if (sharedRendererDecodedVideoFrameUpload.releaseAfterGpuUpload) {
         await presenter.device.queue?.onSubmittedWorkDone?.();
         await sharedRendererDecodedVideoFrameUpload.releaseAfterGpuUpload();
@@ -264,8 +266,28 @@ export const startSharedRendererPreviewPresenter = async ({
       : undefined,
   });
 
+  const shouldPresentUploadedVideoFrame = hasVideoScene
+    && uploadedVideoFrameTexture
+    && videoOwnership.owner === 'sharedRenderer';
   const shouldPassThroughToPixi = !hasSolidColourScene && !diagnosticSwatchEnabled;
-  if (hasSolidColourScene || shouldPassThroughToPixi) {
+  if (shouldPresentUploadedVideoFrame) {
+    const presentation = presenter.presentVideoFrameScene({
+      snapshot: session.surfaceGate.snapshot,
+      media: session.surfaceGate.media,
+      texture: uploadedVideoFrameTexture,
+    });
+    if (!presentation.ok) {
+      writeDiagnostics({
+        status: 'fallback',
+        reason: presentation.reason,
+      });
+      return {
+        ok: false,
+        reason: presentation.reason,
+        dispose: presenter.dispose,
+      };
+    }
+  } else if (hasSolidColourScene || shouldPassThroughToPixi) {
     const solidColourObjectIdsForPresentation = solidColourGeometrySource === 'rust-wasm'
       ? new Set(solidColourOwnership.solidColourObjectIds)
       : undefined;
