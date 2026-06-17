@@ -1,4 +1,5 @@
 import type { SharedRendererPresentationContract } from './sharedRendererPresentationContract';
+import type { RustBackendVideoFrameDescriptor } from './rustBackendVideoDecodeControl';
 import {
   buildSharedRendererSolidColourVertexScene,
   type SharedRendererSolidColourVertexSceneBuilder,
@@ -26,10 +27,21 @@ export interface SharedRendererWebGpuDeviceLike {
   queue?: {
     submit: (commandBuffers: unknown[]) => void;
     writeBuffer?: (buffer: unknown, offset: number, data: Float32Array) => void;
+    writeTexture?: (
+      destination: { texture: unknown },
+      data: Uint8Array,
+      dataLayout: {
+        offset: number;
+        bytesPerRow: number;
+        rowsPerImage: number;
+      },
+      size: SharedRendererVideoTextureSize
+    ) => void;
   };
   createShaderModule?: (descriptor: { code: string }) => unknown;
   createRenderPipeline?: (descriptor: unknown) => unknown;
   createBuffer?: (descriptor: { size: number; usage: number }) => unknown;
+  createTexture?: (descriptor: SharedRendererVideoTextureDescriptor) => unknown;
   createCommandEncoder?: () => {
     beginRenderPass: (descriptor: {
       colorAttachments: Array<{
@@ -84,6 +96,7 @@ export type SharedRendererWebGpuPresenterResult =
       dispose: () => void;
       presentSolidSrgbSwatch: (swatch: SharedRendererSolidSrgbSwatch) => void;
       presentSolidColourScene: (scene: SharedRendererSolidColourSceneInput) => SharedRendererSolidColourScenePresentationResult;
+      uploadVideoFrameTexture: (input: SharedRendererVideoFrameTextureUploadInput) => SharedRendererVideoFrameTextureUploadResult;
     }
   | {
       ok: false;
@@ -137,8 +150,55 @@ export interface SharedRendererWebGpuPresenterInput {
   textureUsageRenderAttachment?: number;
   bufferUsageVertex?: number;
   bufferUsageCopyDst?: number;
+  textureUsageTextureBinding?: number;
+  textureUsageTextureCopyDst?: number;
   solidColourVertexSceneBuilder?: SharedRendererSolidColourVertexSceneBuilder;
   onDeviceLost?: (event: SharedRendererDeviceLostEvent) => void;
+}
+
+export interface SharedRendererVideoFrameTextureUploadInput {
+  descriptor: RustBackendVideoFrameDescriptor;
+  rgbaBytes: Uint8Array;
+}
+
+export type SharedRendererVideoFrameTextureUploadResult =
+  | {
+      ok: true;
+      texture: unknown;
+      textureFormat: 'rgba8unorm-srgb';
+      width: number;
+      height: number;
+      strideBytes: number;
+    }
+  | {
+      ok: false;
+      reason: 'unsupportedVideoFrameFormat';
+      detail: string;
+      format: string;
+    }
+  | {
+      ok: false;
+      reason: 'frameByteLengthMismatch';
+      detail: string;
+      expectedByteLength: number;
+      actualByteLength: number;
+    }
+  | {
+      ok: false;
+      reason: 'webGpuUploadUnavailable';
+      detail: string;
+    };
+
+interface SharedRendererVideoTextureSize {
+  width: number;
+  height: number;
+  depthOrArrayLayers: 1;
+}
+
+interface SharedRendererVideoTextureDescriptor {
+  size: SharedRendererVideoTextureSize;
+  format: 'rgba8unorm-srgb';
+  usage: number;
 }
 
 export const createSharedRendererWebGpuPresenter = async ({
@@ -149,6 +209,8 @@ export const createSharedRendererWebGpuPresenter = async ({
   textureUsageRenderAttachment = defaultRenderAttachmentUsage(),
   bufferUsageVertex = defaultVertexBufferUsage(),
   bufferUsageCopyDst = defaultCopyDstBufferUsage(),
+  textureUsageTextureBinding = defaultTextureBindingUsage(),
+  textureUsageTextureCopyDst = defaultTextureCopyDstUsage(),
   solidColourVertexSceneBuilder = buildSharedRendererSolidColourVertexScene,
   onDeviceLost,
 }: SharedRendererWebGpuPresenterInput): Promise<SharedRendererWebGpuPresenterResult> => {
@@ -384,6 +446,67 @@ export const createSharedRendererWebGpuPresenter = async ({
     };
   };
 
+  const uploadVideoFrameTexture = ({
+    descriptor,
+    rgbaBytes,
+  }: SharedRendererVideoFrameTextureUploadInput): SharedRendererVideoFrameTextureUploadResult => {
+    if (descriptor.format !== 'rgba8Srgb') {
+      return {
+        ok: false,
+        reason: 'unsupportedVideoFrameFormat',
+        detail: 'Shared renderer video texture upload only supports Rust rgba8Srgb decoded frames.',
+        format: descriptor.format,
+      };
+    }
+    if (rgbaBytes.byteLength !== descriptor.byteLen) {
+      return {
+        ok: false,
+        reason: 'frameByteLengthMismatch',
+        detail: 'Decoded RGBA byte length must match the shared frame descriptor.',
+        expectedByteLength: descriptor.byteLen,
+        actualByteLength: rgbaBytes.byteLength,
+      };
+    }
+    if (!device.createTexture || !device.queue?.writeTexture) {
+      return {
+        ok: false,
+        reason: 'webGpuUploadUnavailable',
+        detail: 'WebGPU device does not expose the texture upload APIs needed for decoded video frames.',
+      };
+    }
+
+    const textureFormat = 'rgba8unorm-srgb' as const;
+    const size = {
+      width: descriptor.width,
+      height: descriptor.height,
+      depthOrArrayLayers: 1 as const,
+    };
+    const texture = device.createTexture({
+      size,
+      format: textureFormat,
+      usage: textureUsageTextureBinding | textureUsageTextureCopyDst,
+    });
+    device.queue.writeTexture(
+      { texture },
+      rgbaBytes,
+      {
+        offset: 0,
+        bytesPerRow: descriptor.strideBytes,
+        rowsPerImage: descriptor.height,
+      },
+      size
+    );
+
+    return {
+      ok: true,
+      texture,
+      textureFormat,
+      width: descriptor.width,
+      height: descriptor.height,
+      strideBytes: descriptor.strideBytes,
+    };
+  };
+
   return {
     ok: true,
     device,
@@ -397,6 +520,7 @@ export const createSharedRendererWebGpuPresenter = async ({
     dispose,
     presentSolidSrgbSwatch,
     presentSolidColourScene,
+    uploadVideoFrameTexture,
   };
 };
 
@@ -442,6 +566,16 @@ const defaultVertexBufferUsage = (): number => {
 const defaultCopyDstBufferUsage = (): number => {
   const bufferUsage = (globalThis as unknown as { GPUBufferUsage?: { COPY_DST?: number } }).GPUBufferUsage;
   return bufferUsage?.COPY_DST ?? 0x8;
+};
+
+const defaultTextureBindingUsage = (): number => {
+  const textureUsage = (globalThis as unknown as { GPUTextureUsage?: { TEXTURE_BINDING?: number } }).GPUTextureUsage;
+  return textureUsage?.TEXTURE_BINDING ?? 0x4;
+};
+
+const defaultTextureCopyDstUsage = (): number => {
+  const textureUsage = (globalThis as unknown as { GPUTextureUsage?: { COPY_DST?: number } }).GPUTextureUsage;
+  return textureUsage?.COPY_DST ?? 0x2;
 };
 
 const deviceLostMessage = (info: unknown): string => {
