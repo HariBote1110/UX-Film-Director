@@ -281,9 +281,12 @@ z-order safety gate では、candidate video より前面に Pixi-only object �
 `Image` / PSD / text / unsupported object が前面に残る構成では、video の shared renderer cutover を行わない。
 この段階で Rust backend は `decode.requestFrame(frameIndex)` から実 pixel decode を行い、source `color_range=pc/tv` を
 full-range RGBA へ明示正規化し、decoded RGBA を POSIX shared memory ring へ書ける。
+POSIX shared memory ring は `slotCount` と同じ multi-slot layout を持ち、先行 frame が `READING` のままでも
+次 frame を別 slot へ decode / write できる。
 control plane には descriptor / CRC32 verification だけを返す。
 ただし renderer の WebGPU texture upload はまだ未実装であり、`videoFrameUploadReady=false` のまま Pixi preview を維持する。
-次 gate で transfer / matrix metadata gate、production multi-slot ring、WebGPU texture upload を接続する。
+次 gate で preload/native bridge から WebGPU upload 用 buffer への copy、renderer の `queue.writeTexture`、
+transfer / matrix metadata gate を接続する。
 これにより、動画読み込み・current frame availability と GPU import / sampling の問題を分離する。
 ただし HTMLVideoElement / `importExternalTexture` はブラウザの暗黙 YUV->RGB と float 秒 seek に依存するため、
 この経路の動画 preview は export parity をまだ主張しない。external texture 表示を入れる前後で、known clip の同一 frame を

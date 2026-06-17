@@ -172,7 +172,12 @@ frame bytes / pixel array / base64 は control plane に載せず、WebGPU uploa
 38. Phase5: Rust backend decoded RGBA を POSIX shared memory へ書き込む  
 `decode.start` は attach 可能な `/uxfd-...` memory id を返し、Rust backend は decoded RGBA を POSIX shared memory ring へ書く。  
 consumer は `memoryId` / `slotByteLen` / `strideBytes` を使って frame を読み、WebGPU upload fence 完了後に `decode.releaseFrame` で slot を解放する。  
-初期実装は single-slot smoke とし、次段で production multi-slot ring と WebGPU texture upload を接続する。
+初期実装では control plane に frame bytes を載せず、Rust backend が POSIX shm data-plane へ padded RGBA を書く。
+
+39. Phase5: Rust backend decode data-plane を multi-slot shared memory 化する
+POSIX shared memory ring は `slotCount` に合わせて複数 slot を確保し、1枚目の frame が consumer 側で読み取り中でも
+Rust backend が2枚目を別 slot へ decode / write できるようにする。
+次段では preload/native bridge で shm から WebGPU upload 用 buffer へ copy し、renderer 側で `queue.writeTexture` する。
 
 ## UI 刷新（2026-04-19）
 

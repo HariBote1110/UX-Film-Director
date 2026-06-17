@@ -122,8 +122,10 @@ Rust backend integration gate:
 - Rust backend は unix 環境で attach 可能な POSIX shared memory name を `memoryId` として返し、
   decoded RGBA を shared memory ring へ書く。
 - `decode.releaseFrame` は WebGPU upload fence 完了後の `copyOutState=gpuUploadFenceSignalled` でのみ slot を解放する。
-- 現時点の backend integration は single-slot smoke であり、次 gate では production multi-slot ring と renderer の
-  WebGPU texture upload を接続する。
+- backend integration は `slotCount` と同じ multi-slot POSIX shm layout を作成し、先行 frame が `READING` でも
+  後続 frame を別 slot へ書ける。
+- 次 gate では preload/native bridge で shm から upload 用 buffer へ copy し、renderer の WebGPU
+  `queue.writeTexture` へ接続する。
 - transfer / matrix は次 gate で `ffprobe` metadata により fail-loud または明示変換する。
 
 ## Protocol Contract

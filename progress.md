@@ -1,3 +1,41 @@
+## 2026-06-18 — Phase5: Rust backend decode data-plane を multi-slot shared memory 化
+
+### 実施内容
+- `uxfd-shared-memory-spike::PosixSharedRing` に `create_with_slot_count` と
+  `attach_with_retry_for_layout` を追加し、POSIX shared memory ring を single-slot smoke から
+  multi-slot data-plane へ拡張した。
+- producer が1枚目の frame を consumer の `READING` 状態に保持したまま、2枚目を別 slot へ書ける契約を追加した。
+- `rust-backend` の `decode.start(slotCount)` は control-plane descriptor だけでなく、実体の POSIX shared memory も
+  同じ slot count で作成するようにした。
+- `decode.requestFrame` は1枚目の decoded RGBA が読み取り中でも、2枚目を Rust backend で decode して
+  shared memory の別 slot へ書ける。
+- Meitner の軽量レビューにより、次の bridge は renderer に shm attach させるのではなく、
+  preload/native 側で shm から upload 用 buffer へ copy し、renderer で WebGPU `queue.writeTexture` する方針を確認した。
+- package version を `0.1.1-Beta-43a` に更新した。
+
+### Red
+- `shared-memory-spike/tests/posix_shm_two_process.rs` に
+  `posix_shm_multi_slot_allows_next_frame_while_previous_frame_is_reading` を追加した。
+- `rust-backend/tests/decode_control_plane.rs` に
+  `decode_request_frame_uses_second_shared_memory_slot_while_first_slot_is_reading` を追加した。
+- 旧実装では backend が `slotCount=2` を返しても POSIX shm header は `actual: 1` で、attach layout 検証が Red になった。
+
+### Green
+- POSIX shm layout を `header + slot headers[] + frame bytes[]` に変更し、既存の single-slot API は
+  `slot_count=1` wrapper として維持した。
+- `write_frame` / `read_frame` / `release_frame` / `wait_until_free` は全 slot を走査するようにした。
+- backend の `create_decode_data_plane` は `layout.slot_count()` を `PosixSharedRing::create_with_slot_count` へ渡す。
+- 既存 fixture の `DecodeFrameRequest` は `requestId` / `mode=latestWins` を持つ現行 protocol に追従した。
+
+### 現在の制限
+- renderer / Electron から WebGPU texture upload する経路はまだ未接続で、`videoFrameUploadReady=false` のまま Pixi preview を維持する。
+- transfer / matrix metadata gate はまだ `bt709` 前提で、次以降に `ffprobe` 照合と fail-loud 化を進める。
+- release は POSIX shm ring 側では `READING` slot を順に解放する単純実装で、descriptor slot index と厳密照合する段階にはまだ進めていない。
+
+### 検証
+- `cargo test --manifest-path shared-memory-spike/Cargo.toml` -> 17 tests passed。
+- `cargo test --manifest-path rust-backend/Cargo.toml` -> 7 tests passed。
+
 ## 2026-06-18 — Phase5: Rust backend decoded RGBA を POSIX shared memory へ書き込む
 
 ### 実施内容
