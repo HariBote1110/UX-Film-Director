@@ -165,6 +165,10 @@ const createBridges = () => {
       calls.push(['releaseVideoDecodeFrame', payload]);
       return { success: true };
     },
+    stopVideoDecode: async (payload) => {
+      calls.push(['stopVideoDecode', payload]);
+      return { success: true, result: { stopped: true, jobId: payload.jobId } };
+    },
   };
   const copyBridge: SharedVideoFrameCopyBridge = {
     copyIntoUploadBuffer: async (payload, target) => {
@@ -286,5 +290,54 @@ describe('sharedRendererViewportVideoUpload', () => {
       mode: 'latestWins',
     }]);
     expect(calls).not.toContainEqual(['startVideoDecode', expect.anything()]);
+  });
+
+  it('stops a stale active decode job before starting a different video source', async () => {
+    const { calls, rustBackendBridge, copyBridge } = createBridges();
+    const staleJob: SharedRendererViewportVideoDecodeJob = {
+      jobId: 'shared-renderer-video-old-video-64x32-60over1',
+      source: '/tmp/old clip.mp4',
+      slotCount: 2,
+      width: 64,
+      height: 32,
+      sourceRate: {
+        numerator: 60,
+        denominator: 1,
+      },
+    };
+
+    const result = await prepareSharedRendererViewportVideoUpload({
+      session,
+      requestId: 79,
+      slotCount: 2,
+      activeJob: staleJob,
+      rustBackendBridge,
+      copyBridge,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(calls.slice(0, 2)).toEqual([
+      ['stopVideoDecode', {
+        jobId: 'shared-renderer-video-old-video-64x32-60over1',
+      }],
+      ['startVideoDecode', {
+        jobId: expectedJobId,
+        source: '/tmp/gopro clip.mp4',
+        slotCount: 2,
+        width: 64,
+        height: 32,
+        sourceRate: {
+          numerator: 60,
+          denominator: 1,
+        },
+        format: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      }],
+    ]);
   });
 });
