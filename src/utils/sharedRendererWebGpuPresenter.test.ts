@@ -59,6 +59,39 @@ const solidShapeMedia: RustSceneMediaReference[] = [
   },
 ];
 
+const videoSnapshot: RustSceneSnapshot = {
+  ...snapshot,
+  clips: [
+    {
+      clip_id: 'video-1',
+      track_id: 'layer-0',
+      media_id: 'video-1',
+      source_frame: 90,
+      z_index: 0,
+      transform: {
+        translation_x: 10,
+        translation_y: 20,
+        scale_x: 1,
+        scale_y: 1,
+        rotation_degrees: 0,
+        sampling: 'bilinear',
+      },
+      opacity: 0.75,
+      effects: [],
+    },
+  ],
+};
+
+const videoMedia: RustSceneMediaReference[] = [
+  {
+    id: 'video-1',
+    kind: 'Video',
+    source: '/tmp/video.mp4',
+    width: 1280,
+    height: 720,
+  },
+];
+
 const decodedVideoDescriptor: RustBackendVideoFrameDescriptor = {
   memoryId: '/uxfd-test-video-ring',
   slotIndex: 1,
@@ -608,6 +641,111 @@ describe('createSharedRendererWebGpuPresenter', () => {
     });
     expect(writtenTextures).toEqual([]);
   });
+
+  it('presents uploaded video frame textures with the video plane vertex scene', async () => {
+    const writtenBuffers: Array<{ buffer: unknown; offset: number; data: Float32Array }> = [];
+    const renderPasses: unknown[] = [];
+    const renderPassOperations: string[] = [];
+    const bindGroups: unknown[] = [];
+    const samplers: unknown[] = [];
+    const uploadedTexture = {
+      createView: () => 'video-frame-texture-view',
+    };
+
+    const result = await createSharedRendererWebGpuPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      surfaceGate: {
+        ...okSurfaceGate,
+        snapshot: videoSnapshot,
+        media: videoMedia,
+      },
+      presentationContract: buildSharedRendererPresentationContract(),
+      gpu: fakeGpu({
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onWriteBuffer: (buffer, offset, data) => {
+              writtenBuffers.push({ buffer, offset, data });
+            },
+            onRenderPass: (descriptor) => {
+              renderPasses.push(descriptor);
+            },
+            onRenderPassOperation: (operation) => {
+              renderPassOperations.push(operation);
+            },
+            onCreateBindGroup: (descriptor) => {
+              bindGroups.push(descriptor);
+            },
+            onCreateSampler: (descriptor) => {
+              samplers.push(descriptor);
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+      bufferUsageVertex: 1,
+      bufferUsageCopyDst: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected presenter creation to pass');
+
+    expect(result.presentVideoFrameScene({
+      snapshot: videoSnapshot,
+      media: videoMedia,
+      texture: uploadedTexture,
+    })).toEqual({
+      ok: true,
+      planeCount: 1,
+    });
+    expect(writtenBuffers).toHaveLength(1);
+    expect(writtenBuffers[0].buffer).toBe('video-plane-vertex-buffer');
+    expect(writtenBuffers[0].offset).toBe(0);
+    expect(Array.from(writtenBuffers[0].data.slice(0, 8))).toEqual([
+      -0.9895833134651184,
+      0.9629629850387573,
+      0,
+      0,
+      0.75,
+      1,
+      0,
+      1,
+    ]);
+    expect(samplers).toEqual([
+      {
+        magFilter: 'linear',
+        minFilter: 'linear',
+        mipmapFilter: 'nearest',
+      },
+    ]);
+    expect(bindGroups).toEqual([
+      {
+        layout: 'video-frame-bind-group-layout',
+        entries: [
+          { binding: 0, resource: 'video-frame-sampler' },
+          { binding: 1, resource: 'video-frame-texture-view' },
+        ],
+      },
+    ]);
+    expect(renderPasses).toEqual([
+      {
+        colorAttachments: [
+          {
+            view: 'current-texture-view',
+            clearValue: { r: 0, g: 0, b: 0, a: 0 },
+            loadOp: 'clear',
+            storeOp: 'store',
+          },
+        ],
+      },
+    ]);
+    expect(renderPassOperations).toEqual([
+      'setPipeline:video-frame-pipeline',
+      'setBindGroup:0:video-frame-bind-group',
+      'setVertexBuffer:0:video-plane-vertex-buffer',
+      'draw:6',
+      'end',
+    ]);
+  });
 });
 
 const fakeCanvas = (getContext: () => unknown) =>
@@ -658,6 +796,8 @@ const fakeDevice = ({
   onWriteTexture = () => undefined,
   onCreateBuffer = () => undefined,
   onCreateTexture = () => undefined,
+  onCreateSampler = () => undefined,
+  onCreateBindGroup = () => undefined,
   onCreateShaderModule = () => undefined,
   onCreateRenderPipeline = () => undefined,
 }: {
@@ -674,6 +814,8 @@ const fakeDevice = ({
   ) => void;
   onCreateBuffer?: (descriptor: unknown) => void;
   onCreateTexture?: (descriptor: unknown) => void;
+  onCreateSampler?: (descriptor: unknown) => void;
+  onCreateBindGroup?: (descriptor: unknown) => void;
   onCreateShaderModule?: (descriptor: unknown) => void;
   onCreateRenderPipeline?: (descriptor: unknown) => void;
 } = {}) => ({
@@ -687,17 +829,41 @@ const fakeDevice = ({
     onCreateTexture(descriptor);
     return 'video-frame-texture';
   },
+  createSampler: (descriptor: unknown) => {
+    onCreateSampler(descriptor);
+    return 'video-frame-sampler';
+  },
+  createBindGroup: (descriptor: unknown) => {
+    onCreateBindGroup(descriptor);
+    return 'video-frame-bind-group';
+  },
   createShaderModule: (descriptor: unknown) => {
     onCreateShaderModule(descriptor);
     return 'solid-colour-shader-module';
   },
   createRenderPipeline: (descriptor: unknown) => {
     onCreateRenderPipeline(descriptor);
-    return 'solid-colour-pipeline';
+    const pipelineLabel = typeof descriptor === 'object'
+      && descriptor !== null
+      && 'label' in descriptor
+      && descriptor.label === 'video-frame-pipeline'
+      ? 'video-frame-pipeline'
+      : 'solid-colour-pipeline';
+    return pipelineLabel === 'video-frame-pipeline'
+      ? {
+        toString: () => 'video-frame-pipeline',
+        getBindGroupLayout: () => 'video-frame-bind-group-layout',
+      }
+      : 'solid-colour-pipeline';
   },
   createBuffer: (descriptor: unknown) => {
     onCreateBuffer(descriptor);
-    return 'solid-colour-vertex-buffer';
+    return typeof descriptor === 'object'
+      && descriptor !== null
+      && 'label' in descriptor
+      && descriptor.label === 'video-plane-vertex-buffer'
+      ? 'video-plane-vertex-buffer'
+      : 'solid-colour-vertex-buffer';
   },
   createCommandEncoder: () => ({
     beginRenderPass: (descriptor: unknown) => {
@@ -708,6 +874,9 @@ const fakeDevice = ({
         },
         setVertexBuffer: (slot: number, buffer: unknown) => {
           onRenderPassOperation(`setVertexBuffer:${slot}:${String(buffer)}`);
+        },
+        setBindGroup: (index: number, bindGroup: unknown) => {
+          onRenderPassOperation(`setBindGroup:${index}:${String(bindGroup)}`);
         },
         draw: (vertexCount: number) => {
           onRenderPassOperation(`draw:${vertexCount}`);
