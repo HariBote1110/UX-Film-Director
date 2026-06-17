@@ -5,6 +5,7 @@ import {
   type SharedRendererWebGpuLike,
 } from './sharedRendererWebGpuPresenter';
 import { buildSharedRendererPresentationContract } from './sharedRendererPresentationContract';
+import type { RustBackendVideoFrameDescriptor } from './rustBackendVideoDecodeControl';
 import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
 import type { SharedRendererPreviewSurfaceGate } from './sharedRendererPreviewSurface';
 
@@ -57,6 +58,24 @@ const solidShapeMedia: RustSceneMediaReference[] = [
     height: 100,
   },
 ];
+
+const decodedVideoDescriptor: RustBackendVideoFrameDescriptor = {
+  memoryId: '/uxfd-test-video-ring',
+  slotIndex: 1,
+  generation: 7,
+  byteOffset: 512,
+  byteLen: 512,
+  width: 34,
+  height: 2,
+  strideBytes: 256,
+  format: 'rgba8Srgb',
+  colour: {
+    primaries: 'bt709',
+    transfer: 'srgb',
+    matrix: 'rgb',
+    range: 'full',
+  },
+};
 
 describe('createSharedRendererWebGpuPresenter', () => {
   it('does not touch WebGPU when the surface gate is blocked', async () => {
@@ -479,6 +498,116 @@ describe('createSharedRendererWebGpuPresenter', () => {
     expect(renderPassOperations).toEqual(['end']);
     expect(submittedCommandBuffers).toEqual(['finished-command-buffer']);
   });
+
+  it('uploads a Rust decoded RGBA frame into an sRGB video texture using descriptor stride', async () => {
+    const createdTextures: unknown[] = [];
+    const writtenTextures: Array<{
+      destination: unknown;
+      data: Uint8Array;
+      dataLayout: unknown;
+      size: unknown;
+    }> = [];
+    const rgbaBytes = new Uint8Array(decodedVideoDescriptor.byteLen);
+    rgbaBytes[0] = 0x12;
+    rgbaBytes[decodedVideoDescriptor.strideBytes] = 0x34;
+
+    const result = await createSharedRendererWebGpuPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      surfaceGate: okSurfaceGate,
+      presentationContract: buildSharedRendererPresentationContract(),
+      gpu: fakeGpu({
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onCreateTexture: (descriptor) => {
+              createdTextures.push(descriptor);
+            },
+            onWriteTexture: (destination, data, dataLayout, size) => {
+              writtenTextures.push({ destination, data, dataLayout, size });
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+      textureUsageTextureBinding: 4,
+      textureUsageTextureCopyDst: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected presenter creation to pass');
+
+    expect(result.uploadVideoFrameTexture({
+      descriptor: decodedVideoDescriptor,
+      rgbaBytes,
+    })).toEqual({
+      ok: true,
+      texture: 'video-frame-texture',
+      textureFormat: 'rgba8unorm-srgb',
+      width: 34,
+      height: 2,
+      strideBytes: 256,
+    });
+    expect(createdTextures).toEqual([
+      {
+        size: {
+          width: 34,
+          height: 2,
+          depthOrArrayLayers: 1,
+        },
+        format: 'rgba8unorm-srgb',
+        usage: 6,
+      },
+    ]);
+    expect(writtenTextures).toEqual([
+      {
+        destination: { texture: 'video-frame-texture' },
+        data: rgbaBytes,
+        dataLayout: {
+          offset: 0,
+          bytesPerRow: 256,
+          rowsPerImage: 2,
+        },
+        size: {
+          width: 34,
+          height: 2,
+          depthOrArrayLayers: 1,
+        },
+      },
+    ]);
+  });
+
+  it('rejects a Rust decoded RGBA upload when byte length does not match the descriptor', async () => {
+    const writtenTextures: unknown[] = [];
+    const result = await createSharedRendererWebGpuPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      surfaceGate: okSurfaceGate,
+      presentationContract: buildSharedRendererPresentationContract(),
+      gpu: fakeGpu({
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onWriteTexture: (...args) => {
+              writtenTextures.push(args);
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected presenter creation to pass');
+
+    expect(result.uploadVideoFrameTexture({
+      descriptor: decodedVideoDescriptor,
+      rgbaBytes: new Uint8Array(decodedVideoDescriptor.byteLen - 1),
+    })).toEqual({
+      ok: false,
+      reason: 'frameByteLengthMismatch',
+      detail: 'Decoded RGBA byte length must match the shared frame descriptor.',
+      expectedByteLength: decodedVideoDescriptor.byteLen,
+      actualByteLength: decodedVideoDescriptor.byteLen - 1,
+    });
+    expect(writtenTextures).toEqual([]);
+  });
 });
 
 const fakeCanvas = (getContext: () => unknown) =>
@@ -526,7 +655,9 @@ const fakeDevice = ({
   onRenderPass = () => undefined,
   onRenderPassOperation = () => undefined,
   onWriteBuffer = () => undefined,
+  onWriteTexture = () => undefined,
   onCreateBuffer = () => undefined,
+  onCreateTexture = () => undefined,
   onCreateShaderModule = () => undefined,
   onCreateRenderPipeline = () => undefined,
 }: {
@@ -535,7 +666,14 @@ const fakeDevice = ({
   onRenderPass?: (descriptor: unknown) => void;
   onRenderPassOperation?: (operation: string) => void;
   onWriteBuffer?: (buffer: unknown, offset: number, data: Float32Array) => void;
+  onWriteTexture?: (
+    destination: unknown,
+    data: Uint8Array,
+    dataLayout: unknown,
+    size: unknown
+  ) => void;
   onCreateBuffer?: (descriptor: unknown) => void;
+  onCreateTexture?: (descriptor: unknown) => void;
   onCreateShaderModule?: (descriptor: unknown) => void;
   onCreateRenderPipeline?: (descriptor: unknown) => void;
 } = {}) => ({
@@ -543,6 +681,11 @@ const fakeDevice = ({
   queue: {
     submit: onSubmit,
     writeBuffer: onWriteBuffer,
+    writeTexture: onWriteTexture,
+  },
+  createTexture: (descriptor: unknown) => {
+    onCreateTexture(descriptor);
+    return 'video-frame-texture';
   },
   createShaderModule: (descriptor: unknown) => {
     onCreateShaderModule(descriptor);
