@@ -55,6 +55,12 @@ struct DecodeSession {
     data_plane_ring: Option<DecodeDataPlaneRing>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DecodeStopRequest {
+    job_id: String,
+}
+
 /// Shared state for the in-progress PSD pixel blob write.
 /// `None` = no write pending; `Some(Ok(path))` = done; `Some(Err(msg))` = failed.
 type BlobWriteResult = Arc<Mutex<Option<Result<String, String>>>>;
@@ -182,6 +188,7 @@ fn handle_request(request: RpcRequest, state: &mut BackendState) -> RpcResponse 
         "psd.parse" => handle_psd_parse(request.id, request.params, state),
         "psd.await_blob" => handle_psd_await_blob(request.id, state),
         "decode.start" => handle_decode_start(request.id, request.params, state),
+        "decode.stop" => handle_decode_stop(request.id, request.params, state),
         "decode.requestFrame" => handle_decode_request_frame(request.id, request.params, state),
         "decode.releaseFrame" => handle_decode_release_frame(request.id, request.params, state),
         "export.start" => handle_export_start(request.id, request.params, state),
@@ -543,6 +550,36 @@ fn handle_decode_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
         id,
         ok: true,
         result: Some(serde_json::to_value(response).unwrap_or(Value::Null)),
+        error: None,
+    }
+}
+
+fn handle_decode_stop(id: u64, params: Value, state: &mut BackendState) -> RpcResponse {
+    let parsed = match serde_json::from_value::<DecodeStopRequest>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(id, -32602, &format!("Invalid decode.stop params: {error}"));
+        }
+    };
+
+    let Some(session) = state.decode_session.as_ref() else {
+        return response_error(id, -32041, "No active decode session");
+    };
+
+    if parsed.job_id != session.start_response.job_id {
+        return response_error(id, -32042, "Decode jobId does not match active session");
+    }
+
+    let job_id = session.start_response.job_id.clone();
+    state.decode_session.take();
+
+    RpcResponse {
+        id,
+        ok: true,
+        result: Some(json!({
+            "stopped": true,
+            "jobId": job_id,
+        })),
         error: None,
     }
 }
