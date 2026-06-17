@@ -7,6 +7,7 @@ import {
 import {
   requestRustBackendVideoDecodeFrame,
   startRustBackendVideoDecode,
+  stopRustBackendVideoDecode,
   type RustBackendVideoDecodeBridge,
   type RustBackendVideoDecodeFrameRate,
 } from './rustBackendVideoDecodeControl';
@@ -104,7 +105,7 @@ export const prepareSharedRendererViewportVideoUpload = async ({
   const nextJob = buildViewportVideoDecodeJob(request, slotCount);
   const resolvedJob = sameDecodeJob(activeJob, nextJob)
     ? activeJob
-    : await startDecodeJob(nextJob, request, rustBackendBridge);
+    : await replaceDecodeJob(activeJob, nextJob, request, rustBackendBridge);
   if ('ok' in resolvedJob && resolvedJob.ok === false) {
     return {
       ok: false,
@@ -150,6 +151,27 @@ export const prepareSharedRendererViewportVideoUpload = async ({
     request,
     upload,
   };
+};
+
+const replaceDecodeJob = async (
+  currentJob: SharedRendererViewportVideoDecodeJob | null,
+  nextJob: SharedRendererViewportVideoDecodeJob,
+  request: SharedRendererVideoFrameDecodeRequest,
+  rustBackendBridge: RustBackendVideoDecodeBridge
+): Promise<SharedRendererViewportVideoDecodeJob | { ok: false; detail: string }> => {
+  if (currentJob) {
+    const stopResponse = await stopRustBackendVideoDecode({
+      jobId: currentJob.jobId,
+    }, rustBackendBridge);
+    if (!stopResponse.success) {
+      return {
+        ok: false,
+        detail: stopResponse.error ?? 'Rust backend rejected the stale video decode stop request.',
+      };
+    }
+  }
+
+  return startDecodeJob(nextJob, request, rustBackendBridge);
 };
 
 const startDecodeJob = async (
