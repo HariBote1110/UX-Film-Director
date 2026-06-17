@@ -11,6 +11,7 @@ import {
 import {
   createSharedRendererWebGpuPresenter,
   type SharedRendererSolidSrgbSwatch,
+  type SharedRendererVideoFrameTextureUploadInput,
   type SharedRendererWebGpuLike,
 } from './sharedRendererWebGpuPresenter';
 import { loadSharedRendererRustSolidColourVertexSceneBuilder } from './sharedRendererRustSolidColourScene';
@@ -79,6 +80,12 @@ export interface StartSharedRendererPreviewPresenterInput {
   sharedRendererSolidColourCutoverEnabled?: boolean;
   sharedRendererVideoCutoverEnabled?: boolean;
   sharedRendererVideoFrameUploadReady?: boolean;
+  sharedRendererDecodedVideoFrameUpload?: SharedRendererDecodedVideoFrameUpload;
+}
+
+export interface SharedRendererDecodedVideoFrameUpload extends SharedRendererVideoFrameTextureUploadInput {
+  ptsFrame: number;
+  releaseAfterGpuUpload?: () => Promise<void>;
 }
 
 export const startSharedRendererPreviewPresenter = async ({
@@ -99,6 +106,7 @@ export const startSharedRendererPreviewPresenter = async ({
   sharedRendererSolidColourCutoverEnabled = defaultSharedRendererSolidColourCutoverEnabled(),
   sharedRendererVideoCutoverEnabled = defaultSharedRendererVideoCutoverEnabled(),
   sharedRendererVideoFrameUploadReady = false,
+  sharedRendererDecodedVideoFrameUpload,
 }: StartSharedRendererPreviewPresenterInput): Promise<SharedRendererPreviewPresenterControl> => {
   const writeDiagnostics = (state: SharedRendererPresenterDiagnosticState) => {
     datasets.forEach((dataset) => {
@@ -182,36 +190,9 @@ export const startSharedRendererPreviewPresenter = async ({
       candidateVideoObjectIds: videoDecodeRequestResult.requests.map((request) => request.clipId),
     })
     : null;
-  const videoOwnership = buildSharedRendererVideoOwnership({
-    cutoverEnabled: sharedRendererVideoCutoverEnabled,
-    hasVideoScene,
-    videoDecodeRequestSource,
-    videoDecodeRequestResult,
-    videoFrameUploadReady: sharedRendererVideoFrameUploadReady,
-    stackSafeVideoObjectIds: videoCutoverStackSafety
-      ? new Set(videoCutoverStackSafety.safeVideoObjectIds)
-      : undefined,
-  });
   const solidColourObjectIds = hasSolidColourScene
     ? collectSolidColourObjectIds(session)
     : [];
-  const solidColourStackSafety = hasSolidColourScene
-    ? buildSharedRendererSolidColourStackSafety({
-      snapshot: session.surfaceGate.snapshot,
-      media: session.surfaceGate.media,
-      candidateSolidColourObjectIds: solidColourObjectIds,
-      sharedRendererVideoObjectIds: videoOwnership.videoObjectIds,
-    })
-    : null;
-  const solidColourOwnership = buildSharedRendererSolidColourOwnership({
-    cutoverEnabled: sharedRendererSolidColourCutoverEnabled,
-    hasSolidColourScene,
-    geometrySource: solidColourGeometrySource,
-    solidColourObjectIds,
-    stackSafeSolidColourObjectIds: solidColourStackSafety
-      ? new Set(solidColourStackSafety.safeSolidColourObjectIds)
-      : undefined,
-  });
 
   const presenter = await createSharedRendererWebGpuPresenter({
     canvas,
@@ -242,6 +223,46 @@ export const startSharedRendererPreviewPresenter = async ({
       dispose: noop,
     };
   }
+
+  let resolvedVideoFrameUploadReady = sharedRendererVideoFrameUploadReady;
+  if (hasVideoScene && sharedRendererDecodedVideoFrameUpload) {
+    const uploadResult = presenter.uploadVideoFrameTexture(sharedRendererDecodedVideoFrameUpload);
+    if (uploadResult.ok) {
+      if (sharedRendererDecodedVideoFrameUpload.releaseAfterGpuUpload) {
+        await presenter.device.queue?.onSubmittedWorkDone?.();
+        await sharedRendererDecodedVideoFrameUpload.releaseAfterGpuUpload();
+      }
+      resolvedVideoFrameUploadReady = true;
+    }
+  }
+
+  const videoOwnership = buildSharedRendererVideoOwnership({
+    cutoverEnabled: sharedRendererVideoCutoverEnabled,
+    hasVideoScene,
+    videoDecodeRequestSource,
+    videoDecodeRequestResult,
+    videoFrameUploadReady: resolvedVideoFrameUploadReady,
+    stackSafeVideoObjectIds: videoCutoverStackSafety
+      ? new Set(videoCutoverStackSafety.safeVideoObjectIds)
+      : undefined,
+  });
+  const solidColourStackSafety = hasSolidColourScene
+    ? buildSharedRendererSolidColourStackSafety({
+      snapshot: session.surfaceGate.snapshot,
+      media: session.surfaceGate.media,
+      candidateSolidColourObjectIds: solidColourObjectIds,
+      sharedRendererVideoObjectIds: videoOwnership.videoObjectIds,
+    })
+    : null;
+  const solidColourOwnership = buildSharedRendererSolidColourOwnership({
+    cutoverEnabled: sharedRendererSolidColourCutoverEnabled,
+    hasSolidColourScene,
+    geometrySource: solidColourGeometrySource,
+    solidColourObjectIds,
+    stackSafeSolidColourObjectIds: solidColourStackSafety
+      ? new Set(solidColourStackSafety.safeSolidColourObjectIds)
+      : undefined,
+  });
 
   const shouldPassThroughToPixi = !hasSolidColourScene && !diagnosticSwatchEnabled;
   if (hasSolidColourScene || shouldPassThroughToPixi) {
@@ -278,7 +299,7 @@ export const startSharedRendererPreviewPresenter = async ({
     videoGeometrySource,
     videoDecodeRequestSource,
     videoDecodeRequestCount,
-    videoFrameUploadReady: hasVideoScene ? sharedRendererVideoFrameUploadReady : undefined,
+    videoFrameUploadReady: hasVideoScene ? resolvedVideoFrameUploadReady : undefined,
     videoOwner: hasVideoScene ? videoOwnership.owner : undefined,
     videoCutoverReason: hasVideoScene ? videoOwnership.reason : undefined,
     sharedVideoObjectCount: hasVideoScene ? videoOwnership.videoObjectIds.length : undefined,

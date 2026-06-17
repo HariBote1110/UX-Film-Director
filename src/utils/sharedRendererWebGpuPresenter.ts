@@ -26,6 +26,7 @@ export interface SharedRendererWebGpuDeviceLike {
   lost?: Promise<unknown>;
   queue?: {
     submit: (commandBuffers: unknown[]) => void;
+    onSubmittedWorkDone?: () => Promise<void>;
     writeBuffer?: (buffer: unknown, offset: number, data: Float32Array) => void;
     writeTexture?: (
       destination: { texture: unknown },
