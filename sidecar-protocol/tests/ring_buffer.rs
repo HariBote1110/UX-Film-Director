@@ -173,6 +173,20 @@ fn reading_slot_is_not_freed_until_copy_out_completion_is_signalled() {
 }
 
 #[test]
+fn reading_slot_can_be_released_when_renderer_upload_is_aborted() {
+    let mut ring = SharedFrameRing::new(layout(1));
+    let write_slot = ring.acquire_write_slot().expect("free slot");
+    ring.mark_slot_ready(write_slot, 12)
+        .expect("written frame becomes ready");
+    let ready_frame = ring.acquire_ready_slot().expect("ready slot");
+
+    ring.release_read_slot(ready_frame, CopyOutState::RendererUploadAborted)
+        .expect("renderer abort permits release without claiming GPU upload completion");
+
+    assert_eq!(ring.slot_state(0), Some(SlotState::Free));
+}
+
+#[test]
 fn recovered_slot_generation_rejects_stale_consumer_release() {
     let mut ring = SharedFrameRing::new(layout(1));
 
