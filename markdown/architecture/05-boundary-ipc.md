@@ -137,7 +137,10 @@ Rust backend integration gate:
 - preload は native module を `UXFD_SHARED_VIDEO_FRAME_BRIDGE_MODULE` で差し込む形を維持し、未接続時は fail-loud とする。
 - Electron `contextBridge` 越しでは renderer 側 target mutation が反映されないため、preload は native copy 後の
   cloned `Uint8Array` を `result.rgbaBytes` として返す。renderer helper は returned bytes を優先して upload buffer に採用する。
-- 次 gate ではこの返却bytes契約を Viewport orchestration へ接続する。
+- Viewport は video cutover flag が有効なとき、presenter 起動前に Rust backend decode request と shared memory copy を行い、
+  decoded upload object を WebGPU presenter に渡す。
+- 現時点の Rust backend decode は単一 session 前提であり、同じ source/layout の active job だけを再利用する。
+  複数動画や source 切替は stop / replace / multi-session API が入るまで fail-loud / Pixi fallback とする。
 - transfer / matrix は次 gate で `ffprobe` metadata により fail-loud または明示変換する。
 
 ## Protocol Contract

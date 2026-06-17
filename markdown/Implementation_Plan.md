@@ -215,6 +215,12 @@ preload は clone された target へ native addon で copy した後、その 
 renderer helper は `result.rgbaBytes` が存在する場合にそれを upload buffer へ採用し、Node 直 require と
 Electron isolated world の両方を扱えるようにする。
 
+46. Phase5: Viewport orchestration から Rust video upload を起動する
+Viewport presenter 起動前に `prepareSharedRendererViewportVideoUpload` を呼び、最初の visible video request について
+Rust backend `decode.start` / `decode.requestFrame` / shared memory copy を行って WebGPU upload object を presenter に渡す。
+同じ source/layout の active decode job は再利用する。現段階では Rust backend が単一 decode session 前提のため、
+複数動画や source 切替は stop / replace / multi-session API を追加するまで Pixi fallback を維持する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

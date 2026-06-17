@@ -296,8 +296,10 @@ GPU upload fence 後 release callback を持つ upload object を作れる。
 `Uint8Array` target を in-place mutation できる。
 Electron `contextBridge` 越しの target mutation は反映されないため、preload は native copy 後の bytes を
 `result.rgbaBytes` として返し、renderer helper は returned bytes を upload buffer として採用する。
-ただし Viewport orchestration はまだ未接続であり、実アプリの video cutover は bridge 接続まで Pixi preview を維持する。
-次 gate で Viewport orchestration 接続、transfer / matrix metadata gate を進める。
+Viewport orchestration は video cutover flag 有効時に Rust backend decode / shared memory copy / WebGPU upload object
+準備を行い、presenter に `sharedRendererDecodedVideoFrameUpload` を渡せる。
+ただし Rust backend decode はまだ単一 session 前提で、複数動画や source 切替には stop / replace / multi-session API が必要。
+次 gate で session lifecycle と transfer / matrix metadata gate を進める。
 これにより、動画読み込み・current frame availability と GPU import / sampling の問題を分離する。
 ただし HTMLVideoElement / `importExternalTexture` はブラウザの暗黙 YUV->RGB と float 秒 seek に依存するため、
 この経路の動画 preview は export parity をまだ主張しない。external texture 表示を入れる前後で、known clip の同一 frame を

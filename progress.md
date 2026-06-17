@@ -1,3 +1,35 @@
+## 2026-06-18 — Phase5: Viewport orchestration から Rust video upload を起動
+
+### 実施内容
+- `sharedRendererViewportVideoUpload` を追加し、shared renderer session から最初の visible video decode request を取り出して
+  Rust backend `decode.start` / `decode.requestFrame` / shared memory copy / release callback 付き upload object まで準備する
+  orchestration をTDDで固定した。
+- `sharedRendererViewportPresenterOrchestration` を追加し、Rust video upload 準備に成功した場合だけ
+  `sharedRendererDecodedVideoFrameUpload` を presenter へ渡し、失敗時は Pixi owner を維持できるようにした。
+- `Viewport.tsx` は `VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER=1` のとき presenter 起動前に Rust video upload を準備する。
+- 同じ source/layout の active decode job は再利用し、不要な `decode.start` を避ける。
+- package version を `0.1.1-Beta-50a` に更新した。
+
+### Red
+- `src/utils/sharedRendererViewportVideoUpload.test.ts` を追加し、orchestrator module 未作成で Red になった。
+- `src/utils/sharedRendererViewportPresenterOrchestration.test.ts` を追加し、presenter start wrapper 未作成で Red になった。
+
+### Green
+- Rust backend start/request payload、shared memory copy payload、GPU fence 後 release payload を一続きの契約として固定した。
+- presenter 起動 wrapper は upload 失敗時にも presenter を起動し、video ownership 判定で Pixi fallback できるようにした。
+- Viewport は active decode job ref と request id ref を持ち、video cutover flag 有効時だけ Rust video upload を試行する。
+
+### 現在の制限
+- Rust backend decode はまだ単一 session 前提。複数動画、source 切替、decode session の明示 stop / replace は未実装。
+- `contextBridge` の isolate 間 copy は残るため、完全な zero-copy renderer upload ではない。
+- transfer / matrix / HDR / 10bit metadata gate はまだ次段。
+
+### 検証
+- `npm test -- src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/sharedVideoFrameUploadBridge.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts`
+  -> 4 files / 18 tests passed。
+- `npx vite build`
+  -> renderer / electron main / electron preload build passed。
+
 ## 2026-06-18 — Phase5: Electron contextBridge 返却bytes契約へ切り替え
 
 ### 実施内容
