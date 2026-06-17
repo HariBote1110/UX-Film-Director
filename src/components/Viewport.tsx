@@ -30,10 +30,13 @@ import { buildSharedRendererPresenterSessionKey } from '../utils/sharedRendererP
 import { buildSharedRendererVideoMediaReadiness } from '../utils/sharedRendererVideoMediaReadiness';
 import {
   getSharedRendererSolidSwatchCssColour,
-  startSharedRendererPreviewPresenter,
   type SharedRendererPreviewPresenterControl,
 } from '../utils/sharedRendererPreviewPresenterController';
 import { writeSharedRendererPresenterDiagnostics } from '../utils/sharedRendererPresenterDiagnostics';
+import {
+  startSharedRendererViewportPresenter,
+} from '../utils/sharedRendererViewportPresenterOrchestration';
+import type { SharedRendererViewportVideoDecodeJob } from '../utils/sharedRendererViewportVideoUpload';
 
 const GROUP_GRADIENT_COMPONENT_PREFIX = 'group-gradient-component-';
 const RESIZE_HANDLE_PREFIX = 'resize-handle-';
@@ -113,6 +116,8 @@ const Viewport: React.FC = () => {
   const sharedRendererSurfaceCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const sharedRendererPresenterControlRef = useRef<SharedRendererPreviewPresenterControl | null>(null);
   const sharedRendererPresenterSessionKeyRef = useRef<string | null>(null);
+  const sharedRendererVideoDecodeJobRef = useRef<SharedRendererViewportVideoDecodeJob | null>(null);
+  const sharedRendererVideoDecodeRequestIdRef = useRef(0);
   const pixiObjectsRef = useRef<Map<string, PIXI.Container>>(new Map());
   const groupContainersRef = useRef<Map<string, PIXI.Container>>(new Map());
   
@@ -136,6 +141,7 @@ const Viewport: React.FC = () => {
   const [panelSize, setPanelSize] = useState({ w: 0, h: 0 });
   const sharedRendererPreviewEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_PREVIEW === '1';
   const sharedRendererDiagnosticSwatchEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_DIAGNOSTIC_SWATCH === '1';
+  const sharedRendererVideoCutoverEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER === '1';
   const [sharedRendererGpuStatus, setSharedRendererGpuStatus] = useState({
     webGpuAvailable: false,
     fallbackAdapter: false,
@@ -504,6 +510,7 @@ const Viewport: React.FC = () => {
     if (!sharedRendererPreviewEnabled || !sharedRendererPreviewSession) {
       sharedRendererPresenterControlRef.current?.dispose();
       sharedRendererPresenterControlRef.current = null;
+      sharedRendererVideoDecodeJobRef.current = null;
       updateSharedRendererSolidColourObjectIds([]);
       updateSharedRendererVideoObjectIds([]);
       return;
@@ -523,6 +530,9 @@ const Viewport: React.FC = () => {
 
     sharedRendererPresenterControlRef.current?.dispose();
     sharedRendererPresenterControlRef.current = null;
+    if (!sharedRendererVideoCutoverEnabled) {
+      sharedRendererVideoDecodeJobRef.current = null;
+    }
     updateSharedRendererSolidColourObjectIds([]);
     updateSharedRendererVideoObjectIds([]);
 
@@ -533,16 +543,22 @@ const Viewport: React.FC = () => {
       surfaceCanvas.dataset as Record<string, string | undefined>,
     ];
 
-    void startSharedRendererPreviewPresenter({
+    void startSharedRendererViewportPresenter({
       canvas: surfaceCanvas,
       session: sharedRendererPreviewSession,
       datasets,
       diagnosticSwatchEnabled: sharedRendererDiagnosticSwatchEnabled,
-    }).then((control) => {
+      videoCutoverEnabled: sharedRendererVideoCutoverEnabled,
+      activeVideoDecodeJob: sharedRendererVideoCutoverEnabled
+        ? sharedRendererVideoDecodeJobRef.current
+        : null,
+      requestId: (sharedRendererVideoDecodeRequestIdRef.current += 1),
+    }).then(({ control, activeVideoDecodeJob }) => {
       if (cancelled) {
         control.dispose();
         return;
       }
+      sharedRendererVideoDecodeJobRef.current = activeVideoDecodeJob;
       currentControl = control;
       sharedRendererPresenterControlRef.current = control;
       updateSharedRendererSolidColourObjectIds(control.ok ? control.solidColourOwnership.solidColourObjectIds : []);
@@ -566,7 +582,7 @@ const Viewport: React.FC = () => {
         sharedRendererPresenterControlRef.current = null;
       }
     };
-  }, [sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, updateSharedRendererSolidColourObjectIds, updateSharedRendererVideoObjectIds]);
+  }, [sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererSolidColourObjectIds, updateSharedRendererVideoObjectIds]);
 
   // --- Main Render Logic ---
   const renderScene = useCallback((time: number, currentObjects: TimelineObject[]) => {
