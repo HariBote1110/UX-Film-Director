@@ -7,6 +7,7 @@ import {
 } from './sharedRendererPreviewPresenterController';
 import type { RustSceneSnapshot } from './rustSceneSnapshot';
 import type { SharedRendererPreviewSession } from './sharedRendererPreviewSession';
+import type { RustBackendVideoFrameDescriptor } from './rustBackendVideoDecodeControl';
 import type {
   SharedRendererWebGpuAdapterLike,
   SharedRendererWebGpuLike,
@@ -149,6 +150,24 @@ const videoSession: SharedRendererPreviewSession = {
     ],
   },
   presentationContract: buildSharedRendererPresentationContract(),
+};
+
+const decodedVideoDescriptor: RustBackendVideoFrameDescriptor = {
+  memoryId: '/uxfd-controller-video-ring',
+  slotIndex: 0,
+  generation: 3,
+  byteOffset: 0,
+  byteLen: 512,
+  width: 34,
+  height: 2,
+  strideBytes: 256,
+  format: 'rgba8Srgb',
+  colour: {
+    primaries: 'bt709',
+    transfer: 'srgb',
+    matrix: 'rgb',
+    range: 'full',
+  },
 };
 
 describe('startSharedRendererPreviewPresenter', () => {
@@ -513,6 +532,77 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
+  it('uploads a decoded Rust video frame before publishing upload readiness and releasing the slot', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const events: string[] = [];
+    const rgbaBytes = new Uint8Array(decodedVideoDescriptor.byteLen);
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererDecodedVideoFrameUpload: {
+        descriptor: decodedVideoDescriptor,
+        ptsFrame: 90,
+        rgbaBytes,
+        releaseAfterGpuUpload: async () => {
+          events.push('release');
+        },
+      },
+      rustVideoFrameDecodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video.mp4',
+          sourceFrame: 90,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 12,
+          width: 1280,
+          height: 720,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onWriteTexture: () => {
+              events.push('writeTexture');
+            },
+            onSubmittedWorkDone: async () => {
+              events.push('gpuUploadDone');
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({
+      ok: true,
+      videoOwnership: {
+        owner: 'sharedRenderer',
+        reason: 'rustDecodedFrameUploadReady',
+        videoObjectIds: ['video-1'],
+      },
+    });
+    expect(events).toEqual(['writeTexture', 'gpuUploadDone', 'release']);
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterVideoFrameUploadReady: 'true',
+      uxfdSharedRendererPresenterVideoOwner: 'sharedRenderer',
+      uxfdSharedRendererPresenterVideoCutoverReason: 'rustDecodedFrameUploadReady',
+    });
+  });
+
   it('publishes Pixi fallback diagnostics without touching WebGPU when the surface gate is blocked', async () => {
     const dataset: Record<string, string | undefined> = {};
     const calls: string[] = [];
@@ -633,12 +723,21 @@ const fakeDevice = ({
   onRenderPass = () => undefined,
   onRenderPassOperation = () => undefined,
   onWriteBuffer = () => undefined,
+  onWriteTexture = () => undefined,
+  onSubmittedWorkDone = async () => undefined,
   onSubmit = () => undefined,
   lost = new Promise(() => undefined),
 }: {
   onRenderPass?: (descriptor: unknown) => void;
   onRenderPassOperation?: (operation: string) => void;
   onWriteBuffer?: (buffer: unknown, offset: number, data: Float32Array) => void;
+  onWriteTexture?: (
+    destination: unknown,
+    data: Uint8Array,
+    dataLayout: unknown,
+    size: unknown
+  ) => void;
+  onSubmittedWorkDone?: () => Promise<void>;
   onSubmit?: (commandBuffers: unknown[]) => void;
   lost?: Promise<unknown>;
 } = {}) => ({
@@ -646,7 +745,10 @@ const fakeDevice = ({
   queue: {
     submit: onSubmit,
     writeBuffer: onWriteBuffer,
+    writeTexture: onWriteTexture,
+    onSubmittedWorkDone,
   },
+  createTexture: () => 'video-frame-texture',
   createShaderModule: () => 'solid-colour-shader-module',
   createRenderPipeline: () => 'solid-colour-pipeline',
   createBuffer: () => 'solid-colour-vertex-buffer',
