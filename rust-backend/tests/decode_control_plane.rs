@@ -54,6 +54,54 @@ fn decode_start_returns_shared_ring_layout_without_frame_bytes() {
 }
 
 #[test]
+fn decode_stop_releases_active_session_so_another_source_can_start() {
+    let temp_dir = TestTempDir::new("decode-control-plane-stop");
+    let replacement_fixture = build_two_frame_h264_fixture(temp_dir.path());
+    let mut backend = BackendProcess::start();
+    backend.start_decode();
+
+    let stop_response = backend.request(json!({
+        "id": 2,
+        "method": "decode.stop",
+        "params": {
+            "jobId": "decode-1"
+        }
+    }));
+
+    assert_eq!(stop_response["ok"], true);
+    assert_eq!(stop_response["result"]["stopped"], true);
+    assert_eq!(stop_response["result"]["jobId"], "decode-1");
+    assert_no_frame_bytes(&stop_response["result"]);
+
+    let restart_response = backend.request(json!({
+        "id": 3,
+        "method": "decode.start",
+        "params": {
+            "jobId": "decode-2",
+            "source": replacement_fixture.path,
+            "slotCount": 2,
+            "width": replacement_fixture.width,
+            "height": replacement_fixture.height,
+            "sourceRate": {
+                "numerator": 30,
+                "denominator": 1
+            },
+            "format": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+
+    assert_eq!(restart_response["ok"], true);
+    assert_eq!(restart_response["result"]["jobId"], "decode-2");
+    assert_no_frame_bytes(&restart_response["result"]);
+}
+
+#[test]
 fn decode_request_frame_decodes_requested_source_frame_to_verified_descriptor_without_pixels() {
     let temp_dir = TestTempDir::new("decode-control-plane");
     let fixture = build_two_frame_h264_fixture(temp_dir.path());
