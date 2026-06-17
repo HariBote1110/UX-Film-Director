@@ -31,6 +31,7 @@ export interface PrepareSharedRendererDecodedVideoFrameUploadInput {
   slotCount: number;
   bridge?: SharedVideoFrameCopyBridge;
   releaseAfterGpuUpload?: () => Promise<void>;
+  releaseAfterUploadAbort?: () => Promise<void>;
 }
 
 export type PrepareSharedRendererDecodedVideoFrameUploadResult =
@@ -78,6 +79,7 @@ export const prepareSharedRendererDecodedVideoFrameUpload = async ({
   slotCount,
   bridge = window.sharedVideoFrame,
   releaseAfterGpuUpload,
+  releaseAfterUploadAbort,
 }: PrepareSharedRendererDecodedVideoFrameUploadInput): Promise<PrepareSharedRendererDecodedVideoFrameUploadResult> => {
   const { descriptor, ptsFrame } = sharedFrame;
   const rgbaBytes = new Uint8Array(descriptor.byteLen);
@@ -105,6 +107,7 @@ export const prepareSharedRendererDecodedVideoFrameUpload = async ({
     };
   }
   const returnedBytes = normaliseReturnedRgbaBytes(response.result.rgbaBytes);
+  let resolvedRgbaBytes = rgbaBytes;
   if (returnedBytes) {
     if (returnedBytes.byteLength !== descriptor.byteLen) {
       return {
@@ -115,15 +118,16 @@ export const prepareSharedRendererDecodedVideoFrameUpload = async ({
         actualByteLength: returnedBytes.byteLength,
       };
     }
-    rgbaBytes.set(returnedBytes);
+    resolvedRgbaBytes = returnedBytes;
   }
 
   return {
     ok: true,
     descriptor,
     ptsFrame,
-    rgbaBytes,
+    rgbaBytes: resolvedRgbaBytes,
     releaseAfterGpuUpload,
+    releaseAfterUploadAbort,
     copyReport: response.result,
   };
 };
