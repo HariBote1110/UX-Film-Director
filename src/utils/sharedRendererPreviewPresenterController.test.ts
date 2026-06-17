@@ -610,6 +610,74 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
+  it('aborts the decoded Rust video slot when WebGPU texture upload is unavailable', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const events: string[] = [];
+    const rgbaBytes = new Uint8Array(decodedVideoDescriptor.byteLen);
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererDecodedVideoFrameUpload: {
+        descriptor: decodedVideoDescriptor,
+        ptsFrame: 90,
+        rgbaBytes,
+        releaseAfterGpuUpload: async () => {
+          events.push('release-after-upload');
+        },
+        releaseAfterUploadAbort: async () => {
+          events.push('release-abort');
+        },
+      },
+      rustVideoFrameDecodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video.mp4',
+          sourceFrame: 90,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 12,
+          width: 1280,
+          height: 720,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            exposeWriteTexture: false,
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({
+      ok: true,
+      videoOwnership: {
+        owner: 'pixi',
+        reason: 'videoFrameUploadUnavailable',
+      },
+    });
+    expect(events).toEqual(['release-abort']);
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterVideoFrameUploadReady: 'false',
+      uxfdSharedRendererPresenterVideoOwner: 'pixi',
+      uxfdSharedRendererPresenterVideoCutoverReason: 'videoFrameUploadUnavailable',
+    });
+  });
+
   it('publishes Pixi fallback diagnostics without touching WebGPU when the surface gate is blocked', async () => {
     const dataset: Record<string, string | undefined> = {};
     const calls: string[] = [];
@@ -733,6 +801,7 @@ const fakeDevice = ({
   onWriteTexture = () => undefined,
   onSubmittedWorkDone = async () => undefined,
   onSubmit = () => undefined,
+  exposeWriteTexture = true,
   lost = new Promise(() => undefined),
 }: {
   onRenderPass?: (descriptor: unknown) => void;
@@ -746,13 +815,14 @@ const fakeDevice = ({
   ) => void;
   onSubmittedWorkDone?: () => Promise<void>;
   onSubmit?: (commandBuffers: unknown[]) => void;
+  exposeWriteTexture?: boolean;
   lost?: Promise<unknown>;
 } = {}) => ({
   lost,
   queue: {
     submit: onSubmit,
     writeBuffer: onWriteBuffer,
-    writeTexture: onWriteTexture,
+    ...(exposeWriteTexture ? { writeTexture: onWriteTexture } : {}),
     onSubmittedWorkDone,
   },
   createTexture: () => ({
