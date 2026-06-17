@@ -7,14 +7,14 @@ use std::fs;
 use std::io::{self, BufRead, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::{Arc, Mutex};
+#[cfg(unix)]
+use uxfd_shared_memory_spike::PosixSharedRing;
 use uxfd_sidecar_protocol::{
     rgba8_srgb_ring_layout, validate_renderer_handoff_descriptor, ChecksumAlgorithm, CopyOutState,
     DecodeFrameRequest, DecodeReleaseFrameRequest, DecodeStartRequest, DecodeStartResponse,
     FrameChecksum, FrameDescriptor, FrameFormat, FrameVerificationReport, FrameVerificationStatus,
     ReadyFrame, SharedFrame, SharedFrameRing, SlotRecoveryReason,
 };
-#[cfg(unix)]
-use uxfd_shared_memory_spike::PosixSharedRing;
 
 #[derive(Debug, Deserialize)]
 struct RpcRequest {
@@ -507,16 +507,17 @@ fn handle_decode_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
 
     let ffmpeg_path = std::env::var("UXFD_FFMPEG_BIN").unwrap_or_else(|_| "ffmpeg".to_string());
     let ffprobe_path = std::env::var("UXFD_FFPROBE_BIN").unwrap_or_else(|_| "ffprobe".to_string());
-    let data_plane_ring = match create_decode_data_plane(&memory_id, descriptor.byte_len) {
-        Ok(value) => value,
-        Err(error) => {
-            return response_error(
-                id,
-                -32049,
-                &format!("Failed to create decode shared memory: {error}"),
-            );
-        }
-    };
+    let data_plane_ring =
+        match create_decode_data_plane(&memory_id, layout.slot_count(), descriptor.byte_len) {
+            Ok(value) => value,
+            Err(error) => {
+                return response_error(
+                    id,
+                    -32049,
+                    &format!("Failed to create decode shared memory: {error}"),
+                );
+            }
+        };
     let response = DecodeStartResponse {
         job_id: parsed.job_id.clone(),
         memory_id,
@@ -640,9 +641,11 @@ fn handle_decode_request_frame(id: u64, params: Value, state: &mut BackendState)
         );
     }
 
-    if let Err(error) =
-        write_decode_data_plane(session.data_plane_ring.as_ref(), parsed.frame_index, &padded_rgba)
-    {
+    if let Err(error) = write_decode_data_plane(
+        session.data_plane_ring.as_ref(),
+        parsed.frame_index,
+        &padded_rgba,
+    ) {
         let _ = session
             .ring
             .recover_stuck_slot(write_slot_index, SlotRecoveryReason::ProducerTimeout);
@@ -799,11 +802,12 @@ fn decode_memory_id(job_id: &str) -> String {
 #[cfg(unix)]
 fn create_decode_data_plane(
     memory_id: &str,
+    slot_count: u32,
     slot_byte_len: u64,
 ) -> Result<Option<DecodeDataPlaneRing>, String> {
     let frame_len = usize::try_from(slot_byte_len)
         .map_err(|_| format!("slotByteLen overflows usize: {slot_byte_len}"))?;
-    PosixSharedRing::create(memory_id, frame_len)
+    PosixSharedRing::create_with_slot_count(memory_id, slot_count, frame_len)
         .map(Some)
         .map_err(|error| format!("{error:?}"))
 }
@@ -811,6 +815,7 @@ fn create_decode_data_plane(
 #[cfg(not(unix))]
 fn create_decode_data_plane(
     _memory_id: &str,
+    _slot_count: u32,
     _slot_byte_len: u64,
 ) -> Result<Option<DecodeDataPlaneRing>, String> {
     Ok(None)
@@ -942,7 +947,9 @@ fn probe_video_input_range(ffprobe_path: &str, source: &str) -> Result<&'static 
     match range {
         "pc" => Ok("pc"),
         "tv" => Ok("tv"),
-        value => Err(format!("unsupported video color_range for Rust decode: {value}")),
+        value => Err(format!(
+            "unsupported video color_range for Rust decode: {value}"
+        )),
     }
 }
 

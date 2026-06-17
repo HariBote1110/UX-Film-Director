@@ -492,9 +492,13 @@ fn decode_release_frame_requires_completed_gpu_copy_out() {
     let slot_byte_len = start_response["result"]["slotByteLen"]
         .as_u64()
         .expect("slot byte length") as usize;
-    let consumer_ring =
-        PosixSharedRing::attach_with_retry(memory_id, slot_byte_len, Duration::from_secs(1))
-            .expect("attach to backend-created shared frame ring");
+    let consumer_ring = PosixSharedRing::attach_with_retry_for_layout(
+        memory_id,
+        2,
+        slot_byte_len,
+        Duration::from_secs(1),
+    )
+    .expect("attach to backend-created shared frame ring");
 
     let frame_response = backend.request(json!({
         "id": 2,
