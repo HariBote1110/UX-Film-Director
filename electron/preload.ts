@@ -1,4 +1,52 @@
 import { ipcRenderer, contextBridge } from 'electron'
+import { createRequire } from 'node:module'
+
+const require = createRequire(import.meta.url)
+
+type SharedVideoFrameCopyPayload = {
+  memoryId: string
+  slotCount: number
+  slotByteLen: number
+  ptsFrame: number
+}
+
+type SharedVideoFrameCopyResult = {
+  success: boolean
+  result?: unknown
+  error?: string
+}
+
+type SharedVideoFrameNativeBridge = {
+  copyIntoUploadBuffer: (
+    payload: SharedVideoFrameCopyPayload,
+    target: Uint8Array
+  ) => Promise<SharedVideoFrameCopyResult> | SharedVideoFrameCopyResult
+}
+
+let sharedVideoFrameNativeBridge: SharedVideoFrameNativeBridge | null | undefined
+
+const loadSharedVideoFrameNativeBridge = (): SharedVideoFrameNativeBridge | null => {
+  if (sharedVideoFrameNativeBridge !== undefined) {
+    return sharedVideoFrameNativeBridge
+  }
+
+  const modulePath = process.env.UXFD_SHARED_VIDEO_FRAME_BRIDGE_MODULE
+  if (!modulePath) {
+    sharedVideoFrameNativeBridge = null
+    return sharedVideoFrameNativeBridge
+  }
+
+  try {
+    const loaded = require(modulePath) as Partial<SharedVideoFrameNativeBridge>
+    sharedVideoFrameNativeBridge = typeof loaded.copyIntoUploadBuffer === 'function'
+      ? loaded as SharedVideoFrameNativeBridge
+      : null
+  } catch {
+    sharedVideoFrameNativeBridge = null
+  }
+
+  return sharedVideoFrameNativeBridge
+}
 
 contextBridge.exposeInMainWorld('ipcRenderer', {
   on(...args: Parameters<typeof ipcRenderer.on>) {
@@ -34,5 +82,19 @@ contextBridge.exposeInMainWorld('rustBackend', {
   },
   releaseVideoDecodeFrame(payload: unknown) {
     return ipcRenderer.invoke('rust-backend-decode-release-frame', payload)
+  },
+})
+
+contextBridge.exposeInMainWorld('sharedVideoFrame', {
+  async copyIntoUploadBuffer(payload: SharedVideoFrameCopyPayload, target: Uint8Array) {
+    const bridge = loadSharedVideoFrameNativeBridge()
+    if (!bridge) {
+      return {
+        success: false,
+        error: 'Shared video frame native bridge is unavailable.',
+      }
+    }
+
+    return bridge.copyIntoUploadBuffer(payload, target)
   },
 })

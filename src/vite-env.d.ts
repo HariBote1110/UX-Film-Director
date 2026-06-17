@@ -50,6 +50,26 @@ interface Window {
       copyOutState: 'gpuUploadFenceSignalled';
     }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
   };
+  sharedVideoFrame: {
+    copyIntoUploadBuffer: (
+      payload: {
+        memoryId: string;
+        slotCount: number;
+        slotByteLen: number;
+        ptsFrame: number;
+      },
+      target: Uint8Array
+    ) => Promise<{
+      success: boolean;
+      result?: {
+        sequence: number;
+        byteLen: number;
+        expectedChecksum: number;
+        actualChecksum: number;
+      };
+      error?: string;
+    }>;
+  };
 }
 
 // Webview Tag Definition
