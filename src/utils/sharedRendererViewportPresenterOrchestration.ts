@@ -5,14 +5,21 @@ import {
 } from './sharedRendererPreviewPresenterController';
 import {
   prepareSharedRendererViewportVideoUpload,
+  prepareSharedRendererViewportVideoUploads,
   type PrepareSharedRendererViewportVideoUploadInput,
   type PrepareSharedRendererViewportVideoUploadResult,
+  type PrepareSharedRendererViewportVideoUploadsInput,
+  type PrepareSharedRendererViewportVideoUploadsResult,
   type SharedRendererViewportVideoDecodeJob,
 } from './sharedRendererViewportVideoUpload';
 
 export type SharedRendererViewportVideoUploadPreparer = (
   input: PrepareSharedRendererViewportVideoUploadInput
 ) => Promise<PrepareSharedRendererViewportVideoUploadResult>;
+
+export type SharedRendererViewportVideoUploadsPreparer = (
+  input: PrepareSharedRendererViewportVideoUploadsInput
+) => Promise<PrepareSharedRendererViewportVideoUploadsResult>;
 
 export type SharedRendererViewportPresenterStarter = (
   input: StartSharedRendererPreviewPresenterInput
@@ -25,16 +32,21 @@ export interface StartSharedRendererViewportPresenterInput {
   diagnosticSwatchEnabled: boolean;
   videoCutoverEnabled: boolean;
   activeVideoDecodeJob: SharedRendererViewportVideoDecodeJob | null;
+  activeVideoDecodeJobs?: SharedRendererViewportVideoDecodeJob[];
   requestId: number;
   prepareVideoUpload?: SharedRendererViewportVideoUploadPreparer;
+  prepareVideoUploads?: SharedRendererViewportVideoUploadsPreparer;
   startPresenter?: SharedRendererViewportPresenterStarter;
   onVideoDecodeJobResolved?: (job: SharedRendererViewportVideoDecodeJob | null) => void;
+  onVideoDecodeJobsResolved?: (jobs: SharedRendererViewportVideoDecodeJob[]) => void;
 }
 
 export interface StartSharedRendererViewportPresenterResult {
   control: SharedRendererPreviewPresenterControl;
   activeVideoDecodeJob: SharedRendererViewportVideoDecodeJob | null;
+  activeVideoDecodeJobs: SharedRendererViewportVideoDecodeJob[];
   videoUploadResult?: PrepareSharedRendererViewportVideoUploadResult;
+  videoUploadsResult?: PrepareSharedRendererViewportVideoUploadsResult;
 }
 
 export const startSharedRendererViewportPresenter = async ({
@@ -44,13 +56,25 @@ export const startSharedRendererViewportPresenter = async ({
   diagnosticSwatchEnabled,
   videoCutoverEnabled,
   activeVideoDecodeJob,
+  activeVideoDecodeJobs,
   requestId,
   prepareVideoUpload = prepareSharedRendererViewportVideoUpload,
+  prepareVideoUploads = prepareSharedRendererViewportVideoUploads,
   startPresenter = startSharedRendererPreviewPresenter,
   onVideoDecodeJobResolved,
+  onVideoDecodeJobsResolved,
 }: StartSharedRendererViewportPresenterInput): Promise<StartSharedRendererViewportPresenterResult> => {
   let nextActiveVideoDecodeJob = activeVideoDecodeJob;
-  const videoUploadResult = videoCutoverEnabled
+  let nextActiveVideoDecodeJobs = activeVideoDecodeJobs ?? (activeVideoDecodeJob ? [activeVideoDecodeJob] : []);
+  const shouldUseMultipleVideoUploads = Boolean(activeVideoDecodeJobs);
+  const videoUploadsResult = videoCutoverEnabled && shouldUseMultipleVideoUploads
+    ? await prepareVideoUploads({
+      session,
+      requestId,
+      activeJobs: nextActiveVideoDecodeJobs,
+    })
+    : undefined;
+  const videoUploadResult = videoCutoverEnabled && !shouldUseMultipleVideoUploads
     ? await prepareVideoUpload({
       session,
       requestId,
@@ -60,11 +84,23 @@ export const startSharedRendererViewportPresenter = async ({
   const sharedRendererDecodedVideoFrameUpload = videoUploadResult?.ok
     ? videoUploadResult.upload
     : undefined;
+  const sharedRendererDecodedVideoFrameUploads = videoUploadsResult?.ok
+    ? videoUploadsResult.uploads.map(({ request, upload }) => ({
+      ...upload,
+      clipId: request.clipId,
+    }))
+    : undefined;
 
   if (videoUploadResult && 'activeJob' in videoUploadResult) {
     nextActiveVideoDecodeJob = videoUploadResult.activeJob ?? null;
+    nextActiveVideoDecodeJobs = nextActiveVideoDecodeJob ? [nextActiveVideoDecodeJob] : [];
+  }
+  if (videoUploadsResult) {
+    nextActiveVideoDecodeJobs = videoUploadsResult.activeJobs;
+    nextActiveVideoDecodeJob = nextActiveVideoDecodeJobs[0] ?? null;
   }
   onVideoDecodeJobResolved?.(nextActiveVideoDecodeJob);
+  onVideoDecodeJobsResolved?.(nextActiveVideoDecodeJobs);
 
   const control = await startPresenter({
     canvas,
@@ -73,11 +109,14 @@ export const startSharedRendererViewportPresenter = async ({
     diagnosticSwatchEnabled,
     sharedRendererVideoCutoverEnabled: videoCutoverEnabled,
     sharedRendererDecodedVideoFrameUpload,
+    sharedRendererDecodedVideoFrameUploads,
   });
 
   return {
     control,
     activeVideoDecodeJob: nextActiveVideoDecodeJob,
+    activeVideoDecodeJobs: nextActiveVideoDecodeJobs,
     videoUploadResult,
+    videoUploadsResult,
   };
 };
