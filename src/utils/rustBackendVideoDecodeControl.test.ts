@@ -4,6 +4,7 @@ import {
   releaseRustBackendVideoDecodeFrame,
   requestRustBackendVideoDecodeFrame,
   startRustBackendVideoDecode,
+  stopRustBackendVideoDecode,
   type RustBackendVideoDecodeBridge,
 } from './rustBackendVideoDecodeControl';
 
@@ -26,6 +27,10 @@ const bridge = (): {
       releaseVideoDecodeFrame: async (payload) => {
         calls.push(['releaseVideoDecodeFrame', payload]);
         return { success: true, result: { released: true, slotIndex: payload.slotIndex } };
+      },
+      stopVideoDecode: async (payload) => {
+        calls.push(['stopVideoDecode', payload]);
+        return { success: true, result: { stopped: true, jobId: payload.jobId } };
       },
     },
   };
@@ -77,6 +82,22 @@ describe('rustBackendVideoDecodeControl', () => {
       },
     ]]);
     expect(JSON.stringify(mocked.calls)).not.toContain('frameBase64');
+  });
+
+  it('stops the active Rust video decode session by job id', async () => {
+    const mocked = bridge();
+
+    const response = await stopRustBackendVideoDecode({
+      jobId: 'decode-1',
+    }, mocked.bridge);
+
+    expect(response).toEqual({ success: true, result: { stopped: true, jobId: 'decode-1' } });
+    expect(mocked.calls).toEqual([[
+      'stopVideoDecode',
+      {
+        jobId: 'decode-1',
+      },
+    ]]);
   });
 
   it('requests and releases frames by frame index and slot lease token', async () => {
