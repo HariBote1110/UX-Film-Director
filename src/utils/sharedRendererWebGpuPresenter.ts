@@ -61,7 +61,7 @@ export interface SharedRendererWebGpuDeviceLike {
       setPipeline?: (pipeline: unknown) => void;
       setBindGroup?: (index: number, bindGroup: unknown) => void;
       setVertexBuffer?: (slot: number, buffer: unknown) => void;
-      draw?: (vertexCount: number) => void;
+      draw?: (vertexCount: number, instanceCount?: number, firstVertex?: number) => void;
       end: () => void;
     };
     finish: () => unknown;
@@ -228,7 +228,9 @@ interface SharedRendererVideoBindGroupDescriptor {
 export interface SharedRendererVideoFrameSceneInput {
   snapshot: RustSceneSnapshot;
   media: RustSceneMediaReference[];
-  texture: unknown;
+  texture?: unknown;
+  texturesByClipId?: ReadonlyMap<string, unknown>;
+  videoObjectIds?: ReadonlySet<string>;
 }
 
 export type SharedRendererVideoFrameScenePresentationResult =
@@ -554,6 +556,8 @@ export const createSharedRendererWebGpuPresenter = async ({
     snapshot,
     media,
     texture,
+    texturesByClipId,
+    videoObjectIds,
   }: SharedRendererVideoFrameSceneInput): SharedRendererVideoFrameScenePresentationResult => {
     const vertexScene = videoPlaneVertexSceneBuilder({
       snapshot,
@@ -584,11 +588,6 @@ export const createSharedRendererWebGpuPresenter = async ({
         reason: 'webGpuDrawUnavailable',
         detail: 'WebGPU device does not expose the draw APIs needed for video frame scene presentation.',
       };
-    }
-
-    const textureView = createTextureView(texture);
-    if (!textureView.ok) {
-      return textureView;
     }
 
     if (!videoFramePipeline) {
@@ -623,6 +622,37 @@ export const createSharedRendererWebGpuPresenter = async ({
       });
     }
 
+    const drawablePlanes: Array<{
+      index: number;
+      textureView: unknown;
+    }> = [];
+    for (const [index, plane] of vertexScene.planes.entries()) {
+      if (videoObjectIds && !videoObjectIds.has(plane.clipId)) {
+        continue;
+      }
+      const planeTexture = texturesByClipId
+        ? texturesByClipId.get(plane.clipId)
+        : texture;
+      const textureView = createTextureView(planeTexture);
+      if (!textureView.ok) {
+        if (texturesByClipId || videoObjectIds) {
+          continue;
+        }
+        return textureView;
+      }
+      drawablePlanes.push({
+        index,
+        textureView: textureView.value,
+      });
+    }
+    if (drawablePlanes.length === 0) {
+      return {
+        ok: false,
+        reason: 'videoTextureViewUnavailable',
+        detail: 'No uploaded video texture was available for the video plane scene.',
+      };
+    }
+
     const vertices = vertexScene.vertices;
     const vertexBuffer = device.createBuffer({
       label: 'video-plane-vertex-buffer',
@@ -636,13 +666,13 @@ export const createSharedRendererWebGpuPresenter = async ({
       minFilter: 'linear',
       mipmapFilter: 'nearest',
     });
-    const bindGroup = device.createBindGroup({
+    const bindGroups = drawablePlanes.map((plane) => device.createBindGroup({
       layout: pipelineBindGroupLayout(videoFramePipeline, 0),
       entries: [
         { binding: 0, resource: sampler },
-        { binding: 1, resource: textureView.value },
+        { binding: 1, resource: plane.textureView },
       ],
-    });
+    }));
 
     const encoder = device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
@@ -656,15 +686,23 @@ export const createSharedRendererWebGpuPresenter = async ({
       ],
     });
     pass.setPipeline?.(videoFramePipeline);
-    pass.setBindGroup?.(0, bindGroup);
-    pass.setVertexBuffer?.(0, vertexBuffer);
-    pass.draw?.(vertices.length / 8);
+    if (texturesByClipId || videoObjectIds) {
+      pass.setVertexBuffer?.(0, vertexBuffer);
+      bindGroups.forEach((bindGroup, drawIndex) => {
+        pass.setBindGroup?.(0, bindGroup);
+        pass.draw?.(6, 1, drawablePlanes[drawIndex].index * 6);
+      });
+    } else {
+      pass.setBindGroup?.(0, bindGroups[0]);
+      pass.setVertexBuffer?.(0, vertexBuffer);
+      pass.draw?.(vertices.length / 8);
+    }
     pass.end();
     device.queue.submit([encoder.finish()]);
 
     return {
       ok: true,
-      planeCount: vertexScene.planeCount,
+      planeCount: drawablePlanes.length,
     };
   };
 
