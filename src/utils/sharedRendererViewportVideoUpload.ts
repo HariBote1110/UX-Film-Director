@@ -43,6 +43,16 @@ export interface PrepareSharedRendererViewportVideoUploadInput {
   decodeRequestBuilder?: SharedRendererVideoFrameDecodeRequestBuilder;
 }
 
+export interface PrepareSharedRendererViewportVideoUploadsInput {
+  session: SharedRendererPreviewSession;
+  requestId?: number;
+  slotCount?: number;
+  activeJobs?: readonly SharedRendererViewportVideoDecodeJob[];
+  rustBackendBridge?: RustBackendVideoDecodeBridge;
+  copyBridge?: SharedVideoFrameCopyBridge;
+  decodeRequestBuilder?: SharedRendererVideoFrameDecodeRequestBuilder;
+}
+
 export type PrepareSharedRendererViewportVideoUploadResult =
   | {
       ok: true;
@@ -63,6 +73,147 @@ export type PrepareSharedRendererViewportVideoUploadResult =
       detail: string;
       activeJob?: SharedRendererViewportVideoDecodeJob | null;
     };
+
+export type PrepareSharedRendererViewportVideoUploadsResult =
+  | {
+      ok: true;
+      activeJobs: SharedRendererViewportVideoDecodeJob[];
+      uploads: Array<{
+        request: SharedRendererVideoFrameDecodeRequest;
+        upload: PreparedViewportVideoUpload;
+      }>;
+    }
+  | {
+      ok: false;
+      reason:
+        | 'surfaceGateUnavailable'
+        | 'decodeRequestUnavailable'
+        | 'noVideoDecodeRequest'
+        | 'startFailed'
+        | 'frameDecodeFailed'
+        | 'staleDecodeResponse'
+        | 'uploadFailed';
+      detail: string;
+      activeJobs: SharedRendererViewportVideoDecodeJob[];
+    };
+
+export const prepareSharedRendererViewportVideoUploads = async ({
+  session,
+  requestId,
+  slotCount = 2,
+  activeJobs = [],
+  rustBackendBridge = window.rustBackend,
+  copyBridge = window.sharedVideoFrame,
+  decodeRequestBuilder = buildSharedRendererVideoFrameDecodeRequests,
+}: PrepareSharedRendererViewportVideoUploadsInput): Promise<PrepareSharedRendererViewportVideoUploadsResult> => {
+  if (!session.surfaceGate.ok) {
+    return {
+      ok: false,
+      reason: 'surfaceGateUnavailable',
+      detail: session.surfaceGate.detail,
+      activeJobs: [...activeJobs],
+    };
+  }
+
+  const decodeRequests = decodeRequestBuilder({
+    snapshot: session.surfaceGate.snapshot,
+    media: session.surfaceGate.media,
+  });
+  if (!decodeRequests.ok) {
+    return {
+      ok: false,
+      reason: 'decodeRequestUnavailable',
+      detail: decodeRequests.detail,
+      activeJobs: [...activeJobs],
+    };
+  }
+
+  if (decodeRequests.requests.length === 0) {
+    return {
+      ok: false,
+      reason: 'noVideoDecodeRequest',
+      detail: 'Shared renderer preview session does not contain a visible video frame request.',
+      activeJobs: [...activeJobs],
+    };
+  }
+
+  const resolvedActiveJobs: SharedRendererViewportVideoDecodeJob[] = [];
+  const uploads: Array<{
+    request: SharedRendererVideoFrameDecodeRequest;
+    upload: PreparedViewportVideoUpload;
+  }> = [];
+  const resolvedRequestId = requestId ?? session.surfaceGate.snapshot.frame_index;
+
+  for (const request of decodeRequests.requests) {
+    const nextJob = buildViewportVideoDecodeJob(request, slotCount);
+    const resolvedJob = activeJobs.find((job) => sameDecodeJob(job, nextJob))
+      ?? await startDecodeJob(nextJob, request, rustBackendBridge);
+    if ('ok' in resolvedJob && resolvedJob.ok === false) {
+      return {
+        ok: false,
+        reason: 'startFailed',
+        detail: resolvedJob.detail,
+        activeJobs: resolvedActiveJobs,
+      };
+    }
+
+    resolvedActiveJobs.push(resolvedJob);
+    const decodeResponse = await requestRustBackendVideoDecodeFrame({
+      jobId: resolvedJob.jobId,
+      requestId: resolvedRequestId,
+      frameIndex: request.sourceFrame,
+      mode: 'latestWins',
+    }, rustBackendBridge);
+    if (!decodeResponse.success) {
+      return {
+        ok: false,
+        reason: 'frameDecodeFailed',
+        detail: decodeResponse.error ?? 'Rust backend video frame decode request failed.',
+        activeJobs: resolvedActiveJobs,
+      };
+    }
+    if (
+      isRustBackendDecodedVideoFrameAvailable(decodeResponse)
+      && decodeResponse.result.requestId !== resolvedRequestId
+    ) {
+      await releaseRustBackendVideoDecodeFrame({
+        jobId: resolvedJob.jobId,
+        slotIndex: decodeResponse.result.frame.descriptor.slotIndex,
+        generation: decodeResponse.result.frame.descriptor.generation,
+        copyOutState: 'rendererUploadAborted',
+      }, rustBackendBridge);
+      return {
+        ok: false,
+        reason: 'staleDecodeResponse',
+        detail: 'Rust backend returned a decoded frame for a stale request id.',
+        activeJobs: resolvedActiveJobs,
+      };
+    }
+
+    const upload = await prepareSharedRendererRustDecodedVideoUpload({
+      decodeResponse,
+      slotCount: resolvedJob.slotCount,
+      copyBridge,
+      rustBackendBridge,
+    });
+    if (!upload.ok) {
+      return {
+        ok: false,
+        reason: 'uploadFailed',
+        detail: upload.detail,
+        activeJobs: resolvedActiveJobs,
+      };
+    }
+
+    uploads.push({ request, upload });
+  }
+
+  return {
+    ok: true,
+    activeJobs: resolvedActiveJobs,
+    uploads,
+  };
+};
 
 export const prepareSharedRendererViewportVideoUpload = async ({
   session,
