@@ -20,6 +20,17 @@ const activeJob: SharedRendererViewportVideoDecodeJob = {
     denominator: 1,
   },
 };
+const secondActiveJob: SharedRendererViewportVideoDecodeJob = {
+  jobId: 'shared-renderer-video-video-2-80x45-30over1',
+  source: '/tmp/second clip.mp4',
+  slotCount: 2,
+  width: 80,
+  height: 45,
+  sourceRate: {
+    numerator: 30,
+    denominator: 1,
+  },
+};
 
 const upload = {
   ok: true,
@@ -67,6 +78,65 @@ const control: SharedRendererPreviewPresenterControl = {
 };
 
 describe('sharedRendererViewportPresenterOrchestration', () => {
+  it('passes multiple prepared Rust decoded video uploads into the presenter start input', async () => {
+    let presenterInput: unknown;
+    const secondUpload = {
+      ...upload,
+      descriptor: {
+        ...upload.descriptor,
+        memoryId: '/uxfd-second-video-ring',
+        slotIndex: 1,
+      },
+      ptsFrame: 7,
+    };
+    const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {
+      presenterInput = input;
+      return control;
+    };
+
+    const result = await startSharedRendererViewportPresenter({
+      canvas,
+      session,
+      datasets: [],
+      diagnosticSwatchEnabled: true,
+      videoCutoverEnabled: true,
+      activeVideoDecodeJobs: [],
+      requestId: 11,
+      prepareVideoUploads: async () => ({
+        ok: true,
+        activeJobs: [activeJob, secondActiveJob],
+        uploads: [
+          {
+            request: { clipId: 'video-1' } as any,
+            upload,
+          },
+          {
+            request: { clipId: 'video-2' } as any,
+            upload: secondUpload,
+          },
+        ],
+      }),
+      startPresenter,
+    } as any);
+
+    expect(result.activeVideoDecodeJobs).toEqual([activeJob, secondActiveJob]);
+    expect(presenterInput).toMatchObject({
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererDecodedVideoFrameUploads: [
+        {
+          clipId: 'video-1',
+          descriptor: upload.descriptor,
+          ptsFrame: 42,
+        },
+        {
+          clipId: 'video-2',
+          descriptor: secondUpload.descriptor,
+          ptsFrame: 7,
+        },
+      ],
+    });
+  });
+
   it('passes a prepared Rust decoded video upload into the presenter start input', async () => {
     let presenterInput: unknown;
     const events: string[] = [];
