@@ -601,6 +601,11 @@ declared media dimensionsとdecoded PNG dimensionsが一致しない場合はfai
 同じ `mediaId` がmedia由来sourceとshared-frame sourceの両方から登録される場合は、source ownershipを曖昧にしないため
 `render.nativeSharedFrame` がfail-loudに拒否する。
 
+113. Phase5: PNG Imageが動画の上にあるsceneでもvideo cutoverを維持する
+video cutover stack safetyは、動画clipより上にある `Image` mediaのsourceがPNGの場合、Rust native renderでsource化可能な要素として扱う。
+未対応画像形式は引き続き `pixiOnlyObjectAboveVideo` としてブロックする。これにより動画＋PNG画像＋SolidColourの積層sceneを
+Pixiへ戻さず、Rust decode/shared memory → Rust native render → Rust encodeへ進める。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

@@ -3673,3 +3673,20 @@
 ### 残課題・次のステップ
 - JPG/PSD/textなど、PNG以外の静止素材はまだRust source化していない。
 - Video mediaそのものをRust decode requestなしでmedia sourceから解決する経路は未実装。次はRust backendが `Image` 以外のmedia source可用性をcapabilityとして返すか、動画media sourceのdecode/session lifecycleをnative render側へ統合する。
+
+## 2026-06-18 — PNG Image上位でもvideo cutoverを維持
+
+### 実施内容
+- `buildSharedRendererVideoCutoverStackSafety` で、動画clipより上にあるPNG `Image` mediaをshared renderer/Rust native render対応済みとして扱うようにした。
+- 未対応画像形式（例: JPG）は引き続き `pixiOnlyObjectAboveVideo` として動画cutoverを止める契約を追加した。
+- 動画＋PNG Image＋SolidColourの積層sceneがPixiへ戻らず、Rust native render/export経路へ進めるようにした。
+- 版を `0.1.1-Beta-99a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererVideoCutoverStack.test.ts`
+- `npm test -- src/utils/sharedRendererVideoCutoverStack.test.ts src/utils/sharedRendererVideoOwnership.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- PNG判定はsource拡張子ベース。Rust backend側は実際のPNG decodeで最終検証するが、将来はcapability共有またはsource sniffingでより正確にする。
+- JPG/PSD/textなどの上位clipはまだvideo cutoverを止めるため、Rust source化対象として順次追加する。
