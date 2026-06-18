@@ -13,6 +13,7 @@ import {
   type SharedRendererPresentedFrameSharedFrameInput,
   type SharedRendererPresentedFrameReadbackInput,
   type SharedRendererPresentedFrameReadbackResult,
+  type SharedRendererPresentedFrameSharedFrameTaker,
   type SharedRendererSolidSrgbSwatch,
   type SharedRendererVideoFrameTextureUploadInput,
   type SharedRendererWebGpuLike,
@@ -92,6 +93,7 @@ export interface StartSharedRendererPreviewPresenterInput {
   sharedRendererVideoFrameUploadReady?: boolean;
   sharedRendererDecodedVideoFrameUpload?: SharedRendererDecodedVideoFrameUpload;
   sharedRendererDecodedVideoFrameUploads?: SharedRendererDecodedVideoFrameUploadForClip[];
+  presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
 }
 
 export interface SharedRendererDecodedVideoFrameUpload extends SharedRendererVideoFrameTextureUploadInput {
@@ -126,6 +128,7 @@ export const startSharedRendererPreviewPresenter = async ({
   sharedRendererVideoFrameUploadReady = false,
   sharedRendererDecodedVideoFrameUpload,
   sharedRendererDecodedVideoFrameUploads,
+  presentedFrameSharedFrameTaker,
 }: StartSharedRendererPreviewPresenterInput): Promise<SharedRendererPreviewPresenterControl> => {
   const writeDiagnostics = (state: SharedRendererPresenterDiagnosticState) => {
     datasets.forEach((dataset) => {
@@ -223,6 +226,7 @@ export const startSharedRendererPreviewPresenter = async ({
     bufferUsageCopyDst,
     bufferUsageMapRead,
     solidColourVertexSceneBuilder: resolvedRustSolidColourVertexSceneBuilder ?? undefined,
+    presentedFrameSharedFrameTaker,
     onDeviceLost: (event) => {
       writeDiagnostics({
         status: 'deviceLost',
