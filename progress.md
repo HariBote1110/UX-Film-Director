@@ -1,3 +1,26 @@
+## 2026-06-18 — Phase5: Rust encode frame payload に slotCount を追加
+
+### 実施内容
+- `RustBackendVideoEncodeWriteFramePayload` に `slotCount` を追加した。
+- `window.rustVideoEncoder.writeVideoEncodeFrame` の型にも `slotCount` を追加し、rendererからRust backendへshared memory layoutを渡せるようにした。
+- package version を `0.1.1-Beta-60u` に更新した。
+
+### Red
+- `src/utils/rustBackendVideoEncodeControl.test.ts` に、shared memory descriptorでframeを書き込むpayloadが `slotCount` を含む契約を追加した。
+- `npx tsc --noEmit` の対象抽出で、`slotCount` がpayload型に存在しないことを確認した。
+
+### Green
+- `src/utils/rustBackendVideoEncodeControl.ts` と `src/vite-env.d.ts` のpayload型へ `slotCount` を追加した。
+
+### 現在の制限
+- Rust backendはまだ `slotCount` を使ってshared memoryへattachしていない。次段で `encode.start/writeFrame/finish` のsession skeletonを実装する。
+
+### 検証
+- `npm test -- src/utils/rustBackendVideoEncodeControl.test.ts`
+  -> 1 file / 4 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "src/(utils/rustBackendVideoEncodeControl\\.test\\.ts|utils/rustBackendVideoEncodeControl\\.ts|vite-env\\.d\\.ts)"`
+  -> 対象ファイルの型エラーなし。
+
 ## 2026-06-18 — Phase5: encoder書込後の shared slot 解放状態を追加
 
 ### 実施内容

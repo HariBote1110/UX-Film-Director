@@ -326,6 +326,11 @@ Rust encoder が shared memory ring から frame を読み、ffmpeg / encoder st
 `CopyOutState::EncoderFrameWritten` を追加する。decode preview向けの `gpuUploadFenceSignalled` と区別し、
 encode data-plane では「encoderへの書込完了」を所有権返却条件として扱う。
 
+66. Phase5: Rust encode frame payload に slotCount を追加する
+Rust backend encoder が `PosixSharedRing::attach_with_retry_for_layout` でshared memoryへattachできるよう、
+renderer側の `writeVideoEncodeFrame` payloadに `slotCount` を追加する。
+`memoryId` / `slotCount` / `descriptor.byteLen` を揃えて、次段のRust側session skeletonとshared-frame readに進む。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
