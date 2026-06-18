@@ -1877,8 +1877,46 @@ fn decode_request_frame_uses_second_shared_memory_slot_while_first_slot_is_readi
     assert_no_frame_bytes_recursive(&first_response["result"]);
     assert_no_frame_bytes_recursive(&second_response["result"]);
 
-    let first_release_response = backend.request(json!({
+    let second_release_response = backend.request(json!({
         "id": 4,
+        "method": "decode.releaseFrame",
+        "params": {
+            "jobId": "dms2",
+            "slotIndex": second_response["result"]["frame"]["descriptor"]["slotIndex"],
+            "generation": second_response["result"]["frame"]["descriptor"]["generation"],
+            "copyOutState": "gpuUploadFenceSignalled"
+        }
+    }));
+    assert_eq!(second_release_response["ok"], true);
+
+    let third_response = backend.request(json!({
+        "id": 5,
+        "method": "decode.requestFrame",
+        "params": {
+            "jobId": "dms2",
+            "requestId": 43,
+            "frameIndex": 1,
+            "mode": "latestWins"
+        }
+    }));
+    assert_eq!(third_response["ok"], true);
+    assert_eq!(
+        third_response["result"]["frame"]["descriptor"]["slotIndex"],
+        second_response["result"]["frame"]["descriptor"]["slotIndex"],
+        "released second slot should be reused while first remains reading"
+    );
+    let third_mapped_frame = consumer_ring
+        .read_frame(1)
+        .expect("consumer reads third decoded frame from the released second slot");
+    assert_eq!(
+        third_mapped_frame.slot_index,
+        second_response["result"]["frame"]["descriptor"]["slotIndex"]
+            .as_u64()
+            .expect("second slot index") as u32
+    );
+
+    let first_release_response = backend.request(json!({
+        "id": 6,
         "method": "decode.releaseFrame",
         "params": {
             "jobId": "dms2",
@@ -1889,17 +1927,17 @@ fn decode_request_frame_uses_second_shared_memory_slot_while_first_slot_is_readi
     }));
     assert_eq!(first_release_response["ok"], true);
 
-    let second_release_response = backend.request(json!({
-        "id": 5,
+    let third_release_response = backend.request(json!({
+        "id": 7,
         "method": "decode.releaseFrame",
         "params": {
             "jobId": "dms2",
-            "slotIndex": second_response["result"]["frame"]["descriptor"]["slotIndex"],
-            "generation": second_response["result"]["frame"]["descriptor"]["generation"],
+            "slotIndex": third_response["result"]["frame"]["descriptor"]["slotIndex"],
+            "generation": third_response["result"]["frame"]["descriptor"]["generation"],
             "copyOutState": "gpuUploadFenceSignalled"
         }
     }));
-    assert_eq!(second_release_response["ok"], true);
+    assert_eq!(third_release_response["ok"], true);
 
     consumer_ring
         .wait_until_free(Duration::from_secs(1))
