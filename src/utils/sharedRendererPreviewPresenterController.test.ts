@@ -489,6 +489,8 @@ describe('startSharedRendererPreviewPresenter', () => {
 
     expect(control.ok).toBe(true);
     if (!control.ok) throw new Error('expected ready control');
+    expect(typeof control.readPresentedFrameRgbaBytes).toBe('function');
+    if (!control.readPresentedFrameRgbaBytes) throw new Error('expected readback control');
     await expect(control.readPresentedFrameRgbaBytes({
       width: 2,
       height: 2,

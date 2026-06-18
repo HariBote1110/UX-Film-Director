@@ -72,7 +72,7 @@ export type SharedRendererPreviewPresenterControl =
       takePresentedFrameSharedFrame?: (
         input: SharedRendererPresentedFrameSharedFrameInput
       ) => Promise<RustBackendVideoEncodeWriteFramePayload>;
-      readPresentedFrameRgbaBytes: (input: SharedRendererPresentedFrameReadbackInput) => Promise<SharedRendererPresentedFrameReadbackResult>;
+      readPresentedFrameRgbaBytes?: (input: SharedRendererPresentedFrameReadbackInput) => Promise<SharedRendererPresentedFrameReadbackResult>;
       dispose: () => void;
     }
   | {
@@ -531,7 +531,7 @@ export const startSharedRendererPreviewPresenter = async ({
     imageOwnership,
     psdOwnership,
     takePresentedFrameSharedFrame: presenter.takePresentedFrameSharedFrame,
-    readPresentedFrameRgbaBytes: presenter.readPresentedFrameRgbaBytes,
+    ...(requireSharedRendererOutput ? {} : { readPresentedFrameRgbaBytes: presenter.readPresentedFrameRgbaBytes }),
     dispose: presenter.dispose,
   };
 };
