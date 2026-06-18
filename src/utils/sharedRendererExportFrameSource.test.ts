@@ -353,4 +353,64 @@ describe('createSharedRendererExportFrameSource', () => {
       objects: [image()],
     })).resolves.toBe(frameBitmap);
   });
+
+  it('falls back before bitmap capture when export video ownership remains on Pixi', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    let disposeCount = 0;
+    let bitmapCaptureCount = 0;
+
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      startViewportPresenter: async () => ({
+        control: {
+          dispose: () => { disposeCount += 1; },
+          videoOwnership: {
+            owner: 'pixi',
+            reason: 'videoFrameUploadUnavailable',
+            videoObjectIds: [],
+          },
+        },
+        activeVideoDecodeJob: null,
+        activeVideoDecodeJobs: [],
+      }) as never,
+      createFrameBitmap: async () => {
+        bitmapCaptureCount += 1;
+        return ({ close: () => undefined }) as ImageBitmap;
+      },
+    });
+
+    const blocked = await source.renderFrame({
+      frameIndex: 4,
+      timestampUs: 66_667,
+      time: 4 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [image()],
+    }).catch((error) => error);
+
+    expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
+    expect(blocked).toMatchObject({
+      reason: 'videoOwnershipUnavailable',
+      frameIndex: 4,
+      fallbackToLegacyCanvas: true,
+    });
+    expect(blocked.message).toContain('videoFrameUploadUnavailable');
+    expect(bitmapCaptureCount).toBe(0);
+    expect(disposeCount).toBe(1);
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'blocked',
+      uxfdRustExportFrameSourceFrameIndex: '4',
+      uxfdRustExportFrameSourceFrameReason: 'videoOwnershipUnavailable',
+    });
+  });
 });
