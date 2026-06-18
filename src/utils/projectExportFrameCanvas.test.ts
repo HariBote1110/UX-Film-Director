@@ -85,6 +85,20 @@ describe('buildProjectExportFrameSourcePlan', () => {
     });
   });
 
+  it('refuses legacy canvas capture when the Rust frame source is required', () => {
+    const pixiCanvas = { id: 'pixi-export' } as unknown as HTMLCanvasElement;
+
+    expect(buildProjectExportFrameSourcePlan({
+      rustFrameSource: null,
+      pixiCanvas,
+      rustFrameSourcePolicy: 'requireRustFrameSource',
+    })).toEqual({
+      ok: false,
+      reason: 'rustFrameSourceRequired',
+      detail: 'Rust-only export requires a shared renderer Rust frame source.',
+    });
+  });
+
   it('falls back to the Pixi canvas only as legacy export capture', () => {
     const pixiCanvas = { id: 'pixi-export' } as unknown as HTMLCanvasElement;
 
@@ -156,6 +170,27 @@ describe('resolveProjectExportFrameRuntimePlan', () => {
       usesExportFrameOverrides: false,
       requiresHtmlVideoElementSeekFallback: true,
       shouldCloseRustFrameSource: true,
+    });
+  });
+
+  it('fails the export instead of restoring legacy canvas after a required Rust frame source is blocked', () => {
+    const plan = buildProjectExportFrameSourcePlan({
+      rustFrameSource,
+      rustFrameSourceBlockedFallback: 'failExport',
+    });
+    if (!plan.ok) throw new Error('expected Rust export source plan');
+
+    expect(resolveProjectExportFrameRuntimePlan({
+      frameSourcePlan: plan,
+      rustFrameSourceBlocked: true,
+    })).toEqual({
+      source: 'sharedRendererRustFrameSourceBlocked',
+      captureCanvas: false,
+      requiresRenderScene: false,
+      usesExportFrameOverrides: false,
+      requiresHtmlVideoElementSeekFallback: false,
+      shouldCloseRustFrameSource: true,
+      shouldFailOnRustFrameSourceBlocked: true,
     });
   });
 
