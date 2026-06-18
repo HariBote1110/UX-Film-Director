@@ -303,6 +303,12 @@ base64やRGBA bytesではなく shared memory descriptor のcontrol payloadで�
 `resolveProjectExportEncodePlanFromBridge` は `window.rustVideoEncoder` のshapeからRust encoder availabilityを判断し、
 bridgeが接続された時点でRust backend encoderを選べるようにする。
 
+62. Phase5: Rust video encode IPC境界を追加する
+`rustVideoEncodeIpcChannels` を追加し、preloadから `window.rustVideoEncoder` として
+`startVideoEncode` / `writeVideoEncodeFrame` / `finishVideoEncode` を露出する。
+Electron mainは旧base64 `start-export` / `write-frame` / `end-export` へ流さず、現段階では
+`Rust shared-frame video encoder backend is not connected yet.` としてfail-loudにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

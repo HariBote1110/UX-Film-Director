@@ -1,3 +1,31 @@
+## 2026-06-18 — Phase5: Rust video encode IPC境界を追加
+
+### 実施内容
+- `rustVideoEncodeIpcChannels` を追加し、Rust shared-frame encoder用の IPC channel 名を固定した。
+- `preload` から `window.rustVideoEncoder.startVideoEncode` / `writeVideoEncodeFrame` / `finishVideoEncode` を露出した。
+- Electron main に同channelのhandlerを登録した。
+- 現段階では旧base64 export APIへ流さず、`Rust shared-frame video encoder backend is not connected yet.` としてfail-loudにする。
+- package version を `0.1.1-Beta-60q` に更新した。
+
+### Red
+- `src/utils/rustVideoEncodeIpcChannels.test.ts` に、Rust encode IPC channel が legacy `start-export` / `write-frame` / `end-export` と別名である契約を追加した。
+
+### Green
+- `electron/rustVideoEncodeIpc.ts` を追加した。
+- `electron/preload.ts` へ `rustVideoEncoder` bridgeを追加した。
+- `electron/main.ts` に fail-loud handlerを追加し、未実装段階で旧base64経路へ暗黙fallbackしないようにした。
+
+### 現在の制限
+- Rust backend の shared-frame encoder RPC 本体は未実装。IPC名とrenderer/preload/mainの境界を固定した段階。
+
+### 検証
+- `npm test -- src/utils/rustVideoEncodeIpcChannels.test.ts src/utils/rustBackendVideoEncodeControl.test.ts src/utils/projectExportEncodePlan.test.ts`
+  -> 3 files / 9 tests passed。
+- `npm test -- src/utils/rustVideoEncodeIpcChannels.test.ts src/utils/rustBackendVideoEncodeControl.test.ts src/utils/projectExportEncodePlan.test.ts src/utils/rustBackendVideoDecodeControl.test.ts src/utils/sharedVideoFrameUploadBridge.test.ts src/utils/sharedRendererRustVideoUploadPipeline.test.ts src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererExportFrameSource.test.ts`
+  -> 9 files / 44 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "(electron/(preload|main|rustVideoEncodeIpc)\\.ts|src/(utils/rustVideoEncodeIpcChannels\\.test\\.ts|utils/rustBackendVideoEncodeControl\\.ts|utils/projectExportEncodePlan\\.ts|hooks/useProjectExport\\.ts|vite-env\\.d\\.ts))"`
+  -> 対象ファイルの型エラーなし。
+
 ## 2026-06-18 — Phase5: Rust video encode bridge control を追加
 
 ### 実施内容
