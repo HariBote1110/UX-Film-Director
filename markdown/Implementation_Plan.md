@@ -911,6 +911,11 @@ native addonの低レベル検証口は残しつつ、renderer JSからshared-fr
 通常preview動画はPixi video pathを既定で拒否済みのため、明示OFF時以外はRust/shared renderer decode/uploadを起動し、
 動画plane所有権の正本をRust側にする。
 
+170. Phase5: shared renderer preview surfaceを既定ONにする
+`Viewport` の preview gateを `VITE_UXFD_SHARED_RENDERER_PREVIEW !== '0'` に変更し、
+明示OFF時以外は shared renderer surface canvas / WebGPU probe / presenter orchestration を起動する。
+Pixi video pathを既定拒否した状態でも、通常preview動画がRust/shared renderer planeへ流れるようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

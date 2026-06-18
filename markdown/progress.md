@@ -209,3 +209,10 @@
 - Green: `Viewport` と `startSharedRendererPreviewPresenter` のvideo cutover既定値を `=== '1'` から `!== '0'` へ変更し、動画sceneなしnative render testのownership reasonを `noVideoScene` に更新した。
 - 検証: `npm test -- viewportRustVideoOnlyBoundary pixiVideoCutover sharedRendererPreviewPresenterController sharedRendererViewportPresenterOrchestration sharedRendererVideoMediaReadiness` は51件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-149a`。
+
+## 2026-06-19
+- Phase5のpreview surface起動条件として、shared renderer previewを明示OFF以外では既定ONにした。
+- Red: `viewportRustVideoOnlyBoundary` へ、`VITE_UXFD_SHARED_RENDERER_PREVIEW !== '0'` を期待する境界契約を追加した。
+- Green: `Viewport` の `sharedRendererPreviewEnabled` を `=== '1'` から `!== '0'` へ変更し、Pixi動画既定拒否後もshared renderer surfaceが通常previewで立ち上がるようにした。
+- 検証: `npm test -- viewportRustVideoOnlyBoundary sharedRendererSurfaceMount pixiVideoCutover sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController` は51件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-150a`。
