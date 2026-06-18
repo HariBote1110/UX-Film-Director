@@ -191,7 +191,7 @@ export const useProjectExport = (
             );
 
             // ── VideoDecoder パス: フレームを先取りして override に注入 ─────
-            if (exportFrameOverridesRef) {
+            if (exportFrameSourcePlan.usesExportFrameOverrides && exportFrameOverridesRef) {
               exportFrameOverridesRef.current.clear();
               await Promise.all(activeVideos.map(async (obj) => {
                 const provider = providers.get(obj.id);
@@ -203,7 +203,9 @@ export const useProjectExport = (
             }
 
             // ── シーク方式フォールバック: providers にないクリップのみシーク ─
-            const seekTargets = activeVideos.filter(obj => !providers.has(obj.id));
+            const seekTargets = exportFrameSourcePlan.requiresHtmlVideoElementSeekFallback
+              ? activeVideos.filter(obj => !providers.has(obj.id))
+              : [];
             if (seekTargets.length > 0) {
               await Promise.all(seekTargets.map(obj => {
                 const video = videoElementsRef.current.get(obj.id);
@@ -292,5 +294,5 @@ export const useProjectExport = (
 
     runExport();
     return () => { cancelled = true; };
-  }, [isExporting, renderScene, setExporting, setTime, setExportProgress, pixiAppRef, videoElementsRef, getExportCanvas, exportFrameOverridesRef]);
+  }, [isExporting, renderScene, setExporting, setTime, setExportProgress, pixiAppRef, videoElementsRef, getExportCanvas, exportFrameOverridesRef, getRustExportFrameSource]);
 };

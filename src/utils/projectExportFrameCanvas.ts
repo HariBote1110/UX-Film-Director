@@ -40,6 +40,8 @@ export type ProjectExportFrameSourcePlanResult =
       captureCanvas: false;
       requiresRenderScene: false;
       requiresLegacyBrowserVideoProviders: false;
+      requiresHtmlVideoElementSeekFallback: false;
+      usesExportFrameOverrides: false;
     }
   | {
       ok: true;
@@ -48,6 +50,8 @@ export type ProjectExportFrameSourcePlanResult =
       captureCanvas: true;
       requiresRenderScene: true;
       requiresLegacyBrowserVideoProviders: true;
+      requiresHtmlVideoElementSeekFallback: true;
+      usesExportFrameOverrides: true;
     }
   | {
       ok: false;
@@ -100,6 +104,8 @@ export const buildProjectExportFrameSourcePlan = ({
       captureCanvas: false,
       requiresRenderScene: false,
       requiresLegacyBrowserVideoProviders: false,
+      requiresHtmlVideoElementSeekFallback: false,
+      usesExportFrameOverrides: false,
     };
   }
 
@@ -115,6 +121,8 @@ export const buildProjectExportFrameSourcePlan = ({
       captureCanvas: true,
       requiresRenderScene: true,
       requiresLegacyBrowserVideoProviders: true,
+      requiresHtmlVideoElementSeekFallback: true,
+      usesExportFrameOverrides: true,
     };
   }
 
