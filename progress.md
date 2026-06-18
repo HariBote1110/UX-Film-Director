@@ -1,3 +1,28 @@
+## 2026-06-18 — Phase5: Rust export source 診断を追加
+
+### 実施内容
+- `resolveViewportRustExportFrameSource` を追加し、Rust export source が ready か fallback かを理由付きで返すようにした。
+- fallback理由は `exportFlagDisabled` / `surfaceCanvasUnavailable` / `unsupportedEditorMode` / `webGpuUnavailable` / `fallbackAdapter` / `videoCutoverDisabled` に分けた。
+- `writeViewportRustExportFrameSourceDiagnostics` を追加し、`document.documentElement.dataset` に `uxfdRustExportFrameSourceStatus` と `uxfdRustExportFrameSourceReason` を公開する。
+- `Viewport` は Rust export source解決時にroot datasetへ診断を書き、実験flagで試す時にlegacy fallback理由を確認できるようにした。
+- package version を `0.1.1-Beta-60d` に更新した。
+
+### Red
+- `src/utils/viewportRustExportFrameSource.test.ts` に、ready decision、fallback reason、dataset diagnostics の契約を追加した。
+
+### Green
+- 既存の `buildViewportRustExportFrameSource` は decision を内部で使い、source or null の互換APIを維持した。
+- `diagnosticsDataset` が渡された場合だけ dataset 書き込みを行う。
+
+### 現在の制限
+- 診断は `getRustExportFrameSource` 実行時、つまりexport開始時に更新される。常時ライブ表示ではない。
+
+### 検証
+- `npm test -- src/utils/viewportRustExportFrameSource.test.ts src/utils/sharedRendererSurfaceMount.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/projectExportFrameCanvas.test.ts`
+  -> 4 files / 18 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "viewportRustExportFrameSource|Viewport.tsx|sharedRendererSurfaceMount|sharedRendererExportFrameSource"`
+  -> 新規診断対象の型エラーなし。既存の `ThreeStageViewport.tsx` の `three` 型定義不足は残存。
+
 ## 2026-06-18 — Phase5: export flag で shared renderer surface を mount
 
 ### 実施内容
