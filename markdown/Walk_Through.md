@@ -494,3 +494,16 @@
 ## 確認
 - `npm test -- rustBackendVideoEncodeExport sharedRendererExportFrameSource projectExportRustEncodeFrame` を実行し、27件成功を確認。
 - `npx tsc --noEmit 2>&1 | rg "(rustBackendVideoEncodeExport|sharedRendererExportFrameSource|projectExportRustEncodeFrame)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 46. Phase5: encode.writeFrame reject時のnative render output解放
+- `src/utils/rustBackendVideoEncodeExport.ts`
+- `writeRustBackendVideoEncodeFrame` を `try/catch` で囲み、Promise reject / throw 時にも `releaseAfterEncodeFailure.kind === 'nativeRenderOutput'` の場合は `render.releaseNativeSharedFrame` を呼んでから元エラーを再throwするようにした。
+- `{ success: false }` と reject の両方でnative render output ringの後始末が同じになる。
+- `src/utils/rustBackendVideoEncodeExport.test.ts`
+- `writeVideoEncodeFrame` がthrowした場合もnative render outputの `memoryId` でrelease bridgeを呼ぶ契約を追加した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-125b` に更新した。
+
+## 確認
+- `npm test -- rustBackendVideoEncodeExport` を実行し、6件成功を確認。
+- `npx tsc --noEmit 2>&1 | rg "rustBackendVideoEncodeExport"` を実行し、対象ファイルに型エラーが出ないことを確認。
