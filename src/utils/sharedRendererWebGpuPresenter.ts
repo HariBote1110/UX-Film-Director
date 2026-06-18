@@ -16,11 +16,6 @@ import type {
   SharedRendererPreviewSurfaceBlockedReason,
   SharedRendererPreviewSurfaceGate,
 } from './sharedRendererPreviewSurface';
-import {
-  createRustBackendVideoEncodeSharedFrameWriter,
-  type CreateRustBackendVideoEncodeSharedFrameWriterInput,
-  type RustBackendVideoEncodeSharedFrameWriter,
-} from './rustBackendVideoEncodeSharedFrameWriter';
 import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
 
 export interface SharedRendererWebGpuLike {
@@ -180,13 +175,8 @@ export interface SharedRendererWebGpuPresenterInput {
   solidColourVertexSceneBuilder?: SharedRendererSolidColourVertexSceneBuilder;
   videoPlaneVertexSceneBuilder?: SharedRendererVideoPlaneVertexSceneBuilder;
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
-  createEncodeFrameWriter?: SharedRendererEncodeFrameWriterFactory;
   onDeviceLost?: (event: SharedRendererDeviceLostEvent) => void;
 }
-
-export type SharedRendererEncodeFrameWriterFactory = (
-  input: CreateRustBackendVideoEncodeSharedFrameWriterInput
-) => Promise<RustBackendVideoEncodeSharedFrameWriter>;
 
 export type SharedRendererPresentedFrameSharedFrameTaker = (
   input: SharedRendererPresentedFrameNativeHandoffInput
@@ -332,7 +322,6 @@ export const createSharedRendererWebGpuPresenter = async ({
   solidColourVertexSceneBuilder = buildSharedRendererSolidColourVertexScene,
   videoPlaneVertexSceneBuilder = buildSharedRendererVideoPlaneVertexScene,
   presentedFrameSharedFrameTaker,
-  createEncodeFrameWriter = createRustBackendVideoEncodeSharedFrameWriter,
   onDeviceLost,
 }: SharedRendererWebGpuPresenterInput): Promise<SharedRendererWebGpuPresenterResult> => {
   if (!surfaceGate.ok) {
@@ -403,20 +392,9 @@ export const createSharedRendererWebGpuPresenter = async ({
   });
 
   let disposed = false;
-  let activeEncodeFrameWriter: RustBackendVideoEncodeSharedFrameWriter | null = null;
-  let activeEncodeSessionId: string | null = null;
-
-  const closeEncodeFrameWriter = async (): Promise<void> => {
-    if (!activeEncodeFrameWriter) return;
-    const writer = activeEncodeFrameWriter;
-    activeEncodeFrameWriter = null;
-    activeEncodeSessionId = null;
-    await writer.close();
-  };
 
   const dispose = async () => {
     disposed = true;
-    await closeEncodeFrameWriter();
   };
 
   if (device.lost && onDeviceLost) {
@@ -972,28 +950,6 @@ export const createSharedRendererWebGpuPresenter = async ({
     };
   };
 
-  const getEncodeFrameWriter = async ({
-    encodeSessionId,
-    memoryId,
-    width,
-    height,
-    fps,
-  }: SharedRendererPresentedFrameSharedFrameInput): Promise<RustBackendVideoEncodeSharedFrameWriter> => {
-    if (activeEncodeFrameWriter && activeEncodeSessionId === encodeSessionId) {
-      return activeEncodeFrameWriter;
-    }
-    await closeEncodeFrameWriter();
-    activeEncodeSessionId = encodeSessionId;
-    activeEncodeFrameWriter = await createEncodeFrameWriter({
-      sessionId: encodeSessionId,
-      memoryId,
-      width,
-      height,
-      fps,
-    });
-    return activeEncodeFrameWriter;
-  };
-
   const takePresentedFrameSharedFrame = async (
     input: SharedRendererPresentedFrameSharedFrameInput
   ): Promise<RustBackendVideoEncodeWriteFramePayload> => {
@@ -1016,17 +972,7 @@ export const createSharedRendererWebGpuPresenter = async ({
       }
     }
 
-    const readback = await readPresentedFrameRgbaBytes({
-      width: input.width,
-      height: input.height,
-    });
-    const writer = await getEncodeFrameWriter(input);
-    return writer.writePaddedFrame({
-      frameIndex: input.frameIndex,
-      timestampUs: input.timestampUs,
-      paddedRgbaBytes: readback.rgbaBytes,
-      strideBytes: readback.strideBytes,
-    });
+    throw new Error('Native presented-frame handoff is required for shared-frame export encoding.');
   };
 
   return {

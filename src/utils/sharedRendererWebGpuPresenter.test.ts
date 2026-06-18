@@ -304,7 +304,6 @@ describe('createSharedRendererWebGpuPresenter', () => {
 
   it('requires a native presented-frame handoff instead of falling back to WebGPU readback writing', async () => {
     const copyOperations: unknown[] = [];
-    const writerCalls: unknown[] = [];
     const result = await createSharedRendererWebGpuPresenter({
       canvas: fakeCanvas(() => fakeContext()),
       surfaceGate: {
@@ -325,12 +324,6 @@ describe('createSharedRendererWebGpuPresenter', () => {
       textureUsageCopySrc: 1,
       bufferUsageCopyDst: 8,
       bufferUsageMapRead: 1,
-      createEncodeFrameWriter: async () => {
-        writerCalls.push(['createEncodeFrameWriter']);
-        throw new Error('JS shared-frame writer must not run for presented-frame handoff.');
-      },
-    } as Parameters<typeof createSharedRendererWebGpuPresenter>[0] & {
-      createEncodeFrameWriter: unknown;
     });
 
     expect(result.ok).toBe(true);
@@ -356,7 +349,6 @@ describe('createSharedRendererWebGpuPresenter', () => {
     await result.dispose();
 
     expect(copyOperations).toEqual([]);
-    expect(writerCalls).toEqual([]);
   });
 
   it('uses a native presented-frame handoff without WebGPU readback and JS shared-frame writing', async () => {
@@ -422,12 +414,8 @@ describe('createSharedRendererWebGpuPresenter', () => {
         });
         return payload;
       },
-      createEncodeFrameWriter: async () => {
-        throw new Error('JS shared-frame writer must not run when native handoff returns a payload.');
-      },
     } as Parameters<typeof createSharedRendererWebGpuPresenter>[0] & {
       presentedFrameSharedFrameTaker: unknown;
-      createEncodeFrameWriter: unknown;
     });
 
     expect(result.ok).toBe(true);
