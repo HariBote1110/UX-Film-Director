@@ -968,6 +968,12 @@ Rust/shared renderer必須時はHTMLVideoElementのreadyStateを参照せず、
 legacy Pixi動画リソースは `updatePixiContent` の任意互換入力としてのみ残し、
 通常Viewport経路の動画所有はRust/shared rendererへ寄せ切る。
 
+181. Phase5: pixiRenderHelperからlegacy動画fallback実装を削除する
+`pixiRenderHelper` の動画分岐から `document.createElement('video')`、
+`PIXI.VideoSource`、VideoFrameTexture生成、HTMLVideoElementシーク同期を削除する。
+Pixi側の動画処理はshared renderer専有時にchildrenを空にするか、
+export override bitmapをSpriteへ反映する経路だけに限定する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

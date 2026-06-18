@@ -292,3 +292,10 @@
 - Green: `Viewport` から該当Ref、cleanup、`updatePixiContent` へのMap受け渡しを削除し、`pixiRenderHelper` のlegacy動画Map入力を任意化した。
 - 検証: `npm test -- viewportRustVideoOnlyBoundary pixiVideoCutover videoElementForPixi` は29件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-160a`。
+
+## 2026-06-19
+- Phase5のPixi動画fallback削除として、`pixiRenderHelper` からHTMLVideoElement生成、Pixi VideoSource生成、VideoFrameTexture更新、動画シーク同期の実装を削除した。
+- Red: `viewportRustVideoOnlyBoundary` へ、`pixiRenderHelper` が `document.createElement('video')` / `new PIXI.VideoSource` / `ensureVideoFrameTextureState` / `drawVideoFrameToTexture` / `shouldReplacePixiVideoElementSource` を含まない契約を追加した。
+- Green: `updatePixiContent` の動画分岐をshared renderer専有とexport override bitmap反映だけに簡素化した。
+- 検証: `npm test -- viewportRustVideoOnlyBoundary pixiVideoCutover` は19件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-161a`。
