@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildProjectExportFrameSourcePlan,
+  resolveProjectExportFrameRuntimePlan,
   resolveProjectExportFrameCanvas,
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
@@ -111,6 +112,67 @@ describe('buildProjectExportFrameSourcePlan', () => {
       ok: false,
       reason: 'exportFrameSourceUnavailable',
       detail: 'Export requires a Rust frame source, shared renderer export canvas, or legacy Pixi canvas.',
+    });
+  });
+});
+
+describe('resolveProjectExportFrameRuntimePlan', () => {
+  const rustFrameSource: ProjectExportRustFrameSource = {
+    renderFrame: async () => ({ close: () => undefined }) as ImageBitmap,
+  };
+
+  it('keeps browser video side effects disabled while the Rust frame source is active', () => {
+    const plan = buildProjectExportFrameSourcePlan({
+      rustFrameSource,
+    });
+    if (!plan.ok) throw new Error('expected Rust export source plan');
+
+    expect(resolveProjectExportFrameRuntimePlan({
+      frameSourcePlan: plan,
+      rustFrameSourceBlocked: false,
+    })).toEqual({
+      source: 'sharedRendererRustFrameSource',
+      captureCanvas: false,
+      requiresRenderScene: false,
+      usesExportFrameOverrides: false,
+      requiresHtmlVideoElementSeekFallback: false,
+    });
+  });
+
+  it('enables legacy canvas and HTMLVideoElement seek after the Rust frame source is blocked', () => {
+    const plan = buildProjectExportFrameSourcePlan({
+      rustFrameSource,
+    });
+    if (!plan.ok) throw new Error('expected Rust export source plan');
+
+    expect(resolveProjectExportFrameRuntimePlan({
+      frameSourcePlan: plan,
+      rustFrameSourceBlocked: true,
+    })).toEqual({
+      source: 'legacyCanvasAfterRustBlocked',
+      captureCanvas: true,
+      requiresRenderScene: true,
+      usesExportFrameOverrides: false,
+      requiresHtmlVideoElementSeekFallback: true,
+    });
+  });
+
+  it('keeps canvas fallback side effects enabled for legacy frame sources', () => {
+    const canvas = { id: 'pixi-export' } as unknown as HTMLCanvasElement;
+    const plan = buildProjectExportFrameSourcePlan({
+      pixiCanvas: canvas,
+    });
+    if (!plan.ok) throw new Error('expected canvas export source plan');
+
+    expect(resolveProjectExportFrameRuntimePlan({
+      frameSourcePlan: plan,
+      rustFrameSourceBlocked: false,
+    })).toEqual({
+      source: 'pixiCanvas',
+      captureCanvas: true,
+      requiresRenderScene: true,
+      usesExportFrameOverrides: true,
+      requiresHtmlVideoElementSeekFallback: true,
     });
   });
 });
