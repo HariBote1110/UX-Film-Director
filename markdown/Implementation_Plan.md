@@ -381,6 +381,13 @@ ffmpegでMP4へmuxする。renderer側ではRust encoder経路だけ `buildExpor
 `save-temp-audio` で一時ファイル化して `runRustBackendVideoEncodeExport` へ渡す。
 書き出し完了・失敗後は `delete-temp-file` で一時WAVを削除する。
 
+75. Phase5: Rust export frame source の direct encode payload 経路を追加する
+`runRustBackendVideoEncodeExport` は `ImageBitmap` だけでなく、prepacked `RustBackendVideoEncodeWriteFramePayload` を
+受け取れるようにする。`ProjectExportRustFrameSource` には任意の `renderEncodeFrame` を追加し、
+Rust encoder時の `useProjectExport` はこのdirect shared-frame経路を優先する。
+これにより、次段でshared renderer export sourceがcanvas `ImageBitmap` readbackを返さず、shared memory descriptorを
+直接Rust backend encoderへ渡せる。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

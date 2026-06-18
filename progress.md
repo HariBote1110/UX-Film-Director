@@ -1,3 +1,21 @@
+## 2026-06-18 — Phase5: Rust export frame source direct encode 経路を追加
+
+### 実施内容
+- `src/utils/rustBackendVideoEncodeExport.test.ts` に、prepacked shared-frame encode payloadを受け取った場合はRGBA readbackやwritable ring copyを行わず、`writeVideoEncodeFrame`へそのまま渡す契約を追加した。
+- `src/utils/rustBackendVideoEncodeExport.ts` を `ImageBitmap` frame / shared-frame payload frame のunion入力に対応させた。
+- `src/utils/projectExportRustEncodeFrame.test.ts` / `projectExportRustEncodeFrame.ts` を追加し、`ProjectExportRustFrameSource.renderEncodeFrame` がある場合にRust encoder用direct payloadを優先するhelperを実装した。
+- `src/hooks/useProjectExport.ts` でRust encoder経路だけ `renderEncodeFrame` を優先し、同じ `sessionId` をframe sourceとRust encoder runnerへ渡すようにした。
+- package version を `0.1.1-Beta-64a` に更新した。
+
+### 検証
+- `npm test -- src/utils/rustBackendVideoEncodeExport.test.ts src/utils/rustBackendVideoEncodeSharedFrameWriter.test.ts src/utils/rustBackendVideoEncodeControl.test.ts`
+- `npm test -- src/utils/projectExportRustEncodeFrame.test.ts src/utils/rustBackendVideoEncodeExport.test.ts src/utils/projectExportFrameCanvas.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "useProjectExport|projectExportRustEncodeFrame|rustBackendVideoEncodeExport|projectExportFrameCanvas"`（対象ファイルの型エラーなし）
+
+### 残課題・次のステップ
+- `SharedRendererExportFrameSource` 自体はまだ `renderEncodeFrame` を実装していない。次段でWebGPU/export canvas readbackをshared memory writerへ移し、`ImageBitmap`を返さない実経路を作る。
+- direct payload経路ではRust backend encoderがslot解放まで行うため、shared renderer側のring所有権・close順序を追加テストで固定する。
+
 ## 2026-06-18 — Phase5: Rust encode audio mux を接続
 
 ### 実施内容
