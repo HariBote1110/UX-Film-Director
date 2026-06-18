@@ -65,8 +65,6 @@ export type ProjectExportFrameSourcePlanResult =
       frameSource: ProjectExportRustFrameSource;
       captureCanvas: false;
       requiresRenderScene: false;
-      requiresLegacyBrowserVideoProviders: false;
-      requiresHtmlVideoElementSeekFallback: false;
       usesExportFrameOverrides: false;
       rustFrameSourceBlockedFallback: ProjectExportRustFrameSourceBlockedFallback;
     }
@@ -76,8 +74,6 @@ export type ProjectExportFrameSourcePlanResult =
       canvas: HTMLCanvasElement;
       captureCanvas: true;
       requiresRenderScene: true;
-      requiresLegacyBrowserVideoProviders: true;
-      requiresHtmlVideoElementSeekFallback: true;
       usesExportFrameOverrides: true;
     }
   | {
@@ -97,7 +93,6 @@ export interface ProjectExportFrameRuntimePlan {
   captureCanvas: boolean;
   requiresRenderScene: boolean;
   usesExportFrameOverrides: boolean;
-  requiresHtmlVideoElementSeekFallback: boolean;
   shouldCloseRustFrameSource: boolean;
   shouldFailOnRustFrameSourceBlocked: boolean;
 }
@@ -180,8 +175,6 @@ export const buildProjectExportFrameSourcePlan = ({
       frameSource: rustFrameSource,
       captureCanvas: false,
       requiresRenderScene: false,
-      requiresLegacyBrowserVideoProviders: false,
-      requiresHtmlVideoElementSeekFallback: false,
       usesExportFrameOverrides: false,
       rustFrameSourceBlockedFallback: effectiveRustFrameSourceBlockedFallback,
     };
@@ -214,8 +207,6 @@ export const buildProjectExportFrameSourcePlan = ({
       canvas: canvas.canvas,
       captureCanvas: true,
       requiresRenderScene: true,
-      requiresLegacyBrowserVideoProviders: true,
-      requiresHtmlVideoElementSeekFallback: true,
       usesExportFrameOverrides: true,
     };
   }
@@ -266,7 +257,6 @@ export const resolveProjectExportFrameRuntimePlan = ({
         captureCanvas: false,
         requiresRenderScene: false,
         usesExportFrameOverrides: false,
-        requiresHtmlVideoElementSeekFallback: false,
         shouldCloseRustFrameSource: false,
         shouldFailOnRustFrameSourceBlocked: false,
       };
@@ -278,7 +268,6 @@ export const resolveProjectExportFrameRuntimePlan = ({
         captureCanvas: false,
         requiresRenderScene: false,
         usesExportFrameOverrides: false,
-        requiresHtmlVideoElementSeekFallback: false,
         shouldCloseRustFrameSource: true,
         shouldFailOnRustFrameSourceBlocked: true,
       };
@@ -289,7 +278,6 @@ export const resolveProjectExportFrameRuntimePlan = ({
       captureCanvas: true,
       requiresRenderScene: true,
       usesExportFrameOverrides: false,
-      requiresHtmlVideoElementSeekFallback: true,
       shouldCloseRustFrameSource: true,
       shouldFailOnRustFrameSourceBlocked: false,
     };
@@ -300,7 +288,6 @@ export const resolveProjectExportFrameRuntimePlan = ({
     captureCanvas: true,
     requiresRenderScene: true,
     usesExportFrameOverrides: frameSourcePlan.usesExportFrameOverrides,
-    requiresHtmlVideoElementSeekFallback: frameSourcePlan.requiresHtmlVideoElementSeekFallback,
     shouldCloseRustFrameSource: false,
     shouldFailOnRustFrameSourceBlocked: false,
   };
