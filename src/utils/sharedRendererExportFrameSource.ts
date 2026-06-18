@@ -84,8 +84,17 @@ export const createSharedRendererExportFrameSource = ({
       });
       const surfaceGate = session.surfaceGate;
       if (!surfaceGate.ok) {
+        writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+          status: 'blocked',
+          frameIndex: request.frameIndex,
+          reason: surfaceGate.reason,
+        });
         throw new Error(surfaceGate.detail);
       }
+      writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+        status: 'ready',
+        frameIndex: request.frameIndex,
+      });
 
       if (canvas.width !== surfaceGate.canvas.width) {
         canvas.width = surfaceGate.canvas.width;
@@ -146,4 +155,17 @@ const defaultStopVideoDecodeJob: SharedRendererExportVideoDecodeJobStopper = asy
   await stopRustBackendVideoDecode({
     jobId: job.jobId,
   });
+};
+
+const writeFrameDiagnostics = (
+  dataset: PresenterDataset,
+  state: {
+    status: 'ready' | 'blocked';
+    frameIndex: number;
+    reason?: string;
+  }
+): void => {
+  dataset.uxfdRustExportFrameSourceFrameStatus = state.status;
+  dataset.uxfdRustExportFrameSourceFrameIndex = String(state.frameIndex);
+  dataset.uxfdRustExportFrameSourceFrameReason = state.reason;
 };
