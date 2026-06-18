@@ -857,6 +857,213 @@ describe('createSharedRendererExportFrameSource', () => {
     ]);
   });
 
+  it('uses Rust backend native render for media-only PNG and SolidColour encode frames', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    const renderedFrame = {
+      descriptor: {
+        memoryId: '/uxfd-native-render-media-only-session-frame-3',
+        slotIndex: 0,
+        generation: 1,
+        byteOffset: 0,
+        byteLen: 1024,
+        width: 4,
+        height: 4,
+        strideBytes: 256,
+        format: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      },
+      ptsFrame: 3,
+    } as const;
+    const snapshot = {
+      frame_index: 3,
+      colour: {
+        profile: 'rec709-sdr',
+        working_space: 'linear-light',
+        alpha: 'premultiplied',
+      },
+      clips: [{
+        clip_id: 'image-clip-1',
+        track_id: 'layer-1',
+        media_id: 'image-1',
+        source_frame: 0,
+        z_index: 0,
+        transform: {
+          translation_x: 0,
+          translation_y: 0,
+          scale_x: 1,
+          scale_y: 1,
+          rotation_degrees: 0,
+          sampling: 'bilinear',
+        },
+        opacity: 1,
+        effects: [],
+      }, {
+        clip_id: 'solid-clip-1',
+        track_id: 'layer-2',
+        media_id: 'solid-1',
+        source_frame: 0,
+        z_index: 1,
+        transform: {
+          translation_x: 1,
+          translation_y: 1,
+          scale_x: 1,
+          scale_y: 1,
+          rotation_degrees: 0,
+          sampling: 'nearest',
+        },
+        opacity: 1,
+        effects: [],
+      }],
+    } as const;
+    const media = [{
+      id: 'image-1',
+      kind: 'Image',
+      source: '/tmp/image-1.png',
+      width: 2,
+      height: 2,
+    }, {
+      id: 'solid-1',
+      kind: 'SolidColour',
+      source: '#00ff00',
+      width: 2,
+      height: 2,
+    }] as const;
+    const calls: unknown[] = [];
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: {
+        ...settings,
+        width: 4,
+        height: 4,
+      },
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      bitmapCaptureEnabled: false,
+      buildExportSession: () => ({
+        plan: {
+          mode: 'parallelCompare',
+          primary: 'pixi',
+          candidate: 'sharedRenderer',
+          snapshot,
+          media,
+        },
+        presentationContract: {
+          canvas: {
+            colorSpace: 'srgb',
+            alphaMode: 'premultiplied',
+          },
+          comparisonReadback: {
+            target: 'offscreenRenderTarget',
+            includesPageCompositing: false,
+          },
+          frameTiming: {
+            source: 'frozenSceneSnapshot',
+          },
+          deviceLost: {
+            fallback: 'pixi',
+            staleSharedFrameAllowed: false,
+          },
+        },
+        surfaceGate: {
+          ok: true,
+          canvas: {
+            width: 4,
+            height: 4,
+          },
+          snapshot,
+          media,
+        },
+      }),
+      prepareNativeRenderSources: (async (input) => {
+        calls.push(['prepareNativeRenderSources', {
+          requestId: input.requestId,
+          activeJobs: input.activeJobs,
+        }]);
+        return {
+          ok: false,
+          reason: 'noVideoDecodeRequest',
+          detail: 'No video source is needed for media-only native render.',
+          activeJobs: [],
+        };
+      }) satisfies SharedRendererExportNativeRenderSourcesPreparer,
+      renderNativeSharedFrame: (async (payload) => {
+        calls.push(['renderNativeSharedFrame', payload]);
+        return {
+          success: true,
+          result: {
+            rendered: true,
+            renderId: 'media-only-session-frame-3',
+            memoryId: '/uxfd-native-render-media-only-session-frame-3',
+            slotCount: 1,
+            slotByteLen: 1024,
+            frame: renderedFrame,
+          },
+        };
+      }) satisfies SharedRendererExportNativeSharedFrameRenderer,
+      startViewportPresenter: async () => {
+        calls.push(['startViewportPresenter']);
+        throw new Error('WebGPU presenter must not start for media-only native render.');
+      },
+      createEncodeFrameWriter: async () => {
+        calls.push(['createEncodeFrameWriter']);
+        throw new Error('JS shared-frame writer must not run for media-only native render.');
+      },
+    } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
+      bitmapCaptureEnabled: false;
+      prepareNativeRenderSources: unknown;
+      renderNativeSharedFrame: unknown;
+    });
+
+    await expect(source.renderEncodeFrame?.({
+      frameIndex: 3,
+      timestampUs: 50_000,
+      time: 3 / 60,
+      width: 4,
+      height: 4,
+      objects: [image()],
+      encodeSessionId: 'media-only-session',
+    })).resolves.toEqual({
+      timestamp: 50_000,
+      sharedFramePayload: {
+        sessionId: 'media-only-session',
+        frameIndex: 3,
+        timestampUs: 50_000,
+        slotCount: 1,
+        frame: renderedFrame,
+      },
+    });
+
+    expect(calls).toEqual([
+      ['prepareNativeRenderSources', {
+        requestId: 1,
+        activeJobs: [],
+      }],
+      ['renderNativeSharedFrame', {
+        renderId: 'media-only-session-frame-3',
+        memoryId: '/uxfd-native-render-media-only-session-frame-3',
+        slotCount: 1,
+        ptsFrame: 3,
+        width: 4,
+        height: 4,
+        snapshot,
+        media,
+        sources: [],
+      }],
+    ]);
+  });
+
   it('carries resolved Rust decode jobs across export frames', async () => {
     const canvas = {
       width: 1920,
