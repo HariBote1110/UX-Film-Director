@@ -113,6 +113,42 @@ describe('sharedVideoFrameUploadBridge', () => {
     });
   });
 
+  it('rejects descriptors outside the declared shared ring before copying bytes', async () => {
+    const calls: unknown[] = [];
+    const bridge: SharedVideoFrameCopyBridge = {
+      copyIntoUploadBuffer: async () => {
+        calls.push('copyIntoUploadBuffer');
+        return {
+          success: true,
+          result: {
+            sequence: 42,
+            byteLen: sharedFrame.descriptor.byteLen,
+            expectedChecksum: 0x1234,
+            actualChecksum: 0x1234,
+          },
+        };
+      },
+    };
+
+    await expect(prepareSharedRendererDecodedVideoFrameUpload({
+      sharedFrame: {
+        ...sharedFrame,
+        descriptor: {
+          ...sharedFrame.descriptor,
+          slotIndex: 2,
+          byteOffset: sharedFrame.descriptor.byteLen * 2,
+        },
+      },
+      slotCount: 2,
+      bridge,
+    })).resolves.toEqual({
+      ok: false,
+      reason: 'descriptorOutsideSharedRingLayout',
+      detail: 'Shared video frame descriptor points outside the declared ring layout.',
+    });
+    expect(calls).toEqual([]);
+  });
+
   it('uses bytes returned from the bridge when Electron contextBridge cannot mutate the renderer target', async () => {
     const returnedBytes = new Uint8Array(sharedFrame.descriptor.byteLen);
     returnedBytes.fill(0x7e);

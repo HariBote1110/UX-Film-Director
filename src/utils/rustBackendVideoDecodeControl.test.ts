@@ -329,4 +329,25 @@ describe('rustBackendVideoDecodeControl', () => {
     expect(isRustBackendDecodedVideoFrameAvailable(withShortStride)).toBe(false);
     expect(isRustBackendDecodedVideoFrameAvailable(withMismatchedByteLen)).toBe(false);
   });
+
+  it('rejects decoded frame descriptors whose byte offset does not match their slot lease', () => {
+    const response = verifiedDecodeFrameResponse();
+    const descriptor = response.result!.frame!.descriptor;
+    const withMismatchedOffset = {
+      ...response,
+      result: {
+        ...response.result!,
+        frame: {
+          ...response.result!.frame!,
+          descriptor: {
+            ...descriptor,
+            slotIndex: 1,
+            byteOffset: descriptor.byteLen - 1,
+          },
+        },
+      },
+    };
+
+    expect(isRustBackendDecodedVideoFrameAvailable(withMismatchedOffset)).toBe(false);
+  });
 });
