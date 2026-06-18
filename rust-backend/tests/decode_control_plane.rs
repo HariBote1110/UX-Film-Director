@@ -11,6 +11,18 @@ use uxfd_shared_memory_spike::PosixSharedRing;
 #[test]
 fn encode_shared_frame_session_tracks_descriptor_without_legacy_base64_fallback() {
     let mut backend = BackendProcess::start();
+    let memory_id = unique_shm_name();
+    let slot_count = 1;
+    let slot_byte_len = 512;
+    let producer_ring = PosixSharedRing::create_with_slot_count(
+        &memory_id,
+        slot_count,
+        slot_byte_len,
+    )
+    .expect("create encode source ring");
+    producer_ring
+        .write_frame(42, &[0x7a; 512])
+        .expect("write encode source frame");
 
     let start = backend.request(json!({
         "id": 1,
@@ -18,8 +30,8 @@ fn encode_shared_frame_session_tracks_descriptor_without_legacy_base64_fallback(
         "params": {
             "sessionId": "encode-1",
             "filePath": "/tmp/output.mp4",
-            "width": 1920,
-            "height": 1080,
+            "width": 2,
+            "height": 2,
             "fps": 60,
             "pixelFormat": "rgba8Srgb",
             "colour": {
@@ -33,8 +45,8 @@ fn encode_shared_frame_session_tracks_descriptor_without_legacy_base64_fallback(
     assert_eq!(start["ok"], true, "{start}");
     assert_eq!(start["result"]["sessionId"], "encode-1");
     assert_eq!(start["result"]["filePath"], "/tmp/output.mp4");
-    assert_eq!(start["result"]["width"], 1920);
-    assert_eq!(start["result"]["height"], 1080);
+    assert_eq!(start["result"]["width"], 2);
+    assert_eq!(start["result"]["height"], 2);
     assert_eq!(start["result"]["fps"], 60);
     assert_no_frame_bytes_recursive(&start["result"]);
 
@@ -45,17 +57,17 @@ fn encode_shared_frame_session_tracks_descriptor_without_legacy_base64_fallback(
             "sessionId": "encode-1",
             "frameIndex": 42,
             "timestampUs": 700000,
-            "slotCount": 2,
+            "slotCount": slot_count,
             "frame": {
                 "descriptor": {
-                    "memoryId": "/uxfd-export-frame-ring",
-                    "slotIndex": 1,
+                    "memoryId": memory_id,
+                    "slotIndex": 0,
                     "generation": 3,
-                    "byteOffset": 8294400,
-                    "byteLen": 8294400,
-                    "width": 1920,
-                    "height": 1080,
-                    "strideBytes": 7680,
+                    "byteOffset": 0,
+                    "byteLen": slot_byte_len,
+                    "width": 2,
+                    "height": 2,
+                    "strideBytes": 256,
                     "format": "rgba8Srgb",
                     "colour": {
                         "primaries": "bt709",
@@ -72,9 +84,12 @@ fn encode_shared_frame_session_tracks_descriptor_without_legacy_base64_fallback(
     assert_eq!(write_frame["result"]["written"], true);
     assert_eq!(write_frame["result"]["sessionId"], "encode-1");
     assert_eq!(write_frame["result"]["frameIndex"], 42);
-    assert_eq!(write_frame["result"]["slotCount"], 2);
+    assert_eq!(write_frame["result"]["slotCount"], slot_count);
     assert_eq!(write_frame["result"]["frameCount"], 1);
     assert_no_frame_bytes_recursive(&write_frame["result"]);
+    producer_ring
+        .wait_until_free(Duration::from_secs(1))
+        .expect("encode source slot returns to free after Rust reads it");
 
     let finish = backend.request(json!({
         "id": 3,
@@ -1293,6 +1308,14 @@ fn crc32_hex(bytes: &[u8]) -> String {
     let mut hasher = crc32fast::Hasher::new();
     hasher.update(bytes);
     format!("{:08x}", hasher.finalize())
+}
+
+fn unique_shm_name() -> String {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock should be after unix epoch")
+        .as_nanos() as u64;
+    format!("/ue{:x}{:x}", std::process::id(), nanos & 0xfffff)
 }
 
 fn run_ffmpeg_command(command: &mut Command, label: &str) {
