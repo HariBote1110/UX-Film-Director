@@ -313,3 +313,10 @@
 - Green: `destroyExportOverlayCanvases` を `exportOverlayCanvases.ts` へ移し、Viewport importを更新した。
 - 検証: `npm test -- exportOverlayCanvases viewportRustVideoOnlyBoundary pixiVideoCutover` は19件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-163a`。
+
+## 2026-06-19
+- Phase5のlegacy provider隔離として、`PlaybackFrameProvider` と `FrameProvider` をproduction `src/utils` から `src/exportTest` へ移動した。
+- Red: `useProjectExportBoundary` へ、`src/utils/playbackFrameProvider.ts` と `src/utils/frameProvider.ts` が存在しない契約を追加した。
+- Green: export test harnessのimportを `./playbackFrameProvider` へ更新し、providerコメントも比較・診断用途に限定した。
+- 検証: `npm test -- useProjectExportBoundary` は9件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-164a`。

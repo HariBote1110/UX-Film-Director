@@ -986,6 +986,11 @@ Rust/shared renderer cutover後にPixi動画要素へ戻れない契約へ更新
 export override bitmap cleanupは残しつつ、通常動画パイプラインからPixi動画helper命名と
 HTMLVideoElement cleanupの足場を取り除く。
 
+184. Phase5: legacy playback providerをexportTestへ隔離する
+`PlaybackFrameProvider` と `FrameProvider` を `src/utils` から `src/exportTest` へ移す。
+HTMLVideoElement / requestVideoFrameCallback ベースの比較providerはexport test harness専用とし、
+production utilitiesから旧ブラウザ動画providerの足場を除去する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
