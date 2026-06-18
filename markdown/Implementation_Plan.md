@@ -349,6 +349,13 @@ padded RGBA frameをtight RGBAへ詰め直してstdinへ書く。`encode.finish`
 MP4 output fileを確定する。control planeには `sharedFrameByteLen` / `encodedFrameByteLen` のmetadataだけを返し、
 frame bytes / base64 / pixel arrayは載せない。
 
+70. Phase5: rendererからRust encoderへ渡す writable shared frame bridge を追加する
+`shared-video-frame-bridge` / N-API addon / preloadに、renderer側がPOSIX shared memory ringを作成し、
+RGBA frame bytesをwriteし、closeできるAPIを追加する。
+これにより、Rust backend encoderが `memoryId` / `slotCount` / descriptorでattachして読むための
+renderer→Rust data-planeを確保する。次段ではshared renderer export frameをこのringへ書き、
+`useProjectExport` のRust encoder分岐から `startVideoEncode` / `writeVideoEncodeFrame` / `finishVideoEncode` を呼ぶ。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

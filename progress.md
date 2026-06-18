@@ -1,3 +1,35 @@
+## 2026-06-18 — Phase5: writable shared frame bridge を追加
+
+### 実施内容
+- `shared-video-frame-bridge` に、writable POSIX shared memory ring の create / write / close APIを追加した。
+- N-API addonに `createWritableSharedFrameRing` / `writeIntoSharedFrameRing` / `closeWritableSharedFrameRing` を公開した。
+- preload の `window.sharedVideoFrame` から同APIを呼べるようにし、renderer utility `sharedVideoFrameWritableBridge` を追加した。
+- `test:bridge-node` で、addonが作ったringへ `Uint8Array` をwriteし、既存copy APIで同じbytesを読み戻せることを確認した。
+- package version を `0.1.1-Beta-60y` に更新した。
+
+### Red
+- `scripts/test-shared-video-frame-node-addon.mjs` にwritable ring API契約を追加し、未実装関数で失敗することを確認した。
+- `src/utils/sharedVideoFrameWritableBridge.test.ts` にrenderer utility契約を追加し、未実装moduleで失敗することを確認した。
+
+### Green
+- `shared-video-frame-bridge/src/lib.rs` にwritable ring registryを追加した。
+- `shared-video-frame-bridge-node/src/lib.rs` にN-API wrapperを追加した。
+- `electron/preload.ts` と `src/vite-env.d.ts` にwritable shared frame APIを追加した。
+- `src/utils/sharedVideoFrameWritableBridge.ts` を追加した。
+
+### 現在の制限
+- まだ `useProjectExport` はこのwritable ringへexport frameを書いていない。次段でshared renderer export frameをRGBA bytes化し、writable ringへwriteしてRust encoderへdescriptorを渡す。
+
+### 検証
+- `npm run test:bridge-node`
+  -> shared video frame native addon contract passed。
+- `cargo test --manifest-path shared-video-frame-bridge/Cargo.toml`
+  -> 1 test passed。
+- `npm test -- src/utils/sharedVideoFrameWritableBridge.test.ts src/utils/sharedVideoFrameUploadBridge.test.ts`
+  -> 2 files / 4 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "(electron/preload\\.ts|src/(utils/sharedVideoFrameWritableBridge\\.ts|utils/sharedVideoFrameWritableBridge\\.test\\.ts|vite-env\\.d\\.ts))"`
+  -> 対象ファイルの型エラーなし。
+
 ## 2026-06-18 — Phase5: Rust encode で rawvideo ffmpeg 出力を実装
 
 ### 実施内容
