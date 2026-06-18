@@ -31,6 +31,7 @@ export interface StartSharedRendererViewportPresenterInput {
   datasets: StartSharedRendererPreviewPresenterInput['datasets'];
   diagnosticSwatchEnabled: boolean;
   videoCutoverEnabled: boolean;
+  requireSharedRendererVideo?: boolean;
   activeVideoDecodeJob: SharedRendererViewportVideoDecodeJob | null;
   activeVideoDecodeJobs?: SharedRendererViewportVideoDecodeJob[];
   requestId: number;
@@ -55,6 +56,7 @@ export const startSharedRendererViewportPresenter = async ({
   datasets,
   diagnosticSwatchEnabled,
   videoCutoverEnabled,
+  requireSharedRendererVideo = false,
   activeVideoDecodeJob,
   activeVideoDecodeJobs,
   requestId,
@@ -108,6 +110,7 @@ export const startSharedRendererViewportPresenter = async ({
     datasets,
     diagnosticSwatchEnabled,
     sharedRendererVideoCutoverEnabled: videoCutoverEnabled,
+    requireSharedRendererVideo,
     sharedRendererDecodedVideoFrameUpload,
     sharedRendererDecodedVideoFrameUploads,
   });

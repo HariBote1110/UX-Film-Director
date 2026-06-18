@@ -83,6 +83,7 @@ export interface StartSharedRendererPreviewPresenterInput {
   rustVideoFrameDecodeRequestBuilder?: SharedRendererVideoFrameDecodeRequestBuilder;
   sharedRendererSolidColourCutoverEnabled?: boolean;
   sharedRendererVideoCutoverEnabled?: boolean;
+  requireSharedRendererVideo?: boolean;
   sharedRendererVideoFrameUploadReady?: boolean;
   sharedRendererDecodedVideoFrameUpload?: SharedRendererDecodedVideoFrameUpload;
   sharedRendererDecodedVideoFrameUploads?: SharedRendererDecodedVideoFrameUploadForClip[];
@@ -116,6 +117,7 @@ export const startSharedRendererPreviewPresenter = async ({
   rustVideoFrameDecodeRequestBuilder,
   sharedRendererSolidColourCutoverEnabled = defaultSharedRendererSolidColourCutoverEnabled(),
   sharedRendererVideoCutoverEnabled = defaultSharedRendererVideoCutoverEnabled(),
+  requireSharedRendererVideo = false,
   sharedRendererVideoFrameUploadReady = false,
   sharedRendererDecodedVideoFrameUpload,
   sharedRendererDecodedVideoFrameUploads,
@@ -300,6 +302,18 @@ export const startSharedRendererPreviewPresenter = async ({
       ? new Set(solidColourStackSafety.safeSolidColourObjectIds)
       : undefined,
   });
+
+  if (requireSharedRendererVideo && hasVideoScene && videoOwnership.owner !== 'sharedRenderer') {
+    writeDiagnostics({
+      status: 'fallback',
+      reason: 'requiredVideoOwnershipUnavailable',
+    });
+    return {
+      ok: false,
+      reason: 'requiredVideoOwnershipUnavailable',
+      dispose: presenter.dispose,
+    };
+  }
 
   const shouldPresentUploadedVideoFrame = hasVideoScene
     && uploadedVideoFrameTexture

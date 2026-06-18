@@ -558,6 +558,7 @@ const Viewport: React.FC = () => {
       datasets,
       diagnosticSwatchEnabled: sharedRendererDiagnosticSwatchEnabled,
       videoCutoverEnabled: sharedRendererVideoCutoverEnabled,
+      requireSharedRendererVideo: rustVideoOnlyEnabled,
       activeVideoDecodeJob: sharedRendererVideoCutoverEnabled
         ? sharedRendererVideoDecodeJobsRef.current[0] ?? null
         : null,
@@ -600,7 +601,7 @@ const Viewport: React.FC = () => {
         sharedRendererPresenterControlRef.current = null;
       }
     };
-  }, [sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererSolidColourObjectIds, updateSharedRendererVideoObjectIds]);
+  }, [rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererSolidColourObjectIds, updateSharedRendererVideoObjectIds]);
 
   // --- Main Render Logic ---
   const renderScene = useCallback((time: number, currentObjects: TimelineObject[]) => {
