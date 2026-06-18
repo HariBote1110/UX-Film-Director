@@ -271,3 +271,10 @@
 - Green: `Viewport` から `updatePixiContent` へ渡す条件を更新した。
 - 検証: `npm test -- viewportRustVideoOnlyBoundary pixiVideoCutover` は16件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-157a`。
+
+## 2026-06-19
+- Phase5のvideo readiness診断として、cutover中に `videoElementsRef.current` を渡さない構造へ変更した。
+- Red: `viewportRustVideoOnlyBoundary` へ、readiness診断ブロックが `videoElements:` を含まない契約を追加した。
+- Green: `buildSharedRendererVideoMediaReadiness` の `videoElements` 入力を任意化し、ViewportからのDOM Map受け渡しを削除した。
+- 検証: `npm test -- viewportRustVideoOnlyBoundary sharedRendererVideoMediaReadiness` は10件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-158a`。

@@ -950,6 +950,12 @@ HTMLVideoElement / Pixi VideoSourceへ戻らない。
 診断と描画の双方で通常cutover中の動画をRust/shared renderer必須として扱い、
 HTMLVideoElement/Pixi VideoSource fallbackへ戻る入口をさらに狭める。
 
+178. Phase5: video readiness診断からDOM Map依存を外す
+`buildSharedRendererVideoMediaReadiness` の `videoElements` 入力を任意化し、
+Viewportのcutover診断では `videoElementsRef.current` を渡さない。
+Rust/shared renderer必須時はHTMLVideoElementのreadyStateを参照せず、
+診断もRust側のcutover状態を単一の判断軸にする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
