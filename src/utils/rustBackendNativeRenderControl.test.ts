@@ -96,6 +96,9 @@ describe('rustBackendNativeRenderControl', () => {
           },
         };
       },
+      releaseNativeSharedFrame: async () => {
+        throw new Error('release must not run during render.');
+      },
     };
 
     await expect(renderRustBackendNativeSharedFrame(payload, bridge)).resolves.toEqual({

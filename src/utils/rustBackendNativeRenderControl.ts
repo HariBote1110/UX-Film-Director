@@ -34,16 +34,32 @@ export interface RustBackendNativeRenderSharedFrameResult {
   frame: RustBackendSharedVideoFrame;
 }
 
+export interface RustBackendNativeRenderReleaseSharedFramePayload {
+  memoryId: string;
+}
+
+export interface RustBackendNativeRenderReleaseSharedFrameResult {
+  released: boolean;
+  memoryId: string;
+}
+
 export interface RustBackendNativeRenderSharedFrameBridge {
   renderNativeSharedFrame: (
     payload: RustBackendNativeRenderSharedFramePayload
   ) => Promise<RustBackendResult<RustBackendNativeRenderSharedFrameResult>>;
+  releaseNativeSharedFrame: (
+    payload: RustBackendNativeRenderReleaseSharedFramePayload
+  ) => Promise<RustBackendResult<RustBackendNativeRenderReleaseSharedFrameResult>>;
 }
 
 const defaultRustBackendNativeRenderBridge = (): RustBackendNativeRenderSharedFrameBridge => ({
   renderNativeSharedFrame: (payload) =>
     window.rustBackend.renderNativeSharedFrame(payload) as Promise<
       RustBackendResult<RustBackendNativeRenderSharedFrameResult>
+    >,
+  releaseNativeSharedFrame: (payload) =>
+    window.rustBackend.releaseNativeSharedFrame(payload) as Promise<
+      RustBackendResult<RustBackendNativeRenderReleaseSharedFrameResult>
     >,
 });
 
@@ -52,3 +68,9 @@ export const renderRustBackendNativeSharedFrame = (
   bridge: RustBackendNativeRenderSharedFrameBridge = defaultRustBackendNativeRenderBridge()
 ): Promise<RustBackendResult<RustBackendNativeRenderSharedFrameResult>> =>
   bridge.renderNativeSharedFrame(payload);
+
+export const releaseRustBackendNativeSharedFrame = (
+  payload: RustBackendNativeRenderReleaseSharedFramePayload,
+  bridge: RustBackendNativeRenderSharedFrameBridge = defaultRustBackendNativeRenderBridge()
+): Promise<RustBackendResult<RustBackendNativeRenderReleaseSharedFrameResult>> =>
+  bridge.releaseNativeSharedFrame(payload);

@@ -56,6 +56,7 @@ interface Window {
       copyOutState: 'gpuUploadFenceSignalled' | 'rendererUploadAborted';
     }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
     renderNativeSharedFrame: (payload: unknown) => Promise<{ success: boolean; result?: unknown; error?: string }>;
+    releaseNativeSharedFrame: (payload: unknown) => Promise<{ success: boolean; result?: unknown; error?: string }>;
   };
   rustVideoEncoder: {
     startVideoEncode: (payload: {
