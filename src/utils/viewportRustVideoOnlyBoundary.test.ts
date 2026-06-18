@@ -54,6 +54,15 @@ describe('Viewport Rust video-only boundary', () => {
     expect(presenterBlock).toContain('requireSharedRendererVideo: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled');
   });
 
+  it('requires the Rust video control plane in Rust video-only presenter orchestration', () => {
+    const code = viewportSource();
+    const start = code.indexOf('void startSharedRendererViewportPresenter({');
+    const end = code.indexOf('}).then', start);
+    const presenterBlock = code.slice(start, end);
+
+    expect(presenterBlock).toContain('requireRustVideoControlPlane: rustVideoOnlyEnabled');
+  });
+
   it('passes export context encode-only preference into the Rust export frame source', () => {
     const code = viewportSource();
     const start = code.indexOf('const getRustExportFrameSource = useCallback');

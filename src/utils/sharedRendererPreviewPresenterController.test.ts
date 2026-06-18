@@ -1637,6 +1637,41 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
+  it('fails loud when Rust video-only mode cannot load the Rust video control plane', async () => {
+    const dataset: Record<string, string | undefined> = {};
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
+      rustVideoFrameDecodeRequestWasmEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      requireSharedRendererVideo: true,
+      requireRustVideoControlPlane: true,
+      sharedRendererVideoFrameUploadReady: true,
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter(),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({
+      ok: false,
+      reason: 'requiredRustVideoControlPlaneUnavailable',
+    });
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterStatus: 'fallback',
+      uxfdSharedRendererPresenterFailureReason: 'requiredRustVideoControlPlaneUnavailable',
+    });
+    expect(dataset).not.toMatchObject({
+      uxfdSharedRendererPresenterVideoGeometrySource: 'typescript',
+      uxfdSharedRendererPresenterVideoDecodeRequestSource: 'typescript',
+    });
+  });
+
   it('keeps native render failure details when required Rust video ownership fails loud', async () => {
     const dataset: Record<string, string | undefined> = {};
 
