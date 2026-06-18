@@ -3,6 +3,7 @@ import {
   startRustBackendVideoEncode,
   writeRustBackendVideoEncodeFrame,
   type RustBackendVideoEncodeBridge,
+  type RustBackendVideoEncodeWriteFramePayload,
 } from './rustBackendVideoEncodeControl';
 import {
   createRustBackendVideoEncodeSharedFrameWriter,
@@ -14,6 +15,15 @@ export interface RustBackendVideoEncodeRenderedFrame {
   timestamp: number;
   bitmap: ImageBitmap;
 }
+
+export interface RustBackendVideoEncodeSharedFramePayloadFrame {
+  timestamp: number;
+  sharedFramePayload: RustBackendVideoEncodeWriteFramePayload;
+}
+
+export type RustBackendVideoEncodeFrame =
+  | RustBackendVideoEncodeRenderedFrame
+  | RustBackendVideoEncodeSharedFramePayloadFrame;
 
 export type RustBackendVideoEncodeBitmapToRgbaBytes = (
   bitmap: ImageBitmap,
@@ -27,7 +37,7 @@ export interface RunRustBackendVideoEncodeExportInput {
   width: number;
   height: number;
   fps: number;
-  frames: AsyncIterable<RustBackendVideoEncodeRenderedFrame>;
+  frames: AsyncIterable<RustBackendVideoEncodeFrame>;
   sessionId?: string;
   memoryId?: string;
   encoderBridge?: RustBackendVideoEncodeBridge;
@@ -109,23 +119,30 @@ export const runRustBackendVideoEncodeExport = async ({
   let pendingError: unknown;
 
   try {
-    writer = await createRustBackendVideoEncodeSharedFrameWriter({
-      sessionId,
-      memoryId,
-      width,
-      height,
-      fps,
-      bridge: sharedFrameBridge,
-    });
-
     let frameCount = 0;
     for await (const frame of frames) {
-      const rgbaBytes = await extractRgbaBytes(frame.bitmap, width, height);
-      const payload = await writer.writeFrame({
-        frameIndex: frameCount,
-        timestampUs: frame.timestamp,
-        rgbaBytes,
-      });
+      let payload: RustBackendVideoEncodeWriteFramePayload;
+      if (isSharedFramePayloadFrame(frame)) {
+        payload = frame.sharedFramePayload;
+      } else {
+        if (!writer) {
+          writer = await createRustBackendVideoEncodeSharedFrameWriter({
+            sessionId,
+            memoryId,
+            width,
+            height,
+            fps,
+            bridge: sharedFrameBridge,
+          });
+        }
+        const rgbaBytes = await extractRgbaBytes(frame.bitmap, width, height);
+        payload = await writer.writeFrame({
+          frameIndex: frameCount,
+          timestampUs: frame.timestamp,
+          rgbaBytes,
+        });
+      }
+
       const writeResponse = await writeRustBackendVideoEncodeFrame(payload, encoderBridge);
       assertBridgeSuccess(
         writeResponse.success,
@@ -135,8 +152,10 @@ export const runRustBackendVideoEncodeExport = async ({
       frameCount += 1;
     }
 
-    await writer.close();
-    writerClosed = true;
+    if (writer) {
+      await writer.close();
+      writerClosed = true;
+    }
     const finishResponse = await finishRustBackendVideoEncode({ sessionId }, encoderBridge);
     assertBridgeSuccess(finishResponse.success, finishResponse.error, 'Rust backend video encode finish failed.');
 
@@ -160,6 +179,11 @@ export const runRustBackendVideoEncodeExport = async ({
     }
   }
 };
+
+const isSharedFramePayloadFrame = (
+  frame: RustBackendVideoEncodeFrame
+): frame is RustBackendVideoEncodeSharedFramePayloadFrame =>
+  'sharedFramePayload' in frame;
 
 const createReadbackCanvas = (
   width: number,
