@@ -1771,6 +1771,139 @@ describe('createSharedRendererExportFrameSource', () => {
     ]);
   });
 
+  it('blocks encode-only media-only frames instead of falling back to JS readback when native media is unsupported', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    const snapshot = {
+      frame_index: 11,
+      colour: {
+        profile: 'rec709-sdr',
+        working_space: 'linear-light',
+        alpha: 'premultiplied',
+      },
+      clips: [{
+        clip_id: 'remote-image-clip-1',
+        track_id: 'layer-1',
+        media_id: 'remote-image-1',
+        source_frame: 0,
+        z_index: 0,
+        transform: {
+          translation_x: 0,
+          translation_y: 0,
+          scale_x: 1,
+          scale_y: 1,
+          rotation_degrees: 0,
+          sampling: 'bilinear',
+        },
+        opacity: 1,
+        effects: [],
+      }],
+    } as const;
+    const media = [{
+      id: 'remote-image-1',
+      kind: 'Image',
+      source: 'https://example.invalid/overlay.png',
+      width: 2,
+      height: 2,
+    }] as const;
+    const calls: unknown[] = [];
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: {
+        ...settings,
+        width: 4,
+        height: 4,
+      },
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      bitmapCaptureEnabled: false,
+      nativeRenderRequired: true,
+      buildExportSession: () => ({
+        plan: {
+          mode: 'parallelCompare',
+          primary: 'pixi',
+          candidate: 'sharedRenderer',
+          snapshot,
+          media,
+        },
+        presentationContract: {
+          canvas: {
+            colorSpace: 'srgb',
+            alphaMode: 'premultiplied',
+          },
+          comparisonReadback: {
+            target: 'offscreenRenderTarget',
+            includesPageCompositing: false,
+          },
+          frameTiming: {
+            source: 'frozenSceneSnapshot',
+          },
+          deviceLost: {
+            fallback: 'pixi',
+            staleSharedFrameAllowed: false,
+          },
+        },
+        surfaceGate: {
+          ok: true,
+          canvas: {
+            width: 4,
+            height: 4,
+          },
+          snapshot,
+          media,
+        },
+      }),
+      prepareNativeRenderSources: async () => ({
+        ok: false,
+        reason: 'noVideoDecodeRequest',
+        detail: 'No video source is needed for remote image native render.',
+        activeJobs: [],
+      }),
+      renderNativeSharedFrame: async () => {
+        calls.push(['renderNativeSharedFrame']);
+        throw new Error('Rust native render must not receive unsupported remote media.');
+      },
+      startViewportPresenter: async () => {
+        calls.push(['startViewportPresenter']);
+        throw new Error('presenter readback must not run when native render is required.');
+      },
+      createEncodeFrameWriter: async () => {
+        calls.push(['createEncodeFrameWriter']);
+        throw new Error('JS shared-frame writer must not run when native render is required.');
+      },
+    } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
+      bitmapCaptureEnabled: false;
+      nativeRenderRequired: true;
+    });
+
+    await expect(source.renderEncodeFrame?.({
+      frameIndex: 11,
+      timestampUs: 183_333,
+      time: 11 / 60,
+      width: 4,
+      height: 4,
+      objects: [image({ id: 'remote-image-placeholder' })],
+      encodeSessionId: 'remote-media-only-session',
+    })).rejects.toMatchObject({
+      fallbackToLegacyCanvas: true,
+      reason: 'nativeRenderUnsupportedMedia',
+      frameIndex: 11,
+    });
+    expect(calls).toEqual([]);
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'blocked',
+      uxfdRustExportFrameSourceFrameIndex: '11',
+      uxfdRustExportFrameSourceFrameReason: 'nativeRenderUnsupportedMedia',
+      uxfdRustExportFrameSourceFramePath: undefined,
+    });
+  });
+
   it('uses Rust backend native render diagnostics for PSD-only encode frames', async () => {
     const canvas = {
       width: 1,
