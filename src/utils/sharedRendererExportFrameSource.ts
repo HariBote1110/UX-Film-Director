@@ -304,6 +304,7 @@ export function createSharedRendererExportFrameSource({
       width: request.width,
       height: request.height,
       snapshot: surfaceGate.snapshot,
+      media: surfaceGate.media,
       sources: nativeSources.sources.map((source) => ({
         mediaId: source.mediaId,
         slotCount: source.slotCount,

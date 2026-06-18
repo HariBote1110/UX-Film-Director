@@ -40,6 +40,17 @@ const payload: RustBackendNativeRenderSharedFramePayload = {
   width: 4,
   height: 4,
   snapshot,
+  media: [{
+    id: 'source-1',
+    kind: 'Video',
+    source: '/tmp/source-1.mp4',
+    width: 4,
+    height: 4,
+    source_rate: {
+      numerator: 60,
+      denominator: 1,
+    },
+  }],
   sources: [{
     mediaId: 'source-1',
     slotCount: 1,

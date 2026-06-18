@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use uxfd_golden_harness::RgbaFrame;
 use uxfd_native_wgpu_renderer::{render_native_wgpu_frame_to_shared_ring, NativeWgpuRenderError};
-use uxfd_rust_core::SceneSnapshot;
+use uxfd_rust_core::{MediaKind, SceneMediaReference, SceneSnapshot};
 #[cfg(unix)]
 use uxfd_shared_memory_spike::PosixSharedRing;
 use uxfd_sidecar_protocol::{
@@ -217,6 +217,8 @@ struct NativeRenderSharedFrameParams {
     width: u32,
     height: u32,
     snapshot: SceneSnapshot,
+    #[serde(default)]
+    media: Vec<SceneMediaReference>,
     sources: Vec<NativeRenderSharedFrameSource>,
 }
 
@@ -505,17 +507,30 @@ fn handle_native_render_shared_frame(
     if parsed.slot_count == 0 {
         return response_error(id, -32602, "slotCount must be greater than zero");
     }
-    if parsed.sources.is_empty() {
-        return response_error(id, -32602, "sources must include at least one shared frame");
+    let mut sources = HashMap::with_capacity(parsed.sources.len() + parsed.media.len());
+    for media in &parsed.media {
+        if media.kind != MediaKind::SolidColour {
+            continue;
+        }
+        let frame = match build_solid_colour_source_frame(media) {
+            Ok(value) => value,
+            Err(message) => return response_error(id, -32602, &message),
+        };
+        sources.insert(media.id.clone(), frame);
     }
-
-    let mut sources = HashMap::with_capacity(parsed.sources.len());
     for source in &parsed.sources {
         let frame = match read_native_render_source_frame(source) {
             Ok(value) => value,
             Err(message) => return response_error(id, -32072, &message),
         };
         sources.insert(source.media_id.clone(), frame);
+    }
+    if sources.is_empty() {
+        return response_error(
+            id,
+            -32602,
+            "sources or SolidColour media must include at least one render source",
+        );
     }
 
     let render = match pollster::block_on(render_native_wgpu_frame_to_shared_ring(
@@ -560,6 +575,54 @@ fn handle_native_render_shared_frame(
         })),
         error: None,
     }
+}
+
+fn build_solid_colour_source_frame(media: &SceneMediaReference) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "SolidColour media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let [red, green, blue] = parse_hex_colour_source(&media.source)
+        .map_err(|message| format!("Invalid SolidColour media '{}': {message}", media.id))?;
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "SolidColour media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "SolidColour media byte length overflows".to_string())?;
+    let mut pixels = Vec::with_capacity(byte_len);
+    for _ in 0..pixel_count {
+        pixels.extend_from_slice(&[red, green, blue, 255]);
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("SolidColour media frame is invalid: {error:?}"))
+}
+
+fn parse_hex_colour_source(source: &str) -> Result<[u8; 3], String> {
+    let source = source.trim();
+    let Some(hex) = source.strip_prefix('#') else {
+        return Err("source must be a #rrggbb hex colour".to_string());
+    };
+    if hex.len() != 6 || !hex.chars().all(|character| character.is_ascii_hexdigit()) {
+        return Err("source must be a #rrggbb hex colour".to_string());
+    }
+
+    let red = u8::from_str_radix(&hex[0..2], 16)
+        .map_err(|_| "source must be a #rrggbb hex colour".to_string())?;
+    let green = u8::from_str_radix(&hex[2..4], 16)
+        .map_err(|_| "source must be a #rrggbb hex colour".to_string())?;
+    let blue = u8::from_str_radix(&hex[4..6], 16)
+        .map_err(|_| "source must be a #rrggbb hex colour".to_string())?;
+
+    Ok([red, green, blue])
 }
 
 #[cfg(not(unix))]

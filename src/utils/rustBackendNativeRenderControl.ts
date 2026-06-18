@@ -2,7 +2,10 @@ import type {
   RustBackendResult,
   RustBackendSharedVideoFrame,
 } from './rustBackendVideoDecodeControl';
-import type { RustSceneSnapshot } from './rustSceneSnapshot';
+import type {
+  RustSceneMediaReference,
+  RustSceneSnapshot,
+} from './rustSceneSnapshot';
 
 export interface RustBackendNativeRenderSharedFrameSource {
   mediaId: string;
@@ -18,6 +21,7 @@ export interface RustBackendNativeRenderSharedFramePayload {
   width: number;
   height: number;
   snapshot: RustSceneSnapshot;
+  media: RustSceneMediaReference[];
   sources: RustBackendNativeRenderSharedFrameSource[];
 }
 
