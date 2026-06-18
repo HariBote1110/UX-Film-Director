@@ -133,8 +133,6 @@ export interface ResolveProjectExportRustFrameSourceContextInput {
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
 }
 
-export type ProjectExportBrowserVideoElement = Pick<HTMLVideoElement, 'pause'>;
-
 export const resolveProjectExportFrameCanvas = ({
   getExportCanvas,
   pixiCanvas = null,
@@ -227,22 +225,6 @@ export const buildProjectExportFrameSourcePlan = ({
     reason: 'exportFrameSourceUnavailable',
     detail: 'Export requires a Rust frame source, shared renderer export canvas, or legacy Pixi canvas.',
   };
-};
-
-export const pauseLegacyBrowserVideosForExport = (
-  videoElements: ReadonlyMap<string, ProjectExportBrowserVideoElement>,
-  frameSourcePlan: Extract<ProjectExportFrameSourcePlanResult, { ok: true }>,
-): number => {
-  if (!frameSourcePlan.requiresLegacyBrowserVideoProviders) {
-    return 0;
-  }
-
-  let pausedCount = 0;
-  videoElements.forEach((video) => {
-    video.pause();
-    pausedCount += 1;
-  });
-  return pausedCount;
 };
 
 export const resolveProjectExportFrameSourcePolicyForEncode = ({
