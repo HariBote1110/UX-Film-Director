@@ -11,17 +11,25 @@ use uxfd_shared_memory_spike::PosixSharedRing;
 #[test]
 fn encode_shared_frame_session_tracks_descriptor_without_legacy_base64_fallback() {
     let mut backend = BackendProcess::start();
+    let temp_dir = TestTempDir::new("encode-shared-frame-session");
+    let output_path = temp_dir.path().join("encoded-output.mp4");
+    let output_path_string = output_path.to_string_lossy().into_owned();
     let memory_id = unique_shm_name();
     let slot_count = 1;
-    let slot_byte_len = 512;
+    let width = 16;
+    let height = 16;
+    let stride_bytes = 256;
+    let slot_byte_len = stride_bytes * height;
+    let tight_rgba = vec![0x7a; width as usize * height as usize * 4];
+    let padded_rgba = pad_rgba_rows(&tight_rgba, width, height, stride_bytes as usize);
     let producer_ring = PosixSharedRing::create_with_slot_count(
         &memory_id,
         slot_count,
-        slot_byte_len,
+        slot_byte_len as usize,
     )
     .expect("create encode source ring");
     producer_ring
-        .write_frame(42, &[0x7a; 512])
+        .write_frame(42, &padded_rgba)
         .expect("write encode source frame");
 
     let start = backend.request(json!({
@@ -29,9 +37,9 @@ fn encode_shared_frame_session_tracks_descriptor_without_legacy_base64_fallback(
         "method": "encode.start",
         "params": {
             "sessionId": "encode-1",
-            "filePath": "/tmp/output.mp4",
-            "width": 2,
-            "height": 2,
+            "filePath": output_path_string.clone(),
+            "width": width,
+            "height": height,
             "fps": 60,
             "pixelFormat": "rgba8Srgb",
             "colour": {
@@ -44,9 +52,9 @@ fn encode_shared_frame_session_tracks_descriptor_without_legacy_base64_fallback(
     }));
     assert_eq!(start["ok"], true, "{start}");
     assert_eq!(start["result"]["sessionId"], "encode-1");
-    assert_eq!(start["result"]["filePath"], "/tmp/output.mp4");
-    assert_eq!(start["result"]["width"], 2);
-    assert_eq!(start["result"]["height"], 2);
+    assert_eq!(start["result"]["filePath"], output_path_string);
+    assert_eq!(start["result"]["width"], width);
+    assert_eq!(start["result"]["height"], height);
     assert_eq!(start["result"]["fps"], 60);
     assert_no_frame_bytes_recursive(&start["result"]);
 
@@ -65,9 +73,9 @@ fn encode_shared_frame_session_tracks_descriptor_without_legacy_base64_fallback(
                     "generation": 3,
                     "byteOffset": 0,
                     "byteLen": slot_byte_len,
-                    "width": 2,
-                    "height": 2,
-                    "strideBytes": 256,
+                    "width": width,
+                    "height": height,
+                    "strideBytes": stride_bytes,
                     "format": "rgba8Srgb",
                     "colour": {
                         "primaries": "bt709",
@@ -101,9 +109,16 @@ fn encode_shared_frame_session_tracks_descriptor_without_legacy_base64_fallback(
     assert_eq!(finish["ok"], true, "{finish}");
     assert_eq!(finish["result"]["finished"], true);
     assert_eq!(finish["result"]["sessionId"], "encode-1");
-    assert_eq!(finish["result"]["filePath"], "/tmp/output.mp4");
+    assert_eq!(finish["result"]["filePath"], output_path_string);
     assert_eq!(finish["result"]["frameCount"], 1);
     assert_no_frame_bytes_recursive(&finish["result"]);
+    assert!(
+        fs::metadata(&output_path)
+            .expect("Rust encode output file exists")
+            .len()
+            > 0,
+        "Rust encode output should contain an MP4 payload"
+    );
 }
 
 #[test]
