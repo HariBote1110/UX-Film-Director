@@ -891,6 +891,11 @@ HTMLVideoElement seek / `createImageBitmap(canvas)` へ戻らない。
 これにより初期接続できたRust frame sourceが実行中にblockedになっても、runtime planが `legacyCanvasAfterRustBlocked` /
 HTMLVideoElement seek / canvas captureへ復帰しない。
 
+166. Phase5: preview動画のPixi video pathを既定で拒否する
+`resolvePixiVideoRenderPath` は通常preview動画をshared renderer専用として扱い、`HTMLVideoElement` / Pixi `VideoSource` /
+canvas upload pathへ進まない。export互換分岐だけは明示的なRust必須がない場合に旧pathを残す。
+これにより再生・停止・scrub中の動画所有権もRust/shared renderer側へ寄せ、Pixiは動画planeを描かない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

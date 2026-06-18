@@ -181,3 +181,10 @@
 - Green: `buildProjectExportFrameSourcePlan` で動画ありRust frame source planの `rustFrameSourceBlockedFallback` を `failExport` に正規化した。
 - 検証: `npm test -- projectExportFrameCanvas useProjectExportBoundary projectExportEncodePlan viewportRustExportFrameSource sharedRendererExportFrameSource` は75件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-145a`。
+
+## 2026-06-19
+- Phase5のpreview cutoverとして、通常preview動画も既定でPixi video pathへ進まないようにした。
+- Red: `pixiVideoCutover` へ、`requireSharedRendererVideo=false` の通常preview動画でも `sharedRendererOnly` になる契約を追加した。
+- Green: `shouldSkipPixiVideoForSharedRenderer` を反転し、preview動画はshared renderer専用、export互換分岐のみ旧Pixi video element pathを残すようにした。
+- 検証: `npm test -- pixiVideoCutover viewportRustVideoOnlyBoundary sharedRendererVideoMediaReadiness` は14件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-146a`。
