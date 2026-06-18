@@ -1,3 +1,17 @@
+## 2026-06-18 — Phase5: native addon presented-frame handoff入口を追加
+
+### 実施内容
+- `scripts/test-shared-video-frame-node-addon.mjs` に、N-API addonが `takePresentedFrameSharedFrame` を公開する契約を追加した。
+- `shared-video-frame-bridge-node/src/lib.rs` に presented-frame handoff payload/response 型と `takePresentedFrameSharedFrame` を追加した。
+- 現時点ではWebGPU textureをN-API越しにRustで直接扱えないため、addonは明示的に `success: false` と未実装エラーを返す。
+- package version を `0.1.1-Beta-92a` に更新した。
+
+### 検証
+- `npm run test:bridge-node`
+
+### 残課題・次のステップ
+- native handoff APIは実addonまで届いた。次は `takePresentedFrameSharedFrame` が常時fallbackを発生させないよう、factory側の可用性判定をcapability/diagnostic込みにするか、Rust-owned render surfaceからshared-frame payloadを返す実装へ進む。
+
 ## 2026-06-18 — Phase5: native/Rust handoff bridge factoryをexportへ注入
 
 ### 実施内容

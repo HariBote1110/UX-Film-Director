@@ -539,6 +539,12 @@ renderer側は `createSharedVideoFramePresentedFrameTaker` で可用性を判定
 native addonが未対応の場合はtakerを作らず、既存のWebGPU readback / JS shared-frame writer fallbackへ戻す。
 この段階ではbridge境界と実アプリへの注入を固定し、次段でnative addon側のWebGPU texture handoff実装を詰める。
 
+103. Phase5: shared video frame N-API addonにpresented-frame handoff入口を追加する
+`shared-video-frame-bridge-node` は `takePresentedFrameSharedFrame(payload)` を公開する。
+現段階ではWebGPU `GPUTexture` をRust側で直接取得できないため、native addonは明示的な未実装エラーを返し、
+renderer側は既存のreadback fallbackへ戻る。次段ではこの入口を、Rust-owned texture/export surface または
+別プロセス/ネイティブレンダラのshared memory出力へ置き換えて、成功payloadを返す実装へ進める。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
