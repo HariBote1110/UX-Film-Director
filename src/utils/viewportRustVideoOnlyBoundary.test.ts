@@ -18,7 +18,7 @@ describe('Viewport Rust video-only boundary', () => {
     const readinessBlock = code.slice(start, end);
 
     expect(readinessBlock).toContain('buildSharedRendererVideoMediaReadiness({');
-    expect(readinessBlock).toContain('requireSharedRendererVideo: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled');
+    expect(readinessBlock).not.toContain('requireSharedRendererVideo:');
     expect(readinessBlock).not.toContain('videoElements:');
   });
 

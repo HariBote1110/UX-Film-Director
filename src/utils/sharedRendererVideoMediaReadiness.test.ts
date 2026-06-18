@@ -27,76 +27,9 @@ const media: RustSceneMediaReference[] = [
 ];
 
 describe('buildSharedRendererVideoMediaReadiness', () => {
-  it('reports ready video elements with current frame data', () => {
-    const readiness = buildSharedRendererVideoMediaReadiness({
-      media,
-      videoElements: new Map([
-        ['video-ready', fakeVideo({ readyState: 2, videoWidth: 1280, videoHeight: 720, currentTime: 1.25 })],
-        ['video-pending', fakeVideo({ readyState: 1, videoWidth: 640, videoHeight: 360, currentTime: 0 })],
-      ]),
-    });
-
-    expect(readiness).toEqual({
-      readyCount: 1,
-      pendingCount: 1,
-      missingCount: 0,
-      rustRequiredCount: 0,
-      videos: [
-        {
-          id: 'video-ready',
-          status: 'ready',
-          readyState: 2,
-          currentTime: 1.25,
-          width: 1280,
-          height: 720,
-        },
-        {
-          id: 'video-pending',
-          status: 'pending',
-          readyState: 1,
-          currentTime: 0,
-          width: 640,
-          height: 360,
-        },
-      ],
-    });
-  });
-
-  it('reports missing video elements before the preview loader has created them', () => {
+  it('reports video media as Rust/shared renderer required without DOM element readiness', () => {
     expect(buildSharedRendererVideoMediaReadiness({
       media,
-      videoElements: new Map(),
-    })).toEqual({
-      readyCount: 0,
-      pendingCount: 0,
-      missingCount: 2,
-      rustRequiredCount: 0,
-      videos: [
-        {
-          id: 'video-ready',
-          status: 'missingElement',
-          readyState: 0,
-          currentTime: 0,
-          width: 1280,
-          height: 720,
-        },
-        {
-          id: 'video-pending',
-          status: 'missingElement',
-          readyState: 0,
-          currentTime: 0,
-          width: 640,
-          height: 360,
-        },
-      ],
-    });
-  });
-
-  it('does not require HTMLVideoElement readiness when Rust video rendering is required', () => {
-    expect(buildSharedRendererVideoMediaReadiness({
-      media,
-      videoElements: new Map(),
-      requireSharedRendererVideo: true,
     })).toEqual({
       readyCount: 0,
       pendingCount: 0,
@@ -122,21 +55,9 @@ describe('buildSharedRendererVideoMediaReadiness', () => {
       ],
     });
   });
-});
 
-const fakeVideo = ({
-  readyState,
-  videoWidth,
-  videoHeight,
-  currentTime,
-}: {
-  readyState: number;
-  videoWidth: number;
-  videoHeight: number;
-  currentTime: number;
-}) => ({
-  readyState,
-  videoWidth,
-  videoHeight,
-  currentTime,
-}) as HTMLVideoElement;
+  it('does not expose HTMLVideoElement readiness inputs in the diagnostic source', () => {
+    expect(buildSharedRendererVideoMediaReadiness.toString()).not.toContain('videoElements');
+    expect(buildSharedRendererVideoMediaReadiness.toString()).not.toContain('HTMLVideoElement');
+  });
+});
