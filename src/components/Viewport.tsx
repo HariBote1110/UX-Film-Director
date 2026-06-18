@@ -585,7 +585,7 @@ const Viewport: React.FC = () => {
       diagnosticSwatchEnabled: sharedRendererDiagnosticSwatchEnabled,
       videoCutoverEnabled: sharedRendererVideoCutoverEnabled,
       nativeRenderPreviewEnabled: sharedRendererVideoCutoverEnabled,
-      requireSharedRendererVideo: rustVideoOnlyEnabled,
+      requireSharedRendererVideo: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled,
       activeVideoDecodeJob: sharedRendererVideoCutoverEnabled
         ? sharedRendererVideoDecodeJobsRef.current[0] ?? null
         : null,
