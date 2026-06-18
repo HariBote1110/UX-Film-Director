@@ -3721,4 +3721,23 @@
 - 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
 
 ### 残課題・次のステップ
-- helperの画像対応はまだPNGのみ。次はJPGをRust backend native render sourceへ追加する。
+- helperの画像対応はPNG/JPG/JPEGになった。次はPSD/textまたはpreview native render output releaseへ進む。
+
+## 2026-06-18 — JPG/JPEG Image mediaをRust native render sourceへ統合
+
+### 実施内容
+- `golden-harness` に `jpeg-decoder` を追加し、JPEGをRGBA frameへ展開する `load_rgba_jpeg` を実装した。
+- Rust backendの `render.nativeSharedFrame` が `.jpg` / `.jpeg` の `Image` mediaをRGBA source化できるようにした。
+- TS側の `sharedRendererNativeMediaSupport` をPNG/JPG/JPEG対応へ広げ、video cutover stack safetyとmedia-only exportでJPGをRust対応済みとして扱うようにした。
+- 版を `0.1.1-Beta-101a` に更新した。
+
+### 検証
+- `cargo test --manifest-path golden-harness/Cargo.toml`
+- `cargo test --manifest-path rust-backend/Cargo.toml native_render_shared_frame_builds_jpeg_image_sources_from_media`
+- `cargo test --manifest-path rust-backend/Cargo.toml native_render_shared_frame`
+- `npm test -- src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/sharedRendererVideoCutoverStack.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- JPEGはlossyなので、pixel exactな比較ではなく近似色契約で検証している。
+- PSD/textはまだRust native render source化していない。

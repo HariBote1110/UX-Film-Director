@@ -611,6 +611,11 @@ export `renderEncodeFrame` は動画decode requestが無い場合でも、visibl
 `render.nativeSharedFrame` を `sources: []` で呼び、WebGPU presenter readback / JS shared-frame writerへ戻らない。
 Electron native render bridgeが無い環境、空scene、未対応画像形式を含むsceneでは従来fallbackを維持する。
 
+115. Phase5: JPG/JPEG Image mediaをRust native render source化する
+`golden-harness` にJPEG decode補助を追加し、Rust backendは `kind=Image` の `.jpg` / `.jpeg` sourceをRGBA frameへ変換して
+native render sourcesへ合流させる。TS側のnative media support判定もPNG/JPG/JPEGを同じ対応範囲として扱い、
+動画上のJPG画像やmedia-only JPG exportをPixi/WebGPU readbackへ戻さない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
