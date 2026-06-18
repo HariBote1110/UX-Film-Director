@@ -830,6 +830,11 @@ shared renderer WebGPU presenter の `takePresentedFrameSharedFrame` は、nativ
 shared-frame payloadを返した場合だけ成功する。native handoff未接続または失敗時は WebGPU readback +
 JS shared-frame writerへ戻らず、明示エラーで停止する。
 
+154. Phase5: 動画export sourceを暗黙encode-onlyにする
+Viewport の Rust export frame source生成では、`objects` に動画が含まれる場合、呼び出し側が `preferEncodeOnly` を
+指定し忘れても `bitmapCaptureEnabled=false` / `nativeRenderRequired=true` を渡す。これにより動画export sourceが
+`renderFrame` / `createImageBitmap(canvas)` 能力を持ってしまう入口を塞ぎ、Rust native render + Rust encodeを正規経路にする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
