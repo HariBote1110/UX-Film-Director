@@ -18,6 +18,7 @@ export interface RustBackendVideoEncodeWriteFramePayload {
   sessionId: string;
   frameIndex: number;
   timestampUs: number;
+  slotCount: number;
   frame: RustBackendSharedVideoFrame;
 }
 

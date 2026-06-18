@@ -75,6 +75,7 @@ interface Window {
       sessionId: string;
       frameIndex: number;
       timestampUs: number;
+      slotCount: number;
       frame: {
         descriptor: {
           memoryId: string;
