@@ -508,6 +508,11 @@ shared renderer presenter controlが `takePresentedFrameSharedFrame` を提供�
 Rust backend encoder用payloadへ変換する `takePresentedFrameSharedFrame` を公開する。
 export source側のwriter責務を下ろし、将来のnative/Rust GPU handoff実装ではこのpresenter APIの内部だけを差し替える。
 
+97. Phase5: export sourceはJS shared-frame writerを静的ロードしない
+`sharedRendererExportFrameSource` は `rustBackendVideoEncodeSharedFrameWriter` を静的importしない。
+presenterが `takePresentedFrameSharedFrame` を持たない古い/fallback制御だけで動的importし、通常のRust direct encode初期ロードから
+JS shared-frame writer実装を外す。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

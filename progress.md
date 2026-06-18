@@ -1,3 +1,19 @@
+## 2026-06-18 — Phase5: export sourceのJS shared-frame writer静的依存を排除
+
+### 実施内容
+- `src/utils/sharedRendererExportFrameSourceBoundary.test.ts` を追加し、`sharedRendererExportFrameSource` が `rustBackendVideoEncodeSharedFrameWriter` を静的importしない契約を追加した。
+- `sharedRendererExportFrameSource` のfallback writer生成を `import('./rustBackendVideoEncodeSharedFrameWriter')` へ動的import化した。
+- presenterが `takePresentedFrameSharedFrame` を提供する通常のRust direct encode経路では、export source初期ロード時にJS shared-frame writer実装を読み込まないようにした。
+- package version を `0.1.1-Beta-86a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererExportFrameSourceBoundary.test.ts`
+- `npm test -- src/utils/sharedRendererExportFrameSourceBoundary.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts\\(|src/utils/sharedRendererExportFrameSourceBoundary\\.test\\.ts\\(|src/utils/sharedRendererExportFrameSource\\.test\\.ts\\()"`
+
+### 残課題・次のステップ
+- export sourceからfallback writerの静的依存は消えた。次はpresenter内部のGPU readback / JS writer自体をnative/Rust handoffへ置き換える契約を切る。
+
 ## 2026-06-18 — Phase5: WebGPU presenterがshared-frame payload生成を所有
 
 ### 実施内容
