@@ -510,6 +510,25 @@ describe('startSharedRendererPreviewPresenter', () => {
     ]);
   });
 
+  it('does not expose WebGPU readback on video preview presenter controls', async () => {
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoSession,
+      datasets: [{}],
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter(),
+      }),
+      textureUsageRenderAttachment: 16,
+      bufferUsageCopyDst: 8,
+      bufferUsageMapRead: 1,
+    });
+
+    expect(control.ok).toBe(true);
+    if (!control.ok) throw new Error('expected ready control');
+    expect('readPresentedFrameRgbaBytes' in control).toBe(false);
+  });
+
   it('does not expose WebGPU readback on export-required presenter controls', async () => {
     const control = await startSharedRendererPreviewPresenter({
       canvas: fakeCanvas(() => fakeContext()),
