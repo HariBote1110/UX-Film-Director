@@ -785,6 +785,11 @@ presenter handoff / WebGPU readback writer由来のshared frameはそれぞれ�
 `releaseAfterEncodeFailure.kind === 'nativeRenderOutput'` の `memoryId` を `render.releaseNativeSharedFrame` へ渡して解放する。
 これによりcustom bridgeや予期しないIPC rejectでもnative render output ringが残らないようにする。
 
+145. Phase5: preview native render output release callbackを単回化する
+preview native render uploadが成功した後、`releaseAfterGpuUpload` と `releaseAfterUploadAbort` の両callbackが呼ばれても
+同じ `memoryId` の `render.releaseNativeSharedFrame` は一度だけ実行する。WebGPU fence/abortの順序揺れや二重disposeでも
+native render output ringのlifecycleが二重解放に依存しないようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

@@ -507,3 +507,15 @@
 ## 確認
 - `npm test -- rustBackendVideoEncodeExport` を実行し、6件成功を確認。
 - `npx tsc --noEmit 2>&1 | rg "rustBackendVideoEncodeExport"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 47. Phase5: preview native render output release callback単回化
+- `src/utils/sharedRendererViewportNativeRenderUpload.ts`
+- preview native render outputのrelease callbackを `createSingleUseNativeOutputReleaser` で包み、`releaseAfterGpuUpload` / `releaseAfterUploadAbort` のどちらから呼ばれても同じ `memoryId` は一度だけreleaseするようにした。
+- `src/utils/sharedRendererViewportNativeRenderUpload.test.ts`
+- GPU upload完了callbackとabort callbackが複数回呼ばれても `releaseNativeSharedFrame` が1回だけ呼ばれる契約を追加した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-125c` に更新した。
+
+## 確認
+- `npm test -- sharedRendererViewportNativeRenderUpload sharedRendererPreviewPresenterController` を実行し、28件成功を確認。
+- `npx tsc --noEmit 2>&1 | rg "(sharedRendererViewportNativeRenderUpload|sharedRendererPreviewPresenterController)"` を実行し、対象ファイルに型エラーが出ないことを確認。
