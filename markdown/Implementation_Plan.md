@@ -259,6 +259,11 @@ export frameごとに shared renderer export session を構築し、Viewport pre
 `ImageBitmap` として返す `ProjectExportRustFrameSource` を追加する。active Rust decode jobs は source 内で保持し、
 multi-session decodeをframe間で引き継ぐ。次段では `Viewport` から `useProjectExport` へこのsourceを渡す。
 
+54. Phase5: Viewport から Rust export frame source を接続する
+`VITE_UXFD_SHARED_RENDERER_EXPORT=1` の実験flag配下で、2D editor / WebGPU available / non-fallback adapter /
+video cutover enabled / shared renderer canvas available の条件が揃った時だけ `ProjectExportRustFrameSource` を
+`useProjectExport` へ渡す。条件が閉じている場合は `null` を返し、従来の Pixi / canvas export を維持する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

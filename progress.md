@@ -1,3 +1,31 @@
+## 2026-06-18 — Phase5: Viewport から Rust export frame source を接続
+
+### 実施内容
+- `buildViewportRustExportFrameSource` を追加し、Viewport が `ProjectExportRustFrameSource` を安全に提供する条件をTDDで固定した。
+- `Viewport` は `VITE_UXFD_SHARED_RENDERER_EXPORT=1`、2D editor、WebGPU available、non-fallback adapter、`VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER=1`、shared renderer canvasありの時だけ Rust export frame source を `useProjectExport` へ渡す。
+- export flag が有効な場合も WebGPU probe を実行するようにし、preview flagなしでも export source の可否を判定できるようにした。
+- 条件が一つでも閉じている場合は `null` を返し、従来の Pixi / explicit canvas export path を維持する。
+- package version を `0.1.1-Beta-60a` に更新した。
+
+### Red
+- `src/utils/viewportRustExportFrameSource.test.ts` を追加し、Rust export gateが完全に開いた時だけsourceを作り、それ以外ではlegacy exportへ戻す契約を追加した。
+
+### Green
+- `src/utils/viewportRustExportFrameSource.ts` を実装し、`createSharedRendererExportFrameSource` への薄いgate helperにした。
+- `src/components/Viewport.tsx` から `useProjectExport` の `getRustExportFrameSource` 引数へ接続した。
+- `src/vite-env.d.ts` に `VITE_UXFD_SHARED_RENDERER_EXPORT` を追加した。
+
+### 現在の制限
+- Rust export path は実験flag配下。既定では従来のcanvas export。
+- unsupported scene は Rust export source内で fail-loud になるため、実利用時は `VITE_UXFD_SHARED_RENDERER_EXPORT=1` を明示して検証する。
+- full `npx tsc --noEmit` は既存の `ThreeStageViewport` / preview plan test / filter test などで失敗する。
+
+### 検証
+- `npm test -- src/utils/viewportRustExportFrameSource.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererExportSession.test.ts src/utils/projectExportFrameCanvas.test.ts`
+  -> 4 files / 14 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "Viewport.tsx|viewportRustExportFrameSource|sharedRendererExportFrameSource|projectExportFrameCanvas|vite-env"`
+  -> 新規接続対象の型エラーなし。既存の `ThreeStageViewport.tsx` の `three` 型定義不足は残存。
+
 ## 2026-06-18 — Phase5: shared renderer export frame source を追加
 
 ### 実施内容

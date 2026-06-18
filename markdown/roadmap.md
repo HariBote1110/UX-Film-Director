@@ -312,8 +312,9 @@ preview session は export中に surface gate を塞ぐため、export専用 ses
 export中でも Rust boundary / WebGPU gate を通せるようにする。
 shared renderer export frame source は export session をframeごとに構築し、presenter orchestrationで描画したcanvasを
 `ImageBitmap` として返す。active Rust decode jobs は source 内で保持し、multi-session decodeをframe間で引き継ぐ。
-次 gate では `Viewport` からこの export frame source を `useProjectExport` へ渡し、decode scheduler の負荷制御、
-HDR / 10bit / 明示変換対応を進める。
+`Viewport` は `VITE_UXFD_SHARED_RENDERER_EXPORT=1` の実験flag配下でこの export frame source を `useProjectExport` へ渡す。
+条件が閉じている場合は従来の Pixi / canvas export を維持する。
+次 gate では実素材での export smoke、decode scheduler の負荷制御、HDR / 10bit / 明示変換対応を進める。
 これにより、動画読み込み・current frame availability と GPU import / sampling の問題を分離する。
 ただし HTMLVideoElement / `importExternalTexture` はブラウザの暗黙 YUV->RGB と float 秒 seek に依存するため、
 この経路の動画 preview は export parity をまだ主張しない。external texture 表示を入れる前後で、known clip の同一 frame を
