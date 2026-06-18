@@ -19,6 +19,8 @@ fn copies_posix_shared_frame_into_renderer_upload_buffer_without_releasing_slot(
         &name,
         2,
         16,
+        0,
+        1,
         42,
         &mut upload_buffer,
         Duration::from_secs(1),
@@ -27,6 +29,8 @@ fn copies_posix_shared_frame_into_renderer_upload_buffer_without_releasing_slot(
 
     assert_eq!(upload_buffer, source);
     assert_eq!(report.sequence, 42);
+    assert_eq!(report.slot_index, 0);
+    assert_eq!(report.generation, 1);
     assert_eq!(report.byte_len, 16);
     assert_eq!(report.actual_checksum, report.expected_checksum);
     assert!(
@@ -36,6 +40,32 @@ fn copies_posix_shared_frame_into_renderer_upload_buffer_without_releasing_slot(
     producer_ring
         .release_frame(CopyOutState::GpuUploadFenceSignalled)
         .expect("release copied frame after upload fence");
+}
+
+#[test]
+fn rejects_shared_frame_when_resolved_slot_does_not_match_descriptor_slot() {
+    let name = unique_shm_name();
+    let producer_ring =
+        PosixSharedRing::create_with_slot_count(&name, 2, 16).expect("create shared frame ring");
+    let source = vec![0x7b; 16];
+    producer_ring
+        .write_frame(42, &source)
+        .expect("write decoded frame");
+
+    let mut upload_buffer = vec![0; 16];
+    let error = copy_shared_frame_into_upload_buffer(
+        &name,
+        2,
+        16,
+        1,
+        1,
+        42,
+        &mut upload_buffer,
+        Duration::from_secs(1),
+    )
+    .expect_err("copy must reject a descriptor slot that does not own the ready frame");
+
+    assert!(format!("{error:?}").contains("SlotLeaseMismatch"));
 }
 
 fn unique_shm_name() -> String {
