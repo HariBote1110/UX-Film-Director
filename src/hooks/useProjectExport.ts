@@ -7,6 +7,7 @@ import { buildExportAudioBuffer, buildExportAudioMixWav } from '../utils/audioMi
 import { encodeVideoToMp4 } from '../utils/videoExportPipeline';
 import { resolveProjectExportEncodePlanFromBridge } from '../utils/projectExportEncodePlan';
 import { runRustBackendVideoEncodeExport } from '../utils/rustBackendVideoEncodeExport';
+import { renderProjectExportRustEncodeFrame } from '../utils/projectExportRustEncodeFrame';
 import { VideoFrameProvider } from '../utils/videoFrameProvider';
 import { PlaybackFrameProvider } from '../utils/playbackFrameProvider';
 import type { FrameProvider } from '../utils/frameProvider';
@@ -18,8 +19,18 @@ import {
   type ProjectExportRustFrameSource,
 } from '../utils/projectExportFrameCanvas';
 import { isSharedRendererExportFrameSourceBlockedError } from '../utils/sharedRendererExportFrameSource';
+import type { RustBackendVideoEncodeFrame } from '../utils/rustBackendVideoEncodeExport';
 
 const { ipcRenderer } = window;
+
+const createRustEncodeSessionId = (): string =>
+  `uxfd-export-${Date.now().toString(36)}`;
+
+const closeEncodedFrameBitmap = (frame: RustBackendVideoEncodeFrame): void => {
+  if ('bitmap' in frame) {
+    frame.bitmap.close();
+  }
+};
 
 export const useProjectExport = (
   pixiAppRef: React.MutableRefObject<PIXI.Application | null>,
@@ -106,6 +117,7 @@ export const useProjectExport = (
 
         const encWidth = width % 2 === 0 ? width : width - 1;
         const encHeight = height % 2 === 0 ? height : height - 1;
+        const rustEncodeSessionId = createRustEncodeSessionId();
 
         if (exportFrameSourcePlan.requiresLegacyBrowserVideoProviders) {
           // ── フレームプロバイダを初期化 ───────────────────────────────────────
@@ -176,7 +188,7 @@ export const useProjectExport = (
           console.log(`[Export] VideoDecoder ハイブリッドパス: ${providers.size} クリップ`);
         }
 
-        async function* renderFrames() {
+        async function* renderFrames(preferSharedFrame: boolean) {
           let rustFrameSourceBlocked = false;
 
           for (let i = 0; i < totalFrames; i++) {
@@ -201,16 +213,21 @@ export const useProjectExport = (
               exportFrameOverridesRef?.current.clear();
               const timestampUs = Math.round(i * 1_000_000 / fps);
               try {
-                const bitmap = await exportFrameSourcePlan.frameSource.renderFrame({
-                  frameIndex: i,
-                  timestampUs,
-                  time: t,
-                  width: encWidth,
-                  height: encHeight,
-                  objects: exportObjects,
+                const frame = await renderProjectExportRustEncodeFrame({
+                  frameSource: exportFrameSourcePlan.frameSource,
+                  encodeSessionId: rustEncodeSessionId,
+                  preferSharedFrame,
+                  request: {
+                    frameIndex: i,
+                    timestampUs,
+                    time: t,
+                    width: encWidth,
+                    height: encHeight,
+                    objects: exportObjects,
+                  },
                 });
-                yield { timestamp: timestampUs, bitmap };
-                bitmap.close();
+                yield frame;
+                closeEncodedFrameBitmap(frame);
                 continue;
               } catch (error) {
                 if (!isSharedRendererExportFrameSourceBlockedError(error)) {
@@ -299,10 +316,11 @@ export const useProjectExport = (
             const result = await runRustBackendVideoEncodeExport({
               filePath: savePath,
               audioPath,
+              sessionId: rustEncodeSessionId,
               width: encWidth,
               height: encHeight,
               fps,
-              frames: renderFrames(),
+              frames: renderFrames(true),
             });
             if (isCancelled()) return;
 
@@ -336,7 +354,7 @@ export const useProjectExport = (
             width,
             height,
             fps,
-            frames: renderFrames(),
+            frames: renderFrames(false) as AsyncIterable<{ timestamp: number; bitmap: ImageBitmap }>,
             audioBuffer,
             writeChunk: async (data, position) => {
               const end = position + data.byteLength;
