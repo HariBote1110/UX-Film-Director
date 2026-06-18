@@ -341,6 +341,7 @@ impl PosixSharedRing {
                 }
 
                 return Ok(MappedReadFrame {
+                    slot_index,
                     sequence,
                     expected_checksum,
                     actual_checksum,
@@ -604,6 +605,7 @@ fn checksum_for_bytes(bytes: &[u8]) -> FrameChecksum {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MappedReadFrame {
+    pub slot_index: u32,
     pub sequence: u64,
     pub expected_checksum: u32,
     pub actual_checksum: u32,
