@@ -1,3 +1,31 @@
+## 2026-06-18 — Phase5: Rust export source selection に preflight を追加
+
+### 実施内容
+- `ProjectExportRustFrameSourceContext` を追加し、export開始時に実際の可視オブジェクト集合と代表時刻を Rust frame source 選択へ渡すようにした。
+- `resolveViewportRustExportFrameSource` が `buildSharedRendererExportSession` で代表時刻 `0` の surface gate を先に確認するようにした。
+- preflightでshared renderer export sessionがblockedの場合は `exportSessionBlocked` として legacy canvas export へ戻し、frame source自体は生成しないようにした。
+- root dataset診断にも `uxfdRustExportFrameSourceReason=exportSessionBlocked` を残すようにした。
+- package version を `0.1.1-Beta-60i` に更新した。
+
+### Red
+- `src/utils/viewportRustExportFrameSource.test.ts` に、preflight blocked時はsourceを作らずlegacyへ戻る契約、preflight成功時のみsourceを作る契約、diagnostics reason契約を追加した。
+
+### Green
+- `src/utils/viewportRustExportFrameSource.ts` に optional preflightを実装した。
+- `src/hooks/useProjectExport.ts` は Rust source選択前に `exportObjects` を確定し、`getRustExportFrameSource({ objects, time: 0 })` を呼ぶようにした。
+- `src/components/Viewport.tsx` は受け取ったexport contextを `buildViewportRustExportFrameSource` へ渡すようにした。
+
+### 現在の制限
+- preflightは代表時刻 `0` のみを見る。後続時刻で初めて現れるunsupported objectは、現状どおりframe render時のblocked fallbackで検出する。
+
+### 検証
+- `npm test -- src/utils/viewportRustExportFrameSource.test.ts`
+  -> 1 file / 8 tests passed。
+- `npm test -- src/utils/sharedRendererSurfaceMount.test.ts src/utils/viewportRustExportFrameSource.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererExportSession.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/rustBackendVideoDecodeControl.test.ts src/utils/sharedRendererRustVideoUploadPipeline.test.ts src/utils/sharedRendererPresenterDiagnostics.test.ts`
+  -> 11 files / 58 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "src/(components/Viewport\\.tsx|hooks/useProjectExport\\.ts|utils/(viewportRustExportFrameSource|projectExportFrameCanvas|sharedRendererExportSession)\\.ts)"`
+  -> 対象ファイルの型エラーなし。
+
 ## 2026-06-18 — Phase5: Rust export blocked時にsourceを即時close
 
 ### 実施内容

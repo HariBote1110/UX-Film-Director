@@ -264,6 +264,12 @@ multi-session decodeをframe間で引き継ぐ。次段では `Viewport` から 
 video cutover enabled / shared renderer canvas available の条件が揃った時だけ `ProjectExportRustFrameSource` を
 `useProjectExport` へ渡す。条件が閉じている場合は `null` を返し、従来の Pixi / canvas export を維持する。
 
+55. Phase5: Rust export source selection に preflight を追加する
+`useProjectExport` は export 開始時に実際の可視オブジェクト集合を `getRustExportFrameSource` へ渡す。
+`Viewport` 側は `buildSharedRendererExportSession` で代表時刻 `0` の surface gate を先に確認し、
+Rust/shared renderer で描けないシーンでは `ProjectExportRustFrameSource` を生成せず legacy canvas export へ戻す。
+これにより、保存先選択や音声mixdown後に最初のframeでようやくblockedになる無駄を減らす。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
