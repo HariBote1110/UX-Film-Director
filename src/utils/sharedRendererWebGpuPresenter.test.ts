@@ -955,6 +955,7 @@ const fakeCanvas = (getContext: () => unknown) =>
 const fakeContext = (configure: (configuration: unknown) => void = () => undefined) => ({
   configure,
   getCurrentTexture: () => ({
+    toString: () => 'current-texture',
     createView: () => 'current-texture-view',
   }),
 });
@@ -991,12 +992,14 @@ const fakeDevice = ({
   onRenderPassOperation = () => undefined,
   onWriteBuffer = () => undefined,
   onWriteTexture = () => undefined,
+  onCopyTextureToBuffer = () => undefined,
   onCreateBuffer = () => undefined,
   onCreateTexture = () => undefined,
   onCreateSampler = () => undefined,
   onCreateBindGroup = () => undefined,
   onCreateShaderModule = () => undefined,
   onCreateRenderPipeline = () => undefined,
+  readbackBytes = new Uint8Array(),
 }: {
   lost?: Promise<unknown>;
   onSubmit?: (commandBuffers: unknown[]) => void;
@@ -1009,16 +1012,23 @@ const fakeDevice = ({
     dataLayout: unknown,
     size: unknown
   ) => void;
+  onCopyTextureToBuffer?: (
+    source: unknown,
+    destination: unknown,
+    size: unknown
+  ) => void;
   onCreateBuffer?: (descriptor: unknown) => void;
   onCreateTexture?: (descriptor: unknown) => void;
   onCreateSampler?: (descriptor: unknown) => void;
   onCreateBindGroup?: (descriptor: unknown) => void;
   onCreateShaderModule?: (descriptor: unknown) => void;
   onCreateRenderPipeline?: (descriptor: unknown) => void;
+  readbackBytes?: Uint8Array;
 } = {}) => ({
   lost,
   queue: {
     submit: onSubmit,
+    onSubmittedWorkDone: async () => undefined,
     writeBuffer: onWriteBuffer,
     writeTexture: onWriteTexture,
   },
@@ -1055,6 +1065,23 @@ const fakeDevice = ({
   },
   createBuffer: (descriptor: unknown) => {
     onCreateBuffer(descriptor);
+    if (
+      typeof descriptor === 'object'
+      && descriptor !== null
+      && 'label' in descriptor
+      && descriptor.label === 'shared-renderer-presented-frame-readback'
+    ) {
+      return {
+        toString: () => 'readback-buffer',
+        mapAsync: async () => undefined,
+        getMappedRange: () => readbackBytes.buffer.slice(
+          readbackBytes.byteOffset,
+          readbackBytes.byteOffset + readbackBytes.byteLength
+        ),
+        unmap: () => undefined,
+        destroy: () => undefined,
+      };
+    }
     return typeof descriptor === 'object'
       && descriptor !== null
       && 'label' in descriptor
@@ -1063,6 +1090,22 @@ const fakeDevice = ({
       : 'solid-colour-vertex-buffer';
   },
   createCommandEncoder: () => ({
+    copyTextureToBuffer: (source: unknown, destination: unknown, size: unknown) => {
+      const normalisedSource = typeof source === 'object'
+        && source !== null
+        && 'texture' in source
+        ? { texture: String(source.texture) }
+        : source;
+      const normalisedDestination = typeof destination === 'object'
+        && destination !== null
+        && 'buffer' in destination
+        ? {
+          ...destination,
+          buffer: String(destination.buffer),
+        }
+        : destination;
+      onCopyTextureToBuffer(normalisedSource, normalisedDestination, size);
+    },
     beginRenderPass: (descriptor: unknown) => {
       onRenderPass(descriptor);
       return {

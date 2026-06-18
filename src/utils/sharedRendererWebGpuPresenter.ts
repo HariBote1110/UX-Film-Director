@@ -50,6 +50,11 @@ export interface SharedRendererWebGpuDeviceLike {
   createSampler?: (descriptor: SharedRendererVideoSamplerDescriptor) => unknown;
   createBindGroup?: (descriptor: SharedRendererVideoBindGroupDescriptor) => unknown;
   createCommandEncoder?: () => {
+    copyTextureToBuffer?: (
+      source: { texture: unknown },
+      destination: { buffer: unknown; bytesPerRow: number; rowsPerImage: number },
+      size: SharedRendererVideoTextureSize
+    ) => void;
     beginRenderPass: (descriptor: {
       colorAttachments: Array<{
         view: unknown;
@@ -106,6 +111,7 @@ export type SharedRendererWebGpuPresenterResult =
       presentSolidColourScene: (scene: SharedRendererSolidColourSceneInput) => SharedRendererSolidColourScenePresentationResult;
       uploadVideoFrameTexture: (input: SharedRendererVideoFrameTextureUploadInput) => SharedRendererVideoFrameTextureUploadResult;
       presentVideoFrameScene: (scene: SharedRendererVideoFrameSceneInput) => SharedRendererVideoFrameScenePresentationResult;
+      readPresentedFrameRgbaBytes: (input: SharedRendererPresentedFrameReadbackInput) => Promise<SharedRendererPresentedFrameReadbackResult>;
     }
   | {
       ok: false;
@@ -159,11 +165,26 @@ export interface SharedRendererWebGpuPresenterInput {
   textureUsageRenderAttachment?: number;
   bufferUsageVertex?: number;
   bufferUsageCopyDst?: number;
+  bufferUsageMapRead?: number;
+  textureUsageCopySrc?: number;
   textureUsageTextureBinding?: number;
   textureUsageTextureCopyDst?: number;
   solidColourVertexSceneBuilder?: SharedRendererSolidColourVertexSceneBuilder;
   videoPlaneVertexSceneBuilder?: SharedRendererVideoPlaneVertexSceneBuilder;
   onDeviceLost?: (event: SharedRendererDeviceLostEvent) => void;
+}
+
+export interface SharedRendererPresentedFrameReadbackInput {
+  width: number;
+  height: number;
+}
+
+export interface SharedRendererPresentedFrameReadbackResult {
+  rgbaBytes: Uint8Array;
+  strideBytes: number;
+  byteLen: number;
+  width: number;
+  height: number;
 }
 
 export interface SharedRendererVideoFrameTextureUploadInput {
@@ -252,6 +273,8 @@ export const createSharedRendererWebGpuPresenter = async ({
   textureUsageRenderAttachment = defaultRenderAttachmentUsage(),
   bufferUsageVertex = defaultVertexBufferUsage(),
   bufferUsageCopyDst = defaultCopyDstBufferUsage(),
+  bufferUsageMapRead = defaultMapReadBufferUsage(),
+  textureUsageCopySrc = defaultTextureCopySrcUsage(),
   textureUsageTextureBinding = defaultTextureBindingUsage(),
   textureUsageTextureCopyDst = defaultTextureCopyDstUsage(),
   solidColourVertexSceneBuilder = buildSharedRendererSolidColourVertexScene,
@@ -320,7 +343,7 @@ export const createSharedRendererWebGpuPresenter = async ({
   context.configure({
     device,
     format,
-    usage: textureUsageRenderAttachment,
+    usage: textureUsageRenderAttachment | textureUsageCopySrc,
     colorSpace: presentationContract.canvas.colorSpace,
     alphaMode: presentationContract.canvas.alphaMode,
   });
@@ -342,14 +365,17 @@ export const createSharedRendererWebGpuPresenter = async ({
     });
   }
 
+  let lastPresentedTexture: unknown | null = null;
   const presentSolidSrgbSwatch = (swatch: SharedRendererSolidSrgbSwatch) => {
     if (!context.getCurrentTexture || !device.createCommandEncoder || !device.queue) return;
 
     const encoder = device.createCommandEncoder();
+    const targetTexture = context.getCurrentTexture();
+    lastPresentedTexture = targetTexture;
     const pass = encoder.beginRenderPass({
       colorAttachments: [
         {
-          view: context.getCurrentTexture().createView(),
+          view: targetTexture.createView(),
           clearValue: {
             r: swatch.red,
             g: swatch.green,
@@ -400,10 +426,12 @@ export const createSharedRendererWebGpuPresenter = async ({
 
     if (vertexScene.rectCount === 0) {
       const encoder = device.createCommandEncoder();
+      const targetTexture = context.getCurrentTexture();
+      lastPresentedTexture = targetTexture;
       const pass = encoder.beginRenderPass({
         colorAttachments: [
           {
-            view: context.getCurrentTexture().createView(),
+            view: targetTexture.createView(),
             clearValue: { r: 0, g: 0, b: 0, a: 0 },
             loadOp: 'clear',
             storeOp: 'store',
@@ -469,10 +497,12 @@ export const createSharedRendererWebGpuPresenter = async ({
     device.queue.writeBuffer(vertexBuffer, 0, vertices);
 
     const encoder = device.createCommandEncoder();
+    const targetTexture = context.getCurrentTexture();
+    lastPresentedTexture = targetTexture;
     const pass = encoder.beginRenderPass({
       colorAttachments: [
         {
-          view: context.getCurrentTexture().createView(),
+          view: targetTexture.createView(),
           clearValue: { r: 0, g: 0, b: 0, a: 0 },
           loadOp: 'clear',
           storeOp: 'store',
@@ -676,10 +706,12 @@ export const createSharedRendererWebGpuPresenter = async ({
     }));
 
     const encoder = device.createCommandEncoder();
+    const targetTexture = context.getCurrentTexture();
+    lastPresentedTexture = targetTexture;
     const pass = encoder.beginRenderPass({
       colorAttachments: [
         {
-          view: context.getCurrentTexture().createView(),
+          view: targetTexture.createView(),
           clearValue: { r: 0, g: 0, b: 0, a: 0 },
           loadOp: 'clear',
           storeOp: 'store',
@@ -707,6 +739,64 @@ export const createSharedRendererWebGpuPresenter = async ({
     };
   };
 
+  const readPresentedFrameRgbaBytes = async ({
+    width,
+    height,
+  }: SharedRendererPresentedFrameReadbackInput): Promise<SharedRendererPresentedFrameReadbackResult> => {
+    if (!lastPresentedTexture) {
+      throw new Error('No shared renderer frame has been presented for WebGPU readback.');
+    }
+    if (!device.createBuffer || !device.createCommandEncoder || !device.queue) {
+      throw new Error('WebGPU device does not expose the buffer copy APIs needed for presented frame readback.');
+    }
+    const encoder = device.createCommandEncoder();
+    if (!encoder.copyTextureToBuffer) {
+      throw new Error('WebGPU command encoder does not expose copyTextureToBuffer for presented frame readback.');
+    }
+
+    const rowBytes = width * 4;
+    const strideBytes = alignTo(rowBytes, 256);
+    const byteLen = strideBytes * height;
+    const readbackBuffer = device.createBuffer({
+      label: 'shared-renderer-presented-frame-readback',
+      size: byteLen,
+      usage: bufferUsageMapRead | bufferUsageCopyDst,
+    });
+    encoder.copyTextureToBuffer(
+      { texture: lastPresentedTexture },
+      {
+        buffer: readbackBuffer,
+        bytesPerRow: strideBytes,
+        rowsPerImage: height,
+      },
+      {
+        width,
+        height,
+        depthOrArrayLayers: 1,
+      }
+    );
+    device.queue.submit([encoder.finish()]);
+    await device.queue.onSubmittedWorkDone?.();
+
+    const readableBuffer = asReadableGpuBuffer(readbackBuffer);
+    if (!readableBuffer) {
+      throw new Error('WebGPU readback buffer does not expose mapAsync/getMappedRange.');
+    }
+    await readableBuffer.mapAsync(defaultMapReadMode());
+    const mappedRange = readableBuffer.getMappedRange();
+    const rgbaBytes = new Uint8Array(mappedRange.slice(0));
+    readableBuffer.unmap();
+    readableBuffer.destroy?.();
+
+    return {
+      rgbaBytes,
+      strideBytes,
+      byteLen,
+      width,
+      height,
+    };
+  };
+
   return {
     ok: true,
     device,
@@ -722,6 +812,7 @@ export const createSharedRendererWebGpuPresenter = async ({
     presentSolidColourScene,
     uploadVideoFrameTexture,
     presentVideoFrameScene,
+    readPresentedFrameRgbaBytes,
   };
 };
 
@@ -834,6 +925,16 @@ const defaultCopyDstBufferUsage = (): number => {
   return bufferUsage?.COPY_DST ?? 0x8;
 };
 
+const defaultMapReadBufferUsage = (): number => {
+  const bufferUsage = (globalThis as unknown as { GPUBufferUsage?: { MAP_READ?: number } }).GPUBufferUsage;
+  return bufferUsage?.MAP_READ ?? 0x1;
+};
+
+const defaultTextureCopySrcUsage = (): number => {
+  const textureUsage = (globalThis as unknown as { GPUTextureUsage?: { COPY_SRC?: number } }).GPUTextureUsage;
+  return textureUsage?.COPY_SRC ?? 0x1;
+};
+
 const defaultTextureBindingUsage = (): number => {
   const textureUsage = (globalThis as unknown as { GPUTextureUsage?: { TEXTURE_BINDING?: number } }).GPUTextureUsage;
   return textureUsage?.TEXTURE_BINDING ?? 0x4;
@@ -842,6 +943,38 @@ const defaultTextureBindingUsage = (): number => {
 const defaultTextureCopyDstUsage = (): number => {
   const textureUsage = (globalThis as unknown as { GPUTextureUsage?: { COPY_DST?: number } }).GPUTextureUsage;
   return textureUsage?.COPY_DST ?? 0x2;
+};
+
+const defaultMapReadMode = (): number => {
+  const mapMode = (globalThis as unknown as { GPUMapMode?: { READ?: number } }).GPUMapMode;
+  return mapMode?.READ ?? 0x1;
+};
+
+const alignTo = (value: number, alignment: number): number =>
+  Math.ceil(value / alignment) * alignment;
+
+interface ReadableGpuBuffer {
+  mapAsync: (mode: number) => Promise<void>;
+  getMappedRange: () => ArrayBuffer;
+  unmap: () => void;
+  destroy?: () => void;
+}
+
+const asReadableGpuBuffer = (buffer: unknown): ReadableGpuBuffer | null => {
+  if (
+    typeof buffer === 'object'
+    && buffer !== null
+    && 'mapAsync' in buffer
+    && typeof buffer.mapAsync === 'function'
+    && 'getMappedRange' in buffer
+    && typeof buffer.getMappedRange === 'function'
+    && 'unmap' in buffer
+    && typeof buffer.unmap === 'function'
+  ) {
+    return buffer as ReadableGpuBuffer;
+  }
+
+  return null;
 };
 
 const deviceLostMessage = (info: unknown): string => {
