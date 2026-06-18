@@ -1,3 +1,26 @@
+## 2026-06-18 — Phase5: Rust export frame source frame診断を追加
+
+### 実施内容
+- Rust export frame source の各 `renderFrame` で canvas dataset に frame-level 診断を書くようにした。
+- ready時は `uxfdRustExportFrameSourceFrameStatus=ready` と `uxfdRustExportFrameSourceFrameIndex` を更新し、blocked時は `uxfdRustExportFrameSourceFrameStatus=blocked` と `uxfdRustExportFrameSourceFrameReason` を残す。
+- unsupported scene / editor mode / WebGPU gate などでframe renderが止まった場合、presenterやbitmap captureへ進む前に理由を確認できる。
+- package version を `0.1.1-Beta-60e` に更新した。
+
+### Red
+- `src/utils/sharedRendererExportFrameSource.test.ts` に、ready frameとblocked frameのdataset診断契約を追加した。
+
+### Green
+- `createSharedRendererExportFrameSource` に `writeFrameDiagnostics` を追加し、surface gate通過前後でframe診断を書き込む。
+
+### 現在の制限
+- 診断は shared renderer surface canvas dataset に記録される。root datasetへの転写は未実装。
+
+### 検証
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts src/utils/viewportRustExportFrameSource.test.ts src/utils/sharedRendererSurfaceMount.test.ts src/utils/projectExportFrameCanvas.test.ts`
+  -> 4 files / 18 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererExportFrameSource|viewportRustExportFrameSource|Viewport.tsx|projectExportFrameCanvas"`
+  -> 新規診断対象の型エラーなし。既存の `ThreeStageViewport.tsx` の `three` 型定義不足は残存。
+
 ## 2026-06-18 — Phase5: Rust export source 診断を追加
 
 ### 実施内容
