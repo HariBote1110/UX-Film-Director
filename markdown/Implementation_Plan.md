@@ -677,6 +677,12 @@ source-over合成し、1枚の `RgbaFrame` を作る純粋関数を追加する�
 この段階ではPSDファイル読み込みやnative render payload接続はまだ行わず、layer順序・非表示layer除外・group除外・alpha合成を
 Rust単体テストで固定する。
 
+125. Phase5: PSD mediaをRust native render sourceへ接続する
+Rust backendの `render.nativeSharedFrame` が `MediaKind::Psd` を受けた場合、ローカルPSD file path / file URLを読み込み、
+`psd_fast::parse_psd_fast` と `composite_visible_psd_layers` で1枚のRGBA source frameを生成してnative render sourcesへ合流させる。
+PSD寸法がmedia referenceと一致しない場合はfail-loudにし、remote URLはImageと同じlocal source gateで拒否する。
+この段階ではPSDファイル内のvisible状態を使い、UI側 `activeLayerIds` の橋渡しは次段で扱う。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

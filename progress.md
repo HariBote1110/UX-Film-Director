@@ -3958,3 +3958,21 @@
 ### 残課題・次のステップ
 - `composite_visible_psd_layers` はまだ `render.nativeSharedFrame` から使っていないため、次に `MediaKind::Psd` のsource生成へ接続する。
 - activeLayerIds / rootLayer対応は未接続のため、最初はPSDファイル内のvisible状態に基づく合成として扱う。
+
+## 2026-06-18 — PSD mediaをRust native render sourceへ接続
+
+### 実施内容
+- `render.nativeSharedFrame` が `MediaKind::Psd` mediaを受け取った場合、PSDを読み込んで合成済みRGBA source frameとしてnative render sourcesへ渡すようにした。
+- PSD sourceはImageと同じlocal path / file URL gateを使い、remote URLを誤ってRust backendで読む設計にしないようにした。
+- PSD寸法がmedia referenceと一致しない場合はfail-loudにするようにした。
+- backend integration test用に最小single-layer PSD fixture生成helperを追加し、`sources: []` のPSD media-only native renderが成功する契約を固定した。
+- 版を `0.1.1-Beta-111a` に更新した。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml native_render_shared_frame_builds_psd_sources_from_media`
+- `cargo test --manifest-path rust-backend/Cargo.toml psd_fast::tests::composite_visible_psd_layers_draws_leaf_layers_from_bottom_to_top`
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane`
+
+### 残課題・次のステップ
+- TS側 `sharedRendererNativeMediaSupport` はまだPsdをunsupportedとして扱うため、preview/export capabilityへPSD対応を公開する必要がある。
+- UI側 `activeLayerIds` / `rootLayer` をRust backendのPSD合成へ渡すschemaは未実装。
