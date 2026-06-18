@@ -1025,6 +1025,12 @@ legacy Pixi video / browser provider / metadata fallbackトークンが戻らな
 Rust backend decodeのdata-planeはshared memory descriptorとnative copy bridgeに限定し、
 renderer境界がJSON pixel payloadを受け入れない契約にする。
 
+191. Phase5: decoded frame descriptor layoutをTS bridgeでも検証する
+`memoryId`、`slotIndex`、`byteOffset`、`byteLen`、`width`、`height`、`strideBytes` が
+shared memory ring layoutとして成立しない場合、decoded frameを利用不可にする。
+`strideBytes >= width * 4`、256 byte row alignment、`byteLen === strideBytes * height` を
+renderer upload前のTS境界で再確認し、壊れたdescriptorがWebGPU uploadへ流れないようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

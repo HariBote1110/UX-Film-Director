@@ -362,3 +362,10 @@
 - Green: decoded frame availability判定に `bytes` / `pixels` / `frameBase64` / `rgbaBytes` の再帰検出を追加し、descriptor-only responseだけを利用可能にした。
 - 検証: `npm test -- rustBackendVideoDecodeControl sharedRendererRustVideoUploadPipeline` は8件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-169b`。
+
+## 2026-06-19
+- Phase5のRust backend decode descriptor境界として、shared memory layoutとして不正なdecoded frame descriptorをTS bridge側でも拒否するようにした。
+- Red: `rustBackendVideoDecodeControl` へ、空 `memoryId`、短すぎる `strideBytes`、`byteLen !== strideBytes * height` を拒否する契約を追加した。
+- Green: availability判定にdescriptor layout検証を追加し、正の整数、256 byte row alignment、RGBA8 row byte長、slot byte長を確認するようにした。
+- 検証: `npm test -- rustBackendVideoDecodeControl sharedRendererRustVideoUploadPipeline` は9件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-170a`。
