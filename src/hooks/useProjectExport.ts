@@ -114,6 +114,9 @@ export const useProjectExport = (
         const videoObjects = exportObjects.filter(
           (obj): obj is Extract<TimelineObject, { type: 'video' }> => obj.type === 'video'
         );
+        const shouldLoadLegacyBrowserVideoProviders =
+          exportFrameSourcePlan.requiresLegacyBrowserVideoProviders
+          && videoObjects.length > 0;
         const lastEnd = Math.max(...exportObjects.map(o => o.startTime + o.duration), 0);
         const exportDuration = Math.max(lastEnd, 1);
         const totalFrames = Math.ceil(exportDuration * fps);
@@ -135,7 +138,7 @@ export const useProjectExport = (
         const encHeight = height % 2 === 0 ? height : height - 1;
         const rustEncodeSessionId = createRustEncodeSessionId();
 
-        if (exportFrameSourcePlan.requiresLegacyBrowserVideoProviders) {
+        if (shouldLoadLegacyBrowserVideoProviders) {
           const [
             { VideoFrameProvider },
             { PlaybackFrameProvider },
