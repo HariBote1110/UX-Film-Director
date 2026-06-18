@@ -850,11 +850,13 @@ fn native_render_shared_frame_builds_jpeg_image_sources_from_media() {
 #[test]
 fn native_render_shared_frame_builds_psd_sources_from_media() {
     let mut backend = BackendProcess::start();
-    let psd_path = repository_fixture_path("葵ちゃん.psd");
+    let temp_dir = TestTempDir::new("native-render-psd-media");
+    let psd_path = temp_dir.path().join("red-source.psd");
+    write_single_layer_psd_fixture(&psd_path, 2, 2, [255, 0, 0, 255]);
     let output_memory_id = unique_shm_name();
     let slot_count = 1;
-    let width = 8;
-    let height = 8;
+    let width = 4;
+    let height = 4;
 
     let response = backend.request(json!({
         "id": 36,
@@ -895,8 +897,8 @@ fn native_render_shared_frame_builds_psd_sources_from_media() {
                 "id": "psd-1",
                 "kind": "Psd",
                 "source": psd_path.to_string_lossy(),
-                "width": 2700,
-                "height": 3700
+                "width": 2,
+                "height": 2
             }],
             "sources": []
         }
@@ -2181,13 +2183,6 @@ impl Drop for TestTempDir {
     }
 }
 
-fn repository_fixture_path(name: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("repository root")
-        .join(name)
-}
-
 fn build_two_frame_h264_fixture(directory: &Path) -> TestVideoFixture {
     build_two_frame_h264_fixture_with_range(directory, "two-frame-source.mp4", None, "pc", "pc")
 }
@@ -2437,6 +2432,81 @@ fn write_solid_jpeg_fixture(path: &Path, width: u32, height: u32, colour: [u8; 3
         .arg("2")
         .arg(path);
     run_ffmpeg_command(&mut command, "encode JPEG fixture");
+}
+
+fn write_single_layer_psd_fixture(path: &Path, width: u32, height: u32, colour: [u8; 4]) {
+    let pixel_count = (width * height) as usize;
+    let channel_len = 2 + pixel_count as u32;
+    let mut layer_record = Vec::new();
+    push_i32_be(&mut layer_record, 0);
+    push_i32_be(&mut layer_record, 0);
+    push_i32_be(&mut layer_record, height as i32);
+    push_i32_be(&mut layer_record, width as i32);
+    push_u16_be(&mut layer_record, 4);
+    for channel_id in [0i16, 1, 2, -1] {
+        push_i16_be(&mut layer_record, channel_id);
+        push_u32_be(&mut layer_record, channel_len);
+    }
+    layer_record.extend_from_slice(b"8BIM");
+    layer_record.extend_from_slice(b"norm");
+    layer_record.push(255);
+    layer_record.push(0);
+    layer_record.push(0);
+    layer_record.push(0);
+    let name = b"Layer 1";
+    let name_block_len = 1 + name.len() + ((4 - ((1 + name.len()) & 3)) & 3);
+    let extra_len = 4 + 4 + name_block_len;
+    push_u32_be(&mut layer_record, extra_len as u32);
+    push_u32_be(&mut layer_record, 0);
+    push_u32_be(&mut layer_record, 0);
+    layer_record.push(name.len() as u8);
+    layer_record.extend_from_slice(name);
+    while layer_record.len() % 4 != 0 {
+        layer_record.push(0);
+    }
+
+    let mut channel_data = Vec::new();
+    for component in colour {
+        push_u16_be(&mut channel_data, 0);
+        channel_data.extend(std::iter::repeat(component).take(pixel_count));
+    }
+
+    let layer_info_len = 2 + layer_record.len() + channel_data.len();
+    let layer_and_mask_len = 4 + layer_info_len;
+    let mut psd = Vec::new();
+    psd.extend_from_slice(b"8BPS");
+    push_u16_be(&mut psd, 1);
+    psd.extend_from_slice(&[0; 6]);
+    push_u16_be(&mut psd, 4);
+    push_u32_be(&mut psd, height);
+    push_u32_be(&mut psd, width);
+    push_u16_be(&mut psd, 8);
+    push_u16_be(&mut psd, 3);
+    push_u32_be(&mut psd, 0);
+    push_u32_be(&mut psd, 0);
+    push_u32_be(&mut psd, layer_and_mask_len as u32);
+    push_u32_be(&mut psd, layer_info_len as u32);
+    push_i16_be(&mut psd, 1);
+    psd.extend_from_slice(&layer_record);
+    psd.extend_from_slice(&channel_data);
+
+    fs::write(path, psd).expect("write single-layer PSD fixture");
+}
+
+fn push_u16_be(bytes: &mut Vec<u8>, value: u16) {
+    bytes.extend_from_slice(&value.to_be_bytes());
+}
+
+fn push_i16_be(bytes: &mut Vec<u8>, value: i16) {
+    bytes.extend_from_slice(&value.to_be_bytes());
+}
+
+fn push_u32_be(bytes: &mut Vec<u8>, value: u32) {
+    bytes.extend_from_slice(&value.to_be_bytes());
+}
+
+fn push_i32_be(bytes: &mut Vec<u8>, value: i32) {
+    bytes.extend_from_slice(&value.to_be_bytes());
 }
 
 fn assert_red_pixel(pixel: &[u8]) {

@@ -527,7 +527,11 @@ fn handle_native_render_shared_frame(
                 Ok(value) => value,
                 Err(message) => return response_error(id, -32602, &message),
             },
-            MediaKind::Video | MediaKind::Psd => continue,
+            MediaKind::Psd => match build_psd_source_frame(media) {
+                Ok(value) => value,
+                Err(message) => return response_error(id, -32602, &message),
+            },
+            MediaKind::Video => continue,
         };
         if sources.insert(media.id.clone(), frame).is_some() {
             return response_error(
@@ -653,8 +657,42 @@ fn build_image_source_frame(media: &SceneMediaReference) -> Result<RgbaFrame, St
     Ok(frame)
 }
 
+fn build_psd_source_frame(media: &SceneMediaReference) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "Psd media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let source_path = local_media_source_path(&media.source, "Psd")?;
+    let bytes = fs::read(&source_path).map_err(|error| {
+        format!(
+            "Invalid Psd media '{}': failed to read source: {error}",
+            media.id
+        )
+    })?;
+    let psd = psd_fast::parse_psd_fast(&bytes).map_err(|error| {
+        format!(
+            "Invalid Psd media '{}': failed to parse PSD source: {error}",
+            media.id
+        )
+    })?;
+    if psd.width != media.width || psd.height != media.height {
+        return Err(format!(
+            "Psd media '{}' dimensions {}x{} do not match decoded PSD {}x{}",
+            media.id, media.width, media.height, psd.width, psd.height
+        ));
+    }
+    psd_fast::composite_visible_psd_layers(&psd).map_err(|error| {
+        format!(
+            "Invalid Psd media '{}': failed to composite PSD source: {error}",
+            media.id
+        )
+    })
+}
+
 fn load_image_media_frame(media: &SceneMediaReference) -> Result<RgbaFrame, String> {
-    let source_path = local_image_source_path(&media.source)?;
+    let source_path = local_media_source_path(&media.source, "Image")?;
     if is_jpeg_source(&source_path) {
         return load_rgba_jpeg(&source_path).map_err(|error| {
             format!(
@@ -677,12 +715,12 @@ fn is_jpeg_source(source: &str) -> bool {
     lower.ends_with(".jpg") || lower.ends_with(".jpeg")
 }
 
-fn local_image_source_path(source: &str) -> Result<String, String> {
+fn local_media_source_path(source: &str, media_kind: &str) -> Result<String, String> {
     let without_query = strip_query_and_fragment(source);
     let Some(file_url_path) = without_query.strip_prefix("file://") else {
         if has_url_scheme(without_query) {
             return Err(format!(
-                "Only local file paths or file URLs are supported for Image media, got '{source}'"
+                "Only local file paths or file URLs are supported for {media_kind} media, got '{source}'"
             ));
         }
         return Ok(without_query.to_string());
@@ -694,7 +732,7 @@ fn local_image_source_path(source: &str) -> Result<String, String> {
         file_url_path.to_string()
     } else {
         return Err(format!(
-            "Only local file URLs are supported for Image media, got '{source}'"
+            "Only local file URLs are supported for {media_kind} media, got '{source}'"
         ));
     };
 
