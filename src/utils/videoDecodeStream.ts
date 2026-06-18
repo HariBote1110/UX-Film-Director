@@ -1,7 +1,7 @@
 /**
  * VideoDecoder + MP4Box によるシークなしフレームストリーム
  *
- * HTMLVideoElement.currentTime によるシーク（遅い）を排除し、
+ * DOM動画要素の currentTime シーク（遅い）を排除し、
  * ファイルを先頭から1度だけ読んで順次デコードする。
  * VideoFrame は GPU 上に留まるため createImageBitmap より高速。
  *
