@@ -334,6 +334,21 @@ export const buildPsdLayerTree = (rootNode: PsdLayerNode, activeLayerIds: Record
   return rootNode.children.map((child) => toLayerStruct(child, activeLayerIds));
 };
 
+export const buildStablePsdLayerNodeId = ({
+  layerIndex,
+  isGroup,
+  ownGroupId,
+}: {
+  layerIndex: number;
+  isGroup: boolean;
+  ownGroupId: number | null;
+}): string => {
+  if (isGroup) {
+    return `psd-group-${ownGroupId ?? layerIndex}`;
+  }
+  return `psd-layer-${layerIndex}`;
+};
+
 /** Remove GPU-only fields before JSON serialisation (project save). */
 export const stripPsdLayerNodeForPersistence = (node: PsdLayerNode): PsdLayerNode => ({
   id: node.id,
@@ -683,9 +698,6 @@ const parsePsdViaRust = async (
     throw new Error(rustResult.error ?? 'psd.parse failed in Rust backend');
   }
 
-  let idCounter = 0;
-  const generateId = () => `psd-layer-${idCounter++}`;
-
   // Build parent → [child, ...] map keyed by the parent's psdId.
   // parentPsdId values are GROUP IDs (from the psd crate), so only group nodes
   // are valid parents.  null = top-level.
@@ -711,7 +723,11 @@ const parsePsdViaRust = async (
   const buildNodeFromRust = (rustNode: RustPsdNode): PsdLayerNode => {
     const layerName = restoreLayerNameEncoding(rustNode.name || 'Layer');
     const node: PsdLayerNode = {
-      id: generateId(),
+      id: buildStablePsdLayerNodeId({
+        layerIndex: rustNode.psdId,
+        isGroup: rustNode.isGroup,
+        ownGroupId: rustNode.isGroup ? rustNode.psdId : null,
+      }),
       name: layerName,
       isGroup: rustNode.isGroup,
       isRadio: layerName.startsWith('*'),
@@ -845,16 +861,17 @@ const parsePsdViaWasm = async (
   const tWasm = performance.now();
   console.log(`[psdParser WASM] fileRead=${(tRead - t0).toFixed(1)}ms  wasmTotal=${(tWasm - tRead).toFixed(1)}ms`);
 
-  let idCounter = 0;
-  const generateId = () => `psd-layer-${idCounter++}`;
-
   const pendingImageLoads: Array<{ node: PsdLayerNode; pixelData: ImageBitmap | Uint8Array }> = [];
 
   const buildNode = (idx: number): PsdLayerNode => {
     const layer = meta.layers[idx];
     const layerName = restoreLayerNameEncoding(layer.name || 'Layer');
     const node: PsdLayerNode = {
-      id: generateId(),
+      id: buildStablePsdLayerNodeId({
+        layerIndex: idx,
+        isGroup: layer.isGroup,
+        ownGroupId: layer.ownGroupId,
+      }),
       name: layerName,
       isGroup: layer.isGroup,
       isRadio: layerName.startsWith('*'),
