@@ -62,8 +62,26 @@ export type ProjectExportFrameSourcePlanResult =
       detail: string;
     };
 
+export type ProjectExportRuntimeFrameSource =
+  | 'sharedRendererRustFrameSource'
+  | 'legacyCanvasAfterRustBlocked'
+  | ProjectExportFrameCanvasSource;
+
+export interface ProjectExportFrameRuntimePlan {
+  source: ProjectExportRuntimeFrameSource;
+  captureCanvas: boolean;
+  requiresRenderScene: boolean;
+  usesExportFrameOverrides: boolean;
+  requiresHtmlVideoElementSeekFallback: boolean;
+}
+
 export interface BuildProjectExportFrameSourcePlanInput extends ResolveProjectExportFrameCanvasInput {
   rustFrameSource?: ProjectExportRustFrameSource | null;
+}
+
+export interface ResolveProjectExportFrameRuntimePlanInput {
+  frameSourcePlan: Extract<ProjectExportFrameSourcePlanResult, { ok: true }>;
+  rustFrameSourceBlocked: boolean;
 }
 
 export const resolveProjectExportFrameCanvas = ({
@@ -133,5 +151,38 @@ export const buildProjectExportFrameSourcePlan = ({
     ok: false,
     reason: 'exportFrameSourceUnavailable',
     detail: 'Export requires a Rust frame source, shared renderer export canvas, or legacy Pixi canvas.',
+  };
+};
+
+export const resolveProjectExportFrameRuntimePlan = ({
+  frameSourcePlan,
+  rustFrameSourceBlocked,
+}: ResolveProjectExportFrameRuntimePlanInput): ProjectExportFrameRuntimePlan => {
+  if (frameSourcePlan.source === 'sharedRendererRustFrameSource') {
+    if (!rustFrameSourceBlocked) {
+      return {
+        source: 'sharedRendererRustFrameSource',
+        captureCanvas: false,
+        requiresRenderScene: false,
+        usesExportFrameOverrides: false,
+        requiresHtmlVideoElementSeekFallback: false,
+      };
+    }
+
+    return {
+      source: 'legacyCanvasAfterRustBlocked',
+      captureCanvas: true,
+      requiresRenderScene: true,
+      usesExportFrameOverrides: false,
+      requiresHtmlVideoElementSeekFallback: true,
+    };
+  }
+
+  return {
+    source: frameSourcePlan.source,
+    captureCanvas: true,
+    requiresRenderScene: true,
+    usesExportFrameOverrides: frameSourcePlan.usesExportFrameOverrides,
+    requiresHtmlVideoElementSeekFallback: frameSourcePlan.requiresHtmlVideoElementSeekFallback,
   };
 };

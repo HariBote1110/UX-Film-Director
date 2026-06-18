@@ -10,6 +10,7 @@ import { PlaybackFrameProvider } from '../utils/playbackFrameProvider';
 import type { FrameProvider } from '../utils/frameProvider';
 import {
   buildProjectExportFrameSourcePlan,
+  resolveProjectExportFrameRuntimePlan,
   resolveProjectExportFrameCanvas,
   type ProjectExportRustFrameSource,
 } from '../utils/projectExportFrameCanvas';
@@ -172,8 +173,15 @@ export const useProjectExport = (
 
             const t = i * dt;
             if (i % Math.max(1, Math.floor(fps / 2)) === 0) setTime(t);
+            const frameRuntimePlan = resolveProjectExportFrameRuntimePlan({
+              frameSourcePlan: exportFrameSourcePlan,
+              rustFrameSourceBlocked,
+            });
 
-            if (exportFrameSourcePlan.source === 'sharedRendererRustFrameSource' && !rustFrameSourceBlocked) {
+            if (
+              frameRuntimePlan.source === 'sharedRendererRustFrameSource'
+              && exportFrameSourcePlan.source === 'sharedRendererRustFrameSource'
+            ) {
               exportFrameOverridesRef?.current.clear();
               const timestampUs = Math.round(i * 1_000_000 / fps);
               try {
@@ -202,7 +210,7 @@ export const useProjectExport = (
             );
 
             // ── VideoDecoder パス: フレームを先取りして override に注入 ─────
-            if (exportFrameSourcePlan.usesExportFrameOverrides && exportFrameOverridesRef) {
+            if (frameRuntimePlan.usesExportFrameOverrides && exportFrameOverridesRef) {
               exportFrameOverridesRef.current.clear();
               await Promise.all(activeVideos.map(async (obj) => {
                 const provider = providers.get(obj.id);
@@ -214,7 +222,7 @@ export const useProjectExport = (
             }
 
             // ── シーク方式フォールバック: providers にないクリップのみシーク ─
-            const seekTargets = exportFrameSourcePlan.requiresHtmlVideoElementSeekFallback
+            const seekTargets = frameRuntimePlan.requiresHtmlVideoElementSeekFallback
               ? activeVideos.filter(obj => !providers.has(obj.id))
               : [];
             if (seekTargets.length > 0) {
@@ -232,7 +240,9 @@ export const useProjectExport = (
               }));
             }
 
-            renderScene(t, exportObjects);
+            if (frameRuntimePlan.requiresRenderScene) {
+              renderScene(t, exportObjects);
+            }
             const frameCanvas = resolveProjectExportFrameCanvas({
               getExportCanvas,
               pixiCanvas: pixiAppRef.current?.canvas as HTMLCanvasElement | null | undefined,
