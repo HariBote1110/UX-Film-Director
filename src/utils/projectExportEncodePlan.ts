@@ -43,7 +43,7 @@ export const resolveProjectExportEncodePlan = ({
     };
   }
 
-  if (rustExportOnly || (rustVideoOnly && hasVideoObjects)) {
+  if (rustExportOnly || hasVideoObjects) {
     return {
       ok: false,
       reason: 'rustEncoderRequired',
