@@ -346,6 +346,12 @@ export function createSharedRendererExportFrameSource({
       );
     }
 
+    writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+      status: 'ready',
+      frameIndex: request.frameIndex,
+      path: 'nativeRenderSharedFrame',
+    });
+
     return {
       timestamp: request.timestampUs,
       sharedFramePayload: {
@@ -562,9 +568,11 @@ const writeFrameDiagnostics = (
     status: 'ready' | 'blocked';
     frameIndex: number;
     reason?: string;
+    path?: 'nativeRenderSharedFrame';
   }
 ): void => {
   dataset.uxfdRustExportFrameSourceFrameStatus = state.status;
   dataset.uxfdRustExportFrameSourceFrameIndex = String(state.frameIndex);
   dataset.uxfdRustExportFrameSourceFrameReason = state.reason;
+  dataset.uxfdRustExportFrameSourceFramePath = state.path;
 };
