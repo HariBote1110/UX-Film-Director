@@ -4052,3 +4052,19 @@
 ### 残課題・次のステップ
 - PSD-only export direct encodeの明示テストを追加し、Rust native render経路からPixi/readbackへ戻らない契約を固定する。
 - 既存プロジェクトに保存済みの旧ランダムPSD layer idを新stable idへ移行する必要があるか確認する。
+
+## 2026-06-18 — PSD-only export native render経路を診断へ記録
+
+### 実施内容
+- PSD-only exportが `render.nativeSharedFrame` でdirect encode payloadを返す契約を追加した。
+- PSD-only export成功時に `uxfdRustExportFrameSourceFramePath=nativeRenderSharedFrame` をdatasetへ残すようにした。
+- PSD-only exportではPixi presenter / WebGPU readback / JS shared-frame writerへ戻らないことをテストで固定した。
+- 版を `0.1.1-Beta-116a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- video+PSD exportの積層sceneで、video decode shared frame source + PSD media sourceが同じnative renderへ入る契約を追加する。
+- 既存プロジェクトに保存済みの旧PSD layer idを新stable idへ移行する必要があるか確認する。

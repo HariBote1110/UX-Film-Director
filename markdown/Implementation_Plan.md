@@ -711,6 +711,11 @@ Rust native render payloadへ渡したとき、backendが再parseしたPSD layer
 `render.nativeSharedFrame` のPSD source生成はこのactive layer filterを使い、UIのPSDレイヤー選択を
 native preview/exportへ反映する。
 
+131. Phase5: PSD-only exportのnative render直通診断を追加する
+PSD-only exportが動画decode requestなしで `render.nativeSharedFrame` へ進んだ場合、export frame diagnosticsへ
+`uxfdRustExportFrameSourceFramePath=nativeRenderSharedFrame` を残す。これによりPSD-only exportが
+Pixi presenter / WebGPU readback / JS shared-frame writerへ戻っていないことをdatasetから確認できる。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
