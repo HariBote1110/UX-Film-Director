@@ -487,6 +487,16 @@ export const startSharedRendererPreviewPresenter = async ({
     videoCutoverReason: hasVideoScene ? videoOwnership.reason : undefined,
     sharedVideoObjectCount: hasVideoScene ? videoOwnership.videoObjectIds.length : undefined,
     nativeRenderFrameReady: nativeRenderFrameReady ? true : undefined,
+    nativeRenderMediaCount: nativeRenderFrameReady ? session.surfaceGate.media.length : undefined,
+    nativeRenderMediaKinds: nativeRenderFrameReady
+      ? session.surfaceGate.media.map((reference) => reference.kind).join(',')
+      : undefined,
+    nativeRenderSourceCount: nativeRenderFrameReady
+      ? collectObjectIdsByMediaKind(session, 'Video').length
+      : undefined,
+    nativeRenderSourceMediaIds: nativeRenderFrameReady
+      ? collectObjectIdsByMediaKind(session, 'Video').join(',')
+      : undefined,
     nativeRenderFailureReason: nativeRenderFailure?.reason,
     nativeRenderFailureDetail: nativeRenderFailure?.detail,
     swatch: hasSolidColourScene

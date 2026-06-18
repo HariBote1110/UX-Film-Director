@@ -24,6 +24,10 @@ export type SharedRendererPresenterDiagnosticState =
       format: string;
       swatch: 'solid-srgb' | 'solid-colour-scene' | 'pixi-passthrough' | 'native-render-frame';
       nativeRenderFrameReady?: boolean;
+      nativeRenderMediaCount?: number;
+      nativeRenderMediaKinds?: string;
+      nativeRenderSourceCount?: number;
+      nativeRenderSourceMediaIds?: string;
       nativeRenderFailureReason?: string;
       nativeRenderFailureDetail?: string;
       geometrySource?: 'rust-wasm' | 'typescript';
@@ -80,6 +84,10 @@ export const writeSharedRendererPresenterDiagnostics = (
   delete dataset.uxfdSharedRendererPresenterVideoDecodeRequestCount;
   delete dataset.uxfdSharedRendererPresenterVideoFrameUploadReady;
   delete dataset.uxfdSharedRendererPresenterNativeRenderFrameReady;
+  delete dataset.uxfdSharedRendererPresenterNativeRenderMediaCount;
+  delete dataset.uxfdSharedRendererPresenterNativeRenderMediaKinds;
+  delete dataset.uxfdSharedRendererPresenterNativeRenderSourceCount;
+  delete dataset.uxfdSharedRendererPresenterNativeRenderSourceMediaIds;
   delete dataset.uxfdSharedRendererPresenterNativeRenderFailureReason;
   delete dataset.uxfdSharedRendererPresenterNativeRenderFailureDetail;
   delete dataset.uxfdSharedRendererPresenterVideoOwner;
@@ -135,6 +143,18 @@ export const writeSharedRendererPresenterDiagnostics = (
     }
     if (typeof state.nativeRenderFrameReady === 'boolean') {
       dataset.uxfdSharedRendererPresenterNativeRenderFrameReady = String(state.nativeRenderFrameReady);
+    }
+    if (typeof state.nativeRenderMediaCount === 'number') {
+      dataset.uxfdSharedRendererPresenterNativeRenderMediaCount = String(state.nativeRenderMediaCount);
+    }
+    if (state.nativeRenderMediaKinds) {
+      dataset.uxfdSharedRendererPresenterNativeRenderMediaKinds = state.nativeRenderMediaKinds;
+    }
+    if (typeof state.nativeRenderSourceCount === 'number') {
+      dataset.uxfdSharedRendererPresenterNativeRenderSourceCount = String(state.nativeRenderSourceCount);
+    }
+    if (state.nativeRenderSourceMediaIds !== undefined) {
+      dataset.uxfdSharedRendererPresenterNativeRenderSourceMediaIds = state.nativeRenderSourceMediaIds;
     }
     if (state.nativeRenderFailureReason) {
       dataset.uxfdSharedRendererPresenterNativeRenderFailureReason = state.nativeRenderFailureReason;
