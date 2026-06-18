@@ -217,6 +217,24 @@ const decodedVideoDescriptor: RustBackendVideoFrameDescriptor = {
   },
 };
 
+const nativeRenderDescriptor: RustBackendVideoFrameDescriptor = {
+  memoryId: '/uxfd-controller-native-render-ring',
+  slotIndex: 0,
+  generation: 7,
+  byteOffset: 0,
+  byteLen: 1024,
+  width: 4,
+  height: 4,
+  strideBytes: 256,
+  format: 'rgba8Srgb',
+  colour: {
+    primaries: 'bt709',
+    transfer: 'srgb',
+    matrix: 'rgb',
+    range: 'full',
+  },
+};
+
 describe('startSharedRendererPreviewPresenter', () => {
   it('exposes a CSS reference colour from the same solid swatch constants', () => {
     expect(getSharedRendererSolidSwatchCssColour()).toBe('rgb(64, 128, 191)');
@@ -813,6 +831,62 @@ describe('startSharedRendererPreviewPresenter', () => {
       uxfdSharedRendererPresenterVideoFrameUploadReady: 'true',
       uxfdSharedRendererPresenterVideoOwner: 'sharedRenderer',
       uxfdSharedRendererPresenterVideoCutoverReason: 'rustDecodedFrameUploadReady',
+    });
+  });
+
+  it('presents a native rendered shared frame directly to the preview canvas and releases it after the GPU fence', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const events: string[] = [];
+    const renderPassOperations: string[] = [];
+    const rgbaBytes = new Uint8Array(nativeRenderDescriptor.byteLen);
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: {
+        ...okSession,
+        surfaceGate: {
+          ...okSession.surfaceGate,
+          canvas: { width: 4, height: 4 },
+        },
+      },
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      sharedRendererNativeRenderFrameUpload: {
+        descriptor: nativeRenderDescriptor,
+        ptsFrame: 12,
+        rgbaBytes,
+        releaseAfterGpuUpload: async () => {
+          events.push('release-native');
+        },
+      },
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onRenderPassOperation: (operation) => {
+              renderPassOperations.push(operation);
+            },
+            onWriteTexture: () => {
+              events.push('writeTexture');
+            },
+            onSubmittedWorkDone: async () => {
+              events.push('gpuUploadDone');
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    } as any);
+
+    expect(control).toMatchObject({
+      ok: true,
+    });
+    expect(events).toEqual(['writeTexture', 'gpuUploadDone', 'release-native']);
+    expect(renderPassOperations).toContain('setPipeline:native-render-frame-pipeline');
+    expect(renderPassOperations).toContain('setBindGroup:0:video-frame-bind-group');
+    expect(renderPassOperations).toContain('draw:6');
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterNativeRenderFrameReady: 'true',
     });
   });
 
