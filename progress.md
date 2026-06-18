@@ -1,3 +1,18 @@
+## 2026-06-18 — Phase5: Rust export時は DOM動画pause副作用を回避
+
+### 実施内容
+- `src/utils/projectExportFrameCanvas.test.ts` に、shared renderer Rust frame source 使用時は `HTMLVideoElement.pause()` を呼ばない契約を追加した。
+- legacy canvas / browser video provider を使う互換exportでは従来どおりDOM動画をpauseする契約も固定した。
+- `pauseLegacyBrowserVideosForExport` を追加し、`useProjectExport` のexport開始時pauseを `requiresLegacyBrowserVideoProviders` に従わせた。
+- package version を `0.1.1-Beta-74a` に更新した。
+
+### 検証
+- `npm test -- src/utils/projectExportFrameCanvas.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "projectExportFrameCanvas|useProjectExport"`（対象ファイルの型エラーなし）
+
+### 残課題・次のステップ
+- Rust frame source 経路では export 開始時のDOM動画副作用を避けられた。次はpreview/exportに残る `HTMLVideoElement` readiness / canvas ImageBitmap 互換経路のうち、Rust必須モードで不要なものをさらにfail-loud化する。
+
 ## 2026-06-18 — Phase5: Rust video必須時は export中も Pixi video fallback を禁止
 
 ### 実施内容

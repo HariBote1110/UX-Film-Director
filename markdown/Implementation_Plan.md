@@ -446,6 +446,11 @@ TypeScript上でも `ImageBitmap` frameを渡せないようにする。`useProj
 `shouldSkipPixiVideoForSharedRenderer` が動画clipをPixiから外す。shared renderer所有済みIDだけに基づく通常cutoverは
 互換性のためexport中は従来どおりPixi fallbackを残すが、Rust video必須モードではHTMLVideoElement / Pixi videoへ戻らない。
 
+85. Phase5: Rust export時は DOM動画pause副作用を発生させない
+shared renderer Rust frame source が有効なexportでは、`useProjectExport` が既存 `HTMLVideoElement` 群を
+一時停止しない。DOM動画のpauseはlegacy canvas / browser video providerが必要な互換exportだけに限定し、
+Rust frame source -> shared-frame encodeの経路ではブラウザ動画状態を触らない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
