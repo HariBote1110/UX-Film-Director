@@ -1,3 +1,29 @@
+## 2026-06-18 — Phase5: Rust encode IPC を backend RPC へ接続
+
+### 実施内容
+- Electron main の `rust-backend-encode-start` / `rust-backend-encode-write-frame` / `rust-backend-encode-finish` handlerを、Rust backend の `encode.start` / `encode.writeFrame` / `encode.finish` RPC呼び出しへ接続した。
+- `writeFrame` payloadはshared memory descriptorをそのまま渡し、旧 `write-frame` channelや `export.write_frame` のbase64経路へ戻らない境界にした。
+- Rust backendが未実装エラーを返した場合も、renderer bridge向けに `{ success: false, error }` へflattenするようにした。
+- package version を `0.1.1-Beta-60s` に更新した。
+
+### Red
+- `src/utils/rustVideoEncodeBackendBridge.test.ts` に、encode start/write/finishがRust backendの `encode.*` RPCへ流れ、legacy channel / `frameBase64` / `rgbaBytes` を使わない契約を追加した。
+
+### Green
+- `electron/rustVideoEncodeBackendBridge.ts` を追加し、`callRustBackend` の成功/失敗を renderer bridge result shapeへ変換する薄い境界を実装した。
+- `electron/main.ts` の Rust encode IPC handlerを、fail-loud stubからbackend RPC bridge呼び出しへ置き換えた。
+
+### 現在の制限
+- Rust backend encoder本体はまだ未実装のため、`encode.*` RPCは現時点でも `Rust shared-frame video encoder backend is not connected yet.` を返す。違いは、その未実装判定がElectron stubではなくRust backend側まで到達すること。
+
+### 検証
+- `npm test -- src/utils/rustVideoEncodeBackendBridge.test.ts src/utils/rustVideoEncodeIpcChannels.test.ts src/utils/rustBackendVideoEncodeControl.test.ts src/utils/projectExportEncodePlan.test.ts`
+  -> 4 files / 13 tests passed。
+- `cargo test --manifest-path rust-backend/Cargo.toml encode_shared_frame_rpc_is_reserved_and_fails_loud_without_legacy_base64_fallback`
+  -> 1 test passed。
+- `npx tsc --noEmit 2>&1 | rg "(electron/(main|rustVideoEncodeBackendBridge|rustVideoEncodeIpc)\\.ts|src/(utils/rustVideoEncodeBackendBridge\\.test\\.ts|utils/rustVideoEncodeIpcChannels\\.test\\.ts|utils/rustBackendVideoEncodeControl\\.ts|utils/projectExportEncodePlan\\.ts|vite-env\\.d\\.ts))"`
+  -> 対象ファイルの型エラーなし。
+
 ## 2026-06-18 — Phase5: Rust shared-frame encode RPC を予約
 
 ### 実施内容

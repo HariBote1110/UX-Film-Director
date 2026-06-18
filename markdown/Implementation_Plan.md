@@ -314,6 +314,13 @@ Rust backend に `encode.start` / `encode.writeFrame` / `encode.finish` を追�
 のbase64/MJPEG stdin経路とは別のshared-frame encoder入口を確保する。
 本体未実装の間は `Rust shared-frame video encoder backend is not connected yet.` を返し、Method not foundやlegacy fallbackにしない。
 
+64. Phase5: Rust encode IPC を backend RPC へ接続する
+Electron main の `rust-backend-encode-start` / `rust-backend-encode-write-frame` / `rust-backend-encode-finish` は、
+旧 `start-export` / `write-frame` / `end-export` へ戻らず、Rust backend の
+`encode.start` / `encode.writeFrame` / `encode.finish` へ payload をそのまま渡す。
+`callRustBackend` の error / timeout / backend 起動失敗は renderer bridge の
+`{ success: false, error }` へflattenし、未実装時のfail-loud位置をElectron stubからRust backend側へ移す。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
