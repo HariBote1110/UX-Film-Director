@@ -5,6 +5,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
 ): boolean => {
   if (reference.kind === 'SolidColour') return true;
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
+  if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
 };
 
@@ -24,9 +25,12 @@ export const canRenderSharedRendererNativeMediaOnlyFrame = ({
 };
 
 export const isSharedRendererNativeImageSourceSupported = (source: string): boolean =>
-  isLocalNativeImageSource(source) && /\.(png|jpe?g)$/i.test(nativeImageSourcePathname(source));
+  isLocalNativeMediaSource(source) && /\.(png|jpe?g)$/i.test(nativeMediaSourcePathname(source));
 
-const isLocalNativeImageSource = (source: string): boolean => {
+export const isSharedRendererNativePsdSourceSupported = (source: string): boolean =>
+  isLocalNativeMediaSource(source) && /\.psd$/i.test(nativeMediaSourcePathname(source));
+
+const isLocalNativeMediaSource = (source: string): boolean => {
   if (isWindowsLocalPath(source)) return true;
 
   const schemeMatch = source.match(/^([a-z][a-z0-9+.-]*):/i);
@@ -41,7 +45,7 @@ const isLocalNativeImageSource = (source: string): boolean => {
   }
 };
 
-const nativeImageSourcePathname = (source: string): string => {
+const nativeMediaSourcePathname = (source: string): string => {
   if (/^file:/i.test(source)) {
     try {
       return new URL(source).pathname;

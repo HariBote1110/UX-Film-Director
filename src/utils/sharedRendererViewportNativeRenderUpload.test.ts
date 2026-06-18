@@ -100,47 +100,45 @@ const mediaOnlySession: SharedRendererPreviewSession = {
   presentationContract: buildSharedRendererPresentationContract(),
 };
 
-const psdOnlySession: SharedRendererPreviewSession = {
-  ...mediaOnlySession,
-  plan: {
-    ...mediaOnlySession.plan,
-    snapshot: {
-      ...mediaOnlySession.plan.snapshot,
-      clips: mediaOnlySession.plan.snapshot.clips.map((clip) => ({
-        ...clip,
-        clip_id: 'psd-1',
-        media_id: 'psd-1',
-      })),
+const buildPsdOnlySession = (): SharedRendererPreviewSession => {
+  if (mediaOnlySession.plan.mode !== 'parallelCompare' || !mediaOnlySession.surfaceGate.ok) {
+    throw new Error('mediaOnlySession fixture must be renderable');
+  }
+
+  const psdMedia = [{
+    id: 'psd-1',
+    kind: 'Psd' as const,
+    source: '/tmp/standing.psd',
+    width: 4,
+    height: 4,
+  }];
+  const psdSnapshot = {
+    ...mediaOnlySession.plan.snapshot,
+    clips: mediaOnlySession.plan.snapshot.clips.map((clip) => ({
+      ...clip,
+      clip_id: 'psd-1',
+      media_id: 'psd-1',
+    })),
+  };
+
+  return {
+    ...mediaOnlySession,
+    plan: {
+      mode: 'parallelCompare',
+      primary: 'pixi',
+      candidate: 'sharedRenderer',
+      snapshot: psdSnapshot,
+      media: psdMedia,
     },
-    media: [{
-      id: 'psd-1',
-      kind: 'Psd',
-      source: '/tmp/standing.psd',
-      width: 4,
-      height: 4,
-    }],
-  },
-  surfaceGate: mediaOnlySession.surfaceGate.ok
-    ? {
+    surfaceGate: {
       ...mediaOnlySession.surfaceGate,
-      snapshot: {
-        ...mediaOnlySession.surfaceGate.snapshot,
-        clips: mediaOnlySession.surfaceGate.snapshot.clips.map((clip) => ({
-          ...clip,
-          clip_id: 'psd-1',
-          media_id: 'psd-1',
-        })),
-      },
-      media: [{
-        id: 'psd-1',
-        kind: 'Psd',
-        source: '/tmp/standing.psd',
-        width: 4,
-        height: 4,
-      }],
-    }
-    : mediaOnlySession.surfaceGate,
+      snapshot: psdSnapshot,
+      media: psdMedia,
+    },
+  };
 };
+
+const psdOnlySession = buildPsdOnlySession();
 
 const renderResult: RustBackendNativeRenderSharedFrameResult = {
   rendered: true,
