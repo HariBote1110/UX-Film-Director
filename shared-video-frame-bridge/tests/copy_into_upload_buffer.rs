@@ -1,8 +1,11 @@
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use uxfd_shared_memory_spike::PosixSharedRing;
 use uxfd_shared_video_frame_bridge::copy_shared_frame_into_upload_buffer;
 use uxfd_sidecar_protocol::CopyOutState;
+
+static SHM_NAME_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[test]
 fn copies_posix_shared_frame_into_renderer_upload_buffer_without_releasing_slot() {
@@ -73,5 +76,6 @@ fn unique_shm_name() -> String {
         .duration_since(UNIX_EPOCH)
         .expect("system clock should be after unix epoch")
         .as_nanos() as u64;
-    format!("/u{:x}{:x}", std::process::id(), nanos & 0xfffff)
+    let counter = SHM_NAME_COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("/u{:x}{:x}{:x}", std::process::id(), nanos, counter)
 }
