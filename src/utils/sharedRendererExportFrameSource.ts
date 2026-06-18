@@ -19,6 +19,7 @@ import {
 import type { SharedRendererViewportVideoDecodeJob } from './sharedRendererViewportVideoUpload';
 import { stopRustBackendVideoDecode } from './rustBackendVideoDecodeControl';
 import type { SharedRendererPreviewSurfaceBlockedReason } from './sharedRendererPreviewSurface';
+import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererWebGpuPresenter';
 
 type PresenterDataset = Record<string, string | undefined>;
 
@@ -59,6 +60,7 @@ export interface CreateSharedRendererExportFrameSourceInput {
   fallbackAdapter: boolean;
   videoCutoverEnabled: boolean;
   bitmapCaptureEnabled?: boolean;
+  presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
   datasets?: PresenterDataset[];
   buildExportSession?: SharedRendererExportSessionBuilder;
   startViewportPresenter?: SharedRendererExportViewportPresenterStarter;
@@ -117,6 +119,7 @@ export function createSharedRendererExportFrameSource({
   fallbackAdapter,
   videoCutoverEnabled,
   bitmapCaptureEnabled = true,
+  presentedFrameSharedFrameTaker,
   datasets = [canvas.dataset as unknown as PresenterDataset],
   buildExportSession = buildSharedRendererExportSession,
   startViewportPresenter = startSharedRendererViewportPresenter,
@@ -181,6 +184,7 @@ export function createSharedRendererExportFrameSource({
       activeVideoDecodeJob: activeVideoDecodeJobs[0] ?? null,
       activeVideoDecodeJobs,
       requestId: (requestId += 1),
+      presentedFrameSharedFrameTaker,
       onVideoDecodeJobsResolved: (jobs) => {
         activeVideoDecodeJobs = jobs;
       },

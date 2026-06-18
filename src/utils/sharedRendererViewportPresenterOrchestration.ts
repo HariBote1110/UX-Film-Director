@@ -3,6 +3,7 @@ import {
   type SharedRendererPreviewPresenterControl,
   type StartSharedRendererPreviewPresenterInput,
 } from './sharedRendererPreviewPresenterController';
+import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererWebGpuPresenter';
 import {
   prepareSharedRendererViewportVideoUpload,
   prepareSharedRendererViewportVideoUploads,
@@ -35,6 +36,7 @@ export interface StartSharedRendererViewportPresenterInput {
   activeVideoDecodeJob: SharedRendererViewportVideoDecodeJob | null;
   activeVideoDecodeJobs?: SharedRendererViewportVideoDecodeJob[];
   requestId: number;
+  presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
   prepareVideoUpload?: SharedRendererViewportVideoUploadPreparer;
   prepareVideoUploads?: SharedRendererViewportVideoUploadsPreparer;
   startPresenter?: SharedRendererViewportPresenterStarter;
@@ -60,6 +62,7 @@ export const startSharedRendererViewportPresenter = async ({
   activeVideoDecodeJob,
   activeVideoDecodeJobs,
   requestId,
+  presentedFrameSharedFrameTaker,
   prepareVideoUpload = prepareSharedRendererViewportVideoUpload,
   prepareVideoUploads = prepareSharedRendererViewportVideoUploads,
   startPresenter = startSharedRendererPreviewPresenter,
@@ -114,6 +117,7 @@ export const startSharedRendererViewportPresenter = async ({
     requireSharedRendererVideo,
     sharedRendererDecodedVideoFrameUpload,
     sharedRendererDecodedVideoFrameUploads,
+    presentedFrameSharedFrameTaker,
   });
 
   return {
