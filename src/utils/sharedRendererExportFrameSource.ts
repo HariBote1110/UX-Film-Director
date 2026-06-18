@@ -41,7 +41,7 @@ export type SharedRendererExportFrameSourceBlockedReason =
   | 'nativeRenderUnavailable'
   | 'videoUploadFailed'
   | 'videoOwnershipUnavailable'
-  | 'webGpuReadbackUnavailable'
+  | 'presentedSharedFrameHandoffUnavailable'
   | 'videoBitmapCaptureDisabled'
   | 'nativeRenderUnsupportedMedia'
   | 'nativeRenderFailed';
@@ -471,11 +471,11 @@ export function createSharedRendererExportFrameSource({
         writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
           status: 'blocked',
           frameIndex: request.frameIndex,
-          reason: 'webGpuReadbackUnavailable',
+          reason: 'presentedSharedFrameHandoffUnavailable',
         });
         throw new SharedRendererExportFrameSourceBlockedError(
-          'WebGPU presented frame readback is required for Rust direct encode frames.',
-          'webGpuReadbackUnavailable',
+          'Presented shared-frame handoff is required for Rust direct encode frames.',
+          'presentedSharedFrameHandoffUnavailable',
           request.frameIndex
         );
       } finally {
