@@ -237,3 +237,10 @@
 - Green: `src/utils/videoFrameProvider.ts` を削除した。`videoDecodeStream` はexport test harnessの比較・診断用途として残した。
 - 検証: `npm test -- useProjectExportBoundary projectExportFrameCanvas projectExportEncodePlan viewportRustExportFrameSource` は51件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-153a`。
+
+## 2026-06-19
+- Phase5のexport hook境界として、`useProjectExport` からDOM動画要素参照を削除した。
+- Red: `useProjectExportBoundary` へ、hook sourceが `videoElementsRef` / `pauseLegacyBrowserVideosForExport` / `HTMLVideoElement` を含まない契約を追加した。
+- Green: `useProjectExport` の引数・dependency配列・pause呼び出しを削除し、`Viewport` 側の呼び出しも更新した。
+- 検証: `npm test -- useProjectExportBoundary projectExportFrameCanvas projectExportEncodePlan viewportRustExportFrameSource viewportRustVideoOnlyBoundary` は57件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-154a`。

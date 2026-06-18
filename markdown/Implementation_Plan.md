@@ -930,6 +930,10 @@ VideoDecoder hybrid完了表示を削除する。WebCodecs互換branchは非動�
 production export hookから旧providerを外したため、`src/utils/videoFrameProvider.ts` を削除する。
 `videoDecodeStream` はexport test harnessの比較・診断用途に残し、production hookへ再接続しない境界テストで保護する。
 
+174. Phase5: export hookからHTMLVideoElement refを削除する
+`useProjectExport` の引数から `videoElementsRef` を外し、`pauseLegacyBrowserVideosForExport` 呼び出しを削除する。
+export hookはDOM動画要素を受け取らず、Rust frame source / canvas compatibility sourceだけを扱う。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
