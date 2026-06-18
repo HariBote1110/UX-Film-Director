@@ -49,6 +49,19 @@ describe('resolveProjectExportEncodePlan', () => {
     });
   });
 
+  it('refuses WebCodecs encoding for video exports even when Rust video-only mode is disabled', () => {
+    expect(resolveProjectExportEncodePlan({
+      rustExportOnly: false,
+      rustVideoOnly: false,
+      hasVideoObjects: true,
+      rustEncoderAvailable: false,
+    })).toEqual({
+      ok: false,
+      reason: 'rustEncoderRequired',
+      detail: 'Rust-only export requires a Rust video encoder backend; WebCodecs encoding is disabled.',
+    });
+  });
+
   it('keeps WebCodecs available for non-video exports while Rust video-only mode is enabled', () => {
     expect(resolveProjectExportEncodePlan({
       rustExportOnly: false,
