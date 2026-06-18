@@ -421,6 +421,112 @@ describe('createSharedRendererWebGpuPresenter', () => {
     ]);
   });
 
+  it('uses a native presented-frame handoff before WebGPU readback and JS shared-frame writing', async () => {
+    const payload: RustBackendVideoEncodeWriteFramePayload = {
+      sessionId: 'native-handoff-session',
+      frameIndex: 7,
+      timestampUs: 116_667,
+      slotCount: 1,
+      frame: {
+        descriptor: {
+          memoryId: '/uxfd-export-source-native-handoff-session',
+          slotIndex: 0,
+          generation: 8,
+          byteOffset: 0,
+          byteLen: 512,
+          width: 2,
+          height: 2,
+          strideBytes: 256,
+          format: 'rgba8Srgb',
+          colour: {
+            primaries: 'bt709',
+            transfer: 'srgb',
+            matrix: 'rgb',
+            range: 'full',
+          },
+        },
+        ptsFrame: 7,
+      },
+    };
+    const copyOperations: unknown[] = [];
+    const handoffCalls: unknown[] = [];
+    const device = fakeDevice({
+      onCopyTextureToBuffer: (...args) => {
+        copyOperations.push(args);
+      },
+    });
+    const result = await createSharedRendererWebGpuPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      surfaceGate: {
+        ...okSurfaceGate,
+        canvas: { width: 2, height: 2 },
+      },
+      presentationContract: buildSharedRendererPresentationContract(),
+      gpu: fakeGpu({
+        onRequestAdapter: () => fakeAdapter({ device }),
+      }),
+      textureUsageRenderAttachment: 16,
+      textureUsageCopySrc: 1,
+      bufferUsageCopyDst: 8,
+      bufferUsageMapRead: 1,
+      presentedFrameSharedFrameTaker: async (input) => {
+        handoffCalls.push({
+          encodeSessionId: input.encodeSessionId,
+          memoryId: input.memoryId,
+          frameIndex: input.frameIndex,
+          timestampUs: input.timestampUs,
+          width: input.width,
+          height: input.height,
+          fps: input.fps,
+          format: input.format,
+          texture: String(input.texture),
+          deviceMatches: input.device === device,
+        });
+        return payload;
+      },
+      createEncodeFrameWriter: async () => {
+        throw new Error('JS shared-frame writer must not run when native handoff returns a payload.');
+      },
+    } as Parameters<typeof createSharedRendererWebGpuPresenter>[0] & {
+      presentedFrameSharedFrameTaker: unknown;
+      createEncodeFrameWriter: unknown;
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected presenter creation to pass');
+
+    result.presentSolidSrgbSwatch({
+      red: 0,
+      green: 0,
+      blue: 0,
+      alpha: 1,
+    });
+
+    await expect(result.takePresentedFrameSharedFrame({
+      encodeSessionId: 'native-handoff-session',
+      memoryId: '/uxfd-export-source-native-handoff-session',
+      frameIndex: 7,
+      timestampUs: 116_667,
+      width: 2,
+      height: 2,
+      fps: 60,
+    })).resolves.toBe(payload);
+
+    expect(copyOperations).toEqual([]);
+    expect(handoffCalls).toEqual([{
+      encodeSessionId: 'native-handoff-session',
+      memoryId: '/uxfd-export-source-native-handoff-session',
+      frameIndex: 7,
+      timestampUs: 116_667,
+      width: 2,
+      height: 2,
+      fps: 60,
+      format: 'rgba8unorm',
+      texture: 'current-texture',
+      deviceMatches: true,
+    }]);
+  });
+
   it('rejects srgb canvas formats because the renderer owns the sRGB encode step', async () => {
     const configurations: unknown[] = [];
     const result = await createSharedRendererWebGpuPresenter({
