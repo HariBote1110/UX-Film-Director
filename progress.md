@@ -3660,10 +3660,13 @@
 - `render.nativeSharedFrame` が `kind=Image` のmediaをPNGとして読み込み、RGBA frameへ変換してnative render sourcesへ合流させるようにした。
 - PNGのdecoded dimensionsとmediaに宣言された `width` / `height` が一致しない場合はRust backend側でfail-loudにした。
 - Image media source化のTDD契約として、PNG sourceのみでnative render output descriptorを返し、control planeへframe bytesを返さないテストを追加した。
-- 版を `0.1.1-Beta-98a` に更新した。
+- 同じ `mediaId` がmedia由来sourceとshared-frame sourceの両方に現れた場合、無言上書きせず `-32602` で拒否するようにした。
+- shared memory名のテスト用生成を、時刻下位bitだけでなく全nanosと単調カウンタを使う形にして連続実行時の衝突を避けた。
+- 版を `0.1.1-Beta-98b` に更新した。
 
 ### 検証
 - `cargo test --manifest-path rust-backend/Cargo.toml native_render_shared_frame_builds_png_image_sources_from_media`
+- `cargo test --manifest-path rust-backend/Cargo.toml native_render_shared_frame_rejects_duplicate_media_and_shared_sources`
 - `cargo test --manifest-path rust-backend/Cargo.toml native_render_shared_frame`
 - `cargo test --manifest-path rust-backend/Cargo.toml encode_write_frame_unlinks_native_render_output_after_consuming_it`
 

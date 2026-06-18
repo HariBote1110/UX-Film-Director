@@ -598,6 +598,8 @@ SolidColourはbackend内生成sourceとして扱うことで、動画＋矩形sc
 Rust backendは `kind=Image` のmedia sourceをPNGとして読み込み、RGBA frameへ変換してnative render sourcesへ合流させる。
 declared media dimensionsとdecoded PNG dimensionsが一致しない場合はfail-loudにし、control planeへframe bytesを返さない。
 これにより静止画像clipをPixi/WebGPU presenterへ戻さず、Rust backend decode/source生成 → Rust/wgpu render → Rust encodeの経路へ寄せる。
+同じ `mediaId` がmedia由来sourceとshared-frame sourceの両方から登録される場合は、source ownershipを曖昧にしないため
+`render.nativeSharedFrame` がfail-loudに拒否する。
 
 ## UI 刷新（2026-04-19）
 
