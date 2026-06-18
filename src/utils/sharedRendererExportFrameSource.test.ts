@@ -434,6 +434,103 @@ describe('createSharedRendererExportFrameSource', () => {
     ]);
   });
 
+  it('uses presenter shared-frame payloads directly before WebGPU readback', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    const payload: RustBackendVideoEncodeWriteFramePayload = {
+      sessionId: 'direct-shared-frame-session',
+      frameIndex: 6,
+      timestampUs: 100_000,
+      slotCount: 1,
+      frame: {
+        descriptor: {
+          memoryId: '/uxfd-export-source-direct-shared-frame-session',
+          slotIndex: 0,
+          generation: 7,
+          byteOffset: 0,
+          byteLen: 512,
+          width: 2,
+          height: 2,
+          strideBytes: 256,
+          format: 'rgba8Srgb',
+          colour: {
+            primaries: 'bt709',
+            transfer: 'srgb',
+            matrix: 'rgb',
+            range: 'full',
+          },
+        },
+        ptsFrame: 6,
+      },
+    };
+    const calls: unknown[] = [];
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: {
+        ...settings,
+        width: 2,
+        height: 2,
+      },
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      startViewportPresenter: async () => ({
+        control: {
+          ok: true,
+          takePresentedFrameSharedFrame: async (input: unknown) => {
+            calls.push(['takePresentedFrameSharedFrame', input]);
+            return payload;
+          },
+          readPresentedFrameRgbaBytes: async () => {
+            calls.push(['readPresentedFrameRgbaBytes']);
+            throw new Error('WebGPU readback must not run when presenter provides shared-frame payloads.');
+          },
+          dispose: () => {
+            calls.push(['dispose']);
+          },
+        },
+        activeVideoDecodeJob: null,
+        activeVideoDecodeJobs: [],
+      }) as never,
+      createEncodeFrameWriter: async () => {
+        calls.push(['createEncodeFrameWriter']);
+        throw new Error('JS shared-frame writer must not run when presenter provides shared-frame payloads.');
+      },
+    });
+
+    await expect(source.renderEncodeFrame?.({
+      frameIndex: 6,
+      timestampUs: 100_000,
+      time: 0.1,
+      width: 2,
+      height: 2,
+      objects: [image()],
+      encodeSessionId: 'direct-shared-frame-session',
+    })).resolves.toEqual({
+      timestamp: 100_000,
+      sharedFramePayload: payload,
+    });
+    await source.close?.();
+
+    expect(calls).toEqual([
+      ['takePresentedFrameSharedFrame', {
+        encodeSessionId: 'direct-shared-frame-session',
+        memoryId: '/uxfd-export-source-direct-shared-frame-session',
+        frameIndex: 6,
+        timestampUs: 100_000,
+        width: 2,
+        height: 2,
+        fps: 60,
+      }],
+      ['dispose'],
+    ]);
+  });
+
   it('carries resolved Rust decode jobs across export frames', async () => {
     const canvas = {
       width: 1920,
