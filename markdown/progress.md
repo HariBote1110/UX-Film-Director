@@ -334,3 +334,10 @@
 - Green: 該当helperと型を削除した。
 - 検証: `npm test -- projectExportFrameCanvas useProjectExportBoundary` は31件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-166a`。
+
+## 2026-06-19
+- Phase5のmetadata取得として、動画metadataからHTMLVideoElement fallbackを削除し、Rust/Electron `probe-media` 結果を正本にした。
+- Red: `mediaMetadata` へ、`document.createElement('video')` / `loadVideoElementMetadata` を含まない契約を追加し、merge契約をRust probe単独へ更新した。
+- Green: `loadVideoElementMetadata` を削除し、`resolveVideoMetadata` が `probeMediaWithRust` の結果だけを `mergeResolvedVideoMetadata` に渡すよう変更した。
+- 検証: `npm test -- mediaMetadata` は11件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-167a`。

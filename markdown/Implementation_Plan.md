@@ -1002,6 +1002,11 @@ Viewportはmedia一覧だけを渡し、動画mediaは常に `rustRendererRequir
 production export planning utilityがHTMLVideoElement pause型を公開しないようにし、
 動画exportの副作用管理をRust/shared renderer側へ寄せる。
 
+187. Phase5: video metadataをRust probe中心にする
+`mediaMetadata` から `document.createElement('video')` metadata fallbackを削除する。
+`resolveVideoMetadata` はRust/Electron `probe-media` 結果だけを使い、
+動画読み込み時の寸法・duration取得もブラウザ動画要素に依存しない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
