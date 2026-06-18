@@ -1,3 +1,21 @@
+## 2026-06-18 — Phase5: presented-frame handoffをcapabilityと例外fallbackで保護
+
+### 実施内容
+- `src/utils/sharedVideoFramePresentedFrameHandoff.test.ts` に、capabilityが未対応を返す場合はhandoff takerを作らない契約を追加した。
+- `scripts/test-shared-video-frame-node-addon.mjs` に、N-API addonが `getPresentedFrameHandoffCapabilities()` で未実装を明示する契約を追加した。
+- `electron/preload.ts` / `src/vite-env.d.ts` / `shared-video-frame-bridge-node/src/lib.rs` に capability APIを追加した。
+- `takePresentedFrameSharedFrame` が例外/rejectした場合、renderer factoryは `null` を返してreadback fallbackへ戻すようにした。
+- package version を `0.1.1-Beta-92b` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedVideoFramePresentedFrameHandoff.test.ts src/utils/sharedVideoFramePresentedFrameHandoffBoundary.test.ts`
+- `npm test -- src/utils/sharedVideoFramePresentedFrameHandoff.test.ts src/utils/sharedVideoFramePresentedFrameHandoffBoundary.test.ts src/utils/useProjectExportBoundary.test.ts`
+- `npm run test:bridge-node`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedVideoFramePresentedFrameHandoff\\.ts\\(|src/utils/sharedVideoFramePresentedFrameHandoff\\.test\\.ts\\(|src/utils/sharedVideoFramePresentedFrameHandoffBoundary\\.test\\.ts\\(|src/vite-env\\.d\\.ts\\(|electron/preload\\.ts\\()"`
+
+### 残課題・次のステップ
+- contextBridge越しにGPU objectを直接渡す道は安全な本命ではない。次はRust-owned render/export surface、またはclone可能なhandle/descriptor契約へ設計を寄せる。
+
 ## 2026-06-18 — Phase5: native addon presented-frame handoff入口を追加
 
 ### 実施内容

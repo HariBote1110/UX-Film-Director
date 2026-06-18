@@ -545,6 +545,11 @@ native addonが未対応の場合はtakerを作らず、既存のWebGPU readback
 renderer側は既存のreadback fallbackへ戻る。次段ではこの入口を、Rust-owned texture/export surface または
 別プロセス/ネイティブレンダラのshared memory出力へ置き換えて、成功payloadを返す実装へ進める。
 
+104. Phase5: presented-frame handoffはcapability確認と例外fallbackで保護する
+`getPresentedFrameHandoffCapabilities()` が `available: false` を返す場合、rendererはhandoff takerを作らない。
+また、`contextBridge` 越しのWebGPU object受け渡しがclone/proxy例外を投げても、takerは `null` を返して
+既存のWebGPU readback fallbackへ戻る。未実装native addonが存在するだけでRust direct encode exportを壊さない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
