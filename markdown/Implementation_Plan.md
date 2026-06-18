@@ -249,6 +249,11 @@ canvas capture ではなく Rust/shared renderer frame source を優先する so
 次段では `Viewport` / shared renderer 側から実際の export frame source を渡し、Rust/WASM/WebGPU render target 由来の
 `ImageBitmap` を直接 `encodeVideoToMp4` へ流す。
 
+52. Phase5: shared renderer export session を追加する
+preview session は `isExporting` 中に surface gate を塞ぐため、export専用 session builder を別に用意する。
+Rust boundary validation、WebGPU availability、fallback adapter拒否、unsupported scene gate は維持しつつ、
+supported 2D scene は export中でも shared renderer frame source 準備へ進めるようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

@@ -308,6 +308,8 @@ Rust backend decode は ffprobe の colour metadata を gate し、bt709 / sRGB 
 export frame capture は明示 shared renderer export canvas を Pixi canvas より優先して解決し、Pixi app 不在時の無言停止を
 fail-loud にする。Rust/shared renderer frame source plan は canvas capture より優先され、Rust frame source ready 時は
 `VideoFrameProvider` / `PlaybackFrameProvider` / `HTMLVideoElement` seek fallback を通らない。
+preview session は export中に surface gate を塞ぐため、export専用 session builder を用意し、supported 2D scene は
+export中でも Rust boundary / WebGPU gate を通せるようにする。
 次 gate では `Viewport` / shared renderer 側から実際の export frame source を渡し、decode scheduler の負荷制御、
 HDR / 10bit / 明示変換対応を進める。
 これにより、動画読み込み・current frame availability と GPU import / sampling の問題を分離する。

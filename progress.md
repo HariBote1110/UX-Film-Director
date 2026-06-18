@@ -1,3 +1,29 @@
+## 2026-06-18 — Phase5: shared renderer export session を追加
+
+### 実施内容
+- `buildSharedRendererExportSession` を追加し、preview用 session が `isExporting` でsurface gateを塞ぐ問題を export 経路から分離した。
+- export session は既存の `buildSharedRendererPreviewPlan` / Rust boundary validation / WebGPU availability gate を再利用しつつ、export中でも supported 2D scene の surface gate を開ける。
+- unsupported scene、3D editor、WebGPU unavailable、fallback adapter、invalid boundary payload は引き続き fail-loud のまま維持した。
+- package version を `0.1.1-Beta-58a` に更新した。
+
+### Red
+- `src/utils/sharedRendererExportSession.test.ts` を追加し、preview session は export中に `reason: exporting` で塞がる一方、export session は同じsupported 2D sceneを通す契約を追加した。
+- unsupported scene は export session でも `planNotComparable` で塞ぐ契約を追加した。
+
+### Green
+- `src/utils/sharedRendererExportSession.ts` を追加し、export専用の session builder を用意した。
+- surface gate には `isExporting: false` を渡し、preview-onlyの安全停止をexport frame source準備から切り離した。
+
+### 現在の制限
+- export sessionはまだ実際のWebGPU export canvas / frame source生成へ接続していない。
+- presenterのrender targetから `ImageBitmap` を返す実装は次段。
+
+### 検証
+- `npm test -- src/utils/sharedRendererExportSession.test.ts src/utils/sharedRendererPreviewSession.test.ts src/utils/sharedRendererPreviewSurface.test.ts src/utils/projectExportFrameCanvas.test.ts`
+  -> 4 files / 14 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererExportSession|sharedRendererPreviewSession|sharedRendererPreviewSurface|projectExportFrameCanvas|useProjectExport"`
+  -> 対象ファイルの型エラーなし。
+
 ## 2026-06-18 — Phase5: Rust export frame source plan を追加
 
 ### 実施内容
