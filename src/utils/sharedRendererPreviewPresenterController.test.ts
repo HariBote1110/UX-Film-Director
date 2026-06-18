@@ -1127,7 +1127,7 @@ describe('startSharedRendererPreviewPresenter', () => {
       },
       videoOwnership: {
         owner: 'pixi',
-        reason: 'cutoverDisabled',
+        reason: 'noVideoScene',
       },
     });
     expect(events).toEqual(['writeTexture', 'gpuUploadDone', 'release-native']);

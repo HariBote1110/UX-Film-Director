@@ -553,7 +553,7 @@ const defaultSharedRendererSolidColourCutoverEnabled = (): boolean =>
   import.meta.env.VITE_UXFD_SHARED_RENDERER_SHAPE_CUTOVER !== '0';
 
 const defaultSharedRendererVideoCutoverEnabled = (): boolean =>
-  import.meta.env.VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER === '1';
+  import.meta.env.VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER !== '0';
 
 const hasSolidColourClip = (session: SharedRendererPreviewSession): boolean => {
   if (!session.surfaceGate.ok) return false;
