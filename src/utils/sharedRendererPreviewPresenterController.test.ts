@@ -508,6 +508,35 @@ describe('startSharedRendererPreviewPresenter', () => {
     ]);
   });
 
+  it('does not expose WebGPU readback on export-required presenter controls', async () => {
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: {
+        ...okSession,
+        surfaceGate: {
+          ok: true,
+          canvas: { width: 2, height: 2 },
+          snapshot,
+          media: [],
+        },
+      },
+      datasets: [{}],
+      requireSharedRendererOutput: true,
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter(),
+      }),
+      textureUsageRenderAttachment: 16,
+      bufferUsageCopyDst: 8,
+      bufferUsageMapRead: 1,
+    });
+
+    expect(control.ok).toBe(true);
+    if (!control.ok) throw new Error('expected ready control');
+    expect('readPresentedFrameRgbaBytes' in control).toBe(false);
+    expect(typeof control.takePresentedFrameSharedFrame).toBe('function');
+  });
+
   it('passes native/Rust frame handoff into the ready presenter control', async () => {
     const payload: RustBackendVideoEncodeWriteFramePayload = {
       sessionId: 'controller-handoff-session',
