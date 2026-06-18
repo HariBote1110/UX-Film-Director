@@ -9,7 +9,7 @@ use std::io::{self, BufRead, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use uxfd_golden_harness::RgbaFrame;
+use uxfd_golden_harness::{load_rgba_png, RgbaFrame};
 use uxfd_native_wgpu_renderer::{render_native_wgpu_frame_to_shared_ring, NativeWgpuRenderError};
 use uxfd_rust_core::{MediaKind, SceneMediaReference, SceneSnapshot};
 #[cfg(unix)]
@@ -509,12 +509,16 @@ fn handle_native_render_shared_frame(
     }
     let mut sources = HashMap::with_capacity(parsed.sources.len() + parsed.media.len());
     for media in &parsed.media {
-        if media.kind != MediaKind::SolidColour {
-            continue;
-        }
-        let frame = match build_solid_colour_source_frame(media) {
-            Ok(value) => value,
-            Err(message) => return response_error(id, -32602, &message),
+        let frame = match media.kind {
+            MediaKind::SolidColour => match build_solid_colour_source_frame(media) {
+                Ok(value) => value,
+                Err(message) => return response_error(id, -32602, &message),
+            },
+            MediaKind::Image => match build_image_source_frame(media) {
+                Ok(value) => value,
+                Err(message) => return response_error(id, -32602, &message),
+            },
+            MediaKind::Video => continue,
         };
         sources.insert(media.id.clone(), frame);
     }
@@ -529,7 +533,7 @@ fn handle_native_render_shared_frame(
         return response_error(
             id,
             -32602,
-            "sources or SolidColour media must include at least one render source",
+            "sources, Image media, or SolidColour media must include at least one render source",
         );
     }
 
@@ -604,6 +608,29 @@ fn build_solid_colour_source_frame(media: &SceneMediaReference) -> Result<RgbaFr
 
     RgbaFrame::from_rgba8(media.width, media.height, pixels)
         .map_err(|error| format!("SolidColour media frame is invalid: {error:?}"))
+}
+
+fn build_image_source_frame(media: &SceneMediaReference) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "Image media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let frame = load_rgba_png(&media.source).map_err(|error| {
+        format!(
+            "Invalid Image media '{}': failed to load PNG source: {error:?}",
+            media.id
+        )
+    })?;
+    if frame.width != media.width || frame.height != media.height {
+        return Err(format!(
+            "Image media '{}' dimensions {}x{} do not match decoded PNG {}x{}",
+            media.id, media.width, media.height, frame.width, frame.height
+        ));
+    }
+
+    Ok(frame)
 }
 
 fn parse_hex_colour_source(source: &str) -> Result<[u8; 3], String> {
