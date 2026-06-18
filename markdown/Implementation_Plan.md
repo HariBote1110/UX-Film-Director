@@ -482,6 +482,11 @@ renderer bridgeに `startVideoEncode` / `writeVideoEncodeFrame` / `finishVideoEn
 WebCodecsへfallbackせず開始前にfail-loudにする。`npm run dev:rust-video` は `VITE_UXFD_RUST_EXPORT_ONLY=1` も渡し、
 検証時のpreview/exportをRust経路へ固定する。
 
+92. Phase5: Rust export path から legacy browser export module の静的依存を外す
+`useProjectExport` は `VideoFrameProvider` / `PlaybackFrameProvider` / `encodeVideoToMp4` を静的importしない。
+legacy canvas / WebCodecs互換branchに入った時だけ動的importし、Rust backend encoder + shared-frame payload経路では
+browser decode provider と WebCodecs encoder module を初期ロードしない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

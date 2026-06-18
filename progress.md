@@ -1,3 +1,19 @@
+## 2026-06-18 — Phase5: legacy browser export依存を動的import化
+
+### 実施内容
+- `src/utils/useProjectExportBoundary.test.ts` に、`useProjectExport` が `VideoFrameProvider` / `PlaybackFrameProvider` / `videoExportPipeline` を静的importしない契約を追加した。
+- `src/hooks/useProjectExport.ts` から legacy browser decode provider と WebCodecs encoder の静的importを外した。
+- legacy browser providerは `requiresLegacyBrowserVideoProviders` branch内、`encodeVideoToMp4` はWebCodecs互換branch内でのみ動的importするようにした。
+- package version を `0.1.1-Beta-81a` に更新した。
+
+### 検証
+- `npm test -- src/utils/useProjectExportBoundary.test.ts`
+- `npm test -- src/utils/useProjectExportBoundary.test.ts src/utils/projectExportEncodePlan.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/projectExportRustEncodeFrame.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "useProjectExport|useProjectExportBoundary|videoFrameProvider|playbackFrameProvider|videoExportPipeline"`（対象ファイルの型エラーなし）
+
+### 残課題・次のステップ
+- Rust export pathはlegacy browser export modulesを初期ロードしなくなった。次は実機Electronで `npm run dev:rust-video` を使い、Rust backend decode / shared memory upload / Rust encodeまでの実動作を検証する。
+
 ## 2026-06-18 — Phase5: Rust video-only exportでRust encoderを必須化
 
 ### 実施内容
