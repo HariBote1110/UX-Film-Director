@@ -3925,3 +3925,21 @@
 ### 残課題・次のステップ
 - PSD/textはまだnative render source化・ownership移管されていないため、Pixi fallbackの主因として残る。
 - 次はPSD/textのどちらをRust native render sourceとして扱えるか、既存のRust PSD parserとtext rasterise方針を分けて詰める。
+
+## 2026-06-18 — PSD media kindをRust境界へ追加
+
+### 実施内容
+- `RustSceneMediaReference` / rust-core `MediaKind` / boundary validatorに `Psd` を追加した。
+- `buildRustSceneSnapshotForTimeline` がPSD objectを `kind=Psd` のmedia referenceとして出せるようにした。
+- rust-backendのnative render media matchは、source生成未実装の `Psd` を `Video` と同じくmedia内生成対象から外すようにした。
+- 版を `0.1.1-Beta-109a` に更新した。
+
+### 検証
+- `npm test -- src/utils/rustSceneSnapshot.test.ts src/utils/rustSceneSnapshotBoundary.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts`
+- `cargo test --manifest-path rust-core/Cargo.toml --test media_schema`
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- PSD native source生成はまだ未実装のため、`sharedRendererNativeMediaSupport` はPsdをunsupportedとして扱う。
+- 次はPSD `activeLayerIds` / `rootLayer` 相当をRust backendへ渡すschemaを決め、`psd_fast` から1枚のRGBA source frameを生成する。

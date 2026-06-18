@@ -665,6 +665,12 @@ Rust previewへ進めなかった理由を実機上で追えるようにする�
 upload失敗reason/detailを残し、単体video fallbackはnative render準備で更新されたactive decode jobを引き継ぐ。
 `requireSharedRendererVideo` がfail-loud fallbackへ進む場合も、主reasonとは別にnative render failure reason/detailを保持する。
 
+123. Phase5: PSD media kindをRust境界へ追加する
+`RustSceneMediaReference` / rust-core `MediaKind` / boundary validator に `Psd` を追加し、PSD objectを
+Rust scene snapshot上の正式なmedia referenceとして表現できるようにする。
+この段階ではPSD native source生成はまだ有効化せず、`sharedRendererNativeMediaSupport` はPsdをunsupportedのまま扱う。
+これによりvideo cutover安全判定を崩さず、次段のRust backend PSD layer composite source生成へ進める入口を作る。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
