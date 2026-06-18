@@ -1,3 +1,28 @@
+## 2026-06-18 — Phase5: Rust export frame source close で decode job を停止
+
+### 実施内容
+- `ProjectExportRustFrameSource` に任意の `close` を追加した。
+- `createSharedRendererExportFrameSource` は保持中の active Rust decode jobs を `close` 時に `decode.stop` で停止する。
+- `useProjectExport` の `finally` から Rust frame source の `close` を呼び、export成功・失敗・キャンセルのいずれでもRust decode jobを解放する。
+- `close` は二重実行しても同じjobを二度止めない。
+- package version を `0.1.1-Beta-60b` に更新した。
+
+### Red
+- `src/utils/sharedRendererExportFrameSource.test.ts` に、source close時にactive Rust decode jobを停止し、二重closeでは重複停止しない契約を追加した。
+
+### Green
+- `stopVideoDecodeJob` injection pointを追加し、defaultでは `stopRustBackendVideoDecode({ jobId })` を呼ぶ。
+- sourceはclose後の `renderFrame` を fail-loud にする。
+
+### 現在の制限
+- `decode.stop` 失敗時の詳細集約・UI表示は未整理。現状は `close` のPromise rejectionとしてexport失敗経路に出る。
+
+### 検証
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/viewportRustExportFrameSource.test.ts`
+  -> 3 files / 13 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererExportFrameSource|projectExportFrameCanvas|useProjectExport|viewportRustExportFrameSource"`
+  -> 対象ファイルの型エラーなし。
+
 ## 2026-06-18 — Phase5: Viewport から Rust export frame source を接続
 
 ### 実施内容
