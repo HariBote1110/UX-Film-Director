@@ -149,7 +149,7 @@ describe('sharedVideoFrameUploadBridge', () => {
     expect(calls).toEqual([]);
   });
 
-  it('uses bytes returned from the bridge when Electron contextBridge cannot mutate the renderer target', async () => {
+  it('rejects copy reports that return pixel bytes instead of mutating the renderer target', async () => {
     const returnedBytes = new Uint8Array(sharedFrame.descriptor.byteLen);
     returnedBytes.fill(0x7e);
     const bridge: SharedVideoFrameCopyBridge = {
@@ -171,16 +171,10 @@ describe('sharedVideoFrameUploadBridge', () => {
       bridge,
     });
 
-    expect(upload).toMatchObject({
-      ok: true,
-      copyReport: {
-        sequence: 42,
-        byteLen: sharedFrame.descriptor.byteLen,
-      },
+    expect(upload).toEqual({
+      ok: false,
+      reason: 'copyReportContainsPixelPayload',
+      detail: 'Shared video frame copy report must not return pixel bytes through the control plane.',
     });
-    if (!upload.ok) throw new Error('expected upload preparation to succeed');
-    expect(upload.rgbaBytes).toBe(returnedBytes);
-    expect(upload.rgbaBytes[0]).toBe(0x7e);
-    expect(upload.rgbaBytes[upload.rgbaBytes.length - 1]).toBe(0x7e);
   });
 });
