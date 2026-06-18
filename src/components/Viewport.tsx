@@ -769,7 +769,7 @@ const Viewport: React.FC = () => {
           sharedRendererVideoObjectIds: sharedRendererVideoObjectIdsRef.current,
           sharedRendererImageObjectIds: sharedRendererImageObjectIdsRef.current,
           sharedRendererPsdObjectIds: sharedRendererPsdObjectIdsRef.current,
-          requireSharedRendererVideo: rustVideoOnlyEnabled,
+          requireSharedRendererVideo: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled,
           useCanvasVideoUpload,
       });
 
