@@ -435,6 +435,12 @@ bitmap frameをwritable ringへ詰め替えるfallbackを削除する。Rust bac
 ImageBitmap readback、canvas 2D extraction、runner側writable ring copyを行わない。
 これによりdirect encodeのdata-planeは shared renderer export source 側のWebGPU readback -> shared memory writerへ集約する。
 
+83. Phase5: Rust encode runner 入力型を shared-frame 専用にする
+`runRustBackendVideoEncodeExport` の `frames` 入力型を `RustBackendVideoEncodeSharedFramePayloadFrame` に限定し、
+TypeScript上でも `ImageBitmap` frameを渡せないようにする。`useProjectExport` のRust encoder分岐は
+`renderRustEncodeFrames()` を通してshared-frame payloadだけをrunnerへ渡し、万一bitmap frameが混入した場合は
+即時fail-loudにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

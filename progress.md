@@ -1,3 +1,18 @@
+## 2026-06-18 — Phase5: Rust encode runner 入力型を shared-frame 専用化
+
+### 実施内容
+- `src/utils/rustBackendVideoEncodeExport.test.ts` に `@ts-expect-error` 契約を追加し、Rust encode runnerへ `ImageBitmap` frameを渡せない型境界を固定した。
+- `runRustBackendVideoEncodeExport` の `frames` 入力型を `RustBackendVideoEncodeSharedFramePayloadFrame` の `AsyncIterable` に限定した。
+- `src/hooks/useProjectExport.ts` のRust encoder分岐に `renderRustEncodeFrames()` を追加し、shared-frame payloadだけをrunnerへ渡すようにした。
+- package version を `0.1.1-Beta-72a` に更新した。
+
+### 検証
+- `npx tsc --noEmit 2>&1 | rg "rustBackendVideoEncodeExport|useProjectExport|projectExportRustEncodeFrame|sharedRendererExportFrameSource"`（対象ファイルの型エラーなし）
+- `npm test -- src/utils/rustBackendVideoEncodeExport.test.ts src/utils/projectExportRustEncodeFrame.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/projectExportFrameCanvas.test.ts`
+
+### 残課題・次のステップ
+- 型と実行時の両方でRust encode runnerはshared-frame専用になった。次は実機Electronで通常exportのRust経路を確認し、WebGPU readback / shared memory writer / Rust backend ffmpeg encodeが一連で通ることを検証する。
+
 ## 2026-06-18 — Phase5: Rust encode runner を shared-frame 専用化
 
 ### 実施内容
