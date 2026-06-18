@@ -27,18 +27,32 @@ const sharedFrame = (memoryId = '/uxfd-native-source-video-1'): RustBackendShare
 });
 
 const session = (): SharedRendererPreviewSession => ({
-  plan: { mode: 'parallelCompare', primary: 'pixi', candidate: 'sharedRenderer' },
-  presentationContract: {
-    canvas: {
-      colourSpace: 'srgb',
-      alphaMode: 'premultiplied',
-    },
-    output: {
+  plan: {
+    mode: 'parallelCompare',
+    primary: 'pixi',
+    candidate: 'sharedRenderer',
+    snapshot: {
+      frame_index: 2,
       colour: {
         profile: 'rec709-sdr',
-        workingSpace: 'linear-light',
+        working_space: 'linear-light',
         alpha: 'premultiplied',
       },
+      clips: [],
+    },
+    media: [],
+  },
+  presentationContract: {
+    canvas: {
+      colorSpace: 'srgb',
+      alphaMode: 'premultiplied',
+    },
+    comparisonReadback: {
+      target: 'offscreenRenderTarget',
+      includesPageCompositing: false,
+    },
+    frameTiming: {
+      source: 'frozenSceneSnapshot',
     },
     deviceLost: {
       fallback: 'pixi',
