@@ -1,4 +1,5 @@
 import type { TimelineObject } from '../types';
+import type { ProjectExportEncodeEngine } from './projectExportEncodePlan';
 import type { RustBackendVideoEncodeFrame } from './rustBackendVideoEncodeExport';
 
 export type ProjectExportFrameCanvasSource =
@@ -109,6 +110,16 @@ export interface ResolveProjectExportFrameRuntimePlanInput {
   rustFrameSourceBlocked: boolean;
 }
 
+export interface ResolveProjectExportFrameSourcePolicyForEncodeInput {
+  rustExportOnly: boolean;
+  encodeEngine: ProjectExportEncodeEngine;
+}
+
+export interface ProjectExportFrameSourcePolicyForEncode {
+  rustFrameSourcePolicy: ProjectExportRustFrameSourcePolicy;
+  rustFrameSourceBlockedFallback: ProjectExportRustFrameSourceBlockedFallback;
+}
+
 export const resolveProjectExportFrameCanvas = ({
   getExportCanvas,
   pixiCanvas = null,
@@ -187,6 +198,18 @@ export const buildProjectExportFrameSourcePlan = ({
     ok: false,
     reason: 'exportFrameSourceUnavailable',
     detail: 'Export requires a Rust frame source, shared renderer export canvas, or legacy Pixi canvas.',
+  };
+};
+
+export const resolveProjectExportFrameSourcePolicyForEncode = ({
+  rustExportOnly,
+  encodeEngine,
+}: ResolveProjectExportFrameSourcePolicyForEncodeInput): ProjectExportFrameSourcePolicyForEncode => {
+  const requiresRustFrameSource = rustExportOnly || encodeEngine === 'rustBackendVideoEncoder';
+
+  return {
+    rustFrameSourcePolicy: requiresRustFrameSource ? 'requireRustFrameSource' : 'allowLegacyCanvas',
+    rustFrameSourceBlockedFallback: requiresRustFrameSource ? 'failExport' : 'legacyCanvas',
   };
 };
 

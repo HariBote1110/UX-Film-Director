@@ -13,6 +13,7 @@ import { PlaybackFrameProvider } from '../utils/playbackFrameProvider';
 import type { FrameProvider } from '../utils/frameProvider';
 import {
   buildProjectExportFrameSourcePlan,
+  resolveProjectExportFrameSourcePolicyForEncode,
   resolveProjectExportFrameRuntimePlan,
   resolveProjectExportFrameCanvas,
   type ProjectExportRustFrameSourceContext,
@@ -59,22 +60,6 @@ export const useProjectExport = (
       const rustExportOnly = import.meta.env.VITE_UXFD_RUST_EXPORT_ONLY === '1';
       const { projectSettings, objects, layers } = useStore.getState();
       const exportObjects = objects.filter((obj) => layers[obj.layer]?.visible !== false);
-      const initialFrameSourcePlan = buildProjectExportFrameSourcePlan({
-        rustFrameSource: getRustExportFrameSource?.({
-          objects: exportObjects,
-          time: 0,
-        }) ?? null,
-        rustFrameSourcePolicy: rustExportOnly ? 'requireRustFrameSource' : 'allowLegacyCanvas',
-        rustFrameSourceBlockedFallback: rustExportOnly ? 'failExport' : 'legacyCanvas',
-        getExportCanvas,
-        pixiCanvas: pixiAppRef.current?.canvas as HTMLCanvasElement | null | undefined,
-      });
-      if (!initialFrameSourcePlan.ok) {
-        alert(`エクスポート失敗: ${initialFrameSourcePlan.detail}`);
-        setExporting(false);
-        return;
-      }
-      const exportFrameSourcePlan = initialFrameSourcePlan;
       const exportEncodePlan = resolveProjectExportEncodePlanFromBridge({
         rustExportOnly,
         rustVideoEncoderBridge: window.rustVideoEncoder,
@@ -84,6 +69,26 @@ export const useProjectExport = (
         setExporting(false);
         return;
       }
+      const frameSourcePolicy = resolveProjectExportFrameSourcePolicyForEncode({
+        rustExportOnly,
+        encodeEngine: exportEncodePlan.engine,
+      });
+      const initialFrameSourcePlan = buildProjectExportFrameSourcePlan({
+        rustFrameSource: getRustExportFrameSource?.({
+          objects: exportObjects,
+          time: 0,
+        }) ?? null,
+        rustFrameSourcePolicy: frameSourcePolicy.rustFrameSourcePolicy,
+        rustFrameSourceBlockedFallback: frameSourcePolicy.rustFrameSourceBlockedFallback,
+        getExportCanvas,
+        pixiCanvas: pixiAppRef.current?.canvas as HTMLCanvasElement | null | undefined,
+      });
+      if (!initialFrameSourcePlan.ok) {
+        alert(`エクスポート失敗: ${initialFrameSourcePlan.detail}`);
+        setExporting(false);
+        return;
+      }
+      const exportFrameSourcePlan = initialFrameSourcePlan;
 
       // フレームプロバイダ（VideoDecoder or 再生方式）のクリーンアップ用リスト
       const providers = new Map<string, FrameProvider>();
