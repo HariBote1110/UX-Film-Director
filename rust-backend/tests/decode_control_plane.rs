@@ -702,6 +702,72 @@ fn native_render_shared_frame_builds_file_url_png_image_sources_from_media() {
 }
 
 #[test]
+fn native_render_shared_frame_rejects_remote_image_media_source_before_decode() {
+    let mut backend = BackendProcess::start();
+    let output_memory_id = unique_shm_name();
+
+    let response = backend.request(json!({
+        "id": 35,
+        "method": "render.nativeSharedFrame",
+        "params": {
+            "renderId": "native-render-remote-image-media",
+            "memoryId": output_memory_id,
+            "slotCount": 1,
+            "ptsFrame": 0,
+            "width": 4,
+            "height": 4,
+            "snapshot": {
+                "frame_index": 0,
+                "colour": {
+                    "profile": "rec709-sdr",
+                    "working_space": "linear-light",
+                    "alpha": "premultiplied"
+                },
+                "clips": [{
+                    "clip_id": "clip-remote-image-media",
+                    "track_id": "track-1",
+                    "media_id": "image-1",
+                    "source_frame": 0,
+                    "z_index": 0,
+                    "transform": {
+                        "translation_x": 0.0,
+                        "translation_y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation_degrees": 0.0,
+                        "sampling": "nearest"
+                    },
+                    "opacity": 1.0,
+                    "effects": []
+                }]
+            },
+            "media": [{
+                "id": "image-1",
+                "kind": "Image",
+                "source": "https://example.com/red-source.png",
+                "width": 2,
+                "height": 2
+            }],
+            "sources": []
+        }
+    }));
+
+    assert_eq!(response["ok"], false, "{response}");
+    assert_eq!(response["error"]["code"], -32602);
+    let message = response["error"]["message"]
+        .as_str()
+        .expect("remote source error message");
+    assert!(
+        message.contains("Only local file paths or file URLs are supported for Image media"),
+        "{message}"
+    );
+    assert!(
+        message.contains("https://example.com/red-source.png"),
+        "{message}"
+    );
+}
+
+#[test]
 fn native_render_shared_frame_builds_jpeg_image_sources_from_media() {
     let mut backend = BackendProcess::start();
     let temp_dir = TestTempDir::new("native-render-jpeg-media");

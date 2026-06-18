@@ -71,6 +71,8 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeImageSourceSupported('file:///tmp/native%20overlay.JPG')).toBe(true);
     expect(isSharedRendererNativeImageSourceSupported('file:///tmp/native-overlay.jpeg?cache=12#frame')).toBe(true);
     expect(isSharedRendererNativeImageSourceSupported('https://example.com/native-overlay.jpg')).toBe(false);
+    expect(isSharedRendererNativeImageSourceSupported('blob:file:///tmp/native-overlay.jpg')).toBe(false);
+    expect(isSharedRendererNativeImageSourceSupported('data:image/png;base64,abcd')).toBe(false);
   });
 
   it('matches the Rust backend native media source support contract', () => {
