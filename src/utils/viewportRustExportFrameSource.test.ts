@@ -132,6 +132,46 @@ describe('buildViewportRustExportFrameSource', () => {
     }]);
   });
 
+  it('passes native/Rust frame handoff into the shared renderer export source', () => {
+    const canvas = {
+      width: 1920,
+      height: 1080,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    const calls: unknown[] = [];
+    const presentedFrameSharedFrameTaker = async () => null;
+
+    const source = buildViewportRustExportFrameSource({
+      exportEnabled: true,
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      presentedFrameSharedFrameTaker,
+      createFrameSource: (input) => {
+        calls.push(input);
+        return frameSource;
+      },
+    } as Parameters<typeof buildViewportRustExportFrameSource>[0] & {
+      presentedFrameSharedFrameTaker: unknown;
+    });
+
+    expect(source).toBe(frameSource);
+    expect(calls).toEqual([{
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      presentedFrameSharedFrameTaker,
+    }]);
+  });
+
   it('keeps legacy canvas export when any Rust export gate is closed', () => {
     const canvas = {
       width: 1920,

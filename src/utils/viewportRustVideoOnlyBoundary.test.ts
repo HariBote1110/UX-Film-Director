@@ -26,4 +26,13 @@ describe('Viewport Rust video-only boundary', () => {
 
     expect(exportSourceBlock).toContain('preferEncodeOnly: context.preferEncodeOnly');
   });
+
+  it('passes native/Rust frame handoff into the Rust export frame source', () => {
+    const code = viewportSource();
+    const start = code.indexOf('const getRustExportFrameSource = useCallback');
+    const end = code.indexOf('useProjectExport(', start);
+    const exportSourceBlock = code.slice(start, end);
+
+    expect(exportSourceBlock).toContain('presentedFrameSharedFrameTaker: context.presentedFrameSharedFrameTaker');
+  });
 });
