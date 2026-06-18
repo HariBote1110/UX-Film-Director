@@ -3877,3 +3877,19 @@
 ### 残課題・次のステップ
 - PSD/textはまだnative render source化・ownership移管されていないため、Pixi fallbackの主因として残る。
 - native render preview失敗時のreasonをdatasetへより細かく出し、Rust native renderへ進めなかった理由を可視化する。
+
+## 2026-06-18 — native render preview失敗理由をdataset診断へ接続
+
+### 実施内容
+- preview orchestrationがnative render upload失敗を受けた場合、`reason` / `detail` を `sharedRendererNativeRenderFailure` としてpreview presenterへ渡すようにした。
+- presenter diagnosticsに `uxfdSharedRendererPresenterNativeRenderFailureReason` / `uxfdSharedRendererPresenterNativeRenderFailureDetail` を追加した。
+- Pixi/per-video fallbackでready表示を継続しながら、Rust native render previewへ進めなかった理由をdataset上で追えるようにした。
+- 版を `0.1.1-Beta-108a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/sharedRendererPresenterDiagnostics.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- PSD/textはまだnative render source化・ownership移管されていないため、Pixi fallbackの主因として残る。
+- 実機previewでdataset診断を確認し、Rust native render失敗理由がGoPro素材や未対応mediaで読み取れるか検証する。

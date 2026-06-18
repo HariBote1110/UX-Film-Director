@@ -655,6 +655,13 @@ PNG/JPG/JPEG `Image` mediaはRust native render source化済みなので、nativ
 Pixi image spriteをcleanupしてhitAreaだけ残す。これによりnative render canvasとPixi image spriteの二重合成を防ぐ。
 dataset diagnosticsには image owner / reason / count を追加し、Image cutover状態を確認できるようにする。
 
+122. Phase5: native render preview失敗理由をdataset診断へ出す
+preview orchestrationがRust native render uploadを試して失敗した場合、Pixi/per-video fallbackで表示を継続しつつ、
+`sharedRendererNativeRenderFailure` としてreason/detailをpreview presenterへ渡す。
+presenter diagnosticsはready状態でも `uxfdSharedRendererPresenterNativeRenderFailureReason` /
+`uxfdSharedRendererPresenterNativeRenderFailureDetail` をdatasetへ残し、PSD/textなど未対応mediaやbackend失敗で
+Rust previewへ進めなかった理由を実機上で追えるようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
