@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-base64 = "0.22"
 crc32fast = "1.5"
 flate2 = "1"
 pollster = "0.3"

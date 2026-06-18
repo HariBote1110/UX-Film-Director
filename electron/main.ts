@@ -880,56 +880,6 @@ app.whenReady().then(() => {
     }
   });
 
-  ipcMain.handle('start-export', async (event, { width, height, fps, audioPath }) => {
-    const { filePath } = await dialog.showSaveDialog({
-      title: 'Export Video',
-      defaultPath: 'output.mp4',
-      filters: [{ name: 'MP4 Video', extensions: ['mp4'] }]
-    });
-
-    if (!filePath) return { success: false, reason: 'cancelled' };
-
-    try {
-      await callRustBackend('export.start', {
-        width,
-        height,
-        fps,
-        filePath,
-        audioPath: audioPath ?? null,
-        ffmpegPath: resolveDefaultFfmpegPath(),
-      }, 15000);
-
-      return { success: true, filePath };
-    } catch (error) {
-      console.error('Failed to start export via Rust backend', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error)
-      };
-    }
-  });
-
-  ipcMain.handle('write-frame', async (event, frameData: ArrayBuffer) => {
-    try {
-      const frameBase64 = Buffer.from(frameData).toString('base64');
-      await callRustBackend('export.write_frame', { frameBase64 }, 20000);
-      return true;
-    } catch (error) {
-      console.error('Error writing frame:', error);
-      return false;
-    }
-  });
-
-  ipcMain.handle('end-export', async () => {
-    try {
-      await callRustBackend('export.end', {}, 60000);
-      return true;
-    } catch (error) {
-      console.error('Failed to end export via Rust backend', error);
-      return false;
-    }
-  });
-
   ipcMain.handle(rustVideoEncodeIpcChannels.start, async (_event, payload: unknown) =>
     startRustVideoEncodeViaBackend(payload, callRustBackend)
   );
