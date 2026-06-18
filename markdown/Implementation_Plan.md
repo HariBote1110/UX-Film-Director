@@ -880,6 +880,12 @@ WebGPU readback bytesをJS側でshared memory ringへ詰め替えていた
 `rustBackendVideoEncodeSharedFrameWriter` moduleと専用テストを削除する。
 export encodeのshared-frame生成はRust native render outputまたはnative presented-frame handoffだけに限定し、JS writer実装を再接続できない状態にする。
 
+164. Phase5: 動画export planのlegacy canvas直落ちを拒否する
+`buildProjectExportFrameSourcePlan` は `hasVideoObjects=true` の場合、呼び出し側が `rustFrameSourcePolicy` を指定し忘れても
+Pixi/explicit canvas captureへ落とさず `rustFrameSourceRequired` で停止する。
+これにより `useProjectExport` 以外からresolverを直呼びした場合も、動画exportが legacy browser provider /
+HTMLVideoElement seek / `createImageBitmap(canvas)` へ戻らない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
