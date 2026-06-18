@@ -855,6 +855,11 @@ presented shared-frame handoffだけをencode shared-frameの正規語彙にす�
 `presentedSharedFrame` だけを成功pathとして扱う。削除済みの `webGpuReadbackSharedFrameWriter` を型・diagnosticからも外し、
 dataset上でもJS writer経路を正規pathとして表現しない。
 
+159. Phase5: Pixi video render pathでRust必須を優先する
+Pixi video分岐の経路選択を `resolvePixiVideoRenderPath` に分離し、`requireSharedRendererVideo=true` の場合は
+export frame overrideやPixi `HTMLVideoElement` / `VideoSource` pathより先に `sharedRendererOnly` を返す。
+これによりRust video-only previewでPixi video fallbackが見えているだけの状態を避ける。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
