@@ -418,3 +418,10 @@
 - Green: presenter / viewport orchestration / Viewportに `requireRustVideoControlPlane` を接続し、Rust video-onlyでは `requiredRustVideoControlPlaneUnavailable` を返すようにした。
 - 検証: `npm test -- sharedRendererPreviewPresenterController viewportRustVideoOnlyBoundary` は39件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-176a`。
+
+## 2026-06-19
+- Phase5のmulti-video upload ownershipとして、後続動画upload失敗時に先行成功slotもabort releaseするようにした。
+- Red: `sharedRendererViewportVideoUpload` に、2本目copy失敗時も1本目の `releaseVideoDecodeFrame(copyOutState=rendererUploadAborted)` が呼ばれる契約を追加した。
+- Green: `prepareSharedRendererViewportVideoUploads` がstart / decode / stale response / upload失敗で戻る前に、準備済みupload objectの `releaseAfterUploadAbort` を順に呼ぶようにした。
+- 検証: `npm test -- sharedRendererViewportVideoUpload sharedRendererRustVideoUploadPipeline sharedVideoFrameUploadBridge` は16件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-177a`。

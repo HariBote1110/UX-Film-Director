@@ -150,6 +150,8 @@ Rust backend integration gate:
   upload ready だけで shared ownership に進めて Pixi video を消すことは禁止。
 - copy / upload / stale response 失敗時は `rendererUploadAborted` で decoded slot を release し、
   back pressure による `NoFreeSlot` を避ける。
+- 複数動画uploadで後続clipが失敗した場合も、すでに準備済みの先行upload objectへ
+  `releaseAfterUploadAbort` を流し、全ての未提示decoded slotを `rendererUploadAborted` へ戻す。
 - Viewport orchestration は decode job が解決した時点で active job ref を更新し、effect cancellation 後の
   `decode.start` 連打を避ける。複数動画では active jobs を配列で保持し、見えていない stale job は
   `decode.stop` で破棄する。

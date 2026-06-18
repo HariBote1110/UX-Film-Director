@@ -1064,6 +1064,11 @@ control-plane ringの `release_read_slot` とdata-plane ringのrelease対象を�
 TypeScript fallbackへ黙って戻らず `requiredRustVideoControlPlaneUnavailable` でfail-loudにする。
 通常のshared renderer previewでは移行互換のTypeScript fallbackを残すが、Rust video-only検証ではRust control-planeだけを正本にする。
 
+198. Phase5: 複数動画upload失敗時に先行decoded slotをabort releaseする
+複数visible videoのRust upload orchestrationで、後続clipのstart / decode / stale response / uploadが失敗した場合、
+すでに準備済みのdecoded upload objectへ `releaseAfterUploadAbort` を流す。
+失敗clip自身のslot releaseに加えて先行成功slotも `rendererUploadAborted` に戻し、multi-video previewでshared memory ringが詰まることを防ぐ。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
