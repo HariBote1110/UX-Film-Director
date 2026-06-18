@@ -277,17 +277,17 @@ describe('createSharedRendererExportFrameSource', () => {
 
     expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
     expect(blocked).toMatchObject({
-      reason: 'webGpuReadbackUnavailable',
+      reason: 'presentedSharedFrameHandoffUnavailable',
       frameIndex: 2,
       fallbackToLegacyCanvas: true,
     });
-    expect(blocked.message).toContain('WebGPU presented frame readback is required');
+    expect(blocked.message).toContain('Presented shared-frame handoff is required');
     expect(disposeCount).toBe(1);
     expect(calls).toEqual([]);
     expect(canvas.dataset).toMatchObject({
       uxfdRustExportFrameSourceFrameStatus: 'blocked',
       uxfdRustExportFrameSourceFrameIndex: '2',
-      uxfdRustExportFrameSourceFrameReason: 'webGpuReadbackUnavailable',
+      uxfdRustExportFrameSourceFrameReason: 'presentedSharedFrameHandoffUnavailable',
     });
   });
 
@@ -338,7 +338,7 @@ describe('createSharedRendererExportFrameSource', () => {
 
     expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
     expect(blocked).toMatchObject({
-      reason: 'webGpuReadbackUnavailable',
+      reason: 'presentedSharedFrameHandoffUnavailable',
       frameIndex: 5,
       fallbackToLegacyCanvas: true,
     });
@@ -347,7 +347,7 @@ describe('createSharedRendererExportFrameSource', () => {
     expect(canvas.dataset).toMatchObject({
       uxfdRustExportFrameSourceFrameStatus: 'blocked',
       uxfdRustExportFrameSourceFrameIndex: '5',
-      uxfdRustExportFrameSourceFrameReason: 'webGpuReadbackUnavailable',
+      uxfdRustExportFrameSourceFrameReason: 'presentedSharedFrameHandoffUnavailable',
     });
   });
 
