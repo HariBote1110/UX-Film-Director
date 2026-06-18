@@ -5,7 +5,7 @@ const viewportSource = () =>
   readFileSync(new URL('../components/Viewport.tsx', import.meta.url), 'utf8');
 
 describe('Viewport Rust video-only boundary', () => {
-  it('passes Rust video-only mode into shared renderer video readiness diagnostics', () => {
+  it('uses Rust/shared renderer video cutover for readiness diagnostics instead of HTMLVideoElement readiness', () => {
     const code = viewportSource();
     const start = code.indexOf('const videoReadiness = session.surfaceGate.ok');
     const end = code.indexOf(
@@ -15,7 +15,7 @@ describe('Viewport Rust video-only boundary', () => {
     const readinessBlock = code.slice(start, end);
 
     expect(readinessBlock).toContain('buildSharedRendererVideoMediaReadiness({');
-    expect(readinessBlock).toContain('requireSharedRendererVideo: rustVideoOnlyEnabled');
+    expect(readinessBlock).toContain('requireSharedRendererVideo: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled');
   });
 
   it('passes export context encode-only preference into the Rust export frame source', () => {
