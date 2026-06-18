@@ -5,27 +5,27 @@ const source = () =>
   readFileSync(new URL('../hooks/useProjectExport.ts', import.meta.url), 'utf8');
 
 describe('useProjectExport legacy browser dependency boundary', () => {
-  it('loads browser decode providers and WebCodecs encoder only from legacy branches', () => {
+  it('does not load legacy browser video providers from the production export hook', () => {
     const code = source();
 
     expect(code).not.toContain("from '../utils/videoFrameProvider'");
     expect(code).not.toContain("from '../utils/playbackFrameProvider'");
+    expect(code).not.toContain("import('../utils/videoFrameProvider')");
+    expect(code).not.toContain("import('../utils/playbackFrameProvider')");
+  });
+
+  it('loads the WebCodecs encoder only from the compatibility export branch', () => {
+    const code = source();
+
     expect(code).not.toContain("from '../utils/videoExportPipeline'");
-    expect(code).toContain("import('../utils/videoFrameProvider')");
-    expect(code).toContain("import('../utils/playbackFrameProvider')");
     expect(code).toContain("import('../utils/videoExportPipeline')");
   });
 
-  it('does not load legacy browser video providers when the export has no video objects', () => {
+  it('does not keep legacy browser video provider gates in the production export hook', () => {
     const code = source();
-    const start = code.indexOf('const shouldLoadLegacyBrowserVideoProviders =');
-    const end = code.indexOf('if (shouldLoadLegacyBrowserVideoProviders)', start);
-    const providerGateBlock = code.slice(start, end);
 
-    expect(providerGateBlock).toContain('exportFrameSourcePlan.requiresLegacyBrowserVideoProviders');
-    expect(providerGateBlock).toContain('videoObjects.length > 0');
-    expect(start).toBeGreaterThan(-1);
-    expect(end).toBeGreaterThan(start);
+    expect(code).not.toContain('shouldLoadLegacyBrowserVideoProviders');
+    expect(code).not.toContain('requiresHtmlVideoElementSeekFallback');
   });
 
   it('resolves Rust frame source context outside the hook body', () => {
