@@ -40,6 +40,8 @@ export type SharedRendererPresenterDiagnosticState =
   | {
       status: 'fallback';
       reason: string;
+      nativeRenderFailureReason?: string;
+      nativeRenderFailureDetail?: string;
     }
   | {
       status: 'deviceLost';
@@ -135,6 +137,12 @@ export const writeSharedRendererPresenterDiagnostics = (
 
   if (state.status === 'fallback') {
     dataset.uxfdSharedRendererPresenterFailureReason = state.reason;
+    if (state.nativeRenderFailureReason) {
+      dataset.uxfdSharedRendererPresenterNativeRenderFailureReason = state.nativeRenderFailureReason;
+    }
+    if (state.nativeRenderFailureDetail) {
+      dataset.uxfdSharedRendererPresenterNativeRenderFailureDetail = state.nativeRenderFailureDetail;
+    }
     return;
   }
 

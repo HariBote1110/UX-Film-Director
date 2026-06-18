@@ -388,6 +388,8 @@ export const startSharedRendererPreviewPresenter = async ({
     writeDiagnostics({
       status: 'fallback',
       reason: 'requiredVideoOwnershipUnavailable',
+      nativeRenderFailureReason: nativeRenderFailure?.reason,
+      nativeRenderFailureDetail: nativeRenderFailure?.detail,
     });
     return {
       ok: false,
