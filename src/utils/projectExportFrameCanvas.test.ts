@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { resolveProjectExportFrameCanvas } from './projectExportFrameCanvas';
+import {
+  buildProjectExportFrameSourcePlan,
+  resolveProjectExportFrameCanvas,
+  type ProjectExportRustFrameSource,
+} from './projectExportFrameCanvas';
 
 describe('resolveProjectExportFrameCanvas', () => {
   it('uses the explicit export canvas without requiring a Pixi canvas', () => {
@@ -35,6 +39,72 @@ describe('resolveProjectExportFrameCanvas', () => {
       ok: false,
       reason: 'exportCanvasUnavailable',
       detail: 'Export requires a frame canvas from the shared renderer export path or the legacy Pixi fallback.',
+    });
+  });
+});
+
+describe('buildProjectExportFrameSourcePlan', () => {
+  const rustFrameSource: ProjectExportRustFrameSource = {
+    renderFrame: async () => ({ close: () => undefined }) as ImageBitmap,
+  };
+
+  it('uses the shared renderer Rust frame source before Pixi canvas capture', () => {
+    const pixiCanvas = { id: 'pixi-export' } as unknown as HTMLCanvasElement;
+
+    expect(buildProjectExportFrameSourcePlan({
+      rustFrameSource,
+      pixiCanvas,
+    })).toEqual({
+      ok: true,
+      source: 'sharedRendererRustFrameSource',
+      frameSource: rustFrameSource,
+      captureCanvas: false,
+      requiresRenderScene: false,
+      requiresLegacyBrowserVideoProviders: false,
+    });
+  });
+
+  it('falls back to the explicit export canvas while the Rust frame source is unavailable', () => {
+    const exportCanvas = { id: 'shared-renderer-export-canvas' } as unknown as HTMLCanvasElement;
+
+    expect(buildProjectExportFrameSourcePlan({
+      rustFrameSource: null,
+      getExportCanvas: () => exportCanvas,
+    })).toEqual({
+      ok: true,
+      source: 'explicitExportCanvas',
+      canvas: exportCanvas,
+      captureCanvas: true,
+      requiresRenderScene: true,
+      requiresLegacyBrowserVideoProviders: true,
+    });
+  });
+
+  it('falls back to the Pixi canvas only as legacy export capture', () => {
+    const pixiCanvas = { id: 'pixi-export' } as unknown as HTMLCanvasElement;
+
+    expect(buildProjectExportFrameSourcePlan({
+      rustFrameSource: null,
+      pixiCanvas,
+    })).toEqual({
+      ok: true,
+      source: 'pixiCanvas',
+      canvas: pixiCanvas,
+      captureCanvas: true,
+      requiresRenderScene: true,
+      requiresLegacyBrowserVideoProviders: true,
+    });
+  });
+
+  it('fails loud when no export frame source is available', () => {
+    expect(buildProjectExportFrameSourcePlan({
+      rustFrameSource: null,
+      getExportCanvas: () => null,
+      pixiCanvas: null,
+    })).toEqual({
+      ok: false,
+      reason: 'exportFrameSourceUnavailable',
+      detail: 'Export requires a Rust frame source, shared renderer export canvas, or legacy Pixi canvas.',
     });
   });
 });
