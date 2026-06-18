@@ -221,7 +221,7 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
         ok: true,
         activeJob,
         request: {} as any,
-        upload,
+        upload: upload as any,
       };
     };
     const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {

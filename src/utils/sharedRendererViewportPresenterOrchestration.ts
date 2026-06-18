@@ -68,15 +68,16 @@ export const startSharedRendererViewportPresenter = async ({
 }: StartSharedRendererViewportPresenterInput): Promise<StartSharedRendererViewportPresenterResult> => {
   let nextActiveVideoDecodeJob = activeVideoDecodeJob;
   let nextActiveVideoDecodeJobs = activeVideoDecodeJobs ?? (activeVideoDecodeJob ? [activeVideoDecodeJob] : []);
+  const effectiveVideoCutoverEnabled = videoCutoverEnabled || requireSharedRendererVideo;
   const shouldUseMultipleVideoUploads = Boolean(activeVideoDecodeJobs);
-  const videoUploadsResult = videoCutoverEnabled && shouldUseMultipleVideoUploads
+  const videoUploadsResult = effectiveVideoCutoverEnabled && shouldUseMultipleVideoUploads
     ? await prepareVideoUploads({
       session,
       requestId,
       activeJobs: nextActiveVideoDecodeJobs,
     })
     : undefined;
-  const videoUploadResult = videoCutoverEnabled && !shouldUseMultipleVideoUploads
+  const videoUploadResult = effectiveVideoCutoverEnabled && !shouldUseMultipleVideoUploads
     ? await prepareVideoUpload({
       session,
       requestId,
@@ -109,7 +110,7 @@ export const startSharedRendererViewportPresenter = async ({
     session,
     datasets,
     diagnosticSwatchEnabled,
-    sharedRendererVideoCutoverEnabled: videoCutoverEnabled,
+    sharedRendererVideoCutoverEnabled: effectiveVideoCutoverEnabled,
     requireSharedRendererVideo,
     sharedRendererDecodedVideoFrameUpload,
     sharedRendererDecodedVideoFrameUploads,
