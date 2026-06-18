@@ -52,13 +52,19 @@ const rectangle = (patch: Partial<ShapeObject> = {}): ShapeObject => ({
 
 const exportSessionWithSurfaceGate = (
   surfaceGate: SharedRendererExportSession['surfaceGate'],
-  nativeRenderEnvelope: SharedRendererNativeRenderEnvelope = {
-    ok: true,
-    mediaCount: 0,
-    mediaKinds: [],
-    sourceCount: 0,
-    sourceMediaIds: [],
-  }
+  nativeRenderEnvelope: SharedRendererNativeRenderEnvelope = surfaceGate.ok
+    ? {
+      ok: true,
+      mediaCount: 0,
+      mediaKinds: [],
+      sourceCount: 0,
+      sourceMediaIds: [],
+    }
+    : {
+      ok: false,
+      reason: 'surfaceGateUnavailable',
+      detail: surfaceGate.detail,
+    }
 ): SharedRendererExportSession => ({
   plan: {} as SharedRendererExportSession['plan'],
   surfaceGate,
@@ -262,6 +268,9 @@ describe('buildViewportRustExportFrameSource', () => {
     expect(dataset).toEqual({
       uxfdRustExportFrameSourceStatus: 'fallback',
       uxfdRustExportFrameSourceReason: 'exportSessionBlocked',
+      uxfdRustExportFrameSourceNativeRenderEnvelopeStatus: 'blocked',
+      uxfdRustExportFrameSourceNativeRenderEnvelopeReason: 'surfaceGateUnavailable',
+      uxfdRustExportFrameSourceNativeRenderEnvelopeDetail: 'Shared renderer surface requires a parallelCompare plan.',
     });
   });
 
@@ -367,6 +376,11 @@ describe('resolveViewportRustExportFrameSource', () => {
       ok: false,
       reason: 'exportSessionBlocked',
       detail: 'Shared renderer surface requires a parallelCompare plan.',
+      nativeRenderEnvelope: {
+        ok: false,
+        reason: 'surfaceGateUnavailable',
+        detail: 'Shared renderer surface requires a parallelCompare plan.',
+      },
     });
     expect(sessionCalls).toEqual([{
       enabled: true,
@@ -398,6 +412,13 @@ describe('resolveViewportRustExportFrameSource', () => {
     })).toEqual({
       ok: true,
       source: frameSource,
+      nativeRenderEnvelope: {
+        ok: true,
+        mediaCount: 0,
+        mediaKinds: [],
+        sourceCount: 0,
+        sourceMediaIds: [],
+      },
     });
   });
 
@@ -442,6 +463,11 @@ describe('resolveViewportRustExportFrameSource', () => {
       ok: false,
       reason: 'exportSessionBlocked',
       detail: 'Shared renderer surface requires a parallelCompare plan.',
+      nativeRenderEnvelope: {
+        ok: false,
+        reason: 'surfaceGateUnavailable',
+        detail: 'Shared renderer surface requires a parallelCompare plan.',
+      },
     });
     expect(sessionCalls.map((input) => input.time)).toEqual([0, 2]);
     expect(sourceCalls).toEqual([]);

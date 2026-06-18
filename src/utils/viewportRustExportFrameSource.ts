@@ -8,6 +8,7 @@ import {
   buildSharedRendererExportSession,
   type SharedRendererExportSession,
   type SharedRendererExportSessionInput,
+  type SharedRendererNativeRenderEnvelope,
 } from './sharedRendererExportSession';
 import type { ProjectExportRustFrameSource } from './projectExportFrameCanvas';
 
@@ -48,11 +49,13 @@ export type ViewportRustExportFrameSourceDecision =
   | {
       ok: true;
       source: ProjectExportRustFrameSource;
+      nativeRenderEnvelope?: SharedRendererNativeRenderEnvelope;
     }
   | {
       ok: false;
       reason: ViewportRustExportFrameSourceFallbackReason;
       detail: string;
+      nativeRenderEnvelope?: SharedRendererNativeRenderEnvelope;
     };
 
 export const buildViewportRustExportFrameSource = ({
@@ -121,6 +124,7 @@ export const resolveViewportRustExportFrameSource = ({
   }
 
   if (objects && time !== undefined) {
+    let nativeRenderEnvelope: SharedRendererNativeRenderEnvelope | undefined;
     for (const preflightTime of buildViewportRustExportPreflightTimes(objects, time)) {
       const session = buildExportSession({
         enabled: true,
@@ -133,9 +137,37 @@ export const resolveViewportRustExportFrameSource = ({
         fallbackAdapter,
       });
       if (!session.surfaceGate.ok) {
-        return fallback('exportSessionBlocked', session.surfaceGate.detail);
+        return fallback(
+          'exportSessionBlocked',
+          session.surfaceGate.detail,
+          session.nativeRenderEnvelope
+        );
+      }
+      nativeRenderEnvelope = session.nativeRenderEnvelope;
+      if (!nativeRenderEnvelope.ok) {
+        return fallback(
+          'exportSessionBlocked',
+          nativeRenderEnvelope.detail,
+          nativeRenderEnvelope
+        );
       }
     }
+
+    return {
+      ok: true,
+      source: createFrameSource({
+        canvas,
+        projectSettings,
+        layers,
+        editorMode,
+        webGpuAvailable,
+        fallbackAdapter,
+        videoCutoverEnabled,
+        ...(preferEncodeOnly ? { bitmapCaptureEnabled: false } : {}),
+        ...(presentedFrameSharedFrameTaker ? { presentedFrameSharedFrameTaker } : {}),
+      }),
+      ...(nativeRenderEnvelope ? { nativeRenderEnvelope } : {}),
+    };
   }
 
   return {
@@ -160,16 +192,61 @@ export const writeViewportRustExportFrameSourceDiagnostics = (
 ): void => {
   dataset.uxfdRustExportFrameSourceStatus = decision.ok ? 'ready' : 'fallback';
   dataset.uxfdRustExportFrameSourceReason = decision.ok ? undefined : decision.reason;
+  writeNativeRenderEnvelopeDiagnostics(dataset, decision.nativeRenderEnvelope);
 };
 
 const fallback = (
   reason: ViewportRustExportFrameSourceFallbackReason,
-  detail: string
+  detail: string,
+  nativeRenderEnvelope?: SharedRendererNativeRenderEnvelope
 ): ViewportRustExportFrameSourceDecision => ({
   ok: false,
   reason,
   detail,
+  ...(nativeRenderEnvelope ? { nativeRenderEnvelope } : {}),
 });
+
+const writeNativeRenderEnvelopeDiagnostics = (
+  dataset: Record<string, string | undefined>,
+  envelope: SharedRendererNativeRenderEnvelope | undefined
+): void => {
+  if (!envelope) {
+    clearNativeRenderEnvelopeDiagnostics(dataset);
+    return;
+  }
+
+  dataset.uxfdRustExportFrameSourceNativeRenderEnvelopeStatus = envelope.ok
+    ? 'ready'
+    : 'blocked';
+  if (!envelope.ok) {
+    dataset.uxfdRustExportFrameSourceNativeRenderEnvelopeReason = envelope.reason;
+    dataset.uxfdRustExportFrameSourceNativeRenderEnvelopeDetail = envelope.detail;
+    delete dataset.uxfdRustExportFrameSourceNativeRenderMediaCount;
+    delete dataset.uxfdRustExportFrameSourceNativeRenderMediaKinds;
+    delete dataset.uxfdRustExportFrameSourceNativeRenderSourceCount;
+    delete dataset.uxfdRustExportFrameSourceNativeRenderSourceMediaIds;
+    return;
+  }
+
+  delete dataset.uxfdRustExportFrameSourceNativeRenderEnvelopeReason;
+  delete dataset.uxfdRustExportFrameSourceNativeRenderEnvelopeDetail;
+  dataset.uxfdRustExportFrameSourceNativeRenderMediaCount = String(envelope.mediaCount);
+  dataset.uxfdRustExportFrameSourceNativeRenderMediaKinds = envelope.mediaKinds.join(',');
+  dataset.uxfdRustExportFrameSourceNativeRenderSourceCount = String(envelope.sourceCount);
+  dataset.uxfdRustExportFrameSourceNativeRenderSourceMediaIds = envelope.sourceMediaIds.join(',');
+};
+
+const clearNativeRenderEnvelopeDiagnostics = (
+  dataset: Record<string, string | undefined>
+): void => {
+  delete dataset.uxfdRustExportFrameSourceNativeRenderEnvelopeStatus;
+  delete dataset.uxfdRustExportFrameSourceNativeRenderEnvelopeReason;
+  delete dataset.uxfdRustExportFrameSourceNativeRenderEnvelopeDetail;
+  delete dataset.uxfdRustExportFrameSourceNativeRenderMediaCount;
+  delete dataset.uxfdRustExportFrameSourceNativeRenderMediaKinds;
+  delete dataset.uxfdRustExportFrameSourceNativeRenderSourceCount;
+  delete dataset.uxfdRustExportFrameSourceNativeRenderSourceMediaIds;
+};
 
 const buildViewportRustExportPreflightTimes = (
   objects: TimelineObject[],
