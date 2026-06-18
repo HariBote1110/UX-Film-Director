@@ -26,7 +26,7 @@ export interface RunRustBackendVideoEncodeExportInput {
   width: number;
   height: number;
   fps: number;
-  frames: AsyncIterable<RustBackendVideoEncodeFrame>;
+  frames: AsyncIterable<RustBackendVideoEncodeSharedFramePayloadFrame>;
   sessionId?: string;
   encoderBridge?: RustBackendVideoEncodeBridge;
 }

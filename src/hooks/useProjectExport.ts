@@ -20,7 +20,10 @@ import {
   type ProjectExportRustFrameSource,
 } from '../utils/projectExportFrameCanvas';
 import { isSharedRendererExportFrameSourceBlockedError } from '../utils/sharedRendererExportFrameSource';
-import type { RustBackendVideoEncodeFrame } from '../utils/rustBackendVideoEncodeExport';
+import type {
+  RustBackendVideoEncodeFrame,
+  RustBackendVideoEncodeSharedFramePayloadFrame,
+} from '../utils/rustBackendVideoEncodeExport';
 
 const { ipcRenderer } = window;
 
@@ -306,6 +309,17 @@ export const useProjectExport = (
           exportFrameOverridesRef?.current.clear();
         }
 
+        async function* renderRustEncodeFrames(): AsyncGenerator<RustBackendVideoEncodeSharedFramePayloadFrame> {
+          for await (const frame of renderFrames(true)) {
+            if ('sharedFramePayload' in frame) {
+              yield frame;
+              continue;
+            }
+            frame.bitmap.close();
+            throw new Error('Rust backend encoder requires shared-frame payloads from the export frame source.');
+          }
+        }
+
         if (exportEncodePlan.engine === 'rustBackendVideoEncoder') {
           let audioPath: string | null = null;
           try {
@@ -325,7 +339,7 @@ export const useProjectExport = (
               width: encWidth,
               height: encHeight,
               fps,
-              frames: renderFrames(true),
+              frames: renderRustEncodeFrames(),
             });
             if (isCancelled()) return;
 
