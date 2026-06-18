@@ -29,6 +29,14 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     expect(code).not.toContain('requiresHtmlVideoElementSeekFallback');
   });
 
+  it('does not accept HTMLVideoElement refs in the production export hook', () => {
+    const code = source();
+
+    expect(code).not.toContain('videoElementsRef');
+    expect(code).not.toContain('pauseLegacyBrowserVideosForExport');
+    expect(code).not.toContain('HTMLVideoElement');
+  });
+
   it('does not keep the unused VideoFrameProvider module in production utils', () => {
     expect(existsSync(new URL('./videoFrameProvider.ts', import.meta.url))).toBe(false);
   });
