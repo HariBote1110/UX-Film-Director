@@ -369,6 +369,54 @@ describe('sharedRendererViewportVideoUpload', () => {
     expect(calls).not.toContainEqual(['stopVideoDecode', expect.anything()]);
   });
 
+  it('aborts already prepared decoded slots when a later visible video upload fails', async () => {
+    const { calls, rustBackendBridge } = createBridges();
+    const copyBridge: SharedVideoFrameCopyBridge = {
+      copyIntoUploadBuffer: async (payload, target) => {
+        calls.push(['copyIntoUploadBuffer', payload, target.byteLength]);
+        if (payload.ptsFrame === 7) {
+          return {
+            success: false,
+            error: 'copy failed for second video',
+          };
+        }
+        target.fill(0x6a);
+        return {
+          success: true,
+          result: {
+            sequence: payload.ptsFrame,
+            slotIndex: payload.slotIndex,
+            generation: payload.generation,
+            byteLen: target.byteLength,
+            expectedChecksum: 0x1234,
+            actualChecksum: 0x1234,
+          },
+        };
+      },
+    };
+
+    const result = await prepareSharedRendererViewportVideoUploads({
+      session: multiVideoSession,
+      requestId: 82,
+      slotCount: 2,
+      activeJobs: [],
+      rustBackendBridge,
+      copyBridge,
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      reason: 'uploadFailed',
+      detail: 'copy failed for second video',
+    });
+    expect(calls).toContainEqual(['releaseVideoDecodeFrame', {
+      jobId: expectedJobId,
+      slotIndex: 0,
+      generation: 3,
+      copyOutState: 'rendererUploadAborted',
+    }]);
+  });
+
   it('stops active Rust decode jobs that are no longer visible', async () => {
     const { calls, rustBackendBridge, copyBridge } = createBridges();
     const activeJob: SharedRendererViewportVideoDecodeJob = {
