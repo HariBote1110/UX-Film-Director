@@ -232,7 +232,7 @@ export const resolveProjectExportFrameSourcePolicyForEncode = ({
 }: ResolveProjectExportFrameSourcePolicyForEncodeInput): ProjectExportFrameSourcePolicyForEncode => {
   const requiresRustFrameSource = rustExportOnly
     || encodeEngine === 'rustBackendVideoEncoder'
-    || (rustVideoOnly && hasVideoObjects);
+    || hasVideoObjects;
 
   return {
     rustFrameSourcePolicy: requiresRustFrameSource ? 'requireRustFrameSource' : 'allowLegacyCanvas',
