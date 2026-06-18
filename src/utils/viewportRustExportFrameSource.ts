@@ -23,6 +23,7 @@ export interface BuildViewportRustExportFrameSourceInput {
   webGpuAvailable: boolean;
   fallbackAdapter: boolean;
   videoCutoverEnabled: boolean;
+  preferEncodeOnly?: boolean;
   objects?: TimelineObject[];
   time?: number;
   buildExportSession?: BuildSharedRendererExportSession;
@@ -73,6 +74,7 @@ export const resolveViewportRustExportFrameSource = ({
   webGpuAvailable,
   fallbackAdapter,
   videoCutoverEnabled,
+  preferEncodeOnly = false,
   objects,
   time,
   buildExportSession = buildSharedRendererExportSession,
@@ -143,6 +145,7 @@ export const resolveViewportRustExportFrameSource = ({
       webGpuAvailable,
       fallbackAdapter,
       videoCutoverEnabled,
+      ...(preferEncodeOnly ? { bitmapCaptureEnabled: false } : {}),
     }),
   };
 };

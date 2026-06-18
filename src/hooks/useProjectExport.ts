@@ -84,6 +84,7 @@ export const useProjectExport = (
         rustFrameSource: getRustExportFrameSource?.({
           objects: exportObjects,
           time: 0,
+          preferEncodeOnly: exportEncodePlan.engine === 'rustBackendVideoEncoder',
         }) ?? null,
         rustFrameSourcePolicy: frameSourcePolicy.rustFrameSourcePolicy,
         rustFrameSourceBlockedFallback: frameSourcePolicy.rustFrameSourceBlockedFallback,

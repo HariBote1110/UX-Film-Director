@@ -59,6 +59,7 @@ export interface CreateSharedRendererExportFrameSourceInput {
   webGpuAvailable: boolean;
   fallbackAdapter: boolean;
   videoCutoverEnabled: boolean;
+  bitmapCaptureEnabled?: boolean;
   datasets?: PresenterDataset[];
   buildExportSession?: SharedRendererExportSessionBuilder;
   startViewportPresenter?: SharedRendererExportViewportPresenterStarter;
@@ -70,6 +71,11 @@ export interface CreateSharedRendererExportFrameSourceInput {
 export type SharedRendererExportProjectFrameSource = ProjectExportRustFrameSource & Required<Pick<
   ProjectExportRustFrameSource,
   'renderFrame' | 'renderEncodeFrame'
+>>;
+
+export type SharedRendererEncodeOnlyExportProjectFrameSource = ProjectExportRustFrameSource & Required<Pick<
+  ProjectExportRustFrameSource,
+  'renderEncodeFrame'
 >>;
 
 export class SharedRendererExportFrameSourceBlockedError extends Error {
@@ -97,7 +103,13 @@ export const isSharedRendererExportFrameSourceBlockedError = (
     && typeof (value as { frameIndex?: unknown }).frameIndex === 'number'
   );
 
-export const createSharedRendererExportFrameSource = ({
+export function createSharedRendererExportFrameSource(
+  input: CreateSharedRendererExportFrameSourceInput & { bitmapCaptureEnabled: false }
+): SharedRendererEncodeOnlyExportProjectFrameSource;
+export function createSharedRendererExportFrameSource(
+  input: CreateSharedRendererExportFrameSourceInput
+): SharedRendererExportProjectFrameSource;
+export function createSharedRendererExportFrameSource({
   canvas,
   projectSettings,
   layers,
@@ -105,13 +117,14 @@ export const createSharedRendererExportFrameSource = ({
   webGpuAvailable,
   fallbackAdapter,
   videoCutoverEnabled,
+  bitmapCaptureEnabled = true,
   datasets = [canvas.dataset as unknown as PresenterDataset],
   buildExportSession = buildSharedRendererExportSession,
   startViewportPresenter = startSharedRendererViewportPresenter,
   createFrameBitmap = defaultCreateFrameBitmap,
   stopVideoDecodeJob = defaultStopVideoDecodeJob,
   createEncodeFrameWriter = createRustBackendVideoEncodeSharedFrameWriter,
-}: CreateSharedRendererExportFrameSourceInput): SharedRendererExportProjectFrameSource => {
+}: CreateSharedRendererExportFrameSourceInput): SharedRendererEncodeOnlyExportProjectFrameSource {
   let activeVideoDecodeJobs: SharedRendererViewportVideoDecodeJob[] = [];
   let activeEncodeFrameWriter: RustBackendVideoEncodeSharedFrameWriter | null = null;
   let activeEncodeSessionId: string | null = null;
@@ -251,8 +264,7 @@ export const createSharedRendererExportFrameSource = ({
     return activeEncodeFrameWriter;
   };
 
-  return {
-    renderFrame: renderFrameBitmap,
+  const source: SharedRendererEncodeOnlyExportProjectFrameSource = {
     renderEncodeFrame: async (request) => {
       const presenterResult = await presentFrame(request);
       try {
@@ -298,7 +310,13 @@ export const createSharedRendererExportFrameSource = ({
       await Promise.all(jobsToStop.map(stopVideoDecodeJob));
     },
   };
-};
+
+  if (bitmapCaptureEnabled) {
+    source.renderFrame = renderFrameBitmap;
+  }
+
+  return source;
+}
 
 const defaultCreateFrameBitmap: SharedRendererExportFrameBitmapFactory = (
   canvas,

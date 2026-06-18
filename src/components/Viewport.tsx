@@ -1155,6 +1155,7 @@ const Viewport: React.FC = () => {
     videoCutoverEnabled: sharedRendererVideoCutoverEnabled,
     objects: context.objects,
     time: context.time,
+    preferEncodeOnly: context.preferEncodeOnly,
     diagnosticsDataset: document.documentElement.dataset as Record<string, string | undefined>,
   }), [
     editorMode,

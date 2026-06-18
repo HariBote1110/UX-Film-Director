@@ -36,6 +36,7 @@ export interface ProjectExportRustFrameSource {
 export interface ProjectExportRustFrameSourceContext {
   objects: TimelineObject[];
   time: number;
+  preferEncodeOnly?: boolean;
 }
 
 export type ResolveProjectExportFrameCanvasResult =
