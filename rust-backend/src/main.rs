@@ -384,34 +384,45 @@ fn handle_encode_write_frame(id: u64, params: Value, state: &mut BackendState) -
         }
     };
 
-    let Some(session) = state.encode_sessions.get_mut(&parsed.session_id) else {
-        return response_error(id, -32052, "No active encode session");
-    };
-
-    if let Err(message) = validate_encode_shared_frame(session, &parsed) {
-        return response_error(id, -32602, &message);
-    }
-
-    let (shared_frame_byte_len, encoded_frame_byte_len) =
-        match write_encode_shared_frame(session, &parsed) {
-            Ok(value) => value,
-            Err(message) => return response_error(id, -32053, &message),
+    let (session_id, frame_count, shared_frame_byte_len, encoded_frame_byte_len) = {
+        let Some(session) = state.encode_sessions.get_mut(&parsed.session_id) else {
+            return response_error(id, -32052, "No active encode session");
         };
 
-    session.frame_count += 1;
+        if let Err(message) = validate_encode_shared_frame(session, &parsed) {
+            return response_error(id, -32602, &message);
+        }
+
+        let (shared_frame_byte_len, encoded_frame_byte_len) =
+            match write_encode_shared_frame(session, &parsed) {
+                Ok(value) => value,
+                Err(message) => return response_error(id, -32053, &message),
+            };
+
+        session.frame_count += 1;
+        (
+            session.session_id.clone(),
+            session.frame_count,
+            shared_frame_byte_len,
+            encoded_frame_byte_len,
+        )
+    };
+    state
+        .native_render_outputs
+        .remove(&parsed.frame.descriptor.memory_id);
 
     RpcResponse {
         id,
         ok: true,
         result: Some(json!({
             "written": true,
-            "sessionId": session.session_id,
+            "sessionId": session_id,
             "frameIndex": parsed.frame_index,
             "timestampUs": parsed.timestamp_us,
             "slotCount": parsed.slot_count,
             "sharedFrameByteLen": shared_frame_byte_len,
             "encodedFrameByteLen": encoded_frame_byte_len,
-            "frameCount": session.frame_count,
+            "frameCount": frame_count,
         })),
         error: None,
     }
