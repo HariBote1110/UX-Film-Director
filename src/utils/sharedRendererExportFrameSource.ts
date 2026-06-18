@@ -33,7 +33,10 @@ import type { RustBackendResult } from './rustBackendVideoDecodeControl';
 import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
 import type { SharedRendererPreviewSurfaceBlockedReason } from './sharedRendererPreviewSurface';
 import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererWebGpuPresenter';
-import { canRenderSharedRendererNativeMediaOnlyFrame } from './sharedRendererNativeMediaSupport';
+import {
+  canRenderSharedRendererNativeMediaOnlyFrame,
+  isSharedRendererNativeMediaReferenceSupported,
+} from './sharedRendererNativeMediaSupport';
 
 type PresenterDataset = Record<string, string | undefined>;
 
@@ -42,6 +45,7 @@ export type SharedRendererExportFrameSourceBlockedReason =
   | 'videoUploadFailed'
   | 'videoOwnershipUnavailable'
   | 'webGpuReadbackUnavailable'
+  | 'nativeRenderUnsupportedMedia'
   | 'nativeRenderFailed';
 
 export type SharedRendererExportFrameBitmapFactory = (
@@ -316,6 +320,19 @@ export function createSharedRendererExportFrameSource({
     if (!surfaceGate.ok) {
       return null;
     }
+    const unsupportedNativeMedia = resolveMixedNativeRenderUnsupportedMedia(surfaceGate);
+    if (unsupportedNativeMedia) {
+      writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+        status: 'blocked',
+        frameIndex: request.frameIndex,
+        reason: 'nativeRenderUnsupportedMedia',
+      });
+      throw new SharedRendererExportFrameSourceBlockedError(
+        unsupportedNativeMedia,
+        'nativeRenderUnsupportedMedia',
+        request.frameIndex
+      );
+    }
 
     const renderId = buildNativeRenderId(request.encodeSessionId, request.frameIndex);
     const renderResponse = await renderNativeSharedFrame({
@@ -574,6 +591,20 @@ const resolveExportVideoOwnershipBlock = (
   if (videoOwnership.owner === 'sharedRenderer') return null;
 
   return `Shared renderer export cannot delegate video ownership back to Pixi (${videoOwnership.reason}).`;
+};
+
+const resolveMixedNativeRenderUnsupportedMedia = (
+  surfaceGate: Extract<ReturnType<SharedRendererExportSessionBuilder>['surfaceGate'], { ok: true }>
+): string | null => {
+  const mediaById = new Map(surfaceGate.media.map((reference) => [reference.id, reference]));
+  for (const clip of surfaceGate.snapshot.clips) {
+    const reference = mediaById.get(clip.media_id);
+    if (!reference || reference.kind === 'Video') continue;
+    if (!isSharedRendererNativeMediaReferenceSupported(reference)) {
+      return `Rust native render does not support ${reference.kind} media '${reference.id}' from '${reference.source}'.`;
+    }
+  }
+  return null;
 };
 
 const writeFrameDiagnostics = (
