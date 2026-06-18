@@ -1,3 +1,20 @@
+## 2026-06-18 — Phase5: native/Rust handoff bridge factoryをexportへ注入
+
+### 実施内容
+- `src/utils/sharedVideoFramePresentedFrameHandoff.test.ts` を追加し、native bridge methodの有無でhandoff takerを生成/非生成する契約を追加した。
+- `src/utils/sharedVideoFramePresentedFrameHandoffBoundary.test.ts` を追加し、preloadとrenderer型が `takePresentedFrameSharedFrame` を公開する境界契約を追加した。
+- `useProjectExport` からRust export frame sourceへ `createSharedVideoFramePresentedFrameTaker()` を注入するようにした。
+- `electron/preload.ts` と `src/vite-env.d.ts` に optional native handoff APIを追加した。未対応時はfail-softに `success: false` を返し、既存fallbackへ戻せる。
+- package version を `0.1.1-Beta-91a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedVideoFramePresentedFrameHandoff.test.ts src/utils/sharedVideoFramePresentedFrameHandoffBoundary.test.ts src/utils/useProjectExportBoundary.test.ts`
+- `npm test -- src/utils/sharedVideoFramePresentedFrameHandoff.test.ts src/utils/sharedVideoFramePresentedFrameHandoffBoundary.test.ts src/utils/useProjectExportBoundary.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/sharedRendererExportFrameSource.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedVideoFramePresentedFrameHandoff\\.ts\\(|src/hooks/useProjectExport\\.ts\\(|src/vite-env\\.d\\.ts\\(|electron/preload\\.ts\\(|src/utils/sharedRendererWebGpuPresenter\\.ts\\()"`
+
+### 残課題・次のステップ
+- 実アプリのRust direct encode経路へoptional native handoffを注入できるようになった。次はN-API addon側で `takePresentedFrameSharedFrame` を実装し、WebGPU textureからshared-frame payloadを返す経路を作る。
+
 ## 2026-06-18 — Phase5: Viewport export source builderからnative/Rust handoffを配線
 
 ### 実施内容

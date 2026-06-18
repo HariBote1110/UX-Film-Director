@@ -533,6 +533,12 @@ WebGPU presenterのnative/Rust handoffまで1本の配線を持てるように�
 Rust export source生成経路に `presentedFrameSharedFrameTaker` を追加する。
 これにより上位のElectron/native bridge実装を、実アプリのRust direct encode経路へ注入できるようにする。
 
+102. Phase5: native/Rust presented-frame handoff bridge factoryを用意する
+`window.sharedVideoFrame.takePresentedFrameSharedFrame` を任意のpreload/native bridge APIとして公開し、
+renderer側は `createSharedVideoFramePresentedFrameTaker` で可用性を判定してRust export frame sourceへ注入する。
+native addonが未対応の場合はtakerを作らず、既存のWebGPU readback / JS shared-frame writer fallbackへ戻す。
+この段階ではbridge境界と実アプリへの注入を固定し、次段でnative addon側のWebGPU texture handoff実装を詰める。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
