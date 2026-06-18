@@ -845,6 +845,11 @@ presenter起動や `createImageBitmap(canvas)` へ進まず `videoBitmapCaptureD
 動画objectが含まれる場合はencoder hintに関係なく `preferEncodeOnly=true` にする。これによりhook内の条件式の回帰で
 動画export sourceがbitmap-capableになり、legacy browser/canvas経路へ戻る事故をテストで検出できるようにする。
 
+157. Phase5: export source testからJS shared-frame writer fixtureを削除する
+`sharedRendererExportFrameSource` のproduction境界に加え、同テスト内にも `createEncodeFrameWriter` fixtureを残さない。
+古いWebGPU readback + JS shared-frame writer経路をテスト語彙としても復活させず、Rust native render /
+presented shared-frame handoffだけをencode shared-frameの正規語彙にする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
