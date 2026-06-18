@@ -1,4 +1,4 @@
-import { ProjectSettings, TimelineObject, PsdObject, LayerState, SceneData, CameraState } from '../types';
+import { ProjectSettings, TimelineObject, PsdObject, PsdLayerNode, LayerState, SceneData, CameraState } from '../types';
 import { buildPsdLayerTree, parsePsdArrayBufferAsObject, stripPsdLayerNodeForPersistence } from './psdParser';
 import { toFileProtocolUrl } from './mediaMetadata';
 import {
@@ -256,6 +256,44 @@ const extractFileName = (filePath: string): string => {
   return parts.length > 0 ? parts[parts.length - 1] : 'unknown.psd';
 };
 
+const haveMatchingPsdLayerShape = (savedNode: PsdLayerNode, restoredNode: PsdLayerNode): boolean => (
+  savedNode.name === restoredNode.name && savedNode.isGroup === restoredNode.isGroup
+);
+
+const mergeRestoredPsdActiveLayerIds = (
+  restoredRoot: PsdLayerNode,
+  restoredActiveLayerIds: Record<string, boolean>,
+  savedRoot: PsdLayerNode | undefined,
+  savedActiveLayerIds: Record<string, boolean>
+): Record<string, boolean> => {
+  const merged = { ...restoredActiveLayerIds };
+
+  Object.entries(savedActiveLayerIds).forEach(([id, active]) => {
+    if (Object.prototype.hasOwnProperty.call(merged, id)) {
+      merged[id] = Boolean(active);
+    }
+  });
+
+  const applySavedTreeState = (savedNode: PsdLayerNode, restoredNode: PsdLayerNode) => {
+    if (!haveMatchingPsdLayerShape(savedNode, restoredNode)) return;
+    if (Object.prototype.hasOwnProperty.call(savedActiveLayerIds, savedNode.id)) {
+      merged[restoredNode.id] = Boolean(savedActiveLayerIds[savedNode.id]);
+    }
+
+    const childCount = Math.min(savedNode.children.length, restoredNode.children.length);
+    for (let i = 0; i < childCount; i += 1) {
+      applySavedTreeState(savedNode.children[i], restoredNode.children[i]);
+    }
+  };
+
+  if (savedRoot) {
+    applySavedTreeState(savedRoot, restoredRoot);
+  }
+
+  merged.root = true;
+  return merged;
+};
+
 const readFileBytes = async (filePath: string): Promise<ArrayBuffer | null> => {
   try {
     const response = await window.ipcRenderer.invoke('read-file-bytes', { filePath }) as ReadFileBytesResponse;
@@ -289,15 +327,13 @@ const restorePsdObjectFromFile = async (
     let nextLayerTree = parsed.psdObject.layerTree;
     const savedActive = savedObject.activeLayerIds;
     if (parsed.psdObject.rootLayer && nextActiveLayerIds && savedActive) {
-      const merged = { ...nextActiveLayerIds };
-      Object.entries(savedActive).forEach(([id, active]) => {
-        if (Object.prototype.hasOwnProperty.call(merged, id)) {
-          merged[id] = Boolean(active);
-        }
-      });
-      merged.root = true;
-      nextActiveLayerIds = merged;
-      nextLayerTree = buildPsdLayerTree(parsed.psdObject.rootLayer, merged);
+      nextActiveLayerIds = mergeRestoredPsdActiveLayerIds(
+        parsed.psdObject.rootLayer,
+        nextActiveLayerIds,
+        savedObject.rootLayer,
+        savedActive
+      );
+      nextLayerTree = buildPsdLayerTree(parsed.psdObject.rootLayer, nextActiveLayerIds);
     }
 
     return {
