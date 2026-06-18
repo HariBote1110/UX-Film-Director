@@ -159,6 +159,49 @@ describe('createSharedRendererExportFrameSource', () => {
     ]);
   });
 
+  it('stops active Rust decode jobs when the export frame source closes', async () => {
+    const canvas = {
+      width: 1920,
+      height: 1080,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    const activeJob = decodeJob('decode-close');
+    const stoppedJobIds: string[] = [];
+
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      startViewportPresenter: async () => ({
+        control: { dispose: () => undefined },
+        activeVideoDecodeJob: activeJob,
+        activeVideoDecodeJobs: [activeJob],
+      }) as never,
+      createFrameBitmap: async () => ({ close: () => undefined }) as ImageBitmap,
+      stopVideoDecodeJob: async (job) => {
+        stoppedJobIds.push(job.jobId);
+      },
+    });
+
+    await source.renderFrame({
+      frameIndex: 1,
+      timestampUs: 16_667,
+      time: 1 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [image()],
+    });
+
+    await source.close?.();
+    await source.close?.();
+
+    expect(stoppedJobIds).toEqual(['decode-close']);
+  });
+
   it('fails loud before presenter work when the export session is not renderable', async () => {
     const source = createSharedRendererExportFrameSource({
       canvas: {
