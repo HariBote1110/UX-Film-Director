@@ -11,6 +11,8 @@ static WRITABLE_RINGS: OnceLock<Mutex<HashMap<String, PosixSharedRing>>> = OnceL
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SharedVideoFrameCopyReport {
     pub sequence: u64,
+    pub slot_index: u32,
+    pub generation: u64,
     pub byte_len: usize,
     pub expected_checksum: u32,
     pub actual_checksum: u32,
@@ -42,6 +44,7 @@ pub enum SharedVideoFrameBridgeError {
     WritableRingAlreadyExists { memory_id: String },
     WritableRingNotFound { memory_id: String },
     WritableRingRegistryPoisoned,
+    SlotLeaseMismatch { expected_slot_index: u32, actual_slot_index: u32 },
     SharedMemory(PosixShmError),
 }
 
@@ -122,6 +125,8 @@ pub fn copy_shared_frame_into_upload_buffer(
     memory_id: &str,
     slot_count: u32,
     slot_byte_len: usize,
+    slot_index: u32,
+    generation: u64,
     sequence: u64,
     upload_buffer: &mut [u8],
     timeout: Duration,
@@ -140,10 +145,18 @@ pub fn copy_shared_frame_into_upload_buffer(
         timeout,
     )?;
     let frame = ring.read_frame(sequence)?;
+    if frame.slot_index != slot_index {
+        return Err(SharedVideoFrameBridgeError::SlotLeaseMismatch {
+            expected_slot_index: slot_index,
+            actual_slot_index: frame.slot_index,
+        });
+    }
     upload_buffer.copy_from_slice(&frame.bytes);
 
     Ok(SharedVideoFrameCopyReport {
         sequence: frame.sequence,
+        slot_index: frame.slot_index,
+        generation,
         byte_len: frame.bytes.len(),
         expected_checksum: frame.expected_checksum,
         actual_checksum: frame.actual_checksum,
