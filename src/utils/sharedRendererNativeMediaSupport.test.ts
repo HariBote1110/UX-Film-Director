@@ -50,6 +50,12 @@ const media: RustSceneMediaReference[] = [{
   width: 4,
   height: 4,
 }, {
+  id: 'webp-1',
+  kind: 'Image',
+  source: '/tmp/overlay.webp',
+  width: 4,
+  height: 4,
+}, {
   id: 'video-1',
   kind: 'Video',
   source: '/tmp/video.mp4',
@@ -62,8 +68,9 @@ describe('sharedRendererNativeMediaSupport', () => {
   it('matches the Rust backend native media source support contract', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[0])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[1])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[2])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[2])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[3])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[4])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {
@@ -73,6 +80,10 @@ describe('sharedRendererNativeMediaSupport', () => {
     })).toBe(true);
     expect(canRenderSharedRendererNativeMediaOnlyFrame({
       snapshot: snapshotWithMedia('solid-1', 'jpg-1'),
+      media,
+    })).toBe(true);
+    expect(canRenderSharedRendererNativeMediaOnlyFrame({
+      snapshot: snapshotWithMedia('solid-1', 'webp-1'),
       media,
     })).toBe(false);
     expect(canRenderSharedRendererNativeMediaOnlyFrame({
