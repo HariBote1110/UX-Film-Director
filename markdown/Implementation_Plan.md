@@ -606,6 +606,11 @@ video cutover stack safetyは、動画clipより上にある `Image` mediaのsou
 未対応画像形式は引き続き `pixiOnlyObjectAboveVideo` としてブロックする。これにより動画＋PNG画像＋SolidColourの積層sceneを
 Pixiへ戻さず、Rust decode/shared memory → Rust native render → Rust encodeへ進める。
 
+114. Phase5: media-only exportをRust native renderへ接続する
+export `renderEncodeFrame` は動画decode requestが無い場合でも、visible clipがRust生成可能な `SolidColour` / PNG `Image` だけなら
+`render.nativeSharedFrame` を `sources: []` で呼び、WebGPU presenter readback / JS shared-frame writerへ戻らない。
+Electron native render bridgeが無い環境、空scene、未対応画像形式を含むsceneでは従来fallbackを維持する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

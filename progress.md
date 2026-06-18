@@ -3690,3 +3690,20 @@
 ### 残課題・次のステップ
 - PNG判定はsource拡張子ベース。Rust backend側は実際のPNG decodeで最終検証するが、将来はcapability共有またはsource sniffingでより正確にする。
 - JPG/PSD/textなどの上位clipはまだvideo cutoverを止めるため、Rust source化対象として順次追加する。
+
+## 2026-06-18 — media-only exportをRust native renderへ接続
+
+### 実施内容
+- export `renderEncodeFrame` が `noVideoDecodeRequest` を受けた場合でも、surfaceGate内のvisible clipが `SolidColour` / PNG `Image` だけなら `render.nativeSharedFrame` を `sources: []` で呼ぶようにした。
+- Electron native render bridgeが無い環境、空scene、未対応画像形式を含むsceneでは従来どおりWebGPU presenter/readback fallbackを維持するcapability判定を追加した。
+- media-only PNG＋SolidColour exportがpresenter/readback/JS shared-frame writerを使わない契約をTDDで追加した。
+- 版を `0.1.1-Beta-100a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts`
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/rustBackendNativeRenderControl.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- PNG判定はまだ拡張子ベース。Rust backend decodeとTS capabilityの共有化が必要。
+- previewはmedia-only native render outputの明示release lifecycleをまだ持っていない。export encode経路ではencode後解放済み。
