@@ -61,6 +61,8 @@ describe('buildProjectExportFrameSourcePlan', () => {
       captureCanvas: false,
       requiresRenderScene: false,
       requiresLegacyBrowserVideoProviders: false,
+      requiresHtmlVideoElementSeekFallback: false,
+      usesExportFrameOverrides: false,
     });
   });
 
@@ -77,6 +79,8 @@ describe('buildProjectExportFrameSourcePlan', () => {
       captureCanvas: true,
       requiresRenderScene: true,
       requiresLegacyBrowserVideoProviders: true,
+      requiresHtmlVideoElementSeekFallback: true,
+      usesExportFrameOverrides: true,
     });
   });
 
@@ -93,6 +97,8 @@ describe('buildProjectExportFrameSourcePlan', () => {
       captureCanvas: true,
       requiresRenderScene: true,
       requiresLegacyBrowserVideoProviders: true,
+      requiresHtmlVideoElementSeekFallback: true,
+      usesExportFrameOverrides: true,
     });
   });
 
