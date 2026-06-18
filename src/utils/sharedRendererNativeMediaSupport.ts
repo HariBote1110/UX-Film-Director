@@ -24,4 +24,4 @@ export const canRenderSharedRendererNativeMediaOnlyFrame = ({
 };
 
 export const isSharedRendererNativeImageSourceSupported = (source: string): boolean =>
-  source.toLowerCase().endsWith('.png');
+  /\.(png|jpe?g)$/i.test(source);

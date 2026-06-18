@@ -106,7 +106,7 @@ describe('buildSharedRendererVideoCutoverStackSafety', () => {
       snapshot,
       media: media.map((reference) => (
         reference.id === 'image-front'
-          ? { ...reference, source: '/tmp/image.jpg' }
+          ? { ...reference, source: '/tmp/image.webp' }
           : reference
       )),
       candidateVideoObjectIds: ['video-back'],
