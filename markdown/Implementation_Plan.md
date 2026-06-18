@@ -643,6 +643,12 @@ Viewport presenter orchestrationは、video cutover有効時に `render.nativeSh
 `sharedRendererNativeRenderFrameUpload` としてpreview presenterへ渡す。GPU upload完了またはabort時には
 `render.releaseNativeSharedFrame` でnative render outputを解放し、成功した場合は従来のper-video preview uploadをスキップする。
 
+120. Phase5: native render preview成功時にPixi ownershipを移管する
+native render frameは最終合成済みpreviewなので、表示成功時は含まれる `Video` / `SolidColour` clipを
+shared renderer ownershipとして公開する。`Viewport` は既存のPixi cleanup hookを通じて該当video/shapeをPixi描画から外し、
+同じclipがPixiとnative render canvasで二重に合成される状態を防ぐ。
+ownership reasonには `nativeRenderFrameReady` を追加し、dataset diagnosticsからもnative render frame由来のcutoverを識別できるようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

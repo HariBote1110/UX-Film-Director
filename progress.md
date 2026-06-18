@@ -3839,3 +3839,21 @@
 - 実機previewでnative render frame pathが有効化された際のdataset診断とPixi cleanup挙動を確認する。
 - native render preview失敗時のreasonをdatasetへより細かく出し、どの境界でPixiへ戻ったかを見える化する。
 - PSD/textなど、Rust native render source化されていない素材は引き続きPixi fallbackの主因として残る。
+
+## 2026-06-18 — native render preview成功時にownershipを移管
+
+### 実施内容
+- native render frame表示成功時に、scene内の `Video` clipを `videoOwnership.owner=sharedRenderer` として公開するようにした。
+- 同じく `SolidColour` clipを `solidColourOwnership.owner=sharedRenderer` として公開するようにした。
+- ownership reasonに `nativeRenderFrameReady` を追加し、dataset diagnosticsでRust native render frame由来のcutoverを識別できるようにした。
+- これにより `Viewport` の既存Pixi cleanup hookがnative render済みvideo/shapeをPixi側から外せるようになり、二重合成リスクを下げた。
+- 版を `0.1.1-Beta-106a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererPreviewPresenterController.test.ts`
+- `npm test -- src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/pixiVideoCutover.test.ts src/utils/pixiSolidColourCutover.test.ts src/utils/sharedRendererVideoOwnership.test.ts src/utils/sharedRendererSolidColourOwnership.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- `Image` clipにはまだPixi ownership cleanup機構がないため、PNG/JPG/JPEG画像のpreview二重合成を防ぐ専用ownershipを追加する必要がある。
+- native render preview失敗時のreasonをdatasetへより細かく出し、Rust native renderへ進めなかった理由を可視化する。
