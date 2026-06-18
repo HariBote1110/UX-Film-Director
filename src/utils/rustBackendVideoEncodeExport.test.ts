@@ -3,7 +3,10 @@ import {
   runRustBackendVideoEncodeExport,
   type RustBackendVideoEncodeBitmapToRgbaBytes,
 } from './rustBackendVideoEncodeExport';
-import type { RustBackendVideoEncodeBridge } from './rustBackendVideoEncodeControl';
+import type {
+  RustBackendVideoEncodeBridge,
+  RustBackendVideoEncodeWriteFramePayload,
+} from './rustBackendVideoEncodeControl';
 import type { SharedVideoFrameWritableBridge } from './sharedVideoFrameWritableBridge';
 
 const fakeBitmap = (label: string): ImageBitmap => ({ label }) as unknown as ImageBitmap;
@@ -12,6 +15,36 @@ async function* frames() {
   yield { timestamp: 0, bitmap: fakeBitmap('first') };
   yield { timestamp: 16_667, bitmap: fakeBitmap('second') };
 }
+
+const sharedFramePayload = (
+  frameIndex: number,
+  timestampUs: number
+): RustBackendVideoEncodeWriteFramePayload => ({
+  sessionId: 'session-shared',
+  frameIndex,
+  timestampUs,
+  slotCount: 2,
+  frame: {
+    descriptor: {
+      memoryId: '/uxfd-direct-shared-frame-ring',
+      slotIndex: frameIndex % 2,
+      generation: frameIndex + 1,
+      byteOffset: frameIndex % 2 === 0 ? 0 : 512,
+      byteLen: 512,
+      width: 4,
+      height: 2,
+      strideBytes: 256,
+      format: 'rgba8Srgb',
+      colour: {
+        primaries: 'bt709',
+        transfer: 'srgb',
+        matrix: 'rgb',
+        range: 'full',
+      },
+    },
+    ptsFrame: frameIndex,
+  },
+});
 
 describe('runRustBackendVideoEncodeExport', () => {
   it('streams rendered bitmaps through writable shared frames into the Rust backend encoder', async () => {
@@ -238,5 +271,96 @@ describe('runRustBackendVideoEncodeExport', () => {
         range: 'full',
       },
     }]);
+  });
+
+  it('forwards prepacked shared-frame encode payloads without bitmap readback or writable-ring copy', async () => {
+    const calls: unknown[] = [];
+    const encoderBridge: RustBackendVideoEncodeBridge = {
+      startVideoEncode: async (payload) => {
+        calls.push(['startVideoEncode', payload]);
+        return { success: true, result: { accepted: true } };
+      },
+      writeVideoEncodeFrame: async (payload) => {
+        calls.push(['writeVideoEncodeFrame', payload]);
+        return { success: true, result: { accepted: true } };
+      },
+      finishVideoEncode: async (payload) => {
+        calls.push(['finishVideoEncode', payload]);
+        return { success: true, result: { outputFile: '/tmp/out.mp4' } };
+      },
+    };
+    const sharedFrameBridge: SharedVideoFrameWritableBridge = {
+      createWritableSharedFrameRing: async (payload) => {
+        calls.push(['createWritableSharedFrameRing', payload]);
+        return { success: true, result: payload };
+      },
+      writeIntoSharedFrameRing: async (payload, source) => {
+        calls.push(['writeIntoSharedFrameRing', payload, source.byteLength]);
+        return {
+          success: true,
+          result: {
+            sequence: payload.ptsFrame,
+            byteLen: source.byteLength,
+            checksum: 0x1234,
+          },
+        };
+      },
+      closeWritableSharedFrameRing: async (payload) => {
+        calls.push(['closeWritableSharedFrameRing', payload]);
+        return { success: true, result: payload };
+      },
+    };
+
+    async function* directSharedFrames() {
+      yield { timestamp: 0, sharedFramePayload: sharedFramePayload(0, 0) };
+      yield { timestamp: 16_667, sharedFramePayload: sharedFramePayload(1, 16_667) };
+    }
+
+    await expect(runRustBackendVideoEncodeExport({
+      sessionId: 'session-shared',
+      memoryId: '/unused-writable-ring',
+      filePath: '/tmp/direct-shared.mp4',
+      width: 4,
+      height: 2,
+      fps: 60,
+      frames: directSharedFrames(),
+      encoderBridge,
+      sharedFrameBridge,
+      extractRgbaBytes: async () => {
+        throw new Error('bitmap readback must not run for shared-frame payloads');
+      },
+    })).resolves.toEqual({
+      frameCount: 2,
+      sessionId: 'session-shared',
+      filePath: '/tmp/direct-shared.mp4',
+    });
+
+    expect(calls).toEqual([
+      ['startVideoEncode', {
+        sessionId: 'session-shared',
+        filePath: '/tmp/direct-shared.mp4',
+        width: 4,
+        height: 2,
+        fps: 60,
+        pixelFormat: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      }],
+      ['writeVideoEncodeFrame', sharedFramePayload(0, 0)],
+      ['writeVideoEncodeFrame', sharedFramePayload(1, 16_667)],
+      ['finishVideoEncode', {
+        sessionId: 'session-shared',
+      }],
+    ]);
+    const serialisedCalls = JSON.stringify(calls);
+    expect(serialisedCalls).not.toContain('createWritableSharedFrameRing');
+    expect(serialisedCalls).not.toContain('writeIntoSharedFrameRing');
+    expect(serialisedCalls).not.toContain('frameBase64');
+    expect(serialisedCalls).not.toContain('rgbaBytes');
+    expect(serialisedCalls).not.toContain('pixels');
   });
 });
