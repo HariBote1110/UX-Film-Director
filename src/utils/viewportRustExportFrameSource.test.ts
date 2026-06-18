@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { ProjectSettings } from '../types';
+import type { ProjectSettings, TimelineObject } from '../types';
 import { createDefaultLayers } from './sceneState';
+import type {
+  SharedRendererExportSession,
+  SharedRendererExportSessionInput,
+} from './sharedRendererExportSession';
 import {
   buildViewportRustExportFrameSource,
   resolveViewportRustExportFrameSource,
@@ -18,6 +22,16 @@ const settings: ProjectSettings = {
 const frameSource: ProjectExportRustFrameSource = {
   renderFrame: async () => ({ close: () => undefined }) as ImageBitmap,
 };
+
+const exportObjects: TimelineObject[] = [];
+
+const exportSessionWithSurfaceGate = (
+  surfaceGate: SharedRendererExportSession['surfaceGate']
+): SharedRendererExportSession => ({
+  plan: {} as SharedRendererExportSession['plan'],
+  surfaceGate,
+  presentationContract: {} as SharedRendererExportSession['presentationContract'],
+});
 
 describe('buildViewportRustExportFrameSource', () => {
   it('creates a shared renderer export frame source only when the experimental Rust export gate is fully open', () => {
@@ -98,6 +112,46 @@ describe('buildViewportRustExportFrameSource', () => {
       videoCutoverEnabled: false,
     })).toBeNull();
   });
+
+  it('keeps legacy canvas export when the preflight export session is not renderable', () => {
+    const canvas = {
+      width: 1920,
+      height: 1080,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    const dataset: Record<string, string | undefined> = {};
+    const sourceCalls: unknown[] = [];
+
+    const source = buildViewportRustExportFrameSource({
+      exportEnabled: true,
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      objects: exportObjects,
+      time: 0,
+      buildExportSession: () => exportSessionWithSurfaceGate({
+        ok: false,
+        reason: 'planNotComparable',
+        detail: 'Shared renderer surface requires a parallelCompare plan.',
+      }),
+      createFrameSource: (input) => {
+        sourceCalls.push(input);
+        return frameSource;
+      },
+      diagnosticsDataset: dataset,
+    });
+
+    expect(source).toBeNull();
+    expect(sourceCalls).toEqual([]);
+    expect(dataset).toEqual({
+      uxfdRustExportFrameSourceStatus: 'fallback',
+      uxfdRustExportFrameSourceReason: 'exportSessionBlocked',
+    });
+  });
 });
 
 describe('resolveViewportRustExportFrameSource', () => {
@@ -120,6 +174,66 @@ describe('resolveViewportRustExportFrameSource', () => {
 
   it('returns a ready decision with a source when every Rust export gate is open', () => {
     expect(resolveViewportRustExportFrameSource(baseInput)).toEqual({
+      ok: true,
+      source: frameSource,
+    });
+  });
+
+  it('preflights the export session before creating a Rust export frame source', () => {
+    const sessionCalls: SharedRendererExportSessionInput[] = [];
+    const sourceCalls: unknown[] = [];
+
+    const decision = resolveViewportRustExportFrameSource({
+      ...baseInput,
+      objects: exportObjects,
+      time: 0,
+      buildExportSession: (input) => {
+        sessionCalls.push(input);
+        return exportSessionWithSurfaceGate({
+          ok: false,
+          reason: 'planNotComparable',
+          detail: 'Shared renderer surface requires a parallelCompare plan.',
+        });
+      },
+      createFrameSource: (input) => {
+        sourceCalls.push(input);
+        return frameSource;
+      },
+    });
+
+    expect(decision).toEqual({
+      ok: false,
+      reason: 'exportSessionBlocked',
+      detail: 'Shared renderer surface requires a parallelCompare plan.',
+    });
+    expect(sessionCalls).toEqual([{
+      enabled: true,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      objects: exportObjects,
+      time: 0,
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+    }]);
+    expect(sourceCalls).toEqual([]);
+  });
+
+  it('creates the source after a successful export session preflight', () => {
+    expect(resolveViewportRustExportFrameSource({
+      ...baseInput,
+      objects: exportObjects,
+      time: 0,
+      buildExportSession: () => exportSessionWithSurfaceGate({
+        ok: true,
+        canvas: {
+          width: 1920,
+          height: 1080,
+        },
+        snapshot: {} as never,
+        media: [],
+      }),
+    })).toEqual({
       ok: true,
       source: frameSource,
     });
@@ -200,6 +314,16 @@ describe('writeViewportRustExportFrameSourceDiagnostics', () => {
     expect(dataset).toEqual({
       uxfdRustExportFrameSourceStatus: 'fallback',
       uxfdRustExportFrameSourceReason: 'videoCutoverDisabled',
+    });
+
+    writeViewportRustExportFrameSourceDiagnostics(dataset, {
+      ok: false,
+      reason: 'exportSessionBlocked',
+      detail: 'Shared renderer surface requires a parallelCompare plan.',
+    });
+    expect(dataset).toEqual({
+      uxfdRustExportFrameSourceStatus: 'fallback',
+      uxfdRustExportFrameSourceReason: 'exportSessionBlocked',
     });
   });
 });
