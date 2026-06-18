@@ -437,3 +437,17 @@
 
 ## 確認
 - `npx tsc --noEmit` を実行し、型エラーなしを確認。
+
+## 42. Phase5: Viewport export source診断へのnative render envelope接続
+- `src/utils/viewportRustExportFrameSource.ts`
+- `resolveViewportRustExportFrameSource` がexport session preflightで得た `nativeRenderEnvelope` をdecisionへ保持するようにした。
+- envelopeがreadyの場合、`uxfdRustExportFrameSourceNativeRenderMediaCount` / `MediaKinds` / `SourceCount` / `SourceMediaIds` をdatasetへ記録するようにした。
+- envelopeがblockedの場合、`uxfdRustExportFrameSourceNativeRenderEnvelopeReason` と `Detail` をdatasetへ記録し、source作成前に `exportSessionBlocked` として扱うようにした。
+- `src/utils/viewportRustExportFrameSource.test.ts`
+- video+PSD混在相当の `Video,Psd` envelopeがDOM datasetへ出る契約と、surface gate blocked時の envelope診断契約を追加した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-123a` に更新した。
+
+## 確認
+- `npm test -- viewportRustExportFrameSource sharedRendererExportSession` を実行し、15件成功を確認。
+- `npx tsc --noEmit 2>&1 | rg "(viewportRustExportFrameSource|sharedRendererExportSession)"` を実行し、対象ファイルに型エラーが出ないことを確認。

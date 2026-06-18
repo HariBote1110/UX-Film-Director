@@ -758,6 +758,12 @@ export frame diagnosticsと同じ粒度でRust native renderへのownership cuto
 media kinds / source count / source media idsを `nativeRenderEnvelope` として公開する。video+PSD混在sceneでは
 `Video,Psd` とvideo source idをsession時点で確認でき、unsupported overlay mediaも同じenvelopeでfail-loudに見えるようにする。
 
+140. Phase5: Viewport export source診断へnative render envelopeを接続する
+`buildViewportRustExportFrameSource` のpreflightで得た `nativeRenderEnvelope` をsource selection decisionへ保持し、
+DOM dataset診断へ envelope status / media count / media kinds / source count / source media idsを残す。
+surface gateやunsupported mediaでblockedになった場合も envelope reason/detail を記録し、
+video+PSD混在exportがRust native render直通に進める状態かをsource選択時点で確認できるようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
