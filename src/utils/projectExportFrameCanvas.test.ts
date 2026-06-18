@@ -1,7 +1,7 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   buildProjectExportFrameSourcePlan,
-  pauseLegacyBrowserVideosForExport,
   resolveProjectExportRustFrameSourceContext,
   resolveProjectExportFrameSourcePolicyForEncode,
   resolveProjectExportFrameRuntimePlan,
@@ -9,6 +9,9 @@ import {
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
 import type { TimelineObject, VideoObject } from '../types';
+
+const source = () =>
+  readFileSync(new URL('./projectExportFrameCanvas.ts', import.meta.url), 'utf8');
 
 const video = (patch: Partial<VideoObject> = {}): VideoObject => ({
   id: 'video-1',
@@ -198,40 +201,13 @@ describe('buildProjectExportFrameSourcePlan', () => {
   });
 });
 
-describe('pauseLegacyBrowserVideosForExport', () => {
-  const rustFrameSource: ProjectExportRustFrameSource = {
-    renderFrame: async () => ({ close: () => undefined }) as ImageBitmap,
-  };
+describe('projectExportFrameCanvas browser video boundary', () => {
+  it('does not expose legacy browser video pause helpers', () => {
+    const code = source();
 
-  it('does not pause HTMLVideoElement instances for the shared renderer Rust frame source', () => {
-    const plan = buildProjectExportFrameSourcePlan({
-      rustFrameSource,
-    });
-    if (!plan.ok) throw new Error('expected Rust export source plan');
-    let pauseCount = 0;
-    const videoElements = new Map<string, Pick<HTMLVideoElement, 'pause'>>([
-      ['video-1', { pause: () => { pauseCount += 1; } }],
-    ]);
-
-    expect(pauseLegacyBrowserVideosForExport(videoElements, plan)).toBe(0);
-    expect(pauseCount).toBe(0);
-  });
-
-  it('pauses legacy browser video elements when canvas capture is active', () => {
-    const exportCanvas = { id: 'shared-renderer-export-canvas' } as unknown as HTMLCanvasElement;
-    const plan = buildProjectExportFrameSourcePlan({
-      rustFrameSource: null,
-      getExportCanvas: () => exportCanvas,
-    });
-    if (!plan.ok) throw new Error('expected legacy canvas export source plan');
-    let pauseCount = 0;
-    const videoElements = new Map<string, Pick<HTMLVideoElement, 'pause'>>([
-      ['video-1', { pause: () => { pauseCount += 1; } }],
-      ['video-2', { pause: () => { pauseCount += 1; } }],
-    ]);
-
-    expect(pauseLegacyBrowserVideosForExport(videoElements, plan)).toBe(2);
-    expect(pauseCount).toBe(2);
+    expect(code).not.toContain('pauseLegacyBrowserVideosForExport');
+    expect(code).not.toContain('ProjectExportBrowserVideoElement');
+    expect(code).not.toContain("Pick<HTMLVideoElement, 'pause'>");
   });
 });
 
