@@ -41,6 +41,11 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     expect(existsSync(new URL('./videoFrameProvider.ts', import.meta.url))).toBe(false);
   });
 
+  it('keeps legacy browser playback frame providers out of production utils', () => {
+    expect(existsSync(new URL('./playbackFrameProvider.ts', import.meta.url))).toBe(false);
+    expect(existsSync(new URL('./frameProvider.ts', import.meta.url))).toBe(false);
+  });
+
   it('resolves Rust frame source context outside the hook body', () => {
     const code = source();
 
