@@ -28,4 +28,14 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     expect(code).toContain("import { createSharedVideoFramePresentedFrameTaker } from '../utils/sharedVideoFramePresentedFrameHandoff'");
     expect(code).toContain('presentedFrameSharedFrameTaker: createSharedVideoFramePresentedFrameTaker() ?? undefined');
   });
+
+  it('replaces the runtime plan in the same frame after the Rust frame source is blocked', () => {
+    const code = source();
+
+    expect(code).toContain('let frameRuntimePlan = resolveProjectExportFrameRuntimePlan({');
+    expect(code).toContain('frameRuntimePlan = blockedRuntimePlan;');
+    expect(code.indexOf('frameRuntimePlan = blockedRuntimePlan;')).toBeLessThan(
+      code.indexOf('if (frameRuntimePlan.usesExportFrameOverrides && exportFrameOverridesRef)')
+    );
+  });
 });
