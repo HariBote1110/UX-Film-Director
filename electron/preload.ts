@@ -1,6 +1,7 @@
 import { ipcRenderer, contextBridge } from 'electron'
 import { createRequire } from 'node:module'
 import { resolveSharedVideoFrameNativeBridgeModulePath } from './sharedVideoFrameNativeBridgePath'
+import { rustVideoEncodeIpcChannels } from './rustVideoEncodeIpc'
 
 const require = createRequire(import.meta.url)
 
@@ -96,6 +97,18 @@ contextBridge.exposeInMainWorld('rustBackend', {
   },
   releaseVideoDecodeFrame(payload: unknown) {
     return ipcRenderer.invoke('rust-backend-decode-release-frame', payload)
+  },
+})
+
+contextBridge.exposeInMainWorld('rustVideoEncoder', {
+  startVideoEncode(payload: unknown) {
+    return ipcRenderer.invoke(rustVideoEncodeIpcChannels.start, payload)
+  },
+  writeVideoEncodeFrame(payload: unknown) {
+    return ipcRenderer.invoke(rustVideoEncodeIpcChannels.writeFrame, payload)
+  },
+  finishVideoEncode(payload: unknown) {
+    return ipcRenderer.invoke(rustVideoEncodeIpcChannels.finish, payload)
   },
 })
 

@@ -7,6 +7,7 @@ import os from 'node:os'
 import { buildOrderedPerfHeavyVideoPaths } from '../src/perf/perfHeavyVideo';
 import { serialisePerfAgentPayload, type PerfHarnessAgentPayload } from '../src/perf/perfAgentPayload';
 import { PERFORMANCE_CSV_HEADER_LINE } from '../src/perf/performanceReport';
+import { rustVideoEncodeIpcChannels } from './rustVideoEncodeIpc';
 
 // --- GPU Acceleration Flags ---
 // 高画質動画の再生負荷を下げるための重要な設定
@@ -923,6 +924,14 @@ app.whenReady().then(() => {
       return false;
     }
   });
+
+  const rustVideoEncodeUnavailable = async () => ({
+    success: false,
+    error: 'Rust shared-frame video encoder backend is not connected yet.',
+  });
+  ipcMain.handle(rustVideoEncodeIpcChannels.start, rustVideoEncodeUnavailable);
+  ipcMain.handle(rustVideoEncodeIpcChannels.writeFrame, rustVideoEncodeUnavailable);
+  ipcMain.handle(rustVideoEncodeIpcChannels.finish, rustVideoEncodeUnavailable);
 
   ipcMain.handle('quit-app', (_event, payload?: { exitCode?: number }) => {
     app.exit(payload?.exitCode ?? 0);
