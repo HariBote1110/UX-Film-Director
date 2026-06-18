@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RustSceneSnapshot } from './rustSceneSnapshot';
 import {
+  releaseRustBackendNativeSharedFrame,
   renderRustBackendNativeSharedFrame,
   type RustBackendNativeRenderSharedFrameBridge,
   type RustBackendNativeRenderSharedFramePayload,
@@ -109,5 +110,35 @@ describe('rustBackendNativeRenderControl', () => {
       },
     });
     expect(calls).toEqual([payload]);
+  });
+
+  it('forwards native shared-frame release payloads to the Rust backend bridge', async () => {
+    const calls: unknown[] = [];
+    const bridge: RustBackendNativeRenderSharedFrameBridge = {
+      renderNativeSharedFrame: async () => {
+        throw new Error('render must not run during release.');
+      },
+      releaseNativeSharedFrame: async (input) => {
+        calls.push(input);
+        return {
+          success: true,
+          result: {
+            released: true,
+            memoryId: '/uxfd-native-render-output',
+          },
+        };
+      },
+    };
+
+    await expect(releaseRustBackendNativeSharedFrame({
+      memoryId: '/uxfd-native-render-output',
+    }, bridge)).resolves.toEqual({
+      success: true,
+      result: {
+        released: true,
+        memoryId: '/uxfd-native-render-output',
+      },
+    });
+    expect(calls).toEqual([{ memoryId: '/uxfd-native-render-output' }]);
   });
 });

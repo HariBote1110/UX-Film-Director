@@ -18,4 +18,12 @@ describe('Rust backend native render bridge boundary', () => {
     expect(preloadSource()).toContain("'rust-backend-render-native-shared-frame'");
     expect(viteEnvSource()).toContain('renderNativeSharedFrame: (payload: unknown)');
   });
+
+  it('exposes render.releaseNativeSharedFrame through Electron and renderer types', () => {
+    expect(mainSource()).toContain("'rust-backend-render-release-native-shared-frame'");
+    expect(mainSource()).toContain("callRustBackend('render.releaseNativeSharedFrame'");
+    expect(preloadSource()).toContain('releaseNativeSharedFrame(payload: unknown)');
+    expect(preloadSource()).toContain("'rust-backend-render-release-native-shared-frame'");
+    expect(viteEnvSource()).toContain('releaseNativeSharedFrame: (payload: unknown)');
+  });
 });
