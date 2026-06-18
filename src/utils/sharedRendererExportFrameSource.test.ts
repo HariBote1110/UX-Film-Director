@@ -629,6 +629,203 @@ describe('createSharedRendererExportFrameSource', () => {
     });
   });
 
+  it('uses presenter readback without preparing native render sources when the native renderer bridge is unavailable', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    const paddedRgbaBytes = new Uint8Array(1024);
+    const payload: RustBackendVideoEncodeWriteFramePayload = {
+      sessionId: 'no-native-renderer-session',
+      frameIndex: 5,
+      timestampUs: 83_333,
+      slotCount: 1,
+      frame: {
+        descriptor: {
+          memoryId: '/uxfd-export-source-no-native-renderer-session',
+          slotIndex: 0,
+          generation: 1,
+          byteOffset: 0,
+          byteLen: 1024,
+          width: 4,
+          height: 4,
+          strideBytes: 256,
+          format: 'rgba8Srgb',
+          colour: {
+            primaries: 'bt709',
+            transfer: 'srgb',
+            matrix: 'rgb',
+            range: 'full',
+          },
+        },
+        ptsFrame: 5,
+      },
+    };
+    const snapshot = {
+      frame_index: 5,
+      colour: {
+        profile: 'rec709-sdr',
+        working_space: 'linear-light',
+        alpha: 'premultiplied',
+      },
+      clips: [{
+        clip_id: 'video-clip-1',
+        track_id: 'layer-1',
+        media_id: 'video-1',
+        source_frame: 5,
+        z_index: 0,
+        transform: {
+          translation_x: 0,
+          translation_y: 0,
+          scale_x: 1,
+          scale_y: 1,
+          rotation_degrees: 0,
+          sampling: 'bilinear',
+        },
+        opacity: 1,
+        effects: [],
+      }],
+    } as const;
+    const media = [{
+      id: 'video-1',
+      kind: 'Video',
+      source: '/tmp/video-1.mp4',
+      width: 4,
+      height: 4,
+      source_rate: {
+        numerator: 60,
+        denominator: 1,
+      },
+    }] as const;
+    const calls: unknown[] = [];
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: {
+        ...settings,
+        width: 4,
+        height: 4,
+      },
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      bitmapCaptureEnabled: false,
+      buildExportSession: () => ({
+        plan: {
+          mode: 'parallelCompare',
+          primary: 'pixi',
+          candidate: 'sharedRenderer',
+          snapshot,
+          media,
+        },
+        presentationContract: {
+          canvas: {
+            colorSpace: 'srgb',
+            alphaMode: 'premultiplied',
+          },
+          comparisonReadback: {
+            target: 'offscreenRenderTarget',
+            includesPageCompositing: false,
+          },
+          frameTiming: {
+            source: 'frozenSceneSnapshot',
+          },
+          deviceLost: {
+            fallback: 'pixi',
+            staleSharedFrameAllowed: false,
+          },
+        },
+        surfaceGate: {
+          ok: true,
+          canvas: {
+            width: 4,
+            height: 4,
+          },
+          snapshot,
+          media,
+        },
+        nativeRenderEnvelope: {
+          ok: true,
+          mediaCount: 1,
+          mediaKinds: ['Video'],
+          sourceCount: 1,
+          sourceMediaIds: ['video-1'],
+        },
+      }),
+      prepareNativeRenderSources: async () => {
+        calls.push(['prepareNativeRenderSources']);
+        throw new Error('native render source preparation must wait for a native renderer bridge.');
+      },
+      startViewportPresenter: async () => ({
+        control: {
+          ok: true,
+          readPresentedFrameRgbaBytes: async (input: { width: number; height: number }) => {
+            calls.push(['readPresentedFrameRgbaBytes', input]);
+            return {
+              rgbaBytes: paddedRgbaBytes,
+              strideBytes: 256,
+              byteLen: 1024,
+              width: 4,
+              height: 4,
+            };
+          },
+          dispose: () => {
+            calls.push(['dispose']);
+          },
+        },
+        activeVideoDecodeJob: null,
+        activeVideoDecodeJobs: [],
+      }) as never,
+      createEncodeFrameWriter: async () => ({
+        writeFrame: async () => {
+          throw new Error('tight ImageBitmap write must not run for Rust direct encoding.');
+        },
+        writePaddedFrame: async (input) => {
+          calls.push(['writePaddedFrame', input]);
+          return payload;
+        },
+        close: async () => undefined,
+      }),
+    } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
+      bitmapCaptureEnabled: false;
+      prepareNativeRenderSources: unknown;
+    });
+
+    await expect(source.renderEncodeFrame?.({
+      frameIndex: 5,
+      timestampUs: 83_333,
+      time: 5 / 60,
+      width: 4,
+      height: 4,
+      objects: [image()],
+      encodeSessionId: 'no-native-renderer-session',
+    })).resolves.toEqual({
+      timestamp: 83_333,
+      sharedFramePayload: payload,
+    });
+
+    expect(calls).toEqual([
+      ['readPresentedFrameRgbaBytes', {
+        width: 4,
+        height: 4,
+      }],
+      ['writePaddedFrame', {
+        frameIndex: 5,
+        timestampUs: 83_333,
+        paddedRgbaBytes,
+        strideBytes: 256,
+      }],
+      ['dispose'],
+    ]);
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'ready',
+      uxfdRustExportFrameSourceFrameIndex: '5',
+      uxfdRustExportFrameSourceFramePath: 'webGpuReadbackSharedFrameWriter',
+    });
+  });
+
   it('uses Rust backend native render shared frames before WebGPU presenter readback for encode frames', async () => {
     const canvas = {
       width: 1,
