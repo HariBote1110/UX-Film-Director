@@ -152,7 +152,7 @@ describe('validateRustSceneSnapshotBoundary', () => {
       media: [
         {
           id: 'image-1',
-          kind: 'Psd',
+          kind: 'Text',
           source: '/tmp/image.png',
           width: 640,
           height: 360,
@@ -174,6 +174,49 @@ describe('validateRustSceneSnapshotBoundary', () => {
       'schemaMismatch',
       'unsupportedEnum',
     ]);
+  });
+
+  it('accepts PSD media references at the Rust boundary before source generation is enabled', () => {
+    const payload = {
+      snapshot: {
+        frame_index: 60,
+        colour: {
+          profile: 'rec709-sdr',
+          working_space: 'linear-light',
+          alpha: 'premultiplied',
+        },
+        clips: [
+          {
+            clip_id: 'psd-1',
+            track_id: 'layer-2',
+            media_id: 'psd-1',
+            source_frame: 0,
+            z_index: 0,
+            transform: {
+              translation_x: 400,
+              translation_y: 120,
+              scale_x: 1,
+              scale_y: 1,
+              rotation_degrees: 0,
+              sampling: 'bilinear',
+            },
+            opacity: 0.9,
+            effects: [],
+          },
+        ],
+      },
+      media: [
+        {
+          id: 'psd-1',
+          kind: 'Psd',
+          source: '/tmp/standing.psd',
+          width: 512,
+          height: 768,
+        },
+      ],
+    };
+
+    expect(validateRustSceneSnapshotBoundary(payload)).toEqual({ ok: true });
   });
 
   it('rejects unknown fields, duplicate media ids, and orphan media references', () => {

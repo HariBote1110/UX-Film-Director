@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { ImageObject, ProjectSettings, ShapeObject, TimelineObject, VideoObject } from '../types';
+import type { ImageObject, ProjectSettings, PsdObject, ShapeObject, TimelineObject, VideoObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -85,6 +85,34 @@ const baseShape = (patch: Partial<ShapeObject> = {}): ShapeObject => ({
   width: 200,
   height: 100,
   fill: '#ff0000',
+  ...patch,
+});
+
+const basePsd = (patch: Partial<PsdObject> = {}): PsdObject => ({
+  id: 'psd-1',
+  type: 'psd',
+  name: 'standing.psd',
+  layer: 2,
+  startTime: 1,
+  duration: 4,
+  x: 400,
+  y: 120,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 400,
+  endY: 120,
+  easing: 'linear',
+  src: 'blob:psd',
+  filePath: '/tmp/standing.psd',
+  width: 512,
+  height: 768,
+  scale: 1,
+  activeLayerIds: {
+    'face-open': true,
+  },
   ...patch,
 });
 
@@ -205,6 +233,48 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         source: '/tmp/image.png',
         width: 640,
         height: 360,
+      },
+    ]);
+  });
+
+  it('builds a rust-core compatible media reference for active PSD planes', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [basePsd()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected snapshot build to pass');
+
+    expect(result.snapshot.clips).toEqual([
+      {
+        clip_id: 'psd-1',
+        track_id: 'layer-2',
+        media_id: 'psd-1',
+        source_frame: 0,
+        z_index: 0,
+        transform: {
+          translation_x: 400,
+          translation_y: 120,
+          scale_x: 1,
+          scale_y: 1,
+          rotation_degrees: 0,
+          sampling: 'bilinear',
+        },
+        opacity: 0.9,
+        effects: [],
+      },
+    ]);
+    expect(result.media).toEqual([
+      {
+        id: 'psd-1',
+        kind: 'Psd',
+        source: '/tmp/standing.psd',
+        width: 512,
+        height: 768,
       },
     ]);
   });
