@@ -130,6 +130,32 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
     });
   });
 
+  it('passes the required shared renderer output gate into the presenter start input', async () => {
+    let presenterInput: unknown;
+    const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {
+      presenterInput = input;
+      return control;
+    };
+
+    await startSharedRendererViewportPresenter({
+      canvas,
+      session,
+      datasets: [],
+      diagnosticSwatchEnabled: false,
+      videoCutoverEnabled: false,
+      activeVideoDecodeJob: null,
+      requestId: 11,
+      requireSharedRendererOutput: true,
+      startPresenter,
+    } as Parameters<typeof startSharedRendererViewportPresenter>[0] & {
+      requireSharedRendererOutput: true;
+    });
+
+    expect(presenterInput).toMatchObject({
+      requireSharedRendererOutput: true,
+    });
+  });
+
   it('passes multiple prepared Rust decoded video uploads into the presenter start input', async () => {
     let presenterInput: unknown;
     const secondUpload = {

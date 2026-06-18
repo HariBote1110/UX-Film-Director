@@ -105,10 +105,12 @@ describe('createSharedRendererExportFrameSource', () => {
     const presenterInput = presenterCalls[0] as {
       session: { surfaceGate: { ok: boolean } };
       videoCutoverEnabled: boolean;
+      requireSharedRendererOutput: boolean;
       requestId: number;
     };
     expect(presenterInput.session.surfaceGate.ok).toBe(true);
     expect(presenterInput.videoCutoverEnabled).toBe(true);
+    expect(presenterInput.requireSharedRendererOutput).toBe(true);
     expect(presenterInput.requestId).toBe(1);
     expect(canvas.dataset).toMatchObject({
       uxfdRustExportFrameSourceFrameStatus: 'ready',

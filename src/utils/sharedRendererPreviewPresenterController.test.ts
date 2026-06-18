@@ -659,6 +659,43 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
+  it('blocks Pixi passthrough when a real shared renderer output is required', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const renderPasses: unknown[] = [];
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: okSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      requireSharedRendererOutput: true,
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onRenderPass: (descriptor) => {
+              renderPasses.push(descriptor);
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    } as Parameters<typeof startSharedRendererPreviewPresenter>[0] & {
+      requireSharedRendererOutput: true;
+    });
+
+    expect(control).toMatchObject({
+      ok: false,
+      reason: 'sharedRendererOutputUnavailable',
+    });
+    expect(renderPasses).toEqual([]);
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterStatus: 'fallback',
+      uxfdSharedRendererPresenterReason: 'sharedRendererOutputUnavailable',
+      uxfdSharedRendererPresenterSwatch: 'pixi-passthrough',
+    });
+  });
+
   it('presents SolidColour scene content instead of the diagnostic swatch when rectangle clips exist', async () => {
     const dataset: Record<string, string | undefined> = {};
     const renderPasses: unknown[] = [];
