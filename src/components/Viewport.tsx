@@ -486,7 +486,6 @@ const Viewport: React.FC = () => {
     const videoReadiness = session.surfaceGate.ok
       ? buildSharedRendererVideoMediaReadiness({
         media: session.surfaceGate.media,
-        videoElements: videoElementsRef.current,
         requireSharedRendererVideo: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled,
       })
       : { readyCount: 0, pendingCount: 0, missingCount: 0, rustRequiredCount: 0, videos: [] };

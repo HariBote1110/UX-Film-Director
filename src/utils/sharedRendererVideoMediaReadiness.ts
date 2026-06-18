@@ -25,13 +25,13 @@ export interface SharedRendererVideoMediaReadiness {
 
 export interface SharedRendererVideoMediaReadinessInput {
   media: RustSceneMediaReference[];
-  videoElements: Map<string, Pick<HTMLVideoElement, 'readyState' | 'videoWidth' | 'videoHeight' | 'currentTime'>>;
+  videoElements?: Map<string, Pick<HTMLVideoElement, 'readyState' | 'videoWidth' | 'videoHeight' | 'currentTime'>>;
   requireSharedRendererVideo?: boolean;
 }
 
 export const buildSharedRendererVideoMediaReadiness = ({
   media,
-  videoElements,
+  videoElements = new Map(),
   requireSharedRendererVideo = false,
 }: SharedRendererVideoMediaReadinessInput): SharedRendererVideoMediaReadiness => {
   const videos = media
