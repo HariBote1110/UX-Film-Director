@@ -3799,3 +3799,21 @@
 ### 残課題・次のステップ
 - 次はpreview側でnative render outputを生成・表示・releaseする最小縦スライスへ進む。
 - PSD/textは引き続きPixi側の大きな残り境界として扱う。
+
+## 2026-06-18 — preview native render frame表示入口を追加
+
+### 実施内容
+- `startSharedRendererPreviewPresenter` に `sharedRendererNativeRenderFrameUpload` 入力を追加し、Rust native render output相当のRGBA shared frameをpreviewへ渡せる入口を作った。
+- WebGPU presenterに `presentNativeRenderFrame` を追加し、uploaded textureを動画planeではなくcanvas全面へ描画するfullscreen passを実装した。
+- native render frame表示後、GPU queue完了を待ってrelease callbackを呼ぶ契約を追加した。
+- presenter diagnosticsに `native-render-frame` / `uxfdSharedRendererPresenterNativeRenderFrameReady` を追加した。
+- 版を `0.1.1-Beta-104a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererPreviewPresenterController.test.ts`
+- `npm test -- src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedVideoFrameUploadBridge.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- 次はpreview orchestrationから `render.nativeSharedFrame` を呼び、返ってきたoutput descriptorをshared memory copy bridge経由でこの入口へ流す。
+- native render frame upload失敗時のPixi fallback / release policyを、実接続時の失敗理由に合わせてさらに細分化する。

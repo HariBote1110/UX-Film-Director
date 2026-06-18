@@ -628,6 +628,13 @@ HTTP・blob・dataなど同期ファイル読み込みできないsourceをRust 
 Rust backendはImage media sourceのquery/hashを除去し、`file://` のpercent encodingを実ファイルパスへ戻してからPNG/JPEG loaderへ渡す。
 これによりElectron実運用でURL化された静止画像clipもPixi/WebGPU presenterへ戻さず、Rust backend source生成からnative renderへ進める。
 
+118. Phase5: preview native render frame表示入口を追加する
+preview presenterはRust backend native render output相当のRGBA shared frame uploadを受け取り、WebGPU textureへ書き込んだ後、
+動画planeではなくcanvas全面へそのままpresentできるようにする。GPU fence完了後にrelease callbackを呼び、
+native render outputをpreviewでも明示的に解放できる入口を作る。
+この段階では `render.nativeSharedFrame` のpreview orchestration呼び出しは未接続で、次段で
+Rust backend native render result -> shared memory copy bridge -> preview presenterの縦スライスを接続する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
