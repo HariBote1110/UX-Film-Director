@@ -523,6 +523,8 @@ export const startSharedRendererPreviewPresenter = async ({
         : 'pixi-passthrough',
   });
 
+  const exposePresentedFrameReadback = !requireSharedRendererOutput && !hasVideoScene;
+
   return {
     ok: true,
     format: presenter.format,
@@ -531,7 +533,7 @@ export const startSharedRendererPreviewPresenter = async ({
     imageOwnership,
     psdOwnership,
     takePresentedFrameSharedFrame: presenter.takePresentedFrameSharedFrame,
-    ...(requireSharedRendererOutput ? {} : { readPresentedFrameRgbaBytes: presenter.readPresentedFrameRgbaBytes }),
+    ...(exposePresentedFrameReadback ? { readPresentedFrameRgbaBytes: presenter.readPresentedFrameRgbaBytes } : {}),
     dispose: presenter.dispose,
   };
 };
