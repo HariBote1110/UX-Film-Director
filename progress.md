@@ -1,3 +1,28 @@
+## 2026-06-18 — Phase5: Rust export blocked 時は legacy canvas へ退避
+
+### 実施内容
+- `SharedRendererExportFrameSourceBlockedError` と `isSharedRendererExportFrameSourceBlockedError` を追加した。
+- Rust/shared renderer export frame source が surface gate でblockedになった場合、fallback可能なblocked errorとして投げるようにした。
+- `useProjectExport` は blocked error だけを捕捉し、その時点以降は Rust frame source を使わず legacy canvas capture へ退避する。
+- 任意の実行時エラーは従来通りthrowし、隠さない。
+- package version を `0.1.1-Beta-60f` に更新した。
+
+### Red
+- `src/utils/sharedRendererExportFrameSource.test.ts` に、blocked frame error が `reason` / `frameIndex` / `fallbackToLegacyCanvas=true` を持つ契約を追加した。
+
+### Green
+- Rust export frame source の surface blocked は typed error に変換した。
+- export frame loop は typed blocked error だけをlegacy fallbackへ流し、HTMLVideoElement seek / Pixi renderScene / canvas captureで続行する。
+
+### 現在の制限
+- fallback後はそのexport中の残りframeをlegacy canvasで処理する。Rust sourceの再試行は次回exportまで行わない。
+
+### 検証
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/viewportRustExportFrameSource.test.ts`
+  -> 3 files / 16 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererExportFrameSource|useProjectExport|projectExportFrameCanvas|viewportRustExportFrameSource"`
+  -> 対象ファイルの型エラーなし。
+
 ## 2026-06-18 — Phase5: Rust export frame source frame診断を追加
 
 ### 実施内容
