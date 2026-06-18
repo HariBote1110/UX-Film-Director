@@ -342,6 +342,153 @@ fn native_render_shared_frame_consumes_source_shm_and_returns_descriptor_only() 
 }
 
 #[test]
+fn encode_write_frame_unlinks_native_render_output_after_consuming_it() {
+    let mut backend = BackendProcess::start();
+    let temp_dir = TestTempDir::new("encode-native-render-output-release");
+    let output_path = temp_dir.path().join("encoded-native-render-output.mp4");
+    let output_path_string = output_path.to_string_lossy().into_owned();
+    let source_memory_id = unique_shm_name();
+    let render_memory_id = unique_shm_name();
+    let slot_count = 1;
+    let width = 4;
+    let height = 4;
+    let stride_bytes = 256;
+    let slot_byte_len = stride_bytes * height;
+    let tight_rgba = test_frame_pixels(width, height, 0);
+    let padded_rgba = pad_rgba_rows(&tight_rgba, width, height, stride_bytes as usize);
+    let source_ring = PosixSharedRing::create_with_slot_count(
+        &source_memory_id,
+        slot_count,
+        slot_byte_len as usize,
+    )
+    .expect("create native render source ring for encode release");
+    source_ring
+        .write_frame(0, &padded_rgba)
+        .expect("write native render source frame for encode release");
+
+    let render = backend.request(json!({
+        "id": 21,
+        "method": "render.nativeSharedFrame",
+        "params": {
+            "renderId": "native-render-encode-release",
+            "memoryId": render_memory_id,
+            "slotCount": slot_count,
+            "ptsFrame": 0,
+            "width": width,
+            "height": height,
+            "snapshot": {
+                "frame_index": 0,
+                "colour": {
+                    "profile": "rec709-sdr",
+                    "working_space": "linear-light",
+                    "alpha": "premultiplied"
+                },
+                "clips": [{
+                    "clip_id": "clip-native-render-encode-release",
+                    "track_id": "track-1",
+                    "media_id": "source-1",
+                    "source_frame": 0,
+                    "z_index": 0,
+                    "transform": {
+                        "translation_x": 0.0,
+                        "translation_y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation_degrees": 0.0,
+                        "sampling": "nearest"
+                    },
+                    "opacity": 1.0,
+                    "effects": []
+                }]
+            },
+            "sources": [{
+                "mediaId": "source-1",
+                "slotCount": slot_count,
+                "frame": {
+                    "descriptor": {
+                        "memoryId": source_memory_id,
+                        "slotIndex": 0,
+                        "generation": 1,
+                        "byteOffset": 0,
+                        "byteLen": slot_byte_len,
+                        "width": width,
+                        "height": height,
+                        "strideBytes": stride_bytes,
+                        "format": "rgba8Srgb",
+                        "colour": {
+                            "primaries": "bt709",
+                            "transfer": "srgb",
+                            "matrix": "rgb",
+                            "range": "full"
+                        }
+                    },
+                    "ptsFrame": 0
+                }
+            }]
+        }
+    }));
+    assert_eq!(render["ok"], true, "{render}");
+
+    let start = backend.request(json!({
+        "id": 22,
+        "method": "encode.start",
+        "params": {
+            "sessionId": "encode-native-render-release",
+            "filePath": output_path_string,
+            "width": width,
+            "height": height,
+            "fps": 60,
+            "pixelFormat": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(start["ok"], true, "{start}");
+
+    let write = backend.request(json!({
+        "id": 23,
+        "method": "encode.writeFrame",
+        "params": {
+            "sessionId": "encode-native-render-release",
+            "frameIndex": 0,
+            "timestampUs": 0,
+            "slotCount": render["result"]["slotCount"],
+            "frame": render["result"]["frame"]
+        }
+    }));
+    assert_eq!(write["ok"], true, "{write}");
+
+    let render_slot_byte_len = render["result"]["frame"]["descriptor"]["byteLen"]
+        .as_u64()
+        .expect("native render output byte length") as usize;
+    let attach_after_encode = PosixSharedRing::attach_with_retry_for_layout(
+        render["result"]["frame"]["descriptor"]["memoryId"]
+            .as_str()
+            .expect("native render output memory id"),
+        slot_count,
+        render_slot_byte_len,
+        Duration::from_millis(100),
+    );
+    assert!(
+        attach_after_encode.is_err(),
+        "native render output shared memory should be unlinked after encode.writeFrame consumes it"
+    );
+
+    let finish = backend.request(json!({
+        "id": 24,
+        "method": "encode.finish",
+        "params": {
+            "sessionId": "encode-native-render-release"
+        }
+    }));
+    assert_eq!(finish["ok"], true, "{finish}");
+}
+
+#[test]
 fn encode_write_frame_requires_slot_count_for_shared_memory_attach() {
     let mut backend = BackendProcess::start();
 
