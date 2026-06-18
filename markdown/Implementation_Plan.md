@@ -816,6 +816,11 @@ SolidColour / native render / Rust decoded video frame の実出力がない `pi
 Rust backend `render.nativeSharedFrame` を必須にする。native render bridge未接続時は presenter readback /
 JS shared-frame writerへ戻らず `nativeRenderUnavailable` でblockし、encode-onlyの意味をRust native render直通に固定する。
 
+151. Phase5: export encodeのWebGPU readback writerを削除する
+shared renderer export frame source の `renderEncodeFrame` から `readPresentedFrameRgbaBytes` + JS shared-frame writer経路を削除する。
+encode frameは Rust native render output または既存のpresented shared-frame handoffだけを受け付け、GPU readback bytesを
+renderer JSでshared memoryへ詰め替える経路をexport encodeの正規経路から外す。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
