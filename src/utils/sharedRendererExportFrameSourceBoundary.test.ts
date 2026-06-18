@@ -5,12 +5,13 @@ const source = () =>
   readFileSync(new URL('./sharedRendererExportFrameSource.ts', import.meta.url), 'utf8');
 
 describe('shared renderer export frame source dependency boundary', () => {
-  it('loads the JS shared-frame writer only from the readback fallback path', () => {
+  it('does not load the JS shared-frame writer from the export frame source', () => {
     const code = source();
 
     expect(code).not.toMatch(
       /import\s*\{[^}]*createRustBackendVideoEncodeSharedFrameWriter[^}]*\}\s*from\s*['"]\.\/rustBackendVideoEncodeSharedFrameWriter['"]/
     );
-    expect(code).toContain("import('./rustBackendVideoEncodeSharedFrameWriter')");
+    expect(code).not.toContain("import('./rustBackendVideoEncodeSharedFrameWriter')");
+    expect(code).not.toContain('createRustBackendVideoEncodeSharedFrameWriter');
   });
 });

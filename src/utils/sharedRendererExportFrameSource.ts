@@ -4,10 +4,6 @@ import type {
   ProjectExportRustFrameRequest,
   ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
-import type {
-  CreateRustBackendVideoEncodeSharedFrameWriterInput,
-  RustBackendVideoEncodeSharedFrameWriter,
-} from './rustBackendVideoEncodeSharedFrameWriter';
 import {
   buildSharedRendererExportSession,
 } from './sharedRendererExportSession';
@@ -67,10 +63,6 @@ export type SharedRendererExportVideoDecodeJobStopper = (
   job: SharedRendererViewportVideoDecodeJob
 ) => Promise<void>;
 
-export type SharedRendererExportEncodeFrameWriterFactory = (
-  input: CreateRustBackendVideoEncodeSharedFrameWriterInput
-) => Promise<RustBackendVideoEncodeSharedFrameWriter>;
-
 export type SharedRendererExportNativeRenderSourcesPreparer = (
   input: PrepareSharedRendererViewportNativeRenderSourcesInput
 ) => Promise<PrepareSharedRendererViewportNativeRenderSourcesResult>;
@@ -95,7 +87,6 @@ export interface CreateSharedRendererExportFrameSourceInput {
   startViewportPresenter?: SharedRendererExportViewportPresenterStarter;
   createFrameBitmap?: SharedRendererExportFrameBitmapFactory;
   stopVideoDecodeJob?: SharedRendererExportVideoDecodeJobStopper;
-  createEncodeFrameWriter?: SharedRendererExportEncodeFrameWriterFactory;
   prepareNativeRenderSources?: SharedRendererExportNativeRenderSourcesPreparer;
   renderNativeSharedFrame?: SharedRendererExportNativeSharedFrameRenderer;
 }
@@ -157,13 +148,10 @@ export function createSharedRendererExportFrameSource({
   startViewportPresenter = startSharedRendererViewportPresenter,
   createFrameBitmap = defaultCreateFrameBitmap,
   stopVideoDecodeJob = defaultStopVideoDecodeJob,
-  createEncodeFrameWriter = defaultCreateEncodeFrameWriter,
   prepareNativeRenderSources = prepareSharedRendererViewportNativeRenderSources,
   renderNativeSharedFrame: inputRenderNativeSharedFrame,
 }: CreateSharedRendererExportFrameSourceInput): SharedRendererEncodeOnlyExportProjectFrameSource {
   let activeVideoDecodeJobs: SharedRendererViewportVideoDecodeJob[] = [];
-  let activeEncodeFrameWriter: RustBackendVideoEncodeSharedFrameWriter | null = null;
-  let activeEncodeSessionId: string | null = null;
   let requestId = 0;
   let closed = false;
   const renderNativeSharedFrame = inputRenderNativeSharedFrame ?? defaultRenderNativeSharedFrame;
@@ -435,32 +423,6 @@ export function createSharedRendererExportFrameSource({
     }
   };
 
-  const closeEncodeFrameWriter = async (): Promise<void> => {
-    if (!activeEncodeFrameWriter) return;
-    const writer = activeEncodeFrameWriter;
-    activeEncodeFrameWriter = null;
-    activeEncodeSessionId = null;
-    await writer.close();
-  };
-
-  const getEncodeFrameWriter = async (
-    request: ProjectExportRustEncodeFrameRequest
-  ): Promise<RustBackendVideoEncodeSharedFrameWriter> => {
-    if (activeEncodeFrameWriter && activeEncodeSessionId === request.encodeSessionId) {
-      return activeEncodeFrameWriter;
-    }
-    await closeEncodeFrameWriter();
-    activeEncodeSessionId = request.encodeSessionId;
-    activeEncodeFrameWriter = await createEncodeFrameWriter({
-      sessionId: request.encodeSessionId,
-      memoryId: buildEncodeSourceMemoryId(request.encodeSessionId),
-      width: request.width,
-      height: request.height,
-      fps: projectSettings.fps,
-    });
-    return activeEncodeFrameWriter;
-  };
-
   const source: SharedRendererEncodeOnlyExportProjectFrameSource = {
     renderEncodeFrame: async (request) => {
       const nativeFrame = await renderNativeEncodeFrame(request);
@@ -492,29 +454,6 @@ export function createSharedRendererExportFrameSource({
           };
         }
 
-        if (control.ok && 'readPresentedFrameRgbaBytes' in control) {
-          const readback = await control.readPresentedFrameRgbaBytes({
-            width: request.width,
-            height: request.height,
-          });
-          const writer = await getEncodeFrameWriter(request);
-          const sharedFramePayload = await writer.writePaddedFrame({
-            frameIndex: request.frameIndex,
-            timestampUs: request.timestampUs,
-            paddedRgbaBytes: readback.rgbaBytes,
-            strideBytes: readback.strideBytes,
-          });
-          writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
-            status: 'ready',
-            frameIndex: request.frameIndex,
-            path: 'webGpuReadbackSharedFrameWriter',
-          });
-          return {
-            timestamp: request.timestampUs,
-            sharedFramePayload,
-          };
-        }
-
         writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
           status: 'blocked',
           frameIndex: request.frameIndex,
@@ -532,7 +471,6 @@ export function createSharedRendererExportFrameSource({
     close: async () => {
       if (closed) return;
       closed = true;
-      await closeEncodeFrameWriter();
       const jobsToStop = activeVideoDecodeJobs;
       activeVideoDecodeJobs = [];
       await Promise.all(jobsToStop.map(stopVideoDecodeJob));
@@ -558,11 +496,6 @@ const defaultStopVideoDecodeJob: SharedRendererExportVideoDecodeJobStopper = asy
   await stopRustBackendVideoDecode({
     jobId: job.jobId,
   });
-};
-
-const defaultCreateEncodeFrameWriter: SharedRendererExportEncodeFrameWriterFactory = async (input) => {
-  const { createRustBackendVideoEncodeSharedFrameWriter } = await import('./rustBackendVideoEncodeSharedFrameWriter');
-  return createRustBackendVideoEncodeSharedFrameWriter(input);
 };
 
 const defaultRenderNativeSharedFrame: SharedRendererExportNativeSharedFrameRenderer = (payload) =>

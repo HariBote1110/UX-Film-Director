@@ -186,22 +186,6 @@ describe('createSharedRendererExportFrameSource', () => {
         calls.push(['createFrameBitmap']);
         throw new Error('ImageBitmap capture must not run for Rust direct encoding.');
       },
-      createEncodeFrameWriter: async (input) => {
-        calls.push(['createEncodeFrameWriter', input]);
-        return {
-          writeFrame: async () => {
-            calls.push(['writeFrame']);
-            throw new Error('tight ImageBitmap write must not run for Rust direct encoding.');
-          },
-          writePaddedFrame: async () => {
-            calls.push(['writePaddedFrame']);
-            throw new Error('readback write must not run when readback is unavailable.');
-          },
-          close: async () => {
-            calls.push(['closeEncodeFrameWriter']);
-          },
-        };
-      },
     });
 
     const blocked = await source.renderEncodeFrame?.({
@@ -273,10 +257,6 @@ describe('createSharedRendererExportFrameSource', () => {
       }) as never,
       createFrameBitmap: async () => {
         throw new Error('ImageBitmap capture must not run for encode frames.');
-      },
-      createEncodeFrameWriter: async () => {
-        calls.push(['createEncodeFrameWriter']);
-        throw new Error('JS shared-frame writer must not run for Rust export encode frames.');
       },
     });
 
@@ -368,10 +348,6 @@ describe('createSharedRendererExportFrameSource', () => {
         activeVideoDecodeJob: null,
         activeVideoDecodeJobs: [],
       }) as never,
-      createEncodeFrameWriter: async () => {
-        calls.push(['createEncodeFrameWriter']);
-        throw new Error('JS shared-frame writer must not run when presenter provides shared-frame payloads.');
-      },
     });
 
     await expect(source.renderEncodeFrame?.({
