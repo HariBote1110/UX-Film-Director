@@ -801,6 +801,11 @@ Rust backend encode-only exportで動画decode sourceが不要なmedia-only fram
 mediaでないなら `nativeRenderUnsupportedMedia` としてfail-loudにする。
 remote画像や未対応media-only sceneで WebGPU readback + JS shared-frame writerへ戻らず、native render正本の契約を維持する。
 
+148. Phase5: 動画exportのRust frame source必須化
+動画を含むexportでは、WebCodecs互換encoderを使う場合でも `ProjectExportRustFrameSource` を必須にする。
+Rust/shared renderer frame sourceが無い、またはblockedになった場合は legacy Pixi canvas / VideoDecoder /
+HTMLVideoElement seek / `createImageBitmap(canvas)` へ戻さずfail-loudにし、動画exportの正本をRust/shared renderer側へ寄せる。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
