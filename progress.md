@@ -1,3 +1,19 @@
+## 2026-06-18 — Phase5: Rust encoder shared frame writer を追加
+
+### 実施内容
+- `src/utils/rustBackendVideoEncodeSharedFrameWriter.test.ts` を追加し、tight RGBA rowsを256 byte strideへpaddingしてwritable shared frame ringへ書き、Rust encoder payloadをdescriptor metadataだけで返す契約をRedで固定した。
+- `src/utils/rustBackendVideoEncodeSharedFrameWriter.ts` を追加し、`createWritableSharedFrameRing` / `writeIntoSharedFrameRing` / `closeWritableSharedFrameRing` を使うexport用writerを実装した。
+- `RustBackendVideoEncodeWriteFramePayload` は `memoryId` / `slotCount` / `byteLen` / `strideBytes` / colour metadataを持つshared frame descriptorだけを運び、frame bytes / base64 / pixel arrayをcontrol planeへ載せない。
+- package version を `0.1.1-Beta-60z` に更新した。
+
+### 検証
+- `npm test -- src/utils/rustBackendVideoEncodeSharedFrameWriter.test.ts src/utils/sharedVideoFrameWritableBridge.test.ts src/utils/rustBackendVideoEncodeControl.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "rustBackendVideoEncodeSharedFrameWriter|sharedVideoFrameWritableBridge|rustBackendVideoEncodeControl"`（対象ファイルの型エラーなし）
+
+### 残課題・次のステップ
+- まだ `useProjectExport` の `rustBackendVideoEncoder` 分岐はalertで止まっている。次段でshared renderer export frameをRGBA bytesへ変換し、このwriter経由でRust backend encoderへ渡す。
+- 今回 `SubVer` が `z` に到達したため、次の動作変更では版番号を `0.1.1-Beta-61a` へ繰り上げる。
+
 ## 2026-06-18 — Phase5: writable shared frame bridge を追加
 
 ### 実施内容

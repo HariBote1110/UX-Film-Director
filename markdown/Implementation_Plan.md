@@ -356,6 +356,13 @@ RGBA frame bytesをwriteし、closeできるAPIを追加する。
 renderer→Rust data-planeを確保する。次段ではshared renderer export frameをこのringへ書き、
 `useProjectExport` のRust encoder分岐から `startVideoEncode` / `writeVideoEncodeFrame` / `finishVideoEncode` を呼ぶ。
 
+71. Phase5: Rust encoder shared frame writer を追加する
+renderer側のtight RGBA export frameをGPU row pitch互換の256 byte strideへpaddingし、
+writable shared frame ringへwriteした上で、Rust backend encoderへ渡す `RustBackendVideoEncodeWriteFramePayload` を組み立てる。
+control planeにはframe bytes / base64 / pixel arrayを載せず、`memoryId` / `slotCount` / descriptorだけを渡す。
+次段では `useProjectExport` の `rustBackendVideoEncoder` 分岐をこのwriterへ接続し、shared renderer export sourceから
+Rust rawvideo encoderへ実フレームを流す。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
