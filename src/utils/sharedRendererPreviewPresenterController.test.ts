@@ -8,6 +8,7 @@ import {
 import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
 import type { SharedRendererPreviewSession } from './sharedRendererPreviewSession';
 import type { RustBackendVideoFrameDescriptor } from './rustBackendVideoDecodeControl';
+import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
 import type {
   SharedRendererWebGpuAdapterLike,
   SharedRendererWebGpuLike,
@@ -333,6 +334,107 @@ describe('startSharedRendererPreviewPresenter', () => {
         { width: 2, height: 2, depthOrArrayLayers: 1 },
       ],
     ]);
+  });
+
+  it('passes native/Rust frame handoff into the ready presenter control', async () => {
+    const payload: RustBackendVideoEncodeWriteFramePayload = {
+      sessionId: 'controller-handoff-session',
+      frameIndex: 3,
+      timestampUs: 50_000,
+      slotCount: 1,
+      frame: {
+        descriptor: {
+          memoryId: '/uxfd-export-source-controller-handoff-session',
+          slotIndex: 0,
+          generation: 4,
+          byteOffset: 0,
+          byteLen: 512,
+          width: 2,
+          height: 2,
+          strideBytes: 256,
+          format: 'rgba8Srgb',
+          colour: {
+            primaries: 'bt709',
+            transfer: 'srgb',
+            matrix: 'rgb',
+            range: 'full',
+          },
+        },
+        ptsFrame: 3,
+      },
+    };
+    const copyOperations: unknown[] = [];
+    const handoffCalls: unknown[] = [];
+    const device = fakeDevice({
+      onCopyTextureToBuffer: (...args) => {
+        copyOperations.push(args);
+      },
+    });
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: {
+        ...okSession,
+        surfaceGate: {
+          ok: true,
+          canvas: { width: 2, height: 2 },
+          snapshot,
+          media: [],
+        },
+      },
+      datasets: [{}],
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({ device }),
+      }),
+      textureUsageRenderAttachment: 16,
+      textureUsageCopySrc: 1,
+      bufferUsageCopyDst: 8,
+      bufferUsageMapRead: 1,
+      presentedFrameSharedFrameTaker: async (input) => {
+        handoffCalls.push({
+          encodeSessionId: input.encodeSessionId,
+          memoryId: input.memoryId,
+          frameIndex: input.frameIndex,
+          timestampUs: input.timestampUs,
+          width: input.width,
+          height: input.height,
+          fps: input.fps,
+          format: input.format,
+          texture: String(input.texture),
+          deviceMatches: input.device === device,
+        });
+        return payload;
+      },
+    } as Parameters<typeof startSharedRendererPreviewPresenter>[0] & {
+      presentedFrameSharedFrameTaker: unknown;
+    });
+
+    expect(control.ok).toBe(true);
+    if (!control.ok) throw new Error('expected ready control');
+    await expect(control.takePresentedFrameSharedFrame?.({
+      encodeSessionId: 'controller-handoff-session',
+      memoryId: '/uxfd-export-source-controller-handoff-session',
+      frameIndex: 3,
+      timestampUs: 50_000,
+      width: 2,
+      height: 2,
+      fps: 60,
+    })).resolves.toBe(payload);
+
+    expect(copyOperations).toEqual([]);
+    expect(handoffCalls).toEqual([{
+      encodeSessionId: 'controller-handoff-session',
+      memoryId: '/uxfd-export-source-controller-handoff-session',
+      frameIndex: 3,
+      timestampUs: 50_000,
+      width: 2,
+      height: 2,
+      fps: 60,
+      format: 'bgra8unorm',
+      texture: 'current-texture',
+      deviceMatches: true,
+    }]);
   });
 
   it('keeps Pixi visible with a transparent shared-renderer pass when diagnostic swatch is disabled', async () => {
