@@ -140,6 +140,68 @@ const buildPsdOnlySession = (): SharedRendererPreviewSession => {
 
 const psdOnlySession = buildPsdOnlySession();
 
+const buildVideoWithRemotePsdSession = (): SharedRendererPreviewSession => {
+  if (!mediaOnlySession.surfaceGate.ok) {
+    throw new Error('mediaOnlySession fixture must be renderable');
+  }
+
+  const snapshot = {
+    ...mediaOnlySession.surfaceGate.snapshot,
+    clips: [{
+      ...mediaOnlySession.surfaceGate.snapshot.clips[0],
+      clip_id: 'video-1',
+      media_id: 'video-1',
+      source_frame: 24,
+      z_index: 0,
+      transform: {
+        ...mediaOnlySession.surfaceGate.snapshot.clips[0].transform,
+        sampling: 'bilinear' as const,
+      },
+    }, {
+      ...mediaOnlySession.surfaceGate.snapshot.clips[0],
+      clip_id: 'remote-psd-1',
+      media_id: 'remote-psd-1',
+      z_index: 1,
+      transform: {
+        ...mediaOnlySession.surfaceGate.snapshot.clips[0].transform,
+        sampling: 'bilinear' as const,
+      },
+    }],
+  };
+  const media = [{
+    id: 'video-1',
+    kind: 'Video' as const,
+    source: '/tmp/video.mp4',
+    width: 4,
+    height: 4,
+    source_rate: { numerator: 60, denominator: 1 },
+  }, {
+    id: 'remote-psd-1',
+    kind: 'Psd' as const,
+    source: 'https://example.invalid/standing.psd',
+    width: 4,
+    height: 4,
+  }];
+
+  return {
+    ...mediaOnlySession,
+    plan: {
+      mode: 'parallelCompare',
+      primary: 'pixi',
+      candidate: 'sharedRenderer',
+      snapshot,
+      media,
+    },
+    surfaceGate: {
+      ...mediaOnlySession.surfaceGate,
+      snapshot,
+      media,
+    },
+  };
+};
+
+const videoWithRemotePsdSession = buildVideoWithRemotePsdSession();
+
 const renderResult: RustBackendNativeRenderSharedFrameResult = {
   rendered: true,
   renderId: 'preview-native-render-24',
@@ -286,5 +348,54 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
         sources: [],
       }],
     ]);
+  });
+
+  it('blocks mixed video preview before native render when an overlay media source is unsupported', async () => {
+    const calls: unknown[] = [];
+
+    const result = await prepareSharedRendererViewportNativeRenderUpload({
+      session: videoWithRemotePsdSession,
+      requestId: 24,
+      activeJobs: [],
+      prepareNativeRenderSources: async () => ({
+        ok: true,
+        activeJobs: [],
+        sources: [{
+          mediaId: 'video-1',
+          slotCount: 2,
+          frame: {
+            descriptor,
+            ptsFrame: 24,
+          },
+        }],
+      }),
+      renderNativeSharedFrame: async () => {
+        calls.push(['renderNativeSharedFrame']);
+        throw new Error('Rust native render must not receive unsupported remote PSD media.');
+      },
+      releaseNativeSharedFrame: async () => ({ success: true }),
+      copyBridge: {
+        copyIntoUploadBuffer: async () => {
+          calls.push(['copyIntoUploadBuffer']);
+          return {
+            success: true,
+            result: {
+              sequence: 24,
+              byteLen: descriptor.byteLen,
+              expectedChecksum: 0x1234,
+              actualChecksum: 0x1234,
+            },
+          };
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'nativeRenderUnsupportedMedia',
+      detail: "Rust native render does not support Psd media 'remote-psd-1' from 'https://example.invalid/standing.psd'.",
+      activeJobs: [],
+    });
+    expect(calls).toEqual([]);
   });
 });
