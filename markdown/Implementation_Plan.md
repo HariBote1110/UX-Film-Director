@@ -1069,6 +1069,12 @@ TypeScript fallbackへ黙って戻らず `requiredRustVideoControlPlaneUnavailab
 すでに準備済みのdecoded upload objectへ `releaseAfterUploadAbort` を流す。
 失敗clip自身のslot releaseに加えて先行成功slotも `rendererUploadAborted` に戻し、multi-video previewでshared memory ringが詰まることを防ぐ。
 
+199. Phase5: legacy base64 export IPC/RPCを削除する
+Electron mainの旧 `start-export` / `write-frame` / `end-export` と、Rust backendの旧 `export.start` /
+`export.write_frame` / `export.end` を削除する。
+frame bytesを `frameBase64` としてcontrol-planeへ載せる経路をproduction境界から外し、
+exportは `export-stream-*` またはshared-frame `encode.*` 経路だけにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

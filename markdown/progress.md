@@ -425,3 +425,10 @@
 - Green: `prepareSharedRendererViewportVideoUploads` がstart / decode / stale response / upload失敗で戻る前に、準備済みupload objectの `releaseAfterUploadAbort` を順に呼ぶようにした。
 - 検証: `npm test -- sharedRendererViewportVideoUpload sharedRendererRustVideoUploadPipeline sharedVideoFrameUploadBridge` は16件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-177a`。
+
+## 2026-06-19
+- Phase5のexport boundaryとして、旧base64 `start-export` / `write-frame` / `end-export` と Rust backend `export.*` RPCを削除した。
+- Red: `legacyBase64ExportBoundary` を追加し、Electron main / Rust backend / Cargo.toml に旧base64 export tokenが残らない契約を追加した。
+- Green: Electron mainから旧export IPC handlerを削除し、Rust backendから `export.start` / `export.write_frame` / `export.end`、旧 `ExportSession`、`base64` dependencyを削除した。
+- 検証: `npm test -- legacyBase64ExportBoundary rustVideoEncodeBackendBridge rustVideoEncodeIpcChannels` は6件成功。`cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane encode_shared_frame_session_tracks_descriptor_without_legacy_base64_fallback` と `cargo test --manifest-path rust-backend/Cargo.toml --no-run` は成功。対象テストファイルで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-178a`。

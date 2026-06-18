@@ -119,6 +119,8 @@ Rust backend integration gate:
   GPU row pitch に合わせた `SharedFrame` descriptor と
   `FrameVerificationReport` の CRC32 だけを返す。
 - control plane に frame bytes / pixel array / base64 は載せない。
+- Electron production IPCとRust backend RPCから、旧 `start-export` / `write-frame` / `end-export` および
+  `export.start` / `export.write_frame` / `export.end` のbase64 frame経路を削除する。
 - Rust backend は unix 環境で attach 可能な POSIX shared memory name を `memoryId` として返し、
   decoded RGBA を shared memory ring へ書く。
 - `decode.releaseFrame` は WebGPU upload fence 完了後の `copyOutState=gpuUploadFenceSignalled` でのみ slot を解放する。
