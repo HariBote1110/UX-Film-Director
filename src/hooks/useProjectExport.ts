@@ -13,6 +13,7 @@ import { PlaybackFrameProvider } from '../utils/playbackFrameProvider';
 import type { FrameProvider } from '../utils/frameProvider';
 import {
   buildProjectExportFrameSourcePlan,
+  pauseLegacyBrowserVideosForExport,
   resolveProjectExportFrameSourcePolicyForEncode,
   resolveProjectExportFrameRuntimePlan,
   resolveProjectExportFrameCanvas,
@@ -120,8 +121,7 @@ export const useProjectExport = (
         });
         if (!savePath) { setExporting(false); return; }
 
-        // 動画を一時停止
-        Array.from(videoElementsRef.current.values()).forEach(v => v.pause());
+        pauseLegacyBrowserVideosForExport(videoElementsRef.current, exportFrameSourcePlan);
 
         const encWidth = width % 2 === 0 ? width : width - 1;
         const encHeight = height % 2 === 0 ? height : height - 1;
