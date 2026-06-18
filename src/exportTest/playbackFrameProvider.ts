@@ -5,7 +5,7 @@
  * しながら requestVideoFrameCallback で提示フレームを受け取る。OS のデコーダを使う
  * ため、VideoDecoder/MP4Box が扱えないコーデック（特に一部 HEVC）でも動作する。
  *
- * - 順方向クリップのみ対応（逆再生は useProjectExport 側でシーク方式へ）
+ * - 順方向クリップのみ対応（逆再生はexport test harness側で別方式へ）
  * - `playbackRate` を上げて等倍より高速にフレームを取り出す
  * - 小さなリングバッファを維持し、満杯時は再生を一時停止して背圧をかける
  */

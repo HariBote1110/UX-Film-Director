@@ -13,7 +13,7 @@ import { encodeVideoToMp4, detectSupportedH264Codec, resetCodecCache } from '../
 import { decodeVideoStream } from '../utils/videoDecodeStream';
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
 import { createFile, DataStream, type ISOFile, type MP4BoxBuffer } from 'mp4box';
-import { PlaybackFrameProvider } from '../utils/playbackFrameProvider';
+import { PlaybackFrameProvider } from './playbackFrameProvider';
 
 declare global {
   interface Window {
