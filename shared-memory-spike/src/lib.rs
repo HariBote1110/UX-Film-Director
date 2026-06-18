@@ -357,7 +357,7 @@ impl PosixSharedRing {
     }
 
     pub fn release_frame(&self, copy_out_state: CopyOutState) -> Result<(), PosixShmError> {
-        if copy_out_state != CopyOutState::GpuUploadFenceSignalled {
+        if !copy_out_state.permits_read_slot_release() {
             return Err(PosixShmError::CopyOutNotComplete);
         }
 

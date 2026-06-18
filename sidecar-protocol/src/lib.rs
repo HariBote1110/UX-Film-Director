@@ -572,6 +572,7 @@ pub enum CopyOutState {
     Started,
     GpuUploadFenceSignalled,
     RendererUploadAborted,
+    EncoderFrameWritten,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -882,7 +883,9 @@ impl CopyOutState {
     pub fn permits_read_slot_release(self) -> bool {
         matches!(
             self,
-            CopyOutState::GpuUploadFenceSignalled | CopyOutState::RendererUploadAborted
+            CopyOutState::GpuUploadFenceSignalled
+                | CopyOutState::RendererUploadAborted
+                | CopyOutState::EncoderFrameWritten
         )
     }
 }
