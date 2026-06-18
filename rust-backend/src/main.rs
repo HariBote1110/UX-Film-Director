@@ -192,6 +192,9 @@ fn handle_request(request: RpcRequest, state: &mut BackendState) -> RpcResponse 
         "decode.stop" => handle_decode_stop(request.id, request.params, state),
         "decode.requestFrame" => handle_decode_request_frame(request.id, request.params, state),
         "decode.releaseFrame" => handle_decode_release_frame(request.id, request.params, state),
+        "encode.start" => handle_encode_unavailable(request.id),
+        "encode.writeFrame" => handle_encode_unavailable(request.id),
+        "encode.finish" => handle_encode_unavailable(request.id),
         "export.start" => handle_export_start(request.id, request.params, state),
         "export.write_frame" => handle_export_write_frame(request.id, request.params, state),
         "export.end" => handle_export_end(request.id, state),
@@ -206,6 +209,14 @@ fn handle_request(request: RpcRequest, state: &mut BackendState) -> RpcResponse 
             }),
         },
     }
+}
+
+fn handle_encode_unavailable(id: u64) -> RpcResponse {
+    response_error(
+        id,
+        -32050,
+        "Rust shared-frame video encoder backend is not connected yet.",
+    )
 }
 
 fn handle_media_probe(id: u64, params: Value) -> RpcResponse {
