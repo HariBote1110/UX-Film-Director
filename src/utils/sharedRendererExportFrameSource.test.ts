@@ -686,8 +686,41 @@ describe('createSharedRendererExportFrameSource', () => {
         },
         opacity: 1,
         effects: [],
+      }, {
+        clip_id: 'solid-clip-1',
+        track_id: 'layer-2',
+        media_id: 'solid-1',
+        source_frame: 0,
+        z_index: 1,
+        transform: {
+          translation_x: 0,
+          translation_y: 0,
+          scale_x: 1,
+          scale_y: 1,
+          rotation_degrees: 0,
+          sampling: 'nearest',
+        },
+        opacity: 1,
+        effects: [],
       }],
     } as const;
+    const media = [{
+      id: 'video-1',
+      kind: 'Video',
+      source: '/tmp/video-1.mp4',
+      width: 4,
+      height: 4,
+      source_rate: {
+        numerator: 60,
+        denominator: 1,
+      },
+    }, {
+      id: 'solid-1',
+      kind: 'SolidColour',
+      source: '#ff0000',
+      width: 2,
+      height: 2,
+    }] as const;
     const calls: unknown[] = [];
     const source = createSharedRendererExportFrameSource({
       canvas,
@@ -708,17 +741,7 @@ describe('createSharedRendererExportFrameSource', () => {
           primary: 'pixi',
           candidate: 'sharedRenderer',
           snapshot,
-          media: [{
-            id: 'video-1',
-            kind: 'Video',
-            source: '/tmp/video-1.mp4',
-            width: 4,
-            height: 4,
-            source_rate: {
-              numerator: 60,
-              denominator: 1,
-            },
-          }],
+          media,
         },
         presentationContract: {
           canvas: {
@@ -744,17 +767,7 @@ describe('createSharedRendererExportFrameSource', () => {
             height: 4,
           },
           snapshot,
-          media: [{
-            id: 'video-1',
-            kind: 'Video',
-            source: '/tmp/video-1.mp4',
-            width: 4,
-            height: 4,
-            source_rate: {
-              numerator: 60,
-              denominator: 1,
-            },
-          }],
+          media,
         },
       }),
       prepareNativeRenderSources: (async (input) => {
@@ -834,6 +847,7 @@ describe('createSharedRendererExportFrameSource', () => {
         width: 4,
         height: 4,
         snapshot,
+        media,
         sources: [{
           mediaId: 'video-1',
           slotCount: 2,
