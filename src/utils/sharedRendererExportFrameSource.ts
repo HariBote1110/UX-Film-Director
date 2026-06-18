@@ -425,6 +425,11 @@ export function createSharedRendererExportFrameSource({
             height: request.height,
             fps: projectSettings.fps,
           });
+          writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+            status: 'ready',
+            frameIndex: request.frameIndex,
+            path: 'presentedSharedFrame',
+          });
           return {
             timestamp: request.timestampUs,
             sharedFramePayload,
@@ -442,6 +447,11 @@ export function createSharedRendererExportFrameSource({
             timestampUs: request.timestampUs,
             paddedRgbaBytes: readback.rgbaBytes,
             strideBytes: readback.strideBytes,
+          });
+          writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+            status: 'ready',
+            frameIndex: request.frameIndex,
+            path: 'webGpuReadbackSharedFrameWriter',
           });
           return {
             timestamp: request.timestampUs,
@@ -568,7 +578,7 @@ const writeFrameDiagnostics = (
     status: 'ready' | 'blocked';
     frameIndex: number;
     reason?: string;
-    path?: 'nativeRenderSharedFrame';
+    path?: 'nativeRenderSharedFrame' | 'presentedSharedFrame' | 'webGpuReadbackSharedFrameWriter';
   }
 ): void => {
   dataset.uxfdRustExportFrameSourceFrameStatus = state.status;
