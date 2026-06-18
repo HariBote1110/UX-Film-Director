@@ -1,3 +1,20 @@
+## 2026-06-18 — Phase5: export sourceからnative/Rust handoffをcontrollerまで配線
+
+### 実施内容
+- `src/utils/sharedRendererViewportPresenterOrchestration.test.ts` に、handoffがpresenter start inputへ渡る契約を追加した。
+- `src/utils/sharedRendererExportFrameSource.test.ts` に、export frame sourceからviewport presenter orchestrationへhandoffが渡る契約を追加した。
+- `StartSharedRendererViewportPresenterInput` と `CreateSharedRendererExportFrameSourceInput` に `presentedFrameSharedFrameTaker` を追加した。
+- Rust direct encodeのexport sourceからWebGPU presenterのnative/Rust handoffまでpass-throughできるようにした。
+- package version を `0.1.1-Beta-89a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/sharedRendererExportFrameSource.test.ts`
+- `npm test -- src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/sharedRendererExportFrameSourceBoundary.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportPresenterOrchestration\\.ts\\(|src/utils/sharedRendererExportFrameSource\\.ts\\(|src/utils/sharedRendererPreviewPresenterController\\.ts\\(|src/utils/sharedRendererWebGpuPresenter\\.ts\\(|src/utils/sharedRendererViewportPresenterOrchestration\\.test\\.ts\\(|src/utils/sharedRendererExportFrameSource\\.test\\.ts\\()"`
+
+### 残課題・次のステップ
+- native/Rust handoffの差し込み経路はexport sourceからpresenterまで通った。次は実際のElectron/native bridge実装、または未対応時の診断を追加する。
+
 ## 2026-06-18 — Phase5: preview presenter controllerからnative/Rust handoffを配線
 
 ### 実施内容

@@ -523,6 +523,11 @@ WebGPU device/formatを渡せるようにする。handoffがpayloadを返した�
 `createSharedRendererWebGpuPresenter` へ渡す。これによりElectron/native bridge側のhandoff実装を
 Viewport/exportのshared renderer controlへ差し込めるようにする。
 
+100. Phase5: export sourceからnative/Rust handoffをcontrollerまで通す
+`createSharedRendererExportFrameSource` と `startSharedRendererViewportPresenter` は
+`presentedFrameSharedFrameTaker` をpass-throughし、Rust direct encode時にexport frame sourceから
+WebGPU presenterのnative/Rust handoffまで1本の配線を持てるようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
