@@ -1,3 +1,20 @@
+## 2026-06-18 — Phase5: WebGPU presented frame readback API を追加
+
+### 実施内容
+- `src/utils/sharedRendererWebGpuPresenter.test.ts` に、最後にpresentしたcanvas textureから `copyTextureToBuffer` で256 byte aligned row pitchのRGBA bytesを読む契約を追加した。
+- `src/utils/sharedRendererWebGpuPresenter.ts` でcanvas contextを `RENDER_ATTACHMENT | COPY_SRC` でconfigureし、present時に最後のtarget textureを保持するようにした。
+- `readPresentedFrameRgbaBytes` を追加し、`GPUBufferUsage.MAP_READ | COPY_DST` のreadback bufferへcopyしてmapped bytesを返すようにした。
+- package version を `0.1.1-Beta-66a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererWebGpuPresenter.test.ts`
+- `npm test -- src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererExportFrameSource.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererWebGpuPresenter(\\.test)?\\.ts"`（対象ファイルの型エラーなし）
+
+### 残課題・次のステップ
+- `SharedRendererPreviewPresenterControl` / `SharedRendererExportFrameSource` へreadback APIを接続し、direct encode時の `ImageBitmap` captureを実際に削除する。
+- 全体 `tsc` は既存の `sharedRendererPreviewPresenterController.test.ts` 型エラーを含むため、今回も対象ファイルに絞って確認した。
+
 ## 2026-06-18 — Phase5: SharedRendererExportFrameSource で direct encode frame を生成
 
 ### 実施内容

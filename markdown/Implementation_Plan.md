@@ -395,6 +395,12 @@ source内部のwritable shared frame writerへ書き込んで、Rust backend enc
 `writeVideoEncodeFrame` へ渡す。現段階ではcanvas `ImageBitmap` capture後のRGBA readbackをsource内で行うため、
 次段でWebGPU readback / mapped bufferからshared memoryへ直接copyする。
 
+77. Phase5: WebGPU presented frame readback API を追加する
+shared renderer WebGPU presenterはcanvas textureを `COPY_SRC` 付きでconfigureし、最後にpresentしたtextureを
+`copyTextureToBuffer` で256 byte aligned row pitchのreadback bufferへcopyできるAPIを持つ。
+これにより、次段で `SharedRendererExportFrameSource.renderEncodeFrame` は `ImageBitmap` captureを挟まず、
+presenterのmapped buffer bytesをshared memory writerへ渡せる。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
