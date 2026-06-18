@@ -1,3 +1,19 @@
+## 2026-06-18 — Phase5: Rust video必須時はcutoverを暗黙有効化
+
+### 実施内容
+- `src/utils/sharedRendererViewportPresenterOrchestration.test.ts` に、Rust video必須ならcutover flagがOFFでもRust video upload準備を行う契約を追加した。
+- `startSharedRendererViewportPresenter` で `videoCutoverEnabled || requireSharedRendererVideo` をeffective cutoverとして使い、upload準備とpresenter入力へ同じ値を渡すようにした。
+- Rust video-only設定だけでdecode/upload/ownership判定へ進めるようになり、旧flag未設定による即fail-loudを避けた。
+- package version を `0.1.1-Beta-78a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererViewportPresenterOrchestration.test.ts`
+- `npm test -- src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportPresenterOrchestration\\.ts\\(|effectiveVideoCutoverEnabled)"`（対象ファイルの型エラーなし）
+
+### 残課題・次のステップ
+- Rust video-only previewはcutover flag未設定でもRust upload準備へ進む。次は実機ElectronでRust backend decode / shared frame upload / WebGPU presentationの一連を確認する。
+
 ## 2026-06-18 — Phase5: Rust video必須previewをfail-loud化
 
 ### 実施内容

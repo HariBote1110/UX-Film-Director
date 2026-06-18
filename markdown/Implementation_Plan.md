@@ -466,6 +466,11 @@ shared-frame encode経路に `ImageBitmap` capture能力を要求しない。
 `requireSharedRendererVideo` をpresenter orchestrationへ渡し、動画sceneで `videoOwnership.owner !== 'sharedRenderer'` の場合は
 `requiredVideoOwnershipUnavailable` を diagnostics に出して `ok:false` を返す。
 
+89. Phase5: Rust video-only は shared renderer video cutover を暗黙有効化する
+Rust動画が必須のpreviewでは、旧 `VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER` がOFFでも動画upload準備を実行する。
+orchestrationは `videoCutoverEnabled || requireSharedRendererVideo` を effective cutover とし、
+presenterにも同じ値を渡して、Rust video-only設定だけでdecode/upload/ownership判定が進むようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
