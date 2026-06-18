@@ -24,11 +24,42 @@ type SharedVideoFrameCopyResult = {
   error?: string
 }
 
+type SharedVideoFrameWritableRingPayload = {
+  memoryId: string
+  slotCount: number
+  slotByteLen: number
+}
+
+type SharedVideoFrameWritableWritePayload = {
+  memoryId: string
+  ptsFrame: number
+}
+
+type SharedVideoFrameWritableClosePayload = {
+  memoryId: string
+}
+
+type SharedVideoFrameWritableResult = {
+  success: boolean
+  result?: unknown
+  error?: string
+}
+
 type SharedVideoFrameNativeBridge = {
   copyIntoUploadBuffer: (
     payload: SharedVideoFrameCopyPayload,
     target: Uint8Array
   ) => Promise<SharedVideoFrameCopyResult> | SharedVideoFrameCopyResult
+  createWritableSharedFrameRing?: (
+    payload: SharedVideoFrameWritableRingPayload
+  ) => Promise<SharedVideoFrameWritableResult> | SharedVideoFrameWritableResult
+  writeIntoSharedFrameRing?: (
+    payload: SharedVideoFrameWritableWritePayload,
+    source: Uint8Array
+  ) => Promise<SharedVideoFrameWritableResult> | SharedVideoFrameWritableResult
+  closeWritableSharedFrameRing?: (
+    payload: SharedVideoFrameWritableClosePayload
+  ) => Promise<SharedVideoFrameWritableResult> | SharedVideoFrameWritableResult
 }
 
 let sharedVideoFrameNativeBridge: SharedVideoFrameNativeBridge | null | undefined
@@ -113,6 +144,39 @@ contextBridge.exposeInMainWorld('rustVideoEncoder', {
 })
 
 contextBridge.exposeInMainWorld('sharedVideoFrame', {
+  async createWritableSharedFrameRing(payload: SharedVideoFrameWritableRingPayload) {
+    const bridge = loadSharedVideoFrameNativeBridge()
+    if (!bridge || typeof bridge.createWritableSharedFrameRing !== 'function') {
+      return {
+        success: false,
+        error: 'Shared video frame writable native bridge is unavailable.',
+      }
+    }
+
+    return bridge.createWritableSharedFrameRing(payload)
+  },
+  async writeIntoSharedFrameRing(payload: SharedVideoFrameWritableWritePayload, source: Uint8Array) {
+    const bridge = loadSharedVideoFrameNativeBridge()
+    if (!bridge || typeof bridge.writeIntoSharedFrameRing !== 'function') {
+      return {
+        success: false,
+        error: 'Shared video frame writable native bridge is unavailable.',
+      }
+    }
+
+    return bridge.writeIntoSharedFrameRing(payload, source)
+  },
+  async closeWritableSharedFrameRing(payload: SharedVideoFrameWritableClosePayload) {
+    const bridge = loadSharedVideoFrameNativeBridge()
+    if (!bridge || typeof bridge.closeWritableSharedFrameRing !== 'function') {
+      return {
+        success: false,
+        error: 'Shared video frame writable native bridge is unavailable.',
+      }
+    }
+
+    return bridge.closeWritableSharedFrameRing(payload)
+  },
   async copyIntoUploadBuffer(payload: SharedVideoFrameCopyPayload, target: Uint8Array) {
     const bridge = loadSharedVideoFrameNativeBridge()
     if (!bridge) {
