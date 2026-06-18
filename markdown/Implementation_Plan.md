@@ -926,6 +926,10 @@ Pixi video pathを既定拒否した状態でも、通常preview動画がRust/sh
 `VideoFrameProvider` / `PlaybackFrameProvider` のdynamic import、provider map、HTMLVideoElement seek fallback、
 VideoDecoder hybrid完了表示を削除する。WebCodecs互換branchは非動画canvas export用として残す。
 
+173. Phase5: 未参照VideoFrameProvider moduleを削除する
+production export hookから旧providerを外したため、`src/utils/videoFrameProvider.ts` を削除する。
+`videoDecodeStream` はexport test harnessの比較・診断用途に残し、production hookへ再接続しない境界テストで保護する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

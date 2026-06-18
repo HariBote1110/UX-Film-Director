@@ -230,3 +230,10 @@
 - Green: `useProjectExport` から `FrameProvider` map、provider初期化、export frame override注入、HTMLVideoElement seek fallback、VideoDecoder hybrid表示を削除した。
 - 検証: `npm test -- useProjectExportBoundary projectExportFrameCanvas projectExportEncodePlan viewportRustExportFrameSource sharedRendererExportFrameSource` は77件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-152a`。
+
+## 2026-06-19
+- Phase5のproduction utils整理として、未参照になった `VideoFrameProvider` moduleを削除した。
+- Red: `useProjectExportBoundary` へ、`src/utils/videoFrameProvider.ts` が存在しない契約を追加した。
+- Green: `src/utils/videoFrameProvider.ts` を削除した。`videoDecodeStream` はexport test harnessの比較・診断用途として残した。
+- 検証: `npm test -- useProjectExportBoundary projectExportFrameCanvas projectExportEncodePlan viewportRustExportFrameSource` は51件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-153a`。
