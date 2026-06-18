@@ -59,6 +59,8 @@ struct DecodeSession {
 }
 
 struct EncodeSession {
+    child: Child,
+    stdin: ChildStdin,
     session_id: String,
     file_path: String,
     width: u32,
@@ -140,6 +142,12 @@ fn main() {
     if let Some(mut session) = state.export_session.take() {
         let _ = session.stdin.flush();
         drop(session.stdin);
+        let _ = session.child.wait();
+    }
+    for (_, mut session) in state.encode_sessions.drain() {
+        let _ = session.stdin.flush();
+        drop(session.stdin);
+        let _ = session.child.kill();
         let _ = session.child.wait();
     }
 }
@@ -287,9 +295,16 @@ fn handle_encode_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
         return response_error(id, -32051, "Encode session already active for sessionId");
     }
 
+    let (child, stdin) = match start_encode_ffmpeg(&parsed) {
+        Ok(value) => value,
+        Err(message) => return response_error(id, -32054, &message),
+    };
+
     state.encode_sessions.insert(
         parsed.session_id.clone(),
         EncodeSession {
+            child,
+            stdin,
             session_id: parsed.session_id.clone(),
             file_path: parsed.file_path.clone(),
             width: parsed.width,
@@ -337,10 +352,11 @@ fn handle_encode_write_frame(id: u64, params: Value, state: &mut BackendState) -
         return response_error(id, -32602, &message);
     }
 
-    let shared_frame_byte_len = match read_encode_shared_frame(&parsed) {
-        Ok(value) => value,
-        Err(message) => return response_error(id, -32053, &message),
-    };
+    let (shared_frame_byte_len, encoded_frame_byte_len) =
+        match write_encode_shared_frame(session, &parsed) {
+            Ok(value) => value,
+            Err(message) => return response_error(id, -32053, &message),
+        };
 
     session.frame_count += 1;
 
@@ -354,6 +370,7 @@ fn handle_encode_write_frame(id: u64, params: Value, state: &mut BackendState) -
             "timestampUs": parsed.timestamp_us,
             "slotCount": parsed.slot_count,
             "sharedFrameByteLen": shared_frame_byte_len,
+            "encodedFrameByteLen": encoded_frame_byte_len,
             "frameCount": session.frame_count,
         })),
         error: None,
@@ -375,6 +392,32 @@ fn handle_encode_finish(id: u64, params: Value, state: &mut BackendState) -> Rpc
     let Some(session) = state.encode_sessions.remove(&parsed.session_id) else {
         return response_error(id, -32052, "No active encode session");
     };
+    let mut session = session;
+
+    let _ = session.stdin.flush();
+    drop(session.stdin);
+
+    let status = match session.child.wait() {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32056,
+                &format!("Failed to wait Rust encode ffmpeg process: {error}"),
+            );
+        }
+    };
+
+    if !status.success() {
+        return response_error(
+            id,
+            -32057,
+            &format!(
+                "Rust encode ffmpeg exited with failure status: code={:?}",
+                status.code()
+            ),
+        );
+    }
 
     RpcResponse {
         id,
@@ -438,7 +481,10 @@ fn validate_encode_shared_frame(
 }
 
 #[cfg(unix)]
-fn read_encode_shared_frame(parsed: &EncodeWriteFrameParams) -> Result<usize, String> {
+fn write_encode_shared_frame(
+    session: &mut EncodeSession,
+    parsed: &EncodeWriteFrameParams,
+) -> Result<(usize, usize), String> {
     let descriptor = &parsed.frame.descriptor;
     let frame_len = usize::try_from(descriptor.byte_len).map_err(|_| {
         format!(
@@ -457,20 +503,116 @@ fn read_encode_shared_frame(parsed: &EncodeWriteFrameParams) -> Result<usize, St
         .read_frame(parsed.frame.pts_frame)
         .map_err(|error| format!("Failed to read encode shared frame: {error:?}"))?;
     let byte_len = frame.bytes.len();
-    ring.release_frame(CopyOutState::EncoderFrameWritten)
-        .map_err(|error| format!("Failed to release encode shared frame: {error:?}"))?;
+    let write_result = write_tight_rgba_frame_to_encoder(session, descriptor, &frame.bytes);
+    let release_state = if write_result.is_ok() {
+        CopyOutState::EncoderFrameWritten
+    } else {
+        CopyOutState::RendererUploadAborted
+    };
+    let release_result = ring.release_frame(release_state);
 
-    Ok(byte_len)
+    let encoded_byte_len = write_result?;
+    release_result.map_err(|error| format!("Failed to release encode shared frame: {error:?}"))?;
+
+    Ok((byte_len, encoded_byte_len))
 }
 
 #[cfg(not(unix))]
-fn read_encode_shared_frame(parsed: &EncodeWriteFrameParams) -> Result<usize, String> {
-    usize::try_from(parsed.frame.descriptor.byte_len).map_err(|_| {
-        format!(
-            "Encode frame byteLen overflows usize: {}",
-            parsed.frame.descriptor.byte_len
-        )
-    })
+fn write_encode_shared_frame(
+    _session: &mut EncodeSession,
+    _parsed: &EncodeWriteFrameParams,
+) -> Result<(usize, usize), String> {
+    Err("Rust encode shared memory is unavailable on this platform".to_string())
+}
+
+fn start_encode_ffmpeg(parsed: &EncodeStartParams) -> Result<(Child, ChildStdin), String> {
+    let ffmpeg_path = std::env::var("UXFD_FFMPEG_BIN").unwrap_or_else(|_| "ffmpeg".to_string());
+    let mut cmd = Command::new(&ffmpeg_path);
+    cmd.arg("-hide_banner")
+        .arg("-loglevel")
+        .arg("error")
+        .arg("-y")
+        .arg("-f")
+        .arg("rawvideo")
+        .arg("-pix_fmt")
+        .arg("rgba")
+        .arg("-s")
+        .arg(format!("{}x{}", parsed.width, parsed.height))
+        .arg("-r")
+        .arg(parsed.fps.to_string())
+        .arg("-i")
+        .arg("-")
+        .arg("-an")
+        .arg("-c:v")
+        .arg(get_video_codec())
+        .arg("-b:v")
+        .arg("8000k")
+        .arg("-pix_fmt")
+        .arg("yuv420p")
+        .arg(&parsed.file_path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+
+    let mut child = cmd
+        .spawn()
+        .map_err(|error| format!("Failed to start Rust encode ffmpeg ({ffmpeg_path}): {error}"))?;
+    let stdin = match child.stdin.take() {
+        Some(value) => value,
+        None => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("Failed to capture Rust encode ffmpeg stdin".to_string());
+        }
+    };
+
+    Ok((child, stdin))
+}
+
+fn write_tight_rgba_frame_to_encoder(
+    session: &mut EncodeSession,
+    descriptor: &FrameDescriptor,
+    shared_frame: &[u8],
+) -> Result<usize, String> {
+    let row_bytes = usize::try_from(descriptor.width)
+        .ok()
+        .and_then(|width| width.checked_mul(4))
+        .ok_or_else(|| "Encode frame row byte length overflows".to_string())?;
+    let stride_bytes = usize::try_from(descriptor.stride_bytes)
+        .map_err(|_| "Encode frame strideBytes overflows usize".to_string())?;
+    let height = usize::try_from(descriptor.height)
+        .map_err(|_| "Encode frame height overflows usize".to_string())?;
+    if stride_bytes < row_bytes {
+        return Err("Encode frame strideBytes is smaller than tight RGBA row".to_string());
+    }
+    let expected_len = stride_bytes
+        .checked_mul(height)
+        .ok_or_else(|| "Encode shared frame byte length overflows".to_string())?;
+    if shared_frame.len() != expected_len {
+        return Err(format!(
+            "Encode shared frame byte length mismatch: expected={expected_len}, actual={}",
+            shared_frame.len()
+        ));
+    }
+
+    let mut tight_rgba = Vec::with_capacity(
+        row_bytes
+            .checked_mul(height)
+            .ok_or_else(|| "Encode tight frame byte length overflows".to_string())?,
+    );
+    for row in 0..height {
+        let source_start = row
+            .checked_mul(stride_bytes)
+            .ok_or_else(|| "Encode source row offset overflows".to_string())?;
+        tight_rgba.extend_from_slice(&shared_frame[source_start..source_start + row_bytes]);
+    }
+
+    session
+        .stdin
+        .write_all(&tight_rgba)
+        .map_err(|error| format!("Failed to write raw RGBA frame to Rust encoder: {error}"))?;
+
+    Ok(tight_rgba.len())
 }
 
 fn handle_media_probe(id: u64, params: Value) -> RpcResponse {
