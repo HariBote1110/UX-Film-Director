@@ -6,6 +6,7 @@ import {
   isSharedRendererExportFrameSourceBlockedError,
 } from './sharedRendererExportFrameSource';
 import type { SharedRendererViewportVideoDecodeJob } from './sharedRendererViewportVideoUpload';
+import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -112,6 +113,110 @@ describe('createSharedRendererExportFrameSource', () => {
       uxfdRustExportFrameSourceFrameIndex: '12',
       uxfdRustExportFrameSourceFrameReason: undefined,
     });
+  });
+
+  it('renders an encode frame directly into a writable shared frame payload', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    let bitmapClosed = 0;
+    const frameBitmap = { close: () => { bitmapClosed += 1; } } as ImageBitmap;
+    const payload: RustBackendVideoEncodeWriteFramePayload = {
+      sessionId: 'encode-session-1',
+      frameIndex: 2,
+      timestampUs: 33_333,
+      slotCount: 1,
+      frame: {
+        descriptor: {
+          memoryId: '/uxfd-export-source-encode-session-1',
+          slotIndex: 0,
+          generation: 3,
+          byteOffset: 0,
+          byteLen: 8_294_400,
+          width: 1920,
+          height: 1080,
+          strideBytes: 7680,
+          format: 'rgba8Srgb',
+          colour: {
+            primaries: 'bt709',
+            transfer: 'srgb',
+            matrix: 'rgb',
+            range: 'full',
+          },
+        },
+        ptsFrame: 2,
+      },
+    };
+    const calls: unknown[] = [];
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      startViewportPresenter: async () => ({
+        control: { dispose: () => undefined },
+        activeVideoDecodeJob: null,
+        activeVideoDecodeJobs: [],
+      }) as never,
+      createFrameBitmap: async (...args) => {
+        calls.push(['createFrameBitmap', args]);
+        return frameBitmap;
+      },
+      extractEncodeFrameRgbaBytes: async (bitmap, width, height) => {
+        calls.push(['extractEncodeFrameRgbaBytes', bitmap === frameBitmap, width, height]);
+        return Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8]);
+      },
+      createEncodeFrameWriter: async (input) => {
+        calls.push(['createEncodeFrameWriter', input]);
+        return {
+          writeFrame: async (writeInput) => {
+            calls.push(['writeFrame', writeInput]);
+            return payload;
+          },
+          close: async () => {
+            calls.push(['closeEncodeFrameWriter']);
+          },
+        };
+      },
+    });
+
+    await expect(source.renderEncodeFrame?.({
+      frameIndex: 2,
+      timestampUs: 33_333,
+      time: 2 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [image()],
+      encodeSessionId: 'encode-session-1',
+    })).resolves.toEqual({
+      timestamp: 33_333,
+      sharedFramePayload: payload,
+    });
+    await source.close?.();
+
+    expect(bitmapClosed).toBe(1);
+    expect(calls).toEqual([
+      ['createFrameBitmap', [canvas, 0, 0, 1920, 1080]],
+      ['extractEncodeFrameRgbaBytes', true, 1920, 1080],
+      ['createEncodeFrameWriter', {
+        sessionId: 'encode-session-1',
+        memoryId: '/uxfd-export-source-encode-session-1',
+        width: 1920,
+        height: 1080,
+        fps: 60,
+      }],
+      ['writeFrame', {
+        frameIndex: 2,
+        timestampUs: 33_333,
+        rgbaBytes: Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8]),
+      }],
+      ['closeEncodeFrameWriter'],
+    ]);
   });
 
   it('carries resolved Rust decode jobs across export frames', async () => {
