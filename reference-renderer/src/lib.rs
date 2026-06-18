@@ -39,17 +39,6 @@ pub fn render_reference_frame(
                 .ok_or_else(|| ReferenceRenderError::MissingSource {
                     media_id: clip.media_id.clone(),
                 })?;
-        if clip.transform == Transform::identity()
-            && (source.width != width || source.height != height)
-        {
-            return Err(ReferenceRenderError::SourceSizeMismatch {
-                media_id: clip.media_id,
-                expected_width: width,
-                expected_height: height,
-                actual_width: source.width,
-                actual_height: source.height,
-            });
-        }
         validate_transform(&clip)?;
 
         let gain = clip.effects.iter().fold(1.0_f32, |current_gain, effect| {

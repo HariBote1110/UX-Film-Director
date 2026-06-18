@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 use uxfd_golden_harness::{RgbaFrame, RgbaFrameError};
-use uxfd_rust_core::{Effect, SamplingMode, SceneSnapshot, Transform};
+use uxfd_rust_core::{Effect, SamplingMode, SceneSnapshot};
 use uxfd_shared_memory_spike::PosixSharedRing;
 use uxfd_sidecar_protocol::{
     rgba8_srgb_ring_layout, ColourMetadata, FrameRingLayoutBuildError, SharedFrame,
@@ -179,18 +179,6 @@ pub async fn measure_native_wgpu_frame_stages(
                 .ok_or_else(|| NativeWgpuRenderError::MissingSource {
                     media_id: clip.media_id.clone(),
                 })?;
-        if clip.transform == Transform::identity()
-            && (source.width != width || source.height != height)
-        {
-            return Err(NativeWgpuRenderError::SourceSizeMismatch {
-                media_id: clip.media_id.clone(),
-                expected_width: width,
-                expected_height: height,
-                actual_width: source.width,
-                actual_height: source.height,
-            });
-        }
-
         prepared_clips.push(prepare_clip(
             &device,
             &queue,
