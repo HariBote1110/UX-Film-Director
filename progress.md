@@ -1,3 +1,22 @@
+## 2026-06-18 — Phase5: backend native render shared-frame RPCを追加
+
+### 実施内容
+- `rust-backend/tests/decode_control_plane.rs` に、source shared memoryをbackend native renderへ渡し、出力descriptorだけを受け取る統合契約を追加した。
+- `rust-backend` に `render.nativeSharedFrame` RPCを追加した。
+- backendがsource shared-frame ringへattachし、padded RGBAをtight RGBAへ戻してRust/wgpu rendererへ渡すようにした。
+- Rust/wgpu render出力は新しいshared-frame ringへ書き込み、output ring ownerをbackend stateで保持するようにした。
+- package version を `0.1.1-Beta-94a` に更新した。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml native_render_shared_frame_consumes_source_shm_and_returns_descriptor_only`
+- `cargo test --manifest-path rust-backend/Cargo.toml encode_shared_frame_session_tracks_descriptor_without_legacy_base64_fallback`
+- `cargo test --manifest-path rust-backend/Cargo.toml decode_request_frame_writes_decoded_rgba_to_posix_shared_memory`
+- `cargo test --manifest-path rust-backend/Cargo.toml encode_write_frame_rejects_descriptor_that_does_not_match_session`
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test shared_frame_output`
+
+### 残課題・次のステップ
+- Rust backend内で decode shared memory → native render shared memory の接続ができた。次は renderer/export source から `render.nativeSharedFrame` を呼び、Rust encoderの `encode.writeFrame` へ直結する。
+
 ## 2026-06-18 — Phase5: native wgpu frameをshared memoryへ出力
 
 ### 実施内容

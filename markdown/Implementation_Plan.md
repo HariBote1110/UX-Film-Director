@@ -557,6 +557,12 @@ ring ownerを保持し、Rust backend encoderへclone可能なdescriptorだけ�
 これにより、ブラウザWebGPU `GPUTexture` をElectron `contextBridge` 越しに渡す設計から、
 Rust-owned render/export surfaceへ移行する足場を得る。
 
+106. Phase5: Rust backendにnative render shared-frame RPCを追加する
+`render.nativeSharedFrame` はsource shared-frame descriptorを受け取り、backend内でPOSIX shared memoryへattachして
+tight RGBAへ戻す。Rust/wgpu rendererでSceneSnapshotを描画し、出力を別のshared-frame ringへ書いて
+`SharedFrame` descriptorだけを返す。source ringはrender完了後にreleaseし、出力ringはbackend stateで保持する。
+これにより、decode shared memory → Rust/wgpu render → encode shared memory の中間接続がcontrol plane bytesなしで成立する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
