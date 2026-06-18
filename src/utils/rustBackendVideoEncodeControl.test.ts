@@ -86,6 +86,7 @@ describe('rustBackendVideoEncodeControl', () => {
       sessionId: 'encode-1',
       frameIndex: 42,
       timestampUs: 700_000,
+      slotCount: 2,
       frame: {
         descriptor: {
           memoryId: '/uxfd-export-frame-ring',
@@ -114,6 +115,7 @@ describe('rustBackendVideoEncodeControl', () => {
         sessionId: 'encode-1',
         frameIndex: 42,
         timestampUs: 700_000,
+        slotCount: 2,
         frame: {
           descriptor: {
             memoryId: '/uxfd-export-frame-ring',
