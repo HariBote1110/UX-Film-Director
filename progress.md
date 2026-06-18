@@ -1,3 +1,19 @@
+## 2026-06-18 — Phase5: Rust video必須previewをfail-loud化
+
+### 実施内容
+- `src/utils/sharedRendererPreviewPresenterController.test.ts` に、Rust video必須時にshared rendererが動画所有権を取れない場合は `ok:false` で返す契約を追加した。
+- `startSharedRendererPreviewPresenter` に `requireSharedRendererVideo` を追加し、動画sceneで `videoOwnership.owner !== 'sharedRenderer'` の場合は `requiredVideoOwnershipUnavailable` をdiagnosticsへ出すようにした。
+- `startSharedRendererViewportPresenter` と `Viewport` へ同フラグを伝搬し、`VITE_UXFD_RUST_VIDEO_ONLY` とpreview presenterを接続した。
+- package version を `0.1.1-Beta-77a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererPreviewPresenterController.test.ts`
+- `npm test -- src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/pixiVideoCutover.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/components/Viewport\\.tsx|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts|requireSharedRendererVideo|requiredVideoOwnershipUnavailable)"`（対象ファイルの型エラーなし）
+
+### 残課題・次のステップ
+- Rust video-only previewは、Rust decode/upload不成立を成功扱いしなくなった。次は実機ElectronでGoPro素材を使い、preview/exportともにRust video pathの診断・出力を確認する。
+
 ## 2026-06-18 — Phase5: Rust video-only exportでlegacy canvas fallbackを禁止
 
 ### 実施内容

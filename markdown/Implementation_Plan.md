@@ -461,6 +461,11 @@ shared-frame encode経路に `ImageBitmap` capture能力を要求しない。
 `ProjectExportRustFrameSource` を必須にする。Rust frame source が無い場合は `failExport` とし、
 動画を含むexportがPixi canvas / HTMLVideoElement seek / ImageBitmap captureへ戻らないようにする。
 
+88. Phase5: Rust video-only previewの所有権失敗をfail-loudにする
+`VITE_UXFD_RUST_VIDEO_ONLY=1` のpreviewでは、shared rendererが動画所有権を取れない状態を成功扱いにしない。
+`requireSharedRendererVideo` をpresenter orchestrationへ渡し、動画sceneで `videoOwnership.owner !== 'sharedRenderer'` の場合は
+`requiredVideoOwnershipUnavailable` を diagnostics に出して `ok:false` を返す。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
