@@ -27,7 +27,7 @@ export const buildSharedRendererVideoCutoverStackSafety = ({
   candidateVideoObjectIds,
 }: BuildSharedRendererVideoCutoverStackSafetyInput): SharedRendererVideoCutoverStackSafety => {
   const candidateSet = new Set(candidateVideoObjectIds);
-  const mediaKindById = new Map(media.map((reference) => [reference.id, reference.kind]));
+  const mediaById = new Map(media.map((reference) => [reference.id, reference]));
   const clipsById = new Map(snapshot.clips.map((clip) => [clip.clip_id, clip]));
   const safeVideoObjectIds: string[] = [];
   const blockedVideoObjectIds: SharedRendererVideoCutoverStackBlock[] = [];
@@ -41,7 +41,8 @@ export const buildSharedRendererVideoCutoverStackSafety = ({
       .sort((left, right) => left.z_index - right.z_index)
       .find((clip) => !isSharedRendererOwnedAboveVideo({
         clipId: clip.clip_id,
-        mediaKind: mediaKindById.get(clip.media_id),
+        mediaKind: mediaById.get(clip.media_id)?.kind,
+        mediaSource: mediaById.get(clip.media_id)?.source,
         candidateVideoObjectIds: candidateSet,
       }));
 
@@ -49,7 +50,7 @@ export const buildSharedRendererVideoCutoverStackSafety = ({
       blockedVideoObjectIds.push({
         videoObjectId,
         blockingObjectId: blocker.clip_id,
-        blockingKind: mediaKindById.get(blocker.media_id) ?? 'MissingMedia',
+        blockingKind: mediaById.get(blocker.media_id)?.kind ?? 'MissingMedia',
         reason: 'pixiOnlyObjectAboveVideo',
       });
       return;
@@ -65,15 +66,21 @@ export const buildSharedRendererVideoCutoverStackSafety = ({
 };
 
 const isSharedRendererOwnedAboveVideo = ({
-  clipId,
   mediaKind,
+  mediaSource,
+  clipId,
   candidateVideoObjectIds,
 }: {
-  clipId: string;
   mediaKind: RustSceneMediaReference['kind'] | undefined;
+  mediaSource: string | undefined;
+  clipId: string;
   candidateVideoObjectIds: ReadonlySet<string>;
 }): boolean => {
   if (mediaKind === 'SolidColour') return true;
+  if (mediaKind === 'Image') return isRustNativeImageSourceSupported(mediaSource);
   if (mediaKind === 'Video') return candidateVideoObjectIds.has(clipId);
   return false;
 };
+
+const isRustNativeImageSourceSupported = (source: string | undefined): boolean =>
+  typeof source === 'string' && source.toLowerCase().endsWith('.png');
