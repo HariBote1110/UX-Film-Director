@@ -341,3 +341,10 @@
 - Green: `loadVideoElementMetadata` を削除し、`resolveVideoMetadata` が `probeMediaWithRust` の結果だけを `mergeResolvedVideoMetadata` に渡すよう変更した。
 - 検証: `npm test -- mediaMetadata` は11件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-167a`。
+
+## 2026-06-19
+- Phase5のexport frame plan整理として、browser video provider / HTMLVideoElement seek fallbackを表す古いflagを削除した。
+- Red: `projectExportFrameCanvas` へ、`requiresLegacyBrowserVideoProviders` / `requiresHtmlVideoElementSeekFallback` を含まない契約を追加し、期待値から古いflagを外した。
+- Green: `ProjectExportFrameSourcePlanResult` と `ProjectExportFrameRuntimePlan` から該当flagを削除した。
+- 検証: `npm test -- projectExportFrameCanvas useProjectExportBoundary` は31件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-168a`。

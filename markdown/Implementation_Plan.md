@@ -1007,6 +1007,12 @@ production export planning utilityがHTMLVideoElement pause型を公開しない
 `resolveVideoMetadata` はRust/Electron `probe-media` 結果だけを使い、
 動画読み込み時の寸法・duration取得もブラウザ動画要素に依存しない。
 
+188. Phase5: export frame planからbrowser video provider flagを削除する
+`ProjectExportFrameSourcePlanResult` と `ProjectExportFrameRuntimePlan` から
+`requiresLegacyBrowserVideoProviders` / `requiresHtmlVideoElementSeekFallback` を削除する。
+legacy canvas互換exportは `requiresRenderScene` と `usesExportFrameOverrides` だけで表し、
+export計画からHTMLVideoElement seek fallback概念を取り除く。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
