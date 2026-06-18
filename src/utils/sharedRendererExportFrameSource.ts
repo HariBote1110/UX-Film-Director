@@ -120,7 +120,9 @@ export const createSharedRendererExportFrameSource = ({
   let requestId = 0;
   let closed = false;
 
-  const renderFrameBitmap = async (request: ProjectExportRustFrameRequest): Promise<ImageBitmap> => {
+  const presentFrame = async (
+    request: ProjectExportRustFrameRequest
+  ): Promise<StartSharedRendererViewportPresenterResult> => {
     if (closed) {
       throw new Error('Shared renderer export frame source has already been closed.');
     }
@@ -178,34 +180,41 @@ export const createSharedRendererExportFrameSource = ({
     });
     activeVideoDecodeJobs = presenterResult.activeVideoDecodeJobs;
 
-    try {
-      const videoUploadBlock = resolveExportVideoUploadBlock(presenterResult);
-      if (videoUploadBlock) {
-        writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
-          status: 'blocked',
-          frameIndex: request.frameIndex,
-          reason: 'videoUploadFailed',
-        });
-        throw new SharedRendererExportFrameSourceBlockedError(
-          videoUploadBlock,
-          'videoUploadFailed',
-          request.frameIndex
-        );
-      }
-      const videoOwnershipBlock = resolveExportVideoOwnershipBlock(presenterResult);
-      if (videoOwnershipBlock) {
-        writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
-          status: 'blocked',
-          frameIndex: request.frameIndex,
-          reason: 'videoOwnershipUnavailable',
-        });
-        throw new SharedRendererExportFrameSourceBlockedError(
-          videoOwnershipBlock,
-          'videoOwnershipUnavailable',
-          request.frameIndex
-        );
-      }
+    const videoUploadBlock = resolveExportVideoUploadBlock(presenterResult);
+    if (videoUploadBlock) {
+      presenterResult.control.dispose();
+      writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+        status: 'blocked',
+        frameIndex: request.frameIndex,
+        reason: 'videoUploadFailed',
+      });
+      throw new SharedRendererExportFrameSourceBlockedError(
+        videoUploadBlock,
+        'videoUploadFailed',
+        request.frameIndex
+      );
+    }
+    const videoOwnershipBlock = resolveExportVideoOwnershipBlock(presenterResult);
+    if (videoOwnershipBlock) {
+      presenterResult.control.dispose();
+      writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+        status: 'blocked',
+        frameIndex: request.frameIndex,
+        reason: 'videoOwnershipUnavailable',
+      });
+      throw new SharedRendererExportFrameSourceBlockedError(
+        videoOwnershipBlock,
+        'videoOwnershipUnavailable',
+        request.frameIndex
+      );
+    }
 
+    return presenterResult;
+  };
+
+  const renderFrameBitmap = async (request: ProjectExportRustFrameRequest): Promise<ImageBitmap> => {
+    const presenterResult = await presentFrame(request);
+    try {
       return await createFrameBitmap(
         canvas,
         0,
@@ -247,25 +256,55 @@ export const createSharedRendererExportFrameSource = ({
   return {
     renderFrame: renderFrameBitmap,
     renderEncodeFrame: async (request) => {
-      const bitmap = await renderFrameBitmap(request);
+      const presenterResult = await presentFrame(request);
       try {
-        const rgbaBytes = await extractEncodeFrameRgbaBytes(
-          bitmap,
+        const control = presenterResult.control;
+        if (control.ok && 'readPresentedFrameRgbaBytes' in control) {
+          const readback = await control.readPresentedFrameRgbaBytes({
+            width: request.width,
+            height: request.height,
+          });
+          const writer = await getEncodeFrameWriter(request);
+          const sharedFramePayload = await writer.writePaddedFrame({
+            frameIndex: request.frameIndex,
+            timestampUs: request.timestampUs,
+            paddedRgbaBytes: readback.rgbaBytes,
+            strideBytes: readback.strideBytes,
+          });
+          return {
+            timestamp: request.timestampUs,
+            sharedFramePayload,
+          };
+        }
+
+        const bitmap = await createFrameBitmap(
+          canvas,
+          0,
+          0,
           request.width,
           request.height
         );
-        const writer = await getEncodeFrameWriter(request);
-        const sharedFramePayload = await writer.writeFrame({
-          frameIndex: request.frameIndex,
-          timestampUs: request.timestampUs,
-          rgbaBytes,
-        });
-        return {
-          timestamp: request.timestampUs,
-          sharedFramePayload,
-        };
+        try {
+          const rgbaBytes = await extractEncodeFrameRgbaBytes(
+            bitmap,
+            request.width,
+            request.height
+          );
+          const writer = await getEncodeFrameWriter(request);
+          const sharedFramePayload = await writer.writeFrame({
+            frameIndex: request.frameIndex,
+            timestampUs: request.timestampUs,
+            rgbaBytes,
+          });
+          return {
+            timestamp: request.timestampUs,
+            sharedFramePayload,
+          };
+        } finally {
+          bitmap.close();
+        }
       } finally {
-        bitmap.close();
+        presenterResult.control.dispose();
       }
     },
     close: async () => {

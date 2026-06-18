@@ -274,7 +274,7 @@ describe('createSharedRendererExportFrameSource', () => {
       startViewportPresenter: async () => ({
         control: {
           ok: true,
-          readPresentedFrameRgbaBytes: async (input) => {
+          readPresentedFrameRgbaBytes: async (input: { width: number; height: number }) => {
             calls.push(['readPresentedFrameRgbaBytes', input]);
             return {
               rgbaBytes: paddedRgbaBytes,
