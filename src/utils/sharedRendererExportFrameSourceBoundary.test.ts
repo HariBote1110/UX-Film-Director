@@ -23,4 +23,10 @@ describe('shared renderer export frame source dependency boundary', () => {
 
     expect(code).not.toContain('createEncodeFrameWriter');
   });
+
+  it('does not expose the removed WebGPU readback writer diagnostic path', () => {
+    const code = source();
+
+    expect(code).not.toContain('webGpuReadbackSharedFrameWriter');
+  });
 });
