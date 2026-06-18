@@ -1,3 +1,29 @@
+## 2026-06-18 — Phase5: shared renderer export frame source を追加
+
+### 実施内容
+- `createSharedRendererExportFrameSource` を追加し、export frameごとに shared renderer export session を構築して presenter orchestration で描画し、canvasから `ImageBitmap` を返す最小sourceを作った。
+- source内部で `activeVideoDecodeJobs` を保持し、Rust backend multi-session decode jobs を次frameへ引き継げるようにした。
+- render後は `createImageBitmap(canvas, 0, 0, width, height)` で切り出し、presenter control を必ず dispose する。
+- blocked export session では presenter / bitmap capture を開始せず、surface gate の detail で fail-loud にする。
+- package version を `0.1.1-Beta-59a` に更新した。
+
+### Red
+- `src/utils/sharedRendererExportFrameSource.test.ts` を追加し、shared renderer export session描画、canvas capture、control dispose、decode job引き継ぎ、blocked session fail-loud を契約化した。
+
+### Green
+- `src/utils/sharedRendererExportFrameSource.ts` を追加し、`ProjectExportRustFrameSource` を返す factory を実装した。
+- `ProjectExportRustFrameRequest.objects` を `TimelineObject[]` 境界に強め、export session builderへそのまま渡せるようにした。
+
+### 現在の制限
+- `Viewport` から `useProjectExport` へこの source を渡す接続は次段。
+- 現時点では毎frame presenterを開始・破棄するため、性能最適化は未実施。まずRust/shared renderer export pathの正しさを優先する。
+
+### 検証
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererExportSession.test.ts src/utils/projectExportFrameCanvas.test.ts`
+  -> 3 files / 12 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererExportFrameSource|projectExportFrameCanvas|sharedRendererExportSession|useProjectExport"`
+  -> 対象ファイルの型エラーなし。
+
 ## 2026-06-18 — Phase5: export frame source 副作用flagsを補強
 
 ### 実施内容

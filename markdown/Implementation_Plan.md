@@ -254,6 +254,11 @@ preview session は `isExporting` 中に surface gate を塞ぐため、export�
 Rust boundary validation、WebGPU availability、fallback adapter拒否、unsupported scene gate は維持しつつ、
 supported 2D scene は export中でも shared renderer frame source 準備へ進めるようにする。
 
+53. Phase5: shared renderer export frame source を追加する
+export frameごとに shared renderer export session を構築し、Viewport presenter orchestration で描画したcanvasを
+`ImageBitmap` として返す `ProjectExportRustFrameSource` を追加する。active Rust decode jobs は source 内で保持し、
+multi-session decodeをframe間で引き継ぐ。次段では `Viewport` から `useProjectExport` へこのsourceを渡す。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

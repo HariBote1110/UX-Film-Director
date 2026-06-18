@@ -310,7 +310,9 @@ fail-loud にする。Rust/shared renderer frame source plan は canvas capture 
 `VideoFrameProvider` / `PlaybackFrameProvider` / `HTMLVideoElement` seek fallback を通らない。
 preview session は export中に surface gate を塞ぐため、export専用 session builder を用意し、supported 2D scene は
 export中でも Rust boundary / WebGPU gate を通せるようにする。
-次 gate では `Viewport` / shared renderer 側から実際の export frame source を渡し、decode scheduler の負荷制御、
+shared renderer export frame source は export session をframeごとに構築し、presenter orchestrationで描画したcanvasを
+`ImageBitmap` として返す。active Rust decode jobs は source 内で保持し、multi-session decodeをframe間で引き継ぐ。
+次 gate では `Viewport` からこの export frame source を `useProjectExport` へ渡し、decode scheduler の負荷制御、
 HDR / 10bit / 明示変換対応を進める。
 これにより、動画読み込み・current frame availability と GPU import / sampling の問題を分離する。
 ただし HTMLVideoElement / `importExternalTexture` はブラウザの暗黙 YUV->RGB と float 秒 seek に依存するため、
