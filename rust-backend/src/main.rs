@@ -11,10 +11,11 @@ use std::sync::{Arc, Mutex};
 #[cfg(unix)]
 use uxfd_shared_memory_spike::PosixSharedRing;
 use uxfd_sidecar_protocol::{
-    rgba8_srgb_ring_layout, validate_renderer_handoff_descriptor, ChecksumAlgorithm, CopyOutState,
-    DecodeFrameRequest, DecodeReleaseFrameRequest, DecodeStartRequest, DecodeStartResponse,
-    FrameChecksum, FrameDescriptor, FrameFormat, FrameVerificationReport, FrameVerificationStatus,
-    ReadyFrame, SharedFrame, SharedFrameRing, SlotRecoveryReason,
+    rgba8_srgb_ring_layout, validate_renderer_handoff_descriptor, ChecksumAlgorithm,
+    ColourMetadata, CopyOutState, DecodeFrameRequest, DecodeReleaseFrameRequest,
+    DecodeStartRequest, DecodeStartResponse, FrameChecksum, FrameDescriptor, FrameFormat,
+    FrameVerificationReport, FrameVerificationStatus, ReadyFrame, SharedFrame, SharedFrameRing,
+    SlotRecoveryReason,
 };
 
 #[derive(Debug, Deserialize)]
@@ -56,6 +57,17 @@ struct DecodeSession {
     data_plane_ring: Option<DecodeDataPlaneRing>,
 }
 
+struct EncodeSession {
+    session_id: String,
+    file_path: String,
+    width: u32,
+    height: u32,
+    fps: u32,
+    pixel_format: FrameFormat,
+    colour: ColourMetadata,
+    frame_count: u64,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DecodeStopRequest {
@@ -70,6 +82,7 @@ type BlobWriteResult = Arc<Mutex<Option<Result<String, String>>>>;
 struct BackendState {
     export_session: Option<ExportSession>,
     decode_sessions: HashMap<String, DecodeSession>,
+    encode_sessions: HashMap<String, EncodeSession>,
     /// Background blob writer: set by psd.parse, drained by psd.await_blob.
     psd_blob_result: Option<BlobWriteResult>,
 }
@@ -151,6 +164,34 @@ struct ExportWriteFrameParams {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct EncodeStartParams {
+    session_id: String,
+    file_path: String,
+    width: u32,
+    height: u32,
+    fps: u32,
+    pixel_format: FrameFormat,
+    colour: ColourMetadata,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EncodeWriteFrameParams {
+    session_id: String,
+    frame_index: u64,
+    timestamp_us: u64,
+    slot_count: u32,
+    frame: SharedFrame,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EncodeFinishParams {
+    session_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct MediaProbeParams {
     file_path: String,
     #[serde(default)]
@@ -192,9 +233,9 @@ fn handle_request(request: RpcRequest, state: &mut BackendState) -> RpcResponse 
         "decode.stop" => handle_decode_stop(request.id, request.params, state),
         "decode.requestFrame" => handle_decode_request_frame(request.id, request.params, state),
         "decode.releaseFrame" => handle_decode_release_frame(request.id, request.params, state),
-        "encode.start" => handle_encode_unavailable(request.id),
-        "encode.writeFrame" => handle_encode_unavailable(request.id),
-        "encode.finish" => handle_encode_unavailable(request.id),
+        "encode.start" => handle_encode_start(request.id, request.params, state),
+        "encode.writeFrame" => handle_encode_write_frame(request.id, request.params, state),
+        "encode.finish" => handle_encode_finish(request.id, request.params, state),
         "export.start" => handle_export_start(request.id, request.params, state),
         "export.write_frame" => handle_export_write_frame(request.id, request.params, state),
         "export.end" => handle_export_end(request.id, state),
@@ -211,12 +252,182 @@ fn handle_request(request: RpcRequest, state: &mut BackendState) -> RpcResponse 
     }
 }
 
-fn handle_encode_unavailable(id: u64) -> RpcResponse {
-    response_error(
+fn handle_encode_start(id: u64, params: Value, state: &mut BackendState) -> RpcResponse {
+    let parsed = match serde_json::from_value::<EncodeStartParams>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(id, -32602, &format!("Invalid encode.start params: {error}"));
+        }
+    };
+
+    if parsed.session_id.trim().is_empty() {
+        return response_error(id, -32602, "sessionId must not be empty");
+    }
+    if parsed.file_path.trim().is_empty() {
+        return response_error(id, -32602, "filePath must not be empty");
+    }
+    if parsed.width == 0 || parsed.height == 0 {
+        return response_error(id, -32602, "width and height must be greater than zero");
+    }
+    if parsed.fps == 0 {
+        return response_error(id, -32602, "fps must be greater than zero");
+    }
+    if parsed.pixel_format != FrameFormat::Rgba8Srgb {
+        return response_error(id, -32602, "Only rgba8Srgb encode input is supported");
+    }
+    if parsed.colour != ColourMetadata::rec709_srgb() {
+        return response_error(
+            id,
+            -32602,
+            "Only bt709/srgb/rgb/full encode input is supported",
+        );
+    }
+    if state.encode_sessions.contains_key(&parsed.session_id) {
+        return response_error(id, -32051, "Encode session already active for sessionId");
+    }
+
+    state.encode_sessions.insert(
+        parsed.session_id.clone(),
+        EncodeSession {
+            session_id: parsed.session_id.clone(),
+            file_path: parsed.file_path.clone(),
+            width: parsed.width,
+            height: parsed.height,
+            fps: parsed.fps,
+            pixel_format: parsed.pixel_format,
+            colour: parsed.colour,
+            frame_count: 0,
+        },
+    );
+
+    RpcResponse {
         id,
-        -32050,
-        "Rust shared-frame video encoder backend is not connected yet.",
-    )
+        ok: true,
+        result: Some(json!({
+            "started": true,
+            "sessionId": parsed.session_id,
+            "filePath": parsed.file_path,
+            "width": parsed.width,
+            "height": parsed.height,
+            "fps": parsed.fps,
+            "pixelFormat": "rgba8Srgb",
+        })),
+        error: None,
+    }
+}
+
+fn handle_encode_write_frame(id: u64, params: Value, state: &mut BackendState) -> RpcResponse {
+    let parsed = match serde_json::from_value::<EncodeWriteFrameParams>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32602,
+                &format!("Invalid encode.writeFrame params: {error}"),
+            );
+        }
+    };
+
+    let Some(session) = state.encode_sessions.get_mut(&parsed.session_id) else {
+        return response_error(id, -32052, "No active encode session");
+    };
+
+    if let Err(message) = validate_encode_shared_frame(session, &parsed) {
+        return response_error(id, -32602, &message);
+    }
+
+    session.frame_count += 1;
+
+    RpcResponse {
+        id,
+        ok: true,
+        result: Some(json!({
+            "written": true,
+            "sessionId": session.session_id,
+            "frameIndex": parsed.frame_index,
+            "timestampUs": parsed.timestamp_us,
+            "slotCount": parsed.slot_count,
+            "frameCount": session.frame_count,
+        })),
+        error: None,
+    }
+}
+
+fn handle_encode_finish(id: u64, params: Value, state: &mut BackendState) -> RpcResponse {
+    let parsed = match serde_json::from_value::<EncodeFinishParams>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32602,
+                &format!("Invalid encode.finish params: {error}"),
+            );
+        }
+    };
+
+    let Some(session) = state.encode_sessions.remove(&parsed.session_id) else {
+        return response_error(id, -32052, "No active encode session");
+    };
+
+    RpcResponse {
+        id,
+        ok: true,
+        result: Some(json!({
+            "finished": true,
+            "sessionId": session.session_id,
+            "filePath": session.file_path,
+            "fps": session.fps,
+            "frameCount": session.frame_count,
+        })),
+        error: None,
+    }
+}
+
+fn validate_encode_shared_frame(
+    session: &EncodeSession,
+    parsed: &EncodeWriteFrameParams,
+) -> Result<(), String> {
+    if parsed.slot_count == 0 {
+        return Err("slotCount must be greater than zero".to_string());
+    }
+    if parsed.frame.pts_frame != parsed.frame_index {
+        return Err("Encode frame ptsFrame does not match frameIndex".to_string());
+    }
+
+    let descriptor = &parsed.frame.descriptor;
+    validate_renderer_handoff_descriptor(descriptor)
+        .map_err(|error| format!("Unsupported encode renderer handoff descriptor: {error:?}"))?;
+
+    if descriptor.slot_index >= parsed.slot_count {
+        return Err("Encode frame descriptor slotIndex is outside slotCount".to_string());
+    }
+
+    if descriptor.width != session.width
+        || descriptor.height != session.height
+        || descriptor.format != session.pixel_format
+        || descriptor.colour != session.colour
+    {
+        return Err("Encode frame descriptor does not match active session".to_string());
+    }
+
+    let expected_byte_len = u64::from(descriptor.stride_bytes)
+        .checked_mul(u64::from(descriptor.height))
+        .ok_or_else(|| "Encode frame descriptor byte length overflows".to_string())?;
+    if descriptor.byte_len != expected_byte_len {
+        return Err(
+            "Encode frame descriptor byteLen does not match strideBytes * height".to_string(),
+        );
+    }
+
+    let expected_byte_offset = descriptor
+        .byte_len
+        .checked_mul(u64::from(descriptor.slot_index))
+        .ok_or_else(|| "Encode frame descriptor byteOffset overflows".to_string())?;
+    if descriptor.byte_offset != expected_byte_offset {
+        return Err("Encode frame descriptor byteOffset does not match slot layout".to_string());
+    }
+
+    Ok(())
 }
 
 fn handle_media_probe(id: u64, params: Value) -> RpcResponse {
