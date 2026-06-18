@@ -129,7 +129,7 @@ Rust backend integration gate:
 - `shared-video-frame-bridge` は POSIX shm ring から renderer upload buffer 相当の mutable slice へ copy する
   Rust core を持つ。copy 後も slot は `READING` のままで、GPU upload fence 後の release に ownership を委ねる。
 - preload は `window.sharedVideoFrame.copyIntoUploadBuffer` を公開する。control payload は `memoryId` / `slotCount` /
-  `slotByteLen` / `ptsFrame` のみで、frame bytes は renderer-owned `Uint8Array` target にだけ入る。
+  `slotByteLen` / `slotIndex` / `generation` / `ptsFrame` で、frame bytes は renderer-owned `Uint8Array` target にだけ入る。
 - renderer utility は verified decoded frame response から upload buffer を準備し、GPU upload fence 後に
   `decode.releaseFrame(copyOutState=gpuUploadFenceSignalled)` を呼ぶ release callback を組み立てる。
 - `shared-video-frame-bridge-node` は Rust core を N-API addon として wrap し、Node 直 require では
@@ -208,7 +208,7 @@ consumer は `requestId` / frame index を照合して stale frame を破棄で�
 
 ready frame は `SharedFrame.ptsFrame` に実際に decode された frame index を持つ。consumer は
 「最後に要求した frame だから次の ready slot もその frame」と仮定してはいけない。ring は順序付き queue ではなく、
-descriptor / `ptsFrame` / `generation` を照合して読む。
+descriptor / `slotIndex` / `ptsFrame` / `generation` を照合して読む。
 
 consumer は `strideBytes` を必ず使って行を読む。`width * 4` の tight stride を仮定しない。decoder / GPU upload は
 row pitch alignment を要求することがあり、padding 付き frame を正しく扱う必要がある。

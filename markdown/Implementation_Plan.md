@@ -1043,6 +1043,12 @@ Rust backend decodeから来たshared memory descriptorが、宣言されたring
 shared memory / native copy bridge は渡されたrenderer-owned upload bufferへcopyするだけにし、
 Electron contextBridge経由でpixel bytesを返す互換fallbackを廃止する。
 
+194. Phase5: shared frame copy payloadへslot leaseを通す
+`copyIntoUploadBuffer` のpayloadに `slotIndex` / `generation` を追加し、
+TS helper、preload型、N-API wrapper、Rust bridge coreまで同じlease tokenを通す。
+Rust bridgeはsequenceで読めたframeの実slotとpayloadの `slotIndex` を照合し、
+descriptorが指すslotと異なるready frameをcopyしない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

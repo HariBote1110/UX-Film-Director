@@ -390,3 +390,10 @@
 - Green: preloadの `SharedVideoFrameCopyResult` から `rgbaBytes` を削除し、native bridgeのcopy reportをそのまま返すようにした。
 - 検証: `npm test -- sharedVideoFrameUploadBridgeBoundary sharedVideoFrameUploadBridge sharedRendererRustVideoUploadPipeline sharedRendererViewportNativeRenderUpload sharedRendererViewportVideoUpload` は18件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-173a`。
+
+## 2026-06-19
+- Phase5のshared memory slot ownershipとして、copy bridge payloadに `slotIndex` / `generation` を通すようにした。
+- Red: `shared-memory-spike` にread結果のslot index契約を追加し、`shared-video-frame-bridge` にpayload slotと実slotが違う場合の拒否契約を追加した。TS側にもcopy payload/reportのslot lease契約を追加した。
+- Green: `MappedReadFrame` / Rust bridge report / N-API wrapper / preload型 / renderer helper payloadへslot leaseを接続し、Rust bridgeで `SlotLeaseMismatch` を返すようにした。
+- 検証: `npm test -- sharedVideoFrameUploadBridge sharedRendererRustVideoUploadPipeline sharedVideoFrameUploadBridgeBoundary sharedRendererViewportNativeRenderUpload sharedRendererViewportVideoUpload` は18件成功。`cargo test --manifest-path shared-video-frame-bridge-node/Cargo.toml`、`cargo test --manifest-path shared-video-frame-bridge/Cargo.toml --test copy_into_upload_buffer`、`cargo test --manifest-path shared-memory-spike/Cargo.toml posix_shm_multi_slot_allows_next_frame_while_previous_frame_is_reading` は成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-174a`。

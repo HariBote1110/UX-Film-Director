@@ -289,7 +289,7 @@ video plane vertex scene と sampler で描画できる。
 `shared-video-frame-bridge` crate は POSIX shm ring から renderer upload buffer 相当の mutable slice へ
 decoded frame bytes を copy でき、copy 後も slot ownership は `READING` のまま保持する。
 preload は `window.sharedVideoFrame.copyIntoUploadBuffer` を公開し、renderer helper は `SharedFrame` descriptor から
-upload buffer を確保して native bridge へ渡せる。
+`slotIndex` / `generation` を含むslot lease payloadとupload bufferをnative bridgeへ渡せる。
 Rust decoded video upload pipeline helper は verified decode response だけを accepted とし、copy bridge 成功後に
 GPU upload fence 後 release callback を持つ upload object を作れる。
 `shared-video-frame-bridge-node` により Rust bridge core は N-API addon として build でき、Node 直 require では
