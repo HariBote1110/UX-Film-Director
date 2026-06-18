@@ -30,14 +30,14 @@ export const resolveProjectExportEncodePlan = ({
   rustExportOnly,
   rustEncoderAvailable,
 }: ResolveProjectExportEncodePlanInput): ProjectExportEncodePlan => {
-  if (!rustExportOnly) {
+  if (rustEncoderAvailable) {
     return {
       ok: true,
-      engine: 'webCodecsMp4Muxer',
+      engine: 'rustBackendVideoEncoder',
     };
   }
 
-  if (!rustEncoderAvailable) {
+  if (rustExportOnly) {
     return {
       ok: false,
       reason: 'rustEncoderRequired',
@@ -47,7 +47,7 @@ export const resolveProjectExportEncodePlan = ({
 
   return {
     ok: true,
-    engine: 'rustBackendVideoEncoder',
+    engine: 'webCodecsMp4Muxer',
   };
 };
 
