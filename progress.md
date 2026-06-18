@@ -1,3 +1,32 @@
+## 2026-06-18 — Phase5: export frame canvas のPixi必須条件を解除
+
+### 実施内容
+- export frame capture の canvas 解決を `resolveProjectExportFrameCanvas` に分離し、明示的な shared renderer export canvas がある場合は Pixi canvas なしで export を開始できる契約にした。
+- `useProjectExport` の入口と各frame captureで同じ resolver を使い、Pixi app 不在時に無言 return せず fail-loud にした。
+- Rust decode bridge の `requestVideoDecodeFrame` 戻り値を `unknown` 境界として扱い、verified decoded frame guard 後だけ shared memory upload pipeline に流す型契約へ揃えた。
+- multi-session upload orchestration の `stopFailed` reason と decode job type guard を補強し、WebGPU presenter の buffer / bind group 型を実装に合わせた。
+- package version を `0.1.1-Beta-56a` に更新した。
+
+### Red
+- `src/utils/projectExportFrameCanvas.test.ts` に、明示 export canvas があれば Pixi canvas を要求しない契約を追加した。
+- Pixi canvas fallback と canvas 不在時 fail-loud の契約も同時に固定した。
+
+### Green
+- `src/utils/projectExportFrameCanvas.ts` を追加し、`explicitExportCanvas` -> `pixiCanvas` の順で frame canvas を解決する。
+- `useProjectExport` は `pixiAppRef.current` そのものではなく resolver の結果を export 続行条件にする。
+- Rust decode response は control plane 境界では `unknown` とし、`isRustBackendDecodedVideoFrameAvailable` で検証済みの frame descriptor だけを upload pipeline が受け入れる。
+
+### 現在の制限
+- export の frame source はまだ canvas capture であり、`renderScene` / Pixi video branch / `HTMLVideoElement` seek fallback は残る。
+- shared renderer / Rust frame source を export hook に渡す計画関数は次段で追加する。
+- full `npx tsc --noEmit` は Three 型定義、preview plan test 型、既存 filter test 型などの残存負債で失敗する。
+
+### 検証
+- `npm test -- src/utils/rustBackendVideoDecodeControl.test.ts src/utils/sharedRendererRustVideoUploadPipeline.test.ts src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/projectExportFrameCanvas.test.ts`
+  -> 6 files / 32 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "rustBackendVideoDecodeControl|sharedRendererRustVideoUploadPipeline|sharedRendererViewportVideoUpload.ts|sharedRendererWebGpuPresenter.ts|projectExportFrameCanvas|useProjectExport"`
+  -> 対象ファイルの型エラーなし。
+
 ## 2026-06-18 — Phase5: Rust decode colour metadata gate を追加
 
 ### 実施内容

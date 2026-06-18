@@ -238,6 +238,13 @@ uploaded texture を `presentVideoFrameScene` へ渡して実際に描画し、c
 presenter 完了前に記録し、cancelled effect 後の `decode.start` 連打を避ける。Electron `contextBridge` 返却bytesは
 再コピーせず、そのまま WebGPU upload buffer として採用する。
 
+50. Phase5: export frame canvas のPixi必須条件を解除する
+export frame capture の canvas 選択を resolver に分離し、shared renderer export canvas が明示されている場合は
+Pixi app / Pixi canvas がなくても export を開始できるようにする。移行中は Pixi canvas fallback を維持し、
+canvas が一切ない場合は fail-loud にする。次段では canvas capture ではなく Rust/shared renderer frame source を
+優先する source plan を追加し、`VideoFrameProvider` / `PlaybackFrameProvider` / `HTMLVideoElement` seek fallback を
+Rust frame source ready 時に通らないようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
