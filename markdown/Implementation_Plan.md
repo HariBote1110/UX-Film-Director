@@ -578,6 +578,12 @@ JS shared-frame writerを呼ばずにRust encoderへ渡す。
 動画decode requestがないsceneでは従来のpresenter/readback fallbackを維持し、native render準備またはRPC失敗は
 `nativeRenderFailed` としてfail-loudに扱う。
 
+109. Phase5: native render output ringのencode後lifecycleを閉じる
+Rust backendは `render.nativeSharedFrame` で生成したoutput ringを `native_render_outputs` に保持するが、
+`encode.writeFrame` がそのdescriptorを読み終えて `EncoderFrameWritten` へreleaseしたら、対応する `memoryId` を
+backend stateから削除する。owner dropによりPOSIX shared memoryをunlinkし、長いexportでframeごとに
+native render output ringが残り続ける状態を防ぐ。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

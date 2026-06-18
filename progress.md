@@ -3616,5 +3616,21 @@
 - 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
 
 ### 残課題・次のステップ
-- native render output ringはbackend stateで保持されるが、明示release/lifecycle RPCはまだない。encoder消費後の解放契約を追加する。
+- native render output ringのencode後解放は次項で追加済み。encodeを通らないpreview/native render output向けには別途明示release契約が必要。
 - native rendererは全clip sourceを要求するため、SolidColour等をRust backend側でsource化し、動画以外を含むsceneでも完全にPixi/WebGPU presenterへ戻らないようにする。
+
+## 2026-06-18 — native render output ringのencode後解放を実装
+
+### 実施内容
+- `encode.writeFrame` が `render.nativeSharedFrame` のoutput descriptorを消費した後、backend stateの `native_render_outputs` から対応 `memoryId` を削除するようにした。
+- owner `PosixSharedRing` のdropによりPOSIX shared memoryがunlinkされ、frameごとのnative render output ringがexport中に残り続けない契約を追加した。
+- `encode_write_frame_unlinks_native_render_output_after_consuming_it` を追加し、encode後に同じ `memoryId` へ再attachできないことを検証した。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml encode_write_frame_unlinks_native_render_output_after_consuming_it`
+- `cargo test --manifest-path rust-backend/Cargo.toml native_render_shared_frame_consumes_source_shm_and_returns_descriptor_only`
+- `cargo test --manifest-path rust-backend/Cargo.toml encode_shared_frame_session_tracks_descriptor_without_legacy_base64_fallback`
+
+### 残課題・次のステップ
+- encodeを通らないpreview/native render output向けには、別途明示release RPCまたはowner lifecycle policyが必要。
+- SolidColour等の非動画sourceをRust backend側で生成し、native rendererが動画以外のclipでもPixi/WebGPU presenterへ戻らないようにする。
