@@ -287,6 +287,62 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
+  it('exposes WebGPU presented frame readback on the ready presenter control', async () => {
+    const bufferBytes = Uint8Array.from([
+      1, 2, 3, 4, 5, 6, 7, 8,
+      ...Array.from({ length: 248 }, () => 0),
+      9, 10, 11, 12, 13, 14, 15, 16,
+      ...Array.from({ length: 248 }, () => 0),
+    ]);
+    const copyOperations: unknown[] = [];
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: {
+        ...okSession,
+        surfaceGate: {
+          ...okSession.surfaceGate,
+          canvas: { width: 2, height: 2 },
+        },
+      },
+      datasets: [{}],
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            readbackBytes: bufferBytes,
+            onCopyTextureToBuffer: (...args) => {
+              copyOperations.push(args);
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+      bufferUsageCopyDst: 8,
+      bufferUsageMapRead: 1,
+    });
+
+    expect(control.ok).toBe(true);
+    if (!control.ok) throw new Error('expected ready control');
+    await expect(control.readPresentedFrameRgbaBytes({
+      width: 2,
+      height: 2,
+    })).resolves.toEqual({
+      rgbaBytes: bufferBytes,
+      strideBytes: 256,
+      byteLen: 512,
+      width: 2,
+      height: 2,
+    });
+    expect(copyOperations).toEqual([
+      [
+        { texture: 'current-texture' },
+        { buffer: 'readback-buffer', bytesPerRow: 256, rowsPerImage: 2 },
+        { width: 2, height: 2, depthOrArrayLayers: 1 },
+      ],
+    ]);
+  });
+
   it('keeps Pixi visible with a transparent shared-renderer pass when diagnostic swatch is disabled', async () => {
     const dataset: Record<string, string | undefined> = {};
     const renderPasses: unknown[] = [];
