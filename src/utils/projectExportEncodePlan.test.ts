@@ -5,13 +5,23 @@ import {
 } from './projectExportEncodePlan';
 
 describe('resolveProjectExportEncodePlan', () => {
-  it('keeps WebCodecs mp4-muxer encoding for the default compatibility export path', () => {
+  it('keeps WebCodecs mp4-muxer encoding only when the Rust encoder is unavailable', () => {
     expect(resolveProjectExportEncodePlan({
       rustExportOnly: false,
       rustEncoderAvailable: false,
     })).toEqual({
       ok: true,
       engine: 'webCodecsMp4Muxer',
+    });
+  });
+
+  it('prefers the Rust backend encoder in normal export mode when the bridge is available', () => {
+    expect(resolveProjectExportEncodePlan({
+      rustExportOnly: false,
+      rustEncoderAvailable: true,
+    })).toEqual({
+      ok: true,
+      engine: 'rustBackendVideoEncoder',
     });
   });
 
@@ -37,6 +47,18 @@ describe('resolveProjectExportEncodePlan', () => {
   });
 
   it('derives Rust encoder availability from the renderer bridge shape', () => {
+    expect(resolveProjectExportEncodePlanFromBridge({
+      rustExportOnly: false,
+      rustVideoEncoderBridge: {
+        startVideoEncode: async () => ({ success: true }),
+        writeVideoEncodeFrame: async () => ({ success: true }),
+        finishVideoEncode: async () => ({ success: true }),
+      },
+    })).toEqual({
+      ok: true,
+      engine: 'rustBackendVideoEncoder',
+    });
+
     expect(resolveProjectExportEncodePlanFromBridge({
       rustExportOnly: true,
       rustVideoEncoderBridge: {
