@@ -299,3 +299,10 @@
 - Green: `updatePixiContent` の動画分岐をshared renderer専有とexport override bitmap反映だけに簡素化した。
 - 検証: `npm test -- viewportRustVideoOnlyBoundary pixiVideoCutover` は19件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-161a`。
+
+## 2026-06-19
+- Phase5のPixi動画cutoverとして、`allowLegacyPixiVideo` opt-in、`pixiVideoElement` path、`clearPixiVideoForSharedRenderer` を削除した。
+- Red: `pixiVideoCutover` を、staleな `allowLegacyPixiVideo` 入力があっても `sharedRendererOnly` を返す契約へ更新した。
+- Green: `ResolvePixiVideoRenderPathInput` と `PixiVideoRenderPath` からlegacy pathを削除し、不要になったHTMLVideoElement/VideoFrameTexture cleanup helperを外した。
+- 検証: `npm test -- pixiVideoCutover viewportRustVideoOnlyBoundary` は18件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-162a`。

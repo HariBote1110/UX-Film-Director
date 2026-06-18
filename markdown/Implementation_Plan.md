@@ -934,10 +934,10 @@ production export hookから旧providerを外したため、`src/utils/videoFram
 `useProjectExport` の引数から `videoElementsRef` を外し、`pauseLegacyBrowserVideosForExport` 呼び出しを削除する。
 export hookはDOM動画要素を受け取らず、Rust frame source / canvas compatibility sourceだけを扱う。
 
-175. Phase5: Pixi video element fallbackを明示legacy opt-inに限定する
-`resolvePixiVideoRenderPath` は `allowLegacyPixiVideo=true` の場合だけ `pixiVideoElement` を返す。
-export overrideもRust必須も無い動画objectは既定で `sharedRendererOnly` となり、Viewport通常経路から
-HTMLVideoElement / Pixi VideoSourceへ戻らない。
+175. Phase5: Pixi video element fallbackを削除する
+`resolvePixiVideoRenderPath` はexport override以外の動画を `sharedRendererOnly` として扱う。
+旧 `allowLegacyPixiVideo` opt-inと `pixiVideoElement` pathは削除し、Viewport通常経路から
+HTMLVideoElement / Pixi VideoSourceへ戻る出口を閉じる。
 
 176. Phase5: video readiness診断をcutover時もRust必須にする
 `Viewport` が `buildSharedRendererVideoMediaReadiness` に渡す `requireSharedRendererVideo` を
@@ -973,6 +973,12 @@ legacy Pixi動画リソースは `updatePixiContent` の任意互換入力とし
 `PIXI.VideoSource`、VideoFrameTexture生成、HTMLVideoElementシーク同期を削除する。
 Pixi側の動画処理はshared renderer専有時にchildrenを空にするか、
 export override bitmapをSpriteへ反映する経路だけに限定する。
+
+182. Phase5: legacy Pixi動画opt-in経路を削除する
+`ResolvePixiVideoRenderPathInput.allowLegacyPixiVideo`、`pixiVideoElement` path、
+`clearPixiVideoForSharedRenderer` を削除する。
+staleなcompat入力が渡されても `resolvePixiVideoRenderPath` は `sharedRendererOnly` を返し、
+Rust/shared renderer cutover後にPixi動画要素へ戻れない契約へ更新する。
 
 ## UI 刷新（2026-04-19）
 
