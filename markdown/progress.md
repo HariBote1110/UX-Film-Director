@@ -251,3 +251,9 @@
 - Green: `ResolvePixiVideoRenderPathInput.allowLegacyPixiVideo` を追加し、既定では最後のfallbackも `sharedRendererOnly` にした。
 - 検証: `npm test -- pixiVideoCutover viewportRustVideoOnlyBoundary sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController` は50件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-155a`。
+
+## 2026-06-19
+- Phase5のViewport boundaryとして、通常UIが `allowLegacyPixiVideo` を渡さない契約を追加した。
+- Red/Green: 既存実装で契約を満たしていたため実装変更なし。`viewportRustVideoOnlyBoundary` に回帰防止テストのみ追加した。
+- 検証: `npm test -- viewportRustVideoOnlyBoundary pixiVideoCutover` は15件成功。
+- 版: 変更なし（`0.1.1-Beta-155a`）。
