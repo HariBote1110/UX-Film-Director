@@ -4164,3 +4164,19 @@
 ### 残課題・次のステップ
 - video+PSD混在exportを実際のfile path付き `TimelineObject` から `buildSharedRendererExportSession` 経由で構築する統合契約を追加する。
 - preview presenter diagnosticsへnative render media count / kinds / source idsを出し、export側の内訳診断と揃える。
+
+## 2026-06-19 — preview native render内訳を診断へ記録
+
+### 実施内容
+- Red: video+PSDが同じnative rendered preview frameに入ったとき、presenter datasetへmedia count / media kinds / source count / source media idsが残る契約を追加した。
+- Green: `SharedRendererPresenterDiagnosticState` にnative render内訳を追加し、native render frame ready時に `Video,Psd` とvideo source idをdatasetへ記録するようにした。
+- preview/exportのどちらでもRust native renderに乗ったmedia構成を同じ粒度で追えるようにした。
+- 版を `0.1.1-Beta-121a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererPreviewPresenterController.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- video+PSD混在exportを実際のfile path付き `TimelineObject` から `buildSharedRendererExportSession` 経由で構築する統合契約を追加する。
+- 実機のGoPro動画 + PSD overlayで、preview/export双方のdatasetが `Video,Psd` / `video-1` 相当を示すか確認する。

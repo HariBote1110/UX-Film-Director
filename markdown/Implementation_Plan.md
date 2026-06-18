@@ -748,6 +748,11 @@ previewのnative render uploadも、video sourceが準備できている場合�
 backendへ渡す前に `nativeRenderUnsupportedMedia` で止める。exportとpreviewは同じmedia gate helperを使い、
 Rust native renderへ渡せるscene envelopeの判断を揃える。
 
+138. Phase5: preview native render内訳診断をexportと揃える
+native render preview frameがreadyになった場合、presenter datasetへnative render media count / media kinds /
+source count / source media idsを残す。video+PSD混在previewで `Video,Psd` とvideo source idを確認できるようにし、
+export frame diagnosticsと同じ粒度でRust native renderへのownership cutoverを追跡する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
