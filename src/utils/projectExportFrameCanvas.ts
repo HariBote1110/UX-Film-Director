@@ -28,7 +28,7 @@ export interface ProjectExportRustEncodeFrameRequest extends ProjectExportRustFr
 }
 
 export interface ProjectExportRustFrameSource {
-  renderFrame: (request: ProjectExportRustFrameRequest) => Promise<ImageBitmap>;
+  renderFrame?: (request: ProjectExportRustFrameRequest) => Promise<ImageBitmap>;
   renderEncodeFrame?: (request: ProjectExportRustEncodeFrameRequest) => Promise<RustBackendVideoEncodeFrame>;
   close?: () => Promise<void> | void;
 }

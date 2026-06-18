@@ -29,6 +29,9 @@ export const renderProjectExportRustEncodeFrame = async ({
     return frameSource.renderEncodeFrame(encodeRequest);
   }
 
+  if (!frameSource.renderFrame) {
+    throw new Error('ImageBitmap export rendering requires a bitmap-capable frame source.');
+  }
   const bitmap = await frameSource.renderFrame(request);
   return {
     timestamp: request.timestampUs,

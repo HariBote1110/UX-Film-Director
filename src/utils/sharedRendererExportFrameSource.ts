@@ -67,6 +67,11 @@ export interface CreateSharedRendererExportFrameSourceInput {
   createEncodeFrameWriter?: SharedRendererExportEncodeFrameWriterFactory;
 }
 
+export type SharedRendererExportProjectFrameSource = ProjectExportRustFrameSource & Required<Pick<
+  ProjectExportRustFrameSource,
+  'renderFrame' | 'renderEncodeFrame'
+>>;
+
 export class SharedRendererExportFrameSourceBlockedError extends Error {
   readonly fallbackToLegacyCanvas = true;
 
@@ -106,7 +111,7 @@ export const createSharedRendererExportFrameSource = ({
   createFrameBitmap = defaultCreateFrameBitmap,
   stopVideoDecodeJob = defaultStopVideoDecodeJob,
   createEncodeFrameWriter = createRustBackendVideoEncodeSharedFrameWriter,
-}: CreateSharedRendererExportFrameSourceInput): ProjectExportRustFrameSource => {
+}: CreateSharedRendererExportFrameSourceInput): SharedRendererExportProjectFrameSource => {
   let activeVideoDecodeJobs: SharedRendererViewportVideoDecodeJob[] = [];
   let activeEncodeFrameWriter: RustBackendVideoEncodeSharedFrameWriter | null = null;
   let activeEncodeSessionId: string | null = null;
