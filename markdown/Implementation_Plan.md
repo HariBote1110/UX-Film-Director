@@ -875,6 +875,11 @@ WebGPU readbackはexport sourceのテスト語彙としても復活させない�
 `webGpuReadbackUnavailable` から `presentedSharedFrameHandoffUnavailable` へ変更する。
 export診断上も「readbackが必要」ではなく「native handoffが必要」と表現し、削除済みreadback経路を失敗理由名として残さない。
 
+163. Phase5: JS shared-frame writer moduleを削除する
+WebGPU readback bytesをJS側でshared memory ringへ詰め替えていた
+`rustBackendVideoEncodeSharedFrameWriter` moduleと専用テストを削除する。
+export encodeのshared-frame生成はRust native render outputまたはnative presented-frame handoffだけに限定し、JS writer実装を再接続できない状態にする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
