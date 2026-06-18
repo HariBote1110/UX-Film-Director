@@ -806,6 +806,11 @@ remote画像や未対応media-only sceneで WebGPU readback + JS shared-frame wr
 Rust/shared renderer frame sourceが無い、またはblockedになった場合は legacy Pixi canvas / VideoDecoder /
 HTMLVideoElement seek / `createImageBitmap(canvas)` へ戻さずfail-loudにし、動画exportの正本をRust/shared renderer側へ寄せる。
 
+149. Phase5: export用途のPixi passthroughを拒否する
+shared renderer export frame source が preview presenter を使う場合は `requireSharedRendererOutput` を立て、
+SolidColour / native render / Rust decoded video frame の実出力がない `pixi-passthrough` を `sharedRendererOutputUnavailable`
+としてblockする。これによりRust frame source readyに見えながら実ピクセルはPixi canvas側、というexport診断と実体のずれを防ぐ。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
