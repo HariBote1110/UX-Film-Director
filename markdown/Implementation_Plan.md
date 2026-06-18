@@ -671,6 +671,12 @@ Rust scene snapshot上の正式なmedia referenceとして表現できるよう�
 この段階ではPSD native source生成はまだ有効化せず、`sharedRendererNativeMediaSupport` はPsdをunsupportedのまま扱う。
 これによりvideo cutover安全判定を崩さず、次段のRust backend PSD layer composite source生成へ進める入口を作る。
 
+124. Phase5: PSD visible layerをRust backend内でRGBA合成する
+`psd_fast` の `PsdFastResult` から、visibleなleaf layerだけをPSD視覚順のbottom-to-topで透明キャンバスへ
+source-over合成し、1枚の `RgbaFrame` を作る純粋関数を追加する。
+この段階ではPSDファイル読み込みやnative render payload接続はまだ行わず、layer順序・非表示layer除外・group除外・alpha合成を
+Rust単体テストで固定する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

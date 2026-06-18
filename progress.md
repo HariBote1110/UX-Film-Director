@@ -3943,3 +3943,18 @@
 ### 残課題・次のステップ
 - PSD native source生成はまだ未実装のため、`sharedRendererNativeMediaSupport` はPsdをunsupportedとして扱う。
 - 次はPSD `activeLayerIds` / `rootLayer` 相当をRust backendへ渡すschemaを決め、`psd_fast` から1枚のRGBA source frameを生成する。
+
+## 2026-06-18 — PSD visible layerをRust backend内でRGBA合成
+
+### 実施内容
+- `psd_fast` に `composite_visible_psd_layers` を追加し、visibleなleaf layerをbottom-to-topで透明キャンバスへsource-over合成できるようにした。
+- group layer / invisible layer / rgbaなしlayerを合成対象から外す契約を追加した。
+- 半透明front layerが背面layerへ合成されるpixel結果をRust単体テストで固定した。
+- 版を `0.1.1-Beta-110a` に更新した。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml psd_fast::tests::composite_visible_psd_layers_draws_leaf_layers_from_bottom_to_top`
+
+### 残課題・次のステップ
+- `composite_visible_psd_layers` はまだ `render.nativeSharedFrame` から使っていないため、次に `MediaKind::Psd` のsource生成へ接続する。
+- activeLayerIds / rootLayer対応は未接続のため、最初はPSDファイル内のvisible状態に基づく合成として扱う。
