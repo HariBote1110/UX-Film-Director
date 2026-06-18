@@ -825,6 +825,11 @@ renderer JSでshared memoryへ詰め替える経路をexport encodeの正規経�
 動画オブジェクトを含むexportでは、`rustVideoOnly` の有無に関係なく Rust backend video encoder bridgeを必須にする。
 bridge未接続時は WebCodecs/mp4-muxer へ戻らず `rustEncoderRequired` で停止し、動画exportの最終encodeもRust側へ寄せる。
 
+153. Phase5: presented shared-frame handoffのreadback writer fallbackを削除する
+shared renderer WebGPU presenter の `takePresentedFrameSharedFrame` は、native `presentedFrameSharedFrameTaker` が
+shared-frame payloadを返した場合だけ成功する。native handoff未接続または失敗時は WebGPU readback +
+JS shared-frame writerへ戻らず、明示エラーで停止する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
