@@ -91,6 +91,7 @@ export const useProjectExport = (
         })) ?? null,
         rustFrameSourcePolicy: frameSourcePolicy.rustFrameSourcePolicy,
         rustFrameSourceBlockedFallback: frameSourcePolicy.rustFrameSourceBlockedFallback,
+        hasVideoObjects,
         getExportCanvas,
         pixiCanvas: pixiAppRef.current?.canvas as HTMLCanvasElement | null | undefined,
       });

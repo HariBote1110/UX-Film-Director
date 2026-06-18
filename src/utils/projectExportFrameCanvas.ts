@@ -106,6 +106,7 @@ export interface BuildProjectExportFrameSourcePlanInput extends ResolveProjectEx
   rustFrameSource?: ProjectExportRustFrameSource | null;
   rustFrameSourcePolicy?: ProjectExportRustFrameSourcePolicy;
   rustFrameSourceBlockedFallback?: ProjectExportRustFrameSourceBlockedFallback;
+  hasVideoObjects?: boolean;
 }
 
 export interface ResolveProjectExportFrameRuntimePlanInput {
@@ -166,6 +167,7 @@ export const buildProjectExportFrameSourcePlan = ({
   rustFrameSource = null,
   rustFrameSourcePolicy = 'allowLegacyCanvas',
   rustFrameSourceBlockedFallback = 'legacyCanvas',
+  hasVideoObjects = false,
   getExportCanvas,
   pixiCanvas = null,
 }: BuildProjectExportFrameSourcePlanInput): ProjectExportFrameSourcePlanResult => {
@@ -188,6 +190,14 @@ export const buildProjectExportFrameSourcePlan = ({
       ok: false,
       reason: 'rustFrameSourceRequired',
       detail: 'Rust-only export requires a shared renderer Rust frame source.',
+    };
+  }
+
+  if (hasVideoObjects) {
+    return {
+      ok: false,
+      reason: 'rustFrameSourceRequired',
+      detail: 'Video export requires a shared renderer Rust frame source.',
     };
   }
 
