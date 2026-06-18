@@ -1,3 +1,21 @@
+## 2026-06-18 — Phase5: Rust direct encode で WebGPU readback を必須化
+
+### 実施内容
+- `src/utils/projectExportRustEncodeFrame.test.ts` に、Rust direct encodeで `renderEncodeFrame` が無い場合はImageBitmap fallbackせず失敗する契約を追加した。
+- `src/utils/sharedRendererExportFrameSource.test.ts` に、presenter readbackが無い場合は `webGpuReadbackUnavailable` でblockedになり、`createImageBitmap` / RGBA extraction / tight writeを呼ばない契約を追加した。
+- `renderProjectExportRustEncodeFrame` は `preferSharedFrame=true` の時にshared-frame export sourceを必須にした。
+- `SharedRendererExportFrameSource.renderEncodeFrame` は `readPresentedFrameRgbaBytes` が無い場合にfail-loudし、direct encodeからImageBitmap fallbackを削除した。
+- package version を `0.1.1-Beta-70a` に更新した。
+
+### 検証
+- `npm test -- src/utils/projectExportRustEncodeFrame.test.ts src/utils/sharedRendererExportFrameSource.test.ts`
+- `npm test -- src/utils/projectExportRustEncodeFrame.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/rustBackendVideoEncodeExport.test.ts src/utils/projectExportFrameCanvas.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "projectExportRustEncodeFrame|sharedRendererExportFrameSource|rustBackendVideoEncodeExport|projectExportFrameCanvas"`（対象ファイルの型エラーなし）
+
+### 残課題・次のステップ
+- 実機ElectronでWebGPU readbackが使えない環境のfail-loud表示を確認する。
+- WebGPU readback bytesはまだCPU mapped buffer経由。GPU bufferからnative/shared memoryへ近道する最適化は次段以降。
+
 ## 2026-06-18 — Phase5: Rust encoder時の legacy frame source fallback を禁止
 
 ### 実施内容

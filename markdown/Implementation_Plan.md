@@ -421,6 +421,13 @@ Rust frame source が無い、またはrender中にblockedになった場合はP
 退避せずfail-loudにする。WebCodecs互換encoderが選ばれた未接続環境だけ、従来のlegacy canvas fallbackを許可する。
 これにより、Rust encoder経路が「Pixiで描いてRustで包む」状態へ戻らないようにする。
 
+81. Phase5: Rust direct encode で WebGPU readback を必須化する
+Rust backend encoderへ渡すdirect shared-frame payloadは `renderEncodeFrame` と
+`readPresentedFrameRgbaBytes` を必須にする。direct encode中に presenter readback が使えない場合は
+`webGpuReadbackUnavailable` としてblockedにし、`createImageBitmap` / canvas 2D RGBA extraction /
+tight RGBA write fallbackへ戻らない。ImageBitmap経路はWebCodecs互換encoder、または通常 `renderFrame`
+用途に限定する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
