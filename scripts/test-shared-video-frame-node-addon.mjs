@@ -18,6 +18,9 @@ assert.ok(
 const addon = require(addonPath)
 
 assert.equal(typeof addon.copyIntoUploadBuffer, 'function')
+assert.equal(typeof addon.createWritableSharedFrameRing, 'function')
+assert.equal(typeof addon.writeIntoSharedFrameRing, 'function')
+assert.equal(typeof addon.closeWritableSharedFrameRing, 'function')
 assert.equal(typeof addon.debugFillForTest, 'function')
 
 const uploadBuffer = new Uint8Array(8)
@@ -39,5 +42,43 @@ const mismatch = addon.copyIntoUploadBuffer({
 
 assert.equal(mismatch.success, false)
 assert.match(String(mismatch.error), /length|UploadBufferLengthMismatch/i)
+
+const memoryId = `/un${process.pid.toString(16)}${Date.now().toString(16).slice(-8)}`
+const slotCount = 2
+const slotByteLen = 16
+const createRing = addon.createWritableSharedFrameRing({
+  memoryId,
+  slotCount,
+  slotByteLen,
+})
+assert.equal(createRing.success, true, String(createRing.error))
+assert.deepEqual(createRing.result, {
+  memoryId,
+  slotCount,
+  slotByteLen,
+})
+
+const sourceFrame = new Uint8Array(slotByteLen)
+sourceFrame.set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+const writeFrame = addon.writeIntoSharedFrameRing({
+  memoryId,
+  ptsFrame: 7,
+}, sourceFrame)
+assert.equal(writeFrame.success, true, String(writeFrame.error))
+assert.equal(writeFrame.result.sequence, 7)
+assert.equal(writeFrame.result.byteLen, slotByteLen)
+
+const copiedFrame = new Uint8Array(slotByteLen)
+const copyFrame = addon.copyIntoUploadBuffer({
+  memoryId,
+  slotCount,
+  slotByteLen,
+  ptsFrame: 7,
+}, copiedFrame)
+assert.equal(copyFrame.success, true, String(copyFrame.error))
+assert.deepEqual([...copiedFrame], [...sourceFrame])
+
+const closeRing = addon.closeWritableSharedFrameRing({ memoryId })
+assert.equal(closeRing.success, true, String(closeRing.error))
 
 console.log('shared video frame native addon contract passed')
