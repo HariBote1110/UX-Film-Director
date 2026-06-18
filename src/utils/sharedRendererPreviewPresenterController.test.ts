@@ -301,8 +301,10 @@ describe('startSharedRendererPreviewPresenter', () => {
       session: {
         ...okSession,
         surfaceGate: {
-          ...okSession.surfaceGate,
+          ok: true,
           canvas: { width: 2, height: 2 },
+          snapshot,
+          media: [],
         },
       },
       datasets: [{}],
@@ -968,6 +970,7 @@ const fakeCanvas = (getContext: () => unknown) =>
 const fakeContext = () => ({
   configure: () => undefined,
   getCurrentTexture: () => ({
+    toString: () => 'current-texture',
     createView: () => 'current-texture-view',
   }),
 });
@@ -1006,9 +1009,11 @@ const fakeDevice = ({
   onRenderPassOperation = () => undefined,
   onWriteBuffer = () => undefined,
   onWriteTexture = () => undefined,
+  onCopyTextureToBuffer = () => undefined,
   onSubmittedWorkDone = async () => undefined,
   onSubmit = () => undefined,
   exposeWriteTexture = true,
+  readbackBytes = new Uint8Array(),
   lost = new Promise(() => undefined),
 }: {
   onRenderPass?: (descriptor: unknown) => void;
@@ -1020,9 +1025,15 @@ const fakeDevice = ({
     dataLayout: unknown,
     size: unknown
   ) => void;
+  onCopyTextureToBuffer?: (
+    source: unknown,
+    destination: unknown,
+    size: unknown
+  ) => void;
   onSubmittedWorkDone?: () => Promise<void>;
   onSubmit?: (commandBuffers: unknown[]) => void;
   exposeWriteTexture?: boolean;
+  readbackBytes?: Uint8Array;
   lost?: Promise<unknown>;
 } = {}) => ({
   lost,
@@ -1042,8 +1053,38 @@ const fakeDevice = ({
   }),
   createSampler: () => 'video-frame-sampler',
   createBindGroup: () => 'video-frame-bind-group',
-  createBuffer: () => 'solid-colour-vertex-buffer',
+  createBuffer: (descriptor?: { label?: string }) => {
+    if (descriptor?.label === 'shared-renderer-presented-frame-readback') {
+      return {
+        toString: () => 'readback-buffer',
+        mapAsync: async () => undefined,
+        getMappedRange: () => readbackBytes.buffer.slice(
+          readbackBytes.byteOffset,
+          readbackBytes.byteOffset + readbackBytes.byteLength
+        ),
+        unmap: () => undefined,
+        destroy: () => undefined,
+      };
+    }
+    return 'solid-colour-vertex-buffer';
+  },
   createCommandEncoder: () => ({
+    copyTextureToBuffer: (source: unknown, destination: unknown, size: unknown) => {
+      const normalisedSource = typeof source === 'object'
+        && source !== null
+        && 'texture' in source
+        ? { texture: String(source.texture) }
+        : source;
+      const normalisedDestination = typeof destination === 'object'
+        && destination !== null
+        && 'buffer' in destination
+        ? {
+          ...destination,
+          buffer: String(destination.buffer),
+        }
+        : destination;
+      onCopyTextureToBuffer(normalisedSource, normalisedDestination, size);
+    },
     beginRenderPass: (descriptor: unknown) => {
       onRenderPass(descriptor);
       return {

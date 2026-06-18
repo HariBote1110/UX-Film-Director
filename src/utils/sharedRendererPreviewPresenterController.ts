@@ -10,6 +10,8 @@ import {
 } from './sharedRendererVideoDecodeRequest';
 import {
   createSharedRendererWebGpuPresenter,
+  type SharedRendererPresentedFrameReadbackInput,
+  type SharedRendererPresentedFrameReadbackResult,
   type SharedRendererSolidSrgbSwatch,
   type SharedRendererVideoFrameTextureUploadInput,
   type SharedRendererWebGpuLike,
@@ -54,6 +56,7 @@ export type SharedRendererPreviewPresenterControl =
       format: string;
       solidColourOwnership: SharedRendererSolidColourOwnership;
       videoOwnership: SharedRendererVideoOwnership;
+      readPresentedFrameRgbaBytes: (input: SharedRendererPresentedFrameReadbackInput) => Promise<SharedRendererPresentedFrameReadbackResult>;
       dispose: () => void;
     }
   | {
@@ -70,6 +73,7 @@ export interface StartSharedRendererPreviewPresenterInput {
   textureUsageRenderAttachment?: number;
   bufferUsageVertex?: number;
   bufferUsageCopyDst?: number;
+  bufferUsageMapRead?: number;
   diagnosticSwatchEnabled?: boolean;
   rustSolidColourWasmEnabled?: boolean;
   rustSolidColourVertexSceneBuilder?: SharedRendererSolidColourVertexSceneBuilder;
@@ -102,6 +106,7 @@ export const startSharedRendererPreviewPresenter = async ({
   textureUsageRenderAttachment,
   bufferUsageVertex,
   bufferUsageCopyDst,
+  bufferUsageMapRead,
   diagnosticSwatchEnabled = true,
   rustSolidColourWasmEnabled = defaultRustSolidColourWasmEnabled(),
   rustSolidColourVertexSceneBuilder,
@@ -209,6 +214,7 @@ export const startSharedRendererPreviewPresenter = async ({
     textureUsageRenderAttachment,
     bufferUsageVertex,
     bufferUsageCopyDst,
+    bufferUsageMapRead,
     solidColourVertexSceneBuilder: resolvedRustSolidColourVertexSceneBuilder ?? undefined,
     onDeviceLost: (event) => {
       writeDiagnostics({
@@ -373,6 +379,7 @@ export const startSharedRendererPreviewPresenter = async ({
     format: presenter.format,
     solidColourOwnership,
     videoOwnership,
+    readPresentedFrameRgbaBytes: presenter.readPresentedFrameRgbaBytes,
     dispose: presenter.dispose,
   };
 };
