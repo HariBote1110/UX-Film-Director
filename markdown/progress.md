@@ -306,3 +306,10 @@
 - Green: `ResolvePixiVideoRenderPathInput` と `PixiVideoRenderPath` からlegacy pathを削除し、不要になったHTMLVideoElement/VideoFrameTexture cleanup helperを外した。
 - 検証: `npm test -- pixiVideoCutover viewportRustVideoOnlyBoundary` は18件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-162a`。
+
+## 2026-06-19
+- Phase5のhelper整理として、export overlay cleanupをPixi動画helperから独立させ、`videoElementForPixi.ts` を削除した。
+- Red: `exportOverlayCanvases.test` を追加し、Viewportが `videoElementForPixi` をimportしない境界を追加した。旧 `videoElementForPixi.test` は削除した。
+- Green: `destroyExportOverlayCanvases` を `exportOverlayCanvases.ts` へ移し、Viewport importを更新した。
+- 検証: `npm test -- exportOverlayCanvases viewportRustVideoOnlyBoundary pixiVideoCutover` は19件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-163a`。

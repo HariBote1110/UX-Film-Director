@@ -980,6 +980,12 @@ export override bitmapをSpriteへ反映する経路だけに限定する。
 staleなcompat入力が渡されても `resolvePixiVideoRenderPath` は `sharedRendererOnly` を返し、
 Rust/shared renderer cutover後にPixi動画要素へ戻れない契約へ更新する。
 
+183. Phase5: export overlay cleanupをPixi動画helperから独立させる
+`destroyExportOverlayCanvases` を `videoElementForPixi` から `exportOverlayCanvases` utilityへ移し、
+旧 `videoElementForPixi.ts` とそのテストを削除する。
+export override bitmap cleanupは残しつつ、通常動画パイプラインからPixi動画helper命名と
+HTMLVideoElement cleanupの足場を取り除く。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
