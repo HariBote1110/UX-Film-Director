@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ProjectSettings, TimelineObject } from '../types';
+import type { ProjectSettings, ShapeObject, TimelineObject } from '../types';
 import { createDefaultLayers } from './sceneState';
 import type {
   SharedRendererExportSession,
@@ -24,6 +24,30 @@ const frameSource: ProjectExportRustFrameSource = {
 };
 
 const exportObjects: TimelineObject[] = [];
+
+const rectangle = (patch: Partial<ShapeObject> = {}): ShapeObject => ({
+  id: 'shape-1',
+  type: 'shape',
+  name: 'Rectangle',
+  layer: 1,
+  startTime: 0,
+  duration: 5,
+  x: 32,
+  y: 48,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 32,
+  endY: 48,
+  easing: 'linear',
+  shapeType: 'rect',
+  width: 640,
+  height: 360,
+  fill: '#3355ff',
+  ...patch,
+});
 
 const exportSessionWithSurfaceGate = (
   surfaceGate: SharedRendererExportSession['surfaceGate']
@@ -237,6 +261,52 @@ describe('resolveViewportRustExportFrameSource', () => {
       ok: true,
       source: frameSource,
     });
+  });
+
+  it('preflights object start times before creating a Rust export frame source', () => {
+    const sessionCalls: SharedRendererExportSessionInput[] = [];
+    const sourceCalls: unknown[] = [];
+    const timedObjects = [
+      rectangle({ id: 'later-shape', startTime: 2, duration: 3 }),
+      rectangle({ id: 'duplicate-start-shape', startTime: 2, duration: 1 }),
+      rectangle({ id: 'final-shape', startTime: 4, duration: 1 }),
+    ];
+
+    const decision = resolveViewportRustExportFrameSource({
+      ...baseInput,
+      objects: timedObjects,
+      time: 0,
+      buildExportSession: (input) => {
+        sessionCalls.push(input);
+        return exportSessionWithSurfaceGate(input.time === 2
+          ? {
+            ok: false,
+            reason: 'planNotComparable',
+            detail: 'Shared renderer surface requires a parallelCompare plan.',
+          }
+          : {
+            ok: true,
+            canvas: {
+              width: 1920,
+              height: 1080,
+            },
+            snapshot: {} as never,
+            media: [],
+          });
+      },
+      createFrameSource: (input) => {
+        sourceCalls.push(input);
+        return frameSource;
+      },
+    });
+
+    expect(decision).toEqual({
+      ok: false,
+      reason: 'exportSessionBlocked',
+      detail: 'Shared renderer surface requires a parallelCompare plan.',
+    });
+    expect(sessionCalls.map((input) => input.time)).toEqual([0, 2]);
+    expect(sourceCalls).toEqual([]);
   });
 
   it('returns explicit fallback reasons for closed Rust export gates', () => {
