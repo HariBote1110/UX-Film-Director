@@ -35,4 +35,15 @@ describe('Viewport Rust video-only boundary', () => {
 
     expect(exportSourceBlock).toContain('presentedFrameSharedFrameTaker: context.presentedFrameSharedFrameTaker');
   });
+
+  it('enables shared renderer video cutover by default and only disables it explicitly', () => {
+    const code = viewportSource();
+
+    expect(code).toContain(
+      "const sharedRendererVideoCutoverEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER !== '0';"
+    );
+    expect(code).not.toContain(
+      "const sharedRendererVideoCutoverEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER === '1';"
+    );
+  });
 });
