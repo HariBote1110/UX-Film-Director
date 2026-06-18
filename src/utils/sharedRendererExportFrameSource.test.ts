@@ -836,6 +836,69 @@ describe('createSharedRendererExportFrameSource', () => {
     });
   });
 
+  it('blocks encode-only frames instead of falling back to JS readback when native render is required but unavailable', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    const calls: unknown[] = [];
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: {
+        ...settings,
+        width: 4,
+        height: 4,
+      },
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      bitmapCaptureEnabled: false,
+      nativeRenderRequired: true,
+      prepareNativeRenderSources: async () => {
+        calls.push(['prepareNativeRenderSources']);
+        throw new Error('native render source preparation must not run when the renderer bridge is unavailable.');
+      },
+      startViewportPresenter: async () => {
+        calls.push(['startViewportPresenter']);
+        throw new Error('presenter readback must not run when native render is required.');
+      },
+      createEncodeFrameWriter: async () => {
+        calls.push(['createEncodeFrameWriter']);
+        throw new Error('JS shared-frame writer must not run when native render is required.');
+      },
+    } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
+      bitmapCaptureEnabled: false;
+      nativeRenderRequired: true;
+      prepareNativeRenderSources: unknown;
+    });
+
+    const blocked = await source.renderEncodeFrame?.({
+      frameIndex: 5,
+      timestampUs: 83_333,
+      time: 5 / 60,
+      width: 4,
+      height: 4,
+      objects: [image()],
+      encodeSessionId: 'native-required-session',
+    }).catch((error) => error);
+
+    expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
+    expect(blocked).toMatchObject({
+      reason: 'nativeRenderUnavailable',
+      frameIndex: 5,
+      fallbackToLegacyCanvas: true,
+    });
+    expect(calls).toEqual([]);
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'blocked',
+      uxfdRustExportFrameSourceFrameIndex: '5',
+      uxfdRustExportFrameSourceFrameReason: 'nativeRenderUnavailable',
+    });
+  });
+
   it('uses Rust backend native render shared frames before WebGPU presenter readback for encode frames', async () => {
     const canvas = {
       width: 1,

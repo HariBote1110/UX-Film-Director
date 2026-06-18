@@ -144,6 +144,7 @@ describe('buildViewportRustExportFrameSource', () => {
       fallbackAdapter: false,
       videoCutoverEnabled: true,
       bitmapCaptureEnabled: false,
+      nativeRenderRequired: true,
     }]);
   });
 
