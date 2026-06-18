@@ -4012,3 +4012,23 @@
 ### 残課題・次のステップ
 - PSD-only exportがRust native render direct encodeへ進む契約は未追加。
 - UI側 `activeLayerIds` / `rootLayer` をRust backendのPSD合成へ渡すschemaは未実装。
+
+## 2026-06-18 — PSD active layer idsをRust境界へ追加
+
+### 実施内容
+- `RustSceneMediaReference` に `active_layer_ids` を追加した。
+- `PsdObject.activeLayerIds` のtrueキーをsortし、Rust native render payloadでdeterministicに渡せるようにした。
+- `validateRustSceneSnapshotBoundary` が `active_layer_ids` を文字列配列として受け入れるようにした。
+- rust-core `SceneMediaReference` に `active_layer_ids` を追加し、serde boundaryでPSD layer選択状態を保持できるようにした。
+- 版を `0.1.1-Beta-114a` に更新した。
+
+### 検証
+- `npm test -- src/utils/rustSceneSnapshot.test.ts src/utils/rustSceneSnapshotBoundary.test.ts`
+- `npm test -- src/utils/rustSceneSnapshot.test.ts src/utils/rustSceneSnapshotBoundary.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts`
+- `cargo test --manifest-path rust-core/Cargo.toml --test media_schema`
+- `cargo test --manifest-path rust-core/Cargo.toml`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- Rust backendのPSD合成はまだ `active_layer_ids` を使っておらず、ファイル内visible状態に基づく。
+- 次は `psd_fast` compositeでactive layer id filterを受け取り、UIのレイヤー選択をnative preview/exportへ反映する。

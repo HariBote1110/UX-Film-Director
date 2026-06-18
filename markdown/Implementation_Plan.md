@@ -694,6 +694,12 @@ TS側のnative media support判定で、ローカルpath / `file://` / `file://l
 これによりPSD-only previewは `nativeRenderUnsupportedMediaOnly` でPixi fallbackせず `render.nativeSharedFrame` へ進み、
 動画の前面にあるローカルPSDもvideo cutover stack safetyを止めない。remote / blob / data sourceのPSDは引き続きunsupportedとして扱う。
 
+128. Phase5: PSD active layer idsをRust境界へ追加する
+`PsdObject.activeLayerIds` のtrueキーをdeterministicにsortし、`RustSceneMediaReference.active_layer_ids` として
+TS/Rust boundaryへ渡す。rust-coreの `SceneMediaReference` も同fieldを受け取り、PSDのUIレイヤー選択状態を
+native render payload内で失わないようにする。この段階ではbackend合成への反映はまだ行わず、次段で
+`psd_fast` composite対象layerのfilterへ接続する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
