@@ -9,6 +9,9 @@ use std::io::{self, BufRead, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use uxfd_golden_harness::RgbaFrame;
+use uxfd_native_wgpu_renderer::{render_native_wgpu_frame_to_shared_ring, NativeWgpuRenderError};
+use uxfd_rust_core::SceneSnapshot;
 #[cfg(unix)]
 use uxfd_shared_memory_spike::PosixSharedRing;
 use uxfd_sidecar_protocol::{
@@ -87,6 +90,8 @@ struct BackendState {
     export_session: Option<ExportSession>,
     decode_sessions: HashMap<String, DecodeSession>,
     encode_sessions: HashMap<String, EncodeSession>,
+    #[cfg(unix)]
+    native_render_outputs: HashMap<String, PosixSharedRing>,
     /// Background blob writer: set by psd.parse, drained by psd.await_blob.
     psd_blob_result: Option<BlobWriteResult>,
 }
@@ -204,6 +209,27 @@ struct EncodeFinishParams {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct NativeRenderSharedFrameParams {
+    render_id: String,
+    memory_id: String,
+    slot_count: u32,
+    pts_frame: u64,
+    width: u32,
+    height: u32,
+    snapshot: SceneSnapshot,
+    sources: Vec<NativeRenderSharedFrameSource>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeRenderSharedFrameSource {
+    media_id: String,
+    slot_count: u32,
+    frame: SharedFrame,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct MediaProbeParams {
     file_path: String,
     #[serde(default)]
@@ -248,6 +274,9 @@ fn handle_request(request: RpcRequest, state: &mut BackendState) -> RpcResponse 
         "encode.start" => handle_encode_start(request.id, request.params, state),
         "encode.writeFrame" => handle_encode_write_frame(request.id, request.params, state),
         "encode.finish" => handle_encode_finish(request.id, request.params, state),
+        "render.nativeSharedFrame" => {
+            handle_native_render_shared_frame(request.id, request.params, state)
+        }
         "export.start" => handle_export_start(request.id, request.params, state),
         "export.write_frame" => handle_export_write_frame(request.id, request.params, state),
         "export.end" => handle_export_end(request.id, state),
@@ -443,6 +472,183 @@ fn handle_encode_finish(id: u64, params: Value, state: &mut BackendState) -> Rpc
         })),
         error: None,
     }
+}
+
+#[cfg(unix)]
+fn handle_native_render_shared_frame(
+    id: u64,
+    params: Value,
+    state: &mut BackendState,
+) -> RpcResponse {
+    let parsed = match serde_json::from_value::<NativeRenderSharedFrameParams>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32602,
+                &format!("Invalid render.nativeSharedFrame params: {error}"),
+            );
+        }
+    };
+
+    if parsed.slot_count == 0 {
+        return response_error(id, -32602, "slotCount must be greater than zero");
+    }
+    if parsed.sources.is_empty() {
+        return response_error(id, -32602, "sources must include at least one shared frame");
+    }
+
+    let mut sources = HashMap::with_capacity(parsed.sources.len());
+    for source in &parsed.sources {
+        let frame = match read_native_render_source_frame(source) {
+            Ok(value) => value,
+            Err(message) => return response_error(id, -32072, &message),
+        };
+        sources.insert(source.media_id.clone(), frame);
+    }
+
+    let render = match pollster::block_on(render_native_wgpu_frame_to_shared_ring(
+        &parsed.snapshot,
+        &sources,
+        parsed.width,
+        parsed.height,
+        &parsed.memory_id,
+        parsed.slot_count,
+        parsed.pts_frame,
+    )) {
+        Ok(value) => value,
+        Err(NativeWgpuRenderError::AdapterUnavailable) => {
+            return response_error(id, -32070, "Native WebGPU adapter is unavailable");
+        }
+        Err(error) => {
+            return response_error(
+                id,
+                -32071,
+                &format!("Native WebGPU render failed: {error:?}"),
+            );
+        }
+    };
+
+    let frame = render.shared_frame.clone();
+    let slot_count = render.slot_count;
+    let slot_byte_len = render.slot_byte_len;
+    state
+        .native_render_outputs
+        .insert(parsed.memory_id.clone(), render.ring);
+
+    RpcResponse {
+        id,
+        ok: true,
+        result: Some(json!({
+            "rendered": true,
+            "renderId": parsed.render_id,
+            "memoryId": parsed.memory_id,
+            "slotCount": slot_count,
+            "slotByteLen": slot_byte_len,
+            "frame": frame,
+        })),
+        error: None,
+    }
+}
+
+#[cfg(not(unix))]
+fn handle_native_render_shared_frame(
+    id: u64,
+    _params: Value,
+    _state: &mut BackendState,
+) -> RpcResponse {
+    response_error(
+        id,
+        -32070,
+        "render.nativeSharedFrame requires POSIX shared memory support",
+    )
+}
+
+#[cfg(unix)]
+fn read_native_render_source_frame(
+    source: &NativeRenderSharedFrameSource,
+) -> Result<RgbaFrame, String> {
+    if source.slot_count == 0 {
+        return Err("source slotCount must be greater than zero".to_string());
+    }
+    let descriptor = &source.frame.descriptor;
+    validate_renderer_handoff_descriptor(descriptor)
+        .map_err(|error| format!("Unsupported native render source descriptor: {error:?}"))?;
+    if descriptor.slot_index >= source.slot_count {
+        return Err("Native render source descriptor slotIndex is outside slotCount".to_string());
+    }
+    let expected_byte_len = u64::from(descriptor.stride_bytes)
+        .checked_mul(u64::from(descriptor.height))
+        .ok_or_else(|| "Native render source descriptor byte length overflows".to_string())?;
+    if descriptor.byte_len != expected_byte_len {
+        return Err(
+            "Native render source descriptor byteLen does not match strideBytes * height"
+                .to_string(),
+        );
+    }
+
+    let frame_len = usize::try_from(descriptor.byte_len).map_err(|_| {
+        format!(
+            "Native render source byteLen overflows usize: {}",
+            descriptor.byte_len
+        )
+    })?;
+    let ring = PosixSharedRing::attach_with_retry_for_layout(
+        &descriptor.memory_id,
+        source.slot_count,
+        frame_len,
+        Duration::from_secs(1),
+    )
+    .map_err(|error| format!("Failed to attach native render source shared memory: {error:?}"))?;
+    let mapped = ring
+        .read_frame(source.frame.pts_frame)
+        .map_err(|error| format!("Failed to read native render source frame: {error:?}"))?;
+    let tight_rgba = tight_rgba_from_padded_descriptor(descriptor, &mapped.bytes)?;
+    ring.release_frame(CopyOutState::GpuUploadFenceSignalled)
+        .map_err(|error| format!("Failed to release native render source frame: {error:?}"))?;
+
+    RgbaFrame::from_rgba8(descriptor.width, descriptor.height, tight_rgba)
+        .map_err(|error| format!("Native render source frame is invalid: {error:?}"))
+}
+
+fn tight_rgba_from_padded_descriptor(
+    descriptor: &FrameDescriptor,
+    shared_frame: &[u8],
+) -> Result<Vec<u8>, String> {
+    let row_bytes = usize::try_from(descriptor.width)
+        .ok()
+        .and_then(|width| width.checked_mul(4))
+        .ok_or_else(|| "Native render source row byte length overflows".to_string())?;
+    let stride_bytes = usize::try_from(descriptor.stride_bytes)
+        .map_err(|_| "Native render source strideBytes overflows usize".to_string())?;
+    let height = usize::try_from(descriptor.height)
+        .map_err(|_| "Native render source height overflows usize".to_string())?;
+    if stride_bytes < row_bytes {
+        return Err("Native render source strideBytes is smaller than tight RGBA row".to_string());
+    }
+    let expected_len = stride_bytes
+        .checked_mul(height)
+        .ok_or_else(|| "Native render source byte length overflows".to_string())?;
+    if shared_frame.len() != expected_len {
+        return Err(format!(
+            "Native render source byte length mismatch: expected={expected_len}, actual={}",
+            shared_frame.len()
+        ));
+    }
+
+    let mut tight_rgba = Vec::with_capacity(
+        row_bytes
+            .checked_mul(height)
+            .ok_or_else(|| "Native render tight frame byte length overflows".to_string())?,
+    );
+    for row in 0..height {
+        let source_start = row
+            .checked_mul(stride_bytes)
+            .ok_or_else(|| "Native render source row offset overflows".to_string())?;
+        tight_rgba.extend_from_slice(&shared_frame[source_start..source_start + row_bytes]);
+    }
+
+    Ok(tight_rgba)
 }
 
 fn validate_encode_shared_frame(
