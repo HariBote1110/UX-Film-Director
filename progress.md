@@ -1,3 +1,22 @@
+## 2026-06-18 — Phase5: Rust encode audio mux を接続
+
+### 実施内容
+- `rust-backend/tests/decode_control_plane.rs` に、`encode.start` が `audioPath` を受け取り、shared-frame映像とWAV音声をmuxしたMP4にaudio streamが含まれる契約を追加した。
+- `rust-backend/src/main.rs` のshared-frame encoderで `audioPath` を受け付け、ffmpeg rawvideo stdin + WAV inputを `-map 0:v:0 -map 1:a:0` でmuxするようにした。
+- `src/utils/rustBackendVideoEncodeExport.ts` / `rustBackendVideoEncodeControl.ts` / `vite-env.d.ts` に `audioPath` を追加した。
+- `src/hooks/useProjectExport.ts` のRust encoder経路で `buildExportAudioMixWav` → `save-temp-audio` → `runRustBackendVideoEncodeExport(audioPath)` → `delete-temp-file` の流れを接続した。
+- package version を `0.1.1-Beta-63a` に更新した。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml encode_start_accepts_audio_path_and_muxes_audio_with_shared_frames`
+- `cargo test --manifest-path rust-backend/Cargo.toml encode_`
+- `npm test -- src/utils/rustBackendVideoEncodeExport.test.ts src/utils/rustBackendVideoEncodeControl.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "useProjectExport|rustBackendVideoEncodeExport|rustBackendVideoEncodeControl|vite-env"`（対象ファイルの型エラーなし）
+
+### 残課題・次のステップ
+- 実機ElectronでRust-only exportを確認し、GoPro動画 + timeline音声のMP4 mux結果を確認する。
+- まだRGBA readbackはrenderer canvas由来のCPU readbackを挟む。次段ではshared renderer export sourceから直接shared memory frame descriptorを返す形へ寄せ、`ImageBitmap` readbackを削る。
+
 ## 2026-06-18 — Phase5: useProjectExport の Rust encoder 分岐を接続
 
 ### 実施内容

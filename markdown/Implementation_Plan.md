@@ -375,6 +375,12 @@ Rust backend encoderの `startVideoEncode` / `writeVideoEncodeFrame` / `finishVi
 この経路ではElectron stream writerとWebCodecs/mp4-muxerを使わない。音声は未接続のため、
 次段でRust `encode.start` payloadへaudio inputを追加し、映像・音声ともRust側でmuxする。
 
+74. Phase5: Rust encode audio mux を接続する
+Rust backend `encode.start` が `audioPath` を受け取り、rawvideo stdinをvideo input、WAV temp fileをaudio inputとして
+ffmpegでMP4へmuxする。renderer側ではRust encoder経路だけ `buildExportAudioMixWav` で音声をWAVへmixdownし、
+`save-temp-audio` で一時ファイル化して `runRustBackendVideoEncodeExport` へ渡す。
+書き出し完了・失敗後は `delete-temp-file` で一時WAVを削除する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
