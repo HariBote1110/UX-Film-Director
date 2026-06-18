@@ -112,6 +112,8 @@ export interface ResolveProjectExportFrameRuntimePlanInput {
 
 export interface ResolveProjectExportFrameSourcePolicyForEncodeInput {
   rustExportOnly: boolean;
+  rustVideoOnly?: boolean;
+  hasVideoObjects?: boolean;
   encodeEngine: ProjectExportEncodeEngine;
 }
 
@@ -221,9 +223,13 @@ export const pauseLegacyBrowserVideosForExport = (
 
 export const resolveProjectExportFrameSourcePolicyForEncode = ({
   rustExportOnly,
+  rustVideoOnly = false,
+  hasVideoObjects = false,
   encodeEngine,
 }: ResolveProjectExportFrameSourcePolicyForEncodeInput): ProjectExportFrameSourcePolicyForEncode => {
-  const requiresRustFrameSource = rustExportOnly || encodeEngine === 'rustBackendVideoEncoder';
+  const requiresRustFrameSource = rustExportOnly
+    || encodeEngine === 'rustBackendVideoEncoder'
+    || (rustVideoOnly && hasVideoObjects);
 
   return {
     rustFrameSourcePolicy: requiresRustFrameSource ? 'requireRustFrameSource' : 'allowLegacyCanvas',

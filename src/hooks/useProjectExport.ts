@@ -62,8 +62,10 @@ export const useProjectExport = (
 
     const runExport = async () => {
       const rustExportOnly = import.meta.env.VITE_UXFD_RUST_EXPORT_ONLY === '1';
+      const rustVideoOnly = import.meta.env.VITE_UXFD_RUST_VIDEO_ONLY === '1';
       const { projectSettings, objects, layers } = useStore.getState();
       const exportObjects = objects.filter((obj) => layers[obj.layer]?.visible !== false);
+      const hasVideoObjects = exportObjects.some((obj) => obj.type === 'video');
       const exportEncodePlan = resolveProjectExportEncodePlanFromBridge({
         rustExportOnly,
         rustVideoEncoderBridge: window.rustVideoEncoder,
@@ -75,6 +77,8 @@ export const useProjectExport = (
       }
       const frameSourcePolicy = resolveProjectExportFrameSourcePolicyForEncode({
         rustExportOnly,
+        rustVideoOnly,
+        hasVideoObjects,
         encodeEngine: exportEncodePlan.engine,
       });
       const initialFrameSourcePlan = buildProjectExportFrameSourcePlan({
