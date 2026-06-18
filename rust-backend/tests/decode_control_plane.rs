@@ -250,25 +250,24 @@ fn native_render_shared_frame_consumes_source_shm_and_returns_descriptor_only() 
             "width": width,
             "height": height,
             "snapshot": {
-                "frameIndex": 0,
+                "frame_index": 0,
                 "colour": {
-                    "primaries": "bt709",
-                    "transfer": "srgb",
-                    "matrix": "rgb",
-                    "range": "full"
+                    "profile": "rec709-sdr",
+                    "working_space": "linear-light",
+                    "alpha": "premultiplied"
                 },
                 "clips": [{
-                    "clipId": "clip-native-render",
-                    "trackId": "track-1",
-                    "mediaId": "source-1",
-                    "sourceFrame": 0,
-                    "zIndex": 0,
+                    "clip_id": "clip-native-render",
+                    "track_id": "track-1",
+                    "media_id": "source-1",
+                    "source_frame": 0,
+                    "z_index": 0,
                     "transform": {
-                        "translationX": 0.0,
-                        "translationY": 0.0,
-                        "scaleX": 1.0,
-                        "scaleY": 1.0,
-                        "rotationDegrees": 0.0,
+                        "translation_x": 0.0,
+                        "translation_y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation_degrees": 0.0,
                         "sampling": "nearest"
                     },
                     "opacity": 1.0,
