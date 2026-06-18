@@ -259,6 +259,48 @@ const psdSession: SharedRendererPreviewSession = {
   presentationContract: buildSharedRendererPresentationContract(),
 };
 
+const videoPsdSnapshot: RustSceneSnapshot = {
+  ...snapshot,
+  clips: [
+    {
+      ...videoSnapshot.clips[0],
+      z_index: 0,
+    },
+    {
+      ...psdSnapshot.clips[0],
+      z_index: 1,
+    },
+  ],
+};
+
+const videoPsdMedia: RustSceneMediaReference[] = [
+  videoMedia[0],
+  {
+    id: 'psd-1',
+    kind: 'Psd',
+    source: '/tmp/standing.psd',
+    width: 512,
+    height: 768,
+  },
+];
+
+const videoPsdSession: SharedRendererPreviewSession = {
+  plan: {
+    mode: 'parallelCompare',
+    primary: 'pixi',
+    candidate: 'sharedRenderer',
+    snapshot: videoPsdSnapshot,
+    media: videoPsdMedia,
+  },
+  surfaceGate: {
+    ok: true,
+    canvas: { width: 1920, height: 1080 },
+    snapshot: videoPsdSnapshot,
+    media: videoPsdMedia,
+  },
+  presentationContract: buildSharedRendererPresentationContract(),
+};
+
 const multiVideoSnapshot: RustSceneSnapshot = {
   ...snapshot,
   clips: [
@@ -1228,6 +1270,72 @@ describe('startSharedRendererPreviewPresenter', () => {
       uxfdSharedRendererPresenterPsdOwner: 'sharedRenderer',
       uxfdSharedRendererPresenterPsdCutoverReason: 'nativeRenderFrameReady',
       uxfdSharedRendererPresenterSharedPsdObjectCount: '1',
+    });
+  });
+
+  it('records native render diagnostics when video and PSD share the preview render pass', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const rgbaBytes = new Uint8Array(nativeRenderDescriptor.byteLen);
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoPsdSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererNativeRenderFrameUpload: {
+        descriptor: nativeRenderDescriptor,
+        ptsFrame: 12,
+        rgbaBytes,
+      },
+      rustVideoFrameDecodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video.mp4',
+          sourceFrame: 90,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 12,
+          width: 1280,
+          height: 720,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter(),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({
+      ok: true,
+      videoOwnership: {
+        owner: 'sharedRenderer',
+        reason: 'nativeRenderFrameReady',
+        videoObjectIds: ['video-1'],
+      },
+      psdOwnership: {
+        owner: 'sharedRenderer',
+        reason: 'nativeRenderFrameReady',
+        psdObjectIds: ['psd-1'],
+      },
+    });
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterNativeRenderFrameReady: 'true',
+      uxfdSharedRendererPresenterNativeRenderMediaCount: '2',
+      uxfdSharedRendererPresenterNativeRenderMediaKinds: 'Video,Psd',
+      uxfdSharedRendererPresenterNativeRenderSourceCount: '1',
+      uxfdSharedRendererPresenterNativeRenderSourceMediaIds: 'video-1',
+      uxfdSharedRendererPresenterVideoOwner: 'sharedRenderer',
+      uxfdSharedRendererPresenterPsdOwner: 'sharedRenderer',
     });
   });
 
