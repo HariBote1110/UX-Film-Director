@@ -37,6 +37,28 @@ describe('shouldSkipPixiVideoForSharedRenderer', () => {
     })).toBe(false);
   });
 
+  it('skips preview Pixi video fallback when shared renderer video is required', () => {
+    expect(shouldSkipPixiVideoForSharedRenderer({
+      objectId: 'video-2',
+      objectType: 'video',
+      isExporting: false,
+      sharedRendererVideoObjectIds: new Set(['video-1']),
+      requireSharedRendererVideo: true,
+    })).toBe(true);
+    expect(shouldSkipPixiVideoForSharedRenderer({
+      objectId: 'image-1',
+      objectType: 'image',
+      isExporting: false,
+      requireSharedRendererVideo: true,
+    })).toBe(false);
+    expect(shouldSkipPixiVideoForSharedRenderer({
+      objectId: 'video-2',
+      objectType: 'video',
+      isExporting: true,
+      requireSharedRendererVideo: true,
+    })).toBe(false);
+  });
+
   it('clears Pixi video children, HTML video, and frame textures on cutover', () => {
     const destroyedChildren: unknown[] = [];
     const child = {
