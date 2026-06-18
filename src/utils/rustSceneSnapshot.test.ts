@@ -275,7 +275,35 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         source: '/tmp/standing.psd',
         width: 512,
         height: 768,
+        active_layer_ids: ['face-open'],
       },
+    ]);
+  });
+
+  it('serialises PSD active layer ids deterministically for Rust native composition', () => {
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      objects: [basePsd({
+        activeLayerIds: {
+          'mouth-open': true,
+          'mouth-closed': false,
+          root: true,
+          'eye-open': true,
+        },
+      })],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected snapshot build to pass');
+
+    expect(result.media).toEqual([
+      expect.objectContaining({
+        id: 'psd-1',
+        kind: 'Psd',
+        active_layer_ids: ['eye-open', 'mouth-open', 'root'],
+      }),
     ]);
   });
 

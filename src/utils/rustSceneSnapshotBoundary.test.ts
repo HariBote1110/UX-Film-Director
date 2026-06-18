@@ -212,6 +212,7 @@ describe('validateRustSceneSnapshotBoundary', () => {
           source: '/tmp/standing.psd',
           width: 512,
           height: 768,
+          active_layer_ids: ['face-open', 'root'],
         },
       ],
     };
