@@ -705,8 +705,8 @@ export const updatePixiContent = (
     resources: {
         textureCache: Map<string, PIXI.Texture>;
         loadingUrls: Set<string>;
-        videoElements: Map<string, HTMLVideoElement>;
-        videoFrameTextures: Map<string, VideoFrameTextureState>;
+        videoElements?: Map<string, HTMLVideoElement>;
+        videoFrameTextures?: Map<string, VideoFrameTextureState>;
         audioBuffers?: Map<string, AudioBuffer>;
         allObjects?: TimelineObject[];
         isExporting: boolean;
@@ -725,10 +725,13 @@ export const updatePixiContent = (
          * WebGPU（`RendererType` 2）のとき true。動画を VideoSource ではなく 2D Canvas 経由でテクスチャ化し、
          * `copyExternalImageToTexture` の out-of-bounds を避ける。
          */
-        useCanvasVideoUpload: boolean;
+        useCanvasVideoUpload?: boolean;
     }
 ) => {
-    const { textureCache, loadingUrls, videoElements, videoFrameTextures, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, exportFrameOverrides, exportOverlayCanvases, sharedRendererSolidColourObjectIds, sharedRendererVideoObjectIds, sharedRendererImageObjectIds, sharedRendererPsdObjectIds, requireSharedRendererVideo, useCanvasVideoUpload } = resources;
+    const { textureCache, loadingUrls, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, exportFrameOverrides, exportOverlayCanvases, sharedRendererSolidColourObjectIds, sharedRendererVideoObjectIds, sharedRendererImageObjectIds, sharedRendererPsdObjectIds, requireSharedRendererVideo } = resources;
+    const videoElements = resources.videoElements ?? new Map<string, HTMLVideoElement>();
+    const videoFrameTextures = resources.videoFrameTextures ?? new Map<string, VideoFrameTextureState>();
+    const useCanvasVideoUpload = resources.useCanvasVideoUpload ?? false;
     let content = container.children[0] as (PIXI.Sprite | PIXI.Graphics | PIXI.Text | PIXI.Container | undefined);
     
     // Check for recreation

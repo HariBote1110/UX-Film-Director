@@ -10,16 +10,12 @@ import { usePixiInteraction } from '../hooks/usePixiInteraction';
 import { useProjectExport } from '../hooks/useProjectExport';
 import { useVisionRealtimeDetection } from '../hooks/useVisionRealtimeDetection';
 import { getGroupTransforms, getLipSyncViseme, updatePixiContent, applyObjectEffects, getVibrationOffset, applyGroupGradientEffect } from '../utils/pixiRenderHelper';
-import type { VideoFrameTextureState, ExportOverlayCanvas } from '../utils/pixiRenderHelper';
+import type { ExportOverlayCanvas } from '../utils/pixiRenderHelper';
 import { evaluateObjectPositionAtTime } from '../utils/keyframes';
 import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier, getPrimaryWipeFilter } from '../utils/filterStack';
 import { useTranslation } from '../i18n';
 import { computePreviewDisplayScale } from '../utils/previewDisplayScale';
-import {
-  destroyExportOverlayCanvases,
-  destroyVideoFrameTextureState,
-  useCanvasVideoUploadForPixiPreview,
-} from '../utils/videoElementForPixi';
+import { destroyExportOverlayCanvases } from '../utils/videoElementForPixi';
 import { visionNormBoundingBoxToVideoLocalRect } from '../utils/visionTrackingGeometry';
 import type { ResizeCorner } from '../utils/transformGeometry';
 import {
@@ -126,8 +122,6 @@ const Viewport: React.FC = () => {
   
   const textureCacheRef = useRef<Map<string, PIXI.Texture>>(new Map());
   const loadingUrlsRef = useRef<Set<string>>(new Set());
-  const videoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
-  const videoFrameTexturesRef = useRef<Map<string, VideoFrameTextureState>>(new Map());
   const sharedRendererSolidColourObjectIdsRef = useRef<Set<string>>(new Set());
   const sharedRendererVideoObjectIdsRef = useRef<Set<string>>(new Set());
   const sharedRendererImageObjectIdsRef = useRef<Set<string>>(new Set());
@@ -137,7 +131,6 @@ const Viewport: React.FC = () => {
   /** exportFrameOverrides を Pixi テクスチャに変換する OffscreenCanvas キャッシュ */
   const exportOverlayCanvasesRef = useRef<Map<string, ExportOverlayCanvas>>(new Map());
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
-  const videoPlayPromisesRef = useRef<Map<string, Promise<void> | null>>(new Map());
   
   const audioBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
 
@@ -403,12 +396,6 @@ const Viewport: React.FC = () => {
         groupContainersRef.current.clear();
         textureCacheRef.current.clear();
         loadingUrlsRef.current.clear();
-        videoElementsRef.current.forEach(video => { video.pause(); video.src = ""; video.load(); });
-        videoElementsRef.current.clear();
-        videoFrameTexturesRef.current.forEach((entry) => {
-          destroyVideoFrameTextureState(entry);
-        });
-        videoFrameTexturesRef.current.clear();
         destroyExportOverlayCanvases(exportOverlayCanvasesRef.current);
         audioElementsRef.current.forEach(audio => { audio.pause(); audio.src = ""; audio.load(); });
         audioElementsRef.current.clear();
@@ -639,11 +626,7 @@ const Viewport: React.FC = () => {
     const app = pixiAppRef.current;
     if (!app) return;
 
-    const rendererType = (app.renderer as unknown as { type: number }).type;
-    const useCanvasVideoUpload = useCanvasVideoUploadForPixiPreview(rendererType);
-
     const currentPixiObjects = pixiObjectsRef.current;
-    const currentVideoElements = videoElementsRef.current;
     const currentAudioElements = audioElementsRef.current;
     const currentGroupContainers = groupContainersRef.current;
     const visibleObjects = currentObjects.filter((obj) => {
@@ -671,20 +654,10 @@ const Viewport: React.FC = () => {
       groupContainer.destroy({ children: false });
       currentGroupContainers.delete(groupId);
     });
-    currentVideoElements.forEach((video, id) => {
-        if (!visibleObjects.find(obj => obj.id === id && obj.type === 'video')) {
-            video.pause(); video.src = ""; video.load(); currentVideoElements.delete(id); videoPlayPromisesRef.current.delete(id);
-            const frameTexture = videoFrameTexturesRef.current.get(id);
-            if (frameTexture) {
-                destroyVideoFrameTextureState(frameTexture, video);
-                videoFrameTexturesRef.current.delete(id);
-            }
-            const exportOverlay = exportOverlayCanvasesRef.current.get(id);
-            if (exportOverlay) {
-                exportOverlay.texture.destroy(true);
-                exportOverlayCanvasesRef.current.delete(id);
-            }
-        }
+    exportOverlayCanvasesRef.current.forEach((exportOverlay, id) => {
+      if (visibleObjects.find(obj => obj.id === id && obj.type === 'video')) return;
+      exportOverlay.texture.destroy(true);
+      exportOverlayCanvasesRef.current.delete(id);
     });
     currentAudioElements.forEach((audio, id) => {
         if (!visibleObjects.find(obj => obj.id === id && obj.type === 'audio')) {
@@ -755,8 +728,6 @@ const Viewport: React.FC = () => {
       const content = updatePixiContent(obj, container, time, {
           textureCache: textureCacheRef.current,
           loadingUrls: loadingUrlsRef.current,
-          videoElements: videoElementsRef.current,
-          videoFrameTextures: videoFrameTexturesRef.current,
           audioBuffers: audioBuffersRef.current,
           allObjects: currentObjects,
           isExporting,
@@ -769,7 +740,6 @@ const Viewport: React.FC = () => {
           sharedRendererImageObjectIds: sharedRendererImageObjectIdsRef.current,
           sharedRendererPsdObjectIds: sharedRendererPsdObjectIdsRef.current,
           requireSharedRendererVideo: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled,
-          useCanvasVideoUpload,
       });
 
       const shadowFilters = getEnabledObjectFiltersInOrder(obj).filter((filter): filter is Extract<ObjectFilter, { type: 'shadow' }> => {
