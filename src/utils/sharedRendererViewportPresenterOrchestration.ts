@@ -43,6 +43,7 @@ export interface StartSharedRendererViewportPresenterInput {
   videoCutoverEnabled: boolean;
   nativeRenderPreviewEnabled?: boolean;
   requireSharedRendererVideo?: boolean;
+  requireRustVideoControlPlane?: boolean;
   requireSharedRendererOutput?: boolean;
   activeVideoDecodeJob: SharedRendererViewportVideoDecodeJob | null;
   activeVideoDecodeJobs?: SharedRendererViewportVideoDecodeJob[];
@@ -73,6 +74,7 @@ export const startSharedRendererViewportPresenter = async ({
   videoCutoverEnabled,
   nativeRenderPreviewEnabled = false,
   requireSharedRendererVideo = false,
+  requireRustVideoControlPlane = false,
   requireSharedRendererOutput = false,
   activeVideoDecodeJob,
   activeVideoDecodeJobs,
@@ -154,6 +156,7 @@ export const startSharedRendererViewportPresenter = async ({
     diagnosticSwatchEnabled,
     sharedRendererVideoCutoverEnabled: effectiveVideoCutoverEnabled,
     requireSharedRendererVideo,
+    requireRustVideoControlPlane,
     requireSharedRendererOutput,
     sharedRendererNativeRenderFrameUpload,
     sharedRendererNativeRenderFailure,

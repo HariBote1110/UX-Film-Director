@@ -100,6 +100,7 @@ export interface StartSharedRendererPreviewPresenterInput {
   sharedRendererSolidColourCutoverEnabled?: boolean;
   sharedRendererVideoCutoverEnabled?: boolean;
   requireSharedRendererVideo?: boolean;
+  requireRustVideoControlPlane?: boolean;
   requireSharedRendererOutput?: boolean;
   sharedRendererVideoFrameUploadReady?: boolean;
   sharedRendererNativeRenderFrameUpload?: SharedRendererDecodedVideoFrameUpload;
@@ -141,6 +142,7 @@ export const startSharedRendererPreviewPresenter = async ({
   sharedRendererSolidColourCutoverEnabled = defaultSharedRendererSolidColourCutoverEnabled(),
   sharedRendererVideoCutoverEnabled = defaultSharedRendererVideoCutoverEnabled(),
   requireSharedRendererVideo = false,
+  requireRustVideoControlPlane = false,
   requireSharedRendererOutput = false,
   sharedRendererVideoFrameUploadReady = false,
   sharedRendererNativeRenderFrameUpload,
@@ -188,6 +190,30 @@ export const startSharedRendererPreviewPresenter = async ({
         enabled: rustVideoPlaneWasmEnabled,
       })
     : null;
+  const resolvedRustVideoFrameDecodeRequestBuilder = hasVideoScene
+    ? rustVideoFrameDecodeRequestBuilder
+      ?? await loadSharedRendererRustVideoFrameDecodeRequestBuilder({
+        enabled: rustVideoFrameDecodeRequestWasmEnabled,
+      })
+    : null;
+  if (
+    hasVideoScene
+    && requireRustVideoControlPlane
+    && (
+      !resolvedRustVideoPlaneVertexSceneBuilder
+      || !resolvedRustVideoFrameDecodeRequestBuilder
+    )
+  ) {
+    writeDiagnostics({
+      status: 'fallback',
+      reason: 'requiredRustVideoControlPlaneUnavailable',
+    });
+    return {
+      ok: false,
+      reason: 'requiredRustVideoControlPlaneUnavailable',
+      dispose: noop,
+    };
+  }
   if (hasVideoScene) {
     const videoPlaneVertexSceneBuilder = resolvedRustVideoPlaneVertexSceneBuilder
       ?? buildSharedRendererVideoPlaneVertexScene;
@@ -202,12 +228,6 @@ export const startSharedRendererPreviewPresenter = async ({
       ? 'rust-wasm'
       : 'typescript'
     : undefined;
-  const resolvedRustVideoFrameDecodeRequestBuilder = hasVideoScene
-    ? rustVideoFrameDecodeRequestBuilder
-      ?? await loadSharedRendererRustVideoFrameDecodeRequestBuilder({
-        enabled: rustVideoFrameDecodeRequestWasmEnabled,
-      })
-    : null;
   const videoFrameDecodeRequestBuilder = hasVideoScene
     ? resolvedRustVideoFrameDecodeRequestBuilder
       ?? buildSharedRendererVideoFrameDecodeRequests
