@@ -346,4 +346,75 @@ describe('runRustBackendVideoEncodeExport', () => {
       ['writeVideoEncodeFrame', payload],
     ]);
   });
+
+  it('releases native render output when encode write rejects before Rust consumes it', async () => {
+    const calls: unknown[] = [];
+    const payload = sharedFramePayload(0, 0, 'session-native-reject');
+    const encoderBridge: RustBackendVideoEncodeBridge = {
+      startVideoEncode: async (input) => {
+        calls.push(['startVideoEncode', input]);
+        return { success: true, result: { accepted: true } };
+      },
+      writeVideoEncodeFrame: async (input) => {
+        calls.push(['writeVideoEncodeFrame', input]);
+        throw new Error('encode write rejected before consuming native output');
+      },
+      finishVideoEncode: async (input) => {
+        calls.push(['finishVideoEncode', input]);
+        return { success: true, result: { outputFile: '/tmp/out.mp4' } };
+      },
+    };
+    const nativeRenderBridge: RustBackendNativeRenderSharedFrameBridge = {
+      renderNativeSharedFrame: async () => {
+        throw new Error('render must not run during encode cleanup.');
+      },
+      releaseNativeSharedFrame: async (input) => {
+        calls.push(['releaseNativeSharedFrame', input]);
+        return { success: true, result: { released: true, memoryId: input.memoryId } };
+      },
+    };
+
+    async function* rejectingNativeFrames() {
+      yield {
+        timestamp: 0,
+        sharedFramePayload: payload,
+        releaseAfterEncodeFailure: {
+          kind: 'nativeRenderOutput' as const,
+          memoryId: payload.frame.descriptor.memoryId,
+        },
+      };
+    }
+
+    await expect(runRustBackendVideoEncodeExport({
+      sessionId: 'session-native-reject',
+      filePath: '/tmp/direct-shared.mp4',
+      width: 4,
+      height: 2,
+      fps: 60,
+      frames: rejectingNativeFrames(),
+      encoderBridge,
+      nativeRenderBridge,
+    })).rejects.toThrow('encode write rejected before consuming native output');
+
+    expect(calls).toEqual([
+      ['startVideoEncode', {
+        sessionId: 'session-native-reject',
+        filePath: '/tmp/direct-shared.mp4',
+        width: 4,
+        height: 2,
+        fps: 60,
+        pixelFormat: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      }],
+      ['writeVideoEncodeFrame', payload],
+      ['releaseNativeSharedFrame', {
+        memoryId: payload.frame.descriptor.memoryId,
+      }],
+    ]);
+  });
 });
