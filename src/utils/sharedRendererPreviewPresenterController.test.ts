@@ -880,6 +880,14 @@ describe('startSharedRendererPreviewPresenter', () => {
 
     expect(control).toMatchObject({
       ok: true,
+      solidColourOwnership: {
+        owner: 'pixi',
+        reason: 'noSolidColourScene',
+      },
+      videoOwnership: {
+        owner: 'pixi',
+        reason: 'cutoverDisabled',
+      },
     });
     expect(events).toEqual(['writeTexture', 'gpuUploadDone', 'release-native']);
     expect(renderPassOperations).toContain('setPipeline:native-render-frame-pipeline');
@@ -887,6 +895,101 @@ describe('startSharedRendererPreviewPresenter', () => {
     expect(renderPassOperations).toContain('draw:6');
     expect(dataset).toMatchObject({
       uxfdSharedRendererPresenterNativeRenderFrameReady: 'true',
+    });
+  });
+
+  it('publishes video ownership when a native rendered preview frame already contains the composited video scene', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const rgbaBytes = new Uint8Array(nativeRenderDescriptor.byteLen);
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererNativeRenderFrameUpload: {
+        descriptor: nativeRenderDescriptor,
+        ptsFrame: 12,
+        rgbaBytes,
+      },
+      rustVideoFrameDecodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video.mp4',
+          sourceFrame: 90,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 12,
+          width: 1280,
+          height: 720,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter(),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({
+      ok: true,
+      videoOwnership: {
+        owner: 'sharedRenderer',
+        reason: 'nativeRenderFrameReady',
+        videoObjectIds: ['video-1'],
+      },
+    });
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterNativeRenderFrameReady: 'true',
+      uxfdSharedRendererPresenterVideoOwner: 'sharedRenderer',
+      uxfdSharedRendererPresenterVideoCutoverReason: 'nativeRenderFrameReady',
+      uxfdSharedRendererPresenterSharedVideoObjectCount: '1',
+    });
+  });
+
+  it('publishes solid colour ownership when a native rendered preview frame already contains the composited solid scene', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const rgbaBytes = new Uint8Array(nativeRenderDescriptor.byteLen);
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: solidShapeSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      sharedRendererSolidColourCutoverEnabled: true,
+      sharedRendererNativeRenderFrameUpload: {
+        descriptor: nativeRenderDescriptor,
+        ptsFrame: 12,
+        rgbaBytes,
+      },
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter(),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({
+      ok: true,
+      solidColourOwnership: {
+        owner: 'sharedRenderer',
+        reason: 'nativeRenderFrameReady',
+        solidColourObjectIds: ['shape-1'],
+      },
+    });
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterNativeRenderFrameReady: 'true',
+      uxfdSharedRendererPresenterSolidColourOwner: 'sharedRenderer',
+      uxfdSharedRendererPresenterSolidColourCutoverReason: 'nativeRenderFrameReady',
+      uxfdSharedRendererPresenterSharedSolidColourObjectCount: '1',
     });
   });
 
