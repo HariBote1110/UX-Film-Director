@@ -3994,3 +3994,21 @@
 ### 残課題・次のステップ
 - TS側 `sharedRendererNativeMediaSupport` はまだPsdをunsupportedとして扱うため、PSDをpreview/export capabilityへ公開する必要がある。
 - UI側 `activeLayerIds` / `rootLayer` をRust backendのPSD合成へ渡すschemaは未実装。
+
+## 2026-06-18 — PSDをnative media supportへ公開
+
+### 実施内容
+- `sharedRendererNativeMediaSupport` でローカルpath / `file://` / `file://localhost` の `.psd` をRust native-renderable mediaとして扱うようにした。
+- remote / blob / data sourceのPSDは引き続きunsupportedにし、Rust backendへ同期ファイル読み込みできないsourceを渡さない契約を固定した。
+- PSD-only previewが `nativeRenderUnsupportedMediaOnly` で止まらず `render.nativeSharedFrame` へ進む契約を追加した。
+- 動画の前面にあるローカルPSDをvideo cutover stack safetyのblockerにしない契約を追加した。
+- 版を `0.1.1-Beta-113a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/sharedRendererVideoCutoverStack.test.ts src/utils/sharedRendererViewportNativeRenderUpload.test.ts`
+- `npm test -- src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/sharedRendererVideoCutoverStack.test.ts src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/pixiPsdCutover.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- PSD-only exportがRust native render direct encodeへ進む契約は未追加。
+- UI側 `activeLayerIds` / `rootLayer` をRust backendのPSD合成へ渡すschemaは未実装。

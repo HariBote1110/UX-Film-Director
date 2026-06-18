@@ -689,6 +689,11 @@ shared renderer ownershipとして公開する。`Viewport` はPSD ownership id�
 Pixi PSD tree/sprite描画をcleanupしてhitAreaだけ残す。これによりnative render canvasとPixi PSD描画の二重合成を防ぐ。
 dataset diagnosticsにはPSD owner / reason / countを追加し、PSD cutover状態を確認できるようにする。
 
+127. Phase5: PSDをnative media supportへ公開する
+TS側のnative media support判定で、ローカルpath / `file://` / `file://localhost` の `.psd` をRust native-renderable mediaとして扱う。
+これによりPSD-only previewは `nativeRenderUnsupportedMediaOnly` でPixi fallbackせず `render.nativeSharedFrame` へ進み、
+動画の前面にあるローカルPSDもvideo cutover stack safetyを止めない。remote / blob / data sourceのPSDは引き続きunsupportedとして扱う。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
