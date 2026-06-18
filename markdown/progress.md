@@ -264,3 +264,10 @@
 - Green: `Viewport` から `buildSharedRendererVideoMediaReadiness` へ渡す条件を更新した。
 - 検証: `npm test -- viewportRustVideoOnlyBoundary sharedRendererVideoMediaReadiness sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController` は45件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-156a`。
+
+## 2026-06-19
+- Phase5のPixi content routingとして、`updatePixiContent` 側もshared renderer video cutover中にRust/shared renderer必須になるよう揃えた。
+- Red: `viewportRustVideoOnlyBoundary` へ、Pixi content routingの `requireSharedRendererVideo` が `sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled` になる契約を追加した。
+- Green: `Viewport` から `updatePixiContent` へ渡す条件を更新した。
+- 検証: `npm test -- viewportRustVideoOnlyBoundary pixiVideoCutover` は16件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-157a`。

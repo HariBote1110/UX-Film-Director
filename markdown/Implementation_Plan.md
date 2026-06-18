@@ -944,6 +944,12 @@ HTMLVideoElement / Pixi VideoSourceへ戻らない。
 `sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled` にする。
 通常cutover中の動画診断をHTMLVideoElement ready/missingではなくRust/shared renderer requiredとして扱う。
 
+177. Phase5: Pixi content routingをcutover条件へ揃える
+`Viewport` が `updatePixiContent` に渡す `requireSharedRendererVideo` も
+`sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled` にする。
+診断と描画の双方で通常cutover中の動画をRust/shared renderer必須として扱い、
+HTMLVideoElement/Pixi VideoSource fallbackへ戻る入口をさらに狭める。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
