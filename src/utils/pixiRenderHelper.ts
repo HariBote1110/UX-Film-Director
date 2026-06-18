@@ -1,18 +1,10 @@
 import * as PIXI from 'pixi.js';
 import { TimelineObject, VideoObject, GroupControlObject, AudioVisualizationObject, AudioObject, ClippingParams, GradientFill, ObjectFilter } from '../types';
 import { createGradientTexture, drawShape, getCurrentViseme, renderPsdTree, cacheTextureFromUrl } from './pixiUtils';
-import {
-    applyIntrinsicSizeToVideoElement,
-    destroyVideoFrameTextureState,
-    shouldReplacePixiVideoElementSource,
-} from './videoElementForPixi';
 import { evaluateObjectPositionAtTime } from './keyframes';
 import { evaluateSubjectCropNormRectAtTime } from './subjectCropKeyframes';
 import { getEnabledObjectFiltersInOrder } from './filterStack';
-import {
-  clearPixiVideoForSharedRenderer,
-  resolvePixiVideoRenderPath,
-} from './pixiVideoCutover';
+import { resolvePixiVideoRenderPath } from './pixiVideoCutover';
 import { shouldSkipPixiSolidColourForSharedRenderer } from './pixiSolidColourCutover';
 import { shouldSkipPixiImageForSharedRenderer } from './pixiImageCutover';
 import { shouldSkipPixiPsdForSharedRenderer } from './pixiPsdCutover';
@@ -376,123 +368,6 @@ class GroupGradientFilter extends PIXI.Filter {
     }
 }
 
-/** プレビュー動画: WebGL は {@link PIXI.VideoSource}、WebGPU は Canvas ラスタライズ（`copyExternalImageToTexture` の不整合を回避） */
-export type VideoFrameTextureState = {
-  texture: PIXI.Texture;
-  width: number;
-  height: number;
-} & (
-  | { uploadMode: 'video-source'; videoSource: PIXI.VideoSource }
-  | {
-      uploadMode: 'canvas';
-      canvas: OffscreenCanvas | HTMLCanvasElement;
-      ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
-    }
-);
-
-const create2dDrawSurface = (
-  width: number,
-  height: number
-):
-  | {
-      canvas: OffscreenCanvas | HTMLCanvasElement;
-      ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
-    }
-  | null => {
-  if (typeof OffscreenCanvas !== 'undefined') {
-    const canvas = new OffscreenCanvas(width, height);
-    const ctx = canvas.getContext('2d');
-    if (ctx) return { canvas, ctx };
-  }
-  if (typeof document !== 'undefined') {
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
-    if (ctx) return { canvas, ctx };
-  }
-  return null;
-};
-
-const canvasResourceForPixi = (canvas: OffscreenCanvas | HTMLCanvasElement) =>
-  (canvas instanceof OffscreenCanvas
-    ? (canvas as unknown as HTMLCanvasElement)
-    : canvas);
-
-const ensureVideoFrameTextureState = (
-    videoId: string,
-    video: HTMLVideoElement,
-    videoFrameTextures: Map<string, VideoFrameTextureState>,
-    onNewFrame: () => void,
-    useCanvasUpload: boolean
-): VideoFrameTextureState | null => {
-    const width = Math.max(1, Math.floor(video.videoWidth));
-    const height = Math.max(1, Math.floor(video.videoHeight));
-    const wantedMode = useCanvasUpload ? 'canvas' : 'video-source';
-
-    const existing = videoFrameTextures.get(videoId);
-    if (existing && existing.width === width && existing.height === height && existing.uploadMode === wantedMode) {
-        return existing;
-    }
-
-    if (existing) {
-        destroyVideoFrameTextureState(existing, video);
-        videoFrameTextures.delete(videoId);
-    }
-
-    applyIntrinsicSizeToVideoElement(video);
-
-    if (useCanvasUpload) {
-        const surface = create2dDrawSurface(width, height);
-        if (!surface) return null;
-        const { canvas, ctx } = surface;
-        try {
-            ctx.drawImage(video, 0, 0, width, height);
-        } catch {
-            return null;
-        }
-        const source = new PIXI.CanvasSource({ resource: canvasResourceForPixi(canvas) });
-        const texture = new PIXI.Texture({ source });
-        const state: VideoFrameTextureState = { texture, width, height, uploadMode: 'canvas', canvas, ctx };
-        videoFrameTextures.set(videoId, state);
-        return state;
-    }
-
-    // WebGL: PixiJS VideoSource（texSubImage2D; VideoSource 更新）
-    const videoSource = new PIXI.VideoSource({
-        resource: video,
-        autoPlay: false,
-        autoLoad: false,
-        updateFPS: 0,
-        alphaMode: 'premultiply-alpha-on-upload',
-    });
-    void videoSource.load().catch(() => {
-      /* load() 内の非同期中に destroy した場合など; 未処理拒否を防ぐ */
-    });
-    const texture = new PIXI.Texture({ source: videoSource });
-    videoSource.on('update', () => onNewFrame());
-
-    const state: VideoFrameTextureState = { texture, videoSource, width, height, uploadMode: 'video-source' };
-    videoFrameTextures.set(videoId, state);
-    return state;
-};
-
-const drawVideoFrameToTexture = (state: VideoFrameTextureState, video: HTMLVideoElement): boolean => {
-    if (state.uploadMode === 'canvas') {
-        if (!video || video.videoWidth <= 0 || video.videoHeight <= 0) return false;
-        try {
-            state.ctx.drawImage(video, 0, 0, state.width, state.height);
-        } catch {
-            return false;
-        }
-        state.texture.source.update();
-        return true;
-    }
-    if (state.videoSource.destroyed) return false;
-    const res = (state.videoSource as unknown as { resource: HTMLVideoElement | null }).resource;
-    return !!(res && res.videoWidth > 0 && res.videoHeight > 0);
-};
-
 export const applyGroupGradientEffect = (container: PIXI.Container, gradient: GradientFill | undefined) => {
     const currentFilters = container.filters ?? [];
     const otherFilters = currentFilters.filter((filter) => !(filter instanceof GroupGradientFilter));
@@ -705,8 +580,6 @@ export const updatePixiContent = (
     resources: {
         textureCache: Map<string, PIXI.Texture>;
         loadingUrls: Set<string>;
-        videoElements?: Map<string, HTMLVideoElement>;
-        videoFrameTextures?: Map<string, VideoFrameTextureState>;
         audioBuffers?: Map<string, AudioBuffer>;
         allObjects?: TimelineObject[];
         isExporting: boolean;
@@ -721,17 +594,9 @@ export const updatePixiContent = (
         sharedRendererImageObjectIds?: ReadonlySet<string>;
         sharedRendererPsdObjectIds?: ReadonlySet<string>;
         requireSharedRendererVideo?: boolean;
-        /**
-         * WebGPU（`RendererType` 2）のとき true。動画を VideoSource ではなく 2D Canvas 経由でテクスチャ化し、
-         * `copyExternalImageToTexture` の out-of-bounds を避ける。
-         */
-        useCanvasVideoUpload?: boolean;
     }
 ) => {
     const { textureCache, loadingUrls, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, exportFrameOverrides, exportOverlayCanvases, sharedRendererSolidColourObjectIds, sharedRendererVideoObjectIds, sharedRendererImageObjectIds, sharedRendererPsdObjectIds, requireSharedRendererVideo } = resources;
-    const videoElements = resources.videoElements ?? new Map<string, HTMLVideoElement>();
-    const videoFrameTextures = resources.videoFrameTextures ?? new Map<string, VideoFrameTextureState>();
-    const useCanvasVideoUpload = resources.useCanvasVideoUpload ?? false;
     let content = container.children[0] as (PIXI.Sprite | PIXI.Graphics | PIXI.Text | PIXI.Container | undefined);
     
     // Check for recreation
@@ -866,12 +731,8 @@ export const updatePixiContent = (
             hasExportFrameOverride: exportFrameOverrides?.has(obj.id) === true,
         });
         if (videoRenderPath === 'sharedRendererOnly') {
-            clearPixiVideoForSharedRenderer({
-                objectId: obj.id,
-                container,
-                videoElements,
-                videoFrameTextures,
-            });
+            const children = container.removeChildren();
+            children.forEach((child) => child.destroy({ children: true, texture: false, context: true }));
             container.hitArea = new PIXI.Rectangle(0, 0, obj.width, obj.height);
             return undefined;
         }
@@ -915,92 +776,11 @@ export const updatePixiContent = (
             // seeked/VideoSource の同期は不要（フレームは既に注入済み）
 
         } else {
-        // ── 通常パス（プレビュー・シーク方式フォールバック）─────────────────
-
-        let video = videoElements.get(obj.id);
-        const playSrc = obj.proxyFilePath ? `file://${obj.proxyFilePath}` : obj.src;
-        if (video && shouldReplacePixiVideoElementSource(video, playSrc)) {
-            const frameTexture = videoFrameTextures.get(obj.id);
-            if (frameTexture) {
-                destroyVideoFrameTextureState(frameTexture, video);
-                videoFrameTextures.delete(obj.id);
-            }
-            video.pause();
-            video.src = playSrc;
-            video.load();
-            video.addEventListener('canplay', () => setRenderTick(p => p+1), { once: true });
+            const children = container.removeChildren();
+            children.forEach((child) => child.destroy({ children: true, texture: false, context: true }));
+            container.hitArea = new PIXI.Rectangle(0, 0, obj.width, obj.height);
+            return undefined;
         }
-        if (!video) {
-            video = document.createElement('video');
-            // プロキシが存在する場合は再生に使用する（エクスポート時は obj.src を使う）
-            video.src = playSrc; video.muted = obj.muted; video.volume = obj.volume; video.crossOrigin = 'anonymous'; video.preload = 'auto'; video.playsInline = true;
-            video.addEventListener('canplay', () => setRenderTick(p => p+1), { once: true });
-            videoElements.set(obj.id, video);
-        }
-
-        if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
-            const frameState = ensureVideoFrameTextureState(
-                obj.id,
-                video,
-                videoFrameTextures,
-                () => setRenderTick(p => p + 1),
-                useCanvasVideoUpload
-            );
-            const didDrawFrame = frameState ? drawVideoFrameToTexture(frameState, video) : false;
-
-            if (didDrawFrame && frameState) {
-                if (!sprite) {
-                    sprite = new PIXI.Sprite(frameState.texture);
-                    container.addChild(sprite);
-                } else if (sprite.texture !== frameState.texture) {
-                    sprite.texture = frameState.texture;
-                }
-                sprite.width = obj.width;
-                sprite.height = obj.height;
-                content = sprite;
-            }
-
-            if (!content) {
-                applyVideoSubjectCropMask(container, obj as VideoObject, undefined, time);
-                const placeholder = new PIXI.Graphics();
-                placeholder.rect(0, 0, obj.width, obj.height);
-                placeholder.stroke({ width: 2, color: 0x0000ff });
-                container.addChild(placeholder);
-                return placeholder;
-            }
-
-            // --- Optimized Sync Logic ---
-            const offset = obj.offset || 0;
-            const videoLocalTime = (time - obj.startTime) + offset;
-            if (!isExporting) {
-                if (isPlaying) {
-                    if (video.paused) {
-                        const pp = video.play(); if (pp) pp.catch(()=>{});
-                        if (Math.abs(video.currentTime - videoLocalTime) > 0.1) video.currentTime = videoLocalTime;
-                    } else {
-                        // Allow 0.5s drift to avoid frequent seeking overhead
-                        if (Math.abs(video.currentTime - videoLocalTime) > 0.5) video.currentTime = videoLocalTime;
-                    }
-                } else {
-                    if (!video.paused) video.pause();
-                    if (Math.abs(video.currentTime - videoLocalTime) > 0.05) video.currentTime = videoLocalTime;
-                }
-            } else {
-                if (Math.abs(video.currentTime - videoLocalTime) > 0.05) video.currentTime = videoLocalTime;
-            }
-        } else {
-            if (!sprite) {
-                applyVideoSubjectCropMask(container, obj as VideoObject, undefined, time);
-                const placeholder = new PIXI.Graphics(); placeholder.rect(0, 0, obj.width, obj.height); placeholder.stroke({ width: 2, color: 0x0000ff }); container.addChild(placeholder); return placeholder;
-            }
-            content = sprite;
-        }
-
-        const videoObj = obj as VideoObject;
-        const spriteForMask = content instanceof PIXI.Sprite ? content : undefined;
-        applyVideoSubjectCropMask(container, videoObj, spriteForMask, time);
-
-        } // end 通常パス
 
     } else if (obj.type === 'audio_visualization') {
         let graphics = content as PIXI.Graphics || new PIXI.Graphics();
