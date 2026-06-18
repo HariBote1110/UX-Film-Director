@@ -38,6 +38,26 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterStaleSharedFrameAllowed');
   });
 
+  it('publishes native render failure details while the presenter remains ready', () => {
+    const dataset: Record<string, string | undefined> = {};
+
+    writeSharedRendererPresenterDiagnostics(dataset, {
+      status: 'ready',
+      format: 'bgra8unorm',
+      swatch: 'pixi-passthrough',
+      nativeRenderFailureReason: 'nativeRenderFailed',
+      nativeRenderFailureDetail: 'Rust backend rejected unsupported PSD media',
+    });
+
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterStatus: 'ready',
+      uxfdSharedRendererPresenterFormat: 'bgra8unorm',
+      uxfdSharedRendererPresenterSwatch: 'pixi-passthrough',
+      uxfdSharedRendererPresenterNativeRenderFailureReason: 'nativeRenderFailed',
+      uxfdSharedRendererPresenterNativeRenderFailureDetail: 'Rust backend rejected unsupported PSD media',
+    });
+  });
+
   it('publishes fallback reasons and clears ready-only fields', () => {
     const dataset: Record<string, string | undefined> = {
       uxfdSharedRendererPresenterFormat: 'bgra8unorm',

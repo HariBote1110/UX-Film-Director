@@ -279,6 +279,48 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
     });
   });
 
+  it('passes native render preparation failure details into the presenter diagnostics input', async () => {
+    let presenterInput: unknown;
+    const prepareNativeRenderUpload: SharedRendererViewportNativeRenderUploadPreparer = async () => ({
+      ok: false,
+      reason: 'nativeRenderFailed',
+      detail: 'Rust backend rejected unsupported PSD media',
+      activeJobs: [activeJob],
+    });
+    const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {
+      presenterInput = input;
+      return control;
+    };
+
+    const result = await startSharedRendererViewportPresenter({
+      canvas,
+      session,
+      datasets: [],
+      diagnosticSwatchEnabled: true,
+      videoCutoverEnabled: true,
+      activeVideoDecodeJob: null,
+      activeVideoDecodeJobs: [],
+      requestId: 14,
+      prepareNativeRenderUpload,
+      prepareVideoUploads: async () => ({
+        ok: false,
+        reason: 'uploadFailed',
+        detail: 'video upload intentionally bypassed in this diagnostics contract',
+        activeJobs: [activeJob],
+      }),
+      startPresenter,
+    });
+
+    expect(result.activeVideoDecodeJobs).toEqual([activeJob]);
+    expect(presenterInput).toMatchObject({
+      sharedRendererNativeRenderFrameUpload: undefined,
+      sharedRendererNativeRenderFailure: {
+        reason: 'nativeRenderFailed',
+        detail: 'Rust backend rejected unsupported PSD media',
+      },
+    });
+  });
+
   it('starts the presenter without upload when Rust video preparation fails so Pixi can remain owner', async () => {
     let presenterInput: unknown;
     const prepareVideoUpload: SharedRendererViewportVideoUploadPreparer = async () => ({
