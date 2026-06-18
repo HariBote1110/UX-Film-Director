@@ -122,6 +122,101 @@ fn encode_shared_frame_session_tracks_descriptor_without_legacy_base64_fallback(
 }
 
 #[test]
+fn encode_start_accepts_audio_path_and_muxes_audio_with_shared_frames() {
+    let mut backend = BackendProcess::start();
+    let temp_dir = TestTempDir::new("encode-shared-frame-audio");
+    let output_path = temp_dir.path().join("encoded-output-with-audio.mp4");
+    let output_path_string = output_path.to_string_lossy().into_owned();
+    let audio_path = temp_dir.path().join("mixed-audio.wav");
+    write_silent_wav_fixture(&audio_path, 48_000, 4_800);
+    let audio_path_string = audio_path.to_string_lossy().into_owned();
+    let memory_id = unique_shm_name();
+    let slot_count = 1;
+    let width = 16;
+    let height = 16;
+    let stride_bytes = 256;
+    let slot_byte_len = stride_bytes * height;
+    let tight_rgba = vec![0x9b; width as usize * height as usize * 4];
+    let padded_rgba = pad_rgba_rows(&tight_rgba, width, height, stride_bytes as usize);
+    let producer_ring = PosixSharedRing::create_with_slot_count(
+        &memory_id,
+        slot_count,
+        slot_byte_len as usize,
+    )
+    .expect("create encode source ring");
+    producer_ring
+        .write_frame(0, &padded_rgba)
+        .expect("write encode source frame");
+
+    let start = backend.request(json!({
+        "id": 1,
+        "method": "encode.start",
+        "params": {
+            "sessionId": "encode-audio-1",
+            "filePath": output_path_string.clone(),
+            "audioPath": audio_path_string.clone(),
+            "width": width,
+            "height": height,
+            "fps": 30,
+            "pixelFormat": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(start["ok"], true, "{start}");
+    assert_eq!(start["result"]["audioPath"], audio_path_string);
+    assert_no_frame_bytes_recursive(&start["result"]);
+
+    let write_frame = backend.request(json!({
+        "id": 2,
+        "method": "encode.writeFrame",
+        "params": {
+            "sessionId": "encode-audio-1",
+            "frameIndex": 0,
+            "timestampUs": 0,
+            "slotCount": slot_count,
+            "frame": {
+                "descriptor": {
+                    "memoryId": memory_id,
+                    "slotIndex": 0,
+                    "generation": 1,
+                    "byteOffset": 0,
+                    "byteLen": slot_byte_len,
+                    "width": width,
+                    "height": height,
+                    "strideBytes": stride_bytes,
+                    "format": "rgba8Srgb",
+                    "colour": {
+                        "primaries": "bt709",
+                        "transfer": "srgb",
+                        "matrix": "rgb",
+                        "range": "full"
+                    }
+                },
+                "ptsFrame": 0
+            }
+        }
+    }));
+    assert_eq!(write_frame["ok"], true, "{write_frame}");
+
+    let finish = backend.request(json!({
+        "id": 3,
+        "method": "encode.finish",
+        "params": {
+            "sessionId": "encode-audio-1"
+        }
+    }));
+    assert_eq!(finish["ok"], true, "{finish}");
+    assert_eq!(finish["result"]["audioPath"], audio_path_string);
+    assert_no_frame_bytes_recursive(&finish["result"]);
+    assert_mp4_has_audio_stream(&output_path);
+}
+
+#[test]
 fn encode_write_frame_requires_slot_count_for_shared_memory_attach() {
     let mut backend = BackendProcess::start();
 
@@ -1340,6 +1435,59 @@ fn run_ffmpeg_command(command: &mut Command, label: &str) {
         "{label} failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+fn write_silent_wav_fixture(path: &Path, sample_rate: u32, sample_count: u32) {
+    let channels = 1u16;
+    let bytes_per_sample = 2u16;
+    let block_align = channels * bytes_per_sample;
+    let byte_rate = sample_rate * u32::from(block_align);
+    let data_size = sample_count * u32::from(block_align);
+    let mut bytes = Vec::with_capacity(44 + data_size as usize);
+    bytes.extend_from_slice(b"RIFF");
+    bytes.extend_from_slice(&(36 + data_size).to_le_bytes());
+    bytes.extend_from_slice(b"WAVE");
+    bytes.extend_from_slice(b"fmt ");
+    bytes.extend_from_slice(&16u32.to_le_bytes());
+    bytes.extend_from_slice(&1u16.to_le_bytes());
+    bytes.extend_from_slice(&channels.to_le_bytes());
+    bytes.extend_from_slice(&sample_rate.to_le_bytes());
+    bytes.extend_from_slice(&byte_rate.to_le_bytes());
+    bytes.extend_from_slice(&block_align.to_le_bytes());
+    bytes.extend_from_slice(&16u16.to_le_bytes());
+    bytes.extend_from_slice(b"data");
+    bytes.extend_from_slice(&data_size.to_le_bytes());
+    bytes.resize(44 + data_size as usize, 0);
+    fs::write(path, bytes).expect("write silent wav fixture");
+}
+
+fn assert_mp4_has_audio_stream(path: &Path) {
+    let ffprobe_path = std::env::var("UXFD_FFPROBE_BIN").unwrap_or_else(|_| "ffprobe".to_string());
+    let output = Command::new(&ffprobe_path)
+        .arg("-v")
+        .arg("error")
+        .arg("-show_entries")
+        .arg("stream=codec_type")
+        .arg("-of")
+        .arg("json")
+        .arg(path)
+        .output()
+        .expect("run ffprobe for encoded output");
+    assert!(
+        output.status.success(),
+        "ffprobe failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let parsed: Value = serde_json::from_slice(&output.stdout).expect("parse ffprobe JSON");
+    let has_audio = parsed
+        .get("streams")
+        .and_then(Value::as_array)
+        .is_some_and(|streams| {
+            streams
+                .iter()
+                .any(|stream| stream.get("codec_type").and_then(Value::as_str) == Some("audio"))
+        });
+    assert!(has_audio, "encoded MP4 should contain an audio stream: {parsed}");
 }
 
 struct BackendProcess {
