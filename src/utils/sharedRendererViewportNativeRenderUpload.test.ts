@@ -297,6 +297,71 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
     ]);
   });
 
+  it('releases a native render preview output at most once even if both upload callbacks run', async () => {
+    const calls: unknown[] = [];
+
+    const result = await prepareSharedRendererViewportNativeRenderUpload({
+      session: mediaOnlySession,
+      requestId: 25,
+      activeJobs: [],
+      prepareNativeRenderSources: async () => ({
+        ok: false,
+        reason: 'noVideoDecodeRequest',
+        detail: 'no video',
+        activeJobs: [],
+      }),
+      renderNativeSharedFrame: async () => ({
+        success: true,
+        result: {
+          ...renderResult,
+          renderId: 'preview-native-render-25',
+          frame: {
+            descriptor: {
+              ...descriptor,
+              memoryId: '/uxfd-preview-native-render-25',
+            },
+            ptsFrame: 25,
+          },
+        },
+      }),
+      releaseNativeSharedFrame: async (payload) => {
+        calls.push(['releaseNativeSharedFrame', payload]);
+        return {
+          success: true,
+          result: {
+            released: true,
+            memoryId: payload.memoryId,
+          },
+        };
+      },
+      copyBridge: {
+        copyIntoUploadBuffer: async (_payload, target) => {
+          target.fill(0x7e);
+          return {
+            success: true,
+            result: {
+              sequence: 25,
+              byteLen: descriptor.byteLen,
+              expectedChecksum: 0x1234,
+              actualChecksum: 0x1234,
+            },
+          };
+        },
+      },
+    });
+
+    if (!result.ok) throw new Error('expected native render upload to succeed');
+    await result.upload.releaseAfterGpuUpload?.();
+    await result.upload.releaseAfterUploadAbort?.();
+    await result.upload.releaseAfterGpuUpload?.();
+
+    expect(calls).toEqual([
+      ['releaseNativeSharedFrame', {
+        memoryId: '/uxfd-preview-native-render-25',
+      }],
+    ]);
+  });
+
   it('allows a PSD-only scene to use Rust native render media sources instead of Pixi fallback', async () => {
     const calls: unknown[] = [];
 
