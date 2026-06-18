@@ -550,6 +550,13 @@ renderer側は既存のreadback fallbackへ戻る。次段ではこの入口を�
 また、`contextBridge` 越しのWebGPU object受け渡しがclone/proxy例外を投げても、takerは `null` を返して
 既存のWebGPU readback fallbackへ戻る。未実装native addonが存在するだけでRust direct encode exportを壊さない。
 
+105. Phase5: native wgpu rendererの出力をshared-frame ringへ書けるようにする
+`native-wgpu-renderer` は `render_native_wgpu_frame_to_shared_ring` を公開し、Rust/wgpuで描画したRGBAを
+GPU row pitchに合わせてpadしたうえでPOSIX shared memory ringへ書き込む。戻り値は `SharedFrame` descriptorと
+ring ownerを保持し、Rust backend encoderへclone可能なdescriptorだけを渡せる入口にする。
+これにより、ブラウザWebGPU `GPUTexture` をElectron `contextBridge` 越しに渡す設計から、
+Rust-owned render/export surfaceへ移行する足場を得る。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

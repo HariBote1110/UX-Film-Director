@@ -1,3 +1,19 @@
+## 2026-06-18 — Phase5: native wgpu frameをshared memoryへ出力
+
+### 実施内容
+- `native-wgpu-renderer/tests/shared_frame_output.rs` を追加し、Rust/wgpu描画結果をshared-frame ringへ書く契約を追加した。
+- `native-wgpu-renderer` に `render_native_wgpu_frame_to_shared_ring` と `NativeWgpuSharedFrameReport` を追加した。
+- Rust/wgpuのRGBA出力を `rgba8Srgb` descriptorの `strideBytes` に合わせてpadし、POSIX shared memory ringへ書き込むようにした。
+- `uxfd-shared-memory-spike` と `uxfd-sidecar-protocol` をnative rendererの通常依存へ移した。
+- package version を `0.1.1-Beta-93a` に更新した。
+
+### 検証
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test shared_frame_output`
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test shm_decoded_frame_render --test frame_stage_timings`
+
+### 残課題・次のステップ
+- Rust-owned render surfaceからshared-frame descriptorを返す入口はできた。次はこの出力をRust backend encoder / Electron IPC / export sourceの実経路へ接続する。
+
 ## 2026-06-18 — Phase5: presented-frame handoffをcapabilityと例外fallbackで保護
 
 ### 実施内容
