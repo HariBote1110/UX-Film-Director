@@ -90,10 +90,25 @@ const media: RustSceneMediaReference[] = [
 ];
 
 describe('buildSharedRendererVideoCutoverStackSafety', () => {
-  it('blocks video cutover when a Pixi-only image is above the video plane', () => {
+  it('keeps video cutover when a PNG image and SolidColour plane are above it', () => {
     expect(buildSharedRendererVideoCutoverStackSafety({
       snapshot,
       media,
+      candidateVideoObjectIds: ['video-back'],
+    })).toEqual({
+      safeVideoObjectIds: ['video-back'],
+      blockedVideoObjectIds: [],
+    });
+  });
+
+  it('blocks video cutover when an unsupported image is above the video plane', () => {
+    expect(buildSharedRendererVideoCutoverStackSafety({
+      snapshot,
+      media: media.map((reference) => (
+        reference.id === 'image-front'
+          ? { ...reference, source: '/tmp/image.jpg' }
+          : reference
+      )),
       candidateVideoObjectIds: ['video-back'],
     })).toEqual({
       safeVideoObjectIds: [],
