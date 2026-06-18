@@ -45,18 +45,6 @@ const sharedFramePayload = (
   },
 });
 
-const unusedSharedFrameBridge = {
-  createWritableSharedFrameRing: async () => {
-    throw new Error('writable ring creation must not run');
-  },
-  writeIntoSharedFrameRing: async () => {
-    throw new Error('writable ring copy must not run');
-  },
-  closeWritableSharedFrameRing: async () => {
-    throw new Error('writable ring close must not run');
-  },
-};
-
 describe('runRustBackendVideoEncodeExport', () => {
   it('rejects rendered bitmap frames instead of copying them through a writable ring', async () => {
     const calls: unknown[] = [];
@@ -77,15 +65,12 @@ describe('runRustBackendVideoEncodeExport', () => {
 
     await expect(runRustBackendVideoEncodeExport({
       sessionId: 'session-1',
-      memoryId: '/uxfd-export-ring',
       filePath: '/tmp/out.mp4',
       width: 2,
       height: 1,
       fps: 60,
       frames: frames(),
       encoderBridge,
-      sharedFrameBridge: unusedSharedFrameBridge,
-      extractRgbaBytes: async () => Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8]),
     })).rejects.toThrow('Rust backend video encode export requires shared-frame payloads.');
 
     expect(calls).toEqual([
@@ -132,7 +117,6 @@ describe('runRustBackendVideoEncodeExport', () => {
 
     await runRustBackendVideoEncodeExport({
       sessionId: 'session-audio',
-      memoryId: '/uxfd-export-audio-ring',
       filePath: '/tmp/out.mp4',
       audioPath: '/tmp/mixed-audio.wav',
       width: 2,
@@ -140,7 +124,6 @@ describe('runRustBackendVideoEncodeExport', () => {
       fps: 30,
       frames: audioSharedFrames(),
       encoderBridge,
-      sharedFrameBridge: unusedSharedFrameBridge,
     });
 
     expect(calls).toEqual([
@@ -182,28 +165,6 @@ describe('runRustBackendVideoEncodeExport', () => {
         return { success: true, result: { outputFile: '/tmp/out.mp4' } };
       },
     };
-    const sharedFrameBridge: SharedVideoFrameWritableBridge = {
-      createWritableSharedFrameRing: async (payload) => {
-        calls.push(['createWritableSharedFrameRing', payload]);
-        return { success: true, result: payload };
-      },
-      writeIntoSharedFrameRing: async (payload, source) => {
-        calls.push(['writeIntoSharedFrameRing', payload, source.byteLength]);
-        return {
-          success: true,
-          result: {
-            sequence: payload.ptsFrame,
-            byteLen: source.byteLength,
-            checksum: 0x1234,
-          },
-        };
-      },
-      closeWritableSharedFrameRing: async (payload) => {
-        calls.push(['closeWritableSharedFrameRing', payload]);
-        return { success: true, result: payload };
-      },
-    };
-
     async function* directSharedFrames() {
       yield { timestamp: 0, sharedFramePayload: sharedFramePayload(0, 0) };
       yield { timestamp: 16_667, sharedFramePayload: sharedFramePayload(1, 16_667) };
@@ -211,14 +172,12 @@ describe('runRustBackendVideoEncodeExport', () => {
 
     await expect(runRustBackendVideoEncodeExport({
       sessionId: 'session-shared',
-      memoryId: '/unused-writable-ring',
       filePath: '/tmp/direct-shared.mp4',
       width: 4,
       height: 2,
       fps: 60,
       frames: directSharedFrames(),
       encoderBridge,
-      sharedFrameBridge,
     })).resolves.toEqual({
       frameCount: 2,
       sessionId: 'session-shared',
