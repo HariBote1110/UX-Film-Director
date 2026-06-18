@@ -16,6 +16,10 @@ import type { SharedRendererPreviewSurfaceBlockedReason } from './sharedRenderer
 
 type PresenterDataset = Record<string, string | undefined>;
 
+export type SharedRendererExportFrameSourceBlockedReason =
+  | SharedRendererPreviewSurfaceBlockedReason
+  | 'videoUploadFailed';
+
 export type SharedRendererExportFrameBitmapFactory = (
   canvas: HTMLCanvasElement,
   sx: number,
@@ -54,7 +58,7 @@ export class SharedRendererExportFrameSourceBlockedError extends Error {
 
   constructor(
     message: string,
-    readonly reason: SharedRendererPreviewSurfaceBlockedReason,
+    readonly reason: SharedRendererExportFrameSourceBlockedReason,
     readonly frameIndex: number
   ) {
     super(message);
@@ -152,6 +156,20 @@ export const createSharedRendererExportFrameSource = ({
       activeVideoDecodeJobs = presenterResult.activeVideoDecodeJobs;
 
       try {
+        const videoUploadBlock = resolveExportVideoUploadBlock(presenterResult);
+        if (videoUploadBlock) {
+          writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+            status: 'blocked',
+            frameIndex: request.frameIndex,
+            reason: 'videoUploadFailed',
+          });
+          throw new SharedRendererExportFrameSourceBlockedError(
+            videoUploadBlock,
+            'videoUploadFailed',
+            request.frameIndex
+          );
+        }
+
         return await createFrameBitmap(
           canvas,
           0,
@@ -185,6 +203,30 @@ const defaultStopVideoDecodeJob: SharedRendererExportVideoDecodeJobStopper = asy
   await stopRustBackendVideoDecode({
     jobId: job.jobId,
   });
+};
+
+const resolveExportVideoUploadBlock = (
+  presenterResult: StartSharedRendererViewportPresenterResult
+): string | null => {
+  const videoUploadsResult = presenterResult.videoUploadsResult;
+  if (
+    videoUploadsResult
+    && !videoUploadsResult.ok
+    && videoUploadsResult.reason !== 'noVideoDecodeRequest'
+  ) {
+    return videoUploadsResult.detail;
+  }
+
+  const videoUploadResult = presenterResult.videoUploadResult;
+  if (
+    videoUploadResult
+    && !videoUploadResult.ok
+    && videoUploadResult.reason !== 'noVideoDecodeRequest'
+  ) {
+    return videoUploadResult.detail;
+  }
+
+  return null;
 };
 
 const writeFrameDiagnostics = (
