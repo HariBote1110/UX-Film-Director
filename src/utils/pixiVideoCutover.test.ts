@@ -137,13 +137,24 @@ describe('resolvePixiVideoRenderPath', () => {
     })).toBe('exportFrameOverride');
   });
 
-  it('keeps the legacy Pixi video element path only for non-required export compatibility', () => {
+  it('rejects the legacy Pixi video element path for export compatibility unless explicitly opted in', () => {
     expect(resolvePixiVideoRenderPath({
       objectId: 'video-1',
       objectType: 'video',
       isExporting: true,
       requireSharedRendererVideo: false,
       hasExportFrameOverride: false,
+    })).toBe('sharedRendererOnly');
+  });
+
+  it('keeps the legacy Pixi video element path only behind an explicit compatibility opt-in', () => {
+    expect(resolvePixiVideoRenderPath({
+      objectId: 'video-1',
+      objectType: 'video',
+      isExporting: true,
+      requireSharedRendererVideo: false,
+      hasExportFrameOverride: false,
+      allowLegacyPixiVideo: true,
     })).toBe('pixiVideoElement');
   });
 });
