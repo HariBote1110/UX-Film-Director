@@ -3,7 +3,9 @@ use std::time::Duration;
 use napi::bindgen_prelude::Uint8Array;
 use napi_derive::napi;
 use uxfd_shared_video_frame_bridge::{
-    copy_shared_frame_into_upload_buffer, SharedVideoFrameBridgeError,
+    close_writable_shared_frame_ring, copy_shared_frame_into_upload_buffer,
+    create_writable_shared_frame_ring, write_into_writable_shared_frame_ring,
+    SharedVideoFrameBridgeError,
 };
 
 const COPY_TIMEOUT: Duration = Duration::from_millis(100);
@@ -33,9 +35,130 @@ pub struct SharedVideoFrameCopyResponse {
 }
 
 #[napi(object)]
+pub struct WritableSharedFrameRingPayload {
+    pub memory_id: String,
+    pub slot_count: u32,
+    pub slot_byte_len: u32,
+}
+
+#[napi(object)]
+pub struct WritableSharedFrameRingReport {
+    pub memory_id: String,
+    pub slot_count: u32,
+    pub slot_byte_len: u32,
+}
+
+#[napi(object)]
+pub struct WritableSharedFrameRingResponse {
+    pub success: bool,
+    pub result: Option<WritableSharedFrameRingReport>,
+    pub error: Option<String>,
+}
+
+#[napi(object)]
+pub struct WritableSharedFrameWritePayload {
+    pub memory_id: String,
+    pub pts_frame: f64,
+}
+
+#[napi(object)]
+pub struct WritableSharedFrameWriteReport {
+    pub sequence: f64,
+    pub byte_len: u32,
+    pub checksum: u32,
+}
+
+#[napi(object)]
+pub struct WritableSharedFrameWriteResponse {
+    pub success: bool,
+    pub result: Option<WritableSharedFrameWriteReport>,
+    pub error: Option<String>,
+}
+
+#[napi(object)]
+pub struct WritableSharedFrameClosePayload {
+    pub memory_id: String,
+}
+
+#[napi(object)]
+pub struct WritableSharedFrameCloseReport {
+    pub memory_id: String,
+}
+
+#[napi(object)]
+pub struct WritableSharedFrameCloseResponse {
+    pub success: bool,
+    pub result: Option<WritableSharedFrameCloseReport>,
+    pub error: Option<String>,
+}
+
+#[napi(object)]
 pub struct DebugFillReport {
     pub byte_len: u32,
     pub fill_value: u32,
+}
+
+#[napi(js_name = "createWritableSharedFrameRing")]
+pub fn create_writable_shared_frame_ring_node(
+    payload: WritableSharedFrameRingPayload,
+) -> WritableSharedFrameRingResponse {
+    match create_writable_shared_frame_ring(
+        &payload.memory_id,
+        payload.slot_count,
+        payload.slot_byte_len as usize,
+    ) {
+        Ok(report) => WritableSharedFrameRingResponse {
+            success: true,
+            result: Some(WritableSharedFrameRingReport {
+                memory_id: report.memory_id,
+                slot_count: report.slot_count,
+                slot_byte_len: report.slot_byte_len as u32,
+            }),
+            error: None,
+        },
+        Err(error) => writable_ring_failure(format_bridge_error(error)),
+    }
+}
+
+#[napi(js_name = "writeIntoSharedFrameRing")]
+pub fn write_into_shared_frame_ring_node(
+    payload: WritableSharedFrameWritePayload,
+    source: Uint8Array,
+) -> WritableSharedFrameWriteResponse {
+    let sequence = match safe_frame_sequence(payload.pts_frame) {
+        Ok(sequence) => sequence,
+        Err(error) => return writable_write_failure(error),
+    };
+    let source_slice = source.as_ref();
+
+    match write_into_writable_shared_frame_ring(&payload.memory_id, sequence, source_slice) {
+        Ok(report) => WritableSharedFrameWriteResponse {
+            success: true,
+            result: Some(WritableSharedFrameWriteReport {
+                sequence: report.sequence as f64,
+                byte_len: report.byte_len as u32,
+                checksum: report.checksum,
+            }),
+            error: None,
+        },
+        Err(error) => writable_write_failure(format_bridge_error(error)),
+    }
+}
+
+#[napi(js_name = "closeWritableSharedFrameRing")]
+pub fn close_writable_shared_frame_ring_node(
+    payload: WritableSharedFrameClosePayload,
+) -> WritableSharedFrameCloseResponse {
+    match close_writable_shared_frame_ring(&payload.memory_id) {
+        Ok(report) => WritableSharedFrameCloseResponse {
+            success: true,
+            result: Some(WritableSharedFrameCloseReport {
+                memory_id: report.memory_id,
+            }),
+            error: None,
+        },
+        Err(error) => writable_close_failure(format_bridge_error(error)),
+    }
 }
 
 #[napi(js_name = "copyIntoUploadBuffer")]
@@ -102,10 +225,46 @@ fn copy_failure(error: String) -> SharedVideoFrameCopyResponse {
     }
 }
 
+fn writable_ring_failure(error: String) -> WritableSharedFrameRingResponse {
+    WritableSharedFrameRingResponse {
+        success: false,
+        result: None,
+        error: Some(error),
+    }
+}
+
+fn writable_write_failure(error: String) -> WritableSharedFrameWriteResponse {
+    WritableSharedFrameWriteResponse {
+        success: false,
+        result: None,
+        error: Some(error),
+    }
+}
+
+fn writable_close_failure(error: String) -> WritableSharedFrameCloseResponse {
+    WritableSharedFrameCloseResponse {
+        success: false,
+        result: None,
+        error: Some(error),
+    }
+}
+
 fn format_bridge_error(error: SharedVideoFrameBridgeError) -> String {
     match error {
         SharedVideoFrameBridgeError::UploadBufferLengthMismatch { expected, actual } => {
             format!("UploadBufferLengthMismatch: expected {expected} bytes, got {actual} bytes")
+        }
+        SharedVideoFrameBridgeError::SourceBufferLengthMismatch { expected, actual } => {
+            format!("SourceBufferLengthMismatch: expected {expected} bytes, got {actual} bytes")
+        }
+        SharedVideoFrameBridgeError::WritableRingAlreadyExists { memory_id } => {
+            format!("WritableRingAlreadyExists: {memory_id}")
+        }
+        SharedVideoFrameBridgeError::WritableRingNotFound { memory_id } => {
+            format!("WritableRingNotFound: {memory_id}")
+        }
+        SharedVideoFrameBridgeError::WritableRingRegistryPoisoned => {
+            "WritableRingRegistryPoisoned".to_string()
         }
         SharedVideoFrameBridgeError::SharedMemory(error) => {
             format!("SharedMemory: {error:?}")
