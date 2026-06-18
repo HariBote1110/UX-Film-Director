@@ -451,3 +451,16 @@
 ## 確認
 - `npm test -- viewportRustExportFrameSource sharedRendererExportSession` を実行し、15件成功を確認。
 - `npx tsc --noEmit 2>&1 | rg "(viewportRustExportFrameSource|sharedRendererExportSession)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 43. Phase5: native renderer未接続時のexport経路保護
+- `src/utils/sharedRendererExportFrameSource.ts`
+- `renderNativeEncodeFrame` の入口で `render.nativeSharedFrame` bridge が未接続の場合に即 `null` を返し、native render source準備へ進まないようにした。
+- これにより、native renderer未接続環境では動画decode source準備や未接続RPCを走らせず、既存のpresenter shared-frame / WebGPU readback経路へ安全に戻る。
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- native renderer bridge未接続時に `prepareNativeRenderSources` が呼ばれず、`webGpuReadbackSharedFrameWriter` でencode frameを生成する契約を追加した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-124a` に更新した。
+
+## 確認
+- `npm test -- sharedRendererExportFrameSource` を実行し、19件成功を確認。
+- `npx tsc --noEmit 2>&1 | rg "(sharedRendererExportFrameSource|rustBackendNativeRenderControl)"` を実行し、対象ファイルに型エラーが出ないことを確認。

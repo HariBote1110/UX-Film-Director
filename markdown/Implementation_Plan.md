@@ -764,6 +764,12 @@ DOM dataset診断へ envelope status / media count / media kinds / source count 
 surface gateやunsupported mediaでblockedになった場合も envelope reason/detail を記録し、
 video+PSD混在exportがRust native render直通に進める状態かをsource選択時点で確認できるようにする。
 
+141. Phase5: native renderer未接続時のexport native render準備を抑止する
+Electron preload / native bridge が `render.nativeSharedFrame` を公開していない環境では、
+動画sourceが存在しても `prepareSharedRendererViewportNativeRenderSources` を呼ばず、presenter shared-frame handoff /
+WebGPU readback経路へ戻す。未接続のRPCや不要なRust decode jobを発生させず、native render capability gateを
+source準備より前に評価する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
