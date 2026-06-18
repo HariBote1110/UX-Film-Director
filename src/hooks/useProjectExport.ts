@@ -6,6 +6,7 @@ import { shallow } from 'zustand/shallow';
 import { buildExportAudioBuffer } from '../utils/audioMixdown';
 import { encodeVideoToMp4 } from '../utils/videoExportPipeline';
 import { resolveProjectExportEncodePlanFromBridge } from '../utils/projectExportEncodePlan';
+import { runRustBackendVideoEncodeExport } from '../utils/rustBackendVideoEncodeExport';
 import { VideoFrameProvider } from '../utils/videoFrameProvider';
 import { PlaybackFrameProvider } from '../utils/playbackFrameProvider';
 import type { FrameProvider } from '../utils/frameProvider';
@@ -72,11 +73,6 @@ export const useProjectExport = (
         setExporting(false);
         return;
       }
-      if (exportEncodePlan.engine === 'rustBackendVideoEncoder') {
-        alert('エクスポート失敗: Rust backend video encoder path is not connected yet.');
-        setExporting(false);
-        return;
-      }
 
       // フレームプロバイダ（VideoDecoder or 再生方式）のクリーンアップ用リスト
       const providers = new Map<string, FrameProvider>();
@@ -104,8 +100,6 @@ export const useProjectExport = (
           filters: [{ name: 'MP4 Video', extensions: ['mp4'] }],
         });
         if (!savePath) { setExporting(false); return; }
-
-        const audioBuffer = await buildExportAudioBuffer(exportObjects, exportDuration, sampleRate);
 
         // 動画を一時停止
         Array.from(videoElementsRef.current.values()).forEach(v => v.pause());
@@ -289,6 +283,23 @@ export const useProjectExport = (
           // フレームループ終了後に override をクリア
           exportFrameOverridesRef?.current.clear();
         }
+
+        if (exportEncodePlan.engine === 'rustBackendVideoEncoder') {
+          const result = await runRustBackendVideoEncodeExport({
+            filePath: savePath,
+            width: encWidth,
+            height: encHeight,
+            fps,
+            frames: renderFrames(),
+          });
+          if (isCancelled()) return;
+
+          setExportProgress({ phase: 'saving', currentFrame: totalFrames, totalFrames });
+          alert(`エクスポート完了！\nコーデック: Rust backend rawvideo/ffmpeg\nフレーム: ${result.frameCount}\n保存先: ${savePath}`);
+          return;
+        }
+
+        const audioBuffer = await buildExportAudioBuffer(exportObjects, exportDuration, sampleRate);
 
         // 出力をディスクへ逐次書き出す（出力全体をメモリに保持しない）。
         const openRes = await ipcRenderer.invoke('export-stream-open', { filePath: savePath });
