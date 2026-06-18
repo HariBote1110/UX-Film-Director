@@ -176,6 +176,8 @@ describe('buildViewportRustExportFrameSource', () => {
       filePath: '/tmp/GoPro.mp4',
       width: 1920,
       height: 1080,
+      volume: 1,
+      muted: false,
     } satisfies TimelineObject;
 
     const source = buildViewportRustExportFrameSource({

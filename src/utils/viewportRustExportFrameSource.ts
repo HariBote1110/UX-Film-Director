@@ -86,6 +86,8 @@ export const resolveViewportRustExportFrameSource = ({
   buildExportSession = buildSharedRendererExportSession,
   createFrameSource = createSharedRendererExportFrameSource,
 }: BuildViewportRustExportFrameSourceInput): ViewportRustExportFrameSourceDecision => {
+  const effectivePreferEncodeOnly = preferEncodeOnly || hasVideoObjects(objects);
+
   if (!exportEnabled) {
     return fallback(
       'exportFlagDisabled',
@@ -163,7 +165,7 @@ export const resolveViewportRustExportFrameSource = ({
         webGpuAvailable,
         fallbackAdapter,
         videoCutoverEnabled,
-        ...(preferEncodeOnly ? {
+        ...(effectivePreferEncodeOnly ? {
           bitmapCaptureEnabled: false,
           nativeRenderRequired: true,
         } : {}),
@@ -183,7 +185,7 @@ export const resolveViewportRustExportFrameSource = ({
       webGpuAvailable,
       fallbackAdapter,
       videoCutoverEnabled,
-      ...(preferEncodeOnly ? {
+      ...(effectivePreferEncodeOnly ? {
         bitmapCaptureEnabled: false,
         nativeRenderRequired: true,
       } : {}),
@@ -191,6 +193,9 @@ export const resolveViewportRustExportFrameSource = ({
     }),
   };
 };
+
+const hasVideoObjects = (objects: readonly TimelineObject[] | undefined): boolean =>
+  objects?.some((object) => object.type === 'video') ?? false;
 
 export const writeViewportRustExportFrameSourceDiagnostics = (
   dataset: Record<string, string | undefined>,
