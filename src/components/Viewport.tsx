@@ -37,6 +37,7 @@ import {
   startSharedRendererViewportPresenter,
 } from '../utils/sharedRendererViewportPresenterOrchestration';
 import type { SharedRendererViewportVideoDecodeJob } from '../utils/sharedRendererViewportVideoUpload';
+import type { ProjectExportRustFrameSourceContext } from '../utils/projectExportFrameCanvas';
 import { buildViewportRustExportFrameSource } from '../utils/viewportRustExportFrameSource';
 import { shouldMountSharedRendererSurfaceCanvas } from '../utils/sharedRendererSurfaceMount';
 
@@ -1136,7 +1137,7 @@ const Viewport: React.FC = () => {
     return pixiCanvas != null ? (pixiCanvas as HTMLCanvasElement) : null;
   }, []);
 
-  const getRustExportFrameSource = useCallback(() => buildViewportRustExportFrameSource({
+  const getRustExportFrameSource = useCallback((context: ProjectExportRustFrameSourceContext) => buildViewportRustExportFrameSource({
     exportEnabled: sharedRendererExportEnabled,
     canvas: sharedRendererSurfaceCanvasRef.current,
     projectSettings,
@@ -1145,6 +1146,8 @@ const Viewport: React.FC = () => {
     webGpuAvailable: sharedRendererGpuStatus.webGpuAvailable,
     fallbackAdapter: sharedRendererGpuStatus.fallbackAdapter,
     videoCutoverEnabled: sharedRendererVideoCutoverEnabled,
+    objects: context.objects,
+    time: context.time,
     diagnosticsDataset: document.documentElement.dataset as Record<string, string | undefined>,
   }), [
     editorMode,

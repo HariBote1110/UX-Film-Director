@@ -1,9 +1,18 @@
-import type { EditorMode, LayerState, ProjectSettings } from '../types';
+import type { EditorMode, LayerState, ProjectSettings, TimelineObject } from '../types';
 import {
   createSharedRendererExportFrameSource,
   type CreateSharedRendererExportFrameSourceInput,
 } from './sharedRendererExportFrameSource';
+import {
+  buildSharedRendererExportSession,
+  type SharedRendererExportSession,
+  type SharedRendererExportSessionInput,
+} from './sharedRendererExportSession';
 import type { ProjectExportRustFrameSource } from './projectExportFrameCanvas';
+
+type BuildSharedRendererExportSession = (
+  input: SharedRendererExportSessionInput
+) => SharedRendererExportSession;
 
 export interface BuildViewportRustExportFrameSourceInput {
   exportEnabled: boolean;
@@ -14,6 +23,9 @@ export interface BuildViewportRustExportFrameSourceInput {
   webGpuAvailable: boolean;
   fallbackAdapter: boolean;
   videoCutoverEnabled: boolean;
+  objects?: TimelineObject[];
+  time?: number;
+  buildExportSession?: BuildSharedRendererExportSession;
   createFrameSource?: (
     input: CreateSharedRendererExportFrameSourceInput
   ) => ProjectExportRustFrameSource;
@@ -26,7 +38,8 @@ export type ViewportRustExportFrameSourceFallbackReason =
   | 'unsupportedEditorMode'
   | 'webGpuUnavailable'
   | 'fallbackAdapter'
-  | 'videoCutoverDisabled';
+  | 'videoCutoverDisabled'
+  | 'exportSessionBlocked';
 
 export type ViewportRustExportFrameSourceDecision =
   | {
@@ -60,6 +73,9 @@ export const resolveViewportRustExportFrameSource = ({
   webGpuAvailable,
   fallbackAdapter,
   videoCutoverEnabled,
+  objects,
+  time,
+  buildExportSession = buildSharedRendererExportSession,
   createFrameSource = createSharedRendererExportFrameSource,
 }: BuildViewportRustExportFrameSourceInput): ViewportRustExportFrameSourceDecision => {
   if (!exportEnabled) {
@@ -97,6 +113,22 @@ export const resolveViewportRustExportFrameSource = ({
       'videoCutoverDisabled',
       'Shared renderer Rust export requires Rust video cutover to be enabled.'
     );
+  }
+
+  if (objects && time !== undefined) {
+    const session = buildExportSession({
+      enabled: true,
+      projectSettings,
+      layers,
+      objects,
+      time,
+      editorMode,
+      webGpuAvailable,
+      fallbackAdapter,
+    });
+    if (!session.surfaceGate.ok) {
+      return fallback('exportSessionBlocked', session.surfaceGate.detail);
+    }
   }
 
   return {

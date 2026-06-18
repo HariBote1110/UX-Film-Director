@@ -18,6 +18,11 @@ export interface ProjectExportRustFrameSource {
   close?: () => Promise<void> | void;
 }
 
+export interface ProjectExportRustFrameSourceContext {
+  objects: TimelineObject[];
+  time: number;
+}
+
 export type ResolveProjectExportFrameCanvasResult =
   | {
       ok: true;

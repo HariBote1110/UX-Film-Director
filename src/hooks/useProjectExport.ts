@@ -12,6 +12,7 @@ import {
   buildProjectExportFrameSourcePlan,
   resolveProjectExportFrameRuntimePlan,
   resolveProjectExportFrameCanvas,
+  type ProjectExportRustFrameSourceContext,
   type ProjectExportRustFrameSource,
 } from '../utils/projectExportFrameCanvas';
 import { isSharedRendererExportFrameSourceBlockedError } from '../utils/sharedRendererExportFrameSource';
@@ -25,7 +26,7 @@ export const useProjectExport = (
   getExportCanvas?: () => HTMLCanvasElement | null,
   /** VideoDecoder ハイブリッドパス: フレームを renderScene 前に注入するための ref */
   exportFrameOverridesRef?: React.MutableRefObject<Map<string, ImageBitmap>>,
-  getRustExportFrameSource?: () => ProjectExportRustFrameSource | null,
+  getRustExportFrameSource?: (context: ProjectExportRustFrameSourceContext) => ProjectExportRustFrameSource | null,
 ) => {
   const { isExporting, setExporting, setTime, setExportProgress } = useStore((state) => ({
     isExporting: state.isExporting,
@@ -42,8 +43,13 @@ export const useProjectExport = (
     const isCancelled = () => cancelled || useStore.getState().exportCancelRequested;
 
     const runExport = async () => {
+      const { projectSettings, objects, layers } = useStore.getState();
+      const exportObjects = objects.filter((obj) => layers[obj.layer]?.visible !== false);
       const initialFrameSourcePlan = buildProjectExportFrameSourcePlan({
-        rustFrameSource: getRustExportFrameSource?.() ?? null,
+        rustFrameSource: getRustExportFrameSource?.({
+          objects: exportObjects,
+          time: 0,
+        }) ?? null,
         getExportCanvas,
         pixiCanvas: pixiAppRef.current?.canvas as HTMLCanvasElement | null | undefined,
       });
@@ -58,13 +64,11 @@ export const useProjectExport = (
       const providers = new Map<string, FrameProvider>();
 
       try {
-        const { projectSettings, objects, layers } = useStore.getState();
         const fps = projectSettings.fps;
         const dt = 1 / fps;
         const width = projectSettings.width;
         const height = projectSettings.height;
         const sampleRate = projectSettings.sampleRate || 44100;
-        const exportObjects = objects.filter((obj) => layers[obj.layer]?.visible !== false);
         const videoObjects = exportObjects.filter(
           (obj): obj is Extract<TimelineObject, { type: 'video' }> => obj.type === 'video'
         );
