@@ -57,7 +57,7 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
   requestId,
   slotCount = 2,
   activeJobs = [],
-  rustBackendBridge = window.rustBackend,
+  rustBackendBridge,
   decodeRequestBuilder = buildSharedRendererVideoFrameDecodeRequests,
 }: PrepareSharedRendererViewportNativeRenderSourcesInput): Promise<PrepareSharedRendererViewportNativeRenderSourcesResult> => {
   if (!session.surfaceGate.ok) {
@@ -91,6 +91,7 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
     };
   }
 
+  const bridge = rustBackendBridge ?? window.rustBackend;
   const resolvedActiveJobs: SharedRendererViewportVideoDecodeJob[] = [];
   const sources: SharedRendererViewportNativeRenderSource[] = [];
   const resolvedRequestId = requestId ?? session.surfaceGate.snapshot.frame_index;
@@ -106,7 +107,7 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
   for (const staleJob of staleActiveJobs) {
     const stopResponse = await stopRustBackendVideoDecode({
       jobId: staleJob.jobId,
-    }, rustBackendBridge);
+    }, bridge);
     if (!stopResponse.success) {
       return {
         ok: false,
@@ -123,7 +124,7 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
     if (activeMatch) {
       resolvedJob = activeMatch;
     } else {
-      const startResult = await startDecodeJob(nextJob, request, rustBackendBridge);
+      const startResult = await startDecodeJob(nextJob, request, bridge);
       if (isDecodeJobStartFailure(startResult)) {
         return {
           ok: false,
@@ -141,7 +142,7 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
       requestId: resolvedRequestId,
       frameIndex: request.sourceFrame,
       mode: 'latestWins',
-    }, rustBackendBridge);
+    }, bridge);
     if (!decodeResponse.success) {
       return {
         ok: false,
@@ -159,7 +160,7 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
         slotIndex: decodeResponse.result.frame.descriptor.slotIndex,
         generation: decodeResponse.result.frame.descriptor.generation,
         copyOutState: 'rendererUploadAborted',
-      }, rustBackendBridge);
+      }, bridge);
       return {
         ok: false,
         reason: 'staleDecodeResponse',
