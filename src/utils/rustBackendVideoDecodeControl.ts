@@ -143,6 +143,7 @@ export const isRustBackendDecodedVideoFrameAvailable = (
 
   const result = response.result;
   if (result.accepted !== true || result.mode !== 'latestWins') return false;
+  if (containsJsonFramePayload(result)) return false;
   if (!isRecord(result.frame) || !isRecord(result.verification)) return false;
   if (result.verification.status !== 'withinTolerance') return false;
 
@@ -166,6 +167,29 @@ export const isRustBackendDecodedVideoFrameAvailable = (
     && typeof result.frame.ptsFrame === 'number'
     && result.frame.ptsFrame === result.frameIndex
   );
+};
+
+const forbiddenJsonFramePayloadKeys = new Set([
+  'bytes',
+  'pixels',
+  'frameBase64',
+  'rgbaBytes',
+]);
+
+const containsJsonFramePayload = (
+  value: unknown,
+  visited = new WeakSet<object>(),
+): boolean => {
+  if (!isRecord(value)) return false;
+  if (visited.has(value)) return false;
+  visited.add(value);
+
+  for (const [key, nested] of Object.entries(value)) {
+    if (forbiddenJsonFramePayloadKeys.has(key)) return true;
+    if (containsJsonFramePayload(nested, visited)) return true;
+  }
+
+  return false;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
