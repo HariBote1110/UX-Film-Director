@@ -1,3 +1,27 @@
+## 2026-06-18 — Phase5: Rust export blocked時にsourceを即時close
+
+### 実施内容
+- `ProjectExportFrameRuntimePlan` に `shouldCloseRustFrameSource` を追加した。
+- Rust/shared renderer frame sourceがblockedになりlegacyへ退避する時点で、Rust frame sourceの `close` を即時呼び出すようにした。
+- 退避後の残りframeはlegacy canvas runtimeで処理しつつ、Rust decode jobsをexport終了まで保持し続けないようにした。
+- package version を `0.1.1-Beta-60h` に更新した。
+
+### Red
+- `src/utils/projectExportFrameCanvas.test.ts` に、Rust source active時はclose不要、blocked後legacy runtimeではclose必要、通常legacy pathではclose不要という契約を追加した。
+
+### Green
+- `resolveProjectExportFrameRuntimePlan` が close要否を返す。
+- `useProjectExport` は blocked error 捕捉後にruntime planを再解決し、必要なら `frameSource.close()` を呼んでからlegacyへ退避する。
+
+### 現在の制限
+- `frameSource.close()` が失敗した場合はexport失敗として扱う。close失敗をwarnだけにするかは実機smoke後に判断する。
+
+### 検証
+- `npm test -- src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/viewportRustExportFrameSource.test.ts`
+  -> 3 files / 19 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "projectExportFrameCanvas|useProjectExport|sharedRendererExportFrameSource|viewportRustExportFrameSource"`
+  -> 対象ファイルの型エラーなし。
+
 ## 2026-06-18 — Phase5: Rust export blocked後のlegacy runtimeを復旧
 
 ### 実施内容
