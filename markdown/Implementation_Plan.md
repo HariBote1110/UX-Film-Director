@@ -991,6 +991,11 @@ HTMLVideoElement cleanupの足場を取り除く。
 HTMLVideoElement / requestVideoFrameCallback ベースの比較providerはexport test harness専用とし、
 production utilitiesから旧ブラウザ動画providerの足場を除去する。
 
+185. Phase5: video readiness診断をRust/shared renderer必須へ一本化する
+`buildSharedRendererVideoMediaReadiness` から `videoElements` 入力、
+`HTMLVideoElement` readyState判定、`requireSharedRendererVideo` 分岐を削除する。
+Viewportはmedia一覧だけを渡し、動画mediaは常に `rustRendererRequired` として診断する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

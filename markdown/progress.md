@@ -320,3 +320,10 @@
 - Green: export test harnessのimportを `./playbackFrameProvider` へ更新し、providerコメントも比較・診断用途に限定した。
 - 検証: `npm test -- useProjectExportBoundary` は9件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-164a`。
+
+## 2026-06-19
+- Phase5のvideo readiness診断として、HTMLVideoElement readyState入力を削除し、Rust/shared renderer必須診断へ一本化した。
+- Red: `sharedRendererVideoMediaReadiness` をDOM非依存契約へ更新し、Viewportが `requireSharedRendererVideo` を渡さない境界へ変更した。
+- Green: `buildSharedRendererVideoMediaReadiness` から `videoElements` と `requireSharedRendererVideo` を削除し、動画mediaを常に `rustRendererRequired` として数えるようにした。
+- 検証: `npm test -- sharedRendererVideoMediaReadiness viewportRustVideoOnlyBoundary` は12件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-165a`。
