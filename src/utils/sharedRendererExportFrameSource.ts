@@ -350,6 +350,10 @@ export function createSharedRendererExportFrameSource({
       status: 'ready',
       frameIndex: request.frameIndex,
       path: 'nativeRenderSharedFrame',
+      nativeRender: {
+        media: surfaceGate.media,
+        sources: nativeRenderSources,
+      },
     });
 
     return {
@@ -579,10 +583,26 @@ const writeFrameDiagnostics = (
     frameIndex: number;
     reason?: string;
     path?: 'nativeRenderSharedFrame' | 'presentedSharedFrame' | 'webGpuReadbackSharedFrameWriter';
+    nativeRender?: {
+      media: readonly { kind: string }[];
+      sources: readonly { mediaId: string }[];
+    };
   }
 ): void => {
   dataset.uxfdRustExportFrameSourceFrameStatus = state.status;
   dataset.uxfdRustExportFrameSourceFrameIndex = String(state.frameIndex);
   dataset.uxfdRustExportFrameSourceFrameReason = state.reason;
   dataset.uxfdRustExportFrameSourceFramePath = state.path;
+  dataset.uxfdRustExportFrameSourceNativeRenderMediaCount = state.nativeRender
+    ? String(state.nativeRender.media.length)
+    : undefined;
+  dataset.uxfdRustExportFrameSourceNativeRenderMediaKinds = state.nativeRender
+    ? state.nativeRender.media.map((reference) => reference.kind).join(',')
+    : undefined;
+  dataset.uxfdRustExportFrameSourceNativeRenderSourceCount = state.nativeRender
+    ? String(state.nativeRender.sources.length)
+    : undefined;
+  dataset.uxfdRustExportFrameSourceNativeRenderSourceMediaIds = state.nativeRender
+    ? state.nativeRender.sources.map((source) => source.mediaId).join(',')
+    : undefined;
 };
