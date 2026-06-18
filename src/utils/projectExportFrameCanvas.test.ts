@@ -130,6 +130,20 @@ describe('buildProjectExportFrameSourcePlan', () => {
     });
   });
 
+  it('refuses legacy canvas capture for video exports even when the caller omits the Rust-required policy', () => {
+    const pixiCanvas = { id: 'pixi-export' } as unknown as HTMLCanvasElement;
+
+    expect(buildProjectExportFrameSourcePlan({
+      rustFrameSource: null,
+      pixiCanvas,
+      hasVideoObjects: true,
+    })).toEqual({
+      ok: false,
+      reason: 'rustFrameSourceRequired',
+      detail: 'Video export requires a shared renderer Rust frame source.',
+    });
+  });
+
   it('falls back to the Pixi canvas only as legacy export capture', () => {
     const pixiCanvas = { id: 'pixi-export' } as unknown as HTMLCanvasElement;
 
