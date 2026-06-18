@@ -1,4 +1,5 @@
 import type { EditorMode, LayerState, ProjectSettings, TimelineObject } from '../types';
+import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererWebGpuPresenter';
 import {
   createSharedRendererExportFrameSource,
   type CreateSharedRendererExportFrameSourceInput,
@@ -24,6 +25,7 @@ export interface BuildViewportRustExportFrameSourceInput {
   fallbackAdapter: boolean;
   videoCutoverEnabled: boolean;
   preferEncodeOnly?: boolean;
+  presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
   objects?: TimelineObject[];
   time?: number;
   buildExportSession?: BuildSharedRendererExportSession;
@@ -75,6 +77,7 @@ export const resolveViewportRustExportFrameSource = ({
   fallbackAdapter,
   videoCutoverEnabled,
   preferEncodeOnly = false,
+  presentedFrameSharedFrameTaker,
   objects,
   time,
   buildExportSession = buildSharedRendererExportSession,
@@ -146,6 +149,7 @@ export const resolveViewportRustExportFrameSource = ({
       fallbackAdapter,
       videoCutoverEnabled,
       ...(preferEncodeOnly ? { bitmapCaptureEnabled: false } : {}),
+      ...(presentedFrameSharedFrameTaker ? { presentedFrameSharedFrameTaker } : {}),
     }),
   };
 };

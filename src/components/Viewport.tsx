@@ -1156,6 +1156,7 @@ const Viewport: React.FC = () => {
     objects: context.objects,
     time: context.time,
     preferEncodeOnly: context.preferEncodeOnly,
+    presentedFrameSharedFrameTaker: context.presentedFrameSharedFrameTaker,
     diagnosticsDataset: document.documentElement.dataset as Record<string, string | undefined>,
   }), [
     editorMode,

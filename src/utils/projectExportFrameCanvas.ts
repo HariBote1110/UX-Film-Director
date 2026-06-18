@@ -1,6 +1,7 @@
 import type { TimelineObject } from '../types';
 import type { ProjectExportEncodeEngine } from './projectExportEncodePlan';
 import type { RustBackendVideoEncodeFrame } from './rustBackendVideoEncodeExport';
+import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererWebGpuPresenter';
 
 export type ProjectExportFrameCanvasSource =
   | 'explicitExportCanvas'
@@ -37,6 +38,7 @@ export interface ProjectExportRustFrameSourceContext {
   objects: TimelineObject[];
   time: number;
   preferEncodeOnly?: boolean;
+  presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
 }
 
 export type ResolveProjectExportFrameCanvasResult =
