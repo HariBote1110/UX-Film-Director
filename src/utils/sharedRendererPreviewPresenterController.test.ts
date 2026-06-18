@@ -147,6 +147,62 @@ const videoSession: SharedRendererPreviewSession = {
   presentationContract: buildSharedRendererPresentationContract(),
 };
 
+const imageSnapshot: RustSceneSnapshot = {
+  ...snapshot,
+  clips: [
+    {
+      clip_id: 'image-1',
+      track_id: 'layer-0',
+      media_id: 'image-1',
+      source_frame: 0,
+      z_index: 0,
+      transform: {
+        translation_x: 32,
+        translation_y: 48,
+        scale_x: 1,
+        scale_y: 1,
+        rotation_degrees: 0,
+        sampling: 'bilinear',
+      },
+      opacity: 1,
+      effects: [],
+    },
+  ],
+};
+
+const imageSession: SharedRendererPreviewSession = {
+  plan: {
+    mode: 'parallelCompare',
+    primary: 'pixi',
+    candidate: 'sharedRenderer',
+    snapshot: imageSnapshot,
+    media: [
+      {
+        id: 'image-1',
+        kind: 'Image',
+        source: '/tmp/overlay.png',
+        width: 320,
+        height: 180,
+      },
+    ],
+  },
+  surfaceGate: {
+    ok: true,
+    canvas: { width: 1920, height: 1080 },
+    snapshot: imageSnapshot,
+    media: [
+      {
+        id: 'image-1',
+        kind: 'Image',
+        source: '/tmp/overlay.png',
+        width: 320,
+        height: 180,
+      },
+    ],
+  },
+  presentationContract: buildSharedRendererPresentationContract(),
+};
+
 const multiVideoSnapshot: RustSceneSnapshot = {
   ...snapshot,
   clips: [
@@ -992,6 +1048,43 @@ describe('startSharedRendererPreviewPresenter', () => {
       uxfdSharedRendererPresenterSolidColourOwner: 'sharedRenderer',
       uxfdSharedRendererPresenterSolidColourCutoverReason: 'nativeRenderFrameReady',
       uxfdSharedRendererPresenterSharedSolidColourObjectCount: '1',
+    });
+  });
+
+  it('publishes image ownership when a native rendered preview frame already contains the composited image scene', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const rgbaBytes = new Uint8Array(nativeRenderDescriptor.byteLen);
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: imageSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      sharedRendererNativeRenderFrameUpload: {
+        descriptor: nativeRenderDescriptor,
+        ptsFrame: 12,
+        rgbaBytes,
+      },
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter(),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({
+      ok: true,
+      imageOwnership: {
+        owner: 'sharedRenderer',
+        reason: 'nativeRenderFrameReady',
+        imageObjectIds: ['image-1'],
+      },
+    });
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterNativeRenderFrameReady: 'true',
+      uxfdSharedRendererPresenterImageOwner: 'sharedRenderer',
+      uxfdSharedRendererPresenterImageCutoverReason: 'nativeRenderFrameReady',
+      uxfdSharedRendererPresenterSharedImageObjectCount: '1',
     });
   });
 
