@@ -3633,4 +3633,23 @@
 
 ### 残課題・次のステップ
 - encodeを通らないpreview/native render output向けには、別途明示release RPCまたはowner lifecycle policyが必要。
-- SolidColour等の非動画sourceをRust backend側で生成し、native rendererが動画以外のclipでもPixi/WebGPU presenterへ戻らないようにする。
+- SolidColour source化は次項で追加済み。Image/PSD/textなど、残るmedia種別は引き続きRust source化またはfail-loud境界が必要。
+
+## 2026-06-18 — SolidColourをRust native render sourceへ統合
+
+### 実施内容
+- native-wgpu renderer / reference rendererのidentity transform時source size一致要求を外し、小さいsourceをcanvas左上へ部分配置できるようにした。
+- `render.nativeSharedFrame` payloadに `media` を追加し、renderer export sourceから `surfaceGate.media` をRust backendへ渡すようにした。
+- Rust backendで `kind=SolidColour` / `source=#rrggbb` のmediaをRGBA frameへ変換し、動画shared-frame sourceと同じnative render sourcesへ合流させた。
+- 動画source＋SolidColour mediaを含むexport native render payloadの契約をTDDで追加した。
+
+### 検証
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test native_reference_parity`
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test shared_frame_output --test shm_decoded_frame_render`
+- `cargo test --manifest-path rust-backend/Cargo.toml native_render_shared_frame_builds_solid_colour_sources_from_media`
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts src/utils/rustBackendNativeRenderControl.test.ts src/utils/rustBackendNativeRenderBoundary.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- Image/PSD/textなど、まだRust source化していないmedia種別はnative renderでfail-loudになる。
+- SolidColourのグラデーション、円、丸角、rotationなどは既存shared renderer境界と同様に未対応。

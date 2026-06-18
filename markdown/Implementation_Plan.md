@@ -584,6 +584,16 @@ Rust backendは `render.nativeSharedFrame` で生成したoutput ringを `native
 backend stateから削除する。owner dropによりPOSIX shared memoryをunlinkし、長いexportでframeごとに
 native render output ringが残り続ける状態を防ぐ。
 
+110. Phase5: native/reference rendererで部分sourceのidentity配置を許可する
+native-wgpu renderer / reference renderer は、identity transformでもsource sizeがcanvas sizeと一致することを要求しない。
+source samplingの境界判定により、左上に置かれた小さいRGBA sourceは該当範囲だけを描き、それ以外はtransparentにする。
+これによりSolidColour rectangleや小さいimage/video planeを、不要なfull-canvas sourceへ膨らませずに扱える。
+
+111. Phase5: `render.nativeSharedFrame` でSolidColour mediaをRust source化する
+rendererはnative render payloadに `media` を含め、Rust backendは `kind=SolidColour` / `source=#rrggbb` のmediaを
+RGBA frameへ変換してrender sourcesへ合流させる。動画sourceはshared-frame descriptorのまま受け取り、
+SolidColourはbackend内生成sourceとして扱うことで、動画＋矩形sceneをWebGPU presenter / Pixiへ戻さずnative renderできる入口を作る。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
