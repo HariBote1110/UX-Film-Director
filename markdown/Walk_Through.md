@@ -535,3 +535,16 @@
 ## 確認
 - `npm test -- sharedRendererExportFrameSource viewportRustExportFrameSource projectExportFrameCanvas useProjectExportBoundary` を実行し、54件成功を確認。
 - `npx tsc --noEmit 2>&1 | rg "(sharedRendererExportFrameSource|viewportRustExportFrameSource|projectExportFrameCanvas|useProjectExport)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 49. Phase5: encode-only media-only unsupported native renderのblock
+- `src/utils/sharedRendererExportFrameSource.ts`
+- `nativeRenderRequired` が有効なencode-only exportで、`noVideoDecodeRequest` かつmedia-only sceneがRust native-renderableでない場合、`nativeRenderUnsupportedMedia` でblocked errorを投げるようにした。
+- 通常互換モードでは従来どおり `null` を返し、presenter/readback fallbackを維持する。
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- remote画像のmedia-only frameで、native render必須時に presenter readback / JS writerへ戻らず blocked になる契約を追加した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-127a` に更新した。
+
+## 確認
+- `npm test -- sharedRendererExportFrameSource sharedRendererNativeMediaSupport` を実行し、25件成功を確認。
+- `npx tsc --noEmit 2>&1 | rg "(sharedRendererExportFrameSource|sharedRendererNativeMediaSupport)"` を実行し、対象ファイルに型エラーが出ないことを確認。

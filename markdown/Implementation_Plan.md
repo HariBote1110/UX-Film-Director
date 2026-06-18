@@ -796,6 +796,11 @@ Rust backend encoderがshared-frame payloadを直接encodeする `preferEncodeOn
 `nativeRenderUnavailable` としてfail-loudにする。これによりRust encoder使用時のJS readback依存を狭め、
 native render output shared frameを正本とするexportへ寄せる。
 
+147. Phase5: encode-only media-only exportの非対応native mediaをblockする
+Rust backend encode-only exportで動画decode sourceが不要なmedia-only frameになった場合も、全clipがRust native-renderable
+mediaでないなら `nativeRenderUnsupportedMedia` としてfail-loudにする。
+remote画像や未対応media-only sceneで WebGPU readback + JS shared-frame writerへ戻らず、native render正本の契約を維持する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
