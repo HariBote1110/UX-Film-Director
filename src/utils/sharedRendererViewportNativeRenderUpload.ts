@@ -165,10 +165,10 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
     };
   }
 
-  const releaseNativeOutput = () =>
-    releaseNativeSharedFrame({
-      memoryId: renderResponse.result!.frame.descriptor.memoryId,
-    }).then(() => undefined);
+  const releaseNativeOutput = createSingleUseNativeOutputReleaser(
+    renderResponse.result.frame.descriptor.memoryId,
+    releaseNativeSharedFrame
+  );
   const upload = await prepareSharedRendererDecodedVideoFrameUpload({
     sharedFrame: renderResponse.result.frame,
     slotCount: renderResponse.result.slotCount,
@@ -205,3 +205,16 @@ const sanitiseNativeRenderPart = (value: string): string =>
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
     || 'frame';
+
+const createSingleUseNativeOutputReleaser = (
+  memoryId: string,
+  releaseNativeSharedFrame: SharedRendererViewportNativeSharedFrameReleaser
+): (() => Promise<void>) => {
+  let releasePromise: Promise<void> | null = null;
+  return () => {
+    if (!releasePromise) {
+      releasePromise = releaseNativeSharedFrame({ memoryId }).then(() => undefined);
+    }
+    return releasePromise;
+  };
+};
