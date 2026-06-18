@@ -1,3 +1,26 @@
+## 2026-06-18 — Phase5: export flag で shared renderer surface を mount
+
+### 実施内容
+- `shouldMountSharedRendererSurfaceCanvas` を追加し、shared renderer surface canvas を preview または export のどちらかが有効なら mount する契約にした。
+- `VITE_UXFD_SHARED_RENDERER_EXPORT=1` だけでも export frame source 用 canvas が存在するようにした。
+- preview flagが無い場合は canvas を hidden にし、画面表示ではなく export render target として使う。
+- package version を `0.1.1-Beta-60c` に更新した。
+
+### Red
+- `src/utils/sharedRendererSurfaceMount.test.ts` に、preview/exportのORでsurface canvasをmountする契約を追加した。
+
+### Green
+- `src/utils/sharedRendererSurfaceMount.ts` を追加し、`Viewport` のcanvas mount条件を `sharedRendererPreviewEnabled || sharedRendererExportEnabled` にした。
+
+### 現在の制限
+- export flag配下の実機smokeは未実施。WebGPU/Electron環境での確認が次段。
+
+### 検証
+- `npm test -- src/utils/sharedRendererSurfaceMount.test.ts src/utils/viewportRustExportFrameSource.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/projectExportFrameCanvas.test.ts`
+  -> 4 files / 15 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererSurfaceMount|Viewport.tsx|viewportRustExportFrameSource|sharedRendererExportFrameSource"`
+  -> 新規接続対象の型エラーなし。既存の `ThreeStageViewport.tsx` の `three` 型定義不足は残存。
+
 ## 2026-06-18 — Phase5: Rust export frame source close で decode job を停止
 
 ### 実施内容
