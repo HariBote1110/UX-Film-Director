@@ -616,6 +616,11 @@ Electron native render bridgeが無い環境、空scene、未対応画像形式�
 native render sourcesへ合流させる。TS側のnative media support判定もPNG/JPG/JPEGを同じ対応範囲として扱い、
 動画上のJPG画像やmedia-only JPG exportをPixi/WebGPU readbackへ戻さない。
 
+116. Phase5: native render outputの明示release RPCを追加する
+Rust backendは `render.releaseNativeSharedFrame` を公開し、`render.nativeSharedFrame` が保持したoutput ringをencode以外の経路からも
+明示的に解放できるようにする。Electron/preload/renderer controlにもrelease bridgeを追加し、previewや診断用途のnative render outputが
+backend stateに残り続けないlifecycleを作る。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

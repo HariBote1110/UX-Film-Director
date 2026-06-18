@@ -3741,3 +3741,21 @@
 ### 残課題・次のステップ
 - JPEGはlossyなので、pixel exactな比較ではなく近似色契約で検証している。
 - PSD/textはまだRust native render source化していない。
+
+## 2026-06-18 — native render output明示release RPCを追加
+
+### 実施内容
+- Rust backendに `render.releaseNativeSharedFrame` を追加し、`render.nativeSharedFrame` が保持したoutput ringをencodeに渡さず解放できるようにした。
+- Electron main/preloadとrenderer controlに `releaseNativeSharedFrame` bridgeを追加した。
+- preview/診断用途のnative render outputがbackend stateに残り続けないlifecycleをTDDで固定した。
+- 版を `0.1.1-Beta-102a` に更新した。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml native_render_release_shared_frame_unlinks_output_without_encode`
+- `cargo test --manifest-path rust-backend/Cargo.toml native_render_shared_frame`
+- `npm test -- src/utils/rustBackendNativeRenderControl.test.ts src/utils/rustBackendNativeRenderBoundary.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- preview側の実フローでnative render outputを生成・表示・disposeする配線はまだ未実装。
+- PSD/textなど未対応mediaは引き続きRust source化が必要。
