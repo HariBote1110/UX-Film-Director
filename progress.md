@@ -1,3 +1,19 @@
+## 2026-06-18 — Phase5: Rust video-only exportでRust encoderを必須化
+
+### 実施内容
+- `src/utils/projectExportEncodePlan.test.ts` に、Rust video-onlyかつ動画を含むexportではRust encoder bridgeが無い場合にWebCodecsへfallbackしない契約を追加した。
+- `resolveProjectExportEncodePlan` / `resolveProjectExportEncodePlanFromBridge` に `rustVideoOnly` / `hasVideoObjects` を追加し、動画export時だけRust encoder必須へ寄せた。
+- `src/hooks/useProjectExport.ts` から encode plan へ `rustVideoOnly` と動画有無を渡すようにした。
+- `scripts/dev-rust-video.mjs` に `VITE_UXFD_RUST_EXPORT_ONLY=1` を追加し、検証起動時のpreview/exportをRust経路へ固定した。
+- package version を `0.1.1-Beta-80a` に更新した。
+
+### 検証
+- `npm test -- src/utils/projectExportEncodePlan.test.ts src/utils/packageScripts.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/projectExportRustEncodeFrame.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "projectExportEncodePlan|useProjectExport|rustVideoOnly|hasVideoObjects|packageScripts|dev-rust-video"`（対象ファイルの型エラーなし）
+
+### 残課題・次のステップ
+- Rust video-onlyの動画exportはRust frame sourceとRust backend encoderの両方が必須になった。次は実機ElectronでRust backend bridge接続後に `npm run dev:rust-video` を使い、GoPro素材のpreview/exportを確認する。
+
 ## 2026-06-18 — Phase5: Rust動画dev起動scriptを追加
 
 ### 実施内容

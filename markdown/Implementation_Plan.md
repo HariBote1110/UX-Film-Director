@@ -476,6 +476,12 @@ presenterにも同じ値を渡して、Rust video-only設定だけでdecode/uplo
 `VITE_UXFD_SHARED_RENDERER_EXPORT=1` / `VITE_UXFD_RUST_VIDEO_ONLY=1` をViteへ渡す。
 shellのenv代入に依存せず、Mac/Windowsの検証入口を揃える。
 
+91. Phase5: Rust video-only export は Rust backend encoder を必須にする
+`VITE_UXFD_RUST_VIDEO_ONLY=1` かつ動画を含むexportでは、Rust frame sourceだけでなくRust backend encoderも必須にする。
+renderer bridgeに `startVideoEncode` / `writeVideoEncodeFrame` / `finishVideoEncode` が揃わない場合は
+WebCodecsへfallbackせず開始前にfail-loudにする。`npm run dev:rust-video` は `VITE_UXFD_RUST_EXPORT_ONLY=1` も渡し、
+検証時のpreview/exportをRust経路へ固定する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
