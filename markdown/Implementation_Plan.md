@@ -471,6 +471,11 @@ Rust動画が必須のpreviewでは、旧 `VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOV
 orchestrationは `videoCutoverEnabled || requireSharedRendererVideo` を effective cutover とし、
 presenterにも同じ値を渡して、Rust video-only設定だけでdecode/upload/ownership判定が進むようにする。
 
+90. Phase5: Rust動画検証用のcross-platform dev scriptを用意する
+`npm run dev:rust-video` を追加し、Node wrapperから `VITE_UXFD_SHARED_RENDERER_PREVIEW=1` /
+`VITE_UXFD_SHARED_RENDERER_EXPORT=1` / `VITE_UXFD_RUST_VIDEO_ONLY=1` をViteへ渡す。
+shellのenv代入に依存せず、Mac/Windowsの検証入口を揃える。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

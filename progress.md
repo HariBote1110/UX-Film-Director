@@ -1,3 +1,18 @@
+## 2026-06-18 — Phase5: Rust動画dev起動scriptを追加
+
+### 実施内容
+- `src/utils/packageScripts.test.ts` に、Rust動画検証用の `dev:rust-video` script とwrapper内容の契約を追加した。
+- `package.json` に `npm run dev:rust-video` を追加した。
+- `scripts/dev-rust-video.mjs` を追加し、Node経由でViteへ `VITE_UXFD_SHARED_RENDERER_PREVIEW=1` / `VITE_UXFD_SHARED_RENDERER_EXPORT=1` / `VITE_UXFD_RUST_VIDEO_ONLY=1` を渡すようにした。
+- package version を `0.1.1-Beta-79a` に更新した。
+
+### 検証
+- `npm test -- src/utils/packageScripts.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "packageScripts|dev-rust-video|package.json"`（対象ファイルの型エラーなし）
+
+### 残課題・次のステップ
+- Rust動画検証の起動入口は用意できた。実機Electronでは先にRust backendとshared-video-frame bridgeを用意し、`npm run dev:rust-video` でGoPro素材のpreview/exportを確認する。
+
 ## 2026-06-18 — Phase5: Rust video必須時はcutoverを暗黙有効化
 
 ### 実施内容
