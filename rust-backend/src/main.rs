@@ -542,7 +542,10 @@ fn handle_native_render_shared_frame(
             return response_error(
                 id,
                 -32602,
-                &format!("Duplicate native render source mediaId '{}'", source.media_id),
+                &format!(
+                    "Duplicate native render source mediaId '{}'",
+                    source.media_id
+                ),
             );
         }
         let frame = match read_native_render_source_frame(source) {
@@ -651,8 +654,9 @@ fn build_image_source_frame(media: &SceneMediaReference) -> Result<RgbaFrame, St
 }
 
 fn load_image_media_frame(media: &SceneMediaReference) -> Result<RgbaFrame, String> {
-    if is_jpeg_source(&media.source) {
-        return load_rgba_jpeg(&media.source).map_err(|error| {
+    let source_path = local_image_source_path(&media.source)?;
+    if is_jpeg_source(&source_path) {
+        return load_rgba_jpeg(&source_path).map_err(|error| {
             format!(
                 "Invalid Image media '{}': failed to load JPEG source: {error:?}",
                 media.id
@@ -660,7 +664,7 @@ fn load_image_media_frame(media: &SceneMediaReference) -> Result<RgbaFrame, Stri
         });
     }
 
-    load_rgba_png(&media.source).map_err(|error| {
+    load_rgba_png(&source_path).map_err(|error| {
         format!(
             "Invalid Image media '{}': failed to load PNG source: {error:?}",
             media.id
@@ -671,6 +675,71 @@ fn load_image_media_frame(media: &SceneMediaReference) -> Result<RgbaFrame, Stri
 fn is_jpeg_source(source: &str) -> bool {
     let lower = source.to_ascii_lowercase();
     lower.ends_with(".jpg") || lower.ends_with(".jpeg")
+}
+
+fn local_image_source_path(source: &str) -> Result<String, String> {
+    let without_query = strip_query_and_fragment(source);
+    let Some(file_url_path) = without_query.strip_prefix("file://") else {
+        return Ok(without_query.to_string());
+    };
+
+    let local_path = if let Some(path) = file_url_path.strip_prefix("localhost/") {
+        format!("/{path}")
+    } else if file_url_path.starts_with('/') {
+        file_url_path.to_string()
+    } else {
+        return Err(format!(
+            "Only local file URLs are supported for Image media, got '{source}'"
+        ));
+    };
+
+    percent_decode_utf8(&local_path).map_err(|error| {
+        format!("Invalid percent-encoded Image media file URL '{source}': {error}")
+    })
+}
+
+fn strip_query_and_fragment(source: &str) -> &str {
+    let query_index = source.find('?');
+    let fragment_index = source.find('#');
+    match (query_index, fragment_index) {
+        (Some(query), Some(fragment)) => &source[..query.min(fragment)],
+        (Some(query), None) => &source[..query],
+        (None, Some(fragment)) => &source[..fragment],
+        (None, None) => source,
+    }
+}
+
+fn percent_decode_utf8(value: &str) -> Result<String, String> {
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            if index + 2 >= bytes.len() {
+                return Err("truncated percent escape".to_string());
+            }
+            let high =
+                hex_value(bytes[index + 1]).ok_or_else(|| "invalid percent escape".to_string())?;
+            let low =
+                hex_value(bytes[index + 2]).ok_or_else(|| "invalid percent escape".to_string())?;
+            decoded.push((high << 4) | low);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+
+    String::from_utf8(decoded).map_err(|error| error.to_string())
+}
+
+fn hex_value(value: u8) -> Option<u8> {
+    match value {
+        b'0'..=b'9' => Some(value - b'0'),
+        b'a'..=b'f' => Some(value - b'a' + 10),
+        b'A'..=b'F' => Some(value - b'A' + 10),
+        _ => None,
+    }
 }
 
 fn parse_hex_colour_source(source: &str) -> Result<[u8; 3], String> {
@@ -725,7 +794,10 @@ fn handle_release_native_render_shared_frame(
         return response_error(id, -32602, "memoryId must not be empty");
     }
 
-    let released = state.native_render_outputs.remove(&parsed.memory_id).is_some();
+    let released = state
+        .native_render_outputs
+        .remove(&parsed.memory_id)
+        .is_some();
 
     RpcResponse {
         id,
@@ -957,8 +1029,7 @@ fn start_encode_ffmpeg(parsed: &EncodeStartParams) -> Result<(Child, ChildStdin)
         cmd.arg("-i").arg(audio_path);
     }
 
-    cmd
-        .arg("-c:v")
+    cmd.arg("-c:v")
         .arg(get_video_codec())
         .arg("-b:v")
         .arg("8000k")

@@ -24,4 +24,34 @@ export const canRenderSharedRendererNativeMediaOnlyFrame = ({
 };
 
 export const isSharedRendererNativeImageSourceSupported = (source: string): boolean =>
-  /\.(png|jpe?g)$/i.test(source);
+  isLocalNativeImageSource(source) && /\.(png|jpe?g)$/i.test(nativeImageSourcePathname(source));
+
+const isLocalNativeImageSource = (source: string): boolean => {
+  if (isWindowsLocalPath(source)) return true;
+
+  const schemeMatch = source.match(/^([a-z][a-z0-9+.-]*):/i);
+  if (!schemeMatch) return true;
+  if (schemeMatch[1].toLowerCase() !== 'file') return false;
+
+  try {
+    const url = new URL(source);
+    return url.hostname === '' || url.hostname === 'localhost';
+  } catch {
+    return false;
+  }
+};
+
+const nativeImageSourcePathname = (source: string): string => {
+  if (/^file:/i.test(source)) {
+    try {
+      return new URL(source).pathname;
+    } catch {
+      return source;
+    }
+  }
+
+  const queryIndex = source.search(/[?#]/);
+  return queryIndex >= 0 ? source.slice(0, queryIndex) : source;
+};
+
+const isWindowsLocalPath = (source: string): boolean => /^[a-z]:[\\/]/i.test(source);
