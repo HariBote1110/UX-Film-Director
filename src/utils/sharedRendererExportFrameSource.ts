@@ -18,7 +18,8 @@ type PresenterDataset = Record<string, string | undefined>;
 
 export type SharedRendererExportFrameSourceBlockedReason =
   | SharedRendererPreviewSurfaceBlockedReason
-  | 'videoUploadFailed';
+  | 'videoUploadFailed'
+  | 'videoOwnershipUnavailable';
 
 export type SharedRendererExportFrameBitmapFactory = (
   canvas: HTMLCanvasElement,
@@ -169,6 +170,19 @@ export const createSharedRendererExportFrameSource = ({
             request.frameIndex
           );
         }
+        const videoOwnershipBlock = resolveExportVideoOwnershipBlock(presenterResult);
+        if (videoOwnershipBlock) {
+          writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+            status: 'blocked',
+            frameIndex: request.frameIndex,
+            reason: 'videoOwnershipUnavailable',
+          });
+          throw new SharedRendererExportFrameSourceBlockedError(
+            videoOwnershipBlock,
+            'videoOwnershipUnavailable',
+            request.frameIndex
+          );
+        }
 
         return await createFrameBitmap(
           canvas,
@@ -227,6 +241,18 @@ const resolveExportVideoUploadBlock = (
   }
 
   return null;
+};
+
+const resolveExportVideoOwnershipBlock = (
+  presenterResult: StartSharedRendererViewportPresenterResult
+): string | null => {
+  const control = presenterResult.control;
+  if (!('videoOwnership' in control)) return null;
+  const { videoOwnership } = control;
+  if (videoOwnership.reason === 'noVideoScene') return null;
+  if (videoOwnership.owner === 'sharedRenderer') return null;
+
+  return `Shared renderer export cannot delegate video ownership back to Pixi (${videoOwnership.reason}).`;
 };
 
 const writeFrameDiagnostics = (
