@@ -222,7 +222,7 @@ export const useProjectExport = (
 
             const t = i * dt;
             if (i % Math.max(1, Math.floor(fps / 2)) === 0) setTime(t);
-            const frameRuntimePlan = resolveProjectExportFrameRuntimePlan({
+            let frameRuntimePlan = resolveProjectExportFrameRuntimePlan({
               frameSourcePlan: exportFrameSourcePlan,
               rustFrameSourceBlocked,
             });
@@ -265,6 +265,7 @@ export const useProjectExport = (
                 if (blockedRuntimePlan.shouldFailOnRustFrameSourceBlocked) {
                   throw error;
                 }
+                frameRuntimePlan = blockedRuntimePlan;
                 console.warn('[Export] Rust/shared renderer frame source blocked; falling back to legacy canvas capture.', error);
               }
             }
