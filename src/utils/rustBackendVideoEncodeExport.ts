@@ -5,7 +5,6 @@ import {
   type RustBackendVideoEncodeBridge,
   type RustBackendVideoEncodeWriteFramePayload,
 } from './rustBackendVideoEncodeControl';
-
 export interface RustBackendVideoEncodeRenderedFrame {
   timestamp: number;
   bitmap: ImageBitmap;
@@ -29,6 +28,13 @@ export interface RunRustBackendVideoEncodeExportInput {
   frames: AsyncIterable<RustBackendVideoEncodeSharedFramePayloadFrame>;
   sessionId?: string;
   encoderBridge?: RustBackendVideoEncodeBridge;
+  nativeRenderBridge?: RustBackendNativeRenderOutputReleaseBridge;
+}
+
+interface RustBackendNativeRenderOutputReleaseBridge {
+  releaseNativeSharedFrame: (
+    payload: { memoryId: string }
+  ) => Promise<{ success: boolean; result?: unknown; error?: string }>;
 }
 
 export interface RunRustBackendVideoEncodeExportResult {
@@ -59,6 +65,7 @@ export const runRustBackendVideoEncodeExport = async ({
   frames,
   sessionId = createDefaultSessionId(),
   encoderBridge = window.rustVideoEncoder,
+  nativeRenderBridge,
 }: RunRustBackendVideoEncodeExportInput): Promise<RunRustBackendVideoEncodeExportResult> => {
   const startResponse = await startRustBackendVideoEncode({
     sessionId,
@@ -84,6 +91,9 @@ export const runRustBackendVideoEncodeExport = async ({
     }
 
     const writeResponse = await writeRustBackendVideoEncodeFrame(frame.sharedFramePayload, encoderBridge);
+    if (!writeResponse.success) {
+      await releaseNativeRenderOutputAfterEncodeFailure(frame.sharedFramePayload, nativeRenderBridge);
+    }
     assertBridgeSuccess(
       writeResponse.success,
       writeResponse.error,
@@ -106,3 +116,15 @@ const isSharedFramePayloadFrame = (
   frame: RustBackendVideoEncodeFrame
 ): frame is RustBackendVideoEncodeSharedFramePayloadFrame =>
   'sharedFramePayload' in frame;
+
+const releaseNativeRenderOutputAfterEncodeFailure = async (
+  payload: RustBackendVideoEncodeWriteFramePayload,
+  bridge?: RustBackendNativeRenderOutputReleaseBridge
+): Promise<void> => {
+  const releaseBridge = bridge ?? (typeof window !== 'undefined' ? window.rustBackend : undefined);
+  if (!releaseBridge || typeof releaseBridge.releaseNativeSharedFrame !== 'function') return;
+
+  await releaseBridge.releaseNativeSharedFrame({
+    memoryId: payload.frame.descriptor.memoryId,
+  });
+};
