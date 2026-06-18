@@ -6,6 +6,7 @@ import {
 } from './sharedRendererWebGpuPresenter';
 import { buildSharedRendererPresentationContract } from './sharedRendererPresentationContract';
 import type { RustBackendVideoFrameDescriptor } from './rustBackendVideoDecodeControl';
+import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
 import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
 import type { SharedRendererPreviewSurfaceGate } from './sharedRendererPreviewSurface';
 
@@ -298,6 +299,125 @@ describe('createSharedRendererWebGpuPresenter', () => {
         { buffer: 'readback-buffer', bytesPerRow: 256, rowsPerImage: 2 },
         { width: 2, height: 2, depthOrArrayLayers: 1 },
       ],
+    ]);
+  });
+
+  it('writes the last presented frame into a shared-frame payload for Rust encoding', async () => {
+    const presentedBytes = new Uint8Array(512);
+    presentedBytes.set([1, 2, 3, 4, 5, 6, 7, 8], 0);
+    presentedBytes.set([9, 10, 11, 12, 13, 14, 15, 16], 256);
+    const copyOperations: unknown[] = [];
+    const payload: RustBackendVideoEncodeWriteFramePayload = {
+      sessionId: 'presenter-direct-session',
+      frameIndex: 4,
+      timestampUs: 66_667,
+      slotCount: 1,
+      frame: {
+        descriptor: {
+          memoryId: '/uxfd-export-source-presenter-direct-session',
+          slotIndex: 0,
+          generation: 5,
+          byteOffset: 0,
+          byteLen: 512,
+          width: 2,
+          height: 2,
+          strideBytes: 256,
+          format: 'rgba8Srgb',
+          colour: {
+            primaries: 'bt709',
+            transfer: 'srgb',
+            matrix: 'rgb',
+            range: 'full',
+          },
+        },
+        ptsFrame: 4,
+      },
+    };
+    const writerCalls: unknown[] = [];
+    const result = await createSharedRendererWebGpuPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      surfaceGate: {
+        ...okSurfaceGate,
+        canvas: { width: 2, height: 2 },
+      },
+      presentationContract: buildSharedRendererPresentationContract(),
+      gpu: fakeGpu({
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            readbackBytes: presentedBytes,
+            onCopyTextureToBuffer: (...args) => {
+              copyOperations.push(args);
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+      textureUsageCopySrc: 1,
+      bufferUsageCopyDst: 8,
+      bufferUsageMapRead: 1,
+      createEncodeFrameWriter: async (input) => {
+        writerCalls.push(['createEncodeFrameWriter', input]);
+        return {
+          writeFrame: async () => {
+            throw new Error('tight RGBA writes must not run for presenter readback frames.');
+          },
+          writePaddedFrame: async (input) => {
+            writerCalls.push(['writePaddedFrame', input]);
+            return payload;
+          },
+          close: async () => {
+            writerCalls.push(['closeEncodeFrameWriter']);
+          },
+        };
+      },
+    } as Parameters<typeof createSharedRendererWebGpuPresenter>[0] & {
+      createEncodeFrameWriter: unknown;
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected presenter creation to pass');
+
+    result.presentSolidSrgbSwatch({
+      red: 0,
+      green: 0,
+      blue: 0,
+      alpha: 1,
+    });
+
+    await expect(result.takePresentedFrameSharedFrame({
+      encodeSessionId: 'presenter-direct-session',
+      memoryId: '/uxfd-export-source-presenter-direct-session',
+      frameIndex: 4,
+      timestampUs: 66_667,
+      width: 2,
+      height: 2,
+      fps: 60,
+    })).resolves.toBe(payload);
+
+    await result.dispose();
+
+    expect(copyOperations).toEqual([
+      [
+        { texture: 'current-texture' },
+        { buffer: 'readback-buffer', bytesPerRow: 256, rowsPerImage: 2 },
+        { width: 2, height: 2, depthOrArrayLayers: 1 },
+      ],
+    ]);
+    expect(writerCalls).toEqual([
+      ['createEncodeFrameWriter', {
+        sessionId: 'presenter-direct-session',
+        memoryId: '/uxfd-export-source-presenter-direct-session',
+        width: 2,
+        height: 2,
+        fps: 60,
+      }],
+      ['writePaddedFrame', {
+        frameIndex: 4,
+        timestampUs: 66_667,
+        paddedRgbaBytes: presentedBytes,
+        strideBytes: 256,
+      }],
+      ['closeEncodeFrameWriter'],
     ]);
   });
 
