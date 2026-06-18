@@ -1,3 +1,19 @@
+## 2026-06-18 — Phase5: SharedRendererExportFrameSource で direct encode frame を生成
+
+### 実施内容
+- `src/utils/sharedRendererExportFrameSource.test.ts` に、shared renderer export sourceが `renderEncodeFrame` でwritable shared frame writerへRGBAを書き、`RustBackendVideoEncodeWriteFramePayload` を返す契約を追加した。
+- `src/utils/sharedRendererExportFrameSource.ts` の描画処理を内部 `renderFrameBitmap` に切り出し、通常の `renderFrame` と `renderEncodeFrame` で同じsurface gate / video ownership gateを通すようにした。
+- `renderEncodeFrame` はencode sessionごとにsource専用memory id `/uxfd-export-source-...` のwriterをlazy生成し、source `close()` でwriterとRust decode jobsを閉じる。
+- package version を `0.1.1-Beta-65a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts src/utils/projectExportRustEncodeFrame.test.ts src/utils/rustBackendVideoEncodeExport.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererExportFrameSource|projectExportRustEncodeFrame|rustBackendVideoEncodeExport|projectExportFrameCanvas"`（対象ファイルの型エラーなし）
+
+### 残課題・次のステップ
+- direct encode経路はrunner側readbackを迂回するが、source内部ではまだ `ImageBitmap` capture + RGBA readbackを使う。次はWebGPU texture / mapped bufferからshared memoryへ直接copyする設計に寄せる。
+- Electron実機で `VITE_UXFD_RUST_EXPORT_ONLY=1 npm run dev` を起動し、GoPro動画のRust-only exportが映像・音声つきMP4として保存できるか確認する。
+
 ## 2026-06-18 — Phase5: Rust export frame source direct encode 経路を追加
 
 ### 実施内容

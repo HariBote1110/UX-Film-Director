@@ -388,6 +388,13 @@ Rust encoder時の `useProjectExport` はこのdirect shared-frame経路を優�
 これにより、次段でshared renderer export sourceがcanvas `ImageBitmap` readbackを返さず、shared memory descriptorを
 直接Rust backend encoderへ渡せる。
 
+76. Phase5: SharedRendererExportFrameSource で direct encode frame を生成する
+shared renderer export sourceが `renderEncodeFrame` を実装し、既存のWebGPU presenter / ownership gateで描画したframeを
+source内部のwritable shared frame writerへ書き込んで、Rust backend encoder payloadを返す。
+`useProjectExport` のRust encoder経路ではrunner側のwritable ring copyを使わず、このpayloadをそのまま
+`writeVideoEncodeFrame` へ渡す。現段階ではcanvas `ImageBitmap` capture後のRGBA readbackをsource内で行うため、
+次段でWebGPU readback / mapped bufferからshared memoryへ直接copyする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
