@@ -1013,6 +1013,12 @@ production export planning utilityがHTMLVideoElement pause型を公開しない
 legacy canvas互換exportは `requiresRenderScene` と `usesExportFrameOverrides` だけで表し、
 export計画からHTMLVideoElement seek fallback概念を取り除く。
 
+189. Phase5: production動画依存境界テストを追加する
+`src/exportTest` とテストファイルを除くproduction実装を走査し、
+`document.createElement('video')`、`PIXI.VideoSource`、`HTMLVideoElement`、
+legacy Pixi video / browser provider / metadata fallbackトークンが戻らないことを検証する。
+比較・診断用のブラウザ動画コードは `src/exportTest` に隔離し、production経路はRust/shared rendererを正本にする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

@@ -348,3 +348,10 @@
 - Green: `ProjectExportFrameSourcePlanResult` と `ProjectExportFrameRuntimePlan` から該当flagを削除した。
 - 検証: `npm test -- projectExportFrameCanvas useProjectExportBoundary` は31件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-168a`。
+
+## 2026-06-19
+- Phase5のproduction動画依存境界として、`src/exportTest` とテストファイルを除く実装にブラウザ/Pixi動画fallbackトークンが戻らないテストを追加した。
+- Red: `productionVideoDependencyBoundary` を追加し、`videoDecodeStream` の旧HTMLVideoElementコメントで失敗することを確認した。
+- Green: `videoDecodeStream` のコメントをDOM動画要素名に依存しない表現へ整理した。
+- 検証: `npm test -- productionVideoDependencyBoundary mediaMetadata projectExportFrameCanvas viewportRustVideoOnlyBoundary` は44件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-169a`。
