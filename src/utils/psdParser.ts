@@ -1030,156 +1030,19 @@ const parsePsdViaWasm = async (
   const t0 = performance.now();
   const arrayBuffer = await file.arrayBuffer();
   const tRead = performance.now();
-  const { meta, pixels } = await parsePsdWithWasm(arrayBuffer);
+  const wasmParsed = await parsePsdWithWasm(arrayBuffer);
   const tWasm = performance.now();
   console.log(`[psdParser WASM] fileRead=${(tRead - t0).toFixed(1)}ms  wasmTotal=${(tWasm - tRead).toFixed(1)}ms`);
-
-  const pendingImageLoads: Array<{ node: PsdLayerNode; pixelData: ImageBitmap | Uint8Array }> = [];
-
-  const buildNode = (idx: number): PsdLayerNode => {
-    const layer = meta.layers[idx];
-    const layerName = restoreLayerNameEncoding(layer.name || 'Layer');
-    const node: PsdLayerNode = {
-      id: buildStablePsdLayerNodeId({
-        layerIndex: idx,
-        isGroup: layer.isGroup,
-        ownGroupId: layer.ownGroupId,
-      }),
-      name: layerName,
-      isGroup: layer.isGroup,
-      isRadio: layerName.startsWith('*'),
-      children: [],
-      width: layer.width,
-      height: layer.height,
-      left: layer.left,
-      top: layer.top,
-      defaultVisible: layer.visible,
-      src: undefined,
-    };
-
-    const px = pixels[idx];
-    const hasPixels = px instanceof ImageBitmap || (px instanceof Uint8Array && px.length > 0);
-    if (!layer.isGroup && hasPixels && layer.width > 0 && layer.height > 0) {
-      pendingImageLoads.push({ node, pixelData: px });
-    }
-
-    return node;
-  };
-
-  // Build children lookup (parentGroupId → layer indices).
-  const groupChildren = new Map<number | null, number[]>();
-  for (let i = 0; i < meta.layers.length; i++) {
-    const layer = meta.layers[i];
-    const key = layer.parentGroupId ?? null;
-    let bucket = groupChildren.get(key);
-    if (!bucket) { bucket = []; groupChildren.set(key, bucket); }
-    bucket.push(i);
-  }
-
-  // Build node tree via DFS.
-  const buildGroupNode = (idx: number): PsdLayerNode => {
-    const node = buildNode(idx);
-    const layer = meta.layers[idx];
-    if (layer.isGroup && layer.ownGroupId != null) {
-      const childIndices = groupChildren.get(layer.ownGroupId) ?? [];
-      node.children = childIndices.map(buildGroupNode);
-    }
-    return node;
-  };
-
-  const rootIndices = groupChildren.get(null) ?? [];
-  const rootNode: PsdLayerNode = {
-    id: 'root',
-    name: 'Root',
-    isGroup: true,
-    isRadio: false,
-    children: rootIndices.map(buildGroupNode),
-    width: meta.width,
-    height: meta.height,
-    left: 0,
-    top: 0,
-    defaultVisible: true,
-  };
-
-  // Load ImageBitmaps in parallel.
-  // pixelData は ImageBitmap（ag-psd Worker 経由）または Uint8Array（fallback）のどちらか。
-  const tBitmapStart = performance.now();
-  await Promise.all(
-    pendingImageLoads.map(async ({ node, pixelData }) => {
-      try {
-        if (pixelData instanceof ImageBitmap) {
-          // Worker 内で transferToImageBitmap() 済み → そのまま使用（変換コストなし）
-          node.textureSource = pixelData;
-          node.src = psdLayerTextureUrl(node.id);
-        } else {
-          const data = new Uint8ClampedArray(pixelData.buffer, pixelData.byteOffset, pixelData.byteLength);
-          const imgData = new ImageData(
-            data as unknown as ImageData['data'],
-            node.width,
-            node.height
-          );
-          if (typeof createImageBitmap === 'function') {
-            node.textureSource = await createImageBitmap(imgData);
-            node.src = psdLayerTextureUrl(node.id);
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to create ImageBitmap (WASM path):', node.name, e);
-      }
-    })
-  );
-  console.log(`[psdParser WASM] imageBitmap=${(performance.now() - tBitmapStart).toFixed(1)}ms  END-TO-END=${(performance.now() - t0).toFixed(1)}ms`);
-
-  const activeLayerIds: Record<string, boolean> = {};
-
-  const initVisibility = (node: PsdLayerNode) => {
-    if (node.isGroup) {
-      if (node.isRadio) {
-        node.children.forEach(initVisibility);
-        const activeChild = node.children.find((c) => activeLayerIds[c.id]);
-        if (!activeChild && node.children.length > 0) activeLayerIds[node.children[0].id] = true;
-        activeLayerIds[node.id] = true;
-      } else {
-        if (node.defaultVisible) activeLayerIds[node.id] = true;
-        node.children.forEach(initVisibility);
-      }
-    } else {
-      if (node.defaultVisible) activeLayerIds[node.id] = true;
-    }
-  };
-
-  initVisibility(rootNode);
-  activeLayerIds['root'] = true;
-
-  const psdObject: TimelineObject = {
-    id: crypto.randomUUID(),
-    type: 'psd',
-    name: file.name,
-    layer: 0,
+  const result = await buildPsdObjectFromWasmParse(
+    wasmParsed,
+    file.name,
     startTime,
-    duration: 5,
-    x: (projectWidth / 2) - (meta.width / 2),
-    y: (projectHeight / 2) - (meta.height / 2),
-    width: meta.width,
-    height: meta.height,
-    scale: 1.0,
-    enableAnimation: false,
-    endX: (projectWidth / 2) - (meta.width / 2),
-    endY: (projectHeight / 2) - (meta.height / 2),
-    easing: 'linear',
-    offset: 0,
-    src: '',
-    scaleX: 1,
-    scaleY: 1,
-    rotation: 0,
-    opacity: 1,
-    file,
-    layerTree: buildPsdLayerTree(rootNode, activeLayerIds),
-    rootLayer: rootNode,
-    activeLayerIds,
-  };
-
-  return { psdObject: psdObject as PsdObject };
+    projectWidth,
+    projectHeight,
+    file
+  );
+  console.log(`[psdParser WASM] END-TO-END=${(performance.now() - t0).toFixed(1)}ms`);
+  return result;
 };
 
 // ── Public entry points ───────────────────────────────────────────────────────
