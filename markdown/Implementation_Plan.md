@@ -518,6 +518,11 @@ JS shared-frame writer実装を外す。
 WebGPU device/formatを渡せるようにする。handoffがpayloadを返した場合は `copyTextureToBuffer` とJS shared-frame writerを呼ばず、
 未対応時だけ既存のreadback fallbackへ落とす。
 
+99. Phase5: preview presenter controllerからnative/Rust handoffを配線する
+`startSharedRendererPreviewPresenter` は `presentedFrameSharedFrameTaker` を受け取り、
+`createSharedRendererWebGpuPresenter` へ渡す。これによりElectron/native bridge側のhandoff実装を
+Viewport/exportのshared renderer controlへ差し込めるようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

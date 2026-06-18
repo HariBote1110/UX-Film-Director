@@ -1,3 +1,19 @@
+## 2026-06-18 — Phase5: preview presenter controllerからnative/Rust handoffを配線
+
+### 実施内容
+- `src/utils/sharedRendererPreviewPresenterController.test.ts` に、controller入口へ渡したnative/Rust handoffがready presenter controlへ届く契約を追加した。
+- `StartSharedRendererPreviewPresenterInput` に `presentedFrameSharedFrameTaker` を追加した。
+- `startSharedRendererPreviewPresenter` から `createSharedRendererWebGpuPresenter` へhandoffをpass-throughするようにした。
+- package version を `0.1.1-Beta-88a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts`
+- `npm test -- src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererExportFrameSourceBoundary.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts\\(|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts\\(|src/utils/sharedRendererWebGpuPresenter\\.ts\\(|src/utils/sharedRendererWebGpuPresenter\\.test\\.ts\\()"`
+
+### 残課題・次のステップ
+- native/Rust handoffをcontroller入口から差し込めるようになった。次はElectron/native bridgeのhandoff実装、またはViewport/export sourceへの実配線を進める。
+
 ## 2026-06-18 — Phase5: WebGPU presenterでnative/Rust handoffを優先
 
 ### 実施内容
