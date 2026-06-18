@@ -28,7 +28,7 @@ describe('shouldSkipPixiVideoForSharedRenderer', () => {
     })).toBe(false);
   });
 
-  it('keeps Pixi video rendering during export until shared renderer export parity exists', () => {
+  it('keeps Pixi video rendering during export unless Rust video rendering is required', () => {
     expect(shouldSkipPixiVideoForSharedRenderer({
       objectId: 'video-1',
       objectType: 'video',
@@ -37,7 +37,7 @@ describe('shouldSkipPixiVideoForSharedRenderer', () => {
     })).toBe(false);
   });
 
-  it('skips preview Pixi video fallback when shared renderer video is required', () => {
+  it('skips Pixi video fallback when shared renderer video is required', () => {
     expect(shouldSkipPixiVideoForSharedRenderer({
       objectId: 'video-2',
       objectType: 'video',
@@ -56,7 +56,7 @@ describe('shouldSkipPixiVideoForSharedRenderer', () => {
       objectType: 'video',
       isExporting: true,
       requireSharedRendererVideo: true,
-    })).toBe(false);
+    })).toBe(true);
   });
 
   it('clears Pixi video children, HTML video, and frame textures on cutover', () => {
