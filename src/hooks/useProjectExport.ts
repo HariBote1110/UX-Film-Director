@@ -8,7 +8,11 @@ import { encodeVideoToMp4 } from '../utils/videoExportPipeline';
 import { VideoFrameProvider } from '../utils/videoFrameProvider';
 import { PlaybackFrameProvider } from '../utils/playbackFrameProvider';
 import type { FrameProvider } from '../utils/frameProvider';
-import { resolveProjectExportFrameCanvas } from '../utils/projectExportFrameCanvas';
+import {
+  buildProjectExportFrameSourcePlan,
+  resolveProjectExportFrameCanvas,
+  type ProjectExportRustFrameSource,
+} from '../utils/projectExportFrameCanvas';
 
 const { ipcRenderer } = window;
 
@@ -19,6 +23,7 @@ export const useProjectExport = (
   getExportCanvas?: () => HTMLCanvasElement | null,
   /** VideoDecoder ハイブリッドパス: フレームを renderScene 前に注入するための ref */
   exportFrameOverridesRef?: React.MutableRefObject<Map<string, ImageBitmap>>,
+  getRustExportFrameSource?: () => ProjectExportRustFrameSource | null,
 ) => {
   const { isExporting, setExporting, setTime, setExportProgress } = useStore((state) => ({
     isExporting: state.isExporting,
@@ -35,15 +40,17 @@ export const useProjectExport = (
     const isCancelled = () => cancelled || useStore.getState().exportCancelRequested;
 
     const runExport = async () => {
-      const initialFrameCanvas = resolveProjectExportFrameCanvas({
+      const initialFrameSourcePlan = buildProjectExportFrameSourcePlan({
+        rustFrameSource: getRustExportFrameSource?.() ?? null,
         getExportCanvas,
         pixiCanvas: pixiAppRef.current?.canvas as HTMLCanvasElement | null | undefined,
       });
-      if (!initialFrameCanvas.ok) {
-        alert(`エクスポート失敗: ${initialFrameCanvas.detail}`);
+      if (!initialFrameSourcePlan.ok) {
+        alert(`エクスポート失敗: ${initialFrameSourcePlan.detail}`);
         setExporting(false);
         return;
       }
+      const exportFrameSourcePlan = initialFrameSourcePlan;
 
       // フレームプロバイダ（VideoDecoder or 再生方式）のクリーンアップ用リスト
       const providers = new Map<string, FrameProvider>();
@@ -82,66 +89,68 @@ export const useProjectExport = (
         const encWidth = width % 2 === 0 ? width : width - 1;
         const encHeight = height % 2 === 0 ? height : height - 1;
 
-        // ── フレームプロバイダを初期化 ───────────────────────────────────────
-        // シーク方式(~9fps)は使わず、①VideoDecoder ②再生方式(rVFC) の順で高速取得を試み、
-        // どちらも不可のときだけ従来のシーク方式へフォールバックする。
-        for (const obj of videoObjects) {
-          if (obj.reversed) continue; // 逆再生はシーク方式フォールバック
+        if (exportFrameSourcePlan.requiresLegacyBrowserVideoProviders) {
+          // ── フレームプロバイダを初期化 ───────────────────────────────────────
+          // シーク方式(~9fps)は使わず、①VideoDecoder ②再生方式(rVFC) の順で高速取得を試み、
+          // どちらも不可のときだけ従来のシーク方式へフォールバックする。
+          for (const obj of videoObjects) {
+            if (obj.reversed) continue; // 逆再生はシーク方式フォールバック
 
-          const v = obj as VideoObject;
+            const v = obj as VideoObject;
 
-          // 中間ファイル（編集中にバックグラウンド生成した出力解像度の H.264）が
-          // あれば最優先。4K HEVC/H.264 を出力解像度へダウンスケール済みなので
-          // VideoDecoder で最速かつフレーム落ちなし。生成は待たない。
-          let intermediateUrl: string | undefined;
-          if (v.filePath) {
-            try {
-              const chk = await ipcRenderer.invoke('check-intermediate', { filePath: v.filePath, width });
-              if (chk?.exists && chk.path) intermediateUrl = `file://${chk.path}`;
-            } catch { /* ignore */ }
-          }
-
-          // 優先順: 中間ファイル → プロキシ(H.264) → ソース。
-          const proxyPath = v.proxyFilePath;
-          const sourceUrl = intermediateUrl
-            ?? (proxyPath ? `file://${proxyPath}` : v.filePath ? `file://${v.filePath}` : v.src);
-          if (!sourceUrl) continue; // URL 不明 → シーク方式フォールバック
-          const sourceLabel = intermediateUrl ? 'intermediate' : proxyPath ? 'proxy' : 'source';
-
-          const startSec = obj.offset || 0;
-          const endSec = startSec + obj.duration + 1; // +1s のマージン
-          const withTimeout = (p: Promise<void>, ms: number, msg: string) => Promise.race([
-            p, new Promise<never>((_, reject) => setTimeout(() => reject(new Error(msg)), ms)),
-          ]);
-
-          // ① VideoDecoder 経路（H.264/中間ファイルで最速・~700fps）。
-          //    HEVC ソース直叩き・moov 末尾配置・不正コンテナでは hang し得るためタイムアウト付き。
-          const vdProvider = new VideoFrameProvider(sourceUrl, startSec, endSec);
-          let attached = false;
-          try {
-            await withTimeout(vdProvider.init(), 5000, 'VideoDecoder 初期化タイムアウト(5s)');
-            providers.set(obj.id, vdProvider);
-            attached = true;
-            console.log(`[Export] VideoDecoder パス: ${obj.id} (${sourceLabel})`);
-          } catch (e) {
-            console.warn(`[Export] VideoDecoder 不可 → 再生方式を試行: ${obj.id}`, e);
-            vdProvider.close();
-          }
-
-          // ② 再生方式（rVFC）。中間ファイル未生成の HEVC 等のフォールバック。
-          if (!attached && !isCancelled()) {
-            const pbProvider = new PlaybackFrameProvider(sourceUrl, startSec, endSec, { playbackRate: 2 });
-            try {
-              await withTimeout(pbProvider.init(), 8000, '再生方式 初期化タイムアウト(8s)');
-              providers.set(obj.id, pbProvider);
-              attached = true;
-              console.log(`[Export] 再生方式(rVFC)パス: ${obj.id}`);
-            } catch (e) {
-              console.warn(`[Export] 再生方式も不可 → シーク方式フォールバック: ${obj.id}`, e);
-              pbProvider.close();
+            // 中間ファイル（編集中にバックグラウンド生成した出力解像度の H.264）が
+            // あれば最優先。4K HEVC/H.264 を出力解像度へダウンスケール済みなので
+            // VideoDecoder で最速かつフレーム落ちなし。生成は待たない。
+            let intermediateUrl: string | undefined;
+            if (v.filePath) {
+              try {
+                const chk = await ipcRenderer.invoke('check-intermediate', { filePath: v.filePath, width });
+                if (chk?.exists && chk.path) intermediateUrl = `file://${chk.path}`;
+              } catch { /* ignore */ }
             }
+
+            // 優先順: 中間ファイル → プロキシ(H.264) → ソース。
+            const proxyPath = v.proxyFilePath;
+            const sourceUrl = intermediateUrl
+              ?? (proxyPath ? `file://${proxyPath}` : v.filePath ? `file://${v.filePath}` : v.src);
+            if (!sourceUrl) continue; // URL 不明 → シーク方式フォールバック
+            const sourceLabel = intermediateUrl ? 'intermediate' : proxyPath ? 'proxy' : 'source';
+
+            const startSec = obj.offset || 0;
+            const endSec = startSec + obj.duration + 1; // +1s のマージン
+            const withTimeout = (p: Promise<void>, ms: number, msg: string) => Promise.race([
+              p, new Promise<never>((_, reject) => setTimeout(() => reject(new Error(msg)), ms)),
+            ]);
+
+            // ① VideoDecoder 経路（H.264/中間ファイルで最速・~700fps）。
+            //    HEVC ソース直叩き・moov 末尾配置・不正コンテナでは hang し得るためタイムアウト付き。
+            const vdProvider = new VideoFrameProvider(sourceUrl, startSec, endSec);
+            let attached = false;
+            try {
+              await withTimeout(vdProvider.init(), 5000, 'VideoDecoder 初期化タイムアウト(5s)');
+              providers.set(obj.id, vdProvider);
+              attached = true;
+              console.log(`[Export] VideoDecoder パス: ${obj.id} (${sourceLabel})`);
+            } catch (e) {
+              console.warn(`[Export] VideoDecoder 不可 → 再生方式を試行: ${obj.id}`, e);
+              vdProvider.close();
+            }
+
+            // ② 再生方式（rVFC）。中間ファイル未生成の HEVC 等のフォールバック。
+            if (!attached && !isCancelled()) {
+              const pbProvider = new PlaybackFrameProvider(sourceUrl, startSec, endSec, { playbackRate: 2 });
+              try {
+                await withTimeout(pbProvider.init(), 8000, '再生方式 初期化タイムアウト(8s)');
+                providers.set(obj.id, pbProvider);
+                attached = true;
+                console.log(`[Export] 再生方式(rVFC)パス: ${obj.id}`);
+              } catch (e) {
+                console.warn(`[Export] 再生方式も不可 → シーク方式フォールバック: ${obj.id}`, e);
+                pbProvider.close();
+              }
+            }
+            // ④ いずれも失敗時は providers に入れず、従来のシーク方式が担当する。
           }
-          // ④ いずれも失敗時は providers に入れず、従来のシーク方式が担当する。
         }
 
         const usingVideoDecoder = providers.size > 0;
@@ -160,6 +169,22 @@ export const useProjectExport = (
 
             const t = i * dt;
             if (i % Math.max(1, Math.floor(fps / 2)) === 0) setTime(t);
+
+            if (exportFrameSourcePlan.source === 'sharedRendererRustFrameSource') {
+              exportFrameOverridesRef?.current.clear();
+              const timestampUs = Math.round(i * 1_000_000 / fps);
+              const bitmap = await exportFrameSourcePlan.frameSource.renderFrame({
+                frameIndex: i,
+                timestampUs,
+                time: t,
+                width: encWidth,
+                height: encHeight,
+                objects: exportObjects,
+              });
+              yield { timestamp: timestampUs, bitmap };
+              bitmap.close();
+              continue;
+            }
 
             const activeVideos = videoObjects.filter(
               obj => t >= obj.startTime && t < obj.startTime + obj.duration
