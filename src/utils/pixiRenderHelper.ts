@@ -11,7 +11,7 @@ import { evaluateSubjectCropNormRectAtTime } from './subjectCropKeyframes';
 import { getEnabledObjectFiltersInOrder } from './filterStack';
 import {
   clearPixiVideoForSharedRenderer,
-  shouldSkipPixiVideoForSharedRenderer,
+  resolvePixiVideoRenderPath,
 } from './pixiVideoCutover';
 import { shouldSkipPixiSolidColourForSharedRenderer } from './pixiSolidColourCutover';
 import { shouldSkipPixiImageForSharedRenderer } from './pixiImageCutover';
@@ -854,13 +854,15 @@ export const updatePixiContent = (
         content = psdContent;
 
     } else if (obj.type === 'video') {
-        if (shouldSkipPixiVideoForSharedRenderer({
+        const videoRenderPath = resolvePixiVideoRenderPath({
             objectId: obj.id,
             objectType: obj.type,
             isExporting,
             sharedRendererVideoObjectIds,
             requireSharedRendererVideo,
-        })) {
+            hasExportFrameOverride: exportFrameOverrides?.has(obj.id) === true,
+        });
+        if (videoRenderPath === 'sharedRendererOnly') {
             clearPixiVideoForSharedRenderer({
                 objectId: obj.id,
                 container,
@@ -875,7 +877,9 @@ export const updatePixiContent = (
         let sprite = content as PIXI.Sprite;
 
         // ── VideoDecoder ハイブリッドパス（エクスポート時）────────────────────
-        const overrideBitmap = isExporting ? exportFrameOverrides?.get(obj.id) : undefined;
+        const overrideBitmap = videoRenderPath === 'exportFrameOverride'
+            ? exportFrameOverrides?.get(obj.id)
+            : undefined;
         if (overrideBitmap && exportOverlayCanvases) {
             // OffscreenCanvas キャッシュを取得／作成
             let overlay = exportOverlayCanvases.get(obj.id);

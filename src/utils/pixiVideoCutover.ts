@@ -8,6 +8,15 @@ export interface ShouldSkipPixiVideoForSharedRendererInput {
   requireSharedRendererVideo?: boolean;
 }
 
+export interface ResolvePixiVideoRenderPathInput extends ShouldSkipPixiVideoForSharedRendererInput {
+  hasExportFrameOverride?: boolean;
+}
+
+export type PixiVideoRenderPath =
+  | 'sharedRendererOnly'
+  | 'exportFrameOverride'
+  | 'pixiVideoElement';
+
 export const shouldSkipPixiVideoForSharedRenderer = ({
   objectId,
   objectType,
@@ -23,6 +32,18 @@ export const shouldSkipPixiVideoForSharedRenderer = ({
       && sharedRendererVideoObjectIds?.has(objectId) === true
     )
   );
+
+export const resolvePixiVideoRenderPath = (
+  input: ResolvePixiVideoRenderPathInput
+): PixiVideoRenderPath => {
+  if (shouldSkipPixiVideoForSharedRenderer(input)) {
+    return 'sharedRendererOnly';
+  }
+  if (input.objectType === 'video' && input.isExporting && input.hasExportFrameOverride === true) {
+    return 'exportFrameOverride';
+  }
+  return 'pixiVideoElement';
+};
 
 interface PixiVideoCutoverChild {
   destroy: (...args: any[]) => void;
