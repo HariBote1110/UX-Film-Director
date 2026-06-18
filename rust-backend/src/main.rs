@@ -232,6 +232,12 @@ struct NativeRenderSharedFrameSource {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct NativeRenderReleaseSharedFrameParams {
+    memory_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct MediaProbeParams {
     file_path: String,
     #[serde(default)]
@@ -278,6 +284,9 @@ fn handle_request(request: RpcRequest, state: &mut BackendState) -> RpcResponse 
         "encode.finish" => handle_encode_finish(request.id, request.params, state),
         "render.nativeSharedFrame" => {
             handle_native_render_shared_frame(request.id, request.params, state)
+        }
+        "render.releaseNativeSharedFrame" => {
+            handle_release_native_render_shared_frame(request.id, request.params, state)
         }
         "export.start" => handle_export_start(request.id, request.params, state),
         "export.write_frame" => handle_export_write_frame(request.id, request.params, state),
@@ -693,6 +702,52 @@ fn handle_native_render_shared_frame(
         id,
         -32070,
         "render.nativeSharedFrame requires POSIX shared memory support",
+    )
+}
+
+#[cfg(unix)]
+fn handle_release_native_render_shared_frame(
+    id: u64,
+    params: Value,
+    state: &mut BackendState,
+) -> RpcResponse {
+    let parsed = match serde_json::from_value::<NativeRenderReleaseSharedFrameParams>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32602,
+                &format!("Invalid render.releaseNativeSharedFrame params: {error}"),
+            );
+        }
+    };
+    if parsed.memory_id.is_empty() {
+        return response_error(id, -32602, "memoryId must not be empty");
+    }
+
+    let released = state.native_render_outputs.remove(&parsed.memory_id).is_some();
+
+    RpcResponse {
+        id,
+        ok: true,
+        result: Some(json!({
+            "released": released,
+            "memoryId": parsed.memory_id,
+        })),
+        error: None,
+    }
+}
+
+#[cfg(not(unix))]
+fn handle_release_native_render_shared_frame(
+    id: u64,
+    _params: Value,
+    _state: &mut BackendState,
+) -> RpcResponse {
+    response_error(
+        id,
+        -32070,
+        "render.releaseNativeSharedFrame requires POSIX shared memory support",
     )
 }
 
