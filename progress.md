@@ -4116,3 +4116,19 @@
 ### 残課題・次のステップ
 - video+PSD exportの積層sceneで、video decode shared frame source + PSD media sourceが同じnative renderへ入る契約を追加する。
 - 旧projectのPSD構造が保存時と実ファイル再parse時で大きく変わっている場合は、安全側にdefault visibleを使うため、実ファイルfixtureで移植範囲を追加確認する。
+
+## 2026-06-19 — video+PSD混在exportのnative render内訳を診断へ記録
+
+### 実施内容
+- Red: video decode shared frame sourceとPSD media sourceが同じ `render.nativeSharedFrame` export passへ入ったとき、datasetへnative render内訳が残る契約を追加した。
+- Green: `nativeRenderSharedFrame` 成功時にmedia count / media kinds / source count / source media idsを `uxfdRustExportFrameSource*` datasetへ記録するようにした。
+- video+PSD混在exportではPixi presenter / WebGPU readback / JS shared-frame writerへ戻らず、Rust native render payloadへvideo source 1件とPSD media referenceが同時に渡ることをテストで固定した。
+- 版を `0.1.1-Beta-120a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- video+PSD混在exportを実際のfile path付き `TimelineObject` から `buildSharedRendererExportSession` 経由で構築する統合契約を追加する。
+- native render内訳診断をpreview側にも揃え、exportとpreviewで同じRust ownership状態を見られるようにする。

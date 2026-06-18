@@ -732,6 +732,12 @@ WASM parse失敗時だけ既存ag-psd経路へfallbackし、保存済みPSDのla
 保存済み `rootLayer` の同名・同種・同位置ノードからactive状態を移植する。これにより旧projectでOFFにしていたPSD leaf layerが
 復元後にdefault visibleへ戻り、Rust backendの `active_layer_ids` filterで再表示される事故を避ける。
 
+135. Phase5: video+PSD混在exportのnative render内訳診断を追加する
+video decode shared frame sourceとPSD media sourceが同じ `render.nativeSharedFrame` payloadへ入った場合、
+export frame datasetへnative render media count / media kinds / source count / source media idsを残す。
+これによりGoPro等の動画にPSD overlayを重ねたexportがPixi presenter / WebGPU readbackへ戻らず、
+Rust native render直通で合成されているかを実機で確認できる。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
