@@ -14,6 +14,7 @@ import {
   shouldSkipPixiVideoForSharedRenderer,
 } from './pixiVideoCutover';
 import { shouldSkipPixiSolidColourForSharedRenderer } from './pixiSolidColourCutover';
+import { shouldSkipPixiImageForSharedRenderer } from './pixiImageCutover';
 
 // ... (Shader definitions omitted for brevity - same as previous) ...
 const vertexShader = `
@@ -716,6 +717,7 @@ export const updatePixiContent = (
         exportOverlayCanvases?: Map<string, ExportOverlayCanvas>;
         sharedRendererSolidColourObjectIds?: ReadonlySet<string>;
         sharedRendererVideoObjectIds?: ReadonlySet<string>;
+        sharedRendererImageObjectIds?: ReadonlySet<string>;
         requireSharedRendererVideo?: boolean;
         /**
          * WebGPU（`RendererType` 2）のとき true。動画を VideoSource ではなく 2D Canvas 経由でテクスチャ化し、
@@ -724,7 +726,7 @@ export const updatePixiContent = (
         useCanvasVideoUpload: boolean;
     }
 ) => {
-    const { textureCache, loadingUrls, videoElements, videoFrameTextures, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, exportFrameOverrides, exportOverlayCanvases, sharedRendererSolidColourObjectIds, sharedRendererVideoObjectIds, requireSharedRendererVideo, useCanvasVideoUpload } = resources;
+    const { textureCache, loadingUrls, videoElements, videoFrameTextures, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, exportFrameOverrides, exportOverlayCanvases, sharedRendererSolidColourObjectIds, sharedRendererVideoObjectIds, sharedRendererImageObjectIds, requireSharedRendererVideo, useCanvasVideoUpload } = resources;
     let content = container.children[0] as (PIXI.Sprite | PIXI.Graphics | PIXI.Text | PIXI.Container | undefined);
     
     // Check for recreation
@@ -777,6 +779,19 @@ export const updatePixiContent = (
         content = textObj;
 
     } else if (obj.type === 'image') {
+        if (shouldSkipPixiImageForSharedRenderer({
+            objectId: obj.id,
+            objectType: obj.type,
+            isExporting,
+            sharedRendererImageObjectIds,
+        })) {
+            const children = container.removeChildren();
+            children.forEach((child) => child.destroy({ children: true, texture: false, context: true }));
+            container.hitArea = new PIXI.Rectangle(0, 0, obj.width, obj.height);
+            return undefined;
+        }
+        container.hitArea = null;
+
         let sprite = content as PIXI.Sprite;
         let texture: PIXI.Texture | undefined;
         if (obj.src) {

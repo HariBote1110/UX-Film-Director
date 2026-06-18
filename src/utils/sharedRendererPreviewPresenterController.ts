@@ -35,6 +35,10 @@ import {
   buildSharedRendererSolidColourStackSafety,
   type SharedRendererSolidColourOwnership,
 } from './sharedRendererSolidColourOwnership';
+import {
+  buildSharedRendererImageOwnership,
+  type SharedRendererImageOwnership,
+} from './sharedRendererImageOwnership';
 import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
 
 export const SHARED_RENDERER_SOLID_SWATCH: SharedRendererSolidSrgbSwatch = {
@@ -59,6 +63,7 @@ export type SharedRendererPreviewPresenterControl =
       format: string;
       solidColourOwnership: SharedRendererSolidColourOwnership;
       videoOwnership: SharedRendererVideoOwnership;
+      imageOwnership: SharedRendererImageOwnership;
       takePresentedFrameSharedFrame?: (
         input: SharedRendererPresentedFrameSharedFrameInput
       ) => Promise<RustBackendVideoEncodeWriteFramePayload>;
@@ -163,6 +168,7 @@ export const startSharedRendererPreviewPresenter = async ({
       : 'typescript'
     : undefined;
   const hasVideoScene = hasVideoClip(session);
+  const hasImageScene = hasImageClip(session);
   const resolvedRustVideoPlaneVertexSceneBuilder = hasVideoScene
     ? rustVideoPlaneVertexSceneBuilder
       ?? await loadSharedRendererRustVideoPlaneVertexSceneBuilder({
@@ -216,6 +222,9 @@ export const startSharedRendererPreviewPresenter = async ({
     : null;
   const solidColourObjectIds = hasSolidColourScene
     ? collectSolidColourObjectIds(session)
+    : [];
+  const imageObjectIds = hasImageScene
+    ? collectObjectIdsByMediaKind(session, 'Image')
     : [];
 
   const presenter = await createSharedRendererWebGpuPresenter({
@@ -357,6 +366,11 @@ export const startSharedRendererPreviewPresenter = async ({
       solidColourObjectIds: collectObjectIdsByMediaKind(session, 'SolidColour'),
     };
   }
+  const imageOwnership = buildSharedRendererImageOwnership({
+    hasImageScene,
+    nativeRenderFrameReady,
+    imageObjectIds,
+  });
 
   if (requireSharedRendererVideo && hasVideoScene && videoOwnership.owner !== 'sharedRenderer') {
     writeDiagnostics({
@@ -431,6 +445,9 @@ export const startSharedRendererPreviewPresenter = async ({
     solidColourOwner: hasSolidColourScene ? solidColourOwnership.owner : undefined,
     solidColourCutoverReason: hasSolidColourScene ? solidColourOwnership.reason : undefined,
     sharedSolidColourObjectCount: hasSolidColourScene ? solidColourOwnership.solidColourObjectIds.length : undefined,
+    imageOwner: hasImageScene ? imageOwnership.owner : undefined,
+    imageCutoverReason: hasImageScene ? imageOwnership.reason : undefined,
+    sharedImageObjectCount: hasImageScene ? imageOwnership.imageObjectIds.length : undefined,
     videoGeometrySource,
     videoDecodeRequestSource,
     videoDecodeRequestCount,
@@ -453,6 +470,7 @@ export const startSharedRendererPreviewPresenter = async ({
     format: presenter.format,
     solidColourOwnership,
     videoOwnership,
+    imageOwnership,
     takePresentedFrameSharedFrame: presenter.takePresentedFrameSharedFrame,
     readPresentedFrameRgbaBytes: presenter.readPresentedFrameRgbaBytes,
     dispose: presenter.dispose,
@@ -495,7 +513,7 @@ const collectSolidColourObjectIds = (session: SharedRendererPreviewSession): str
 
 const collectObjectIdsByMediaKind = (
   session: SharedRendererPreviewSession,
-  kind: 'Video' | 'SolidColour'
+  kind: 'Video' | 'SolidColour' | 'Image'
 ): string[] => {
   if (!session.surfaceGate.ok) return [];
 
@@ -511,4 +529,11 @@ const hasVideoClip = (session: SharedRendererPreviewSession): boolean => {
 
   const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
   return session.surfaceGate.snapshot.clips.some((clip) => mediaKindById.get(clip.media_id) === 'Video');
+};
+
+const hasImageClip = (session: SharedRendererPreviewSession): boolean => {
+  if (!session.surfaceGate.ok) return false;
+
+  const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
+  return session.surfaceGate.snapshot.clips.some((clip) => mediaKindById.get(clip.media_id) === 'Image');
 };

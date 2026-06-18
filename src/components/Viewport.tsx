@@ -130,6 +130,7 @@ const Viewport: React.FC = () => {
   const videoFrameTexturesRef = useRef<Map<string, VideoFrameTextureState>>(new Map());
   const sharedRendererSolidColourObjectIdsRef = useRef<Set<string>>(new Set());
   const sharedRendererVideoObjectIdsRef = useRef<Set<string>>(new Set());
+  const sharedRendererImageObjectIdsRef = useRef<Set<string>>(new Set());
   /** VideoDecoder ハイブリッドパス: エクスポート時にフレームを注入するためのマップ */
   const exportFrameOverridesRef = useRef<Map<string, ImageBitmap>>(new Map());
   /** exportFrameOverrides を Pixi テクスチャに変換する OffscreenCanvas キャッシュ */
@@ -168,6 +169,15 @@ const Viewport: React.FC = () => {
     const unchanged = current.size === next.size && [...current].every((objectId) => next.has(objectId));
     if (unchanged) return;
     sharedRendererVideoObjectIdsRef.current = next;
+    setRenderTick((previous) => previous + 1);
+  }, []);
+
+  const updateSharedRendererImageObjectIds = useCallback((objectIds: string[]) => {
+    const current = sharedRendererImageObjectIdsRef.current;
+    const next = new Set(objectIds);
+    const unchanged = current.size === next.size && [...current].every((objectId) => next.has(objectId));
+    if (unchanged) return;
+    sharedRendererImageObjectIdsRef.current = next;
     setRenderTick((previous) => previous + 1);
   }, []);
 
@@ -525,6 +535,7 @@ const Viewport: React.FC = () => {
       sharedRendererVideoDecodeJobsRef.current = [];
       updateSharedRendererSolidColourObjectIds([]);
       updateSharedRendererVideoObjectIds([]);
+      updateSharedRendererImageObjectIds([]);
       return;
     }
 
@@ -537,6 +548,7 @@ const Viewport: React.FC = () => {
       });
       updateSharedRendererSolidColourObjectIds([]);
       updateSharedRendererVideoObjectIds([]);
+      updateSharedRendererImageObjectIds([]);
       return;
     }
 
@@ -547,6 +559,7 @@ const Viewport: React.FC = () => {
     }
     updateSharedRendererSolidColourObjectIds([]);
     updateSharedRendererVideoObjectIds([]);
+    updateSharedRendererImageObjectIds([]);
 
     let cancelled = false;
     let currentControl: SharedRendererPreviewPresenterControl | null = null;
@@ -586,10 +599,12 @@ const Viewport: React.FC = () => {
       sharedRendererPresenterControlRef.current = control;
       updateSharedRendererSolidColourObjectIds(control.ok ? control.solidColourOwnership.solidColourObjectIds : []);
       updateSharedRendererVideoObjectIds(control.ok ? control.videoOwnership.videoObjectIds : []);
+      updateSharedRendererImageObjectIds(control.ok ? control.imageOwnership.imageObjectIds : []);
     }).catch(() => {
       if (cancelled) return;
       updateSharedRendererSolidColourObjectIds([]);
       updateSharedRendererVideoObjectIds([]);
+      updateSharedRendererImageObjectIds([]);
       datasets.forEach((dataset) => {
         writeSharedRendererPresenterDiagnostics(dataset, {
           status: 'fallback',
@@ -605,7 +620,7 @@ const Viewport: React.FC = () => {
         sharedRendererPresenterControlRef.current = null;
       }
     };
-  }, [rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererSolidColourObjectIds, updateSharedRendererVideoObjectIds]);
+  }, [rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererImageObjectIds, updateSharedRendererSolidColourObjectIds, updateSharedRendererVideoObjectIds]);
 
   // --- Main Render Logic ---
   const renderScene = useCallback((time: number, currentObjects: TimelineObject[]) => {
@@ -739,6 +754,7 @@ const Viewport: React.FC = () => {
           exportOverlayCanvases: exportOverlayCanvasesRef.current,
           sharedRendererSolidColourObjectIds: sharedRendererSolidColourObjectIdsRef.current,
           sharedRendererVideoObjectIds: sharedRendererVideoObjectIdsRef.current,
+          sharedRendererImageObjectIds: sharedRendererImageObjectIdsRef.current,
           requireSharedRendererVideo: rustVideoOnlyEnabled,
           useCanvasVideoUpload,
       });

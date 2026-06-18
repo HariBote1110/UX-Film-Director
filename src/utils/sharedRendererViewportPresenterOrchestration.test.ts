@@ -82,6 +82,11 @@ const control: SharedRendererPreviewPresenterControl = {
     reason: 'rustDecodedFrameUploadReady',
     videoObjectIds: ['video-1'],
   },
+  imageOwnership: {
+    owner: 'pixi',
+    reason: 'noImageScene',
+    imageObjectIds: [],
+  },
   readPresentedFrameRgbaBytes: async () => ({
     rgbaBytes: new Uint8Array(),
     strideBytes: 0,
