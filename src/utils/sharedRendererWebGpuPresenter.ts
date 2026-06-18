@@ -178,6 +178,7 @@ export interface SharedRendererWebGpuPresenterInput {
   textureUsageTextureCopyDst?: number;
   solidColourVertexSceneBuilder?: SharedRendererSolidColourVertexSceneBuilder;
   videoPlaneVertexSceneBuilder?: SharedRendererVideoPlaneVertexSceneBuilder;
+  presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
   createEncodeFrameWriter?: SharedRendererEncodeFrameWriterFactory;
   onDeviceLost?: (event: SharedRendererDeviceLostEvent) => void;
 }
@@ -185,6 +186,10 @@ export interface SharedRendererWebGpuPresenterInput {
 export type SharedRendererEncodeFrameWriterFactory = (
   input: CreateRustBackendVideoEncodeSharedFrameWriterInput
 ) => Promise<RustBackendVideoEncodeSharedFrameWriter>;
+
+export type SharedRendererPresentedFrameSharedFrameTaker = (
+  input: SharedRendererPresentedFrameNativeHandoffInput
+) => Promise<RustBackendVideoEncodeWriteFramePayload | null>;
 
 export interface SharedRendererPresentedFrameReadbackInput {
   width: number;
@@ -207,6 +212,16 @@ export interface SharedRendererPresentedFrameSharedFrameInput {
   width: number;
   height: number;
   fps: number;
+}
+
+export interface SharedRendererPresentedFrameNativeHandoffInput extends SharedRendererPresentedFrameSharedFrameInput {
+  device: SharedRendererWebGpuDeviceLike;
+  texture: unknown;
+  format: string;
+  canvasSize: {
+    width: number;
+    height: number;
+  };
 }
 
 export interface SharedRendererVideoFrameTextureUploadInput {
@@ -301,6 +316,7 @@ export const createSharedRendererWebGpuPresenter = async ({
   textureUsageTextureCopyDst = defaultTextureCopyDstUsage(),
   solidColourVertexSceneBuilder = buildSharedRendererSolidColourVertexScene,
   videoPlaneVertexSceneBuilder = buildSharedRendererVideoPlaneVertexScene,
+  presentedFrameSharedFrameTaker,
   createEncodeFrameWriter = createRustBackendVideoEncodeSharedFrameWriter,
   onDeviceLost,
 }: SharedRendererWebGpuPresenterInput): Promise<SharedRendererWebGpuPresenterResult> => {
@@ -857,6 +873,25 @@ export const createSharedRendererWebGpuPresenter = async ({
   const takePresentedFrameSharedFrame = async (
     input: SharedRendererPresentedFrameSharedFrameInput
   ): Promise<RustBackendVideoEncodeWriteFramePayload> => {
+    if (presentedFrameSharedFrameTaker) {
+      if (!lastPresentedTexture) {
+        throw new Error('No shared renderer frame has been presented for native frame handoff.');
+      }
+      const payload = await presentedFrameSharedFrameTaker({
+        ...input,
+        device,
+        texture: lastPresentedTexture,
+        format,
+        canvasSize: {
+          width: surfaceGate.canvas.width,
+          height: surfaceGate.canvas.height,
+        },
+      });
+      if (payload) {
+        return payload;
+      }
+    }
+
     const readback = await readPresentedFrameRgbaBytes({
       width: input.width,
       height: input.height,
