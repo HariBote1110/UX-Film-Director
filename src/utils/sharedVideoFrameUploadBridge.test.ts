@@ -121,6 +121,36 @@ describe('sharedVideoFrameUploadBridge', () => {
     });
   });
 
+  it('rejects bridge copy reports that do not match the descriptor slot lease', async () => {
+    const bridge: SharedVideoFrameCopyBridge = {
+      copyIntoUploadBuffer: async () => ({
+        success: true,
+        result: {
+          sequence: 42,
+          slotIndex: 0,
+          generation: 8,
+          byteLen: 512,
+          expectedChecksum: 0x1234,
+          actualChecksum: 0x1234,
+        },
+      }),
+    };
+
+    await expect(prepareSharedRendererDecodedVideoFrameUpload({
+      sharedFrame,
+      slotCount: 2,
+      bridge,
+    })).resolves.toEqual({
+      ok: false,
+      reason: 'copyReportSlotLeaseMismatch',
+      detail: 'Shared video frame copy report must match the decoded frame descriptor slot lease.',
+      expectedSlotIndex: 1,
+      actualSlotIndex: 0,
+      expectedGeneration: 9,
+      actualGeneration: 8,
+    });
+  });
+
   it('rejects descriptors outside the declared shared ring before copying bytes', async () => {
     const calls: unknown[] = [];
     const bridge: SharedVideoFrameCopyBridge = {
