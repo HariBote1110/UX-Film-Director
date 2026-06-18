@@ -39,6 +39,7 @@ describe('Viewport Rust video-only boundary', () => {
     expect(code).not.toContain('VideoFrameTextureState');
     expect(code).not.toContain('destroyVideoFrameTextureState');
     expect(code).not.toContain('useCanvasVideoUploadForPixiPreview');
+    expect(code).not.toContain('videoElementForPixi');
     expect(code).not.toContain('videoElements:');
     expect(code).not.toContain('videoFrameTextures:');
   });
