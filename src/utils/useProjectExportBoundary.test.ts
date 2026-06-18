@@ -48,7 +48,7 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     expect(code).toContain('let frameRuntimePlan = resolveProjectExportFrameRuntimePlan({');
     expect(code).toContain('frameRuntimePlan = blockedRuntimePlan;');
     expect(code.indexOf('frameRuntimePlan = blockedRuntimePlan;')).toBeLessThan(
-      code.indexOf('if (frameRuntimePlan.usesExportFrameOverrides && exportFrameOverridesRef)')
+      code.indexOf('if (frameRuntimePlan.requiresRenderScene)')
     );
   });
 });
