@@ -116,6 +116,7 @@ export type SharedRendererWebGpuPresenterResult =
       presentSolidSrgbSwatch: (swatch: SharedRendererSolidSrgbSwatch) => void;
       presentSolidColourScene: (scene: SharedRendererSolidColourSceneInput) => SharedRendererSolidColourScenePresentationResult;
       uploadVideoFrameTexture: (input: SharedRendererVideoFrameTextureUploadInput) => SharedRendererVideoFrameTextureUploadResult;
+      presentNativeRenderFrame: (frame: SharedRendererNativeRenderFrameInput) => SharedRendererNativeRenderFramePresentationResult;
       presentVideoFrameScene: (scene: SharedRendererVideoFrameSceneInput) => SharedRendererVideoFrameScenePresentationResult;
       readPresentedFrameRgbaBytes: (input: SharedRendererPresentedFrameReadbackInput) => Promise<SharedRendererPresentedFrameReadbackResult>;
       takePresentedFrameSharedFrame: (input: SharedRendererPresentedFrameSharedFrameInput) => Promise<RustBackendVideoEncodeWriteFramePayload>;
@@ -254,6 +255,20 @@ export type SharedRendererVideoFrameTextureUploadResult =
   | {
       ok: false;
       reason: 'webGpuUploadUnavailable';
+      detail: string;
+    };
+
+export interface SharedRendererNativeRenderFrameInput {
+  texture: unknown;
+}
+
+export type SharedRendererNativeRenderFramePresentationResult =
+  | {
+      ok: true;
+    }
+  | {
+      ok: false;
+      reason: 'nativeRenderTextureViewUnavailable' | 'webGpuDrawUnavailable';
       detail: string;
     };
 
@@ -444,6 +459,7 @@ export const createSharedRendererWebGpuPresenter = async ({
 
   let solidColourPipeline: unknown | null = null;
   let videoFramePipeline: unknown | null = null;
+  let nativeRenderFramePipeline: unknown | null = null;
   const presentSolidColourScene = ({
     snapshot,
     media,
@@ -790,6 +806,114 @@ export const createSharedRendererWebGpuPresenter = async ({
     };
   };
 
+  const presentNativeRenderFrame = ({
+    texture,
+  }: SharedRendererNativeRenderFrameInput): SharedRendererNativeRenderFramePresentationResult => {
+    if (
+      !context.getCurrentTexture
+      || !device.createCommandEncoder
+      || !device.queue
+      || !device.queue.writeBuffer
+      || !device.createBuffer
+      || !device.createShaderModule
+      || !device.createRenderPipeline
+      || !device.createSampler
+      || !device.createBindGroup
+    ) {
+      return {
+        ok: false,
+        reason: 'webGpuDrawUnavailable',
+        detail: 'WebGPU device does not expose the draw APIs needed for native render frame presentation.',
+      };
+    }
+
+    const textureView = createTextureView(texture);
+    if (!textureView.ok) {
+      return {
+        ok: false,
+        reason: 'nativeRenderTextureViewUnavailable',
+        detail: 'Uploaded native render texture does not expose createView().',
+      };
+    }
+
+    if (!nativeRenderFramePipeline) {
+      const shader = device.createShaderModule({
+        code: videoFrameShaderCode,
+      });
+      nativeRenderFramePipeline = device.createRenderPipeline({
+        label: 'native-render-frame-pipeline',
+        layout: 'auto',
+        vertex: {
+          module: shader,
+          entryPoint: 'vs_main',
+          buffers: [
+            {
+              arrayStride: 32,
+              attributes: [
+                { shaderLocation: 0, offset: 0, format: 'float32x2' },
+                { shaderLocation: 1, offset: 8, format: 'float32x2' },
+                { shaderLocation: 2, offset: 16, format: 'float32' },
+              ],
+            },
+          ],
+        },
+        fragment: {
+          module: shader,
+          entryPoint: 'fs_main',
+          targets: [{ format }],
+        },
+        primitive: {
+          topology: 'triangle-list',
+        },
+      });
+    }
+
+    const vertices = fullscreenTextureVertices();
+    const vertexBuffer = device.createBuffer({
+      label: 'native-render-frame-vertex-buffer',
+      size: vertices.byteLength,
+      usage: bufferUsageVertex | bufferUsageCopyDst,
+    });
+    device.queue.writeBuffer(vertexBuffer, 0, vertices);
+
+    const sampler = device.createSampler({
+      magFilter: 'linear',
+      minFilter: 'linear',
+      mipmapFilter: 'nearest',
+    });
+    const bindGroup = device.createBindGroup({
+      layout: pipelineBindGroupLayout(nativeRenderFramePipeline, 0),
+      entries: [
+        { binding: 0, resource: sampler },
+        { binding: 1, resource: textureView.value },
+      ],
+    });
+
+    const encoder = device.createCommandEncoder();
+    const targetTexture = context.getCurrentTexture();
+    lastPresentedTexture = targetTexture;
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: targetTexture.createView(),
+          clearValue: { r: 0, g: 0, b: 0, a: 0 },
+          loadOp: 'clear',
+          storeOp: 'store',
+        },
+      ],
+    });
+    pass.setPipeline?.(nativeRenderFramePipeline);
+    pass.setBindGroup?.(0, bindGroup);
+    pass.setVertexBuffer?.(0, vertexBuffer);
+    pass.draw?.(6);
+    pass.end();
+    device.queue.submit([encoder.finish()]);
+
+    return {
+      ok: true,
+    };
+  };
+
   const readPresentedFrameRgbaBytes = async ({
     width,
     height,
@@ -919,6 +1043,7 @@ export const createSharedRendererWebGpuPresenter = async ({
     presentSolidSrgbSwatch,
     presentSolidColourScene,
     uploadVideoFrameTexture,
+    presentNativeRenderFrame,
     presentVideoFrameScene,
     readPresentedFrameRgbaBytes,
     takePresentedFrameSharedFrame,
@@ -954,6 +1079,15 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
   return vec4<f32>(colour.rgb, colour.a * in.opacity);
 }
 `;
+
+const fullscreenTextureVertices = (): Float32Array => new Float32Array([
+  -1, -1, 0, 1, 1, 0, 0, 0,
+  1, -1, 1, 1, 1, 0, 0, 0,
+  -1, 1, 0, 0, 1, 0, 0, 0,
+  -1, 1, 0, 0, 1, 0, 0, 0,
+  1, -1, 1, 1, 1, 0, 0, 0,
+  1, 1, 1, 0, 1, 0, 0, 0,
+]);
 
 const solidColourShaderCode = `
 struct VertexOut {

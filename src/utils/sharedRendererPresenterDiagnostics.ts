@@ -14,7 +14,8 @@ export type SharedRendererPresenterDiagnosticState =
   | {
       status: 'ready';
       format: string;
-      swatch: 'solid-srgb' | 'solid-colour-scene' | 'pixi-passthrough';
+      swatch: 'solid-srgb' | 'solid-colour-scene' | 'pixi-passthrough' | 'native-render-frame';
+      nativeRenderFrameReady?: boolean;
       geometrySource?: 'rust-wasm' | 'typescript';
       solidColourOwner?: SharedRendererSolidColourOwner;
       solidColourCutoverReason?: SharedRendererSolidColourCutoverReason;
@@ -54,6 +55,7 @@ export const writeSharedRendererPresenterDiagnostics = (
   delete dataset.uxfdSharedRendererPresenterVideoDecodeRequestSource;
   delete dataset.uxfdSharedRendererPresenterVideoDecodeRequestCount;
   delete dataset.uxfdSharedRendererPresenterVideoFrameUploadReady;
+  delete dataset.uxfdSharedRendererPresenterNativeRenderFrameReady;
   delete dataset.uxfdSharedRendererPresenterVideoOwner;
   delete dataset.uxfdSharedRendererPresenterVideoCutoverReason;
   delete dataset.uxfdSharedRendererPresenterSharedVideoObjectCount;
@@ -86,6 +88,9 @@ export const writeSharedRendererPresenterDiagnostics = (
     }
     if (typeof state.videoFrameUploadReady === 'boolean') {
       dataset.uxfdSharedRendererPresenterVideoFrameUploadReady = String(state.videoFrameUploadReady);
+    }
+    if (typeof state.nativeRenderFrameReady === 'boolean') {
+      dataset.uxfdSharedRendererPresenterNativeRenderFrameReady = String(state.nativeRenderFrameReady);
     }
     if (state.videoOwner) {
       dataset.uxfdSharedRendererPresenterVideoOwner = state.videoOwner;

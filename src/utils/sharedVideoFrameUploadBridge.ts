@@ -54,18 +54,18 @@ export type PrepareSharedRendererDecodedVideoFrameUploadResult =
 
 const normaliseReturnedRgbaBytes = (
   candidate: SharedVideoFrameCopyReport['rgbaBytes'],
-): Uint8Array | null => {
+): Uint8Array<ArrayBuffer> | null => {
   if (!candidate) {
     return null;
   }
   if (candidate instanceof Uint8Array) {
-    return candidate;
+    return candidate as Uint8Array<ArrayBuffer>;
   }
   if (candidate instanceof ArrayBuffer) {
     return new Uint8Array(candidate);
   }
   if (ArrayBuffer.isView(candidate)) {
-    return new Uint8Array(candidate.buffer, candidate.byteOffset, candidate.byteLength);
+    return new Uint8Array(candidate.buffer as ArrayBuffer, candidate.byteOffset, candidate.byteLength);
   }
   if (Array.isArray(candidate)) {
     return Uint8Array.from(candidate);

@@ -91,6 +91,7 @@ export interface StartSharedRendererPreviewPresenterInput {
   sharedRendererVideoCutoverEnabled?: boolean;
   requireSharedRendererVideo?: boolean;
   sharedRendererVideoFrameUploadReady?: boolean;
+  sharedRendererNativeRenderFrameUpload?: SharedRendererDecodedVideoFrameUpload;
   sharedRendererDecodedVideoFrameUpload?: SharedRendererDecodedVideoFrameUpload;
   sharedRendererDecodedVideoFrameUploads?: SharedRendererDecodedVideoFrameUploadForClip[];
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
@@ -126,6 +127,7 @@ export const startSharedRendererPreviewPresenter = async ({
   sharedRendererVideoCutoverEnabled = defaultSharedRendererVideoCutoverEnabled(),
   requireSharedRendererVideo = false,
   sharedRendererVideoFrameUploadReady = false,
+  sharedRendererNativeRenderFrameUpload,
   sharedRendererDecodedVideoFrameUpload,
   sharedRendererDecodedVideoFrameUploads,
   presentedFrameSharedFrameTaker,
@@ -249,6 +251,36 @@ export const startSharedRendererPreviewPresenter = async ({
   }
 
   let resolvedVideoFrameUploadReady = sharedRendererVideoFrameUploadReady;
+  let nativeRenderFrameReady = false;
+  if (sharedRendererNativeRenderFrameUpload) {
+    const uploadResult = presenter.uploadVideoFrameTexture(sharedRendererNativeRenderFrameUpload);
+    if (uploadResult.ok) {
+      const presentation = presenter.presentNativeRenderFrame({
+        texture: uploadResult.texture,
+      });
+      if (!presentation.ok) {
+        if (sharedRendererNativeRenderFrameUpload.releaseAfterUploadAbort) {
+          await sharedRendererNativeRenderFrameUpload.releaseAfterUploadAbort();
+        }
+        writeDiagnostics({
+          status: 'fallback',
+          reason: presentation.reason,
+        });
+        return {
+          ok: false,
+          reason: presentation.reason,
+          dispose: presenter.dispose,
+        };
+      }
+      if (sharedRendererNativeRenderFrameUpload.releaseAfterGpuUpload) {
+        await presenter.device.queue?.onSubmittedWorkDone?.();
+        await sharedRendererNativeRenderFrameUpload.releaseAfterGpuUpload();
+      }
+      nativeRenderFrameReady = true;
+    } else if (sharedRendererNativeRenderFrameUpload.releaseAfterUploadAbort) {
+      await sharedRendererNativeRenderFrameUpload.releaseAfterUploadAbort();
+    }
+  }
   let uploadedVideoFrameTexture: unknown | null = null;
   const uploadedVideoFrameTexturesByClipId = new Map<string, unknown>();
   const uploadedVideoObjectIds = sharedRendererDecodedVideoFrameUploads
@@ -328,7 +360,9 @@ export const startSharedRendererPreviewPresenter = async ({
     && uploadedVideoFrameTexture
     && videoOwnership.owner === 'sharedRenderer';
   const shouldPassThroughToPixi = !hasSolidColourScene && !diagnosticSwatchEnabled;
-  if (shouldPresentUploadedVideoFrame) {
+  if (nativeRenderFrameReady) {
+    // The native render frame is already the final composited canvas image.
+  } else if (shouldPresentUploadedVideoFrame) {
     const presentation = uploadedVideoFrameTexturesByClipId.size > 0
       ? presenter.presentVideoFrameScene({
         snapshot: session.surfaceGate.snapshot,
@@ -390,9 +424,12 @@ export const startSharedRendererPreviewPresenter = async ({
     videoOwner: hasVideoScene ? videoOwnership.owner : undefined,
     videoCutoverReason: hasVideoScene ? videoOwnership.reason : undefined,
     sharedVideoObjectCount: hasVideoScene ? videoOwnership.videoObjectIds.length : undefined,
+    nativeRenderFrameReady: nativeRenderFrameReady ? true : undefined,
     swatch: hasSolidColourScene
       ? 'solid-colour-scene'
-      : diagnosticSwatchEnabled
+      : nativeRenderFrameReady
+        ? 'native-render-frame'
+        : diagnosticSwatchEnabled
         ? 'solid-srgb'
         : 'pixi-passthrough',
   });
