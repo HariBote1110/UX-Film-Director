@@ -13,6 +13,7 @@ import {
   resolveProjectExportFrameCanvas,
   type ProjectExportRustFrameSource,
 } from '../utils/projectExportFrameCanvas';
+import { isSharedRendererExportFrameSourceBlockedError } from '../utils/sharedRendererExportFrameSource';
 
 const { ipcRenderer } = window;
 
@@ -159,6 +160,8 @@ export const useProjectExport = (
         }
 
         async function* renderFrames() {
+          let rustFrameSourceBlocked = false;
+
           for (let i = 0; i < totalFrames; i++) {
             if (isCancelled()) break;
 
@@ -170,20 +173,28 @@ export const useProjectExport = (
             const t = i * dt;
             if (i % Math.max(1, Math.floor(fps / 2)) === 0) setTime(t);
 
-            if (exportFrameSourcePlan.source === 'sharedRendererRustFrameSource') {
+            if (exportFrameSourcePlan.source === 'sharedRendererRustFrameSource' && !rustFrameSourceBlocked) {
               exportFrameOverridesRef?.current.clear();
               const timestampUs = Math.round(i * 1_000_000 / fps);
-              const bitmap = await exportFrameSourcePlan.frameSource.renderFrame({
-                frameIndex: i,
-                timestampUs,
-                time: t,
-                width: encWidth,
-                height: encHeight,
-                objects: exportObjects,
-              });
-              yield { timestamp: timestampUs, bitmap };
-              bitmap.close();
-              continue;
+              try {
+                const bitmap = await exportFrameSourcePlan.frameSource.renderFrame({
+                  frameIndex: i,
+                  timestampUs,
+                  time: t,
+                  width: encWidth,
+                  height: encHeight,
+                  objects: exportObjects,
+                });
+                yield { timestamp: timestampUs, bitmap };
+                bitmap.close();
+                continue;
+              } catch (error) {
+                if (!isSharedRendererExportFrameSourceBlockedError(error)) {
+                  throw error;
+                }
+                rustFrameSourceBlocked = true;
+                console.warn('[Export] Rust/shared renderer frame source blocked; falling back to legacy canvas capture.', error);
+              }
             }
 
             const activeVideos = videoObjects.filter(

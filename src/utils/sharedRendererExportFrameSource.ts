@@ -12,6 +12,7 @@ import {
 } from './sharedRendererViewportPresenterOrchestration';
 import type { SharedRendererViewportVideoDecodeJob } from './sharedRendererViewportVideoUpload';
 import { stopRustBackendVideoDecode } from './rustBackendVideoDecodeControl';
+import type { SharedRendererPreviewSurfaceBlockedReason } from './sharedRendererPreviewSurface';
 
 type PresenterDataset = Record<string, string | undefined>;
 
@@ -47,6 +48,31 @@ export interface CreateSharedRendererExportFrameSourceInput {
   createFrameBitmap?: SharedRendererExportFrameBitmapFactory;
   stopVideoDecodeJob?: SharedRendererExportVideoDecodeJobStopper;
 }
+
+export class SharedRendererExportFrameSourceBlockedError extends Error {
+  readonly fallbackToLegacyCanvas = true;
+
+  constructor(
+    message: string,
+    readonly reason: SharedRendererPreviewSurfaceBlockedReason,
+    readonly frameIndex: number
+  ) {
+    super(message);
+    this.name = 'SharedRendererExportFrameSourceBlockedError';
+  }
+}
+
+export const isSharedRendererExportFrameSourceBlockedError = (
+  value: unknown
+): value is SharedRendererExportFrameSourceBlockedError =>
+  value instanceof SharedRendererExportFrameSourceBlockedError
+  || (
+    typeof value === 'object'
+    && value !== null
+    && (value as { fallbackToLegacyCanvas?: unknown }).fallbackToLegacyCanvas === true
+    && typeof (value as { reason?: unknown }).reason === 'string'
+    && typeof (value as { frameIndex?: unknown }).frameIndex === 'number'
+  );
 
 export const createSharedRendererExportFrameSource = ({
   canvas,
@@ -89,7 +115,11 @@ export const createSharedRendererExportFrameSource = ({
           frameIndex: request.frameIndex,
           reason: surfaceGate.reason,
         });
-        throw new Error(surfaceGate.detail);
+        throw new SharedRendererExportFrameSourceBlockedError(
+          surfaceGate.detail,
+          surfaceGate.reason,
+          request.frameIndex
+        );
       }
       writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
         status: 'ready',
