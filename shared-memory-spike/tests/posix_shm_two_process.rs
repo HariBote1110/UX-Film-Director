@@ -87,10 +87,21 @@ fn posix_shm_multi_slot_allows_next_frame_while_previous_frame_is_reading() {
     assert_eq!(second_read.bytes, second);
 
     producer_ring
-        .release_frame(uxfd_sidecar_protocol::CopyOutState::GpuUploadFenceSignalled)
-        .expect("release one reading slot");
+        .release_frame_slot(1, uxfd_sidecar_protocol::CopyOutState::GpuUploadFenceSignalled)
+        .expect("release the second reading slot by lease");
     producer_ring
-        .release_frame(uxfd_sidecar_protocol::CopyOutState::GpuUploadFenceSignalled)
+        .write_frame(2, &second)
+        .expect("released second slot can be reused while first remains reading");
+    let reused_second = consumer_ring
+        .read_frame(2)
+        .expect("consumer reads frame written to released second slot");
+    assert_eq!(reused_second.slot_index, 1);
+
+    producer_ring
+        .release_frame_slot(0, uxfd_sidecar_protocol::CopyOutState::GpuUploadFenceSignalled)
+        .expect("release first reading slot");
+    producer_ring
+        .release_frame_slot(1, uxfd_sidecar_protocol::CopyOutState::GpuUploadFenceSignalled)
         .expect("release remaining reading slot");
     producer_ring
         .wait_until_free(Duration::from_secs(1))
