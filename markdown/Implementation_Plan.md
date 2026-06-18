@@ -563,6 +563,12 @@ tight RGBAへ戻す。Rust/wgpu rendererでSceneSnapshotを描画し、出力を
 `SharedFrame` descriptorだけを返す。source ringはrender完了後にreleaseし、出力ringはbackend stateで保持する。
 これにより、decode shared memory → Rust/wgpu render → encode shared memory の中間接続がcontrol plane bytesなしで成立する。
 
+107. Phase5: rendererからnative render shared-frame RPCを呼べるbridgeを追加する
+Electron main/preload は `rust-backend-render-native-shared-frame` を公開し、rendererの
+`window.rustBackend.renderNativeSharedFrame` から `render.nativeSharedFrame` を呼べるようにする。
+renderer側には `rustBackendNativeRenderControl` を追加し、source/output shared-frame descriptorを型付きpayloadで渡す。
+次段ではこのbridgeをexport frame sourceへ接続し、Rust decode → Rust render → Rust encode を実経路にする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

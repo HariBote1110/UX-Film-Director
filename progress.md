@@ -1,3 +1,19 @@
+## 2026-06-18 — Phase5: renderer native render bridgeを追加
+
+### 実施内容
+- `src/utils/rustBackendNativeRenderControl.test.ts` を追加し、renderer helperがnative render payloadをRust backend bridgeへ渡す契約を追加した。
+- `src/utils/rustBackendNativeRenderBoundary.test.ts` を追加し、Electron main/preload/vite-envが `render.nativeSharedFrame` を公開する境界契約を追加した。
+- `src/utils/rustBackendNativeRenderControl.ts` を追加し、typed payload/resultで `window.rustBackend.renderNativeSharedFrame` を呼べるようにした。
+- `electron/main.ts` / `electron/preload.ts` / `src/vite-env.d.ts` に native render shared-frame bridgeを追加した。
+- package version を `0.1.1-Beta-95a` に更新した。
+
+### 検証
+- `npm test -- src/utils/rustBackendNativeRenderControl.test.ts src/utils/rustBackendNativeRenderBoundary.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/rustBackendNativeRenderControl\\.ts\\(|src/utils/rustBackendNativeRenderControl\\.test\\.ts\\(|src/utils/rustBackendNativeRenderBoundary\\.test\\.ts\\(|electron/main\\.ts\\(|electron/preload\\.ts\\(|src/vite-env\\.d\\.ts\\()"`
+
+### 残課題・次のステップ
+- rendererからbackend native render RPCを呼べる入口ができた。次はshared renderer export sourceでRust decoded source frameを `renderNativeSharedFrame` へ渡し、その出力をRust encoderへ渡す。
+
 ## 2026-06-18 — Phase5: backend native render shared-frame RPCを追加
 
 ### 実施内容
