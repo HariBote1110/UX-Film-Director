@@ -30,7 +30,7 @@ import {
 import type { SharedRendererViewportVideoDecodeJob } from './sharedRendererViewportVideoUpload';
 import { stopRustBackendVideoDecode } from './rustBackendVideoDecodeControl';
 import type { RustBackendResult } from './rustBackendVideoDecodeControl';
-import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
+import type { RustBackendVideoEncodeSharedFramePayloadFrame } from './rustBackendVideoEncodeExport';
 import type { SharedRendererPreviewSurfaceBlockedReason } from './sharedRendererPreviewSurface';
 import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererWebGpuPresenter';
 import {
@@ -268,10 +268,7 @@ export function createSharedRendererExportFrameSource({
 
   const renderNativeEncodeFrame = async (
     request: ProjectExportRustEncodeFrameRequest
-  ): Promise<{
-    timestamp: number;
-    sharedFramePayload: RustBackendVideoEncodeWriteFramePayload;
-  } | null> => {
+  ): Promise<RustBackendVideoEncodeSharedFramePayloadFrame | null> => {
     if (!nativeSharedFrameRendererAvailable) {
       return null;
     }
@@ -388,6 +385,10 @@ export function createSharedRendererExportFrameSource({
         timestampUs: request.timestampUs,
         slotCount: renderResponse.result.slotCount,
         frame: renderResponse.result.frame,
+      },
+      releaseAfterEncodeFailure: {
+        kind: 'nativeRenderOutput',
+        memoryId: renderResponse.result.frame.descriptor.memoryId,
       },
     };
   };

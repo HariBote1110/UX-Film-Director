@@ -243,7 +243,14 @@ describe('runRustBackendVideoEncodeExport', () => {
     };
 
     async function* failingSharedFrames() {
-      yield { timestamp: 0, sharedFramePayload: payload };
+      yield {
+        timestamp: 0,
+        sharedFramePayload: payload,
+        releaseAfterEncodeFailure: {
+          kind: 'nativeRenderOutput' as const,
+          memoryId: payload.frame.descriptor.memoryId,
+        },
+      };
     }
 
     await expect(runRustBackendVideoEncodeExport({

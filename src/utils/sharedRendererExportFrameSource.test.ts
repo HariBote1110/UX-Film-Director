@@ -1050,6 +1050,10 @@ describe('createSharedRendererExportFrameSource', () => {
         slotCount: 1,
         frame: renderedFrame,
       },
+      releaseAfterEncodeFailure: {
+        kind: 'nativeRenderOutput',
+        memoryId: '/uxfd-native-render-native-session-frame-7',
+      },
     });
 
     expect(calls).toEqual([
@@ -1281,6 +1285,10 @@ describe('createSharedRendererExportFrameSource', () => {
         timestampUs: 133_333,
         slotCount: 1,
         frame: renderedFrame,
+      },
+      releaseAfterEncodeFailure: {
+        kind: 'nativeRenderOutput',
+        memoryId: '/uxfd-native-render-video-psd-session-frame-8',
       },
     });
 
@@ -1675,6 +1683,10 @@ describe('createSharedRendererExportFrameSource', () => {
         slotCount: 1,
         frame: renderedFrame,
       },
+      releaseAfterEncodeFailure: {
+        kind: 'nativeRenderOutput',
+        memoryId: '/uxfd-native-render-media-only-session-frame-3',
+      },
     });
 
     expect(calls).toEqual([
@@ -1853,6 +1865,10 @@ describe('createSharedRendererExportFrameSource', () => {
         timestampUs: 66_667,
         slotCount: 1,
         frame: renderedFrame,
+      },
+      releaseAfterEncodeFailure: {
+        kind: 'nativeRenderOutput',
+        memoryId: '/uxfd-native-render-psd-only-session-frame-4',
       },
     });
 
