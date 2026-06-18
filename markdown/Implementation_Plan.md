@@ -343,6 +343,12 @@ frame countとdescriptor整合性をRust側で保持する。
 読み終えたslotは `CopyOutState::EncoderFrameWritten` で解放する。現段階ではffmpeg stdinへはまだ書かず、
 Rust backendがframe実体を受け取れることと、data-plane ownershipを返せることを確認する。
 
+69. Phase5: Rust encode で rawvideo ffmpeg 出力を実装する
+`encode.start` は raw RGBA input の ffmpeg processを起動し、`encode.writeFrame` はshared memoryから読んだ
+padded RGBA frameをtight RGBAへ詰め直してstdinへ書く。`encode.finish` はstdinを閉じてffmpegをwaitし、
+MP4 output fileを確定する。control planeには `sharedFrameByteLen` / `encodedFrameByteLen` のmetadataだけを返し、
+frame bytes / base64 / pixel arrayは載せない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

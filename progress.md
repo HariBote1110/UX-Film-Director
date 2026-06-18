@@ -1,3 +1,31 @@
+## 2026-06-18 — Phase5: Rust encode で rawvideo ffmpeg 出力を実装
+
+### 実施内容
+- `encode.start` が raw RGBA input の ffmpeg processを起動し、stdinをRust backend sessionに保持するようにした。
+- `encode.writeFrame` はshared memoryから読んだpadded RGBAを行単位でtight RGBAへ詰め直し、ffmpeg stdinへ書くようにした。
+- `encode.finish` はstdinを閉じてffmpegをwaitし、MP4 output fileを確定するようにした。
+- 未finishのencode sessionはbackend終了時にkill/waitして、テストや異常終了でffmpeg processを残しにくくした。
+- package version を `0.1.1-Beta-60x` に更新した。
+
+### Red
+- `rust-backend/tests/decode_control_plane.rs` のencode session契約を、`encode.finish` 後に実際のMP4 output fileが存在し、payloadを持つことまで拡張した。
+- 旧実装ではffmpegを起動していないため、output fileが存在せず失敗することを確認した。
+
+### Green
+- `EncodeSession` に `Child` / `ChildStdin` を持たせた。
+- `start_encode_ffmpeg` を追加し、`-f rawvideo -pix_fmt rgba` のstdin入力でffmpegを起動するようにした。
+- `write_tight_rgba_frame_to_encoder` を追加し、GPU row pitch付きshared frameからtight RGBAだけを抽出してstdinへ書くようにした。
+- `handle_encode_finish` でffmpeg終了ステータスを確認するようにした。
+
+### 現在の制限
+- Renderer/export orchestrationはまだRust encoderへshared-frame export sourceを流していない。次段で `useProjectExport` の `rustBackendVideoEncoder` 分岐を実装し、shared renderer export frame sourceからshared memory descriptorを渡す経路を作る必要がある。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml encode_`
+  -> 3 tests passed。
+- `cargo test --manifest-path rust-backend/Cargo.toml decode_start_returns_shared_ring_layout_without_frame_bytes`
+  -> 1 test passed。
+
 ## 2026-06-18 — Phase5: Rust encode write で shared frame を読み解放
 
 ### 実施内容
