@@ -20,6 +20,8 @@ export type SharedRendererPresenterDiagnosticState =
       format: string;
       swatch: 'solid-srgb' | 'solid-colour-scene' | 'pixi-passthrough' | 'native-render-frame';
       nativeRenderFrameReady?: boolean;
+      nativeRenderFailureReason?: string;
+      nativeRenderFailureDetail?: string;
       geometrySource?: 'rust-wasm' | 'typescript';
       solidColourOwner?: SharedRendererSolidColourOwner;
       solidColourCutoverReason?: SharedRendererSolidColourCutoverReason;
@@ -66,6 +68,8 @@ export const writeSharedRendererPresenterDiagnostics = (
   delete dataset.uxfdSharedRendererPresenterVideoDecodeRequestCount;
   delete dataset.uxfdSharedRendererPresenterVideoFrameUploadReady;
   delete dataset.uxfdSharedRendererPresenterNativeRenderFrameReady;
+  delete dataset.uxfdSharedRendererPresenterNativeRenderFailureReason;
+  delete dataset.uxfdSharedRendererPresenterNativeRenderFailureDetail;
   delete dataset.uxfdSharedRendererPresenterVideoOwner;
   delete dataset.uxfdSharedRendererPresenterVideoCutoverReason;
   delete dataset.uxfdSharedRendererPresenterSharedVideoObjectCount;
@@ -110,6 +114,12 @@ export const writeSharedRendererPresenterDiagnostics = (
     }
     if (typeof state.nativeRenderFrameReady === 'boolean') {
       dataset.uxfdSharedRendererPresenterNativeRenderFrameReady = String(state.nativeRenderFrameReady);
+    }
+    if (state.nativeRenderFailureReason) {
+      dataset.uxfdSharedRendererPresenterNativeRenderFailureReason = state.nativeRenderFailureReason;
+    }
+    if (state.nativeRenderFailureDetail) {
+      dataset.uxfdSharedRendererPresenterNativeRenderFailureDetail = state.nativeRenderFailureDetail;
     }
     if (state.videoOwner) {
       dataset.uxfdSharedRendererPresenterVideoOwner = state.videoOwner;

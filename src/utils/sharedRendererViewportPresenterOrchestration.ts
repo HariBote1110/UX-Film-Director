@@ -99,6 +99,12 @@ export const startSharedRendererViewportPresenter = async ({
   const sharedRendererNativeRenderFrameUpload = nativeRenderUploadResult?.ok
     ? nativeRenderUploadResult.upload
     : undefined;
+  const sharedRendererNativeRenderFailure = nativeRenderUploadResult && !nativeRenderUploadResult.ok
+    ? {
+      reason: nativeRenderUploadResult.reason,
+      detail: nativeRenderUploadResult.detail,
+    }
+    : undefined;
   if (nativeRenderUploadResult) {
     nextActiveVideoDecodeJobs = nativeRenderUploadResult.activeJobs;
     nextActiveVideoDecodeJob = nextActiveVideoDecodeJobs[0] ?? null;
@@ -147,6 +153,7 @@ export const startSharedRendererViewportPresenter = async ({
     sharedRendererVideoCutoverEnabled: effectiveVideoCutoverEnabled,
     requireSharedRendererVideo,
     sharedRendererNativeRenderFrameUpload,
+    sharedRendererNativeRenderFailure,
     sharedRendererDecodedVideoFrameUpload,
     sharedRendererDecodedVideoFrameUploads,
     presentedFrameSharedFrameTaker,

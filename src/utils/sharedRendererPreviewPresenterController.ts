@@ -97,6 +97,10 @@ export interface StartSharedRendererPreviewPresenterInput {
   requireSharedRendererVideo?: boolean;
   sharedRendererVideoFrameUploadReady?: boolean;
   sharedRendererNativeRenderFrameUpload?: SharedRendererDecodedVideoFrameUpload;
+  sharedRendererNativeRenderFailure?: {
+    reason: string;
+    detail: string;
+  };
   sharedRendererDecodedVideoFrameUpload?: SharedRendererDecodedVideoFrameUpload;
   sharedRendererDecodedVideoFrameUploads?: SharedRendererDecodedVideoFrameUploadForClip[];
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
@@ -133,6 +137,7 @@ export const startSharedRendererPreviewPresenter = async ({
   requireSharedRendererVideo = false,
   sharedRendererVideoFrameUploadReady = false,
   sharedRendererNativeRenderFrameUpload,
+  sharedRendererNativeRenderFailure,
   sharedRendererDecodedVideoFrameUpload,
   sharedRendererDecodedVideoFrameUploads,
   presentedFrameSharedFrameTaker,
@@ -456,6 +461,8 @@ export const startSharedRendererPreviewPresenter = async ({
     videoCutoverReason: hasVideoScene ? videoOwnership.reason : undefined,
     sharedVideoObjectCount: hasVideoScene ? videoOwnership.videoObjectIds.length : undefined,
     nativeRenderFrameReady: nativeRenderFrameReady ? true : undefined,
+    nativeRenderFailureReason: sharedRendererNativeRenderFailure?.reason,
+    nativeRenderFailureDetail: sharedRendererNativeRenderFailure?.detail,
     swatch: hasSolidColourScene
       ? 'solid-colour-scene'
       : nativeRenderFrameReady
