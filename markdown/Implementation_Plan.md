@@ -456,6 +456,11 @@ Rust frame source -> shared-frame encodeの経路ではブラウザ動画状態�
 frame source を正規に扱う。WebCodecs互換やbitmap captureが必要な経路は `renderFrame` の存在を明示確認してから使い、
 shared-frame encode経路に `ImageBitmap` capture能力を要求しない。
 
+87. Phase5: Rust video-only export では legacy canvas fallback を禁止する
+`VITE_UXFD_RUST_VIDEO_ONLY=1` かつexport対象に動画が含まれる場合は、WebCodecs互換encoderが選ばれたとしても
+`ProjectExportRustFrameSource` を必須にする。Rust frame source が無い場合は `failExport` とし、
+動画を含むexportがPixi canvas / HTMLVideoElement seek / ImageBitmap captureへ戻らないようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

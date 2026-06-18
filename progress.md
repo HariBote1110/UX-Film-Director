@@ -1,3 +1,19 @@
+## 2026-06-18 — Phase5: Rust video-only exportでlegacy canvas fallbackを禁止
+
+### 実施内容
+- `src/utils/projectExportFrameCanvas.test.ts` に、`rustVideoOnly=true` かつ動画を含むexportではWebCodecs互換encoderでもRust frame sourceを必須にする契約を追加した。
+- `resolveProjectExportFrameSourcePolicyForEncode` に `rustVideoOnly` / `hasVideoObjects` を追加し、動画exportだけを `requireRustFrameSource` / `failExport` にした。
+- `src/hooks/useProjectExport.ts` で `VITE_UXFD_RUST_VIDEO_ONLY` と動画有無をexport frame source policyへ渡すようにした。
+- package version を `0.1.1-Beta-76a` に更新した。
+
+### 検証
+- `npm test -- src/utils/projectExportFrameCanvas.test.ts`
+- `npm test -- src/utils/projectExportFrameCanvas.test.ts src/utils/projectExportRustEncodeFrame.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "projectExportFrameCanvas|useProjectExport|rustVideoOnly|hasVideoObjects"`（対象ファイルの型エラーなし）
+
+### 残課題・次のステップ
+- Rust video-only時の動画exportはlegacy canvas / HTMLVideoElement seek / ImageBitmap captureへ戻れなくなった。次はpreview側でもRust video-only失敗をsilent blankではなく診断としてfail-loudにする。
+
 ## 2026-06-18 — Phase5: Rust direct encode source から ImageBitmap 必須型を撤去
 
 ### 実施内容
