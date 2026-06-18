@@ -1,3 +1,19 @@
+## 2026-06-18 — Phase5: WebGPU presenterでnative/Rust handoffを優先
+
+### 実施内容
+- `src/utils/sharedRendererWebGpuPresenter.test.ts` に、native/Rust handoffがpayloadを返す場合は `copyTextureToBuffer` とJS shared-frame writerを呼ばない契約を追加した。
+- `createSharedRendererWebGpuPresenter` に `presentedFrameSharedFrameTaker` 注入点を追加した。
+- `takePresentedFrameSharedFrame` が最後にpresentしたtexture、WebGPU device、format、canvas sizeをhandoffへ渡し、payloadが返ればreadback fallbackを使わないようにした。
+- package version を `0.1.1-Beta-87a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererWebGpuPresenter.test.ts`
+- `npm test -- src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererExportFrameSourceBoundary.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererWebGpuPresenter\\.ts\\(|src/utils/sharedRendererWebGpuPresenter\\.test\\.ts\\(|src/utils/sharedRendererPreviewPresenterController\\.ts\\(|src/utils/sharedRendererExportFrameSource\\.ts\\()"`
+
+### 残課題・次のステップ
+- WebGPU presenterはnative/Rust handoffを優先できるようになった。次はElectron/native bridgeまたはRust backend側にこのhandoffの実装境界を追加する。
+
 ## 2026-06-18 — Phase5: export sourceのJS shared-frame writer静的依存を排除
 
 ### 実施内容

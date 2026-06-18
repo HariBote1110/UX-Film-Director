@@ -513,6 +513,11 @@ export source側のwriter責務を下ろし、将来のnative/Rust GPU handoff�
 presenterが `takePresentedFrameSharedFrame` を持たない古い/fallback制御だけで動的importし、通常のRust direct encode初期ロードから
 JS shared-frame writer実装を外す。
 
+98. Phase5: WebGPU presenterはnative/Rust frame handoffをreadbackより優先する
+`createSharedRendererWebGpuPresenter` は `presentedFrameSharedFrameTaker` を受け取り、最後にpresentしたtextureと
+WebGPU device/formatを渡せるようにする。handoffがpayloadを返した場合は `copyTextureToBuffer` とJS shared-frame writerを呼ばず、
+未対応時だけ既存のreadback fallbackへ落とす。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
