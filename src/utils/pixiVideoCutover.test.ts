@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   clearPixiVideoForSharedRenderer,
+  resolvePixiVideoRenderPath,
   shouldSkipPixiVideoForSharedRenderer,
 } from './pixiVideoCutover';
 
@@ -102,5 +103,37 @@ describe('shouldSkipPixiVideoForSharedRenderer', () => {
     expect(videoSourceActions).toEqual(['destroyVideoSource']);
     expect(textureActions).toEqual([false]);
     expect(videoFrameTextures.has('video-1')).toBe(false);
+  });
+});
+
+describe('resolvePixiVideoRenderPath', () => {
+  it('prioritises shared renderer video over export overrides and Pixi video elements when Rust video is required', () => {
+    expect(resolvePixiVideoRenderPath({
+      objectId: 'video-1',
+      objectType: 'video',
+      isExporting: true,
+      requireSharedRendererVideo: true,
+      hasExportFrameOverride: true,
+    })).toBe('sharedRendererOnly');
+  });
+
+  it('uses export frame overrides only when shared renderer video is not required', () => {
+    expect(resolvePixiVideoRenderPath({
+      objectId: 'video-1',
+      objectType: 'video',
+      isExporting: true,
+      requireSharedRendererVideo: false,
+      hasExportFrameOverride: true,
+    })).toBe('exportFrameOverride');
+  });
+
+  it('keeps the legacy Pixi video element path for ordinary preview video', () => {
+    expect(resolvePixiVideoRenderPath({
+      objectId: 'video-1',
+      objectType: 'video',
+      isExporting: false,
+      requireSharedRendererVideo: false,
+      hasExportFrameOverride: false,
+    })).toBe('pixiVideoElement');
   });
 });
