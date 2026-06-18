@@ -1019,6 +1019,12 @@ export計画からHTMLVideoElement seek fallback概念を取り除く。
 legacy Pixi video / browser provider / metadata fallbackトークンが戻らないことを検証する。
 比較・診断用のブラウザ動画コードは `src/exportTest` に隔離し、production経路はRust/shared rendererを正本にする。
 
+190. Phase5: Rust decode responseのJSON pixel payload混入を拒否する
+`rustBackendVideoDecodeControl` の decoded frame availability 判定で、
+`bytes` / `pixels` / `frameBase64` / `rgbaBytes` がresponse内に混入した場合は利用不可にする。
+Rust backend decodeのdata-planeはshared memory descriptorとnative copy bridgeに限定し、
+renderer境界がJSON pixel payloadを受け入れない契約にする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

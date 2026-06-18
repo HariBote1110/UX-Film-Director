@@ -355,3 +355,10 @@
 - Green: `videoDecodeStream` のコメントをDOM動画要素名に依存しない表現へ整理した。
 - 検証: `npm test -- productionVideoDependencyBoundary mediaMetadata projectExportFrameCanvas viewportRustVideoOnlyBoundary` は44件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-169a`。
+
+## 2026-06-19
+- Phase5のRust backend decode data-plane境界として、decoded frame responseがJSON pixel payloadを混入していた場合はshared renderer uploadへ進めないようにした。
+- Red: `rustBackendVideoDecodeControl` へ、descriptorと同時に `bytes` / `pixels` / `frameBase64` が混ざったresponseを拒否する契約を追加した。
+- Green: decoded frame availability判定に `bytes` / `pixels` / `frameBase64` / `rgbaBytes` の再帰検出を追加し、descriptor-only responseだけを利用可能にした。
+- 検証: `npm test -- rustBackendVideoDecodeControl sharedRendererRustVideoUploadPipeline` は8件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-169b`。
