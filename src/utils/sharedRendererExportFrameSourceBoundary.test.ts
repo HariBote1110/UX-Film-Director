@@ -4,6 +4,9 @@ import { describe, expect, it } from 'vitest';
 const source = () =>
   readFileSync(new URL('./sharedRendererExportFrameSource.ts', import.meta.url), 'utf8');
 
+const testSource = () =>
+  readFileSync(new URL('./sharedRendererExportFrameSource.test.ts', import.meta.url), 'utf8');
+
 describe('shared renderer export frame source dependency boundary', () => {
   it('does not load the JS shared-frame writer from the export frame source', () => {
     const code = source();
@@ -13,5 +16,11 @@ describe('shared renderer export frame source dependency boundary', () => {
     );
     expect(code).not.toContain("import('./rustBackendVideoEncodeSharedFrameWriter')");
     expect(code).not.toContain('createRustBackendVideoEncodeSharedFrameWriter');
+  });
+
+  it('does not keep JS shared-frame writer fixtures in export frame source tests', () => {
+    const code = testSource();
+
+    expect(code).not.toContain('createEncodeFrameWriter');
   });
 });
