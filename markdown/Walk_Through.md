@@ -464,3 +464,16 @@
 ## 確認
 - `npm test -- sharedRendererExportFrameSource` を実行し、19件成功を確認。
 - `npx tsc --noEmit 2>&1 | rg "(sharedRendererExportFrameSource|rustBackendNativeRenderControl)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 44. Phase5: Rust export blocked後の同一frame fallback修正
+- `src/hooks/useProjectExport.ts`
+- `renderFrames` 内の `frameRuntimePlan` を `let` に変更し、Rust/shared renderer frame sourceがblockedになった場合は `blockedRuntimePlan` に差し替えるようにした。
+- これにより、blockedが起きた同じframeでも `requiresHtmlVideoElementSeekFallback` と `requiresRenderScene` がlegacy fallback用の値になり、古いcanvasをcaptureするリスクを避けられる。
+- `src/utils/useProjectExportBoundary.test.ts`
+- blocked後に同一frameでruntime planを差し替える境界契約を追加した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-124b` に更新した。
+
+## 確認
+- `npm test -- useProjectExportBoundary projectExportFrameCanvas` を実行し、22件成功を確認。
+- `npx tsc --noEmit 2>&1 | rg "(useProjectExport|projectExportFrameCanvas)"` を実行し、対象ファイルに型エラーが出ないことを確認。

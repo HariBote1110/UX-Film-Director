@@ -770,6 +770,11 @@ Electron preload / native bridge が `render.nativeSharedFrame` を公開して�
 WebGPU readback経路へ戻す。未接続のRPCや不要なRust decode jobを発生させず、native render capability gateを
 source準備より前に評価する。
 
+142. Phase5: Rust export blocked後の同一frame fallbackを正しく再計算する
+shared renderer Rust frame sourceがframe途中でblockedになり、legacy canvas fallbackを許可する場合、
+同じframe内の `requiresHtmlVideoElementSeekFallback` / `requiresRenderScene` 判定へblocked後のruntime planを使う。
+これによりblocked発生frameだけ古いcanvasや未seek動画をcaptureする事故を防ぐ。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
