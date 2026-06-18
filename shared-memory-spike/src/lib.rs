@@ -384,6 +384,33 @@ impl PosixSharedRing {
         })
     }
 
+    pub fn release_frame_slot(
+        &self,
+        slot_index: u32,
+        copy_out_state: CopyOutState,
+    ) -> Result<(), PosixShmError> {
+        if !copy_out_state.permits_read_slot_release() {
+            return Err(PosixShmError::CopyOutNotComplete);
+        }
+
+        if slot_index >= self.slot_count {
+            return Err(PosixShmError::SlotIndexOutOfBounds {
+                slot_index,
+                slot_count: self.slot_count,
+            });
+        }
+
+        let slot = self.slot(slot_index);
+        slot.state
+            .compare_exchange(READING, FREE, Ordering::Release, Ordering::Relaxed)
+            .map_err(|actual| PosixShmError::UnexpectedState {
+                expected: READING,
+                actual,
+            })?;
+
+        Ok(())
+    }
+
     pub fn wait_until_free(&self, timeout: Duration) -> Result<(), PosixShmError> {
         let start = Instant::now();
         while start.elapsed() < timeout {
@@ -644,6 +671,10 @@ pub enum PosixShmError {
     UnexpectedState {
         expected: u32,
         actual: u32,
+    },
+    SlotIndexOutOfBounds {
+        slot_index: u32,
+        slot_count: u32,
     },
     CopyOutNotComplete,
 }
