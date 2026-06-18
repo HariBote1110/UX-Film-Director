@@ -29,4 +29,10 @@ describe('shared renderer export frame source dependency boundary', () => {
 
     expect(code).not.toContain('webGpuReadbackSharedFrameWriter');
   });
+
+  it('does not keep WebGPU readback fixtures in export frame source tests', () => {
+    const code = testSource();
+
+    expect(code).not.toContain('readPresentedFrameRgbaBytes');
+  });
 });
