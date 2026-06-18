@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildProjectExportFrameSourcePlan,
+  pauseLegacyBrowserVideosForExport,
   resolveProjectExportFrameSourcePolicyForEncode,
   resolveProjectExportFrameRuntimePlan,
   resolveProjectExportFrameCanvas,
@@ -129,6 +130,43 @@ describe('buildProjectExportFrameSourcePlan', () => {
       reason: 'exportFrameSourceUnavailable',
       detail: 'Export requires a Rust frame source, shared renderer export canvas, or legacy Pixi canvas.',
     });
+  });
+});
+
+describe('pauseLegacyBrowserVideosForExport', () => {
+  const rustFrameSource: ProjectExportRustFrameSource = {
+    renderFrame: async () => ({ close: () => undefined }) as ImageBitmap,
+  };
+
+  it('does not pause HTMLVideoElement instances for the shared renderer Rust frame source', () => {
+    const plan = buildProjectExportFrameSourcePlan({
+      rustFrameSource,
+    });
+    if (!plan.ok) throw new Error('expected Rust export source plan');
+    let pauseCount = 0;
+    const videoElements = new Map<string, Pick<HTMLVideoElement, 'pause'>>([
+      ['video-1', { pause: () => { pauseCount += 1; } }],
+    ]);
+
+    expect(pauseLegacyBrowserVideosForExport(videoElements, plan)).toBe(0);
+    expect(pauseCount).toBe(0);
+  });
+
+  it('pauses legacy browser video elements when canvas capture is active', () => {
+    const exportCanvas = { id: 'shared-renderer-export-canvas' } as unknown as HTMLCanvasElement;
+    const plan = buildProjectExportFrameSourcePlan({
+      rustFrameSource: null,
+      getExportCanvas: () => exportCanvas,
+    });
+    if (!plan.ok) throw new Error('expected legacy canvas export source plan');
+    let pauseCount = 0;
+    const videoElements = new Map<string, Pick<HTMLVideoElement, 'pause'>>([
+      ['video-1', { pause: () => { pauseCount += 1; } }],
+      ['video-2', { pause: () => { pauseCount += 1; } }],
+    ]);
+
+    expect(pauseLegacyBrowserVideosForExport(videoElements, plan)).toBe(2);
+    expect(pauseCount).toBe(2);
   });
 });
 
