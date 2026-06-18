@@ -277,6 +277,11 @@ previewでは Rust video upload が失敗しても Pixi が動画所有を維持
 そのため、Rust/shared renderer export中に `videoUploadResult` / `videoUploadsResult` が失敗した場合は
 `videoUploadFailed` の blocked error に変換し、bitmap captureへ進まずlegacy canvas exportへ退避する。
 
+57. Phase5: Rust-only export source policy を追加する
+`VITE_UXFD_RUST_EXPORT_ONLY=1` の実験flag配下では、Rust frame sourceが取得できない場合にlegacy canvas captureへ戻らず、
+`rustFrameSourceRequired` としてexport開始前に失敗する。Rust frame sourceが実行中にblockedになった場合も
+legacy canvasへ戻さず、`sharedRendererRustFrameSourceBlocked` runtime planでexport失敗へ流す。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

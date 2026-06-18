@@ -1,3 +1,32 @@
+## 2026-06-18 — Phase5: Rust-only export source policy を追加
+
+### 実施内容
+- `ProjectExportRustFrameSourcePolicy` と `ProjectExportRustFrameSourceBlockedFallback` を追加した。
+- `rustFrameSourcePolicy=requireRustFrameSource` では、Rust frame sourceが無い場合にlegacy canvasへ戻らず `rustFrameSourceRequired` として失敗するようにした。
+- `rustFrameSourceBlockedFallback=failExport` では、Rust frame source blocked後にlegacy canvas runtimeを復旧せず `sharedRendererRustFrameSourceBlocked` として失敗へ流すようにした。
+- `useProjectExport` は `VITE_UXFD_RUST_EXPORT_ONLY=1` のときだけ上記policyを有効化する。
+- package version を `0.1.1-Beta-60l` に更新した。
+
+### Red
+- `src/utils/projectExportFrameCanvas.test.ts` に、Rust source必須時はPixi/explicit canvas fallbackを拒否する契約を追加した。
+- Rust source blocked時にlegacy canvasへ戻さずexport失敗へ進むruntime plan契約を追加した。
+
+### Green
+- `src/utils/projectExportFrameCanvas.ts` にsource selection policyとblocked fallback policyを実装した。
+- `src/hooks/useProjectExport.ts` で strict flag を読み、blocked error捕捉時もfail policyなら再throwするようにした。
+- `src/vite-env.d.ts` に `VITE_UXFD_RUST_EXPORT_ONLY` を追加した。
+
+### 現在の制限
+- 既定では互換性維持のためlegacy fallbackを許可する。Rust-only動作の実機検証はflag有効時に行う。
+
+### 検証
+- `npm test -- src/utils/projectExportFrameCanvas.test.ts`
+  -> 1 file / 12 tests passed。
+- `npm test -- src/utils/sharedRendererSurfaceMount.test.ts src/utils/viewportRustExportFrameSource.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererExportSession.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/rustBackendVideoDecodeControl.test.ts src/utils/sharedRendererRustVideoUploadPipeline.test.ts src/utils/sharedRendererPresenterDiagnostics.test.ts`
+  -> 11 files / 63 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "src/(hooks/useProjectExport\\.ts|utils/projectExportFrameCanvas\\.ts|utils/sharedRendererExportFrameSource\\.ts|utils/viewportRustExportFrameSource\\.ts|vite-env\\.d\\.ts)"`
+  -> 対象ファイルの型エラーなし。
+
 ## 2026-06-18 — Phase5: Rust export 動画upload失敗を blocked 扱いにする
 
 ### 実施内容
