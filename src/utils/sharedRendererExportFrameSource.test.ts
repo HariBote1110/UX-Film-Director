@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { ImageObject, ProjectSettings } from '../types';
 import { createDefaultLayers } from './sceneState';
-import { createSharedRendererExportFrameSource } from './sharedRendererExportFrameSource';
+import {
+  createSharedRendererExportFrameSource,
+  isSharedRendererExportFrameSourceBlockedError,
+} from './sharedRendererExportFrameSource';
 import type { SharedRendererViewportVideoDecodeJob } from './sharedRendererViewportVideoUpload';
 
 const settings: ProjectSettings = {
@@ -229,14 +232,22 @@ describe('createSharedRendererExportFrameSource', () => {
       },
     });
 
-    await expect(source.renderFrame({
+    const blocked = await source.renderFrame({
       frameIndex: 1,
       timestampUs: 16_667,
       time: 1 / 60,
       width: 1920,
       height: 1080,
       objects: [image()],
-    })).rejects.toThrow('Shared renderer preview surface currently supports only the 2D editor mode.');
+    }).catch((error) => error);
+
+    expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
+    expect(blocked).toMatchObject({
+      message: 'Shared renderer preview surface currently supports only the 2D editor mode.',
+      reason: 'unsupportedEditorMode',
+      frameIndex: 1,
+      fallbackToLegacyCanvas: true,
+    });
     expect(canvas.dataset).toMatchObject({
       uxfdRustExportFrameSourceFrameStatus: 'blocked',
       uxfdRustExportFrameSourceFrameIndex: '1',
