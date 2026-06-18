@@ -42,6 +42,7 @@ export type SharedRendererExportFrameSourceBlockedReason =
   | 'videoUploadFailed'
   | 'videoOwnershipUnavailable'
   | 'webGpuReadbackUnavailable'
+  | 'videoBitmapCaptureDisabled'
   | 'nativeRenderUnsupportedMedia'
   | 'nativeRenderFailed';
 
@@ -409,6 +410,19 @@ export function createSharedRendererExportFrameSource({
   };
 
   const renderFrameBitmap = async (request: ProjectExportRustFrameRequest): Promise<ImageBitmap> => {
+    if (hasVideoObjects(request.objects)) {
+      writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+        status: 'blocked',
+        frameIndex: request.frameIndex,
+        reason: 'videoBitmapCaptureDisabled',
+      });
+      throw new SharedRendererExportFrameSourceBlockedError(
+        'Video export frames require Rust native render shared-frame encoding; ImageBitmap canvas capture is disabled.',
+        'videoBitmapCaptureDisabled',
+        request.frameIndex
+      );
+    }
+
     const presenterResult = await presentFrame(request);
     try {
       return await createFrameBitmap(
@@ -524,6 +538,9 @@ const sanitiseNativeRenderPart = (value: string): string => {
 
   return sanitised || 'session';
 };
+
+const hasVideoObjects = (objects: ProjectExportRustFrameRequest['objects']): boolean =>
+  objects.some((object) => object.type === 'video');
 
 const resolveExportVideoUploadBlock = (
   presenterResult: StartSharedRendererViewportPresenterResult
