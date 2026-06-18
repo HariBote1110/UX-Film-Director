@@ -104,6 +104,11 @@ describe('createSharedRendererExportFrameSource', () => {
     expect(presenterInput.session.surfaceGate.ok).toBe(true);
     expect(presenterInput.videoCutoverEnabled).toBe(true);
     expect(presenterInput.requestId).toBe(1);
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'ready',
+      uxfdRustExportFrameSourceFrameIndex: '12',
+      uxfdRustExportFrameSourceFrameReason: undefined,
+    });
   });
 
   it('carries resolved Rust decode jobs across export frames', async () => {
@@ -203,12 +208,13 @@ describe('createSharedRendererExportFrameSource', () => {
   });
 
   it('fails loud before presenter work when the export session is not renderable', async () => {
-    const source = createSharedRendererExportFrameSource({
-      canvas: {
+    const canvas = {
         width: 1920,
         height: 1080,
         dataset: {},
-      } as unknown as HTMLCanvasElement,
+    } as unknown as HTMLCanvasElement;
+    const source = createSharedRendererExportFrameSource({
+      canvas,
       projectSettings: settings,
       layers: createDefaultLayers(),
       editorMode: '3d_stage',
@@ -231,5 +237,10 @@ describe('createSharedRendererExportFrameSource', () => {
       height: 1080,
       objects: [image()],
     })).rejects.toThrow('Shared renderer preview surface currently supports only the 2D editor mode.');
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'blocked',
+      uxfdRustExportFrameSourceFrameIndex: '1',
+      uxfdRustExportFrameSourceFrameReason: 'unsupportedEditorMode',
+    });
   });
 });
