@@ -1761,8 +1761,11 @@ fn handle_decode_release_frame(id: u64, params: Value, state: &mut BackendState)
             &format!("Failed to release decoded frame slot: {error:?}"),
         );
     }
-    if let Err(error) =
-        release_decode_data_plane(session.data_plane_ring.as_ref(), parsed.copy_out_state)
+    if let Err(error) = release_decode_data_plane(
+        session.data_plane_ring.as_ref(),
+        parsed.slot_index,
+        parsed.copy_out_state,
+    )
     {
         return response_error(
             id,
@@ -1841,16 +1844,18 @@ fn write_decode_data_plane(
 #[cfg(unix)]
 fn release_decode_data_plane(
     ring: Option<&DecodeDataPlaneRing>,
+    slot_index: u32,
     copy_out_state: CopyOutState,
 ) -> Result<(), String> {
     let ring = ring.ok_or_else(|| "decode shared memory ring is unavailable".to_string())?;
-    ring.release_frame(copy_out_state)
+    ring.release_frame_slot(slot_index, copy_out_state)
         .map_err(|error| format!("{error:?}"))
 }
 
 #[cfg(not(unix))]
 fn release_decode_data_plane(
     _ring: Option<&DecodeDataPlaneRing>,
+    _slot_index: u32,
     _copy_out_state: CopyOutState,
 ) -> Result<(), String> {
     Ok(())
