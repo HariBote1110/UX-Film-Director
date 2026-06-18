@@ -635,6 +635,14 @@ native render outputをpreviewでも明示的に解放できる入口を作る�
 この段階では `render.nativeSharedFrame` のpreview orchestration呼び出しは未接続で、次段で
 Rust backend native render result -> shared memory copy bridge -> preview presenterの縦スライスを接続する。
 
+119. Phase5: preview orchestrationをRust native render resultへ接続する
+Viewport presenter orchestrationは、video cutover有効時に `render.nativeSharedFrame` preview pathを先に試す。
+動画clipがある場合はRust decode済みshared frameをnative render sourceとして渡し、media-only sceneではRust生成可能な
+`SolidColour` / PNG/JPG/JPEG `Image` mediaだけを `sources: []` でrenderする。
+成功時はnative render output descriptorをshared memory copy bridgeでrenderer upload bufferへ移し、
+`sharedRendererNativeRenderFrameUpload` としてpreview presenterへ渡す。GPU upload完了またはabort時には
+`render.releaseNativeSharedFrame` でnative render outputを解放し、成功した場合は従来のper-video preview uploadをスキップする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

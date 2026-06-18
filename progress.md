@@ -3817,3 +3817,25 @@
 ### 残課題・次のステップ
 - 次はpreview orchestrationから `render.nativeSharedFrame` を呼び、返ってきたoutput descriptorをshared memory copy bridge経由でこの入口へ流す。
 - native render frame upload失敗時のPixi fallback / release policyを、実接続時の失敗理由に合わせてさらに細分化する。
+
+## 2026-06-18 — preview native render resultをViewport表示へ接続
+
+### 実施内容
+- `prepareSharedRendererViewportNativeRenderUpload` を追加し、preview sessionからRust native render payloadを作って `render.nativeSharedFrame` を呼べるようにした。
+- native render output descriptorをshared memory copy bridgeでrenderer upload bufferへ移し、`sharedRendererNativeRenderFrameUpload` としてpreview presenterへ渡す経路を追加した。
+- media-only sceneでは `SolidColour` / PNG/JPG/JPEG `Image` のRust生成可能mediaだけを `sources: []` でnative renderするようにした。
+- native render outputはGPU upload完了・upload abort・copy失敗のいずれでも `render.releaseNativeSharedFrame` へ到達するrelease callbackを持つようにした。
+- native render previewが成功した場合は従来のper-video preview uploadをスキップし、Rust native render済みの最終合成frameを優先するようにした。
+- `Viewport` から video cutover有効時にnative render preview pathを有効化した。
+- 版を `0.1.1-Beta-105a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererViewportNativeRenderUpload.test.ts`
+- `npm test -- src/utils/sharedRendererViewportPresenterOrchestration.test.ts`
+- `npm test -- src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/sharedRendererExportFrameSource.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- 実機previewでnative render frame pathが有効化された際のdataset診断とPixi cleanup挙動を確認する。
+- native render preview失敗時のreasonをdatasetへより細かく出し、どの境界でPixiへ戻ったかを見える化する。
+- PSD/textなど、Rust native render source化されていない素材は引き続きPixi fallbackの主因として残る。
