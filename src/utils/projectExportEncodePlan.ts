@@ -18,16 +18,22 @@ export type ProjectExportEncodePlan =
 
 export interface ResolveProjectExportEncodePlanInput {
   rustExportOnly: boolean;
+  rustVideoOnly?: boolean;
+  hasVideoObjects?: boolean;
   rustEncoderAvailable: boolean;
 }
 
 export interface ResolveProjectExportEncodePlanFromBridgeInput {
   rustExportOnly: boolean;
+  rustVideoOnly?: boolean;
+  hasVideoObjects?: boolean;
   rustVideoEncoderBridge?: Partial<RustBackendVideoEncodeBridge> | null;
 }
 
 export const resolveProjectExportEncodePlan = ({
   rustExportOnly,
+  rustVideoOnly = false,
+  hasVideoObjects = false,
   rustEncoderAvailable,
 }: ResolveProjectExportEncodePlanInput): ProjectExportEncodePlan => {
   if (rustEncoderAvailable) {
@@ -37,7 +43,7 @@ export const resolveProjectExportEncodePlan = ({
     };
   }
 
-  if (rustExportOnly) {
+  if (rustExportOnly || (rustVideoOnly && hasVideoObjects)) {
     return {
       ok: false,
       reason: 'rustEncoderRequired',
@@ -53,9 +59,13 @@ export const resolveProjectExportEncodePlan = ({
 
 export const resolveProjectExportEncodePlanFromBridge = ({
   rustExportOnly,
+  rustVideoOnly = false,
+  hasVideoObjects = false,
   rustVideoEncoderBridge,
 }: ResolveProjectExportEncodePlanFromBridgeInput): ProjectExportEncodePlan =>
   resolveProjectExportEncodePlan({
     rustExportOnly,
+    rustVideoOnly,
+    hasVideoObjects,
     rustEncoderAvailable: isRustBackendVideoEncodeBridgeAvailable(rustVideoEncoderBridge),
   });

@@ -68,6 +68,8 @@ export const useProjectExport = (
       const hasVideoObjects = exportObjects.some((obj) => obj.type === 'video');
       const exportEncodePlan = resolveProjectExportEncodePlanFromBridge({
         rustExportOnly,
+        rustVideoOnly,
+        hasVideoObjects,
         rustVideoEncoderBridge: window.rustVideoEncoder,
       });
       if (!exportEncodePlan.ok) {

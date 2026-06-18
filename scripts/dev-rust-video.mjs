@@ -9,6 +9,7 @@ const child = spawn(process.execPath, [viteBin, ...process.argv.slice(2)], {
     ...process.env,
     VITE_UXFD_SHARED_RENDERER_PREVIEW: '1',
     VITE_UXFD_SHARED_RENDERER_EXPORT: '1',
+    VITE_UXFD_RUST_EXPORT_ONLY: '1',
     VITE_UXFD_RUST_VIDEO_ONLY: '1',
   },
 });
