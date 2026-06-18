@@ -187,6 +187,20 @@ fn reading_slot_can_be_released_when_renderer_upload_is_aborted() {
 }
 
 #[test]
+fn reading_slot_can_be_released_when_encoder_has_written_frame() {
+    let mut ring = SharedFrameRing::new(layout(1));
+    let write_slot = ring.acquire_write_slot().expect("free slot");
+    ring.mark_slot_ready(write_slot, 13)
+        .expect("written frame becomes ready");
+    let ready_frame = ring.acquire_ready_slot().expect("ready slot");
+
+    ring.release_read_slot(ready_frame, CopyOutState::EncoderFrameWritten)
+        .expect("encoder write completion permits release");
+
+    assert_eq!(ring.slot_state(0), Some(SlotState::Free));
+}
+
+#[test]
 fn recovered_slot_generation_rejects_stale_consumer_release() {
     let mut ring = SharedFrameRing::new(layout(1));
 

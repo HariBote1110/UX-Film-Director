@@ -95,6 +95,30 @@ fn posix_shm_multi_slot_allows_next_frame_while_previous_frame_is_reading() {
         .expect("all slots return to free");
 }
 
+#[test]
+fn posix_shm_slot_can_be_released_after_encoder_writes_frame() {
+    let name = unique_shm_name();
+    let producer_ring =
+        PosixSharedRing::create_with_slot_count(&name, 1, 16).expect("create encoder source ring");
+    let encoder_ring =
+        PosixSharedRing::attach_with_retry_for_layout(&name, 1, 16, Duration::from_secs(1))
+            .expect("attach encoder source ring");
+
+    producer_ring
+        .write_frame(7, &[0x42; 16])
+        .expect("write frame for encoder");
+    encoder_ring
+        .read_frame(7)
+        .expect("encoder reads frame from shared memory");
+
+    encoder_ring
+        .release_frame(uxfd_sidecar_protocol::CopyOutState::EncoderFrameWritten)
+        .expect("release after encoder wrote frame");
+    producer_ring
+        .wait_until_free(Duration::from_secs(1))
+        .expect("slot returns to free after encoder write");
+}
+
 fn unique_shm_name() -> String {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)

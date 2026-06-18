@@ -140,3 +140,11 @@ fn decode_release_frame_request_requires_generation_and_completed_gpu_copy_out()
     assert!(encoded.get("bytes").is_none());
     assert!(encoded.get("pixels").is_none());
 }
+
+#[test]
+fn encoder_frame_written_copy_out_state_serialises_without_frame_bytes() {
+    let encoded =
+        serde_json::to_value(CopyOutState::EncoderFrameWritten).expect("serialise copy out state");
+
+    assert_eq!(encoded, "encoderFrameWritten");
+}
