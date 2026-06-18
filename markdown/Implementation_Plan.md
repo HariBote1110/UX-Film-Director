@@ -886,6 +886,11 @@ Pixi/explicit canvas captureへ落とさず `rustFrameSourceRequired` で停止�
 これにより `useProjectExport` 以外からresolverを直呼びした場合も、動画exportが legacy browser provider /
 HTMLVideoElement seek / `createImageBitmap(canvas)` へ戻らない。
 
+165. Phase5: 動画Rust frame source blocked時のlegacy復帰を拒否する
+`buildProjectExportFrameSourcePlan` は動画objectを含むRust frame source planのblocked fallbackを `failExport` に正規化する。
+これにより初期接続できたRust frame sourceが実行中にblockedになっても、runtime planが `legacyCanvasAfterRustBlocked` /
+HTMLVideoElement seek / canvas captureへ復帰しない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

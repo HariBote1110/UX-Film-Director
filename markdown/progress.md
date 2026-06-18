@@ -174,3 +174,10 @@
 - Green: `BuildProjectExportFrameSourcePlanInput.hasVideoObjects` を追加し、`buildProjectExportFrameSourcePlan` 内で動画exportをfail-loudにした。`useProjectExport` からも `hasVideoObjects` を渡すようにした。
 - 検証: `npm test -- projectExportFrameCanvas useProjectExportBoundary projectExportEncodePlan viewportRustExportFrameSource` は47件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-144a`。
+
+## 2026-06-19
+- Phase5のruntime plan境界として、動画objectを含むRust frame sourceが実行中にblockedになってもlegacy canvasへ復帰しないようにした。
+- Red: `projectExportFrameCanvas` へ、`hasVideoObjects=true` のRust frame source planはblocked時に `failExport` になり、HTMLVideoElement seekを要求しない契約を追加した。
+- Green: `buildProjectExportFrameSourcePlan` で動画ありRust frame source planの `rustFrameSourceBlockedFallback` を `failExport` に正規化した。
+- 検証: `npm test -- projectExportFrameCanvas useProjectExportBoundary projectExportEncodePlan viewportRustExportFrameSource sharedRendererExportFrameSource` は75件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-145a`。
