@@ -10,6 +10,7 @@ import {
 } from './sharedRendererVideoDecodeRequest';
 import {
   createSharedRendererWebGpuPresenter,
+  type SharedRendererPresentedFrameSharedFrameInput,
   type SharedRendererPresentedFrameReadbackInput,
   type SharedRendererPresentedFrameReadbackResult,
   type SharedRendererSolidSrgbSwatch,
@@ -50,16 +51,6 @@ export const getSharedRendererSolidSwatchCssColour = (): string => {
 };
 
 type PresenterDataset = Record<string, string | undefined>;
-
-export interface SharedRendererPresentedFrameSharedFrameInput {
-  encodeSessionId: string;
-  memoryId: string;
-  frameIndex: number;
-  timestampUs: number;
-  width: number;
-  height: number;
-  fps: number;
-}
 
 export type SharedRendererPreviewPresenterControl =
   | {
@@ -407,6 +398,7 @@ export const startSharedRendererPreviewPresenter = async ({
     format: presenter.format,
     solidColourOwnership,
     videoOwnership,
+    takePresentedFrameSharedFrame: presenter.takePresentedFrameSharedFrame,
     readPresentedFrameRgbaBytes: presenter.readPresentedFrameRgbaBytes,
     dispose: presenter.dispose,
   };

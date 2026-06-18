@@ -16,6 +16,12 @@ import type {
   SharedRendererPreviewSurfaceBlockedReason,
   SharedRendererPreviewSurfaceGate,
 } from './sharedRendererPreviewSurface';
+import {
+  createRustBackendVideoEncodeSharedFrameWriter,
+  type CreateRustBackendVideoEncodeSharedFrameWriterInput,
+  type RustBackendVideoEncodeSharedFrameWriter,
+} from './rustBackendVideoEncodeSharedFrameWriter';
+import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
 
 export interface SharedRendererWebGpuLike {
   getPreferredCanvasFormat: () => string;
@@ -112,6 +118,7 @@ export type SharedRendererWebGpuPresenterResult =
       uploadVideoFrameTexture: (input: SharedRendererVideoFrameTextureUploadInput) => SharedRendererVideoFrameTextureUploadResult;
       presentVideoFrameScene: (scene: SharedRendererVideoFrameSceneInput) => SharedRendererVideoFrameScenePresentationResult;
       readPresentedFrameRgbaBytes: (input: SharedRendererPresentedFrameReadbackInput) => Promise<SharedRendererPresentedFrameReadbackResult>;
+      takePresentedFrameSharedFrame: (input: SharedRendererPresentedFrameSharedFrameInput) => Promise<RustBackendVideoEncodeWriteFramePayload>;
     }
   | {
       ok: false;
@@ -171,8 +178,13 @@ export interface SharedRendererWebGpuPresenterInput {
   textureUsageTextureCopyDst?: number;
   solidColourVertexSceneBuilder?: SharedRendererSolidColourVertexSceneBuilder;
   videoPlaneVertexSceneBuilder?: SharedRendererVideoPlaneVertexSceneBuilder;
+  createEncodeFrameWriter?: SharedRendererEncodeFrameWriterFactory;
   onDeviceLost?: (event: SharedRendererDeviceLostEvent) => void;
 }
+
+export type SharedRendererEncodeFrameWriterFactory = (
+  input: CreateRustBackendVideoEncodeSharedFrameWriterInput
+) => Promise<RustBackendVideoEncodeSharedFrameWriter>;
 
 export interface SharedRendererPresentedFrameReadbackInput {
   width: number;
@@ -185,6 +197,16 @@ export interface SharedRendererPresentedFrameReadbackResult {
   byteLen: number;
   width: number;
   height: number;
+}
+
+export interface SharedRendererPresentedFrameSharedFrameInput {
+  encodeSessionId: string;
+  memoryId: string;
+  frameIndex: number;
+  timestampUs: number;
+  width: number;
+  height: number;
+  fps: number;
 }
 
 export interface SharedRendererVideoFrameTextureUploadInput {
@@ -279,6 +301,7 @@ export const createSharedRendererWebGpuPresenter = async ({
   textureUsageTextureCopyDst = defaultTextureCopyDstUsage(),
   solidColourVertexSceneBuilder = buildSharedRendererSolidColourVertexScene,
   videoPlaneVertexSceneBuilder = buildSharedRendererVideoPlaneVertexScene,
+  createEncodeFrameWriter = createRustBackendVideoEncodeSharedFrameWriter,
   onDeviceLost,
 }: SharedRendererWebGpuPresenterInput): Promise<SharedRendererWebGpuPresenterResult> => {
   if (!surfaceGate.ok) {
@@ -349,8 +372,20 @@ export const createSharedRendererWebGpuPresenter = async ({
   });
 
   let disposed = false;
-  const dispose = () => {
+  let activeEncodeFrameWriter: RustBackendVideoEncodeSharedFrameWriter | null = null;
+  let activeEncodeSessionId: string | null = null;
+
+  const closeEncodeFrameWriter = async (): Promise<void> => {
+    if (!activeEncodeFrameWriter) return;
+    const writer = activeEncodeFrameWriter;
+    activeEncodeFrameWriter = null;
+    activeEncodeSessionId = null;
+    await writer.close();
+  };
+
+  const dispose = async () => {
     disposed = true;
+    await closeEncodeFrameWriter();
   };
 
   if (device.lost && onDeviceLost) {
@@ -797,6 +832,44 @@ export const createSharedRendererWebGpuPresenter = async ({
     };
   };
 
+  const getEncodeFrameWriter = async ({
+    encodeSessionId,
+    memoryId,
+    width,
+    height,
+    fps,
+  }: SharedRendererPresentedFrameSharedFrameInput): Promise<RustBackendVideoEncodeSharedFrameWriter> => {
+    if (activeEncodeFrameWriter && activeEncodeSessionId === encodeSessionId) {
+      return activeEncodeFrameWriter;
+    }
+    await closeEncodeFrameWriter();
+    activeEncodeSessionId = encodeSessionId;
+    activeEncodeFrameWriter = await createEncodeFrameWriter({
+      sessionId: encodeSessionId,
+      memoryId,
+      width,
+      height,
+      fps,
+    });
+    return activeEncodeFrameWriter;
+  };
+
+  const takePresentedFrameSharedFrame = async (
+    input: SharedRendererPresentedFrameSharedFrameInput
+  ): Promise<RustBackendVideoEncodeWriteFramePayload> => {
+    const readback = await readPresentedFrameRgbaBytes({
+      width: input.width,
+      height: input.height,
+    });
+    const writer = await getEncodeFrameWriter(input);
+    return writer.writePaddedFrame({
+      frameIndex: input.frameIndex,
+      timestampUs: input.timestampUs,
+      paddedRgbaBytes: readback.rgbaBytes,
+      strideBytes: readback.strideBytes,
+    });
+  };
+
   return {
     ok: true,
     device,
@@ -813,6 +886,7 @@ export const createSharedRendererWebGpuPresenter = async ({
     uploadVideoFrameTexture,
     presentVideoFrameScene,
     readPresentedFrameRgbaBytes,
+    takePresentedFrameSharedFrame,
   };
 };
 
