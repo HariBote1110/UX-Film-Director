@@ -321,6 +321,64 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
     });
   });
 
+  it('uses the native render resolved active job when falling back to a single Rust video upload', async () => {
+    let presenterInput: unknown;
+    let videoUploadActiveJob: SharedRendererViewportVideoDecodeJob | null | undefined;
+    const events: string[] = [];
+    const prepareNativeRenderUpload: SharedRendererViewportNativeRenderUploadPreparer = async () => {
+      events.push('prepareNativeRenderUpload');
+      return {
+        ok: false,
+        reason: 'nativeRenderFailed',
+        detail: 'Rust backend rejected unsupported PSD media',
+        activeJobs: [activeJob],
+      };
+    };
+    const prepareVideoUpload: SharedRendererViewportVideoUploadPreparer = async (input) => {
+      events.push('prepareVideoUpload');
+      videoUploadActiveJob = input.activeJob;
+      return {
+        ok: true,
+        activeJob: input.activeJob ?? activeJob,
+        request: { clipId: 'video-1' } as any,
+        upload,
+      };
+    };
+    const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {
+      events.push('startPresenter');
+      presenterInput = input;
+      return control;
+    };
+
+    const result = await startSharedRendererViewportPresenter({
+      canvas,
+      session,
+      datasets: [],
+      diagnosticSwatchEnabled: true,
+      videoCutoverEnabled: true,
+      activeVideoDecodeJob: null,
+      requestId: 15,
+      prepareNativeRenderUpload,
+      prepareVideoUpload,
+      startPresenter,
+    });
+
+    expect(events).toEqual([
+      'prepareNativeRenderUpload',
+      'prepareVideoUpload',
+      'startPresenter',
+    ]);
+    expect(videoUploadActiveJob).toBe(activeJob);
+    expect(result.activeVideoDecodeJob).toBe(activeJob);
+    expect(presenterInput).toMatchObject({
+      sharedRendererNativeRenderFailure: {
+        reason: 'nativeRenderFailed',
+        detail: 'Rust backend rejected unsupported PSD media',
+      },
+      sharedRendererDecodedVideoFrameUpload: upload,
+    });
+  });
+
   it('starts the presenter without upload when Rust video preparation fails so Pixi can remain owner', async () => {
     let presenterInput: unknown;
     const prepareVideoUpload: SharedRendererViewportVideoUploadPreparer = async () => ({
