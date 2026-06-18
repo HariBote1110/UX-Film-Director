@@ -89,6 +89,37 @@ describe('buildSharedRendererVideoMediaReadiness', () => {
       ],
     });
   });
+
+  it('does not require HTMLVideoElement readiness when Rust video rendering is required', () => {
+    expect(buildSharedRendererVideoMediaReadiness({
+      media,
+      videoElements: new Map(),
+      requireSharedRendererVideo: true,
+    })).toEqual({
+      readyCount: 0,
+      pendingCount: 0,
+      missingCount: 0,
+      rustRequiredCount: 2,
+      videos: [
+        {
+          id: 'video-ready',
+          status: 'rustRendererRequired',
+          readyState: 0,
+          currentTime: 0,
+          width: 1280,
+          height: 720,
+        },
+        {
+          id: 'video-pending',
+          status: 'rustRendererRequired',
+          readyState: 0,
+          currentTime: 0,
+          width: 640,
+          height: 360,
+        },
+      ],
+    });
+  });
 });
 
 const fakeVideo = ({
