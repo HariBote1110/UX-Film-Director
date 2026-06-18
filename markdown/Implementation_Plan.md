@@ -900,6 +900,11 @@ canvas upload pathへ進まない。export互換分岐だけは明示的なRust�
 動画sceneを含む shared renderer preview control は `readPresentedFrameRgbaBytes` を公開しない。
 solid/空sceneの診断用readbackは残しつつ、動画previewからWebGPU readback bytesを経由してJS側へ戻る入口を閉じる。
 
+168. Phase5: renderer writable shared-frame writer APIを削除する
+renderer utility `sharedVideoFrameWritableBridge` と `window.sharedVideoFrame` の
+`createWritableSharedFrameRing` / `writeIntoSharedFrameRing` / `closeWritableSharedFrameRing` 公開を削除する。
+native addonの低レベル検証口は残しつつ、renderer JSからshared-frame ringへRGBAを書き込む旧writer経路を再接続できない状態にする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

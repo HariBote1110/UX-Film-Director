@@ -195,3 +195,10 @@
 - Green: `startSharedRendererPreviewPresenter` の返却objectで、`hasVideoScene=true` の場合は `readPresentedFrameRgbaBytes` を省くようにした。
 - 検証: `npm test -- sharedRendererPreviewPresenterController sharedRendererExportFrameSource sharedRendererViewportPresenterOrchestration` は63件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-147a`。
+
+## 2026-06-19
+- Phase5のrenderer boundaryとして、JS rendererからshared-frame ringへ書き込むwriter API公開を削除した。
+- Red: `sharedVideoFrameWritableBridgeBoundary` へ、renderer utility moduleとpreload/window型に `createWritableSharedFrameRing` / `writeIntoSharedFrameRing` / `closeWritableSharedFrameRing` を残さない契約を追加した。
+- Green: `sharedVideoFrameWritableBridge.ts` と肯定テストを削除し、`electron/preload.ts` と `src/vite-env.d.ts` からwriter API公開を外した。native addonの低レベル関数は維持した。
+- 検証: `npm test -- sharedVideoFrameWritableBridgeBoundary sharedVideoFrameUploadBridge sharedVideoFramePresentedFrameHandoffBoundary rustBackendVideoEncodeExport` は11件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-148a`。
