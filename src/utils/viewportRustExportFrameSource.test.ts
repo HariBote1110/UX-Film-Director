@@ -4,6 +4,7 @@ import { createDefaultLayers } from './sceneState';
 import type {
   SharedRendererExportSession,
   SharedRendererExportSessionInput,
+  SharedRendererNativeRenderEnvelope,
 } from './sharedRendererExportSession';
 import {
   buildViewportRustExportFrameSource,
@@ -50,11 +51,19 @@ const rectangle = (patch: Partial<ShapeObject> = {}): ShapeObject => ({
 });
 
 const exportSessionWithSurfaceGate = (
-  surfaceGate: SharedRendererExportSession['surfaceGate']
+  surfaceGate: SharedRendererExportSession['surfaceGate'],
+  nativeRenderEnvelope: SharedRendererNativeRenderEnvelope = {
+    ok: true,
+    mediaCount: 0,
+    mediaKinds: [],
+    sourceCount: 0,
+    sourceMediaIds: [],
+  }
 ): SharedRendererExportSession => ({
   plan: {} as SharedRendererExportSession['plan'],
   surfaceGate,
   presentationContract: {} as SharedRendererExportSession['presentationContract'],
+  nativeRenderEnvelope,
 });
 
 describe('buildViewportRustExportFrameSource', () => {
@@ -253,6 +262,56 @@ describe('buildViewportRustExportFrameSource', () => {
     expect(dataset).toEqual({
       uxfdRustExportFrameSourceStatus: 'fallback',
       uxfdRustExportFrameSourceReason: 'exportSessionBlocked',
+    });
+  });
+
+  it('writes native render envelope diagnostics when a Rust export source is selected', () => {
+    const canvas = {
+      width: 1920,
+      height: 1080,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    const dataset: Record<string, string | undefined> = {};
+
+    const source = buildViewportRustExportFrameSource({
+      exportEnabled: true,
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      objects: exportObjects,
+      time: 0,
+      buildExportSession: () => exportSessionWithSurfaceGate({
+        ok: true,
+        canvas: {
+          width: 1920,
+          height: 1080,
+        },
+        snapshot: {} as never,
+        media: [],
+      }, {
+        ok: true,
+        mediaCount: 2,
+        mediaKinds: ['Video', 'Psd'],
+        sourceCount: 1,
+        sourceMediaIds: ['video-1'],
+      }),
+      createFrameSource: () => frameSource,
+      diagnosticsDataset: dataset,
+    });
+
+    expect(source).toBe(frameSource);
+    expect(dataset).toEqual({
+      uxfdRustExportFrameSourceStatus: 'ready',
+      uxfdRustExportFrameSourceReason: undefined,
+      uxfdRustExportFrameSourceNativeRenderEnvelopeStatus: 'ready',
+      uxfdRustExportFrameSourceNativeRenderMediaCount: '2',
+      uxfdRustExportFrameSourceNativeRenderMediaKinds: 'Video,Psd',
+      uxfdRustExportFrameSourceNativeRenderSourceCount: '1',
+      uxfdRustExportFrameSourceNativeRenderSourceMediaIds: 'video-1',
     });
   });
 });
