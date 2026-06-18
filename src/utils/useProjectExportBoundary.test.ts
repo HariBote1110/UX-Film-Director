@@ -11,8 +11,8 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     expect(code).not.toContain("from '../utils/videoFrameProvider'");
     expect(code).not.toContain("from '../utils/playbackFrameProvider'");
     expect(code).not.toContain("from '../utils/videoExportPipeline'");
-    expect(code).toContain("await import('../utils/videoFrameProvider')");
-    expect(code).toContain("await import('../utils/playbackFrameProvider')");
-    expect(code).toContain("await import('../utils/videoExportPipeline')");
+    expect(code).toContain("import('../utils/videoFrameProvider')");
+    expect(code).toContain("import('../utils/playbackFrameProvider')");
+    expect(code).toContain("import('../utils/videoExportPipeline')");
   });
 });

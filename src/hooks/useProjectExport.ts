@@ -4,12 +4,9 @@ import { useStore } from '../store/useStore';
 import { TimelineObject, VideoObject } from '../types';
 import { shallow } from 'zustand/shallow';
 import { buildExportAudioBuffer, buildExportAudioMixWav } from '../utils/audioMixdown';
-import { encodeVideoToMp4 } from '../utils/videoExportPipeline';
 import { resolveProjectExportEncodePlanFromBridge } from '../utils/projectExportEncodePlan';
 import { runRustBackendVideoEncodeExport } from '../utils/rustBackendVideoEncodeExport';
 import { renderProjectExportRustEncodeFrame } from '../utils/projectExportRustEncodeFrame';
-import { VideoFrameProvider } from '../utils/videoFrameProvider';
-import { PlaybackFrameProvider } from '../utils/playbackFrameProvider';
 import type { FrameProvider } from '../utils/frameProvider';
 import {
   buildProjectExportFrameSourcePlan,
@@ -134,6 +131,13 @@ export const useProjectExport = (
         const rustEncodeSessionId = createRustEncodeSessionId();
 
         if (exportFrameSourcePlan.requiresLegacyBrowserVideoProviders) {
+          const [
+            { VideoFrameProvider },
+            { PlaybackFrameProvider },
+          ] = await Promise.all([
+            import('../utils/videoFrameProvider'),
+            import('../utils/playbackFrameProvider'),
+          ]);
           // ── フレームプロバイダを初期化 ───────────────────────────────────────
           // シーク方式(~9fps)は使わず、①VideoDecoder ②再生方式(rVFC) の順で高速取得を試み、
           // どちらも不可のときだけ従来のシーク方式へフォールバックする。
@@ -375,6 +379,7 @@ export const useProjectExport = (
 
         let result;
         try {
+          const { encodeVideoToMp4 } = await import('../utils/videoExportPipeline');
           result = await encodeVideoToMp4({
             width,
             height,
