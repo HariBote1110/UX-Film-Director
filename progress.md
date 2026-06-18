@@ -1,3 +1,20 @@
+## 2026-06-18 — Phase5: Rust encoder時の legacy frame source fallback を禁止
+
+### 実施内容
+- `src/utils/projectExportFrameCanvas.test.ts` に、Rust backend encoderが選ばれた通常exportでもRust frame sourceを必須にする契約を追加した。
+- `resolveProjectExportFrameSourcePolicyForEncode` を追加し、encoder選択に応じて `rustFrameSourcePolicy` と blocked fallbackを決めるようにした。
+- `src/hooks/useProjectExport.ts` の初期化順を encoder plan先行へ変更し、Rust encoder経路ではPixi canvas / HTMLVideoElement / ImageBitmap capture fallbackへ戻らずfail-loudにした。
+- package version を `0.1.1-Beta-69a` に更新した。
+
+### 検証
+- `npm test -- src/utils/projectExportFrameCanvas.test.ts`
+- `npm test -- src/utils/projectExportFrameCanvas.test.ts src/utils/projectExportEncodePlan.test.ts src/utils/rustBackendVideoEncodeExport.test.ts src/utils/projectExportRustEncodeFrame.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "projectExportFrameCanvas|useProjectExport|projectExportEncodePlan|rustBackendVideoEncode"`（対象ファイルの型エラーなし）
+
+### 残課題・次のステップ
+- 実機Electronで通常export時にRust frame sourceが無い場合のfail-loudメッセージと、Rust frame sourceがある場合のMP4出力を確認する。
+- 互換fallbackとして残るWebCodecs経路は、Rust encoder bridge未接続時だけ許可される。次はpreview/export双方の残りPixi video fallbackを段階的に削る。
+
 ## 2026-06-18 — Phase5: 通常exportを Rust encoder 優先へ切り替え
 
 ### 実施内容

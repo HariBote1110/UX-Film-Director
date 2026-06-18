@@ -415,6 +415,12 @@ Rust backend encoderへshared-frame descriptorだけを渡す。fallbackとし�
 これにより、開発時に明示フラグを立てなくてもRust backend rawvideo/ffmpeg export経路を主経路にし、
 WebCodecsを互換fallbackへ降格する。
 
+80. Phase5: Rust encoder時の legacy frame source fallback を禁止する
+Rust backend encoder が選ばれた時点で、export frame source は shared renderer Rust frame source を必須にする。
+Rust frame source が無い、またはrender中にblockedになった場合はPixi canvas / HTMLVideoElement / ImageBitmap captureへ
+退避せずfail-loudにする。WebCodecs互換encoderが選ばれた未接続環境だけ、従来のlegacy canvas fallbackを許可する。
+これにより、Rust encoder経路が「Pixiで描いてRustで包む」状態へ戻らないようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
