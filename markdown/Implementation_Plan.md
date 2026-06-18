@@ -1049,6 +1049,11 @@ TS helper、preload型、N-API wrapper、Rust bridge coreまで同じlease token
 Rust bridgeはsequenceで読めたframeの実slotとpayloadの `slotIndex` を照合し、
 descriptorが指すslotと異なるready frameをcopyしない。
 
+195. Phase5: shared frame copy reportのslot leaseを照合する
+`prepareSharedRendererDecodedVideoFrameUpload` はcopy reportの `slotIndex` / `generation` が
+decoded frame descriptorと一致しない場合、upload objectを成功扱いしない。
+native bridgeが返したreportもrenderer境界で再検証し、stale slot leaseのままWebGPU uploadへ進まないようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

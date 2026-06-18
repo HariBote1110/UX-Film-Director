@@ -397,3 +397,10 @@
 - Green: `MappedReadFrame` / Rust bridge report / N-API wrapper / preload型 / renderer helper payloadへslot leaseを接続し、Rust bridgeで `SlotLeaseMismatch` を返すようにした。
 - 検証: `npm test -- sharedVideoFrameUploadBridge sharedRendererRustVideoUploadPipeline sharedVideoFrameUploadBridgeBoundary sharedRendererViewportNativeRenderUpload sharedRendererViewportVideoUpload` は18件成功。`cargo test --manifest-path shared-video-frame-bridge-node/Cargo.toml`、`cargo test --manifest-path shared-video-frame-bridge/Cargo.toml --test copy_into_upload_buffer`、`cargo test --manifest-path shared-memory-spike/Cargo.toml posix_shm_multi_slot_allows_next_frame_while_previous_frame_is_reading` は成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-174a`。
+
+## 2026-06-19
+- Phase5のrenderer upload境界として、copy reportの `slotIndex` / `generation` がdecoded frame descriptorと違う場合はupload成功にしないようにした。
+- Red: `sharedVideoFrameUploadBridge` へ、copy report slot lease mismatchを拒否する契約を追加した。
+- Green: `prepareSharedRendererDecodedVideoFrameUpload` でcopy reportのslot leaseをdescriptorと照合し、mismatch時は `copyReportSlotLeaseMismatch` を返すようにした。
+- 検証: `npm test -- sharedVideoFrameUploadBridge sharedRendererRustVideoUploadPipeline sharedRendererViewportNativeRenderUpload sharedRendererViewportVideoUpload` は19件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-174b`。
