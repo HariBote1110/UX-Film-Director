@@ -467,8 +467,9 @@ const Viewport: React.FC = () => {
       ? buildSharedRendererVideoMediaReadiness({
         media: session.surfaceGate.media,
         videoElements: videoElementsRef.current,
+        requireSharedRendererVideo: rustVideoOnlyEnabled,
       })
-      : { readyCount: 0, pendingCount: 0, missingCount: 0, videos: [] };
+      : { readyCount: 0, pendingCount: 0, missingCount: 0, rustRequiredCount: 0, videos: [] };
     diagnosticsWindow.__UXFD_SHARED_RENDERER_VIDEO_MEDIA_READINESS__ = videoReadiness;
 
     document.documentElement.dataset.uxfdSharedRendererPlanMode = session.plan.mode;
@@ -480,6 +481,7 @@ const Viewport: React.FC = () => {
     document.documentElement.dataset.uxfdSharedRendererVideoReadyCount = String(videoReadiness.readyCount);
     document.documentElement.dataset.uxfdSharedRendererVideoPendingCount = String(videoReadiness.pendingCount);
     document.documentElement.dataset.uxfdSharedRendererVideoMissingCount = String(videoReadiness.missingCount);
+    document.documentElement.dataset.uxfdSharedRendererVideoRustRequiredCount = String(videoReadiness.rustRequiredCount);
 
     const surfaceCanvas = sharedRendererSurfaceCanvasRef.current;
     if (surfaceCanvas) {
@@ -509,6 +511,7 @@ const Viewport: React.FC = () => {
     sharedRendererGpuStatus.fallbackAdapter,
     sharedRendererGpuStatus.webGpuAvailable,
     sharedRendererPreviewEnabled,
+    rustVideoOnlyEnabled,
   ]);
 
   useEffect(() => {

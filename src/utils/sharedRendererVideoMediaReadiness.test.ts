@@ -40,6 +40,7 @@ describe('buildSharedRendererVideoMediaReadiness', () => {
       readyCount: 1,
       pendingCount: 1,
       missingCount: 0,
+      rustRequiredCount: 0,
       videos: [
         {
           id: 'video-ready',
@@ -69,6 +70,7 @@ describe('buildSharedRendererVideoMediaReadiness', () => {
       readyCount: 0,
       pendingCount: 0,
       missingCount: 2,
+      rustRequiredCount: 0,
       videos: [
         {
           id: 'video-ready',
