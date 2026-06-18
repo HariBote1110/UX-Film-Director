@@ -848,6 +848,83 @@ fn native_render_shared_frame_builds_jpeg_image_sources_from_media() {
 }
 
 #[test]
+fn native_render_shared_frame_builds_psd_sources_from_media() {
+    let mut backend = BackendProcess::start();
+    let psd_path = repository_fixture_path("葵ちゃん.psd");
+    let output_memory_id = unique_shm_name();
+    let slot_count = 1;
+    let width = 8;
+    let height = 8;
+
+    let response = backend.request(json!({
+        "id": 36,
+        "method": "render.nativeSharedFrame",
+        "params": {
+            "renderId": "native-render-psd-media",
+            "memoryId": output_memory_id,
+            "slotCount": slot_count,
+            "ptsFrame": 0,
+            "width": width,
+            "height": height,
+            "snapshot": {
+                "frame_index": 0,
+                "colour": {
+                    "profile": "rec709-sdr",
+                    "working_space": "linear-light",
+                    "alpha": "premultiplied"
+                },
+                "clips": [{
+                    "clip_id": "clip-psd-media",
+                    "track_id": "track-1",
+                    "media_id": "psd-1",
+                    "source_frame": 0,
+                    "z_index": 0,
+                    "transform": {
+                        "translation_x": 0.0,
+                        "translation_y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation_degrees": 0.0,
+                        "sampling": "bilinear"
+                    },
+                    "opacity": 1.0,
+                    "effects": []
+                }]
+            },
+            "media": [{
+                "id": "psd-1",
+                "kind": "Psd",
+                "source": psd_path.to_string_lossy(),
+                "width": 2700,
+                "height": 3700
+            }],
+            "sources": []
+        }
+    }));
+
+    assert_eq!(response["ok"], true, "{response}");
+    assert_eq!(response["result"]["rendered"], true);
+    assert_no_frame_bytes_recursive(&response["result"]);
+
+    let output_slot_byte_len = response["result"]["frame"]["descriptor"]["byteLen"]
+        .as_u64()
+        .expect("output byte length") as usize;
+    let output_ring = PosixSharedRing::attach_with_retry_for_layout(
+        response["result"]["frame"]["descriptor"]["memoryId"]
+            .as_str()
+            .expect("output memory id"),
+        slot_count,
+        output_slot_byte_len,
+        Duration::from_secs(1),
+    )
+    .expect("attach to native PSD media output ring");
+    let output_frame = output_ring
+        .read_frame(0)
+        .expect("read native PSD media output frame");
+    assert_eq!(output_frame.bytes.len(), output_slot_byte_len);
+}
+
+#[test]
 fn encode_write_frame_unlinks_native_render_output_after_consuming_it() {
     let mut backend = BackendProcess::start();
     let temp_dir = TestTempDir::new("encode-native-render-output-release");
@@ -2102,6 +2179,13 @@ impl Drop for TestTempDir {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.path);
     }
+}
+
+fn repository_fixture_path(name: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("repository root")
+        .join(name)
 }
 
 fn build_two_frame_h264_fixture(directory: &Path) -> TestVideoFixture {
