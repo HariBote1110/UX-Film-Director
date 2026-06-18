@@ -16,7 +16,6 @@ export interface SharedVideoFrameCopyReport {
   byteLen: number;
   expectedChecksum: number;
   actualChecksum: number;
-  rgbaBytes?: Uint8Array | ArrayBuffer | ReadonlyArray<number>;
 }
 
 export interface SharedVideoFrameCopyBridge {
@@ -55,29 +54,12 @@ export type PrepareSharedRendererDecodedVideoFrameUploadResult =
       ok: false;
       reason: 'descriptorOutsideSharedRingLayout';
       detail: string;
+    }
+  | {
+      ok: false;
+      reason: 'copyReportContainsPixelPayload';
+      detail: string;
     };
-
-const normaliseReturnedRgbaBytes = (
-  candidate: SharedVideoFrameCopyReport['rgbaBytes'],
-): Uint8Array<ArrayBuffer> | null => {
-  if (!candidate) {
-    return null;
-  }
-  if (candidate instanceof Uint8Array) {
-    return candidate as Uint8Array<ArrayBuffer>;
-  }
-  if (candidate instanceof ArrayBuffer) {
-    return new Uint8Array(candidate);
-  }
-  if (ArrayBuffer.isView(candidate)) {
-    return new Uint8Array(candidate.buffer as ArrayBuffer, candidate.byteOffset, candidate.byteLength);
-  }
-  if (Array.isArray(candidate)) {
-    return Uint8Array.from(candidate);
-  }
-
-  return null;
-};
 
 export const prepareSharedRendererDecodedVideoFrameUpload = async ({
   sharedFrame,
@@ -119,26 +101,19 @@ export const prepareSharedRendererDecodedVideoFrameUpload = async ({
       actualByteLength: response.result.byteLen,
     };
   }
-  const returnedBytes = normaliseReturnedRgbaBytes(response.result.rgbaBytes);
-  let resolvedRgbaBytes = rgbaBytes;
-  if (returnedBytes) {
-    if (returnedBytes.byteLength !== descriptor.byteLen) {
-      return {
-        ok: false,
-        reason: 'copyReportByteLengthMismatch',
-        detail: 'Shared video frame copy report must match the decoded frame descriptor.',
-        expectedByteLength: descriptor.byteLen,
-        actualByteLength: returnedBytes.byteLength,
-      };
-    }
-    resolvedRgbaBytes = returnedBytes;
+  if (copyReportContainsPixelPayload(response.result)) {
+    return {
+      ok: false,
+      reason: 'copyReportContainsPixelPayload',
+      detail: 'Shared video frame copy report must not return pixel bytes through the control plane.',
+    };
   }
 
   return {
     ok: true,
     descriptor,
     ptsFrame,
-    rgbaBytes: resolvedRgbaBytes,
+    rgbaBytes,
     releaseAfterGpuUpload,
     releaseAfterUploadAbort,
     copyReport: response.result,
@@ -162,4 +137,16 @@ const isDescriptorInsideSharedRingLayout = (
     && Number.isSafeInteger(ringByteLen)
     && descriptor.byteOffset === expectedOffset
     && descriptor.byteOffset + descriptor.byteLen <= ringByteLen;
+};
+
+const copyReportPixelPayloadKeys = new Set([
+  'bytes',
+  'pixels',
+  'frameBase64',
+  'rgbaBytes',
+]);
+
+const copyReportContainsPixelPayload = (report: SharedVideoFrameCopyReport): boolean => {
+  const record = report as unknown as Record<string, unknown>;
+  return Object.keys(record).some((key) => copyReportPixelPayloadKeys.has(key));
 };

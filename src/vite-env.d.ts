@@ -171,7 +171,6 @@ interface Window {
         byteLen: number;
         expectedChecksum: number;
         actualChecksum: number;
-        rgbaBytes?: Uint8Array | ArrayBuffer | number[];
       };
       error?: string;
     }>;
