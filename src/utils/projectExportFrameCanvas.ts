@@ -1,4 +1,5 @@
 import type { TimelineObject } from '../types';
+import type { RustBackendVideoEncodeFrame } from './rustBackendVideoEncodeExport';
 
 export type ProjectExportFrameCanvasSource =
   | 'explicitExportCanvas'
@@ -21,8 +22,13 @@ export interface ProjectExportRustFrameRequest {
   objects: readonly TimelineObject[];
 }
 
+export interface ProjectExportRustEncodeFrameRequest extends ProjectExportRustFrameRequest {
+  encodeSessionId: string;
+}
+
 export interface ProjectExportRustFrameSource {
   renderFrame: (request: ProjectExportRustFrameRequest) => Promise<ImageBitmap>;
+  renderEncodeFrame?: (request: ProjectExportRustEncodeFrameRequest) => Promise<RustBackendVideoEncodeFrame>;
   close?: () => Promise<void> | void;
 }
 
