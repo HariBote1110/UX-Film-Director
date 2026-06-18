@@ -865,6 +865,11 @@ export frame overrideやPixi `HTMLVideoElement` / `VideoSource` pathより先に
 native `takePresentedFrameSharedFrame` handoffだけをexport向けの共有frame取得口にする。
 WebGPU readbackはpreview/parity診断用controlに限定し、export経路へ再接続されないようにする。
 
+161. Phase5: export source testからWebGPU readback fixtureを削除する
+`sharedRendererExportFrameSource.test.ts` から `readPresentedFrameRgbaBytes` fixtureを削除し、
+export sourceテスト上もpresented shared-frame handoff不在時はblocked、handoffありならpayload直渡しという語彙に揃える。
+WebGPU readbackはexport sourceのテスト語彙としても復活させない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
