@@ -48,6 +48,7 @@ fn scene_media() -> Vec<SceneMediaReference> {
             width: 200,
             height: 100,
             source_rate: None,
+            active_layer_ids: Vec::new(),
         },
         SceneMediaReference {
             id: "video-1".to_string(),
@@ -56,6 +57,7 @@ fn scene_media() -> Vec<SceneMediaReference> {
             width: 1280,
             height: 720,
             source_rate: None,
+            active_layer_ids: Vec::new(),
         },
     ]
 }

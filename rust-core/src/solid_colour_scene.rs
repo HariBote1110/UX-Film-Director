@@ -18,6 +18,8 @@ pub struct SceneMediaReference {
     pub height: u32,
     #[serde(default)]
     pub source_rate: Option<Fps>,
+    #[serde(default)]
+    pub active_layer_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

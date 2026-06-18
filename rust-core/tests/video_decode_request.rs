@@ -1,7 +1,7 @@
 use uxfd_rust_core::{
-    build_video_frame_decode_requests, ColourPipeline, DecodedVideoFrameFormat,
-    EvaluatedClip, Fps, MediaKind, SamplingMode, SceneMediaReference, SceneSnapshot,
-    VideoDecodeColourContract, Transform,
+    build_video_frame_decode_requests, ColourPipeline, DecodedVideoFrameFormat, EvaluatedClip, Fps,
+    MediaKind, SamplingMode, SceneMediaReference, SceneSnapshot, Transform,
+    VideoDecodeColourContract,
 };
 
 fn video_snapshot() -> SceneSnapshot {
@@ -59,6 +59,7 @@ fn scene_media() -> Vec<SceneMediaReference> {
             width: 320,
             height: 180,
             source_rate: None,
+            active_layer_ids: Vec::new(),
         },
         SceneMediaReference {
             id: "video-front".to_string(),
@@ -70,6 +71,7 @@ fn scene_media() -> Vec<SceneMediaReference> {
                 numerator: 60,
                 denominator: 1,
             }),
+            active_layer_ids: Vec::new(),
         },
         SceneMediaReference {
             id: "video-back".to_string(),
@@ -81,6 +83,7 @@ fn scene_media() -> Vec<SceneMediaReference> {
                 numerator: 30,
                 denominator: 1,
             }),
+            active_layer_ids: Vec::new(),
         },
     ]
 }
@@ -105,7 +108,10 @@ fn rust_core_builds_frame_decode_requests_for_video_clips_in_z_order() {
     );
     assert_eq!(request_set.requests[0].width, 1280);
     assert_eq!(request_set.requests[0].height, 720);
-    assert_eq!(request_set.requests[0].format, DecodedVideoFrameFormat::Rgba8Srgb);
+    assert_eq!(
+        request_set.requests[0].format,
+        DecodedVideoFrameFormat::Rgba8Srgb
+    );
     assert_eq!(
         request_set.requests[0].colour,
         VideoDecodeColourContract::Rec709SrgbFullRange

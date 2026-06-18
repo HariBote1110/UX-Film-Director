@@ -58,6 +58,7 @@ export interface RustSceneMediaReference {
   width: number;
   height: number;
   source_rate?: RustFrameRate;
+  active_layer_ids?: string[];
 }
 
 export type RustSceneSnapshotBuildIssueCode =
@@ -322,7 +323,7 @@ const mediaReferenceForObject = (
     };
   }
 
-  return {
+  const reference: RustSceneMediaReference = {
     id: object.id,
     kind: mediaKindForObject(object),
     source: mediaSourceForObject(object),
@@ -330,7 +331,17 @@ const mediaReferenceForObject = (
     height: object.height,
     ...(object.type === 'video' ? { source_rate: fpsToFrameRate(projectFps) } : {}),
   };
+  if (object.type === 'psd') {
+    reference.active_layer_ids = activeLayerIdsForPsd(object);
+  }
+  return reference;
 };
+
+const activeLayerIdsForPsd = (object: PsdObject): string[] =>
+  Object.entries(object.activeLayerIds ?? {})
+    .filter(([, active]) => active)
+    .map(([layerId]) => layerId)
+    .sort((left, right) => left.localeCompare(right));
 
 const mediaSourceForObject = (object: SupportedMediaObject): string =>
   object.filePath || object.src || '';
@@ -525,7 +536,7 @@ const validateMediaReferences = (
       addIssue(issues, 'schemaMismatch', path, 'media reference must be a JSON object.');
       return;
     }
-    validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height', 'source_rate'], issues);
+    validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height', 'source_rate', 'active_layer_ids'], issues);
     validateString(reference.id, `${path}.id`, issues);
     validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'Psd'], issues);
     validateString(reference.source, `${path}.source`, issues);
@@ -533,6 +544,9 @@ const validateMediaReferences = (
     validatePositiveInteger(reference.height, `${path}.height`, issues);
     if (reference.source_rate !== undefined) {
       validateFrameRate(reference.source_rate, `${path}.source_rate`, issues);
+    }
+    if (reference.active_layer_ids !== undefined) {
+      validateStringArray(reference.active_layer_ids, `${path}.active_layer_ids`, issues);
     }
     if (typeof reference.id === 'string' && reference.id.trim() !== '') {
       if (mediaIds.has(reference.id)) {
@@ -563,6 +577,18 @@ const validateMediaReferences = (
       addIssue(issues, 'mediaMismatch', `media[${index}].id`, `Media reference '${mediaId}' is not used by any clip.`);
     }
   });
+};
+
+const validateStringArray = (
+  value: unknown,
+  path: string,
+  issues: RustSceneSnapshotBoundaryIssue[]
+) => {
+  if (!Array.isArray(value)) {
+    addIssue(issues, 'schemaMismatch', path, 'Expected an array of strings.');
+    return;
+  }
+  value.forEach((item, index) => validateString(item, `${path}[${index}]`, issues));
 };
 
 const validateFrameRate = (

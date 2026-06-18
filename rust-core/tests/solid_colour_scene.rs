@@ -49,6 +49,7 @@ fn solid_colour_media(source: &str) -> Vec<SceneMediaReference> {
             width: 640,
             height: 360,
             source_rate: None,
+            active_layer_ids: Vec::new(),
         },
         SceneMediaReference {
             id: "shape-1".to_string(),
@@ -57,6 +58,7 @@ fn solid_colour_media(source: &str) -> Vec<SceneMediaReference> {
             width: 200,
             height: 100,
             source_rate: None,
+            active_layer_ids: Vec::new(),
         },
     ]
 }
