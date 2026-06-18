@@ -1,5 +1,3 @@
-import { destroyVideoFrameTextureState } from './videoElementForPixi';
-
 export interface ShouldSkipPixiVideoForSharedRendererInput {
   objectId: string;
   objectType: string;
@@ -10,13 +8,11 @@ export interface ShouldSkipPixiVideoForSharedRendererInput {
 
 export interface ResolvePixiVideoRenderPathInput extends ShouldSkipPixiVideoForSharedRendererInput {
   hasExportFrameOverride?: boolean;
-  allowLegacyPixiVideo?: boolean;
 }
 
 export type PixiVideoRenderPath =
   | 'sharedRendererOnly'
-  | 'exportFrameOverride'
-  | 'pixiVideoElement';
+  | 'exportFrameOverride';
 
 export const shouldSkipPixiVideoForSharedRenderer = ({
   objectType,
@@ -38,83 +34,5 @@ export const resolvePixiVideoRenderPath = (
   if (input.objectType === 'video' && input.isExporting && input.hasExportFrameOverride === true) {
     return 'exportFrameOverride';
   }
-  if (input.objectType === 'video' && input.allowLegacyPixiVideo === true) {
-    return 'pixiVideoElement';
-  }
   return 'sharedRendererOnly';
 };
-
-interface PixiVideoCutoverChild {
-  destroy: (...args: any[]) => void;
-}
-
-interface PixiVideoCutoverContainer {
-  removeChildren: () => PixiVideoCutoverChild[];
-}
-
-interface PixiVideoElementForCutover {
-  pause: () => void;
-  src: string;
-  load: () => void;
-}
-
-export interface ClearPixiVideoForSharedRendererInput {
-  objectId: string;
-  container: PixiVideoCutoverContainer;
-  videoElements: {
-    get: (key: string) => unknown;
-    delete: (key: string) => boolean;
-  };
-  videoFrameTextures: {
-    get: (key: string) => unknown;
-    delete: (key: string) => boolean;
-  };
-}
-
-export const clearPixiVideoForSharedRenderer = ({
-  objectId,
-  container,
-  videoElements,
-  videoFrameTextures,
-}: ClearPixiVideoForSharedRendererInput): void => {
-  const children = container.removeChildren();
-  children.forEach((child) => {
-    child.destroy({ children: true, texture: false, context: true });
-  });
-
-  const video = videoElements.get(objectId);
-  if (isVideoElementForCutover(video)) {
-    video.pause();
-    video.src = '';
-    video.load();
-    videoElements.delete(objectId);
-  }
-
-  const frameTexture = videoFrameTextures.get(objectId);
-  if (isVideoFrameTextureForCutover(frameTexture)) {
-    destroyVideoFrameTextureState(frameTexture, isVideoElementForCutover(video) ? video : null);
-    videoFrameTextures.delete(objectId);
-  }
-};
-
-const isVideoElementForCutover = (value: unknown): value is PixiVideoElementForCutover =>
-  typeof value === 'object'
-  && value !== null
-  && typeof (value as PixiVideoElementForCutover).pause === 'function'
-  && typeof (value as PixiVideoElementForCutover).load === 'function'
-  && typeof (value as PixiVideoElementForCutover).src === 'string';
-
-const isVideoFrameTextureForCutover = (value: unknown): value is Parameters<typeof destroyVideoFrameTextureState>[0] =>
-  typeof value === 'object'
-  && value !== null
-  && (
-    (
-      (value as { uploadMode?: unknown }).uploadMode === 'canvas'
-      && typeof (value as { texture?: { destroy?: unknown } }).texture?.destroy === 'function'
-    )
-    || (
-      (value as { uploadMode?: unknown }).uploadMode === 'video-source'
-      && typeof (value as { texture?: { destroy?: unknown } }).texture?.destroy === 'function'
-      && typeof (value as { videoSource?: { destroy?: unknown } }).videoSource?.destroy === 'function'
-    )
-  );
