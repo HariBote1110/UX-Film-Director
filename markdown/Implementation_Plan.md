@@ -860,6 +860,11 @@ Pixi video分岐の経路選択を `resolvePixiVideoRenderPath` に分離し、`
 export frame overrideやPixi `HTMLVideoElement` / `VideoSource` pathより先に `sharedRendererOnly` を返す。
 これによりRust video-only previewでPixi video fallbackが見えているだけの状態を避ける。
 
+160. Phase5: export必須presenter controlからWebGPU readbackを非公開にする
+`requireSharedRendererOutput=true` で開始した presenter control は `readPresentedFrameRgbaBytes` を公開せず、
+native `takePresentedFrameSharedFrame` handoffだけをexport向けの共有frame取得口にする。
+WebGPU readbackはpreview/parity診断用controlに限定し、export経路へ再接続されないようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
