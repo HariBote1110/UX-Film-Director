@@ -962,6 +962,12 @@ Rust/shared renderer必須時はHTMLVideoElementのreadyStateを参照せず、
 診断、Pixi content routing、presenter orchestrationの動画cutover条件を同一化し、
 通常cutover時もRust/shared renderer側の動画所有を要求する。
 
+180. Phase5: Viewportからlegacy Pixi動画リソース所有を削除する
+`Viewport` が `videoElementsRef` / `videoFrameTexturesRef` を所有せず、
+`updatePixiContent` へ `videoElements` / `videoFrameTextures` を渡さない構造へ変更する。
+legacy Pixi動画リソースは `updatePixiContent` の任意互換入力としてのみ残し、
+通常Viewport経路の動画所有はRust/shared rendererへ寄せ切る。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

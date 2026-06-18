@@ -285,3 +285,10 @@
 - Green: `Viewport` のpresenter起動引数を更新した。
 - 検証: `npm test -- viewportRustVideoOnlyBoundary sharedRendererViewportPresenterOrchestration` は17件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-159a`。
+
+## 2026-06-19
+- Phase5のViewport通常経路から、legacy Pixi動画用の `HTMLVideoElement` MapとVideoFrameTexture Mapの所有を削除した。
+- Red: `viewportRustVideoOnlyBoundary` へ、Viewportが `videoElementsRef` / `videoFrameTexturesRef` / Pixi動画upload helper / `videoElements:` / `videoFrameTextures:` を含まない契約を追加した。
+- Green: `Viewport` から該当Ref、cleanup、`updatePixiContent` へのMap受け渡しを削除し、`pixiRenderHelper` のlegacy動画Map入力を任意化した。
+- 検証: `npm test -- viewportRustVideoOnlyBoundary pixiVideoCutover videoElementForPixi` は29件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-160a`。
