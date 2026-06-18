@@ -327,3 +327,10 @@
 - Green: `buildSharedRendererVideoMediaReadiness` から `videoElements` と `requireSharedRendererVideo` を削除し、動画mediaを常に `rustRendererRequired` として数えるようにした。
 - 検証: `npm test -- sharedRendererVideoMediaReadiness viewportRustVideoOnlyBoundary` は12件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-165a`。
+
+## 2026-06-19
+- Phase5のexport frame planning整理として、`projectExportFrameCanvas` からlegacy browser video pause helperとHTMLVideoElement pause型を削除した。
+- Red: `projectExportFrameCanvas` へ、`pauseLegacyBrowserVideosForExport` / `ProjectExportBrowserVideoElement` / `Pick<HTMLVideoElement, 'pause'>` を含まない契約を追加した。
+- Green: 該当helperと型を削除した。
+- 検証: `npm test -- projectExportFrameCanvas useProjectExportBoundary` は31件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-166a`。

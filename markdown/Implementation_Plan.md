@@ -996,6 +996,12 @@ production utilitiesから旧ブラウザ動画providerの足場を除去する�
 `HTMLVideoElement` readyState判定、`requireSharedRendererVideo` 分岐を削除する。
 Viewportはmedia一覧だけを渡し、動画mediaは常に `rustRendererRequired` として診断する。
 
+186. Phase5: export frame canvasのbrowser video pause helperを削除する
+`projectExportFrameCanvas` から `ProjectExportBrowserVideoElement` と
+`pauseLegacyBrowserVideosForExport` を削除する。
+production export planning utilityがHTMLVideoElement pause型を公開しないようにし、
+動画exportの副作用管理をRust/shared renderer側へ寄せる。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
