@@ -16,10 +16,11 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     expect(code).toContain("import('../utils/videoExportPipeline')");
   });
 
-  it('requests encode-only Rust frame sources for the Rust backend encoder path', () => {
+  it('resolves Rust frame source context outside the hook body', () => {
     const code = source();
 
-    expect(code).toContain("preferEncodeOnly: exportEncodePlan.engine === 'rustBackendVideoEncoder'");
+    expect(code).toContain('resolveProjectExportRustFrameSourceContext');
+    expect(code).toContain('encodeEngine: exportEncodePlan.engine');
   });
 
   it('passes the native/Rust presented-frame handoff into Rust export frame sources', () => {

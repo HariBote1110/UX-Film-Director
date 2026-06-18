@@ -14,6 +14,7 @@ import {
   resolveProjectExportFrameSourcePolicyForEncode,
   resolveProjectExportFrameRuntimePlan,
   resolveProjectExportFrameCanvas,
+  resolveProjectExportRustFrameSourceContext,
   type ProjectExportRustFrameSourceContext,
   type ProjectExportRustFrameSource,
 } from '../utils/projectExportFrameCanvas';
@@ -82,12 +83,12 @@ export const useProjectExport = (
         encodeEngine: exportEncodePlan.engine,
       });
       const initialFrameSourcePlan = buildProjectExportFrameSourcePlan({
-        rustFrameSource: getRustExportFrameSource?.({
+        rustFrameSource: getRustExportFrameSource?.(resolveProjectExportRustFrameSourceContext({
           objects: exportObjects,
           time: 0,
-          preferEncodeOnly: exportEncodePlan.engine === 'rustBackendVideoEncoder',
+          encodeEngine: exportEncodePlan.engine,
           presentedFrameSharedFrameTaker: createSharedVideoFramePresentedFrameTaker() ?? undefined,
-        }) ?? null,
+        })) ?? null,
         rustFrameSourcePolicy: frameSourcePolicy.rustFrameSourcePolicy,
         rustFrameSourceBlockedFallback: frameSourcePolicy.rustFrameSourceBlockedFallback,
         getExportCanvas,

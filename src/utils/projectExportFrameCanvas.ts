@@ -125,6 +125,13 @@ export interface ProjectExportFrameSourcePolicyForEncode {
   rustFrameSourceBlockedFallback: ProjectExportRustFrameSourceBlockedFallback;
 }
 
+export interface ResolveProjectExportRustFrameSourceContextInput {
+  objects: TimelineObject[];
+  time: number;
+  encodeEngine: ProjectExportEncodeEngine;
+  presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
+}
+
 export type ProjectExportBrowserVideoElement = Pick<HTMLVideoElement, 'pause'>;
 
 export const resolveProjectExportFrameCanvas = ({
@@ -239,6 +246,18 @@ export const resolveProjectExportFrameSourcePolicyForEncode = ({
     rustFrameSourceBlockedFallback: requiresRustFrameSource ? 'failExport' : 'legacyCanvas',
   };
 };
+
+export const resolveProjectExportRustFrameSourceContext = ({
+  objects,
+  time,
+  encodeEngine,
+  presentedFrameSharedFrameTaker,
+}: ResolveProjectExportRustFrameSourceContextInput): ProjectExportRustFrameSourceContext => ({
+  objects,
+  time,
+  preferEncodeOnly: encodeEngine === 'rustBackendVideoEncoder' || objects.some((object) => object.type === 'video'),
+  presentedFrameSharedFrameTaker,
+});
 
 export const resolveProjectExportFrameRuntimePlan = ({
   frameSourcePlan,
