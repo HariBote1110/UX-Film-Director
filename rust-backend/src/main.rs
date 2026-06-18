@@ -63,6 +63,7 @@ struct EncodeSession {
     stdin: ChildStdin,
     session_id: String,
     file_path: String,
+    audio_path: Option<String>,
     width: u32,
     height: u32,
     fps: u32,
@@ -176,6 +177,8 @@ struct ExportWriteFrameParams {
 struct EncodeStartParams {
     session_id: String,
     file_path: String,
+    #[serde(default)]
+    audio_path: Option<String>,
     width: u32,
     height: u32,
     fps: u32,
@@ -275,6 +278,12 @@ fn handle_encode_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
     if parsed.file_path.trim().is_empty() {
         return response_error(id, -32602, "filePath must not be empty");
     }
+    let audio_path = parsed
+        .audio_path
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
     if parsed.width == 0 || parsed.height == 0 {
         return response_error(id, -32602, "width and height must be greater than zero");
     }
@@ -307,6 +316,7 @@ fn handle_encode_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
             stdin,
             session_id: parsed.session_id.clone(),
             file_path: parsed.file_path.clone(),
+            audio_path: audio_path.clone(),
             width: parsed.width,
             height: parsed.height,
             fps: parsed.fps,
@@ -327,6 +337,7 @@ fn handle_encode_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
             "height": parsed.height,
             "fps": parsed.fps,
             "pixelFormat": "rgba8Srgb",
+            "audioPath": audio_path,
         })),
         error: None,
     }
@@ -426,6 +437,7 @@ fn handle_encode_finish(id: u64, params: Value, state: &mut BackendState) -> Rpc
             "finished": true,
             "sessionId": session.session_id,
             "filePath": session.file_path,
+            "audioPath": session.audio_path,
             "fps": session.fps,
             "frameCount": session.frame_count,
         })),
@@ -527,6 +539,11 @@ fn write_encode_shared_frame(
 
 fn start_encode_ffmpeg(parsed: &EncodeStartParams) -> Result<(Child, ChildStdin), String> {
     let ffmpeg_path = std::env::var("UXFD_FFMPEG_BIN").unwrap_or_else(|_| "ffmpeg".to_string());
+    let audio_path = parsed
+        .audio_path
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty());
     let mut cmd = Command::new(&ffmpeg_path);
     cmd.arg("-hide_banner")
         .arg("-loglevel")
@@ -541,15 +558,35 @@ fn start_encode_ffmpeg(parsed: &EncodeStartParams) -> Result<(Child, ChildStdin)
         .arg("-r")
         .arg(parsed.fps.to_string())
         .arg("-i")
-        .arg("-")
-        .arg("-an")
+        .arg("-");
+
+    if let Some(audio_path) = audio_path {
+        cmd.arg("-i").arg(audio_path);
+    }
+
+    cmd
         .arg("-c:v")
         .arg(get_video_codec())
         .arg("-b:v")
         .arg("8000k")
         .arg("-pix_fmt")
-        .arg("yuv420p")
-        .arg(&parsed.file_path)
+        .arg("yuv420p");
+
+    if audio_path.is_some() {
+        cmd.arg("-c:a")
+            .arg("aac")
+            .arg("-b:a")
+            .arg("192k")
+            .arg("-map")
+            .arg("0:v:0")
+            .arg("-map")
+            .arg("1:a:0")
+            .arg("-shortest");
+    } else {
+        cmd.arg("-an");
+    }
+
+    cmd.arg(&parsed.file_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
