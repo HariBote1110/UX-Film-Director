@@ -1,7 +1,18 @@
 import type { EditorMode, LayerState, ProjectSettings } from '../types';
 import type {
+  ProjectExportRustEncodeFrameRequest,
+  ProjectExportRustFrameRequest,
   ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
+import {
+  extractImageBitmapRgbaBytes,
+  type RustBackendVideoEncodeBitmapToRgbaBytes,
+} from './rustBackendVideoEncodeExport';
+import {
+  createRustBackendVideoEncodeSharedFrameWriter,
+  type CreateRustBackendVideoEncodeSharedFrameWriterInput,
+  type RustBackendVideoEncodeSharedFrameWriter,
+} from './rustBackendVideoEncodeSharedFrameWriter';
 import {
   buildSharedRendererExportSession,
 } from './sharedRendererExportSession';
@@ -39,6 +50,12 @@ export type SharedRendererExportVideoDecodeJobStopper = (
   job: SharedRendererViewportVideoDecodeJob
 ) => Promise<void>;
 
+export type SharedRendererExportEncodeFrameWriterFactory = (
+  input: CreateRustBackendVideoEncodeSharedFrameWriterInput
+) => Promise<RustBackendVideoEncodeSharedFrameWriter>;
+
+export type SharedRendererExportEncodeFrameRgbaExtractor = RustBackendVideoEncodeBitmapToRgbaBytes;
+
 export interface CreateSharedRendererExportFrameSourceInput {
   canvas: HTMLCanvasElement;
   projectSettings: ProjectSettings;
@@ -52,6 +69,8 @@ export interface CreateSharedRendererExportFrameSourceInput {
   startViewportPresenter?: SharedRendererExportViewportPresenterStarter;
   createFrameBitmap?: SharedRendererExportFrameBitmapFactory;
   stopVideoDecodeJob?: SharedRendererExportVideoDecodeJobStopper;
+  createEncodeFrameWriter?: SharedRendererExportEncodeFrameWriterFactory;
+  extractEncodeFrameRgbaBytes?: SharedRendererExportEncodeFrameRgbaExtractor;
 }
 
 export class SharedRendererExportFrameSourceBlockedError extends Error {
@@ -92,112 +111,167 @@ export const createSharedRendererExportFrameSource = ({
   startViewportPresenter = startSharedRendererViewportPresenter,
   createFrameBitmap = defaultCreateFrameBitmap,
   stopVideoDecodeJob = defaultStopVideoDecodeJob,
+  createEncodeFrameWriter = createRustBackendVideoEncodeSharedFrameWriter,
+  extractEncodeFrameRgbaBytes = extractImageBitmapRgbaBytes,
 }: CreateSharedRendererExportFrameSourceInput): ProjectExportRustFrameSource => {
   let activeVideoDecodeJobs: SharedRendererViewportVideoDecodeJob[] = [];
+  let activeEncodeFrameWriter: RustBackendVideoEncodeSharedFrameWriter | null = null;
+  let activeEncodeSessionId: string | null = null;
   let requestId = 0;
   let closed = false;
 
-  return {
-    renderFrame: async (request) => {
-      if (closed) {
-        throw new Error('Shared renderer export frame source has already been closed.');
-      }
+  const renderFrameBitmap = async (request: ProjectExportRustFrameRequest): Promise<ImageBitmap> => {
+    if (closed) {
+      throw new Error('Shared renderer export frame source has already been closed.');
+    }
 
-      const session = buildExportSession({
-        enabled: true,
-        projectSettings,
-        layers,
-        objects: [...request.objects],
-        time: request.time,
-        editorMode,
-        webGpuAvailable,
-        fallbackAdapter,
+    const session = buildExportSession({
+      enabled: true,
+      projectSettings,
+      layers,
+      objects: [...request.objects],
+      time: request.time,
+      editorMode,
+      webGpuAvailable,
+      fallbackAdapter,
+    });
+    const surfaceGate = session.surfaceGate;
+    if (!surfaceGate.ok) {
+      writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+        status: 'blocked',
+        frameIndex: request.frameIndex,
+        reason: surfaceGate.reason,
       });
-      const surfaceGate = session.surfaceGate;
-      if (!surfaceGate.ok) {
+      throw new SharedRendererExportFrameSourceBlockedError(
+        surfaceGate.detail,
+        surfaceGate.reason,
+        request.frameIndex
+      );
+    }
+    writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+      status: 'ready',
+      frameIndex: request.frameIndex,
+    });
+
+    if (canvas.width !== surfaceGate.canvas.width) {
+      canvas.width = surfaceGate.canvas.width;
+    }
+    if (canvas.height !== surfaceGate.canvas.height) {
+      canvas.height = surfaceGate.canvas.height;
+    }
+
+    const presenterResult = await startViewportPresenter({
+      canvas,
+      session,
+      datasets,
+      diagnosticSwatchEnabled: false,
+      videoCutoverEnabled,
+      activeVideoDecodeJob: activeVideoDecodeJobs[0] ?? null,
+      activeVideoDecodeJobs,
+      requestId: (requestId += 1),
+      onVideoDecodeJobsResolved: (jobs) => {
+        activeVideoDecodeJobs = jobs;
+      },
+      onVideoDecodeJobResolved: (job) => {
+        activeVideoDecodeJobs = job ? [job] : [];
+      },
+    });
+    activeVideoDecodeJobs = presenterResult.activeVideoDecodeJobs;
+
+    try {
+      const videoUploadBlock = resolveExportVideoUploadBlock(presenterResult);
+      if (videoUploadBlock) {
         writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
           status: 'blocked',
           frameIndex: request.frameIndex,
-          reason: surfaceGate.reason,
+          reason: 'videoUploadFailed',
         });
         throw new SharedRendererExportFrameSourceBlockedError(
-          surfaceGate.detail,
-          surfaceGate.reason,
+          videoUploadBlock,
+          'videoUploadFailed',
           request.frameIndex
         );
       }
-      writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
-        status: 'ready',
-        frameIndex: request.frameIndex,
-      });
-
-      if (canvas.width !== surfaceGate.canvas.width) {
-        canvas.width = surfaceGate.canvas.width;
+      const videoOwnershipBlock = resolveExportVideoOwnershipBlock(presenterResult);
+      if (videoOwnershipBlock) {
+        writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+          status: 'blocked',
+          frameIndex: request.frameIndex,
+          reason: 'videoOwnershipUnavailable',
+        });
+        throw new SharedRendererExportFrameSourceBlockedError(
+          videoOwnershipBlock,
+          'videoOwnershipUnavailable',
+          request.frameIndex
+        );
       }
-      if (canvas.height !== surfaceGate.canvas.height) {
-        canvas.height = surfaceGate.canvas.height;
-      }
 
-      const presenterResult = await startViewportPresenter({
+      return await createFrameBitmap(
         canvas,
-        session,
-        datasets,
-        diagnosticSwatchEnabled: false,
-        videoCutoverEnabled,
-        activeVideoDecodeJob: activeVideoDecodeJobs[0] ?? null,
-        activeVideoDecodeJobs,
-        requestId: (requestId += 1),
-        onVideoDecodeJobsResolved: (jobs) => {
-          activeVideoDecodeJobs = jobs;
-        },
-        onVideoDecodeJobResolved: (job) => {
-          activeVideoDecodeJobs = job ? [job] : [];
-        },
-      });
-      activeVideoDecodeJobs = presenterResult.activeVideoDecodeJobs;
+        0,
+        0,
+        request.width,
+        request.height
+      );
+    } finally {
+      presenterResult.control.dispose();
+    }
+  };
 
+  const closeEncodeFrameWriter = async (): Promise<void> => {
+    if (!activeEncodeFrameWriter) return;
+    const writer = activeEncodeFrameWriter;
+    activeEncodeFrameWriter = null;
+    activeEncodeSessionId = null;
+    await writer.close();
+  };
+
+  const getEncodeFrameWriter = async (
+    request: ProjectExportRustEncodeFrameRequest
+  ): Promise<RustBackendVideoEncodeSharedFrameWriter> => {
+    if (activeEncodeFrameWriter && activeEncodeSessionId === request.encodeSessionId) {
+      return activeEncodeFrameWriter;
+    }
+    await closeEncodeFrameWriter();
+    activeEncodeSessionId = request.encodeSessionId;
+    activeEncodeFrameWriter = await createEncodeFrameWriter({
+      sessionId: request.encodeSessionId,
+      memoryId: buildEncodeSourceMemoryId(request.encodeSessionId),
+      width: request.width,
+      height: request.height,
+      fps: projectSettings.fps,
+    });
+    return activeEncodeFrameWriter;
+  };
+
+  return {
+    renderFrame: renderFrameBitmap,
+    renderEncodeFrame: async (request) => {
+      const bitmap = await renderFrameBitmap(request);
       try {
-        const videoUploadBlock = resolveExportVideoUploadBlock(presenterResult);
-        if (videoUploadBlock) {
-          writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
-            status: 'blocked',
-            frameIndex: request.frameIndex,
-            reason: 'videoUploadFailed',
-          });
-          throw new SharedRendererExportFrameSourceBlockedError(
-            videoUploadBlock,
-            'videoUploadFailed',
-            request.frameIndex
-          );
-        }
-        const videoOwnershipBlock = resolveExportVideoOwnershipBlock(presenterResult);
-        if (videoOwnershipBlock) {
-          writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
-            status: 'blocked',
-            frameIndex: request.frameIndex,
-            reason: 'videoOwnershipUnavailable',
-          });
-          throw new SharedRendererExportFrameSourceBlockedError(
-            videoOwnershipBlock,
-            'videoOwnershipUnavailable',
-            request.frameIndex
-          );
-        }
-
-        return await createFrameBitmap(
-          canvas,
-          0,
-          0,
+        const rgbaBytes = await extractEncodeFrameRgbaBytes(
+          bitmap,
           request.width,
           request.height
         );
+        const writer = await getEncodeFrameWriter(request);
+        const sharedFramePayload = await writer.writeFrame({
+          frameIndex: request.frameIndex,
+          timestampUs: request.timestampUs,
+          rgbaBytes,
+        });
+        return {
+          timestamp: request.timestampUs,
+          sharedFramePayload,
+        };
       } finally {
-        presenterResult.control.dispose();
+        bitmap.close();
       }
     },
     close: async () => {
       if (closed) return;
       closed = true;
+      await closeEncodeFrameWriter();
       const jobsToStop = activeVideoDecodeJobs;
       activeVideoDecodeJobs = [];
       await Promise.all(jobsToStop.map(stopVideoDecodeJob));
@@ -217,6 +291,11 @@ const defaultStopVideoDecodeJob: SharedRendererExportVideoDecodeJobStopper = asy
   await stopRustBackendVideoDecode({
     jobId: job.jobId,
   });
+};
+
+const buildEncodeSourceMemoryId = (encodeSessionId: string): string => {
+  const safeSessionId = encodeSessionId.replace(/[^A-Za-z0-9_-]/g, '-');
+  return `/uxfd-export-source-${safeSessionId}`;
 };
 
 const resolveExportVideoUploadBlock = (
