@@ -9,7 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use uxfd_shared_memory_spike::PosixSharedRing;
 
 #[test]
-fn encode_shared_frame_rpc_is_reserved_and_fails_loud_without_legacy_base64_fallback() {
+fn encode_shared_frame_session_tracks_descriptor_without_legacy_base64_fallback() {
     let mut backend = BackendProcess::start();
 
     let start = backend.request(json!({
@@ -30,11 +30,90 @@ fn encode_shared_frame_rpc_is_reserved_and_fails_loud_without_legacy_base64_fall
             }
         }
     }));
-    assert_eq!(start["ok"], false);
-    assert_eq!(
-        start["error"]["message"],
-        "Rust shared-frame video encoder backend is not connected yet."
-    );
+    assert_eq!(start["ok"], true, "{start}");
+    assert_eq!(start["result"]["sessionId"], "encode-1");
+    assert_eq!(start["result"]["filePath"], "/tmp/output.mp4");
+    assert_eq!(start["result"]["width"], 1920);
+    assert_eq!(start["result"]["height"], 1080);
+    assert_eq!(start["result"]["fps"], 60);
+    assert_no_frame_bytes_recursive(&start["result"]);
+
+    let write_frame = backend.request(json!({
+        "id": 2,
+        "method": "encode.writeFrame",
+        "params": {
+            "sessionId": "encode-1",
+            "frameIndex": 42,
+            "timestampUs": 700000,
+            "slotCount": 2,
+            "frame": {
+                "descriptor": {
+                    "memoryId": "/uxfd-export-frame-ring",
+                    "slotIndex": 1,
+                    "generation": 3,
+                    "byteOffset": 8294400,
+                    "byteLen": 8294400,
+                    "width": 1920,
+                    "height": 1080,
+                    "strideBytes": 7680,
+                    "format": "rgba8Srgb",
+                    "colour": {
+                        "primaries": "bt709",
+                        "transfer": "srgb",
+                        "matrix": "rgb",
+                        "range": "full"
+                    }
+                },
+                "ptsFrame": 42
+            }
+        }
+    }));
+    assert_eq!(write_frame["ok"], true, "{write_frame}");
+    assert_eq!(write_frame["result"]["written"], true);
+    assert_eq!(write_frame["result"]["sessionId"], "encode-1");
+    assert_eq!(write_frame["result"]["frameIndex"], 42);
+    assert_eq!(write_frame["result"]["slotCount"], 2);
+    assert_eq!(write_frame["result"]["frameCount"], 1);
+    assert_no_frame_bytes_recursive(&write_frame["result"]);
+
+    let finish = backend.request(json!({
+        "id": 3,
+        "method": "encode.finish",
+        "params": {
+            "sessionId": "encode-1"
+        }
+    }));
+    assert_eq!(finish["ok"], true, "{finish}");
+    assert_eq!(finish["result"]["finished"], true);
+    assert_eq!(finish["result"]["sessionId"], "encode-1");
+    assert_eq!(finish["result"]["filePath"], "/tmp/output.mp4");
+    assert_eq!(finish["result"]["frameCount"], 1);
+    assert_no_frame_bytes_recursive(&finish["result"]);
+}
+
+#[test]
+fn encode_write_frame_requires_slot_count_for_shared_memory_attach() {
+    let mut backend = BackendProcess::start();
+
+    let start = backend.request(json!({
+        "id": 1,
+        "method": "encode.start",
+        "params": {
+            "sessionId": "encode-1",
+            "filePath": "/tmp/output.mp4",
+            "width": 1920,
+            "height": 1080,
+            "fps": 60,
+            "pixelFormat": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(start["ok"], true, "{start}");
 
     let write_frame = backend.request(json!({
         "id": 2,
@@ -48,8 +127,8 @@ fn encode_shared_frame_rpc_is_reserved_and_fails_loud_without_legacy_base64_fall
                     "memoryId": "/uxfd-export-frame-ring",
                     "slotIndex": 1,
                     "generation": 3,
-                    "byteOffset": 4096,
-                    "byteLen": 8192,
+                    "byteOffset": 8294400,
+                    "byteLen": 8294400,
                     "width": 1920,
                     "height": 1080,
                     "strideBytes": 7680,
@@ -66,23 +145,77 @@ fn encode_shared_frame_rpc_is_reserved_and_fails_loud_without_legacy_base64_fall
         }
     }));
     assert_eq!(write_frame["ok"], false);
-    assert_eq!(
-        write_frame["error"]["message"],
-        "Rust shared-frame video encoder backend is not connected yet."
+    assert!(
+        write_frame["error"]["message"]
+            .as_str()
+            .expect("error message")
+            .contains("slot_count")
+            || write_frame["error"]["message"]
+                .as_str()
+                .expect("error message")
+                .contains("slotCount"),
+        "{write_frame}"
     );
-    assert!(!write_frame.to_string().contains("frameBase64"));
+}
 
-    let finish = backend.request(json!({
-        "id": 3,
-        "method": "encode.finish",
+#[test]
+fn encode_write_frame_rejects_descriptor_that_does_not_match_session() {
+    let mut backend = BackendProcess::start();
+
+    let start = backend.request(json!({
+        "id": 1,
+        "method": "encode.start",
         "params": {
-            "sessionId": "encode-1"
+            "sessionId": "encode-1",
+            "filePath": "/tmp/output.mp4",
+            "width": 1920,
+            "height": 1080,
+            "fps": 60,
+            "pixelFormat": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
         }
     }));
-    assert_eq!(finish["ok"], false);
+    assert_eq!(start["ok"], true, "{start}");
+
+    let write_frame = backend.request(json!({
+        "id": 2,
+        "method": "encode.writeFrame",
+        "params": {
+            "sessionId": "encode-1",
+            "frameIndex": 42,
+            "timestampUs": 700000,
+            "slotCount": 2,
+            "frame": {
+                "descriptor": {
+                    "memoryId": "/uxfd-export-frame-ring",
+                    "slotIndex": 1,
+                    "generation": 3,
+                    "byteOffset": 0,
+                    "byteLen": 512,
+                    "width": 2,
+                    "height": 2,
+                    "strideBytes": 256,
+                    "format": "rgba8Srgb",
+                    "colour": {
+                        "primaries": "bt709",
+                        "transfer": "srgb",
+                        "matrix": "rgb",
+                        "range": "full"
+                    }
+                },
+                "ptsFrame": 42
+            }
+        }
+    }));
+    assert_eq!(write_frame["ok"], false);
     assert_eq!(
-        finish["error"]["message"],
-        "Rust shared-frame video encoder backend is not connected yet."
+        write_frame["error"]["message"],
+        "Encode frame descriptor does not match active session"
     );
 }
 
