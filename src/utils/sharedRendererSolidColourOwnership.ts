@@ -11,7 +11,8 @@ export type SharedRendererSolidColourCutoverReason =
   | 'rustGeometryUnavailable'
   | 'noSolidColourObjects'
   | 'pixiOnlyObjectAboveSolidColour'
-  | 'rustSolidColourReady';
+  | 'rustSolidColourReady'
+  | 'nativeRenderFrameReady';
 
 export interface SharedRendererSolidColourOwnership {
   owner: SharedRendererSolidColourOwner;

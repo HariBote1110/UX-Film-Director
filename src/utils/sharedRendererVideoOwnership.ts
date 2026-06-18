@@ -10,7 +10,8 @@ export type SharedRendererVideoCutoverReason =
   | 'noVideoDecodeRequests'
   | 'videoFrameUploadUnavailable'
   | 'pixiOnlyObjectAboveVideo'
-  | 'rustDecodedFrameUploadReady';
+  | 'rustDecodedFrameUploadReady'
+  | 'nativeRenderFrameReady';
 
 export interface SharedRendererVideoOwnership {
   owner: SharedRendererVideoOwner;

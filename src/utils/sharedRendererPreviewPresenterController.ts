@@ -315,7 +315,7 @@ export const startSharedRendererPreviewPresenter = async ({
     }
   }
 
-  const videoOwnership = buildSharedRendererVideoOwnership({
+  let videoOwnership: SharedRendererVideoOwnership = buildSharedRendererVideoOwnership({
     cutoverEnabled: sharedRendererVideoCutoverEnabled,
     hasVideoScene,
     videoDecodeRequestSource,
@@ -326,6 +326,13 @@ export const startSharedRendererPreviewPresenter = async ({
       ? new Set(videoCutoverStackSafety.safeVideoObjectIds)
       : undefined,
   });
+  if (nativeRenderFrameReady && hasVideoScene) {
+    videoOwnership = {
+      owner: 'sharedRenderer',
+      reason: 'nativeRenderFrameReady',
+      videoObjectIds: collectObjectIdsByMediaKind(session, 'Video'),
+    };
+  }
   const solidColourStackSafety = hasSolidColourScene
     ? buildSharedRendererSolidColourStackSafety({
       snapshot: session.surfaceGate.snapshot,
@@ -334,7 +341,7 @@ export const startSharedRendererPreviewPresenter = async ({
       sharedRendererVideoObjectIds: videoOwnership.videoObjectIds,
     })
     : null;
-  const solidColourOwnership = buildSharedRendererSolidColourOwnership({
+  let solidColourOwnership: SharedRendererSolidColourOwnership = buildSharedRendererSolidColourOwnership({
     cutoverEnabled: sharedRendererSolidColourCutoverEnabled,
     hasSolidColourScene,
     geometrySource: solidColourGeometrySource,
@@ -343,6 +350,13 @@ export const startSharedRendererPreviewPresenter = async ({
       ? new Set(solidColourStackSafety.safeSolidColourObjectIds)
       : undefined,
   });
+  if (nativeRenderFrameReady && hasSolidColourScene) {
+    solidColourOwnership = {
+      owner: 'sharedRenderer',
+      reason: 'nativeRenderFrameReady',
+      solidColourObjectIds: collectObjectIdsByMediaKind(session, 'SolidColour'),
+    };
+  }
 
   if (requireSharedRendererVideo && hasVideoScene && videoOwnership.owner !== 'sharedRenderer') {
     writeDiagnostics({
@@ -475,6 +489,19 @@ const collectSolidColourObjectIds = (session: SharedRendererPreviewSession): str
   const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
   return session.surfaceGate.snapshot.clips
     .filter((clip) => mediaKindById.get(clip.media_id) === 'SolidColour')
+    .sort((left, right) => left.z_index - right.z_index)
+    .map((clip) => clip.clip_id);
+};
+
+const collectObjectIdsByMediaKind = (
+  session: SharedRendererPreviewSession,
+  kind: 'Video' | 'SolidColour'
+): string[] => {
+  if (!session.surfaceGate.ok) return [];
+
+  const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
+  return session.surfaceGate.snapshot.clips
+    .filter((clip) => mediaKindById.get(clip.media_id) === kind)
     .sort((left, right) => left.z_index - right.z_index)
     .map((clip) => clip.clip_id);
 };

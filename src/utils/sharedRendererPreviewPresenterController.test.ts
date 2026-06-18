@@ -907,6 +907,7 @@ describe('startSharedRendererPreviewPresenter', () => {
       session: videoSession,
       datasets: [dataset],
       diagnosticSwatchEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
       sharedRendererVideoCutoverEnabled: true,
       sharedRendererNativeRenderFrameUpload: {
         descriptor: nativeRenderDescriptor,
@@ -964,6 +965,7 @@ describe('startSharedRendererPreviewPresenter', () => {
       session: solidShapeSession,
       datasets: [dataset],
       diagnosticSwatchEnabled: false,
+      rustSolidColourWasmEnabled: false,
       sharedRendererSolidColourCutoverEnabled: true,
       sharedRendererNativeRenderFrameUpload: {
         descriptor: nativeRenderDescriptor,
