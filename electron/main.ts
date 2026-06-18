@@ -7,6 +7,11 @@ import os from 'node:os'
 import { buildOrderedPerfHeavyVideoPaths } from '../src/perf/perfHeavyVideo';
 import { serialisePerfAgentPayload, type PerfHarnessAgentPayload } from '../src/perf/perfAgentPayload';
 import { PERFORMANCE_CSV_HEADER_LINE } from '../src/perf/performanceReport';
+import {
+  finishRustVideoEncodeViaBackend,
+  startRustVideoEncodeViaBackend,
+  writeRustVideoEncodeFrameViaBackend,
+} from './rustVideoEncodeBackendBridge';
 import { rustVideoEncodeIpcChannels } from './rustVideoEncodeIpc';
 
 // --- GPU Acceleration Flags ---
@@ -925,13 +930,15 @@ app.whenReady().then(() => {
     }
   });
 
-  const rustVideoEncodeUnavailable = async () => ({
-    success: false,
-    error: 'Rust shared-frame video encoder backend is not connected yet.',
-  });
-  ipcMain.handle(rustVideoEncodeIpcChannels.start, rustVideoEncodeUnavailable);
-  ipcMain.handle(rustVideoEncodeIpcChannels.writeFrame, rustVideoEncodeUnavailable);
-  ipcMain.handle(rustVideoEncodeIpcChannels.finish, rustVideoEncodeUnavailable);
+  ipcMain.handle(rustVideoEncodeIpcChannels.start, async (_event, payload: unknown) =>
+    startRustVideoEncodeViaBackend(payload, callRustBackend)
+  );
+  ipcMain.handle(rustVideoEncodeIpcChannels.writeFrame, async (_event, payload: unknown) =>
+    writeRustVideoEncodeFrameViaBackend(payload, callRustBackend)
+  );
+  ipcMain.handle(rustVideoEncodeIpcChannels.finish, async (_event, payload: unknown) =>
+    finishRustVideoEncodeViaBackend(payload, callRustBackend)
+  );
 
   ipcMain.handle('quit-app', (_event, payload?: { exitCode?: number }) => {
     app.exit(payload?.exitCode ?? 0);
