@@ -57,4 +57,10 @@ describe('Viewport Rust video-only boundary', () => {
       "const sharedRendererPreviewEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_PREVIEW === '1';"
     );
   });
+
+  it('does not opt the Viewport back into legacy Pixi video rendering', () => {
+    const code = viewportSource();
+
+    expect(code).not.toContain('allowLegacyPixiVideo');
+  });
 });
