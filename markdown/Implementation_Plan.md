@@ -428,6 +428,13 @@ Rust backend encoderへ渡すdirect shared-frame payloadは `renderEncodeFrame` 
 tight RGBA write fallbackへ戻らない。ImageBitmap経路はWebCodecs互換encoder、または通常 `renderFrame`
 用途に限定する。
 
+82. Phase5: Rust encode runner を shared-frame payload 専用にする
+`runRustBackendVideoEncodeExport` はprepacked `sharedFramePayload` だけを受け取り、
+bitmap frameをwritable ringへ詰め替えるfallbackを削除する。Rust backend encoder runnerは
+`startVideoEncode` / `writeVideoEncodeFrame` / `finishVideoEncode` の制御だけを担い、
+ImageBitmap readback、canvas 2D extraction、runner側writable ring copyを行わない。
+これによりdirect encodeのdata-planeは shared renderer export source 側のWebGPU readback -> shared memory writerへ集約する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

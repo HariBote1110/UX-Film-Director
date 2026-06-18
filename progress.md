@@ -1,3 +1,21 @@
+## 2026-06-18 — Phase5: Rust encode runner を shared-frame 専用化
+
+### 実施内容
+- `src/utils/rustBackendVideoEncodeExport.test.ts` に、bitmap frameをRust encode runnerへ渡した場合はwritable ring copyへ進まず失敗する契約を追加した。
+- `runRustBackendVideoEncodeExport` から `extractImageBitmapRgbaBytes`、canvas 2D readback、runner側writable shared frame writer生成を削除した。
+- Rust encode runnerは `sharedFramePayload` を `writeVideoEncodeFrame` へ転送するだけの制御面になり、data-planeは shared renderer export source のWebGPU readback経路へ集約した。
+- package version を `0.1.1-Beta-71a` に更新した。
+
+### 検証
+- `npm test -- src/utils/rustBackendVideoEncodeExport.test.ts`
+- `npm test -- src/utils/rustBackendVideoEncodeExport.test.ts src/utils/projectExportRustEncodeFrame.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/projectExportFrameCanvas.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "rustBackendVideoEncodeExport|projectExportRustEncodeFrame|sharedRendererExportFrameSource|useProjectExport"`（対象ファイルの型エラーなし）
+- `cargo test --manifest-path rust-backend/Cargo.toml encode_`
+
+### 残課題・次のステップ
+- shared renderer export source内部ではWebGPU readback bytesをCPU mapped bufferとして受け、writable shared frame writerへ書いている。次はこのcopyをnative側へ寄せる余地を検討する。
+- WebCodecs互換fallbackはRust encoder bridge未接続時のみ残る。
+
 ## 2026-06-18 — Phase5: Rust direct encode で WebGPU readback を必須化
 
 ### 実施内容
