@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const source = () =>
@@ -26,6 +27,10 @@ describe('useProjectExport legacy browser dependency boundary', () => {
 
     expect(code).not.toContain('shouldLoadLegacyBrowserVideoProviders');
     expect(code).not.toContain('requiresHtmlVideoElementSeekFallback');
+  });
+
+  it('does not keep the unused VideoFrameProvider module in production utils', () => {
+    expect(existsSync(new URL('./videoFrameProvider.ts', import.meta.url))).toBe(false);
   });
 
   it('resolves Rust frame source context outside the hook body', () => {
