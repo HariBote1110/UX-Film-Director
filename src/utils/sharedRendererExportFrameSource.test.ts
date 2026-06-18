@@ -254,4 +254,103 @@ describe('createSharedRendererExportFrameSource', () => {
       uxfdRustExportFrameSourceFrameReason: 'unsupportedEditorMode',
     });
   });
+
+  it('falls back before bitmap capture when Rust video upload fails during export', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    let disposeCount = 0;
+    let bitmapCaptureCount = 0;
+
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      startViewportPresenter: async () => ({
+        control: { dispose: () => { disposeCount += 1; } },
+        activeVideoDecodeJob: null,
+        activeVideoDecodeJobs: [],
+        videoUploadsResult: {
+          ok: false,
+          reason: 'uploadFailed',
+          detail: 'copy failed',
+          activeJobs: [],
+        },
+      }) as never,
+      createFrameBitmap: async () => {
+        bitmapCaptureCount += 1;
+        return ({ close: () => undefined }) as ImageBitmap;
+      },
+    });
+
+    const blocked = await source.renderFrame({
+      frameIndex: 2,
+      timestampUs: 33_333,
+      time: 2 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [image()],
+    }).catch((error) => error);
+
+    expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
+    expect(blocked).toMatchObject({
+      message: 'copy failed',
+      reason: 'videoUploadFailed',
+      frameIndex: 2,
+      fallbackToLegacyCanvas: true,
+    });
+    expect(bitmapCaptureCount).toBe(0);
+    expect(disposeCount).toBe(1);
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'blocked',
+      uxfdRustExportFrameSourceFrameIndex: '2',
+      uxfdRustExportFrameSourceFrameReason: 'videoUploadFailed',
+    });
+  });
+
+  it('continues bitmap capture when Rust video upload preparation reports no video request', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    const frameBitmap = { close: () => undefined } as ImageBitmap;
+
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      startViewportPresenter: async () => ({
+        control: { dispose: () => undefined },
+        activeVideoDecodeJob: null,
+        activeVideoDecodeJobs: [],
+        videoUploadsResult: {
+          ok: false,
+          reason: 'noVideoDecodeRequest',
+          detail: 'Shared renderer preview session does not contain a visible video frame request.',
+          activeJobs: [],
+        },
+      }) as never,
+      createFrameBitmap: async () => frameBitmap,
+    });
+
+    await expect(source.renderFrame({
+      frameIndex: 3,
+      timestampUs: 50_000,
+      time: 3 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [image()],
+    })).resolves.toBe(frameBitmap);
+  });
 });
