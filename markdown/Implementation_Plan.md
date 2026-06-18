@@ -835,6 +835,11 @@ Viewport の Rust export frame source生成では、`objects` に動画が含ま
 指定し忘れても `bitmapCaptureEnabled=false` / `nativeRenderRequired=true` を渡す。これにより動画export sourceが
 `renderFrame` / `createImageBitmap(canvas)` 能力を持ってしまう入口を塞ぎ、Rust native render + Rust encodeを正規経路にする。
 
+155. Phase5: 動画renderFrameのbitmap captureを拒否する
+`createSharedRendererExportFrameSource` をfactory直呼びされた場合でも、`renderFrame` requestに動画objectが含まれるなら
+presenter起動や `createImageBitmap(canvas)` へ進まず `videoBitmapCaptureDisabled` で停止する。動画export frameは
+`renderEncodeFrame` の Rust native render shared-frame、またはnative presented shared-frame handoffだけを正規経路にする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
