@@ -216,3 +216,10 @@
 - Green: `Viewport` の `sharedRendererPreviewEnabled` を `=== '1'` から `!== '0'` へ変更し、Pixi動画既定拒否後もshared renderer surfaceが通常previewで立ち上がるようにした。
 - 検証: `npm test -- viewportRustVideoOnlyBoundary sharedRendererSurfaceMount pixiVideoCutover sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController` は51件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-150a`。
+
+## 2026-06-19
+- Phase5のexport dependency boundaryとして、動画objectがないexportではlegacy browser video providerを読み込まないようにした。
+- Red: `useProjectExportBoundary` へ、provider import gateが `exportFrameSourcePlan.requiresLegacyBrowserVideoProviders` と `videoObjects.length > 0` の両方を見る契約を追加した。
+- Green: `shouldLoadLegacyBrowserVideoProviders` を追加し、`VideoFrameProvider` / `PlaybackFrameProvider` のdynamic import条件を実動画clipありに絞った。
+- 検証: `npm test -- useProjectExportBoundary projectExportFrameCanvas projectExportEncodePlan viewportRustExportFrameSource` は49件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-151a`。

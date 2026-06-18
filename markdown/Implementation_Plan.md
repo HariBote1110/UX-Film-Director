@@ -916,6 +916,11 @@ native addonの低レベル検証口は残しつつ、renderer JSからshared-fr
 明示OFF時以外は shared renderer surface canvas / WebGPU probe / presenter orchestration を起動する。
 Pixi video pathを既定拒否した状態でも、通常preview動画がRust/shared renderer planeへ流れるようにする。
 
+171. Phase5: 動画なしexportでlegacy browser video provider importを避ける
+`useProjectExport` は `exportFrameSourcePlan.requiresLegacyBrowserVideoProviders` に加えて
+`videoObjects.length > 0` の場合だけ `VideoFrameProvider` / `PlaybackFrameProvider` をdynamic importする。
+非動画exportからVideoDecoder/rVFC/HTMLVideoElement系providerの読み込みを外し、動画依存を実際の動画clipに限定する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
