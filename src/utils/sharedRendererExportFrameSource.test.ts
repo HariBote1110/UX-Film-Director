@@ -119,39 +119,12 @@ describe('createSharedRendererExportFrameSource', () => {
     });
   });
 
-  it('can expose a Rust direct encode-only source without ImageBitmap capture', async () => {
+  it('exposes an encode-only source without ImageBitmap capture', async () => {
     const canvas = {
       width: 1,
       height: 1,
       dataset: {},
     } as unknown as HTMLCanvasElement;
-    const paddedRgbaBytes = new Uint8Array(512);
-    const payload: RustBackendVideoEncodeWriteFramePayload = {
-      sessionId: 'encode-only-session',
-      frameIndex: 8,
-      timestampUs: 133_333,
-      slotCount: 1,
-      frame: {
-        descriptor: {
-          memoryId: '/uxfd-export-source-encode-only-session',
-          slotIndex: 0,
-          generation: 2,
-          byteOffset: 0,
-          byteLen: 512,
-          width: 2,
-          height: 2,
-          strideBytes: 256,
-          format: 'rgba8Srgb',
-          colour: {
-            primaries: 'bt709',
-            transfer: 'srgb',
-            matrix: 'rgb',
-            range: 'full',
-          },
-        },
-        ptsFrame: 8,
-      },
-    };
     const calls: unknown[] = [];
     const source = createSharedRendererExportFrameSource({
       canvas,
@@ -166,86 +139,21 @@ describe('createSharedRendererExportFrameSource', () => {
       fallbackAdapter: false,
       videoCutoverEnabled: true,
       bitmapCaptureEnabled: false,
-      startViewportPresenter: async () => ({
-        control: {
-          ok: true,
-          readPresentedFrameRgbaBytes: async (input: { width: number; height: number }) => {
-            calls.push(['readPresentedFrameRgbaBytes', input]);
-            return {
-              rgbaBytes: paddedRgbaBytes,
-              strideBytes: 256,
-              byteLen: 512,
-              width: 2,
-              height: 2,
-            };
-          },
-          dispose: () => {
-            calls.push(['dispose']);
-          },
-        },
-        activeVideoDecodeJob: null,
-        activeVideoDecodeJobs: [],
-      }) as never,
+      startViewportPresenter: async () => {
+        calls.push(['startViewportPresenter']);
+        throw new Error('presenter readback must not be needed to expose an encode-only source.');
+      },
       createFrameBitmap: async () => {
         calls.push(['createFrameBitmap']);
         throw new Error('ImageBitmap capture must not exist for encode-only export sources.');
       },
-      createEncodeFrameWriter: async () => ({
-        writeFrame: async () => {
-          throw new Error('tight ImageBitmap write must not run for Rust direct encoding.');
-        },
-        writePaddedFrame: async (input: {
-          frameIndex: number;
-          timestampUs: number;
-          paddedRgbaBytes: Uint8Array;
-          strideBytes: number;
-        }) => {
-          calls.push(['writePaddedFrame', input]);
-          return payload;
-        },
-        close: async () => {
-          calls.push(['closeEncodeFrameWriter']);
-        },
-      }),
     } as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
       bitmapCaptureEnabled: false;
     });
 
     expect(source.renderFrame).toBeUndefined();
-    await expect(source.renderEncodeFrame?.({
-      frameIndex: 8,
-      timestampUs: 133_333,
-      time: 8 / 60,
-      width: 2,
-      height: 2,
-      objects: [image()],
-      encodeSessionId: 'encode-only-session',
-    })).resolves.toEqual({
-      timestamp: 133_333,
-      sharedFramePayload: payload,
-    });
     await source.close?.();
-
-    expect(calls).toEqual([
-      ['readPresentedFrameRgbaBytes', {
-        width: 2,
-        height: 2,
-      }],
-      ['writePaddedFrame', {
-        frameIndex: 8,
-        timestampUs: 133_333,
-        paddedRgbaBytes,
-        strideBytes: 256,
-      }],
-      ['dispose'],
-      ['closeEncodeFrameWriter'],
-    ]);
-    expect(canvas.dataset).toMatchObject({
-      uxfdRustExportFrameSourceFrameStatus: 'ready',
-      uxfdRustExportFrameSourceFrameIndex: '8',
-      uxfdRustExportFrameSourceFramePath: 'webGpuReadbackSharedFrameWriter',
-      uxfdRustExportFrameSourceFrameReason: undefined,
-    });
+    expect(calls).toEqual([]);
   });
 
   it('fails encode frames before ImageBitmap capture when presenter readback is unavailable', async () => {
@@ -636,75 +544,12 @@ describe('createSharedRendererExportFrameSource', () => {
     });
   });
 
-  it('uses presenter readback without preparing native render sources when the native renderer bridge is unavailable', async () => {
+  it('blocks encode-only frames without presenter readback when the native renderer bridge is unavailable', async () => {
     const canvas = {
       width: 1,
       height: 1,
       dataset: {},
     } as unknown as HTMLCanvasElement;
-    const paddedRgbaBytes = new Uint8Array(1024);
-    const payload: RustBackendVideoEncodeWriteFramePayload = {
-      sessionId: 'no-native-renderer-session',
-      frameIndex: 5,
-      timestampUs: 83_333,
-      slotCount: 1,
-      frame: {
-        descriptor: {
-          memoryId: '/uxfd-export-source-no-native-renderer-session',
-          slotIndex: 0,
-          generation: 1,
-          byteOffset: 0,
-          byteLen: 1024,
-          width: 4,
-          height: 4,
-          strideBytes: 256,
-          format: 'rgba8Srgb',
-          colour: {
-            primaries: 'bt709',
-            transfer: 'srgb',
-            matrix: 'rgb',
-            range: 'full',
-          },
-        },
-        ptsFrame: 5,
-      },
-    };
-    const snapshot = {
-      frame_index: 5,
-      colour: {
-        profile: 'rec709-sdr',
-        working_space: 'linear-light',
-        alpha: 'premultiplied',
-      },
-      clips: [{
-        clip_id: 'video-clip-1',
-        track_id: 'layer-1',
-        media_id: 'video-1',
-        source_frame: 5,
-        z_index: 0,
-        transform: {
-          translation_x: 0,
-          translation_y: 0,
-          scale_x: 1,
-          scale_y: 1,
-          rotation_degrees: 0,
-          sampling: 'bilinear',
-        },
-        opacity: 1,
-        effects: [],
-      }],
-    } as const;
-    const media = [{
-      id: 'video-1',
-      kind: 'Video',
-      source: '/tmp/video-1.mp4',
-      width: 4,
-      height: 4,
-      source_rate: {
-        numerator: 60,
-        denominator: 1,
-      },
-    }] as const;
     const calls: unknown[] = [];
     const source = createSharedRendererExportFrameSource({
       canvas,
@@ -719,93 +564,24 @@ describe('createSharedRendererExportFrameSource', () => {
       fallbackAdapter: false,
       videoCutoverEnabled: true,
       bitmapCaptureEnabled: false,
-      buildExportSession: () => ({
-        plan: {
-          mode: 'parallelCompare',
-          primary: 'pixi',
-          candidate: 'sharedRenderer',
-          snapshot,
-          media,
-        },
-        presentationContract: {
-          canvas: {
-            colorSpace: 'srgb',
-            alphaMode: 'premultiplied',
-          },
-          comparisonReadback: {
-            target: 'offscreenRenderTarget',
-            includesPageCompositing: false,
-          },
-          frameTiming: {
-            source: 'frozenSceneSnapshot',
-          },
-          deviceLost: {
-            fallback: 'pixi',
-            staleSharedFrameAllowed: false,
-          },
-        },
-        surfaceGate: {
-          ok: true,
-          canvas: {
-            width: 4,
-            height: 4,
-          },
-          snapshot,
-          media,
-        },
-        nativeRenderEnvelope: {
-          ok: true,
-          mediaCount: 1,
-          mediaKinds: ['Video'],
-          sourceCount: 1,
-          sourceMediaIds: ['video-1'],
-        },
-      }),
       prepareNativeRenderSources: async () => {
         calls.push(['prepareNativeRenderSources']);
-        throw new Error('native render source preparation must wait for a native renderer bridge.');
+        throw new Error('native render source preparation must not run when the renderer bridge is unavailable.');
       },
-      startViewportPresenter: async () => ({
-        control: {
-          ok: true,
-          readPresentedFrameRgbaBytes: async (input: { width: number; height: number }) => {
-            calls.push(['readPresentedFrameRgbaBytes', input]);
-            return {
-              rgbaBytes: paddedRgbaBytes,
-              strideBytes: 256,
-              byteLen: 1024,
-              width: 4,
-              height: 4,
-            };
-          },
-          dispose: () => {
-            calls.push(['dispose']);
-          },
-        },
-        activeVideoDecodeJob: null,
-        activeVideoDecodeJobs: [],
-      }) as never,
-      createEncodeFrameWriter: async () => ({
-        writeFrame: async () => {
-          throw new Error('tight ImageBitmap write must not run for Rust direct encoding.');
-        },
-        writePaddedFrame: async (input: {
-          frameIndex: number;
-          timestampUs: number;
-          paddedRgbaBytes: Uint8Array;
-          strideBytes: number;
-        }) => {
-          calls.push(['writePaddedFrame', input]);
-          return payload;
-        },
-        close: async () => undefined,
-      }),
+      startViewportPresenter: async () => {
+        calls.push(['startViewportPresenter']);
+        throw new Error('presenter readback must not run for encode-only export sources.');
+      },
+      createEncodeFrameWriter: async () => {
+        calls.push(['createEncodeFrameWriter']);
+        throw new Error('JS shared-frame writer must not run for encode-only export sources.');
+      },
     } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
       bitmapCaptureEnabled: false;
       prepareNativeRenderSources: unknown;
     });
 
-    await expect(source.renderEncodeFrame?.({
+    const blocked = await source.renderEncodeFrame?.({
       frameIndex: 5,
       timestampUs: 83_333,
       time: 5 / 60,
@@ -813,28 +589,19 @@ describe('createSharedRendererExportFrameSource', () => {
       height: 4,
       objects: [image()],
       encodeSessionId: 'no-native-renderer-session',
-    })).resolves.toEqual({
-      timestamp: 83_333,
-      sharedFramePayload: payload,
-    });
+    }).catch((error) => error);
 
-    expect(calls).toEqual([
-      ['readPresentedFrameRgbaBytes', {
-        width: 4,
-        height: 4,
-      }],
-      ['writePaddedFrame', {
-        frameIndex: 5,
-        timestampUs: 83_333,
-        paddedRgbaBytes,
-        strideBytes: 256,
-      }],
-      ['dispose'],
-    ]);
+    expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
+    expect(blocked).toMatchObject({
+      reason: 'nativeRenderUnavailable',
+      frameIndex: 5,
+      fallbackToLegacyCanvas: true,
+    });
+    expect(calls).toEqual([]);
     expect(canvas.dataset).toMatchObject({
-      uxfdRustExportFrameSourceFrameStatus: 'ready',
+      uxfdRustExportFrameSourceFrameStatus: 'blocked',
       uxfdRustExportFrameSourceFrameIndex: '5',
-      uxfdRustExportFrameSourceFramePath: 'webGpuReadbackSharedFrameWriter',
+      uxfdRustExportFrameSourceFrameReason: 'nativeRenderUnavailable',
     });
   });
 

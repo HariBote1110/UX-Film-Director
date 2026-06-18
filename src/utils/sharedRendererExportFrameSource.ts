@@ -169,6 +169,7 @@ export function createSharedRendererExportFrameSource({
   const renderNativeSharedFrame = inputRenderNativeSharedFrame ?? defaultRenderNativeSharedFrame;
   const nativeSharedFrameRendererAvailable =
     inputRenderNativeSharedFrame != null || isDefaultNativeSharedFrameRendererAvailable();
+  const effectiveNativeRenderRequired = nativeRenderRequired || !bitmapCaptureEnabled;
 
   const buildFrameSession = (request: ProjectExportRustFrameRequest) => {
     if (closed) {
@@ -274,7 +275,7 @@ export function createSharedRendererExportFrameSource({
     request: ProjectExportRustEncodeFrameRequest
   ): Promise<RustBackendVideoEncodeSharedFramePayloadFrame | null> => {
     if (!nativeSharedFrameRendererAvailable) {
-      if (nativeRenderRequired) {
+      if (effectiveNativeRenderRequired) {
         writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
           status: 'blocked',
           frameIndex: request.frameIndex,
@@ -309,7 +310,7 @@ export function createSharedRendererExportFrameSource({
             media: surfaceGate.media,
           });
         if (!nativeMediaOnlyRenderable) {
-          if (nativeRenderRequired) {
+          if (effectiveNativeRenderRequired) {
             writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
               status: 'blocked',
               frameIndex: request.frameIndex,
