@@ -4,6 +4,8 @@ import { createDefaultLayers } from './sceneState';
 import {
   createSharedRendererExportFrameSource,
   isSharedRendererExportFrameSourceBlockedError,
+  type SharedRendererExportNativeRenderSourcesPreparer,
+  type SharedRendererExportNativeSharedFrameRenderer,
 } from './sharedRendererExportFrameSource';
 import type { SharedRendererViewportVideoDecodeJob } from './sharedRendererViewportVideoUpload';
 import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
@@ -755,7 +757,7 @@ describe('createSharedRendererExportFrameSource', () => {
           }],
         },
       }),
-      prepareNativeRenderSources: async (input) => {
+      prepareNativeRenderSources: (async (input) => {
         calls.push(['prepareNativeRenderSources', {
           requestId: input.requestId,
           activeJobs: input.activeJobs,
@@ -770,8 +772,8 @@ describe('createSharedRendererExportFrameSource', () => {
             frame: decodedFrame,
           }],
         };
-      },
-      renderNativeSharedFrame: async (payload) => {
+      }) satisfies SharedRendererExportNativeRenderSourcesPreparer,
+      renderNativeSharedFrame: (async (payload) => {
         calls.push(['renderNativeSharedFrame', payload]);
         return {
           success: true,
@@ -784,7 +786,7 @@ describe('createSharedRendererExportFrameSource', () => {
             frame: renderedFrame,
           },
         };
-      },
+      }) satisfies SharedRendererExportNativeSharedFrameRenderer,
       startViewportPresenter: async () => {
         calls.push(['startViewportPresenter']);
         throw new Error('WebGPU presenter must not start when Rust native render succeeds.');
@@ -793,7 +795,7 @@ describe('createSharedRendererExportFrameSource', () => {
         calls.push(['createEncodeFrameWriter']);
         throw new Error('JS shared-frame writer must not run when Rust native render succeeds.');
       },
-    } as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
+    } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
       bitmapCaptureEnabled: false;
       prepareNativeRenderSources: unknown;
       renderNativeSharedFrame: unknown;
