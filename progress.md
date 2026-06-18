@@ -1,3 +1,19 @@
+## 2026-06-18 — Phase5: Rust video-only preview診断でDOM動画readinessを回避
+
+### 実施内容
+- `src/utils/sharedRendererVideoMediaReadiness.test.ts` に、Rust video-only時は `HTMLVideoElement` が無くても `missingElement` と扱わない契約を追加した。
+- `src/utils/viewportRustVideoOnlyBoundary.test.ts` に、Viewportがreadiness診断へ `rustVideoOnlyEnabled` を渡す境界契約を追加した。
+- `buildSharedRendererVideoMediaReadiness` に `requireSharedRendererVideo` と `rustRendererRequired` / `rustRequiredCount` を追加した。
+- `Viewport` から同フラグを渡し、DOM動画missingではなくRust renderer必須状態としてdiagnostics datasetへ出すようにした。
+- package version を `0.1.1-Beta-82a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererVideoMediaReadiness.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererVideoMediaReadiness\\.ts\\(|src/components/Viewport\\.tsx\\(|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts\\()"`
+
+### 残課題・次のステップ
+- Rust video-only preview診断はDOM動画readinessを参照しなくなった。次は実機ElectronでRust decode/upload/ownershipが実際に `sharedRenderer` へ到達するか確認する。
+
 ## 2026-06-18 — Phase5: legacy browser export依存を動的import化
 
 ### 実施内容

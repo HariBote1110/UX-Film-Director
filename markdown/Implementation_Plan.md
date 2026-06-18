@@ -487,6 +487,11 @@ WebCodecsへfallbackせず開始前にfail-loudにする。`npm run dev:rust-vid
 legacy canvas / WebCodecs互換branchに入った時だけ動的importし、Rust backend encoder + shared-frame payload経路では
 browser decode provider と WebCodecs encoder module を初期ロードしない。
 
+93. Phase5: Rust video-only preview診断はDOM動画readinessを見ない
+`VITE_UXFD_RUST_VIDEO_ONLY=1` のpreviewでは、shared renderer video readiness診断が `HTMLVideoElement` の
+`readyState` / `videoWidth` / `currentTime` を参照しない。動画mediaは `rustRendererRequired` として集計し、
+DOM動画が存在しないことを `missingElement` と誤診断しない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
