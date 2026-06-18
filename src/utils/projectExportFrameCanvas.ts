@@ -73,6 +73,7 @@ export interface ProjectExportFrameRuntimePlan {
   requiresRenderScene: boolean;
   usesExportFrameOverrides: boolean;
   requiresHtmlVideoElementSeekFallback: boolean;
+  shouldCloseRustFrameSource: boolean;
 }
 
 export interface BuildProjectExportFrameSourcePlanInput extends ResolveProjectExportFrameCanvasInput {
@@ -166,6 +167,7 @@ export const resolveProjectExportFrameRuntimePlan = ({
         requiresRenderScene: false,
         usesExportFrameOverrides: false,
         requiresHtmlVideoElementSeekFallback: false,
+        shouldCloseRustFrameSource: false,
       };
     }
 
@@ -175,6 +177,7 @@ export const resolveProjectExportFrameRuntimePlan = ({
       requiresRenderScene: true,
       usesExportFrameOverrides: false,
       requiresHtmlVideoElementSeekFallback: true,
+      shouldCloseRustFrameSource: true,
     };
   }
 
@@ -184,5 +187,6 @@ export const resolveProjectExportFrameRuntimePlan = ({
     requiresRenderScene: true,
     usesExportFrameOverrides: frameSourcePlan.usesExportFrameOverrides,
     requiresHtmlVideoElementSeekFallback: frameSourcePlan.requiresHtmlVideoElementSeekFallback,
+    shouldCloseRustFrameSource: false,
   };
 };

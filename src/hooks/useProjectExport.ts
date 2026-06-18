@@ -201,6 +201,13 @@ export const useProjectExport = (
                   throw error;
                 }
                 rustFrameSourceBlocked = true;
+                const blockedRuntimePlan = resolveProjectExportFrameRuntimePlan({
+                  frameSourcePlan: exportFrameSourcePlan,
+                  rustFrameSourceBlocked,
+                });
+                if (blockedRuntimePlan.shouldCloseRustFrameSource) {
+                  await exportFrameSourcePlan.frameSource.close?.();
+                }
                 console.warn('[Export] Rust/shared renderer frame source blocked; falling back to legacy canvas capture.', error);
               }
             }
