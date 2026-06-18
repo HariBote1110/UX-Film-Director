@@ -612,6 +612,86 @@ fn native_render_shared_frame_builds_png_image_sources_from_media() {
 }
 
 #[test]
+fn native_render_shared_frame_builds_jpeg_image_sources_from_media() {
+    let mut backend = BackendProcess::start();
+    let temp_dir = TestTempDir::new("native-render-jpeg-media");
+    let image_path = temp_dir.path().join("red-source.jpg");
+    write_solid_jpeg_fixture(&image_path, 2, 2, [255, 0, 0]);
+    let output_memory_id = unique_shm_name();
+    let slot_count = 1;
+    let width = 4;
+    let height = 4;
+
+    let response = backend.request(json!({
+        "id": 33,
+        "method": "render.nativeSharedFrame",
+        "params": {
+            "renderId": "native-render-jpeg-media",
+            "memoryId": output_memory_id,
+            "slotCount": slot_count,
+            "ptsFrame": 0,
+            "width": width,
+            "height": height,
+            "snapshot": {
+                "frame_index": 0,
+                "colour": {
+                    "profile": "rec709-sdr",
+                    "working_space": "linear-light",
+                    "alpha": "premultiplied"
+                },
+                "clips": [{
+                    "clip_id": "clip-jpeg-media",
+                    "track_id": "track-1",
+                    "media_id": "image-1",
+                    "source_frame": 0,
+                    "z_index": 0,
+                    "transform": {
+                        "translation_x": 0.0,
+                        "translation_y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation_degrees": 0.0,
+                        "sampling": "nearest"
+                    },
+                    "opacity": 1.0,
+                    "effects": []
+                }]
+            },
+            "media": [{
+                "id": "image-1",
+                "kind": "Image",
+                "source": image_path.to_string_lossy(),
+                "width": 2,
+                "height": 2
+            }],
+            "sources": []
+        }
+    }));
+
+    assert_eq!(response["ok"], true, "{response}");
+    assert_eq!(response["result"]["rendered"], true);
+    assert_no_frame_bytes_recursive(&response["result"]);
+
+    let output_slot_byte_len = response["result"]["frame"]["descriptor"]["byteLen"]
+        .as_u64()
+        .expect("output byte length") as usize;
+    let output_ring = PosixSharedRing::attach_with_retry_for_layout(
+        response["result"]["frame"]["descriptor"]["memoryId"]
+            .as_str()
+            .expect("output memory id"),
+        slot_count,
+        output_slot_byte_len,
+        Duration::from_secs(1),
+    )
+    .expect("attach to native JPEG media output ring");
+    let output_frame = output_ring
+        .read_frame(0)
+        .expect("read native JPEG media output frame");
+    assert_red_pixel(&output_frame.bytes[0..4]);
+    assert_eq!(&output_frame.bytes[8..12], &[0, 0, 0, 0]);
+}
+
+#[test]
 fn encode_write_frame_unlinks_native_render_output_after_consuming_it() {
     let mut backend = BackendProcess::start();
     let temp_dir = TestTempDir::new("encode-native-render-output-release");
@@ -2003,6 +2083,44 @@ fn write_silent_wav_fixture(path: &Path, sample_rate: u32, sample_count: u32) {
     bytes.extend_from_slice(&data_size.to_le_bytes());
     bytes.resize(44 + data_size as usize, 0);
     fs::write(path, bytes).expect("write silent wav fixture");
+}
+
+fn write_solid_jpeg_fixture(path: &Path, width: u32, height: u32, colour: [u8; 3]) {
+    let raw_path = path.with_extension("rgba");
+    let mut rgba = Vec::with_capacity(width as usize * height as usize * 4);
+    for _ in 0..width as usize * height as usize {
+        rgba.extend([colour[0], colour[1], colour[2], 255]);
+    }
+    fs::write(&raw_path, rgba).expect("write JPEG source RGBA fixture");
+
+    let mut command = Command::new("ffmpeg");
+    command
+        .arg("-hide_banner")
+        .arg("-loglevel")
+        .arg("error")
+        .arg("-y")
+        .arg("-f")
+        .arg("rawvideo")
+        .arg("-pixel_format")
+        .arg("rgba")
+        .arg("-video_size")
+        .arg(format!("{width}x{height}"))
+        .arg("-i")
+        .arg(&raw_path)
+        .arg("-frames:v")
+        .arg("1")
+        .arg("-q:v")
+        .arg("2")
+        .arg(path);
+    run_ffmpeg_command(&mut command, "encode JPEG fixture");
+}
+
+fn assert_red_pixel(pixel: &[u8]) {
+    assert_eq!(pixel.len(), 4);
+    assert!(
+        pixel[0] >= 200 && pixel[1] <= 40 && pixel[2] <= 40 && pixel[3] == 255,
+        "expected JPEG decoded pixel to stay near opaque red, got {pixel:?}"
+    );
 }
 
 fn assert_mp4_has_audio_stream(path: &Path) {
