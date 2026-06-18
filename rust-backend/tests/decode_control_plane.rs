@@ -839,6 +839,90 @@ fn encode_write_frame_unlinks_native_render_output_after_consuming_it() {
 }
 
 #[test]
+fn native_render_release_shared_frame_unlinks_output_without_encode() {
+    let mut backend = BackendProcess::start();
+    let output_memory_id = unique_shm_name();
+    let slot_count = 1;
+    let width = 4;
+    let height = 4;
+
+    let render = backend.request(json!({
+        "id": 41,
+        "method": "render.nativeSharedFrame",
+        "params": {
+            "renderId": "native-render-preview-release",
+            "memoryId": output_memory_id,
+            "slotCount": slot_count,
+            "ptsFrame": 0,
+            "width": width,
+            "height": height,
+            "snapshot": {
+                "frame_index": 0,
+                "colour": {
+                    "profile": "rec709-sdr",
+                    "working_space": "linear-light",
+                    "alpha": "premultiplied"
+                },
+                "clips": [{
+                    "clip_id": "clip-native-render-preview-release",
+                    "track_id": "track-1",
+                    "media_id": "solid-1",
+                    "source_frame": 0,
+                    "z_index": 0,
+                    "transform": {
+                        "translation_x": 0.0,
+                        "translation_y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation_degrees": 0.0,
+                        "sampling": "nearest"
+                    },
+                    "opacity": 1.0,
+                    "effects": []
+                }]
+            },
+            "media": [{
+                "id": "solid-1",
+                "kind": "SolidColour",
+                "source": "#ff0000",
+                "width": 2,
+                "height": 2
+            }],
+            "sources": []
+        }
+    }));
+    assert_eq!(render["ok"], true, "{render}");
+
+    let render_slot_byte_len = render["result"]["frame"]["descriptor"]["byteLen"]
+        .as_u64()
+        .expect("native render output byte length") as usize;
+
+    let release = backend.request(json!({
+        "id": 42,
+        "method": "render.releaseNativeSharedFrame",
+        "params": {
+            "memoryId": render["result"]["frame"]["descriptor"]["memoryId"]
+        }
+    }));
+    assert_eq!(release["ok"], true, "{release}");
+    assert_eq!(release["result"]["released"], true);
+    assert_eq!(release["result"]["memoryId"], output_memory_id);
+
+    let attach_after_release = PosixSharedRing::attach_with_retry_for_layout(
+        render["result"]["frame"]["descriptor"]["memoryId"]
+            .as_str()
+            .expect("native render output memory id"),
+        slot_count,
+        render_slot_byte_len,
+        Duration::from_millis(100),
+    );
+    assert!(
+        attach_after_release.is_err(),
+        "native render output shared memory should be unlinked after render.releaseNativeSharedFrame"
+    );
+}
+
+#[test]
 fn encode_write_frame_requires_slot_count_for_shared_memory_attach() {
     let mut backend = BackendProcess::start();
 
