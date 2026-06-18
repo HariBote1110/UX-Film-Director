@@ -155,6 +155,7 @@ export const isRustBackendDecodedVideoFrameAvailable = (
     descriptor
     && colour
     && checksum
+    && isValidSharedFrameDescriptor(descriptor)
     && descriptor.format === 'rgba8Srgb'
     && colour.primaries === 'bt709'
     && colour.transfer === 'srgb'
@@ -167,6 +168,33 @@ export const isRustBackendDecodedVideoFrameAvailable = (
     && typeof result.frame.ptsFrame === 'number'
     && result.frame.ptsFrame === result.frameIndex
   );
+};
+
+const GPU_COPY_BYTES_PER_ROW_ALIGNMENT = 256;
+
+const isValidSharedFrameDescriptor = (
+  descriptor: Record<string, unknown>,
+): boolean => {
+  if (typeof descriptor.memoryId !== 'string' || descriptor.memoryId.trim().length === 0) {
+    return false;
+  }
+
+  if (
+    !isNonNegativeInteger(descriptor.slotIndex)
+    || !isNonNegativeInteger(descriptor.generation)
+    || !isNonNegativeInteger(descriptor.byteOffset)
+    || !isPositiveInteger(descriptor.byteLen)
+    || !isPositiveInteger(descriptor.width)
+    || !isPositiveInteger(descriptor.height)
+    || !isPositiveInteger(descriptor.strideBytes)
+  ) {
+    return false;
+  }
+
+  const unpaddedRowBytes = descriptor.width * 4;
+  return descriptor.strideBytes >= unpaddedRowBytes
+    && descriptor.strideBytes % GPU_COPY_BYTES_PER_ROW_ALIGNMENT === 0
+    && descriptor.byteLen === descriptor.strideBytes * descriptor.height;
 };
 
 const forbiddenJsonFramePayloadKeys = new Set([
@@ -194,3 +222,9 @@ const containsJsonFramePayload = (
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
+
+const isNonNegativeInteger = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+
+const isPositiveInteger = (value: unknown): value is number =>
+  isNonNegativeInteger(value) && value > 0;
