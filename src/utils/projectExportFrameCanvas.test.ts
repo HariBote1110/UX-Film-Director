@@ -2,11 +2,39 @@ import { describe, expect, it } from 'vitest';
 import {
   buildProjectExportFrameSourcePlan,
   pauseLegacyBrowserVideosForExport,
+  resolveProjectExportRustFrameSourceContext,
   resolveProjectExportFrameSourcePolicyForEncode,
   resolveProjectExportFrameRuntimePlan,
   resolveProjectExportFrameCanvas,
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
+import type { TimelineObject, VideoObject } from '../types';
+
+const video = (patch: Partial<VideoObject> = {}): VideoObject => ({
+  id: 'video-1',
+  type: 'video',
+  name: 'GoPro.mp4',
+  layer: 1,
+  startTime: 0,
+  duration: 5,
+  x: 0,
+  y: 0,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 0,
+  endY: 0,
+  easing: 'linear',
+  src: 'blob:video',
+  filePath: '/tmp/GoPro.mp4',
+  width: 1920,
+  height: 1080,
+  volume: 1,
+  muted: false,
+  ...patch,
+});
 
 describe('resolveProjectExportFrameCanvas', () => {
   it('uses the explicit export canvas without requiring a Pixi canvas', () => {
@@ -221,6 +249,39 @@ describe('resolveProjectExportFrameSourcePolicyForEncode', () => {
     })).toEqual({
       rustFrameSourcePolicy: 'requireRustFrameSource',
       rustFrameSourceBlockedFallback: 'failExport',
+    });
+  });
+});
+
+describe('resolveProjectExportRustFrameSourceContext', () => {
+  it('requests encode-only Rust frame sources for video exports regardless of the compatibility encoder hint', () => {
+    const objects: TimelineObject[] = [video()];
+    const presentedFrameSharedFrameTaker = async () => null;
+
+    expect(resolveProjectExportRustFrameSourceContext({
+      objects,
+      time: 0,
+      encodeEngine: 'webCodecsMp4Muxer',
+      presentedFrameSharedFrameTaker,
+    })).toEqual({
+      objects,
+      time: 0,
+      preferEncodeOnly: true,
+      presentedFrameSharedFrameTaker,
+    });
+  });
+
+  it('keeps bitmap-capable Rust frame sources for non-video compatibility exports', () => {
+    expect(resolveProjectExportRustFrameSourceContext({
+      objects: [],
+      time: 0,
+      encodeEngine: 'webCodecsMp4Muxer',
+      presentedFrameSharedFrameTaker: undefined,
+    })).toEqual({
+      objects: [],
+      time: 0,
+      preferEncodeOnly: false,
+      presentedFrameSharedFrameTaker: undefined,
     });
   });
 });
