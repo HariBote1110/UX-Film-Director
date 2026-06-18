@@ -16,6 +16,7 @@ describe('Viewport Rust video-only boundary', () => {
 
     expect(readinessBlock).toContain('buildSharedRendererVideoMediaReadiness({');
     expect(readinessBlock).toContain('requireSharedRendererVideo: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled');
+    expect(readinessBlock).not.toContain('videoElements:');
   });
 
   it('uses Rust/shared renderer video cutover for Pixi content routing instead of HTMLVideoElement fallback', () => {
