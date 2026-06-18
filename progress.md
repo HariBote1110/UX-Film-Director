@@ -3857,3 +3857,23 @@
 ### 残課題・次のステップ
 - `Image` clipにはまだPixi ownership cleanup機構がないため、PNG/JPG/JPEG画像のpreview二重合成を防ぐ専用ownershipを追加する必要がある。
 - native render preview失敗時のreasonをdatasetへより細かく出し、Rust native renderへ進めなかった理由を可視化する。
+
+## 2026-06-18 — native render preview成功時にImage ownershipを移管
+
+### 実施内容
+- `SharedRendererImageOwnership` を追加し、native render frame成功時に `Image` clipをshared renderer ownershipとして公開するようにした。
+- presenter diagnosticsに image owner / reason / count を追加し、datasetからImage cutover状態を確認できるようにした。
+- `Viewport` に `sharedRendererImageObjectIds` refと更新処理を追加し、Pixi render helperへ渡すようにした。
+- Pixi image branchにshared renderer owned imageのcleanupを追加し、spriteを外してhitAreaだけ残すようにした。
+- `pixiImageCutover` helperを追加し、export中は従来通りPixi image描画を維持する契約を固定した。
+- 版を `0.1.1-Beta-107a` に更新した。
+
+### 検証
+- `npm test -- src/utils/pixiImageCutover.test.ts`
+- `npm test -- src/utils/sharedRendererPreviewPresenterController.test.ts`
+- `npm test -- src/utils/pixiImageCutover.test.ts src/utils/pixiVideoCutover.test.ts src/utils/pixiSolidColourCutover.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/sharedRendererExportFrameSource.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- PSD/textはまだnative render source化・ownership移管されていないため、Pixi fallbackの主因として残る。
+- native render preview失敗時のreasonをdatasetへより細かく出し、Rust native renderへ進めなかった理由を可視化する。

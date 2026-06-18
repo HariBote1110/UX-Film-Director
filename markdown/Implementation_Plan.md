@@ -649,6 +649,12 @@ shared renderer ownershipとして公開する。`Viewport` は既存のPixi cle
 同じclipがPixiとnative render canvasで二重に合成される状態を防ぐ。
 ownership reasonには `nativeRenderFrameReady` を追加し、dataset diagnosticsからもnative render frame由来のcutoverを識別できるようにする。
 
+121. Phase5: native render preview成功時にImage ownershipを移管する
+PNG/JPG/JPEG `Image` mediaはRust native render source化済みなので、native render preview frame成功時は
+該当Image clipもshared renderer ownershipとして公開する。`Viewport` はImage ownership idをPixi helperへ渡し、
+Pixi image spriteをcleanupしてhitAreaだけ残す。これによりnative render canvasとPixi image spriteの二重合成を防ぐ。
+dataset diagnosticsには image owner / reason / count を追加し、Image cutover状態を確認できるようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
