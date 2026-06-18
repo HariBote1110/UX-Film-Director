@@ -103,6 +103,10 @@ interface Window {
     }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
   };
   sharedVideoFrame: {
+    getPresentedFrameHandoffCapabilities?: () => {
+      available: boolean;
+      reason?: string;
+    };
     createWritableSharedFrameRing: (
       payload: {
         memoryId: string;

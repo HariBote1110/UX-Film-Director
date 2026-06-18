@@ -10,6 +10,8 @@ use uxfd_shared_video_frame_bridge::{
 
 const COPY_TIMEOUT: Duration = Duration::from_millis(100);
 const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
+const PRESENTED_FRAME_HANDOFF_UNIMPLEMENTED: &str =
+    "WebGPU texture handoff is not implemented by the shared video frame native addon yet.";
 
 #[napi(object)]
 pub struct SharedVideoFrameCopyPayload {
@@ -156,6 +158,12 @@ pub struct PresentedFrameHandoffResponse {
 }
 
 #[napi(object)]
+pub struct PresentedFrameHandoffCapabilities {
+    pub available: bool,
+    pub reason: Option<String>,
+}
+
+#[napi(object)]
 pub struct DebugFillReport {
     pub byte_len: u32,
     pub fill_value: u32,
@@ -258,14 +266,19 @@ pub fn copy_into_upload_buffer(
     }
 }
 
+#[napi(js_name = "getPresentedFrameHandoffCapabilities")]
+pub fn get_presented_frame_handoff_capabilities() -> PresentedFrameHandoffCapabilities {
+    PresentedFrameHandoffCapabilities {
+        available: false,
+        reason: Some(PRESENTED_FRAME_HANDOFF_UNIMPLEMENTED.to_string()),
+    }
+}
+
 #[napi(js_name = "takePresentedFrameSharedFrame")]
 pub fn take_presented_frame_shared_frame(
     _payload: PresentedFrameHandoffPayload,
 ) -> PresentedFrameHandoffResponse {
-    presented_frame_handoff_failure(
-        "WebGPU texture handoff is not implemented by the shared video frame native addon yet."
-            .to_string(),
-    )
+    presented_frame_handoff_failure(PRESENTED_FRAME_HANDOFF_UNIMPLEMENTED.to_string())
 }
 
 #[napi(js_name = "debugFillForTest")]

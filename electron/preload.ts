@@ -29,6 +29,11 @@ type SharedVideoFramePresentedFramePayload = {
   }
 }
 
+type SharedVideoFramePresentedFrameHandoffCapabilities = {
+  available: boolean
+  reason?: string
+}
+
 type SharedVideoFrameCopyResult = {
   success: boolean
   result?: {
@@ -63,6 +68,7 @@ type SharedVideoFrameWritableResult = {
 }
 
 type SharedVideoFrameNativeBridge = {
+  getPresentedFrameHandoffCapabilities?: () => SharedVideoFramePresentedFrameHandoffCapabilities
   copyIntoUploadBuffer?: (
     payload: SharedVideoFrameCopyPayload,
     target: Uint8Array
@@ -102,6 +108,7 @@ const loadSharedVideoFrameNativeBridge = (): SharedVideoFrameNativeBridge | null
   try {
     const loaded = require(modulePath) as Partial<SharedVideoFrameNativeBridge>
     sharedVideoFrameNativeBridge = typeof loaded.copyIntoUploadBuffer === 'function'
+      || typeof loaded.getPresentedFrameHandoffCapabilities === 'function'
       || typeof loaded.takePresentedFrameSharedFrame === 'function'
       || typeof loaded.createWritableSharedFrameRing === 'function'
       || typeof loaded.writeIntoSharedFrameRing === 'function'
@@ -168,6 +175,17 @@ contextBridge.exposeInMainWorld('rustVideoEncoder', {
 })
 
 contextBridge.exposeInMainWorld('sharedVideoFrame', {
+  getPresentedFrameHandoffCapabilities() {
+    const bridge = loadSharedVideoFrameNativeBridge()
+    if (!bridge || typeof bridge.getPresentedFrameHandoffCapabilities !== 'function') {
+      return {
+        available: false,
+        reason: 'Shared video frame presented-frame native handoff capability is unavailable.',
+      }
+    }
+
+    return bridge.getPresentedFrameHandoffCapabilities()
+  },
   async createWritableSharedFrameRing(payload: SharedVideoFrameWritableRingPayload) {
     const bridge = loadSharedVideoFrameNativeBridge()
     if (!bridge || typeof bridge.createWritableSharedFrameRing !== 'function') {

@@ -6,15 +6,22 @@ import type {
 } from './sharedRendererWebGpuPresenter';
 
 export interface SharedVideoFramePresentedFrameBridge {
+  getPresentedFrameHandoffCapabilities?: () => SharedVideoFramePresentedFrameHandoffCapabilities;
   takePresentedFrameSharedFrame?: (
     input: SharedRendererPresentedFrameNativeHandoffInput
   ) => Promise<RustBackendResult<RustBackendVideoEncodeWriteFramePayload>>;
 }
 
+export interface SharedVideoFramePresentedFrameHandoffCapabilities {
+  available: boolean;
+  reason?: string;
+}
+
 export const isSharedVideoFramePresentedFrameBridgeAvailable = (
   bridge: Partial<SharedVideoFramePresentedFrameBridge> | null | undefined,
-): bridge is Required<SharedVideoFramePresentedFrameBridge> =>
-  typeof bridge?.takePresentedFrameSharedFrame === 'function';
+): bridge is Required<Pick<SharedVideoFramePresentedFrameBridge, 'takePresentedFrameSharedFrame'>> =>
+  typeof bridge?.takePresentedFrameSharedFrame === 'function'
+  && bridge.getPresentedFrameHandoffCapabilities?.().available !== false;
 
 const getDefaultSharedVideoFrameBridge = (): Partial<SharedVideoFramePresentedFrameBridge> | null => {
   if (typeof window === 'undefined') {
