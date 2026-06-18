@@ -1,3 +1,31 @@
+## 2026-06-18 — Phase5: Rust export frame source plan を追加
+
+### 実施内容
+- `buildProjectExportFrameSourcePlan` を追加し、Rust/shared renderer frame source を canvas capture より優先する契約を固定した。
+- Rust frame source ready 時は `captureCanvas=false` / `requiresRenderScene=false` / `requiresLegacyBrowserVideoProviders=false` とし、export hook が `VideoFrameProvider` / `PlaybackFrameProvider` / `HTMLVideoElement` seek fallback を通らない入口を作った。
+- `useProjectExport` に任意の `getRustExportFrameSource` を追加し、Rust frame source が返す `ImageBitmap` を直接 `encodeVideoToMp4` へ流せるようにした。
+- canvas 経路では従来通り `renderScene` -> `resolveProjectExportFrameCanvas` -> `createImageBitmap` の fallback を維持した。
+- package version を `0.1.1-Beta-57a` に更新した。
+
+### Red
+- `src/utils/projectExportFrameCanvas.test.ts` に Rust frame source が Pixi canvas capture より優先される契約を追加した。
+- Rust frame source 不在時の explicit export canvas fallback、Pixi canvas legacy fallback、frame source 不在時 fail-loud の契約を追加した。
+
+### Green
+- `ProjectExportRustFrameSource` / `ProjectExportRustFrameRequest` を定義し、`frameIndex` / `timestampUs` / `time` / output size / export objects を渡せるようにした。
+- export frame loop は Rust frame source 経路では `exportFrameOverridesRef` を clear し、DOM video provider / seek / canvas capture を skip して `ImageBitmap` を yield する。
+
+### 現在の制限
+- 実際の Rust/shared renderer export frame source の実装と `Viewport` からの接続は未実装。
+- Rust frame source が export 開始後に失われた場合の動的fallbackはまだ行わず、export開始時のsource planを固定する。
+- full `npx tsc --noEmit` は既存のThree型定義、preview plan test型、filter test型などで失敗する。
+
+### 検証
+- `npm test -- src/utils/projectExportFrameCanvas.test.ts src/utils/rustBackendVideoDecodeControl.test.ts src/utils/sharedRendererRustVideoUploadPipeline.test.ts src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts`
+  -> 6 files / 36 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "projectExportFrameCanvas|useProjectExport|rustBackendVideoDecodeControl|sharedRendererRustVideoUploadPipeline|sharedRendererViewportVideoUpload.ts|sharedRendererWebGpuPresenter.ts"`
+  -> 対象ファイルの型エラーなし。
+
 ## 2026-06-18 — Phase5: export frame canvas のPixi必須条件を解除
 
 ### 実施内容

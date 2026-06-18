@@ -306,9 +306,10 @@ Rust backend decode は jobId keyed multi-session になり、Viewport は activ
 WebGPU presenter は clip id ごとの texture bind group を切り替えて、Rust upload 済み動画clipだけを描画する。
 Rust backend decode は ffprobe の colour metadata を gate し、bt709 / sRGB transfer / bt709 matrix / pc-tv range 以外を fail-loud にする。
 export frame capture は明示 shared renderer export canvas を Pixi canvas より優先して解決し、Pixi app 不在時の無言停止を
-fail-loud にする。次 gate では canvas capture ではなく Rust/shared renderer frame source を優先する source plan を追加し、
-Rust frame source ready 時は `VideoFrameProvider` / `PlaybackFrameProvider` / `HTMLVideoElement` seek fallback を通らない。
-その後、decode scheduler の負荷制御、HDR / 10bit / 明示変換対応を進める。
+fail-loud にする。Rust/shared renderer frame source plan は canvas capture より優先され、Rust frame source ready 時は
+`VideoFrameProvider` / `PlaybackFrameProvider` / `HTMLVideoElement` seek fallback を通らない。
+次 gate では `Viewport` / shared renderer 側から実際の export frame source を渡し、decode scheduler の負荷制御、
+HDR / 10bit / 明示変換対応を進める。
 これにより、動画読み込み・current frame availability と GPU import / sampling の問題を分離する。
 ただし HTMLVideoElement / `importExternalTexture` はブラウザの暗黙 YUV->RGB と float 秒 seek に依存するため、
 この経路の動画 preview は export parity をまだ主張しない。external texture 表示を入れる前後で、known clip の同一 frame を

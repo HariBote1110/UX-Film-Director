@@ -241,9 +241,13 @@ presenter 完了前に記録し、cancelled effect 後の `decode.start` 連打�
 50. Phase5: export frame canvas のPixi必須条件を解除する
 export frame capture の canvas 選択を resolver に分離し、shared renderer export canvas が明示されている場合は
 Pixi app / Pixi canvas がなくても export を開始できるようにする。移行中は Pixi canvas fallback を維持し、
-canvas が一切ない場合は fail-loud にする。次段では canvas capture ではなく Rust/shared renderer frame source を
-優先する source plan を追加し、`VideoFrameProvider` / `PlaybackFrameProvider` / `HTMLVideoElement` seek fallback を
-Rust frame source ready 時に通らないようにする。
+canvas が一切ない場合は fail-loud にする。
+
+51. Phase5: Rust export frame source plan を追加する
+canvas capture ではなく Rust/shared renderer frame source を優先する source plan を追加し、
+`VideoFrameProvider` / `PlaybackFrameProvider` / `HTMLVideoElement` seek fallback を Rust frame source ready 時に通らないようにする。
+次段では `Viewport` / shared renderer 側から実際の export frame source を渡し、Rust/WASM/WebGPU render target 由来の
+`ImageBitmap` を直接 `encodeVideoToMp4` へ流す。
 
 ## UI 刷新（2026-04-19）
 
