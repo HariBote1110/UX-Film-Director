@@ -4084,3 +4084,19 @@
 ### 残課題・次のステップ
 - video+PSD exportの積層sceneで、video decode shared frame source + PSD media sourceが同じnative renderへ入る契約を追加する。
 - 既存プロジェクトに保存済みの旧PSD layer idを新stable idへ移行する必要があるか確認する。
+
+## 2026-06-18 — 保存済みPSD復元をstable id経路へ接続
+
+### 実施内容
+- Red: `parsePsdArrayBufferAsObject` がWASM PSD metadata pathを使い、保存済みPSD復元でも `psd-group-*` / `psd-layer-*` のstable idを返す契約を追加した。
+- Green: ArrayBuffer入力のPSD parseを先に `parsePsdWithWasm` へ通し、WASM失敗時だけ既存ag-psd parseへfallbackするようにした。
+- Refactor: 通常ファイルWASM parseとArrayBuffer復元parseのPSD layer tree / activeLayerIds構築を共通化した。
+- 版を `0.1.1-Beta-118a` に更新した。
+
+### 検証
+- `npm test -- src/utils/psdParserArrayBufferWasm.test.ts src/utils/psdLayerStableId.test.ts src/utils/psdParserPersistence.test.ts src/utils/projectFile.test.ts src/utils/rustSceneSnapshot.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- video+PSD exportの積層sceneで、video decode shared frame source + PSD media sourceが同じnative renderへ入る契約を追加する。
+- 保存済みPSDの旧IDを持つactiveLayerIdsが存在する場合に、復元後のstable idへどこまで移せるかを実ファイルfixtureで確認する。

@@ -721,6 +721,12 @@ native render直通に進めない場合でも、presenter shared-frame handoff�
 WebGPU readback + JS shared-frame writerなら `webGpuReadbackSharedFrameWriter` を
 `uxfdRustExportFrameSourceFramePath` へ残す。これによりRust中心のexportがどの段階でfallbackしたかを実機datasetから追える。
 
+133. Phase5: 保存済みPSD復元をstable id経路へ接続する
+プロジェクト保存済みPSDを `restoreProjectObjects` で再読込する場合も、ArrayBufferをWASM PSD metadata pathへ通し、
+`psd-layer-{layer_index}` / `psd-group-{group_id}` のstable idで `rootLayer` / `layerTree` / `activeLayerIds` を復元する。
+WASM parse失敗時だけ既存ag-psd経路へfallbackし、保存済みPSDのlayer選択がRust backendのactive layer filterと照合不能に
+戻らないようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
