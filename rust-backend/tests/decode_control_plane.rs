@@ -343,6 +343,108 @@ fn native_render_shared_frame_consumes_source_shm_and_returns_descriptor_only() 
 }
 
 #[test]
+fn native_render_shared_frame_rejects_duplicate_media_and_shared_sources() {
+    let mut backend = BackendProcess::start();
+    let source_memory_id = unique_shm_name();
+    let output_memory_id = unique_shm_name();
+    let slot_count = 1;
+    let width = 4;
+    let height = 4;
+    let stride_bytes = 256;
+    let slot_byte_len = stride_bytes * height;
+    let tight_rgba = test_frame_pixels(width, height, 0);
+    let padded_rgba = pad_rgba_rows(&tight_rgba, width, height, stride_bytes as usize);
+    let source_ring = PosixSharedRing::create_with_slot_count(
+        &source_memory_id,
+        slot_count,
+        slot_byte_len as usize,
+    )
+    .expect("create duplicate source ring");
+    source_ring
+        .write_frame(0, &padded_rgba)
+        .expect("write duplicate source frame");
+
+    let response = backend.request(json!({
+        "id": 12,
+        "method": "render.nativeSharedFrame",
+        "params": {
+            "renderId": "native-render-duplicate-source",
+            "memoryId": output_memory_id,
+            "slotCount": slot_count,
+            "ptsFrame": 0,
+            "width": width,
+            "height": height,
+            "snapshot": {
+                "frame_index": 0,
+                "colour": {
+                    "profile": "rec709-sdr",
+                    "working_space": "linear-light",
+                    "alpha": "premultiplied"
+                },
+                "clips": [{
+                    "clip_id": "clip-duplicate-source",
+                    "track_id": "track-1",
+                    "media_id": "duplicate-1",
+                    "source_frame": 0,
+                    "z_index": 0,
+                    "transform": {
+                        "translation_x": 0.0,
+                        "translation_y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation_degrees": 0.0,
+                        "sampling": "nearest"
+                    },
+                    "opacity": 1.0,
+                    "effects": []
+                }]
+            },
+            "media": [{
+                "id": "duplicate-1",
+                "kind": "SolidColour",
+                "source": "#ff0000",
+                "width": 2,
+                "height": 2
+            }],
+            "sources": [{
+                "mediaId": "duplicate-1",
+                "slotCount": slot_count,
+                "frame": {
+                    "descriptor": {
+                        "memoryId": source_memory_id,
+                        "slotIndex": 0,
+                        "generation": 1,
+                        "byteOffset": 0,
+                        "byteLen": slot_byte_len,
+                        "width": width,
+                        "height": height,
+                        "strideBytes": stride_bytes,
+                        "format": "rgba8Srgb",
+                        "colour": {
+                            "primaries": "bt709",
+                            "transfer": "srgb",
+                            "matrix": "rgb",
+                            "range": "full"
+                        }
+                    },
+                    "ptsFrame": 0
+                }
+            }]
+        }
+    }));
+
+    assert_eq!(response["ok"], false, "{response}");
+    assert_eq!(response["error"]["code"], -32602);
+    assert!(
+        response["error"]["message"]
+            .as_str()
+            .expect("error message")
+            .contains("Duplicate native render source mediaId 'duplicate-1'"),
+        "{response}"
+    );
+}
+
+#[test]
 fn native_render_shared_frame_builds_solid_colour_sources_from_media() {
     let mut backend = BackendProcess::start();
     let output_memory_id = unique_shm_name();
