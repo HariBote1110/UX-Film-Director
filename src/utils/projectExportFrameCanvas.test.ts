@@ -136,6 +136,7 @@ describe('resolveProjectExportFrameRuntimePlan', () => {
       requiresRenderScene: false,
       usesExportFrameOverrides: false,
       requiresHtmlVideoElementSeekFallback: false,
+      shouldCloseRustFrameSource: false,
     });
   });
 
@@ -154,6 +155,7 @@ describe('resolveProjectExportFrameRuntimePlan', () => {
       requiresRenderScene: true,
       usesExportFrameOverrides: false,
       requiresHtmlVideoElementSeekFallback: true,
+      shouldCloseRustFrameSource: true,
     });
   });
 
@@ -173,6 +175,7 @@ describe('resolveProjectExportFrameRuntimePlan', () => {
       requiresRenderScene: true,
       usesExportFrameOverrides: true,
       requiresHtmlVideoElementSeekFallback: true,
+      shouldCloseRustFrameSource: false,
     });
   });
 });
