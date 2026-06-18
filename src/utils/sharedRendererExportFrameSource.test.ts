@@ -869,6 +869,241 @@ describe('createSharedRendererExportFrameSource', () => {
     ]);
   });
 
+  it('records native render diagnostics when video and PSD sources share the export render pass', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    const decodedFrame = {
+      descriptor: {
+        memoryId: '/uxfd-decoded-video-psd',
+        slotIndex: 0,
+        generation: 9,
+        byteOffset: 0,
+        byteLen: 1024,
+        width: 4,
+        height: 4,
+        strideBytes: 256,
+        format: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      },
+      ptsFrame: 8,
+    } as const;
+    const renderedFrame = {
+      descriptor: {
+        memoryId: '/uxfd-native-render-video-psd-session-frame-8',
+        slotIndex: 0,
+        generation: 1,
+        byteOffset: 0,
+        byteLen: 1024,
+        width: 4,
+        height: 4,
+        strideBytes: 256,
+        format: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      },
+      ptsFrame: 8,
+    } as const;
+    const snapshot = {
+      frame_index: 8,
+      colour: {
+        profile: 'rec709-sdr',
+        working_space: 'linear-light',
+        alpha: 'premultiplied',
+      },
+      clips: [{
+        clip_id: 'video-clip-1',
+        track_id: 'layer-1',
+        media_id: 'video-1',
+        source_frame: 8,
+        z_index: 0,
+        transform: {
+          translation_x: 0,
+          translation_y: 0,
+          scale_x: 1,
+          scale_y: 1,
+          rotation_degrees: 0,
+          sampling: 'bilinear',
+        },
+        opacity: 1,
+        effects: [],
+      }, {
+        clip_id: 'psd-clip-1',
+        track_id: 'layer-2',
+        media_id: 'psd-1',
+        source_frame: 0,
+        z_index: 1,
+        transform: {
+          translation_x: 0,
+          translation_y: 0,
+          scale_x: 1,
+          scale_y: 1,
+          rotation_degrees: 0,
+          sampling: 'bilinear',
+        },
+        opacity: 1,
+        effects: [],
+      }],
+    } as const;
+    const media = [{
+      id: 'video-1',
+      kind: 'Video',
+      source: '/tmp/video-1.mp4',
+      width: 4,
+      height: 4,
+      source_rate: {
+        numerator: 60,
+        denominator: 1,
+      },
+    }, {
+      id: 'psd-1',
+      kind: 'Psd',
+      source: '/tmp/overlay.psd',
+      width: 4,
+      height: 4,
+      active_layer_ids: ['psd-layer-1'],
+    }] as const;
+    const calls: unknown[] = [];
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: {
+        ...settings,
+        width: 4,
+        height: 4,
+      },
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      bitmapCaptureEnabled: false,
+      buildExportSession: () => ({
+        plan: {
+          mode: 'parallelCompare',
+          primary: 'pixi',
+          candidate: 'sharedRenderer',
+          snapshot,
+          media,
+        },
+        presentationContract: {
+          canvas: {
+            colorSpace: 'srgb',
+            alphaMode: 'premultiplied',
+          },
+          comparisonReadback: {
+            target: 'offscreenRenderTarget',
+            includesPageCompositing: false,
+          },
+          frameTiming: {
+            source: 'frozenSceneSnapshot',
+          },
+          deviceLost: {
+            fallback: 'pixi',
+            staleSharedFrameAllowed: false,
+          },
+        },
+        surfaceGate: {
+          ok: true,
+          canvas: {
+            width: 4,
+            height: 4,
+          },
+          snapshot,
+          media,
+        },
+      }),
+      prepareNativeRenderSources: async () => ({
+        ok: true,
+        activeJobs: [decodeJob('video-psd')],
+        sources: [{
+          mediaId: 'video-1',
+          slotCount: 2,
+          frame: decodedFrame,
+        }],
+      }),
+      renderNativeSharedFrame: (async (payload) => {
+        calls.push(['renderNativeSharedFrame', payload]);
+        return {
+          success: true,
+          result: {
+            rendered: true,
+            renderId: 'video-psd-session-frame-8',
+            memoryId: '/uxfd-native-render-video-psd-session-frame-8',
+            slotCount: 1,
+            slotByteLen: 1024,
+            frame: renderedFrame,
+          },
+        };
+      }) satisfies SharedRendererExportNativeSharedFrameRenderer,
+      startViewportPresenter: async () => {
+        throw new Error('WebGPU presenter must not start for mixed video+PSD native render.');
+      },
+      createEncodeFrameWriter: async () => {
+        throw new Error('JS shared-frame writer must not run for mixed video+PSD native render.');
+      },
+    } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
+      bitmapCaptureEnabled: false;
+      prepareNativeRenderSources: unknown;
+      renderNativeSharedFrame: unknown;
+    });
+
+    await expect(source.renderEncodeFrame?.({
+      frameIndex: 8,
+      timestampUs: 133_333,
+      time: 8 / 60,
+      width: 4,
+      height: 4,
+      objects: [image({ id: 'video-placeholder' }), image({ id: 'psd-placeholder' })],
+      encodeSessionId: 'video-psd-session',
+    })).resolves.toEqual({
+      timestamp: 133_333,
+      sharedFramePayload: {
+        sessionId: 'video-psd-session',
+        frameIndex: 8,
+        timestampUs: 133_333,
+        slotCount: 1,
+        frame: renderedFrame,
+      },
+    });
+
+    expect(calls).toEqual([
+      ['renderNativeSharedFrame', {
+        renderId: 'video-psd-session-frame-8',
+        memoryId: '/uxfd-native-render-video-psd-session-frame-8',
+        slotCount: 1,
+        ptsFrame: 8,
+        width: 4,
+        height: 4,
+        snapshot,
+        media,
+        sources: [{
+          mediaId: 'video-1',
+          slotCount: 2,
+          frame: decodedFrame,
+        }],
+      }],
+    ]);
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'ready',
+      uxfdRustExportFrameSourceFramePath: 'nativeRenderSharedFrame',
+      uxfdRustExportFrameSourceNativeRenderMediaCount: '2',
+      uxfdRustExportFrameSourceNativeRenderMediaKinds: 'Video,Psd',
+      uxfdRustExportFrameSourceNativeRenderSourceCount: '1',
+      uxfdRustExportFrameSourceNativeRenderSourceMediaIds: 'video-1',
+    });
+  });
+
   it('uses Rust backend native render for media-only PNG and SolidColour encode frames', async () => {
     const canvas = {
       width: 1,
