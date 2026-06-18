@@ -98,6 +98,28 @@ describe('buildProjectExportFrameSourcePlan', () => {
     });
   });
 
+  it('fails video exports instead of restoring legacy canvas after the Rust frame source is blocked', () => {
+    const plan = buildProjectExportFrameSourcePlan({
+      rustFrameSource,
+      hasVideoObjects: true,
+    });
+    if (!plan.ok) throw new Error('expected Rust export source plan');
+
+    expect(plan.rustFrameSourceBlockedFallback).toBe('failExport');
+    expect(resolveProjectExportFrameRuntimePlan({
+      frameSourcePlan: plan,
+      rustFrameSourceBlocked: true,
+    })).toEqual({
+      source: 'sharedRendererRustFrameSourceBlocked',
+      captureCanvas: false,
+      requiresRenderScene: false,
+      usesExportFrameOverrides: false,
+      requiresHtmlVideoElementSeekFallback: false,
+      shouldCloseRustFrameSource: true,
+      shouldFailOnRustFrameSourceBlocked: true,
+    });
+  });
+
   it('falls back to the explicit export canvas while the Rust frame source is unavailable', () => {
     const exportCanvas = { id: 'shared-renderer-export-canvas' } as unknown as HTMLCanvasElement;
 
