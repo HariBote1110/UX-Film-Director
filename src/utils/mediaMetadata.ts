@@ -86,44 +86,9 @@ export const probeMediaWithRust = async (file: File): Promise<RustMediaProbeResu
   }
 };
 
-const loadVideoElementMetadata = (url: string): Promise<VideoMetadata> => {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement('video');
-    video.preload = 'metadata';
-    video.onloadedmetadata = () => {
-      resolve({
-        duration: isPositiveNumber(video.duration) ? video.duration : DEFAULT_DURATION_SECONDS,
-        width: isPositiveNumber(video.videoWidth) ? video.videoWidth : DEFAULT_VIDEO_WIDTH,
-        height: isPositiveNumber(video.videoHeight) ? video.videoHeight : DEFAULT_VIDEO_HEIGHT,
-      });
-    };
-    video.onerror = () => reject(new Error('Failed to load video metadata.'));
-    video.src = url;
-  });
-};
-
-/**
- * `ffprobe` は回転メタデータを反映しない width/height を返すことがある一方、
- * ブラウザの `videoWidth` / `videoHeight` は表示向け（回転後）と一致する。
- * タイムライン上の `width` / `height` は後者に合わせないとスプライトが引き伸ばされる。
- */
 export const mergeResolvedVideoMetadata = (
-  probed: RustMediaProbeResult | null,
-  elementMeta: VideoMetadata | null
+  probed: RustMediaProbeResult | null
 ): VideoMetadata => {
-  if (elementMeta) {
-    const duration = isPositiveNumber(probed?.duration)
-      ? probed.duration
-      : isPositiveNumber(elementMeta.duration)
-        ? elementMeta.duration
-        : DEFAULT_DURATION_SECONDS;
-    return {
-      duration,
-      width: elementMeta.width,
-      height: elementMeta.height,
-    };
-  }
-
   if (!probed || !probed.hasVideo) {
     throw new Error('Failed to load video metadata.');
   }
@@ -155,12 +120,9 @@ const loadAudioElementMetadata = (url: string): Promise<AudioMetadata> => {
   });
 };
 
-export const resolveVideoMetadata = async (file: File, url: string): Promise<VideoMetadata> => {
-  const [probed, elementMeta] = await Promise.all([
-    probeMediaWithRust(file),
-    loadVideoElementMetadata(url).catch((): null => null),
-  ]);
-  return mergeResolvedVideoMetadata(probed, elementMeta);
+export const resolveVideoMetadata = async (file: File, _url: string): Promise<VideoMetadata> => {
+  const probed = await probeMediaWithRust(file);
+  return mergeResolvedVideoMetadata(probed);
 };
 
 export const resolveAudioMetadata = async (file: File, url: string): Promise<AudioMetadata> => {
