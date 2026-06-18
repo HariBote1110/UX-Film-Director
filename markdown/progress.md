@@ -257,3 +257,10 @@
 - Red/Green: 既存実装で契約を満たしていたため実装変更なし。`viewportRustVideoOnlyBoundary` に回帰防止テストのみ追加した。
 - 検証: `npm test -- viewportRustVideoOnlyBoundary pixiVideoCutover` は15件成功。
 - 版: 変更なし（`0.1.1-Beta-155a`）。
+
+## 2026-06-19
+- Phase5のvideo readiness診断として、shared renderer video cutover中もHTMLVideoElement readinessに依存しないようにした。
+- Red: `viewportRustVideoOnlyBoundary` へ、`requireSharedRendererVideo` が `sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled` になる契約を追加した。
+- Green: `Viewport` から `buildSharedRendererVideoMediaReadiness` へ渡す条件を更新した。
+- 検証: `npm test -- viewportRustVideoOnlyBoundary sharedRendererVideoMediaReadiness sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController` は45件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-156a`。

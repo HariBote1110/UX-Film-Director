@@ -939,6 +939,11 @@ export hookはDOM動画要素を受け取らず、Rust frame source / canvas com
 export overrideもRust必須も無い動画objectは既定で `sharedRendererOnly` となり、Viewport通常経路から
 HTMLVideoElement / Pixi VideoSourceへ戻らない。
 
+176. Phase5: video readiness診断をcutover時もRust必須にする
+`Viewport` が `buildSharedRendererVideoMediaReadiness` に渡す `requireSharedRendererVideo` を
+`sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled` にする。
+通常cutover中の動画診断をHTMLVideoElement ready/missingではなくRust/shared renderer requiredとして扱う。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
