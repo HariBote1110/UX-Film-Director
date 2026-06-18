@@ -116,18 +116,20 @@ export const resolveViewportRustExportFrameSource = ({
   }
 
   if (objects && time !== undefined) {
-    const session = buildExportSession({
-      enabled: true,
-      projectSettings,
-      layers,
-      objects,
-      time,
-      editorMode,
-      webGpuAvailable,
-      fallbackAdapter,
-    });
-    if (!session.surfaceGate.ok) {
-      return fallback('exportSessionBlocked', session.surfaceGate.detail);
+    for (const preflightTime of buildViewportRustExportPreflightTimes(objects, time)) {
+      const session = buildExportSession({
+        enabled: true,
+        projectSettings,
+        layers,
+        objects,
+        time: preflightTime,
+        editorMode,
+        webGpuAvailable,
+        fallbackAdapter,
+      });
+      if (!session.surfaceGate.ok) {
+        return fallback('exportSessionBlocked', session.surfaceGate.detail);
+      }
     }
   }
 
@@ -161,3 +163,22 @@ const fallback = (
   reason,
   detail,
 });
+
+const buildViewportRustExportPreflightTimes = (
+  objects: TimelineObject[],
+  initialTime: number
+): number[] => {
+  const times = new Set<number>();
+  addPreflightTime(times, initialTime);
+  objects.forEach((object) => {
+    if (object.duration <= 0) return;
+    addPreflightTime(times, Math.max(0, object.startTime));
+  });
+  return Array.from(times).sort((left, right) => left - right);
+};
+
+const addPreflightTime = (times: Set<number>, time: number): void => {
+  if (!Number.isFinite(time)) return;
+  if (time < 0) return;
+  times.add(time);
+};
