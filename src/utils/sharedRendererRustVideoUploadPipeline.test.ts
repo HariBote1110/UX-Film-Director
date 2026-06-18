@@ -61,6 +61,8 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
           success: true,
           result: {
             sequence: payload.ptsFrame,
+            slotIndex: payload.slotIndex,
+            generation: payload.generation,
             byteLen: target.byteLength,
             expectedChecksum: 0x1234,
             actualChecksum: 0x1234,
@@ -99,6 +101,8 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
         memoryId: '/uxfd-video-ring',
         slotCount: 2,
         slotByteLen: 512,
+        slotIndex: 1,
+        generation: 5,
         ptsFrame: 42,
       }, 512],
       ['releaseVideoDecodeFrame', {

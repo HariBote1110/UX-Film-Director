@@ -37,6 +37,8 @@ describe('sharedVideoFrameUploadBridge', () => {
           success: true,
           result: {
             sequence: payload.ptsFrame,
+            slotIndex: payload.slotIndex,
+            generation: payload.generation,
             byteLen: target.byteLength,
             expectedChecksum: 0x1234,
             actualChecksum: 0x1234,
@@ -61,6 +63,8 @@ describe('sharedVideoFrameUploadBridge', () => {
       ptsFrame: sharedFrame.ptsFrame,
       copyReport: {
         sequence: 42,
+        slotIndex: 1,
+        generation: 9,
         byteLen: 512,
         expectedChecksum: 0x1234,
         actualChecksum: 0x1234,
@@ -78,6 +82,8 @@ describe('sharedVideoFrameUploadBridge', () => {
         memoryId: '/uxfd-test-ring',
         slotCount: 2,
         slotByteLen: 512,
+        slotIndex: 1,
+        generation: 9,
         ptsFrame: 42,
       },
       512,
@@ -93,6 +99,8 @@ describe('sharedVideoFrameUploadBridge', () => {
         success: true,
         result: {
           sequence: 42,
+          slotIndex: 1,
+          generation: 9,
           byteLen: 511,
           expectedChecksum: 0x1234,
           actualChecksum: 0x1234,
@@ -122,6 +130,8 @@ describe('sharedVideoFrameUploadBridge', () => {
           success: true,
           result: {
             sequence: 42,
+            slotIndex: 2,
+            generation: 9,
             byteLen: sharedFrame.descriptor.byteLen,
             expectedChecksum: 0x1234,
             actualChecksum: 0x1234,
@@ -157,6 +167,8 @@ describe('sharedVideoFrameUploadBridge', () => {
         success: true,
         result: {
           sequence: 42,
+          slotIndex: 1,
+          generation: 9,
           byteLen: sharedFrame.descriptor.byteLen,
           expectedChecksum: 0x1234,
           actualChecksum: 0x1234,
