@@ -282,6 +282,11 @@ previewでは Rust video upload が失敗しても Pixi が動画所有を維持
 `rustFrameSourceRequired` としてexport開始前に失敗する。Rust frame sourceが実行中にblockedになった場合も
 legacy canvasへ戻さず、`sharedRendererRustFrameSourceBlocked` runtime planでexport失敗へ流す。
 
+58. Phase5: Rust export 動画ownership失敗を blocked fallback にする
+export frame sourceでは Pixi が動画ownerになる余地がないため、presenter control の `videoOwnership.owner` が
+`sharedRenderer` 以外で、かつ `noVideoScene` でない場合は `videoOwnershipUnavailable` のblocked errorへ変換する。
+これにより、動画clipが欠けたshared renderer canvasを成功frameとしてcaptureしない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

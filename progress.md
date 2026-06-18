@@ -1,3 +1,28 @@
+## 2026-06-18 — Phase5: Rust export 動画ownership失敗を blocked 扱いにする
+
+### 実施内容
+- Rust/shared renderer export frame sourceで、presenter control の `videoOwnership.owner` を確認するようにした。
+- exportではPixiに動画所有を戻せないため、`videoOwnership.owner !== 'sharedRenderer'` かつ `reason !== 'noVideoScene'` の場合は `videoOwnershipUnavailable` としてblocked errorに変換する。
+- 動画ownership失敗時はbitmap captureへ進まず、presenter controlをdisposeしてからlegacy canvas exportへ退避する。
+- package version を `0.1.1-Beta-60m` に更新した。
+
+### Red
+- `src/utils/sharedRendererExportFrameSource.test.ts` に、動画ownershipがPixiのままならbitmap captureせずblocked fallbackする契約を追加した。
+
+### Green
+- `src/utils/sharedRendererExportFrameSource.ts` に `resolveExportVideoOwnershipBlock` を追加し、export中のPixi video ownership返却を成功扱いしないようにした。
+
+### 現在の制限
+- `VITE_UXFD_RUST_EXPORT_ONLY=1` でない場合、blocked後はlegacy canvas exportへ退避する。完全Rust-onlyでは前段のpolicyにより再throwされる。
+
+### 検証
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts`
+  -> 1 file / 7 tests passed。
+- `npm test -- src/utils/sharedRendererSurfaceMount.test.ts src/utils/viewportRustExportFrameSource.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererExportSession.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/rustBackendVideoDecodeControl.test.ts src/utils/sharedRendererRustVideoUploadPipeline.test.ts src/utils/sharedRendererPresenterDiagnostics.test.ts`
+  -> 11 files / 64 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "src/(utils/sharedRendererExportFrameSource\\.ts|hooks/useProjectExport\\.ts|utils/projectExportFrameCanvas\\.ts)"`
+  -> 対象ファイルの型エラーなし。
+
 ## 2026-06-18 — Phase5: Rust-only export source policy を追加
 
 ### 実施内容
