@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { RustBackendNativeRenderSharedFrameResult } from './rustBackendNativeRenderControl';
 import type { RustBackendVideoFrameDescriptor } from './rustBackendVideoDecodeControl';
 import type { SharedRendererPreviewSession } from './sharedRendererPreviewSession';
+import { buildSharedRendererPresentationContract } from './sharedRendererPresentationContract';
 import { prepareSharedRendererViewportNativeRenderUpload } from './sharedRendererViewportNativeRenderUpload';
 
 const descriptor: RustBackendVideoFrameDescriptor = {
@@ -96,12 +97,7 @@ const mediaOnlySession: SharedRendererPreviewSession = {
       height: 4,
     }],
   },
-  presentationContract: {
-    colourSpace: 'srgb',
-    alphaMode: 'premultiplied',
-    textureFormat: 'rgba8unorm-srgb',
-    fallbackAdapterAllowed: false,
-  },
+  presentationContract: buildSharedRendererPresentationContract(),
 };
 
 const renderResult: RustBackendNativeRenderSharedFrameResult = {

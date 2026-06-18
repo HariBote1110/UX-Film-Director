@@ -5,7 +5,11 @@ import {
   type SharedRendererViewportPresenterStarter,
   type SharedRendererViewportVideoUploadPreparer,
 } from './sharedRendererViewportPresenterOrchestration';
-import type { SharedRendererPreviewPresenterControl } from './sharedRendererPreviewPresenterController';
+import type {
+  SharedRendererDecodedVideoFrameUpload,
+  SharedRendererPreviewPresenterControl,
+} from './sharedRendererPreviewPresenterController';
+import type { SharedVideoFrameCopyReport } from './sharedVideoFrameUploadBridge';
 import type { SharedRendererViewportVideoDecodeJob } from './sharedRendererViewportVideoUpload';
 
 const canvas = {} as HTMLCanvasElement;
@@ -33,7 +37,10 @@ const secondActiveJob: SharedRendererViewportVideoDecodeJob = {
   },
 };
 
-const upload = {
+const upload: SharedRendererDecodedVideoFrameUpload & {
+  ok: true;
+  copyReport: SharedVideoFrameCopyReport;
+} = {
   ok: true,
   descriptor: {
     memoryId: '/uxfd-node-video-ring',
@@ -67,14 +74,21 @@ const control: SharedRendererPreviewPresenterControl = {
   format: 'rgba8unorm-srgb',
   solidColourOwnership: {
     owner: 'sharedRenderer',
-    reason: 'cutoverEnabled',
+    reason: 'rustSolidColourReady',
     solidColourObjectIds: [],
   },
   videoOwnership: {
     owner: 'sharedRenderer',
-    reason: 'cutoverEnabled',
+    reason: 'rustDecodedFrameUploadReady',
     videoObjectIds: ['video-1'],
   },
+  readPresentedFrameRgbaBytes: async () => ({
+    rgbaBytes: new Uint8Array(),
+    strideBytes: 0,
+    byteLen: 0,
+    width: 0,
+    height: 0,
+  }),
   dispose: vi.fn(),
 };
 

@@ -5,6 +5,11 @@ import {
 } from './sharedRendererPreviewPresenterController';
 import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererWebGpuPresenter';
 import {
+  prepareSharedRendererViewportNativeRenderUpload,
+  type PrepareSharedRendererViewportNativeRenderUploadInput,
+  type PrepareSharedRendererViewportNativeRenderUploadResult,
+} from './sharedRendererViewportNativeRenderUpload';
+import {
   prepareSharedRendererViewportVideoUpload,
   prepareSharedRendererViewportVideoUploads,
   type PrepareSharedRendererViewportVideoUploadInput,
@@ -22,6 +27,10 @@ export type SharedRendererViewportVideoUploadsPreparer = (
   input: PrepareSharedRendererViewportVideoUploadsInput
 ) => Promise<PrepareSharedRendererViewportVideoUploadsResult>;
 
+export type SharedRendererViewportNativeRenderUploadPreparer = (
+  input: PrepareSharedRendererViewportNativeRenderUploadInput
+) => Promise<PrepareSharedRendererViewportNativeRenderUploadResult>;
+
 export type SharedRendererViewportPresenterStarter = (
   input: StartSharedRendererPreviewPresenterInput
 ) => Promise<SharedRendererPreviewPresenterControl>;
@@ -32,6 +41,7 @@ export interface StartSharedRendererViewportPresenterInput {
   datasets: StartSharedRendererPreviewPresenterInput['datasets'];
   diagnosticSwatchEnabled: boolean;
   videoCutoverEnabled: boolean;
+  nativeRenderPreviewEnabled?: boolean;
   requireSharedRendererVideo?: boolean;
   activeVideoDecodeJob: SharedRendererViewportVideoDecodeJob | null;
   activeVideoDecodeJobs?: SharedRendererViewportVideoDecodeJob[];
@@ -39,6 +49,7 @@ export interface StartSharedRendererViewportPresenterInput {
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
   prepareVideoUpload?: SharedRendererViewportVideoUploadPreparer;
   prepareVideoUploads?: SharedRendererViewportVideoUploadsPreparer;
+  prepareNativeRenderUpload?: SharedRendererViewportNativeRenderUploadPreparer;
   startPresenter?: SharedRendererViewportPresenterStarter;
   onVideoDecodeJobResolved?: (job: SharedRendererViewportVideoDecodeJob | null) => void;
   onVideoDecodeJobsResolved?: (jobs: SharedRendererViewportVideoDecodeJob[]) => void;
@@ -50,6 +61,7 @@ export interface StartSharedRendererViewportPresenterResult {
   activeVideoDecodeJobs: SharedRendererViewportVideoDecodeJob[];
   videoUploadResult?: PrepareSharedRendererViewportVideoUploadResult;
   videoUploadsResult?: PrepareSharedRendererViewportVideoUploadsResult;
+  nativeRenderUploadResult?: PrepareSharedRendererViewportNativeRenderUploadResult;
 }
 
 export const startSharedRendererViewportPresenter = async ({
@@ -58,6 +70,7 @@ export const startSharedRendererViewportPresenter = async ({
   datasets,
   diagnosticSwatchEnabled,
   videoCutoverEnabled,
+  nativeRenderPreviewEnabled = false,
   requireSharedRendererVideo = false,
   activeVideoDecodeJob,
   activeVideoDecodeJobs,
@@ -65,6 +78,7 @@ export const startSharedRendererViewportPresenter = async ({
   presentedFrameSharedFrameTaker,
   prepareVideoUpload = prepareSharedRendererViewportVideoUpload,
   prepareVideoUploads = prepareSharedRendererViewportVideoUploads,
+  prepareNativeRenderUpload,
   startPresenter = startSharedRendererPreviewPresenter,
   onVideoDecodeJobResolved,
   onVideoDecodeJobsResolved,
@@ -73,14 +87,31 @@ export const startSharedRendererViewportPresenter = async ({
   let nextActiveVideoDecodeJobs = activeVideoDecodeJobs ?? (activeVideoDecodeJob ? [activeVideoDecodeJob] : []);
   const effectiveVideoCutoverEnabled = videoCutoverEnabled || requireSharedRendererVideo;
   const shouldUseMultipleVideoUploads = Boolean(activeVideoDecodeJobs);
-  const videoUploadsResult = effectiveVideoCutoverEnabled && shouldUseMultipleVideoUploads
+  const nativeRenderUploadPreparer = prepareNativeRenderUpload
+    ?? (nativeRenderPreviewEnabled ? prepareSharedRendererViewportNativeRenderUpload : undefined);
+  const nativeRenderUploadResult = nativeRenderUploadPreparer
+    ? await nativeRenderUploadPreparer({
+      session,
+      requestId,
+      activeJobs: nextActiveVideoDecodeJobs,
+    })
+    : undefined;
+  const sharedRendererNativeRenderFrameUpload = nativeRenderUploadResult?.ok
+    ? nativeRenderUploadResult.upload
+    : undefined;
+  if (nativeRenderUploadResult) {
+    nextActiveVideoDecodeJobs = nativeRenderUploadResult.activeJobs;
+    nextActiveVideoDecodeJob = nextActiveVideoDecodeJobs[0] ?? null;
+  }
+  const shouldPrepareVideoUploads = effectiveVideoCutoverEnabled && !sharedRendererNativeRenderFrameUpload;
+  const videoUploadsResult = shouldPrepareVideoUploads && shouldUseMultipleVideoUploads
     ? await prepareVideoUploads({
       session,
       requestId,
       activeJobs: nextActiveVideoDecodeJobs,
     })
     : undefined;
-  const videoUploadResult = effectiveVideoCutoverEnabled && !shouldUseMultipleVideoUploads
+  const videoUploadResult = shouldPrepareVideoUploads && !shouldUseMultipleVideoUploads
     ? await prepareVideoUpload({
       session,
       requestId,
@@ -115,6 +146,7 @@ export const startSharedRendererViewportPresenter = async ({
     diagnosticSwatchEnabled,
     sharedRendererVideoCutoverEnabled: effectiveVideoCutoverEnabled,
     requireSharedRendererVideo,
+    sharedRendererNativeRenderFrameUpload,
     sharedRendererDecodedVideoFrameUpload,
     sharedRendererDecodedVideoFrameUploads,
     presentedFrameSharedFrameTaker,
@@ -126,5 +158,6 @@ export const startSharedRendererViewportPresenter = async ({
     activeVideoDecodeJobs: nextActiveVideoDecodeJobs,
     videoUploadResult,
     videoUploadsResult,
+    nativeRenderUploadResult,
   };
 };
