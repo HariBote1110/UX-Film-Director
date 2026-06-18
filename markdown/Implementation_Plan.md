@@ -821,6 +821,10 @@ shared renderer export frame source の `renderEncodeFrame` から `readPresente
 encode frameは Rust native render output または既存のpresented shared-frame handoffだけを受け付け、GPU readback bytesを
 renderer JSでshared memoryへ詰め替える経路をexport encodeの正規経路から外す。
 
+152. Phase5: 動画exportのRust backend encoderを必須化する
+動画オブジェクトを含むexportでは、`rustVideoOnly` の有無に関係なく Rust backend video encoder bridgeを必須にする。
+bridge未接続時は WebCodecs/mp4-muxer へ戻らず `rustEncoderRequired` で停止し、動画exportの最終encodeもRust側へ寄せる。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
