@@ -3,6 +3,7 @@ use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -1962,11 +1963,13 @@ fn crc32_hex(bytes: &[u8]) -> String {
 }
 
 fn unique_shm_name() -> String {
+    static SHM_COUNTER: AtomicU64 = AtomicU64::new(0);
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("system clock should be after unix epoch")
         .as_nanos() as u64;
-    format!("/ue{:x}{:x}", std::process::id(), nanos & 0xfffff)
+    let counter = SHM_COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("/ue{:x}{:x}{:x}", std::process::id(), nanos, counter)
 }
 
 fn run_ffmpeg_command(command: &mut Command, label: &str) {

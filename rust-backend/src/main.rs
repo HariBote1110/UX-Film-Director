@@ -520,9 +520,22 @@ fn handle_native_render_shared_frame(
             },
             MediaKind::Video => continue,
         };
-        sources.insert(media.id.clone(), frame);
+        if sources.insert(media.id.clone(), frame).is_some() {
+            return response_error(
+                id,
+                -32602,
+                &format!("Duplicate native render source mediaId '{}'", media.id),
+            );
+        }
     }
     for source in &parsed.sources {
+        if sources.contains_key(&source.media_id) {
+            return response_error(
+                id,
+                -32602,
+                &format!("Duplicate native render source mediaId '{}'", source.media_id),
+            );
+        }
         let frame = match read_native_render_source_frame(source) {
             Ok(value) => value,
             Err(message) => return response_error(id, -32072, &message),
