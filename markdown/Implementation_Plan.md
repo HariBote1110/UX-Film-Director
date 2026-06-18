@@ -451,6 +451,11 @@ shared renderer Rust frame source が有効なexportでは、`useProjectExport` 
 一時停止しない。DOM動画のpauseはlegacy canvas / browser video providerが必要な互換exportだけに限定し、
 Rust frame source -> shared-frame encodeの経路ではブラウザ動画状態を触らない。
 
+86. Phase5: Rust direct encode source から ImageBitmap 必須型を外す
+`ProjectExportRustFrameSource.renderFrame` をoptionalにし、Rust direct encodeでは `renderEncodeFrame` だけを持つ
+frame source を正規に扱う。WebCodecs互換やbitmap captureが必要な経路は `renderFrame` の存在を明示確認してから使い、
+shared-frame encode経路に `ImageBitmap` capture能力を要求しない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

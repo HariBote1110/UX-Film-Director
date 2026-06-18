@@ -1,3 +1,19 @@
+## 2026-06-18 — Phase5: Rust direct encode source から ImageBitmap 必須型を撤去
+
+### 実施内容
+- `src/utils/projectExportRustEncodeFrame.test.ts` に、Rust direct encode source は `renderEncodeFrame` だけで成立する型契約を追加した。
+- `ProjectExportRustFrameSource.renderFrame` をoptionalにし、bitmap互換経路だけが `renderFrame` の存在を要求するようにした。
+- `createSharedRendererExportFrameSource` の戻り値型は、実態どおり `renderFrame` / `renderEncodeFrame` の両方を持つsourceとして明示した。
+- package version を `0.1.1-Beta-75a` に更新した。
+
+### 検証
+- `npx tsc --noEmit 2>&1 | rg "projectExportRustEncodeFrame|ProjectExportRustFrameSource|renderFrame"`（Red: `renderFrame` 必須型で失敗）
+- `npm test -- src/utils/projectExportRustEncodeFrame.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/viewportRustExportFrameSource.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "projectExportRustEncodeFrame|projectExportFrameCanvas|sharedRendererExportFrameSource|viewportRustExportFrameSource|useProjectExport"`（対象ファイルの型エラーなし）
+
+### 残課題・次のステップ
+- Rust direct encodeは `ImageBitmap` capture能力を型上も要求しなくなった。次は `VITE_UXFD_RUST_VIDEO_ONLY` とexport source policyを連動させ、Rust video-only時のlegacy canvas / WebCodecs fallbackをさらに狭める。
+
 ## 2026-06-18 — Phase5: Rust export時は DOM動画pause副作用を回避
 
 ### 実施内容
