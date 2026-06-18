@@ -18,9 +18,19 @@ export interface RustBackendVideoEncodeSharedFrameWriterWriteInput {
   rgbaBytes: Uint8Array;
 }
 
+export interface RustBackendVideoEncodeSharedFrameWriterWritePaddedInput {
+  frameIndex: number;
+  timestampUs: number;
+  paddedRgbaBytes: Uint8Array;
+  strideBytes: number;
+}
+
 export interface RustBackendVideoEncodeSharedFrameWriter {
   writeFrame: (
     input: RustBackendVideoEncodeSharedFrameWriterWriteInput
+  ) => Promise<RustBackendVideoEncodeWriteFramePayload>;
+  writePaddedFrame: (
+    input: RustBackendVideoEncodeSharedFrameWriterWritePaddedInput
   ) => Promise<RustBackendVideoEncodeWriteFramePayload>;
   close: () => Promise<void>;
 }
@@ -93,6 +103,58 @@ export const createRustBackendVideoEncodeSharedFrameWriter = async ({
 
   let closed = false;
 
+  const writePaddedFrame = async ({
+    frameIndex,
+    timestampUs,
+    paddedRgbaBytes,
+    strideBytes: sourceStrideBytes,
+  }: RustBackendVideoEncodeSharedFrameWriterWritePaddedInput): Promise<RustBackendVideoEncodeWriteFramePayload> => {
+    if (closed) {
+      throw new Error('Cannot write to a closed shared frame writer.');
+    }
+    if (sourceStrideBytes !== strideBytes) {
+      throw new Error(`Padded RGBA stride must be ${strideBytes} bytes.`);
+    }
+    if (paddedRgbaBytes.byteLength !== slotByteLen) {
+      throw new Error(`Padded RGBA byte length must be ${slotByteLen} bytes.`);
+    }
+
+    const writeResponse = await bridge.writeIntoSharedFrameRing({
+      memoryId,
+      ptsFrame: frameIndex,
+    }, paddedRgbaBytes);
+    if (!writeResponse.success) {
+      throw new Error(writeResponse.error ?? 'Failed to write shared frame.');
+    }
+
+    return {
+      sessionId,
+      frameIndex,
+      timestampUs,
+      slotCount: SLOT_COUNT,
+      frame: {
+        descriptor: {
+          memoryId,
+          slotIndex: 0,
+          generation: frameIndex + 1,
+          byteOffset: 0,
+          byteLen: slotByteLen,
+          width,
+          height,
+          strideBytes,
+          format: 'rgba8Srgb',
+          colour: {
+            primaries: 'bt709',
+            transfer: 'srgb',
+            matrix: 'rgb',
+            range: 'full',
+          },
+        },
+        ptsFrame: frameIndex,
+      },
+    };
+  };
+
   return {
     async writeFrame({
       frameIndex,
@@ -111,41 +173,14 @@ export const createRustBackendVideoEncodeSharedFrameWriter = async ({
         strideBytes,
         slotByteLen,
       });
-      const writeResponse = await bridge.writeIntoSharedFrameRing({
-        memoryId,
-        ptsFrame: frameIndex,
-      }, paddedFrame);
-      if (!writeResponse.success) {
-        throw new Error(writeResponse.error ?? 'Failed to write shared frame.');
-      }
-
-      return {
-        sessionId,
+      return writePaddedFrame({
         frameIndex,
         timestampUs,
-        slotCount: SLOT_COUNT,
-        frame: {
-          descriptor: {
-            memoryId,
-            slotIndex: 0,
-            generation: frameIndex + 1,
-            byteOffset: 0,
-            byteLen: slotByteLen,
-            width,
-            height,
-            strideBytes,
-            format: 'rgba8Srgb',
-            colour: {
-              primaries: 'bt709',
-              transfer: 'srgb',
-              matrix: 'rgb',
-              range: 'full',
-            },
-          },
-          ptsFrame: frameIndex,
-        },
-      };
+        paddedRgbaBytes: paddedFrame,
+        strideBytes,
+      });
     },
+    writePaddedFrame,
     async close(): Promise<void> {
       if (closed) {
         return;

@@ -178,6 +178,10 @@ describe('createSharedRendererExportFrameSource', () => {
             calls.push(['writeFrame', writeInput]);
             return payload;
           },
+          writePaddedFrame: async (writeInput) => {
+            calls.push(['writePaddedFrame', writeInput]);
+            return payload;
+          },
           close: async () => {
             calls.push(['closeEncodeFrameWriter']);
           },
