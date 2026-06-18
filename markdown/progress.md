@@ -376,3 +376,10 @@
 - Green: decoded frame descriptor検証にslot offset一致を追加し、upload bridgeで `slotCount`、ring byte長、slot範囲を確認するようにした。
 - 検証: `npm test -- rustBackendVideoDecodeControl sharedVideoFrameUploadBridge sharedRendererRustVideoUploadPipeline sharedRendererViewportNativeRenderUpload` は18件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-171a`。
+
+## 2026-06-19
+- Phase5のshared frame copy data-plane整理として、Electron contextBridge互換の `rgbaBytes` 戻り値fallbackを削除した。
+- Red: `sharedVideoFrameUploadBridge` の既存テストを、copy reportがpixel bytesを返した場合は拒否する契約へ反転した。
+- Green: `SharedVideoFrameCopyReport` / `window.sharedVideoFrame.copyIntoUploadBuffer` の戻り値型から `rgbaBytes` を削除し、runtime混入時も `copyReportContainsPixelPayload` でblockedにした。
+- 検証: `npm test -- sharedVideoFrameUploadBridge sharedRendererRustVideoUploadPipeline sharedRendererViewportNativeRenderUpload sharedRendererViewportVideoUpload` は17件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-172a`。

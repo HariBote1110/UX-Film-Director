@@ -1037,6 +1037,12 @@ renderer upload前のTS境界で再確認し、壊れたdescriptorがWebGPU uplo
 native copy bridgeを呼ばずにblocked resultを返す。
 Rust backend decodeから来たshared memory descriptorが、宣言されたring layout外へcopyを要求しないようにする。
 
+193. Phase5: shared frame copy reportからpixel payload fallbackを削除する
+`SharedVideoFrameCopyReport` と `window.sharedVideoFrame.copyIntoUploadBuffer` の戻り値型から
+`rgbaBytes` を削除し、実行時に `bytes` / `pixels` / `frameBase64` / `rgbaBytes` が混入した場合は拒否する。
+shared memory / native copy bridge は渡されたrenderer-owned upload bufferへcopyするだけにし、
+Electron contextBridge経由でpixel bytesを返す互換fallbackを廃止する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
