@@ -172,6 +172,10 @@ export const buildProjectExportFrameSourcePlan = ({
   pixiCanvas = null,
 }: BuildProjectExportFrameSourcePlanInput): ProjectExportFrameSourcePlanResult => {
   if (rustFrameSource) {
+    const effectiveRustFrameSourceBlockedFallback = hasVideoObjects
+      ? 'failExport'
+      : rustFrameSourceBlockedFallback;
+
     return {
       ok: true,
       source: 'sharedRendererRustFrameSource',
@@ -181,7 +185,7 @@ export const buildProjectExportFrameSourcePlan = ({
       requiresLegacyBrowserVideoProviders: false,
       requiresHtmlVideoElementSeekFallback: false,
       usesExportFrameOverrides: false,
-      rustFrameSourceBlockedFallback,
+      rustFrameSourceBlockedFallback: effectiveRustFrameSourceBlockedFallback,
     };
   }
 

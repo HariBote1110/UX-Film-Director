@@ -104,6 +104,7 @@ describe('buildProjectExportFrameSourcePlan', () => {
       hasVideoObjects: true,
     });
     if (!plan.ok) throw new Error('expected Rust export source plan');
+    if (plan.source !== 'sharedRendererRustFrameSource') throw new Error('expected shared renderer Rust export source plan');
 
     expect(plan.rustFrameSourceBlockedFallback).toBe('failExport');
     expect(resolveProjectExportFrameRuntimePlan({
