@@ -294,8 +294,9 @@ Rust decoded video upload pipeline helper は verified decode response だけを
 GPU upload fence 後 release callback を持つ upload object を作れる。
 `shared-video-frame-bridge-node` により Rust bridge core は N-API addon として build でき、Node 直 require では
 `Uint8Array` target を in-place mutation できる。
-Electron `contextBridge` 越しの target mutation は反映されないため、preload は native copy 後の bytes を
-`result.rgbaBytes` として返し、renderer helper は returned bytes を upload buffer として採用する。
+Electron `contextBridge` 越しでも、preload は native copy 後の pixel bytes を戻り値として返さない。
+renderer helper は copy report に pixel payload が混入した場合 fail-loud とし、pixel data-plane を
+shared memory / native copy bridge / renderer-owned upload buffer に限定する。
 Viewport orchestration は video cutover flag 有効時に Rust backend decode / shared memory copy / WebGPU upload object
 準備を行い、presenter に clip id 付きの `sharedRendererDecodedVideoFrameUploads` を渡せる。
 preload は env override / dev output / packaged resources の順で shared video frame native addon を解決できる。

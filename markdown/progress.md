@@ -383,3 +383,10 @@
 - Green: `SharedVideoFrameCopyReport` / `window.sharedVideoFrame.copyIntoUploadBuffer` の戻り値型から `rgbaBytes` を削除し、runtime混入時も `copyReportContainsPixelPayload` でblockedにした。
 - 検証: `npm test -- sharedVideoFrameUploadBridge sharedRendererRustVideoUploadPipeline sharedRendererViewportNativeRenderUpload sharedRendererViewportVideoUpload` は17件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-172a`。
+
+## 2026-06-19
+- Phase5のElectron preload境界として、`copyIntoUploadBuffer` が `result.rgbaBytes` を注入して返す互換fallbackを削除した。
+- Red: `sharedVideoFrameUploadBridgeBoundary` を追加し、`electron/preload.ts` が `rgbaBytes: target` を公開しない契約を追加した。
+- Green: preloadの `SharedVideoFrameCopyResult` から `rgbaBytes` を削除し、native bridgeのcopy reportをそのまま返すようにした。
+- 検証: `npm test -- sharedVideoFrameUploadBridgeBoundary sharedVideoFrameUploadBridge sharedRendererRustVideoUploadPipeline sharedRendererViewportNativeRenderUpload sharedRendererViewportVideoUpload` は18件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-173a`。

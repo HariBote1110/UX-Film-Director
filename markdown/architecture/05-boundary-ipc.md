@@ -136,8 +136,9 @@ Rust backend integration gate:
   `Uint8Array` target を in-place mutation できる。
 - preload は native module を `UXFD_SHARED_VIDEO_FRAME_BRIDGE_MODULE` で差し込む形を維持し、未接続時は fail-loud とする。
 - env 未指定時、preload は dev build output と packaged resources の `.node` を順に探す。
-- Electron `contextBridge` 越しでは renderer 側 target mutation が反映されないため、preload は native copy 後の
-  cloned `Uint8Array` を `result.rgbaBytes` として返す。renderer helper は returned bytes を優先して upload buffer に採用する。
+- Electron `contextBridge` 越しでも、preload は native copy 後の pixel bytes を戻り値へ載せない。
+  renderer helper は copy report に pixel payload が混入した場合 fail-loud とし、data-plane を shared memory /
+  native copy bridge / renderer-owned upload buffer に限定する。
 - Viewport は video cutover flag が有効なとき、presenter 起動前に Rust backend decode request と shared memory copy を行い、
   decoded upload object を clip id 付きで WebGPU presenter に渡す。
 - WebGPU presenter は upload 済み texture を `presentVideoFrameScene` へ渡して描画する。複数動画では

@@ -206,14 +206,14 @@ upload object へ変換する。次段ではこの pipeline を Viewport の pre
 `shared-video-frame-bridge-node` を追加し、既存 Rust core を N-API 経由で
 `copyIntoUploadBuffer(payload, target)` として Node / preload から呼べるようにする。
 `npm run test:bridge-node` は addon を build し、Node 直 require で `Uint8Array` in-place mutation と
-fail-loud error mapping を確認する。次段では Electron `contextBridge` 越しに target buffer が更新されるかを
-実機テストで確認し、失敗時は return-buffer / transferable 形式へ契約を切り替える。
+fail-loud error mapping を確認する。Electron preload も control-plane pixel payload を返さず、
+renderer-owned target buffer への copy 成否だけを扱う。
 
-45. Phase5: Electron contextBridge 返却bytes契約へ切り替える
-Electron `contextBridge` 越しでは renderer の元 `Uint8Array` target は preload/native 側の mutation を反映しない。
-preload は clone された target へ native addon で copy した後、その `Uint8Array` を `result.rgbaBytes` として返す。
-renderer helper は `result.rgbaBytes` が存在する場合にそれを upload buffer へ採用し、Node 直 require と
-Electron isolated world の両方を扱えるようにする。
+45. Phase5: Electron contextBridge の返却bytes fallbackを禁止する
+Electron `contextBridge` 越しでも `copyIntoUploadBuffer` の戻り値に pixel bytes を載せない。
+preload は native addon の copy report をそのまま返し、renderer helper は `target` mutation が成立しない環境を
+fail-loudとして扱う。control plane は descriptor / checksum / status だけを返し、pixel data-plane は
+shared memory / native copy bridge / renderer-owned upload buffer に限定する。
 
 46. Phase5: Viewport orchestration から Rust video upload を起動する
 Viewport presenter 起動前に `prepareSharedRendererViewportVideoUpload` を呼び、最初の visible video request について
