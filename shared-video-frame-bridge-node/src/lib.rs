@@ -93,6 +93,69 @@ pub struct WritableSharedFrameCloseResponse {
 }
 
 #[napi(object)]
+pub struct PresentedFrameCanvasSize {
+    pub width: u32,
+    pub height: u32,
+}
+
+#[napi(object)]
+pub struct PresentedFrameHandoffPayload {
+    pub encode_session_id: String,
+    pub memory_id: String,
+    pub frame_index: u32,
+    pub timestamp_us: f64,
+    pub width: u32,
+    pub height: u32,
+    pub fps: f64,
+    pub format: String,
+    pub canvas_size: PresentedFrameCanvasSize,
+}
+
+#[napi(object)]
+pub struct PresentedFrameHandoffColour {
+    pub primaries: String,
+    pub transfer: String,
+    pub matrix: String,
+    pub range: String,
+}
+
+#[napi(object)]
+pub struct PresentedFrameHandoffDescriptor {
+    pub memory_id: String,
+    pub slot_index: u32,
+    pub generation: u32,
+    pub byte_offset: u32,
+    pub byte_len: u32,
+    pub width: u32,
+    pub height: u32,
+    pub stride_bytes: u32,
+    pub format: String,
+    pub colour: PresentedFrameHandoffColour,
+}
+
+#[napi(object)]
+pub struct PresentedFrameHandoffSharedFrame {
+    pub descriptor: PresentedFrameHandoffDescriptor,
+    pub pts_frame: f64,
+}
+
+#[napi(object)]
+pub struct PresentedFrameHandoffReport {
+    pub session_id: String,
+    pub frame_index: u32,
+    pub timestamp_us: f64,
+    pub slot_count: u32,
+    pub frame: PresentedFrameHandoffSharedFrame,
+}
+
+#[napi(object)]
+pub struct PresentedFrameHandoffResponse {
+    pub success: bool,
+    pub result: Option<PresentedFrameHandoffReport>,
+    pub error: Option<String>,
+}
+
+#[napi(object)]
 pub struct DebugFillReport {
     pub byte_len: u32,
     pub fill_value: u32,
@@ -195,6 +258,16 @@ pub fn copy_into_upload_buffer(
     }
 }
 
+#[napi(js_name = "takePresentedFrameSharedFrame")]
+pub fn take_presented_frame_shared_frame(
+    _payload: PresentedFrameHandoffPayload,
+) -> PresentedFrameHandoffResponse {
+    presented_frame_handoff_failure(
+        "WebGPU texture handoff is not implemented by the shared video frame native addon yet."
+            .to_string(),
+    )
+}
+
 #[napi(js_name = "debugFillForTest")]
 pub fn debug_fill_for_test(mut target: Uint8Array, fill_value: u32) -> DebugFillReport {
     let byte = (fill_value & 0xff) as u8;
@@ -243,6 +316,14 @@ fn writable_write_failure(error: String) -> WritableSharedFrameWriteResponse {
 
 fn writable_close_failure(error: String) -> WritableSharedFrameCloseResponse {
     WritableSharedFrameCloseResponse {
+        success: false,
+        result: None,
+        error: Some(error),
+    }
+}
+
+fn presented_frame_handoff_failure(error: String) -> PresentedFrameHandoffResponse {
+    PresentedFrameHandoffResponse {
         success: false,
         result: None,
         error: Some(error),
