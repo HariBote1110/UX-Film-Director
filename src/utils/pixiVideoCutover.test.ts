@@ -107,6 +107,16 @@ describe('shouldSkipPixiVideoForSharedRenderer', () => {
 });
 
 describe('resolvePixiVideoRenderPath', () => {
+  it('requires shared renderer video for ordinary preview clips by default', () => {
+    expect(resolvePixiVideoRenderPath({
+      objectId: 'video-1',
+      objectType: 'video',
+      isExporting: false,
+      requireSharedRendererVideo: false,
+      hasExportFrameOverride: false,
+    })).toBe('sharedRendererOnly');
+  });
+
   it('prioritises shared renderer video over export overrides and Pixi video elements when Rust video is required', () => {
     expect(resolvePixiVideoRenderPath({
       objectId: 'video-1',
