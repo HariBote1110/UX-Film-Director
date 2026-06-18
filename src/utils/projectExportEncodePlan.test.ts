@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { resolveProjectExportEncodePlan } from './projectExportEncodePlan';
+import {
+  resolveProjectExportEncodePlan,
+  resolveProjectExportEncodePlanFromBridge,
+} from './projectExportEncodePlan';
 
 describe('resolveProjectExportEncodePlan', () => {
   it('keeps WebCodecs mp4-muxer encoding for the default compatibility export path', () => {
@@ -30,6 +33,31 @@ describe('resolveProjectExportEncodePlan', () => {
     })).toEqual({
       ok: true,
       engine: 'rustBackendVideoEncoder',
+    });
+  });
+
+  it('derives Rust encoder availability from the renderer bridge shape', () => {
+    expect(resolveProjectExportEncodePlanFromBridge({
+      rustExportOnly: true,
+      rustVideoEncoderBridge: {
+        startVideoEncode: async () => ({ success: true }),
+        writeVideoEncodeFrame: async () => ({ success: true }),
+        finishVideoEncode: async () => ({ success: true }),
+      },
+    })).toEqual({
+      ok: true,
+      engine: 'rustBackendVideoEncoder',
+    });
+
+    expect(resolveProjectExportEncodePlanFromBridge({
+      rustExportOnly: true,
+      rustVideoEncoderBridge: {
+        startVideoEncode: async () => ({ success: true }),
+      },
+    })).toEqual({
+      ok: false,
+      reason: 'rustEncoderRequired',
+      detail: 'Rust-only export requires a Rust video encoder backend; WebCodecs encoding is disabled.',
     });
   });
 });
