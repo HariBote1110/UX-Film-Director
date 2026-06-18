@@ -109,10 +109,41 @@ describe('sharedVideoFramePresentedFrameHandoff', () => {
 
   it('returns null from the taker when the native bridge declines the handoff', async () => {
     const taker = createSharedVideoFramePresentedFrameTaker({
+      getPresentedFrameHandoffCapabilities: () => ({
+        available: true,
+      }),
       takePresentedFrameSharedFrame: async () => ({
         success: false,
         error: 'Native WebGPU frame handoff is unavailable.',
       }),
+    });
+
+    await expect(taker?.({
+      encodeSessionId: 'native-handoff-session',
+      memoryId: '/uxfd-export-source-native-handoff-session',
+      frameIndex: 12,
+      timestampUs: 200_000,
+      width: 2,
+      height: 2,
+      fps: 60,
+      device: 'gpu-device',
+      texture: 'presented-texture',
+      format: 'bgra8unorm',
+      canvasSize: {
+        width: 2,
+        height: 2,
+      },
+    })).resolves.toBeNull();
+  });
+
+  it('returns null from the taker when the native bridge throws during object handoff', async () => {
+    const taker = createSharedVideoFramePresentedFrameTaker({
+      getPresentedFrameHandoffCapabilities: () => ({
+        available: true,
+      }),
+      takePresentedFrameSharedFrame: async () => {
+        throw new Error('GPUTexture could not be cloned.');
+      },
     });
 
     await expect(taker?.({
