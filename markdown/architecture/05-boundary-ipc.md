@@ -128,6 +128,8 @@ Rust backend integration gate:
   `bytesPerRow` として WebGPU `rgba8unorm-srgb` texture へ upload し、video plane vertex scene で描画できる。
 - `shared-video-frame-bridge` は POSIX shm ring から renderer upload buffer 相当の mutable slice へ copy する
   Rust core を持つ。copy 後も slot は `READING` のままで、GPU upload fence 後の release に ownership を委ねる。
+- decode data-planeのreleaseはdescriptor由来の `slotIndex` を指定して行い、複数slotが `READING` のときも
+  control-plane ringと同じslotだけをfreeに戻す。
 - preload は `window.sharedVideoFrame.copyIntoUploadBuffer` を公開する。control payload は `memoryId` / `slotCount` /
   `slotByteLen` / `slotIndex` / `generation` / `ptsFrame` で、frame bytes は renderer-owned `Uint8Array` target にだけ入る。
 - renderer utility は verified decoded frame response から upload buffer を準備し、GPU upload fence 後に

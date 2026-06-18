@@ -1054,6 +1054,11 @@ descriptorが指すslotと異なるready frameをcopyしない。
 decoded frame descriptorと一致しない場合、upload objectを成功扱いしない。
 native bridgeが返したreportもrenderer境界で再検証し、stale slot leaseのままWebGPU uploadへ進まないようにする。
 
+196. Phase5: decode data-plane releaseをslot指定にする
+POSIX shared memory data-planeのreleaseを「最初のREADING slot」ではなく、descriptor由来の `slotIndex` 指定で行う。
+control-plane ringの `release_read_slot` とdata-plane ringのrelease対象を揃え、
+複数slotがREADINGのときに別slotを誤ってfreeにしない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

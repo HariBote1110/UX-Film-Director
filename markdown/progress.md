@@ -404,3 +404,10 @@
 - Green: `prepareSharedRendererDecodedVideoFrameUpload` でcopy reportのslot leaseをdescriptorと照合し、mismatch時は `copyReportSlotLeaseMismatch` を返すようにした。
 - 検証: `npm test -- sharedVideoFrameUploadBridge sharedRendererRustVideoUploadPipeline sharedRendererViewportNativeRenderUpload sharedRendererViewportVideoUpload` は19件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-174b`。
+
+## 2026-06-19
+- Phase5のdecode data-plane ownershipとして、POSIX shared memory releaseを `slotIndex` 指定にした。
+- Red: `shared-memory-spike` のmulti-slot testを、second slotを先にreleaseして同じslotを再利用する契約へ強化した。`rust-backend` integrationもcontrol-plane slotとdata-plane slotが同じslotを再利用する契約へ強化した。
+- Green: `PosixSharedRing::release_frame_slot` を追加し、Rust backendの `release_decode_data_plane` がdecode release payloadの `slotIndex` を渡すようにした。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane decode_request_frame_uses_second_shared_memory_slot_while_first_slot_is_reading -- --nocapture`、`cargo test --manifest-path shared-memory-spike/Cargo.toml posix_shm_multi_slot_allows_next_frame_while_previous_frame_is_reading` は成功。
+- 版: `0.1.1-Beta-175a`。
