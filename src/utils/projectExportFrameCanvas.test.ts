@@ -94,8 +94,6 @@ describe('buildProjectExportFrameSourcePlan', () => {
       frameSource: rustFrameSource,
       captureCanvas: false,
       requiresRenderScene: false,
-      requiresLegacyBrowserVideoProviders: false,
-      requiresHtmlVideoElementSeekFallback: false,
       usesExportFrameOverrides: false,
       rustFrameSourceBlockedFallback: 'legacyCanvas',
     });
@@ -118,7 +116,6 @@ describe('buildProjectExportFrameSourcePlan', () => {
       captureCanvas: false,
       requiresRenderScene: false,
       usesExportFrameOverrides: false,
-      requiresHtmlVideoElementSeekFallback: false,
       shouldCloseRustFrameSource: true,
       shouldFailOnRustFrameSourceBlocked: true,
     });
@@ -136,8 +133,6 @@ describe('buildProjectExportFrameSourcePlan', () => {
       canvas: exportCanvas,
       captureCanvas: true,
       requiresRenderScene: true,
-      requiresLegacyBrowserVideoProviders: true,
-      requiresHtmlVideoElementSeekFallback: true,
       usesExportFrameOverrides: true,
     });
   });
@@ -182,8 +177,6 @@ describe('buildProjectExportFrameSourcePlan', () => {
       canvas: pixiCanvas,
       captureCanvas: true,
       requiresRenderScene: true,
-      requiresLegacyBrowserVideoProviders: true,
-      requiresHtmlVideoElementSeekFallback: true,
       usesExportFrameOverrides: true,
     });
   });
@@ -208,6 +201,8 @@ describe('projectExportFrameCanvas browser video boundary', () => {
     expect(code).not.toContain('pauseLegacyBrowserVideosForExport');
     expect(code).not.toContain('ProjectExportBrowserVideoElement');
     expect(code).not.toContain("Pick<HTMLVideoElement, 'pause'>");
+    expect(code).not.toContain('requiresLegacyBrowserVideoProviders');
+    expect(code).not.toContain('requiresHtmlVideoElementSeekFallback');
   });
 });
 
@@ -318,13 +313,12 @@ describe('resolveProjectExportFrameRuntimePlan', () => {
       captureCanvas: false,
       requiresRenderScene: false,
       usesExportFrameOverrides: false,
-      requiresHtmlVideoElementSeekFallback: false,
       shouldCloseRustFrameSource: false,
       shouldFailOnRustFrameSourceBlocked: false,
     });
   });
 
-  it('enables legacy canvas and HTMLVideoElement seek after the Rust frame source is blocked', () => {
+  it('enables only legacy canvas capture after the Rust frame source is blocked', () => {
     const plan = buildProjectExportFrameSourcePlan({
       rustFrameSource,
     });
@@ -338,7 +332,6 @@ describe('resolveProjectExportFrameRuntimePlan', () => {
       captureCanvas: true,
       requiresRenderScene: true,
       usesExportFrameOverrides: false,
-      requiresHtmlVideoElementSeekFallback: true,
       shouldCloseRustFrameSource: true,
       shouldFailOnRustFrameSourceBlocked: false,
     });
@@ -359,7 +352,6 @@ describe('resolveProjectExportFrameRuntimePlan', () => {
       captureCanvas: false,
       requiresRenderScene: false,
       usesExportFrameOverrides: false,
-      requiresHtmlVideoElementSeekFallback: false,
       shouldCloseRustFrameSource: true,
       shouldFailOnRustFrameSourceBlocked: true,
     });
@@ -380,7 +372,6 @@ describe('resolveProjectExportFrameRuntimePlan', () => {
       captureCanvas: true,
       requiresRenderScene: true,
       usesExportFrameOverrides: true,
-      requiresHtmlVideoElementSeekFallback: true,
       shouldCloseRustFrameSource: false,
       shouldFailOnRustFrameSourceBlocked: false,
     });
