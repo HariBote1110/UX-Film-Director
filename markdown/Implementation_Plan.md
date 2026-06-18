@@ -1031,6 +1031,12 @@ shared memory ring layoutとして成立しない場合、decoded frameを利用
 `strideBytes >= width * 4`、256 byte row alignment、`byteLen === strideBytes * height` を
 renderer upload前のTS境界で再確認し、壊れたdescriptorがWebGPU uploadへ流れないようにする。
 
+192. Phase5: shared frame copy bridgeでring範囲を検証する
+`prepareSharedRendererDecodedVideoFrameUpload` が `slotCount` とdescriptorを照合し、
+`slotIndex >= slotCount`、`byteOffset !== byteLen * slotIndex`、ring範囲外のdescriptorでは
+native copy bridgeを呼ばずにblocked resultを返す。
+Rust backend decodeから来たshared memory descriptorが、宣言されたring layout外へcopyを要求しないようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

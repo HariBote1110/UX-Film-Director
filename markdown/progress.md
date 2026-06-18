@@ -369,3 +369,10 @@
 - Green: availability判定にdescriptor layout検証を追加し、正の整数、256 byte row alignment、RGBA8 row byte長、slot byte長を確認するようにした。
 - 検証: `npm test -- rustBackendVideoDecodeControl sharedRendererRustVideoUploadPipeline` は9件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-170a`。
+
+## 2026-06-19
+- Phase5のshared frame copy境界として、descriptorが宣言されたring layout外を指す場合はnative copy bridgeへ進まないようにした。
+- Red: `rustBackendVideoDecodeControl` に `byteOffset !== byteLen * slotIndex` 拒否契約を追加し、`sharedVideoFrameUploadBridge` に `slotIndex >= slotCount` でcopyしない契約を追加した。
+- Green: decoded frame descriptor検証にslot offset一致を追加し、upload bridgeで `slotCount`、ring byte長、slot範囲を確認するようにした。
+- 検証: `npm test -- rustBackendVideoDecodeControl sharedVideoFrameUploadBridge sharedRendererRustVideoUploadPipeline sharedRendererViewportNativeRenderUpload` は18件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-171a`。
