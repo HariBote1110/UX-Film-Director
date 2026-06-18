@@ -5,6 +5,7 @@ import { TimelineObject, VideoObject } from '../types';
 import { shallow } from 'zustand/shallow';
 import { buildExportAudioBuffer } from '../utils/audioMixdown';
 import { encodeVideoToMp4 } from '../utils/videoExportPipeline';
+import { resolveProjectExportEncodePlan } from '../utils/projectExportEncodePlan';
 import { VideoFrameProvider } from '../utils/videoFrameProvider';
 import { PlaybackFrameProvider } from '../utils/playbackFrameProvider';
 import type { FrameProvider } from '../utils/frameProvider';
@@ -62,6 +63,20 @@ export const useProjectExport = (
         return;
       }
       const exportFrameSourcePlan = initialFrameSourcePlan;
+      const exportEncodePlan = resolveProjectExportEncodePlan({
+        rustExportOnly,
+        rustEncoderAvailable: false,
+      });
+      if (!exportEncodePlan.ok) {
+        alert(`エクスポート失敗: ${exportEncodePlan.detail}`);
+        setExporting(false);
+        return;
+      }
+      if (exportEncodePlan.engine === 'rustBackendVideoEncoder') {
+        alert('エクスポート失敗: Rust backend video encoder path is not connected yet.');
+        setExporting(false);
+        return;
+      }
 
       // フレームプロバイダ（VideoDecoder or 再生方式）のクリーンアップ用リスト
       const providers = new Map<string, FrameProvider>();
