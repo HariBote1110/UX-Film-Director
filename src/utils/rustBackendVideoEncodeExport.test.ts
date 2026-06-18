@@ -69,6 +69,7 @@ describe('runRustBackendVideoEncodeExport', () => {
       width: 2,
       height: 1,
       fps: 60,
+      // @ts-expect-error Rust backend encode runner must reject browser ImageBitmap frames at the type boundary.
       frames: frames(),
       encoderBridge,
     })).rejects.toThrow('Rust backend video encode export requires shared-frame payloads.');
