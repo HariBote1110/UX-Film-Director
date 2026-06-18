@@ -56,6 +56,15 @@ export type PrepareSharedRendererDecodedVideoFrameUploadResult =
     }
   | {
       ok: false;
+      reason: 'copyReportSlotLeaseMismatch';
+      detail: string;
+      expectedSlotIndex: number;
+      actualSlotIndex: number;
+      expectedGeneration: number;
+      actualGeneration: number;
+    }
+  | {
+      ok: false;
       reason: 'descriptorOutsideSharedRingLayout';
       detail: string;
     }
@@ -105,6 +114,20 @@ export const prepareSharedRendererDecodedVideoFrameUpload = async ({
       detail: 'Shared video frame copy report must match the decoded frame descriptor.',
       expectedByteLength: descriptor.byteLen,
       actualByteLength: response.result.byteLen,
+    };
+  }
+  if (
+    response.result.slotIndex !== descriptor.slotIndex
+    || response.result.generation !== descriptor.generation
+  ) {
+    return {
+      ok: false,
+      reason: 'copyReportSlotLeaseMismatch',
+      detail: 'Shared video frame copy report must match the decoded frame descriptor slot lease.',
+      expectedSlotIndex: descriptor.slotIndex,
+      actualSlotIndex: response.result.slotIndex,
+      expectedGeneration: descriptor.generation,
+      actualGeneration: response.result.generation,
     };
   }
   if (copyReportContainsPixelPayload(response.result)) {
