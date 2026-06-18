@@ -1,3 +1,30 @@
+## 2026-06-18 — Phase5: Rust export 動画upload失敗を blocked 扱いにする
+
+### 実施内容
+- `SharedRendererExportFrameSourceBlockedReason` に `videoUploadFailed` を追加した。
+- Rust/shared renderer export frame sourceでは、`videoUploadResult` / `videoUploadsResult` の失敗をPixi fallback前提で通さず、blocked errorとしてlegacy canvas exportへ退避するようにした。
+- 動画upload失敗時はbitmap captureへ進まず、presenter controlをdisposeしてからfallbackするようにした。
+- 動画が存在しないだけの `noVideoDecodeRequest` は、shape/image中心のRust exportを妨げないよう非blockingのままにした。
+- package version を `0.1.1-Beta-60k` に更新した。
+
+### Red
+- `src/utils/sharedRendererExportFrameSource.test.ts` に、Rust video upload失敗時はbitmap captureせず `videoUploadFailed` のblocked errorを返す契約を追加した。
+- 同時に、`noVideoDecodeRequest` はbitmap captureを継続する契約を追加した。
+
+### Green
+- `src/utils/sharedRendererExportFrameSource.ts` で presenter result を確認し、export中の動画upload失敗だけをblocked errorに変換するようにした。
+
+### 現在の制限
+- blocked後は `useProjectExport` の既存挙動に従い、残りframeはlegacy canvas exportへ退避する。Rust-only fail-loud modeは未実装。
+
+### 検証
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts`
+  -> 1 file / 6 tests passed。
+- `npm test -- src/utils/sharedRendererSurfaceMount.test.ts src/utils/viewportRustExportFrameSource.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererExportSession.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/rustBackendVideoDecodeControl.test.ts src/utils/sharedRendererRustVideoUploadPipeline.test.ts src/utils/sharedRendererPresenterDiagnostics.test.ts`
+  -> 11 files / 61 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "src/(utils/sharedRendererExportFrameSource\\.ts|hooks/useProjectExport\\.ts|utils/projectExportFrameCanvas\\.ts|utils/viewportRustExportFrameSource\\.ts)"`
+  -> 対象ファイルの型エラーなし。
+
 ## 2026-06-18 — Phase5: Rust export preflight を時刻スキャンへ拡張
 
 ### 実施内容

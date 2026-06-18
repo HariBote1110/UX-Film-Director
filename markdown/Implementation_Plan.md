@@ -272,6 +272,11 @@ Rust/shared renderer で描けないシーンでは `ProjectExportRustFrameSourc
 続いて、代表時刻だけでなく各可視オブジェクトの開始時刻もpreflight対象にし、後半で初めて現れるunsupported sceneも
 export開始前に検出できるようにする。
 
+56. Phase5: Rust export 動画upload失敗を blocked fallback にする
+previewでは Rust video upload が失敗しても Pixi が動画所有を維持できるが、export frame sourceではPixiを通らない。
+そのため、Rust/shared renderer export中に `videoUploadResult` / `videoUploadsResult` が失敗した場合は
+`videoUploadFailed` の blocked error に変換し、bitmap captureへ進まずlegacy canvas exportへ退避する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
