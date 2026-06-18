@@ -622,6 +622,12 @@ Rust backendは `render.releaseNativeSharedFrame` を公開し、`render.nativeS
 backend stateに残り続けないlifecycleを作る。
 Rust direct encode runnerは `encode.writeFrame` が失敗した場合にも、このrelease bridgeを使って未消費のnative render outputを掃除する。
 
+117. Phase5: file URL画像sourceをRust native renderで扱う
+TS側のnative media support判定は、ローカルパスと `file://` / `file://localhost/` のPNG/JPG/JPEGだけをRust対応として扱い、
+HTTP・blob・dataなど同期ファイル読み込みできないsourceをRust native renderへ誤投入しない。
+Rust backendはImage media sourceのquery/hashを除去し、`file://` のpercent encodingを実ファイルパスへ戻してからPNG/JPEG loaderへ渡す。
+これによりElectron実運用でURL化された静止画像clipもPixi/WebGPU presenterへ戻さず、Rust backend source生成からnative renderへ進める。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

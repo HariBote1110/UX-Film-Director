@@ -3761,3 +3761,22 @@
 ### 残課題・次のステップ
 - preview側の実フローでnative render outputを生成・表示・disposeする配線はまだ未実装。
 - PSD/textなど未対応mediaは引き続きRust source化が必要。
+
+## 2026-06-18 — file URL画像sourceをRust native renderへ接続
+
+### 実施内容
+- TS側の `sharedRendererNativeMediaSupport` が、ローカルパスと `file://` / `file://localhost/` のPNG/JPG/JPEGだけをRust native render対応として扱うようにした。
+- query/hash付きのfile URLでも拡張子判定が崩れないようにし、HTTPなどの非ローカルURLはRust同期ファイル読み込み経路へ渡さない契約を追加した。
+- Rust backendのImage media loaderが `file://` URLからquery/hashを除去し、percent encodingを実ファイルパスへ戻してからPNG/JPEGをdecodeするようにした。
+- 版を `0.1.1-Beta-103a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererNativeMediaSupport.test.ts`
+- `npm test -- src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/sharedRendererVideoCutoverStack.test.ts src/utils/sharedRendererExportFrameSource.test.ts`
+- `cargo test --manifest-path rust-backend/Cargo.toml native_render_shared_frame_builds_file_url_png_image_sources_from_media`
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane native_render_shared_frame_builds`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- Rust backend側でもHTTP/blob/dataなどのImage media sourceをdecode前に明示拒否するfail-loud契約を追加すると、TS判定との差分に強くなる。
+- preview側でnative render outputを実際に表示し、dispose時に `render.releaseNativeSharedFrame` を呼ぶ最小縦スライスへ進める。
