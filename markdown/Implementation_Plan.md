@@ -870,6 +870,11 @@ WebGPU readbackはpreview/parity診断用controlに限定し、export経路へ�
 export sourceテスト上もpresented shared-frame handoff不在時はblocked、handoffありならpayload直渡しという語彙に揃える。
 WebGPU readbackはexport sourceのテスト語彙としても復活させない。
 
+162. Phase5: handoff不在のexport理由名をWebGPU readbackから切り離す
+`renderEncodeFrame` がnative renderにもpresented shared-frame handoffにも進めない場合のblocked reasonを
+`webGpuReadbackUnavailable` から `presentedSharedFrameHandoffUnavailable` へ変更する。
+export診断上も「readbackが必要」ではなく「native handoffが必要」と表現し、削除済みreadback経路を失敗理由名として残さない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
