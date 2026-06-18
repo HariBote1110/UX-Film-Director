@@ -3653,3 +3653,20 @@
 ### 残課題・次のステップ
 - Image/PSD/textなど、まだRust source化していないmedia種別はnative renderでfail-loudになる。
 - SolidColourのグラデーション、円、丸角、rotationなどは既存shared renderer境界と同様に未対応。
+
+## 2026-06-18 — PNG Image mediaをRust native render sourceへ統合
+
+### 実施内容
+- `render.nativeSharedFrame` が `kind=Image` のmediaをPNGとして読み込み、RGBA frameへ変換してnative render sourcesへ合流させるようにした。
+- PNGのdecoded dimensionsとmediaに宣言された `width` / `height` が一致しない場合はRust backend側でfail-loudにした。
+- Image media source化のTDD契約として、PNG sourceのみでnative render output descriptorを返し、control planeへframe bytesを返さないテストを追加した。
+- 版を `0.1.1-Beta-98a` に更新した。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml native_render_shared_frame_builds_png_image_sources_from_media`
+- `cargo test --manifest-path rust-backend/Cargo.toml native_render_shared_frame`
+- `cargo test --manifest-path rust-backend/Cargo.toml encode_write_frame_unlinks_native_render_output_after_consuming_it`
+
+### 残課題・次のステップ
+- JPG/PSD/textなど、PNG以外の静止素材はまだRust source化していない。
+- Video mediaそのものをRust decode requestなしでmedia sourceから解決する経路は未実装。次はRust backendが `Image` 以外のmedia source可用性をcapabilityとして返すか、動画media sourceのdecode/session lifecycleをnative render側へ統合する。

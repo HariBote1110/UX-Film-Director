@@ -594,6 +594,11 @@ rendererはnative render payloadに `media` を含め、Rust backendは `kind=So
 RGBA frameへ変換してrender sourcesへ合流させる。動画sourceはshared-frame descriptorのまま受け取り、
 SolidColourはbackend内生成sourceとして扱うことで、動画＋矩形sceneをWebGPU presenter / Pixiへ戻さずnative renderできる入口を作る。
 
+112. Phase5: `render.nativeSharedFrame` でPNG Image mediaをRust source化する
+Rust backendは `kind=Image` のmedia sourceをPNGとして読み込み、RGBA frameへ変換してnative render sourcesへ合流させる。
+declared media dimensionsとdecoded PNG dimensionsが一致しない場合はfail-loudにし、control planeへframe bytesを返さない。
+これにより静止画像clipをPixi/WebGPU presenterへ戻さず、Rust backend decode/source生成 → Rust/wgpu render → Rust encodeの経路へ寄せる。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
