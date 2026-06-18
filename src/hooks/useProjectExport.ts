@@ -18,6 +18,7 @@ import {
   type ProjectExportRustFrameSource,
 } from '../utils/projectExportFrameCanvas';
 import { isSharedRendererExportFrameSourceBlockedError } from '../utils/sharedRendererExportFrameSource';
+import { createSharedVideoFramePresentedFrameTaker } from '../utils/sharedVideoFramePresentedFrameHandoff';
 import type {
   RustBackendVideoEncodeFrame,
   RustBackendVideoEncodeSharedFramePayloadFrame,
@@ -85,6 +86,7 @@ export const useProjectExport = (
           objects: exportObjects,
           time: 0,
           preferEncodeOnly: exportEncodePlan.engine === 'rustBackendVideoEncoder',
+          presentedFrameSharedFrameTaker: createSharedVideoFramePresentedFrameTaker() ?? undefined,
         }) ?? null,
         rustFrameSourcePolicy: frameSourcePolicy.rustFrameSourcePolicy,
         rustFrameSourceBlockedFallback: frameSourcePolicy.rustFrameSourceBlockedFallback,

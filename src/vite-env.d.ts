@@ -144,6 +144,53 @@ interface Window {
       };
       error?: string;
     }>;
+    takePresentedFrameSharedFrame?: (
+      payload: {
+        encodeSessionId: string;
+        memoryId: string;
+        frameIndex: number;
+        timestampUs: number;
+        width: number;
+        height: number;
+        fps: number;
+        device: unknown;
+        texture: unknown;
+        format: string;
+        canvasSize: {
+          width: number;
+          height: number;
+        };
+      }
+    ) => Promise<{
+      success: boolean;
+      result?: {
+        sessionId: string;
+        frameIndex: number;
+        timestampUs: number;
+        slotCount: number;
+        frame: {
+          descriptor: {
+            memoryId: string;
+            slotIndex: number;
+            generation: number;
+            byteOffset: number;
+            byteLen: number;
+            width: number;
+            height: number;
+            strideBytes: number;
+            format: 'rgba8Srgb';
+            colour: {
+              primaries: 'bt709';
+              transfer: 'srgb';
+              matrix: 'rgb';
+              range: 'full';
+            };
+          };
+          ptsFrame: number;
+        };
+      };
+      error?: string;
+    }>;
     copyIntoUploadBuffer: (
       payload: {
         memoryId: string;

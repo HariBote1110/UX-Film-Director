@@ -12,6 +12,23 @@ type SharedVideoFrameCopyPayload = {
   ptsFrame: number
 }
 
+type SharedVideoFramePresentedFramePayload = {
+  encodeSessionId: string
+  memoryId: string
+  frameIndex: number
+  timestampUs: number
+  width: number
+  height: number
+  fps: number
+  device: unknown
+  texture: unknown
+  format: string
+  canvasSize: {
+    width: number
+    height: number
+  }
+}
+
 type SharedVideoFrameCopyResult = {
   success: boolean
   result?: {
@@ -46,10 +63,13 @@ type SharedVideoFrameWritableResult = {
 }
 
 type SharedVideoFrameNativeBridge = {
-  copyIntoUploadBuffer: (
+  copyIntoUploadBuffer?: (
     payload: SharedVideoFrameCopyPayload,
     target: Uint8Array
   ) => Promise<SharedVideoFrameCopyResult> | SharedVideoFrameCopyResult
+  takePresentedFrameSharedFrame?: (
+    payload: SharedVideoFramePresentedFramePayload
+  ) => Promise<SharedVideoFrameWritableResult> | SharedVideoFrameWritableResult
   createWritableSharedFrameRing?: (
     payload: SharedVideoFrameWritableRingPayload
   ) => Promise<SharedVideoFrameWritableResult> | SharedVideoFrameWritableResult
@@ -82,6 +102,10 @@ const loadSharedVideoFrameNativeBridge = (): SharedVideoFrameNativeBridge | null
   try {
     const loaded = require(modulePath) as Partial<SharedVideoFrameNativeBridge>
     sharedVideoFrameNativeBridge = typeof loaded.copyIntoUploadBuffer === 'function'
+      || typeof loaded.takePresentedFrameSharedFrame === 'function'
+      || typeof loaded.createWritableSharedFrameRing === 'function'
+      || typeof loaded.writeIntoSharedFrameRing === 'function'
+      || typeof loaded.closeWritableSharedFrameRing === 'function'
       ? loaded as SharedVideoFrameNativeBridge
       : null
   } catch {
@@ -177,9 +201,20 @@ contextBridge.exposeInMainWorld('sharedVideoFrame', {
 
     return bridge.closeWritableSharedFrameRing(payload)
   },
+  async takePresentedFrameSharedFrame(payload: SharedVideoFramePresentedFramePayload) {
+    const bridge = loadSharedVideoFrameNativeBridge()
+    if (!bridge || typeof bridge.takePresentedFrameSharedFrame !== 'function') {
+      return {
+        success: false,
+        error: 'Shared video frame presented-frame native handoff is unavailable.',
+      }
+    }
+
+    return bridge.takePresentedFrameSharedFrame(payload)
+  },
   async copyIntoUploadBuffer(payload: SharedVideoFrameCopyPayload, target: Uint8Array) {
     const bridge = loadSharedVideoFrameNativeBridge()
-    if (!bridge) {
+    if (!bridge || typeof bridge.copyIntoUploadBuffer !== 'function') {
       return {
         success: false,
         error: 'Shared video frame native bridge is unavailable.',

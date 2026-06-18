@@ -215,7 +215,7 @@ export interface SharedRendererPresentedFrameSharedFrameInput {
 }
 
 export interface SharedRendererPresentedFrameNativeHandoffInput extends SharedRendererPresentedFrameSharedFrameInput {
-  device: SharedRendererWebGpuDeviceLike;
+  device: unknown;
   texture: unknown;
   format: string;
   canvasSize: {
