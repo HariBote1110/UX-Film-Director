@@ -451,6 +451,7 @@ fn decode_layer_rgba(
 
 /// A parsed PSD layer, including decompressed RGBA pixel data.
 pub struct PsdFastLayer {
+    pub stable_id: String,
     pub name: String,
     pub top: i32,
     pub left: i32,
@@ -475,6 +476,23 @@ pub struct PsdFastResult {
 }
 
 pub fn composite_visible_psd_layers(psd: &PsdFastResult) -> Result<RgbaFrame, String> {
+    composite_visible_psd_layers_with_filter(psd, None)
+}
+
+pub fn composite_visible_psd_layers_with_active_layer_ids(
+    psd: &PsdFastResult,
+    active_layer_ids: &[String],
+) -> Result<RgbaFrame, String> {
+    if active_layer_ids.is_empty() {
+        return composite_visible_psd_layers(psd);
+    }
+    composite_visible_psd_layers_with_filter(psd, Some(active_layer_ids))
+}
+
+fn composite_visible_psd_layers_with_filter(
+    psd: &PsdFastResult,
+    active_layer_ids: Option<&[String]>,
+) -> Result<RgbaFrame, String> {
     let canvas_len = usize::try_from(psd.width)
         .ok()
         .and_then(|width| {
@@ -489,6 +507,14 @@ pub fn composite_visible_psd_layers(psd: &PsdFastResult) -> Result<RgbaFrame, St
     for layer in psd.layers.iter().rev() {
         if !layer.visible || layer.is_group {
             continue;
+        }
+        if let Some(active_layer_ids) = active_layer_ids {
+            if !active_layer_ids
+                .iter()
+                .any(|active_id| active_id == &layer.stable_id)
+            {
+                continue;
+            }
         }
         let Some(rgba) = layer.rgba.as_ref() else {
             continue;
@@ -516,6 +542,14 @@ pub fn composite_visible_psd_layers(psd: &PsdFastResult) -> Result<RgbaFrame, St
 
     RgbaFrame::from_rgba8(psd.width, psd.height, canvas)
         .map_err(|error| format!("PSD composite frame is invalid: {error:?}"))
+}
+
+fn stable_layer_id(layer_index: usize, is_group: bool, own_group_id: Option<u32>) -> String {
+    if is_group {
+        format!("psd-group-{}", own_group_id.unwrap_or(layer_index as u32))
+    } else {
+        format!("psd-layer-{layer_index}")
+    }
 }
 
 fn composite_layer_source_over(
@@ -735,6 +769,7 @@ pub fn parse_psd_fast(bytes: &[u8]) -> Result<PsdFastResult, String> {
         }
 
         layers.push(PsdFastLayer {
+            stable_id: stable_layer_id(desc.record_idx, is_group, desc.own_group_id),
             name: rec.name.clone(),
             top: rec.top,
             left: rec.left,
@@ -766,6 +801,7 @@ mod tests {
             height: 2,
             layers: vec![
                 PsdFastLayer {
+                    stable_id: "psd-layer-0".to_string(),
                     name: "front".to_string(),
                     top: 0,
                     left: 1,
@@ -780,6 +816,7 @@ mod tests {
                     ]),
                 },
                 PsdFastLayer {
+                    stable_id: "psd-layer-1".to_string(),
                     name: "hidden".to_string(),
                     top: 0,
                     left: 0,
@@ -792,6 +829,7 @@ mod tests {
                     rgba: Some(vec![0, 255, 0, 255]),
                 },
                 PsdFastLayer {
+                    stable_id: "psd-group-1".to_string(),
                     name: "group".to_string(),
                     top: 0,
                     left: 0,
@@ -804,6 +842,7 @@ mod tests {
                     rgba: None,
                 },
                 PsdFastLayer {
+                    stable_id: "psd-layer-3".to_string(),
                     name: "back".to_string(),
                     top: 0,
                     left: 0,
@@ -869,11 +908,9 @@ mod tests {
             ],
         };
 
-        let frame = composite_visible_psd_layers_with_active_layer_ids(
-            &psd,
-            &["psd-layer-1".to_string()],
-        )
-        .expect("composited PSD frame");
+        let frame =
+            composite_visible_psd_layers_with_active_layer_ids(&psd, &["psd-layer-1".to_string()])
+                .expect("composited PSD frame");
 
         assert_eq!(frame.pixels, vec![0, 0, 255, 255]);
     }

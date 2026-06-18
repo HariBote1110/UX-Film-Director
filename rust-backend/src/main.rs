@@ -683,12 +683,13 @@ fn build_psd_source_frame(media: &SceneMediaReference) -> Result<RgbaFrame, Stri
             media.id, media.width, media.height, psd.width, psd.height
         ));
     }
-    psd_fast::composite_visible_psd_layers(&psd).map_err(|error| {
-        format!(
-            "Invalid Psd media '{}': failed to composite PSD source: {error}",
-            media.id
-        )
-    })
+    psd_fast::composite_visible_psd_layers_with_active_layer_ids(&psd, &media.active_layer_ids)
+        .map_err(|error| {
+            format!(
+                "Invalid Psd media '{}': failed to composite PSD source: {error}",
+                media.id
+            )
+        })
 }
 
 fn load_image_media_frame(media: &SceneMediaReference) -> Result<RgbaFrame, String> {
