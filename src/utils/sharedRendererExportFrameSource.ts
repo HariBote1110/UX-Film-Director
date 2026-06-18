@@ -302,14 +302,24 @@ export function createSharedRendererExportFrameSource({
         requestId = nextRequestId;
         activeVideoDecodeJobs = nativeSources.activeJobs;
         const surfaceGate = session.surfaceGate;
-        if (
-          !nativeSharedFrameRendererAvailable
-          || !surfaceGate.ok
-          || !canRenderSharedRendererNativeMediaOnlyFrame({
+        const nativeMediaOnlyRenderable = surfaceGate.ok
+          && canRenderSharedRendererNativeMediaOnlyFrame({
             snapshot: surfaceGate.snapshot,
             media: surfaceGate.media,
-          })
-        ) {
+          });
+        if (!nativeMediaOnlyRenderable) {
+          if (nativeRenderRequired) {
+            writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+              status: 'blocked',
+              frameIndex: request.frameIndex,
+              reason: 'nativeRenderUnsupportedMedia',
+            });
+            throw new SharedRendererExportFrameSourceBlockedError(
+              'Encode-only export requires every media-only frame source to be Rust native-renderable.',
+              'nativeRenderUnsupportedMedia',
+              request.frameIndex
+            );
+          }
           return null;
         }
         nativeRenderSources = [];
