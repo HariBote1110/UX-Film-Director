@@ -6,6 +6,7 @@ import type {
   RustBackendVideoEncodeBridge,
   RustBackendVideoEncodeWriteFramePayload,
 } from './rustBackendVideoEncodeControl';
+import type { RustBackendNativeRenderSharedFrameBridge } from './rustBackendNativeRenderControl';
 
 const fakeBitmap = (label: string): ImageBitmap => ({ label }) as unknown as ImageBitmap;
 
@@ -212,5 +213,69 @@ describe('runRustBackendVideoEncodeExport', () => {
     expect(serialisedCalls).not.toContain('frameBase64');
     expect(serialisedCalls).not.toContain('rgbaBytes');
     expect(serialisedCalls).not.toContain('pixels');
+  });
+
+  it('releases native render output when encode write fails before Rust consumes it', async () => {
+    const calls: unknown[] = [];
+    const payload = sharedFramePayload(0, 0, 'session-native-failure');
+    const encoderBridge: RustBackendVideoEncodeBridge = {
+      startVideoEncode: async (input) => {
+        calls.push(['startVideoEncode', input]);
+        return { success: true, result: { accepted: true } };
+      },
+      writeVideoEncodeFrame: async (input) => {
+        calls.push(['writeVideoEncodeFrame', input]);
+        return { success: false, error: 'encode write failed before consuming native output' };
+      },
+      finishVideoEncode: async (input) => {
+        calls.push(['finishVideoEncode', input]);
+        return { success: true, result: { outputFile: '/tmp/out.mp4' } };
+      },
+    };
+    const nativeRenderBridge: RustBackendNativeRenderSharedFrameBridge = {
+      renderNativeSharedFrame: async () => {
+        throw new Error('render must not run during encode cleanup.');
+      },
+      releaseNativeSharedFrame: async (input) => {
+        calls.push(['releaseNativeSharedFrame', input]);
+        return { success: true, result: { released: true, memoryId: input.memoryId } };
+      },
+    };
+
+    async function* failingSharedFrames() {
+      yield { timestamp: 0, sharedFramePayload: payload };
+    }
+
+    await expect(runRustBackendVideoEncodeExport({
+      sessionId: 'session-native-failure',
+      filePath: '/tmp/direct-shared.mp4',
+      width: 4,
+      height: 2,
+      fps: 60,
+      frames: failingSharedFrames(),
+      encoderBridge,
+      nativeRenderBridge,
+    })).rejects.toThrow('encode write failed before consuming native output');
+
+    expect(calls).toEqual([
+      ['startVideoEncode', {
+        sessionId: 'session-native-failure',
+        filePath: '/tmp/direct-shared.mp4',
+        width: 4,
+        height: 2,
+        fps: 60,
+        pixelFormat: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      }],
+      ['writeVideoEncodeFrame', payload],
+      ['releaseNativeSharedFrame', {
+        memoryId: payload.frame.descriptor.memoryId,
+      }],
+    ]);
   });
 });
