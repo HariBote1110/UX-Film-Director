@@ -25,6 +25,7 @@ import {
   prepareSharedRendererViewportNativeRenderSources,
   type PrepareSharedRendererViewportNativeRenderSourcesInput,
   type PrepareSharedRendererViewportNativeRenderSourcesResult,
+  type SharedRendererViewportNativeRenderSource,
 } from './sharedRendererViewportNativeRenderSource';
 import type { SharedRendererViewportVideoDecodeJob } from './sharedRendererViewportVideoUpload';
 import { stopRustBackendVideoDecode } from './rustBackendVideoDecodeControl';
@@ -32,6 +33,7 @@ import type { RustBackendResult } from './rustBackendVideoDecodeControl';
 import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
 import type { SharedRendererPreviewSurfaceBlockedReason } from './sharedRendererPreviewSurface';
 import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererWebGpuPresenter';
+import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
 
 type PresenterDataset = Record<string, string | undefined>;
 
@@ -150,13 +152,16 @@ export function createSharedRendererExportFrameSource({
   stopVideoDecodeJob = defaultStopVideoDecodeJob,
   createEncodeFrameWriter = defaultCreateEncodeFrameWriter,
   prepareNativeRenderSources = prepareSharedRendererViewportNativeRenderSources,
-  renderNativeSharedFrame = defaultRenderNativeSharedFrame,
+  renderNativeSharedFrame: inputRenderNativeSharedFrame,
 }: CreateSharedRendererExportFrameSourceInput): SharedRendererEncodeOnlyExportProjectFrameSource {
   let activeVideoDecodeJobs: SharedRendererViewportVideoDecodeJob[] = [];
   let activeEncodeFrameWriter: RustBackendVideoEncodeSharedFrameWriter | null = null;
   let activeEncodeSessionId: string | null = null;
   let requestId = 0;
   let closed = false;
+  const renderNativeSharedFrame = inputRenderNativeSharedFrame ?? defaultRenderNativeSharedFrame;
+  const nativeSharedFrameRendererAvailable =
+    inputRenderNativeSharedFrame != null || isDefaultNativeSharedFrameRendererAvailable();
 
   const buildFrameSession = (request: ProjectExportRustFrameRequest) => {
     if (closed) {
@@ -271,25 +276,39 @@ export function createSharedRendererExportFrameSource({
       activeJobs: activeVideoDecodeJobs,
     });
 
+    let nativeRenderSources: SharedRendererViewportNativeRenderSource[];
     if (!nativeSources.ok) {
       if (nativeSources.reason === 'noVideoDecodeRequest') {
-        return null;
+        requestId = nextRequestId;
+        activeVideoDecodeJobs = nativeSources.activeJobs;
+        const surfaceGate = session.surfaceGate;
+        if (
+          !nativeSharedFrameRendererAvailable
+          || !surfaceGate.ok
+          || !canRenderNativeMediaOnlyFrame(surfaceGate.snapshot, surfaceGate.media)
+        ) {
+          return null;
+        }
+        nativeRenderSources = [];
+      } else {
+        requestId = nextRequestId;
+        activeVideoDecodeJobs = nativeSources.activeJobs;
+        writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+          status: 'blocked',
+          frameIndex: request.frameIndex,
+          reason: 'nativeRenderFailed',
+        });
+        throw new SharedRendererExportFrameSourceBlockedError(
+          nativeSources.detail,
+          'nativeRenderFailed',
+          request.frameIndex
+        );
       }
+    } else {
       requestId = nextRequestId;
       activeVideoDecodeJobs = nativeSources.activeJobs;
-      writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
-        status: 'blocked',
-        frameIndex: request.frameIndex,
-        reason: 'nativeRenderFailed',
-      });
-      throw new SharedRendererExportFrameSourceBlockedError(
-        nativeSources.detail,
-        'nativeRenderFailed',
-        request.frameIndex
-      );
+      nativeRenderSources = nativeSources.sources;
     }
-    requestId = nextRequestId;
-    activeVideoDecodeJobs = nativeSources.activeJobs;
     const surfaceGate = session.surfaceGate;
     if (!surfaceGate.ok) {
       return null;
@@ -305,7 +324,7 @@ export function createSharedRendererExportFrameSource({
       height: request.height,
       snapshot: surfaceGate.snapshot,
       media: surfaceGate.media,
-      sources: nativeSources.sources.map((source) => ({
+      sources: nativeRenderSources.map((source) => ({
         mediaId: source.mediaId,
         slotCount: source.slotCount,
         frame: source.frame,
@@ -474,6 +493,10 @@ const defaultCreateEncodeFrameWriter: SharedRendererExportEncodeFrameWriterFacto
 const defaultRenderNativeSharedFrame: SharedRendererExportNativeSharedFrameRenderer = (payload) =>
   renderRustBackendNativeSharedFrame(payload);
 
+const isDefaultNativeSharedFrameRendererAvailable = (): boolean =>
+  typeof window !== 'undefined'
+  && typeof window.rustBackend?.renderNativeSharedFrame === 'function';
+
 const buildEncodeSourceMemoryId = (encodeSessionId: string): string => {
   const safeSessionId = encodeSessionId.replace(/[^A-Za-z0-9_-]/g, '-');
   return `/uxfd-export-source-${safeSessionId}`;
@@ -493,6 +516,24 @@ const sanitiseNativeRenderPart = (value: string): string => {
 
   return sanitised || 'session';
 };
+
+const canRenderNativeMediaOnlyFrame = (
+  snapshot: RustSceneSnapshot,
+  media: readonly RustSceneMediaReference[]
+): boolean => {
+  if (snapshot.clips.length === 0) return false;
+  const mediaById = new Map(media.map((reference) => [reference.id, reference]));
+  return snapshot.clips.every((clip) => {
+    const reference = mediaById.get(clip.media_id);
+    if (!reference) return false;
+    if (reference.kind === 'SolidColour') return true;
+    if (reference.kind === 'Image') return isNativePngImageSource(reference.source);
+    return false;
+  });
+};
+
+const isNativePngImageSource = (source: string): boolean =>
+  source.toLowerCase().endsWith('.png');
 
 const resolveExportVideoUploadBlock = (
   presenterResult: StartSharedRendererViewportPresenterResult
