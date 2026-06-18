@@ -280,4 +280,53 @@ describe('rustBackendVideoDecodeControl', () => {
     expect(isRustBackendDecodedVideoFrameAvailable(withRootPixels)).toBe(false);
     expect(isRustBackendDecodedVideoFrameAvailable(withBase64)).toBe(false);
   });
+
+  it('rejects decoded frame descriptors that do not match the shared memory layout contract', () => {
+    const response = verifiedDecodeFrameResponse();
+    const descriptor = response.result!.frame!.descriptor;
+
+    const withEmptyMemoryId = {
+      ...response,
+      result: {
+        ...response.result!,
+        frame: {
+          ...response.result!.frame!,
+          descriptor: {
+            ...descriptor,
+            memoryId: '',
+          },
+        },
+      },
+    };
+    const withShortStride = {
+      ...response,
+      result: {
+        ...response.result!,
+        frame: {
+          ...response.result!.frame!,
+          descriptor: {
+            ...descriptor,
+            strideBytes: descriptor.width * 4 - 1,
+          },
+        },
+      },
+    };
+    const withMismatchedByteLen = {
+      ...response,
+      result: {
+        ...response.result!,
+        frame: {
+          ...response.result!.frame!,
+          descriptor: {
+            ...descriptor,
+            byteLen: descriptor.strideBytes * descriptor.height - 1,
+          },
+        },
+      },
+    };
+
+    expect(isRustBackendDecodedVideoFrameAvailable(withEmptyMemoryId)).toBe(false);
+    expect(isRustBackendDecodedVideoFrameAvailable(withShortStride)).toBe(false);
+    expect(isRustBackendDecodedVideoFrameAvailable(withMismatchedByteLen)).toBe(false);
+  });
 });
