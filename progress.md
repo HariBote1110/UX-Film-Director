@@ -3748,12 +3748,14 @@
 - Rust backendに `render.releaseNativeSharedFrame` を追加し、`render.nativeSharedFrame` が保持したoutput ringをencodeに渡さず解放できるようにした。
 - Electron main/preloadとrenderer controlに `releaseNativeSharedFrame` bridgeを追加した。
 - preview/診断用途のnative render outputがbackend stateに残り続けないlifecycleをTDDで固定した。
-- 版を `0.1.1-Beta-102a` に更新した。
+- Rust direct encode runnerで `encode.writeFrame` が失敗した場合、未消費のnative render output `memoryId` をreleaseするfallbackを追加した。
+- 版を `0.1.1-Beta-102b` に更新した。
 
 ### 検証
 - `cargo test --manifest-path rust-backend/Cargo.toml native_render_release_shared_frame_unlinks_output_without_encode`
 - `cargo test --manifest-path rust-backend/Cargo.toml native_render_shared_frame`
 - `npm test -- src/utils/rustBackendNativeRenderControl.test.ts src/utils/rustBackendNativeRenderBoundary.test.ts`
+- `npm test -- src/utils/rustBackendVideoEncodeExport.test.ts src/utils/rustBackendNativeRenderControl.test.ts src/utils/rustBackendNativeRenderBoundary.test.ts`
 - 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
 
 ### 残課題・次のステップ

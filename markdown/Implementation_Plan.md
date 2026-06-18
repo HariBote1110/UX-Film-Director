@@ -620,6 +620,7 @@ native render sourcesへ合流させる。TS側のnative media support判定もP
 Rust backendは `render.releaseNativeSharedFrame` を公開し、`render.nativeSharedFrame` が保持したoutput ringをencode以外の経路からも
 明示的に解放できるようにする。Electron/preload/renderer controlにもrelease bridgeを追加し、previewや診断用途のnative render outputが
 backend stateに残り続けないlifecycleを作る。
+Rust direct encode runnerは `encode.writeFrame` が失敗した場合にも、このrelease bridgeを使って未消費のnative render outputを掃除する。
 
 ## UI 刷新（2026-04-19）
 
