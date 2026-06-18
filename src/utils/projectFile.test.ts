@@ -1,8 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectSettings, PsdObject, ShapeObject } from '../types';
 import { MAX_LAYERS } from '../components/timelineConstants';
 import { createDefaultCamera, createDefaultLayers, createDefaultStageCamera3D } from './sceneState';
-import { buildProjectFileData, parseProjectPayloadV2 } from './projectFile';
+import { buildProjectFileData, parseProjectPayloadV2, restoreProjectObjects } from './projectFile';
+import { parsePsdWithWasm } from './psdWasm';
+
+vi.mock('./psdWasm', () => ({
+  parsePsdWithWasm: vi.fn(),
+}));
+
+const mockedParsePsdWithWasm = vi.mocked(parsePsdWithWasm);
 
 const projectSettings = (): ProjectSettings => ({
   width: 1920,
@@ -152,6 +159,14 @@ describe('buildProjectFileData', () => {
 });
 
 describe('parseProjectPayloadV2', () => {
+  beforeEach(() => {
+    mockedParsePsdWithWasm.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('round-trips PSD worldPlacement through JSON payload', () => {
     const layers = createDefaultLayers();
     const camera = createDefaultCamera();
@@ -216,5 +231,108 @@ describe('parseProjectPayloadV2', () => {
       ]
     };
     expect(() => parseProjectPayloadV2(bad)).toThrow();
+  });
+
+  it('maps saved PSD active layer state from legacy ids onto restored stable ids', async () => {
+    mockedParsePsdWithWasm.mockResolvedValue({
+      meta: {
+        width: 64,
+        height: 48,
+        depth: 8,
+        isPsb: false,
+        layers: [{
+          name: 'Character',
+          top: 0,
+          left: 0,
+          width: 64,
+          height: 48,
+          visible: true,
+          isGroup: true,
+          ownGroupId: 42,
+          parentGroupId: null,
+          pixelByteLen: 0,
+        }, {
+          name: 'Face',
+          top: 4,
+          left: 8,
+          width: 16,
+          height: 16,
+          visible: true,
+          isGroup: false,
+          ownGroupId: null,
+          parentGroupId: 42,
+          pixelByteLen: 0,
+        }],
+      },
+      pixels: [new Uint8Array(0), new Uint8Array(0)],
+    });
+    const readFileBytes = vi.fn().mockResolvedValue({
+      success: true,
+      data: new ArrayBuffer(8),
+    });
+    vi.stubGlobal('window', {
+      ipcRenderer: {
+        invoke: readFileBytes,
+      },
+    });
+    const psd: PsdObject = {
+      ...minimalPsdWithWorldPlacement(),
+      filePath: '/tmp/character.psd',
+      rootLayer: {
+        id: 'root',
+        name: 'Root',
+        isGroup: true,
+        isRadio: false,
+        children: [{
+          id: 'legacy-character-id',
+          name: 'Character',
+          isGroup: true,
+          isRadio: false,
+          children: [{
+            id: 'legacy-face-id',
+            name: 'Face',
+            isGroup: false,
+            isRadio: false,
+            children: [],
+            width: 16,
+            height: 16,
+            left: 8,
+            top: 4,
+            defaultVisible: true,
+          }],
+          width: 64,
+          height: 48,
+          left: 0,
+          top: 0,
+          defaultVisible: true,
+        }],
+        width: 64,
+        height: 48,
+        left: 0,
+        top: 0,
+        defaultVisible: true,
+      },
+      activeLayerIds: {
+        root: true,
+        'legacy-character-id': true,
+        'legacy-face-id': false,
+      },
+    };
+
+    const [restored] = await restoreProjectObjects([psd], projectSettings());
+
+    expect(readFileBytes).toHaveBeenCalledWith('read-file-bytes', {
+      filePath: '/tmp/character.psd',
+    });
+    expect(restored.type).toBe('psd');
+    if (restored.type !== 'psd') throw new Error('expected psd');
+    expect(restored.rootLayer?.children[0].id).toBe('psd-group-42');
+    expect(restored.rootLayer?.children[0].children[0].id).toBe('psd-layer-1');
+    expect(restored.activeLayerIds).toMatchObject({
+      root: true,
+      'psd-group-42': true,
+      'psd-layer-1': false,
+    });
+    expect(restored.layerTree?.[0].children[0].checked).toBe(false);
   });
 });
