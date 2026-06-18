@@ -956,6 +956,12 @@ Viewportのcutover診断では `videoElementsRef.current` を渡さない。
 Rust/shared renderer必須時はHTMLVideoElementのreadyStateを参照せず、
 診断もRust側のcutover状態を単一の判断軸にする。
 
+179. Phase5: presenter orchestrationをcutover条件へ揃える
+`Viewport` が `startSharedRendererViewportPresenter` に渡す `requireSharedRendererVideo` を
+`sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled` にする。
+診断、Pixi content routing、presenter orchestrationの動画cutover条件を同一化し、
+通常cutover時もRust/shared renderer側の動画所有を要求する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

@@ -278,3 +278,10 @@
 - Green: `buildSharedRendererVideoMediaReadiness` の `videoElements` 入力を任意化し、ViewportからのDOM Map受け渡しを削除した。
 - 検証: `npm test -- viewportRustVideoOnlyBoundary sharedRendererVideoMediaReadiness` は10件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-158a`。
+
+## 2026-06-19
+- Phase5のpresenter orchestrationとして、shared renderer video cutover中もRust/shared renderer動画必須でpresenterを起動するよう揃えた。
+- Red: `viewportRustVideoOnlyBoundary` へ、`startSharedRendererViewportPresenter` の `requireSharedRendererVideo` が `sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled` になる契約を追加した。
+- Green: `Viewport` のpresenter起動引数を更新した。
+- 検証: `npm test -- viewportRustVideoOnlyBoundary sharedRendererViewportPresenterOrchestration` は17件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-159a`。
