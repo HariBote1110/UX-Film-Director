@@ -4132,3 +4132,19 @@
 ### 残課題・次のステップ
 - video+PSD混在exportを実際のfile path付き `TimelineObject` から `buildSharedRendererExportSession` 経由で構築する統合契約を追加する。
 - native render内訳診断をpreview側にも揃え、exportとpreviewで同じRust ownership状態を見られるようにする。
+
+## 2026-06-19 — video混在exportのunsupported overlay mediaを事前block
+
+### 実施内容
+- Red: video sourceがRust decode shared frameとして準備済みでも、remote PSD overlayがある場合はbackend呼び出し前に `nativeRenderUnsupportedMedia` でblockedになる契約を追加した。
+- Green: `render.nativeSharedFrame` 呼び出し前にsnapshot内の非video mediaをnative media support契約で検査し、未対応mediaをfail-loudにするようにした。
+- remote PSD / remote画像などをRust backendへ渡してから失敗させず、Pixi fallbackへ曖昧に戻る余地を減らした。
+- 版を `0.1.1-Beta-120b` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- video+PSD混在exportを実際のfile path付き `TimelineObject` から `buildSharedRendererExportSession` 経由で構築する統合契約を追加する。
+- preview側のnative render診断にもunsupported overlay mediaのreasonを揃え、preview/exportで同じ判断を見られるようにする。

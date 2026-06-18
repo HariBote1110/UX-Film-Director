@@ -738,6 +738,11 @@ export frame datasetへnative render media count / media kinds / source count / 
 これによりGoPro等の動画にPSD overlayを重ねたexportがPixi presenter / WebGPU readbackへ戻らず、
 Rust native render直通で合成されているかを実機で確認できる。
 
+136. Phase5: video混在exportのunsupported overlay mediaを事前blockする
+video decode shared frame sourceが準備できていても、snapshot内の非video mediaがRust native render未対応の場合は
+`render.nativeSharedFrame` を呼ぶ前に `nativeRenderUnsupportedMedia` としてfail-loudにする。
+remote PSD / remote画像などをbackendへ渡してから失敗させず、Pixi fallbackへ黙って戻る余地を減らす。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
