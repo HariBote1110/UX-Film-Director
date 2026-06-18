@@ -1145,6 +1145,7 @@ const Viewport: React.FC = () => {
     webGpuAvailable: sharedRendererGpuStatus.webGpuAvailable,
     fallbackAdapter: sharedRendererGpuStatus.fallbackAdapter,
     videoCutoverEnabled: sharedRendererVideoCutoverEnabled,
+    diagnosticsDataset: document.documentElement.dataset as Record<string, string | undefined>,
   }), [
     editorMode,
     layers,
