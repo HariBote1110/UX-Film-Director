@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   startSharedRendererViewportPresenter,
+  type SharedRendererViewportNativeRenderUploadPreparer,
   type SharedRendererViewportPresenterStarter,
   type SharedRendererViewportVideoUploadPreparer,
 } from './sharedRendererViewportPresenterOrchestration';
@@ -203,6 +204,59 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
     expect(presenterInput).toMatchObject({
       sharedRendererVideoCutoverEnabled: true,
       sharedRendererDecodedVideoFrameUpload: upload,
+    });
+  });
+
+  it('passes a prepared native render upload into the presenter and skips per-video preview upload', async () => {
+    let presenterInput: unknown;
+    const events: string[] = [];
+    const prepareNativeRenderUpload: SharedRendererViewportNativeRenderUploadPreparer = async () => {
+      events.push('prepareNativeRenderUpload');
+      return {
+        ok: true,
+        activeJobs: [activeJob],
+        upload: upload as any,
+      };
+    };
+    const prepareVideoUpload: SharedRendererViewportVideoUploadPreparer = async () => {
+      events.push('prepareVideoUpload');
+      return {
+        ok: true,
+        activeJob,
+        request: {} as any,
+        upload,
+      };
+    };
+    const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {
+      events.push('startPresenter');
+      presenterInput = input;
+      return control;
+    };
+
+    const result = await startSharedRendererViewportPresenter({
+      canvas,
+      session,
+      datasets: [],
+      diagnosticSwatchEnabled: true,
+      videoCutoverEnabled: true,
+      activeVideoDecodeJob: null,
+      activeVideoDecodeJobs: [],
+      requestId: 13,
+      prepareNativeRenderUpload,
+      prepareVideoUpload,
+      startPresenter,
+    });
+
+    expect(result.activeVideoDecodeJobs).toEqual([activeJob]);
+    expect(events).toEqual([
+      'prepareNativeRenderUpload',
+      'startPresenter',
+    ]);
+    expect(presenterInput).toMatchObject({
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererNativeRenderFrameUpload: upload,
+      sharedRendererDecodedVideoFrameUpload: undefined,
+      sharedRendererDecodedVideoFrameUploads: undefined,
     });
   });
 
