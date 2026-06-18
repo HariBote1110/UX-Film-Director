@@ -663,6 +663,7 @@ presenter diagnosticsはready状態でも `uxfdSharedRendererPresenterNativeRend
 Rust previewへ進めなかった理由を実機上で追えるようにする。
 また、Rust native render output自体は生成できたがrenderer側WebGPU texture uploadで失敗した場合も同じ診断欄へ
 upload失敗reason/detailを残し、単体video fallbackはnative render準備で更新されたactive decode jobを引き継ぐ。
+`requireSharedRendererVideo` がfail-loud fallbackへ進む場合も、主reasonとは別にnative render failure reason/detailを保持する。
 
 ## UI 刷新（2026-04-19）
 

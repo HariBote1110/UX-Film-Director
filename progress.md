@@ -3909,3 +3909,19 @@
 ### 残課題・次のステップ
 - `requireSharedRendererVideo` のfail-loud fallback時は主reasonが `requiredVideoOwnershipUnavailable` になるため、必要ならnative render failure detailをfallback診断にも保持する。
 - PSD/textはまだnative render source化・ownership移管されていないため、Pixi fallbackの主因として残る。
+
+## 2026-06-18 — fail-loud fallbackでもnative render診断を保持
+
+### 実施内容
+- `writeSharedRendererPresenterDiagnostics` のfallback状態に `nativeRenderFailureReason` / `nativeRenderFailureDetail` を追加した。
+- `requireSharedRendererVideo` が `requiredVideoOwnershipUnavailable` でfail-loudする場合も、native render previewが先に失敗していた理由をdatasetへ残すようにした。
+- fail-loud fallback時にnative render失敗理由が消えない契約をTDDで追加した。
+- 版を `0.1.1-Beta-108c` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererPresenterDiagnostics.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- PSD/textはまだnative render source化・ownership移管されていないため、Pixi fallbackの主因として残る。
+- 次はPSD/textのどちらをRust native render sourceとして扱えるか、既存のRust PSD parserとtext rasterise方針を分けて詰める。
