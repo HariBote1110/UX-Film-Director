@@ -1,3 +1,19 @@
+## 2026-06-18 — Phase5: presenter shared-frame payloadをdirect encodeへ直結する受け口を追加
+
+### 実施内容
+- `src/utils/sharedRendererExportFrameSource.test.ts` に、presenterがshared-frame payloadを返せる場合はWebGPU readbackとJS shared-frame writerを呼ばない契約を追加した。
+- `SharedRendererPreviewPresenterControl` に `takePresentedFrameSharedFrame` を任意メソッドとして追加した。
+- `createSharedRendererExportFrameSource` の `renderEncodeFrame` で、`takePresentedFrameSharedFrame` を `readPresentedFrameRgbaBytes` より優先するようにした。
+- package version を `0.1.1-Beta-84a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts`
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/projectExportRustEncodeFrame.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts\\(|src/utils/sharedRendererPreviewPresenterController\\.ts\\(|src/utils/sharedRendererExportFrameSource\\.test\\.ts\\()"`
+
+### 残課題・次のステップ
+- JS readbackを省けるAPIの受け口はできた。次は実際にpresenter/Rust側がこのpayloadを生成できる実装へ進める。
+
 ## 2026-06-18 — Phase5: Rust direct encode sourceからbitmap capture出口を外す
 
 ### 実施内容

@@ -498,6 +498,11 @@ Rust backend encoderがexport frameを所有する場合、Viewportからshared 
 Rust direct encodeはWebGPU presenter readbackからshared-frame payloadを作る `renderEncodeFrame` のみを使い、
 legacy WebCodecs / canvas export branchだけがbitmap capture能力を保持する。
 
+95. Phase5: presenter shared-frame payloadをRust direct encodeへ直結できるようにする
+shared renderer presenter controlが `takePresentedFrameSharedFrame` を提供する場合、export frame sourceは
+`readPresentedFrameRgbaBytes` とJS側shared-frame writerを使わず、そのpayloadをRust backend encoderへ渡す。
+現行WebGPU readback経路はfallbackとして残し、Rust renderer / encoder直結実装へ差し替える受け口を先に固定する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
