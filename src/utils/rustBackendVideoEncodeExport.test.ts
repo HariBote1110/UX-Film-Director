@@ -278,4 +278,65 @@ describe('runRustBackendVideoEncodeExport', () => {
       }],
     ]);
   });
+
+  it('does not release non-native shared frames through the native render release bridge when encode write fails', async () => {
+    const calls: unknown[] = [];
+    const payload = sharedFramePayload(0, 0, 'session-readback-failure');
+    const encoderBridge: RustBackendVideoEncodeBridge = {
+      startVideoEncode: async (input) => {
+        calls.push(['startVideoEncode', input]);
+        return { success: true, result: { accepted: true } };
+      },
+      writeVideoEncodeFrame: async (input) => {
+        calls.push(['writeVideoEncodeFrame', input]);
+        return { success: false, error: 'readback shared frame encode write failed' };
+      },
+      finishVideoEncode: async (input) => {
+        calls.push(['finishVideoEncode', input]);
+        return { success: true, result: { outputFile: '/tmp/out.mp4' } };
+      },
+    };
+    const nativeRenderBridge: RustBackendNativeRenderSharedFrameBridge = {
+      renderNativeSharedFrame: async () => {
+        throw new Error('render must not run during encode cleanup.');
+      },
+      releaseNativeSharedFrame: async (input) => {
+        calls.push(['releaseNativeSharedFrame', input]);
+        return { success: true, result: { released: true, memoryId: input.memoryId } };
+      },
+    };
+
+    async function* failingReadbackSharedFrames() {
+      yield { timestamp: 0, sharedFramePayload: payload };
+    }
+
+    await expect(runRustBackendVideoEncodeExport({
+      sessionId: 'session-readback-failure',
+      filePath: '/tmp/direct-shared.mp4',
+      width: 4,
+      height: 2,
+      fps: 60,
+      frames: failingReadbackSharedFrames(),
+      encoderBridge,
+      nativeRenderBridge,
+    })).rejects.toThrow('readback shared frame encode write failed');
+
+    expect(calls).toEqual([
+      ['startVideoEncode', {
+        sessionId: 'session-readback-failure',
+        filePath: '/tmp/direct-shared.mp4',
+        width: 4,
+        height: 2,
+        fps: 60,
+        pixelFormat: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      }],
+      ['writeVideoEncodeFrame', payload],
+    ]);
+  });
 });
