@@ -109,47 +109,6 @@ interface Window {
       available: boolean;
       reason?: string;
     };
-    createWritableSharedFrameRing: (
-      payload: {
-        memoryId: string;
-        slotCount: number;
-        slotByteLen: number;
-      }
-    ) => Promise<{
-      success: boolean;
-      result?: {
-        memoryId: string;
-        slotCount: number;
-        slotByteLen: number;
-      };
-      error?: string;
-    }>;
-    writeIntoSharedFrameRing: (
-      payload: {
-        memoryId: string;
-        ptsFrame: number;
-      },
-      source: Uint8Array
-    ) => Promise<{
-      success: boolean;
-      result?: {
-        sequence: number;
-        byteLen: number;
-        checksum: number;
-      };
-      error?: string;
-    }>;
-    closeWritableSharedFrameRing: (
-      payload: {
-        memoryId: string;
-      }
-    ) => Promise<{
-      success: boolean;
-      result?: {
-        memoryId: string;
-      };
-      error?: string;
-    }>;
     takePresentedFrameSharedFrame?: (
       payload: {
         encodeSessionId: string;

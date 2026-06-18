@@ -46,21 +46,6 @@ type SharedVideoFrameCopyResult = {
   error?: string
 }
 
-type SharedVideoFrameWritableRingPayload = {
-  memoryId: string
-  slotCount: number
-  slotByteLen: number
-}
-
-type SharedVideoFrameWritableWritePayload = {
-  memoryId: string
-  ptsFrame: number
-}
-
-type SharedVideoFrameWritableClosePayload = {
-  memoryId: string
-}
-
 type SharedVideoFrameWritableResult = {
   success: boolean
   result?: unknown
@@ -75,16 +60,6 @@ type SharedVideoFrameNativeBridge = {
   ) => Promise<SharedVideoFrameCopyResult> | SharedVideoFrameCopyResult
   takePresentedFrameSharedFrame?: (
     payload: SharedVideoFramePresentedFramePayload
-  ) => Promise<SharedVideoFrameWritableResult> | SharedVideoFrameWritableResult
-  createWritableSharedFrameRing?: (
-    payload: SharedVideoFrameWritableRingPayload
-  ) => Promise<SharedVideoFrameWritableResult> | SharedVideoFrameWritableResult
-  writeIntoSharedFrameRing?: (
-    payload: SharedVideoFrameWritableWritePayload,
-    source: Uint8Array
-  ) => Promise<SharedVideoFrameWritableResult> | SharedVideoFrameWritableResult
-  closeWritableSharedFrameRing?: (
-    payload: SharedVideoFrameWritableClosePayload
   ) => Promise<SharedVideoFrameWritableResult> | SharedVideoFrameWritableResult
 }
 
@@ -110,9 +85,6 @@ const loadSharedVideoFrameNativeBridge = (): SharedVideoFrameNativeBridge | null
     sharedVideoFrameNativeBridge = typeof loaded.copyIntoUploadBuffer === 'function'
       || typeof loaded.getPresentedFrameHandoffCapabilities === 'function'
       || typeof loaded.takePresentedFrameSharedFrame === 'function'
-      || typeof loaded.createWritableSharedFrameRing === 'function'
-      || typeof loaded.writeIntoSharedFrameRing === 'function'
-      || typeof loaded.closeWritableSharedFrameRing === 'function'
       ? loaded as SharedVideoFrameNativeBridge
       : null
   } catch {
@@ -191,39 +163,6 @@ contextBridge.exposeInMainWorld('sharedVideoFrame', {
     }
 
     return bridge.getPresentedFrameHandoffCapabilities()
-  },
-  async createWritableSharedFrameRing(payload: SharedVideoFrameWritableRingPayload) {
-    const bridge = loadSharedVideoFrameNativeBridge()
-    if (!bridge || typeof bridge.createWritableSharedFrameRing !== 'function') {
-      return {
-        success: false,
-        error: 'Shared video frame writable native bridge is unavailable.',
-      }
-    }
-
-    return bridge.createWritableSharedFrameRing(payload)
-  },
-  async writeIntoSharedFrameRing(payload: SharedVideoFrameWritableWritePayload, source: Uint8Array) {
-    const bridge = loadSharedVideoFrameNativeBridge()
-    if (!bridge || typeof bridge.writeIntoSharedFrameRing !== 'function') {
-      return {
-        success: false,
-        error: 'Shared video frame writable native bridge is unavailable.',
-      }
-    }
-
-    return bridge.writeIntoSharedFrameRing(payload, source)
-  },
-  async closeWritableSharedFrameRing(payload: SharedVideoFrameWritableClosePayload) {
-    const bridge = loadSharedVideoFrameNativeBridge()
-    if (!bridge || typeof bridge.closeWritableSharedFrameRing !== 'function') {
-      return {
-        success: false,
-        error: 'Shared video frame writable native bridge is unavailable.',
-      }
-    }
-
-    return bridge.closeWritableSharedFrameRing(payload)
   },
   async takePresentedFrameSharedFrame(payload: SharedVideoFramePresentedFramePayload) {
     const bridge = loadSharedVideoFrameNativeBridge()
