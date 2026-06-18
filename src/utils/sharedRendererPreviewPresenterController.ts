@@ -266,6 +266,7 @@ export const startSharedRendererPreviewPresenter = async ({
 
   let resolvedVideoFrameUploadReady = sharedRendererVideoFrameUploadReady;
   let nativeRenderFrameReady = false;
+  let nativeRenderFailure = sharedRendererNativeRenderFailure;
   if (sharedRendererNativeRenderFrameUpload) {
     const uploadResult = presenter.uploadVideoFrameTexture(sharedRendererNativeRenderFrameUpload);
     if (uploadResult.ok) {
@@ -291,8 +292,14 @@ export const startSharedRendererPreviewPresenter = async ({
         await sharedRendererNativeRenderFrameUpload.releaseAfterGpuUpload();
       }
       nativeRenderFrameReady = true;
-    } else if (sharedRendererNativeRenderFrameUpload.releaseAfterUploadAbort) {
-      await sharedRendererNativeRenderFrameUpload.releaseAfterUploadAbort();
+    } else {
+      if (sharedRendererNativeRenderFrameUpload.releaseAfterUploadAbort) {
+        await sharedRendererNativeRenderFrameUpload.releaseAfterUploadAbort();
+      }
+      nativeRenderFailure = {
+        reason: uploadResult.reason,
+        detail: uploadResult.detail,
+      };
     }
   }
   let uploadedVideoFrameTexture: unknown | null = null;
@@ -461,8 +468,8 @@ export const startSharedRendererPreviewPresenter = async ({
     videoCutoverReason: hasVideoScene ? videoOwnership.reason : undefined,
     sharedVideoObjectCount: hasVideoScene ? videoOwnership.videoObjectIds.length : undefined,
     nativeRenderFrameReady: nativeRenderFrameReady ? true : undefined,
-    nativeRenderFailureReason: sharedRendererNativeRenderFailure?.reason,
-    nativeRenderFailureDetail: sharedRendererNativeRenderFailure?.detail,
+    nativeRenderFailureReason: nativeRenderFailure?.reason,
+    nativeRenderFailureDetail: nativeRenderFailure?.detail,
     swatch: hasSolidColourScene
       ? 'solid-colour-scene'
       : nativeRenderFrameReady

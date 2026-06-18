@@ -121,7 +121,7 @@ export const startSharedRendererViewportPresenter = async ({
     ? await prepareVideoUpload({
       session,
       requestId,
-      activeJob: activeVideoDecodeJob,
+      activeJob: nextActiveVideoDecodeJob,
     })
     : undefined;
   const sharedRendererDecodedVideoFrameUpload = videoUploadResult?.ok

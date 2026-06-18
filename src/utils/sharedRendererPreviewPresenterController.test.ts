@@ -998,10 +998,10 @@ describe('startSharedRendererPreviewPresenter', () => {
     expect(events).toEqual(['release-abort']);
     expect(dataset).toMatchObject({
       uxfdSharedRendererPresenterStatus: 'ready',
-      uxfdSharedRendererPresenterNativeRenderFrameReady: undefined,
       uxfdSharedRendererPresenterNativeRenderFailureReason: 'webGpuUploadUnavailable',
       uxfdSharedRendererPresenterNativeRenderFailureDetail: 'WebGPU device does not expose the texture upload APIs needed for decoded video frames.',
     });
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterNativeRenderFrameReady');
   });
 
   it('publishes video ownership when a native rendered preview frame already contains the composited video scene', async () => {
