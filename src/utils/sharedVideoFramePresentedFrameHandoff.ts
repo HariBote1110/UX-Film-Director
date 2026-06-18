@@ -39,11 +39,15 @@ export const createSharedVideoFramePresentedFrameTaker = (
   }
 
   return async (input) => {
-    const response = await bridge.takePresentedFrameSharedFrame(input);
-    if (!response.success || !response.result) {
+    try {
+      const response = await bridge.takePresentedFrameSharedFrame(input);
+      if (!response.success || !response.result) {
+        return null;
+      }
+
+      return response.result;
+    } catch {
       return null;
     }
-
-    return response.result;
   };
 };
