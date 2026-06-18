@@ -36,6 +36,31 @@ describe('resolveProjectExportEncodePlan', () => {
     });
   });
 
+  it('refuses WebCodecs encoding for video exports when Rust video-only mode is enabled', () => {
+    expect(resolveProjectExportEncodePlan({
+      rustExportOnly: false,
+      rustVideoOnly: true,
+      hasVideoObjects: true,
+      rustEncoderAvailable: false,
+    })).toEqual({
+      ok: false,
+      reason: 'rustEncoderRequired',
+      detail: 'Rust-only export requires a Rust video encoder backend; WebCodecs encoding is disabled.',
+    });
+  });
+
+  it('keeps WebCodecs available for non-video exports while Rust video-only mode is enabled', () => {
+    expect(resolveProjectExportEncodePlan({
+      rustExportOnly: false,
+      rustVideoOnly: true,
+      hasVideoObjects: false,
+      rustEncoderAvailable: false,
+    })).toEqual({
+      ok: true,
+      engine: 'webCodecsMp4Muxer',
+    });
+  });
+
   it('selects the Rust backend encoder when Rust-only export has an encoder available', () => {
     expect(resolveProjectExportEncodePlan({
       rustExportOnly: true,
@@ -73,6 +98,19 @@ describe('resolveProjectExportEncodePlan', () => {
 
     expect(resolveProjectExportEncodePlanFromBridge({
       rustExportOnly: true,
+      rustVideoEncoderBridge: {
+        startVideoEncode: async () => ({ success: true }),
+      },
+    })).toEqual({
+      ok: false,
+      reason: 'rustEncoderRequired',
+      detail: 'Rust-only export requires a Rust video encoder backend; WebCodecs encoding is disabled.',
+    });
+
+    expect(resolveProjectExportEncodePlanFromBridge({
+      rustExportOnly: false,
+      rustVideoOnly: true,
+      hasVideoObjects: true,
       rustVideoEncoderBridge: {
         startVideoEncode: async () => ({ success: true }),
       },
