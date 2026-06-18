@@ -840,6 +840,11 @@ Viewport の Rust export frame source生成では、`objects` に動画が含ま
 presenter起動や `createImageBitmap(canvas)` へ進まず `videoBitmapCaptureDisabled` で停止する。動画export frameは
 `renderEncodeFrame` の Rust native render shared-frame、またはnative presented shared-frame handoffだけを正規経路にする。
 
+156. Phase5: 動画exportのRust frame source contextを純関数でencode-only化する
+`useProjectExport` が `getRustExportFrameSource` へ渡すcontext生成を `resolveProjectExportRustFrameSourceContext` に分離し、
+動画objectが含まれる場合はencoder hintに関係なく `preferEncodeOnly=true` にする。これによりhook内の条件式の回帰で
+動画export sourceがbitmap-capableになり、legacy browser/canvas経路へ戻る事故をテストで検出できるようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
