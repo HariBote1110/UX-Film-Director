@@ -176,6 +176,7 @@ export const prepareSharedRendererViewportVideoUploads = async ({
     } else {
       const startResult = await startDecodeJob(nextJob, request, rustBackendBridge);
       if (isDecodeJobStartFailure(startResult)) {
+        await releasePreparedViewportVideoUploadsAfterAbort(uploads);
         return {
           ok: false,
           reason: 'startFailed',
@@ -194,6 +195,7 @@ export const prepareSharedRendererViewportVideoUploads = async ({
       mode: 'latestWins',
     }, rustBackendBridge);
     if (!decodeResponse.success) {
+      await releasePreparedViewportVideoUploadsAfterAbort(uploads);
       return {
         ok: false,
         reason: 'frameDecodeFailed',
@@ -211,6 +213,7 @@ export const prepareSharedRendererViewportVideoUploads = async ({
         generation: decodeResponse.result.frame.descriptor.generation,
         copyOutState: 'rendererUploadAborted',
       }, rustBackendBridge);
+      await releasePreparedViewportVideoUploadsAfterAbort(uploads);
       return {
         ok: false,
         reason: 'staleDecodeResponse',
@@ -226,6 +229,7 @@ export const prepareSharedRendererViewportVideoUploads = async ({
       rustBackendBridge,
     });
     if (!upload.ok) {
+      await releasePreparedViewportVideoUploadsAfterAbort(uploads);
       return {
         ok: false,
         reason: 'uploadFailed',
@@ -242,6 +246,17 @@ export const prepareSharedRendererViewportVideoUploads = async ({
     activeJobs: resolvedActiveJobs,
     uploads,
   };
+};
+
+const releasePreparedViewportVideoUploadsAfterAbort = async (
+  uploads: Array<{
+    request: SharedRendererVideoFrameDecodeRequest;
+    upload: PreparedViewportVideoUpload;
+  }>
+): Promise<void> => {
+  for (const { upload } of uploads) {
+    await upload.releaseAfterUploadAbort?.();
+  }
 };
 
 export const prepareSharedRendererViewportVideoUpload = async ({

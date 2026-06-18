@@ -100,14 +100,20 @@ const session: SharedRendererPreviewSession = {
 const expectedJobId = 'shared-renderer-video-video-1-64x32-60over1';
 const expectedSecondJobId = 'shared-renderer-video-video-2-80x45-30over1';
 
+type ComparablePreviewPlan = Extract<SharedRendererPreviewSession['plan'], { mode: 'parallelCompare' }>;
+type ReadyPreviewSurfaceGate = Extract<SharedRendererPreviewSession['surfaceGate'], { ok: true }>;
+
+const basePlan = session.plan as ComparablePreviewPlan;
+const baseSurfaceGate = session.surfaceGate as ReadyPreviewSurfaceGate;
+
 const multiVideoSession: SharedRendererPreviewSession = {
   ...session,
   plan: {
-    ...session.plan,
+    ...basePlan,
     snapshot: {
-      ...session.plan.snapshot,
+      ...basePlan.snapshot,
       clips: [
-        ...session.plan.snapshot.clips,
+        ...basePlan.snapshot.clips,
         {
           clip_id: 'video-2',
           track_id: 'layer-1',
@@ -128,7 +134,7 @@ const multiVideoSession: SharedRendererPreviewSession = {
       ],
     },
     media: [
-      ...session.plan.media,
+      ...basePlan.media,
       {
         id: 'video-2',
         kind: 'Video',
@@ -143,11 +149,11 @@ const multiVideoSession: SharedRendererPreviewSession = {
     ],
   },
   surfaceGate: {
-    ...session.surfaceGate,
+    ...baseSurfaceGate,
     snapshot: {
-      ...session.surfaceGate.snapshot,
+      ...baseSurfaceGate.snapshot,
       clips: [
-        ...session.surfaceGate.snapshot.clips,
+        ...baseSurfaceGate.snapshot.clips,
         {
           clip_id: 'video-2',
           track_id: 'layer-1',
@@ -168,7 +174,7 @@ const multiVideoSession: SharedRendererPreviewSession = {
       ],
     },
     media: [
-      ...session.surfaceGate.media,
+      ...baseSurfaceGate.media,
       {
         id: 'video-2',
         kind: 'Video',
