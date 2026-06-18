@@ -37,6 +37,7 @@ import {
   startSharedRendererViewportPresenter,
 } from '../utils/sharedRendererViewportPresenterOrchestration';
 import type { SharedRendererViewportVideoDecodeJob } from '../utils/sharedRendererViewportVideoUpload';
+import { buildViewportRustExportFrameSource } from '../utils/viewportRustExportFrameSource';
 
 const GROUP_GRADIENT_COMPONENT_PREFIX = 'group-gradient-component-';
 const RESIZE_HANDLE_PREFIX = 'resize-handle-';
@@ -140,6 +141,7 @@ const Viewport: React.FC = () => {
   const [pixiReady, setPixiReady] = useState(false);
   const [panelSize, setPanelSize] = useState({ w: 0, h: 0 });
   const sharedRendererPreviewEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_PREVIEW === '1';
+  const sharedRendererExportEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_EXPORT === '1';
   const sharedRendererDiagnosticSwatchEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_DIAGNOSTIC_SWATCH === '1';
   const sharedRendererVideoCutoverEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER === '1';
   const [sharedRendererGpuStatus, setSharedRendererGpuStatus] = useState({
@@ -272,7 +274,7 @@ const Viewport: React.FC = () => {
   const sharedRendererCssReferenceColour = getSharedRendererSolidSwatchCssColour();
 
   useEffect(() => {
-    if (!sharedRendererPreviewEnabled) return;
+    if (!sharedRendererPreviewEnabled && !sharedRendererExportEnabled) return;
     let cancelled = false;
 
     const probeWebGpu = async () => {
@@ -300,7 +302,7 @@ const Viewport: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [sharedRendererPreviewEnabled]);
+  }, [sharedRendererExportEnabled, sharedRendererPreviewEnabled]);
 
   // --- Initialize Pixi App ---
   useEffect(() => {
@@ -1128,8 +1130,27 @@ const Viewport: React.FC = () => {
     const pixiCanvas = pixiAppRef.current?.canvas;
     return pixiCanvas != null ? (pixiCanvas as HTMLCanvasElement) : null;
   }, []);
+
+  const getRustExportFrameSource = useCallback(() => buildViewportRustExportFrameSource({
+    exportEnabled: sharedRendererExportEnabled,
+    canvas: sharedRendererSurfaceCanvasRef.current,
+    projectSettings,
+    layers,
+    editorMode,
+    webGpuAvailable: sharedRendererGpuStatus.webGpuAvailable,
+    fallbackAdapter: sharedRendererGpuStatus.fallbackAdapter,
+    videoCutoverEnabled: sharedRendererVideoCutoverEnabled,
+  }), [
+    editorMode,
+    layers,
+    projectSettings,
+    sharedRendererExportEnabled,
+    sharedRendererGpuStatus.fallbackAdapter,
+    sharedRendererGpuStatus.webGpuAvailable,
+    sharedRendererVideoCutoverEnabled,
+  ]);
   
-  useProjectExport(pixiAppRef, videoElementsRef, renderScene, getExportCanvas, exportFrameOverridesRef);
+  useProjectExport(pixiAppRef, videoElementsRef, renderScene, getExportCanvas, exportFrameOverridesRef, getRustExportFrameSource);
 
   // --- Snapshot Logic (after renderScene is defined) ---
   useEffect(() => {
