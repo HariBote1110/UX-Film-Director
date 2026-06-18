@@ -1,3 +1,29 @@
+## 2026-06-18 — Phase5: Rust video必須時は Pixi preview fallback を禁止
+
+### 実施内容
+- `shouldSkipPixiVideoForSharedRenderer` に `requireSharedRendererVideo` を追加した。
+- `requireSharedRendererVideo=true` のpreviewでは、shared renderer ownership対象IDに入っていない動画clipでもPixi video fallbackを作らないようにした。
+- `VITE_UXFD_RUST_VIDEO_ONLY=1` を `Viewport` から `updatePixiContent` へ渡すようにした。
+- package version を `0.1.1-Beta-60o` に更新した。
+
+### Red
+- `src/utils/pixiVideoCutover.test.ts` に、Rust video必須時は未所有videoでもpreviewのPixi fallbackをskipする契約を追加した。
+
+### Green
+- `src/utils/pixiVideoCutover.ts` と `src/utils/pixiRenderHelper.ts` にstrict video fallback禁止フラグを接続した。
+- `src/components/Viewport.tsx` と `src/vite-env.d.ts` に `VITE_UXFD_RUST_VIDEO_ONLY` を追加した。
+
+### 現在の制限
+- flag有効時、shared rendererが所有できない動画clipはPixiでは表示されない。これは検証用のfail-visible挙動で、既定の互換モードでは従来通りPixi fallbackを維持する。
+
+### 検証
+- `npm test -- src/utils/pixiVideoCutover.test.ts`
+  -> 1 file / 4 tests passed。
+- `npm test -- src/utils/pixiVideoCutover.test.ts src/utils/videoElementForPixi.test.ts src/utils/projectExportEncodePlan.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/viewportRustExportFrameSource.test.ts src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts`
+  -> 8 files / 65 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "src/(utils/pixiVideoCutover\\.ts|utils/pixiRenderHelper\\.ts|components/Viewport\\.tsx|vite-env\\.d\\.ts)"`
+  -> 対象ファイルの型エラーなし。
+
 ## 2026-06-18 — Phase5: Rust-only export で WebCodecs encoder を拒否
 
 ### 実施内容

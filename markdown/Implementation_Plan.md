@@ -292,6 +292,11 @@ export frame sourceでは Pixi が動画ownerになる余地がないため、pr
 `VITE_UXFD_RUST_EXPORT_ONLY=1` では Rust video encoder backend が無い限りexportを開始前に失敗させる。
 これにより、Rust-only検証中に WebCodecs `VideoEncoder` / mp4-muxer へ暗黙に戻る経路を塞ぐ。
 
+60. Phase5: Rust video必須時は Pixi preview fallback を禁止する
+`VITE_UXFD_RUST_VIDEO_ONLY=1` の実験flag配下では、shared renderer video ownership がまだ取れていない動画clipでも
+Pixi preview側の `HTMLVideoElement` / `VideoSource` / canvas upload fallback を作らず、shared renderer側だけを正とする。
+これにより、preview検証中にPixi videoが見えているだけの状態をRust移管完了と誤認しない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
