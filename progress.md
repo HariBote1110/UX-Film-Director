@@ -1,3 +1,20 @@
+## 2026-06-18 — Phase5: WebGPU presenterがshared-frame payload生成を所有
+
+### 実施内容
+- `src/utils/sharedRendererWebGpuPresenter.test.ts` に、presenterが最後に提示したWebGPU textureをshared-frame payloadへ変換する契約を追加した。
+- `createSharedRendererWebGpuPresenter` に `createEncodeFrameWriter` 注入点と `takePresentedFrameSharedFrame` を追加した。
+- WebGPU readback結果をpresenter内のshared-frame writerへ渡し、Rust backend encoder用payloadを返すようにした。
+- `startSharedRendererPreviewPresenter` から同APIをcontrolへ中継するようにした。
+- package version を `0.1.1-Beta-85a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererExportFrameSource.test.ts`
+- `npm test -- src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/projectExportRustEncodeFrame.test.ts src/utils/rustBackendVideoEncodeSharedFrameWriter.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererWebGpuPresenter\\.ts\\(|src/utils/sharedRendererPreviewPresenterController\\.ts\\(|src/utils/sharedRendererWebGpuPresenter\\.test\\.ts\\(|src/utils/sharedRendererExportFrameSource\\.ts\\(|src/utils/sharedRendererExportFrameSource\\.test\\.ts\\()"`
+
+### 残課題・次のステップ
+- shared-frame payload生成責務はpresenterへ寄った。次はこの内部のGPU readback / JS shared-frame writerをnative/Rust側へ差し替える設計と契約を切る。
+
 ## 2026-06-18 — Phase5: presenter shared-frame payloadをdirect encodeへ直結する受け口を追加
 
 ### 実施内容

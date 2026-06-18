@@ -503,6 +503,11 @@ shared renderer presenter controlが `takePresentedFrameSharedFrame` を提供�
 `readPresentedFrameRgbaBytes` とJS側shared-frame writerを使わず、そのpayloadをRust backend encoderへ渡す。
 現行WebGPU readback経路はfallbackとして残し、Rust renderer / encoder直結実装へ差し替える受け口を先に固定する。
 
+96. Phase5: WebGPU presenterがshared-frame payload生成を所有する
+`createSharedRendererWebGpuPresenter` は最後にpresentしたtextureをGPU readbackし、presenter内のshared-frame writerで
+Rust backend encoder用payloadへ変換する `takePresentedFrameSharedFrame` を公開する。
+export source側のwriter責務を下ろし、将来のnative/Rust GPU handoff実装ではこのpresenter APIの内部だけを差し替える。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
