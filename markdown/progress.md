@@ -223,3 +223,10 @@
 - Green: `shouldLoadLegacyBrowserVideoProviders` を追加し、`VideoFrameProvider` / `PlaybackFrameProvider` のdynamic import条件を実動画clipありに絞った。
 - 検証: `npm test -- useProjectExportBoundary projectExportFrameCanvas projectExportEncodePlan viewportRustExportFrameSource` は49件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-151a`。
+
+## 2026-06-19
+- Phase5のproduction export hookから、旧VideoDecoder/rVFC/HTMLVideoElement seek fallbackを削除した。
+- Red: `useProjectExportBoundary` へ、`useProjectExport` が `videoFrameProvider` / `playbackFrameProvider` をdynamic importせず、legacy provider gateや `requiresHtmlVideoElementSeekFallback` も持たない契約を追加した。
+- Green: `useProjectExport` から `FrameProvider` map、provider初期化、export frame override注入、HTMLVideoElement seek fallback、VideoDecoder hybrid表示を削除した。
+- 検証: `npm test -- useProjectExportBoundary projectExportFrameCanvas projectExportEncodePlan viewportRustExportFrameSource sharedRendererExportFrameSource` は77件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-152a`。

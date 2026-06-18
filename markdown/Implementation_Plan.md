@@ -921,6 +921,11 @@ Pixi video pathを既定拒否した状態でも、通常preview動画がRust/sh
 `videoObjects.length > 0` の場合だけ `VideoFrameProvider` / `PlaybackFrameProvider` をdynamic importする。
 非動画exportからVideoDecoder/rVFC/HTMLVideoElement系providerの読み込みを外し、動画依存を実際の動画clipに限定する。
 
+172. Phase5: production export hookからlegacy browser video providerを削除する
+動画exportはRust frame source / Rust backend encoder必須になったため、`useProjectExport` から
+`VideoFrameProvider` / `PlaybackFrameProvider` のdynamic import、provider map、HTMLVideoElement seek fallback、
+VideoDecoder hybrid完了表示を削除する。WebCodecs互換branchは非動画canvas export用として残す。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
