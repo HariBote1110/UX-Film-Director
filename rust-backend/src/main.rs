@@ -8,6 +8,7 @@ use std::fs;
 use std::io::{self, BufRead, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 #[cfg(unix)]
 use uxfd_shared_memory_spike::PosixSharedRing;
 use uxfd_sidecar_protocol::{
@@ -336,6 +337,11 @@ fn handle_encode_write_frame(id: u64, params: Value, state: &mut BackendState) -
         return response_error(id, -32602, &message);
     }
 
+    let shared_frame_byte_len = match read_encode_shared_frame(&parsed) {
+        Ok(value) => value,
+        Err(message) => return response_error(id, -32053, &message),
+    };
+
     session.frame_count += 1;
 
     RpcResponse {
@@ -347,6 +353,7 @@ fn handle_encode_write_frame(id: u64, params: Value, state: &mut BackendState) -
             "frameIndex": parsed.frame_index,
             "timestampUs": parsed.timestamp_us,
             "slotCount": parsed.slot_count,
+            "sharedFrameByteLen": shared_frame_byte_len,
             "frameCount": session.frame_count,
         })),
         error: None,
@@ -428,6 +435,42 @@ fn validate_encode_shared_frame(
     }
 
     Ok(())
+}
+
+#[cfg(unix)]
+fn read_encode_shared_frame(parsed: &EncodeWriteFrameParams) -> Result<usize, String> {
+    let descriptor = &parsed.frame.descriptor;
+    let frame_len = usize::try_from(descriptor.byte_len).map_err(|_| {
+        format!(
+            "Encode frame byteLen overflows usize: {}",
+            descriptor.byte_len
+        )
+    })?;
+    let ring = PosixSharedRing::attach_with_retry_for_layout(
+        &descriptor.memory_id,
+        parsed.slot_count,
+        frame_len,
+        Duration::from_secs(1),
+    )
+    .map_err(|error| format!("Failed to attach encode shared memory: {error:?}"))?;
+    let frame = ring
+        .read_frame(parsed.frame.pts_frame)
+        .map_err(|error| format!("Failed to read encode shared frame: {error:?}"))?;
+    let byte_len = frame.bytes.len();
+    ring.release_frame(CopyOutState::EncoderFrameWritten)
+        .map_err(|error| format!("Failed to release encode shared frame: {error:?}"))?;
+
+    Ok(byte_len)
+}
+
+#[cfg(not(unix))]
+fn read_encode_shared_frame(parsed: &EncodeWriteFrameParams) -> Result<usize, String> {
+    usize::try_from(parsed.frame.descriptor.byte_len).map_err(|_| {
+        format!(
+            "Encode frame byteLen overflows usize: {}",
+            parsed.frame.descriptor.byte_len
+        )
+    })
 }
 
 fn handle_media_probe(id: u64, params: Value) -> RpcResponse {
