@@ -163,7 +163,10 @@ export const resolveViewportRustExportFrameSource = ({
         webGpuAvailable,
         fallbackAdapter,
         videoCutoverEnabled,
-        ...(preferEncodeOnly ? { bitmapCaptureEnabled: false } : {}),
+        ...(preferEncodeOnly ? {
+          bitmapCaptureEnabled: false,
+          nativeRenderRequired: true,
+        } : {}),
         ...(presentedFrameSharedFrameTaker ? { presentedFrameSharedFrameTaker } : {}),
       }),
       ...(nativeRenderEnvelope ? { nativeRenderEnvelope } : {}),
@@ -180,7 +183,10 @@ export const resolveViewportRustExportFrameSource = ({
       webGpuAvailable,
       fallbackAdapter,
       videoCutoverEnabled,
-      ...(preferEncodeOnly ? { bitmapCaptureEnabled: false } : {}),
+      ...(preferEncodeOnly ? {
+        bitmapCaptureEnabled: false,
+        nativeRenderRequired: true,
+      } : {}),
       ...(presentedFrameSharedFrameTaker ? { presentedFrameSharedFrameTaker } : {}),
     }),
   };

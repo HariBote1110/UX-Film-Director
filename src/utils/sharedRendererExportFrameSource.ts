@@ -42,6 +42,7 @@ type PresenterDataset = Record<string, string | undefined>;
 
 export type SharedRendererExportFrameSourceBlockedReason =
   | SharedRendererPreviewSurfaceBlockedReason
+  | 'nativeRenderUnavailable'
   | 'videoUploadFailed'
   | 'videoOwnershipUnavailable'
   | 'webGpuReadbackUnavailable'
@@ -87,6 +88,7 @@ export interface CreateSharedRendererExportFrameSourceInput {
   fallbackAdapter: boolean;
   videoCutoverEnabled: boolean;
   bitmapCaptureEnabled?: boolean;
+  nativeRenderRequired?: boolean;
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
   datasets?: PresenterDataset[];
   buildExportSession?: SharedRendererExportSessionBuilder;
@@ -148,6 +150,7 @@ export function createSharedRendererExportFrameSource({
   fallbackAdapter,
   videoCutoverEnabled,
   bitmapCaptureEnabled = true,
+  nativeRenderRequired = false,
   presentedFrameSharedFrameTaker,
   datasets = [canvas.dataset as unknown as PresenterDataset],
   buildExportSession = buildSharedRendererExportSession,
@@ -270,6 +273,18 @@ export function createSharedRendererExportFrameSource({
     request: ProjectExportRustEncodeFrameRequest
   ): Promise<RustBackendVideoEncodeSharedFramePayloadFrame | null> => {
     if (!nativeSharedFrameRendererAvailable) {
+      if (nativeRenderRequired) {
+        writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+          status: 'blocked',
+          frameIndex: request.frameIndex,
+          reason: 'nativeRenderUnavailable',
+        });
+        throw new SharedRendererExportFrameSourceBlockedError(
+          'Rust backend native render bridge is required for encode-only export frames.',
+          'nativeRenderUnavailable',
+          request.frameIndex
+        );
+      }
       return null;
     }
 
