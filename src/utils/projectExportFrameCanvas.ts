@@ -15,6 +15,7 @@ export interface ProjectExportRustFrameRequest {
 
 export interface ProjectExportRustFrameSource {
   renderFrame: (request: ProjectExportRustFrameRequest) => Promise<ImageBitmap>;
+  close?: () => Promise<void> | void;
 }
 
 export type ResolveProjectExportFrameCanvasResult =

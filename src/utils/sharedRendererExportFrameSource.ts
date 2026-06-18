@@ -11,6 +11,7 @@ import {
   type StartSharedRendererViewportPresenterResult,
 } from './sharedRendererViewportPresenterOrchestration';
 import type { SharedRendererViewportVideoDecodeJob } from './sharedRendererViewportVideoUpload';
+import { stopRustBackendVideoDecode } from './rustBackendVideoDecodeControl';
 
 type PresenterDataset = Record<string, string | undefined>;
 
@@ -28,6 +29,10 @@ export type SharedRendererExportViewportPresenterStarter = (
   input: StartSharedRendererViewportPresenterInput
 ) => Promise<StartSharedRendererViewportPresenterResult>;
 
+export type SharedRendererExportVideoDecodeJobStopper = (
+  job: SharedRendererViewportVideoDecodeJob
+) => Promise<void>;
+
 export interface CreateSharedRendererExportFrameSourceInput {
   canvas: HTMLCanvasElement;
   projectSettings: ProjectSettings;
@@ -40,6 +45,7 @@ export interface CreateSharedRendererExportFrameSourceInput {
   buildExportSession?: SharedRendererExportSessionBuilder;
   startViewportPresenter?: SharedRendererExportViewportPresenterStarter;
   createFrameBitmap?: SharedRendererExportFrameBitmapFactory;
+  stopVideoDecodeJob?: SharedRendererExportVideoDecodeJobStopper;
 }
 
 export const createSharedRendererExportFrameSource = ({
@@ -54,12 +60,18 @@ export const createSharedRendererExportFrameSource = ({
   buildExportSession = buildSharedRendererExportSession,
   startViewportPresenter = startSharedRendererViewportPresenter,
   createFrameBitmap = defaultCreateFrameBitmap,
+  stopVideoDecodeJob = defaultStopVideoDecodeJob,
 }: CreateSharedRendererExportFrameSourceInput): ProjectExportRustFrameSource => {
   let activeVideoDecodeJobs: SharedRendererViewportVideoDecodeJob[] = [];
   let requestId = 0;
+  let closed = false;
 
   return {
     renderFrame: async (request) => {
+      if (closed) {
+        throw new Error('Shared renderer export frame source has already been closed.');
+      }
+
       const session = buildExportSession({
         enabled: true,
         projectSettings,
@@ -112,6 +124,13 @@ export const createSharedRendererExportFrameSource = ({
         presenterResult.control.dispose();
       }
     },
+    close: async () => {
+      if (closed) return;
+      closed = true;
+      const jobsToStop = activeVideoDecodeJobs;
+      activeVideoDecodeJobs = [];
+      await Promise.all(jobsToStop.map(stopVideoDecodeJob));
+    },
   };
 };
 
@@ -122,3 +141,9 @@ const defaultCreateFrameBitmap: SharedRendererExportFrameBitmapFactory = (
   sw,
   sh
 ) => createImageBitmap(canvas, sx, sy, sw, sh);
+
+const defaultStopVideoDecodeJob: SharedRendererExportVideoDecodeJobStopper = async (job) => {
+  await stopRustBackendVideoDecode({
+    jobId: job.jobId,
+  });
+};

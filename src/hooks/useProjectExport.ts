@@ -285,6 +285,9 @@ export const useProjectExport = (
         }
       } finally {
         // 全プロバイダを解放
+        if (exportFrameSourcePlan.source === 'sharedRendererRustFrameSource') {
+          await exportFrameSourcePlan.frameSource.close?.();
+        }
         for (const provider of providers.values()) provider.close();
         providers.clear();
         exportFrameOverridesRef?.current.clear();
