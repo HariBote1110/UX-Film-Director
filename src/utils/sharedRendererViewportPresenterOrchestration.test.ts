@@ -211,4 +211,44 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
       sharedRendererDecodedVideoFrameUpload: undefined,
     });
   });
+
+  it('prepares Rust video upload when Rust video is required even if the cutover flag is off', async () => {
+    let presenterInput: unknown;
+    const events: string[] = [];
+    const prepareVideoUpload: SharedRendererViewportVideoUploadPreparer = async () => {
+      events.push('prepareVideoUpload');
+      return {
+        ok: true,
+        activeJob,
+        request: {} as any,
+        upload,
+      };
+    };
+    const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {
+      events.push('startPresenter');
+      presenterInput = input;
+      return control;
+    };
+
+    const result = await startSharedRendererViewportPresenter({
+      canvas,
+      session,
+      datasets: [],
+      diagnosticSwatchEnabled: false,
+      videoCutoverEnabled: false,
+      requireSharedRendererVideo: true,
+      activeVideoDecodeJob: null,
+      requestId: 12,
+      prepareVideoUpload,
+      startPresenter,
+    });
+
+    expect(result.activeVideoDecodeJob).toBe(activeJob);
+    expect(events).toEqual(['prepareVideoUpload', 'startPresenter']);
+    expect(presenterInput).toMatchObject({
+      sharedRendererVideoCutoverEnabled: true,
+      requireSharedRendererVideo: true,
+      sharedRendererDecodedVideoFrameUpload: upload,
+    });
+  });
 });
