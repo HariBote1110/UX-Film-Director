@@ -1,3 +1,19 @@
+## 2026-06-18 — Phase5: useProjectExport の Rust encoder 分岐を接続
+
+### 実施内容
+- `src/hooks/useProjectExport.ts` の `rustBackendVideoEncoder` 分岐から未接続alertを削除し、`runRustBackendVideoEncodeExport` を呼ぶようにした。
+- Rust encoder経路では `renderFrames()` の `ImageBitmap` streamをshared memory writerへ渡し、WebCodecs/mp4-muxerとElectron export stream writerを迂回する。
+- legacy WebCodecs経路では従来どおり `buildExportAudioBuffer` と `encodeVideoToMp4` を使う。Rust encoder経路の音声muxは未接続として明示的に次段へ残した。
+- package version を `0.1.1-Beta-62a` に更新した。
+
+### 検証
+- `npm test -- src/utils/rustBackendVideoEncodeExport.test.ts src/utils/rustBackendVideoEncodeSharedFrameWriter.test.ts src/utils/projectExportEncodePlan.test.ts src/utils/projectExportFrameCanvas.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "useProjectExport|rustBackendVideoEncodeExport|rustBackendVideoEncodeSharedFrameWriter|projectExportEncodePlan|projectExportFrameCanvas"`（対象ファイルの型エラーなし）
+
+### 残課題・次のステップ
+- Rust encoder経路は映像のみ。次はRust backend `encode.start` にaudio sourceを渡し、ffmpegで映像と音声を同時muxする。
+- 実機Electronで `VITE_UXFD_RUST_EXPORT_ONLY=1 npm run dev` を使い、GoPro動画をshared renderer export source経由でMP4保存できるか確認する。
+
 ## 2026-06-18 — Phase5: Rust encode export runner を追加
 
 ### 実施内容

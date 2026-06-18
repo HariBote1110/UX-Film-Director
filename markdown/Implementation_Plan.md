@@ -369,6 +369,12 @@ Rust backend encoderの `startVideoEncode` / `writeVideoEncodeFrame` / `finishVi
 この段階では映像frameのRust rawvideo encode orchestrationを固定し、音声muxはまだRust backend encode payloadへ接続しない。
 次段では `useProjectExport` のRust encoder分岐からこのrunnerを呼び、WebCodecs/mp4-muxer stream writerを迂回する。
 
+73. Phase5: useProjectExport の Rust encoder 分岐を接続する
+`resolveProjectExportEncodePlanFromBridge` が `rustBackendVideoEncoder` を選んだ場合、旧alertで停止せず、
+`runRustBackendVideoEncodeExport` へ `renderFrames()` を渡してRust backend rawvideo/ffmpeg encoderで映像を書き出す。
+この経路ではElectron stream writerとWebCodecs/mp4-muxerを使わない。音声は未接続のため、
+次段でRust `encode.start` payloadへaudio inputを追加し、映像・音声ともRust側でmuxする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
