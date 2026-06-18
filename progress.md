@@ -4032,3 +4032,23 @@
 ### 残課題・次のステップ
 - Rust backendのPSD合成はまだ `active_layer_ids` を使っておらず、ファイル内visible状態に基づく。
 - 次は `psd_fast` compositeでactive layer id filterを受け取り、UIのレイヤー選択をnative preview/exportへ反映する。
+
+## 2026-06-18 — PSD active layer idsをRust合成へ反映
+
+### 実施内容
+- WASM/Rust PSD parser fast pathの `PsdLayerNode.id` を `psd-layer-{layer_index}` / `psd-group-{group_id}` の安定IDへ寄せた。
+- `psd_fast::PsdFastLayer` にstable idを追加し、Rust backendで再parseしたPSD layerとUIの `activeLayerIds` を照合できるようにした。
+- `composite_visible_psd_layers_with_active_layer_ids` を追加し、active id指定時は選択されたvisible leaf layerだけを合成するようにした。
+- `render.nativeSharedFrame` のPSD source生成が `SceneMediaReference.active_layer_ids` を合成filterへ渡すようにした。
+- 版を `0.1.1-Beta-115a` に更新した。
+
+### 検証
+- `npm test -- src/utils/psdLayerStableId.test.ts src/utils/psdParserPersistence.test.ts src/utils/psdTextureUrl.test.ts src/utils/rustSceneSnapshot.test.ts`
+- `cargo test --manifest-path rust-backend/Cargo.toml psd_fast::tests`
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane`
+- `cargo test --manifest-path rust-core/Cargo.toml --test media_schema`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- PSD-only export direct encodeの明示テストを追加し、Rust native render経路からPixi/readbackへ戻らない契約を固定する。
+- 既存プロジェクトに保存済みの旧ランダムPSD layer idを新stable idへ移行する必要があるか確認する。

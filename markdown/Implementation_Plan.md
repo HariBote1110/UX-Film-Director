@@ -700,6 +700,17 @@ TS/Rust boundaryへ渡す。rust-coreの `SceneMediaReference` も同fieldを受
 native render payload内で失わないようにする。この段階ではbackend合成への反映はまだ行わず、次段で
 `psd_fast` composite対象layerのfilterへ接続する。
 
+129. Phase5: PSD layer idをRust照合可能に安定化する
+WASM/Rust PSD parser fast pathの `PsdLayerNode.id` を、Rust backendのPSD layer識別と同じ
+`psd-layer-{layer_index}` / `psd-group-{group_id}` へ寄せる。これにより `activeLayerIds` を
+Rust native render payloadへ渡したとき、backendが再parseしたPSD layerと照合できる。
+
+130. Phase5: PSD active layer idsをRust合成へ反映する
+`psd_fast` のlayerにstable idを持たせ、`SceneMediaReference.active_layer_ids` が指定されている場合は
+選択されたvisible leaf layerだけをsource-over合成する。指定が空の場合は従来どおりPSDファイル内のvisible状態を使う。
+`render.nativeSharedFrame` のPSD source生成はこのactive layer filterを使い、UIのPSDレイヤー選択を
+native preview/exportへ反映する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
