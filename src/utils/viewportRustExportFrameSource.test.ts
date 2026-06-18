@@ -93,6 +93,45 @@ describe('buildViewportRustExportFrameSource', () => {
     }]);
   });
 
+  it('requests an encode-only frame source when Rust backend encoding owns export frames', () => {
+    const canvas = {
+      width: 1920,
+      height: 1080,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    const calls: unknown[] = [];
+
+    const source = buildViewportRustExportFrameSource({
+      exportEnabled: true,
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      preferEncodeOnly: true,
+      createFrameSource: (input) => {
+        calls.push(input);
+        return frameSource;
+      },
+    } as Parameters<typeof buildViewportRustExportFrameSource>[0] & {
+      preferEncodeOnly: true;
+    });
+
+    expect(source).toBe(frameSource);
+    expect(calls).toEqual([{
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      bitmapCaptureEnabled: false,
+    }]);
+  });
+
   it('keeps legacy canvas export when any Rust export gate is closed', () => {
     const canvas = {
       width: 1920,

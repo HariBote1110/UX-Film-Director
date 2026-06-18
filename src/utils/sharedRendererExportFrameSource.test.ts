@@ -115,6 +115,124 @@ describe('createSharedRendererExportFrameSource', () => {
     });
   });
 
+  it('can expose a Rust direct encode-only source without ImageBitmap capture', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    const paddedRgbaBytes = new Uint8Array(512);
+    const payload: RustBackendVideoEncodeWriteFramePayload = {
+      sessionId: 'encode-only-session',
+      frameIndex: 8,
+      timestampUs: 133_333,
+      slotCount: 1,
+      frame: {
+        descriptor: {
+          memoryId: '/uxfd-export-source-encode-only-session',
+          slotIndex: 0,
+          generation: 2,
+          byteOffset: 0,
+          byteLen: 512,
+          width: 2,
+          height: 2,
+          strideBytes: 256,
+          format: 'rgba8Srgb',
+          colour: {
+            primaries: 'bt709',
+            transfer: 'srgb',
+            matrix: 'rgb',
+            range: 'full',
+          },
+        },
+        ptsFrame: 8,
+      },
+    };
+    const calls: unknown[] = [];
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: {
+        ...settings,
+        width: 2,
+        height: 2,
+      },
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      bitmapCaptureEnabled: false,
+      startViewportPresenter: async () => ({
+        control: {
+          ok: true,
+          readPresentedFrameRgbaBytes: async (input: { width: number; height: number }) => {
+            calls.push(['readPresentedFrameRgbaBytes', input]);
+            return {
+              rgbaBytes: paddedRgbaBytes,
+              strideBytes: 256,
+              byteLen: 512,
+              width: 2,
+              height: 2,
+            };
+          },
+          dispose: () => {
+            calls.push(['dispose']);
+          },
+        },
+        activeVideoDecodeJob: null,
+        activeVideoDecodeJobs: [],
+      }) as never,
+      createFrameBitmap: async () => {
+        calls.push(['createFrameBitmap']);
+        throw new Error('ImageBitmap capture must not exist for encode-only export sources.');
+      },
+      createEncodeFrameWriter: async () => ({
+        writeFrame: async () => {
+          throw new Error('tight ImageBitmap write must not run for Rust direct encoding.');
+        },
+        writePaddedFrame: async (input) => {
+          calls.push(['writePaddedFrame', input]);
+          return payload;
+        },
+        close: async () => {
+          calls.push(['closeEncodeFrameWriter']);
+        },
+      }),
+    } as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
+      bitmapCaptureEnabled: false;
+    });
+
+    expect(source.renderFrame).toBeUndefined();
+    await expect(source.renderEncodeFrame?.({
+      frameIndex: 8,
+      timestampUs: 133_333,
+      time: 8 / 60,
+      width: 2,
+      height: 2,
+      objects: [image()],
+      encodeSessionId: 'encode-only-session',
+    })).resolves.toEqual({
+      timestamp: 133_333,
+      sharedFramePayload: payload,
+    });
+    await source.close?.();
+
+    expect(calls).toEqual([
+      ['readPresentedFrameRgbaBytes', {
+        width: 2,
+        height: 2,
+      }],
+      ['writePaddedFrame', {
+        frameIndex: 8,
+        timestampUs: 133_333,
+        paddedRgbaBytes,
+        strideBytes: 256,
+      }],
+      ['dispose'],
+      ['closeEncodeFrameWriter'],
+    ]);
+  });
+
   it('fails encode frames before ImageBitmap capture when presenter readback is unavailable', async () => {
     const canvas = {
       width: 1,

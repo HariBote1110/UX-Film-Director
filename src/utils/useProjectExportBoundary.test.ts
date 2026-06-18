@@ -15,4 +15,10 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     expect(code).toContain("import('../utils/playbackFrameProvider')");
     expect(code).toContain("import('../utils/videoExportPipeline')");
   });
+
+  it('requests encode-only Rust frame sources for the Rust backend encoder path', () => {
+    const code = source();
+
+    expect(code).toContain("preferEncodeOnly: exportEncodePlan.engine === 'rustBackendVideoEncoder'");
+  });
 });
