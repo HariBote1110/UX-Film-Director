@@ -94,7 +94,13 @@ export const runRustBackendVideoEncodeExport = async ({
       throw new Error('Rust backend video encode export requires shared-frame payloads.');
     }
 
-    const writeResponse = await writeRustBackendVideoEncodeFrame(frame.sharedFramePayload, encoderBridge);
+    let writeResponse;
+    try {
+      writeResponse = await writeRustBackendVideoEncodeFrame(frame.sharedFramePayload, encoderBridge);
+    } catch (error) {
+      await releaseNativeRenderOutputAfterEncodeFailure(frame, nativeRenderBridge);
+      throw error;
+    }
     if (!writeResponse.success) {
       await releaseNativeRenderOutputAfterEncodeFailure(frame, nativeRenderBridge);
     }
