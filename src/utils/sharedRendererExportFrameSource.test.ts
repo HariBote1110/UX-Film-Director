@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ImageObject, ProjectSettings } from '../types';
+import type { ImageObject, ProjectSettings, VideoObject } from '../types';
 import { createDefaultLayers } from './sceneState';
 import {
   createSharedRendererExportFrameSource,
@@ -38,6 +38,32 @@ const image = (patch: Partial<ImageObject> = {}): ImageObject => ({
   filePath: '/tmp/image.png',
   width: 640,
   height: 360,
+  ...patch,
+});
+
+const video = (patch: Partial<VideoObject> = {}): VideoObject => ({
+  id: 'video-1',
+  type: 'video',
+  name: 'GoPro.mp4',
+  layer: 1,
+  startTime: 0,
+  duration: 5,
+  x: 0,
+  y: 0,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 0,
+  endY: 0,
+  easing: 'linear',
+  src: 'blob:video',
+  filePath: '/tmp/GoPro.mp4',
+  width: 1920,
+  height: 1080,
+  volume: 1,
+  muted: false,
   ...patch,
 });
 
@@ -116,6 +142,56 @@ describe('createSharedRendererExportFrameSource', () => {
       uxfdRustExportFrameSourceFrameStatus: 'ready',
       uxfdRustExportFrameSourceFrameIndex: '12',
       uxfdRustExportFrameSourceFrameReason: undefined,
+    });
+  });
+
+  it('blocks video renderFrame requests before presenter or ImageBitmap capture can run', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    const calls: unknown[] = [];
+
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      startViewportPresenter: async () => {
+        calls.push(['startViewportPresenter']);
+        throw new Error('presenter must not start for video bitmap capture.');
+      },
+      createFrameBitmap: async () => {
+        calls.push(['createFrameBitmap']);
+        throw new Error('ImageBitmap capture must not run for video export frames.');
+      },
+    });
+
+    const blocked = await source.renderFrame({
+      frameIndex: 13,
+      timestampUs: 216_667,
+      time: 13 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [video()],
+    }).catch((error) => error);
+
+    expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
+    expect(blocked).toMatchObject({
+      reason: 'videoBitmapCaptureDisabled',
+      frameIndex: 13,
+      fallbackToLegacyCanvas: true,
+    });
+    expect(blocked.message).toContain('Video export frames require Rust native render shared-frame encoding');
+    expect(calls).toEqual([]);
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'blocked',
+      uxfdRustExportFrameSourceFrameIndex: '13',
+      uxfdRustExportFrameSourceFrameReason: 'videoBitmapCaptureDisabled',
     });
   });
 
