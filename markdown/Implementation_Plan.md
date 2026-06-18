@@ -934,6 +934,11 @@ production export hookから旧providerを外したため、`src/utils/videoFram
 `useProjectExport` の引数から `videoElementsRef` を外し、`pauseLegacyBrowserVideosForExport` 呼び出しを削除する。
 export hookはDOM動画要素を受け取らず、Rust frame source / canvas compatibility sourceだけを扱う。
 
+175. Phase5: Pixi video element fallbackを明示legacy opt-inに限定する
+`resolvePixiVideoRenderPath` は `allowLegacyPixiVideo=true` の場合だけ `pixiVideoElement` を返す。
+export overrideもRust必須も無い動画objectは既定で `sharedRendererOnly` となり、Viewport通常経路から
+HTMLVideoElement / Pixi VideoSourceへ戻らない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

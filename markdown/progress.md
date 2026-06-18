@@ -244,3 +244,10 @@
 - Green: `useProjectExport` の引数・dependency配列・pause呼び出しを削除し、`Viewport` 側の呼び出しも更新した。
 - 検証: `npm test -- useProjectExportBoundary projectExportFrameCanvas projectExportEncodePlan viewportRustExportFrameSource viewportRustVideoOnlyBoundary` は57件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-154a`。
+
+## 2026-06-19
+- Phase5のPixi video cutoverとして、Pixi video element fallbackを明示legacy opt-inに限定した。
+- Red: `pixiVideoCutover` へ、export互換状況でも `allowLegacyPixiVideo` が無い場合は `sharedRendererOnly` になる契約を追加した。
+- Green: `ResolvePixiVideoRenderPathInput.allowLegacyPixiVideo` を追加し、既定では最後のfallbackも `sharedRendererOnly` にした。
+- 検証: `npm test -- pixiVideoCutover viewportRustVideoOnlyBoundary sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController` は50件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-155a`。
