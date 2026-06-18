@@ -3601,3 +3601,20 @@
 
 ### 残課題・次のステップ
 - グループ所属・キーフレーム/モーションパス・振動オフセットを持つ要素のリサイズは、`obj.x/y` とコンテナ実位置がずれるためアンカー固定が完全でない（静的要素では正確）。必要なら別途対応。
+
+## 2026-06-18 — export encodeをRust native render shared-frame経路へ接続
+
+### 実施内容
+- `prepareSharedRendererViewportNativeRenderSources` を追加し、`decode.requestFrame` の結果をJS copy-outせず、native render用の `SharedFrame` descriptorとして保持する経路をTDDで実装した。
+- `sharedRendererExportFrameSource` の `renderEncodeFrame` 先頭で、動画sceneの場合に `render.nativeSharedFrame` を呼び、返却されたrender output descriptorを `RustBackendVideoEncodeWriteFramePayload` としてRust encoderへ渡すようにした。
+- native renderが成功した場合は、WebGPU presenter、`readPresentedFrameRgbaBytes`、JS shared-frame writerを呼ばない契約を追加した。
+- 動画decode requestがないsceneでは従来のpresenter/readback fallbackを維持し、native render準備またはRPC失敗は `nativeRenderFailed` としてfail-loudにした。
+
+### 検証
+- `npm test -- src/utils/sharedRendererViewportNativeRenderSource.test.ts`
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- native render output ringはbackend stateで保持されるが、明示release/lifecycle RPCはまだない。encoder消費後の解放契約を追加する。
+- native rendererは全clip sourceを要求するため、SolidColour等をRust backend側でsource化し、動画以外を含むsceneでも完全にPixi/WebGPU presenterへ戻らないようにする。

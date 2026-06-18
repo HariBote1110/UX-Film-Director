@@ -569,6 +569,15 @@ Electron main/preload は `rust-backend-render-native-shared-frame` を公開し
 renderer側には `rustBackendNativeRenderControl` を追加し、source/output shared-frame descriptorを型付きpayloadで渡す。
 次段ではこのbridgeをexport frame sourceへ接続し、Rust decode → Rust render → Rust encode を実経路にする。
 
+108. Phase5: export frame sourceをRust native render shared-frame経路へ接続する
+`sharedRendererExportFrameSource` は `renderEncodeFrame` の先頭で、Rust decode済みの
+`SharedFrame` descriptorを `prepareSharedRendererViewportNativeRenderSources` から受け取り、
+`render.nativeSharedFrame` へ渡す。成功時は返却されたrender output descriptorを
+`RustBackendVideoEncodeWriteFramePayload` に包み、WebGPU presenter / `readPresentedFrameRgbaBytes` /
+JS shared-frame writerを呼ばずにRust encoderへ渡す。
+動画decode requestがないsceneでは従来のpresenter/readback fallbackを維持し、native render準備またはRPC失敗は
+`nativeRenderFailed` としてfail-loudに扱う。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
