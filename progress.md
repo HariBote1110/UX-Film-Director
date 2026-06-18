@@ -1,3 +1,26 @@
+## 2026-06-18 — Phase5: Rust shared-frame encode RPC を予約
+
+### 実施内容
+- Rust backend に `encode.start` / `encode.writeFrame` / `encode.finish` を追加した。
+- 旧 `export.start` / `export.write_frame` / `export.end` のbase64/MJPEG stdin経路とは別の、shared-frame encoder用RPC名を確保した。
+- 本体未実装の現段階では `Rust shared-frame video encoder backend is not connected yet.` を返し、`Method not found` やlegacy fallbackにはしない。
+- package version を `0.1.1-Beta-60r` に更新した。
+
+### Red
+- `rust-backend/tests/decode_control_plane.rs` に、`encode.*` RPC が予約済みであり、shared frame descriptor payloadでも旧base64 fallbackへ流れない契約を追加した。
+
+### Green
+- `rust-backend/src/main.rs` の `handle_request` に `encode.start` / `encode.writeFrame` / `encode.finish` を追加し、`handle_encode_unavailable` へ接続した。
+
+### 現在の制限
+- Rust backend encoder本体はまだ未実装。次段では Electron main の `rust-backend-encode-*` IPC からこのRPCへ接続し、その後 shared memory frameをffmpeg/encoderへ渡す実装へ進む。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml encode_shared_frame_rpc_is_reserved_and_fails_loud_without_legacy_base64_fallback`
+  -> 1 test passed。
+- `cargo test --manifest-path rust-backend/Cargo.toml decode_start_returns_shared_ring_layout_without_frame_bytes`
+  -> 1 test passed。
+
 ## 2026-06-18 — Phase5: Rust video encode IPC境界を追加
 
 ### 実施内容

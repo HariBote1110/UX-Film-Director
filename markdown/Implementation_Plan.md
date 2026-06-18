@@ -309,6 +309,11 @@ bridgeが接続された時点でRust backend encoderを選べるようにする
 Electron mainは旧base64 `start-export` / `write-frame` / `end-export` へ流さず、現段階では
 `Rust shared-frame video encoder backend is not connected yet.` としてfail-loudにする。
 
+63. Phase5: Rust shared-frame encode RPC を予約する
+Rust backend に `encode.start` / `encode.writeFrame` / `encode.finish` を追加し、旧 `export.write_frame`
+のbase64/MJPEG stdin経路とは別のshared-frame encoder入口を確保する。
+本体未実装の間は `Rust shared-frame video encoder backend is not connected yet.` を返し、Method not foundやlegacy fallbackにしない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
