@@ -170,4 +170,73 @@ describe('runRustBackendVideoEncodeExport', () => {
     expect(JSON.stringify(calls)).not.toContain('frameBase64');
     expect(JSON.stringify(calls)).not.toContain('pixels');
   });
+
+  it('passes a prepared mixed audio file path to Rust encode start', async () => {
+    const calls: unknown[] = [];
+    const encoderBridge: RustBackendVideoEncodeBridge = {
+      startVideoEncode: async (payload) => {
+        calls.push(['startVideoEncode', payload]);
+        return { success: true, result: { accepted: true } };
+      },
+      writeVideoEncodeFrame: async (payload) => {
+        calls.push(['writeVideoEncodeFrame', payload]);
+        return { success: true, result: { accepted: true } };
+      },
+      finishVideoEncode: async (payload) => {
+        calls.push(['finishVideoEncode', payload]);
+        return { success: true, result: { outputFile: '/tmp/out.mp4' } };
+      },
+    };
+    const sharedFrameBridge: SharedVideoFrameWritableBridge = {
+      createWritableSharedFrameRing: async (payload) => {
+        calls.push(['createWritableSharedFrameRing', payload]);
+        return { success: true, result: payload };
+      },
+      writeIntoSharedFrameRing: async (payload, source) => {
+        calls.push(['writeIntoSharedFrameRing', payload, source.byteLength]);
+        return {
+          success: true,
+          result: {
+            sequence: payload.ptsFrame,
+            byteLen: source.byteLength,
+            checksum: 0x1234,
+          },
+        };
+      },
+      closeWritableSharedFrameRing: async (payload) => {
+        calls.push(['closeWritableSharedFrameRing', payload]);
+        return { success: true, result: payload };
+      },
+    };
+
+    await runRustBackendVideoEncodeExport({
+      sessionId: 'session-audio',
+      memoryId: '/uxfd-export-audio-ring',
+      filePath: '/tmp/out.mp4',
+      audioPath: '/tmp/mixed-audio.wav',
+      width: 2,
+      height: 1,
+      fps: 30,
+      frames: frames(),
+      encoderBridge,
+      sharedFrameBridge,
+      extractRgbaBytes: async () => Uint8Array.from([9, 8, 7, 6, 5, 4, 3, 2]),
+    });
+
+    expect(calls[0]).toEqual(['startVideoEncode', {
+      sessionId: 'session-audio',
+      filePath: '/tmp/out.mp4',
+      audioPath: '/tmp/mixed-audio.wav',
+      width: 2,
+      height: 1,
+      fps: 30,
+      pixelFormat: 'rgba8Srgb',
+      colour: {
+        primaries: 'bt709',
+        transfer: 'srgb',
+        matrix: 'rgb',
+        range: 'full',
+      },
+    }]);
+  });
 });
