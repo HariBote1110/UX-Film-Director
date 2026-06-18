@@ -492,6 +492,12 @@ browser decode provider と WebCodecs encoder module を初期ロードしない
 `readyState` / `videoWidth` / `currentTime` を参照しない。動画mediaは `rustRendererRequired` として集計し、
 DOM動画が存在しないことを `missingElement` と誤診断しない。
 
+94. Phase5: Rust direct encode sourceはbitmap capture能力を持たない
+Rust backend encoderがexport frameを所有する場合、Viewportからshared renderer export sourceへ
+`preferEncodeOnly` を渡し、`createImageBitmap(canvas)` を使う `renderFrame` を公開しない。
+Rust direct encodeはWebGPU presenter readbackからshared-frame payloadを作る `renderEncodeFrame` のみを使い、
+legacy WebCodecs / canvas export branchだけがbitmap capture能力を保持する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

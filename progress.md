@@ -1,3 +1,20 @@
+## 2026-06-18 — Phase5: Rust direct encode sourceからbitmap capture出口を外す
+
+### 実施内容
+- `src/utils/sharedRendererExportFrameSource.test.ts` に、Rust direct encode-only sourceでは `renderFrame` を公開せず `renderEncodeFrame` だけでshared-frame payloadを返す契約を追加した。
+- `src/utils/viewportRustExportFrameSource.test.ts` に、Rust backend encoder所有時はshared renderer export sourceへ `bitmapCaptureEnabled: false` を渡す契約を追加した。
+- `src/utils/useProjectExportBoundary.test.ts` / `src/utils/viewportRustVideoOnlyBoundary.test.ts` に、HookからViewportへ `preferEncodeOnly` が届く境界契約を追加した。
+- `createSharedRendererExportFrameSource` に `bitmapCaptureEnabled` を追加し、Rust backend encoder経路では `createImageBitmap(canvas)` 用の `renderFrame` を持たないsourceを生成するようにした。
+- package version を `0.1.1-Beta-83a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts src/utils/viewportRustExportFrameSource.test.ts src/utils/useProjectExportBoundary.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts`
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts src/utils/viewportRustExportFrameSource.test.ts src/utils/useProjectExportBoundary.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/projectExportRustEncodeFrame.test.ts src/utils/projectExportEncodePlan.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts\\(|src/utils/viewportRustExportFrameSource\\.ts\\(|src/utils/projectExportFrameCanvas\\.ts\\(|src/hooks/useProjectExport\\.ts\\(|src/components/Viewport\\.tsx\\(|src/utils/sharedRendererExportFrameSource\\.test\\.ts\\(|src/utils/viewportRustExportFrameSource\\.test\\.ts\\(|src/utils/useProjectExportBoundary\\.test\\.ts\\(|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts\\()"`
+
+### 残課題・次のステップ
+- Rust backend encoder経路はbitmap capture出口を持たなくなった。次はRust video-only時にPixi側で `HTMLVideoElement` / `PIXI.VideoSource` を生成しない契約へ進める。
+
 ## 2026-06-18 — Phase5: Rust video-only preview診断でDOM動画readinessを回避
 
 ### 実施内容
