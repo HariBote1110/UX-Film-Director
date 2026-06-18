@@ -6,6 +6,7 @@ use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use uxfd_golden_harness::{save_rgba_png, RgbaFrame};
 use uxfd_shared_memory_spike::PosixSharedRing;
 
 #[test]
@@ -415,6 +416,94 @@ fn native_render_shared_frame_builds_solid_colour_sources_from_media() {
     let output_frame = output_ring
         .read_frame(0)
         .expect("read native solid colour output frame");
+    assert_eq!(&output_frame.bytes[0..4], &[255, 0, 0, 255]);
+    assert_eq!(&output_frame.bytes[8..12], &[0, 0, 0, 0]);
+}
+
+#[test]
+fn native_render_shared_frame_builds_png_image_sources_from_media() {
+    let mut backend = BackendProcess::start();
+    let temp_dir = TestTempDir::new("native-render-image-media");
+    let image_path = temp_dir.path().join("red-source.png");
+    let image_frame = RgbaFrame::from_rgba8(
+        2,
+        2,
+        vec![
+            255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255,
+        ],
+    )
+    .expect("build PNG source frame");
+    save_rgba_png(&image_path, &image_frame).expect("write PNG source fixture");
+    let output_memory_id = unique_shm_name();
+    let slot_count = 1;
+    let width = 4;
+    let height = 4;
+
+    let response = backend.request(json!({
+        "id": 32,
+        "method": "render.nativeSharedFrame",
+        "params": {
+            "renderId": "native-render-image-media",
+            "memoryId": output_memory_id,
+            "slotCount": slot_count,
+            "ptsFrame": 0,
+            "width": width,
+            "height": height,
+            "snapshot": {
+                "frame_index": 0,
+                "colour": {
+                    "profile": "rec709-sdr",
+                    "working_space": "linear-light",
+                    "alpha": "premultiplied"
+                },
+                "clips": [{
+                    "clip_id": "clip-image-media",
+                    "track_id": "track-1",
+                    "media_id": "image-1",
+                    "source_frame": 0,
+                    "z_index": 0,
+                    "transform": {
+                        "translation_x": 0.0,
+                        "translation_y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation_degrees": 0.0,
+                        "sampling": "nearest"
+                    },
+                    "opacity": 1.0,
+                    "effects": []
+                }]
+            },
+            "media": [{
+                "id": "image-1",
+                "kind": "Image",
+                "source": image_path.to_string_lossy(),
+                "width": 2,
+                "height": 2
+            }],
+            "sources": []
+        }
+    }));
+
+    assert_eq!(response["ok"], true, "{response}");
+    assert_eq!(response["result"]["rendered"], true);
+    assert_no_frame_bytes_recursive(&response["result"]);
+
+    let output_slot_byte_len = response["result"]["frame"]["descriptor"]["byteLen"]
+        .as_u64()
+        .expect("output byte length") as usize;
+    let output_ring = PosixSharedRing::attach_with_retry_for_layout(
+        response["result"]["frame"]["descriptor"]["memoryId"]
+            .as_str()
+            .expect("output memory id"),
+        slot_count,
+        output_slot_byte_len,
+        Duration::from_secs(1),
+    )
+    .expect("attach to native image media output ring");
+    let output_frame = output_ring
+        .read_frame(0)
+        .expect("read native image media output frame");
     assert_eq!(&output_frame.bytes[0..4], &[255, 0, 0, 255]);
     assert_eq!(&output_frame.bytes[8..12], &[0, 0, 0, 0]);
 }
