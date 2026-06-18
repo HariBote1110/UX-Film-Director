@@ -1104,6 +1104,184 @@ describe('createSharedRendererExportFrameSource', () => {
     });
   });
 
+  it('blocks mixed video export before native render when an overlay media source is unsupported', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    const decodedFrame = {
+      descriptor: {
+        memoryId: '/uxfd-decoded-video-remote-psd',
+        slotIndex: 0,
+        generation: 1,
+        byteOffset: 0,
+        byteLen: 1024,
+        width: 4,
+        height: 4,
+        strideBytes: 256,
+        format: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      },
+      ptsFrame: 10,
+    } as const;
+    const snapshot = {
+      frame_index: 10,
+      colour: {
+        profile: 'rec709-sdr',
+        working_space: 'linear-light',
+        alpha: 'premultiplied',
+      },
+      clips: [{
+        clip_id: 'video-clip-1',
+        track_id: 'layer-1',
+        media_id: 'video-1',
+        source_frame: 10,
+        z_index: 0,
+        transform: {
+          translation_x: 0,
+          translation_y: 0,
+          scale_x: 1,
+          scale_y: 1,
+          rotation_degrees: 0,
+          sampling: 'bilinear',
+        },
+        opacity: 1,
+        effects: [],
+      }, {
+        clip_id: 'remote-psd-clip-1',
+        track_id: 'layer-2',
+        media_id: 'remote-psd-1',
+        source_frame: 0,
+        z_index: 1,
+        transform: {
+          translation_x: 0,
+          translation_y: 0,
+          scale_x: 1,
+          scale_y: 1,
+          rotation_degrees: 0,
+          sampling: 'bilinear',
+        },
+        opacity: 1,
+        effects: [],
+      }],
+    } as const;
+    const media = [{
+      id: 'video-1',
+      kind: 'Video',
+      source: '/tmp/video-1.mp4',
+      width: 4,
+      height: 4,
+      source_rate: {
+        numerator: 60,
+        denominator: 1,
+      },
+    }, {
+      id: 'remote-psd-1',
+      kind: 'Psd',
+      source: 'https://example.invalid/overlay.psd',
+      width: 4,
+      height: 4,
+      active_layer_ids: ['psd-layer-1'],
+    }] as const;
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: {
+        ...settings,
+        width: 4,
+        height: 4,
+      },
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      bitmapCaptureEnabled: false,
+      buildExportSession: () => ({
+        plan: {
+          mode: 'parallelCompare',
+          primary: 'pixi',
+          candidate: 'sharedRenderer',
+          snapshot,
+          media,
+        },
+        presentationContract: {
+          canvas: {
+            colorSpace: 'srgb',
+            alphaMode: 'premultiplied',
+          },
+          comparisonReadback: {
+            target: 'offscreenRenderTarget',
+            includesPageCompositing: false,
+          },
+          frameTiming: {
+            source: 'frozenSceneSnapshot',
+          },
+          deviceLost: {
+            fallback: 'pixi',
+            staleSharedFrameAllowed: false,
+          },
+        },
+        surfaceGate: {
+          ok: true,
+          canvas: {
+            width: 4,
+            height: 4,
+          },
+          snapshot,
+          media,
+        },
+      }),
+      prepareNativeRenderSources: async () => ({
+        ok: true,
+        activeJobs: [decodeJob('video-remote-psd')],
+        sources: [{
+          mediaId: 'video-1',
+          slotCount: 2,
+          frame: decodedFrame,
+        }],
+      }),
+      renderNativeSharedFrame: async () => {
+        throw new Error('Rust native render must not receive unsupported remote PSD media.');
+      },
+      startViewportPresenter: async () => {
+        throw new Error('WebGPU presenter must not start for blocked mixed native render.');
+      },
+      createEncodeFrameWriter: async () => {
+        throw new Error('JS shared-frame writer must not run for blocked mixed native render.');
+      },
+    } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
+      bitmapCaptureEnabled: false;
+      prepareNativeRenderSources: unknown;
+      renderNativeSharedFrame: unknown;
+    });
+
+    await expect(source.renderEncodeFrame?.({
+      frameIndex: 10,
+      timestampUs: 166_667,
+      time: 10 / 60,
+      width: 4,
+      height: 4,
+      objects: [image({ id: 'video-placeholder' }), image({ id: 'remote-psd-placeholder' })],
+      encodeSessionId: 'remote-psd-session',
+    })).rejects.toMatchObject({
+      fallbackToLegacyCanvas: true,
+      reason: 'nativeRenderUnsupportedMedia',
+      frameIndex: 10,
+    });
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'blocked',
+      uxfdRustExportFrameSourceFrameIndex: '10',
+      uxfdRustExportFrameSourceFrameReason: 'nativeRenderUnsupportedMedia',
+      uxfdRustExportFrameSourceFramePath: undefined,
+    });
+  });
+
   it('uses Rust backend native render for media-only PNG and SolidColour encode frames', async () => {
     const canvas = {
       width: 1,
