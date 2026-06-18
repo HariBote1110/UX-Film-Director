@@ -50,6 +50,11 @@ export type PrepareSharedRendererDecodedVideoFrameUploadResult =
       detail: string;
       expectedByteLength: number;
       actualByteLength: number;
+    }
+  | {
+      ok: false;
+      reason: 'descriptorOutsideSharedRingLayout';
+      detail: string;
     };
 
 const normaliseReturnedRgbaBytes = (
@@ -82,6 +87,14 @@ export const prepareSharedRendererDecodedVideoFrameUpload = async ({
   releaseAfterUploadAbort,
 }: PrepareSharedRendererDecodedVideoFrameUploadInput): Promise<PrepareSharedRendererDecodedVideoFrameUploadResult> => {
   const { descriptor, ptsFrame } = sharedFrame;
+  if (!isDescriptorInsideSharedRingLayout(descriptor, slotCount)) {
+    return {
+      ok: false,
+      reason: 'descriptorOutsideSharedRingLayout',
+      detail: 'Shared video frame descriptor points outside the declared ring layout.',
+    };
+  }
+
   const rgbaBytes = new Uint8Array(descriptor.byteLen);
   const response = await bridge.copyIntoUploadBuffer({
     memoryId: descriptor.memoryId,
@@ -130,4 +143,23 @@ export const prepareSharedRendererDecodedVideoFrameUpload = async ({
     releaseAfterUploadAbort,
     copyReport: response.result,
   };
+};
+
+const isDescriptorInsideSharedRingLayout = (
+  descriptor: RustBackendSharedVideoFrame['descriptor'],
+  slotCount: number,
+): boolean => {
+  if (!Number.isSafeInteger(slotCount) || slotCount <= 0) return false;
+  if (!Number.isSafeInteger(descriptor.slotIndex) || descriptor.slotIndex < 0) return false;
+  if (!Number.isSafeInteger(descriptor.byteLen) || descriptor.byteLen <= 0) return false;
+  if (!Number.isSafeInteger(descriptor.byteOffset) || descriptor.byteOffset < 0) return false;
+
+  const expectedOffset = descriptor.byteLen * descriptor.slotIndex;
+  const ringByteLen = descriptor.byteLen * slotCount;
+
+  return descriptor.slotIndex < slotCount
+    && Number.isSafeInteger(expectedOffset)
+    && Number.isSafeInteger(ringByteLen)
+    && descriptor.byteOffset === expectedOffset
+    && descriptor.byteOffset + descriptor.byteLen <= ringByteLen;
 };

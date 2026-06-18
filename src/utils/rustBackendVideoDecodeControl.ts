@@ -192,9 +192,11 @@ const isValidSharedFrameDescriptor = (
   }
 
   const unpaddedRowBytes = descriptor.width * 4;
+  const expectedByteOffset = descriptor.byteLen * descriptor.slotIndex;
   return descriptor.strideBytes >= unpaddedRowBytes
     && descriptor.strideBytes % GPU_COPY_BYTES_PER_ROW_ALIGNMENT === 0
-    && descriptor.byteLen === descriptor.strideBytes * descriptor.height;
+    && descriptor.byteLen === descriptor.strideBytes * descriptor.height
+    && descriptor.byteOffset === expectedByteOffset;
 };
 
 const forbiddenJsonFramePayloadKeys = new Set([

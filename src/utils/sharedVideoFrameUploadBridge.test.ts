@@ -10,7 +10,7 @@ const sharedFrame: RustBackendSharedVideoFrame = {
     memoryId: '/uxfd-test-ring',
     slotIndex: 1,
     generation: 9,
-    byteOffset: 4096,
+    byteOffset: 512,
     byteLen: 512,
     width: 34,
     height: 2,
