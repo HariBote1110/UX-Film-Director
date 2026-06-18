@@ -9,7 +9,7 @@ use std::io::{self, BufRead, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use uxfd_golden_harness::{load_rgba_png, RgbaFrame};
+use uxfd_golden_harness::{load_rgba_jpeg, load_rgba_png, RgbaFrame};
 use uxfd_native_wgpu_renderer::{render_native_wgpu_frame_to_shared_ring, NativeWgpuRenderError};
 use uxfd_rust_core::{MediaKind, SceneMediaReference, SceneSnapshot};
 #[cfg(unix)]
@@ -630,20 +630,38 @@ fn build_image_source_frame(media: &SceneMediaReference) -> Result<RgbaFrame, St
             media.width, media.height
         ));
     }
-    let frame = load_rgba_png(&media.source).map_err(|error| {
-        format!(
-            "Invalid Image media '{}': failed to load PNG source: {error:?}",
-            media.id
-        )
-    })?;
+    let frame = load_image_media_frame(media)?;
     if frame.width != media.width || frame.height != media.height {
         return Err(format!(
-            "Image media '{}' dimensions {}x{} do not match decoded PNG {}x{}",
+            "Image media '{}' dimensions {}x{} do not match decoded image {}x{}",
             media.id, media.width, media.height, frame.width, frame.height
         ));
     }
 
     Ok(frame)
+}
+
+fn load_image_media_frame(media: &SceneMediaReference) -> Result<RgbaFrame, String> {
+    if is_jpeg_source(&media.source) {
+        return load_rgba_jpeg(&media.source).map_err(|error| {
+            format!(
+                "Invalid Image media '{}': failed to load JPEG source: {error:?}",
+                media.id
+            )
+        });
+    }
+
+    load_rgba_png(&media.source).map_err(|error| {
+        format!(
+            "Invalid Image media '{}': failed to load PNG source: {error:?}",
+            media.id
+        )
+    })
+}
+
+fn is_jpeg_source(source: &str) -> bool {
+    let lower = source.to_ascii_lowercase();
+    lower.ends_with(".jpg") || lower.ends_with(".jpeg")
 }
 
 fn parse_hex_colour_source(source: &str) -> Result<[u8; 3], String> {

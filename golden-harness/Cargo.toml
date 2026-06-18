@@ -7,4 +7,5 @@ edition = "2021"
 name = "uxfd_golden_harness"
 
 [dependencies]
+jpeg-decoder = "0.3"
 png = "0.17"

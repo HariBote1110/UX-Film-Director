@@ -39,8 +39,11 @@ pub enum RgbaFrameError {
 pub enum FixtureIoError {
     Io(std::io::Error),
     Decode(png::DecodingError),
+    JpegDecode(jpeg_decoder::Error),
     Encode(png::EncodingError),
     InvalidFrame(RgbaFrameError),
+    MissingJpegInfo,
+    UnsupportedJpegPixelFormat(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -131,6 +134,26 @@ pub fn load_rgba_png(path: impl AsRef<Path>) -> Result<RgbaFrame, FixtureIoError
     RgbaFrame::from_rgba8(output.width, output.height, pixels).map_err(FixtureIoError::InvalidFrame)
 }
 
+pub fn load_rgba_jpeg(path: impl AsRef<Path>) -> Result<RgbaFrame, FixtureIoError> {
+    let file = File::open(path).map_err(FixtureIoError::Io)?;
+    let mut decoder = jpeg_decoder::Decoder::new(BufReader::new(file));
+    let bytes = decoder.decode().map_err(FixtureIoError::JpegDecode)?;
+    let info = decoder.info().ok_or(FixtureIoError::MissingJpegInfo)?;
+    let pixels = match info.pixel_format {
+        jpeg_decoder::PixelFormat::RGB24 => rgb_to_rgba(&bytes),
+        jpeg_decoder::PixelFormat::L8 => grey_to_rgba(&bytes),
+        jpeg_decoder::PixelFormat::CMYK32 => cmyk_to_rgba(&bytes),
+        other => {
+            return Err(FixtureIoError::UnsupportedJpegPixelFormat(format!(
+                "{other:?}"
+            )))
+        }
+    };
+
+    RgbaFrame::from_rgba8(u32::from(info.width), u32::from(info.height), pixels)
+        .map_err(FixtureIoError::InvalidFrame)
+}
+
 pub fn save_rgba_png(path: impl AsRef<Path>, frame: &RgbaFrame) -> Result<(), FixtureIoError> {
     let file = File::create(path).map_err(FixtureIoError::Io)?;
     let writer = BufWriter::new(file);
@@ -192,6 +215,22 @@ fn grey_alpha_to_rgba(bytes: &[u8]) -> Vec<u8> {
     bytes
         .chunks_exact(2)
         .flat_map(|pixel| [pixel[0], pixel[0], pixel[0], pixel[1]])
+        .collect()
+}
+
+fn cmyk_to_rgba(bytes: &[u8]) -> Vec<u8> {
+    bytes
+        .chunks_exact(4)
+        .flat_map(|pixel| {
+            let cyan = u16::from(pixel[0]);
+            let magenta = u16::from(pixel[1]);
+            let yellow = u16::from(pixel[2]);
+            let black = u16::from(pixel[3]);
+            let red = 255 - ((cyan * (255 - black) + 127) / 255 + black).min(255) as u8;
+            let green = 255 - ((magenta * (255 - black) + 127) / 255 + black).min(255) as u8;
+            let blue = 255 - ((yellow * (255 - black) + 127) / 255 + black).min(255) as u8;
+            [red, green, blue, 255]
+        })
         .collect()
 }
 
