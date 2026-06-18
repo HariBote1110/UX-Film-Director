@@ -331,6 +331,12 @@ Rust backend encoder が `PosixSharedRing::attach_with_retry_for_layout` でshar
 renderer側の `writeVideoEncodeFrame` payloadに `slotCount` を追加する。
 `memoryId` / `slotCount` / `descriptor.byteLen` を揃えて、次段のRust側session skeletonとshared-frame readに進む。
 
+67. Phase5: Rust encode session skeleton を実装する
+Rust backend の `encode.start` / `encode.writeFrame` / `encode.finish` をfail-loud予約からsession管理へ進める。
+`encode.start` は `rgba8Srgb` / bt709+sRGB+full range のmetadataだけを受け付け、`encode.writeFrame` は
+`slotCount` と `SharedFrame` descriptorを検証する。現段階ではshared memory attachとffmpeg書込はまだ行わず、
+frame countとdescriptor整合性をRust側で保持する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

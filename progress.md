@@ -1,3 +1,30 @@
+## 2026-06-18 — Phase5: Rust encode session skeleton を実装
+
+### 実施内容
+- Rust backend の `encode.start` / `encode.writeFrame` / `encode.finish` をfail-loud予約からsession管理へ進めた。
+- `encode.start` は `sessionId` ごとのsessionを作り、`rgba8Srgb` / `bt709` / `srgb` / `rgb` / `full` 以外を拒否する。
+- `encode.writeFrame` は `slotCount` と `SharedFrame` descriptorを検証し、sessionのwidth/height/format/colourと一致しないframeを拒否する。
+- `encode.finish` はsessionを閉じ、`filePath` と `frameCount` を返す。
+- package version を `0.1.1-Beta-60v` に更新した。
+
+### Red
+- `rust-backend/tests/decode_control_plane.rs` に、Rust encode sessionがstart/write/finishでmetadataとdescriptorを追跡し、legacy base64 payloadを返さない契約を追加した。
+- `slotCount` が無い `encode.writeFrame` を拒否する契約を追加した。
+- sessionの寸法と一致しないdescriptorを拒否する契約を追加した。
+
+### Green
+- `rust-backend/src/main.rs` に `EncodeSession` と `EncodeStartParams` / `EncodeWriteFrameParams` / `EncodeFinishParams` を追加した。
+- `handle_encode_start` / `handle_encode_write_frame` / `handle_encode_finish` を実装し、`validate_encode_shared_frame` でdescriptor整合を検証するようにした。
+
+### 現在の制限
+- `encode.writeFrame` はまだ `PosixSharedRing::attach_with_retry_for_layout` でshared memoryを読んでいない。次段でdescriptorからshared memoryへattachし、frame bytesをRust側で取得してslotを `encoderFrameWritten` で解放する。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml encode_`
+  -> 3 tests passed。
+- `cargo test --manifest-path rust-backend/Cargo.toml decode_start_returns_shared_ring_layout_without_frame_bytes`
+  -> 1 test passed。
+
 ## 2026-06-18 — Phase5: Rust encode frame payload に slotCount を追加
 
 ### 実施内容
