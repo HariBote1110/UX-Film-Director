@@ -19,6 +19,7 @@
 ///   - CMYK, Lab, Grayscale, Bitmap colour modes
 ///   - 32-bit float depth
 use std::io::{Cursor, Read, Seek, SeekFrom};
+use uxfd_golden_harness::RgbaFrame;
 
 // ── I/O helpers ──────────────────────────────────────────────────────────────
 
@@ -37,14 +38,25 @@ fn read_u8(c: &mut Cursor<&[u8]>) -> R<u8> {
     c.read_exact(&mut b).map_err(|e| e.to_string())?;
     Ok(b[0])
 }
-fn read_u16(c: &mut Cursor<&[u8]>) -> R<u16> { read_be!(c, u16) }
-fn read_i16(c: &mut Cursor<&[u8]>) -> R<i16> { read_be!(c, i16) }
-fn read_u32(c: &mut Cursor<&[u8]>) -> R<u32> { read_be!(c, u32) }
-fn read_i32(c: &mut Cursor<&[u8]>) -> R<i32> { read_be!(c, i32) }
-fn read_u64(c: &mut Cursor<&[u8]>) -> R<u64> { read_be!(c, u64) }
+fn read_u16(c: &mut Cursor<&[u8]>) -> R<u16> {
+    read_be!(c, u16)
+}
+fn read_i16(c: &mut Cursor<&[u8]>) -> R<i16> {
+    read_be!(c, i16)
+}
+fn read_u32(c: &mut Cursor<&[u8]>) -> R<u32> {
+    read_be!(c, u32)
+}
+fn read_i32(c: &mut Cursor<&[u8]>) -> R<i32> {
+    read_be!(c, i32)
+}
+fn read_u64(c: &mut Cursor<&[u8]>) -> R<u64> {
+    read_be!(c, u64)
+}
 
 fn skip(c: &mut Cursor<&[u8]>, n: u64) -> R<()> {
-    c.seek(SeekFrom::Current(n as i64)).map_err(|e| e.to_string())?;
+    c.seek(SeekFrom::Current(n as i64))
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -133,12 +145,15 @@ fn read_ali_block_header(c: &mut Cursor<&[u8]>, is_psb: bool) -> R<([u8; 4], u64
 
     // PSB uses 8-byte length for these keys; everything else uses 4-byte.
     const PSB_LONG_KEYS: &[&[u8; 4]] = &[
-        b"LMsk", b"Lr16", b"Lr32", b"layr", b"Mt16", b"Mt32", b"Mtrn",
-        b"Alph", b"FMsk", b"lnkD", b"lnk2", b"lnk3", b"lnkE",
-        b"vmsk", b"vogk", b"vsms",
+        b"LMsk", b"Lr16", b"Lr32", b"layr", b"Mt16", b"Mt32", b"Mtrn", b"Alph", b"FMsk", b"lnkD",
+        b"lnk2", b"lnk3", b"lnkE", b"vmsk", b"vogk", b"vsms",
     ];
     let use_long = is_psb && PSB_LONG_KEYS.iter().any(|k| **k == key);
-    let block_len = if use_long { read_u64(c)? } else { read_u32(c)? as u64 };
+    let block_len = if use_long {
+        read_u64(c)?
+    } else {
+        read_u32(c)? as u64
+    };
 
     Ok((key, block_len))
 }
@@ -174,8 +189,15 @@ fn parse_layer_record(c: &mut Cursor<&[u8]>, is_psb: bool) -> R<LayerRecord> {
     let mut channels = Vec::with_capacity(num_ch);
     for _ in 0..num_ch {
         let ch_id = read_i16(c)?;
-        let data_len = if is_psb { read_u64(c)? } else { read_u32(c)? as u64 };
-        channels.push(ChannelInfo { channel_id: ch_id, data_len });
+        let data_len = if is_psb {
+            read_u64(c)?
+        } else {
+            read_u32(c)? as u64
+        };
+        channels.push(ChannelInfo {
+            channel_id: ch_id,
+            data_len,
+        });
     }
 
     // Blend mode (8BIM + 4-char key + opacity + clipping + flags + pad = 12 bytes)
@@ -328,9 +350,15 @@ fn decode_layer_rgba(
                 let mut row_lens: Vec<usize> = Vec::with_capacity(row_count);
                 for _ in 0..row_count {
                     let rl = if is_psb {
-                        match read_u32(c) { Ok(v) => v as usize, Err(_) => return None }
+                        match read_u32(c) {
+                            Ok(v) => v as usize,
+                            Err(_) => return None,
+                        }
                     } else {
-                        match read_u16(c) { Ok(v) => v as usize, Err(_) => return None }
+                        match read_u16(c) {
+                            Ok(v) => v as usize,
+                            Err(_) => return None,
+                        }
                     };
                     row_lens.push(rl);
                 }
@@ -367,8 +395,7 @@ fn decode_layer_rgba(
 
                 // Decompress with raw deflate (no zlib header in PSD ZIP blocks).
                 use std::io::Read as _;
-                let mut dec =
-                    flate2::read::DeflateDecoder::new(std::io::Cursor::new(&compressed));
+                let mut dec = flate2::read::DeflateDecoder::new(std::io::Cursor::new(&compressed));
                 let mut raw: Vec<u8> = Vec::with_capacity(pixel_count * bytes_per_sample);
                 let _ = dec.read_to_end(&mut raw);
 
@@ -379,8 +406,7 @@ fn decode_layer_rgba(
                         let base = row * stride;
                         if depth == 8 {
                             for col in 1..width as usize {
-                                raw[base + col] =
-                                    raw[base + col].wrapping_add(raw[base + col - 1]);
+                                raw[base + col] = raw[base + col].wrapping_add(raw[base + col - 1]);
                             }
                         } else if depth == 16 {
                             // Delta is on pairs of bytes (big-endian u16)
@@ -448,6 +474,109 @@ pub struct PsdFastResult {
     pub layers: Vec<PsdFastLayer>,
 }
 
+pub fn composite_visible_psd_layers(psd: &PsdFastResult) -> Result<RgbaFrame, String> {
+    let canvas_len = usize::try_from(psd.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(psd.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .and_then(|pixels| pixels.checked_mul(4))
+        .ok_or_else(|| "PSD composite canvas byte length overflows".to_string())?;
+    let mut canvas = vec![0u8; canvas_len];
+
+    for layer in psd.layers.iter().rev() {
+        if !layer.visible || layer.is_group {
+            continue;
+        }
+        let Some(rgba) = layer.rgba.as_ref() else {
+            continue;
+        };
+        let layer_len = usize::try_from(layer.width)
+            .ok()
+            .and_then(|width| {
+                usize::try_from(layer.height)
+                    .ok()
+                    .and_then(|height| width.checked_mul(height))
+            })
+            .and_then(|pixels| pixels.checked_mul(4))
+            .ok_or_else(|| format!("PSD layer '{}' byte length overflows", layer.name))?;
+        if rgba.len() != layer_len {
+            return Err(format!(
+                "PSD layer '{}' RGBA byte length mismatch: expected={}, actual={}",
+                layer.name,
+                layer_len,
+                rgba.len()
+            ));
+        }
+
+        composite_layer_source_over(&mut canvas, psd.width, psd.height, layer, rgba);
+    }
+
+    RgbaFrame::from_rgba8(psd.width, psd.height, canvas)
+        .map_err(|error| format!("PSD composite frame is invalid: {error:?}"))
+}
+
+fn composite_layer_source_over(
+    canvas: &mut [u8],
+    canvas_width: u32,
+    canvas_height: u32,
+    layer: &PsdFastLayer,
+    rgba: &[u8],
+) {
+    let canvas_width_i32 = i32::try_from(canvas_width).unwrap_or(i32::MAX);
+    let canvas_height_i32 = i32::try_from(canvas_height).unwrap_or(i32::MAX);
+    let canvas_width_usize = usize::try_from(canvas_width).unwrap_or(0);
+    let layer_width_usize = usize::try_from(layer.width).unwrap_or(0);
+
+    for y in 0..layer.height {
+        let canvas_y = layer.top + i32::try_from(y).unwrap_or(i32::MAX);
+        if canvas_y < 0 || canvas_y >= canvas_height_i32 {
+            continue;
+        }
+        for x in 0..layer.width {
+            let canvas_x = layer.left + i32::try_from(x).unwrap_or(i32::MAX);
+            if canvas_x < 0 || canvas_x >= canvas_width_i32 {
+                continue;
+            }
+
+            let src_index = ((usize::try_from(y).unwrap_or(0) * layer_width_usize)
+                + usize::try_from(x).unwrap_or(0))
+                * 4;
+            let dst_index = ((usize::try_from(canvas_y).unwrap_or(0) * canvas_width_usize)
+                + usize::try_from(canvas_x).unwrap_or(0))
+                * 4;
+            source_over_pixel(
+                &mut canvas[dst_index..dst_index + 4],
+                &rgba[src_index..src_index + 4],
+            );
+        }
+    }
+}
+
+fn source_over_pixel(dst: &mut [u8], src: &[u8]) {
+    let src_alpha = f32::from(src[3]) / 255.0;
+    if src_alpha <= 0.0 {
+        return;
+    }
+    let dst_alpha = f32::from(dst[3]) / 255.0;
+    let out_alpha = src_alpha + dst_alpha * (1.0 - src_alpha);
+    if out_alpha <= 0.0 {
+        dst.copy_from_slice(&[0, 0, 0, 0]);
+        return;
+    }
+
+    for channel in 0..3 {
+        let src_channel = f32::from(src[channel]) / 255.0;
+        let dst_channel = f32::from(dst[channel]) / 255.0;
+        let out_channel =
+            (src_channel * src_alpha + dst_channel * dst_alpha * (1.0 - src_alpha)) / out_alpha;
+        dst[channel] = (out_channel * 255.0).round().clamp(0.0, 255.0) as u8;
+    }
+    dst[3] = (out_alpha * 255.0).round().clamp(0.0, 255.0) as u8;
+}
+
 /// Parse a PSD/PSB file from raw bytes and return per-layer RGBA pixel data.
 pub fn parse_psd_fast(bytes: &[u8]) -> Result<PsdFastResult, String> {
     let mut c = Cursor::new(bytes);
@@ -478,15 +607,31 @@ pub fn parse_psd_fast(bytes: &[u8]) -> Result<PsdFastResult, String> {
     skip(&mut c, irl)?;
 
     // ── Layer and mask info ───────────────────────────────────────────────────
-    let lam_len = if is_psb { read_u64(&mut c)? } else { read_u32(&mut c)? as u64 };
+    let lam_len = if is_psb {
+        read_u64(&mut c)?
+    } else {
+        read_u32(&mut c)? as u64
+    };
     if lam_len == 0 {
-        return Ok(PsdFastResult { width: doc_width, height: doc_height, layers: vec![] });
+        return Ok(PsdFastResult {
+            width: doc_width,
+            height: doc_height,
+            layers: vec![],
+        });
     }
 
     // ── Layer info ────────────────────────────────────────────────────────────
-    let li_len = if is_psb { read_u64(&mut c)? } else { read_u32(&mut c)? as u64 };
+    let li_len = if is_psb {
+        read_u64(&mut c)?
+    } else {
+        read_u32(&mut c)? as u64
+    };
     if li_len == 0 {
-        return Ok(PsdFastResult { width: doc_width, height: doc_height, layers: vec![] });
+        return Ok(PsdFastResult {
+            width: doc_width,
+            height: doc_height,
+            layers: vec![],
+        });
     }
 
     // Layer count (negative = merged image has alpha)
@@ -631,8 +776,7 @@ mod tests {
                     is_group: false,
                     own_group_id: None,
                     rgba: Some(vec![
-                        255, 0, 0, 128, 255, 0, 0, 128,
-                        255, 0, 0, 128, 255, 0, 0, 128,
+                        255, 0, 0, 128, 255, 0, 0, 128, 255, 0, 0, 128, 255, 0, 0, 128,
                     ]),
                 },
                 PsdFastLayer {
@@ -670,8 +814,8 @@ mod tests {
                     is_group: false,
                     own_group_id: None,
                     rgba: Some(vec![
-                        0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255,
-                        0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255,
+                        0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255,
+                        255, 0, 0, 255, 255,
                     ]),
                 },
             ],
@@ -684,8 +828,8 @@ mod tests {
         assert_eq!(
             frame.pixels,
             vec![
-                0, 0, 255, 255, 128, 0, 127, 255, 128, 0, 127, 255,
-                0, 0, 255, 255, 128, 0, 127, 255, 128, 0, 127, 255,
+                0, 0, 255, 255, 128, 0, 127, 255, 128, 0, 127, 255, 0, 0, 255, 255, 128, 0, 127,
+                255, 128, 0, 127, 255,
             ]
         );
     }
