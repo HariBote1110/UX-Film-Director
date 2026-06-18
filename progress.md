@@ -3707,3 +3707,18 @@
 ### 残課題・次のステップ
 - PNG判定はまだ拡張子ベース。Rust backend decodeとTS capabilityの共有化が必要。
 - previewはmedia-only native render outputの明示release lifecycleをまだ持っていない。export encode経路ではencode後解放済み。
+
+## 2026-06-18 — native media support判定を共通化
+
+### 実施内容
+- `sharedRendererNativeMediaSupport` を追加し、Rust native renderでsource化できるmedia判定を共通化した。
+- export media-only native render判定とvideo cutover stack safetyのPNG/SolidColour判定を同じhelperへ寄せた。
+- JPG/PSD/text追加時に、cutover側とexport側の対応範囲がズレるリスクを下げた。
+
+### 検証
+- `npm test -- src/utils/sharedRendererNativeMediaSupport.test.ts`
+- `npm test -- src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/sharedRendererVideoCutoverStack.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- helperの画像対応はまだPNGのみ。次はJPGをRust backend native render sourceへ追加する。
