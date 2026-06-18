@@ -661,6 +661,8 @@ preview orchestrationがRust native render uploadを試して失敗した場合�
 presenter diagnosticsはready状態でも `uxfdSharedRendererPresenterNativeRenderFailureReason` /
 `uxfdSharedRendererPresenterNativeRenderFailureDetail` をdatasetへ残し、PSD/textなど未対応mediaやbackend失敗で
 Rust previewへ進めなかった理由を実機上で追えるようにする。
+また、Rust native render output自体は生成できたがrenderer側WebGPU texture uploadで失敗した場合も同じ診断欄へ
+upload失敗reason/detailを残し、単体video fallbackはnative render準備で更新されたactive decode jobを引き継ぐ。
 
 ## UI 刷新（2026-04-19）
 

@@ -3893,3 +3893,19 @@
 ### 残課題・次のステップ
 - PSD/textはまだnative render source化・ownership移管されていないため、Pixi fallbackの主因として残る。
 - 実機previewでdataset診断を確認し、Rust native render失敗理由がGoPro素材や未対応mediaで読み取れるか検証する。
+
+## 2026-06-18 — native render preview診断のレビュー指摘を反映
+
+### 実施内容
+- サブエージェント Jason の軽量レビューを受け、Rust native render outputのWebGPU texture upload失敗時にも `uxfdSharedRendererPresenterNativeRenderFailureReason` / `Detail` を出すようにした。
+- native render準備失敗後に単体video uploadへfallbackする場合、native render準備で更新されたactive decode jobを引き継ぐようにした。
+- native render upload失敗診断とfallback active job継承の回帰テストを追加した。
+- 版を `0.1.1-Beta-108b` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/sharedRendererPresenterDiagnostics.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- `requireSharedRendererVideo` のfail-loud fallback時は主reasonが `requiredVideoOwnershipUnavailable` になるため、必要ならnative render failure detailをfallback診断にも保持する。
+- PSD/textはまだnative render source化・ownership移管されていないため、Pixi fallbackの主因として残る。
