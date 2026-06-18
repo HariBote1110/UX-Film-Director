@@ -291,7 +291,7 @@ describe('createSharedRendererExportFrameSource', () => {
     });
   });
 
-  it('blocks encode frames instead of using presenter WebGPU readback writer', async () => {
+  it('blocks encode frames when presenter shared-frame handoff is unavailable', async () => {
     const canvas = {
       width: 1,
       height: 1,
@@ -314,16 +314,6 @@ describe('createSharedRendererExportFrameSource', () => {
       startViewportPresenter: async () => ({
         control: {
           ok: true,
-          readPresentedFrameRgbaBytes: async (input: { width: number; height: number }) => {
-            calls.push(['readPresentedFrameRgbaBytes', input]);
-            return {
-              rgbaBytes: new Uint8Array(512),
-              strideBytes: 256,
-              byteLen: 512,
-              width: 2,
-              height: 2,
-            };
-          },
           dispose: () => {
             disposeCount += 1;
           },
@@ -361,7 +351,7 @@ describe('createSharedRendererExportFrameSource', () => {
     });
   });
 
-  it('uses presenter shared-frame payloads directly before WebGPU readback', async () => {
+  it('uses presenter shared-frame payloads directly for encode frames', async () => {
     const canvas = {
       width: 1,
       height: 1,
@@ -412,10 +402,6 @@ describe('createSharedRendererExportFrameSource', () => {
           takePresentedFrameSharedFrame: async (input: unknown) => {
             calls.push(['takePresentedFrameSharedFrame', input]);
             return payload;
-          },
-          readPresentedFrameRgbaBytes: async () => {
-            calls.push(['readPresentedFrameRgbaBytes']);
-            throw new Error('WebGPU readback must not run when presenter provides shared-frame payloads.');
           },
           dispose: () => {
             calls.push(['dispose']);
@@ -513,9 +499,6 @@ describe('createSharedRendererExportFrameSource', () => {
           control: {
             ok: true,
             takePresentedFrameSharedFrame: async () => payload,
-            readPresentedFrameRgbaBytes: async () => {
-              throw new Error('readback must not run for this handoff pass-through test.');
-            },
             dispose: () => undefined,
           },
           activeVideoDecodeJob: null,
