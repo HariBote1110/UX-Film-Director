@@ -78,6 +78,33 @@ const control: SharedRendererPreviewPresenterControl = {
 };
 
 describe('sharedRendererViewportPresenterOrchestration', () => {
+  it('passes native/Rust frame handoff into the presenter start input', async () => {
+    let presenterInput: unknown;
+    const presentedFrameSharedFrameTaker = async () => null;
+    const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {
+      presenterInput = input;
+      return control;
+    };
+
+    await startSharedRendererViewportPresenter({
+      canvas,
+      session,
+      datasets: [],
+      diagnosticSwatchEnabled: false,
+      videoCutoverEnabled: false,
+      activeVideoDecodeJob: null,
+      requestId: 10,
+      presentedFrameSharedFrameTaker,
+      startPresenter,
+    } as Parameters<typeof startSharedRendererViewportPresenter>[0] & {
+      presentedFrameSharedFrameTaker: unknown;
+    });
+
+    expect(presenterInput).toMatchObject({
+      presentedFrameSharedFrameTaker,
+    });
+  });
+
   it('passes multiple prepared Rust decoded video uploads into the presenter start input', async () => {
     let presenterInput: unknown;
     const secondUpload = {

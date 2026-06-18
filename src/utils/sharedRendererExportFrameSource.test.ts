@@ -531,6 +531,90 @@ describe('createSharedRendererExportFrameSource', () => {
     ]);
   });
 
+  it('passes native/Rust frame handoff into viewport presenter orchestration', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    const payload: RustBackendVideoEncodeWriteFramePayload = {
+      sessionId: 'export-handoff-session',
+      frameIndex: 9,
+      timestampUs: 150_000,
+      slotCount: 1,
+      frame: {
+        descriptor: {
+          memoryId: '/uxfd-export-source-export-handoff-session',
+          slotIndex: 0,
+          generation: 10,
+          byteOffset: 0,
+          byteLen: 512,
+          width: 2,
+          height: 2,
+          strideBytes: 256,
+          format: 'rgba8Srgb',
+          colour: {
+            primaries: 'bt709',
+            transfer: 'srgb',
+            matrix: 'rgb',
+            range: 'full',
+          },
+        },
+        ptsFrame: 9,
+      },
+    };
+    const presentedFrameSharedFrameTaker = async () => null;
+    let presenterInput: unknown;
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: {
+        ...settings,
+        width: 2,
+        height: 2,
+      },
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      presentedFrameSharedFrameTaker,
+      startViewportPresenter: async (input) => {
+        presenterInput = input;
+        return {
+          control: {
+            ok: true,
+            takePresentedFrameSharedFrame: async () => payload,
+            readPresentedFrameRgbaBytes: async () => {
+              throw new Error('readback must not run for this handoff pass-through test.');
+            },
+            dispose: () => undefined,
+          },
+          activeVideoDecodeJob: null,
+          activeVideoDecodeJobs: [],
+        } as never;
+      },
+    } as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
+      presentedFrameSharedFrameTaker: unknown;
+    });
+
+    await expect(source.renderEncodeFrame?.({
+      frameIndex: 9,
+      timestampUs: 150_000,
+      time: 0.15,
+      width: 2,
+      height: 2,
+      objects: [image()],
+      encodeSessionId: 'export-handoff-session',
+    })).resolves.toEqual({
+      timestamp: 150_000,
+      sharedFramePayload: payload,
+    });
+
+    expect(presenterInput).toMatchObject({
+      presentedFrameSharedFrameTaker,
+    });
+  });
+
   it('carries resolved Rust decode jobs across export frames', async () => {
     const canvas = {
       width: 1920,
