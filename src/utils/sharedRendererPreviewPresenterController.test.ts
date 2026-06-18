@@ -1349,6 +1349,60 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
+  it('keeps native render failure details when required Rust video ownership fails loud', async () => {
+    const dataset: Record<string, string | undefined> = {};
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      requireSharedRendererVideo: true,
+      sharedRendererVideoFrameUploadReady: false,
+      sharedRendererNativeRenderFailure: {
+        reason: 'nativeRenderFailed',
+        detail: 'Rust backend rejected unsupported PSD media',
+      },
+      rustVideoFrameDecodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video.mp4',
+          sourceFrame: 90,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 12,
+          width: 1280,
+          height: 720,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter(),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({
+      ok: false,
+      reason: 'requiredVideoOwnershipUnavailable',
+    });
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterStatus: 'fallback',
+      uxfdSharedRendererPresenterFailureReason: 'requiredVideoOwnershipUnavailable',
+      uxfdSharedRendererPresenterNativeRenderFailureReason: 'nativeRenderFailed',
+      uxfdSharedRendererPresenterNativeRenderFailureDetail: 'Rust backend rejected unsupported PSD media',
+    });
+  });
+
   it('publishes Pixi fallback diagnostics without touching WebGPU when the surface gate is blocked', async () => {
     const dataset: Record<string, string | undefined> = {};
     const calls: string[] = [];

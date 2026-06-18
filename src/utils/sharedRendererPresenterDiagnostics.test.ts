@@ -85,6 +85,24 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterStaleSharedFrameAllowed');
   });
 
+  it('keeps native render failure details when publishing a fail-loud fallback', () => {
+    const dataset: Record<string, string | undefined> = {};
+
+    writeSharedRendererPresenterDiagnostics(dataset, {
+      status: 'fallback',
+      reason: 'requiredVideoOwnershipUnavailable',
+      nativeRenderFailureReason: 'nativeRenderFailed',
+      nativeRenderFailureDetail: 'Rust backend rejected unsupported PSD media',
+    });
+
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterStatus: 'fallback',
+      uxfdSharedRendererPresenterFailureReason: 'requiredVideoOwnershipUnavailable',
+      uxfdSharedRendererPresenterNativeRenderFailureReason: 'nativeRenderFailed',
+      uxfdSharedRendererPresenterNativeRenderFailureDetail: 'Rust backend rejected unsupported PSD media',
+    });
+  });
+
   it('marks device loss as a Pixi fallback without allowing stale shared frames', () => {
     const dataset: Record<string, string | undefined> = {};
 
