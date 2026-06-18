@@ -6,7 +6,7 @@ import {
 } from './pixiVideoCutover';
 
 describe('shouldSkipPixiVideoForSharedRenderer', () => {
-  it('skips only preview video objects owned by the shared renderer', () => {
+  it('skips preview video objects by default so Pixi cannot own HTMLVideoElement rendering', () => {
     const sharedRendererVideoObjectIds = new Set(['video-1']);
 
     expect(shouldSkipPixiVideoForSharedRenderer({
@@ -26,7 +26,7 @@ describe('shouldSkipPixiVideoForSharedRenderer', () => {
       objectType: 'video',
       isExporting: false,
       sharedRendererVideoObjectIds,
-    })).toBe(false);
+    })).toBe(true);
   });
 
   it('keeps Pixi video rendering during export unless Rust video rendering is required', () => {
@@ -137,11 +137,11 @@ describe('resolvePixiVideoRenderPath', () => {
     })).toBe('exportFrameOverride');
   });
 
-  it('keeps the legacy Pixi video element path for ordinary preview video', () => {
+  it('keeps the legacy Pixi video element path only for non-required export compatibility', () => {
     expect(resolvePixiVideoRenderPath({
       objectId: 'video-1',
       objectType: 'video',
-      isExporting: false,
+      isExporting: true,
       requireSharedRendererVideo: false,
       hasExportFrameOverride: false,
     })).toBe('pixiVideoElement');

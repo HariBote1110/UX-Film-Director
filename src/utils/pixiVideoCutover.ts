@@ -18,19 +18,14 @@ export type PixiVideoRenderPath =
   | 'pixiVideoElement';
 
 export const shouldSkipPixiVideoForSharedRenderer = ({
-  objectId,
   objectType,
   isExporting,
-  sharedRendererVideoObjectIds,
   requireSharedRendererVideo = false,
 }: ShouldSkipPixiVideoForSharedRendererInput): boolean =>
   objectType === 'video'
   && (
     requireSharedRendererVideo
-    || (
-      !isExporting
-      && sharedRendererVideoObjectIds?.has(objectId) === true
-    )
+    || !isExporting
   );
 
 export const resolvePixiVideoRenderPath = (
