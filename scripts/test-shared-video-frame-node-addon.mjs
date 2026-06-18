@@ -43,6 +43,8 @@ const mismatch = addon.copyIntoUploadBuffer({
   memoryId: '/uxfd-node-addon-missing-for-length-check',
   slotCount: 1,
   slotByteLen: 16,
+  slotIndex: 0,
+  generation: 1,
   ptsFrame: 0,
 }, new Uint8Array(8))
 
@@ -79,10 +81,14 @@ const copyFrame = addon.copyIntoUploadBuffer({
   memoryId,
   slotCount,
   slotByteLen,
+  slotIndex: 0,
+  generation: 1,
   ptsFrame: 7,
 }, copiedFrame)
 assert.equal(copyFrame.success, true, String(copyFrame.error))
 assert.deepEqual([...copiedFrame], [...sourceFrame])
+assert.equal(copyFrame.result.slotIndex, 0)
+assert.equal(copyFrame.result.generation, 1)
 
 const closeRing = addon.closeWritableSharedFrameRing({ memoryId })
 assert.equal(closeRing.success, true, String(closeRing.error))

@@ -9,6 +9,8 @@ type SharedVideoFrameCopyPayload = {
   memoryId: string
   slotCount: number
   slotByteLen: number
+  slotIndex: number
+  generation: number
   ptsFrame: number
 }
 
@@ -38,6 +40,8 @@ type SharedVideoFrameCopyResult = {
   success: boolean
   result?: {
     sequence: number
+    slotIndex: number
+    generation: number
     byteLen: number
     expectedChecksum: number
     actualChecksum: number

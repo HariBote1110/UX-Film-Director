@@ -18,12 +18,16 @@ pub struct SharedVideoFrameCopyPayload {
     pub memory_id: String,
     pub slot_count: u32,
     pub slot_byte_len: u32,
+    pub slot_index: u32,
+    pub generation: f64,
     pub pts_frame: f64,
 }
 
 #[napi(object)]
 pub struct SharedVideoFrameCopyReport {
     pub sequence: f64,
+    pub slot_index: u32,
+    pub generation: f64,
     pub byte_len: u32,
     pub expected_checksum: u32,
     pub actual_checksum: u32,
@@ -241,6 +245,10 @@ pub fn copy_into_upload_buffer(
         Ok(sequence) => sequence,
         Err(error) => return copy_failure(error),
     };
+    let generation = match safe_frame_sequence(payload.generation) {
+        Ok(generation) => generation,
+        Err(error) => return copy_failure(error.replace("ptsFrame", "generation")),
+    };
     let target_slice = unsafe { target.as_mut() };
     let slot_byte_len = payload.slot_byte_len as usize;
 
@@ -248,6 +256,8 @@ pub fn copy_into_upload_buffer(
         &payload.memory_id,
         payload.slot_count,
         slot_byte_len,
+        payload.slot_index,
+        generation,
         sequence,
         target_slice,
         COPY_TIMEOUT,
@@ -256,6 +266,8 @@ pub fn copy_into_upload_buffer(
             success: true,
             result: Some(SharedVideoFrameCopyReport {
                 sequence: report.sequence as f64,
+                slot_index: report.slot_index,
+                generation: report.generation as f64,
                 byte_len: report.byte_len as u32,
                 expected_checksum: report.expected_checksum,
                 actual_checksum: report.actual_checksum,
@@ -359,6 +371,12 @@ fn format_bridge_error(error: SharedVideoFrameBridgeError) -> String {
         }
         SharedVideoFrameBridgeError::WritableRingRegistryPoisoned => {
             "WritableRingRegistryPoisoned".to_string()
+        }
+        SharedVideoFrameBridgeError::SlotLeaseMismatch {
+            expected_slot_index,
+            actual_slot_index,
+        } => {
+            format!("SlotLeaseMismatch: expected slot {expected_slot_index}, got slot {actual_slot_index}")
         }
         SharedVideoFrameBridgeError::SharedMemory(error) => {
             format!("SharedMemory: {error:?}")

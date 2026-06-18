@@ -161,6 +161,8 @@ interface Window {
         memoryId: string;
         slotCount: number;
         slotByteLen: number;
+        slotIndex: number;
+        generation: number;
         ptsFrame: number;
       },
       target: Uint8Array
@@ -168,6 +170,8 @@ interface Window {
       success: boolean;
       result?: {
         sequence: number;
+        slotIndex: number;
+        generation: number;
         byteLen: number;
         expectedChecksum: number;
         actualChecksum: number;

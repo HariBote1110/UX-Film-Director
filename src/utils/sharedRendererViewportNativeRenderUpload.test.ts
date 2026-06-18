@@ -253,6 +253,8 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
             success: true,
             result: {
               sequence: 24,
+              slotIndex: descriptor.slotIndex,
+              generation: descriptor.generation,
               byteLen: descriptor.byteLen,
               expectedChecksum: 0x1234,
               actualChecksum: 0x1234,
@@ -289,6 +291,8 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
         memoryId: descriptor.memoryId,
         slotCount: 1,
         slotByteLen: descriptor.byteLen,
+        slotIndex: descriptor.slotIndex,
+        generation: descriptor.generation,
         ptsFrame: 24,
       }],
       ['releaseNativeSharedFrame', {
@@ -341,6 +345,8 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
             success: true,
             result: {
               sequence: 25,
+              slotIndex: descriptor.slotIndex,
+              generation: descriptor.generation,
               byteLen: descriptor.byteLen,
               expectedChecksum: 0x1234,
               actualChecksum: 0x1234,
@@ -388,6 +394,8 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
           success: true,
           result: {
             sequence: 24,
+            slotIndex: descriptor.slotIndex,
+            generation: descriptor.generation,
             byteLen: descriptor.byteLen,
             expectedChecksum: 0x1234,
             actualChecksum: 0x1234,
@@ -446,6 +454,8 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
             success: true,
             result: {
               sequence: 24,
+              slotIndex: descriptor.slotIndex,
+              generation: descriptor.generation,
               byteLen: descriptor.byteLen,
               expectedChecksum: 0x1234,
               actualChecksum: 0x1234,

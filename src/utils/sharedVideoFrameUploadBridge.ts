@@ -8,11 +8,15 @@ export interface SharedVideoFrameCopyIntoUploadBufferPayload {
   memoryId: string;
   slotCount: number;
   slotByteLen: number;
+  slotIndex: number;
+  generation: number;
   ptsFrame: number;
 }
 
 export interface SharedVideoFrameCopyReport {
   sequence: number;
+  slotIndex: number;
+  generation: number;
   byteLen: number;
   expectedChecksum: number;
   actualChecksum: number;
@@ -82,6 +86,8 @@ export const prepareSharedRendererDecodedVideoFrameUpload = async ({
     memoryId: descriptor.memoryId,
     slotCount,
     slotByteLen: descriptor.byteLen,
+    slotIndex: descriptor.slotIndex,
+    generation: descriptor.generation,
     ptsFrame,
   }, rgbaBytes);
 

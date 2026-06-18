@@ -264,6 +264,8 @@ const createBridges = () => {
         success: true,
         result: {
           sequence: payload.ptsFrame,
+          slotIndex: payload.slotIndex,
+          generation: payload.generation,
           byteLen: target.byteLength,
           expectedChecksum: 0x1234,
           actualChecksum: 0x1234,
@@ -327,6 +329,8 @@ describe('sharedRendererViewportVideoUpload', () => {
         memoryId: '/uxfd-node-video-ring',
         slotCount: 2,
         slotByteLen: 8192,
+        slotIndex: 0,
+        generation: 3,
         ptsFrame: 42,
       }, 8192],
       ['startVideoDecode', {
@@ -357,6 +361,8 @@ describe('sharedRendererViewportVideoUpload', () => {
         memoryId: '/uxfd-node-video-ring',
         slotCount: 2,
         slotByteLen: 8192,
+        slotIndex: 0,
+        generation: 3,
         ptsFrame: 7,
       }, 8192],
     ]);
@@ -414,6 +420,8 @@ describe('sharedRendererViewportVideoUpload', () => {
         memoryId: '/uxfd-node-video-ring',
         slotCount: 2,
         slotByteLen: 8192,
+        slotIndex: 0,
+        generation: 3,
         ptsFrame: 42,
       }, 8192],
     ]);
@@ -477,6 +485,8 @@ describe('sharedRendererViewportVideoUpload', () => {
         memoryId: '/uxfd-node-video-ring',
         slotCount: 2,
         slotByteLen: 8192,
+        slotIndex: 0,
+        generation: 3,
         ptsFrame: 42,
       }, 8192],
       ['releaseVideoDecodeFrame', {
