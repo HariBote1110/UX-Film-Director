@@ -48,9 +48,6 @@ describe('renderProjectExportRustEncodeFrame', () => {
     const calls: unknown[] = [];
     const payload = encodePayload('encode-session-1', 3, 50_000);
     const frameSource: ProjectExportRustFrameSource = {
-      renderFrame: async () => {
-        throw new Error('ImageBitmap fallback must not run');
-      },
       renderEncodeFrame: async (input) => {
         calls.push(input);
         return {
