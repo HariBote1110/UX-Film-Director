@@ -680,6 +680,11 @@ fn is_jpeg_source(source: &str) -> bool {
 fn local_image_source_path(source: &str) -> Result<String, String> {
     let without_query = strip_query_and_fragment(source);
     let Some(file_url_path) = without_query.strip_prefix("file://") else {
+        if has_url_scheme(without_query) {
+            return Err(format!(
+                "Only local file paths or file URLs are supported for Image media, got '{source}'"
+            ));
+        }
         return Ok(without_query.to_string());
     };
 
@@ -696,6 +701,27 @@ fn local_image_source_path(source: &str) -> Result<String, String> {
     percent_decode_utf8(&local_path).map_err(|error| {
         format!("Invalid percent-encoded Image media file URL '{source}': {error}")
     })
+}
+
+fn has_url_scheme(source: &str) -> bool {
+    let Some(colon_index) = source.find(':') else {
+        return false;
+    };
+    let scheme = &source[..colon_index];
+    if scheme.len() == 1 && is_windows_drive_path(source) {
+        return false;
+    }
+    let mut chars = scheme.chars();
+    matches!(chars.next(), Some(first) if first.is_ascii_alphabetic())
+        && chars.all(|value| value.is_ascii_alphanumeric() || matches!(value, '+' | '.' | '-'))
+}
+
+fn is_windows_drive_path(source: &str) -> bool {
+    let bytes = source.as_bytes();
+    bytes.len() >= 3
+        && bytes[1] == b':'
+        && (bytes[2] == b'\\' || bytes[2] == b'/')
+        && bytes[0].is_ascii_alphabetic()
 }
 
 fn strip_query_and_fragment(source: &str) -> &str {
