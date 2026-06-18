@@ -4180,3 +4180,19 @@
 ### 残課題・次のステップ
 - video+PSD混在exportを実際のfile path付き `TimelineObject` から `buildSharedRendererExportSession` 経由で構築する統合契約を追加する。
 - 実機のGoPro動画 + PSD overlayで、preview/export双方のdatasetが `Video,Psd` / `video-1` 相当を示すか確認する。
+
+## 2026-06-19 — export sessionにnative render envelopeを追加
+
+### 実施内容
+- Red: 実 `VideoObject` + `PsdObject` から `buildSharedRendererExportSession` を作ったとき、snapshot/mediaに加えてnative render envelopeが `Video,Psd` / `video-1` を示す契約を追加した。
+- Green: export sessionへ `nativeRenderEnvelope` を追加し、surface gate OK時にmedia count / media kinds / source count / source media idsを公開するようにした。
+- unsupported overlay mediaの場合も共通media gate経由で `nativeRenderUnsupportedMedia` をsession envelopeから確認できるようにした。
+- 版を `0.1.1-Beta-122a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererExportSession.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/viewportRustExportFrameSource.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- `nativeRenderEnvelope` をexport source / Viewport diagnosticsへ接続し、session構築時点とframe render時点のnative render内訳が一致するかを確認できるようにする。
+- 実機のGoPro動画 + PSD overlayで、preview/export双方のdatasetが `Video,Psd` / `video-1` 相当を示すか確認する。

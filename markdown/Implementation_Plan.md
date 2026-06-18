@@ -753,6 +753,11 @@ native render preview frameがreadyになった場合、presenter datasetへnati
 source count / source media idsを残す。video+PSD混在previewで `Video,Psd` とvideo source idを確認できるようにし、
 export frame diagnosticsと同じ粒度でRust native renderへのownership cutoverを追跡する。
 
+139. Phase5: export sessionにnative render envelopeを公開する
+`buildSharedRendererExportSession` が実 `TimelineObject` から生成したsurface gateに対して、native render media count /
+media kinds / source count / source media idsを `nativeRenderEnvelope` として公開する。video+PSD混在sceneでは
+`Video,Psd` とvideo source idをsession時点で確認でき、unsupported overlay mediaも同じenvelopeでfail-loudに見えるようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
