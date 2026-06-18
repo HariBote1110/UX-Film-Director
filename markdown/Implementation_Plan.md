@@ -408,6 +408,13 @@ WebGPU readbackで得た256 byte aligned RGBA bytesは `writePaddedFrame` でwri
 Rust backend encoderへshared-frame descriptorだけを渡す。fallbackとしてreadback未対応controlでは従来の
 `ImageBitmap` capture経路を残す。
 
+79. Phase5: 通常exportを Rust encoder 優先へ切り替える
+`resolveProjectExportEncodePlan` は `window.rustVideoEncoder` のbridgeが利用可能な通常起動でも
+`rustBackendVideoEncoder` を選ぶ。Rust encoderが利用できない通常環境ではWebCodecs/mp4-muxer fallbackを残し、
+`VITE_UXFD_RUST_EXPORT_ONLY=1` では従来どおりRust encoder未接続をfail-loudにする。
+これにより、開発時に明示フラグを立てなくてもRust backend rawvideo/ffmpeg export経路を主経路にし、
+WebCodecsを互換fallbackへ降格する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

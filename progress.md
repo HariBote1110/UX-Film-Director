@@ -1,3 +1,20 @@
+## 2026-06-18 — Phase5: 通常exportを Rust encoder 優先へ切り替え
+
+### 実施内容
+- `src/utils/projectExportEncodePlan.test.ts` に、通常exportでもRust encoder bridgeが利用可能なら `rustBackendVideoEncoder` を選ぶ契約を追加した。
+- `src/utils/projectExportEncodePlan.ts` の優先順位をRust-firstへ変更し、Rust encoder未接続の通常環境だけWebCodecs/mp4-muxerへfallbackするようにした。
+- `VITE_UXFD_RUST_EXPORT_ONLY=1` では引き続きRust encoder未接続をfail-loudにし、暗黙のWebCodecs fallbackを禁止する。
+- package version を `0.1.1-Beta-68a` に更新した。
+
+### 検証
+- `npm test -- src/utils/projectExportEncodePlan.test.ts`
+- `npm test -- src/utils/projectExportEncodePlan.test.ts src/utils/rustBackendVideoEncodeExport.test.ts src/utils/projectExportRustEncodeFrame.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "projectExportEncodePlan|useProjectExport|rustBackendVideoEncode"`（対象ファイルの型エラーなし）
+
+### 残課題・次のステップ
+- 実機Electronで通常起動のexportがRust backend rawvideo/ffmpeg経路へ入ることを確認し、GoPro動画の出力MP4で映像・音声・尺を検証する。
+- WebCodecs/mp4-muxerは未接続環境の互換fallbackとして残る。完全除去はRust exportの実機安定性確認後に行う。
+
 ## 2026-06-18 — Phase5: export source direct encode を WebGPU readback へ接続
 
 ### 実施内容
