@@ -1,3 +1,27 @@
+## 2026-06-18 — Phase5: export frame source 副作用flagsを補強
+
+### 実施内容
+- サブエージェントレビューを受け、Rust/shared renderer frame source ready時にskipする副作用を plan flags として明示した。
+- `requiresHtmlVideoElementSeekFallback` と `usesExportFrameOverrides` を追加し、browser video provider初期化、HTMLVideoElement seek、export frame override利用を別々に判断できるようにした。
+- `useProjectExport` の effect dependency に `getRustExportFrameSource` を追加し、frame source provider差し替え時の stale closure を避けた。
+- package version を `0.1.1-Beta-58b` に更新した。
+
+### Red
+- `src/utils/projectExportFrameCanvas.test.ts` に Rust frame source pathでは seek fallback / export overrides を使わず、canvas fallback pathでは使う契約を追加した。
+
+### Green
+- `buildProjectExportFrameSourcePlan` の success result に副作用flagsを追加した。
+- `useProjectExport` は override注入と HTMLVideoElement seek fallback をそれぞれ plan flags でguardする。
+
+### 現在の制限
+- Rust frame sourceが「完成済み合成frame」を返す前提でのみ `renderScene` / canvas capture をskipできる。単なるdecode済みvideo frame sourceはこの経路へ渡してはいけない。
+
+### 検証
+- `npm test -- src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererExportSession.test.ts src/utils/sharedRendererPreviewSession.test.ts src/utils/sharedRendererPreviewSurface.test.ts`
+  -> 4 files / 14 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "projectExportFrameCanvas|useProjectExport|sharedRendererExportSession|sharedRendererPreviewSession|sharedRendererPreviewSurface"`
+  -> 対象ファイルの型エラーなし。
+
 ## 2026-06-18 — Phase5: shared renderer export session を追加
 
 ### 実施内容
