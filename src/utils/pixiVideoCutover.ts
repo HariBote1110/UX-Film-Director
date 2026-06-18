@@ -16,10 +16,12 @@ export const shouldSkipPixiVideoForSharedRenderer = ({
   requireSharedRendererVideo = false,
 }: ShouldSkipPixiVideoForSharedRendererInput): boolean =>
   objectType === 'video'
-  && !isExporting
   && (
     requireSharedRendererVideo
-    || sharedRendererVideoObjectIds?.has(objectId) === true
+    || (
+      !isExporting
+      && sharedRendererVideoObjectIds?.has(objectId) === true
+    )
   );
 
 interface PixiVideoCutoverChild {
