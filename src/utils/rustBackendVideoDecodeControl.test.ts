@@ -5,6 +5,8 @@ import {
   requestRustBackendVideoDecodeFrame,
   startRustBackendVideoDecode,
   stopRustBackendVideoDecode,
+  type RustBackendResult,
+  type RustBackendVideoDecodeFrameResult,
   type RustBackendVideoDecodeBridge,
 } from './rustBackendVideoDecodeControl';
 
@@ -35,6 +37,47 @@ const bridge = (): {
     },
   };
 };
+
+const verifiedDecodeFrameResponse = (): RustBackendResult<RustBackendVideoDecodeFrameResult> => ({
+  success: true,
+  result: {
+    accepted: true,
+    jobId: 'decode-1',
+    requestId: 12,
+    frameIndex: 1,
+    mode: 'latestWins',
+    frame: {
+      descriptor: {
+        memoryId: 'decode-1-ring',
+        slotIndex: 0,
+        generation: 1,
+        byteOffset: 0,
+        byteLen: 4096,
+        width: 34,
+        height: 16,
+        strideBytes: 256,
+        format: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      },
+      ptsFrame: 1,
+    },
+    verification: {
+      frameIndex: 1,
+      checksum: {
+        algorithm: 'crc32',
+        valueHex: '9f2a1c0b',
+        byteLen: 4096,
+      },
+      status: 'withinTolerance',
+    },
+    decodeInvocationCount: 1,
+  },
+});
 
 describe('rustBackendVideoDecodeControl', () => {
   it('starts a Rust video decode session with a shared-ring control payload only', async () => {
@@ -203,5 +246,38 @@ describe('rustBackendVideoDecodeControl', () => {
     expect(JSON.stringify(response)).not.toContain('frameBase64');
     expect(JSON.stringify(response)).not.toContain('"pixels"');
     expect(JSON.stringify(response)).not.toContain('"bytes"');
+  });
+
+  it('rejects decoded frame responses that smuggle JSON pixel payloads alongside a descriptor', () => {
+    const response = verifiedDecodeFrameResponse();
+
+    const withFrameBytes = {
+      ...response,
+      result: {
+        ...response.result!,
+        frame: {
+          ...response.result!.frame!,
+          bytes: [0, 1, 2, 3],
+        },
+      },
+    };
+    const withRootPixels = {
+      ...response,
+      result: {
+        ...response.result!,
+        pixels: [0, 1, 2, 3],
+      },
+    };
+    const withBase64 = {
+      ...response,
+      result: {
+        ...response.result!,
+        frameBase64: 'AAAA',
+      },
+    };
+
+    expect(isRustBackendDecodedVideoFrameAvailable(withFrameBytes)).toBe(false);
+    expect(isRustBackendDecodedVideoFrameAvailable(withRootPixels)).toBe(false);
+    expect(isRustBackendDecodedVideoFrameAvailable(withBase64)).toBe(false);
   });
 });
