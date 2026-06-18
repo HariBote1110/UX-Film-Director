@@ -269,6 +269,22 @@ export function createSharedRendererExportFrameSource({
       const presenterResult = await presentFrame(request);
       try {
         const control = presenterResult.control;
+        if (control.ok && typeof control.takePresentedFrameSharedFrame === 'function') {
+          const sharedFramePayload = await control.takePresentedFrameSharedFrame({
+            encodeSessionId: request.encodeSessionId,
+            memoryId: buildEncodeSourceMemoryId(request.encodeSessionId),
+            frameIndex: request.frameIndex,
+            timestampUs: request.timestampUs,
+            width: request.width,
+            height: request.height,
+            fps: projectSettings.fps,
+          });
+          return {
+            timestamp: request.timestampUs,
+            sharedFramePayload,
+          };
+        }
+
         if (control.ok && 'readPresentedFrameRgbaBytes' in control) {
           const readback = await control.readPresentedFrameRgbaBytes({
             width: request.width,

@@ -33,6 +33,7 @@ import {
   buildSharedRendererSolidColourStackSafety,
   type SharedRendererSolidColourOwnership,
 } from './sharedRendererSolidColourOwnership';
+import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
 
 export const SHARED_RENDERER_SOLID_SWATCH: SharedRendererSolidSrgbSwatch = {
   red: 0.25,
@@ -50,12 +51,25 @@ export const getSharedRendererSolidSwatchCssColour = (): string => {
 
 type PresenterDataset = Record<string, string | undefined>;
 
+export interface SharedRendererPresentedFrameSharedFrameInput {
+  encodeSessionId: string;
+  memoryId: string;
+  frameIndex: number;
+  timestampUs: number;
+  width: number;
+  height: number;
+  fps: number;
+}
+
 export type SharedRendererPreviewPresenterControl =
   | {
       ok: true;
       format: string;
       solidColourOwnership: SharedRendererSolidColourOwnership;
       videoOwnership: SharedRendererVideoOwnership;
+      takePresentedFrameSharedFrame?: (
+        input: SharedRendererPresentedFrameSharedFrameInput
+      ) => Promise<RustBackendVideoEncodeWriteFramePayload>;
       readPresentedFrameRgbaBytes: (input: SharedRendererPresentedFrameReadbackInput) => Promise<SharedRendererPresentedFrameReadbackResult>;
       dispose: () => void;
     }
