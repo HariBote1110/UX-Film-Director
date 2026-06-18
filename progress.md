@@ -1,3 +1,27 @@
+## 2026-06-18 — Phase5: Rust export blocked後のlegacy runtimeを復旧
+
+### 実施内容
+- `resolveProjectExportFrameRuntimePlan` を追加し、export開始時のsource planとframe実行時のruntime planを分離した。
+- Rust/shared renderer frame sourceがactiveな間は browser video provider / HTMLVideoElement seek / canvas capture を使わない。
+- Rust frame sourceがblockedになってlegacyへ退避した後は、`renderScene` と `HTMLVideoElement` seek fallback を再度有効にする。
+- package version を `0.1.1-Beta-60g` に更新した。
+
+### Red
+- `src/utils/projectExportFrameCanvas.test.ts` に、Rust source active時はbrowser副作用を無効にし、blocked後はlegacy canvas + HTMLVideoElement seekを有効化する契約を追加した。
+
+### Green
+- `useProjectExport` のframe loopは `resolveProjectExportFrameRuntimePlan` の結果で Rust source / override / seek / renderScene を判断する。
+- blocked後のlegacy fallbackでも動画clipの時刻同期が走るようになった。
+
+### 現在の制限
+- blocked後はVideoDecoder / PlaybackFrameProviderを後から初期化しないため、legacy fallbackはHTMLVideoElement seek中心の低速経路になる。
+
+### 検証
+- `npm test -- src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/viewportRustExportFrameSource.test.ts`
+  -> 3 files / 19 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "projectExportFrameCanvas|useProjectExport|sharedRendererExportFrameSource|viewportRustExportFrameSource"`
+  -> 対象ファイルの型エラーなし。
+
 ## 2026-06-18 — Phase5: Rust export blocked 時は legacy canvas へ退避
 
 ### 実施内容
