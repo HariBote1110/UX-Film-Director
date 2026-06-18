@@ -905,6 +905,12 @@ renderer utility `sharedVideoFrameWritableBridge` と `window.sharedVideoFrame` 
 `createWritableSharedFrameRing` / `writeIntoSharedFrameRing` / `closeWritableSharedFrameRing` 公開を削除する。
 native addonの低レベル検証口は残しつつ、renderer JSからshared-frame ringへRGBAを書き込む旧writer経路を再接続できない状態にする。
 
+169. Phase5: preview動画cutoverを既定ONにする
+`Viewport` と `startSharedRendererPreviewPresenter` の video cutover 既定値を
+`VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER !== '0'` に変更する。
+通常preview動画はPixi video pathを既定で拒否済みのため、明示OFF時以外はRust/shared renderer decode/uploadを起動し、
+動画plane所有権の正本をRust側にする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
