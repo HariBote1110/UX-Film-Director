@@ -833,4 +833,48 @@ mod tests {
             ]
         );
     }
+
+    #[test]
+    fn composite_visible_psd_layers_with_active_ids_draws_only_selected_leaf_layers() {
+        let psd = PsdFastResult {
+            width: 1,
+            height: 1,
+            layers: vec![
+                PsdFastLayer {
+                    stable_id: "psd-layer-0".to_string(),
+                    name: "front".to_string(),
+                    top: 0,
+                    left: 0,
+                    width: 1,
+                    height: 1,
+                    visible: true,
+                    parent_group_id: None,
+                    is_group: false,
+                    own_group_id: None,
+                    rgba: Some(vec![255, 0, 0, 255]),
+                },
+                PsdFastLayer {
+                    stable_id: "psd-layer-1".to_string(),
+                    name: "back".to_string(),
+                    top: 0,
+                    left: 0,
+                    width: 1,
+                    height: 1,
+                    visible: true,
+                    parent_group_id: None,
+                    is_group: false,
+                    own_group_id: None,
+                    rgba: Some(vec![0, 0, 255, 255]),
+                },
+            ],
+        };
+
+        let frame = composite_visible_psd_layers_with_active_layer_ids(
+            &psd,
+            &["psd-layer-1".to_string()],
+        )
+        .expect("composited PSD frame");
+
+        assert_eq!(frame.pixels, vec![0, 0, 255, 255]);
+    }
 }
