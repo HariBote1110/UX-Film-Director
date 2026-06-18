@@ -145,10 +145,6 @@ describe('createSharedRendererExportFrameSource', () => {
         calls.push(['createFrameBitmap']);
         throw new Error('ImageBitmap capture must not run for Rust direct encoding.');
       },
-      extractEncodeFrameRgbaBytes: async () => {
-        calls.push(['extractEncodeFrameRgbaBytes']);
-        throw new Error('ImageBitmap extraction must not run for Rust direct encoding.');
-      },
       createEncodeFrameWriter: async (input) => {
         calls.push(['createEncodeFrameWriter', input]);
         return {
@@ -264,9 +260,6 @@ describe('createSharedRendererExportFrameSource', () => {
       }) as never,
       createFrameBitmap: async () => {
         throw new Error('ImageBitmap capture must not run when presenter readback is available.');
-      },
-      extractEncodeFrameRgbaBytes: async () => {
-        throw new Error('ImageBitmap RGBA extraction must not run when presenter readback is available.');
       },
       createEncodeFrameWriter: async (input) => {
         calls.push(['createEncodeFrameWriter', input]);

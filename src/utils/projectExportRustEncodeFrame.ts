@@ -18,7 +18,10 @@ export const renderProjectExportRustEncodeFrame = async ({
   encodeSessionId,
   preferSharedFrame,
 }: RenderProjectExportRustEncodeFrameInput): Promise<RustBackendVideoEncodeFrame> => {
-  if (preferSharedFrame && frameSource.renderEncodeFrame) {
+  if (preferSharedFrame) {
+    if (!frameSource.renderEncodeFrame) {
+      throw new Error('Rust backend encoding requires a shared-frame export source.');
+    }
     const encodeRequest: ProjectExportRustEncodeFrameRequest = {
       ...request,
       encodeSessionId,

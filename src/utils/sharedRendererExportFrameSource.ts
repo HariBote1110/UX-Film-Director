@@ -5,10 +5,6 @@ import type {
   ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
 import {
-  extractImageBitmapRgbaBytes,
-  type RustBackendVideoEncodeBitmapToRgbaBytes,
-} from './rustBackendVideoEncodeExport';
-import {
   createRustBackendVideoEncodeSharedFrameWriter,
   type CreateRustBackendVideoEncodeSharedFrameWriterInput,
   type RustBackendVideoEncodeSharedFrameWriter,
@@ -30,7 +26,8 @@ type PresenterDataset = Record<string, string | undefined>;
 export type SharedRendererExportFrameSourceBlockedReason =
   | SharedRendererPreviewSurfaceBlockedReason
   | 'videoUploadFailed'
-  | 'videoOwnershipUnavailable';
+  | 'videoOwnershipUnavailable'
+  | 'webGpuReadbackUnavailable';
 
 export type SharedRendererExportFrameBitmapFactory = (
   canvas: HTMLCanvasElement,
@@ -54,8 +51,6 @@ export type SharedRendererExportEncodeFrameWriterFactory = (
   input: CreateRustBackendVideoEncodeSharedFrameWriterInput
 ) => Promise<RustBackendVideoEncodeSharedFrameWriter>;
 
-export type SharedRendererExportEncodeFrameRgbaExtractor = RustBackendVideoEncodeBitmapToRgbaBytes;
-
 export interface CreateSharedRendererExportFrameSourceInput {
   canvas: HTMLCanvasElement;
   projectSettings: ProjectSettings;
@@ -70,7 +65,6 @@ export interface CreateSharedRendererExportFrameSourceInput {
   createFrameBitmap?: SharedRendererExportFrameBitmapFactory;
   stopVideoDecodeJob?: SharedRendererExportVideoDecodeJobStopper;
   createEncodeFrameWriter?: SharedRendererExportEncodeFrameWriterFactory;
-  extractEncodeFrameRgbaBytes?: SharedRendererExportEncodeFrameRgbaExtractor;
 }
 
 export class SharedRendererExportFrameSourceBlockedError extends Error {
@@ -112,7 +106,6 @@ export const createSharedRendererExportFrameSource = ({
   createFrameBitmap = defaultCreateFrameBitmap,
   stopVideoDecodeJob = defaultStopVideoDecodeJob,
   createEncodeFrameWriter = createRustBackendVideoEncodeSharedFrameWriter,
-  extractEncodeFrameRgbaBytes = extractImageBitmapRgbaBytes,
 }: CreateSharedRendererExportFrameSourceInput): ProjectExportRustFrameSource => {
   let activeVideoDecodeJobs: SharedRendererViewportVideoDecodeJob[] = [];
   let activeEncodeFrameWriter: RustBackendVideoEncodeSharedFrameWriter | null = null;
@@ -277,32 +270,16 @@ export const createSharedRendererExportFrameSource = ({
           };
         }
 
-        const bitmap = await createFrameBitmap(
-          canvas,
-          0,
-          0,
-          request.width,
-          request.height
+        writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+          status: 'blocked',
+          frameIndex: request.frameIndex,
+          reason: 'webGpuReadbackUnavailable',
+        });
+        throw new SharedRendererExportFrameSourceBlockedError(
+          'WebGPU presented frame readback is required for Rust direct encode frames.',
+          'webGpuReadbackUnavailable',
+          request.frameIndex
         );
-        try {
-          const rgbaBytes = await extractEncodeFrameRgbaBytes(
-            bitmap,
-            request.width,
-            request.height
-          );
-          const writer = await getEncodeFrameWriter(request);
-          const sharedFramePayload = await writer.writeFrame({
-            frameIndex: request.frameIndex,
-            timestampUs: request.timestampUs,
-            rgbaBytes,
-          });
-          return {
-            timestamp: request.timestampUs,
-            sharedFramePayload,
-          };
-        } finally {
-          bitmap.close();
-        }
       } finally {
         presenterResult.control.dispose();
       }
