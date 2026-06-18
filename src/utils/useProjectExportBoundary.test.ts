@@ -21,4 +21,11 @@ describe('useProjectExport legacy browser dependency boundary', () => {
 
     expect(code).toContain("preferEncodeOnly: exportEncodePlan.engine === 'rustBackendVideoEncoder'");
   });
+
+  it('passes the native/Rust presented-frame handoff into Rust export frame sources', () => {
+    const code = source();
+
+    expect(code).toContain("import { createSharedVideoFramePresentedFrameTaker } from '../utils/sharedVideoFramePresentedFrameHandoff'");
+    expect(code).toContain('presentedFrameSharedFrameTaker: createSharedVideoFramePresentedFrameTaker() ?? undefined');
+  });
 });
