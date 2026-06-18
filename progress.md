@@ -1,3 +1,31 @@
+## 2026-06-18 — Phase5: Rust encode write で shared frame を読み解放
+
+### 実施内容
+- `encode.writeFrame` が `PosixSharedRing::attach_with_retry_for_layout` でshared memoryへattachするようにした。
+- `SharedFrame.ptsFrame` をsequenceとして対象frameを読み、checksum検証済みのbytesをRust backend側で受け取るようにした。
+- 読み終えたslotを `CopyOutState::EncoderFrameWritten` で解放し、producer側のshared memory ringがFREEへ戻るようにした。
+- responseには `sharedFrameByteLen` だけを返し、frame bytes / base64 / pixel array はcontrol planeに載せない。
+- package version を `0.1.1-Beta-60w` に更新した。
+
+### Red
+- `rust-backend/tests/decode_control_plane.rs` のencode session契約を、テスト内で作った `PosixSharedRing` にframeを書いたうえで `encode.writeFrame` 後にslotがFREEへ戻る形へ拡張した。
+- 旧実装ではdescriptor検証だけでshared memoryを読まないため、`wait_until_free` がtimeoutすることを確認した。
+
+### Green
+- `rust-backend/src/main.rs` に `read_encode_shared_frame` を追加した。
+- unix環境では `PosixSharedRing::attach_with_retry_for_layout` / `read_frame` / `release_frame(EncoderFrameWritten)` を実行し、非unix環境ではdescriptor byte lengthだけを受け付ける形にした。
+
+### 現在の制限
+- まだ読んだframe bytesをffmpeg / encoder stdinへ書いていない。次段で `encode.start` がrawvideo ffmpeg processを起動し、`encode.writeFrame` が読み取ったRGBA frameをstdinへ渡す。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml encode_`
+  -> 3 tests passed。
+- `cargo test --manifest-path rust-backend/Cargo.toml decode_start_returns_shared_ring_layout_without_frame_bytes`
+  -> 1 test passed。
+- `cargo test --manifest-path shared-memory-spike/Cargo.toml posix_shm_slot_can_be_released_after_encoder_writes_frame`
+  -> 1 test passed。
+
 ## 2026-06-18 — Phase5: Rust encode session skeleton を実装
 
 ### 実施内容

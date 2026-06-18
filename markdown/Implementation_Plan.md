@@ -337,6 +337,12 @@ Rust backend の `encode.start` / `encode.writeFrame` / `encode.finish` をfail-
 `slotCount` と `SharedFrame` descriptorを検証する。現段階ではshared memory attachとffmpeg書込はまだ行わず、
 frame countとdescriptor整合性をRust側で保持する。
 
+68. Phase5: Rust encode write で shared frame を読み解放する
+`encode.writeFrame` は `memoryId` / `slotCount` / `descriptor.byteLen` から
+`PosixSharedRing::attach_with_retry_for_layout` でshared memoryへattachし、`ptsFrame` のframeを読む。
+読み終えたslotは `CopyOutState::EncoderFrameWritten` で解放する。現段階ではffmpeg stdinへはまだ書かず、
+Rust backendがframe実体を受け取れることと、data-plane ownershipを返せることを確認する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
