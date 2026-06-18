@@ -519,3 +519,19 @@
 ## 確認
 - `npm test -- sharedRendererViewportNativeRenderUpload sharedRendererPreviewPresenterController` を実行し、28件成功を確認。
 - `npx tsc --noEmit 2>&1 | rg "(sharedRendererViewportNativeRenderUpload|sharedRendererPreviewPresenterController)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 48. Phase5: encode-only exportのnative render必須化
+- `src/utils/sharedRendererExportFrameSource.ts`
+- `CreateSharedRendererExportFrameSourceInput` に `nativeRenderRequired` を追加し、必須時に `render.nativeSharedFrame` bridge が無ければ `nativeRenderUnavailable` でblocked errorを投げるようにした。
+- `src/utils/viewportRustExportFrameSource.ts`
+- `preferEncodeOnly` の場合は `bitmapCaptureEnabled: false` に加えて `nativeRenderRequired: true` を `createSharedRendererExportFrameSource` へ渡すようにした。
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- native render必須時に bridge未接続なら presenter readback / JS writerへ戻らず blocked になる契約を追加した。
+- `src/utils/viewportRustExportFrameSource.test.ts`
+- Rust backend encoder所有のencode-only source requestで `nativeRenderRequired: true` が渡る契約を追加した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-126a` に更新した。
+
+## 確認
+- `npm test -- sharedRendererExportFrameSource viewportRustExportFrameSource projectExportFrameCanvas useProjectExportBoundary` を実行し、54件成功を確認。
+- `npx tsc --noEmit 2>&1 | rg "(sharedRendererExportFrameSource|viewportRustExportFrameSource|projectExportFrameCanvas|useProjectExport)"` を実行し、対象ファイルに型エラーが出ないことを確認。

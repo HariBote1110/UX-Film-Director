@@ -790,6 +790,12 @@ preview native render uploadが成功した後、`releaseAfterGpuUpload` と `re
 同じ `memoryId` の `render.releaseNativeSharedFrame` は一度だけ実行する。WebGPU fence/abortの順序揺れや二重disposeでも
 native render output ringのlifecycleが二重解放に依存しないようにする。
 
+146. Phase5: Rust backend encode-only exportではnative renderを必須にする
+Rust backend encoderがshared-frame payloadを直接encodeする `preferEncodeOnly` 経路では、
+`render.nativeSharedFrame` bridgeが未接続の場合に WebGPU readback + JS shared-frame writerへ戻らず
+`nativeRenderUnavailable` としてfail-loudにする。これによりRust encoder使用時のJS readback依存を狭め、
+native render output shared frameを正本とするexportへ寄せる。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
