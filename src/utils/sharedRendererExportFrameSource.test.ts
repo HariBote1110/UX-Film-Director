@@ -572,10 +572,6 @@ describe('createSharedRendererExportFrameSource', () => {
         calls.push(['startViewportPresenter']);
         throw new Error('presenter readback must not run for encode-only export sources.');
       },
-      createEncodeFrameWriter: async () => {
-        calls.push(['createEncodeFrameWriter']);
-        throw new Error('JS shared-frame writer must not run for encode-only export sources.');
-      },
     } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
       bitmapCaptureEnabled: false;
       prepareNativeRenderSources: unknown;
@@ -634,10 +630,6 @@ describe('createSharedRendererExportFrameSource', () => {
         calls.push(['startViewportPresenter']);
         throw new Error('presenter readback must not run when native render is required.');
       },
-      createEncodeFrameWriter: async () => {
-        calls.push(['createEncodeFrameWriter']);
-        throw new Error('JS shared-frame writer must not run when native render is required.');
-      },
     } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
       bitmapCaptureEnabled: false;
       nativeRenderRequired: true;
@@ -695,10 +687,6 @@ describe('createSharedRendererExportFrameSource', () => {
       startViewportPresenter: async () => {
         calls.push(['startViewportPresenter']);
         throw new Error('presenter readback must not run for encode-only export sources.');
-      },
-      createEncodeFrameWriter: async () => {
-        calls.push(['createEncodeFrameWriter']);
-        throw new Error('JS shared-frame writer must not run for encode-only export sources.');
       },
     } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
       bitmapCaptureEnabled: false;
@@ -915,10 +903,6 @@ describe('createSharedRendererExportFrameSource', () => {
       startViewportPresenter: async () => {
         calls.push(['startViewportPresenter']);
         throw new Error('WebGPU presenter must not start when Rust native render succeeds.');
-      },
-      createEncodeFrameWriter: async () => {
-        calls.push(['createEncodeFrameWriter']);
-        throw new Error('JS shared-frame writer must not run when Rust native render succeeds.');
       },
     } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
       bitmapCaptureEnabled: false;
@@ -1153,9 +1137,6 @@ describe('createSharedRendererExportFrameSource', () => {
       startViewportPresenter: async () => {
         throw new Error('WebGPU presenter must not start for mixed video+PSD native render.');
       },
-      createEncodeFrameWriter: async () => {
-        throw new Error('JS shared-frame writer must not run for mixed video+PSD native render.');
-      },
     } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
       bitmapCaptureEnabled: false;
       prepareNativeRenderSources: unknown;
@@ -1360,9 +1341,6 @@ describe('createSharedRendererExportFrameSource', () => {
       startViewportPresenter: async () => {
         throw new Error('WebGPU presenter must not start for blocked mixed native render.');
       },
-      createEncodeFrameWriter: async () => {
-        throw new Error('JS shared-frame writer must not run for blocked mixed native render.');
-      },
     } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
       bitmapCaptureEnabled: false;
       prepareNativeRenderSources: unknown;
@@ -1549,10 +1527,6 @@ describe('createSharedRendererExportFrameSource', () => {
         calls.push(['startViewportPresenter']);
         throw new Error('WebGPU presenter must not start for media-only native render.');
       },
-      createEncodeFrameWriter: async () => {
-        calls.push(['createEncodeFrameWriter']);
-        throw new Error('JS shared-frame writer must not run for media-only native render.');
-      },
     } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
       bitmapCaptureEnabled: false;
       prepareNativeRenderSources: unknown;
@@ -1702,10 +1676,6 @@ describe('createSharedRendererExportFrameSource', () => {
       startViewportPresenter: async () => {
         calls.push(['startViewportPresenter']);
         throw new Error('presenter readback must not run when native render is required.');
-      },
-      createEncodeFrameWriter: async () => {
-        calls.push(['createEncodeFrameWriter']);
-        throw new Error('JS shared-frame writer must not run when native render is required.');
       },
     } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
       bitmapCaptureEnabled: false;
@@ -1865,10 +1835,6 @@ describe('createSharedRendererExportFrameSource', () => {
       startViewportPresenter: async () => {
         calls.push(['startViewportPresenter']);
         throw new Error('WebGPU presenter must not start for PSD-only native render.');
-      },
-      createEncodeFrameWriter: async () => {
-        calls.push(['createEncodeFrameWriter']);
-        throw new Error('JS shared-frame writer must not run for PSD-only native render.');
       },
     } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
       bitmapCaptureEnabled: false;
