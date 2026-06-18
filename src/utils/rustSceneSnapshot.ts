@@ -2,6 +2,7 @@ import type {
   ImageObject,
   LayerState,
   ProjectSettings,
+  PsdObject,
   ShapeObject,
   TimelineObject,
   VideoObject,
@@ -52,7 +53,7 @@ export interface RustSceneSnapshot {
 
 export interface RustSceneMediaReference {
   id: string;
-  kind: 'Image' | 'Video' | 'SolidColour';
+  kind: 'Image' | 'Video' | 'SolidColour' | 'Psd';
   source: string;
   width: number;
   height: number;
@@ -120,7 +121,7 @@ export interface RustSceneSnapshotBuildInput {
   time: number;
 }
 
-type SupportedMediaObject = ImageObject | VideoObject;
+type SupportedMediaObject = ImageObject | VideoObject | PsdObject;
 type SupportedSceneObject = SupportedMediaObject | ShapeObject;
 
 const rustColourPipeline = (): RustColourPipeline => ({
@@ -299,7 +300,7 @@ const collectBuildIssues = (objects: TimelineObject[], time: number): RustSceneS
 };
 
 const isSupportedMediaObject = (object: TimelineObject): object is SupportedMediaObject =>
-  object.type === 'image' || object.type === 'video';
+  object.type === 'image' || object.type === 'video' || object.type === 'psd';
 
 const isSupportedSceneObject = (object: TimelineObject): object is SupportedSceneObject =>
   isSupportedMediaObject(object) || object.type === 'shape';
@@ -323,7 +324,7 @@ const mediaReferenceForObject = (
 
   return {
     id: object.id,
-    kind: object.type === 'video' ? 'Video' : 'Image',
+    kind: mediaKindForObject(object),
     source: mediaSourceForObject(object),
     width: object.width,
     height: object.height,
@@ -334,6 +335,12 @@ const mediaReferenceForObject = (
 const mediaSourceForObject = (object: SupportedMediaObject): string =>
   object.filePath || object.src || '';
 
+const mediaKindForObject = (object: SupportedMediaObject): RustSceneMediaReference['kind'] => {
+  if (object.type === 'video') return 'Video';
+  if (object.type === 'psd') return 'Psd';
+  return 'Image';
+};
+
 const sourceFrameForObject = (
   object: SupportedSceneObject,
   time: number,
@@ -341,6 +348,7 @@ const sourceFrameForObject = (
 ): number => {
   if (object.type === 'shape') return 0;
   if (object.type === 'image') return 0;
+  if (object.type === 'psd') return 0;
   const localTime = Math.max(0, time - object.startTime);
   const mediaTime = localTime + (object.offset ?? 0);
   return secondsToFrameIndex(mediaTime, fps);
@@ -519,7 +527,7 @@ const validateMediaReferences = (
     }
     validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height', 'source_rate'], issues);
     validateString(reference.id, `${path}.id`, issues);
-    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour'], issues);
+    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'Psd'], issues);
     validateString(reference.source, `${path}.source`, issues);
     validatePositiveInteger(reference.width, `${path}.width`, issues);
     validatePositiveInteger(reference.height, `${path}.height`, issues);

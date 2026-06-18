@@ -34,6 +34,7 @@ pub enum MediaKind {
     Video,
     Image,
     SolidColour,
+    Psd,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

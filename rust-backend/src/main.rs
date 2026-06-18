@@ -527,7 +527,7 @@ fn handle_native_render_shared_frame(
                 Ok(value) => value,
                 Err(message) => return response_error(id, -32602, &message),
             },
-            MediaKind::Video => continue,
+            MediaKind::Video | MediaKind::Psd => continue,
         };
         if sources.insert(media.id.clone(), frame).is_some() {
             return response_error(
