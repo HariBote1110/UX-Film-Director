@@ -1,3 +1,30 @@
+## 2026-06-18 — Phase5: Rust-only export で WebCodecs encoder を拒否
+
+### 実施内容
+- `resolveProjectExportEncodePlan` を追加し、export encoder の選択を明示的なplanに分離した。
+- 通常互換モードでは従来どおり `webCodecsMp4Muxer` を選ぶ。
+- `VITE_UXFD_RUST_EXPORT_ONLY=1` では、Rust video encoder backendが無い限り `rustEncoderRequired` としてexport開始前に失敗するようにした。
+- `useProjectExport` が encode plan を確認し、Rust-only時に WebCodecs `VideoEncoder` / mp4-muxer へ暗黙に戻らないようにした。
+- package version を `0.1.1-Beta-60n` に更新した。
+
+### Red
+- `src/utils/projectExportEncodePlan.test.ts` を追加し、通常互換モードではWebCodecs、Rust-onlyかつRust encoder未接続では失敗、Rust encoder利用可能時はRust backend encoderを選ぶ契約を追加した。
+
+### Green
+- `src/utils/projectExportEncodePlan.ts` を追加し、encoder選択の純粋関数を実装した。
+- `src/hooks/useProjectExport.ts` に encode plan check を追加した。
+
+### 現在の制限
+- Rust video encoder backend本体は未接続のため、Rust-only exportはこの段階では明示的に失敗する。次段でRust backend encoder sessionへ接続する。
+
+### 検証
+- `npm test -- src/utils/projectExportEncodePlan.test.ts`
+  -> 1 file / 3 tests passed。
+- `npm test -- src/utils/projectExportEncodePlan.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/viewportRustExportFrameSource.test.ts`
+  -> 4 files / 31 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "src/(hooks/useProjectExport\\.ts|utils/projectExportEncodePlan\\.ts|utils/projectExportFrameCanvas\\.ts)"`
+  -> 対象ファイルの型エラーなし。
+
 ## 2026-06-18 — Phase5: Rust export 動画ownership失敗を blocked 扱いにする
 
 ### 実施内容

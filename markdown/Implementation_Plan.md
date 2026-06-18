@@ -287,6 +287,11 @@ export frame sourceでは Pixi が動画ownerになる余地がないため、pr
 `sharedRenderer` 以外で、かつ `noVideoScene` でない場合は `videoOwnershipUnavailable` のblocked errorへ変換する。
 これにより、動画clipが欠けたshared renderer canvasを成功frameとしてcaptureしない。
 
+59. Phase5: Rust-only export で WebCodecs encoder を拒否する
+`resolveProjectExportEncodePlan` を追加し、通常互換モードでは `webCodecsMp4Muxer` を維持しつつ、
+`VITE_UXFD_RUST_EXPORT_ONLY=1` では Rust video encoder backend が無い限りexportを開始前に失敗させる。
+これにより、Rust-only検証中に WebCodecs `VideoEncoder` / mp4-muxer へ暗黙に戻る経路を塞ぐ。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
