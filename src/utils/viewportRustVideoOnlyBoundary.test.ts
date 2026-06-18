@@ -18,6 +18,15 @@ describe('Viewport Rust video-only boundary', () => {
     expect(readinessBlock).toContain('requireSharedRendererVideo: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled');
   });
 
+  it('uses Rust/shared renderer video cutover for Pixi content routing instead of HTMLVideoElement fallback', () => {
+    const code = viewportSource();
+    const start = code.indexOf('const content = updatePixiContent(obj, container, time, {');
+    const end = code.indexOf('});', start);
+    const updatePixiContentBlock = code.slice(start, end);
+
+    expect(updatePixiContentBlock).toContain('requireSharedRendererVideo: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled');
+  });
+
   it('passes export context encode-only preference into the Rust export frame source', () => {
     const code = viewportSource();
     const start = code.indexOf('const getRustExportFrameSource = useCallback');
