@@ -74,6 +74,7 @@ fn posix_shm_multi_slot_allows_next_frame_while_previous_frame_is_reading() {
     let first_read = consumer_ring
         .read_frame(0)
         .expect("consumer holds first frame");
+    assert_eq!(first_read.slot_index, 0);
     assert_eq!(first_read.bytes, first);
 
     producer_ring
@@ -82,6 +83,7 @@ fn posix_shm_multi_slot_allows_next_frame_while_previous_frame_is_reading() {
     let second_read = consumer_ring
         .read_frame(1)
         .expect("consumer reads second frame");
+    assert_eq!(second_read.slot_index, 1);
     assert_eq!(second_read.bytes, second);
 
     producer_ring
