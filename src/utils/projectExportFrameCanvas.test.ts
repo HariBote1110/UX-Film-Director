@@ -64,6 +64,7 @@ describe('buildProjectExportFrameSourcePlan', () => {
       requiresLegacyBrowserVideoProviders: false,
       requiresHtmlVideoElementSeekFallback: false,
       usesExportFrameOverrides: false,
+      rustFrameSourceBlockedFallback: 'legacyCanvas',
     });
   });
 
@@ -151,6 +152,7 @@ describe('resolveProjectExportFrameRuntimePlan', () => {
       usesExportFrameOverrides: false,
       requiresHtmlVideoElementSeekFallback: false,
       shouldCloseRustFrameSource: false,
+      shouldFailOnRustFrameSourceBlocked: false,
     });
   });
 
@@ -170,6 +172,7 @@ describe('resolveProjectExportFrameRuntimePlan', () => {
       usesExportFrameOverrides: false,
       requiresHtmlVideoElementSeekFallback: true,
       shouldCloseRustFrameSource: true,
+      shouldFailOnRustFrameSourceBlocked: false,
     });
   });
 
@@ -211,6 +214,7 @@ describe('resolveProjectExportFrameRuntimePlan', () => {
       usesExportFrameOverrides: true,
       requiresHtmlVideoElementSeekFallback: true,
       shouldCloseRustFrameSource: false,
+      shouldFailOnRustFrameSourceBlocked: false,
     });
   });
 });

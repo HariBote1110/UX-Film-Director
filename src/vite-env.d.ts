@@ -4,6 +4,7 @@ interface ImportMetaEnv {
   readonly VITE_PERF_AUTORUN?: string;
   readonly VITE_PERF_AGENT_MODE?: string;
   readonly VITE_UXFD_SHARED_RENDERER_EXPORT?: string;
+  readonly VITE_UXFD_RUST_EXPORT_ONLY?: string;
 }
 
 interface ImportMeta {

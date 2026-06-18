@@ -43,6 +43,7 @@ export const useProjectExport = (
     const isCancelled = () => cancelled || useStore.getState().exportCancelRequested;
 
     const runExport = async () => {
+      const rustExportOnly = import.meta.env.VITE_UXFD_RUST_EXPORT_ONLY === '1';
       const { projectSettings, objects, layers } = useStore.getState();
       const exportObjects = objects.filter((obj) => layers[obj.layer]?.visible !== false);
       const initialFrameSourcePlan = buildProjectExportFrameSourcePlan({
@@ -50,6 +51,8 @@ export const useProjectExport = (
           objects: exportObjects,
           time: 0,
         }) ?? null,
+        rustFrameSourcePolicy: rustExportOnly ? 'requireRustFrameSource' : 'allowLegacyCanvas',
+        rustFrameSourceBlockedFallback: rustExportOnly ? 'failExport' : 'legacyCanvas',
         getExportCanvas,
         pixiCanvas: pixiAppRef.current?.canvas as HTMLCanvasElement | null | undefined,
       });
@@ -211,6 +214,9 @@ export const useProjectExport = (
                 });
                 if (blockedRuntimePlan.shouldCloseRustFrameSource) {
                   await exportFrameSourcePlan.frameSource.close?.();
+                }
+                if (blockedRuntimePlan.shouldFailOnRustFrameSourceBlocked) {
+                  throw error;
                 }
                 console.warn('[Export] Rust/shared renderer frame source blocked; falling back to legacy canvas capture.', error);
               }

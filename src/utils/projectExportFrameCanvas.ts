@@ -4,6 +4,14 @@ export type ProjectExportFrameCanvasSource =
   | 'explicitExportCanvas'
   | 'pixiCanvas';
 
+export type ProjectExportRustFrameSourcePolicy =
+  | 'allowLegacyCanvas'
+  | 'requireRustFrameSource';
+
+export type ProjectExportRustFrameSourceBlockedFallback =
+  | 'legacyCanvas'
+  | 'failExport';
+
 export interface ProjectExportRustFrameRequest {
   frameIndex: number;
   timestampUs: number;
@@ -50,6 +58,7 @@ export type ProjectExportFrameSourcePlanResult =
       requiresLegacyBrowserVideoProviders: false;
       requiresHtmlVideoElementSeekFallback: false;
       usesExportFrameOverrides: false;
+      rustFrameSourceBlockedFallback: ProjectExportRustFrameSourceBlockedFallback;
     }
   | {
       ok: true;
@@ -63,12 +72,13 @@ export type ProjectExportFrameSourcePlanResult =
     }
   | {
       ok: false;
-      reason: 'exportFrameSourceUnavailable';
+      reason: 'exportFrameSourceUnavailable' | 'rustFrameSourceRequired';
       detail: string;
     };
 
 export type ProjectExportRuntimeFrameSource =
   | 'sharedRendererRustFrameSource'
+  | 'sharedRendererRustFrameSourceBlocked'
   | 'legacyCanvasAfterRustBlocked'
   | ProjectExportFrameCanvasSource;
 
@@ -79,10 +89,13 @@ export interface ProjectExportFrameRuntimePlan {
   usesExportFrameOverrides: boolean;
   requiresHtmlVideoElementSeekFallback: boolean;
   shouldCloseRustFrameSource: boolean;
+  shouldFailOnRustFrameSourceBlocked: boolean;
 }
 
 export interface BuildProjectExportFrameSourcePlanInput extends ResolveProjectExportFrameCanvasInput {
   rustFrameSource?: ProjectExportRustFrameSource | null;
+  rustFrameSourcePolicy?: ProjectExportRustFrameSourcePolicy;
+  rustFrameSourceBlockedFallback?: ProjectExportRustFrameSourceBlockedFallback;
 }
 
 export interface ResolveProjectExportFrameRuntimePlanInput {
@@ -120,6 +133,8 @@ export const resolveProjectExportFrameCanvas = ({
 
 export const buildProjectExportFrameSourcePlan = ({
   rustFrameSource = null,
+  rustFrameSourcePolicy = 'allowLegacyCanvas',
+  rustFrameSourceBlockedFallback = 'legacyCanvas',
   getExportCanvas,
   pixiCanvas = null,
 }: BuildProjectExportFrameSourcePlanInput): ProjectExportFrameSourcePlanResult => {
@@ -133,6 +148,15 @@ export const buildProjectExportFrameSourcePlan = ({
       requiresLegacyBrowserVideoProviders: false,
       requiresHtmlVideoElementSeekFallback: false,
       usesExportFrameOverrides: false,
+      rustFrameSourceBlockedFallback,
+    };
+  }
+
+  if (rustFrameSourcePolicy === 'requireRustFrameSource') {
+    return {
+      ok: false,
+      reason: 'rustFrameSourceRequired',
+      detail: 'Rust-only export requires a shared renderer Rust frame source.',
     };
   }
 
@@ -173,6 +197,19 @@ export const resolveProjectExportFrameRuntimePlan = ({
         usesExportFrameOverrides: false,
         requiresHtmlVideoElementSeekFallback: false,
         shouldCloseRustFrameSource: false,
+        shouldFailOnRustFrameSourceBlocked: false,
+      };
+    }
+
+    if (frameSourcePlan.rustFrameSourceBlockedFallback === 'failExport') {
+      return {
+        source: 'sharedRendererRustFrameSourceBlocked',
+        captureCanvas: false,
+        requiresRenderScene: false,
+        usesExportFrameOverrides: false,
+        requiresHtmlVideoElementSeekFallback: false,
+        shouldCloseRustFrameSource: true,
+        shouldFailOnRustFrameSourceBlocked: true,
       };
     }
 
@@ -183,6 +220,7 @@ export const resolveProjectExportFrameRuntimePlan = ({
       usesExportFrameOverrides: false,
       requiresHtmlVideoElementSeekFallback: true,
       shouldCloseRustFrameSource: true,
+      shouldFailOnRustFrameSourceBlocked: false,
     };
   }
 
@@ -193,5 +231,6 @@ export const resolveProjectExportFrameRuntimePlan = ({
     usesExportFrameOverrides: frameSourcePlan.usesExportFrameOverrides,
     requiresHtmlVideoElementSeekFallback: frameSourcePlan.requiresHtmlVideoElementSeekFallback,
     shouldCloseRustFrameSource: false,
+    shouldFailOnRustFrameSourceBlocked: false,
   };
 };
