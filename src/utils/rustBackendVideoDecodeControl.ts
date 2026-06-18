@@ -97,7 +97,7 @@ export interface RustBackendVideoDecodeBridge {
   ) => Promise<RustBackendResult>;
   requestVideoDecodeFrame: (
     payload: RustBackendVideoDecodeFramePayload
-  ) => Promise<RustBackendResult<RustBackendVideoDecodeFrameResult>>;
+  ) => Promise<RustBackendResult<unknown>>;
   stopVideoDecode: (
     payload: RustBackendVideoDecodeStopPayload
   ) => Promise<RustBackendResult>;
@@ -115,7 +115,7 @@ export const startRustBackendVideoDecode = (
 export const requestRustBackendVideoDecodeFrame = (
   payload: RustBackendVideoDecodeFramePayload,
   bridge: RustBackendVideoDecodeBridge = window.rustBackend
-): Promise<RustBackendResult<RustBackendVideoDecodeFrameResult>> =>
+): Promise<RustBackendResult<unknown>> =>
   bridge.requestVideoDecodeFrame(payload);
 
 export const stopRustBackendVideoDecode = (

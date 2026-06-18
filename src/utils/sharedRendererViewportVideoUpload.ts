@@ -90,6 +90,7 @@ export type PrepareSharedRendererViewportVideoUploadsResult =
         | 'surfaceGateUnavailable'
         | 'decodeRequestUnavailable'
         | 'noVideoDecodeRequest'
+        | 'stopFailed'
         | 'startFailed'
         | 'frameDecodeFailed'
         | 'staleDecodeResponse'
@@ -168,15 +169,21 @@ export const prepareSharedRendererViewportVideoUploads = async ({
   }
 
   for (const { request, nextJob } of requestedJobs) {
-    const resolvedJob = visibleActiveJobs.find((job) => sameDecodeJob(job, nextJob))
-      ?? await startDecodeJob(nextJob, request, rustBackendBridge);
-    if ('ok' in resolvedJob && resolvedJob.ok === false) {
-      return {
-        ok: false,
-        reason: 'startFailed',
-        detail: resolvedJob.detail,
-        activeJobs: resolvedActiveJobs,
-      };
+    const activeMatch = visibleActiveJobs.find((job) => sameDecodeJob(job, nextJob));
+    let resolvedJob: SharedRendererViewportVideoDecodeJob;
+    if (activeMatch) {
+      resolvedJob = activeMatch;
+    } else {
+      const startResult = await startDecodeJob(nextJob, request, rustBackendBridge);
+      if (isDecodeJobStartFailure(startResult)) {
+        return {
+          ok: false,
+          reason: 'startFailed',
+          detail: startResult.detail,
+          activeJobs: resolvedActiveJobs,
+        };
+      }
+      resolvedJob = startResult;
     }
 
     resolvedActiveJobs.push(resolvedJob);
@@ -282,7 +289,7 @@ export const prepareSharedRendererViewportVideoUpload = async ({
   const resolvedJob = sameDecodeJob(activeJob, nextJob)
     ? activeJob
     : await replaceDecodeJob(activeJob, nextJob, request, rustBackendBridge);
-  if ('ok' in resolvedJob && resolvedJob.ok === false) {
+  if (isDecodeJobStartFailure(resolvedJob)) {
     return {
       ok: false,
       reason: 'startFailed',
@@ -397,6 +404,11 @@ const startDecodeJob = async (
 
   return job;
 };
+
+const isDecodeJobStartFailure = (
+  value: SharedRendererViewportVideoDecodeJob | { ok: false; detail: string }
+): value is { ok: false; detail: string } =>
+  'ok' in value && value.ok === false;
 
 const buildViewportVideoDecodeJob = (
   request: SharedRendererVideoFrameDecodeRequest,

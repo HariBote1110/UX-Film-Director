@@ -75,6 +75,7 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
         calls.push(['releaseVideoDecodeFrame', payload]);
         return { success: true, result: { released: true } };
       },
+      stopVideoDecode: async () => ({ success: true }),
     };
 
     const upload = await prepareSharedRendererRustDecodedVideoUpload({
@@ -131,6 +132,7 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
         startVideoDecode: async () => ({ success: true }),
         requestVideoDecodeFrame: async () => ({ success: true }),
         releaseVideoDecodeFrame: async () => ({ success: true }),
+        stopVideoDecode: async () => ({ success: true }),
       },
     });
 

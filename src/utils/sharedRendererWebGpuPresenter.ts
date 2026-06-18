@@ -45,7 +45,7 @@ export interface SharedRendererWebGpuDeviceLike {
   };
   createShaderModule?: (descriptor: { code: string }) => unknown;
   createRenderPipeline?: (descriptor: unknown) => unknown;
-  createBuffer?: (descriptor: { size: number; usage: number }) => unknown;
+  createBuffer?: (descriptor: { label?: string; size: number; usage: number }) => unknown;
   createTexture?: (descriptor: SharedRendererVideoTextureDescriptor) => unknown;
   createSampler?: (descriptor: SharedRendererVideoSamplerDescriptor) => unknown;
   createBindGroup?: (descriptor: SharedRendererVideoBindGroupDescriptor) => unknown;
@@ -622,6 +622,7 @@ export const createSharedRendererWebGpuPresenter = async ({
       });
     }
 
+    const createBindGroup = device.createBindGroup;
     const drawablePlanes: Array<{
       index: number;
       textureView: unknown;
@@ -666,7 +667,7 @@ export const createSharedRendererWebGpuPresenter = async ({
       minFilter: 'linear',
       mipmapFilter: 'nearest',
     });
-    const bindGroups = drawablePlanes.map((plane) => device.createBindGroup({
+    const bindGroups = drawablePlanes.map((plane) => createBindGroup({
       layout: pipelineBindGroupLayout(videoFramePipeline, 0),
       entries: [
         { binding: 0, resource: sampler },

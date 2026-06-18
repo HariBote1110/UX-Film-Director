@@ -3,7 +3,6 @@ import {
   releaseRustBackendVideoDecodeFrame,
   type RustBackendResult,
   type RustBackendVideoDecodeBridge,
-  type RustBackendVideoDecodeFrameResult,
 } from './rustBackendVideoDecodeControl';
 import {
   prepareSharedRendererDecodedVideoFrameUpload,
@@ -12,7 +11,7 @@ import {
 } from './sharedVideoFrameUploadBridge';
 
 export interface PrepareSharedRendererRustDecodedVideoUploadInput {
-  decodeResponse: RustBackendResult<RustBackendVideoDecodeFrameResult>;
+  decodeResponse: RustBackendResult<unknown>;
   slotCount: number;
   copyBridge: SharedVideoFrameCopyBridge;
   rustBackendBridge: RustBackendVideoDecodeBridge;

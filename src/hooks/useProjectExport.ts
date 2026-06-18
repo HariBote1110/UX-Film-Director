@@ -8,6 +8,7 @@ import { encodeVideoToMp4 } from '../utils/videoExportPipeline';
 import { VideoFrameProvider } from '../utils/videoFrameProvider';
 import { PlaybackFrameProvider } from '../utils/playbackFrameProvider';
 import type { FrameProvider } from '../utils/frameProvider';
+import { resolveProjectExportFrameCanvas } from '../utils/projectExportFrameCanvas';
 
 const { ipcRenderer } = window;
 
@@ -34,8 +35,15 @@ export const useProjectExport = (
     const isCancelled = () => cancelled || useStore.getState().exportCancelRequested;
 
     const runExport = async () => {
-      const app = pixiAppRef.current;
-      if (!app) return;
+      const initialFrameCanvas = resolveProjectExportFrameCanvas({
+        getExportCanvas,
+        pixiCanvas: pixiAppRef.current?.canvas as HTMLCanvasElement | null | undefined,
+      });
+      if (!initialFrameCanvas.ok) {
+        alert(`エクスポート失敗: ${initialFrameCanvas.detail}`);
+        setExporting(false);
+        return;
+      }
 
       // フレームプロバイダ（VideoDecoder or 再生方式）のクリーンアップ用リスト
       const providers = new Map<string, FrameProvider>();
@@ -187,7 +195,12 @@ export const useProjectExport = (
             }
 
             renderScene(t, exportObjects);
-            const canvas = getExportCanvas?.() ?? app!.canvas;
+            const frameCanvas = resolveProjectExportFrameCanvas({
+              getExportCanvas,
+              pixiCanvas: pixiAppRef.current?.canvas as HTMLCanvasElement | null | undefined,
+            });
+            if (!frameCanvas.ok) throw new Error(frameCanvas.detail);
+            const canvas = frameCanvas.canvas;
             const bitmap = await createImageBitmap(canvas, 0, 0, encWidth, encHeight);
             yield { timestamp: Math.round(i * 1_000_000 / fps), bitmap };
             bitmap.close();
