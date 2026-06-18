@@ -363,6 +363,12 @@ control planeにはframe bytes / base64 / pixel arrayを載せず、`memoryId` /
 次段では `useProjectExport` の `rustBackendVideoEncoder` 分岐をこのwriterへ接続し、shared renderer export sourceから
 Rust rawvideo encoderへ実フレームを流す。
 
+72. Phase5: Rust encode export runner を追加する
+`runRustBackendVideoEncodeExport` を追加し、rendered bitmap streamをRGBA readbackしてwritable shared frame writerへ渡し、
+Rust backend encoderの `startVideoEncode` / `writeVideoEncodeFrame` / `finishVideoEncode` を順に呼ぶ。
+この段階では映像frameのRust rawvideo encode orchestrationを固定し、音声muxはまだRust backend encode payloadへ接続しない。
+次段では `useProjectExport` のRust encoder分岐からこのrunnerを呼び、WebCodecs/mp4-muxer stream writerを迂回する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

@@ -1,3 +1,19 @@
+## 2026-06-18 — Phase5: Rust encode export runner を追加
+
+### 実施内容
+- `src/utils/rustBackendVideoEncodeExport.test.ts` を追加し、rendered `ImageBitmap` streamをRust backend encoderへ流すorchestration契約をRedで固定した。
+- `src/utils/rustBackendVideoEncodeExport.ts` を追加し、`startVideoEncode` → writable shared frame ring作成 → frameごとのRGBA readback/write → `writeVideoEncodeFrame` → ring close → `finishVideoEncode` の順で実行するrunnerを実装した。
+- frame dataはshared memory ringへだけ書き、encoder IPC payloadには `RustBackendVideoEncodeWriteFramePayload` のdescriptor metadataのみを載せる。
+- package version を `0.1.1-Beta-61a` に更新した。
+
+### 検証
+- `npm test -- src/utils/rustBackendVideoEncodeExport.test.ts src/utils/rustBackendVideoEncodeSharedFrameWriter.test.ts src/utils/rustBackendVideoEncodeControl.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "rustBackendVideoEncodeExport|rustBackendVideoEncodeSharedFrameWriter|rustBackendVideoEncodeControl"`（対象ファイルの型エラーなし）
+
+### 残課題・次のステップ
+- まだ `useProjectExport` のRust encoder分岐はこのrunnerを呼んでいない。次段でalertを外し、Rust-only export時にshared renderer frame sourceからRust encoderへ映像を書き出す。
+- Rust backend encoderのaudio mux入口は未実装。映像Rust化を先に接続し、その後 `encode.start` payloadへaudio inputを追加して音声もRust側へ移す。
+
 ## 2026-06-18 — Phase5: Rust encoder shared frame writer を追加
 
 ### 実施内容
