@@ -15,7 +15,7 @@ import { evaluateObjectPositionAtTime } from '../utils/keyframes';
 import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier, getPrimaryWipeFilter } from '../utils/filterStack';
 import { useTranslation } from '../i18n';
 import { computePreviewDisplayScale } from '../utils/previewDisplayScale';
-import { destroyExportOverlayCanvases } from '../utils/videoElementForPixi';
+import { destroyExportOverlayCanvases } from '../utils/exportOverlayCanvases';
 import { visionNormBoundingBoxToVideoLocalRect } from '../utils/visionTrackingGeometry';
 import type { ResizeCorner } from '../utils/transformGeometry';
 import {
