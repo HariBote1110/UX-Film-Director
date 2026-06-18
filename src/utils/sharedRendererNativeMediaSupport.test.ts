@@ -3,6 +3,7 @@ import {
   canRenderSharedRendererNativeMediaOnlyFrame,
   isSharedRendererNativeImageSourceSupported,
   isSharedRendererNativeMediaReferenceSupported,
+  isSharedRendererNativePsdSourceSupported,
 } from './sharedRendererNativeMediaSupport';
 import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
 
@@ -57,6 +58,18 @@ const media: RustSceneMediaReference[] = [{
   width: 4,
   height: 4,
 }, {
+  id: 'psd-1',
+  kind: 'Psd',
+  source: '/tmp/standing.psd',
+  width: 4,
+  height: 4,
+}, {
+  id: 'remote-psd-1',
+  kind: 'Psd',
+  source: 'https://example.com/standing.psd',
+  width: 4,
+  height: 4,
+}, {
   id: 'video-1',
   kind: 'Video',
   source: '/tmp/video.mp4',
@@ -75,12 +88,23 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeImageSourceSupported('data:image/png;base64,abcd')).toBe(false);
   });
 
+  it('accepts only local PSD paths and file URLs for native Rust loading', () => {
+    expect(isSharedRendererNativePsdSourceSupported('/tmp/standing.psd')).toBe(true);
+    expect(isSharedRendererNativePsdSourceSupported('file:///tmp/standing%20pose.PSD')).toBe(true);
+    expect(isSharedRendererNativePsdSourceSupported('file:///tmp/standing.psd?cache=12#frame')).toBe(true);
+    expect(isSharedRendererNativePsdSourceSupported('https://example.com/standing.psd')).toBe(false);
+    expect(isSharedRendererNativePsdSourceSupported('blob:file:///tmp/standing.psd')).toBe(false);
+    expect(isSharedRendererNativePsdSourceSupported('/tmp/standing.png')).toBe(false);
+  });
+
   it('matches the Rust backend native media source support contract', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[0])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[1])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[2])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[3])).toBe(false);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[4])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[4])).toBe(true);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[5])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[6])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {
@@ -93,7 +117,15 @@ describe('sharedRendererNativeMediaSupport', () => {
       media,
     })).toBe(true);
     expect(canRenderSharedRendererNativeMediaOnlyFrame({
+      snapshot: snapshotWithMedia('solid-1', 'psd-1'),
+      media,
+    })).toBe(true);
+    expect(canRenderSharedRendererNativeMediaOnlyFrame({
       snapshot: snapshotWithMedia('solid-1', 'webp-1'),
+      media,
+    })).toBe(false);
+    expect(canRenderSharedRendererNativeMediaOnlyFrame({
+      snapshot: snapshotWithMedia('solid-1', 'remote-psd-1'),
       media,
     })).toBe(false);
     expect(canRenderSharedRendererNativeMediaOnlyFrame({

@@ -121,6 +121,21 @@ describe('buildSharedRendererVideoCutoverStackSafety', () => {
     });
   });
 
+  it('keeps video cutover when a local PSD plane is above the video plane', () => {
+    expect(buildSharedRendererVideoCutoverStackSafety({
+      snapshot,
+      media: media.map((reference) => (
+        reference.id === 'image-front'
+          ? { ...reference, kind: 'Psd', source: '/tmp/standing.psd' }
+          : reference
+      )),
+      candidateVideoObjectIds: ['video-back'],
+    })).toEqual({
+      safeVideoObjectIds: ['video-back'],
+      blockedVideoObjectIds: [],
+    });
+  });
+
   it('keeps video cutover when only shared-renderer-supported planes are above it', () => {
     expect(buildSharedRendererVideoCutoverStackSafety({
       snapshot: {

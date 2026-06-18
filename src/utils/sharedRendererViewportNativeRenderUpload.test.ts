@@ -100,6 +100,48 @@ const mediaOnlySession: SharedRendererPreviewSession = {
   presentationContract: buildSharedRendererPresentationContract(),
 };
 
+const psdOnlySession: SharedRendererPreviewSession = {
+  ...mediaOnlySession,
+  plan: {
+    ...mediaOnlySession.plan,
+    snapshot: {
+      ...mediaOnlySession.plan.snapshot,
+      clips: mediaOnlySession.plan.snapshot.clips.map((clip) => ({
+        ...clip,
+        clip_id: 'psd-1',
+        media_id: 'psd-1',
+      })),
+    },
+    media: [{
+      id: 'psd-1',
+      kind: 'Psd',
+      source: '/tmp/standing.psd',
+      width: 4,
+      height: 4,
+    }],
+  },
+  surfaceGate: mediaOnlySession.surfaceGate.ok
+    ? {
+      ...mediaOnlySession.surfaceGate,
+      snapshot: {
+        ...mediaOnlySession.surfaceGate.snapshot,
+        clips: mediaOnlySession.surfaceGate.snapshot.clips.map((clip) => ({
+          ...clip,
+          clip_id: 'psd-1',
+          media_id: 'psd-1',
+        })),
+      },
+      media: [{
+        id: 'psd-1',
+        kind: 'Psd',
+        source: '/tmp/standing.psd',
+        width: 4,
+        height: 4,
+      }],
+    }
+    : mediaOnlySession.surfaceGate,
+};
+
 const renderResult: RustBackendNativeRenderSharedFrameResult = {
   rendered: true,
   renderId: 'preview-native-render-24',
@@ -191,6 +233,59 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
       }],
       ['releaseNativeSharedFrame', {
         memoryId: descriptor.memoryId,
+      }],
+    ]);
+  });
+
+  it('allows a PSD-only scene to use Rust native render media sources instead of Pixi fallback', async () => {
+    const calls: unknown[] = [];
+
+    const result = await prepareSharedRendererViewportNativeRenderUpload({
+      session: psdOnlySession,
+      requestId: 24,
+      activeJobs: [],
+      prepareNativeRenderSources: async () => ({
+        ok: false,
+        reason: 'noVideoDecodeRequest',
+        detail: 'no video',
+        activeJobs: [],
+      }),
+      renderNativeSharedFrame: async (payload) => {
+        calls.push(['renderNativeSharedFrame', payload]);
+        return {
+          success: true,
+          result: renderResult,
+        };
+      },
+      releaseNativeSharedFrame: async () => ({ success: true }),
+      copyBridge: {
+        copyIntoUploadBuffer: async () => ({
+          success: true,
+          result: {
+            sequence: 24,
+            byteLen: descriptor.byteLen,
+            expectedChecksum: 0x1234,
+            actualChecksum: 0x1234,
+          },
+        }),
+      },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      activeJobs: [],
+    });
+    expect(calls).toEqual([
+      ['renderNativeSharedFrame', {
+        renderId: 'preview-native-render-24',
+        memoryId: '/uxfd-preview-native-render-24',
+        slotCount: 1,
+        ptsFrame: 24,
+        width: 4,
+        height: 4,
+        snapshot: psdOnlySession.surfaceGate.ok ? psdOnlySession.surfaceGate.snapshot : null,
+        media: psdOnlySession.surfaceGate.ok ? psdOnlySession.surfaceGate.media : null,
+        sources: [],
       }],
     ]);
   });
