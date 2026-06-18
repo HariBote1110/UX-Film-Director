@@ -1,3 +1,6 @@
+import { isRustBackendVideoEncodeBridgeAvailable } from './rustBackendVideoEncodeControl';
+import type { RustBackendVideoEncodeBridge } from './rustBackendVideoEncodeControl';
+
 export type ProjectExportEncodeEngine =
   | 'webCodecsMp4Muxer'
   | 'rustBackendVideoEncoder';
@@ -16,6 +19,11 @@ export type ProjectExportEncodePlan =
 export interface ResolveProjectExportEncodePlanInput {
   rustExportOnly: boolean;
   rustEncoderAvailable: boolean;
+}
+
+export interface ResolveProjectExportEncodePlanFromBridgeInput {
+  rustExportOnly: boolean;
+  rustVideoEncoderBridge?: Partial<RustBackendVideoEncodeBridge> | null;
 }
 
 export const resolveProjectExportEncodePlan = ({
@@ -42,3 +50,12 @@ export const resolveProjectExportEncodePlan = ({
     engine: 'rustBackendVideoEncoder',
   };
 };
+
+export const resolveProjectExportEncodePlanFromBridge = ({
+  rustExportOnly,
+  rustVideoEncoderBridge,
+}: ResolveProjectExportEncodePlanFromBridgeInput): ProjectExportEncodePlan =>
+  resolveProjectExportEncodePlan({
+    rustExportOnly,
+    rustEncoderAvailable: isRustBackendVideoEncodeBridgeAvailable(rustVideoEncoderBridge),
+  });

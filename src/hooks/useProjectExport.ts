@@ -5,7 +5,7 @@ import { TimelineObject, VideoObject } from '../types';
 import { shallow } from 'zustand/shallow';
 import { buildExportAudioBuffer } from '../utils/audioMixdown';
 import { encodeVideoToMp4 } from '../utils/videoExportPipeline';
-import { resolveProjectExportEncodePlan } from '../utils/projectExportEncodePlan';
+import { resolveProjectExportEncodePlanFromBridge } from '../utils/projectExportEncodePlan';
 import { VideoFrameProvider } from '../utils/videoFrameProvider';
 import { PlaybackFrameProvider } from '../utils/playbackFrameProvider';
 import type { FrameProvider } from '../utils/frameProvider';
@@ -63,9 +63,9 @@ export const useProjectExport = (
         return;
       }
       const exportFrameSourcePlan = initialFrameSourcePlan;
-      const exportEncodePlan = resolveProjectExportEncodePlan({
+      const exportEncodePlan = resolveProjectExportEncodePlanFromBridge({
         rustExportOnly,
-        rustEncoderAvailable: false,
+        rustVideoEncoderBridge: window.rustVideoEncoder,
       });
       if (!exportEncodePlan.ok) {
         alert(`エクスポート失敗: ${exportEncodePlan.detail}`);

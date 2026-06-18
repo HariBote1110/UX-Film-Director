@@ -56,6 +56,50 @@ interface Window {
       copyOutState: 'gpuUploadFenceSignalled' | 'rendererUploadAborted';
     }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
   };
+  rustVideoEncoder: {
+    startVideoEncode: (payload: {
+      sessionId: string;
+      filePath: string;
+      width: number;
+      height: number;
+      fps: number;
+      pixelFormat: 'rgba8Srgb';
+      colour: {
+        primaries: 'bt709';
+        transfer: 'srgb';
+        matrix: 'rgb';
+        range: 'full';
+      };
+    }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
+    writeVideoEncodeFrame: (payload: {
+      sessionId: string;
+      frameIndex: number;
+      timestampUs: number;
+      frame: {
+        descriptor: {
+          memoryId: string;
+          slotIndex: number;
+          generation: number;
+          byteOffset: number;
+          byteLen: number;
+          width: number;
+          height: number;
+          strideBytes: number;
+          format: 'rgba8Srgb';
+          colour: {
+            primaries: 'bt709';
+            transfer: 'srgb';
+            matrix: 'rgb';
+            range: 'full';
+          };
+        };
+        ptsFrame: number;
+      };
+    }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
+    finishVideoEncode: (payload: {
+      sessionId: string;
+    }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
+  };
   sharedVideoFrame: {
     copyIntoUploadBuffer: (
       payload: {
