@@ -38,6 +38,7 @@ import {
 } from '../utils/sharedRendererViewportPresenterOrchestration';
 import type { SharedRendererViewportVideoDecodeJob } from '../utils/sharedRendererViewportVideoUpload';
 import { buildViewportRustExportFrameSource } from '../utils/viewportRustExportFrameSource';
+import { shouldMountSharedRendererSurfaceCanvas } from '../utils/sharedRendererSurfaceMount';
 
 const GROUP_GRADIENT_COMPONENT_PREFIX = 'group-gradient-component-';
 const RESIZE_HANDLE_PREFIX = 'resize-handle-';
@@ -272,6 +273,10 @@ const Viewport: React.FC = () => {
   const displayScaleRef = useRef(displayScale);
   displayScaleRef.current = displayScale;
   const sharedRendererCssReferenceColour = getSharedRendererSolidSwatchCssColour();
+  const shouldMountSharedRendererSurface = shouldMountSharedRendererSurfaceCanvas({
+    previewEnabled: sharedRendererPreviewEnabled,
+    exportEnabled: sharedRendererExportEnabled,
+  });
 
   useEffect(() => {
     if (!sharedRendererPreviewEnabled && !sharedRendererExportEnabled) return;
@@ -1323,7 +1328,7 @@ const Viewport: React.FC = () => {
               pointerEvents: editorMode === '3d_stage' ? 'none' : 'auto',
             }}
           />
-          {sharedRendererPreviewEnabled && (
+          {shouldMountSharedRendererSurface && (
             <>
               <canvas
                 ref={sharedRendererSurfaceCanvasRef}
@@ -1337,7 +1342,7 @@ const Viewport: React.FC = () => {
                   width: '100%',
                   height: '100%',
                   pointerEvents: 'none',
-                  visibility: editorMode === '2d' ? 'visible' : 'hidden',
+                  visibility: editorMode === '2d' && sharedRendererPreviewEnabled ? 'visible' : 'hidden',
                 }}
               />
               {sharedRendererDiagnosticSwatchEnabled && (
