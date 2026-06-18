@@ -5,7 +5,7 @@ import {
   SHARED_RENDERER_SOLID_SWATCH,
   startSharedRendererPreviewPresenter,
 } from './sharedRendererPreviewPresenterController';
-import type { RustSceneSnapshot } from './rustSceneSnapshot';
+import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
 import type { SharedRendererPreviewSession } from './sharedRendererPreviewSession';
 import type { RustBackendVideoFrameDescriptor } from './rustBackendVideoDecodeControl';
 import type {
@@ -119,35 +119,29 @@ const videoSnapshot: RustSceneSnapshot = {
   ],
 };
 
+const videoMedia: RustSceneMediaReference[] = [
+  {
+    id: 'video-1',
+    kind: 'Video',
+    source: '/tmp/video.mp4',
+    width: 1280,
+    height: 720,
+  },
+];
+
 const videoSession: SharedRendererPreviewSession = {
   plan: {
     mode: 'parallelCompare',
     primary: 'pixi',
     candidate: 'sharedRenderer',
     snapshot: videoSnapshot,
-    media: [
-      {
-        id: 'video-1',
-        kind: 'Video',
-        source: '/tmp/video.mp4',
-        width: 1280,
-        height: 720,
-      },
-    ],
+    media: videoMedia,
   },
   surfaceGate: {
     ok: true,
     canvas: { width: 1920, height: 1080 },
     snapshot: videoSnapshot,
-    media: [
-      {
-        id: 'video-1',
-        kind: 'Video',
-        source: '/tmp/video.mp4',
-        width: 1280,
-        height: 720,
-      },
-    ],
+    media: videoMedia,
   },
   presentationContract: buildSharedRendererPresentationContract(),
 };
@@ -176,36 +170,32 @@ const multiVideoSnapshot: RustSceneSnapshot = {
   ],
 };
 
+const multiVideoMedia: RustSceneMediaReference[] = [
+  ...videoMedia,
+  {
+    id: 'video-2',
+    kind: 'Video',
+    source: '/tmp/video-2.mp4',
+    width: 640,
+    height: 360,
+  },
+];
+
 const multiVideoSession: SharedRendererPreviewSession = {
-  ...videoSession,
   plan: {
-    ...videoSession.plan,
+    mode: 'parallelCompare',
+    primary: 'pixi',
+    candidate: 'sharedRenderer',
     snapshot: multiVideoSnapshot,
-    media: [
-      ...videoSession.plan.media,
-      {
-        id: 'video-2',
-        kind: 'Video',
-        source: '/tmp/video-2.mp4',
-        width: 640,
-        height: 360,
-      },
-    ],
+    media: multiVideoMedia,
   },
   surfaceGate: {
-    ...videoSession.surfaceGate,
+    ok: true,
+    canvas: { width: 1920, height: 1080 },
     snapshot: multiVideoSnapshot,
-    media: [
-      ...videoSession.surfaceGate.media,
-      {
-        id: 'video-2',
-        kind: 'Video',
-        source: '/tmp/video-2.mp4',
-        width: 640,
-        height: 360,
-      },
-    ],
+    media: multiVideoMedia,
   },
+  presentationContract: buildSharedRendererPresentationContract(),
 };
 
 const decodedVideoDescriptor: RustBackendVideoFrameDescriptor = {
