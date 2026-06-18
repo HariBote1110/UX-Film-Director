@@ -2,6 +2,7 @@ import type {
   RustSceneMediaReference,
   RustSceneSnapshot,
 } from './rustSceneSnapshot';
+import { isSharedRendererNativeMediaReferenceSupported } from './sharedRendererNativeMediaSupport';
 
 export interface SharedRendererVideoCutoverStackBlock {
   videoObjectId: string;
@@ -41,8 +42,7 @@ export const buildSharedRendererVideoCutoverStackSafety = ({
       .sort((left, right) => left.z_index - right.z_index)
       .find((clip) => !isSharedRendererOwnedAboveVideo({
         clipId: clip.clip_id,
-        mediaKind: mediaById.get(clip.media_id)?.kind,
-        mediaSource: mediaById.get(clip.media_id)?.source,
+        media: mediaById.get(clip.media_id),
         candidateVideoObjectIds: candidateSet,
       }));
 
@@ -66,21 +66,15 @@ export const buildSharedRendererVideoCutoverStackSafety = ({
 };
 
 const isSharedRendererOwnedAboveVideo = ({
-  mediaKind,
-  mediaSource,
+  media,
   clipId,
   candidateVideoObjectIds,
 }: {
-  mediaKind: RustSceneMediaReference['kind'] | undefined;
-  mediaSource: string | undefined;
+  media: RustSceneMediaReference | undefined;
   clipId: string;
   candidateVideoObjectIds: ReadonlySet<string>;
 }): boolean => {
-  if (mediaKind === 'SolidColour') return true;
-  if (mediaKind === 'Image') return isRustNativeImageSourceSupported(mediaSource);
-  if (mediaKind === 'Video') return candidateVideoObjectIds.has(clipId);
-  return false;
+  if (!media) return false;
+  if (media.kind === 'Video') return candidateVideoObjectIds.has(clipId);
+  return isSharedRendererNativeMediaReferenceSupported(media);
 };
-
-const isRustNativeImageSourceSupported = (source: string | undefined): boolean =>
-  typeof source === 'string' && source.toLowerCase().endsWith('.png');

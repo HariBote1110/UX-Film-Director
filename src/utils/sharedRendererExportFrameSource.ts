@@ -33,7 +33,7 @@ import type { RustBackendResult } from './rustBackendVideoDecodeControl';
 import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
 import type { SharedRendererPreviewSurfaceBlockedReason } from './sharedRendererPreviewSurface';
 import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererWebGpuPresenter';
-import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
+import { canRenderSharedRendererNativeMediaOnlyFrame } from './sharedRendererNativeMediaSupport';
 
 type PresenterDataset = Record<string, string | undefined>;
 
@@ -285,7 +285,10 @@ export function createSharedRendererExportFrameSource({
         if (
           !nativeSharedFrameRendererAvailable
           || !surfaceGate.ok
-          || !canRenderNativeMediaOnlyFrame(surfaceGate.snapshot, surfaceGate.media)
+          || !canRenderSharedRendererNativeMediaOnlyFrame({
+            snapshot: surfaceGate.snapshot,
+            media: surfaceGate.media,
+          })
         ) {
           return null;
         }
@@ -516,24 +519,6 @@ const sanitiseNativeRenderPart = (value: string): string => {
 
   return sanitised || 'session';
 };
-
-const canRenderNativeMediaOnlyFrame = (
-  snapshot: RustSceneSnapshot,
-  media: readonly RustSceneMediaReference[]
-): boolean => {
-  if (snapshot.clips.length === 0) return false;
-  const mediaById = new Map(media.map((reference) => [reference.id, reference]));
-  return snapshot.clips.every((clip) => {
-    const reference = mediaById.get(clip.media_id);
-    if (!reference) return false;
-    if (reference.kind === 'SolidColour') return true;
-    if (reference.kind === 'Image') return isNativePngImageSource(reference.source);
-    return false;
-  });
-};
-
-const isNativePngImageSource = (source: string): boolean =>
-  source.toLowerCase().endsWith('.png');
 
 const resolveExportVideoUploadBlock = (
   presenterResult: StartSharedRendererViewportPresenterResult
