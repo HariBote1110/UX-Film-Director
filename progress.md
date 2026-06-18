@@ -1,3 +1,20 @@
+## 2026-06-18 — Phase5: Rust video必須時は export中も Pixi video fallback を禁止
+
+### 実施内容
+- `src/utils/pixiVideoCutover.test.ts` に、`requireSharedRendererVideo=true` の場合はexport中でもPixi video fallbackをskipする契約を追加した。
+- `shouldSkipPixiVideoForSharedRenderer` のexport中ガードを整理し、Rust video必須時だけ `isExporting` に関係なくPixi videoを外すようにした。
+- shared renderer所有済みIDだけに基づく通常cutoverは、互換fallbackとしてexport中のPixi描画を引き続き許可する。
+- package version を `0.1.1-Beta-73a` に更新した。
+
+### 検証
+- `npm test -- src/utils/pixiVideoCutover.test.ts`
+- `npm test -- src/utils/pixiVideoCutover.test.ts src/utils/sharedRendererVideoOwnership.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/projectExportFrameCanvas.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "pixiVideoCutover|pixiRenderHelper|sharedRendererVideoOwnership|useProjectExport"`（対象ファイルの型エラーなし）
+
+### 残課題・次のステップ
+- 実機ElectronでRust video必須時のpreview/exportがPixi videoを生成・維持しないことを確認する。
+- 完全なPixi video撤去には、互換fallbackを残す条件とUI flagの整理がまだ必要。
+
 ## 2026-06-18 — Phase5: Rust encode runner 入力型を shared-frame 専用化
 
 ### 実施内容

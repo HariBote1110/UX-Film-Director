@@ -441,6 +441,11 @@ TypeScript上でも `ImageBitmap` frameを渡せないようにする。`useProj
 `renderRustEncodeFrames()` を通してshared-frame payloadだけをrunnerへ渡し、万一bitmap frameが混入した場合は
 即時fail-loudにする。
 
+84. Phase5: Rust video必須時は export中も Pixi video fallback を禁止する
+`requireSharedRendererVideo` が有効な経路では、previewだけでなくexport中も
+`shouldSkipPixiVideoForSharedRenderer` が動画clipをPixiから外す。shared renderer所有済みIDだけに基づく通常cutoverは
+互換性のためexport中は従来どおりPixi fallbackを残すが、Rust video必須モードではHTMLVideoElement / Pixi videoへ戻らない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
