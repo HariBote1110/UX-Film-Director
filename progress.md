@@ -3780,3 +3780,22 @@
 ### 残課題・次のステップ
 - Rust backend側でもHTTP/blob/dataなどのImage media sourceをdecode前に明示拒否するfail-loud契約を追加すると、TS判定との差分に強くなる。
 - preview側でnative render outputを実際に表示し、dispose時に `render.releaseNativeSharedFrame` を呼ぶ最小縦スライスへ進める。
+
+## 2026-06-18 — remote画像sourceをRust native render decode前に拒否
+
+### 実施内容
+- TS側のnative media support契約に `blob:` / `data:` sourceをRust対応外として固定するassertionを追加した。
+- Rust backendのImage media source正規化で、`https:` など `file:` 以外のURL schemeをPNG/JPEG decode前に明示拒否するようにした。
+- Windowsドライブ文字はURL schemeとして誤判定しないようにし、ローカルパスとfile URLの既存経路は維持した。
+- 版を `0.1.1-Beta-103b` に更新した。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml native_render_shared_frame_rejects_remote_image_media_source_before_decode`
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane native_render_shared_frame`
+- `npm test -- src/utils/sharedRendererNativeMediaSupport.test.ts`
+- `npm test -- src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/sharedRendererVideoCutoverStack.test.ts src/utils/sharedRendererExportFrameSource.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- 次はpreview側でnative render outputを生成・表示・releaseする最小縦スライスへ進む。
+- PSD/textは引き続きPixi側の大きな残り境界として扱う。
