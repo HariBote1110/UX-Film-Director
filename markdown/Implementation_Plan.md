@@ -716,6 +716,11 @@ PSD-only exportが動画decode requestなしで `render.nativeSharedFrame` へ�
 `uxfdRustExportFrameSourceFramePath=nativeRenderSharedFrame` を残す。これによりPSD-only exportが
 Pixi presenter / WebGPU readback / JS shared-frame writerへ戻っていないことをdatasetから確認できる。
 
+132. Phase5: export encode fallback経路を診断へ記録する
+native render直通に進めない場合でも、presenter shared-frame handoffなら `presentedSharedFrame`、
+WebGPU readback + JS shared-frame writerなら `webGpuReadbackSharedFrameWriter` を
+`uxfdRustExportFrameSourceFramePath` へ残す。これによりRust中心のexportがどの段階でfallbackしたかを実機datasetから追える。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

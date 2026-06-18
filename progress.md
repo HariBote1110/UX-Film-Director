@@ -4068,3 +4068,19 @@
 ### 残課題・次のステップ
 - video+PSD exportの積層sceneで、video decode shared frame source + PSD media sourceが同じnative renderへ入る契約を追加する。
 - 既存プロジェクトに保存済みの旧PSD layer idを新stable idへ移行する必要があるか確認する。
+
+## 2026-06-18 — export encode fallback経路を診断へ記録
+
+### 実施内容
+- presenter shared-frame handoffでencode payloadを返した場合、`uxfdRustExportFrameSourceFramePath=presentedSharedFrame` をdatasetへ残すようにした。
+- WebGPU readback結果をJS shared-frame writerへ渡した場合、`uxfdRustExportFrameSourceFramePath=webGpuReadbackSharedFrameWriter` をdatasetへ残すようにした。
+- native render直通 / presenter handoff / readback writerの3経路をdiagnosticsで区別できるようにした。
+- 版を `0.1.1-Beta-117a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- video+PSD exportの積層sceneで、video decode shared frame source + PSD media sourceが同じnative renderへ入る契約を追加する。
+- 既存プロジェクトに保存済みの旧PSD layer idを新stable idへ移行する必要があるか確認する。
