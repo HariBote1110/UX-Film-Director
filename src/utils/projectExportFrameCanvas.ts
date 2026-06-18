@@ -1,3 +1,5 @@
+import type { TimelineObject } from '../types';
+
 export type ProjectExportFrameCanvasSource =
   | 'explicitExportCanvas'
   | 'pixiCanvas';
@@ -8,7 +10,7 @@ export interface ProjectExportRustFrameRequest {
   time: number;
   width: number;
   height: number;
-  objects: readonly unknown[];
+  objects: readonly TimelineObject[];
 }
 
 export interface ProjectExportRustFrameSource {
