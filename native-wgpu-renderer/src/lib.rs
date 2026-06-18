@@ -5,6 +5,10 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 use uxfd_golden_harness::{RgbaFrame, RgbaFrameError};
 use uxfd_rust_core::{Effect, SamplingMode, SceneSnapshot, Transform};
+use uxfd_shared_memory_spike::PosixSharedRing;
+use uxfd_sidecar_protocol::{
+    rgba8_srgb_ring_layout, ColourMetadata, FrameRingLayoutBuildError, SharedFrame,
+};
 use wgpu::util::DeviceExt;
 
 const OUTPUT_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
@@ -34,6 +38,8 @@ pub enum NativeWgpuRenderError {
     UnsupportedTransform {
         clip_id: String,
     },
+    SharedFrameLayout(FrameRingLayoutBuildError),
+    SharedMemory(uxfd_shared_memory_spike::PosixShmError),
     BufferMap,
     InvalidFrame(RgbaFrameError),
 }
@@ -56,6 +62,15 @@ pub struct NativeWgpuFrameReport {
     pub timings: NativeWgpuFrameStageTimings,
 }
 
+#[derive(Debug)]
+pub struct NativeWgpuSharedFrameReport {
+    pub ring: PosixSharedRing,
+    pub slot_count: u32,
+    pub slot_byte_len: u64,
+    pub shared_frame: SharedFrame,
+    pub timings: NativeWgpuFrameStageTimings,
+}
+
 pub async fn render_native_wgpu_frame(
     snapshot: &SceneSnapshot,
     sources: &HashMap<String, RgbaFrame>,
@@ -65,6 +80,47 @@ pub async fn render_native_wgpu_frame(
     measure_native_wgpu_frame_stages(snapshot, sources, width, height)
         .await
         .map(|report| report.frame)
+}
+
+pub async fn render_native_wgpu_frame_to_shared_ring(
+    snapshot: &SceneSnapshot,
+    sources: &HashMap<String, RgbaFrame>,
+    width: u32,
+    height: u32,
+    memory_id: &str,
+    slot_count: u32,
+    pts_frame: u64,
+) -> Result<NativeWgpuSharedFrameReport, NativeWgpuRenderError> {
+    let report = measure_native_wgpu_frame_stages(snapshot, sources, width, height).await?;
+    let colour = ColourMetadata {
+        primaries: "bt709".to_string(),
+        transfer: "srgb".to_string(),
+        matrix: "rgb".to_string(),
+        range: "full".to_string(),
+    };
+    let layout = rgba8_srgb_ring_layout(memory_id, slot_count, width, height, colour)
+        .map_err(NativeWgpuRenderError::SharedFrameLayout)?;
+    let descriptor = layout.descriptor_for_slot(0).map_err(|error| {
+        NativeWgpuRenderError::SharedFrameLayout(FrameRingLayoutBuildError::Layout(error))
+    })?;
+    let padded = pad_rgba_frame_for_stride(&report.frame, descriptor.stride_bytes)?;
+    let slot_byte_len = usize::try_from(descriptor.byte_len)
+        .map_err(|_| NativeWgpuRenderError::InvalidFrame(RgbaFrameError::DimensionOverflow))?;
+    let ring = PosixSharedRing::create_with_slot_count(memory_id, slot_count, slot_byte_len)
+        .map_err(NativeWgpuRenderError::SharedMemory)?;
+    ring.write_frame(pts_frame, &padded)
+        .map_err(NativeWgpuRenderError::SharedMemory)?;
+
+    Ok(NativeWgpuSharedFrameReport {
+        ring,
+        slot_count,
+        slot_byte_len: descriptor.byte_len,
+        shared_frame: SharedFrame {
+            descriptor,
+            pts_frame,
+        },
+        timings: report.timings,
+    })
 }
 
 pub async fn measure_native_wgpu_frame_stages(
@@ -238,6 +294,45 @@ pub async fn measure_native_wgpu_frame_stages(
             total: total_start.elapsed(),
         },
     })
+}
+
+fn pad_rgba_frame_for_stride(
+    frame: &RgbaFrame,
+    stride_bytes: u32,
+) -> Result<Vec<u8>, NativeWgpuRenderError> {
+    let row_bytes = frame.width.checked_mul(SOURCE_BYTES_PER_PIXEL).ok_or(
+        NativeWgpuRenderError::InvalidFrame(RgbaFrameError::DimensionOverflow),
+    )?;
+    if stride_bytes < row_bytes {
+        return Err(NativeWgpuRenderError::InvalidFrame(
+            RgbaFrameError::InvalidByteLength {
+                expected: row_bytes as usize,
+                actual: stride_bytes as usize,
+            },
+        ));
+    }
+
+    let padded_len = u64::from(stride_bytes)
+        .checked_mul(u64::from(frame.height))
+        .ok_or(NativeWgpuRenderError::InvalidFrame(
+            RgbaFrameError::DimensionOverflow,
+        ))?;
+    let padded_len = usize::try_from(padded_len)
+        .map_err(|_| NativeWgpuRenderError::InvalidFrame(RgbaFrameError::DimensionOverflow))?;
+    let mut padded = vec![0; padded_len];
+    let row_bytes = row_bytes as usize;
+    let stride_bytes = stride_bytes as usize;
+
+    for row in 0..frame.height as usize {
+        let source_start = row * row_bytes;
+        let source_end = source_start + row_bytes;
+        let destination_start = row * stride_bytes;
+        let destination_end = destination_start + row_bytes;
+        padded[destination_start..destination_end]
+            .copy_from_slice(&frame.pixels[source_start..source_end]);
+    }
+
+    Ok(padded)
 }
 
 struct PreparedClip {

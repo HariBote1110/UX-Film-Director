@@ -32,25 +32,18 @@ fn native_wgpu_frame_can_be_written_to_shared_frame_ring() {
     )]);
     let memory_id = unique_shm_name();
 
-    let rendered = match pollster::block_on(render_native_wgpu_frame(
-        &snapshot, &sources, width, height,
-    )) {
-        Ok(frame) => frame,
-        Err(NativeWgpuRenderError::AdapterUnavailable) => {
-            eprintln!("skipping shared frame output test: no GPU adapter available");
-            return;
-        }
-        Err(error) => panic!("native wgpu render failed: {error:?}"),
-    };
+    let rendered =
+        match pollster::block_on(render_native_wgpu_frame(&snapshot, &sources, width, height)) {
+            Ok(frame) => frame,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                eprintln!("skipping shared frame output test: no GPU adapter available");
+                return;
+            }
+            Err(error) => panic!("native wgpu render failed: {error:?}"),
+        };
 
     let output = match pollster::block_on(render_native_wgpu_frame_to_shared_ring(
-        &snapshot,
-        &sources,
-        width,
-        height,
-        &memory_id,
-        2,
-        3,
+        &snapshot, &sources, width, height, &memory_id, 2, 3,
     )) {
         Ok(output) => output,
         Err(NativeWgpuRenderError::AdapterUnavailable) => {
@@ -65,15 +58,24 @@ fn native_wgpu_frame_can_be_written_to_shared_frame_ring() {
     assert_eq!(output.shared_frame.descriptor.memory_id, memory_id);
     assert_eq!(output.shared_frame.descriptor.width, width);
     assert_eq!(output.shared_frame.descriptor.height, height);
-    assert_eq!(output.shared_frame.descriptor.format, FrameFormat::Rgba8Srgb);
+    assert_eq!(
+        output.shared_frame.descriptor.format,
+        FrameFormat::Rgba8Srgb
+    );
     assert_eq!(output.shared_frame.descriptor.stride_bytes % 256, 0);
     assert_eq!(
         output.shared_frame.descriptor.byte_len,
         u64::from(output.shared_frame.descriptor.stride_bytes) * u64::from(height)
     );
 
-    let mapped = output.ring.read_frame(3).expect("read rendered shared frame");
-    assert_eq!(mapped.bytes.len() as u64, output.shared_frame.descriptor.byte_len);
+    let mapped = output
+        .ring
+        .read_frame(3)
+        .expect("read rendered shared frame");
+    assert_eq!(
+        mapped.bytes.len() as u64,
+        output.shared_frame.descriptor.byte_len
+    );
 
     for row in 0..height as usize {
         let source_start = row * width as usize * 4;
