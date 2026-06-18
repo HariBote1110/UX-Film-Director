@@ -1,3 +1,20 @@
+## 2026-06-18 — Phase5: Viewport export source builderからnative/Rust handoffを配線
+
+### 実施内容
+- `src/utils/viewportRustExportFrameSource.test.ts` に、handoffがshared renderer export sourceへ渡る契約を追加した。
+- `src/utils/viewportRustVideoOnlyBoundary.test.ts` に、Viewportがexport contextのhandoffをbuilderへ渡す境界契約を追加した。
+- `ProjectExportRustFrameSourceContext` と `BuildViewportRustExportFrameSourceInput` に `presentedFrameSharedFrameTaker` を追加した。
+- `Viewport` から `buildViewportRustExportFrameSource` へhandoffをpass-throughするようにした。
+- package version を `0.1.1-Beta-90a` に更新した。
+
+### 検証
+- `npm test -- src/utils/viewportRustExportFrameSource.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts`
+- `npm test -- src/utils/viewportRustExportFrameSource.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/projectExportFrameCanvas\\.ts\\(|src/utils/viewportRustExportFrameSource\\.ts\\(|src/components/Viewport\\.tsx\\(|src/utils/viewportRustExportFrameSource\\.test\\.ts\\(|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts\\()"`
+
+### 残課題・次のステップ
+- 実アプリのRust direct encode経路へhandoffを注入できる入口ができた。次はElectron/native bridge側のhandoff実装と可用性診断を追加する。
+
 ## 2026-06-18 — Phase5: export sourceからnative/Rust handoffをcontrollerまで配線
 
 ### 実施内容

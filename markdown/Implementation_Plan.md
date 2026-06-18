@@ -528,6 +528,11 @@ Viewport/exportのshared renderer controlへ差し込めるようにする。
 `presentedFrameSharedFrameTaker` をpass-throughし、Rust direct encode時にexport frame sourceから
 WebGPU presenterのnative/Rust handoffまで1本の配線を持てるようにする。
 
+101. Phase5: Viewport export source builderからnative/Rust handoffを渡せるようにする
+`ProjectExportRustFrameSourceContext` / `buildViewportRustExportFrameSource` / `Viewport` の
+Rust export source生成経路に `presentedFrameSharedFrameTaker` を追加する。
+これにより上位のElectron/native bridge実装を、実アプリのRust direct encode経路へ注入できるようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
