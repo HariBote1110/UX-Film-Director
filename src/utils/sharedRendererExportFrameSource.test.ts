@@ -233,6 +233,12 @@ describe('createSharedRendererExportFrameSource', () => {
       ['dispose'],
       ['closeEncodeFrameWriter'],
     ]);
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'ready',
+      uxfdRustExportFrameSourceFrameIndex: '8',
+      uxfdRustExportFrameSourceFramePath: 'webGpuReadbackSharedFrameWriter',
+      uxfdRustExportFrameSourceFrameReason: undefined,
+    });
   });
 
   it('fails encode frames before ImageBitmap capture when presenter readback is unavailable', async () => {
@@ -531,6 +537,12 @@ describe('createSharedRendererExportFrameSource', () => {
       }],
       ['dispose'],
     ]);
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'ready',
+      uxfdRustExportFrameSourceFrameIndex: '6',
+      uxfdRustExportFrameSourceFramePath: 'presentedSharedFrame',
+      uxfdRustExportFrameSourceFrameReason: undefined,
+    });
   });
 
   it('passes native/Rust frame handoff into viewport presenter orchestration', async () => {
