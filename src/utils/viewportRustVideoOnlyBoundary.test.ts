@@ -46,4 +46,15 @@ describe('Viewport Rust video-only boundary', () => {
       "const sharedRendererVideoCutoverEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER === '1';"
     );
   });
+
+  it('enables the shared renderer preview surface by default and only disables it explicitly', () => {
+    const code = viewportSource();
+
+    expect(code).toContain(
+      "const sharedRendererPreviewEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_PREVIEW !== '0';"
+    );
+    expect(code).not.toContain(
+      "const sharedRendererPreviewEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_PREVIEW === '1';"
+    );
+  });
 });
