@@ -811,6 +811,11 @@ shared renderer export frame source が preview presenter を使う場合は `re
 SolidColour / native render / Rust decoded video frame の実出力がない `pixi-passthrough` を `sharedRendererOutputUnavailable`
 としてblockする。これによりRust frame source readyに見えながら実ピクセルはPixi canvas側、というexport診断と実体のずれを防ぐ。
 
+150. Phase5: encode-only exportのnative renderを暗黙必須化する
+`bitmapCaptureEnabled: false` の encode-only source では、呼び出し側が `nativeRenderRequired` を明示しなくても
+Rust backend `render.nativeSharedFrame` を必須にする。native render bridge未接続時は presenter readback /
+JS shared-frame writerへ戻らず `nativeRenderUnavailable` でblockし、encode-onlyの意味をRust native render直通に固定する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
