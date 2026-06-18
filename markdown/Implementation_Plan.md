@@ -401,6 +401,13 @@ shared renderer WebGPU presenterはcanvas textureを `COPY_SRC` 付きでconfigu
 これにより、次段で `SharedRendererExportFrameSource.renderEncodeFrame` は `ImageBitmap` captureを挟まず、
 presenterのmapped buffer bytesをshared memory writerへ渡せる。
 
+78. Phase5: export source direct encode を WebGPU readback へ接続する
+`SharedRendererPreviewPresenterControl` が `readPresentedFrameRgbaBytes` を公開し、
+`SharedRendererExportFrameSource.renderEncodeFrame` はcontrol readbackが使える場合に `ImageBitmap` captureを行わない。
+WebGPU readbackで得た256 byte aligned RGBA bytesは `writePaddedFrame` でwritable shared frame ringへ直接書き、
+Rust backend encoderへshared-frame descriptorだけを渡す。fallbackとしてreadback未対応controlでは従来の
+`ImageBitmap` capture経路を残す。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

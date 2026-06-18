@@ -1,3 +1,23 @@
+## 2026-06-18 — Phase5: export source direct encode を WebGPU readback へ接続
+
+### 実施内容
+- `src/utils/sharedRendererPreviewPresenterController.test.ts` に、ready presenter controlが `readPresentedFrameRgbaBytes` を公開する契約を追加した。
+- `src/utils/sharedRendererPreviewPresenterController.ts` でWebGPU presenterのreadback APIをcontrolへ露出し、`bufferUsageMapRead` を渡せるようにした。
+- `src/utils/rustBackendVideoEncodeSharedFrameWriter.test.ts` / `.ts` に `writePaddedFrame` を追加し、WebGPU readback済みの256 byte stride frameを再packingせずshared memory ringへ書けるようにした。
+- `src/utils/sharedRendererExportFrameSource.test.ts` に、presenter readbackがある場合は `ImageBitmap` capture / RGBA extractionを呼ばず `writePaddedFrame` へ渡す契約を追加した。
+- `src/utils/sharedRendererExportFrameSource.ts` の `renderEncodeFrame` をWebGPU readback優先にし、readback未対応時だけ従来のImageBitmap経路へfallbackするようにした。
+- package version を `0.1.1-Beta-67a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts`
+- `npm test -- src/utils/rustBackendVideoEncodeSharedFrameWriter.test.ts src/utils/rustBackendVideoEncodeExport.test.ts src/utils/sharedRendererExportFrameSource.test.ts`
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/rustBackendVideoEncodeSharedFrameWriter.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererExportFrameSource|rustBackendVideoEncodeSharedFrameWriter"`（対象ファイルの型エラーなし）
+
+### 残課題・次のステップ
+- 実機ElectronでRust-only exportを確認し、WebGPU readback経路が実際のGoPro動画で動くか、出力MP4の映像・音声・時間長を検証する。
+- readback bufferはまだCPU mapped bytesを経由する。最終的にはGPU bufferからnative/shared memoryへのcopy最短化を検討するが、`ImageBitmap`/canvas 2D readbackはRust encoder direct経路から外れた。
+
 ## 2026-06-18 — Phase5: WebGPU presented frame readback API を追加
 
 ### 実施内容
