@@ -35,8 +35,8 @@ import type { SharedRendererPreviewSurfaceBlockedReason } from './sharedRenderer
 import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererWebGpuPresenter';
 import {
   canRenderSharedRendererNativeMediaOnlyFrame,
-  isSharedRendererNativeMediaReferenceSupported,
 } from './sharedRendererNativeMediaSupport';
+import { resolveMixedNativeRenderUnsupportedMedia } from './sharedRendererNativeRenderMediaGate';
 
 type PresenterDataset = Record<string, string | undefined>;
 
@@ -320,7 +320,10 @@ export function createSharedRendererExportFrameSource({
     if (!surfaceGate.ok) {
       return null;
     }
-    const unsupportedNativeMedia = resolveMixedNativeRenderUnsupportedMedia(surfaceGate);
+    const unsupportedNativeMedia = resolveMixedNativeRenderUnsupportedMedia({
+      snapshot: surfaceGate.snapshot,
+      media: surfaceGate.media,
+    });
     if (unsupportedNativeMedia) {
       writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
         status: 'blocked',
@@ -591,20 +594,6 @@ const resolveExportVideoOwnershipBlock = (
   if (videoOwnership.owner === 'sharedRenderer') return null;
 
   return `Shared renderer export cannot delegate video ownership back to Pixi (${videoOwnership.reason}).`;
-};
-
-const resolveMixedNativeRenderUnsupportedMedia = (
-  surfaceGate: Extract<ReturnType<SharedRendererExportSessionBuilder>['surfaceGate'], { ok: true }>
-): string | null => {
-  const mediaById = new Map(surfaceGate.media.map((reference) => [reference.id, reference]));
-  for (const clip of surfaceGate.snapshot.clips) {
-    const reference = mediaById.get(clip.media_id);
-    if (!reference || reference.kind === 'Video') continue;
-    if (!isSharedRendererNativeMediaReferenceSupported(reference)) {
-      return `Rust native render does not support ${reference.kind} media '${reference.id}' from '${reference.source}'.`;
-    }
-  }
-  return null;
 };
 
 const writeFrameDiagnostics = (

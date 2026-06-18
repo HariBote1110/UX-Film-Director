@@ -13,6 +13,7 @@ import {
   type SharedVideoFrameCopyBridge,
 } from './sharedVideoFrameUploadBridge';
 import { canRenderSharedRendererNativeMediaOnlyFrame } from './sharedRendererNativeMediaSupport';
+import { resolveMixedNativeRenderUnsupportedMedia } from './sharedRendererNativeRenderMediaGate';
 import {
   prepareSharedRendererViewportNativeRenderSources,
   type PrepareSharedRendererViewportNativeRenderSourcesInput,
@@ -60,6 +61,7 @@ export type PrepareSharedRendererViewportNativeRenderUploadResult =
       reason:
         | 'surfaceGateUnavailable'
         | 'nativeRenderSourcesUnavailable'
+        | 'nativeRenderUnsupportedMedia'
         | 'nativeRenderUnsupportedMediaOnly'
         | 'nativeRenderFailed'
         | 'uploadFailed';
@@ -125,6 +127,19 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
       reason: 'nativeRenderSourcesUnavailable',
       detail: nativeSources.detail,
       activeJobs: nativeSources.activeJobs,
+    };
+  }
+
+  const unsupportedNativeMedia = resolveMixedNativeRenderUnsupportedMedia({
+    snapshot: surfaceGate.snapshot,
+    media: surfaceGate.media,
+  });
+  if (unsupportedNativeMedia) {
+    return {
+      ok: false,
+      reason: 'nativeRenderUnsupportedMedia',
+      detail: unsupportedNativeMedia,
+      activeJobs: activeRenderJobs,
     };
   }
 
