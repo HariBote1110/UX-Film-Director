@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   canRenderSharedRendererNativeMediaOnlyFrame,
+  isSharedRendererNativeImageSourceSupported,
   isSharedRendererNativeMediaReferenceSupported,
 } from './sharedRendererNativeMediaSupport';
 import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
@@ -65,6 +66,13 @@ const media: RustSceneMediaReference[] = [{
 }];
 
 describe('sharedRendererNativeMediaSupport', () => {
+  it('accepts local image paths and file URLs with query strings for native Rust loading', () => {
+    expect(isSharedRendererNativeImageSourceSupported('/tmp/overlay.PNG')).toBe(true);
+    expect(isSharedRendererNativeImageSourceSupported('file:///tmp/native%20overlay.JPG')).toBe(true);
+    expect(isSharedRendererNativeImageSourceSupported('file:///tmp/native-overlay.jpeg?cache=12#frame')).toBe(true);
+    expect(isSharedRendererNativeImageSourceSupported('https://example.com/native-overlay.jpg')).toBe(false);
+  });
+
   it('matches the Rust backend native media source support contract', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[0])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[1])).toBe(true);

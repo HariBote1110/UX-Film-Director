@@ -612,6 +612,96 @@ fn native_render_shared_frame_builds_png_image_sources_from_media() {
 }
 
 #[test]
+fn native_render_shared_frame_builds_file_url_png_image_sources_from_media() {
+    let mut backend = BackendProcess::start();
+    let temp_dir = TestTempDir::new("native-render-file-url-image-media");
+    let image_path = temp_dir.path().join("red source.png");
+    let image_frame = RgbaFrame::from_rgba8(
+        2,
+        2,
+        vec![
+            255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255,
+        ],
+    )
+    .expect("build file URL PNG source frame");
+    save_rgba_png(&image_path, &image_frame).expect("write file URL PNG source fixture");
+    let encoded_path = image_path.to_string_lossy().replace(' ', "%20");
+    let image_source = format!("file://{encoded_path}?cache=1#still");
+    let output_memory_id = unique_shm_name();
+    let slot_count = 1;
+    let width = 4;
+    let height = 4;
+
+    let response = backend.request(json!({
+        "id": 34,
+        "method": "render.nativeSharedFrame",
+        "params": {
+            "renderId": "native-render-file-url-image-media",
+            "memoryId": output_memory_id,
+            "slotCount": slot_count,
+            "ptsFrame": 0,
+            "width": width,
+            "height": height,
+            "snapshot": {
+                "frame_index": 0,
+                "colour": {
+                    "profile": "rec709-sdr",
+                    "working_space": "linear-light",
+                    "alpha": "premultiplied"
+                },
+                "clips": [{
+                    "clip_id": "clip-file-url-image-media",
+                    "track_id": "track-1",
+                    "media_id": "image-1",
+                    "source_frame": 0,
+                    "z_index": 0,
+                    "transform": {
+                        "translation_x": 0.0,
+                        "translation_y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation_degrees": 0.0,
+                        "sampling": "nearest"
+                    },
+                    "opacity": 1.0,
+                    "effects": []
+                }]
+            },
+            "media": [{
+                "id": "image-1",
+                "kind": "Image",
+                "source": image_source,
+                "width": 2,
+                "height": 2
+            }],
+            "sources": []
+        }
+    }));
+
+    assert_eq!(response["ok"], true, "{response}");
+    assert_eq!(response["result"]["rendered"], true);
+    assert_no_frame_bytes_recursive(&response["result"]);
+
+    let output_slot_byte_len = response["result"]["frame"]["descriptor"]["byteLen"]
+        .as_u64()
+        .expect("output byte length") as usize;
+    let output_ring = PosixSharedRing::attach_with_retry_for_layout(
+        response["result"]["frame"]["descriptor"]["memoryId"]
+            .as_str()
+            .expect("output memory id"),
+        slot_count,
+        output_slot_byte_len,
+        Duration::from_secs(1),
+    )
+    .expect("attach to native file URL image media output ring");
+    let output_frame = output_ring
+        .read_frame(0)
+        .expect("read native file URL image media output frame");
+    assert_eq!(&output_frame.bytes[0..4], &[255, 0, 0, 255]);
+    assert_eq!(&output_frame.bytes[8..12], &[0, 0, 0, 0]);
+}
+
+#[test]
 fn native_render_shared_frame_builds_jpeg_image_sources_from_media() {
     let mut backend = BackendProcess::start();
     let temp_dir = TestTempDir::new("native-render-jpeg-media");
