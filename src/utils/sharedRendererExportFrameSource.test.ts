@@ -192,7 +192,12 @@ describe('createSharedRendererExportFrameSource', () => {
         writeFrame: async () => {
           throw new Error('tight ImageBitmap write must not run for Rust direct encoding.');
         },
-        writePaddedFrame: async (input) => {
+        writePaddedFrame: async (input: {
+          frameIndex: number;
+          timestampUs: number;
+          paddedRgbaBytes: Uint8Array;
+          strideBytes: number;
+        }) => {
           calls.push(['writePaddedFrame', input]);
           return payload;
         },
@@ -782,7 +787,12 @@ describe('createSharedRendererExportFrameSource', () => {
         writeFrame: async () => {
           throw new Error('tight ImageBitmap write must not run for Rust direct encoding.');
         },
-        writePaddedFrame: async (input) => {
+        writePaddedFrame: async (input: {
+          frameIndex: number;
+          timestampUs: number;
+          paddedRgbaBytes: Uint8Array;
+          strideBytes: number;
+        }) => {
           calls.push(['writePaddedFrame', input]);
           return payload;
         },

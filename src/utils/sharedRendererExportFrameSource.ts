@@ -272,6 +272,10 @@ export function createSharedRendererExportFrameSource({
     timestamp: number;
     sharedFramePayload: RustBackendVideoEncodeWriteFramePayload;
   } | null> => {
+    if (!nativeSharedFrameRendererAvailable) {
+      return null;
+    }
+
     const session = buildFrameSession(request);
     const nextRequestId = requestId + 1;
     const nativeSources = await prepareNativeRenderSources({
