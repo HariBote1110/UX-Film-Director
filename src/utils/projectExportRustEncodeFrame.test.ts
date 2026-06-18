@@ -76,7 +76,7 @@ describe('renderProjectExportRustEncodeFrame', () => {
     }]);
   });
 
-  it('falls back to ImageBitmap rendering when no direct shared-frame encode path exists', async () => {
+  it('uses ImageBitmap rendering only when shared-frame payloads are not required', async () => {
     const bitmap = { close: () => undefined } as ImageBitmap;
     const calls: unknown[] = [];
     const frameSource: ProjectExportRustFrameSource = {
@@ -90,12 +90,27 @@ describe('renderProjectExportRustEncodeFrame', () => {
       frameSource,
       request,
       encodeSessionId: 'encode-session-1',
-      preferSharedFrame: true,
+      preferSharedFrame: false,
     })).resolves.toEqual({
       timestamp: 50_000,
       bitmap,
     });
 
     expect(calls).toEqual([request]);
+  });
+
+  it('fails when Rust encoding requires shared-frame payloads but the source has no direct encode path', async () => {
+    const frameSource: ProjectExportRustFrameSource = {
+      renderFrame: async () => {
+        throw new Error('ImageBitmap fallback must not run for Rust direct encoding');
+      },
+    };
+
+    await expect(renderProjectExportRustEncodeFrame({
+      frameSource,
+      request,
+      encodeSessionId: 'encode-session-1',
+      preferSharedFrame: true,
+    })).rejects.toThrow('Rust backend encoding requires a shared-frame export source.');
   });
 });

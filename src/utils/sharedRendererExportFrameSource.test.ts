@@ -115,41 +115,14 @@ describe('createSharedRendererExportFrameSource', () => {
     });
   });
 
-  it('renders an encode frame directly into a writable shared frame payload', async () => {
+  it('fails encode frames before ImageBitmap capture when presenter readback is unavailable', async () => {
     const canvas = {
       width: 1,
       height: 1,
       dataset: {},
     } as unknown as HTMLCanvasElement;
-    let bitmapClosed = 0;
-    const frameBitmap = { close: () => { bitmapClosed += 1; } } as ImageBitmap;
-    const payload: RustBackendVideoEncodeWriteFramePayload = {
-      sessionId: 'encode-session-1',
-      frameIndex: 2,
-      timestampUs: 33_333,
-      slotCount: 1,
-      frame: {
-        descriptor: {
-          memoryId: '/uxfd-export-source-encode-session-1',
-          slotIndex: 0,
-          generation: 3,
-          byteOffset: 0,
-          byteLen: 8_294_400,
-          width: 1920,
-          height: 1080,
-          strideBytes: 7680,
-          format: 'rgba8Srgb',
-          colour: {
-            primaries: 'bt709',
-            transfer: 'srgb',
-            matrix: 'rgb',
-            range: 'full',
-          },
-        },
-        ptsFrame: 2,
-      },
-    };
     const calls: unknown[] = [];
+    let disposeCount = 0;
     const source = createSharedRendererExportFrameSource({
       canvas,
       projectSettings: settings,
@@ -159,28 +132,33 @@ describe('createSharedRendererExportFrameSource', () => {
       fallbackAdapter: false,
       videoCutoverEnabled: true,
       startViewportPresenter: async () => ({
-        control: { dispose: () => undefined },
+        control: {
+          ok: true,
+          dispose: () => {
+            disposeCount += 1;
+          },
+        },
         activeVideoDecodeJob: null,
         activeVideoDecodeJobs: [],
       }) as never,
-      createFrameBitmap: async (...args) => {
-        calls.push(['createFrameBitmap', args]);
-        return frameBitmap;
+      createFrameBitmap: async () => {
+        calls.push(['createFrameBitmap']);
+        throw new Error('ImageBitmap capture must not run for Rust direct encoding.');
       },
-      extractEncodeFrameRgbaBytes: async (bitmap, width, height) => {
-        calls.push(['extractEncodeFrameRgbaBytes', bitmap === frameBitmap, width, height]);
-        return Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8]);
+      extractEncodeFrameRgbaBytes: async () => {
+        calls.push(['extractEncodeFrameRgbaBytes']);
+        throw new Error('ImageBitmap extraction must not run for Rust direct encoding.');
       },
       createEncodeFrameWriter: async (input) => {
         calls.push(['createEncodeFrameWriter', input]);
         return {
-          writeFrame: async (writeInput) => {
-            calls.push(['writeFrame', writeInput]);
-            return payload;
+          writeFrame: async () => {
+            calls.push(['writeFrame']);
+            throw new Error('tight ImageBitmap write must not run for Rust direct encoding.');
           },
-          writePaddedFrame: async (writeInput) => {
-            calls.push(['writePaddedFrame', writeInput]);
-            return payload;
+          writePaddedFrame: async () => {
+            calls.push(['writePaddedFrame']);
+            throw new Error('readback write must not run when readback is unavailable.');
           },
           close: async () => {
             calls.push(['closeEncodeFrameWriter']);
@@ -189,7 +167,7 @@ describe('createSharedRendererExportFrameSource', () => {
       },
     });
 
-    await expect(source.renderEncodeFrame?.({
+    const blocked = await source.renderEncodeFrame?.({
       frameIndex: 2,
       timestampUs: 33_333,
       time: 2 / 60,
@@ -197,30 +175,23 @@ describe('createSharedRendererExportFrameSource', () => {
       height: 1080,
       objects: [image()],
       encodeSessionId: 'encode-session-1',
-    })).resolves.toEqual({
-      timestamp: 33_333,
-      sharedFramePayload: payload,
-    });
+    }).catch((error) => error);
     await source.close?.();
 
-    expect(bitmapClosed).toBe(1);
-    expect(calls).toEqual([
-      ['createFrameBitmap', [canvas, 0, 0, 1920, 1080]],
-      ['extractEncodeFrameRgbaBytes', true, 1920, 1080],
-      ['createEncodeFrameWriter', {
-        sessionId: 'encode-session-1',
-        memoryId: '/uxfd-export-source-encode-session-1',
-        width: 1920,
-        height: 1080,
-        fps: 60,
-      }],
-      ['writeFrame', {
-        frameIndex: 2,
-        timestampUs: 33_333,
-        rgbaBytes: Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8]),
-      }],
-      ['closeEncodeFrameWriter'],
-    ]);
+    expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
+    expect(blocked).toMatchObject({
+      reason: 'webGpuReadbackUnavailable',
+      frameIndex: 2,
+      fallbackToLegacyCanvas: true,
+    });
+    expect(blocked.message).toContain('WebGPU presented frame readback is required');
+    expect(disposeCount).toBe(1);
+    expect(calls).toEqual([]);
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'blocked',
+      uxfdRustExportFrameSourceFrameIndex: '2',
+      uxfdRustExportFrameSourceFrameReason: 'webGpuReadbackUnavailable',
+    });
   });
 
   it('uses presenter WebGPU readback for encode frames without creating an ImageBitmap', async () => {
