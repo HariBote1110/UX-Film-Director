@@ -87,6 +87,11 @@ const control: SharedRendererPreviewPresenterControl = {
     reason: 'noImageScene',
     imageObjectIds: [],
   },
+  psdOwnership: {
+    owner: 'pixi',
+    reason: 'noPsdScene',
+    psdObjectIds: [],
+  },
   readPresentedFrameRgbaBytes: async () => ({
     rgbaBytes: new Uint8Array(),
     strideBytes: 0,

@@ -15,6 +15,7 @@ import {
 } from './pixiVideoCutover';
 import { shouldSkipPixiSolidColourForSharedRenderer } from './pixiSolidColourCutover';
 import { shouldSkipPixiImageForSharedRenderer } from './pixiImageCutover';
+import { shouldSkipPixiPsdForSharedRenderer } from './pixiPsdCutover';
 
 // ... (Shader definitions omitted for brevity - same as previous) ...
 const vertexShader = `
@@ -718,6 +719,7 @@ export const updatePixiContent = (
         sharedRendererSolidColourObjectIds?: ReadonlySet<string>;
         sharedRendererVideoObjectIds?: ReadonlySet<string>;
         sharedRendererImageObjectIds?: ReadonlySet<string>;
+        sharedRendererPsdObjectIds?: ReadonlySet<string>;
         requireSharedRendererVideo?: boolean;
         /**
          * WebGPU（`RendererType` 2）のとき true。動画を VideoSource ではなく 2D Canvas 経由でテクスチャ化し、
@@ -726,7 +728,7 @@ export const updatePixiContent = (
         useCanvasVideoUpload: boolean;
     }
 ) => {
-    const { textureCache, loadingUrls, videoElements, videoFrameTextures, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, exportFrameOverrides, exportOverlayCanvases, sharedRendererSolidColourObjectIds, sharedRendererVideoObjectIds, sharedRendererImageObjectIds, requireSharedRendererVideo, useCanvasVideoUpload } = resources;
+    const { textureCache, loadingUrls, videoElements, videoFrameTextures, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, exportFrameOverrides, exportOverlayCanvases, sharedRendererSolidColourObjectIds, sharedRendererVideoObjectIds, sharedRendererImageObjectIds, sharedRendererPsdObjectIds, requireSharedRendererVideo, useCanvasVideoUpload } = resources;
     let content = container.children[0] as (PIXI.Sprite | PIXI.Graphics | PIXI.Text | PIXI.Container | undefined);
     
     // Check for recreation
@@ -804,6 +806,19 @@ export const updatePixiContent = (
         content = sprite;
 
     } else if (obj.type === 'psd') {
+        if (shouldSkipPixiPsdForSharedRenderer({
+            objectId: obj.id,
+            objectType: obj.type,
+            isExporting,
+            sharedRendererPsdObjectIds,
+        })) {
+            const children = container.removeChildren();
+            children.forEach((child) => child.destroy({ children: true, texture: false, context: true }));
+            container.hitArea = new PIXI.Rectangle(0, 0, obj.width, obj.height);
+            return undefined;
+        }
+        container.hitArea = null;
+
         let psdContent = content as PIXI.Container;
         if (!psdContent) {
             psdContent = new PIXI.Container();

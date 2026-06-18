@@ -131,6 +131,7 @@ const Viewport: React.FC = () => {
   const sharedRendererSolidColourObjectIdsRef = useRef<Set<string>>(new Set());
   const sharedRendererVideoObjectIdsRef = useRef<Set<string>>(new Set());
   const sharedRendererImageObjectIdsRef = useRef<Set<string>>(new Set());
+  const sharedRendererPsdObjectIdsRef = useRef<Set<string>>(new Set());
   /** VideoDecoder ハイブリッドパス: エクスポート時にフレームを注入するためのマップ */
   const exportFrameOverridesRef = useRef<Map<string, ImageBitmap>>(new Map());
   /** exportFrameOverrides を Pixi テクスチャに変換する OffscreenCanvas キャッシュ */
@@ -178,6 +179,15 @@ const Viewport: React.FC = () => {
     const unchanged = current.size === next.size && [...current].every((objectId) => next.has(objectId));
     if (unchanged) return;
     sharedRendererImageObjectIdsRef.current = next;
+    setRenderTick((previous) => previous + 1);
+  }, []);
+
+  const updateSharedRendererPsdObjectIds = useCallback((objectIds: string[]) => {
+    const current = sharedRendererPsdObjectIdsRef.current;
+    const next = new Set(objectIds);
+    const unchanged = current.size === next.size && [...current].every((objectId) => next.has(objectId));
+    if (unchanged) return;
+    sharedRendererPsdObjectIdsRef.current = next;
     setRenderTick((previous) => previous + 1);
   }, []);
 
@@ -560,6 +570,7 @@ const Viewport: React.FC = () => {
     updateSharedRendererSolidColourObjectIds([]);
     updateSharedRendererVideoObjectIds([]);
     updateSharedRendererImageObjectIds([]);
+    updateSharedRendererPsdObjectIds([]);
 
     let cancelled = false;
     let currentControl: SharedRendererPreviewPresenterControl | null = null;
@@ -600,11 +611,13 @@ const Viewport: React.FC = () => {
       updateSharedRendererSolidColourObjectIds(control.ok ? control.solidColourOwnership.solidColourObjectIds : []);
       updateSharedRendererVideoObjectIds(control.ok ? control.videoOwnership.videoObjectIds : []);
       updateSharedRendererImageObjectIds(control.ok ? control.imageOwnership.imageObjectIds : []);
+      updateSharedRendererPsdObjectIds(control.ok ? control.psdOwnership.psdObjectIds : []);
     }).catch(() => {
       if (cancelled) return;
       updateSharedRendererSolidColourObjectIds([]);
       updateSharedRendererVideoObjectIds([]);
       updateSharedRendererImageObjectIds([]);
+      updateSharedRendererPsdObjectIds([]);
       datasets.forEach((dataset) => {
         writeSharedRendererPresenterDiagnostics(dataset, {
           status: 'fallback',
@@ -620,7 +633,7 @@ const Viewport: React.FC = () => {
         sharedRendererPresenterControlRef.current = null;
       }
     };
-  }, [rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererImageObjectIds, updateSharedRendererSolidColourObjectIds, updateSharedRendererVideoObjectIds]);
+  }, [rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererImageObjectIds, updateSharedRendererPsdObjectIds, updateSharedRendererSolidColourObjectIds, updateSharedRendererVideoObjectIds]);
 
   // --- Main Render Logic ---
   const renderScene = useCallback((time: number, currentObjects: TimelineObject[]) => {
@@ -755,6 +768,7 @@ const Viewport: React.FC = () => {
           sharedRendererSolidColourObjectIds: sharedRendererSolidColourObjectIdsRef.current,
           sharedRendererVideoObjectIds: sharedRendererVideoObjectIdsRef.current,
           sharedRendererImageObjectIds: sharedRendererImageObjectIdsRef.current,
+          sharedRendererPsdObjectIds: sharedRendererPsdObjectIdsRef.current,
           requireSharedRendererVideo: rustVideoOnlyEnabled,
           useCanvasVideoUpload,
       });

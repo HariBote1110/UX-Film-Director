@@ -10,6 +10,10 @@ import type {
   SharedRendererImageCutoverReason,
   SharedRendererImageOwner,
 } from './sharedRendererImageOwnership';
+import type {
+  SharedRendererPsdCutoverReason,
+  SharedRendererPsdOwner,
+} from './sharedRendererPsdOwnership';
 
 export type SharedRendererPresenterDiagnosticState =
   | {
@@ -29,6 +33,9 @@ export type SharedRendererPresenterDiagnosticState =
       imageOwner?: SharedRendererImageOwner;
       imageCutoverReason?: SharedRendererImageCutoverReason;
       sharedImageObjectCount?: number;
+      psdOwner?: SharedRendererPsdOwner;
+      psdCutoverReason?: SharedRendererPsdCutoverReason;
+      sharedPsdObjectCount?: number;
       videoGeometrySource?: 'rust-wasm' | 'typescript';
       videoDecodeRequestSource?: 'rust-wasm' | 'typescript';
       videoDecodeRequestCount?: number;
@@ -65,6 +72,9 @@ export const writeSharedRendererPresenterDiagnostics = (
   delete dataset.uxfdSharedRendererPresenterImageOwner;
   delete dataset.uxfdSharedRendererPresenterImageCutoverReason;
   delete dataset.uxfdSharedRendererPresenterSharedImageObjectCount;
+  delete dataset.uxfdSharedRendererPresenterPsdOwner;
+  delete dataset.uxfdSharedRendererPresenterPsdCutoverReason;
+  delete dataset.uxfdSharedRendererPresenterSharedPsdObjectCount;
   delete dataset.uxfdSharedRendererPresenterVideoGeometrySource;
   delete dataset.uxfdSharedRendererPresenterVideoDecodeRequestSource;
   delete dataset.uxfdSharedRendererPresenterVideoDecodeRequestCount;
@@ -101,6 +111,15 @@ export const writeSharedRendererPresenterDiagnostics = (
     }
     if (typeof state.sharedImageObjectCount === 'number') {
       dataset.uxfdSharedRendererPresenterSharedImageObjectCount = String(state.sharedImageObjectCount);
+    }
+    if (state.psdOwner) {
+      dataset.uxfdSharedRendererPresenterPsdOwner = state.psdOwner;
+    }
+    if (state.psdCutoverReason) {
+      dataset.uxfdSharedRendererPresenterPsdCutoverReason = state.psdCutoverReason;
+    }
+    if (typeof state.sharedPsdObjectCount === 'number') {
+      dataset.uxfdSharedRendererPresenterSharedPsdObjectCount = String(state.sharedPsdObjectCount);
     }
     if (state.videoGeometrySource) {
       dataset.uxfdSharedRendererPresenterVideoGeometrySource = state.videoGeometrySource;

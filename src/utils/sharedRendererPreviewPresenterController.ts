@@ -39,6 +39,10 @@ import {
   buildSharedRendererImageOwnership,
   type SharedRendererImageOwnership,
 } from './sharedRendererImageOwnership';
+import {
+  buildSharedRendererPsdOwnership,
+  type SharedRendererPsdOwnership,
+} from './sharedRendererPsdOwnership';
 import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
 
 export const SHARED_RENDERER_SOLID_SWATCH: SharedRendererSolidSrgbSwatch = {
@@ -64,6 +68,7 @@ export type SharedRendererPreviewPresenterControl =
       solidColourOwnership: SharedRendererSolidColourOwnership;
       videoOwnership: SharedRendererVideoOwnership;
       imageOwnership: SharedRendererImageOwnership;
+      psdOwnership: SharedRendererPsdOwnership;
       takePresentedFrameSharedFrame?: (
         input: SharedRendererPresentedFrameSharedFrameInput
       ) => Promise<RustBackendVideoEncodeWriteFramePayload>;
@@ -174,6 +179,7 @@ export const startSharedRendererPreviewPresenter = async ({
     : undefined;
   const hasVideoScene = hasVideoClip(session);
   const hasImageScene = hasImageClip(session);
+  const hasPsdScene = hasPsdClip(session);
   const resolvedRustVideoPlaneVertexSceneBuilder = hasVideoScene
     ? rustVideoPlaneVertexSceneBuilder
       ?? await loadSharedRendererRustVideoPlaneVertexSceneBuilder({
@@ -230,6 +236,9 @@ export const startSharedRendererPreviewPresenter = async ({
     : [];
   const imageObjectIds = hasImageScene
     ? collectObjectIdsByMediaKind(session, 'Image')
+    : [];
+  const psdObjectIds = hasPsdScene
+    ? collectObjectIdsByMediaKind(session, 'Psd')
     : [];
 
   const presenter = await createSharedRendererWebGpuPresenter({
@@ -383,6 +392,11 @@ export const startSharedRendererPreviewPresenter = async ({
     nativeRenderFrameReady,
     imageObjectIds,
   });
+  const psdOwnership = buildSharedRendererPsdOwnership({
+    hasPsdScene,
+    nativeRenderFrameReady,
+    psdObjectIds,
+  });
 
   if (requireSharedRendererVideo && hasVideoScene && videoOwnership.owner !== 'sharedRenderer') {
     writeDiagnostics({
@@ -462,6 +476,9 @@ export const startSharedRendererPreviewPresenter = async ({
     imageOwner: hasImageScene ? imageOwnership.owner : undefined,
     imageCutoverReason: hasImageScene ? imageOwnership.reason : undefined,
     sharedImageObjectCount: hasImageScene ? imageOwnership.imageObjectIds.length : undefined,
+    psdOwner: hasPsdScene ? psdOwnership.owner : undefined,
+    psdCutoverReason: hasPsdScene ? psdOwnership.reason : undefined,
+    sharedPsdObjectCount: hasPsdScene ? psdOwnership.psdObjectIds.length : undefined,
     videoGeometrySource,
     videoDecodeRequestSource,
     videoDecodeRequestCount,
@@ -487,6 +504,7 @@ export const startSharedRendererPreviewPresenter = async ({
     solidColourOwnership,
     videoOwnership,
     imageOwnership,
+    psdOwnership,
     takePresentedFrameSharedFrame: presenter.takePresentedFrameSharedFrame,
     readPresentedFrameRgbaBytes: presenter.readPresentedFrameRgbaBytes,
     dispose: presenter.dispose,
@@ -529,7 +547,7 @@ const collectSolidColourObjectIds = (session: SharedRendererPreviewSession): str
 
 const collectObjectIdsByMediaKind = (
   session: SharedRendererPreviewSession,
-  kind: 'Video' | 'SolidColour' | 'Image'
+  kind: 'Video' | 'SolidColour' | 'Image' | 'Psd'
 ): string[] => {
   if (!session.surfaceGate.ok) return [];
 
@@ -552,4 +570,11 @@ const hasImageClip = (session: SharedRendererPreviewSession): boolean => {
 
   const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
   return session.surfaceGate.snapshot.clips.some((clip) => mediaKindById.get(clip.media_id) === 'Image');
+};
+
+const hasPsdClip = (session: SharedRendererPreviewSession): boolean => {
+  if (!session.surfaceGate.ok) return false;
+
+  const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
+  return session.surfaceGate.snapshot.clips.some((clip) => mediaKindById.get(clip.media_id) === 'Psd');
 };
