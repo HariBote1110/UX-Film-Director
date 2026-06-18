@@ -775,6 +775,11 @@ shared renderer Rust frame sourceがframe途中でblockedになり、legacy canv
 同じframe内の `requiresHtmlVideoElementSeekFallback` / `requiresRenderScene` 判定へblocked後のruntime planを使う。
 これによりblocked発生frameだけ古いcanvasや未seek動画をcaptureする事故を防ぐ。
 
+143. Phase5: native render output shared frameのrelease所有権を明示する
+Rust native render直通で生成したshared frameだけに `releaseAfterEncodeFailure` metadataを付与し、
+encode.writeFrame失敗時の `render.releaseNativeSharedFrame` 呼び出し対象をnative render outputへ限定する。
+presenter handoff / WebGPU readback writer由来のshared frameはそれぞれの所有者が管理し、native render release APIでは扱わない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

@@ -477,3 +477,20 @@
 ## 確認
 - `npm test -- useProjectExportBoundary projectExportFrameCanvas` を実行し、22件成功を確認。
 - `npx tsc --noEmit 2>&1 | rg "(useProjectExport|projectExportFrameCanvas)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 45. Phase5: native render output shared frameのrelease所有権明示
+- `src/utils/rustBackendVideoEncodeExport.ts`
+- `RustBackendVideoEncodeSharedFramePayloadFrame` に `releaseAfterEncodeFailure` metadataを追加し、`kind: nativeRenderOutput` の場合だけ `render.releaseNativeSharedFrame` を呼ぶようにした。
+- これによりpresenter handoff / WebGPU readback writer由来のshared frameをnative render outputとして誤releaseしない。
+- `src/utils/sharedRendererExportFrameSource.ts`
+- Rust native render直通で生成したencode frameへ `releaseAfterEncodeFailure: { kind: 'nativeRenderOutput', memoryId }` を付与した。
+- `src/utils/rustBackendVideoEncodeExport.test.ts`
+- 非native shared frameのencode write失敗時にnative render release bridgeを呼ばない契約を追加した。
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- native render直通frameがrelease ownership metadataを返す契約を追加した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-125a` に更新した。
+
+## 確認
+- `npm test -- rustBackendVideoEncodeExport sharedRendererExportFrameSource projectExportRustEncodeFrame` を実行し、27件成功を確認。
+- `npx tsc --noEmit 2>&1 | rg "(rustBackendVideoEncodeExport|sharedRendererExportFrameSource|projectExportRustEncodeFrame)"` を実行し、対象ファイルに型エラーが出ないことを確認。
