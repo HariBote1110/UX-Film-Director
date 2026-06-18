@@ -5,6 +5,7 @@ export interface ShouldSkipPixiVideoForSharedRendererInput {
   objectType: string;
   isExporting: boolean;
   sharedRendererVideoObjectIds?: ReadonlySet<string>;
+  requireSharedRendererVideo?: boolean;
 }
 
 export const shouldSkipPixiVideoForSharedRenderer = ({
@@ -12,10 +13,14 @@ export const shouldSkipPixiVideoForSharedRenderer = ({
   objectType,
   isExporting,
   sharedRendererVideoObjectIds,
+  requireSharedRendererVideo = false,
 }: ShouldSkipPixiVideoForSharedRendererInput): boolean =>
   objectType === 'video'
   && !isExporting
-  && sharedRendererVideoObjectIds?.has(objectId) === true;
+  && (
+    requireSharedRendererVideo
+    || sharedRendererVideoObjectIds?.has(objectId) === true
+  );
 
 interface PixiVideoCutoverChild {
   destroy: (...args: any[]) => void;

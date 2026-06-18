@@ -146,6 +146,7 @@ const Viewport: React.FC = () => {
   const sharedRendererExportEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_EXPORT === '1';
   const sharedRendererDiagnosticSwatchEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_DIAGNOSTIC_SWATCH === '1';
   const sharedRendererVideoCutoverEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER === '1';
+  const rustVideoOnlyEnabled = import.meta.env.VITE_UXFD_RUST_VIDEO_ONLY === '1';
   const [sharedRendererGpuStatus, setSharedRendererGpuStatus] = useState({
     webGpuAvailable: false,
     fallbackAdapter: false,
@@ -733,6 +734,7 @@ const Viewport: React.FC = () => {
           exportOverlayCanvases: exportOverlayCanvasesRef.current,
           sharedRendererSolidColourObjectIds: sharedRendererSolidColourObjectIdsRef.current,
           sharedRendererVideoObjectIds: sharedRendererVideoObjectIdsRef.current,
+          requireSharedRendererVideo: rustVideoOnlyEnabled,
           useCanvasVideoUpload,
       });
 
@@ -1111,6 +1113,7 @@ const Viewport: React.FC = () => {
     projectSettings,
     editorMode,
     sharedRendererPreviewEnabled,
+    rustVideoOnlyEnabled,
     sharedRendererGpuStatus.webGpuAvailable,
     sharedRendererGpuStatus.fallbackAdapter,
     publishSharedRendererPreviewSession,

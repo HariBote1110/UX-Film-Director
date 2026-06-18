@@ -716,6 +716,7 @@ export const updatePixiContent = (
         exportOverlayCanvases?: Map<string, ExportOverlayCanvas>;
         sharedRendererSolidColourObjectIds?: ReadonlySet<string>;
         sharedRendererVideoObjectIds?: ReadonlySet<string>;
+        requireSharedRendererVideo?: boolean;
         /**
          * WebGPU（`RendererType` 2）のとき true。動画を VideoSource ではなく 2D Canvas 経由でテクスチャ化し、
          * `copyExternalImageToTexture` の out-of-bounds を避ける。
@@ -723,7 +724,7 @@ export const updatePixiContent = (
         useCanvasVideoUpload: boolean;
     }
 ) => {
-    const { textureCache, loadingUrls, videoElements, videoFrameTextures, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, exportFrameOverrides, exportOverlayCanvases, sharedRendererSolidColourObjectIds, sharedRendererVideoObjectIds, useCanvasVideoUpload } = resources;
+    const { textureCache, loadingUrls, videoElements, videoFrameTextures, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, exportFrameOverrides, exportOverlayCanvases, sharedRendererSolidColourObjectIds, sharedRendererVideoObjectIds, requireSharedRendererVideo, useCanvasVideoUpload } = resources;
     let content = container.children[0] as (PIXI.Sprite | PIXI.Graphics | PIXI.Text | PIXI.Container | undefined);
     
     // Check for recreation
@@ -828,6 +829,7 @@ export const updatePixiContent = (
             objectType: obj.type,
             isExporting,
             sharedRendererVideoObjectIds,
+            requireSharedRendererVideo,
         })) {
             clearPixiVideoForSharedRenderer({
                 objectId: obj.id,
