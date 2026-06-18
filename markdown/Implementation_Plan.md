@@ -1059,6 +1059,11 @@ POSIX shared memory data-planeのreleaseを「最初のREADING slot」ではな�
 control-plane ringの `release_read_slot` とdata-plane ringのrelease対象を揃え、
 複数slotがREADINGのときに別slotを誤ってfreeにしない。
 
+197. Phase5: Rust video-only control-plane fallbackを禁止する
+`VITE_UXFD_RUST_VIDEO_ONLY=1` では、video plane geometryとdecode request builderがRust/WASMで解決できない場合、
+TypeScript fallbackへ黙って戻らず `requiredRustVideoControlPlaneUnavailable` でfail-loudにする。
+通常のshared renderer previewでは移行互換のTypeScript fallbackを残すが、Rust video-only検証ではRust control-planeだけを正本にする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

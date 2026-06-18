@@ -143,6 +143,8 @@ Rust backend integration gate:
   native copy bridge / renderer-owned upload buffer に限定する。
 - Viewport は video cutover flag が有効なとき、presenter 起動前に Rust backend decode request と shared memory copy を行い、
   decoded upload object を clip id 付きで WebGPU presenter に渡す。
+- Rust video-only modeでは、video plane geometryとdecode request builderのRust/WASM control-planeが使えない場合、
+  TypeScript fallbackへ戻らず `requiredRustVideoControlPlaneUnavailable` として失敗させる。
 - WebGPU presenter は upload 済み texture を `presentVideoFrameScene` へ渡して描画する。複数動画では
   `texturesByClipId` と `videoObjectIds` により、Rust upload が成功した clip だけを bind group 切替で描画する。
   upload ready だけで shared ownership に進めて Pixi video を消すことは禁止。

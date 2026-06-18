@@ -411,3 +411,10 @@
 - Green: `PosixSharedRing::release_frame_slot` を追加し、Rust backendの `release_decode_data_plane` がdecode release payloadの `slotIndex` を渡すようにした。
 - 検証: `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane decode_request_frame_uses_second_shared_memory_slot_while_first_slot_is_reading -- --nocapture`、`cargo test --manifest-path shared-memory-spike/Cargo.toml posix_shm_multi_slot_allows_next_frame_while_previous_frame_is_reading` は成功。
 - 版: `0.1.1-Beta-175a`。
+
+## 2026-06-19
+- Phase5のRust video-only境界として、video control-planeがRust/WASMで解決できない場合はTypeScript fallbackへ戻らないようにした。
+- Red: `sharedRendererPreviewPresenterController` に `requireRustVideoControlPlane` 時のfail-loud契約を追加し、`viewportRustVideoOnlyBoundary` にViewportが `rustVideoOnlyEnabled` を渡す契約を追加した。
+- Green: presenter / viewport orchestration / Viewportに `requireRustVideoControlPlane` を接続し、Rust video-onlyでは `requiredRustVideoControlPlaneUnavailable` を返すようにした。
+- 検証: `npm test -- sharedRendererPreviewPresenterController viewportRustVideoOnlyBoundary` は39件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-176a`。
