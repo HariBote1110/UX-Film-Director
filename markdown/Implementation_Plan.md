@@ -321,6 +321,11 @@ Electron main の `rust-backend-encode-start` / `rust-backend-encode-write-frame
 `callRustBackend` の error / timeout / backend 起動失敗は renderer bridge の
 `{ success: false, error }` へflattenし、未実装時のfail-loud位置をElectron stubからRust backend側へ移す。
 
+65. Phase5: encoder書込後の shared slot 解放状態を追加する
+Rust encoder が shared memory ring から frame を読み、ffmpeg / encoder stdin へ書き終えた後にslotを返せるよう、
+`CopyOutState::EncoderFrameWritten` を追加する。decode preview向けの `gpuUploadFenceSignalled` と区別し、
+encode data-plane では「encoderへの書込完了」を所有権返却条件として扱う。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

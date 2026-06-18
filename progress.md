@@ -1,3 +1,37 @@
+## 2026-06-18 — Phase5: encoder書込後の shared slot 解放状態を追加
+
+### 実施内容
+- `CopyOutState::EncoderFrameWritten` を追加し、Rust encoderがshared memory frameをencoder stdinへ書き終えた後にslotを解放できる状態を定義した。
+- `SharedFrameRing::release_read_slot` と `PosixSharedRing::release_frame` の解放許可判定を `permits_read_slot_release()` に揃えた。
+- preview decode向けの `gpuUploadFenceSignalled` / `rendererUploadAborted` と、encode向けの `encoderFrameWritten` を同じ所有権返却口で扱えるようにした。
+- package version を `0.1.1-Beta-60t` に更新した。
+
+### Red
+- `sidecar-protocol/tests/ring_buffer.rs` に、encoder書込完了後にREADING slotをFREEへ戻せる契約を追加した。
+- `sidecar-protocol/tests/control_plane.rs` に、`encoderFrameWritten` がcamelCaseでserialiseされ、frame bytesを含まない契約を追加した。
+- `shared-memory-spike/tests/posix_shm_two_process.rs` に、POSIX shared memory ringでもencoder書込後にslotを解放できる契約を追加した。
+
+### Green
+- `sidecar-protocol/src/lib.rs` に `CopyOutState::EncoderFrameWritten` を追加し、`permits_read_slot_release()` で許可した。
+- `shared-memory-spike/src/lib.rs` の `release_frame` を `permits_read_slot_release()` ベースに変更した。
+
+### 現在の制限
+- まだ `encode.writeFrame` は実際にはshared memoryへattachしていない。次段で `slotCount` を含むencode payload契約を足し、Rust backendが `PosixSharedRing::attach_with_retry_for_layout` でframeを読む。
+
+### 検証
+- `cargo test --manifest-path sidecar-protocol/Cargo.toml encoder_frame_written`
+  -> 1 test passed。
+- `cargo test --manifest-path sidecar-protocol/Cargo.toml reading_slot_can_be_released_when_encoder_has_written_frame`
+  -> 1 test passed。
+- `cargo test --manifest-path sidecar-protocol/Cargo.toml reading_slot_is_not_freed_until_copy_out_completion_is_signalled`
+  -> 1 test passed。
+- `cargo test --manifest-path shared-memory-spike/Cargo.toml posix_shm_slot_can_be_released_after_encoder_writes_frame`
+  -> 1 test passed。
+- `cargo test --manifest-path shared-memory-spike/Cargo.toml posix_shm_multi_slot_allows_next_frame_while_previous_frame_is_reading`
+  -> 1 test passed。
+- `cargo test --manifest-path rust-backend/Cargo.toml encode_shared_frame_rpc_is_reserved_and_fails_loud_without_legacy_base64_fallback`
+  -> 1 test passed。
+
 ## 2026-06-18 — Phase5: Rust encode IPC を backend RPC へ接続
 
 ### 実施内容
