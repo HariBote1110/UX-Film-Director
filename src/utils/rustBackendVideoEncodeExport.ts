@@ -23,6 +23,7 @@ export type RustBackendVideoEncodeBitmapToRgbaBytes = (
 
 export interface RunRustBackendVideoEncodeExportInput {
   filePath: string;
+  audioPath?: string | null;
   width: number;
   height: number;
   fps: number;
@@ -75,6 +76,7 @@ export const extractImageBitmapRgbaBytes: RustBackendVideoEncodeBitmapToRgbaByte
 
 export const runRustBackendVideoEncodeExport = async ({
   filePath,
+  audioPath = null,
   width,
   height,
   fps,
@@ -88,6 +90,7 @@ export const runRustBackendVideoEncodeExport = async ({
   const startResponse = await startRustBackendVideoEncode({
     sessionId,
     filePath,
+    ...(audioPath ? { audioPath } : {}),
     width,
     height,
     fps,

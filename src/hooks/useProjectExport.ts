@@ -3,7 +3,7 @@ import * as PIXI from 'pixi.js';
 import { useStore } from '../store/useStore';
 import { TimelineObject, VideoObject } from '../types';
 import { shallow } from 'zustand/shallow';
-import { buildExportAudioBuffer } from '../utils/audioMixdown';
+import { buildExportAudioBuffer, buildExportAudioMixWav } from '../utils/audioMixdown';
 import { encodeVideoToMp4 } from '../utils/videoExportPipeline';
 import { resolveProjectExportEncodePlanFromBridge } from '../utils/projectExportEncodePlan';
 import { runRustBackendVideoEncodeExport } from '../utils/rustBackendVideoEncodeExport';
@@ -285,17 +285,34 @@ export const useProjectExport = (
         }
 
         if (exportEncodePlan.engine === 'rustBackendVideoEncoder') {
-          const result = await runRustBackendVideoEncodeExport({
-            filePath: savePath,
-            width: encWidth,
-            height: encHeight,
-            fps,
-            frames: renderFrames(),
-          });
-          if (isCancelled()) return;
+          let audioPath: string | null = null;
+          try {
+            const mixedAudioWav = await buildExportAudioMixWav(exportObjects, exportDuration, sampleRate);
+            if (mixedAudioWav) {
+              const audioSaveResult = await ipcRenderer.invoke('save-temp-audio', mixedAudioWav);
+              if (!audioSaveResult?.success || typeof audioSaveResult.path !== 'string') {
+                throw new Error(audioSaveResult?.error || '音声一時ファイルを保存できませんでした');
+              }
+              audioPath = audioSaveResult.path;
+            }
 
-          setExportProgress({ phase: 'saving', currentFrame: totalFrames, totalFrames });
-          alert(`エクスポート完了！\nコーデック: Rust backend rawvideo/ffmpeg\nフレーム: ${result.frameCount}\n保存先: ${savePath}`);
+            const result = await runRustBackendVideoEncodeExport({
+              filePath: savePath,
+              audioPath,
+              width: encWidth,
+              height: encHeight,
+              fps,
+              frames: renderFrames(),
+            });
+            if (isCancelled()) return;
+
+            setExportProgress({ phase: 'saving', currentFrame: totalFrames, totalFrames });
+            alert(`エクスポート完了！\nコーデック: Rust backend rawvideo/ffmpeg\nフレーム: ${result.frameCount}\n保存先: ${savePath}`);
+          } finally {
+            if (audioPath) {
+              await ipcRenderer.invoke('delete-temp-file', { filePath: audioPath }).catch(() => {});
+            }
+          }
           return;
         }
 

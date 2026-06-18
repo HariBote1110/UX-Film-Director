@@ -60,6 +60,7 @@ interface Window {
     startVideoEncode: (payload: {
       sessionId: string;
       filePath: string;
+      audioPath?: string | null;
       width: number;
       height: number;
       fps: number;

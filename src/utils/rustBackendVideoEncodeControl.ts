@@ -7,6 +7,7 @@ import type {
 export interface RustBackendVideoEncodeStartPayload {
   sessionId: string;
   filePath: string;
+  audioPath?: string | null;
   width: number;
   height: number;
   fps: number;
