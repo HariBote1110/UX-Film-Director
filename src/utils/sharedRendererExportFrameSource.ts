@@ -584,7 +584,7 @@ const writeFrameDiagnostics = (
     status: 'ready' | 'blocked';
     frameIndex: number;
     reason?: string;
-    path?: 'nativeRenderSharedFrame' | 'presentedSharedFrame' | 'webGpuReadbackSharedFrameWriter';
+    path?: 'nativeRenderSharedFrame' | 'presentedSharedFrame';
     nativeRender?: {
       media: readonly { kind: string }[];
       sources: readonly { mediaId: string }[];
