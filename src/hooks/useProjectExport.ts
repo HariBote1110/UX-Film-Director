@@ -9,7 +9,6 @@ import { runRustBackendVideoEncodeExport } from '../utils/rustBackendVideoEncode
 import { renderProjectExportRustEncodeFrame } from '../utils/projectExportRustEncodeFrame';
 import {
   buildProjectExportFrameSourcePlan,
-  pauseLegacyBrowserVideosForExport,
   resolveProjectExportFrameSourcePolicyForEncode,
   resolveProjectExportFrameRuntimePlan,
   resolveProjectExportFrameCanvas,
@@ -37,10 +36,8 @@ const closeEncodedFrameBitmap = (frame: RustBackendVideoEncodeFrame): void => {
 
 export const useProjectExport = (
   pixiAppRef: React.MutableRefObject<PIXI.Application | null>,
-  videoElementsRef: React.MutableRefObject<Map<string, HTMLVideoElement>>,
   renderScene: (time: number, objects: TimelineObject[]) => void,
   getExportCanvas?: () => HTMLCanvasElement | null,
-  /** VideoDecoder ハイブリッドパス: フレームを renderScene 前に注入するための ref */
   exportFrameOverridesRef?: React.MutableRefObject<Map<string, ImageBitmap>>,
   getRustExportFrameSource?: (context: ProjectExportRustFrameSourceContext) => ProjectExportRustFrameSource | null,
 ) => {
@@ -121,8 +118,6 @@ export const useProjectExport = (
           filters: [{ name: 'MP4 Video', extensions: ['mp4'] }],
         });
         if (!savePath) { setExporting(false); return; }
-
-        pauseLegacyBrowserVideosForExport(videoElementsRef.current, exportFrameSourcePlan);
 
         const encWidth = width % 2 === 0 ? width : width - 1;
         const encHeight = height % 2 === 0 ? height : height - 1;
@@ -310,5 +305,5 @@ export const useProjectExport = (
 
     runExport();
     return () => { cancelled = true; };
-  }, [isExporting, renderScene, setExporting, setTime, setExportProgress, pixiAppRef, videoElementsRef, getExportCanvas, exportFrameOverridesRef, getRustExportFrameSource]);
+  }, [isExporting, renderScene, setExporting, setTime, setExportProgress, pixiAppRef, getExportCanvas, exportFrameOverridesRef, getRustExportFrameSource]);
 };
