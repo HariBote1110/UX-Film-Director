@@ -609,3 +609,84 @@ pub fn parse_psd_fast(bytes: &[u8]) -> Result<PsdFastResult, String> {
         layers,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn composite_visible_psd_layers_draws_leaf_layers_from_bottom_to_top() {
+        let psd = PsdFastResult {
+            width: 3,
+            height: 2,
+            layers: vec![
+                PsdFastLayer {
+                    name: "front".to_string(),
+                    top: 0,
+                    left: 1,
+                    width: 2,
+                    height: 2,
+                    visible: true,
+                    parent_group_id: None,
+                    is_group: false,
+                    own_group_id: None,
+                    rgba: Some(vec![
+                        255, 0, 0, 128, 255, 0, 0, 128,
+                        255, 0, 0, 128, 255, 0, 0, 128,
+                    ]),
+                },
+                PsdFastLayer {
+                    name: "hidden".to_string(),
+                    top: 0,
+                    left: 0,
+                    width: 1,
+                    height: 1,
+                    visible: false,
+                    parent_group_id: None,
+                    is_group: false,
+                    own_group_id: None,
+                    rgba: Some(vec![0, 255, 0, 255]),
+                },
+                PsdFastLayer {
+                    name: "group".to_string(),
+                    top: 0,
+                    left: 0,
+                    width: 3,
+                    height: 2,
+                    visible: true,
+                    parent_group_id: None,
+                    is_group: true,
+                    own_group_id: Some(1),
+                    rgba: None,
+                },
+                PsdFastLayer {
+                    name: "back".to_string(),
+                    top: 0,
+                    left: 0,
+                    width: 3,
+                    height: 2,
+                    visible: true,
+                    parent_group_id: None,
+                    is_group: false,
+                    own_group_id: None,
+                    rgba: Some(vec![
+                        0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255,
+                        0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255,
+                    ]),
+                },
+            ],
+        };
+
+        let frame = composite_visible_psd_layers(&psd).expect("composited PSD frame");
+
+        assert_eq!(frame.width, 3);
+        assert_eq!(frame.height, 2);
+        assert_eq!(
+            frame.pixels,
+            vec![
+                0, 0, 255, 255, 128, 0, 127, 255, 128, 0, 127, 255,
+                0, 0, 255, 255, 128, 0, 127, 255, 128, 0, 127, 255,
+            ]
+        );
+    }
+}
