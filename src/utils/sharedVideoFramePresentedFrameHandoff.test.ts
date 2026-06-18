@@ -38,9 +38,28 @@ describe('sharedVideoFramePresentedFrameHandoff', () => {
     expect(createSharedVideoFramePresentedFrameTaker({})).toBeNull();
   });
 
+  it('creates no handoff taker when the native bridge capability declines presented-frame handoff', () => {
+    const bridge = {
+      getPresentedFrameHandoffCapabilities: () => ({
+        available: false,
+        reason: 'WebGPU texture handoff is not implemented.',
+      }),
+      takePresentedFrameSharedFrame: async () => ({
+        success: true,
+        result: payload,
+      }),
+    };
+
+    expect(isSharedVideoFramePresentedFrameBridgeAvailable(bridge)).toBe(false);
+    expect(createSharedVideoFramePresentedFrameTaker(bridge)).toBeNull();
+  });
+
   it('uses the native bridge presented-frame method when available', async () => {
     const calls: unknown[] = [];
     const bridge = {
+      getPresentedFrameHandoffCapabilities: () => ({
+        available: true,
+      }),
       takePresentedFrameSharedFrame: async (input: unknown) => {
         calls.push(input);
         return {

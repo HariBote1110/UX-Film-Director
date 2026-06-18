@@ -21,8 +21,13 @@ assert.equal(typeof addon.copyIntoUploadBuffer, 'function')
 assert.equal(typeof addon.createWritableSharedFrameRing, 'function')
 assert.equal(typeof addon.writeIntoSharedFrameRing, 'function')
 assert.equal(typeof addon.closeWritableSharedFrameRing, 'function')
+assert.equal(typeof addon.getPresentedFrameHandoffCapabilities, 'function')
 assert.equal(typeof addon.takePresentedFrameSharedFrame, 'function')
 assert.equal(typeof addon.debugFillForTest, 'function')
+
+const handoffCapabilities = addon.getPresentedFrameHandoffCapabilities()
+assert.equal(handoffCapabilities.available, false)
+assert.match(String(handoffCapabilities.reason), /WebGPU texture handoff is not implemented/i)
 
 const uploadBuffer = new Uint8Array(8)
 uploadBuffer.fill(0x11)

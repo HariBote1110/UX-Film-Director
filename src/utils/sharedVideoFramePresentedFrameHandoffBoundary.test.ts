@@ -9,6 +9,8 @@ const viteEnvSource = () =>
 
 describe('shared video frame presented-frame handoff boundary', () => {
   it('exposes an optional native presented-frame handoff bridge through preload and renderer types', () => {
+    expect(preloadSource()).toContain('getPresentedFrameHandoffCapabilities');
+    expect(viteEnvSource()).toContain('getPresentedFrameHandoffCapabilities?:');
     expect(preloadSource()).toContain('takePresentedFrameSharedFrame');
     expect(viteEnvSource()).toContain('takePresentedFrameSharedFrame?:');
   });
