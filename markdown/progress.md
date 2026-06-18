@@ -188,3 +188,10 @@
 - Green: `shouldSkipPixiVideoForSharedRenderer` を反転し、preview動画はshared renderer専用、export互換分岐のみ旧Pixi video element pathを残すようにした。
 - 検証: `npm test -- pixiVideoCutover viewportRustVideoOnlyBoundary sharedRendererVideoMediaReadiness` は14件成功。対象ファイル名で絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-146a`。
+
+## 2026-06-19
+- Phase5のpreview control境界として、動画sceneを含むcontrolからWebGPU readback APIを非公開にした。
+- Red: `sharedRendererPreviewPresenterController` へ、`videoSession` のready controlが `readPresentedFrameRgbaBytes` を持たない契約を追加した。
+- Green: `startSharedRendererPreviewPresenter` の返却objectで、`hasVideoScene=true` の場合は `readPresentedFrameRgbaBytes` を省くようにした。
+- 検証: `npm test -- sharedRendererPreviewPresenterController sharedRendererExportFrameSource sharedRendererViewportPresenterOrchestration` は63件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-147a`。

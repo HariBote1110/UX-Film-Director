@@ -896,6 +896,10 @@ HTMLVideoElement seek / canvas captureへ復帰しない。
 canvas upload pathへ進まない。export互換分岐だけは明示的なRust必須がない場合に旧pathを残す。
 これにより再生・停止・scrub中の動画所有権もRust/shared renderer側へ寄せ、Pixiは動画planeを描かない。
 
+167. Phase5: 動画preview controlからWebGPU readbackを非公開にする
+動画sceneを含む shared renderer preview control は `readPresentedFrameRgbaBytes` を公開しない。
+solid/空sceneの診断用readbackは残しつつ、動画previewからWebGPU readback bytesを経由してJS側へ戻る入口を閉じる。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
