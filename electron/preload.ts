@@ -160,6 +160,9 @@ contextBridge.exposeInMainWorld('rustBackend', {
   releaseVideoDecodeFrame(payload: unknown) {
     return ipcRenderer.invoke('rust-backend-decode-release-frame', payload)
   },
+  renderNativeSharedFrame(payload: unknown) {
+    return ipcRenderer.invoke('rust-backend-render-native-shared-frame', payload)
+  },
 })
 
 contextBridge.exposeInMainWorld('rustVideoEncoder', {
