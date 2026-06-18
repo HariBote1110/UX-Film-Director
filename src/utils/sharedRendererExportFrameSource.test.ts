@@ -1064,6 +1064,187 @@ describe('createSharedRendererExportFrameSource', () => {
     ]);
   });
 
+  it('uses Rust backend native render diagnostics for PSD-only encode frames', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    const renderedFrame = {
+      descriptor: {
+        memoryId: '/uxfd-native-render-psd-only-session-frame-4',
+        slotIndex: 0,
+        generation: 1,
+        byteOffset: 0,
+        byteLen: 1024,
+        width: 4,
+        height: 4,
+        strideBytes: 256,
+        format: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      },
+      ptsFrame: 4,
+    } as const;
+    const snapshot = {
+      frame_index: 4,
+      colour: {
+        profile: 'rec709-sdr',
+        working_space: 'linear-light',
+        alpha: 'premultiplied',
+      },
+      clips: [{
+        clip_id: 'psd-clip-1',
+        track_id: 'layer-1',
+        media_id: 'psd-1',
+        source_frame: 0,
+        z_index: 0,
+        transform: {
+          translation_x: 0,
+          translation_y: 0,
+          scale_x: 1,
+          scale_y: 1,
+          rotation_degrees: 0,
+          sampling: 'bilinear',
+        },
+        opacity: 1,
+        effects: [],
+      }],
+    } as const;
+    const media = [{
+      id: 'psd-1',
+      kind: 'Psd',
+      source: '/tmp/standing.psd',
+      width: 4,
+      height: 4,
+      active_layer_ids: ['psd-layer-3'],
+    }] as const;
+    const calls: unknown[] = [];
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: {
+        ...settings,
+        width: 4,
+        height: 4,
+      },
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      bitmapCaptureEnabled: false,
+      buildExportSession: () => ({
+        plan: {
+          mode: 'parallelCompare',
+          primary: 'pixi',
+          candidate: 'sharedRenderer',
+          snapshot,
+          media,
+        },
+        presentationContract: {
+          canvas: {
+            colorSpace: 'srgb',
+            alphaMode: 'premultiplied',
+          },
+          comparisonReadback: {
+            target: 'offscreenRenderTarget',
+            includesPageCompositing: false,
+          },
+          frameTiming: {
+            source: 'frozenSceneSnapshot',
+          },
+          deviceLost: {
+            fallback: 'pixi',
+            staleSharedFrameAllowed: false,
+          },
+        },
+        surfaceGate: {
+          ok: true,
+          canvas: {
+            width: 4,
+            height: 4,
+          },
+          snapshot,
+          media,
+        },
+      }),
+      prepareNativeRenderSources: async () => ({
+        ok: false,
+        reason: 'noVideoDecodeRequest',
+        detail: 'No video source is needed for PSD-only native render.',
+        activeJobs: [],
+      }),
+      renderNativeSharedFrame: (async (payload) => {
+        calls.push(['renderNativeSharedFrame', payload]);
+        return {
+          success: true,
+          result: {
+            rendered: true,
+            renderId: 'psd-only-session-frame-4',
+            memoryId: '/uxfd-native-render-psd-only-session-frame-4',
+            slotCount: 1,
+            slotByteLen: 1024,
+            frame: renderedFrame,
+          },
+        };
+      }) satisfies SharedRendererExportNativeSharedFrameRenderer,
+      startViewportPresenter: async () => {
+        calls.push(['startViewportPresenter']);
+        throw new Error('WebGPU presenter must not start for PSD-only native render.');
+      },
+      createEncodeFrameWriter: async () => {
+        calls.push(['createEncodeFrameWriter']);
+        throw new Error('JS shared-frame writer must not run for PSD-only native render.');
+      },
+    } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
+      bitmapCaptureEnabled: false;
+      renderNativeSharedFrame: unknown;
+    });
+
+    await expect(source.renderEncodeFrame?.({
+      frameIndex: 4,
+      timestampUs: 66_667,
+      time: 4 / 60,
+      width: 4,
+      height: 4,
+      objects: [image({ id: 'psd-placeholder' })],
+      encodeSessionId: 'psd-only-session',
+    })).resolves.toEqual({
+      timestamp: 66_667,
+      sharedFramePayload: {
+        sessionId: 'psd-only-session',
+        frameIndex: 4,
+        timestampUs: 66_667,
+        slotCount: 1,
+        frame: renderedFrame,
+      },
+    });
+
+    expect(calls).toEqual([
+      ['renderNativeSharedFrame', {
+        renderId: 'psd-only-session-frame-4',
+        memoryId: '/uxfd-native-render-psd-only-session-frame-4',
+        slotCount: 1,
+        ptsFrame: 4,
+        width: 4,
+        height: 4,
+        snapshot,
+        media,
+        sources: [],
+      }],
+    ]);
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'ready',
+      uxfdRustExportFrameSourceFrameIndex: '4',
+      uxfdRustExportFrameSourceFramePath: 'nativeRenderSharedFrame',
+      uxfdRustExportFrameSourceFrameReason: undefined,
+    });
+  });
+
   it('carries resolved Rust decode jobs across export frames', async () => {
     const canvas = {
       width: 1920,
