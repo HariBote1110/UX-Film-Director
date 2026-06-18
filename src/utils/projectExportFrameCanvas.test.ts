@@ -191,6 +191,17 @@ describe('resolveProjectExportFrameSourcePolicyForEncode', () => {
     });
   });
 
+  it('requires a Rust frame source for video exports even when the WebCodecs compatibility encoder is selected', () => {
+    expect(resolveProjectExportFrameSourcePolicyForEncode({
+      rustExportOnly: false,
+      hasVideoObjects: true,
+      encodeEngine: 'webCodecsMp4Muxer',
+    })).toEqual({
+      rustFrameSourcePolicy: 'requireRustFrameSource',
+      rustFrameSourceBlockedFallback: 'failExport',
+    });
+  });
+
   it('requires a Rust frame source when Rust-only export is enabled', () => {
     expect(resolveProjectExportFrameSourcePolicyForEncode({
       rustExportOnly: true,
