@@ -16,6 +16,18 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     expect(code).toContain("import('../utils/videoExportPipeline')");
   });
 
+  it('does not load legacy browser video providers when the export has no video objects', () => {
+    const code = source();
+    const start = code.indexOf('const shouldLoadLegacyBrowserVideoProviders =');
+    const end = code.indexOf('if (shouldLoadLegacyBrowserVideoProviders)', start);
+    const providerGateBlock = code.slice(start, end);
+
+    expect(providerGateBlock).toContain('exportFrameSourcePlan.requiresLegacyBrowserVideoProviders');
+    expect(providerGateBlock).toContain('videoObjects.length > 0');
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+  });
+
   it('resolves Rust frame source context outside the hook body', () => {
     const code = source();
 
