@@ -743,6 +743,11 @@ video decode shared frame sourceが準備できていても、snapshot内の非v
 `render.nativeSharedFrame` を呼ぶ前に `nativeRenderUnsupportedMedia` としてfail-loudにする。
 remote PSD / remote画像などをbackendへ渡してから失敗させず、Pixi fallbackへ黙って戻る余地を減らす。
 
+137. Phase5: preview native renderにもunsupported overlay media gateを揃える
+previewのnative render uploadも、video sourceが準備できている場合にremote PSD / remote画像などの非video未対応mediaを
+backendへ渡す前に `nativeRenderUnsupportedMedia` で止める。exportとpreviewは同じmedia gate helperを使い、
+Rust native renderへ渡せるscene envelopeの判断を揃える。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

@@ -4148,3 +4148,19 @@
 ### 残課題・次のステップ
 - video+PSD混在exportを実際のfile path付き `TimelineObject` から `buildSharedRendererExportSession` 経由で構築する統合契約を追加する。
 - preview側のnative render診断にもunsupported overlay mediaのreasonを揃え、preview/exportで同じ判断を見られるようにする。
+
+## 2026-06-19 — preview native renderにもunsupported overlay media gateを適用
+
+### 実施内容
+- Red: video sourceがpreview native render用に準備済みでも、remote PSD overlayがある場合はbackend呼び出し前に `nativeRenderUnsupportedMedia` で止まる契約を追加した。
+- Green: preview native render uploadにも非video mediaのnative support gateを追加し、export側と同じ `resolveMixedNativeRenderUnsupportedMedia` helperへ集約した。
+- preview/exportでremote PSD / remote画像などをRust backendへ渡す前に同じ理由でfail-loudできるようにした。
+- 版を `0.1.1-Beta-120c` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/sharedRendererExportFrameSource.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- video+PSD混在exportを実際のfile path付き `TimelineObject` から `buildSharedRendererExportSession` 経由で構築する統合契約を追加する。
+- preview presenter diagnosticsへnative render media count / kinds / source idsを出し、export側の内訳診断と揃える。
