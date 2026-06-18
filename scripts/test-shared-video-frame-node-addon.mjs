@@ -21,6 +21,7 @@ assert.equal(typeof addon.copyIntoUploadBuffer, 'function')
 assert.equal(typeof addon.createWritableSharedFrameRing, 'function')
 assert.equal(typeof addon.writeIntoSharedFrameRing, 'function')
 assert.equal(typeof addon.closeWritableSharedFrameRing, 'function')
+assert.equal(typeof addon.takePresentedFrameSharedFrame, 'function')
 assert.equal(typeof addon.debugFillForTest, 'function')
 
 const uploadBuffer = new Uint8Array(8)
@@ -80,5 +81,24 @@ assert.deepEqual([...copiedFrame], [...sourceFrame])
 
 const closeRing = addon.closeWritableSharedFrameRing({ memoryId })
 assert.equal(closeRing.success, true, String(closeRing.error))
+
+const handoff = addon.takePresentedFrameSharedFrame({
+  encodeSessionId: 'uxfd-native-handoff-test',
+  memoryId,
+  frameIndex: 7,
+  timestampUs: 116_667,
+  width: 2,
+  height: 2,
+  fps: 60,
+  device: {},
+  texture: {},
+  format: 'bgra8unorm',
+  canvasSize: {
+    width: 2,
+    height: 2,
+  },
+})
+assert.equal(handoff.success, false)
+assert.match(String(handoff.error), /WebGPU texture handoff is not implemented/i)
 
 console.log('shared video frame native addon contract passed')
