@@ -43,6 +43,7 @@ export interface StartSharedRendererViewportPresenterInput {
   videoCutoverEnabled: boolean;
   nativeRenderPreviewEnabled?: boolean;
   requireSharedRendererVideo?: boolean;
+  requireSharedRendererOutput?: boolean;
   activeVideoDecodeJob: SharedRendererViewportVideoDecodeJob | null;
   activeVideoDecodeJobs?: SharedRendererViewportVideoDecodeJob[];
   requestId: number;
@@ -72,6 +73,7 @@ export const startSharedRendererViewportPresenter = async ({
   videoCutoverEnabled,
   nativeRenderPreviewEnabled = false,
   requireSharedRendererVideo = false,
+  requireSharedRendererOutput = false,
   activeVideoDecodeJob,
   activeVideoDecodeJobs,
   requestId,
@@ -152,6 +154,7 @@ export const startSharedRendererViewportPresenter = async ({
     diagnosticSwatchEnabled,
     sharedRendererVideoCutoverEnabled: effectiveVideoCutoverEnabled,
     requireSharedRendererVideo,
+    requireSharedRendererOutput,
     sharedRendererNativeRenderFrameUpload,
     sharedRendererNativeRenderFailure,
     sharedRendererDecodedVideoFrameUpload,

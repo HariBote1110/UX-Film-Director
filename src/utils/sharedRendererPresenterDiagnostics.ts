@@ -51,6 +51,7 @@ export type SharedRendererPresenterDiagnosticState =
   | {
       status: 'fallback';
       reason: string;
+      swatch?: 'solid-srgb' | 'solid-colour-scene' | 'pixi-passthrough' | 'native-render-frame';
       nativeRenderFailureReason?: string;
       nativeRenderFailureDetail?: string;
     }
@@ -176,6 +177,9 @@ export const writeSharedRendererPresenterDiagnostics = (
 
   if (state.status === 'fallback') {
     dataset.uxfdSharedRendererPresenterFailureReason = state.reason;
+    if (state.swatch) {
+      dataset.uxfdSharedRendererPresenterSwatch = state.swatch;
+    }
     if (state.nativeRenderFailureReason) {
       dataset.uxfdSharedRendererPresenterNativeRenderFailureReason = state.nativeRenderFailureReason;
     }

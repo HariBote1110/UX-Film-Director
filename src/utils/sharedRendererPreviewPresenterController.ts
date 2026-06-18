@@ -100,6 +100,7 @@ export interface StartSharedRendererPreviewPresenterInput {
   sharedRendererSolidColourCutoverEnabled?: boolean;
   sharedRendererVideoCutoverEnabled?: boolean;
   requireSharedRendererVideo?: boolean;
+  requireSharedRendererOutput?: boolean;
   sharedRendererVideoFrameUploadReady?: boolean;
   sharedRendererNativeRenderFrameUpload?: SharedRendererDecodedVideoFrameUpload;
   sharedRendererNativeRenderFailure?: {
@@ -140,6 +141,7 @@ export const startSharedRendererPreviewPresenter = async ({
   sharedRendererSolidColourCutoverEnabled = defaultSharedRendererSolidColourCutoverEnabled(),
   sharedRendererVideoCutoverEnabled = defaultSharedRendererVideoCutoverEnabled(),
   requireSharedRendererVideo = false,
+  requireSharedRendererOutput = false,
   sharedRendererVideoFrameUploadReady = false,
   sharedRendererNativeRenderFrameUpload,
   sharedRendererNativeRenderFailure,
@@ -416,6 +418,19 @@ export const startSharedRendererPreviewPresenter = async ({
     && uploadedVideoFrameTexture
     && videoOwnership.owner === 'sharedRenderer';
   const shouldPassThroughToPixi = !hasSolidColourScene && !diagnosticSwatchEnabled;
+  if (requireSharedRendererOutput && shouldPassThroughToPixi && !nativeRenderFrameReady && !shouldPresentUploadedVideoFrame) {
+    writeDiagnostics({
+      status: 'fallback',
+      reason: 'sharedRendererOutputUnavailable',
+      swatch: 'pixi-passthrough',
+    });
+    return {
+      ok: false,
+      reason: 'sharedRendererOutputUnavailable',
+      dispose: presenter.dispose,
+    };
+  }
+
   if (nativeRenderFrameReady) {
     // The native render frame is already the final composited canvas image.
   } else if (shouldPresentUploadedVideoFrame) {

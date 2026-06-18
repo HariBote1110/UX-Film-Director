@@ -223,6 +223,7 @@ export function createSharedRendererExportFrameSource({
       session,
       datasets,
       diagnosticSwatchEnabled: false,
+      requireSharedRendererOutput: true,
       videoCutoverEnabled,
       activeVideoDecodeJob: activeVideoDecodeJobs[0] ?? null,
       activeVideoDecodeJobs,
