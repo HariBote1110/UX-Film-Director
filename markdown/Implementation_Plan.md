@@ -850,6 +850,11 @@ presenter起動や `createImageBitmap(canvas)` へ進まず `videoBitmapCaptureD
 古いWebGPU readback + JS shared-frame writer経路をテスト語彙としても復活させず、Rust native render /
 presented shared-frame handoffだけをencode shared-frameの正規語彙にする。
 
+158. Phase5: WebGPU readback writer diagnostic pathを削除する
+`sharedRendererExportFrameSource` の `uxfdRustExportFrameSourceFramePath` は `nativeRenderSharedFrame` または
+`presentedSharedFrame` だけを成功pathとして扱う。削除済みの `webGpuReadbackSharedFrameWriter` を型・diagnosticからも外し、
+dataset上でもJS writer経路を正規pathとして表現しない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
