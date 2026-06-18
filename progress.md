@@ -1,3 +1,28 @@
+## 2026-06-18 — Phase5: Rust export preflight を時刻スキャンへ拡張
+
+### 実施内容
+- Rust export source selection のpreflightを、代表時刻 `0` だけでなく可視オブジェクトの開始時刻にも広げた。
+- 開始時刻は重複排除して昇順に確認し、最初にblockedした時点で `exportSessionBlocked` として legacy canvas export へ戻すようにした。
+- 後半で初めて出てくるunsupported sceneを、frame render中ではなくexport開始前に検出しやすくした。
+- package version を `0.1.1-Beta-60j` に更新した。
+
+### Red
+- `src/utils/viewportRustExportFrameSource.test.ts` に、未来のオブジェクト開始時刻でblockedになる場合はsourceを作らずfallbackする契約を追加した。
+
+### Green
+- `src/utils/viewportRustExportFrameSource.ts` にpreflight時刻リスト生成を追加し、`buildSharedRendererExportSession` を各候補時刻で実行するようにした。
+
+### 現在の制限
+- キーフレーム時刻やエフェクト切替時刻まではまだスキャンしていない。現時点ではオブジェクト開始時刻を主要なscene変化点として扱う。
+
+### 検証
+- `npm test -- src/utils/viewportRustExportFrameSource.test.ts`
+  -> 1 file / 9 tests passed。
+- `npm test -- src/utils/sharedRendererSurfaceMount.test.ts src/utils/viewportRustExportFrameSource.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererExportSession.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/sharedRendererWebGpuPresenter.test.ts src/utils/rustBackendVideoDecodeControl.test.ts src/utils/sharedRendererRustVideoUploadPipeline.test.ts src/utils/sharedRendererPresenterDiagnostics.test.ts`
+  -> 11 files / 59 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "src/(components/Viewport\\.tsx|hooks/useProjectExport\\.ts|utils/(viewportRustExportFrameSource|projectExportFrameCanvas|sharedRendererExportSession)\\.ts)"`
+  -> 対象ファイルの型エラーなし。
+
 ## 2026-06-18 — Phase5: Rust export source selection に preflight を追加
 
 ### 実施内容

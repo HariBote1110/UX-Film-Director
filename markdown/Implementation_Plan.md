@@ -269,6 +269,8 @@ video cutover enabled / shared renderer canvas available の条件が揃った�
 `Viewport` 側は `buildSharedRendererExportSession` で代表時刻 `0` の surface gate を先に確認し、
 Rust/shared renderer で描けないシーンでは `ProjectExportRustFrameSource` を生成せず legacy canvas export へ戻す。
 これにより、保存先選択や音声mixdown後に最初のframeでようやくblockedになる無駄を減らす。
+続いて、代表時刻だけでなく各可視オブジェクトの開始時刻もpreflight対象にし、後半で初めて現れるunsupported sceneも
+export開始前に検出できるようにする。
 
 ## UI 刷新（2026-04-19）
 
