@@ -683,6 +683,12 @@ Rust backendの `render.nativeSharedFrame` が `MediaKind::Psd` を受けた場�
 PSD寸法がmedia referenceと一致しない場合はfail-loudにし、remote URLはImageと同じlocal source gateで拒否する。
 この段階ではPSDファイル内のvisible状態を使い、UI側 `activeLayerIds` の橋渡しは次段で扱う。
 
+126. Phase5: native render preview成功時にPSD ownershipを移管する
+PSD mediaはRust native render source化済みなので、native render preview frame成功時は該当PSD clipも
+shared renderer ownershipとして公開する。`Viewport` はPSD ownership idをPixi helperへ渡し、
+Pixi PSD tree/sprite描画をcleanupしてhitAreaだけ残す。これによりnative render canvasとPixi PSD描画の二重合成を防ぐ。
+dataset diagnosticsにはPSD owner / reason / countを追加し、PSD cutover状態を確認できるようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

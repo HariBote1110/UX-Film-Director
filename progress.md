@@ -3976,3 +3976,21 @@
 ### 残課題・次のステップ
 - TS側 `sharedRendererNativeMediaSupport` はまだPsdをunsupportedとして扱うため、preview/export capabilityへPSD対応を公開する必要がある。
 - UI側 `activeLayerIds` / `rootLayer` をRust backendのPSD合成へ渡すschemaは未実装。
+
+## 2026-06-18 — native render preview成功時にPSD ownershipを移管
+
+### 実施内容
+- native render preview frame成功時にPSD clipをshared renderer ownershipとして公開する `SharedRendererPsdOwnership` を追加した。
+- presenter diagnosticsへ `uxfdSharedRendererPresenterPsdOwner` / `PsdCutoverReason` / `SharedPsdObjectCount` を追加した。
+- `Viewport` がPSD ownership idをPixi render helperへ渡し、該当PSDのPixi描画をcleanupしてhitAreaだけ残すようにした。
+- Pixi PSD cutover helperを追加し、previewでは二重描画を避けつつ、exportでは従来のPixi PSD描画を維持する契約を固定した。
+- 版を `0.1.1-Beta-112a` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/pixiPsdCutover.test.ts`
+- `npm test -- src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/pixiPsdCutover.test.ts src/utils/pixiImageCutover.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- TS側 `sharedRendererNativeMediaSupport` はまだPsdをunsupportedとして扱うため、PSDをpreview/export capabilityへ公開する必要がある。
+- UI側 `activeLayerIds` / `rootLayer` をRust backendのPSD合成へ渡すschemaは未実装。
