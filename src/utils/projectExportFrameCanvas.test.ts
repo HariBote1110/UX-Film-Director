@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildProjectExportFrameSourcePlan,
+  resolveProjectExportFrameSourcePolicyForEncode,
   resolveProjectExportFrameRuntimePlan,
   resolveProjectExportFrameCanvas,
   type ProjectExportRustFrameSource,
@@ -127,6 +128,38 @@ describe('buildProjectExportFrameSourcePlan', () => {
       ok: false,
       reason: 'exportFrameSourceUnavailable',
       detail: 'Export requires a Rust frame source, shared renderer export canvas, or legacy Pixi canvas.',
+    });
+  });
+});
+
+describe('resolveProjectExportFrameSourcePolicyForEncode', () => {
+  it('requires a Rust frame source whenever the Rust backend encoder is selected', () => {
+    expect(resolveProjectExportFrameSourcePolicyForEncode({
+      rustExportOnly: false,
+      encodeEngine: 'rustBackendVideoEncoder',
+    })).toEqual({
+      rustFrameSourcePolicy: 'requireRustFrameSource',
+      rustFrameSourceBlockedFallback: 'failExport',
+    });
+  });
+
+  it('keeps legacy canvas fallback only for the WebCodecs compatibility encoder', () => {
+    expect(resolveProjectExportFrameSourcePolicyForEncode({
+      rustExportOnly: false,
+      encodeEngine: 'webCodecsMp4Muxer',
+    })).toEqual({
+      rustFrameSourcePolicy: 'allowLegacyCanvas',
+      rustFrameSourceBlockedFallback: 'legacyCanvas',
+    });
+  });
+
+  it('requires a Rust frame source when Rust-only export is enabled', () => {
+    expect(resolveProjectExportFrameSourcePolicyForEncode({
+      rustExportOnly: true,
+      encodeEngine: 'webCodecsMp4Muxer',
+    })).toEqual({
+      rustFrameSourcePolicy: 'requireRustFrameSource',
+      rustFrameSourceBlockedFallback: 'failExport',
     });
   });
 });
