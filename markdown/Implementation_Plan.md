@@ -727,6 +727,11 @@ WebGPU readback + JS shared-frame writerなら `webGpuReadbackSharedFrameWriter`
 WASM parse失敗時だけ既存ag-psd経路へfallbackし、保存済みPSDのlayer選択がRust backendのactive layer filterと照合不能に
 戻らないようにする。
 
+134. Phase5: 旧PSD active idを復元後stable idへ移植する
+保存済みprojectに旧ag-psd由来の不安定なPSD layer idが残っている場合、再parse後のstable `rootLayer` を正としつつ、
+保存済み `rootLayer` の同名・同種・同位置ノードからactive状態を移植する。これにより旧projectでOFFにしていたPSD leaf layerが
+復元後にdefault visibleへ戻り、Rust backendの `active_layer_ids` filterで再表示される事故を避ける。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

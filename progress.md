@@ -4100,3 +4100,19 @@
 ### 残課題・次のステップ
 - video+PSD exportの積層sceneで、video decode shared frame source + PSD media sourceが同じnative renderへ入る契約を追加する。
 - 保存済みPSDの旧IDを持つactiveLayerIdsが存在する場合に、復元後のstable idへどこまで移せるかを実ファイルfixtureで確認する。
+
+## 2026-06-18 — 旧PSD active idをstable idへ復元
+
+### 実施内容
+- Red: 旧projectに保存された `legacy-face-id: false` が、再parse後の `psd-layer-1: false` へ移らないことをテストで固定した。
+- Green: 保存済み `rootLayer` と復元後stable `rootLayer` を同名・同種・同位置で対応づけ、保存時のactive状態をstable idへ移植するようにした。
+- `layerTree` も移植後のactive stateから再構築し、UI表示とRust `active_layer_ids` 境界の状態が分離しないようにした。
+- 版を `0.1.1-Beta-119a` に更新した。
+
+### 検証
+- `npm test -- src/utils/projectFile.test.ts src/utils/psdParserArrayBufferWasm.test.ts src/utils/psdLayerStableId.test.ts src/utils/psdParserPersistence.test.ts src/utils/rustSceneSnapshot.test.ts`
+- 対象ファイルに絞った `npx tsc --noEmit` エラー確認。
+
+### 残課題・次のステップ
+- video+PSD exportの積層sceneで、video decode shared frame source + PSD media sourceが同じnative renderへ入る契約を追加する。
+- 旧projectのPSD構造が保存時と実ファイル再parse時で大きく変わっている場合は、安全側にdefault visibleを使うため、実ファイルfixtureで移植範囲を追加確認する。
