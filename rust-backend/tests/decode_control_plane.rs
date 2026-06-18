@@ -217,6 +217,132 @@ fn encode_start_accepts_audio_path_and_muxes_audio_with_shared_frames() {
 }
 
 #[test]
+fn native_render_shared_frame_consumes_source_shm_and_returns_descriptor_only() {
+    let mut backend = BackendProcess::start();
+    let source_memory_id = unique_shm_name();
+    let output_memory_id = unique_shm_name();
+    let slot_count = 1;
+    let output_slot_count = 2;
+    let width = 4;
+    let height = 4;
+    let stride_bytes = 256;
+    let slot_byte_len = stride_bytes * height;
+    let tight_rgba = test_frame_pixels(width, height, 0);
+    let padded_rgba = pad_rgba_rows(&tight_rgba, width, height, stride_bytes as usize);
+    let source_ring = PosixSharedRing::create_with_slot_count(
+        &source_memory_id,
+        slot_count,
+        slot_byte_len as usize,
+    )
+    .expect("create native render source ring");
+    source_ring
+        .write_frame(0, &padded_rgba)
+        .expect("write native render source frame");
+
+    let response = backend.request(json!({
+        "id": 11,
+        "method": "render.nativeSharedFrame",
+        "params": {
+            "renderId": "native-render-1",
+            "memoryId": output_memory_id,
+            "slotCount": output_slot_count,
+            "ptsFrame": 0,
+            "width": width,
+            "height": height,
+            "snapshot": {
+                "frameIndex": 0,
+                "colour": {
+                    "primaries": "bt709",
+                    "transfer": "srgb",
+                    "matrix": "rgb",
+                    "range": "full"
+                },
+                "clips": [{
+                    "clipId": "clip-native-render",
+                    "trackId": "track-1",
+                    "mediaId": "source-1",
+                    "sourceFrame": 0,
+                    "zIndex": 0,
+                    "transform": {
+                        "translationX": 0.0,
+                        "translationY": 0.0,
+                        "scaleX": 1.0,
+                        "scaleY": 1.0,
+                        "rotationDegrees": 0.0,
+                        "sampling": "nearest"
+                    },
+                    "opacity": 1.0,
+                    "effects": []
+                }]
+            },
+            "sources": [{
+                "mediaId": "source-1",
+                "slotCount": slot_count,
+                "frame": {
+                    "descriptor": {
+                        "memoryId": source_memory_id,
+                        "slotIndex": 0,
+                        "generation": 1,
+                        "byteOffset": 0,
+                        "byteLen": slot_byte_len,
+                        "width": width,
+                        "height": height,
+                        "strideBytes": stride_bytes,
+                        "format": "rgba8Srgb",
+                        "colour": {
+                            "primaries": "bt709",
+                            "transfer": "srgb",
+                            "matrix": "rgb",
+                            "range": "full"
+                        }
+                    },
+                    "ptsFrame": 0
+                }
+            }]
+        }
+    }));
+
+    assert_eq!(response["ok"], true, "{response}");
+    assert_eq!(response["result"]["rendered"], true);
+    assert_eq!(response["result"]["renderId"], "native-render-1");
+    assert_eq!(response["result"]["slotCount"], output_slot_count);
+    assert_eq!(response["result"]["frame"]["ptsFrame"], 0);
+    assert_eq!(
+        response["result"]["frame"]["descriptor"]["memoryId"],
+        output_memory_id
+    );
+    assert_eq!(
+        response["result"]["frame"]["descriptor"]["strideBytes"]
+            .as_u64()
+            .expect("output stride")
+            % 256,
+        0
+    );
+    assert_no_frame_bytes_recursive(&response["result"]);
+
+    source_ring
+        .wait_until_free(Duration::from_secs(1))
+        .expect("source shared frame slot returns to free after native render");
+
+    let output_slot_byte_len = response["result"]["frame"]["descriptor"]["byteLen"]
+        .as_u64()
+        .expect("output byte length") as usize;
+    let output_ring = PosixSharedRing::attach_with_retry_for_layout(
+        response["result"]["frame"]["descriptor"]["memoryId"]
+            .as_str()
+            .expect("output memory id"),
+        output_slot_count,
+        output_slot_byte_len,
+        Duration::from_secs(1),
+    )
+    .expect("attach to native render output ring");
+    let output_frame = output_ring
+        .read_frame(0)
+        .expect("read native rendered output frame");
+    assert_eq!(output_frame.bytes.len(), output_slot_byte_len);
+}
+
+#[test]
 fn encode_write_frame_requires_slot_count_for_shared_memory_attach() {
     let mut backend = BackendProcess::start();
 
