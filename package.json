@@ -5,6 +5,7 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
+    "dev:rust-video": "node scripts/dev-rust-video.mjs",
     "perf": "VITE_PERF_AUTORUN=1 vite",
     "perf:agent": "VITE_PERF_AGENT_MODE=1 vite",
     "test": "vitest run --exclude **/psdParser.perf.test.ts",
