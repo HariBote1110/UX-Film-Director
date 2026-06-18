@@ -297,6 +297,12 @@ export frame sourceでは Pixi が動画ownerになる余地がないため、pr
 Pixi preview側の `HTMLVideoElement` / `VideoSource` / canvas upload fallback を作らず、shared renderer側だけを正とする。
 これにより、preview検証中にPixi videoが見えているだけの状態をRust移管完了と誤認しない。
 
+61. Phase5: Rust video encode bridge control を追加する
+renderer側に `rustBackendVideoEncodeControl` を追加し、Rust encoder session の start / shared-frame write / finish を
+base64やRGBA bytesではなく shared memory descriptor のcontrol payloadで扱う契約にする。
+`resolveProjectExportEncodePlanFromBridge` は `window.rustVideoEncoder` のshapeからRust encoder availabilityを判断し、
+bridgeが接続された時点でRust backend encoderを選べるようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

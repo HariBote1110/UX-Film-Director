@@ -1,3 +1,35 @@
+## 2026-06-18 — Phase5: Rust video encode bridge control を追加
+
+### 実施内容
+- `rustBackendVideoEncodeControl` を追加し、Rust video encoder session の `startVideoEncode` / `writeVideoEncodeFrame` / `finishVideoEncode` をrenderer側から扱える型境界を作った。
+- `writeVideoEncodeFrame` は `RustBackendSharedVideoFrame` の shared memory descriptor を渡し、`frameBase64` や `rgbaBytes` をcontrol payloadへ載せない契約にした。
+- `resolveProjectExportEncodePlanFromBridge` を追加し、`window.rustVideoEncoder` のbridge shapeからRust encoder availabilityを判断するようにした。
+- `useProjectExport` は固定 `rustEncoderAvailable=false` ではなく、renderer bridge availabilityからencode planを選ぶようにした。
+- package version を `0.1.1-Beta-60p` に更新した。
+
+### Red
+- `src/utils/rustBackendVideoEncodeControl.test.ts` に、encoder bridge availability、metadataのみのstart、shared frame descriptorによるframe write、session idによるfinishの契約を追加した。
+- `src/utils/projectExportEncodePlan.test.ts` に、bridge shapeからRust encoder availabilityを導出する契約を追加した。
+
+### Green
+- `src/utils/rustBackendVideoEncodeControl.ts` を追加した。
+- `src/utils/projectExportEncodePlan.ts` に `resolveProjectExportEncodePlanFromBridge` を追加した。
+- `src/hooks/useProjectExport.ts` から `window.rustVideoEncoder` を使ってencode planを解決するようにした。
+- `src/vite-env.d.ts` に `window.rustVideoEncoder` の型を追加した。
+
+### 現在の制限
+- `window.rustVideoEncoder` のpreload/main接続とRust backend encoder本体は未実装。現時点ではrenderer側のRust encoder control境界を先に固定した段階。
+
+### 検証
+- `npm test -- src/utils/rustBackendVideoEncodeControl.test.ts`
+  -> 1 file / 4 tests passed。
+- `npm test -- src/utils/rustBackendVideoEncodeControl.test.ts src/utils/projectExportEncodePlan.test.ts`
+  -> 2 files / 8 tests passed。
+- `npm test -- src/utils/rustBackendVideoEncodeControl.test.ts src/utils/projectExportEncodePlan.test.ts src/utils/rustBackendVideoDecodeControl.test.ts src/utils/sharedVideoFrameUploadBridge.test.ts src/utils/sharedRendererRustVideoUploadPipeline.test.ts src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererExportFrameSource.test.ts`
+  -> 8 files / 43 tests passed。
+- `npx tsc --noEmit 2>&1 | rg "src/(utils/rustBackendVideoEncodeControl\\.ts|utils/projectExportEncodePlan\\.ts|hooks/useProjectExport\\.ts|vite-env\\.d\\.ts)"`
+  -> 対象ファイルの型エラーなし。
+
 ## 2026-06-18 — Phase5: Rust video必須時は Pixi preview fallback を禁止
 
 ### 実施内容
