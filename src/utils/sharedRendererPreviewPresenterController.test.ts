@@ -203,6 +203,62 @@ const imageSession: SharedRendererPreviewSession = {
   presentationContract: buildSharedRendererPresentationContract(),
 };
 
+const psdSnapshot: RustSceneSnapshot = {
+  ...snapshot,
+  clips: [
+    {
+      clip_id: 'psd-1',
+      track_id: 'layer-0',
+      media_id: 'psd-1',
+      source_frame: 0,
+      z_index: 0,
+      transform: {
+        translation_x: 64,
+        translation_y: 96,
+        scale_x: 1,
+        scale_y: 1,
+        rotation_degrees: 0,
+        sampling: 'bilinear',
+      },
+      opacity: 1,
+      effects: [],
+    },
+  ],
+};
+
+const psdSession: SharedRendererPreviewSession = {
+  plan: {
+    mode: 'parallelCompare',
+    primary: 'pixi',
+    candidate: 'sharedRenderer',
+    snapshot: psdSnapshot,
+    media: [
+      {
+        id: 'psd-1',
+        kind: 'Psd',
+        source: '/tmp/standing.psd',
+        width: 512,
+        height: 768,
+      },
+    ],
+  },
+  surfaceGate: {
+    ok: true,
+    canvas: { width: 1920, height: 1080 },
+    snapshot: psdSnapshot,
+    media: [
+      {
+        id: 'psd-1',
+        kind: 'Psd',
+        source: '/tmp/standing.psd',
+        width: 512,
+        height: 768,
+      },
+    ],
+  },
+  presentationContract: buildSharedRendererPresentationContract(),
+};
+
 const multiVideoSnapshot: RustSceneSnapshot = {
   ...snapshot,
   clips: [
@@ -1135,6 +1191,43 @@ describe('startSharedRendererPreviewPresenter', () => {
       uxfdSharedRendererPresenterImageOwner: 'sharedRenderer',
       uxfdSharedRendererPresenterImageCutoverReason: 'nativeRenderFrameReady',
       uxfdSharedRendererPresenterSharedImageObjectCount: '1',
+    });
+  });
+
+  it('publishes PSD ownership when a native rendered preview frame already contains the composited PSD scene', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const rgbaBytes = new Uint8Array(nativeRenderDescriptor.byteLen);
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: psdSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      sharedRendererNativeRenderFrameUpload: {
+        descriptor: nativeRenderDescriptor,
+        ptsFrame: 12,
+        rgbaBytes,
+      },
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter(),
+      }),
+      textureUsageRenderAttachment: 16,
+    } as any);
+
+    expect(control).toMatchObject({
+      ok: true,
+      psdOwnership: {
+        owner: 'sharedRenderer',
+        reason: 'nativeRenderFrameReady',
+        psdObjectIds: ['psd-1'],
+      },
+    });
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterNativeRenderFrameReady: 'true',
+      uxfdSharedRendererPresenterPsdOwner: 'sharedRenderer',
+      uxfdSharedRendererPresenterPsdCutoverReason: 'nativeRenderFrameReady',
+      uxfdSharedRendererPresenterSharedPsdObjectCount: '1',
     });
   });
 
