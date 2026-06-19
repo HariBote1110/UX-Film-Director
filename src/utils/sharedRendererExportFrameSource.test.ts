@@ -3371,7 +3371,8 @@ describe('createSharedRendererExportFrameSource', () => {
     expect(blocked).toMatchObject({
       reason: 'videoUploadFailed',
       frameIndex: 2,
-      fallbackToLegacyCanvas: true,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
     });
     expect(bitmapCaptureCount).toBe(0);
     expect(disposeCount).toBe(1);
@@ -3428,6 +3429,12 @@ describe('createSharedRendererExportFrameSource', () => {
 
     expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
     expect(blocked.message).toBe('staleDecodeResponse clip=clip-video-2 media=video-2: Rust backend returned a decoded frame for a stale job id.');
+    expect(blocked).toMatchObject({
+      reason: 'videoUploadFailed',
+      frameIndex: 4,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
+    });
     expect(bitmapCaptureCount).toBe(0);
   });
 
@@ -3519,7 +3526,8 @@ describe('createSharedRendererExportFrameSource', () => {
     expect(blocked).toMatchObject({
       reason: 'videoOwnershipUnavailable',
       frameIndex: 4,
-      fallbackToLegacyCanvas: true,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
     });
     expect(blocked.message).toContain('videoFrameUploadUnavailable');
     expect(bitmapCaptureCount).toBe(0);
@@ -3582,7 +3590,8 @@ describe('createSharedRendererExportFrameSource', () => {
     expect(blocked).toMatchObject({
       reason: 'videoOwnershipUnavailable',
       frameIndex: 5,
-      fallbackToLegacyCanvas: true,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
     });
     expect(blocked.message).toContain('missing uploaded video clips: video-2');
     expect(bitmapCaptureCount).toBe(0);
