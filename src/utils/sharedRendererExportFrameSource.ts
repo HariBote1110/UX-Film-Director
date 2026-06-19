@@ -123,7 +123,7 @@ export class SharedRendererExportFrameSourceBlockedError extends Error {
     message: string,
     readonly reason: SharedRendererExportFrameSourceBlockedReason,
     readonly frameIndex: number,
-    readonly legacyCanvasFallbackAllowed: boolean = true
+    readonly legacyCanvasFallbackAllowed: boolean = false
   ) {
     super(message);
     this.name = 'SharedRendererExportFrameSourceBlockedError';
@@ -201,7 +201,8 @@ export function createSharedRendererExportFrameSource({
       throw new SharedRendererExportFrameSourceBlockedError(
         surfaceGate.detail,
         surfaceGate.reason,
-        request.frameIndex
+        request.frameIndex,
+        true
       );
     }
     writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
