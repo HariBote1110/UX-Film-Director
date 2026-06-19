@@ -235,6 +235,18 @@ export const writeSharedRendererPresenterDiagnostics = (
     if (state.nativeRenderFailureReason === 'nativeRenderSourceReleaseUnavailable') {
       dataset.uxfdSharedRendererPresenterNativeRenderSourceReleaseRequired = 'true';
     }
+    if (state.videoUploadFailureReason) {
+      dataset.uxfdSharedRendererPresenterVideoUploadFailureReason = state.videoUploadFailureReason;
+    }
+    if (state.videoUploadFailureDetail) {
+      dataset.uxfdSharedRendererPresenterVideoUploadFailureDetail = state.videoUploadFailureDetail;
+    }
+    if (state.videoUploadFailureClipId) {
+      dataset.uxfdSharedRendererPresenterVideoUploadFailureClipId = state.videoUploadFailureClipId;
+    }
+    if (state.videoUploadFailureMediaId) {
+      dataset.uxfdSharedRendererPresenterVideoUploadFailureMediaId = state.videoUploadFailureMediaId;
+    }
     if (state.videoOwner) {
       dataset.uxfdSharedRendererPresenterVideoOwner = state.videoOwner;
     }
