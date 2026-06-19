@@ -48,6 +48,7 @@ export type SharedRendererPresenterDiagnosticState =
       videoUploadFailureDetail?: string;
       videoUploadFailureClipId?: string;
       videoUploadFailureMediaId?: string;
+      videoUploadMissingClipIds?: string;
       videoOwner?: SharedRendererVideoOwner;
       videoCutoverReason?: SharedRendererVideoCutoverReason;
       sharedVideoObjectCount?: number;
@@ -62,6 +63,7 @@ export type SharedRendererPresenterDiagnosticState =
       videoUploadFailureDetail?: string;
       videoUploadFailureClipId?: string;
       videoUploadFailureMediaId?: string;
+      videoUploadMissingClipIds?: string;
       videoOwner?: SharedRendererVideoOwner;
       videoCutoverReason?: SharedRendererVideoCutoverReason;
       sharedVideoObjectCount?: number;
@@ -99,6 +101,7 @@ export const writeSharedRendererPresenterDiagnostics = (
   delete dataset.uxfdSharedRendererPresenterVideoUploadFailureDetail;
   delete dataset.uxfdSharedRendererPresenterVideoUploadFailureClipId;
   delete dataset.uxfdSharedRendererPresenterVideoUploadFailureMediaId;
+  delete dataset.uxfdSharedRendererPresenterVideoUploadMissingClipIds;
   delete dataset.uxfdSharedRendererPresenterNativeRenderFrameReady;
   delete dataset.uxfdSharedRendererPresenterNativeRenderMediaCount;
   delete dataset.uxfdSharedRendererPresenterNativeRenderMediaKinds;
@@ -171,6 +174,9 @@ export const writeSharedRendererPresenterDiagnostics = (
     if (state.videoUploadFailureMediaId) {
       dataset.uxfdSharedRendererPresenterVideoUploadFailureMediaId = state.videoUploadFailureMediaId;
     }
+    if (state.videoUploadMissingClipIds) {
+      dataset.uxfdSharedRendererPresenterVideoUploadMissingClipIds = state.videoUploadMissingClipIds;
+    }
     if (typeof state.nativeRenderFrameReady === 'boolean') {
       dataset.uxfdSharedRendererPresenterNativeRenderFrameReady = String(state.nativeRenderFrameReady);
     }
@@ -204,6 +210,9 @@ export const writeSharedRendererPresenterDiagnostics = (
     }
     if (state.videoUploadFailureMediaId) {
       dataset.uxfdSharedRendererPresenterVideoUploadFailureMediaId = state.videoUploadFailureMediaId;
+    }
+    if (state.videoUploadMissingClipIds) {
+      dataset.uxfdSharedRendererPresenterVideoUploadMissingClipIds = state.videoUploadMissingClipIds;
     }
     if (state.nativeRenderFailureReason === 'nativeRenderSourceReleaseUnavailable') {
       dataset.uxfdSharedRendererPresenterNativeRenderSourceReleaseRequired = 'true';

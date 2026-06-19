@@ -7,6 +7,7 @@ import {
 import {
   buildSharedRendererVideoFrameDecodeRequests,
   type SharedRendererVideoFrameDecodeRequestBuilder,
+  type SharedRendererVideoFrameDecodeRequestResult,
 } from './sharedRendererVideoDecodeRequest';
 import {
   createSharedRendererWebGpuPresenter,
@@ -110,6 +111,7 @@ export interface StartSharedRendererPreviewPresenterInput {
     detail: string;
     clipId?: string;
     mediaId?: string;
+    missingClipIds?: string;
   };
   sharedRendererDecodedVideoFrameUpload?: SharedRendererDecodedVideoFrameUpload;
   sharedRendererDecodedVideoFrameUploads?: SharedRendererDecodedVideoFrameUploadForClip[];
@@ -450,6 +452,18 @@ export const startSharedRendererPreviewPresenter = async ({
       ? new Set(videoCutoverStackSafety.safeVideoObjectIds)
       : undefined,
   });
+  const missingUploadedVideoObjectIds = resolveMissingUploadedVideoObjectIds(
+    videoDecodeRequestResult,
+    uploadedVideoObjectIds
+  );
+  if (missingUploadedVideoObjectIds.length > 0) {
+    const missingClipIds = missingUploadedVideoObjectIds.join(',');
+    resolvedVideoUploadFailure ??= {
+      reason: 'videoUploadMissingClip',
+      detail: `Rust decoded upload is missing for video clips: ${missingClipIds}`,
+      missingClipIds,
+    };
+  }
   const solidColourStackSafety = hasSolidColourScene
     ? buildSharedRendererSolidColourStackSafety({
       snapshot: session.surfaceGate.snapshot,
@@ -492,6 +506,7 @@ export const startSharedRendererPreviewPresenter = async ({
       videoUploadFailureDetail: resolvedVideoUploadFailure?.detail,
       videoUploadFailureClipId: resolvedVideoUploadFailure?.clipId,
       videoUploadFailureMediaId: resolvedVideoUploadFailure?.mediaId,
+      videoUploadMissingClipIds: resolvedVideoUploadFailure?.missingClipIds,
       videoOwner: videoOwnership.owner,
       videoCutoverReason: videoOwnership.reason,
       sharedVideoObjectCount: videoOwnership.videoObjectIds.length,
@@ -591,6 +606,7 @@ export const startSharedRendererPreviewPresenter = async ({
     videoUploadFailureDetail: hasVideoScene ? resolvedVideoUploadFailure?.detail : undefined,
     videoUploadFailureClipId: hasVideoScene ? resolvedVideoUploadFailure?.clipId : undefined,
     videoUploadFailureMediaId: hasVideoScene ? resolvedVideoUploadFailure?.mediaId : undefined,
+    videoUploadMissingClipIds: hasVideoScene ? resolvedVideoUploadFailure?.missingClipIds : undefined,
     videoOwner: hasVideoScene ? videoOwnership.owner : undefined,
     videoCutoverReason: hasVideoScene ? videoOwnership.reason : undefined,
     sharedVideoObjectCount: hasVideoScene ? videoOwnership.videoObjectIds.length : undefined,
@@ -691,6 +707,16 @@ const resolveSingleVideoUploadScope = (
     clipId: clip.clip_id,
     mediaId: clip.media_id,
   };
+};
+
+const resolveMissingUploadedVideoObjectIds = (
+  videoDecodeRequestResult: SharedRendererVideoFrameDecodeRequestResult | null | undefined,
+  uploadedVideoObjectIds: ReadonlySet<string> | undefined,
+): string[] => {
+  if (!uploadedVideoObjectIds || !videoDecodeRequestResult?.ok) return [];
+
+  const requestedVideoObjectIds = [...new Set(videoDecodeRequestResult.requests.map((request) => request.clipId))];
+  return requestedVideoObjectIds.filter((videoObjectId) => !uploadedVideoObjectIds.has(videoObjectId));
 };
 
 const releaseDecodedVideoUploadAfterAbort = async (
