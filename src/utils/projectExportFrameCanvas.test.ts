@@ -214,6 +214,10 @@ describe('projectExportFrameCanvas browser video boundary', () => {
 });
 
 describe('resolveProjectExportFrameSourcePolicyForEncode', () => {
+  it('does not expose rustVideoOnly as an export frame source policy input', () => {
+    expect(source()).not.toContain('rustVideoOnly');
+  });
+
   it('requires a Rust frame source whenever the Rust backend encoder is selected', () => {
     expect(resolveProjectExportFrameSourcePolicyForEncode({
       rustExportOnly: false,

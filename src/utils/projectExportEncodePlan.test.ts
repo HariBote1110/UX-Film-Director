@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   resolveProjectExportEncodePlan,
   resolveProjectExportEncodePlanFromBridge,
 } from './projectExportEncodePlan';
 
+const source = () =>
+  readFileSync(new URL('./projectExportEncodePlan.ts', import.meta.url), 'utf8');
+
 describe('resolveProjectExportEncodePlan', () => {
+  it('does not expose rustVideoOnly as an export encode planning input', () => {
+    expect(source()).not.toContain('rustVideoOnly');
+  });
+
   it('keeps WebCodecs mp4-muxer encoding only when the Rust encoder is unavailable', () => {
     expect(resolveProjectExportEncodePlan({
       rustExportOnly: false,
