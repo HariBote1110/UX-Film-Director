@@ -13,6 +13,7 @@
     "test:export": "VITE_EXPORT_TEST=1 vite",
     "test:export:ci": "node scripts/run-export-test.mjs",
     "test:export:fast": "EXPORT_FAST=1 node scripts/run-export-test.mjs",
+    "test:video-load:e2e": "node scripts/run-video-load-e2e.mjs",
     "build": "tsc && vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
     "preview": "vite preview",
     "rust:build:debug": "cargo build --manifest-path rust-backend/Cargo.toml",
