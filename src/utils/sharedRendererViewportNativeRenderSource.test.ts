@@ -439,7 +439,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
     expect(result).toEqual({
       ok: false,
       reason: 'staleDecodeResponse',
-      detail: 'Rust backend returned a decoded frame for a stale job id.',
+      detail: 'Rust backend returned a decoded frame for a stale job id. clip=clip-video-1 media=video-1',
       activeJobs: [{
         jobId: 'shared-renderer-video-video-1-4x4-60over1',
         source: '/tmp/video-1.mp4',
@@ -553,7 +553,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
     expect(result).toEqual({
       ok: false,
       reason: 'staleDecodeResponse',
-      detail: 'Rust backend returned a decoded frame for a stale job id.',
+      detail: 'Rust backend returned a decoded frame for a stale job id. clip=clip-video-2 media=video-2',
       activeJobs: [
         {
           jobId: 'shared-renderer-video-video-1-4x4-60over1',
