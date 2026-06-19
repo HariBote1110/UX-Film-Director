@@ -331,7 +331,8 @@ export function createSharedRendererExportFrameSource({
             throw new SharedRendererExportFrameSourceBlockedError(
               'Encode-only export requires every media-only frame source to be Rust native-renderable.',
               'nativeRenderUnsupportedMedia',
-              request.frameIndex
+              request.frameIndex,
+              false
             );
           }
           return null;
@@ -403,7 +404,8 @@ export function createSharedRendererExportFrameSource({
       throw new SharedRendererExportFrameSourceBlockedError(
         unsupportedNativeMedia,
         'nativeRenderUnsupportedMedia',
-        request.frameIndex
+        request.frameIndex,
+        !effectiveNativeRenderRequired
       );
     }
 
