@@ -45,6 +45,7 @@ export type SharedRendererExportFrameSourceBlockedReason =
   | 'videoUploadFailed'
   | 'videoOwnershipUnavailable'
   | 'presentedSharedFrameHandoffUnavailable'
+  | 'presentedSharedFrameHandoffFailed'
   | 'videoBitmapCaptureDisabled'
   | 'nativeRenderSourceReleaseUnavailable'
   | 'nativeRenderSourceReleaseFailed'
@@ -510,15 +511,29 @@ export function createSharedRendererExportFrameSource({
       try {
         const control = presenterResult.control;
         if (control.ok && typeof control.takePresentedFrameSharedFrame === 'function') {
-          const sharedFramePayload = await control.takePresentedFrameSharedFrame({
-            encodeSessionId: request.encodeSessionId,
-            memoryId: buildEncodeSourceMemoryId(request.encodeSessionId),
-            frameIndex: request.frameIndex,
-            timestampUs: request.timestampUs,
-            width: request.width,
-            height: request.height,
-            fps: projectSettings.fps,
-          });
+          let sharedFramePayload: RustBackendVideoEncodeSharedFramePayloadFrame['sharedFramePayload'];
+          try {
+            sharedFramePayload = await control.takePresentedFrameSharedFrame({
+              encodeSessionId: request.encodeSessionId,
+              memoryId: buildEncodeSourceMemoryId(request.encodeSessionId),
+              frameIndex: request.frameIndex,
+              timestampUs: request.timestampUs,
+              width: request.width,
+              height: request.height,
+              fps: projectSettings.fps,
+            });
+          } catch (error) {
+            writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+              status: 'blocked',
+              frameIndex: request.frameIndex,
+              reason: 'presentedSharedFrameHandoffFailed',
+            });
+            throw new SharedRendererExportFrameSourceBlockedError(
+              formatPresentedSharedFrameHandoffError(error),
+              'presentedSharedFrameHandoffFailed',
+              request.frameIndex
+            );
+          }
           writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
             status: 'ready',
             frameIndex: request.frameIndex,
@@ -771,6 +786,16 @@ const formatNativeRenderReleaseError = (error: unknown): string => {
     return error;
   }
   return 'Rust native render source release failed.';
+};
+
+const formatPresentedSharedFrameHandoffError = (error: unknown): string => {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  if (typeof error === 'string' && error) {
+    return error;
+  }
+  return 'Presented shared-frame handoff failed.';
 };
 
 const writeFrameDiagnostics = (
