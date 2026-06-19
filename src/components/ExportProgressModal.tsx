@@ -61,6 +61,16 @@ const formatRustFrameSourceBlockedReason = (
       ? 'native render output解放失敗'
       : 'native render output release failed';
   }
+  if (reason === 'nativeRenderSourceReleaseFailed') {
+    return language === 'ja'
+      ? 'native render source解放失敗'
+      : 'native render source release failed';
+  }
+  if (reason === 'presentedSharedFrameHandoffFailed') {
+    return language === 'ja'
+      ? 'presented shared-frame受け渡し失敗'
+      : 'presented shared-frame handoff failed';
+  }
   if (reason === 'videoOwnershipUnavailable') {
     return language === 'ja'
       ? '動画所有権未移管'
