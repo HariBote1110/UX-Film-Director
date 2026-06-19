@@ -2182,6 +2182,106 @@ fn decode_request_frame_inline_returns_rgba_for_mvp_preview_only() {
 }
 
 #[test]
+fn decode_request_frame_reads_all_local_video_fixtures_for_preview() {
+    let fixtures = [
+        ("decode-local-20mbps", "perf/heavy-media/20000kbps_60fps.mp4", 1920, 1080, 60, 1),
+        ("decode-local-gopro-proxy", "perf/heavy-media/GX010052.proxy.mp4", 1280, 720, 120000, 1001),
+        ("decode-local-10mbps", "perf/heavy-media/10000kbps_60fps.mp4", 1920, 1080, 60, 1),
+        ("decode-local-gopro-original", "perf/heavy-media/GX010052.MP4", 3840, 2160, 120000, 1001),
+    ];
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("repository root");
+    let mut backend = BackendProcess::start();
+
+    for (index, (job_id, relative_path, width, height, numerator, denominator)) in
+        fixtures.iter().enumerate()
+    {
+        let source = repo_root.join(relative_path);
+        assert!(source.exists(), "local video fixture is missing: {source:?}");
+
+        let start_response = backend.request(json!({
+            "id": 100 + index * 10,
+            "method": "decode.start",
+            "params": {
+                "jobId": job_id,
+                "source": source.to_string_lossy(),
+                "slotCount": 1,
+                "width": width,
+                "height": height,
+                "sourceRate": {
+                    "numerator": numerator,
+                    "denominator": denominator
+                },
+                "format": "rgba8Srgb",
+                "colour": {
+                    "primaries": "bt709",
+                    "transfer": "srgb",
+                    "matrix": "rgb",
+                    "range": "full"
+                }
+            }
+        }));
+        assert_eq!(start_response["ok"], true, "{start_response}");
+        let memory_id = start_response["result"]["memoryId"]
+            .as_str()
+            .expect("memory id");
+        let slot_byte_len = start_response["result"]["slotByteLen"]
+            .as_u64()
+            .expect("slot byte length") as usize;
+        let consumer_ring =
+            PosixSharedRing::attach_with_retry(memory_id, slot_byte_len, Duration::from_secs(1))
+                .expect("attach to backend-created local fixture decode ring");
+
+        let frame_response = backend.request(json!({
+            "id": 101 + index * 10,
+            "method": "decode.requestFrame",
+            "params": {
+                "jobId": job_id,
+                "requestId": index,
+                "frameIndex": 0,
+                "mode": "latestWins"
+            }
+        }));
+        assert_eq!(
+            frame_response["ok"], true,
+            "Rust video decode should read {relative_path}: {frame_response}"
+        );
+        assert_eq!(frame_response["result"]["accepted"], true);
+        assert_eq!(frame_response["result"]["frame"]["descriptor"]["width"], json!(width));
+        assert_eq!(frame_response["result"]["frame"]["descriptor"]["height"], json!(height));
+        assert_no_frame_bytes_recursive(&frame_response["result"]);
+        consumer_ring
+            .read_frame(0)
+            .expect("consumer reads local fixture decoded frame before release");
+
+        let release_response = backend.request(json!({
+            "id": 102 + index * 10,
+            "method": "decode.releaseFrame",
+            "params": {
+                "jobId": job_id,
+                "slotIndex": frame_response["result"]["frame"]["descriptor"]["slotIndex"],
+                "generation": frame_response["result"]["frame"]["descriptor"]["generation"],
+                "copyOutState": "gpuUploadFenceSignalled"
+            }
+        }));
+        assert_eq!(release_response["ok"], true, "{release_response}");
+        consumer_ring
+            .wait_until_free(Duration::from_secs(1))
+            .expect("local fixture decode slot returns to free");
+
+        let stop_response = backend.request(json!({
+            "id": 103 + index * 10,
+            "method": "decode.stop",
+            "params": {
+                "jobId": job_id
+            }
+        }));
+        assert_eq!(stop_response["ok"], true, "{stop_response}");
+    }
+}
+
+#[test]
 fn decode_request_frame_writes_decoded_rgba_to_posix_shared_memory() {
     let temp_dir = TestTempDir::new("decode-control-plane-shm");
     let fixture = build_two_frame_h264_fixture(temp_dir.path());
