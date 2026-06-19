@@ -1562,6 +1562,8 @@ describe('startSharedRendererPreviewPresenter', () => {
       uxfdSharedRendererPresenterVideoFrameUploadReady: 'false',
       uxfdSharedRendererPresenterVideoUploadFailureReason: 'webGpuUploadUnavailable',
       uxfdSharedRendererPresenterVideoUploadFailureDetail: 'WebGPU device does not expose the texture upload APIs needed for decoded video frames.',
+      uxfdSharedRendererPresenterVideoUploadFailureClipId: 'video-1',
+      uxfdSharedRendererPresenterVideoUploadFailureMediaId: 'video-1',
       uxfdSharedRendererPresenterVideoOwner: 'pixi',
       uxfdSharedRendererPresenterVideoCutoverReason: 'videoFrameUploadUnavailable',
     });
