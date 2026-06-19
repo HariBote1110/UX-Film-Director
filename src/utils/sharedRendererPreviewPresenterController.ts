@@ -378,7 +378,17 @@ export const startSharedRendererPreviewPresenter = async ({
       }
       if (decodedVideoFrameUpload.upload.releaseAfterGpuUpload) {
         await presenter.device.queue?.onSubmittedWorkDone?.();
-        await decodedVideoFrameUpload.upload.releaseAfterGpuUpload();
+        const releaseFailureDetail = await releaseDecodedVideoUploadAfterGpuUpload(
+          decodedVideoFrameUpload.upload.releaseAfterGpuUpload
+        );
+        if (releaseFailureDetail) {
+          resolvedVideoUploadFailure ??= {
+            reason: 'videoUploadGpuReleaseFailed',
+            detail: releaseFailureDetail,
+            clipId: decodedVideoFrameUpload.clipId,
+            mediaId: decodedVideoFrameUpload.mediaId,
+          };
+        }
       }
       resolvedVideoFrameUploadReady = true;
     } else {
@@ -663,6 +673,19 @@ const releaseDecodedVideoUploadAfterAbort = async (
 
   try {
     await releaseAfterUploadAbort();
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+};
+
+const releaseDecodedVideoUploadAfterGpuUpload = async (
+  releaseAfterGpuUpload: (() => Promise<void>) | undefined,
+): Promise<string | null> => {
+  if (!releaseAfterGpuUpload) return null;
+
+  try {
+    await releaseAfterGpuUpload();
     return null;
   } catch (error) {
     return error instanceof Error ? error.message : String(error);
