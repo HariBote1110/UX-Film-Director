@@ -13,4 +13,8 @@ describe('shared video frame upload bridge boundary', () => {
     expect(preloadSource()).not.toContain('rgbaBytes: target');
     expect(viteEnvSource()).not.toContain('rgbaBytes?: Uint8Array | ArrayBuffer | number[]');
   });
+
+  it('does not keep writable shared-frame naming in the presented-frame preload contract', () => {
+    expect(preloadSource()).not.toContain('SharedVideoFrameWritableResult');
+  });
 });
