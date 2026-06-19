@@ -165,6 +165,8 @@ export const isRustBackendDecodedVideoFrameAvailable = (
     && typeof checksum.valueHex === 'string'
     && typeof checksum.byteLen === 'number'
     && checksum.byteLen === descriptor.byteLen
+    && typeof result.verification.frameIndex === 'number'
+    && result.verification.frameIndex === result.frameIndex
     && typeof result.frame.ptsFrame === 'number'
     && result.frame.ptsFrame === result.frameIndex
   );
