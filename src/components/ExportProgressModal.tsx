@@ -2,7 +2,7 @@ import React from 'react';
 import { useStore } from '../store/useStore';
 import { shallow } from 'zustand/shallow';
 import { useTranslation } from '../i18n';
-import type { ExportPhase } from '../store/useStore';
+import type { ExportPhase, ExportProgress } from '../store/useStore';
 import type { RustBackendNativeRenderOutputReleaseEvent } from '../utils/rustBackendVideoEncodeExport';
 
 const phaseLabelKey: Record<ExportPhase, 'exportPhasePreparing' | 'exportPhaseTranscoding' | 'exportPhaseRendering' | 'exportPhaseSaving' | 'exportPhaseCancelling'> = {
@@ -34,6 +34,17 @@ export const formatNativeRenderOutputReleaseDiagnostic = (
     : 'Native render output: skipped';
 };
 
+export const formatRustFrameSourceBlockedDiagnostic = (
+  event: NonNullable<ExportProgress['rustFrameSourceBlocked']>,
+  language: 'ja' | 'en'
+): string => {
+  const status = language === 'ja' ? '停止' : 'blocked';
+  const fallback = event.legacyCanvasFallbackAllowed
+    ? (language === 'ja' ? 'legacy fallback可' : 'legacy fallback allowed')
+    : (language === 'ja' ? 'legacy fallback不可' : 'legacy fallback disabled');
+  return `Rust frame source: ${status} ${event.reason} frame=${event.frameIndex} ${fallback}`;
+};
+
 /**
  * 動画書き出し中に進捗とキャンセルボタンを表示するモーダル。
  * `isExporting` が true のあいだだけ表示される。
@@ -60,6 +71,9 @@ const ExportProgressModal: React.FC = () => {
   const percent = Math.round(ratio * 100);
   const nativeRenderOutputReleaseDiagnostic = exportProgress?.nativeRenderOutputRelease
     ? formatNativeRenderOutputReleaseDiagnostic(exportProgress.nativeRenderOutputRelease, language)
+    : null;
+  const rustFrameSourceBlockedDiagnostic = exportProgress?.rustFrameSourceBlocked
+    ? formatRustFrameSourceBlockedDiagnostic(exportProgress.rustFrameSourceBlocked, language)
     : null;
 
   return (
@@ -89,6 +103,12 @@ const ExportProgressModal: React.FC = () => {
         {nativeRenderOutputReleaseDiagnostic && (
           <div className="export-modal-native-release">
             {nativeRenderOutputReleaseDiagnostic}
+          </div>
+        )}
+
+        {rustFrameSourceBlockedDiagnostic && (
+          <div className="export-modal-frame-source-blocked">
+            {rustFrameSourceBlockedDiagnostic}
           </div>
         )}
 
