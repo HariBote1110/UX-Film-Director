@@ -83,6 +83,8 @@ export interface ExportProgress {
   currentFrame: number;
   /** 総フレーム数。0 のときは不確定（プログレスバーを不確定表示）。 */
   totalFrames: number;
+  /** Rust export が現在待っている工程。 */
+  stepDetail?: string;
   /** Rust/shared renderer frame source plan の失敗診断。 */
   exportFrameSourcePlanFailure?: Pick<Extract<ProjectExportFrameSourcePlanResult, { ok: false }>, 'reason' | 'detail'>;
   /** Rust/shared renderer frame source がblockedになった時の診断。 */

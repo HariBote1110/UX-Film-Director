@@ -162,6 +162,7 @@ const ExportProgressModal: React.FC = () => {
   const phase: ExportPhase = exportProgress?.phase ?? 'preparing';
   const totalFrames = exportProgress?.totalFrames ?? 0;
   const currentFrame = exportProgress?.currentFrame ?? 0;
+  const stepDetail = exportProgress?.stepDetail ?? null;
   // レンダリング中かつ総フレーム数が判明しているときだけ確定プログレスを出す。
   const isDeterminate = phase === 'rendering' && totalFrames > 0;
   const ratio = isDeterminate ? Math.min(1, currentFrame / totalFrames) : 0;
@@ -182,6 +183,12 @@ const ExportProgressModal: React.FC = () => {
         </div>
 
         <div className="export-modal-phase">{t(phaseLabelKey[phase])}</div>
+
+        {stepDetail && (
+          <div className="export-modal-step-detail">
+            {stepDetail}
+          </div>
+        )}
 
         <div className="export-modal-bar">
           <div

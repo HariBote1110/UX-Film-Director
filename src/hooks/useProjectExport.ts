@@ -6,6 +6,7 @@ import { buildExportAudioBuffer, buildExportAudioMixWav } from '../utils/audioMi
 import { resolveProjectExportEncodePlanFromBridge } from '../utils/projectExportEncodePlan';
 import { runRustBackendVideoEncodeExport } from '../utils/rustBackendVideoEncodeExport';
 import { renderProjectExportFrame } from '../utils/projectExportFrameRenderer';
+import type { RenderProjectExportFrameResult } from '../utils/projectExportFrameRenderer';
 import {
   buildProjectExportFrameSourcePlan,
   createSingleUseProjectExportFrameSourceCloser,
@@ -39,6 +40,28 @@ const getProjectExportIpcRenderer = (): Window['ipcRenderer'] => {
 const closeEncodedFrameBitmap = (frame: RustBackendVideoEncodeFrame): void => {
   if ('bitmap' in frame) {
     frame.bitmap.close();
+  }
+};
+
+const withExportStepTimeout = async <T,>(
+  promise: Promise<T>,
+  detail: string,
+  timeoutMs = 15000,
+): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error(`${detail} timed out after ${timeoutMs}ms.`));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
   }
 };
 
@@ -84,6 +107,12 @@ export const useProjectExport = (
         hasNativeRenderMediaObjects,
         encodeEngine: exportEncodePlan.engine,
       });
+      setExportProgress({
+        phase: 'preparing',
+        currentFrame: 0,
+        totalFrames: 0,
+        stepDetail: 'Rust export: resolving shared-frame source',
+      });
       let rustFrameSourceUnavailableDetail: string | undefined;
       const initialFrameSourcePlan = buildProjectExportFrameSourcePlan({
         rustFrameSource: getRustExportFrameSource?.(resolveProjectExportRustFrameSourceContext({
@@ -107,6 +136,7 @@ export const useProjectExport = (
           phase: 'preparing',
           currentFrame: 0,
           totalFrames: 0,
+          stepDetail: 'Rust export: shared-frame source unavailable',
           exportFrameSourcePlanFailure: {
             reason: initialFrameSourcePlan.reason,
             detail: initialFrameSourcePlan.detail,
@@ -132,7 +162,12 @@ export const useProjectExport = (
         // 進捗更新のスロットル間隔（約 10 回/秒）。
         const progressStep = Math.max(1, Math.round(fps / 10));
 
-        setExportProgress({ phase: 'preparing', currentFrame: 0, totalFrames });
+        setExportProgress({
+          phase: 'preparing',
+          currentFrame: 0,
+          totalFrames,
+          stepDetail: 'Rust export: waiting for save path',
+        });
 
         // ファイル保存先を先に決定（ユーザー操作が必要なため）
         const savePath = await ipcRenderer.invoke('show-save-dialog', {
@@ -140,6 +175,12 @@ export const useProjectExport = (
           filters: [{ name: 'MP4 Video', extensions: ['mp4'] }],
         });
         if (!savePath) { setExporting(false); return; }
+        setExportProgress({
+          phase: 'preparing',
+          currentFrame: 0,
+          totalFrames,
+          stepDetail: 'Rust export: preparing encoder',
+        });
 
         const encWidth = width % 2 === 0 ? width : width - 1;
         const encHeight = height % 2 === 0 ? height : height - 1;
@@ -158,10 +199,16 @@ export const useProjectExport = (
                 phase: 'rendering',
                 currentFrame: i,
                 totalFrames,
+                stepDetail: preferSharedFrame
+                  ? `Rust export: waiting for shared-frame source frame=${i}`
+                  : `Rust export: rendering compatibility frame=${i}`,
               }));
             }
 
-            const result = await renderProjectExportFrame({
+            const stepDetail = preferSharedFrame
+              ? `Rust export shared-frame source frame=${i}`
+              : `Rust export compatibility frame=${i}`;
+            const result: RenderProjectExportFrameResult = await withExportStepTimeout(renderProjectExportFrame({
               frameSourcePlan: exportFrameSourcePlan,
               rustFrameSourceBlocked,
               frameIndex: i,
@@ -180,14 +227,15 @@ export const useProjectExport = (
                 if (currentProgress) {
                   setExportProgress({
                     ...currentProgress,
+                    stepDetail: `Rust export: shared-frame source blocked frame=${event.frameIndex}`,
                     rustFrameSourceBlocked: event,
                   });
                 }
               },
               onRustFrameSourceFallback: (event) => {
-                console.warn('[Export] Rust/shared renderer frame source blocked; falling back to legacy canvas capture.', event);
+                console.warn('[Export] Rust/shared renderer frame source blocked.', event);
               },
-            });
+            }), stepDetail);
             rustFrameSourceBlocked = result.rustFrameSourceBlocked;
             yield result.frame;
             closeEncodedFrameBitmap(result.frame);
@@ -209,8 +257,20 @@ export const useProjectExport = (
         if (exportEncodePlan.engine === 'rustBackendVideoEncoder') {
           let audioPath: string | null = null;
           try {
+            setExportProgress({
+              phase: 'preparing',
+              currentFrame: 0,
+              totalFrames,
+              stepDetail: 'Rust export: preparing audio mix',
+            });
             const mixedAudioWav = await buildExportAudioMixWav(exportObjects, exportDuration, sampleRate);
             if (mixedAudioWav) {
+              setExportProgress({
+                phase: 'preparing',
+                currentFrame: 0,
+                totalFrames,
+                stepDetail: 'Rust export: saving temporary audio',
+              });
               const audioSaveResult = await ipcRenderer.invoke('save-temp-audio', mixedAudioWav);
               if (!audioSaveResult?.success || typeof audioSaveResult.path !== 'string') {
                 throw new Error(audioSaveResult?.error || '音声一時ファイルを保存できませんでした');
@@ -231,6 +291,7 @@ export const useProjectExport = (
                 if (!currentProgress) return;
                 setExportProgress({
                   ...currentProgress,
+                  stepDetail: currentProgress.stepDetail ?? 'Rust export: releasing native render output',
                   nativeRenderOutputRelease: event,
                 });
               },
@@ -242,6 +303,7 @@ export const useProjectExport = (
               phase: 'saving',
               currentFrame: totalFrames,
               totalFrames,
+              stepDetail: 'Rust export: finishing encoder',
             }));
             alert(`エクスポート完了！\nコーデック: Rust backend rawvideo/ffmpeg\nフレーム: ${result.frameCount}\n保存先: ${savePath}`);
           } finally {
@@ -257,6 +319,12 @@ export const useProjectExport = (
         }
 
         const audioBuffer = await buildExportAudioBuffer(exportObjects, exportDuration, sampleRate);
+        setExportProgress({
+          phase: 'preparing',
+          currentFrame: 0,
+          totalFrames,
+          stepDetail: 'Rust export: opening compatibility stream',
+        });
 
         // 出力をディスクへ逐次書き出す（出力全体をメモリに保持しない）。
         const openRes = await ipcRenderer.invoke('export-stream-open', { filePath: savePath });
@@ -297,6 +365,13 @@ export const useProjectExport = (
         if (isCancelled()) return;
 
         if (!isCancelled()) {
+          const savingProgress = useStore.getState().exportProgress;
+          setExportProgress(updateExportProgressPhase(savingProgress, {
+            phase: 'saving',
+            currentFrame: totalFrames,
+            totalFrames,
+            stepDetail: 'Rust export: compatibility encode finished',
+          }));
           alert(`エクスポート完了！\nコーデック: ${result.codecUsed}\nサイズ: ${(writtenBytes / 1024 / 1024).toFixed(1)}MB\n処理時間: ${(result.durationMs / 1000).toFixed(1)}秒`);
         }
 

@@ -5,6 +5,7 @@ export interface ExportProgressPhasePatch {
   phase: ExportPhase;
   currentFrame: number;
   totalFrames: number;
+  stepDetail?: string;
 }
 
 export const updateExportProgressPhase = (

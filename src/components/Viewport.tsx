@@ -49,6 +49,39 @@ const RESIZE_CORNER_CURSORS: Record<ResizeCorner, string> = {
 
 type BoundsLike = { x: number; y: number; width: number; height: number };
 
+type SharedRendererPresenterDiagnosticDataset = Record<string, string | undefined>;
+
+const buildSharedRendererPreviewDiagnostic = (
+  dataset: SharedRendererPresenterDiagnosticDataset,
+  control: SharedRendererPreviewPresenterControl | null,
+): string | null => {
+  const status = dataset.uxfdSharedRendererPresenterStatus ?? 'unknown';
+  const failureReason = dataset.uxfdSharedRendererPresenterFailureReason;
+  const nativeRenderFailureReason = dataset.uxfdSharedRendererPresenterNativeRenderFailureReason;
+  const nativeRenderFailureDetail = dataset.uxfdSharedRendererPresenterNativeRenderFailureDetail;
+  const videoUploadFailureReason = dataset.uxfdSharedRendererPresenterVideoUploadFailureReason;
+  const videoUploadFailureDetail = dataset.uxfdSharedRendererPresenterVideoUploadFailureDetail;
+  const videoFrameUploadReady = dataset.uxfdSharedRendererPresenterVideoFrameUploadReady;
+
+  if (control?.ok && status === 'ready' && !nativeRenderFailureReason && !videoUploadFailureReason && videoFrameUploadReady !== 'false') {
+    return null;
+  }
+
+  const parts = [
+    'Rust shared renderer preview',
+    `status=${status}`,
+    control && !control.ok ? `control=${control.reason}` : null,
+    failureReason ? `reason=${failureReason}` : null,
+    nativeRenderFailureReason ? `native=${nativeRenderFailureReason}` : null,
+    nativeRenderFailureDetail,
+    videoUploadFailureReason ? `video=${videoUploadFailureReason}` : null,
+    videoUploadFailureDetail,
+    videoFrameUploadReady === 'false' ? 'videoFrameUploadReady=false' : null,
+  ].filter((part): part is string => Boolean(part));
+
+  return parts.join(' / ');
+};
+
 const boundsIntersect = (a: BoundsLike, b: BoundsLike) => (
   a.x <= b.x + b.width
   && a.x + a.width >= b.x
@@ -140,6 +173,7 @@ const Viewport: React.FC = () => {
     fallbackAdapter: false,
   });
   const [sharedRendererPreviewSession, setSharedRendererPreviewSession] = useState<SharedRendererPreviewSession | null>(null);
+  const [sharedRendererPreviewDiagnostic, setSharedRendererPreviewDiagnostic] = useState<string | null>(null);
 
   const updateSharedRendererSolidColourObjectIds = useCallback((objectIds: string[]) => {
     const current = sharedRendererSolidColourObjectIdsRef.current;
@@ -506,6 +540,7 @@ const Viewport: React.FC = () => {
       sharedRendererPresenterControlRef.current?.dispose();
       sharedRendererPresenterControlRef.current = null;
       sharedRendererVideoDecodeJobsRef.current = [];
+      setSharedRendererPreviewDiagnostic(null);
       updateSharedRendererSolidColourObjectIds([]);
       updateSharedRendererImageObjectIds([]);
       return;
@@ -518,6 +553,7 @@ const Viewport: React.FC = () => {
         status: 'fallback',
         reason: 'surfaceCanvasUnavailable',
       });
+      setSharedRendererPreviewDiagnostic(buildSharedRendererPreviewDiagnostic(rootDataset, null));
       updateSharedRendererSolidColourObjectIds([]);
       updateSharedRendererImageObjectIds([]);
       return;
@@ -569,6 +605,7 @@ const Viewport: React.FC = () => {
       sharedRendererVideoDecodeJobsRef.current = activeVideoDecodeJobs;
       currentControl = control;
       sharedRendererPresenterControlRef.current = control;
+      setSharedRendererPreviewDiagnostic(buildSharedRendererPreviewDiagnostic(rootDataset, control));
       updateSharedRendererSolidColourObjectIds(control.ok ? control.solidColourOwnership.solidColourObjectIds : []);
       updateSharedRendererImageObjectIds(control.ok ? control.imageOwnership.imageObjectIds : []);
       updateSharedRendererPsdObjectIds(control.ok ? control.psdOwnership.psdObjectIds : []);
@@ -583,6 +620,7 @@ const Viewport: React.FC = () => {
           reason: 'presenterStartFailed',
         });
       });
+      setSharedRendererPreviewDiagnostic(buildSharedRendererPreviewDiagnostic(rootDataset, null));
     });
 
     return () => {
@@ -1178,6 +1216,7 @@ const Viewport: React.FC = () => {
   const previewW = projectSettings.width * displayScale;
   const previewH = projectSettings.height * displayScale;
   const alignStart = previewDisplayMode === 'pixelPerfect';
+  const hasVideoObjects = objects.some((object) => object.type === 'video');
 
   return (
     <div
@@ -1345,6 +1384,11 @@ const Viewport: React.FC = () => {
                     zIndex: 2,
                   }}
                 />
+              )}
+              {sharedRendererPreviewDiagnostic && hasVideoObjects && (
+                <div className="shared-renderer-preview-diagnostics" role="status" aria-live="polite">
+                  {sharedRendererPreviewDiagnostic}
+                </div>
               )}
             </>
           )}
