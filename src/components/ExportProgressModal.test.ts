@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   formatLastExportDiagnosticsSummary,
@@ -37,6 +38,15 @@ describe('formatNativeRenderOutputReleaseDiagnostic', () => {
       reason: 'encodeWriteFailed',
       error: 'native render output release rejected',
     }, 'en')).toBe('Native render output: release failed (/uxfd-native-render-output) native render output release rejected');
+  });
+});
+
+describe('ExportProgressModal source', () => {
+  it('renders current Rust export step detail while indeterminate work is running', () => {
+    const source = readFileSync(new URL('./ExportProgressModal.tsx', import.meta.url), 'utf8');
+
+    expect(source).toContain('stepDetail');
+    expect(source).toContain('export-modal-step-detail');
   });
 });
 

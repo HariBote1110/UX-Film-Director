@@ -142,6 +142,13 @@ describe('Viewport Rust video-only boundary', () => {
     expect(code).not.toContain('allowLegacyPixiVideo');
   });
 
+  it('renders shared renderer preview diagnostics instead of leaving a blank video preview unexplained', () => {
+    const code = viewportSource();
+
+    expect(code).toContain('shared-renderer-preview-diagnostics');
+    expect(code).toContain('sharedRendererPreviewDiagnostic');
+  });
+
   it('does not name the export canvas provider after Pixi internals', () => {
     const code = viewportSource();
     const start = code.indexOf('const getExportCanvas = useCallback');

@@ -20,6 +20,18 @@ describe('export progress state', () => {
     expect(useStore.getState().exportProgress).toEqual({ phase: 'rendering', currentFrame: 12, totalFrames: 120 });
   });
 
+  it('keeps the current Rust export step detail on the progress payload', () => {
+    useStore.getState().setExporting(true);
+    useStore.getState().setExportProgress({
+      phase: 'rendering',
+      currentFrame: 0,
+      totalFrames: 120,
+      stepDetail: 'Rust export: waiting for shared-frame source frame=0',
+    });
+
+    expect(useStore.getState().exportProgress?.stepDetail).toBe('Rust export: waiting for shared-frame source frame=0');
+  });
+
   it('keeps native render output release diagnostics on the progress payload', () => {
     useStore.getState().setExporting(true);
     useStore.getState().setExportProgress({
