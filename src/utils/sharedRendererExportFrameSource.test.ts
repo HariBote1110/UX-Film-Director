@@ -3308,6 +3308,55 @@ describe('createSharedRendererExportFrameSource', () => {
     });
   });
 
+  it('includes clip and media ids when Rust video decode response is stale during export', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    let bitmapCaptureCount = 0;
+
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      startViewportPresenter: async () => ({
+        control: { dispose: () => undefined },
+        activeVideoDecodeJob: null,
+        activeVideoDecodeJobs: [],
+        videoUploadsResult: {
+          ok: false,
+          reason: 'staleDecodeResponse',
+          uploadFailureClipId: 'clip-video-2',
+          uploadFailureMediaId: 'video-2',
+          detail: 'Rust backend returned a decoded frame for a stale job id.',
+          activeJobs: [],
+        },
+      }) as never,
+      createFrameBitmap: async () => {
+        bitmapCaptureCount += 1;
+        return ({ close: () => undefined }) as ImageBitmap;
+      },
+    });
+
+    const blocked = await source.renderFrame({
+      frameIndex: 4,
+      timestampUs: 66_666,
+      time: 4 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [image()],
+    }).catch((error) => error);
+
+    expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
+    expect(blocked.message).toBe('staleDecodeResponse clip=clip-video-2 media=video-2: Rust backend returned a decoded frame for a stale job id.');
+    expect(bitmapCaptureCount).toBe(0);
+  });
+
   it('continues bitmap capture when Rust video upload preparation reports no video request', async () => {
     const canvas = {
       width: 1,

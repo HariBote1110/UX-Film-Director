@@ -481,6 +481,44 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
     });
   });
 
+  it('passes stale Rust video decode failure clip details into the presenter diagnostics input', async () => {
+    let presenterInput: unknown;
+    const prepareVideoUploads: SharedRendererViewportVideoUploadsPreparer = async () => ({
+      ok: false,
+      reason: 'staleDecodeResponse',
+      uploadFailureClipId: 'clip-video-2',
+      uploadFailureMediaId: 'video-2',
+      detail: 'Rust backend returned a decoded frame for a stale job id.',
+      activeJobs: [activeJob],
+    });
+    const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {
+      presenterInput = input;
+      return control;
+    };
+
+    await startSharedRendererViewportPresenter({
+      canvas,
+      session,
+      datasets: [],
+      diagnosticSwatchEnabled: false,
+      videoCutoverEnabled: true,
+      activeVideoDecodeJob: null,
+      activeVideoDecodeJobs: [],
+      requestId: 16,
+      prepareVideoUploads,
+      startPresenter,
+    });
+
+    expect(presenterInput).toMatchObject({
+      sharedRendererVideoUploadFailure: {
+        reason: 'staleDecodeResponse',
+        detail: 'Rust backend returned a decoded frame for a stale job id.',
+        clipId: 'clip-video-2',
+        mediaId: 'video-2',
+      },
+    });
+  });
+
   it('prepares Rust video upload when Rust video is required even if the cutover flag is off', async () => {
     let presenterInput: unknown;
     const events: string[] = [];
