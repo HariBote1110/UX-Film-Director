@@ -69,6 +69,8 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
       videoFrameUploadReady: false,
       videoUploadFailureReason: 'copyReportChecksumMismatch',
       videoUploadFailureDetail: 'Shared video frame copy report checksum verification failed.',
+      videoUploadFailureClipId: 'clip-video-2',
+      videoUploadFailureMediaId: 'video-2',
     });
 
     expect(dataset).toMatchObject({
@@ -76,6 +78,8 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
       uxfdSharedRendererPresenterVideoFrameUploadReady: 'false',
       uxfdSharedRendererPresenterVideoUploadFailureReason: 'copyReportChecksumMismatch',
       uxfdSharedRendererPresenterVideoUploadFailureDetail: 'Shared video frame copy report checksum verification failed.',
+      uxfdSharedRendererPresenterVideoUploadFailureClipId: 'clip-video-2',
+      uxfdSharedRendererPresenterVideoUploadFailureMediaId: 'video-2',
     });
   });
 

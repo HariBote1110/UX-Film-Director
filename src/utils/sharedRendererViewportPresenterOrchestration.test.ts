@@ -445,6 +445,8 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
       ok: false,
       reason: 'uploadFailed',
       uploadFailureReason: 'copyReportChecksumMismatch',
+      uploadFailureClipId: 'clip-video-2',
+      uploadFailureMediaId: 'video-2',
       detail: 'Shared video frame copy report checksum verification failed.',
       activeJobs: [activeJob],
     });
@@ -473,6 +475,8 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
       sharedRendererVideoUploadFailure: {
         reason: 'copyReportChecksumMismatch',
         detail: 'Shared video frame copy report checksum verification failed.',
+        clipId: 'clip-video-2',
+        mediaId: 'video-2',
       },
     });
   });
