@@ -7,7 +7,7 @@ describe('formatNativeRenderOutputReleaseDiagnostic', () => {
       status: 'released',
       memoryId: '/uxfd-native-render-output',
       reason: 'encodeWriteFailed',
-    }, 'ja')).toBe('Native render output: released (/uxfd-native-render-output)');
+    }, 'ja')).toBe('Native render output: 解放済み (/uxfd-native-render-output)');
   });
 
   it('formats missing bridge diagnostics in English', () => {

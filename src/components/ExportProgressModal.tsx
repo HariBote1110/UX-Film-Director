@@ -3,6 +3,7 @@ import { useStore } from '../store/useStore';
 import { shallow } from 'zustand/shallow';
 import { useTranslation } from '../i18n';
 import type { ExportPhase } from '../store/useStore';
+import type { RustBackendNativeRenderOutputReleaseEvent } from '../utils/rustBackendVideoEncodeExport';
 
 const phaseLabelKey: Record<ExportPhase, 'exportPhasePreparing' | 'exportPhaseTranscoding' | 'exportPhaseRendering' | 'exportPhaseSaving' | 'exportPhaseCancelling'> = {
   preparing: 'exportPhasePreparing',
@@ -10,6 +11,23 @@ const phaseLabelKey: Record<ExportPhase, 'exportPhasePreparing' | 'exportPhaseTr
   rendering: 'exportPhaseRendering',
   saving: 'exportPhaseSaving',
   cancelling: 'exportPhaseCancelling',
+};
+
+export const formatNativeRenderOutputReleaseDiagnostic = (
+  event: RustBackendNativeRenderOutputReleaseEvent,
+  language: 'ja' | 'en'
+): string => {
+  if (event.status === 'released') {
+    const status = language === 'ja' ? '解放済み' : 'released';
+    return `Native render output: ${status} (${event.memoryId})`;
+  }
+  if (event.status === 'missingBridge') {
+    const status = language === 'ja' ? 'release bridge未接続' : 'missing release bridge';
+    return `Native render output: ${status} (${event.memoryId})`;
+  }
+  return language === 'ja'
+    ? 'Native render output: 対象外'
+    : 'Native render output: skipped';
 };
 
 /**
@@ -36,6 +54,9 @@ const ExportProgressModal: React.FC = () => {
   const isDeterminate = phase === 'rendering' && totalFrames > 0;
   const ratio = isDeterminate ? Math.min(1, currentFrame / totalFrames) : 0;
   const percent = Math.round(ratio * 100);
+  const nativeRenderOutputReleaseDiagnostic = exportProgress?.nativeRenderOutputRelease
+    ? formatNativeRenderOutputReleaseDiagnostic(exportProgress.nativeRenderOutputRelease, language)
+    : null;
 
   return (
     <div className="export-modal-backdrop" role="dialog" aria-modal="true" aria-label={t('exportingVideo')}>
@@ -58,6 +79,12 @@ const ExportProgressModal: React.FC = () => {
           <div className="export-modal-stats">
             <span>{t('exportFrameProgress')} {currentFrame} / {totalFrames}</span>
             <span>{percent}%</span>
+          </div>
+        )}
+
+        {nativeRenderOutputReleaseDiagnostic && (
+          <div className="export-modal-native-release">
+            {nativeRenderOutputReleaseDiagnostic}
           </div>
         )}
 
