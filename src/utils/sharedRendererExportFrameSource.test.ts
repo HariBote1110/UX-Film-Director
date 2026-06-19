@@ -1476,6 +1476,65 @@ describe('createSharedRendererExportFrameSource', () => {
     });
   });
 
+  it('blocks native render source preparation failures without legacy canvas fallback', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      bitmapCaptureEnabled: false,
+      nativeRenderRequired: true,
+      prepareNativeRenderSources: async () => ({
+        ok: false,
+        reason: 'staleDecodeResponse',
+        detail: 'Rust backend returned a decoded frame for a stale native render source request.',
+        activeJobs: [decodeJob('stale-native-render-source-video')],
+      }),
+      renderNativeSharedFrame: async () => {
+        throw new Error('native renderer must not run after source preparation failed.');
+      },
+      startViewportPresenter: async () => {
+        throw new Error('WebGPU presenter must not start after source preparation failed.');
+      },
+    } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
+      prepareNativeRenderSources: unknown;
+      renderNativeSharedFrame: unknown;
+    });
+
+    const blocked = await source.renderEncodeFrame?.({
+      frameIndex: 9,
+      timestampUs: 150_000,
+      time: 9 / 60,
+      width: 4,
+      height: 4,
+      objects: [video()],
+      encodeSessionId: 'stale-source-failure-session',
+    }).catch((error) => error);
+
+    expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
+    expect(blocked).toMatchObject({
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
+      reason: 'nativeRenderFailed',
+      frameIndex: 9,
+      message: 'Rust backend returned a decoded frame for a stale native render source request.',
+    });
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'blocked',
+      uxfdRustExportFrameSourceFrameIndex: '9',
+      uxfdRustExportFrameSourceFrameReason: 'nativeRenderFailed',
+    });
+  });
+
   it('releases export native render output when source complete release fails', async () => {
     const canvas = {
       width: 1,
