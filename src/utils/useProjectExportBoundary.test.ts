@@ -78,4 +78,11 @@ describe('useProjectExport legacy browser dependency boundary', () => {
       code.indexOf('if (frameRuntimePlan.requiresRenderScene)')
     );
   });
+
+  it('uses a single-use closer for Rust export frame source cleanup', () => {
+    const code = source();
+
+    expect(code).toContain('createSingleUseProjectExportFrameSourceCloser');
+    expect(code).not.toContain('exportFrameSourcePlan.frameSource.close?.()');
+  });
 });

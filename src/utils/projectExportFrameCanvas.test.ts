@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   buildProjectExportFrameSourcePlan,
+  createSingleUseProjectExportFrameSourceCloser,
   resolveProjectExportRustFrameSourceContext,
   resolveProjectExportFrameSourcePolicyForEncode,
   resolveProjectExportFrameRuntimePlan,
@@ -397,5 +398,21 @@ describe('resolveProjectExportFrameRuntimePlan', () => {
       shouldCloseRustFrameSource: false,
       shouldFailOnRustFrameSourceBlocked: false,
     });
+  });
+});
+
+describe('createSingleUseProjectExportFrameSourceCloser', () => {
+  it('closes a Rust export frame source only once across blocked and final cleanup paths', async () => {
+    const calls: string[] = [];
+    const closeFrameSource = createSingleUseProjectExportFrameSourceCloser({
+      close: async () => {
+        calls.push('close');
+      },
+    });
+
+    await closeFrameSource();
+    await closeFrameSource();
+
+    expect(calls).toEqual(['close']);
   });
 });
