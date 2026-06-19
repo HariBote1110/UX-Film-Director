@@ -837,3 +837,16 @@
 - `npm test -- sharedRendererExportFrameSource` を実行し、Redでhandoff例外がblocked errorにならない失敗を確認した。
 - `npm test -- sharedRendererExportFrameSource sharedRendererExportFrameSourceBoundary` を実行し、35件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/sharedRendererExportFrameSourceBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 71. Phase5: 動画encode frameでnative renderを必須化
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- `createSharedRendererExportFrameSource` を直接使う場合でも、動画objectを含む `renderEncodeFrame` がpresenter handoffへ逃げず `nativeRenderUnavailable` で止まる契約を追加した。
+- `src/utils/sharedRendererExportFrameSource.ts`
+- `renderNativeEncodeFrame` のnative render必須判定をrequest単位にし、`request.objects` に動画がある場合は `bitmapCaptureEnabled` / `nativeRenderRequired` の呼び出し設定に関係なくnative render必須にした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-210p` に更新した。
+
+## 確認
+- `npm test -- sharedRendererExportFrameSource` を実行し、Redで動画encode frameがpresenter handoffへ進んでしまう失敗を確認した。
+- `npm test -- sharedRendererExportFrameSource sharedRendererExportFrameSourceBoundary` を実行し、36件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/sharedRendererExportFrameSourceBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

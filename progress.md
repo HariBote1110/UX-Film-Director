@@ -1,3 +1,20 @@
+## 2026-06-19 — 動画encode frameでnative renderを必須化
+
+### 実施内容
+- Red: `createSharedRendererExportFrameSource` を直接使う場合でも、動画objectを含む `renderEncodeFrame` がpresenter handoffへ逃げず `nativeRenderUnavailable` で止まる契約を追加した。
+- Green: `renderNativeEncodeFrame` のnative render必須判定をrequest単位にし、`request.objects` に動画がある場合は `bitmapCaptureEnabled` / `nativeRenderRequired` の呼び出し設定に関係なくnative render必須にした。
+- Viewport側のexport planningを迂回しても、動画exportがpresented shared-frame補助経路へ戻りにくくした。
+- 版を `0.1.1-Beta-210p` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSource`
+- `npm test -- sharedRendererExportFrameSource sharedRendererExportFrameSourceBoundary`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/sharedRendererExportFrameSourceBoundary\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- 動画exportでnative render bridgeが利用可能な場合、必ず `nativeRenderSharedFrame` pathへ進むことを実機で確認する。
+- `presentedSharedFrame` pathを非動画/互換診断用としてさらに狭められるか確認する。
+
 ## 2026-06-19 — presented shared-frame handoff失敗をexport診断へ追加
 
 ### 実施内容
