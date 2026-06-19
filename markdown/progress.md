@@ -446,3 +446,10 @@
 - Green: `ResolveProjectExportFrameCanvasInput` とcanvas sourceを `legacyCanvas` へ変更し、既存のfallback意味をPixi固有名から一般化した。
 - 検証: `npm test -- projectExportFrameCanvas useProjectExportBoundary` は34件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-180a`。
+
+## 2026-06-19
+- Phase5のexport hook境界として、legacy canvas captureを `useProjectExport` 本体からadapterへ隔離した。
+- Red: `useProjectExportBoundary` に、hook本体が `createImageBitmap` を直接呼ばない契約を追加した。
+- Green: `projectExportLegacyCanvasCapture` を追加し、互換canvas frame captureを `captureProjectExportLegacyCanvasFrame` 経由にした。
+- 検証: `npm test -- useProjectExportBoundary projectExportFrameCanvas` は35件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-181a`。

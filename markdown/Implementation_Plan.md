@@ -1087,6 +1087,11 @@ frame sourceとcanvas providerだけを見る境界にする。
 Pixi固有の参照はViewport内部の provider 実装に閉じ込め、export utilityはRust frame source /
 explicit export canvas / legacy canvasの抽象だけを見る。
 
+202. Phase5: legacy canvas captureをexport hookからadapterへ隔離する
+`useProjectExport` から `createImageBitmap` の直接呼び出しを外し、互換WebCodecs branchのcanvas captureを
+`projectExportLegacyCanvasCapture` adapterへ移す。
+Rust backend encoder / shared-frame pathをhook本体の主経路に保ち、browser canvas capture語彙はlegacy互換adapterに閉じ込める。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
