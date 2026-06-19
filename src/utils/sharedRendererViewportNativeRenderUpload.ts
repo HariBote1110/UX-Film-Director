@@ -266,7 +266,16 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
       activeJobs: activeRenderJobs,
     };
   }
-  await releaseNativeRenderSourcesAfterComplete(nativeRenderSources);
+  const completeReleaseFailure = await releaseNativeRenderSourcesAfterComplete(nativeRenderSources);
+  if (completeReleaseFailure) {
+    await upload.releaseAfterUploadAbort?.();
+    return {
+      ok: false,
+      reason: 'nativeRenderSourceReleaseFailed',
+      detail: completeReleaseFailure,
+      activeJobs: activeRenderJobs,
+    };
+  }
 
   return {
     ok: true,
@@ -303,10 +312,12 @@ const createSingleUseNativeOutputReleaser = (
 
 const releaseNativeRenderSourcesAfterComplete = async (
   sources: readonly SharedRendererViewportNativeRenderSource[]
-): Promise<void> => {
-  await Promise.all(
+): Promise<string | null> => {
+  const results = await Promise.allSettled(
     sources.map((source) => source.releaseAfterNativeRenderComplete?.() ?? Promise.resolve())
   );
+  const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+  return failed ? formatNativeRenderReleaseError(failed.reason) : null;
 };
 
 const releaseNativeRenderSourcesAfterAbort = async (
