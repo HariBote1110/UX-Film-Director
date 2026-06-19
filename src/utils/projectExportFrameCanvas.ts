@@ -5,7 +5,7 @@ import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRende
 
 export type ProjectExportFrameCanvasSource =
   | 'explicitExportCanvas'
-  | 'pixiCanvas';
+  | 'legacyCanvas';
 
 export type ProjectExportRustFrameSourcePolicy =
   | 'allowLegacyCanvas'
@@ -55,7 +55,7 @@ export type ResolveProjectExportFrameCanvasResult =
 
 export interface ResolveProjectExportFrameCanvasInput {
   getExportCanvas?: () => HTMLCanvasElement | null;
-  pixiCanvas?: HTMLCanvasElement | null;
+  legacyCanvas?: HTMLCanvasElement | null;
 }
 
 export type ProjectExportFrameSourcePlanResult =
@@ -130,7 +130,7 @@ export interface ResolveProjectExportRustFrameSourceContextInput {
 
 export const resolveProjectExportFrameCanvas = ({
   getExportCanvas,
-  pixiCanvas = null,
+  legacyCanvas = null,
 }: ResolveProjectExportFrameCanvasInput): ResolveProjectExportFrameCanvasResult => {
   const explicitCanvas = getExportCanvas?.() ?? null;
   if (explicitCanvas) {
@@ -141,18 +141,18 @@ export const resolveProjectExportFrameCanvas = ({
     };
   }
 
-  if (pixiCanvas) {
+  if (legacyCanvas) {
     return {
       ok: true,
-      canvas: pixiCanvas,
-      source: 'pixiCanvas',
+      canvas: legacyCanvas,
+      source: 'legacyCanvas',
     };
   }
 
   return {
     ok: false,
     reason: 'exportCanvasUnavailable',
-    detail: 'Export requires a frame canvas from the shared renderer export path or the legacy Pixi fallback.',
+    detail: 'Export requires a frame canvas from the shared renderer export path or the legacy canvas fallback.',
   };
 };
 
@@ -162,7 +162,7 @@ export const buildProjectExportFrameSourcePlan = ({
   rustFrameSourceBlockedFallback = 'legacyCanvas',
   hasVideoObjects = false,
   getExportCanvas,
-  pixiCanvas = null,
+  legacyCanvas = null,
 }: BuildProjectExportFrameSourcePlanInput): ProjectExportFrameSourcePlanResult => {
   if (rustFrameSource) {
     const effectiveRustFrameSourceBlockedFallback = hasVideoObjects
@@ -198,7 +198,7 @@ export const buildProjectExportFrameSourcePlan = ({
 
   const canvas = resolveProjectExportFrameCanvas({
     getExportCanvas,
-    pixiCanvas,
+    legacyCanvas,
   });
   if (canvas.ok) {
     return {
@@ -214,7 +214,7 @@ export const buildProjectExportFrameSourcePlan = ({
   return {
     ok: false,
     reason: 'exportFrameSourceUnavailable',
-    detail: 'Export requires a Rust frame source, shared renderer export canvas, or legacy Pixi canvas.',
+    detail: 'Export requires a Rust frame source, shared renderer export canvas, or legacy canvas.',
   };
 };
 
