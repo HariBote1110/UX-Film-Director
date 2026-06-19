@@ -203,7 +203,12 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
         activeJobs: activeRenderJobs,
       };
     }
-    throw error;
+    return {
+      ok: false,
+      reason: 'nativeRenderFailed',
+      detail: formatNativeRenderError(error),
+      activeJobs: activeRenderJobs,
+    };
   }
   if (!renderResponse.success || !renderResponse.result) {
     const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
@@ -387,4 +392,14 @@ const formatNativeRenderReleaseError = (
     return error;
   }
   return fallback;
+};
+
+const formatNativeRenderError = (error: unknown): string => {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  if (typeof error === 'string' && error) {
+    return error;
+  }
+  return 'Rust backend native render failed.';
 };
