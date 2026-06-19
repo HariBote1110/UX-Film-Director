@@ -4637,3 +4637,20 @@
 ### 残課題・次のステップ
 - preview native output releaseのrejectケースを明示的な回帰テストにする。
 - `nativeRenderOutputReleaseFailed` をpreview/exportのUI診断で追いやすくする。
+
+## 2026-06-19 — export native render throwをblocked診断化
+
+### 実施内容
+- Red: export native render bridgeがthrowした場合でも、生Errorではなく `SharedRendererExportFrameSourceBlockedError(reason=nativeRenderFailed)` としてdataset診断へ載る契約を追加した。
+- Green: native render throw経路でdecoded sourceをabort releaseした後、throw detailを `nativeRenderFailed` blocked errorへ変換するようにした。
+- `useProjectExport` が `rustFrameSourceBlocked` として拾える形に揃え、Rust native render bridge例外時もExport UIから原因を追えるようにした。
+- 版を `0.1.1-Beta-208o` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts -t "native render bridge throws"`
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/useProjectExportBoundary.test.ts src/components/ExportProgressModal.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/hooks/useProjectExport\\.ts|src/components/ExportProgressModal\\.tsx)"`
+
+### 残課題・次のステップ
+- preview native render bridge throwも結果unionの `nativeRenderFailed` へ落とし、生Errorでpreview orchestrationを崩さないようにする。
+- native render throw診断の表示文言をユーザー向けに整える。
