@@ -246,6 +246,21 @@ export function createSharedRendererExportFrameSource({
     });
     activeVideoDecodeJobs = presenterResult.activeVideoDecodeJobs;
 
+    const sharedRendererOutputBlock = resolveSharedRendererOutputBlock(presenterResult);
+    if (sharedRendererOutputBlock) {
+      presenterResult.control.dispose();
+      writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+        status: 'blocked',
+        frameIndex: request.frameIndex,
+        reason: 'sharedRendererOutputUnavailable',
+      });
+      throw new SharedRendererExportFrameSourceBlockedError(
+        sharedRendererOutputBlock,
+        'sharedRendererOutputUnavailable',
+        request.frameIndex,
+        false
+      );
+    }
     const videoUploadBlock = resolveExportVideoUploadBlock(presenterResult);
     if (videoUploadBlock) {
       presenterResult.control.dispose();
@@ -539,19 +554,6 @@ export function createSharedRendererExportFrameSource({
       const presenterResult = await presentFrame(request);
       try {
         const control = presenterResult.control;
-        if (!control.ok && control.reason === 'sharedRendererOutputUnavailable') {
-          writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
-            status: 'blocked',
-            frameIndex: request.frameIndex,
-            reason: 'sharedRendererOutputUnavailable',
-          });
-          throw new SharedRendererExportFrameSourceBlockedError(
-            formatSharedRendererOutputUnavailableBlock(presenterResult),
-            'sharedRendererOutputUnavailable',
-            request.frameIndex,
-            false
-          );
-        }
         if (control.ok && typeof control.takePresentedFrameSharedFrame === 'function') {
           let sharedFramePayload: RustBackendVideoEncodeSharedFramePayloadFrame['sharedFramePayload'];
           try {
@@ -708,9 +710,12 @@ const resolveExportVideoUploadBlock = (
   return null;
 };
 
-const formatSharedRendererOutputUnavailableBlock = (
+const resolveSharedRendererOutputBlock = (
   presenterResult: StartSharedRendererViewportPresenterResult
-): string => {
+): string | null => {
+  if (presenterResult.control.ok || presenterResult.control.reason !== 'sharedRendererOutputUnavailable') {
+    return null;
+  }
   const nativeRenderUploadResult = presenterResult.nativeRenderUploadResult;
   if (nativeRenderUploadResult && !nativeRenderUploadResult.ok) {
     return `Shared renderer export output is unavailable (${nativeRenderUploadResult.reason}: ${nativeRenderUploadResult.detail}).`;
