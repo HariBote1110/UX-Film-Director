@@ -563,6 +563,36 @@ app.whenReady().then(() => {
     }
   });
 
+  ipcMain.handle('materialise-media-file', async (_event, payload: { fileName?: string; data?: unknown }) => {
+    const sourceBuffer = toNodeBuffer(payload?.data);
+    if (!sourceBuffer || sourceBuffer.byteLength === 0) {
+      return { success: false, error: 'data が必要です。' };
+    }
+
+    const rawFileName = typeof payload?.fileName === 'string' && payload.fileName.trim() !== ''
+      ? payload.fileName.trim()
+      : 'media.bin';
+    const parsed = path.parse(path.basename(rawFileName));
+    const safeBase = parsed.name.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 80) || 'media';
+    const safeExt = parsed.ext.replace(/[^A-Za-z0-9.]/g, '').slice(0, 16);
+    const directory = path.join(os.tmpdir(), 'uxfd-media-import');
+    const filePath = path.join(
+      directory,
+      `${safeBase}-${Date.now()}-${Math.random().toString(16).slice(2)}${safeExt}`
+    );
+
+    try {
+      fs.mkdirSync(directory, { recursive: true });
+      fs.writeFileSync(filePath, sourceBuffer);
+      return { success: true, filePath };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+
   ipcMain.handle('append-performance-csv', async (_event, payload: { fileName?: string; lines?: string }) => {
     const fileName = typeof payload?.fileName === 'string' && payload.fileName.trim() !== ''
       ? payload.fileName.trim()

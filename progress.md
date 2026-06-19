@@ -1,3 +1,21 @@
+## 2026-06-20 — 外付けSSD動画の一時ファイルprobe fallbackを追加
+
+### 実施内容
+- Red: Electronが選択Fileの実パスを返せない場合でも、File本体を一時ファイル化してRust/ffprobeで動画metadataを解決する契約を追加した。
+- Green: `materialise-media-file` IPCを追加し、rendererから渡されたFile bytesをOS temp配下の `uxfd-media-import/` に保存してRustが読めるfile pathを返すようにした。
+- 動画追加/ドロップ時は `resolveVideoImportSource` を使い、直接path probeが失敗した場合だけ一時ファイル化probeへ進み、そのfile pathをTimeline objectへ保持するようにした。
+- GoPro原本のようにブラウザmetadata取得が苦手な素材でも、Rust/ffprobe経路で読み込みを継続できるfallbackを追加した。
+- 版を `0.1.1-Beta-219k` に更新した。
+
+### 検証
+- `npm test -- mediaMetadata`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/mediaMetadata|src/components/Timeline|src/hooks/useTimelineDrop|electron/main|src/vite-env\\.d\\.ts)"`
+- `UXFD_VIDEO_LOAD_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_LOAD_E2E_TIMEOUT_MS=180000 npm run test:video-load:e2e`
+
+### 残課題・次のステップ
+- 通常E2Eでは `/Volumes/ExtendSSD-W/GX020052.MP4` の直接pathが取得できているため、一時ファイルfallbackは単体テストで契約確認した。実ウィンドウで外付けSSDだけpath/probeが落ちる場合の保険として機能する。
+- 大容量素材を一時ファイル化するfallbackはメモリ/時間コストがあるため、直接pathが使える場合は従来通り直接Rustへ渡す。
+
 ## 2026-06-20 — decode.start冪等化とE2E診断強化
 
 ### 実施内容

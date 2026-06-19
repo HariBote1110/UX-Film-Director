@@ -12,7 +12,7 @@ import { shallow } from 'zustand/shallow';
 import {
   getElectronFilePath,
   resolveAudioMetadata,
-  resolveVideoMetadata,
+  resolveVideoImportSource,
   resolveVideoMetadataForFilePath,
 } from '../utils/mediaMetadata';
 import { parsePsdAsObject } from '../utils/psdParser';
@@ -345,17 +345,18 @@ const Timeline: React.FC = () => {
 
     try {
       const { detectExistingProxy } = await import('../utils/proxyUtils');
-      const [sourceMetadata, proxyFilePath] = await Promise.all([
-        resolveVideoMetadata(file, url),
+      const [sourceImport, proxyFilePath] = await Promise.all([
+        resolveVideoImportSource(file, url),
         detectExistingProxy(filePath ?? undefined),
       ]);
+      const sourceMetadata = sourceImport.metadata;
       const metadata = proxyFilePath
         ? await resolveVideoMetadataForFilePath(proxyFilePath) ?? sourceMetadata
         : sourceMetadata;
       const centred = getCentredPosition(metadata.width, metadata.height);
       const newVideo: TimelineObject = {
           id: crypto.randomUUID(), type: 'video', name: file.name, layer: target.layer, startTime: target.time, duration: metadata.duration,
-          x: centred.x, y: centred.y, width: metadata.width, height: metadata.height, src: url, filePath: filePath ?? undefined,
+          x: centred.x, y: centred.y, width: metadata.width, height: metadata.height, src: url, filePath: sourceImport.filePath ?? filePath ?? undefined,
           proxyFilePath: proxyFilePath,
           volume: 1.0, muted: false,
           enableAnimation: false, endX: centred.x, endY: centred.y, easing: 'linear', offset: 0,

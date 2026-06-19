@@ -22,6 +22,18 @@ type ProbeMediaFailureResponse = {
 
 type ProbeMediaResponse = ProbeMediaSuccessResponse | ProbeMediaFailureResponse;
 
+type MaterialiseMediaFileSuccessResponse = {
+  success: true;
+  filePath: string;
+};
+
+type MaterialiseMediaFileFailureResponse = {
+  success: false;
+  error?: string;
+};
+
+type MaterialiseMediaFileResponse = MaterialiseMediaFileSuccessResponse | MaterialiseMediaFileFailureResponse;
+
 export type VideoMetadata = {
   duration: number;
   width: number;
@@ -30,6 +42,11 @@ export type VideoMetadata = {
 
 export type AudioMetadata = {
   duration: number;
+};
+
+export type VideoImportSource = {
+  filePath: string | null;
+  metadata: VideoMetadata;
 };
 
 const DEFAULT_DURATION_SECONDS = 10;
@@ -91,6 +108,26 @@ const probeMediaPathWithRust = async (filePath: string): Promise<RustMediaProbeR
   }
 };
 
+const materialiseMediaFileForRust = async (file: File): Promise<string | null> => {
+  if (!hasIpcRenderer()) {
+    return null;
+  }
+
+  try {
+    const response = await window.ipcRenderer.invoke('materialise-media-file', {
+      fileName: file.name,
+      data: await file.arrayBuffer(),
+    }) as MaterialiseMediaFileResponse;
+    if (!response || response.success !== true || typeof response.filePath !== 'string') {
+      return null;
+    }
+    const trimmed = response.filePath.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  } catch {
+    return null;
+  }
+};
+
 export const probeMediaWithRust = async (file: File): Promise<RustMediaProbeResult | null> => {
   const filePath = getElectronFilePath(file);
   return filePath ? probeMediaPathWithRust(filePath) : null;
@@ -121,6 +158,35 @@ export const resolveVideoMetadataForFilePath = async (
 ): Promise<VideoMetadata | null> => {
   const probed = await probeMediaPathWithRust(filePath);
   return probed && probed.hasVideo ? mergeResolvedVideoMetadata(probed) : null;
+};
+
+export const resolveVideoImportSource = async (file: File, url: string): Promise<VideoImportSource> => {
+  const directFilePath = getElectronFilePath(file);
+  if (directFilePath) {
+    const probed = await probeMediaPathWithRust(directFilePath);
+    if (probed && probed.hasVideo) {
+      return {
+        filePath: directFilePath,
+        metadata: mergeResolvedVideoMetadata(probed),
+      };
+    }
+  }
+
+  const materialisedFilePath = await materialiseMediaFileForRust(file);
+  if (materialisedFilePath) {
+    const probed = await probeMediaPathWithRust(materialisedFilePath);
+    if (probed && probed.hasVideo) {
+      return {
+        filePath: materialisedFilePath,
+        metadata: mergeResolvedVideoMetadata(probed),
+      };
+    }
+  }
+
+  return {
+    filePath: directFilePath,
+    metadata: await loadVideoElementMetadata(url),
+  };
 };
 
 const loadAudioElementMetadata = (url: string): Promise<AudioMetadata> => {
@@ -154,12 +220,7 @@ const loadVideoElementMetadata = (url: string): Promise<VideoMetadata> => {
 };
 
 export const resolveVideoMetadata = async (file: File, url: string): Promise<VideoMetadata> => {
-  const probed = await probeMediaWithRust(file);
-  if (probed && probed.hasVideo) {
-    return mergeResolvedVideoMetadata(probed);
-  }
-
-  return loadVideoElementMetadata(url);
+  return (await resolveVideoImportSource(file, url)).metadata;
 };
 
 export const resolveAudioMetadata = async (file: File, url: string): Promise<AudioMetadata> => {
