@@ -313,6 +313,45 @@ const analyseVisiblePixels = ({ width, height, rgba }) => {
   };
 };
 
+const compareRgbaFrames = (left, right) => {
+  if (!left || !right || left.width !== right.width || left.height !== right.height) {
+    return {
+      ok: false,
+      reason: 'frameSizeMismatch',
+      meanAbsoluteDelta: 0,
+      changedSampleRatio: 0,
+    };
+  }
+
+  const step = Math.max(4, Math.floor(Math.min(left.width, left.height) / 120));
+  let samples = 0;
+  let deltaSum = 0;
+  let changedSamples = 0;
+  for (let y = 0; y < left.height; y += step) {
+    for (let x = 0; x < left.width; x += step) {
+      const i = (y * left.width + x) * 4;
+      const delta = (
+        Math.abs(left.rgba[i] - right.rgba[i])
+        + Math.abs(left.rgba[i + 1] - right.rgba[i + 1])
+        + Math.abs(left.rgba[i + 2] - right.rgba[i + 2])
+      ) / 3;
+      samples += 1;
+      deltaSum += delta;
+      if (delta > 6) changedSamples += 1;
+    }
+  }
+
+  const meanAbsoluteDelta = deltaSum / Math.max(1, samples);
+  const changedSampleRatio = changedSamples / Math.max(1, samples);
+  return {
+    ok: meanAbsoluteDelta > 1.5 || changedSampleRatio > 0.01,
+    reason: meanAbsoluteDelta > 1.5 || changedSampleRatio > 0.01 ? undefined : 'surfacePixelsDidNotChangeDuringPlayback',
+    samples,
+    meanAbsoluteDelta: Number(meanAbsoluteDelta.toFixed(3)),
+    changedSampleRatio: Number(changedSampleRatio.toFixed(4)),
+  };
+};
+
 const collectConsoleEvents = (client) => client.events
   .filter((event) => event.method === 'Runtime.consoleAPICalled')
   .map((event) => {
@@ -399,14 +438,83 @@ const captureSharedRendererSurfaceAnalysis = async (client) => {
   };
   const png = await capturePng(client, clip);
   writeFileSync(RESULT_SCREENSHOT, png);
-  const analysis = analyseVisiblePixels(readPngRgba(png));
+  const frame = readPngRgba(png);
+  const analysis = analyseVisiblePixels(frame);
   return {
     ok: analysis.visible,
     reason: analysis.visible ? undefined : 'surfacePixelsBlankOrGrey',
     rect,
     screenshotPath: RESULT_SCREENSHOT,
     analysis,
+    frame,
   };
+};
+
+const getSharedRendererPlaybackFrameState = async (client) => client.evaluate(`
+  (() => {
+    const gate = window.__UXFD_SHARED_RENDERER_PREVIEW_SURFACE_GATE__;
+    const snapshot = gate && gate.ok ? gate.snapshot : null;
+    const clip = snapshot?.clips?.find((entry) => entry && typeof entry.source_frame === 'number');
+    return {
+      ok: Boolean(snapshot && clip),
+      frameIndex: snapshot?.frame_index,
+      sourceFrame: clip?.source_frame,
+      currentTimeText: document.body.innerText.match(/\\d+\\.\\d\\ds/)?.[0] ?? null,
+    };
+  })()
+`);
+
+const clickPlaybackButton = async (client) => client.evaluate(`
+  (() => {
+    const button = document.querySelector('.control-bar button.btn-icon:not([title])');
+    if (!button) return false;
+    button.click();
+    return true;
+  })()
+`);
+
+const waitForPlaybackFrameAdvance = async (client, initialState) => client.evaluate(`
+  new Promise((resolve) => {
+    const initialSourceFrame = ${JSON.stringify(initialState?.sourceFrame ?? null)};
+    const started = Date.now();
+    const tick = () => {
+      const gate = window.__UXFD_SHARED_RENDERER_PREVIEW_SURFACE_GATE__;
+      const snapshot = gate && gate.ok ? gate.snapshot : null;
+      const clip = snapshot?.clips?.find((entry) => entry && typeof entry.source_frame === 'number');
+      const state = {
+        ok: Boolean(snapshot && clip),
+        frameIndex: snapshot?.frame_index,
+        sourceFrame: clip?.source_frame,
+        presenterStatus: document.documentElement.dataset.uxfdSharedRendererPresenterStatus,
+        videoOwner: document.documentElement.dataset.uxfdSharedRendererPresenterVideoOwner,
+        videoFrameUploadReady: document.documentElement.dataset.uxfdSharedRendererPresenterVideoFrameUploadReady,
+      };
+      if (
+        state.ok
+        && typeof state.sourceFrame === 'number'
+        && typeof initialSourceFrame === 'number'
+        && state.sourceFrame > initialSourceFrame + 3
+        && state.presenterStatus === 'ready'
+        && state.videoOwner === 'sharedRenderer'
+        && state.videoFrameUploadReady === 'true'
+      ) {
+        resolve({ ok: true, state });
+        return;
+      }
+      if (Date.now() - started > 12000) {
+        resolve({ ok: false, reason: 'playbackFrameAdvanceTimeout', state });
+        return;
+      }
+      setTimeout(tick, 250);
+    };
+    tick();
+  })
+`);
+
+const serialiseSurfaceResult = (result) => {
+  if (!result) return result;
+  const { frame: _frame, ...serialisable } = result;
+  return serialisable;
 };
 
 const main = async () => {
@@ -540,23 +648,50 @@ const main = async () => {
     })
   `);
 
-  const consoleLines = collectConsoleEvents(client);
-  const runtimeErrors = collectRuntimeErrors(client);
   const visualResult = pollResult?.ok
     ? await captureSharedRendererSurfaceAnalysis(client)
     : undefined;
+  const initialPlaybackFrameState = pollResult?.ok
+    ? await getSharedRendererPlaybackFrameState(client)
+    : undefined;
+  const playbackClicked = pollResult?.ok
+    ? await clickPlaybackButton(client)
+    : false;
+  const playbackAdvanceResult = playbackClicked
+    ? await waitForPlaybackFrameAdvance(client, initialPlaybackFrameState)
+    : { ok: false, reason: 'playbackButtonMissing' };
+  const playbackVisualResult = playbackAdvanceResult?.ok
+    ? await captureSharedRendererSurfaceAnalysis(client)
+    : undefined;
+  const playbackVisualDelta = visualResult?.frame && playbackVisualResult?.frame
+    ? compareRgbaFrames(visualResult.frame, playbackVisualResult.frame)
+    : undefined;
+  const consoleLines = collectConsoleEvents(client);
+  const runtimeErrors = collectRuntimeErrors(client);
   const blockingDiagnostics = findBlockingDiagnostics({
     consoleLines,
     runtimeErrors,
     processLines: logLines,
     pollResult,
-    visualResult,
+    visualResult: playbackVisualResult ?? visualResult,
   });
   const result = {
-    passed: Boolean(pollResult?.ok && visualResult?.ok && blockingDiagnostics.length === 0),
+    passed: Boolean(
+      pollResult?.ok
+      && visualResult?.ok
+      && playbackAdvanceResult?.ok
+      && playbackVisualResult?.ok
+      && playbackVisualDelta?.ok
+      && blockingDiagnostics.length === 0
+    ),
     videoPath: VIDEO_PATH,
     pollResult,
-    visualResult,
+    visualResult: serialiseSurfaceResult(visualResult),
+    initialPlaybackFrameState,
+    playbackClicked,
+    playbackAdvanceResult,
+    playbackVisualResult: serialiseSurfaceResult(playbackVisualResult),
+    playbackVisualDelta,
     consoleLines,
     runtimeErrors,
     blockingDiagnostics,
