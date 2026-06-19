@@ -32,6 +32,10 @@ type PreparedViewportVideoUpload = Extract<
   PrepareSharedRendererRustDecodedVideoUploadResult,
   { ok: true }
 >;
+type PreparedViewportVideoUploadFailureReason = Extract<
+  PrepareSharedRendererRustDecodedVideoUploadResult,
+  { ok: false }
+>['reason'];
 
 export interface PrepareSharedRendererViewportVideoUploadInput {
   session: SharedRendererPreviewSession;
@@ -75,6 +79,7 @@ export type PrepareSharedRendererViewportVideoUploadResult =
         | 'uploadFailed';
       detail: string;
       activeJob?: SharedRendererViewportVideoDecodeJob | null;
+      uploadFailureReason?: PreparedViewportVideoUploadFailureReason;
     };
 
 export type PrepareSharedRendererViewportVideoUploadsResult =
@@ -101,6 +106,7 @@ export type PrepareSharedRendererViewportVideoUploadsResult =
         | 'uploadFailed';
       detail: string;
       activeJobs: SharedRendererViewportVideoDecodeJob[];
+      uploadFailureReason?: PreparedViewportVideoUploadFailureReason;
     };
 
 export const prepareSharedRendererViewportVideoUploads = async ({
@@ -287,6 +293,7 @@ export const prepareSharedRendererViewportVideoUploads = async ({
         ok: false,
         reason: 'uploadFailed',
         detail: upload.detail,
+        uploadFailureReason: upload.reason,
         activeJobs: resolvedActiveJobs,
       };
     }
@@ -423,6 +430,7 @@ export const prepareSharedRendererViewportVideoUpload = async ({
       ok: false,
       reason: 'uploadFailed',
       detail: upload.detail,
+      uploadFailureReason: upload.reason,
       activeJob: resolvedJob,
     };
   }
