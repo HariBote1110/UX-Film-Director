@@ -1246,6 +1246,11 @@ preview presenter側で、途中成功sourceのabort release失敗をsource準�
 `preparedNativeRenderSourceAbortReleaseFailed` を返した場合、`nativeRenderFailed` に丸めず同じblock reasonとdataset reasonを残す。
 動画exportのRust必須経路で、slot leak防止失敗をnative render bridge失敗と区別できるようにする。
 
+226. Phase5: presenter diagnosticsにprepared source abort診断labelを追加する
+`writeSharedRendererPresenterDiagnostics` は `preparedNativeRenderSourceAbortReleaseFailed` を
+読みやすい `prepared native render source abort release failed` labelとしてdatasetへ出す。
+preview/exportから伝播したslot leak防止失敗を、camelCaseではなく実機ログで読める文言にする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

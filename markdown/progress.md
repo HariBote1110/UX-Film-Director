@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のpresenter diagnosticsとして、`preparedNativeRenderSourceAbortReleaseFailed` の読みやすいlabelを追加した。
+- Red: `sharedRendererPresenterDiagnostics` のテストへ、専用reasonが `prepared native render source abort release failed` labelとして出る契約を追加した。
+- Green: `formatNativeRenderFailureLabel` にprepared source abort release失敗のlabelを追加した。
+- 検証: `npm test -- sharedRendererPresenterDiagnostics sharedRendererPreviewPresenterController sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource` は96件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-215o`。
+
+## 2026-06-19
 - Phase5のexport frame source診断として、`preparedNativeRenderSourceAbortReleaseFailed` を `nativeRenderFailed` に丸めず保持するようにした。
 - Red: `sharedRendererExportFrameSource` のテストへ、source準備がprepared source abort release失敗を返す場合にblock reasonとdataset reasonを保持する契約を追加した。
 - Green: export source準備失敗の該当reasonだけ専用reasonとして `SharedRendererExportFrameSourceBlockedError` とframe diagnosticsへ渡すようにした。

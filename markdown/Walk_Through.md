@@ -1425,3 +1425,17 @@
 - `npm test -- sharedRendererExportFrameSource` を再実行し、41件成功を確認した。
 - `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource sharedRendererPreviewPresenterController exportDiagnosticsLog exportProgress` を実行し、120件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgress\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 111. Phase5: presenter diagnosticsにprepared source abort診断labelを追加
+- `src/utils/sharedRendererPresenterDiagnostics.test.ts`
+- `preparedNativeRenderSourceAbortReleaseFailed` のnative render failure reasonに、読みやすいlabelを出す契約を追加した。
+- `src/utils/sharedRendererPresenterDiagnostics.ts`
+- `formatNativeRenderFailureLabel` に `prepared native render source abort release failed` を追加し、dataset上のlabelをcamelCaseのままにしないようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-215o` に更新した。
+
+## 確認
+- `npm test -- sharedRendererPresenterDiagnostics` を実行し、RedでlabelがcamelCaseのままになる失敗を確認した。
+- `npm test -- sharedRendererPresenterDiagnostics` を再実行し、10件成功を確認した。
+- `npm test -- sharedRendererPresenterDiagnostics sharedRendererPreviewPresenterController sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource` を実行し、96件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererExportFrameSource\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

@@ -1,3 +1,20 @@
+## 2026-06-19 — presenter diagnosticsにprepared source abort診断labelを追加
+
+### 実施内容
+- Red: `preparedNativeRenderSourceAbortReleaseFailed` がpresenter datasetへ出る時、labelも読みやすい文言になる契約を追加した。
+- Green: `formatNativeRenderFailureLabel` に `prepared native render source abort release failed` を追加した。
+- source準備、preview upload、export frame sourceから伝播したslot leak防止失敗を、実機ログ上でも読みやすくした。
+- 版を `0.1.1-Beta-215o` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPresenterDiagnostics`
+- `npm test -- sharedRendererPresenterDiagnostics sharedRendererPreviewPresenterController sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererExportFrameSource\\.ts)"`
+
+### 残課題・次のステップ
+- Pixi依存撤去へ向けて、Viewport本体の動画所有者がsharedRenderer固定になった後のlegacy fallback経路をさらに削る。
+- export / preview双方で、Rust必須時にlegacy canvas/Pixi fallbackへ戻る抜け道が残っていないか再スキャンする。
+
 ## 2026-06-19 — export frame sourceでprepared source abort診断を保持
 
 ### 実施内容
