@@ -525,6 +525,115 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
     ]);
   });
 
+  it('releases preview native render output when source complete release fails', async () => {
+    const calls: unknown[] = [];
+    const videoOnlySession = buildVideoWithRemotePsdSession();
+    if (!videoOnlySession.surfaceGate.ok) {
+      throw new Error('videoOnlySession fixture must be renderable');
+    }
+    const session: SharedRendererPreviewSession = {
+      ...videoOnlySession,
+      plan: {
+        mode: 'parallelCompare',
+        primary: 'pixi',
+        candidate: 'sharedRenderer',
+        snapshot: {
+          ...videoOnlySession.surfaceGate.snapshot,
+          clips: [videoOnlySession.surfaceGate.snapshot.clips[0]],
+        },
+        media: [videoOnlySession.surfaceGate.media[0]],
+      },
+      surfaceGate: {
+        ...videoOnlySession.surfaceGate,
+        snapshot: {
+          ...videoOnlySession.surfaceGate.snapshot,
+          clips: [videoOnlySession.surfaceGate.snapshot.clips[0]],
+        },
+        media: [videoOnlySession.surfaceGate.media[0]],
+      },
+    };
+
+    const result = await prepareSharedRendererViewportNativeRenderUpload({
+      session,
+      requestId: 29,
+      activeJobs: [],
+      prepareNativeRenderSources: async () => ({
+        ok: true,
+        activeJobs: [],
+        sources: [{
+          mediaId: 'video-1',
+          slotCount: 2,
+          frame: {
+            descriptor,
+            ptsFrame: 29,
+          },
+          releaseAfterNativeRenderComplete: async () => {
+            calls.push(['releaseAfterNativeRenderComplete']);
+            throw new Error('video-1 complete release failed');
+          },
+          releaseAfterNativeRenderAbort: async () => {
+            calls.push(['releaseAfterNativeRenderAbort']);
+          },
+        }],
+      }),
+      renderNativeSharedFrame: async () => ({
+        success: true,
+        result: {
+          ...renderResult,
+          renderId: 'preview-native-render-29',
+          frame: {
+            descriptor: {
+              ...descriptor,
+              memoryId: '/uxfd-preview-native-render-29',
+            },
+            ptsFrame: 29,
+          },
+        },
+      }),
+      releaseNativeSharedFrame: async (payload) => {
+        calls.push(['releaseNativeSharedFrame', payload]);
+        return {
+          success: true,
+          result: {
+            released: true,
+            memoryId: payload.memoryId,
+          },
+        };
+      },
+      copyBridge: {
+        copyIntoUploadBuffer: async (_payload, target) => {
+          calls.push(['copyIntoUploadBuffer']);
+          target.fill(0x7e);
+          return {
+            success: true,
+            result: {
+              sequence: 29,
+              slotIndex: descriptor.slotIndex,
+              generation: descriptor.generation,
+              byteLen: descriptor.byteLen,
+              expectedChecksum: 0x1234,
+              actualChecksum: 0x1234,
+            },
+          };
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'nativeRenderSourceReleaseFailed',
+      detail: 'video-1 complete release failed',
+      activeJobs: [],
+    });
+    expect(calls).toEqual([
+      ['copyIntoUploadBuffer'],
+      ['releaseAfterNativeRenderComplete'],
+      ['releaseNativeSharedFrame', {
+        memoryId: '/uxfd-preview-native-render-29',
+      }],
+    ]);
+  });
+
   it('blocks preview native render before consuming video sources without release callbacks', async () => {
     const calls: unknown[] = [];
     const videoOnlySession = buildVideoWithRemotePsdSession();
