@@ -2641,7 +2641,8 @@ describe('createSharedRendererExportFrameSource', () => {
       objects: [image({ id: 'video-placeholder' }), image({ id: 'remote-psd-placeholder' })],
       encodeSessionId: 'remote-psd-session',
     })).rejects.toMatchObject({
-      fallbackToLegacyCanvas: true,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
       reason: 'nativeRenderUnsupportedMedia',
       frameIndex: 10,
     });
@@ -2976,7 +2977,8 @@ describe('createSharedRendererExportFrameSource', () => {
       objects: [image({ id: 'remote-image-placeholder' })],
       encodeSessionId: 'remote-media-only-session',
     })).rejects.toMatchObject({
-      fallbackToLegacyCanvas: true,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
       reason: 'nativeRenderUnsupportedMedia',
       frameIndex: 11,
     });
