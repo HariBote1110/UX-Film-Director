@@ -892,3 +892,16 @@
 - `npm test -- sharedRendererExportFrameSource` を実行し、Redでfallback不可の構造的blocked objectが認識されない失敗を確認した。
 - `npm test -- sharedRendererExportFrameSource sharedRendererExportFrameSourceBoundary useProjectExportBoundary` を実行し、56件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/components/ExportProgressModal\\.tsx)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 75. Phase5: presented-frame preload境界から旧writer語彙を削除
+- `src/utils/sharedVideoFrameUploadBridgeBoundary.test.ts`
+- `electron/preload.ts` のpresented-frame handoff契約に `SharedVideoFrameWritableResult` が残らない境界テストを追加した。
+- `electron/preload.ts`
+- handoff結果型を `SharedVideoFramePresentedFrameResult` へ改名し、旧JS writable shared-frame writer語彙をrenderer公開境界から外した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-210t` に更新した。
+
+## 確認
+- `npm test -- sharedVideoFrameUploadBridgeBoundary` を実行し、Redで `SharedVideoFrameWritableResult` がpreloadに残る失敗を確認した。
+- `npm test -- sharedVideoFrameUploadBridgeBoundary sharedVideoFramePresentedFrameHandoffBoundary` を実行し、3件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(electron/preload\\.ts|src/utils/sharedVideoFrameUploadBridgeBoundary\\.test\\.ts|src/utils/sharedVideoFramePresentedFrameHandoffBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

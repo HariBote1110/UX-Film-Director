@@ -1,3 +1,20 @@
+## 2026-06-19 — presented-frame preload境界から旧writer語彙を削除
+
+### 実施内容
+- Red: `electron/preload.ts` のpresented-frame handoff契約に `SharedVideoFrameWritableResult` が残らない境界テストを追加した。
+- Green: preload内のhandoff結果型を `SharedVideoFramePresentedFrameResult` へ改名し、旧JS writable shared-frame writer語彙をrenderer公開境界から外した。
+- `takePresentedFrameSharedFrame` をnative handoff専用の名前へ揃え、`createWritableSharedFrameRing` 系の旧経路と混同しにくくした。
+- 版を `0.1.1-Beta-210t` に更新した。
+
+### 検証
+- `npm test -- sharedVideoFrameUploadBridgeBoundary`
+- `npm test -- sharedVideoFrameUploadBridgeBoundary sharedVideoFramePresentedFrameHandoffBoundary`
+- `npx tsc --noEmit 2>&1 | rg "(electron/preload\\.ts|src/utils/sharedVideoFrameUploadBridgeBoundary\\.test\\.ts|src/utils/sharedVideoFramePresentedFrameHandoffBoundary\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- N-API addon内に残る低レベル writable ring API がrenderer公開面へ再露出しないことを境界テストで継続監視する。
+- presented-frame handoff / native render / Rust encode のshared-frame data-planeを、旧JS writerに戻らない形で統合し続ける。
+
 ## 2026-06-19 — fallback不可blocked objectをtype guardで認識
 
 ### 実施内容
