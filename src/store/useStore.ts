@@ -92,6 +92,26 @@ export interface ExportProgress {
   nativeRenderOutputRelease?: RustBackendNativeRenderOutputReleaseEvent;
 }
 
+/** 書き出し終了後にも残すRust移行用診断。 */
+export interface ExportDiagnostics {
+  rustFrameSourceBlocked?: ExportProgress['rustFrameSourceBlocked'];
+  nativeRenderOutputRelease?: RustBackendNativeRenderOutputReleaseEvent;
+}
+
+const collectExportDiagnostics = (progress: ExportProgress | null): ExportDiagnostics | null => {
+  if (!progress) return null;
+  const diagnostics: ExportDiagnostics = {};
+  if (progress.rustFrameSourceBlocked) {
+    diagnostics.rustFrameSourceBlocked = progress.rustFrameSourceBlocked;
+  }
+  if (progress.nativeRenderOutputRelease) {
+    diagnostics.nativeRenderOutputRelease = progress.nativeRenderOutputRelease;
+  }
+  return diagnostics.rustFrameSourceBlocked || diagnostics.nativeRenderOutputRelease
+    ? diagnostics
+    : null;
+};
+
 interface AppState {
   // Project State
   language: 'ja' | 'en';
@@ -102,6 +122,8 @@ interface AppState {
   isExporting: boolean;
   /** 書き出しの進捗状況（モーダル表示用）。書き出し中以外は null。 */
   exportProgress: ExportProgress | null;
+  /** 直近のRust export診断。書き出し終了後の調査用に保持する。 */
+  lastExportDiagnostics: ExportDiagnostics | null;
   /** ユーザーが書き出しのキャンセルを要求したか。 */
   exportCancelRequested: boolean;
 
@@ -331,6 +353,7 @@ export const useStore = create<AppState>((set, get) => ({
   projectSettings: { width: 1920, height: 1080, fps: 60, sampleRate: 44100 },
   isExporting: false,
   exportProgress: null,
+  lastExportDiagnostics: null,
   exportCancelRequested: false,
   isSnapshotRequested: false,
   previewDisplayMode: readStoredPreviewMode(),
@@ -726,13 +749,23 @@ export const useStore = create<AppState>((set, get) => ({
   }),
 
   setIsPlaying: (isPlaying) => set({ isPlaying }),
-  setExporting: (isExporting) => set(
+  setExporting: (isExporting) => set((state) => (
     isExporting
-      // 書き出し開始時は進捗・キャンセル要求を初期化する。
-      ? { isExporting: true, exportProgress: { phase: 'preparing', currentFrame: 0, totalFrames: 0 }, exportCancelRequested: false }
-      // 終了時は進捗・キャンセル要求をクリアする。
-      : { isExporting: false, exportProgress: null, exportCancelRequested: false }
-  ),
+      // 書き出し開始時は進捗・キャンセル要求・前回診断を初期化する。
+      ? {
+          isExporting: true,
+          exportProgress: { phase: 'preparing', currentFrame: 0, totalFrames: 0 },
+          lastExportDiagnostics: null,
+          exportCancelRequested: false,
+        }
+      // 終了時は進捗をクリアし、Rust移行用診断だけ保持する。
+      : {
+          isExporting: false,
+          exportProgress: null,
+          lastExportDiagnostics: collectExportDiagnostics(state.exportProgress),
+          exportCancelRequested: false,
+        }
+  )),
   setExportProgress: (exportProgress) => set({ exportProgress }),
   requestExportCancel: () => set((state) => (
     state.isExporting
