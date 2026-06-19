@@ -31,4 +31,11 @@ describe('useProjectExport boundary', () => {
     expect(code).not.toContain('useProjectExport(pixiAppRef');
     expect(useProjectExportSource()).not.toContain('exportFrameOverridesRef');
   });
+
+  it('does not capture ipcRenderer at module load before Electron preload is available', () => {
+    const code = useProjectExportSource();
+
+    expect(code).not.toContain('const { ipcRenderer } = window');
+    expect(code).toContain('getProjectExportIpcRenderer');
+  });
 });

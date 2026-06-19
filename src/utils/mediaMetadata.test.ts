@@ -85,10 +85,10 @@ describe('mergeResolvedVideoMetadata', () => {
 });
 
 describe('resolveVideoMetadata browser video boundary', () => {
-  it('does not create HTMLVideoElement metadata fallbacks in production metadata loading', () => {
+  it('keeps an HTMLVideoElement metadata fallback when Electron IPC is unavailable', () => {
     const code = source();
 
-    expect(code).not.toContain("document.createElement('video')");
-    expect(code).not.toContain('loadVideoElementMetadata');
+    expect(code).toContain("document.createElement('video')");
+    expect(code).toContain('loadVideoElementMetadata');
   });
 });
