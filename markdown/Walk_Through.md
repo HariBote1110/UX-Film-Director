@@ -1019,3 +1019,16 @@
 - `npm test -- sharedRendererPreviewPresenterController` を実行し、Redで `videoUploadMissingClipIds` が未設定になる失敗を確認した。
 - `npm test -- sharedRendererPresenterDiagnostics sharedRendererPreviewPresenterController` を再実行し、42件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 84. Phase5: exportで不足upload clip診断をblock
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- presenterが `videoUploadMissingClipIds` をdatasetへ残したexport frameでは、video ownershipがsharedRendererでもblockedにする契約を追加した。
+- `src/utils/sharedRendererExportFrameSource.ts`
+- export frame sourceのvideo ownership判定でpresenter datasetの不足clip診断を読み、`videoOwnershipUnavailable` としてfail-loudにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-211c` に更新した。
+
+## 確認
+- `npm test -- sharedRendererExportFrameSource` を実行し、Redで不足clip診断があってもbitmap captureへ進む失敗を確認した。
+- `npm test -- sharedRendererExportFrameSource` を再実行し、39件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

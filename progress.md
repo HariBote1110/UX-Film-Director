@@ -1,3 +1,19 @@
+## 2026-06-19 — exportで不足upload clip診断をblock
+
+### 実施内容
+- Red: presenterが `videoUploadMissingClipIds` をdatasetへ残したexport frameでは、video ownershipがsharedRendererでもblockedにする契約を追加した。
+- Green: export frame sourceのvideo ownership判定でpresenter datasetの不足clip診断を読み、`videoOwnershipUnavailable` としてfail-loudにした。
+- previewで検出したmulti-video不足uploadがexport時にcanvas captureへ進まないようにした。
+- 版を `0.1.1-Beta-211c` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSource`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- `videoUploadMissingClipIds` をExportProgressModalにも表示するか検討する。
+- 実機GoPro複数素材で不足clip診断がpreview/export双方で同じclip idを示すか確認する。
+
 ## 2026-06-19 — multi-video不足upload clip診断を保持
 
 ### 実施内容
