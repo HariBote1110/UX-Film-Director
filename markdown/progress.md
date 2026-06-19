@@ -467,3 +467,10 @@
 - Green: `useProjectExport` から `rustVideoOnly` のexport計画受け渡しを削除し、動画exportのRust必須判定を `hasVideoObjects` に一本化した。
 - 検証: `npm test -- projectExportEncodePlan projectExportFrameCanvas useProjectExportBoundary` は43件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-183a`。
+
+## 2026-06-19
+- Phase5のcompatibility export境界として、WebCodecs/mp4-muxer互換encoderを非動画export専用に固定した。
+- Red: `projectExportCompatibilityEncoder` に、`hasVideoObjects` がtrueの入力はWebCodecs互換encoderをloadする前に拒否する契約を追加した。
+- Green: `projectExportCompatibilityEncoder` の入力へ `hasVideoObjects` を追加し、`useProjectExport` から実際の動画object有無を渡すようにした。
+- 検証: `npm test -- projectExportCompatibilityEncoder useProjectExportBoundary projectExportEncodePlan projectExportFrameCanvas` は44件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-184a`。

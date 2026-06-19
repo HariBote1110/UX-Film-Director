@@ -1102,6 +1102,11 @@ Rust backend encoder / shared-frame pathのhook本体からbrowser encoder依存
 そのため `projectExportEncodePlan` と `projectExportFrameCanvas` のpolicy入力から `rustVideoOnly` を削除し、
 export判定の正本を `hasVideoObjects` とRust encoder availabilityへ寄せる。
 
+205. Phase5: WebCodecs互換encoderを非動画export専用に固定する
+`projectExportCompatibilityEncoder` は静止画・図形だけの互換export adapterとし、`hasVideoObjects` がtrueの入力を
+`videoExportPipeline` dynamic import前に拒否する。
+上流のencode planが壊れた場合でも、動画exportがWebCodecs/mp4-muxer経路へ漏れないようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
