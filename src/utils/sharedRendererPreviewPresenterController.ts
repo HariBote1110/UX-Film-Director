@@ -524,7 +524,7 @@ export const startSharedRendererPreviewPresenter = async ({
   const shouldPassThroughToPixi = !hasSolidColourScene && !diagnosticSwatchEnabled;
   if (requireSharedRendererOutput && shouldPassThroughToPixi && !nativeRenderFrameReady && !shouldPresentUploadedVideoFrame) {
     writeDiagnostics({
-      status: 'fallback',
+      status: 'blocked',
       reason: 'sharedRendererOutputUnavailable',
       swatch: 'pixi-passthrough',
     });
