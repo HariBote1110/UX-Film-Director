@@ -140,4 +140,43 @@ describe('renderProjectExportFrame', () => {
     expect(renderScene).not.toHaveBeenCalled();
     expect(getExportCanvas).not.toHaveBeenCalled();
   });
+
+  it('fails an already blocked required Rust frame source without restoring legacy canvas capture', async () => {
+    const renderScene = vi.fn();
+    const getExportCanvas = vi.fn(() => ({ id: 'legacy-canvas' }) as unknown as HTMLCanvasElement);
+    const captureLegacyCanvasFrame = vi.fn(async () => ({
+      timestamp: 166_667,
+      bitmap: { close: vi.fn() } as unknown as ImageBitmap,
+    }));
+    const frameSourcePlan: Extract<ProjectExportFrameSourcePlanResult, { ok: true }> = {
+      ok: true,
+      source: 'sharedRendererRustFrameSource',
+      frameSource: {
+        renderEncodeFrame: vi.fn(async () => sharedFrame(5, 166_667)),
+      },
+      captureCanvas: false,
+      requiresRenderScene: false,
+      usesExportFrameOverrides: false,
+      rustFrameSourceBlockedFallback: 'failExport',
+    };
+
+    await expect(renderProjectExportFrame({
+      frameSourcePlan,
+      rustFrameSourceBlocked: true,
+      frameIndex: 5,
+      fps: 30,
+      width: 4,
+      height: 2,
+      objects: [],
+      encodeSessionId: 'session-rust-required',
+      preferSharedFrame: true,
+      renderScene,
+      getExportCanvas,
+      captureLegacyCanvasFrame,
+    })).rejects.toThrow('Rust frame source is blocked and legacy canvas fallback is disabled.');
+
+    expect(renderScene).not.toHaveBeenCalled();
+    expect(getExportCanvas).not.toHaveBeenCalled();
+    expect(captureLegacyCanvasFrame).not.toHaveBeenCalled();
+  });
 });
