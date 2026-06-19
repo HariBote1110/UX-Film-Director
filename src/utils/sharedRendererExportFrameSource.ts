@@ -555,7 +555,8 @@ export function createSharedRendererExportFrameSource({
             throw new SharedRendererExportFrameSourceBlockedError(
               formatPresentedSharedFrameHandoffError(error),
               'presentedSharedFrameHandoffFailed',
-              request.frameIndex
+              request.frameIndex,
+              false
             );
           }
           writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
@@ -577,7 +578,8 @@ export function createSharedRendererExportFrameSource({
         throw new SharedRendererExportFrameSourceBlockedError(
           'Presented shared-frame handoff is required for Rust direct encode frames.',
           'presentedSharedFrameHandoffUnavailable',
-          request.frameIndex
+          request.frameIndex,
+          false
         );
       } finally {
         presenterResult.control.dispose();
