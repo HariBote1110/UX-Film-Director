@@ -1251,6 +1251,11 @@ preview presenter側で、途中成功sourceのabort release失敗をsource準�
 読みやすい `prepared native render source abort release failed` labelとしてdatasetへ出す。
 preview/exportから伝播したslot leak防止失敗を、camelCaseではなく実機ログで読める文言にする。
 
+227. Phase5: prepared source abort失敗ではlegacy fallbackを禁止する
+export native render source準備で `preparedNativeRenderSourceAbortReleaseFailed` が発生した場合、
+`SharedRendererExportFrameSourceBlockedError` の `legacyCanvasFallbackAllowed` を `false` にする。
+Rust decoded slot leak防止に失敗した状態で、legacy canvas/Pixi captureへ戻って成功扱いにしない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

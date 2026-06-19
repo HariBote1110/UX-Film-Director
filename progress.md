@@ -1,3 +1,20 @@
+## 2026-06-19 — prepared source abort失敗ではlegacy fallbackを禁止
+
+### 実施内容
+- Red: export native render source準備で `preparedNativeRenderSourceAbortReleaseFailed` が発生した場合、blocked errorがlegacy canvas fallbackを許可しない契約を追加した。
+- Green: 該当reasonで `SharedRendererExportFrameSourceBlockedError` を投げる時だけ、`legacyCanvasFallbackAllowed=false` を渡すようにした。
+- Rust decoded slot leak防止に失敗した状態で、Pixi/legacy captureへ戻って成功扱いになる抜け道を塞いだ。
+- 版を `0.1.1-Beta-215p` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSource`
+- `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgress\\.ts)"`
+
+### 残課題・次のステップ
+- Rust/native render必須時の他のblocked reasonでもlegacy fallbackを禁止すべき箇所を順にTDDで締める。
+- Viewport本体のPixi依存撤去へ向けて、動画以外のPixi-only presentation条件も棚卸しする。
+
 ## 2026-06-19 — presenter diagnosticsにprepared source abort診断labelを追加
 
 ### 実施内容

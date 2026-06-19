@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のexport fallback境界として、`preparedNativeRenderSourceAbortReleaseFailed` ではlegacy canvas fallbackを禁止するようにした。
+- Red: `sharedRendererExportFrameSource` のテストへ、該当blockが `fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。
+- Green: prepared source abort release失敗で `SharedRendererExportFrameSourceBlockedError` を投げる時だけfallback許可をfalseにした。
+- 検証: `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress` は72件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-215p`。
+
+## 2026-06-19
 - Phase5のpresenter diagnosticsとして、`preparedNativeRenderSourceAbortReleaseFailed` の読みやすいlabelを追加した。
 - Red: `sharedRendererPresenterDiagnostics` のテストへ、専用reasonが `prepared native render source abort release failed` labelとして出る契約を追加した。
 - Green: `formatNativeRenderFailureLabel` にprepared source abort release失敗のlabelを追加した。

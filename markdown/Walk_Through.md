@@ -1439,3 +1439,18 @@
 - `npm test -- sharedRendererPresenterDiagnostics` を再実行し、10件成功を確認した。
 - `npm test -- sharedRendererPresenterDiagnostics sharedRendererPreviewPresenterController sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource` を実行し、96件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererExportFrameSource\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 112. Phase5: prepared source abort失敗ではlegacy fallbackを禁止
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- `preparedNativeRenderSourceAbortReleaseFailed` のexport blockでは `fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。
+- `src/utils/sharedRendererExportFrameSource.ts`
+- prepared source abort release失敗で `SharedRendererExportFrameSourceBlockedError` を投げる時だけ、legacy canvas fallbackを禁止するようにした。
+- Rust decoded slot leak防止失敗を、Pixi/legacy captureで成功扱いにしない境界にした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-215p` に更新した。
+
+## 確認
+- `npm test -- sharedRendererExportFrameSource` を実行し、Redでlegacy fallbackが許可されたままになる失敗を確認した。
+- `npm test -- sharedRendererExportFrameSource` を再実行し、41件成功を確認した。
+- `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress` を実行し、72件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgress\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
