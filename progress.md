@@ -4307,3 +4307,19 @@
 ### 残課題・次のステップ
 - 実機のGoPro動画で、encode失敗時にもprogress modal上でnative render output release状態を確認する。
 - release診断を必要なら開発者向け詳細パネルへ集約する。
+
+## 2026-06-19 — native render output release失敗をmodalへ表示
+
+### 実施内容
+- Red: `render.releaseNativeSharedFrame` がrejectした場合も、元のencode write失敗を隠さず `failed` release診断eventを出す契約を追加した。
+- Green: release bridge例外をcatchして `status=failed` / `error` を通知し、throw元はencode write失敗のまま保持するようにした。
+- progress modalで `failed` を `解放失敗` / `release failed` と表示するようにした。
+- 版を `0.1.1-Beta-205b` に更新した。
+
+### 検証
+- `npm test -- rustBackendVideoEncodeExport ExportProgressModal`
+- `npx tsc --noEmit 2>&1 | rg "rustBackendVideoEncodeExport|ExportProgressModal"`
+
+### 残課題・次のステップ
+- 実機のGoPro動画で、encode失敗時にもprogress modal上でnative render output release状態を確認する。
+- release失敗時の詳細errorを開発者向け詳細パネルに集約するか判断する。

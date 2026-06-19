@@ -186,7 +186,7 @@ Rust backend integration gate:
   この場合、preview/export diagnostics は専用の `*NativeRenderSourceReleaseRequired=true` を出して、
   release ownership不備として見分けられるようにする。
 - Rust backend encode writer が native render output を消費する前に失敗した場合、export encode runner は
-  `render.releaseNativeSharedFrame` を呼び、`released` / `missingBridge` / `skipped` の release診断イベントを
+  `render.releaseNativeSharedFrame` を呼び、`released` / `missingBridge` / `failed` / `skipped` の release診断イベントを
   callbackへ通知する。`useProjectExport` はこのイベントを `exportProgress.nativeRenderOutputRelease` に保持し、
   export progress UIから確認できるようにする。
 - `shared-video-frame-bridge-node` は Rust core を N-API addon として wrap し、Node 直 require では
