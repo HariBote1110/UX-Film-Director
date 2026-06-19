@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のexport fallback境界として、Rust/native render必須時のunsupported native mediaではlegacy canvas fallbackを禁止するようにした。
+- Red: `sharedRendererExportFrameSource` のテストへ、mixed video + unsupported overlay、media-only unsupported frameでfallback不可になる契約を追加した。
+- Green: `nativeRenderUnsupportedMedia` を投げる2経路へfallback可否を渡し、Rust/native render必須時は `legacyCanvasFallbackAllowed=false` にした。
+- 検証: `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress sharedRendererNativeMediaSupport` は76件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-215t`。
+
+## 2026-06-19
 - Phase5のexport fallback境界として、native render sourceのrelease callback欠落ではlegacy canvas fallbackを禁止するようにした。
 - Red: `sharedRendererExportFrameSource` のテストへ、`nativeRenderSourceReleaseUnavailable` でfallback不可になる契約を追加した。
 - Green: release callback欠落時の `SharedRendererExportFrameSourceBlockedError` に `legacyCanvasFallbackAllowed=false` を渡すようにした。

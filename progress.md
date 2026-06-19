@@ -1,3 +1,20 @@
+## 2026-06-19 — unsupported native mediaではRust必須時のlegacy fallbackを禁止
+
+### 実施内容
+- Red: mixed video exportでoverlay mediaがRust native render未対応の場合と、encode-only media-only frameが未対応mediaの場合に、legacy canvas fallbackを許可しない契約を追加した。
+- Green: `nativeRenderUnsupportedMedia` を投げる2経路へfallback可否を渡し、Rust/native render必須時は `legacyCanvasFallbackAllowed=false` にした。
+- Rust必須exportで未対応mediaをPixi/legacy captureへ退避させず、未対応範囲として明示的に止めるようにした。
+- 版を `0.1.1-Beta-215t` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSource`
+- `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress sharedRendererNativeMediaSupport`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgress\\.ts|src/utils/sharedRendererNativeMediaSupport\\.ts)"`
+
+### 残課題・次のステップ
+- remaining `fallbackToLegacyCanvas=true` のうち、動画export/Rust必須経路に該当するものをさらに棚卸しする。
+- Viewport本体のPixi依存撤去へ向けて、動画以外のPixi-only presentation条件も整理する。
+
 ## 2026-06-19 — native render source release callback欠落ではlegacy fallbackを禁止
 
 ### 実施内容

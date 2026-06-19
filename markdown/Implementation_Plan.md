@@ -1270,6 +1270,11 @@ Rust decoded sourceやnative render outputの所有権解放に失敗した状�
 `nativeRenderSourceReleaseUnavailable` のexport blockも `legacyCanvasFallbackAllowed=false` にする。
 decoded sourceのrelease callbackが欠けている状態ではRust側slot所有権を閉じられないため、legacy canvas/Pixi captureへ戻らずfail-loudに止める。
 
+231. Phase5: unsupported native mediaではRust必須時のlegacy fallbackを禁止する
+動画を含むmixed native render、または `nativeRenderRequired=true` / `bitmapCaptureEnabled=false` のmedia-only native renderで
+`nativeRenderUnsupportedMedia` が発生した場合、`legacyCanvasFallbackAllowed=false` にする。
+Rust必須exportで未対応mediaをPixi/legacy captureに退避させず、未対応範囲を明示的に止める。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
