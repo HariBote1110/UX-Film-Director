@@ -22,13 +22,16 @@ describe('Viewport Rust video-only boundary', () => {
     expect(readinessBlock).not.toContain('videoElements:');
   });
 
-  it('uses Rust/shared renderer video cutover for Pixi content routing instead of HTMLVideoElement fallback', () => {
+  it('does not pass stale video ownership gates into Pixi content routing', () => {
     const code = viewportSource();
     const start = code.indexOf('const content = updatePixiContent(obj, container, time, {');
     const end = code.indexOf('});', start);
     const updatePixiContentBlock = code.slice(start, end);
 
-    expect(updatePixiContentBlock).toContain('requireSharedRendererVideo: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled');
+    expect(updatePixiContentBlock).not.toContain('sharedRendererVideoObjectIds:');
+    expect(updatePixiContentBlock).not.toContain('requireSharedRendererVideo:');
+    expect(code).not.toContain('sharedRendererVideoObjectIdsRef');
+    expect(code).not.toContain('updateSharedRendererVideoObjectIds');
   });
 
   it('does not let the Viewport own legacy Pixi HTMLVideoElement texture resources', () => {
