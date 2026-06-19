@@ -550,19 +550,6 @@ app.whenReady().then(() => {
     return { success: false as const };
   });
 
-  // VideoDecoder テスト用: H.264 プロキシファイルを解決する
-  ipcMain.handle('resolve-4k-proxy-video', async () => {
-    const base = app.getAppPath();
-    const candidates = [
-      path.join(base, 'perf', 'heavy-media', 'GX010052.proxy.mp4'),
-      path.join(base, '..', 'perf', 'heavy-media', 'GX010052.proxy.mp4'),
-    ];
-    for (const filePath of candidates) {
-      if (fs.existsSync(filePath)) return { success: true as const, filePath };
-    }
-    return { success: false as const };
-  });
-
   ipcMain.handle('read-file-bytes', async (_event, payload: { filePath?: string }) => {
     const filePath = typeof payload?.filePath === 'string' ? payload.filePath.trim() : '';
     if (!filePath) {
