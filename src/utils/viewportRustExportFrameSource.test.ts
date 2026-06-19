@@ -228,6 +228,86 @@ describe('buildViewportRustExportFrameSource', () => {
     }]);
   });
 
+  it('enables the effective video cutover for video exports even when the preview cutover flag is off', () => {
+    const canvas = {
+      width: 1920,
+      height: 1080,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    const calls: unknown[] = [];
+    const video = {
+      id: 'video-1',
+      type: 'video',
+      name: 'GoPro.mp4',
+      layer: 1,
+      startTime: 0,
+      duration: 5,
+      x: 0,
+      y: 0,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      opacity: 1,
+      enableAnimation: false,
+      endX: 0,
+      endY: 0,
+      easing: 'linear',
+      src: 'blob:video',
+      filePath: '/tmp/GoPro.mp4',
+      width: 1920,
+      height: 1080,
+      volume: 1,
+      muted: false,
+    } satisfies TimelineObject;
+
+    const source = buildViewportRustExportFrameSource({
+      exportEnabled: true,
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: false,
+      objects: [video],
+      time: 0,
+      buildExportSession: () => exportSessionWithSurfaceGate({
+        ok: true,
+        canvas: {
+          width: 1920,
+          height: 1080,
+        },
+        snapshot: {
+          frame_index: 0,
+          colour: {
+            profile: 'rec709-sdr',
+            working_space: 'linear-light',
+            alpha: 'premultiplied',
+          },
+          clips: [],
+        },
+        media: [],
+      }),
+      createFrameSource: (input) => {
+        calls.push(input);
+        return frameSource;
+      },
+    });
+
+    expect(source).toBe(frameSource);
+    expect(calls).toEqual([{
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      bitmapCaptureEnabled: false,
+      nativeRenderRequired: true,
+    }]);
+  });
+
   it('passes native/Rust frame handoff into the shared renderer export source', () => {
     const canvas = {
       width: 1920,
