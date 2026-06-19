@@ -53,6 +53,7 @@ export type SharedRendererExportFrameSourceBlockedReason =
   | 'nativeRenderOutputReleaseFailed'
   | 'nativeRenderUnsupportedMedia'
   | 'sharedRendererOutputUnavailable'
+  | 'webGpuDrawUnavailable'
   | 'preparedNativeRenderSourceAbortReleaseFailed'
   | 'nativeRenderFailed';
 
@@ -252,11 +253,11 @@ export function createSharedRendererExportFrameSource({
       writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
         status: 'blocked',
         frameIndex: request.frameIndex,
-        reason: 'sharedRendererOutputUnavailable',
+        reason: sharedRendererOutputBlock.reason,
       });
       throw new SharedRendererExportFrameSourceBlockedError(
-        sharedRendererOutputBlock,
-        'sharedRendererOutputUnavailable',
+        sharedRendererOutputBlock.detail,
+        sharedRendererOutputBlock.reason,
         request.frameIndex,
         false
       );
@@ -712,15 +713,33 @@ const resolveExportVideoUploadBlock = (
 
 const resolveSharedRendererOutputBlock = (
   presenterResult: StartSharedRendererViewportPresenterResult
-): string | null => {
-  if (presenterResult.control.ok || presenterResult.control.reason !== 'sharedRendererOutputUnavailable') {
+): { reason: 'sharedRendererOutputUnavailable' | 'webGpuDrawUnavailable'; detail: string } | null => {
+  if (presenterResult.control.ok) {
     return null;
+  }
+  if (
+    presenterResult.control.reason !== 'sharedRendererOutputUnavailable'
+    && presenterResult.control.reason !== 'webGpuDrawUnavailable'
+  ) {
+    return null;
+  }
+  if (presenterResult.control.reason === 'webGpuDrawUnavailable') {
+    return {
+      reason: 'webGpuDrawUnavailable',
+      detail: 'Shared renderer WebGPU presentation is unavailable.',
+    };
   }
   const nativeRenderUploadResult = presenterResult.nativeRenderUploadResult;
   if (nativeRenderUploadResult && !nativeRenderUploadResult.ok) {
-    return `Shared renderer export output is unavailable (${nativeRenderUploadResult.reason}: ${nativeRenderUploadResult.detail}).`;
+    return {
+      reason: 'sharedRendererOutputUnavailable',
+      detail: `Shared renderer export output is unavailable (${nativeRenderUploadResult.reason}: ${nativeRenderUploadResult.detail}).`,
+    };
   }
-  return 'Shared renderer export output is unavailable.';
+  return {
+    reason: 'sharedRendererOutputUnavailable',
+    detail: 'Shared renderer export output is unavailable.',
+  };
 };
 
 const formatExportVideoUploadBlock = (
