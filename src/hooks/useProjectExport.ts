@@ -267,6 +267,7 @@ export const useProjectExport = (
             fps,
             frames: renderFrames(false) as AsyncIterable<{ timestamp: number; bitmap: ImageBitmap }>,
             audioBuffer,
+            hasVideoObjects,
             writeChunk: async (data, position) => {
               const end = position + data.byteLength;
               if (end > writtenBytes) writtenBytes = end;
