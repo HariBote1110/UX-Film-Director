@@ -7,6 +7,7 @@ const srcRoot = join(projectRoot, 'src');
 const electronMainPath = join(projectRoot, 'electron/main.ts');
 const rendererEntryPath = join(projectRoot, 'src/main.tsx');
 const packageJsonPath = join(projectRoot, 'package.json');
+const viteConfigPath = join(projectRoot, 'vite.config.ts');
 
 const forbiddenTokens = [
   "document.createElement('video')",
@@ -99,5 +100,12 @@ describe('production video dependency boundary', () => {
 
     expect(code).toContain('/* @vite-ignore */');
     expect(code).not.toContain("await import('./exportTest/exportTestHarness')");
+  });
+
+  it('limits normal Vite dependency scanning to the app entry html', () => {
+    const code = readFileSync(viteConfigPath, 'utf8');
+
+    expect(code).toContain('optimizeDeps');
+    expect(code).toContain("entries: ['index.html']");
   });
 });
