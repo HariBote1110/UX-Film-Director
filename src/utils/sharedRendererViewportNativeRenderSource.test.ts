@@ -592,4 +592,143 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
       copyOutState: 'rendererUploadAborted',
     }]);
   });
+
+  it('reports prepared native render source abort release failure separately from the stale frame release', async () => {
+    const calls: unknown[] = [];
+    const firstFrame = sharedFrame('/uxfd-native-source-video-1');
+    const staleSecondFrame = {
+      ...sharedFrame('/uxfd-native-source-stale-video-2'),
+      ptsFrame: 7,
+    };
+    const result = await prepareSharedRendererViewportNativeRenderSources({
+      session: session(),
+      requestId: 99,
+      activeJobs: [],
+      rustBackendBridge: {
+        startVideoDecode: async (payload) => {
+          calls.push(['startVideoDecode', payload]);
+          return { success: true };
+        },
+        requestVideoDecodeFrame: async (payload) => {
+          calls.push(['requestVideoDecodeFrame', payload]);
+          const isFirstVideo = payload.jobId === 'shared-renderer-video-video-1-4x4-60over1';
+          const frame = isFirstVideo ? firstFrame : staleSecondFrame;
+          return {
+            success: true,
+            result: {
+              accepted: true,
+              jobId: isFirstVideo
+                ? payload.jobId
+                : 'shared-renderer-video-stale-video-2-80x45-30over1',
+              requestId: payload.requestId,
+              frameIndex: payload.frameIndex,
+              mode: 'latestWins',
+              frame,
+              verification: {
+                frameIndex: payload.frameIndex,
+                checksum: {
+                  algorithm: 'crc32',
+                  valueHex: '00000000',
+                  byteLen: frame.descriptor.byteLen,
+                },
+                status: 'withinTolerance',
+              },
+            },
+          };
+        },
+        releaseVideoDecodeFrame: async (payload) => {
+          calls.push(['releaseVideoDecodeFrame', payload]);
+          if (payload.jobId === 'shared-renderer-video-video-1-4x4-60over1') {
+            return {
+              success: false,
+              error: 'prepared native render source abort release failed',
+            };
+          }
+          return { success: true };
+        },
+        stopVideoDecode: async (payload) => {
+          calls.push(['stopVideoDecode', payload]);
+          return { success: true };
+        },
+      },
+      decodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 2,
+        requests: [
+          {
+            clipId: 'clip-video-1',
+            mediaId: 'video-1',
+            source: '/tmp/video-1.mp4',
+            sourceFrame: 12,
+            sourceRate: {
+              numerator: 60,
+              denominator: 1,
+            },
+            timelineFrame: 2,
+            width: 4,
+            height: 4,
+            format: 'rgba8Srgb',
+            colour: 'rec709SrgbFullRange',
+          },
+          {
+            clipId: 'clip-video-2',
+            mediaId: 'video-2',
+            source: '/tmp/video-2.mp4',
+            sourceFrame: 7,
+            sourceRate: {
+              numerator: 30,
+              denominator: 1,
+            },
+            timelineFrame: 2,
+            width: 80,
+            height: 45,
+            format: 'rgba8Srgb',
+            colour: 'rec709SrgbFullRange',
+          },
+        ],
+      }),
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'preparedNativeRenderSourceAbortReleaseFailed',
+      detail: 'prepared native render source abort release failed',
+      activeJobs: [
+        {
+          jobId: 'shared-renderer-video-video-1-4x4-60over1',
+          source: '/tmp/video-1.mp4',
+          slotCount: 2,
+          width: 4,
+          height: 4,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+        },
+        {
+          jobId: 'shared-renderer-video-video-2-80x45-30over1',
+          source: '/tmp/video-2.mp4',
+          slotCount: 2,
+          width: 80,
+          height: 45,
+          sourceRate: {
+            numerator: 30,
+            denominator: 1,
+          },
+        },
+      ],
+    });
+    expect(calls).toContainEqual(['releaseVideoDecodeFrame', {
+      jobId: 'shared-renderer-video-stale-video-2-80x45-30over1',
+      slotIndex: 0,
+      generation: 4,
+      copyOutState: 'rendererUploadAborted',
+    }]);
+    expect(calls).toContainEqual(['releaseVideoDecodeFrame', {
+      jobId: 'shared-renderer-video-video-1-4x4-60over1',
+      slotIndex: 0,
+      generation: 4,
+      copyOutState: 'rendererUploadAborted',
+    }]);
+  });
 });
