@@ -32,7 +32,7 @@ describe('formatLastExportDiagnosticsLog', () => {
     };
 
     expect(formatLastExportDiagnosticsLog(diagnostics)).toBe(
-      'Rust export diagnostics: frameSourcePlanFailure reason=rustFrameSourceRequired detail=Video export requires a shared-frame Rust export source. | frameSourceBlocked reason=videoOwnershipUnavailable frame=5 legacyFallback=true detail=Shared renderer export is missing uploaded video clips: video-2. | nativeRenderOutputRelease status=failed memory=/uxfd-native-render-output reason=encodeWriteFailed error=release rejected'
+      'Rust export diagnostics: frameSourcePlanFailure reason=rustFrameSourceRequired detail=Video export requires a shared-frame Rust export source. | frameSourceBlocked reason=videoOwnershipUnavailable frame=5 legacyFallback=false detail=Shared renderer export is missing uploaded video clips: video-2. | nativeRenderOutputRelease status=failed memory=/uxfd-native-render-output reason=encodeWriteFailed error=release rejected'
     );
   });
 });

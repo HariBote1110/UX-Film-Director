@@ -97,7 +97,7 @@ describe('formatRustFrameSourceBlockedDiagnostic', () => {
       frameIndex: 5,
       legacyCanvasFallbackAllowed: true,
       detail: 'Shared renderer export is missing uploaded video clips: video-2.',
-    }, 'ja')).toBe('Rust frame source: 停止 動画所有権未移管 frame=5 legacy fallback可: Shared renderer export is missing uploaded video clips: video-2.');
+    }, 'ja')).toBe('Rust frame source: 停止 動画所有権未移管 frame=5 legacy fallback不可: Shared renderer export is missing uploaded video clips: video-2.');
   });
 });
 
@@ -129,7 +129,7 @@ describe('formatLastExportDiagnosticsSummary', () => {
 
     expect(formatLastExportDiagnosticsSummary(diagnostics, 'ja')).toEqual([
       'Rust frame source plan: rustFrameSourceRequired: Video export requires a shared-frame Rust export source.',
-      'Rust frame source: 停止 動画所有権未移管 frame=5 legacy fallback可: Shared renderer export is missing uploaded video clips: video-2.',
+      'Rust frame source: 停止 動画所有権未移管 frame=5 legacy fallback不可: Shared renderer export is missing uploaded video clips: video-2.',
       'Native render output: 解放失敗 (/uxfd-native-render-output) release rejected',
     ]);
   });
