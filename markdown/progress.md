@@ -1028,3 +1028,12 @@
 - Red/Green: encode失敗時にffmpeg stderrを捨てず、`encode.finish` のRPCエラーへ含めるようにした。
 - 検証: `npm test -- useTimelineDrop` は3件成功。`cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane -- --nocapture` は29件成功。対象TSファイルで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-218b`。
+
+## 2026-06-20
+- 実機確認で `Failed to load video metadata` と `Cannot read properties of undefined (reading 'invoke')` が出たため、IPCなし環境の扱いをMVP向けに戻した。
+- Red: `mediaMetadata` に、Electron IPCがない場合もHTMLVideoElementで動画metadataを読む契約を追加した。
+- Green: `resolveVideoMetadata` をRust probe優先、失敗時はbrowser video metadata fallbackへ戻した。
+- Red: `useProjectExportBoundary` に、module load時点で `window.ipcRenderer` を捕まない契約を追加した。
+- Green: export開始時に `getProjectExportIpcRenderer` でIPCを取得し、未接続なら「Electron app windowでexportする必要がある」と明示するようにした。
+- 検証: `npm test -- mediaMetadata useTimelineDrop useProjectExportBoundary` は38件成功。対象TSファイルで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-218c`。

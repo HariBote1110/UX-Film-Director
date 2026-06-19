@@ -6567,6 +6567,24 @@
 - アプリを再起動し、GoPro動画をdropしてTimelineへ入るか確認する。
 - encodeがまだ失敗する場合は、新しく表示されるffmpeg stderrを元にcodec / mux / save pathを直接修正する。
 
+## 2026-06-20 — IPCなし動画metadata fallbackとexport診断を追加
+
+### 実施内容
+- 実機確認で `Failed to load video metadata` と `Cannot read properties of undefined (reading 'invoke')` が出たため、Electron IPCがない環境の扱いを改善した。
+- Red: `mediaMetadata` に、Electron IPCがない場合もHTMLVideoElementで動画metadataを読む契約を追加した。
+- Green: `resolveVideoMetadata` をRust probe優先にしつつ、probe不可ならbrowser video metadata fallbackでduration/width/heightを読むようにした。
+- Red: `useProjectExportBoundary` に、module load時点で `window.ipcRenderer` を捕まない契約を追加した。
+- Green: export開始時に `getProjectExportIpcRenderer` でIPCを取得し、未接続なら原因不明の `undefined.invoke` ではなくElectron app windowが必要だと明示するようにした。
+- 版を `0.1.1-Beta-218c` に更新した。
+
+### 検証
+- `npm test -- mediaMetadata useTimelineDrop useProjectExportBoundary`
+- `npx tsc --noEmit --pretty false 2>&1 | rg "(src/utils/mediaMetadata\\.ts|src/utils/mediaMetadata\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/hooks/useProjectExportBoundary\\.test\\.ts|src/hooks/useTimelineDrop\\.ts)"`
+
+### 残課題・次のステップ
+- 動画読み込みはブラウザfallbackでもTLに入るはず。Rust exportはElectron IPCが必要なので、Electron window側で再確認する。
+- Electron window側でもIPC未接続になる場合は、preload設定または起動経路を直接修正する。
+
 ## 2026-06-19 — shared frame copy checksum検証を追加
 
 ### 実施内容
