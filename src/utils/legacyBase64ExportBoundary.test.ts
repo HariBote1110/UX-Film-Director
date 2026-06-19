@@ -20,6 +20,11 @@ const forbiddenTokens = [
   'frameBase64',
   'frame_base64',
   'base64 =',
+  'check-intermediate',
+  'generate-intermediate',
+  'cancel-intermediate',
+  'intermediate-progress',
+  'intermediateCachePath',
 ];
 
 describe('legacy base64 export boundary', () => {
