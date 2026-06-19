@@ -1123,6 +1123,194 @@ describe('createSharedRendererExportFrameSource', () => {
     ]);
   });
 
+  it('blocks export with a release diagnostic when native render abort source release fails', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    const decodedFrame = {
+      descriptor: {
+        memoryId: '/uxfd-decoded-video-native-render-release-failure',
+        slotIndex: 1,
+        generation: 8,
+        byteOffset: 256,
+        byteLen: 1024,
+        width: 4,
+        height: 4,
+        strideBytes: 256,
+        format: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      },
+      ptsFrame: 8,
+    } as const;
+    const snapshot = {
+      frame_index: 8,
+      colour: {
+        profile: 'rec709-sdr',
+        working_space: 'linear-light',
+        alpha: 'premultiplied',
+      },
+      clips: [{
+        clip_id: 'video-clip-1',
+        track_id: 'layer-1',
+        media_id: 'video-1',
+        source_frame: 8,
+        z_index: 0,
+        transform: {
+          translation_x: 0,
+          translation_y: 0,
+          scale_x: 1,
+          scale_y: 1,
+          rotation_degrees: 0,
+          sampling: 'bilinear',
+        },
+        opacity: 1,
+        effects: [],
+      }],
+    } as const;
+    const media = [{
+      id: 'video-1',
+      kind: 'Video',
+      source: '/tmp/video-1.mp4',
+      width: 4,
+      height: 4,
+      source_rate: {
+        numerator: 60,
+        denominator: 1,
+      },
+    }] as const;
+    const calls: unknown[] = [];
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: {
+        ...settings,
+        width: 4,
+        height: 4,
+      },
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      bitmapCaptureEnabled: false,
+      buildExportSession: () => ({
+        plan: {
+          mode: 'parallelCompare',
+          primary: 'pixi',
+          candidate: 'sharedRenderer',
+          snapshot,
+          media,
+        },
+        presentationContract: {
+          canvas: {
+            colorSpace: 'srgb',
+            alphaMode: 'premultiplied',
+          },
+          comparisonReadback: {
+            target: 'offscreenRenderTarget',
+            includesPageCompositing: false,
+          },
+          frameTiming: {
+            source: 'frozenSceneSnapshot',
+          },
+          deviceLost: {
+            fallback: 'pixi',
+            staleSharedFrameAllowed: false,
+          },
+        },
+        surfaceGate: {
+          ok: true,
+          canvas: {
+            width: 4,
+            height: 4,
+          },
+          snapshot,
+          media,
+        },
+      }),
+      prepareNativeRenderSources: async () => ({
+        ok: true,
+        activeJobs: [decodeJob('native-render-release-failure-video')],
+        sources: [{
+          mediaId: 'video-1',
+          slotCount: 2,
+          frame: decodedFrame,
+          releaseAfterNativeRenderComplete: async () => {
+            calls.push(['releaseAfterNativeRenderComplete', 'video-1']);
+          },
+          releaseAfterNativeRenderAbort: async () => {
+            calls.push(['releaseAfterNativeRenderAbort', 'video-1']);
+            throw new Error('export source abort release failed');
+          },
+        }, {
+          mediaId: 'video-2',
+          slotCount: 2,
+          frame: {
+            descriptor: {
+              ...decodedFrame.descriptor,
+              memoryId: '/uxfd-decoded-video-native-render-release-failure-2',
+            },
+            ptsFrame: 8,
+          },
+          releaseAfterNativeRenderComplete: async () => {
+            calls.push(['releaseAfterNativeRenderComplete', 'video-2']);
+          },
+          releaseAfterNativeRenderAbort: async () => {
+            calls.push(['releaseAfterNativeRenderAbort', 'video-2']);
+          },
+        }],
+      }),
+      renderNativeSharedFrame: (async () => {
+        calls.push(['renderNativeSharedFrame']);
+        return {
+          success: false,
+          error: 'native render failed',
+        };
+      }) satisfies SharedRendererExportNativeSharedFrameRenderer,
+      startViewportPresenter: async () => {
+        throw new Error('WebGPU presenter must not start when native render source release fails.');
+      },
+    } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
+      bitmapCaptureEnabled: false;
+      renderNativeSharedFrame: unknown;
+    });
+
+    const blocked = await source.renderEncodeFrame?.({
+      frameIndex: 8,
+      timestampUs: 133_333,
+      time: 8 / 60,
+      width: 4,
+      height: 4,
+      objects: [video()],
+      encodeSessionId: 'native-render-release-failure-session',
+    }).catch((error) => error);
+
+    expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
+    expect(blocked).toMatchObject({
+      fallbackToLegacyCanvas: true,
+      reason: 'nativeRenderSourceReleaseFailed',
+      frameIndex: 8,
+      message: 'export source abort release failed',
+    });
+    expect(calls).toEqual([
+      ['renderNativeSharedFrame'],
+      ['releaseAfterNativeRenderAbort', 'video-1'],
+      ['releaseAfterNativeRenderAbort', 'video-2'],
+    ]);
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'blocked',
+      uxfdRustExportFrameSourceFrameIndex: '8',
+      uxfdRustExportFrameSourceFrameReason: 'nativeRenderSourceReleaseFailed',
+      uxfdRustExportFrameSourceFramePath: undefined,
+    });
+  });
+
   it('blocks native render before consuming decoded sources without release callbacks', async () => {
     const canvas = {
       width: 1,
