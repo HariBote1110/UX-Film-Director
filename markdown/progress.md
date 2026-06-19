@@ -983,3 +983,10 @@
 - 既存実装で契約を満たしていたため、挙動変更と版更新は行わず、Rust側へ既に載っている描画面積を太いテストとして固定した。
 - 検証: `cargo test native_render_shared_frame_composites_video_source_with_generated_gradient_media` (`rust-backend/`) は1件成功。`npm test -- sharedRendererViewportNativeRenderUpload -t "generated gradient media"` は1件成功。
 - 版: `0.1.1-Beta-216z` 据え置き。
+
+## 2026-06-20
+- Phase5のpreview診断として、動画とGeneratedGradientが同じnative render済みframeに含まれる場合のdataset契約を固定した。
+- Red: `sharedRendererPreviewPresenterController` に、`NativeRenderMediaKinds=Video,GeneratedGradient`、`NativeRenderSourceMediaIds=video-1`、Video/GeneratedGradient双方のsharedRenderer ownershipが出る契約を追加した。
+- 既存実装で契約を満たしていたため、挙動変更と版更新は行わず、実機確認時にRust側へ載っている範囲を追いやすくするテストとして固定した。
+- 検証: `npm test -- sharedRendererPreviewPresenterController -t "video and generated gradient"` は1件成功。
+- 版: `0.1.1-Beta-216z` 据え置き。

@@ -6473,6 +6473,19 @@
 - presenter診断でも動画 + GeneratedGradientのnative render readyを明示し、実機で「どこまでRustか」を追いやすくする。
 - 次は実装が必要な前進スライスとして、動画 + GeneratedGradient以外の混合mediaをRust native render uploadへ広げる。
 
+## 2026-06-20 — 動画 + GeneratedGradient native render診断を固定
+
+### 実施内容
+- Red: `sharedRendererPreviewPresenterController` に、動画とGeneratedGradientが同じnative render済みframeに含まれる場合のdataset契約を追加した。
+- `uxfdSharedRendererPresenterNativeRenderMediaKinds=Video,GeneratedGradient`、`uxfdSharedRendererPresenterNativeRenderSourceMediaIds=video-1`、Video/GeneratedGradient双方のsharedRenderer ownershipを確認できるようにした。
+- 既存実装で契約を満たしていたため、挙動変更と版更新は行っていない。
+
+### 検証
+- `npm test -- sharedRendererPreviewPresenterController -t "video and generated gradient"`
+
+### 残課題・次のステップ
+- 次は実装が必要な前進スライスとして、Image/PSD/GeneratedGradientを含む混合mediaのRust native render uploadと実機表示確認を広げる。
+
 ## 2026-06-19 — shared frame copy checksum検証を追加
 
 ### 実施内容
