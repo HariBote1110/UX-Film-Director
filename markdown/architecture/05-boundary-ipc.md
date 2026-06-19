@@ -201,6 +201,8 @@ Rust backend integration gate:
   `render.releaseNativeSharedFrame` を呼び、`released` / `missingBridge` / `failed` / `skipped` の release診断イベントを
   callbackへ通知する。`useProjectExport` はこのイベントを `exportProgress.nativeRenderOutputRelease` に保持し、
   export progress UIから確認できるようにする。
+  release bridgeがrejectした場合だけでなく、`success=false` を返した場合も `failed` として扱い、
+  解放できていないnative render outputを `released` と誤診断しない。
 - Rust backend encode finishの `frameCount` / `sessionId` / `filePath` はbackend結果を正本とし、renderer側の
   送信フレーム数や要求filePathだけで完了summaryを作らない。
 - `shared-video-frame-bridge-node` は Rust core を N-API addon として wrap し、Node 直 require では

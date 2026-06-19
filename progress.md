@@ -4420,3 +4420,19 @@
 ### 残課題・次のステップ
 - Rust backend側の `encode.finish` / ffmpeg実行をcargo testで再確認し、実機smoke前にbackend contractの緑を取る。
 - 実機GoPro素材でRust native render / Rust encode / release diagnosticsを確認する。
+
+## 2026-06-19 — native render output release falseを失敗診断にする
+
+### 実施内容
+- Red: `render.releaseNativeSharedFrame` がrejectではなく `{ success:false, error }` を返した場合も、release失敗として診断する契約を追加した。
+- Green: release bridgeの返却値を確認し、`success=false` の場合は `nativeRenderOutputRelease.status=failed` として通知するようにした。
+- encode write失敗そのものは引き続き隠さず、release失敗はprogress診断へ分離する。
+- 版を `0.1.1-Beta-208b` に更新した。
+
+### 検証
+- `npm test -- src/utils/rustBackendVideoEncodeExport.test.ts src/components/ExportProgressModal.test.ts src/utils/useProjectExportBoundary.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "rustBackendVideoEncodeExport|ExportProgressModal|useProjectExport"`
+
+### 残課題・次のステップ
+- 実機GoPro素材で、encode write失敗時の native render output release 診断が `released` / `failed` を正しく示すか確認する。
+- release失敗の詳細を開発者向けログや診断パネルにさらに集約するか判断する。
