@@ -173,9 +173,22 @@ describe('formatLastExportDiagnosticsSummary', () => {
     };
 
     expect(formatLastExportDiagnosticsSummary(diagnostics, 'ja')).toEqual([
-      'Rust frame source plan: rustFrameSourceRequired: Video export requires a shared-frame Rust export source.',
+      'Rust frame source plan: Rust frame source必須: Video export requires a shared-frame Rust export source.',
       'Rust frame source: 停止 動画所有権未移管 frame=5 legacy fallback不可: Shared renderer export is missing uploaded video clips: video-2.',
       'Native render output: 解放失敗 (/uxfd-native-render-output) release rejected',
+    ]);
+  });
+
+  it('formats Image and PSD Rust frame source plan failures with a readable English label', () => {
+    const diagnostics: ExportDiagnostics = {
+      exportFrameSourcePlanFailure: {
+        reason: 'rustFrameSourceRequired',
+        detail: 'Image/PSD export requires a shared renderer Rust frame source. Shared renderer surface requires a parallelCompare plan.',
+      },
+    };
+
+    expect(formatLastExportDiagnosticsSummary(diagnostics, 'en')).toEqual([
+      'Rust frame source plan: Rust frame source required: Image/PSD export requires a shared renderer Rust frame source. Shared renderer surface requires a parallelCompare plan.',
     ]);
   });
 });
