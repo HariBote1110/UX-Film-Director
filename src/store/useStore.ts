@@ -86,6 +86,7 @@ export interface ExportProgress {
     reason: SharedRendererExportFrameSourceBlockedReason;
     frameIndex: number;
     legacyCanvasFallbackAllowed: boolean;
+    detail?: string;
   };
   /** Rust native render output のrelease診断。 */
   nativeRenderOutputRelease?: RustBackendNativeRenderOutputReleaseEvent;

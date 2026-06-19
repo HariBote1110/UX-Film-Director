@@ -185,6 +185,7 @@ export const useProjectExport = (
                       reason: error.reason,
                       frameIndex: error.frameIndex,
                       legacyCanvasFallbackAllowed: error.legacyCanvasFallbackAllowed,
+                      detail: error.message,
                     },
                   });
                 }

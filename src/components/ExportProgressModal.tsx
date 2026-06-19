@@ -43,7 +43,8 @@ export const formatRustFrameSourceBlockedDiagnostic = (
   const fallback = event.legacyCanvasFallbackAllowed
     ? (language === 'ja' ? 'legacy fallback可' : 'legacy fallback allowed')
     : (language === 'ja' ? 'legacy fallback不可' : 'legacy fallback disabled');
-  return `Rust frame source: ${status} ${formatRustFrameSourceBlockedReason(event.reason, language)} frame=${event.frameIndex} ${fallback}`;
+  const detail = event.detail ? `: ${event.detail}` : '';
+  return `Rust frame source: ${status} ${formatRustFrameSourceBlockedReason(event.reason, language)} frame=${event.frameIndex} ${fallback}${detail}`;
 };
 
 const formatRustFrameSourceBlockedReason = (
@@ -59,6 +60,11 @@ const formatRustFrameSourceBlockedReason = (
     return language === 'ja'
       ? 'native render output解放失敗'
       : 'native render output release failed';
+  }
+  if (reason === 'videoOwnershipUnavailable') {
+    return language === 'ja'
+      ? '動画所有権未移管'
+      : 'video ownership unavailable';
   }
   return reason;
 };
