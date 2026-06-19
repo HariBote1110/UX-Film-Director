@@ -185,6 +185,68 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
     ]]);
   });
 
+  it('uses Rust inline decoded RGBA as an MVP preview path when the native copy bridge is unavailable', async () => {
+    const calls: unknown[] = [];
+    const inlineBytes = new Uint8Array(512);
+    inlineBytes.fill(0x77);
+    const rustBackendBridge: RustBackendVideoDecodeBridge = {
+      startVideoDecode: async () => ({ success: true }),
+      requestVideoDecodeFrame: async () => ({ success: true, result: decodedFrameResponse.result! }),
+      requestVideoDecodeFrameInline: async (payload) => {
+        calls.push(['requestVideoDecodeFrameInline', payload]);
+        return {
+          success: true,
+          result: {
+            ...decodedFrameResponse.result!,
+            frame: {
+              ...decodedFrameResponse.result!.frame!,
+              rgbaBytes: inlineBytes,
+            },
+          },
+        };
+      },
+      releaseVideoDecodeFrame: async (payload) => {
+        calls.push(['releaseVideoDecodeFrame', payload]);
+        return { success: true, result: { released: true } };
+      },
+      stopVideoDecode: async () => ({ success: true }),
+    };
+
+    const upload = await prepareSharedRendererRustDecodedVideoUpload({
+      decodeResponse: decodedFrameResponse,
+      slotCount: 2,
+      copyBridge: {
+        copyIntoUploadBuffer: async () => ({
+          success: false,
+          error: 'Shared video frame native bridge is unavailable.',
+        }),
+      },
+      rustBackendBridge,
+    });
+
+    expect(upload.ok).toBe(true);
+    if (!upload.ok) throw new Error('expected upload preparation to succeed');
+    expect(upload.rgbaBytes.byteLength).toBe(512);
+    expect(upload.rgbaBytes[0]).toBe(0x77);
+
+    await upload.releaseAfterGpuUpload?.();
+
+    expect(calls).toEqual([
+      ['requestVideoDecodeFrameInline', {
+        jobId: 'decode-job-1',
+        requestId: 99,
+        frameIndex: 42,
+        mode: 'latestWins',
+      }],
+      ['releaseVideoDecodeFrame', {
+        jobId: 'decode-job-1',
+        slotIndex: 1,
+        generation: 5,
+        copyOutState: 'gpuUploadFenceSignalled',
+      }],
+    ]);
+  });
+
   it('releases the decoded backend slot as aborted when shared memory copy throws', async () => {
     const calls: unknown[] = [];
 
