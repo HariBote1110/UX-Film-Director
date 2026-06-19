@@ -4,7 +4,6 @@ import { createGradientTexture, drawShape, getCurrentViseme, renderPsdTree, cach
 import { evaluateObjectPositionAtTime } from './keyframes';
 import { evaluateSubjectCropNormRectAtTime } from './subjectCropKeyframes';
 import { getEnabledObjectFiltersInOrder } from './filterStack';
-import { resolvePixiVideoRenderPath } from './pixiVideoCutover';
 import { shouldSkipPixiSolidColourForSharedRenderer } from './pixiSolidColourCutover';
 import { shouldSkipPixiImageForSharedRenderer } from './pixiImageCutover';
 import { shouldSkipPixiPsdForSharedRenderer } from './pixiPsdCutover';
@@ -709,9 +708,6 @@ export const updatePixiContent = (
         content = psdContent;
 
     } else if (obj.type === 'video') {
-        const videoRenderPath = resolvePixiVideoRenderPath();
-        if (videoRenderPath !== 'sharedRendererOnly') return content;
-
         const children = container.removeChildren();
         children.forEach((child) => child.destroy({ children: true, texture: false, context: true }));
         container.hitArea = new PIXI.Rectangle(0, 0, obj.width, obj.height);
