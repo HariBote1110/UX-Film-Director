@@ -49,6 +49,7 @@ import type { CoreMlAnimalObservation } from '../utils/coremlTrackIpc';
 import type { ProjectExportFrameSourcePlanResult } from '../utils/projectExportFrameCanvas';
 import type { RustBackendNativeRenderOutputReleaseEvent } from '../utils/rustBackendVideoEncodeExport';
 import type { SharedRendererExportFrameSourceBlockedReason } from '../utils/sharedRendererExportFrameSource';
+import { normaliseRustFrameSourceBlockedFallback } from '../utils/rustFrameSourceBlockedFallback';
 
 interface ClipboardState {
   objects: TimelineObject[];
@@ -120,6 +121,13 @@ const collectExportDiagnostics = (progress: ExportProgress | null): ExportDiagno
     ? diagnostics
     : null;
 };
+
+const normaliseExportProgressDiagnostics = (progress: ExportProgress): ExportProgress => ({
+  ...progress,
+  ...(progress.rustFrameSourceBlocked ? {
+    rustFrameSourceBlocked: normaliseRustFrameSourceBlockedFallback(progress.rustFrameSourceBlocked),
+  } : {}),
+});
 
 interface AppState {
   // Project State
@@ -775,7 +783,11 @@ export const useStore = create<AppState>((set, get) => ({
           exportCancelRequested: false,
         }
   )),
-  setExportProgress: (exportProgress) => set({ exportProgress }),
+  setExportProgress: (exportProgress) => set({
+    exportProgress: exportProgress
+      ? normaliseExportProgressDiagnostics(exportProgress)
+      : null,
+  }),
   requestExportCancel: () => set((state) => (
     state.isExporting
       ? {

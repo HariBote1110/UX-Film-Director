@@ -16,3 +16,10 @@ export const isRustFrameSourceLegacyCanvasFallbackAllowed = ({
     ? false
     : legacyCanvasFallbackAllowed
 );
+
+export const normaliseRustFrameSourceBlockedFallback = <
+  T extends RustFrameSourceBlockedFallbackInput
+>(blocked: T): T => ({
+  ...blocked,
+  legacyCanvasFallbackAllowed: isRustFrameSourceLegacyCanvasFallbackAllowed(blocked),
+});

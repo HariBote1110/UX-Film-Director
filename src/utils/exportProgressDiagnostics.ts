@@ -1,4 +1,5 @@
 import type { ExportPhase, ExportProgress } from '../store/useStore';
+import { normaliseRustFrameSourceBlockedFallback } from './rustFrameSourceBlockedFallback';
 
 export interface ExportProgressPhasePatch {
   phase: ExportPhase;
@@ -9,7 +10,15 @@ export interface ExportProgressPhasePatch {
 export const updateExportProgressPhase = (
   progress: ExportProgress | null,
   patch: ExportProgressPhasePatch
-): ExportProgress => ({
-  ...(progress ?? {}),
-  ...patch,
-});
+): ExportProgress => {
+  const next = {
+    ...(progress ?? {}),
+    ...patch,
+  };
+  return {
+    ...next,
+    ...(next.rustFrameSourceBlocked ? {
+      rustFrameSourceBlocked: normaliseRustFrameSourceBlockedFallback(next.rustFrameSourceBlocked),
+    } : {}),
+  };
+};
