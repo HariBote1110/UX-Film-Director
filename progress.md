@@ -4758,3 +4758,20 @@
 ### 残課題・次のステップ
 - `src/exportTest/` に残るWebCodecs/MP4Box検証資材を、Rust backend smokeへ置き換えられる範囲で縮小する。
 - production packageから将来的にPixi自体を剥がすため、preview ownershipの残りを引き続き段階的に移す。
+
+## 2026-06-19 — Pixi動画cutover入力を削除
+
+### 実施内容
+- Red: `pixiVideoCutover` が `objectType` / export / ownership gate入力を公開せず、Pixi動画branchを常にshared renderer専用として扱う契約へ更新した。
+- Green: `shouldSkipPixiVideoForSharedRenderer` / `resolvePixiVideoRenderPath` を入力不要にし、`pixiRenderHelper` の動画branchから判定材料の受け渡しを削除した。
+- Pixi側へ動画所有権を戻すための分岐材料をさらに減らし、Rust/shared renderer video ownershipを既定経路として固定した。
+- 版を `0.1.1-Beta-208u` に更新した。
+
+### 検証
+- `npm test -- pixiVideoCutover`
+- `npm test -- pixiVideoCutover viewportRustVideoOnlyBoundary productionVideoDependencyBoundary`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/pixiVideoCutover\\.ts|src/utils/pixiRenderHelper\\.ts|src/utils/pixiVideoCutover\\.test\\.ts|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- `sharedRendererVideoOwnership` のRust decode/upload readiness診断を実機GoPro素材で確認する。
+- WebGPU presenterのvideo texture bind group経路とRust decode multi-sessionの残りを引き続き検証する。
