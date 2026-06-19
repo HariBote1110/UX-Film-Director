@@ -106,6 +106,17 @@ describe('Viewport Rust video-only boundary', () => {
     );
   });
 
+  it('enables the shared renderer export surface by default and only disables it explicitly', () => {
+    const code = viewportSource();
+
+    expect(code).toContain(
+      "const sharedRendererExportEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_EXPORT !== '0';"
+    );
+    expect(code).not.toContain(
+      "const sharedRendererExportEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_EXPORT === '1';"
+    );
+  });
+
   it('does not opt the Viewport back into legacy Pixi video rendering', () => {
     const code = viewportSource();
 
