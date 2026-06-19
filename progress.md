@@ -6528,6 +6528,25 @@
 - 実機UIで Rectangle / Image / Audio を置いて、Rust backend encoderでMP4へ出ることを確認する。
 - 次は、必要なら「Quick Native Export」導線をUIに追加し、Pixi互換分岐を通らずRust native render + encodeを直接呼べるようにする。
 
+## 2026-06-20 — Native MVP再構築計画と図形native export判定を追加
+
+### 実施内容
+- `markdown/Native_MVP_Rebuild_Plan.md` を追加し、PixiJSを細かく剥がすよりも、図形・画像・音声を配置してRust/native経路でMP4を書き出せるMVPへジャンプする方針を明文化した。
+- Red: `projectExportFrameCanvas` に、Shape + AudioだけのMVP exportでもnative render mediaとして扱う契約を追加した。
+- Green: export frame source contextのnative render media判定をShape / Image / PSD / Videoへ広げ、通常export hookも同じ判定を使うようにした。
+- Audioはvisual mediaではなく、既存のmixdownとRust encoder `audioPath` muxへ流す設計を維持した。
+- Rust backend側に、PNG画像をRustでdecode/renderし、そのshared frameをRust encoderへ渡してWAV音声とmuxしたMP4を生成する結合契約を追加した。
+- 版を `0.1.1-Beta-218a` に更新した。
+
+### 検証
+- `npm test -- projectExportFrameCanvas`
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane native_rendered_image_frame_can_feed_audio_muxed_encode -- --nocapture`
+- `npx tsc --noEmit --pretty false 2>&1 | rg "(src/utils/projectExportFrameCanvas\\.ts|src/utils/projectExportFrameCanvas\\.test\\.ts|src/hooks/useProjectExport\\.ts)"`
+
+### 残課題・次のステップ
+- 実機UIで Rectangle / Image / Audio を配置し、通常ExportからRust backend MP4が出るか確認する。
+- 失敗する場合は、Quick Native Export導線を追加してPixi互換分岐を通らないMVP用の直通exportを作る。
+
 ## 2026-06-19 — shared frame copy checksum検証を追加
 
 ### 実施内容

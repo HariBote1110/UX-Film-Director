@@ -1010,3 +1010,11 @@
 - Green: visual snapshot構築前にaudio objectを除外し、音声は `audioMixdown` / Rust encoder muxへ任せる形へ分離した。
 - 検証: `npm test -- productionVideoDependencyBoundary -t "dependency scanning"` は1件成功。`npm test -- rustSceneSnapshot -t "audio objects"` は1件成功。`npm test -- rustSceneSnapshot sharedRendererExportSession sharedRendererPreviewSurface` は23件成功。対象TSファイルで絞った `tsc` 出力は空。`npm run dev` は `http://localhost:5173/` でHTTP 200を確認。
 - 版: `0.1.1-Beta-217b`。
+
+## 2026-06-20
+- Native MVP再構築計画を `markdown/Native_MVP_Rebuild_Plan.md` として追加し、最初の到達点を Rectangle / gradient rectangle / PNG・JPEG画像 / WAV音声 / Rust backend MP4 export に絞った。
+- Red: `projectExportFrameCanvas` に、Shape + AudioだけのMVP exportでもnative render mediaとして扱う契約を追加した。
+- Green: export frame source contextのnative render media判定をShape / Image / PSD / Videoへ広げ、通常export hookも同じ判定を使うようにした。Audioはvisual media判定から除外し、mixdown + `audioPath` muxへ任せる。
+- Rust backend結合確認として、PNG画像を `render.nativeSharedFrame` でRust decode/renderし、そのshared frameを `encode.writeFrame` へ渡し、WAV音声をmuxしてMP4を生成する契約を追加した。
+- 検証: `npm test -- projectExportFrameCanvas` は35件成功。`cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane native_rendered_image_frame_can_feed_audio_muxed_encode -- --nocapture` は1件成功。対象TSファイルで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-218a`。
