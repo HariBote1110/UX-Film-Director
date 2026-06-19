@@ -1,3 +1,19 @@
+## 2026-06-19 — export progressでRust block detailを表示
+
+### 実施内容
+- Red: Rust/shared renderer frame sourceがblockedになった時、`error.message` を `ExportProgress.rustFrameSourceBlocked.detail` として保持し、ExportProgressModalで表示する契約を追加した。
+- Green: `useProjectExport` からblocked error detailをprogressへ渡し、`videoOwnershipUnavailable` を「動画所有権未移管」として読める診断にした。
+- exportで不足upload clipを検出した時、UI上でも `missing uploaded video clips: ...` まで追えるようにした。
+- 版を `0.1.1-Beta-211d` に更新した。
+
+### 検証
+- `npm test -- ExportProgressModal exportProgress useProjectExportBoundary`
+- `npx tsc --noEmit 2>&1 | rg "(src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/store/useStore\\.ts|src/store/exportProgress\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- Rust frame source blocked detailを、失敗だけでなくfallback継続時の実機ログ/diagnostic exportにも残すか検討する。
+- 次は `HTMLVideoElement` / legacy canvas fallback が動画exportで残る入口をさらにfail-loud化する。
+
 ## 2026-06-19 — exportで不足upload clip診断をblock
 
 ### 実施内容

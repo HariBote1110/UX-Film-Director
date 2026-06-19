@@ -1032,3 +1032,20 @@
 - `npm test -- sharedRendererExportFrameSource` を実行し、Redで不足clip診断があってもbitmap captureへ進む失敗を確認した。
 - `npm test -- sharedRendererExportFrameSource` を再実行し、39件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 85. Phase5: export progressでRust block detailを表示
+- `src/components/ExportProgressModal.test.ts`
+- Rust/shared renderer frame sourceがblockedになった時、`detail` をUI診断へ含める契約を追加した。
+- `src/store/exportProgress.test.ts`
+- `ExportProgress.rustFrameSourceBlocked` が `detail` を保持できる契約を追加した。
+- `src/utils/useProjectExportBoundary.test.ts`
+- `useProjectExport` がblocked errorの `message` をprogressへ渡す境界契約を追加した。
+- `src/store/useStore.ts` / `src/hooks/useProjectExport.ts` / `src/components/ExportProgressModal.tsx`
+- blocked error detailをprogressへ渡し、`videoOwnershipUnavailable` を読める診断ラベルにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-211d` に更新した。
+
+## 確認
+- `npm test -- ExportProgressModal exportProgress useProjectExportBoundary` を実行し、RedでdetailがUI/progressへ出ない失敗を確認した。
+- `npm test -- ExportProgressModal exportProgress useProjectExportBoundary` を再実行し、34件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/store/useStore\\.ts|src/store/exportProgress\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
