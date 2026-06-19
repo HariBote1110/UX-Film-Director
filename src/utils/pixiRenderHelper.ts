@@ -566,13 +566,6 @@ const applyVideoSubjectCropMask = (
   sprite.mask = maskG;
 };
 
-/** エクスポート時の VideoDecoder ハイブリッドパス用：クリップ ID → デコード済み ImageBitmap */
-export interface ExportOverlayCanvas {
-    canvas: OffscreenCanvas;
-    ctx: OffscreenCanvasRenderingContext2D;
-    texture: PIXI.Texture;
-}
-
 export const updatePixiContent = (
     obj: TimelineObject,
     container: PIXI.Container,
@@ -585,10 +578,6 @@ export const updatePixiContent = (
         isExporting: boolean;
         isPlaying: boolean;
         setRenderTick: React.Dispatch<React.SetStateAction<number>>;
-        /** VideoDecoder ハイブリッドパス: クリップ ID → デコード済み ImageBitmap */
-        exportFrameOverrides?: Map<string, ImageBitmap>;
-        /** exportFrameOverrides を PixiJS テクスチャに変換する OffscreenCanvas キャッシュ */
-        exportOverlayCanvases?: Map<string, ExportOverlayCanvas>;
         sharedRendererSolidColourObjectIds?: ReadonlySet<string>;
         sharedRendererVideoObjectIds?: ReadonlySet<string>;
         sharedRendererImageObjectIds?: ReadonlySet<string>;
@@ -596,7 +585,7 @@ export const updatePixiContent = (
         requireSharedRendererVideo?: boolean;
     }
 ) => {
-    const { textureCache, loadingUrls, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, exportFrameOverrides, exportOverlayCanvases, sharedRendererSolidColourObjectIds, sharedRendererVideoObjectIds, sharedRendererImageObjectIds, sharedRendererPsdObjectIds, requireSharedRendererVideo } = resources;
+    const { textureCache, loadingUrls, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, sharedRendererSolidColourObjectIds, sharedRendererVideoObjectIds, sharedRendererImageObjectIds, sharedRendererPsdObjectIds, requireSharedRendererVideo } = resources;
     let content = container.children[0] as (PIXI.Sprite | PIXI.Graphics | PIXI.Text | PIXI.Container | undefined);
     
     // Check for recreation
@@ -728,59 +717,13 @@ export const updatePixiContent = (
             isExporting,
             sharedRendererVideoObjectIds,
             requireSharedRendererVideo,
-            hasExportFrameOverride: exportFrameOverrides?.has(obj.id) === true,
         });
-        if (videoRenderPath === 'sharedRendererOnly') {
-            const children = container.removeChildren();
-            children.forEach((child) => child.destroy({ children: true, texture: false, context: true }));
-            container.hitArea = new PIXI.Rectangle(0, 0, obj.width, obj.height);
-            return undefined;
-        }
-        container.hitArea = null;
+        if (videoRenderPath !== 'sharedRendererOnly') return content;
 
-        let sprite = content as PIXI.Sprite;
-
-        // ── VideoDecoder ハイブリッドパス（エクスポート時）────────────────────
-        const overrideBitmap = videoRenderPath === 'exportFrameOverride'
-            ? exportFrameOverrides?.get(obj.id)
-            : undefined;
-        if (overrideBitmap && exportOverlayCanvases) {
-            // OffscreenCanvas キャッシュを取得／作成
-            let overlay = exportOverlayCanvases.get(obj.id);
-            if (!overlay || overlay.canvas.width !== overrideBitmap.width || overlay.canvas.height !== overrideBitmap.height) {
-                overlay?.texture.destroy(true);
-                const canvas = new OffscreenCanvas(overrideBitmap.width, overrideBitmap.height);
-                const ctx = canvas.getContext('2d')!;
-                const source = new PIXI.CanvasSource({ resource: canvas as unknown as HTMLCanvasElement });
-                const texture = new PIXI.Texture({ source });
-                overlay = { canvas, ctx, texture };
-                exportOverlayCanvases.set(obj.id, overlay);
-            }
-            // デコード済みフレームを OffscreenCanvas に描画して Pixi テクスチャを更新
-            overlay.ctx.drawImage(overrideBitmap, 0, 0, overlay.canvas.width, overlay.canvas.height);
-            overlay.texture.source.update();
-
-            if (!sprite) {
-                sprite = new PIXI.Sprite(overlay.texture);
-                container.addChild(sprite);
-            } else if (sprite.texture !== overlay.texture) {
-                sprite.texture = overlay.texture;
-            }
-            sprite.width = obj.width;
-            sprite.height = obj.height;
-            content = sprite;
-
-            const videoObj = obj as VideoObject;
-            const spriteForMask = content instanceof PIXI.Sprite ? content : undefined;
-            applyVideoSubjectCropMask(container, videoObj, spriteForMask, time);
-            // seeked/VideoSource の同期は不要（フレームは既に注入済み）
-
-        } else {
-            const children = container.removeChildren();
-            children.forEach((child) => child.destroy({ children: true, texture: false, context: true }));
-            container.hitArea = new PIXI.Rectangle(0, 0, obj.width, obj.height);
-            return undefined;
-        }
+        const children = container.removeChildren();
+        children.forEach((child) => child.destroy({ children: true, texture: false, context: true }));
+        container.hitArea = new PIXI.Rectangle(0, 0, obj.width, obj.height);
+        return undefined;
 
     } else if (obj.type === 'audio_visualization') {
         let graphics = content as PIXI.Graphics || new PIXI.Graphics();

@@ -10,12 +10,10 @@ import { usePixiInteraction } from '../hooks/usePixiInteraction';
 import { useProjectExport } from '../hooks/useProjectExport';
 import { useVisionRealtimeDetection } from '../hooks/useVisionRealtimeDetection';
 import { getGroupTransforms, getLipSyncViseme, updatePixiContent, applyObjectEffects, getVibrationOffset, applyGroupGradientEffect } from '../utils/pixiRenderHelper';
-import type { ExportOverlayCanvas } from '../utils/pixiRenderHelper';
 import { evaluateObjectPositionAtTime } from '../utils/keyframes';
 import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier, getPrimaryWipeFilter } from '../utils/filterStack';
 import { useTranslation } from '../i18n';
 import { computePreviewDisplayScale } from '../utils/previewDisplayScale';
-import { destroyExportOverlayCanvases } from '../utils/exportOverlayCanvases';
 import { visionNormBoundingBoxToVideoLocalRect } from '../utils/visionTrackingGeometry';
 import type { ResizeCorner } from '../utils/transformGeometry';
 import {
@@ -126,10 +124,6 @@ const Viewport: React.FC = () => {
   const sharedRendererVideoObjectIdsRef = useRef<Set<string>>(new Set());
   const sharedRendererImageObjectIdsRef = useRef<Set<string>>(new Set());
   const sharedRendererPsdObjectIdsRef = useRef<Set<string>>(new Set());
-  /** VideoDecoder ハイブリッドパス: エクスポート時にフレームを注入するためのマップ */
-  const exportFrameOverridesRef = useRef<Map<string, ImageBitmap>>(new Map());
-  /** exportFrameOverrides を Pixi テクスチャに変換する OffscreenCanvas キャッシュ */
-  const exportOverlayCanvasesRef = useRef<Map<string, ExportOverlayCanvas>>(new Map());
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   
   const audioBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
@@ -396,7 +390,6 @@ const Viewport: React.FC = () => {
         groupContainersRef.current.clear();
         textureCacheRef.current.clear();
         loadingUrlsRef.current.clear();
-        destroyExportOverlayCanvases(exportOverlayCanvasesRef.current);
         audioElementsRef.current.forEach(audio => { audio.pause(); audio.src = ""; audio.load(); });
         audioElementsRef.current.clear();
       }
@@ -417,11 +410,6 @@ const Viewport: React.FC = () => {
     app.canvas.style.height = `${h * displayScale}px`;
     app.render();
   }, [pixiReady, projectSettings.width, projectSettings.height, displayScale]);
-
-  useEffect(() => {
-    if (isExporting) return;
-    destroyExportOverlayCanvases(exportOverlayCanvasesRef.current);
-  }, [isExporting]);
 
   // --- Audio Buffer Loading ---
   useEffect(() => {
@@ -654,11 +642,6 @@ const Viewport: React.FC = () => {
       groupContainer.destroy({ children: false });
       currentGroupContainers.delete(groupId);
     });
-    exportOverlayCanvasesRef.current.forEach((exportOverlay, id) => {
-      if (visibleObjects.find(obj => obj.id === id && obj.type === 'video')) return;
-      exportOverlay.texture.destroy(true);
-      exportOverlayCanvasesRef.current.delete(id);
-    });
     currentAudioElements.forEach((audio, id) => {
         if (!visibleObjects.find(obj => obj.id === id && obj.type === 'audio')) {
             audio.pause(); audio.src = ""; audio.load(); currentAudioElements.delete(id);
@@ -733,8 +716,6 @@ const Viewport: React.FC = () => {
           isExporting,
           isPlaying,
           setRenderTick,
-          exportFrameOverrides: exportFrameOverridesRef.current,
-          exportOverlayCanvases: exportOverlayCanvasesRef.current,
           sharedRendererSolidColourObjectIds: sharedRendererSolidColourObjectIdsRef.current,
           sharedRendererVideoObjectIds: sharedRendererVideoObjectIdsRef.current,
           sharedRendererImageObjectIds: sharedRendererImageObjectIdsRef.current,
