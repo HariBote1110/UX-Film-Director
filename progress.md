@@ -1,3 +1,21 @@
+## 2026-06-20 — 全読込可能メディアのE2E契約を追加
+
+### 実施内容
+- Red: リポジトリ内で読み込める `mp4` 全4本、`public/icon.jpg`、`葵ちゃん.psd`、テスト内生成WAV、Solid rectangle、Gradient rectangleを同一タイムラインへ配置するE2E契約を追加した。
+- Rust scene snapshotで音声をvisual snapshotから除外しつつ、画像/PSD/動画/図形が `SolidColour` / `GeneratedGradient` / `Image` / `Video` / `Psd` media referenceへ変換されることを固定した。
+- shared renderer preview sessionとRust backend encoder用export frame source計画まで到達できることを確認した。
+- 実ファイルの動画4本は `ffprobe` でもvideo/audio streamとdurationを確認した。
+
+### 検証
+- `ffprobe -v error -show_entries format=duration -show_entries stream=codec_type,codec_name,width,height,r_frame_rate,duration -of json` を `perf/heavy-media/20000kbps_60fps.mp4` / `GX010052.proxy.mp4` / `10000kbps_60fps.mp4` / `GX010052.MP4` に実行。
+- `npm test -- allReadableMedia.e2e`
+- `npx tsc --noEmit 2>&1 | rg "src/e2e/allReadableMedia\\.e2e\\.test\\.ts"`
+
+### 残課題・次のステップ
+- `npm test -- allReadableMedia.e2e rustVideoPreview.e2e sharedRendererPreviewSession projectExportFrameCanvas rustSceneSnapshotBoundary` は、既存の `sharedRendererPreviewSession.test.ts` がrotationをunsupported扱いにする古い期待値で失敗した。
+- `npx tsc --noEmit` 全体は、既存のThree/mp4box型定義欠落、`heavyEffectsStress.test.ts` の `PositionKeyframe` import不足、`filterStack.test.ts` の古い型期待で失敗した。
+- 次はElectron実ウィンドウ相当のメディア投入/エクスポートE2Eへ広げ、Rust frame source実体が無い場合のUI診断も自動確認する。
+
 ## 2026-06-19 — Rust frame source plan failure表示ラベルを追加
 
 ### 実施内容
