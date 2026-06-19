@@ -4518,3 +4518,20 @@
 ### 残課題・次のステップ
 - native render source側で複数source abort releaseを行う経路にも、全件試行・失敗集約が必要か確認する。
 - 実機GoPro素材で複数動画や失敗時release diagnosticsを確認する。
+
+## 2026-06-19 — native render abort release失敗を診断化
+
+### 実施内容
+- Red: preview native renderが失敗した後、複数decoded sourceの `releaseAfterNativeRenderAbort` の一部がrejectしても全sourceのreleaseを試行し、失敗を診断結果として返す契約を追加した。
+- Green: `releaseNativeRenderSourcesAfterAbort` を `Promise.allSettled` ベースに変更し、最初のrelease失敗を `nativeRenderSourceReleaseFailed` として返すようにした。
+- Rust native render / upload失敗経路では、source abort release失敗を `nativeRenderFailed` や `uploadFailed` に隠さず、decoded slot ownershipの異常として表面化させるようにした。
+- 版を `0.1.1-Beta-208h` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererViewportNativeRenderUpload.test.ts`
+- `npm test -- src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts)"`
+
+### 残課題・次のステップ
+- export frame source側の native render source abort / complete release失敗も、throwではなくRust frame source blocked診断へ落とせるか確認する。
+- preview成功後の `releaseAfterNativeRenderComplete` 失敗時に、native render output releaseも含めた安全な失敗診断が必要か検討する。
