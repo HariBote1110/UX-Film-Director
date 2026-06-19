@@ -1339,3 +1339,18 @@
 - `npm test -- rustBackendVideoDecodeControl` を再実行し、9件成功を確認した。
 - `npm test -- rustBackendVideoDecodeControl sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload sharedRendererViewportNativeRenderSource` を実行し、30件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/rustBackendVideoDecodeControl\\.ts|src/utils/rustBackendVideoDecodeControl\\.test\\.ts|src/utils/sharedRendererRustVideoUploadPipeline\\.ts|src/utils/sharedRendererViewportVideoUpload\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 105. Phase5: native render sourceのstale job idを拒否
+- `src/utils/sharedRendererViewportNativeRenderSource.test.ts`
+- native render source準備時に、Rust backend decoded frame responseの `jobId` が要求jobと異なる場合はsource化せず、返却slotをabort releaseする契約を追加した。
+- `src/utils/sharedRendererViewportNativeRenderSource.ts`
+- stale decode判定を `requestId` と `jobId` の両方へ広げ、stale frame releaseには返却response側の `jobId` / `slotIndex` / `generation` を使うようにした。
+- 別jobのshared frame descriptorがRust native render入力へ混入する抜け道を塞いだ。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-215i` に更新した。
+
+## 確認
+- `npm test -- sharedRendererViewportNativeRenderSource` を実行し、Redで別jobのdecoded frameがnative render sourceとして採用される失敗を確認した。
+- `npm test -- sharedRendererViewportNativeRenderSource` を再実行し、4件成功を確認した。
+- `npm test -- sharedRendererViewportNativeRenderSource rustBackendVideoDecodeControl sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource` を実行し、82件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.test\\.ts|src/utils/rustBackendVideoDecodeControl\\.ts|src/utils/sharedRendererRustVideoUploadPipeline\\.ts|src/utils/sharedRendererViewportVideoUpload\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererExportFrameSource\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

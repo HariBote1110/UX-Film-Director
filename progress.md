@@ -1,3 +1,20 @@
+## 2026-06-19 — native render sourceのstale job idを拒否
+
+### 実施内容
+- Red: native render source準備時に、Rust backend decoded frame responseの `jobId` が要求jobと異なる場合はsource化せず、返却slotをabort releaseする契約を追加した。
+- Green: `prepareSharedRendererViewportNativeRenderSources` のstale判定を `requestId` と `jobId` の両方へ広げ、releaseには返却response側の `jobId` / `slotIndex` / `generation` を使うようにした。
+- 別jobのshared frame descriptorがRust native render入力へ混入する抜け道を塞いだ。
+- 版を `0.1.1-Beta-215i` に更新した。
+
+### 検証
+- `npm test -- sharedRendererViewportNativeRenderSource`
+- `npm test -- sharedRendererViewportNativeRenderSource rustBackendVideoDecodeControl sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.test\\.ts|src/utils/rustBackendVideoDecodeControl\\.ts|src/utils/sharedRendererRustVideoUploadPipeline\\.ts|src/utils/sharedRendererViewportVideoUpload\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererExportFrameSource\\.ts)"`
+
+### 残課題・次のステップ
+- multi-video stale job idの専用境界テストを追加し、先行成功slotのabort releaseと同時に検証する。
+- native render sourceのstale decode detailもclip/media id付きでpresenter/export診断へ残す。
+
 ## 2026-06-19 — decoded frame identityを必須にする
 
 ### 実施内容

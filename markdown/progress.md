@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のnative render source境界として、decoded frame responseの `jobId` が要求jobと異なる場合はRust native render入力へ採用しないようにした。
+- Red: `sharedRendererViewportNativeRenderSource` のテストへ、別jobのdecoded frameをstale扱いにして返却slotをabort releaseする契約を追加した。
+- Green: native render source準備でもstale判定を `requestId` と `jobId` の両方へ広げ、releaseには返却response側のslot leaseを使うようにした。
+- 検証: `npm test -- sharedRendererViewportNativeRenderSource rustBackendVideoDecodeControl sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource` は82件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-215i`。
+
+## 2026-06-19
 - Phase5のRust backend decode response境界として、verified decoded frameには `jobId` / `requestId` / `frameIndex` のidentityを必須にした。
 - Red: `rustBackendVideoDecodeControl` のテストへ、空jobIdや欠落requestIdのresponseをshared-memory frameとして受け入れない契約を追加した。
 - Green: `isRustBackendDecodedVideoFrameAvailable` でjob/request/frame identityを実行時検証し、release/stale判定の前提が壊れたresponseをcopyへ進ませないようにした。

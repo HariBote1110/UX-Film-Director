@@ -1215,6 +1215,12 @@ copy失敗と同じ粒度で、source切替・複数動画中のstale decodeを�
 空の `jobId`、欠落した `requestId`、非整数frame identityを拒否し、slot releaseやstale判定の前提が崩れたresponseを
 shared memory copy / WebGPU uploadへ進ませない。
 
+220. Phase5: native render sourceのstale job idを拒否する
+`prepareSharedRendererViewportNativeRenderSources` でも、decoded frame responseの `jobId` が要求jobと一致しない場合は
+native render sourceとして採用しない。
+stale frameは返却response側の `jobId` / `slotIndex` / `generation` で `rendererUploadAborted` releaseし、
+別jobのshared frame descriptorがRust native render入力へ混入しないようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
