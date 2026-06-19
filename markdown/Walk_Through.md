@@ -905,3 +905,18 @@
 - `npm test -- sharedVideoFrameUploadBridgeBoundary` を実行し、Redで `SharedVideoFrameWritableResult` がpreloadに残る失敗を確認した。
 - `npm test -- sharedVideoFrameUploadBridgeBoundary sharedVideoFramePresentedFrameHandoffBoundary` を実行し、3件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(electron/preload\\.ts|src/utils/sharedVideoFrameUploadBridgeBoundary\\.test\\.ts|src/utils/sharedVideoFramePresentedFrameHandoffBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 76. Phase5: Rust video control-plane必須時のloader診断をfail-loud化
+- `src/utils/sharedRendererRustVideoDecodeRequest.test.ts`
+- Rust video control-plane必須時にWASM decode request builderのload失敗を「TypeScript fallback」と表現しない契約を追加した。
+- `src/utils/sharedRendererRustVideoDecodeRequest.ts`
+- `fallbackAllowed` 入力を追加し、Rust必須時は `Rust video control plane is required` の診断へ切り替えた。
+- `src/utils/sharedRendererPreviewPresenterController.ts`
+- `requireRustVideoControlPlane` に応じてWASM loaderへ `fallbackAllowed` を渡すようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-210u` に更新した。
+
+## 確認
+- `npm test -- sharedRendererRustVideoDecodeRequest` を実行し、Redで `falling back to TypeScript` の警告が残る失敗を確認した。
+- `npm test -- sharedRendererRustVideoDecodeRequest sharedRendererPreviewPresenterController viewportRustVideoOnlyBoundary` を実行し、50件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererRustVideoDecodeRequest\\.ts|src/utils/sharedRendererRustVideoDecodeRequest\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
