@@ -7,6 +7,7 @@ import {
   resolveProjectExportFrameSourcePolicyForEncode,
   resolveProjectExportFrameRuntimePlan,
   resolveProjectExportFrameCanvas,
+  shouldSynchroniseTimelineForProjectExportFrame,
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
 import type { TimelineObject, VideoObject } from '../types';
@@ -398,6 +399,49 @@ describe('resolveProjectExportFrameRuntimePlan', () => {
       shouldCloseRustFrameSource: false,
       shouldFailOnRustFrameSourceBlocked: false,
     });
+  });
+});
+
+describe('shouldSynchroniseTimelineForProjectExportFrame', () => {
+  const rustFrameSource: ProjectExportRustFrameSource = {
+    renderFrame: async () => ({ close: () => undefined }) as ImageBitmap,
+  };
+
+  it('keeps timeline time updates disabled while Rust owns the export frame', () => {
+    const plan = buildProjectExportFrameSourcePlan({
+      rustFrameSource,
+      hasVideoObjects: true,
+    });
+    if (!plan.ok) throw new Error('expected Rust export source plan');
+
+    expect(shouldSynchroniseTimelineForProjectExportFrame(resolveProjectExportFrameRuntimePlan({
+      frameSourcePlan: plan,
+      rustFrameSourceBlocked: false,
+    }))).toBe(false);
+  });
+
+  it('synchronises timeline time only when legacy canvas rendering is required', () => {
+    const canvas = { id: 'legacy-export' } as unknown as HTMLCanvasElement;
+    const legacyPlan = buildProjectExportFrameSourcePlan({
+      legacyCanvas: canvas,
+      hasVideoObjects: false,
+    });
+    if (!legacyPlan.ok) throw new Error('expected legacy export source plan');
+
+    const rustPlan = buildProjectExportFrameSourcePlan({
+      rustFrameSource,
+      hasVideoObjects: false,
+    });
+    if (!rustPlan.ok) throw new Error('expected Rust export source plan');
+
+    expect(shouldSynchroniseTimelineForProjectExportFrame(resolveProjectExportFrameRuntimePlan({
+      frameSourcePlan: legacyPlan,
+      rustFrameSourceBlocked: false,
+    }))).toBe(true);
+    expect(shouldSynchroniseTimelineForProjectExportFrame(resolveProjectExportFrameRuntimePlan({
+      frameSourcePlan: rustPlan,
+      rustFrameSourceBlocked: true,
+    }))).toBe(true);
   });
 });
 
