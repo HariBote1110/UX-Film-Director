@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import * as PIXI from 'pixi.js';
 import { useStore } from '../store/useStore';
 import { TimelineObject } from '../types';
 import { shallow } from 'zustand/shallow';
@@ -35,7 +34,6 @@ const closeEncodedFrameBitmap = (frame: RustBackendVideoEncodeFrame): void => {
 };
 
 export const useProjectExport = (
-  pixiAppRef: React.MutableRefObject<PIXI.Application | null>,
   renderScene: (time: number, objects: TimelineObject[]) => void,
   getExportCanvas?: () => HTMLCanvasElement | null,
   exportFrameOverridesRef?: React.MutableRefObject<Map<string, ImageBitmap>>,
@@ -89,7 +87,6 @@ export const useProjectExport = (
         rustFrameSourceBlockedFallback: frameSourcePolicy.rustFrameSourceBlockedFallback,
         hasVideoObjects,
         getExportCanvas,
-        pixiCanvas: pixiAppRef.current?.canvas as HTMLCanvasElement | null | undefined,
       });
       if (!initialFrameSourcePlan.ok) {
         alert(`エクスポート失敗: ${initialFrameSourcePlan.detail}`);
@@ -189,7 +186,6 @@ export const useProjectExport = (
             }
             const frameCanvas = resolveProjectExportFrameCanvas({
               getExportCanvas,
-              pixiCanvas: pixiAppRef.current?.canvas as HTMLCanvasElement | null | undefined,
             });
             if (!frameCanvas.ok) throw new Error(frameCanvas.detail);
             const canvas = frameCanvas.canvas;
@@ -305,5 +301,5 @@ export const useProjectExport = (
 
     runExport();
     return () => { cancelled = true; };
-  }, [isExporting, renderScene, setExporting, setTime, setExportProgress, pixiAppRef, getExportCanvas, exportFrameOverridesRef, getRustExportFrameSource]);
+  }, [isExporting, renderScene, setExporting, setTime, setExportProgress, getExportCanvas, exportFrameOverridesRef, getRustExportFrameSource]);
 };
