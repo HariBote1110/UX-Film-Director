@@ -1,3 +1,20 @@
+## 2026-06-19 — blocked errorのlegacy fallbackを明示opt-inに変更
+
+### 実施内容
+- Red: `SharedRendererExportFrameSourceBlockedError` が明示指定なしではlegacy canvas fallbackを許可しない契約を追加した。
+- Green: blocked errorの `legacyCanvasFallbackAllowed` 既定値を `false` にし、互換fallbackとして残すsurface gate blockだけ `true` を明示した。
+- 新しいRust export block reasonを追加した時に、指定漏れでPixi/legacy captureへ戻る抜け道を塞いだ。
+- 版を `0.1.1-Beta-215y` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSource`
+- `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgress\\.ts)"`
+
+### 残課題・次のステップ
+- surface gateの互換fallbackを、editor mode未対応など非動画Rust経路に限定し続ける。
+- Viewport本体のPixi依存撤去へ向けて、動画以外のPixi-only presentation条件も整理する。
+
 ## 2026-06-19 — native render source準備失敗ではRust必須時のlegacy fallbackを禁止
 
 ### 実施内容

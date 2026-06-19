@@ -1295,6 +1295,11 @@ Rust decode/upload/ownership cutoverが成立していない動画exportを、Pi
 動画encode frameや `nativeRenderRequired=true` のRust/native render必須経路では `legacyCanvasFallbackAllowed=false` で返す。
 Rust decode/source準備が成立しない状態を、Pixi/legacy captureで成功扱いにしない。
 
+236. Phase5: blocked errorのlegacy fallbackを明示opt-inにする
+`SharedRendererExportFrameSourceBlockedError` は既定で `legacyCanvasFallbackAllowed=false` とし、
+互換fallbackとして残す場合だけ呼び出し側で `true` を明示する。
+新しいRust export block reason追加時の指定漏れで、Pixi/legacy captureへ戻る事故を防ぐ。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

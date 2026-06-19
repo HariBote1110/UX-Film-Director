@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のexport fallback境界として、`SharedRendererExportFrameSourceBlockedError` のlegacy canvas fallbackを明示opt-inに変更した。
+- Red: blocked error単体のテストへ、明示指定なしでは `fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。
+- Green: blocked errorの既定値をfalseにし、互換fallbackとして残すsurface gate blockだけtrueを明示した。
+- 検証: `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress` は74件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-215y`。
+
+## 2026-06-19
 - Phase5のexport fallback境界として、native render source準備失敗ではRust/native render必須時のlegacy canvas fallbackを禁止するようにした。
 - Red: `sharedRendererExportFrameSource` のテストへ、`prepareNativeRenderSources` が `staleDecodeResponse` を返した場合にfallback不可になる契約を追加した。
 - Green: source準備一般失敗で `nativeRenderFailed` に丸める場合も、Rust/native render必須時は `legacyCanvasFallbackAllowed=false` を渡すようにした。
