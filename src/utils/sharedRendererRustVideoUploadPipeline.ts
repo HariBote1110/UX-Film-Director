@@ -40,13 +40,13 @@ export const prepareSharedRendererRustDecodedVideoUpload = async ({
   }
 
   const { frame, jobId } = decodeResponse.result;
-  const releaseFrame = (copyOutState: 'gpuUploadFenceSignalled' | 'rendererUploadAborted') =>
+  const releaseFrame = createSingleUseDecodedFrameReleaser((copyOutState) =>
     releaseRustBackendVideoDecodeFrame({
       jobId,
       slotIndex: frame.descriptor.slotIndex,
       generation: frame.descriptor.generation,
       copyOutState,
-    }, rustBackendBridge).then(() => undefined);
+    }, rustBackendBridge).then(() => undefined));
 
   const upload = await prepareSharedRendererDecodedVideoFrameUpload({
     sharedFrame: frame,
@@ -60,4 +60,16 @@ export const prepareSharedRendererRustDecodedVideoUpload = async ({
   }
 
   return upload;
+};
+
+const createSingleUseDecodedFrameReleaser = (
+  releaseFrame: (copyOutState: 'gpuUploadFenceSignalled' | 'rendererUploadAborted') => Promise<void>
+): (copyOutState: 'gpuUploadFenceSignalled' | 'rendererUploadAborted') => Promise<void> => {
+  let released = false;
+
+  return async (copyOutState) => {
+    if (released) return;
+    released = true;
+    await releaseFrame(copyOutState);
+  };
 };
