@@ -7,6 +7,9 @@ const source = () =>
 const testSource = () =>
   readFileSync(new URL('./sharedRendererExportFrameSource.test.ts', import.meta.url), 'utf8');
 
+const viewportPresenterOrchestrationTestSource = () =>
+  readFileSync(new URL('./sharedRendererViewportPresenterOrchestration.test.ts', import.meta.url), 'utf8');
+
 const jsSharedFrameWriterPath = () =>
   new URL('./rustBackendVideoEncodeSharedFrameWriter.ts', import.meta.url);
 
@@ -35,6 +38,12 @@ describe('shared renderer export frame source dependency boundary', () => {
 
   it('does not keep WebGPU readback fixtures in export frame source tests', () => {
     const code = testSource();
+
+    expect(code).not.toContain('readPresentedFrameRgbaBytes');
+  });
+
+  it('does not keep WebGPU readback fixtures in viewport presenter orchestration tests', () => {
+    const code = viewportPresenterOrchestrationTestSource();
 
     expect(code).not.toContain('readPresentedFrameRgbaBytes');
   });
