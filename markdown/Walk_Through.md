@@ -742,3 +742,16 @@
 - `npm test -- sharedRendererPreviewPresenterController` を実行し、Redでclip/media idがdatasetに出ない失敗を確認した。
 - `npm test -- sharedRendererPreviewPresenterController sharedRendererViewportPresenterOrchestration sharedRendererPresenterDiagnostics` を実行し、46件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 64. Phase5: 動画upload abort release失敗をpresenter診断へ追加
+- `src/utils/sharedRendererPreviewPresenterController.test.ts`
+- WebGPU texture upload失敗後の `releaseAfterUploadAbort` が失敗してもpresenter処理を例外で落とさず、datasetへ `videoUploadAbortReleaseFailed` を出す契約を追加した。
+- `src/utils/sharedRendererPreviewPresenterController.ts`
+- decoded video upload abort releaseをhelperで捕捉し、失敗時はvideo upload failure診断へclip/media id付きで反映するようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-210i` に更新した。
+
+## 確認
+- `npm test -- sharedRendererPreviewPresenterController` を実行し、Redでabort release例外がpresenter外へ投げられる失敗を確認した。
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererViewportPresenterOrchestration sharedRendererPresenterDiagnostics` を実行し、47件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

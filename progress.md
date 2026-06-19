@@ -1,3 +1,20 @@
+## 2026-06-19 — 動画upload abort release失敗をpresenter診断へ追加
+
+### 実施内容
+- Red: WebGPU texture upload失敗後の `releaseAfterUploadAbort` が失敗してもpresenter処理を例外で落とさず、datasetへ `videoUploadAbortReleaseFailed` を出す契約を追加した。
+- Green: decoded video upload abort releaseをhelperで捕捉し、失敗時はvideo upload failure診断へclip/media id付きで反映するようにした。
+- Rust decoded slotの解放失敗を、Pixi fallback表示の裏で見失わないようにした。
+- 版を `0.1.1-Beta-210i` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPreviewPresenterController`
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererViewportPresenterOrchestration sharedRendererPresenterDiagnostics`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts)"`
+
+### 残課題・次のステップ
+- 実機GoPro素材でupload失敗/abort release失敗の診断がdatasetに残ることを確認する。
+- 同じ方針をnative render upload abort releaseにも必要なら適用し、preview側のshared-frame release診断粒度を揃える。
+
 ## 2026-06-19 — WebGPU動画upload失敗clip/media idを補完
 
 ### 実施内容
