@@ -1116,7 +1116,7 @@ const Viewport: React.FC = () => {
     editorMode,
     webGpuAvailable: sharedRendererGpuStatus.webGpuAvailable,
     fallbackAdapter: sharedRendererGpuStatus.fallbackAdapter,
-    videoCutoverEnabled: sharedRendererVideoCutoverEnabled,
+    videoCutoverEnabled: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled,
     hasVideoObjects: context.hasVideoObjects,
     objects: context.objects,
     time: context.time,
@@ -1132,6 +1132,7 @@ const Viewport: React.FC = () => {
     sharedRendererGpuStatus.fallbackAdapter,
     sharedRendererGpuStatus.webGpuAvailable,
     sharedRendererVideoCutoverEnabled,
+    rustVideoOnlyEnabled,
   ]);
   
   useProjectExport(renderScene, getExportCanvas, getRustExportFrameSource);
