@@ -234,4 +234,67 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
       }],
     ]);
   });
+
+  it('rejects native render source release callbacks when Rust decode slot release returns success false', async () => {
+    const frame = sharedFrame();
+    const result = await prepareSharedRendererViewportNativeRenderSources({
+      session: session(),
+      requestId: 99,
+      activeJobs: [],
+      rustBackendBridge: {
+        startVideoDecode: async () => ({ success: true }),
+        requestVideoDecodeFrame: async () => ({
+          success: true,
+          result: {
+            accepted: true,
+            jobId: 'shared-renderer-video-video-1-4x4-60over1',
+            requestId: 99,
+            frameIndex: 12,
+            mode: 'latestWins',
+            frame,
+            verification: {
+              frameIndex: 12,
+              checksum: {
+                algorithm: 'crc32',
+                valueHex: '00000000',
+                byteLen: frame.descriptor.byteLen,
+              },
+              status: 'withinTolerance',
+            },
+          },
+        }),
+        releaseVideoDecodeFrame: async () => ({
+          success: false,
+          error: 'native render source release returned false',
+        }),
+        stopVideoDecode: async () => ({ success: true }),
+      },
+      decodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'clip-video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video-1.mp4',
+          sourceFrame: 12,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 2,
+          width: 4,
+          height: 4,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('Expected native render source preparation to succeed.');
+
+    await expect(result.sources[0].releaseAfterNativeRenderComplete?.()).rejects.toThrow(
+      'native render source release returned false'
+    );
+  });
 });
