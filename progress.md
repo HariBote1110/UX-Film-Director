@@ -4535,3 +4535,20 @@
 ### 残課題・次のステップ
 - export frame source側の native render source abort / complete release失敗も、throwではなくRust frame source blocked診断へ落とせるか確認する。
 - preview成功後の `releaseAfterNativeRenderComplete` 失敗時に、native render output releaseも含めた安全な失敗診断が必要か検討する。
+
+## 2026-06-19 — export native render release失敗をblocked診断化
+
+### 実施内容
+- Red: export native renderが失敗した後、decoded sourceの `releaseAfterNativeRenderAbort` がrejectした場合に、生のErrorではなく `SharedRendererExportFrameSourceBlockedError` として診断される契約を追加した。
+- Green: export frame sourceのabort releaseを全件試行・失敗集約に変更し、release失敗時は `nativeRenderSourceReleaseFailed` をdatasetとblocked errorへ記録するようにした。
+- `useProjectExport` が `rustFrameSourceBlocked` として拾える形に揃え、動画exportの失敗理由がUI診断から消えないようにした。
+- 版を `0.1.1-Beta-208i` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts -t "release diagnostic"`
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/useProjectExportBoundary.test.ts src/components/ExportProgressModal.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/hooks/useProjectExport\\.ts|src/components/ExportProgressModal\\.tsx)"`
+
+### 残課題・次のステップ
+- native render成功後の `releaseAfterNativeRenderComplete` 失敗時に、生成済みnative render outputをどう解放・診断するかをTDDで固定する。
+- export側のrelease失敗診断が `ExportProgressModal` の表示文言として十分に分かりやすいか確認する。

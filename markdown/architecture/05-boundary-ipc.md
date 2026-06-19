@@ -195,8 +195,10 @@ Rust backend integration gate:
 - export native render source は verified decoded frame descriptor を Rust backend native renderer へ渡した後、
   render成功時に `gpuUploadFenceSignalled`、render失敗・unsupported block・例外時に
   `rendererUploadAborted` で `decode.releaseFrame` を単回実行する。
-- preview native render source は abort releaseを複数sourceへ全件試行し、いずれかがrejectした場合は
+- preview/export native render source は abort releaseを複数sourceへ全件試行し、いずれかがrejectした場合は
   `nativeRenderSourceReleaseFailed` として返す。Rust native render / upload失敗に隠してはいけない。
+  exportでは `SharedRendererExportFrameSourceBlockedError` とdataset診断へ変換し、`useProjectExport` の
+  `rustFrameSourceBlocked` で拾える形を維持する。
 - preview/export native render consumer は、decoded sourceに complete / abort release callback が揃っていない場合、
   Rust backend native rendererへ渡す前に `nativeRenderSourceReleaseUnavailable` でfail-loudにする。
   この場合、preview/export diagnostics は専用の `*NativeRenderSourceReleaseRequired=true` を出して、
