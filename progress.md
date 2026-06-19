@@ -1,3 +1,20 @@
+## 2026-06-19 — WebGPU動画upload失敗をpresenter診断へ追加
+
+### 実施内容
+- Red: `sharedRendererPreviewPresenterController` に、decoded Rust video frameのWebGPU texture uploadが失敗した場合、presenter datasetへ `webGpuUploadUnavailable` とdetailを出す契約を追加した。
+- Green: decoded video uploadの `uploadVideoFrameTexture` 失敗を `resolvedVideoUploadFailure` に保持し、既存の `uxfdSharedRendererPresenterVideoUploadFailureReason` / `Detail` へ合流させた。
+- Rust decode / shared memory copyが成功してもWebGPU texture uploadで止まったケースを、Pixi表示へ戻っただけで見失わないようにした。
+- 版を `0.1.1-Beta-210g` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPreviewPresenterController`
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts)"`
+
+### 残課題・次のステップ
+- 実機GoPro素材でWebGPU texture upload失敗時に `uxfdSharedRendererPresenterVideoUploadFailureReason=webGpuUploadUnavailable` が確認できるかを見る。
+- 成功時は同datasetに失敗理由が残らず、`uxfdSharedRendererPresenterVideoOwner=sharedRenderer` へ進むことを確認する。
+
 ## 2026-06-19 — export動画upload失敗detailへclip/media idを追加
 
 ### 実施内容
