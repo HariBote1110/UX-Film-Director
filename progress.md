@@ -1,3 +1,21 @@
+## 2026-06-19 — export sourceのcanvas captureをadapterへ隔離
+
+### 実施内容
+- Red: `sharedRendererExportFrameSource` 本体に `createImageBitmap(` を残さず、browser canvas captureを `projectExportLegacyCanvasCapture` adapterへ閉じ込める境界契約を追加した。
+- Green: export sourceのdefault bitmap factoryを `captureProjectExportLegacyCanvasFrame` 経由に変更し、adapter側に `sx` / `sy` を追加して元のcapture矩形を保持した。
+- 非動画互換のcanvas capture語彙をadapterへ集約し、動画/Rust export source本体からbrowser capture依存をさらに遠ざけた。
+- 版を `0.1.1-Beta-210q` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSourceBoundary`
+- `npm test -- projectExportLegacyCanvasCapture`
+- `npm test -- sharedRendererExportFrameSource sharedRendererExportFrameSourceBoundary projectExportLegacyCanvasCapture`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSourceBoundary\\.test\\.ts|src/utils/projectExportLegacyCanvasCapture\\.ts|src/utils/projectExportLegacyCanvasCapture\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- `videoExportPipeline` などWebCodecs互換adapter内のbrowser capture語彙が、非動画互換export専用に留まっていることを継続確認する。
+- 動画exportでは `renderFrame` / canvas captureではなく `renderEncodeFrame` / native render shared-frame pathを正本にする。
+
 ## 2026-06-19 — 動画encode frameでnative renderを必須化
 
 ### 実施内容

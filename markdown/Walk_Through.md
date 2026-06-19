@@ -850,3 +850,19 @@
 - `npm test -- sharedRendererExportFrameSource` を実行し、Redで動画encode frameがpresenter handoffへ進んでしまう失敗を確認した。
 - `npm test -- sharedRendererExportFrameSource sharedRendererExportFrameSourceBoundary` を実行し、36件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/sharedRendererExportFrameSourceBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 72. Phase5: export sourceのcanvas captureをadapterへ隔離
+- `src/utils/sharedRendererExportFrameSourceBoundary.test.ts`
+- `sharedRendererExportFrameSource` 本体に `createImageBitmap(` を残さず、browser canvas captureを `projectExportLegacyCanvasCapture` adapterへ閉じ込める境界契約を追加した。
+- `src/utils/projectExportLegacyCanvasCapture.test.ts`
+- adapterが明示capture矩形 `sx` / `sy` を `createImageBitmap` へ渡す契約を追加した。
+- `src/utils/sharedRendererExportFrameSource.ts` / `src/utils/projectExportLegacyCanvasCapture.ts`
+- export sourceのdefault bitmap factoryを `captureProjectExportLegacyCanvasFrame` 経由に変更し、adapter側に `sx` / `sy` を追加した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-210q` に更新した。
+
+## 確認
+- `npm test -- sharedRendererExportFrameSourceBoundary` を実行し、Redで `createImageBitmap(` がexport source本体に残る失敗を確認した。
+- `npm test -- projectExportLegacyCanvasCapture` を実行し、Redでcapture矩形が固定 `0,0` になる失敗を確認した。
+- `npm test -- sharedRendererExportFrameSource sharedRendererExportFrameSourceBoundary projectExportLegacyCanvasCapture` を実行し、38件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSourceBoundary\\.test\\.ts|src/utils/projectExportLegacyCanvasCapture\\.ts|src/utils/projectExportLegacyCanvasCapture\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
