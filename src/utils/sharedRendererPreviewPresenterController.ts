@@ -372,15 +372,22 @@ export const startSharedRendererPreviewPresenter = async ({
       }
       resolvedVideoFrameUploadReady = true;
     } else {
-      if (decodedVideoFrameUpload.upload.releaseAfterUploadAbort) {
-        await decodedVideoFrameUpload.upload.releaseAfterUploadAbort();
-      }
-      resolvedVideoUploadFailure ??= {
-        reason: uploadResult.reason,
-        detail: uploadResult.detail,
-        clipId: decodedVideoFrameUpload.clipId,
-        mediaId: decodedVideoFrameUpload.mediaId,
-      };
+      const releaseFailureDetail = await releaseDecodedVideoUploadAfterAbort(
+        decodedVideoFrameUpload.upload.releaseAfterUploadAbort
+      );
+      resolvedVideoUploadFailure ??= releaseFailureDetail
+        ? {
+            reason: 'videoUploadAbortReleaseFailed',
+            detail: releaseFailureDetail,
+            clipId: decodedVideoFrameUpload.clipId,
+            mediaId: decodedVideoFrameUpload.mediaId,
+          }
+        : {
+            reason: uploadResult.reason,
+            detail: uploadResult.detail,
+            clipId: decodedVideoFrameUpload.clipId,
+            mediaId: decodedVideoFrameUpload.mediaId,
+          };
     }
   }
 
@@ -637,6 +644,19 @@ const resolveSingleVideoUploadScope = (
     clipId: clip.clip_id,
     mediaId: clip.media_id,
   };
+};
+
+const releaseDecodedVideoUploadAfterAbort = async (
+  releaseAfterUploadAbort: (() => Promise<void>) | undefined,
+): Promise<string | null> => {
+  if (!releaseAfterUploadAbort) return null;
+
+  try {
+    await releaseAfterUploadAbort();
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
 };
 
 const hasVideoClip = (session: SharedRendererPreviewSession): boolean => {
