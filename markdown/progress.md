@@ -474,3 +474,10 @@
 - Green: `projectExportCompatibilityEncoder` の入力へ `hasVideoObjects` を追加し、`useProjectExport` から実際の動画object有無を渡すようにした。
 - 検証: `npm test -- projectExportCompatibilityEncoder useProjectExportBoundary projectExportEncodePlan projectExportFrameCanvas` は44件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-184a`。
+
+## 2026-06-19
+- Phase5のcompatibility export境界として、互換encoder入力の `hasVideoObjects` sentinelを必須化した。
+- Red: `projectExportCompatibilityEncoder` のsource境界テストに、`hasVideoObjects` がoptionalではなく必須booleanである契約を追加した。
+- Green: `ProjectExportCompatibilityEncodeInput` の `hasVideoObjects` を必須booleanに変更し、呼び出し側のsentinel渡し忘れを型で検出できるようにした。
+- 検証: `npm test -- projectExportCompatibilityEncoder useProjectExportBoundary projectExportEncodePlan projectExportFrameCanvas` は45件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-184b`。

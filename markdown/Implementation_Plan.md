@@ -1106,6 +1106,7 @@ export判定の正本を `hasVideoObjects` とRust encoder availabilityへ寄せ
 `projectExportCompatibilityEncoder` は静止画・図形だけの互換export adapterとし、`hasVideoObjects` がtrueの入力を
 `videoExportPipeline` dynamic import前に拒否する。
 上流のencode planが壊れた場合でも、動画exportがWebCodecs/mp4-muxer経路へ漏れないようにする。
+adapter入力の `hasVideoObjects` は必須booleanとし、呼び出し側が動画sentinelを渡し忘れた場合は型で検出する。
 
 ## UI 刷新（2026-04-19）
 

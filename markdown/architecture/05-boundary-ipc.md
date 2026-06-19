@@ -131,7 +131,7 @@ Rust backend integration gate:
   `projectExportCompatibilityEncoder` adapterへ隔離する。
 - exportのRust必須判定は `rustVideoOnly` flagではなく、動画objectの有無とRust encoder availabilityを正本にする。
 - `projectExportCompatibilityEncoder` は非動画export専用adapterとし、動画objectを含む入力はWebCodecs/mp4-muxerを
-  loadする前に拒否する。
+  loadする前に拒否する。adapter入力の `hasVideoObjects` は必須booleanで、呼び出し側のsentinel渡し忘れを型で止める。
 - Rust backend は unix 環境で attach 可能な POSIX shared memory name を `memoryId` として返し、
   decoded RGBA を shared memory ring へ書く。
 - `decode.releaseFrame` は WebGPU upload fence 完了後の `copyOutState=gpuUploadFenceSignalled` でのみ slot を解放する。
