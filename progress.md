@@ -1,3 +1,19 @@
+## 2026-06-19 — export progress診断保持を共通化
+
+### 実施内容
+- Red: `updateExportProgressPhase` が既存のRust frame source blocked/native render release診断を保持したままphase/counterを更新する契約を追加した。
+- Green/Refactor: `useProjectExport` のrendering/saving進捗更新を `updateExportProgressPhase` へ寄せ、診断保持の重複実装を減らした。
+- 今後Rust export診断フィールドが増えても、phase更新で消しにくい構造にした。
+- 挙動変更ではないため版は `0.1.1-Beta-211f` のまま維持した。
+
+### 検証
+- `npm test -- exportProgressDiagnostics useProjectExportBoundary ExportProgressModal exportProgress`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/exportProgressDiagnostics\\.ts|src/utils/exportProgressDiagnostics\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- export完了後の診断履歴保存や実機ログ出力の導線を検討する。
+- Rust frame source ready時のbrowser fallback遮断を統合テストで固定する。
+
 ## 2026-06-19 — savingでもRust export診断を保持
 
 ### 実施内容

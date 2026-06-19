@@ -1075,3 +1075,19 @@
 - `npm test -- useProjectExportBoundary` を実行し、Redでsaving phaseが既存診断を保持しない失敗を確認した。
 - `npm test -- useProjectExportBoundary ExportProgressModal exportProgress` を再実行し、36件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts|src/components/ExportProgressModal\\.tsx|src/store/useStore\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 88. Phase5: export progress診断保持を共通化
+- `src/utils/exportProgressDiagnostics.test.ts`
+- `updateExportProgressPhase` が既存のRust frame source blocked/native render release診断を保持したままphase/counterを更新する契約を追加した。
+- `src/utils/exportProgressDiagnostics.ts`
+- 既存 `ExportProgress` を引き継いでphase/counterだけ更新するヘルパーを追加した。
+- `src/hooks/useProjectExport.ts`
+- rendering/saving進捗更新を `updateExportProgressPhase` へ寄せ、診断保持の重複実装を減らした。
+- `src/utils/useProjectExportBoundary.test.ts`
+- hookが共通ヘルパーを通してRust診断を保持する境界契約へ更新した。
+- 版は挙動変更なしのため `0.1.1-Beta-211f` のまま維持した。
+
+## 確認
+- `npm test -- exportProgressDiagnostics` を実行し、Redでヘルパー未実装の失敗を確認した。
+- `npm test -- exportProgressDiagnostics useProjectExportBoundary ExportProgressModal exportProgress` を再実行し、38件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/exportProgressDiagnostics\\.ts|src/utils/exportProgressDiagnostics\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
