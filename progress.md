@@ -1,3 +1,21 @@
+## 2026-06-19 — Rust ready frameでlegacy captureを遮断
+
+### 実施内容
+- Red: Rust shared-frame sourceがreadyな1フレーム描画で `renderScene` / `getExportCanvas` / legacy canvas captureを呼ばない契約を追加した。
+- Green: `projectExportFrameRenderer` を追加し、hook内の1フレーム描画分岐を実行テスト可能なrendererへ委譲した。
+- blocked診断はrendererで生成し、hookは `rustFrameSourceBlocked` としてprogressへ保存する責務に寄せた。
+- required Rust sourceがblockedで失敗する場合はfallback warningを出さず、legacy fallbackが実際に使われる場合だけwarningできるように分離した。
+- 版を `0.1.1-Beta-214a` に更新した。
+
+### 検証
+- `npm test -- projectExportFrameRenderer useProjectExportBoundary`
+- `npm test -- projectExportFrameRenderer projectExportFrameCanvas projectExportRustEncodeFrame useProjectExportBoundary exportProgress exportDiagnosticsLog`
+- `npx tsc --noEmit 2>&1 | rg "(src/hooks/useProjectExport\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/projectExportFrameRenderer\\.test\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts|src/utils/projectExportFrameCanvas\\.ts|src/utils/projectExportRustEncodeFrame\\.ts)"`
+
+### 残課題・次のステップ
+- `renderProjectExportFrame` のlegacy fallback経路にも実行テストを追加し、non-video compatibility exportの退避路を明確化する。
+- Rust backend decodeとshared memory/mmap data-planeの所有権cutoverを、Viewport側のRust frame source生成まで含めてさらに固定する。
+
 ## 2026-06-19 — Rust frame source plan failure診断を保持
 
 ### 実施内容

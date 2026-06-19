@@ -1181,3 +1181,21 @@
 - `npm test -- exportProgress exportDiagnosticsLog ExportProgressModal useProjectExportBoundary` を実行し、Redでplan failure診断が保持/表示されない失敗を確認した。
 - `npm test -- exportDiagnosticsLog exportProgressDiagnostics useProjectExportBoundary ExportProgressModal exportProgress` を再実行し、50件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/store/useStore\\.ts|src/store/exportProgress\\.test\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportDiagnosticsLog\\.test\\.ts|src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 95. Phase5: Rust ready frameでlegacy captureを遮断
+- `src/utils/projectExportFrameRenderer.test.ts`
+- Rust shared-frame sourceがreadyな1フレーム描画で `renderScene` / `getExportCanvas` / legacy canvas captureを呼ばない契約を追加した。
+- required Rust sourceがblockedで失敗する場合も、throw前にblocked診断を発行し、legacy fallback warningは出さない契約を追加した。
+- `src/utils/projectExportFrameRenderer.ts`
+- `renderProjectExportFrame` を追加し、Rust frame source ready / blocked / legacy captureの1フレーム分岐を実行テスト可能な単位へ切り出した。
+- `src/hooks/useProjectExport.ts`
+- hook内のrender loopからRust encode frame直呼びとlegacy canvas capture直呼びを外し、`renderProjectExportFrame` へ委譲した。
+- `src/utils/useProjectExportBoundary.test.ts`
+- production export hookがframe runtime renderingをrendererへ委譲する境界契約へ更新した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-214a` に更新した。
+
+## 確認
+- `npm test -- projectExportFrameRenderer useProjectExportBoundary` を実行し、Redでrenderer未実装とhook未委譲の失敗を確認した。
+- `npm test -- projectExportFrameRenderer projectExportFrameCanvas projectExportRustEncodeFrame useProjectExportBoundary exportProgress exportDiagnosticsLog` を再実行し、83件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/hooks/useProjectExport\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/projectExportFrameRenderer\\.test\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts|src/utils/projectExportFrameCanvas\\.ts|src/utils/projectExportRustEncodeFrame\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
