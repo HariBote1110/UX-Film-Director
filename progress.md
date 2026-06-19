@@ -4742,3 +4742,19 @@
 ### 残課題・次のステップ
 - 実機GoPro素材でRust decode -> native render -> encode export中にpreview側のlegacy動画更新が発火しないことをsmoke確認する。
 - Rust frame source ready時の残るbrowser/Pixi fallback境界を引き続き潰す。
+
+## 2026-06-19 — MP4Boxをproduction依存から除外
+
+### 実施内容
+- Red: `productionVideoDependencyBoundary` に、`mp4box` がproduction `dependencies` ではなくdevDependencyにのみ存在する契約を追加した。
+- Green: `mp4box` を `dependencies` から `devDependencies` へ移し、`src/exportTest/` の検証用デマックス依存として隔離した。
+- 本体配布側からVideoDecoder/MP4Box系のbrowser動画デマックス依存をさらに外した。
+- 版を `0.1.1-Beta-208t` に更新した。
+
+### 検証
+- `npm test -- productionVideoDependencyBoundary`
+- `npm ls mp4box --depth=0`
+
+### 残課題・次のステップ
+- `src/exportTest/` に残るWebCodecs/MP4Box検証資材を、Rust backend smokeへ置き換えられる範囲で縮小する。
+- production packageから将来的にPixi自体を剥がすため、preview ownershipの残りを引き続き段階的に移す。
