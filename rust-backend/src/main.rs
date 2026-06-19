@@ -1593,8 +1593,15 @@ fn handle_decode_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
     if parsed.source_rate.numerator == 0 || parsed.source_rate.denominator == 0 {
         return response_error(id, -32602, "sourceRate must be a positive rational");
     }
-    if state.decode_sessions.contains_key(&parsed.job_id) {
-        return response_error(id, -32040, "Decode session already active for jobId");
+    if let Some(session) = state.decode_sessions.get(&parsed.job_id) {
+        return RpcResponse {
+            id,
+            ok: true,
+            result: Some(
+                serde_json::to_value(session.start_response.clone()).unwrap_or(Value::Null),
+            ),
+            error: None,
+        };
     }
 
     let memory_id = decode_memory_id(&parsed.job_id);

@@ -1,3 +1,19 @@
+## 2026-06-20 — decode.start冪等化とE2E診断強化
+
+### 実施内容
+- Red: Rust backendで同じ `jobId` の `decode.start` を再送した場合、`Decode session already active for jobId` で失敗せず既存sessionのstart responseを返す契約を追加した。
+- Green: `handle_decode_start` で既存decode sessionを検出した場合、エラーではなく保存済み `DecodeStartResponse` を返すようにした。
+- Electron実ウィンドウ動画読込E2Eで、WebGPU validation error、`Decode session already active for jobId`、`No active decode session`、shared renderer blocked診断を失敗条件として収集するようにした。
+- 版を `0.1.1-Beta-219j` に更新した。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml decode_start_reuses_active_session_for_same_job_id -- --nocapture`
+- `UXFD_VIDEO_LOAD_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_LOAD_E2E_TIMEOUT_MS=180000 npm run test:video-load:e2e`
+
+### 残課題・次のステップ
+- 冷えた状態で1本投入するE2Eではユーザー報告のGPUDevice mismatchは再現しなかった。再発時はE2Eを「同一window内で複数回追加/削除/再読込するstress」へ拡張する。
+- `npm run dev` の既存Electron windowが古いrenderer/Rust backendを掴んでいる場合があるため、確認時はElectron windowとdev serverを完全に閉じてから起動し直す。
+
 ## 2026-06-20 — 既存Rust decode sessionを再利用するpreview復旧を追加
 
 ### 実施内容

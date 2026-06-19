@@ -320,6 +320,51 @@ const collectConsoleEvents = (client) => client.events
     return args.map((arg) => arg.value ?? arg.description ?? '').join(' ');
   });
 
+const collectRuntimeErrors = (client) => client.events
+  .filter((event) => event.method === 'Runtime.exceptionThrown')
+  .map((event) => {
+    const details = event.params?.exceptionDetails;
+    return details?.exception?.description
+      ?? details?.exception?.value
+      ?? details?.text
+      ?? 'Runtime exception';
+  });
+
+const findBlockingDiagnostics = ({ consoleLines, runtimeErrors, processLines, pollResult, visualResult }) => {
+  const diagnostics = pollResult?.diagnostics ?? [];
+  const statusLines = diagnostics
+    .map((entry) => [
+      entry.uxfdSharedRendererPresenterStatus ? `status=${entry.uxfdSharedRendererPresenterStatus}` : null,
+      entry.uxfdSharedRendererPresenterFailureReason ? `reason=${entry.uxfdSharedRendererPresenterFailureReason}` : null,
+      entry.uxfdSharedRendererPresenterNativeRenderFailureReason ? `native=${entry.uxfdSharedRendererPresenterNativeRenderFailureReason}` : null,
+      entry.uxfdSharedRendererPresenterNativeRenderFailureDetail,
+      entry.uxfdSharedRendererPresenterVideoUploadFailureReason ? `video=${entry.uxfdSharedRendererPresenterVideoUploadFailureReason}` : null,
+      entry.uxfdSharedRendererPresenterVideoUploadFailureDetail,
+    ].filter(Boolean).join(' / '))
+    .filter(Boolean);
+  const allLines = [
+    ...consoleLines,
+    ...runtimeErrors,
+    ...processLines,
+    ...statusLines,
+    visualResult?.reason,
+  ].filter((line) => typeof line === 'string' && line.length > 0);
+  const blockingPatterns = [
+    /TextureView .* associated with \[Device\].* cannot be used with \[Device\]/i,
+    /Invalid CommandBuffer/i,
+    /GPUDevice:/i,
+    /presenterStartFailed/i,
+    /requiredVideoOwnershipUnavailable/i,
+    /nativeRenderSourcesUnavailable/i,
+    /startFailed/i,
+    /frameDecodeFailed/i,
+    /Decode session already active for jobId/i,
+    /No active decode session/i,
+    /surfacePixelsBlankOrGrey/i,
+  ];
+  return allLines.filter((line) => blockingPatterns.some((pattern) => pattern.test(line)));
+};
+
 const writeResult = (result) => {
   mkdirSync(OUTPUT_DIR, { recursive: true });
   writeFileSync(RESULT_JSON, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
@@ -496,15 +541,25 @@ const main = async () => {
   `);
 
   const consoleLines = collectConsoleEvents(client);
+  const runtimeErrors = collectRuntimeErrors(client);
   const visualResult = pollResult?.ok
     ? await captureSharedRendererSurfaceAnalysis(client)
     : undefined;
+  const blockingDiagnostics = findBlockingDiagnostics({
+    consoleLines,
+    runtimeErrors,
+    processLines: logLines,
+    pollResult,
+    visualResult,
+  });
   const result = {
-    passed: Boolean(pollResult?.ok && visualResult?.ok),
+    passed: Boolean(pollResult?.ok && visualResult?.ok && blockingDiagnostics.length === 0),
     videoPath: VIDEO_PATH,
     pollResult,
     visualResult,
     consoleLines,
+    runtimeErrors,
+    blockingDiagnostics,
   };
   writeResult(result);
   log(readFileSync(RESULT_JSON, 'utf8'));
