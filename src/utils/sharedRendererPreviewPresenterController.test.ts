@@ -357,6 +357,48 @@ const videoPsdSession: SharedRendererPreviewSession = {
   presentationContract: buildSharedRendererPresentationContract(),
 };
 
+const videoGeneratedGradientSnapshot: RustSceneSnapshot = {
+  ...snapshot,
+  clips: [
+    {
+      ...videoSnapshot.clips[0],
+      z_index: 0,
+    },
+    {
+      ...generatedGradientSnapshot.clips[0],
+      z_index: 1,
+    },
+  ],
+};
+
+const videoGeneratedGradientMedia: RustSceneMediaReference[] = [
+  videoMedia[0],
+  {
+    id: 'gradient-1',
+    kind: 'GeneratedGradient',
+    source: '{"type":"linear","colours":["#ff0000","#0000ff"],"stops":[0,1],"direction":90}',
+    width: 200,
+    height: 100,
+  },
+];
+
+const videoGeneratedGradientSession: SharedRendererPreviewSession = {
+  plan: {
+    mode: 'parallelCompare',
+    primary: 'pixi',
+    candidate: 'sharedRenderer',
+    snapshot: videoGeneratedGradientSnapshot,
+    media: videoGeneratedGradientMedia,
+  },
+  surfaceGate: {
+    ok: true,
+    canvas: { width: 1920, height: 1080 },
+    snapshot: videoGeneratedGradientSnapshot,
+    media: videoGeneratedGradientMedia,
+  },
+  presentationContract: buildSharedRendererPresentationContract(),
+};
+
 const multiVideoSnapshot: RustSceneSnapshot = {
   ...snapshot,
   clips: [
@@ -1960,6 +2002,76 @@ describe('startSharedRendererPreviewPresenter', () => {
       uxfdSharedRendererPresenterNativeRenderSourceMediaIds: 'video-1',
       uxfdSharedRendererPresenterVideoOwner: 'sharedRenderer',
       uxfdSharedRendererPresenterPsdOwner: 'sharedRenderer',
+    });
+  });
+
+  it('records native render diagnostics when video and generated gradient share the preview render pass', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const rgbaBytes = new Uint8Array(nativeRenderDescriptor.byteLen);
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoGeneratedGradientSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustSolidColourWasmEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
+      sharedRendererSolidColourCutoverEnabled: true,
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererNativeRenderFrameUpload: {
+        descriptor: nativeRenderDescriptor,
+        ptsFrame: 12,
+        rgbaBytes,
+      },
+      rustVideoFrameDecodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video.mp4',
+          sourceFrame: 90,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 12,
+          width: 1280,
+          height: 720,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter(),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({
+      ok: true,
+      videoOwnership: {
+        owner: 'sharedRenderer',
+        reason: 'nativeRenderFrameReady',
+        videoObjectIds: ['video-1'],
+      },
+      solidColourOwnership: {
+        owner: 'sharedRenderer',
+        reason: 'nativeRenderFrameReady',
+        solidColourObjectIds: ['gradient-1'],
+      },
+    });
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterNativeRenderFrameReady: 'true',
+      uxfdSharedRendererPresenterNativeRenderMediaCount: '2',
+      uxfdSharedRendererPresenterNativeRenderMediaKinds: 'Video,GeneratedGradient',
+      uxfdSharedRendererPresenterNativeRenderSourceCount: '1',
+      uxfdSharedRendererPresenterNativeRenderSourceMediaIds: 'video-1',
+      uxfdSharedRendererPresenterVideoOwner: 'sharedRenderer',
+      uxfdSharedRendererPresenterSolidColourOwner: 'sharedRenderer',
+      uxfdSharedRendererPresenterSolidColourCutoverReason: 'nativeRenderFrameReady',
+      uxfdSharedRendererPresenterSharedSolidColourObjectCount: '1',
     });
   });
 
