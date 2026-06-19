@@ -4620,3 +4620,20 @@
 ### 残課題・次のステップ
 - preview native output releaseのrejectケースも同じ診断へ落ちることを回帰テストで固定する。
 - preview/exportの `nativeRenderOutputReleaseFailed` をUI表示で追いやすくする。
+
+## 2026-06-19 — preview upload失敗時のoutput releaseを診断化
+
+### 実施内容
+- Red: preview native render outputのcopy/upload準備が失敗した後、output cleanupも `{ success:false }` を返した場合に、生Errorではなく `nativeRenderOutputReleaseFailed` として返す契約を追加した。
+- Green: upload準備の例外経路と `upload.ok=false` 経路でも output release helperを通し、release失敗を結果unionへ集約するようにした。
+- copy/upload失敗時にRust native render outputが解放できていない状態を `uploadFailed` や生throwに隠さないようにした。
+- 版を `0.1.1-Beta-208n` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererViewportNativeRenderUpload.test.ts -t "upload preparation fails"`
+- `npm test -- src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/rustBackendNativeRenderControl.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.test\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/rustBackendNativeRenderControl\\.ts)"`
+
+### 残課題・次のステップ
+- preview native output releaseのrejectケースを明示的な回帰テストにする。
+- `nativeRenderOutputReleaseFailed` をpreview/exportのUI診断で追いやすくする。

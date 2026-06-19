@@ -204,6 +204,7 @@ Rust backend integration gate:
   渡してはいけない。
   previewのoutput releaseがrejectまたは `success:false` を返した場合は `nativeRenderOutputReleaseFailed` を優先し、
   source release失敗に隠してはいけない。
+  copy/upload準備が失敗した後のoutput release失敗も同じく `nativeRenderOutputReleaseFailed` として扱う。
 - export native render source も complete release失敗時には生成済みnative render outputを
   `render.releaseNativeSharedFrame` で解放してから `SharedRendererExportFrameSourceBlockedError` として
   `nativeRenderSourceReleaseFailed` を返す。encoderへ渡せないshared frameをRust output ringへ残してはいけない。
