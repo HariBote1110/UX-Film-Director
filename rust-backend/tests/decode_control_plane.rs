@@ -1769,6 +1769,46 @@ fn decode_start_returns_shared_ring_layout_without_frame_bytes() {
 }
 
 #[test]
+fn decode_start_reuses_active_session_for_same_job_id() {
+    let mut backend = BackendProcess::start();
+    let start_params = json!({
+        "jobId": "decode-idempotent-1",
+        "source": "/media/input.mp4",
+        "slotCount": 2,
+        "width": 64,
+        "height": 32,
+        "sourceRate": {
+            "numerator": 60,
+            "denominator": 1
+        },
+        "format": "rgba8Srgb",
+        "colour": {
+            "primaries": "bt709",
+            "transfer": "srgb",
+            "matrix": "rgb",
+            "range": "full"
+        }
+    });
+
+    let first = backend.request(json!({
+        "id": 1,
+        "method": "decode.start",
+        "params": start_params.clone()
+    }));
+    assert_eq!(first["ok"], true, "{first}");
+
+    let second = backend.request(json!({
+        "id": 2,
+        "method": "decode.start",
+        "params": start_params
+    }));
+
+    assert_eq!(second["ok"], true, "{second}");
+    assert_eq!(second["result"], first["result"]);
+    assert_no_frame_bytes_recursive(&second["result"]);
+}
+
+#[test]
 fn decode_start_uses_short_shared_memory_name_for_renderer_length_job_id() {
     let mut backend = BackendProcess::start();
 
