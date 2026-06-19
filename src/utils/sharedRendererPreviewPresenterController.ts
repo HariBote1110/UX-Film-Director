@@ -199,6 +199,7 @@ export const startSharedRendererPreviewPresenter = async ({
     ? rustVideoFrameDecodeRequestBuilder
       ?? await loadSharedRendererRustVideoFrameDecodeRequestBuilder({
         enabled: rustVideoFrameDecodeRequestWasmEnabled,
+        fallbackAllowed: !requireRustVideoControlPlane,
       })
     : null;
   if (

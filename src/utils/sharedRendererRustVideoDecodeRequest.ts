@@ -22,6 +22,7 @@ export type SharedRendererRustVideoFrameDecodeRequestWasmLoadedModule =
 
 export interface LoadSharedRendererRustVideoFrameDecodeRequestBuilderInput {
   enabled?: boolean;
+  fallbackAllowed?: boolean;
   importWasmModule?: () => Promise<SharedRendererRustVideoFrameDecodeRequestWasmLoadedModule>;
   warn?: (message: string, error: unknown) => void;
 }
@@ -30,21 +31,24 @@ let cachedDefaultBuilder: Promise<SharedRendererVideoFrameDecodeRequestBuilder |
 
 export const loadSharedRendererRustVideoFrameDecodeRequestBuilder = async ({
   enabled = true,
+  fallbackAllowed = true,
   importWasmModule,
   warn = defaultWarn,
 }: LoadSharedRendererRustVideoFrameDecodeRequestBuilderInput = {}): Promise<SharedRendererVideoFrameDecodeRequestBuilder | null> => {
   if (!enabled) return null;
 
-  if (!importWasmModule) {
+  if (!importWasmModule && fallbackAllowed) {
     cachedDefaultBuilder ??= loadSharedRendererRustVideoFrameDecodeRequestBuilderOnce({
       importWasmModule: defaultImportWasmModule,
+      fallbackAllowed,
       warn,
     });
     return cachedDefaultBuilder;
   }
 
   return loadSharedRendererRustVideoFrameDecodeRequestBuilderOnce({
-    importWasmModule,
+    importWasmModule: importWasmModule ?? defaultImportWasmModule,
+    fallbackAllowed,
     warn,
   });
 };
@@ -59,8 +63,9 @@ export const createSharedRendererRustVideoFrameDecodeRequestBuilder = (
 
 const loadSharedRendererRustVideoFrameDecodeRequestBuilderOnce = async ({
   importWasmModule,
+  fallbackAllowed,
   warn,
-}: Required<Pick<LoadSharedRendererRustVideoFrameDecodeRequestBuilderInput, 'importWasmModule' | 'warn'>>): Promise<SharedRendererVideoFrameDecodeRequestBuilder | null> => {
+}: Required<Pick<LoadSharedRendererRustVideoFrameDecodeRequestBuilderInput, 'fallbackAllowed' | 'importWasmModule' | 'warn'>>): Promise<SharedRendererVideoFrameDecodeRequestBuilder | null> => {
   try {
     const wasmModule = await importWasmModule();
     if (typeof wasmModule.default === 'function') {
@@ -68,7 +73,12 @@ const loadSharedRendererRustVideoFrameDecodeRequestBuilderOnce = async ({
     }
     return createSharedRendererRustVideoFrameDecodeRequestBuilder(wasmModule);
   } catch (error) {
-    warn('Rust/WASM video frame decode request builder could not be loaded; falling back to TypeScript.', error);
+    warn(
+      fallbackAllowed
+        ? 'Rust/WASM video frame decode request builder could not be loaded; falling back to TypeScript.'
+        : 'Rust/WASM video frame decode request builder could not be loaded; Rust video control plane is required.',
+      error
+    );
     return null;
   }
 };
