@@ -18,6 +18,7 @@ import {
 import { isSharedRendererExportFrameSourceBlockedError } from '../utils/sharedRendererExportFrameSource';
 import { createSharedVideoFramePresentedFrameTaker } from '../utils/sharedVideoFramePresentedFrameHandoff';
 import { captureProjectExportLegacyCanvasFrame } from '../utils/projectExportLegacyCanvasCapture';
+import { encodeProjectExportCompatibilityVideo } from '../utils/projectExportCompatibilityEncoder';
 import type {
   RustBackendVideoEncodeFrame,
   RustBackendVideoEncodeSharedFramePayloadFrame,
@@ -263,8 +264,7 @@ export const useProjectExport = (
 
         let result;
         try {
-          const { encodeVideoToMp4 } = await import('../utils/videoExportPipeline');
-          result = await encodeVideoToMp4({
+          result = await encodeProjectExportCompatibilityVideo({
             width,
             height,
             fps,
