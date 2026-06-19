@@ -1130,7 +1130,7 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
     expect(events).toEqual([]);
     expect(dataset).toMatchObject({
-      uxfdSharedRendererPresenterStatus: 'fallback',
+      uxfdSharedRendererPresenterStatus: 'blocked',
       uxfdSharedRendererPresenterFailureReason: 'requiredVideoOwnershipUnavailable',
       uxfdSharedRendererPresenterVideoOwner: 'pixi',
       uxfdSharedRendererPresenterVideoCutoverReason: 'videoFrameUploadUnavailable',
@@ -1938,7 +1938,7 @@ describe('startSharedRendererPreviewPresenter', () => {
       reason: 'requiredVideoOwnershipUnavailable',
     });
     expect(dataset).toMatchObject({
-      uxfdSharedRendererPresenterStatus: 'fallback',
+      uxfdSharedRendererPresenterStatus: 'blocked',
       uxfdSharedRendererPresenterFailureReason: 'requiredVideoOwnershipUnavailable',
       uxfdSharedRendererPresenterVideoOwner: 'pixi',
       uxfdSharedRendererPresenterVideoCutoverReason: 'videoFrameUploadUnavailable',
@@ -1972,7 +1972,7 @@ describe('startSharedRendererPreviewPresenter', () => {
       reason: 'requiredRustVideoControlPlaneUnavailable',
     });
     expect(dataset).toMatchObject({
-      uxfdSharedRendererPresenterStatus: 'fallback',
+      uxfdSharedRendererPresenterStatus: 'blocked',
       uxfdSharedRendererPresenterFailureReason: 'requiredRustVideoControlPlaneUnavailable',
     });
     expect(dataset).not.toMatchObject({
@@ -2028,7 +2028,7 @@ describe('startSharedRendererPreviewPresenter', () => {
       reason: 'requiredVideoOwnershipUnavailable',
     });
     expect(dataset).toMatchObject({
-      uxfdSharedRendererPresenterStatus: 'fallback',
+      uxfdSharedRendererPresenterStatus: 'blocked',
       uxfdSharedRendererPresenterFailureReason: 'requiredVideoOwnershipUnavailable',
       uxfdSharedRendererPresenterNativeRenderFailureReason: 'nativeRenderFailed',
       uxfdSharedRendererPresenterNativeRenderFailureDetail: 'Rust backend rejected unsupported PSD media',
