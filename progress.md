@@ -1,3 +1,20 @@
+## 2026-06-19 — presented shared-frame handoff失敗をexport診断へ追加
+
+### 実施内容
+- Red: `takePresentedFrameSharedFrame` が失敗した場合に、export frame sourceが例外を素通しせず `presentedSharedFrameHandoffFailed` としてblocked診断へ残す契約を追加した。
+- Green: presented shared-frame handoff呼び出しをtry/catchし、失敗時はdatasetへframe index/reasonを出して `SharedRendererExportFrameSourceBlockedError` へ変換するようにした。
+- Rust direct encode直前のshared-frame data-plane失敗を、ユーザー環境で追跡できる形にした。
+- 版を `0.1.1-Beta-210o` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSource`
+- `npm test -- sharedRendererExportFrameSource sharedRendererExportFrameSourceBoundary`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/sharedRendererExportFrameSourceBoundary\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- 実機exportで `presentedSharedFrame` pathが失敗したとき、datasetに `presentedSharedFrameHandoffFailed` が残ることを確認する。
+- 可能ならnative render shared-frame pathを優先し、presented shared-frame pathを互換・診断用の補助経路に留める。
+
 ## 2026-06-19 — Pixi動画crop helperを撤去
 
 ### 実施内容
