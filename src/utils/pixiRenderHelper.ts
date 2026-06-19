@@ -712,11 +712,7 @@ export const updatePixiContent = (
 
     } else if (obj.type === 'video') {
         const videoRenderPath = resolvePixiVideoRenderPath({
-            objectId: obj.id,
             objectType: obj.type,
-            isExporting,
-            sharedRendererVideoObjectIds,
-            requireSharedRendererVideo,
         });
         if (videoRenderPath !== 'sharedRendererOnly') return content;
 

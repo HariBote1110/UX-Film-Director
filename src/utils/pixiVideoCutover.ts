@@ -1,9 +1,5 @@
 export interface ShouldSkipPixiVideoForSharedRendererInput {
-  objectId: string;
   objectType: string;
-  isExporting: boolean;
-  sharedRendererVideoObjectIds?: ReadonlySet<string>;
-  requireSharedRendererVideo?: boolean;
 }
 
 export type ResolvePixiVideoRenderPathInput = ShouldSkipPixiVideoForSharedRendererInput;
