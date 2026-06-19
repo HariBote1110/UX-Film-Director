@@ -219,6 +219,96 @@ fn encode_start_accepts_audio_path_and_muxes_audio_with_shared_frames() {
 }
 
 #[test]
+fn encode_finish_reports_ffmpeg_stderr_when_muxing_fails() {
+    let mut backend = BackendProcess::start();
+    let temp_dir = TestTempDir::new("encode-ffmpeg-stderr");
+    let output_path_string = temp_dir.path().to_string_lossy().into_owned();
+    let memory_id = unique_shm_name();
+    let slot_count = 1;
+    let width = 16;
+    let height = 16;
+    let stride_bytes = 256;
+    let slot_byte_len = stride_bytes * height;
+    let tight_rgba = vec![0x51; width as usize * height as usize * 4];
+    let padded_rgba = pad_rgba_rows(&tight_rgba, width, height, stride_bytes as usize);
+    let producer_ring = PosixSharedRing::create_with_slot_count(
+        &memory_id,
+        slot_count,
+        slot_byte_len as usize,
+    )
+    .expect("create encode source ring");
+    producer_ring
+        .write_frame(0, &padded_rgba)
+        .expect("write encode source frame");
+
+    let start = backend.request(json!({
+        "id": 201,
+        "method": "encode.start",
+        "params": {
+            "sessionId": "encode-stderr",
+            "filePath": output_path_string,
+            "width": width,
+            "height": height,
+            "fps": 30,
+            "pixelFormat": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(start["ok"], true, "{start}");
+
+    let write_frame = backend.request(json!({
+        "id": 202,
+        "method": "encode.writeFrame",
+        "params": {
+            "sessionId": "encode-stderr",
+            "frameIndex": 0,
+            "timestampUs": 0,
+            "slotCount": slot_count,
+            "frame": {
+                "descriptor": {
+                    "memoryId": memory_id,
+                    "slotIndex": 0,
+                    "generation": 1,
+                    "byteOffset": 0,
+                    "byteLen": slot_byte_len,
+                    "width": width,
+                    "height": height,
+                    "strideBytes": stride_bytes,
+                    "format": "rgba8Srgb",
+                    "colour": {
+                        "primaries": "bt709",
+                        "transfer": "srgb",
+                        "matrix": "rgb",
+                        "range": "full"
+                    }
+                },
+                "ptsFrame": 0
+            }
+        }
+    }));
+    assert_eq!(write_frame["ok"], true, "{write_frame}");
+
+    let finish = backend.request(json!({
+        "id": 203,
+        "method": "encode.finish",
+        "params": {
+            "sessionId": "encode-stderr"
+        }
+    }));
+    assert_eq!(finish["ok"], false, "{finish}");
+    let message = finish["error"]["message"]
+        .as_str()
+        .expect("finish error message");
+    assert!(message.contains("Rust encode ffmpeg exited with failure status"), "{finish}");
+    assert!(message.contains("stderr:"), "{finish}");
+}
+
+#[test]
 fn native_rendered_image_frame_can_feed_audio_muxed_encode() {
     let mut backend = BackendProcess::start();
     let temp_dir = TestTempDir::new("native-render-image-audio-encode");
