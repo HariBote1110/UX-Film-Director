@@ -724,6 +724,7 @@ const throwNativeRenderSourceReleaseFailed = (
     status: 'blocked',
     frameIndex,
     reason: 'nativeRenderSourceReleaseFailed',
+    path: 'nativeRenderSharedFrame',
   });
   throw new SharedRendererExportFrameSourceBlockedError(
     detail,
@@ -756,6 +757,7 @@ const throwNativeRenderOutputReleaseFailed = (
     status: 'blocked',
     frameIndex,
     reason: 'nativeRenderOutputReleaseFailed',
+    path: 'nativeRenderSharedFrame',
   });
   throw new SharedRendererExportFrameSourceBlockedError(
     detail,
