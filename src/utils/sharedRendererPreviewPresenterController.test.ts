@@ -716,7 +716,7 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
     expect(renderPasses).toEqual([]);
     expect(dataset).toMatchObject({
-      uxfdSharedRendererPresenterStatus: 'fallback',
+      uxfdSharedRendererPresenterStatus: 'blocked',
       uxfdSharedRendererPresenterFailureReason: 'sharedRendererOutputUnavailable',
       uxfdSharedRendererPresenterSwatch: 'pixi-passthrough',
     });
