@@ -105,6 +105,10 @@ export interface StartSharedRendererPreviewPresenterInput {
     reason: string;
     detail: string;
   };
+  sharedRendererVideoUploadFailure?: {
+    reason: string;
+    detail: string;
+  };
   sharedRendererDecodedVideoFrameUpload?: SharedRendererDecodedVideoFrameUpload;
   sharedRendererDecodedVideoFrameUploads?: SharedRendererDecodedVideoFrameUploadForClip[];
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
@@ -144,6 +148,7 @@ export const startSharedRendererPreviewPresenter = async ({
   sharedRendererVideoFrameUploadReady = false,
   sharedRendererNativeRenderFrameUpload,
   sharedRendererNativeRenderFailure,
+  sharedRendererVideoUploadFailure,
   sharedRendererDecodedVideoFrameUpload,
   sharedRendererDecodedVideoFrameUploads,
   presentedFrameSharedFrameTaker,
@@ -417,6 +422,8 @@ export const startSharedRendererPreviewPresenter = async ({
       reason: 'requiredVideoOwnershipUnavailable',
       nativeRenderFailureReason: nativeRenderFailure?.reason,
       nativeRenderFailureDetail: nativeRenderFailure?.detail,
+      videoUploadFailureReason: sharedRendererVideoUploadFailure?.reason,
+      videoUploadFailureDetail: sharedRendererVideoUploadFailure?.detail,
     });
     return {
       ok: false,
@@ -509,6 +516,8 @@ export const startSharedRendererPreviewPresenter = async ({
     videoDecodeRequestSource,
     videoDecodeRequestCount,
     videoFrameUploadReady: hasVideoScene ? resolvedVideoFrameUploadReady : undefined,
+    videoUploadFailureReason: hasVideoScene ? sharedRendererVideoUploadFailure?.reason : undefined,
+    videoUploadFailureDetail: hasVideoScene ? sharedRendererVideoUploadFailure?.detail : undefined,
     videoOwner: hasVideoScene ? videoOwnership.owner : undefined,
     videoCutoverReason: hasVideoScene ? videoOwnership.reason : undefined,
     sharedVideoObjectCount: hasVideoScene ? videoOwnership.videoObjectIds.length : undefined,

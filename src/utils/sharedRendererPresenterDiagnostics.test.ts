@@ -69,7 +69,7 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
       videoFrameUploadReady: false,
       videoUploadFailureReason: 'copyReportChecksumMismatch',
       videoUploadFailureDetail: 'Shared video frame copy report checksum verification failed.',
-    } as any);
+    });
 
     expect(dataset).toMatchObject({
       uxfdSharedRendererPresenterStatus: 'ready',

@@ -137,6 +137,10 @@ export const startSharedRendererViewportPresenter = async ({
       clipId: request.clipId,
     }))
     : undefined;
+  const sharedRendererVideoUploadFailure = resolveSharedRendererVideoUploadFailure(
+    videoUploadResult,
+    videoUploadsResult,
+  );
 
   if (videoUploadResult && 'activeJob' in videoUploadResult) {
     nextActiveVideoDecodeJob = videoUploadResult.activeJob ?? null;
@@ -160,6 +164,7 @@ export const startSharedRendererViewportPresenter = async ({
     requireSharedRendererOutput,
     sharedRendererNativeRenderFrameUpload,
     sharedRendererNativeRenderFailure,
+    sharedRendererVideoUploadFailure,
     sharedRendererDecodedVideoFrameUpload,
     sharedRendererDecodedVideoFrameUploads,
     presentedFrameSharedFrameTaker,
@@ -172,5 +177,22 @@ export const startSharedRendererViewportPresenter = async ({
     videoUploadResult,
     videoUploadsResult,
     nativeRenderUploadResult,
+  };
+};
+
+const resolveSharedRendererVideoUploadFailure = (
+  videoUploadResult: PrepareSharedRendererViewportVideoUploadResult | undefined,
+  videoUploadsResult: PrepareSharedRendererViewportVideoUploadsResult | undefined,
+): { reason: string; detail: string } | undefined => {
+  const result = videoUploadsResult ?? videoUploadResult;
+  if (!result || result.ok) {
+    return undefined;
+  }
+  const reason = result.reason === 'uploadFailed' && result.uploadFailureReason
+    ? result.uploadFailureReason
+    : result.reason;
+  return {
+    reason,
+    detail: result.detail,
   };
 };

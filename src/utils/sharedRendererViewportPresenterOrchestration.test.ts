@@ -4,6 +4,7 @@ import {
   type SharedRendererViewportNativeRenderUploadPreparer,
   type SharedRendererViewportPresenterStarter,
   type SharedRendererViewportVideoUploadPreparer,
+  type SharedRendererViewportVideoUploadsPreparer,
 } from './sharedRendererViewportPresenterOrchestration';
 import type {
   SharedRendererDecodedVideoFrameUpload,
