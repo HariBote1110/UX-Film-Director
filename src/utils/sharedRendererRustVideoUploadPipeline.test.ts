@@ -184,4 +184,61 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
       },
     ]]);
   });
+
+  it('releases a decoded backend slot only once when GPU success and abort callbacks both run', async () => {
+    const calls: unknown[] = [];
+    const copyBridge: SharedVideoFrameCopyBridge = {
+      copyIntoUploadBuffer: async (payload, target) => {
+        calls.push(['copyIntoUploadBuffer', payload, target.byteLength]);
+        target.fill(0x44);
+        return {
+          success: true,
+          result: {
+            sequence: payload.ptsFrame,
+            slotIndex: payload.slotIndex,
+            generation: payload.generation,
+            byteLen: target.byteLength,
+            expectedChecksum: 0x1234,
+            actualChecksum: 0x1234,
+          },
+        };
+      },
+    };
+    const rustBackendBridge: RustBackendVideoDecodeBridge = {
+      startVideoDecode: async () => ({ success: true }),
+      requestVideoDecodeFrame: async () => ({ success: true, result: decodedFrameResponse.result! }),
+      releaseVideoDecodeFrame: async (payload) => {
+        calls.push(['releaseVideoDecodeFrame', payload]);
+        return { success: true, result: { released: true } };
+      },
+      stopVideoDecode: async () => ({ success: true }),
+    };
+
+    const upload = await prepareSharedRendererRustDecodedVideoUpload({
+      decodeResponse: decodedFrameResponse,
+      slotCount: 2,
+      copyBridge,
+      rustBackendBridge,
+    });
+
+    expect(upload.ok).toBe(true);
+    if (!upload.ok) throw new Error('expected upload preparation to succeed');
+
+    await upload.releaseAfterGpuUpload?.();
+    await upload.releaseAfterUploadAbort?.();
+    await upload.releaseAfterGpuUpload?.();
+
+    const releaseCalls = calls.filter((call) =>
+      Array.isArray(call) && call[0] === 'releaseVideoDecodeFrame');
+
+    expect(releaseCalls).toEqual([[
+      'releaseVideoDecodeFrame',
+      {
+        jobId: 'decode-job-1',
+        slotIndex: 1,
+        generation: 5,
+        copyOutState: 'gpuUploadFenceSignalled',
+      },
+    ]]);
+  });
 });
