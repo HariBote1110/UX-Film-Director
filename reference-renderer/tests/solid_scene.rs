@@ -250,7 +250,7 @@ fn rotated_clip_uses_top_left_pivot_inverse_sampling() {
         rendered.pixels,
         vec![
             0, 0, 0, 0, 255, 0, 0, 255,
-            0, 0, 0, 0, 0, 0, 255, 255,
+            0, 0, 255, 255, 0, 0, 0, 0,
         ]
     );
 }
@@ -272,7 +272,7 @@ fn missing_media_source_is_reported() {
 }
 
 #[test]
-fn source_size_must_match_canvas_for_initial_identity_gate() {
+fn identity_transform_samples_visible_canvas_region_when_source_is_larger() {
     let snapshot = scene_snapshot(vec![evaluated_clip("foreground", 0, 1.0, Vec::new())]);
     let sources = HashMap::from([(
         "foreground".to_string(),
@@ -280,19 +280,10 @@ fn source_size_must_match_canvas_for_initial_identity_gate() {
             .expect("valid foreground"),
     )]);
 
-    let error =
-        render_reference_frame(&snapshot, &sources, 1, 1).expect_err("size mismatch must fail");
+    let rendered =
+        render_reference_frame(&snapshot, &sources, 1, 1).expect("render visible region");
 
-    assert_eq!(
-        error,
-        ReferenceRenderError::SourceSizeMismatch {
-            media_id: "foreground".to_string(),
-            expected_width: 1,
-            expected_height: 1,
-            actual_width: 2,
-            actual_height: 1,
-        }
-    );
+    assert_eq!(rendered.pixels, vec![255, 0, 0, 255]);
 }
 
 fn scene_snapshot(clips: Vec<EvaluatedClip>) -> SceneSnapshot {

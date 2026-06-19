@@ -73,7 +73,7 @@ fn effect_gain(effect: &Effect) -> f32 {
 }
 
 fn validate_transform(clip: &EvaluatedClip) -> Result<(), ReferenceRenderError> {
-    if clip.transform.rotation_degrees != 0.0
+    if !clip.transform.rotation_degrees.is_finite()
         || clip.transform.scale_x <= 0.0
         || clip.transform.scale_y <= 0.0
     {
@@ -91,8 +91,13 @@ fn sample_source(
     output_x: u32,
     output_y: u32,
 ) -> Option<StraightLinearRgba> {
-    let source_x = (output_x as f32 - transform.translation_x) / transform.scale_x;
-    let source_y = (output_y as f32 - transform.translation_y) / transform.scale_y;
+    let dx = output_x as f32 - transform.translation_x;
+    let dy = output_y as f32 - transform.translation_y;
+    let radians = transform.rotation_degrees.to_radians();
+    let cos = radians.cos();
+    let sin = radians.sin();
+    let source_x = (dx * cos + dy * sin) / transform.scale_x;
+    let source_y = (-dx * sin + dy * cos) / transform.scale_y;
 
     if source_x < 0.0
         || source_y < 0.0
