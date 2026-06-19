@@ -518,6 +518,32 @@ export const startSharedRendererPreviewPresenter = async ({
     };
   }
 
+  if (
+    requireSharedRendererOutput
+    && (
+      (hasImageScene && imageOwnership.owner !== 'sharedRenderer')
+      || (hasPsdScene && psdOwnership.owner !== 'sharedRenderer')
+    )
+  ) {
+    writeDiagnostics({
+      status: 'blocked',
+      reason: 'sharedRendererOutputUnavailable',
+      nativeRenderFailureReason: nativeRenderFailure?.reason,
+      nativeRenderFailureDetail: nativeRenderFailure?.detail,
+      imageOwner: hasImageScene ? imageOwnership.owner : undefined,
+      imageCutoverReason: hasImageScene ? imageOwnership.reason : undefined,
+      sharedImageObjectCount: hasImageScene ? imageOwnership.imageObjectIds.length : undefined,
+      psdOwner: hasPsdScene ? psdOwnership.owner : undefined,
+      psdCutoverReason: hasPsdScene ? psdOwnership.reason : undefined,
+      sharedPsdObjectCount: hasPsdScene ? psdOwnership.psdObjectIds.length : undefined,
+    });
+    return {
+      ok: false,
+      reason: 'sharedRendererOutputUnavailable',
+      dispose: presenter.dispose,
+    };
+  }
+
   const shouldPresentUploadedVideoFrame = hasVideoScene
     && uploadedVideoFrameTexture
     && videoOwnership.owner === 'sharedRenderer';

@@ -64,6 +64,12 @@ export type SharedRendererPresenterDiagnosticState =
       videoUploadFailureClipId?: string;
       videoUploadFailureMediaId?: string;
       videoUploadMissingClipIds?: string;
+      imageOwner?: SharedRendererImageOwner;
+      imageCutoverReason?: SharedRendererImageCutoverReason;
+      sharedImageObjectCount?: number;
+      psdOwner?: SharedRendererPsdOwner;
+      psdCutoverReason?: SharedRendererPsdCutoverReason;
+      sharedPsdObjectCount?: number;
       videoOwner?: SharedRendererVideoOwner;
       videoCutoverReason?: SharedRendererVideoCutoverReason;
       sharedVideoObjectCount?: number;
@@ -258,6 +264,24 @@ export const writeSharedRendererPresenterDiagnostics = (
     }
     if (state.videoUploadMissingClipIds) {
       dataset.uxfdSharedRendererPresenterVideoUploadMissingClipIds = state.videoUploadMissingClipIds;
+    }
+    if (state.imageOwner) {
+      dataset.uxfdSharedRendererPresenterImageOwner = state.imageOwner;
+    }
+    if (state.imageCutoverReason) {
+      dataset.uxfdSharedRendererPresenterImageCutoverReason = state.imageCutoverReason;
+    }
+    if (typeof state.sharedImageObjectCount === 'number') {
+      dataset.uxfdSharedRendererPresenterSharedImageObjectCount = String(state.sharedImageObjectCount);
+    }
+    if (state.psdOwner) {
+      dataset.uxfdSharedRendererPresenterPsdOwner = state.psdOwner;
+    }
+    if (state.psdCutoverReason) {
+      dataset.uxfdSharedRendererPresenterPsdCutoverReason = state.psdCutoverReason;
+    }
+    if (typeof state.sharedPsdObjectCount === 'number') {
+      dataset.uxfdSharedRendererPresenterSharedPsdObjectCount = String(state.sharedPsdObjectCount);
     }
     if (state.videoOwner) {
       dataset.uxfdSharedRendererPresenterVideoOwner = state.videoOwner;
