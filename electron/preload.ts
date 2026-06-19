@@ -50,7 +50,7 @@ type SharedVideoFrameCopyResult = {
   error?: string
 }
 
-type SharedVideoFrameWritableResult = {
+type SharedVideoFramePresentedFrameResult = {
   success: boolean
   result?: unknown
   error?: string
@@ -64,7 +64,7 @@ type SharedVideoFrameNativeBridge = {
   ) => Promise<SharedVideoFrameCopyResult> | SharedVideoFrameCopyResult
   takePresentedFrameSharedFrame?: (
     payload: SharedVideoFramePresentedFramePayload
-  ) => Promise<SharedVideoFrameWritableResult> | SharedVideoFrameWritableResult
+  ) => Promise<SharedVideoFramePresentedFrameResult> | SharedVideoFramePresentedFrameResult
 }
 
 let sharedVideoFrameNativeBridge: SharedVideoFrameNativeBridge | null | undefined
