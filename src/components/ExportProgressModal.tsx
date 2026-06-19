@@ -2,7 +2,7 @@ import React from 'react';
 import { useStore } from '../store/useStore';
 import { shallow } from 'zustand/shallow';
 import { useTranslation } from '../i18n';
-import type { ExportPhase, ExportProgress } from '../store/useStore';
+import type { ExportDiagnostics, ExportPhase, ExportProgress } from '../store/useStore';
 import type { RustBackendNativeRenderOutputReleaseEvent } from '../utils/rustBackendVideoEncodeExport';
 
 const phaseLabelKey: Record<ExportPhase, 'exportPhasePreparing' | 'exportPhaseTranscoding' | 'exportPhaseRendering' | 'exportPhaseSaving' | 'exportPhaseCancelling'> = {
@@ -47,6 +47,21 @@ export const formatRustFrameSourceBlockedDiagnostic = (
   return `Rust frame source: ${status} ${formatRustFrameSourceBlockedReason(event.reason, language)} frame=${event.frameIndex} ${fallback}${detail}`;
 };
 
+export const formatLastExportDiagnosticsSummary = (
+  diagnostics: ExportDiagnostics | null,
+  language: 'ja' | 'en'
+): string[] => {
+  if (!diagnostics) return [];
+  const lines: string[] = [];
+  if (diagnostics.rustFrameSourceBlocked) {
+    lines.push(formatRustFrameSourceBlockedDiagnostic(diagnostics.rustFrameSourceBlocked, language));
+  }
+  if (diagnostics.nativeRenderOutputRelease) {
+    lines.push(formatNativeRenderOutputReleaseDiagnostic(diagnostics.nativeRenderOutputRelease, language));
+  }
+  return lines;
+};
+
 const formatRustFrameSourceBlockedReason = (
   reason: string,
   language: 'ja' | 'en'
@@ -84,9 +99,10 @@ const formatRustFrameSourceBlockedReason = (
  * `isExporting` が true のあいだだけ表示される。
  */
 const ExportProgressModal: React.FC = () => {
-  const { isExporting, exportProgress, exportCancelRequested, requestExportCancel, language } = useStore((state) => ({
+  const { isExporting, exportProgress, lastExportDiagnostics, exportCancelRequested, requestExportCancel, language } = useStore((state) => ({
     isExporting: state.isExporting,
     exportProgress: state.exportProgress,
+    lastExportDiagnostics: state.lastExportDiagnostics,
     exportCancelRequested: state.exportCancelRequested,
     requestExportCancel: state.requestExportCancel,
     language: state.language,
@@ -94,7 +110,17 @@ const ExportProgressModal: React.FC = () => {
 
   const t = useTranslation(language);
 
-  if (!isExporting) return null;
+  if (!isExporting) {
+    const lastDiagnostics = formatLastExportDiagnosticsSummary(lastExportDiagnostics, language);
+    if (lastDiagnostics.length === 0) return null;
+    return (
+      <div className="export-diagnostics-toast" role="status" aria-live="polite">
+        {lastDiagnostics.map((line) => (
+          <div key={line} className="export-diagnostics-toast-line">{line}</div>
+        ))}
+      </div>
+    );
+  }
 
   const phase: ExportPhase = exportProgress?.phase ?? 'preparing';
   const totalFrames = exportProgress?.totalFrames ?? 0;

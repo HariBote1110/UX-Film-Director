@@ -383,6 +383,27 @@ input[type="range"] {
   cursor: default;
 }
 
+.export-diagnostics-toast {
+  position: fixed;
+  right: 16px;
+  bottom: 316px;
+  z-index: 1800;
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: rgba(12, 14, 18, 0.92);
+  color: var(--text-secondary);
+  box-shadow: 0 16px 32px -18px rgba(0, 0, 0, 0.8);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.export-diagnostics-toast-line + .export-diagnostics-toast-line {
+  margin-top: 4px;
+}
+
 .preview-canvas-container {
   box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.8), 
               0 0 0 1px var(--border-subtle);
