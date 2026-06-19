@@ -322,7 +322,7 @@ export const startSharedRendererPreviewPresenter = async ({
           ? 'nativeRenderOutputReleaseFailed'
           : presentation.reason;
         writeDiagnostics({
-          status: 'fallback',
+          status: requireSharedRendererOutput ? 'blocked' : 'fallback',
           reason: fallbackReason,
           nativeRenderFailureReason: releaseFailureDetail ? fallbackReason : undefined,
           nativeRenderFailureDetail: releaseFailureDetail ?? undefined,
