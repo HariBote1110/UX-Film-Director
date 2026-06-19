@@ -1188,6 +1188,12 @@ effective cutover / encode-only / native render requiredを決める。
 production control型だけでなく、orchestrationテストfixture上もpresented frame取得口を
 `takePresentedFrameSharedFrame` / native handoff側へ寄せ、WebGPU RGBA readbackを再接続する足場を残さない。
 
+215. Phase5: Rust decode検証frame indexを照合する
+`rustBackendVideoDecodeControl` の decoded frame availability 判定で、
+`verification.frameIndex` / `result.frameIndex` / `frame.ptsFrame` が一致しない場合はdecoded frameを利用不可にする。
+Rust backend decodeのchecksum検証結果が別フレームを指したままshared memory descriptorだけ通過し、
+WebGPU uploadへ進む抜け道を塞ぐ。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

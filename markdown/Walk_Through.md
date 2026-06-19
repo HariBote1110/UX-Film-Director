@@ -1261,3 +1261,18 @@
 - `npm test -- projectExportFrameCanvas useProjectExportBoundary` を実行し、Redでformatter未実装/未使用の失敗を確認した。
 - `npm test -- projectExportFrameCanvas useProjectExportBoundary viewportRustExportFrameSource viewportRustVideoOnlyBoundary exportProgress exportDiagnosticsLog ExportProgressModal projectExportFrameRenderer` を再実行し、115件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/projectExportFrameCanvas\\.ts|src/utils/projectExportFrameCanvas\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts|src/utils/viewportRustExportFrameSource\\.ts|src/utils/viewportRustExportFrameSource\\.test\\.ts|src/components/Viewport\\.tsx)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 100. Phase5: Rust decode検証frame indexを照合
+- `src/utils/rustBackendVideoDecodeControl.test.ts`
+- `verification.frameIndex` が `result.frameIndex` と異なるdecoded frame responseを拒否する契約を追加した。
+- `src/utils/rustBackendVideoDecodeControl.ts`
+- `isRustBackendDecodedVideoFrameAvailable` が `verification.frameIndex` / `result.frameIndex` / `frame.ptsFrame` の一致を確認するようにした。
+- Rust backend decodeのchecksum検証結果が別フレームを指している場合に、shared memory descriptorを信頼してWebGPU uploadへ進まないようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-215d` に更新した。
+
+## 確認
+- `npm test -- rustBackendVideoDecodeControl` を実行し、Redで別フレームのverificationが受理される失敗を確認した。
+- `npm test -- rustBackendVideoDecodeControl` を再実行し、8件成功を確認した。
+- `npm test -- rustBackendVideoDecodeControl sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload` を実行し、25件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/rustBackendVideoDecodeControl\\.ts|src/utils/rustBackendVideoDecodeControl\\.test\\.ts|src/utils/sharedRendererRustVideoUploadPipeline\\.ts|src/utils/sharedRendererViewportVideoUpload\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

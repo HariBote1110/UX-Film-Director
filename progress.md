@@ -1,3 +1,20 @@
+## 2026-06-19 — Rust decode検証frame indexを照合
+
+### 実施内容
+- Red: Rust backend decode responseで `verification.frameIndex` が `frameIndex` と異なる場合、shared-memory frameとして受け入れない契約を追加した。
+- Green: `isRustBackendDecodedVideoFrameAvailable` が `verification.frameIndex` / `result.frameIndex` / `frame.ptsFrame` の整合を確認するようにした。
+- 別フレームのchecksumでshared-memory slotを信頼してWebGPU uploadへ進む抜け道を塞いだ。
+- 版を `0.1.1-Beta-215d` に更新した。
+
+### 検証
+- `npm test -- rustBackendVideoDecodeControl`
+- `npm test -- rustBackendVideoDecodeControl sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/rustBackendVideoDecodeControl\\.ts|src/utils/rustBackendVideoDecodeControl\\.test\\.ts|src/utils/sharedRendererRustVideoUploadPipeline\\.ts|src/utils/sharedRendererViewportVideoUpload\\.ts)"`
+
+### 残課題・次のステップ
+- shared-memory copy reportとWebGPU upload resultのdiagnosticをViewport/Export診断へ統合する。
+- Rust decode slot release failureをUI上で構造化表示する。
+
 ## 2026-06-19 — Rust source fallback診断にreasonを含める
 
 ### 実施内容
