@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 const projectRoot = new URL('../..', import.meta.url).pathname;
 const srcRoot = join(projectRoot, 'src');
 const electronMainPath = join(projectRoot, 'electron/main.ts');
+const rendererEntryPath = join(projectRoot, 'src/main.tsx');
 const packageJsonPath = join(projectRoot, 'package.json');
 
 const forbiddenTokens = [
@@ -91,5 +92,12 @@ describe('production video dependency boundary', () => {
 
     expect(manifest.dependencies).not.toHaveProperty('mp4box');
     expect(manifest.devDependencies).toHaveProperty('mp4box');
+  });
+
+  it('keeps export test harness imports out of normal Vite dependency scanning', () => {
+    const code = readFileSync(rendererEntryPath, 'utf8');
+
+    expect(code).toContain('/* @vite-ignore */');
+    expect(code).not.toContain("await import('./exportTest/exportTestHarness')");
   });
 });

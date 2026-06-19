@@ -11,7 +11,7 @@ if (
   new URLSearchParams(window.location.search).has('exportTest')
 ) {
   window.setTimeout(async () => {
-    const { runExportTests } = await import('./exportTest/exportTestHarness');
+    const { runExportTests } = await import(/* @vite-ignore */ './exportTest/exportTestHarness');
     await runExportTests().catch(e => console.error('[ExportTest] 致命的エラー:', e));
   }, 2000);
 }
