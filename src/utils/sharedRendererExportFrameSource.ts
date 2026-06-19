@@ -613,7 +613,10 @@ const resolveExportVideoUploadBlock = (
     && !videoUploadsResult.ok
     && videoUploadsResult.reason !== 'noVideoDecodeRequest'
   ) {
-    return videoUploadsResult.detail;
+    return formatExportVideoUploadBlock(
+      videoUploadsResult.detail,
+      videoUploadsResult.uploadFailureReason,
+    );
   }
 
   const videoUploadResult = presenterResult.videoUploadResult;
@@ -622,11 +625,19 @@ const resolveExportVideoUploadBlock = (
     && !videoUploadResult.ok
     && videoUploadResult.reason !== 'noVideoDecodeRequest'
   ) {
-    return videoUploadResult.detail;
+    return formatExportVideoUploadBlock(
+      videoUploadResult.detail,
+      videoUploadResult.uploadFailureReason,
+    );
   }
 
   return null;
 };
+
+const formatExportVideoUploadBlock = (
+  detail: string,
+  uploadFailureReason: string | undefined,
+): string => uploadFailureReason ? `${uploadFailureReason}: ${detail}` : detail;
 
 const resolveExportVideoOwnershipBlock = (
   presenterResult: StartSharedRendererViewportPresenterResult
