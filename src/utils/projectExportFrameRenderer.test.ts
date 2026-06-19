@@ -141,6 +141,67 @@ describe('renderProjectExportFrame', () => {
     expect(getExportCanvas).not.toHaveBeenCalled();
   });
 
+  it('fails a non-video Rust frame source block when the error forbids legacy canvas fallback', async () => {
+    const error = new SharedRendererExportFrameSourceBlockedError(
+      'Shared renderer export output is unavailable (imageOwnership=pixi:nativeRenderFrameUnavailable).',
+      'sharedRendererOutputUnavailable',
+      2,
+      false
+    );
+    const closeRustFrameSource = vi.fn();
+    const onRustFrameSourceBlocked = vi.fn();
+    const onRustFrameSourceFallback = vi.fn();
+    const renderScene = vi.fn();
+    const getExportCanvas = vi.fn(() => ({ id: 'legacy-canvas' }) as unknown as HTMLCanvasElement);
+    const captureLegacyCanvasFrame = vi.fn(async () => ({
+      timestamp: 66_667,
+      bitmap: { close: vi.fn() } as unknown as ImageBitmap,
+    }));
+    const frameSourcePlan: Extract<ProjectExportFrameSourcePlanResult, { ok: true }> = {
+      ok: true,
+      source: 'sharedRendererRustFrameSource',
+      frameSource: {
+        renderEncodeFrame: vi.fn(async () => {
+          throw error;
+        }),
+      },
+      captureCanvas: false,
+      requiresRenderScene: false,
+      usesExportFrameOverrides: false,
+      rustFrameSourceBlockedFallback: 'legacyCanvas',
+    };
+
+    await expect(renderProjectExportFrame({
+      frameSourcePlan,
+      rustFrameSourceBlocked: false,
+      frameIndex: 2,
+      fps: 30,
+      width: 4,
+      height: 2,
+      objects: [],
+      encodeSessionId: 'session-non-video-blocked',
+      preferSharedFrame: true,
+      renderScene,
+      getExportCanvas,
+      closeRustFrameSource,
+      onRustFrameSourceBlocked,
+      onRustFrameSourceFallback,
+      captureLegacyCanvasFrame,
+    })).rejects.toThrow(error);
+
+    expect(onRustFrameSourceBlocked).toHaveBeenCalledWith({
+      reason: 'sharedRendererOutputUnavailable',
+      frameIndex: 2,
+      legacyCanvasFallbackAllowed: false,
+      detail: 'Shared renderer export output is unavailable (imageOwnership=pixi:nativeRenderFrameUnavailable).',
+    });
+    expect(onRustFrameSourceFallback).not.toHaveBeenCalled();
+    expect(closeRustFrameSource).toHaveBeenCalledTimes(1);
+    expect(renderScene).not.toHaveBeenCalled();
+    expect(getExportCanvas).not.toHaveBeenCalled();
+    expect(captureLegacyCanvasFrame).not.toHaveBeenCalled();
+  });
+
   it('fails an already blocked required Rust frame source without restoring legacy canvas capture', async () => {
     const renderScene = vi.fn();
     const getExportCanvas = vi.fn(() => ({ id: 'legacy-canvas' }) as unknown as HTMLCanvasElement);
