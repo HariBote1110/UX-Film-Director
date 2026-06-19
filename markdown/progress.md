@@ -1037,3 +1037,13 @@
 - Green: export開始時に `getProjectExportIpcRenderer` でIPCを取得し、未接続なら「Electron app windowでexportする必要がある」と明示するようにした。
 - 検証: `npm test -- mediaMetadata useTimelineDrop useProjectExportBoundary` は38件成功。対象TSファイルで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-218c`。
+
+## 2026-06-20
+- PixiJSへ戻す選択肢を避け、Rust/shared renderer経路で動画preview/exportが止まっている地点を画面上に出す方針へ寄せた。
+- Red: `ExportProgress` と `ExportProgressModal` に、Rust exportの現在工程 `stepDetail` を保持・表示する契約を追加した。
+- Red: `Viewport` に、動画previewが空白のままにならないようshared renderer presenter診断を表示する契約を追加した。
+- Green: export hookのsave path待ち、audio mix、shared-frame source待ち、encoder終了などの工程を進捗モーダルへ表示するようにした。
+- Green: shared renderer presenterのdatasetからstatus / native render failure / video upload failureを集め、動画objectがあるpreview上へ診断として表示するようにした。
+- shared-frame取得が長時間返らない場合、15秒で工程名付きエラーへ変換し、意味のない無限プログレスを避けるようにした。
+- 検証: `npm test -- exportProgress ExportProgressModal viewportRustVideoOnlyBoundary useProjectExportBoundary` は73件成功。`npx tsc --noEmit --pretty false` は既存のThree/mp4box/古いテスト型エラーで失敗。今回触ったファイルで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-218d`。

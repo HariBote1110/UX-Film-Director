@@ -6585,6 +6585,25 @@
 - 動画読み込みはブラウザfallbackでもTLに入るはず。Rust exportはElectron IPCが必要なので、Electron window側で再確認する。
 - Electron window側でもIPC未接続になる場合は、preload設定または起動経路を直接修正する。
 
+## 2026-06-20 — Rust preview/export診断を画面に表示
+
+### 実施内容
+- PixiJSへ戻す選択肢を避け、Rust/shared renderer経路で動画preview/exportが止まっている地点を画面上に出す方針へ寄せた。
+- Red: `ExportProgress` と `ExportProgressModal` に、Rust exportの現在工程 `stepDetail` を保持・表示する契約を追加した。
+- Red: `Viewport` に、動画previewが空白のままにならないようshared renderer presenter診断を表示する契約を追加した。
+- Green: export hookのsave path待ち、audio mix、shared-frame source待ち、encoder終了などの工程を進捗モーダルへ表示するようにした。
+- Green: shared renderer presenterのdatasetからstatus / native render failure / video upload failureを集め、動画objectがあるpreview上へ診断として表示するようにした。
+- shared-frame取得が長時間返らない場合、15秒で工程名付きエラーへ変換し、意味のない無限プログレスを避けるようにした。
+- 版を `0.1.1-Beta-218d` に更新した。
+
+### 検証
+- `npm test -- exportProgress ExportProgressModal viewportRustVideoOnlyBoundary useProjectExportBoundary`
+- `npx tsc --noEmit --pretty false` は既存のThree/mp4box/古いテスト型エラーで失敗。今回触ったファイルで絞った `tsc` 出力は空。
+
+### 残課題・次のステップ
+- Electron windowでGoPro動画previewを再確認し、表示されたshared renderer診断を元にRust video upload / native render uploadの実不具合を直接修正する。
+- Export失敗時はモーダルの `Rust export: ...` 工程名とalertの詳細を元に、Rust backend encoderまたはshared-frame handoff側を直す。
+
 ## 2026-06-19 — shared frame copy checksum検証を追加
 
 ### 実施内容
