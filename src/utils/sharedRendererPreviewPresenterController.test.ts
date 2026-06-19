@@ -450,13 +450,7 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
-  it('exposes WebGPU presented frame readback on the ready presenter control', async () => {
-    const bufferBytes = Uint8Array.from([
-      1, 2, 3, 4, 5, 6, 7, 8,
-      ...Array.from({ length: 248 }, () => 0),
-      9, 10, 11, 12, 13, 14, 15, 16,
-      ...Array.from({ length: 248 }, () => 0),
-    ]);
+  it('does not expose WebGPU presented frame readback on ready presenter controls', async () => {
     const copyOperations: unknown[] = [];
 
     const control = await startSharedRendererPreviewPresenter({
@@ -475,7 +469,6 @@ describe('startSharedRendererPreviewPresenter', () => {
         format: 'bgra8unorm',
         onRequestAdapter: () => fakeAdapter({
           device: fakeDevice({
-            readbackBytes: bufferBytes,
             onCopyTextureToBuffer: (...args) => {
               copyOperations.push(args);
             },
@@ -489,25 +482,8 @@ describe('startSharedRendererPreviewPresenter', () => {
 
     expect(control.ok).toBe(true);
     if (!control.ok) throw new Error('expected ready control');
-    expect(typeof control.readPresentedFrameRgbaBytes).toBe('function');
-    if (!control.readPresentedFrameRgbaBytes) throw new Error('expected readback control');
-    await expect(control.readPresentedFrameRgbaBytes({
-      width: 2,
-      height: 2,
-    })).resolves.toEqual({
-      rgbaBytes: bufferBytes,
-      strideBytes: 256,
-      byteLen: 512,
-      width: 2,
-      height: 2,
-    });
-    expect(copyOperations).toEqual([
-      [
-        { texture: 'current-texture' },
-        { buffer: 'readback-buffer', bytesPerRow: 256, rowsPerImage: 2 },
-        { width: 2, height: 2, depthOrArrayLayers: 1 },
-      ],
-    ]);
+    expect('readPresentedFrameRgbaBytes' in control).toBe(false);
+    expect(copyOperations).toEqual([]);
   });
 
   it('does not expose WebGPU readback on video preview presenter controls', async () => {
