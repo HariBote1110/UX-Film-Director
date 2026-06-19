@@ -22,6 +22,7 @@ import { createSharedVideoFramePresentedFrameTaker } from '../utils/sharedVideoF
 import { captureProjectExportLegacyCanvasFrame } from '../utils/projectExportLegacyCanvasCapture';
 import { encodeProjectExportCompatibilityVideo } from '../utils/projectExportCompatibilityEncoder';
 import { updateExportProgressPhase } from '../utils/exportProgressDiagnostics';
+import { logLastExportDiagnostics } from '../utils/exportDiagnosticsLog';
 import type {
   RustBackendVideoEncodeFrame,
   RustBackendVideoEncodeSharedFramePayloadFrame,
@@ -339,6 +340,7 @@ export const useProjectExport = (
           await closeRustFrameSource?.();
         }
         setExporting(false);
+        logLastExportDiagnostics(useStore.getState().lastExportDiagnostics);
       }
     };
 

@@ -134,6 +134,17 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     expect(code).toContain("phase: 'saving'");
   });
 
+  it('logs the retained Rust export diagnostics after export cleanup', () => {
+    const code = source();
+
+    expect(code).toContain("import { logLastExportDiagnostics } from '../utils/exportDiagnosticsLog'");
+    expect(code).toContain('setExporting(false);');
+    expect(code).toContain('logLastExportDiagnostics(useStore.getState().lastExportDiagnostics);');
+    expect(code.indexOf('setExporting(false);')).toBeLessThan(
+      code.indexOf('logLastExportDiagnostics(useStore.getState().lastExportDiagnostics);')
+    );
+  });
+
   it('renders native render output release diagnostics from export progress', () => {
     const code = exportProgressModalSource();
 
