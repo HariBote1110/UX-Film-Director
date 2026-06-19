@@ -219,6 +219,129 @@ fn encode_start_accepts_audio_path_and_muxes_audio_with_shared_frames() {
 }
 
 #[test]
+fn native_rendered_image_frame_can_feed_audio_muxed_encode() {
+    let mut backend = BackendProcess::start();
+    let temp_dir = TestTempDir::new("native-render-image-audio-encode");
+    let image_path = temp_dir.path().join("red-source.png");
+    let image_frame = RgbaFrame::from_rgba8(
+        2,
+        2,
+        vec![
+            255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255,
+        ],
+    )
+    .expect("build PNG source frame");
+    save_rgba_png(&image_path, &image_frame).expect("write PNG source fixture");
+    let audio_path = temp_dir.path().join("mixed-audio.wav");
+    write_silent_wav_fixture(&audio_path, 48_000, 4_800);
+    let audio_path_string = audio_path.to_string_lossy().into_owned();
+    let output_path = temp_dir.path().join("native-rendered-image-with-audio.mp4");
+    let output_path_string = output_path.to_string_lossy().into_owned();
+    let render_memory_id = unique_shm_name();
+    let slot_count = 1;
+    let width = 4;
+    let height = 4;
+
+    let render = backend.request(json!({
+        "id": 101,
+        "method": "render.nativeSharedFrame",
+        "params": {
+            "renderId": "native-render-image-audio-encode",
+            "memoryId": render_memory_id,
+            "slotCount": slot_count,
+            "ptsFrame": 0,
+            "width": width,
+            "height": height,
+            "snapshot": {
+                "frame_index": 0,
+                "colour": {
+                    "profile": "rec709-sdr",
+                    "working_space": "linear-light",
+                    "alpha": "premultiplied"
+                },
+                "clips": [{
+                    "clip_id": "clip-native-image",
+                    "track_id": "track-1",
+                    "media_id": "image-1",
+                    "source_frame": 0,
+                    "z_index": 0,
+                    "transform": {
+                        "translation_x": 0.0,
+                        "translation_y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation_degrees": 0.0,
+                        "sampling": "nearest"
+                    },
+                    "opacity": 1.0,
+                    "effects": []
+                }]
+            },
+            "media": [{
+                "id": "image-1",
+                "kind": "Image",
+                "source": image_path.to_string_lossy(),
+                "width": 2,
+                "height": 2
+            }],
+            "sources": []
+        }
+    }));
+    assert_eq!(render["ok"], true, "{render}");
+    assert_no_frame_bytes_recursive(&render["result"]);
+
+    let start = backend.request(json!({
+        "id": 102,
+        "method": "encode.start",
+        "params": {
+            "sessionId": "encode-native-image-audio",
+            "filePath": output_path_string.clone(),
+            "audioPath": audio_path_string.clone(),
+            "width": width,
+            "height": height,
+            "fps": 30,
+            "pixelFormat": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(start["ok"], true, "{start}");
+    assert_eq!(start["result"]["audioPath"], audio_path_string);
+
+    let write = backend.request(json!({
+        "id": 103,
+        "method": "encode.writeFrame",
+        "params": {
+            "sessionId": "encode-native-image-audio",
+            "frameIndex": 0,
+            "timestampUs": 0,
+            "slotCount": render["result"]["slotCount"],
+            "frame": render["result"]["frame"]
+        }
+    }));
+    assert_eq!(write["ok"], true, "{write}");
+    assert_eq!(write["result"]["frameCount"], 1);
+
+    let finish = backend.request(json!({
+        "id": 104,
+        "method": "encode.finish",
+        "params": {
+            "sessionId": "encode-native-image-audio"
+        }
+    }));
+    assert_eq!(finish["ok"], true, "{finish}");
+    assert_eq!(finish["result"]["filePath"], output_path_string);
+    assert_eq!(finish["result"]["frameCount"], 1);
+    assert_eq!(finish["result"]["audioPath"], audio_path_string);
+    assert_no_frame_bytes_recursive(&finish["result"]);
+    assert_mp4_has_audio_stream(&output_path);
+}
+
+#[test]
 fn native_render_shared_frame_consumes_source_shm_and_returns_descriptor_only() {
     let mut backend = BackendProcess::start();
     let source_memory_id = unique_shm_name();

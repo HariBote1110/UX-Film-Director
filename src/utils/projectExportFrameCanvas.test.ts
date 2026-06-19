@@ -11,7 +11,7 @@ import {
   shouldSynchroniseTimelineForProjectExportFrame,
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
-import type { ImageObject, PsdObject, TimelineObject, VideoObject } from '../types';
+import type { AudioObject, ImageObject, PsdObject, ShapeObject, TimelineObject, VideoObject } from '../types';
 
 const source = () =>
   readFileSync(new URL('./projectExportFrameCanvas.ts', import.meta.url), 'utf8');
@@ -63,6 +63,54 @@ const image = (patch: Partial<ImageObject> = {}): ImageObject => ({
   filePath: '/tmp/overlay.png',
   width: 1280,
   height: 720,
+  ...patch,
+});
+
+const shape = (patch: Partial<ShapeObject> = {}): ShapeObject => ({
+  id: 'shape-1',
+  type: 'shape',
+  name: 'Rectangle',
+  layer: 1,
+  startTime: 0,
+  duration: 5,
+  x: 0,
+  y: 0,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 0,
+  endY: 0,
+  easing: 'linear',
+  shapeType: 'rect',
+  width: 320,
+  height: 180,
+  fill: '#ff0000',
+  ...patch,
+});
+
+const audio = (patch: Partial<AudioObject> = {}): AudioObject => ({
+  id: 'audio-1',
+  type: 'audio',
+  name: 'music.wav',
+  layer: 2,
+  startTime: 0,
+  duration: 5,
+  x: 0,
+  y: 0,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 0,
+  endY: 0,
+  easing: 'linear',
+  src: 'blob:audio',
+  filePath: '/tmp/music.wav',
+  volume: 1,
+  muted: false,
   ...patch,
 });
 
@@ -477,6 +525,42 @@ describe('resolveProjectExportRustFrameSourceContext', () => {
       presentedFrameSharedFrameTaker: undefined,
     })).toEqual({
       objects: [image(), psd()],
+      hasVideoObjects: false,
+      hasNativeRenderMediaObjects: true,
+      time: 0,
+      preferEncodeOnly: false,
+      presentedFrameSharedFrameTaker: undefined,
+    });
+  });
+
+  it('marks shape image and audio MVP exports as native-render media while leaving audio out of visual media detection', () => {
+    const objects: TimelineObject[] = [shape(), image(), audio()];
+
+    expect(resolveProjectExportRustFrameSourceContext({
+      objects,
+      time: 0,
+      encodeEngine: 'webCodecsMp4Muxer',
+      presentedFrameSharedFrameTaker: undefined,
+    })).toEqual({
+      objects,
+      hasVideoObjects: false,
+      hasNativeRenderMediaObjects: true,
+      time: 0,
+      preferEncodeOnly: false,
+      presentedFrameSharedFrameTaker: undefined,
+    });
+  });
+
+  it('marks shape-only MVP exports as native-render media instead of legacy canvas work', () => {
+    const objects: TimelineObject[] = [shape(), audio()];
+
+    expect(resolveProjectExportRustFrameSourceContext({
+      objects,
+      time: 0,
+      encodeEngine: 'webCodecsMp4Muxer',
+      presentedFrameSharedFrameTaker: undefined,
+    })).toEqual({
+      objects,
       hasVideoObjects: false,
       hasNativeRenderMediaObjects: true,
       time: 0,
