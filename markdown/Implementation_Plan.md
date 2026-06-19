@@ -1097,6 +1097,11 @@ Rust backend encoder / shared-frame pathをhook本体の主経路に保ち、bro
 `projectExportCompatibilityEncoder` adapterでだけ読み込む。
 Rust backend encoder / shared-frame pathのhook本体からbrowser encoder依存をさらに遠ざける。
 
+204. Phase5: export計画のRust必須条件からrustVideoOnly入力を外す
+動画を含むexportでは `rustVideoOnly` flagの有無に関係なくRust backend encoder / Rust frame sourceを必須にする。
+そのため `projectExportEncodePlan` と `projectExportFrameCanvas` のpolicy入力から `rustVideoOnly` を削除し、
+export判定の正本を `hasVideoObjects` とRust encoder availabilityへ寄せる。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

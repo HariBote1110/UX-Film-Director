@@ -460,3 +460,10 @@
 - Green: `projectExportCompatibilityEncoder` を追加し、`useProjectExport` は `encodeProjectExportCompatibilityVideo` を呼ぶだけにした。
 - 検証: `npm test -- useProjectExportBoundary` は12件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-182a`。
+
+## 2026-06-19
+- Phase5のexport計画境界として、`projectExportEncodePlan` / `projectExportFrameCanvas` のpolicy入力から `rustVideoOnly` を削除した。
+- Red: それぞれのsource境界テストに、export encode / frame source policyが `rustVideoOnly` を露出しない契約を追加した。
+- Green: `useProjectExport` から `rustVideoOnly` のexport計画受け渡しを削除し、動画exportのRust必須判定を `hasVideoObjects` に一本化した。
+- 検証: `npm test -- projectExportEncodePlan projectExportFrameCanvas useProjectExportBoundary` は43件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-183a`。
