@@ -1856,6 +1856,74 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
+  it('blocks video frame presentation failures when shared renderer output is required', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const events: string[] = [];
+    const rgbaBytes = new Uint8Array(decodedVideoDescriptor.byteLen);
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      requireSharedRendererOutput: true,
+      rustVideoPlaneWasmEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererDecodedVideoFrameUpload: {
+        descriptor: decodedVideoDescriptor,
+        ptsFrame: 90,
+        rgbaBytes,
+        releaseAfterGpuUpload: async () => {
+          events.push('release-after-upload');
+        },
+      },
+      rustVideoFrameDecodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video.mp4',
+          sourceFrame: 90,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 12,
+          width: 1280,
+          height: 720,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            exposeCreateSampler: false,
+            onWriteTexture: () => {
+              events.push('writeTexture');
+            },
+            onSubmittedWorkDone: async () => {
+              events.push('gpuUploadDone');
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    } as any);
+
+    expect(control).toMatchObject({
+      ok: false,
+      reason: 'webGpuDrawUnavailable',
+    });
+    expect(events).toEqual(['writeTexture', 'gpuUploadDone', 'release-after-upload']);
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterStatus: 'blocked',
+      uxfdSharedRendererPresenterFailureReason: 'webGpuDrawUnavailable',
+    });
+  });
+
   it('aborts the decoded Rust video slot when WebGPU texture upload is unavailable', async () => {
     const dataset: Record<string, string | undefined> = {};
     const events: string[] = [];
@@ -2260,6 +2328,8 @@ const fakeDevice = ({
   createRenderPipeline,
   exposeWriteTexture = true,
   exposeCreateRenderPipeline = true,
+  exposeCreateSampler = true,
+  exposeCreateBindGroup = true,
   readbackBytes = new Uint8Array(),
   lost = new Promise(() => undefined),
 }: {
@@ -2282,6 +2352,8 @@ const fakeDevice = ({
   createRenderPipeline?: (descriptor?: { label?: string }) => unknown;
   exposeWriteTexture?: boolean;
   exposeCreateRenderPipeline?: boolean;
+  exposeCreateSampler?: boolean;
+  exposeCreateBindGroup?: boolean;
   readbackBytes?: Uint8Array;
   lost?: Promise<unknown>;
 } = {}) => ({
@@ -2302,8 +2374,8 @@ const fakeDevice = ({
       getBindGroupLayout: (index: number) => `bind-group-layout-${index}`,
     })),
   } : {}),
-  createSampler: () => 'video-frame-sampler',
-  createBindGroup: () => 'video-frame-bind-group',
+  ...(exposeCreateSampler ? { createSampler: () => 'video-frame-sampler' } : {}),
+  ...(exposeCreateBindGroup ? { createBindGroup: () => 'video-frame-bind-group' } : {}),
   createBuffer: (descriptor?: { label?: string }) => {
     if (descriptor?.label === 'shared-renderer-presented-frame-readback') {
       return {
