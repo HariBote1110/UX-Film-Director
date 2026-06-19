@@ -117,6 +117,13 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     );
   });
 
+  it('preserves Rust frame source blocked diagnostics across rendering progress ticks', () => {
+    const code = source();
+
+    expect(code).toContain('const progress = useStore.getState().exportProgress;');
+    expect(code).toContain('setExportProgress({ ...progress, phase: \'rendering\', currentFrame: i, totalFrames });');
+  });
+
   it('renders native render output release diagnostics from export progress', () => {
     const code = exportProgressModalSource();
 
