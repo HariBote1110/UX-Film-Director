@@ -655,6 +655,40 @@ describe('resolveViewportRustExportFrameSource', () => {
     expect(sourceCalls).toEqual([]);
   });
 
+  it('preflights object last visible frame times before creating a Rust export frame source', () => {
+    const sessionCalls: SharedRendererExportSessionInput[] = [];
+    const timedObjects = [
+      rectangle({ id: 'later-shape', startTime: 2, duration: 3 }),
+      rectangle({ id: 'short-shape', startTime: 4, duration: 1 / 120 }),
+    ];
+
+    const decision = resolveViewportRustExportFrameSource({
+      ...baseInput,
+      objects: timedObjects,
+      time: 0,
+      buildExportSession: (input) => {
+        sessionCalls.push(input);
+        return exportSessionWithSurfaceGate({
+          ok: true,
+          canvas: {
+            width: 1920,
+            height: 1080,
+          },
+          snapshot: {} as never,
+          media: [],
+        });
+      },
+    });
+
+    expect(decision.ok).toBe(true);
+    expect(sessionCalls.map((input) => input.time)).toEqual([
+      0,
+      2,
+      4,
+      5 - (1 / settings.fps),
+    ]);
+  });
+
   it('returns explicit fallback reasons for closed Rust export gates', () => {
     expect(resolveViewportRustExportFrameSource({
       ...baseInput,
