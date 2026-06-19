@@ -3456,6 +3456,70 @@ describe('createSharedRendererExportFrameSource', () => {
     });
   });
 
+  it('blocks bitmap export before legacy capture when shared renderer output is unavailable', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    let disposeCount = 0;
+    let bitmapCaptureCount = 0;
+
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      startViewportPresenter: async () => ({
+        control: {
+          ok: false,
+          reason: 'sharedRendererOutputUnavailable',
+          dispose: () => { disposeCount += 1; },
+        },
+        activeVideoDecodeJob: null,
+        activeVideoDecodeJobs: [],
+        nativeRenderUploadResult: {
+          ok: false,
+          reason: 'webGpuUploadUnavailable',
+          detail: 'WebGPU device does not expose the texture upload APIs needed for decoded video frames.',
+          activeJobs: [],
+        },
+      }) as never,
+      createFrameBitmap: async () => {
+        bitmapCaptureCount += 1;
+        return ({ close: () => undefined }) as ImageBitmap;
+      },
+    });
+
+    const blocked = await source.renderFrame?.({
+      frameIndex: 4,
+      timestampUs: 66_667,
+      time: 4 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [image()],
+    }).catch((error) => error);
+
+    expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
+    expect(blocked).toMatchObject({
+      reason: 'sharedRendererOutputUnavailable',
+      frameIndex: 4,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
+      message: 'Shared renderer export output is unavailable (webGpuUploadUnavailable: WebGPU device does not expose the texture upload APIs needed for decoded video frames.).',
+    });
+    expect(bitmapCaptureCount).toBe(0);
+    expect(disposeCount).toBe(1);
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'blocked',
+      uxfdRustExportFrameSourceFrameIndex: '4',
+      uxfdRustExportFrameSourceFrameReason: 'sharedRendererOutputUnavailable',
+    });
+  });
+
   it('falls back before bitmap capture when Rust video upload fails during export', async () => {
     const canvas = {
       width: 1,
