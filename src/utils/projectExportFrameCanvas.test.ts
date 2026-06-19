@@ -496,6 +496,7 @@ describe('resolveProjectExportRustFrameSourceContext', () => {
     })).toEqual({
       objects,
       hasVideoObjects: true,
+      hasNativeRenderMediaObjects: true,
       time: 0,
       preferEncodeOnly: true,
       presentedFrameSharedFrameTaker,

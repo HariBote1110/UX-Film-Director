@@ -10,6 +10,7 @@ import {
   buildProjectExportFrameSourcePlan,
   createSingleUseProjectExportFrameSourceCloser,
   formatProjectExportRustFrameSourceUnavailableDetail,
+  hasProjectExportNativeRenderMediaObjects,
   resolveProjectExportFrameSourcePolicyForEncode,
   resolveProjectExportRustFrameSourceContext,
   type ProjectExportRustFrameSourceContext,
@@ -69,7 +70,7 @@ export const useProjectExport = (
         setExporting(false);
         return;
       }
-      const hasNativeRenderMediaObjects = exportObjects.some((object) => object.type === 'image' || object.type === 'psd');
+      const hasNativeRenderMediaObjects = hasProjectExportNativeRenderMediaObjects(exportObjects);
       const frameSourcePolicy = resolveProjectExportFrameSourcePolicyForEncode({
         rustExportOnly,
         hasVideoObjects,

@@ -313,6 +313,16 @@ export const resolveProjectExportFrameSourcePolicyForEncode = ({
   };
 };
 
+export const hasProjectExportNativeRenderMediaObjects = (
+  objects: readonly TimelineObject[]
+): boolean =>
+  objects.some((object) =>
+    object.type === 'shape'
+    || object.type === 'image'
+    || object.type === 'psd'
+    || object.type === 'video'
+  );
+
 export const resolveProjectExportRustFrameSourceContext = ({
   objects,
   time,
@@ -321,9 +331,7 @@ export const resolveProjectExportRustFrameSourceContext = ({
   onFrameSourceUnavailable,
 }: ResolveProjectExportRustFrameSourceContextInput): ProjectExportRustFrameSourceContext => {
   const hasVideoObjects = objects.some((object) => object.type === 'video');
-  const hasNativeRenderMediaObjects = objects.some((object) =>
-    object.type === 'image' || object.type === 'psd'
-  );
+  const hasNativeRenderMediaObjects = hasProjectExportNativeRenderMediaObjects(objects);
 
   return {
     objects,
