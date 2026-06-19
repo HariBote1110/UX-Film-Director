@@ -54,6 +54,7 @@ export type SharedRendererExportFrameSourceBlockedReason =
   | 'nativeRenderUnsupportedMedia'
   | 'sharedRendererOutputUnavailable'
   | 'webGpuDrawUnavailable'
+  | 'nativeRenderTextureViewUnavailable'
   | 'preparedNativeRenderSourceAbortReleaseFailed'
   | 'nativeRenderFailed';
 
@@ -713,13 +714,14 @@ const resolveExportVideoUploadBlock = (
 
 const resolveSharedRendererOutputBlock = (
   presenterResult: StartSharedRendererViewportPresenterResult
-): { reason: 'sharedRendererOutputUnavailable' | 'webGpuDrawUnavailable'; detail: string } | null => {
+): { reason: 'sharedRendererOutputUnavailable' | 'webGpuDrawUnavailable' | 'nativeRenderTextureViewUnavailable'; detail: string } | null => {
   if (presenterResult.control.ok) {
     return null;
   }
   if (
     presenterResult.control.reason !== 'sharedRendererOutputUnavailable'
     && presenterResult.control.reason !== 'webGpuDrawUnavailable'
+    && presenterResult.control.reason !== 'nativeRenderTextureViewUnavailable'
   ) {
     return null;
   }
@@ -727,6 +729,12 @@ const resolveSharedRendererOutputBlock = (
     return {
       reason: 'webGpuDrawUnavailable',
       detail: 'Shared renderer WebGPU presentation is unavailable.',
+    };
+  }
+  if (presenterResult.control.reason === 'nativeRenderTextureViewUnavailable') {
+    return {
+      reason: 'nativeRenderTextureViewUnavailable',
+      detail: 'Native render texture view is unavailable for shared renderer presentation.',
     };
   }
   const nativeRenderUploadResult = presenterResult.nativeRenderUploadResult;
