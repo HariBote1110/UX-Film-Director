@@ -150,4 +150,13 @@ describe('Viewport Rust video-only boundary', () => {
     expect(code).not.toContain('drawVideoFrameToTexture');
     expect(code).not.toContain('shouldReplacePixiVideoElementSource');
   });
+
+  it('does not keep stale Pixi video sprite crop helpers after video cutover', () => {
+    const code = pixiRenderHelperSource();
+
+    expect(code).not.toContain('VideoObject');
+    expect(code).not.toContain('evaluateSubjectCropNormRectAtTime');
+    expect(code).not.toContain('applyVideoSubjectCropMask');
+    expect(code).not.toContain("obj.type === 'image' || obj.type === 'video'");
+  });
 });
