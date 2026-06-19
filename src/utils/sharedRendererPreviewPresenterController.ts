@@ -477,7 +477,7 @@ export const startSharedRendererPreviewPresenter = async ({
     hasSolidColourScene,
     nativeRenderFrameReady,
     nativeRenderSolidColourObjectIds: nativeRenderFrameReady
-      ? collectObjectIdsByMediaKind(session, 'SolidColour')
+      ? collectGeneratedPaintObjectIds(session)
       : undefined,
     geometrySource: solidColourGeometrySource,
     solidColourObjectIds,
@@ -693,18 +693,27 @@ const hasSolidColourClip = (session: SharedRendererPreviewSession): boolean => {
   if (!session.surfaceGate.ok) return false;
 
   const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
-  return session.surfaceGate.snapshot.clips.some((clip) => mediaKindById.get(clip.media_id) === 'SolidColour');
+  return session.surfaceGate.snapshot.clips.some((clip) => isGeneratedPaintMediaKind(mediaKindById.get(clip.media_id)));
 };
 
 const collectSolidColourObjectIds = (session: SharedRendererPreviewSession): string[] => {
+  return collectGeneratedPaintObjectIds(session);
+};
+
+const collectGeneratedPaintObjectIds = (session: SharedRendererPreviewSession): string[] => {
   if (!session.surfaceGate.ok) return [];
 
   const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
   return session.surfaceGate.snapshot.clips
-    .filter((clip) => mediaKindById.get(clip.media_id) === 'SolidColour')
+    .filter((clip) => isGeneratedPaintMediaKind(mediaKindById.get(clip.media_id)))
     .sort((left, right) => left.z_index - right.z_index)
     .map((clip) => clip.clip_id);
 };
+
+const isGeneratedPaintMediaKind = (
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'Psd' | undefined
+): boolean =>
+  kind === 'SolidColour' || kind === 'GeneratedGradient';
 
 const collectObjectIdsByMediaKind = (
   session: SharedRendererPreviewSession,

@@ -149,7 +149,9 @@ const isSharedRendererOwnedAboveSolidColour = ({
   candidateSolidColourObjectIds: ReadonlySet<string>;
   sharedRendererVideoObjectIds: ReadonlySet<string>;
 }): boolean => {
-  if (mediaKind === 'SolidColour') return candidateSolidColourObjectIds.has(clipId);
+  if (mediaKind === 'SolidColour' || mediaKind === 'GeneratedGradient') {
+    return candidateSolidColourObjectIds.has(clipId);
+  }
   if (mediaKind === 'Video') return sharedRendererVideoObjectIds.has(clipId);
   return false;
 };

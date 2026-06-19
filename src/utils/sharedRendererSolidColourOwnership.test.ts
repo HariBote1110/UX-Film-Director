@@ -103,6 +103,37 @@ describe('buildSharedRendererSolidColourStackSafety', () => {
       blockedSolidColourObjectIds: [],
     });
   });
+
+  it('allows SolidColour cutover when a generated gradient plane above it is also shared-renderer paint', () => {
+    expect(buildSharedRendererSolidColourStackSafety({
+      snapshot: {
+        ...snapshot,
+        clips: [
+          snapshot.clips[0],
+          {
+            ...snapshot.clips[1],
+            clip_id: 'gradient-front',
+            media_id: 'gradient-front',
+          },
+        ],
+      },
+      media: [
+        media[0],
+        {
+          id: 'gradient-front',
+          kind: 'GeneratedGradient',
+          source: '{"type":"linear","colours":["#ff0000","#0000ff"],"stops":[0,1],"direction":90}',
+          width: 200,
+          height: 100,
+        },
+      ],
+      candidateSolidColourObjectIds: ['shape-back', 'gradient-front'],
+      sharedRendererVideoObjectIds: [],
+    })).toMatchObject({
+      safeSolidColourObjectIds: ['shape-back', 'gradient-front'],
+      blockedSolidColourObjectIds: [],
+    });
+  });
 });
 
 describe('buildSharedRendererSolidColourOwnership', () => {
