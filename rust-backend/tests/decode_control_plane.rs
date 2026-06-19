@@ -602,6 +602,149 @@ fn native_render_shared_frame_builds_generated_gradient_sources_from_media() {
 }
 
 #[test]
+fn native_render_shared_frame_composites_video_source_with_generated_gradient_media() {
+    let mut backend = BackendProcess::start();
+    let source_memory_id = unique_shm_name();
+    let output_memory_id = unique_shm_name();
+    let slot_count = 1;
+    let width = 4;
+    let height = 4;
+    let stride_bytes = 256;
+    let slot_byte_len = stride_bytes * height;
+    let mut tight_rgba = Vec::with_capacity(width as usize * height as usize * 4);
+    for _ in 0..width * height {
+        tight_rgba.extend_from_slice(&[0, 255, 0, 255]);
+    }
+    let padded_rgba = pad_rgba_rows(&tight_rgba, width, height, stride_bytes as usize);
+    let source_ring = PosixSharedRing::create_with_slot_count(
+        &source_memory_id,
+        slot_count,
+        slot_byte_len as usize,
+    )
+    .expect("create native render video source ring");
+    source_ring
+        .write_frame(0, &padded_rgba)
+        .expect("write native render video source frame");
+
+    let response = backend.request(json!({
+        "id": 38,
+        "method": "render.nativeSharedFrame",
+        "params": {
+            "renderId": "native-render-video-generated-gradient",
+            "memoryId": output_memory_id,
+            "slotCount": slot_count,
+            "ptsFrame": 0,
+            "width": width,
+            "height": height,
+            "snapshot": {
+                "frame_index": 0,
+                "colour": {
+                    "profile": "rec709-sdr",
+                    "working_space": "linear-light",
+                    "alpha": "premultiplied"
+                },
+                "clips": [{
+                    "clip_id": "clip-video",
+                    "track_id": "track-1",
+                    "media_id": "video-1",
+                    "source_frame": 0,
+                    "z_index": 0,
+                    "transform": {
+                        "translation_x": 0.0,
+                        "translation_y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation_degrees": 0.0,
+                        "sampling": "nearest"
+                    },
+                    "opacity": 1.0,
+                    "effects": []
+                }, {
+                    "clip_id": "clip-generated-gradient",
+                    "track_id": "track-2",
+                    "media_id": "gradient-1",
+                    "source_frame": 0,
+                    "z_index": 1,
+                    "transform": {
+                        "translation_x": 0.0,
+                        "translation_y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation_degrees": 0.0,
+                        "sampling": "nearest"
+                    },
+                    "opacity": 1.0,
+                    "effects": []
+                }]
+            },
+            "media": [{
+                "id": "video-1",
+                "kind": "Video",
+                "source": "/tmp/video.mp4",
+                "width": 4,
+                "height": 4,
+                "source_rate": { "numerator": 60, "denominator": 1 }
+            }, {
+                "id": "gradient-1",
+                "kind": "GeneratedGradient",
+                "source": "{\"type\":\"linear\",\"colours\":[\"#ff0000\",\"#0000ff\"],\"stops\":[0,1],\"direction\":0}",
+                "width": 2,
+                "height": 2
+            }],
+            "sources": [{
+                "mediaId": "video-1",
+                "slotCount": slot_count,
+                "frame": {
+                    "descriptor": {
+                        "memoryId": source_memory_id,
+                        "slotIndex": 0,
+                        "generation": 1,
+                        "byteOffset": 0,
+                        "byteLen": slot_byte_len,
+                        "width": width,
+                        "height": height,
+                        "strideBytes": stride_bytes,
+                        "format": "rgba8Srgb",
+                        "colour": {
+                            "primaries": "bt709",
+                            "transfer": "srgb",
+                            "matrix": "rgb",
+                            "range": "full"
+                        }
+                    },
+                    "ptsFrame": 0
+                }
+            }]
+        }
+    }));
+
+    assert_eq!(response["ok"], true, "{response}");
+    assert_eq!(response["result"]["rendered"], true);
+    assert_no_frame_bytes_recursive(&response["result"]);
+    source_ring
+        .wait_until_free(Duration::from_secs(1))
+        .expect("video source shared frame slot returns to free after native render");
+
+    let output_slot_byte_len = response["result"]["frame"]["descriptor"]["byteLen"]
+        .as_u64()
+        .expect("output byte length") as usize;
+    let output_ring = PosixSharedRing::attach_with_retry_for_layout(
+        response["result"]["frame"]["descriptor"]["memoryId"]
+            .as_str()
+            .expect("output memory id"),
+        slot_count,
+        output_slot_byte_len,
+        Duration::from_secs(1),
+    )
+    .expect("attach to native video plus generated gradient output ring");
+    let output_frame = output_ring
+        .read_frame(0)
+        .expect("read native video plus generated gradient output frame");
+    assert_eq!(&output_frame.bytes[0..4], &[191, 0, 64, 255]);
+    assert_eq!(&output_frame.bytes[12..16], &[0, 255, 0, 255]);
+}
+
+#[test]
 fn native_render_shared_frame_builds_png_image_sources_from_media() {
     let mut backend = BackendProcess::start();
     let temp_dir = TestTempDir::new("native-render-image-media");

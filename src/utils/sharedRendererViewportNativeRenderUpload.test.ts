@@ -202,6 +202,71 @@ const buildVideoWithRemotePsdSession = (): SharedRendererPreviewSession => {
 
 const videoWithRemotePsdSession = buildVideoWithRemotePsdSession();
 
+const buildVideoWithGeneratedGradientSession = (): SharedRendererPreviewSession => {
+  if (!mediaOnlySession.surfaceGate.ok) {
+    throw new Error('mediaOnlySession fixture must be renderable');
+  }
+
+  const videoClip = {
+    ...mediaOnlySession.surfaceGate.snapshot.clips[0],
+    clip_id: 'video-1',
+    media_id: 'video-1',
+    source_frame: 24,
+    z_index: 0,
+    transform: {
+      ...mediaOnlySession.surfaceGate.snapshot.clips[0].transform,
+      sampling: 'bilinear' as const,
+    },
+  };
+  const gradientClip = {
+    ...mediaOnlySession.surfaceGate.snapshot.clips[0],
+    clip_id: 'gradient-1',
+    media_id: 'gradient-1',
+    source_frame: 0,
+    z_index: 1,
+    transform: {
+      ...mediaOnlySession.surfaceGate.snapshot.clips[0].transform,
+      sampling: 'bilinear' as const,
+    },
+  };
+  const snapshot = {
+    ...mediaOnlySession.surfaceGate.snapshot,
+    clips: [videoClip, gradientClip],
+  };
+  const media = [{
+    id: 'video-1',
+    kind: 'Video' as const,
+    source: '/tmp/video.mp4',
+    width: 4,
+    height: 4,
+    source_rate: { numerator: 60, denominator: 1 },
+  }, {
+    id: 'gradient-1',
+    kind: 'GeneratedGradient' as const,
+    source: '{"type":"linear","colours":["#ff0000","#0000ff"],"stops":[0,1],"direction":0}',
+    width: 4,
+    height: 4,
+  }];
+
+  return {
+    ...mediaOnlySession,
+    plan: {
+      mode: 'parallelCompare',
+      primary: 'pixi',
+      candidate: 'sharedRenderer',
+      snapshot,
+      media,
+    },
+    surfaceGate: {
+      ...mediaOnlySession.surfaceGate,
+      snapshot,
+      media,
+    },
+  };
+};
+
+const videoWithGeneratedGradientSession = buildVideoWithGeneratedGradientSession();
+
 const renderResult: RustBackendNativeRenderSharedFrameResult = {
   rendered: true,
   renderId: 'preview-native-render-24',
@@ -581,6 +646,98 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
         },
       }]],
       ['releaseAfterNativeRenderComplete'],
+    ]);
+  });
+
+  it('passes decoded video sources and generated gradient media through one Rust native render pass', async () => {
+    const calls: unknown[] = [];
+
+    const result = await prepareSharedRendererViewportNativeRenderUpload({
+      session: videoWithGeneratedGradientSession,
+      requestId: 27,
+      activeJobs: [],
+      prepareNativeRenderSources: async () => ({
+        ok: true,
+        activeJobs: [],
+        sources: [{
+          mediaId: 'video-1',
+          slotCount: 2,
+          frame: {
+            descriptor,
+            ptsFrame: 27,
+          },
+          releaseAfterNativeRenderComplete: async () => {
+            calls.push(['releaseAfterNativeRenderComplete', 'video-1']);
+          },
+          releaseAfterNativeRenderAbort: async () => {
+            calls.push(['releaseAfterNativeRenderAbort', 'video-1']);
+          },
+        }],
+      }),
+      renderNativeSharedFrame: async (payload) => {
+        calls.push(['renderNativeSharedFrame', {
+          media: payload.media,
+          sources: payload.sources,
+        }]);
+        return {
+          success: true,
+          result: {
+            ...renderResult,
+            renderId: 'preview-native-render-27',
+            frame: {
+              descriptor: {
+                ...descriptor,
+                memoryId: '/uxfd-preview-native-render-27',
+              },
+              ptsFrame: 27,
+            },
+          },
+        };
+      },
+      releaseNativeSharedFrame: async (payload) => {
+        calls.push(['releaseNativeSharedFrame', payload.memoryId]);
+        return { success: true };
+      },
+      copyBridge: {
+        copyIntoUploadBuffer: async (_payload, target) => {
+          target.fill(0x7e);
+          return {
+            success: true,
+            result: {
+              sequence: 27,
+              slotIndex: descriptor.slotIndex,
+              generation: descriptor.generation,
+              byteLen: descriptor.byteLen,
+              expectedChecksum: 0x1234,
+              actualChecksum: 0x1234,
+            },
+          };
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      activeJobs: [],
+      upload: {
+        ptsFrame: 27,
+      },
+    });
+    expect(calls).toEqual([
+      ['renderNativeSharedFrame', {
+        media: videoWithGeneratedGradientSession.surfaceGate.ok
+          ? videoWithGeneratedGradientSession.surfaceGate.media
+          : null,
+        sources: [{
+          mediaId: 'video-1',
+          slotCount: 2,
+          frame: {
+            descriptor,
+            ptsFrame: 27,
+          },
+        }],
+      }],
+      ['releaseAfterNativeRenderComplete', 'video-1'],
     ]);
   });
 
