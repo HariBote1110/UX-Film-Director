@@ -135,6 +135,7 @@ export const startSharedRendererViewportPresenter = async ({
     ? videoUploadsResult.uploads.map(({ request, upload }) => ({
       ...upload,
       clipId: request.clipId,
+      mediaId: request.mediaId,
     }))
     : undefined;
   const sharedRendererVideoUploadFailure = resolveSharedRendererVideoUploadFailure(

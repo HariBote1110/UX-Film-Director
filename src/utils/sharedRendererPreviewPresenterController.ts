@@ -124,6 +124,7 @@ export interface SharedRendererDecodedVideoFrameUpload extends SharedRendererVid
 
 export interface SharedRendererDecodedVideoFrameUploadForClip extends SharedRendererDecodedVideoFrameUpload {
   clipId: string;
+  mediaId?: string;
 }
 
 export const startSharedRendererPreviewPresenter = async ({
@@ -340,17 +341,20 @@ export const startSharedRendererPreviewPresenter = async ({
   }
   let uploadedVideoFrameTexture: unknown | null = null;
   const uploadedVideoFrameTexturesByClipId = new Map<string, unknown>();
+  const singleVideoUploadScope = resolveSingleVideoUploadScope(session);
   const uploadedVideoObjectIds = sharedRendererDecodedVideoFrameUploads
     ? new Set<string>()
     : undefined;
   const decodedVideoFrameUploads = sharedRendererDecodedVideoFrameUploads
     ? sharedRendererDecodedVideoFrameUploads.map((upload) => ({
       clipId: upload.clipId,
+      mediaId: upload.mediaId,
       upload,
     }))
     : sharedRendererDecodedVideoFrameUpload
       ? [{
-        clipId: undefined,
+        clipId: singleVideoUploadScope?.clipId,
+        mediaId: singleVideoUploadScope?.mediaId,
         upload: sharedRendererDecodedVideoFrameUpload,
       }]
       : [];
@@ -375,6 +379,7 @@ export const startSharedRendererPreviewPresenter = async ({
         reason: uploadResult.reason,
         detail: uploadResult.detail,
         clipId: decodedVideoFrameUpload.clipId,
+        mediaId: decodedVideoFrameUpload.mediaId,
       };
     }
   }
@@ -614,6 +619,24 @@ const collectObjectIdsByMediaKind = (
     .filter((clip) => mediaKindById.get(clip.media_id) === kind)
     .sort((left, right) => left.z_index - right.z_index)
     .map((clip) => clip.clip_id);
+};
+
+const resolveSingleVideoUploadScope = (
+  session: SharedRendererPreviewSession,
+): { clipId: string; mediaId: string } | undefined => {
+  if (!session.surfaceGate.ok) return undefined;
+
+  const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
+  const videoClips = session.surfaceGate.snapshot.clips
+    .filter((clip) => mediaKindById.get(clip.media_id) === 'Video')
+    .sort((left, right) => left.z_index - right.z_index);
+
+  if (videoClips.length !== 1) return undefined;
+  const [clip] = videoClips;
+  return {
+    clipId: clip.clip_id,
+    mediaId: clip.media_id,
+  };
 };
 
 const hasVideoClip = (session: SharedRendererPreviewSession): boolean => {
