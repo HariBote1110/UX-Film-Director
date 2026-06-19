@@ -574,7 +574,7 @@ export const startSharedRendererPreviewPresenter = async ({
     });
     if (!presentation.ok) {
       writeDiagnostics({
-        status: 'fallback',
+        status: requireSharedRendererOutput ? 'blocked' : 'fallback',
         reason: presentation.reason,
       });
       return {
