@@ -4586,3 +4586,20 @@
 ### 残課題・次のステップ
 - release bridge自体がrejectまたは `success:false` を返した場合、source release失敗とoutput release失敗をどう優先表示するかをTDDで固定する。
 - release失敗reasonの表示文言を、ユーザーが実機素材で原因追跡しやすい形へ整える。
+
+## 2026-06-19 — export native output release falseを診断化
+
+### 実施内容
+- Red: export native render output cleanupで `render.releaseNativeSharedFrame` が `{ success:false }` を返した場合、source release失敗に隠さず `nativeRenderOutputReleaseFailed` としてblocked診断へ出す契約を追加した。
+- Green: output release helperを追加し、`success:false` とrejectを失敗detailへ変換するようにした。
+- source complete release失敗後のcleanupでは、output release失敗を優先してdataset / `SharedRendererExportFrameSourceBlockedError` に記録し、Rust output ringが解放できていない状態を成功扱いしないようにした。
+- 版を `0.1.1-Beta-208l` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts -t "output release failure"`
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/rustBackendNativeRenderControl.test.ts src/utils/useProjectExportBoundary.test.ts src/components/ExportProgressModal.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/rustBackendNativeRenderControl\\.ts|src/hooks/useProjectExport\\.ts|src/components/ExportProgressModal\\.tsx)"`
+
+### 残課題・次のステップ
+- preview側の native output release callback でも `success:false` / reject を専用診断へ分離する。
+- `nativeRenderOutputReleaseFailed` の表示文言をExport progress modalでより分かりやすくする。
