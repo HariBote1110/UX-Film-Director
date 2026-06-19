@@ -63,6 +63,7 @@ export type PrepareSharedRendererViewportNativeRenderSourcesResult =
         | 'frameDecodeFailed'
         | 'staleDecodeResponse'
         | 'staleDecodeReleaseFailed'
+        | 'preparedNativeRenderSourceAbortReleaseFailed'
         | 'decodedFrameUnavailable';
       detail: string;
       activeJobs: SharedRendererViewportVideoDecodeJob[];
@@ -192,7 +193,7 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
       if (preparedSourceReleaseFailure) {
         return {
           ok: false,
-          reason: 'staleDecodeReleaseFailed',
+          reason: 'preparedNativeRenderSourceAbortReleaseFailed',
           detail: preparedSourceReleaseFailure,
           activeJobs: resolvedActiveJobs,
         };
