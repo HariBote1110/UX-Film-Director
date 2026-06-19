@@ -1118,6 +1118,8 @@ adapter入力の `hasVideoObjects` は必須booleanとし、呼び出し側が�
 Pixi bitmap overrideへ戻らないようにする。
 `shouldSkipPixiVideoForSharedRenderer` はexport中でもvideo objectを常にPixi描画から外し、
 Pixi動画所有へ復帰しない。
+このため `pixiVideoCutover` の公開入力は `objectType` だけに縮約し、`isExporting` /
+`sharedRendererVideoObjectIds` / `requireSharedRendererVideo` を所有判定へ持ち込まない。
 Viewportと `pixiRenderHelper` から旧VideoDecoder overlay canvas cacheとframe override resourceを外し、
 動画frame供給をRust/shared renderer側に寄せる。
 未使用になった `exportOverlayCanvases` utilityもproduction utilsから削除する。

@@ -129,6 +129,8 @@ Rust backend integration gate:
   Pixi bitmap overrideへ戻さない。
 - `shouldSkipPixiVideoForSharedRenderer` はexport中でもvideo objectをPixi描画から外し、動画所有を
   Rust/shared rendererへ固定する。
+- Pixi video cutoverの公開入力は `objectType` だけとし、export状態やshared renderer ownership idで
+  Pixi動画復帰を判定しない。
 - 旧VideoDecoder/Pixi bitmap override専用の `exportOverlayCanvases` utilityはproduction utilsに置かない。
 - export frame canvas utilityは Pixi 固有名をpublic APIに出さず、移行中のcanvas fallbackを `legacyCanvas`
   として扱う。

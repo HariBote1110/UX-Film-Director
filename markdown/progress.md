@@ -509,3 +509,10 @@
 - Green: `shouldSkipPixiVideoForSharedRenderer` をvideo objectなら常にtrueにし、preview/exportの分岐を削除した。
 - 検証: `npm test -- pixiVideoCutover useProjectExportBoundary projectExportCompatibilityEncoder projectExportEncodePlan projectExportFrameCanvas` は55件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-187a`。
+
+## 2026-06-19
+- Phase5のPixi video cutover境界として、動画所有判定の公開入力を `objectType` だけに縮約した。
+- Red: `pixiVideoCutover` のsource境界テストに、`isExporting` / `sharedRendererVideoObjectIds` / `requireSharedRendererVideo` を公開しない契約を追加した。
+- Green: `ShouldSkipPixiVideoForSharedRendererInput` から旧制御入力を削除し、`pixiRenderHelper` の呼び出しも `objectType` のみにした。
+- 検証: `npm test -- pixiVideoCutover useProjectExportBoundary projectExportCompatibilityEncoder projectExportEncodePlan projectExportFrameCanvas` は56件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-187b`。
