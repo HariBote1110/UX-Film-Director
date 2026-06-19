@@ -302,6 +302,27 @@ describe('rustBackendVideoDecodeControl', () => {
     expect(isRustBackendDecodedVideoFrameAvailable(withMismatchedVerificationFrame)).toBe(false);
   });
 
+  it('rejects decoded frame responses without a concrete job and request identity', () => {
+    const response = verifiedDecodeFrameResponse();
+    const withoutJobId = {
+      ...response,
+      result: {
+        ...response.result!,
+        jobId: '',
+      },
+    };
+    const withoutRequestId = {
+      ...response,
+      result: {
+        ...response.result!,
+        requestId: undefined,
+      },
+    };
+
+    expect(isRustBackendDecodedVideoFrameAvailable(withoutJobId)).toBe(false);
+    expect(isRustBackendDecodedVideoFrameAvailable(withoutRequestId)).toBe(false);
+  });
+
   it('rejects decoded frame descriptors that do not match the shared memory layout contract', () => {
     const response = verifiedDecodeFrameResponse();
     const descriptor = response.result!.frame!.descriptor;
