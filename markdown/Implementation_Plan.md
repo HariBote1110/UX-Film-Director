@@ -1261,6 +1261,11 @@ Rust decoded slot leak防止に失敗した状態で、legacy canvas/Pixi captur
 `nativeRenderFailed` の `SharedRendererExportFrameSourceBlockedError` も `legacyCanvasFallbackAllowed=false` にする。
 Rust native render bridge失敗をPixi/legacy captureで隠さず、動画exportをfail-loudに止める。
 
+229. Phase5: native render release失敗ではlegacy fallbackを禁止する
+`nativeRenderSourceReleaseFailed` / `nativeRenderOutputReleaseFailed` のexport blockは、常に
+`legacyCanvasFallbackAllowed=false` にする。
+Rust decoded sourceやnative render outputの所有権解放に失敗した状態を、legacy canvas/Pixi captureで成功扱いにしない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
