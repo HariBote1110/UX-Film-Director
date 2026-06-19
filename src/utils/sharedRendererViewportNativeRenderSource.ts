@@ -143,6 +143,15 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
     } else {
       const startResult = await startDecodeJob(nextJob, request, bridge);
       if (isDecodeJobStartFailure(startResult)) {
+        const preparedSourceReleaseFailure = await releasePreparedNativeRenderSourcesAfterAbort(sources);
+        if (preparedSourceReleaseFailure) {
+          return {
+            ok: false,
+            reason: 'preparedNativeRenderSourceAbortReleaseFailed',
+            detail: preparedSourceReleaseFailure,
+            activeJobs: resolvedActiveJobs,
+          };
+        }
         return {
           ok: false,
           reason: 'startFailed',
@@ -161,6 +170,15 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
       mode: 'latestWins',
     }, bridge);
     if (!decodeResponse.success) {
+      const preparedSourceReleaseFailure = await releasePreparedNativeRenderSourcesAfterAbort(sources);
+      if (preparedSourceReleaseFailure) {
+        return {
+          ok: false,
+          reason: 'preparedNativeRenderSourceAbortReleaseFailed',
+          detail: preparedSourceReleaseFailure,
+          activeJobs: resolvedActiveJobs,
+        };
+      }
       return {
         ok: false,
         reason: 'frameDecodeFailed',
@@ -206,6 +224,15 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
       };
     }
     if (!isRustBackendDecodedVideoFrameAvailable(decodeResponse)) {
+      const preparedSourceReleaseFailure = await releasePreparedNativeRenderSourcesAfterAbort(sources);
+      if (preparedSourceReleaseFailure) {
+        return {
+          ok: false,
+          reason: 'preparedNativeRenderSourceAbortReleaseFailed',
+          detail: preparedSourceReleaseFailure,
+          activeJobs: resolvedActiveJobs,
+        };
+      }
       return {
         ok: false,
         reason: 'decodedFrameUnavailable',
