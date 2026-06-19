@@ -52,6 +52,7 @@ export type SharedRendererExportFrameSourceBlockedReason =
   | 'nativeRenderSourceReleaseFailed'
   | 'nativeRenderOutputReleaseFailed'
   | 'nativeRenderUnsupportedMedia'
+  | 'sharedRendererOutputUnavailable'
   | 'preparedNativeRenderSourceAbortReleaseFailed'
   | 'nativeRenderFailed';
 
@@ -538,6 +539,19 @@ export function createSharedRendererExportFrameSource({
       const presenterResult = await presentFrame(request);
       try {
         const control = presenterResult.control;
+        if (!control.ok && control.reason === 'sharedRendererOutputUnavailable') {
+          writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+            status: 'blocked',
+            frameIndex: request.frameIndex,
+            reason: 'sharedRendererOutputUnavailable',
+          });
+          throw new SharedRendererExportFrameSourceBlockedError(
+            formatSharedRendererOutputUnavailableBlock(presenterResult),
+            'sharedRendererOutputUnavailable',
+            request.frameIndex,
+            false
+          );
+        }
         if (control.ok && typeof control.takePresentedFrameSharedFrame === 'function') {
           let sharedFramePayload: RustBackendVideoEncodeSharedFramePayloadFrame['sharedFramePayload'];
           try {
@@ -692,6 +706,16 @@ const resolveExportVideoUploadBlock = (
   }
 
   return null;
+};
+
+const formatSharedRendererOutputUnavailableBlock = (
+  presenterResult: StartSharedRendererViewportPresenterResult
+): string => {
+  const nativeRenderUploadResult = presenterResult.nativeRenderUploadResult;
+  if (nativeRenderUploadResult && !nativeRenderUploadResult.ok) {
+    return `Shared renderer export output is unavailable (${nativeRenderUploadResult.reason}: ${nativeRenderUploadResult.detail}).`;
+  }
+  return 'Shared renderer export output is unavailable.';
 };
 
 const formatExportVideoUploadBlock = (
