@@ -238,7 +238,15 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
     });
   } catch (error) {
     const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
-    await releaseNativeOutput();
+    const outputReleaseFailure = await releaseNativeRenderOutputAfterAbort(releaseNativeOutput);
+    if (outputReleaseFailure) {
+      return {
+        ok: false,
+        reason: 'nativeRenderOutputReleaseFailed',
+        detail: outputReleaseFailure,
+        activeJobs: activeRenderJobs,
+      };
+    }
     if (releaseFailure) {
       return {
         ok: false,
@@ -251,7 +259,15 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
   }
   if (!upload.ok) {
     const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
-    await releaseNativeOutput();
+    const outputReleaseFailure = await releaseNativeRenderOutputAfterAbort(releaseNativeOutput);
+    if (outputReleaseFailure) {
+      return {
+        ok: false,
+        reason: 'nativeRenderOutputReleaseFailed',
+        detail: outputReleaseFailure,
+        activeJobs: activeRenderJobs,
+      };
+    }
     if (releaseFailure) {
       return {
         ok: false,
@@ -326,8 +342,14 @@ const createSingleUseNativeOutputReleaser = (
 const releasePreparedNativeRenderOutputAfterAbort = async (
   upload: PreparedNativeRenderUpload
 ): Promise<string | null> => {
+  return releaseNativeRenderOutputAfterAbort(upload.releaseAfterUploadAbort);
+};
+
+const releaseNativeRenderOutputAfterAbort = async (
+  releaseNativeOutput: (() => Promise<void>) | undefined
+): Promise<string | null> => {
   try {
-    await upload.releaseAfterUploadAbort?.();
+    await releaseNativeOutput?.();
     return null;
   } catch (error) {
     return formatNativeRenderReleaseError(error, 'Rust backend native render output release failed.');
