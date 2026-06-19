@@ -4569,3 +4569,20 @@
 ### 残課題・次のステップ
 - export native render成功後の complete release失敗でも、生成済みnative render outputをRust側へ解放できる契約を追加する。
 - preview/exportのrelease失敗reason表示をユーザー向け文言として整える。
+
+## 2026-06-19 — export complete release失敗時に出力を解放
+
+### 実施内容
+- Red: export native render成功後、decoded sourceの `releaseAfterNativeRenderComplete` がrejectした場合に、生成済みnative render outputをRustへ解放してからblocked診断を返す契約を追加した。
+- Green: `createSharedRendererExportFrameSource` に `releaseNativeSharedFrame` 注入点を追加し、complete release失敗時は `render.releaseNativeSharedFrame` を呼んでから `nativeRenderSourceReleaseFailed` を投げるようにした。
+- export側のcomplete releaseも全件試行・失敗集約へ揃え、生成済みshared frameがencoderへ渡らない失敗経路でRust側のoutput ringを残さないようにした。
+- 版を `0.1.1-Beta-208k` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts -t "complete release"`
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/rustBackendNativeRenderControl.test.ts src/utils/useProjectExportBoundary.test.ts src/components/ExportProgressModal.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/rustBackendNativeRenderControl\\.ts|src/hooks/useProjectExport\\.ts|src/components/ExportProgressModal\\.tsx)"`
+
+### 残課題・次のステップ
+- release bridge自体がrejectまたは `success:false` を返した場合、source release失敗とoutput release失敗をどう優先表示するかをTDDで固定する。
+- release失敗reasonの表示文言を、ユーザーが実機素材で原因追跡しやすい形へ整える。

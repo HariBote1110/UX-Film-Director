@@ -202,6 +202,9 @@ Rust backend integration gate:
 - preview native render source は complete releaseも全件試行し、失敗した場合は返却予定だったnative render outputを
   abort解放してから `nativeRenderSourceReleaseFailed` を返す。source解放失敗時に出力shared frameを呼び出し側へ
   渡してはいけない。
+- export native render source も complete release失敗時には生成済みnative render outputを
+  `render.releaseNativeSharedFrame` で解放してから `SharedRendererExportFrameSourceBlockedError` として
+  `nativeRenderSourceReleaseFailed` を返す。encoderへ渡せないshared frameをRust output ringへ残してはいけない。
 - preview/export native render consumer は、decoded sourceに complete / abort release callback が揃っていない場合、
   Rust backend native rendererへ渡す前に `nativeRenderSourceReleaseUnavailable` でfail-loudにする。
   この場合、preview/export diagnostics は専用の `*NativeRenderSourceReleaseRequired=true` を出して、
