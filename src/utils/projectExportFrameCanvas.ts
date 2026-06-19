@@ -111,7 +111,6 @@ export interface ResolveProjectExportFrameRuntimePlanInput {
 
 export interface ResolveProjectExportFrameSourcePolicyForEncodeInput {
   rustExportOnly: boolean;
-  rustVideoOnly?: boolean;
   hasVideoObjects?: boolean;
   encodeEngine: ProjectExportEncodeEngine;
 }
@@ -220,7 +219,6 @@ export const buildProjectExportFrameSourcePlan = ({
 
 export const resolveProjectExportFrameSourcePolicyForEncode = ({
   rustExportOnly,
-  rustVideoOnly = false,
   hasVideoObjects = false,
   encodeEngine,
 }: ResolveProjectExportFrameSourcePolicyForEncodeInput): ProjectExportFrameSourcePolicyForEncode => {
