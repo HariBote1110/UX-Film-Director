@@ -4212,3 +4212,19 @@
 ### 残課題・次のステップ
 - native render output側のencode失敗時releaseと、source decoded slot releaseの診断を同一datasetで追えるようにする。
 - 実機のGoPro動画で、native render失敗後もdecode slotが枯渇しないことをsmokeで確認する。
+
+## 2026-06-19 — preview native render source decoded slotもrelease
+
+### 実施内容
+- Red: preview native render uploadで、video sourceを使ったrender成功時にcomplete release、unsupported media block時にabort releaseする契約を追加した。
+- Green: `prepareSharedRendererViewportNativeRenderUpload` が `SharedRendererViewportNativeRenderSource` を保持し、成功時は `releaseAfterNativeRenderComplete`、unsupported / render失敗 / render例外 / output upload失敗時は `releaseAfterNativeRenderAbort` を呼ぶようにした。
+- サブエージェントレビューで指摘されたpreview経路のdecoded slot leakを修正した。
+- 版を `0.1.1-Beta-200b` に更新した。
+
+### 検証
+- `npm test -- sharedRendererViewportNativeRenderUpload sharedRendererViewportNativeRenderSource sharedRendererExportFrameSource`
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererViewportNativeRenderUpload|sharedRendererViewportNativeRenderSource|sharedRendererExportFrameSource"`
+
+### 残課題・次のステップ
+- render例外とoutput upload失敗時のpreview source abort releaseを個別テストで厚くする。
+- 実機のGoPro動画で、preview native render失敗後もdecode slotが枯渇しないことをsmokeで確認する。
