@@ -160,6 +160,7 @@ Rust backend integration gate:
 - shared renderer preview/export presenter controlは `readPresentedFrameRgbaBytes` を公開しない。
   production orchestrationでpresented frameを取得する口は `takePresentedFrameSharedFrame` に限定し、
   WebGPU RGBA readbackは低レベル診断・parity検証用の実装詳細に留める。
+- viewport presenter orchestration test fixtureも `readPresentedFrameRgbaBytes` を持たず、production controlの公開面に揃える。
 - Rust backend は unix 環境で attach 可能な POSIX shared memory name を `memoryId` として返し、
   decoded RGBA を shared memory ring へ書く。
 - `decode.releaseFrame` は WebGPU upload fence 完了後の `copyOutState=gpuUploadFenceSignalled` でのみ slot を解放する。

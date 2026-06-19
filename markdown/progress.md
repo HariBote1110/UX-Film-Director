@@ -579,3 +579,10 @@
 - Green: `Viewport` の `sharedRendererExportEnabled` を `=== '1'` から `!== '0'` に変更し、動画exportが実験flag未指定でRust surfaceを失わないようにした。
 - 検証: `npm test -- viewportRustVideoOnlyBoundary sharedRendererSurfaceMount viewportRustExportFrameSource useProjectExportBoundary` は42件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-196a`。
+
+## 2026-06-19
+- Phase5のpresenter orchestration test fixture整理として、WebGPU readback再接続口を削除した。
+- Red: `sharedRendererExportFrameSourceBoundary` に、`sharedRendererViewportPresenterOrchestration.test.ts` が `readPresentedFrameRgbaBytes` を含まない契約を追加した。
+- Green: orchestration testの `SharedRendererPreviewPresenterControl` fixtureから `readPresentedFrameRgbaBytes` を削除し、`SharedVideoFrameCopyReport` fixtureに現在のslot/generationを明示した。
+- 検証: `npm test -- sharedRendererExportFrameSourceBoundary sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController` は43件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-196b`。

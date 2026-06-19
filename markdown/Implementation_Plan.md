@@ -1166,6 +1166,12 @@ effective cutover / encode-only / native render requiredを決める。
 明示OFF時以外はshared renderer export surface / WebGPU probe / Rust export frame sourceを利用可能にする。
 動画exportはRust frame source必須のため、実験flag未指定でもsurface未生成で `rustFrameSourceRequired` へ落ちない状態にする。
 
+214. Phase5: presenter orchestration fixtureからreadback再接続口を削除する
+`sharedRendererViewportPresenterOrchestration.test.ts` の `SharedRendererPreviewPresenterControl` fixtureは
+`readPresentedFrameRgbaBytes` を持たない。
+production control型だけでなく、orchestrationテストfixture上もpresented frame取得口を
+`takePresentedFrameSharedFrame` / native handoff側へ寄せ、WebGPU RGBA readbackを再接続する足場を残さない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
