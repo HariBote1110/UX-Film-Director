@@ -1415,6 +1415,11 @@ Viewport Rust export source生成では、`hasNativeRenderMediaObjects` が有�
 legacy fallbackではなく `blocked` 診断として出す。
 Image/PSDなどnative render mediaのexport source不成立を、動画と同じfail-loud系の診断へ揃える。
 
+260. Phase5: Rust frame source plan failure表示ラベルを追加する
+export progress summaryでは、`rustFrameSourceRequired` をraw reasonのまま出さず、
+日本語では `Rust frame source必須`、英語では `Rust frame source required` と表示する。
+Image/PSD exportでRust frame sourceが不在のplan failureを、実機UIで追いやすい文言にする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

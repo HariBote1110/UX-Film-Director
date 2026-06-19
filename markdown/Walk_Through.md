@@ -1903,6 +1903,20 @@
 - `npm test -- viewportRustExportFrameSource viewportRustVideoOnlyBoundary` を実行し、34件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/viewportRustExportFrameSource\\.ts|src/utils/viewportRustExportFrameSource\\.test\\.ts|src/components/Viewport\\.tsx|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 145. Phase5: Rust frame source plan failure表示ラベルを追加
+- `src/components/ExportProgressModal.test.ts`
+- export frame source plan failureの `rustFrameSourceRequired` がraw reasonではなく、日本語/英語の読みやすいラベルで表示される契約を追加した。
+- Image/PSD exportのRust frame source不在detailでも同じラベルを使う契約を追加した。
+- `src/components/ExportProgressModal.tsx`
+- plan failure reason formatterを追加し、日本語では `Rust frame source必須`、英語では `Rust frame source required` と表示するようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216w` に更新した。
+
+## 確認
+- `npm test -- ExportProgressModal` を実行し、Redでraw `rustFrameSourceRequired` が表示される失敗を確認した。
+- `npm test -- ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress` を実行し、33件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgressDiagnostics\\.ts|src/store/useStore\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。

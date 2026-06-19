@@ -1,3 +1,19 @@
+## 2026-06-19 — Rust frame source plan failure表示ラベルを追加
+
+### 実施内容
+- Red: export frame source plan failureの `rustFrameSourceRequired` がraw reasonではなく読みやすいラベルで表示される契約を追加した。
+- Green: `ExportProgressModal` のplan failure formatterに `Rust frame source必須` / `Rust frame source required` を追加した。
+- Image/PSD exportでRust frame sourceが不在の場合の診断を、実機UI上でも追いやすい文言に整えた。
+- 版を `0.1.1-Beta-216w` に更新した。
+
+### 検証
+- `npm test -- ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress`
+- `npx tsc --noEmit 2>&1 | rg "(src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgressDiagnostics\\.ts|src/store/useStore\\.ts)"`
+
+### 残課題・次のステップ
+- shared renderer実出力必須モードの実機確認範囲を、画像/PSD混在タイムラインへ広げる。
+- Rust frame source plan failureのDevTools log側も必要に応じて読みやすいラベルへ揃える。
+
 ## 2026-06-19 — native render media preflight失敗をblocked診断に変更
 
 ### 実施内容

@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のexport診断表示として、Rust frame source plan failureの `rustFrameSourceRequired` に読みやすい表示ラベルを追加した。
+- Red: `ExportProgressModal` のテストへ、raw reasonではなく `Rust frame source必須` / `Rust frame source required` が表示される契約を追加した。
+- Green: plan failure reason formatterを追加し、Image/PSD Rust frame source不在のUI診断を追いやすくした。
+- 検証: `npm test -- ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress` は33件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216w`。
+
+## 2026-06-19
 - Phase5のViewport export source診断として、Image/PSDなどnative render mediaのpreflight失敗を `fallback` ではなく `blocked` として出すようにした。
 - Red: `viewportRustExportFrameSource` のテストへ、`hasNativeRenderMediaObjects=true` のpreflight失敗がblocked診断になる契約を追加した。
 - Green: Viewport Rust export source入力に `hasNativeRenderMediaObjects` を追加し、`Viewport` からcontext値を渡すようにした。
