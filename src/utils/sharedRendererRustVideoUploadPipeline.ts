@@ -48,13 +48,19 @@ export const prepareSharedRendererRustDecodedVideoUpload = async ({
       copyOutState,
     }, rustBackendBridge).then(() => undefined));
 
-  const upload = await prepareSharedRendererDecodedVideoFrameUpload({
-    sharedFrame: frame,
-    slotCount,
-    bridge: copyBridge,
-    releaseAfterGpuUpload: () => releaseFrame('gpuUploadFenceSignalled'),
-    releaseAfterUploadAbort: () => releaseFrame('rendererUploadAborted'),
-  });
+  let upload: PrepareSharedRendererDecodedVideoFrameUploadResult;
+  try {
+    upload = await prepareSharedRendererDecodedVideoFrameUpload({
+      sharedFrame: frame,
+      slotCount,
+      bridge: copyBridge,
+      releaseAfterGpuUpload: () => releaseFrame('gpuUploadFenceSignalled'),
+      releaseAfterUploadAbort: () => releaseFrame('rendererUploadAborted'),
+    });
+  } catch (error) {
+    await releaseFrame('rendererUploadAborted');
+    throw error;
+  }
   if (!upload.ok) {
     await releaseFrame('rendererUploadAborted');
   }
@@ -65,11 +71,12 @@ export const prepareSharedRendererRustDecodedVideoUpload = async ({
 const createSingleUseDecodedFrameReleaser = (
   releaseFrame: (copyOutState: 'gpuUploadFenceSignalled' | 'rendererUploadAborted') => Promise<void>
 ): (copyOutState: 'gpuUploadFenceSignalled' | 'rendererUploadAborted') => Promise<void> => {
-  let released = false;
+  let releasePromise: Promise<void> | null = null;
 
-  return async (copyOutState) => {
-    if (released) return;
-    released = true;
-    await releaseFrame(copyOutState);
+  return (copyOutState) => {
+    if (!releasePromise) {
+      releasePromise = releaseFrame(copyOutState);
+    }
+    return releasePromise;
   };
 };
