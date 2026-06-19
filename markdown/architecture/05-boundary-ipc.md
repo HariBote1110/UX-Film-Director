@@ -131,6 +131,8 @@ Rust backend integration gate:
   Rust/shared rendererへ固定する。
 - Pixi video cutoverの公開入力は `objectType` だけとし、export状態やshared renderer ownership idで
   Pixi動画復帰を判定しない。
+- ViewportはPixi content routingへ `sharedRendererVideoObjectIds` / `requireSharedRendererVideo` を渡さない。
+  動画cutover必須条件はpresenter orchestrationに閉じ、Pixi側はvideo objectを常に外す。
 - 旧VideoDecoder/Pixi bitmap override専用の `exportOverlayCanvases` utilityはproduction utilsに置かない。
 - export frame canvas utilityは Pixi 固有名をpublic APIに出さず、移行中のcanvas fallbackを `legacyCanvas`
   として扱う。

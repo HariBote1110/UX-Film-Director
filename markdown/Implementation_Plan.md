@@ -1123,6 +1123,8 @@ Pixi動画所有へ復帰しない。
 Viewportと `pixiRenderHelper` から旧VideoDecoder overlay canvas cacheとframe override resourceを外し、
 動画frame供給をRust/shared renderer側に寄せる。
 未使用になった `exportOverlayCanvases` utilityもproduction utilsから削除する。
+ViewportはPixi content routingへ `sharedRendererVideoObjectIds` / `requireSharedRendererVideo` を渡さず、
+presenter orchestration側だけで動画cutover必須条件を扱う。
 
 ## UI 刷新（2026-04-19）
 

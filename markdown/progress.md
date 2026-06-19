@@ -516,3 +516,10 @@
 - Green: `ShouldSkipPixiVideoForSharedRendererInput` から旧制御入力を削除し、`pixiRenderHelper` の呼び出しも `objectType` のみにした。
 - 検証: `npm test -- pixiVideoCutover useProjectExportBoundary projectExportCompatibilityEncoder projectExportEncodePlan projectExportFrameCanvas` は56件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-187b`。
+
+## 2026-06-19
+- Phase5のViewport/Pixi content routing境界として、旧video ownership gateの受け渡しを削除した。
+- Red: `viewportRustVideoOnlyBoundary` に、`updatePixiContent` 呼び出しが `sharedRendererVideoObjectIds` / `requireSharedRendererVideo` を含まず、Viewportが `sharedRendererVideoObjectIdsRef` / `updateSharedRendererVideoObjectIds` を持たない契約を追加した。
+- Green: Viewportからvideo ownership id ref / update callback / `updatePixiContent` へのvideo gate渡しを削除し、`pixiRenderHelper` のresources型からも外した。
+- 検証: `npm test -- viewportRustVideoOnlyBoundary pixiVideoCutover useProjectExportBoundary projectExportCompatibilityEncoder projectExportEncodePlan projectExportFrameCanvas` は67件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-188a`。
