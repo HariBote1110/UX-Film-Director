@@ -4709,3 +4709,20 @@
 ### 残課題・次のステップ
 - 実機GoPro素材でRust decode -> native render -> encodeのsmokeを確認し、UI診断が実画面で追えるか見る。
 - preview側のnative render failureもユーザーに見える形へ必要に応じて昇格する。
+
+## 2026-06-19 — preview native診断labelをdatasetへ出力
+
+### 実施内容
+- Red: preview presenter diagnosticsで `nativeRenderFailed` / `nativeRenderOutputReleaseFailed` のreasonに加え、読めるlabelもdatasetへ出す契約を追加した。
+- Green: `writeSharedRendererPresenterDiagnostics` が `uxfdSharedRendererPresenterNativeRenderFailureLabel` をready/fallback両方で出力し、stale labelを消すようにした。
+- preview実機デバッグ時にdatasetからRust native render失敗の種類を追いやすくした。
+- 版を `0.1.1-Beta-208r` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererPresenterDiagnostics.test.ts`
+- `npm test -- src/utils/sharedRendererPresenterDiagnostics.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererViewportNativeRenderUpload.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts)"`
+
+### 残課題・次のステップ
+- 実機GoPro素材でpreview/exportのRust native診断が画面・datasetから追えるか確認する。
+- 必要ならpreviewにも軽量な可視診断表示を追加する。
