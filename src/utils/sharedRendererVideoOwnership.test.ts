@@ -2,6 +2,22 @@ import { describe, expect, it } from 'vitest';
 import { buildSharedRendererVideoOwnership } from './sharedRendererVideoOwnership';
 
 describe('buildSharedRendererVideoOwnership', () => {
+  it('hands video ownership to the shared renderer when a Rust native rendered frame already contains the video scene', () => {
+    expect(buildSharedRendererVideoOwnership({
+      cutoverEnabled: false,
+      hasVideoScene: true,
+      videoDecodeRequestSource: undefined,
+      videoDecodeRequestResult: null,
+      videoFrameUploadReady: false,
+      nativeRenderFrameReady: true,
+      nativeRenderVideoObjectIds: ['video-native'],
+    })).toEqual({
+      owner: 'sharedRenderer',
+      reason: 'nativeRenderFrameReady',
+      videoObjectIds: ['video-native'],
+    });
+  });
+
   it('keeps Pixi as the video owner until the Rust decoded frame upload path is ready', () => {
     expect(buildSharedRendererVideoOwnership({
       cutoverEnabled: true,
