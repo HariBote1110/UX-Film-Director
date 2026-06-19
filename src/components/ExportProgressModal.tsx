@@ -106,6 +106,11 @@ const formatRustFrameSourceBlockedReason = (
       ? 'WebGPU描画不可'
       : 'WebGPU draw unavailable';
   }
+  if (reason === 'nativeRenderTextureViewUnavailable') {
+    return language === 'ja'
+      ? 'native render texture viewなし'
+      : 'native render texture view unavailable';
+  }
   return reason;
 };
 
