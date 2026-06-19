@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  formatLastExportDiagnosticsSummary,
   formatNativeRenderOutputReleaseDiagnostic,
   formatRustFrameSourceBlockedDiagnostic,
 } from './ExportProgressModal';
+import type { ExportDiagnostics } from '../store/useStore';
 
 describe('formatNativeRenderOutputReleaseDiagnostic', () => {
   it('formats released native render output diagnostics in Japanese', () => {
@@ -96,5 +98,34 @@ describe('formatRustFrameSourceBlockedDiagnostic', () => {
       legacyCanvasFallbackAllowed: true,
       detail: 'Shared renderer export is missing uploaded video clips: video-2.',
     }, 'ja')).toBe('Rust frame source: 停止 動画所有権未移管 frame=5 legacy fallback可: Shared renderer export is missing uploaded video clips: video-2.');
+  });
+});
+
+describe('formatLastExportDiagnosticsSummary', () => {
+  it('returns no lines when the last export has no Rust diagnostics', () => {
+    expect(formatLastExportDiagnosticsSummary(null, 'ja')).toEqual([]);
+    expect(formatLastExportDiagnosticsSummary({}, 'en')).toEqual([]);
+  });
+
+  it('formats retained Rust export diagnostics for the post-export panel', () => {
+    const diagnostics: ExportDiagnostics = {
+      rustFrameSourceBlocked: {
+        reason: 'videoOwnershipUnavailable',
+        frameIndex: 5,
+        legacyCanvasFallbackAllowed: true,
+        detail: 'Shared renderer export is missing uploaded video clips: video-2.',
+      },
+      nativeRenderOutputRelease: {
+        status: 'failed',
+        memoryId: '/uxfd-native-render-output',
+        reason: 'encodeWriteFailed',
+        error: 'release rejected',
+      },
+    };
+
+    expect(formatLastExportDiagnosticsSummary(diagnostics, 'ja')).toEqual([
+      'Rust frame source: 停止 動画所有権未移管 frame=5 legacy fallback可: Shared renderer export is missing uploaded video clips: video-2.',
+      'Native render output: 解放失敗 (/uxfd-native-render-output) release rejected',
+    ]);
   });
 });
