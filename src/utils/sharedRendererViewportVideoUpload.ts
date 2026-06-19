@@ -70,6 +70,7 @@ export type PrepareSharedRendererViewportVideoUploadResult =
         | 'startFailed'
         | 'frameDecodeFailed'
         | 'staleDecodeResponse'
+        | 'staleDecodeReleaseFailed'
         | 'uploadFailed';
       detail: string;
       activeJob?: SharedRendererViewportVideoDecodeJob | null;
@@ -94,6 +95,7 @@ export type PrepareSharedRendererViewportVideoUploadsResult =
         | 'startFailed'
         | 'frameDecodeFailed'
         | 'staleDecodeResponse'
+        | 'staleDecodeReleaseFailed'
         | 'uploadFailed';
       detail: string;
       activeJobs: SharedRendererViewportVideoDecodeJob[];
@@ -207,12 +209,21 @@ export const prepareSharedRendererViewportVideoUploads = async ({
       isRustBackendDecodedVideoFrameAvailable(decodeResponse)
       && decodeResponse.result.requestId !== resolvedRequestId
     ) {
-      await releaseRustBackendVideoDecodeFrame({
+      const releaseResponse = await releaseRustBackendVideoDecodeFrame({
         jobId: resolvedJob.jobId,
         slotIndex: decodeResponse.result.frame.descriptor.slotIndex,
         generation: decodeResponse.result.frame.descriptor.generation,
         copyOutState: 'rendererUploadAborted',
       }, rustBackendBridge);
+      if (!releaseResponse.success) {
+        await releasePreparedViewportVideoUploadsAfterAbort(uploads);
+        return {
+          ok: false,
+          reason: 'staleDecodeReleaseFailed',
+          detail: releaseResponse.error ?? 'Rust backend stale decoded frame release failed.',
+          activeJobs: resolvedActiveJobs,
+        };
+      }
       await releasePreparedViewportVideoUploadsAfterAbort(uploads);
       return {
         ok: false,
@@ -331,12 +342,20 @@ export const prepareSharedRendererViewportVideoUpload = async ({
     isRustBackendDecodedVideoFrameAvailable(decodeResponse)
     && decodeResponse.result.requestId !== (requestId ?? session.surfaceGate.snapshot.frame_index)
   ) {
-    await releaseRustBackendVideoDecodeFrame({
+    const releaseResponse = await releaseRustBackendVideoDecodeFrame({
       jobId: resolvedJob.jobId,
       slotIndex: decodeResponse.result.frame.descriptor.slotIndex,
       generation: decodeResponse.result.frame.descriptor.generation,
       copyOutState: 'rendererUploadAborted',
     }, rustBackendBridge);
+    if (!releaseResponse.success) {
+      return {
+        ok: false,
+        reason: 'staleDecodeReleaseFailed',
+        detail: releaseResponse.error ?? 'Rust backend stale decoded frame release failed.',
+        activeJob: resolvedJob,
+      };
+    }
     return {
       ok: false,
       reason: 'staleDecodeResponse',
