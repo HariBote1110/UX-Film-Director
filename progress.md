@@ -1,3 +1,19 @@
+## 2026-06-19 — Image/PSD exportをRust frame source必須条件に追加
+
+### 実施内容
+- Red: WebCodecs互換encoderでもImage/PSDを含むexportはRust frame source必須・blocked時failになる契約を追加した。
+- Green: `hasNativeRenderMediaObjects` をexport frame source context/policyへ追加し、Image/PSDをnative render mediaとして扱うようにした。
+- `useProjectExport` からもImage/PSDの存在をpolicyへ渡し、計画段階でlegacy canvas exportへ戻らないようにした。
+- 版を `0.1.1-Beta-216t` に更新した。
+
+### 検証
+- `npm test -- projectExportFrameCanvas useProjectExportBoundary`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/projectExportFrameCanvas\\.ts|src/utils/projectExportFrameCanvas\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- native render media必須時のplan failure detailに、Image/PSDが対象であることをより明示する。
+- shared renderer実出力必須モードの実機確認範囲を、画像/PSD混在タイムラインへ広げる。
+
 ## 2026-06-19 — blocked error単位のlegacy fallback禁止をruntimeで優先
 
 ### 実施内容

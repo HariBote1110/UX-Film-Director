@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のexport計画として、Image/PSDを含むWebCodecs互換exportもRust frame source必須・blocked時failとして扱うようにした。
+- Red: `projectExportFrameCanvas` のテストへ、`hasNativeRenderMediaObjects` がtrueなら `requireRustFrameSource` / `failExport` になる契約と、contextがImage/PSDをnative render mediaとして検出する契約を追加した。
+- Green: export policy/contextに `hasNativeRenderMediaObjects` を追加し、`useProjectExport` からImage/PSDの存在を渡すようにした。
+- 検証: `npm test -- projectExportFrameCanvas useProjectExportBoundary` は55件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216t`。
+
+## 2026-06-19
 - Phase5のexport runtimeとして、blocked errorが `legacyCanvasFallbackAllowed=false` を持つ場合は、非動画exportでもlegacy canvas fallbackへ戻らないようにした。
 - Red: `projectExportFrameRenderer` のテストへ、計画上はlegacy fallback可能でもerror単位でfallback禁止なら失敗する契約を追加した。
 - Green: `renderProjectExportFrame` がblocked診断を出した後、error単位のlegacy禁止をruntime planより優先してthrowするようにした。

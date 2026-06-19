@@ -1855,6 +1855,23 @@
 - `npm test -- projectExportFrameRenderer sharedRendererExportFrameSource exportProgressDiagnostics exportProgress ExportProgressModal` を実行し、82件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/projectExportFrameRenderer\\.ts|src/utils/projectExportFrameRenderer\\.test\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/store/useStore\\.ts|src/components/ExportProgressModal\\.tsx)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 142. Phase5: Image/PSD exportをRust frame source必須条件に追加
+- `src/utils/projectExportFrameCanvas.test.ts`
+- WebCodecs互換encoderでも `hasNativeRenderMediaObjects=true` なら `requireRustFrameSource` / `failExport` になる契約を追加した。
+- `resolveProjectExportRustFrameSourceContext` がImage/PSDをnative render mediaとして検出する契約を追加した。
+- `src/utils/projectExportFrameCanvas.ts`
+- `ProjectExportRustFrameSourceContext` と `ResolveProjectExportFrameSourcePolicyForEncodeInput` に `hasNativeRenderMediaObjects` を追加した。
+- Image/PSDが含まれる場合は、動画と同様にRust frame source必須・blocked時failとして扱うようにした。
+- `src/hooks/useProjectExport.ts`
+- export対象にImage/PSDが含まれるかをpolicyへ渡すようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216t` に更新した。
+
+## 確認
+- `npm test -- projectExportFrameCanvas` を実行し、RedでImage/PSD exportがlegacy canvas許可のままになる失敗を確認した。
+- `npm test -- projectExportFrameCanvas useProjectExportBoundary` を実行し、55件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/projectExportFrameCanvas\\.ts|src/utils/projectExportFrameCanvas\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。
