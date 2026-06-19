@@ -1404,7 +1404,7 @@ describe('createSharedRendererExportFrameSource', () => {
       uxfdRustExportFrameSourceFrameStatus: 'blocked',
       uxfdRustExportFrameSourceFrameIndex: '7',
       uxfdRustExportFrameSourceFrameReason: 'nativeRenderFailed',
-      uxfdRustExportFrameSourceFramePath: undefined,
+      uxfdRustExportFrameSourceFramePath: 'nativeRenderSharedFrame',
     });
   });
 
