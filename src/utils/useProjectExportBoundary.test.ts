@@ -30,6 +30,16 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     expect(adapterCode).toContain("import('./videoExportPipeline')");
   });
 
+  it('refuses video objects before opening the WebCodecs compatibility export stream', () => {
+    const code = source();
+
+    expect(code).toContain('if (hasVideoObjects) {');
+    expect(code).toContain('Video export requires the Rust backend encoder before opening the WebCodecs export stream.');
+    expect(code.indexOf('Video export requires the Rust backend encoder before opening the WebCodecs export stream.')).toBeLessThan(
+      code.indexOf("ipcRenderer.invoke('export-stream-open'")
+    );
+  });
+
   it('does not keep legacy browser video provider gates in the production export hook', () => {
     const code = source();
 
