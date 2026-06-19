@@ -45,6 +45,7 @@ export type SharedRendererExportFrameSourceBlockedReason =
   | 'presentedSharedFrameHandoffUnavailable'
   | 'videoBitmapCaptureDisabled'
   | 'nativeRenderSourceReleaseUnavailable'
+  | 'nativeRenderSourceReleaseFailed'
   | 'nativeRenderUnsupportedMedia'
   | 'nativeRenderFailed';
 
@@ -338,12 +339,18 @@ export function createSharedRendererExportFrameSource({
     }
     const surfaceGate = session.surfaceGate;
     if (!surfaceGate.ok) {
-      await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+      const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+      if (releaseFailure) {
+        throwNativeRenderSourceReleaseFailed(canvas, request.frameIndex, releaseFailure);
+      }
       return null;
     }
     const sourceReleaseBlock = resolveNativeRenderSourceReleaseUnavailable(nativeRenderSources);
     if (sourceReleaseBlock) {
-      await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+      const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+      if (releaseFailure) {
+        throwNativeRenderSourceReleaseFailed(canvas, request.frameIndex, releaseFailure);
+      }
       writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
         status: 'blocked',
         frameIndex: request.frameIndex,
@@ -360,7 +367,10 @@ export function createSharedRendererExportFrameSource({
       media: surfaceGate.media,
     });
     if (unsupportedNativeMedia) {
-      await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+      const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+      if (releaseFailure) {
+        throwNativeRenderSourceReleaseFailed(canvas, request.frameIndex, releaseFailure);
+      }
       writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
         status: 'blocked',
         frameIndex: request.frameIndex,
@@ -392,11 +402,17 @@ export function createSharedRendererExportFrameSource({
         })),
       });
     } catch (error) {
-      await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+      const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+      if (releaseFailure) {
+        throwNativeRenderSourceReleaseFailed(canvas, request.frameIndex, releaseFailure);
+      }
       throw error;
     }
     if (!renderResponse.success || !renderResponse.result) {
-      await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+      const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+      if (releaseFailure) {
+        throwNativeRenderSourceReleaseFailed(canvas, request.frameIndex, releaseFailure);
+      }
       writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
         status: 'blocked',
         frameIndex: request.frameIndex,
@@ -616,10 +632,39 @@ const releaseNativeRenderSourcesAfterComplete = async (
 
 const releaseNativeRenderSourcesAfterAbort = async (
   sources: readonly SharedRendererViewportNativeRenderSource[]
-): Promise<void> => {
-  await Promise.all(
+): Promise<string | null> => {
+  const results = await Promise.allSettled(
     sources.map((source) => source.releaseAfterNativeRenderAbort?.() ?? Promise.resolve())
   );
+  const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+  return failed ? formatNativeRenderReleaseError(failed.reason) : null;
+};
+
+const throwNativeRenderSourceReleaseFailed = (
+  canvas: HTMLCanvasElement,
+  frameIndex: number,
+  detail: string
+): never => {
+  writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+    status: 'blocked',
+    frameIndex,
+    reason: 'nativeRenderSourceReleaseFailed',
+  });
+  throw new SharedRendererExportFrameSourceBlockedError(
+    detail,
+    'nativeRenderSourceReleaseFailed',
+    frameIndex
+  );
+};
+
+const formatNativeRenderReleaseError = (error: unknown): string => {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  if (typeof error === 'string' && error) {
+    return error;
+  }
+  return 'Rust native render source release failed.';
 };
 
 const writeFrameDiagnostics = (
