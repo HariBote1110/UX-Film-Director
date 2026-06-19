@@ -111,8 +111,39 @@ describe('buildProjectExportFrameSourcePlan', () => {
   });
 
   it('fails video exports instead of restoring legacy canvas after the Rust frame source is blocked', () => {
+    const directEncodeFrameSource: ProjectExportRustFrameSource = {
+      renderEncodeFrame: async () => ({
+        timestamp: 0,
+        sharedFramePayload: {
+          sessionId: 'session-video',
+          frameIndex: 0,
+          timestampUs: 0,
+          slotCount: 1,
+          frame: {
+            descriptor: {
+              memoryId: '/uxfd-video-export',
+              slotIndex: 0,
+              generation: 1,
+              byteOffset: 0,
+              byteLen: 16,
+              width: 1,
+              height: 1,
+              strideBytes: 256,
+              format: 'rgba8Srgb',
+              colour: {
+                primaries: 'bt709',
+                transfer: 'srgb',
+                matrix: 'rgb',
+                range: 'full',
+              },
+            },
+            ptsFrame: 0,
+          },
+        },
+      }),
+    };
     const plan = buildProjectExportFrameSourcePlan({
-      rustFrameSource,
+      rustFrameSource: directEncodeFrameSource,
       hasVideoObjects: true,
     });
     if (!plan.ok) throw new Error('expected Rust export source plan');
@@ -129,6 +160,17 @@ describe('buildProjectExportFrameSourcePlan', () => {
       usesExportFrameOverrides: false,
       shouldCloseRustFrameSource: true,
       shouldFailOnRustFrameSourceBlocked: true,
+    });
+  });
+
+  it('refuses bitmap-only Rust frame sources for video exports', () => {
+    expect(buildProjectExportFrameSourcePlan({
+      rustFrameSource,
+      hasVideoObjects: true,
+    })).toEqual({
+      ok: false,
+      reason: 'rustFrameSourceRequired',
+      detail: 'Video export requires a shared-frame Rust export source.',
     });
   });
 
