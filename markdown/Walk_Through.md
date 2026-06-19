@@ -701,3 +701,16 @@
 - `npm test -- sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration` を実行し、Redでpresenter診断へclip/media idが届かない失敗を確認した。
 - `npm test -- sharedRendererViewportVideoUpload sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController` を実行し、57件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportVideoUpload\\.ts|src/utils/sharedRendererViewportVideoUpload\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 61. Phase5: export動画upload失敗detailへclip/media idを追加
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- Rust video upload失敗でexportがblockedになる場合、messageに `copyReportChecksumMismatch clip=... media=...` を含める契約を追加した。
+- `src/utils/sharedRendererExportFrameSource.ts`
+- `resolveExportVideoUploadBlock` がviewport upload結果の `uploadFailureClipId` / `uploadFailureMediaId` をblocked detailへ含めるようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-210f` に更新した。
+
+## 確認
+- `npm test -- sharedRendererExportFrameSource` を実行し、Redでclip/media idがmessageに含まれない失敗を確認した。
+- `npm test -- sharedRendererExportFrameSource sharedRendererViewportVideoUpload` を実行し、45件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/sharedRendererViewportVideoUpload\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

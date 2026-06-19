@@ -1,3 +1,20 @@
+## 2026-06-19 — export動画upload失敗detailへclip/media idを追加
+
+### 実施内容
+- Red: `sharedRendererExportFrameSource` に、Rust video upload失敗でexportがblockedになる場合、低レベル理由に加えて `clip=... media=...` をmessageへ含める契約を追加した。
+- Green: `resolveExportVideoUploadBlock` がviewport upload結果の `uploadFailureClipId` / `uploadFailureMediaId` をblocked detailへ含めるようにした。
+- preview datasetとexport blocked errorのどちらでも、GoPro素材などの複数動画timelineで失敗対象を特定できるようにした。
+- 版を `0.1.1-Beta-210f` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSource`
+- `npm test -- sharedRendererExportFrameSource sharedRendererViewportVideoUpload`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/sharedRendererViewportVideoUpload\\.ts)"`
+
+### 残課題・次のステップ
+- `npm run dev:rust-video` でGoPro素材のpreview/exportを実機確認し、preview datasetとexport blocked errorの両方で失敗理由・clip/media idを確認する。
+- 成功経路ではRust decode → shared memory copy → WebGPU upload → ownership cutoverがPixi videoなしで通ることを確認する。
+
 ## 2026-06-19 — 動画upload失敗clipをpresenter診断へ追加
 
 ### 実施内容
