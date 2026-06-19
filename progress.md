@@ -4726,3 +4726,19 @@
 ### 残課題・次のステップ
 - 実機GoPro素材でpreview/exportのRust native診断が画面・datasetから追えるか確認する。
 - 必要ならpreviewにも軽量な可視診断表示を追加する。
+
+## 2026-06-19 — Rust export中のtimeline同期を抑止
+
+### 実施内容
+- Red: `projectExportFrameCanvas` に、Rust frame sourceがexport frameを所有している間はtimeline time同期を行わない契約を追加した。
+- Green: `shouldSynchroniseTimelineForProjectExportFrame` を追加し、`useProjectExport` の `setTime` 呼び出しをlegacy canvas renderingが必要なruntime planに限定した。
+- Rust source ready時にpreview/Pixi/HTMLVideoElement側の時間更新副作用が走らないようにし、Rust-owned export frame pathをさらに独立させた。
+- 版を `0.1.1-Beta-208s` に更新した。
+
+### 検証
+- `npm test -- projectExportFrameCanvas`
+- `npm test -- projectExportFrameCanvas useProjectExportBoundary`
+
+### 残課題・次のステップ
+- 実機GoPro素材でRust decode -> native render -> encode export中にpreview側のlegacy動画更新が発火しないことをsmoke確認する。
+- Rust frame source ready時の残るbrowser/Pixi fallback境界を引き続き潰す。
