@@ -57,6 +57,7 @@ export type ViewportRustExportFrameSourceDecision =
       ok: false;
       reason: ViewportRustExportFrameSourceFallbackReason;
       detail: string;
+      diagnosticStatus?: 'fallback' | 'blocked';
       nativeRenderEnvelope?: SharedRendererNativeRenderEnvelope;
     };
 
@@ -150,7 +151,8 @@ export const resolveViewportRustExportFrameSource = ({
         return fallback(
           'exportSessionBlocked',
           session.surfaceGate.detail,
-          session.nativeRenderEnvelope
+          session.nativeRenderEnvelope,
+          effectivePreferEncodeOnly ? 'blocked' : undefined
         );
       }
       nativeRenderEnvelope = session.nativeRenderEnvelope;
@@ -158,7 +160,8 @@ export const resolveViewportRustExportFrameSource = ({
         return fallback(
           'exportSessionBlocked',
           nativeRenderEnvelope.detail,
-          nativeRenderEnvelope
+          nativeRenderEnvelope,
+          effectivePreferEncodeOnly ? 'blocked' : undefined
         );
       }
     }
@@ -206,7 +209,7 @@ export const writeViewportRustExportFrameSourceDiagnostics = (
   dataset: Record<string, string | undefined>,
   decision: ViewportRustExportFrameSourceDecision
 ): void => {
-  dataset.uxfdRustExportFrameSourceStatus = decision.ok ? 'ready' : 'fallback';
+  dataset.uxfdRustExportFrameSourceStatus = decision.ok ? 'ready' : decision.diagnosticStatus ?? 'fallback';
   dataset.uxfdRustExportFrameSourceReason = decision.ok ? undefined : decision.reason;
   writeNativeRenderEnvelopeDiagnostics(dataset, decision.nativeRenderEnvelope);
 };
@@ -214,11 +217,13 @@ export const writeViewportRustExportFrameSourceDiagnostics = (
 const fallback = (
   reason: ViewportRustExportFrameSourceFallbackReason,
   detail: string,
-  nativeRenderEnvelope?: SharedRendererNativeRenderEnvelope
+  nativeRenderEnvelope?: SharedRendererNativeRenderEnvelope,
+  diagnosticStatus?: 'fallback' | 'blocked'
 ): ViewportRustExportFrameSourceDecision => ({
   ok: false,
   reason,
   detail,
+  ...(diagnosticStatus ? { diagnosticStatus } : {}),
   ...(nativeRenderEnvelope ? { nativeRenderEnvelope } : {}),
 });
 
