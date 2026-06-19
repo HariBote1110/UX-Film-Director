@@ -297,6 +297,10 @@ export const resolveProjectExportFrameRuntimePlan = ({
   };
 };
 
+export const shouldSynchroniseTimelineForProjectExportFrame = (
+  frameRuntimePlan: Pick<ProjectExportFrameRuntimePlan, 'requiresRenderScene'>
+): boolean => frameRuntimePlan.requiresRenderScene;
+
 export const createSingleUseProjectExportFrameSourceCloser = (
   frameSource: Pick<ProjectExportRustFrameSource, 'close'>
 ): (() => Promise<void>) => {

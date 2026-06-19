@@ -13,6 +13,7 @@ import {
   resolveProjectExportFrameRuntimePlan,
   resolveProjectExportFrameCanvas,
   resolveProjectExportRustFrameSourceContext,
+  shouldSynchroniseTimelineForProjectExportFrame,
   type ProjectExportRustFrameSourceContext,
   type ProjectExportRustFrameSource,
 } from '../utils/projectExportFrameCanvas';
@@ -134,11 +135,16 @@ export const useProjectExport = (
             }
 
             const t = i * dt;
-            if (i % Math.max(1, Math.floor(fps / 2)) === 0) setTime(t);
             let frameRuntimePlan = resolveProjectExportFrameRuntimePlan({
               frameSourcePlan: exportFrameSourcePlan,
               rustFrameSourceBlocked,
             });
+            if (
+              shouldSynchroniseTimelineForProjectExportFrame(frameRuntimePlan)
+              && i % Math.max(1, Math.floor(fps / 2)) === 0
+            ) {
+              setTime(t);
+            }
 
             if (
               frameRuntimePlan.source === 'sharedRendererRustFrameSource'
