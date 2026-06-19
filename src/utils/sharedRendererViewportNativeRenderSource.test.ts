@@ -144,7 +144,7 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
       }),
     });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: true,
       activeJobs: [{
         jobId: 'shared-renderer-video-video-1-4x4-60over1',
@@ -163,6 +163,13 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
         frame,
       }],
     });
+    if (!result.ok) throw new Error('Expected native render source preparation to succeed.');
+    const source = result.sources[0] as typeof result.sources[number] & {
+      releaseAfterNativeRenderComplete?: () => Promise<void>;
+      releaseAfterNativeRenderAbort?: () => Promise<void>;
+    };
+    expect(source.releaseAfterNativeRenderComplete).toEqual(expect.any(Function));
+    expect(source.releaseAfterNativeRenderAbort).toEqual(expect.any(Function));
     expect(calls).toEqual([
       ['startVideoDecode', {
         jobId: 'shared-renderer-video-video-1-4x4-60over1',
@@ -187,6 +194,43 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
         requestId: 99,
         frameIndex: 12,
         mode: 'latestWins',
+      }],
+    ]);
+
+    await source.releaseAfterNativeRenderComplete?.();
+    await source.releaseAfterNativeRenderAbort?.();
+    await source.releaseAfterNativeRenderComplete?.();
+
+    expect(calls).toEqual([
+      ['startVideoDecode', {
+        jobId: 'shared-renderer-video-video-1-4x4-60over1',
+        source: '/tmp/video-1.mp4',
+        slotCount: 2,
+        width: 4,
+        height: 4,
+        sourceRate: {
+          numerator: 60,
+          denominator: 1,
+        },
+        format: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      }],
+      ['requestVideoDecodeFrame', {
+        jobId: 'shared-renderer-video-video-1-4x4-60over1',
+        requestId: 99,
+        frameIndex: 12,
+        mode: 'latestWins',
+      }],
+      ['releaseVideoDecodeFrame', {
+        jobId: 'shared-renderer-video-video-1-4x4-60over1',
+        slotIndex: 0,
+        generation: 4,
+        copyOutState: 'gpuUploadFenceSignalled',
       }],
     ]);
   });
