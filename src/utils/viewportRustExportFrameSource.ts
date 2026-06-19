@@ -86,7 +86,9 @@ export const resolveViewportRustExportFrameSource = ({
   buildExportSession = buildSharedRendererExportSession,
   createFrameSource = createSharedRendererExportFrameSource,
 }: BuildViewportRustExportFrameSourceInput): ViewportRustExportFrameSourceDecision => {
-  const effectivePreferEncodeOnly = preferEncodeOnly || hasVideoObjects(objects);
+  const hasVideoExportObjects = hasVideoObjects(objects);
+  const effectiveVideoCutoverEnabled = videoCutoverEnabled || hasVideoExportObjects;
+  const effectivePreferEncodeOnly = preferEncodeOnly || hasVideoExportObjects;
 
   if (!exportEnabled) {
     return fallback(
@@ -118,7 +120,7 @@ export const resolveViewportRustExportFrameSource = ({
       'Shared renderer Rust export requires a non-fallback WebGPU adapter.'
     );
   }
-  if (!videoCutoverEnabled) {
+  if (!effectiveVideoCutoverEnabled) {
     return fallback(
       'videoCutoverDisabled',
       'Shared renderer Rust export requires Rust video cutover to be enabled.'
@@ -164,7 +166,7 @@ export const resolveViewportRustExportFrameSource = ({
         editorMode,
         webGpuAvailable,
         fallbackAdapter,
-        videoCutoverEnabled,
+        videoCutoverEnabled: effectiveVideoCutoverEnabled,
         ...(effectivePreferEncodeOnly ? {
           bitmapCaptureEnabled: false,
           nativeRenderRequired: true,
@@ -184,7 +186,7 @@ export const resolveViewportRustExportFrameSource = ({
       editorMode,
       webGpuAvailable,
       fallbackAdapter,
-      videoCutoverEnabled,
+      videoCutoverEnabled: effectiveVideoCutoverEnabled,
       ...(effectivePreferEncodeOnly ? {
         bitmapCaptureEnabled: false,
         nativeRenderRequired: true,
