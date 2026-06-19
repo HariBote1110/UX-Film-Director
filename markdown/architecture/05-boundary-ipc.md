@@ -145,6 +145,8 @@ Rust backend integration gate:
   loadする前に拒否する。adapter入力の `hasVideoObjects` は必須booleanで、呼び出し側のsentinel渡し忘れを型で止める。
 - export encode plan / frame source planの `hasVideoObjects` は必須booleanとし、動画有無が未指定のまま
   Rust必須判定やlegacy fallback判定へ進まない。
+- Viewport Rust export frame sourceは、動画objectを含むexportでは preview cutover flagの値に関係なく
+  effective video cutoverを有効化し、shared renderer encode-only / native render pathへ進む。
 - production app logicはWebCodecs向けH.264中間ファイル自動生成hookを起動しない。`videoDecodeStream` は
   export test harnessの比較・診断用途に限定する。
 - Electron mainは旧WebCodecs intermediate用の `check-intermediate` / `generate-intermediate` /

@@ -558,3 +558,10 @@
 - Green: encode plan / frame source policy / frame source planの入力型から `hasVideoObjects?: boolean` と `hasVideoObjects = false` を削除し、非動画ケースも呼び出し側で明示するようにした。
 - 検証: `npm test -- projectExportFrameCanvas projectExportEncodePlan useProjectExportBoundary projectExportCompatibilityEncoder` は48件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-193a`。
+
+## 2026-06-19
+- Phase5のViewport Rust export frame source境界として、動画exportではRust cutoverを実効有効化するようにした。
+- Red: `viewportRustExportFrameSource` に、`videoCutoverEnabled=false` でも動画objectを含むexportならRust export sourceを作り、下流へ `videoCutoverEnabled: true` を渡す契約を追加した。
+- Green: `resolveViewportRustExportFrameSource` で `videoCutoverEnabled || hasVideoObjects(objects)` を実効cutover条件にし、動画exportではencode-only / native render requiredを維持した。
+- 検証: `npm test -- viewportRustExportFrameSource projectExportFrameCanvas projectExportEncodePlan useProjectExportBoundary` は60件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-194a`。

@@ -1148,6 +1148,12 @@ RGBA bytesをJS側へ取り出す入口として再接続しない。
 `hasVideoObjects` を必須booleanとして受け取る。
 動画object有無を呼び出し側が明示しないままWebCodecs互換encoderやlegacy canvas fallbackへ進む状態を型境界で禁止する。
 
+211. Phase5: 動画exportでRust cutoverを実効有効化する
+`buildViewportRustExportFrameSource` は動画objectを含むexportでは
+`videoCutoverEnabled || hasVideoObjects(objects)` を実効cutover条件にする。
+preview用cutover flagが明示OFFでも、動画exportのframe sourceはRust native render / shared renderer encode-only pathへ進み、
+legacy canvas captureやPixi動画fallbackへ戻らない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
