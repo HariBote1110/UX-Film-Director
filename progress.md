@@ -4388,3 +4388,19 @@
 ### 残課題・次のステップ
 - `ExportProgressModal` に `rustFrameSourceBlocked` を表示し、Rust必須動画exportの停止理由をUIへ出す。
 - 実機GoPro素材でRust native render / Rust encode / release diagnosticsのsmokeを行う。
+
+## 2026-06-19 — frame source blocked診断をmodalへ表示
+
+### 実施内容
+- Red: `rustFrameSourceBlocked` を日本語/英語で短く整形するmodal formatter契約を追加した。
+- Green: `formatRustFrameSourceBlockedDiagnostic` を追加し、export progress modalへRust frame source blocked診断行を表示するようにした。
+- `legacyCanvasFallbackAllowed=false` の場合は `legacy fallback不可` として、動画exportが旧canvasへ戻れない停止であることをUIから確認できる。
+- 版を `0.1.1-Beta-207a` に更新した。
+
+### 検証
+- `npm test -- src/components/ExportProgressModal.test.ts src/utils/useProjectExportBoundary.test.ts src/store/exportProgress.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "ExportProgressModal|useProjectExport|useStore|exportProgress"`
+
+### 残課題・次のステップ
+- 実機GoPro素材で、Rust native render / Rust encode / source release / output release / frame source blocked診断をsmoke確認する。
+- WebCodecs/mp4-muxer互換出口を完全削除するか、非動画互換出口として残すかを実機安定後に判断する。

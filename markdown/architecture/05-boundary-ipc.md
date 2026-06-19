@@ -159,6 +159,8 @@ Rust backend integration gate:
 - `useProjectExport` は shared renderer / Rust frame source blocked を検知した時点で
   `exportProgress.rustFrameSourceBlocked` へ `reason` / `frameIndex` / `legacyCanvasFallbackAllowed` を記録し、
   failExportか互換fallbackかを判定する前に診断を残す。
+- Export progress modalは `rustFrameSourceBlocked` を短い診断行として表示し、Rust必須動画exportが
+  legacy canvasへ戻れず停止した理由をUIから確認できるようにする。
 - shared renderer export surfaceは `VITE_UXFD_SHARED_RENDERER_EXPORT !== '0'` の既定ON gateでmountし、
   動画exportが実験flag未指定のためにRust frame sourceを失わないようにする。
 - production app logicはWebCodecs向けH.264中間ファイル自動生成hookを起動しない。`videoDecodeStream` は
