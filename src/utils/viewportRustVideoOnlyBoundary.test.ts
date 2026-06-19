@@ -47,6 +47,15 @@ describe('Viewport Rust video-only boundary', () => {
     expect(code).not.toContain('videoFrameTextures:');
   });
 
+  it('does not route Pixi video cleanup through the stale Pixi video cutover gate', () => {
+    const code = pixiRenderHelperSource();
+
+    expect(code).toContain("obj.type === 'video'");
+    expect(code).toContain('container.removeChildren()');
+    expect(code).not.toContain('pixiVideoCutover');
+    expect(code).not.toContain('resolvePixiVideoRenderPath');
+  });
+
   it('uses Rust/shared renderer video cutover for presenter orchestration instead of the legacy browser video path', () => {
     const code = viewportSource();
     const start = code.indexOf('void startSharedRendererViewportPresenter({');
