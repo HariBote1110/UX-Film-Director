@@ -6625,6 +6625,22 @@
 - 表示される場合は再生時のフレーム更新とexport側の同経路接続へ進む。
 - inline経路はMVP救済なので、native bridgeが安定したら重いIPC payloadを消して共有メモリ経路を正本へ戻す。
 
+## 2026-06-20 — 通常devのmp4box依存scan再発を修正
+
+### 実施内容
+- `npm run dev` 起動時にViteが `phase3b-webgpu-harness/index.html` / `src/index.html` までdep-scanし、export test harnessの `mp4box` importで落ちる問題を修正した。
+- Red: production boundary testに、通常Vite dependency scanのentryをapp root `index.html` に限定する契約を追加した。
+- Green: `vite.config.ts` の `optimizeDeps.entries` を `['index.html']` に固定し、通常devからexport test harnessをdep-scan対象外にした。
+- 版を `0.1.1-Beta-219b` に更新した。
+
+### 検証
+- `npm test -- productionVideoDependencyBoundary -t "dependency scanning"`
+- 対象ファイルで絞った `tsc` 出力は空。
+- `npm run dev` 起動後、`http://localhost:5174/` でHTTP 200を確認した。
+
+### 残課題・次のステップ
+- Electron windowで動画previewを確認し、Rust inline decode経路で最初のフレームが見えるか確認する。
+
 ## 2026-06-19 — shared frame copy checksum検証を追加
 
 ### 実施内容

@@ -1057,3 +1057,10 @@
 - PixiJS動画描画へ戻さず、Rust decode -> WebGPU previewのMVP救済経路として実装した。
 - 検証: `npm test -- sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload sharedVideoFrameUploadBridge` は30件成功。`cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane -- --nocapture` は30件成功。対象ファイルで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-219a`。
+
+## 2026-06-20
+- `npm run dev` 起動時にViteが `phase3b-webgpu-harness/index.html` / `src/index.html` までdep-scanし、export test harnessの `mp4box` importで落ちる問題を修正した。
+- Red: production boundary testに、通常Vite dependency scanのentryをapp root `index.html` に限定する契約を追加した。
+- Green: `vite.config.ts` の `optimizeDeps.entries` を `['index.html']` に固定し、通常devからexport test harnessをdep-scan対象外にした。
+- 検証: `npm test -- productionVideoDependencyBoundary -t "dependency scanning"` は2件成功。対象ファイルで絞った `tsc` 出力は空。`npm run dev` 起動後、`http://localhost:5174/` でHTTP 200を確認した。
+- 版: `0.1.1-Beta-219b`。
