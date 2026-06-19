@@ -34,7 +34,7 @@ describe('formatNativeRenderOutputReleaseDiagnostic', () => {
       memoryId: '/uxfd-native-render-output',
       reason: 'encodeWriteFailed',
       error: 'native render output release rejected',
-    }, 'en')).toBe('Native render output: release failed (/uxfd-native-render-output)');
+    }, 'en')).toBe('Native render output: release failed (/uxfd-native-render-output) native render output release rejected');
   });
 });
 
@@ -53,5 +53,21 @@ describe('formatRustFrameSourceBlockedDiagnostic', () => {
       frameIndex: 4,
       legacyCanvasFallbackAllowed: true,
     }, 'en')).toBe('Rust frame source: blocked nativeRenderUnavailable frame=4 legacy fallback allowed');
+  });
+
+  it('formats native render failed diagnostics with a readable Japanese label', () => {
+    expect(formatRustFrameSourceBlockedDiagnostic({
+      reason: 'nativeRenderFailed',
+      frameIndex: 7,
+      legacyCanvasFallbackAllowed: false,
+    }, 'ja')).toBe('Rust frame source: 停止 Rust native render失敗 frame=7 legacy fallback不可');
+  });
+
+  it('formats native render output release failure diagnostics with a readable English label', () => {
+    expect(formatRustFrameSourceBlockedDiagnostic({
+      reason: 'nativeRenderOutputReleaseFailed',
+      frameIndex: 12,
+      legacyCanvasFallbackAllowed: false,
+    }, 'en')).toBe('Rust frame source: blocked native render output release failed frame=12 legacy fallback disabled');
   });
 });
