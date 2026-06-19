@@ -1,3 +1,20 @@
+## 2026-06-19 — Rust必須preview失敗をblocked診断に変更
+
+### 実施内容
+- Red: `requiredVideoOwnershipUnavailable` と `requiredRustVideoControlPlaneUnavailable` のpreview診断が `blocked` statusになる契約へ更新した。
+- Green: `SharedRendererPresenterDiagnosticState` に `blocked` statusを追加し、Rust必須video/control-plane失敗だけ `blocked` として書き出すようにした。
+- 通常のPixi互換fallbackは `fallback` のまま維持し、Rust必須失敗と互換退避を実機datasetで区別できるようにした。
+- 版を `0.1.1-Beta-216a` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPreviewPresenterController`
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration viewportRustVideoOnlyBoundary`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- preview/export双方で `fallback` と `blocked` の診断語彙を揃え、Rust必須failureがPixi退避に見えないようにする。
+- Viewport本体のPixi依存撤去へ向けて、video以外のPixi-only presentation条件とRust native render coverageを整理する。
+
 ## 2026-06-19 — Rust video-onlyをexport cutover gateへ接続
 
 ### 実施内容

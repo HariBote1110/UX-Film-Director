@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のpreview診断として、Rust必須video/control-plane失敗を `fallback` ではなく `blocked` として出すようにした。
+- Red: `sharedRendererPreviewPresenterController` のテストへ、`requiredVideoOwnershipUnavailable` と `requiredRustVideoControlPlaneUnavailable` が `uxfdSharedRendererPresenterStatus=blocked` になる契約を追加した。
+- Green: `SharedRendererPresenterDiagnosticState` に `blocked` statusを追加し、required系失敗だけblockedとして書き出すようにした。
+- 検証: `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration viewportRustVideoOnlyBoundary` は70件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216a`。
+
+## 2026-06-19
 - Phase5のRust video-only export配線として、ViewportのRust export frame source生成にも `rustVideoOnlyEnabled` を渡すようにした。
 - Red: `viewportRustVideoOnlyBoundary` のテストへ、`videoCutoverEnabled: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled` になる契約を追加した。
 - Green: `getRustExportFrameSource` のcutover gateとReact dependencyへ `rustVideoOnlyEnabled` を追加した。

@@ -1305,6 +1305,11 @@ ViewportのRust export frame source生成では、`videoCutoverEnabled` を
 `sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled` として渡す。
 Rust video-only起動時に、previewだけでなくexportもRust video cutover必須の配線に揃える。
 
+238. Phase5: Rust必須preview失敗をblocked診断にする
+`requiredVideoOwnershipUnavailable` / `requiredRustVideoControlPlaneUnavailable` は
+presenter datasetへ `uxfdSharedRendererPresenterStatus=blocked` として出す。
+通常のPixi互換fallbackとRust必須failureを診断上で分離し、Rust-only検証でPixi退避に見えないようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

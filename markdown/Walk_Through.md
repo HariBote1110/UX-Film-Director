@@ -1562,6 +1562,23 @@
 - `npm test -- viewportRustVideoOnlyBoundary viewportRustExportFrameSource sharedRendererExportFrameSource` を実行し、75件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/components/Viewport\\.tsx|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts|src/utils/viewportRustExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 123. Phase5: Rust必須preview失敗をblocked診断に変更
+- `src/utils/sharedRendererPreviewPresenterController.test.ts`
+- `requiredVideoOwnershipUnavailable` と `requiredRustVideoControlPlaneUnavailable` のdataset statusが `blocked` になる契約へ更新した。
+- `src/utils/sharedRendererPreviewPresenterController.ts`
+- Rust必須video ownership失敗とRust video control-plane欠落を `blocked` statusとして診断へ渡すようにした。
+- `src/utils/sharedRendererPresenterDiagnostics.ts`
+- fallback系診断のフィールドを再利用しながら、`status: 'blocked'` も書き出せるようにした。
+- blocked/fallback共通で `videoUploadMissingClipIds` を保持するようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216a` に更新した。
+
+## 確認
+- `npm test -- sharedRendererPreviewPresenterController` を実行し、Redでrequired系preview失敗がまだ `fallback` と出る失敗を確認した。
+- `npm test -- sharedRendererPreviewPresenterController` を再実行し、33件成功を確認した。
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration viewportRustVideoOnlyBoundary` を実行し、70件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。
