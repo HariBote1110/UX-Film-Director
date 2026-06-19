@@ -4452,3 +4452,21 @@
 ### 残課題・次のステップ
 - 実機GoPro素材でRust backend finish summaryがUI完了通知へ正しく反映されるか確認する。
 - Rust backend encode/decode/native render全体のcargo testを定期的に回し、実機smoke前のbackend contractを保つ。
+
+## 2026-06-19 — decode slot release falseを拒否
+
+### 実施内容
+- Red: preview uploadの `releaseAfterGpuUpload` が、`decode.releaseFrame` の `{ success:false }` を成功扱いしない契約を追加した。
+- Green: `sharedRendererRustVideoUploadPipeline` で decoded slot release結果を検証し、`success=false` ならcallbackをrejectするようにした。
+- Red: native render sourceの `releaseAfterNativeRenderComplete` でも、`decode.releaseFrame` の `{ success:false }` を拒否する契約を追加した。
+- Green: `sharedRendererViewportNativeRenderSource` でもrelease結果を検証し、native renderへ渡したdecoded slotの解放漏れを黙らせないようにした。
+- 版を `0.1.1-Beta-208d` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererRustVideoUploadPipeline.test.ts src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts`
+- `npm test -- src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/sharedRendererExportFrameSource.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererRustVideoUploadPipeline|sharedRendererViewportVideoUpload|sharedRendererViewportNativeRenderSource|sharedRendererViewportNativeRenderUpload|sharedRendererExportFrameSource"`
+
+### 残課題・次のステップ
+- stale decode responseなど、直接 `decode.releaseFrame` を呼ぶ残り経路でも `success=false` を観測できるようにする。
+- 実機GoPro素材で decoded slot release / native render source release の失敗診断が期待通り表面化するか確認する。

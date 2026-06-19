@@ -178,6 +178,8 @@ Rust backend integration gate:
 - `decode.releaseFrame` は consumer の最終状態を明示して slot を解放する。正常にconsumerがframeを消費した場合は
   `copyOutState=gpuUploadFenceSignalled`、copy / upload / native renderが途中で捨てる場合は
   `copyOutState=rendererUploadAborted` を使う。
+  renderer側のrelease callbackは `success=false` を成功扱いしない。preview upload / native render source の
+  decoded slot releaseが失敗した場合はcallbackをrejectさせ、slot解放漏れを黙らせない。
 - backend integration は `slotCount` と同じ multi-slot POSIX shm layout を作成し、先行 frame が `READING` でも
   後続 frame を別 slot へ書ける。
 - renderer presenter は bridge から渡される decoded RGBA `Uint8Array` を、`descriptor.strideBytes` を
