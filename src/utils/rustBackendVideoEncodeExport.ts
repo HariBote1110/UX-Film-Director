@@ -75,6 +75,12 @@ export interface RunRustBackendVideoEncodeExportResult {
   filePath: string;
 }
 
+interface RustBackendVideoEncodeFinishSummary {
+  frameCount?: number;
+  sessionId?: string;
+  filePath?: string;
+}
+
 const createDefaultSessionId = (): string =>
   `uxfd-export-${Date.now().toString(36)}`;
 
@@ -153,11 +159,31 @@ export const runRustBackendVideoEncodeExport = async ({
 
   const finishResponse = await finishRustBackendVideoEncode({ sessionId }, encoderBridge);
   assertBridgeSuccess(finishResponse.success, finishResponse.error, 'Rust backend video encode finish failed.');
+  const finishSummary = parseRustBackendVideoEncodeFinishSummary(finishResponse.result);
 
   return {
-    frameCount,
-    sessionId,
-    filePath,
+    frameCount: finishSummary.frameCount ?? frameCount,
+    sessionId: finishSummary.sessionId ?? sessionId,
+    filePath: finishSummary.filePath ?? filePath,
+  };
+};
+
+const parseRustBackendVideoEncodeFinishSummary = (
+  value: unknown
+): RustBackendVideoEncodeFinishSummary => {
+  if (typeof value !== 'object' || value === null) {
+    return {};
+  }
+  const result = value as {
+    frameCount?: unknown;
+    sessionId?: unknown;
+    filePath?: unknown;
+  };
+
+  return {
+    frameCount: typeof result.frameCount === 'number' ? result.frameCount : undefined,
+    sessionId: typeof result.sessionId === 'string' ? result.sessionId : undefined,
+    filePath: typeof result.filePath === 'string' ? result.filePath : undefined,
   };
 };
 
