@@ -523,3 +523,10 @@
 - Green: Viewportからvideo ownership id ref / update callback / `updatePixiContent` へのvideo gate渡しを削除し、`pixiRenderHelper` のresources型からも外した。
 - 検証: `npm test -- viewportRustVideoOnlyBoundary pixiVideoCutover useProjectExportBoundary projectExportCompatibilityEncoder projectExportEncodePlan projectExportFrameCanvas` は67件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-188a`。
+
+## 2026-06-19
+- Phase5のproduction video dependency境界として、WebCodecs向けH.264中間ファイル自動生成hookを削除した。
+- Red: `productionVideoDependencyBoundary` に `useMediaOptimization` / `check-intermediate` / `generate-intermediate` / `cancel-intermediate` をproduction src禁止語として追加した。
+- Green: `useAppLogic` から `useMediaOptimization` のimport/callを削除し、未参照になった `src/hooks/useMediaOptimization.ts` を削除した。
+- 検証: `npm test -- productionVideoDependencyBoundary viewportRustVideoOnlyBoundary pixiVideoCutover useProjectExportBoundary projectExportCompatibilityEncoder projectExportEncodePlan projectExportFrameCanvas` は68件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-189a`。

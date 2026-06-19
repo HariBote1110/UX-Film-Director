@@ -1126,6 +1126,12 @@ Viewportと `pixiRenderHelper` から旧VideoDecoder overlay canvas cacheとfram
 ViewportはPixi content routingへ `sharedRendererVideoObjectIds` / `requireSharedRendererVideo` を渡さず、
 presenter orchestration側だけで動画cutover必須条件を扱う。
 
+208. Phase5: production中間動画生成hookを削除する
+`useMediaOptimization` はWebCodecs向けのH.264中間ファイルをproduction起動中に自動生成するため、
+Rust backend decode / shared memory data-planeへ移す方針と競合する。
+`useAppLogic` から接続を外し、production srcから `check-intermediate` / `generate-intermediate` を呼ばないようにする。
+`videoDecodeStream` はexport test harnessの比較・診断用途に限定し、production hookへ再接続しない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
