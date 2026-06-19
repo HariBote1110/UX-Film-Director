@@ -207,6 +207,34 @@ describe('sharedVideoFrameUploadBridge', () => {
     });
   });
 
+  it('rejects bridge copy reports that use an unsupported checksum algorithm', async () => {
+    const bridge: SharedVideoFrameCopyBridge = {
+      copyIntoUploadBuffer: async () => ({
+        success: true,
+        result: {
+          sequence: 42,
+          slotIndex: 1,
+          generation: 9,
+          byteLen: 512,
+          checksumAlgorithm: 'adler32',
+          expectedChecksum: 0x1234,
+          actualChecksum: 0x1234,
+        } as any,
+      }),
+    };
+
+    await expect(prepareSharedRendererDecodedVideoFrameUpload({
+      sharedFrame,
+      slotCount: 2,
+      bridge,
+    })).resolves.toEqual({
+      ok: false,
+      reason: 'copyReportChecksumAlgorithmUnsupported',
+      detail: 'Shared video frame copy report checksum algorithm must be crc32.',
+      checksumAlgorithm: 'adler32',
+    });
+  });
+
   it('rejects descriptors outside the declared shared ring before copying bytes', async () => {
     const calls: unknown[] = [];
     const bridge: SharedVideoFrameCopyBridge = {
