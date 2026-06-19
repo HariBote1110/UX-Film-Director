@@ -1,3 +1,20 @@
+## 2026-06-19 — Rust source fallback詳細をexport失敗へ渡す
+
+### 実施内容
+- Red: ViewportのRust export source preflight失敗detailを、`useProjectExport` のRust frame source plan failureへ渡す契約を追加した。
+- Green: `ProjectExportRustFrameSourceContext` に `onFrameSourceUnavailable` を追加し、Viewportのfallback decision detailをhookへ報告するようにした。
+- `buildProjectExportFrameSourcePlan` がRust source未取得時のdetailをplan failure文面へ付加し、alert/終了後診断でpreflight失敗理由を追えるようにした。
+- 版を `0.1.1-Beta-215b` に更新した。
+
+### 検証
+- `npm test -- projectExportFrameCanvas viewportRustExportFrameSource useProjectExportBoundary viewportRustVideoOnlyBoundary`
+- `npm test -- projectExportFrameCanvas viewportRustExportFrameSource useProjectExportBoundary viewportRustVideoOnlyBoundary exportProgress exportDiagnosticsLog ExportProgressModal projectExportFrameRenderer`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/projectExportFrameCanvas\\.ts|src/utils/projectExportFrameCanvas\\.test\\.ts|src/utils/viewportRustExportFrameSource\\.ts|src/utils/viewportRustExportFrameSource\\.test\\.ts|src/components/Viewport\\.tsx|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- fallback detailだけでなく、native render envelopeのreason/media countも終了後診断に含める。
+- Rust backend decodeとshared memory/mmap data-planeの所有権cutoverを、Viewport側の実フレームhandoffまでさらに固定する。
+
 ## 2026-06-19 — Rust export preflightで終端フレームを確認
 
 ### 実施内容

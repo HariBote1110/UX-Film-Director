@@ -1227,3 +1227,20 @@
 - `npm test -- viewportRustExportFrameSource` を実行し、Redで終端直前のframe時刻がpreflightされない失敗を確認した。
 - `npm test -- viewportRustExportFrameSource viewportRustVideoOnlyBoundary projectExportFrameRenderer projectExportFrameCanvas useProjectExportBoundary` を再実行し、84件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/viewportRustExportFrameSource\\.ts|src/utils/viewportRustExportFrameSource\\.test\\.ts|src/components/Viewport\\.tsx|src/utils/projectExportFrameRenderer\\.ts|src/utils/projectExportFrameCanvas\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 98. Phase5: Rust source fallback詳細をexport失敗へ渡す
+- `src/utils/projectExportFrameCanvas.test.ts`
+- Rust source未取得時のfallback detailを `rustFrameSourceRequired` plan failure文面へ付加する契約を追加した。
+- `src/utils/viewportRustExportFrameSource.test.ts`
+- ViewportのRust export source preflight失敗decisionを `onFrameSourceUnavailable` で報告する契約を追加した。
+- `src/utils/useProjectExportBoundary.test.ts`
+- `useProjectExport` がfallback detailを受け取り、`buildProjectExportFrameSourcePlan` へ渡す境界契約を追加した。
+- `src/utils/projectExportFrameCanvas.ts` / `src/utils/viewportRustExportFrameSource.ts` / `src/components/Viewport.tsx` / `src/hooks/useProjectExport.ts`
+- `ProjectExportRustFrameSourceContext` に `onFrameSourceUnavailable` を追加し、Viewport fallback decision detailをhook経由でplan failureへ反映するようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-215b` に更新した。
+
+## 確認
+- `npm test -- projectExportFrameCanvas viewportRustExportFrameSource useProjectExportBoundary` を実行し、Redでfallback detailがplan failureへ反映されない失敗を確認した。
+- `npm test -- projectExportFrameCanvas viewportRustExportFrameSource useProjectExportBoundary viewportRustVideoOnlyBoundary exportProgress exportDiagnosticsLog ExportProgressModal projectExportFrameRenderer` を再実行し、113件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/projectExportFrameCanvas\\.ts|src/utils/projectExportFrameCanvas\\.test\\.ts|src/utils/viewportRustExportFrameSource\\.ts|src/utils/viewportRustExportFrameSource\\.test\\.ts|src/components/Viewport\\.tsx|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
