@@ -29,6 +29,7 @@ pub struct SharedVideoFrameCopyReport {
     pub slot_index: u32,
     pub generation: f64,
     pub byte_len: u32,
+    pub checksum_algorithm: String,
     pub expected_checksum: u32,
     pub actual_checksum: u32,
 }
@@ -71,6 +72,7 @@ pub struct WritableSharedFrameWritePayload {
 pub struct WritableSharedFrameWriteReport {
     pub sequence: f64,
     pub byte_len: u32,
+    pub checksum_algorithm: String,
     pub checksum: u32,
 }
 
@@ -212,6 +214,7 @@ pub fn write_into_shared_frame_ring_node(
             result: Some(WritableSharedFrameWriteReport {
                 sequence: report.sequence as f64,
                 byte_len: report.byte_len as u32,
+                checksum_algorithm: "crc32".to_string(),
                 checksum: report.checksum,
             }),
             error: None,
@@ -269,6 +272,7 @@ pub fn copy_into_upload_buffer(
                 slot_index: report.slot_index,
                 generation: report.generation as f64,
                 byte_len: report.byte_len as u32,
+                checksum_algorithm: "crc32".to_string(),
                 expected_checksum: report.expected_checksum,
                 actual_checksum: report.actual_checksum,
             }),

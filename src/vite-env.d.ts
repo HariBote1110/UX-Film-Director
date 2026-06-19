@@ -173,6 +173,7 @@ interface Window {
         slotIndex: number;
         generation: number;
         byteLen: number;
+        checksumAlgorithm: 'crc32';
         expectedChecksum: number;
         actualChecksum: number;
       };

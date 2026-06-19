@@ -18,6 +18,7 @@ export interface SharedVideoFrameCopyReport {
   slotIndex: number;
   generation: number;
   byteLen: number;
+  checksumAlgorithm?: 'crc32';
   expectedChecksum: number;
   actualChecksum: number;
 }
