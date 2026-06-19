@@ -3154,6 +3154,8 @@ describe('createSharedRendererExportFrameSource', () => {
           ok: false,
           reason: 'uploadFailed',
           uploadFailureReason: 'copyReportChecksumMismatch',
+          uploadFailureClipId: 'clip-video-2',
+          uploadFailureMediaId: 'video-2',
           detail: 'Shared video frame copy report checksum verification failed.',
           activeJobs: [],
         },
@@ -3174,7 +3176,7 @@ describe('createSharedRendererExportFrameSource', () => {
     }).catch((error) => error);
 
     expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
-    expect(blocked.message).toBe('copyReportChecksumMismatch: Shared video frame copy report checksum verification failed.');
+    expect(blocked.message).toBe('copyReportChecksumMismatch clip=clip-video-2 media=video-2: Shared video frame copy report checksum verification failed.');
     expect(blocked).toMatchObject({
       reason: 'videoUploadFailed',
       frameIndex: 2,
