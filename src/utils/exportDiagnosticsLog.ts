@@ -1,4 +1,5 @@
 import type { ExportDiagnostics } from '../store/useStore';
+import { isRustFrameSourceLegacyCanvasFallbackAllowed } from './rustFrameSourceBlockedFallback';
 
 export interface ExportDiagnosticsLogger {
   warn: (message: string) => void;
@@ -20,7 +21,7 @@ export const formatLastExportDiagnosticsLog = (
     const blockedParts = [
       `reason=${blocked.reason}`,
       `frame=${blocked.frameIndex}`,
-      `legacyFallback=${blocked.legacyCanvasFallbackAllowed}`,
+      `legacyFallback=${isRustFrameSourceLegacyCanvasFallbackAllowed(blocked)}`,
       blocked.detail ? `detail=${blocked.detail}` : undefined,
     ].filter(Boolean);
     parts.push(`frameSourceBlocked ${blockedParts.join(' ')}`);

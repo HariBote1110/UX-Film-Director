@@ -4,6 +4,7 @@ import { shallow } from 'zustand/shallow';
 import { useTranslation } from '../i18n';
 import type { ExportDiagnostics, ExportPhase, ExportProgress } from '../store/useStore';
 import type { RustBackendNativeRenderOutputReleaseEvent } from '../utils/rustBackendVideoEncodeExport';
+import { isRustFrameSourceLegacyCanvasFallbackAllowed } from '../utils/rustFrameSourceBlockedFallback';
 
 const phaseLabelKey: Record<ExportPhase, 'exportPhasePreparing' | 'exportPhaseTranscoding' | 'exportPhaseRendering' | 'exportPhaseSaving' | 'exportPhaseCancelling'> = {
   preparing: 'exportPhasePreparing',
@@ -40,7 +41,7 @@ export const formatRustFrameSourceBlockedDiagnostic = (
   language: 'ja' | 'en'
 ): string => {
   const status = language === 'ja' ? '停止' : 'blocked';
-  const fallback = event.legacyCanvasFallbackAllowed
+  const fallback = isRustFrameSourceLegacyCanvasFallbackAllowed(event)
     ? (language === 'ja' ? 'legacy fallback可' : 'legacy fallback allowed')
     : (language === 'ja' ? 'legacy fallback不可' : 'legacy fallback disabled');
   const detail = event.detail ? `: ${event.detail}` : '';
