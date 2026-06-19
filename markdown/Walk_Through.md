@@ -573,3 +573,15 @@
 ## 確認
 - `npm test -- sharedRendererRustVideoUploadPipeline sharedVideoFrameUploadBridge sharedRendererViewportVideoUpload` を実行し、18件成功を確認。
 - `npx tsc --noEmit 2>&1 | rg "sharedRendererRustVideoUploadPipeline|sharedVideoFrameUploadBridge|sharedRendererViewportVideoUpload"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 52. Phase5: export canvas providerのPixi命名一般化
+- `src/components/Viewport.tsx`
+- `getExportCanvas` 内のlegacy canvas fallbackを `legacyExportCanvas` として扱い、export境界へ渡るcanvas取得処理から `pixiCanvas` という局所名を外した。
+- `src/utils/viewportRustVideoOnlyBoundary.test.ts`
+- `getExportCanvas` ブロックが `pixiCanvas` を含まない契約を追加した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-197c` に更新した。
+
+## 確認
+- `npm test -- viewportRustVideoOnlyBoundary` を実行し、13件成功を確認。
+- `npx tsc --noEmit 2>&1 | rg "src/components/Viewport\\.tsx|viewportRustVideoOnlyBoundary|useProjectExport"` を実行し、対象ファイルに型エラーが出ないことを確認。

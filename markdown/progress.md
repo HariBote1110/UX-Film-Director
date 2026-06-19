@@ -600,3 +600,10 @@
 - Green: `prepareSharedRendererRustDecodedVideoUpload` がcopy例外をcatchしてabort release後に元の例外を再throwし、single-use releaserはnative render側と同じPromise共有型に揃えた。
 - 検証: `npm test -- sharedRendererRustVideoUploadPipeline sharedVideoFrameUploadBridge sharedRendererViewportVideoUpload` は18件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-197b`。
+
+## 2026-06-19
+- Phase5のexport canvas境界整理として、Viewportのexport canvas providerからPixi固有命名を外した。
+- Red: `viewportRustVideoOnlyBoundary` に、`getExportCanvas` ブロックが `pixiCanvas` を含まない契約を追加した。
+- Green: `Viewport` の局所変数を `legacyExportCanvas` に変更し、export hookへ渡るcanvas fallbackをPixi固有名で扱わないようにした。
+- 検証: `npm test -- viewportRustVideoOnlyBoundary` は13件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-197c`。

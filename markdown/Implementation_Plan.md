@@ -1084,6 +1084,7 @@ export hookが `PIXI.Application` refを直接受け取らないようにし、f
 providerへ一本化する。
 Viewport内では移行中のlegacy Pixi canvas fallbackを provider 内に閉じ込め、hook本体はRust/shared renderer
 frame sourceとcanvas providerだけを見る境界にする。
+provider内部の局所名も `pixiCanvas` ではなくlegacy export canvasとして扱い、export境界でPixiを正本名にしない。
 
 201. Phase5: export frame canvas境界のPixi名をlegacy canvasへ一般化する
 `projectExportFrameCanvas` の public input / source 名から `pixiCanvas` を外し、移行中のcanvas fallbackは
