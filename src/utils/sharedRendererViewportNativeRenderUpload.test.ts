@@ -423,6 +423,108 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
     ]);
   });
 
+  it('releases preview native render video sources after native output upload preparation succeeds', async () => {
+    const calls: unknown[] = [];
+    const videoOnlySession = buildVideoWithRemotePsdSession();
+    if (!videoOnlySession.surfaceGate.ok) {
+      throw new Error('videoOnlySession fixture must be renderable');
+    }
+    const session: SharedRendererPreviewSession = {
+      ...videoOnlySession,
+      plan: {
+        mode: 'parallelCompare',
+        primary: 'pixi',
+        candidate: 'sharedRenderer',
+        snapshot: {
+          ...videoOnlySession.surfaceGate.snapshot,
+          clips: [videoOnlySession.surfaceGate.snapshot.clips[0]],
+        },
+        media: [videoOnlySession.surfaceGate.media[0]],
+      },
+      surfaceGate: {
+        ...videoOnlySession.surfaceGate,
+        snapshot: {
+          ...videoOnlySession.surfaceGate.snapshot,
+          clips: [videoOnlySession.surfaceGate.snapshot.clips[0]],
+        },
+        media: [videoOnlySession.surfaceGate.media[0]],
+      },
+    };
+
+    const result = await prepareSharedRendererViewportNativeRenderUpload({
+      session,
+      requestId: 26,
+      activeJobs: [],
+      prepareNativeRenderSources: async () => ({
+        ok: true,
+        activeJobs: [],
+        sources: [{
+          mediaId: 'video-1',
+          slotCount: 2,
+          frame: {
+            descriptor,
+            ptsFrame: 26,
+          },
+          releaseAfterNativeRenderComplete: async () => {
+            calls.push(['releaseAfterNativeRenderComplete']);
+          },
+          releaseAfterNativeRenderAbort: async () => {
+            calls.push(['releaseAfterNativeRenderAbort']);
+          },
+        }],
+      }),
+      renderNativeSharedFrame: async (payload) => {
+        calls.push(['renderNativeSharedFrame', payload.sources]);
+        return {
+          success: true,
+          result: {
+            ...renderResult,
+            renderId: 'preview-native-render-26',
+            frame: {
+              descriptor: {
+                ...descriptor,
+                memoryId: '/uxfd-preview-native-render-26',
+              },
+              ptsFrame: 26,
+            },
+          },
+        };
+      },
+      releaseNativeSharedFrame: async () => ({ success: true }),
+      copyBridge: {
+        copyIntoUploadBuffer: async (_payload, target) => {
+          target.fill(0x7e);
+          return {
+            success: true,
+            result: {
+              sequence: 26,
+              slotIndex: descriptor.slotIndex,
+              generation: descriptor.generation,
+              byteLen: descriptor.byteLen,
+              expectedChecksum: 0x1234,
+              actualChecksum: 0x1234,
+            },
+          };
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+    });
+    expect(calls).toEqual([
+      ['renderNativeSharedFrame', [{
+        mediaId: 'video-1',
+        slotCount: 2,
+        frame: {
+          descriptor,
+          ptsFrame: 26,
+        },
+      }]],
+      ['releaseAfterNativeRenderComplete'],
+    ]);
+  });
+
   it('blocks mixed video preview before native render when an overlay media source is unsupported', async () => {
     const calls: unknown[] = [];
 
@@ -439,6 +541,12 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
           frame: {
             descriptor,
             ptsFrame: 24,
+          },
+          releaseAfterNativeRenderComplete: async () => {
+            calls.push(['releaseAfterNativeRenderComplete']);
+          },
+          releaseAfterNativeRenderAbort: async () => {
+            calls.push(['releaseAfterNativeRenderAbort']);
           },
         }],
       }),
@@ -471,6 +579,8 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
       detail: "Rust native render does not support Psd media 'remote-psd-1' from 'https://example.invalid/standing.psd'.",
       activeJobs: [],
     });
-    expect(calls).toEqual([]);
+    expect(calls).toEqual([
+      ['releaseAfterNativeRenderAbort'],
+    ]);
   });
 });
