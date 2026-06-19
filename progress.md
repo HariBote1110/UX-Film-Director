@@ -4323,3 +4323,19 @@
 ### 残課題・次のステップ
 - 実機のGoPro動画で、encode失敗時にもprogress modal上でnative render output release状態を確認する。
 - release失敗時の詳細errorを開発者向け詳細パネルに集約するか判断する。
+
+## 2026-06-19 — compatibility encoderの静的WebCodecs依存を分離
+
+### 実施内容
+- Red: `projectExportCompatibilityEncoder` が `videoExportPipeline` を静的importしない契約を追加した。
+- Green: `EncodeVideoConfig` / `EncodeResult` の型importをやめ、互換adapter内に必要最小限の入力・結果型を定義した。
+- WebCodecs/mp4-muxer pipelineへの接続は、動画object拒否後のdynamic importだけに閉じた。
+- 版を `0.1.1-Beta-205c` に更新した。
+
+### 検証
+- `npm test -- src/utils/projectExportCompatibilityEncoder.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "projectExportCompatibilityEncoder|useProjectExport"`
+
+### 残課題・次のステップ
+- `electron/main.ts` の旧WebCodecs export stream IPCを、非動画互換export専用としてさらに境界テストで固定する。
+- `sharedRendererExportFrameSource` の `createImageBitmap` fallbackがRust必須時に到達不能であることを、追加の境界テストで確認する。
