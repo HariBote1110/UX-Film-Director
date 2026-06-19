@@ -1051,6 +1051,93 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
+  it('does not claim multi-video ownership from a legacy single decoded upload without clip scope', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const events: string[] = [];
+    const rgbaBytes = new Uint8Array(decodedVideoDescriptor.byteLen);
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: multiVideoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      requireSharedRendererVideo: true,
+      sharedRendererDecodedVideoFrameUpload: {
+        descriptor: decodedVideoDescriptor,
+        ptsFrame: 90,
+        rgbaBytes,
+        releaseAfterGpuUpload: async () => {
+          events.push('release');
+        },
+      },
+      rustVideoFrameDecodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 2,
+        requests: [
+          {
+            clipId: 'video-1',
+            mediaId: 'video-1',
+            source: '/tmp/video.mp4',
+            sourceFrame: 90,
+            sourceRate: {
+              numerator: 60,
+              denominator: 1,
+            },
+            timelineFrame: 12,
+            width: 1280,
+            height: 720,
+            format: 'rgba8Srgb',
+            colour: 'rec709SrgbFullRange',
+          },
+          {
+            clipId: 'video-2',
+            mediaId: 'video-2',
+            source: '/tmp/video-2.mp4',
+            sourceFrame: 120,
+            sourceRate: {
+              numerator: 30,
+              denominator: 1,
+            },
+            timelineFrame: 12,
+            width: 640,
+            height: 360,
+            format: 'rgba8Srgb',
+            colour: 'rec709SrgbFullRange',
+          },
+        ],
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onWriteTexture: () => {
+              events.push('writeTexture');
+            },
+            onSubmittedWorkDone: async () => {
+              events.push('gpuUploadDone');
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({
+      ok: false,
+      reason: 'requiredVideoOwnershipUnavailable',
+    });
+    expect(events).toEqual([]);
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterStatus: 'fallback',
+      uxfdSharedRendererPresenterFailureReason: 'requiredVideoOwnershipUnavailable',
+      uxfdSharedRendererPresenterVideoOwner: 'pixi',
+      uxfdSharedRendererPresenterVideoCutoverReason: 'videoFrameUploadUnavailable',
+      uxfdSharedRendererPresenterSharedVideoObjectCount: '0',
+    });
+  });
+
   it('publishes decoded Rust video GPU release failures instead of throwing out of the presenter', async () => {
     const dataset: Record<string, string | undefined> = {};
     const events: string[] = [];
