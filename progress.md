@@ -4792,3 +4792,20 @@
 ### 残課題・次のステップ
 - SolidColour側のnative render ownership上書きもbuilderへ寄せ、native render ownershipの一貫性を揃える。
 - 実機GoPro素材でnative render preview成功時にPixi動画childrenがcleanupされることを確認する。
+
+## 2026-06-19 — native render SolidColour ownershipをbuilderへ統合
+
+### 実施内容
+- Red: `sharedRendererSolidColourOwnership` に、Rust native render frameがSolidColour sceneを既に含む場合は通常cutover flagやRust/WASM geometryに依存せず `sharedRenderer` ownerになる契約を追加した。
+- Green: `buildSharedRendererSolidColourOwnership` に `nativeRenderFrameReady` / `nativeRenderSolidColourObjectIds` を追加し、`sharedRendererPreviewPresenterController` の手作業ownership上書きをbuilder入力へ統合した。
+- native render preview成功時のSolidColour ownershipも単一の所有権判定へ寄せ、Pixiとの二重合成を避ける契約を強めた。
+- 版を `0.1.1-Beta-208w` に更新した。
+
+### 検証
+- `npm test -- sharedRendererSolidColourOwnership`
+- `npm test -- sharedRendererSolidColourOwnership sharedRendererPreviewPresenterController sharedRendererViewportPresenterOrchestration`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererSolidColourOwnership\\.ts|src/utils/sharedRendererSolidColourOwnership\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts)"`
+
+### 残課題・次のステップ
+- native render preview成功時のImage/PSD ownership builderとdiagnosticsも同じ観点で確認する。
+- 実機GoPro素材でnative render preview成功時にPixi動画/shape childrenがcleanupされることを確認する。
