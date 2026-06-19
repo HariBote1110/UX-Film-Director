@@ -46,6 +46,8 @@ export type SharedRendererPresenterDiagnosticState =
       videoFrameUploadReady?: boolean;
       videoUploadFailureReason?: string;
       videoUploadFailureDetail?: string;
+      videoUploadFailureClipId?: string;
+      videoUploadFailureMediaId?: string;
       videoOwner?: SharedRendererVideoOwner;
       videoCutoverReason?: SharedRendererVideoCutoverReason;
       sharedVideoObjectCount?: number;
@@ -58,6 +60,8 @@ export type SharedRendererPresenterDiagnosticState =
       nativeRenderFailureDetail?: string;
       videoUploadFailureReason?: string;
       videoUploadFailureDetail?: string;
+      videoUploadFailureClipId?: string;
+      videoUploadFailureMediaId?: string;
     }
   | {
       status: 'deviceLost';
@@ -90,6 +94,8 @@ export const writeSharedRendererPresenterDiagnostics = (
   delete dataset.uxfdSharedRendererPresenterVideoFrameUploadReady;
   delete dataset.uxfdSharedRendererPresenterVideoUploadFailureReason;
   delete dataset.uxfdSharedRendererPresenterVideoUploadFailureDetail;
+  delete dataset.uxfdSharedRendererPresenterVideoUploadFailureClipId;
+  delete dataset.uxfdSharedRendererPresenterVideoUploadFailureMediaId;
   delete dataset.uxfdSharedRendererPresenterNativeRenderFrameReady;
   delete dataset.uxfdSharedRendererPresenterNativeRenderMediaCount;
   delete dataset.uxfdSharedRendererPresenterNativeRenderMediaKinds;
@@ -156,6 +162,12 @@ export const writeSharedRendererPresenterDiagnostics = (
     if (state.videoUploadFailureDetail) {
       dataset.uxfdSharedRendererPresenterVideoUploadFailureDetail = state.videoUploadFailureDetail;
     }
+    if (state.videoUploadFailureClipId) {
+      dataset.uxfdSharedRendererPresenterVideoUploadFailureClipId = state.videoUploadFailureClipId;
+    }
+    if (state.videoUploadFailureMediaId) {
+      dataset.uxfdSharedRendererPresenterVideoUploadFailureMediaId = state.videoUploadFailureMediaId;
+    }
     if (typeof state.nativeRenderFrameReady === 'boolean') {
       dataset.uxfdSharedRendererPresenterNativeRenderFrameReady = String(state.nativeRenderFrameReady);
     }
@@ -183,6 +195,12 @@ export const writeSharedRendererPresenterDiagnostics = (
     }
     if (state.videoUploadFailureDetail) {
       dataset.uxfdSharedRendererPresenterVideoUploadFailureDetail = state.videoUploadFailureDetail;
+    }
+    if (state.videoUploadFailureClipId) {
+      dataset.uxfdSharedRendererPresenterVideoUploadFailureClipId = state.videoUploadFailureClipId;
+    }
+    if (state.videoUploadFailureMediaId) {
+      dataset.uxfdSharedRendererPresenterVideoUploadFailureMediaId = state.videoUploadFailureMediaId;
     }
     if (state.nativeRenderFailureReason === 'nativeRenderSourceReleaseUnavailable') {
       dataset.uxfdSharedRendererPresenterNativeRenderSourceReleaseRequired = 'true';

@@ -183,7 +183,12 @@ export const startSharedRendererViewportPresenter = async ({
 const resolveSharedRendererVideoUploadFailure = (
   videoUploadResult: PrepareSharedRendererViewportVideoUploadResult | undefined,
   videoUploadsResult: PrepareSharedRendererViewportVideoUploadsResult | undefined,
-): { reason: string; detail: string } | undefined => {
+): {
+  reason: string;
+  detail: string;
+  clipId?: string;
+  mediaId?: string;
+} | undefined => {
   const result = videoUploadsResult ?? videoUploadResult;
   if (!result || result.ok) {
     return undefined;
@@ -194,5 +199,7 @@ const resolveSharedRendererVideoUploadFailure = (
   return {
     reason,
     detail: result.detail,
+    clipId: result.reason === 'uploadFailed' ? result.uploadFailureClipId : undefined,
+    mediaId: result.reason === 'uploadFailed' ? result.uploadFailureMediaId : undefined,
   };
 };
