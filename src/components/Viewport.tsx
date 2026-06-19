@@ -1118,6 +1118,7 @@ const Viewport: React.FC = () => {
     fallbackAdapter: sharedRendererGpuStatus.fallbackAdapter,
     videoCutoverEnabled: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled,
     hasVideoObjects: context.hasVideoObjects,
+    hasNativeRenderMediaObjects: context.hasNativeRenderMediaObjects,
     objects: context.objects,
     time: context.time,
     preferEncodeOnly: context.preferEncodeOnly,

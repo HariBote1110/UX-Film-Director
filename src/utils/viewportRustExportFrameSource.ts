@@ -26,6 +26,7 @@ export interface BuildViewportRustExportFrameSourceInput {
   fallbackAdapter: boolean;
   videoCutoverEnabled: boolean;
   hasVideoObjects: boolean;
+  hasNativeRenderMediaObjects?: boolean;
   preferEncodeOnly?: boolean;
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
   objects?: TimelineObject[];
@@ -87,6 +88,7 @@ export const resolveViewportRustExportFrameSource = ({
   fallbackAdapter,
   videoCutoverEnabled,
   hasVideoObjects,
+  hasNativeRenderMediaObjects = false,
   preferEncodeOnly = false,
   presentedFrameSharedFrameTaker,
   objects,
@@ -96,6 +98,7 @@ export const resolveViewportRustExportFrameSource = ({
 }: BuildViewportRustExportFrameSourceInput): ViewportRustExportFrameSourceDecision => {
   const effectiveVideoCutoverEnabled = videoCutoverEnabled || hasVideoObjects;
   const effectivePreferEncodeOnly = preferEncodeOnly || hasVideoObjects;
+  const requiresNativeRenderOutput = effectivePreferEncodeOnly || hasNativeRenderMediaObjects;
 
   if (!exportEnabled) {
     return fallback(
@@ -152,7 +155,7 @@ export const resolveViewportRustExportFrameSource = ({
           'exportSessionBlocked',
           session.surfaceGate.detail,
           session.nativeRenderEnvelope,
-          effectivePreferEncodeOnly ? 'blocked' : undefined
+          requiresNativeRenderOutput ? 'blocked' : undefined
         );
       }
       nativeRenderEnvelope = session.nativeRenderEnvelope;
@@ -161,7 +164,7 @@ export const resolveViewportRustExportFrameSource = ({
           'exportSessionBlocked',
           nativeRenderEnvelope.detail,
           nativeRenderEnvelope,
-          effectivePreferEncodeOnly ? 'blocked' : undefined
+          requiresNativeRenderOutput ? 'blocked' : undefined
         );
       }
     }
