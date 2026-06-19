@@ -3578,6 +3578,117 @@ describe('createSharedRendererExportFrameSource', () => {
     });
   });
 
+  it('blocks bitmap export before legacy capture when native render texture view is unavailable', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    let disposeCount = 0;
+    let bitmapCaptureCount = 0;
+
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      startViewportPresenter: async () => ({
+        control: {
+          ok: false,
+          reason: 'nativeRenderTextureViewUnavailable',
+          dispose: () => { disposeCount += 1; },
+        },
+        activeVideoDecodeJob: null,
+        activeVideoDecodeJobs: [],
+      }) as never,
+      createFrameBitmap: async () => {
+        bitmapCaptureCount += 1;
+        return ({ close: () => undefined }) as ImageBitmap;
+      },
+    });
+
+    const blocked = await source.renderFrame?.({
+      frameIndex: 7,
+      timestampUs: 116_667,
+      time: 7 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [image()],
+    }).catch((error) => error);
+
+    expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
+    expect(blocked).toMatchObject({
+      reason: 'nativeRenderTextureViewUnavailable',
+      frameIndex: 7,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
+      message: 'Native render texture view is unavailable for shared renderer presentation.',
+    });
+    expect(bitmapCaptureCount).toBe(0);
+    expect(disposeCount).toBe(1);
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'blocked',
+      uxfdRustExportFrameSourceFrameIndex: '7',
+      uxfdRustExportFrameSourceFrameReason: 'nativeRenderTextureViewUnavailable',
+    });
+  });
+
+  it('preserves native render texture view presentation blocks during direct encode export', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    let disposeCount = 0;
+
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      startViewportPresenter: async () => ({
+        control: {
+          ok: false,
+          reason: 'nativeRenderTextureViewUnavailable',
+          dispose: () => { disposeCount += 1; },
+        },
+        activeVideoDecodeJob: null,
+        activeVideoDecodeJobs: [],
+      }) as never,
+    });
+
+    const blocked = await source.renderEncodeFrame?.({
+      frameIndex: 8,
+      timestampUs: 133_333,
+      time: 8 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [image()],
+      encodeSessionId: 'native-render-texture-view-block-session',
+    }).catch((error) => error);
+
+    expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
+    expect(blocked).toMatchObject({
+      reason: 'nativeRenderTextureViewUnavailable',
+      frameIndex: 8,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
+      message: 'Native render texture view is unavailable for shared renderer presentation.',
+    });
+    expect(disposeCount).toBe(1);
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'blocked',
+      uxfdRustExportFrameSourceFrameIndex: '8',
+      uxfdRustExportFrameSourceFrameReason: 'nativeRenderTextureViewUnavailable',
+    });
+  });
+
   it('falls back before bitmap capture when Rust video upload fails during export', async () => {
     const canvas = {
       width: 1,
