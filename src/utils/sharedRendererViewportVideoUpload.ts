@@ -80,6 +80,8 @@ export type PrepareSharedRendererViewportVideoUploadResult =
       detail: string;
       activeJob?: SharedRendererViewportVideoDecodeJob | null;
       uploadFailureReason?: PreparedViewportVideoUploadFailureReason;
+      uploadFailureClipId?: string;
+      uploadFailureMediaId?: string;
     };
 
 export type PrepareSharedRendererViewportVideoUploadsResult =
@@ -107,6 +109,8 @@ export type PrepareSharedRendererViewportVideoUploadsResult =
       detail: string;
       activeJobs: SharedRendererViewportVideoDecodeJob[];
       uploadFailureReason?: PreparedViewportVideoUploadFailureReason;
+      uploadFailureClipId?: string;
+      uploadFailureMediaId?: string;
     };
 
 export const prepareSharedRendererViewportVideoUploads = async ({
@@ -294,6 +298,8 @@ export const prepareSharedRendererViewportVideoUploads = async ({
         reason: 'uploadFailed',
         detail: upload.detail,
         uploadFailureReason: upload.reason,
+        uploadFailureClipId: request.clipId,
+        uploadFailureMediaId: request.mediaId,
         activeJobs: resolvedActiveJobs,
       };
     }
@@ -431,6 +437,8 @@ export const prepareSharedRendererViewportVideoUpload = async ({
       reason: 'uploadFailed',
       detail: upload.detail,
       uploadFailureReason: upload.reason,
+      uploadFailureClipId: request.clipId,
+      uploadFailureMediaId: request.mediaId,
       activeJob: resolvedJob,
     };
   }
