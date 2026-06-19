@@ -47,6 +47,7 @@ import {
 } from '../utils/layerTrackOps';
 import type { CoreMlAnimalObservation } from '../utils/coremlTrackIpc';
 import type { RustBackendNativeRenderOutputReleaseEvent } from '../utils/rustBackendVideoEncodeExport';
+import type { SharedRendererExportFrameSourceBlockedReason } from '../utils/sharedRendererExportFrameSource';
 
 interface ClipboardState {
   objects: TimelineObject[];
@@ -80,6 +81,12 @@ export interface ExportProgress {
   currentFrame: number;
   /** 総フレーム数。0 のときは不確定（プログレスバーを不確定表示）。 */
   totalFrames: number;
+  /** Rust/shared renderer frame source がblockedになった時の診断。 */
+  rustFrameSourceBlocked?: {
+    reason: SharedRendererExportFrameSourceBlockedReason;
+    frameIndex: number;
+    legacyCanvasFallbackAllowed: boolean;
+  };
   /** Rust native render output のrelease診断。 */
   nativeRenderOutputRelease?: RustBackendNativeRenderOutputReleaseEvent;
 }

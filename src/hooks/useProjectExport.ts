@@ -171,6 +171,17 @@ export const useProjectExport = (
                   frameSourcePlan: exportFrameSourcePlan,
                   rustFrameSourceBlocked,
                 });
+                const currentProgress = useStore.getState().exportProgress;
+                if (currentProgress) {
+                  setExportProgress({
+                    ...currentProgress,
+                    rustFrameSourceBlocked: {
+                      reason: error.reason,
+                      frameIndex: error.frameIndex,
+                      legacyCanvasFallbackAllowed: error.legacyCanvasFallbackAllowed,
+                    },
+                  });
+                }
                 if (blockedRuntimePlan.shouldCloseRustFrameSource) {
                   await closeRustFrameSource?.();
                 }

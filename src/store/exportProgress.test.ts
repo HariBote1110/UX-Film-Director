@@ -45,6 +45,31 @@ describe('export progress state', () => {
     });
   });
 
+  it('keeps Rust frame source blocked diagnostics on the progress payload', () => {
+    useStore.getState().setExporting(true);
+    useStore.getState().setExportProgress({
+      phase: 'rendering',
+      currentFrame: 13,
+      totalFrames: 120,
+      rustFrameSourceBlocked: {
+        reason: 'videoBitmapCaptureDisabled',
+        frameIndex: 13,
+        legacyCanvasFallbackAllowed: false,
+      },
+    });
+
+    expect(useStore.getState().exportProgress).toEqual({
+      phase: 'rendering',
+      currentFrame: 13,
+      totalFrames: 120,
+      rustFrameSourceBlocked: {
+        reason: 'videoBitmapCaptureDisabled',
+        frameIndex: 13,
+        legacyCanvasFallbackAllowed: false,
+      },
+    });
+  });
+
   it('flags cancellation and switches the phase to cancelling', () => {
     useStore.getState().setExporting(true);
     useStore.getState().setExportProgress({ phase: 'rendering', currentFrame: 30, totalFrames: 120 });
