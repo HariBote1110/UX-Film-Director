@@ -129,6 +129,21 @@ describe('formatRustFrameSourceBlockedDiagnostic', () => {
       legacyCanvasFallbackAllowed: false,
     }, 'en')).toBe('Rust frame source: blocked WebGPU draw unavailable frame=6 legacy fallback disabled');
   });
+
+  it('formats native render texture view unavailable diagnostics with a readable label', () => {
+    expect(formatRustFrameSourceBlockedDiagnostic({
+      reason: 'nativeRenderTextureViewUnavailable',
+      frameIndex: 7,
+      legacyCanvasFallbackAllowed: false,
+      detail: 'Native render texture view is unavailable for shared renderer presentation.',
+    }, 'ja')).toBe('Rust frame source: 停止 native render texture viewなし frame=7 legacy fallback不可: Native render texture view is unavailable for shared renderer presentation.');
+
+    expect(formatRustFrameSourceBlockedDiagnostic({
+      reason: 'nativeRenderTextureViewUnavailable',
+      frameIndex: 7,
+      legacyCanvasFallbackAllowed: false,
+    }, 'en')).toBe('Rust frame source: blocked native render texture view unavailable frame=7 legacy fallback disabled');
+  });
 });
 
 describe('formatLastExportDiagnosticsSummary', () => {
