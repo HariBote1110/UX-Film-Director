@@ -1,3 +1,20 @@
+## 2026-06-19 — export終了後Rust診断をログ出力
+
+### 実施内容
+- Red: `lastExportDiagnostics` をDevToolsログ向けに1行要約し、診断がない場合はログを出さない契約を追加した。
+- Green: `formatLastExportDiagnosticsLog` / `logLastExportDiagnostics` を追加し、Rust frame source blocked/native render output release診断を要約できるようにした。
+- `useProjectExport` の終了処理で `setExporting(false)` 後に `lastExportDiagnostics` をログ出力し、モーダルが消えた後も実機調査で診断を拾えるようにした。
+- 版を `0.1.1-Beta-211i` に更新した。
+
+### 検証
+- `npm test -- exportDiagnosticsLog useProjectExportBoundary`
+- `npm test -- exportDiagnosticsLog exportProgressDiagnostics useProjectExportBoundary ExportProgressModal exportProgress`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/exportDiagnosticsLog\\.ts|src/utils/exportDiagnosticsLog\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts|src/store/useStore\\.ts)"`
+
+### 残課題・次のステップ
+- Rust frame source ready時のbrowser fallback遮断を統合テストで固定する。
+- 必要なら `lastExportDiagnostics` を開発者向けUIにも表示する。
+
 ## 2026-06-19 — Rust block reasonの表示ラベルを追加
 
 ### 実施内容

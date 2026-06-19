@@ -1118,3 +1118,20 @@
 - `npm test -- ExportProgressModal` を実行し、Redでraw reasonが表示される失敗を確認した。
 - `npm test -- exportProgressDiagnostics useProjectExportBoundary ExportProgressModal exportProgress` を再実行し、42件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/store/useStore\\.ts|src/store/exportProgress\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 91. Phase5: export終了後Rust診断をログ出力
+- `src/utils/exportDiagnosticsLog.test.ts`
+- `lastExportDiagnostics` をDevToolsログ向けに1行要約し、診断がない場合はログを出さない契約を追加した。
+- `src/utils/exportDiagnosticsLog.ts`
+- Rust frame source blocked/native render output release診断を要約する `formatLastExportDiagnosticsLog` / `logLastExportDiagnostics` を追加した。
+- `src/hooks/useProjectExport.ts`
+- export終了処理で `setExporting(false)` 後に `lastExportDiagnostics` をログ出力するようにした。
+- `src/utils/useProjectExportBoundary.test.ts`
+- hookが終了後診断ログをcleanup後に出す境界契約を追加した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-211i` に更新した。
+
+## 確認
+- `npm test -- exportDiagnosticsLog` を実行し、Redでログヘルパー未実装の失敗を確認した。
+- `npm test -- exportDiagnosticsLog exportProgressDiagnostics useProjectExportBoundary ExportProgressModal exportProgress` を再実行し、46件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/exportDiagnosticsLog\\.ts|src/utils/exportDiagnosticsLog\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts|src/store/useStore\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
