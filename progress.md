@@ -6641,6 +6641,22 @@
 ### 残課題・次のステップ
 - Electron windowで動画previewを確認し、Rust inline decode経路で最初のフレームが見えるか確認する。
 
+## 2026-06-20 — Rust動画previewのE2E契約を追加
+
+### 実施内容
+- 実機で出た `presenterStartFailed` と `nativeRenderUnsupportedMediaOnly` 系の診断を受け、動画previewがその状態で終わらないことを固定するE2E寄りの統合テストを追加した。
+- `src/e2e/rustVideoPreview.e2e.test.ts` を追加し、native renderが `nativeRenderUnsupportedMediaOnly` を返しても、Rust video uploadへ進み、presenterがready controlを返す流れを検証した。
+- このテストではPixiJS動画描画へ戻さず、Rust decoded uploadが `sharedRendererDecodedVideoFrameUploads` としてpresenterへ渡ることを確認している。
+- テスト追加のみのため、版は `0.1.1-Beta-219b` 据え置き。
+
+### 検証
+- `npm test -- rustVideoPreview.e2e`
+- `npm test -- rustVideoPreview.e2e sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController`
+- 対象E2Eファイルで絞った `tsc` 出力は空。
+
+### 残課題・次のステップ
+- 実機の `presenterStartFailed` はViewport側のcatchで出るため、次はElectron window上で再確認し、まだ出る場合はWebGPU presenter起動そのものの失敗理由をE2Eへ追加する。
+
 ## 2026-06-19 — shared frame copy checksum検証を追加
 
 ### 実施内容

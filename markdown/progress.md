@@ -1064,3 +1064,10 @@
 - Green: `vite.config.ts` の `optimizeDeps.entries` を `['index.html']` に固定し、通常devからexport test harnessをdep-scan対象外にした。
 - 検証: `npm test -- productionVideoDependencyBoundary -t "dependency scanning"` は2件成功。対象ファイルで絞った `tsc` 出力は空。`npm run dev` 起動後、`http://localhost:5174/` でHTTP 200を確認した。
 - 版: `0.1.1-Beta-219b`。
+
+## 2026-06-20
+- 実機で出た `presenterStartFailed` と `nativeRenderUnsupportedMediaOnly` 系の診断を受け、動画previewがその状態で終わらないことを固定するE2E寄りの統合テストを追加した。
+- `src/e2e/rustVideoPreview.e2e.test.ts` を追加し、native renderが `nativeRenderUnsupportedMediaOnly` を返しても、Rust video uploadへ進み、presenterがready controlを返す流れを検証した。
+- このテストではPixiJS動画描画へ戻さず、Rust decoded uploadが `sharedRendererDecodedVideoFrameUploads` としてpresenterへ渡ることを確認している。
+- 検証: `npm test -- rustVideoPreview.e2e` は1件成功。`npm test -- rustVideoPreview.e2e sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController` は53件成功。対象E2Eファイルで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-219b` 据え置き。
