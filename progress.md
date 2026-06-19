@@ -1,3 +1,24 @@
+## 2026-06-20 — 外部4K GoPro素材のRust preview decodeを修正
+
+### 実施内容
+- Red: `/Volumes/ExtendSSD-W/GX020052.MP4` をElectron実ウィンドウE2Eへ投入し、optional native renderが4K source texture上限やdecode session競合を踏んでpreviewを進められない状態を再現した。
+- Red: viewport presenter orchestrationへ、Rust decoded video uploadをoptional native render previewより優先する契約を追加した。
+- Red: 3840x2160素材のpreview decode jobをcanvas相当の1920x1080へ縮小する契約を追加した。
+- Red: Rust backendへ、`decode.start` の要求width/heightへffmpeg decode結果をscaleする契約を追加した。
+- Green: optional native render previewを動画upload成功後には起動しない順序へ変更し、外部4K素材でnative wgpu texture上限を先に踏まないようにした。
+- Green: viewport video uploadはpreview用decode sizeをcanvasと最大辺1920に収め、native fallbackも最大辺1920を上限にした。
+- Green: Rust backendのffmpeg filterへ `scale=w=...:h=...` を指定し、要求decode sizeとshared ring layoutのbyte lengthを一致させた。
+- 版を `0.1.1-Beta-219g` に更新した。
+
+### 検証
+- `npm test -- sharedRendererViewportVideoUpload sharedRendererViewportNativeRenderSource sharedRendererViewportPresenterOrchestration`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportVideoUpload\\.ts|src/utils/sharedRendererViewportVideoUpload\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.test\\.ts)"`
+- `cargo test --manifest-path rust-backend/Cargo.toml decode_request_frame -- --nocapture`
+- `UXFD_VIDEO_LOAD_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_LOAD_E2E_TIMEOUT_MS=180000 npm run test:video-load:e2e`
+
+### 残課題・次のステップ
+- previewは1920px上限のdecodeで成立した。将来的にはcanvas表示サイズ・再生中負荷・proxy有無に応じてdecode解像度を動的に下げる制御を追加すると、120fps/60Mbps素材でもさらに軽くできる。
+
 ## 2026-06-20 — 動画previewの透明フレームによる灰色表示を修正
 
 ### 実施内容

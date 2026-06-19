@@ -253,7 +253,7 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
     });
   });
 
-  it('passes a prepared native render upload into the presenter and skips per-video preview upload', async () => {
+  it('prioritises Rust decoded video upload over optional native render preview', async () => {
     let presenterInput: unknown;
     const events: string[] = [];
     const prepareNativeRenderUpload: SharedRendererViewportNativeRenderUploadPreparer = async () => {
@@ -264,13 +264,17 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
         upload: upload as any,
       };
     };
-    const prepareVideoUpload: SharedRendererViewportVideoUploadPreparer = async () => {
-      events.push('prepareVideoUpload');
+    const prepareVideoUploads: SharedRendererViewportVideoUploadsPreparer = async () => {
+      events.push('prepareVideoUploads');
       return {
         ok: true,
-        activeJob,
-        request: {} as any,
-        upload,
+        activeJobs: [activeJob],
+        uploads: [
+          {
+            request: { clipId: 'video-1' } as any,
+            upload,
+          },
+        ],
       };
     };
     const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {
@@ -289,20 +293,26 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
       activeVideoDecodeJobs: [],
       requestId: 13,
       prepareNativeRenderUpload,
-      prepareVideoUpload,
+      prepareVideoUploads,
       startPresenter,
     });
 
     expect(result.activeVideoDecodeJobs).toEqual([activeJob]);
     expect(events).toEqual([
-      'prepareNativeRenderUpload',
+      'prepareVideoUploads',
       'startPresenter',
     ]);
     expect(presenterInput).toMatchObject({
       sharedRendererVideoCutoverEnabled: true,
-      sharedRendererNativeRenderFrameUpload: upload,
+      sharedRendererNativeRenderFrameUpload: undefined,
       sharedRendererDecodedVideoFrameUpload: undefined,
-      sharedRendererDecodedVideoFrameUploads: undefined,
+      sharedRendererDecodedVideoFrameUploads: [
+        {
+          clipId: 'video-1',
+          descriptor: upload.descriptor,
+          ptsFrame: 42,
+        },
+      ],
     });
   });
 
@@ -418,27 +428,24 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
     });
   });
 
-  it('uses the native render resolved active job when falling back to a single Rust video upload', async () => {
+  it('uses optional native render only after a single Rust video upload cannot provide a frame', async () => {
     let presenterInput: unknown;
-    let videoUploadActiveJob: SharedRendererViewportVideoDecodeJob | null | undefined;
     const events: string[] = [];
     const prepareNativeRenderUpload: SharedRendererViewportNativeRenderUploadPreparer = async () => {
       events.push('prepareNativeRenderUpload');
       return {
-        ok: false,
-        reason: 'nativeRenderFailed',
-        detail: 'Rust backend rejected unsupported PSD media',
+        ok: true,
         activeJobs: [activeJob],
+        upload: upload as any,
       };
     };
-    const prepareVideoUpload: SharedRendererViewportVideoUploadPreparer = async (input) => {
+    const prepareVideoUpload: SharedRendererViewportVideoUploadPreparer = async () => {
       events.push('prepareVideoUpload');
-      videoUploadActiveJob = input.activeJob;
       return {
-        ok: true,
-        activeJob: input.activeJob ?? activeJob,
-        request: { clipId: 'video-1' } as any,
-        upload,
+        ok: false,
+        reason: 'noVideoDecodeRequest',
+        detail: 'Shared renderer preview session does not contain a visible video frame request.',
+        activeJob: null,
       };
     };
     const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {
@@ -461,18 +468,14 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
     });
 
     expect(events).toEqual([
-      'prepareNativeRenderUpload',
       'prepareVideoUpload',
+      'prepareNativeRenderUpload',
       'startPresenter',
     ]);
-    expect(videoUploadActiveJob).toBe(activeJob);
     expect(result.activeVideoDecodeJob).toBe(activeJob);
     expect(presenterInput).toMatchObject({
-      sharedRendererNativeRenderFailure: {
-        reason: 'nativeRenderFailed',
-        detail: 'Rust backend rejected unsupported PSD media',
-      },
-      sharedRendererDecodedVideoFrameUpload: upload,
+      sharedRendererNativeRenderFrameUpload: upload,
+      sharedRendererDecodedVideoFrameUpload: undefined,
     });
   });
 

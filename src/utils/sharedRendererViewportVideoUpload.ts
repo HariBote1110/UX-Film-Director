@@ -28,6 +28,13 @@ export interface SharedRendererViewportVideoDecodeJob {
   sourceRate: RustBackendVideoDecodeFrameRate;
 }
 
+interface PreviewDecodeCanvasSize {
+  width: number;
+  height: number;
+}
+
+const MAX_VIEWPORT_VIDEO_DECODE_EDGE = 1920;
+
 type PreparedViewportVideoUpload = Extract<
   PrepareSharedRendererRustDecodedVideoUploadResult,
   { ok: true }
@@ -130,10 +137,11 @@ export const prepareSharedRendererViewportVideoUploads = async ({
       activeJobs: [...activeJobs],
     };
   }
+  const surfaceGate = session.surfaceGate;
 
   const decodeRequests = decodeRequestBuilder({
-    snapshot: session.surfaceGate.snapshot,
-    media: session.surfaceGate.media,
+    snapshot: surfaceGate.snapshot,
+    media: surfaceGate.media,
   });
   if (!decodeRequests.ok) {
     return {
@@ -158,10 +166,10 @@ export const prepareSharedRendererViewportVideoUploads = async ({
     request: SharedRendererVideoFrameDecodeRequest;
     upload: PreparedViewportVideoUpload;
   }> = [];
-  const resolvedRequestId = requestId ?? session.surfaceGate.snapshot.frame_index;
+  const resolvedRequestId = requestId ?? surfaceGate.snapshot.frame_index;
   const requestedJobs = decodeRequests.requests.map((request) => ({
     request,
-    nextJob: buildViewportVideoDecodeJob(request, slotCount),
+    nextJob: buildViewportVideoDecodeJob(request, slotCount, surfaceGate.canvas),
   }));
   const visibleActiveJobs = activeJobs.filter((job) =>
     requestedJobs.some(({ nextJob }) => sameDecodeJob(job, nextJob)));
@@ -376,10 +384,11 @@ export const prepareSharedRendererViewportVideoUpload = async ({
       activeJob,
     };
   }
+  const surfaceGate = session.surfaceGate;
 
   const decodeRequests = decodeRequestBuilder({
-    snapshot: session.surfaceGate.snapshot,
-    media: session.surfaceGate.media,
+    snapshot: surfaceGate.snapshot,
+    media: surfaceGate.media,
   });
   if (!decodeRequests.ok) {
     return {
@@ -400,7 +409,7 @@ export const prepareSharedRendererViewportVideoUpload = async ({
     };
   }
 
-  const nextJob = buildViewportVideoDecodeJob(request, slotCount);
+  const nextJob = buildViewportVideoDecodeJob(request, slotCount, surfaceGate.canvas);
   const resolvedJob = sameDecodeJob(activeJob, nextJob)
     ? activeJob
     : await replaceDecodeJob(activeJob, nextJob, request, rustBackendBridge);
@@ -415,7 +424,7 @@ export const prepareSharedRendererViewportVideoUpload = async ({
 
   const decodeFramePayload = {
     jobId: resolvedJob.jobId,
-    requestId: requestId ?? session.surfaceGate.snapshot.frame_index,
+    requestId: requestId ?? surfaceGate.snapshot.frame_index,
     frameIndex: request.sourceFrame,
     mode: 'latestWins',
   } as const;
@@ -443,7 +452,7 @@ export const prepareSharedRendererViewportVideoUpload = async ({
   if (
     isRustBackendDecodedVideoFrameAvailable(decodeResponse)
     && (
-      decodeResponse.result.requestId !== (requestId ?? session.surfaceGate.snapshot.frame_index)
+      decodeResponse.result.requestId !== (requestId ?? surfaceGate.snapshot.frame_index)
       || decodeResponse.result.jobId !== resolvedJob.jobId
     )
   ) {
@@ -466,7 +475,7 @@ export const prepareSharedRendererViewportVideoUpload = async ({
       reason: 'staleDecodeResponse',
       detail: buildStaleDecodedFrameDetail(
         decodeResponse.result,
-        requestId ?? session.surfaceGate.snapshot.frame_index,
+        requestId ?? surfaceGate.snapshot.frame_index,
         resolvedJob.jobId
       ),
       uploadFailureClipId: request.clipId,
@@ -581,20 +590,40 @@ const buildStaleDecodedFrameDetail = (
 
 const buildViewportVideoDecodeJob = (
   request: SharedRendererVideoFrameDecodeRequest,
-  slotCount: number
-): SharedRendererViewportVideoDecodeJob => ({
-  jobId: [
-    'shared-renderer-video',
-    sanitiseJobPart(request.mediaId),
-    `${request.width}x${request.height}`,
-    `${request.sourceRate.numerator}over${request.sourceRate.denominator}`,
-  ].join('-'),
-  source: request.source,
-  slotCount,
-  width: request.width,
-  height: request.height,
-  sourceRate: request.sourceRate,
-});
+  slotCount: number,
+  canvas: PreviewDecodeCanvasSize
+): SharedRendererViewportVideoDecodeJob => {
+  const size = resolveViewportVideoDecodeSize(request, canvas);
+  return {
+    jobId: [
+      'shared-renderer-video',
+      sanitiseJobPart(request.mediaId),
+      `${size.width}x${size.height}`,
+      `${request.sourceRate.numerator}over${request.sourceRate.denominator}`,
+    ].join('-'),
+    source: request.source,
+    slotCount,
+    width: size.width,
+    height: size.height,
+    sourceRate: request.sourceRate,
+  };
+};
+
+const resolveViewportVideoDecodeSize = (
+  request: SharedRendererVideoFrameDecodeRequest,
+  canvas: PreviewDecodeCanvasSize
+): { width: number; height: number } => {
+  const sourceWidth = Math.max(1, request.width);
+  const sourceHeight = Math.max(1, request.height);
+  const maxWidth = Math.max(1, Math.min(sourceWidth, canvas.width, MAX_VIEWPORT_VIDEO_DECODE_EDGE));
+  const maxHeight = Math.max(1, Math.min(sourceHeight, canvas.height, MAX_VIEWPORT_VIDEO_DECODE_EDGE));
+  const scale = Math.min(1, maxWidth / sourceWidth, maxHeight / sourceHeight);
+
+  return {
+    width: Math.max(1, Math.round(sourceWidth * scale)),
+    height: Math.max(1, Math.round(sourceHeight * scale)),
+  };
+};
 
 const sameDecodeJob = (
   current: SharedRendererViewportVideoDecodeJob | null,

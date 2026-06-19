@@ -93,33 +93,7 @@ export const startSharedRendererViewportPresenter = async ({
   const shouldUseMultipleVideoUploads = Boolean(activeVideoDecodeJobs);
   const nativeRenderUploadPreparer = prepareNativeRenderUpload
     ?? (nativeRenderPreviewEnabled ? prepareSharedRendererViewportNativeRenderUpload : undefined);
-  const nativeRenderUploadResult = nativeRenderUploadPreparer
-    ? await nativeRenderUploadPreparer({
-      session,
-      requestId,
-      activeJobs: nextActiveVideoDecodeJobs,
-    })
-    : undefined;
-  const sharedRendererNativeRenderFrameUpload = nativeRenderUploadResult?.ok
-    ? nativeRenderUploadResult.upload
-    : undefined;
-  const shouldPublishNativeRenderFailure = nativeRenderUploadResult
-    && !nativeRenderUploadResult.ok
-    && (
-      requireSharedRendererOutput
-      || nativeRenderUploadResult.reason !== 'nativeRenderUnsupportedMediaOnly'
-    );
-  const sharedRendererNativeRenderFailure = shouldPublishNativeRenderFailure && nativeRenderUploadResult && !nativeRenderUploadResult.ok
-    ? {
-      reason: nativeRenderUploadResult.reason,
-      detail: nativeRenderUploadResult.detail,
-    }
-    : undefined;
-  if (nativeRenderUploadResult) {
-    nextActiveVideoDecodeJobs = nativeRenderUploadResult.activeJobs;
-    nextActiveVideoDecodeJob = nextActiveVideoDecodeJobs[0] ?? null;
-  }
-  const shouldPrepareVideoUploads = effectiveVideoCutoverEnabled && !sharedRendererNativeRenderFrameUpload;
+  const shouldPrepareVideoUploads = effectiveVideoCutoverEnabled;
   const videoUploadsResult = shouldPrepareVideoUploads && shouldUseMultipleVideoUploads
     ? await prepareVideoUploads({
       session,
@@ -155,6 +129,36 @@ export const startSharedRendererViewportPresenter = async ({
   }
   if (videoUploadsResult) {
     nextActiveVideoDecodeJobs = videoUploadsResult.activeJobs;
+    nextActiveVideoDecodeJob = nextActiveVideoDecodeJobs[0] ?? null;
+  }
+  const hasSharedRendererDecodedVideoFrameUpload = Boolean(
+    sharedRendererDecodedVideoFrameUpload
+    || (sharedRendererDecodedVideoFrameUploads && sharedRendererDecodedVideoFrameUploads.length > 0)
+  );
+  const nativeRenderUploadResult = nativeRenderUploadPreparer && !hasSharedRendererDecodedVideoFrameUpload
+    ? await nativeRenderUploadPreparer({
+      session,
+      requestId,
+      activeJobs: nextActiveVideoDecodeJobs,
+    })
+    : undefined;
+  const sharedRendererNativeRenderFrameUpload = nativeRenderUploadResult?.ok
+    ? nativeRenderUploadResult.upload
+    : undefined;
+  const shouldPublishNativeRenderFailure = nativeRenderUploadResult
+    && !nativeRenderUploadResult.ok
+    && (
+      requireSharedRendererOutput
+      || nativeRenderUploadResult.reason !== 'nativeRenderUnsupportedMediaOnly'
+    );
+  const sharedRendererNativeRenderFailure = shouldPublishNativeRenderFailure && nativeRenderUploadResult && !nativeRenderUploadResult.ok
+    ? {
+      reason: nativeRenderUploadResult.reason,
+      detail: nativeRenderUploadResult.detail,
+    }
+    : undefined;
+  if (nativeRenderUploadResult) {
+    nextActiveVideoDecodeJobs = nativeRenderUploadResult.activeJobs;
     nextActiveVideoDecodeJob = nextActiveVideoDecodeJobs[0] ?? null;
   }
   onVideoDecodeJobResolved?.(nextActiveVideoDecodeJob);

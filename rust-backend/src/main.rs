@@ -2036,7 +2036,7 @@ fn decode_tight_rgba_frame(
 ) -> Result<Vec<u8>, String> {
     let input_metadata = probe_video_input_metadata(ffprobe_path, source)?;
     let filter = format!(
-        "select=eq(n\\,{frame_index}),scale=in_range={}:out_range=pc,format=rgba",
+        "select=eq(n\\,{frame_index}),scale=w={width}:h={height}:in_range={}:out_range=pc,format=rgba",
         input_metadata.range
     );
     let output = Command::new(ffmpeg_path)

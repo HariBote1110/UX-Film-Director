@@ -375,6 +375,66 @@ describe('sharedRendererViewportVideoUpload', () => {
     expect(calls).not.toContainEqual(['stopVideoDecode', expect.anything()]);
   });
 
+  it('downscales oversized source video decode jobs to the preview canvas size', async () => {
+    const { calls, rustBackendBridge, copyBridge } = createBridges();
+    const oversizedSession: SharedRendererPreviewSession = {
+      ...session,
+      surfaceGate: {
+        ...baseSurfaceGate,
+        canvas: {
+          width: 1920,
+          height: 1080,
+        },
+        media: [{
+          id: 'video-1',
+          kind: 'Video',
+          source: '/Volumes/ExtendSSD-W/GX020052.MP4',
+          width: 3840,
+          height: 2160,
+          source_rate: {
+            numerator: 120000,
+            denominator: 1001,
+          },
+        }],
+      },
+    };
+
+    const result = await prepareSharedRendererViewportVideoUploads({
+      session: oversizedSession,
+      requestId: 84,
+      slotCount: 2,
+      activeJobs: [],
+      rustBackendBridge,
+      copyBridge,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected oversized video upload preparation to succeed');
+    expect(result.activeJobs[0]).toMatchObject({
+      jobId: 'shared-renderer-video-video-1-1920x1080-120000over1001',
+      width: 1920,
+      height: 1080,
+    });
+    expect(calls[0]).toEqual(['startVideoDecode', {
+      jobId: 'shared-renderer-video-video-1-1920x1080-120000over1001',
+      source: '/Volumes/ExtendSSD-W/GX020052.MP4',
+      slotCount: 2,
+      width: 1920,
+      height: 1080,
+      sourceRate: {
+        numerator: 120000,
+        denominator: 1001,
+      },
+      format: 'rgba8Srgb',
+      colour: {
+        primaries: 'bt709',
+        transfer: 'srgb',
+        matrix: 'rgb',
+        range: 'full',
+      },
+    }]);
+  });
+
   it('aborts already prepared decoded slots when a later visible video upload fails', async () => {
     const { calls, rustBackendBridge } = createBridges();
     const copyBridge: SharedVideoFrameCopyBridge = {

@@ -2114,6 +2114,84 @@ fn decode_request_frame_decodes_requested_source_frame_to_verified_descriptor_wi
 }
 
 #[test]
+fn decode_request_frame_scales_source_frame_to_requested_decode_dimensions() {
+    let temp_dir = TestTempDir::new("decode-control-plane-scaled");
+    let fixture = build_two_frame_h264_fixture(temp_dir.path());
+    let mut backend = BackendProcess::start();
+    let target_width = fixture.width / 2;
+    let target_height = fixture.height / 2;
+
+    let start_response = backend.request(json!({
+        "id": 1,
+        "method": "decode.start",
+        "params": {
+            "jobId": "decode-scaled",
+            "source": fixture.path,
+            "slotCount": 2,
+            "width": target_width,
+            "height": target_height,
+            "sourceRate": {
+                "numerator": 30,
+                "denominator": 1
+            },
+            "format": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+
+    assert_eq!(start_response["ok"], true, "{start_response}");
+    let stride_bytes = start_response["result"]["strideBytes"]
+        .as_u64()
+        .expect("stride bytes") as usize;
+    let slot_byte_len = start_response["result"]["slotByteLen"]
+        .as_u64()
+        .expect("slot byte length") as usize;
+    let expected_tight_rgba =
+        decode_tight_rgba_frame(&fixture.path, 1, target_width, target_height);
+    let expected_padded_rgba =
+        pad_rgba_rows(&expected_tight_rgba, target_width, target_height, stride_bytes);
+
+    let response = backend.request(json!({
+        "id": 2,
+        "method": "decode.requestFrame",
+        "params": {
+            "jobId": "decode-scaled",
+            "requestId": 12,
+            "frameIndex": 1,
+            "mode": "latestWins"
+        }
+    }));
+
+    assert_eq!(response["ok"], true, "{response}");
+    assert_eq!(
+        response["result"]["frame"]["descriptor"]["width"],
+        target_width
+    );
+    assert_eq!(
+        response["result"]["frame"]["descriptor"]["height"],
+        target_height
+    );
+    assert_eq!(
+        response["result"]["frame"]["descriptor"]["byteLen"],
+        slot_byte_len
+    );
+    assert_eq!(
+        response["result"]["verification"]["checksum"]["valueHex"],
+        crc32_hex(&expected_padded_rgba)
+    );
+    assert_eq!(
+        response["result"]["verification"]["checksum"]["byteLen"],
+        slot_byte_len
+    );
+    assert_no_frame_bytes_recursive(&response["result"]);
+}
+
+#[test]
 fn decode_release_frame_accepts_source_data_plane_already_consumed_by_native_render() {
     let temp_dir = TestTempDir::new("decode-native-render-source-release");
     let fixture = build_two_frame_h264_fixture(temp_dir.path());
@@ -3048,7 +3126,7 @@ fn decode_tight_rgba_frame_with_input_range(
         .arg(path)
         .arg("-vf")
         .arg(format!(
-            "select=eq(n\\,{frame_index}),scale=in_range={input_range}:out_range=pc:in_color_matrix=bt709:out_color_matrix=bt709,format=rgba"
+            "select=eq(n\\,{frame_index}),scale=w={width}:h={height}:in_range={input_range}:out_range=pc:in_color_matrix=bt709:out_color_matrix=bt709,format=rgba"
         ))
         .arg("-frames:v")
         .arg("1")
