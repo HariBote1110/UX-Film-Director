@@ -36,6 +36,13 @@ describe('shared renderer export frame source dependency boundary', () => {
     expect(code).not.toContain('webGpuReadbackSharedFrameWriter');
   });
 
+  it('keeps browser canvas ImageBitmap capture inside the legacy capture adapter', () => {
+    const code = source();
+
+    expect(code).toContain("from './projectExportLegacyCanvasCapture'");
+    expect(code).not.toContain('createImageBitmap(');
+  });
+
   it('does not keep WebGPU readback fixtures in export frame source tests', () => {
     const code = testSource();
 
