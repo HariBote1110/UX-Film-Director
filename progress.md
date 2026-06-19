@@ -1,3 +1,20 @@
+## 2026-06-19 — Rust export preflightで終端フレームを確認
+
+### 実施内容
+- Red: ViewportのRust export source preflightがobject開始時刻だけでなく、最後に表示されるフレーム時刻も確認する契約を追加した。
+- Green: `buildViewportRustExportPreflightTimes` にfpsを渡し、`startTime + duration - 1 / fps` をpreflight対象へ追加するようにした。
+- 動画やnative render sourceが終端付近だけWebGPU/native render envelopeで失敗するケースを、export source生成前に検出しやすくした。
+- 版を `0.1.1-Beta-215a` に更新した。
+
+### 検証
+- `npm test -- viewportRustExportFrameSource`
+- `npm test -- viewportRustExportFrameSource viewportRustVideoOnlyBoundary projectExportFrameRenderer projectExportFrameCanvas useProjectExportBoundary`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/viewportRustExportFrameSource\\.ts|src/utils/viewportRustExportFrameSource\\.test\\.ts|src/components/Viewport\\.tsx|src/utils/projectExportFrameRenderer\\.ts|src/utils/projectExportFrameCanvas\\.ts)"`
+
+### 残課題・次のステップ
+- preflight失敗時の診断をexport failure alertにも統合し、終端フレームで詰まった理由をユーザー側から追いやすくする。
+- Rust backend decodeとshared memory/mmap data-planeの所有権cutoverを、Viewport側のRust frame source生成から実フレームhandoffまでさらに固定する。
+
 ## 2026-06-19 — blocked Rust frameでlegacy captureを拒否
 
 ### 実施内容

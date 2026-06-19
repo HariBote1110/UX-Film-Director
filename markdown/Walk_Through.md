@@ -1213,3 +1213,17 @@
 - `npm test -- projectExportFrameRenderer` を実行し、Redでblocked済みrequired Rust frameがlegacy canvas captureへ解決する失敗を確認した。
 - `npm test -- projectExportFrameRenderer projectExportFrameCanvas projectExportRustEncodeFrame useProjectExportBoundary exportProgress exportDiagnosticsLog` を再実行し、84件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/projectExportFrameRenderer\\.ts|src/utils/projectExportFrameRenderer\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/projectExportFrameCanvas\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 97. Phase5: Rust export preflightで終端フレームを確認
+- `src/utils/viewportRustExportFrameSource.test.ts`
+- ViewportのRust export source preflightがobject開始時刻だけでなく、最後に表示されるフレーム時刻も確認する契約を追加した。
+- `src/utils/viewportRustExportFrameSource.ts`
+- `buildViewportRustExportPreflightTimes` にfpsを渡し、`startTime + duration - 1 / fps` をpreflight対象へ追加するようにした。
+- 動画やnative render sourceが終端付近だけWebGPU/native render envelopeで失敗するケースを、export source生成前に検出しやすくした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-215a` に更新した。
+
+## 確認
+- `npm test -- viewportRustExportFrameSource` を実行し、Redで終端直前のframe時刻がpreflightされない失敗を確認した。
+- `npm test -- viewportRustExportFrameSource viewportRustVideoOnlyBoundary projectExportFrameRenderer projectExportFrameCanvas useProjectExportBoundary` を再実行し、84件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/viewportRustExportFrameSource\\.ts|src/utils/viewportRustExportFrameSource\\.test\\.ts|src/components/Viewport\\.tsx|src/utils/projectExportFrameRenderer\\.ts|src/utils/projectExportFrameCanvas\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
