@@ -116,6 +116,10 @@ export const renderProjectExportFrame = async ({
         detail: error.message,
       };
       onRustFrameSourceBlocked?.(blockedDiagnostic);
+      if (!error.legacyCanvasFallbackAllowed) {
+        await closeRustFrameSource?.();
+        throw error;
+      }
       if (blockedRuntimePlan.shouldCloseRustFrameSource) {
         await closeRustFrameSource?.();
       }
