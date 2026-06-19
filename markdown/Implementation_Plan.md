@@ -1132,7 +1132,8 @@ Rust backend decode / shared memory data-planeへ移す方針と競合する。
 `useAppLogic` から接続を外し、production srcから `check-intermediate` / `generate-intermediate` を呼ばないようにする。
 Electron mainから旧 `check-intermediate` / `generate-intermediate` / `cancel-intermediate` IPCも削除し、
 WebCodecs用中間ファイル生成をproduction境界へ戻さない。
-`videoDecodeStream` はexport test harnessの比較・診断用途に限定し、production hookへ再接続しない。
+`videoDecodeStream` は `src/exportTest/` 配下へ移し、export test harnessの比較・診断用途に限定する。
+production起動時の `VideoDecoder.isConfigSupported` probeも削除し、WebCodecs decode依存を通常起動境界から外す。
 
 ## UI 刷新（2026-04-19）
 

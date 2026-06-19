@@ -537,3 +537,10 @@
 - Green: `electron/main.ts` から旧intermediate cache path、生成中process state、`check-intermediate` / `generate-intermediate` / `cancel-intermediate` handlerを削除した。
 - 検証: `npm test -- legacyBase64ExportBoundary productionVideoDependencyBoundary` は2件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-190a`。
+
+## 2026-06-19
+- Phase5のproduction video dependency境界として、WebCodecs decode streamをexport testへ隔離した。
+- Red: `productionVideoDependencyBoundary` に `new VideoDecoder` / `VideoDecoder.isConfigSupported` / `from 'mp4box'` / `decodeVideoStream` をproduction src禁止語として追加した。
+- Green: `src/utils/videoDecodeStream.ts` を `src/exportTest/videoDecodeStream.ts` へ移し、`exportTestHarness` のimportを更新した。production起動時の `VideoDecoder.isConfigSupported` probeも `src/main.tsx` から削除した。
+- 検証: `npm test -- productionVideoDependencyBoundary legacyBase64ExportBoundary` は2件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-191a`。

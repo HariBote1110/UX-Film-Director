@@ -147,6 +147,8 @@ Rust backend integration gate:
   export test harnessの比較・診断用途に限定する。
 - Electron mainは旧WebCodecs intermediate用の `check-intermediate` / `generate-intermediate` /
   `cancel-intermediate` IPCを公開しない。
+- `VideoDecoder` / `mp4box` ベースの `decodeVideoStream` は `src/exportTest/` 配下に置き、
+  production utils / app startupから参照しない。
 - Rust backend は unix 環境で attach 可能な POSIX shared memory name を `memoryId` として返し、
   decoded RGBA を shared memory ring へ書く。
 - `decode.releaseFrame` は WebGPU upload fence 完了後の `copyOutState=gpuUploadFenceSignalled` でのみ slot を解放する。
