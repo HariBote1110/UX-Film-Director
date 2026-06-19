@@ -102,6 +102,7 @@ describe('buildViewportRustExportFrameSource', () => {
       webGpuAvailable: true,
       fallbackAdapter: false,
       videoCutoverEnabled: true,
+      hasVideoObjects: false,
       createFrameSource: (input) => {
         calls.push(input);
         return frameSource;
@@ -137,6 +138,7 @@ describe('buildViewportRustExportFrameSource', () => {
       webGpuAvailable: true,
       fallbackAdapter: false,
       videoCutoverEnabled: true,
+      hasVideoObjects: false,
       preferEncodeOnly: true,
       createFrameSource: (input) => {
         calls.push(input);
@@ -201,6 +203,7 @@ describe('buildViewportRustExportFrameSource', () => {
       webGpuAvailable: true,
       fallbackAdapter: false,
       videoCutoverEnabled: true,
+      hasVideoObjects: true,
       objects: [video],
       time: 0,
       buildExportSession: () => exportSessionWithSurfaceGate({
@@ -281,6 +284,7 @@ describe('buildViewportRustExportFrameSource', () => {
       webGpuAvailable: true,
       fallbackAdapter: false,
       videoCutoverEnabled: false,
+      hasVideoObjects: true,
       objects: [video],
       time: 0,
       buildExportSession: () => exportSessionWithSurfaceGate({
@@ -338,6 +342,7 @@ describe('buildViewportRustExportFrameSource', () => {
       webGpuAvailable: true,
       fallbackAdapter: false,
       videoCutoverEnabled: true,
+      hasVideoObjects: false,
       presentedFrameSharedFrameTaker,
       createFrameSource: (input) => {
         calls.push(input);
@@ -375,6 +380,7 @@ describe('buildViewportRustExportFrameSource', () => {
       webGpuAvailable: true,
       fallbackAdapter: false,
       videoCutoverEnabled: true,
+      hasVideoObjects: false,
       createFrameSource: () => frameSource,
     };
 
@@ -422,6 +428,7 @@ describe('buildViewportRustExportFrameSource', () => {
       webGpuAvailable: true,
       fallbackAdapter: false,
       videoCutoverEnabled: true,
+      hasVideoObjects: false,
       objects: exportObjects,
       time: 0,
       buildExportSession: () => exportSessionWithSurfaceGate({
@@ -464,6 +471,7 @@ describe('buildViewportRustExportFrameSource', () => {
       webGpuAvailable: true,
       fallbackAdapter: false,
       videoCutoverEnabled: true,
+      hasVideoObjects: false,
       objects: exportObjects,
       time: 0,
       buildExportSession: () => exportSessionWithSurfaceGate({
@@ -513,6 +521,7 @@ describe('resolveViewportRustExportFrameSource', () => {
     webGpuAvailable: true,
     fallbackAdapter: false,
     videoCutoverEnabled: true,
+    hasVideoObjects: false,
     createFrameSource: () => frameSource,
   };
 

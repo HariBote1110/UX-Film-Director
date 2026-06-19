@@ -25,6 +25,7 @@ export interface BuildViewportRustExportFrameSourceInput {
   webGpuAvailable: boolean;
   fallbackAdapter: boolean;
   videoCutoverEnabled: boolean;
+  hasVideoObjects: boolean;
   preferEncodeOnly?: boolean;
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
   objects?: TimelineObject[];
@@ -79,6 +80,7 @@ export const resolveViewportRustExportFrameSource = ({
   webGpuAvailable,
   fallbackAdapter,
   videoCutoverEnabled,
+  hasVideoObjects,
   preferEncodeOnly = false,
   presentedFrameSharedFrameTaker,
   objects,
@@ -86,9 +88,8 @@ export const resolveViewportRustExportFrameSource = ({
   buildExportSession = buildSharedRendererExportSession,
   createFrameSource = createSharedRendererExportFrameSource,
 }: BuildViewportRustExportFrameSourceInput): ViewportRustExportFrameSourceDecision => {
-  const hasVideoExportObjects = hasVideoObjects(objects);
-  const effectiveVideoCutoverEnabled = videoCutoverEnabled || hasVideoExportObjects;
-  const effectivePreferEncodeOnly = preferEncodeOnly || hasVideoExportObjects;
+  const effectiveVideoCutoverEnabled = videoCutoverEnabled || hasVideoObjects;
+  const effectivePreferEncodeOnly = preferEncodeOnly || hasVideoObjects;
 
   if (!exportEnabled) {
     return fallback(
@@ -195,9 +196,6 @@ export const resolveViewportRustExportFrameSource = ({
     }),
   };
 };
-
-const hasVideoObjects = (objects: readonly TimelineObject[] | undefined): boolean =>
-  objects?.some((object) => object.type === 'video') ?? false;
 
 export const writeViewportRustExportFrameSourceDiagnostics = (
   dataset: Record<string, string | undefined>,

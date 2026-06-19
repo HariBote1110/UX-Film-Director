@@ -1117,6 +1117,7 @@ const Viewport: React.FC = () => {
     webGpuAvailable: sharedRendererGpuStatus.webGpuAvailable,
     fallbackAdapter: sharedRendererGpuStatus.fallbackAdapter,
     videoCutoverEnabled: sharedRendererVideoCutoverEnabled,
+    hasVideoObjects: context.hasVideoObjects,
     objects: context.objects,
     time: context.time,
     preferEncodeOnly: context.preferEncodeOnly,

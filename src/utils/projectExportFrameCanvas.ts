@@ -36,6 +36,7 @@ export interface ProjectExportRustFrameSource {
 
 export interface ProjectExportRustFrameSourceContext {
   objects: TimelineObject[];
+  hasVideoObjects: boolean;
   time: number;
   preferEncodeOnly?: boolean;
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
@@ -237,12 +238,17 @@ export const resolveProjectExportRustFrameSourceContext = ({
   time,
   encodeEngine,
   presentedFrameSharedFrameTaker,
-}: ResolveProjectExportRustFrameSourceContextInput): ProjectExportRustFrameSourceContext => ({
-  objects,
-  time,
-  preferEncodeOnly: encodeEngine === 'rustBackendVideoEncoder' || objects.some((object) => object.type === 'video'),
-  presentedFrameSharedFrameTaker,
-});
+}: ResolveProjectExportRustFrameSourceContextInput): ProjectExportRustFrameSourceContext => {
+  const hasVideoObjects = objects.some((object) => object.type === 'video');
+
+  return {
+    objects,
+    hasVideoObjects,
+    time,
+    preferEncodeOnly: encodeEngine === 'rustBackendVideoEncoder' || hasVideoObjects,
+    presentedFrameSharedFrameTaker,
+  };
+};
 
 export const resolveProjectExportFrameRuntimePlan = ({
   frameSourcePlan,
