@@ -333,6 +333,7 @@ impl PosixSharedRing {
                 }
                 let actual_checksum = crc32(&bytes);
                 if expected_checksum != actual_checksum {
+                    slot.state.store(FREE, Ordering::Release);
                     return Err(PosixShmError::ChecksumMismatch {
                         sequence,
                         expected: expected_checksum,
