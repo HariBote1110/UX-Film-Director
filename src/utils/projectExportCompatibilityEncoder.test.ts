@@ -17,6 +17,13 @@ describe('encodeProjectExportCompatibilityVideo', () => {
     expect(code).not.toContain('hasVideoObjects?: boolean');
   });
 
+  it('does not statically import the WebCodecs mp4-muxer pipeline', () => {
+    const code = source();
+
+    expect(code).not.toMatch(/import\s+type\s+[^;]+['"]\.\/videoExportPipeline['"]/);
+    expect(code).not.toMatch(/import\s+[^('"][^;]+['"]\.\/videoExportPipeline['"]/);
+  });
+
   it('refuses video object exports before loading the WebCodecs compatibility encoder', async () => {
     await expect(encodeProjectExportCompatibilityVideo({
       width: 1920,
