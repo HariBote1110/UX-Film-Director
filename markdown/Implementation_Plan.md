@@ -1410,6 +1410,11 @@ WebCodecs互換encoderでもRust frame source必須・blocked時failとして扱
 汎用のRust-only文言ではなく `Image/PSD export requires...` として出す。
 Image/PSD由来のnative render必須失敗を、export progress/logで追いやすくする。
 
+259. Phase5: native render media preflight失敗をblocked診断にする
+Viewport Rust export source生成では、`hasNativeRenderMediaObjects` が有効なpreflight失敗を
+legacy fallbackではなく `blocked` 診断として出す。
+Image/PSDなどnative render mediaのexport source不成立を、動画と同じfail-loud系の診断へ揃える。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

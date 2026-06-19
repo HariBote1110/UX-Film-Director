@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のViewport export source診断として、Image/PSDなどnative render mediaのpreflight失敗を `fallback` ではなく `blocked` として出すようにした。
+- Red: `viewportRustExportFrameSource` のテストへ、`hasNativeRenderMediaObjects=true` のpreflight失敗がblocked診断になる契約を追加した。
+- Green: Viewport Rust export source入力に `hasNativeRenderMediaObjects` を追加し、`Viewport` からcontext値を渡すようにした。
+- 検証: `npm test -- viewportRustExportFrameSource viewportRustVideoOnlyBoundary` は34件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216v`。
+
+## 2026-06-19
 - Phase5のexport計画診断として、Image/PSD exportでRust frame sourceが不在の場合のdetailをImage/PSD由来だと分かる文言にした。
 - Red: `projectExportFrameCanvas` のテストへ、`hasNativeRenderMediaObjects=true` のplan failure detailが `Image/PSD export requires...` になる契約を追加した。
 - Green: `buildProjectExportFrameSourcePlan` に `hasNativeRenderMediaObjects` を渡し、`useProjectExport` からも同じ判定を渡すようにした。

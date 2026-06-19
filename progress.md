@@ -1,3 +1,19 @@
+## 2026-06-19 — native render media preflight失敗をblocked診断に変更
+
+### 実施内容
+- Red: Image/PSDなどnative render mediaのRust export preflight失敗が、legacy fallbackではなくblocked診断になる契約を追加した。
+- Green: `BuildViewportRustExportFrameSourceInput` に `hasNativeRenderMediaObjects` を追加し、preflight失敗時のdiagnostic status判定へ含めた。
+- `Viewport` からもexport contextの `hasNativeRenderMediaObjects` をRust export frame source生成へ渡すようにした。
+- 版を `0.1.1-Beta-216v` に更新した。
+
+### 検証
+- `npm test -- viewportRustExportFrameSource viewportRustVideoOnlyBoundary`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/viewportRustExportFrameSource\\.ts|src/utils/viewportRustExportFrameSource\\.test\\.ts|src/components/Viewport\\.tsx|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- Image/PSD native render mediaのplan failureをexport progress modal上でさらに読みやすくする。
+- shared renderer実出力必須モードの実機確認範囲を、画像/PSD混在タイムラインへ広げる。
+
 ## 2026-06-19 — Image/PSD Rust frame source不在detailを明示
 
 ### 実施内容

@@ -1887,6 +1887,22 @@
 - `npm test -- projectExportFrameCanvas useProjectExportBoundary` を実行し、56件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/projectExportFrameCanvas\\.ts|src/utils/projectExportFrameCanvas\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 144. Phase5: native render media preflight失敗をblocked診断に変更
+- `src/utils/viewportRustExportFrameSource.test.ts`
+- `hasNativeRenderMediaObjects=true` のRust export preflight失敗が、fallbackではなくblocked診断になる契約を追加した。
+- `src/utils/viewportRustExportFrameSource.ts`
+- `BuildViewportRustExportFrameSourceInput` に `hasNativeRenderMediaObjects` を追加した。
+- preflight失敗のdiagnostic status判定を、`preferEncodeOnly` だけでなくnative render media必須でもblockedにするようにした。
+- `src/components/Viewport.tsx`
+- `ProjectExportRustFrameSourceContext.hasNativeRenderMediaObjects` をViewport Rust export source生成へ渡すようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216v` に更新した。
+
+## 確認
+- `npm test -- viewportRustExportFrameSource` を実行し、RedでdiagnosticStatusが付かずfallback扱いになる失敗を確認した。
+- `npm test -- viewportRustExportFrameSource viewportRustVideoOnlyBoundary` を実行し、34件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/viewportRustExportFrameSource\\.ts|src/utils/viewportRustExportFrameSource\\.test\\.ts|src/components/Viewport\\.tsx|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。
