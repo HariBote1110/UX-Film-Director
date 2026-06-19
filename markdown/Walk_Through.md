@@ -1614,6 +1614,26 @@
 - `npm test -- ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress` を実行し、28件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportDiagnosticsLog\\.test\\.ts|src/utils/rustFrameSourceBlockedFallback\\.ts|src/utils/exportProgressDiagnostics\\.ts|src/store/useStore\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 126. Phase5: 動画Rust blocked診断をprogress保存時に正規化
+- `src/store/exportProgress.test.ts`
+- `videoOwnershipUnavailable` の古いpayloadが `legacyCanvasFallbackAllowed=true` を持っていても、`exportProgress` と `lastExportDiagnostics` ではfalseに正規化される契約を追加した。
+- `src/utils/exportProgressDiagnostics.test.ts`
+- `updateExportProgressPhase` が既存progressのRust動画blocked診断を保存時にfalseへ正規化する契約を追加した。
+- `src/utils/rustFrameSourceBlockedFallback.ts`
+- `normaliseRustFrameSourceBlockedFallback` を追加し、理由ベースのfallback可否判定をpayload正規化にも使えるようにした。
+- `src/store/useStore.ts`
+- `setExportProgress` が保持前にRust frame source blocked診断を正規化するようにした。
+- `src/utils/exportProgressDiagnostics.ts`
+- progress phase更新時も同じ正規化を通すようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216d` に更新した。
+
+## 確認
+- `npm test -- exportProgress exportProgressDiagnostics` を実行し、Redで古いtrue payloadがまだ保持される失敗を確認した。
+- `npm test -- exportProgress exportProgressDiagnostics` を再実行し、26件成功を確認した。
+- `npm test -- ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress` を実行し、29件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/store/useStore\\.ts|src/store/exportProgress\\.test\\.ts|src/utils/exportProgressDiagnostics\\.ts|src/utils/exportProgressDiagnostics\\.test\\.ts|src/utils/rustFrameSourceBlockedFallback\\.ts|src/components/ExportProgressModal\\.tsx|src/utils/exportDiagnosticsLog\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。

@@ -1,3 +1,20 @@
+## 2026-06-19 — 動画Rust blocked診断をprogress保存時に正規化
+
+### 実施内容
+- Red: `videoOwnershipUnavailable` の古い診断payloadが `legacyCanvasFallbackAllowed=true` を持っていても、progress payloadとlast diagnosticsではfalseへ正規化される契約を追加した。
+- Green: `normaliseRustFrameSourceBlockedFallback` を追加し、`setExportProgress` と `updateExportProgressPhase` がRust動画必須blocked診断を保存時にfallback不可へ正規化するようにした。
+- UI/ログ表示だけでなく、保持される診断payload自体もRust動画必須blockedの意味に揃えた。
+- 版を `0.1.1-Beta-216d` に更新した。
+
+### 検証
+- `npm test -- exportProgress exportProgressDiagnostics`
+- `npm test -- ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress`
+- `npx tsc --noEmit 2>&1 | rg "(src/store/useStore\\.ts|src/store/exportProgress\\.test\\.ts|src/utils/exportProgressDiagnostics\\.ts|src/utils/exportProgressDiagnostics\\.test\\.ts|src/utils/rustFrameSourceBlockedFallback\\.ts|src/components/ExportProgressModal\\.tsx|src/utils/exportDiagnosticsLog\\.ts)"`
+
+### 残課題・次のステップ
+- Viewport本体のPixi依存撤去へ向けて、video以外のPixi-only presentation条件とRust native render coverageを整理する。
+- Rust動画必須blocked診断が蓄積される実機ケースで、DevTools logとexport progress表示が同じpayloadを参照していることを確認する。
+
 ## 2026-06-19 — 動画Rust blocked診断のfallback表示を不可へ正規化
 
 ### 実施内容

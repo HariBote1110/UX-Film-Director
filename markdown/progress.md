@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のexport診断保存として、`videoOwnershipUnavailable` / `videoUploadFailed` のblocked payload自体をlegacy fallback不可へ正規化した。
+- Red: `exportProgress` と `exportProgressDiagnostics` のテストへ、古いtrue payloadでもprogress保持時にはfalseになる契約を追加した。
+- Green: `normaliseRustFrameSourceBlockedFallback` を追加し、`setExportProgress` と `updateExportProgressPhase` で同じ正規化を使うようにした。
+- 検証: `npm test -- ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress` は29件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216d`。
+
+## 2026-06-19
 - Phase5のexport診断表示として、`videoOwnershipUnavailable` / `videoUploadFailed` を理由ベースでlegacy fallback不可へ正規化した。
 - Red: `ExportProgressModal` と `exportDiagnosticsLog` のテストへ、古いtrue payloadでも動画Rust blocked診断はfallback不可表示になる契約を追加した。
 - Green: `isRustFrameSourceLegacyCanvasFallbackAllowed` を追加し、UI summaryとDevTools logで同じ正規化を使うようにした。

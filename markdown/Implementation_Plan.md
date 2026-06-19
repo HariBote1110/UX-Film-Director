@@ -1320,6 +1320,11 @@ frame source diagnosticsへ `uxfdRustExportFrameSourceStatus=blocked` を出す�
 UI summaryとDevTools logではlegacy fallback不可として扱う。
 Rust動画必須blockedが、表示上だけlegacy fallback可能に見えるズレを防ぐ。
 
+241. Phase5: 動画Rust blocked診断をprogress保存時に正規化する
+`setExportProgress` / `updateExportProgressPhase` は、`videoOwnershipUnavailable` / `videoUploadFailed` の
+`rustFrameSourceBlocked` を保存時にも `legacyCanvasFallbackAllowed=false` へ正規化する。
+UI/ログだけでなく、保持payload自体もRust動画必須blockedの意味に揃える。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
