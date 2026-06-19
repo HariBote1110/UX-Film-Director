@@ -1051,6 +1051,79 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
+  it('publishes decoded Rust video GPU release failures instead of throwing out of the presenter', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const events: string[] = [];
+    const rgbaBytes = new Uint8Array(decodedVideoDescriptor.byteLen);
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererDecodedVideoFrameUpload: {
+        descriptor: decodedVideoDescriptor,
+        ptsFrame: 90,
+        rgbaBytes,
+        releaseAfterGpuUpload: async () => {
+          throw new Error('decoded slot GPU release failed');
+        },
+      },
+      rustVideoFrameDecodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video.mp4',
+          sourceFrame: 90,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 12,
+          width: 1280,
+          height: 720,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onWriteTexture: () => {
+              events.push('writeTexture');
+            },
+            onSubmittedWorkDone: async () => {
+              events.push('gpuUploadDone');
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({
+      ok: true,
+      videoOwnership: {
+        owner: 'sharedRenderer',
+        reason: 'rustDecodedFrameUploadReady',
+      },
+    });
+    expect(events).toEqual(['writeTexture', 'gpuUploadDone']);
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterVideoFrameUploadReady: 'true',
+      uxfdSharedRendererPresenterVideoUploadFailureReason: 'videoUploadGpuReleaseFailed',
+      uxfdSharedRendererPresenterVideoUploadFailureDetail: 'decoded slot GPU release failed',
+      uxfdSharedRendererPresenterVideoUploadFailureClipId: 'video-1',
+      uxfdSharedRendererPresenterVideoUploadFailureMediaId: 'video-1',
+      uxfdSharedRendererPresenterVideoOwner: 'sharedRenderer',
+    });
+  });
+
   it('presents a native rendered shared frame directly to the preview canvas and releases it after the GPU fence', async () => {
     const dataset: Record<string, string | undefined> = {};
     const events: string[] = [];
