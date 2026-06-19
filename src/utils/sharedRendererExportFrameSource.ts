@@ -382,7 +382,8 @@ export function createSharedRendererExportFrameSource({
       throw new SharedRendererExportFrameSourceBlockedError(
         sourceReleaseBlock,
         'nativeRenderSourceReleaseUnavailable',
-        request.frameIndex
+        request.frameIndex,
+        false
       );
     }
     const unsupportedNativeMedia = resolveMixedNativeRenderUnsupportedMedia({
