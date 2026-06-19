@@ -214,7 +214,7 @@ export const startSharedRendererPreviewPresenter = async ({
     )
   ) {
     writeDiagnostics({
-      status: 'fallback',
+      status: 'blocked',
       reason: 'requiredRustVideoControlPlaneUnavailable',
     });
     return {
@@ -498,7 +498,7 @@ export const startSharedRendererPreviewPresenter = async ({
 
   if (requireSharedRendererVideo && hasVideoScene && videoOwnership.owner !== 'sharedRenderer') {
     writeDiagnostics({
-      status: 'fallback',
+      status: 'blocked',
       reason: 'requiredVideoOwnershipUnavailable',
       nativeRenderFailureReason: nativeRenderFailure?.reason,
       nativeRenderFailureDetail: nativeRenderFailure?.detail,

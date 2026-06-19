@@ -54,7 +54,7 @@ export type SharedRendererPresenterDiagnosticState =
       sharedVideoObjectCount?: number;
     }
   | {
-      status: 'fallback';
+      status: 'fallback' | 'blocked';
       reason: string;
       swatch?: 'solid-srgb' | 'solid-colour-scene' | 'pixi-passthrough' | 'native-render-frame';
       nativeRenderFailureReason?: string;
@@ -229,7 +229,7 @@ export const writeSharedRendererPresenterDiagnostics = (
     return;
   }
 
-  if (state.status === 'fallback') {
+  if (state.status === 'fallback' || state.status === 'blocked') {
     dataset.uxfdSharedRendererPresenterFailureReason = state.reason;
     if (state.swatch) {
       dataset.uxfdSharedRendererPresenterSwatch = state.swatch;
@@ -255,6 +255,9 @@ export const writeSharedRendererPresenterDiagnostics = (
     }
     if (state.videoUploadFailureMediaId) {
       dataset.uxfdSharedRendererPresenterVideoUploadFailureMediaId = state.videoUploadFailureMediaId;
+    }
+    if (state.videoUploadMissingClipIds) {
+      dataset.uxfdSharedRendererPresenterVideoUploadMissingClipIds = state.videoUploadMissingClipIds;
     }
     if (state.videoOwner) {
       dataset.uxfdSharedRendererPresenterVideoOwner = state.videoOwner;
