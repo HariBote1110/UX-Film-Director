@@ -130,7 +130,7 @@ export const resolveViewportRustExportFrameSource = ({
 
   if (objects && time !== undefined) {
     let nativeRenderEnvelope: SharedRendererNativeRenderEnvelope | undefined;
-    for (const preflightTime of buildViewportRustExportPreflightTimes(objects, time)) {
+    for (const preflightTime of buildViewportRustExportPreflightTimes(objects, time, projectSettings.fps)) {
       const session = buildExportSession({
         enabled: true,
         projectSettings,
@@ -261,13 +261,18 @@ const clearNativeRenderEnvelopeDiagnostics = (
 
 const buildViewportRustExportPreflightTimes = (
   objects: TimelineObject[],
-  initialTime: number
+  initialTime: number,
+  fps: number
 ): number[] => {
   const times = new Set<number>();
+  const frameDuration = fps > 0 ? 1 / fps : 0;
   addPreflightTime(times, initialTime);
   objects.forEach((object) => {
     if (object.duration <= 0) return;
     addPreflightTime(times, Math.max(0, object.startTime));
+    if (frameDuration > 0) {
+      addPreflightTime(times, Math.max(object.startTime, object.startTime + object.duration - frameDuration));
+    }
   });
   return Array.from(times).sort((left, right) => left - right);
 };
