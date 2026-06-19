@@ -16,6 +16,7 @@ import { canRenderSharedRendererNativeMediaOnlyFrame } from './sharedRendererNat
 import { resolveMixedNativeRenderUnsupportedMedia } from './sharedRendererNativeRenderMediaGate';
 import {
   prepareSharedRendererViewportNativeRenderSources,
+  resolveNativeRenderSourceReleaseUnavailable,
   type PrepareSharedRendererViewportNativeRenderSourcesInput,
   type PrepareSharedRendererViewportNativeRenderSourcesResult,
   type SharedRendererViewportNativeRenderSource,
@@ -62,6 +63,7 @@ export type PrepareSharedRendererViewportNativeRenderUploadResult =
       reason:
         | 'surfaceGateUnavailable'
         | 'nativeRenderSourcesUnavailable'
+        | 'nativeRenderSourceReleaseUnavailable'
         | 'nativeRenderUnsupportedMedia'
         | 'nativeRenderUnsupportedMediaOnly'
         | 'nativeRenderFailed'
@@ -130,6 +132,17 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
       reason: 'nativeRenderSourcesUnavailable',
       detail: nativeSources.detail,
       activeJobs: nativeSources.activeJobs,
+    };
+  }
+
+  const sourceReleaseBlock = resolveNativeRenderSourceReleaseUnavailable(nativeRenderSources);
+  if (sourceReleaseBlock) {
+    await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+    return {
+      ok: false,
+      reason: 'nativeRenderSourceReleaseUnavailable',
+      detail: sourceReleaseBlock,
+      activeJobs: activeRenderJobs,
     };
   }
 

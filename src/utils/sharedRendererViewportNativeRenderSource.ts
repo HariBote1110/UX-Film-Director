@@ -25,6 +25,18 @@ export interface SharedRendererViewportNativeRenderSource {
   releaseAfterNativeRenderAbort?: () => Promise<void>;
 }
 
+export const resolveNativeRenderSourceReleaseUnavailable = (
+  sources: readonly SharedRendererViewportNativeRenderSource[]
+): string | null => {
+  const sourceWithoutRelease = sources.find((source) =>
+    typeof source.releaseAfterNativeRenderComplete !== 'function'
+    || typeof source.releaseAfterNativeRenderAbort !== 'function');
+
+  if (!sourceWithoutRelease) return null;
+
+  return `Rust native render source '${sourceWithoutRelease.mediaId}' is missing decoded frame release callbacks.`;
+};
+
 export interface PrepareSharedRendererViewportNativeRenderSourcesInput {
   session: SharedRendererPreviewSession;
   requestId?: number;

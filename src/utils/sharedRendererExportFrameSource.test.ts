@@ -1438,6 +1438,8 @@ describe('createSharedRendererExportFrameSource', () => {
           mediaId: 'video-1',
           slotCount: 2,
           frame: decodedFrame,
+          releaseAfterNativeRenderComplete: async () => undefined,
+          releaseAfterNativeRenderAbort: async () => undefined,
         }],
       }),
       renderNativeSharedFrame: (async (payload) => {
@@ -1653,6 +1655,8 @@ describe('createSharedRendererExportFrameSource', () => {
           mediaId: 'video-1',
           slotCount: 2,
           frame: decodedFrame,
+          releaseAfterNativeRenderComplete: async () => undefined,
+          releaseAfterNativeRenderAbort: async () => undefined,
         }],
       }),
       renderNativeSharedFrame: async () => {

@@ -19,6 +19,7 @@ import {
 } from './sharedRendererViewportPresenterOrchestration';
 import {
   prepareSharedRendererViewportNativeRenderSources,
+  resolveNativeRenderSourceReleaseUnavailable,
   type PrepareSharedRendererViewportNativeRenderSourcesInput,
   type PrepareSharedRendererViewportNativeRenderSourcesResult,
   type SharedRendererViewportNativeRenderSource,
@@ -43,6 +44,7 @@ export type SharedRendererExportFrameSourceBlockedReason =
   | 'videoOwnershipUnavailable'
   | 'presentedSharedFrameHandoffUnavailable'
   | 'videoBitmapCaptureDisabled'
+  | 'nativeRenderSourceReleaseUnavailable'
   | 'nativeRenderUnsupportedMedia'
   | 'nativeRenderFailed';
 
@@ -337,6 +339,20 @@ export function createSharedRendererExportFrameSource({
     if (!surfaceGate.ok) {
       await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
       return null;
+    }
+    const sourceReleaseBlock = resolveNativeRenderSourceReleaseUnavailable(nativeRenderSources);
+    if (sourceReleaseBlock) {
+      await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+      writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+        status: 'blocked',
+        frameIndex: request.frameIndex,
+        reason: 'nativeRenderSourceReleaseUnavailable',
+      });
+      throw new SharedRendererExportFrameSourceBlockedError(
+        sourceReleaseBlock,
+        'nativeRenderSourceReleaseUnavailable',
+        request.frameIndex
+      );
     }
     const unsupportedNativeMedia = resolveMixedNativeRenderUnsupportedMedia({
       snapshot: surfaceGate.snapshot,
