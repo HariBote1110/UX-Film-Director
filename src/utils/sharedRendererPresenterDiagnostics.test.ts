@@ -59,6 +59,26 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
     });
   });
 
+  it('publishes video upload failure details while the presenter remains ready', () => {
+    const dataset: Record<string, string | undefined> = {};
+
+    writeSharedRendererPresenterDiagnostics(dataset, {
+      status: 'ready',
+      format: 'bgra8unorm',
+      swatch: 'pixi-passthrough',
+      videoFrameUploadReady: false,
+      videoUploadFailureReason: 'copyReportChecksumMismatch',
+      videoUploadFailureDetail: 'Shared video frame copy report checksum verification failed.',
+    } as any);
+
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterStatus: 'ready',
+      uxfdSharedRendererPresenterVideoFrameUploadReady: 'false',
+      uxfdSharedRendererPresenterVideoUploadFailureReason: 'copyReportChecksumMismatch',
+      uxfdSharedRendererPresenterVideoUploadFailureDetail: 'Shared video frame copy report checksum verification failed.',
+    });
+  });
+
   it('publishes a readable native render output release failure label', () => {
     const dataset: Record<string, string | undefined> = {};
 

@@ -438,6 +438,44 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
     });
   });
 
+  it('passes Rust video upload failure details into the presenter diagnostics input', async () => {
+    let presenterInput: unknown;
+    const prepareVideoUploads: SharedRendererViewportVideoUploadsPreparer = async () => ({
+      ok: false,
+      reason: 'uploadFailed',
+      uploadFailureReason: 'copyReportChecksumMismatch',
+      detail: 'Shared video frame copy report checksum verification failed.',
+      activeJobs: [activeJob],
+    });
+    const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {
+      presenterInput = input;
+      return control;
+    };
+
+    const result = await startSharedRendererViewportPresenter({
+      canvas,
+      session,
+      datasets: [],
+      diagnosticSwatchEnabled: false,
+      videoCutoverEnabled: true,
+      activeVideoDecodeJob: null,
+      activeVideoDecodeJobs: [],
+      requestId: 11,
+      prepareVideoUploads,
+      startPresenter,
+    });
+
+    expect(result.activeVideoDecodeJobs).toEqual([activeJob]);
+    expect(presenterInput).toMatchObject({
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererDecodedVideoFrameUploads: undefined,
+      sharedRendererVideoUploadFailure: {
+        reason: 'copyReportChecksumMismatch',
+        detail: 'Shared video frame copy report checksum verification failed.',
+      },
+    });
+  });
+
   it('prepares Rust video upload when Rust video is required even if the cutover flag is off', async () => {
     let presenterInput: unknown;
     const events: string[] = [];
