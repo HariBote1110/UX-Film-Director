@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 const projectRoot = new URL('../..', import.meta.url).pathname;
 const srcRoot = join(projectRoot, 'src');
 const electronMainPath = join(projectRoot, 'electron/main.ts');
+const packageJsonPath = join(projectRoot, 'package.json');
 
 const forbiddenTokens = [
   "document.createElement('video')",
@@ -80,5 +81,15 @@ describe('production video dependency boundary', () => {
     expect(code).not.toContain('VaapiVideoDecoder');
     expect(code).not.toContain('VaapiVideoEncoder');
     expect(code).not.toContain('WebCodecs');
+  });
+
+  it('keeps MP4Box out of production dependencies', () => {
+    const manifest = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+
+    expect(manifest.dependencies).not.toHaveProperty('mp4box');
+    expect(manifest.devDependencies).toHaveProperty('mp4box');
   });
 });
