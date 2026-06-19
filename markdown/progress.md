@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のexport診断として、Image/PSD ownershipがPixiへ残った `sharedRendererOutputUnavailable` のdetailにowner/cutover reasonを残すようにした。
+- Red: `sharedRendererExportFrameSource` のテストへ、presenter datasetのImage/PSD ownership診断がexport blocked error messageへ入る契約を追加した。
+- Green: genericな `sharedRendererOutputUnavailable` detail生成時に `imageOwnership=pixi:nativeRenderFrameUnavailable` / `psdOwnership=pixi:nativeRenderFrameUnavailable` を付加するようにした。
+- 検証: `npm test -- sharedRendererExportFrameSource ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress` は81件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216r`。
+
+## 2026-06-19
 - Phase5のownership cutoverとして、実出力必須時にImage/PSD ownershipがPixiへ残るpreviewを `blocked` に変更した。
 - Red: `sharedRendererPreviewPresenterController` のテストへ、diagnostic swatchが有効でもImage/PSDのPixi所有が `ready` にならない契約を追加した。
 - Green: image/PSD ownerが `sharedRenderer` でない場合、`sharedRendererOutputUnavailable` のblocked診断を出し、owner/cutover reason/object countをdatasetへ残すようにした。

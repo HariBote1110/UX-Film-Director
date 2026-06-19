@@ -1390,6 +1390,11 @@ native render texture view欠落でRust/shared renderer実出力が止まった�
 diagnostic swatchで `ready` にせず、`sharedRendererOutputUnavailable` の `blocked` として出す。
 blocked診断にはImage/PSD owner、cutover reason、shared object countを残し、native render未到達の原因を追えるようにする。
 
+255. Phase5: Image/PSD ownership診断をexport blocked detailに保持する
+export frame sourceは、preview presenterがdatasetへ残したImage/PSD ownerとcutover reasonを
+`sharedRendererOutputUnavailable` のblocked detailにも付加する。
+previewで検出したPixi ownership残留理由を、export progress/log側でも追えるようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

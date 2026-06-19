@@ -1828,6 +1828,20 @@
 - `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics` を実行し、49件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 140. Phase5: Image/PSD ownership診断をexport blocked detailに保持
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- presenter datasetに残ったImage/PSD ownerとcutover reasonが、`sharedRendererOutputUnavailable` のexport blocked error messageへ入る契約を追加した。
+- `src/utils/sharedRendererExportFrameSource.ts`
+- `resolveSharedRendererOutputBlock` にdatasetを渡し、genericな `sharedRendererOutputUnavailable` detailへ `imageOwnership` / `psdOwnership` の診断を付加するようにした。
+- native render upload失敗の既存detailは変更せず、ownership診断があるgeneric blockだけを詳しくした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216r` に更新した。
+
+## 確認
+- `npm test -- sharedRendererExportFrameSource` を実行し、Redでblocked messageにImage/PSD ownership診断が含まれない失敗を確認した。
+- `npm test -- sharedRendererExportFrameSource ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress` を実行し、81件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/components/ExportProgressModal\\.tsx|src/store/useStore\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。

@@ -1,3 +1,19 @@
+## 2026-06-19 — Image/PSD ownership診断をexport blocked detailに保持
+
+### 実施内容
+- Red: presenterがImage/PSD ownershipのPixi残留診断をdatasetへ残した場合、export blocked error detailにもその情報が残る契約を追加した。
+- Green: `sharedRendererOutputUnavailable` のgeneric detail生成時に、`imageOwnership` / `psdOwnership` のownerとcutover reasonを付加するようにした。
+- previewで検出したnative render frame未到達の原因を、export進捗・ログ側でも追えるようにした。
+- 版を `0.1.1-Beta-216r` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSource ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/components/ExportProgressModal\\.tsx|src/store/useStore\\.ts)"`
+
+### 残課題・次のステップ
+- export計画段階でImage/PSD native render必須条件をさらに明示し、Rust frame source不在時の診断を強化する。
+- shared renderer実出力必須モードの実機確認範囲を、画像/PSD混在タイムラインへ広げる。
+
 ## 2026-06-19 — 実出力必須時のimage/PSD Pixi所有をblocked診断に変更
 
 ### 実施内容
