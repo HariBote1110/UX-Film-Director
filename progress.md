@@ -4436,3 +4436,19 @@
 ### 残課題・次のステップ
 - 実機GoPro素材で、encode write失敗時の native render output release 診断が `released` / `failed` を正しく示すか確認する。
 - release失敗の詳細を開発者向けログや診断パネルにさらに集約するか判断する。
+
+## 2026-06-19 — Rust encode finish summary欠落を失敗にする
+
+### 実施内容
+- Red: `encode.finish` がsuccessでも `frameCount` / `sessionId` / `filePath` を返さない場合、renderer側の値で補完せず失敗する契約を追加した。
+- Green: finish summary parserを必須化し、不完全なsummaryでは `Rust backend video encode finish did not return a complete export summary.` を投げるようにした。
+- 成功系テストのmockをRust backend実装の返却形へ揃えた。
+- 版を `0.1.1-Beta-208c` に更新した。
+
+### 検証
+- `npm test -- src/utils/rustBackendVideoEncodeExport.test.ts src/utils/rustVideoEncodeBackendBridge.test.ts src/utils/rustBackendVideoEncodeControl.test.ts src/utils/useProjectExportBoundary.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "rustBackendVideoEncodeExport|rustVideoEncodeBackendBridge|rustBackendVideoEncodeControl|useProjectExport"`
+
+### 残課題・次のステップ
+- 実機GoPro素材でRust backend finish summaryがUI完了通知へ正しく反映されるか確認する。
+- Rust backend encode/decode/native render全体のcargo testを定期的に回し、実機smoke前のbackend contractを保つ。

@@ -205,6 +205,7 @@ Rust backend integration gate:
   解放できていないnative render outputを `released` と誤診断しない。
 - Rust backend encode finishの `frameCount` / `sessionId` / `filePath` はbackend結果を正本とし、renderer側の
   送信フレーム数や要求filePathだけで完了summaryを作らない。
+  `encode.finish` がsuccessでもこれらのsummaryを返さない場合はfail-loudにし、renderer側の値で黙って補完しない。
 - `shared-video-frame-bridge-node` は Rust core を N-API addon として wrap し、Node 直 require では
   `Uint8Array` target を in-place mutation できる。
 - preload は native module を `UXFD_SHARED_VIDEO_FRAME_BRIDGE_MODULE` で差し込む形を維持し、未接続時は fail-loud とする。
