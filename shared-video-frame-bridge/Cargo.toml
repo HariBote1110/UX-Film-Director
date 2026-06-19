@@ -9,3 +9,6 @@ name = "uxfd_shared_video_frame_bridge"
 [dependencies]
 uxfd-shared-memory-spike = { path = "../shared-memory-spike" }
 uxfd-sidecar-protocol = { path = "../sidecar-protocol" }
+
+[dev-dependencies]
+libc = "0.2"

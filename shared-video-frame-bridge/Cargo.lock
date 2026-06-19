@@ -101,6 +101,7 @@ dependencies = [
 name = "uxfd-shared-video-frame-bridge"
 version = "0.1.0-Alpha-1a"
 dependencies = [
+ "libc",
  "uxfd-shared-memory-spike",
  "uxfd-sidecar-protocol",
 ]
