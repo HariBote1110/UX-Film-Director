@@ -958,3 +958,11 @@
 - Rust native render経路でSolidColour/Image/PSDに加え、グラデーション矩形もPixiから降ろせる候補に入った。
 - 検証: `npm test -- rustSceneSnapshot sharedRendererNativeMediaSupport sharedRendererPreviewSurface sharedRendererExportSession` は25件成功。`cargo test` は `rust-core` 34件、`rust-backend` 28件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-216x`。
+
+## 2026-06-20
+- Phase5のGeneratedGradient native render ownershipとして、Rust native render済みのグラデーション矩形をPixi shape描画から降ろせるようにした。
+- Red: `sharedRendererPreviewPresenterController` に、native render frame ready時のGeneratedGradientが `solidColourOwnership.solidColourObjectIds` へ入る契約を追加した。
+- Red: `sharedRendererSolidColourOwnership` に、前面GeneratedGradientがshared-renderer paint候補なら背面SolidColourのcutoverを塞がない契約を追加した。
+- Green: presenterのsolid paint判定を `SolidColour` / `GeneratedGradient` の両方へ広げ、z-order safetyでも同じ扱いにした。
+- 検証: `npm test -- sharedRendererPreviewPresenterController sharedRendererSolidColourOwnership pixiSolidColourCutover` は48件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216y`。

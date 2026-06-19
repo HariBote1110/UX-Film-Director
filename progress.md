@@ -6416,6 +6416,25 @@
 - GeneratedGradientのpreview ownershipをSolidColour/Image/PSDと同じnative render成功時cleanupへ接続する。
 - 次は動画そのもののRust decode/native render経路へ戻り、実素材でのRust側表示面積を増やす。
 
+## 2026-06-20 — GeneratedGradient native render ownershipを接続
+
+### 実施内容
+- Red: native render frame ready時にGeneratedGradient shapeが `solidColourOwnership.solidColourObjectIds` へ入る契約を追加した。
+- Red: 前面GeneratedGradientがshared-renderer paint候補なら背面SolidColourのcutoverを塞がない契約を追加した。
+- Green: presenterのsolid paint判定を `SolidColour` / `GeneratedGradient` の両方へ広げた。
+- z-order safetyでもGeneratedGradientをSolidColourと同じshared-renderer paint候補として扱うようにした。
+- これにより、Rust native render済みのグラデーション矩形をPixi shape描画から降ろせるようになった。
+- 版を `0.1.1-Beta-216y` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPreviewPresenterController -t "generated gradient shape ownership"`
+- `npm test -- sharedRendererSolidColourOwnership -t "generated gradient plane above"`
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererSolidColourOwnership pixiSolidColourCutover`
+- `npx tsc --noEmit --pretty false 2>&1 | rg "src/utils/sharedRendererPreviewPresenterController|src/utils/sharedRendererSolidColourOwnership|src/utils/pixiSolidColourCutover|src/components/Viewport"`
+
+### 残課題・次のステップ
+- 動画Rust decode/native render経路へ戻り、実素材でのRust側表示面積をさらに増やす。
+
 ## 2026-06-19 — shared frame copy checksum検証を追加
 
 ### 実施内容

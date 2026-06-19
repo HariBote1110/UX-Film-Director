@@ -1484,6 +1484,24 @@
 - `cargo test` を `rust-backend/` で実行し、28件成功を確認した。
 - `npx tsc --noEmit --pretty false 2>&1 | rg "src/utils/rustSceneSnapshot|src/utils/sharedRendererNativeMediaSupport|src/utils/sharedRendererExportSession|src/utils/sharedRendererPreviewSurface"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 147. Phase5: GeneratedGradient native render ownershipを接続
+- `src/utils/sharedRendererPreviewPresenterController.test.ts`
+- native render frame ready時にGeneratedGradient shapeが `solidColourOwnership.solidColourObjectIds` へ入り、Pixi shape skip対象になる契約を追加した。
+- `src/utils/sharedRendererSolidColourOwnership.test.ts`
+- 前面GeneratedGradientがshared-renderer paint候補なら、背面SolidColourのcutoverをブロックしない契約を追加した。
+- `src/utils/sharedRendererPreviewPresenterController.ts`
+- SolidColour scene判定とpaint object収集を `SolidColour` / `GeneratedGradient` の両方へ広げた。
+- `src/utils/sharedRendererSolidColourOwnership.ts`
+- z-order safetyでGeneratedGradientをSolidColourと同じshared-renderer paint候補として扱うようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216y` に更新した。
+
+## 確認
+- `npm test -- sharedRendererPreviewPresenterController -t "generated gradient shape ownership"` を実行し、Redで `noSolidColourScene` になる失敗を確認した。
+- `npm test -- sharedRendererSolidColourOwnership -t "generated gradient plane above"` を実行し、RedでGeneratedGradientがPixi-only blocker扱いになる失敗を確認した。
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererSolidColourOwnership pixiSolidColourCutover` を実行し、48件成功を確認した。
+- `npx tsc --noEmit --pretty false 2>&1 | rg "src/utils/sharedRendererPreviewPresenterController|src/utils/sharedRendererSolidColourOwnership|src/utils/pixiSolidColourCutover|src/components/Viewport"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 116. Phase5: unsupported native mediaではRust必須時のlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - mixed video exportでoverlay mediaがRust native render未対応の場合と、encode-only media-only frameが未対応mediaの場合に、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。

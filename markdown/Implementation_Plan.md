@@ -1426,6 +1426,11 @@ Pixi依存を削る作業は、後方互換の診断追加に偏らせず、Rust
 既存のnative-wgpu-rendererには生成済みsource frameとして渡し、Image/PSD/SolidColourと同じnative render経路で合成する。
 これにより、単色矩形だけでなくグラデーション矩形もPixiから降ろせる候補に入れる。
 
+262. Phase5: GeneratedGradient native render ownershipを接続する
+Rust native render frameがGeneratedGradientを含む場合、preview presenterはそのshapeをshared renderer ownershipへ入れる。
+Pixi側は既存のshape skip経路を使い、native render済みのグラデーション矩形を二重描画しない。
+z-order safetyではGeneratedGradientをSolidColourと同じshared-renderer paint候補として扱い、前面のGeneratedGradientが背面SolidColourのcutoverを不必要に塞がないようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
