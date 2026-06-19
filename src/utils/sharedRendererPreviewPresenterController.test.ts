@@ -1165,6 +1165,52 @@ describe('startSharedRendererPreviewPresenter', () => {
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterNativeRenderFrameReady');
   });
 
+  it('publishes native render frame abort release failures instead of throwing out of the presenter', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const rgbaBytes = new Uint8Array(nativeRenderDescriptor.byteLen);
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: {
+        ...okSession,
+        surfaceGate: {
+          ...okSession.surfaceGate,
+          canvas: { width: 4, height: 4 },
+        },
+      },
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      sharedRendererNativeRenderFrameUpload: {
+        descriptor: nativeRenderDescriptor,
+        ptsFrame: 12,
+        rgbaBytes,
+        releaseAfterUploadAbort: async () => {
+          throw new Error('native render output abort release failed');
+        },
+      },
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            exposeWriteTexture: false,
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    } as any);
+
+    expect(control).toMatchObject({
+      ok: true,
+    });
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterStatus: 'ready',
+      uxfdSharedRendererPresenterNativeRenderFailureReason: 'nativeRenderOutputReleaseFailed',
+      uxfdSharedRendererPresenterNativeRenderFailureDetail: 'native render output abort release failed',
+      uxfdSharedRendererPresenterNativeRenderFailureLabel: 'native render output release failed',
+    });
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterNativeRenderFrameReady');
+  });
+
   it('publishes video ownership when a native rendered preview frame already contains the composited video scene', async () => {
     const dataset: Record<string, string | undefined> = {};
     const rgbaBytes = new Uint8Array(nativeRenderDescriptor.byteLen);
