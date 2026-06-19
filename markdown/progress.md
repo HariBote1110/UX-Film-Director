@@ -966,3 +966,11 @@
 - Green: presenterのsolid paint判定を `SolidColour` / `GeneratedGradient` の両方へ広げ、z-order safetyでも同じ扱いにした。
 - 検証: `npm test -- sharedRendererPreviewPresenterController sharedRendererSolidColourOwnership pixiSolidColourCutover` は48件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-216y`。
+
+## 2026-06-20
+- Phase5のmulti-video native render source ownershipとして、後続video decode失敗時も準備済みsourceをabort releaseするようにした。
+- Red: `sharedRendererViewportNativeRenderSource` に、2本目video decode request失敗時に1本目decoded sourceが `rendererUploadAborted` で解放される契約を追加した。
+- Green: decode start失敗、decode request失敗、decoded frame未返却の各分岐で、先に準備済みのnative render sourceをabort releaseしてから戻るようにした。
+- Rust decode slotを保持したまま次フレームやfallbackへ進むリスクを減らし、multi-video native renderの再試行性を上げた。
+- 検証: `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource` は68件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216z`。

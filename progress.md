@@ -6435,6 +6435,24 @@
 ### 残課題・次のステップ
 - 動画Rust decode/native render経路へ戻り、実素材でのRust側表示面積をさらに増やす。
 
+## 2026-06-20 — multi-video native render source途中失敗時にreleaseする
+
+### 実施内容
+- Red: 2本目video decode requestが失敗した場合でも、1本目の準備済みnative render sourceが `rendererUploadAborted` で解放される契約を追加した。
+- Green: decode start失敗、decode request失敗、decoded frame未返却の各分岐で、先に準備済みのsourceをabort releaseしてから戻るようにした。
+- multi-video native render source準備中にRust decode slotを保持したままfallback/次フレームへ進むリスクを減らした。
+- 版を `0.1.1-Beta-216z` に更新した。
+
+### 検証
+- `npm test -- sharedRendererViewportNativeRenderSource -t "later multi-video decode request fails"`
+- `npm test -- sharedRendererViewportNativeRenderSource`
+- `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource`
+- `npx tsc --noEmit --pretty false 2>&1 | rg "src/utils/sharedRendererViewportNativeRenderSource|src/utils/sharedRendererViewportVideoUpload|src/utils/sharedRendererViewportNativeRenderUpload"`
+
+### 残課題・次のステップ
+- decode start失敗時のprepared source abort release failureも明示テスト化する。
+- 実機GoPro素材でmulti-video/native render sourceのdecode job再利用とstop/retryを確認する。
+
 ## 2026-06-19 — shared frame copy checksum検証を追加
 
 ### 実施内容

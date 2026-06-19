@@ -1431,6 +1431,11 @@ Rust native render frameがGeneratedGradientを含む場合、preview presenter�
 Pixi側は既存のshape skip経路を使い、native render済みのグラデーション矩形を二重描画しない。
 z-order safetyではGeneratedGradientをSolidColourと同じshared-renderer paint候補として扱い、前面のGeneratedGradientが背面SolidColourのcutoverを不必要に塞がないようにする。
 
+263. Phase5: multi-video native render source途中失敗時のslot解放を保証する
+複数video clipのnative render source準備中に、後続clipのdecode start / request / frame availabilityが失敗した場合でも、
+先に準備済みのdecoded sourceを `rendererUploadAborted` で解放する。
+Rust decode slotを保持したままPixi fallbackや次フレームへ進まないようにし、multi-video native renderの再試行性を保つ。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

@@ -1502,6 +1502,21 @@
 - `npm test -- sharedRendererPreviewPresenterController sharedRendererSolidColourOwnership pixiSolidColourCutover` を実行し、48件成功を確認した。
 - `npx tsc --noEmit --pretty false 2>&1 | rg "src/utils/sharedRendererPreviewPresenterController|src/utils/sharedRendererSolidColourOwnership|src/utils/pixiSolidColourCutover|src/components/Viewport"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 148. Phase5: multi-video native render source途中失敗時にreleaseする
+- `src/utils/sharedRendererViewportNativeRenderSource.test.ts`
+- 2本目video decode requestが失敗した場合でも、1本目の準備済みnative render sourceが `rendererUploadAborted` で解放される契約を追加した。
+- `src/utils/sharedRendererViewportNativeRenderSource.ts`
+- decode start失敗、decode request失敗、decoded frame未返却の各分岐で、先に準備済みのsourceをabort releaseしてから戻るようにした。
+- multi-video native render source準備中にRust decode slotを保持したままfallback/次フレームへ進むリスクを減らした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216z` に更新した。
+
+## 確認
+- `npm test -- sharedRendererViewportNativeRenderSource -t "later multi-video decode request fails"` を実行し、Redでreleaseが呼ばれない失敗を確認した。
+- `npm test -- sharedRendererViewportNativeRenderSource` を実行し、7件成功を確認した。
+- `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource` を実行し、68件成功を確認した。
+- `npx tsc --noEmit --pretty false 2>&1 | rg "src/utils/sharedRendererViewportNativeRenderSource|src/utils/sharedRendererViewportVideoUpload|src/utils/sharedRendererViewportNativeRenderUpload"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 116. Phase5: unsupported native mediaではRust必須時のlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - mixed video exportでoverlay mediaがRust native render未対応の場合と、encode-only media-only frameが未対応mediaの場合に、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。
