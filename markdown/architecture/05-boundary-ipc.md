@@ -123,6 +123,8 @@ Rust backend integration gate:
   `export.start` / `export.write_frame` / `export.end` のbase64 frame経路を削除する。
 - export hookは `PIXI.Application` refを直接持たず、Rust/shared renderer frame sourceまたは
   Viewportから渡される `getExportCanvas` providerだけを参照する。
+- export frame canvas utilityは Pixi 固有名をpublic APIに出さず、移行中のcanvas fallbackを `legacyCanvas`
+  として扱う。
 - Rust backend は unix 環境で attach 可能な POSIX shared memory name を `memoryId` として返し、
   decoded RGBA を shared memory ring へ書く。
 - `decode.releaseFrame` は WebGPU upload fence 完了後の `copyOutState=gpuUploadFenceSignalled` でのみ slot を解放する。

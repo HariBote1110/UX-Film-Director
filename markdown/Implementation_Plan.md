@@ -1081,6 +1081,12 @@ providerへ一本化する。
 Viewport内では移行中のlegacy Pixi canvas fallbackを provider 内に閉じ込め、hook本体はRust/shared renderer
 frame sourceとcanvas providerだけを見る境界にする。
 
+201. Phase5: export frame canvas境界のPixi名をlegacy canvasへ一般化する
+`projectExportFrameCanvas` の public input / source 名から `pixiCanvas` を外し、移行中のcanvas fallbackは
+`legacyCanvas` として扱う。
+Pixi固有の参照はViewport内部の provider 実装に閉じ込め、export utilityはRust frame source /
+explicit export canvas / legacy canvasの抽象だけを見る。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

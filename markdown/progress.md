@@ -439,3 +439,10 @@
 - Green: `useProjectExport` の引数から `pixiAppRef` を削除し、frame source planとruntime canvas resolveを `getExportCanvas` providerだけで行うようにした。
 - 検証: `npm test -- useProjectExportBoundary projectExportFrameCanvas` は33件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-179a`。
+
+## 2026-06-19
+- Phase5のexport frame canvas境界として、`projectExportFrameCanvas` のpublic APIから `pixiCanvas` 名を削除した。
+- Red: `projectExportFrameCanvas` に、export frame source boundaryがPixi固有のcanvas API名を露出しない契約を追加した。
+- Green: `ResolveProjectExportFrameCanvasInput` とcanvas sourceを `legacyCanvas` へ変更し、既存のfallback意味をPixi固有名から一般化した。
+- 検証: `npm test -- projectExportFrameCanvas useProjectExportBoundary` は34件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-180a`。
