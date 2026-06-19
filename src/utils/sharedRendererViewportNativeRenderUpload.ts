@@ -65,6 +65,7 @@ export type PrepareSharedRendererViewportNativeRenderUploadResult =
         | 'nativeRenderSourcesUnavailable'
         | 'nativeRenderSourceReleaseUnavailable'
         | 'nativeRenderSourceReleaseFailed'
+        | 'nativeRenderOutputReleaseFailed'
         | 'nativeRenderUnsupportedMedia'
         | 'nativeRenderUnsupportedMediaOnly'
         | 'nativeRenderFailed'
@@ -268,7 +269,15 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
   }
   const completeReleaseFailure = await releaseNativeRenderSourcesAfterComplete(nativeRenderSources);
   if (completeReleaseFailure) {
-    await upload.releaseAfterUploadAbort?.();
+    const outputReleaseFailure = await releasePreparedNativeRenderOutputAfterAbort(upload);
+    if (outputReleaseFailure) {
+      return {
+        ok: false,
+        reason: 'nativeRenderOutputReleaseFailed',
+        detail: outputReleaseFailure,
+        activeJobs: activeRenderJobs,
+      };
+    }
     return {
       ok: false,
       reason: 'nativeRenderSourceReleaseFailed',
@@ -304,10 +313,25 @@ const createSingleUseNativeOutputReleaser = (
   let releasePromise: Promise<void> | null = null;
   return () => {
     if (!releasePromise) {
-      releasePromise = releaseNativeSharedFrame({ memoryId }).then(() => undefined);
+      releasePromise = releaseNativeSharedFrame({ memoryId }).then((response) => {
+        if (!response.success) {
+          throw new Error(response.error ?? 'Rust backend native render output release failed.');
+        }
+      });
     }
     return releasePromise;
   };
+};
+
+const releasePreparedNativeRenderOutputAfterAbort = async (
+  upload: PreparedNativeRenderUpload
+): Promise<string | null> => {
+  try {
+    await upload.releaseAfterUploadAbort?.();
+    return null;
+  } catch (error) {
+    return formatNativeRenderReleaseError(error, 'Rust backend native render output release failed.');
+  }
 };
 
 const releaseNativeRenderSourcesAfterComplete = async (
@@ -330,12 +354,15 @@ const releaseNativeRenderSourcesAfterAbort = async (
   return failed ? formatNativeRenderReleaseError(failed.reason) : null;
 };
 
-const formatNativeRenderReleaseError = (error: unknown): string => {
+const formatNativeRenderReleaseError = (
+  error: unknown,
+  fallback = 'Rust native render source release failed.'
+): string => {
   if (error instanceof Error && error.message) {
     return error.message;
   }
   if (typeof error === 'string' && error) {
     return error;
   }
-  return 'Rust native render source release failed.';
+  return fallback;
 };
