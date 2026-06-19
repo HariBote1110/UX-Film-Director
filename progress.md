@@ -1,3 +1,16 @@
+## 2026-06-20 — ローカル動画fixtureのRust実decode契約を追加
+
+### 実施内容
+- Red: `perf/heavy-media/` 配下の動画4本をRust backendの `decode.start` / `decode.requestFrame` / `decode.releaseFrame` / `decode.stop` で実際に1フレーム読む契約を追加した。
+- GoPro proxy、GoPro original、10Mbps/20Mbps HEVC動画の各1フレームをshared memoryへdecodeし、consumer read後にreleaseできることを固定した。
+- UI上の動画preview不表示は、少なくともローカル動画ファイルそのものをRust backendがdecodeできない問題ではないと切り分けた。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml decode_request_frame_reads_all_local_video_fixtures_for_preview -- --nocapture`
+
+### 残課題・次のステップ
+- Electron rendererからRust decode結果をshared renderer presenterへ渡す実ウィンドウ相当のE2Eを追加し、preview不表示の残り原因をpresentation/upload側へ絞る。
+
 ## 2026-06-20 — 全読込可能メディアのE2E契約を追加
 
 ### 実施内容
