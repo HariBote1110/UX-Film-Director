@@ -85,4 +85,11 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     expect(code).toContain('createSingleUseProjectExportFrameSourceCloser');
     expect(code).not.toContain('exportFrameSourcePlan.frameSource.close?.()');
   });
+
+  it('passes native render output release diagnostics into export progress', () => {
+    const code = source();
+
+    expect(code).toContain('onNativeRenderOutputRelease: (event) => {');
+    expect(code).toContain('nativeRenderOutputRelease: event');
+  });
 });

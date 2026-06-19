@@ -20,6 +20,31 @@ describe('export progress state', () => {
     expect(useStore.getState().exportProgress).toEqual({ phase: 'rendering', currentFrame: 12, totalFrames: 120 });
   });
 
+  it('keeps native render output release diagnostics on the progress payload', () => {
+    useStore.getState().setExporting(true);
+    useStore.getState().setExportProgress({
+      phase: 'rendering',
+      currentFrame: 12,
+      totalFrames: 120,
+      nativeRenderOutputRelease: {
+        status: 'released',
+        memoryId: '/uxfd-native-render-output',
+        reason: 'encodeWriteFailed',
+      },
+    });
+
+    expect(useStore.getState().exportProgress).toEqual({
+      phase: 'rendering',
+      currentFrame: 12,
+      totalFrames: 120,
+      nativeRenderOutputRelease: {
+        status: 'released',
+        memoryId: '/uxfd-native-render-output',
+        reason: 'encodeWriteFailed',
+      },
+    });
+  });
+
   it('flags cancellation and switches the phase to cancelling', () => {
     useStore.getState().setExporting(true);
     useStore.getState().setExportProgress({ phase: 'rendering', currentFrame: 30, totalFrames: 120 });
