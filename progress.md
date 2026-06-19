@@ -4485,3 +4485,20 @@
 ### 残課題・次のステップ
 - preview upload側のstale decode response release失敗も同じく分離し、直接release経路を揃える。
 - 実機GoPro素材で stale response / release failure diagnostics がUI・dataset上で追えるか確認する。
+
+## 2026-06-19 — stale preview upload release失敗を分離
+
+### 実施内容
+- Red: preview upload側のstale decoded response破棄で `decode.releaseFrame` が `{ success:false }` を返した場合、通常の `staleDecodeResponse` に隠さない契約を追加した。
+- Green: 単体video uploadでrelease結果を検証し、失敗時は `staleDecodeReleaseFailed` として返すようにした。
+- 複数video upload preparationでも同じ `staleDecodeReleaseFailed` 契約を回帰テストとして固定した。
+- 版を `0.1.1-Beta-208f` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/sharedRendererRustVideoUploadPipeline.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts`
+- `npm test -- src/utils/sharedRendererViewportVideoUpload.test.ts -t "multi-video upload preparation"`
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererViewportVideoUpload|sharedRendererRustVideoUploadPipeline|sharedRendererPreviewPresenterController"`
+
+### 残課題・次のステップ
+- releasePreparedViewportVideoUploadsAfterAbort の複数slot abort時に、途中のrelease失敗で後続slotのreleaseが止まらないよう集約診断を検討する。
+- 実機GoPro素材で stale response / release failure diagnostics がUI・dataset上で追えるか確認する。
