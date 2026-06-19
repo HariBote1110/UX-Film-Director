@@ -4291,3 +4291,19 @@
 ### 残課題・次のステップ
 - `ExportProgressModal` にnative render output release診断を表示し、実UI上で `released` / `missingBridge` を確認できるようにする。
 - 実機のGoPro動画で、encode失敗時にもnative render output shared memoryが残らないことをsmokeで確認する。
+
+## 2026-06-19 — native render output releaseをprogress modalへ表示
+
+### 実施内容
+- Red: export progress modalが `exportProgress.nativeRenderOutputRelease` を読み、native render output release状態を表示する契約を追加した。
+- Green: `formatNativeRenderOutputReleaseDiagnostic` を追加し、`released` / `missingBridge` / `skipped` を短い診断行として表示するようにした。
+- 日本語UIでは `解放済み` / `release bridge未接続` / `対象外` として表示する。
+- 版を `0.1.1-Beta-205a` に更新した。
+
+### 検証
+- `npm test -- ExportProgressModal useProjectExportBoundary`
+- `npx tsc --noEmit 2>&1 | rg "ExportProgressModal|useProjectExport|rustBackendVideoEncodeExport"`
+
+### 残課題・次のステップ
+- 実機のGoPro動画で、encode失敗時にもprogress modal上でnative render output release状態を確認する。
+- release診断を必要なら開発者向け詳細パネルへ集約する。
