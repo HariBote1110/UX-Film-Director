@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のpreview診断として、実出力必須時のvideo frame scene presentation失敗を `fallback` ではなく `blocked` として出すようにした。
+- Red: `sharedRendererPreviewPresenterController` のテストへ、Rust decoded video frame upload後の `webGpuDrawUnavailable` がblocked診断になる契約を追加した。
+- Green: video frame scene presentation失敗時のdiagnostics statusを、実出力必須時だけ `blocked` に切り替えた。
+- 検証: `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration viewportRustVideoOnlyBoundary` は73件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216k`。
+
+## 2026-06-19
 - Phase5のpreview診断として、実出力必須時のSolidColour presentation失敗を `fallback` ではなく `blocked` として出すようにした。
 - Red: `sharedRendererPreviewPresenterController` のテストへ、`requireSharedRendererOutput` 有効時の `webGpuDrawUnavailable` がblocked診断になる契約を追加した。
 - Green: SolidColour presentation失敗時のdiagnostics statusを、実出力必須時だけ `blocked` に切り替えた。

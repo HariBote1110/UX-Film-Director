@@ -1355,6 +1355,11 @@ export実出力不可のblocked診断を、実機UIで原因追跡しやすい�
 `fallback` ではなく `blocked` として出す。
 通常previewの互換fallbackは維持しつつ、実shared renderer出力必須の検証でPixi退避に見えないようにする。
 
+248. Phase5: 実出力必須時のvideo presentation失敗をblocked診断にする
+`requireSharedRendererOutput` が有効なpreview presenterでは、Rust decoded video frame upload後の
+video frame scene presentation失敗を `fallback` ではなく `blocked` として出す。
+通常previewの互換fallbackは維持しつつ、実shared renderer出力必須の検証でPixi退避に見えないようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

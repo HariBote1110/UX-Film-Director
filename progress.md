@@ -1,3 +1,20 @@
+## 2026-06-19 — 実出力必須時のvideo presentation失敗をblocked診断に変更
+
+### 実施内容
+- Red: `requireSharedRendererOutput` 有効時にvideo frame scene presentationが失敗した場合、presenter診断が `blocked` になる契約を追加した。
+- Green: video frame scene presentation失敗時のdiagnostics statusを、通常previewでは `fallback` のまま、実出力必須時だけ `blocked` へ切り替えるようにした。
+- 実shared renderer出力が必須の検証で、Rust decoded video frame upload後のpresentation失敗をPixi互換fallbackとして見せないようにした。
+- 版を `0.1.1-Beta-216k` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPreviewPresenterController`
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration viewportRustVideoOnlyBoundary`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererWebGpuPresenter\\.ts)"`
+
+### 残課題・次のステップ
+- presentation失敗reasonのUI/ログ表示ラベルを必要に応じて整理する。
+- Viewport本体のPixi依存撤去へ向けて、image/PSD/SolidColourのnative render coverageをさらに診断へ接続する。
+
 ## 2026-06-19 — 実出力必須時のSolidColour presentation失敗をblocked診断に変更
 
 ### 実施内容
