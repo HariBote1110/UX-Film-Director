@@ -4809,3 +4809,20 @@
 ### 残課題・次のステップ
 - native render preview成功時のImage/PSD ownership builderとdiagnosticsも同じ観点で確認する。
 - 実機GoPro素材でnative render preview成功時にPixi動画/shape childrenがcleanupされることを確認する。
+
+## 2026-06-19 — shared frame copy sequence検証を追加
+
+### 実施内容
+- Red: `sharedVideoFrameUploadBridge` に、native copy bridgeのcopy report `sequence` が decoded frame `ptsFrame` と一致しない場合はuploadを拒否する契約を追加した。
+- Green: `prepareSharedRendererDecodedVideoFrameUpload` が `copyReportSequenceMismatch` を返すようにし、stale copy reportをWebGPU uploadへ進ませないようにした。
+- Rust decode -> shared memory copy -> renderer upload bufferのdata-plane検証を強めた。
+- 版を `0.1.1-Beta-208x` に更新した。
+
+### 検証
+- `npm test -- sharedVideoFrameUploadBridge`
+- `npm test -- sharedVideoFrameUploadBridge sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedVideoFrameUploadBridge\\.ts|src/utils/sharedVideoFrameUploadBridge\\.test\\.ts|src/utils/sharedRendererRustVideoUploadPipeline\\.ts|src/utils/sharedRendererViewportVideoUpload\\.ts)"`
+
+### 残課題・次のステップ
+- copy reportのchecksum検証をRust側契約と突き合わせ、必要なら expected/actual checksum mismatchもfail-loudにする。
+- 実機GoPro素材でshared memory copy reportとGPU upload診断を確認する。
