@@ -25,6 +25,10 @@ export const formatNativeRenderOutputReleaseDiagnostic = (
     const status = language === 'ja' ? 'release bridge未接続' : 'missing release bridge';
     return `Native render output: ${status} (${event.memoryId})`;
   }
+  if (event.status === 'failed') {
+    const status = language === 'ja' ? '解放失敗' : 'release failed';
+    return `Native render output: ${status} (${event.memoryId})`;
+  }
   return language === 'ja'
     ? 'Native render output: 対象外'
     : 'Native render output: skipped';
