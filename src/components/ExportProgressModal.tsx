@@ -56,7 +56,7 @@ export const formatLastExportDiagnosticsSummary = (
   const lines: string[] = [];
   if (diagnostics.exportFrameSourcePlanFailure) {
     const failure = diagnostics.exportFrameSourcePlanFailure;
-    lines.push(`Rust frame source plan: ${failure.reason}: ${failure.detail}`);
+    lines.push(`Rust frame source plan: ${formatExportFrameSourcePlanFailureReason(failure.reason, language)}: ${failure.detail}`);
   }
   if (diagnostics.rustFrameSourceBlocked) {
     lines.push(formatRustFrameSourceBlockedDiagnostic(diagnostics.rustFrameSourceBlocked, language));
@@ -65,6 +65,23 @@ export const formatLastExportDiagnosticsSummary = (
     lines.push(formatNativeRenderOutputReleaseDiagnostic(diagnostics.nativeRenderOutputRelease, language));
   }
   return lines;
+};
+
+const formatExportFrameSourcePlanFailureReason = (
+  reason: string,
+  language: 'ja' | 'en'
+): string => {
+  if (reason === 'rustFrameSourceRequired') {
+    return language === 'ja'
+      ? 'Rust frame source必須'
+      : 'Rust frame source required';
+  }
+  if (reason === 'exportFrameSourceUnavailable') {
+    return language === 'ja'
+      ? 'export frame sourceなし'
+      : 'export frame source unavailable';
+  }
+  return reason;
 };
 
 const formatRustFrameSourceBlockedReason = (
