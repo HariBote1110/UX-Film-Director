@@ -1560,6 +1560,8 @@ describe('startSharedRendererPreviewPresenter', () => {
     expect(events).toEqual(['release-abort']);
     expect(dataset).toMatchObject({
       uxfdSharedRendererPresenterVideoFrameUploadReady: 'false',
+      uxfdSharedRendererPresenterVideoUploadFailureReason: 'webGpuUploadUnavailable',
+      uxfdSharedRendererPresenterVideoUploadFailureDetail: 'WebGPU device does not expose the texture upload APIs needed for decoded video frames.',
       uxfdSharedRendererPresenterVideoOwner: 'pixi',
       uxfdSharedRendererPresenterVideoCutoverReason: 'videoFrameUploadUnavailable',
     });
