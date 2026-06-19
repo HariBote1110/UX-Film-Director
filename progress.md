@@ -4654,3 +4654,20 @@
 ### 残課題・次のステップ
 - preview native render bridge throwも結果unionの `nativeRenderFailed` へ落とし、生Errorでpreview orchestrationを崩さないようにする。
 - native render throw診断の表示文言をユーザー向けに整える。
+
+## 2026-06-19 — preview native render throwを診断化
+
+### 実施内容
+- Red: preview native render bridgeがthrowした場合、生Errorではなく `nativeRenderFailed` 結果へ落とし、decoded source abort releaseを試行する契約を追加した。
+- Green: preview native render throw経路でrelease失敗がなければ `nativeRenderFailed` として返し、例外messageをdetailに保持するようにした。
+- preview orchestrationがRust native render bridge例外で崩れず、診断可能な結果unionとして扱えるようにした。
+- 版を `0.1.1-Beta-208p` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererViewportNativeRenderUpload.test.ts -t "bridge throws"`
+- `npm test -- src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.test\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.ts)"`
+
+### 残課題・次のステップ
+- native render throw / output release failure のUI文言をpreview/exportで揃える。
+- Rust backend decode/native render/encodeの統合テストを再実行し、最近の所有権診断変更がbackend contractと矛盾しないことを確認する。
