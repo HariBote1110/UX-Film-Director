@@ -217,6 +217,7 @@ describe('runRustBackendVideoEncodeExport', () => {
 
   it('releases native render output when encode write fails before Rust consumes it', async () => {
     const calls: unknown[] = [];
+    const releaseEvents: unknown[] = [];
     const payload = sharedFramePayload(0, 0, 'session-native-failure');
     const encoderBridge: RustBackendVideoEncodeBridge = {
       startVideoEncode: async (input) => {
@@ -262,6 +263,9 @@ describe('runRustBackendVideoEncodeExport', () => {
       frames: failingSharedFrames(),
       encoderBridge,
       nativeRenderBridge,
+      onNativeRenderOutputRelease: (event) => {
+        releaseEvents.push(event);
+      },
     })).rejects.toThrow('encode write failed before consuming native output');
 
     expect(calls).toEqual([
@@ -284,6 +288,79 @@ describe('runRustBackendVideoEncodeExport', () => {
         memoryId: payload.frame.descriptor.memoryId,
       }],
     ]);
+    expect(releaseEvents).toEqual([{
+      status: 'released',
+      memoryId: payload.frame.descriptor.memoryId,
+      reason: 'encodeWriteFailed',
+    }]);
+  });
+
+  it('reports missing native render release bridge when encode write fails before Rust consumes output', async () => {
+    const calls: unknown[] = [];
+    const releaseEvents: unknown[] = [];
+    const payload = sharedFramePayload(0, 0, 'session-native-missing-release-bridge');
+    const encoderBridge: RustBackendVideoEncodeBridge = {
+      startVideoEncode: async (input) => {
+        calls.push(['startVideoEncode', input]);
+        return { success: true, result: { accepted: true } };
+      },
+      writeVideoEncodeFrame: async (input) => {
+        calls.push(['writeVideoEncodeFrame', input]);
+        return { success: false, error: 'encode write failed without release bridge' };
+      },
+      finishVideoEncode: async (input) => {
+        calls.push(['finishVideoEncode', input]);
+        return { success: true, result: { outputFile: '/tmp/out.mp4' } };
+      },
+    };
+
+    async function* failingNativeFrames() {
+      yield {
+        timestamp: 0,
+        sharedFramePayload: payload,
+        releaseAfterEncodeFailure: {
+          kind: 'nativeRenderOutput' as const,
+          memoryId: payload.frame.descriptor.memoryId,
+        },
+      };
+    }
+
+    await expect(runRustBackendVideoEncodeExport({
+      sessionId: 'session-native-missing-release-bridge',
+      filePath: '/tmp/direct-shared.mp4',
+      width: 4,
+      height: 2,
+      fps: 60,
+      frames: failingNativeFrames(),
+      encoderBridge,
+      nativeRenderBridge: undefined,
+      onNativeRenderOutputRelease: (event) => {
+        releaseEvents.push(event);
+      },
+    })).rejects.toThrow('encode write failed without release bridge');
+
+    expect(calls).toEqual([
+      ['startVideoEncode', {
+        sessionId: 'session-native-missing-release-bridge',
+        filePath: '/tmp/direct-shared.mp4',
+        width: 4,
+        height: 2,
+        fps: 60,
+        pixelFormat: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      }],
+      ['writeVideoEncodeFrame', payload],
+    ]);
+    expect(releaseEvents).toEqual([{
+      status: 'missingBridge',
+      memoryId: payload.frame.descriptor.memoryId,
+      reason: 'encodeWriteFailed',
+    }]);
   });
 
   it('does not release non-native shared frames through the native render release bridge when encode write fails', async () => {
