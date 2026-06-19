@@ -75,6 +75,7 @@ const writeFrame = addon.writeIntoSharedFrameRing({
 assert.equal(writeFrame.success, true, String(writeFrame.error))
 assert.equal(writeFrame.result.sequence, 7)
 assert.equal(writeFrame.result.byteLen, slotByteLen)
+assert.equal(writeFrame.result.checksumAlgorithm, 'crc32')
 
 const copiedFrame = new Uint8Array(slotByteLen)
 const copyFrame = addon.copyIntoUploadBuffer({
@@ -89,6 +90,9 @@ assert.equal(copyFrame.success, true, String(copyFrame.error))
 assert.deepEqual([...copiedFrame], [...sourceFrame])
 assert.equal(copyFrame.result.slotIndex, 0)
 assert.equal(copyFrame.result.generation, 1)
+assert.equal(copyFrame.result.checksumAlgorithm, 'crc32')
+assert.equal(copyFrame.result.expectedChecksum, writeFrame.result.checksum)
+assert.equal(copyFrame.result.actualChecksum, writeFrame.result.checksum)
 
 const closeRing = addon.closeWritableSharedFrameRing({ memoryId })
 assert.equal(closeRing.success, true, String(closeRing.error))
