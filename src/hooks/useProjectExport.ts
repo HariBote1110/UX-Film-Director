@@ -25,10 +25,16 @@ import type {
   RustBackendVideoEncodeSharedFramePayloadFrame,
 } from '../utils/rustBackendVideoEncodeExport';
 
-const { ipcRenderer } = window;
-
 const createRustEncodeSessionId = (): string =>
   `uxfd-export-${Date.now().toString(36)}`;
+
+const getProjectExportIpcRenderer = (): Window['ipcRenderer'] => {
+  const maybeIpcRenderer = (window as Partial<Window>).ipcRenderer;
+  if (!maybeIpcRenderer || typeof maybeIpcRenderer.invoke !== 'function') {
+    throw new Error('Electron IPC is unavailable. Export must be run from the Electron app window, not a plain browser tab.');
+  }
+  return maybeIpcRenderer;
+};
 
 const closeEncodedFrameBitmap = (frame: RustBackendVideoEncodeFrame): void => {
   if ('bitmap' in frame) {
@@ -56,6 +62,7 @@ export const useProjectExport = (
     const isCancelled = () => cancelled || useStore.getState().exportCancelRequested;
 
     const runExport = async () => {
+      const ipcRenderer = getProjectExportIpcRenderer();
       const rustExportOnly = import.meta.env.VITE_UXFD_RUST_EXPORT_ONLY === '1';
       const { projectSettings, objects, layers } = useStore.getState();
       const exportObjects = objects.filter((obj) => layers[obj.layer]?.visible !== false);

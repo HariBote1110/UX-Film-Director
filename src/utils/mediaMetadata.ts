@@ -120,9 +120,29 @@ const loadAudioElementMetadata = (url: string): Promise<AudioMetadata> => {
   });
 };
 
-export const resolveVideoMetadata = async (file: File, _url: string): Promise<VideoMetadata> => {
+const loadVideoElementMetadata = (url: string): Promise<VideoMetadata> => {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => {
+      resolve({
+        duration: isPositiveNumber(video.duration) ? video.duration : DEFAULT_DURATION_SECONDS,
+        width: isPositiveNumber(video.videoWidth) ? video.videoWidth : DEFAULT_VIDEO_WIDTH,
+        height: isPositiveNumber(video.videoHeight) ? video.videoHeight : DEFAULT_VIDEO_HEIGHT,
+      });
+    };
+    video.onerror = () => reject(new Error('Failed to load video metadata.'));
+    video.src = url;
+  });
+};
+
+export const resolveVideoMetadata = async (file: File, url: string): Promise<VideoMetadata> => {
   const probed = await probeMediaWithRust(file);
-  return mergeResolvedVideoMetadata(probed);
+  if (probed && probed.hasVideo) {
+    return mergeResolvedVideoMetadata(probed);
+  }
+
+  return loadVideoElementMetadata(url);
 };
 
 export const resolveAudioMetadata = async (file: File, url: string): Promise<AudioMetadata> => {
