@@ -1,3 +1,20 @@
+## 2026-06-19 — Rust video plane必須時のloader診断をfail-loud化
+
+### 実施内容
+- Red: Rust video plane control必須時にWASM vertex scene builderのload失敗を「TypeScript fallback」と表現しない契約を追加した。
+- Green: `loadSharedRendererRustVideoPlaneVertexSceneBuilder` に `fallbackAllowed` を追加し、Rust必須時は `Rust video control plane is required` の診断へ切り替えた。
+- `startSharedRendererPreviewPresenter` からvideo plane builderにも `fallbackAllowed: !requireRustVideoControlPlane` を渡し、decode request builderと診断方針を揃えた。
+- 版を `0.1.1-Beta-210v` に更新した。
+
+### 検証
+- `npm test -- sharedRendererRustVideoPlaneScene`
+- `npm test -- sharedRendererRustVideoPlaneScene sharedRendererPreviewPresenterController viewportRustVideoOnlyBoundary`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererRustVideoPlaneScene\\.ts|src/utils/sharedRendererRustVideoPlaneScene\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- Rust video-only previewで、video plane scene builder / decode request builderの双方がRust必須診断へ揃っていることを実機datasetでも確認する。
+- 通常互換previewのTypeScript fallbackを診断用に残しつつ、Rust必須検証でfallback文言が混ざらない状態を維持する。
+
 ## 2026-06-19 — Rust video control-plane必須時のloader診断をfail-loud化
 
 ### 実施内容
