@@ -1,3 +1,20 @@
+## 2026-06-19 — native render GPU release失敗をpresenter診断へ追加
+
+### 実施内容
+- Red: native render frameのWebGPU upload成功後、`releaseAfterGpuUpload` が失敗してもpresenter処理を例外で落とさず、datasetへ `nativeRenderOutputReleaseFailed` を出す契約を追加した。
+- Green: GPU fence後releaseをhelperで捕捉し、失敗時はnative render failure診断へdetail付きで反映するようにした。
+- Rust native render outputのGPU upload後解放失敗を、shared renderer ready状態の裏で見失わないようにした。
+- 版を `0.1.1-Beta-210l` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPreviewPresenterController`
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts)"`
+
+### 残課題・次のステップ
+- 実機GoPro素材でnative render outputのGPU fence後release失敗がdatasetに残ることを確認する。
+- PixiJS依存の残存箇所を洗い出し、Rust native render / decoded video upload経路を通常経路として固定する。
+
 ## 2026-06-19 — 動画GPU release失敗をpresenter診断へ追加
 
 ### 実施内容
