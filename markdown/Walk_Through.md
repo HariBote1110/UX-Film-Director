@@ -1091,3 +1091,17 @@
 - `npm test -- exportProgressDiagnostics` を実行し、Redでヘルパー未実装の失敗を確認した。
 - `npm test -- exportProgressDiagnostics useProjectExportBoundary ExportProgressModal exportProgress` を再実行し、38件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/exportProgressDiagnostics\\.ts|src/utils/exportProgressDiagnostics\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 89. Phase5: export終了後にRust診断を保持
+- `src/store/exportProgress.test.ts`
+- export終了で `exportProgress` がクリアされた後も、Rust frame source blocked/native render release診断を `lastExportDiagnostics` に残す契約を追加した。
+- 新しいexport開始時には古い `lastExportDiagnostics` をクリアする契約も追加した。
+- `src/store/useStore.ts`
+- `ExportDiagnostics` と診断抽出処理を追加し、`setExporting(false)` で直近Rust診断を保存するようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-211g` に更新した。
+
+## 確認
+- `npm test -- exportProgress` を実行し、Redで `lastExportDiagnostics` が存在しない失敗を確認した。
+- `npm test -- exportProgressDiagnostics useProjectExportBoundary ExportProgressModal exportProgress` を再実行し、40件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/store/useStore\\.ts|src/store/exportProgress\\.test\\.ts|src/utils/exportProgressDiagnostics\\.ts|src/hooks/useProjectExport\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

@@ -1,3 +1,20 @@
+## 2026-06-19 — export終了後にRust診断を保持
+
+### 実施内容
+- Red: export終了で `exportProgress` がクリアされた後も、Rust frame source blocked/native render release診断を `lastExportDiagnostics` に残す契約を追加した。
+- Green: `useStore` に `ExportDiagnostics` と診断抽出処理を追加し、`setExporting(false)` で直近Rust診断を保存するようにした。
+- 新しいexport開始時には古い `lastExportDiagnostics` をクリアし、前回診断の混入を避けるようにした。
+- 版を `0.1.1-Beta-211g` に更新した。
+
+### 検証
+- `npm test -- exportProgress`
+- `npm test -- exportProgressDiagnostics useProjectExportBoundary ExportProgressModal exportProgress`
+- `npx tsc --noEmit 2>&1 | rg "(src/store/useStore\\.ts|src/store/exportProgress\\.test\\.ts|src/utils/exportProgressDiagnostics\\.ts|src/hooks/useProjectExport\\.ts)"`
+
+### 残課題・次のステップ
+- `lastExportDiagnostics` を開発者向けUIまたは診断ログへ表示/出力する導線を追加する。
+- Rust frame source ready時のbrowser fallback遮断を統合テストで固定する。
+
 ## 2026-06-19 — export progress診断保持を共通化
 
 ### 実施内容
