@@ -1,12 +1,24 @@
-import type { EncodeResult, EncodeVideoConfig } from './videoExportPipeline';
+export interface ProjectExportCompatibilityEncodeResult {
+  buffer: ArrayBuffer;
+  streamed: boolean;
+  codecUsed: string;
+  durationMs: number;
+  peakQueueSize: number;
+}
 
-export type ProjectExportCompatibilityEncodeInput = EncodeVideoConfig & {
+export interface ProjectExportCompatibilityEncodeInput {
+  width: number;
+  height: number;
+  fps: number;
+  frames: AsyncIterable<{ timestamp: number; bitmap: ImageBitmap }>;
+  audioBuffer?: AudioBuffer | null;
+  writeChunk?: (data: Uint8Array, position: number) => void | Promise<void>;
   hasVideoObjects: boolean;
-};
+}
 
 export const encodeProjectExportCompatibilityVideo = async (
   input: ProjectExportCompatibilityEncodeInput
-): Promise<EncodeResult> => {
+): Promise<ProjectExportCompatibilityEncodeResult> => {
   if (input.hasVideoObjects) {
     throw new Error('Video export requires the Rust backend encoder; WebCodecs compatibility export is non-video only.');
   }
