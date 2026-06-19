@@ -111,6 +111,29 @@ describe('export progress state', () => {
     });
   });
 
+  it('keeps the last Rust frame source plan failure after export progress is cleared', () => {
+    useStore.getState().setExporting(true);
+    useStore.getState().setExportProgress({
+      phase: 'preparing',
+      currentFrame: 0,
+      totalFrames: 0,
+      exportFrameSourcePlanFailure: {
+        reason: 'rustFrameSourceRequired',
+        detail: 'Video export requires a shared-frame Rust export source.',
+      },
+    });
+
+    useStore.getState().setExporting(false);
+
+    expect(useStore.getState().exportProgress).toBeNull();
+    expect(useStore.getState().lastExportDiagnostics).toEqual({
+      exportFrameSourcePlanFailure: {
+        reason: 'rustFrameSourceRequired',
+        detail: 'Video export requires a shared-frame Rust export source.',
+      },
+    });
+  });
+
   it('clears stale last export diagnostics when a new export starts', () => {
     useStore.getState().setExporting(true);
     useStore.getState().setExportProgress({

@@ -145,6 +145,21 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     );
   });
 
+  it('publishes Rust frame source plan failures before ending the export', () => {
+    const code = source();
+    const planFailureBlock = code.slice(
+      code.indexOf('if (!initialFrameSourcePlan.ok) {'),
+      code.indexOf('const exportFrameSourcePlan = initialFrameSourcePlan;')
+    );
+
+    expect(planFailureBlock).toContain('exportFrameSourcePlanFailure: {');
+    expect(planFailureBlock).toContain('reason: initialFrameSourcePlan.reason');
+    expect(planFailureBlock).toContain('detail: initialFrameSourcePlan.detail');
+    expect(planFailureBlock.indexOf('exportFrameSourcePlanFailure: {')).toBeLessThan(
+      planFailureBlock.indexOf('setExporting(false);')
+    );
+  });
+
   it('renders native render output release diagnostics from export progress', () => {
     const code = exportProgressModalSource();
 

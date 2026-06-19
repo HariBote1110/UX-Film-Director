@@ -109,6 +109,10 @@ describe('formatLastExportDiagnosticsSummary', () => {
 
   it('formats retained Rust export diagnostics for the post-export panel', () => {
     const diagnostics: ExportDiagnostics = {
+      exportFrameSourcePlanFailure: {
+        reason: 'rustFrameSourceRequired',
+        detail: 'Video export requires a shared-frame Rust export source.',
+      },
       rustFrameSourceBlocked: {
         reason: 'videoOwnershipUnavailable',
         frameIndex: 5,
@@ -124,6 +128,7 @@ describe('formatLastExportDiagnosticsSummary', () => {
     };
 
     expect(formatLastExportDiagnosticsSummary(diagnostics, 'ja')).toEqual([
+      'Rust frame source plan: rustFrameSourceRequired: Video export requires a shared-frame Rust export source.',
       'Rust frame source: 停止 動画所有権未移管 frame=5 legacy fallback可: Shared renderer export is missing uploaded video clips: video-2.',
       'Native render output: 解放失敗 (/uxfd-native-render-output) release rejected',
     ]);
