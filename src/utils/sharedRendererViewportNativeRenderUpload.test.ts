@@ -1124,4 +1124,34 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
       ['releaseAfterNativeRenderAbort'],
     ]);
   });
+
+  it('preserves prepared native render source abort release failures from source preparation', async () => {
+    const result = await prepareSharedRendererViewportNativeRenderUpload({
+      session: mediaOnlySession,
+      requestId: 24,
+      activeJobs: [],
+      prepareNativeRenderSources: async () => ({
+        ok: false,
+        reason: 'preparedNativeRenderSourceAbortReleaseFailed',
+        detail: 'prepared native render source abort release failed',
+        activeJobs: [],
+      }),
+      renderNativeSharedFrame: async () => {
+        throw new Error('native renderer must not run after source preparation failed.');
+      },
+      releaseNativeSharedFrame: async () => ({ success: true }),
+      copyBridge: {
+        copyIntoUploadBuffer: async () => {
+          throw new Error('copy bridge must not run after source preparation failed.');
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'preparedNativeRenderSourceAbortReleaseFailed',
+      detail: 'prepared native render source abort release failed',
+      activeJobs: [],
+    });
+  });
 });
