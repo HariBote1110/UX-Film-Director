@@ -71,4 +71,14 @@ describe('production video dependency boundary', () => {
     expect(code).not.toContain('VideoDecoder テスト用');
     expect(code).not.toContain('GX010052.proxy.mp4');
   });
+
+  it('does not force browser video codec feature flags in production Electron main', () => {
+    const code = readFileSync(electronMainPath, 'utf8');
+
+    expect(code).not.toContain('UseChromeOSDirectVideoDecoder');
+    expect(code).not.toContain('VideoToolboxVideoCodecFactory');
+    expect(code).not.toContain('VaapiVideoDecoder');
+    expect(code).not.toContain('VaapiVideoEncoder');
+    expect(code).not.toContain('WebCodecs');
+  });
 });
