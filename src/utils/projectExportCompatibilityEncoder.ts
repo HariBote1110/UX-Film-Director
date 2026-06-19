@@ -1,7 +1,7 @@
 import type { EncodeResult, EncodeVideoConfig } from './videoExportPipeline';
 
 export type ProjectExportCompatibilityEncodeInput = EncodeVideoConfig & {
-  hasVideoObjects?: boolean;
+  hasVideoObjects: boolean;
 };
 
 export const encodeProjectExportCompatibilityVideo = async (
