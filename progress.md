@@ -1,3 +1,21 @@
+## 2026-06-19 — Pixi動画crop helperを撤去
+
+### 実施内容
+- Red: `pixiRenderHelper` が `VideoObject` / `evaluateSubjectCropNormRectAtTime` / `applyVideoSubjectCropMask` を持たない契約を境界テストへ追加した。
+- Green: 未使用になっていたPixi動画subject-crop mask helperを削除し、動画をPixi spriteとして再作成する判定も削除した。
+- Pixi側に残っていた「動画spriteを加工して表示する」前提を取り除き、動画表示の正本をRust/shared renderer側へさらに寄せた。
+- 版を `0.1.1-Beta-210n` に更新した。
+
+### 検証
+- `npm test -- viewportRustVideoOnlyBoundary`
+- `npm test -- viewportRustVideoOnlyBoundary productionVideoDependencyBoundary`
+- `npm test -- pixiRenderHelper pixiSolidColourCutover pixiImageCutover pixiPsdCutover subjectCropKeyframes`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/pixiRenderHelper\\.ts|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts|src/utils/subjectCropKeyframes\\.ts)"`
+
+### 残課題・次のステップ
+- Pixi helperに残る動画関連語彙がhitArea cleanup以外に復活していないか、production境界で継続的に監視する。
+- Rust native render / shared renderer側でsubject crop相当の表現を必要に応じて別途実装し、Pixi動画sprite処理へ戻さない。
+
 ## 2026-06-19 — Pixi動画cutover中間ゲートを撤去
 
 ### 実施内容

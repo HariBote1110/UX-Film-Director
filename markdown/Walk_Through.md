@@ -810,3 +810,17 @@
 - `npm test -- viewportRustVideoOnlyBoundary productionVideoDependencyBoundary` を実行し、18件成功を確認した。
 - `npm test -- pixiRenderHelper pixiSolidColourCutover pixiImageCutover pixiPsdCutover` を実行し、4件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/pixiRenderHelper\\.ts|src/utils/pixiVideoCutover\\.ts|src/utils/pixiVideoCutover\\.test\\.ts|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts|src/utils/productionVideoDependencyBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 69. Phase5: Pixi動画crop helperを撤去
+- `src/utils/viewportRustVideoOnlyBoundary.test.ts`
+- `pixiRenderHelper` が `VideoObject` / `evaluateSubjectCropNormRectAtTime` / `applyVideoSubjectCropMask` を持たない契約を追加した。
+- `src/utils/pixiRenderHelper.ts`
+- 未使用になっていたPixi動画subject-crop mask helperを削除し、動画をPixi spriteとして再作成する判定も削除した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-210n` に更新した。
+
+## 確認
+- `npm test -- viewportRustVideoOnlyBoundary` を実行し、Redで `VideoObject` がPixi helperに残る失敗を確認した。
+- `npm test -- viewportRustVideoOnlyBoundary productionVideoDependencyBoundary` を実行し、19件成功を確認した。
+- `npm test -- pixiRenderHelper pixiSolidColourCutover pixiImageCutover pixiPsdCutover subjectCropKeyframes` を実行し、7件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/pixiRenderHelper\\.ts|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts|src/utils/subjectCropKeyframes\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
