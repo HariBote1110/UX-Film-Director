@@ -685,3 +685,19 @@
 - `npm test -- packageScripts` を再実行し、1件成功を確認。
 - `npm run bridge:node:build` を実行し、Node addon build成功を確認。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/packageScripts\\.test\\.ts|scripts/dev-rust-video\\.mjs|package\\.json)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 60. Phase5: 動画upload失敗clipをpresenter診断へ追加
+- `src/utils/sharedRendererViewportVideoUpload.test.ts` / `src/utils/sharedRendererViewportVideoUpload.ts`
+- Rust shared memory copy / WebGPU upload準備が失敗したrequestの `clipId` / `mediaId` をupload失敗結果へ保持する契約と実装を追加した。
+- `src/utils/sharedRendererPresenterDiagnostics.test.ts` / `src/utils/sharedRendererViewportPresenterOrchestration.test.ts`
+- presenter診断入力とdatasetに失敗clip/media idが届く契約を追加した。
+- `src/utils/sharedRendererPresenterDiagnostics.ts` / `src/utils/sharedRendererPreviewPresenterController.ts` / `src/utils/sharedRendererViewportPresenterOrchestration.ts`
+- `uxfdSharedRendererPresenterVideoUploadFailureClipId` / `uxfdSharedRendererPresenterVideoUploadFailureMediaId` をdatasetへ出すようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-210e` に更新した。
+
+## 確認
+- `npm test -- sharedRendererViewportVideoUpload` を実行し、Redでupload失敗clip/media idが欠ける失敗を確認した。
+- `npm test -- sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration` を実行し、Redでpresenter診断へclip/media idが届かない失敗を確認した。
+- `npm test -- sharedRendererViewportVideoUpload sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController` を実行し、57件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportVideoUpload\\.ts|src/utils/sharedRendererViewportVideoUpload\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

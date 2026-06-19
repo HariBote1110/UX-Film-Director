@@ -1,3 +1,22 @@
+## 2026-06-19 — 動画upload失敗clipをpresenter診断へ追加
+
+### 実施内容
+- Red: `sharedRendererViewportVideoUpload` に、複数動画upload失敗時の `uploadFailureClipId` / `uploadFailureMediaId` を要求する契約を追加した。
+- Green: Rust shared memory copy / WebGPU upload準備が失敗したrequestの `clipId` / `mediaId` をviewport upload結果へ保持するようにした。
+- Red: presenter diagnosticsとviewport orchestrationに、upload失敗clip/media idをdataset入力へ渡す契約を追加した。
+- Green: `uxfdSharedRendererPresenterVideoUploadFailureClipId` / `uxfdSharedRendererPresenterVideoUploadFailureMediaId` をdatasetへ出すようにした。
+- 版を `0.1.1-Beta-210e` に更新した。
+
+### 検証
+- `npm test -- sharedRendererViewportVideoUpload`
+- `npm test -- sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration`
+- `npm test -- sharedRendererViewportVideoUpload sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportVideoUpload\\.ts|src/utils/sharedRendererViewportVideoUpload\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- `npm run dev:rust-video` でGoPro素材を読み込み、失敗時に `uxfdSharedRendererPresenterVideoUploadFailureReason` とあわせてclip/media idが見えることを確認する。
+- export blocked error側にも必要ならclip/media idを含め、previewとexportの診断粒度を揃える。
+
 ## 2026-06-19 — Rust動画dev起動前にbridge buildを実行
 
 ### 実施内容
