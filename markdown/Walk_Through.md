@@ -794,3 +794,19 @@
 - `npm test -- sharedRendererPreviewPresenterController` を実行し、Redでnative render GPU release例外がpresenter外へ投げられる失敗を確認した。
 - `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics` を実行し、40件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 68. Phase5: Pixi動画cutover中間ゲートを撤去
+- `src/utils/viewportRustVideoOnlyBoundary.test.ts`
+- `pixiRenderHelper` が `pixiVideoCutover` / `resolvePixiVideoRenderPath` を参照しない契約を追加した。
+- `src/utils/pixiRenderHelper.ts`
+- 動画分岐を常にshared renderer用cleanupへ進める直接処理にし、古いcutover中間ゲート参照を削除した。
+- `src/utils/pixiVideoCutover.ts` / `src/utils/pixiVideoCutover.test.ts`
+- 既に常時 `sharedRendererOnly` だった中間ユーティリティと専用テストを削除した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-210m` に更新した。
+
+## 確認
+- `npm test -- viewportRustVideoOnlyBoundary` を実行し、Redで `pixiVideoCutover` 参照が残る失敗を確認した。
+- `npm test -- viewportRustVideoOnlyBoundary productionVideoDependencyBoundary` を実行し、18件成功を確認した。
+- `npm test -- pixiRenderHelper pixiSolidColourCutover pixiImageCutover pixiPsdCutover` を実行し、4件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/pixiRenderHelper\\.ts|src/utils/pixiVideoCutover\\.ts|src/utils/pixiVideoCutover\\.test\\.ts|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts|src/utils/productionVideoDependencyBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

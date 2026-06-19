@@ -1,3 +1,21 @@
+## 2026-06-19 — Pixi動画cutover中間ゲートを撤去
+
+### 実施内容
+- Red: `pixiRenderHelper` が `pixiVideoCutover` / `resolvePixiVideoRenderPath` を参照しない契約を境界テストへ追加した。
+- Green: 既に常時 `sharedRendererOnly` だったPixi動画cutover中間ユーティリティを削除し、Pixi動画分岐をshared renderer用cleanupへ直接固定した。
+- 古い `pixiVideoCutover.ts` と専用テストを削除し、通常preview動画がPixi側の動画経路へ戻る足場をさらに減らした。
+- 版を `0.1.1-Beta-210m` に更新した。
+
+### 検証
+- `npm test -- viewportRustVideoOnlyBoundary`
+- `npm test -- viewportRustVideoOnlyBoundary productionVideoDependencyBoundary`
+- `npm test -- pixiRenderHelper pixiSolidColourCutover pixiImageCutover pixiPsdCutover`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/pixiRenderHelper\\.ts|src/utils/pixiVideoCutover\\.ts|src/utils/pixiVideoCutover\\.test\\.ts|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts|src/utils/productionVideoDependencyBoundary\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- `pixiRenderHelper` に残るPixi本体依存を、動画以外のlegacy overlay/editor interactionへ限定できているか確認する。
+- Rust native render / shared rendererが表示正本になる範囲を実機素材で確認し、Pixi canvasに戻る出口をさらに削る。
+
 ## 2026-06-19 — native render GPU release失敗をpresenter診断へ追加
 
 ### 実施内容
