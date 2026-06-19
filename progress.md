@@ -1,3 +1,20 @@
+## 2026-06-19 — 動画Rust blocked診断のfallback表示を不可へ正規化
+
+### 実施内容
+- Red: `videoOwnershipUnavailable` の古い診断payloadが `legacyCanvasFallbackAllowed=true` を持っていても、UI summaryとDevTools logではlegacy fallback不可として表示する契約を追加した。
+- Green: `isRustFrameSourceLegacyCanvasFallbackAllowed` を追加し、`videoOwnershipUnavailable` / `videoUploadFailed` は理由ベースでfallback不可へ正規化した。
+- ExportProgressModalとexport diagnostics logで同じhelperを使い、Rust動画必須blockedがlegacy fallback可に見えるズレを塞いだ。
+- 版を `0.1.1-Beta-216c` に更新した。
+
+### 検証
+- `npm test -- ExportProgressModal exportDiagnosticsLog`
+- `npm test -- ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress`
+- `npx tsc --noEmit 2>&1 | rg "(src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportDiagnosticsLog\\.test\\.ts|src/utils/rustFrameSourceBlockedFallback\\.ts|src/utils/exportProgressDiagnostics\\.ts|src/store/useStore\\.ts)"`
+
+### 残課題・次のステップ
+- progress payload自体の古いfixtureも、今後の整理で `legacyCanvasFallbackAllowed=false` に寄せる。
+- Viewport本体のPixi依存撤去へ向けて、video以外のPixi-only presentation条件とRust native render coverageを整理する。
+
 ## 2026-06-19 — 動画Rust export preflight失敗をblocked診断に変更
 
 ### 実施内容

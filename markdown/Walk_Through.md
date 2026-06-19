@@ -1595,6 +1595,25 @@
 - `npm test -- viewportRustExportFrameSource projectExportFrameCanvas viewportRustVideoOnlyBoundary sharedRendererExportFrameSource` を実行し、106件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/viewportRustExportFrameSource\\.ts|src/utils/viewportRustExportFrameSource\\.test\\.ts|src/utils/projectExportFrameCanvas\\.ts|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts|src/utils/sharedRendererExportFrameSource\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 125. Phase5: 動画Rust blocked診断のfallback表示を不可へ正規化
+- `src/components/ExportProgressModal.test.ts`
+- `videoOwnershipUnavailable` のpayloadが古い `legacyCanvasFallbackAllowed=true` を持っていても、UI summaryでは `legacy fallback不可` と表示する契約へ更新した。
+- `src/utils/exportDiagnosticsLog.test.ts`
+- DevTools logでも同じpayloadを `legacyFallback=false` として出す契約へ更新した。
+- `src/utils/rustFrameSourceBlockedFallback.ts`
+- `isRustFrameSourceLegacyCanvasFallbackAllowed` を追加し、`videoOwnershipUnavailable` / `videoUploadFailed` を理由ベースでfallback不可へ正規化した。
+- `src/components/ExportProgressModal.tsx`
+- `src/utils/exportDiagnosticsLog.ts`
+- UI summaryとDevTools logが同じhelperを使うようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216c` に更新した。
+
+## 確認
+- `npm test -- ExportProgressModal exportDiagnosticsLog` を実行し、Redで古いtrue payloadがまだfallback可として表示される失敗を確認した。
+- `npm test -- ExportProgressModal exportDiagnosticsLog` を再実行し、16件成功を確認した。
+- `npm test -- ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress` を実行し、28件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportDiagnosticsLog\\.test\\.ts|src/utils/rustFrameSourceBlockedFallback\\.ts|src/utils/exportProgressDiagnostics\\.ts|src/store/useStore\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。

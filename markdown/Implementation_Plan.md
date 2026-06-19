@@ -1315,6 +1315,11 @@ presenter datasetへ `uxfdSharedRendererPresenterStatus=blocked` として出す
 frame source diagnosticsへ `uxfdRustExportFrameSourceStatus=blocked` を出す。
 非動画互換exportのclosed gateは `fallback` のまま維持し、Rust必須failureとlegacy fallbackを診断上で分離する。
 
+240. Phase5: 動画Rust blocked診断のfallback表示を不可へ正規化する
+`videoOwnershipUnavailable` / `videoUploadFailed` は、古いpayloadが `legacyCanvasFallbackAllowed=true` を持つ場合でも
+UI summaryとDevTools logではlegacy fallback不可として扱う。
+Rust動画必須blockedが、表示上だけlegacy fallback可能に見えるズレを防ぐ。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
