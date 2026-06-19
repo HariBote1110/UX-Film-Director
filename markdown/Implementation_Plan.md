@@ -1210,6 +1210,11 @@ Rust backend decoded frame responseがstale `requestId` / `jobId` で拒否さ�
 Viewport upload result、presenter diagnostics、export block messageへ対象 `clipId` / `mediaId` を残す。
 copy失敗と同じ粒度で、source切替・複数動画中のstale decodeを実機ログから追えるようにする。
 
+219. Phase5: decoded frame identityを必須にする
+`isRustBackendDecodedVideoFrameAvailable` は、verified frameとして扱う前に `jobId` / `requestId` / `frameIndex` のidentityを検証する。
+空の `jobId`、欠落した `requestId`、非整数frame identityを拒否し、slot releaseやstale判定の前提が崩れたresponseを
+shared memory copy / WebGPU uploadへ進ませない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

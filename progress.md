@@ -1,3 +1,20 @@
+## 2026-06-19 — decoded frame identityを必須にする
+
+### 実施内容
+- Red: Rust backend decoded frame responseで `jobId` が空、または `requestId` が欠落している場合、shared-memory frameとして受け入れない契約を追加した。
+- Green: `isRustBackendDecodedVideoFrameAvailable` が `jobId` / `requestId` / `frameIndex` / `verification.frameIndex` / `frame.ptsFrame` を実行時検証するようにした。
+- release/stale判定の前提になるidentityが壊れたresponseを、shared memory copy / WebGPU uploadへ進ませないようにした。
+- 版を `0.1.1-Beta-215h` に更新した。
+
+### 検証
+- `npm test -- rustBackendVideoDecodeControl`
+- `npm test -- rustBackendVideoDecodeControl sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload sharedRendererViewportNativeRenderSource`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/rustBackendVideoDecodeControl\\.ts|src/utils/rustBackendVideoDecodeControl\\.test\\.ts|src/utils/sharedRendererRustVideoUploadPipeline\\.ts|src/utils/sharedRendererViewportVideoUpload\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.ts)"`
+
+### 残課題・次のステップ
+- native render source側のstale decode判定も `jobId` まで確認し、返却response側のslot leaseでreleaseする。
+- multi-video stale job idの専用境界テストを追加し、先行成功slotのabort releaseと同時に検証する。
+
 ## 2026-06-19 — stale decode診断をclip/media id付きで伝播
 
 ### 実施内容

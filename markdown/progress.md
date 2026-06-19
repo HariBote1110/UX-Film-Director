@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のRust backend decode response境界として、verified decoded frameには `jobId` / `requestId` / `frameIndex` のidentityを必須にした。
+- Red: `rustBackendVideoDecodeControl` のテストへ、空jobIdや欠落requestIdのresponseをshared-memory frameとして受け入れない契約を追加した。
+- Green: `isRustBackendDecodedVideoFrameAvailable` でjob/request/frame identityを実行時検証し、release/stale判定の前提が壊れたresponseをcopyへ進ませないようにした。
+- 検証: `npm test -- rustBackendVideoDecodeControl sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload sharedRendererViewportNativeRenderSource` は30件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-215h`。
+
+## 2026-06-19
 - Phase5のstale decode診断として、stale `requestId` / `jobId` で拒否されたdecoded frameにも `clipId` / `mediaId` を保持するようにした。
 - Red: Viewport upload result、presenter diagnostics input、export block messageでstale decodeのclip/media idが落ちない契約を追加した。
 - Green: `uploadFailed` 以外のvideo upload blockでもscopeを保持し、`staleDecodeResponse clip=... media=...` としてexport診断へ出せるようにした。

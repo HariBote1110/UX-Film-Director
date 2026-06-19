@@ -1324,3 +1324,18 @@
 - `npm test -- sharedRendererViewportVideoUpload sharedRendererViewportPresenterOrchestration sharedRendererExportFrameSource` を再実行し、63件成功を確認した。
 - `npm test -- sharedRendererViewportVideoUpload sharedRendererViewportPresenterOrchestration sharedRendererPresenterDiagnostics sharedRendererExportFrameSource exportDiagnosticsLog exportProgress` を実行し、100件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportVideoUpload\\.ts|src/utils/sharedRendererViewportVideoUpload\\.test\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.test\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 104. Phase5: decoded frame identityを必須にする
+- `src/utils/rustBackendVideoDecodeControl.test.ts`
+- decoded frame responseの `jobId` が空、または `requestId` が欠落している場合にverified decoded frameとして扱わない契約を追加した。
+- `src/utils/rustBackendVideoDecodeControl.ts`
+- `isRustBackendDecodedVideoFrameAvailable` が `jobId`、`requestId`、`frameIndex`、`verification.frameIndex`、`frame.ptsFrame` を実行時検証するようにした。
+- release/stale判定の前提になるidentityが壊れたresponseを、shared memory copy / WebGPU uploadへ進ませないようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-215h` に更新した。
+
+## 確認
+- `npm test -- rustBackendVideoDecodeControl` を実行し、Redでidentity欠落responseが受理される失敗を確認した。
+- `npm test -- rustBackendVideoDecodeControl` を再実行し、9件成功を確認した。
+- `npm test -- rustBackendVideoDecodeControl sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload sharedRendererViewportNativeRenderSource` を実行し、30件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/rustBackendVideoDecodeControl\\.ts|src/utils/rustBackendVideoDecodeControl\\.test\\.ts|src/utils/sharedRendererRustVideoUploadPipeline\\.ts|src/utils/sharedRendererViewportVideoUpload\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
