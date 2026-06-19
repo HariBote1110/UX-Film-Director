@@ -64,6 +64,12 @@ const media: RustSceneMediaReference[] = [{
   width: 4,
   height: 4,
 }, {
+  id: 'gradient-1',
+  kind: 'GeneratedGradient' as RustSceneMediaReference['kind'],
+  source: '{"type":"linear","colours":["#ff0000","#0000ff"],"stops":[0,1],"direction":90}',
+  width: 4,
+  height: 4,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -103,8 +109,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[2])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[3])).toBe(false);
     expect(isSharedRendererNativeMediaReferenceSupported(media[4])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[5])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[5])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[6])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[7])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {
@@ -117,7 +124,7 @@ describe('sharedRendererNativeMediaSupport', () => {
       media,
     })).toBe(true);
     expect(canRenderSharedRendererNativeMediaOnlyFrame({
-      snapshot: snapshotWithMedia('solid-1', 'psd-1'),
+      snapshot: snapshotWithMedia('solid-1', 'psd-1', 'gradient-1'),
       media,
     })).toBe(true);
     expect(canRenderSharedRendererNativeMediaOnlyFrame({

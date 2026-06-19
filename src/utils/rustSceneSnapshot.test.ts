@@ -159,6 +159,50 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('builds a generated gradient plane for active rectangle shapes', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseShape({
+        id: 'gradient-1',
+        gradient: {
+          enabled: true,
+          type: 'linear',
+          colours: ['#ff0000', '#0000ff'],
+          stops: [0, 1],
+          direction: 90,
+        },
+      })],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected snapshot build to pass');
+
+    expect(result.media).toEqual([
+      {
+        id: 'gradient-1',
+        kind: 'GeneratedGradient',
+        source: JSON.stringify({
+          type: 'linear',
+          colours: ['#ff0000', '#0000ff'],
+          stops: [0, 1],
+          direction: 90,
+        }),
+        width: 200,
+        height: 100,
+      },
+    ]);
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'gradient-1',
+      media_id: 'gradient-1',
+      transform: {
+        sampling: 'bilinear',
+      },
+    });
+  });
+
   it('builds a rust-core compatible scene snapshot for active image and video planes', () => {
     const layers = createDefaultLayers();
     const result = buildRustSceneSnapshotForTimeline({
@@ -407,31 +451,18 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       id: 'circle',
       shapeType: 'circle',
     });
-    const gradient = baseShape({
-      id: 'gradient',
-      gradient: {
-        enabled: true,
-        type: 'linear',
-        colours: ['#ff0000', '#0000ff'],
-        stops: [0, 1],
-        direction: 0,
-      },
-    });
 
     const result = buildRustSceneSnapshotForTimeline({
       projectSettings: settings,
       layers,
-      objects: [circle, gradient],
+      objects: [circle],
       time: 2,
     });
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error('expected snapshot build to fail');
 
-    expect(issueCodes(result.issues)).toEqual([
-      'unsupportedShapeGeometry',
-      'unsupportedShapeGeometry',
-    ]);
+    expect(issueCodes(result.issues)).toEqual(['unsupportedShapeGeometry']);
   });
 
   it('fails loud for Pixi group composition and mask semantics', () => {
