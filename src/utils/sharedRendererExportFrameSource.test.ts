@@ -3520,6 +3520,74 @@ describe('createSharedRendererExportFrameSource', () => {
     });
   });
 
+  it('preserves image and PSD ownership diagnostics when shared renderer output is unavailable', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    let disposeCount = 0;
+    let bitmapCaptureCount = 0;
+
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      startViewportPresenter: async () => {
+        canvas.dataset.uxfdSharedRendererPresenterImageOwner = 'pixi';
+        canvas.dataset.uxfdSharedRendererPresenterImageCutoverReason = 'nativeRenderFrameUnavailable';
+        canvas.dataset.uxfdSharedRendererPresenterPsdOwner = 'pixi';
+        canvas.dataset.uxfdSharedRendererPresenterPsdCutoverReason = 'nativeRenderFrameUnavailable';
+        return ({
+          control: {
+            ok: false,
+            reason: 'sharedRendererOutputUnavailable',
+            dispose: () => { disposeCount += 1; },
+          },
+          activeVideoDecodeJob: null,
+          activeVideoDecodeJobs: [],
+        }) as never;
+      },
+      createFrameBitmap: async () => {
+        bitmapCaptureCount += 1;
+        return ({ close: () => undefined }) as ImageBitmap;
+      },
+    });
+
+    const blocked = await source.renderFrame?.({
+      frameIndex: 9,
+      timestampUs: 150_000,
+      time: 9 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [image()],
+    }).catch((error) => error);
+
+    expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
+    expect(blocked).toMatchObject({
+      reason: 'sharedRendererOutputUnavailable',
+      frameIndex: 9,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
+      message: 'Shared renderer export output is unavailable (imageOwnership=pixi:nativeRenderFrameUnavailable; psdOwnership=pixi:nativeRenderFrameUnavailable).',
+    });
+    expect(bitmapCaptureCount).toBe(0);
+    expect(disposeCount).toBe(1);
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'blocked',
+      uxfdRustExportFrameSourceFrameIndex: '9',
+      uxfdRustExportFrameSourceFrameReason: 'sharedRendererOutputUnavailable',
+      uxfdSharedRendererPresenterImageOwner: 'pixi',
+      uxfdSharedRendererPresenterImageCutoverReason: 'nativeRenderFrameUnavailable',
+      uxfdSharedRendererPresenterPsdOwner: 'pixi',
+      uxfdSharedRendererPresenterPsdCutoverReason: 'nativeRenderFrameUnavailable',
+    });
+  });
+
   it('blocks bitmap export before legacy capture when WebGPU draw presentation is unavailable', async () => {
     const canvas = {
       width: 1,
