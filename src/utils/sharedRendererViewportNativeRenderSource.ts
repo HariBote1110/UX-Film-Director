@@ -188,6 +188,15 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
           activeJobs: resolvedActiveJobs,
         };
       }
+      const preparedSourceReleaseFailure = await releasePreparedNativeRenderSourcesAfterAbort(sources);
+      if (preparedSourceReleaseFailure) {
+        return {
+          ok: false,
+          reason: 'staleDecodeReleaseFailed',
+          detail: preparedSourceReleaseFailure,
+          activeJobs: resolvedActiveJobs,
+        };
+      }
       return {
         ok: false,
         reason: 'staleDecodeResponse',
@@ -334,6 +343,20 @@ const createSingleUseNativeRenderSourceReleaser = (
     }
     return releasePromise;
   };
+};
+
+const releasePreparedNativeRenderSourcesAfterAbort = async (
+  sources: readonly SharedRendererViewportNativeRenderSource[]
+): Promise<string | null> => {
+  const releaseResults = await Promise.allSettled(
+    sources.map((source) => source.releaseAfterNativeRenderAbort?.() ?? Promise.resolve())
+  );
+  const failedRelease = releaseResults.find((result) => result.status === 'rejected');
+  if (!failedRelease || failedRelease.status !== 'rejected') return null;
+
+  return failedRelease.reason instanceof Error
+    ? failedRelease.reason.message
+    : 'Rust backend prepared native render source abort release failed.';
 };
 
 const sanitiseJobPart = (value: string): string => {
