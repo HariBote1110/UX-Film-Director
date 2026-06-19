@@ -1454,7 +1454,8 @@ describe('createSharedRendererExportFrameSource', () => {
 
     expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
     expect(blocked).toMatchObject({
-      fallbackToLegacyCanvas: true,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
       reason: 'preparedNativeRenderSourceAbortReleaseFailed',
       frameIndex: 7,
       message: 'prepared native render source abort release failed',
