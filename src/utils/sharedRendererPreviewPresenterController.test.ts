@@ -1751,6 +1751,9 @@ describe('startSharedRendererPreviewPresenter', () => {
     expect(renderPassOperations).not.toContain('draw:12');
     expect(dataset).toMatchObject({
       uxfdSharedRendererPresenterVideoFrameUploadReady: 'true',
+      uxfdSharedRendererPresenterVideoUploadFailureReason: 'videoUploadMissingClip',
+      uxfdSharedRendererPresenterVideoUploadFailureDetail: 'Rust decoded upload is missing for video clips: video-2',
+      uxfdSharedRendererPresenterVideoUploadMissingClipIds: 'video-2',
       uxfdSharedRendererPresenterVideoOwner: 'sharedRenderer',
       uxfdSharedRendererPresenterSharedVideoObjectCount: '1',
     });
