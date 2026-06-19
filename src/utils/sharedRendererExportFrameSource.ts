@@ -296,7 +296,8 @@ export function createSharedRendererExportFrameSource({
         throw new SharedRendererExportFrameSourceBlockedError(
           'Rust backend native render bridge is required for encode-only export frames.',
           'nativeRenderUnavailable',
-          request.frameIndex
+          request.frameIndex,
+          false
         );
       }
       return null;

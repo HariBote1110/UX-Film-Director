@@ -694,7 +694,8 @@ describe('createSharedRendererExportFrameSource', () => {
     expect(blocked).toMatchObject({
       reason: 'nativeRenderUnavailable',
       frameIndex: 5,
-      fallbackToLegacyCanvas: true,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
     });
     expect(calls).toEqual([]);
     expect(canvas.dataset).toMatchObject({
@@ -753,7 +754,8 @@ describe('createSharedRendererExportFrameSource', () => {
     expect(blocked).toMatchObject({
       reason: 'nativeRenderUnavailable',
       frameIndex: 5,
-      fallbackToLegacyCanvas: true,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
     });
     expect(calls).toEqual([]);
     expect(canvas.dataset).toMatchObject({
@@ -810,7 +812,8 @@ describe('createSharedRendererExportFrameSource', () => {
     expect(blocked).toMatchObject({
       reason: 'nativeRenderUnavailable',
       frameIndex: 6,
-      fallbackToLegacyCanvas: true,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
     });
     expect(calls).toEqual([]);
     expect(canvas.dataset).toMatchObject({
