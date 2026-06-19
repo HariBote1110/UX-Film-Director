@@ -123,6 +123,15 @@ describe('Viewport Rust video-only boundary', () => {
     expect(code).not.toContain('allowLegacyPixiVideo');
   });
 
+  it('does not name the export canvas provider after Pixi internals', () => {
+    const code = viewportSource();
+    const start = code.indexOf('const getExportCanvas = useCallback');
+    const end = code.indexOf('const getRustExportFrameSource = useCallback', start);
+    const getExportCanvasBlock = code.slice(start, end);
+
+    expect(getExportCanvasBlock).not.toContain('pixiCanvas');
+  });
+
   it('does not let pixiRenderHelper create legacy HTMLVideoElement or Pixi VideoSource fallbacks', () => {
     const code = pixiRenderHelperSource();
 
