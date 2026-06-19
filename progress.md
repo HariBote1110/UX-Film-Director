@@ -1,3 +1,19 @@
+## 2026-06-20 — optional native render対象外診断をready previewから除外
+
+### 実施内容
+- Red: optionalなnative render previewが `nativeRenderUnsupportedMediaOnly` を返した場合、`requireSharedRendererOutput` でなければpresenterへ失敗診断を渡さない契約を追加した。
+- Green: `startSharedRendererViewportPresenter` で `nativeRenderUnsupportedMediaOnly` をoptional native renderの対象外扱いにし、ready previewのUIへ `native=...` 診断を混ぜないようにした。
+- `requireSharedRendererOutput=true` の場合は従来通り診断を保持し、export/実出力必須側のfail-loudは維持した。
+- 版を `0.1.1-Beta-219e` に更新した。
+
+### 検証
+- `npm test -- sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController sharedRendererViewportNativeRenderUpload`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportPresenterOrchestration\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.test\\.ts)"`
+- `npm run test:video-load:e2e`
+
+### 残課題・次のステップ
+- `npm run test:video-load:e2e` 中にVite dep-scanの既存 `mp4box` entry解決警告が出るが、動画読込E2E自体は成功している。別途export test系の依存解決整理で潰す。
+
 ## 2026-06-20 — Rust decode session喪失時のpreview復旧を追加
 
 ### 実施内容

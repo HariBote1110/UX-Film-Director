@@ -103,7 +103,13 @@ export const startSharedRendererViewportPresenter = async ({
   const sharedRendererNativeRenderFrameUpload = nativeRenderUploadResult?.ok
     ? nativeRenderUploadResult.upload
     : undefined;
-  const sharedRendererNativeRenderFailure = nativeRenderUploadResult && !nativeRenderUploadResult.ok
+  const shouldPublishNativeRenderFailure = nativeRenderUploadResult
+    && !nativeRenderUploadResult.ok
+    && (
+      requireSharedRendererOutput
+      || nativeRenderUploadResult.reason !== 'nativeRenderUnsupportedMediaOnly'
+    );
+  const sharedRendererNativeRenderFailure = shouldPublishNativeRenderFailure && nativeRenderUploadResult && !nativeRenderUploadResult.ok
     ? {
       reason: nativeRenderUploadResult.reason,
       detail: nativeRenderUploadResult.detail,

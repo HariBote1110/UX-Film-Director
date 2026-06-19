@@ -348,6 +348,76 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
     });
   });
 
+  it('does not pass optional native-render unsupported-media-only diagnostics into a ready presenter', async () => {
+    let presenterInput: unknown;
+    const prepareNativeRenderUpload: SharedRendererViewportNativeRenderUploadPreparer = async () => ({
+      ok: false,
+      reason: 'nativeRenderUnsupportedMediaOnly',
+      detail: 'Shared renderer preview session does not contain only Rust native-renderable media.',
+      activeJobs: [],
+    });
+    const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {
+      presenterInput = input;
+      return control;
+    };
+
+    await startSharedRendererViewportPresenter({
+      canvas,
+      session,
+      datasets: [],
+      diagnosticSwatchEnabled: true,
+      videoCutoverEnabled: false,
+      nativeRenderPreviewEnabled: true,
+      activeVideoDecodeJob: null,
+      activeVideoDecodeJobs: [],
+      requestId: 16,
+      prepareNativeRenderUpload,
+      startPresenter,
+    });
+
+    expect(presenterInput).toMatchObject({
+      sharedRendererNativeRenderFrameUpload: undefined,
+      sharedRendererNativeRenderFailure: undefined,
+    });
+  });
+
+  it('keeps native-render unsupported-media-only diagnostics when shared renderer output is required', async () => {
+    let presenterInput: unknown;
+    const prepareNativeRenderUpload: SharedRendererViewportNativeRenderUploadPreparer = async () => ({
+      ok: false,
+      reason: 'nativeRenderUnsupportedMediaOnly',
+      detail: 'Shared renderer preview session does not contain only Rust native-renderable media.',
+      activeJobs: [],
+    });
+    const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {
+      presenterInput = input;
+      return control;
+    };
+
+    await startSharedRendererViewportPresenter({
+      canvas,
+      session,
+      datasets: [],
+      diagnosticSwatchEnabled: true,
+      videoCutoverEnabled: false,
+      nativeRenderPreviewEnabled: true,
+      requireSharedRendererOutput: true,
+      activeVideoDecodeJob: null,
+      activeVideoDecodeJobs: [],
+      requestId: 17,
+      prepareNativeRenderUpload,
+      startPresenter,
+    });
+
+    expect(presenterInput).toMatchObject({
+      sharedRendererNativeRenderFrameUpload: undefined,
+      sharedRendererNativeRenderFailure: {
+        reason: 'nativeRenderUnsupportedMediaOnly',
+        detail: 'Shared renderer preview session does not contain only Rust native-renderable media.',
+      },
+    });
+  });
+
   it('uses the native render resolved active job when falling back to a single Rust video upload', async () => {
     let presenterInput: unknown;
     let videoUploadActiveJob: SharedRendererViewportVideoDecodeJob | null | undefined;
