@@ -1,3 +1,19 @@
+## 2026-06-19 — savingでもRust export診断を保持
+
+### 実施内容
+- Red: Rust exportが `saving` phaseへ進む時も、既存のRust frame source blocked/native render release診断を保持する契約を追加した。
+- Green: `useProjectExport` のsaving進捗更新で現在の `ExportProgress` を引き継ぎ、診断フィールドを消さないようにした。
+- export完了直前のモーダルでもRust側のblock/detail/release情報を確認できるようにした。
+- 版を `0.1.1-Beta-211f` に更新した。
+
+### 検証
+- `npm test -- useProjectExportBoundary ExportProgressModal exportProgress`
+- `npx tsc --noEmit 2>&1 | rg "(src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts|src/components/ExportProgressModal\\.tsx|src/store/useStore\\.ts)"`
+
+### 残課題・次のステップ
+- export完了後に診断を履歴/ログとして保存するか検討する。
+- Rust frame source ready時のbrowser fallback遮断を、hookの文字列境界ではなく統合テストでも固定する。
+
 ## 2026-06-19 — export progressのRust block診断を保持
 
 ### 実施内容

@@ -1062,3 +1062,16 @@
 - `npm test -- useProjectExportBoundary` を実行し、Redでrendering progress tickが既存診断を保持しない失敗を確認した。
 - `npm test -- useProjectExportBoundary ExportProgressModal exportProgress` を再実行し、35件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts|src/components/ExportProgressModal\\.tsx|src/store/useStore\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 87. Phase5: savingでもRust export診断を保持
+- `src/utils/useProjectExportBoundary.test.ts`
+- Rust exportが `saving` phaseへ進む時も、既存のRust frame source blocked/native render release診断を保持する契約を追加した。
+- `src/hooks/useProjectExport.ts`
+- saving進捗更新で現在の `ExportProgress` を引き継ぎ、診断フィールドを消さないようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-211f` に更新した。
+
+## 確認
+- `npm test -- useProjectExportBoundary` を実行し、Redでsaving phaseが既存診断を保持しない失敗を確認した。
+- `npm test -- useProjectExportBoundary ExportProgressModal exportProgress` を再実行し、36件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts|src/components/ExportProgressModal\\.tsx|src/store/useStore\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
