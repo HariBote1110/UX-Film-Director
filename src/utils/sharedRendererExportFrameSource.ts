@@ -172,7 +172,6 @@ export function createSharedRendererExportFrameSource({
   const renderNativeSharedFrame = inputRenderNativeSharedFrame ?? defaultRenderNativeSharedFrame;
   const nativeSharedFrameRendererAvailable =
     inputRenderNativeSharedFrame != null || isDefaultNativeSharedFrameRendererAvailable();
-  const effectiveNativeRenderRequired = nativeRenderRequired || !bitmapCaptureEnabled;
 
   const buildFrameSession = (request: ProjectExportRustFrameRequest) => {
     if (closed) {
@@ -277,6 +276,10 @@ export function createSharedRendererExportFrameSource({
   const renderNativeEncodeFrame = async (
     request: ProjectExportRustEncodeFrameRequest
   ): Promise<RustBackendVideoEncodeSharedFramePayloadFrame | null> => {
+    const effectiveNativeRenderRequired = nativeRenderRequired
+      || !bitmapCaptureEnabled
+      || hasVideoObjects(request.objects);
+
     if (!nativeSharedFrameRendererAvailable) {
       if (effectiveNativeRenderRequired) {
         writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
