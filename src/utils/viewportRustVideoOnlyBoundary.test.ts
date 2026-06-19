@@ -151,17 +151,20 @@ describe('Viewport Rust video-only boundary', () => {
     expect(getExportCanvasBlock).not.toContain('pixiCanvas');
   });
 
-  it('keeps a legacy HTMLVideoElement preview fallback while Rust video preview is incomplete', () => {
+  it('does not let pixiRenderHelper create legacy HTMLVideoElement or Pixi VideoSource fallbacks', () => {
     const code = pixiRenderHelperSource();
 
-    expect(code).toContain("document.createElement('video')");
-    expect(code).toContain('ensureVideoFrameTextureState');
-    expect(code).toContain('drawVideoFrameToTexture');
+    expect(code).not.toContain("document.createElement('video')");
+    expect(code).not.toContain('new PIXI.VideoSource');
+    expect(code).not.toContain('ensureVideoFrameTextureState');
+    expect(code).not.toContain('drawVideoFrameToTexture');
+    expect(code).not.toContain('shouldReplacePixiVideoElementSource');
   });
 
-  it('keeps Pixi video fallback scoped to preview without restoring subject crop helpers', () => {
+  it('does not keep stale Pixi video sprite crop helpers after video cutover', () => {
     const code = pixiRenderHelperSource();
 
+    expect(code).not.toContain('VideoObject');
     expect(code).not.toContain('evaluateSubjectCropNormRectAtTime');
     expect(code).not.toContain('applyVideoSubjectCropMask');
     expect(code).not.toContain("obj.type === 'image' || obj.type === 'video'");
