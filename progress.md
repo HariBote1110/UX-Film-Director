@@ -1,3 +1,20 @@
+## 2026-06-19 — viewport動画upload失敗理由を保持
+
+### 実施内容
+- Red: `sharedRendererViewportVideoUpload` に、shared frame copy checksum不一致時の `copyReportChecksumMismatch` がviewport結果に残る契約を追加した。
+- Green: `PrepareSharedRendererViewportVideoUploadResult` / `PrepareSharedRendererViewportVideoUploadsResult` の `uploadFailed` に `uploadFailureReason` を追加し、Rust decoded video upload pipelineの低レベル失敗理由を保持するようにした。
+- Rust/shared memory copyで拒否した理由を後段のpresenter/export diagnosticsへ渡せる足場を作った。
+- 版を `0.1.1-Beta-208z` に更新した。
+
+### 検証
+- `npm test -- sharedRendererViewportVideoUpload`
+- `npm test -- sharedRendererViewportVideoUpload sharedVideoFrameUploadBridge sharedRendererRustVideoUploadPipeline`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportVideoUpload\\.ts|src/utils/sharedRendererViewportVideoUpload\\.test\\.ts|src/utils/sharedVideoFrameUploadBridge\\.ts|src/utils/sharedRendererRustVideoUploadPipeline\\.ts)"`
+
+### 残課題・次のステップ
+- `videoUploadResult` / `videoUploadsResult` の `uploadFailureReason` をpresenter/export diagnosticsへ露出し、実機GoPro素材で失敗理由を追えるようにする。
+- Rust backend/native bridge側のchecksum report生成テストを再実行し、renderer側fail-loud契約と一致していることを確認する。
+
 ## 2026-06-18 — Phase5: renderer native render bridgeを追加
 
 ### 実施内容
