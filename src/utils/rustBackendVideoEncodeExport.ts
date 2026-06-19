@@ -219,9 +219,18 @@ const releaseNativeRenderOutputAfterEncodeFailure = async (
   }
 
   try {
-    await releaseBridge.releaseNativeSharedFrame({
+    const releaseResult = await releaseBridge.releaseNativeSharedFrame({
       memoryId,
     });
+    if (releaseResult?.success === false) {
+      onNativeRenderOutputRelease?.({
+        status: 'failed',
+        memoryId,
+        reason,
+        error: releaseResult.error ?? 'Native render output release failed.',
+      });
+      return;
+    }
   } catch (error) {
     onNativeRenderOutputRelease?.({
       status: 'failed',
