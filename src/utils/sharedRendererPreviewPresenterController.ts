@@ -311,16 +311,21 @@ export const startSharedRendererPreviewPresenter = async ({
         texture: uploadResult.texture,
       });
       if (!presentation.ok) {
-        if (sharedRendererNativeRenderFrameUpload.releaseAfterUploadAbort) {
-          await sharedRendererNativeRenderFrameUpload.releaseAfterUploadAbort();
-        }
+        const releaseFailureDetail = await releaseDecodedVideoUploadAfterAbort(
+          sharedRendererNativeRenderFrameUpload.releaseAfterUploadAbort
+        );
+        const fallbackReason = releaseFailureDetail
+          ? 'nativeRenderOutputReleaseFailed'
+          : presentation.reason;
         writeDiagnostics({
           status: 'fallback',
-          reason: presentation.reason,
+          reason: fallbackReason,
+          nativeRenderFailureReason: releaseFailureDetail ? fallbackReason : undefined,
+          nativeRenderFailureDetail: releaseFailureDetail ?? undefined,
         });
         return {
           ok: false,
-          reason: presentation.reason,
+          reason: fallbackReason,
           dispose: presenter.dispose,
         };
       }
@@ -330,13 +335,18 @@ export const startSharedRendererPreviewPresenter = async ({
       }
       nativeRenderFrameReady = true;
     } else {
-      if (sharedRendererNativeRenderFrameUpload.releaseAfterUploadAbort) {
-        await sharedRendererNativeRenderFrameUpload.releaseAfterUploadAbort();
-      }
-      nativeRenderFailure = {
-        reason: uploadResult.reason,
-        detail: uploadResult.detail,
-      };
+      const releaseFailureDetail = await releaseDecodedVideoUploadAfterAbort(
+        sharedRendererNativeRenderFrameUpload.releaseAfterUploadAbort
+      );
+      nativeRenderFailure = releaseFailureDetail
+        ? {
+            reason: 'nativeRenderOutputReleaseFailed',
+            detail: releaseFailureDetail,
+          }
+        : {
+            reason: uploadResult.reason,
+            detail: uploadResult.detail,
+          };
     }
   }
   let uploadedVideoFrameTexture: unknown | null = null;
