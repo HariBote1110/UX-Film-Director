@@ -671,3 +671,17 @@
 - `npm test -- sharedVideoFrameUploadBridge` を実行し、Redで `adler32` reportが成功扱いになる失敗を確認した。
 - `npm test -- sharedVideoFrameUploadBridge sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload` を実行し、26件成功を確認。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedVideoFrameUploadBridge\\.ts|src/utils/sharedVideoFrameUploadBridge\\.test\\.ts|src/utils/sharedRendererRustVideoUploadPipeline\\.ts|src/utils/sharedRendererViewportVideoUpload\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 59. Phase5: Rust動画dev起動前にbridge buildを実行
+- `src/utils/packageScripts.test.ts`
+- `dev:rust-video` がVite起動前に `scripts/build-shared-video-frame-node-addon.mjs` を実行する契約を追加した。
+- `scripts/dev-rust-video.mjs`
+- shared-video-frame Node addonを先にbuildし、成功時だけRust video-only環境でViteを起動するようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-210d` に更新した。
+
+## 確認
+- `npm test -- packageScripts` を実行し、Redでbridge build手順が無い失敗を確認した。
+- `npm test -- packageScripts` を再実行し、1件成功を確認。
+- `npm run bridge:node:build` を実行し、Node addon build成功を確認。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/packageScripts\\.test\\.ts|scripts/dev-rust-video\\.mjs|package\\.json)"` を実行し、対象ファイルに型エラーが出ないことを確認。

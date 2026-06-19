@@ -1,3 +1,20 @@
+## 2026-06-19 — Rust動画dev起動前にbridge buildを実行
+
+### 実施内容
+- Red: `packageScripts` に、`dev:rust-video` がVite起動前に `scripts/build-shared-video-frame-node-addon.mjs` を実行する契約を追加した。
+- Green: `scripts/dev-rust-video.mjs` がshared-video-frame Node addonを先にbuildし、成功した場合だけRust video-onlyのVite dev serverを起動するようにした。
+- 実機GoPro確認時にnative bridge addonの手動build忘れでRust shared memory copy経路が落ちるリスクを下げた。
+- 版を `0.1.1-Beta-210d` に更新した。
+
+### 検証
+- `npm test -- packageScripts`
+- `npm run bridge:node:build`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/packageScripts\\.test\\.ts|scripts/dev-rust-video\\.mjs|package\\.json)"`
+
+### 残課題・次のステップ
+- `npm run dev:rust-video` で実機Electron/Viteを起動し、GoPro素材のpreview/exportがRust decode → shared memory copy → WebGPU upload → ownership cutoverへ到達することを確認する。
+- 実機素材で失敗した場合、preview datasetとexport blocked errorの両方に低レベル失敗理由が出ることを確認する。
+
 ## 2026-06-19 — copy report checksum algorithmのrenderer検証
 
 ### 実施内容
