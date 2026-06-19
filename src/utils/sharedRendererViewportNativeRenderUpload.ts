@@ -63,6 +63,7 @@ export type PrepareSharedRendererViewportNativeRenderUploadResult =
       reason:
         | 'surfaceGateUnavailable'
         | 'nativeRenderSourcesUnavailable'
+        | 'preparedNativeRenderSourceAbortReleaseFailed'
         | 'nativeRenderSourceReleaseUnavailable'
         | 'nativeRenderSourceReleaseFailed'
         | 'nativeRenderOutputReleaseFailed'
@@ -129,6 +130,14 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
     }
     renderSources = [];
   } else {
+    if (nativeSources.reason === 'preparedNativeRenderSourceAbortReleaseFailed') {
+      return {
+        ok: false,
+        reason: nativeSources.reason,
+        detail: nativeSources.detail,
+        activeJobs: nativeSources.activeJobs,
+      };
+    }
     return {
       ok: false,
       reason: 'nativeRenderSourcesUnavailable',
