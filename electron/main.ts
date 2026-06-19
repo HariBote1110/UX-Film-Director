@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { spawn, ChildProcessWithoutNullStreams, type ChildProcess } from 'node:child_process'
+import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import { buildOrderedPerfHeavyVideoPaths } from '../src/perf/perfHeavyVideo';
@@ -765,98 +765,6 @@ app.whenReady().then(() => {
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
-  });
-
-  // ── 書き出し用 H.264 中間ファイルの自動生成（HW・キャッシュ）─────────────
-  // HEVC 等 VideoDecoder で直接デコードできないソースを、出力解像度の H.264 に
-  // HW(VideoToolbox) で一度だけ変換してキャッシュする。書き出し時はこれを
-  // VideoDecoder で高速デコードする。進捗は 'intermediate-progress' で通知。
-  // 中間ファイルのキャッシュパスを求める（生成・確認で共通）。
-  const intermediateCachePath = (filePath: string, w: number): string | null => {
-    let stat: fs.Stats;
-    try { stat = fs.statSync(filePath); } catch { return null; }
-    const cacheDir = path.join(os.tmpdir(), 'uxfd-intermediate');
-    try { fs.mkdirSync(cacheDir, { recursive: true }); } catch { /* ignore */ }
-    const safeBase = path.basename(filePath).replace(/[^\w.-]/g, '_');
-    return path.join(cacheDir, `${safeBase}.${stat.size}.${Math.round(stat.mtimeMs)}.${w}w.mp4`);
-  };
-  const evenWidth = (w: number) => { const r = Math.max(2, Math.round(w)); return r % 2 === 0 ? r : r - 1; };
-
-  // 生成せず、キャッシュ済み中間ファイルの有無だけ確認する。
-  ipcMain.handle('check-intermediate', async (_event, payload: { filePath?: string; width?: number }) => {
-    const filePath = typeof payload?.filePath === 'string' ? payload.filePath.trim() : '';
-    if (!filePath) return { exists: false };
-    const outPath = intermediateCachePath(filePath, evenWidth(payload?.width ?? 1920));
-    if (outPath && fs.existsSync(outPath) && fs.statSync(outPath).size > 1000) return { exists: true, path: outPath };
-    return { exists: false };
-  });
-
-  let intermediateFfmpeg: ChildProcess | null = null;
-  let intermediateBusy = false;
-  ipcMain.handle('generate-intermediate', async (event, payload: { filePath?: string; width?: number }) => {
-    const filePath = typeof payload?.filePath === 'string' ? payload.filePath.trim() : '';
-    if (!filePath || !fs.existsSync(filePath)) return { success: false, error: 'ソースが見つかりません' };
-    const w = evenWidth(payload?.width ?? 1920);
-
-    const outPath = intermediateCachePath(filePath, w);
-    if (!outPath) return { success: false, error: 'stat 失敗' };
-    if (fs.existsSync(outPath) && fs.statSync(outPath).size > 1000) {
-      return { success: true, path: outPath, cached: true };
-    }
-    // 同時実行は1本に制限（編集中の負荷・GPU 競合を抑える）。
-    if (intermediateBusy) return { success: false, error: 'busy', busy: true };
-    intermediateBusy = true;
-
-    const tmpOut = `${outPath}.partial.mp4`;
-    const ffmpegPath = resolveDefaultFfmpegPath();
-    try {
-      await new Promise<void>((resolve, reject) => {
-        // デコード・エンコードとも SW を使う。VideoToolbox(HW) はアプリ側の
-        // 使用（プレビュー decode / 書き出し encode）と競合して途中失敗・破損
-        // ファイルを生むため。SW でも 4K HEVC→FHD で約1.4倍速と実用範囲。
-        const ff = spawn(ffmpegPath, [
-          '-y',
-          '-i', filePath,
-          '-an',                                   // 音声は別途ミックスするため不要
-          '-vf', `scale=min(iw\\,${w}):-2`,        // 出力幅にダウンスケール（アップスケールしない）
-          '-c:v', 'libx264',
-          '-preset', 'veryfast',
-          '-crf', '20',
-          '-pix_fmt', 'yuv420p',
-          '-movflags', '+faststart',
-          tmpOut,
-        ], { stdio: ['ignore', 'ignore', 'pipe'] });
-        intermediateFfmpeg = ff;
-        let stderr = '';
-        ff.stderr?.setEncoding('utf8');
-        ff.stderr?.on('data', (chunk: string) => {
-          stderr += chunk;
-          if (stderr.length > 8000) stderr = stderr.slice(-4000);
-          const m = chunk.match(/time=(\d+):(\d+):(\d+(?:\.\d+)?)/);
-          if (m) {
-            const sec = (+m[1]) * 3600 + (+m[2]) * 60 + parseFloat(m[3]);
-            try { event.sender.send('intermediate-progress', { filePath, seconds: sec }); } catch { /* ignore */ }
-          }
-        });
-        ff.on('error', (e) => reject(new Error(`ffmpeg 起動失敗: ${e.message}`)));
-        ff.on('close', (code) => {
-          if (code === 0) resolve();
-          else reject(new Error(stderr.trim().split('\n').slice(-3).join(' | ') || `ffmpeg code=${code}`));
-        });
-      });
-      fs.renameSync(tmpOut, outPath);
-      return { success: true, path: outPath, cached: false };
-    } catch (error) {
-      try { if (fs.existsSync(tmpOut)) fs.unlinkSync(tmpOut); } catch { /* ignore */ }
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
-    } finally {
-      intermediateFfmpeg = null;
-      intermediateBusy = false;
-    }
-  });
-  ipcMain.handle('cancel-intermediate', async () => {
-    try { intermediateFfmpeg?.kill('SIGKILL'); } catch { /* ignore */ }
-    return { success: true };
   });
 
   ipcMain.handle('probe-media', async (_event, payload: { filePath?: string }) => {
