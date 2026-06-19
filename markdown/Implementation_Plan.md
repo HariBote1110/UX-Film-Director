@@ -1092,6 +1092,11 @@ explicit export canvas / legacy canvasの抽象だけを見る。
 `projectExportLegacyCanvasCapture` adapterへ移す。
 Rust backend encoder / shared-frame pathをhook本体の主経路に保ち、browser canvas capture語彙はlegacy互換adapterに閉じ込める。
 
+203. Phase5: WebCodecs互換encoder importをadapterへ隔離する
+`useProjectExport` から `videoExportPipeline` のdynamic importを外し、WebCodecs/mp4-muxer互換encoderは
+`projectExportCompatibilityEncoder` adapterでだけ読み込む。
+Rust backend encoder / shared-frame pathのhook本体からbrowser encoder依存をさらに遠ざける。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

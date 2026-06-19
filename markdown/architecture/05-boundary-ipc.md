@@ -127,6 +127,8 @@ Rust backend integration gate:
   として扱う。
 - `useProjectExport` は `createImageBitmap` を直接呼ばず、互換canvas captureは
   `projectExportLegacyCanvasCapture` adapterに閉じ込める。
+- `useProjectExport` は `videoExportPipeline` を直接dynamic importせず、WebCodecs/mp4-muxer互換encoderは
+  `projectExportCompatibilityEncoder` adapterへ隔離する。
 - Rust backend は unix 環境で attach 可能な POSIX shared memory name を `memoryId` として返し、
   decoded RGBA を shared memory ring へ書く。
 - `decode.releaseFrame` は WebGPU upload fence 完了後の `copyOutState=gpuUploadFenceSignalled` でのみ slot を解放する。

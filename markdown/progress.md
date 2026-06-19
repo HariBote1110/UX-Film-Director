@@ -453,3 +453,10 @@
 - Green: `projectExportLegacyCanvasCapture` を追加し、互換canvas frame captureを `captureProjectExportLegacyCanvasFrame` 経由にした。
 - 検証: `npm test -- useProjectExportBoundary projectExportFrameCanvas` は35件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-181a`。
+
+## 2026-06-19
+- Phase5のexport hook境界として、WebCodecs/mp4-muxer互換encoderのdynamic importをadapterへ隔離した。
+- Red: `useProjectExportBoundary` を更新し、hookが `videoExportPipeline` を直接dynamic importせず、互換adapterだけが読み込む契約へ変更した。
+- Green: `projectExportCompatibilityEncoder` を追加し、`useProjectExport` は `encodeProjectExportCompatibilityVideo` を呼ぶだけにした。
+- 検証: `npm test -- useProjectExportBoundary` は12件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-182a`。
