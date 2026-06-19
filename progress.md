@@ -1,3 +1,21 @@
+## 2026-06-19 — stale decode診断をclip/media id付きで伝播
+
+### 実施内容
+- Red: stale decoded frame responseでも、Viewport upload result、presenter diagnostics input、export block messageに対象clip/media idを残す契約を追加した。
+- Green: `prepareSharedRendererViewportVideoUpload(s)` がstale responseへ `uploadFailureClipId` / `uploadFailureMediaId` を添え、presenter/export resolverが `uploadFailed` 以外でもscopeを保持するようにした。
+- source切替や複数動画中に起きるstale decodeを、`staleDecodeResponse clip=... media=...` として実機ログから追えるようにした。
+- 版を `0.1.1-Beta-215g` に更新した。
+
+### 検証
+- `npm test -- sharedRendererViewportPresenterOrchestration sharedRendererExportFrameSource`
+- `npm test -- sharedRendererViewportVideoUpload sharedRendererViewportPresenterOrchestration sharedRendererExportFrameSource`
+- `npm test -- sharedRendererViewportVideoUpload sharedRendererViewportPresenterOrchestration sharedRendererPresenterDiagnostics sharedRendererExportFrameSource exportDiagnosticsLog exportProgress`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportVideoUpload\\.ts|src/utils/sharedRendererViewportVideoUpload\\.test\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.test\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts)"`
+
+### 残課題・次のステップ
+- multi-video stale job idの専用境界テストを追加し、先行成功slotのabort releaseと同時に検証する。
+- `copyReportTargetChecksumMismatch` のclip/media id付き表示を実機GoPro素材で確認する。
+
 ## 2026-06-19 — upload buffer checksumをcopy reportと照合
 
 ### 実施内容

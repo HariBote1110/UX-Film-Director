@@ -1205,6 +1205,11 @@ source切替や複数動画中に別jobのshared-memory slotを現在clipとし�
 renderer-owned upload bufferのCRC32をTypeScript境界でも再計算し、reportの `actualChecksum` と一致しない場合はupload不可にする。
 native bridgeのreportだけを信じず、実際にWebGPUへ渡す `Uint8Array` がshared memory copy結果と一致していることを確認する。
 
+218. Phase5: stale decode診断をclip/media id付きで伝播する
+Rust backend decoded frame responseがstale `requestId` / `jobId` で拒否された場合も、
+Viewport upload result、presenter diagnostics、export block messageへ対象 `clipId` / `mediaId` を残す。
+copy失敗と同じ粒度で、source切替・複数動画中のstale decodeを実機ログから追えるようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

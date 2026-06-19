@@ -1306,3 +1306,21 @@
 - `npm test -- sharedVideoFrameUploadBridge` を再実行し、11件成功を確認した。
 - `npm test -- sharedVideoFrameUploadBridge sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload sharedRendererViewportPresenterOrchestration sharedRendererPresenterDiagnostics sharedRendererExportFrameSource` を実行し、87件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedVideoFrameUploadBridge\\.ts|src/utils/sharedVideoFrameUploadBridge\\.test\\.ts|src/utils/sharedRendererRustVideoUploadPipeline\\.ts|src/utils/sharedRendererViewportVideoUpload\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererExportFrameSource\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 103. Phase5: stale decode診断をclip/media id付きで伝播
+- `src/utils/sharedRendererViewportVideoUpload.test.ts`
+- stale decoded frame responseでも `uploadFailureClipId` / `uploadFailureMediaId` を返す契約を追加した。
+- `src/utils/sharedRendererViewportPresenterOrchestration.test.ts`
+- stale decode failureのclip/media idがpresenter diagnostics inputへ渡る契約を追加した。
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- export中のstale decode block messageに `staleDecodeResponse clip=... media=...` が含まれる契約を追加した。
+- `src/utils/sharedRendererViewportVideoUpload.ts` / `src/utils/sharedRendererViewportPresenterOrchestration.ts` / `src/utils/sharedRendererExportFrameSource.ts`
+- stale decoded frame resultのclip/media idを保持し、`uploadFailed` 以外のvideo upload blockでもscopeを失わないようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-215g` に更新した。
+
+## 確認
+- `npm test -- sharedRendererViewportPresenterOrchestration sharedRendererExportFrameSource` を実行し、Redでstale decodeのclip/media idが捨てられる失敗を確認した。
+- `npm test -- sharedRendererViewportVideoUpload sharedRendererViewportPresenterOrchestration sharedRendererExportFrameSource` を再実行し、63件成功を確認した。
+- `npm test -- sharedRendererViewportVideoUpload sharedRendererViewportPresenterOrchestration sharedRendererPresenterDiagnostics sharedRendererExportFrameSource exportDiagnosticsLog exportProgress` を実行し、100件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportVideoUpload\\.ts|src/utils/sharedRendererViewportVideoUpload\\.test\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.test\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のstale decode診断として、stale `requestId` / `jobId` で拒否されたdecoded frameにも `clipId` / `mediaId` を保持するようにした。
+- Red: Viewport upload result、presenter diagnostics input、export block messageでstale decodeのclip/media idが落ちない契約を追加した。
+- Green: `uploadFailed` 以外のvideo upload blockでもscopeを保持し、`staleDecodeResponse clip=... media=...` としてexport診断へ出せるようにした。
+- 検証: `npm test -- sharedRendererViewportVideoUpload sharedRendererViewportPresenterOrchestration sharedRendererPresenterDiagnostics sharedRendererExportFrameSource exportDiagnosticsLog exportProgress` は100件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-215g`。
+
+## 2026-06-19
 - Phase5のshared memory copy data-plane検証として、`checksumAlgorithm: 'crc32'` のcopy reportを受けた場合にrenderer-owned upload bufferのCRC32も再計算するようにした。
 - Red: `sharedVideoFrameUploadBridge` のテストへ、bridge reportは成功でもtarget buffer内容が一致しない場合にupload不可とする契約を追加した。
 - Green: `prepareSharedRendererDecodedVideoFrameUpload` で `copyReportTargetChecksumMismatch` を返し、WebGPUへ渡す `Uint8Array` 自体を検証対象にした。
