@@ -8,7 +8,9 @@ import {
   buildSharedRendererExportSession,
 } from './sharedRendererExportSession';
 import {
+  releaseRustBackendNativeSharedFrame,
   renderRustBackendNativeSharedFrame,
+  type RustBackendNativeRenderReleaseSharedFramePayload,
   type RustBackendNativeRenderSharedFramePayload,
   type RustBackendNativeRenderSharedFrameResult,
 } from './rustBackendNativeRenderControl';
@@ -75,6 +77,10 @@ export type SharedRendererExportNativeSharedFrameRenderer = (
   payload: RustBackendNativeRenderSharedFramePayload
 ) => Promise<RustBackendResult<RustBackendNativeRenderSharedFrameResult>>;
 
+export type SharedRendererExportNativeSharedFrameReleaser = (
+  payload: RustBackendNativeRenderReleaseSharedFramePayload
+) => Promise<RustBackendResult>;
+
 export interface CreateSharedRendererExportFrameSourceInput {
   canvas: HTMLCanvasElement;
   projectSettings: ProjectSettings;
@@ -93,6 +99,7 @@ export interface CreateSharedRendererExportFrameSourceInput {
   stopVideoDecodeJob?: SharedRendererExportVideoDecodeJobStopper;
   prepareNativeRenderSources?: SharedRendererExportNativeRenderSourcesPreparer;
   renderNativeSharedFrame?: SharedRendererExportNativeSharedFrameRenderer;
+  releaseNativeSharedFrame?: SharedRendererExportNativeSharedFrameReleaser;
 }
 
 export type SharedRendererExportProjectFrameSource = ProjectExportRustFrameSource & Required<Pick<
@@ -155,6 +162,7 @@ export function createSharedRendererExportFrameSource({
   stopVideoDecodeJob = defaultStopVideoDecodeJob,
   prepareNativeRenderSources = prepareSharedRendererViewportNativeRenderSources,
   renderNativeSharedFrame: inputRenderNativeSharedFrame,
+  releaseNativeSharedFrame = releaseRustBackendNativeSharedFrame,
 }: CreateSharedRendererExportFrameSourceInput): SharedRendererEncodeOnlyExportProjectFrameSource {
   let activeVideoDecodeJobs: SharedRendererViewportVideoDecodeJob[] = [];
   let requestId = 0;
@@ -424,7 +432,13 @@ export function createSharedRendererExportFrameSource({
         request.frameIndex
       );
     }
-    await releaseNativeRenderSourcesAfterComplete(nativeRenderSources);
+    const completeReleaseFailure = await releaseNativeRenderSourcesAfterComplete(nativeRenderSources);
+    if (completeReleaseFailure) {
+      await releaseNativeSharedFrame({
+        memoryId: renderResponse.result.frame.descriptor.memoryId,
+      });
+      throwNativeRenderSourceReleaseFailed(canvas, request.frameIndex, completeReleaseFailure);
+    }
 
     writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
       status: 'ready',
@@ -624,10 +638,12 @@ const resolveExportVideoOwnershipBlock = (
 
 const releaseNativeRenderSourcesAfterComplete = async (
   sources: readonly SharedRendererViewportNativeRenderSource[]
-): Promise<void> => {
-  await Promise.all(
+): Promise<string | null> => {
+  const results = await Promise.allSettled(
     sources.map((source) => source.releaseAfterNativeRenderComplete?.() ?? Promise.resolve())
   );
+  const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+  return failed ? formatNativeRenderReleaseError(failed.reason) : null;
 };
 
 const releaseNativeRenderSourcesAfterAbort = async (
