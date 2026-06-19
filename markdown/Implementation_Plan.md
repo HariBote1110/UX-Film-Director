@@ -1135,6 +1135,13 @@ WebCodecs用中間ファイル生成をproduction境界へ戻さない。
 `videoDecodeStream` は `src/exportTest/` 配下へ移し、export test harnessの比較・診断用途に限定する。
 production起動時の `VideoDecoder.isConfigSupported` probeも削除し、WebCodecs decode依存を通常起動境界から外す。
 
+209. Phase5: presenter controlからWebGPU readback公開口を削除する
+`SharedRendererPreviewPresenterControl` のready controlは `readPresentedFrameRgbaBytes` を公開しない。
+export必須時・動画preview時だけでなく、preview presenter orchestrationの公開口全体を
+native `takePresentedFrameSharedFrame` handoffへ寄せる。
+低レベルの `sharedRendererWebGpuPresenter` readbackは単体診断・parity検証用に残しても、production preview/export controlから
+RGBA bytesをJS側へ取り出す入口として再接続しない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

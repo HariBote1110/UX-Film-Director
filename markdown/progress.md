@@ -544,3 +544,10 @@
 - Green: `src/utils/videoDecodeStream.ts` を `src/exportTest/videoDecodeStream.ts` へ移し、`exportTestHarness` のimportを更新した。production起動時の `VideoDecoder.isConfigSupported` probeも `src/main.tsx` から削除した。
 - 検証: `npm test -- productionVideoDependencyBoundary legacyBase64ExportBoundary` は2件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-191a`。
+
+## 2026-06-19
+- Phase5のpresenter control境界として、preview/export orchestrationからWebGPU readback公開口を削除した。
+- Red: `sharedRendererPreviewPresenterController` に、ready presenter controlが `readPresentedFrameRgbaBytes` を公開しない契約を追加した。
+- Green: `SharedRendererPreviewPresenterControl` 型と返却objectから `readPresentedFrameRgbaBytes` を削除し、公開frame取得口を `takePresentedFrameSharedFrame` に絞った。
+- 検証: `npm test -- sharedRendererPreviewPresenterController sharedRendererExportFrameSourceBoundary sharedRendererWebGpuPresenter` は49件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-192a`。
