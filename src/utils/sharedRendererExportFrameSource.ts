@@ -429,7 +429,12 @@ export function createSharedRendererExportFrameSource({
       if (releaseFailure) {
         throwNativeRenderSourceReleaseFailed(canvas, request.frameIndex, releaseFailure);
       }
-      return throwNativeRenderFailed(canvas, request.frameIndex, formatNativeRenderError(error));
+      return throwNativeRenderFailed(
+        canvas,
+        request.frameIndex,
+        formatNativeRenderError(error),
+        !effectiveNativeRenderRequired
+      );
     }
     if (!renderResponse.success || !renderResponse.result) {
       const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
@@ -445,7 +450,8 @@ export function createSharedRendererExportFrameSource({
       throw new SharedRendererExportFrameSourceBlockedError(
         renderResponse.error ?? 'Rust backend native render failed.',
         'nativeRenderFailed',
-        request.frameIndex
+        request.frameIndex,
+        !effectiveNativeRenderRequired
       );
     }
     const completeReleaseFailure = await releaseNativeRenderSourcesAfterComplete(nativeRenderSources);
@@ -787,7 +793,8 @@ const throwNativeRenderOutputReleaseFailed = (
 const throwNativeRenderFailed = (
   canvas: HTMLCanvasElement,
   frameIndex: number,
-  detail: string
+  detail: string,
+  legacyCanvasFallbackAllowed = true
 ): never => {
   writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
     status: 'blocked',
@@ -798,7 +805,8 @@ const throwNativeRenderFailed = (
   throw new SharedRendererExportFrameSourceBlockedError(
     detail,
     'nativeRenderFailed',
-    frameIndex
+    frameIndex,
+    legacyCanvasFallbackAllowed
   );
 };
 
