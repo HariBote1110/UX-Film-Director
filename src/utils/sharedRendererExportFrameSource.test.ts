@@ -2222,7 +2222,8 @@ describe('createSharedRendererExportFrameSource', () => {
       objects: [video()],
       encodeSessionId: 'native-render-missing-release-session',
     })).rejects.toMatchObject({
-      fallbackToLegacyCanvas: true,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
       reason: 'nativeRenderSourceReleaseUnavailable',
       frameIndex: 9,
     });
