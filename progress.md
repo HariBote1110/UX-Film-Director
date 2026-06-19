@@ -4603,3 +4603,20 @@
 ### 残課題・次のステップ
 - preview側の native output release callback でも `success:false` / reject を専用診断へ分離する。
 - `nativeRenderOutputReleaseFailed` の表示文言をExport progress modalでより分かりやすくする。
+
+## 2026-06-19 — preview native output release falseを診断化
+
+### 実施内容
+- Red: preview native render output cleanupで `render.releaseNativeSharedFrame` が `{ success:false }` を返した場合、source complete release失敗に隠さず `nativeRenderOutputReleaseFailed` として返す契約を追加した。
+- Green: preview native render output releaserでRust応答を検証し、`success:false` はcallback rejectへ変換するようにした。
+- complete release失敗後のcleanupではoutput release失敗を優先し、`nativeRenderOutputReleaseFailed` として返すようにした。
+- 版を `0.1.1-Beta-208m` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererViewportNativeRenderUpload.test.ts -t "output release failure"`
+- `npm test -- src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/rustBackendNativeRenderControl.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.test\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/rustBackendNativeRenderControl\\.ts)"`
+
+### 残課題・次のステップ
+- preview native output releaseのrejectケースも同じ診断へ落ちることを回帰テストで固定する。
+- preview/exportの `nativeRenderOutputReleaseFailed` をUI表示で追いやすくする。
