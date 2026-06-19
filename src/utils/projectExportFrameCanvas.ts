@@ -101,7 +101,7 @@ export interface BuildProjectExportFrameSourcePlanInput extends ResolveProjectEx
   rustFrameSource?: ProjectExportRustFrameSource | null;
   rustFrameSourcePolicy?: ProjectExportRustFrameSourcePolicy;
   rustFrameSourceBlockedFallback?: ProjectExportRustFrameSourceBlockedFallback;
-  hasVideoObjects?: boolean;
+  hasVideoObjects: boolean;
 }
 
 export interface ResolveProjectExportFrameRuntimePlanInput {
@@ -111,7 +111,7 @@ export interface ResolveProjectExportFrameRuntimePlanInput {
 
 export interface ResolveProjectExportFrameSourcePolicyForEncodeInput {
   rustExportOnly: boolean;
-  hasVideoObjects?: boolean;
+  hasVideoObjects: boolean;
   encodeEngine: ProjectExportEncodeEngine;
 }
 
@@ -159,7 +159,7 @@ export const buildProjectExportFrameSourcePlan = ({
   rustFrameSource = null,
   rustFrameSourcePolicy = 'allowLegacyCanvas',
   rustFrameSourceBlockedFallback = 'legacyCanvas',
-  hasVideoObjects = false,
+  hasVideoObjects,
   getExportCanvas,
   legacyCanvas = null,
 }: BuildProjectExportFrameSourcePlanInput): ProjectExportFrameSourcePlanResult => {
@@ -219,7 +219,7 @@ export const buildProjectExportFrameSourcePlan = ({
 
 export const resolveProjectExportFrameSourcePolicyForEncode = ({
   rustExportOnly,
-  hasVideoObjects = false,
+  hasVideoObjects,
   encodeEngine,
 }: ResolveProjectExportFrameSourcePolicyForEncodeInput): ProjectExportFrameSourcePolicyForEncode => {
   const requiresRustFrameSource = rustExportOnly

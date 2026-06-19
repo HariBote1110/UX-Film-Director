@@ -96,6 +96,7 @@ describe('buildProjectExportFrameSourcePlan', () => {
     expect(buildProjectExportFrameSourcePlan({
       rustFrameSource,
       legacyCanvas,
+      hasVideoObjects: false,
     })).toEqual({
       ok: true,
       source: 'sharedRendererRustFrameSource',
@@ -135,6 +136,7 @@ describe('buildProjectExportFrameSourcePlan', () => {
     expect(buildProjectExportFrameSourcePlan({
       rustFrameSource: null,
       getExportCanvas: () => exportCanvas,
+      hasVideoObjects: false,
     })).toEqual({
       ok: true,
       source: 'explicitExportCanvas',
@@ -152,6 +154,7 @@ describe('buildProjectExportFrameSourcePlan', () => {
       rustFrameSource: null,
       legacyCanvas,
       rustFrameSourcePolicy: 'requireRustFrameSource',
+      hasVideoObjects: false,
     })).toEqual({
       ok: false,
       reason: 'rustFrameSourceRequired',
@@ -179,6 +182,7 @@ describe('buildProjectExportFrameSourcePlan', () => {
     expect(buildProjectExportFrameSourcePlan({
       rustFrameSource: null,
       legacyCanvas,
+      hasVideoObjects: false,
     })).toEqual({
       ok: true,
       source: 'legacyCanvas',
@@ -194,6 +198,7 @@ describe('buildProjectExportFrameSourcePlan', () => {
       rustFrameSource: null,
       getExportCanvas: () => null,
       legacyCanvas: null,
+      hasVideoObjects: false,
     })).toEqual({
       ok: false,
       reason: 'exportFrameSourceUnavailable',
@@ -229,6 +234,7 @@ describe('resolveProjectExportFrameSourcePolicyForEncode', () => {
   it('requires a Rust frame source whenever the Rust backend encoder is selected', () => {
     expect(resolveProjectExportFrameSourcePolicyForEncode({
       rustExportOnly: false,
+      hasVideoObjects: false,
       encodeEngine: 'rustBackendVideoEncoder',
     })).toEqual({
       rustFrameSourcePolicy: 'requireRustFrameSource',
@@ -239,6 +245,7 @@ describe('resolveProjectExportFrameSourcePolicyForEncode', () => {
   it('keeps legacy canvas fallback only for the WebCodecs compatibility encoder', () => {
     expect(resolveProjectExportFrameSourcePolicyForEncode({
       rustExportOnly: false,
+      hasVideoObjects: false,
       encodeEngine: 'webCodecsMp4Muxer',
     })).toEqual({
       rustFrameSourcePolicy: 'allowLegacyCanvas',
@@ -260,6 +267,7 @@ describe('resolveProjectExportFrameSourcePolicyForEncode', () => {
   it('requires a Rust frame source when Rust-only export is enabled', () => {
     expect(resolveProjectExportFrameSourcePolicyForEncode({
       rustExportOnly: true,
+      hasVideoObjects: false,
       encodeEngine: 'webCodecsMp4Muxer',
     })).toEqual({
       rustFrameSourcePolicy: 'requireRustFrameSource',
@@ -310,6 +318,7 @@ describe('resolveProjectExportFrameRuntimePlan', () => {
   it('keeps browser video side effects disabled while the Rust frame source is active', () => {
     const plan = buildProjectExportFrameSourcePlan({
       rustFrameSource,
+      hasVideoObjects: false,
     });
     if (!plan.ok) throw new Error('expected Rust export source plan');
 
@@ -329,6 +338,7 @@ describe('resolveProjectExportFrameRuntimePlan', () => {
   it('enables only legacy canvas capture after the Rust frame source is blocked', () => {
     const plan = buildProjectExportFrameSourcePlan({
       rustFrameSource,
+      hasVideoObjects: false,
     });
     if (!plan.ok) throw new Error('expected Rust export source plan');
 
@@ -349,6 +359,7 @@ describe('resolveProjectExportFrameRuntimePlan', () => {
     const plan = buildProjectExportFrameSourcePlan({
       rustFrameSource,
       rustFrameSourceBlockedFallback: 'failExport',
+      hasVideoObjects: false,
     });
     if (!plan.ok) throw new Error('expected Rust export source plan');
 
@@ -369,6 +380,7 @@ describe('resolveProjectExportFrameRuntimePlan', () => {
     const canvas = { id: 'legacy-export' } as unknown as HTMLCanvasElement;
     const plan = buildProjectExportFrameSourcePlan({
       legacyCanvas: canvas,
+      hasVideoObjects: false,
     });
     if (!plan.ok) throw new Error('expected canvas export source plan');
 
