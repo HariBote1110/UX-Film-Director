@@ -1,3 +1,21 @@
+## 2026-06-20 — 動画previewの透明フレームによる灰色表示を修正
+
+### 実施内容
+- Red: Electron実ウィンドウ動画読込E2Eを、presenter readyだけでなくshared renderer canvasのスクリーンショットを取得し、実ピクセルが灰色一色ではないことまで検証する契約へ強化した。
+- Red: WebGPU動画shaderがdecode済みvideo frameを不透明素材として扱い、出力alphaへobject opacityだけを適用する契約を追加した。
+- Green: video fragment shaderでsampled textureのalphaを乗算せず、`colour.rgb` と `in.opacity` で出力するようにした。decoded frame側alphaが0または未定義相当でも背景だけが見える状態を避ける。
+- 版を `0.1.1-Beta-219f` に更新した。
+
+### 検証
+- `npm test -- sharedRendererWebGpuPresenter`
+- `npm test -- sharedRendererWebGpuPresenter sharedRendererPreviewPresenterController sharedRendererViewportPresenterOrchestration`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererWebGpuPresenter\\.ts|src/utils/sharedRendererWebGpuPresenter\\.test\\.ts|scripts/run-video-load-e2e\\.mjs)"`
+- `npm run test:video-load:e2e`
+
+### 残課題・次のステップ
+- 既に開いているElectron windowに古いrenderer codeが残っている場合は、dev server再起動またはwindow reload後に確認する。
+- 追加で複数fixtureを連続実行した際、`10000kbps_60fps.mp4` のスクリーンショット取得がCDP timeoutになった。今回の灰色表示修正とは別に、長時間fixture向けのE2E timeout/待機条件を調整する余地がある。
+
 ## 2026-06-20 — optional native render対象外診断をready previewから除外
 
 ### 実施内容

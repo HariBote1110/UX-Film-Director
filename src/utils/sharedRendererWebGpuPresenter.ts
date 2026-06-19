@@ -1022,7 +1022,7 @@ fn vs_main(
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
   let colour = textureSample(videoTexture, videoSampler, in.uv);
-  return vec4<f32>(colour.rgb, colour.a * in.opacity);
+  return vec4<f32>(colour.rgb, in.opacity);
 }
 `;
 

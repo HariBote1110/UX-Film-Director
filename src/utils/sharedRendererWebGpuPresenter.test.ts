@@ -1025,6 +1025,45 @@ describe('createSharedRendererWebGpuPresenter', () => {
     ]);
   });
 
+  it('treats decoded video frames as opaque and applies only object opacity to the output alpha', async () => {
+    const shaderModules: Array<{ code?: string }> = [];
+
+    const result = await createSharedRendererWebGpuPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      surfaceGate: {
+        ...okSurfaceGate,
+        snapshot: videoSnapshot,
+        media: videoMedia,
+      },
+      presentationContract: buildSharedRendererPresentationContract(),
+      gpu: fakeGpu({
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onCreateShaderModule: (descriptor) => {
+              shaderModules.push(descriptor as { code?: string });
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+      bufferUsageVertex: 1,
+      bufferUsageCopyDst: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected presenter creation to pass');
+
+    expect(result.presentVideoFrameScene({
+      snapshot: videoSnapshot,
+      media: videoMedia,
+      texture: { createView: () => 'video-frame-texture-view' },
+    })).toMatchObject({ ok: true });
+
+    const videoShader = shaderModules.find((module) => module.code?.includes('textureSample(videoTexture'));
+    expect(videoShader?.code).toContain('return vec4<f32>(colour.rgb, in.opacity);');
+    expect(videoShader?.code).not.toContain('colour.a * in.opacity');
+  });
+
   it('draws multiple uploaded video frame textures with one bind group per video plane', async () => {
     const renderPassOperations: string[] = [];
     const bindGroups: unknown[] = [];
@@ -1100,13 +1139,10 @@ describe('createSharedRendererWebGpuPresenter', () => {
     const device = fakeDevice({});
     device.createBindGroup = function createBindGroupWithReceiverCheck(
       this: unknown,
-      descriptor: unknown
+      _descriptor: unknown
     ) {
       expect(this).toBe(device);
-      return {
-        toString: () => 'receiver-bound-video-bind-group',
-        descriptor,
-      };
+      return 'receiver-bound-video-bind-group';
     };
 
     const result = await createSharedRendererWebGpuPresenter({

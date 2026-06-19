@@ -2,14 +2,19 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { inflateSync } from 'node:zlib';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const VITE_PORT = 5301;
 const DEBUG_PORT = 9333;
-const VIDEO_PATH = resolve(ROOT, 'perf/heavy-media/GX010052.MP4');
+const VIDEO_PATH = process.env.UXFD_VIDEO_LOAD_E2E_VIDEO_PATH
+  ? resolve(process.env.UXFD_VIDEO_LOAD_E2E_VIDEO_PATH)
+  : resolve(ROOT, 'perf/heavy-media/GX010052.MP4');
+const VIDEO_NAME = VIDEO_PATH.split('/').pop() ?? 'video';
 const OUTPUT_DIR = resolve(ROOT, '.codex/video-load-e2e');
 const RESULT_JSON = resolve(OUTPUT_DIR, 'result.json');
 const RESULT_LOG = resolve(OUTPUT_DIR, 'result.log');
+const RESULT_SCREENSHOT = resolve(OUTPUT_DIR, 'shared-renderer-surface.png');
 const OVERALL_TIMEOUT_MS = Number(process.env.UXFD_VIDEO_LOAD_E2E_TIMEOUT_MS ?? 90_000);
 
 let vite = null;
@@ -168,6 +173,146 @@ class CdpClient {
   }
 }
 
+const capturePng = async (client, clip) => {
+  const screenshot = await client.send('Page.captureScreenshot', {
+    format: 'png',
+    fromSurface: true,
+    clip,
+  });
+  return Buffer.from(screenshot.data, 'base64');
+};
+
+const readPngRgba = (png) => {
+  const signature = png.subarray(0, 8);
+  if (!signature.equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) {
+    throw new Error('Captured screenshot is not a PNG image.');
+  }
+
+  let offset = 8;
+  let width = 0;
+  let height = 0;
+  let colourType = 0;
+  const idatChunks = [];
+  while (offset < png.length) {
+    const length = png.readUInt32BE(offset);
+    const type = png.subarray(offset + 4, offset + 8).toString('ascii');
+    const data = png.subarray(offset + 8, offset + 8 + length);
+    offset += 12 + length;
+    if (type === 'IHDR') {
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      const bitDepth = data[8];
+      colourType = data[9];
+      if (bitDepth !== 8 || (colourType !== 2 && colourType !== 6)) {
+        throw new Error(`Unsupported screenshot PNG format: bitDepth=${bitDepth} colourType=${colourType}`);
+      }
+    } else if (type === 'IDAT') {
+      idatChunks.push(data);
+    } else if (type === 'IEND') {
+      break;
+    }
+  }
+
+  const channels = colourType === 6 ? 4 : 3;
+  const stride = width * channels;
+  const inflated = inflateSync(Buffer.concat(idatChunks));
+  const rgba = new Uint8Array(width * height * 4);
+  let sourceOffset = 0;
+  let rgbaOffset = 0;
+  let previous = new Uint8Array(stride);
+  for (let y = 0; y < height; y += 1) {
+    const filter = inflated[sourceOffset];
+    sourceOffset += 1;
+    const row = Uint8Array.from(inflated.subarray(sourceOffset, sourceOffset + stride));
+    sourceOffset += stride;
+    unfilterPngRow(row, previous, channels, filter);
+    for (let x = 0; x < width; x += 1) {
+      const i = x * channels;
+      rgba[rgbaOffset] = row[i];
+      rgba[rgbaOffset + 1] = row[i + 1];
+      rgba[rgbaOffset + 2] = row[i + 2];
+      rgba[rgbaOffset + 3] = colourType === 6 ? row[i + 3] : 255;
+      rgbaOffset += 4;
+    }
+    previous = row;
+  }
+  return { width, height, rgba };
+};
+
+const unfilterPngRow = (row, previous, bytesPerPixel, filter) => {
+  for (let i = 0; i < row.length; i += 1) {
+    const left = i >= bytesPerPixel ? row[i - bytesPerPixel] : 0;
+    const up = previous[i] ?? 0;
+    const upLeft = i >= bytesPerPixel ? previous[i - bytesPerPixel] ?? 0 : 0;
+    if (filter === 1) {
+      row[i] = (row[i] + left) & 0xff;
+    } else if (filter === 2) {
+      row[i] = (row[i] + up) & 0xff;
+    } else if (filter === 3) {
+      row[i] = (row[i] + Math.floor((left + up) / 2)) & 0xff;
+    } else if (filter === 4) {
+      row[i] = (row[i] + paethPredictor(left, up, upLeft)) & 0xff;
+    } else if (filter !== 0) {
+      throw new Error(`Unsupported PNG filter type: ${filter}`);
+    }
+  }
+};
+
+const paethPredictor = (left, up, upLeft) => {
+  const estimate = left + up - upLeft;
+  const leftDistance = Math.abs(estimate - left);
+  const upDistance = Math.abs(estimate - up);
+  const upLeftDistance = Math.abs(estimate - upLeft);
+  if (leftDistance <= upDistance && leftDistance <= upLeftDistance) return left;
+  if (upDistance <= upLeftDistance) return up;
+  return upLeft;
+};
+
+const analyseVisiblePixels = ({ width, height, rgba }) => {
+  const step = Math.max(1, Math.floor(Math.min(width, height) / 120));
+  let count = 0;
+  let luminanceSum = 0;
+  let luminanceSquareSum = 0;
+  let nonGreyCount = 0;
+  let opaqueCount = 0;
+  const buckets = new Set();
+
+  for (let y = 0; y < height; y += step) {
+    for (let x = 0; x < width; x += step) {
+      const i = (y * width + x) * 4;
+      const red = rgba[i];
+      const green = rgba[i + 1];
+      const blue = rgba[i + 2];
+      const alpha = rgba[i + 3];
+      const luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+      const spread = Math.max(red, green, blue) - Math.min(red, green, blue);
+      count += 1;
+      luminanceSum += luminance;
+      luminanceSquareSum += luminance * luminance;
+      if (spread > 10) nonGreyCount += 1;
+      if (alpha > 245) opaqueCount += 1;
+      buckets.add(`${red >> 4},${green >> 4},${blue >> 4}`);
+    }
+  }
+
+  const mean = luminanceSum / Math.max(1, count);
+  const variance = luminanceSquareSum / Math.max(1, count) - mean * mean;
+  const stddev = Math.sqrt(Math.max(0, variance));
+  const nonGreyRatio = nonGreyCount / Math.max(1, count);
+  const opaqueRatio = opaqueCount / Math.max(1, count);
+  return {
+    width,
+    height,
+    samples: count,
+    luminanceMean: Number(mean.toFixed(2)),
+    luminanceStddev: Number(stddev.toFixed(2)),
+    nonGreyRatio: Number(nonGreyRatio.toFixed(4)),
+    opaqueRatio: Number(opaqueRatio.toFixed(4)),
+    colourBucketCount: buckets.size,
+    visible: stddev > 8 || nonGreyRatio > 0.05 || buckets.size > 24,
+  };
+};
+
 const collectConsoleEvents = (client) => client.events
   .filter((event) => event.method === 'Runtime.consoleAPICalled')
   .map((event) => {
@@ -179,6 +324,44 @@ const writeResult = (result) => {
   mkdirSync(OUTPUT_DIR, { recursive: true });
   writeFileSync(RESULT_JSON, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
   writeFileSync(RESULT_LOG, `${logLines.join('\n')}\n`, 'utf8');
+};
+
+const captureSharedRendererSurfaceAnalysis = async (client) => {
+  const rect = await client.evaluate(`
+    (() => {
+      const canvas = document.querySelector('[data-shared-renderer-preview-surface="true"]');
+      if (!canvas) return { ok: false, reason: 'surfaceCanvasMissing' };
+      const rect = canvas.getBoundingClientRect();
+      return {
+        ok: rect.width > 0 && rect.height > 0,
+        reason: rect.width > 0 && rect.height > 0 ? undefined : 'surfaceCanvasEmpty',
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height,
+        devicePixelRatio: window.devicePixelRatio,
+        visibility: getComputedStyle(canvas).visibility,
+      };
+    })()
+  `);
+  if (!rect?.ok) return rect;
+  const clip = {
+    x: Math.max(0, rect.x),
+    y: Math.max(0, rect.y),
+    width: Math.max(1, rect.width),
+    height: Math.max(1, rect.height),
+    scale: 1,
+  };
+  const png = await capturePng(client, clip);
+  writeFileSync(RESULT_SCREENSHOT, png);
+  const analysis = analyseVisiblePixels(readPngRgba(png));
+  return {
+    ok: analysis.visible,
+    reason: analysis.visible ? undefined : 'surfacePixelsBlankOrGrey',
+    rect,
+    screenshotPath: RESULT_SCREENSHOT,
+    analysis,
+  };
 };
 
 const main = async () => {
@@ -286,7 +469,7 @@ const main = async () => {
         const body = document.body.innerText || '';
         const diagnostics = [...document.querySelectorAll('[data-uxfd-shared-renderer-presenter-status], [data-uxfd-shared-renderer-presenter-video-owner]')]
           .map((node) => ({ ...node.dataset }));
-        const hasTimelineVideo = items.some((text) => text.includes('GX010052.MP4'));
+        const hasTimelineVideo = items.some((text) => text.includes(${JSON.stringify(VIDEO_NAME)}));
         const presenterReady = diagnostics.some((entry) => (
           entry.uxfdSharedRendererPresenterStatus === 'ready'
           && entry.uxfdSharedRendererPresenterVideoOwner === 'sharedRenderer'
@@ -313,10 +496,14 @@ const main = async () => {
   `);
 
   const consoleLines = collectConsoleEvents(client);
+  const visualResult = pollResult?.ok
+    ? await captureSharedRendererSurfaceAnalysis(client)
+    : undefined;
   const result = {
-    passed: Boolean(pollResult?.ok),
+    passed: Boolean(pollResult?.ok && visualResult?.ok),
     videoPath: VIDEO_PATH,
     pollResult,
+    visualResult,
     consoleLines,
   };
   writeResult(result);
