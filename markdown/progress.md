@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のownership cutoverとして、実出力必須時にImage/PSD ownershipがPixiへ残るpreviewを `blocked` に変更した。
+- Red: `sharedRendererPreviewPresenterController` のテストへ、diagnostic swatchが有効でもImage/PSDのPixi所有が `ready` にならない契約を追加した。
+- Green: image/PSD ownerが `sharedRenderer` でない場合、`sharedRendererOutputUnavailable` のblocked診断を出し、owner/cutover reason/object countをdatasetへ残すようにした。
+- 検証: `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics` は49件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216q`。
+
+## 2026-06-19
 - Phase5のexport診断表示として、`nativeRenderTextureViewUnavailable` のRust frame source blocked診断に読みやすい表示ラベルを追加した。
 - Red: `ExportProgressModal` のテストへ、raw reasonではなく `native render texture viewなし` / `native render texture view unavailable` が表示される契約を追加した。
 - Green: blocked reason formatterに `nativeRenderTextureViewUnavailable` の日本語/英語ラベルを追加した。

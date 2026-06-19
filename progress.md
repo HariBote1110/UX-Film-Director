@@ -1,3 +1,19 @@
+## 2026-06-19 — 実出力必須時のimage/PSD Pixi所有をblocked診断に変更
+
+### 実施内容
+- Red: `requireSharedRendererOutput` 有効時にImage/PSD ownershipがPixiに残る場合、diagnostic swatchで `ready` にならず `blocked` になる契約を追加した。
+- Green: image/PSD ownershipが `sharedRenderer` でない実出力必須previewを `sharedRendererOutputUnavailable` として停止するようにした。
+- blocked診断にもImage/PSD owner/cutover reason/object countを記録し、native render frame未到達でPixi所有に残った原因を追えるようにした。
+- 版を `0.1.1-Beta-216q` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- image/PSDのnative render coverageをexport計画側の診断にもさらに接続する。
+- Viewport本体のPixi依存撤去へ向けて、shared renderer実出力必須モードの実機確認範囲を広げる。
+
 ## 2026-06-19 — native render texture view blocked診断の表示ラベルを追加
 
 ### 実施内容

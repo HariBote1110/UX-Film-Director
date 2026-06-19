@@ -1812,6 +1812,22 @@
 - `npm test -- ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress sharedRendererExportFrameSource` を実行し、80件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportDiagnosticsLog\\.test\\.ts|src/utils/exportProgressDiagnostics\\.ts|src/store/useStore\\.ts|src/utils/sharedRendererExportFrameSource\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 139. Phase5: 実出力必須時のimage/PSD Pixi所有をblocked診断に変更
+- `src/utils/sharedRendererPreviewPresenterController.test.ts`
+- `requireSharedRendererOutput` 有効時にImage ownershipがPixiへ残る場合、diagnostic swatchが有効でも `sharedRendererOutputUnavailable` のblockedになる契約を追加した。
+- PSD ownershipがPixiへ残る場合も、同じく `sharedRendererOutputUnavailable` のblockedになる契約を追加した。
+- `src/utils/sharedRendererPreviewPresenterController.ts`
+- image/PSD ownershipが `sharedRenderer` でない実出力必須previewを、presentationへ進めずblockedで返すようにした。
+- `src/utils/sharedRendererPresenterDiagnostics.ts`
+- blocked診断にもImage/PSD owner、cutover reason、shared object countを書けるようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216q` に更新した。
+
+## 確認
+- `npm test -- sharedRendererPreviewPresenterController` を実行し、RedでImage/PSDがPixi所有のまま `ok: true` になる失敗を確認した。
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics` を実行し、49件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。

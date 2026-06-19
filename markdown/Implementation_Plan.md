@@ -1385,6 +1385,11 @@ Rust/native render frameのWebGPU texture view欠落を、legacy bitmap capture�
 日本語では `native render texture viewなし`、英語では `native render texture view unavailable` と表示する。
 native render texture view欠落でRust/shared renderer実出力が止まった原因を、実機UIで追いやすい文言にする。
 
+254. Phase5: 実出力必須時のImage/PSD Pixi所有をblocked診断にする
+`requireSharedRendererOutput` が有効なpreview presenterでは、Image/PSD ownershipがPixiに残る場合に
+diagnostic swatchで `ready` にせず、`sharedRendererOutputUnavailable` の `blocked` として出す。
+blocked診断にはImage/PSD owner、cutover reason、shared object countを残し、native render未到達の原因を追えるようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
