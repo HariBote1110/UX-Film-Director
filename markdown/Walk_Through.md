@@ -1164,3 +1164,20 @@
 - `npm test -- projectExportFrameCanvas` を実行し、Redでbitmap-only Rust sourceがvideo export planを通る失敗を確認した。
 - `npm test -- projectExportFrameCanvas projectExportRustEncodeFrame useProjectExportBoundary` を再実行し、52件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/projectExportFrameCanvas\\.ts|src/utils/projectExportFrameCanvas\\.test\\.ts|src/utils/projectExportRustEncodeFrame\\.ts|src/utils/projectExportRustEncodeFrame\\.test\\.ts|src/hooks/useProjectExport\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 94. Phase5: Rust frame source plan failure診断を保持
+- `src/store/exportProgress.test.ts`
+- Rust frame source plan段階で `rustFrameSourceRequired` / `exportFrameSourceUnavailable` になった場合も、終了後診断へ残す契約を追加した。
+- `src/utils/exportDiagnosticsLog.test.ts` / `src/components/ExportProgressModal.test.ts`
+- plan failureをDevToolsログと終了後診断toastの両方で読める契約を追加した。
+- `src/store/useStore.ts`
+- `ExportProgress` / `ExportDiagnostics` に `exportFrameSourcePlanFailure` を追加し、終了時に保持するようにした。
+- `src/hooks/useProjectExport.ts`
+- `initialFrameSourcePlan` 失敗時に `exportFrameSourcePlanFailure` をprogressへ保存してからexportを終了するようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-213b` に更新した。
+
+## 確認
+- `npm test -- exportProgress exportDiagnosticsLog ExportProgressModal useProjectExportBoundary` を実行し、Redでplan failure診断が保持/表示されない失敗を確認した。
+- `npm test -- exportDiagnosticsLog exportProgressDiagnostics useProjectExportBoundary ExportProgressModal exportProgress` を再実行し、50件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/store/useStore\\.ts|src/store/exportProgress\\.test\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportDiagnosticsLog\\.test\\.ts|src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

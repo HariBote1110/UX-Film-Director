@@ -1,3 +1,20 @@
+## 2026-06-19 — Rust frame source plan failure診断を保持
+
+### 実施内容
+- Red: Rust frame source plan段階で `rustFrameSourceRequired` / `exportFrameSourceUnavailable` になった場合も、終了後診断へ残す契約を追加した。
+- Green: `ExportProgress` / `ExportDiagnostics` に `exportFrameSourcePlanFailure` を追加し、`initialFrameSourcePlan` 失敗時にprogressへ保存するようにした。
+- DevToolsログと終了後診断toastにもplan failureを表示し、shared-frame Rust source未接続やbitmap-only source拒否を後から追えるようにした。
+- 版を `0.1.1-Beta-213b` に更新した。
+
+### 検証
+- `npm test -- exportProgress exportDiagnosticsLog ExportProgressModal useProjectExportBoundary`
+- `npm test -- exportDiagnosticsLog exportProgressDiagnostics useProjectExportBoundary ExportProgressModal exportProgress`
+- `npx tsc --noEmit 2>&1 | rg "(src/store/useStore\\.ts|src/store/exportProgress\\.test\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportDiagnosticsLog\\.test\\.ts|src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- Rust frame source ready時のhook実行テストをさらに強め、legacy canvas captureが呼ばれないことを実行レベルで固定する。
+- plan failure診断を必要に応じてexport failure alertの文面にも統合する。
+
 ## 2026-06-19 — video exportでshared-frame Rust sourceを必須化
 
 ### 実施内容
