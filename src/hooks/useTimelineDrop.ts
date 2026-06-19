@@ -7,6 +7,14 @@ import { shallow } from 'zustand/shallow';
 import { getElectronFilePath, resolveAudioMetadata, resolveVideoMetadata } from '../utils/mediaMetadata';
 import { parsePsdAsObject } from '../utils/psdParser';
 
+const VIDEO_FILE_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm', '.avi', '.mkv'];
+
+export const isTimelineDropVideoFile = (file: File): boolean => {
+  if (file.type.startsWith('video/')) return true;
+  const lowerName = file.name.toLowerCase();
+  return VIDEO_FILE_EXTENSIONS.some((extension) => lowerName.endsWith(extension));
+};
+
 export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) => {
   const { isExporting, addObject, projectSettings, layers } = useStore((state) => ({
     isExporting: state.isExporting,
@@ -95,7 +103,7 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
                 };
                 addObject(newImage);
             };
-        } else if (file.type.startsWith('video/')) {
+        } else if (isTimelineDropVideoFile(file)) {
             const filePath = getElectronFilePath(file);
             const url = URL.createObjectURL(file);
             try {

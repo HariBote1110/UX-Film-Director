@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs;
-use std::io::{self, BufRead, Write};
-use std::process::{Child, ChildStdin, Command, Stdio};
+use std::io::{self, BufRead, Read, Write};
+use std::process::{Child, ChildStderr, ChildStdin, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use uxfd_golden_harness::{load_rgba_jpeg, load_rgba_png, RgbaFrame};
@@ -57,6 +57,7 @@ struct DecodeSession {
 struct EncodeSession {
     child: Child,
     stdin: ChildStdin,
+    stderr: ChildStderr,
     session_id: String,
     file_path: String,
     audio_path: Option<String>,
@@ -320,7 +321,7 @@ fn handle_encode_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
         return response_error(id, -32051, "Encode session already active for sessionId");
     }
 
-    let (child, stdin) = match start_encode_ffmpeg(&parsed) {
+    let (child, stdin, stderr) = match start_encode_ffmpeg(&parsed) {
         Ok(value) => value,
         Err(message) => return response_error(id, -32054, &message),
     };
@@ -330,6 +331,7 @@ fn handle_encode_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
         EncodeSession {
             child,
             stdin,
+            stderr,
             session_id: parsed.session_id.clone(),
             file_path: parsed.file_path.clone(),
             audio_path: audio_path.clone(),
@@ -445,14 +447,22 @@ fn handle_encode_finish(id: u64, params: Value, state: &mut BackendState) -> Rpc
             );
         }
     };
+    let mut ffmpeg_stderr = String::new();
+    let _ = session.stderr.read_to_string(&mut ffmpeg_stderr);
 
     if !status.success() {
+        let stderr_detail = ffmpeg_stderr.trim();
+        let stderr_suffix = if stderr_detail.is_empty() {
+            String::new()
+        } else {
+            format!(" stderr: {stderr_detail}")
+        };
         return response_error(
             id,
             -32057,
             &format!(
-                "Rust encode ffmpeg exited with failure status: code={:?}",
-                status.code()
+                "Rust encode ffmpeg exited with failure status: code={:?}.{stderr_suffix}",
+                status.code(),
             ),
         );
     }
@@ -1186,7 +1196,7 @@ fn write_encode_shared_frame(
     Err("Rust encode shared memory is unavailable on this platform".to_string())
 }
 
-fn start_encode_ffmpeg(parsed: &EncodeStartParams) -> Result<(Child, ChildStdin), String> {
+fn start_encode_ffmpeg(parsed: &EncodeStartParams) -> Result<(Child, ChildStdin, ChildStderr), String> {
     let ffmpeg_path = std::env::var("UXFD_FFMPEG_BIN").unwrap_or_else(|_| "ffmpeg".to_string());
     let audio_path = parsed
         .audio_path
@@ -1237,7 +1247,7 @@ fn start_encode_ffmpeg(parsed: &EncodeStartParams) -> Result<(Child, ChildStdin)
     cmd.arg(&parsed.file_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .stderr(Stdio::piped());
 
     let mut child = cmd
         .spawn()
@@ -1250,8 +1260,16 @@ fn start_encode_ffmpeg(parsed: &EncodeStartParams) -> Result<(Child, ChildStdin)
             return Err("Failed to capture Rust encode ffmpeg stdin".to_string());
         }
     };
+    let stderr = match child.stderr.take() {
+        Some(value) => value,
+        None => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("Failed to capture Rust encode ffmpeg stderr".to_string());
+        }
+    };
 
-    Ok((child, stdin))
+    Ok((child, stdin, stderr))
 }
 
 fn get_video_codec() -> &'static str {
@@ -1998,7 +2016,7 @@ fn decode_tight_rgba_frame(
 ) -> Result<Vec<u8>, String> {
     let input_metadata = probe_video_input_metadata(ffprobe_path, source)?;
     let filter = format!(
-        "select=eq(n\\,{frame_index}),scale=in_range={}:out_range=pc:in_color_matrix=bt709:out_color_matrix=bt709,format=rgba",
+        "select=eq(n\\,{frame_index}),scale=in_range={}:out_range=pc,format=rgba",
         input_metadata.range
     );
     let output = Command::new(ffmpeg_path)
@@ -2079,32 +2097,13 @@ fn probe_video_input_metadata(
         .and_then(|streams| streams.first())
         .ok_or_else(|| "ffprobe did not return a video stream".to_string())?;
     let range = stream_metadata_string(stream, "color_range")?;
-    let primaries = stream_metadata_string(stream, "color_primaries")?;
-    let transfer = stream_metadata_string(stream, "color_transfer")?;
-    let matrix = stream_metadata_string(stream, "color_space")?;
-
     let range = match range {
-        "pc" => Ok("pc"),
-        "tv" => Ok("tv"),
-        value => Err(format!(
-            "unsupported video color_range for Rust decode: {value}"
-        )),
-    }?;
-    if primaries != "bt709" {
-        return Err(format!(
-            "unsupported video color_primaries for Rust decode: {primaries}"
-        ));
-    }
-    if transfer != "iec61966-2-1" {
-        return Err(format!(
-            "unsupported video color_transfer for Rust decode: {transfer}"
-        ));
-    }
-    if matrix != "bt709" {
-        return Err(format!(
-            "unsupported video color_space for Rust decode: {matrix}"
-        ));
-    }
+        "pc" => "pc",
+        "tv" => "tv",
+        "unknown" => "tv",
+        value if value.trim().is_empty() => "tv",
+        _ => "tv",
+    };
 
     Ok(VideoInputMetadata { range })
 }
