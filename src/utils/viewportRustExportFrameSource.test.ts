@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import type { ProjectSettings, ShapeObject, TimelineObject, VideoObject } from '../types';
+import type { ImageObject, ProjectSettings, ShapeObject, TimelineObject, VideoObject } from '../types';
 import { createDefaultLayers } from './sceneState';
 import type {
   SharedRendererExportSession,
@@ -77,6 +77,30 @@ const video = (patch: Partial<VideoObject> = {}): VideoObject => ({
   height: 720,
   volume: 1,
   muted: false,
+  ...patch,
+});
+
+const image = (patch: Partial<ImageObject> = {}): ImageObject => ({
+  id: 'image-1',
+  type: 'image',
+  name: 'overlay.png',
+  layer: 1,
+  startTime: 0,
+  duration: 5,
+  x: 0,
+  y: 0,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 0,
+  endY: 0,
+  easing: 'linear',
+  src: 'file:///tmp/overlay.png',
+  filePath: '/tmp/overlay.png',
+  width: 1280,
+  height: 720,
   ...patch,
 });
 
@@ -522,6 +546,62 @@ describe('buildViewportRustExportFrameSource', () => {
       }),
       createFrameSource: () => {
         throw new Error('frame source must not be created after blocked video preflight.');
+      },
+      onFrameSourceUnavailable: (decision) => {
+        unavailableCalls.push(decision);
+      },
+      diagnosticsDataset: dataset,
+    });
+
+    expect(source).toBeNull();
+    expect(unavailableCalls).toEqual([{
+      ok: false,
+      reason: 'exportSessionBlocked',
+      detail: 'Shared renderer surface requires a parallelCompare plan.',
+      diagnosticStatus: 'blocked',
+      nativeRenderEnvelope: {
+        ok: false,
+        reason: 'surfaceGateUnavailable',
+        detail: 'Shared renderer surface requires a parallelCompare plan.',
+      },
+    }]);
+    expect(dataset).toMatchObject({
+      uxfdRustExportFrameSourceStatus: 'blocked',
+      uxfdRustExportFrameSourceReason: 'exportSessionBlocked',
+      uxfdRustExportFrameSourceNativeRenderEnvelopeStatus: 'blocked',
+      uxfdRustExportFrameSourceNativeRenderEnvelopeReason: 'surfaceGateUnavailable',
+    });
+  });
+
+  it('marks native-render media export preflight failures as blocked diagnostics instead of legacy fallback', () => {
+    const canvas = {
+      width: 1920,
+      height: 1080,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    const dataset: Record<string, string | undefined> = {};
+    const unavailableCalls: unknown[] = [];
+
+    const source = buildViewportRustExportFrameSource({
+      exportEnabled: true,
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      hasVideoObjects: false,
+      hasNativeRenderMediaObjects: true,
+      objects: [image()],
+      time: 0,
+      buildExportSession: () => exportSessionWithSurfaceGate({
+        ok: false,
+        reason: 'planNotComparable',
+        detail: 'Shared renderer surface requires a parallelCompare plan.',
+      }),
+      createFrameSource: () => {
+        throw new Error('frame source must not be created after blocked native-render media preflight.');
       },
       onFrameSourceUnavailable: (decision) => {
         unavailableCalls.push(decision);
