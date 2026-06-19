@@ -1649,6 +1649,21 @@
 - `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration viewportRustVideoOnlyBoundary` を実行し、70件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 128. Phase5: 実出力必須blocked診断にnative render upload失敗を保持
+- `src/utils/sharedRendererPreviewPresenterController.test.ts`
+- `requireSharedRendererOutput` 有効時にnative render frame uploadがWebGPU upload不可で失敗した場合、`sharedRendererOutputUnavailable` のblocked診断へ `webGpuUploadUnavailable` の理由と詳細が残る契約を追加した。
+- `src/utils/sharedRendererPreviewPresenterController.ts`
+- `sharedRendererOutputUnavailable` のblocked diagnosticsへ `nativeRenderFailureReason` / `nativeRenderFailureDetail` を渡すようにした。
+- Pixi passthroughへ戻れない検証で、Rust/native render upload失敗の根本原因を診断から落とさない。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216f` に更新した。
+
+## 確認
+- `npm test -- sharedRendererPreviewPresenterController` を実行し、Redでnative render upload失敗詳細がblocked診断から欠ける失敗を確認した。
+- `npm test -- sharedRendererPreviewPresenterController` を再実行し、34件成功を確認した。
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration viewportRustVideoOnlyBoundary` を実行し、71件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。

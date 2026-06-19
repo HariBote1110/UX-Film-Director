@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のpreview診断として、実出力必須blocked時にnative render frame upload失敗の理由と詳細を保持するようにした。
+- Red: `sharedRendererPreviewPresenterController` のテストへ、WebGPU upload不可でnative render frame uploadが失敗した場合でもblocked診断に `webGpuUploadUnavailable` が残る契約を追加した。
+- Green: `sharedRendererOutputUnavailable` のblocked diagnosticsへ `nativeRenderFailureReason` / `nativeRenderFailureDetail` を渡すようにした。
+- 検証: `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration viewportRustVideoOnlyBoundary` は71件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216f`。
+
+## 2026-06-19
 - Phase5のpreview診断として、実shared renderer出力が必須なのにPixi passthroughしか残らないケースを `blocked` に変更した。
 - Red: `sharedRendererPreviewPresenterController` のテストへ、`requireSharedRendererOutput` 時の `sharedRendererOutputUnavailable` がblocked診断になる契約を追加した。
 - Green: presenter diagnosticsの該当経路を `fallback` から `blocked` に変更した。

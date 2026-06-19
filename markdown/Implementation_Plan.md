@@ -1330,6 +1330,11 @@ UI/ログだけでなく、保持payload自体もRust動画必須blockedの意�
 presenter diagnosticsの `sharedRendererOutputUnavailable` を `blocked` として出す。
 実出力必須のpreview検証で、Pixi passthroughを互換fallbackとして成功寄りに見せない。
 
+243. Phase5: 実出力必須blocked診断にnative render upload失敗を保持する
+`requireSharedRendererOutput` が有効でnative render frame uploadが失敗した場合、
+`sharedRendererOutputUnavailable` のblocked diagnosticsへ `nativeRenderFailureReason` / `nativeRenderFailureDetail` を残す。
+Pixi passthroughへ戻れない検証で、Rust/native render upload失敗の根本原因を失わない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
