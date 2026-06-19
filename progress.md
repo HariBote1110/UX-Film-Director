@@ -6604,6 +6604,27 @@
 - Electron windowでGoPro動画previewを再確認し、表示されたshared renderer診断を元にRust video upload / native render uploadの実不具合を直接修正する。
 - Export失敗時はモーダルの `Rust export: ...` 工程名とalertの詳細を元に、Rust backend encoderまたはshared-frame handoff側を直す。
 
+## 2026-06-20 — Rust inline動画preview経路を追加
+
+### 実施内容
+- 方針を「動画編集の基本機能を触れる状態」へ寄せ、native copy bridge未接続でも動画previewへ進めるMVP経路を追加した。
+- Red: shared memory native copyが `Shared video frame native bridge is unavailable.` で失敗した場合、Rust inline decoded RGBAをWebGPU uploadへ使う契約を追加した。
+- Green: `decode.requestFrameInline` をRust backendへ追加し、通常の `decode.requestFrame` はpixel payloadなしのまま、inline専用RPCだけbase64 RGBAを返すようにした。
+- Electron main/preloadから `rust-backend-decode-request-frame-inline` / `requestVideoDecodeFrameInline` を公開した。
+- Renderer側はnative copy bridge失敗時のみinline RPCへ進み、取得したRGBAを既存のshared renderer WebGPU upload/drawへ渡すようにした。
+- PixiJS動画描画へ戻さず、Rust decode -> WebGPU previewのMVP救済経路として実装した。
+- 版を `0.1.1-Beta-219a` に更新した。
+
+### 検証
+- `npm test -- sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload sharedVideoFrameUploadBridge`
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane -- --nocapture`
+- 対象ファイルで絞った `tsc` 出力は空。
+
+### 残課題・次のステップ
+- Electron windowでGoPro動画をTLへ置き、previewに動画フレームが表示されるか確認する。
+- 表示される場合は再生時のフレーム更新とexport側の同経路接続へ進む。
+- inline経路はMVP救済なので、native bridgeが安定したら重いIPC payloadを消して共有メモリ経路を正本へ戻す。
+
 ## 2026-06-19 — shared frame copy checksum検証を追加
 
 ### 実施内容

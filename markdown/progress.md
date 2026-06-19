@@ -1047,3 +1047,13 @@
 - shared-frame取得が長時間返らない場合、15秒で工程名付きエラーへ変換し、意味のない無限プログレスを避けるようにした。
 - 検証: `npm test -- exportProgress ExportProgressModal viewportRustVideoOnlyBoundary useProjectExportBoundary` は73件成功。`npx tsc --noEmit --pretty false` は既存のThree/mp4box/古いテスト型エラーで失敗。今回触ったファイルで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-218d`。
+
+## 2026-06-20
+- 方針を「動画編集の基本機能を触れる状態」へ寄せ、native copy bridge未接続でも動画previewへ進めるMVP経路を追加した。
+- Red: shared memory native copyが `Shared video frame native bridge is unavailable.` で失敗した場合、Rust inline decoded RGBAをWebGPU uploadへ使う契約を追加した。
+- Green: `decode.requestFrameInline` をRust backendへ追加し、通常の `decode.requestFrame` はpixel payloadなしのまま、inline専用RPCだけbase64 RGBAを返すようにした。
+- Electron main/preloadから `rust-backend-decode-request-frame-inline` / `requestVideoDecodeFrameInline` を公開した。
+- Renderer側はnative copy bridge失敗時のみinline RPCへ進み、取得したRGBAを既存のshared renderer WebGPU upload/drawへ渡すようにした。
+- PixiJS動画描画へ戻さず、Rust decode -> WebGPU previewのMVP救済経路として実装した。
+- 検証: `npm test -- sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload sharedVideoFrameUploadBridge` は30件成功。`cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane -- --nocapture` は30件成功。対象ファイルで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-219a`。
