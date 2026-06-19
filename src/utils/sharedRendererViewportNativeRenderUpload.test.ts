@@ -1039,4 +1039,89 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
       ['releaseAfterNativeRenderAbort', 'video-2'],
     ]);
   });
+
+  it('returns native render failed when the preview native render bridge throws', async () => {
+    const calls: unknown[] = [];
+    const videoOnlySession = buildVideoWithRemotePsdSession();
+    if (!videoOnlySession.surfaceGate.ok) {
+      throw new Error('videoOnlySession fixture must be renderable');
+    }
+    const session: SharedRendererPreviewSession = {
+      ...videoOnlySession,
+      plan: {
+        mode: 'parallelCompare',
+        primary: 'pixi',
+        candidate: 'sharedRenderer',
+        snapshot: {
+          ...videoOnlySession.surfaceGate.snapshot,
+          clips: [videoOnlySession.surfaceGate.snapshot.clips[0]],
+        },
+        media: [videoOnlySession.surfaceGate.media[0]],
+      },
+      surfaceGate: {
+        ...videoOnlySession.surfaceGate,
+        snapshot: {
+          ...videoOnlySession.surfaceGate.snapshot,
+          clips: [videoOnlySession.surfaceGate.snapshot.clips[0]],
+        },
+        media: [videoOnlySession.surfaceGate.media[0]],
+      },
+    };
+
+    const result = await prepareSharedRendererViewportNativeRenderUpload({
+      session,
+      requestId: 32,
+      activeJobs: [],
+      prepareNativeRenderSources: async () => ({
+        ok: true,
+        activeJobs: [],
+        sources: [{
+          mediaId: 'video-1',
+          slotCount: 2,
+          frame: {
+            descriptor,
+            ptsFrame: 32,
+          },
+          releaseAfterNativeRenderComplete: async () => {
+            calls.push(['releaseAfterNativeRenderComplete']);
+          },
+          releaseAfterNativeRenderAbort: async () => {
+            calls.push(['releaseAfterNativeRenderAbort']);
+          },
+        }],
+      }),
+      renderNativeSharedFrame: async () => {
+        calls.push(['renderNativeSharedFrame']);
+        throw new Error('preview native render bridge crashed');
+      },
+      releaseNativeSharedFrame: async () => ({ success: true }),
+      copyBridge: {
+        copyIntoUploadBuffer: async () => {
+          calls.push(['copyIntoUploadBuffer']);
+          return {
+            success: true,
+            result: {
+              sequence: 32,
+              slotIndex: descriptor.slotIndex,
+              generation: descriptor.generation,
+              byteLen: descriptor.byteLen,
+              expectedChecksum: 0x1234,
+              actualChecksum: 0x1234,
+            },
+          };
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'nativeRenderFailed',
+      detail: 'preview native render bridge crashed',
+      activeJobs: [],
+    });
+    expect(calls).toEqual([
+      ['renderNativeSharedFrame'],
+      ['releaseAfterNativeRenderAbort'],
+    ]);
+  });
 });
