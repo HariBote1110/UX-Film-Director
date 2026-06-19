@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 const projectRoot = new URL('../..', import.meta.url).pathname;
 const srcRoot = join(projectRoot, 'src');
+const electronMainPath = join(projectRoot, 'electron/main.ts');
 
 const forbiddenTokens = [
   "document.createElement('video')",
@@ -61,5 +62,13 @@ describe('production video dependency boundary', () => {
     });
 
     expect(offenders).toEqual([]);
+  });
+
+  it('keeps VideoDecoder proxy fixture IPC out of production Electron main', () => {
+    const code = readFileSync(electronMainPath, 'utf8');
+
+    expect(code).not.toContain('resolve-4k-proxy-video');
+    expect(code).not.toContain('VideoDecoder テスト用');
+    expect(code).not.toContain('GX010052.proxy.mp4');
   });
 });
