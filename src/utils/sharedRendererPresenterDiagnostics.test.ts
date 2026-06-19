@@ -54,7 +54,27 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
       uxfdSharedRendererPresenterFormat: 'bgra8unorm',
       uxfdSharedRendererPresenterSwatch: 'pixi-passthrough',
       uxfdSharedRendererPresenterNativeRenderFailureReason: 'nativeRenderFailed',
+      uxfdSharedRendererPresenterNativeRenderFailureLabel: 'native render failed',
       uxfdSharedRendererPresenterNativeRenderFailureDetail: 'Rust backend rejected unsupported PSD media',
+    });
+  });
+
+  it('publishes a readable native render output release failure label', () => {
+    const dataset: Record<string, string | undefined> = {};
+
+    writeSharedRendererPresenterDiagnostics(dataset, {
+      status: 'fallback',
+      reason: 'requiredVideoOwnershipUnavailable',
+      nativeRenderFailureReason: 'nativeRenderOutputReleaseFailed',
+      nativeRenderFailureDetail: 'preview native output release failed',
+    });
+
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterStatus: 'fallback',
+      uxfdSharedRendererPresenterFailureReason: 'requiredVideoOwnershipUnavailable',
+      uxfdSharedRendererPresenterNativeRenderFailureReason: 'nativeRenderOutputReleaseFailed',
+      uxfdSharedRendererPresenterNativeRenderFailureLabel: 'native render output release failed',
+      uxfdSharedRendererPresenterNativeRenderFailureDetail: 'preview native output release failed',
     });
   });
 
@@ -83,6 +103,7 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoCutoverReason');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterSharedVideoObjectCount');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterStaleSharedFrameAllowed');
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterNativeRenderFailureLabel');
   });
 
   it('keeps native render failure details when publishing a fail-loud fallback', () => {
