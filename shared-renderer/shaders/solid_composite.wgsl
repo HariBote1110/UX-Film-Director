@@ -8,9 +8,9 @@ struct RenderParams {
     scale_x: f32,
     scale_y: f32,
     sampling_mode: f32,
+    rotation_cos: f32,
+    rotation_sin: f32,
     _padding0: f32,
-    _padding1: f32,
-    _padding2: f32,
 }
 
 @group(0) @binding(0)
@@ -33,9 +33,11 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> @builtin(position) vec4<
 @fragment
 fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     let output_pixel = vec2<f32>(vec2<i32>(position.xy));
-    let source_position =
-        (output_pixel - vec2<f32>(params.translation_x, params.translation_y))
-            / vec2<f32>(params.scale_x, params.scale_y);
+    let translated = output_pixel - vec2<f32>(params.translation_x, params.translation_y);
+    let source_position = vec2<f32>(
+        translated.x * params.rotation_cos + translated.y * params.rotation_sin,
+        -translated.x * params.rotation_sin + translated.y * params.rotation_cos,
+    ) / vec2<f32>(params.scale_x, params.scale_y);
 
     if (
         source_position.x < 0.0

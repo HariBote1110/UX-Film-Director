@@ -164,7 +164,7 @@ pub async fn measure_native_wgpu_frame_stages(
     let mut prepared_clips = Vec::with_capacity(clips.len());
     let upload_start = Instant::now();
     for clip in &clips {
-        if clip.transform.rotation_degrees != 0.0
+        if !clip.transform.rotation_degrees.is_finite()
             || clip.transform.scale_x <= 0.0
             || clip.transform.scale_y <= 0.0
         {
@@ -172,6 +172,7 @@ pub async fn measure_native_wgpu_frame_stages(
                 clip_id: clip.clip_id.clone(),
             });
         }
+        let rotation_radians = clip.transform.rotation_degrees.to_radians();
 
         let source =
             sources
@@ -197,7 +198,9 @@ pub async fn measure_native_wgpu_frame_stages(
                 scale_x: clip.transform.scale_x,
                 scale_y: clip.transform.scale_y,
                 sampling_mode: sampling_mode_value(clip.transform.sampling),
-                _padding: [0.0; 3],
+                rotation_cos: rotation_radians.cos(),
+                rotation_sin: rotation_radians.sin(),
+                _padding: 0.0,
             },
         ));
     }
@@ -339,7 +342,9 @@ struct RenderParams {
     scale_x: f32,
     scale_y: f32,
     sampling_mode: f32,
-    _padding: [f32; 3],
+    rotation_cos: f32,
+    rotation_sin: f32,
+    _padding: f32,
 }
 
 fn sampling_mode_value(sampling: SamplingMode) -> f32 {
