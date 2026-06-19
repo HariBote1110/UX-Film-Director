@@ -610,3 +610,19 @@
 ## 確認
 - `npm test -- productionVideoDependencyBoundary legacyBase64ExportBoundary` を実行し、4件成功を確認。
 - `npx tsc --noEmit 2>&1 | rg "electron/main|productionVideoDependencyBoundary|legacyBase64ExportBoundary"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 55. Phase5: Rust export frame source close単回化
+- `src/utils/projectExportFrameCanvas.ts`
+- `createSingleUseProjectExportFrameSourceCloser` を追加し、Rust/shared renderer frame sourceの `close` をPromise共有で一度だけ実行するようにした。
+- `src/hooks/useProjectExport.ts`
+- Rust frame sourceがblockedした時のcloseと、export終了時のfinally closeを同じsingle-use closer経由にした。
+- `src/utils/projectExportFrameCanvas.test.ts`
+- blocked cleanupとfinal cleanupが連続してもframe source closeが1回だけになる契約を追加した。
+- `src/utils/useProjectExportBoundary.test.ts`
+- hookが `exportFrameSourcePlan.frameSource.close?.()` を直接呼ばずsingle-use closerを使う契約を追加した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-199b` に更新した。
+
+## 確認
+- `npm test -- projectExportFrameCanvas useProjectExportBoundary` を実行し、39件成功を確認。
+- `npx tsc --noEmit 2>&1 | rg "projectExportFrameCanvas|useProjectExport"` を実行し、対象ファイルに型エラーが出ないことを確認。

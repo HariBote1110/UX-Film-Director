@@ -621,3 +621,10 @@
 - Green: Electron起動flagをWebGPU / GPU raster用途に整理し、browser動画decode/encode featureの強制有効化を外した。
 - 検証: `npm test -- productionVideoDependencyBoundary legacyBase64ExportBoundary` は4件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-199a`。
+
+## 2026-06-19
+- Phase5のRust export frame source ownershipとして、blocked時とfinally時の二重closeを防いだ。
+- Red: `projectExportFrameCanvas` にsingle-use closer契約を追加し、`useProjectExportBoundary` にhookが `frameSource.close?.()` を直接呼ばない契約を追加した。
+- Green: `createSingleUseProjectExportFrameSourceCloser` を追加し、`useProjectExport` のblocked cleanup / final cleanupを同じcloser経由にした。
+- 検証: `npm test -- projectExportFrameCanvas useProjectExportBoundary` は39件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-199b`。

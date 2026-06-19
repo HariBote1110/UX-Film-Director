@@ -775,6 +775,7 @@ source準備より前に評価する。
 shared renderer Rust frame sourceがframe途中でblockedになり、legacy canvas fallbackを許可する場合、
 同じframe内の `requiresHtmlVideoElementSeekFallback` / `requiresRenderScene` 判定へblocked後のruntime planを使う。
 これによりblocked発生frameだけ古いcanvasや未seek動画をcaptureする事故を防ぐ。
+blocked時の明示closeとexport終了時のcleanup closeは単回化し、同じRust/shared renderer frame sourceを二重closeしない。
 
 143. Phase5: native render output shared frameのrelease所有権を明示する
 Rust native render直通で生成したshared frameだけに `releaseAfterEncodeFailure` metadataを付与し、
