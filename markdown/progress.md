@@ -530,3 +530,10 @@
 - Green: `useAppLogic` から `useMediaOptimization` のimport/callを削除し、未参照になった `src/hooks/useMediaOptimization.ts` を削除した。
 - 検証: `npm test -- productionVideoDependencyBoundary viewportRustVideoOnlyBoundary pixiVideoCutover useProjectExportBoundary projectExportCompatibilityEncoder projectExportEncodePlan projectExportFrameCanvas` は68件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-189a`。
+
+## 2026-06-19
+- Phase5のElectron boundaryとして、旧WebCodecs intermediate IPCを削除した。
+- Red: `legacyBase64ExportBoundary` に `check-intermediate` / `generate-intermediate` / `cancel-intermediate` / `intermediate-progress` / `intermediateCachePath` がElectron/Rust production境界へ残らない契約を追加した。
+- Green: `electron/main.ts` から旧intermediate cache path、生成中process state、`check-intermediate` / `generate-intermediate` / `cancel-intermediate` handlerを削除した。
+- 検証: `npm test -- legacyBase64ExportBoundary productionVideoDependencyBoundary` は2件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-190a`。

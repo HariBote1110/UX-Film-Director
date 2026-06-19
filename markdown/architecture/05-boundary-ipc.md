@@ -145,6 +145,8 @@ Rust backend integration gate:
   loadする前に拒否する。adapter入力の `hasVideoObjects` は必須booleanで、呼び出し側のsentinel渡し忘れを型で止める。
 - production app logicはWebCodecs向けH.264中間ファイル自動生成hookを起動しない。`videoDecodeStream` は
   export test harnessの比較・診断用途に限定する。
+- Electron mainは旧WebCodecs intermediate用の `check-intermediate` / `generate-intermediate` /
+  `cancel-intermediate` IPCを公開しない。
 - Rust backend は unix 環境で attach 可能な POSIX shared memory name を `memoryId` として返し、
   decoded RGBA を shared memory ring へ書く。
 - `decode.releaseFrame` は WebGPU upload fence 完了後の `copyOutState=gpuUploadFenceSignalled` でのみ slot を解放する。
