@@ -1,3 +1,20 @@
+## 2026-06-19 — 実出力不可時のbitmap legacy captureを禁止
+
+### 実施内容
+- Red: bitmap export pathでpresenterが `sharedRendererOutputUnavailable` を返した場合、`createFrameBitmap` に進まずblocked errorになる契約を追加した。
+- Green: `sharedRendererOutputUnavailable` のblocked化を `presentFrame` 共通経路へ移し、direct encodeとbitmap exportの両方で同じfail-loud境界を通すようにした。
+- 実shared renderer出力がない状態を、legacy bitmap canvas captureで成功扱いにする抜け道を塞いだ。
+- 版を `0.1.1-Beta-216h` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSource`
+- `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/projectExportFrameRenderer\\.test\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/store/useStore\\.ts)"`
+
+### 残課題・次のステップ
+- `sharedRendererOutputUnavailable` をexport progress/modal/logでより明示的な文言にする必要があるか、実機diagnosticsで確認する。
+- Viewport本体のPixi依存撤去へ向けて、image/PSD/SolidColourのnative render coverageをさらに診断へ接続する。
+
 ## 2026-06-19 — export実出力blocked詳細を保持
 
 ### 実施内容

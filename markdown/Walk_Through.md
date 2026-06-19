@@ -1680,6 +1680,21 @@
 - `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress` を実行し、76件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/projectExportFrameRenderer\\.test\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/store/useStore\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 130. Phase5: 実出力不可時のbitmap legacy captureを禁止
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- bitmap export pathでpresenterが `sharedRendererOutputUnavailable` を返した場合、`createFrameBitmap` に進まずblocked errorになる契約を追加した。
+- `src/utils/sharedRendererExportFrameSource.ts`
+- `sharedRendererOutputUnavailable` のblocked化を `presentFrame` 共通経路へ移した。
+- direct encodeとbitmap exportの両方で、実shared renderer出力がない状態をlegacy bitmap captureで成功扱いにしないようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216h` に更新した。
+
+## 確認
+- `npm test -- sharedRendererExportFrameSource` を実行し、Redでblocked errorにならずbitmap pathへ進む失敗を確認した。
+- `npm test -- sharedRendererExportFrameSource` を再実行し、45件成功を確認した。
+- `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress` を実行し、77件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/projectExportFrameRenderer\\.test\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/store/useStore\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。

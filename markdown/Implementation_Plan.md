@@ -1340,6 +1340,11 @@ export direct encodeでpresenterが `sharedRendererOutputUnavailable` を返し�
 `presentedSharedFrameHandoffUnavailable` に丸めず、同じreasonでexport blocked errorへ伝搬する。
 `nativeRenderUploadResult` が失敗している場合は、その理由と詳細をblocked error messageへ含める。
 
+245. Phase5: 実出力不可時のbitmap legacy captureを禁止する
+bitmap export pathでpresenterが `sharedRendererOutputUnavailable` を返した場合、
+`createFrameBitmap` / legacy bitmap canvas captureへ進まず、同じblocked errorとして停止する。
+direct encodeとbitmap exportの両方で、実shared renderer出力がない状態を成功扱いにしない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

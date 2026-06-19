@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のexport fallback境界として、`sharedRendererOutputUnavailable` 時にbitmap export pathがlegacy bitmap captureへ進まないようにした。
+- Red: `sharedRendererExportFrameSource` のテストへ、実出力不可時に `createFrameBitmap` が呼ばれずblocked errorになる契約を追加した。
+- Green: `sharedRendererOutputUnavailable` のblocked化を `presentFrame` 共通経路へ移し、direct encodeとbitmap exportの両方で同じfail-loud境界を使うようにした。
+- 検証: `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress` は77件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216h`。
+
+## 2026-06-19
 - Phase5のexport診断として、presenterの `sharedRendererOutputUnavailable` を `presentedSharedFrameHandoffUnavailable` に丸めず、native render upload失敗詳細を保持するようにした。
 - Red: `sharedRendererExportFrameSource` のテストへ、direct encode exportで `webGpuUploadUnavailable` 詳細がblocked error messageに残る契約を追加した。
 - Green: export frame sourceのblocked reasonへ `sharedRendererOutputUnavailable` を追加し、presenter control失敗をそのまま伝搬した。
