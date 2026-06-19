@@ -97,6 +97,62 @@ const solidShapeSession: SharedRendererPreviewSession = {
   presentationContract: buildSharedRendererPresentationContract(),
 };
 
+const generatedGradientSnapshot: RustSceneSnapshot = {
+  ...snapshot,
+  clips: [
+    {
+      clip_id: 'gradient-1',
+      track_id: 'layer-0',
+      media_id: 'gradient-1',
+      source_frame: 0,
+      z_index: 0,
+      transform: {
+        translation_x: 300,
+        translation_y: 120,
+        scale_x: 1,
+        scale_y: 1,
+        rotation_degrees: 0,
+        sampling: 'bilinear',
+      },
+      opacity: 1,
+      effects: [],
+    },
+  ],
+};
+
+const generatedGradientSession: SharedRendererPreviewSession = {
+  plan: {
+    mode: 'parallelCompare',
+    primary: 'pixi',
+    candidate: 'sharedRenderer',
+    snapshot: generatedGradientSnapshot,
+    media: [
+      {
+        id: 'gradient-1',
+        kind: 'GeneratedGradient',
+        source: '{"type":"linear","colours":["#ff0000","#0000ff"],"stops":[0,1],"direction":90}',
+        width: 200,
+        height: 100,
+      },
+    ],
+  },
+  surfaceGate: {
+    ok: true,
+    canvas: { width: 1920, height: 1080 },
+    snapshot: generatedGradientSnapshot,
+    media: [
+      {
+        id: 'gradient-1',
+        kind: 'GeneratedGradient',
+        source: '{"type":"linear","colours":["#ff0000","#0000ff"],"stops":[0,1],"direction":90}',
+        width: 200,
+        height: 100,
+      },
+    ],
+  },
+  presentationContract: buildSharedRendererPresentationContract(),
+};
+
 const videoSnapshot: RustSceneSnapshot = {
   ...snapshot,
   clips: [
@@ -1662,6 +1718,45 @@ describe('startSharedRendererPreviewPresenter', () => {
         owner: 'sharedRenderer',
         reason: 'nativeRenderFrameReady',
         solidColourObjectIds: ['shape-1'],
+      },
+    });
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterNativeRenderFrameReady: 'true',
+      uxfdSharedRendererPresenterSolidColourOwner: 'sharedRenderer',
+      uxfdSharedRendererPresenterSolidColourCutoverReason: 'nativeRenderFrameReady',
+      uxfdSharedRendererPresenterSharedSolidColourObjectCount: '1',
+    });
+  });
+
+  it('publishes generated gradient shape ownership when a native rendered preview frame already contains it', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const rgbaBytes = new Uint8Array(nativeRenderDescriptor.byteLen);
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: generatedGradientSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustSolidColourWasmEnabled: false,
+      sharedRendererSolidColourCutoverEnabled: true,
+      sharedRendererNativeRenderFrameUpload: {
+        descriptor: nativeRenderDescriptor,
+        ptsFrame: 12,
+        rgbaBytes,
+      },
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter(),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({
+      ok: true,
+      solidColourOwnership: {
+        owner: 'sharedRenderer',
+        reason: 'nativeRenderFrameReady',
+        solidColourObjectIds: ['gradient-1'],
       },
     });
     expect(dataset).toMatchObject({
