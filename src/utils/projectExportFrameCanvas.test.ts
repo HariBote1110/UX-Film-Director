@@ -289,6 +289,7 @@ describe('resolveProjectExportRustFrameSourceContext', () => {
       presentedFrameSharedFrameTaker,
     })).toEqual({
       objects,
+      hasVideoObjects: true,
       time: 0,
       preferEncodeOnly: true,
       presentedFrameSharedFrameTaker,
@@ -303,6 +304,7 @@ describe('resolveProjectExportRustFrameSourceContext', () => {
       presentedFrameSharedFrameTaker: undefined,
     })).toEqual({
       objects: [],
+      hasVideoObjects: false,
       time: 0,
       preferEncodeOnly: false,
       presentedFrameSharedFrameTaker: undefined,

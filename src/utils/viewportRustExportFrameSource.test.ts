@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import type { ProjectSettings, ShapeObject, TimelineObject } from '../types';
 import { createDefaultLayers } from './sceneState';
 import type {
@@ -23,6 +24,9 @@ const settings: ProjectSettings = {
 const frameSource: ProjectExportRustFrameSource = {
   renderFrame: async () => ({ close: () => undefined }) as ImageBitmap,
 };
+
+const sourceCode = () =>
+  readFileSync(new URL('./viewportRustExportFrameSource.ts', import.meta.url), 'utf8');
 
 const exportObjects: TimelineObject[] = [];
 
@@ -73,6 +77,14 @@ const exportSessionWithSurfaceGate = (
 });
 
 describe('buildViewportRustExportFrameSource', () => {
+  it('uses an explicit video-object sentinel instead of inferring from optional objects', () => {
+    const code = sourceCode();
+
+    expect(code).toContain('hasVideoObjects: boolean');
+    expect(code).not.toContain('hasVideoObjects(objects)');
+    expect(code).not.toContain('objects?.some');
+  });
+
   it('creates a shared renderer export frame source only when the experimental Rust export gate is fully open', () => {
     const canvas = {
       width: 1920,
