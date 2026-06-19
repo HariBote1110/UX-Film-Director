@@ -1,3 +1,20 @@
+## 2026-06-19 — upload buffer checksumをcopy reportと照合
+
+### 実施内容
+- Red: `copyIntoUploadBuffer` のcopy reportが成功を返しても、renderer-owned upload bufferのCRC32がreportと異なる場合はupload不可にする契約を追加した。
+- Green: `prepareSharedRendererDecodedVideoFrameUpload` が `checksumAlgorithm: 'crc32'` のreportを受けた場合、copy後の `Uint8Array` からCRC32を再計算し、`copyReportTargetChecksumMismatch` でfail-loudにするようにした。
+- native bridgeのreportだけでなく、実際にWebGPU uploadへ渡すbuffer内容もdata-plane検証対象にした。
+- 版を `0.1.1-Beta-215f` に更新した。
+
+### 検証
+- `npm test -- sharedVideoFrameUploadBridge`
+- `npm test -- sharedVideoFrameUploadBridge sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload sharedRendererViewportPresenterOrchestration sharedRendererPresenterDiagnostics sharedRendererExportFrameSource`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedVideoFrameUploadBridge\\.ts|src/utils/sharedVideoFrameUploadBridge\\.test\\.ts|src/utils/sharedRendererRustVideoUploadPipeline\\.ts|src/utils/sharedRendererViewportVideoUpload\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererExportFrameSource\\.ts)"`
+
+### 残課題・次のステップ
+- `copyReportTargetChecksumMismatch` をViewport/Export診断のclip/media id付き表示へ伝播する。
+- multi-video stale job idの専用境界テストを追加し、先行成功slotのabort releaseと同時に検証する。
+
 ## 2026-06-19 — Rust decode応答job idの鮮度を確認
 
 ### 実施内容

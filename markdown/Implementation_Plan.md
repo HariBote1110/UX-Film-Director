@@ -1200,6 +1200,11 @@ shared memory copy bridgeへ進まず `staleDecodeResponse` として扱う。
 返却されたframeのslotは返却 `jobId` / `slotIndex` / `generation` で `rendererUploadAborted` releaseし、
 source切替や複数動画中に別jobのshared-memory slotを現在clipとしてWebGPU uploadしない。
 
+217. Phase5: upload buffer checksumをcopy reportと照合する
+`copyIntoUploadBuffer` のcopy reportが `checksumAlgorithm: 'crc32'` を返す場合、
+renderer-owned upload bufferのCRC32をTypeScript境界でも再計算し、reportの `actualChecksum` と一致しない場合はupload不可にする。
+native bridgeのreportだけを信じず、実際にWebGPUへ渡す `Uint8Array` がshared memory copy結果と一致していることを確認する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

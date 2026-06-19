@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のshared memory copy data-plane検証として、`checksumAlgorithm: 'crc32'` のcopy reportを受けた場合にrenderer-owned upload bufferのCRC32も再計算するようにした。
+- Red: `sharedVideoFrameUploadBridge` のテストへ、bridge reportは成功でもtarget buffer内容が一致しない場合にupload不可とする契約を追加した。
+- Green: `prepareSharedRendererDecodedVideoFrameUpload` で `copyReportTargetChecksumMismatch` を返し、WebGPUへ渡す `Uint8Array` 自体を検証対象にした。
+- 検証: `npm test -- sharedVideoFrameUploadBridge sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload sharedRendererViewportPresenterOrchestration sharedRendererPresenterDiagnostics sharedRendererExportFrameSource` は87件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-215f`。
+
+## 2026-06-19
 - Phase5のViewport Rust decode orchestrationとして、decoded frame responseの `jobId` が要求jobと異なる場合はcopyへ進まないようにした。
 - Red: `sharedRendererViewportVideoUpload` のテストへ、別jobのverified frameをstale扱いにして返却slotをabort releaseする契約を追加した。
 - Green: stale decoded frame判定を `requestId` と `jobId` の両方へ広げ、返却response側のslot leaseでreleaseするようにした。

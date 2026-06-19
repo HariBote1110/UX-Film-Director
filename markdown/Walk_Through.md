@@ -1291,3 +1291,18 @@
 - `npm test -- sharedRendererViewportVideoUpload` を再実行し、12件成功を確認した。
 - `npm test -- sharedRendererViewportVideoUpload sharedRendererRustVideoUploadPipeline rustBackendVideoDecodeControl` を実行し、26件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportVideoUpload\\.ts|src/utils/sharedRendererViewportVideoUpload\\.test\\.ts|src/utils/sharedRendererRustVideoUploadPipeline\\.ts|src/utils/rustBackendVideoDecodeControl\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 102. Phase5: upload buffer checksumをcopy reportと照合
+- `src/utils/sharedVideoFrameUploadBridge.test.ts`
+- `checksumAlgorithm: 'crc32'` のcopy reportが成功を返しても、renderer-owned upload bufferのCRC32がreportと異なる場合は拒否する契約を追加した。
+- `src/utils/sharedVideoFrameUploadBridge.ts`
+- `prepareSharedRendererDecodedVideoFrameUpload` がcopy後の `Uint8Array` からCRC32を再計算し、`copyReportTargetChecksumMismatch` でfail-loudにするようにした。
+- native bridgeのreportだけでなく、実際にWebGPU uploadへ渡すbuffer内容もdata-plane検証対象にした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-215f` に更新した。
+
+## 確認
+- `npm test -- sharedVideoFrameUploadBridge` を実行し、Redでtarget未検証のままupload成功扱いになる失敗を確認した。
+- `npm test -- sharedVideoFrameUploadBridge` を再実行し、11件成功を確認した。
+- `npm test -- sharedVideoFrameUploadBridge sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload sharedRendererViewportPresenterOrchestration sharedRendererPresenterDiagnostics sharedRendererExportFrameSource` を実行し、87件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedVideoFrameUploadBridge\\.ts|src/utils/sharedVideoFrameUploadBridge\\.test\\.ts|src/utils/sharedRendererRustVideoUploadPipeline\\.ts|src/utils/sharedRendererViewportVideoUpload\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererExportFrameSource\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
