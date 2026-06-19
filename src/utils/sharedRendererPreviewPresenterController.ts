@@ -362,7 +362,25 @@ export const startSharedRendererPreviewPresenter = async ({
   let uploadedVideoFrameTexture: unknown | null = null;
   const uploadedVideoFrameTexturesByClipId = new Map<string, unknown>();
   const singleVideoUploadScope = resolveSingleVideoUploadScope(session);
-  const uploadedVideoObjectIds = sharedRendererDecodedVideoFrameUploads
+  const scopedSingleVideoFrameUpload = sharedRendererDecodedVideoFrameUpload && singleVideoUploadScope
+    ? {
+      clipId: singleVideoUploadScope.clipId,
+      mediaId: singleVideoUploadScope.mediaId,
+      upload: sharedRendererDecodedVideoFrameUpload,
+    }
+    : null;
+  if (hasVideoScene && sharedRendererDecodedVideoFrameUpload && !scopedSingleVideoFrameUpload && !sharedRendererDecodedVideoFrameUploads) {
+    const releaseFailureDetail = await releaseDecodedVideoUploadAfterAbort(
+      sharedRendererDecodedVideoFrameUpload.releaseAfterUploadAbort
+    );
+    if (releaseFailureDetail) {
+      resolvedVideoUploadFailure ??= {
+        reason: 'videoUploadAbortReleaseFailed',
+        detail: releaseFailureDetail,
+      };
+    }
+  }
+  const uploadedVideoObjectIds = sharedRendererDecodedVideoFrameUploads || scopedSingleVideoFrameUpload
     ? new Set<string>()
     : undefined;
   const decodedVideoFrameUploads = sharedRendererDecodedVideoFrameUploads
@@ -371,12 +389,8 @@ export const startSharedRendererPreviewPresenter = async ({
       mediaId: upload.mediaId,
       upload,
     }))
-    : sharedRendererDecodedVideoFrameUpload
-      ? [{
-        clipId: singleVideoUploadScope?.clipId,
-        mediaId: singleVideoUploadScope?.mediaId,
-        upload: sharedRendererDecodedVideoFrameUpload,
-      }]
+    : scopedSingleVideoFrameUpload
+      ? [scopedSingleVideoFrameUpload]
       : [];
   for (const decodedVideoFrameUpload of hasVideoScene ? decodedVideoFrameUploads : []) {
     const uploadResult = presenter.uploadVideoFrameTexture(decodedVideoFrameUpload.upload);
