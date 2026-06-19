@@ -71,6 +71,24 @@ describe('formatRustFrameSourceBlockedDiagnostic', () => {
     }, 'en')).toBe('Rust frame source: blocked native render output release failed frame=12 legacy fallback disabled');
   });
 
+  it('formats native render source release failure diagnostics with a readable Japanese label', () => {
+    expect(formatRustFrameSourceBlockedDiagnostic({
+      reason: 'nativeRenderSourceReleaseFailed',
+      frameIndex: 14,
+      legacyCanvasFallbackAllowed: false,
+      detail: 'Rust native render source release rejected.',
+    }, 'ja')).toBe('Rust frame source: 停止 native render source解放失敗 frame=14 legacy fallback不可: Rust native render source release rejected.');
+  });
+
+  it('formats presented shared-frame handoff failure diagnostics with a readable English label', () => {
+    expect(formatRustFrameSourceBlockedDiagnostic({
+      reason: 'presentedSharedFrameHandoffFailed',
+      frameIndex: 21,
+      legacyCanvasFallbackAllowed: false,
+      detail: 'presented shared frame taker rejected the frame',
+    }, 'en')).toBe('Rust frame source: blocked presented shared-frame handoff failed frame=21 legacy fallback disabled: presented shared frame taker rejected the frame');
+  });
+
   it('formats video ownership blocked diagnostics with the Rust detail', () => {
     expect(formatRustFrameSourceBlockedDiagnostic({
       reason: 'videoOwnershipUnavailable',
