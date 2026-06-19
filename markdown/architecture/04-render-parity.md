@@ -57,7 +57,9 @@ MVP reference scene:
 スケーリング、回転、任意 transform、texture filtering は後続の別 gate で検証する。最初の parity gate では colour / alpha / shader 翻訳差だけを主対象にする。
 後続 gate の第一段として、整数 translation と 2x nearest scale は CPU reference / native wgpu / WebGPU preview で
 検証済み。さらに linear-light bilinear midpoint は CPU reference / native wgpu / WebGPU preview で検証済み。
-rotation、bicubic filtering、任意 transform はまだ別 gate とする。
+top-left pivot の 90 度 rotation は CPU reference / native wgpu で検証済みで、TS scene snapshot も
+`rotation_degrees` を Rust 境界へ渡す。WebGPU preview vertex scene 側の rotation parity、
+bicubic filtering、任意 transform はまだ別 gate とする。
 
 ## MVP Parity Spike
 
@@ -137,12 +139,21 @@ Linear-light bilinear sampling gate:
 - sampling: 4 texel を `textureLoad` で読み、sRGB -> linear light decode 後に手動 bilinear 補間する。hardware sampler と `-srgb` texture view は使わない。
 - CPU reference と native wgpu の比較: `maxDelta=0`。
 - WebGPU preview harness: Chrome 149 / Apple Metal adapter で `linear-light bilinear midpoint` case が `maxDelta=0` / `meanAbsoluteError=0`。
-- rotation、bicubic filtering、任意 transform は引き続き別 gate とする。
+Top-left pivot rotation gate:
+
+- 対象: 2x1 source（red / blue）を `translation=(1,0)`、`scale=(1,1)`、`rotation=90deg`、
+  `sampling=nearest` で 2x2 canvas に描画する。
+- 期待値: top-left pivot の逆変換サンプリングにより、red が `(1,0)`、blue が `(0,1)` へ配置される。
+- CPU reference と native wgpu の比較: `maxDelta=0`。
+- TS scene snapshot は `object.rotation` を `rotation_degrees` としてRust境界へ渡す。
+- WebGPU preview vertex scene側のrotation parity、bicubic filtering、任意 transform は引き続き別 gate とする。
 
 Claude review 後の判定:
 
 - Phase 3b は `3b verified GO` とする。
-- この判定は per-pixel 合成、整数 nearest transform、linear-light bilinear midpoint に限る。blur / rotate / bicubic など sampling を伴う効果は別 gate で扱う。
+- この判定は per-pixel 合成、整数 nearest transform、linear-light bilinear midpoint に限る。top-left pivot rotation は
+  CPU reference / native wgpu では検証済みだが、WebGPU preview parity は別 gate とする。blur / bicubic など
+  sampling を伴う効果も別 gate で扱う。
 - `?perturb=red-plus` による RED と `isFallbackAdapter=false` の Metal adapter 確認により、「CPU 期待値だけを見ている」「fallback adapter で偶然通っている」という偽陽性リスクは退けた。
 - 現時点で確認できた範囲では、WebGPU preview は Dawn / Tint over Metal、native export は wgpu-native / Naga over Metal で、共有 WGSL の per-pixel colour math が CPU reference と一致している。
 

@@ -990,3 +990,14 @@
 - 既存実装で契約を満たしていたため、挙動変更と版更新は行わず、実機確認時にRust側へ載っている範囲を追いやすくするテストとして固定した。
 - 検証: `npm test -- sharedRendererPreviewPresenterController -t "video and generated gradient"` は1件成功。
 - 版: `0.1.1-Beta-216z` 据え置き。
+
+## 2026-06-20
+- Phase5のPixi剥がし前進スライスとして、top-left pivotのrotation transformをCPU reference / native wgpu / TS scene snapshotへ接続した。
+- Red: `reference-renderer` に90度回転の逆変換サンプリング契約を追加した。
+- Green: `reference-renderer` が有限rotationを許可し、translation後に逆回転してsource座標をsampleするようにした。
+- Red: `native-wgpu-renderer` に同じ90度回転のCPU reference parity契約を追加した。
+- Green: native rendererのuniformへrotation cos/sinを渡し、共有WGSL `solid_composite.wgsl` で逆回転サンプリングするようにした。
+- Red: `rustSceneSnapshot` に、Timeline objectの `rotation` が `rotation_degrees` としてRust境界へ伝搬する契約を追加した。
+- Green: TS snapshot builderのrotation 0固定とunsupportedRotation gateを外し、未対応fixtureはscale変形へ差し替えた。
+- 検証: `cargo test` (`reference-renderer/`) は12件成功。`cargo test native_wgpu_matches_reference_for_top_left_pivot_rotation` (`native-wgpu-renderer/`) は1件成功。`npm test -- rustSceneSnapshot sharedRendererPreviewSurface sharedRendererExportSession` は22件成功。対象TSファイルで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-217a`。

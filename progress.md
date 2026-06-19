@@ -6486,6 +6486,27 @@
 ### 残課題・次のステップ
 - 次は実装が必要な前進スライスとして、Image/PSD/GeneratedGradientを含む混合mediaのRust native render uploadと実機表示確認を広げる。
 
+## 2026-06-20 — Rust native renderにrotation transformを接続
+
+### 実施内容
+- Red: `reference-renderer` に、2x1 sourceをtop-left pivotで90度回転する契約を追加した。
+- Green: CPU reference rendererがtranslation後に逆回転してsource座標をsampleするようにした。
+- Red: `native-wgpu-renderer` に、同じ90度回転がCPU referenceと一致するparity契約を追加した。
+- Green: native rendererのuniformへrotation cos/sinを渡し、共有WGSL `solid_composite.wgsl` で逆回転サンプリングするようにした。
+- Red: `rustSceneSnapshot` に、Timeline objectの `rotation` を `rotation_degrees` としてRust境界へ渡す契約を追加した。
+- Green: TS snapshot builderのrotation 0固定とunsupportedRotation gateを外した。既存のunsupported fixtureは、まだ未対応のscale変形へ差し替えた。
+- 版を `0.1.1-Beta-217a` に更新した。
+
+### 検証
+- `cargo test` (`reference-renderer/`)
+- `cargo test native_wgpu_matches_reference_for_top_left_pivot_rotation` (`native-wgpu-renderer/`)
+- `npm test -- rustSceneSnapshot sharedRendererPreviewSurface sharedRendererExportSession`
+- `npx tsc --noEmit --pretty false 2>&1 | rg "(src/utils/rustSceneSnapshot\\.ts|src/utils/rustSceneSnapshot\\.test\\.ts|src/utils/sharedRendererPreviewSurface\\.test\\.ts|src/utils/sharedRendererExportSession\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- WebGPU preview vertex scene側のrotation parityはまだ別gate。native render済みframeの経路を優先して実機確認する。
+- 次はscale変形か、Image/PSD/GeneratedGradient混合mediaの実機native render表示確認へ進む。
+
 ## 2026-06-19 — shared frame copy checksum検証を追加
 
 ### 実施内容
