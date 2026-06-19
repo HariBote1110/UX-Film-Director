@@ -10,7 +10,7 @@
  */
 
 import { encodeVideoToMp4, detectSupportedH264Codec, resetCodecCache } from '../utils/videoExportPipeline';
-import { decodeVideoStream } from '../utils/videoDecodeStream';
+import { decodeVideoStream } from './videoDecodeStream';
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
 import { createFile, DataStream, type ISOFile, type MP4BoxBuffer } from 'mp4box';
 import { PlaybackFrameProvider } from './playbackFrameProvider';

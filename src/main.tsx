@@ -16,24 +16,9 @@ if (
   }, 2000);
 }
 
-// ── Phase 0: WebCodecs / WebGPU 環境確認（起動時に一度だけ実行）──
+// ── Phase 0: WebGPU 環境確認（起動時に一度だけ実行）──
 ;(async () => {
   console.group('[Phase0] 環境確認')
-
-  // WebCodecs VideoDecoder
-  if (typeof VideoDecoder === 'undefined') {
-    console.error('[Phase0] VideoDecoder: NOT SUPPORTED')
-  } else {
-    try {
-      const r = await VideoDecoder.isConfigSupported({
-        codec: 'avc1.42E01E',
-        hardwareAcceleration: 'prefer-hardware',
-      })
-      console.log('[Phase0] VideoDecoder H.264 supported =', r.supported, r)
-    } catch (e) {
-      console.error('[Phase0] VideoDecoder.isConfigSupported error:', e)
-    }
-  }
 
   // WebGPU navigator.gpu
   if (!navigator.gpu) {
