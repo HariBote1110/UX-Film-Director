@@ -1378,6 +1378,59 @@ describe('startSharedRendererPreviewPresenter', () => {
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterNativeRenderFrameReady');
   });
 
+  it('keeps native render upload failure details when required shared renderer output is blocked', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const events: string[] = [];
+    const rgbaBytes = new Uint8Array(nativeRenderDescriptor.byteLen);
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: {
+        ...okSession,
+        surfaceGate: {
+          ...okSession.surfaceGate,
+          canvas: { width: 4, height: 4 },
+        },
+      },
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      requireSharedRendererOutput: true,
+      sharedRendererNativeRenderFrameUpload: {
+        descriptor: nativeRenderDescriptor,
+        ptsFrame: 12,
+        rgbaBytes,
+        releaseAfterGpuUpload: async () => {
+          events.push('release-after-upload');
+        },
+        releaseAfterUploadAbort: async () => {
+          events.push('release-abort');
+        },
+      },
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            exposeWriteTexture: false,
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    } as any);
+
+    expect(control).toMatchObject({
+      ok: false,
+      reason: 'sharedRendererOutputUnavailable',
+    });
+    expect(events).toEqual(['release-abort']);
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterStatus: 'blocked',
+      uxfdSharedRendererPresenterFailureReason: 'sharedRendererOutputUnavailable',
+      uxfdSharedRendererPresenterNativeRenderFailureReason: 'webGpuUploadUnavailable',
+      uxfdSharedRendererPresenterNativeRenderFailureDetail: 'WebGPU device does not expose the texture upload APIs needed for decoded video frames.',
+    });
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterNativeRenderFrameReady');
+  });
+
   it('publishes native render frame abort release failures instead of throwing out of the presenter', async () => {
     const dataset: Record<string, string | undefined> = {};
     const rgbaBytes = new Uint8Array(nativeRenderDescriptor.byteLen);
