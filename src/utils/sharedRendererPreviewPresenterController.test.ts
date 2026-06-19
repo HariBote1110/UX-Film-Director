@@ -1850,6 +1850,9 @@ describe('startSharedRendererPreviewPresenter', () => {
     expect(dataset).toMatchObject({
       uxfdSharedRendererPresenterStatus: 'fallback',
       uxfdSharedRendererPresenterFailureReason: 'requiredVideoOwnershipUnavailable',
+      uxfdSharedRendererPresenterVideoOwner: 'pixi',
+      uxfdSharedRendererPresenterVideoCutoverReason: 'videoFrameUploadUnavailable',
+      uxfdSharedRendererPresenterSharedVideoObjectCount: '0',
     });
   });
 

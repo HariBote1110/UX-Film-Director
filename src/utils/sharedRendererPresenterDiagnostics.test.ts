@@ -138,6 +138,9 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
       reason: 'requiredVideoOwnershipUnavailable',
       nativeRenderFailureReason: 'nativeRenderFailed',
       nativeRenderFailureDetail: 'Rust backend rejected unsupported PSD media',
+      videoOwner: 'pixi',
+      videoCutoverReason: 'videoFrameUploadUnavailable',
+      sharedVideoObjectCount: 0,
     });
 
     expect(dataset).toMatchObject({
@@ -145,6 +148,9 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
       uxfdSharedRendererPresenterFailureReason: 'requiredVideoOwnershipUnavailable',
       uxfdSharedRendererPresenterNativeRenderFailureReason: 'nativeRenderFailed',
       uxfdSharedRendererPresenterNativeRenderFailureDetail: 'Rust backend rejected unsupported PSD media',
+      uxfdSharedRendererPresenterVideoOwner: 'pixi',
+      uxfdSharedRendererPresenterVideoCutoverReason: 'videoFrameUploadUnavailable',
+      uxfdSharedRendererPresenterSharedVideoObjectCount: '0',
     });
   });
 
