@@ -24,4 +24,13 @@ describe('formatNativeRenderOutputReleaseDiagnostic', () => {
       reason: 'encodeWriteFailed',
     }, 'en')).toBe('Native render output: skipped');
   });
+
+  it('formats release failure diagnostics without hiding the memory id', () => {
+    expect(formatNativeRenderOutputReleaseDiagnostic({
+      status: 'failed',
+      memoryId: '/uxfd-native-render-output',
+      reason: 'encodeWriteFailed',
+      error: 'native render output release rejected',
+    }, 'en')).toBe('Native render output: release failed (/uxfd-native-render-output)');
+  });
 });
