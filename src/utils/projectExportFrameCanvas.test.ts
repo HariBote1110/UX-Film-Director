@@ -82,6 +82,14 @@ describe('buildProjectExportFrameSourcePlan', () => {
     renderFrame: async () => ({ close: () => undefined }) as ImageBitmap,
   };
 
+  it('requires the video-object sentinel at the planning type boundary', () => {
+    const code = source();
+
+    expect(code).toContain('hasVideoObjects: boolean');
+    expect(code).not.toContain('hasVideoObjects?: boolean');
+    expect(code).not.toContain('hasVideoObjects = false');
+  });
+
   it('uses the shared renderer Rust frame source before legacy canvas capture', () => {
     const legacyCanvas = { id: 'legacy-export' } as unknown as HTMLCanvasElement;
 

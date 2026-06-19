@@ -13,6 +13,14 @@ describe('resolveProjectExportEncodePlan', () => {
     expect(source()).not.toContain('rustVideoOnly');
   });
 
+  it('requires the video-object sentinel at the encode planning type boundary', () => {
+    const code = source();
+
+    expect(code).toContain('hasVideoObjects: boolean');
+    expect(code).not.toContain('hasVideoObjects?: boolean');
+    expect(code).not.toContain('hasVideoObjects = false');
+  });
+
   it('keeps WebCodecs mp4-muxer encoding only when the Rust encoder is unavailable', () => {
     expect(resolveProjectExportEncodePlan({
       rustExportOnly: false,
