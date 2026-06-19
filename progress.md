@@ -1,3 +1,20 @@
+## 2026-06-19 — copy report checksum algorithmのrenderer検証
+
+### 実施内容
+- Red: `sharedVideoFrameUploadBridge` に、copy reportが `crc32` 以外の `checksumAlgorithm` を名乗った場合はuploadを拒否する契約を追加した。
+- Green: `prepareSharedRendererDecodedVideoFrameUpload` が未知のchecksum algorithmを `copyReportChecksumAlgorithmUnsupported` としてfail-loudにするようにした。
+- Rust shared memory copy reportの `expectedChecksum` / `actualChecksum` を、renderer側でも `crc32` 前提の値として扱う境界を固定した。
+- 版を `0.1.1-Beta-210c` に更新した。
+
+### 検証
+- `npm test -- sharedVideoFrameUploadBridge`
+- `npm test -- sharedVideoFrameUploadBridge sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedVideoFrameUploadBridge\\.ts|src/utils/sharedVideoFrameUploadBridge\\.test\\.ts|src/utils/sharedRendererRustVideoUploadPipeline\\.ts|src/utils/sharedRendererViewportVideoUpload\\.ts)"`
+
+### 残課題・次のステップ
+- 実機GoPro素材でpreview datasetとexport blocked errorの両方に失敗理由が現れることを確認する。
+- shared renderer preview/exportの通常起動で、Rust decode → shared memory copy → WebGPU upload → ownership cutoverがPixi videoなしで通ることを再確認する。
+
 ## 2026-06-19 — Node addon checksum report algorithmを明示
 
 ### 実施内容

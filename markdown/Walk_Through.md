@@ -658,3 +658,16 @@
 - `npm test -- sharedVideoFrameUploadBridge sharedVideoFrameUploadBridgeBoundary` を実行し、8件成功を確認。
 - `cargo test --manifest-path shared-video-frame-bridge-node/Cargo.toml` を実行し、crate test成功を確認。
 - `npx tsc --noEmit 2>&1 | rg "(electron/preload\\.ts|src/vite-env\\.d\\.ts|src/utils/sharedVideoFrameUploadBridge\\.ts|src/utils/sharedVideoFrameUploadBridge\\.test\\.ts|src/utils/sharedVideoFrameUploadBridgeBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 58. Phase5: renderer側でcopy report checksum algorithmを検証
+- `src/utils/sharedVideoFrameUploadBridge.test.ts`
+- copy reportが `crc32` 以外の `checksumAlgorithm` を返した場合、renderer upload準備を拒否する契約を追加した。
+- `src/utils/sharedVideoFrameUploadBridge.ts`
+- `prepareSharedRendererDecodedVideoFrameUpload` が未知のchecksum algorithmを `copyReportChecksumAlgorithmUnsupported` としてfail-loudにするようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-210c` に更新した。
+
+## 確認
+- `npm test -- sharedVideoFrameUploadBridge` を実行し、Redで `adler32` reportが成功扱いになる失敗を確認した。
+- `npm test -- sharedVideoFrameUploadBridge sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload` を実行し、26件成功を確認。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedVideoFrameUploadBridge\\.ts|src/utils/sharedVideoFrameUploadBridge\\.test\\.ts|src/utils/sharedRendererRustVideoUploadPipeline\\.ts|src/utils/sharedRendererViewportVideoUpload\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
