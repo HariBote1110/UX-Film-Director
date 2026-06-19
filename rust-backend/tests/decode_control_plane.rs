@@ -2384,6 +2384,94 @@ fn decode_request_frame_inline_returns_rgba_for_mvp_preview_only() {
 }
 
 #[test]
+fn decode_request_frame_reuses_streaming_decoder_for_sequential_playback_frames() {
+    let temp_dir = TestTempDir::new("decode-control-plane-streaming");
+    let fixture = build_two_frame_h264_fixture(temp_dir.path());
+    let mut backend = BackendProcess::start();
+
+    let start_response = backend.request(json!({
+        "id": 1,
+        "method": "decode.start",
+        "params": {
+            "jobId": "decode-streaming-playback",
+            "source": fixture.path,
+            "slotCount": 1,
+            "width": fixture.width,
+            "height": fixture.height,
+            "sourceRate": {
+                "numerator": 30,
+                "denominator": 1
+            },
+            "format": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(start_response["ok"], true, "{start_response}");
+    let memory_id = start_response["result"]["memoryId"]
+        .as_str()
+        .expect("memory id");
+    let slot_byte_len = start_response["result"]["slotByteLen"]
+        .as_u64()
+        .expect("slot byte length") as usize;
+    let consumer_ring =
+        PosixSharedRing::attach_with_retry(memory_id, slot_byte_len, Duration::from_secs(1))
+            .expect("attach to streaming decode ring");
+
+    let first_frame = backend.request(json!({
+        "id": 2,
+        "method": "decode.requestFrame",
+        "params": {
+            "jobId": "decode-streaming-playback",
+            "requestId": 21,
+            "frameIndex": 0,
+            "mode": "latestWins"
+        }
+    }));
+    assert_eq!(first_frame["ok"], true, "{first_frame}");
+    assert_eq!(first_frame["result"]["decodePath"], "stream");
+    assert_eq!(first_frame["result"]["streamRestarted"], true);
+    consumer_ring
+        .read_frame(0)
+        .expect("consumer reads first streaming frame");
+    let first_release = backend.request(json!({
+        "id": 3,
+        "method": "decode.releaseFrame",
+        "params": {
+            "jobId": "decode-streaming-playback",
+            "slotIndex": first_frame["result"]["frame"]["descriptor"]["slotIndex"],
+            "generation": first_frame["result"]["frame"]["descriptor"]["generation"],
+            "copyOutState": "gpuUploadFenceSignalled"
+        }
+    }));
+    assert_eq!(first_release["ok"], true, "{first_release}");
+    consumer_ring
+        .wait_until_free(Duration::from_secs(1))
+        .expect("streaming slot returns to free after first frame");
+
+    let second_frame = backend.request(json!({
+        "id": 4,
+        "method": "decode.requestFrame",
+        "params": {
+            "jobId": "decode-streaming-playback",
+            "requestId": 22,
+            "frameIndex": 1,
+            "mode": "latestWins"
+        }
+    }));
+    assert_eq!(second_frame["ok"], true, "{second_frame}");
+    assert_eq!(second_frame["result"]["decodePath"], "stream");
+    assert_eq!(second_frame["result"]["streamRestarted"], false);
+    assert_eq!(second_frame["result"]["streamSkippedFrameCount"], 0);
+    assert_eq!(second_frame["result"]["decodeInvocationCount"], 0);
+    assert_no_frame_bytes_recursive(&second_frame["result"]);
+}
+
+#[test]
 fn decode_request_frame_reads_all_local_video_fixtures_for_preview() {
     let fixtures = [
         ("decode-local-20mbps", "perf/heavy-media/20000kbps_60fps.mp4", 1920, 1080, 60, 1),
