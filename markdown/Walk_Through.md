@@ -935,3 +935,20 @@
 - `npm test -- sharedRendererRustVideoPlaneScene` を実行し、Redで `falling back to TypeScript` の警告が残る失敗を確認した。
 - `npm test -- sharedRendererRustVideoPlaneScene sharedRendererPreviewPresenterController viewportRustVideoOnlyBoundary` を実行し、50件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererRustVideoPlaneScene\\.ts|src/utils/sharedRendererRustVideoPlaneScene\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 78. Phase5: Rust必須video ownership失敗診断を保持
+- `src/utils/sharedRendererPresenterDiagnostics.test.ts`
+- `requiredVideoOwnershipUnavailable` のfail-loud fallbackでも `videoOwner` / `videoCutoverReason` / `sharedVideoObjectCount` をdatasetへ残す契約を追加した。
+- `src/utils/sharedRendererPreviewPresenterController.test.ts`
+- Rust video必須時にsharedRenderer所有へ移れない場合、datasetに `videoOwner=pixi` と具体的なcutover reasonが残る契約を追加した。
+- `src/utils/sharedRendererPresenterDiagnostics.ts`
+- fallback stateでvideo ownership診断を書けるようにした。
+- `src/utils/sharedRendererPreviewPresenterController.ts`
+- Rust必須失敗分岐から実際の `videoOwnership` をfallback診断へ渡すようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-210w` に更新した。
+
+## 確認
+- `npm test -- sharedRendererPresenterDiagnostics sharedRendererPreviewPresenterController` を実行し、Redでownership診断がfallback datasetに残らない失敗を確認した。
+- `npm test -- sharedRendererPresenterDiagnostics sharedRendererPreviewPresenterController` を再実行し、40件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

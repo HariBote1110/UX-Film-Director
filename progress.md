@@ -1,3 +1,19 @@
+## 2026-06-19 — Rust必須video ownership失敗診断を保持
+
+### 実施内容
+- Red: `requiredVideoOwnershipUnavailable` のfail-loud fallbackでも `videoOwner` / `videoCutoverReason` / `sharedVideoObjectCount` をdatasetへ残す契約を追加した。
+- Green: `writeSharedRendererPresenterDiagnostics` のfallback stateにvideo ownership診断を許可し、presenterのRust必須失敗分岐から実際のownership結果を渡すようにした。
+- Rust video-only previewで「なぜsharedRenderer所有へ移れなかったか」を実機datasetから追えるようにした。
+- 版を `0.1.1-Beta-210w` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPresenterDiagnostics sharedRendererPreviewPresenterController`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- 実機Rust video-only previewで `requiredVideoOwnershipUnavailable` 時の `videoCutoverReason` が `videoFrameUploadUnavailable` / `rustDecodeRequestUnavailable` などへ正しく分岐することを確認する。
+- export側blocked診断とpreview側ownership診断のreasonを揃え、GoPro素材で失敗原因を一貫して追えるようにする。
+
 ## 2026-06-19 — Rust video plane必須時のloader診断をfail-loud化
 
 ### 実施内容
