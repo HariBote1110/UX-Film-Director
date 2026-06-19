@@ -1274,6 +1274,7 @@ describe('createSharedRendererExportFrameSource', () => {
       uxfdRustExportFrameSourceFrameIndex: '9',
       uxfdRustExportFrameSourceFrameReason: 'nativeRenderSourceReleaseUnavailable',
       uxfdRustExportFrameSourceFramePath: undefined,
+      uxfdRustExportFrameSourceNativeRenderSourceReleaseRequired: 'true',
     });
   });
 

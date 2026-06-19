@@ -103,6 +103,25 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
     });
   });
 
+  it('marks native render source release ownership failures explicitly', () => {
+    const dataset: Record<string, string | undefined> = {};
+
+    writeSharedRendererPresenterDiagnostics(dataset, {
+      status: 'fallback',
+      reason: 'requiredVideoOwnershipUnavailable',
+      nativeRenderFailureReason: 'nativeRenderSourceReleaseUnavailable',
+      nativeRenderFailureDetail: "Rust native render source 'video-1' is missing decoded frame release callbacks.",
+    });
+
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterStatus: 'fallback',
+      uxfdSharedRendererPresenterFailureReason: 'requiredVideoOwnershipUnavailable',
+      uxfdSharedRendererPresenterNativeRenderFailureReason: 'nativeRenderSourceReleaseUnavailable',
+      uxfdSharedRendererPresenterNativeRenderFailureDetail: "Rust native render source 'video-1' is missing decoded frame release callbacks.",
+      uxfdSharedRendererPresenterNativeRenderSourceReleaseRequired: 'true',
+    });
+  });
+
   it('marks device loss as a Pixi fallback without allowing stale shared frames', () => {
     const dataset: Record<string, string | undefined> = {};
 
