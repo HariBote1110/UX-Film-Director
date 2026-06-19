@@ -2,7 +2,9 @@ import {
   isRustBackendDecodedVideoFrameAvailable,
   releaseRustBackendVideoDecodeFrame,
   type RustBackendResult,
+  type RustBackendSharedVideoFrame,
   type RustBackendVideoDecodeBridge,
+  type RustBackendVideoDecodeFramePayload,
 } from './rustBackendVideoDecodeControl';
 import {
   prepareSharedRendererDecodedVideoFrameUpload,
@@ -61,12 +63,116 @@ export const prepareSharedRendererRustDecodedVideoUpload = async ({
     await releaseFrame('rendererUploadAborted');
     throw error;
   }
+  if (!upload.ok && shouldUseInlineDecodedFrameMvpPath(upload) && rustBackendBridge.requestVideoDecodeFrameInline) {
+    const inlineUpload = await prepareInlineDecodedVideoUpload({
+      payload: {
+        jobId,
+        requestId: decodeResponse.result.requestId,
+        frameIndex: decodeResponse.result.frameIndex,
+        mode: decodeResponse.result.mode,
+      },
+      expectedFrame: frame,
+      requestInlineFrame: rustBackendBridge.requestVideoDecodeFrameInline,
+      releaseAfterGpuUpload: () => releaseFrame('gpuUploadFenceSignalled'),
+      releaseAfterUploadAbort: () => releaseFrame('rendererUploadAborted'),
+    });
+    if (inlineUpload.ok) {
+      return inlineUpload;
+    }
+  }
   if (!upload.ok) {
     await releaseFrame('rendererUploadAborted');
   }
 
   return upload;
 };
+
+const shouldUseInlineDecodedFrameMvpPath = (
+  upload: PrepareSharedRendererDecodedVideoFrameUploadResult
+): boolean =>
+  !upload.ok
+  && upload.reason === 'copyFailed'
+  && upload.detail.toLowerCase().includes('native bridge');
+
+const prepareInlineDecodedVideoUpload = async ({
+  payload,
+  expectedFrame,
+  requestInlineFrame,
+  releaseAfterGpuUpload,
+  releaseAfterUploadAbort,
+}: {
+  payload: RustBackendVideoDecodeFramePayload;
+  expectedFrame: RustBackendSharedVideoFrame;
+  requestInlineFrame: NonNullable<RustBackendVideoDecodeBridge['requestVideoDecodeFrameInline']>;
+  releaseAfterGpuUpload: () => Promise<void>;
+  releaseAfterUploadAbort: () => Promise<void>;
+}): Promise<PrepareSharedRendererDecodedVideoFrameUploadResult> => {
+  const inlineResponse = await requestInlineFrame(payload);
+  const inlineRgbaBytes = resolveInlineDecodedVideoFrameBytes(inlineResponse);
+  if (!inlineRgbaBytes) {
+    return {
+      ok: false,
+      reason: 'copyFailed',
+      detail: inlineResponse.error ?? 'Rust backend inline decoded video frame was unavailable.',
+    };
+  }
+  const rgbaBytes = normaliseInlineRgbaBytes(inlineRgbaBytes);
+  if (!rgbaBytes || rgbaBytes.byteLength !== expectedFrame.descriptor.byteLen) {
+    return {
+      ok: false,
+      reason: 'copyFailed',
+      detail: 'Rust backend inline decoded video frame byte length did not match the descriptor.',
+    };
+  }
+
+  return {
+    ok: true,
+    descriptor: expectedFrame.descriptor,
+    ptsFrame: expectedFrame.ptsFrame,
+    rgbaBytes,
+    releaseAfterGpuUpload,
+    releaseAfterUploadAbort,
+    copyReport: {
+      sequence: expectedFrame.ptsFrame,
+      slotIndex: expectedFrame.descriptor.slotIndex,
+      generation: expectedFrame.descriptor.generation,
+      byteLen: rgbaBytes.byteLength,
+      checksumAlgorithm: 'crc32',
+      expectedChecksum: 0,
+      actualChecksum: 0,
+    },
+  };
+};
+
+const resolveInlineDecodedVideoFrameBytes = (
+  response: RustBackendResult<unknown>
+): Uint8Array | number[] | string | null => {
+  if (!response.success || !isRecord(response.result)) return null;
+  const frame = response.result.frame;
+  if (!isRecord(frame)) return null;
+  const rgbaBytes = frame.rgbaBytes;
+  if (!(rgbaBytes instanceof Uint8Array) && !Array.isArray(rgbaBytes) && typeof rgbaBytes !== 'string') {
+    return null;
+  }
+  return rgbaBytes;
+};
+
+const normaliseInlineRgbaBytes = (
+  rgbaBytes: Uint8Array | number[] | string
+): Uint8Array | null => {
+  if (rgbaBytes instanceof Uint8Array) return rgbaBytes;
+  if (Array.isArray(rgbaBytes)) return Uint8Array.from(rgbaBytes);
+  if (typeof atob !== 'function') return null;
+  const binary = atob(rgbaBytes);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
 
 const assertDecodedFrameReleaseSucceeded = (result: RustBackendResult): void => {
   if (!result.success) {

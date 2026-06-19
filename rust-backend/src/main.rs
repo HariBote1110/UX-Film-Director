@@ -257,7 +257,10 @@ fn handle_request(request: RpcRequest, state: &mut BackendState) -> RpcResponse 
         "psd.await_blob" => handle_psd_await_blob(request.id, state),
         "decode.start" => handle_decode_start(request.id, request.params, state),
         "decode.stop" => handle_decode_stop(request.id, request.params, state),
-        "decode.requestFrame" => handle_decode_request_frame(request.id, request.params, state),
+        "decode.requestFrame" => handle_decode_request_frame(request.id, request.params, state, false),
+        "decode.requestFrameInline" => {
+            handle_decode_request_frame(request.id, request.params, state, true)
+        }
         "decode.releaseFrame" => handle_decode_release_frame(request.id, request.params, state),
         "encode.start" => handle_encode_start(request.id, request.params, state),
         "encode.writeFrame" => handle_encode_write_frame(request.id, request.params, state),
@@ -1705,7 +1708,12 @@ fn handle_decode_stop(id: u64, params: Value, state: &mut BackendState) -> RpcRe
     }
 }
 
-fn handle_decode_request_frame(id: u64, params: Value, state: &mut BackendState) -> RpcResponse {
+fn handle_decode_request_frame(
+    id: u64,
+    params: Value,
+    state: &mut BackendState,
+    include_inline_rgba: bool,
+) -> RpcResponse {
     let parsed = match serde_json::from_value::<DecodeFrameRequest>(params) {
         Ok(value) => value,
         Err(error) => {
@@ -1833,6 +1841,15 @@ fn handle_decode_request_frame(id: u64, params: Value, state: &mut BackendState)
         diff: None,
         status: FrameVerificationStatus::WithinTolerance,
     };
+    let mut frame_value = serde_json::to_value(&ready_frame.frame).unwrap_or(Value::Null);
+    if include_inline_rgba {
+        if let Value::Object(frame_object) = &mut frame_value {
+            frame_object.insert(
+                "rgbaBytes".to_string(),
+                Value::String(base64_encode(&padded_rgba)),
+            );
+        }
+    }
 
     RpcResponse {
         id,
@@ -1843,7 +1860,7 @@ fn handle_decode_request_frame(id: u64, params: Value, state: &mut BackendState)
             "requestId": parsed.request_id,
             "frameIndex": parsed.frame_index,
             "mode": parsed.mode,
-            "frame": ready_frame.frame,
+            "frame": frame_value,
             "verification": verification,
             "decodeInvocationCount": 1,
         })),
@@ -2166,6 +2183,33 @@ fn checksum_for_bytes(bytes: &[u8]) -> FrameChecksum {
         value_hex: format!("{:08x}", hasher.finalize()),
         byte_len: bytes.len() as u64,
     }
+}
+
+fn base64_encode(bytes: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut output = String::with_capacity(((bytes.len() + 2) / 3) * 4);
+    let mut index = 0;
+    while index < bytes.len() {
+        let b0 = bytes[index];
+        let b1 = bytes.get(index + 1).copied().unwrap_or(0);
+        let b2 = bytes.get(index + 2).copied().unwrap_or(0);
+        let triple = ((b0 as u32) << 16) | ((b1 as u32) << 8) | b2 as u32;
+
+        output.push(TABLE[((triple >> 18) & 0x3f) as usize] as char);
+        output.push(TABLE[((triple >> 12) & 0x3f) as usize] as char);
+        if index + 1 < bytes.len() {
+            output.push(TABLE[((triple >> 6) & 0x3f) as usize] as char);
+        } else {
+            output.push('=');
+        }
+        if index + 2 < bytes.len() {
+            output.push(TABLE[(triple & 0x3f) as usize] as char);
+        } else {
+            output.push('=');
+        }
+        index += 3;
+    }
+    output
 }
 
 fn descriptor_for_release(

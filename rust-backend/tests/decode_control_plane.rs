@@ -2114,6 +2114,74 @@ fn decode_request_frame_decodes_requested_source_frame_to_verified_descriptor_wi
 }
 
 #[test]
+fn decode_request_frame_inline_returns_rgba_for_mvp_preview_only() {
+    let temp_dir = TestTempDir::new("decode-control-plane-inline");
+    let fixture = build_two_frame_h264_fixture(temp_dir.path());
+    let mut backend = BackendProcess::start();
+
+    let start_response = backend.request(json!({
+        "id": 1,
+        "method": "decode.start",
+        "params": {
+            "jobId": "decode-inline",
+            "source": fixture.path,
+            "slotCount": 1,
+            "width": fixture.width,
+            "height": fixture.height,
+            "sourceRate": {
+                "numerator": 30,
+                "denominator": 1
+            },
+            "format": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(start_response["ok"], true);
+    let stride_bytes = start_response["result"]["strideBytes"]
+        .as_u64()
+        .expect("stride bytes") as usize;
+    let expected_tight_rgba =
+        decode_tight_rgba_frame(&fixture.path, 0, fixture.width, fixture.height);
+    let expected_padded_rgba = pad_rgba_rows(
+        &expected_tight_rgba,
+        fixture.width,
+        fixture.height,
+        stride_bytes,
+    );
+
+    let response = backend.request(json!({
+        "id": 2,
+        "method": "decode.requestFrameInline",
+        "params": {
+            "jobId": "decode-inline",
+            "requestId": 12,
+            "frameIndex": 0,
+            "mode": "latestWins"
+        }
+    }));
+
+    assert_eq!(response["ok"], true);
+    assert_eq!(response["result"]["accepted"], true);
+    assert_eq!(
+        response["result"]["verification"]["checksum"]["valueHex"],
+        crc32_hex(&expected_padded_rgba)
+    );
+    let inline_rgba = response["result"]["frame"]["rgbaBytes"]
+        .as_str()
+        .expect("inline frame rgba base64");
+    assert!(!inline_rgba.is_empty());
+    assert_eq!(
+        inline_rgba.len(),
+        ((expected_padded_rgba.len() + 2) / 3) * 4
+    );
+}
+
+#[test]
 fn decode_request_frame_writes_decoded_rgba_to_posix_shared_memory() {
     let temp_dir = TestTempDir::new("decode-control-plane-shm");
     let fixture = build_two_frame_h264_fixture(temp_dir.path());
@@ -2601,6 +2669,7 @@ fn assert_no_frame_bytes(value: &Value) {
     assert!(value.get("frameBase64").is_none());
     assert!(value.get("bytes").is_none());
     assert!(value.get("pixels").is_none());
+    assert!(value.get("rgbaBytes").is_none());
 }
 
 fn assert_no_frame_bytes_recursive(value: &Value) {
@@ -2609,6 +2678,7 @@ fn assert_no_frame_bytes_recursive(value: &Value) {
             assert!(!object.contains_key("frameBase64"));
             assert!(!object.contains_key("bytes"));
             assert!(!object.contains_key("pixels"));
+            assert!(!object.contains_key("rgbaBytes"));
             for child in object.values() {
                 assert_no_frame_bytes_recursive(child);
             }

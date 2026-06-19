@@ -130,6 +130,9 @@ contextBridge.exposeInMainWorld('rustBackend', {
   requestVideoDecodeFrame(payload: unknown) {
     return ipcRenderer.invoke('rust-backend-decode-request-frame', payload)
   },
+  requestVideoDecodeFrameInline(payload: unknown) {
+    return ipcRenderer.invoke('rust-backend-decode-request-frame-inline', payload)
+  },
   stopVideoDecode(payload: unknown) {
     return ipcRenderer.invoke('rust-backend-decode-stop', payload)
   },

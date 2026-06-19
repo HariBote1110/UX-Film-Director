@@ -62,6 +62,10 @@ export interface RustBackendSharedVideoFrame {
   ptsFrame: number;
 }
 
+export interface RustBackendInlineDecodedVideoFrame extends RustBackendSharedVideoFrame {
+  rgbaBytes: Uint8Array | number[] | string;
+}
+
 export interface RustBackendVideoFrameChecksum {
   algorithm: 'crc32';
   valueHex: string;
@@ -96,6 +100,9 @@ export interface RustBackendVideoDecodeBridge {
     payload: RustBackendVideoDecodeStartPayload
   ) => Promise<RustBackendResult>;
   requestVideoDecodeFrame: (
+    payload: RustBackendVideoDecodeFramePayload
+  ) => Promise<RustBackendResult<unknown>>;
+  requestVideoDecodeFrameInline?: (
     payload: RustBackendVideoDecodeFramePayload
   ) => Promise<RustBackendResult<unknown>>;
   stopVideoDecode: (
