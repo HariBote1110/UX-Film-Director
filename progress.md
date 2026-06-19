@@ -4372,3 +4372,19 @@
 ### 残課題・次のステップ
 - `ExportProgressModal` に `rustFrameSourceBlocked` を表示し、Rust必須動画exportがどこで止まったかUIから確認できるようにする。
 - サブエージェントのレビュー結果を見て、残るPixi/browser動画fallback穴を優先度順に潰す。
+
+## 2026-06-19 — WebCodecs stream開始前に動画exportを拒否
+
+### 実施内容
+- Red: WebCodecs/mp4-muxer互換branchで、Electron `export-stream-open` を呼ぶ前に動画objectを拒否する境界テストを追加した。
+- Green: Rust backend encoder branchを抜けた後、互換WebCodecs branch冒頭で `hasVideoObjects` を再確認し、動画ならfail-loudにした。
+- これにより、将来encode planが崩れても旧Electron stream IPCへ動画exportが触れる前に止まる。
+- 版を `0.1.1-Beta-206b` に更新した。
+
+### 検証
+- `npm test -- src/utils/useProjectExportBoundary.test.ts src/utils/projectExportEncodePlan.test.ts src/utils/projectExportCompatibilityEncoder.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "useProjectExport|projectExportEncodePlan|projectExportCompatibilityEncoder"`
+
+### 残課題・次のステップ
+- `ExportProgressModal` に `rustFrameSourceBlocked` を表示し、Rust必須動画exportの停止理由をUIへ出す。
+- 実機GoPro素材でRust native render / Rust encode / release diagnosticsのsmokeを行う。

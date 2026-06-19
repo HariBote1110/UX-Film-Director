@@ -140,6 +140,8 @@ Rust backend integration gate:
   `projectExportLegacyCanvasCapture` adapterに閉じ込める。
 - `useProjectExport` は `videoExportPipeline` を直接dynamic importせず、WebCodecs/mp4-muxer互換encoderは
   `projectExportCompatibilityEncoder` adapterへ隔離する。
+- `useProjectExport` のWebCodecs/mp4-muxer互換branchは、Electron `export-stream-open` を呼ぶ前にも
+  `hasVideoObjects` を再確認し、動画objectが混入した場合はRust backend encoder必須として失敗させる。
 - exportのRust必須判定は `rustVideoOnly` flagではなく、動画objectの有無とRust encoder availabilityを正本にする。
 - `projectExportCompatibilityEncoder` は非動画export専用adapterとし、動画objectを含む入力はWebCodecs/mp4-muxerを
   loadする前に拒否する。adapter入力の `hasVideoObjects` は必須booleanで、呼び出し側のsentinel渡し忘れを型で止める。
