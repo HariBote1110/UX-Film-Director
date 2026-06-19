@@ -12,5 +12,8 @@ describe('package scripts', () => {
     expect(script).toContain('VITE_UXFD_RUST_EXPORT_ONLY');
     expect(script).toContain('VITE_UXFD_RUST_VIDEO_ONLY');
     expect(script).toContain('node_modules/vite/bin/vite.js');
+    expect(script).toContain('scripts/build-shared-video-frame-node-addon.mjs');
+    expect(script.indexOf('scripts/build-shared-video-frame-node-addon.mjs'))
+      .toBeLessThan(script.indexOf('node_modules/vite/bin/vite.js'));
   });
 });
