@@ -1455,6 +1455,21 @@
 - `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress` を実行し、72件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgress\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。
+- `src/utils/sharedRendererExportFrameSource.ts`
+- `nativeRenderSourceReleaseUnavailable` の `SharedRendererExportFrameSourceBlockedError` でもlegacy canvas fallbackを禁止するようにした。
+- decoded sourceのrelease ownership契約が崩れた状態を、Pixi/legacy captureで成功扱いにしない。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-215s` に更新した。
+
+## 確認
+- `npm test -- sharedRendererExportFrameSource` を実行し、Redでrelease callback欠落時もlegacy fallbackが許可される失敗を確認した。
+- `npm test -- sharedRendererExportFrameSource` を再実行し、41件成功を確認した。
+- `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress` を実行し、72件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgress\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 114. Phase5: native render release失敗ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - source complete release失敗、native render output release失敗、source abort release失敗のexport blockで `fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。

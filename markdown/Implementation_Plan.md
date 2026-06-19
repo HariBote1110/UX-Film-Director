@@ -1266,6 +1266,10 @@ Rust native render bridge失敗をPixi/legacy captureで隠さず、動画export
 `legacyCanvasFallbackAllowed=false` にする。
 Rust decoded sourceやnative render outputの所有権解放に失敗した状態を、legacy canvas/Pixi captureで成功扱いにしない。
 
+230. Phase5: native render source release callback欠落ではlegacy fallbackを禁止する
+`nativeRenderSourceReleaseUnavailable` のexport blockも `legacyCanvasFallbackAllowed=false` にする。
+decoded sourceのrelease callbackが欠けている状態ではRust側slot所有権を閉じられないため、legacy canvas/Pixi captureへ戻らずfail-loudに止める。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
