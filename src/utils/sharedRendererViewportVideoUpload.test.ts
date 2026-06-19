@@ -725,4 +725,83 @@ describe('sharedRendererViewportVideoUpload', () => {
       copyOutState: 'rendererUploadAborted',
     }]);
   });
+
+  it('reports stale decoded upload release failure instead of hiding it as a stale response', async () => {
+    const rustBackendBridge: RustBackendVideoDecodeBridge = {
+      startVideoDecode: async () => ({ success: true }),
+      requestVideoDecodeFrame: async (payload) => ({
+        success: true,
+        result: {
+          accepted: true,
+          jobId: payload.jobId,
+          requestId: payload.requestId - 1,
+          frameIndex: payload.frameIndex,
+          mode: payload.mode,
+          frame: {
+            descriptor: {
+              memoryId: '/uxfd-node-video-ring',
+              slotIndex: 0,
+              generation: 3,
+              byteOffset: 0,
+              byteLen: 8192,
+              width: 64,
+              height: 32,
+              strideBytes: 256,
+              format: 'rgba8Srgb',
+              colour: {
+                primaries: 'bt709',
+                transfer: 'srgb',
+                matrix: 'rgb',
+                range: 'full',
+              },
+            },
+            ptsFrame: payload.frameIndex,
+          },
+          verification: {
+            frameIndex: payload.frameIndex,
+            checksum: {
+              algorithm: 'crc32',
+              valueHex: '12345678',
+              byteLen: 8192,
+            },
+            status: 'withinTolerance',
+          },
+        },
+      }),
+      releaseVideoDecodeFrame: async () => ({
+        success: false,
+        error: 'stale preview upload release failed',
+      }),
+      stopVideoDecode: async () => ({ success: true }),
+    };
+
+    const result = await prepareSharedRendererViewportVideoUpload({
+      session,
+      requestId: 79,
+      slotCount: 2,
+      rustBackendBridge,
+      copyBridge: {
+        copyIntoUploadBuffer: async () => {
+          throw new Error('stale decode response must not be copied');
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'staleDecodeReleaseFailed',
+      detail: 'stale preview upload release failed',
+      activeJob: {
+        jobId: expectedJobId,
+        source: '/tmp/gopro clip.mp4',
+        slotCount: 2,
+        width: 64,
+        height: 32,
+        sourceRate: {
+          numerator: 60,
+          denominator: 1,
+        },
+      },
+    });
+  });
 });
