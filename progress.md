@@ -4470,3 +4470,18 @@
 ### 残課題・次のステップ
 - stale decode responseなど、直接 `decode.releaseFrame` を呼ぶ残り経路でも `success=false` を観測できるようにする。
 - 実機GoPro素材で decoded slot release / native render source release の失敗診断が期待通り表面化するか確認する。
+
+## 2026-06-19 — stale native render source release失敗を分離
+
+### 実施内容
+- Red: native render source準備中にstale decoded responseを破棄する `decode.releaseFrame` が `{ success:false }` を返した場合、通常の `staleDecodeResponse` に隠さない契約を追加した。
+- Green: stale decoded frameのrelease結果を検証し、失敗時は `staleDecodeReleaseFailed` として返すようにした。
+- 版を `0.1.1-Beta-208e` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/sharedRendererExportFrameSource.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererViewportNativeRenderSource|sharedRendererViewportNativeRenderUpload|sharedRendererExportFrameSource"`
+
+### 残課題・次のステップ
+- preview upload側のstale decode response release失敗も同じく分離し、直接release経路を揃える。
+- 実機GoPro素材で stale response / release failure diagnostics がUI・dataset上で追えるか確認する。
