@@ -11,7 +11,7 @@ import {
   shouldSynchroniseTimelineForProjectExportFrame,
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
-import type { TimelineObject, VideoObject } from '../types';
+import type { ImageObject, PsdObject, TimelineObject, VideoObject } from '../types';
 
 const source = () =>
   readFileSync(new URL('./projectExportFrameCanvas.ts', import.meta.url), 'utf8');
@@ -39,6 +39,55 @@ const video = (patch: Partial<VideoObject> = {}): VideoObject => ({
   height: 1080,
   volume: 1,
   muted: false,
+  ...patch,
+});
+
+const image = (patch: Partial<ImageObject> = {}): ImageObject => ({
+  id: 'image-1',
+  type: 'image',
+  name: 'overlay.png',
+  layer: 1,
+  startTime: 0,
+  duration: 5,
+  x: 0,
+  y: 0,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 0,
+  endY: 0,
+  easing: 'linear',
+  src: 'blob:image',
+  filePath: '/tmp/overlay.png',
+  width: 1280,
+  height: 720,
+  ...patch,
+});
+
+const psd = (patch: Partial<PsdObject> = {}): PsdObject => ({
+  id: 'psd-1',
+  type: 'psd',
+  name: 'standing.psd',
+  layer: 1,
+  startTime: 0,
+  duration: 5,
+  x: 0,
+  y: 0,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 0,
+  endY: 0,
+  easing: 'linear',
+  src: 'blob:psd',
+  filePath: '/tmp/standing.psd',
+  width: 512,
+  height: 768,
+  activeLayerIds: {},
   ...patch,
 });
 
@@ -311,6 +360,18 @@ describe('resolveProjectExportFrameSourcePolicyForEncode', () => {
     });
   });
 
+  it('requires a Rust frame source for native-render media exports even when the WebCodecs compatibility encoder is selected', () => {
+    expect(resolveProjectExportFrameSourcePolicyForEncode({
+      rustExportOnly: false,
+      hasVideoObjects: false,
+      hasNativeRenderMediaObjects: true,
+      encodeEngine: 'webCodecsMp4Muxer',
+    })).toEqual({
+      rustFrameSourcePolicy: 'requireRustFrameSource',
+      rustFrameSourceBlockedFallback: 'failExport',
+    });
+  });
+
   it('requires a Rust frame source when Rust-only export is enabled', () => {
     expect(resolveProjectExportFrameSourcePolicyForEncode({
       rustExportOnly: true,
@@ -384,6 +445,22 @@ describe('resolveProjectExportRustFrameSourceContext', () => {
     })).toEqual({
       objects: [],
       hasVideoObjects: false,
+      time: 0,
+      preferEncodeOnly: false,
+      presentedFrameSharedFrameTaker: undefined,
+    });
+  });
+
+  it('marks image and PSD exports as native-render media even for compatibility exports', () => {
+    expect(resolveProjectExportRustFrameSourceContext({
+      objects: [image(), psd()],
+      time: 0,
+      encodeEngine: 'webCodecsMp4Muxer',
+      presentedFrameSharedFrameTaker: undefined,
+    })).toEqual({
+      objects: [image(), psd()],
+      hasVideoObjects: false,
+      hasNativeRenderMediaObjects: true,
       time: 0,
       preferEncodeOnly: false,
       presentedFrameSharedFrameTaker: undefined,
