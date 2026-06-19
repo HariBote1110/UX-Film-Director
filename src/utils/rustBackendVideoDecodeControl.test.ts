@@ -281,6 +281,27 @@ describe('rustBackendVideoDecodeControl', () => {
     expect(isRustBackendDecodedVideoFrameAvailable(withBase64)).toBe(false);
   });
 
+  it('rejects decoded frame verification from a different frame index', () => {
+    const response = verifiedDecodeFrameResponse();
+    const withMismatchedVerificationFrame = {
+      ...response,
+      result: {
+        ...response.result!,
+        frameIndex: 1,
+        frame: {
+          ...response.result!.frame!,
+          ptsFrame: 1,
+        },
+        verification: {
+          ...response.result!.verification!,
+          frameIndex: 2,
+        },
+      },
+    };
+
+    expect(isRustBackendDecodedVideoFrameAvailable(withMismatchedVerificationFrame)).toBe(false);
+  });
+
   it('rejects decoded frame descriptors that do not match the shared memory layout contract', () => {
     const response = verifiedDecodeFrameResponse();
     const descriptor = response.result!.frame!.descriptor;
