@@ -978,3 +978,16 @@
 - `npm test -- sharedRendererExportFrameSource` を実行し、Redでrelease失敗時のframe pathが未設定になる3件の失敗を確認した。
 - `npm test -- sharedRendererExportFrameSource` を再実行し、38件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 81. Phase5: multi-videoで単一upload所有を拒否
+- `src/utils/sharedRendererPreviewPresenterController.test.ts`
+- 複数video clipを含むpreviewでlegacy単一decoded uploadが渡っても、全videoをRust/shared renderer所有扱いにしない契約を追加した。
+- `src/utils/sharedRendererPreviewPresenterController.ts`
+- 単一decoded uploadはscene内のVideo clipが1つだけでclipId/mediaIdを一意に解決できる場合だけ採用し、multi-videoではupload済み所有へ進めないようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-210z` に更新した。
+
+## 確認
+- `npm test -- sharedRendererPreviewPresenterController` を実行し、Redでmulti-videoが単一uploadから `ok: true` になる失敗を確認した。
+- `npm test -- sharedRendererPreviewPresenterController` を再実行し、33件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

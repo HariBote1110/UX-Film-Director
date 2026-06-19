@@ -1,3 +1,19 @@
+## 2026-06-19 — multi-videoで単一upload所有を拒否
+
+### 実施内容
+- Red: 複数video clipを含むpreviewでlegacy単一decoded uploadが渡っても、全videoをRust/shared renderer所有扱いにしない契約を追加した。
+- Green: 単一decoded uploadはscene内のVideo clipが1つだけでclipId/mediaIdを一意に解決できる場合だけ採用し、multi-videoではupload済み所有へ進めないようにした。
+- multi-video previewで同じRust textureを複数video planeへ誤って使い回す入口を閉じた。
+- 版を `0.1.1-Beta-210z` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPreviewPresenterController`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- multi-videoで各clipのdecoded uploadが揃わない場合のUI診断をさらに具体化し、GoPro複数素材でも不足clipを追えるようにする。
+- 次の版更新では `SubVer=z` のため `0.1.1-Beta-211a` へ繰り上げる。
+
 ## 2026-06-19 — native render release失敗時のexport path診断を保持
 
 ### 実施内容
