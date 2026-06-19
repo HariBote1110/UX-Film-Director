@@ -478,6 +478,9 @@ export const startSharedRendererPreviewPresenter = async ({
       videoUploadFailureDetail: resolvedVideoUploadFailure?.detail,
       videoUploadFailureClipId: resolvedVideoUploadFailure?.clipId,
       videoUploadFailureMediaId: resolvedVideoUploadFailure?.mediaId,
+      videoOwner: videoOwnership.owner,
+      videoCutoverReason: videoOwnership.reason,
+      sharedVideoObjectCount: videoOwnership.videoObjectIds.length,
     });
     return {
       ok: false,

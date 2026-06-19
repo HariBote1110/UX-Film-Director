@@ -62,6 +62,9 @@ export type SharedRendererPresenterDiagnosticState =
       videoUploadFailureDetail?: string;
       videoUploadFailureClipId?: string;
       videoUploadFailureMediaId?: string;
+      videoOwner?: SharedRendererVideoOwner;
+      videoCutoverReason?: SharedRendererVideoCutoverReason;
+      sharedVideoObjectCount?: number;
     }
   | {
       status: 'deviceLost';
@@ -231,6 +234,15 @@ export const writeSharedRendererPresenterDiagnostics = (
     }
     if (state.nativeRenderFailureReason === 'nativeRenderSourceReleaseUnavailable') {
       dataset.uxfdSharedRendererPresenterNativeRenderSourceReleaseRequired = 'true';
+    }
+    if (state.videoOwner) {
+      dataset.uxfdSharedRendererPresenterVideoOwner = state.videoOwner;
+    }
+    if (state.videoCutoverReason) {
+      dataset.uxfdSharedRendererPresenterVideoCutoverReason = state.videoCutoverReason;
+    }
+    if (typeof state.sharedVideoObjectCount === 'number') {
+      dataset.uxfdSharedRendererPresenterSharedVideoObjectCount = String(state.sharedVideoObjectCount);
     }
     return;
   }
