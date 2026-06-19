@@ -435,6 +435,19 @@ describe('sharedRendererViewportVideoUpload', () => {
         calls.push(['requestVideoDecodeFrame', payload]);
         const count = requestCountByJobId.get(payload.jobId) ?? 0;
         requestCountByJobId.set(payload.jobId, count + 1);
+        const width = payload.jobId === expectedSecondJobId
+          ? 80
+          : payload.jobId.includes('video-3')
+            ? 96
+            : 64;
+        const height = payload.jobId === expectedSecondJobId
+          ? 45
+          : payload.jobId.includes('video-3')
+            ? 54
+            : 32;
+        const strideBytes = width === 64 ? 256 : 512;
+        const byteLen = strideBytes * height;
+        const slotIndex = payload.jobId === expectedSecondJobId ? 1 : 0;
         return {
           success: true,
           result: {
@@ -446,13 +459,13 @@ describe('sharedRendererViewportVideoUpload', () => {
             frame: {
               descriptor: {
                 memoryId: '/uxfd-node-video-ring',
-                slotIndex: payload.jobId === expectedSecondJobId ? 1 : 0,
+                slotIndex,
                 generation: payload.jobId === expectedSecondJobId ? 4 : 3,
-                byteOffset: payload.jobId === expectedSecondJobId ? 8192 : 0,
-                byteLen: 8192,
-                width: payload.jobId === expectedSecondJobId ? 80 : 64,
-                height: payload.jobId === expectedSecondJobId ? 45 : 32,
-                strideBytes: 256,
+                byteOffset: byteLen * slotIndex,
+                byteLen,
+                width,
+                height,
+                strideBytes,
                 format: 'rgba8Srgb',
                 colour: {
                   primaries: 'bt709',
@@ -468,7 +481,7 @@ describe('sharedRendererViewportVideoUpload', () => {
               checksum: {
                 algorithm: 'crc32',
                 valueHex: '12345678',
-                byteLen: 8192,
+                byteLen,
               },
               status: 'withinTolerance',
             },
@@ -477,7 +490,7 @@ describe('sharedRendererViewportVideoUpload', () => {
       },
       releaseVideoDecodeFrame: async (payload) => {
         calls.push(['releaseVideoDecodeFrame', payload]);
-        if (payload.slotIndex === 0) {
+        if (payload.jobId === expectedJobId) {
           return { success: false, error: 'first prepared abort release failed' };
         }
         return { success: true };

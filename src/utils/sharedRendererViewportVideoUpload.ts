@@ -71,6 +71,7 @@ export type PrepareSharedRendererViewportVideoUploadResult =
         | 'frameDecodeFailed'
         | 'staleDecodeResponse'
         | 'staleDecodeReleaseFailed'
+        | 'uploadAbortReleaseFailed'
         | 'uploadFailed';
       detail: string;
       activeJob?: SharedRendererViewportVideoDecodeJob | null;
@@ -96,6 +97,7 @@ export type PrepareSharedRendererViewportVideoUploadsResult =
         | 'frameDecodeFailed'
         | 'staleDecodeResponse'
         | 'staleDecodeReleaseFailed'
+        | 'uploadAbortReleaseFailed'
         | 'uploadFailed';
       detail: string;
       activeJobs: SharedRendererViewportVideoDecodeJob[];
@@ -178,7 +180,15 @@ export const prepareSharedRendererViewportVideoUploads = async ({
     } else {
       const startResult = await startDecodeJob(nextJob, request, rustBackendBridge);
       if (isDecodeJobStartFailure(startResult)) {
-        await releasePreparedViewportVideoUploadsAfterAbort(uploads);
+        const abortReleaseFailure = await releasePreparedViewportVideoUploadsAfterAbort(uploads);
+        if (abortReleaseFailure) {
+          return {
+            ok: false,
+            reason: 'uploadAbortReleaseFailed',
+            detail: abortReleaseFailure,
+            activeJobs: resolvedActiveJobs,
+          };
+        }
         return {
           ok: false,
           reason: 'startFailed',
@@ -197,7 +207,15 @@ export const prepareSharedRendererViewportVideoUploads = async ({
       mode: 'latestWins',
     }, rustBackendBridge);
     if (!decodeResponse.success) {
-      await releasePreparedViewportVideoUploadsAfterAbort(uploads);
+      const abortReleaseFailure = await releasePreparedViewportVideoUploadsAfterAbort(uploads);
+      if (abortReleaseFailure) {
+        return {
+          ok: false,
+          reason: 'uploadAbortReleaseFailed',
+          detail: abortReleaseFailure,
+          activeJobs: resolvedActiveJobs,
+        };
+      }
       return {
         ok: false,
         reason: 'frameDecodeFailed',
@@ -216,7 +234,15 @@ export const prepareSharedRendererViewportVideoUploads = async ({
         copyOutState: 'rendererUploadAborted',
       }, rustBackendBridge);
       if (!releaseResponse.success) {
-        await releasePreparedViewportVideoUploadsAfterAbort(uploads);
+        const abortReleaseFailure = await releasePreparedViewportVideoUploadsAfterAbort(uploads);
+        if (abortReleaseFailure) {
+          return {
+            ok: false,
+            reason: 'uploadAbortReleaseFailed',
+            detail: abortReleaseFailure,
+            activeJobs: resolvedActiveJobs,
+          };
+        }
         return {
           ok: false,
           reason: 'staleDecodeReleaseFailed',
@@ -224,7 +250,15 @@ export const prepareSharedRendererViewportVideoUploads = async ({
           activeJobs: resolvedActiveJobs,
         };
       }
-      await releasePreparedViewportVideoUploadsAfterAbort(uploads);
+      const abortReleaseFailure = await releasePreparedViewportVideoUploadsAfterAbort(uploads);
+      if (abortReleaseFailure) {
+        return {
+          ok: false,
+          reason: 'uploadAbortReleaseFailed',
+          detail: abortReleaseFailure,
+          activeJobs: resolvedActiveJobs,
+        };
+      }
       return {
         ok: false,
         reason: 'staleDecodeResponse',
@@ -240,7 +274,15 @@ export const prepareSharedRendererViewportVideoUploads = async ({
       rustBackendBridge,
     });
     if (!upload.ok) {
-      await releasePreparedViewportVideoUploadsAfterAbort(uploads);
+      const abortReleaseFailure = await releasePreparedViewportVideoUploadsAfterAbort(uploads);
+      if (abortReleaseFailure) {
+        return {
+          ok: false,
+          reason: 'uploadAbortReleaseFailed',
+          detail: abortReleaseFailure,
+          activeJobs: resolvedActiveJobs,
+        };
+      }
       return {
         ok: false,
         reason: 'uploadFailed',
@@ -264,10 +306,16 @@ const releasePreparedViewportVideoUploadsAfterAbort = async (
     request: SharedRendererVideoFrameDecodeRequest;
     upload: PreparedViewportVideoUpload;
   }>
-): Promise<void> => {
+): Promise<string | null> => {
+  let firstFailure: string | null = null;
   for (const { upload } of uploads) {
-    await upload.releaseAfterUploadAbort?.();
+    try {
+      await upload.releaseAfterUploadAbort?.();
+    } catch (error) {
+      firstFailure ??= error instanceof Error ? error.message : String(error);
+    }
   }
+  return firstFailure;
 };
 
 export const prepareSharedRendererViewportVideoUpload = async ({
