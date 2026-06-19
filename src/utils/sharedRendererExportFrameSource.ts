@@ -36,6 +36,7 @@ import {
   canRenderSharedRendererNativeMediaOnlyFrame,
 } from './sharedRendererNativeMediaSupport';
 import { resolveMixedNativeRenderUnsupportedMedia } from './sharedRendererNativeRenderMediaGate';
+import { captureProjectExportLegacyCanvasFrame } from './projectExportLegacyCanvasCapture';
 
 type PresenterDataset = Record<string, string | undefined>;
 
@@ -584,7 +585,14 @@ const defaultCreateFrameBitmap: SharedRendererExportFrameBitmapFactory = (
   sy,
   sw,
   sh
-) => createImageBitmap(canvas, sx, sy, sw, sh);
+) => captureProjectExportLegacyCanvasFrame({
+  canvas,
+  sx,
+  sy,
+  width: sw,
+  height: sh,
+  timestamp: 0,
+}).then((frame) => frame.bitmap);
 
 const defaultStopVideoDecodeJob: SharedRendererExportVideoDecodeJobStopper = async (job) => {
   await stopRustBackendVideoDecode({
