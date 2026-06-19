@@ -548,3 +548,15 @@
 ## 確認
 - `npm test -- sharedRendererExportFrameSource sharedRendererNativeMediaSupport` を実行し、25件成功を確認。
 - `npx tsc --noEmit 2>&1 | rg "(sharedRendererExportFrameSource|sharedRendererNativeMediaSupport)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 50. Phase5: decoded video slot release callback単回化
+- `src/utils/sharedRendererRustVideoUploadPipeline.ts`
+- Rust backend decoded video frameのrelease callbackを `createSingleUseDecodedFrameReleaser` で包み、GPU upload成功後にabort callbackや再度GPU callbackが来ても同じslot leaseを一度だけreleaseするようにした。
+- `src/utils/sharedRendererRustVideoUploadPipeline.test.ts`
+- `releaseAfterGpuUpload` / `releaseAfterUploadAbort` / 再度GPU releaseが続いても `releaseVideoDecodeFrame` が1回だけ呼ばれる契約を追加した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-197a` に更新した。
+
+## 確認
+- `npm test -- sharedRendererRustVideoUploadPipeline` を実行し、4件成功を確認。
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererRustVideoUploadPipeline|sharedVideoFrameUploadBridge|sharedRendererViewportVideoUpload"` を実行し、対象ファイルに型エラーが出ないことを確認。

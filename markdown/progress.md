@@ -586,3 +586,10 @@
 - Green: orchestration testの `SharedRendererPreviewPresenterControl` fixtureから `readPresentedFrameRgbaBytes` を削除し、`SharedVideoFrameCopyReport` fixtureに現在のslot/generationを明示した。
 - 検証: `npm test -- sharedRendererExportFrameSourceBoundary sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController` は43件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-196b`。
+
+## 2026-06-19
+- Phase5のdecoded video upload ownershipとして、Rust backend decoded slotのrelease callbackを単回化した。
+- Red: `sharedRendererRustVideoUploadPipeline` に、`releaseAfterGpuUpload` / `releaseAfterUploadAbort` / 再度GPU releaseが続いても `releaseVideoDecodeFrame` は1回だけ呼ばれる契約を追加した。
+- Green: `prepareSharedRendererRustDecodedVideoUpload` のrelease callbackを `createSingleUseDecodedFrameReleaser` で共有し、最初に確定した `copyOutState` だけをRust backendへ送るようにした。
+- 検証: `npm test -- sharedRendererRustVideoUploadPipeline` は4件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-197a`。
