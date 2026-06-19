@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildProjectExportFrameSourcePlan,
   createSingleUseProjectExportFrameSourceCloser,
+  formatProjectExportRustFrameSourceUnavailableDetail,
   resolveProjectExportRustFrameSourceContext,
   resolveProjectExportFrameSourcePolicyForEncode,
   resolveProjectExportFrameRuntimePlan,
@@ -321,6 +322,38 @@ describe('resolveProjectExportFrameSourcePolicyForEncode', () => {
     });
   });
 
+});
+
+describe('formatProjectExportRustFrameSourceUnavailableDetail', () => {
+  it('formats fallback reason and blocked native render envelope detail for export failures', () => {
+    expect(formatProjectExportRustFrameSourceUnavailableDetail({
+      reason: 'exportSessionBlocked',
+      detail: 'Shared renderer surface requires a parallelCompare plan.',
+      nativeRenderEnvelope: {
+        ok: false,
+        reason: 'surfaceGateUnavailable',
+        detail: 'Shared renderer surface requires a parallelCompare plan.',
+      },
+    })).toBe(
+      'Shared renderer surface requires a parallelCompare plan. [fallback=exportSessionBlocked; nativeRenderEnvelope=surfaceGateUnavailable: Shared renderer surface requires a parallelCompare plan.]'
+    );
+  });
+
+  it('formats ready native render envelope media counts when the fallback carries preflight context', () => {
+    expect(formatProjectExportRustFrameSourceUnavailableDetail({
+      reason: 'exportSessionBlocked',
+      detail: 'Native render source handoff failed.',
+      nativeRenderEnvelope: {
+        ok: true,
+        mediaCount: 2,
+        mediaKinds: ['Video', 'Psd'],
+        sourceCount: 1,
+        sourceMediaIds: ['video-1'],
+      },
+    })).toBe(
+      'Native render source handoff failed. [fallback=exportSessionBlocked; nativeRenderEnvelope=ready media=2 kinds=Video,Psd sources=1 sourceMediaIds=video-1]'
+    );
+  });
 });
 
 describe('resolveProjectExportRustFrameSourceContext', () => {
