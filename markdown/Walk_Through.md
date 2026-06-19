@@ -1397,3 +1397,17 @@
 - `npm test -- sharedRendererViewportNativeRenderSource` を再実行し、6件成功を確認した。
 - `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource sharedRendererPreviewPresenterController` を実行し、90件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 109. Phase5: preview native render uploadでprepared source abort診断を保持
+- `src/utils/sharedRendererViewportNativeRenderUpload.test.ts`
+- native render source準備が `preparedNativeRenderSourceAbortReleaseFailed` を返した場合、preview upload resultも同じreasonを保持する契約を追加した。
+- `src/utils/sharedRendererViewportNativeRenderUpload.ts`
+- source準備一般失敗の `nativeRenderSourcesUnavailable` へ丸める前に、prepared source abort release失敗だけは専用reasonで返すようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-215m` に更新した。
+
+## 確認
+- `npm test -- sharedRendererViewportNativeRenderUpload` を実行し、Redでreasonが `nativeRenderSourcesUnavailable` に丸められる失敗を確認した。
+- `npm test -- sharedRendererViewportNativeRenderUpload` を再実行し、12件成功を確認した。
+- `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource sharedRendererPreviewPresenterController` を実行し、91件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.test\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

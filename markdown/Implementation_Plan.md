@@ -1236,6 +1236,11 @@ multi-video native render source準備中のstale検出では、stale frame自�
 既にpreparedになった先行sourceのabort release失敗を別reasonで返す。
 これにより、返却stale slotの後始末失敗か、途中成功sourceのslot leak防止失敗かを診断上で切り分けられる。
 
+224. Phase5: preview native render uploadでprepared source abort診断を保持する
+`prepareSharedRendererViewportNativeRenderUpload` は、native render source準備が
+`preparedNativeRenderSourceAbortReleaseFailed` を返した場合、`nativeRenderSourcesUnavailable` に丸めず同じreasonで返す。
+preview presenter側で、途中成功sourceのabort release失敗をsource準備一般失敗と区別できるようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

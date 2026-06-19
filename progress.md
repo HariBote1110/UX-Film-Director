@@ -1,3 +1,20 @@
+## 2026-06-19 — preview native render uploadでprepared source abort診断を保持
+
+### 実施内容
+- Red: native render source準備が `preparedNativeRenderSourceAbortReleaseFailed` を返した場合に、preview upload resultでも同じreasonを保持する契約を追加した。
+- Green: `prepareSharedRendererViewportNativeRenderUpload` が該当reasonを `nativeRenderSourcesUnavailable` に丸めず返すようにした。
+- preview presenter側で、途中成功sourceのslot leak防止失敗をsource準備一般失敗と区別できる足場にした。
+- 版を `0.1.1-Beta-215m` に更新した。
+
+### 検証
+- `npm test -- sharedRendererViewportNativeRenderUpload`
+- `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource sharedRendererPreviewPresenterController`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.test\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts)"`
+
+### 残課題・次のステップ
+- export frame sourceでも `preparedNativeRenderSourceAbortReleaseFailed` を `nativeRenderFailed` に丸めず、export block reasonとして保持する。
+- presenter diagnosticsのdatasetにも専用reasonが表面化するか確認する。
+
 ## 2026-06-19 — prepared native render source abort release失敗を分離
 
 ### 実施内容

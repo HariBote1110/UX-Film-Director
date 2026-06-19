@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のpreview native render upload診断として、`preparedNativeRenderSourceAbortReleaseFailed` を `nativeRenderSourcesUnavailable` に丸めず保持するようにした。
+- Red: `sharedRendererViewportNativeRenderUpload` のテストへ、source準備がprepared source abort release失敗を返すケースを追加した。
+- Green: preview upload resultのreason unionに専用reasonを追加し、source準備失敗の該当reasonだけ透過するようにした。
+- 検証: `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource sharedRendererPreviewPresenterController` は91件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-215m`。
+
+## 2026-06-19
 - Phase5のmulti-video native render source診断として、stale frame自身のrelease失敗と先行prepared sourceのabort release失敗を分離した。
 - Red: `sharedRendererViewportNativeRenderSource` のテストへ、stale frame releaseは成功し、先行prepared source abort releaseだけが失敗するケースを追加した。
 - Green: prepared source abort release失敗時は `preparedNativeRenderSourceAbortReleaseFailed` を返すようにした。
