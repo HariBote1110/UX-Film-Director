@@ -478,6 +478,87 @@ describe('runRustBackendVideoEncodeExport', () => {
     }]);
   });
 
+  it('reports unsuccessful native render output release results as failures', async () => {
+    const calls: unknown[] = [];
+    const releaseEvents: unknown[] = [];
+    const payload = sharedFramePayload(0, 0, 'session-native-release-unsuccessful');
+    const encoderBridge: RustBackendVideoEncodeBridge = {
+      startVideoEncode: async (input) => {
+        calls.push(['startVideoEncode', input]);
+        return { success: true, result: { accepted: true } };
+      },
+      writeVideoEncodeFrame: async (input) => {
+        calls.push(['writeVideoEncodeFrame', input]);
+        return { success: false, error: 'encode write failed before unsuccessful release' };
+      },
+      finishVideoEncode: async (input) => {
+        calls.push(['finishVideoEncode', input]);
+        return { success: true, result: { outputFile: '/tmp/out.mp4' } };
+      },
+    };
+    const nativeRenderBridge: RustBackendNativeRenderSharedFrameBridge = {
+      renderNativeSharedFrame: async () => {
+        throw new Error('render must not run during encode cleanup.');
+      },
+      releaseNativeSharedFrame: async (input) => {
+        calls.push(['releaseNativeSharedFrame', input]);
+        return { success: false, error: 'native render output release returned false' };
+      },
+    };
+
+    async function* failingNativeFrames() {
+      yield {
+        timestamp: 0,
+        sharedFramePayload: payload,
+        releaseAfterEncodeFailure: {
+          kind: 'nativeRenderOutput' as const,
+          memoryId: payload.frame.descriptor.memoryId,
+        },
+      };
+    }
+
+    await expect(runRustBackendVideoEncodeExport({
+      sessionId: 'session-native-release-unsuccessful',
+      filePath: '/tmp/direct-shared.mp4',
+      width: 4,
+      height: 2,
+      fps: 60,
+      frames: failingNativeFrames(),
+      encoderBridge,
+      nativeRenderBridge,
+      onNativeRenderOutputRelease: (event) => {
+        releaseEvents.push(event);
+      },
+    })).rejects.toThrow('encode write failed before unsuccessful release');
+
+    expect(calls).toEqual([
+      ['startVideoEncode', {
+        sessionId: 'session-native-release-unsuccessful',
+        filePath: '/tmp/direct-shared.mp4',
+        width: 4,
+        height: 2,
+        fps: 60,
+        pixelFormat: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      }],
+      ['writeVideoEncodeFrame', payload],
+      ['releaseNativeSharedFrame', {
+        memoryId: payload.frame.descriptor.memoryId,
+      }],
+    ]);
+    expect(releaseEvents).toEqual([{
+      status: 'failed',
+      memoryId: payload.frame.descriptor.memoryId,
+      reason: 'encodeWriteFailed',
+      error: 'native render output release returned false',
+    }]);
+  });
+
   it('does not release non-native shared frames through the native render release bridge when encode write fails', async () => {
     const calls: unknown[] = [];
     const payload = sharedFramePayload(0, 0, 'session-readback-failure');
