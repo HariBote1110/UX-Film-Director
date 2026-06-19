@@ -1,12 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
 import { shallow } from 'zustand/shallow';
-import { useMediaOptimization } from './useMediaOptimization';
 
 export const useAppLogic = () => {
-  // 書き出し高速化用の中間ファイルを編集中にバックグラウンド生成する。
-  useMediaOptimization();
-
   const { 
     isPlaying, 
     togglePlay, 
