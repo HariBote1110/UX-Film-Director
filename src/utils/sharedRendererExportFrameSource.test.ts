@@ -4,6 +4,7 @@ import { createDefaultLayers } from './sceneState';
 import {
   createSharedRendererExportFrameSource,
   isSharedRendererExportFrameSourceBlockedError,
+  SharedRendererExportFrameSourceBlockedError,
   type SharedRendererExportNativeRenderSourcesPreparer,
   type SharedRendererExportNativeSharedFrameReleaser,
   type SharedRendererExportNativeSharedFrameRenderer,
@@ -17,6 +18,23 @@ const settings: ProjectSettings = {
   fps: 60,
   sampleRate: 48000,
 };
+
+describe('SharedRendererExportFrameSourceBlockedError', () => {
+  it('does not allow legacy canvas fallback unless the caller opts in explicitly', () => {
+    const blocked = new SharedRendererExportFrameSourceBlockedError(
+      'Rust export frame source blocked.',
+      'nativeRenderFailed',
+      12
+    );
+
+    expect(blocked).toMatchObject({
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
+      reason: 'nativeRenderFailed',
+      frameIndex: 12,
+    });
+  });
+});
 
 const image = (patch: Partial<ImageObject> = {}): ImageObject => ({
   id: 'image-1',
