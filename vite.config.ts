@@ -22,6 +22,9 @@ const electronPlugins =
       ]
 
 export default defineConfig({
+  optimizeDeps: {
+    entries: ['index.html'],
+  },
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
