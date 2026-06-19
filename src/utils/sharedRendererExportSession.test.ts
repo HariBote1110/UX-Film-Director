@@ -130,7 +130,7 @@ describe('buildSharedRendererExportSession', () => {
       enabled: true,
       projectSettings: settings,
       layers: createDefaultLayers(),
-      objects: [image({ rotation: 45 })],
+      objects: [image({ scaleX: 2 })],
       time: 1,
       editorMode: '2d',
       webGpuAvailable: true,

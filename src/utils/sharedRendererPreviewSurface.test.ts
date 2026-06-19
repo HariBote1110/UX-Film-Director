@@ -73,7 +73,7 @@ describe('buildSharedRendererPreviewSurfaceGate', () => {
       enabled: true,
       projectSettings: settings,
       layers: createDefaultLayers(),
-      objects: [image({ rotation: 12 })],
+      objects: [image({ scaleX: 2 })],
       time: 1,
     });
 

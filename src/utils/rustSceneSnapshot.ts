@@ -169,7 +169,7 @@ export const buildRustSceneSnapshotForTimeline = ({
           translation_y: position.y,
           scale_x: object.scaleX,
           scale_y: object.scaleY,
-          rotation_degrees: 0,
+          rotation_degrees: normaliseRotationDegrees(object.rotation),
           sampling: object.type === 'shape' && object.gradient?.enabled !== true ? 'nearest' : 'bilinear',
         },
       opacity,
@@ -251,14 +251,6 @@ const collectBuildIssues = (objects: TimelineObject[], time: number): RustSceneS
         code: 'unsupportedMask',
         objectId: object.id,
         detail: 'Layer clipping masks are not enabled in the shared renderer bridge yet.',
-      });
-    }
-
-    if (object.rotation !== 0) {
-      issues.push({
-        code: 'unsupportedRotation',
-        objectId: object.id,
-        detail: 'Rotation is not enabled in the shared renderer bridge yet.',
       });
     }
 
@@ -429,6 +421,9 @@ const clamp01 = (value: number): number => {
 
 const isInteger = (value: number): boolean =>
   Number.isFinite(value) && Math.abs(value - Math.round(value)) < 1e-6;
+
+const normaliseRotationDegrees = (value: number): number =>
+  Number.isFinite(value) ? value : 0;
 
 const validateSnapshot = (
   snapshot: unknown,
