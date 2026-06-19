@@ -1420,6 +1420,12 @@ export progress summaryでは、`rustFrameSourceRequired` をraw reasonのまま
 日本語では `Rust frame source必須`、英語では `Rust frame source required` と表示する。
 Image/PSD exportでRust frame sourceが不在のplan failureを、実機UIで追いやすい文言にする。
 
+261. Phase5: GeneratedGradientをRust native render mediaへ追加する
+Pixi依存を削る作業は、後方互換の診断追加に偏らせず、Rustで実際に描ける表現を増やす方向を優先する。
+矩形グラデーションは `GeneratedGradient` mediaとしてRust scene snapshotへ出し、Rust backendがJSON定義からRGBA source frameを生成する。
+既存のnative-wgpu-rendererには生成済みsource frameとして渡し、Image/PSD/SolidColourと同じnative render経路で合成する。
+これにより、単色矩形だけでなくグラデーション矩形もPixiから降ろせる候補に入れる。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

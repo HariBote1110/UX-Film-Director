@@ -1455,6 +1455,35 @@
 - `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress` を実行し、72件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgress\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 146. Phase5: GeneratedGradientをRust native render mediaへ追加
+- 方針を「石橋を叩きすぎない」方向へ寄せ、診断の追加よりもRustで描ける表現を増やす作業を優先した。
+- `src/utils/rustSceneSnapshot.test.ts`
+- グラデーション有効な矩形が `GeneratedGradient` mediaとしてRust scene snapshotに出る契約を追加した。
+- `src/utils/sharedRendererNativeMediaSupport.test.ts`
+- `GeneratedGradient` がmedia-only native render可能なRust生成sourceとして扱われる契約を追加した。
+- `rust-core/tests/media_schema.rs`
+- `GeneratedGradient` media kindをJSON境界で受け取れる契約を追加した。
+- `src/utils/rustSceneSnapshot.ts`
+- グラデーション矩形を `GeneratedGradient` mediaへ変換し、sourceにグラデーション定義JSONを入れるようにした。
+- `src/utils/sharedRendererNativeMediaSupport.ts`
+- `GeneratedGradient` source JSONの型・色・stop・directionを検証し、native render対応mediaとして扱うようにした。
+- `rust-core/src/schema.rs`
+- `MediaKind::GeneratedGradient` を追加した。
+- `rust-backend/src/main.rs`
+- `render.nativeSharedFrame` で `GeneratedGradient` mediaを受け取り、Rust側でRGBA gradient source frameを生成するようにした。
+- `rust-backend/tests/decode_control_plane.rs`
+- `render.nativeSharedFrame` がGeneratedGradientを実際にshared frameへ描けることを確認するRPCテストを追加した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216x` に更新した。
+
+## 確認
+- `npm test -- rustSceneSnapshot sharedRendererNativeMediaSupport` を実行し、RedでGeneratedGradient未対応の失敗を確認した。
+- `cargo test --test media_schema generated_gradient` を `rust-core/` で実行し、Redで `MediaKind::GeneratedGradient` 未定義の失敗を確認した。
+- `npm test -- rustSceneSnapshot sharedRendererNativeMediaSupport sharedRendererPreviewSurface sharedRendererExportSession` を実行し、25件成功を確認した。
+- `cargo test` を `rust-core/` で実行し、34件成功を確認した。
+- `cargo test` を `rust-backend/` で実行し、28件成功を確認した。
+- `npx tsc --noEmit --pretty false 2>&1 | rg "src/utils/rustSceneSnapshot|src/utils/sharedRendererNativeMediaSupport|src/utils/sharedRendererExportSession|src/utils/sharedRendererPreviewSurface"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 116. Phase5: unsupported native mediaではRust必須時のlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - mixed video exportでoverlay mediaがRust native render未対応の場合と、encode-only media-only frameが未対応mediaの場合に、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。

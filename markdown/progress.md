@@ -950,3 +950,11 @@
 - Green: `createSingleUseProjectExportFrameSourceCloser` を追加し、`useProjectExport` のblocked cleanup / final cleanupを同じcloser経由にした。
 - 検証: `npm test -- projectExportFrameCanvas useProjectExportBoundary` は39件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-199b`。
+
+## 2026-06-20
+- Phase5の前進方針として、後方互換の診断追加に偏らず、Rustで実際に描ける表現を増やす進め方へ切り替えた。
+- Red: `rustSceneSnapshot` / `sharedRendererNativeMediaSupport` / `rust-core` media schemaに、グラデーション矩形を `GeneratedGradient` mediaとして扱う契約を追加した。
+- Green: `GeneratedGradient` をTS/Rust境界へ追加し、Rust backend `render.nativeSharedFrame` がグラデーション定義JSONからRGBA source frameを生成するようにした。
+- Rust native render経路でSolidColour/Image/PSDに加え、グラデーション矩形もPixiから降ろせる候補に入った。
+- 検証: `npm test -- rustSceneSnapshot sharedRendererNativeMediaSupport sharedRendererPreviewSurface sharedRendererExportSession` は25件成功。`cargo test` は `rust-core` 34件、`rust-backend` 28件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216x`。

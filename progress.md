@@ -6395,6 +6395,27 @@
 - copy reportのchecksum検証をRust側契約と突き合わせ、必要なら expected/actual checksum mismatchもfail-loudにする。
 - 実機GoPro素材でshared memory copy reportとGPU upload診断を確認する。
 
+## 2026-06-20 — GeneratedGradientをRust native render mediaへ追加
+
+### 実施内容
+- 方針を「石橋を叩きすぎない」方向へ寄せ、診断の追加よりもRustで描ける表現を増やす作業を優先した。
+- Red: `rustSceneSnapshot` / `sharedRendererNativeMediaSupport` / `rust-core` media schemaに、グラデーション矩形を `GeneratedGradient` mediaとして扱う契約を追加した。
+- Green: `GeneratedGradient` をTS/Rust境界へ追加し、Rust backend `render.nativeSharedFrame` がグラデーション定義JSONからRGBA source frameを生成するようにした。
+- `rust-backend` のRPCテストで、GeneratedGradientがshared frameへ実際に描かれることを確認した。
+- 版を `0.1.1-Beta-216x` に更新した。
+
+### 検証
+- `npm test -- rustSceneSnapshot sharedRendererNativeMediaSupport`
+- `cargo test --test media_schema generated_gradient` (`rust-core/`)
+- `npm test -- rustSceneSnapshot sharedRendererNativeMediaSupport sharedRendererPreviewSurface sharedRendererExportSession`
+- `cargo test` (`rust-core/`)
+- `cargo test` (`rust-backend/`)
+- `npx tsc --noEmit --pretty false 2>&1 | rg "src/utils/rustSceneSnapshot|src/utils/sharedRendererNativeMediaSupport|src/utils/sharedRendererExportSession|src/utils/sharedRendererPreviewSurface"`
+
+### 残課題・次のステップ
+- GeneratedGradientのpreview ownershipをSolidColour/Image/PSDと同じnative render成功時cleanupへ接続する。
+- 次は動画そのもののRust decode/native render経路へ戻り、実素材でのRust側表示面積を増やす。
+
 ## 2026-06-19 — shared frame copy checksum検証を追加
 
 ### 実施内容
