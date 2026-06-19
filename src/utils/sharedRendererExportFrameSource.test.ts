@@ -1616,7 +1616,7 @@ describe('createSharedRendererExportFrameSource', () => {
       uxfdRustExportFrameSourceFrameStatus: 'blocked',
       uxfdRustExportFrameSourceFrameIndex: '11',
       uxfdRustExportFrameSourceFrameReason: 'nativeRenderSourceReleaseFailed',
-      uxfdRustExportFrameSourceFramePath: undefined,
+      uxfdRustExportFrameSourceFramePath: 'nativeRenderSharedFrame',
     });
   });
 
@@ -1825,7 +1825,7 @@ describe('createSharedRendererExportFrameSource', () => {
       uxfdRustExportFrameSourceFrameStatus: 'blocked',
       uxfdRustExportFrameSourceFrameIndex: '12',
       uxfdRustExportFrameSourceFrameReason: 'nativeRenderOutputReleaseFailed',
-      uxfdRustExportFrameSourceFramePath: undefined,
+      uxfdRustExportFrameSourceFramePath: 'nativeRenderSharedFrame',
     });
   });
 
@@ -2013,7 +2013,7 @@ describe('createSharedRendererExportFrameSource', () => {
       uxfdRustExportFrameSourceFrameStatus: 'blocked',
       uxfdRustExportFrameSourceFrameIndex: '8',
       uxfdRustExportFrameSourceFrameReason: 'nativeRenderSourceReleaseFailed',
-      uxfdRustExportFrameSourceFramePath: undefined,
+      uxfdRustExportFrameSourceFramePath: 'nativeRenderSharedFrame',
     });
   });
 
