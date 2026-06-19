@@ -151,6 +151,34 @@ describe('sharedVideoFrameUploadBridge', () => {
     });
   });
 
+  it('rejects bridge copy reports that do not match the decoded frame sequence', async () => {
+    const bridge: SharedVideoFrameCopyBridge = {
+      copyIntoUploadBuffer: async () => ({
+        success: true,
+        result: {
+          sequence: 41,
+          slotIndex: 1,
+          generation: 9,
+          byteLen: 512,
+          expectedChecksum: 0x1234,
+          actualChecksum: 0x1234,
+        },
+      }),
+    };
+
+    await expect(prepareSharedRendererDecodedVideoFrameUpload({
+      sharedFrame,
+      slotCount: 2,
+      bridge,
+    })).resolves.toEqual({
+      ok: false,
+      reason: 'copyReportSequenceMismatch',
+      detail: 'Shared video frame copy report must match the decoded frame pts.',
+      expectedSequence: 42,
+      actualSequence: 41,
+    });
+  });
+
   it('rejects descriptors outside the declared shared ring before copying bytes', async () => {
     const calls: unknown[] = [];
     const bridge: SharedVideoFrameCopyBridge = {
