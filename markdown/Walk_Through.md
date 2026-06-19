@@ -1664,6 +1664,22 @@
 - `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration viewportRustVideoOnlyBoundary` を実行し、71件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 129. Phase5: export実出力blocked詳細を保持
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- direct encode exportでpresenterが `sharedRendererOutputUnavailable` を返した場合、`presentedSharedFrameHandoffUnavailable` に丸めず、native render upload失敗の `webGpuUploadUnavailable` 詳細をblocked error messageへ残す契約を追加した。
+- `src/utils/sharedRendererExportFrameSource.ts`
+- `SharedRendererExportFrameSourceBlockedReason` に `sharedRendererOutputUnavailable` を追加した。
+- presenter controlが `sharedRendererOutputUnavailable` で失敗した場合、export frame sourceも同じreasonでblocked errorを投げるようにした。
+- `nativeRenderUploadResult` が失敗している場合は、その理由と詳細をblocked error messageへ含める。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216g` に更新した。
+
+## 確認
+- `npm test -- sharedRendererExportFrameSource` を実行し、Redでreasonが `presentedSharedFrameHandoffUnavailable` に丸まる失敗を確認した。
+- `npm test -- sharedRendererExportFrameSource` を再実行し、44件成功を確認した。
+- `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress` を実行し、76件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/projectExportFrameRenderer\\.test\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/store/useStore\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。

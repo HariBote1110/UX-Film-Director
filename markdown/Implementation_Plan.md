@@ -1335,6 +1335,11 @@ presenter diagnosticsの `sharedRendererOutputUnavailable` を `blocked` とし�
 `sharedRendererOutputUnavailable` のblocked diagnosticsへ `nativeRenderFailureReason` / `nativeRenderFailureDetail` を残す。
 Pixi passthroughへ戻れない検証で、Rust/native render upload失敗の根本原因を失わない。
 
+244. Phase5: export実出力blocked詳細を保持する
+export direct encodeでpresenterが `sharedRendererOutputUnavailable` を返した場合、
+`presentedSharedFrameHandoffUnavailable` に丸めず、同じreasonでexport blocked errorへ伝搬する。
+`nativeRenderUploadResult` が失敗している場合は、その理由と詳細をblocked error messageへ含める。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

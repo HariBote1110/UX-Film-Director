@@ -1,3 +1,20 @@
+## 2026-06-19 — export実出力blocked詳細を保持
+
+### 実施内容
+- Red: export direct encodeでpresenterが `sharedRendererOutputUnavailable` を返した場合、`presentedSharedFrameHandoffUnavailable` に丸めず、native render upload失敗詳細を保持する契約を追加した。
+- Green: `SharedRendererExportFrameSourceBlockedReason` に `sharedRendererOutputUnavailable` を追加し、presenter control失敗をexport blocked reasonとして伝搬するようにした。
+- `nativeRenderUploadResult` が失敗している場合、`webGpuUploadUnavailable` などの理由と詳細をblocked error messageへ含めるようにした。
+- 版を `0.1.1-Beta-216g` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSource`
+- `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/projectExportFrameRenderer\\.test\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/store/useStore\\.ts)"`
+
+### 残課題・次のステップ
+- `sharedRendererOutputUnavailable` をexport progress/modal/logでより明示的な文言にする必要があるか、実機diagnosticsで確認する。
+- Viewport本体のPixi依存撤去へ向けて、image/PSD/SolidColourのnative render coverageをさらに診断へ接続する。
+
 ## 2026-06-19 — 実出力必須blocked診断にnative render upload失敗を保持
 
 ### 実施内容

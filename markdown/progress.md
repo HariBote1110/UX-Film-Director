@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のexport診断として、presenterの `sharedRendererOutputUnavailable` を `presentedSharedFrameHandoffUnavailable` に丸めず、native render upload失敗詳細を保持するようにした。
+- Red: `sharedRendererExportFrameSource` のテストへ、direct encode exportで `webGpuUploadUnavailable` 詳細がblocked error messageに残る契約を追加した。
+- Green: export frame sourceのblocked reasonへ `sharedRendererOutputUnavailable` を追加し、presenter control失敗をそのまま伝搬した。
+- 検証: `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress` は76件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216g`。
+
+## 2026-06-19
 - Phase5のpreview診断として、実出力必須blocked時にnative render frame upload失敗の理由と詳細を保持するようにした。
 - Red: `sharedRendererPreviewPresenterController` のテストへ、WebGPU upload不可でnative render frame uploadが失敗した場合でもblocked診断に `webGpuUploadUnavailable` が残る契約を追加した。
 - Green: `sharedRendererOutputUnavailable` のblocked diagnosticsへ `nativeRenderFailureReason` / `nativeRenderFailureDetail` を渡すようにした。
