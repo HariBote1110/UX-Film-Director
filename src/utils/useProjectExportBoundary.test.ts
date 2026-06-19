@@ -5,6 +5,9 @@ import { describe, expect, it } from 'vitest';
 const source = () =>
   readFileSync(new URL('../hooks/useProjectExport.ts', import.meta.url), 'utf8');
 
+const compatibilityEncoderSource = () =>
+  readFileSync(new URL('./projectExportCompatibilityEncoder.ts', import.meta.url), 'utf8');
+
 describe('useProjectExport legacy browser dependency boundary', () => {
   it('does not load legacy browser video providers from the production export hook', () => {
     const code = source();
@@ -15,11 +18,13 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     expect(code).not.toContain("import('../utils/playbackFrameProvider')");
   });
 
-  it('loads the WebCodecs encoder only from the compatibility export branch', () => {
+  it('loads the WebCodecs encoder only from the compatibility export adapter', () => {
     const code = source();
+    const adapterCode = compatibilityEncoderSource();
 
     expect(code).not.toContain("from '../utils/videoExportPipeline'");
-    expect(code).toContain("import('../utils/videoExportPipeline')");
+    expect(code).not.toContain("import('../utils/videoExportPipeline')");
+    expect(adapterCode).toContain("import('./videoExportPipeline')");
   });
 
   it('does not keep legacy browser video provider gates in the production export hook', () => {
