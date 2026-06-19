@@ -4404,3 +4404,19 @@
 ### 残課題・次のステップ
 - 実機GoPro素材で、Rust native render / Rust encode / source release / output release / frame source blocked診断をsmoke確認する。
 - WebCodecs/mp4-muxer互換出口を完全削除するか、非動画互換出口として残すかを実機安定後に判断する。
+
+## 2026-06-19 — Rust encode finish結果をexport summaryへ反映
+
+### 実施内容
+- Red: `runRustBackendVideoEncodeExport` が Rust backend の `encode.finish` 結果を完了summaryの正本として使う契約を追加した。
+- Green: `finishResponse.result` から `frameCount` / `sessionId` / `filePath` を読み、backendが返した値を優先するようにした。
+- renderer側の送信フレーム数や要求filePathだけで完了扱いしないようにした。
+- 版を `0.1.1-Beta-208a` に更新した。
+
+### 検証
+- `npm test -- src/utils/rustBackendVideoEncodeExport.test.ts src/utils/rustVideoEncodeBackendBridge.test.ts src/utils/rustBackendVideoEncodeControl.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "rustBackendVideoEncodeExport|rustVideoEncodeBackendBridge|rustBackendVideoEncodeControl|useProjectExport"`
+
+### 残課題・次のステップ
+- Rust backend側の `encode.finish` / ffmpeg実行をcargo testで再確認し、実機smoke前にbackend contractの緑を取る。
+- 実機GoPro素材でRust native render / Rust encode / release diagnosticsを確認する。
