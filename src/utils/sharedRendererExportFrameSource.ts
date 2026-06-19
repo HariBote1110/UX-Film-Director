@@ -137,7 +137,7 @@ export const isSharedRendererExportFrameSourceBlockedError = (
   || (
     typeof value === 'object'
     && value !== null
-    && (value as { fallbackToLegacyCanvas?: unknown }).fallbackToLegacyCanvas === true
+    && typeof (value as { fallbackToLegacyCanvas?: unknown }).fallbackToLegacyCanvas === 'boolean'
     && typeof (value as { reason?: unknown }).reason === 'string'
     && typeof (value as { frameIndex?: unknown }).frameIndex === 'number'
   );
