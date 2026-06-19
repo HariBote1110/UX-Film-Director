@@ -297,4 +297,77 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
       'native render source release returned false'
     );
   });
+
+  it('reports stale decoded frame release failure instead of hiding it as a stale response', async () => {
+    const frame = sharedFrame();
+    const result = await prepareSharedRendererViewportNativeRenderSources({
+      session: session(),
+      requestId: 99,
+      activeJobs: [],
+      rustBackendBridge: {
+        startVideoDecode: async () => ({ success: true }),
+        requestVideoDecodeFrame: async () => ({
+          success: true,
+          result: {
+            accepted: true,
+            jobId: 'shared-renderer-video-video-1-4x4-60over1',
+            requestId: 98,
+            frameIndex: 12,
+            mode: 'latestWins',
+            frame,
+            verification: {
+              frameIndex: 12,
+              checksum: {
+                algorithm: 'crc32',
+                valueHex: '00000000',
+                byteLen: frame.descriptor.byteLen,
+              },
+              status: 'withinTolerance',
+            },
+          },
+        }),
+        releaseVideoDecodeFrame: async () => ({
+          success: false,
+          error: 'stale native render source release failed',
+        }),
+        stopVideoDecode: async () => ({ success: true }),
+      },
+      decodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'clip-video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video-1.mp4',
+          sourceFrame: 12,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 2,
+          width: 4,
+          height: 4,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'staleDecodeReleaseFailed',
+      detail: 'stale native render source release failed',
+      activeJobs: [{
+        jobId: 'shared-renderer-video-video-1-4x4-60over1',
+        source: '/tmp/video-1.mp4',
+        slotCount: 2,
+        width: 4,
+        height: 4,
+        sourceRate: {
+          numerator: 60,
+          denominator: 1,
+        },
+      }],
+    });
+  });
 });
