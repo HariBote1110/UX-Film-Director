@@ -755,3 +755,16 @@
 - `npm test -- sharedRendererPreviewPresenterController` を実行し、Redでabort release例外がpresenter外へ投げられる失敗を確認した。
 - `npm test -- sharedRendererPreviewPresenterController sharedRendererViewportPresenterOrchestration sharedRendererPresenterDiagnostics` を実行し、47件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 65. Phase5: native render abort release失敗をpresenter診断へ追加
+- `src/utils/sharedRendererPreviewPresenterController.test.ts`
+- native render frame upload失敗後の `releaseAfterUploadAbort` が失敗してもpresenter処理を例外で落とさず、datasetへ `nativeRenderOutputReleaseFailed` を出す契約を追加した。
+- `src/utils/sharedRendererPreviewPresenterController.ts`
+- native render upload / presentation失敗後のabort releaseを捕捉し、失敗時は `nativeRenderFailureReason=nativeRenderOutputReleaseFailed` とdetailを残すようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-210j` に更新した。
+
+## 確認
+- `npm test -- sharedRendererPreviewPresenterController` を実行し、Redでnative render abort release例外がpresenter外へ投げられる失敗を確認した。
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics` を実行し、38件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

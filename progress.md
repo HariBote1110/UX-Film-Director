@@ -1,3 +1,20 @@
+## 2026-06-19 — native render abort release失敗をpresenter診断へ追加
+
+### 実施内容
+- Red: native render frame upload失敗後の `releaseAfterUploadAbort` が失敗してもpresenter処理を例外で落とさず、datasetへ `nativeRenderOutputReleaseFailed` を出す契約を追加した。
+- Green: native render upload / presentation失敗後のabort releaseを捕捉し、失敗時は `nativeRenderFailureReason=nativeRenderOutputReleaseFailed` とdetailを残すようにした。
+- Rust native render outputの解放失敗を、preview fallback表示の裏で見失わないようにした。
+- 版を `0.1.1-Beta-210j` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPreviewPresenterController`
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts)"`
+
+### 残課題・次のステップ
+- 実機GoPro素材でnative render output upload / release失敗時にdatasetへreason/detail/labelが残ることを確認する。
+- 成功時はnative render output release診断が残らず、shared renderer ownershipへ進むことを確認する。
+
 ## 2026-06-19 — 動画upload abort release失敗をpresenter診断へ追加
 
 ### 実施内容
