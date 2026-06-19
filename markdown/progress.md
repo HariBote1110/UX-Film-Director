@@ -593,3 +593,10 @@
 - Green: `prepareSharedRendererRustDecodedVideoUpload` のrelease callbackを `createSingleUseDecodedFrameReleaser` で共有し、最初に確定した `copyOutState` だけをRust backendへ送るようにした。
 - 検証: `npm test -- sharedRendererRustVideoUploadPipeline` は4件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-197a`。
+
+## 2026-06-19
+- Phase5のdecoded video upload ownershipとして、native copy bridge例外時のslot解放漏れを塞いだ。
+- Red: `sharedRendererRustVideoUploadPipeline` に、`copyIntoUploadBuffer` がthrowしてもdecoded slotを `rendererUploadAborted` でreleaseする契約を追加した。
+- Green: `prepareSharedRendererRustDecodedVideoUpload` がcopy例外をcatchしてabort release後に元の例外を再throwし、single-use releaserはnative render側と同じPromise共有型に揃えた。
+- 検証: `npm test -- sharedRendererRustVideoUploadPipeline sharedVideoFrameUploadBridge sharedRendererViewportVideoUpload` は18件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-197b`。

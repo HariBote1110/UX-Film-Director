@@ -1071,6 +1071,7 @@ TypeScript fallbackへ黙って戻らず `requiredRustVideoControlPlaneUnavailab
 失敗clip自身のslot releaseに加えて先行成功slotも `rendererUploadAborted` に戻し、multi-video previewでshared memory ringが詰まることを防ぐ。
 decoded video upload objectの `releaseAfterGpuUpload` / `releaseAfterUploadAbort` は同じslot leaseに対して単回実行とし、
 WebGPU fence成功後のabort callbackや二重disposeでRust backend slotを二重releaseしない。
+native copy bridgeが失敗結果を返す場合だけでなく、reject / throwした場合も同じslot leaseを `rendererUploadAborted` で解放する。
 
 199. Phase5: legacy base64 export IPC/RPCを削除する
 Electron mainの旧 `start-export` / `write-frame` / `end-export` と、Rust backendの旧 `export.start` /

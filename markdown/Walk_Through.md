@@ -560,3 +560,16 @@
 ## 確認
 - `npm test -- sharedRendererRustVideoUploadPipeline` を実行し、4件成功を確認。
 - `npx tsc --noEmit 2>&1 | rg "sharedRendererRustVideoUploadPipeline|sharedVideoFrameUploadBridge|sharedRendererViewportVideoUpload"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 51. Phase5: decoded video copy例外時のslot解放
+- `src/utils/sharedRendererRustVideoUploadPipeline.ts`
+- `prepareSharedRendererDecodedVideoFrameUpload` がcopy bridge例外でrejectした場合も、decoded slotを `rendererUploadAborted` としてreleaseしてから元の例外を再throwするようにした。
+- decoded slotのsingle-use releaserをPromise共有型にし、release失敗時のPromise伝播をnative render output側と揃えた。
+- `src/utils/sharedRendererRustVideoUploadPipeline.test.ts`
+- `copyIntoUploadBuffer` がthrowしても `releaseVideoDecodeFrame` がslot/generation指定で1回呼ばれる契約を追加した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-197b` に更新した。
+
+## 確認
+- `npm test -- sharedRendererRustVideoUploadPipeline sharedVideoFrameUploadBridge sharedRendererViewportVideoUpload` を実行し、18件成功を確認。
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererRustVideoUploadPipeline|sharedVideoFrameUploadBridge|sharedRendererViewportVideoUpload"` を実行し、対象ファイルに型エラーが出ないことを確認。
