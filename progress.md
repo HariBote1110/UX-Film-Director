@@ -6457,6 +6457,22 @@
 - `npm test -- sharedRendererViewportNativeRenderSource -t "decode start fails"` を実行し、decode start失敗時のprepared source abort release failure契約も固定した。
 - 既存実装で契約を満たしていたため、挙動変更と版更新は行っていない。
 
+## 2026-06-20 — 動画sourceとGeneratedGradientを同一Rust native render passで固定
+
+### 実施内容
+- 前進重視の方針に合わせ、細かい失敗境界ではなく、Rustで実際に描ける混合表現をテストで固定した。
+- Red: `rust-backend` に、shared memory上のVideo sourceを背景にし、GeneratedGradient mediaを前面合成する `render.nativeSharedFrame` 契約を追加した。
+- Red: `sharedRendererViewportNativeRenderUpload` に、decoded video sourceとGeneratedGradient mediaを同じ `renderNativeSharedFrame` payloadへ渡す契約を追加した。
+- 既存実装で契約を満たしていたため、挙動変更と版更新は行っていない。
+
+### 検証
+- `cargo test native_render_shared_frame_composites_video_source_with_generated_gradient_media` (`rust-backend/`)
+- `npm test -- sharedRendererViewportNativeRenderUpload -t "generated gradient media"`
+
+### 残課題・次のステップ
+- presenter診断でも動画 + GeneratedGradientのnative render readyを明示し、実機で「どこまでRustか」を追いやすくする。
+- 次は実装が必要な前進スライスとして、動画 + GeneratedGradient以外の混合mediaをRust native render uploadへ広げる。
+
 ## 2026-06-19 — shared frame copy checksum検証を追加
 
 ### 実施内容

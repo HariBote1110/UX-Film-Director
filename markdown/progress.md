@@ -975,3 +975,11 @@
 - 検証: `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource` は68件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-216z`。
 - 追加検証: `npm test -- sharedRendererViewportNativeRenderSource -t "decode start fails"` を実行し、decode start失敗時のprepared source abort release failure契約も固定した。挙動変更なしのため版は据え置き。
+
+## 2026-06-20
+- Phase5の前進スライスとして、動画shared memory sourceとGeneratedGradient mediaが同じRust native render passで合成される契約を固定した。
+- Red: `rust-backend` の `decode_control_plane` に、shared memory上のVideo sourceを背景にし、GeneratedGradient mediaを前面合成する `render.nativeSharedFrame` 契約を追加した。
+- Red: `sharedRendererViewportNativeRenderUpload` に、decoded video sourceとGeneratedGradient mediaを同じ `renderNativeSharedFrame` payloadへ渡す契約を追加した。
+- 既存実装で契約を満たしていたため、挙動変更と版更新は行わず、Rust側へ既に載っている描画面積を太いテストとして固定した。
+- 検証: `cargo test native_render_shared_frame_composites_video_source_with_generated_gradient_media` (`rust-backend/`) は1件成功。`npm test -- sharedRendererViewportNativeRenderUpload -t "generated gradient media"` は1件成功。
+- 版: `0.1.1-Beta-216z` 据え置き。
