@@ -1135,3 +1135,18 @@
 - `npm test -- exportDiagnosticsLog` を実行し、Redでログヘルパー未実装の失敗を確認した。
 - `npm test -- exportDiagnosticsLog exportProgressDiagnostics useProjectExportBoundary ExportProgressModal exportProgress` を再実行し、46件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/exportDiagnosticsLog\\.ts|src/utils/exportDiagnosticsLog\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts|src/store/useStore\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 92. Phase5: 終了後Rust診断を画面表示
+- `src/components/ExportProgressModal.test.ts`
+- `lastExportDiagnostics` を終了後表示用の診断行に変換する契約を追加した。
+- `src/components/ExportProgressModal.tsx`
+- export中でない場合でも `lastExportDiagnostics` を小さな診断toastとして表示するようにした。
+- `src/index.css`
+- 終了後診断toastの最小スタイルを追加した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-212a` に更新した。
+
+## 確認
+- `npm test -- ExportProgressModal` を実行し、Redで終了後診断summary formatter未実装の失敗を確認した。
+- `npm test -- exportDiagnosticsLog exportProgressDiagnostics useProjectExportBoundary ExportProgressModal exportProgress` を再実行し、48件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/index\\.css|src/store/useStore\\.ts|src/utils/exportDiagnosticsLog\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

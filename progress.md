@@ -1,3 +1,20 @@
+## 2026-06-19 — 終了後Rust診断を画面表示
+
+### 実施内容
+- Red: `lastExportDiagnostics` を終了後表示用の診断行に変換する契約を追加した。
+- Green: `ExportProgressModal` がexport中でない場合でも `lastExportDiagnostics` を小さな診断toastとして表示するようにした。
+- Rust frame source blocked/native render output release診断を、DevToolsログだけでなく画面上でも確認できるようにした。
+- 版を `0.1.1-Beta-212a` に更新した。
+
+### 検証
+- `npm test -- ExportProgressModal`
+- `npm test -- exportDiagnosticsLog exportProgressDiagnostics useProjectExportBoundary ExportProgressModal exportProgress`
+- `npx tsc --noEmit 2>&1 | rg "(src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/index\\.css|src/store/useStore\\.ts|src/utils/exportDiagnosticsLog\\.ts)"`
+
+### 残課題・次のステップ
+- Rust frame source ready時のbrowser fallback遮断を統合テストで固定する。
+- 必要なら終了後診断toastのdismiss操作を追加する。
+
 ## 2026-06-19 — export終了後Rust診断をログ出力
 
 ### 実施内容
