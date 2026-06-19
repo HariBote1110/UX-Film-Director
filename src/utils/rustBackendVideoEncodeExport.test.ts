@@ -249,6 +249,30 @@ describe('runRustBackendVideoEncodeExport', () => {
     });
   });
 
+  it('fails loud when the Rust backend finish result omits the export summary', async () => {
+    const encoderBridge: RustBackendVideoEncodeBridge = {
+      startVideoEncode: async () => ({ success: true, result: { started: true } }),
+      writeVideoEncodeFrame: async () => ({ success: true, result: { written: true } }),
+      finishVideoEncode: async () => ({
+        success: true,
+        result: { finished: true },
+      }),
+    };
+    async function* directSharedFrames() {
+      yield { timestamp: 0, sharedFramePayload: sharedFramePayload(0, 0, 'session-missing-finish-summary') };
+    }
+
+    await expect(runRustBackendVideoEncodeExport({
+      sessionId: 'session-missing-finish-summary',
+      filePath: '/tmp/requested.mp4',
+      width: 4,
+      height: 2,
+      fps: 60,
+      frames: directSharedFrames(),
+      encoderBridge,
+    })).rejects.toThrow('Rust backend video encode finish did not return a complete export summary.');
+  });
+
   it('releases native render output when encode write fails before Rust consumes it', async () => {
     const calls: unknown[] = [];
     const releaseEvents: unknown[] = [];
