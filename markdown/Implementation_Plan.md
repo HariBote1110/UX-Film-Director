@@ -1345,6 +1345,11 @@ bitmap export pathでpresenterが `sharedRendererOutputUnavailable` を返した
 `createFrameBitmap` / legacy bitmap canvas captureへ進まず、同じblocked errorとして停止する。
 direct encodeとbitmap exportの両方で、実shared renderer出力がない状態を成功扱いにしない。
 
+246. Phase5: shared renderer output blocked診断の表示ラベルを追加する
+`sharedRendererOutputUnavailable` のRust frame source blocked診断は、UI summaryでraw reasonを出さず、
+日本語では `shared renderer実出力なし`、英語では `shared renderer output unavailable` と表示する。
+export実出力不可のblocked診断を、実機UIで原因追跡しやすい文言にする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

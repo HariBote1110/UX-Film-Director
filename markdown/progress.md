@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のexport診断表示として、`sharedRendererOutputUnavailable` のRust frame source blocked診断に読みやすい表示ラベルを追加した。
+- Red: `ExportProgressModal` のテストへ、raw reasonではなく `shared renderer実出力なし` / `shared renderer output unavailable` が表示される契約を追加した。
+- Green: blocked reason formatterに `sharedRendererOutputUnavailable` の日本語/英語ラベルを追加した。
+- 検証: `npm test -- ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress` は30件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216i`。
+
+## 2026-06-19
 - Phase5のexport fallback境界として、`sharedRendererOutputUnavailable` 時にbitmap export pathがlegacy bitmap captureへ進まないようにした。
 - Red: `sharedRendererExportFrameSource` のテストへ、実出力不可時に `createFrameBitmap` が呼ばれずblocked errorになる契約を追加した。
 - Green: `sharedRendererOutputUnavailable` のblocked化を `presentFrame` 共通経路へ移し、direct encodeとbitmap exportの両方で同じfail-loud境界を使うようにした。

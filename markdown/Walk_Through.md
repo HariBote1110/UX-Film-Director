@@ -1695,6 +1695,20 @@
 - `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress` を実行し、77件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/projectExportFrameRenderer\\.test\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/store/useStore\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 131. Phase5: shared renderer output blocked診断の表示ラベルを追加
+- `src/components/ExportProgressModal.test.ts`
+- `sharedRendererOutputUnavailable` のRust frame source blocked診断がraw reasonではなく、日本語/英語の読みやすいラベルで表示される契約を追加した。
+- `src/components/ExportProgressModal.tsx`
+- blocked reason formatterに `sharedRendererOutputUnavailable` を追加した。
+- 日本語では `shared renderer実出力なし`、英語では `shared renderer output unavailable` と表示する。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216i` に更新した。
+
+## 確認
+- `npm test -- ExportProgressModal` を実行し、Redでraw reasonが表示される失敗を確認した。
+- `npm test -- ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress` を実行し、30件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportDiagnosticsLog\\.test\\.ts|src/utils/exportProgressDiagnostics\\.ts|src/store/useStore\\.ts|src/utils/sharedRendererExportFrameSource\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。
