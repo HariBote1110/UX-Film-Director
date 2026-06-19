@@ -114,6 +114,21 @@ describe('formatRustFrameSourceBlockedDiagnostic', () => {
       legacyCanvasFallbackAllowed: false,
     }, 'en')).toBe('Rust frame source: blocked shared renderer output unavailable frame=4 legacy fallback disabled');
   });
+
+  it('formats WebGPU draw unavailable diagnostics with a readable label', () => {
+    expect(formatRustFrameSourceBlockedDiagnostic({
+      reason: 'webGpuDrawUnavailable',
+      frameIndex: 6,
+      legacyCanvasFallbackAllowed: false,
+      detail: 'Shared renderer WebGPU presentation is unavailable.',
+    }, 'ja')).toBe('Rust frame source: 停止 WebGPU描画不可 frame=6 legacy fallback不可: Shared renderer WebGPU presentation is unavailable.');
+
+    expect(formatRustFrameSourceBlockedDiagnostic({
+      reason: 'webGpuDrawUnavailable',
+      frameIndex: 6,
+      legacyCanvasFallbackAllowed: false,
+    }, 'en')).toBe('Rust frame source: blocked WebGPU draw unavailable frame=6 legacy fallback disabled');
+  });
 });
 
 describe('formatLastExportDiagnosticsSummary', () => {
