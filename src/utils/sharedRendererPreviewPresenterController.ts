@@ -331,7 +331,15 @@ export const startSharedRendererPreviewPresenter = async ({
       }
       if (sharedRendererNativeRenderFrameUpload.releaseAfterGpuUpload) {
         await presenter.device.queue?.onSubmittedWorkDone?.();
-        await sharedRendererNativeRenderFrameUpload.releaseAfterGpuUpload();
+        const releaseFailureDetail = await releaseDecodedVideoUploadAfterGpuUpload(
+          sharedRendererNativeRenderFrameUpload.releaseAfterGpuUpload
+        );
+        if (releaseFailureDetail) {
+          nativeRenderFailure = {
+            reason: 'nativeRenderOutputReleaseFailed',
+            detail: releaseFailureDetail,
+          };
+        }
       }
       nativeRenderFrameReady = true;
     } else {
