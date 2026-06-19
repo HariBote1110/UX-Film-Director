@@ -390,19 +390,16 @@ export const startSharedRendererPreviewPresenter = async ({
   let solidColourOwnership: SharedRendererSolidColourOwnership = buildSharedRendererSolidColourOwnership({
     cutoverEnabled: sharedRendererSolidColourCutoverEnabled,
     hasSolidColourScene,
+    nativeRenderFrameReady,
+    nativeRenderSolidColourObjectIds: nativeRenderFrameReady
+      ? collectObjectIdsByMediaKind(session, 'SolidColour')
+      : undefined,
     geometrySource: solidColourGeometrySource,
     solidColourObjectIds,
     stackSafeSolidColourObjectIds: solidColourStackSafety
       ? new Set(solidColourStackSafety.safeSolidColourObjectIds)
       : undefined,
   });
-  if (nativeRenderFrameReady && hasSolidColourScene) {
-    solidColourOwnership = {
-      owner: 'sharedRenderer',
-      reason: 'nativeRenderFrameReady',
-      solidColourObjectIds: collectObjectIdsByMediaKind(session, 'SolidColour'),
-    };
-  }
   const imageOwnership = buildSharedRendererImageOwnership({
     hasImageScene,
     nativeRenderFrameReady,

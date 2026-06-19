@@ -23,6 +23,8 @@ export interface SharedRendererSolidColourOwnership {
 export interface BuildSharedRendererSolidColourOwnershipInput {
   cutoverEnabled: boolean;
   hasSolidColourScene: boolean;
+  nativeRenderFrameReady?: boolean;
+  nativeRenderSolidColourObjectIds?: string[];
   geometrySource?: 'rust-wasm' | 'typescript';
   solidColourObjectIds: string[];
   stackSafeSolidColourObjectIds?: ReadonlySet<string>;
@@ -50,15 +52,24 @@ export interface BuildSharedRendererSolidColourStackSafetyInput {
 export const buildSharedRendererSolidColourOwnership = ({
   cutoverEnabled,
   hasSolidColourScene,
+  nativeRenderFrameReady = false,
+  nativeRenderSolidColourObjectIds = [],
   geometrySource,
   solidColourObjectIds,
   stackSafeSolidColourObjectIds,
 }: BuildSharedRendererSolidColourOwnershipInput): SharedRendererSolidColourOwnership => {
-  if (!cutoverEnabled) {
-    return pixiOwnership('cutoverDisabled');
-  }
   if (!hasSolidColourScene) {
     return pixiOwnership('noSolidColourScene');
+  }
+  if (nativeRenderFrameReady) {
+    return {
+      owner: 'sharedRenderer',
+      reason: 'nativeRenderFrameReady',
+      solidColourObjectIds: nativeRenderSolidColourObjectIds,
+    };
+  }
+  if (!cutoverEnabled) {
+    return pixiOwnership('cutoverDisabled');
   }
   if (geometrySource !== 'rust-wasm') {
     return pixiOwnership('rustGeometryUnavailable');
