@@ -614,3 +614,10 @@
 - Green: `electron/main.ts` から `resolve-4k-proxy-video` handlerを削除し、WebCodecs診断用H.264 proxy resolverをproduction IPCへ戻さないようにした。
 - 検証: `npm test -- productionVideoDependencyBoundary legacyBase64ExportBoundary` は3件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-198a`。
+
+## 2026-06-19
+- Phase5のproduction video dependency境界として、Electron mainからbrowser動画codec強制flagを削除した。
+- Red: `productionVideoDependencyBoundary` に、`UseChromeOSDirectVideoDecoder` / `VideoToolboxVideoCodecFactory` / `VaapiVideoDecoder` / `VaapiVideoEncoder` / `WebCodecs` が `electron/main.ts` に戻らない契約を追加した。
+- Green: Electron起動flagをWebGPU / GPU raster用途に整理し、browser動画decode/encode featureの強制有効化を外した。
+- 検証: `npm test -- productionVideoDependencyBoundary legacyBase64ExportBoundary` は4件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-199a`。

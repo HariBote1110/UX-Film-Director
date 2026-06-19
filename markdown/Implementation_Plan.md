@@ -1141,6 +1141,8 @@ WebCodecs用中間ファイル生成をproduction境界へ戻さない。
 production起動時の `VideoDecoder.isConfigSupported` probeも削除し、WebCodecs decode依存を通常起動境界から外す。
 Electron mainのproduction IPCからも `resolve-4k-proxy-video` のようなVideoDecoder検証専用fixture resolverを外し、
 WebCodecs診断用proxy解決を通常アプリ境界へ戻さない。
+Electron起動flagからも `VideoToolboxVideoCodecFactory` / `VaapiVideoDecoder` / `VaapiVideoEncoder` /
+`UseChromeOSDirectVideoDecoder` のようなbrowser video codec強制設定を削除し、動画decode/encodeの正本をRust backend側へ寄せる。
 
 209. Phase5: presenter controlからWebGPU readback公開口を削除する
 `SharedRendererPreviewPresenterControl` のready controlは `readPresentedFrameRgbaBytes` を公開しない。

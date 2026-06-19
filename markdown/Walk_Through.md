@@ -597,3 +597,16 @@
 ## 確認
 - `npm test -- productionVideoDependencyBoundary legacyBase64ExportBoundary` を実行し、3件成功を確認。
 - `npx tsc --noEmit 2>&1 | rg "electron/main|productionVideoDependencyBoundary|legacyBase64ExportBoundary"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 54. Phase5: Electron mainのbrowser動画codec flag削除
+- `electron/main.ts`
+- `UseChromeOSDirectVideoDecoder` のdisable指定と、`VideoToolboxVideoCodecFactory` / `VaapiVideoDecoder` / `VaapiVideoEncoder` のenable指定を削除した。
+- WebGPU / Canvas GPU rasterの起動flagは残し、動画decode/encodeの正本をRust backend側へ寄せる境界にした。
+- `src/utils/productionVideoDependencyBoundary.test.ts`
+- production Electron mainへbrowser動画codec強制flagが戻らない契約を追加した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-199a` に更新した。
+
+## 確認
+- `npm test -- productionVideoDependencyBoundary legacyBase64ExportBoundary` を実行し、4件成功を確認。
+- `npx tsc --noEmit 2>&1 | rg "electron/main|productionVideoDependencyBoundary|legacyBase64ExportBoundary"` を実行し、対象ファイルに型エラーが出ないことを確認。
