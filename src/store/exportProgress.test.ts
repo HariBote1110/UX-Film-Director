@@ -55,6 +55,7 @@ describe('export progress state', () => {
         reason: 'videoBitmapCaptureDisabled',
         frameIndex: 13,
         legacyCanvasFallbackAllowed: false,
+        detail: 'Video export cannot use browser bitmap capture for video objects.',
       },
     });
 
@@ -66,6 +67,7 @@ describe('export progress state', () => {
         reason: 'videoBitmapCaptureDisabled',
         frameIndex: 13,
         legacyCanvasFallbackAllowed: false,
+        detail: 'Video export cannot use browser bitmap capture for video objects.',
       },
     });
   });

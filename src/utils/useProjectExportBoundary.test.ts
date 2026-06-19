@@ -110,6 +110,7 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     const code = source();
 
     expect(code).toContain('rustFrameSourceBlocked: {');
+    expect(code).toContain('detail: error.message');
     expect(code).toContain('legacyCanvasFallbackAllowed: error.legacyCanvasFallbackAllowed');
     expect(code.indexOf('rustFrameSourceBlocked: {')).toBeLessThan(
       code.indexOf('if (blockedRuntimePlan.shouldFailOnRustFrameSourceBlocked)')

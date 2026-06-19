@@ -70,4 +70,13 @@ describe('formatRustFrameSourceBlockedDiagnostic', () => {
       legacyCanvasFallbackAllowed: false,
     }, 'en')).toBe('Rust frame source: blocked native render output release failed frame=12 legacy fallback disabled');
   });
+
+  it('formats video ownership blocked diagnostics with the Rust detail', () => {
+    expect(formatRustFrameSourceBlockedDiagnostic({
+      reason: 'videoOwnershipUnavailable',
+      frameIndex: 5,
+      legacyCanvasFallbackAllowed: true,
+      detail: 'Shared renderer export is missing uploaded video clips: video-2.',
+    }, 'ja')).toBe('Rust frame source: 停止 動画所有権未移管 frame=5 legacy fallback可: Shared renderer export is missing uploaded video clips: video-2.');
+  });
 });
