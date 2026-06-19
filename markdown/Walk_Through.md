@@ -1634,6 +1634,21 @@
 - `npm test -- ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress` を実行し、29件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/store/useStore\\.ts|src/store/exportProgress\\.test\\.ts|src/utils/exportProgressDiagnostics\\.ts|src/utils/exportProgressDiagnostics\\.test\\.ts|src/utils/rustFrameSourceBlockedFallback\\.ts|src/components/ExportProgressModal\\.tsx|src/utils/exportDiagnosticsLog\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 127. Phase5: shared renderer実出力必須時のPixi passthroughをblocked診断に変更
+- `src/utils/sharedRendererPreviewPresenterController.test.ts`
+- `requireSharedRendererOutput` が有効で、native render frameもuploaded video frameもなくPixi passthroughしか残らない場合、dataset statusが `blocked` になる契約へ更新した。
+- `src/utils/sharedRendererPreviewPresenterController.ts`
+- `sharedRendererOutputUnavailable` のdiagnostics statusを `fallback` から `blocked` に変更した。
+- 実shared renderer出力が必須の検証で、Pixi passthroughを互換fallbackとして扱わない。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216e` に更新した。
+
+## 確認
+- `npm test -- sharedRendererPreviewPresenterController` を実行し、Redで `sharedRendererOutputUnavailable` がまだ `fallback` と出る失敗を確認した。
+- `npm test -- sharedRendererPreviewPresenterController` を再実行し、33件成功を確認した。
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration viewportRustVideoOnlyBoundary` を実行し、70件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。

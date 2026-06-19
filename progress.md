@@ -1,3 +1,20 @@
+## 2026-06-19 — shared renderer実出力必須時のPixi passthroughをblocked診断に変更
+
+### 実施内容
+- Red: `requireSharedRendererOutput` が有効で、native render frameもuploaded video frameもなくPixi passthroughしか残らない場合、presenter診断が `blocked` になる契約を追加した。
+- Green: `sharedRendererOutputUnavailable` のpresenter diagnosticsを `fallback` から `blocked` に変更した。
+- 実出力必須のpreview検証で、Pixi passthroughを互換fallbackとして成功寄りに見せるズレを塞いだ。
+- 版を `0.1.1-Beta-216e` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPreviewPresenterController`
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration viewportRustVideoOnlyBoundary`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- native render frame upload失敗時に、Rust/native render必須のpreview/exportではPixi presentationへ戻らない境界を追加で整理する。
+- Viewport本体のPixi依存撤去へ向けて、image/PSD/SolidColourのnative render coverageをさらに診断へ接続する。
+
 ## 2026-06-19 — 動画Rust blocked診断をprogress保存時に正規化
 
 ### 実施内容

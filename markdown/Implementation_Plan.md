@@ -1325,6 +1325,11 @@ Rust動画必須blockedが、表示上だけlegacy fallback可能に見えるズ
 `rustFrameSourceBlocked` を保存時にも `legacyCanvasFallbackAllowed=false` へ正規化する。
 UI/ログだけでなく、保持payload自体もRust動画必須blockedの意味に揃える。
 
+242. Phase5: shared renderer実出力必須時のPixi passthroughをblocked診断にする
+`requireSharedRendererOutput` が有効で、native render frameもuploaded video frameもなくPixi passthroughしか残らない場合、
+presenter diagnosticsの `sharedRendererOutputUnavailable` を `blocked` として出す。
+実出力必須のpreview検証で、Pixi passthroughを互換fallbackとして成功寄りに見せない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

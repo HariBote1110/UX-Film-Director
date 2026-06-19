@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のpreview診断として、実shared renderer出力が必須なのにPixi passthroughしか残らないケースを `blocked` に変更した。
+- Red: `sharedRendererPreviewPresenterController` のテストへ、`requireSharedRendererOutput` 時の `sharedRendererOutputUnavailable` がblocked診断になる契約を追加した。
+- Green: presenter diagnosticsの該当経路を `fallback` から `blocked` に変更した。
+- 検証: `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration viewportRustVideoOnlyBoundary` は70件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216e`。
+
+## 2026-06-19
 - Phase5のexport診断保存として、`videoOwnershipUnavailable` / `videoUploadFailed` のblocked payload自体をlegacy fallback不可へ正規化した。
 - Red: `exportProgress` と `exportProgressDiagnostics` のテストへ、古いtrue payloadでもprogress保持時にはfalseになる契約を追加した。
 - Green: `normaliseRustFrameSourceBlockedFallback` を追加し、`setExportProgress` と `updateExportProgressPhase` で同じ正規化を使うようにした。
