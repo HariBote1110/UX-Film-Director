@@ -76,9 +76,9 @@ export interface RunRustBackendVideoEncodeExportResult {
 }
 
 interface RustBackendVideoEncodeFinishSummary {
-  frameCount?: number;
-  sessionId?: string;
-  filePath?: string;
+  frameCount: number;
+  sessionId: string;
+  filePath: string;
 }
 
 const createDefaultSessionId = (): string =>
@@ -162,9 +162,9 @@ export const runRustBackendVideoEncodeExport = async ({
   const finishSummary = parseRustBackendVideoEncodeFinishSummary(finishResponse.result);
 
   return {
-    frameCount: finishSummary.frameCount ?? frameCount,
-    sessionId: finishSummary.sessionId ?? sessionId,
-    filePath: finishSummary.filePath ?? filePath,
+    frameCount: finishSummary.frameCount,
+    sessionId: finishSummary.sessionId,
+    filePath: finishSummary.filePath,
   };
 };
 
@@ -172,18 +172,25 @@ const parseRustBackendVideoEncodeFinishSummary = (
   value: unknown
 ): RustBackendVideoEncodeFinishSummary => {
   if (typeof value !== 'object' || value === null) {
-    return {};
+    throw new Error('Rust backend video encode finish did not return a complete export summary.');
   }
   const result = value as {
     frameCount?: unknown;
     sessionId?: unknown;
     filePath?: unknown;
   };
+  if (
+    typeof result.frameCount !== 'number'
+    || typeof result.sessionId !== 'string'
+    || typeof result.filePath !== 'string'
+  ) {
+    throw new Error('Rust backend video encode finish did not return a complete export summary.');
+  }
 
   return {
-    frameCount: typeof result.frameCount === 'number' ? result.frameCount : undefined,
-    sessionId: typeof result.sessionId === 'string' ? result.sessionId : undefined,
-    filePath: typeof result.filePath === 'string' ? result.filePath : undefined,
+    frameCount: result.frameCount,
+    sessionId: result.sessionId,
+    filePath: result.filePath,
   };
 };
 

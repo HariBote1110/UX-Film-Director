@@ -60,7 +60,15 @@ describe('runRustBackendVideoEncodeExport', () => {
       },
       finishVideoEncode: async (payload) => {
         calls.push(['finishVideoEncode', payload]);
-        return { success: true, result: { outputFile: '/tmp/out.mp4' } };
+        return {
+          success: true,
+          result: {
+            finished: true,
+            sessionId: 'session-audio',
+            filePath: '/tmp/out.mp4',
+            frameCount: 1,
+          },
+        };
       },
     };
 
@@ -110,7 +118,15 @@ describe('runRustBackendVideoEncodeExport', () => {
       },
       finishVideoEncode: async (payload) => {
         calls.push(['finishVideoEncode', payload]);
-        return { success: true, result: { outputFile: '/tmp/out.mp4' } };
+        return {
+          success: true,
+          result: {
+            finished: true,
+            sessionId: 'session-shared',
+            filePath: '/tmp/direct-shared.mp4',
+            frameCount: 2,
+          },
+        };
       },
     };
     async function* audioSharedFrames() {
@@ -164,7 +180,15 @@ describe('runRustBackendVideoEncodeExport', () => {
       },
       finishVideoEncode: async (payload) => {
         calls.push(['finishVideoEncode', payload]);
-        return { success: true, result: { outputFile: '/tmp/out.mp4' } };
+        return {
+          success: true,
+          result: {
+            finished: true,
+            sessionId: 'session-shared',
+            filePath: '/tmp/direct-shared.mp4',
+            frameCount: 2,
+          },
+        };
       },
     };
     async function* directSharedFrames() {
