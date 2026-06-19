@@ -4276,3 +4276,18 @@
 ### 残課題・次のステップ
 - `onNativeRenderOutputRelease` を `useProjectExport` / export diagnostics datasetへ接続し、実UIからnative render output release状態を確認できるようにする。
 - 実機のGoPro動画で、encode失敗時にもnative render output shared memoryが残らないことをsmokeで確認する。
+
+## 2026-06-19 — native render output releaseをexport progressへ接続
+
+### 実施内容
+- Red: `exportProgress` がnative render output release診断を保持でき、`useProjectExport` がencode runnerのrelease callbackを渡す契約を追加した。
+- Green: `ExportProgress.nativeRenderOutputRelease` を追加し、`runRustBackendVideoEncodeExport` の `onNativeRenderOutputRelease` から現在のprogressへ診断eventをマージするようにした。
+- 版を `0.1.1-Beta-204a` に更新した。
+
+### 検証
+- `npm test -- exportProgress useProjectExportBoundary`
+- `npx tsc --noEmit 2>&1 | rg "useProjectExport|useStore|exportProgress|rustBackendVideoEncodeExport"`
+
+### 残課題・次のステップ
+- `ExportProgressModal` にnative render output release診断を表示し、実UI上で `released` / `missingBridge` を確認できるようにする。
+- 実機のGoPro動画で、encode失敗時にもnative render output shared memoryが残らないことをsmokeで確認する。
