@@ -185,6 +185,39 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
     ]]);
   });
 
+  it('releases the decoded backend slot as aborted when shared memory copy throws', async () => {
+    const calls: unknown[] = [];
+
+    await expect(prepareSharedRendererRustDecodedVideoUpload({
+      decodeResponse: decodedFrameResponse,
+      slotCount: 2,
+      copyBridge: {
+        copyIntoUploadBuffer: async () => {
+          throw new Error('native copy exploded');
+        },
+      },
+      rustBackendBridge: {
+        startVideoDecode: async () => ({ success: true }),
+        requestVideoDecodeFrame: async () => ({ success: true, result: decodedFrameResponse.result! }),
+        releaseVideoDecodeFrame: async (payload) => {
+          calls.push(['releaseVideoDecodeFrame', payload]);
+          return { success: true };
+        },
+        stopVideoDecode: async () => ({ success: true }),
+      },
+    })).rejects.toThrow('native copy exploded');
+
+    expect(calls).toEqual([[
+      'releaseVideoDecodeFrame',
+      {
+        jobId: 'decode-job-1',
+        slotIndex: 1,
+        generation: 5,
+        copyOutState: 'rendererUploadAborted',
+      },
+    ]]);
+  });
+
   it('releases a decoded backend slot only once when GPU success and abort callbacks both run', async () => {
     const calls: unknown[] = [];
     const copyBridge: SharedVideoFrameCopyBridge = {
