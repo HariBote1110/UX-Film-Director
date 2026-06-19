@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { formatNativeRenderOutputReleaseDiagnostic } from './ExportProgressModal';
+import {
+  formatNativeRenderOutputReleaseDiagnostic,
+  formatRustFrameSourceBlockedDiagnostic,
+} from './ExportProgressModal';
 
 describe('formatNativeRenderOutputReleaseDiagnostic', () => {
   it('formats released native render output diagnostics in Japanese', () => {
@@ -32,5 +35,23 @@ describe('formatNativeRenderOutputReleaseDiagnostic', () => {
       reason: 'encodeWriteFailed',
       error: 'native render output release rejected',
     }, 'en')).toBe('Native render output: release failed (/uxfd-native-render-output)');
+  });
+});
+
+describe('formatRustFrameSourceBlockedDiagnostic', () => {
+  it('formats blocked Rust frame source diagnostics in Japanese', () => {
+    expect(formatRustFrameSourceBlockedDiagnostic({
+      reason: 'videoBitmapCaptureDisabled',
+      frameIndex: 13,
+      legacyCanvasFallbackAllowed: false,
+    }, 'ja')).toBe('Rust frame source: 停止 videoBitmapCaptureDisabled frame=13 legacy fallback不可');
+  });
+
+  it('formats legacy fallback allowed diagnostics in English', () => {
+    expect(formatRustFrameSourceBlockedDiagnostic({
+      reason: 'nativeRenderUnavailable',
+      frameIndex: 4,
+      legacyCanvasFallbackAllowed: true,
+    }, 'en')).toBe('Rust frame source: blocked nativeRenderUnavailable frame=4 legacy fallback allowed');
   });
 });
