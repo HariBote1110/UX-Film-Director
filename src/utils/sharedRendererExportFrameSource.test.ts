@@ -185,6 +185,7 @@ describe('createSharedRendererExportFrameSource', () => {
       reason: 'videoBitmapCaptureDisabled',
       frameIndex: 13,
       fallbackToLegacyCanvas: true,
+      legacyCanvasFallbackAllowed: false,
     });
     expect(blocked.message).toContain('Video export frames require Rust native render shared-frame encoding');
     expect(calls).toEqual([]);
