@@ -130,7 +130,7 @@ class CdpClient {
         if (!this.pending.has(id)) return;
         this.pending.delete(id);
         reject(new Error(`${method} timed out`));
-      }, 20_000);
+      }, 60_000);
     });
   }
 
@@ -488,12 +488,14 @@ const waitForPlaybackFrameAdvance = async (client, initialState) => client.evalu
         presenterStatus: document.documentElement.dataset.uxfdSharedRendererPresenterStatus,
         videoOwner: document.documentElement.dataset.uxfdSharedRendererPresenterVideoOwner,
         videoFrameUploadReady: document.documentElement.dataset.uxfdSharedRendererPresenterVideoFrameUploadReady,
+        presentedSourceFrame: Number(document.documentElement.dataset.uxfdSharedRendererPresenterVideoPresentedSourceFrame ?? NaN),
+        presentedFrameIndex: Number(document.documentElement.dataset.uxfdSharedRendererPresenterVideoPresentedFrameIndex ?? NaN),
       };
       if (
         state.ok
-        && typeof state.sourceFrame === 'number'
+        && Number.isFinite(state.presentedSourceFrame)
         && typeof initialSourceFrame === 'number'
-        && state.sourceFrame > initialSourceFrame + 3
+        && state.presentedSourceFrame > initialSourceFrame + 180
         && state.presenterStatus === 'ready'
         && state.videoOwner === 'sharedRenderer'
         && state.videoFrameUploadReady === 'true'
@@ -501,7 +503,7 @@ const waitForPlaybackFrameAdvance = async (client, initialState) => client.evalu
         resolve({ ok: true, state });
         return;
       }
-      if (Date.now() - started > 12000) {
+      if (Date.now() - started > 20000) {
         resolve({ ok: false, reason: 'playbackFrameAdvanceTimeout', state });
         return;
       }
@@ -660,6 +662,9 @@ const main = async () => {
   const playbackAdvanceResult = playbackClicked
     ? await waitForPlaybackFrameAdvance(client, initialPlaybackFrameState)
     : { ok: false, reason: 'playbackButtonMissing' };
+  if (playbackAdvanceResult?.ok) {
+    await sleep(500);
+  }
   const playbackVisualResult = playbackAdvanceResult?.ok
     ? await captureSharedRendererSurfaceAnalysis(client)
     : undefined;

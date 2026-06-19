@@ -34,6 +34,7 @@ interface PreviewDecodeCanvasSize {
 }
 
 const MAX_VIEWPORT_VIDEO_DECODE_EDGE = 1920;
+const DEFAULT_VIEWPORT_VIDEO_DECODE_EDGE = MAX_VIEWPORT_VIDEO_DECODE_EDGE;
 
 type PreparedViewportVideoUpload = Extract<
   PrepareSharedRendererRustDecodedVideoUploadResult,
@@ -48,6 +49,7 @@ export interface PrepareSharedRendererViewportVideoUploadInput {
   session: SharedRendererPreviewSession;
   requestId?: number;
   slotCount?: number;
+  maxDecodeEdge?: number;
   activeJob?: SharedRendererViewportVideoDecodeJob | null;
   rustBackendBridge?: RustBackendVideoDecodeBridge;
   copyBridge?: SharedVideoFrameCopyBridge;
@@ -58,6 +60,7 @@ export interface PrepareSharedRendererViewportVideoUploadsInput {
   session: SharedRendererPreviewSession;
   requestId?: number;
   slotCount?: number;
+  maxDecodeEdge?: number;
   activeJobs?: readonly SharedRendererViewportVideoDecodeJob[];
   rustBackendBridge?: RustBackendVideoDecodeBridge;
   copyBridge?: SharedVideoFrameCopyBridge;
@@ -124,6 +127,7 @@ export const prepareSharedRendererViewportVideoUploads = async ({
   session,
   requestId,
   slotCount = 2,
+  maxDecodeEdge = DEFAULT_VIEWPORT_VIDEO_DECODE_EDGE,
   activeJobs = [],
   rustBackendBridge = window.rustBackend,
   copyBridge = window.sharedVideoFrame,
@@ -169,7 +173,7 @@ export const prepareSharedRendererViewportVideoUploads = async ({
   const resolvedRequestId = requestId ?? surfaceGate.snapshot.frame_index;
   const requestedJobs = decodeRequests.requests.map((request) => ({
     request,
-    nextJob: buildViewportVideoDecodeJob(request, slotCount, surfaceGate.canvas),
+    nextJob: buildViewportVideoDecodeJob(request, slotCount, surfaceGate.canvas, maxDecodeEdge),
   }));
   const visibleActiveJobs = activeJobs.filter((job) =>
     requestedJobs.some(({ nextJob }) => sameDecodeJob(job, nextJob)));
@@ -371,6 +375,7 @@ export const prepareSharedRendererViewportVideoUpload = async ({
   session,
   requestId,
   slotCount = 2,
+  maxDecodeEdge = DEFAULT_VIEWPORT_VIDEO_DECODE_EDGE,
   activeJob = null,
   rustBackendBridge = window.rustBackend,
   copyBridge = window.sharedVideoFrame,
@@ -409,7 +414,7 @@ export const prepareSharedRendererViewportVideoUpload = async ({
     };
   }
 
-  const nextJob = buildViewportVideoDecodeJob(request, slotCount, surfaceGate.canvas);
+  const nextJob = buildViewportVideoDecodeJob(request, slotCount, surfaceGate.canvas, maxDecodeEdge);
   const resolvedJob = sameDecodeJob(activeJob, nextJob)
     ? activeJob
     : await replaceDecodeJob(activeJob, nextJob, request, rustBackendBridge);
@@ -598,9 +603,10 @@ const buildStaleDecodedFrameDetail = (
 const buildViewportVideoDecodeJob = (
   request: SharedRendererVideoFrameDecodeRequest,
   slotCount: number,
-  canvas: PreviewDecodeCanvasSize
+  canvas: PreviewDecodeCanvasSize,
+  maxDecodeEdge: number = DEFAULT_VIEWPORT_VIDEO_DECODE_EDGE
 ): SharedRendererViewportVideoDecodeJob => {
-  const size = resolveViewportVideoDecodeSize(request, canvas);
+  const size = resolveViewportVideoDecodeSize(request, canvas, maxDecodeEdge);
   return {
     jobId: [
       'shared-renderer-video',
@@ -618,12 +624,16 @@ const buildViewportVideoDecodeJob = (
 
 const resolveViewportVideoDecodeSize = (
   request: SharedRendererVideoFrameDecodeRequest,
-  canvas: PreviewDecodeCanvasSize
+  canvas: PreviewDecodeCanvasSize,
+  maxDecodeEdge: number = DEFAULT_VIEWPORT_VIDEO_DECODE_EDGE
 ): { width: number; height: number } => {
   const sourceWidth = Math.max(1, request.width);
   const sourceHeight = Math.max(1, request.height);
-  const maxWidth = Math.max(1, Math.min(sourceWidth, canvas.width, MAX_VIEWPORT_VIDEO_DECODE_EDGE));
-  const maxHeight = Math.max(1, Math.min(sourceHeight, canvas.height, MAX_VIEWPORT_VIDEO_DECODE_EDGE));
+  const effectiveMaxDecodeEdge = Number.isFinite(maxDecodeEdge) && maxDecodeEdge > 0
+    ? Math.min(maxDecodeEdge, MAX_VIEWPORT_VIDEO_DECODE_EDGE)
+    : MAX_VIEWPORT_VIDEO_DECODE_EDGE;
+  const maxWidth = Math.max(1, Math.min(sourceWidth, canvas.width, effectiveMaxDecodeEdge));
+  const maxHeight = Math.max(1, Math.min(sourceHeight, canvas.height, effectiveMaxDecodeEdge));
   const scale = Math.min(1, maxWidth / sourceWidth, maxHeight / sourceHeight);
 
   return {

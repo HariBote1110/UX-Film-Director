@@ -262,6 +262,9 @@ export const startSharedRendererPreviewPresenter = async ({
   const videoDecodeRequestCount = videoDecodeRequestResult?.ok
     ? videoDecodeRequestResult.requestCount
     : undefined;
+  const videoPresentedSourceFrame = videoDecodeRequestResult?.ok
+    ? videoDecodeRequestResult.requests[0]?.sourceFrame
+    : undefined;
   const videoCutoverStackSafety = videoDecodeRequestResult?.ok
     ? buildSharedRendererVideoCutoverStackSafety({
       snapshot: session.surfaceGate.snapshot,
@@ -647,6 +650,10 @@ export const startSharedRendererPreviewPresenter = async ({
     videoGeometrySource,
     videoDecodeRequestSource,
     videoDecodeRequestCount,
+    videoPresentedSourceFrame,
+    videoPresentedFrameIndex: hasVideoScene && session.surfaceGate.ok
+      ? session.surfaceGate.snapshot.frame_index
+      : undefined,
     videoFrameUploadReady: hasVideoScene ? resolvedVideoFrameUploadReady : undefined,
     videoUploadFailureReason: hasVideoScene ? resolvedVideoUploadFailure?.reason : undefined,
     videoUploadFailureDetail: hasVideoScene ? resolvedVideoUploadFailure?.detail : undefined,

@@ -39,6 +39,8 @@ const GROUP_GRADIENT_COMPONENT_PREFIX = 'group-gradient-component-';
 const RESIZE_HANDLE_PREFIX = 'resize-handle-';
 /** 角ハンドルのスクリーン上の目標サイズ（px）。 */
 const RESIZE_HANDLE_SCREEN_PX = 10;
+const SHARED_RENDERER_PLAYBACK_PREVIEW_FPS = 0.5;
+const SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE = 320;
 
 const RESIZE_CORNER_CURSORS: Record<ResizeCorner, string> = {
   'top-left': 'nwse-resize',
@@ -461,13 +463,16 @@ const Viewport: React.FC = () => {
 
   const publishSharedRendererPreviewSession = useCallback((time: number, currentObjects: TimelineObject[]) => {
     if (!sharedRendererPreviewEnabled) return;
+    const previewTime = isPlaying
+      ? Math.floor(time * SHARED_RENDERER_PLAYBACK_PREVIEW_FPS) / SHARED_RENDERER_PLAYBACK_PREVIEW_FPS
+      : time;
 
     const session = buildSharedRendererPreviewSession({
       enabled: true,
       projectSettings,
       layers,
       objects: currentObjects,
-      time,
+      time: previewTime,
       editorMode,
       isExporting,
       webGpuAvailable: sharedRendererGpuStatus.webGpuAvailable,
@@ -523,6 +528,7 @@ const Viewport: React.FC = () => {
   }, [
     editorMode,
     isExporting,
+    isPlaying,
     layers,
     projectSettings,
     sharedRendererGpuStatus.fallbackAdapter,
@@ -590,6 +596,7 @@ const Viewport: React.FC = () => {
       activeVideoDecodeJobs: sharedRendererVideoCutoverEnabled
         ? sharedRendererVideoDecodeJobsRef.current
         : [],
+      videoDecodeMaxEdge: isPlaying ? SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE : undefined,
       requestId: (sharedRendererVideoDecodeRequestIdRef.current += 1),
       onVideoDecodeJobResolved: (job) => {
         sharedRendererVideoDecodeJobsRef.current = job ? [job] : [];
@@ -637,7 +644,7 @@ const Viewport: React.FC = () => {
         sharedRendererPresenterControlRef.current = null;
       }
     };
-  }, [rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererImageObjectIds, updateSharedRendererPsdObjectIds, updateSharedRendererSolidColourObjectIds]);
+  }, [isPlaying, rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererImageObjectIds, updateSharedRendererPsdObjectIds, updateSharedRendererSolidColourObjectIds]);
 
   // --- Main Render Logic ---
   const renderScene = useCallback((time: number, currentObjects: TimelineObject[]) => {

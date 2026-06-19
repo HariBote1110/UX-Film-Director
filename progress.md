@@ -1,3 +1,24 @@
+## 2026-06-20 — Rust動画preview再生の暫定更新経路を追加
+
+### 実施内容
+- Red: Electron実ウィンドウ動画E2Eを、読込成功だけでなくPlay後に `source_frame` が進み、shared renderer surfaceの実ピクセルが変化することまで検証する契約へ拡張した。
+- Red: GoPro原本では `sourceFrame` は進むが、present済みframeとcanvas pixelsが初回frameのままであることを再現した。
+- Green: presenter診断へ `videoPresentedSourceFrame` / `videoPresentedFrameIndex` を追加し、E2Eが古いready診断ではなく実際にpresentされたframeを待てるようにした。
+- Green: Rust backendの `decode.requestFrame` を `select=eq(n,...)` による先頭からのframe走査ではなく、`sourceRate` から算出した `-ss` seek + 1 frame decodeへ変更した。
+- Green: 再生中のshared renderer previewは、decode完了前に次tickでキャンセルされないよう、0.5fps cadence・最大辺320pxの低解像度decodeへ切り替えた。停止/スクラブ時は従来の高めのdecode設定を使う。
+- 版を `0.1.1-Beta-219l` に更新した。
+
+### 検証
+- `npm test -- sharedRendererViewportVideoUpload sharedRendererViewportPresenterOrchestration`
+- `npm test -- sharedRendererPresenterDiagnostics sharedRendererPreviewPresenterController`
+- `cargo test --manifest-path rust-backend/Cargo.toml decode_request_frame -- --nocapture`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportVideoUpload|src/utils/sharedRendererViewportPresenterOrchestration|src/components/Viewport\\.tsx|rust-backend/src/main\\.rs|scripts/run-video-load-e2e\\.mjs)"`
+- `UXFD_VIDEO_LOAD_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_LOAD_E2E_TIMEOUT_MS=180000 npm run test:video-load:e2e`
+
+### 残課題・次のステップ
+- 現状はspawn-per-frame ffmpeg decodeの制約内での暫定再生なので、GoPro原本は0.5fps程度の粗い更新になる。滑らかな再生にはpersistent decode session、proxy自動生成、または連続frame bufferが必要。
+- E2Eでは `presentedSourceFrame=480`、`meanAbsoluteDelta=18.217`、`changedSampleRatio=0.5201` で、再生中に実ピクセルが変化することを確認した。
+
 ## 2026-06-20 — 外付けSSD動画の一時ファイルprobe fallbackを追加
 
 ### 実施内容

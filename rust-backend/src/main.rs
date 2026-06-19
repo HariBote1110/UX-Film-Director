@@ -16,7 +16,7 @@ use uxfd_shared_memory_spike::{PosixSharedRing, PosixShmError};
 use uxfd_sidecar_protocol::{
     rgba8_srgb_ring_layout, validate_renderer_handoff_descriptor, ChecksumAlgorithm,
     ColourMetadata, CopyOutState, DecodeFrameRequest, DecodeReleaseFrameRequest,
-    DecodeStartRequest, DecodeStartResponse, FrameChecksum, FrameDescriptor, FrameFormat,
+    DecodeStartRequest, DecodeStartResponse, FrameChecksum, FrameDescriptor, FrameFormat, FrameRate,
     FrameVerificationReport, FrameVerificationStatus, ReadyFrame, SharedFrame, SharedFrameRing,
     SlotRecoveryReason,
 };
@@ -1751,6 +1751,7 @@ fn handle_decode_request_frame(
         parsed.frame_index,
         session.start_response.width,
         session.start_response.height,
+        session.start_response.source_rate,
     ) {
         Ok(value) => value,
         Err(error) => {
@@ -2040,16 +2041,21 @@ fn decode_tight_rgba_frame(
     frame_index: u64,
     width: u32,
     height: u32,
+    source_rate: FrameRate,
 ) -> Result<Vec<u8>, String> {
     let input_metadata = probe_video_input_metadata(ffprobe_path, source)?;
+    let seek_seconds = frame_index as f64 * f64::from(source_rate.denominator)
+        / f64::from(source_rate.numerator);
     let filter = format!(
-        "select=eq(n\\,{frame_index}),scale=w={width}:h={height}:in_range={}:out_range=pc,format=rgba",
+        "scale=w={width}:h={height}:in_range={}:out_range=pc,format=rgba",
         input_metadata.range
     );
     let output = Command::new(ffmpeg_path)
         .arg("-hide_banner")
         .arg("-loglevel")
         .arg("error")
+        .arg("-ss")
+        .arg(format!("{seek_seconds:.6}"))
         .arg("-i")
         .arg(source)
         .arg("-vf")

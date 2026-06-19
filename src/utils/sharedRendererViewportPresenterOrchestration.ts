@@ -47,6 +47,7 @@ export interface StartSharedRendererViewportPresenterInput {
   requireSharedRendererOutput?: boolean;
   activeVideoDecodeJob: SharedRendererViewportVideoDecodeJob | null;
   activeVideoDecodeJobs?: SharedRendererViewportVideoDecodeJob[];
+  videoDecodeMaxEdge?: number;
   requestId: number;
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
   prepareVideoUpload?: SharedRendererViewportVideoUploadPreparer;
@@ -79,6 +80,7 @@ export const startSharedRendererViewportPresenter = async ({
   requireSharedRendererOutput = false,
   activeVideoDecodeJob,
   activeVideoDecodeJobs,
+  videoDecodeMaxEdge,
   requestId,
   presentedFrameSharedFrameTaker,
   prepareVideoUpload = prepareSharedRendererViewportVideoUpload,
@@ -102,6 +104,7 @@ export const startSharedRendererViewportPresenter = async ({
     ? await prepareVideoUploads({
       session,
       requestId,
+      maxDecodeEdge: videoDecodeMaxEdge,
       activeJobs: nextActiveVideoDecodeJobs,
     })
     : undefined;
@@ -109,6 +112,7 @@ export const startSharedRendererViewportPresenter = async ({
     ? await prepareVideoUpload({
       session,
       requestId,
+      maxDecodeEdge: videoDecodeMaxEdge,
       activeJob: nextActiveVideoDecodeJob,
     })
     : undefined;
