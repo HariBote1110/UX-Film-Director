@@ -26,6 +26,10 @@ const forbiddenTokens = [
   'check-intermediate',
   'generate-intermediate',
   'cancel-intermediate',
+  'new VideoDecoder',
+  'VideoDecoder.isConfigSupported',
+  "from 'mp4box'",
+  'decodeVideoStream',
 ];
 
 const collectProductionSources = (dir: string): string[] => {
