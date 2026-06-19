@@ -99,6 +99,21 @@ describe('formatRustFrameSourceBlockedDiagnostic', () => {
       detail: 'Shared renderer export is missing uploaded video clips: video-2.',
     }, 'ja')).toBe('Rust frame source: 停止 動画所有権未移管 frame=5 legacy fallback不可: Shared renderer export is missing uploaded video clips: video-2.');
   });
+
+  it('formats shared renderer output blocked diagnostics with a readable label', () => {
+    expect(formatRustFrameSourceBlockedDiagnostic({
+      reason: 'sharedRendererOutputUnavailable',
+      frameIndex: 4,
+      legacyCanvasFallbackAllowed: false,
+      detail: 'Shared renderer export output is unavailable (webGpuUploadUnavailable: WebGPU device does not expose the texture upload APIs needed for decoded video frames.).',
+    }, 'ja')).toBe('Rust frame source: 停止 shared renderer実出力なし frame=4 legacy fallback不可: Shared renderer export output is unavailable (webGpuUploadUnavailable: WebGPU device does not expose the texture upload APIs needed for decoded video frames.).');
+
+    expect(formatRustFrameSourceBlockedDiagnostic({
+      reason: 'sharedRendererOutputUnavailable',
+      frameIndex: 4,
+      legacyCanvasFallbackAllowed: false,
+    }, 'en')).toBe('Rust frame source: blocked shared renderer output unavailable frame=4 legacy fallback disabled');
+  });
 });
 
 describe('formatLastExportDiagnosticsSummary', () => {
