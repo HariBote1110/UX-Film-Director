@@ -1547,6 +1547,21 @@
 - `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress` を実行し、74件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgress\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 122. Phase5: Rust video-onlyをexport cutover gateへ接続
+- `src/utils/viewportRustVideoOnlyBoundary.test.ts`
+- ViewportのRust export frame source生成で、`videoCutoverEnabled: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled` になる契約を追加した。
+- `src/components/Viewport.tsx`
+- `getRustExportFrameSource` が `rustVideoOnlyEnabled` をexport cutover gateへ含めるようにした。
+- React dependencyにも `rustVideoOnlyEnabled` を追加し、env状態の変化に対して古いcallbackを残さないようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-215z` に更新した。
+
+## 確認
+- `npm test -- viewportRustVideoOnlyBoundary` を実行し、Redでexport cutover gateへRust video-onlyが含まれない失敗を確認した。
+- `npm test -- viewportRustVideoOnlyBoundary` を再実行し、16件成功を確認した。
+- `npm test -- viewportRustVideoOnlyBoundary viewportRustExportFrameSource sharedRendererExportFrameSource` を実行し、75件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/components/Viewport\\.tsx|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts|src/utils/viewportRustExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。

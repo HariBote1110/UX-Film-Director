@@ -1300,6 +1300,11 @@ Rust decode/source準備が成立しない状態を、Pixi/legacy captureで成�
 互換fallbackとして残す場合だけ呼び出し側で `true` を明示する。
 新しいRust export block reason追加時の指定漏れで、Pixi/legacy captureへ戻る事故を防ぐ。
 
+237. Phase5: Rust video-onlyをexport cutover gateへ接続する
+ViewportのRust export frame source生成では、`videoCutoverEnabled` を
+`sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled` として渡す。
+Rust video-only起動時に、previewだけでなくexportもRust video cutover必須の配線に揃える。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

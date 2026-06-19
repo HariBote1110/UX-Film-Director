@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のRust video-only export配線として、ViewportのRust export frame source生成にも `rustVideoOnlyEnabled` を渡すようにした。
+- Red: `viewportRustVideoOnlyBoundary` のテストへ、`videoCutoverEnabled: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled` になる契約を追加した。
+- Green: `getRustExportFrameSource` のcutover gateとReact dependencyへ `rustVideoOnlyEnabled` を追加した。
+- 検証: `npm test -- viewportRustVideoOnlyBoundary viewportRustExportFrameSource sharedRendererExportFrameSource` は75件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-215z`。
+
+## 2026-06-19
 - Phase5のexport fallback境界として、`SharedRendererExportFrameSourceBlockedError` のlegacy canvas fallbackを明示opt-inに変更した。
 - Red: blocked error単体のテストへ、明示指定なしでは `fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。
 - Green: blocked errorの既定値をfalseにし、互換fallbackとして残すsurface gate blockだけtrueを明示した。

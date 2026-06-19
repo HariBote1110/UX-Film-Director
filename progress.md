@@ -1,3 +1,20 @@
+## 2026-06-19 — Rust video-onlyをexport cutover gateへ接続
+
+### 実施内容
+- Red: ViewportのRust export frame source生成で、`rustVideoOnlyEnabled` が `videoCutoverEnabled` に含まれる契約を追加した。
+- Green: `getRustExportFrameSource` の `videoCutoverEnabled` を `sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled` にし、dependencyへ `rustVideoOnlyEnabled` を追加した。
+- Rust video-only起動時に、previewだけでなくexport frame source側もRust video cutover必須として扱う配線に揃えた。
+- 版を `0.1.1-Beta-215z` に更新した。
+
+### 検証
+- `npm test -- viewportRustVideoOnlyBoundary`
+- `npm test -- viewportRustVideoOnlyBoundary viewportRustExportFrameSource sharedRendererExportFrameSource`
+- `npx tsc --noEmit 2>&1 | rg "(src/components/Viewport\\.tsx|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts|src/utils/viewportRustExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.ts)"`
+
+### 残課題・次のステップ
+- 次の機能/不具合修正ではSubVerが `z` に達したため、版を `0.1.1-Beta-216a` に進める。
+- Viewport本体のPixi依存撤去へ向けて、video以外のPixi-only presentation条件とRust native render coverageを整理する。
+
 ## 2026-06-19 — blocked errorのlegacy fallbackを明示opt-inに変更
 
 ### 実施内容
