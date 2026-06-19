@@ -1,0 +1,27 @@
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+
+const useProjectExportSource = () =>
+  readFileSync(new URL('./useProjectExport.ts', import.meta.url), 'utf8');
+
+const viewportSource = () =>
+  readFileSync(new URL('../components/Viewport.tsx', import.meta.url), 'utf8');
+
+describe('useProjectExport boundary', () => {
+  it('does not depend on Pixi application types or refs', () => {
+    const code = useProjectExportSource();
+
+    expect(code).not.toContain("import * as PIXI from 'pixi.js'");
+    expect(code).not.toContain('PIXI.Application');
+    expect(code).not.toContain('pixiAppRef');
+  });
+
+  it('receives export canvas access through a provider from the Viewport', () => {
+    const code = viewportSource();
+
+    expect(code).toContain(
+      'useProjectExport(renderScene, getExportCanvas, exportFrameOverridesRef, getRustExportFrameSource)'
+    );
+    expect(code).not.toContain('useProjectExport(pixiAppRef');
+  });
+});
