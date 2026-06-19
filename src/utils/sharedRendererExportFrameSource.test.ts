@@ -3397,6 +3397,65 @@ describe('createSharedRendererExportFrameSource', () => {
     });
   });
 
+  it('preserves shared renderer output block details during direct encode export', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    let disposeCount = 0;
+
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      startViewportPresenter: async () => ({
+        control: {
+          ok: false,
+          reason: 'sharedRendererOutputUnavailable',
+          dispose: () => { disposeCount += 1; },
+        },
+        activeVideoDecodeJob: null,
+        activeVideoDecodeJobs: [],
+        nativeRenderUploadResult: {
+          ok: false,
+          reason: 'webGpuUploadUnavailable',
+          detail: 'WebGPU device does not expose the texture upload APIs needed for decoded video frames.',
+          activeJobs: [],
+        },
+      }) as never,
+    });
+
+    const blocked = await source.renderEncodeFrame?.({
+      frameIndex: 3,
+      timestampUs: 50_000,
+      time: 3 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [image()],
+      encodeSessionId: 'shared-output-block-session',
+    }).catch((error) => error);
+
+    expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
+    expect(blocked).toMatchObject({
+      reason: 'sharedRendererOutputUnavailable',
+      frameIndex: 3,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
+      message: 'Shared renderer export output is unavailable (webGpuUploadUnavailable: WebGPU device does not expose the texture upload APIs needed for decoded video frames.).',
+    });
+    expect(disposeCount).toBe(1);
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'blocked',
+      uxfdRustExportFrameSourceFrameIndex: '3',
+      uxfdRustExportFrameSourceFrameReason: 'sharedRendererOutputUnavailable',
+    });
+  });
+
   it('falls back before bitmap capture when Rust video upload fails during export', async () => {
     const canvas = {
       width: 1,
