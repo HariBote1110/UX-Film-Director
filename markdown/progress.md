@@ -1001,3 +1001,12 @@
 - Green: TS snapshot builderのrotation 0固定とunsupportedRotation gateを外し、未対応fixtureはscale変形へ差し替えた。
 - 検証: `cargo test` (`reference-renderer/`) は12件成功。`cargo test native_wgpu_matches_reference_for_top_left_pivot_rotation` (`native-wgpu-renderer/`) は1件成功。`npm test -- rustSceneSnapshot sharedRendererPreviewSurface sharedRendererExportSession` は22件成功。対象TSファイルで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-217a`。
+
+## 2026-06-20
+- 方針転換として、PixiJSを細かく剥がす作業よりも、図形・画像・音声を配置してRust backend encodeへ進むMVP経路を優先した。
+- Red: `productionVideoDependencyBoundary` に、通常起動時のVite dependency scanがexport test harness / mp4boxを拾わない契約を追加した。
+- Green: `src/main.tsx` のexport test harness動的importへ `/* @vite-ignore */` を付け、通常 `npm run dev` がmp4box dep-scanで止まらないようにした。
+- Red: `rustSceneSnapshot` に、active audio objectがあってもvisual Rust scene snapshotは図形/画像など映像objectだけで成立する契約を追加した。
+- Green: visual snapshot構築前にaudio objectを除外し、音声は `audioMixdown` / Rust encoder muxへ任せる形へ分離した。
+- 検証: `npm test -- productionVideoDependencyBoundary -t "dependency scanning"` は1件成功。`npm test -- rustSceneSnapshot -t "audio objects"` は1件成功。`npm test -- rustSceneSnapshot sharedRendererExportSession sharedRendererPreviewSurface` は23件成功。対象TSファイルで絞った `tsc` 出力は空。`npm run dev` は `http://localhost:5173/` でHTTP 200を確認。
+- 版: `0.1.1-Beta-217b`。

@@ -6507,6 +6507,27 @@
 - WebGPU preview vertex scene側のrotation parityはまだ別gate。native render済みframeの経路を優先して実機確認する。
 - 次はscale変形か、Image/PSD/GeneratedGradient混合mediaの実機native render表示確認へ進む。
 
+## 2026-06-20 — 図形/画像/音声つきRust encode MVP経路を優先
+
+### 実施内容
+- 方針を「PixiJSからの逐次剥がし」より「必要機能を列挙してRust/native経路へ再構築」に寄せた。
+- Red: `productionVideoDependencyBoundary` に、通常起動時のVite dependency scanがexport test harness / mp4boxを拾わない契約を追加した。
+- Green: `src/main.tsx` のexport test harness動的importへ `/* @vite-ignore */` を付け、`npm run dev` がmp4box dep-scanで止まらないようにした。
+- Red: `rustSceneSnapshot` に、active audio objectがあってもvisual Rust scene snapshotは映像objectだけで成立する契約を追加した。
+- Green: visual snapshot構築前にaudio objectを除外し、音声は `audioMixdown` とRust encoderの `audioPath` muxへ任せる形へ分離した。
+- 版を `0.1.1-Beta-217b` に更新した。
+
+### 検証
+- `npm test -- productionVideoDependencyBoundary -t "dependency scanning"`
+- `npm test -- rustSceneSnapshot -t "audio objects"`
+- `npm test -- rustSceneSnapshot sharedRendererExportSession sharedRendererPreviewSurface`
+- `npx tsc --noEmit --pretty false 2>&1 | rg "(src/utils/rustSceneSnapshot\\.ts|src/utils/rustSceneSnapshot\\.test\\.ts)"`
+- `npm run dev` を起動し、`http://localhost:5173/` のHTTP 200を確認した。
+
+### 残課題・次のステップ
+- 実機UIで Rectangle / Image / Audio を置いて、Rust backend encoderでMP4へ出ることを確認する。
+- 次は、必要なら「Quick Native Export」導線をUIに追加し、Pixi互換分岐を通らずRust native render + encodeを直接呼べるようにする。
+
 ## 2026-06-19 — shared frame copy checksum検証を追加
 
 ### 実施内容
