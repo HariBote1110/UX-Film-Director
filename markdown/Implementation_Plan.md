@@ -1350,6 +1350,11 @@ direct encodeとbitmap exportの両方で、実shared renderer出力がない状
 日本語では `shared renderer実出力なし`、英語では `shared renderer output unavailable` と表示する。
 export実出力不可のblocked診断を、実機UIで原因追跡しやすい文言にする。
 
+247. Phase5: 実出力必須時のSolidColour presentation失敗をblocked診断にする
+`requireSharedRendererOutput` が有効なpreview presenterでは、SolidColour scene presentation失敗を
+`fallback` ではなく `blocked` として出す。
+通常previewの互換fallbackは維持しつつ、実shared renderer出力必須の検証でPixi退避に見えないようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

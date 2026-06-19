@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のpreview診断として、実出力必須時のSolidColour presentation失敗を `fallback` ではなく `blocked` として出すようにした。
+- Red: `sharedRendererPreviewPresenterController` のテストへ、`requireSharedRendererOutput` 有効時の `webGpuDrawUnavailable` がblocked診断になる契約を追加した。
+- Green: SolidColour presentation失敗時のdiagnostics statusを、実出力必須時だけ `blocked` に切り替えた。
+- 検証: `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration viewportRustVideoOnlyBoundary` は72件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216j`。
+
+## 2026-06-19
 - Phase5のexport診断表示として、`sharedRendererOutputUnavailable` のRust frame source blocked診断に読みやすい表示ラベルを追加した。
 - Red: `ExportProgressModal` のテストへ、raw reasonではなく `shared renderer実出力なし` / `shared renderer output unavailable` が表示される契約を追加した。
 - Green: blocked reason formatterに `sharedRendererOutputUnavailable` の日本語/英語ラベルを追加した。

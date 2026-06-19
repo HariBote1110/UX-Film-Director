@@ -1709,6 +1709,21 @@
 - `npm test -- ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress` を実行し、30件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportDiagnosticsLog\\.test\\.ts|src/utils/exportProgressDiagnostics\\.ts|src/store/useStore\\.ts|src/utils/sharedRendererExportFrameSource\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 132. Phase5: 実出力必須時のSolidColour presentation失敗をblocked診断に変更
+- `src/utils/sharedRendererPreviewPresenterController.test.ts`
+- `requireSharedRendererOutput` 有効時にSolidColour scene presentationが `webGpuDrawUnavailable` で失敗した場合、dataset statusが `blocked` になる契約を追加した。
+- テスト用 `fakeDevice` に `exposeCreateRenderPipeline` を追加し、WebGPU draw API欠落を再現できるようにした。
+- `src/utils/sharedRendererPreviewPresenterController.ts`
+- SolidColour presentation失敗時のdiagnostics statusを、通常previewでは `fallback` のまま、実出力必須時だけ `blocked` に切り替えるようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216j` に更新した。
+
+## 確認
+- `npm test -- sharedRendererPreviewPresenterController` を実行し、Redで `webGpuDrawUnavailable` がまだ `fallback` と出る失敗を確認した。
+- `npm test -- sharedRendererPreviewPresenterController` を再実行し、35件成功を確認した。
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration viewportRustVideoOnlyBoundary` を実行し、72件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererWebGpuPresenter\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。
