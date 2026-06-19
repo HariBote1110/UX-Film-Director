@@ -397,7 +397,8 @@ describe('createSharedRendererExportFrameSource', () => {
     expect(blocked).toMatchObject({
       reason: 'nativeRenderUnavailable',
       frameIndex: 4,
-      fallbackToLegacyCanvas: true,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
     });
     expect(calls).toEqual([]);
     expect(canvas.dataset).toMatchObject({
