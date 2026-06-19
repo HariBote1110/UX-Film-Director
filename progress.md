@@ -1,3 +1,20 @@
+## 2026-06-19 — video exportでshared-frame Rust sourceを必須化
+
+### 実施内容
+- Red: video exportにbitmap-only Rust frame sourceが渡された場合、plan段階で拒否する契約を追加した。
+- Green: `buildProjectExportFrameSourcePlan` でvideo exportまたはRust必須export時に `renderEncodeFrame` を持つshared-frame Rust sourceだけを受け入れるようにした。
+- video exportが `ImageBitmap` / legacy canvas fallback前提のRust sourceを通らず、Rust shared-memory/shared-frame encode経路を要求するようにした。
+- 版を `0.1.1-Beta-213a` に更新した。
+
+### 検証
+- `npm test -- projectExportFrameCanvas`
+- `npm test -- projectExportFrameCanvas projectExportRustEncodeFrame useProjectExportBoundary`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/projectExportFrameCanvas\\.ts|src/utils/projectExportFrameCanvas\\.test\\.ts|src/utils/projectExportRustEncodeFrame\\.ts|src/utils/projectExportRustEncodeFrame\\.test\\.ts|src/hooks/useProjectExport\\.ts)"`
+
+### 残課題・次のステップ
+- Rust frame source ready時のhook実行テストをさらに強め、legacy canvas captureが呼ばれないことを実行レベルで固定する。
+- Rust-only non-video exportでbitmap-only sourceが拒否された時のUI診断を必要に応じて追加する。
+
 ## 2026-06-19 — 終了後Rust診断を画面表示
 
 ### 実施内容

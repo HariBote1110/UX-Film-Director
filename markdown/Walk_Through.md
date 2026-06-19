@@ -1150,3 +1150,17 @@
 - `npm test -- ExportProgressModal` を実行し、Redで終了後診断summary formatter未実装の失敗を確認した。
 - `npm test -- exportDiagnosticsLog exportProgressDiagnostics useProjectExportBoundary ExportProgressModal exportProgress` を再実行し、48件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/index\\.css|src/store/useStore\\.ts|src/utils/exportDiagnosticsLog\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 93. Phase5: video exportでshared-frame Rust sourceを必須化
+- `src/utils/projectExportFrameCanvas.test.ts`
+- video exportにbitmap-only Rust frame sourceが渡された場合、plan段階で拒否する契約を追加した。
+- 既存のvideo export runtime planテストは、`renderEncodeFrame` を持つdirect encode Rust sourceを使うように更新した。
+- `src/utils/projectExportFrameCanvas.ts`
+- video exportまたはRust必須export時に `renderEncodeFrame` を持つshared-frame Rust sourceだけを受け入れるようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-213a` に更新した。
+
+## 確認
+- `npm test -- projectExportFrameCanvas` を実行し、Redでbitmap-only Rust sourceがvideo export planを通る失敗を確認した。
+- `npm test -- projectExportFrameCanvas projectExportRustEncodeFrame useProjectExportBoundary` を再実行し、52件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/projectExportFrameCanvas\\.ts|src/utils/projectExportFrameCanvas\\.test\\.ts|src/utils/projectExportRustEncodeFrame\\.ts|src/utils/projectExportRustEncodeFrame\\.test\\.ts|src/hooks/useProjectExport\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
