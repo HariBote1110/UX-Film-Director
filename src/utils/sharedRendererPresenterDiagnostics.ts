@@ -287,5 +287,8 @@ const formatNativeRenderFailureLabel = (reason: string): string => {
   if (reason === 'nativeRenderSourceReleaseUnavailable') {
     return 'native render source release callback missing';
   }
+  if (reason === 'preparedNativeRenderSourceAbortReleaseFailed') {
+    return 'prepared native render source abort release failed';
+  }
   return reason;
 };
