@@ -804,4 +804,84 @@ describe('sharedRendererViewportVideoUpload', () => {
       },
     });
   });
+
+  it('reports stale decoded release failure for multi-video upload preparation', async () => {
+    const rustBackendBridge: RustBackendVideoDecodeBridge = {
+      startVideoDecode: async (payload) => ({ success: true, result: { jobId: payload.jobId } }),
+      requestVideoDecodeFrame: async (payload) => ({
+        success: true,
+        result: {
+          accepted: true,
+          jobId: payload.jobId,
+          requestId: payload.requestId - 1,
+          frameIndex: payload.frameIndex,
+          mode: payload.mode,
+          frame: {
+            descriptor: {
+              memoryId: '/uxfd-node-video-ring',
+              slotIndex: 0,
+              generation: 3,
+              byteOffset: 0,
+              byteLen: 8192,
+              width: payload.jobId === expectedSecondJobId ? 80 : 64,
+              height: payload.jobId === expectedSecondJobId ? 45 : 32,
+              strideBytes: 256,
+              format: 'rgba8Srgb',
+              colour: {
+                primaries: 'bt709',
+                transfer: 'srgb',
+                matrix: 'rgb',
+                range: 'full',
+              },
+            },
+            ptsFrame: payload.frameIndex,
+          },
+          verification: {
+            frameIndex: payload.frameIndex,
+            checksum: {
+              algorithm: 'crc32',
+              valueHex: '12345678',
+              byteLen: 8192,
+            },
+            status: 'withinTolerance',
+          },
+        },
+      }),
+      releaseVideoDecodeFrame: async () => ({
+        success: false,
+        error: 'multi stale preview upload release failed',
+      }),
+      stopVideoDecode: async () => ({ success: true }),
+    };
+
+    const result = await prepareSharedRendererViewportVideoUploads({
+      session: multiVideoSession,
+      requestId: 80,
+      slotCount: 2,
+      activeJobs: [],
+      rustBackendBridge,
+      copyBridge: {
+        copyIntoUploadBuffer: async () => {
+          throw new Error('stale decode response must not be copied');
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'staleDecodeReleaseFailed',
+      detail: 'multi stale preview upload release failed',
+      activeJobs: [{
+        jobId: expectedJobId,
+        source: '/tmp/gopro clip.mp4',
+        slotCount: 2,
+        width: 64,
+        height: 32,
+        sourceRate: {
+          numerator: 60,
+          denominator: 1,
+        },
+      }],
+    });
+  });
 });
