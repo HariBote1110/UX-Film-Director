@@ -974,3 +974,4 @@
 - Rust decode slotを保持したまま次フレームやfallbackへ進むリスクを減らし、multi-video native renderの再試行性を上げた。
 - 検証: `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource` は68件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-216z`。
+- 追加検証: `npm test -- sharedRendererViewportNativeRenderSource -t "decode start fails"` を実行し、decode start失敗時のprepared source abort release failure契約も固定した。挙動変更なしのため版は据え置き。

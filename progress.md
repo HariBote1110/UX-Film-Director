@@ -6453,6 +6453,10 @@
 - decode start失敗時のprepared source abort release failureも明示テスト化する。
 - 実機GoPro素材でmulti-video/native render sourceのdecode job再利用とstop/retryを確認する。
 
+### 追加検証
+- `npm test -- sharedRendererViewportNativeRenderSource -t "decode start fails"` を実行し、decode start失敗時のprepared source abort release failure契約も固定した。
+- 既存実装で契約を満たしていたため、挙動変更と版更新は行っていない。
+
 ## 2026-06-19 — shared frame copy checksum検証を追加
 
 ### 実施内容
