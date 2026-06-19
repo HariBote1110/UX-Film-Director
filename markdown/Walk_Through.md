@@ -1470,6 +1470,21 @@
 - `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress sharedRendererNativeMediaSupport` を実行し、76件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgress\\.ts|src/utils/sharedRendererNativeMediaSupport\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 117. Phase5: native renderer未接続ではRust必須時のlegacy fallbackを禁止
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- 動画encode frameとencode-only frameでRust native renderer bridgeが未接続の場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約へ更新した。
+- `src/utils/sharedRendererExportFrameSource.ts`
+- `nativeRenderUnavailable` を投げる経路で `legacyCanvasFallbackAllowed=false` を渡すようにした。
+- native renderer未接続をPixi/legacy captureへ退避させず、Rust必須exportとして明示的に停止する。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-215u` に更新した。
+
+## 確認
+- `npm test -- sharedRendererExportFrameSource` を実行し、Redでnative renderer未接続時もlegacy fallbackが許可される失敗を確認した。
+- `npm test -- sharedRendererExportFrameSource` を再実行し、41件成功を確認した。
+- `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress` を実行し、72件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgress\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。

@@ -1275,6 +1275,11 @@ decoded sourceのrelease callbackが欠けている状態ではRust側slot所有
 `nativeRenderUnsupportedMedia` が発生した場合、`legacyCanvasFallbackAllowed=false` にする。
 Rust必須exportで未対応mediaをPixi/legacy captureに退避させず、未対応範囲を明示的に止める。
 
+232. Phase5: native renderer未接続ではRust必須時のlegacy fallbackを禁止する
+動画encode frame、または `bitmapCaptureEnabled=false` / `nativeRenderRequired=true` のencode-only frameで
+Rust native renderer bridgeが未接続の場合、`nativeRenderUnavailable` を `legacyCanvasFallbackAllowed=false` で返す。
+native renderer未接続をPixi/legacy captureへ退避させず、Rust必須exportとして明示的に停止する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

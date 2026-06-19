@@ -1,3 +1,20 @@
+## 2026-06-19 — native renderer未接続ではRust必須時のlegacy fallbackを禁止
+
+### 実施内容
+- Red: 動画encode frameとencode-only frameでRust native renderer bridgeが未接続の場合、blocked errorがlegacy canvas fallbackを許可しない契約へ更新した。
+- Green: `nativeRenderUnavailable` の `SharedRendererExportFrameSourceBlockedError` に `legacyCanvasFallbackAllowed=false` を渡すようにした。
+- native renderer未接続をPixi/legacy captureへ退避させず、Rust必須exportとして明示的に停止する境界にした。
+- 版を `0.1.1-Beta-215u` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSource`
+- `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgress\\.ts)"`
+
+### 残課題・次のステップ
+- remaining `fallbackToLegacyCanvas=true` のうち、presented shared-frame handoff失敗/不可がRust direct encode必須時にfallback不可であるべきか整理する。
+- Viewport本体のPixi依存撤去へ向けて、動画以外のPixi-only presentation条件も整理する。
+
 ## 2026-06-19 — unsupported native mediaではRust必須時のlegacy fallbackを禁止
 
 ### 実施内容
