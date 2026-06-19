@@ -62,6 +62,7 @@ export type PrepareSharedRendererViewportNativeRenderSourcesResult =
         | 'startFailed'
         | 'frameDecodeFailed'
         | 'staleDecodeResponse'
+        | 'staleDecodeReleaseFailed'
         | 'decodedFrameUnavailable';
       detail: string;
       activeJobs: SharedRendererViewportVideoDecodeJob[];
@@ -170,12 +171,20 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
       isRustBackendDecodedVideoFrameAvailable(decodeResponse)
       && decodeResponse.result.requestId !== resolvedRequestId
     ) {
-      await releaseRustBackendVideoDecodeFrame({
+      const releaseResponse = await releaseRustBackendVideoDecodeFrame({
         jobId: resolvedJob.jobId,
         slotIndex: decodeResponse.result.frame.descriptor.slotIndex,
         generation: decodeResponse.result.frame.descriptor.generation,
         copyOutState: 'rendererUploadAborted',
       }, bridge);
+      if (!releaseResponse.success) {
+        return {
+          ok: false,
+          reason: 'staleDecodeReleaseFailed',
+          detail: releaseResponse.error ?? 'Rust backend stale decoded frame release failed.',
+          activeJobs: resolvedActiveJobs,
+        };
+      }
       return {
         ok: false,
         reason: 'staleDecodeResponse',
