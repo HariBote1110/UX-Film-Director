@@ -1,3 +1,19 @@
+## 2026-06-19 — native render失敗時のexport frame path診断を保持
+
+### 実施内容
+- Red: Rust native render bridgeがthrowしたblocked exportでも `uxfdRustExportFrameSourceFramePath=nativeRenderSharedFrame` を残す契約を追加した。
+- Green: native renderを実際に呼び出した後の `nativeRenderFailed` 診断に `nativeRenderSharedFrame` pathを付与し、未到達blockedと区別できるようにした。
+- export実機datasetで「native renderへ入ろうとして失敗した」状態を追いやすくした。
+- 版を `0.1.1-Beta-210x` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSource`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- native render source/output release失敗時にもpath診断を広げるか、実機datasetで必要性を確認する。
+- export側blocked診断とpreview側ownership診断のreason/pathを揃え、GoPro素材で失敗原因を一貫して追えるようにする。
+
 ## 2026-06-19 — Rust必須video ownership失敗診断を保持
 
 ### 実施内容

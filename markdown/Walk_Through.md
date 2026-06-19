@@ -952,3 +952,16 @@
 - `npm test -- sharedRendererPresenterDiagnostics sharedRendererPreviewPresenterController` を実行し、Redでownership診断がfallback datasetに残らない失敗を確認した。
 - `npm test -- sharedRendererPresenterDiagnostics sharedRendererPreviewPresenterController` を再実行し、40件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 79. Phase5: native render失敗時のexport frame path診断を保持
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- Rust native render bridgeがthrowしたblocked exportでも `uxfdRustExportFrameSourceFramePath=nativeRenderSharedFrame` を残す契約を追加した。
+- `src/utils/sharedRendererExportFrameSource.ts`
+- native renderを実際に呼び出した後の `nativeRenderFailed` 診断に `nativeRenderSharedFrame` pathを付与した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-210x` に更新した。
+
+## 確認
+- `npm test -- sharedRendererExportFrameSource` を実行し、Redでnative render失敗時のframe pathが未設定になる失敗を確認した。
+- `npm test -- sharedRendererExportFrameSource` を再実行し、38件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
