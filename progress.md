@@ -1,3 +1,23 @@
+## 2026-06-20 — Electron実ウィンドウ動画読込E2EをGreen化
+
+### 実施内容
+- Red: `scripts/run-video-load-e2e.mjs` を追加し、`npm run test:video-load:e2e` でElectron実ウィンドウをCDP操作し、`perf/heavy-media/GX010052.MP4` がタイムライン投入後にRust shared renderer所有でreadyになることを確認する契約を追加した。
+- Green: Electron preloadのsandbox/createRequire/file path取得を修正し、`webUtils.getPathForFile` 経由で実ファイルpathをrendererへ渡すようにした。
+- GoPro original投入時は既存proxyのmetadata/sourceをRust scene snapshotへ使い、3840px動画をそのままpreview decodeしてWebGPU制限に当てないようにした。
+- WebGPU presenterの `createBindGroup` 呼び出しをreceiver付きにし、実Electronで起きていた `Illegal invocation` を解消した。
+- native renderがsource data planeを先に解放した後の `decode.releaseFrame` をRust backendで成功扱いにし、純動画previewではRust decoded video upload成功時にnative render実験経路の失敗診断をready表示へ混ぜないようにした。
+- 版を `0.1.1-Beta-219c` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererWebGpuPresenter sharedRendererRustVideoUploadPipeline rustSceneSnapshot mediaMetadata`
+- `cargo test --manifest-path rust-backend/Cargo.toml decode_release_frame_accepts_source_data_plane_already_consumed_by_native_render -- --nocapture`
+- `npx tsc --noEmit 2>&1 | rg "(scripts/run-video-load-e2e|electron/preload|electron/main|src/main\\.tsx|src/components/Timeline\\.tsx|src/hooks/useTimelineDrop\\.tsx|src/utils/mediaMetadata\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererWebGpuPresenter\\.ts|src/utils/sharedRendererRustVideoUploadPipeline\\.ts|src/utils/rustSceneSnapshot\\.ts|src/vite-env\\.d\\.ts)"`
+- `npm run test:video-load:e2e`
+
+### 残課題・次のステップ
+- native render出力のshared memory copy checksum不一致は、純動画previewではRust decoded video path成功を優先してUI診断から除外した。画像/PSD混在やexportでnative render実出力を必須にする場合は、native render output upload側にもinline fallbackまたはnative bridge修正が必要。
+- `npx tsc --noEmit` 全体は既存のThree/mp4box/filterStack等の型エラーが残るため、今回は対象ファイルgrepで確認した。
+
 ## 2026-06-20 — ローカル動画fixtureのRust実decode契約を追加
 
 ### 実施内容

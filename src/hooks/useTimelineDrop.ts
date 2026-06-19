@@ -4,7 +4,12 @@ import { TimelineObject } from '../types';
 import { parseLabFile } from '../utils/labParser';
 import { HEADER_WIDTH, RULER_HEIGHT, ROW_HEIGHT, MAX_LAYERS, PX_PER_SEC } from '../components/timelineConstants';
 import { shallow } from 'zustand/shallow';
-import { getElectronFilePath, resolveAudioMetadata, resolveVideoMetadata } from '../utils/mediaMetadata';
+import {
+  getElectronFilePath,
+  resolveAudioMetadata,
+  resolveVideoMetadata,
+  resolveVideoMetadataForFilePath,
+} from '../utils/mediaMetadata';
 import { parsePsdAsObject } from '../utils/psdParser';
 
 const VIDEO_FILE_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm', '.avi', '.mkv'];
@@ -108,10 +113,13 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
             const url = URL.createObjectURL(file);
             try {
                 const { detectExistingProxy } = await import('../utils/proxyUtils');
-                const [metadata, proxyFilePath] = await Promise.all([
+                const [sourceMetadata, proxyFilePath] = await Promise.all([
                     resolveVideoMetadata(file, url),
                     detectExistingProxy(filePath ?? undefined),
                 ]);
+                const metadata = proxyFilePath
+                    ? await resolveVideoMetadataForFilePath(proxyFilePath) ?? sourceMetadata
+                    : sourceMetadata;
                 const centred = getCentredPosition(metadata.width, metadata.height);
                 const newVideo: TimelineObject = {
                     id: crypto.randomUUID(), type: 'video', name: file.name, layer: dropLayer, startTime: dropTime, duration: metadata.duration,

@@ -9,6 +9,27 @@ import {
 const source = () => readFileSync(new URL('./mediaMetadata.ts', import.meta.url), 'utf8');
 
 describe('getElectronFilePath', () => {
+  it('uses the Electron webUtils preload bridge before the legacy File.path property', () => {
+    const previousWindow = globalThis.window;
+    const file = new File([], 'clip.mp4') as File & { path: string };
+    file.path = '/legacy/clip.mp4';
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        electronFile: {
+          getPathForFile: () => '  /electron-web-utils/clip.mp4  ',
+        },
+      },
+    });
+
+    expect(getElectronFilePath(file)).toBe('/electron-web-utils/clip.mp4');
+
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: previousWindow,
+    });
+  });
+
   it('returns null when File has no path property', () => {
     const file = new File([], 'clip.mp4');
     expect(getElectronFilePath(file)).toBeNull();

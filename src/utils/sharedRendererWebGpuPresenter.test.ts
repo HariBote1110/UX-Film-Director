@@ -1095,6 +1095,48 @@ describe('createSharedRendererWebGpuPresenter', () => {
       'end',
     ]);
   });
+
+  it('keeps the WebGPU device receiver when creating video bind groups', async () => {
+    const device = fakeDevice({});
+    device.createBindGroup = function createBindGroupWithReceiverCheck(
+      this: unknown,
+      descriptor: unknown
+    ) {
+      expect(this).toBe(device);
+      return {
+        toString: () => 'receiver-bound-video-bind-group',
+        descriptor,
+      };
+    };
+
+    const result = await createSharedRendererWebGpuPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      surfaceGate: {
+        ...okSurfaceGate,
+        snapshot: videoSnapshot,
+        media: videoMedia,
+      },
+      presentationContract: buildSharedRendererPresentationContract(),
+      gpu: fakeGpu({
+        onRequestAdapter: () => fakeAdapter({ device }),
+      }),
+      textureUsageRenderAttachment: 16,
+      bufferUsageVertex: 1,
+      bufferUsageCopyDst: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected presenter creation to pass');
+
+    expect(result.presentVideoFrameScene({
+      snapshot: videoSnapshot,
+      media: videoMedia,
+      texture: { createView: () => 'video-frame-texture-view' },
+    })).toEqual({
+      ok: true,
+      planeCount: 1,
+    });
+  });
 });
 
 const fakeCanvas = (getContext: () => unknown) =>

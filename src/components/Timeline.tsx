@@ -9,7 +9,12 @@ import { useTimelineDrop } from '../hooks/useTimelineDrop';
 import { TimelineControlBar } from './TimelineControlBar';
 import { TimelineContextMenu, ContextMenuState } from './TimelineContextMenu';
 import { shallow } from 'zustand/shallow';
-import { getElectronFilePath, resolveAudioMetadata, resolveVideoMetadata } from '../utils/mediaMetadata';
+import {
+  getElectronFilePath,
+  resolveAudioMetadata,
+  resolveVideoMetadata,
+  resolveVideoMetadataForFilePath,
+} from '../utils/mediaMetadata';
 import { parsePsdAsObject } from '../utils/psdParser';
 import { isPointerInTimelineTrackColumn, timeFromTimelineContentX, timeFromTimelineViewportClientX } from '../utils/timelineSeek';
 
@@ -340,10 +345,13 @@ const Timeline: React.FC = () => {
 
     try {
       const { detectExistingProxy } = await import('../utils/proxyUtils');
-      const [metadata, proxyFilePath] = await Promise.all([
+      const [sourceMetadata, proxyFilePath] = await Promise.all([
         resolveVideoMetadata(file, url),
         detectExistingProxy(filePath ?? undefined),
       ]);
+      const metadata = proxyFilePath
+        ? await resolveVideoMetadataForFilePath(proxyFilePath) ?? sourceMetadata
+        : sourceMetadata;
       const centred = getCentredPosition(metadata.width, metadata.height);
       const newVideo: TimelineObject = {
           id: crypto.randomUUID(), type: 'video', name: file.name, layer: target.layer, startTime: target.time, duration: metadata.duration,

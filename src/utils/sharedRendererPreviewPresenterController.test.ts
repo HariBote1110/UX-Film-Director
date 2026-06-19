@@ -1193,6 +1193,69 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
+  it('does not publish native render upload failure details when the Rust video frame path owns a video-only preview', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const rgbaBytes = new Uint8Array(decodedVideoDescriptor.byteLen);
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererNativeRenderFailure: {
+        reason: 'uploadFailed',
+        detail: 'Shared video frame upload buffer checksum must match the copy report.',
+      },
+      sharedRendererDecodedVideoFrameUpload: {
+        descriptor: decodedVideoDescriptor,
+        ptsFrame: 90,
+        rgbaBytes,
+      },
+      rustVideoFrameDecodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video.mp4',
+          sourceFrame: 90,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 12,
+          width: 1280,
+          height: 720,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter(),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({
+      ok: true,
+      videoOwnership: {
+        owner: 'sharedRenderer',
+        reason: 'rustDecodedFrameUploadReady',
+      },
+    });
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterStatus: 'ready',
+      uxfdSharedRendererPresenterVideoFrameUploadReady: 'true',
+      uxfdSharedRendererPresenterVideoOwner: 'sharedRenderer',
+      uxfdSharedRendererPresenterVideoCutoverReason: 'rustDecodedFrameUploadReady',
+    });
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterNativeRenderFailureReason');
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterNativeRenderFailureDetail');
+  });
+
   it('does not claim multi-video ownership from a legacy single decoded upload without clip scope', async () => {
     const dataset: Record<string, string | undefined> = {};
     const events: string[] = [];

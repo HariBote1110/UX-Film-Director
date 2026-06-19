@@ -46,6 +46,12 @@ const hasIpcRenderer = (): boolean => {
 };
 
 export const getElectronFilePath = (file: File): string | null => {
+  const maybeWindow = typeof window !== 'undefined' ? window : undefined;
+  const bridgedFilePath = maybeWindow?.electronFile?.getPathForFile?.(file);
+  if (typeof bridgedFilePath === 'string' && bridgedFilePath.trim().length > 0) {
+    return bridgedFilePath.trim();
+  }
+
   const filePath = (file as ElectronFileWithPath).path;
   if (typeof filePath !== 'string') {
     return null;
@@ -69,8 +75,7 @@ export const toFileProtocolUrl = (filePath: string): string => {
   return encodeURI(`file://${normalised}`);
 };
 
-export const probeMediaWithRust = async (file: File): Promise<RustMediaProbeResult | null> => {
-  const filePath = getElectronFilePath(file);
+const probeMediaPathWithRust = async (filePath: string): Promise<RustMediaProbeResult | null> => {
   if (!filePath || !hasIpcRenderer()) {
     return null;
   }
@@ -84,6 +89,11 @@ export const probeMediaWithRust = async (file: File): Promise<RustMediaProbeResu
   } catch {
     return null;
   }
+};
+
+export const probeMediaWithRust = async (file: File): Promise<RustMediaProbeResult | null> => {
+  const filePath = getElectronFilePath(file);
+  return filePath ? probeMediaPathWithRust(filePath) : null;
 };
 
 export const mergeResolvedVideoMetadata = (
@@ -104,6 +114,13 @@ export const mergeResolvedVideoMetadata = (
       ? probed.height
       : DEFAULT_VIDEO_HEIGHT,
   };
+};
+
+export const resolveVideoMetadataForFilePath = async (
+  filePath: string
+): Promise<VideoMetadata | null> => {
+  const probed = await probeMediaPathWithRust(filePath);
+  return probed && probed.hasVideo ? mergeResolvedVideoMetadata(probed) : null;
 };
 
 const loadAudioElementMetadata = (url: string): Promise<AudioMetadata> => {

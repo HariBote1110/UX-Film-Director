@@ -19,6 +19,9 @@ interface Window {
     send: (channel: string, ...args: any[]) => void;
     invoke: (channel: string, ...args: any[]) => Promise<any>;
   };
+  electronFile?: {
+    getPathForFile: (file: File) => string;
+  };
   rustBackend: {
     health: () => Promise<{ success: boolean; result?: unknown; error?: string }>;
     echo: (payload: unknown) => Promise<{ success: boolean; result?: unknown; error?: string }>;

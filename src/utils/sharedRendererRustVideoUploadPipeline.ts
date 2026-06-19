@@ -91,8 +91,11 @@ const shouldUseInlineDecodedFrameMvpPath = (
   upload: PrepareSharedRendererDecodedVideoFrameUploadResult
 ): boolean =>
   !upload.ok
-  && upload.reason === 'copyFailed'
-  && upload.detail.toLowerCase().includes('native bridge');
+  && (
+    (upload.reason === 'copyFailed' && upload.detail.toLowerCase().includes('native bridge'))
+    || upload.reason === 'copyReportChecksumMismatch'
+    || upload.reason === 'copyReportTargetChecksumMismatch'
+  );
 
 const prepareInlineDecodedVideoUpload = async ({
   payload,

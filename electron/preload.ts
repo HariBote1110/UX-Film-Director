@@ -1,9 +1,9 @@
-import { ipcRenderer, contextBridge } from 'electron'
+import { ipcRenderer, contextBridge, webUtils } from 'electron'
 import { createRequire } from 'node:module'
 import { resolveSharedVideoFrameNativeBridgeModulePath } from './sharedVideoFrameNativeBridgePath'
 import { rustVideoEncodeIpcChannels } from './rustVideoEncodeIpc'
 
-const require = createRequire(import.meta.url)
+const require = createRequire(`${process.cwd()}/package.json`)
 
 type SharedVideoFrameCopyPayload = {
   memoryId: string
@@ -114,6 +114,12 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
   invoke(...args: Parameters<typeof ipcRenderer.invoke>) {
     const [channel, ...omit] = args
     return ipcRenderer.invoke(channel, ...omit)
+  },
+})
+
+contextBridge.exposeInMainWorld('electronFile', {
+  getPathForFile(file: File) {
+    return webUtils.getPathForFile(file)
   },
 })
 

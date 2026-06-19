@@ -2,13 +2,26 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import { schedulePerformanceHarness } from './perf/schedulePerformanceHarness'
+import { useStore } from './store/useStore'
 
 schedulePerformanceHarness()
+
+const urlSearchParams = new URLSearchParams(window.location.search)
+
+if (urlSearchParams.has('videoLoadE2e')) {
+  useStore.getState().initializeProject({
+    width: 1920,
+    height: 1080,
+    fps: 60,
+    sampleRate: 48000,
+    editorMode: '2d',
+  });
+}
 
 // ?exportTest=1 または VITE_EXPORT_TEST=1 でエクスポートテストを自動実行
 if (
   import.meta.env.VITE_EXPORT_TEST === '1' ||
-  new URLSearchParams(window.location.search).has('exportTest')
+  urlSearchParams.has('exportTest')
 ) {
   window.setTimeout(async () => {
     const { runExportTests } = await import(/* @vite-ignore */ './exportTest/exportTestHarness');

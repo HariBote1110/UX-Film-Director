@@ -609,8 +609,12 @@ const Viewport: React.FC = () => {
       updateSharedRendererSolidColourObjectIds(control.ok ? control.solidColourOwnership.solidColourObjectIds : []);
       updateSharedRendererImageObjectIds(control.ok ? control.imageOwnership.imageObjectIds : []);
       updateSharedRendererPsdObjectIds(control.ok ? control.psdOwnership.psdObjectIds : []);
-    }).catch(() => {
+    }).catch((error) => {
       if (cancelled) return;
+      const detail = error instanceof Error
+        ? `${error.message}${error.stack ? `\n${error.stack}` : ''}`
+        : String(error);
+      console.error('[SharedRenderer] presenter start failed:', detail);
       updateSharedRendererSolidColourObjectIds([]);
       updateSharedRendererImageObjectIds([]);
       updateSharedRendererPsdObjectIds([]);
@@ -618,6 +622,7 @@ const Viewport: React.FC = () => {
         writeSharedRendererPresenterDiagnostics(dataset, {
           status: 'fallback',
           reason: 'presenterStartFailed',
+          swatch: detail,
         });
       });
       setSharedRendererPreviewDiagnostic(buildSharedRendererPreviewDiagnostic(rootDataset, null));

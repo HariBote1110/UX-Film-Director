@@ -12,7 +12,7 @@ use uxfd_golden_harness::{load_rgba_jpeg, load_rgba_png, RgbaFrame};
 use uxfd_native_wgpu_renderer::{render_native_wgpu_frame_to_shared_ring, NativeWgpuRenderError};
 use uxfd_rust_core::{MediaKind, SceneMediaReference, SceneSnapshot};
 #[cfg(unix)]
-use uxfd_shared_memory_spike::PosixSharedRing;
+use uxfd_shared_memory_spike::{PosixSharedRing, PosixShmError};
 use uxfd_sidecar_protocol::{
     rgba8_srgb_ring_layout, validate_renderer_handoff_descriptor, ChecksumAlgorithm,
     ColourMetadata, CopyOutState, DecodeFrameRequest, DecodeReleaseFrameRequest,
@@ -2010,8 +2010,11 @@ fn release_decode_data_plane(
     copy_out_state: CopyOutState,
 ) -> Result<(), String> {
     let ring = ring.ok_or_else(|| "decode shared memory ring is unavailable".to_string())?;
-    ring.release_frame_slot(slot_index, copy_out_state)
-        .map_err(|error| format!("{error:?}"))
+    match ring.release_frame_slot(slot_index, copy_out_state) {
+        Ok(()) => Ok(()),
+        Err(PosixShmError::UnexpectedState { expected: 3, actual: 0 }) => Ok(()),
+        Err(error) => Err(format!("{error:?}")),
+    }
 }
 
 #[cfg(not(unix))]

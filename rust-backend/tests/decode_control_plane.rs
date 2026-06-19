@@ -2114,6 +2114,90 @@ fn decode_request_frame_decodes_requested_source_frame_to_verified_descriptor_wi
 }
 
 #[test]
+fn decode_release_frame_accepts_source_data_plane_already_consumed_by_native_render() {
+    let temp_dir = TestTempDir::new("decode-native-render-source-release");
+    let fixture = build_two_frame_h264_fixture(temp_dir.path());
+    let mut backend = BackendProcess::start();
+
+    let start_response = backend.request(json!({
+        "id": 1,
+        "method": "decode.start",
+        "params": {
+            "jobId": "decode-native-render-source",
+            "source": fixture.path,
+            "slotCount": 2,
+            "width": fixture.width,
+            "height": fixture.height,
+            "sourceRate": {
+                "numerator": 30,
+                "denominator": 1
+            },
+            "format": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(start_response["ok"], true, "{start_response}");
+
+    let response = backend.request(json!({
+        "id": 2,
+        "method": "decode.requestFrame",
+        "params": {
+            "jobId": "decode-native-render-source",
+            "requestId": 12,
+            "frameIndex": 1,
+            "mode": "latestWins"
+        }
+    }));
+    assert_eq!(response["ok"], true, "{response}");
+
+    let slot_count = start_response["result"]["slotCount"]
+        .as_u64()
+        .expect("slot count") as u32;
+    let slot_byte_len = start_response["result"]["slotByteLen"]
+        .as_u64()
+        .expect("slot byte length") as usize;
+    let source_ring = PosixSharedRing::attach_with_retry_for_layout(
+        start_response["result"]["memoryId"]
+            .as_str()
+            .expect("memory id"),
+        slot_count,
+        slot_byte_len,
+        Duration::from_secs(1),
+    )
+    .expect("attach decode data plane as native render source");
+    source_ring
+        .read_frame(1)
+        .expect("native render source reads the decoded shared frame");
+    source_ring
+        .release_frame_slot(
+            response["result"]["frame"]["descriptor"]["slotIndex"]
+                .as_u64()
+                .expect("slot index") as u32,
+            uxfd_sidecar_protocol::CopyOutState::GpuUploadFenceSignalled,
+        )
+        .expect("native render source releases the data plane slot");
+
+    let release_response = backend.request(json!({
+        "id": 3,
+        "method": "decode.releaseFrame",
+        "params": {
+            "jobId": "decode-native-render-source",
+            "slotIndex": response["result"]["frame"]["descriptor"]["slotIndex"],
+            "generation": response["result"]["frame"]["descriptor"]["generation"],
+            "copyOutState": "gpuUploadFenceSignalled"
+        }
+    }));
+
+    assert_eq!(release_response["ok"], true, "{release_response}");
+    assert_eq!(release_response["result"]["released"], true);
+}
+
+#[test]
 fn decode_request_frame_inline_returns_rgba_for_mvp_preview_only() {
     let temp_dir = TestTempDir::new("decode-control-plane-inline");
     let fixture = build_two_frame_h264_fixture(temp_dir.path());

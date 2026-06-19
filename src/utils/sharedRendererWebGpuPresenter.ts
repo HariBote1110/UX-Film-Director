@@ -697,7 +697,6 @@ export const createSharedRendererWebGpuPresenter = async ({
       });
     }
 
-    const createBindGroup = device.createBindGroup;
     const drawablePlanes: Array<{
       index: number;
       textureView: unknown;
@@ -742,7 +741,8 @@ export const createSharedRendererWebGpuPresenter = async ({
       minFilter: 'linear',
       mipmapFilter: 'nearest',
     });
-    const bindGroups = drawablePlanes.map((plane) => createBindGroup({
+    const createVideoBindGroup = device.createBindGroup.bind(device);
+    const bindGroups = drawablePlanes.map((plane) => createVideoBindGroup({
       layout: pipelineBindGroupLayout(videoFramePipeline, 0),
       entries: [
         { binding: 0, resource: sampler },
@@ -1096,7 +1096,10 @@ const pipelineBindGroupLayout = (pipeline: unknown, index: number): unknown => {
 const defaultGpu = (): SharedRendererWebGpuLike | undefined => {
   const gpu = navigator.gpu;
   if (!gpu) return undefined;
-  return gpu as unknown as SharedRendererWebGpuLike;
+  return {
+    getPreferredCanvasFormat: gpu.getPreferredCanvasFormat.bind(gpu),
+    requestAdapter: gpu.requestAdapter.bind(gpu) as SharedRendererWebGpuLike['requestAdapter'],
+  };
 };
 
 const defaultRenderAttachmentUsage = (): number => {

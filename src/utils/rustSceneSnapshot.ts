@@ -360,8 +360,12 @@ const serialiseGeneratedGradientSource = (gradient: GradientFill): string =>
     direction: Number.isFinite(gradient.direction) ? gradient.direction : 0,
   });
 
-const mediaSourceForObject = (object: SupportedMediaObject): string =>
-  object.filePath || object.src || '';
+const mediaSourceForObject = (object: SupportedMediaObject): string => {
+  if (object.type === 'video' && object.proxyFilePath) {
+    return object.proxyFilePath;
+  }
+  return object.filePath || object.src || '';
+};
 
 const mediaKindForObject = (object: SupportedMediaObject): RustSceneMediaReference['kind'] => {
   if (object.type === 'video') return 'Video';

@@ -207,7 +207,7 @@ const main = async () => {
       cwd: ROOT,
       env: {
         ...process.env,
-        VITE_DEV_SERVER_URL: `http://localhost:${VITE_PORT}/`,
+        VITE_DEV_SERVER_URL: `http://localhost:${VITE_PORT}/?videoLoadE2e=1`,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     }
@@ -227,66 +227,6 @@ const main = async () => {
   await client.send('Runtime.enable');
   await client.send('Page.enable');
   await client.send('DOM.enable');
-
-  log('新規プロジェクトを作成');
-  const createButtonRect = await client.evaluate(`
-    new Promise((resolve) => {
-      const started = Date.now();
-      const tick = () => {
-        const setupCard = document.querySelector('.setup-card');
-        const button = [...(setupCard?.querySelectorAll('button') ?? [])]
-          .find((candidate) => candidate.textContent?.includes('作成') || candidate.textContent?.includes('Create'));
-        if (button) {
-          const rect = button.getBoundingClientRect();
-          resolve({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
-          return;
-        }
-        if (Date.now() - started > 10000) {
-          resolve(null);
-          return;
-        }
-        setTimeout(tick, 200);
-      };
-      tick();
-    })
-  `);
-  if (!createButtonRect) {
-    throw new Error('作成ボタンが見つかりませんでした。');
-  }
-  await client.send('Input.dispatchMouseEvent', {
-    type: 'mousePressed',
-    x: createButtonRect.x,
-    y: createButtonRect.y,
-    button: 'left',
-    clickCount: 1,
-  });
-  await client.send('Input.dispatchMouseEvent', {
-    type: 'mouseReleased',
-    x: createButtonRect.x,
-    y: createButtonRect.y,
-    button: 'left',
-    clickCount: 1,
-  });
-  const createdProject = await client.evaluate(`
-    new Promise((resolve) => {
-      const started = Date.now();
-      const tick = () => {
-        if (!document.querySelector('.setup-card')) {
-          resolve(true);
-          return;
-        }
-        if (Date.now() - started > 10000) {
-          resolve(false);
-          return;
-        }
-        setTimeout(tick, 200);
-      };
-      tick();
-    })
-  `);
-  if (!createdProject) {
-    throw new Error('新規プロジェクトを作成できませんでした。');
-  }
 
   const videoButtonReady = await client.evaluate(`
     new Promise((resolve) => {
@@ -347,20 +287,15 @@ const main = async () => {
         const diagnostics = [...document.querySelectorAll('[data-uxfd-shared-renderer-presenter-status], [data-uxfd-shared-renderer-presenter-video-owner]')]
           .map((node) => ({ ...node.dataset }));
         const hasTimelineVideo = items.some((text) => text.includes('GX010052.MP4'));
-        const presenterReady = diagnostics.some((entry) => entry.uxfdSharedRendererPresenterStatus === 'ready');
-        const presenterFallback = diagnostics.find((entry) => entry.uxfdSharedRendererPresenterStatus === 'fallback');
+        const presenterReady = diagnostics.some((entry) => (
+          entry.uxfdSharedRendererPresenterStatus === 'ready'
+          && entry.uxfdSharedRendererPresenterVideoOwner === 'sharedRenderer'
+          && entry.uxfdSharedRendererPresenterVideoFrameUploadReady === 'true'
+          && !entry.uxfdSharedRendererPresenterNativeRenderFailureReason
+          && !entry.uxfdSharedRendererPresenterVideoUploadFailureReason
+        ));
         if (hasTimelineVideo && presenterReady) {
           resolve({ ok: true, items, body, diagnostics });
-          return;
-        }
-        if (hasTimelineVideo && presenterFallback) {
-          resolve({
-            ok: false,
-            reason: 'presenterFallback',
-            items,
-            body,
-            diagnostics,
-          });
           return;
         }
         if (body.includes('Failed to load video') || body.includes('Failed to load')) {

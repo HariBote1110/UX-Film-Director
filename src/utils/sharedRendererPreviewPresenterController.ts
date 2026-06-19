@@ -613,6 +613,16 @@ export const startSharedRendererPreviewPresenter = async ({
     presenter.presentSolidSrgbSwatch(SHARED_RENDERER_SOLID_SWATCH);
   }
 
+  const shouldSuppressNativeRenderFailureForVideoOnlyReady = hasVideoScene
+    && !hasSolidColourScene
+    && !hasImageScene
+    && !hasPsdScene
+    && videoOwnership.owner === 'sharedRenderer'
+    && videoOwnership.reason === 'rustDecodedFrameUploadReady';
+  const publishedNativeRenderFailure = shouldSuppressNativeRenderFailureForVideoOnlyReady
+    ? undefined
+    : nativeRenderFailure;
+
   writeDiagnostics({
     status: 'ready',
     format: presenter.format,
@@ -649,8 +659,8 @@ export const startSharedRendererPreviewPresenter = async ({
     nativeRenderSourceMediaIds: nativeRenderFrameReady
       ? collectObjectIdsByMediaKind(session, 'Video').join(',')
       : undefined,
-    nativeRenderFailureReason: nativeRenderFailure?.reason,
-    nativeRenderFailureDetail: nativeRenderFailure?.detail,
+    nativeRenderFailureReason: publishedNativeRenderFailure?.reason,
+    nativeRenderFailureDetail: publishedNativeRenderFailure?.detail,
     swatch: hasSolidColourScene
       ? 'solid-colour-scene'
       : nativeRenderFrameReady

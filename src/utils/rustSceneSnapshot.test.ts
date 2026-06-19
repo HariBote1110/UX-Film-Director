@@ -321,6 +321,30 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('uses an existing proxy file as the Rust video media source for preview decode', () => {
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      objects: [baseVideo({
+        filePath: '/tmp/original-4k.mp4',
+        proxyFilePath: '/tmp/original-4k.proxy.mp4',
+        width: 1280,
+        height: 720,
+      })],
+      time: 2.5,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected snapshot build to pass');
+    expect(result.media).toEqual([expect.objectContaining({
+      id: 'video-1',
+      kind: 'Video',
+      source: '/tmp/original-4k.proxy.mp4',
+      width: 1280,
+      height: 720,
+    })]);
+  });
+
   it('builds a rust-core compatible media reference for active PSD planes', () => {
     const layers = createDefaultLayers();
     const result = buildRustSceneSnapshotForTimeline({
