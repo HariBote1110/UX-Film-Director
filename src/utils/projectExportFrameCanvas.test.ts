@@ -195,6 +195,13 @@ describe('buildProjectExportFrameSourcePlan', () => {
 });
 
 describe('projectExportFrameCanvas browser video boundary', () => {
+  it('does not expose Pixi-specific canvas API names from the export frame source boundary', () => {
+    const code = source();
+
+    expect(code).not.toContain('pixiCanvas');
+    expect(code).not.toContain("'pixiCanvas'");
+  });
+
   it('does not expose legacy browser video pause helpers', () => {
     const code = source();
 
