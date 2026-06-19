@@ -1168,7 +1168,7 @@ const Viewport: React.FC = () => {
     sharedRendererVideoCutoverEnabled,
   ]);
   
-  useProjectExport(renderScene, getExportCanvas, exportFrameOverridesRef, getRustExportFrameSource);
+  useProjectExport(renderScene, getExportCanvas, getRustExportFrameSource);
 
   // --- Snapshot Logic (after renderScene is defined) ---
   useEffect(() => {

@@ -38,7 +38,6 @@ const closeEncodedFrameBitmap = (frame: RustBackendVideoEncodeFrame): void => {
 export const useProjectExport = (
   renderScene: (time: number, objects: TimelineObject[]) => void,
   getExportCanvas?: () => HTMLCanvasElement | null,
-  exportFrameOverridesRef?: React.MutableRefObject<Map<string, ImageBitmap>>,
   getRustExportFrameSource?: (context: ProjectExportRustFrameSourceContext) => ProjectExportRustFrameSource | null,
 ) => {
   const { isExporting, setExporting, setTime, setExportProgress } = useStore((state) => ({
@@ -141,7 +140,6 @@ export const useProjectExport = (
               frameRuntimePlan.source === 'sharedRendererRustFrameSource'
               && exportFrameSourcePlan.source === 'sharedRendererRustFrameSource'
             ) {
-              exportFrameOverridesRef?.current.clear();
               const timestampUs = Math.round(i * 1_000_000 / fps);
               try {
                 const frame = await renderProjectExportRustEncodeFrame({
@@ -197,8 +195,6 @@ export const useProjectExport = (
             frame.bitmap.close();
           }
 
-          // フレームループ終了後に override をクリア
-          exportFrameOverridesRef?.current.clear();
         }
 
         async function* renderRustEncodeFrames(): AsyncGenerator<RustBackendVideoEncodeSharedFramePayloadFrame> {
@@ -297,12 +293,11 @@ export const useProjectExport = (
         if (exportFrameSourcePlan.source === 'sharedRendererRustFrameSource') {
           await exportFrameSourcePlan.frameSource.close?.();
         }
-        exportFrameOverridesRef?.current.clear();
         setExporting(false);
       }
     };
 
     runExport();
     return () => { cancelled = true; };
-  }, [isExporting, renderScene, setExporting, setTime, setExportProgress, getExportCanvas, exportFrameOverridesRef, getRustExportFrameSource]);
+  }, [isExporting, renderScene, setExporting, setTime, setExportProgress, getExportCanvas, getRustExportFrameSource]);
 };
