@@ -527,6 +527,8 @@ export const startSharedRendererPreviewPresenter = async ({
       status: 'blocked',
       reason: 'sharedRendererOutputUnavailable',
       swatch: 'pixi-passthrough',
+      nativeRenderFailureReason: nativeRenderFailure?.reason,
+      nativeRenderFailureDetail: nativeRenderFailure?.detail,
     });
     return {
       ok: false,
