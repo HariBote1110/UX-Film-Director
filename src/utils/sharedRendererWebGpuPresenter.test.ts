@@ -1214,6 +1214,40 @@ describe('createSharedRendererWebGpuPresenter', () => {
       planeCount: 1,
     });
   });
+
+  it('reuses the WebGPU device for repeated presenter starts on the same GPU object', async () => {
+    const adapter = fakeAdapter();
+    let requestAdapterCount = 0;
+    const gpu = fakeGpu({
+      onRequestAdapter: () => {
+        requestAdapterCount += 1;
+        return adapter;
+      },
+    });
+
+    const first = await createSharedRendererWebGpuPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      surfaceGate: okSurfaceGate,
+      presentationContract: buildSharedRendererPresentationContract(),
+      gpu,
+      textureUsageRenderAttachment: 16,
+      bufferUsageVertex: 1,
+      bufferUsageCopyDst: 2,
+    });
+    const second = await createSharedRendererWebGpuPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      surfaceGate: okSurfaceGate,
+      presentationContract: buildSharedRendererPresentationContract(),
+      gpu,
+      textureUsageRenderAttachment: 16,
+      bufferUsageVertex: 1,
+      bufferUsageCopyDst: 2,
+    });
+
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    expect(requestAdapterCount).toBe(1);
+  });
 });
 
 const fakeCanvas = (getContext: () => unknown) =>
