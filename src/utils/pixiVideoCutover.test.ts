@@ -9,6 +9,14 @@ const source = () =>
   readFileSync(new URL('./pixiVideoCutover.ts', import.meta.url), 'utf8');
 
 describe('shouldSkipPixiVideoForSharedRenderer', () => {
+  it('does not expose export or ownership gates in the Pixi video cutover input', () => {
+    const code = source();
+
+    expect(code).not.toContain('isExporting');
+    expect(code).not.toContain('sharedRendererVideoObjectIds');
+    expect(code).not.toContain('requireSharedRendererVideo');
+  });
+
   it('skips preview video objects by default so Pixi cannot own HTMLVideoElement rendering', () => {
     const sharedRendererVideoObjectIds = new Set(['video-1']);
 
