@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   resolvePixiVideoRenderPath,
   shouldSkipPixiVideoForSharedRenderer,
 } from './pixiVideoCutover';
+
+const source = () =>
+  readFileSync(new URL('./pixiVideoCutover.ts', import.meta.url), 'utf8');
 
 describe('shouldSkipPixiVideoForSharedRenderer', () => {
   it('skips preview video objects by default so Pixi cannot own HTMLVideoElement rendering', () => {
@@ -68,7 +72,6 @@ describe('resolvePixiVideoRenderPath', () => {
       objectType: 'video',
       isExporting: false,
       requireSharedRendererVideo: false,
-      hasExportFrameOverride: false,
     })).toBe('sharedRendererOnly');
   });
 
@@ -78,18 +81,23 @@ describe('resolvePixiVideoRenderPath', () => {
       objectType: 'video',
       isExporting: true,
       requireSharedRendererVideo: true,
-      hasExportFrameOverride: true,
     })).toBe('sharedRendererOnly');
   });
 
-  it('uses export frame overrides only when shared renderer video is not required', () => {
+  it('does not expose the stale export frame override render path', () => {
+    const code = source();
+
+    expect(code).not.toContain('exportFrameOverride');
+    expect(code).not.toContain('hasExportFrameOverride');
+  });
+
+  it('keeps export video on the shared renderer path instead of restoring Pixi bitmap overrides', () => {
     expect(resolvePixiVideoRenderPath({
       objectId: 'video-1',
       objectType: 'video',
       isExporting: true,
       requireSharedRendererVideo: false,
-      hasExportFrameOverride: true,
-    })).toBe('exportFrameOverride');
+    })).toBe('sharedRendererOnly');
   });
 
   it('rejects the legacy Pixi video element path for export compatibility unless explicitly opted in', () => {
@@ -98,7 +106,6 @@ describe('resolvePixiVideoRenderPath', () => {
       objectType: 'video',
       isExporting: true,
       requireSharedRendererVideo: false,
-      hasExportFrameOverride: false,
     })).toBe('sharedRendererOnly');
   });
 
@@ -108,7 +115,6 @@ describe('resolvePixiVideoRenderPath', () => {
       objectType: 'video',
       isExporting: true,
       requireSharedRendererVideo: false,
-      hasExportFrameOverride: false,
       allowLegacyPixiVideo: true,
     } as Parameters<typeof resolvePixiVideoRenderPath>[0] & {
       allowLegacyPixiVideo: true;
