@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のmulti-video native render source診断として、stale frame自身のrelease失敗と先行prepared sourceのabort release失敗を分離した。
+- Red: `sharedRendererViewportNativeRenderSource` のテストへ、stale frame releaseは成功し、先行prepared source abort releaseだけが失敗するケースを追加した。
+- Green: prepared source abort release失敗時は `preparedNativeRenderSourceAbortReleaseFailed` を返すようにした。
+- 検証: `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource sharedRendererPreviewPresenterController` は90件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-215l`。
+
+## 2026-06-19
 - Phase5のnative render source stale診断として、stale decode detailへ対象 `clipId` / `mediaId` を含めるようにした。
 - Red: `sharedRendererViewportNativeRenderSource` のstale job idテストで、detailに `clip=... media=...` が必要な契約へ更新した。
 - Green: `buildStaleDecodedFrameDetail` がdecode requestを受け取り、stale request/job/generic detailにscopeを付けるようにした。

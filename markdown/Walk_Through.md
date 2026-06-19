@@ -1383,3 +1383,17 @@
 - `npm test -- sharedRendererViewportNativeRenderSource` を再実行し、5件成功を確認した。
 - `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource sharedRendererPreviewPresenterController` を実行し、89件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 108. Phase5: prepared native render source abort release失敗を分離
+- `src/utils/sharedRendererViewportNativeRenderSource.test.ts`
+- multi-video native render source準備で、stale frame自身はreleaseできたが先行prepared sourceのabort releaseが失敗した場合、`preparedNativeRenderSourceAbortReleaseFailed` を返す契約を追加した。
+- `src/utils/sharedRendererViewportNativeRenderSource.ts`
+- prepared source abort release失敗だけを `staleDecodeReleaseFailed` から分離し、stale frame自身のrelease失敗と区別できるようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-215l` に更新した。
+
+## 確認
+- `npm test -- sharedRendererViewportNativeRenderSource` を実行し、Redでprepared source abort release失敗が `staleDecodeReleaseFailed` として返る失敗を確認した。
+- `npm test -- sharedRendererViewportNativeRenderSource` を再実行し、6件成功を確認した。
+- `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource sharedRendererPreviewPresenterController` を実行し、90件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

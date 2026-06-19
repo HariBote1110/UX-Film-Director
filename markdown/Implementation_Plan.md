@@ -1231,6 +1231,11 @@ stale frame自身のreleaseだけでなく、途中成功したsourceのslot lea
 native render source準備失敗のdetailはpreview/export側へ流れるため、source切替・複数動画中のstale decodeを
 `clip=... media=...` 付きで追跡できるようにする。
 
+223. Phase5: prepared native render source abort release失敗を分離する
+multi-video native render source準備中のstale検出では、stale frame自身のrelease失敗と、
+既にpreparedになった先行sourceのabort release失敗を別reasonで返す。
+これにより、返却stale slotの後始末失敗か、途中成功sourceのslot leak防止失敗かを診断上で切り分けられる。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

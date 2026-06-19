@@ -1,3 +1,20 @@
+## 2026-06-19 — prepared native render source abort release失敗を分離
+
+### 実施内容
+- Red: multi-video native render source準備で、stale frame自身はreleaseできたが先行prepared sourceのabort releaseが失敗した場合に、専用reasonを返す契約を追加した。
+- Green: prepared source abort release失敗時は `preparedNativeRenderSourceAbortReleaseFailed` を返し、stale frame自身の `staleDecodeReleaseFailed` と診断上で分離した。
+- 途中成功sourceのslot leak防止失敗を、返却stale slotの後始末失敗と切り分けて追えるようにした。
+- 版を `0.1.1-Beta-215l` に更新した。
+
+### 検証
+- `npm test -- sharedRendererViewportNativeRenderSource`
+- `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource sharedRendererPreviewPresenterController`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts)"`
+
+### 残課題・次のステップ
+- 上位preview/export診断でも `preparedNativeRenderSourceAbortReleaseFailed` を専用reasonとしてdatasetやexport blockへ保持する。
+- Pixi依存撤去へ向けて、Viewport本体の動画所有者がsharedRenderer固定になった後のlegacy fallback経路をさらに削る。
+
 ## 2026-06-19 — native render sourceのstale診断へclip/media idを含める
 
 ### 実施内容
