@@ -222,6 +222,40 @@ fn bilinear_sampling_interpolates_in_linear_light() {
 }
 
 #[test]
+fn rotated_clip_uses_top_left_pivot_inverse_sampling() {
+    let snapshot = scene_snapshot(vec![evaluated_clip_with_transform(
+        "foreground",
+        0,
+        1.0,
+        Vec::new(),
+        Transform {
+            translation_x: 1.0,
+            translation_y: 0.0,
+            scale_x: 1.0,
+            scale_y: 1.0,
+            rotation_degrees: 90.0,
+            sampling: SamplingMode::Nearest,
+        },
+    )]);
+    let sources = HashMap::from([(
+        "foreground".to_string(),
+        RgbaFrame::from_rgba8(2, 1, vec![255, 0, 0, 255, 0, 0, 255, 255])
+            .expect("valid source"),
+    )]);
+
+    let rendered =
+        render_reference_frame(&snapshot, &sources, 2, 2).expect("render rotated reference frame");
+
+    assert_eq!(
+        rendered.pixels,
+        vec![
+            0, 0, 0, 0, 255, 0, 0, 255,
+            0, 0, 0, 0, 0, 0, 255, 255,
+        ]
+    );
+}
+
+#[test]
 fn missing_media_source_is_reported() {
     let snapshot = scene_snapshot(vec![evaluated_clip("missing", 0, 1.0, Vec::new())]);
     let sources = HashMap::new();
