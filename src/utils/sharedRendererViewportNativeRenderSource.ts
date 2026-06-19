@@ -200,7 +200,7 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
       return {
         ok: false,
         reason: 'staleDecodeResponse',
-        detail: buildStaleDecodedFrameDetail(decodeResponse.result, resolvedRequestId, resolvedJob.jobId),
+        detail: buildStaleDecodedFrameDetail(decodeResponse.result, resolvedRequestId, resolvedJob.jobId, request),
         activeJobs: resolvedActiveJobs,
       };
     }
@@ -286,14 +286,16 @@ const buildStaleDecodedFrameDetail = (
   },
   expectedRequestId: number,
   expectedJobId: string,
+  request: SharedRendererVideoFrameDecodeRequest,
 ): string => {
+  const scope = ` clip=${request.clipId} media=${request.mediaId}`;
   if (result.requestId !== expectedRequestId) {
-    return 'Rust backend returned a decoded frame for a stale request id.';
+    return `Rust backend returned a decoded frame for a stale request id.${scope}`;
   }
   if (result.jobId !== expectedJobId) {
-    return 'Rust backend returned a decoded frame for a stale job id.';
+    return `Rust backend returned a decoded frame for a stale job id.${scope}`;
   }
-  return 'Rust backend returned a stale decoded frame.';
+  return `Rust backend returned a stale decoded frame.${scope}`;
 };
 
 const buildViewportNativeRenderDecodeJob = (
