@@ -147,6 +147,8 @@ Rust backend integration gate:
   Rust必須判定やlegacy fallback判定へ進まない。
 - Viewport Rust export frame sourceは、動画objectを含むexportでは preview cutover flagの値に関係なく
   effective video cutoverを有効化し、shared renderer encode-only / native render pathへ進む。
+- `ProjectExportRustFrameSourceContext` と `BuildViewportRustExportFrameSourceInput` は `hasVideoObjects` を
+  必須booleanとして受け取り、optional `objects` から動画有無を推測しない。
 - production app logicはWebCodecs向けH.264中間ファイル自動生成hookを起動しない。`videoDecodeStream` は
   export test harnessの比較・診断用途に限定する。
 - Electron mainは旧WebCodecs intermediate用の `check-intermediate` / `generate-intermediate` /

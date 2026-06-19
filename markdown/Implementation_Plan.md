@@ -1154,6 +1154,12 @@ RGBA bytesをJS側へ取り出す入口として再接続しない。
 preview用cutover flagが明示OFFでも、動画exportのframe sourceはRust native render / shared renderer encode-only pathへ進み、
 legacy canvas captureやPixi動画fallbackへ戻らない。
 
+212. Phase5: Rust export sourceへ動画sentinelを明示する
+`ProjectExportRustFrameSourceContext` と `BuildViewportRustExportFrameSourceInput` は `hasVideoObjects` を必須booleanとして持つ。
+Viewport Rust export sourceは optional `objects` から動画有無を推測せず、export planningで確定済みのsentinelを使って
+effective cutover / encode-only / native render requiredを決める。
+これによりpreflight用objectsの渡し忘れが、動画exportのRust必須判定を無効化しない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

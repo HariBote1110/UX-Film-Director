@@ -565,3 +565,10 @@
 - Green: `resolveViewportRustExportFrameSource` で `videoCutoverEnabled || hasVideoObjects(objects)` を実効cutover条件にし、動画exportではencode-only / native render requiredを維持した。
 - 検証: `npm test -- viewportRustExportFrameSource projectExportFrameCanvas projectExportEncodePlan useProjectExportBoundary` は60件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-194a`。
+
+## 2026-06-19
+- Phase5のRust export source境界として、動画object有無のsentinelをViewport export sourceへ明示的に渡すようにした。
+- Red: `projectExportFrameCanvas` / `viewportRustExportFrameSource` に、`ProjectExportRustFrameSourceContext` と `BuildViewportRustExportFrameSourceInput` が `hasVideoObjects` を持ち、optional `objects` から推測しない契約を追加した。
+- Green: `resolveProjectExportRustFrameSourceContext` が `hasVideoObjects` を返し、Viewportが `buildViewportRustExportFrameSource` へ渡すようにした。`viewportRustExportFrameSource` から `objects?.some` 推測helperを削除した。
+- 検証: `npm test -- projectExportFrameCanvas viewportRustExportFrameSource useProjectExportBoundary projectExportEncodePlan projectExportCompatibilityEncoder` は63件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-195a`。
