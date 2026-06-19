@@ -235,10 +235,13 @@ export const prepareSharedRendererViewportVideoUploads = async ({
     }
     if (
       isRustBackendDecodedVideoFrameAvailable(decodeResponse)
-      && decodeResponse.result.requestId !== resolvedRequestId
+      && (
+        decodeResponse.result.requestId !== resolvedRequestId
+        || decodeResponse.result.jobId !== resolvedJob.jobId
+      )
     ) {
       const releaseResponse = await releaseRustBackendVideoDecodeFrame({
-        jobId: resolvedJob.jobId,
+        jobId: decodeResponse.result.jobId,
         slotIndex: decodeResponse.result.frame.descriptor.slotIndex,
         generation: decodeResponse.result.frame.descriptor.generation,
         copyOutState: 'rendererUploadAborted',
@@ -272,7 +275,7 @@ export const prepareSharedRendererViewportVideoUploads = async ({
       return {
         ok: false,
         reason: 'staleDecodeResponse',
-        detail: 'Rust backend returned a decoded frame for a stale request id.',
+        detail: buildStaleDecodedFrameDetail(decodeResponse.result, resolvedRequestId, resolvedJob.jobId),
         activeJobs: resolvedActiveJobs,
       };
     }
@@ -401,10 +404,13 @@ export const prepareSharedRendererViewportVideoUpload = async ({
   }
   if (
     isRustBackendDecodedVideoFrameAvailable(decodeResponse)
-    && decodeResponse.result.requestId !== (requestId ?? session.surfaceGate.snapshot.frame_index)
+    && (
+      decodeResponse.result.requestId !== (requestId ?? session.surfaceGate.snapshot.frame_index)
+      || decodeResponse.result.jobId !== resolvedJob.jobId
+    )
   ) {
     const releaseResponse = await releaseRustBackendVideoDecodeFrame({
-      jobId: resolvedJob.jobId,
+      jobId: decodeResponse.result.jobId,
       slotIndex: decodeResponse.result.frame.descriptor.slotIndex,
       generation: decodeResponse.result.frame.descriptor.generation,
       copyOutState: 'rendererUploadAborted',
@@ -420,7 +426,11 @@ export const prepareSharedRendererViewportVideoUpload = async ({
     return {
       ok: false,
       reason: 'staleDecodeResponse',
-      detail: 'Rust backend returned a decoded frame for a stale request id.',
+      detail: buildStaleDecodedFrameDetail(
+        decodeResponse.result,
+        requestId ?? session.surfaceGate.snapshot.frame_index,
+        resolvedJob.jobId
+      ),
       activeJob: resolvedJob,
     };
   }
@@ -507,6 +517,23 @@ const isDecodeJobStartFailure = (
   value: SharedRendererViewportVideoDecodeJob | { ok: false; detail: string }
 ): value is { ok: false; detail: string } =>
   'ok' in value && value.ok === false;
+
+const buildStaleDecodedFrameDetail = (
+  result: {
+    requestId: number;
+    jobId: string;
+  },
+  expectedRequestId: number,
+  expectedJobId: string,
+): string => {
+  if (result.requestId !== expectedRequestId) {
+    return 'Rust backend returned a decoded frame for a stale request id.';
+  }
+  if (result.jobId !== expectedJobId) {
+    return 'Rust backend returned a decoded frame for a stale job id.';
+  }
+  return 'Rust backend returned a stale decoded frame.';
+};
 
 const buildViewportVideoDecodeJob = (
   request: SharedRendererVideoFrameDecodeRequest,
