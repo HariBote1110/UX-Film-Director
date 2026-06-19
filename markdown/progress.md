@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のexport診断として、動画を含むRust export preflight失敗を `fallback` ではなく `blocked` として出すようにした。
+- Red: `viewportRustExportFrameSource` のテストへ、動画preflightで `exportSessionBlocked` になった場合に `uxfdRustExportFrameSourceStatus=blocked` になる契約を追加した。
+- Green: `ViewportRustExportFrameSourceDecision` に任意の `diagnosticStatus` を追加し、動画/Rust必須preflight失敗だけblockedとして書き出すようにした。
+- 検証: `npm test -- viewportRustExportFrameSource projectExportFrameCanvas viewportRustVideoOnlyBoundary sharedRendererExportFrameSource` は106件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216b`。
+
+## 2026-06-19
 - Phase5のpreview診断として、Rust必須video/control-plane失敗を `fallback` ではなく `blocked` として出すようにした。
 - Red: `sharedRendererPreviewPresenterController` のテストへ、`requiredVideoOwnershipUnavailable` と `requiredRustVideoControlPlaneUnavailable` が `uxfdSharedRendererPresenterStatus=blocked` になる契約を追加した。
 - Green: `SharedRendererPresenterDiagnosticState` に `blocked` statusを追加し、required系失敗だけblockedとして書き出すようにした。

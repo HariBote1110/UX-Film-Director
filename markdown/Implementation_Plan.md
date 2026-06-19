@@ -1310,6 +1310,11 @@ Rust video-only起動時に、previewだけでなくexportもRust video cutover�
 presenter datasetへ `uxfdSharedRendererPresenterStatus=blocked` として出す。
 通常のPixi互換fallbackとRust必須failureを診断上で分離し、Rust-only検証でPixi退避に見えないようにする。
 
+239. Phase5: 動画Rust export preflight失敗をblocked診断にする
+動画を含むRust export preflightで `exportSessionBlocked` が発生した場合、
+frame source diagnosticsへ `uxfdRustExportFrameSourceStatus=blocked` を出す。
+非動画互換exportのclosed gateは `fallback` のまま維持し、Rust必須failureとlegacy fallbackを診断上で分離する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

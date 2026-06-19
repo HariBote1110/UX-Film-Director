@@ -1579,6 +1579,22 @@
 - `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration viewportRustVideoOnlyBoundary` を実行し、70件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 124. Phase5: 動画Rust export preflight失敗をblocked診断に変更
+- `src/utils/viewportRustExportFrameSource.test.ts`
+- 動画を含むRust export preflightで `exportSessionBlocked` が発生した場合、decisionとdataset statusが `blocked` になる契約を追加した。
+- `src/utils/viewportRustExportFrameSource.ts`
+- `ViewportRustExportFrameSourceDecision` に任意の `diagnosticStatus` を追加した。
+- `hasVideoObjects` / `preferEncodeOnly` によってRust必須になったpreflight失敗だけ、`diagnosticStatus='blocked'` として返すようにした。
+- `writeViewportRustExportFrameSourceDiagnostics` はdecisionの `diagnosticStatus` を優先してdataset statusへ反映する。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216b` に更新した。
+
+## 確認
+- `npm test -- viewportRustExportFrameSource` を実行し、Redで動画preflight失敗がまだ `fallback` と出る失敗を確認した。
+- `npm test -- viewportRustExportFrameSource` を再実行し、17件成功を確認した。
+- `npm test -- viewportRustExportFrameSource projectExportFrameCanvas viewportRustVideoOnlyBoundary sharedRendererExportFrameSource` を実行し、106件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/viewportRustExportFrameSource\\.ts|src/utils/viewportRustExportFrameSource\\.test\\.ts|src/utils/projectExportFrameCanvas\\.ts|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts|src/utils/sharedRendererExportFrameSource\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。

@@ -1,3 +1,20 @@
+## 2026-06-19 — 動画Rust export preflight失敗をblocked診断に変更
+
+### 実施内容
+- Red: 動画を含むRust export preflightで `exportSessionBlocked` が発生した場合、frame source diagnosticsが `blocked` statusになる契約を追加した。
+- Green: `ViewportRustExportFrameSourceDecision` に任意の `diagnosticStatus` を追加し、動画/Rust必須preflight失敗だけ `blocked` としてdatasetへ書き出すようにした。
+- 非動画互換exportのclosed gateは従来通り `fallback` のままにし、Rust必須failureとlegacy fallbackを診断上で分離した。
+- 版を `0.1.1-Beta-216b` に更新した。
+
+### 検証
+- `npm test -- viewportRustExportFrameSource`
+- `npm test -- viewportRustExportFrameSource projectExportFrameCanvas viewportRustVideoOnlyBoundary sharedRendererExportFrameSource`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/viewportRustExportFrameSource\\.ts|src/utils/viewportRustExportFrameSource\\.test\\.ts|src/utils/projectExportFrameCanvas\\.ts|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts|src/utils/sharedRendererExportFrameSource\\.ts)"`
+
+### 残課題・次のステップ
+- preview/export双方で `blocked` statusを使う経路を、実機diagnostics overlayやexport progressの表示へどう反映するか整理する。
+- Viewport本体のPixi依存撤去へ向けて、video以外のPixi-only presentation条件とRust native render coverageを整理する。
+
 ## 2026-06-19 — Rust必須preview失敗をblocked診断に変更
 
 ### 実施内容
