@@ -6547,6 +6547,26 @@
 - 実機UIで Rectangle / Image / Audio を配置し、通常ExportからRust backend MP4が出るか確認する。
 - 失敗する場合は、Quick Native Export導線を追加してPixi互換分岐を通らないMVP用の直通exportを作る。
 
+## 2026-06-20 — GoPro系動画読み込みとencode失敗診断を改善
+
+### 実施内容
+- 実機確認で画像・音声・PSDは読み込めた一方、動画読み込みとencodeが失敗したため、MVPの入口を広げた。
+- Red: `useTimelineDrop` に、ElectronがMIME typeを空で渡す `.MP4` も動画として扱う契約を追加した。
+- Green: 動画drop判定をMIME typeだけでなく `.mp4` / `.mov` / `.m4v` / `.webm` / `.avi` / `.mkv` の拡張子にも対応させた。
+- Red: `rust-backend` decodeに、非sRGB transfer metadataの動画を拒否せず読み込む契約を追加した。
+- Green: Rust decodeの色メタデータgateを緩め、rangeだけをfull/limited変換へ使い、primaries/transfer/matrixはffmpegの変換へ任せるようにした。
+- Red/Green: encode失敗時にffmpeg stderrを `encode.finish` のRPCエラーへ含めるようにした。
+- 版を `0.1.1-Beta-218b` に更新した。
+
+### 検証
+- `npm test -- useTimelineDrop`
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane -- --nocapture`
+- `npx tsc --noEmit --pretty false 2>&1 | rg "(src/hooks/useTimelineDrop\\.ts|src/hooks/useTimelineDrop\\.test\\.ts|rust-backend/src/main\\.rs)"`
+
+### 残課題・次のステップ
+- アプリを再起動し、GoPro動画をdropしてTimelineへ入るか確認する。
+- encodeがまだ失敗する場合は、新しく表示されるffmpeg stderrを元にcodec / mux / save pathを直接修正する。
+
 ## 2026-06-19 — shared frame copy checksum検証を追加
 
 ### 実施内容

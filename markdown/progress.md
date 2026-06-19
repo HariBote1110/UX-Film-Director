@@ -1018,3 +1018,13 @@
 - Rust backend結合確認として、PNG画像を `render.nativeSharedFrame` でRust decode/renderし、そのshared frameを `encode.writeFrame` へ渡し、WAV音声をmuxしてMP4を生成する契約を追加した。
 - 検証: `npm test -- projectExportFrameCanvas` は35件成功。`cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane native_rendered_image_frame_can_feed_audio_muxed_encode -- --nocapture` は1件成功。対象TSファイルで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-218a`。
+
+## 2026-06-20
+- 実機確認で画像・音声・PSDは読み込めた一方、GoPro系動画読み込みとencode失敗診断が弱かったため、MVP向けに入口を広げた。
+- Red: `useTimelineDrop` に、ElectronがMIME typeを空で渡す `.MP4` も動画として扱う契約を追加した。
+- Green: 動画drop判定をMIME typeだけでなく `.mp4` / `.mov` / `.m4v` などの拡張子にも対応させた。
+- Red: `rust-backend` decodeに、非sRGB transfer metadataの動画をMVP importで拒否しない契約を追加した。
+- Green: Rust decodeの色メタデータgateを緩め、rangeだけをfull/limited変換へ使い、primaries/transfer/matrixはffmpegの変換へ任せるようにした。
+- Red/Green: encode失敗時にffmpeg stderrを捨てず、`encode.finish` のRPCエラーへ含めるようにした。
+- 検証: `npm test -- useTimelineDrop` は3件成功。`cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane -- --nocapture` は29件成功。対象TSファイルで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-218b`。
