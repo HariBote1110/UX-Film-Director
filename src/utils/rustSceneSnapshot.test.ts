@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { ImageObject, ProjectSettings, PsdObject, ShapeObject, TimelineObject, VideoObject } from '../types';
+import type { AudioObject, ImageObject, ProjectSettings, PsdObject, ShapeObject, TimelineObject, VideoObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -116,6 +116,30 @@ const basePsd = (patch: Partial<PsdObject> = {}): PsdObject => ({
   ...patch,
 });
 
+const baseAudio = (patch: Partial<AudioObject> = {}): AudioObject => ({
+  id: 'audio-1',
+  type: 'audio',
+  name: 'music.wav',
+  layer: 3,
+  startTime: 1,
+  duration: 4,
+  x: 0,
+  y: 0,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 0,
+  endY: 0,
+  easing: 'linear',
+  src: 'blob:audio',
+  filePath: '/tmp/music.wav',
+  volume: 1,
+  muted: false,
+  ...patch,
+});
+
 describe('buildRustSceneSnapshotForTimeline', () => {
   it('builds a solid colour plane for active rectangle shapes', () => {
     const layers = createDefaultLayers();
@@ -157,6 +181,22 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         height: 100,
       },
     ]);
+  });
+
+  it('ignores active audio objects while building the visual Rust scene snapshot', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseShape(), baseAudio()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected audio-backed visual snapshot to pass');
+
+    expect(result.snapshot.clips.map((clip) => clip.clip_id)).toEqual(['shape-1']);
+    expect(result.media.map((reference) => reference.id)).toEqual(['shape-1']);
   });
 
   it('builds a generated gradient plane for active rectangle shapes', () => {
