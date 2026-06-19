@@ -1004,3 +1004,18 @@
 - `npm test -- sharedRendererPresenterDiagnostics` を実行し、Redでfallback時のvideo upload失敗診断が未設定になる失敗を確認した。
 - `npm test -- sharedRendererPresenterDiagnostics sharedRendererPreviewPresenterController` を再実行し、42件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 83. Phase5: multi-video不足upload clip診断を保持
+- `src/utils/sharedRendererPreviewPresenterController.test.ts`
+- multi-video previewで一部clipのdecoded uploadが不足している場合、datasetに `videoUploadMissingClipIds` を残す契約を追加した。
+- `src/utils/sharedRendererPreviewPresenterController.ts`
+- Rust decode requestのclip一覧とupload成功clip一覧を比較し、不足clipを `videoUploadMissingClip` 診断として渡すようにした。
+- `src/utils/sharedRendererPresenterDiagnostics.ts`
+- `videoUploadMissingClipIds` をready/fallback datasetへ書き出すようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-211b` に更新した。
+
+## 確認
+- `npm test -- sharedRendererPreviewPresenterController` を実行し、Redで `videoUploadMissingClipIds` が未設定になる失敗を確認した。
+- `npm test -- sharedRendererPresenterDiagnostics sharedRendererPreviewPresenterController` を再実行し、42件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

@@ -1,3 +1,20 @@
+## 2026-06-19 — multi-video不足upload clip診断を保持
+
+### 実施内容
+- Red: multi-video previewで一部clipのdecoded uploadが不足している場合、datasetに `videoUploadMissingClipIds` を残す契約を追加した。
+- Green: Rust decode requestのclip一覧とupload成功clip一覧を比較し、不足clipを `videoUploadMissingClip` 診断としてready/fallback datasetへ渡すようにした。
+- 部分Rust所有を許しつつ、GoPro複数素材で「どの動画clipがRust upload未到達か」を追えるようにした。
+- 版を `0.1.1-Beta-211b` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPreviewPresenterController`
+- `npm test -- sharedRendererPresenterDiagnostics sharedRendererPreviewPresenterController`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- export側にも不足clip診断が必要か、native render source preparationの失敗detailと突き合わせて確認する。
+- 実機GoPro素材で `videoUploadMissingClipIds` がdatasetに出るか確認し、UI表示へ必要なら接続する。
+
 ## 2026-06-19 — fallback時のvideo upload失敗診断を保持
 
 ### 実施内容
