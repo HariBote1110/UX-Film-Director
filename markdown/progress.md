@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のmulti-video native render source境界として、後続decode responseがstaleになった場合に先行prepared sourceのdecoded slotもabort releaseするようにした。
+- Red: `sharedRendererViewportNativeRenderSource` のテストへ、1本目がsource化済み、2本目がstale job idを返すケースを追加した。
+- Green: stale responseの返却slotをreleaseした後、関数内で作ったprepared source群の `releaseAfterNativeRenderAbort` を呼ぶようにした。
+- 検証: `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource sharedRendererViewportVideoUpload` は68件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-215j`。
+
+## 2026-06-19
 - Phase5のnative render source境界として、decoded frame responseの `jobId` が要求jobと異なる場合はRust native render入力へ採用しないようにした。
 - Red: `sharedRendererViewportNativeRenderSource` のテストへ、別jobのdecoded frameをstale扱いにして返却slotをabort releaseする契約を追加した。
 - Green: native render source準備でもstale判定を `requestId` と `jobId` の両方へ広げ、releaseには返却response側のslot leaseを使うようにした。

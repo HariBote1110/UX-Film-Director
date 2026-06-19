@@ -1,3 +1,20 @@
+## 2026-06-19 — multi-video stale時にprepared native render sourceをabort release
+
+### 実施内容
+- Red: native render source準備で、1本目の動画sourceをpreparedにした後、2本目のRust backend decoded frame responseが別job idを返した場合に、先行sourceのslotもabort releaseする契約を追加した。
+- Green: stale response自身のslot release後、関数内で既にpreparedになったsource群の `releaseAfterNativeRenderAbort` を呼び、途中成功したRust decoded slotを残さないようにした。
+- multi-video preview/exportで後続staleにより処理が中断されても、Rust decode ring bufferが先行slot leakで詰まらない境界にした。
+- 版を `0.1.1-Beta-215j` に更新した。
+
+### 検証
+- `npm test -- sharedRendererViewportNativeRenderSource`
+- `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource sharedRendererViewportVideoUpload`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererViewportVideoUpload\\.ts)"`
+
+### 残課題・次のステップ
+- native render sourceのstale decode detailもclip/media id付きでpresenter/export診断へ残す。
+- prepared source abort release失敗時の理由を、stale frame自身のrelease失敗と区別できる診断名へ分ける。
+
 ## 2026-06-19 — native render sourceのstale job idを拒否
 
 ### 実施内容

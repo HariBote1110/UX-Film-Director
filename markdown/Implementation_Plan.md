@@ -1221,6 +1221,11 @@ native render sourceとして採用しない。
 stale frameは返却response側の `jobId` / `slotIndex` / `generation` で `rendererUploadAborted` releaseし、
 別jobのshared frame descriptorがRust native render入力へ混入しないようにする。
 
+221. Phase5: multi-video stale時にprepared native render sourceをabort releaseする
+複数動画のnative render source準備中に、後続video decode responseがstaleになった場合、
+既にpreparedになった先行video sourceのdecoded slotも `rendererUploadAborted` としてreleaseする。
+stale frame自身のreleaseだけでなく、途中成功したsourceのslot leakを防ぎ、Rust decode ring bufferを詰まらせない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

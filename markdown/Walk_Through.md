@@ -1354,3 +1354,17 @@
 - `npm test -- sharedRendererViewportNativeRenderSource` を再実行し、4件成功を確認した。
 - `npm test -- sharedRendererViewportNativeRenderSource rustBackendVideoDecodeControl sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource` を実行し、82件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.test\\.ts|src/utils/rustBackendVideoDecodeControl\\.ts|src/utils/sharedRendererRustVideoUploadPipeline\\.ts|src/utils/sharedRendererViewportVideoUpload\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererExportFrameSource\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 106. Phase5: multi-video stale時にprepared native render sourceをabort release
+- `src/utils/sharedRendererViewportNativeRenderSource.test.ts`
+- multi-video native render source準備で、1本目のdecoded frameをsource化した後に2本目がstale job idを返した場合、1本目のslotもabort releaseする契約を追加した。
+- `src/utils/sharedRendererViewportNativeRenderSource.ts`
+- stale responseの返却slotをreleaseした後、関数内で既にpreparedになったsource群の `releaseAfterNativeRenderAbort` を呼び、途中成功したRust decoded slotを残さないようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-215j` に更新した。
+
+## 確認
+- `npm test -- sharedRendererViewportNativeRenderSource` を実行し、Redで先行prepared sourceのabort releaseが欠ける失敗を確認した。
+- `npm test -- sharedRendererViewportNativeRenderSource` を再実行し、5件成功を確認した。
+- `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource sharedRendererViewportVideoUpload` を実行し、68件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererViewportVideoUpload\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
