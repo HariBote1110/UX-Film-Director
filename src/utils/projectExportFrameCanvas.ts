@@ -40,11 +40,28 @@ export interface ProjectExportRustFrameSourceContext {
   time: number;
   preferEncodeOnly?: boolean;
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
-  onFrameSourceUnavailable?: (decision: {
-    reason: string;
-    detail: string;
-  }) => void;
+  onFrameSourceUnavailable?: (decision: ProjectExportRustFrameSourceUnavailableDecision) => void;
 }
+
+export type ProjectExportRustFrameSourceUnavailableDecision = {
+  reason: string;
+  detail: string;
+  nativeRenderEnvelope?: ProjectExportRustFrameSourceUnavailableNativeRenderEnvelope;
+};
+
+export type ProjectExportRustFrameSourceUnavailableNativeRenderEnvelope =
+  | {
+      ok: true;
+      mediaCount: number;
+      mediaKinds: string[];
+      sourceCount: number;
+      sourceMediaIds: string[];
+    }
+  | {
+      ok: false;
+      reason: string;
+      detail: string;
+    };
 
 export type ResolveProjectExportFrameCanvasResult =
   | {
@@ -247,6 +264,31 @@ const appendRustFrameSourceUnavailableDetail = (
 ): string => unavailableDetail
   ? `${baseDetail} ${unavailableDetail}`
   : baseDetail;
+
+export const formatProjectExportRustFrameSourceUnavailableDetail = (
+  decision: ProjectExportRustFrameSourceUnavailableDecision
+): string => {
+  const diagnostics = [`fallback=${decision.reason}`];
+  if (decision.nativeRenderEnvelope) {
+    diagnostics.push(formatUnavailableNativeRenderEnvelope(decision.nativeRenderEnvelope));
+  }
+  return `${decision.detail} [${diagnostics.join('; ')}]`;
+};
+
+const formatUnavailableNativeRenderEnvelope = (
+  envelope: ProjectExportRustFrameSourceUnavailableNativeRenderEnvelope
+): string => {
+  if (!envelope.ok) {
+    return `nativeRenderEnvelope=${envelope.reason}: ${envelope.detail}`;
+  }
+  return [
+    'nativeRenderEnvelope=ready',
+    `media=${envelope.mediaCount}`,
+    `kinds=${envelope.mediaKinds.join(',')}`,
+    `sources=${envelope.sourceCount}`,
+    `sourceMediaIds=${envelope.sourceMediaIds.join(',')}`,
+  ].join(' ');
+};
 
 export const resolveProjectExportFrameSourcePolicyForEncode = ({
   rustExportOnly,

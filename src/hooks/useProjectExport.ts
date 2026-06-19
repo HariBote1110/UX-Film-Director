@@ -9,6 +9,7 @@ import { renderProjectExportFrame } from '../utils/projectExportFrameRenderer';
 import {
   buildProjectExportFrameSourcePlan,
   createSingleUseProjectExportFrameSourceCloser,
+  formatProjectExportRustFrameSourceUnavailableDetail,
   resolveProjectExportFrameSourcePolicyForEncode,
   resolveProjectExportRustFrameSourceContext,
   type ProjectExportRustFrameSourceContext,
@@ -81,7 +82,7 @@ export const useProjectExport = (
           encodeEngine: exportEncodePlan.engine,
           presentedFrameSharedFrameTaker: createSharedVideoFramePresentedFrameTaker() ?? undefined,
           onFrameSourceUnavailable: (decision) => {
-            rustFrameSourceUnavailableDetail = decision.detail;
+            rustFrameSourceUnavailableDetail = formatProjectExportRustFrameSourceUnavailableDetail(decision);
           },
         })) ?? null,
         rustFrameSourceUnavailableDetail,
