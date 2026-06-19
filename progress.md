@@ -1,3 +1,20 @@
+## 2026-06-19 — Rust frame source blocked時のfallback可否を同期
+
+### 実施内容
+- Red: 動画bitmap capture禁止時の `SharedRendererExportFrameSourceBlockedError` が `fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` を示す契約へ更新した。
+- Green: `fallbackToLegacyCanvas` を固定trueではなく `legacyCanvasFallbackAllowed` と同期させ、fail-loudな動画export診断でlegacy fallback可能に見えないようにした。
+- export progress / blocked error上のfallback可否と、実際の動画Rust-only方針を揃えた。
+- 版を `0.1.1-Beta-210r` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSource`
+- `npm test -- sharedRendererExportFrameSource sharedRendererExportFrameSourceBoundary useProjectExportBoundary`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/components/ExportProgressModal\\.tsx)"`
+
+### 残課題・次のステップ
+- 実機動画exportでRust frame source blocked時にUIが `legacy fallback不可` を表示することを確認する。
+- 動画exportのfail-loud理由が `nativeRenderUnavailable` / `videoBitmapCaptureDisabled` などに正しく分岐することを確認する。
+
 ## 2026-06-19 — export sourceのcanvas captureをadapterへ隔離
 
 ### 実施内容

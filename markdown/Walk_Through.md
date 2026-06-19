@@ -866,3 +866,16 @@
 - `npm test -- projectExportLegacyCanvasCapture` を実行し、Redでcapture矩形が固定 `0,0` になる失敗を確認した。
 - `npm test -- sharedRendererExportFrameSource sharedRendererExportFrameSourceBoundary projectExportLegacyCanvasCapture` を実行し、38件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSourceBoundary\\.test\\.ts|src/utils/projectExportLegacyCanvasCapture\\.ts|src/utils/projectExportLegacyCanvasCapture\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 73. Phase5: Rust frame source blocked時のfallback可否を同期
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- 動画bitmap capture禁止時の `SharedRendererExportFrameSourceBlockedError` が `fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` を示す契約へ更新した。
+- `src/utils/sharedRendererExportFrameSource.ts`
+- `fallbackToLegacyCanvas` を固定trueではなく `legacyCanvasFallbackAllowed` と同期させ、fail-loudな動画export診断でlegacy fallback可能に見えないようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-210r` に更新した。
+
+## 確認
+- `npm test -- sharedRendererExportFrameSource` を実行し、Redで `fallbackToLegacyCanvas` がtrueのまま残る失敗を確認した。
+- `npm test -- sharedRendererExportFrameSource sharedRendererExportFrameSourceBoundary useProjectExportBoundary` を実行し、55件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/components/ExportProgressModal\\.tsx)"` を実行し、対象ファイルに型エラーが出ないことを確認。
