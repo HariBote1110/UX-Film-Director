@@ -11,8 +11,6 @@ import {
 import {
   createSharedRendererWebGpuPresenter,
   type SharedRendererPresentedFrameSharedFrameInput,
-  type SharedRendererPresentedFrameReadbackInput,
-  type SharedRendererPresentedFrameReadbackResult,
   type SharedRendererPresentedFrameSharedFrameTaker,
   type SharedRendererSolidSrgbSwatch,
   type SharedRendererVideoFrameTextureUploadInput,
@@ -72,7 +70,6 @@ export type SharedRendererPreviewPresenterControl =
       takePresentedFrameSharedFrame?: (
         input: SharedRendererPresentedFrameSharedFrameInput
       ) => Promise<RustBackendVideoEncodeWriteFramePayload>;
-      readPresentedFrameRgbaBytes?: (input: SharedRendererPresentedFrameReadbackInput) => Promise<SharedRendererPresentedFrameReadbackResult>;
       dispose: () => void;
     }
   | {
@@ -543,8 +540,6 @@ export const startSharedRendererPreviewPresenter = async ({
         : 'pixi-passthrough',
   });
 
-  const exposePresentedFrameReadback = !requireSharedRendererOutput && !hasVideoScene;
-
   return {
     ok: true,
     format: presenter.format,
@@ -553,7 +548,6 @@ export const startSharedRendererPreviewPresenter = async ({
     imageOwnership,
     psdOwnership,
     takePresentedFrameSharedFrame: presenter.takePresentedFrameSharedFrame,
-    ...(exposePresentedFrameReadback ? { readPresentedFrameRgbaBytes: presenter.readPresentedFrameRgbaBytes } : {}),
     dispose: presenter.dispose,
   };
 };
