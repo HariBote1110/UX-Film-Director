@@ -579,13 +579,11 @@ export const updatePixiContent = (
         isPlaying: boolean;
         setRenderTick: React.Dispatch<React.SetStateAction<number>>;
         sharedRendererSolidColourObjectIds?: ReadonlySet<string>;
-        sharedRendererVideoObjectIds?: ReadonlySet<string>;
         sharedRendererImageObjectIds?: ReadonlySet<string>;
         sharedRendererPsdObjectIds?: ReadonlySet<string>;
-        requireSharedRendererVideo?: boolean;
     }
 ) => {
-    const { textureCache, loadingUrls, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, sharedRendererSolidColourObjectIds, sharedRendererVideoObjectIds, sharedRendererImageObjectIds, sharedRendererPsdObjectIds, requireSharedRendererVideo } = resources;
+    const { textureCache, loadingUrls, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, sharedRendererSolidColourObjectIds, sharedRendererImageObjectIds, sharedRendererPsdObjectIds } = resources;
     let content = container.children[0] as (PIXI.Sprite | PIXI.Graphics | PIXI.Text | PIXI.Container | undefined);
     
     // Check for recreation
