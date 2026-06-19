@@ -183,6 +183,8 @@ Rust backend integration gate:
   `rendererUploadAborted` で `decode.releaseFrame` を単回実行する。
 - preview/export native render consumer は、decoded sourceに complete / abort release callback が揃っていない場合、
   Rust backend native rendererへ渡す前に `nativeRenderSourceReleaseUnavailable` でfail-loudにする。
+  この場合、preview/export diagnostics は専用の `*NativeRenderSourceReleaseRequired=true` を出して、
+  release ownership不備として見分けられるようにする。
 - `shared-video-frame-bridge-node` は Rust core を N-API addon として wrap し、Node 直 require では
   `Uint8Array` target を in-place mutation できる。
 - preload は native module を `UXFD_SHARED_VIDEO_FRAME_BRIDGE_MODULE` で差し込む形を維持し、未接続時は fail-loud とする。

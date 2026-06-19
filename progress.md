@@ -4244,3 +4244,19 @@
 ### 残課題・次のステップ
 - `nativeRenderSourceReleaseUnavailable` をpreview/export diagnostics datasetでより見やすく集約する。
 - 実機のGoPro動画で、source release gateに引っかからずpreview/exportがRust native renderへ進むことをsmokeで確認する。
+
+## 2026-06-19 — native render source release診断を追加
+
+### 実施内容
+- Red: preview/export diagnosticsで `nativeRenderSourceReleaseUnavailable` を専用フラグとして見分けられる契約を追加した。
+- Green: preview presenter diagnosticsへ `uxfdSharedRendererPresenterNativeRenderSourceReleaseRequired=true`、export frame source diagnosticsへ `uxfdRustExportFrameSourceNativeRenderSourceReleaseRequired=true` を出すようにした。
+- 状態遷移時に古いrelease requiredフラグが残らないよう、diagnostics writerのclear対象へ追加した。
+- 版を `0.1.1-Beta-202a` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPresenterDiagnostics sharedRendererPreviewPresenterController sharedRendererExportFrameSource`
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererPresenterDiagnostics|sharedRendererPreviewPresenterController|sharedRendererExportFrameSource"`
+
+### 残課題・次のステップ
+- 実機のGoPro動画で、source release gateに引っかからずpreview/exportがRust native renderへ進むことをsmokeで確認する。
+- native render output側のencode失敗時releaseとsource decoded slot releaseを、同じ診断ビューで追えるようにする。
