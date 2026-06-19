@@ -260,7 +260,7 @@ export frameごとに shared renderer export session を構築し、Viewport pre
 multi-session decodeをframe間で引き継ぐ。次段では `Viewport` から `useProjectExport` へこのsourceを渡す。
 
 54. Phase5: Viewport から Rust export frame source を接続する
-`VITE_UXFD_SHARED_RENDERER_EXPORT=1` の実験flag配下で、2D editor / WebGPU available / non-fallback adapter /
+`VITE_UXFD_SHARED_RENDERER_EXPORT !== '0'` の既定ON gate配下で、2D editor / WebGPU available / non-fallback adapter /
 video cutover enabled / shared renderer canvas available の条件が揃った時だけ `ProjectExportRustFrameSource` を
 `useProjectExport` へ渡す。条件が閉じている場合は `null` を返し、従来の Pixi / canvas export を維持する。
 
@@ -473,7 +473,8 @@ presenterにも同じ値を渡して、Rust video-only設定だけでdecode/uplo
 
 90. Phase5: Rust動画検証用のcross-platform dev scriptを用意する
 `npm run dev:rust-video` を追加し、Node wrapperから `VITE_UXFD_SHARED_RENDERER_PREVIEW=1` /
-`VITE_UXFD_SHARED_RENDERER_EXPORT=1` / `VITE_UXFD_RUST_VIDEO_ONLY=1` をViteへ渡す。
+`VITE_UXFD_RUST_VIDEO_ONLY=1` をViteへ渡す。shared renderer exportは
+`VITE_UXFD_SHARED_RENDERER_EXPORT !== '0'` の既定ON gateに移行する。
 shellのenv代入に依存せず、Mac/Windowsの検証入口を揃える。
 
 91. Phase5: Rust video-only export は Rust backend encoder を必須にする
@@ -1159,6 +1160,11 @@ legacy canvas captureやPixi動画fallbackへ戻らない。
 Viewport Rust export sourceは optional `objects` から動画有無を推測せず、export planningで確定済みのsentinelを使って
 effective cutover / encode-only / native render requiredを決める。
 これによりpreflight用objectsの渡し忘れが、動画exportのRust必須判定を無効化しない。
+
+213. Phase5: shared renderer export surfaceを既定ONにする
+`Viewport` の export gateを `VITE_UXFD_SHARED_RENDERER_EXPORT !== '0'` に変更し、
+明示OFF時以外はshared renderer export surface / WebGPU probe / Rust export frame sourceを利用可能にする。
+動画exportはRust frame source必須のため、実験flag未指定でもsurface未生成で `rustFrameSourceRequired` へ落ちない状態にする。
 
 ## UI 刷新（2026-04-19）
 

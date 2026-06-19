@@ -572,3 +572,10 @@
 - Green: `resolveProjectExportRustFrameSourceContext` が `hasVideoObjects` を返し、Viewportが `buildViewportRustExportFrameSource` へ渡すようにした。`viewportRustExportFrameSource` から `objects?.some` 推測helperを削除した。
 - 検証: `npm test -- projectExportFrameCanvas viewportRustExportFrameSource useProjectExportBoundary projectExportEncodePlan projectExportCompatibilityEncoder` は63件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-195a`。
+
+## 2026-06-19
+- Phase5のViewport export surface gateとして、shared renderer export surfaceを既定ONにした。
+- Red: `viewportRustVideoOnlyBoundary` に、`VITE_UXFD_SHARED_RENDERER_EXPORT !== '0'` を期待する境界契約を追加した。
+- Green: `Viewport` の `sharedRendererExportEnabled` を `=== '1'` から `!== '0'` に変更し、動画exportが実験flag未指定でRust surfaceを失わないようにした。
+- 検証: `npm test -- viewportRustVideoOnlyBoundary sharedRendererSurfaceMount viewportRustExportFrameSource useProjectExportBoundary` は42件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-196a`。

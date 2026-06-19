@@ -149,6 +149,8 @@ Rust backend integration gate:
   effective video cutoverを有効化し、shared renderer encode-only / native render pathへ進む。
 - `ProjectExportRustFrameSourceContext` と `BuildViewportRustExportFrameSourceInput` は `hasVideoObjects` を
   必須booleanとして受け取り、optional `objects` から動画有無を推測しない。
+- shared renderer export surfaceは `VITE_UXFD_SHARED_RENDERER_EXPORT !== '0'` の既定ON gateでmountし、
+  動画exportが実験flag未指定のためにRust frame sourceを失わないようにする。
 - production app logicはWebCodecs向けH.264中間ファイル自動生成hookを起動しない。`videoDecodeStream` は
   export test harnessの比較・診断用途に限定する。
 - Electron mainは旧WebCodecs intermediate用の `check-intermediate` / `generate-intermediate` /
