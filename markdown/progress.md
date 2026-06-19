@@ -607,3 +607,10 @@
 - Green: `Viewport` の局所変数を `legacyExportCanvas` に変更し、export hookへ渡るcanvas fallbackをPixi固有名で扱わないようにした。
 - 検証: `npm test -- viewportRustVideoOnlyBoundary` は13件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-197c`。
+
+## 2026-06-19
+- Phase5のproduction video dependency境界として、Electron mainからVideoDecoder検証専用proxy IPCを削除した。
+- Red: `productionVideoDependencyBoundary` に、`electron/main.ts` が `resolve-4k-proxy-video` / `VideoDecoder テスト用` / `GX010052.proxy.mp4` を含まない契約を追加した。
+- Green: `electron/main.ts` から `resolve-4k-proxy-video` handlerを削除し、WebCodecs診断用H.264 proxy resolverをproduction IPCへ戻さないようにした。
+- 検証: `npm test -- productionVideoDependencyBoundary legacyBase64ExportBoundary` は3件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-198a`。

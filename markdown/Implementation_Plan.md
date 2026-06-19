@@ -1139,6 +1139,8 @@ Electron mainから旧 `check-intermediate` / `generate-intermediate` / `cancel-
 WebCodecs用中間ファイル生成をproduction境界へ戻さない。
 `videoDecodeStream` は `src/exportTest/` 配下へ移し、export test harnessの比較・診断用途に限定する。
 production起動時の `VideoDecoder.isConfigSupported` probeも削除し、WebCodecs decode依存を通常起動境界から外す。
+Electron mainのproduction IPCからも `resolve-4k-proxy-video` のようなVideoDecoder検証専用fixture resolverを外し、
+WebCodecs診断用proxy解決を通常アプリ境界へ戻さない。
 
 209. Phase5: presenter controlからWebGPU readback公開口を削除する
 `SharedRendererPreviewPresenterControl` のready controlは `readPresentedFrameRgbaBytes` を公開しない。

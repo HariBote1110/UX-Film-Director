@@ -585,3 +585,15 @@
 ## 確認
 - `npm test -- viewportRustVideoOnlyBoundary` を実行し、13件成功を確認。
 - `npx tsc --noEmit 2>&1 | rg "src/components/Viewport\\.tsx|viewportRustVideoOnlyBoundary|useProjectExport"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 53. Phase5: Electron mainのVideoDecoder proxy IPC削除
+- `electron/main.ts`
+- WebCodecs / VideoDecoder診断用の `resolve-4k-proxy-video` IPC handlerを削除した。
+- `src/utils/productionVideoDependencyBoundary.test.ts`
+- production Electron mainに `resolve-4k-proxy-video` / `VideoDecoder テスト用` / `GX010052.proxy.mp4` が戻らない契約を追加した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-198a` に更新した。
+
+## 確認
+- `npm test -- productionVideoDependencyBoundary legacyBase64ExportBoundary` を実行し、3件成功を確認。
+- `npx tsc --noEmit 2>&1 | rg "electron/main|productionVideoDependencyBoundary|legacyBase64ExportBoundary"` を実行し、対象ファイルに型エラーが出ないことを確認。
