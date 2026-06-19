@@ -102,6 +102,34 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
     });
   });
 
+  it('publishes video upload failure details while the presenter falls back', () => {
+    const dataset: Record<string, string | undefined> = {};
+
+    writeSharedRendererPresenterDiagnostics(dataset, {
+      status: 'fallback',
+      reason: 'requiredVideoOwnershipUnavailable',
+      videoUploadFailureReason: 'videoUploadClipScopeUnavailable',
+      videoUploadFailureDetail: 'A single decoded upload cannot cover multiple video clips.',
+      videoUploadFailureClipId: 'video-2',
+      videoUploadFailureMediaId: 'video-2',
+      videoOwner: 'pixi',
+      videoCutoverReason: 'videoFrameUploadUnavailable',
+      sharedVideoObjectCount: 0,
+    });
+
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterStatus: 'fallback',
+      uxfdSharedRendererPresenterFailureReason: 'requiredVideoOwnershipUnavailable',
+      uxfdSharedRendererPresenterVideoUploadFailureReason: 'videoUploadClipScopeUnavailable',
+      uxfdSharedRendererPresenterVideoUploadFailureDetail: 'A single decoded upload cannot cover multiple video clips.',
+      uxfdSharedRendererPresenterVideoUploadFailureClipId: 'video-2',
+      uxfdSharedRendererPresenterVideoUploadFailureMediaId: 'video-2',
+      uxfdSharedRendererPresenterVideoOwner: 'pixi',
+      uxfdSharedRendererPresenterVideoCutoverReason: 'videoFrameUploadUnavailable',
+      uxfdSharedRendererPresenterSharedVideoObjectCount: '0',
+    });
+  });
+
   it('publishes fallback reasons and clears ready-only fields', () => {
     const dataset: Record<string, string | undefined> = {
       uxfdSharedRendererPresenterFormat: 'bgra8unorm',
