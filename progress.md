@@ -1,3 +1,20 @@
+## 2026-06-19 — 動画GPU release失敗をpresenter診断へ追加
+
+### 実施内容
+- Red: decoded Rust video frameのWebGPU upload成功後、`releaseAfterGpuUpload` が失敗してもpresenter処理を例外で落とさず、datasetへ `videoUploadGpuReleaseFailed` を出す契約を追加した。
+- Green: GPU fence後releaseをhelperで捕捉し、失敗時はvideo upload failure診断へclip/media id付きで反映するようにした。
+- WebGPU upload自体が成功した後のRust decoded slot解放失敗を、shared renderer ownershipの裏で見失わないようにした。
+- 版を `0.1.1-Beta-210k` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPreviewPresenterController`
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts)"`
+
+### 残課題・次のステップ
+- native render frame upload成功後の `releaseAfterGpuUpload` 失敗も同じ粒度で診断できるようにする。
+- 実機GoPro素材でGPU fence後release失敗がdatasetに残ることを確認する。
+
 ## 2026-06-19 — native render abort release失敗をpresenter診断へ追加
 
 ### 実施内容
