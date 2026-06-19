@@ -1104,8 +1104,8 @@ const Viewport: React.FC = () => {
     if (useStore.getState().projectSettings.editorMode === '3d_stage') {
       return threeStageRef.current?.getCanvas() ?? null;
     }
-    const pixiCanvas = pixiAppRef.current?.canvas;
-    return pixiCanvas != null ? (pixiCanvas as HTMLCanvasElement) : null;
+    const legacyExportCanvas = pixiAppRef.current?.canvas;
+    return legacyExportCanvas != null ? (legacyExportCanvas as HTMLCanvasElement) : null;
   }, []);
 
   const getRustExportFrameSource = useCallback((context: ProjectExportRustFrameSourceContext) => buildViewportRustExportFrameSource({
