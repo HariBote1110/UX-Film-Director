@@ -448,6 +448,69 @@ describe('createSharedRendererExportFrameSource', () => {
     });
   });
 
+  it('publishes presenter shared-frame handoff failures as blocked diagnostics', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    const calls: unknown[] = [];
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: {
+        ...settings,
+        width: 2,
+        height: 2,
+      },
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      startViewportPresenter: async () => ({
+        control: {
+          ok: true,
+          takePresentedFrameSharedFrame: async () => {
+            calls.push(['takePresentedFrameSharedFrame']);
+            throw new Error('presented shared-frame bridge failed');
+          },
+          dispose: () => {
+            calls.push(['dispose']);
+          },
+        },
+        activeVideoDecodeJob: null,
+        activeVideoDecodeJobs: [],
+      }) as never,
+    });
+
+    const blocked = await source.renderEncodeFrame?.({
+      frameIndex: 8,
+      timestampUs: 133_333,
+      time: 8 / 60,
+      width: 2,
+      height: 2,
+      objects: [image()],
+      encodeSessionId: 'failed-shared-frame-session',
+    }).catch((error) => error);
+
+    expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
+    expect(blocked).toMatchObject({
+      reason: 'presentedSharedFrameHandoffFailed',
+      frameIndex: 8,
+      fallbackToLegacyCanvas: true,
+    });
+    expect(blocked.message).toContain('presented shared-frame bridge failed');
+    expect(calls).toEqual([
+      ['takePresentedFrameSharedFrame'],
+      ['dispose'],
+    ]);
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'blocked',
+      uxfdRustExportFrameSourceFrameIndex: '8',
+      uxfdRustExportFrameSourceFrameReason: 'presentedSharedFrameHandoffFailed',
+    });
+  });
+
   it('passes native/Rust frame handoff into viewport presenter orchestration', async () => {
     const canvas = {
       width: 1,
