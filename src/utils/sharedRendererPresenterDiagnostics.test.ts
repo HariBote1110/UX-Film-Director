@@ -201,6 +201,25 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
     });
   });
 
+  it('publishes a readable prepared native render source abort release failure label', () => {
+    const dataset: Record<string, string | undefined> = {};
+
+    writeSharedRendererPresenterDiagnostics(dataset, {
+      status: 'fallback',
+      reason: 'requiredVideoOwnershipUnavailable',
+      nativeRenderFailureReason: 'preparedNativeRenderSourceAbortReleaseFailed',
+      nativeRenderFailureDetail: 'prepared native render source abort release failed',
+    });
+
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterStatus: 'fallback',
+      uxfdSharedRendererPresenterFailureReason: 'requiredVideoOwnershipUnavailable',
+      uxfdSharedRendererPresenterNativeRenderFailureReason: 'preparedNativeRenderSourceAbortReleaseFailed',
+      uxfdSharedRendererPresenterNativeRenderFailureLabel: 'prepared native render source abort release failed',
+      uxfdSharedRendererPresenterNativeRenderFailureDetail: 'prepared native render source abort release failed',
+    });
+  });
+
   it('marks device loss as a Pixi fallback without allowing stale shared frames', () => {
     const dataset: Record<string, string | undefined> = {};
 
