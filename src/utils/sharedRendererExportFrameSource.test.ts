@@ -353,6 +353,51 @@ describe('createSharedRendererExportFrameSource', () => {
     });
   });
 
+  it('requires native render for video encode frames even when the caller leaves bitmap capture enabled', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    const calls: string[] = [];
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      startViewportPresenter: async () => {
+        calls.push('startViewportPresenter');
+        throw new Error('Presenter handoff must not run for video encode frames without native render.');
+      },
+    });
+
+    const blocked = await source.renderEncodeFrame?.({
+      frameIndex: 4,
+      timestampUs: 66_667,
+      time: 4 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [video()],
+      encodeSessionId: 'video-native-required-session',
+    }).catch((error) => error);
+
+    expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
+    expect(blocked).toMatchObject({
+      reason: 'nativeRenderUnavailable',
+      frameIndex: 4,
+      fallbackToLegacyCanvas: true,
+    });
+    expect(calls).toEqual([]);
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'blocked',
+      uxfdRustExportFrameSourceFrameIndex: '4',
+      uxfdRustExportFrameSourceFrameReason: 'nativeRenderUnavailable',
+    });
+  });
+
   it('uses presenter shared-frame payloads directly for encode frames', async () => {
     const canvas = {
       width: 1,
