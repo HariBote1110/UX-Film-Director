@@ -248,7 +248,10 @@ export function createSharedRendererExportFrameSource({
     });
     activeVideoDecodeJobs = presenterResult.activeVideoDecodeJobs;
 
-    const sharedRendererOutputBlock = resolveSharedRendererOutputBlock(presenterResult);
+    const sharedRendererOutputBlock = resolveSharedRendererOutputBlock(
+      presenterResult,
+      canvas.dataset as unknown as PresenterDataset
+    );
     if (sharedRendererOutputBlock) {
       presenterResult.control.dispose();
       writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
@@ -713,7 +716,8 @@ const resolveExportVideoUploadBlock = (
 };
 
 const resolveSharedRendererOutputBlock = (
-  presenterResult: StartSharedRendererViewportPresenterResult
+  presenterResult: StartSharedRendererViewportPresenterResult,
+  dataset: PresenterDataset
 ): { reason: 'sharedRendererOutputUnavailable' | 'webGpuDrawUnavailable' | 'nativeRenderTextureViewUnavailable'; detail: string } | null => {
   if (presenterResult.control.ok) {
     return null;
@@ -744,10 +748,39 @@ const resolveSharedRendererOutputBlock = (
       detail: `Shared renderer export output is unavailable (${nativeRenderUploadResult.reason}: ${nativeRenderUploadResult.detail}).`,
     };
   }
+  const ownershipDetail = formatSharedRendererPresenterOwnershipBlockDetail(dataset);
   return {
     reason: 'sharedRendererOutputUnavailable',
-    detail: 'Shared renderer export output is unavailable.',
+    detail: ownershipDetail
+      ? `Shared renderer export output is unavailable (${ownershipDetail}).`
+      : 'Shared renderer export output is unavailable.',
   };
+};
+
+const formatSharedRendererPresenterOwnershipBlockDetail = (
+  dataset: PresenterDataset
+): string | null => {
+  const imageOwnership = formatPresenterOwnershipDetail(
+    'imageOwnership',
+    dataset.uxfdSharedRendererPresenterImageOwner,
+    dataset.uxfdSharedRendererPresenterImageCutoverReason
+  );
+  const psdOwnership = formatPresenterOwnershipDetail(
+    'psdOwnership',
+    dataset.uxfdSharedRendererPresenterPsdOwner,
+    dataset.uxfdSharedRendererPresenterPsdCutoverReason
+  );
+  const details = [imageOwnership, psdOwnership].filter(Boolean);
+  return details.length > 0 ? details.join('; ') : null;
+};
+
+const formatPresenterOwnershipDetail = (
+  label: string,
+  owner: string | undefined,
+  reason: string | undefined
+): string | null => {
+  if (!owner && !reason) return null;
+  return `${label}=${owner ?? 'unknown'}:${reason ?? 'unknown'}`;
 };
 
 const formatExportVideoUploadBlock = (
