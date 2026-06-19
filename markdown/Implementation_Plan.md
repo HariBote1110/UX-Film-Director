@@ -1241,6 +1241,11 @@ multi-video native render source準備中のstale検出では、stale frame自�
 `preparedNativeRenderSourceAbortReleaseFailed` を返した場合、`nativeRenderSourcesUnavailable` に丸めず同じreasonで返す。
 preview presenter側で、途中成功sourceのabort release失敗をsource準備一般失敗と区別できるようにする。
 
+225. Phase5: export frame sourceでprepared source abort診断を保持する
+`createSharedRendererExportFrameSource` は、native render source準備が
+`preparedNativeRenderSourceAbortReleaseFailed` を返した場合、`nativeRenderFailed` に丸めず同じblock reasonとdataset reasonを残す。
+動画exportのRust必須経路で、slot leak防止失敗をnative render bridge失敗と区別できるようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

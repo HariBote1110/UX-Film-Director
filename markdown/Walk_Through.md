@@ -1411,3 +1411,17 @@
 - `npm test -- sharedRendererViewportNativeRenderUpload` を再実行し、12件成功を確認した。
 - `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource sharedRendererPreviewPresenterController` を実行し、91件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.test\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 110. Phase5: export frame sourceでprepared source abort診断を保持
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- native render source準備が `preparedNativeRenderSourceAbortReleaseFailed` を返した場合、export block reasonとdataset reasonにも同じreasonを残す契約を追加した。
+- `src/utils/sharedRendererExportFrameSource.ts`
+- source準備失敗を `nativeRenderFailed` に丸める前に、prepared source abort release失敗だけ専用reasonとして `SharedRendererExportFrameSourceBlockedError` とframe diagnosticsへ渡すようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-215n` に更新した。
+
+## 確認
+- `npm test -- sharedRendererExportFrameSource` を実行し、Redでreasonが `nativeRenderFailed` に丸められる失敗を確認した。
+- `npm test -- sharedRendererExportFrameSource` を再実行し、41件成功を確認した。
+- `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource sharedRendererPreviewPresenterController exportDiagnosticsLog exportProgress` を実行し、120件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgress\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

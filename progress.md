@@ -1,3 +1,20 @@
+## 2026-06-19 — export frame sourceでprepared source abort診断を保持
+
+### 実施内容
+- Red: native render source準備が `preparedNativeRenderSourceAbortReleaseFailed` を返した場合に、export block reasonとdataset reasonでも同じreasonを保持する契約を追加した。
+- Green: `createSharedRendererExportFrameSource` が該当reasonを `nativeRenderFailed` に丸めず、`SharedRendererExportFrameSourceBlockedError` とframe diagnosticsへ渡すようにした。
+- 動画exportのRust必須経路で、途中成功sourceのslot leak防止失敗をnative render bridge失敗と区別できるようにした。
+- 版を `0.1.1-Beta-215n` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSource`
+- `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource sharedRendererPreviewPresenterController exportDiagnosticsLog exportProgress`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgress\\.ts)"`
+
+### 残課題・次のステップ
+- presenter diagnosticsのdatasetにも専用reasonが表面化するか確認する。
+- Pixi依存撤去へ向けて、Viewport本体の動画所有者がsharedRenderer固定になった後のlegacy fallback経路をさらに削る。
+
 ## 2026-06-19 — preview native render uploadでprepared source abort診断を保持
 
 ### 実施内容
