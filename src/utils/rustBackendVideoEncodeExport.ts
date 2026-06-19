@@ -34,6 +34,12 @@ export type RustBackendNativeRenderOutputReleaseEvent =
       reason: RustBackendNativeRenderOutputReleaseReason;
     }
   | {
+      status: 'failed';
+      memoryId: string;
+      reason: RustBackendNativeRenderOutputReleaseReason;
+      error: string;
+    }
+  | {
       status: 'skipped';
       reason: RustBackendNativeRenderOutputReleaseReason;
     };
@@ -186,9 +192,19 @@ const releaseNativeRenderOutputAfterEncodeFailure = async (
     return;
   }
 
-  await releaseBridge.releaseNativeSharedFrame({
-    memoryId,
-  });
+  try {
+    await releaseBridge.releaseNativeSharedFrame({
+      memoryId,
+    });
+  } catch (error) {
+    onNativeRenderOutputRelease?.({
+      status: 'failed',
+      memoryId,
+      reason,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return;
+  }
   onNativeRenderOutputRelease?.({
     status: 'released',
     memoryId,
