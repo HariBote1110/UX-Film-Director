@@ -34,6 +34,7 @@ pub enum MediaKind {
     Video,
     Image,
     SolidColour,
+    GeneratedGradient,
     Psd,
 }
 

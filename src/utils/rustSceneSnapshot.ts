@@ -1,4 +1,5 @@
 import type {
+  GradientFill,
   ImageObject,
   LayerState,
   ProjectSettings,
@@ -53,7 +54,7 @@ export interface RustSceneSnapshot {
 
 export interface RustSceneMediaReference {
   id: string;
-  kind: 'Image' | 'Video' | 'SolidColour' | 'Psd';
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'Psd';
   source: string;
   width: number;
   height: number;
@@ -163,14 +164,14 @@ export const buildRustSceneSnapshotForTimeline = ({
       media_id: object.id,
       source_frame: sourceFrameForObject(object, time, projectSettings.fps),
       z_index: zIndex,
-      transform: {
-        translation_x: position.x,
-        translation_y: position.y,
-        scale_x: object.scaleX,
-        scale_y: object.scaleY,
-        rotation_degrees: 0,
-        sampling: object.type === 'shape' ? 'nearest' : 'bilinear',
-      },
+        transform: {
+          translation_x: position.x,
+          translation_y: position.y,
+          scale_x: object.scaleX,
+          scale_y: object.scaleY,
+          rotation_degrees: 0,
+          sampling: object.type === 'shape' && object.gradient?.enabled !== true ? 'nearest' : 'bilinear',
+        },
       opacity,
       effects: [],
     };
@@ -307,13 +308,23 @@ const isSupportedSceneObject = (object: TimelineObject): object is SupportedScen
   isSupportedMediaObject(object) || object.type === 'shape';
 
 const isSupportedRectangleShape = (object: ShapeObject): boolean =>
-  object.shapeType === 'rect' && object.gradient?.enabled !== true;
+  object.shapeType === 'rect';
 
 const mediaReferenceForObject = (
   object: SupportedSceneObject,
   projectFps: number
 ): RustSceneMediaReference => {
   if (object.type === 'shape') {
+    if (object.gradient?.enabled === true) {
+      return {
+        id: object.id,
+        kind: 'GeneratedGradient',
+        source: serialiseGeneratedGradientSource(object.gradient),
+        width: object.width,
+        height: object.height,
+      };
+    }
+
     return {
       id: object.id,
       kind: 'SolidColour',
@@ -342,6 +353,16 @@ const activeLayerIdsForPsd = (object: PsdObject): string[] =>
     .filter(([, active]) => active)
     .map(([layerId]) => layerId)
     .sort((left, right) => left.localeCompare(right));
+
+const serialiseGeneratedGradientSource = (gradient: GradientFill): string =>
+  JSON.stringify({
+    type: gradient.type === 'radial' ? 'radial' : 'linear',
+    colours: Array.isArray(gradient.colours) && gradient.colours.length > 0
+      ? gradient.colours
+      : ['#ffffff', '#000000'],
+    stops: Array.isArray(gradient.stops) ? gradient.stops : [],
+    direction: Number.isFinite(gradient.direction) ? gradient.direction : 0,
+  });
 
 const mediaSourceForObject = (object: SupportedMediaObject): string =>
   object.filePath || object.src || '';
@@ -538,7 +559,7 @@ const validateMediaReferences = (
     }
     validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height', 'source_rate', 'active_layer_ids'], issues);
     validateString(reference.id, `${path}.id`, issues);
-    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'Psd'], issues);
+    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'Psd'], issues);
     validateString(reference.source, `${path}.source`, issues);
     validatePositiveInteger(reference.width, `${path}.width`, issues);
     validatePositiveInteger(reference.height, `${path}.height`, issues);

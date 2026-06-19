@@ -4,6 +4,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   reference: RustSceneMediaReference
 ): boolean => {
   if (reference.kind === 'SolidColour') return true;
+  if (reference.kind === 'GeneratedGradient') return isSharedRendererNativeGeneratedGradientSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -29,6 +30,30 @@ export const isSharedRendererNativeImageSourceSupported = (source: string): bool
 
 export const isSharedRendererNativePsdSourceSupported = (source: string): boolean =>
   isLocalNativeMediaSource(source) && /\.psd$/i.test(nativeMediaSourcePathname(source));
+
+const isSharedRendererNativeGeneratedGradientSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      type?: unknown;
+      colours?: unknown;
+      stops?: unknown;
+      direction?: unknown;
+    };
+    return (
+      (parsed.type === 'linear' || parsed.type === 'radial')
+      && Array.isArray(parsed.colours)
+      && parsed.colours.length > 0
+      && parsed.colours.every((colour) => typeof colour === 'string' && /^#[0-9a-f]{6}$/i.test(colour))
+      && (parsed.stops === undefined || (
+        Array.isArray(parsed.stops)
+        && parsed.stops.every((stop) => typeof stop === 'number' && Number.isFinite(stop))
+      ))
+      && (parsed.direction === undefined || (typeof parsed.direction === 'number' && Number.isFinite(parsed.direction)))
+    );
+  } catch {
+    return false;
+  }
+};
 
 const isLocalNativeMediaSource = (source: string): boolean => {
   if (isWindowsLocalPath(source)) return true;
