@@ -753,7 +753,8 @@ const throwNativeRenderSourceReleaseFailed = (
   throw new SharedRendererExportFrameSourceBlockedError(
     detail,
     'nativeRenderSourceReleaseFailed',
-    frameIndex
+    frameIndex,
+    false
   );
 };
 
@@ -786,7 +787,8 @@ const throwNativeRenderOutputReleaseFailed = (
   throw new SharedRendererExportFrameSourceBlockedError(
     detail,
     'nativeRenderOutputReleaseFailed',
-    frameIndex
+    frameIndex,
+    false
   );
 };
 
