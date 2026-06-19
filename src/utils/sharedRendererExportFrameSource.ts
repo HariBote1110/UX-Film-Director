@@ -432,6 +432,7 @@ export function createSharedRendererExportFrameSource({
         status: 'blocked',
         frameIndex: request.frameIndex,
         reason: 'nativeRenderFailed',
+        path: 'nativeRenderSharedFrame',
       });
       throw new SharedRendererExportFrameSourceBlockedError(
         renderResponse.error ?? 'Rust backend native render failed.',
@@ -772,6 +773,7 @@ const throwNativeRenderFailed = (
     status: 'blocked',
     frameIndex,
     reason: 'nativeRenderFailed',
+    path: 'nativeRenderSharedFrame',
   });
   throw new SharedRendererExportFrameSourceBlockedError(
     detail,
