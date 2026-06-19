@@ -1,3 +1,20 @@
+## 2026-06-19 — blocked Rust frameでlegacy captureを拒否
+
+### 実施内容
+- Red: `rustFrameSourceBlocked: true` かつ `rustFrameSourceBlockedFallback: 'failExport'` のframeがlegacy canvas captureへ戻らない契約を追加した。
+- Green: `renderProjectExportFrame` が `shouldFailOnRustFrameSourceBlocked` のruntime planを受けた場合、canvas解決前に即失敗するようにした。
+- video/Rust backend encode必須経路で、一度blockedになったRust frame sourceが後続フレームでlegacy captureへ退避する抜け道を塞いだ。
+- 版を `0.1.1-Beta-214b` に更新した。
+
+### 検証
+- `npm test -- projectExportFrameRenderer`
+- `npm test -- projectExportFrameRenderer projectExportFrameCanvas projectExportRustEncodeFrame useProjectExportBoundary exportProgress exportDiagnosticsLog`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/projectExportFrameRenderer\\.ts|src/utils/projectExportFrameRenderer\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/projectExportFrameCanvas\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- legacy fallbackが許可されるnon-video compatibility exportだけでcanvas captureに進む実行テストを追加する。
+- Rust backend decodeとshared memory/mmap data-planeの所有権cutoverを、Viewport側のRust frame source生成まで含めて固定する。
+
 ## 2026-06-19 — Rust ready frameでlegacy captureを遮断
 
 ### 実施内容

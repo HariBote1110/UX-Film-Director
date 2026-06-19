@@ -1199,3 +1199,17 @@
 - `npm test -- projectExportFrameRenderer useProjectExportBoundary` を実行し、Redでrenderer未実装とhook未委譲の失敗を確認した。
 - `npm test -- projectExportFrameRenderer projectExportFrameCanvas projectExportRustEncodeFrame useProjectExportBoundary exportProgress exportDiagnosticsLog` を再実行し、83件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/hooks/useProjectExport\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/projectExportFrameRenderer\\.test\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts|src/utils/projectExportFrameCanvas\\.ts|src/utils/projectExportRustEncodeFrame\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 96. Phase5: blocked Rust frameでlegacy captureを拒否
+- `src/utils/projectExportFrameRenderer.test.ts`
+- `rustFrameSourceBlocked: true` かつ `rustFrameSourceBlockedFallback: 'failExport'` のframeがlegacy canvas captureへ戻らない契約を追加した。
+- `src/utils/projectExportFrameRenderer.ts`
+- `shouldFailOnRustFrameSourceBlocked` のruntime planを受けた場合、canvas解決前に即失敗するようにした。
+- video/Rust backend encode必須経路で、一度blockedになったRust frame sourceが後続フレームでlegacy captureへ退避する抜け道を塞いだ。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-214b` に更新した。
+
+## 確認
+- `npm test -- projectExportFrameRenderer` を実行し、Redでblocked済みrequired Rust frameがlegacy canvas captureへ解決する失敗を確認した。
+- `npm test -- projectExportFrameRenderer projectExportFrameCanvas projectExportRustEncodeFrame useProjectExportBoundary exportProgress exportDiagnosticsLog` を再実行し、84件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/projectExportFrameRenderer\\.ts|src/utils/projectExportFrameRenderer\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/projectExportFrameCanvas\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
