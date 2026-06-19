@@ -616,6 +616,8 @@ const resolveExportVideoUploadBlock = (
     return formatExportVideoUploadBlock(
       videoUploadsResult.detail,
       videoUploadsResult.uploadFailureReason,
+      videoUploadsResult.reason === 'uploadFailed' ? videoUploadsResult.uploadFailureClipId : undefined,
+      videoUploadsResult.reason === 'uploadFailed' ? videoUploadsResult.uploadFailureMediaId : undefined,
     );
   }
 
@@ -628,6 +630,8 @@ const resolveExportVideoUploadBlock = (
     return formatExportVideoUploadBlock(
       videoUploadResult.detail,
       videoUploadResult.uploadFailureReason,
+      videoUploadResult.reason === 'uploadFailed' ? videoUploadResult.uploadFailureClipId : undefined,
+      videoUploadResult.reason === 'uploadFailed' ? videoUploadResult.uploadFailureMediaId : undefined,
     );
   }
 
@@ -637,7 +641,19 @@ const resolveExportVideoUploadBlock = (
 const formatExportVideoUploadBlock = (
   detail: string,
   uploadFailureReason: string | undefined,
-): string => uploadFailureReason ? `${uploadFailureReason}: ${detail}` : detail;
+  uploadFailureClipId: string | undefined,
+  uploadFailureMediaId: string | undefined,
+): string => {
+  const failureScope = [
+    uploadFailureClipId ? `clip=${uploadFailureClipId}` : undefined,
+    uploadFailureMediaId ? `media=${uploadFailureMediaId}` : undefined,
+  ].filter(Boolean).join(' ');
+  const reasonPrefix = uploadFailureReason
+    ? [uploadFailureReason, failureScope].filter(Boolean).join(' ')
+    : failureScope;
+
+  return reasonPrefix ? `${reasonPrefix}: ${detail}` : detail;
+};
 
 const resolveExportVideoOwnershipBlock = (
   presenterResult: StartSharedRendererViewportPresenterResult
