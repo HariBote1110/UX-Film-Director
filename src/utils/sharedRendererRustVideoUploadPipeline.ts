@@ -46,7 +46,7 @@ export const prepareSharedRendererRustDecodedVideoUpload = async ({
       slotIndex: frame.descriptor.slotIndex,
       generation: frame.descriptor.generation,
       copyOutState,
-    }, rustBackendBridge).then(() => undefined));
+    }, rustBackendBridge).then(assertDecodedFrameReleaseSucceeded));
 
   let upload: PrepareSharedRendererDecodedVideoFrameUploadResult;
   try {
@@ -66,6 +66,12 @@ export const prepareSharedRendererRustDecodedVideoUpload = async ({
   }
 
   return upload;
+};
+
+const assertDecodedFrameReleaseSucceeded = (result: RustBackendResult): void => {
+  if (!result.success) {
+    throw new Error(result.error ?? 'Rust backend decoded frame release failed.');
+  }
 };
 
 const createSingleUseDecodedFrameReleaser = (
