@@ -1,3 +1,21 @@
+## 2026-06-20 — WebGPU presenterの古い起動競合を停止
+
+### 実施内容
+- Red: `dispose()` 後のWebGPU presenterがvideo render passを作らない契約を追加した。
+- Red: Rust video upload完了後にviewport startがstaleになった場合、WebGPU presenter startへ進まない契約を追加した。
+- Green: `isStartCurrent` をviewport orchestration、preview presenter controller、WebGPU presenterへ通し、WASM load / decode upload / GPU adapter/device取得後に古いstartを中断するようにした。
+- Green: WebGPU presenterの `present*` / upload / readback / native handoff は、dispose済みまたはstaleになった後はcanvas/current textureへ触れないようにした。
+- `presenterStartFailed` の詳細文字列を `swatch` ではなくdiagnostic detailへ出すようにし、診断型の不整合も修正した。
+- 版を `0.1.1-Beta-219h` に更新した。
+
+### 検証
+- `npm test -- sharedRendererWebGpuPresenter sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererWebGpuPresenter\\.ts|src/utils/sharedRendererWebGpuPresenter\\.test\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/components/Viewport\\.tsx)"`
+- `UXFD_VIDEO_LOAD_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_LOAD_E2E_TIMEOUT_MS=180000 npm run test:video-load:e2e`
+
+### 残課題・次のステップ
+- 実ウィンドウで古いrenderer bundleが残っている場合は、dev server再起動とElectron windowの閉じ直しが必要。
+
 ## 2026-06-20 — 外部4K GoPro素材のRust preview decodeを修正
 
 ### 実施内容

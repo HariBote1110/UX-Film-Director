@@ -597,6 +597,7 @@ const Viewport: React.FC = () => {
       onVideoDecodeJobsResolved: (jobs) => {
         sharedRendererVideoDecodeJobsRef.current = jobs;
       },
+      isStartCurrent: () => !cancelled,
     }).then(({ control, activeVideoDecodeJobs }) => {
       if (cancelled) {
         control.dispose();
@@ -622,7 +623,8 @@ const Viewport: React.FC = () => {
         writeSharedRendererPresenterDiagnostics(dataset, {
           status: 'fallback',
           reason: 'presenterStartFailed',
-          swatch: detail,
+          nativeRenderFailureReason: 'presenterStartFailed',
+          nativeRenderFailureDetail: detail,
         });
       });
       setSharedRendererPreviewDiagnostic(buildSharedRendererPreviewDiagnostic(rootDataset, null));

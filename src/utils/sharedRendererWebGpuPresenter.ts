@@ -176,6 +176,7 @@ export interface SharedRendererWebGpuPresenterInput {
   videoPlaneVertexSceneBuilder?: SharedRendererVideoPlaneVertexSceneBuilder;
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
   onDeviceLost?: (event: SharedRendererDeviceLostEvent) => void;
+  isStartCurrent?: () => boolean;
 }
 
 export type SharedRendererPresentedFrameSharedFrameTaker = (
@@ -323,7 +324,10 @@ export const createSharedRendererWebGpuPresenter = async ({
   videoPlaneVertexSceneBuilder = buildSharedRendererVideoPlaneVertexScene,
   presentedFrameSharedFrameTaker,
   onDeviceLost,
+  isStartCurrent,
 }: SharedRendererWebGpuPresenterInput): Promise<SharedRendererWebGpuPresenterResult> => {
+  assertPresenterStartCurrent(isStartCurrent);
+
   if (!surfaceGate.ok) {
     return {
       ok: false,
@@ -351,6 +355,7 @@ export const createSharedRendererWebGpuPresenter = async ({
   }
 
   const adapter = await gpu.requestAdapter({ powerPreference: 'high-performance' });
+  assertPresenterStartCurrent(isStartCurrent);
   if (!adapter) {
     return {
       ok: false,
@@ -362,6 +367,7 @@ export const createSharedRendererWebGpuPresenter = async ({
   let device: SharedRendererWebGpuDeviceLike;
   try {
     device = await adapter.requestDevice();
+    assertPresenterStartCurrent(isStartCurrent);
   } catch {
     return {
       ok: false,
@@ -397,6 +403,15 @@ export const createSharedRendererWebGpuPresenter = async ({
     disposed = true;
   };
 
+  const canUsePresenter = (): boolean =>
+    !disposed && isPresenterStartCurrent(isStartCurrent);
+
+  const disposedDrawUnavailable = (surface: string) => ({
+    ok: false as const,
+    reason: 'webGpuDrawUnavailable' as const,
+    detail: `Shared renderer ${surface} presentation was skipped because the presenter is no longer current.`,
+  });
+
   if (device.lost && onDeviceLost) {
     void device.lost.then((info) => {
       if (disposed) return;
@@ -411,6 +426,7 @@ export const createSharedRendererWebGpuPresenter = async ({
 
   let lastPresentedTexture: unknown | null = null;
   const presentSolidSrgbSwatch = (swatch: SharedRendererSolidSrgbSwatch) => {
+    if (!canUsePresenter()) return;
     if (!context.getCurrentTexture || !device.createCommandEncoder || !device.queue) return;
 
     const encoder = device.createCommandEncoder();
@@ -443,6 +459,8 @@ export const createSharedRendererWebGpuPresenter = async ({
     media,
     solidColourObjectIds,
   }: SharedRendererSolidColourSceneInput): SharedRendererSolidColourScenePresentationResult => {
+    if (!canUsePresenter()) return disposedDrawUnavailable('solid colour');
+
     const vertexScene = solidColourVertexSceneBuilder({
       snapshot,
       media,
@@ -570,6 +588,13 @@ export const createSharedRendererWebGpuPresenter = async ({
     descriptor,
     rgbaBytes,
   }: SharedRendererVideoFrameTextureUploadInput): SharedRendererVideoFrameTextureUploadResult => {
+    if (!canUsePresenter()) {
+      return {
+        ok: false,
+        reason: 'webGpuUploadUnavailable',
+        detail: 'Shared renderer video texture upload was skipped because the presenter is no longer current.',
+      };
+    }
     if (descriptor.format !== 'rgba8Srgb') {
       return {
         ok: false,
@@ -634,6 +659,8 @@ export const createSharedRendererWebGpuPresenter = async ({
     texturesByClipId,
     videoObjectIds,
   }: SharedRendererVideoFrameSceneInput): SharedRendererVideoFrameScenePresentationResult => {
+    if (!canUsePresenter()) return disposedDrawUnavailable('video frame');
+
     const vertexScene = videoPlaneVertexSceneBuilder({
       snapshot,
       media,
@@ -787,6 +814,8 @@ export const createSharedRendererWebGpuPresenter = async ({
   const presentNativeRenderFrame = ({
     texture,
   }: SharedRendererNativeRenderFrameInput): SharedRendererNativeRenderFramePresentationResult => {
+    if (!canUsePresenter()) return disposedDrawUnavailable('native render frame');
+
     if (
       !context.getCurrentTexture
       || !device.createCommandEncoder
@@ -896,6 +925,9 @@ export const createSharedRendererWebGpuPresenter = async ({
     width,
     height,
   }: SharedRendererPresentedFrameReadbackInput): Promise<SharedRendererPresentedFrameReadbackResult> => {
+    if (!canUsePresenter()) {
+      throw new Error('Shared renderer frame readback was skipped because the presenter is no longer current.');
+    }
     if (!lastPresentedTexture) {
       throw new Error('No shared renderer frame has been presented for WebGPU readback.');
     }
@@ -953,6 +985,9 @@ export const createSharedRendererWebGpuPresenter = async ({
   const takePresentedFrameSharedFrame = async (
     input: SharedRendererPresentedFrameSharedFrameInput
   ): Promise<RustBackendVideoEncodeWriteFramePayload> => {
+    if (!canUsePresenter()) {
+      throw new Error('Shared renderer native frame handoff was skipped because the presenter is no longer current.');
+    }
     if (presentedFrameSharedFrameTaker) {
       if (!lastPresentedTexture) {
         throw new Error('No shared renderer frame has been presented for native frame handoff.');
@@ -1140,6 +1175,15 @@ const defaultTextureCopyDstUsage = (): number => {
 const defaultMapReadMode = (): number => {
   const mapMode = (globalThis as unknown as { GPUMapMode?: { READ?: number } }).GPUMapMode;
   return mapMode?.READ ?? 0x1;
+};
+
+const isPresenterStartCurrent = (isStartCurrent: (() => boolean) | undefined): boolean =>
+  isStartCurrent ? isStartCurrent() : true;
+
+const assertPresenterStartCurrent = (isStartCurrent: (() => boolean) | undefined): void => {
+  if (!isPresenterStartCurrent(isStartCurrent)) {
+    throw new Error('Shared renderer presenter start was cancelled.');
+  }
 };
 
 const alignTo = (value: number, alignment: number): number =>

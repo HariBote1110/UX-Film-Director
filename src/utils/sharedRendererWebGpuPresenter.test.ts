@@ -1064,6 +1064,47 @@ describe('createSharedRendererWebGpuPresenter', () => {
     expect(videoShader?.code).not.toContain('colour.a * in.opacity');
   });
 
+  it('does not encode a video render pass after the presenter has been disposed', async () => {
+    const renderPassOperations: string[] = [];
+
+    const result = await createSharedRendererWebGpuPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      surfaceGate: {
+        ...okSurfaceGate,
+        snapshot: videoSnapshot,
+        media: videoMedia,
+      },
+      presentationContract: buildSharedRendererPresentationContract(),
+      gpu: fakeGpu({
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onRenderPassOperation: (operation) => {
+              renderPassOperations.push(operation);
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+      bufferUsageVertex: 1,
+      bufferUsageCopyDst: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected presenter creation to pass');
+
+    await result.dispose();
+
+    expect(result.presentVideoFrameScene({
+      snapshot: videoSnapshot,
+      media: videoMedia,
+      texture: { createView: () => 'video-frame-texture-view' },
+    })).toMatchObject({
+      ok: false,
+      reason: 'webGpuDrawUnavailable',
+    });
+    expect(renderPassOperations).toEqual([]);
+  });
+
   it('draws multiple uploaded video frame textures with one bind group per video plane', async () => {
     const renderPassOperations: string[] = [];
     const bindGroups: unknown[] = [];

@@ -116,6 +116,7 @@ export interface StartSharedRendererPreviewPresenterInput {
   sharedRendererDecodedVideoFrameUpload?: SharedRendererDecodedVideoFrameUpload;
   sharedRendererDecodedVideoFrameUploads?: SharedRendererDecodedVideoFrameUploadForClip[];
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
+  isStartCurrent?: () => boolean;
 }
 
 export interface SharedRendererDecodedVideoFrameUpload extends SharedRendererVideoFrameTextureUploadInput {
@@ -157,7 +158,10 @@ export const startSharedRendererPreviewPresenter = async ({
   sharedRendererDecodedVideoFrameUpload,
   sharedRendererDecodedVideoFrameUploads,
   presentedFrameSharedFrameTaker,
+  isStartCurrent,
 }: StartSharedRendererPreviewPresenterInput): Promise<SharedRendererPreviewPresenterControl> => {
+  assertPresenterStartCurrent(isStartCurrent);
+
   const writeDiagnostics = (state: SharedRendererPresenterDiagnosticState) => {
     datasets.forEach((dataset) => {
       writeSharedRendererPresenterDiagnostics(dataset, state);
@@ -183,6 +187,7 @@ export const startSharedRendererPreviewPresenter = async ({
         enabled: rustSolidColourWasmEnabled,
       })
     : null;
+  assertPresenterStartCurrent(isStartCurrent);
   const solidColourGeometrySource = hasSolidColourScene
     ? resolvedRustSolidColourVertexSceneBuilder
       ? 'rust-wasm'
@@ -198,6 +203,7 @@ export const startSharedRendererPreviewPresenter = async ({
         fallbackAllowed: !requireRustVideoControlPlane,
       })
     : null;
+  assertPresenterStartCurrent(isStartCurrent);
   const resolvedRustVideoFrameDecodeRequestBuilder = hasVideoScene
     ? rustVideoFrameDecodeRequestBuilder
       ?? await loadSharedRendererRustVideoFrameDecodeRequestBuilder({
@@ -205,6 +211,7 @@ export const startSharedRendererPreviewPresenter = async ({
         fallbackAllowed: !requireRustVideoControlPlane,
       })
     : null;
+  assertPresenterStartCurrent(isStartCurrent);
   if (
     hasVideoScene
     && requireRustVideoControlPlane
@@ -283,6 +290,7 @@ export const startSharedRendererPreviewPresenter = async ({
     bufferUsageMapRead,
     solidColourVertexSceneBuilder: resolvedRustSolidColourVertexSceneBuilder ?? undefined,
     presentedFrameSharedFrameTaker,
+    isStartCurrent,
     onDeviceLost: (event) => {
       writeDiagnostics({
         status: 'deviceLost',
@@ -698,6 +706,15 @@ const defaultSharedRendererSolidColourCutoverEnabled = (): boolean =>
 
 const defaultSharedRendererVideoCutoverEnabled = (): boolean =>
   import.meta.env.VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER !== '0';
+
+const isPresenterStartCurrent = (isStartCurrent: (() => boolean) | undefined): boolean =>
+  isStartCurrent ? isStartCurrent() : true;
+
+const assertPresenterStartCurrent = (isStartCurrent: (() => boolean) | undefined): void => {
+  if (!isPresenterStartCurrent(isStartCurrent)) {
+    throw new Error('Shared renderer presenter start was cancelled.');
+  }
+};
 
 const hasSolidColourClip = (session: SharedRendererPreviewSession): boolean => {
   if (!session.surfaceGate.ok) return false;

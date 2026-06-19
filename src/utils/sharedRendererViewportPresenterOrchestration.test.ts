@@ -253,6 +253,40 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
     });
   });
 
+  it('does not start the WebGPU presenter after video upload when the viewport start is stale', async () => {
+    let current = true;
+    const events: string[] = [];
+    const prepareVideoUpload: SharedRendererViewportVideoUploadPreparer = async () => {
+      events.push('prepareVideoUpload');
+      current = false;
+      return {
+        ok: true,
+        activeJob,
+        request: {} as any,
+        upload,
+      };
+    };
+    const startPresenter: SharedRendererViewportPresenterStarter = async () => {
+      events.push('startPresenter');
+      return control;
+    };
+
+    await expect(startSharedRendererViewportPresenter({
+      canvas,
+      session,
+      datasets: [],
+      diagnosticSwatchEnabled: true,
+      videoCutoverEnabled: true,
+      activeVideoDecodeJob: null,
+      requestId: 18,
+      prepareVideoUpload,
+      startPresenter,
+      isStartCurrent: () => current,
+    })).rejects.toThrow('Shared renderer presenter start was cancelled.');
+
+    expect(events).toEqual(['prepareVideoUpload']);
+  });
+
   it('prioritises Rust decoded video upload over optional native render preview', async () => {
     let presenterInput: unknown;
     const events: string[] = [];

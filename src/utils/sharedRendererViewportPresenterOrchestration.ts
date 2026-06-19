@@ -55,6 +55,7 @@ export interface StartSharedRendererViewportPresenterInput {
   startPresenter?: SharedRendererViewportPresenterStarter;
   onVideoDecodeJobResolved?: (job: SharedRendererViewportVideoDecodeJob | null) => void;
   onVideoDecodeJobsResolved?: (jobs: SharedRendererViewportVideoDecodeJob[]) => void;
+  isStartCurrent?: () => boolean;
 }
 
 export interface StartSharedRendererViewportPresenterResult {
@@ -86,7 +87,10 @@ export const startSharedRendererViewportPresenter = async ({
   startPresenter = startSharedRendererPreviewPresenter,
   onVideoDecodeJobResolved,
   onVideoDecodeJobsResolved,
+  isStartCurrent,
 }: StartSharedRendererViewportPresenterInput): Promise<StartSharedRendererViewportPresenterResult> => {
+  assertPresenterStartCurrent(isStartCurrent);
+
   let nextActiveVideoDecodeJob = activeVideoDecodeJob;
   let nextActiveVideoDecodeJobs = activeVideoDecodeJobs ?? (activeVideoDecodeJob ? [activeVideoDecodeJob] : []);
   const effectiveVideoCutoverEnabled = videoCutoverEnabled || requireSharedRendererVideo;
@@ -122,6 +126,7 @@ export const startSharedRendererViewportPresenter = async ({
     videoUploadResult,
     videoUploadsResult,
   );
+  assertPresenterStartCurrent(isStartCurrent);
 
   if (videoUploadResult && 'activeJob' in videoUploadResult) {
     nextActiveVideoDecodeJob = videoUploadResult.activeJob ?? null;
@@ -161,6 +166,7 @@ export const startSharedRendererViewportPresenter = async ({
     nextActiveVideoDecodeJobs = nativeRenderUploadResult.activeJobs;
     nextActiveVideoDecodeJob = nextActiveVideoDecodeJobs[0] ?? null;
   }
+  assertPresenterStartCurrent(isStartCurrent);
   onVideoDecodeJobResolved?.(nextActiveVideoDecodeJob);
   onVideoDecodeJobsResolved?.(nextActiveVideoDecodeJobs);
 
@@ -179,6 +185,7 @@ export const startSharedRendererViewportPresenter = async ({
     sharedRendererDecodedVideoFrameUpload,
     sharedRendererDecodedVideoFrameUploads,
     presentedFrameSharedFrameTaker,
+    isStartCurrent,
   });
 
   return {
@@ -213,4 +220,13 @@ const resolveSharedRendererVideoUploadFailure = (
     clipId: result.uploadFailureClipId,
     mediaId: result.uploadFailureMediaId,
   };
+};
+
+const isPresenterStartCurrent = (isStartCurrent: (() => boolean) | undefined): boolean =>
+  isStartCurrent ? isStartCurrent() : true;
+
+const assertPresenterStartCurrent = (isStartCurrent: (() => boolean) | undefined): void => {
+  if (!isPresenterStartCurrent(isStartCurrent)) {
+    throw new Error('Shared renderer presenter start was cancelled.');
+  }
 };
