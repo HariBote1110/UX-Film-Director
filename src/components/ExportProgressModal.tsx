@@ -96,6 +96,11 @@ const formatRustFrameSourceBlockedReason = (
       ? '動画所有権未移管'
       : 'video ownership unavailable';
   }
+  if (reason === 'sharedRendererOutputUnavailable') {
+    return language === 'ja'
+      ? 'shared renderer実出力なし'
+      : 'shared renderer output unavailable';
+  }
   return reason;
 };
 
