@@ -110,7 +110,8 @@ export class SharedRendererExportFrameSourceBlockedError extends Error {
   constructor(
     message: string,
     readonly reason: SharedRendererExportFrameSourceBlockedReason,
-    readonly frameIndex: number
+    readonly frameIndex: number,
+    readonly legacyCanvasFallbackAllowed: boolean = true
   ) {
     super(message);
     this.name = 'SharedRendererExportFrameSourceBlockedError';
@@ -445,7 +446,8 @@ export function createSharedRendererExportFrameSource({
       throw new SharedRendererExportFrameSourceBlockedError(
         'Video export frames require Rust native render shared-frame encoding; ImageBitmap canvas capture is disabled.',
         'videoBitmapCaptureDisabled',
-        request.frameIndex
+        request.frameIndex,
+        false
       );
     }
 
