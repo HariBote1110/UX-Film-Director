@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のnative render source stale診断として、stale decode detailへ対象 `clipId` / `mediaId` を含めるようにした。
+- Red: `sharedRendererViewportNativeRenderSource` のstale job idテストで、detailに `clip=... media=...` が必要な契約へ更新した。
+- Green: `buildStaleDecodedFrameDetail` がdecode requestを受け取り、stale request/job/generic detailにscopeを付けるようにした。
+- 検証: `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource sharedRendererPreviewPresenterController` は89件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-215k`。
+
+## 2026-06-19
 - Phase5のmulti-video native render source境界として、後続decode responseがstaleになった場合に先行prepared sourceのdecoded slotもabort releaseするようにした。
 - Red: `sharedRendererViewportNativeRenderSource` のテストへ、1本目がsource化済み、2本目がstale job idを返すケースを追加した。
 - Green: stale responseの返却slotをreleaseした後、関数内で作ったprepared source群の `releaseAfterNativeRenderAbort` を呼ぶようにした。

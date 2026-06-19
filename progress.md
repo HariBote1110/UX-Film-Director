@@ -1,3 +1,20 @@
+## 2026-06-19 — native render sourceのstale診断へclip/media idを含める
+
+### 実施内容
+- Red: native render source準備でstale job idを拒否する結果detailに、対象 `clipId` / `mediaId` を含める契約を追加した。
+- Green: `buildStaleDecodedFrameDetail` にdecode requestを渡し、stale request id / stale job id / generic stale detailの末尾へ `clip=... media=...` を付けるようにした。
+- preview/export側へ流れるnative render source準備失敗detailから、複数動画中のstale decode対象を追跡できるようにした。
+- 版を `0.1.1-Beta-215k` に更新した。
+
+### 検証
+- `npm test -- sharedRendererViewportNativeRenderSource`
+- `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource sharedRendererPreviewPresenterController`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts)"`
+
+### 残課題・次のステップ
+- prepared source abort release失敗時の理由を、stale frame自身のrelease失敗と区別できる診断名へ分ける。
+- Pixi依存撤去へ向けて、Viewport本体の動画所有者がsharedRenderer固定になった後のlegacy fallback経路をさらに削る。
+
 ## 2026-06-19 — multi-video stale時にprepared native render sourceをabort release
 
 ### 実施内容

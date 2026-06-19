@@ -1226,6 +1226,11 @@ stale frameは返却response側の `jobId` / `slotIndex` / `generation` で `ren
 既にpreparedになった先行video sourceのdecoded slotも `rendererUploadAborted` としてreleaseする。
 stale frame自身のreleaseだけでなく、途中成功したsourceのslot leakを防ぎ、Rust decode ring bufferを詰まらせない。
 
+222. Phase5: native render sourceのstale診断へclip/media idを含める
+`prepareSharedRendererViewportNativeRenderSources` のstale decode detailは、対象decode requestの `clipId` / `mediaId` を含める。
+native render source準備失敗のdetailはpreview/export側へ流れるため、source切替・複数動画中のstale decodeを
+`clip=... media=...` 付きで追跡できるようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

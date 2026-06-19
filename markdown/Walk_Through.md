@@ -1368,3 +1368,18 @@
 - `npm test -- sharedRendererViewportNativeRenderSource` を再実行し、5件成功を確認した。
 - `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource sharedRendererViewportVideoUpload` を実行し、68件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererViewportVideoUpload\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 107. Phase5: native render sourceのstale診断へclip/media idを含める
+- `src/utils/sharedRendererViewportNativeRenderSource.test.ts`
+- stale job idのnative render source準備失敗detailに、対象 `clipId` / `mediaId` が含まれる契約を追加した。
+- `src/utils/sharedRendererViewportNativeRenderSource.ts`
+- stale request id / stale job id / generic stale detailの末尾へ `clip=... media=...` を付けるようにした。
+- native render source準備失敗detailはpreview/export側へそのまま流れるため、複数動画中のstale decodeをログから特定しやすくした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-215k` に更新した。
+
+## 確認
+- `npm test -- sharedRendererViewportNativeRenderSource` を実行し、Redでstale detailにclip/media idが欠ける失敗を確認した。
+- `npm test -- sharedRendererViewportNativeRenderSource` を再実行し、5件成功を確認した。
+- `npm test -- sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererExportFrameSource sharedRendererPreviewPresenterController` を実行し、89件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
