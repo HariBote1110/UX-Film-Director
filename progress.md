@@ -1,3 +1,19 @@
+## 2026-06-19 — native render texture view失敗をexport blockedに伝搬
+
+### 実施内容
+- Red: exportのbitmap pathとdirect encode pathで `nativeRenderTextureViewUnavailable` がlegacy captureや別reasonへ進まずblockedになる契約を追加した。
+- Green: export frame sourceのblocked reasonへ `nativeRenderTextureViewUnavailable` を追加し、presenter control失敗を同じreasonで伝搬するようにした。
+- Rust/native render frameのWebGPU texture view欠落を、export境界で `presentedSharedFrameHandoffUnavailable` へ丸めたりlegacy bitmap captureへ逃がしたりしないようにした。
+- 版を `0.1.1-Beta-216o` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSource`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/store/useStore\\.ts|src/components/ExportProgressModal\\.tsx)"`
+
+### 残課題・次のステップ
+- `nativeRenderTextureViewUnavailable` のUI表示ラベルを追加し、raw reasonを実機UIへ出さないようにする。
+- Viewport本体のPixi依存撤去へ向けて、image/PSD/SolidColourのnative render coverageをさらに診断へ接続する。
+
 ## 2026-06-19 — 実出力必須時のnative render presentation失敗をblocked診断に変更
 
 ### 実施内容

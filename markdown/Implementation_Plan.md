@@ -1375,6 +1375,11 @@ WebGPU draw不可でRust/shared renderer実出力が止まった原因を、実�
 `fallback` ではなく `blocked` として出す。
 Rust/native renderで合成済みフレームを受け取った後のWebGPU texture view失敗を、Pixi退避に見えないようにする。
 
+252. Phase5: native render texture view失敗をexport blockedに伝搬する
+exportのbitmap path/direct encode pathでは、presenter controlの `nativeRenderTextureViewUnavailable` を
+`presentedSharedFrameHandoffUnavailable` へ丸めず、同じreasonのblocked errorとして扱う。
+Rust/native render frameのWebGPU texture view欠落を、legacy bitmap captureで成功扱いにしない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

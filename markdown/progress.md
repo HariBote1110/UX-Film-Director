@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のexport blocked伝搬として、`nativeRenderTextureViewUnavailable` をlegacy bitmap captureや `presentedSharedFrameHandoffUnavailable` に丸めず伝えるようにした。
+- Red: `sharedRendererExportFrameSource` のテストへ、bitmap exportとdirect encode exportの両方でnative render texture view欠落が同じblocked reasonになる契約を追加した。
+- Green: export frame sourceのblocked reasonへ `nativeRenderTextureViewUnavailable` を追加し、presenter control失敗を同じreasonで停止させた。
+- 検証: `npm test -- sharedRendererExportFrameSource` は48件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216o`。
+
+## 2026-06-19
 - Phase5のpreview診断として、実出力必須時のnative render frame presentation失敗を `fallback` ではなく `blocked` として出すようにした。
 - Red: `sharedRendererPreviewPresenterController` のテストへ、native render texture view欠落時の `nativeRenderTextureViewUnavailable` がblocked診断になる契約を追加した。
 - Green: native render frame presentation失敗時のdiagnostics statusを、実出力必須時だけ `blocked` に切り替えた。

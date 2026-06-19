@@ -1783,6 +1783,21 @@
 - `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration viewportRustVideoOnlyBoundary` を実行し、74件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererWebGpuPresenter\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 137. Phase5: native render texture view失敗をexport blockedに伝搬
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- bitmap export pathでpresenterが `nativeRenderTextureViewUnavailable` を返した場合、`createFrameBitmap` に進まずblocked errorになる契約を追加した。
+- direct encode pathでも同じreasonを `presentedSharedFrameHandoffUnavailable` に丸めず、`nativeRenderTextureViewUnavailable` のblocked errorとして残す契約を追加した。
+- `src/utils/sharedRendererExportFrameSource.ts`
+- `SharedRendererExportFrameSourceBlockedReason` に `nativeRenderTextureViewUnavailable` を追加した。
+- `resolveSharedRendererOutputBlock` が `nativeRenderTextureViewUnavailable` を同じreasonと詳細messageで返すようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216o` に更新した。
+
+## 確認
+- `npm test -- sharedRendererExportFrameSource` を実行し、Redでbitmap pathはblocked errorにならず、direct encode pathは `presentedSharedFrameHandoffUnavailable` に丸められる失敗を確認した。
+- `npm test -- sharedRendererExportFrameSource` を再実行し、48件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/store/useStore\\.ts|src/components/ExportProgressModal\\.tsx)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。
