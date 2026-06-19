@@ -258,6 +258,23 @@ describe('buildProjectExportFrameSourcePlan', () => {
     });
   });
 
+  it('explains that native-render media exports require a Rust frame source before legacy canvas capture', () => {
+    const legacyCanvas = { id: 'legacy-export' } as unknown as HTMLCanvasElement;
+
+    expect(buildProjectExportFrameSourcePlan({
+      rustFrameSource: null,
+      legacyCanvas,
+      rustFrameSourcePolicy: 'requireRustFrameSource',
+      rustFrameSourceUnavailableDetail: 'Shared renderer surface requires a parallelCompare plan.',
+      hasVideoObjects: false,
+      hasNativeRenderMediaObjects: true,
+    })).toEqual({
+      ok: false,
+      reason: 'rustFrameSourceRequired',
+      detail: 'Image/PSD export requires a shared renderer Rust frame source. Shared renderer surface requires a parallelCompare plan.',
+    });
+  });
+
   it('refuses legacy canvas capture for video exports even when the caller omits the Rust-required policy', () => {
     const legacyCanvas = { id: 'legacy-export' } as unknown as HTMLCanvasElement;
 
