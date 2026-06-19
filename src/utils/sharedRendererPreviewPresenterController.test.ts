@@ -1569,6 +1569,70 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
+  it('publishes decoded Rust video abort release failures instead of throwing out of the presenter', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const rgbaBytes = new Uint8Array(decodedVideoDescriptor.byteLen);
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererDecodedVideoFrameUpload: {
+        descriptor: decodedVideoDescriptor,
+        ptsFrame: 90,
+        rgbaBytes,
+        releaseAfterUploadAbort: async () => {
+          throw new Error('decoded slot abort release failed');
+        },
+      },
+      rustVideoFrameDecodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video.mp4',
+          sourceFrame: 90,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 12,
+          width: 1280,
+          height: 720,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            exposeWriteTexture: false,
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({
+      ok: true,
+      videoOwnership: {
+        owner: 'pixi',
+        reason: 'videoFrameUploadUnavailable',
+      },
+    });
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterVideoUploadFailureReason: 'videoUploadAbortReleaseFailed',
+      uxfdSharedRendererPresenterVideoUploadFailureDetail: 'decoded slot abort release failed',
+      uxfdSharedRendererPresenterVideoUploadFailureClipId: 'video-1',
+      uxfdSharedRendererPresenterVideoUploadFailureMediaId: 'video-1',
+    });
+  });
+
   it('fails loud when Rust video is required but the shared renderer cannot own the video', async () => {
     const dataset: Record<string, string | undefined> = {};
 
