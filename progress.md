@@ -4775,3 +4775,20 @@
 ### 残課題・次のステップ
 - `sharedRendererVideoOwnership` のRust decode/upload readiness診断を実機GoPro素材で確認する。
 - WebGPU presenterのvideo texture bind group経路とRust decode multi-sessionの残りを引き続き検証する。
+
+## 2026-06-19 — native render動画ownershipをbuilderへ統合
+
+### 実施内容
+- Red: `sharedRendererVideoOwnership` に、Rust native render frameがvideo sceneを既に含む場合はdecode/upload readinessや通常cutover flagに依存せず `sharedRenderer` ownerになる契約を追加した。
+- Green: `buildSharedRendererVideoOwnership` に `nativeRenderFrameReady` / `nativeRenderVideoObjectIds` を追加し、`sharedRendererPreviewPresenterController` の手作業ownership上書きをbuilder入力へ統合した。
+- native render preview成功時の動画ownershipを単一の所有権判定へ寄せ、Pixiへ動画所有を戻す余地を減らした。
+- 版を `0.1.1-Beta-208v` に更新した。
+
+### 検証
+- `npm test -- sharedRendererVideoOwnership`
+- `npm test -- sharedRendererVideoOwnership sharedRendererPreviewPresenterController sharedRendererViewportPresenterOrchestration`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererVideoOwnership\\.ts|src/utils/sharedRendererVideoOwnership\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts)"`
+
+### 残課題・次のステップ
+- SolidColour側のnative render ownership上書きもbuilderへ寄せ、native render ownershipの一貫性を揃える。
+- 実機GoPro素材でnative render preview成功時にPixi動画childrenがcleanupされることを確認する。
