@@ -826,6 +826,50 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
+  it('blocks SolidColour presentation failures when shared renderer output is required', async () => {
+    const dataset: Record<string, string | undefined> = {};
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: solidShapeSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      requireSharedRendererOutput: true,
+      rustSolidColourVertexSceneBuilder: () => ({
+        ok: true,
+        rectCount: 1,
+        vertices: new Float32Array([
+          -0.5, 0.5, 1, 0, 0, 1,
+          0.5, 0.5, 1, 0, 0, 1,
+          -0.5, -0.5, 1, 0, 0, 1,
+          -0.5, -0.5, 1, 0, 0, 1,
+          0.5, 0.5, 1, 0, 0, 1,
+          0.5, -0.5, 1, 0, 0, 1,
+        ]),
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            exposeCreateRenderPipeline: false,
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+      bufferUsageVertex: 1,
+      bufferUsageCopyDst: 2,
+    });
+
+    expect(control).toMatchObject({
+      ok: false,
+      reason: 'webGpuDrawUnavailable',
+    });
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterStatus: 'blocked',
+      uxfdSharedRendererPresenterFailureReason: 'webGpuDrawUnavailable',
+    });
+  });
+
   it('uses the Rust/WASM VideoPlane vertex builder when video clips exist', async () => {
     const dataset: Record<string, string | undefined> = {};
     const builderCalls: unknown[] = [];
@@ -2213,7 +2257,9 @@ const fakeDevice = ({
   onCopyTextureToBuffer = () => undefined,
   onSubmittedWorkDone = async () => undefined,
   onSubmit = () => undefined,
+  createRenderPipeline,
   exposeWriteTexture = true,
+  exposeCreateRenderPipeline = true,
   readbackBytes = new Uint8Array(),
   lost = new Promise(() => undefined),
 }: {
@@ -2233,7 +2279,9 @@ const fakeDevice = ({
   ) => void;
   onSubmittedWorkDone?: () => Promise<void>;
   onSubmit?: (commandBuffers: unknown[]) => void;
+  createRenderPipeline?: (descriptor?: { label?: string }) => unknown;
   exposeWriteTexture?: boolean;
+  exposeCreateRenderPipeline?: boolean;
   readbackBytes?: Uint8Array;
   lost?: Promise<unknown>;
 } = {}) => ({
@@ -2248,10 +2296,12 @@ const fakeDevice = ({
     createView: () => 'video-frame-texture-view',
   }),
   createShaderModule: () => 'solid-colour-shader-module',
-  createRenderPipeline: (descriptor?: { label?: string }) => ({
-    toString: () => descriptor?.label ?? 'solid-colour-pipeline',
-    getBindGroupLayout: (index: number) => `bind-group-layout-${index}`,
-  }),
+  ...(exposeCreateRenderPipeline ? {
+    createRenderPipeline: createRenderPipeline ?? ((descriptor?: { label?: string }) => ({
+      toString: () => descriptor?.label ?? 'solid-colour-pipeline',
+      getBindGroupLayout: (index: number) => `bind-group-layout-${index}`,
+    })),
+  } : {}),
   createSampler: () => 'video-frame-sampler',
   createBindGroup: () => 'video-frame-bind-group',
   createBuffer: (descriptor?: { label?: string }) => {
