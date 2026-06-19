@@ -158,6 +158,15 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     );
   });
 
+  it('passes Rust frame source unavailable detail into export frame source planning', () => {
+    const code = source();
+
+    expect(code).toContain('let rustFrameSourceUnavailableDetail: string | undefined;');
+    expect(code).toContain('onFrameSourceUnavailable: (decision) => {');
+    expect(code).toContain('rustFrameSourceUnavailableDetail = decision.detail;');
+    expect(code).toContain('rustFrameSourceUnavailableDetail,');
+  });
+
   it('renders native render output release diagnostics from export progress', () => {
     const code = exportProgressModalSource();
 

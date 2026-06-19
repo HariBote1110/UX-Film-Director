@@ -418,6 +418,7 @@ describe('buildViewportRustExportFrameSource', () => {
     } as unknown as HTMLCanvasElement;
     const dataset: Record<string, string | undefined> = {};
     const sourceCalls: unknown[] = [];
+    const unavailableCalls: unknown[] = [];
 
     const source = buildViewportRustExportFrameSource({
       exportEnabled: true,
@@ -440,11 +441,24 @@ describe('buildViewportRustExportFrameSource', () => {
         sourceCalls.push(input);
         return frameSource;
       },
+      onFrameSourceUnavailable: (decision) => {
+        unavailableCalls.push(decision);
+      },
       diagnosticsDataset: dataset,
     });
 
     expect(source).toBeNull();
     expect(sourceCalls).toEqual([]);
+    expect(unavailableCalls).toEqual([{
+      ok: false,
+      reason: 'exportSessionBlocked',
+      detail: 'Shared renderer surface requires a parallelCompare plan.',
+      nativeRenderEnvelope: {
+        ok: false,
+        reason: 'surfaceGateUnavailable',
+        detail: 'Shared renderer surface requires a parallelCompare plan.',
+      },
+    }]);
     expect(dataset).toEqual({
       uxfdRustExportFrameSourceStatus: 'fallback',
       uxfdRustExportFrameSourceReason: 'exportSessionBlocked',

@@ -198,11 +198,12 @@ describe('buildProjectExportFrameSourcePlan', () => {
       rustFrameSource: null,
       legacyCanvas,
       rustFrameSourcePolicy: 'requireRustFrameSource',
+      rustFrameSourceUnavailableDetail: 'Shared renderer surface requires a parallelCompare plan.',
       hasVideoObjects: false,
     })).toEqual({
       ok: false,
       reason: 'rustFrameSourceRequired',
-      detail: 'Rust-only export requires a shared renderer Rust frame source.',
+      detail: 'Rust-only export requires a shared renderer Rust frame source. Shared renderer surface requires a parallelCompare plan.',
     });
   });
 
@@ -212,11 +213,12 @@ describe('buildProjectExportFrameSourcePlan', () => {
     expect(buildProjectExportFrameSourcePlan({
       rustFrameSource: null,
       legacyCanvas,
+      rustFrameSourceUnavailableDetail: 'Shared renderer surface requires a parallelCompare plan.',
       hasVideoObjects: true,
     })).toEqual({
       ok: false,
       reason: 'rustFrameSourceRequired',
-      detail: 'Video export requires a shared renderer Rust frame source.',
+      detail: 'Video export requires a shared renderer Rust frame source. Shared renderer surface requires a parallelCompare plan.',
     });
   });
 
