@@ -80,6 +80,13 @@ export type PrepareSharedRendererDecodedVideoFrameUploadResult =
     }
   | {
       ok: false;
+      reason: 'copyReportTargetChecksumMismatch';
+      detail: string;
+      expectedChecksum: number;
+      actualChecksum: number;
+    }
+  | {
+      ok: false;
       reason: 'copyReportChecksumAlgorithmUnsupported';
       detail: string;
       checksumAlgorithm: string;
@@ -180,6 +187,18 @@ export const prepareSharedRendererDecodedVideoFrameUpload = async ({
       actualChecksum: response.result.actualChecksum,
     };
   }
+  if (response.result.checksumAlgorithm === 'crc32') {
+    const targetChecksum = crc32(rgbaBytes);
+    if (targetChecksum !== response.result.actualChecksum) {
+      return {
+        ok: false,
+        reason: 'copyReportTargetChecksumMismatch',
+        detail: 'Shared video frame upload buffer checksum must match the copy report.',
+        expectedChecksum: response.result.actualChecksum,
+        actualChecksum: targetChecksum,
+      };
+    }
+  }
   if (copyReportContainsPixelPayload(response.result)) {
     return {
       ok: false,
@@ -228,4 +247,29 @@ const copyReportPixelPayloadKeys = new Set([
 const copyReportContainsPixelPayload = (report: SharedVideoFrameCopyReport): boolean => {
   const record = report as unknown as Record<string, unknown>;
   return Object.keys(record).some((key) => copyReportPixelPayloadKeys.has(key));
+};
+
+let crc32Table: Uint32Array | null = null;
+
+const crc32 = (bytes: Uint8Array): number => {
+  const table = crc32Table ??= buildCrc32Table();
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc = table[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+};
+
+const buildCrc32Table = (): Uint32Array => {
+  const table = new Uint32Array(256);
+  for (let index = 0; index < table.length; index += 1) {
+    let value = index;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = (value & 1) !== 0
+        ? (0xedb88320 ^ (value >>> 1))
+        : value >>> 1;
+    }
+    table[index] = value >>> 0;
+  }
+  return table;
 };
