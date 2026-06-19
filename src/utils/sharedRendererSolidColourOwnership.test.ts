@@ -106,6 +106,21 @@ describe('buildSharedRendererSolidColourStackSafety', () => {
 });
 
 describe('buildSharedRendererSolidColourOwnership', () => {
+  it('hands ownership to the shared renderer when a Rust native rendered frame already contains the solid colour scene', () => {
+    expect(buildSharedRendererSolidColourOwnership({
+      cutoverEnabled: false,
+      hasSolidColourScene: true,
+      geometrySource: undefined,
+      solidColourObjectIds: ['shape-native'],
+      nativeRenderFrameReady: true,
+      nativeRenderSolidColourObjectIds: ['shape-native'],
+    })).toEqual({
+      owner: 'sharedRenderer',
+      reason: 'nativeRenderFrameReady',
+      solidColourObjectIds: ['shape-native'],
+    });
+  });
+
   it('hands ownership to the shared renderer only for Rust/WASM solid colour geometry', () => {
     expect(buildSharedRendererSolidColourOwnership({
       cutoverEnabled: true,
