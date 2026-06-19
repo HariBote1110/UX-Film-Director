@@ -222,6 +222,9 @@ Rust backend `decode.start` / `decode.requestFrame` / shared memory copy を行�
 複数動画や source 切替は stop / replace / multi-session API を追加するまで Pixi fallback を維持する。
 `uploadFailed` は上位の失敗分類として維持しつつ、`copyReportChecksumMismatch` などの低レベル
 `uploadFailureReason` を保持し、shared memory copy / WebGPU upload 診断へそのまま渡せるようにする。
+保持した失敗理由は `uxfdSharedRendererPresenterVideoUploadFailureReason` /
+`uxfdSharedRendererPresenterVideoUploadFailureDetail` としてpresenter datasetへ公開し、Pixi fallback中でも
+Rust data-plane側の拒否理由を追跡できるようにする。
 
 47. Phase5: shared video frame native addon の自動解決を追加する
 preload は `UXFD_SHARED_VIDEO_FRAME_BRIDGE_MODULE` を最優先し、未指定時は dev build output

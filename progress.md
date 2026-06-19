@@ -1,3 +1,19 @@
+## 2026-06-19 — presenter動画upload失敗診断を追加
+
+### 実施内容
+- Red: `sharedRendererPresenterDiagnostics` と `sharedRendererViewportPresenterOrchestration` に、Rust video upload失敗理由がpresenter診断へ届く契約を追加した。
+- Green: `sharedRendererVideoUploadFailure` をViewport orchestrationからpresenterへ渡し、ready/fallback診断に `uxfdSharedRendererPresenterVideoUploadFailureReason` / `Detail` を書くようにした。
+- `uploadFailed` の内側に保持した `copyReportChecksumMismatch` などをdatasetで追えるようにし、Pixi fallback表示だけではRust経路の失敗が見えない状態を減らした。
+- 版を `0.1.1-Beta-209a` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- export frame source側でも `uploadFailureReason` をblocked errorのdetailへ含め、書き出し中のRust data-plane拒否理由をUIへ返せるようにする。
+- Rust backend/native bridge側のchecksum report生成テストを再実行し、renderer側fail-loud契約と一致していることを確認する。
+
 ## 2026-06-19 — viewport動画upload失敗理由を保持
 
 ### 実施内容
