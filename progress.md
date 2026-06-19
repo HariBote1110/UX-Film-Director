@@ -4356,3 +4356,19 @@
 ### 残課題・次のステップ
 - export hook側でblocked errorの `legacyCanvasFallbackAllowed=false` をprogress diagnosticsへ載せるか判断する。
 - `electron/main.ts` の旧WebCodecs export stream IPCを非動画互換export専用として境界テストで固定する。
+
+## 2026-06-19 — frame source blocked診断をexport progressへ接続
+
+### 実施内容
+- Red: `useProjectExport` がRust/shared renderer frame source blockedを捕まえた時、fail/fallback判定の前にprogressへ診断を載せる契約を追加した。
+- Green: `ExportProgress.rustFrameSourceBlocked` を追加し、`reason` / `frameIndex` / `legacyCanvasFallbackAllowed` を保存するようにした。
+- `exportProgress` storeテストにもblocked診断payloadの保持を追加した。
+- 版を `0.1.1-Beta-206a` に更新した。
+
+### 検証
+- `npm test -- src/utils/useProjectExportBoundary.test.ts src/store/exportProgress.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "useProjectExport|useStore|exportProgress|sharedRendererExportFrameSource"`
+
+### 残課題・次のステップ
+- `ExportProgressModal` に `rustFrameSourceBlocked` を表示し、Rust必須動画exportがどこで止まったかUIから確認できるようにする。
+- サブエージェントのレビュー結果を見て、残るPixi/browser動画fallback穴を優先度順に潰す。
