@@ -130,6 +130,9 @@ export const renderProjectExportFrame = async ({
   if (frameRuntimePlan.requiresRenderScene) {
     renderScene(time, objects);
   }
+  if (frameRuntimePlan.shouldFailOnRustFrameSourceBlocked) {
+    throw new Error('Rust frame source is blocked and legacy canvas fallback is disabled.');
+  }
   const frameCanvas = resolveProjectExportFrameCanvas({
     getExportCanvas,
   });
