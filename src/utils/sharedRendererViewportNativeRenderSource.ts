@@ -11,6 +11,7 @@ import {
   startRustBackendVideoDecode,
   stopRustBackendVideoDecode,
   type RustBackendSharedVideoFrame,
+  type RustBackendVideoDecodeCopyOutState,
   type RustBackendVideoDecodeBridge,
   type RustBackendVideoDecodeFrameRate,
 } from './rustBackendVideoDecodeControl';
@@ -20,6 +21,8 @@ export interface SharedRendererViewportNativeRenderSource {
   mediaId: string;
   slotCount: number;
   frame: RustBackendSharedVideoFrame;
+  releaseAfterNativeRenderComplete?: () => Promise<void>;
+  releaseAfterNativeRenderAbort?: () => Promise<void>;
 }
 
 export interface PrepareSharedRendererViewportNativeRenderSourcesInput {
@@ -176,11 +179,21 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
         activeJobs: resolvedActiveJobs,
       };
     }
+    const { frame } = decodeResponse.result;
+    const releaseFrame = createSingleUseNativeRenderSourceReleaser((copyOutState) =>
+      releaseRustBackendVideoDecodeFrame({
+        jobId: resolvedJob.jobId,
+        slotIndex: frame.descriptor.slotIndex,
+        generation: frame.descriptor.generation,
+        copyOutState,
+      }, bridge).then(() => undefined));
 
     sources.push({
       mediaId: request.mediaId,
       slotCount: resolvedJob.slotCount,
-      frame: decodeResponse.result.frame,
+      frame,
+      releaseAfterNativeRenderComplete: () => releaseFrame('gpuUploadFenceSignalled'),
+      releaseAfterNativeRenderAbort: () => releaseFrame('rendererUploadAborted'),
     });
   }
 
@@ -262,6 +275,19 @@ const sameFrameRate = (
 ): boolean =>
   left.numerator === right.numerator
   && left.denominator === right.denominator;
+
+const createSingleUseNativeRenderSourceReleaser = (
+  releaseFrame: (copyOutState: RustBackendVideoDecodeCopyOutState) => Promise<void>
+): (copyOutState: RustBackendVideoDecodeCopyOutState) => Promise<void> => {
+  let releasePromise: Promise<void> | null = null;
+
+  return (copyOutState) => {
+    if (!releasePromise) {
+      releasePromise = releaseFrame(copyOutState);
+    }
+    return releasePromise;
+  };
+};
 
 const sanitiseJobPart = (value: string): string => {
   const sanitised = value

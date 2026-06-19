@@ -335,6 +335,7 @@ export function createSharedRendererExportFrameSource({
     }
     const surfaceGate = session.surfaceGate;
     if (!surfaceGate.ok) {
+      await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
       return null;
     }
     const unsupportedNativeMedia = resolveMixedNativeRenderUnsupportedMedia({
@@ -342,6 +343,7 @@ export function createSharedRendererExportFrameSource({
       media: surfaceGate.media,
     });
     if (unsupportedNativeMedia) {
+      await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
       writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
         status: 'blocked',
         frameIndex: request.frameIndex,
@@ -355,22 +357,29 @@ export function createSharedRendererExportFrameSource({
     }
 
     const renderId = buildNativeRenderId(request.encodeSessionId, request.frameIndex);
-    const renderResponse = await renderNativeSharedFrame({
-      renderId,
-      memoryId: buildNativeRenderMemoryId(request.encodeSessionId, request.frameIndex),
-      slotCount: 1,
-      ptsFrame: request.frameIndex,
-      width: request.width,
-      height: request.height,
-      snapshot: surfaceGate.snapshot,
-      media: surfaceGate.media,
-      sources: nativeRenderSources.map((source) => ({
-        mediaId: source.mediaId,
-        slotCount: source.slotCount,
-        frame: source.frame,
-      })),
-    });
+    let renderResponse: RustBackendResult<RustBackendNativeRenderSharedFrameResult>;
+    try {
+      renderResponse = await renderNativeSharedFrame({
+        renderId,
+        memoryId: buildNativeRenderMemoryId(request.encodeSessionId, request.frameIndex),
+        slotCount: 1,
+        ptsFrame: request.frameIndex,
+        width: request.width,
+        height: request.height,
+        snapshot: surfaceGate.snapshot,
+        media: surfaceGate.media,
+        sources: nativeRenderSources.map((source) => ({
+          mediaId: source.mediaId,
+          slotCount: source.slotCount,
+          frame: source.frame,
+        })),
+      });
+    } catch (error) {
+      await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+      throw error;
+    }
     if (!renderResponse.success || !renderResponse.result) {
+      await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
       writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
         status: 'blocked',
         frameIndex: request.frameIndex,
@@ -382,6 +391,7 @@ export function createSharedRendererExportFrameSource({
         request.frameIndex
       );
     }
+    await releaseNativeRenderSourcesAfterComplete(nativeRenderSources);
 
     writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
       status: 'ready',
@@ -576,6 +586,22 @@ const resolveExportVideoOwnershipBlock = (
   if (videoOwnership.owner === 'sharedRenderer') return null;
 
   return `Shared renderer export cannot delegate video ownership back to Pixi (${videoOwnership.reason}).`;
+};
+
+const releaseNativeRenderSourcesAfterComplete = async (
+  sources: readonly SharedRendererViewportNativeRenderSource[]
+): Promise<void> => {
+  await Promise.all(
+    sources.map((source) => source.releaseAfterNativeRenderComplete?.() ?? Promise.resolve())
+  );
+};
+
+const releaseNativeRenderSourcesAfterAbort = async (
+  sources: readonly SharedRendererViewportNativeRenderSource[]
+): Promise<void> => {
+  await Promise.all(
+    sources.map((source) => source.releaseAfterNativeRenderAbort?.() ?? Promise.resolve())
+  );
 };
 
 const writeFrameDiagnostics = (
