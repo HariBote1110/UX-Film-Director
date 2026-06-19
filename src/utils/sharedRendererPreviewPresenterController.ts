@@ -300,6 +300,7 @@ export const startSharedRendererPreviewPresenter = async ({
   }
 
   let resolvedVideoFrameUploadReady = sharedRendererVideoFrameUploadReady;
+  let resolvedVideoUploadFailure = sharedRendererVideoUploadFailure;
   let nativeRenderFrameReady = false;
   let nativeRenderFailure = sharedRendererNativeRenderFailure;
   if (sharedRendererNativeRenderFrameUpload) {
@@ -366,8 +367,15 @@ export const startSharedRendererPreviewPresenter = async ({
         await decodedVideoFrameUpload.upload.releaseAfterGpuUpload();
       }
       resolvedVideoFrameUploadReady = true;
-    } else if (decodedVideoFrameUpload.upload.releaseAfterUploadAbort) {
-      await decodedVideoFrameUpload.upload.releaseAfterUploadAbort();
+    } else {
+      if (decodedVideoFrameUpload.upload.releaseAfterUploadAbort) {
+        await decodedVideoFrameUpload.upload.releaseAfterUploadAbort();
+      }
+      resolvedVideoUploadFailure ??= {
+        reason: uploadResult.reason,
+        detail: uploadResult.detail,
+        clipId: decodedVideoFrameUpload.clipId,
+      };
     }
   }
 
@@ -424,10 +432,10 @@ export const startSharedRendererPreviewPresenter = async ({
       reason: 'requiredVideoOwnershipUnavailable',
       nativeRenderFailureReason: nativeRenderFailure?.reason,
       nativeRenderFailureDetail: nativeRenderFailure?.detail,
-      videoUploadFailureReason: sharedRendererVideoUploadFailure?.reason,
-      videoUploadFailureDetail: sharedRendererVideoUploadFailure?.detail,
-      videoUploadFailureClipId: sharedRendererVideoUploadFailure?.clipId,
-      videoUploadFailureMediaId: sharedRendererVideoUploadFailure?.mediaId,
+      videoUploadFailureReason: resolvedVideoUploadFailure?.reason,
+      videoUploadFailureDetail: resolvedVideoUploadFailure?.detail,
+      videoUploadFailureClipId: resolvedVideoUploadFailure?.clipId,
+      videoUploadFailureMediaId: resolvedVideoUploadFailure?.mediaId,
     });
     return {
       ok: false,
@@ -520,10 +528,10 @@ export const startSharedRendererPreviewPresenter = async ({
     videoDecodeRequestSource,
     videoDecodeRequestCount,
     videoFrameUploadReady: hasVideoScene ? resolvedVideoFrameUploadReady : undefined,
-    videoUploadFailureReason: hasVideoScene ? sharedRendererVideoUploadFailure?.reason : undefined,
-    videoUploadFailureDetail: hasVideoScene ? sharedRendererVideoUploadFailure?.detail : undefined,
-    videoUploadFailureClipId: hasVideoScene ? sharedRendererVideoUploadFailure?.clipId : undefined,
-    videoUploadFailureMediaId: hasVideoScene ? sharedRendererVideoUploadFailure?.mediaId : undefined,
+    videoUploadFailureReason: hasVideoScene ? resolvedVideoUploadFailure?.reason : undefined,
+    videoUploadFailureDetail: hasVideoScene ? resolvedVideoUploadFailure?.detail : undefined,
+    videoUploadFailureClipId: hasVideoScene ? resolvedVideoUploadFailure?.clipId : undefined,
+    videoUploadFailureMediaId: hasVideoScene ? resolvedVideoUploadFailure?.mediaId : undefined,
     videoOwner: hasVideoScene ? videoOwnership.owner : undefined,
     videoCutoverReason: hasVideoScene ? videoOwnership.reason : undefined,
     sharedVideoObjectCount: hasVideoScene ? videoOwnership.videoObjectIds.length : undefined,
