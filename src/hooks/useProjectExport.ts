@@ -266,7 +266,12 @@ export const useProjectExport = (
             });
             if (isCancelled()) return;
 
-            setExportProgress({ phase: 'saving', currentFrame: totalFrames, totalFrames });
+            const savingProgress = useStore.getState().exportProgress;
+            if (savingProgress) {
+              setExportProgress({ ...savingProgress, phase: 'saving', currentFrame: totalFrames, totalFrames });
+            } else {
+              setExportProgress({ phase: 'saving', currentFrame: totalFrames, totalFrames });
+            }
             alert(`エクスポート完了！\nコーデック: Rust backend rawvideo/ffmpeg\nフレーム: ${result.frameCount}\n保存先: ${savePath}`);
           } finally {
             if (audioPath) {
