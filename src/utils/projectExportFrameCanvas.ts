@@ -126,6 +126,7 @@ export interface BuildProjectExportFrameSourcePlanInput extends ResolveProjectEx
   rustFrameSourcePolicy?: ProjectExportRustFrameSourcePolicy;
   rustFrameSourceBlockedFallback?: ProjectExportRustFrameSourceBlockedFallback;
   hasVideoObjects: boolean;
+  hasNativeRenderMediaObjects?: boolean;
 }
 
 export interface ResolveProjectExportFrameRuntimePlanInput {
@@ -187,6 +188,7 @@ export const buildProjectExportFrameSourcePlan = ({
   rustFrameSourcePolicy = 'allowLegacyCanvas',
   rustFrameSourceBlockedFallback = 'legacyCanvas',
   hasVideoObjects,
+  hasNativeRenderMediaObjects = false,
   getExportCanvas,
   legacyCanvas = null,
 }: BuildProjectExportFrameSourcePlanInput): ProjectExportFrameSourcePlanResult => {
@@ -221,7 +223,9 @@ export const buildProjectExportFrameSourcePlan = ({
       ok: false,
       reason: 'rustFrameSourceRequired',
       detail: appendRustFrameSourceUnavailableDetail(
-        'Rust-only export requires a shared renderer Rust frame source.',
+        hasNativeRenderMediaObjects
+          ? 'Image/PSD export requires a shared renderer Rust frame source.'
+          : 'Rust-only export requires a shared renderer Rust frame source.',
         rustFrameSourceUnavailableDetail
       ),
     };

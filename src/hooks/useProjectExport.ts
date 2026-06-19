@@ -69,10 +69,11 @@ export const useProjectExport = (
         setExporting(false);
         return;
       }
+      const hasNativeRenderMediaObjects = exportObjects.some((object) => object.type === 'image' || object.type === 'psd');
       const frameSourcePolicy = resolveProjectExportFrameSourcePolicyForEncode({
         rustExportOnly,
         hasVideoObjects,
-        hasNativeRenderMediaObjects: exportObjects.some((object) => object.type === 'image' || object.type === 'psd'),
+        hasNativeRenderMediaObjects,
         encodeEngine: exportEncodePlan.engine,
       });
       let rustFrameSourceUnavailableDetail: string | undefined;
@@ -90,6 +91,7 @@ export const useProjectExport = (
         rustFrameSourcePolicy: frameSourcePolicy.rustFrameSourcePolicy,
         rustFrameSourceBlockedFallback: frameSourcePolicy.rustFrameSourceBlockedFallback,
         hasVideoObjects,
+        hasNativeRenderMediaObjects,
         getExportCanvas,
       });
       if (!initialFrameSourcePlan.ok) {
