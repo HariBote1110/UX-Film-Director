@@ -4228,3 +4228,19 @@
 ### 残課題・次のステップ
 - render例外とoutput upload失敗時のpreview source abort releaseを個別テストで厚くする。
 - 実機のGoPro動画で、preview native render失敗後もdecode slotが枯渇しないことをsmokeで確認する。
+
+## 2026-06-19 — native render source release必須gateを追加
+
+### 実施内容
+- Red: preview/export native renderがrelease callbackを持たないdecoded sourceを受け取った場合、Rust backend native rendererへ渡さず `nativeRenderSourceReleaseUnavailable` で止める契約を追加した。
+- Green: `resolveNativeRenderSourceReleaseUnavailable` を追加し、preview/exportの両consumerでrender前にrelease callback欠落をfail-loudにした。
+- release callbackを持つ既存fixtureはその所有権を明示する形へ更新した。
+- 版を `0.1.1-Beta-201a` に更新した。
+
+### 検証
+- `npm test -- sharedRendererViewportNativeRenderUpload sharedRendererViewportNativeRenderSource sharedRendererExportFrameSource`
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererViewportNativeRenderUpload|sharedRendererViewportNativeRenderSource|sharedRendererExportFrameSource"`
+
+### 残課題・次のステップ
+- `nativeRenderSourceReleaseUnavailable` をpreview/export diagnostics datasetでより見やすく集約する。
+- 実機のGoPro動画で、source release gateに引っかからずpreview/exportがRust native renderへ進むことをsmokeで確認する。
