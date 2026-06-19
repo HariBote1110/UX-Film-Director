@@ -1661,7 +1661,8 @@ describe('createSharedRendererExportFrameSource', () => {
 
     expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
     expect(blocked).toMatchObject({
-      fallbackToLegacyCanvas: true,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
       reason: 'nativeRenderSourceReleaseFailed',
       frameIndex: 11,
       message: 'export source complete release failed',
@@ -1870,7 +1871,8 @@ describe('createSharedRendererExportFrameSource', () => {
 
     expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
     expect(blocked).toMatchObject({
-      fallbackToLegacyCanvas: true,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
       reason: 'nativeRenderOutputReleaseFailed',
       frameIndex: 12,
       message: 'native render output release failed',
@@ -2060,7 +2062,8 @@ describe('createSharedRendererExportFrameSource', () => {
 
     expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
     expect(blocked).toMatchObject({
-      fallbackToLegacyCanvas: true,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
       reason: 'nativeRenderSourceReleaseFailed',
       frameIndex: 8,
       message: 'export source abort release failed',
