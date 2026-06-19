@@ -17,6 +17,7 @@ import {
 } from '../utils/projectExportFrameCanvas';
 import { isSharedRendererExportFrameSourceBlockedError } from '../utils/sharedRendererExportFrameSource';
 import { createSharedVideoFramePresentedFrameTaker } from '../utils/sharedVideoFramePresentedFrameHandoff';
+import { captureProjectExportLegacyCanvasFrame } from '../utils/projectExportLegacyCanvasCapture';
 import type {
   RustBackendVideoEncodeFrame,
   RustBackendVideoEncodeSharedFramePayloadFrame,
@@ -188,10 +189,14 @@ export const useProjectExport = (
               getExportCanvas,
             });
             if (!frameCanvas.ok) throw new Error(frameCanvas.detail);
-            const canvas = frameCanvas.canvas;
-            const bitmap = await createImageBitmap(canvas, 0, 0, encWidth, encHeight);
-            yield { timestamp: Math.round(i * 1_000_000 / fps), bitmap };
-            bitmap.close();
+            const frame = await captureProjectExportLegacyCanvasFrame({
+              canvas: frameCanvas.canvas,
+              width: encWidth,
+              height: encHeight,
+              timestamp: Math.round(i * 1_000_000 / fps),
+            });
+            yield frame;
+            frame.bitmap.close();
           }
 
           // フレームループ終了後に override をクリア
