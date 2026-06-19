@@ -1216,7 +1216,8 @@ describe('createSharedRendererExportFrameSource', () => {
       objects: [video()],
       encodeSessionId: 'native-render-failure-session',
     })).rejects.toMatchObject({
-      fallbackToLegacyCanvas: true,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
       reason: 'nativeRenderFailed',
       frameIndex: 7,
     });
@@ -1391,7 +1392,8 @@ describe('createSharedRendererExportFrameSource', () => {
 
     expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
     expect(blocked).toMatchObject({
-      fallbackToLegacyCanvas: true,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
       reason: 'nativeRenderFailed',
       frameIndex: 7,
       message: 'native render bridge crashed',
