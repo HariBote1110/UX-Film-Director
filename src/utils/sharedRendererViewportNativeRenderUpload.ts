@@ -18,6 +18,7 @@ import {
   prepareSharedRendererViewportNativeRenderSources,
   type PrepareSharedRendererViewportNativeRenderSourcesInput,
   type PrepareSharedRendererViewportNativeRenderSourcesResult,
+  type SharedRendererViewportNativeRenderSource,
 } from './sharedRendererViewportNativeRenderSource';
 import type { SharedRendererViewportVideoDecodeJob } from './sharedRendererViewportVideoUpload';
 
@@ -98,11 +99,13 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
   });
   const surfaceGate = session.surfaceGate;
   let activeRenderJobs: SharedRendererViewportVideoDecodeJob[];
+  let nativeRenderSources: readonly SharedRendererViewportNativeRenderSource[] = [];
   let renderSources: RustBackendNativeRenderSharedFramePayload['sources'];
 
   if (nativeSources.ok) {
     activeRenderJobs = nativeSources.activeJobs;
-    renderSources = nativeSources.sources.map((source) => ({
+    nativeRenderSources = nativeSources.sources;
+    renderSources = nativeRenderSources.map((source) => ({
       mediaId: source.mediaId,
       slotCount: source.slotCount,
       frame: source.frame,
@@ -135,6 +138,7 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
     media: surfaceGate.media,
   });
   if (unsupportedNativeMedia) {
+    await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
     return {
       ok: false,
       reason: 'nativeRenderUnsupportedMedia',
@@ -145,18 +149,25 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
 
   const renderId = buildPreviewNativeRenderId(resolvedRequestId);
   const renderMemoryId = buildPreviewNativeRenderMemoryId(resolvedRequestId);
-  const renderResponse = await renderNativeSharedFrame({
-    renderId,
-    memoryId: renderMemoryId,
-    slotCount: outputSlotCount,
-    ptsFrame: surfaceGate.snapshot.frame_index,
-    width: surfaceGate.canvas.width,
-    height: surfaceGate.canvas.height,
-    snapshot: surfaceGate.snapshot,
-    media: surfaceGate.media,
-    sources: renderSources,
-  });
+  let renderResponse: RustBackendResult<RustBackendNativeRenderSharedFrameResult>;
+  try {
+    renderResponse = await renderNativeSharedFrame({
+      renderId,
+      memoryId: renderMemoryId,
+      slotCount: outputSlotCount,
+      ptsFrame: surfaceGate.snapshot.frame_index,
+      width: surfaceGate.canvas.width,
+      height: surfaceGate.canvas.height,
+      snapshot: surfaceGate.snapshot,
+      media: surfaceGate.media,
+      sources: renderSources,
+    });
+  } catch (error) {
+    await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+    throw error;
+  }
   if (!renderResponse.success || !renderResponse.result) {
+    await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
     return {
       ok: false,
       reason: 'nativeRenderFailed',
@@ -169,14 +180,22 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
     renderResponse.result.frame.descriptor.memoryId,
     releaseNativeSharedFrame
   );
-  const upload = await prepareSharedRendererDecodedVideoFrameUpload({
-    sharedFrame: renderResponse.result.frame,
-    slotCount: renderResponse.result.slotCount,
-    bridge: copyBridge,
-    releaseAfterGpuUpload: releaseNativeOutput,
-    releaseAfterUploadAbort: releaseNativeOutput,
-  });
+  let upload: PrepareSharedRendererDecodedVideoFrameUploadResult;
+  try {
+    upload = await prepareSharedRendererDecodedVideoFrameUpload({
+      sharedFrame: renderResponse.result.frame,
+      slotCount: renderResponse.result.slotCount,
+      bridge: copyBridge,
+      releaseAfterGpuUpload: releaseNativeOutput,
+      releaseAfterUploadAbort: releaseNativeOutput,
+    });
+  } catch (error) {
+    await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+    await releaseNativeOutput();
+    throw error;
+  }
   if (!upload.ok) {
+    await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
     await releaseNativeOutput();
     return {
       ok: false,
@@ -185,6 +204,7 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
       activeJobs: activeRenderJobs,
     };
   }
+  await releaseNativeRenderSourcesAfterComplete(nativeRenderSources);
 
   return {
     ok: true,
@@ -217,4 +237,20 @@ const createSingleUseNativeOutputReleaser = (
     }
     return releasePromise;
   };
+};
+
+const releaseNativeRenderSourcesAfterComplete = async (
+  sources: readonly SharedRendererViewportNativeRenderSource[]
+): Promise<void> => {
+  await Promise.all(
+    sources.map((source) => source.releaseAfterNativeRenderComplete?.() ?? Promise.resolve())
+  );
+};
+
+const releaseNativeRenderSourcesAfterAbort = async (
+  sources: readonly SharedRendererViewportNativeRenderSource[]
+): Promise<void> => {
+  await Promise.all(
+    sources.map((source) => source.releaseAfterNativeRenderAbort?.() ?? Promise.resolve())
+  );
 };
