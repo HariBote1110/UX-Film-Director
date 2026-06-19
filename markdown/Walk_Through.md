@@ -1049,3 +1049,16 @@
 - `npm test -- ExportProgressModal exportProgress useProjectExportBoundary` を実行し、RedでdetailがUI/progressへ出ない失敗を確認した。
 - `npm test -- ExportProgressModal exportProgress useProjectExportBoundary` を再実行し、34件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/store/useStore\\.ts|src/store/exportProgress\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 86. Phase5: export progressのRust block診断を保持
+- `src/utils/useProjectExportBoundary.test.ts`
+- Rust/shared renderer frame source blocked診断が、その後のrendering progress tickで消えない境界契約を追加した。
+- `src/hooks/useProjectExport.ts`
+- 進捗更新時に既存 `ExportProgress` を保持し、`rustFrameSourceBlocked` / `nativeRenderOutputRelease` などの診断を残すようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-211e` に更新した。
+
+## 確認
+- `npm test -- useProjectExportBoundary` を実行し、Redでrendering progress tickが既存診断を保持しない失敗を確認した。
+- `npm test -- useProjectExportBoundary ExportProgressModal exportProgress` を再実行し、35件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts|src/components/ExportProgressModal\\.tsx|src/store/useStore\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

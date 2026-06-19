@@ -1,3 +1,19 @@
+## 2026-06-19 — export progressのRust block診断を保持
+
+### 実施内容
+- Red: Rust/shared renderer frame source blocked診断が、その後のrendering progress tickで消えない契約を追加した。
+- Green: `useProjectExport` の進捗更新時に既存 `ExportProgress` を保持し、`rustFrameSourceBlocked` / `nativeRenderOutputRelease` などの診断を残すようにした。
+- fallback継続時でもRust frame sourceがなぜ止まったかをExportProgressModalで追えるようにした。
+- 版を `0.1.1-Beta-211e` に更新した。
+
+### 検証
+- `npm test -- useProjectExportBoundary ExportProgressModal exportProgress`
+- `npx tsc --noEmit 2>&1 | rg "(src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts|src/components/ExportProgressModal\\.tsx|src/store/useStore\\.ts)"`
+
+### 残課題・次のステップ
+- 次はRust frame source ready時に `VideoFrameProvider` / `HTMLVideoElement` seek fallbackが絶対に起動しない境界をさらに確認する。
+- 実機exportでblocked診断が最後までモーダルに残るか確認する。
+
 ## 2026-06-19 — export progressでRust block detailを表示
 
 ### 実施内容
