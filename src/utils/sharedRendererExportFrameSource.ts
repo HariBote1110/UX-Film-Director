@@ -415,7 +415,7 @@ export function createSharedRendererExportFrameSource({
       if (releaseFailure) {
         throwNativeRenderSourceReleaseFailed(canvas, request.frameIndex, releaseFailure);
       }
-      throw error;
+      return throwNativeRenderFailed(canvas, request.frameIndex, formatNativeRenderError(error));
     }
     if (!renderResponse.success || !renderResponse.result) {
       const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
@@ -707,6 +707,33 @@ const throwNativeRenderOutputReleaseFailed = (
     'nativeRenderOutputReleaseFailed',
     frameIndex
   );
+};
+
+const throwNativeRenderFailed = (
+  canvas: HTMLCanvasElement,
+  frameIndex: number,
+  detail: string
+): never => {
+  writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+    status: 'blocked',
+    frameIndex,
+    reason: 'nativeRenderFailed',
+  });
+  throw new SharedRendererExportFrameSourceBlockedError(
+    detail,
+    'nativeRenderFailed',
+    frameIndex
+  );
+};
+
+const formatNativeRenderError = (error: unknown): string => {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  if (typeof error === 'string' && error) {
+    return error;
+  }
+  return 'Rust backend native render failed.';
 };
 
 const formatNativeRenderReleaseError = (error: unknown): string => {
