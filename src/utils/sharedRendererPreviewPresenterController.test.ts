@@ -1188,6 +1188,59 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
+  it('publishes native render GPU release failures instead of throwing out of the presenter', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const events: string[] = [];
+    const rgbaBytes = new Uint8Array(nativeRenderDescriptor.byteLen);
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: {
+        ...okSession,
+        surfaceGate: {
+          ...okSession.surfaceGate,
+          canvas: { width: 4, height: 4 },
+        },
+      },
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      sharedRendererNativeRenderFrameUpload: {
+        descriptor: nativeRenderDescriptor,
+        ptsFrame: 12,
+        rgbaBytes,
+        releaseAfterGpuUpload: async () => {
+          throw new Error('native render output GPU release failed');
+        },
+      },
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onWriteTexture: () => {
+              events.push('writeTexture');
+            },
+            onSubmittedWorkDone: async () => {
+              events.push('gpuUploadDone');
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    } as any);
+
+    expect(control).toMatchObject({
+      ok: true,
+    });
+    expect(events).toEqual(['writeTexture', 'gpuUploadDone']);
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterStatus: 'ready',
+      uxfdSharedRendererPresenterNativeRenderFrameReady: 'true',
+      uxfdSharedRendererPresenterNativeRenderFailureReason: 'nativeRenderOutputReleaseFailed',
+      uxfdSharedRendererPresenterNativeRenderFailureDetail: 'native render output GPU release failed',
+      uxfdSharedRendererPresenterNativeRenderFailureLabel: 'native render output release failed',
+    });
+  });
+
   it('publishes native render frame upload failure details while falling back to Pixi presentation', async () => {
     const dataset: Record<string, string | undefined> = {};
     const events: string[] = [];
