@@ -4671,3 +4671,24 @@
 ### 残課題・次のステップ
 - native render throw / output release failure のUI文言をpreview/exportで揃える。
 - Rust backend decode/native render/encodeの統合テストを再実行し、最近の所有権診断変更がbackend contractと矛盾しないことを確認する。
+
+## 2026-06-19 — Rust backend/native renderer contractを再検証
+
+### 実施内容
+- 最近追加したpreview/exportのrelease ownership診断がRust backend decode / native render / encode contractと矛盾しないか再検証した。
+- native-wgpu-rendererのテスト実行時に、`uxfd-golden-harness` の `jpeg-decoder` 依存が `native-wgpu-renderer/Cargo.lock` へ反映されたため、再現性のためlockfileを更新対象にした。
+- package versionは挙動変更ではないため `0.1.1-Beta-208p` のまま据え置いた。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml decode_`
+- `cargo test --manifest-path rust-backend/Cargo.toml native_render`
+- `cargo test --manifest-path rust-backend/Cargo.toml encode_`
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test shared_frame_output --test shm_decoded_frame_render --test frame_stage_timings`
+- `cargo test --manifest-path shared-memory-spike/Cargo.toml posix_shm`
+- `npm run test:bridge-node`
+- `npm test -- src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/rustBackendNativeRenderControl.test.ts src/utils/rustBackendVideoEncodeExport.test.ts src/utils/useProjectExportBoundary.test.ts src/components/ExportProgressModal.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportNativeRenderUpload\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/utils/rustBackendVideoEncodeExport\\.ts|src/utils/rustBackendNativeRenderControl\\.ts|src/hooks/useProjectExport\\.ts|src/components/ExportProgressModal\\.tsx)"`
+
+### 残課題・次のステップ
+- `nativeRenderOutputReleaseFailed` / `nativeRenderFailed` のUI文言をpreview/exportで揃える。
+- 実機GoPro素材でRust decode -> native render -> encodeのsmokeを確認する。
