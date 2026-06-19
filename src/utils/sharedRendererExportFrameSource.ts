@@ -257,7 +257,10 @@ export function createSharedRendererExportFrameSource({
         request.frameIndex
       );
     }
-    const videoOwnershipBlock = resolveExportVideoOwnershipBlock(presenterResult);
+    const videoOwnershipBlock = resolveExportVideoOwnershipBlock(
+      presenterResult,
+      canvas.dataset as unknown as PresenterDataset
+    );
     if (videoOwnershipBlock) {
       presenterResult.control.dispose();
       writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
@@ -684,8 +687,14 @@ const formatExportVideoUploadBlock = (
 };
 
 const resolveExportVideoOwnershipBlock = (
-  presenterResult: StartSharedRendererViewportPresenterResult
+  presenterResult: StartSharedRendererViewportPresenterResult,
+  dataset: PresenterDataset
 ): string | null => {
+  const missingClipIds = dataset.uxfdSharedRendererPresenterVideoUploadMissingClipIds;
+  if (missingClipIds) {
+    return `Shared renderer export is missing uploaded video clips: ${missingClipIds}.`;
+  }
+
   const control = presenterResult.control;
   if (!('videoOwnership' in control)) return null;
   const { videoOwnership } = control;
