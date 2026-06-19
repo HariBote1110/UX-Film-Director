@@ -423,6 +423,43 @@ describe('sharedRendererViewportVideoUpload', () => {
     }]);
   });
 
+  it('preserves the shared frame copy checksum failure reason for viewport diagnostics', async () => {
+    const { calls, rustBackendBridge } = createBridges();
+    const copyBridge: SharedVideoFrameCopyBridge = {
+      copyIntoUploadBuffer: async (payload, target) => {
+        calls.push(['copyIntoUploadBuffer', payload, target.byteLength]);
+        target.fill(0x6a);
+        return {
+          success: true,
+          result: {
+            sequence: payload.ptsFrame,
+            slotIndex: payload.slotIndex,
+            generation: payload.generation,
+            byteLen: target.byteLength,
+            expectedChecksum: 0x1234,
+            actualChecksum: payload.ptsFrame === 7 ? 0x4321 : 0x1234,
+          },
+        };
+      },
+    };
+
+    const result = await prepareSharedRendererViewportVideoUploads({
+      session: multiVideoSession,
+      requestId: 83,
+      slotCount: 2,
+      activeJobs: [],
+      rustBackendBridge,
+      copyBridge,
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      reason: 'uploadFailed',
+      uploadFailureReason: 'copyReportChecksumMismatch',
+      detail: 'Shared video frame copy report checksum verification failed.',
+    });
+  });
+
   it('attempts every prepared abort release even when an earlier abort release fails', async () => {
     const calls: unknown[] = [];
     const requestCountByJobId = new Map<string, number>();
