@@ -215,6 +215,40 @@ describe('runRustBackendVideoEncodeExport', () => {
     expect(serialisedCalls).not.toContain('pixels');
   });
 
+  it('uses the Rust backend finish result as the authoritative export summary', async () => {
+    const encoderBridge: RustBackendVideoEncodeBridge = {
+      startVideoEncode: async () => ({ success: true, result: { started: true } }),
+      writeVideoEncodeFrame: async () => ({ success: true, result: { written: true } }),
+      finishVideoEncode: async () => ({
+        success: true,
+        result: {
+          finished: true,
+          sessionId: 'session-authoritative',
+          filePath: '/tmp/backend-authoritative.mp4',
+          frameCount: 7,
+        },
+      }),
+    };
+    async function* directSharedFrames() {
+      yield { timestamp: 0, sharedFramePayload: sharedFramePayload(0, 0, 'session-authoritative') };
+      yield { timestamp: 16_667, sharedFramePayload: sharedFramePayload(1, 16_667, 'session-authoritative') };
+    }
+
+    await expect(runRustBackendVideoEncodeExport({
+      sessionId: 'session-authoritative',
+      filePath: '/tmp/requested.mp4',
+      width: 4,
+      height: 2,
+      fps: 60,
+      frames: directSharedFrames(),
+      encoderBridge,
+    })).resolves.toEqual({
+      frameCount: 7,
+      sessionId: 'session-authoritative',
+      filePath: '/tmp/backend-authoritative.mp4',
+    });
+  });
+
   it('releases native render output when encode write fails before Rust consumes it', async () => {
     const calls: unknown[] = [];
     const releaseEvents: unknown[] = [];
