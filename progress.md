@@ -4826,3 +4826,20 @@
 ### 残課題・次のステップ
 - copy reportのchecksum検証をRust側契約と突き合わせ、必要なら expected/actual checksum mismatchもfail-loudにする。
 - 実機GoPro素材でshared memory copy reportとGPU upload診断を確認する。
+
+## 2026-06-19 — shared frame copy checksum検証を追加
+
+### 実施内容
+- Red: `sharedVideoFrameUploadBridge` に、native copy bridgeのcopy report `expectedChecksum` / `actualChecksum` が一致しない場合はuploadを拒否する契約を追加した。
+- Green: `prepareSharedRendererDecodedVideoFrameUpload` が `copyReportChecksumMismatch` を返すようにし、checksum検証に失敗したshared memory copyをWebGPU uploadへ進ませないようにした。
+- Rust decode -> shared memory copy -> renderer upload bufferのdata-plane検証をさらに強めた。
+- 版を `0.1.1-Beta-208y` に更新した。
+
+### 検証
+- `npm test -- sharedVideoFrameUploadBridge`
+- `npm test -- sharedVideoFrameUploadBridge sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedVideoFrameUploadBridge\\.ts|src/utils/sharedVideoFrameUploadBridge\\.test\\.ts|src/utils/sharedRendererRustVideoUploadPipeline\\.ts|src/utils/sharedRendererViewportVideoUpload\\.ts)"`
+
+### 残課題・次のステップ
+- Rust backend/native bridge側のchecksum report生成テストを再実行し、renderer側fail-loud契約と一致していることを確認する。
+- 実機GoPro素材でcopy report mismatch時の診断表示を追えるようにする。
