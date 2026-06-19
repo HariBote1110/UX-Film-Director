@@ -646,9 +646,11 @@ const resolveExportVideoUploadBlock = (
   ) {
     return formatExportVideoUploadBlock(
       videoUploadsResult.detail,
-      videoUploadsResult.uploadFailureReason,
-      videoUploadsResult.reason === 'uploadFailed' ? videoUploadsResult.uploadFailureClipId : undefined,
-      videoUploadsResult.reason === 'uploadFailed' ? videoUploadsResult.uploadFailureMediaId : undefined,
+      videoUploadsResult.reason === 'uploadFailed'
+        ? videoUploadsResult.uploadFailureReason
+        : videoUploadsResult.reason,
+      videoUploadsResult.uploadFailureClipId,
+      videoUploadsResult.uploadFailureMediaId,
     );
   }
 
@@ -660,9 +662,11 @@ const resolveExportVideoUploadBlock = (
   ) {
     return formatExportVideoUploadBlock(
       videoUploadResult.detail,
-      videoUploadResult.uploadFailureReason,
-      videoUploadResult.reason === 'uploadFailed' ? videoUploadResult.uploadFailureClipId : undefined,
-      videoUploadResult.reason === 'uploadFailed' ? videoUploadResult.uploadFailureMediaId : undefined,
+      videoUploadResult.reason === 'uploadFailed'
+        ? videoUploadResult.uploadFailureReason
+        : videoUploadResult.reason,
+      videoUploadResult.uploadFailureClipId,
+      videoUploadResult.uploadFailureMediaId,
     );
   }
 

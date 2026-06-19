@@ -276,6 +276,8 @@ export const prepareSharedRendererViewportVideoUploads = async ({
         ok: false,
         reason: 'staleDecodeResponse',
         detail: buildStaleDecodedFrameDetail(decodeResponse.result, resolvedRequestId, resolvedJob.jobId),
+        uploadFailureClipId: request.clipId,
+        uploadFailureMediaId: request.mediaId,
         activeJobs: resolvedActiveJobs,
       };
     }
@@ -431,6 +433,8 @@ export const prepareSharedRendererViewportVideoUpload = async ({
         requestId ?? session.surfaceGate.snapshot.frame_index,
         resolvedJob.jobId
       ),
+      uploadFailureClipId: request.clipId,
+      uploadFailureMediaId: request.mediaId,
       activeJob: resolvedJob,
     };
   }

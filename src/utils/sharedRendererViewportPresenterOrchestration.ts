@@ -200,7 +200,7 @@ const resolveSharedRendererVideoUploadFailure = (
   return {
     reason,
     detail: result.detail,
-    clipId: result.reason === 'uploadFailed' ? result.uploadFailureClipId : undefined,
-    mediaId: result.reason === 'uploadFailed' ? result.uploadFailureMediaId : undefined,
+    clipId: result.uploadFailureClipId,
+    mediaId: result.uploadFailureMediaId,
   };
 };
