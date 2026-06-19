@@ -367,6 +367,10 @@ export const startSharedRendererPreviewPresenter = async ({
   let videoOwnership: SharedRendererVideoOwnership = buildSharedRendererVideoOwnership({
     cutoverEnabled: sharedRendererVideoCutoverEnabled,
     hasVideoScene,
+    nativeRenderFrameReady,
+    nativeRenderVideoObjectIds: nativeRenderFrameReady
+      ? collectObjectIdsByMediaKind(session, 'Video')
+      : undefined,
     videoDecodeRequestSource,
     videoDecodeRequestResult,
     videoFrameUploadReady: resolvedVideoFrameUploadReady,
@@ -375,13 +379,6 @@ export const startSharedRendererPreviewPresenter = async ({
       ? new Set(videoCutoverStackSafety.safeVideoObjectIds)
       : undefined,
   });
-  if (nativeRenderFrameReady && hasVideoScene) {
-    videoOwnership = {
-      owner: 'sharedRenderer',
-      reason: 'nativeRenderFrameReady',
-      videoObjectIds: collectObjectIdsByMediaKind(session, 'Video'),
-    };
-  }
   const solidColourStackSafety = hasSolidColourScene
     ? buildSharedRendererSolidColourStackSafety({
       snapshot: session.surfaceGate.snapshot,

@@ -22,6 +22,8 @@ export interface SharedRendererVideoOwnership {
 export interface BuildSharedRendererVideoOwnershipInput {
   cutoverEnabled: boolean;
   hasVideoScene: boolean;
+  nativeRenderFrameReady?: boolean;
+  nativeRenderVideoObjectIds?: string[];
   videoDecodeRequestSource?: 'rust-wasm' | 'typescript';
   videoDecodeRequestResult?: SharedRendererVideoFrameDecodeRequestResult | null;
   videoFrameUploadReady: boolean;
@@ -32,17 +34,26 @@ export interface BuildSharedRendererVideoOwnershipInput {
 export const buildSharedRendererVideoOwnership = ({
   cutoverEnabled,
   hasVideoScene,
+  nativeRenderFrameReady = false,
+  nativeRenderVideoObjectIds = [],
   videoDecodeRequestSource,
   videoDecodeRequestResult,
   videoFrameUploadReady,
   uploadedVideoObjectIds,
   stackSafeVideoObjectIds,
 }: BuildSharedRendererVideoOwnershipInput): SharedRendererVideoOwnership => {
-  if (!cutoverEnabled) {
-    return pixiOwnership('cutoverDisabled');
-  }
   if (!hasVideoScene) {
     return pixiOwnership('noVideoScene');
+  }
+  if (nativeRenderFrameReady) {
+    return {
+      owner: 'sharedRenderer',
+      reason: 'nativeRenderFrameReady',
+      videoObjectIds: nativeRenderVideoObjectIds,
+    };
+  }
+  if (!cutoverEnabled) {
+    return pixiOwnership('cutoverDisabled');
   }
   if (videoDecodeRequestSource !== 'rust-wasm' || !videoDecodeRequestResult) {
     return pixiOwnership('rustDecodeRequestUnavailable');
