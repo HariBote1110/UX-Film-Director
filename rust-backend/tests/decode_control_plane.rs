@@ -2453,11 +2453,11 @@ fn decode_request_frame_uses_limited_range_source_metadata_for_rgba_handoff() {
 }
 
 #[test]
-fn decode_request_frame_rejects_unsupported_transfer_metadata() {
-    let temp_dir = TestTempDir::new("decode-control-plane-unsupported-transfer");
+fn decode_request_frame_accepts_non_srgb_transfer_metadata_for_mvp_video_import() {
+    let temp_dir = TestTempDir::new("decode-control-plane-non-srgb-transfer");
     let fixture = build_two_frame_h264_fixture_with_colour_metadata(
         temp_dir.path(),
-        "unsupported-transfer.mp4",
+        "non-srgb-transfer.mp4",
         None,
         "pc",
         "pc",
@@ -2502,12 +2502,12 @@ fn decode_request_frame_rejects_unsupported_transfer_metadata() {
         }
     }));
 
-    assert_eq!(response["ok"], false);
-    assert!(response["error"]["message"]
-        .as_str()
-        .expect("error message")
-        .contains("unsupported video color_transfer for Rust decode"));
-    assert_no_frame_bytes_recursive(&response);
+    assert_eq!(response["ok"], true, "{response}");
+    assert_eq!(
+        response["result"]["frame"]["descriptor"]["colour"]["primaries"],
+        "bt709"
+    );
+    assert_no_frame_bytes_recursive(&response["result"]);
 }
 
 #[test]
