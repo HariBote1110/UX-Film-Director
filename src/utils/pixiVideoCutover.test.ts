@@ -32,13 +32,13 @@ describe('shouldSkipPixiVideoForSharedRenderer', () => {
     })).toBe(true);
   });
 
-  it('keeps Pixi video rendering during export unless Rust video rendering is required', () => {
+  it('skips export video objects so Pixi cannot regain video ownership', () => {
     expect(shouldSkipPixiVideoForSharedRenderer({
       objectId: 'video-1',
       objectType: 'video',
       isExporting: true,
       sharedRendererVideoObjectIds: new Set(['video-1']),
-    })).toBe(false);
+    })).toBe(true);
   });
 
   it('skips Pixi video fallback when shared renderer video is required', () => {
