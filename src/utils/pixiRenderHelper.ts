@@ -709,9 +709,7 @@ export const updatePixiContent = (
         content = psdContent;
 
     } else if (obj.type === 'video') {
-        const videoRenderPath = resolvePixiVideoRenderPath({
-            objectType: obj.type,
-        });
+        const videoRenderPath = resolvePixiVideoRenderPath();
         if (videoRenderPath !== 'sharedRendererOnly') return content;
 
         const children = container.removeChildren();

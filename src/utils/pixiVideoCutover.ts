@@ -1,22 +1,9 @@
-export interface ShouldSkipPixiVideoForSharedRendererInput {
-  objectType: string;
-}
-
-export type ResolvePixiVideoRenderPathInput = ShouldSkipPixiVideoForSharedRendererInput;
-
 export type PixiVideoRenderPath =
   | 'sharedRendererOnly';
 
-export const shouldSkipPixiVideoForSharedRenderer = ({
-  objectType,
-}: ShouldSkipPixiVideoForSharedRendererInput): boolean =>
-  objectType === 'video';
+export const shouldSkipPixiVideoForSharedRenderer = (): boolean => true;
 
-export const resolvePixiVideoRenderPath = (
-  input: ResolvePixiVideoRenderPathInput
-): PixiVideoRenderPath => {
-  if (shouldSkipPixiVideoForSharedRenderer(input)) {
-    return 'sharedRendererOnly';
-  }
+export const resolvePixiVideoRenderPath = (): PixiVideoRenderPath => {
+  shouldSkipPixiVideoForSharedRenderer();
   return 'sharedRendererOnly';
 };
