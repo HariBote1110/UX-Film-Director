@@ -448,10 +448,16 @@ describe('shouldSynchroniseTimelineForProjectExportFrame', () => {
   const rustFrameSource: ProjectExportRustFrameSource = {
     renderFrame: async () => ({ close: () => undefined }) as ImageBitmap,
   };
+  const directEncodeRustFrameSource: ProjectExportRustFrameSource = {
+    renderEncodeFrame: async (request) => ({
+      timestamp: request.timestampUs,
+      sharedFramePayload: {} as never,
+    }),
+  };
 
   it('keeps timeline time updates disabled while Rust owns the export frame', () => {
     const plan = buildProjectExportFrameSourcePlan({
-      rustFrameSource,
+      rustFrameSource: directEncodeRustFrameSource,
       hasVideoObjects: true,
     });
     if (!plan.ok) throw new Error('expected Rust export source plan');

@@ -165,6 +165,16 @@ export const buildProjectExportFrameSourcePlan = ({
   legacyCanvas = null,
 }: BuildProjectExportFrameSourcePlanInput): ProjectExportFrameSourcePlanResult => {
   if (rustFrameSource) {
+    if ((hasVideoObjects || rustFrameSourcePolicy === 'requireRustFrameSource') && !rustFrameSource.renderEncodeFrame) {
+      return {
+        ok: false,
+        reason: 'rustFrameSourceRequired',
+        detail: hasVideoObjects
+          ? 'Video export requires a shared-frame Rust export source.'
+          : 'Rust-only export requires a shared-frame Rust export source.',
+      };
+    }
+
     const effectiveRustFrameSourceBlockedFallback = hasVideoObjects
       ? 'failExport'
       : rustFrameSourceBlockedFallback;
