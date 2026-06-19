@@ -82,14 +82,13 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     expect(code).toContain('presentedFrameSharedFrameTaker: createSharedVideoFramePresentedFrameTaker() ?? undefined');
   });
 
-  it('replaces the runtime plan in the same frame after the Rust frame source is blocked', () => {
+  it('delegates frame runtime rendering away from the production export hook', () => {
     const code = source();
 
-    expect(code).toContain('let frameRuntimePlan = resolveProjectExportFrameRuntimePlan({');
-    expect(code).toContain('frameRuntimePlan = blockedRuntimePlan;');
-    expect(code.indexOf('frameRuntimePlan = blockedRuntimePlan;')).toBeLessThan(
-      code.indexOf('if (frameRuntimePlan.requiresRenderScene)')
-    );
+    expect(code).toContain("import { renderProjectExportFrame } from '../utils/projectExportFrameRenderer'");
+    expect(code).not.toContain("import { renderProjectExportRustEncodeFrame } from '../utils/projectExportRustEncodeFrame'");
+    expect(code).not.toContain("import { captureProjectExportLegacyCanvasFrame } from '../utils/projectExportLegacyCanvasCapture'");
+    expect(code).toContain('renderProjectExportFrame({');
   });
 
   it('uses a single-use closer for Rust export frame source cleanup', () => {
