@@ -48,6 +48,7 @@ export type SharedRendererExportFrameSourceBlockedReason =
   | 'videoBitmapCaptureDisabled'
   | 'nativeRenderSourceReleaseUnavailable'
   | 'nativeRenderSourceReleaseFailed'
+  | 'nativeRenderOutputReleaseFailed'
   | 'nativeRenderUnsupportedMedia'
   | 'nativeRenderFailed';
 
@@ -434,9 +435,12 @@ export function createSharedRendererExportFrameSource({
     }
     const completeReleaseFailure = await releaseNativeRenderSourcesAfterComplete(nativeRenderSources);
     if (completeReleaseFailure) {
-      await releaseNativeSharedFrame({
+      const outputReleaseFailure = await releaseNativeRenderOutputAfterSourceReleaseFailure({
         memoryId: renderResponse.result.frame.descriptor.memoryId,
-      });
+      }, releaseNativeSharedFrame);
+      if (outputReleaseFailure) {
+        throwNativeRenderOutputReleaseFailed(canvas, request.frameIndex, outputReleaseFailure);
+      }
       throwNativeRenderSourceReleaseFailed(canvas, request.frameIndex, completeReleaseFailure);
     }
 
@@ -669,6 +673,38 @@ const throwNativeRenderSourceReleaseFailed = (
   throw new SharedRendererExportFrameSourceBlockedError(
     detail,
     'nativeRenderSourceReleaseFailed',
+    frameIndex
+  );
+};
+
+const releaseNativeRenderOutputAfterSourceReleaseFailure = async (
+  payload: RustBackendNativeRenderReleaseSharedFramePayload,
+  releaseNativeSharedFrame: SharedRendererExportNativeSharedFrameReleaser
+): Promise<string | null> => {
+  try {
+    const response = await releaseNativeSharedFrame(payload);
+    if (!response.success) {
+      return response.error ?? 'Rust backend native render output release failed.';
+    }
+    return null;
+  } catch (error) {
+    return formatNativeRenderReleaseError(error);
+  }
+};
+
+const throwNativeRenderOutputReleaseFailed = (
+  canvas: HTMLCanvasElement,
+  frameIndex: number,
+  detail: string
+): never => {
+  writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+    status: 'blocked',
+    frameIndex,
+    reason: 'nativeRenderOutputReleaseFailed',
+  });
+  throw new SharedRendererExportFrameSourceBlockedError(
+    detail,
+    'nativeRenderOutputReleaseFailed',
     frameIndex
   );
 };
