@@ -1142,6 +1142,12 @@ native `takePresentedFrameSharedFrame` handoffへ寄せる。
 低レベルの `sharedRendererWebGpuPresenter` readbackは単体診断・parity検証用に残しても、production preview/export controlから
 RGBA bytesをJS側へ取り出す入口として再接続しない。
 
+210. Phase5: export計画の動画sentinelを必須化する
+`resolveProjectExportEncodePlan` / `resolveProjectExportEncodePlanFromBridge` /
+`resolveProjectExportFrameSourcePolicyForEncode` / `buildProjectExportFrameSourcePlan` は
+`hasVideoObjects` を必須booleanとして受け取る。
+動画object有無を呼び出し側が明示しないままWebCodecs互換encoderやlegacy canvas fallbackへ進む状態を型境界で禁止する。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

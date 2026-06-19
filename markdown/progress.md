@@ -551,3 +551,10 @@
 - Green: `SharedRendererPreviewPresenterControl` 型と返却objectから `readPresentedFrameRgbaBytes` を削除し、公開frame取得口を `takePresentedFrameSharedFrame` に絞った。
 - 検証: `npm test -- sharedRendererPreviewPresenterController sharedRendererExportFrameSourceBoundary sharedRendererWebGpuPresenter` は49件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-192a`。
+
+## 2026-06-19
+- Phase5のexport計画境界として、動画object有無のsentinelを必須入力にした。
+- Red: `projectExportFrameCanvas` / `projectExportEncodePlan` に、`hasVideoObjects` がoptionalでも既定falseでもない契約を追加した。
+- Green: encode plan / frame source policy / frame source planの入力型から `hasVideoObjects?: boolean` と `hasVideoObjects = false` を削除し、非動画ケースも呼び出し側で明示するようにした。
+- 検証: `npm test -- projectExportFrameCanvas projectExportEncodePlan useProjectExportBoundary projectExportCompatibilityEncoder` は48件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-193a`。
