@@ -63,6 +63,8 @@ const upload: SharedRendererDecodedVideoFrameUpload & {
   rgbaBytes: new Uint8Array(8192),
   copyReport: {
     sequence: 42,
+    slotIndex: 0,
+    generation: 3,
     byteLen: 8192,
     expectedChecksum: 0x1234,
     actualChecksum: 0x1234,
@@ -92,13 +94,6 @@ const control: SharedRendererPreviewPresenterControl = {
     reason: 'noPsdScene',
     psdObjectIds: [],
   },
-  readPresentedFrameRgbaBytes: async () => ({
-    rgbaBytes: new Uint8Array(),
-    strideBytes: 0,
-    byteLen: 0,
-    width: 0,
-    height: 0,
-  }),
   dispose: vi.fn(),
 };
 
