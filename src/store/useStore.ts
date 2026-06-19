@@ -46,6 +46,7 @@ import {
   swapLayerTracks as applySwapLayerTracks
 } from '../utils/layerTrackOps';
 import type { CoreMlAnimalObservation } from '../utils/coremlTrackIpc';
+import type { ProjectExportFrameSourcePlanResult } from '../utils/projectExportFrameCanvas';
 import type { RustBackendNativeRenderOutputReleaseEvent } from '../utils/rustBackendVideoEncodeExport';
 import type { SharedRendererExportFrameSourceBlockedReason } from '../utils/sharedRendererExportFrameSource';
 
@@ -81,6 +82,8 @@ export interface ExportProgress {
   currentFrame: number;
   /** 総フレーム数。0 のときは不確定（プログレスバーを不確定表示）。 */
   totalFrames: number;
+  /** Rust/shared renderer frame source plan の失敗診断。 */
+  exportFrameSourcePlanFailure?: Pick<Extract<ProjectExportFrameSourcePlanResult, { ok: false }>, 'reason' | 'detail'>;
   /** Rust/shared renderer frame source がblockedになった時の診断。 */
   rustFrameSourceBlocked?: {
     reason: SharedRendererExportFrameSourceBlockedReason;
@@ -94,6 +97,7 @@ export interface ExportProgress {
 
 /** 書き出し終了後にも残すRust移行用診断。 */
 export interface ExportDiagnostics {
+  exportFrameSourcePlanFailure?: ExportProgress['exportFrameSourcePlanFailure'];
   rustFrameSourceBlocked?: ExportProgress['rustFrameSourceBlocked'];
   nativeRenderOutputRelease?: RustBackendNativeRenderOutputReleaseEvent;
 }
@@ -101,13 +105,18 @@ export interface ExportDiagnostics {
 const collectExportDiagnostics = (progress: ExportProgress | null): ExportDiagnostics | null => {
   if (!progress) return null;
   const diagnostics: ExportDiagnostics = {};
+  if (progress.exportFrameSourcePlanFailure) {
+    diagnostics.exportFrameSourcePlanFailure = progress.exportFrameSourcePlanFailure;
+  }
   if (progress.rustFrameSourceBlocked) {
     diagnostics.rustFrameSourceBlocked = progress.rustFrameSourceBlocked;
   }
   if (progress.nativeRenderOutputRelease) {
     diagnostics.nativeRenderOutputRelease = progress.nativeRenderOutputRelease;
   }
-  return diagnostics.rustFrameSourceBlocked || diagnostics.nativeRenderOutputRelease
+  return diagnostics.exportFrameSourcePlanFailure
+    || diagnostics.rustFrameSourceBlocked
+    || diagnostics.nativeRenderOutputRelease
     ? diagnostics
     : null;
 };

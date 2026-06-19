@@ -53,6 +53,10 @@ export const formatLastExportDiagnosticsSummary = (
 ): string[] => {
   if (!diagnostics) return [];
   const lines: string[] = [];
+  if (diagnostics.exportFrameSourcePlanFailure) {
+    const failure = diagnostics.exportFrameSourcePlanFailure;
+    lines.push(`Rust frame source plan: ${failure.reason}: ${failure.detail}`);
+  }
   if (diagnostics.rustFrameSourceBlocked) {
     lines.push(formatRustFrameSourceBlockedDiagnostic(diagnostics.rustFrameSourceBlocked, language));
   }

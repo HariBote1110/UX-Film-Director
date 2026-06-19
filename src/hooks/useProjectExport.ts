@@ -91,6 +91,15 @@ export const useProjectExport = (
         getExportCanvas,
       });
       if (!initialFrameSourcePlan.ok) {
+        setExportProgress({
+          phase: 'preparing',
+          currentFrame: 0,
+          totalFrames: 0,
+          exportFrameSourcePlanFailure: {
+            reason: initialFrameSourcePlan.reason,
+            detail: initialFrameSourcePlan.detail,
+          },
+        });
         alert(`エクスポート失敗: ${initialFrameSourcePlan.detail}`);
         setExporting(false);
         return;

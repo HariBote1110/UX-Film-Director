@@ -10,6 +10,11 @@ export const formatLastExportDiagnosticsLog = (
   if (!diagnostics) return null;
   const parts: string[] = [];
 
+  if (diagnostics.exportFrameSourcePlanFailure) {
+    const failure = diagnostics.exportFrameSourcePlanFailure;
+    parts.push(`frameSourcePlanFailure reason=${failure.reason} detail=${failure.detail}`);
+  }
+
   if (diagnostics.rustFrameSourceBlocked) {
     const blocked = diagnostics.rustFrameSourceBlocked;
     const blockedParts = [
