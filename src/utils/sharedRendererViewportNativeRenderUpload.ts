@@ -64,6 +64,7 @@ export type PrepareSharedRendererViewportNativeRenderUploadResult =
         | 'surfaceGateUnavailable'
         | 'nativeRenderSourcesUnavailable'
         | 'nativeRenderSourceReleaseUnavailable'
+        | 'nativeRenderSourceReleaseFailed'
         | 'nativeRenderUnsupportedMedia'
         | 'nativeRenderUnsupportedMediaOnly'
         | 'nativeRenderFailed'
@@ -137,7 +138,15 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
 
   const sourceReleaseBlock = resolveNativeRenderSourceReleaseUnavailable(nativeRenderSources);
   if (sourceReleaseBlock) {
-    await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+    const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+    if (releaseFailure) {
+      return {
+        ok: false,
+        reason: 'nativeRenderSourceReleaseFailed',
+        detail: releaseFailure,
+        activeJobs: activeRenderJobs,
+      };
+    }
     return {
       ok: false,
       reason: 'nativeRenderSourceReleaseUnavailable',
@@ -151,7 +160,15 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
     media: surfaceGate.media,
   });
   if (unsupportedNativeMedia) {
-    await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+    const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+    if (releaseFailure) {
+      return {
+        ok: false,
+        reason: 'nativeRenderSourceReleaseFailed',
+        detail: releaseFailure,
+        activeJobs: activeRenderJobs,
+      };
+    }
     return {
       ok: false,
       reason: 'nativeRenderUnsupportedMedia',
@@ -176,11 +193,27 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
       sources: renderSources,
     });
   } catch (error) {
-    await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+    const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+    if (releaseFailure) {
+      return {
+        ok: false,
+        reason: 'nativeRenderSourceReleaseFailed',
+        detail: releaseFailure,
+        activeJobs: activeRenderJobs,
+      };
+    }
     throw error;
   }
   if (!renderResponse.success || !renderResponse.result) {
-    await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+    const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+    if (releaseFailure) {
+      return {
+        ok: false,
+        reason: 'nativeRenderSourceReleaseFailed',
+        detail: releaseFailure,
+        activeJobs: activeRenderJobs,
+      };
+    }
     return {
       ok: false,
       reason: 'nativeRenderFailed',
@@ -203,13 +236,29 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
       releaseAfterUploadAbort: releaseNativeOutput,
     });
   } catch (error) {
-    await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+    const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
     await releaseNativeOutput();
+    if (releaseFailure) {
+      return {
+        ok: false,
+        reason: 'nativeRenderSourceReleaseFailed',
+        detail: releaseFailure,
+        activeJobs: activeRenderJobs,
+      };
+    }
     throw error;
   }
   if (!upload.ok) {
-    await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+    const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
     await releaseNativeOutput();
+    if (releaseFailure) {
+      return {
+        ok: false,
+        reason: 'nativeRenderSourceReleaseFailed',
+        detail: releaseFailure,
+        activeJobs: activeRenderJobs,
+      };
+    }
     return {
       ok: false,
       reason: 'uploadFailed',
@@ -262,8 +311,20 @@ const releaseNativeRenderSourcesAfterComplete = async (
 
 const releaseNativeRenderSourcesAfterAbort = async (
   sources: readonly SharedRendererViewportNativeRenderSource[]
-): Promise<void> => {
-  await Promise.all(
+): Promise<string | null> => {
+  const results = await Promise.allSettled(
     sources.map((source) => source.releaseAfterNativeRenderAbort?.() ?? Promise.resolve())
   );
+  const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+  return failed ? formatNativeRenderReleaseError(failed.reason) : null;
+};
+
+const formatNativeRenderReleaseError = (error: unknown): string => {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  if (typeof error === 'string' && error) {
+    return error;
+  }
+  return 'Rust native render source release failed.';
 };
