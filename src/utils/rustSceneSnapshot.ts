@@ -140,13 +140,14 @@ export const buildRustSceneSnapshotForTimeline = ({
 }: RustSceneSnapshotBuildInput): RustSceneSnapshotBuildResult => {
   const frameIndex = secondsToFrameIndex(time, projectSettings.fps);
   const visibleObjects = collectVisibleObjects(objects, layers, time);
-  const issues = collectBuildIssues(visibleObjects, time);
+  const visualObjects = visibleObjects.filter(isVisualSceneObject);
+  const issues = collectBuildIssues(visualObjects, time);
 
   if (issues.length > 0) {
     return { ok: false, issues };
   }
 
-  const supportedObjects = visibleObjects
+  const supportedObjects = visualObjects
     .filter(isSupportedSceneObject)
     .map((object, index) => ({ object, index }))
     .sort((left, right) => {
@@ -298,6 +299,9 @@ const isSupportedMediaObject = (object: TimelineObject): object is SupportedMedi
 
 const isSupportedSceneObject = (object: TimelineObject): object is SupportedSceneObject =>
   isSupportedMediaObject(object) || object.type === 'shape';
+
+const isVisualSceneObject = (object: TimelineObject): boolean =>
+  object.type !== 'audio';
 
 const isSupportedRectangleShape = (object: ShapeObject): boolean =>
   object.shapeType === 'rect';
