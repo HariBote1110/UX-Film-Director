@@ -93,6 +93,16 @@ describe('Viewport Rust video-only boundary', () => {
     expect(exportSourceBlock).toContain('presentedFrameSharedFrameTaker: context.presentedFrameSharedFrameTaker');
   });
 
+  it('threads Rust video-only mode into the Rust export frame source cutover gate', () => {
+    const code = viewportSource();
+    const start = code.indexOf('const getRustExportFrameSource = useCallback');
+    const end = code.indexOf('useProjectExport(', start);
+    const exportSourceBlock = code.slice(start, end);
+
+    expect(exportSourceBlock).toContain('videoCutoverEnabled: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled');
+    expect(exportSourceBlock).toContain('rustVideoOnlyEnabled');
+  });
+
   it('enables shared renderer video cutover by default and only disables it explicitly', () => {
     const code = viewportSource();
 
