@@ -162,13 +162,36 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
       resolvedJob = startResult;
     }
 
-    resolvedActiveJobs.push(resolvedJob);
-    const decodeResponse = await requestRustBackendVideoDecodeFrame({
+    const decodeFramePayload = {
       jobId: resolvedJob.jobId,
       requestId: resolvedRequestId,
       frameIndex: request.sourceFrame,
       mode: 'latestWins',
-    }, bridge);
+    } as const;
+    let decodeResponse = await requestRustBackendVideoDecodeFrame(decodeFramePayload, bridge);
+    if (!decodeResponse.success && activeMatch && isNoActiveDecodeSessionError(decodeResponse.error)) {
+      const restartResult = await startDecodeJob(nextJob, request, bridge);
+      if (isDecodeJobStartFailure(restartResult)) {
+        const preparedSourceReleaseFailure = await releasePreparedNativeRenderSourcesAfterAbort(sources);
+        if (preparedSourceReleaseFailure) {
+          return {
+            ok: false,
+            reason: 'preparedNativeRenderSourceAbortReleaseFailed',
+            detail: preparedSourceReleaseFailure,
+            activeJobs: resolvedActiveJobs,
+          };
+        }
+        return {
+          ok: false,
+          reason: 'startFailed',
+          detail: restartResult.detail,
+          activeJobs: resolvedActiveJobs,
+        };
+      }
+      resolvedJob = restartResult;
+      decodeResponse = await requestRustBackendVideoDecodeFrame(decodeFramePayload, bridge);
+    }
+    resolvedActiveJobs.push(resolvedJob);
     if (!decodeResponse.success) {
       const preparedSourceReleaseFailure = await releasePreparedNativeRenderSourcesAfterAbort(sources);
       if (preparedSourceReleaseFailure) {
@@ -306,6 +329,10 @@ const isDecodeJobStartFailure = (
   value: SharedRendererViewportVideoDecodeJob | { ok: false; detail: string }
 ): value is { ok: false; detail: string } =>
   'ok' in value && value.ok === false;
+
+const isNoActiveDecodeSessionError = (error: string | undefined): boolean =>
+  typeof error === 'string'
+  && error.toLowerCase().includes('no active decode session');
 
 const buildStaleDecodedFrameDetail = (
   result: {

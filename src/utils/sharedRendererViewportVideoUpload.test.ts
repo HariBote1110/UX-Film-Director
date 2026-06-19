@@ -725,6 +725,155 @@ describe('sharedRendererViewportVideoUpload', () => {
     ]);
   });
 
+  it('restarts a cached Rust decode job when the backend no longer has its active session', async () => {
+    const calls: unknown[] = [];
+    let requestCount = 0;
+    const activeJob: SharedRendererViewportVideoDecodeJob = {
+      jobId: expectedJobId,
+      source: '/tmp/gopro clip.mp4',
+      slotCount: 2,
+      width: 64,
+      height: 32,
+      sourceRate: {
+        numerator: 60,
+        denominator: 1,
+      },
+    };
+    const rustBackendBridge: RustBackendVideoDecodeBridge = {
+      startVideoDecode: async (payload) => {
+        calls.push(['startVideoDecode', payload]);
+        return { success: true };
+      },
+      requestVideoDecodeFrame: async (payload) => {
+        calls.push(['requestVideoDecodeFrame', payload]);
+        requestCount += 1;
+        if (requestCount === 1) {
+          return {
+            success: false,
+            error: 'No active decode session',
+          };
+        }
+        return {
+          success: true,
+          result: {
+            accepted: true,
+            jobId: payload.jobId,
+            requestId: payload.requestId,
+            frameIndex: payload.frameIndex,
+            mode: payload.mode,
+            frame: {
+              descriptor: {
+                memoryId: '/uxfd-node-video-ring',
+                slotIndex: 0,
+                generation: 3,
+                byteOffset: 0,
+                byteLen: 8192,
+                width: 64,
+                height: 32,
+                strideBytes: 256,
+                format: 'rgba8Srgb',
+                colour: {
+                  primaries: 'bt709',
+                  transfer: 'srgb',
+                  matrix: 'rgb',
+                  range: 'full',
+                },
+              },
+              ptsFrame: payload.frameIndex,
+            },
+            verification: {
+              frameIndex: payload.frameIndex,
+              checksum: {
+                algorithm: 'crc32',
+                valueHex: '12345678',
+                byteLen: 8192,
+              },
+              status: 'withinTolerance',
+            },
+          },
+        };
+      },
+      releaseVideoDecodeFrame: async (payload) => {
+        calls.push(['releaseVideoDecodeFrame', payload]);
+        return { success: true };
+      },
+      stopVideoDecode: async (payload) => {
+        calls.push(['stopVideoDecode', payload]);
+        return { success: true };
+      },
+    };
+    const copyBridge: SharedVideoFrameCopyBridge = {
+      copyIntoUploadBuffer: async (payload, target) => {
+        calls.push(['copyIntoUploadBuffer', payload, target.byteLength]);
+        target.fill(0x6a);
+        return {
+          success: true,
+          result: {
+            sequence: payload.ptsFrame,
+            slotIndex: payload.slotIndex,
+            generation: payload.generation,
+            byteLen: target.byteLength,
+            expectedChecksum: 0x1234,
+            actualChecksum: 0x1234,
+          },
+        };
+      },
+    };
+
+    const result = await prepareSharedRendererViewportVideoUploads({
+      session,
+      requestId: 82,
+      slotCount: 2,
+      activeJobs: [activeJob],
+      rustBackendBridge,
+      copyBridge,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected cached job restart to recover the upload');
+    expect(result.activeJobs).toEqual([activeJob]);
+    expect(calls).toEqual([
+      ['requestVideoDecodeFrame', {
+        jobId: expectedJobId,
+        requestId: 82,
+        frameIndex: 42,
+        mode: 'latestWins',
+      }],
+      ['startVideoDecode', {
+        jobId: expectedJobId,
+        source: '/tmp/gopro clip.mp4',
+        slotCount: 2,
+        width: 64,
+        height: 32,
+        sourceRate: {
+          numerator: 60,
+          denominator: 1,
+        },
+        format: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      }],
+      ['requestVideoDecodeFrame', {
+        jobId: expectedJobId,
+        requestId: 82,
+        frameIndex: 42,
+        mode: 'latestWins',
+      }],
+      ['copyIntoUploadBuffer', {
+        memoryId: '/uxfd-node-video-ring',
+        slotCount: 2,
+        slotByteLen: 8192,
+        slotIndex: 0,
+        generation: 3,
+        ptsFrame: 42,
+      }, 8192],
+    ]);
+  });
+
   it('starts Rust decode, requests the visible frame, and prepares a WebGPU upload object', async () => {
     const { calls, rustBackendBridge, copyBridge } = createBridges();
 

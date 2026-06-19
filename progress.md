@@ -1,3 +1,20 @@
+## 2026-06-20 — Rust decode session喪失時のpreview復旧を追加
+
+### 実施内容
+- Red: UI側active job cacheは残っているがRust backend側のdecode sessionが消えて `No active decode session` を返すケースを、動画upload経路とnative render source経路の両方で追加した。
+- Green: `requestFrame` が `No active decode session` を返した場合、同じjobId/source/sizeで `decode.start` を再実行し、同じframe requestを再試行するようにした。
+- `requiredVideoOwnershipUnavailable` / `nativeRenderSourcesUnavailable` / `frameDecodeFailed` が、backend session喪失だけで発生してpreviewをblockedにする状態を復旧できるようにした。
+- 版を `0.1.1-Beta-219d` に更新した。
+
+### 検証
+- `npm test -- sharedRendererViewportVideoUpload sharedRendererViewportNativeRenderSource`
+- `npm test -- sharedRendererViewportVideoUpload sharedRendererViewportNativeRenderSource sharedRendererViewportNativeRenderUpload sharedRendererPreviewPresenterController sharedRendererWebGpuPresenter`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportVideoUpload\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/sharedRendererViewportVideoUpload\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.test\\.ts)"`
+- `npm run test:video-load:e2e`
+
+### 残課題・次のステップ
+- 既存の実ウィンドウに古いrenderer codeが残っている場合は、dev server再起動またはウィンドウreload後に復旧挙動を確認する。
+
 ## 2026-06-20 — Electron実ウィンドウ動画読込E2EをGreen化
 
 ### 実施内容

@@ -209,13 +209,36 @@ export const prepareSharedRendererViewportVideoUploads = async ({
       resolvedJob = startResult;
     }
 
-    resolvedActiveJobs.push(resolvedJob);
-    const decodeResponse = await requestRustBackendVideoDecodeFrame({
+    const decodeFramePayload = {
       jobId: resolvedJob.jobId,
       requestId: resolvedRequestId,
       frameIndex: request.sourceFrame,
       mode: 'latestWins',
-    }, rustBackendBridge);
+    } as const;
+    let decodeResponse = await requestRustBackendVideoDecodeFrame(decodeFramePayload, rustBackendBridge);
+    if (!decodeResponse.success && activeMatch && isNoActiveDecodeSessionError(decodeResponse.error)) {
+      const restartResult = await startDecodeJob(nextJob, request, rustBackendBridge);
+      if (isDecodeJobStartFailure(restartResult)) {
+        const abortReleaseFailure = await releasePreparedViewportVideoUploadsAfterAbort(uploads);
+        if (abortReleaseFailure) {
+          return {
+            ok: false,
+            reason: 'uploadAbortReleaseFailed',
+            detail: abortReleaseFailure,
+            activeJobs: resolvedActiveJobs,
+          };
+        }
+        return {
+          ok: false,
+          reason: 'startFailed',
+          detail: restartResult.detail,
+          activeJobs: resolvedActiveJobs,
+        };
+      }
+      resolvedJob = restartResult;
+      decodeResponse = await requestRustBackendVideoDecodeFrame(decodeFramePayload, rustBackendBridge);
+    }
+    resolvedActiveJobs.push(resolvedJob);
     if (!decodeResponse.success) {
       const abortReleaseFailure = await releasePreparedViewportVideoUploadsAfterAbort(uploads);
       if (abortReleaseFailure) {
@@ -390,12 +413,25 @@ export const prepareSharedRendererViewportVideoUpload = async ({
     };
   }
 
-  const decodeResponse = await requestRustBackendVideoDecodeFrame({
+  const decodeFramePayload = {
     jobId: resolvedJob.jobId,
     requestId: requestId ?? session.surfaceGate.snapshot.frame_index,
     frameIndex: request.sourceFrame,
     mode: 'latestWins',
-  }, rustBackendBridge);
+  } as const;
+  let decodeResponse = await requestRustBackendVideoDecodeFrame(decodeFramePayload, rustBackendBridge);
+  if (!decodeResponse.success && sameDecodeJob(activeJob, nextJob) && isNoActiveDecodeSessionError(decodeResponse.error)) {
+    const restartResult = await startDecodeJob(nextJob, request, rustBackendBridge);
+    if (isDecodeJobStartFailure(restartResult)) {
+      return {
+        ok: false,
+        reason: 'startFailed',
+        detail: restartResult.detail,
+        activeJob,
+      };
+    }
+    decodeResponse = await requestRustBackendVideoDecodeFrame(decodeFramePayload, rustBackendBridge);
+  }
   if (!decodeResponse.success) {
     return {
       ok: false,
@@ -521,6 +557,10 @@ const isDecodeJobStartFailure = (
   value: SharedRendererViewportVideoDecodeJob | { ok: false; detail: string }
 ): value is { ok: false; detail: string } =>
   'ok' in value && value.ok === false;
+
+const isNoActiveDecodeSessionError = (error: string | undefined): boolean =>
+  typeof error === 'string'
+  && error.toLowerCase().includes('no active decode session');
 
 const buildStaleDecodedFrameDetail = (
   result: {
