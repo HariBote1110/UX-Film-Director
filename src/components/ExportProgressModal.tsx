@@ -101,6 +101,11 @@ const formatRustFrameSourceBlockedReason = (
       ? 'shared renderer実出力なし'
       : 'shared renderer output unavailable';
   }
+  if (reason === 'webGpuDrawUnavailable') {
+    return language === 'ja'
+      ? 'WebGPU描画不可'
+      : 'WebGPU draw unavailable';
+  }
   return reason;
 };
 
