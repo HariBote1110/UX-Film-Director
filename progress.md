@@ -4502,3 +4502,19 @@
 ### 残課題・次のステップ
 - releasePreparedViewportVideoUploadsAfterAbort の複数slot abort時に、途中のrelease失敗で後続slotのreleaseが止まらないよう集約診断を検討する。
 - 実機GoPro素材で stale response / release failure diagnostics がUI・dataset上で追えるか確認する。
+
+## 2026-06-19 — prepared upload abort releaseを全件試行
+
+### 実施内容
+- Red: 複数video uploadで後続clipのuploadが失敗した際、準備済みslotのabort releaseが途中で失敗しても、残りのslot releaseを試行する契約を追加した。
+- Green: `releasePreparedViewportVideoUploadsAfterAbort` を全件試行・最初の失敗メッセージ返却に変更した。
+- abort release失敗時は `uploadAbortReleaseFailed` として返し、release漏れを単なる `uploadFailed` に隠さないようにした。
+- 版を `0.1.1-Beta-208g` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/sharedRendererRustVideoUploadPipeline.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererViewportVideoUpload|sharedRendererRustVideoUploadPipeline|sharedRendererPreviewPresenterController"`
+
+### 残課題・次のステップ
+- native render source側で複数source abort releaseを行う経路にも、全件試行・失敗集約が必要か確認する。
+- 実機GoPro素材で複数動画や失敗時release diagnosticsを確認する。

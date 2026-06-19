@@ -228,6 +228,8 @@ Rust backend integration gate:
   preview upload / native render source ともに `staleDecodeReleaseFailed` で分離して診断する。
 - 複数動画uploadで後続clipが失敗した場合も、すでに準備済みの先行upload objectへ
   `releaseAfterUploadAbort` を流し、全ての未提示decoded slotを `rendererUploadAborted` へ戻す。
+  abort releaseの途中で失敗しても後続slotのrelease試行は止めず、最初のrelease失敗を
+  `uploadAbortReleaseFailed` として返す。
 - Viewport orchestration は decode job が解決した時点で active job ref を更新し、effect cancellation 後の
   `decode.start` 連打を避ける。複数動画では active jobs を配列で保持し、見えていない stale job は
   `decode.stop` で破棄する。
