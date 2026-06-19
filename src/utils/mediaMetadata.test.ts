@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getElectronFilePath,
   mergeResolvedVideoMetadata,
+  resolveVideoImportSource,
   toFileProtocolUrl,
 } from './mediaMetadata';
 
@@ -111,5 +112,79 @@ describe('resolveVideoMetadata browser video boundary', () => {
 
     expect(code).toContain("document.createElement('video')");
     expect(code).toContain('loadVideoElementMetadata');
+  });
+
+  it('materialises the selected file for Rust probing when Electron does not expose a file path', async () => {
+    const previousWindow = globalThis.window;
+    const previousDocument = globalThis.document;
+    const file = new File([new Uint8Array([1, 2, 3, 4])], 'GX020052.MP4', { type: 'video/mp4' });
+    const calls: Array<{ channel: string; payload: Record<string, unknown> }> = [];
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        electronFile: {
+          getPathForFile: () => '',
+        },
+        ipcRenderer: {
+          invoke: async (channel: string, payload: Record<string, unknown>) => {
+            calls.push({ channel, payload });
+            if (channel === 'probe-media') {
+              const filePath = payload.filePath as string;
+              if (filePath === '/tmp/uxfd-import/GX020052.MP4') {
+                return {
+                  success: true,
+                  result: {
+                    filePath,
+                    duration: 30.25,
+                    width: 3840,
+                    height: 2160,
+                    hasAudio: true,
+                    hasVideo: true,
+                    ffprobePath: 'ffprobe',
+                  },
+                };
+              }
+              return { success: false, error: 'direct path unavailable' };
+            }
+            if (channel === 'materialise-media-file') {
+              expect(payload.fileName).toBe('GX020052.MP4');
+              expect(payload.data).toBeInstanceOf(ArrayBuffer);
+              return { success: true, filePath: '/tmp/uxfd-import/GX020052.MP4' };
+            }
+            throw new Error(`unexpected channel: ${channel}`);
+          },
+        },
+      },
+    });
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: {
+        createElement: () => {
+          throw new Error('browser metadata fallback should not be used');
+        },
+      },
+    });
+
+    await expect(resolveVideoImportSource(file, 'blob:video')).resolves.toEqual({
+      filePath: '/tmp/uxfd-import/GX020052.MP4',
+      metadata: {
+        duration: 30.25,
+        width: 3840,
+        height: 2160,
+      },
+    });
+    expect(calls.map((call) => call.channel)).toEqual([
+      'materialise-media-file',
+      'probe-media',
+    ]);
+
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: previousWindow,
+    });
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: previousDocument,
+    });
   });
 });
