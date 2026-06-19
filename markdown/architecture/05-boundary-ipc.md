@@ -163,7 +163,9 @@ Rust backend integration gate:
 - viewport presenter orchestration test fixtureも `readPresentedFrameRgbaBytes` を持たず、production controlの公開面に揃える。
 - Rust backend は unix 環境で attach 可能な POSIX shared memory name を `memoryId` として返し、
   decoded RGBA を shared memory ring へ書く。
-- `decode.releaseFrame` は WebGPU upload fence 完了後の `copyOutState=gpuUploadFenceSignalled` でのみ slot を解放する。
+- `decode.releaseFrame` は consumer の最終状態を明示して slot を解放する。正常にconsumerがframeを消費した場合は
+  `copyOutState=gpuUploadFenceSignalled`、copy / upload / native renderが途中で捨てる場合は
+  `copyOutState=rendererUploadAborted` を使う。
 - backend integration は `slotCount` と同じ multi-slot POSIX shm layout を作成し、先行 frame が `READING` でも
   後続 frame を別 slot へ書ける。
 - renderer presenter は bridge から渡される decoded RGBA `Uint8Array` を、`descriptor.strideBytes` を
@@ -176,6 +178,9 @@ Rust backend integration gate:
   `slotByteLen` / `slotIndex` / `generation` / `ptsFrame` で、frame bytes は renderer-owned `Uint8Array` target にだけ入る。
 - renderer utility は verified decoded frame response から upload buffer を準備し、GPU upload fence 後に
   `decode.releaseFrame(copyOutState=gpuUploadFenceSignalled)` を呼ぶ release callback を組み立てる。
+- export native render source は verified decoded frame descriptor を Rust backend native renderer へ渡した後、
+  render成功時に `gpuUploadFenceSignalled`、render失敗・unsupported block・例外時に
+  `rendererUploadAborted` で `decode.releaseFrame` を単回実行する。
 - `shared-video-frame-bridge-node` は Rust core を N-API addon として wrap し、Node 直 require では
   `Uint8Array` target を in-place mutation できる。
 - preload は native module を `UXFD_SHARED_VIDEO_FRAME_BRIDGE_MODULE` で差し込む形を維持し、未接続時は fail-loud とする。

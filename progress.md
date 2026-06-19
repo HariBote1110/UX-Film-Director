@@ -4196,3 +4196,19 @@
 ### 残課題・次のステップ
 - `nativeRenderEnvelope` をexport source / Viewport diagnosticsへ接続し、session構築時点とframe render時点のnative render内訳が一致するかを確認できるようにする。
 - 実機のGoPro動画 + PSD overlayで、preview/export双方のdatasetが `Video,Psd` / `video-1` 相当を示すか確認する。
+
+## 2026-06-19 — native render source decoded slotのrelease所有権を追加
+
+### 実施内容
+- Red: Rust native render source準備後に、decoded source slotを成功時 `gpuUploadFenceSignalled`、失敗時 `rendererUploadAborted` でreleaseする契約を追加した。
+- Green: `SharedRendererViewportNativeRenderSource` に `releaseAfterNativeRenderComplete` / `releaseAfterNativeRenderAbort` を追加し、単回release helperで二重解放を防いだ。
+- export native render成功時はsourceをcomplete releaseし、native render失敗・unsupported media block・例外時はabort releaseするようにした。
+- 版を `0.1.1-Beta-200a` に更新した。
+
+### 検証
+- `npm test -- sharedRendererViewportNativeRenderSource sharedRendererExportFrameSource`
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererViewportNativeRenderSource|sharedRendererExportFrameSource"`
+
+### 残課題・次のステップ
+- native render output側のencode失敗時releaseと、source decoded slot releaseの診断を同一datasetで追えるようにする。
+- 実機のGoPro動画で、native render失敗後もdecode slotが枯渇しないことをsmokeで確認する。
