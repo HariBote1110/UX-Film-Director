@@ -179,6 +179,34 @@ describe('sharedVideoFrameUploadBridge', () => {
     });
   });
 
+  it('rejects bridge copy reports whose checksum verification failed', async () => {
+    const bridge: SharedVideoFrameCopyBridge = {
+      copyIntoUploadBuffer: async () => ({
+        success: true,
+        result: {
+          sequence: 42,
+          slotIndex: 1,
+          generation: 9,
+          byteLen: 512,
+          expectedChecksum: 0x1234,
+          actualChecksum: 0x5678,
+        },
+      }),
+    };
+
+    await expect(prepareSharedRendererDecodedVideoFrameUpload({
+      sharedFrame,
+      slotCount: 2,
+      bridge,
+    })).resolves.toEqual({
+      ok: false,
+      reason: 'copyReportChecksumMismatch',
+      detail: 'Shared video frame copy report checksum verification failed.',
+      expectedChecksum: 0x1234,
+      actualChecksum: 0x5678,
+    });
+  });
+
   it('rejects descriptors outside the declared shared ring before copying bytes', async () => {
     const calls: unknown[] = [];
     const bridge: SharedVideoFrameCopyBridge = {
