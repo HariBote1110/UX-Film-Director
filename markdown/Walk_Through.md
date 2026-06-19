@@ -991,3 +991,16 @@
 - `npm test -- sharedRendererPreviewPresenterController` を実行し、Redでmulti-videoが単一uploadから `ok: true` になる失敗を確認した。
 - `npm test -- sharedRendererPreviewPresenterController` を再実行し、33件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 82. Phase5: fallback時のvideo upload失敗診断を保持
+- `src/utils/sharedRendererPresenterDiagnostics.test.ts`
+- presenter fallback時にも `videoUploadFailureReason` / `detail` / `clipId` / `mediaId` をdatasetへ残す契約を追加した。
+- `src/utils/sharedRendererPresenterDiagnostics.ts`
+- fallback分岐でvideo upload失敗診断を書き出すようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-211a` に更新した。
+
+## 確認
+- `npm test -- sharedRendererPresenterDiagnostics` を実行し、Redでfallback時のvideo upload失敗診断が未設定になる失敗を確認した。
+- `npm test -- sharedRendererPresenterDiagnostics sharedRendererPreviewPresenterController` を再実行し、42件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

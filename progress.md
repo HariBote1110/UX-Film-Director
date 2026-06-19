@@ -1,3 +1,20 @@
+## 2026-06-19 — fallback時のvideo upload失敗診断を保持
+
+### 実施内容
+- Red: presenter fallback時にも `videoUploadFailureReason` / `detail` / `clipId` / `mediaId` をdatasetへ残す契約を追加した。
+- Green: `writeSharedRendererPresenterDiagnostics` のfallback分岐でvideo upload失敗診断を書き出すようにした。
+- multi-videoで単一uploadを拒否した場合やRust必須video ownership失敗時に、失敗理由が実機datasetから消えないようにした。
+- 版を `0.1.1-Beta-211a` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPresenterDiagnostics`
+- `npm test -- sharedRendererPresenterDiagnostics sharedRendererPreviewPresenterController`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- multi-videoで不足clipがある場合に、どのclipのdecoded uploadが不足したかをpreview/exportのUIへさらに見えやすくする。
+- 実機GoPro素材で `videoUploadFailureReason` と `videoCutoverReason` の組み合わせを確認し、Rust経路の詰まりをdatasetから追えるか検証する。
+
 ## 2026-06-19 — multi-videoで単一upload所有を拒否
 
 ### 実施内容
