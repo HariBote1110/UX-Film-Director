@@ -1408,6 +1408,64 @@ describe('createSharedRendererExportFrameSource', () => {
     });
   });
 
+  it('preserves prepared native render source abort release failures as export block reasons', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      bitmapCaptureEnabled: false,
+      nativeRenderRequired: true,
+      prepareNativeRenderSources: async () => ({
+        ok: false,
+        reason: 'preparedNativeRenderSourceAbortReleaseFailed',
+        detail: 'prepared native render source abort release failed',
+        activeJobs: [decodeJob('prepared-abort-failed-video')],
+      }),
+      renderNativeSharedFrame: async () => {
+        throw new Error('native renderer must not run after source preparation failed.');
+      },
+      startViewportPresenter: async () => {
+        throw new Error('WebGPU presenter must not start after source preparation failed.');
+      },
+    } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
+      prepareNativeRenderSources: unknown;
+      renderNativeSharedFrame: unknown;
+    });
+
+    const blocked = await source.renderEncodeFrame?.({
+      frameIndex: 7,
+      timestampUs: 116_667,
+      time: 7 / 60,
+      width: 4,
+      height: 4,
+      objects: [video()],
+      encodeSessionId: 'prepared-abort-failure-session',
+    }).catch((error) => error);
+
+    expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
+    expect(blocked).toMatchObject({
+      fallbackToLegacyCanvas: true,
+      reason: 'preparedNativeRenderSourceAbortReleaseFailed',
+      frameIndex: 7,
+      message: 'prepared native render source abort release failed',
+    });
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'blocked',
+      uxfdRustExportFrameSourceFrameIndex: '7',
+      uxfdRustExportFrameSourceFrameReason: 'preparedNativeRenderSourceAbortReleaseFailed',
+    });
+  });
+
   it('releases export native render output when source complete release fails', async () => {
     const canvas = {
       width: 1,
