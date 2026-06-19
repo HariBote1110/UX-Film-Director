@@ -1,3 +1,19 @@
+## 2026-06-19 — export動画upload失敗detailへ低レベル理由を追加
+
+### 実施内容
+- Red: `sharedRendererExportFrameSource` に、Rust video upload失敗でexportがblockedになる場合、`copyReportChecksumMismatch` をmessageへ含める契約を追加した。
+- Green: `resolveExportVideoUploadBlock` が `uploadFailureReason` を保持している場合は `copyReportChecksumMismatch: ...` の形式でblocked detailを返すようにした。
+- preview診断だけでなく、書き出し失敗時にもRust/shared memory copyの拒否理由を追えるようにした。
+- 版を `0.1.1-Beta-209b` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSource`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- Rust backend/native bridge側のchecksum report生成テストを再実行し、renderer/exportのfail-loud契約と一致していることを確認する。
+- 実機GoPro素材でpreview datasetとexport blocked errorの両方に失敗理由が現れることを確認する。
+
 ## 2026-06-19 — presenter動画upload失敗診断を追加
 
 ### 実施内容

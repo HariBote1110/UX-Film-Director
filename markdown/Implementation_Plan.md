@@ -225,6 +225,8 @@ Rust backend `decode.start` / `decode.requestFrame` / shared memory copy を行�
 保持した失敗理由は `uxfdSharedRendererPresenterVideoUploadFailureReason` /
 `uxfdSharedRendererPresenterVideoUploadFailureDetail` としてpresenter datasetへ公開し、Pixi fallback中でも
 Rust data-plane側の拒否理由を追跡できるようにする。
+export frame sourceがこの失敗でblockedになる場合も、blocked errorのdetailへ低レベル
+`uploadFailureReason` を含め、書き出し失敗時にRust/shared memory copy側の拒否理由を失わない。
 
 47. Phase5: shared video frame native addon の自動解決を追加する
 preload は `UXFD_SHARED_VIDEO_FRAME_BRIDGE_MODULE` を最優先し、未指定時は dev build output
