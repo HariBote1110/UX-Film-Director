@@ -19,6 +19,25 @@ export interface RustBackendVideoEncodeSharedFramePayloadFrame {
   };
 }
 
+export type RustBackendNativeRenderOutputReleaseReason =
+  | 'encodeWriteFailed';
+
+export type RustBackendNativeRenderOutputReleaseEvent =
+  | {
+      status: 'released';
+      memoryId: string;
+      reason: RustBackendNativeRenderOutputReleaseReason;
+    }
+  | {
+      status: 'missingBridge';
+      memoryId: string;
+      reason: RustBackendNativeRenderOutputReleaseReason;
+    }
+  | {
+      status: 'skipped';
+      reason: RustBackendNativeRenderOutputReleaseReason;
+    };
+
 export type RustBackendVideoEncodeFrame =
   | RustBackendVideoEncodeRenderedFrame
   | RustBackendVideoEncodeSharedFramePayloadFrame;
@@ -33,6 +52,9 @@ export interface RunRustBackendVideoEncodeExportInput {
   sessionId?: string;
   encoderBridge?: RustBackendVideoEncodeBridge;
   nativeRenderBridge?: RustBackendNativeRenderOutputReleaseBridge;
+  onNativeRenderOutputRelease?: (
+    event: RustBackendNativeRenderOutputReleaseEvent
+  ) => void;
 }
 
 interface RustBackendNativeRenderOutputReleaseBridge {
@@ -70,6 +92,7 @@ export const runRustBackendVideoEncodeExport = async ({
   sessionId = createDefaultSessionId(),
   encoderBridge = window.rustVideoEncoder,
   nativeRenderBridge,
+  onNativeRenderOutputRelease,
 }: RunRustBackendVideoEncodeExportInput): Promise<RunRustBackendVideoEncodeExportResult> => {
   const startResponse = await startRustBackendVideoEncode({
     sessionId,
@@ -98,11 +121,21 @@ export const runRustBackendVideoEncodeExport = async ({
     try {
       writeResponse = await writeRustBackendVideoEncodeFrame(frame.sharedFramePayload, encoderBridge);
     } catch (error) {
-      await releaseNativeRenderOutputAfterEncodeFailure(frame, nativeRenderBridge);
+      await releaseNativeRenderOutputAfterEncodeFailure(
+        frame,
+        'encodeWriteFailed',
+        nativeRenderBridge,
+        onNativeRenderOutputRelease
+      );
       throw error;
     }
     if (!writeResponse.success) {
-      await releaseNativeRenderOutputAfterEncodeFailure(frame, nativeRenderBridge);
+      await releaseNativeRenderOutputAfterEncodeFailure(
+        frame,
+        'encodeWriteFailed',
+        nativeRenderBridge,
+        onNativeRenderOutputRelease
+      );
     }
     assertBridgeSuccess(
       writeResponse.success,
@@ -129,13 +162,36 @@ const isSharedFramePayloadFrame = (
 
 const releaseNativeRenderOutputAfterEncodeFailure = async (
   frame: RustBackendVideoEncodeSharedFramePayloadFrame,
-  bridge?: RustBackendNativeRenderOutputReleaseBridge
+  reason: RustBackendNativeRenderOutputReleaseReason,
+  bridge?: RustBackendNativeRenderOutputReleaseBridge,
+  onNativeRenderOutputRelease?: (
+    event: RustBackendNativeRenderOutputReleaseEvent
+  ) => void
 ): Promise<void> => {
-  if (frame.releaseAfterEncodeFailure?.kind !== 'nativeRenderOutput') return;
+  if (frame.releaseAfterEncodeFailure?.kind !== 'nativeRenderOutput') {
+    onNativeRenderOutputRelease?.({
+      status: 'skipped',
+      reason,
+    });
+    return;
+  }
+  const { memoryId } = frame.releaseAfterEncodeFailure;
   const releaseBridge = bridge ?? (typeof window !== 'undefined' ? window.rustBackend : undefined);
-  if (!releaseBridge || typeof releaseBridge.releaseNativeSharedFrame !== 'function') return;
+  if (!releaseBridge || typeof releaseBridge.releaseNativeSharedFrame !== 'function') {
+    onNativeRenderOutputRelease?.({
+      status: 'missingBridge',
+      memoryId,
+      reason,
+    });
+    return;
+  }
 
   await releaseBridge.releaseNativeSharedFrame({
-    memoryId: frame.releaseAfterEncodeFailure.memoryId,
+    memoryId,
+  });
+  onNativeRenderOutputRelease?.({
+    status: 'released',
+    memoryId,
+    reason,
   });
 };
