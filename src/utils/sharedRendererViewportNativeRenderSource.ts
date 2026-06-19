@@ -198,7 +198,7 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
         slotIndex: frame.descriptor.slotIndex,
         generation: frame.descriptor.generation,
         copyOutState,
-      }, bridge).then(() => undefined));
+      }, bridge).then(assertNativeRenderSourceReleaseSucceeded));
 
     sources.push({
       mediaId: request.mediaId,
@@ -214,6 +214,12 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
     activeJobs: resolvedActiveJobs,
     sources,
   };
+};
+
+const assertNativeRenderSourceReleaseSucceeded = (result: { success: boolean; error?: string }): void => {
+  if (!result.success) {
+    throw new Error(result.error ?? 'Rust backend native render source release failed.');
+  }
 };
 
 const startDecodeJob = async (
