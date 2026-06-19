@@ -1105,3 +1105,16 @@
 - `npm test -- exportProgress` を実行し、Redで `lastExportDiagnostics` が存在しない失敗を確認した。
 - `npm test -- exportProgressDiagnostics useProjectExportBoundary ExportProgressModal exportProgress` を再実行し、40件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/store/useStore\\.ts|src/store/exportProgress\\.test\\.ts|src/utils/exportProgressDiagnostics\\.ts|src/hooks/useProjectExport\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 90. Phase5: Rust block reasonの表示ラベルを追加
+- `src/components/ExportProgressModal.test.ts`
+- `nativeRenderSourceReleaseFailed` と `presentedSharedFrameHandoffFailed` をraw reasonではなく読める診断ラベルで表示する契約を追加した。
+- `src/components/ExportProgressModal.tsx`
+- Rust frame source blocked formatterへnative render source release失敗とpresented shared-frame handoff失敗のラベルを追加した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-211h` に更新した。
+
+## 確認
+- `npm test -- ExportProgressModal` を実行し、Redでraw reasonが表示される失敗を確認した。
+- `npm test -- exportProgressDiagnostics useProjectExportBoundary ExportProgressModal exportProgress` を再実行し、42件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/store/useStore\\.ts|src/store/exportProgress\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

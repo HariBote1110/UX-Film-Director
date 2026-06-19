@@ -1,3 +1,20 @@
+## 2026-06-19 — Rust block reasonの表示ラベルを追加
+
+### 実施内容
+- Red: `nativeRenderSourceReleaseFailed` と `presentedSharedFrameHandoffFailed` をraw reasonではなく読める診断ラベルで表示する契約を追加した。
+- Green: `ExportProgressModal` のRust frame source blocked formatterへnative render source release失敗とpresented shared-frame handoff失敗のラベルを追加した。
+- native render output/source release失敗とshared-frame handoff失敗をUI診断で切り分けやすくした。
+- 版を `0.1.1-Beta-211h` に更新した。
+
+### 検証
+- `npm test -- ExportProgressModal`
+- `npm test -- exportProgressDiagnostics useProjectExportBoundary ExportProgressModal exportProgress`
+- `npx tsc --noEmit 2>&1 | rg "(src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/store/useStore\\.ts|src/store/exportProgress\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- `lastExportDiagnostics` を開発者向けUIまたは診断ログへ表示/出力する導線を追加する。
+- Rust frame source ready時のbrowser fallback遮断を統合テストで固定する。
+
 ## 2026-06-19 — export終了後にRust診断を保持
 
 ### 実施内容
