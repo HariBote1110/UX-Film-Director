@@ -1516,6 +1516,21 @@
 - `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress` を実行し、72件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgress\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 120. Phase5: native render source準備失敗ではRust必須時のlegacy fallbackを禁止
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- `prepareNativeRenderSources` が `staleDecodeResponse` で失敗した場合、`nativeRenderFailed` blockで `fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。
+- `src/utils/sharedRendererExportFrameSource.ts`
+- source準備一般失敗で `nativeRenderFailed` に丸める場合も、Rust/native render必須時はlegacy canvas fallbackを禁止するようにした。
+- 互換モードでnative renderが任意の場合だけ、従来のfallback許可を維持する。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-215x` に更新した。
+
+## 確認
+- `npm test -- sharedRendererExportFrameSource` を実行し、Redでsource準備失敗時もlegacy fallbackが許可される失敗を確認した。
+- `npm test -- sharedRendererExportFrameSource` を再実行し、42件成功を確認した。
+- `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress` を実行し、73件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgress\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。

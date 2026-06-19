@@ -1290,6 +1290,11 @@ Rust video upload失敗、stale decode response、Pixi ownership残留、uploade
 `videoUploadFailed` / `videoOwnershipUnavailable` が発生した場合、`legacyCanvasFallbackAllowed=false` で返す。
 Rust decode/upload/ownership cutoverが成立していない動画exportを、Pixi/legacy captureで成功扱いにしない。
 
+235. Phase5: native render source準備失敗ではRust必須時のlegacy fallbackを禁止する
+`prepareNativeRenderSources` がstale decode responseなどで失敗し `nativeRenderFailed` に丸められる場合も、
+動画encode frameや `nativeRenderRequired=true` のRust/native render必須経路では `legacyCanvasFallbackAllowed=false` で返す。
+Rust decode/source準備が成立しない状態を、Pixi/legacy captureで成功扱いにしない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
