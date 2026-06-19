@@ -51,6 +51,10 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     expect(existsSync(new URL('./frameProvider.ts', import.meta.url))).toBe(false);
   });
 
+  it('keeps stale Pixi export overlay canvas utilities out of production utils', () => {
+    expect(existsSync(new URL('./exportOverlayCanvases.ts', import.meta.url))).toBe(false);
+  });
+
   it('resolves Rust frame source context outside the hook body', () => {
     const code = source();
 
