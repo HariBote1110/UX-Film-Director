@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のpreview診断として、実出力必須時のnative render frame presentation失敗を `fallback` ではなく `blocked` として出すようにした。
+- Red: `sharedRendererPreviewPresenterController` のテストへ、native render texture view欠落時の `nativeRenderTextureViewUnavailable` がblocked診断になる契約を追加した。
+- Green: native render frame presentation失敗時のdiagnostics statusを、実出力必須時だけ `blocked` に切り替えた。
+- 検証: `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration viewportRustVideoOnlyBoundary` は74件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216n`。
+
+## 2026-06-19
 - Phase5のexport診断表示として、`webGpuDrawUnavailable` のRust frame source blocked診断に読みやすい表示ラベルを追加した。
 - Red: `ExportProgressModal` のテストへ、raw reasonではなく `WebGPU描画不可` / `WebGPU draw unavailable` が表示される契約を追加した。
 - Green: blocked reason formatterに `webGpuDrawUnavailable` の日本語/英語ラベルを追加した。

@@ -1370,6 +1370,11 @@ export bitmap pathでpresenterが `webGpuDrawUnavailable` を返した場合、
 日本語では `WebGPU描画不可`、英語では `WebGPU draw unavailable` と表示する。
 WebGPU draw不可でRust/shared renderer実出力が止まった原因を、実機UIで追いやすい文言にする。
 
+251. Phase5: 実出力必須時のnative render presentation失敗をblocked診断にする
+`requireSharedRendererOutput` が有効なpreview presenterでは、native render frame presentation失敗を
+`fallback` ではなく `blocked` として出す。
+Rust/native renderで合成済みフレームを受け取った後のWebGPU texture view失敗を、Pixi退避に見えないようにする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

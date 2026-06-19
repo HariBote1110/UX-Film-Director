@@ -1,3 +1,20 @@
+## 2026-06-19 — 実出力必須時のnative render presentation失敗をblocked診断に変更
+
+### 実施内容
+- Red: `requireSharedRendererOutput` 有効時にnative render frame presentationが失敗した場合、presenter診断が `blocked` になる契約を追加した。
+- Green: native render frame presentation失敗時のdiagnostics statusを、通常previewでは `fallback` のまま、実出力必須時だけ `blocked` へ切り替えるようにした。
+- Rust/native renderで合成済みフレームを受け取った後のWebGPU texture view失敗を、Pixi互換fallbackとして見せないようにした。
+- 版を `0.1.1-Beta-216n` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPreviewPresenterController`
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration viewportRustVideoOnlyBoundary`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererWebGpuPresenter\\.ts)"`
+
+### 残課題・次のステップ
+- `nativeRenderTextureViewUnavailable` のexport伝搬とUI表示ラベルを必要に応じて整理する。
+- Viewport本体のPixi依存撤去へ向けて、image/PSD/SolidColourのnative render coverageをさらに診断へ接続する。
+
 ## 2026-06-19 — WebGPU draw不可blocked診断の表示ラベルを追加
 
 ### 実施内容
