@@ -262,6 +262,11 @@ PixiJS レンダー（GPU）
   ```
 - プレビュー時はプロキシを使い、エクスポート時のみ元ファイルを参照
 
+**2026-06-20 実装メモ:**
+- 動画読み込み時に隣接する `.proxy.mp4` を自動検出し、存在しない場合はRust backendの `proxy.generate` で640px幅のpreview proxyを生成する。
+- preview proxyはH.264 / 全Iフレーム / 音声なしで生成し、Rust shared renderer previewの動画sourceとして使用する。原本pathは `filePath` に保持し、exportや将来の高品質処理で参照する。
+- 原本4K/120fps HEVCの直接decodeは重いため、現段階の滑らかpreviewはproxy前提とする。次段ではWebGPU presenterの永続化とtexture差し替えAPIでframeごとの起動費を削る。
+
 ### リスク 4: Electron の WebGPU サポート
 
 **リスク:** Electron 30 の WebGPU は利用可能だが、

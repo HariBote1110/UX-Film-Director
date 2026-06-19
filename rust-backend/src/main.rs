@@ -5,7 +5,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, BufRead, Read, Write};
-use std::process::{Child, ChildStderr, ChildStdin, Command, Stdio};
+use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use uxfd_golden_harness::{load_rgba_jpeg, load_rgba_png, RgbaFrame};
@@ -16,7 +16,7 @@ use uxfd_shared_memory_spike::{PosixSharedRing, PosixShmError};
 use uxfd_sidecar_protocol::{
     rgba8_srgb_ring_layout, validate_renderer_handoff_descriptor, ChecksumAlgorithm,
     ColourMetadata, CopyOutState, DecodeFrameRequest, DecodeReleaseFrameRequest,
-    DecodeStartRequest, DecodeStartResponse, FrameChecksum, FrameDescriptor, FrameFormat, FrameRate,
+    DecodeStartRequest, DecodeStartResponse, FrameChecksum, FrameDescriptor, FrameFormat,
     FrameVerificationReport, FrameVerificationStatus, ReadyFrame, SharedFrame, SharedFrameRing,
     SlotRecoveryReason,
 };
@@ -52,6 +52,29 @@ struct DecodeSession {
     ffprobe_path: String,
     ring: SharedFrameRing,
     data_plane_ring: Option<DecodeDataPlaneRing>,
+    streaming_decoder: Option<StreamingDecodeProcess>,
+}
+
+struct StreamingDecodeProcess {
+    child: Child,
+    stdout: ChildStdout,
+    next_frame_index: u64,
+    frame_byte_len: usize,
+}
+
+impl Drop for StreamingDecodeProcess {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+struct DecodedRgbaFrame {
+    bytes: Vec<u8>,
+    decode_path: &'static str,
+    stream_restarted: bool,
+    stream_skipped_frame_count: u64,
+    decode_invocation_count: u64,
 }
 
 struct EncodeSession {
@@ -1674,6 +1697,7 @@ fn handle_decode_start(id: u64, params: Value, state: &mut BackendState) -> RpcR
             ffprobe_path,
             ring: SharedFrameRing::new(layout),
             data_plane_ring,
+            streaming_decoder: None,
         },
     );
 
@@ -1744,15 +1768,7 @@ fn handle_decode_request_frame(
     };
     let write_slot_index = write_slot.slot_index;
 
-    let tight_rgba = match decode_tight_rgba_frame(
-        &session.ffmpeg_path,
-        &session.ffprobe_path,
-        &session.source,
-        parsed.frame_index,
-        session.start_response.width,
-        session.start_response.height,
-        session.start_response.source_rate,
-    ) {
+    let decoded_rgba = match decode_rgba_frame_for_session(session, parsed.frame_index) {
         Ok(value) => value,
         Err(error) => {
             let _ = session
@@ -1767,7 +1783,7 @@ fn handle_decode_request_frame(
     };
 
     let padded_rgba = match pad_rgba_rows(
-        &tight_rgba,
+        &decoded_rgba.bytes,
         session.start_response.width,
         session.start_response.height,
         session.start_response.stride_bytes,
@@ -1870,7 +1886,10 @@ fn handle_decode_request_frame(
             "mode": parsed.mode,
             "frame": frame_value,
             "verification": verification,
-            "decodeInvocationCount": 1,
+            "decodeInvocationCount": decoded_rgba.decode_invocation_count,
+            "decodePath": decoded_rgba.decode_path,
+            "streamRestarted": decoded_rgba.stream_restarted,
+            "streamSkippedFrameCount": decoded_rgba.stream_skipped_frame_count,
         })),
         error: None,
     }
@@ -2034,63 +2053,121 @@ fn release_decode_data_plane(
     Ok(())
 }
 
-fn decode_tight_rgba_frame(
-    ffmpeg_path: &str,
-    ffprobe_path: &str,
-    source: &str,
+const MAX_STREAMING_DECODE_SKIP_FRAMES: u64 = 30;
+
+fn decode_rgba_frame_for_session(
+    session: &mut DecodeSession,
     frame_index: u64,
-    width: u32,
-    height: u32,
-    source_rate: FrameRate,
-) -> Result<Vec<u8>, String> {
-    let input_metadata = probe_video_input_metadata(ffprobe_path, source)?;
-    let seek_seconds = frame_index as f64 * f64::from(source_rate.denominator)
-        / f64::from(source_rate.numerator);
+) -> Result<DecodedRgbaFrame, String> {
+    let expected_len = tight_rgba_byte_len(
+        session.start_response.width,
+        session.start_response.height,
+    )?;
+
+    if let Some(decoder) = session.streaming_decoder.as_mut() {
+        if decoder.frame_byte_len == expected_len
+            && frame_index >= decoder.next_frame_index
+            && frame_index - decoder.next_frame_index <= MAX_STREAMING_DECODE_SKIP_FRAMES
+        {
+            let skipped_frame_count = frame_index - decoder.next_frame_index;
+            let mut scratch = vec![0u8; expected_len];
+            for _ in 0..skipped_frame_count {
+                decoder
+                    .stdout
+                    .read_exact(&mut scratch)
+                    .map_err(|error| format!("failed to skip streaming decoded frame: {error}"))?;
+                decoder.next_frame_index += 1;
+            }
+
+            let mut bytes = vec![0u8; expected_len];
+            decoder
+                .stdout
+                .read_exact(&mut bytes)
+                .map_err(|error| format!("failed to read streaming decoded frame: {error}"))?;
+            decoder.next_frame_index += 1;
+            return Ok(DecodedRgbaFrame {
+                bytes,
+                decode_path: "stream",
+                stream_restarted: false,
+                stream_skipped_frame_count: skipped_frame_count,
+                decode_invocation_count: 0,
+            });
+        }
+    }
+
+    let mut decoder = start_streaming_decode_process(session, frame_index, expected_len)?;
+    let mut bytes = vec![0u8; expected_len];
+    decoder
+        .stdout
+        .read_exact(&mut bytes)
+        .map_err(|error| format!("failed to read first streaming decoded frame: {error}"))?;
+    decoder.next_frame_index = frame_index + 1;
+    session.streaming_decoder = Some(decoder);
+
+    Ok(DecodedRgbaFrame {
+        bytes,
+        decode_path: "stream",
+        stream_restarted: true,
+        stream_skipped_frame_count: 0,
+        decode_invocation_count: 1,
+    })
+}
+
+fn start_streaming_decode_process(
+    session: &mut DecodeSession,
+    frame_index: u64,
+    expected_len: usize,
+) -> Result<StreamingDecodeProcess, String> {
+    session.streaming_decoder = None;
+
+    let input_metadata = probe_video_input_metadata(&session.ffprobe_path, &session.source)?;
+    let seek_seconds = frame_index as f64 * f64::from(session.start_response.source_rate.denominator)
+        / f64::from(session.start_response.source_rate.numerator);
     let filter = format!(
-        "scale=w={width}:h={height}:in_range={}:out_range=pc,format=rgba",
+        "scale=w={}:h={}:in_range={}:out_range=pc,format=rgba",
+        session.start_response.width,
+        session.start_response.height,
         input_metadata.range
     );
-    let output = Command::new(ffmpeg_path)
+    let mut child = Command::new(&session.ffmpeg_path)
         .arg("-hide_banner")
         .arg("-loglevel")
         .arg("error")
         .arg("-ss")
         .arg(format!("{seek_seconds:.6}"))
         .arg("-i")
-        .arg(source)
+        .arg(&session.source)
         .arg("-vf")
         .arg(filter)
-        .arg("-frames:v")
-        .arg("1")
         .arg("-pix_fmt")
         .arg("rgba")
         .arg("-f")
         .arg("rawvideo")
         .arg("pipe:1")
-        .output()
-        .map_err(|error| format!("failed to run ffmpeg ({ffmpeg_path}): {error}"))?;
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|error| format!("failed to start streaming ffmpeg ({}): {error}", session.ffmpeg_path))?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "streaming ffmpeg stdout was unavailable".to_string())?;
 
-    if !output.status.success() {
-        return Err(format!(
-            "ffmpeg exited with status {:?}: {}",
-            output.status.code(),
-            String::from_utf8_lossy(&output.stderr)
-        ));
-    }
+    Ok(StreamingDecodeProcess {
+        child,
+        stdout,
+        next_frame_index: frame_index,
+        frame_byte_len: expected_len,
+    })
+}
 
-    let expected_len = u64::from(width)
+fn tight_rgba_byte_len(width: u32, height: u32) -> Result<usize, String> {
+    u64::from(width)
         .checked_mul(u64::from(height))
         .and_then(|pixels| pixels.checked_mul(4))
         .and_then(|bytes| usize::try_from(bytes).ok())
-        .ok_or_else(|| format!("decoded frame dimensions overflow: {width}x{height}"))?;
-    if output.stdout.len() != expected_len {
-        return Err(format!(
-            "ffmpeg produced unexpected RGBA byte length: expected={expected_len}, actual={}",
-            output.stdout.len()
-        ));
-    }
-
-    Ok(output.stdout)
+        .ok_or_else(|| format!("decoded frame dimensions overflow: {width}x{height}"))
 }
 
 struct VideoInputMetadata {
@@ -2303,11 +2380,14 @@ fn handle_proxy_generate(id: u64, params: Value) -> RpcResponse {
             "-preset",
             "fast",
             "-crf",
-            "23",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "128k",
+            "28",
+            "-g",
+            "1",
+            "-keyint_min",
+            "1",
+            "-sc_threshold",
+            "0",
+            "-an",
             "-movflags",
             "+faststart",
             &parsed.output_path,

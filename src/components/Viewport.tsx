@@ -34,13 +34,16 @@ import type { SharedRendererViewportVideoDecodeJob } from '../utils/sharedRender
 import type { ProjectExportRustFrameSourceContext } from '../utils/projectExportFrameCanvas';
 import { buildViewportRustExportFrameSource } from '../utils/viewportRustExportFrameSource';
 import { shouldMountSharedRendererSurfaceCanvas } from '../utils/sharedRendererSurfaceMount';
+import {
+  SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT,
+  SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE,
+  quantiseSharedRendererPlaybackPreviewTime,
+} from '../utils/sharedRendererPlaybackPreviewSettings';
 
 const GROUP_GRADIENT_COMPONENT_PREFIX = 'group-gradient-component-';
 const RESIZE_HANDLE_PREFIX = 'resize-handle-';
 /** 角ハンドルのスクリーン上の目標サイズ（px）。 */
 const RESIZE_HANDLE_SCREEN_PX = 10;
-const SHARED_RENDERER_PLAYBACK_PREVIEW_FPS = 0.5;
-const SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE = 320;
 
 const RESIZE_CORNER_CURSORS: Record<ResizeCorner, string> = {
   'top-left': 'nwse-resize',
@@ -148,6 +151,9 @@ const Viewport: React.FC = () => {
   const sharedRendererSurfaceCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const sharedRendererPresenterControlRef = useRef<SharedRendererPreviewPresenterControl | null>(null);
   const sharedRendererPresenterSessionKeyRef = useRef<string | null>(null);
+  const sharedRendererPresenterStartingRef = useRef(false);
+  const sharedRendererPendingPreviewSessionRef = useRef<SharedRendererPreviewSession | null>(null);
+  const sharedRendererPendingPresenterSessionKeyRef = useRef<string | null>(null);
   const sharedRendererVideoDecodeJobsRef = useRef<SharedRendererViewportVideoDecodeJob[]>([]);
   const sharedRendererVideoDecodeRequestIdRef = useRef(0);
   const pixiObjectsRef = useRef<Map<string, PIXI.Container>>(new Map());
@@ -464,7 +470,7 @@ const Viewport: React.FC = () => {
   const publishSharedRendererPreviewSession = useCallback((time: number, currentObjects: TimelineObject[]) => {
     if (!sharedRendererPreviewEnabled) return;
     const previewTime = isPlaying
-      ? Math.floor(time * SHARED_RENDERER_PLAYBACK_PREVIEW_FPS) / SHARED_RENDERER_PLAYBACK_PREVIEW_FPS
+      ? quantiseSharedRendererPlaybackPreviewTime(time)
       : time;
 
     const session = buildSharedRendererPreviewSession({
@@ -521,6 +527,13 @@ const Viewport: React.FC = () => {
     }
 
     const nextPresenterKey = buildSharedRendererPresenterSessionKey(session);
+    if (isPlaying && sharedRendererPresenterStartingRef.current) {
+      if (!sharedRendererPendingPreviewSessionRef.current) {
+        sharedRendererPendingPreviewSessionRef.current = session;
+        sharedRendererPendingPresenterSessionKeyRef.current = nextPresenterKey;
+      }
+      return;
+    }
     if (sharedRendererPresenterSessionKeyRef.current !== nextPresenterKey) {
       sharedRendererPresenterSessionKeyRef.current = nextPresenterKey;
       setSharedRendererPreviewSession(session);
@@ -545,6 +558,9 @@ const Viewport: React.FC = () => {
     if (!sharedRendererPreviewEnabled || !sharedRendererPreviewSession) {
       sharedRendererPresenterControlRef.current?.dispose();
       sharedRendererPresenterControlRef.current = null;
+      sharedRendererPresenterStartingRef.current = false;
+      sharedRendererPendingPreviewSessionRef.current = null;
+      sharedRendererPendingPresenterSessionKeyRef.current = null;
       sharedRendererVideoDecodeJobsRef.current = [];
       setSharedRendererPreviewDiagnostic(null);
       updateSharedRendererSolidColourObjectIds([]);
@@ -565,8 +581,6 @@ const Viewport: React.FC = () => {
       return;
     }
 
-    sharedRendererPresenterControlRef.current?.dispose();
-    sharedRendererPresenterControlRef.current = null;
     if (!sharedRendererVideoCutoverEnabled) {
       sharedRendererVideoDecodeJobsRef.current = [];
     }
@@ -580,6 +594,8 @@ const Viewport: React.FC = () => {
       rootDataset,
       surfaceCanvas.dataset as Record<string, string | undefined>,
     ];
+    const presenterSessionKey = buildSharedRendererPresenterSessionKey(sharedRendererPreviewSession);
+    sharedRendererPresenterStartingRef.current = true;
 
     void startSharedRendererViewportPresenter({
       canvas: surfaceCanvas,
@@ -596,6 +612,7 @@ const Viewport: React.FC = () => {
       activeVideoDecodeJobs: sharedRendererVideoCutoverEnabled
         ? sharedRendererVideoDecodeJobsRef.current
         : [],
+      videoDecodeSlotCount: isPlaying ? SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT : undefined,
       videoDecodeMaxEdge: isPlaying ? SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE : undefined,
       requestId: (sharedRendererVideoDecodeRequestIdRef.current += 1),
       onVideoDecodeJobResolved: (job) => {
@@ -612,6 +629,9 @@ const Viewport: React.FC = () => {
       }
       sharedRendererVideoDecodeJobsRef.current = activeVideoDecodeJobs;
       currentControl = control;
+      if (sharedRendererPresenterControlRef.current && sharedRendererPresenterControlRef.current !== control) {
+        sharedRendererPresenterControlRef.current.dispose();
+      }
       sharedRendererPresenterControlRef.current = control;
       setSharedRendererPreviewDiagnostic(buildSharedRendererPreviewDiagnostic(rootDataset, control));
       updateSharedRendererSolidColourObjectIds(control.ok ? control.solidColourOwnership.solidColourObjectIds : []);
@@ -635,6 +655,17 @@ const Viewport: React.FC = () => {
         });
       });
       setSharedRendererPreviewDiagnostic(buildSharedRendererPreviewDiagnostic(rootDataset, null));
+    }).finally(() => {
+      if (cancelled) return;
+      sharedRendererPresenterStartingRef.current = false;
+      const pendingSession = sharedRendererPendingPreviewSessionRef.current;
+      const pendingSessionKey = sharedRendererPendingPresenterSessionKeyRef.current;
+      sharedRendererPendingPreviewSessionRef.current = null;
+      sharedRendererPendingPresenterSessionKeyRef.current = null;
+      if (pendingSession && pendingSessionKey && pendingSessionKey !== presenterSessionKey) {
+        sharedRendererPresenterSessionKeyRef.current = pendingSessionKey;
+        setSharedRendererPreviewSession(pendingSession);
+      }
     });
 
     return () => {

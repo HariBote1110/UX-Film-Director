@@ -89,6 +89,34 @@ export interface SharedRendererWebGpuCanvasContextLike {
 
 type WebGpuCanvasLike = Pick<HTMLCanvasElement, 'width' | 'height' | 'getContext'>;
 
+interface CachedWebGpuDevice {
+  device: SharedRendererWebGpuDeviceLike;
+}
+
+const webGpuDeviceCache = new WeakMap<SharedRendererWebGpuLike, Promise<CachedWebGpuDevice | null>>();
+
+const resolveCachedWebGpuDevice = (
+  gpu: SharedRendererWebGpuLike
+): Promise<CachedWebGpuDevice | null> => {
+  const cached = webGpuDeviceCache.get(gpu);
+  if (cached) return cached;
+
+  const pending = (async () => {
+    const adapter = await gpu.requestAdapter({ powerPreference: 'high-performance' });
+    if (!adapter) return null;
+
+    try {
+      const device = await adapter.requestDevice();
+      return { device };
+    } catch (error) {
+      webGpuDeviceCache.delete(gpu);
+      throw error;
+    }
+  })();
+  webGpuDeviceCache.set(gpu, pending);
+  return pending;
+};
+
 export type SharedRendererPresenterBlockedReason =
   | 'surfaceGateBlocked'
   | 'webGpuContextUnavailable'
@@ -354,20 +382,9 @@ export const createSharedRendererWebGpuPresenter = async ({
     };
   }
 
-  const adapter = await gpu.requestAdapter({ powerPreference: 'high-performance' });
-  assertPresenterStartCurrent(isStartCurrent);
-  if (!adapter) {
-    return {
-      ok: false,
-      reason: 'adapterUnavailable',
-      detail: 'WebGPU adapter is unavailable for the shared renderer presenter.',
-    };
-  }
-
-  let device: SharedRendererWebGpuDeviceLike;
+  let cachedDevice: CachedWebGpuDevice | null;
   try {
-    device = await adapter.requestDevice();
-    assertPresenterStartCurrent(isStartCurrent);
+    cachedDevice = await resolveCachedWebGpuDevice(gpu);
   } catch {
     return {
       ok: false,
@@ -375,6 +392,16 @@ export const createSharedRendererWebGpuPresenter = async ({
       detail: 'WebGPU device request failed for the shared renderer presenter.',
     };
   }
+  assertPresenterStartCurrent(isStartCurrent);
+  if (!cachedDevice) {
+    return {
+      ok: false,
+      reason: 'adapterUnavailable',
+      detail: 'WebGPU adapter is unavailable for the shared renderer presenter.',
+    };
+  }
+
+  const device = cachedDevice.device;
 
   const format = gpu.getPreferredCanvasFormat();
   if (format.endsWith('-srgb')) {

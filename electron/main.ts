@@ -760,7 +760,7 @@ app.whenReady().then(() => {
     return { exists: fs.existsSync(proxyPath), proxyPath };
   });
 
-  // プロキシを生成する（FFmpeg libx264、1280px 幅にダウンスケール）
+  // プレビュー用プロキシを生成する（FFmpeg libx264、全Iフレーム、低解像度）
   ipcMain.handle('generate-proxy', async (_event, payload: { filePath?: string; width?: number }) => {
     const filePath = typeof payload?.filePath === 'string' ? payload.filePath.trim() : '';
     if (!filePath) return { success: false, error: 'filePath が必要です' };
@@ -770,7 +770,7 @@ app.whenReady().then(() => {
       const result = await callRustBackend('proxy.generate', {
         inputPath: filePath,
         outputPath: proxyPath,
-        width: payload?.width ?? 1280,
+        width: payload?.width ?? 640,
         ffmpegPath: resolveDefaultFfmpegPath(),
       }, 600_000); // 最大 10 分
       return { success: true, proxyPath, result };

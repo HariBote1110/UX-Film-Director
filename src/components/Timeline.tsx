@@ -344,10 +344,10 @@ const Timeline: React.FC = () => {
     const url = URL.createObjectURL(file);
 
     try {
-      const { detectExistingProxy } = await import('../utils/proxyUtils');
+      const { resolveOrGeneratePreviewProxy } = await import('../utils/proxyUtils');
       const [sourceImport, proxyFilePath] = await Promise.all([
         resolveVideoImportSource(file, url),
-        detectExistingProxy(filePath ?? undefined),
+        resolveOrGeneratePreviewProxy(filePath ?? undefined),
       ]);
       const sourceMetadata = sourceImport.metadata;
       const metadata = proxyFilePath

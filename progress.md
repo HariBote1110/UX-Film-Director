@@ -1,3 +1,30 @@
+## 2026-06-20 — Rust動画previewの連続再生とproxy自動生成を追加
+
+### 実施内容
+- Red: Rust backendの `decode.requestFrame` が連続再生frameで同じffmpeg streamを再利用する契約を追加した。
+- Green: `DecodeSession` にstreaming ffmpeg processを保持し、連続frameはstdoutから読み進め、シークや大きな飛びだけstreamを張り直すようにした。
+- Red: Rust preview再生cadenceの契約を追加し、再生中は12fps / 320px decode / 6-slot ringで動かす設定を切り出した。
+- Green: Viewportのpresenter起動を直列化し、起動中は最新ではなく最初のpending sessionを保持して、stream decodeが大ジャンプseekへ戻らないようにした。
+- Red: preview proxyが存在しない場合に自動生成する契約を追加した。
+- Green: 動画追加/ドロップ時に `.proxy.mp4` を検出し、なければ640px preview proxyを自動生成してRust preview sourceへ使うようにした。
+- Green: Rust `proxy.generate` はpreview向けに640px既定、H.264、全Iフレーム、音声なしで生成するようにした。
+- Green: WebGPU presenterのadapter/deviceを同一GPU objectごとに再利用し、frameごとの固定起動費を削減した。
+- Electron実ウィンドウE2Eを、単発のピクセル変化だけでなく5秒間の複数present frameサンプルを確認する契約へ強化した。
+- 版を `0.1.1-Beta-219m` に更新した。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml decode_request_frame -- --nocapture`
+- `npm test -- sharedRendererWebGpuPresenter sharedRendererPlaybackPreviewSettings sharedRendererViewportVideoUpload sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController proxyUtils`
+- `npx tsc --noEmit 2>&1 | rg "(src/components/Viewport\\.tsx|src/utils/sharedRendererWebGpuPresenter|src/utils/sharedRendererPlaybackPreviewSettings|src/utils/sharedRendererViewportPresenterOrchestration|src/utils/proxyUtils|electron/main\\.ts|rust-backend/src/main\\.rs|scripts/run-video-load-e2e\\.mjs)"`
+- `cargo build --manifest-path rust-backend/Cargo.toml`
+- `rm -f /Volumes/ExtendSSD-W/GX020052.proxy.mp4 && UXFD_VIDEO_LOAD_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_LOAD_E2E_TIMEOUT_MS=600000 npm run test:video-load:e2e`
+- `UXFD_VIDEO_LOAD_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_LOAD_E2E_TIMEOUT_MS=180000 npm run test:video-load:e2e`
+
+### 結果・残課題
+- 外付けSSDのGoPro原本 `/Volumes/ExtendSSD-W/GX020052.MP4` で、proxy未作成状態から自動生成、TL投入、Rust shared renderer preview再生、ピクセル変化、5秒間の複数frame presentまでE2Eで確認した。
+- 生成後の `/Volumes/ExtendSSD-W/GX020052.proxy.mp4` は640x360 H.264、全3627frameがkeyframeであることを確認した。
+- 現段階は「原本直decodeで滑らか」ではなく「preview proxy + Rust decode/uploadで連続再生できる」段階。完全な高fpsには、WebGPU presenterの永続化、texture差し替えAPI、または非同期decode queueの追加が必要。
+
 ## 2026-06-20 — Rust動画preview再生の暫定更新経路を追加
 
 ### 実施内容

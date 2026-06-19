@@ -513,6 +513,47 @@ const waitForPlaybackFrameAdvance = async (client, initialState) => client.evalu
   })
 `);
 
+const samplePlaybackPresentationSmoothness = async (client) => client.evaluate(`
+  new Promise((resolve) => {
+    const samples = [];
+    const started = Date.now();
+    const tick = () => {
+      const sample = {
+        elapsedMs: Date.now() - started,
+        presenterStatus: document.documentElement.dataset.uxfdSharedRendererPresenterStatus,
+        videoOwner: document.documentElement.dataset.uxfdSharedRendererPresenterVideoOwner,
+        videoFrameUploadReady: document.documentElement.dataset.uxfdSharedRendererPresenterVideoFrameUploadReady,
+        presentedSourceFrame: Number(document.documentElement.dataset.uxfdSharedRendererPresenterVideoPresentedSourceFrame ?? NaN),
+        presentedFrameIndex: Number(document.documentElement.dataset.uxfdSharedRendererPresenterVideoPresentedFrameIndex ?? NaN),
+      };
+      samples.push(sample);
+      if (Date.now() - started >= 5000) {
+        const presentedFrames = samples
+          .map((entry) => entry.presentedSourceFrame)
+          .filter((value) => Number.isFinite(value));
+        const uniquePresentedFrames = [...new Set(presentedFrames)];
+        const firstPresentedFrame = uniquePresentedFrames[0] ?? null;
+        const lastPresentedFrame = uniquePresentedFrames[uniquePresentedFrames.length - 1] ?? null;
+        const span = typeof firstPresentedFrame === 'number' && typeof lastPresentedFrame === 'number'
+          ? lastPresentedFrame - firstPresentedFrame
+          : 0;
+        resolve({
+          ok: uniquePresentedFrames.length >= 8 && span >= 60,
+          sampleCount: samples.length,
+          uniquePresentedFrameCount: uniquePresentedFrames.length,
+          firstPresentedFrame,
+          lastPresentedFrame,
+          presentedFrameSpan: span,
+          samples,
+        });
+        return;
+      }
+      setTimeout(tick, 250);
+    };
+    tick();
+  })
+`);
+
 const serialiseSurfaceResult = (result) => {
   if (!result) return result;
   const { frame: _frame, ...serialisable } = result;
@@ -640,7 +681,7 @@ const main = async () => {
           resolve({ ok: false, reason: 'uiFailedToLoad', items, body, diagnostics });
           return;
         }
-        if (Date.now() - started > 15000) {
+        if (Date.now() - started > 120000) {
           resolve({ ok: false, reason: 'timeout', items, body, diagnostics });
           return;
         }
@@ -671,6 +712,9 @@ const main = async () => {
   const playbackVisualDelta = visualResult?.frame && playbackVisualResult?.frame
     ? compareRgbaFrames(visualResult.frame, playbackVisualResult.frame)
     : undefined;
+  const playbackSmoothnessResult = playbackAdvanceResult?.ok
+    ? await samplePlaybackPresentationSmoothness(client)
+    : undefined;
   const consoleLines = collectConsoleEvents(client);
   const runtimeErrors = collectRuntimeErrors(client);
   const blockingDiagnostics = findBlockingDiagnostics({
@@ -687,6 +731,7 @@ const main = async () => {
       && playbackAdvanceResult?.ok
       && playbackVisualResult?.ok
       && playbackVisualDelta?.ok
+      && playbackSmoothnessResult?.ok
       && blockingDiagnostics.length === 0
     ),
     videoPath: VIDEO_PATH,
@@ -697,6 +742,7 @@ const main = async () => {
     playbackAdvanceResult,
     playbackVisualResult: serialiseSurfaceResult(playbackVisualResult),
     playbackVisualDelta,
+    playbackSmoothnessResult,
     consoleLines,
     runtimeErrors,
     blockingDiagnostics,
