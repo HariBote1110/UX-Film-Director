@@ -3407,4 +3407,68 @@ describe('createSharedRendererExportFrameSource', () => {
       uxfdRustExportFrameSourceFrameReason: 'videoOwnershipUnavailable',
     });
   });
+
+  it('blocks export when the presenter reports missing uploaded video clips', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    let disposeCount = 0;
+    let bitmapCaptureCount = 0;
+
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      startViewportPresenter: async () => {
+        canvas.dataset.uxfdSharedRendererPresenterVideoUploadMissingClipIds = 'video-2';
+        return ({
+          control: {
+            dispose: () => { disposeCount += 1; },
+            videoOwnership: {
+              owner: 'sharedRenderer',
+              reason: 'rustDecodedFrameUploadReady',
+              videoObjectIds: ['video-1'],
+            },
+          },
+          activeVideoDecodeJob: null,
+          activeVideoDecodeJobs: [],
+        }) as never;
+      },
+      createFrameBitmap: async () => {
+        bitmapCaptureCount += 1;
+        return ({ close: () => undefined }) as ImageBitmap;
+      },
+    });
+
+    const blocked = await source.renderFrame({
+      frameIndex: 5,
+      timestampUs: 83_333,
+      time: 5 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [image()],
+    }).catch((error) => error);
+
+    expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
+    expect(blocked).toMatchObject({
+      reason: 'videoOwnershipUnavailable',
+      frameIndex: 5,
+      fallbackToLegacyCanvas: true,
+    });
+    expect(blocked.message).toContain('missing uploaded video clips: video-2');
+    expect(bitmapCaptureCount).toBe(0);
+    expect(disposeCount).toBe(1);
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'blocked',
+      uxfdRustExportFrameSourceFrameIndex: '5',
+      uxfdRustExportFrameSourceFrameReason: 'videoOwnershipUnavailable',
+      uxfdSharedRendererPresenterVideoUploadMissingClipIds: 'video-2',
+    });
+  });
 });
