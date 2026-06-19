@@ -123,6 +123,8 @@ Rust backend integration gate:
   `export.start` / `export.write_frame` / `export.end` のbase64 frame経路を削除する。
 - export hookは `PIXI.Application` refを直接持たず、Rust/shared renderer frame sourceまたは
   Viewportから渡される `getExportCanvas` providerだけを参照する。
+- export hookは旧VideoDecoder/Pixi注入用の `exportFrameOverridesRef` を公開引数として受け取らず、
+  動画exportのframe供給はRust/shared renderer frame sourceに限定する。
 - export frame canvas utilityは Pixi 固有名をpublic APIに出さず、移行中のcanvas fallbackを `legacyCanvas`
   として扱う。
 - `useProjectExport` は `createImageBitmap` を直接呼ばず、互換canvas captureは

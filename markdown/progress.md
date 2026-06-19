@@ -481,3 +481,10 @@
 - Green: `ProjectExportCompatibilityEncodeInput` の `hasVideoObjects` を必須booleanに変更し、呼び出し側のsentinel渡し忘れを型で検出できるようにした。
 - 検証: `npm test -- projectExportCompatibilityEncoder useProjectExportBoundary projectExportEncodePlan projectExportFrameCanvas` は45件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-184b`。
+
+## 2026-06-19
+- Phase5のexport hook境界として、`useProjectExport` の公開引数から旧VideoDecoder/Pixi注入用の `exportFrameOverridesRef` を削除した。
+- Red: `useProjectExportBoundary` に、Viewportが `useProjectExport(renderScene, getExportCanvas, getRustExportFrameSource)` を呼び、hook本体が `exportFrameOverridesRef` を含まない契約を追加した。
+- Green: `useProjectExport` の引数・dependency・clear処理から `exportFrameOverridesRef` を削除し、Viewportの呼び出しを3引数にした。
+- 検証: `npm test -- useProjectExportBoundary projectExportCompatibilityEncoder projectExportEncodePlan projectExportFrameCanvas` は45件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-185a`。

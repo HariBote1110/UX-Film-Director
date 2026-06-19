@@ -1108,6 +1108,11 @@ export判定の正本を `hasVideoObjects` とRust encoder availabilityへ寄せ
 上流のencode planが壊れた場合でも、動画exportがWebCodecs/mp4-muxer経路へ漏れないようにする。
 adapter入力の `hasVideoObjects` は必須booleanとし、呼び出し側が動画sentinelを渡し忘れた場合は型で検出する。
 
+206. Phase5: export hookからoverride ref境界を外す
+`useProjectExport` が旧VideoDecoder/Pixi注入用の `exportFrameOverridesRef` を直接受け取らないようにする。
+動画exportのframe供給はRust/shared renderer frame sourceを正本とし、hookの公開境界を
+`renderScene` / `getExportCanvas` / `getRustExportFrameSource` に絞る。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
