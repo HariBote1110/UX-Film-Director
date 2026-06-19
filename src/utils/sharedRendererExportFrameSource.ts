@@ -52,6 +52,7 @@ export type SharedRendererExportFrameSourceBlockedReason =
   | 'nativeRenderSourceReleaseFailed'
   | 'nativeRenderOutputReleaseFailed'
   | 'nativeRenderUnsupportedMedia'
+  | 'preparedNativeRenderSourceAbortReleaseFailed'
   | 'nativeRenderFailed';
 
 export type SharedRendererExportFrameBitmapFactory = (
@@ -339,14 +340,17 @@ export function createSharedRendererExportFrameSource({
       } else {
         requestId = nextRequestId;
         activeVideoDecodeJobs = nativeSources.activeJobs;
+        const nativeRenderBlockedReason = nativeSources.reason === 'preparedNativeRenderSourceAbortReleaseFailed'
+          ? nativeSources.reason
+          : 'nativeRenderFailed';
         writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
           status: 'blocked',
           frameIndex: request.frameIndex,
-          reason: 'nativeRenderFailed',
+          reason: nativeRenderBlockedReason,
         });
         throw new SharedRendererExportFrameSourceBlockedError(
           nativeSources.detail,
-          'nativeRenderFailed',
+          nativeRenderBlockedReason,
           request.frameIndex
         );
       }
