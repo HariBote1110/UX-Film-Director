@@ -26,8 +26,9 @@ describe('useProjectExport boundary', () => {
     const code = viewportSource();
 
     expect(code).toContain(
-      'useProjectExport(renderScene, getExportCanvas, exportFrameOverridesRef, getRustExportFrameSource)'
+      'useProjectExport(renderScene, getExportCanvas, getRustExportFrameSource)'
     );
     expect(code).not.toContain('useProjectExport(pixiAppRef');
+    expect(useProjectExportSource()).not.toContain('exportFrameOverridesRef');
   });
 });
