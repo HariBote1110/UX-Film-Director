@@ -456,6 +456,8 @@ describe('sharedRendererViewportVideoUpload', () => {
       ok: false,
       reason: 'uploadFailed',
       uploadFailureReason: 'copyReportChecksumMismatch',
+      uploadFailureClipId: 'video-2',
+      uploadFailureMediaId: 'video-2',
       detail: 'Shared video frame copy report checksum verification failed.',
     });
   });
