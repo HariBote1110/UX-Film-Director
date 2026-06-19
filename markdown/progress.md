@@ -495,3 +495,10 @@
 - Green: `pixiVideoCutover` のoverride入力・戻り値を削除し、`pixiRenderHelper` / Viewportから `exportFrameOverrides` とoverlay canvas cacheを外した。
 - 検証: `npm test -- pixiVideoCutover useProjectExportBoundary projectExportCompatibilityEncoder projectExportEncodePlan projectExportFrameCanvas` は54件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-186a`。
+
+## 2026-06-19
+- Phase5のPixi video cutover後始末として、旧overlay canvas utilityをproduction utilsから削除した。
+- Red: `useProjectExportBoundary` に、`exportOverlayCanvases.ts` が存在しない契約を追加した。
+- Green: 未使用になった `src/utils/exportOverlayCanvases.ts` と専用テストを削除した。
+- 検証: `npm test -- useProjectExportBoundary pixiVideoCutover` は22件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-186b`。

@@ -1118,6 +1118,7 @@ adapter入力の `hasVideoObjects` は必須booleanとし、呼び出し側が�
 Pixi bitmap overrideへ戻らないようにする。
 Viewportと `pixiRenderHelper` から旧VideoDecoder overlay canvas cacheとframe override resourceを外し、
 動画frame供給をRust/shared renderer側に寄せる。
+未使用になった `exportOverlayCanvases` utilityもproduction utilsから削除する。
 
 ## UI 刷新（2026-04-19）
 

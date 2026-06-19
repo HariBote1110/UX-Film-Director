@@ -127,6 +127,7 @@ Rust backend integration gate:
   動画exportのframe供給はRust/shared renderer frame sourceに限定する。
 - Pixi video cutoverは `exportFrameOverride` / `hasExportFrameOverride` を公開せず、動画preview/exportを
   Pixi bitmap overrideへ戻さない。
+- 旧VideoDecoder/Pixi bitmap override専用の `exportOverlayCanvases` utilityはproduction utilsに置かない。
 - export frame canvas utilityは Pixi 固有名をpublic APIに出さず、移行中のcanvas fallbackを `legacyCanvas`
   として扱う。
 - `useProjectExport` は `createImageBitmap` を直接呼ばず、互換canvas captureは
