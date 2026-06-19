@@ -283,6 +283,37 @@ fn native_wgpu_matches_reference_for_linear_light_bilinear_sampling() {
     );
 }
 
+#[test]
+fn native_wgpu_matches_reference_for_top_left_pivot_rotation() {
+    assert_native_matches_hand_anchor(
+        scene_snapshot(vec![evaluated_clip_with_transform(
+            "foreground",
+            0,
+            1.0,
+            Vec::new(),
+            Transform {
+                translation_x: 1.0,
+                translation_y: 0.0,
+                scale_x: 1.0,
+                scale_y: 1.0,
+                rotation_degrees: 90.0,
+                sampling: SamplingMode::Nearest,
+            },
+        )]),
+        HashMap::from([(
+            "foreground".to_string(),
+            RgbaFrame::from_rgba8(2, 1, vec![255, 0, 0, 255, 0, 0, 255, 255])
+                .expect("valid foreground"),
+        )]),
+        2,
+        2,
+        vec![
+            0, 0, 0, 0, 255, 0, 0, 255,
+            0, 0, 255, 255, 0, 0, 0, 0,
+        ],
+    );
+}
+
 fn assert_native_matches_hand_anchor(
     snapshot: SceneSnapshot,
     sources: HashMap<String, RgbaFrame>,
