@@ -4260,3 +4260,19 @@
 ### 残課題・次のステップ
 - 実機のGoPro動画で、source release gateに引っかからずpreview/exportがRust native renderへ進むことをsmokeで確認する。
 - native render output側のencode失敗時releaseとsource decoded slot releaseを、同じ診断ビューで追えるようにする。
+
+## 2026-06-19 — native render output release診断を追加
+
+### 実施内容
+- Red: Rust encode writeがnative render outputを消費する前に失敗した場合、native render output release結果を診断eventとして受け取れる契約を追加した。
+- Green: `runRustBackendVideoEncodeExport` に `onNativeRenderOutputRelease` を追加し、`released` / `missingBridge` / `skipped` を通知するようにした。
+- `render.releaseNativeSharedFrame` bridgeが無い場合もsilentにせず `missingBridge` として観測できるようにした。
+- 版を `0.1.1-Beta-203a` に更新した。
+
+### 検証
+- `npm test -- rustBackendVideoEncodeExport`
+- `npx tsc --noEmit 2>&1 | rg "rustBackendVideoEncodeExport"`
+
+### 残課題・次のステップ
+- `onNativeRenderOutputRelease` を `useProjectExport` / export diagnostics datasetへ接続し、実UIからnative render output release状態を確認できるようにする。
+- 実機のGoPro動画で、encode失敗時にもnative render output shared memoryが残らないことをsmokeで確認する。

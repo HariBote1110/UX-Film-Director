@@ -185,6 +185,9 @@ Rust backend integration gate:
   Rust backend native rendererへ渡す前に `nativeRenderSourceReleaseUnavailable` でfail-loudにする。
   この場合、preview/export diagnostics は専用の `*NativeRenderSourceReleaseRequired=true` を出して、
   release ownership不備として見分けられるようにする。
+- Rust backend encode writer が native render output を消費する前に失敗した場合、export encode runner は
+  `render.releaseNativeSharedFrame` を呼び、`released` / `missingBridge` / `skipped` の release診断イベントを
+  callbackへ通知する。
 - `shared-video-frame-bridge-node` は Rust core を N-API addon として wrap し、Node 直 require では
   `Uint8Array` target を in-place mutation できる。
 - preload は native module を `UXFD_SHARED_VIDEO_FRAME_BRIDGE_MODULE` で差し込む形を維持し、未接続時は fail-loud とする。
