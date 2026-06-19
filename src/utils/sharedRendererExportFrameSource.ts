@@ -116,7 +116,7 @@ export type SharedRendererEncodeOnlyExportProjectFrameSource = ProjectExportRust
 >>;
 
 export class SharedRendererExportFrameSourceBlockedError extends Error {
-  readonly fallbackToLegacyCanvas = true;
+  readonly fallbackToLegacyCanvas: boolean;
 
   constructor(
     message: string,
@@ -126,6 +126,7 @@ export class SharedRendererExportFrameSourceBlockedError extends Error {
   ) {
     super(message);
     this.name = 'SharedRendererExportFrameSourceBlockedError';
+    this.fallbackToLegacyCanvas = legacyCanvasFallbackAllowed;
   }
 }
 
