@@ -649,4 +649,8 @@ const writeFrameDiagnostics = (
   dataset.uxfdRustExportFrameSourceNativeRenderSourceMediaIds = state.nativeRender
     ? state.nativeRender.sources.map((source) => source.mediaId).join(',')
     : undefined;
+  dataset.uxfdRustExportFrameSourceNativeRenderSourceReleaseRequired =
+    state.reason === 'nativeRenderSourceReleaseUnavailable'
+      ? 'true'
+      : undefined;
 };

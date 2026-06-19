@@ -91,6 +91,7 @@ export const writeSharedRendererPresenterDiagnostics = (
   delete dataset.uxfdSharedRendererPresenterNativeRenderSourceMediaIds;
   delete dataset.uxfdSharedRendererPresenterNativeRenderFailureReason;
   delete dataset.uxfdSharedRendererPresenterNativeRenderFailureDetail;
+  delete dataset.uxfdSharedRendererPresenterNativeRenderSourceReleaseRequired;
   delete dataset.uxfdSharedRendererPresenterVideoOwner;
   delete dataset.uxfdSharedRendererPresenterVideoCutoverReason;
   delete dataset.uxfdSharedRendererPresenterSharedVideoObjectCount;
@@ -163,6 +164,9 @@ export const writeSharedRendererPresenterDiagnostics = (
     if (state.nativeRenderFailureDetail) {
       dataset.uxfdSharedRendererPresenterNativeRenderFailureDetail = state.nativeRenderFailureDetail;
     }
+    if (state.nativeRenderFailureReason === 'nativeRenderSourceReleaseUnavailable') {
+      dataset.uxfdSharedRendererPresenterNativeRenderSourceReleaseRequired = 'true';
+    }
     if (state.videoOwner) {
       dataset.uxfdSharedRendererPresenterVideoOwner = state.videoOwner;
     }
@@ -185,6 +189,9 @@ export const writeSharedRendererPresenterDiagnostics = (
     }
     if (state.nativeRenderFailureDetail) {
       dataset.uxfdSharedRendererPresenterNativeRenderFailureDetail = state.nativeRenderFailureDetail;
+    }
+    if (state.nativeRenderFailureReason === 'nativeRenderSourceReleaseUnavailable') {
+      dataset.uxfdSharedRendererPresenterNativeRenderSourceReleaseRequired = 'true';
     }
     return;
   }
