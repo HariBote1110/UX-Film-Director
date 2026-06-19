@@ -1,3 +1,20 @@
+## 2026-06-19 — WebGPU draw不可時のbitmap legacy captureを禁止
+
+### 実施内容
+- Red: export bitmap pathでpresenterが `webGpuDrawUnavailable` を返した場合、`createFrameBitmap` に進まずblocked errorになる契約を追加した。
+- Green: `SharedRendererExportFrameSourceBlockedReason` に `webGpuDrawUnavailable` を追加し、presenter control失敗をexport blocked reasonとして伝搬するようにした。
+- 実shared renderer出力のWebGPU drawが成立しない状態を、legacy bitmap canvas captureで成功扱いにする抜け道を塞いだ。
+- 版を `0.1.1-Beta-216l` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSource`
+- `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress ExportProgressModal`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/projectExportFrameRenderer\\.test\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/store/useStore\\.ts|src/components/ExportProgressModal\\.tsx)"`
+
+### 残課題・次のステップ
+- `webGpuDrawUnavailable` のUI/ログ表示ラベルを必要に応じて整理する。
+- Viewport本体のPixi依存撤去へ向けて、image/PSD/SolidColourのnative render coverageをさらに診断へ接続する。
+
 ## 2026-06-19 — 実出力必須時のvideo presentation失敗をblocked診断に変更
 
 ### 実施内容

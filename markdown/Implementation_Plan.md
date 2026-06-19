@@ -1360,6 +1360,11 @@ export実出力不可のblocked診断を、実機UIで原因追跡しやすい�
 video frame scene presentation失敗を `fallback` ではなく `blocked` として出す。
 通常previewの互換fallbackは維持しつつ、実shared renderer出力必須の検証でPixi退避に見えないようにする。
 
+249. Phase5: WebGPU draw不可時のbitmap legacy captureを禁止する
+export bitmap pathでpresenterが `webGpuDrawUnavailable` を返した場合、
+`createFrameBitmap` / legacy bitmap canvas captureへ進まず、同じblocked errorとして停止する。
+実shared renderer出力のWebGPU drawが成立しない状態を、Pixi/legacy captureで成功扱いにしない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

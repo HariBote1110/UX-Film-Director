@@ -1739,6 +1739,21 @@
 - `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration viewportRustVideoOnlyBoundary` を実行し、73件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.test\\.ts|src/utils/sharedRendererWebGpuPresenter\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 134. Phase5: WebGPU draw不可時のbitmap legacy captureを禁止
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- bitmap export pathでpresenterが `webGpuDrawUnavailable` を返した場合、`createFrameBitmap` に進まずblocked errorになる契約を追加した。
+- `src/utils/sharedRendererExportFrameSource.ts`
+- `SharedRendererExportFrameSourceBlockedReason` に `webGpuDrawUnavailable` を追加した。
+- presenter controlが `webGpuDrawUnavailable` で失敗した場合、export frame sourceも同じreasonでblocked errorを投げるようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216l` に更新した。
+
+## 確認
+- `npm test -- sharedRendererExportFrameSource` を実行し、Redでblocked errorにならずbitmap pathへ進む失敗を確認した。
+- `npm test -- sharedRendererExportFrameSource` を再実行し、46件成功を確認した。
+- `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress ExportProgressModal` を実行し、79件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/projectExportFrameRenderer\\.test\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/store/useStore\\.ts|src/components/ExportProgressModal\\.tsx)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。
