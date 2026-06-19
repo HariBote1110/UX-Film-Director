@@ -1746,6 +1746,62 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
+  it('blocks required shared renderer output when image ownership remains in Pixi', async () => {
+    const dataset: Record<string, string | undefined> = {};
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: imageSession,
+      datasets: [dataset],
+      requireSharedRendererOutput: true,
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter(),
+      }),
+    });
+
+    expect(control).toMatchObject({
+      ok: false,
+      reason: 'sharedRendererOutputUnavailable',
+    });
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterStatus: 'blocked',
+      uxfdSharedRendererPresenterFailureReason: 'sharedRendererOutputUnavailable',
+      uxfdSharedRendererPresenterImageOwner: 'pixi',
+      uxfdSharedRendererPresenterImageCutoverReason: 'nativeRenderFrameUnavailable',
+      uxfdSharedRendererPresenterSharedImageObjectCount: '0',
+    });
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterSwatch');
+  });
+
+  it('blocks required shared renderer output when PSD ownership remains in Pixi', async () => {
+    const dataset: Record<string, string | undefined> = {};
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: psdSession,
+      datasets: [dataset],
+      requireSharedRendererOutput: true,
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter(),
+      }),
+    } as any);
+
+    expect(control).toMatchObject({
+      ok: false,
+      reason: 'sharedRendererOutputUnavailable',
+    });
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterStatus: 'blocked',
+      uxfdSharedRendererPresenterFailureReason: 'sharedRendererOutputUnavailable',
+      uxfdSharedRendererPresenterPsdOwner: 'pixi',
+      uxfdSharedRendererPresenterPsdCutoverReason: 'nativeRenderFrameUnavailable',
+      uxfdSharedRendererPresenterSharedPsdObjectCount: '0',
+    });
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterSwatch');
+  });
+
   it('records native render diagnostics when video and PSD share the preview render pass', async () => {
     const dataset: Record<string, string | undefined> = {};
     const rgbaBytes = new Uint8Array(nativeRenderDescriptor.byteLen);
