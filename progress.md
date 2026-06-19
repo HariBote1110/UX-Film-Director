@@ -4339,3 +4339,20 @@
 ### 残課題・次のステップ
 - `electron/main.ts` の旧WebCodecs export stream IPCを、非動画互換export専用としてさらに境界テストで固定する。
 - `sharedRendererExportFrameSource` の `createImageBitmap` fallbackがRust必須時に到達不能であることを、追加の境界テストで確認する。
+
+## 2026-06-19 — video export blocked診断でlegacy fallback不可を明示
+
+### 実施内容
+- Red: 動画を含む `renderFrame` が `videoBitmapCaptureDisabled` でblockedになった時、legacy canvas fallback不可を診断できる契約を追加した。
+- Green: `SharedRendererExportFrameSourceBlockedError` に `legacyCanvasFallbackAllowed` を追加し、動画bitmap capture拒否では `false` を設定した。
+- 既存の `fallbackToLegacyCanvas` は互換の型ガードとして維持し、実際の退避可否は新しい診断フラグで見る形にした。
+- 版を `0.1.1-Beta-205d` に更新した。
+
+### 検証
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts -t "blocks video renderFrame"`
+- `npm test -- src/utils/sharedRendererExportFrameSource.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/projectExportRustEncodeFrame.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererExportFrameSource|projectExportFrameCanvas|projectExportRustEncodeFrame|useProjectExport"`
+
+### 残課題・次のステップ
+- export hook側でblocked errorの `legacyCanvasFallbackAllowed=false` をprogress diagnosticsへ載せるか判断する。
+- `electron/main.ts` の旧WebCodecs export stream IPCを非動画互換export専用として境界テストで固定する。
