@@ -1500,6 +1500,22 @@
 - `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress` を実行し、72件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgress\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 119. Phase5: video upload/ownership失敗ではlegacy fallbackを禁止
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- `videoUploadFailed` と `videoOwnershipUnavailable` のexport blockで、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。
+- stale decode responseでも `videoUploadFailed` としてfallback不可になることを明示した。
+- `src/utils/sharedRendererExportFrameSource.ts`
+- Rust video upload失敗とvideo ownership未成立の `SharedRendererExportFrameSourceBlockedError` へ `legacyCanvasFallbackAllowed=false` を渡すようにした。
+- Rust decode/upload/ownership cutoverが成立していない動画exportを、Pixi/legacy captureへ退避させない。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-215w` に更新した。
+
+## 確認
+- `npm test -- sharedRendererExportFrameSource` を実行し、Redでvideo upload/ownership失敗時もlegacy fallbackが許可される失敗を確認した。
+- `npm test -- sharedRendererExportFrameSource` を再実行し、41件成功を確認した。
+- `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress` を実行し、72件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgress\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。

@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のexport fallback境界として、Rust video upload/ownership失敗ではlegacy canvas fallbackを禁止するようにした。
+- Red: `sharedRendererExportFrameSource` のテストへ、`videoUploadFailed` と `videoOwnershipUnavailable` でfallback不可になる契約を追加した。
+- Green: Rust video upload失敗、stale decode response、Pixi ownership残留、uploaded clip欠落のblocked errorに `legacyCanvasFallbackAllowed=false` を渡すようにした。
+- 検証: `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress` は72件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-215w`。
+
+## 2026-06-19
 - Phase5のexport fallback境界として、presented shared-frame handoff不可/失敗ではlegacy canvas fallbackを禁止するようにした。
 - Red: `sharedRendererExportFrameSource` のテストへ、`presentedSharedFrameHandoffUnavailable` と `presentedSharedFrameHandoffFailed` でfallback不可になる契約を追加した。
 - Green: presenter shared-frame handoff不可/失敗時の `SharedRendererExportFrameSourceBlockedError` に `legacyCanvasFallbackAllowed=false` を渡すようにした。

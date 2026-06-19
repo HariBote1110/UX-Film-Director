@@ -1,3 +1,20 @@
+## 2026-06-19 — video upload/ownership失敗ではlegacy fallbackを禁止
+
+### 実施内容
+- Red: `videoUploadFailed` と `videoOwnershipUnavailable` のexport blockで、legacy canvas fallbackを許可しない契約を追加した。
+- Green: Rust video upload失敗、stale decode response、Pixi ownership残留、uploaded clip欠落のblocked errorへ `legacyCanvasFallbackAllowed=false` を渡すようにした。
+- Rust decode/upload/ownership cutoverが成立していない動画exportを、Pixi/legacy captureで成功扱いにする抜け道を塞いだ。
+- 版を `0.1.1-Beta-215w` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSource`
+- `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgress\\.ts)"`
+
+### 残課題・次のステップ
+- remaining `fallbackToLegacyCanvas=true` を再スキャンし、互換fallbackとして残すものとRust必須で塞ぐものを分ける。
+- Viewport本体のPixi依存撤去へ向けて、動画以外のPixi-only presentation条件も整理する。
+
 ## 2026-06-19 — presented shared-frame handoffではlegacy fallbackを禁止
 
 ### 実施内容

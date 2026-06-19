@@ -1285,6 +1285,11 @@ Rust direct encode用のpresented shared-frame handoffが不可または失敗�
 `presentedSharedFrameHandoffUnavailable` / `presentedSharedFrameHandoffFailed` を `legacyCanvasFallbackAllowed=false` で返す。
 presenterからencode用shared frameを受け取れない状態を、Pixi/legacy captureで成功扱いにしない。
 
+234. Phase5: video upload/ownership失敗ではlegacy fallbackを禁止する
+Rust video upload失敗、stale decode response、Pixi ownership残留、uploaded clip欠落で
+`videoUploadFailed` / `videoOwnershipUnavailable` が発生した場合、`legacyCanvasFallbackAllowed=false` で返す。
+Rust decode/upload/ownership cutoverが成立していない動画exportを、Pixi/legacy captureで成功扱いにしない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
