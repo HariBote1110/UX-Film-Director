@@ -1,3 +1,21 @@
+## 2026-06-19 — Node addon checksum report algorithmを明示
+
+### 実施内容
+- Red: `scripts/test-shared-video-frame-node-addon.mjs` に、write report / copy report の `checksumAlgorithm` が `crc32` で、write checksum と copy report checksumが一致する契約を追加した。
+- Green: `shared-video-frame-bridge-node` の writable write report と copy reportへ `checksumAlgorithm: 'crc32'` を追加した。
+- Electron preload / renderer型境界でもcopy report checksum algorithmを受け取れるようにし、Rust shared memory copy reportの意味をJS境界で固定した。
+- 版を `0.1.1-Beta-210b` に更新した。
+
+### 検証
+- `npm run test:bridge-node`
+- `npm test -- sharedVideoFrameUploadBridge sharedVideoFrameUploadBridgeBoundary`
+- `cargo test --manifest-path shared-video-frame-bridge-node/Cargo.toml`
+- `npx tsc --noEmit 2>&1 | rg "(electron/preload\\.ts|src/vite-env\\.d\\.ts|src/utils/sharedVideoFrameUploadBridge\\.ts|src/utils/sharedVideoFrameUploadBridge\\.test\\.ts|src/utils/sharedVideoFrameUploadBridgeBoundary\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- 実機GoPro素材でpreview datasetとexport blocked errorの両方に失敗理由が現れることを確認する。
+- shared renderer preview/exportの通常起動で、Rust decode → shared memory copy → WebGPU upload → ownership cutoverがPixi videoなしで通ることを再確認する。
+
 ## 2026-06-19 — checksum不一致時のshared frame slot解放
 
 ### 実施内容

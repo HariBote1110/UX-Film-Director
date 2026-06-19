@@ -642,3 +642,19 @@
 - `cargo test --manifest-path shared-memory-spike/Cargo.toml --test atomic_ring_stress` を実行し、1件成功を確認。
 - `cargo test --manifest-path shared-memory-spike/Cargo.toml --test sidecar_decode_checksum` を実行し、2件成功を確認。
 - `cargo test --manifest-path shared-memory-spike/Cargo.toml posix_shm_multi_slot_allows_next_frame_while_previous_frame_is_reading` を実行し、1件成功を確認。
+
+## 57. Phase5: Node addon checksum report algorithmを明示
+- `scripts/test-shared-video-frame-node-addon.mjs`
+- `writeIntoSharedFrameRing` の `checksum` と `copyIntoUploadBuffer` の `expectedChecksum` / `actualChecksum` が一致し、双方の `checksumAlgorithm` が `crc32` である契約を追加した。
+- `shared-video-frame-bridge-node/src/lib.rs`
+- writable write report と copy report に `checksumAlgorithm: 'crc32'` を追加した。
+- `electron/preload.ts` / `src/vite-env.d.ts` / `src/utils/sharedVideoFrameUploadBridge.ts`
+- Electron preload とrenderer型境界でもcopy reportのchecksum algorithmを受け取れるようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-210b` に更新した。
+
+## 確認
+- `npm run test:bridge-node` を実行し、Node addon契約成功を確認。
+- `npm test -- sharedVideoFrameUploadBridge sharedVideoFrameUploadBridgeBoundary` を実行し、8件成功を確認。
+- `cargo test --manifest-path shared-video-frame-bridge-node/Cargo.toml` を実行し、crate test成功を確認。
+- `npx tsc --noEmit 2>&1 | rg "(electron/preload\\.ts|src/vite-env\\.d\\.ts|src/utils/sharedVideoFrameUploadBridge\\.ts|src/utils/sharedVideoFrameUploadBridge\\.test\\.ts|src/utils/sharedVideoFrameUploadBridgeBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
