@@ -108,11 +108,10 @@ describe('useProjectExport legacy browser dependency boundary', () => {
   it('publishes Rust frame source blocked diagnostics before failing or falling back', () => {
     const code = source();
 
-    expect(code).toContain('rustFrameSourceBlocked: {');
-    expect(code).toContain('detail: error.message');
-    expect(code).toContain('legacyCanvasFallbackAllowed: error.legacyCanvasFallbackAllowed');
-    expect(code.indexOf('rustFrameSourceBlocked: {')).toBeLessThan(
-      code.indexOf('if (blockedRuntimePlan.shouldFailOnRustFrameSourceBlocked)')
+    expect(code).toContain('onRustFrameSourceBlocked: (event) => {');
+    expect(code).toContain('rustFrameSourceBlocked: event');
+    expect(code.indexOf('onRustFrameSourceBlocked: (event) => {')).toBeLessThan(
+      code.indexOf('rustFrameSourceBlocked: event')
     );
   });
 

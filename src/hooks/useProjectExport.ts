@@ -5,21 +5,16 @@ import { shallow } from 'zustand/shallow';
 import { buildExportAudioBuffer, buildExportAudioMixWav } from '../utils/audioMixdown';
 import { resolveProjectExportEncodePlanFromBridge } from '../utils/projectExportEncodePlan';
 import { runRustBackendVideoEncodeExport } from '../utils/rustBackendVideoEncodeExport';
-import { renderProjectExportRustEncodeFrame } from '../utils/projectExportRustEncodeFrame';
+import { renderProjectExportFrame } from '../utils/projectExportFrameRenderer';
 import {
   buildProjectExportFrameSourcePlan,
   createSingleUseProjectExportFrameSourceCloser,
   resolveProjectExportFrameSourcePolicyForEncode,
-  resolveProjectExportFrameRuntimePlan,
-  resolveProjectExportFrameCanvas,
   resolveProjectExportRustFrameSourceContext,
-  shouldSynchroniseTimelineForProjectExportFrame,
   type ProjectExportRustFrameSourceContext,
   type ProjectExportRustFrameSource,
 } from '../utils/projectExportFrameCanvas';
-import { isSharedRendererExportFrameSourceBlockedError } from '../utils/sharedRendererExportFrameSource';
 import { createSharedVideoFramePresentedFrameTaker } from '../utils/sharedVideoFramePresentedFrameHandoff';
-import { captureProjectExportLegacyCanvasFrame } from '../utils/projectExportLegacyCanvasCapture';
 import { encodeProjectExportCompatibilityVideo } from '../utils/projectExportCompatibilityEncoder';
 import { updateExportProgressPhase } from '../utils/exportProgressDiagnostics';
 import { logLastExportDiagnostics } from '../utils/exportDiagnosticsLog';
@@ -111,7 +106,6 @@ export const useProjectExport = (
 
       try {
         const fps = projectSettings.fps;
-        const dt = 1 / fps;
         const width = projectSettings.width;
         const height = projectSettings.height;
         const sampleRate = projectSettings.sampleRate || 44100;
@@ -150,87 +144,36 @@ export const useProjectExport = (
               }));
             }
 
-            const t = i * dt;
-            let frameRuntimePlan = resolveProjectExportFrameRuntimePlan({
+            const result = await renderProjectExportFrame({
               frameSourcePlan: exportFrameSourcePlan,
               rustFrameSourceBlocked,
-            });
-            if (
-              shouldSynchroniseTimelineForProjectExportFrame(frameRuntimePlan)
-              && i % Math.max(1, Math.floor(fps / 2)) === 0
-            ) {
-              setTime(t);
-            }
-
-            if (
-              frameRuntimePlan.source === 'sharedRendererRustFrameSource'
-              && exportFrameSourcePlan.source === 'sharedRendererRustFrameSource'
-            ) {
-              const timestampUs = Math.round(i * 1_000_000 / fps);
-              try {
-                const frame = await renderProjectExportRustEncodeFrame({
-                  frameSource: exportFrameSourcePlan.frameSource,
-                  encodeSessionId: rustEncodeSessionId,
-                  preferSharedFrame,
-                  request: {
-                    frameIndex: i,
-                    timestampUs,
-                    time: t,
-                    width: encWidth,
-                    height: encHeight,
-                    objects: exportObjects,
-                  },
-                });
-                yield frame;
-                closeEncodedFrameBitmap(frame);
-                continue;
-              } catch (error) {
-                if (!isSharedRendererExportFrameSourceBlockedError(error)) {
-                  throw error;
-                }
-                rustFrameSourceBlocked = true;
-                const blockedRuntimePlan = resolveProjectExportFrameRuntimePlan({
-                  frameSourcePlan: exportFrameSourcePlan,
-                  rustFrameSourceBlocked,
-                });
+              frameIndex: i,
+              fps,
+              width: encWidth,
+              height: encHeight,
+              objects: exportObjects,
+              encodeSessionId: rustEncodeSessionId,
+              preferSharedFrame,
+              renderScene,
+              getExportCanvas,
+              closeRustFrameSource: closeRustFrameSource ?? undefined,
+              onSynchroniseTimeline: setTime,
+              onRustFrameSourceBlocked: (event) => {
                 const currentProgress = useStore.getState().exportProgress;
                 if (currentProgress) {
                   setExportProgress({
                     ...currentProgress,
-                    rustFrameSourceBlocked: {
-                      reason: error.reason,
-                      frameIndex: error.frameIndex,
-                      legacyCanvasFallbackAllowed: error.legacyCanvasFallbackAllowed,
-                      detail: error.message,
-                    },
+                    rustFrameSourceBlocked: event,
                   });
                 }
-                if (blockedRuntimePlan.shouldCloseRustFrameSource) {
-                  await closeRustFrameSource?.();
-                }
-                if (blockedRuntimePlan.shouldFailOnRustFrameSourceBlocked) {
-                  throw error;
-                }
-                frameRuntimePlan = blockedRuntimePlan;
-                console.warn('[Export] Rust/shared renderer frame source blocked; falling back to legacy canvas capture.', error);
-              }
-            }
-
-            if (frameRuntimePlan.requiresRenderScene) {
-              renderScene(t, exportObjects);
-            }
-            const frameCanvas = resolveProjectExportFrameCanvas({
-              getExportCanvas,
+              },
+              onRustFrameSourceFallback: (event) => {
+                console.warn('[Export] Rust/shared renderer frame source blocked; falling back to legacy canvas capture.', event);
+              },
             });
-            if (!frameCanvas.ok) throw new Error(frameCanvas.detail);
-            const frame = await captureProjectExportLegacyCanvasFrame({
-              canvas: frameCanvas.canvas,
-              width: encWidth,
-              height: encHeight,
-              timestamp: Math.round(i * 1_000_000 / fps),
-            });
-            yield frame;
-            frame.bitmap.close();
+            rustFrameSourceBlocked = result.rustFrameSourceBlocked;
+            yield result.frame;
+            closeEncodedFrameBitmap(result.frame);
           }
 
         }

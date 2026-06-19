@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { renderProjectExportFrame } from './projectExportFrameRenderer';
 import type { ProjectExportFrameSourcePlanResult } from './projectExportFrameCanvas';
 import type { RustBackendVideoEncodeFrame } from './rustBackendVideoEncodeExport';
+import { SharedRendererExportFrameSourceBlockedError } from './sharedRendererExportFrameSource';
 
 const sharedFrame = (frameIndex: number, timestampUs: number): RustBackendVideoEncodeFrame => ({
   timestamp: timestampUs,
@@ -83,5 +84,60 @@ describe('renderProjectExportFrame', () => {
     expect(renderScene).not.toHaveBeenCalled();
     expect(getExportCanvas).not.toHaveBeenCalled();
     expect(captureLegacyCanvasFrame).not.toHaveBeenCalled();
+  });
+
+  it('publishes blocked diagnostics before failing a required Rust frame source', async () => {
+    const error = new SharedRendererExportFrameSourceBlockedError(
+      'Shared renderer export is missing uploaded video clips: video-2.',
+      'videoOwnershipUnavailable',
+      5,
+      false
+    );
+    const closeRustFrameSource = vi.fn();
+    const onRustFrameSourceBlocked = vi.fn();
+    const onRustFrameSourceFallback = vi.fn();
+    const renderScene = vi.fn();
+    const getExportCanvas = vi.fn();
+    const frameSourcePlan: Extract<ProjectExportFrameSourcePlanResult, { ok: true }> = {
+      ok: true,
+      source: 'sharedRendererRustFrameSource',
+      frameSource: {
+        renderEncodeFrame: vi.fn(async () => {
+          throw error;
+        }),
+      },
+      captureCanvas: false,
+      requiresRenderScene: false,
+      usesExportFrameOverrides: false,
+      rustFrameSourceBlockedFallback: 'failExport',
+    };
+
+    await expect(renderProjectExportFrame({
+      frameSourcePlan,
+      rustFrameSourceBlocked: false,
+      frameIndex: 5,
+      fps: 30,
+      width: 4,
+      height: 2,
+      objects: [],
+      encodeSessionId: 'session-rust-required',
+      preferSharedFrame: true,
+      renderScene,
+      getExportCanvas,
+      closeRustFrameSource,
+      onRustFrameSourceBlocked,
+      onRustFrameSourceFallback,
+    })).rejects.toThrow(error);
+
+    expect(onRustFrameSourceBlocked).toHaveBeenCalledWith({
+      reason: 'videoOwnershipUnavailable',
+      frameIndex: 5,
+      legacyCanvasFallbackAllowed: false,
+      detail: 'Shared renderer export is missing uploaded video clips: video-2.',
+    });
+    expect(onRustFrameSourceFallback).not.toHaveBeenCalled();
+    expect(closeRustFrameSource).toHaveBeenCalledTimes(1);
+    expect(renderScene).not.toHaveBeenCalled();
+    expect(getExportCanvas).not.toHaveBeenCalled();
   });
 });
