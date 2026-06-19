@@ -626,3 +626,19 @@
 ## 確認
 - `npm test -- projectExportFrameCanvas useProjectExportBoundary` を実行し、39件成功を確認。
 - `npx tsc --noEmit 2>&1 | rg "projectExportFrameCanvas|useProjectExport"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 56. Phase5: checksum不一致時のshared frame slot解放
+- `shared-video-frame-bridge/tests/copy_into_upload_buffer.rs`
+- POSIX shared memory上のframe bytesを意図的に破損させ、checksum mismatchでcopyを拒否した後もproducerが次frameを書ける契約を追加した。
+- `shared-memory-spike/src/lib.rs`
+- `PosixSharedRing::read_frame` がchecksum mismatchを検出した場合、`READING` に遷移したslotを `FREE` へ戻してから `ChecksumMismatch` を返すようにした。
+- `shared-video-frame-bridge/Cargo.toml` / `Cargo.lock`
+- integration test用に `libc` をdev dependencyへ追加した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-210a` に更新した。
+
+## 確認
+- `cargo test --manifest-path shared-video-frame-bridge/Cargo.toml --test copy_into_upload_buffer` を実行し、3件成功を確認。
+- `cargo test --manifest-path shared-memory-spike/Cargo.toml --test atomic_ring_stress` を実行し、1件成功を確認。
+- `cargo test --manifest-path shared-memory-spike/Cargo.toml --test sidecar_decode_checksum` を実行し、2件成功を確認。
+- `cargo test --manifest-path shared-memory-spike/Cargo.toml posix_shm_multi_slot_allows_next_frame_while_previous_frame_is_reading` を実行し、1件成功を確認。

@@ -303,6 +303,8 @@ preload は env override / dev output / packaged resources の順で shared vide
 Rust backend decode は `decode.stop` で stale session を破棄して source/layout 切替できる。
 review gate 後、uploaded texture は WebGPU video scene として描画され、copy / upload / stale response 失敗時は
 `rendererUploadAborted` release で slot を戻す。in-flight decode job は presenter 完了前に記録される。
+shared memory checksum mismatch のようにcopy前に破損が検出された場合も、slot は `READING` に残さず解放し、
+長時間preview/exportでdecode ringが詰まらないようにする。
 Rust backend decode は jobId keyed multi-session になり、Viewport は active jobs 配列を保持する。
 WebGPU presenter は clip id ごとの texture bind group を切り替えて、Rust upload 済み動画clipだけを描画する。
 Rust backend decode は ffprobe の colour metadata を gate し、bt709 / sRGB transfer / bt709 matrix / pc-tv range 以外を fail-loud にする。

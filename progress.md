@@ -1,3 +1,21 @@
+## 2026-06-19 — checksum不一致時のshared frame slot解放
+
+### 実施内容
+- Red: `shared-video-frame-bridge` のintegration testに、POSIX shared memory上のframe bytesを破損させたあと、copy拒否後も次frameを書ける契約を追加した。
+- Green: `PosixSharedRing::read_frame` がchecksum mismatchを検出した場合、`READING` に遷移したslotを `FREE` へ戻してから `ChecksumMismatch` を返すようにした。
+- Rust/shared memory data-planeで破損frameがdecode ringを詰まらせる経路を塞いだ。
+- 版を `0.1.1-Beta-210a` に更新した。
+
+### 検証
+- `cargo test --manifest-path shared-video-frame-bridge/Cargo.toml --test copy_into_upload_buffer`
+- `cargo test --manifest-path shared-memory-spike/Cargo.toml --test atomic_ring_stress`
+- `cargo test --manifest-path shared-memory-spike/Cargo.toml --test sidecar_decode_checksum`
+- `cargo test --manifest-path shared-memory-spike/Cargo.toml posix_shm_multi_slot_allows_next_frame_while_previous_frame_is_reading`
+
+### 残課題・次のステップ
+- Node addon契約でも `writeIntoSharedFrameRing` のchecksumと `copyIntoUploadBuffer` のcopy report checksumを突き合わせ、JS境界でのreport名と値を固定する。
+- 実機GoPro素材でpreview datasetとexport blocked errorの両方に失敗理由が現れることを確認する。
+
 ## 2026-06-19 — export動画upload失敗detailへ低レベル理由を追加
 
 ### 実施内容
