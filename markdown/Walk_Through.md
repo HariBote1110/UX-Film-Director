@@ -727,3 +727,18 @@
 - `npm test -- sharedRendererPreviewPresenterController` を実行し、RedでWebGPU upload失敗理由がdatasetに出ない失敗を確認した。
 - `npm test -- sharedRendererPreviewPresenterController sharedRendererPresenterDiagnostics sharedRendererViewportPresenterOrchestration` を実行し、46件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 63. Phase5: WebGPU動画upload失敗clip/media idを補完
+- `src/utils/sharedRendererPreviewPresenterController.test.ts`
+- 単一decoded Rust video uploadのWebGPU texture uploadが失敗した場合も、presenter datasetへclip/media idを出す契約を追加した。
+- `src/utils/sharedRendererPreviewPresenterController.ts`
+- `sharedRendererDecodedVideoFrameUpload` 単体入力ではsession上の単一Video clipからclip/media idを補完するようにした。
+- `src/utils/sharedRendererViewportPresenterOrchestration.ts`
+- 複数decoded upload入力でもrequest由来の `mediaId` をpresenterへ渡すようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-210h` に更新した。
+
+## 確認
+- `npm test -- sharedRendererPreviewPresenterController` を実行し、Redでclip/media idがdatasetに出ない失敗を確認した。
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererViewportPresenterOrchestration sharedRendererPresenterDiagnostics` を実行し、46件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

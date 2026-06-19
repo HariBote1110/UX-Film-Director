@@ -1,3 +1,20 @@
+## 2026-06-19 — WebGPU動画upload失敗clip/media idを補完
+
+### 実施内容
+- Red: 単一decoded Rust video uploadのWebGPU texture uploadが失敗した場合も、presenter datasetへ `VideoUploadFailureClipId` / `MediaId` を出す契約を追加した。
+- Green: `sharedRendererDecodedVideoFrameUpload` 単体入力ではsession上の単一Video clipからclip/media idを補完し、複数upload入力ではorchestrationから `mediaId` も渡すようにした。
+- WebGPU upload失敗診断を、shared memory copy失敗診断と同じ粒度で実機追跡できるようにした。
+- 版を `0.1.1-Beta-210h` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPreviewPresenterController`
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererViewportPresenterOrchestration sharedRendererPresenterDiagnostics`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererPreviewPresenterController\\.ts|src/utils/sharedRendererPreviewPresenterController\\.test\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.ts|src/utils/sharedRendererViewportPresenterOrchestration\\.test\\.ts|src/utils/sharedRendererPresenterDiagnostics\\.ts)"`
+
+### 残課題・次のステップ
+- 実機GoPro素材でWebGPU upload失敗時にreason/detail/clip/media idがdatasetへ揃って出ることを確認する。
+- 成功時はclip/media id付き失敗診断が残らず、shared renderer ownershipへ進むことを確認する。
+
 ## 2026-06-19 — WebGPU動画upload失敗をpresenter診断へ追加
 
 ### 実施内容
