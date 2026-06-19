@@ -1798,6 +1798,20 @@
 - `npm test -- sharedRendererExportFrameSource` を再実行し、48件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/store/useStore\\.ts|src/components/ExportProgressModal\\.tsx)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 138. Phase5: native render texture view blocked診断の表示ラベルを追加
+- `src/components/ExportProgressModal.test.ts`
+- `nativeRenderTextureViewUnavailable` のRust frame source blocked診断がraw reasonではなく、日本語/英語の読みやすいラベルで表示される契約を追加した。
+- `src/components/ExportProgressModal.tsx`
+- blocked reason formatterに `nativeRenderTextureViewUnavailable` を追加した。
+- 日本語では `native render texture viewなし`、英語では `native render texture view unavailable` と表示する。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216p` に更新した。
+
+## 確認
+- `npm test -- ExportProgressModal` を実行し、Redでraw reasonが表示される失敗を確認した。
+- `npm test -- ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress sharedRendererExportFrameSource` を実行し、80件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportDiagnosticsLog\\.test\\.ts|src/utils/exportProgressDiagnostics\\.ts|src/store/useStore\\.ts|src/utils/sharedRendererExportFrameSource\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。

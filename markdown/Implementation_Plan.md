@@ -1380,6 +1380,11 @@ exportのbitmap path/direct encode pathでは、presenter controlの `nativeRend
 `presentedSharedFrameHandoffUnavailable` へ丸めず、同じreasonのblocked errorとして扱う。
 Rust/native render frameのWebGPU texture view欠落を、legacy bitmap captureで成功扱いにしない。
 
+253. Phase5: native render texture view blocked診断の表示ラベルを追加する
+`nativeRenderTextureViewUnavailable` のRust frame source blocked診断は、UI summaryでraw reasonを出さず、
+日本語では `native render texture viewなし`、英語では `native render texture view unavailable` と表示する。
+native render texture view欠落でRust/shared renderer実出力が止まった原因を、実機UIで追いやすい文言にする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

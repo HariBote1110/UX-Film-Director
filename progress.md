@@ -1,3 +1,19 @@
+## 2026-06-19 — native render texture view blocked診断の表示ラベルを追加
+
+### 実施内容
+- Red: `nativeRenderTextureViewUnavailable` のRust frame source blocked診断がraw reasonではなく読みやすいラベルで表示される契約を追加した。
+- Green: `ExportProgressModal` のblocked reason formatterに `nativeRenderTextureViewUnavailable` を追加し、日本語では `native render texture viewなし`、英語では `native render texture view unavailable` と表示するようにした。
+- native render texture view欠落でRust/shared renderer実出力が止まった場合の診断を、実機UIで追いやすい文言に整えた。
+- 版を `0.1.1-Beta-216p` に更新した。
+
+### 検証
+- `npm test -- ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress sharedRendererExportFrameSource`
+- `npx tsc --noEmit 2>&1 | rg "(src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportDiagnosticsLog\\.test\\.ts|src/utils/exportProgressDiagnostics\\.ts|src/store/useStore\\.ts|src/utils/sharedRendererExportFrameSource\\.ts)"`
+
+### 残課題・次のステップ
+- Viewport本体のPixi依存撤去へ向けて、image/PSD/SolidColourのnative render coverageをさらに診断へ接続する。
+- shared renderer実出力必須モードで、image/PSD系のpresentation失敗も同じblocked診断へ揃える。
+
 ## 2026-06-19 — native render texture view失敗をexport blockedに伝搬
 
 ### 実施内容

@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のexport診断表示として、`nativeRenderTextureViewUnavailable` のRust frame source blocked診断に読みやすい表示ラベルを追加した。
+- Red: `ExportProgressModal` のテストへ、raw reasonではなく `native render texture viewなし` / `native render texture view unavailable` が表示される契約を追加した。
+- Green: blocked reason formatterに `nativeRenderTextureViewUnavailable` の日本語/英語ラベルを追加した。
+- 検証: `npm test -- ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress sharedRendererExportFrameSource` は80件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216p`。
+
+## 2026-06-19
 - Phase5のexport blocked伝搬として、`nativeRenderTextureViewUnavailable` をlegacy bitmap captureや `presentedSharedFrameHandoffUnavailable` に丸めず伝えるようにした。
 - Red: `sharedRendererExportFrameSource` のテストへ、bitmap exportとdirect encode exportの両方でnative render texture view欠落が同じblocked reasonになる契約を追加した。
 - Green: export frame sourceのblocked reasonへ `nativeRenderTextureViewUnavailable` を追加し、presenter control失敗を同じreasonで停止させた。
