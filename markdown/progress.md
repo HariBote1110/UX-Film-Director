@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のexport計画診断として、Image/PSD exportでRust frame sourceが不在の場合のdetailをImage/PSD由来だと分かる文言にした。
+- Red: `projectExportFrameCanvas` のテストへ、`hasNativeRenderMediaObjects=true` のplan failure detailが `Image/PSD export requires...` になる契約を追加した。
+- Green: `buildProjectExportFrameSourcePlan` に `hasNativeRenderMediaObjects` を渡し、`useProjectExport` からも同じ判定を渡すようにした。
+- 検証: `npm test -- projectExportFrameCanvas useProjectExportBoundary` は56件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216u`。
+
+## 2026-06-19
 - Phase5のexport計画として、Image/PSDを含むWebCodecs互換exportもRust frame source必須・blocked時failとして扱うようにした。
 - Red: `projectExportFrameCanvas` のテストへ、`hasNativeRenderMediaObjects` がtrueなら `requireRustFrameSource` / `failExport` になる契約と、contextがImage/PSDをnative render mediaとして検出する契約を追加した。
 - Green: export policy/contextに `hasNativeRenderMediaObjects` を追加し、`useProjectExport` からImage/PSDの存在を渡すようにした。

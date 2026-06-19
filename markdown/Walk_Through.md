@@ -1872,6 +1872,21 @@
 - `npm test -- projectExportFrameCanvas useProjectExportBoundary` を実行し、55件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/projectExportFrameCanvas\\.ts|src/utils/projectExportFrameCanvas\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 143. Phase5: Image/PSD Rust frame source不在detailを明示
+- `src/utils/projectExportFrameCanvas.test.ts`
+- Image/PSD exportでRust frame sourceがない場合、plan failure detailが `Image/PSD export requires a shared renderer Rust frame source.` になる契約を追加した。
+- `src/utils/projectExportFrameCanvas.ts`
+- `BuildProjectExportFrameSourcePlanInput` に `hasNativeRenderMediaObjects` を追加し、Rust frame source不在時のdetailを分岐した。
+- `src/hooks/useProjectExport.ts`
+- Image/PSDのnative render media判定をplan生成にも渡すようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216u` に更新した。
+
+## 確認
+- `npm test -- projectExportFrameCanvas` を実行し、Redで汎用のRust-only detailが出る失敗を確認した。
+- `npm test -- projectExportFrameCanvas useProjectExportBoundary` を実行し、56件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/projectExportFrameCanvas\\.ts|src/utils/projectExportFrameCanvas\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。

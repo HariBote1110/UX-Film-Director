@@ -1,3 +1,19 @@
+## 2026-06-19 — Image/PSD Rust frame source不在detailを明示
+
+### 実施内容
+- Red: Image/PSD exportでRust frame sourceがない場合、plan failure detailが汎用のRust-onlyではなくImage/PSD由来だと分かる契約を追加した。
+- Green: `buildProjectExportFrameSourcePlan` に `hasNativeRenderMediaObjects` を渡し、Rust frame source不在時のdetailを `Image/PSD export requires...` に分岐した。
+- `useProjectExport` でも同じnative render media判定をplan生成へ渡し、UI/ログで原因を追いやすくした。
+- 版を `0.1.1-Beta-216u` に更新した。
+
+### 検証
+- `npm test -- projectExportFrameCanvas useProjectExportBoundary`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/projectExportFrameCanvas\\.ts|src/utils/projectExportFrameCanvas\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- shared renderer実出力必須モードの実機確認範囲を、画像/PSD混在タイムラインへ広げる。
+- Image/PSD native render mediaのplan failureをexport progress modal上でさらに読みやすくする。
+
 ## 2026-06-19 — Image/PSD exportをRust frame source必須条件に追加
 
 ### 実施内容

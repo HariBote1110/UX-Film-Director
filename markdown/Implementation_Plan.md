@@ -1405,6 +1405,11 @@ export frame source policy/contextに `hasNativeRenderMediaObjects` を追加し
 WebCodecs互換encoderでもRust frame source必須・blocked時failとして扱う。
 計画段階からImage/PSDをPixi/legacy canvas exportへ戻さず、Rust/native render mediaとして扱う。
 
+258. Phase5: Image/PSD Rust frame source不在detailを明示する
+`hasNativeRenderMediaObjects` が有効なexport planでRust frame sourceが不在の場合、plan failure detailを
+汎用のRust-only文言ではなく `Image/PSD export requires...` として出す。
+Image/PSD由来のnative render必須失敗を、export progress/logで追いやすくする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
