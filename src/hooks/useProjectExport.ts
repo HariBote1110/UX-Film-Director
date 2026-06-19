@@ -264,6 +264,10 @@ export const useProjectExport = (
           return;
         }
 
+        if (hasVideoObjects) {
+          throw new Error('Video export requires the Rust backend encoder before opening the WebCodecs export stream.');
+        }
+
         const audioBuffer = await buildExportAudioBuffer(exportObjects, exportDuration, sampleRate);
 
         // 出力をディスクへ逐次書き出す（出力全体をメモリに保持しない）。
