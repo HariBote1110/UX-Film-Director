@@ -370,4 +370,93 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
       }],
     });
   });
+
+  it('rejects stale decoded frame job ids and releases the returned slot without using it as a native render source', async () => {
+    const calls: unknown[] = [];
+    const frame = sharedFrame('/uxfd-native-source-stale-video');
+    const result = await prepareSharedRendererViewportNativeRenderSources({
+      session: session(),
+      requestId: 99,
+      activeJobs: [],
+      rustBackendBridge: {
+        startVideoDecode: async (payload) => {
+          calls.push(['startVideoDecode', payload]);
+          return { success: true };
+        },
+        requestVideoDecodeFrame: async (payload) => {
+          calls.push(['requestVideoDecodeFrame', payload]);
+          return {
+            success: true,
+            result: {
+              accepted: true,
+              jobId: 'shared-renderer-video-stale-video-4x4-60over1',
+              requestId: payload.requestId,
+              frameIndex: payload.frameIndex,
+              mode: 'latestWins',
+              frame,
+              verification: {
+                frameIndex: payload.frameIndex,
+                checksum: {
+                  algorithm: 'crc32',
+                  valueHex: '00000000',
+                  byteLen: frame.descriptor.byteLen,
+                },
+                status: 'withinTolerance',
+              },
+            },
+          };
+        },
+        releaseVideoDecodeFrame: async (payload) => {
+          calls.push(['releaseVideoDecodeFrame', payload]);
+          return { success: true };
+        },
+        stopVideoDecode: async (payload) => {
+          calls.push(['stopVideoDecode', payload]);
+          return { success: true };
+        },
+      },
+      decodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'clip-video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video-1.mp4',
+          sourceFrame: 12,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 2,
+          width: 4,
+          height: 4,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'staleDecodeResponse',
+      detail: 'Rust backend returned a decoded frame for a stale job id.',
+      activeJobs: [{
+        jobId: 'shared-renderer-video-video-1-4x4-60over1',
+        source: '/tmp/video-1.mp4',
+        slotCount: 2,
+        width: 4,
+        height: 4,
+        sourceRate: {
+          numerator: 60,
+          denominator: 1,
+        },
+      }],
+    });
+    expect(calls).toContainEqual(['releaseVideoDecodeFrame', {
+      jobId: 'shared-renderer-video-stale-video-4x4-60over1',
+      slotIndex: 0,
+      generation: 4,
+      copyOutState: 'rendererUploadAborted',
+    }]);
+  });
 });
