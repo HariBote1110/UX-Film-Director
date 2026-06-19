@@ -274,4 +274,51 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
       },
     ]]);
   });
+
+  it('rejects the release callback when Rust decode slot release returns success false', async () => {
+    const calls: unknown[] = [];
+    const upload = await prepareSharedRendererRustDecodedVideoUpload({
+      decodeResponse: decodedFrameResponse,
+      slotCount: 2,
+      copyBridge: {
+        copyIntoUploadBuffer: async (_payload, target) => {
+          target.fill(0x44);
+          return {
+            success: true,
+            result: {
+              sequence: 42,
+              slotIndex: 1,
+              generation: 5,
+              byteLen: target.byteLength,
+              expectedChecksum: 0x1234,
+              actualChecksum: 0x1234,
+            },
+          };
+        },
+      },
+      rustBackendBridge: {
+        startVideoDecode: async () => ({ success: true }),
+        requestVideoDecodeFrame: async () => ({ success: true, result: decodedFrameResponse.result! }),
+        releaseVideoDecodeFrame: async (payload) => {
+          calls.push(['releaseVideoDecodeFrame', payload]);
+          return { success: false, error: 'decode slot release returned false' };
+        },
+        stopVideoDecode: async () => ({ success: true }),
+      },
+    });
+
+    expect(upload.ok).toBe(true);
+    if (!upload.ok) throw new Error('expected upload preparation to succeed');
+
+    await expect(upload.releaseAfterGpuUpload?.()).rejects.toThrow('decode slot release returned false');
+    expect(calls).toEqual([[
+      'releaseVideoDecodeFrame',
+      {
+        jobId: 'decode-job-1',
+        slotIndex: 1,
+        generation: 5,
+        copyOutState: 'gpuUploadFenceSignalled',
+      },
+    ]]);
+  });
 });
