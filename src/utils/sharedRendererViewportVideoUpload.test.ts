@@ -1055,6 +1055,8 @@ describe('sharedRendererViewportVideoUpload', () => {
       ok: false,
       reason: 'staleDecodeResponse',
       detail: 'Rust backend returned a decoded frame for a stale job id.',
+      uploadFailureClipId: 'video-1',
+      uploadFailureMediaId: 'video-1',
       activeJob: {
         jobId: expectedJobId,
         source: '/tmp/gopro clip.mp4',
