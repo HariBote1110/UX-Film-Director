@@ -3520,6 +3520,64 @@ describe('createSharedRendererExportFrameSource', () => {
     });
   });
 
+  it('blocks bitmap export before legacy capture when WebGPU draw presentation is unavailable', async () => {
+    const canvas = {
+      width: 1,
+      height: 1,
+      dataset: {},
+    } as unknown as HTMLCanvasElement;
+    let disposeCount = 0;
+    let bitmapCaptureCount = 0;
+
+    const source = createSharedRendererExportFrameSource({
+      canvas,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+      videoCutoverEnabled: true,
+      startViewportPresenter: async () => ({
+        control: {
+          ok: false,
+          reason: 'webGpuDrawUnavailable',
+          dispose: () => { disposeCount += 1; },
+        },
+        activeVideoDecodeJob: null,
+        activeVideoDecodeJobs: [],
+      }) as never,
+      createFrameBitmap: async () => {
+        bitmapCaptureCount += 1;
+        return ({ close: () => undefined }) as ImageBitmap;
+      },
+    });
+
+    const blocked = await source.renderFrame?.({
+      frameIndex: 6,
+      timestampUs: 100_000,
+      time: 6 / 60,
+      width: 1920,
+      height: 1080,
+      objects: [image()],
+    }).catch((error) => error);
+
+    expect(isSharedRendererExportFrameSourceBlockedError(blocked)).toBe(true);
+    expect(blocked).toMatchObject({
+      reason: 'webGpuDrawUnavailable',
+      frameIndex: 6,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
+      message: 'Shared renderer WebGPU presentation is unavailable.',
+    });
+    expect(bitmapCaptureCount).toBe(0);
+    expect(disposeCount).toBe(1);
+    expect(canvas.dataset).toMatchObject({
+      uxfdRustExportFrameSourceFrameStatus: 'blocked',
+      uxfdRustExportFrameSourceFrameIndex: '6',
+      uxfdRustExportFrameSourceFrameReason: 'webGpuDrawUnavailable',
+    });
+  });
+
   it('falls back before bitmap capture when Rust video upload fails during export', async () => {
     const canvas = {
       width: 1,
