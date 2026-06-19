@@ -72,6 +72,13 @@ export type PrepareSharedRendererDecodedVideoFrameUploadResult =
     }
   | {
       ok: false;
+      reason: 'copyReportChecksumMismatch';
+      detail: string;
+      expectedChecksum: number;
+      actualChecksum: number;
+    }
+  | {
+      ok: false;
       reason: 'descriptorOutsideSharedRingLayout';
       detail: string;
     }
@@ -144,6 +151,15 @@ export const prepareSharedRendererDecodedVideoFrameUpload = async ({
       detail: 'Shared video frame copy report must match the decoded frame pts.',
       expectedSequence: ptsFrame,
       actualSequence: response.result.sequence,
+    };
+  }
+  if (response.result.expectedChecksum !== response.result.actualChecksum) {
+    return {
+      ok: false,
+      reason: 'copyReportChecksumMismatch',
+      detail: 'Shared video frame copy report checksum verification failed.',
+      expectedChecksum: response.result.expectedChecksum,
+      actualChecksum: response.result.actualChecksum,
     };
   }
   if (copyReportContainsPixelPayload(response.result)) {
