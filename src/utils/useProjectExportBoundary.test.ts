@@ -96,6 +96,16 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     expect(code).toContain('nativeRenderOutputRelease: event');
   });
 
+  it('publishes Rust frame source blocked diagnostics before failing or falling back', () => {
+    const code = source();
+
+    expect(code).toContain('rustFrameSourceBlocked: {');
+    expect(code).toContain('legacyCanvasFallbackAllowed: error.legacyCanvasFallbackAllowed');
+    expect(code.indexOf('rustFrameSourceBlocked: {')).toBeLessThan(
+      code.indexOf('if (blockedRuntimePlan.shouldFailOnRustFrameSourceBlocked)')
+    );
+  });
+
   it('renders native render output release diagnostics from export progress', () => {
     const code = exportProgressModalSource();
 
