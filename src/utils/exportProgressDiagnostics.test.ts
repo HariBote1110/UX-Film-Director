@@ -42,7 +42,7 @@ describe('updateExportProgressPhase', () => {
       rustFrameSourceBlocked: {
         reason: 'videoOwnershipUnavailable',
         frameIndex: 3,
-        legacyCanvasFallbackAllowed: true,
+        legacyCanvasFallbackAllowed: false,
         detail: 'Shared renderer export is missing uploaded video clips: video-2.',
       },
       nativeRenderOutputRelease: {

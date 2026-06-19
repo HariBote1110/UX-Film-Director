@@ -99,7 +99,7 @@ describe('export progress state', () => {
       rustFrameSourceBlocked: {
         reason: 'videoOwnershipUnavailable',
         frameIndex: 5,
-        legacyCanvasFallbackAllowed: true,
+        legacyCanvasFallbackAllowed: false,
         detail: 'Shared renderer export is missing uploaded video clips: video-2.',
       },
       nativeRenderOutputRelease: {
@@ -108,6 +108,28 @@ describe('export progress state', () => {
         reason: 'encodeWriteFailed',
         error: 'release rejected',
       },
+    });
+  });
+
+  it('normalises video Rust blocked diagnostics on the progress payload', () => {
+    useStore.getState().setExporting(true);
+    useStore.getState().setExportProgress({
+      phase: 'rendering',
+      currentFrame: 5,
+      totalFrames: 120,
+      rustFrameSourceBlocked: {
+        reason: 'videoOwnershipUnavailable',
+        frameIndex: 5,
+        legacyCanvasFallbackAllowed: true,
+        detail: 'Shared renderer export is missing uploaded video clips: video-2.',
+      },
+    });
+
+    expect(useStore.getState().exportProgress?.rustFrameSourceBlocked).toEqual({
+      reason: 'videoOwnershipUnavailable',
+      frameIndex: 5,
+      legacyCanvasFallbackAllowed: false,
+      detail: 'Shared renderer export is missing uploaded video clips: video-2.',
     });
   });
 
