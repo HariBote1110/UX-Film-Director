@@ -21,15 +21,9 @@ app.commandLine.appendSwitch('enable-zero-copy');
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
 // WebGPU を明示的に有効化
 app.commandLine.appendSwitch('enable-unsafe-webgpu');
-// ハードウェアビデオエンコード/デコードを有効化
-// VideoToolboxVideoCodecFactory: macOS (Apple Silicon) で VideoToolbox 経由の HW エンコードを有効化
-// VaapiVideoDecoder: Linux での HW デコード
-// CanvasOopRasterization: Canvas の GPU ラスタライズ
-app.commandLine.appendSwitch('disable-features', 'UseChromeOSDirectVideoDecoder');
-app.commandLine.appendSwitch('enable-features',
-  'VideoToolboxVideoCodecFactory,VaapiVideoDecoder,VaapiVideoEncoder,CanvasOopRasterization');
-// GPU プロセスをレンダラー内で実行: macOS で VideoToolbox HW エンコードを WebCodecs から利用するために必要
-// disable-gpu-sandbox では不十分で、in-process-gpu により GPU プロセス境界を排除する
+// Canvas の GPU ラスタライズを有効化
+app.commandLine.appendSwitch('enable-features', 'CanvasOopRasterization');
+// WebGPU presenter / shared renderer のGPU利用を安定させる
 app.commandLine.appendSwitch('disable-gpu-sandbox');
 app.commandLine.appendSwitch('in-process-gpu');
 
@@ -803,7 +797,7 @@ app.whenReady().then(() => {
     }
   });
 
-  // ── WebCodecs エクスポート用ハンドラ（Phase 3）────────────────────────────
+  // ── 互換エクスポート用ハンドラ（Phase 3）────────────────────────────
   // ファイル保存先ダイアログを表示してパスだけを返す
   ipcMain.handle('show-save-dialog', async (_event, options: { defaultPath?: string; filters?: Electron.FileFilter[] }) => {
     const { filePath } = await dialog.showSaveDialog({
