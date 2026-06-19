@@ -357,6 +357,7 @@ export function createSharedRendererExportFrameSource({
           nativeRenderBlockedReason,
           request.frameIndex,
           nativeRenderBlockedReason !== 'preparedNativeRenderSourceAbortReleaseFailed'
+            && !effectiveNativeRenderRequired
         );
       }
     } else {
