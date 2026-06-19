@@ -81,6 +81,15 @@ const decodeJob = (jobId: string): SharedRendererViewportVideoDecodeJob => ({
 });
 
 describe('createSharedRendererExportFrameSource', () => {
+  it('recognises structural blocked errors that explicitly disable legacy fallback', () => {
+    expect(isSharedRendererExportFrameSourceBlockedError({
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
+      reason: 'videoBitmapCaptureDisabled',
+      frameIndex: 13,
+    })).toBe(true);
+  });
+
   it('renders a shared renderer export session and captures its canvas as an ImageBitmap', async () => {
     const canvas = {
       width: 1,
