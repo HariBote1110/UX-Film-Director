@@ -73,13 +73,18 @@ export const useProjectExport = (
         hasVideoObjects,
         encodeEngine: exportEncodePlan.engine,
       });
+      let rustFrameSourceUnavailableDetail: string | undefined;
       const initialFrameSourcePlan = buildProjectExportFrameSourcePlan({
         rustFrameSource: getRustExportFrameSource?.(resolveProjectExportRustFrameSourceContext({
           objects: exportObjects,
           time: 0,
           encodeEngine: exportEncodePlan.engine,
           presentedFrameSharedFrameTaker: createSharedVideoFramePresentedFrameTaker() ?? undefined,
+          onFrameSourceUnavailable: (decision) => {
+            rustFrameSourceUnavailableDetail = decision.detail;
+          },
         })) ?? null,
+        rustFrameSourceUnavailableDetail,
         rustFrameSourcePolicy: frameSourcePolicy.rustFrameSourcePolicy,
         rustFrameSourceBlockedFallback: frameSourcePolicy.rustFrameSourceBlockedFallback,
         hasVideoObjects,

@@ -40,6 +40,10 @@ export interface ProjectExportRustFrameSourceContext {
   time: number;
   preferEncodeOnly?: boolean;
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
+  onFrameSourceUnavailable?: (decision: {
+    reason: string;
+    detail: string;
+  }) => void;
 }
 
 export type ResolveProjectExportFrameCanvasResult =
@@ -100,6 +104,7 @@ export interface ProjectExportFrameRuntimePlan {
 
 export interface BuildProjectExportFrameSourcePlanInput extends ResolveProjectExportFrameCanvasInput {
   rustFrameSource?: ProjectExportRustFrameSource | null;
+  rustFrameSourceUnavailableDetail?: string;
   rustFrameSourcePolicy?: ProjectExportRustFrameSourcePolicy;
   rustFrameSourceBlockedFallback?: ProjectExportRustFrameSourceBlockedFallback;
   hasVideoObjects: boolean;
@@ -126,6 +131,7 @@ export interface ResolveProjectExportRustFrameSourceContextInput {
   time: number;
   encodeEngine: ProjectExportEncodeEngine;
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
+  onFrameSourceUnavailable?: ProjectExportRustFrameSourceContext['onFrameSourceUnavailable'];
 }
 
 export const resolveProjectExportFrameCanvas = ({
@@ -158,6 +164,7 @@ export const resolveProjectExportFrameCanvas = ({
 
 export const buildProjectExportFrameSourcePlan = ({
   rustFrameSource = null,
+  rustFrameSourceUnavailableDetail,
   rustFrameSourcePolicy = 'allowLegacyCanvas',
   rustFrameSourceBlockedFallback = 'legacyCanvas',
   hasVideoObjects,
@@ -194,7 +201,10 @@ export const buildProjectExportFrameSourcePlan = ({
     return {
       ok: false,
       reason: 'rustFrameSourceRequired',
-      detail: 'Rust-only export requires a shared renderer Rust frame source.',
+      detail: appendRustFrameSourceUnavailableDetail(
+        'Rust-only export requires a shared renderer Rust frame source.',
+        rustFrameSourceUnavailableDetail
+      ),
     };
   }
 
@@ -202,7 +212,10 @@ export const buildProjectExportFrameSourcePlan = ({
     return {
       ok: false,
       reason: 'rustFrameSourceRequired',
-      detail: 'Video export requires a shared renderer Rust frame source.',
+      detail: appendRustFrameSourceUnavailableDetail(
+        'Video export requires a shared renderer Rust frame source.',
+        rustFrameSourceUnavailableDetail
+      ),
     };
   }
 
@@ -228,6 +241,13 @@ export const buildProjectExportFrameSourcePlan = ({
   };
 };
 
+const appendRustFrameSourceUnavailableDetail = (
+  baseDetail: string,
+  unavailableDetail: string | undefined
+): string => unavailableDetail
+  ? `${baseDetail} ${unavailableDetail}`
+  : baseDetail;
+
 export const resolveProjectExportFrameSourcePolicyForEncode = ({
   rustExportOnly,
   hasVideoObjects,
@@ -248,6 +268,7 @@ export const resolveProjectExportRustFrameSourceContext = ({
   time,
   encodeEngine,
   presentedFrameSharedFrameTaker,
+  onFrameSourceUnavailable,
 }: ResolveProjectExportRustFrameSourceContextInput): ProjectExportRustFrameSourceContext => {
   const hasVideoObjects = objects.some((object) => object.type === 'video');
 
@@ -257,6 +278,7 @@ export const resolveProjectExportRustFrameSourceContext = ({
     time,
     preferEncodeOnly: encodeEngine === 'rustBackendVideoEncoder' || hasVideoObjects,
     presentedFrameSharedFrameTaker,
+    onFrameSourceUnavailable,
   };
 };
 

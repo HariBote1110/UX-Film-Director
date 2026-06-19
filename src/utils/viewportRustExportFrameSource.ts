@@ -34,6 +34,7 @@ export interface BuildViewportRustExportFrameSourceInput {
   createFrameSource?: (
     input: CreateSharedRendererExportFrameSourceInput
   ) => ProjectExportRustFrameSource;
+  onFrameSourceUnavailable?: (decision: Extract<ViewportRustExportFrameSourceDecision, { ok: false }>) => void;
   diagnosticsDataset?: Record<string, string | undefined>;
 }
 
@@ -61,11 +62,15 @@ export type ViewportRustExportFrameSourceDecision =
 
 export const buildViewportRustExportFrameSource = ({
   diagnosticsDataset,
+  onFrameSourceUnavailable,
   ...input
 }: BuildViewportRustExportFrameSourceInput): ProjectExportRustFrameSource | null => {
   const decision = resolveViewportRustExportFrameSource(input);
   if (diagnosticsDataset) {
     writeViewportRustExportFrameSourceDiagnostics(diagnosticsDataset, decision);
+  }
+  if (!decision.ok) {
+    onFrameSourceUnavailable?.(decision);
   }
 
   return decision.ok ? decision.source : null;
