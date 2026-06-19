@@ -1,3 +1,20 @@
+## 2026-06-19 — fallback不可blocked objectをtype guardで認識
+
+### 実施内容
+- Red: `fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` の構造的blocked objectも `isSharedRendererExportFrameSourceBlockedError` が認識する契約を追加した。
+- Green: type guardの構造判定を `fallbackToLegacyCanvas === true` からboolean許容へ変更し、fallback不可診断をrealm越え/fixtureでも扱えるようにした。
+- 動画exportでlegacy fallback不可を明示する診断オブジェクトを、hook側のblocked処理が取りこぼさないようにした。
+- 版を `0.1.1-Beta-210s` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSource`
+- `npm test -- sharedRendererExportFrameSource sharedRendererExportFrameSourceBoundary useProjectExportBoundary`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/components/ExportProgressModal\\.tsx)"`
+
+### 残課題・次のステップ
+- 実機動画exportでfallback不可のblocked objectがUI進捗へ確実に伝搬することを確認する。
+- Rust native render / shared-frame pathの実機失敗reasonが、legacy fallback不可として一貫表示されることを確認する。
+
 ## 2026-06-19 — Rust frame source blocked時のfallback可否を同期
 
 ### 実施内容

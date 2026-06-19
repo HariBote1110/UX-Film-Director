@@ -879,3 +879,16 @@
 - `npm test -- sharedRendererExportFrameSource` を実行し、Redで `fallbackToLegacyCanvas` がtrueのまま残る失敗を確認した。
 - `npm test -- sharedRendererExportFrameSource sharedRendererExportFrameSourceBoundary useProjectExportBoundary` を実行し、55件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/components/ExportProgressModal\\.tsx)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 74. Phase5: fallback不可blocked objectをtype guardで認識
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- `fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` の構造的blocked objectも `isSharedRendererExportFrameSourceBlockedError` が認識する契約を追加した。
+- `src/utils/sharedRendererExportFrameSource.ts`
+- type guardの構造判定を `fallbackToLegacyCanvas === true` からboolean許容へ変更し、fallback不可診断をrealm越え/fixtureでも扱えるようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-210s` に更新した。
+
+## 確認
+- `npm test -- sharedRendererExportFrameSource` を実行し、Redでfallback不可の構造的blocked objectが認識されない失敗を確認した。
+- `npm test -- sharedRendererExportFrameSource sharedRendererExportFrameSourceBoundary useProjectExportBoundary` を実行し、56件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/components/ExportProgressModal\\.tsx)"` を実行し、対象ファイルに型エラーが出ないことを確認。
