@@ -232,6 +232,14 @@ export const useProjectExport = (
               height: encHeight,
               fps,
               frames: renderRustEncodeFrames(),
+              onNativeRenderOutputRelease: (event) => {
+                const currentProgress = useStore.getState().exportProgress;
+                if (!currentProgress) return;
+                setExportProgress({
+                  ...currentProgress,
+                  nativeRenderOutputRelease: event,
+                });
+              },
             });
             if (isCancelled()) return;
 

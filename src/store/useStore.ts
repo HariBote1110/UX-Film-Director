@@ -46,6 +46,7 @@ import {
   swapLayerTracks as applySwapLayerTracks
 } from '../utils/layerTrackOps';
 import type { CoreMlAnimalObservation } from '../utils/coremlTrackIpc';
+import type { RustBackendNativeRenderOutputReleaseEvent } from '../utils/rustBackendVideoEncodeExport';
 
 interface ClipboardState {
   objects: TimelineObject[];
@@ -79,6 +80,8 @@ export interface ExportProgress {
   currentFrame: number;
   /** 総フレーム数。0 のときは不確定（プログレスバーを不確定表示）。 */
   totalFrames: number;
+  /** Rust native render output のrelease診断。 */
+  nativeRenderOutputRelease?: RustBackendNativeRenderOutputReleaseEvent;
 }
 
 interface AppState {
