@@ -155,6 +155,10 @@ export const isRustBackendDecodedVideoFrameAvailable = (
     descriptor
     && colour
     && checksum
+    && typeof result.jobId === 'string'
+    && result.jobId.trim().length > 0
+    && isNonNegativeInteger(result.requestId)
+    && isNonNegativeInteger(result.frameIndex)
     && isValidSharedFrameDescriptor(descriptor)
     && descriptor.format === 'rgba8Srgb'
     && colour.primaries === 'bt709'
@@ -165,9 +169,9 @@ export const isRustBackendDecodedVideoFrameAvailable = (
     && typeof checksum.valueHex === 'string'
     && typeof checksum.byteLen === 'number'
     && checksum.byteLen === descriptor.byteLen
-    && typeof result.verification.frameIndex === 'number'
+    && isNonNegativeInteger(result.verification.frameIndex)
     && result.verification.frameIndex === result.frameIndex
-    && typeof result.frame.ptsFrame === 'number'
+    && isNonNegativeInteger(result.frame.ptsFrame)
     && result.frame.ptsFrame === result.frameIndex
   );
 };
