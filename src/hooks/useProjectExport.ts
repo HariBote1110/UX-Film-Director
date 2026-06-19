@@ -21,6 +21,7 @@ import { isSharedRendererExportFrameSourceBlockedError } from '../utils/sharedRe
 import { createSharedVideoFramePresentedFrameTaker } from '../utils/sharedVideoFramePresentedFrameHandoff';
 import { captureProjectExportLegacyCanvasFrame } from '../utils/projectExportLegacyCanvasCapture';
 import { encodeProjectExportCompatibilityVideo } from '../utils/projectExportCompatibilityEncoder';
+import { updateExportProgressPhase } from '../utils/exportProgressDiagnostics';
 import type {
   RustBackendVideoEncodeFrame,
   RustBackendVideoEncodeSharedFramePayloadFrame,
@@ -132,11 +133,11 @@ export const useProjectExport = (
             // 進捗を更新（スロットル）。
             if (i % progressStep === 0) {
               const progress = useStore.getState().exportProgress;
-              if (progress) {
-                setExportProgress({ ...progress, phase: 'rendering', currentFrame: i, totalFrames });
-              } else {
-                setExportProgress({ phase: 'rendering', currentFrame: i, totalFrames });
-              }
+              setExportProgress(updateExportProgressPhase(progress, {
+                phase: 'rendering',
+                currentFrame: i,
+                totalFrames,
+              }));
             }
 
             const t = i * dt;
@@ -267,11 +268,11 @@ export const useProjectExport = (
             if (isCancelled()) return;
 
             const savingProgress = useStore.getState().exportProgress;
-            if (savingProgress) {
-              setExportProgress({ ...savingProgress, phase: 'saving', currentFrame: totalFrames, totalFrames });
-            } else {
-              setExportProgress({ phase: 'saving', currentFrame: totalFrames, totalFrames });
-            }
+            setExportProgress(updateExportProgressPhase(savingProgress, {
+              phase: 'saving',
+              currentFrame: totalFrames,
+              totalFrames,
+            }));
             alert(`エクスポート完了！\nコーデック: Rust backend rawvideo/ffmpeg\nフレーム: ${result.frameCount}\n保存先: ${savePath}`);
           } finally {
             if (audioPath) {

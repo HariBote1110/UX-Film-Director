@@ -120,15 +120,18 @@ describe('useProjectExport legacy browser dependency boundary', () => {
   it('preserves Rust frame source blocked diagnostics across rendering progress ticks', () => {
     const code = source();
 
+    expect(code).toContain("import { updateExportProgressPhase } from '../utils/exportProgressDiagnostics'");
     expect(code).toContain('const progress = useStore.getState().exportProgress;');
-    expect(code).toContain('setExportProgress({ ...progress, phase: \'rendering\', currentFrame: i, totalFrames });');
+    expect(code).toContain('setExportProgress(updateExportProgressPhase(progress, {');
+    expect(code).toContain("phase: 'rendering'");
   });
 
   it('preserves Rust diagnostics when the export enters the saving phase', () => {
     const code = source();
 
     expect(code).toContain('const savingProgress = useStore.getState().exportProgress;');
-    expect(code).toContain('setExportProgress({ ...savingProgress, phase: \'saving\', currentFrame: totalFrames, totalFrames });');
+    expect(code).toContain('setExportProgress(updateExportProgressPhase(savingProgress, {');
+    expect(code).toContain("phase: 'saving'");
   });
 
   it('renders native render output release diagnostics from export progress', () => {
