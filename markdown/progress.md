@@ -502,3 +502,10 @@
 - Green: 未使用になった `src/utils/exportOverlayCanvases.ts` と専用テストを削除した。
 - 検証: `npm test -- useProjectExportBoundary pixiVideoCutover` は22件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-186b`。
+
+## 2026-06-19
+- Phase5のPixi video cutover境界として、export中の動画もPixi所有へ戻らないようにした。
+- Red: `pixiVideoCutover` に、`isExporting=true` のvideo objectも `shouldSkipPixiVideoForSharedRenderer` がtrueを返す契約を追加した。
+- Green: `shouldSkipPixiVideoForSharedRenderer` をvideo objectなら常にtrueにし、preview/exportの分岐を削除した。
+- 検証: `npm test -- pixiVideoCutover useProjectExportBoundary projectExportCompatibilityEncoder projectExportEncodePlan projectExportFrameCanvas` は55件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-187a`。
