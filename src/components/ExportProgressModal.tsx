@@ -27,7 +27,8 @@ export const formatNativeRenderOutputReleaseDiagnostic = (
   }
   if (event.status === 'failed') {
     const status = language === 'ja' ? '解放失敗' : 'release failed';
-    return `Native render output: ${status} (${event.memoryId})`;
+    const suffix = event.error ? ` ${event.error}` : '';
+    return `Native render output: ${status} (${event.memoryId})${suffix}`;
   }
   return language === 'ja'
     ? 'Native render output: 対象外'
@@ -42,7 +43,24 @@ export const formatRustFrameSourceBlockedDiagnostic = (
   const fallback = event.legacyCanvasFallbackAllowed
     ? (language === 'ja' ? 'legacy fallback可' : 'legacy fallback allowed')
     : (language === 'ja' ? 'legacy fallback不可' : 'legacy fallback disabled');
-  return `Rust frame source: ${status} ${event.reason} frame=${event.frameIndex} ${fallback}`;
+  return `Rust frame source: ${status} ${formatRustFrameSourceBlockedReason(event.reason, language)} frame=${event.frameIndex} ${fallback}`;
+};
+
+const formatRustFrameSourceBlockedReason = (
+  reason: string,
+  language: 'ja' | 'en'
+): string => {
+  if (reason === 'nativeRenderFailed') {
+    return language === 'ja'
+      ? 'Rust native render失敗'
+      : 'native render failed';
+  }
+  if (reason === 'nativeRenderOutputReleaseFailed') {
+    return language === 'ja'
+      ? 'native render output解放失敗'
+      : 'native render output release failed';
+  }
+  return reason;
 };
 
 /**
