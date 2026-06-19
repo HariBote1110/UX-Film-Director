@@ -363,6 +363,100 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
     ]);
   });
 
+  it('reuses a backend decode session for native render sources when start reports the same job is already active', async () => {
+    const calls: unknown[] = [];
+    const frame = sharedFrame();
+
+    const result = await prepareSharedRendererViewportNativeRenderSources({
+      session: session(),
+      requestId: 101,
+      activeJobs: [],
+      rustBackendBridge: {
+        startVideoDecode: async (payload) => {
+          calls.push(['startVideoDecode', payload]);
+          return {
+            success: false,
+            error: 'Decode session already active for jobId',
+          };
+        },
+        requestVideoDecodeFrame: async (payload) => {
+          calls.push(['requestVideoDecodeFrame', payload]);
+          return {
+            success: true,
+            result: {
+              accepted: true,
+              jobId: payload.jobId,
+              requestId: payload.requestId,
+              frameIndex: payload.frameIndex,
+              mode: payload.mode,
+              frame,
+              verification: {
+                frameIndex: payload.frameIndex,
+                checksum: {
+                  algorithm: 'crc32',
+                  valueHex: '00000000',
+                  byteLen: frame.descriptor.byteLen,
+                },
+                status: 'withinTolerance',
+              },
+            },
+          };
+        },
+        releaseVideoDecodeFrame: async (payload) => {
+          calls.push(['releaseVideoDecodeFrame', payload]);
+          return { success: true };
+        },
+        stopVideoDecode: async (payload) => {
+          calls.push(['stopVideoDecode', payload]);
+          return { success: true };
+        },
+      },
+      decodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'clip-video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video-1.mp4',
+          sourceFrame: 12,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 2,
+          width: 4,
+          height: 4,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      activeJobs: [{
+        jobId: 'shared-renderer-video-video-1-4x4-60over1',
+        source: '/tmp/video-1.mp4',
+        slotCount: 2,
+        width: 4,
+        height: 4,
+        sourceRate: {
+          numerator: 60,
+          denominator: 1,
+        },
+      }],
+      sources: [{
+        mediaId: 'video-1',
+        slotCount: 2,
+        frame,
+      }],
+    });
+    expect(calls.map((call) => Array.isArray(call) ? call[0] : call)).toEqual([
+      'startVideoDecode',
+      'requestVideoDecodeFrame',
+    ]);
+  });
+
   it('rejects native render source release callbacks when Rust decode slot release returns success false', async () => {
     const frame = sharedFrame();
     const result = await prepareSharedRendererViewportNativeRenderSources({

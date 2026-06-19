@@ -1,3 +1,19 @@
+## 2026-06-20 — 既存Rust decode sessionを再利用するpreview復旧を追加
+
+### 実施内容
+- Red: UI側active job記録が空でもRust backendに同じ `jobId` のdecode sessionが残っている場合、`decode.start` の `Decode session already active for jobId` を失敗扱いしない契約を追加した。
+- Green: video upload経路とnative render source経路の `startDecodeJob` で、同じ `jobId` のalready-active応答を既存session再利用として扱い、そのまま `decode.requestFrame` へ進むようにした。
+- `requiredVideoOwnershipUnavailable / video=startFailed / Decode session already active for jobId` でpreviewがblockedになる状態を復旧対象にした。
+- 版を `0.1.1-Beta-219i` に更新した。
+
+### 検証
+- `npm test -- sharedRendererViewportVideoUpload sharedRendererViewportNativeRenderSource sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportVideoUpload\\.ts|src/utils/sharedRendererViewportVideoUpload\\.test\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.ts|src/utils/sharedRendererViewportNativeRenderSource\\.test\\.ts)"`
+- `UXFD_VIDEO_LOAD_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_LOAD_E2E_TIMEOUT_MS=180000 npm run test:video-load:e2e`
+
+### 残課題・次のステップ
+- `jobId` はsource/解像度/fpsを含むため同一job扱いにできる。将来的にbackend側へ `decode.start` のidempotent成功レスポンスを追加すると、frontend側の特例をさらに薄くできる。
+
 ## 2026-06-20 — WebGPU presenterの古い起動競合を停止
 
 ### 実施内容

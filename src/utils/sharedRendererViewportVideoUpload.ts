@@ -553,6 +553,9 @@ const startDecodeJob = async (
   }, rustBackendBridge);
 
   if (!response.success) {
+    if (isDecodeSessionAlreadyActiveForJobIdError(response.error)) {
+      return job;
+    }
     return {
       ok: false,
       detail: response.error ?? 'Rust backend rejected the video decode start request.',
@@ -570,6 +573,10 @@ const isDecodeJobStartFailure = (
 const isNoActiveDecodeSessionError = (error: string | undefined): boolean =>
   typeof error === 'string'
   && error.toLowerCase().includes('no active decode session');
+
+const isDecodeSessionAlreadyActiveForJobIdError = (error: string | undefined): boolean =>
+  typeof error === 'string'
+  && error.toLowerCase().includes('decode session already active for jobid');
 
 const buildStaleDecodedFrameDetail = (
   result: {

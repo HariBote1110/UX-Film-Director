@@ -435,6 +435,45 @@ describe('sharedRendererViewportVideoUpload', () => {
     }]);
   });
 
+  it('reuses a backend decode session when start reports the same job is already active', async () => {
+    const { calls, rustBackendBridge, copyBridge } = createBridges();
+    rustBackendBridge.startVideoDecode = async (payload) => {
+      calls.push(['startVideoDecode', payload]);
+      return {
+        success: false,
+        error: 'Decode session already active for jobId',
+      };
+    };
+
+    const result = await prepareSharedRendererViewportVideoUploads({
+      session,
+      requestId: 85,
+      slotCount: 2,
+      activeJobs: [],
+      rustBackendBridge,
+      copyBridge,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected already-active backend session to be reused');
+    expect(result.activeJobs).toEqual([{
+      jobId: expectedJobId,
+      source: '/tmp/gopro clip.mp4',
+      slotCount: 2,
+      width: 64,
+      height: 32,
+      sourceRate: {
+        numerator: 60,
+        denominator: 1,
+      },
+    }]);
+    expect(calls.map((call) => Array.isArray(call) ? call[0] : call)).toEqual([
+      'startVideoDecode',
+      'requestVideoDecodeFrame',
+      'copyIntoUploadBuffer',
+    ]);
+  });
+
   it('aborts already prepared decoded slots when a later visible video upload fails', async () => {
     const { calls, rustBackendBridge } = createBridges();
     const copyBridge: SharedVideoFrameCopyBridge = {
