@@ -290,7 +290,8 @@ describe('createSharedRendererExportFrameSource', () => {
     expect(blocked).toMatchObject({
       reason: 'presentedSharedFrameHandoffUnavailable',
       frameIndex: 2,
-      fallbackToLegacyCanvas: true,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
     });
     expect(blocked.message).toContain('Presented shared-frame handoff is required');
     expect(disposeCount).toBe(1);
@@ -351,7 +352,8 @@ describe('createSharedRendererExportFrameSource', () => {
     expect(blocked).toMatchObject({
       reason: 'presentedSharedFrameHandoffUnavailable',
       frameIndex: 5,
-      fallbackToLegacyCanvas: true,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
     });
     expect(calls).toEqual([]);
     expect(disposeCount).toBe(1);
@@ -552,7 +554,8 @@ describe('createSharedRendererExportFrameSource', () => {
     expect(blocked).toMatchObject({
       reason: 'presentedSharedFrameHandoffFailed',
       frameIndex: 8,
-      fallbackToLegacyCanvas: true,
+      fallbackToLegacyCanvas: false,
+      legacyCanvasFallbackAllowed: false,
     });
     expect(blocked.message).toContain('presented shared-frame bridge failed');
     expect(calls).toEqual([
