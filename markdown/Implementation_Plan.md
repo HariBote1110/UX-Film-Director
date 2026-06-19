@@ -1365,6 +1365,11 @@ export bitmap pathでpresenterが `webGpuDrawUnavailable` を返した場合、
 `createFrameBitmap` / legacy bitmap canvas captureへ進まず、同じblocked errorとして停止する。
 実shared renderer出力のWebGPU drawが成立しない状態を、Pixi/legacy captureで成功扱いにしない。
 
+250. Phase5: WebGPU draw不可blocked診断の表示ラベルを追加する
+`webGpuDrawUnavailable` のRust frame source blocked診断は、UI summaryでraw reasonを出さず、
+日本語では `WebGPU描画不可`、英語では `WebGPU draw unavailable` と表示する。
+WebGPU draw不可でRust/shared renderer実出力が止まった原因を、実機UIで追いやすい文言にする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

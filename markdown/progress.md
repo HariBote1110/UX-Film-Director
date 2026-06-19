@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のexport診断表示として、`webGpuDrawUnavailable` のRust frame source blocked診断に読みやすい表示ラベルを追加した。
+- Red: `ExportProgressModal` のテストへ、raw reasonではなく `WebGPU描画不可` / `WebGPU draw unavailable` が表示される契約を追加した。
+- Green: blocked reason formatterに `webGpuDrawUnavailable` の日本語/英語ラベルを追加した。
+- 検証: `npm test -- ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress sharedRendererExportFrameSource` は77件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216m`。
+
+## 2026-06-19
 - Phase5のexport fallback境界として、presenterの `webGpuDrawUnavailable` をlegacy bitmap captureへ逃がさずblockedとして伝搬するようにした。
 - Red: `sharedRendererExportFrameSource` のテストへ、WebGPU draw不可時に `createFrameBitmap` が呼ばれずblocked errorになる契約を追加した。
 - Green: export frame sourceのblocked reasonへ `webGpuDrawUnavailable` を追加し、presenter control失敗をそのまま伝搬した。

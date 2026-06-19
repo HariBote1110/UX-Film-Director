@@ -1,3 +1,19 @@
+## 2026-06-19 — WebGPU draw不可blocked診断の表示ラベルを追加
+
+### 実施内容
+- Red: `webGpuDrawUnavailable` のRust frame source blocked診断がraw reasonではなく読みやすいラベルで表示される契約を追加した。
+- Green: `ExportProgressModal` のblocked reason formatterに `webGpuDrawUnavailable` を追加し、日本語では `WebGPU描画不可`、英語では `WebGPU draw unavailable` と表示するようにした。
+- WebGPU draw不可でRust/shared renderer実出力が止まった場合の診断を、実機UIで追いやすい文言に整えた。
+- 版を `0.1.1-Beta-216m` に更新した。
+
+### 検証
+- `npm test -- ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress sharedRendererExportFrameSource`
+- `npx tsc --noEmit 2>&1 | rg "(src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportDiagnosticsLog\\.test\\.ts|src/utils/exportProgressDiagnostics\\.ts|src/store/useStore\\.ts|src/utils/sharedRendererExportFrameSource\\.ts)"`
+
+### 残課題・次のステップ
+- Viewport本体のPixi依存撤去へ向けて、image/PSD/SolidColourのnative render coverageをさらに診断へ接続する。
+- `webGpuDrawUnavailable` の実機発生ケースで、progress modal、toast、DevTools logが同じblocked payloadを参照することを確認する。
+
 ## 2026-06-19 — WebGPU draw不可時のbitmap legacy captureを禁止
 
 ### 実施内容
