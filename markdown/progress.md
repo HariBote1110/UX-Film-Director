@@ -432,3 +432,10 @@
 - Green: Electron mainから旧export IPC handlerを削除し、Rust backendから `export.start` / `export.write_frame` / `export.end`、旧 `ExportSession`、`base64` dependencyを削除した。
 - 検証: `npm test -- legacyBase64ExportBoundary rustVideoEncodeBackendBridge rustVideoEncodeIpcChannels` は6件成功。`cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane encode_shared_frame_session_tracks_descriptor_without_legacy_base64_fallback` と `cargo test --manifest-path rust-backend/Cargo.toml --no-run` は成功。対象テストファイルで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-178a`。
+
+## 2026-06-19
+- Phase5のexport hook境界として、`useProjectExport` が `PIXI.Application` refを直接受け取らないようにした。
+- Red: `useProjectExportBoundary` を追加し、hookが `pixi.js` import / `PIXI.Application` / `pixiAppRef` を含まず、Viewportが `getExportCanvas` providerを渡す契約を追加した。
+- Green: `useProjectExport` の引数から `pixiAppRef` を削除し、frame source planとruntime canvas resolveを `getExportCanvas` providerだけで行うようにした。
+- 検証: `npm test -- useProjectExportBoundary projectExportFrameCanvas` は33件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-179a`。

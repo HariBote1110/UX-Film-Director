@@ -1075,6 +1075,12 @@ Electron mainの旧 `start-export` / `write-frame` / `end-export` と、Rust bac
 frame bytesを `frameBase64` としてcontrol-planeへ載せる経路をproduction境界から外し、
 exportは `export-stream-*` またはshared-frame `encode.*` 経路だけにする。
 
+200. Phase5: useProjectExportからPixi application型依存を外す
+export hookが `PIXI.Application` refを直接受け取らないようにし、frame canvas取得は `getExportCanvas`
+providerへ一本化する。
+Viewport内では移行中のlegacy Pixi canvas fallbackを provider 内に閉じ込め、hook本体はRust/shared renderer
+frame sourceとcanvas providerだけを見る境界にする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
