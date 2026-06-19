@@ -1,3 +1,20 @@
+## 2026-06-19 — presented shared-frame handoffではlegacy fallbackを禁止
+
+### 実施内容
+- Red: `presentedSharedFrameHandoffUnavailable` と `presentedSharedFrameHandoffFailed` のexport blockで、legacy canvas fallbackを許可しない契約を追加した。
+- Green: presenter shared-frame handoff不可/失敗時の `SharedRendererExportFrameSourceBlockedError` へ `legacyCanvasFallbackAllowed=false` を渡すようにした。
+- Rust direct encode用のpresented shared-frameを受け取れない状態を、Pixi/legacy captureで成功扱いにする抜け道を塞いだ。
+- 版を `0.1.1-Beta-215v` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSource`
+- `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgress\\.ts)"`
+
+### 残課題・次のステップ
+- remaining `fallbackToLegacyCanvas=true` のうち、video ownership / upload gateなどRust必須経路で残してよい互換fallbackかを棚卸しする。
+- Viewport本体のPixi依存撤去へ向けて、動画以外のPixi-only presentation条件も整理する。
+
 ## 2026-06-19 — native renderer未接続ではRust必須時のlegacy fallbackを禁止
 
 ### 実施内容

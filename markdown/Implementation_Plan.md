@@ -1280,6 +1280,11 @@ Rust必須exportで未対応mediaをPixi/legacy captureに退避させず、未�
 Rust native renderer bridgeが未接続の場合、`nativeRenderUnavailable` を `legacyCanvasFallbackAllowed=false` で返す。
 native renderer未接続をPixi/legacy captureへ退避させず、Rust必須exportとして明示的に停止する。
 
+233. Phase5: presented shared-frame handoffではlegacy fallbackを禁止する
+Rust direct encode用のpresented shared-frame handoffが不可または失敗した場合、
+`presentedSharedFrameHandoffUnavailable` / `presentedSharedFrameHandoffFailed` を `legacyCanvasFallbackAllowed=false` で返す。
+presenterからencode用shared frameを受け取れない状態を、Pixi/legacy captureで成功扱いにしない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

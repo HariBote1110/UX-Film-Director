@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のexport fallback境界として、presented shared-frame handoff不可/失敗ではlegacy canvas fallbackを禁止するようにした。
+- Red: `sharedRendererExportFrameSource` のテストへ、`presentedSharedFrameHandoffUnavailable` と `presentedSharedFrameHandoffFailed` でfallback不可になる契約を追加した。
+- Green: presenter shared-frame handoff不可/失敗時の `SharedRendererExportFrameSourceBlockedError` に `legacyCanvasFallbackAllowed=false` を渡すようにした。
+- 検証: `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress` は72件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-215v`。
+
+## 2026-06-19
 - Phase5のexport fallback境界として、Rust native renderer bridge未接続時の `nativeRenderUnavailable` ではlegacy canvas fallbackを禁止するようにした。
 - Red: `sharedRendererExportFrameSource` のテストへ、動画encode frameとencode-only frameでnative renderer未接続時にfallback不可になる契約を追加した。
 - Green: `nativeRenderUnavailable` の `SharedRendererExportFrameSourceBlockedError` に `legacyCanvasFallbackAllowed=false` を渡すようにした。
