@@ -37,6 +37,7 @@ export interface ProjectExportRustFrameSource {
 export interface ProjectExportRustFrameSourceContext {
   objects: TimelineObject[];
   hasVideoObjects: boolean;
+  hasNativeRenderMediaObjects?: boolean;
   time: number;
   preferEncodeOnly?: boolean;
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
@@ -135,6 +136,7 @@ export interface ResolveProjectExportFrameRuntimePlanInput {
 export interface ResolveProjectExportFrameSourcePolicyForEncodeInput {
   rustExportOnly: boolean;
   hasVideoObjects: boolean;
+  hasNativeRenderMediaObjects?: boolean;
   encodeEngine: ProjectExportEncodeEngine;
 }
 
@@ -293,11 +295,13 @@ const formatUnavailableNativeRenderEnvelope = (
 export const resolveProjectExportFrameSourcePolicyForEncode = ({
   rustExportOnly,
   hasVideoObjects,
+  hasNativeRenderMediaObjects = false,
   encodeEngine,
 }: ResolveProjectExportFrameSourcePolicyForEncodeInput): ProjectExportFrameSourcePolicyForEncode => {
   const requiresRustFrameSource = rustExportOnly
     || encodeEngine === 'rustBackendVideoEncoder'
-    || hasVideoObjects;
+    || hasVideoObjects
+    || hasNativeRenderMediaObjects;
 
   return {
     rustFrameSourcePolicy: requiresRustFrameSource ? 'requireRustFrameSource' : 'allowLegacyCanvas',
@@ -313,10 +317,14 @@ export const resolveProjectExportRustFrameSourceContext = ({
   onFrameSourceUnavailable,
 }: ResolveProjectExportRustFrameSourceContextInput): ProjectExportRustFrameSourceContext => {
   const hasVideoObjects = objects.some((object) => object.type === 'video');
+  const hasNativeRenderMediaObjects = objects.some((object) =>
+    object.type === 'image' || object.type === 'psd'
+  );
 
   return {
     objects,
     hasVideoObjects,
+    ...(hasNativeRenderMediaObjects ? { hasNativeRenderMediaObjects } : {}),
     time,
     preferEncodeOnly: encodeEngine === 'rustBackendVideoEncoder' || hasVideoObjects,
     presentedFrameSharedFrameTaker,

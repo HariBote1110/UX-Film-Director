@@ -72,6 +72,7 @@ export const useProjectExport = (
       const frameSourcePolicy = resolveProjectExportFrameSourcePolicyForEncode({
         rustExportOnly,
         hasVideoObjects,
+        hasNativeRenderMediaObjects: exportObjects.some((object) => object.type === 'image' || object.type === 'psd'),
         encodeEngine: exportEncodePlan.engine,
       });
       let rustFrameSourceUnavailableDetail: string | undefined;

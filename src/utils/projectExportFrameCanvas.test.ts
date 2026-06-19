@@ -87,6 +87,7 @@ const psd = (patch: Partial<PsdObject> = {}): PsdObject => ({
   filePath: '/tmp/standing.psd',
   width: 512,
   height: 768,
+  scale: 1,
   activeLayerIds: {},
   ...patch,
 });
