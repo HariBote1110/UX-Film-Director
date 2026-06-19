@@ -391,6 +391,26 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     expect(result.snapshot.clips[0].opacity).toBe(0.375);
   });
 
+  it('carries finite object rotation into the Rust scene transform', () => {
+    const layers = createDefaultLayers();
+    const rotated = baseImage({
+      id: 'rotated',
+      rotation: 90,
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [rotated],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected rotated snapshot build to pass');
+
+    expect(result.snapshot.clips[0].transform.rotation_degrees).toBe(90);
+  });
+
   it('fails loud for visible Pixi features the shared renderer cannot represent yet', () => {
     const layers = createDefaultLayers();
     const unsupportedText: TimelineObject = {
@@ -415,7 +435,6 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       fontFamily: 'Arial',
       fill: '#ffffff',
     };
-    const rotated = baseImage({ id: 'rotated', rotation: 15 });
     const blurred = baseImage({
       id: 'blurred',
       filters: [
@@ -431,7 +450,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     const result = buildRustSceneSnapshotForTimeline({
       projectSettings: settings,
       layers,
-      objects: [unsupportedText, rotated, blurred],
+      objects: [unsupportedText, blurred],
       time: 2,
     });
 
@@ -440,7 +459,6 @@ describe('buildRustSceneSnapshotForTimeline', () => {
 
     expect(issueCodes(result.issues)).toEqual([
       'unsupportedObjectType',
-      'unsupportedRotation',
       'unsupportedFilter',
     ]);
   });
