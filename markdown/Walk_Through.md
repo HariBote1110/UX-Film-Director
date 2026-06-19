@@ -1244,3 +1244,20 @@
 - `npm test -- projectExportFrameCanvas viewportRustExportFrameSource useProjectExportBoundary` を実行し、Redでfallback detailがplan failureへ反映されない失敗を確認した。
 - `npm test -- projectExportFrameCanvas viewportRustExportFrameSource useProjectExportBoundary viewportRustVideoOnlyBoundary exportProgress exportDiagnosticsLog ExportProgressModal projectExportFrameRenderer` を再実行し、113件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/projectExportFrameCanvas\\.ts|src/utils/projectExportFrameCanvas\\.test\\.ts|src/utils/viewportRustExportFrameSource\\.ts|src/utils/viewportRustExportFrameSource\\.test\\.ts|src/components/Viewport\\.tsx|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts|src/utils/viewportRustVideoOnlyBoundary\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 99. Phase5: Rust source fallback診断にreasonを含める
+- `src/utils/projectExportFrameCanvas.test.ts`
+- Rust export source fallback detailに `fallback=...` と native render envelope reason/media countを含める契約を追加した。
+- `src/utils/useProjectExportBoundary.test.ts`
+- `useProjectExport` が `formatProjectExportRustFrameSourceUnavailableDetail` でfallback decisionを整形する境界契約を追加した。
+- `src/utils/projectExportFrameCanvas.ts`
+- `ProjectExportRustFrameSourceUnavailableDecision` と `formatProjectExportRustFrameSourceUnavailableDetail` を追加した。
+- `src/hooks/useProjectExport.ts`
+- Viewport fallback decisionを整形してframe source plan failureへ渡すようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-215c` に更新した。
+
+## 確認
+- `npm test -- projectExportFrameCanvas useProjectExportBoundary` を実行し、Redでformatter未実装/未使用の失敗を確認した。
+- `npm test -- projectExportFrameCanvas useProjectExportBoundary viewportRustExportFrameSource viewportRustVideoOnlyBoundary exportProgress exportDiagnosticsLog ExportProgressModal projectExportFrameRenderer` を再実行し、115件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/projectExportFrameCanvas\\.ts|src/utils/projectExportFrameCanvas\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts|src/utils/viewportRustExportFrameSource\\.ts|src/utils/viewportRustExportFrameSource\\.test\\.ts|src/components/Viewport\\.tsx)"` を実行し、対象ファイルに型エラーが出ないことを確認。

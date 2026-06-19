@@ -1,3 +1,20 @@
+## 2026-06-19 — Rust source fallback診断にreasonを含める
+
+### 実施内容
+- Red: Rust export source fallback detailに `fallback=...` と native render envelope reason/media countを含める契約を追加した。
+- Green: `formatProjectExportRustFrameSourceUnavailableDetail` を追加し、`useProjectExport` がViewport fallback decisionを整形してframe source plan failureへ渡すようにした。
+- preflight失敗時に `exportSessionBlocked` / `surfaceGateUnavailable` などの機械的なreasonもalert/終了後診断へ残るようにした。
+- 版を `0.1.1-Beta-215c` に更新した。
+
+### 検証
+- `npm test -- projectExportFrameCanvas useProjectExportBoundary viewportRustExportFrameSource viewportRustVideoOnlyBoundary`
+- `npm test -- projectExportFrameCanvas useProjectExportBoundary viewportRustExportFrameSource viewportRustVideoOnlyBoundary exportProgress exportDiagnosticsLog ExportProgressModal projectExportFrameRenderer`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/projectExportFrameCanvas\\.ts|src/utils/projectExportFrameCanvas\\.test\\.ts|src/hooks/useProjectExport\\.ts|src/utils/useProjectExportBoundary\\.test\\.ts|src/utils/viewportRustExportFrameSource\\.ts|src/utils/viewportRustExportFrameSource\\.test\\.ts|src/components/Viewport\\.tsx)"`
+
+### 残課題・次のステップ
+- native render envelopeのdiagnosticをUI上で構造化表示する。
+- Rust backend decodeとshared memory/mmap data-planeの所有権cutoverを、Viewport側の実フレームhandoffまでさらに固定する。
+
 ## 2026-06-19 — Rust source fallback詳細をexport失敗へ渡す
 
 ### 実施内容
