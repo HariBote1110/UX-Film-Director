@@ -22,6 +22,10 @@ const forbiddenTokens = [
   'playbackFrameProvider',
   'frameProvider',
   'loadVideoElementMetadata',
+  'useMediaOptimization',
+  'check-intermediate',
+  'generate-intermediate',
+  'cancel-intermediate',
 ];
 
 const collectProductionSources = (dir: string): string[] => {
