@@ -1395,6 +1395,11 @@ export frame sourceは、preview presenterがdatasetへ残したImage/PSD owner�
 `sharedRendererOutputUnavailable` のblocked detailにも付加する。
 previewで検出したPixi ownership残留理由を、export progress/log側でも追えるようにする。
 
+256. Phase5: blocked error単位のlegacy fallback禁止をruntimeで優先する
+非動画exportで計画上はlegacy canvas fallback可能でも、`SharedRendererExportFrameSourceBlockedError` が
+`legacyCanvasFallbackAllowed=false` を持つ場合はfallbackせずfail-loudにする。
+Image/PSD ownership残留や実shared renderer出力不可のblocked errorを、runtime planの互換fallbackで成功扱いにしない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

@@ -1,3 +1,19 @@
+## 2026-06-19 — blocked error単位のlegacy fallback禁止をruntimeで優先
+
+### 実施内容
+- Red: 非動画exportで計画上はlegacy canvas fallback可能でも、blocked errorが `legacyCanvasFallbackAllowed=false` を持つ場合はfallbackせず失敗する契約を追加した。
+- Green: `renderProjectExportFrame` がRust frame source blocked診断を出した後、error単位のlegacy禁止をruntime planより優先してfail-loudにするようにした。
+- Image/PSD ownership残留など、Rust/shared renderer実出力不可を明示したblocked errorが、非動画exportだからという理由でlegacy canvasへ戻らないようにした。
+- 版を `0.1.1-Beta-216s` に更新した。
+
+### 検証
+- `npm test -- projectExportFrameRenderer sharedRendererExportFrameSource exportProgressDiagnostics exportProgress ExportProgressModal`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/projectExportFrameRenderer\\.ts|src/utils/projectExportFrameRenderer\\.test\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/store/useStore\\.ts|src/components/ExportProgressModal\\.tsx)"`
+
+### 残課題・次のステップ
+- export計画段階でImage/PSD native render必須条件をさらに明示し、Rust frame source不在時の診断を強化する。
+- shared renderer実出力必須モードの実機確認範囲を、画像/PSD混在タイムラインへ広げる。
+
 ## 2026-06-19 — Image/PSD ownership診断をexport blocked detailに保持
 
 ### 実施内容

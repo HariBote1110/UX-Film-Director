@@ -1842,6 +1842,19 @@
 - `npm test -- sharedRendererExportFrameSource ExportProgressModal exportDiagnosticsLog exportProgressDiagnostics exportProgress` を実行し、81件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/components/ExportProgressModal\\.tsx|src/store/useStore\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
 
+## 141. Phase5: blocked error単位のlegacy fallback禁止をruntimeで優先
+- `src/utils/projectExportFrameRenderer.test.ts`
+- 非動画exportで `rustFrameSourceBlockedFallback='legacyCanvas'` の計画でも、blocked errorが `legacyCanvasFallbackAllowed=false` を持つ場合はlegacy canvas captureへ戻らず失敗する契約を追加した。
+- `src/utils/projectExportFrameRenderer.ts`
+- Rust frame source blocked診断を出した後、error単位のlegacy fallback禁止をruntime planより優先し、Rust frame sourceをcloseしてthrowするようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-216s` に更新した。
+
+## 確認
+- `npm test -- projectExportFrameRenderer` を実行し、Redでlegacy canvas captureへ戻って成功する失敗を確認した。
+- `npm test -- projectExportFrameRenderer sharedRendererExportFrameSource exportProgressDiagnostics exportProgress ExportProgressModal` を実行し、82件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/projectExportFrameRenderer\\.ts|src/utils/projectExportFrameRenderer\\.test\\.ts|src/utils/sharedRendererExportFrameSource\\.ts|src/store/useStore\\.ts|src/components/ExportProgressModal\\.tsx)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
 ## 115. Phase5: native render source release callback欠落ではlegacy fallbackを禁止
 - `src/utils/sharedRendererExportFrameSource.test.ts`
 - decoded native render sourceにcomplete/abort release callbackがない場合、`fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。

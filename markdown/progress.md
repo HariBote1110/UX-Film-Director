@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のexport runtimeとして、blocked errorが `legacyCanvasFallbackAllowed=false` を持つ場合は、非動画exportでもlegacy canvas fallbackへ戻らないようにした。
+- Red: `projectExportFrameRenderer` のテストへ、計画上はlegacy fallback可能でもerror単位でfallback禁止なら失敗する契約を追加した。
+- Green: `renderProjectExportFrame` がblocked診断を出した後、error単位のlegacy禁止をruntime planより優先してthrowするようにした。
+- 検証: `npm test -- projectExportFrameRenderer sharedRendererExportFrameSource exportProgressDiagnostics exportProgress ExportProgressModal` は82件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-216s`。
+
+## 2026-06-19
 - Phase5のexport診断として、Image/PSD ownershipがPixiへ残った `sharedRendererOutputUnavailable` のdetailにowner/cutover reasonを残すようにした。
 - Red: `sharedRendererExportFrameSource` のテストへ、presenter datasetのImage/PSD ownership診断がexport blocked error messageへ入る契約を追加した。
 - Green: genericな `sharedRendererOutputUnavailable` detail生成時に `imageOwnership=pixi:nativeRenderFrameUnavailable` / `psdOwnership=pixi:nativeRenderFrameUnavailable` を付加するようにした。
