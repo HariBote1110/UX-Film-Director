@@ -1194,6 +1194,12 @@ production control型だけでなく、orchestrationテストfixture上もpresen
 Rust backend decodeのchecksum検証結果が別フレームを指したままshared memory descriptorだけ通過し、
 WebGPU uploadへ進む抜け道を塞ぐ。
 
+216. Phase5: Rust decode応答job idの鮮度を確認する
+Viewport decode orchestrationは、Rust backend decoded frame responseの `jobId` が要求中のdecode jobと一致しない場合、
+shared memory copy bridgeへ進まず `staleDecodeResponse` として扱う。
+返却されたframeのslotは返却 `jobId` / `slotIndex` / `generation` で `rendererUploadAborted` releaseし、
+source切替や複数動画中に別jobのshared-memory slotを現在clipとしてWebGPU uploadしない。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

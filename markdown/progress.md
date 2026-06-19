@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のViewport Rust decode orchestrationとして、decoded frame responseの `jobId` が要求jobと異なる場合はcopyへ進まないようにした。
+- Red: `sharedRendererViewportVideoUpload` のテストへ、別jobのverified frameをstale扱いにして返却slotをabort releaseする契約を追加した。
+- Green: stale decoded frame判定を `requestId` と `jobId` の両方へ広げ、返却response側のslot leaseでreleaseするようにした。
+- 検証: `npm test -- sharedRendererViewportVideoUpload sharedRendererRustVideoUploadPipeline rustBackendVideoDecodeControl` は26件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-215e`。
+
+## 2026-06-19
 - Phase5のRust backend decode verification境界として、`verification.frameIndex` / `result.frameIndex` / `frame.ptsFrame` が一致しないdecoded frameを拒否するようにした。
 - Red: `rustBackendVideoDecodeControl` のテストへ、別フレームのverificationがshared-memory frameとして受理されない契約を追加した。
 - Green: `isRustBackendDecodedVideoFrameAvailable` でverification frame indexも照合し、別フレームのchecksumでWebGPU uploadへ進む抜け道を塞いだ。

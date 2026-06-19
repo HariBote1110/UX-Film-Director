@@ -1276,3 +1276,18 @@
 - `npm test -- rustBackendVideoDecodeControl` を再実行し、8件成功を確認した。
 - `npm test -- rustBackendVideoDecodeControl sharedRendererRustVideoUploadPipeline sharedRendererViewportVideoUpload` を実行し、25件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/rustBackendVideoDecodeControl\\.ts|src/utils/rustBackendVideoDecodeControl\\.test\\.ts|src/utils/sharedRendererRustVideoUploadPipeline\\.ts|src/utils/sharedRendererViewportVideoUpload\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 101. Phase5: Rust decode応答job idの鮮度を確認
+- `src/utils/sharedRendererViewportVideoUpload.test.ts`
+- decoded frame responseの `jobId` が要求したdecode jobと異なる場合、shared memory copyを呼ばず返却slotをabort releaseする契約を追加した。
+- `src/utils/sharedRendererViewportVideoUpload.ts`
+- stale decoded frame判定を `requestId` だけでなく `jobId` にも広げ、detailを `stale request id` / `stale job id` で出し分けるようにした。
+- stale job idのslot releaseは、要求jobではなく返却response側の `jobId` / `slotIndex` / `generation` を使うようにした。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-215e` に更新した。
+
+## 確認
+- `npm test -- sharedRendererViewportVideoUpload` を実行し、Redで別jobのdecoded frameがupload成功扱いになる失敗を確認した。
+- `npm test -- sharedRendererViewportVideoUpload` を再実行し、12件成功を確認した。
+- `npm test -- sharedRendererViewportVideoUpload sharedRendererRustVideoUploadPipeline rustBackendVideoDecodeControl` を実行し、26件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportVideoUpload\\.ts|src/utils/sharedRendererViewportVideoUpload\\.test\\.ts|src/utils/sharedRendererRustVideoUploadPipeline\\.ts|src/utils/rustBackendVideoDecodeControl\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。

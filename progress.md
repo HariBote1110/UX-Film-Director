@@ -1,3 +1,20 @@
+## 2026-06-19 — Rust decode応答job idの鮮度を確認
+
+### 実施内容
+- Red: Viewport decode orchestrationで、返却decoded frame responseの `jobId` が要求したdecode jobと異なる場合、shared memory copyへ進まない契約を追加した。
+- Green: stale decoded frame判定を `requestId` と `jobId` の両方へ広げ、stale job idでは返却response側の `jobId` / `slotIndex` / `generation` を使ってabort releaseするようにした。
+- source切替や複数動画中に、別jobのshared-memory slotを現在clipとしてWebGPU uploadする抜け道を塞いだ。
+- 版を `0.1.1-Beta-215e` に更新した。
+
+### 検証
+- `npm test -- sharedRendererViewportVideoUpload`
+- `npm test -- sharedRendererViewportVideoUpload sharedRendererRustVideoUploadPipeline rustBackendVideoDecodeControl`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererViewportVideoUpload\\.ts|src/utils/sharedRendererViewportVideoUpload\\.test\\.ts|src/utils/sharedRendererRustVideoUploadPipeline\\.ts|src/utils/rustBackendVideoDecodeControl\\.ts)"`
+
+### 残課題・次のステップ
+- multi-video stale job idの専用境界テストを追加し、先行成功slotのabort releaseと同時に検証する。
+- stale decode responseのdetailをViewport presenter datasetへ構造化して表示する。
+
 ## 2026-06-19 — Rust decode検証frame indexを照合
 
 ### 実施内容
