@@ -72,6 +72,67 @@ describe('export progress state', () => {
     });
   });
 
+  it('keeps the last Rust export diagnostics after export progress is cleared', () => {
+    useStore.getState().setExporting(true);
+    useStore.getState().setExportProgress({
+      phase: 'saving',
+      currentFrame: 120,
+      totalFrames: 120,
+      rustFrameSourceBlocked: {
+        reason: 'videoOwnershipUnavailable',
+        frameIndex: 5,
+        legacyCanvasFallbackAllowed: true,
+        detail: 'Shared renderer export is missing uploaded video clips: video-2.',
+      },
+      nativeRenderOutputRelease: {
+        status: 'failed',
+        memoryId: '/uxfd-native-render-output',
+        reason: 'encodeWriteFailed',
+        error: 'release rejected',
+      },
+    });
+
+    useStore.getState().setExporting(false);
+
+    expect(useStore.getState().exportProgress).toBeNull();
+    expect(useStore.getState().lastExportDiagnostics).toEqual({
+      rustFrameSourceBlocked: {
+        reason: 'videoOwnershipUnavailable',
+        frameIndex: 5,
+        legacyCanvasFallbackAllowed: true,
+        detail: 'Shared renderer export is missing uploaded video clips: video-2.',
+      },
+      nativeRenderOutputRelease: {
+        status: 'failed',
+        memoryId: '/uxfd-native-render-output',
+        reason: 'encodeWriteFailed',
+        error: 'release rejected',
+      },
+    });
+  });
+
+  it('clears stale last export diagnostics when a new export starts', () => {
+    useStore.getState().setExporting(true);
+    useStore.getState().setExportProgress({
+      phase: 'rendering',
+      currentFrame: 4,
+      totalFrames: 10,
+      rustFrameSourceBlocked: {
+        reason: 'videoUploadFailed',
+        frameIndex: 4,
+        legacyCanvasFallbackAllowed: false,
+        detail: 'copyReportChecksumMismatch: checksum mismatch',
+      },
+    });
+    useStore.getState().setExporting(false);
+
+    expect(useStore.getState().lastExportDiagnostics).not.toBeNull();
+
+    useStore.getState().setExporting(true);
+
+    expect(useStore.getState().lastExportDiagnostics).toBeNull();
+  });
+
   it('flags cancellation and switches the phase to cancelling', () => {
     useStore.getState().setExporting(true);
     useStore.getState().setExportProgress({ phase: 'rendering', currentFrame: 30, totalFrames: 120 });
