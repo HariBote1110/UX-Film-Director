@@ -4692,3 +4692,20 @@
 ### 残課題・次のステップ
 - `nativeRenderOutputReleaseFailed` / `nativeRenderFailed` のUI文言をpreview/exportで揃える。
 - 実機GoPro素材でRust decode -> native render -> encodeのsmokeを確認する。
+
+## 2026-06-19 — Rust native診断の表示文言を整備
+
+### 実施内容
+- Red: Export progress modalで native render失敗 / native render output解放失敗のreasonを生IDではなく読める文言として表示し、release失敗errorも隠さない契約を追加した。
+- Green: `formatRustFrameSourceBlockedDiagnostic` にreason labelを追加し、`nativeRenderFailed` / `nativeRenderOutputReleaseFailed` を日本語・英語で読みやすくした。
+- `formatNativeRenderOutputReleaseDiagnostic` は failed eventの `error` を末尾に出すようにした。
+- 版を `0.1.1-Beta-208q` に更新した。
+
+### 検証
+- `npm test -- src/components/ExportProgressModal.test.ts`
+- `npm test -- src/components/ExportProgressModal.test.ts src/store/exportProgress.test.ts src/utils/useProjectExportBoundary.test.ts src/utils/sharedRendererExportFrameSource.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "(src/components/ExportProgressModal\\.tsx|src/components/ExportProgressModal\\.test\\.ts|src/store/useStore\\.ts|src/hooks/useProjectExport\\.ts|src/utils/sharedRendererExportFrameSource\\.ts)"`
+
+### 残課題・次のステップ
+- 実機GoPro素材でRust decode -> native render -> encodeのsmokeを確認し、UI診断が実画面で追えるか見る。
+- preview側のnative render failureもユーザーに見える形へ必要に応じて昇格する。
