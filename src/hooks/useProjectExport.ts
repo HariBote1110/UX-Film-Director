@@ -8,6 +8,7 @@ import { runRustBackendVideoEncodeExport } from '../utils/rustBackendVideoEncode
 import { renderProjectExportRustEncodeFrame } from '../utils/projectExportRustEncodeFrame';
 import {
   buildProjectExportFrameSourcePlan,
+  createSingleUseProjectExportFrameSourceCloser,
   resolveProjectExportFrameSourcePolicyForEncode,
   resolveProjectExportFrameRuntimePlan,
   resolveProjectExportFrameCanvas,
@@ -92,6 +93,9 @@ export const useProjectExport = (
         return;
       }
       const exportFrameSourcePlan = initialFrameSourcePlan;
+      const closeRustFrameSource = exportFrameSourcePlan.source === 'sharedRendererRustFrameSource'
+        ? createSingleUseProjectExportFrameSourceCloser(exportFrameSourcePlan.frameSource)
+        : null;
 
       try {
         const fps = projectSettings.fps;
@@ -168,7 +172,7 @@ export const useProjectExport = (
                   rustFrameSourceBlocked,
                 });
                 if (blockedRuntimePlan.shouldCloseRustFrameSource) {
-                  await exportFrameSourcePlan.frameSource.close?.();
+                  await closeRustFrameSource?.();
                 }
                 if (blockedRuntimePlan.shouldFailOnRustFrameSourceBlocked) {
                   throw error;
@@ -291,7 +295,7 @@ export const useProjectExport = (
         }
       } finally {
         if (exportFrameSourcePlan.source === 'sharedRendererRustFrameSource') {
-          await exportFrameSourcePlan.frameSource.close?.();
+          await closeRustFrameSource?.();
         }
         setExporting(false);
       }

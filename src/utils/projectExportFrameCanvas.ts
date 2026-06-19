@@ -296,3 +296,16 @@ export const resolveProjectExportFrameRuntimePlan = ({
     shouldFailOnRustFrameSourceBlocked: false,
   };
 };
+
+export const createSingleUseProjectExportFrameSourceCloser = (
+  frameSource: Pick<ProjectExportRustFrameSource, 'close'>
+): (() => Promise<void>) => {
+  let closePromise: Promise<void> | null = null;
+
+  return () => {
+    if (!closePromise) {
+      closePromise = Promise.resolve(frameSource.close?.()).then(() => undefined);
+    }
+    return closePromise;
+  };
+};
