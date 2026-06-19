@@ -488,3 +488,10 @@
 - Green: `useProjectExport` の引数・dependency・clear処理から `exportFrameOverridesRef` を削除し、Viewportの呼び出しを3引数にした。
 - 検証: `npm test -- useProjectExportBoundary projectExportCompatibilityEncoder projectExportEncodePlan projectExportFrameCanvas` は45件成功。対象ファイルパスで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-185a`。
+
+## 2026-06-19
+- Phase5のPixi video cutover境界として、旧VideoDecoder/Pixi bitmap override経路を削除した。
+- Red: `pixiVideoCutover` に、`exportFrameOverride` / `hasExportFrameOverride` を公開しない契約を追加した。
+- Green: `pixiVideoCutover` のoverride入力・戻り値を削除し、`pixiRenderHelper` / Viewportから `exportFrameOverrides` とoverlay canvas cacheを外した。
+- 検証: `npm test -- pixiVideoCutover useProjectExportBoundary projectExportCompatibilityEncoder projectExportEncodePlan projectExportFrameCanvas` は54件成功。対象ファイルパスで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-186a`。

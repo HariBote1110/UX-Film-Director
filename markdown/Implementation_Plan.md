@@ -1113,6 +1113,12 @@ adapter入力の `hasVideoObjects` は必須booleanとし、呼び出し側が�
 動画exportのframe供給はRust/shared renderer frame sourceを正本とし、hookの公開境界を
 `renderScene` / `getExportCanvas` / `getRustExportFrameSource` に絞る。
 
+207. Phase5: Pixi動画override経路を削除する
+`pixiVideoCutover` から `exportFrameOverride` / `hasExportFrameOverride` を削除し、動画はpreview/exportとも
+Pixi bitmap overrideへ戻らないようにする。
+Viewportと `pixiRenderHelper` から旧VideoDecoder overlay canvas cacheとframe override resourceを外し、
+動画frame供給をRust/shared renderer側に寄せる。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
