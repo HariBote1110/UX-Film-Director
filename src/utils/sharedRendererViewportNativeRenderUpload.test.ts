@@ -368,6 +368,65 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
     ]);
   });
 
+  it('reports preview native render output release failure when upload preparation fails', async () => {
+    const calls: unknown[] = [];
+
+    const result = await prepareSharedRendererViewportNativeRenderUpload({
+      session: mediaOnlySession,
+      requestId: 31,
+      activeJobs: [],
+      prepareNativeRenderSources: async () => ({
+        ok: false,
+        reason: 'noVideoDecodeRequest',
+        detail: 'no video',
+        activeJobs: [],
+      }),
+      renderNativeSharedFrame: async () => ({
+        success: true,
+        result: {
+          ...renderResult,
+          renderId: 'preview-native-render-31',
+          frame: {
+            descriptor: {
+              ...descriptor,
+              memoryId: '/uxfd-preview-native-render-31',
+            },
+            ptsFrame: 31,
+          },
+        },
+      }),
+      releaseNativeSharedFrame: async (payload) => {
+        calls.push(['releaseNativeSharedFrame', payload]);
+        return {
+          success: false,
+          error: 'preview native output release failed after upload error',
+        };
+      },
+      copyBridge: {
+        copyIntoUploadBuffer: async () => {
+          calls.push(['copyIntoUploadBuffer']);
+          return {
+            success: false,
+            error: 'shared frame copy failed',
+          };
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'nativeRenderOutputReleaseFailed',
+      detail: 'preview native output release failed after upload error',
+      activeJobs: [],
+    });
+    expect(calls).toEqual([
+      ['copyIntoUploadBuffer'],
+      ['releaseNativeSharedFrame', {
+        memoryId: '/uxfd-preview-native-render-31',
+      }],
+    ]);
+  });
+
   it('allows a PSD-only scene to use Rust native render media sources instead of Pixi fallback', async () => {
     const calls: unknown[] = [];
 
