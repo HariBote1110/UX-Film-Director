@@ -1,3 +1,19 @@
+## 2026-06-19 — native render release失敗時のexport path診断を保持
+
+### 実施内容
+- Red: native render後のsource complete/abort release失敗とoutput release失敗でも `uxfdRustExportFrameSourceFramePath=nativeRenderSharedFrame` を残す契約を追加した。
+- Green: `nativeRenderSourceReleaseFailed` / `nativeRenderOutputReleaseFailed` の診断に `nativeRenderSharedFrame` pathを付与した。
+- render前の `nativeRenderSourceReleaseUnavailable` は未到達blockedとしてpath未設定のまま残し、release ownership不足とrender後cleanup失敗を区別できるようにした。
+- 版を `0.1.1-Beta-210y` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSource`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts)"`
+
+### 残課題・次のステップ
+- export側blocked診断とpreview側ownership診断のreason/pathを揃え、GoPro素材で失敗原因を一貫して追えるようにする。
+- 次はRust必須preview/exportでHTMLVideoElement/Pixi video fallbackへ戻る入口をさらに狭める。
+
 ## 2026-06-19 — native render失敗時のexport frame path診断を保持
 
 ### 実施内容

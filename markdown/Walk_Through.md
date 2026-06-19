@@ -965,3 +965,16 @@
 - `npm test -- sharedRendererExportFrameSource` を実行し、Redでnative render失敗時のframe pathが未設定になる失敗を確認した。
 - `npm test -- sharedRendererExportFrameSource` を再実行し、38件成功を確認した。
 - `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
+
+## 80. Phase5: native render release失敗時のexport path診断を保持
+- `src/utils/sharedRendererExportFrameSource.test.ts`
+- native render後のsource complete/abort release失敗とoutput release失敗でも `uxfdRustExportFrameSourceFramePath=nativeRenderSharedFrame` を残す契約を追加した。
+- `src/utils/sharedRendererExportFrameSource.ts`
+- `nativeRenderSourceReleaseFailed` / `nativeRenderOutputReleaseFailed` の診断に `nativeRenderSharedFrame` pathを付与した。
+- `package.json` / `package-lock.json`
+- バージョンを `0.1.1-Beta-210y` に更新した。
+
+## 確認
+- `npm test -- sharedRendererExportFrameSource` を実行し、Redでrelease失敗時のframe pathが未設定になる3件の失敗を確認した。
+- `npm test -- sharedRendererExportFrameSource` を再実行し、38件成功を確認した。
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts)"` を実行し、対象ファイルに型エラーが出ないことを確認。
