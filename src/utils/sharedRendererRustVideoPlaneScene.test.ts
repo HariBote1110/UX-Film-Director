@@ -100,4 +100,24 @@ describe('createSharedRendererRustVideoPlaneVertexSceneBuilder', () => {
       vertices: new Float32Array(),
     });
   });
+
+  it('does not describe TypeScript fallback when the Rust video plane control is required', async () => {
+    const warnings: string[] = [];
+
+    const builder = await loadSharedRendererRustVideoPlaneVertexSceneBuilder({
+      fallbackAllowed: false,
+      importWasmModule: async () => {
+        throw new Error('missing wasm');
+      },
+      warn: (message) => {
+        warnings.push(message);
+      },
+    });
+
+    expect(builder).toBeNull();
+    expect(warnings).toEqual([
+      'Rust/WASM video plane scene builder could not be loaded; Rust video control plane is required.',
+    ]);
+    expect(warnings[0]).not.toContain('falling back to TypeScript');
+  });
 });
