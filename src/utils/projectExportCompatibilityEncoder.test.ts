@@ -1,11 +1,22 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { encodeProjectExportCompatibilityVideo } from './projectExportCompatibilityEncoder';
+
+const source = () =>
+  readFileSync(new URL('./projectExportCompatibilityEncoder.ts', import.meta.url), 'utf8');
 
 const emptyFrames = async function* (): AsyncGenerator<{ timestamp: number; bitmap: ImageBitmap }> {
   return;
 };
 
 describe('encodeProjectExportCompatibilityVideo', () => {
+  it('requires callers to pass the video object sentinel explicitly', () => {
+    const code = source();
+
+    expect(code).toContain('hasVideoObjects: boolean');
+    expect(code).not.toContain('hasVideoObjects?: boolean');
+  });
+
   it('refuses video object exports before loading the WebCodecs compatibility encoder', async () => {
     await expect(encodeProjectExportCompatibilityVideo({
       width: 1920,
