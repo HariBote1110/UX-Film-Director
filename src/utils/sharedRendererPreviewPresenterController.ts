@@ -193,6 +193,7 @@ export const startSharedRendererPreviewPresenter = async ({
     ? rustVideoPlaneVertexSceneBuilder
       ?? await loadSharedRendererRustVideoPlaneVertexSceneBuilder({
         enabled: rustVideoPlaneWasmEnabled,
+        fallbackAllowed: !requireRustVideoControlPlane,
       })
     : null;
   const resolvedRustVideoFrameDecodeRequestBuilder = hasVideoScene

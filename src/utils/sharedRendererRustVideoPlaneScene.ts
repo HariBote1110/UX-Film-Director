@@ -21,6 +21,7 @@ export type SharedRendererRustVideoPlaneWasmLoadedModule =
 
 export interface LoadSharedRendererRustVideoPlaneVertexSceneBuilderInput {
   enabled?: boolean;
+  fallbackAllowed?: boolean;
   importWasmModule?: () => Promise<SharedRendererRustVideoPlaneWasmLoadedModule>;
   warn?: (message: string, error: unknown) => void;
 }
@@ -29,21 +30,24 @@ let cachedDefaultBuilder: Promise<SharedRendererVideoPlaneVertexSceneBuilder | n
 
 export const loadSharedRendererRustVideoPlaneVertexSceneBuilder = async ({
   enabled = true,
+  fallbackAllowed = true,
   importWasmModule,
   warn = defaultWarn,
 }: LoadSharedRendererRustVideoPlaneVertexSceneBuilderInput = {}): Promise<SharedRendererVideoPlaneVertexSceneBuilder | null> => {
   if (!enabled) return null;
 
-  if (!importWasmModule) {
+  if (!importWasmModule && fallbackAllowed) {
     cachedDefaultBuilder ??= loadSharedRendererRustVideoPlaneVertexSceneBuilderOnce({
       importWasmModule: defaultImportWasmModule,
+      fallbackAllowed,
       warn,
     });
     return cachedDefaultBuilder;
   }
 
   return loadSharedRendererRustVideoPlaneVertexSceneBuilderOnce({
-    importWasmModule,
+    importWasmModule: importWasmModule ?? defaultImportWasmModule,
+    fallbackAllowed,
     warn,
   });
 };
@@ -63,8 +67,9 @@ export const createSharedRendererRustVideoPlaneVertexSceneBuilder = (
 
 const loadSharedRendererRustVideoPlaneVertexSceneBuilderOnce = async ({
   importWasmModule,
+  fallbackAllowed,
   warn,
-}: Required<Pick<LoadSharedRendererRustVideoPlaneVertexSceneBuilderInput, 'importWasmModule' | 'warn'>>): Promise<SharedRendererVideoPlaneVertexSceneBuilder | null> => {
+}: Required<Pick<LoadSharedRendererRustVideoPlaneVertexSceneBuilderInput, 'fallbackAllowed' | 'importWasmModule' | 'warn'>>): Promise<SharedRendererVideoPlaneVertexSceneBuilder | null> => {
   try {
     const wasmModule = await importWasmModule();
     if (typeof wasmModule.default === 'function') {
@@ -72,7 +77,12 @@ const loadSharedRendererRustVideoPlaneVertexSceneBuilderOnce = async ({
     }
     return createSharedRendererRustVideoPlaneVertexSceneBuilder(wasmModule);
   } catch (error) {
-    warn('Rust/WASM video plane scene builder could not be loaded; falling back to TypeScript.', error);
+    warn(
+      fallbackAllowed
+        ? 'Rust/WASM video plane scene builder could not be loaded; falling back to TypeScript.'
+        : 'Rust/WASM video plane scene builder could not be loaded; Rust video control plane is required.',
+      error
+    );
     return null;
   }
 };
