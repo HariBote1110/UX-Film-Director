@@ -90,6 +90,7 @@ export const writeSharedRendererPresenterDiagnostics = (
   delete dataset.uxfdSharedRendererPresenterNativeRenderSourceCount;
   delete dataset.uxfdSharedRendererPresenterNativeRenderSourceMediaIds;
   delete dataset.uxfdSharedRendererPresenterNativeRenderFailureReason;
+  delete dataset.uxfdSharedRendererPresenterNativeRenderFailureLabel;
   delete dataset.uxfdSharedRendererPresenterNativeRenderFailureDetail;
   delete dataset.uxfdSharedRendererPresenterNativeRenderSourceReleaseRequired;
   delete dataset.uxfdSharedRendererPresenterVideoOwner;
@@ -160,6 +161,7 @@ export const writeSharedRendererPresenterDiagnostics = (
     }
     if (state.nativeRenderFailureReason) {
       dataset.uxfdSharedRendererPresenterNativeRenderFailureReason = state.nativeRenderFailureReason;
+      dataset.uxfdSharedRendererPresenterNativeRenderFailureLabel = formatNativeRenderFailureLabel(state.nativeRenderFailureReason);
     }
     if (state.nativeRenderFailureDetail) {
       dataset.uxfdSharedRendererPresenterNativeRenderFailureDetail = state.nativeRenderFailureDetail;
@@ -186,6 +188,7 @@ export const writeSharedRendererPresenterDiagnostics = (
     }
     if (state.nativeRenderFailureReason) {
       dataset.uxfdSharedRendererPresenterNativeRenderFailureReason = state.nativeRenderFailureReason;
+      dataset.uxfdSharedRendererPresenterNativeRenderFailureLabel = formatNativeRenderFailureLabel(state.nativeRenderFailureReason);
     }
     if (state.nativeRenderFailureDetail) {
       dataset.uxfdSharedRendererPresenterNativeRenderFailureDetail = state.nativeRenderFailureDetail;
@@ -200,4 +203,20 @@ export const writeSharedRendererPresenterDiagnostics = (
     dataset.uxfdSharedRendererPresenterFailureReason = state.reason;
     dataset.uxfdSharedRendererPresenterStaleSharedFrameAllowed = String(state.staleSharedFrameAllowed);
   }
+};
+
+const formatNativeRenderFailureLabel = (reason: string): string => {
+  if (reason === 'nativeRenderFailed') {
+    return 'native render failed';
+  }
+  if (reason === 'nativeRenderOutputReleaseFailed') {
+    return 'native render output release failed';
+  }
+  if (reason === 'nativeRenderSourceReleaseFailed') {
+    return 'native render source release failed';
+  }
+  if (reason === 'nativeRenderSourceReleaseUnavailable') {
+    return 'native render source release callback missing';
+  }
+  return reason;
 };
