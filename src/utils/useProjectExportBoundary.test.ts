@@ -8,6 +8,9 @@ const source = () =>
 const compatibilityEncoderSource = () =>
   readFileSync(new URL('./projectExportCompatibilityEncoder.ts', import.meta.url), 'utf8');
 
+const exportProgressModalSource = () =>
+  readFileSync(new URL('../components/ExportProgressModal.tsx', import.meta.url), 'utf8');
+
 describe('useProjectExport legacy browser dependency boundary', () => {
   it('does not load legacy browser video providers from the production export hook', () => {
     const code = source();
@@ -91,5 +94,12 @@ describe('useProjectExport legacy browser dependency boundary', () => {
 
     expect(code).toContain('onNativeRenderOutputRelease: (event) => {');
     expect(code).toContain('nativeRenderOutputRelease: event');
+  });
+
+  it('renders native render output release diagnostics from export progress', () => {
+    const code = exportProgressModalSource();
+
+    expect(code).toContain('exportProgress?.nativeRenderOutputRelease');
+    expect(code).toContain('formatNativeRenderOutputReleaseDiagnostic');
   });
 });
