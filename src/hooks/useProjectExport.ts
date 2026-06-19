@@ -131,7 +131,12 @@ export const useProjectExport = (
 
             // 進捗を更新（スロットル）。
             if (i % progressStep === 0) {
-              setExportProgress({ phase: 'rendering', currentFrame: i, totalFrames });
+              const progress = useStore.getState().exportProgress;
+              if (progress) {
+                setExportProgress({ ...progress, phase: 'rendering', currentFrame: i, totalFrames });
+              } else {
+                setExportProgress({ phase: 'rendering', currentFrame: i, totalFrames });
+              }
             }
 
             const t = i * dt;
