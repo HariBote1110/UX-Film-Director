@@ -16,6 +16,12 @@ describe('useProjectExport boundary', () => {
     expect(code).not.toContain('pixiAppRef');
   });
 
+  it('does not capture browser canvas frames directly inside the hook body', () => {
+    const code = useProjectExportSource();
+
+    expect(code).not.toContain('createImageBitmap(');
+  });
+
   it('receives export canvas access through a provider from the Viewport', () => {
     const code = viewportSource();
 
