@@ -255,7 +255,8 @@ export function createSharedRendererExportFrameSource({
       throw new SharedRendererExportFrameSourceBlockedError(
         videoUploadBlock,
         'videoUploadFailed',
-        request.frameIndex
+        request.frameIndex,
+        false
       );
     }
     const videoOwnershipBlock = resolveExportVideoOwnershipBlock(
@@ -272,7 +273,8 @@ export function createSharedRendererExportFrameSource({
       throw new SharedRendererExportFrameSourceBlockedError(
         videoOwnershipBlock,
         'videoOwnershipUnavailable',
-        request.frameIndex
+        request.frameIndex,
+        false
       );
     }
 
