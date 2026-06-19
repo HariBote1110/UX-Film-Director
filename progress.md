@@ -1,3 +1,20 @@
+## 2026-06-19 — native render失敗ではRust必須時のlegacy fallbackを禁止
+
+### 実施内容
+- Red: Rust native renderが失敗またはthrowした動画encode frameで、blocked errorがlegacy canvas fallbackを許可しない契約を追加した。
+- Green: `nativeRenderFailed` を投げる経路へfallback可否を渡し、`effectiveNativeRenderRequired` の場合は `legacyCanvasFallbackAllowed=false` にした。
+- 動画exportのRust必須経路でnative render bridge失敗をPixi/legacy captureへ戻して成功扱いにする抜け道を塞いだ。
+- 版を `0.1.1-Beta-215q` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExportFrameSource`
+- `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress`
+- `npx tsc --noEmit 2>&1 | rg "(src/utils/sharedRendererExportFrameSource\\.ts|src/utils/sharedRendererExportFrameSource\\.test\\.ts|src/utils/projectExportFrameRenderer\\.ts|src/utils/exportDiagnosticsLog\\.ts|src/utils/exportProgress\\.ts)"`
+
+### 残課題・次のステップ
+- `nativeRenderSourceReleaseFailed` / `nativeRenderOutputReleaseFailed` など、Rust/native render必須時にlegacy fallback不可へすべきrelease系blocked reasonを順にTDDで締める。
+- Viewport本体のPixi依存撤去へ向けて、動画以外のPixi-only presentation条件も棚卸しする。
+
 ## 2026-06-19 — prepared source abort失敗ではlegacy fallbackを禁止
 
 ### 実施内容

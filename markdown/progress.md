@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-19
+- Phase5のexport fallback境界として、Rust native render必須時の `nativeRenderFailed` ではlegacy canvas fallbackを禁止するようにした。
+- Red: `sharedRendererExportFrameSource` のテストへ、native render bridgeが失敗/throwした動画encode frameでfallback不可になる契約を追加した。
+- Green: `throwNativeRenderFailed` とrender失敗分岐へfallback可否を渡し、`effectiveNativeRenderRequired` では `legacyCanvasFallbackAllowed=false` にした。
+- 検証: `npm test -- sharedRendererExportFrameSource projectExportFrameRenderer exportDiagnosticsLog exportProgress` は72件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-215q`。
+
+## 2026-06-19
 - Phase5のexport fallback境界として、`preparedNativeRenderSourceAbortReleaseFailed` ではlegacy canvas fallbackを禁止するようにした。
 - Red: `sharedRendererExportFrameSource` のテストへ、該当blockが `fallbackToLegacyCanvas=false` / `legacyCanvasFallbackAllowed=false` になる契約を追加した。
 - Green: prepared source abort release失敗で `SharedRendererExportFrameSourceBlockedError` を投げる時だけfallback許可をfalseにした。
