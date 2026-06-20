@@ -675,6 +675,15 @@ export const startSharedRendererPreviewPresenter = async ({
   const publishedNativeRenderFailure = shouldSuppressNativeRenderFailureForVideoOnlyReady
     ? undefined
     : nativeRenderFailure;
+  const videoPresentationSource = hasVideoScene
+    ? nativeRenderFrameReady
+      ? 'native-render-frame'
+      : shouldPresentExternalVideoFrame
+        ? 'external-video-source'
+        : shouldPresentUploadedVideoFrame
+          ? 'rust-decoded-rgba'
+          : undefined
+    : undefined;
 
   writeDiagnostics({
     status: 'ready',
@@ -696,6 +705,7 @@ export const startSharedRendererPreviewPresenter = async ({
     videoPresentedFrameIndex: hasVideoScene && session.surfaceGate.ok
       ? session.surfaceGate.snapshot.frame_index
       : undefined,
+    videoPresentationSource,
     videoFrameUploadReady: hasVideoScene ? effectiveVideoFrameUploadReady : undefined,
     videoUploadFailureReason: hasVideoScene ? resolvedVideoUploadFailure?.reason : undefined,
     videoUploadFailureDetail: hasVideoScene ? resolvedVideoUploadFailure?.detail : undefined,

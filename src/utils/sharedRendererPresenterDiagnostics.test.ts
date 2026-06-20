@@ -15,6 +15,7 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
       videoGeometrySource: 'rust-wasm',
       videoDecodeRequestSource: 'rust-wasm',
       videoDecodeRequestCount: 2,
+      videoPresentationSource: 'external-video-source',
       videoFrameUploadReady: false,
       videoOwner: 'sharedRenderer',
       videoCutoverReason: 'rustDecodedFrameUploadReady',
@@ -29,6 +30,7 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
       uxfdSharedRendererPresenterVideoGeometrySource: 'rust-wasm',
       uxfdSharedRendererPresenterVideoDecodeRequestSource: 'rust-wasm',
       uxfdSharedRendererPresenterVideoDecodeRequestCount: '2',
+      uxfdSharedRendererPresenterVideoPresentationSource: 'external-video-source',
       uxfdSharedRendererPresenterVideoFrameUploadReady: 'false',
       uxfdSharedRendererPresenterVideoOwner: 'sharedRenderer',
       uxfdSharedRendererPresenterVideoCutoverReason: 'rustDecodedFrameUploadReady',
@@ -151,6 +153,7 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoGeometrySource');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoDecodeRequestSource');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoDecodeRequestCount');
+    expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoPresentationSource');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoOwner');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterVideoCutoverReason');
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterSharedVideoObjectCount');

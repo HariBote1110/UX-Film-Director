@@ -45,6 +45,7 @@ export type SharedRendererPresenterDiagnosticState =
       videoDecodeRequestCount?: number;
       videoPresentedSourceFrame?: number;
       videoPresentedFrameIndex?: number;
+      videoPresentationSource?: 'external-video-source' | 'rust-decoded-rgba' | 'native-render-frame';
       videoFrameUploadReady?: boolean;
       videoUploadFailureReason?: string;
       videoUploadFailureDetail?: string;
@@ -106,6 +107,7 @@ export const writeSharedRendererPresenterDiagnostics = (
   delete dataset.uxfdSharedRendererPresenterVideoDecodeRequestCount;
   delete dataset.uxfdSharedRendererPresenterVideoPresentedSourceFrame;
   delete dataset.uxfdSharedRendererPresenterVideoPresentedFrameIndex;
+  delete dataset.uxfdSharedRendererPresenterVideoPresentationSource;
   delete dataset.uxfdSharedRendererPresenterVideoFrameUploadReady;
   delete dataset.uxfdSharedRendererPresenterVideoUploadFailureReason;
   delete dataset.uxfdSharedRendererPresenterVideoUploadFailureDetail;
@@ -174,6 +176,9 @@ export const writeSharedRendererPresenterDiagnostics = (
     }
     if (typeof state.videoPresentedFrameIndex === 'number') {
       dataset.uxfdSharedRendererPresenterVideoPresentedFrameIndex = String(state.videoPresentedFrameIndex);
+    }
+    if (state.videoPresentationSource) {
+      dataset.uxfdSharedRendererPresenterVideoPresentationSource = state.videoPresentationSource;
     }
     if (typeof state.videoFrameUploadReady === 'boolean') {
       dataset.uxfdSharedRendererPresenterVideoFrameUploadReady = String(state.videoFrameUploadReady);

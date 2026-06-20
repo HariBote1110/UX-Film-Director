@@ -16,6 +16,7 @@ const RESULT_JSON = resolve(OUTPUT_DIR, 'result.json');
 const RESULT_LOG = resolve(OUTPUT_DIR, 'result.log');
 const RESULT_SCREENSHOT = resolve(OUTPUT_DIR, 'shared-renderer-surface.png');
 const OVERALL_TIMEOUT_MS = Number(process.env.UXFD_VIDEO_LOAD_E2E_TIMEOUT_MS ?? 90_000);
+const EXPECT_EXTERNAL_TEXTURE = process.env.UXFD_VIDEO_LOAD_E2E_EXPECT_EXTERNAL_TEXTURE === '1';
 
 let vite = null;
 let electron = null;
@@ -488,6 +489,7 @@ const waitForPlaybackFrameAdvance = async (client, initialState) => client.evalu
         presenterStatus: document.documentElement.dataset.uxfdSharedRendererPresenterStatus,
         videoOwner: document.documentElement.dataset.uxfdSharedRendererPresenterVideoOwner,
         videoFrameUploadReady: document.documentElement.dataset.uxfdSharedRendererPresenterVideoFrameUploadReady,
+        videoPresentationSource: document.documentElement.dataset.uxfdSharedRendererPresenterVideoPresentationSource,
         presentedSourceFrame: Number(document.documentElement.dataset.uxfdSharedRendererPresenterVideoPresentedSourceFrame ?? NaN),
         presentedFrameIndex: Number(document.documentElement.dataset.uxfdSharedRendererPresenterVideoPresentedFrameIndex ?? NaN),
       };
@@ -499,6 +501,11 @@ const waitForPlaybackFrameAdvance = async (client, initialState) => client.evalu
         && state.presenterStatus === 'ready'
         && state.videoOwner === 'sharedRenderer'
         && state.videoFrameUploadReady === 'true'
+        && (
+          ${JSON.stringify(EXPECT_EXTERNAL_TEXTURE)}
+          ? state.videoPresentationSource === 'external-video-source'
+          : true
+        )
       ) {
         resolve({ ok: true, state });
         return;
@@ -523,6 +530,7 @@ const samplePlaybackPresentationSmoothness = async (client) => client.evaluate(`
         presenterStatus: document.documentElement.dataset.uxfdSharedRendererPresenterStatus,
         videoOwner: document.documentElement.dataset.uxfdSharedRendererPresenterVideoOwner,
         videoFrameUploadReady: document.documentElement.dataset.uxfdSharedRendererPresenterVideoFrameUploadReady,
+        videoPresentationSource: document.documentElement.dataset.uxfdSharedRendererPresenterVideoPresentationSource,
         presentedSourceFrame: Number(document.documentElement.dataset.uxfdSharedRendererPresenterVideoPresentedSourceFrame ?? NaN),
         presentedFrameIndex: Number(document.documentElement.dataset.uxfdSharedRendererPresenterVideoPresentedFrameIndex ?? NaN),
       };
@@ -535,17 +543,28 @@ const samplePlaybackPresentationSmoothness = async (client) => client.evaluate(`
         const firstPresentedFrame = uniquePresentedFrames[0] ?? null;
         const lastPresentedFrame = uniquePresentedFrames[uniquePresentedFrames.length - 1] ?? null;
         const blockedSampleCount = samples.filter((entry) => entry.presenterStatus === 'blocked').length;
+        const externalTextureSampleCount = samples.filter((entry) => (
+          entry.videoPresentationSource === 'external-video-source'
+        )).length;
         const span = typeof firstPresentedFrame === 'number' && typeof lastPresentedFrame === 'number'
           ? lastPresentedFrame - firstPresentedFrame
           : 0;
         resolve({
-          ok: uniquePresentedFrames.length >= 8 && span >= 60 && blockedSampleCount <= 1,
+          ok: uniquePresentedFrames.length >= 8
+            && span >= 60
+            && blockedSampleCount <= 1
+            && (
+              ${JSON.stringify(EXPECT_EXTERNAL_TEXTURE)}
+              ? externalTextureSampleCount >= Math.max(1, samples.length - 1)
+              : true
+            ),
           sampleCount: samples.length,
           uniquePresentedFrameCount: uniquePresentedFrames.length,
           firstPresentedFrame,
           lastPresentedFrame,
           presentedFrameSpan: span,
           blockedSampleCount,
+          externalTextureSampleCount,
           samples,
         });
         return;
@@ -672,6 +691,11 @@ const main = async () => {
           entry.uxfdSharedRendererPresenterStatus === 'ready'
           && entry.uxfdSharedRendererPresenterVideoOwner === 'sharedRenderer'
           && entry.uxfdSharedRendererPresenterVideoFrameUploadReady === 'true'
+          && (
+            ${JSON.stringify(EXPECT_EXTERNAL_TEXTURE)}
+            ? entry.uxfdSharedRendererPresenterVideoPresentationSource === 'external-video-source'
+            : true
+          )
           && !entry.uxfdSharedRendererPresenterNativeRenderFailureReason
           && !entry.uxfdSharedRendererPresenterVideoUploadFailureReason
         ));

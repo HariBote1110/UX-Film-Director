@@ -1,3 +1,20 @@
+## 2026-06-20 — external texture preview診断をE2Eへ接続
+
+### 実施内容
+- Red: external video sourceをpresentした時、presenter datasetへ `videoPresentationSource=external-video-source` とpresent済みsource frameを出す契約を追加した。
+- Green: shared renderer presenter diagnosticsへ `videoPresentationSource` を追加し、external source / Rust decoded RGBA / native render frameのどの経路で描画したかを記録するようにした。
+- Green: Electron実ウィンドウ動画E2Eへ `UXFD_VIDEO_LOAD_E2E_EXPECT_EXTERNAL_TEXTURE=1` を追加し、4K fast path確認時だけexternal texture sampleを必須にできるようにした。
+- 版を `0.1.1-Beta-222b` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPresenterDiagnostics sharedRendererPreviewPresenterController`
+- `npx tsc --noEmit 2>&1 | rg "src/utils/sharedRendererPresenterDiagnostics|src/utils/sharedRendererPreviewPresenterController|scripts/run-video-load-e2e"`
+- `node --check scripts/run-video-load-e2e.mjs`
+
+### 結果・残課題
+- 4K原本previewが低コピーexternal texture経路に乗っているかを、E2EのJSON結果とdatasetから確認できるようになった。
+- 次は `/Volumes/ExtendSSD-W/GX020052.MP4` をexternal texture必須モードで投入し、実ウィンドウのpixel変化とframe進行を検証すること。
+
 ## 2026-06-20 — Viewportでexternal動画sourceをshared rendererへ同期
 
 ### 実施内容
