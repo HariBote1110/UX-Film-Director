@@ -321,6 +321,45 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('passes scaled canvas media transforms through to the Rust scene snapshot', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [
+        baseShape({
+          id: 'shape-scaled',
+          scaleX: 2,
+          scaleY: 3,
+        }),
+        baseImage({
+          id: 'image-scaled',
+          scaleX: 0.5,
+          scaleY: 0.75,
+        }),
+        basePsd({
+          id: 'psd-scaled',
+          scaleX: 1.25,
+          scaleY: 1.25,
+        }),
+      ],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected scaled canvas media snapshot to pass');
+
+    expect(result.snapshot.clips.map((clip) => ({
+      clipId: clip.clip_id,
+      scaleX: clip.transform.scale_x,
+      scaleY: clip.transform.scale_y,
+    }))).toEqual([
+      { clipId: 'shape-scaled', scaleX: 2, scaleY: 3 },
+      { clipId: 'image-scaled', scaleX: 0.5, scaleY: 0.75 },
+      { clipId: 'psd-scaled', scaleX: 1.25, scaleY: 1.25 },
+    ]);
+  });
+
   it('keeps scaled video planes inside the Rust scene snapshot', () => {
     const result = buildRustSceneSnapshotForTimeline({
       projectSettings: settings,
