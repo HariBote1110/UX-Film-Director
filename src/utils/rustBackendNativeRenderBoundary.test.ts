@@ -38,4 +38,21 @@ describe('Rust backend native render bridge boundary', () => {
     expect(code).toContain('get_or_create_native_wgpu_renderer');
     expect(code).toContain('.render_frame_to_shared_ring(');
   });
+
+  it('exposes direct native render encode without returning an output shared frame', () => {
+    const main = mainSource();
+    const preload = preloadSource();
+    const viteEnv = viteEnvSource();
+    const backend = rustBackendSource();
+
+    expect(main).toContain("'rust-backend-encode-write-native-frame'");
+    expect(main).toContain("callRustBackend('encode.writeNativeFrame'");
+    expect(preload).toContain('writeNativeEncodeFrame(payload: unknown)');
+    expect(preload).toContain("'rust-backend-encode-write-native-frame'");
+    expect(viteEnv).toContain('writeNativeEncodeFrame: (payload:');
+    expect(backend).toContain('"encode.writeNativeFrame"');
+    expect(backend).toContain('render_frame_stages(');
+    expect(backend).toContain('write_tight_rgba_frame_to_encoder');
+    expect(backend).not.toContain('render_frame_to_shared_ring_for_encode');
+  });
 });

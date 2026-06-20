@@ -125,6 +125,99 @@ describe('runRustBackendVideoEncodeExport', () => {
     await runPromise;
   });
 
+  it('writes native encode frames directly without shared render output release bookkeeping', async () => {
+    const calls: unknown[] = [];
+    const encoderBridge: RustBackendVideoEncodeBridge = {
+      startVideoEncode: async (input) => {
+        calls.push(['startVideoEncode', input]);
+        return { success: true, result: { accepted: true } };
+      },
+      writeVideoEncodeFrame: async (input) => {
+        calls.push(['writeVideoEncodeFrame', input]);
+        return { success: true, result: { written: true } };
+      },
+      writeNativeEncodeFrame: async (input) => {
+        calls.push(['writeNativeEncodeFrame', input]);
+        return { success: true, result: { written: true, writtenNativeFrame: true } };
+      },
+      finishVideoEncode: async (input) => {
+        calls.push(['finishVideoEncode', input]);
+        return {
+          success: true,
+          result: {
+            finished: true,
+            sessionId: 'session-native-direct',
+            filePath: '/tmp/native-direct.mp4',
+            frameCount: 1,
+          },
+        };
+      },
+    };
+    const nativeEncodeFramePayload = {
+      sessionId: 'session-native-direct',
+      renderId: 'native-direct-frame-0',
+      frameIndex: 0,
+      timestampUs: 0,
+      width: 4,
+      height: 2,
+      snapshot: {
+        frame_index: 0,
+        colour: {
+          profile: 'rec709-sdr',
+          working_space: 'linear-light',
+          alpha: 'premultiplied',
+        },
+        clips: [],
+      },
+      media: [],
+      sources: [],
+    };
+
+    async function* nativeDirectFrames() {
+      yield {
+        timestamp: 0,
+        nativeEncodeFramePayload,
+      };
+    }
+
+    await runRustBackendVideoEncodeExport({
+      sessionId: 'session-native-direct',
+      filePath: '/tmp/native-direct.mp4',
+      width: 4,
+      height: 2,
+      fps: 60,
+      frames: nativeDirectFrames(),
+      encoderBridge,
+      nativeRenderBridge: {
+        releaseNativeSharedFrame: async (input) => {
+          calls.push(['releaseNativeSharedFrame', input]);
+          return { success: true, result: { released: true } };
+        },
+      },
+    });
+
+    expect(calls).toEqual([
+      ['startVideoEncode', {
+        sessionId: 'session-native-direct',
+        filePath: '/tmp/native-direct.mp4',
+        width: 4,
+        height: 2,
+        fps: 60,
+        pixelFormat: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      }],
+      ['writeNativeEncodeFrame', nativeEncodeFramePayload],
+      ['finishVideoEncode', {
+        sessionId: 'session-native-direct',
+      }],
+    ]);
+  });
+
   it('releases a prefetched native render output when the current encode write fails', async () => {
     const calls: unknown[] = [];
     const writeStarted = deferredVoid();

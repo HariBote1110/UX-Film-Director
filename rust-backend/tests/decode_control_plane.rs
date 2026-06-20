@@ -500,6 +500,125 @@ fn native_rendered_image_frame_can_feed_audio_muxed_encode() {
 }
 
 #[test]
+fn native_rendered_image_frame_can_directly_feed_encode_without_output_shared_memory() {
+    let mut backend = BackendProcess::start();
+    let temp_dir = TestTempDir::new("native-render-image-direct-encode");
+    let image_path = temp_dir.path().join("red-source.png");
+    let image_frame = RgbaFrame::from_rgba8(
+        2,
+        2,
+        vec![
+            255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255,
+        ],
+    )
+    .expect("build PNG source frame");
+    save_rgba_png(&image_path, &image_frame).expect("write PNG source fixture");
+    let output_path = temp_dir.path().join("native-rendered-image-direct.mp4");
+    let output_path_string = output_path.to_string_lossy().into_owned();
+    let width = 4;
+    let height = 4;
+
+    let start = backend.request(json!({
+        "id": 101,
+        "method": "encode.start",
+        "params": {
+            "sessionId": "encode-native-image-direct",
+            "filePath": output_path_string.clone(),
+            "width": width,
+            "height": height,
+            "fps": 30,
+            "pixelFormat": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(start["ok"], true, "{start}");
+
+    let write = backend.request(json!({
+        "id": 102,
+        "method": "encode.writeNativeFrame",
+        "params": {
+            "sessionId": "encode-native-image-direct",
+            "renderId": "native-render-image-direct-encode",
+            "frameIndex": 0,
+            "timestampUs": 0,
+            "width": width,
+            "height": height,
+            "snapshot": {
+                "frame_index": 0,
+                "colour": {
+                    "profile": "rec709-sdr",
+                    "working_space": "linear-light",
+                    "alpha": "premultiplied"
+                },
+                "clips": [{
+                    "clip_id": "clip-native-image",
+                    "track_id": "track-1",
+                    "media_id": "image-1",
+                    "source_frame": 0,
+                    "z_index": 0,
+                    "transform": {
+                        "translation_x": 0.0,
+                        "translation_y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation_degrees": 0.0,
+                        "sampling": "nearest"
+                    },
+                    "opacity": 1.0,
+                    "effects": []
+                }]
+            },
+            "media": [{
+                "id": "image-1",
+                "kind": "Image",
+                "source": image_path.to_string_lossy(),
+                "width": 2,
+                "height": 2
+            }],
+            "sources": []
+        }
+    }));
+    assert_eq!(write["ok"], true, "{write}");
+    assert_eq!(write["result"]["written"], true);
+    assert_eq!(write["result"]["writtenNativeFrame"], true);
+    assert_eq!(write["result"]["sessionId"], "encode-native-image-direct");
+    assert_eq!(write["result"]["frameIndex"], 0);
+    assert_eq!(write["result"]["frameCount"], 1);
+    assert!(
+        write["result"].get("memoryId").is_none(),
+        "direct native encode must not return an output shared memory id: {write}"
+    );
+    assert!(
+        write["result"].get("frame").is_none(),
+        "direct native encode must not return a shared frame descriptor: {write}"
+    );
+    assert_no_frame_bytes_recursive(&write["result"]);
+
+    let finish = backend.request(json!({
+        "id": 103,
+        "method": "encode.finish",
+        "params": {
+            "sessionId": "encode-native-image-direct"
+        }
+    }));
+    assert_eq!(finish["ok"], true, "{finish}");
+    assert_eq!(finish["result"]["filePath"], output_path_string);
+    assert_eq!(finish["result"]["frameCount"], 1);
+    assert_no_frame_bytes_recursive(&finish["result"]);
+    assert!(
+        fs::metadata(&output_path)
+            .expect("direct Rust encode output file exists")
+            .len()
+            > 0
+    );
+}
+
+#[test]
 fn native_render_shared_frame_consumes_source_shm_and_returns_descriptor_only() {
     let mut backend = BackendProcess::start();
     let source_memory_id = unique_shm_name();
