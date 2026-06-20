@@ -487,6 +487,7 @@ const waitForPlaybackFrameAdvance = async (client, initialState) => client.evalu
         frameIndex: snapshot?.frame_index,
         sourceFrame: clip?.source_frame,
         presenterStatus: document.documentElement.dataset.uxfdSharedRendererPresenterStatus,
+        presenterStartCount: Number(document.documentElement.dataset.uxfdSharedRendererPresenterStartCount ?? NaN),
         videoOwner: document.documentElement.dataset.uxfdSharedRendererPresenterVideoOwner,
         videoFrameUploadReady: document.documentElement.dataset.uxfdSharedRendererPresenterVideoFrameUploadReady,
         videoPresentationSource: document.documentElement.dataset.uxfdSharedRendererPresenterVideoPresentationSource,
@@ -531,6 +532,7 @@ const samplePlaybackPresentationSmoothness = async (client) => client.evaluate(`
       const sample = {
         elapsedMs: Date.now() - started,
         presenterStatus: document.documentElement.dataset.uxfdSharedRendererPresenterStatus,
+        presenterStartCount: Number(document.documentElement.dataset.uxfdSharedRendererPresenterStartCount ?? NaN),
         videoOwner: document.documentElement.dataset.uxfdSharedRendererPresenterVideoOwner,
         videoFrameUploadReady: document.documentElement.dataset.uxfdSharedRendererPresenterVideoFrameUploadReady,
         videoPresentationSource: document.documentElement.dataset.uxfdSharedRendererPresenterVideoPresentationSource,
@@ -572,6 +574,9 @@ const samplePlaybackPresentationSmoothness = async (client) => client.evaluate(`
           presentedFrameSpan: span,
           blockedSampleCount,
           externalTextureSampleCount,
+          presenterStartCount: Number.isFinite(lastSample.presenterStartCount)
+            ? lastSample.presenterStartCount
+            : null,
           externalVideoSeekCount: Number.isFinite(lastSample.externalVideoSeekCount)
             ? lastSample.externalVideoSeekCount
             : null,

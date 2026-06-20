@@ -315,6 +315,7 @@ const Viewport: React.FC = () => {
   const sharedRendererPresenterControlRef = useRef<SharedRendererPreviewPresenterControl | null>(null);
   const sharedRendererPresenterSessionKeyRef = useRef<string | null>(null);
   const sharedRendererPresenterStartingRef = useRef(false);
+  const sharedRendererPresenterStartCountRef = useRef(0);
   const sharedRendererPendingPreviewSessionRef = useRef<SharedRendererPreviewSession | null>(null);
   const sharedRendererPendingPresenterSessionKeyRef = useRef<string | null>(null);
   const sharedRendererVideoDecodeJobsRef = useRef<SharedRendererViewportVideoDecodeJob[]>([]);
@@ -782,6 +783,10 @@ const Viewport: React.FC = () => {
         isPlaying,
       });
     }
+    sharedRendererPresenterStartCountRef.current += 1;
+    liveDatasets.forEach((dataset) => {
+      dataset.uxfdSharedRendererPresenterStartCount = String(sharedRendererPresenterStartCountRef.current);
+    });
     sharedRendererPresenterStartingRef.current = true;
 
     void startSharedRendererViewportPresenter({
