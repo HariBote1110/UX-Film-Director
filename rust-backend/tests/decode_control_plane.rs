@@ -124,6 +124,74 @@ fn encode_shared_frame_session_tracks_descriptor_without_legacy_base64_fallback(
 }
 
 #[test]
+fn encode_abort_removes_active_session_after_frame_source_failure() {
+    let mut backend = BackendProcess::start();
+    let temp_dir = TestTempDir::new("encode-abort-session");
+    let output_path = temp_dir.path().join("aborted-output.mp4");
+    let output_path_string = output_path.to_string_lossy().into_owned();
+
+    let start = backend.request(json!({
+        "id": 1,
+        "method": "encode.start",
+        "params": {
+            "sessionId": "encode-abort-1",
+            "filePath": output_path_string.clone(),
+            "width": 16,
+            "height": 16,
+            "fps": 60,
+            "pixelFormat": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(start["ok"], true, "{start}");
+
+    let abort = backend.request(json!({
+        "id": 2,
+        "method": "encode.abort",
+        "params": {
+            "sessionId": "encode-abort-1"
+        }
+    }));
+    assert_eq!(abort["ok"], true, "{abort}");
+    assert_eq!(abort["result"]["aborted"], true);
+    assert_eq!(abort["result"]["sessionId"], "encode-abort-1");
+
+    let restart = backend.request(json!({
+        "id": 3,
+        "method": "encode.start",
+        "params": {
+            "sessionId": "encode-abort-1",
+            "filePath": output_path_string,
+            "width": 16,
+            "height": 16,
+            "fps": 60,
+            "pixelFormat": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(restart["ok"], true, "{restart}");
+
+    let abort_restart = backend.request(json!({
+        "id": 4,
+        "method": "encode.abort",
+        "params": {
+            "sessionId": "encode-abort-1"
+        }
+    }));
+    assert_eq!(abort_restart["ok"], true, "{abort_restart}");
+}
+
+#[test]
 fn encode_start_accepts_audio_path_and_muxes_audio_with_shared_frames() {
     let mut backend = BackendProcess::start();
     let temp_dir = TestTempDir::new("encode-shared-frame-audio");

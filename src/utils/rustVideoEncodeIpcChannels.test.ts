@@ -7,6 +7,7 @@ describe('rustVideoEncodeIpcChannels', () => {
       start: 'rust-backend-encode-start',
       writeFrame: 'rust-backend-encode-write-frame',
       finish: 'rust-backend-encode-finish',
+      abort: 'rust-backend-encode-abort',
     });
     expect(Object.values(rustVideoEncodeIpcChannels)).not.toContain('start-export');
     expect(Object.values(rustVideoEncodeIpcChannels)).not.toContain('write-frame');

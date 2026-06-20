@@ -4,6 +4,7 @@ import {
   startRustBackendVideoEncode,
   writeRustBackendVideoEncodeFrame,
   finishRustBackendVideoEncode,
+  abortRustBackendVideoEncode,
   type RustBackendVideoEncodeBridge,
 } from './rustBackendVideoEncodeControl';
 
@@ -27,6 +28,10 @@ const bridge = (): {
         calls.push(['finishVideoEncode', payload]);
         return { success: true, result: { filePath: '/tmp/output.mp4' } };
       },
+      abortVideoEncode: async (payload) => {
+        calls.push(['abortVideoEncode', payload]);
+        return { success: true, result: { aborted: true } };
+      },
     },
   };
 };
@@ -38,6 +43,12 @@ describe('rustBackendVideoEncodeControl', () => {
     expect(isRustBackendVideoEncodeBridgeAvailable({
       startVideoEncode: async () => ({ success: true }),
     })).toBe(false);
+    expect(isRustBackendVideoEncodeBridgeAvailable({
+      startVideoEncode: async () => ({ success: true }),
+      writeVideoEncodeFrame: async () => ({ success: true }),
+      finishVideoEncode: async () => ({ success: true }),
+      abortVideoEncode: async () => ({ success: true }),
+    })).toBe(true);
   });
 
   it('starts a Rust video encode session with metadata only', async () => {
@@ -151,6 +162,22 @@ describe('rustBackendVideoEncodeControl', () => {
     expect(response).toEqual({ success: true, result: { filePath: '/tmp/output.mp4' } });
     expect(mocked.calls).toEqual([[
       'finishVideoEncode',
+      {
+        sessionId: 'encode-1',
+      },
+    ]]);
+  });
+
+  it('aborts the Rust video encode session by session id', async () => {
+    const mocked = bridge();
+
+    const response = await abortRustBackendVideoEncode({
+      sessionId: 'encode-1',
+    }, mocked.bridge);
+
+    expect(response).toEqual({ success: true, result: { aborted: true } });
+    expect(mocked.calls).toEqual([[
+      'abortVideoEncode',
       {
         sessionId: 'encode-1',
       },

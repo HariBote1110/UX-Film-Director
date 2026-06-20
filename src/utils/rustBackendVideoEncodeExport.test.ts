@@ -70,6 +70,10 @@ describe('runRustBackendVideoEncodeExport', () => {
           },
         };
       },
+      abortVideoEncode: async (payload) => {
+        calls.push(['abortVideoEncode', payload]);
+        return { success: true, result: { aborted: true } };
+      },
     };
 
     await expect(runRustBackendVideoEncodeExport({
@@ -97,6 +101,9 @@ describe('runRustBackendVideoEncodeExport', () => {
           matrix: 'rgb',
           range: 'full',
         },
+      }],
+      ['abortVideoEncode', {
+        sessionId: 'session-1',
       }],
     ]);
     expect(JSON.stringify(calls)).not.toContain('frameBase64');
@@ -271,6 +278,69 @@ describe('runRustBackendVideoEncodeExport', () => {
       sessionId: 'session-authoritative',
       filePath: '/tmp/backend-authoritative.mp4',
     });
+  });
+
+  it('aborts the Rust encode session when shared-frame generation fails after start', async () => {
+    const calls: unknown[] = [];
+    const encoderBridge: RustBackendVideoEncodeBridge = {
+      startVideoEncode: async (input) => {
+        calls.push(['startVideoEncode', input]);
+        return { success: true, result: { accepted: true } };
+      },
+      writeVideoEncodeFrame: async (input) => {
+        calls.push(['writeVideoEncodeFrame', input]);
+        return { success: true, result: { written: true } };
+      },
+      finishVideoEncode: async (input) => {
+        calls.push(['finishVideoEncode', input]);
+        return {
+          success: true,
+          result: {
+            finished: true,
+            sessionId: 'session-generation-failure',
+            filePath: '/tmp/out.mp4',
+            frameCount: 0,
+          },
+        };
+      },
+      abortVideoEncode: async (input) => {
+        calls.push(['abortVideoEncode', input]);
+        return { success: true, result: { aborted: true } };
+      },
+    };
+    async function* failingSharedFrames() {
+      throw new Error('shared-frame source blocked before first frame');
+    }
+
+    await expect(runRustBackendVideoEncodeExport({
+      sessionId: 'session-generation-failure',
+      filePath: '/tmp/direct-shared.mp4',
+      width: 4,
+      height: 2,
+      fps: 60,
+      frames: failingSharedFrames(),
+      encoderBridge,
+    })).rejects.toThrow('shared-frame source blocked before first frame');
+
+    expect(calls).toEqual([
+      ['startVideoEncode', {
+        sessionId: 'session-generation-failure',
+        filePath: '/tmp/direct-shared.mp4',
+        width: 4,
+        height: 2,
+        fps: 60,
+        pixelFormat: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      }],
+      ['abortVideoEncode', {
+        sessionId: 'session-generation-failure',
+      }],
+    ]);
   });
 
   it('fails loud when the Rust backend finish result omits the export summary', async () => {

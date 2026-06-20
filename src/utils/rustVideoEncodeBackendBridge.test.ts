@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   finishRustVideoEncodeViaBackend,
+  abortRustVideoEncodeViaBackend,
   startRustVideoEncodeViaBackend,
   writeRustVideoEncodeFrameViaBackend,
   type RustBackendCaller,
@@ -48,6 +49,10 @@ const sharedFramePayload = {
 } as const;
 
 const finishPayload = {
+  sessionId: 'encode-1',
+} as const;
+
+const abortPayload = {
   sessionId: 'encode-1',
 } as const;
 
@@ -111,6 +116,20 @@ describe('rustVideoEncodeBackendBridge', () => {
       method: 'encode.finish',
       params: finishPayload,
       timeoutMs: 60_000,
+    }]);
+    expect(JSON.stringify(backend.calls)).not.toContain('end-export');
+  });
+
+  it('routes abort to the Rust backend encode.abort RPC', async () => {
+    const backend = createBackendCaller({ aborted: true });
+
+    const response = await abortRustVideoEncodeViaBackend(abortPayload, backend.callRustBackend);
+
+    expect(response).toEqual({ success: true, result: { aborted: true } });
+    expect(backend.calls).toEqual([{
+      method: 'encode.abort',
+      params: abortPayload,
+      timeoutMs: 10_000,
     }]);
     expect(JSON.stringify(backend.calls)).not.toContain('end-export');
   });
