@@ -36,6 +36,16 @@ const forbiddenTokens = [
   'decodeVideoStream',
 ];
 
+const allowedProductionVideoDependencyTokens = new Map<string, Set<string>>([
+  [
+    'src/utils/sharedRendererExternalVideoSource.ts',
+    new Set([
+      "document.createElement('video')",
+      'loadVideoElementMetadata',
+    ]),
+  ],
+]);
+
 const collectProductionSources = (dir: string): string[] => {
   const files: string[] = [];
   for (const entry of readdirSync(dir)) {
@@ -59,12 +69,26 @@ describe('production video dependency boundary', () => {
   it('keeps browser/Pixi video fallbacks out of production implementation files', () => {
     const offenders = collectProductionSources(srcRoot).flatMap((path) => {
       const code = readFileSync(path, 'utf8');
+      const relativePath = relative(projectRoot, path);
+      const allowedTokens = allowedProductionVideoDependencyTokens.get(relativePath) ?? new Set<string>();
       return forbiddenTokens
-        .filter((token) => code.includes(token))
-        .map((token) => `${relative(projectRoot, path)} -> ${token}`);
+        .filter((token) => code.includes(token) && !allowedTokens.has(token))
+        .map((token) => `${relativePath} -> ${token}`);
     });
 
     expect(offenders).toEqual([]);
+  });
+
+  it('limits low-copy browser video source creation to the shared renderer external source provider', () => {
+    expect([...allowedProductionVideoDependencyTokens.entries()]).toEqual([
+      [
+        'src/utils/sharedRendererExternalVideoSource.ts',
+        new Set([
+          "document.createElement('video')",
+          'loadVideoElementMetadata',
+        ]),
+      ],
+    ]);
   });
 
   it('keeps VideoDecoder proxy fixture IPC out of production Electron main', () => {
