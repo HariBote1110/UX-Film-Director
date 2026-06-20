@@ -205,18 +205,19 @@ describe('formatLastExportDiagnosticsSummary', () => {
 });
 
 describe('getExportProgressPresentation', () => {
-  it('keeps direct transcode progress indeterminate while showing target frames and elapsed time', () => {
+  it('shows direct transcode percentage when Rust reports completed frames', () => {
     expect(getExportProgressPresentation({
       phase: 'transcoding',
-      currentFrame: 0,
+      currentFrame: 150,
       totalFrames: 300,
       startedAtMs: 1_000,
     }, 'ja', 3_500)).toEqual({
-      isDeterminate: false,
-      ratio: 0,
-      percent: 0,
+      isDeterminate: true,
+      ratio: 0.5,
+      percent: 50,
       statsLines: [
-        '処理対象 300 フレーム',
+        'フレーム 150 / 300',
+        '50%',
         '経過 2.5 秒',
       ],
     });

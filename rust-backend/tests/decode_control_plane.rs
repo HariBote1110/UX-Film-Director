@@ -796,6 +796,42 @@ fn encode_transcode_video_writes_single_source_output_without_frame_ipc() {
 }
 
 #[test]
+fn encode_transcode_video_emits_progress_events() {
+    let temp_dir = TestTempDir::new("encode-transcode-video-progress");
+    let fixture = build_two_frame_h264_fixture(temp_dir.path());
+    let output_path = temp_dir.path().join("transcoded-progress-output.mp4");
+    let output_path_string = output_path.to_string_lossy().into_owned();
+    let mut backend = BackendProcess::start();
+
+    let (response, events) = backend.request_with_events(json!({
+        "id": 124,
+        "method": "encode.transcodeVideo",
+        "params": {
+            "sessionId": "transcode-progress-1",
+            "inputPath": fixture.path.to_string_lossy(),
+            "outputPath": output_path_string.clone(),
+            "width": fixture.width,
+            "height": fixture.height,
+            "fps": 30,
+            "durationSeconds": 2.0
+        }
+    }));
+
+    assert_eq!(response["ok"], true, "{response}");
+    assert!(
+        events.iter().any(|event| {
+            event["event"] == "encode.transcodeVideo.progress"
+                && event["payload"]["sessionId"] == "transcode-progress-1"
+                && event["payload"]["totalFrames"] == 60
+                && event["payload"]["completedFrames"].as_u64().unwrap_or(0) <= 60
+                && event["payload"]["percent"].as_f64().unwrap_or(-1.0) >= 0.0
+                && event["payload"]["percent"].as_f64().unwrap_or(-1.0) <= 100.0
+        }),
+        "transcode progress events should include bounded frame progress: {events:?}"
+    );
+}
+
+#[test]
 fn encode_transcode_video_keeps_source_audio_when_requested() {
     let temp_dir = TestTempDir::new("encode-transcode-video-source-audio");
     let fixture = build_two_frame_h264_fixture(temp_dir.path());
@@ -4289,14 +4325,28 @@ impl BackendProcess {
     }
 
     fn request(&mut self, payload: Value) -> Value {
+        self.request_with_events(payload).0
+    }
+
+    fn request_with_events(&mut self, payload: Value) -> (Value, Vec<Value>) {
+        let request_id = payload["id"]
+            .as_u64()
+            .expect("request payload has numeric id");
         writeln!(self.stdin, "{payload}").expect("write backend request");
         self.stdin.flush().expect("flush backend request");
 
-        let mut line = String::new();
-        self.stdout
-            .read_line(&mut line)
-            .expect("read backend response");
-        serde_json::from_str(&line).expect("parse backend response")
+        let mut events = Vec::new();
+        loop {
+            let mut line = String::new();
+            self.stdout
+                .read_line(&mut line)
+                .expect("read backend response");
+            let parsed: Value = serde_json::from_str(&line).expect("parse backend response");
+            if parsed["id"].as_u64() == Some(request_id) {
+                return (parsed, events);
+            }
+            events.push(parsed);
+        }
     }
 }
 

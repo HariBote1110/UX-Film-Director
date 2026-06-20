@@ -143,6 +143,16 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     expect(transcodeBlock).toContain("stepDetail: 'Rust export: direct video transcode running'");
   });
 
+  it('subscribes to direct transcode progress events and updates percentage counters', () => {
+    const code = source();
+
+    expect(code).toContain('const unsubscribeTranscodeProgress = window.rustVideoEncoder.onTranscodeProgress?.((event) => {');
+    expect(code).toContain('if (event.sessionId !== rustEncodeSessionId) return;');
+    expect(code).toContain('currentFrame: event.completedFrames');
+    expect(code).toContain('totalFrames: event.totalFrames');
+    expect(code).toContain('unsubscribeTranscodeProgress?.();');
+  });
+
   it('logs the retained Rust export diagnostics after export cleanup', () => {
     const code = source();
 
