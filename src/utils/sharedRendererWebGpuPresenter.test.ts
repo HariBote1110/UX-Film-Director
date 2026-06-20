@@ -1025,6 +1025,84 @@ describe('createSharedRendererWebGpuPresenter', () => {
     ]);
   });
 
+  it('presents external video frames through WebGPU importExternalTexture without RGBA uploads', async () => {
+    const importedSources: unknown[] = [];
+    const writtenTextures: unknown[] = [];
+    const shaderModules: Array<{ code?: string }> = [];
+    const bindGroups: unknown[] = [];
+    const renderPassOperations: string[] = [];
+    const externalVideoSource = { tagName: 'VIDEO' };
+
+    const result = await createSharedRendererWebGpuPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      surfaceGate: {
+        ...okSurfaceGate,
+        snapshot: videoSnapshot,
+        media: videoMedia,
+      },
+      presentationContract: buildSharedRendererPresentationContract(),
+      gpu: fakeGpu({
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onImportExternalTexture: (descriptor) => {
+              importedSources.push(descriptor);
+              return 'external-video-texture';
+            },
+            onWriteTexture: (...args) => {
+              writtenTextures.push(args);
+            },
+            onCreateShaderModule: (descriptor) => {
+              shaderModules.push(descriptor as { code?: string });
+            },
+            onCreateBindGroup: (descriptor) => {
+              bindGroups.push(descriptor);
+            },
+            onRenderPassOperation: (operation) => {
+              renderPassOperations.push(operation);
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+      bufferUsageVertex: 1,
+      bufferUsageCopyDst: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected presenter creation to pass');
+
+    expect((result as unknown as {
+      presentExternalVideoFrameScene: (input: unknown) => unknown;
+    }).presentExternalVideoFrameScene({
+      snapshot: videoSnapshot,
+      media: videoMedia,
+      source: externalVideoSource,
+    })).toEqual({
+      ok: true,
+      planeCount: 1,
+    });
+
+    expect(importedSources).toEqual([{ source: externalVideoSource }]);
+    expect(writtenTextures).toEqual([]);
+    expect(shaderModules.some((module) => module.code?.includes('texture_external'))).toBe(true);
+    expect(bindGroups).toEqual([
+      {
+        layout: 'external-video-frame-bind-group-layout',
+        entries: [
+          { binding: 0, resource: 'video-frame-sampler' },
+          { binding: 1, resource: 'external-video-texture' },
+        ],
+      },
+    ]);
+    expect(renderPassOperations).toEqual([
+      'setPipeline:external-video-frame-pipeline',
+      'setBindGroup:0:video-frame-bind-group',
+      'setVertexBuffer:0:video-plane-vertex-buffer',
+      'draw:6',
+      'end',
+    ]);
+  });
+
   it('treats decoded video frames as opaque and applies only object opacity to the output alpha', async () => {
     const shaderModules: Array<{ code?: string }> = [];
 
@@ -1304,6 +1382,7 @@ const fakeDevice = ({
   onCreateBindGroup = () => undefined,
   onCreateShaderModule = () => undefined,
   onCreateRenderPipeline = () => undefined,
+  onImportExternalTexture = () => 'external-video-texture',
   readbackBytes = new Uint8Array(),
 }: {
   lost?: Promise<unknown>;
@@ -1328,6 +1407,7 @@ const fakeDevice = ({
   onCreateBindGroup?: (descriptor: unknown) => void;
   onCreateShaderModule?: (descriptor: unknown) => void;
   onCreateRenderPipeline?: (descriptor: unknown) => void;
+  onImportExternalTexture?: (descriptor: unknown) => unknown;
   readbackBytes?: Uint8Array;
 } = {}) => ({
   lost,
@@ -1341,6 +1421,7 @@ const fakeDevice = ({
     onCreateTexture(descriptor);
     return 'video-frame-texture';
   },
+  importExternalTexture: (descriptor: unknown) => onImportExternalTexture(descriptor),
   createSampler: (descriptor: unknown) => {
     onCreateSampler(descriptor);
     return 'video-frame-sampler';
