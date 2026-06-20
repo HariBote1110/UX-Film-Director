@@ -744,6 +744,138 @@ fn native_render_shared_frame_consumes_source_shm_and_returns_descriptor_only() 
 }
 
 #[test]
+fn native_render_shared_frame_uses_cpu_fast_path_for_single_translated_video() {
+    let mut backend = BackendProcess::start();
+    let source_memory_id = unique_shm_name();
+    let output_memory_id = unique_shm_name();
+    let slot_count = 1;
+    let output_slot_count = 2;
+    let source_width = 2;
+    let source_height = 2;
+    let output_width = 4;
+    let output_height = 4;
+    let stride_bytes = 256;
+    let slot_byte_len = stride_bytes * source_height;
+    let tight_rgba = vec![
+        10, 20, 30, 255, 40, 50, 60, 255,
+        70, 80, 90, 255, 100, 110, 120, 255,
+    ];
+    let padded_rgba = pad_rgba_rows(
+        &tight_rgba,
+        source_width,
+        source_height,
+        stride_bytes as usize,
+    );
+    let source_ring = PosixSharedRing::create_with_slot_count(
+        &source_memory_id,
+        slot_count,
+        slot_byte_len as usize,
+    )
+    .expect("create translated video source ring");
+    source_ring
+        .write_frame(0, &padded_rgba)
+        .expect("write translated video source frame");
+
+    let response = backend.request(json!({
+        "id": 13,
+        "method": "render.nativeSharedFrame",
+        "params": {
+            "renderId": "native-render-cpu-fast-video",
+            "memoryId": output_memory_id,
+            "slotCount": output_slot_count,
+            "ptsFrame": 0,
+            "width": output_width,
+            "height": output_height,
+            "snapshot": {
+                "frame_index": 0,
+                "colour": {
+                    "profile": "rec709-sdr",
+                    "working_space": "linear-light",
+                    "alpha": "premultiplied"
+                },
+                "clips": [{
+                    "clip_id": "clip-cpu-fast-video",
+                    "track_id": "track-1",
+                    "media_id": "video-1",
+                    "source_frame": 0,
+                    "z_index": 0,
+                    "transform": {
+                        "translation_x": 1.0,
+                        "translation_y": 1.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation_degrees": 0.0,
+                        "sampling": "nearest"
+                    },
+                    "opacity": 1.0,
+                    "effects": []
+                }]
+            },
+            "media": [{
+                "id": "video-1",
+                "kind": "Video",
+                "source": "/tmp/video.mp4",
+                "width": source_width,
+                "height": source_height,
+                "source_rate": { "numerator": 60, "denominator": 1 }
+            }],
+            "sources": [{
+                "mediaId": "video-1",
+                "slotCount": slot_count,
+                "frame": {
+                    "descriptor": {
+                        "memoryId": source_memory_id,
+                        "slotIndex": 0,
+                        "generation": 1,
+                        "byteOffset": 0,
+                        "byteLen": slot_byte_len,
+                        "width": source_width,
+                        "height": source_height,
+                        "strideBytes": stride_bytes,
+                        "format": "rgba8Srgb",
+                        "colour": {
+                            "primaries": "bt709",
+                            "transfer": "srgb",
+                            "matrix": "rgb",
+                            "range": "full"
+                        }
+                    },
+                    "ptsFrame": 0
+                }
+            }]
+        }
+    }));
+
+    assert_eq!(response["ok"], true, "{response}");
+    assert_eq!(response["result"]["renderPath"], "cpuSimpleVideoComposite");
+
+    source_ring
+        .wait_until_free(Duration::from_secs(1))
+        .expect("source shared frame slot returns to free after cpu fast render");
+
+    let output_slot_byte_len = response["result"]["frame"]["descriptor"]["byteLen"]
+        .as_u64()
+        .expect("output byte length") as usize;
+    let output_ring = PosixSharedRing::attach_with_retry_for_layout(
+        response["result"]["frame"]["descriptor"]["memoryId"]
+            .as_str()
+            .expect("output memory id"),
+        output_slot_count,
+        output_slot_byte_len,
+        Duration::from_secs(1),
+    )
+    .expect("attach to cpu fast native render output ring");
+    let output_frame = output_ring
+        .read_frame(0)
+        .expect("read cpu fast native rendered output frame");
+    assert_eq!(&output_frame.bytes[0..4], &[0, 0, 0, 0]);
+    assert_eq!(&output_frame.bytes[256 + 4..256 + 8], &[10, 20, 30, 255]);
+    assert_eq!(&output_frame.bytes[256 + 8..256 + 12], &[40, 50, 60, 255]);
+    assert_eq!(&output_frame.bytes[512 + 4..512 + 8], &[70, 80, 90, 255]);
+    assert_eq!(&output_frame.bytes[512 + 8..512 + 12], &[100, 110, 120, 255]);
+}
+
+#[test]
 fn native_render_shared_frame_rejects_duplicate_media_and_shared_sources() {
     let mut backend = BackendProcess::start();
     let source_memory_id = unique_shm_name();
