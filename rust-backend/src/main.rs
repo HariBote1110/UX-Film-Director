@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use uxfd_golden_harness::{load_rgba_jpeg, load_rgba_png, RgbaFrame};
 use uxfd_native_wgpu_renderer::{NativeWgpuRenderError, NativeWgpuRenderer};
-use uxfd_rust_core::{MediaKind, SceneMediaReference, SceneSnapshot};
+use uxfd_rust_core::{EvaluatedClip, MediaKind, SceneMediaReference, SceneSnapshot};
 #[cfg(unix)]
 use uxfd_shared_memory_spike::{PosixSharedRing, PosixShmError};
 use uxfd_sidecar_protocol::{
@@ -310,14 +310,18 @@ fn handle_request(request: RpcRequest, state: &mut BackendState) -> RpcResponse 
         "psd.await_blob" => handle_psd_await_blob(request.id, state),
         "decode.start" => handle_decode_start(request.id, request.params, state),
         "decode.stop" => handle_decode_stop(request.id, request.params, state),
-        "decode.requestFrame" => handle_decode_request_frame(request.id, request.params, state, false),
+        "decode.requestFrame" => {
+            handle_decode_request_frame(request.id, request.params, state, false)
+        }
         "decode.requestFrameInline" => {
             handle_decode_request_frame(request.id, request.params, state, true)
         }
         "decode.releaseFrame" => handle_decode_release_frame(request.id, request.params, state),
         "encode.start" => handle_encode_start(request.id, request.params, state),
         "encode.writeFrame" => handle_encode_write_frame(request.id, request.params, state),
-        "encode.writeNativeFrame" => handle_encode_write_native_frame(request.id, request.params, state),
+        "encode.writeNativeFrame" => {
+            handle_encode_write_native_frame(request.id, request.params, state)
+        }
         "encode.finish" => handle_encode_finish(request.id, request.params, state),
         "encode.abort" => handle_encode_abort(request.id, request.params, state),
         "render.nativeSharedFrame" => {
@@ -542,7 +546,8 @@ fn handle_encode_write_native_frame(
         }
     };
 
-    let render = match pollster::block_on(renderer.render_frame_stages(&parsed.snapshot, &sources)) {
+    let render = match pollster::block_on(renderer.render_frame_stages(&parsed.snapshot, &sources))
+    {
         Ok(value) => value,
         Err(NativeWgpuRenderError::AdapterUnavailable) => {
             return response_error(id, -32070, "Native WebGPU adapter is unavailable");
@@ -679,11 +684,7 @@ fn handle_encode_abort(id: u64, params: Value, state: &mut BackendState) -> RpcR
     let parsed = match serde_json::from_value::<EncodeAbortParams>(params) {
         Ok(value) => value,
         Err(error) => {
-            return response_error(
-                id,
-                -32602,
-                &format!("Invalid encode.abort params: {error}"),
-            );
+            return response_error(id, -32602, &format!("Invalid encode.abort params: {error}"));
         }
     };
 
@@ -787,6 +788,49 @@ fn handle_native_render_shared_frame(
         );
     }
 
+    match try_render_simple_video_frame_to_shared_ring(
+        &parsed.snapshot,
+        &parsed.media,
+        &sources,
+        parsed.width,
+        parsed.height,
+        &parsed.memory_id,
+        parsed.slot_count,
+        parsed.pts_frame,
+    ) {
+        Ok(Some(render)) => {
+            let frame = render.shared_frame.clone();
+            let slot_count = render.slot_count;
+            let slot_byte_len = render.slot_byte_len;
+            state
+                .native_render_outputs
+                .insert(parsed.memory_id.clone(), render.ring);
+
+            return RpcResponse {
+                id,
+                ok: true,
+                result: Some(json!({
+                    "rendered": true,
+                    "renderPath": "cpuSimpleVideoComposite",
+                    "renderId": parsed.render_id,
+                    "memoryId": parsed.memory_id,
+                    "slotCount": slot_count,
+                    "slotByteLen": slot_byte_len,
+                    "frame": frame,
+                })),
+                error: None,
+            };
+        }
+        Ok(None) => {}
+        Err(message) => {
+            return response_error(
+                id,
+                -32071,
+                &format!("Native CPU simple video render failed: {message}"),
+            );
+        }
+    }
+
     let renderer = match get_or_create_native_wgpu_renderer(state, parsed.width, parsed.height) {
         Ok(value) => value,
         Err(NativeWgpuRenderError::AdapterUnavailable) => {
@@ -841,6 +885,178 @@ fn handle_native_render_shared_frame(
         })),
         error: None,
     }
+}
+
+#[cfg(unix)]
+struct CpuSimpleVideoRenderReport {
+    ring: PosixSharedRing,
+    slot_count: u32,
+    slot_byte_len: u64,
+    shared_frame: SharedFrame,
+}
+
+#[cfg(unix)]
+fn try_render_simple_video_frame_to_shared_ring(
+    snapshot: &SceneSnapshot,
+    media_items: &[SceneMediaReference],
+    sources: &HashMap<String, RgbaFrame>,
+    width: u32,
+    height: u32,
+    memory_id: &str,
+    slot_count: u32,
+    pts_frame: u64,
+) -> Result<Option<CpuSimpleVideoRenderReport>, String> {
+    if snapshot.clips.len() != 1 || sources.len() != 1 {
+        return Ok(None);
+    }
+    let clip = &snapshot.clips[0];
+    let Some(media) = media_items.iter().find(|item| item.id == clip.media_id) else {
+        return Ok(None);
+    };
+    if media.kind != MediaKind::Video || !is_simple_video_composite_clip(clip) {
+        return Ok(None);
+    }
+    let Some(source) = sources.get(&clip.media_id) else {
+        return Ok(None);
+    };
+    if source.width != media.width || source.height != media.height {
+        return Ok(None);
+    }
+    let Some(translation_x) = finite_integer_i64(clip.transform.translation_x) else {
+        return Ok(None);
+    };
+    let Some(translation_y) = finite_integer_i64(clip.transform.translation_y) else {
+        return Ok(None);
+    };
+
+    let output_len = u64::from(width)
+        .checked_mul(u64::from(height))
+        .and_then(|value| value.checked_mul(4))
+        .and_then(|value| usize::try_from(value).ok())
+        .ok_or_else(|| "CPU simple video output byte length overflows".to_string())?;
+    let mut output = vec![0; output_len];
+    blit_simple_video_source(
+        source,
+        &mut output,
+        width,
+        height,
+        translation_x,
+        translation_y,
+    )?;
+
+    let colour = ColourMetadata::rec709_srgb();
+    let layout = rgba8_srgb_ring_layout(memory_id, slot_count, width, height, colour)
+        .map_err(|error| format!("CPU simple video output layout failed: {error:?}"))?;
+    let descriptor = layout
+        .descriptor_for_slot(0)
+        .map_err(|error| format!("CPU simple video output descriptor failed: {error:?}"))?;
+    let padded = pad_rgba_rows(&output, width, height, descriptor.stride_bytes)?;
+    let slot_byte_len = usize::try_from(descriptor.byte_len).map_err(|_| {
+        format!(
+            "CPU simple video output byteLen overflows usize: {}",
+            descriptor.byte_len
+        )
+    })?;
+    let ring = PosixSharedRing::create_with_slot_count(memory_id, slot_count, slot_byte_len)
+        .map_err(|error| format!("CPU simple video output shared memory failed: {error:?}"))?;
+    ring.write_frame(pts_frame, &padded)
+        .map_err(|error| format!("CPU simple video output write failed: {error:?}"))?;
+
+    Ok(Some(CpuSimpleVideoRenderReport {
+        ring,
+        slot_count,
+        slot_byte_len: descriptor.byte_len,
+        shared_frame: SharedFrame {
+            descriptor,
+            pts_frame,
+        },
+    }))
+}
+
+#[cfg(unix)]
+fn is_simple_video_composite_clip(clip: &EvaluatedClip) -> bool {
+    clip.effects.is_empty()
+        && nearly_equal_f32(clip.opacity, 1.0)
+        && nearly_equal_f32(clip.transform.scale_x, 1.0)
+        && nearly_equal_f32(clip.transform.scale_y, 1.0)
+        && nearly_equal_f32(clip.transform.rotation_degrees, 0.0)
+}
+
+#[cfg(unix)]
+fn blit_simple_video_source(
+    source: &RgbaFrame,
+    output: &mut [u8],
+    output_width: u32,
+    output_height: u32,
+    translation_x: i64,
+    translation_y: i64,
+) -> Result<(), String> {
+    let source_width = i64::from(source.width);
+    let source_height = i64::from(source.height);
+    let output_width_i64 = i64::from(output_width);
+    let output_height_i64 = i64::from(output_height);
+    let source_x_start = 0_i64.max(-translation_x);
+    let source_y_start = 0_i64.max(-translation_y);
+    let destination_x_start = 0_i64.max(translation_x);
+    let destination_y_start = 0_i64.max(translation_y);
+    let copy_width = (source_width - source_x_start)
+        .min(output_width_i64 - destination_x_start)
+        .max(0);
+    let copy_height = (source_height - source_y_start)
+        .min(output_height_i64 - destination_y_start)
+        .max(0);
+    if copy_width == 0 || copy_height == 0 {
+        return Ok(());
+    }
+
+    let copy_bytes = usize::try_from(copy_width)
+        .ok()
+        .and_then(|value| value.checked_mul(4))
+        .ok_or_else(|| "CPU simple video row byte length overflows".to_string())?;
+    let source_width = usize::try_from(source.width)
+        .map_err(|_| format!("source width overflows usize: {}", source.width))?;
+    let output_width = usize::try_from(output_width)
+        .map_err(|_| format!("output width overflows usize: {output_width}"))?;
+    let source_x_start = usize::try_from(source_x_start)
+        .map_err(|_| "source x start overflows usize".to_string())?;
+    let source_y_start = usize::try_from(source_y_start)
+        .map_err(|_| "source y start overflows usize".to_string())?;
+    let destination_x_start = usize::try_from(destination_x_start)
+        .map_err(|_| "destination x start overflows usize".to_string())?;
+    let destination_y_start = usize::try_from(destination_y_start)
+        .map_err(|_| "destination y start overflows usize".to_string())?;
+    let copy_height =
+        usize::try_from(copy_height).map_err(|_| "copy height overflows usize".to_string())?;
+
+    for row in 0..copy_height {
+        let source_start = ((source_y_start + row) * source_width + source_x_start)
+            .checked_mul(4)
+            .ok_or_else(|| "CPU simple video source row offset overflows".to_string())?;
+        let destination_start = ((destination_y_start + row) * output_width + destination_x_start)
+            .checked_mul(4)
+            .ok_or_else(|| "CPU simple video destination row offset overflows".to_string())?;
+        output[destination_start..destination_start + copy_bytes]
+            .copy_from_slice(&source.pixels[source_start..source_start + copy_bytes]);
+    }
+
+    Ok(())
+}
+
+#[cfg(unix)]
+fn finite_integer_i64(value: f32) -> Option<i64> {
+    if !value.is_finite() {
+        return None;
+    }
+    let rounded = value.round();
+    if (value - rounded).abs() > 1e-6 {
+        return None;
+    }
+    Some(rounded as i64)
+}
+
+#[cfg(unix)]
+fn nearly_equal_f32(left: f32, right: f32) -> bool {
+    (left - right).abs() <= 1e-6
 }
 
 #[cfg(unix)]
@@ -1507,7 +1723,9 @@ fn write_encode_shared_frame(
     Err("Rust encode shared memory is unavailable on this platform".to_string())
 }
 
-fn start_encode_ffmpeg(parsed: &EncodeStartParams) -> Result<(Child, ChildStdin, ChildStderr), String> {
+fn start_encode_ffmpeg(
+    parsed: &EncodeStartParams,
+) -> Result<(Child, ChildStdin, ChildStderr), String> {
     let ffmpeg_path = std::env::var("UXFD_FFMPEG_BIN").unwrap_or_else(|_| "ffmpeg".to_string());
     let audio_path = parsed
         .audio_path
@@ -2254,8 +2472,7 @@ fn handle_decode_release_frame(id: u64, params: Value, state: &mut BackendState)
         session.data_plane_ring.as_ref(),
         parsed.slot_index,
         parsed.copy_out_state,
-    )
-    {
+    ) {
         return response_error(
             id,
             -32051,
@@ -2339,7 +2556,10 @@ fn release_decode_data_plane(
     let ring = ring.ok_or_else(|| "decode shared memory ring is unavailable".to_string())?;
     match ring.release_frame_slot(slot_index, copy_out_state) {
         Ok(()) => Ok(()),
-        Err(PosixShmError::UnexpectedState { expected: 3, actual: 0 }) => Ok(()),
+        Err(PosixShmError::UnexpectedState {
+            expected: 3,
+            actual: 0,
+        }) => Ok(()),
         Err(error) => Err(format!("{error:?}")),
     }
 }
@@ -2359,10 +2579,8 @@ fn decode_rgba_frame_for_session(
     session: &mut DecodeSession,
     frame_index: u64,
 ) -> Result<DecodedRgbaFrame, String> {
-    let expected_len = tight_rgba_byte_len(
-        session.start_response.width,
-        session.start_response.height,
-    )?;
+    let expected_len =
+        tight_rgba_byte_len(session.start_response.width, session.start_response.height)?;
 
     if let Some(decoder) = session.streaming_decoder.as_mut() {
         if decoder.frame_byte_len == expected_len
@@ -2421,13 +2639,12 @@ fn start_streaming_decode_process(
     session.streaming_decoder = None;
 
     let input_metadata = probe_video_input_metadata(&session.ffprobe_path, &session.source)?;
-    let seek_seconds = frame_index as f64 * f64::from(session.start_response.source_rate.denominator)
+    let seek_seconds = frame_index as f64
+        * f64::from(session.start_response.source_rate.denominator)
         / f64::from(session.start_response.source_rate.numerator);
     let filter = format!(
         "scale=w={}:h={}:in_range={}:out_range=pc,format=rgba",
-        session.start_response.width,
-        session.start_response.height,
-        input_metadata.range
+        session.start_response.width, session.start_response.height, input_metadata.range
     );
     let mut child = Command::new(&session.ffmpeg_path)
         .arg("-hide_banner")
@@ -2448,7 +2665,12 @@ fn start_streaming_decode_process(
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
-        .map_err(|error| format!("failed to start streaming ffmpeg ({}): {error}", session.ffmpeg_path))?;
+        .map_err(|error| {
+            format!(
+                "failed to start streaming ffmpeg ({}): {error}",
+                session.ffmpeg_path
+            )
+        })?;
     let stdout = child
         .stdout
         .take()

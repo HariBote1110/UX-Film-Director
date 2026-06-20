@@ -7276,3 +7276,24 @@
 ### 残課題・次のステップ
 - 単純なdirect RPC結合は、shared memory往復を消す代わりにrender/writeの先読み重なりを失って遅くなる。次はRust backend内でrender queueとencode queueを分け、direct pathでも2〜3frameのpipelineを維持する設計へ進む。
 - 通常exportは30fps級を維持するため、当面はshared native render output経路をデフォルトにする。
+
+## 2026-06-20 — 単一動画の軽量合成fast pathで「軽い素材は軽い」方向へ寄せる
+
+### 実施内容
+- Red: renderer側に、単一・無加工・同サイズ動画はdecoded shared frameを直接encoderへ渡し、成功/失敗時にdecode slotを解放する契約を追加した。
+- Green: `RustBackendVideoEncodeSharedFramePayloadFrame` に成功/失敗後のshared frame解放callbackを追加し、passthrough frameでもslotをリークしないようにした。
+- Green: shared renderer export sourceに `decodedVideoPassthrough` を追加した。ただし適用条件は、単一動画・identity transform・opacity 1・effectsなし・出力サイズ一致に限定した。
+- Red: Rust backendに、単一動画を整数座標へ置くだけのnative renderが `cpuSimpleVideoComposite` を返す契約を追加した。
+- Green: `render.nativeSharedFrame` で単一Video clip、scale 1、rotation 0、opacity 1、effectsなし、整数translationの場合、WGPU upload/render/readbackを通さずCPU row-copyでoutput shared ringを作るfast pathを追加した。
+- 版を `0.1.1-Beta-227a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/sharedRendererExportFrameSource.test.ts src/utils/rustBackendVideoEncodeExport.test.ts` は61件成功。
+- `npm test -- --run src/utils/sharedRendererExportFrameSource.test.ts src/utils/rustBackendVideoEncodeExport.test.ts src/utils/rustBackendNativeRenderBoundary.test.ts src/utils/rustVideoEncodeBackendBridge.test.ts src/utils/rustBackendVideoEncodeControl.test.ts src/utils/packageScripts.test.ts` は79件成功。
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane native_render -- --nocapture` は16件成功。
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功。
+- 実Electron E2E: `/Volumes/ExtendSSD-W/GX020052.MP4` 5秒尺は300 frames / 8518ms / 約35.22fpsで成功した。今回のfast path前に同条件で再測定したWGPU経路は約24.30〜25.17fps、以前の良好値は約33.82fps。
+
+### 残課題・次のステップ
+- CPU simple compositeは「単一動画・単純配置」専用。scaleや複数オブジェクト、フィルタが入ると従来のnative WGPU合成へ戻る。
+- 次は単純scale付き動画、静止画+動画、音声付きexportの実測を分け、どの時点から重くなるかをE2Eで見える化する。

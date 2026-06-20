@@ -24,12 +24,9 @@ fn encode_shared_frame_session_tracks_descriptor_without_legacy_base64_fallback(
     let slot_byte_len = stride_bytes * height;
     let tight_rgba = vec![0x7a; width as usize * height as usize * 4];
     let padded_rgba = pad_rgba_rows(&tight_rgba, width, height, stride_bytes as usize);
-    let producer_ring = PosixSharedRing::create_with_slot_count(
-        &memory_id,
-        slot_count,
-        slot_byte_len as usize,
-    )
-    .expect("create encode source ring");
+    let producer_ring =
+        PosixSharedRing::create_with_slot_count(&memory_id, slot_count, slot_byte_len as usize)
+            .expect("create encode source ring");
     producer_ring
         .write_frame(42, &padded_rgba)
         .expect("write encode source frame");
@@ -208,12 +205,9 @@ fn encode_start_accepts_audio_path_and_muxes_audio_with_shared_frames() {
     let slot_byte_len = stride_bytes * height;
     let tight_rgba = vec![0x9b; width as usize * height as usize * 4];
     let padded_rgba = pad_rgba_rows(&tight_rgba, width, height, stride_bytes as usize);
-    let producer_ring = PosixSharedRing::create_with_slot_count(
-        &memory_id,
-        slot_count,
-        slot_byte_len as usize,
-    )
-    .expect("create encode source ring");
+    let producer_ring =
+        PosixSharedRing::create_with_slot_count(&memory_id, slot_count, slot_byte_len as usize)
+            .expect("create encode source ring");
     producer_ring
         .write_frame(0, &padded_rgba)
         .expect("write encode source frame");
@@ -299,12 +293,9 @@ fn encode_finish_reports_ffmpeg_stderr_when_muxing_fails() {
     let slot_byte_len = stride_bytes * height;
     let tight_rgba = vec![0x51; width as usize * height as usize * 4];
     let padded_rgba = pad_rgba_rows(&tight_rgba, width, height, stride_bytes as usize);
-    let producer_ring = PosixSharedRing::create_with_slot_count(
-        &memory_id,
-        slot_count,
-        slot_byte_len as usize,
-    )
-    .expect("create encode source ring");
+    let producer_ring =
+        PosixSharedRing::create_with_slot_count(&memory_id, slot_count, slot_byte_len as usize)
+            .expect("create encode source ring");
     producer_ring
         .write_frame(0, &padded_rgba)
         .expect("write encode source frame");
@@ -372,7 +363,10 @@ fn encode_finish_reports_ffmpeg_stderr_when_muxing_fails() {
     let message = finish["error"]["message"]
         .as_str()
         .expect("finish error message");
-    assert!(message.contains("Rust encode ffmpeg exited with failure status"), "{finish}");
+    assert!(
+        message.contains("Rust encode ffmpeg exited with failure status"),
+        "{finish}"
+    );
     assert!(message.contains("stderr:"), "{finish}");
 }
 
@@ -757,8 +751,7 @@ fn native_render_shared_frame_uses_cpu_fast_path_for_single_translated_video() {
     let stride_bytes = 256;
     let slot_byte_len = stride_bytes * source_height;
     let tight_rgba = vec![
-        10, 20, 30, 255, 40, 50, 60, 255,
-        70, 80, 90, 255, 100, 110, 120, 255,
+        10, 20, 30, 255, 40, 50, 60, 255, 70, 80, 90, 255, 100, 110, 120, 255,
     ];
     let padded_rgba = pad_rgba_rows(
         &tight_rgba,
@@ -872,7 +865,10 @@ fn native_render_shared_frame_uses_cpu_fast_path_for_single_translated_video() {
     assert_eq!(&output_frame.bytes[256 + 4..256 + 8], &[10, 20, 30, 255]);
     assert_eq!(&output_frame.bytes[256 + 8..256 + 12], &[40, 50, 60, 255]);
     assert_eq!(&output_frame.bytes[512 + 4..512 + 8], &[70, 80, 90, 255]);
-    assert_eq!(&output_frame.bytes[512 + 8..512 + 12], &[100, 110, 120, 255]);
+    assert_eq!(
+        &output_frame.bytes[512 + 8..512 + 12],
+        &[100, 110, 120, 255]
+    );
 }
 
 #[test]
@@ -2512,8 +2508,12 @@ fn decode_request_frame_scales_source_frame_to_requested_decode_dimensions() {
         .expect("slot byte length") as usize;
     let expected_tight_rgba =
         decode_tight_rgba_frame(&fixture.path, 1, target_width, target_height);
-    let expected_padded_rgba =
-        pad_rgba_rows(&expected_tight_rgba, target_width, target_height, stride_bytes);
+    let expected_padded_rgba = pad_rgba_rows(
+        &expected_tight_rgba,
+        target_width,
+        target_height,
+        stride_bytes,
+    );
 
     let response = backend.request(json!({
         "id": 2,
@@ -2793,10 +2793,38 @@ fn decode_request_frame_reuses_streaming_decoder_for_sequential_playback_frames(
 #[test]
 fn decode_request_frame_reads_all_local_video_fixtures_for_preview() {
     let fixtures = [
-        ("decode-local-20mbps", "perf/heavy-media/20000kbps_60fps.mp4", 1920, 1080, 60, 1),
-        ("decode-local-gopro-proxy", "perf/heavy-media/GX010052.proxy.mp4", 1280, 720, 120000, 1001),
-        ("decode-local-10mbps", "perf/heavy-media/10000kbps_60fps.mp4", 1920, 1080, 60, 1),
-        ("decode-local-gopro-original", "perf/heavy-media/GX010052.MP4", 3840, 2160, 120000, 1001),
+        (
+            "decode-local-20mbps",
+            "perf/heavy-media/20000kbps_60fps.mp4",
+            1920,
+            1080,
+            60,
+            1,
+        ),
+        (
+            "decode-local-gopro-proxy",
+            "perf/heavy-media/GX010052.proxy.mp4",
+            1280,
+            720,
+            120000,
+            1001,
+        ),
+        (
+            "decode-local-10mbps",
+            "perf/heavy-media/10000kbps_60fps.mp4",
+            1920,
+            1080,
+            60,
+            1,
+        ),
+        (
+            "decode-local-gopro-original",
+            "perf/heavy-media/GX010052.MP4",
+            3840,
+            2160,
+            120000,
+            1001,
+        ),
     ];
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -2807,7 +2835,10 @@ fn decode_request_frame_reads_all_local_video_fixtures_for_preview() {
         fixtures.iter().enumerate()
     {
         let source = repo_root.join(relative_path);
-        assert!(source.exists(), "local video fixture is missing: {source:?}");
+        assert!(
+            source.exists(),
+            "local video fixture is missing: {source:?}"
+        );
 
         let start_response = backend.request(json!({
             "id": 100 + index * 10,
@@ -2857,8 +2888,14 @@ fn decode_request_frame_reads_all_local_video_fixtures_for_preview() {
             "Rust video decode should read {relative_path}: {frame_response}"
         );
         assert_eq!(frame_response["result"]["accepted"], true);
-        assert_eq!(frame_response["result"]["frame"]["descriptor"]["width"], json!(width));
-        assert_eq!(frame_response["result"]["frame"]["descriptor"]["height"], json!(height));
+        assert_eq!(
+            frame_response["result"]["frame"]["descriptor"]["width"],
+            json!(width)
+        );
+        assert_eq!(
+            frame_response["result"]["frame"]["descriptor"]["height"],
+            json!(height)
+        );
         assert_no_frame_bytes_recursive(&frame_response["result"]);
         consumer_ring
             .read_frame(0)
@@ -3794,7 +3831,10 @@ fn assert_mp4_has_audio_stream(path: &Path) {
                 .iter()
                 .any(|stream| stream.get("codec_type").and_then(Value::as_str) == Some("audio"))
         });
-    assert!(has_audio, "encoded MP4 should contain an audio stream: {parsed}");
+    assert!(
+        has_audio,
+        "encoded MP4 should contain an audio stream: {parsed}"
+    );
 }
 
 struct BackendProcess {

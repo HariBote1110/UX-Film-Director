@@ -20,6 +20,8 @@ export interface RustBackendVideoEncodeSharedFramePayloadFrame {
     kind: 'nativeRenderOutput';
     memoryId: string;
   };
+  releaseSharedFrameAfterEncodeSuccess?: () => Promise<void>;
+  releaseSharedFrameAfterEncodeFailure?: () => Promise<void>;
 }
 
 export interface RustBackendVideoEncodeNativeFramePayloadFrame {
@@ -195,7 +197,7 @@ const writeSharedFrameToRustBackend = async (
   try {
     writeResponse = await writeRustBackendVideoEncodeFrame(frame.sharedFramePayload, encoderBridge);
   } catch (error) {
-    await releaseNativeRenderOutputAfterEncodeFailure(
+    await releaseSharedFrameAfterEncodeFailure(
       frame,
       'encodeWriteFailed',
       nativeRenderBridge,
@@ -204,7 +206,7 @@ const writeSharedFrameToRustBackend = async (
     throw error;
   }
   if (!writeResponse.success) {
-    await releaseNativeRenderOutputAfterEncodeFailure(
+    await releaseSharedFrameAfterEncodeFailure(
       frame,
       'encodeWriteFailed',
       nativeRenderBridge,
@@ -216,6 +218,7 @@ const writeSharedFrameToRustBackend = async (
     writeResponse.error,
     'Rust backend video encode frame write failed.'
   );
+  await frame.releaseSharedFrameAfterEncodeSuccess?.();
 };
 
 const writeNativeFrameToRustBackend = async (
@@ -285,6 +288,7 @@ const releasePrefetchedNativeRenderOutputAfterEncodeFailure = async (
     nativeRenderBridge,
     onNativeRenderOutputRelease
   );
+  await frameResult.value.releaseSharedFrameAfterEncodeFailure?.();
 };
 
 const parseRustBackendVideoEncodeFinishSummary = (
@@ -376,4 +380,21 @@ const releaseNativeRenderOutputAfterEncodeFailure = async (
     memoryId,
     reason,
   });
+};
+
+const releaseSharedFrameAfterEncodeFailure = async (
+  frame: RustBackendVideoEncodeSharedFramePayloadFrame,
+  reason: RustBackendNativeRenderOutputReleaseReason,
+  bridge?: RustBackendNativeRenderOutputReleaseBridge,
+  onNativeRenderOutputRelease?: (
+    event: RustBackendNativeRenderOutputReleaseEvent
+  ) => void
+): Promise<void> => {
+  await releaseNativeRenderOutputAfterEncodeFailure(
+    frame,
+    reason,
+    bridge,
+    onNativeRenderOutputRelease
+  );
+  await frame.releaseSharedFrameAfterEncodeFailure?.();
 };

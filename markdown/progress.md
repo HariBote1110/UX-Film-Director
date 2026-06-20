@@ -1182,3 +1182,14 @@
 - 実測: 通常E2Eは `/Volumes/ExtendSSD-W/GX020052.MP4` 5秒尺で300 frames / 8871ms / 約33.82fps。`VITE_UXFD_NATIVE_DIRECT_ENCODE=1` のdirect opt-in E2Eは2秒尺で120 frames / 8863ms / 約13.54fps。
 - 判断: 単純なdirect RPC結合はshared memory往復を消す一方で、既存のrender/write先読みの重なりを失い遅くなるため、デフォルト有効化しない。次はRust backend内でrender queue / encode queueを分けるpipeline化が必要。
 - 版: `0.1.1-Beta-226a`。
+
+## 2026-06-20
+- 「軽い動画なのに常に重い」問題への対策として、単一動画の軽量経路を追加した。
+- Red: renderer export helperに、単一・無加工・同サイズ動画はdecoded shared frameをencoderへ直接渡し、成功/失敗時にdecode slotを解放する契約を追加した。
+- Green: shared frame encode payloadへ成功/失敗後の解放callbackを追加し、`decodedVideoPassthrough` を導入した。適用条件は単一動画・identity transform・opacity 1・effectsなし・出力サイズ一致に限定。
+- Red: Rust backendに、単一動画を整数座標へ置くだけのnative renderが `cpuSimpleVideoComposite` を返す契約を追加した。
+- Green: `render.nativeSharedFrame` で単一Video clip、scale 1、rotation 0、opacity 1、effectsなし、整数translationの場合、WGPU upload/render/readbackを通さずCPU row-copyでoutput shared ringを作るfast pathを追加した。
+- 検証: renderer/export関連unitは79件成功。`cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane native_render -- --nocapture` は16件成功。`cargo build --manifest-path rust-backend/Cargo.toml` は成功。
+- 実Electron E2E: `/Volumes/ExtendSSD-W/GX020052.MP4` 5秒尺は300 frames / 8518ms / 約35.22fpsで成功。fast path前に同条件で再測定したWGPU経路は約24.30〜25.17fps、以前の良好値は約33.82fps。
+- 残課題: scaleや複数オブジェクト、フィルタが入ると従来のnative WGPU合成へ戻る。次は単純scale付き動画、静止画+動画、音声付きexportのどこから重くなるかをE2Eで分解する。
+- 版: `0.1.1-Beta-227a`。

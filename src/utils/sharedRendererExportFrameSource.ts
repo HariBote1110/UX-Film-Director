@@ -40,6 +40,12 @@ import {
 } from './sharedRendererNativeMediaSupport';
 import { resolveMixedNativeRenderUnsupportedMedia } from './sharedRendererNativeRenderMediaGate';
 import { captureProjectExportLegacyCanvasFrame } from './projectExportLegacyCanvasCapture';
+import type {
+  RustEvaluatedClip,
+  RustSceneMediaReference,
+  RustSceneSnapshot,
+  RustTransform,
+} from './rustSceneSnapshot';
 
 type PresenterDataset = Record<string, string | undefined>;
 
@@ -438,6 +444,25 @@ export function createSharedRendererExportFrameSource({
       );
     }
 
+    const decodedVideoPassthroughFrame = resolveDecodedVideoPassthroughEncodeFrame({
+      request,
+      snapshot: surfaceGate.snapshot,
+      media: surfaceGate.media,
+      nativeRenderSources,
+    });
+    if (decodedVideoPassthroughFrame) {
+      writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+        status: 'ready',
+        frameIndex: request.frameIndex,
+        path: 'decodedVideoPassthrough',
+        nativeRender: {
+          media: surfaceGate.media,
+          sources: nativeRenderSources,
+        },
+      });
+      return decodedVideoPassthroughFrame;
+    }
+
     const renderId = buildNativeRenderId(request.encodeSessionId, request.frameIndex);
     const nativeEncodeFramePayload = {
       sessionId: request.encodeSessionId,
@@ -664,6 +689,106 @@ export function createSharedRendererExportFrameSource({
 
   return source;
 }
+
+const resolveDecodedVideoPassthroughEncodeFrame = ({
+  request,
+  snapshot,
+  media,
+  nativeRenderSources,
+}: {
+  request: ProjectExportRustEncodeFrameRequest;
+  snapshot: RustSceneSnapshot;
+  media: readonly RustSceneMediaReference[];
+  nativeRenderSources: readonly SharedRendererViewportNativeRenderSource[];
+}): RustBackendVideoEncodeSharedFramePayloadFrame | null => {
+  if (snapshot.clips.length !== 1 || media.length !== 1 || nativeRenderSources.length !== 1) {
+    return null;
+  }
+  const clip = snapshot.clips[0];
+  const reference = media[0];
+  const source = nativeRenderSources[0];
+  if (
+    !isDecodedVideoPassthroughClip(clip, reference, source)
+    || !requestObjectsRepresentIdentityVideoPassthrough(request, clip)
+  ) {
+    return null;
+  }
+  const descriptor = source.frame.descriptor;
+  if (
+    descriptor.width !== request.width
+    || descriptor.height !== request.height
+    || descriptor.format !== 'rgba8Srgb'
+    || descriptor.colour.primaries !== 'bt709'
+    || descriptor.colour.transfer !== 'srgb'
+    || descriptor.colour.matrix !== 'rgb'
+    || descriptor.colour.range !== 'full'
+  ) {
+    return null;
+  }
+
+  return {
+    timestamp: request.timestampUs,
+    sharedFramePayload: {
+      sessionId: request.encodeSessionId,
+      frameIndex: request.frameIndex,
+      timestampUs: request.timestampUs,
+      slotCount: source.slotCount,
+      frame: source.frame,
+    },
+    releaseSharedFrameAfterEncodeSuccess: async () => {
+      const releaseFailure = await releaseNativeRenderSourcesAfterComplete([source]);
+      if (releaseFailure) {
+        throw new Error(releaseFailure);
+      }
+    },
+    releaseSharedFrameAfterEncodeFailure: async () => {
+      const releaseFailure = await releaseNativeRenderSourcesAfterAbort([source]);
+      if (releaseFailure) {
+        throw new Error(releaseFailure);
+      }
+    },
+  };
+};
+
+const isDecodedVideoPassthroughClip = (
+  clip: RustEvaluatedClip,
+  reference: RustSceneMediaReference,
+  source: SharedRendererViewportNativeRenderSource
+): boolean =>
+  reference.kind === 'Video'
+  && clip.media_id === reference.id
+  && source.mediaId === reference.id
+  && clip.source_frame === source.frame.ptsFrame
+  && clip.opacity === 1
+  && clip.effects.length === 0
+  && isIdentityNativeTransform(clip.transform)
+  && reference.width === source.frame.descriptor.width
+  && reference.height === source.frame.descriptor.height;
+
+const isIdentityNativeTransform = (transform: RustTransform): boolean =>
+  transform.translation_x === 0
+  && transform.translation_y === 0
+  && transform.scale_x === 1
+  && transform.scale_y === 1
+  && transform.rotation_degrees === 0;
+
+const requestObjectsRepresentIdentityVideoPassthrough = (
+  request: ProjectExportRustEncodeFrameRequest,
+  clip: RustEvaluatedClip
+): boolean => {
+  if (request.objects.length !== 1) return false;
+  const object = request.objects[0];
+  return object.type === 'video'
+    && object.id === clip.media_id
+    && object.x === 0
+    && object.y === 0
+    && object.rotation === 0
+    && object.scaleX === 1
+    && object.scaleY === 1
+    && object.opacity === 1
+    && object.width === request.width
+    && object.height === request.height;
+};
 
 const defaultCreateFrameBitmap: SharedRendererExportFrameBitmapFactory = (
   canvas,
@@ -999,7 +1124,7 @@ const writeFrameDiagnostics = (
     status: 'ready' | 'blocked';
     frameIndex: number;
     reason?: string;
-    path?: 'nativeRenderSharedFrame' | 'presentedSharedFrame';
+    path?: 'decodedVideoPassthrough' | 'nativeRenderDirectEncode' | 'nativeRenderSharedFrame' | 'presentedSharedFrame';
     nativeRender?: {
       media: readonly { kind: string }[];
       sources: readonly { mediaId: string }[];
