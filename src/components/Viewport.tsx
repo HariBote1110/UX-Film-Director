@@ -56,6 +56,22 @@ type BoundsLike = { x: number; y: number; width: number; height: number };
 
 type SharedRendererPresenterDiagnosticDataset = Record<string, string | undefined>;
 
+const copySharedRendererPresenterDiagnostics = (
+  source: SharedRendererPresenterDiagnosticDataset,
+  target: SharedRendererPresenterDiagnosticDataset,
+) => {
+  Object.keys(target).forEach((key) => {
+    if (key.startsWith('uxfdSharedRendererPresenter')) {
+      delete target[key];
+    }
+  });
+  Object.entries(source).forEach(([key, value]) => {
+    if (key.startsWith('uxfdSharedRendererPresenter') && typeof value === 'string') {
+      target[key] = value;
+    }
+  });
+};
+
 const buildSharedRendererPreviewDiagnostic = (
   dataset: SharedRendererPresenterDiagnosticDataset,
   control: SharedRendererPreviewPresenterControl | null,
@@ -182,6 +198,11 @@ const Viewport: React.FC = () => {
   });
   const [sharedRendererPreviewSession, setSharedRendererPreviewSession] = useState<SharedRendererPreviewSession | null>(null);
   const [sharedRendererPreviewDiagnostic, setSharedRendererPreviewDiagnostic] = useState<string | null>(null);
+
+  useEffect(() => () => {
+    sharedRendererPresenterControlRef.current?.dispose();
+    sharedRendererPresenterControlRef.current = null;
+  }, []);
 
   const updateSharedRendererSolidColourObjectIds = useCallback((objectIds: string[]) => {
     const current = sharedRendererSolidColourObjectIdsRef.current;
@@ -590,17 +611,22 @@ const Viewport: React.FC = () => {
 
     let cancelled = false;
     let currentControl: SharedRendererPreviewPresenterControl | null = null;
-    const datasets = [
+    const liveDatasets = [
       rootDataset,
       surfaceCanvas.dataset as Record<string, string | undefined>,
     ];
+    const stagePresenterDiagnostics = isPlaying && Boolean(sharedRendererPresenterControlRef.current);
+    const stagedDatasets: SharedRendererPresenterDiagnosticDataset[] = stagePresenterDiagnostics
+      ? liveDatasets.map(() => ({}))
+      : liveDatasets;
+    const previousPresenterControl = sharedRendererPresenterControlRef.current;
     const presenterSessionKey = buildSharedRendererPresenterSessionKey(sharedRendererPreviewSession);
     sharedRendererPresenterStartingRef.current = true;
 
     void startSharedRendererViewportPresenter({
       canvas: surfaceCanvas,
       session: sharedRendererPreviewSession,
-      datasets,
+      datasets: stagedDatasets,
       diagnosticSwatchEnabled: sharedRendererDiagnosticSwatchEnabled,
       videoCutoverEnabled: sharedRendererVideoCutoverEnabled,
       nativeRenderPreviewEnabled: sharedRendererVideoCutoverEnabled,
@@ -627,6 +653,20 @@ const Viewport: React.FC = () => {
         control.dispose();
         return;
       }
+      if (isPlaying && previousPresenterControl?.ok && !control.ok) {
+        control.dispose();
+        sharedRendererVideoDecodeJobsRef.current = activeVideoDecodeJobs;
+        setSharedRendererPreviewDiagnostic(buildSharedRendererPreviewDiagnostic(rootDataset, previousPresenterControl));
+        updateSharedRendererSolidColourObjectIds(previousPresenterControl.solidColourOwnership.solidColourObjectIds);
+        updateSharedRendererImageObjectIds(previousPresenterControl.imageOwnership.imageObjectIds);
+        updateSharedRendererPsdObjectIds(previousPresenterControl.psdOwnership.psdObjectIds);
+        return;
+      }
+      if (stagePresenterDiagnostics) {
+        stagedDatasets.forEach((dataset, index) => {
+          copySharedRendererPresenterDiagnostics(dataset, liveDatasets[index]);
+        });
+      }
       sharedRendererVideoDecodeJobsRef.current = activeVideoDecodeJobs;
       currentControl = control;
       if (sharedRendererPresenterControlRef.current && sharedRendererPresenterControlRef.current !== control) {
@@ -646,7 +686,7 @@ const Viewport: React.FC = () => {
       updateSharedRendererSolidColourObjectIds([]);
       updateSharedRendererImageObjectIds([]);
       updateSharedRendererPsdObjectIds([]);
-      datasets.forEach((dataset) => {
+      stagedDatasets.forEach((dataset) => {
         writeSharedRendererPresenterDiagnostics(dataset, {
           status: 'fallback',
           reason: 'presenterStartFailed',
@@ -670,6 +710,14 @@ const Viewport: React.FC = () => {
 
     return () => {
       cancelled = true;
+      const nextPlaybackState = useStore.getState().isPlaying;
+      if (
+        (isPlaying || nextPlaybackState)
+        && currentControl?.ok
+        && sharedRendererPresenterControlRef.current === currentControl
+      ) {
+        return;
+      }
       currentControl?.dispose();
       if (sharedRendererPresenterControlRef.current === currentControl) {
         sharedRendererPresenterControlRef.current = null;

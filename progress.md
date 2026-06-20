@@ -1,3 +1,20 @@
+## 2026-06-20 — 動画preview再生中のblocked点滅を抑制
+
+### 実施内容
+- Red: Electron実ウィンドウ動画E2Eへ、5秒間の再生サンプル中に `blocked/pixi` 診断が複数回混ざる場合は失敗する契約を追加した。
+- Green: 再生中のshared renderer presenter更新では診断をscratch datasetへ一旦書き、成功時だけlive datasetへ反映するようにした。
+- Green: 再生中または再生へ入る遷移では、前回成功したpresenter controlを新規presenter成功まで保持し、新規presenterが失敗したtickでは直前の成功フレームを維持するようにした。
+- 版を `0.1.1-Beta-219n` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPreviewPresenterController sharedRendererViewportPresenterOrchestration`
+- `npx tsc --noEmit 2>&1 | rg "src/components/Viewport\\.tsx|scripts/run-video-load-e2e\\.mjs"`
+- `UXFD_VIDEO_LOAD_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_LOAD_E2E_TIMEOUT_MS=180000 npm run test:video-load:e2e`
+
+### 結果・残課題
+- 外付けSSDのGoPro原本 `/Volumes/ExtendSSD-W/GX020052.MP4` で、5秒間の再生サンプルが `blockedSampleCount=0`、`uniquePresentedFrameCount=13`、`presentedFrameSpan=310` になったことを確認した。
+- 現段階はproxy previewを滑らかに見せるための保持戦略。原本4Kの高fps直再生には、VideoToolbox/WebCodecs/AVFoundation相当のhardware decodeとGPU低copy経路が必要。
+
 ## 2026-06-20 — Rust動画previewの連続再生とproxy自動生成を追加
 
 ### 実施内容
