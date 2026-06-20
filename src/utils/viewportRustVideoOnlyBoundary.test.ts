@@ -79,7 +79,7 @@ describe('Viewport Rust video-only boundary', () => {
 
   it('disposes external video sources before export presenter starts without them', () => {
     const code = viewportSource();
-    const start = code.indexOf('const externalVideoSourcesByClipId =');
+    const start = code.indexOf('let externalVideoSourcesByClipId =');
     const end = code.indexOf('sharedRendererPresenterStartingRef.current = true;', start);
     const externalSourceBlock = code.slice(start, end);
 

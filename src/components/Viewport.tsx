@@ -722,14 +722,17 @@ const Viewport: React.FC = () => {
       : liveDatasets;
     const previousPresenterControl = sharedRendererPresenterControlRef.current;
     const presenterSessionKey = buildSharedRendererPresenterSessionKey(sharedRendererPreviewSession);
-    const externalVideoSourcesByClipId = !isExporting
-      ? syncSharedRendererExternalVideoSources({
+    let externalVideoSourcesByClipId = new Map<string, unknown>();
+    if (isExporting) {
+      disposeSharedRendererExternalVideoSources(sharedRendererExternalVideoSourcesRef.current);
+    } else {
+      externalVideoSourcesByClipId = syncSharedRendererExternalVideoSources({
         session: sharedRendererPreviewSession,
         objects,
         entries: sharedRendererExternalVideoSourcesRef.current,
         isPlaying,
-      })
-      : new Map<string, unknown>();
+      });
+    }
     sharedRendererPresenterStartingRef.current = true;
 
     void startSharedRendererViewportPresenter({

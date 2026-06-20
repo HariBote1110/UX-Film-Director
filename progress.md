@@ -1,3 +1,19 @@
+## 2026-06-20 — export前にexternal動画sourceを破棄
+
+### 実施内容
+- Red: shared renderer previewのexternal video sourceがexport開始時に残留しない契約を追加した。
+- Green: `isExporting` 中はexternal video source mapを作らず、既存のclip sourceを明示的にdisposeしてからpresenterを起動するようにした。
+- サブエージェントの軽量レビューで指摘された「export開始時に裏でvideo要素が残る可能性」を潰した。
+- 版を `0.1.1-Beta-222c` に更新した。
+
+### 検証
+- `npm test -- viewportRustVideoOnlyBoundary sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController`
+- `npx tsc --noEmit 2>&1 | rg "src/components/Viewport\\.tsx|src/utils/viewportRustVideoOnlyBoundary|src/utils/sharedRendererViewportPresenterOrchestration|src/utils/sharedRendererPreviewPresenterController"`
+
+### 結果・残課題
+- preview再生中にexportへ入っても、external texture用の動画sourceが裏で残り続けないようになった。
+- 残りはplay失敗やcodec非対応時のdiagnosticをより細かく出すこと。
+
 ## 2026-06-20 — external texture preview診断をE2Eへ接続
 
 ### 実施内容
