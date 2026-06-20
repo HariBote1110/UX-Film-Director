@@ -13,7 +13,9 @@
 
 ### 結果・残課題
 - 4K原本previewが低コピーexternal texture経路に乗っているかを、E2EのJSON結果とdatasetから確認できるようになった。
-- 次は `/Volumes/ExtendSSD-W/GX020052.MP4` をexternal texture必須モードで投入し、実ウィンドウのpixel変化とframe進行を検証すること。
+- `/Volumes/ExtendSSD-W/GX020052.MP4` を `UXFD_VIDEO_LOAD_E2E_EXPECT_EXTERNAL_TEXTURE=1` で投入し、Electron実ウィンドウE2Eがpassした。
+- E2E結果は `videoPresentationSource=external-video-source`、`externalTextureSampleCount=21/21`、`blockedSampleCount=0`、`uniquePresentedFrameCount=16`、`presentedFrameSpan=310`、pixel delta OKだった。
+- 残りはこのfast pathを実UI操作でも継続確認し、proxy/Rust decoded RGBA側の旧preview経路をどこまで削るか決めること。
 
 ## 2026-06-20 — Viewportでexternal動画sourceをshared rendererへ同期
 
