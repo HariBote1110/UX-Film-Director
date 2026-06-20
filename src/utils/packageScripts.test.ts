@@ -22,6 +22,8 @@ describe('package scripts', () => {
 
     const script = readFileSync(new URL('../../scripts/run-video-export-e2e.mjs', import.meta.url), 'utf8');
     expect(script).toContain('UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS');
+    expect(script).toContain('UXFD_VIDEO_EXPORT_E2E_USER_DATA_DIR');
+    expect(script).toContain('--user-data-dir=');
     expect(script).toContain('exportDurationMs');
     expect(script).toContain('exportFramesPerSecond');
     expect(script.indexOf('const exportStartTimeMs = Date.now()'))

@@ -137,6 +137,8 @@ interface Window {
       objectWidth?: number;
       objectHeight?: number;
       audioPath?: string | null;
+      qualityPreset?: string;
+      videoBitrateKbps?: number;
     }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
     onTranscodeProgress?: (listener: (event: {
       sessionId: string;

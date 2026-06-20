@@ -10,6 +10,8 @@
 - Rust backendが `NativeWgpuRenderer` を保持し、frameごとのadapter/device/pipeline/output/readback buffer再生成を避ける。
 - native WGPU readbackを `Rgba16Float` から `Rgba8Srgb` に変更し、CPU half-float変換をexport hot pathから外す。
 - `UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=5 npm run test:video-export:e2e` で、300 frames / 8910ms / 約33.67fpsを確認した。
+- direct transcodeに `compact` / `speed` / `balanced` / `quality` presetを追加し、bitrateで速度・品質・容量の比較点を操作できるようにした。
+- `npm run test:video-export:quality` はPSNR/SSIM/VMAFと出力容量を出し、`UXFD_VIDEO_EXPORT_QUALITY_PRESET_MATRIX` で複数presetを同一素材・同一配置で比較できる。
 
 ### 次の高速化候補
 

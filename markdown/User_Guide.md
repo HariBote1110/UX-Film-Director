@@ -58,6 +58,12 @@
 - 音声のみ書き出し: `Export MP3`
 - 静止画保存: `Snapshot`
 - iPhone 画面収録素材など一部動画は内部で canvas 経由描画し、WebGPU での読込安定性を優先する。
+- 開発中の動画書き出しpresetは `compact` / `speed` / `balanced` / `quality`。現時点では環境変数 `VITE_UXFD_VIDEO_EXPORT_QUALITY_PRESET` で切り替え、必要なら `VITE_UXFD_VIDEO_EXPORT_BITRATE_KBPS` で任意bitrateを指定する。
+
+## 7.1 書き出し品質の検証
+- 実素材で速度・容量・品質を比較する場合は `npm run test:video-export:quality` を使う。
+- 複数presetを比較する場合は `UXFD_VIDEO_EXPORT_QUALITY_PRESET_MATRIX=compact,speed,balanced,quality` を指定する。
+- 結果は `.codex/video-export-quality/quality-report.json` と `.codex/video-export-quality/quality-matrix-report.json` に出力される。
 
 ## 8. ショートカット一覧
 - `Space`: 再生/停止

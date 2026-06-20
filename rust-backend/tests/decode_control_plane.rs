@@ -835,7 +835,9 @@ fn encode_transcode_video_emits_progress_events() {
 fn encode_transcode_video_accepts_speed_quality_size_settings() {
     let temp_dir = TestTempDir::new("encode-transcode-video-quality-settings");
     let fixture = build_two_frame_h264_fixture(temp_dir.path());
-    let output_path = temp_dir.path().join("transcoded-quality-settings-output.mp4");
+    let output_path = temp_dir
+        .path()
+        .join("transcoded-quality-settings-output.mp4");
     let output_path_string = output_path.to_string_lossy().into_owned();
     let mut backend = BackendProcess::start();
 
@@ -855,8 +857,14 @@ fn encode_transcode_video_accepts_speed_quality_size_settings() {
     }));
 
     assert_eq!(response["ok"], true, "{response}");
-    assert_eq!(response["result"]["encodeSettings"]["qualityPreset"], "quality");
-    assert_eq!(response["result"]["encodeSettings"]["videoBitrateKbps"], 14000);
+    assert_eq!(
+        response["result"]["encodeSettings"]["qualityPreset"],
+        "quality"
+    );
+    assert_eq!(
+        response["result"]["encodeSettings"]["videoBitrateKbps"],
+        14000
+    );
     assert_no_frame_bytes_recursive(&response["result"]);
 }
 

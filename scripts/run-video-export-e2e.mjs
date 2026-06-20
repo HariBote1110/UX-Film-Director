@@ -14,6 +14,9 @@ const OUTPUT_DIR = resolve(ROOT, '.codex/video-export-e2e');
 const OUTPUT_MP4 = resolve(OUTPUT_DIR, 'video-export-e2e-output.mp4');
 const RESULT_JSON = resolve(OUTPUT_DIR, 'result.json');
 const RESULT_LOG = resolve(OUTPUT_DIR, 'result.log');
+const USER_DATA_DIR = process.env.UXFD_VIDEO_EXPORT_E2E_USER_DATA_DIR
+  ? resolve(process.env.UXFD_VIDEO_EXPORT_E2E_USER_DATA_DIR)
+  : resolve(OUTPUT_DIR, `electron-profile-${process.pid}`);
 const OVERALL_TIMEOUT_MS = Number(process.env.UXFD_VIDEO_EXPORT_E2E_TIMEOUT_MS ?? 180_000);
 const EXPORT_DURATION_SECONDS = Number(process.env.UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS ?? 1);
 const VIDEO_PATCH = process.env.UXFD_VIDEO_EXPORT_E2E_VIDEO_PATCH_JSON
@@ -210,6 +213,8 @@ const main = async () => {
 
   rmSync(OUTPUT_DIR, { recursive: true, force: true });
   mkdirSync(OUTPUT_DIR, { recursive: true });
+  rmSync(USER_DATA_DIR, { recursive: true, force: true });
+  mkdirSync(USER_DATA_DIR, { recursive: true });
   log(`Vite 起動: port=${VITE_PORT}`);
   vite = spawn('npx', ['vite', '--port', String(VITE_PORT), '--strictPort'], {
     cwd: ROOT,
@@ -222,7 +227,11 @@ const main = async () => {
   await waitForPort(VITE_PORT);
 
   log(`Electron 起動: remote-debugging-port=${DEBUG_PORT}`);
-  electron = spawn(resolve(ROOT, 'node_modules/.bin/electron'), ['.', `--remote-debugging-port=${DEBUG_PORT}`], {
+  electron = spawn(resolve(ROOT, 'node_modules/.bin/electron'), [
+    `--remote-debugging-port=${DEBUG_PORT}`,
+    `--user-data-dir=${USER_DATA_DIR}`,
+    '.',
+  ], {
     cwd: ROOT,
     env: {
       ...process.env,

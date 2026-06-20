@@ -58,6 +58,8 @@ export interface RustBackendVideoTranscodePayload {
   objectWidth?: number;
   objectHeight?: number;
   audioPath?: string | null;
+  qualityPreset?: string;
+  videoBitrateKbps?: number;
 }
 
 export interface RustBackendVideoTranscodeProgressEvent {

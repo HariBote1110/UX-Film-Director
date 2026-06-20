@@ -1,3 +1,27 @@
+## 2026-06-20 — export速度/品質/容量presetをdirect transcodeへ追加
+
+### 実施内容
+- Red: `compact` / `speed` / `balanced` / `quality` のencode preset契約を追加し、`balanced` は従来相当の 8000kbps とした。
+- Red: production export hookがdirect transcode payloadへ速度/品質/容量設定を渡す契約を追加した。
+- Red: Rust backend `encode.transcodeVideo` が `qualityPreset` と `videoBitrateKbps` を受け取り、実際の `encodeSettings` を結果へ返す契約を追加した。
+- Green: `resolveVideoExportEncodeSettings` を追加し、presetと任意bitrateを解決できるようにした。
+- Green: direct transcodeの固定 `8000k` を廃止し、presetまたは `videoBitrateKbps` でbitrateを指定できるようにした。
+- Green: 品質比較scriptをpreset matrix対応にし、presetごとにE2E用Vite/debug port/profileを分離して実ウィンドウ測定を安定化した。
+- 版を `0.1.1-Beta-231a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/videoExportEncodeSettings.test.ts src/utils/useProjectExportBoundary.test.ts src/utils/videoExportQualityScript.test.ts src/utils/packageScripts.test.ts`
+- `node --check scripts/compare-video-export-quality.mjs && node --check scripts/run-video-export-e2e.mjs`
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane encode_transcode_video_accepts_speed_quality_size_settings -- --nocapture`
+- `UXFD_VIDEO_EXPORT_QUALITY_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_EXPORT_QUALITY_DURATION_SECONDS=2 UXFD_VIDEO_EXPORT_QUALITY_PRESET_MATRIX=compact,speed,balanced,quality UXFD_VIDEO_EXPORT_QUALITY_VIDEO_PATCH_JSON='{"x":0,"y":0,"scaleX":3,"scaleY":3}' npm run test:video-export:quality`
+
+### 結果・残課題
+- 2秒/120frame/1920x1080/full-frame条件で、`compact`: 約57.58fps、1.06MiB、SSIM 0.949733、VMAF 75.097736。
+- 同条件で、`speed`: 約58.59fps、1.55MiB、SSIM 0.957324、VMAF 81.052262。
+- 同条件で、`balanced`: 約58.57fps、2.06MiB、SSIM 0.961878、VMAF 84.525010。
+- 同条件で、`quality`: 約58.74fps、3.53MiB、SSIM 0.970268、VMAF 89.970077。品質gateを通過した。
+- 今回の測定ではbitrateを上げても短尺2秒では速度低下がほぼなく、容量と品質だけが素直に上がった。次はこのpresetをExport UIに露出し、`quality` を初期候補、`speed` / `compact` を軽量出力用に選べるようにする。
+
 ## 2026-06-20 — video export品質比較をPSNR/SSIM/VMAFで検証
 
 ### 実施内容

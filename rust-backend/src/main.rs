@@ -269,7 +269,41 @@ struct EncodeTranscodeVideoParams {
     #[serde(default)]
     audio_volume: Option<f64>,
     #[serde(default)]
+    quality_preset: Option<String>,
+    #[serde(default)]
+    video_bitrate_kbps: Option<u32>,
+    #[serde(default)]
     ffmpeg_path: Option<String>,
+}
+
+fn normalise_transcode_quality_preset(value: Option<&str>) -> &'static str {
+    match value
+        .unwrap_or("balanced")
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "compact" => "compact",
+        "speed" => "speed",
+        "quality" => "quality",
+        _ => "balanced",
+    }
+}
+
+fn default_transcode_video_bitrate_kbps(quality_preset: &str) -> u32 {
+    match quality_preset {
+        "compact" => 4_000,
+        "speed" => 6_000,
+        "quality" => 14_000,
+        _ => 8_000,
+    }
+}
+
+fn resolve_transcode_video_bitrate_kbps(quality_preset: &str, requested: Option<u32>) -> u32 {
+    requested
+        .filter(|value| *value > 0)
+        .map(|value| value.clamp(500, 80_000))
+        .unwrap_or_else(|| default_transcode_video_bitrate_kbps(quality_preset))
 }
 
 #[derive(Debug, Deserialize)]
@@ -907,6 +941,9 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
         .filter(|value| value.is_finite() && *value >= 0.0)
         .unwrap_or(1.0)
         .clamp(0.0, 4.0);
+    let quality_preset = normalise_transcode_quality_preset(parsed.quality_preset.as_deref());
+    let video_bitrate_kbps =
+        resolve_transcode_video_bitrate_kbps(quality_preset, parsed.video_bitrate_kbps);
     let include_source_audio = parsed.include_audio && audio_path.is_none() && audio_volume > 0.0;
     let frame_count = (parsed.duration_seconds * f64::from(parsed.fps)).ceil() as u64;
     let session_id = parsed
@@ -987,7 +1024,7 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
         .arg("-c:v")
         .arg(get_video_codec())
         .arg("-b:v")
-        .arg("8000k")
+        .arg(format!("{video_bitrate_kbps}k"))
         .arg("-pix_fmt")
         .arg("yuv420p");
 
@@ -1133,6 +1170,10 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
             "height": parsed.height,
             "fps": parsed.fps,
             "includedAudio": audio_path.is_some() || include_source_audio,
+            "encodeSettings": {
+                "qualityPreset": quality_preset,
+                "videoBitrateKbps": video_bitrate_kbps,
+            },
         })),
         error: None,
     }

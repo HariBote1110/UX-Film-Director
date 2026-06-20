@@ -23,6 +23,7 @@ import { encodeProjectExportCompatibilityVideo } from '../utils/projectExportCom
 import { updateExportProgressPhase } from '../utils/exportProgressDiagnostics';
 import { logLastExportDiagnostics } from '../utils/exportDiagnosticsLog';
 import { resolveProjectExportVideoTranscodeFastPath } from '../utils/projectExportVideoTranscodeFastPath';
+import { resolveVideoExportEncodeSettings } from '../utils/videoExportEncodeSettings';
 import type {
   RustBackendVideoEncodeFrame,
   RustBackendVideoEncodeNativeFramePayloadFrame,
@@ -90,6 +91,10 @@ export const useProjectExport = (
     const runExport = async () => {
       const ipcRenderer = getProjectExportIpcRenderer();
       const rustExportOnly = import.meta.env.VITE_UXFD_RUST_EXPORT_ONLY === '1';
+      const exportEncodeSettings = resolveVideoExportEncodeSettings({
+        preset: import.meta.env.VITE_UXFD_VIDEO_EXPORT_QUALITY_PRESET,
+        videoBitrateKbps: Number(import.meta.env.VITE_UXFD_VIDEO_EXPORT_BITRATE_KBPS),
+      });
       const { projectSettings, objects, layers } = useStore.getState();
       const exportObjects = objects.filter((obj) => layers[obj.layer]?.visible !== false);
       const hasVideoObjects = exportObjects.some((obj) => obj.type === 'video');
@@ -222,6 +227,7 @@ export const useProjectExport = (
             try {
               return await transcodeRustBackendVideo({
                 ...transcodeFastPath,
+                ...exportEncodeSettings,
                 sessionId: rustEncodeSessionId,
                 outputPath: savePath,
               });
