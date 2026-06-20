@@ -118,7 +118,7 @@ describe('Viewport Rust video-only boundary', () => {
     const syncEnd = code.indexOf('});', syncStart);
     const syncBlock = code.slice(syncStart, syncEnd);
 
-    expect(code).toContain('SHARED_RENDERER_EXTERNAL_VIDEO_PLAYING_SYNC_INTERVAL_MS = 50');
+    expect(code).toContain('SHARED_RENDERER_EXTERNAL_VIDEO_PLAYING_SYNC_INTERVAL_MS = 75');
     expect(syncBlock).toContain('minimumPlayingSyncIntervalMs: SHARED_RENDERER_EXTERNAL_VIDEO_PLAYING_SYNC_INTERVAL_MS');
   });
 
