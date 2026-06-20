@@ -1,3 +1,19 @@
+## 2026-06-20 — Viewportでexternal動画sourceをshared rendererへ同期
+
+### 実施内容
+- Red: Viewport本体がisolated external video source providerを使い、presenter orchestrationへsource mapを渡す境界契約を追加した。
+- Green: Viewportでclipごとのexternal video source lifecycleを保持し、`source_frame` / `source_rate` から再生時刻へseek同期して、再生中はplay、停止中はpauseするようにした。
+- Green: 4K原本previewを検証しやすくするため、動画objectに `filePath` がある場合はproxy由来のmedia sourceより原本pathを優先してexternal textureへ渡すようにした。
+- 版を `0.1.1-Beta-222a` に更新した。
+
+### 検証
+- `npm test -- viewportRustVideoOnlyBoundary sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController sharedRendererExternalVideoSource`
+- `npx tsc --noEmit 2>&1 | rg "src/components/Viewport\\.tsx|src/utils/viewportRustVideoOnlyBoundary|src/utils/sharedRendererViewportPresenterOrchestration|src/utils/sharedRendererPreviewPresenterController|src/utils/sharedRendererExternalVideoSource"`
+
+### 結果・残課題
+- WebGPU `texture_external` presenterからViewport起動まで、原本動画sourceをshared renderer previewへ渡す低コピーfast pathがつながった。
+- 残りはGoPro 4K原本 `/Volumes/ExtendSSD-W/GX020052.MP4` をElectron実ウィンドウE2Eで投入し、diagnosticsとpixel/frame進行で滑らかさを確認すること。
+
 ## 2026-06-20 — external動画sourceをviewport orchestrationへ接続
 
 ### 実施内容

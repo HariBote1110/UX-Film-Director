@@ -39,6 +39,11 @@ import {
   SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE,
   quantiseSharedRendererPlaybackPreviewTime,
 } from '../utils/sharedRendererPlaybackPreviewSettings';
+import {
+  createSharedRendererExternalVideoSource,
+  type SharedRendererExternalVideoSource,
+} from '../utils/sharedRendererExternalVideoSource';
+import { toFileProtocolUrl } from '../utils/mediaMetadata';
 
 const GROUP_GRADIENT_COMPONENT_PREFIX = 'group-gradient-component-';
 const RESIZE_HANDLE_PREFIX = 'resize-handle-';
@@ -55,6 +60,99 @@ const RESIZE_CORNER_CURSORS: Record<ResizeCorner, string> = {
 type BoundsLike = { x: number; y: number; width: number; height: number };
 
 type SharedRendererPresenterDiagnosticDataset = Record<string, string | undefined>;
+
+type SharedRendererExternalVideoSourceEntry = {
+  url: string;
+  source: SharedRendererExternalVideoSource;
+};
+
+const disposeSharedRendererExternalVideoSources = (
+  entries: Map<string, SharedRendererExternalVideoSourceEntry>
+) => {
+  entries.forEach((entry) => {
+    entry.source.dispose();
+  });
+  entries.clear();
+};
+
+const resolveSharedRendererExternalVideoUrl = (
+  video: VideoObject,
+  fallbackSource: string
+): string => {
+  const source = video.filePath || fallbackSource || video.src;
+  const trimmed = source.trim();
+  if (!trimmed) return '';
+  if (/^(blob:|data:|file:|https?:)/.test(trimmed)) return trimmed;
+  return toFileProtocolUrl(trimmed);
+};
+
+const sourceFrameToSeconds = (
+  sourceFrame: number,
+  sourceRate: { numerator: number; denominator: number } | undefined
+): number => {
+  if (!sourceRate || sourceRate.numerator <= 0 || sourceRate.denominator <= 0) {
+    return 0;
+  }
+  return Math.max(0, sourceFrame * sourceRate.denominator / sourceRate.numerator);
+};
+
+const syncSharedRendererExternalVideoSources = ({
+  session,
+  objects,
+  entries,
+  isPlaying,
+}: {
+  session: SharedRendererPreviewSession;
+  objects: TimelineObject[];
+  entries: Map<string, SharedRendererExternalVideoSourceEntry>;
+  isPlaying: boolean;
+}): Map<string, unknown> => {
+  const sourcesByClipId = new Map<string, unknown>();
+  if (!session.surfaceGate.ok) {
+    disposeSharedRendererExternalVideoSources(entries);
+    return sourcesByClipId;
+  }
+
+  const objectsById = new Map(objects.map((object) => [object.id, object]));
+  const mediaById = new Map(session.surfaceGate.media.map((media) => [media.id, media]));
+  const activeClipIds = new Set<string>();
+
+  session.surfaceGate.snapshot.clips.forEach((clip) => {
+    const object = objectsById.get(clip.clip_id);
+    const media = mediaById.get(clip.media_id);
+    if (object?.type !== 'video' || media?.kind !== 'Video') return;
+
+    const url = resolveSharedRendererExternalVideoUrl(object, media.source);
+    if (!url) return;
+
+    activeClipIds.add(clip.clip_id);
+    let entry = entries.get(clip.clip_id);
+    if (!entry || entry.url !== url) {
+      entry?.source.dispose();
+      entry = {
+        url,
+        source: createSharedRendererExternalVideoSource({ url, muted: true }),
+      };
+      entries.set(clip.clip_id, entry);
+    }
+
+    entry.source.seekTo(sourceFrameToSeconds(clip.source_frame, media.source_rate));
+    if (isPlaying) {
+      void entry.source.play().catch(() => undefined);
+    } else {
+      entry.source.pause();
+    }
+    sourcesByClipId.set(clip.clip_id, entry.source.source);
+  });
+
+  entries.forEach((entry, clipId) => {
+    if (activeClipIds.has(clipId)) return;
+    entry.source.dispose();
+    entries.delete(clipId);
+  });
+
+  return sourcesByClipId;
+};
 
 const copySharedRendererPresenterDiagnostics = (
   source: SharedRendererPresenterDiagnosticDataset,
@@ -172,6 +270,7 @@ const Viewport: React.FC = () => {
   const sharedRendererPendingPresenterSessionKeyRef = useRef<string | null>(null);
   const sharedRendererVideoDecodeJobsRef = useRef<SharedRendererViewportVideoDecodeJob[]>([]);
   const sharedRendererVideoDecodeRequestIdRef = useRef(0);
+  const sharedRendererExternalVideoSourcesRef = useRef<Map<string, SharedRendererExternalVideoSourceEntry>>(new Map());
   const pixiObjectsRef = useRef<Map<string, PIXI.Container>>(new Map());
   const groupContainersRef = useRef<Map<string, PIXI.Container>>(new Map());
   
@@ -202,6 +301,7 @@ const Viewport: React.FC = () => {
   useEffect(() => () => {
     sharedRendererPresenterControlRef.current?.dispose();
     sharedRendererPresenterControlRef.current = null;
+    disposeSharedRendererExternalVideoSources(sharedRendererExternalVideoSourcesRef.current);
   }, []);
 
   const updateSharedRendererSolidColourObjectIds = useCallback((objectIds: string[]) => {
@@ -579,6 +679,7 @@ const Viewport: React.FC = () => {
     if (!sharedRendererPreviewEnabled || !sharedRendererPreviewSession) {
       sharedRendererPresenterControlRef.current?.dispose();
       sharedRendererPresenterControlRef.current = null;
+      disposeSharedRendererExternalVideoSources(sharedRendererExternalVideoSourcesRef.current);
       sharedRendererPresenterStartingRef.current = false;
       sharedRendererPendingPreviewSessionRef.current = null;
       sharedRendererPendingPresenterSessionKeyRef.current = null;
@@ -621,6 +722,14 @@ const Viewport: React.FC = () => {
       : liveDatasets;
     const previousPresenterControl = sharedRendererPresenterControlRef.current;
     const presenterSessionKey = buildSharedRendererPresenterSessionKey(sharedRendererPreviewSession);
+    const externalVideoSourcesByClipId = !isExporting
+      ? syncSharedRendererExternalVideoSources({
+        session: sharedRendererPreviewSession,
+        objects,
+        entries: sharedRendererExternalVideoSourcesRef.current,
+        isPlaying,
+      })
+      : new Map<string, unknown>();
     sharedRendererPresenterStartingRef.current = true;
 
     void startSharedRendererViewportPresenter({
@@ -641,6 +750,9 @@ const Viewport: React.FC = () => {
       videoDecodeSlotCount: isPlaying ? SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT : undefined,
       videoDecodeMaxEdge: isPlaying ? SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE : undefined,
       requestId: (sharedRendererVideoDecodeRequestIdRef.current += 1),
+      sharedRendererExternalVideoSourcesByClipId: externalVideoSourcesByClipId.size > 0
+        ? externalVideoSourcesByClipId
+        : undefined,
       onVideoDecodeJobResolved: (job) => {
         sharedRendererVideoDecodeJobsRef.current = job ? [job] : [];
       },
@@ -723,7 +835,7 @@ const Viewport: React.FC = () => {
         sharedRendererPresenterControlRef.current = null;
       }
     };
-  }, [isPlaying, rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererImageObjectIds, updateSharedRendererPsdObjectIds, updateSharedRendererSolidColourObjectIds]);
+  }, [isExporting, isPlaying, objects, rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererImageObjectIds, updateSharedRendererPsdObjectIds, updateSharedRendererSolidColourObjectIds]);
 
   // --- Main Render Logic ---
   const renderScene = useCallback((time: number, currentObjects: TimelineObject[]) => {
