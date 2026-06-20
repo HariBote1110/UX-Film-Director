@@ -1,3 +1,15 @@
+## 2026-06-20 — 再生成される作業ファイルをignoreへ整理
+
+### 実施内容
+- `.codex/` と `dist-electron/` を `.gitignore` に追加した。
+- 既に追跡されていた `.DS_Store`、`dist-electron/main.js`、`dist-electron/preload.js` をindexから外し、以後の開発・E2E実行で生成差分として残らないようにした。
+
+### 検証
+- `git check-ignore .codex dist-electron/main.js dist-electron/preload.js .DS_Store`
+
+### 結果・残課題
+- 反復コミット時に残っていた生成物・ローカル作業物のノイズをGit差分から除外した。
+
 ## 2026-06-20 — export前にexternal動画sourceを破棄
 
 ### 実施内容
