@@ -10,6 +10,24 @@ import type { RustBackendNativeRenderSharedFrameBridge } from './rustBackendNati
 
 const fakeBitmap = (label: string): ImageBitmap => ({ label }) as unknown as ImageBitmap;
 
+const deferredVoid = (): {
+  promise: Promise<void>;
+  resolve: () => void;
+  reject: (error: Error) => void;
+} => {
+  let resolveDeferred!: () => void;
+  let rejectDeferred!: (error: Error) => void;
+  const promise = new Promise<void>((resolve, reject) => {
+    resolveDeferred = resolve;
+    rejectDeferred = reject;
+  });
+  return {
+    promise,
+    resolve: resolveDeferred,
+    reject: rejectDeferred,
+  };
+};
+
 async function* frames() {
   yield { timestamp: 0, bitmap: fakeBitmap('first') };
   yield { timestamp: 16_667, bitmap: fakeBitmap('second') };
@@ -49,11 +67,8 @@ const sharedFramePayload = (
 describe('runRustBackendVideoEncodeExport', () => {
   it('prefetches the next shared frame while the current frame is being written', async () => {
     const events: string[] = [];
-    let resolveFirstWrite: (() => void) | null = null;
-    let resolveFirstWriteStarted: (() => void) | null = null;
-    const firstWriteStarted = new Promise<void>((resolve) => {
-      resolveFirstWriteStarted = resolve;
-    });
+    const firstWriteStarted = deferredVoid();
+    const firstWriteRelease = deferredVoid();
     const encoderBridge: RustBackendVideoEncodeBridge = {
       startVideoEncode: async () => {
         events.push('start');
@@ -62,10 +77,8 @@ describe('runRustBackendVideoEncodeExport', () => {
       writeVideoEncodeFrame: async (payload) => {
         events.push(`write-start-${payload.frameIndex}`);
         if (payload.frameIndex === 0) {
-          resolveFirstWriteStarted?.();
-          await new Promise<void>((resolve) => {
-            resolveFirstWrite = resolve;
-          });
+          firstWriteStarted.resolve();
+          await firstWriteRelease.promise;
         }
         events.push(`write-end-${payload.frameIndex}`);
         return { success: true, result: { written: true } };
@@ -101,25 +114,21 @@ describe('runRustBackendVideoEncodeExport', () => {
       encoderBridge,
     });
 
-    await firstWriteStarted;
+    await firstWriteStarted.promise;
     expect(events).toEqual([
       'start',
       'render-0',
       'write-start-0',
       'render-1',
     ]);
-    resolveFirstWrite?.();
+    firstWriteRelease.resolve();
     await runPromise;
   });
 
   it('releases a prefetched native render output when the current encode write fails', async () => {
     const calls: unknown[] = [];
-    let resolveWrite: (() => void) | null = null;
-    let rejectWrite: ((error: Error) => void) | null = null;
-    let resolveWriteStarted: (() => void) | null = null;
-    const writeStarted = new Promise<void>((resolve) => {
-      resolveWriteStarted = resolve;
-    });
+    const writeStarted = deferredVoid();
+    const writeRelease = deferredVoid();
     const currentPayload = sharedFramePayload(0, 0, 'session-prefetch-failure');
     const prefetchedPayload = sharedFramePayload(1, 16_667, 'session-prefetch-failure');
     const encoderBridge: RustBackendVideoEncodeBridge = {
@@ -129,11 +138,8 @@ describe('runRustBackendVideoEncodeExport', () => {
       },
       writeVideoEncodeFrame: async (input) => {
         calls.push(['writeVideoEncodeFrame', input]);
-        resolveWriteStarted?.();
-        await new Promise<void>((resolve, reject) => {
-          resolveWrite = resolve;
-          rejectWrite = reject;
-        });
+        writeStarted.resolve();
+        await writeRelease.promise;
         return { success: true, result: { written: true } };
       },
       finishVideoEncode: async (input) => {
@@ -193,11 +199,10 @@ describe('runRustBackendVideoEncodeExport', () => {
       nativeRenderBridge,
     });
 
-    await writeStarted;
-    rejectWrite?.(new Error('write failed after prefetch'));
+    await writeStarted.promise;
+    writeRelease.reject(new Error('write failed after prefetch'));
 
     await expect(runPromise).rejects.toThrow('write failed after prefetch');
-    expect(resolveWrite).not.toBeNull();
     expect(calls).toContainEqual(['releaseNativeSharedFrame', {
       memoryId: currentPayload.frame.descriptor.memoryId,
     }]);

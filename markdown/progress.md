@@ -1145,3 +1145,13 @@
 - 検証: `npm test -- --run src/utils/legacyBase64ExportBoundary.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/sharedRendererExportFrameSource.test.ts` は72件成功。`UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 npm run test:video-export:e2e` は成功し、`エクスポート完了` / `Rust backend rawvideo/ffmpeg` / `60` frames / `506379` bytes のMP4生成を確認した。
 - 残課題: 今回のE2Eは1秒/60フレームに短縮している。長尺4K exportの速度と安定性は別途計測・最適化する。export中previewの `status=fallback / reason=exporting` は既存のexport中surface停止制御で、書き出し自体はRust shared-frame sourceで完了している。
 - 版: `0.1.1-Beta-224h`。
+
+## 2026-06-20
+- 動画export高速化の初手として、Rust shared-frame exportの `renderNativeSharedFrame` と `encode.writeFrame` を完全直列にせず、現在フレームのwrite中に次フレーム生成を1つだけ先読みするようにした。
+- Red: `runRustBackendVideoEncodeExport` に、current frame writeが未完了の間にnext frame generatorが進む契約を追加した。
+- Red: current frame writeが失敗した時、先読み済みのnative render outputもreleaseしてリークさせない契約を追加した。
+- Green: async iteratorを手動駆動し、`writeSharedFrameToRustBackend(current)` を開始してから `iterator.next()` で次フレームを生成する形へ変更した。
+- Green: write失敗時はcurrent frame outputの既存releaseに加え、prefetched frame outputもbest-effortでreleaseするようにした。
+- 検証: `npm test -- --run src/utils/rustBackendVideoEncodeExport.test.ts` は14件成功。`npm test -- --run src/utils/rustBackendVideoEncodeExport.test.ts src/utils/rustBackendVideoEncodeControl.test.ts src/utils/projectExportRustEncodeFrame.test.ts src/utils/sharedRendererExportFrameSource.test.ts` は64件成功。`UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 npm run test:video-export:e2e` は成功し、起動込み約25秒、60 frames / `506379` bytes のMP4生成を確認した。
+- 残課題: 今回の改善はrender/write待ちの重なりを作る低リスク施策で、decode/native renderそのものの回数はまだ減っていない。次はE2Eにexport開始から完了までの純粋なdurationを記録し、2〜5秒尺で差分を測る。
+- 版: `0.1.1-Beta-224i`。

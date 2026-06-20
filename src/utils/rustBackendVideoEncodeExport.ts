@@ -126,36 +126,32 @@ export const runRustBackendVideoEncodeExport = async ({
 
   let finished = false;
   try {
-    for await (const frame of frames) {
+    const frameIterator = frames[Symbol.asyncIterator]();
+    let nextFrameResult = await frameIterator.next();
+    while (!nextFrameResult.done) {
+      const frame = nextFrameResult.value;
       if (!isSharedFramePayloadFrame(frame)) {
         throw new Error('Rust backend video encode export requires shared-frame payloads.');
       }
 
-      let writeResponse;
+      const writeFrameResult = writeSharedFrameToRustBackend(
+        frame,
+        encoderBridge,
+        nativeRenderBridge,
+        onNativeRenderOutputRelease
+      );
+      const prefetchedFrameResult = frameIterator.next();
       try {
-        writeResponse = await writeRustBackendVideoEncodeFrame(frame.sharedFramePayload, encoderBridge);
+        await writeFrameResult;
       } catch (error) {
-        await releaseNativeRenderOutputAfterEncodeFailure(
-          frame,
-          'encodeWriteFailed',
+        await releasePrefetchedNativeRenderOutputAfterEncodeFailure(
+          prefetchedFrameResult,
           nativeRenderBridge,
           onNativeRenderOutputRelease
         );
         throw error;
       }
-      if (!writeResponse.success) {
-        await releaseNativeRenderOutputAfterEncodeFailure(
-          frame,
-          'encodeWriteFailed',
-          nativeRenderBridge,
-          onNativeRenderOutputRelease
-        );
-      }
-      assertBridgeSuccess(
-        writeResponse.success,
-        writeResponse.error,
-        'Rust backend video encode frame write failed.'
-      );
+      nextFrameResult = await prefetchedFrameResult;
     }
 
     const finishResponse = await finishRustBackendVideoEncode({ sessionId }, encoderBridge);
@@ -173,6 +169,65 @@ export const runRustBackendVideoEncodeExport = async ({
       await abortRustBackendVideoEncode({ sessionId }, encoderBridge).catch(() => {});
     }
   }
+};
+
+const writeSharedFrameToRustBackend = async (
+  frame: RustBackendVideoEncodeSharedFramePayloadFrame,
+  encoderBridge: RustBackendVideoEncodeBridge,
+  nativeRenderBridge?: RustBackendNativeRenderOutputReleaseBridge,
+  onNativeRenderOutputRelease?: (
+    event: RustBackendNativeRenderOutputReleaseEvent
+  ) => void
+): Promise<void> => {
+  let writeResponse;
+  try {
+    writeResponse = await writeRustBackendVideoEncodeFrame(frame.sharedFramePayload, encoderBridge);
+  } catch (error) {
+    await releaseNativeRenderOutputAfterEncodeFailure(
+      frame,
+      'encodeWriteFailed',
+      nativeRenderBridge,
+      onNativeRenderOutputRelease
+    );
+    throw error;
+  }
+  if (!writeResponse.success) {
+    await releaseNativeRenderOutputAfterEncodeFailure(
+      frame,
+      'encodeWriteFailed',
+      nativeRenderBridge,
+      onNativeRenderOutputRelease
+    );
+  }
+  assertBridgeSuccess(
+    writeResponse.success,
+    writeResponse.error,
+    'Rust backend video encode frame write failed.'
+  );
+};
+
+const releasePrefetchedNativeRenderOutputAfterEncodeFailure = async (
+  frameResultPromise: Promise<IteratorResult<RustBackendVideoEncodeSharedFramePayloadFrame>>,
+  nativeRenderBridge?: RustBackendNativeRenderOutputReleaseBridge,
+  onNativeRenderOutputRelease?: (
+    event: RustBackendNativeRenderOutputReleaseEvent
+  ) => void
+): Promise<void> => {
+  let frameResult: IteratorResult<RustBackendVideoEncodeSharedFramePayloadFrame>;
+  try {
+    frameResult = await frameResultPromise;
+  } catch {
+    return;
+  }
+  if (frameResult.done || !isSharedFramePayloadFrame(frameResult.value)) {
+    return;
+  }
+  await releaseNativeRenderOutputAfterEncodeFailure(
+    frameResult.value,
+    'encodeWriteFailed',
+    nativeRenderBridge,
+    onNativeRenderOutputRelease
+  );
 };
 
 const parseRustBackendVideoEncodeFinishSummary = (
