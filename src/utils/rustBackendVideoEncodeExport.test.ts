@@ -47,6 +47,71 @@ const sharedFramePayload = (
 });
 
 describe('runRustBackendVideoEncodeExport', () => {
+  it('prefetches the next shared frame while the current frame is being written', async () => {
+    const events: string[] = [];
+    let resolveFirstWrite: (() => void) | null = null;
+    let resolveFirstWriteStarted: (() => void) | null = null;
+    const firstWriteStarted = new Promise<void>((resolve) => {
+      resolveFirstWriteStarted = resolve;
+    });
+    const encoderBridge: RustBackendVideoEncodeBridge = {
+      startVideoEncode: async () => {
+        events.push('start');
+        return { success: true, result: { accepted: true } };
+      },
+      writeVideoEncodeFrame: async (payload) => {
+        events.push(`write-start-${payload.frameIndex}`);
+        if (payload.frameIndex === 0) {
+          resolveFirstWriteStarted?.();
+          await new Promise<void>((resolve) => {
+            resolveFirstWrite = resolve;
+          });
+        }
+        events.push(`write-end-${payload.frameIndex}`);
+        return { success: true, result: { written: true } };
+      },
+      finishVideoEncode: async () => {
+        events.push('finish');
+        return {
+          success: true,
+          result: {
+            finished: true,
+            sessionId: 'session-prefetch',
+            filePath: '/tmp/prefetch.mp4',
+            frameCount: 2,
+          },
+        };
+      },
+    };
+
+    async function* prefetchedFrames() {
+      events.push('render-0');
+      yield { timestamp: 0, sharedFramePayload: sharedFramePayload(0, 0, 'session-prefetch') };
+      events.push('render-1');
+      yield { timestamp: 16_667, sharedFramePayload: sharedFramePayload(1, 16_667, 'session-prefetch') };
+    }
+
+    const runPromise = runRustBackendVideoEncodeExport({
+      sessionId: 'session-prefetch',
+      filePath: '/tmp/prefetch.mp4',
+      width: 4,
+      height: 2,
+      fps: 60,
+      frames: prefetchedFrames(),
+      encoderBridge,
+    });
+
+    await firstWriteStarted;
+    expect(events).toEqual([
+      'start',
+      'render-0',
+      'write-start-0',
+      'render-1',
+    ]);
+    resolveFirstWrite?.();
+    await runPromise;
+  });
+
   it('rejects rendered bitmap frames instead of copying them through a writable ring', async () => {
     const calls: unknown[] = [];
     const encoderBridge: RustBackendVideoEncodeBridge = {
