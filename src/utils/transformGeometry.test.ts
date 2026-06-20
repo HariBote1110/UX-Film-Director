@@ -79,6 +79,18 @@ describe('computeResize (no rotation)', () => {
     expect(res.scaleX).toBeGreaterThanOrEqual(baseStart.minScale);
     expect(res.scaleY).toBeGreaterThanOrEqual(baseStart.minScale);
   });
+
+  it('locks the aspect ratio by default when dragging a resize handle', () => {
+    const res = computeResize(baseStart, { x: 210, y: 170 });
+    expect(approx(res.scaleX, 2)).toBe(true);
+    expect(approx(res.scaleY, 2)).toBe(true);
+  });
+
+  it('allows freeform aspect changes when the resize asks to unlock the aspect ratio', () => {
+    const res = computeResize({ ...baseStart, lockAspectRatio: false }, { x: 210, y: 170 });
+    expect(approx(res.scaleX, 2)).toBe(true);
+    expect(approx(res.scaleY, 1.5)).toBe(true);
+  });
 });
 
 describe('computeResize (rotated 90deg)', () => {
