@@ -77,6 +77,16 @@ describe('Viewport Rust video-only boundary', () => {
     expect(presenterBlock).toContain('sharedRendererExternalVideoSourcesByClipId');
   });
 
+  it('publishes shared renderer presenter start count for playback performance diagnostics', () => {
+    const code = viewportSource();
+    const start = code.indexOf('void startSharedRendererViewportPresenter({');
+    const beforePresenterStartBlock = code.slice(0, start);
+
+    expect(code).toContain('sharedRendererPresenterStartCountRef');
+    expect(beforePresenterStartBlock).toContain('uxfdSharedRendererPresenterStartCount');
+    expect(beforePresenterStartBlock).toContain('sharedRendererPresenterStartCountRef.current += 1');
+  });
+
   it('disposes external video sources before export presenter starts without them', () => {
     const code = viewportSource();
     const start = code.indexOf('let externalVideoSourcesByClipId =');
