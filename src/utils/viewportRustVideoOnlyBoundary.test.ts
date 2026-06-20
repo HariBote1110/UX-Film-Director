@@ -66,6 +66,17 @@ describe('Viewport Rust video-only boundary', () => {
     expect(presenterBlock).toContain('requireSharedRendererVideo: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled');
   });
 
+  it('passes isolated external video sources into shared renderer presenter orchestration', () => {
+    const code = viewportSource();
+    const start = code.indexOf('void startSharedRendererViewportPresenter({');
+    const end = code.indexOf('}).then', start);
+    const presenterBlock = code.slice(start, end);
+
+    expect(code).toContain('createSharedRendererExternalVideoSource');
+    expect(code).toContain('syncSharedRendererExternalVideoSources');
+    expect(presenterBlock).toContain('sharedRendererExternalVideoSourcesByClipId');
+  });
+
   it('requires the Rust video control plane in Rust video-only presenter orchestration', () => {
     const code = viewportSource();
     const start = code.indexOf('void startSharedRendererViewportPresenter({');
