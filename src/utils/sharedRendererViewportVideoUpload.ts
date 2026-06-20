@@ -228,7 +228,29 @@ export const prepareSharedRendererViewportVideoUploads = async ({
       mode: 'latestWins',
     } as const;
     let decodeResponse = await requestRustBackendVideoDecodeFrame(decodeFramePayload, rustBackendBridge);
-    if (!decodeResponse.success && activeMatch && isNoActiveDecodeSessionError(decodeResponse.error)) {
+    if (!decodeResponse.success && activeMatch && isRecoverableCachedDecodeJobFrameRequestError(decodeResponse.error)) {
+      if (isNoFreeDecodeFrameSlotError(decodeResponse.error)) {
+        const stopResponse = await stopRustBackendVideoDecode({
+          jobId: activeMatch.jobId,
+        }, rustBackendBridge);
+        if (!stopResponse.success) {
+          const abortReleaseFailure = await releasePreparedViewportVideoUploadsAfterAbort(uploads);
+          if (abortReleaseFailure) {
+            return {
+              ok: false,
+              reason: 'uploadAbortReleaseFailed',
+              detail: abortReleaseFailure,
+              activeJobs: resolvedActiveJobs,
+            };
+          }
+          return {
+            ok: false,
+            reason: 'stopFailed',
+            detail: stopResponse.error ?? 'Rust backend rejected the stuck video decode stop request.',
+            activeJobs: resolvedActiveJobs,
+          };
+        }
+      }
       const restartResult = await startDecodeJob(nextJob, request, rustBackendBridge);
       if (isDecodeJobStartFailure(restartResult)) {
         const abortReleaseFailure = await releasePreparedViewportVideoUploadsAfterAbort(uploads);
@@ -434,7 +456,20 @@ export const prepareSharedRendererViewportVideoUpload = async ({
     mode: 'latestWins',
   } as const;
   let decodeResponse = await requestRustBackendVideoDecodeFrame(decodeFramePayload, rustBackendBridge);
-  if (!decodeResponse.success && sameDecodeJob(activeJob, nextJob) && isNoActiveDecodeSessionError(decodeResponse.error)) {
+  if (!decodeResponse.success && sameDecodeJob(activeJob, nextJob) && isRecoverableCachedDecodeJobFrameRequestError(decodeResponse.error)) {
+    if (isNoFreeDecodeFrameSlotError(decodeResponse.error)) {
+      const stopResponse = await stopRustBackendVideoDecode({
+        jobId: activeJob.jobId,
+      }, rustBackendBridge);
+      if (!stopResponse.success) {
+        return {
+          ok: false,
+          reason: 'stopFailed',
+          detail: stopResponse.error ?? 'Rust backend rejected the stuck video decode stop request.',
+          activeJob: resolvedJob,
+        };
+      }
+    }
     const restartResult = await startDecodeJob(nextJob, request, rustBackendBridge);
     if (isDecodeJobStartFailure(restartResult)) {
       return {
@@ -578,6 +613,14 @@ const isDecodeJobStartFailure = (
 const isNoActiveDecodeSessionError = (error: string | undefined): boolean =>
   typeof error === 'string'
   && error.toLowerCase().includes('no active decode session');
+
+const isNoFreeDecodeFrameSlotError = (error: string | undefined): boolean =>
+  typeof error === 'string'
+  && error.toLowerCase().includes('no free decode frame slot');
+
+const isRecoverableCachedDecodeJobFrameRequestError = (error: string | undefined): boolean =>
+  isNoActiveDecodeSessionError(error)
+  || isNoFreeDecodeFrameSlotError(error);
 
 const isDecodeSessionAlreadyActiveForJobIdError = (error: string | undefined): boolean =>
   typeof error === 'string'

@@ -172,7 +172,29 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
       mode: 'latestWins',
     } as const;
     let decodeResponse = await requestRustBackendVideoDecodeFrame(decodeFramePayload, bridge);
-    if (!decodeResponse.success && activeMatch && isNoActiveDecodeSessionError(decodeResponse.error)) {
+    if (!decodeResponse.success && activeMatch && isRecoverableCachedDecodeJobFrameRequestError(decodeResponse.error)) {
+      if (isNoFreeDecodeFrameSlotError(decodeResponse.error)) {
+        const stopResponse = await stopRustBackendVideoDecode({
+          jobId: activeMatch.jobId,
+        }, bridge);
+        if (!stopResponse.success) {
+          const preparedSourceReleaseFailure = await releasePreparedNativeRenderSourcesAfterAbort(sources);
+          if (preparedSourceReleaseFailure) {
+            return {
+              ok: false,
+              reason: 'preparedNativeRenderSourceAbortReleaseFailed',
+              detail: preparedSourceReleaseFailure,
+              activeJobs: resolvedActiveJobs,
+            };
+          }
+          return {
+            ok: false,
+            reason: 'stopFailed',
+            detail: stopResponse.error ?? 'Rust backend rejected the stuck video decode stop request.',
+            activeJobs: resolvedActiveJobs,
+          };
+        }
+      }
       const restartResult = await startDecodeJob(nextJob, request, bridge);
       if (isDecodeJobStartFailure(restartResult)) {
         const preparedSourceReleaseFailure = await releasePreparedNativeRenderSourcesAfterAbort(sources);
@@ -339,6 +361,14 @@ const isDecodeJobStartFailure = (
 const isNoActiveDecodeSessionError = (error: string | undefined): boolean =>
   typeof error === 'string'
   && error.toLowerCase().includes('no active decode session');
+
+const isNoFreeDecodeFrameSlotError = (error: string | undefined): boolean =>
+  typeof error === 'string'
+  && error.toLowerCase().includes('no free decode frame slot');
+
+const isRecoverableCachedDecodeJobFrameRequestError = (error: string | undefined): boolean =>
+  isNoActiveDecodeSessionError(error)
+  || isNoFreeDecodeFrameSlotError(error);
 
 const isDecodeSessionAlreadyActiveForJobIdError = (error: string | undefined): boolean =>
   typeof error === 'string'

@@ -1126,3 +1126,12 @@
 - Red: `viewportRustVideoOnlyBoundary` に、export中のexternal video source破棄がpresenter session keyを無効化する契約を追加した。
 - 検証: `npm test -- rustVideoEncodeBackendBridge viewportRustVideoOnlyBoundary` は28件成功。`npm test -- sharedRendererExternalVideoSource sharedRendererPreviewPresenterController sharedRendererViewportPresenterOrchestration` は63件成功。`/Volumes/ExtendSSD-W/GX020052.MP4` の動画ロードE2Eは `presenterStatus=ready` / `videoOwner=sharedRenderer` / `uniquePresentedFrameCount=21` / `blockedSampleCount=0` / `externalVideoMaxAbsDriftMs=6` / `blockingDiagnostics=[]` で成功。対象ファイルで絞った `tsc` は既存の `ThreeStageViewport.tsx` three型エラーのみ。
 - 版: `0.1.1-Beta-224f`。
+
+## 2026-06-20
+- 実Electron windowの動画入りexportで `No free decode frame slot: NoFreeSlot` が出る問題と、一時停止時にエラー表示が残る問題への復旧策を追加した。
+- Red: `sharedRendererViewportVideoUpload` と `sharedRendererViewportNativeRenderSource` に、cached Rust decode jobが `NoFreeSlot` を返した場合はstop/startしてframe requestをretryする契約を追加した。
+- Red: `viewportRustVideoOnlyBoundary` に、再生中から一時停止したcleanupでは古いshared renderer presenterを保持しない契約を追加した。
+- Green: preview video upload / native render sourceの両経路で `No active decode session` と `No free decode frame slot` をrecoverable cached decode job失敗として扱い、`NoFreeSlot` では枯れたdecode sessionをstopしてから再生成するようにした。
+- Green: `Viewport` のpresenter cleanupは次のplayback stateが再生中の時だけcontrolを保持し、一時停止時はdisposeするようにした。
+- 検証: `npm test -- --run src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts` は51件成功。`npm test -- --run src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/sharedRendererExportFrameSourceBoundary.test.ts src/utils/exportTestHarnessBoundary.test.ts` は67件成功。`npm run test:export:fast` は ALL PASSED。`npx tsc --noEmit` は既存のthree/mp4box/fixture型エラーで失敗。
+- 版: `0.1.1-Beta-224g`。

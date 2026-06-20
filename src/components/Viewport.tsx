@@ -974,7 +974,7 @@ const Viewport: React.FC = () => {
       cancelled = true;
       const nextPlaybackState = useStore.getState().isPlaying;
       if (
-        (isPlaying || nextPlaybackState)
+        nextPlaybackState
         && currentControl?.ok
         && sharedRendererPresenterControlRef.current === currentControl
       ) {

@@ -7156,3 +7156,23 @@
 ### 残課題・次のステップ
 - 実Electron windowのexportクリックを通るE2Eを追加し、保存ダイアログ・失敗時modal終了・次回export再試行まで検証する。
 - まだ `encode.start` timeoutが出る場合は、Rust backendが直前のdecode/native render/proxy生成で詰まっていないか、RPCキュー時間を診断へ出す。
+
+## 2026-06-20 — decode slot枯渇時の自動復旧を追加
+
+### 実施内容
+- 実Electron windowで動画入りexportが `No free decode frame slot: NoFreeSlot` で失敗し、一時停止時にもエラー表示が出る問題への復旧策を追加した。
+- Red: preview video upload経路とnative render source経路へ、cached Rust decode jobが `No free decode frame slot: NoFreeSlot` を返した場合に既存jobをstopしてstartし直し、同じframe requestをretryする契約を追加した。
+- Red: `viewportRustVideoOnlyBoundary` に、再生中から一時停止したcleanupでは古いshared renderer presenterを保持し続けない契約を追加した。
+- Green: `sharedRendererViewportVideoUpload` と `sharedRendererViewportNativeRenderSource` が `No active decode session` だけでなく `No free decode frame slot` もrecoverableなcached decode job失敗として扱うようにした。`NoFreeSlot` の場合は枯れたringを含むsessionをstopしてからstartし直す。
+- Green: `Viewport` のpresenter cleanupは次のplayback stateが再生中のときだけ既存controlを保持し、一時停止時はdisposeして破棄済みdecode/upload所有が残らないようにした。
+- 版を `0.1.1-Beta-224g` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts` は51件成功。
+- `npm test -- --run src/utils/sharedRendererPreviewPresenterController.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/sharedRendererExportFrameSourceBoundary.test.ts src/utils/exportTestHarnessBoundary.test.ts` は67件成功。
+- `npm run test:export:fast` は ALL PASSED。
+- `npx tsc --noEmit` は既存の `ThreeStageViewport.tsx` three型定義、`mp4box` 型定義、既存test fixture型不整合で失敗。今回変更ファイル由来の新規型エラーは確認されていない。
+
+### 残課題・次のステップ
+- 実Electron windowで `/Volumes/ExtendSSD-W/GX020052.MP4` を配置し、pause/resumeとexportを連続実行して `NoFreeSlot` が再発しないか確認する。
+- `src/e2e/rustVideoPreview.e2e.test.ts` は現在のorchestrationがvideo upload成功時にnative render prepareをskipするため、古いイベント順期待で失敗する。次回、現行仕様に合わせてE2E契約を更新する。

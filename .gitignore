@@ -14,6 +14,8 @@ macos-coreml-tracker/.build/
 葵ちゃん.psd
 
 # export 調査用の逐次ログ（再生成される成果物）
+perf/export-test-results.log
+perf/export-test-results.json
 perf/source-decode-probe.log
 perf/hevc-diagnosis.log
 perf/playback-probe.log
