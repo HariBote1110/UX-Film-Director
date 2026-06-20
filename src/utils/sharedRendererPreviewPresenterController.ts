@@ -113,6 +113,7 @@ export interface StartSharedRendererPreviewPresenterInput {
     mediaId?: string;
     missingClipIds?: string;
   };
+  sharedRendererExternalVideoSourcesByClipId?: ReadonlyMap<string, unknown>;
   sharedRendererDecodedVideoFrameUpload?: SharedRendererDecodedVideoFrameUpload;
   sharedRendererDecodedVideoFrameUploads?: SharedRendererDecodedVideoFrameUploadForClip[];
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
@@ -155,6 +156,7 @@ export const startSharedRendererPreviewPresenter = async ({
   sharedRendererNativeRenderFrameUpload,
   sharedRendererNativeRenderFailure,
   sharedRendererVideoUploadFailure,
+  sharedRendererExternalVideoSourcesByClipId,
   sharedRendererDecodedVideoFrameUpload,
   sharedRendererDecodedVideoFrameUploads,
   presentedFrameSharedFrameTaker,
@@ -396,6 +398,13 @@ export const startSharedRendererPreviewPresenter = async ({
   const uploadedVideoObjectIds = sharedRendererDecodedVideoFrameUploads || scopedSingleVideoFrameUpload
     ? new Set<string>()
     : undefined;
+  const externalVideoObjectIds = hasVideoScene
+    && sharedRendererExternalVideoSourcesByClipId
+    && videoDecodeRequestResult?.ok
+    ? new Set(videoDecodeRequestResult.requests
+      .map((request) => request.clipId)
+      .filter((clipId) => sharedRendererExternalVideoSourcesByClipId.has(clipId)))
+    : undefined;
   const decodedVideoFrameUploads = sharedRendererDecodedVideoFrameUploads
     ? sharedRendererDecodedVideoFrameUploads.map((upload) => ({
       clipId: upload.clipId,
@@ -448,6 +457,10 @@ export const startSharedRendererPreviewPresenter = async ({
     }
   }
 
+  const effectiveUploadedVideoObjectIds = mergeVideoObjectIdSets(uploadedVideoObjectIds, externalVideoObjectIds);
+  const effectiveVideoFrameUploadReady = resolvedVideoFrameUploadReady
+    || Boolean(externalVideoObjectIds && externalVideoObjectIds.size > 0);
+
   let videoOwnership: SharedRendererVideoOwnership = buildSharedRendererVideoOwnership({
     cutoverEnabled: sharedRendererVideoCutoverEnabled,
     hasVideoScene,
@@ -457,15 +470,15 @@ export const startSharedRendererPreviewPresenter = async ({
       : undefined,
     videoDecodeRequestSource,
     videoDecodeRequestResult,
-    videoFrameUploadReady: resolvedVideoFrameUploadReady,
-    uploadedVideoObjectIds,
+    videoFrameUploadReady: effectiveVideoFrameUploadReady,
+    uploadedVideoObjectIds: effectiveUploadedVideoObjectIds,
     stackSafeVideoObjectIds: videoCutoverStackSafety
       ? new Set(videoCutoverStackSafety.safeVideoObjectIds)
       : undefined,
   });
   const missingUploadedVideoObjectIds = resolveMissingUploadedVideoObjectIds(
     videoDecodeRequestResult,
-    uploadedVideoObjectIds
+    effectiveUploadedVideoObjectIds
   );
   if (missingUploadedVideoObjectIds.length > 0) {
     const missingClipIds = missingUploadedVideoObjectIds.join(',');
@@ -558,8 +571,19 @@ export const startSharedRendererPreviewPresenter = async ({
   const shouldPresentUploadedVideoFrame = hasVideoScene
     && uploadedVideoFrameTexture
     && videoOwnership.owner === 'sharedRenderer';
+  const shouldPresentExternalVideoFrame = hasVideoScene
+    && sharedRendererExternalVideoSourcesByClipId
+    && effectiveUploadedVideoObjectIds
+    && effectiveUploadedVideoObjectIds.size > 0
+    && videoOwnership.owner === 'sharedRenderer';
   const shouldPassThroughToPixi = !hasSolidColourScene && !diagnosticSwatchEnabled;
-  if (requireSharedRendererOutput && shouldPassThroughToPixi && !nativeRenderFrameReady && !shouldPresentUploadedVideoFrame) {
+  if (
+    requireSharedRendererOutput
+    && shouldPassThroughToPixi
+    && !nativeRenderFrameReady
+    && !shouldPresentUploadedVideoFrame
+    && !shouldPresentExternalVideoFrame
+  ) {
     writeDiagnostics({
       status: 'blocked',
       reason: 'sharedRendererOutputUnavailable',
@@ -576,6 +600,24 @@ export const startSharedRendererPreviewPresenter = async ({
 
   if (nativeRenderFrameReady) {
     // The native render frame is already the final composited canvas image.
+  } else if (shouldPresentExternalVideoFrame) {
+    const presentation = presenter.presentExternalVideoFrameScene({
+      snapshot: session.surfaceGate.snapshot,
+      media: session.surfaceGate.media,
+      sourcesByClipId: sharedRendererExternalVideoSourcesByClipId,
+      videoObjectIds: new Set(videoOwnership.videoObjectIds),
+    });
+    if (!presentation.ok) {
+      writeDiagnostics({
+        status: requireSharedRendererOutput ? 'blocked' : 'fallback',
+        reason: presentation.reason,
+      });
+      return {
+        ok: false,
+        reason: presentation.reason,
+        dispose: presenter.dispose,
+      };
+    }
   } else if (shouldPresentUploadedVideoFrame) {
     const presentation = uploadedVideoFrameTexturesByClipId.size > 0
       ? presenter.presentVideoFrameScene({
@@ -654,7 +696,7 @@ export const startSharedRendererPreviewPresenter = async ({
     videoPresentedFrameIndex: hasVideoScene && session.surfaceGate.ok
       ? session.surfaceGate.snapshot.frame_index
       : undefined,
-    videoFrameUploadReady: hasVideoScene ? resolvedVideoFrameUploadReady : undefined,
+    videoFrameUploadReady: hasVideoScene ? effectiveVideoFrameUploadReady : undefined,
     videoUploadFailureReason: hasVideoScene ? resolvedVideoUploadFailure?.reason : undefined,
     videoUploadFailureDetail: hasVideoScene ? resolvedVideoUploadFailure?.detail : undefined,
     videoUploadFailureClipId: hasVideoScene ? resolvedVideoUploadFailure?.clipId : undefined,
@@ -778,6 +820,17 @@ const resolveSingleVideoUploadScope = (
     clipId: clip.clip_id,
     mediaId: clip.media_id,
   };
+};
+
+const mergeVideoObjectIdSets = (
+  left: ReadonlySet<string> | undefined,
+  right: ReadonlySet<string> | undefined,
+): ReadonlySet<string> | undefined => {
+  if (!left && !right) return undefined;
+  return new Set([
+    ...(left ? [...left] : []),
+    ...(right ? [...right] : []),
+  ]);
 };
 
 const resolveMissingUploadedVideoObjectIds = (

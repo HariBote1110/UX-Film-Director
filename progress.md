@@ -1,3 +1,19 @@
+## 2026-06-20 — external動画sourceをpreview presenterへ接続
+
+### 実施内容
+- Red: `startSharedRendererPreviewPresenter` にexternal video source mapを渡すと、Rust RGBA uploadではなくexternal texture presentationを使う契約を追加した。
+- Green: external video sourceが存在するclipを、shared renderer ownership判定上のready sourceとして扱うようにした。
+- Green: external sourceがreadyな動画previewでは `presentExternalVideoFrameScene` を呼び、`uploadVideoFrameTexture` / `writeTexture` に進まないようにした。
+- 版を `0.1.1-Beta-220a` に更新した。
+
+### 検証
+- `npm test -- sharedRendererPreviewPresenterController`
+- `npx tsc --noEmit 2>&1 | rg "src/utils/sharedRendererPreviewPresenterController|src/utils/sharedRendererPreviewPresenterController\\.test"`
+
+### 結果・残課題
+- presenter controllerまでは4K低コピーfast pathを通せるようになった。
+- 次はViewportがtimeline動画clipごとに `sharedRendererExternalVideoSource` を保持し、再生時刻へseek/play同期してorchestrationへ渡す。
+
 ## 2026-06-20 — external video source providerをshared renderer専用に隔離
 
 ### 実施内容
