@@ -59,4 +59,16 @@ describe('video export quality comparison script', () => {
       passed: false,
     });
   });
+
+  it('parses a comma-separated preset matrix for speed/quality/size comparison', async () => {
+    const { parseQualityPresetMatrix } = await loadModule();
+
+    expect(parseQualityPresetMatrix('compact,speed,balanced,quality')).toEqual([
+      'compact',
+      'speed',
+      'balanced',
+      'quality',
+    ]);
+    expect(parseQualityPresetMatrix('unknown,,balanced')).toEqual(['balanced']);
+  });
 });

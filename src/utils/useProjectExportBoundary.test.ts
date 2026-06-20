@@ -143,6 +143,20 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     expect(transcodeBlock).toContain("stepDetail: 'Rust export: direct video transcode running'");
   });
 
+  it('passes configurable speed/quality/size encode settings into direct transcode', () => {
+    const code = source();
+    const transcodePayloadBlock = code.slice(
+      code.indexOf('return await transcodeRustBackendVideo({'),
+      code.indexOf('outputPath: savePath,') + 'outputPath: savePath,'.length
+    );
+
+    expect(code).toContain("import { resolveVideoExportEncodeSettings } from '../utils/videoExportEncodeSettings'");
+    expect(code).toContain('const exportEncodeSettings = resolveVideoExportEncodeSettings({');
+    expect(code).toContain('preset: import.meta.env.VITE_UXFD_VIDEO_EXPORT_QUALITY_PRESET');
+    expect(code).toContain('videoBitrateKbps: Number(import.meta.env.VITE_UXFD_VIDEO_EXPORT_BITRATE_KBPS)');
+    expect(transcodePayloadBlock).toContain('...exportEncodeSettings');
+  });
+
   it('subscribes to direct transcode progress events and updates percentage counters', () => {
     const code = source();
 
