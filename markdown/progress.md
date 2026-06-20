@@ -1110,3 +1110,11 @@
 - Electron main/preloadから `rust-backend-encode-abort` / `window.rustVideoEncoder.abortVideoEncode` を公開した。
 - 検証: `npm test -- rustBackendVideoEncodeExport rustBackendVideoEncodeControl rustVideoEncodeBackendBridge rustVideoEncodeIpcChannels` は23件成功。`cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane encode_abort_removes_active_session_after_frame_source_failure -- --nocapture` は1件成功。export周辺unitは132件成功。Rust encode統合は7件成功。対象ファイルで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-224d`。
+
+## 2026-06-20
+- production Electron mainから削除済みの `resolve-4k-proxy-video` IPCを、export test harnessがまだ呼んで `test:export:fast` が失敗していた問題を修正した。
+- Red: `exportTestHarnessBoundary` を追加し、削除済みproxy IPCへの依存が戻らない契約を固定した。
+- Green: harness側に `resolveExportHarnessProxyVideo` を追加し、既存の `resolve-perf-heavy-video` + `check-proxy` + `generate-proxy` でH.264 proxyを解決/生成するようにした。
+- production IPCにはVideoDecoder検証専用fixture resolverを戻していない。
+- 検証: `npm test -- exportTestHarnessBoundary productionVideoDependencyBoundary` は9件成功。`npm run test:export:fast` は ALL PASSED。対象ファイルで絞った `tsc` は既存の `mp4box` 型解決エラーのみ。
+- 版: `0.1.1-Beta-224e`。

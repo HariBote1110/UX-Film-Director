@@ -7119,3 +7119,20 @@
 ### 残課題・次のステップ
 - `test:export:fast` は古い `resolve-4k-proxy-video` IPCをexport test harnessが呼んで失敗する。production IPCへ戻さず、harness側のfixture解決へ切り替える。
 - 実Electron windowのexportクリックを通るE2Eを追加し、保存ダイアログ・失敗時modal終了・次回export再試行まで検証する。
+
+## 2026-06-20 — export test harnessのproxy解決を復旧
+
+### 実施内容
+- production Electron mainから削除済みの `resolve-4k-proxy-video` IPCを、export test harnessがまだ呼んで `test:export:fast` が失敗していた問題を修正した。
+- Red: `exportTestHarnessBoundary` を追加し、削除済みproxy IPCへの依存が戻らない契約を固定した。
+- Green: harness側に `resolveExportHarnessProxyVideo` を追加し、既存の `resolve-perf-heavy-video` + `check-proxy` + `generate-proxy` でH.264 proxyを解決/生成するようにした。
+- production IPCにはVideoDecoder検証専用fixture resolverを戻していない。
+- 版を `0.1.1-Beta-224e` に更新した。
+
+### 検証
+- `npm test -- exportTestHarnessBoundary productionVideoDependencyBoundary`
+- `npm run test:export:fast` は ALL PASSED。
+- 対象ファイルで絞った `tsc` は既存の `mp4box` 型解決エラーのみ。
+
+### 残課題・次のステップ
+- 実Electron windowのexportクリックを通るE2Eを追加し、保存ダイアログ・失敗時modal終了・次回export再試行まで検証する。

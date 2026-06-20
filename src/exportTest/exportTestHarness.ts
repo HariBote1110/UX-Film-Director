@@ -36,6 +36,12 @@ interface TestCase {
 
 const results: TestCase[] = [];
 
+interface ExportHarnessVideoResolution {
+  success?: boolean;
+  filePath?: string;
+  error?: string;
+}
+
 const run = async (name: string, fn: () => Promise<string>): Promise<void> => {
   try {
     const detail = await fn();
@@ -49,6 +55,36 @@ const run = async (name: string, fn: () => Promise<string>): Promise<void> => {
     console.error(`[ExportTest] ❌ ${name}:`, error);
     results.push({ name, passed: false, error });
   }
+};
+
+const resolveExportHarnessProxyVideo = async (): Promise<ExportHarnessVideoResolution> => {
+  const ipcRenderer = (window as any).ipcRenderer;
+  if (!ipcRenderer) return { success: false, error: 'ipcRenderer が利用できません' };
+
+  const source = await ipcRenderer.invoke('resolve-perf-heavy-video');
+  if (!source?.success || !source.filePath) {
+    return { success: false, error: 'プロキシ元のテスト動画が見つかりません' };
+  }
+
+  const proxy = await ipcRenderer.invoke('check-proxy', { filePath: source.filePath });
+  if (proxy?.exists && proxy.proxyPath) {
+    return { success: true, filePath: proxy.proxyPath };
+  }
+
+  const generated = await ipcRenderer.invoke('generate-proxy', {
+    filePath: source.filePath,
+    width: 640,
+  });
+  if (generated?.success && generated.proxyPath) {
+    return { success: true, filePath: generated.proxyPath };
+  }
+
+  return {
+    success: false,
+    error: generated?.error
+      ? `H.264 proxy generation failed for ${source.filePath}: ${generated.error}`
+      : `H.264 proxy file is missing next to ${source.filePath}`,
+  };
 };
 
 // ── 各テストケース ────────────────────────────────────────────────────────
@@ -214,10 +250,9 @@ const testEncode4KVideoDecoder = async (): Promise<string> => {
   const ipcRenderer = (window as any).ipcRenderer;
   if (!ipcRenderer) throw new Error('ipcRenderer が利用できません');
 
-  // H.264 プロキシファイルを使用（元の10000kbps_60fps.mp4 は HEVC で VideoDecoder 非対応）
-  // GX010052.proxy.mp4 は FFmpeg libx264 で生成した H.264 ファイル
-  const res = await ipcRenderer.invoke('resolve-4k-proxy-video');
-  if (!res?.success || !res.filePath) throw new Error('H.264 プロキシ動画が見つかりません（perf/heavy-media/GX010052.proxy.mp4）');
+  // H.264 プロキシファイルを使用（HEVC 素材は VideoDecoder 非対応環境があるため）。
+  const res = await resolveExportHarnessProxyVideo();
+  if (!res?.success || !res.filePath) throw new Error(res.error ?? 'H.264 プロキシ動画が見つかりません');
 
   const fileUrl = `file://${res.filePath}`;
   const W = 640, H = 360, SAMPLE_SEC = 5;
@@ -346,8 +381,8 @@ const testPipelinePhaseBreakdown = async (): Promise<string> => {
   const ipcRenderer = (window as any).ipcRenderer;
   if (!ipcRenderer) throw new Error('ipcRenderer が利用できません');
 
-  const res = await ipcRenderer.invoke('resolve-4k-proxy-video');
-  if (!res?.success || !res.filePath) throw new Error('H.264 プロキシ動画が見つかりません（perf/heavy-media/GX010052.proxy.mp4）');
+  const res = await resolveExportHarnessProxyVideo();
+  if (!res?.success || !res.filePath) throw new Error(res.error ?? 'H.264 プロキシ動画が見つかりません');
   const fileUrl = `file://${res.filePath}`;
 
   // 出力は 4K ネイティブ（重い動画をそのまま書き出す代表ケース）。
@@ -451,9 +486,9 @@ const testSourceDirectDecode = async (): Promise<string> => {
   if (!ipcRenderer) throw new Error('ipcRenderer が利用できません');
 
   // 複数ソースを試し、どのコーデック/サイズが直接デコードできるか確認する。
-  const targets: { label: string; channel: string }[] = [
-    { label: '10000kbps(107MB)', channel: 'resolve-perf-heavy-video' },
-    { label: 'proxy(H.264)', channel: 'resolve-4k-proxy-video' },
+  const targets: { label: string; resolve: () => Promise<ExportHarnessVideoResolution> }[] = [
+    { label: '10000kbps(107MB)', resolve: () => ipcRenderer.invoke('resolve-perf-heavy-video') },
+    { label: 'proxy(H.264)', resolve: resolveExportHarnessProxyVideo },
   ];
 
   const SAMPLE_SEC = 2;
@@ -471,8 +506,8 @@ const testSourceDirectDecode = async (): Promise<string> => {
     } catch { /* ignore */ }
   };
 
-  for (const { label, channel } of targets) {
-    const res = await ipcRenderer.invoke(channel);
+  for (const { label, resolve } of targets) {
+    const res = await resolve();
     if (!res?.success || !res.filePath) { lines.push(`${label}: 見つからず`); await writeProgress(); continue; }
     const fileUrl = `file://${res.filePath}`;
 
