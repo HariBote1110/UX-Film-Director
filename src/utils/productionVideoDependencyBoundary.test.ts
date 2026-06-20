@@ -41,7 +41,6 @@ const allowedProductionVideoDependencyTokens = new Map<string, Set<string>>([
     'src/utils/sharedRendererExternalVideoSource.ts',
     new Set([
       "document.createElement('video')",
-      'loadVideoElementMetadata',
     ]),
   ],
 ]);
@@ -85,7 +84,6 @@ describe('production video dependency boundary', () => {
         'src/utils/sharedRendererExternalVideoSource.ts',
         new Set([
           "document.createElement('video')",
-          'loadVideoElementMetadata',
         ]),
       ],
     ]);

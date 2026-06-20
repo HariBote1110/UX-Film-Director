@@ -1,3 +1,5 @@
+import { loadExternalVideoSourceMetadata } from './sharedRendererExternalVideoSource';
+
 type ElectronFileWithPath = File & { path?: string };
 
 type RustMediaProbeResult = {
@@ -185,7 +187,7 @@ export const resolveVideoImportSource = async (file: File, url: string): Promise
 
   return {
     filePath: directFilePath,
-    metadata: await loadVideoElementMetadata(url),
+    metadata: await loadExternalVideoSourceMetadata(url),
   };
 };
 
@@ -200,22 +202,6 @@ const loadAudioElementMetadata = (url: string): Promise<AudioMetadata> => {
     };
     audio.onerror = () => reject(new Error('Failed to load audio metadata.'));
     audio.src = url;
-  });
-};
-
-const loadVideoElementMetadata = (url: string): Promise<VideoMetadata> => {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement('video');
-    video.preload = 'metadata';
-    video.onloadedmetadata = () => {
-      resolve({
-        duration: isPositiveNumber(video.duration) ? video.duration : DEFAULT_DURATION_SECONDS,
-        width: isPositiveNumber(video.videoWidth) ? video.videoWidth : DEFAULT_VIDEO_WIDTH,
-        height: isPositiveNumber(video.videoHeight) ? video.videoHeight : DEFAULT_VIDEO_HEIGHT,
-      });
-    };
-    video.onerror = () => reject(new Error('Failed to load video metadata.'));
-    video.src = url;
   });
 };
 

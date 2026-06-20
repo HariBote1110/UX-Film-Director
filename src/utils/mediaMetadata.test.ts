@@ -107,11 +107,12 @@ describe('mergeResolvedVideoMetadata', () => {
 });
 
 describe('resolveVideoMetadata browser video boundary', () => {
-  it('keeps an HTMLVideoElement metadata fallback when Electron IPC is unavailable', () => {
+  it('delegates browser video metadata fallback to the isolated external source provider', () => {
     const code = source();
 
-    expect(code).toContain("document.createElement('video')");
-    expect(code).toContain('loadVideoElementMetadata');
+    expect(code).not.toContain("document.createElement('video')");
+    expect(code).not.toContain('loadVideoElementMetadata');
+    expect(code).toContain('loadExternalVideoSourceMetadata');
   });
 
   it('materialises the selected file for Rust probing when Electron does not expose a file path', async () => {

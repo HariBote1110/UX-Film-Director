@@ -1,3 +1,19 @@
+## 2026-06-20 — external video source providerをshared renderer専用に隔離
+
+### 実施内容
+- Red: production video dependency境界へ、ブラウザ動画要素を作れる場所を `sharedRendererExternalVideoSource.ts` だけに限定する契約を追加した。
+- Green: `sharedRendererExternalVideoSource` を追加し、presenter-owned external video sourceの作成・seek/play/pause/disposeとmetadata取得を集約した。
+- Green: `mediaMetadata.ts` の動画metadata fallbackも新providerへ委譲し、metadata module内の直接 `document.createElement('video')` を削除した。
+- 版を `0.1.1-Beta-219p` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExternalVideoSource mediaMetadata productionVideoDependencyBoundary`
+- `npx tsc --noEmit 2>&1 | rg "src/utils/sharedRendererExternalVideoSource|src/utils/mediaMetadata|src/utils/productionVideoDependencyBoundary"`
+
+### 結果・残課題
+- 低コピーpreview用のbrowser video sourceは、Pixi fallbackではなくshared renderer presenter専用providerとして隔離できた。
+- 次はこのproviderをViewportのshared renderer orchestrationへ接続し、GoPro 4K原本をproxyなしで `importExternalTexture` 描画するE2Eを追加する。
+
 ## 2026-06-20 — 4K低コピーpreviewへ向けたexternal texture presenterを追加
 
 ### 実施内容
