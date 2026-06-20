@@ -844,6 +844,42 @@ fn encode_transcode_video_keeps_source_audio_when_requested() {
 }
 
 #[test]
+fn encode_transcode_video_crops_partially_offscreen_object() {
+    let temp_dir = TestTempDir::new("encode-transcode-video-crop");
+    let fixture = build_two_frame_h264_fixture(temp_dir.path());
+    let output_path = temp_dir.path().join("transcoded-cropped-output.mp4");
+    let output_path_string = output_path.to_string_lossy().into_owned();
+    let mut backend = BackendProcess::start();
+
+    let response = backend.request(json!({
+        "id": 123,
+        "method": "encode.transcodeVideo",
+        "params": {
+            "inputPath": fixture.path.to_string_lossy(),
+            "outputPath": output_path_string.clone(),
+            "width": fixture.width,
+            "height": fixture.height,
+            "fps": 30,
+            "durationSeconds": 1.0,
+            "objectX": -1,
+            "objectY": -1,
+            "objectWidth": fixture.width * 2,
+            "objectHeight": fixture.height * 2
+        }
+    }));
+
+    assert_eq!(response["ok"], true, "{response}");
+    assert_eq!(response["result"]["outputPath"], output_path_string);
+    assert_eq!(response["result"]["frameCount"], 30);
+    assert!(
+        fs::metadata(&output_path)
+            .expect("cropped transcode output file exists")
+            .len()
+            > 0
+    );
+}
+
+#[test]
 fn native_render_shared_frame_consumes_source_shm_and_returns_descriptor_only() {
     let mut backend = BackendProcess::start();
     let source_memory_id = unique_shm_name();

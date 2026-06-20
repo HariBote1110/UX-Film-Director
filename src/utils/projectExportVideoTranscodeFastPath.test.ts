@@ -119,6 +119,53 @@ describe('resolveProjectExportVideoTranscodeFastPath', () => {
     });
   });
 
+  it('accepts a scaled video that partially sits outside the output frame', () => {
+    expect(resolveProjectExportVideoTranscodeFastPath({
+      objects: [video({
+        x: -240,
+        y: -120,
+        scaleX: 1.5,
+        scaleY: 1.5,
+      })],
+      width: 1920,
+      height: 1080,
+      fps: 60,
+      durationSeconds: 5,
+    })).toMatchObject({
+      objectX: -240,
+      objectY: -120,
+      objectWidth: 2880,
+      objectHeight: 1620,
+    });
+  });
+
+  it('rejects a video that is completely outside the output frame', () => {
+    expect(resolveProjectExportVideoTranscodeFastPath({
+      objects: [video({
+        x: 1920,
+        y: 0,
+        width: 640,
+        height: 360,
+      })],
+      width: 1920,
+      height: 1080,
+      fps: 60,
+      durationSeconds: 5,
+    })).toBeNull();
+    expect(resolveProjectExportVideoTranscodeFastPath({
+      objects: [video({
+        x: -641,
+        y: 0,
+        width: 640,
+        height: 360,
+      })],
+      width: 1920,
+      height: 1080,
+      fps: 60,
+      durationSeconds: 5,
+    })).toBeNull();
+  });
+
   it('drops source audio when the video is muted', () => {
     expect(resolveProjectExportVideoTranscodeFastPath({
       objects: [video({ muted: true })],
