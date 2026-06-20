@@ -3,6 +3,7 @@ import {
   isRustBackendVideoEncodeBridgeAvailable,
   startRustBackendVideoEncode,
   writeRustBackendVideoEncodeFrame,
+  writeRustBackendVideoEncodeNativeFrame,
   finishRustBackendVideoEncode,
   abortRustBackendVideoEncode,
   type RustBackendVideoEncodeBridge,
@@ -23,6 +24,10 @@ const bridge = (): {
       writeVideoEncodeFrame: async (payload) => {
         calls.push(['writeVideoEncodeFrame', payload]);
         return { success: true, result: { written: true, frameIndex: payload.frameIndex } };
+      },
+      writeNativeEncodeFrame: async (payload) => {
+        calls.push(['writeNativeEncodeFrame', payload]);
+        return { success: true, result: { written: true, writtenNativeFrame: true, frameIndex: payload.frameIndex } };
       },
       finishVideoEncode: async (payload) => {
         calls.push(['finishVideoEncode', payload]);
@@ -149,6 +154,38 @@ describe('rustBackendVideoEncodeControl', () => {
         },
       },
     ]]);
+    expect(JSON.stringify(mocked.calls)).not.toContain('rgbaBytes');
+  });
+
+  it('writes native render frames directly without an output shared memory descriptor', async () => {
+    const mocked = bridge();
+    const payload = {
+      sessionId: 'encode-1',
+      renderId: 'encode-1-frame-42',
+      frameIndex: 42,
+      timestampUs: 700_000,
+      width: 1920,
+      height: 1080,
+      snapshot: {
+        frame_index: 42,
+        colour: {
+          profile: 'rec709-sdr',
+          working_space: 'linear-light',
+          alpha: 'premultiplied',
+        },
+        clips: [],
+      },
+      media: [],
+      sources: [],
+    } as const;
+
+    await writeRustBackendVideoEncodeNativeFrame(payload, mocked.bridge);
+
+    expect(mocked.calls).toEqual([[
+      'writeNativeEncodeFrame',
+      payload,
+    ]]);
+    expect(JSON.stringify(mocked.calls)).not.toContain('memoryId');
     expect(JSON.stringify(mocked.calls)).not.toContain('rgbaBytes');
   });
 

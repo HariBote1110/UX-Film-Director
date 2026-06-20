@@ -1173,3 +1173,12 @@
 - 実Electron E2E: `/Volumes/ExtendSSD-W/GX020052.MP4` で1秒尺は60 frames / 3017ms / 約19.89fps、2秒尺は120 frames / 4348ms / 約27.60fps、5秒尺は300 frames / 8910ms / 約33.67fpsで成功した。
 - 残課題: 5秒尺では30fpsを超えたが短尺では初期化・Electron側待ちの比率が残る。次はshared memory往復を削るRust内direct encode pathと、decode/source texture再利用を優先する。
 - 版: `0.1.1-Beta-225a`。
+
+## 2026-06-20
+- Rust backendに `encode.writeNativeFrame` を追加し、native render output shared memoryを返さずに `NativeWgpuRenderer::render_frame_stages` のRGBA8結果をffmpeg stdinへ直接書けるようにした。
+- Electron main/preload/renderer型に `rust-backend-encode-write-native-frame` / `writeNativeEncodeFrame` を追加した。
+- export helperに `nativeEncodeFramePayload` を追加し、direct frameでは `encode.writeFrame` ではなく `writeNativeEncodeFrame` を呼ぶようにした。
+- shared renderer export sourceは `window.rustVideoEncoder.nativeDirectEncodeEnabled === true` の時だけdirect payloadを返す。通常exportでは既存のshared native render output経路を維持する。
+- 実測: 通常E2Eは `/Volumes/ExtendSSD-W/GX020052.MP4` 5秒尺で300 frames / 8871ms / 約33.82fps。`VITE_UXFD_NATIVE_DIRECT_ENCODE=1` のdirect opt-in E2Eは2秒尺で120 frames / 8863ms / 約13.54fps。
+- 判断: 単純なdirect RPC結合はshared memory往復を消す一方で、既存のrender/write先読みの重なりを失い遅くなるため、デフォルト有効化しない。次はRust backend内でrender queue / encode queueを分けるpipeline化が必要。
+- 版: `0.1.1-Beta-226a`。

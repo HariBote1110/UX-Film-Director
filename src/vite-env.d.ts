@@ -68,6 +68,7 @@ interface Window {
     releaseNativeSharedFrame: (payload: unknown) => Promise<{ success: boolean; result?: unknown; error?: string }>;
   };
   rustVideoEncoder: {
+    nativeDirectEncodeEnabled?: boolean;
     startVideoEncode: (payload: {
       sessionId: string;
       filePath: string;
@@ -108,6 +109,17 @@ interface Window {
         };
         ptsFrame: number;
       };
+    }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
+    writeNativeEncodeFrame: (payload: {
+      sessionId: string;
+      renderId: string;
+      frameIndex: number;
+      timestampUs: number;
+      width: number;
+      height: number;
+      snapshot: unknown;
+      media: unknown[];
+      sources: unknown[];
     }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
     finishVideoEncode: (payload: {
       sessionId: string;

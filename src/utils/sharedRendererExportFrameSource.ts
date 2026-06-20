@@ -29,7 +29,10 @@ import {
 import type { SharedRendererViewportVideoDecodeJob } from './sharedRendererViewportVideoUpload';
 import { stopRustBackendVideoDecode } from './rustBackendVideoDecodeControl';
 import type { RustBackendResult } from './rustBackendVideoDecodeControl';
-import type { RustBackendVideoEncodeSharedFramePayloadFrame } from './rustBackendVideoEncodeExport';
+import type {
+  RustBackendVideoEncodeNativeFramePayloadFrame,
+  RustBackendVideoEncodeSharedFramePayloadFrame,
+} from './rustBackendVideoEncodeExport';
 import type { SharedRendererPreviewSurfaceBlockedReason } from './sharedRendererPreviewSurface';
 import type { SharedRendererPresentedFrameSharedFrameTaker } from './sharedRendererWebGpuPresenter';
 import {
@@ -305,7 +308,7 @@ export function createSharedRendererExportFrameSource({
 
   const renderNativeEncodeFrame = async (
     request: ProjectExportRustEncodeFrameRequest
-  ): Promise<RustBackendVideoEncodeSharedFramePayloadFrame | null> => {
+  ): Promise<RustBackendVideoEncodeSharedFramePayloadFrame | RustBackendVideoEncodeNativeFramePayloadFrame | null> => {
     const effectiveNativeRenderRequired = nativeRenderRequired
       || !bitmapCaptureEnabled
       || hasVideoObjects(request.objects);
@@ -436,22 +439,58 @@ export function createSharedRendererExportFrameSource({
     }
 
     const renderId = buildNativeRenderId(request.encodeSessionId, request.frameIndex);
+    const nativeEncodeFramePayload = {
+      sessionId: request.encodeSessionId,
+      renderId,
+      frameIndex: request.frameIndex,
+      timestampUs: request.timestampUs,
+      width: request.width,
+      height: request.height,
+      snapshot: surfaceGate.snapshot,
+      media: surfaceGate.media,
+      sources: nativeRenderSources.map((source) => ({
+        mediaId: source.mediaId,
+        slotCount: source.slotCount,
+        frame: source.frame,
+      })),
+    };
+    if (isDefaultNativeEncodeFrameWriterAvailable()) {
+      writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
+        status: 'ready',
+        frameIndex: request.frameIndex,
+        path: 'nativeRenderDirectEncode',
+        nativeRender: {
+          media: surfaceGate.media,
+          sources: nativeRenderSources,
+        },
+      });
+      return {
+        timestamp: request.timestampUs,
+        nativeEncodeFramePayload,
+        releaseNativeEncodeSourcesAfterWrite: {
+          kind: 'nativeRenderSources',
+          releaseAfterEncodeFailure: async () => {
+            const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+            if (releaseFailure) {
+              throw new Error(releaseFailure);
+            }
+          },
+        },
+      };
+    }
+
     let renderResponse: RustBackendResult<RustBackendNativeRenderSharedFrameResult>;
     try {
       renderResponse = await renderNativeSharedFrame({
-        renderId,
+        renderId: nativeEncodeFramePayload.renderId,
         memoryId: buildNativeRenderMemoryId(request.encodeSessionId, request.frameIndex),
         slotCount: 1,
         ptsFrame: request.frameIndex,
-        width: request.width,
-        height: request.height,
-        snapshot: surfaceGate.snapshot,
-        media: surfaceGate.media,
-        sources: nativeRenderSources.map((source) => ({
-          mediaId: source.mediaId,
-          slotCount: source.slotCount,
-          frame: source.frame,
-        })),
+        width: nativeEncodeFramePayload.width,
+        height: nativeEncodeFramePayload.height,
+        snapshot: nativeEncodeFramePayload.snapshot,
+        media: nativeEncodeFramePayload.media,
+        sources: nativeEncodeFramePayload.sources,
       });
     } catch (error) {
       const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
@@ -653,6 +692,11 @@ const defaultRenderNativeSharedFrame: SharedRendererExportNativeSharedFrameRende
 const isDefaultNativeSharedFrameRendererAvailable = (): boolean =>
   typeof window !== 'undefined'
   && typeof window.rustBackend?.renderNativeSharedFrame === 'function';
+
+const isDefaultNativeEncodeFrameWriterAvailable = (): boolean =>
+  typeof window !== 'undefined'
+  && window.rustVideoEncoder?.nativeDirectEncodeEnabled === true
+  && typeof window.rustVideoEncoder.writeNativeEncodeFrame === 'function';
 
 const buildEncodeSourceMemoryId = (encodeSessionId: string): string => {
   return `/uxe-${hashSharedMemoryIdPart(encodeSessionId)}`;

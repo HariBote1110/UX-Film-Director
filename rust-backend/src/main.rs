@@ -215,6 +215,21 @@ struct EncodeWriteFrameParams {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct EncodeWriteNativeFrameParams {
+    session_id: String,
+    render_id: String,
+    frame_index: u64,
+    timestamp_us: u64,
+    width: u32,
+    height: u32,
+    snapshot: SceneSnapshot,
+    #[serde(default)]
+    media: Vec<SceneMediaReference>,
+    sources: Vec<NativeRenderSharedFrameSource>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct EncodeFinishParams {
     session_id: String,
 }
@@ -302,6 +317,7 @@ fn handle_request(request: RpcRequest, state: &mut BackendState) -> RpcResponse 
         "decode.releaseFrame" => handle_decode_release_frame(request.id, request.params, state),
         "encode.start" => handle_encode_start(request.id, request.params, state),
         "encode.writeFrame" => handle_encode_write_frame(request.id, request.params, state),
+        "encode.writeNativeFrame" => handle_encode_write_native_frame(request.id, request.params, state),
         "encode.finish" => handle_encode_finish(request.id, request.params, state),
         "encode.abort" => handle_encode_abort(request.id, request.params, state),
         "render.nativeSharedFrame" => {
@@ -457,6 +473,141 @@ fn handle_encode_write_frame(id: u64, params: Value, state: &mut BackendState) -
         })),
         error: None,
     }
+}
+
+#[cfg(unix)]
+fn handle_encode_write_native_frame(
+    id: u64,
+    params: Value,
+    state: &mut BackendState,
+) -> RpcResponse {
+    let parsed = match serde_json::from_value::<EncodeWriteNativeFrameParams>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32602,
+                &format!("Invalid encode.writeNativeFrame params: {error}"),
+            );
+        }
+    };
+
+    {
+        let Some(session) = state.encode_sessions.get(&parsed.session_id) else {
+            return response_error(id, -32052, "No active encode session");
+        };
+        if parsed.width != session.width || parsed.height != session.height {
+            return response_error(
+                id,
+                -32602,
+                "Native encode frame dimensions do not match active session",
+            );
+        }
+        if session.pixel_format != FrameFormat::Rgba8Srgb
+            || session.colour != ColourMetadata::rec709_srgb()
+        {
+            return response_error(
+                id,
+                -32602,
+                "Only bt709/srgb/rgb/full rgba8Srgb native encode input is supported",
+            );
+        }
+    }
+
+    let sources = match collect_native_render_sources(&parsed.media, &parsed.sources) {
+        Ok(value) => value,
+        Err(message) => {
+            return response_error(id, native_render_source_error_code(&message), &message);
+        }
+    };
+    if sources.is_empty() {
+        return response_error(
+            id,
+            -32602,
+            "sources, Image media, or SolidColour media must include at least one render source",
+        );
+    }
+
+    let renderer = match get_or_create_native_wgpu_renderer(state, parsed.width, parsed.height) {
+        Ok(value) => value,
+        Err(NativeWgpuRenderError::AdapterUnavailable) => {
+            return response_error(id, -32070, "Native WebGPU adapter is unavailable");
+        }
+        Err(error) => {
+            return response_error(
+                id,
+                -32071,
+                &format!("Native WebGPU renderer setup failed: {error:?}"),
+            );
+        }
+    };
+
+    let render = match pollster::block_on(renderer.render_frame_stages(&parsed.snapshot, &sources)) {
+        Ok(value) => value,
+        Err(NativeWgpuRenderError::AdapterUnavailable) => {
+            return response_error(id, -32070, "Native WebGPU adapter is unavailable");
+        }
+        Err(error) => {
+            return response_error(
+                id,
+                -32071,
+                &format!("Native WebGPU render failed: {error:?}"),
+            );
+        }
+    };
+
+    let (session_id, frame_count, encoded_frame_byte_len) = {
+        let Some(session) = state.encode_sessions.get_mut(&parsed.session_id) else {
+            return response_error(id, -32052, "No active encode session");
+        };
+        let encoded_frame_byte_len = match write_rgba_frame_to_encoder(session, &render.frame) {
+            Ok(value) => value,
+            Err(message) => return response_error(id, -32053, &message),
+        };
+        session.frame_count += 1;
+        (
+            session.session_id.clone(),
+            session.frame_count,
+            encoded_frame_byte_len,
+        )
+    };
+
+    RpcResponse {
+        id,
+        ok: true,
+        result: Some(json!({
+            "written": true,
+            "writtenNativeFrame": true,
+            "sessionId": session_id,
+            "renderId": parsed.render_id,
+            "frameIndex": parsed.frame_index,
+            "timestampUs": parsed.timestamp_us,
+            "encodedFrameByteLen": encoded_frame_byte_len,
+            "frameCount": frame_count,
+            "timings": {
+                "setupMs": render.timings.setup.as_secs_f64() * 1000.0,
+                "sourceUploadMs": render.timings.source_upload.as_secs_f64() * 1000.0,
+                "renderMs": render.timings.render.as_secs_f64() * 1000.0,
+                "readbackEncodeMs": render.timings.readback_encode.as_secs_f64() * 1000.0,
+                "steadyStateMs": render.timings.steady_state.as_secs_f64() * 1000.0,
+                "totalMs": render.timings.total.as_secs_f64() * 1000.0,
+            },
+        })),
+        error: None,
+    }
+}
+
+#[cfg(not(unix))]
+fn handle_encode_write_native_frame(
+    id: u64,
+    _params: Value,
+    _state: &mut BackendState,
+) -> RpcResponse {
+    response_error(
+        id,
+        -32070,
+        "encode.writeNativeFrame requires POSIX shared memory support",
+    )
 }
 
 fn handle_encode_finish(id: u64, params: Value, state: &mut BackendState) -> RpcResponse {
@@ -622,52 +773,12 @@ fn handle_native_render_shared_frame(
     if parsed.slot_count == 0 {
         return response_error(id, -32602, "slotCount must be greater than zero");
     }
-    let mut sources = HashMap::with_capacity(parsed.sources.len() + parsed.media.len());
-    for media in &parsed.media {
-        let frame = match media.kind {
-            MediaKind::SolidColour => match build_solid_colour_source_frame(media) {
-                Ok(value) => value,
-                Err(message) => return response_error(id, -32602, &message),
-            },
-            MediaKind::GeneratedGradient => match build_generated_gradient_source_frame(media) {
-                Ok(value) => value,
-                Err(message) => return response_error(id, -32602, &message),
-            },
-            MediaKind::Image => match build_image_source_frame(media) {
-                Ok(value) => value,
-                Err(message) => return response_error(id, -32602, &message),
-            },
-            MediaKind::Psd => match build_psd_source_frame(media) {
-                Ok(value) => value,
-                Err(message) => return response_error(id, -32602, &message),
-            },
-            MediaKind::Video => continue,
-        };
-        if sources.insert(media.id.clone(), frame).is_some() {
-            return response_error(
-                id,
-                -32602,
-                &format!("Duplicate native render source mediaId '{}'", media.id),
-            );
+    let sources = match collect_native_render_sources(&parsed.media, &parsed.sources) {
+        Ok(value) => value,
+        Err(message) => {
+            return response_error(id, native_render_source_error_code(&message), &message);
         }
-    }
-    for source in &parsed.sources {
-        if sources.contains_key(&source.media_id) {
-            return response_error(
-                id,
-                -32602,
-                &format!(
-                    "Duplicate native render source mediaId '{}'",
-                    source.media_id
-                ),
-            );
-        }
-        let frame = match read_native_render_source_frame(source) {
-            Ok(value) => value,
-            Err(message) => return response_error(id, -32072, &message),
-        };
-        sources.insert(source.media_id.clone(), frame);
-    }
+    };
     if sources.is_empty() {
         return response_error(
             id,
@@ -729,6 +840,52 @@ fn handle_native_render_shared_frame(
             "frame": frame,
         })),
         error: None,
+    }
+}
+
+#[cfg(unix)]
+fn collect_native_render_sources(
+    media_items: &[SceneMediaReference],
+    shared_sources: &[NativeRenderSharedFrameSource],
+) -> Result<HashMap<String, RgbaFrame>, String> {
+    let mut sources = HashMap::with_capacity(shared_sources.len() + media_items.len());
+    for media in media_items {
+        let frame = match media.kind {
+            MediaKind::SolidColour => build_solid_colour_source_frame(media)?,
+            MediaKind::GeneratedGradient => build_generated_gradient_source_frame(media)?,
+            MediaKind::Image => build_image_source_frame(media)?,
+            MediaKind::Psd => build_psd_source_frame(media)?,
+            MediaKind::Video => continue,
+        };
+        if sources.insert(media.id.clone(), frame).is_some() {
+            return Err(format!(
+                "Duplicate native render source mediaId '{}'",
+                media.id
+            ));
+        }
+    }
+    for source in shared_sources {
+        if sources.contains_key(&source.media_id) {
+            return Err(format!(
+                "Duplicate native render source mediaId '{}'",
+                source.media_id
+            ));
+        }
+        let frame = read_native_render_source_frame(source)?;
+        sources.insert(source.media_id.clone(), frame);
+    }
+
+    Ok(sources)
+}
+
+fn native_render_source_error_code(message: &str) -> i64 {
+    if message.starts_with("Failed to attach native render source shared memory")
+        || message.starts_with("Failed to read native render source frame")
+        || message.starts_with("Failed to release native render source frame")
+    {
+        -32072
+    } else {
+        -32602
     }
 }
 
@@ -1478,6 +1635,21 @@ fn write_tight_rgba_frame_to_encoder(
         .map_err(|error| format!("Failed to write raw RGBA frame to Rust encoder: {error}"))?;
 
     Ok(tight_rgba.len())
+}
+
+fn write_rgba_frame_to_encoder(
+    session: &mut EncodeSession,
+    frame: &RgbaFrame,
+) -> Result<usize, String> {
+    if frame.width != session.width || frame.height != session.height {
+        return Err("Native rendered frame dimensions do not match active session".to_string());
+    }
+    session
+        .stdin
+        .write_all(&frame.pixels)
+        .map_err(|error| format!("Failed to write native RGBA frame to Rust encoder: {error}"))?;
+
+    Ok(frame.pixels.len())
 }
 
 fn handle_media_probe(id: u64, params: Value) -> RpcResponse {

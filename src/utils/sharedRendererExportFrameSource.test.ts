@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { ImageObject, ProjectSettings, VideoObject } from '../types';
 import { createDefaultLayers } from './sceneState';
 import {
@@ -1122,6 +1122,199 @@ describe('createSharedRendererExportFrameSource', () => {
       }],
       ['releaseAfterNativeRenderComplete'],
     ]);
+  });
+
+  it('returns native direct encode payloads when the Rust encoder exposes native frame writes', async () => {
+    vi.stubGlobal('window', {
+      rustVideoEncoder: {
+        nativeDirectEncodeEnabled: true,
+        writeNativeEncodeFrame: async () => ({ success: true }),
+      },
+      rustBackend: {},
+    });
+    try {
+      const canvas = {
+        width: 1,
+        height: 1,
+        dataset: {},
+      } as unknown as HTMLCanvasElement;
+      const decodedFrame = {
+        descriptor: {
+          memoryId: '/uxfd-decoded-video-direct',
+          slotIndex: 0,
+          generation: 3,
+          byteOffset: 0,
+          byteLen: 1024,
+          width: 4,
+          height: 4,
+          strideBytes: 256,
+          format: 'rgba8Srgb',
+          colour: {
+            primaries: 'bt709',
+            transfer: 'srgb',
+            matrix: 'rgb',
+            range: 'full',
+          },
+        },
+        ptsFrame: 7,
+      } as const;
+      const snapshot = {
+        frame_index: 7,
+        colour: {
+          profile: 'rec709-sdr',
+          working_space: 'linear-light',
+          alpha: 'premultiplied',
+        },
+        clips: [{
+          clip_id: 'video-clip-1',
+          track_id: 'layer-1',
+          media_id: 'video-1',
+          source_frame: 7,
+          z_index: 0,
+          transform: {
+            translation_x: 0,
+            translation_y: 0,
+            scale_x: 1,
+            scale_y: 1,
+            rotation_degrees: 0,
+            sampling: 'bilinear',
+          },
+          opacity: 1,
+          effects: [],
+        }],
+      } as const;
+      const media = [{
+        id: 'video-1',
+        kind: 'Video',
+        source: '/tmp/video-1.mp4',
+        width: 4,
+        height: 4,
+        source_rate: {
+          numerator: 60,
+          denominator: 1,
+        },
+      }] as const;
+      const calls: unknown[] = [];
+      const source = createSharedRendererExportFrameSource({
+        canvas,
+        projectSettings: {
+          ...settings,
+          width: 4,
+          height: 4,
+        },
+        layers: createDefaultLayers(),
+        editorMode: '2d',
+        webGpuAvailable: true,
+        fallbackAdapter: false,
+        videoCutoverEnabled: true,
+        bitmapCaptureEnabled: false,
+        buildExportSession: () => ({
+          plan: {
+            mode: 'parallelCompare',
+            primary: 'pixi',
+            candidate: 'sharedRenderer',
+            snapshot,
+            media,
+          },
+          presentationContract: {
+            canvas: {
+              colorSpace: 'srgb',
+              alphaMode: 'premultiplied',
+            },
+            comparisonReadback: {
+              target: 'offscreenRenderTarget',
+              includesPageCompositing: false,
+            },
+            frameTiming: {
+              source: 'frozenSceneSnapshot',
+            },
+            deviceLost: {
+              fallback: 'pixi',
+              staleSharedFrameAllowed: false,
+            },
+          },
+          surfaceGate: {
+            ok: true,
+            canvas: {
+              width: 4,
+              height: 4,
+            },
+            snapshot,
+            media,
+          },
+        }),
+        prepareNativeRenderSources: (async () => {
+          calls.push(['prepareNativeRenderSources']);
+          return {
+            ok: true,
+            activeJobs: [decodeJob('native-direct-video')],
+            sources: [{
+              mediaId: 'video-1',
+              slotCount: 2,
+              frame: decodedFrame,
+              releaseAfterNativeRenderComplete: async () => {
+                calls.push(['releaseAfterNativeRenderComplete']);
+              },
+              releaseAfterNativeRenderAbort: async () => {
+                calls.push(['releaseAfterNativeRenderAbort']);
+              },
+            }],
+          };
+        }) satisfies SharedRendererExportNativeRenderSourcesPreparer,
+        renderNativeSharedFrame: (async (payload) => {
+          calls.push(['renderNativeSharedFrame', payload]);
+          throw new Error('native shared-frame render must not run when direct encode is available.');
+        }) satisfies SharedRendererExportNativeSharedFrameRenderer,
+        startViewportPresenter: async () => {
+          calls.push(['startViewportPresenter']);
+          throw new Error('WebGPU presenter must not start when native direct encode is available.');
+        },
+      } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
+        bitmapCaptureEnabled: false;
+        prepareNativeRenderSources: unknown;
+        renderNativeSharedFrame: unknown;
+      });
+
+      const result = await source.renderEncodeFrame?.({
+        frameIndex: 7,
+        timestampUs: 116_667,
+        time: 7 / 60,
+        width: 4,
+        height: 4,
+        objects: [image()],
+        encodeSessionId: 'native-session',
+      });
+
+      expect(result).toMatchObject({
+        timestamp: 116_667,
+        nativeEncodeFramePayload: {
+          sessionId: 'native-session',
+          renderId: 'native-session-frame-7',
+          frameIndex: 7,
+          timestampUs: 116_667,
+          width: 4,
+          height: 4,
+          snapshot,
+          media,
+          sources: [{
+            mediaId: 'video-1',
+            slotCount: 2,
+            frame: decodedFrame,
+          }],
+        },
+      });
+      expect(result && 'releaseNativeEncodeSourcesAfterWrite' in result).toBe(true);
+      expect(calls).toEqual([
+        ['prepareNativeRenderSources'],
+      ]);
+      expect(canvas.dataset).toMatchObject({
+        uxfdRustExportFrameSourceFrameStatus: 'ready',
+        uxfdRustExportFrameSourceFrameIndex: '7',
+        uxfdRustExportFrameSourceFramePath: 'nativeRenderDirectEncode',
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('releases decoded native render sources as aborted when Rust native render fails', async () => {

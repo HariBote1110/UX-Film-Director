@@ -12,6 +12,7 @@ export interface RustVideoEncodeBackendBridgeResult {
 
 const START_ENCODE_TIMEOUT_MS = 120_000;
 const WRITE_FRAME_TIMEOUT_MS = 20_000;
+const WRITE_NATIVE_FRAME_TIMEOUT_MS = 20_000;
 const FINISH_ENCODE_TIMEOUT_MS = 60_000;
 const ABORT_ENCODE_TIMEOUT_MS = 10_000;
 
@@ -46,6 +47,12 @@ export const writeRustVideoEncodeFrameViaBackend = (
   callRustBackend: RustBackendCaller
 ): Promise<RustVideoEncodeBackendBridgeResult> =>
   callRustVideoEncodeRpc('encode.writeFrame', payload, callRustBackend, WRITE_FRAME_TIMEOUT_MS);
+
+export const writeRustVideoEncodeNativeFrameViaBackend = (
+  payload: unknown,
+  callRustBackend: RustBackendCaller
+): Promise<RustVideoEncodeBackendBridgeResult> =>
+  callRustVideoEncodeRpc('encode.writeNativeFrame', payload, callRustBackend, WRITE_NATIVE_FRAME_TIMEOUT_MS);
 
 export const finishRustVideoEncodeViaBackend = (
   payload: unknown,

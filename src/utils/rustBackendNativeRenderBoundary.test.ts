@@ -13,6 +13,9 @@ const viteEnvSource = () =>
 const rustBackendSource = () =>
   readFileSync(new URL('../../rust-backend/src/main.rs', import.meta.url), 'utf8');
 
+const rustEncodeBackendBridgeSource = () =>
+  readFileSync(new URL('../../electron/rustVideoEncodeBackendBridge.ts', import.meta.url), 'utf8');
+
 describe('Rust backend native render bridge boundary', () => {
   it('exposes render.nativeSharedFrame through Electron and renderer types', () => {
     expect(mainSource()).toContain("'rust-backend-render-native-shared-frame'");
@@ -44,11 +47,12 @@ describe('Rust backend native render bridge boundary', () => {
     const preload = preloadSource();
     const viteEnv = viteEnvSource();
     const backend = rustBackendSource();
+    const encodeBridge = rustEncodeBackendBridgeSource();
 
-    expect(main).toContain("'rust-backend-encode-write-native-frame'");
-    expect(main).toContain("callRustBackend('encode.writeNativeFrame'");
+    expect(main).toContain('rustVideoEncodeIpcChannels.writeNativeFrame');
+    expect(encodeBridge).toContain("callRustVideoEncodeRpc('encode.writeNativeFrame'");
     expect(preload).toContain('writeNativeEncodeFrame(payload: unknown)');
-    expect(preload).toContain("'rust-backend-encode-write-native-frame'");
+    expect(preload).toContain('rustVideoEncodeIpcChannels.writeNativeFrame');
     expect(viteEnv).toContain('writeNativeEncodeFrame: (payload:');
     expect(backend).toContain('"encode.writeNativeFrame"');
     expect(backend).toContain('render_frame_stages(');

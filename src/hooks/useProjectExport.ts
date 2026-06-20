@@ -23,6 +23,7 @@ import { updateExportProgressPhase } from '../utils/exportProgressDiagnostics';
 import { logLastExportDiagnostics } from '../utils/exportDiagnosticsLog';
 import type {
   RustBackendVideoEncodeFrame,
+  RustBackendVideoEncodeNativeFramePayloadFrame,
   RustBackendVideoEncodeSharedFramePayloadFrame,
 } from '../utils/rustBackendVideoEncodeExport';
 
@@ -243,14 +244,14 @@ export const useProjectExport = (
 
         }
 
-        async function* renderRustEncodeFrames(): AsyncGenerator<RustBackendVideoEncodeSharedFramePayloadFrame> {
+        async function* renderRustEncodeFrames(): AsyncGenerator<RustBackendVideoEncodeSharedFramePayloadFrame | RustBackendVideoEncodeNativeFramePayloadFrame> {
           for await (const frame of renderFrames(true)) {
-            if ('sharedFramePayload' in frame) {
+            if ('sharedFramePayload' in frame || 'nativeEncodeFramePayload' in frame) {
               yield frame;
               continue;
             }
             frame.bitmap.close();
-            throw new Error('Rust backend encoder requires shared-frame payloads from the export frame source.');
+            throw new Error('Rust backend encoder requires shared-frame or native encode payloads from the export frame source.');
           }
         }
 

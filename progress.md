@@ -7254,3 +7254,25 @@
 ### 残課題・次のステップ
 - 5秒尺では30fpsを超えたが、短尺では初期化・Electron側待ちの比率が残る。次はRust renderer出力をshared memoryへ書いてからencode側で再読込する往復を削り、Rust内direct encode pathへ寄せる。
 - decode frame source textureをframeごとに作り直している可能性が残るため、動画only exportではsource texture/cache再利用を計測してから進める。
+
+## 2026-06-20 — direct native encode RPCを実装し、性能低下のため実験フラグへ隔離
+
+### 実施内容
+- Red: Rust backendに `encode.writeNativeFrame` が存在し、native render output shared memory descriptorを返さずにMP4へ書ける契約を追加した。
+- Red: Electron/renderer bridgeに `writeNativeEncodeFrame` が露出し、export helperが `nativeEncodeFramePayload` を受けた時に `encode.writeFrame` ではなくdirect RPCへ書く契約を追加した。
+- Green: Rust backendに `EncodeWriteNativeFrameParams` と `handle_encode_write_native_frame` を追加し、`NativeWgpuRenderer::render_frame_stages` のRGBA8結果をffmpeg stdinへ直接書けるようにした。
+- Green: native render source収集を `collect_native_render_sources` へ共通化し、既存 `render.nativeSharedFrame` と `encode.writeNativeFrame` で共有した。
+- Green: Electron main/preload/renderer型へ `rust-backend-encode-write-native-frame` / `writeNativeEncodeFrame` を追加した。
+- 実測でdirect pathが遅くなることを確認したため、通常exportでは使わず、`VITE_UXFD_NATIVE_DIRECT_ENCODE=1` の時だけ有効にした。
+- 版を `0.1.1-Beta-226a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/sharedRendererExportFrameSource.test.ts src/utils/rustBackendVideoEncodeExport.test.ts src/utils/rustBackendNativeRenderBoundary.test.ts src/utils/rustVideoEncodeIpcChannels.test.ts src/utils/rustVideoEncodeBackendBridge.test.ts src/utils/rustBackendVideoEncodeControl.test.ts` は75件成功。
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane native_render -- --nocapture` は15件成功。
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功。
+- 通常E2E: `/Volumes/ExtendSSD-W/GX020052.MP4` 5秒尺は300 frames / 8871ms / 約33.82fpsで成功。
+- direct opt-in E2E: `VITE_UXFD_NATIVE_DIRECT_ENCODE=1` 2秒尺は120 frames / 8863ms / 約13.54fpsで成功したが、既存経路より明確に遅い。
+
+### 残課題・次のステップ
+- 単純なdirect RPC結合は、shared memory往復を消す代わりにrender/writeの先読み重なりを失って遅くなる。次はRust backend内でrender queueとencode queueを分け、direct pathでも2〜3frameのpipelineを維持する設計へ進む。
+- 通常exportは30fps級を維持するため、当面はshared native render output経路をデフォルトにする。

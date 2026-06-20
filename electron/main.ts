@@ -12,6 +12,7 @@ import {
   finishRustVideoEncodeViaBackend,
   startRustVideoEncodeViaBackend,
   writeRustVideoEncodeFrameViaBackend,
+  writeRustVideoEncodeNativeFrameViaBackend,
 } from './rustVideoEncodeBackendBridge';
 import { rustVideoEncodeIpcChannels } from './rustVideoEncodeIpc';
 
@@ -806,6 +807,9 @@ app.whenReady().then(() => {
   );
   ipcMain.handle(rustVideoEncodeIpcChannels.writeFrame, async (_event, payload: unknown) =>
     writeRustVideoEncodeFrameViaBackend(payload, callRustBackend)
+  );
+  ipcMain.handle(rustVideoEncodeIpcChannels.writeNativeFrame, async (_event, payload: unknown) =>
+    writeRustVideoEncodeNativeFrameViaBackend(payload, callRustBackend)
   );
   ipcMain.handle(rustVideoEncodeIpcChannels.finish, async (_event, payload: unknown) =>
     finishRustVideoEncodeViaBackend(payload, callRustBackend)

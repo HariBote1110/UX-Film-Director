@@ -4,6 +4,7 @@ import {
   abortRustVideoEncodeViaBackend,
   startRustVideoEncodeViaBackend,
   writeRustVideoEncodeFrameViaBackend,
+  writeRustVideoEncodeNativeFrameViaBackend,
   type RustBackendCaller,
 } from '../../electron/rustVideoEncodeBackendBridge';
 
@@ -50,6 +51,26 @@ const sharedFramePayload = {
 
 const finishPayload = {
   sessionId: 'encode-1',
+} as const;
+
+const nativeFramePayload = {
+  sessionId: 'encode-1',
+  renderId: 'encode-1-frame-42',
+  frameIndex: 42,
+  timestampUs: 700_000,
+  width: 1920,
+  height: 1080,
+  snapshot: {
+    frame_index: 42,
+    colour: {
+      profile: 'rec709-sdr',
+      working_space: 'linear-light',
+      alpha: 'premultiplied',
+    },
+    clips: [],
+  },
+  media: [],
+  sources: [],
 } as const;
 
 const abortPayload = {
@@ -102,6 +123,30 @@ describe('rustVideoEncodeBackendBridge', () => {
     const serialisedCalls = JSON.stringify(backend.calls);
     expect(serialisedCalls).not.toContain('write-frame');
     expect(serialisedCalls).not.toContain('export.write_frame');
+    expect(serialisedCalls).not.toContain('frameBase64');
+    expect(serialisedCalls).not.toContain('rgbaBytes');
+  });
+
+  it('routes native render frame writes directly to encode.writeNativeFrame', async () => {
+    const backend = createBackendCaller({ written: true, writtenNativeFrame: true, frameIndex: 42 });
+
+    const response = await writeRustVideoEncodeNativeFrameViaBackend(
+      nativeFramePayload,
+      backend.callRustBackend
+    );
+
+    expect(response).toEqual({
+      success: true,
+      result: { written: true, writtenNativeFrame: true, frameIndex: 42 },
+    });
+    expect(backend.calls).toEqual([{
+      method: 'encode.writeNativeFrame',
+      params: nativeFramePayload,
+      timeoutMs: 20_000,
+    }]);
+    const serialisedCalls = JSON.stringify(backend.calls);
+    expect(serialisedCalls).not.toContain('render.nativeSharedFrame');
+    expect(serialisedCalls).not.toContain('memoryId');
     expect(serialisedCalls).not.toContain('frameBase64');
     expect(serialisedCalls).not.toContain('rgbaBytes');
   });

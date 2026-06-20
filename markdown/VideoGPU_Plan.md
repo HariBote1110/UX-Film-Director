@@ -17,6 +17,12 @@
 - decode frame upload/source textureの再利用を進め、動画only exportでframeごとのsource texture再作成を削る。
 - ffmpeg rawvideo stdin writeとnative renderの並列度を2〜3frame程度まで広げ、メモリ上限を見ながら30fps超を安定化する。
 
+### direct native encode検証メモ
+
+`encode.writeNativeFrame` は実装済みで、`VITE_UXFD_NATIVE_DIRECT_ENCODE=1` の時だけ使用する。
+ただし2026-06-20時点の実測では、direct pathはRust backendの1 RPC内にdecode source read / native render / ffmpeg writeを閉じ込めるため、既存の1フレーム先読みで作れていたrender/writeの重なりが消え、2秒尺で約13.54fpsまで落ちた。
+そのため通常のexportは従来のshared native render output経路を維持する。次に往復削減へ進む場合は、単純なRPC結合ではなく、Rust側にrender queue / encode queueを分けるか、direct outputを複数frame pipeline化して重なりを保つ。
+
 > **前回の失敗（WebCodecsAPI-transfer ブランチ）の教訓を踏まえた実装計画。**
 > 実装は時間のある時に行う。この文書が設計の Single Source of Truth。
 

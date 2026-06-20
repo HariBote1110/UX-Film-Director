@@ -154,11 +154,15 @@ contextBridge.exposeInMainWorld('rustBackend', {
 })
 
 contextBridge.exposeInMainWorld('rustVideoEncoder', {
+  nativeDirectEncodeEnabled: process.env.VITE_UXFD_NATIVE_DIRECT_ENCODE === '1',
   startVideoEncode(payload: unknown) {
     return ipcRenderer.invoke(rustVideoEncodeIpcChannels.start, payload)
   },
   writeVideoEncodeFrame(payload: unknown) {
     return ipcRenderer.invoke(rustVideoEncodeIpcChannels.writeFrame, payload)
+  },
+  writeNativeEncodeFrame(payload: unknown) {
+    return ipcRenderer.invoke(rustVideoEncodeIpcChannels.writeNativeFrame, payload)
   },
   finishVideoEncode(payload: unknown) {
     return ipcRenderer.invoke(rustVideoEncodeIpcChannels.finish, payload)

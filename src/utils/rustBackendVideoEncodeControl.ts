@@ -3,6 +3,13 @@ import type {
   RustBackendSharedVideoFrame,
   RustBackendVideoDecodeColour,
 } from './rustBackendVideoDecodeControl';
+import type {
+  RustBackendNativeRenderSharedFrameSource,
+} from './rustBackendNativeRenderControl';
+import type {
+  RustSceneMediaReference,
+  RustSceneSnapshot,
+} from './rustSceneSnapshot';
 
 export interface RustBackendVideoEncodeStartPayload {
   sessionId: string;
@@ -21,6 +28,18 @@ export interface RustBackendVideoEncodeWriteFramePayload {
   timestampUs: number;
   slotCount: number;
   frame: RustBackendSharedVideoFrame;
+}
+
+export interface RustBackendVideoEncodeWriteNativeFramePayload {
+  sessionId: string;
+  renderId: string;
+  frameIndex: number;
+  timestampUs: number;
+  width: number;
+  height: number;
+  snapshot: RustSceneSnapshot;
+  media: RustSceneMediaReference[];
+  sources: RustBackendNativeRenderSharedFrameSource[];
 }
 
 export interface RustBackendVideoEncodeFinishPayload {
@@ -43,6 +62,9 @@ export interface RustBackendVideoEncodeBridge {
   ) => Promise<RustBackendVideoEncodeResult>;
   writeVideoEncodeFrame: (
     payload: RustBackendVideoEncodeWriteFramePayload
+  ) => Promise<RustBackendVideoEncodeResult>;
+  writeNativeEncodeFrame?: (
+    payload: RustBackendVideoEncodeWriteNativeFramePayload
   ) => Promise<RustBackendVideoEncodeResult>;
   finishVideoEncode: (
     payload: RustBackendVideoEncodeFinishPayload
@@ -70,6 +92,19 @@ export const writeRustBackendVideoEncodeFrame = (
   bridge: RustBackendVideoEncodeBridge = window.rustVideoEncoder
 ): Promise<RustBackendVideoEncodeResult> =>
   bridge.writeVideoEncodeFrame(payload);
+
+export const writeRustBackendVideoEncodeNativeFrame = (
+  payload: RustBackendVideoEncodeWriteNativeFramePayload,
+  bridge: RustBackendVideoEncodeBridge = window.rustVideoEncoder
+): Promise<RustBackendVideoEncodeResult> => {
+  if (typeof bridge.writeNativeEncodeFrame !== 'function') {
+    return Promise.resolve({
+      success: false,
+      error: 'Rust backend native video encode frame bridge is unavailable.',
+    });
+  }
+  return bridge.writeNativeEncodeFrame(payload);
+};
 
 export const finishRustBackendVideoEncode = (
   payload: RustBackendVideoEncodeFinishPayload,

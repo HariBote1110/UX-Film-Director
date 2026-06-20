@@ -1,6 +1,7 @@
 export const rustVideoEncodeIpcChannels = {
   start: 'rust-backend-encode-start',
   writeFrame: 'rust-backend-encode-write-frame',
+  writeNativeFrame: 'rust-backend-encode-write-native-frame',
   finish: 'rust-backend-encode-finish',
   abort: 'rust-backend-encode-abort',
 } as const;
