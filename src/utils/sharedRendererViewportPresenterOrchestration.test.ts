@@ -174,6 +174,7 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
       datasets: [],
       diagnosticSwatchEnabled: true,
       videoCutoverEnabled: true,
+      activeVideoDecodeJob: null,
       activeVideoDecodeJobs: [],
       requestId: 11,
       prepareVideoUploads: async () => ({
@@ -227,6 +228,7 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
       datasets: [],
       diagnosticSwatchEnabled: true,
       videoCutoverEnabled: true,
+      activeVideoDecodeJob: null,
       activeVideoDecodeJobs: [],
       requestId: 12,
       sharedRendererExternalVideoSourcesByClipId: externalSources,
@@ -237,8 +239,6 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
         activeJobs: [],
       }),
       startPresenter,
-    } as Parameters<typeof startSharedRendererViewportPresenter>[0] & {
-      sharedRendererExternalVideoSourcesByClipId: Map<string, unknown>;
     });
 
     expect(presenterInput).toMatchObject({

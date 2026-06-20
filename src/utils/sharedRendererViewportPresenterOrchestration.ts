@@ -51,6 +51,7 @@ export interface StartSharedRendererViewportPresenterInput {
   videoDecodeMaxEdge?: number;
   requestId: number;
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
+  sharedRendererExternalVideoSourcesByClipId?: ReadonlyMap<string, unknown>;
   prepareVideoUpload?: SharedRendererViewportVideoUploadPreparer;
   prepareVideoUploads?: SharedRendererViewportVideoUploadsPreparer;
   prepareNativeRenderUpload?: SharedRendererViewportNativeRenderUploadPreparer;
@@ -85,6 +86,7 @@ export const startSharedRendererViewportPresenter = async ({
   videoDecodeMaxEdge,
   requestId,
   presentedFrameSharedFrameTaker,
+  sharedRendererExternalVideoSourcesByClipId,
   prepareVideoUpload = prepareSharedRendererViewportVideoUpload,
   prepareVideoUploads = prepareSharedRendererViewportVideoUploads,
   prepareNativeRenderUpload,
@@ -190,6 +192,7 @@ export const startSharedRendererViewportPresenter = async ({
     sharedRendererNativeRenderFrameUpload,
     sharedRendererNativeRenderFailure,
     sharedRendererVideoUploadFailure,
+    sharedRendererExternalVideoSourcesByClipId,
     sharedRendererDecodedVideoFrameUpload,
     sharedRendererDecodedVideoFrameUploads,
     presentedFrameSharedFrameTaker,

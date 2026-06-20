@@ -1,3 +1,18 @@
+## 2026-06-20 — external動画sourceをviewport orchestrationへ接続
+
+### 実施内容
+- Red: viewport presenter orchestrationがexternal video source mapをpreview presenterへ渡す契約を追加した。
+- Green: `startSharedRendererViewportPresenter` に `sharedRendererExternalVideoSourcesByClipId` を追加し、start presenter入力へそのまま渡すようにした。
+- 版を `0.1.1-Beta-221a` に更新した。
+
+### 検証
+- `npm test -- sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController`
+- `npx tsc --noEmit 2>&1 | rg "src/utils/sharedRendererViewportPresenterOrchestration|src/utils/sharedRendererPreviewPresenterController"`
+
+### 結果・残課題
+- Viewport orchestration層までexternal texture fast pathのsource mapを通せるようになった。
+- 残りはViewport本体でclipごとのsource lifecycleとplayback時刻同期を実装し、実ウィンドウE2Eへ接続すること。
+
 ## 2026-06-20 — external動画sourceをpreview presenterへ接続
 
 ### 実施内容
