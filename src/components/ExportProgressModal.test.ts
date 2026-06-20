@@ -4,6 +4,7 @@ import {
   formatLastExportDiagnosticsSummary,
   formatNativeRenderOutputReleaseDiagnostic,
   formatRustFrameSourceBlockedDiagnostic,
+  getExportProgressPresentation,
 } from './ExportProgressModal';
 import type { ExportDiagnostics } from '../store/useStore';
 
@@ -200,5 +201,40 @@ describe('formatLastExportDiagnosticsSummary', () => {
     expect(formatLastExportDiagnosticsSummary(diagnostics, 'en')).toEqual([
       'Rust frame source plan: Rust frame source required: Image/PSD export requires a shared renderer Rust frame source. Shared renderer surface requires a parallelCompare plan.',
     ]);
+  });
+});
+
+describe('getExportProgressPresentation', () => {
+  it('keeps direct transcode progress indeterminate while showing target frames and elapsed time', () => {
+    expect(getExportProgressPresentation({
+      phase: 'transcoding',
+      currentFrame: 0,
+      totalFrames: 300,
+      startedAtMs: 1_000,
+    }, 'ja', 3_500)).toEqual({
+      isDeterminate: false,
+      ratio: 0,
+      percent: 0,
+      statsLines: [
+        '処理対象 300 フレーム',
+        '経過 2.5 秒',
+      ],
+    });
+  });
+
+  it('keeps rendering progress determinate with frame counters', () => {
+    expect(getExportProgressPresentation({
+      phase: 'rendering',
+      currentFrame: 150,
+      totalFrames: 300,
+    }, 'en', 3_500)).toEqual({
+      isDeterminate: true,
+      ratio: 0.5,
+      percent: 50,
+      statsLines: [
+        'Frame 150 / 300',
+        '50%',
+      ],
+    });
   });
 });

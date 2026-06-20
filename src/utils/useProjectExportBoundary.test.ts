@@ -132,6 +132,17 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     expect(code).toContain("phase: 'saving'");
   });
 
+  it('publishes direct transcode start time so the progress modal can show elapsed status', () => {
+    const code = source();
+    const transcodeBlock = code.slice(
+      code.indexOf("phase: 'transcoding'"),
+      code.indexOf('const transcodeResponse = await transcodeRustBackendVideo({')
+    );
+
+    expect(transcodeBlock).toContain('startedAtMs: Date.now()');
+    expect(transcodeBlock).toContain("stepDetail: 'Rust export: direct video transcode running'");
+  });
+
   it('logs the retained Rust export diagnostics after export cleanup', () => {
     const code = source();
 
