@@ -112,6 +112,100 @@ describe('runRustBackendVideoEncodeExport', () => {
     await runPromise;
   });
 
+  it('releases a prefetched native render output when the current encode write fails', async () => {
+    const calls: unknown[] = [];
+    let resolveWrite: (() => void) | null = null;
+    let rejectWrite: ((error: Error) => void) | null = null;
+    let resolveWriteStarted: (() => void) | null = null;
+    const writeStarted = new Promise<void>((resolve) => {
+      resolveWriteStarted = resolve;
+    });
+    const currentPayload = sharedFramePayload(0, 0, 'session-prefetch-failure');
+    const prefetchedPayload = sharedFramePayload(1, 16_667, 'session-prefetch-failure');
+    const encoderBridge: RustBackendVideoEncodeBridge = {
+      startVideoEncode: async (input) => {
+        calls.push(['startVideoEncode', input]);
+        return { success: true, result: { accepted: true } };
+      },
+      writeVideoEncodeFrame: async (input) => {
+        calls.push(['writeVideoEncodeFrame', input]);
+        resolveWriteStarted?.();
+        await new Promise<void>((resolve, reject) => {
+          resolveWrite = resolve;
+          rejectWrite = reject;
+        });
+        return { success: true, result: { written: true } };
+      },
+      finishVideoEncode: async (input) => {
+        calls.push(['finishVideoEncode', input]);
+        return {
+          success: true,
+          result: {
+            finished: true,
+            sessionId: 'session-prefetch-failure',
+            filePath: '/tmp/out.mp4',
+            frameCount: 2,
+          },
+        };
+      },
+      abortVideoEncode: async (input) => {
+        calls.push(['abortVideoEncode', input]);
+        return { success: true, result: { aborted: true } };
+      },
+    };
+    const nativeRenderBridge: RustBackendNativeRenderSharedFrameBridge = {
+      renderNativeSharedFrame: async () => {
+        throw new Error('render must not run during encode cleanup.');
+      },
+      releaseNativeSharedFrame: async (input) => {
+        calls.push(['releaseNativeSharedFrame', input]);
+        return { success: true, result: { released: true, memoryId: input.memoryId } };
+      },
+    };
+
+    async function* nativeFrames() {
+      yield {
+        timestamp: 0,
+        sharedFramePayload: currentPayload,
+        releaseAfterEncodeFailure: {
+          kind: 'nativeRenderOutput' as const,
+          memoryId: currentPayload.frame.descriptor.memoryId,
+        },
+      };
+      yield {
+        timestamp: 16_667,
+        sharedFramePayload: prefetchedPayload,
+        releaseAfterEncodeFailure: {
+          kind: 'nativeRenderOutput' as const,
+          memoryId: prefetchedPayload.frame.descriptor.memoryId,
+        },
+      };
+    }
+
+    const runPromise = runRustBackendVideoEncodeExport({
+      sessionId: 'session-prefetch-failure',
+      filePath: '/tmp/direct-shared.mp4',
+      width: 4,
+      height: 2,
+      fps: 60,
+      frames: nativeFrames(),
+      encoderBridge,
+      nativeRenderBridge,
+    });
+
+    await writeStarted;
+    rejectWrite?.(new Error('write failed after prefetch'));
+
+    await expect(runPromise).rejects.toThrow('write failed after prefetch');
+    expect(resolveWrite).not.toBeNull();
+    expect(calls).toContainEqual(['releaseNativeSharedFrame', {
+      memoryId: currentPayload.frame.descriptor.memoryId,
+    }]);
+    expect(calls).toContainEqual(['releaseNativeSharedFrame', {
+      memoryId: prefetchedPayload.frame.descriptor.memoryId,
+    }]);
+  });
+
   it('rejects rendered bitmap frames instead of copying them through a writable ring', async () => {
     const calls: unknown[] = [];
     const encoderBridge: RustBackendVideoEncodeBridge = {
