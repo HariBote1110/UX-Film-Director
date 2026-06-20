@@ -3,11 +3,12 @@ use std::time::Duration;
 
 use uxfd_golden_harness::{compare_rgba_frames, ComparisonThresholds, RgbaFrame};
 use uxfd_native_wgpu_renderer::{
-    measure_native_wgpu_frame_stages, NativeWgpuFrameStageTimings, NativeWgpuRenderError,
-    NativeWgpuRenderer,
+    measure_native_wgpu_frame_stages, native_wgpu_readback_frame_format,
+    NativeWgpuFrameStageTimings, NativeWgpuRenderError, NativeWgpuRenderer,
 };
 use uxfd_reference_renderer::render_reference_frame;
 use uxfd_rust_core::{ColourPipeline, EvaluatedClip, SceneSnapshot, Transform};
+use uxfd_sidecar_protocol::FrameFormat;
 
 #[test]
 fn stage_timings_separate_upload_render_and_readback_encode_legs() {
@@ -109,6 +110,11 @@ fn persistent_renderer_keeps_gpu_setup_out_of_per_frame_timings() {
     assert_duration_recorded(second.timings.source_upload);
     assert_duration_recorded(second.timings.render);
     assert_duration_recorded(second.timings.readback_encode);
+}
+
+#[test]
+fn native_wgpu_readback_uses_rgba8_export_frame_format() {
+    assert_eq!(native_wgpu_readback_frame_format(), FrameFormat::Rgba8Srgb);
 }
 
 fn assert_stage_timings_are_populated(timings: NativeWgpuFrameStageTimings) {
