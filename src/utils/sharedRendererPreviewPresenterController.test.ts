@@ -1344,12 +1344,17 @@ describe('startSharedRendererPreviewPresenter', () => {
     const nextVideoSession: SharedRendererPreviewSession = {
       ...videoSession,
       plan: {
-        ...videoSession.plan,
+        mode: 'parallelCompare',
+        primary: 'pixi',
+        candidate: 'sharedRenderer',
         snapshot: nextVideoSnapshot,
+        media: videoMedia,
       },
       surfaceGate: {
-        ...videoSession.surfaceGate,
+        ok: true,
+        canvas: { width: 1920, height: 1080 },
         snapshot: nextVideoSnapshot,
+        media: videoMedia,
       },
     };
 
@@ -1406,7 +1411,8 @@ describe('startSharedRendererPreviewPresenter', () => {
     expect(control).toMatchObject({ ok: true });
     if (!control.ok) throw new Error('expected ready control');
 
-    const presentation = control.presentExternalVideoFrameScene({
+    expect(control.presentExternalVideoFrameScene).toEqual(expect.any(Function));
+    const presentation = control.presentExternalVideoFrameScene?.({
       session: nextVideoSession,
     });
 

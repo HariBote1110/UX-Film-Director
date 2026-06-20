@@ -1,6 +1,15 @@
 import type { SharedRendererPreviewSession } from './sharedRendererPreviewSession';
 
-export const buildSharedRendererPresenterSessionKey = (session: SharedRendererPreviewSession): string => {
+export interface SharedRendererPresenterSessionKeyOptions {
+  includePlaybackFrame?: boolean;
+}
+
+export const buildSharedRendererPresenterSessionKey = (
+  session: SharedRendererPreviewSession,
+  {
+    includePlaybackFrame = true,
+  }: SharedRendererPresenterSessionKeyOptions = {},
+): string => {
   if (!session.surfaceGate.ok) {
     return `blocked:${session.surfaceGate.reason}`;
   }
@@ -9,11 +18,15 @@ export const buildSharedRendererPresenterSessionKey = (session: SharedRendererPr
     status: 'ok',
     canvas: session.surfaceGate.canvas,
     presentation: session.presentationContract.canvas,
-    frameIndex: session.surfaceGate.snapshot.frame_index,
+    frameIndex: includePlaybackFrame
+      ? session.surfaceGate.snapshot.frame_index
+      : undefined,
     clips: session.surfaceGate.snapshot.clips.map((clip) => ({
       clipId: clip.clip_id,
       mediaId: clip.media_id,
-      sourceFrame: clip.source_frame,
+      sourceFrame: includePlaybackFrame
+        ? clip.source_frame
+        : undefined,
       zIndex: clip.z_index,
       transform: clip.transform,
       opacity: clip.opacity,

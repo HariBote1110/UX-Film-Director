@@ -14,6 +14,7 @@ import {
   type SharedRendererPresentedFrameSharedFrameInput,
   type SharedRendererPresentedFrameSharedFrameTaker,
   type SharedRendererSolidSrgbSwatch,
+  type SharedRendererVideoFrameScenePresentationResult,
   type SharedRendererVideoFrameTextureUploadInput,
   type SharedRendererWebGpuLike,
 } from './sharedRendererWebGpuPresenter';
@@ -60,6 +61,11 @@ export const getSharedRendererSolidSwatchCssColour = (): string => {
 
 type PresenterDataset = Record<string, string | undefined>;
 
+export interface SharedRendererExternalVideoFrameRepaintInput {
+  session: SharedRendererPreviewSession;
+  sourcesByClipId?: ReadonlyMap<string, unknown>;
+}
+
 export type SharedRendererPreviewPresenterControl =
   | {
       ok: true;
@@ -71,6 +77,9 @@ export type SharedRendererPreviewPresenterControl =
       takePresentedFrameSharedFrame?: (
         input: SharedRendererPresentedFrameSharedFrameInput
       ) => Promise<RustBackendVideoEncodeWriteFramePayload>;
+      presentExternalVideoFrameScene?: (
+        input: SharedRendererExternalVideoFrameRepaintInput
+      ) => SharedRendererVideoFrameScenePresentationResult;
       dispose: () => void;
     }
   | {
@@ -684,6 +693,51 @@ export const startSharedRendererPreviewPresenter = async ({
           ? 'rust-decoded-rgba'
           : undefined
     : undefined;
+  const presentExternalVideoFrameScene = shouldPresentExternalVideoFrame
+    ? ({
+      session: repaintSession,
+      sourcesByClipId,
+    }: SharedRendererExternalVideoFrameRepaintInput): SharedRendererVideoFrameScenePresentationResult => {
+      if (!repaintSession.surfaceGate.ok) {
+        return {
+          ok: false,
+          reason: 'unsupportedVideoScene',
+          detail: `Shared renderer surface gate is blocked: ${repaintSession.surfaceGate.reason}`,
+        };
+      }
+      const presentation = presenter.presentExternalVideoFrameScene({
+        snapshot: repaintSession.surfaceGate.snapshot,
+        media: repaintSession.surfaceGate.media,
+        sourcesByClipId: sourcesByClipId ?? sharedRendererExternalVideoSourcesByClipId,
+        videoObjectIds: new Set(videoOwnership.videoObjectIds),
+      });
+      if (!presentation.ok) {
+        writeDiagnostics({
+          status: requireSharedRendererOutput ? 'blocked' : 'fallback',
+          reason: presentation.reason,
+        });
+        return presentation;
+      }
+
+      writeDiagnostics({
+        status: 'ready',
+        format: presenter.format,
+        swatch: 'pixi-passthrough',
+        videoGeometrySource,
+        videoDecodeRequestSource,
+        videoDecodeRequestCount: collectObjectIdsByMediaKind(repaintSession, 'Video').length,
+        videoPresentedSourceFrame: resolveFirstPresentedVideoSourceFrame(repaintSession),
+        videoPresentedFrameIndex: repaintSession.surfaceGate.snapshot.frame_index,
+        videoPresentationSource: 'external-video-source',
+        videoFrameUploadReady: true,
+        videoOwner: videoOwnership.owner,
+        videoCutoverReason: videoOwnership.reason,
+        sharedVideoObjectCount: videoOwnership.videoObjectIds.length,
+      });
+
+      return presentation;
+    }
+    : undefined;
 
   writeDiagnostics({
     status: 'ready',
@@ -745,6 +799,7 @@ export const startSharedRendererPreviewPresenter = async ({
     imageOwnership,
     psdOwnership,
     takePresentedFrameSharedFrame: presenter.takePresentedFrameSharedFrame,
+    presentExternalVideoFrameScene,
     dispose: presenter.dispose,
   };
 };
@@ -812,6 +867,17 @@ const collectObjectIdsByMediaKind = (
     .filter((clip) => mediaKindById.get(clip.media_id) === kind)
     .sort((left, right) => left.z_index - right.z_index)
     .map((clip) => clip.clip_id);
+};
+
+const resolveFirstPresentedVideoSourceFrame = (
+  session: SharedRendererPreviewSession,
+): number | undefined => {
+  if (!session.surfaceGate.ok) return undefined;
+
+  const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
+  return session.surfaceGate.snapshot.clips
+    .filter((clip) => mediaKindById.get(clip.media_id) === 'Video')
+    .sort((left, right) => left.z_index - right.z_index)[0]?.source_frame;
 };
 
 const resolveSingleVideoUploadScope = (
