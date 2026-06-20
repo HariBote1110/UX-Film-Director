@@ -1329,6 +1329,97 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
+  it('re-presents external video sources on an existing presenter for playback ticks', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const events: string[] = [];
+    const externalVideoSource = { tagName: 'VIDEO' };
+    const nextVideoSnapshot: RustSceneSnapshot = {
+      ...videoSnapshot,
+      frame_index: 24,
+      clips: videoSnapshot.clips.map((clip) => ({
+        ...clip,
+        source_frame: 120,
+      })),
+    };
+    const nextVideoSession: SharedRendererPreviewSession = {
+      ...videoSession,
+      plan: {
+        ...videoSession.plan,
+        snapshot: nextVideoSnapshot,
+      },
+      surfaceGate: {
+        ...videoSession.surfaceGate,
+        snapshot: nextVideoSnapshot,
+      },
+    };
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererExternalVideoSourcesByClipId: new Map([
+        ['video-1', externalVideoSource],
+      ]),
+      rustVideoFrameDecodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video.mp4',
+          sourceFrame: 90,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 12,
+          width: 1280,
+          height: 720,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onImportExternalTexture: (descriptor) => {
+              events.push(`external:${(descriptor as { source: unknown }).source === externalVideoSource}`);
+              return 'external-video-texture';
+            },
+            onWriteTexture: () => {
+              events.push('writeTexture');
+            },
+            createRenderPipeline: (descriptor?: { label?: string }) => ({
+              toString: () => descriptor?.label ?? 'solid-colour-pipeline',
+              getBindGroupLayout: (index: number) => `bind-group-layout-${index}`,
+            }),
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({ ok: true });
+    if (!control.ok) throw new Error('expected ready control');
+
+    const presentation = control.presentExternalVideoFrameScene({
+      session: nextVideoSession,
+    });
+
+    expect(presentation).toMatchObject({ ok: true });
+    expect(events.filter((event) => event === 'external:true')).toHaveLength(2);
+    expect(events).not.toContain('writeTexture');
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterVideoPresentationSource: 'external-video-source',
+      uxfdSharedRendererPresenterVideoPresentedSourceFrame: '120',
+      uxfdSharedRendererPresenterVideoPresentedFrameIndex: '24',
+    });
+  });
+
   it('does not claim multi-video ownership from a legacy single decoded upload without clip scope', async () => {
     const dataset: Record<string, string | undefined> = {};
     const events: string[] = [];

@@ -85,4 +85,99 @@ describe('buildSharedRendererPresenterSessionKey', () => {
 
     expect(buildSharedRendererPresenterSessionKey(session)).toBe('blocked:planNotComparable');
   });
+
+  it('can keep playback-only frame changes out of the presenter lifecycle key', () => {
+    const firstSnapshot: RustSceneSnapshot = {
+      ...emptySnapshot,
+      frame_index: 10,
+      clips: [
+        {
+          clip_id: 'video-1',
+          track_id: 'layer-0',
+          media_id: 'video-1',
+          source_frame: 100,
+          z_index: 0,
+          transform: {
+            translation_x: 300,
+            translation_y: 120,
+            scale_x: 1,
+            scale_y: 1,
+            rotation_degrees: 0,
+            sampling: 'bilinear',
+          },
+          opacity: 1,
+          effects: [],
+        },
+      ],
+    };
+    const secondSnapshot: RustSceneSnapshot = {
+      ...firstSnapshot,
+      frame_index: 11,
+      clips: firstSnapshot.clips.map((clip) => ({
+        ...clip,
+        source_frame: 101,
+      })),
+    };
+
+    expect(buildSharedRendererPresenterSessionKey(baseSession(firstSnapshot))).not.toBe(
+      buildSharedRendererPresenterSessionKey(baseSession(secondSnapshot))
+    );
+    expect(
+      buildSharedRendererPresenterSessionKey(baseSession(firstSnapshot), {
+        includePlaybackFrame: false,
+      })
+    ).toBe(
+      buildSharedRendererPresenterSessionKey(baseSession(secondSnapshot), {
+        includePlaybackFrame: false,
+      })
+    );
+  });
+
+  it('still changes the reusable playback key when transform or media structure changes', () => {
+    const firstSnapshot: RustSceneSnapshot = {
+      ...emptySnapshot,
+      frame_index: 10,
+      clips: [
+        {
+          clip_id: 'video-1',
+          track_id: 'layer-0',
+          media_id: 'video-1',
+          source_frame: 100,
+          z_index: 0,
+          transform: {
+            translation_x: 300,
+            translation_y: 120,
+            scale_x: 1,
+            scale_y: 1,
+            rotation_degrees: 0,
+            sampling: 'bilinear',
+          },
+          opacity: 1,
+          effects: [],
+        },
+      ],
+    };
+    const movedSnapshot: RustSceneSnapshot = {
+      ...firstSnapshot,
+      frame_index: 11,
+      clips: firstSnapshot.clips.map((clip) => ({
+        ...clip,
+        source_frame: 101,
+        transform: {
+          ...clip.transform,
+          translation_x: 301,
+        },
+      })),
+    };
+
+    expect(
+      buildSharedRendererPresenterSessionKey(baseSession(firstSnapshot), {
+        includePlaybackFrame: false,
+      })
+    ).not.toBe(
+      buildSharedRendererPresenterSessionKey(baseSession(movedSnapshot), {
+        includePlaybackFrame: false,
+      })
+    );
+  });
 });
