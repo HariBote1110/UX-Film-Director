@@ -7503,3 +7503,18 @@
 
 ### 残課題・次のステップ
 - 品質優先で原本2048px decodeへ戻したため、直前のプロキシ高速経路より速度は落ちる。次は「原本高品質decode + 単純scale合成fast path」を追加して、画質と速度を両立する。
+# 2026-06-20 — Canvas media scaleをRust scene snapshotへ移管
+
+## 実施内容
+- UIはTypeScript/Reactのまま維持し、Canvas描画結果に関わる画像・PSD・SolidColour矩形のscale transformをRust scene snapshotへ渡す境界に変更した。
+- Red: `rustSceneSnapshot` に、画像・PSD・SolidColour矩形の正の有限 `scaleX/scaleY` が `scale_x/scale_y` としてRust境界へ残る契約を追加した。
+- Green: 非動画のscale 1固定gateを撤廃し、正の有限scaleと整数translationをshared renderer対応範囲として扱うようにした。
+- Green: preview/export surfaceの旧Pixi fallback期待を更新し、スケール付き画像もshared renderer comparison/export sessionへ進む契約にした。
+- 版を `0.1.1-Beta-233a` に更新した。
+
+## 検証
+- `npm test -- --run src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererPreviewBridge.test.ts src/utils/sharedRendererPreviewSurface.test.ts src/utils/sharedRendererExportSession.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts` は109件成功。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test native_reference_parity` は10件成功。
+
+## 残課題・次のステップ
+- まだサブピクセルtranslation、複雑なmask/group/filterはfail-loudのまま。次はCanvas系の回転・画像/PSD混在・音声付きexportをE2Eで確認し、Rust/native render側の実フレーム品質と速度を測る。

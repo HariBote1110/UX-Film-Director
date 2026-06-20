@@ -68,7 +68,7 @@ describe('buildSharedRendererPreviewPlan', () => {
     expect(plan.media[0].source).toBe('/tmp/image.png');
   });
 
-  it('falls back to Pixi when the scene uses unsupported image scaling', () => {
+  it('keeps scaled image transforms in the shared renderer comparison plan', () => {
     const plan = buildSharedRendererPreviewPlan({
       enabled: true,
       projectSettings: settings,
@@ -77,9 +77,8 @@ describe('buildSharedRendererPreviewPlan', () => {
       time: 1,
     });
 
-    expect(plan.mode).toBe('pixiFallback');
-    if (plan.mode !== 'pixiFallback') throw new Error('expected Pixi fallback plan');
-    expect(plan.reason).toBe('unsupportedScene');
-    expect(plan.issues.map((issue) => issue.code)).toEqual(['unsupportedTransform']);
+    expect(plan.mode).toBe('parallelCompare');
+    if (plan.mode !== 'parallelCompare') throw new Error('expected shared renderer comparison plan');
+    expect(plan.snapshot.clips[0].transform.scale_x).toBe(2);
   });
 });

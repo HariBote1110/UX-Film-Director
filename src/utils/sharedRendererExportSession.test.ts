@@ -125,7 +125,7 @@ describe('buildSharedRendererExportSession', () => {
     });
   });
 
-  it('still blocks unsupported export scenes instead of bypassing the Rust boundary gate', () => {
+  it('keeps scaled image export scenes inside the Rust boundary gate', () => {
     const session = buildSharedRendererExportSession({
       enabled: true,
       projectSettings: settings,
@@ -137,12 +137,10 @@ describe('buildSharedRendererExportSession', () => {
       fallbackAdapter: false,
     });
 
-    expect(session.plan.mode).toBe('pixiFallback');
-    expect(session.surfaceGate).toEqual({
-      ok: false,
-      reason: 'planNotComparable',
-      detail: 'Shared renderer surface requires a parallelCompare plan.',
-    });
+    expect(session.plan.mode).toBe('parallelCompare');
+    expect(session.surfaceGate.ok).toBe(true);
+    if (!session.surfaceGate.ok) throw new Error('expected export surface gate to pass');
+    expect(session.surfaceGate.snapshot.clips[0].transform.scale_x).toBe(2);
   });
 
   it('exposes a native render envelope for real video and PSD timeline objects', () => {

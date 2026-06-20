@@ -313,11 +313,9 @@ const hasUnsupportedSharedRendererTransform = (
   position: { x: number; y: number }
 ): boolean => {
   if (!Number.isFinite(object.scaleX) || !Number.isFinite(object.scaleY)) return true;
+  if (object.scaleX <= 0 || object.scaleY <= 0) return true;
   if (!isInteger(position.x) || !isInteger(position.y)) return true;
-  if (object.type === 'video') {
-    return object.scaleX <= 0 || object.scaleY <= 0;
-  }
-  return object.scaleX !== 1 || object.scaleY !== 1;
+  return false;
 };
 
 const mediaReferenceForObject = (

@@ -1,5 +1,13 @@
 # 進捗ログ
 
+## 2026-06-20
+- UIはTypeScript/Reactのまま維持しつつ、Canvas描画結果に関わる画像・PSD・SolidColour矩形のscale transformをRust scene snapshotへ渡すようにした。
+- Red: `rustSceneSnapshot` に、画像・PSD・SolidColour矩形の正の有限 `scaleX/scaleY` が `scale_x/scale_y` としてRust境界へ残る契約を追加した。
+- Green: `hasUnsupportedSharedRendererTransform` の非動画scale 1固定を撤廃し、正の有限scaleと整数translationを共有rendererの対応範囲として扱うようにした。
+- Green: preview/export surfaceの旧Pixi fallback期待を更新し、スケール付き画像もshared renderer comparison/export sessionへ進む契約にした。
+- 検証: `npm test -- --run src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererPreviewBridge.test.ts src/utils/sharedRendererPreviewSurface.test.ts src/utils/sharedRendererExportSession.test.ts src/utils/sharedRendererExportFrameSource.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts` は109件成功。`cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test native_reference_parity` は10件成功。
+- 版: `0.1.1-Beta-233a`。
+
 ## 2026-06-19
 - Phase5のexport診断表示として、Rust frame source plan failureの `rustFrameSourceRequired` に読みやすい表示ラベルを追加した。
 - Red: `ExportProgressModal` のテストへ、raw reasonではなく `Rust frame source必須` / `Rust frame source required` が表示される契約を追加した。

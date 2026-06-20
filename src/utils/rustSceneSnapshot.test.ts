@@ -675,12 +675,8 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
-  it('fails loud for transform sampling cases outside the proven migration envelope', () => {
+  it('fails loud for sub-pixel transform sampling outside the proven migration envelope', () => {
     const layers = createDefaultLayers();
-    const scaled = baseImage({
-      id: 'scaled',
-      scaleX: 2,
-    });
     const subPixel = baseImage({
       id: 'sub-pixel',
       x: 10.5,
@@ -689,17 +685,14 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     const result = buildRustSceneSnapshotForTimeline({
       projectSettings: settings,
       layers,
-      objects: [scaled, subPixel],
+      objects: [subPixel],
       time: 2,
     });
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error('expected snapshot build to fail');
 
-    expect(issueCodes(result.issues)).toEqual([
-      'unsupportedTransform',
-      'unsupportedTransform',
-    ]);
+    expect(issueCodes(result.issues)).toEqual(['unsupportedTransform']);
   });
 });
 
