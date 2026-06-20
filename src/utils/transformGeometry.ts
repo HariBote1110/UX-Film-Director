@@ -32,6 +32,8 @@ export interface ResizeStartState {
   anchorParent: Vec2;
   /** 許容する最小スケール（反転防止）。 */
   minScale: number;
+  /** true/省略時は元の縦横比を保つ。 */
+  lockAspectRatio?: boolean;
 }
 
 export interface ResizeResult {
@@ -106,16 +108,20 @@ export const computeResize = (start: ResizeStartState, pointerParent: Vec2): Res
 
   const scaleX = spanX !== 0 ? clampScale(deltaLocal.x / spanX, start.minScale) : start.minScale;
   const scaleY = spanY !== 0 ? clampScale(deltaLocal.y / spanY, start.minScale) : start.minScale;
+  const lockAspectRatio = start.lockAspectRatio !== false;
+  const uniformScale = Math.max(scaleX, scaleY);
+  const resolvedScaleX = lockAspectRatio ? uniformScale : scaleX;
+  const resolvedScaleY = lockAspectRatio ? uniformScale : scaleY;
 
   // アンカーを固定するための位置補正:
   //   anchorParent = position + R(rot) * (S' * anchorLocal)
   //   position     = anchorParent - R(rot) * (S' * anchorLocal)
-  const scaledAnchor = { x: scaleX * anchor.x, y: scaleY * anchor.y };
+  const scaledAnchor = { x: resolvedScaleX * anchor.x, y: resolvedScaleY * anchor.y };
   const rotatedAnchor = rotateVec(scaledAnchor, start.rotationRad);
 
   return {
-    scaleX,
-    scaleY,
+    scaleX: resolvedScaleX,
+    scaleY: resolvedScaleY,
     x: start.anchorParent.x - rotatedAnchor.x,
     y: start.anchorParent.y - rotatedAnchor.y,
   };

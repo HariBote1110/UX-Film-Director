@@ -252,7 +252,19 @@ const copySharedRendererPresenterDiagnostics = (
   });
 };
 
-const buildSharedRendererPreviewDiagnostic = (
+const isNonBlockingSharedRendererPreviewDiagnostic = (
+  dataset: SharedRendererPresenterDiagnosticDataset,
+  control: SharedRendererPreviewPresenterControl | null,
+): boolean => (
+  control?.ok === true
+  && dataset.uxfdSharedRendererPresenterStatus === 'ready'
+  && dataset.uxfdSharedRendererPresenterVideoPresentationSource === 'external-video-source'
+  && dataset.uxfdSharedRendererPresenterVideoFrameUploadReady === 'true'
+  && !dataset.uxfdSharedRendererPresenterFailureReason
+  && !dataset.uxfdSharedRendererPresenterNativeRenderFailureReason
+);
+
+export const buildSharedRendererPreviewDiagnostic = (
   dataset: SharedRendererPresenterDiagnosticDataset,
   control: SharedRendererPreviewPresenterControl | null,
 ): string | null => {
@@ -265,6 +277,9 @@ const buildSharedRendererPreviewDiagnostic = (
   const videoFrameUploadReady = dataset.uxfdSharedRendererPresenterVideoFrameUploadReady;
 
   if (control?.ok && status === 'ready' && !nativeRenderFailureReason && !videoUploadFailureReason && videoFrameUploadReady !== 'false') {
+    return null;
+  }
+  if (videoUploadFailureReason && isNonBlockingSharedRendererPreviewDiagnostic(dataset, control)) {
     return null;
   }
 

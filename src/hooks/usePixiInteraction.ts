@@ -28,6 +28,7 @@ interface ResizeState {
   anchorParent: { x: number; y: number };
   /** コンテナの親（global→親空間の逆変換に用いる）。 */
   parent: PIXI.Container | null;
+  lockAspectRatio: boolean;
 }
 
 /** ハンドル等が constant-size 表示でも反転しない最小スケール。 */
@@ -58,6 +59,7 @@ export const usePixiInteraction = (
     active: false, targetId: null, corner: 'bottom-right',
     bounds: { bx: 0, by: 0, bw: 0, bh: 0 }, rotationRad: 0, anchorParent: { x: 0, y: 0 },
     parent: null,
+    lockAspectRatio: true,
   });
   
   const isRecordingPathRef = useRef(false);
@@ -208,11 +210,12 @@ export const usePixiInteraction = (
       rotationRad: container.rotation,
       anchorParent: { x: anchorParent.x, y: anchorParent.y },
       parent: container.parent ?? null,
+      lockAspectRatio: !(e.nativeEvent as MouseEvent | PointerEvent | undefined)?.shiftKey,
     };
   };
 
   const onResizeMove = (e: PIXI.FederatedPointerEvent) => {
-    const { active, targetId, corner, bounds, rotationRad, anchorParent, parent } = resizeRef.current;
+    const { active, targetId, corner, bounds, rotationRad, anchorParent, parent, lockAspectRatio } = resizeRef.current;
     if (!active || !targetId) return;
     const targetObject = latestObjectsRef.current.find(o => o.id === targetId);
     if (targetObject && layers[targetObject.layer]?.locked) return;
@@ -222,7 +225,7 @@ export const usePixiInteraction = (
       : { x: e.global.x, y: e.global.y };
 
     const result = computeResize(
-      { corner, bounds, rotationRad, anchorParent, minScale: MIN_RESIZE_SCALE },
+      { corner, bounds, rotationRad, anchorParent, minScale: MIN_RESIZE_SCALE, lockAspectRatio },
       { x: pointerParent.x, y: pointerParent.y }
     );
 
@@ -240,6 +243,7 @@ export const usePixiInteraction = (
         active: false, targetId: null, corner: 'bottom-right',
         bounds: { bx: 0, by: 0, bw: 0, bh: 0 }, rotationRad: 0, anchorParent: { x: 0, y: 0 },
         parent: null,
+        lockAspectRatio: true,
       };
     }
   };

@@ -17,6 +17,7 @@ import {
 import { resolveVideoFsPath } from '../utils/resolveVideoFsPath';
 import { buildOverlayPositionKeyframesFromVisionTrack } from '../utils/visionTrackingKeyframes';
 import { buildSubjectCropKeyframesFromVisionTrackSamples } from '../utils/subjectCropKeyframes';
+import { buildAspectLockedScalePatch } from '../utils/aspectRatioScale';
 import type { VisionNormBoundingBox } from '../utils/visionTrackingGeometry';
 
 const Slider = ({
@@ -282,6 +283,7 @@ const PropertyPanel: React.FC = () => {
   const [batchScaleYPercent, setBatchScaleYPercent] = useState('100');
   const [batchRotation, setBatchRotation] = useState('0');
   const [batchOpacityPercent, setBatchOpacityPercent] = useState('0');
+  const [scaleAspectLocked, setScaleAspectLocked] = useState(true);
   const [coreMlTrackSupported, setCoreMlTrackSupported] = useState(false);
   const [visionTrackOverlayId, setVisionTrackOverlayId] = useState('');
   const [visionBoxX, setVisionBoxX] = useState('0.35');
@@ -394,6 +396,16 @@ const PropertyPanel: React.FC = () => {
   const handleNumericChange = (key: string, value: string) => {
     const num = parseFloat(value);
     if (!isNaN(num)) {
+      if (key === 'scaleX' || key === 'scaleY') {
+        updateObject(selectedObject.id, buildAspectLockedScalePatch({
+          currentScaleX: selectedObject.scaleX ?? 1,
+          currentScaleY: selectedObject.scaleY ?? 1,
+          changedAxis: key,
+          nextValue: num,
+          lockAspectRatio: scaleAspectLocked,
+        }) as Partial<TimelineObject>);
+        return;
+      }
       updateObject(selectedObject.id, { [key]: num } as Partial<TimelineObject>);
     }
   };
@@ -1143,6 +1155,16 @@ const PropertyPanel: React.FC = () => {
         </Row>
         <Row label="Scale Y">
             <input type="number" step="0.1" value={selectedObject.scaleY ?? 1} onChange={(e) => handleNumericChange('scaleY', e.target.value)} style={{ width: '80px' }} />
+        </Row>
+        <Row label={language === 'en' ? 'Aspect' : '比率'}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>
+                <input
+                    type="checkbox"
+                    checked={scaleAspectLocked}
+                    onChange={(e) => setScaleAspectLocked(e.target.checked)}
+                />
+                {language === 'en' ? 'Lock ratio' : '比率を固定'}
+            </label>
         </Row>
         <Row label="Rotation">
             <input type="number" value={selectedObject.rotation} onChange={(e) => handleNumericChange('rotation', e.target.value)} style={{ width: '80px' }} />

@@ -1,3 +1,25 @@
+## 2026-06-20 — リサイズ比率ロックとpreview診断表示を整理
+
+### 実施内容
+- Red: 角ハンドルのリサイズがデフォルトで縦横比を維持し、明示的に解除した時だけ自由変形できる契約を追加した。
+- Red: PropertyPanelのScale編集がデフォルトで `scaleX` / `scaleY` を連動し、比率固定を解除できる契約を追加した。
+- Red: shared renderer previewがreadyでexternal video source描画できている時、非致命的なupload診断をキャンバス上に出さない契約を追加した。
+- Green: `computeResize` に `lockAspectRatio` を追加し、省略時は縦横比固定、Shiftリサイズ時だけ自由変形にした。
+- Green: `buildAspectLockedScalePatch` を追加し、右パネルのScale X/Y入力をデフォルト連動にした。UIには `比率を固定` チェックを追加した。
+- Green: `buildSharedRendererPreviewDiagnostic` をexportし、ready/external-video-source/videoFrameUploadReadyの非ブロッキング診断は非表示にした。
+- 版を `0.1.1-Beta-232a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/transformGeometry.test.ts src/utils/aspectRatioScale.test.ts src/components/ViewportDiagnostics.test.ts src/components/PropertyPanelBoundary.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "src/utils/transformGeometry|src/utils/aspectRatioScale|src/hooks/usePixiInteraction|src/components/Viewport|src/components/PropertyPanel"`
+- `UXFD_VIDEO_LOAD_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_LOAD_E2E_EXPECT_EXTERNAL_TEXTURE=1 UXFD_VIDEO_LOAD_E2E_TIMEOUT_MS=240000 npm run test:video-load:e2e`
+
+### 結果・残課題
+- 実ウィンドウE2EでGoPro素材を読み込み、PropertyPanelに `比率` / `比率を固定` が表示されることを確認した。
+- E2E結果は `blockingDiagnostics: []`、`videoPresentationSource=external-video-source`、`videoFrameUploadReady=true`、`externalTextureSampleCount=21/21`。
+- 通常ready状態では `Rust shared renderer preview / ...` の警告文がbodyに出ないことを確認した。blocked/fallback時の診断表示は維持している。
+- 次はGPU fast path検証として、full-frame単一動画で `scale_vt` / VideoToolbox option を比較する。
+
 ## 2026-06-20 — export速度/品質/容量presetをdirect transcodeへ追加
 
 ### 実施内容
