@@ -224,6 +224,154 @@ describe('runRustBackendVideoEncodeExport', () => {
     ]);
   });
 
+  it('runs shared-frame encode success cleanup after Rust consumes a decoded passthrough frame', async () => {
+    const calls: unknown[] = [];
+    const payload = sharedFramePayload(0, 0, 'session-decoded-passthrough-success');
+    const encoderBridge: RustBackendVideoEncodeBridge = {
+      startVideoEncode: async (input) => {
+        calls.push(['startVideoEncode', input]);
+        return { success: true, result: { accepted: true } };
+      },
+      writeVideoEncodeFrame: async (input) => {
+        calls.push(['writeVideoEncodeFrame', input]);
+        return { success: true, result: { written: true } };
+      },
+      finishVideoEncode: async (input) => {
+        calls.push(['finishVideoEncode', input]);
+        return {
+          success: true,
+          result: {
+            finished: true,
+            sessionId: 'session-decoded-passthrough-success',
+            filePath: '/tmp/decoded-passthrough-success.mp4',
+            frameCount: 1,
+          },
+        };
+      },
+    };
+
+    async function* decodedPassthroughFrames() {
+      yield {
+        timestamp: 0,
+        sharedFramePayload: payload,
+        releaseSharedFrameAfterEncodeSuccess: async () => {
+          calls.push(['releaseSharedFrameAfterEncodeSuccess']);
+        },
+        releaseSharedFrameAfterEncodeFailure: async () => {
+          calls.push(['releaseSharedFrameAfterEncodeFailure']);
+        },
+      };
+    }
+
+    await runRustBackendVideoEncodeExport({
+      sessionId: 'session-decoded-passthrough-success',
+      filePath: '/tmp/decoded-passthrough-success.mp4',
+      width: 4,
+      height: 2,
+      fps: 60,
+      frames: decodedPassthroughFrames(),
+      encoderBridge,
+    });
+
+    expect(calls).toEqual([
+      ['startVideoEncode', {
+        sessionId: 'session-decoded-passthrough-success',
+        filePath: '/tmp/decoded-passthrough-success.mp4',
+        width: 4,
+        height: 2,
+        fps: 60,
+        pixelFormat: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      }],
+      ['writeVideoEncodeFrame', payload],
+      ['releaseSharedFrameAfterEncodeSuccess'],
+      ['finishVideoEncode', {
+        sessionId: 'session-decoded-passthrough-success',
+      }],
+    ]);
+  });
+
+  it('runs shared-frame encode failure cleanup when a decoded passthrough frame write fails', async () => {
+    const calls: unknown[] = [];
+    const payload = sharedFramePayload(0, 0, 'session-decoded-passthrough-failure');
+    const encoderBridge: RustBackendVideoEncodeBridge = {
+      startVideoEncode: async (input) => {
+        calls.push(['startVideoEncode', input]);
+        return { success: true, result: { accepted: true } };
+      },
+      writeVideoEncodeFrame: async (input) => {
+        calls.push(['writeVideoEncodeFrame', input]);
+        return { success: false, error: 'decoded passthrough write failed' };
+      },
+      finishVideoEncode: async (input) => {
+        calls.push(['finishVideoEncode', input]);
+        return {
+          success: true,
+          result: {
+            finished: true,
+            sessionId: 'session-decoded-passthrough-failure',
+            filePath: '/tmp/decoded-passthrough-failure.mp4',
+            frameCount: 1,
+          },
+        };
+      },
+      abortVideoEncode: async (input) => {
+        calls.push(['abortVideoEncode', input]);
+        return { success: true, result: { aborted: true } };
+      },
+    };
+
+    async function* decodedPassthroughFrames() {
+      yield {
+        timestamp: 0,
+        sharedFramePayload: payload,
+        releaseSharedFrameAfterEncodeSuccess: async () => {
+          calls.push(['releaseSharedFrameAfterEncodeSuccess']);
+        },
+        releaseSharedFrameAfterEncodeFailure: async () => {
+          calls.push(['releaseSharedFrameAfterEncodeFailure']);
+        },
+      };
+    }
+
+    await expect(runRustBackendVideoEncodeExport({
+      sessionId: 'session-decoded-passthrough-failure',
+      filePath: '/tmp/decoded-passthrough-failure.mp4',
+      width: 4,
+      height: 2,
+      fps: 60,
+      frames: decodedPassthroughFrames(),
+      encoderBridge,
+    })).rejects.toThrow('decoded passthrough write failed');
+
+    expect(calls).toEqual([
+      ['startVideoEncode', {
+        sessionId: 'session-decoded-passthrough-failure',
+        filePath: '/tmp/decoded-passthrough-failure.mp4',
+        width: 4,
+        height: 2,
+        fps: 60,
+        pixelFormat: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      }],
+      ['writeVideoEncodeFrame', payload],
+      ['releaseSharedFrameAfterEncodeFailure'],
+      ['abortVideoEncode', {
+        sessionId: 'session-decoded-passthrough-failure',
+      }],
+    ]);
+  });
+
   it('releases a prefetched native render output when the current encode write fails', async () => {
     const calls: unknown[] = [];
     const writeStarted = deferredVoid();
