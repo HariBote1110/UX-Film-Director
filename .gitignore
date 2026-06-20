@@ -8,6 +8,7 @@
 dist/
 dist-electron/
 perf-agent-output.json
+.codex/video-export-e2e/
 
 # SwiftPM build artefacts
 macos-coreml-tracker/.build/
