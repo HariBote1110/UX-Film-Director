@@ -796,6 +796,54 @@ fn encode_transcode_video_writes_single_source_output_without_frame_ipc() {
 }
 
 #[test]
+fn encode_transcode_video_keeps_source_audio_when_requested() {
+    let temp_dir = TestTempDir::new("encode-transcode-video-source-audio");
+    let fixture = build_two_frame_h264_fixture(temp_dir.path());
+    let input_with_audio = temp_dir.path().join("source-with-audio.mp4");
+    let audio_path = temp_dir.path().join("tone.wav");
+    write_silent_wav_fixture(&audio_path, 48_000, 48_000);
+    run_ffmpeg_command(
+        Command::new("ffmpeg")
+            .arg("-hide_banner")
+            .arg("-loglevel")
+            .arg("error")
+            .arg("-y")
+            .arg("-i")
+            .arg(&fixture.path)
+            .arg("-i")
+            .arg(&audio_path)
+            .arg("-c:v")
+            .arg("copy")
+            .arg("-c:a")
+            .arg("aac")
+            .arg("-shortest")
+            .arg(&input_with_audio),
+        "mux source audio fixture",
+    );
+    let output_path = temp_dir.path().join("transcoded-source-audio-output.mp4");
+    let output_path_string = output_path.to_string_lossy().into_owned();
+    let mut backend = BackendProcess::start();
+
+    let response = backend.request(json!({
+        "id": 122,
+        "method": "encode.transcodeVideo",
+        "params": {
+            "inputPath": input_with_audio.to_string_lossy(),
+            "outputPath": output_path_string,
+            "width": fixture.width,
+            "height": fixture.height,
+            "fps": 30,
+            "durationSeconds": 1.0,
+            "includeAudio": true
+        }
+    }));
+
+    assert_eq!(response["ok"], true, "{response}");
+    assert_eq!(response["result"]["includedAudio"], true);
+    assert_mp4_has_audio_stream(&output_path);
+}
+
+#[test]
 fn native_render_shared_frame_consumes_source_shm_and_returns_descriptor_only() {
     let mut backend = BackendProcess::start();
     let source_memory_id = unique_shm_name();

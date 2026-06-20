@@ -67,6 +67,8 @@ describe('resolveProjectExportVideoTranscodeFastPath', () => {
       fps: 60,
       durationSeconds: 5,
       startSeconds: 2,
+      includeAudio: true,
+      audioVolume: 1,
       objectX: 0,
       objectY: 0,
       objectWidth: 1920,
@@ -92,6 +94,41 @@ describe('resolveProjectExportVideoTranscodeFastPath', () => {
       objectY: 360,
       objectWidth: 640,
       objectHeight: 360,
+    });
+  });
+
+  it('accepts scale-based resizing as an exact output rectangle', () => {
+    expect(resolveProjectExportVideoTranscodeFastPath({
+      objects: [video({
+        x: 100,
+        y: 80,
+        width: 640,
+        height: 360,
+        scaleX: 0.5,
+        scaleY: 0.75,
+      })],
+      width: 1920,
+      height: 1080,
+      fps: 60,
+      durationSeconds: 5,
+    })).toMatchObject({
+      objectX: 100,
+      objectY: 80,
+      objectWidth: 320,
+      objectHeight: 270,
+    });
+  });
+
+  it('drops source audio when the video is muted', () => {
+    expect(resolveProjectExportVideoTranscodeFastPath({
+      objects: [video({ muted: true })],
+      width: 1920,
+      height: 1080,
+      fps: 60,
+      durationSeconds: 5,
+    })).toMatchObject({
+      includeAudio: false,
+      audioVolume: 0,
     });
   });
 
