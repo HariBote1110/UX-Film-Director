@@ -16,4 +16,15 @@ describe('package scripts', () => {
     expect(script.indexOf('scripts/build-shared-video-frame-node-addon.mjs'))
       .toBeLessThan(script.indexOf('node_modules/vite/bin/vite.js'));
   });
+
+  it('records real video export E2E duration separately from Electron startup time', () => {
+    expect(packageJson.scripts['test:video-export:e2e']).toBe('node scripts/run-video-export-e2e.mjs');
+
+    const script = readFileSync(new URL('../../scripts/run-video-export-e2e.mjs', import.meta.url), 'utf8');
+    expect(script).toContain('UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS');
+    expect(script).toContain('exportDurationMs');
+    expect(script).toContain('exportFramesPerSecond');
+    expect(script.indexOf('const exportStartTimeMs = Date.now()'))
+      .toBeLessThan(script.indexOf('exportDurationMs'));
+  });
 });
