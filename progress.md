@@ -1,3 +1,28 @@
+## 2026-06-20 — 単一動画exportをdirect transcode fast pathへ接続
+
+### 実施内容
+- Red: Rust backendに `encode.transcodeVideo` の契約を追加し、単一動画をframe IPCなしでMP4へ書き出す期待を固定した。
+- Red: Electron/renderer bridgeに `rust-backend-encode-transcode-video` と `encode.transcodeVideo` のルーティング契約を追加した。
+- Green: Rust backendでffmpeg direct transcodeを実装し、`scale -> pad -> fps` filterで単一動画の矩形配置を保持するようにした。
+- Green: `resolveProjectExportVideoTranscodeFastPath` を追加し、単一動画・変形なし・フィルタなし・画面内配置のときだけfast pathへ入るようにした。
+- Green: `useProjectExport` から単一動画fast pathを呼び、通常のRGBA frame生成/IPC/writeFrameループをスキップするようにした。
+- 実測でCPU simple direct encodeは `/Volumes/ExtendSSD-W/GX020052.MP4` 1秒尺が約3.47fpsまで悪化したため、JS側の自動投入はやめて明示フラグ配下に戻した。
+- 版を `0.1.1-Beta-229a` に更新した。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane encode_transcode_video_writes_single_source_output_without_frame_ipc -- --nocapture`
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane native_render -- --nocapture`
+- `npm test -- --run src/utils/projectExportVideoTranscodeFastPath.test.ts src/utils/rustVideoEncodeBackendBridge.test.ts src/utils/rustVideoEncodeIpcChannels.test.ts src/utils/rustBackendVideoEncodeControl.test.ts src/utils/rustBackendVideoEncodeExport.test.ts src/utils/sharedRendererExportFrameSource.test.ts`
+- CLI ffmpeg同等filter: `/Volumes/ExtendSSD-W/GX020052.MP4` 5秒300frameを3.558秒で処理。
+- Electron E2E: `UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=5 npm run test:video-export:e2e`
+- Electron E2E: `UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=10 npm run test:video-export:e2e`
+
+### 結果・残課題
+- 5秒300frame E2Eは `Rust backend direct transcode` で 5186ms / 約57.85fps。
+- 10秒600frame E2Eは `Rust backend direct transcode` で 9137ms / 約65.67fps。短尺初期化込みでもリアルタイム60fpsを超えた。
+- direct transcode fast pathは単一動画のみ。図形・画像・PSD・複数動画・フィルタありでは従来のRust frame exportへ戻る。
+- 次は「単一動画 + 音声」「動画 + 軽い図形/画像」の合成をGPU/ffmpeg filter graph側へ寄せ、RGBA frame IPCを通るケースを減らす。
+
 ## 2026-06-20 — external動画sourceの再生中seekを抑制
 
 ### 実施内容

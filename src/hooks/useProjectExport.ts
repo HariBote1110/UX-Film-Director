@@ -5,6 +5,7 @@ import { shallow } from 'zustand/shallow';
 import { buildExportAudioBuffer, buildExportAudioMixWav } from '../utils/audioMixdown';
 import { resolveProjectExportEncodePlanFromBridge } from '../utils/projectExportEncodePlan';
 import { runRustBackendVideoEncodeExport } from '../utils/rustBackendVideoEncodeExport';
+import { transcodeRustBackendVideo } from '../utils/rustBackendVideoEncodeControl';
 import { renderProjectExportFrame } from '../utils/projectExportFrameRenderer';
 import type { RenderProjectExportFrameResult } from '../utils/projectExportFrameRenderer';
 import {
@@ -21,6 +22,7 @@ import { createSharedVideoFramePresentedFrameTaker } from '../utils/sharedVideoF
 import { encodeProjectExportCompatibilityVideo } from '../utils/projectExportCompatibilityEncoder';
 import { updateExportProgressPhase } from '../utils/exportProgressDiagnostics';
 import { logLastExportDiagnostics } from '../utils/exportDiagnosticsLog';
+import { resolveProjectExportVideoTranscodeFastPath } from '../utils/projectExportVideoTranscodeFastPath';
 import type {
   RustBackendVideoEncodeFrame,
   RustBackendVideoEncodeNativeFramePayloadFrame,
@@ -186,6 +188,44 @@ export const useProjectExport = (
         const encWidth = width % 2 === 0 ? width : width - 1;
         const encHeight = height % 2 === 0 ? height : height - 1;
         const rustEncodeSessionId = createRustEncodeSessionId();
+        const transcodeFastPath = resolveProjectExportVideoTranscodeFastPath({
+          objects: exportObjects,
+          width: encWidth,
+          height: encHeight,
+          fps,
+          durationSeconds: exportDuration,
+        });
+
+        if (
+          exportEncodePlan.engine === 'rustBackendVideoEncoder'
+          && transcodeFastPath
+          && typeof window.rustVideoEncoder.transcodeVideo === 'function'
+        ) {
+          setExportProgress({
+            phase: 'transcoding',
+            currentFrame: 0,
+            totalFrames,
+            stepDetail: 'Rust export: direct video transcode fast path',
+          });
+          const transcodeResponse = await transcodeRustBackendVideo({
+            ...transcodeFastPath,
+            outputPath: savePath,
+          });
+          if (!transcodeResponse.success) {
+            throw new Error(transcodeResponse.error ?? 'Rust backend video transcode failed.');
+          }
+          const transcodeResult = transcodeResponse.result as { frameCount?: number } | undefined;
+          if (isCancelled()) return;
+          const savingProgress = useStore.getState().exportProgress;
+          setExportProgress(updateExportProgressPhase(savingProgress, {
+            phase: 'saving',
+            currentFrame: totalFrames,
+            totalFrames,
+            stepDetail: 'Rust export: direct video transcode finished',
+          }));
+          alert(`エクスポート完了！\nコーデック: Rust backend direct transcode\nフレーム: ${transcodeResult?.frameCount ?? totalFrames}\n保存先: ${savePath}`);
+          return;
+        }
 
         async function* renderFrames(preferSharedFrame: boolean) {
           let rustFrameSourceBlocked = false;

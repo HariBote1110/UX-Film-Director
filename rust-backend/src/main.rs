@@ -242,6 +242,31 @@ struct EncodeAbortParams {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct EncodeTranscodeVideoParams {
+    input_path: String,
+    output_path: String,
+    width: u32,
+    height: u32,
+    fps: u32,
+    duration_seconds: f64,
+    #[serde(default)]
+    start_seconds: Option<f64>,
+    #[serde(default)]
+    object_x: Option<i32>,
+    #[serde(default)]
+    object_y: Option<i32>,
+    #[serde(default)]
+    object_width: Option<u32>,
+    #[serde(default)]
+    object_height: Option<u32>,
+    #[serde(default)]
+    audio_path: Option<String>,
+    #[serde(default)]
+    ffmpeg_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct NativeRenderSharedFrameParams {
     render_id: String,
     memory_id: String,
@@ -322,6 +347,7 @@ fn handle_request(request: RpcRequest, state: &mut BackendState) -> RpcResponse 
         "encode.writeNativeFrame" => {
             handle_encode_write_native_frame(request.id, request.params, state)
         }
+        "encode.transcodeVideo" => handle_encode_transcode_video(request.id, request.params),
         "encode.finish" => handle_encode_finish(request.id, request.params, state),
         "encode.abort" => handle_encode_abort(request.id, request.params, state),
         "render.nativeSharedFrame" => {
@@ -795,6 +821,175 @@ fn abort_encode_session(session: EncodeSession) -> EncodeAbortSummary {
         frame_count,
         ffmpeg_status,
         stderr: stderr_text.trim().to_string(),
+    }
+}
+
+fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
+    let parsed = match serde_json::from_value::<EncodeTranscodeVideoParams>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32602,
+                &format!("Invalid encode.transcodeVideo params: {error}"),
+            );
+        }
+    };
+
+    if parsed.input_path.trim().is_empty() {
+        return response_error(id, -32602, "inputPath must not be empty");
+    }
+    if parsed.output_path.trim().is_empty() {
+        return response_error(id, -32602, "outputPath must not be empty");
+    }
+    if parsed.width == 0 || parsed.height == 0 || parsed.fps == 0 {
+        return response_error(
+            id,
+            -32602,
+            "width, height, and fps must be greater than zero",
+        );
+    }
+    if !parsed.duration_seconds.is_finite() || parsed.duration_seconds <= 0.0 {
+        return response_error(id, -32602, "durationSeconds must be greater than zero");
+    }
+
+    let ffmpeg_path = parsed
+        .ffmpeg_path
+        .or_else(|| std::env::var("UXFD_FFMPEG_BIN").ok())
+        .unwrap_or_else(|| "ffmpeg".to_string());
+    let start_seconds = parsed
+        .start_seconds
+        .filter(|value| value.is_finite() && *value > 0.0)
+        .unwrap_or(0.0);
+    let audio_path = parsed
+        .audio_path
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty());
+    let frame_count = (parsed.duration_seconds * f64::from(parsed.fps)).ceil() as u64;
+    let object_x = parsed.object_x.unwrap_or(0);
+    let object_y = parsed.object_y.unwrap_or(0);
+    let object_width = parsed.object_width.unwrap_or(parsed.width);
+    let object_height = parsed.object_height.unwrap_or(parsed.height);
+    if object_width == 0
+        || object_height == 0
+        || object_x < 0
+        || object_y < 0
+        || u32::try_from(object_x)
+            .ok()
+            .and_then(|value| value.checked_add(object_width))
+            .map(|value| value > parsed.width)
+            .unwrap_or(true)
+        || u32::try_from(object_y)
+            .ok()
+            .and_then(|value| value.checked_add(object_height))
+            .map(|value| value > parsed.height)
+            .unwrap_or(true)
+    {
+        return response_error(
+            id,
+            -32602,
+            "object placement must fit inside the output frame",
+        );
+    }
+    let scale_filter = format!(
+        "scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,setsar=1,pad={}:{}:{}:{}:black,fps={}",
+        object_width,
+        object_height,
+        object_width,
+        object_height,
+        parsed.width,
+        parsed.height,
+        object_x,
+        object_y,
+        parsed.fps
+    );
+
+    let mut cmd = Command::new(&ffmpeg_path);
+    cmd.arg("-hide_banner")
+        .arg("-loglevel")
+        .arg("error")
+        .arg("-y");
+    if start_seconds > 0.0 {
+        cmd.arg("-ss").arg(format!("{start_seconds:.6}"));
+    }
+    cmd.arg("-i").arg(&parsed.input_path);
+    if let Some(audio_path) = audio_path {
+        cmd.arg("-i").arg(audio_path);
+    }
+    cmd.arg("-t")
+        .arg(format!("{:.6}", parsed.duration_seconds))
+        .arg("-vf")
+        .arg(scale_filter)
+        .arg("-r")
+        .arg(parsed.fps.to_string())
+        .arg("-c:v")
+        .arg(get_video_codec())
+        .arg("-b:v")
+        .arg("8000k")
+        .arg("-pix_fmt")
+        .arg("yuv420p");
+
+    if audio_path.is_some() {
+        cmd.arg("-c:a")
+            .arg("aac")
+            .arg("-b:a")
+            .arg("192k")
+            .arg("-map")
+            .arg("0:v:0")
+            .arg("-map")
+            .arg("1:a:0")
+            .arg("-shortest");
+    } else {
+        cmd.arg("-an");
+    }
+
+    cmd.arg("-movflags")
+        .arg("+faststart")
+        .arg(&parsed.output_path)
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+
+    let output = match cmd.output() {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32058,
+                &format!("Failed to start Rust transcode ffmpeg ({ffmpeg_path}): {error}"),
+            );
+        }
+    };
+
+    if !output.status.success() {
+        let stderr_detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stderr_suffix = if stderr_detail.is_empty() {
+            String::new()
+        } else {
+            format!(" stderr: {stderr_detail}")
+        };
+        return response_error(
+            id,
+            -32059,
+            &format!(
+                "Rust transcode ffmpeg exited with failure status: code={:?}.{stderr_suffix}",
+                output.status.code()
+            ),
+        );
+    }
+
+    RpcResponse {
+        id,
+        ok: true,
+        result: Some(json!({
+            "transcoded": true,
+            "outputPath": parsed.output_path,
+            "frameCount": frame_count,
+            "width": parsed.width,
+            "height": parsed.height,
+            "fps": parsed.fps,
+        })),
+        error: None,
     }
 }
 

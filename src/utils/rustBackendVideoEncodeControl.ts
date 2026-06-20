@@ -42,6 +42,21 @@ export interface RustBackendVideoEncodeWriteNativeFramePayload {
   sources: RustBackendNativeRenderSharedFrameSource[];
 }
 
+export interface RustBackendVideoTranscodePayload {
+  inputPath: string;
+  outputPath: string;
+  width: number;
+  height: number;
+  fps: number;
+  durationSeconds: number;
+  startSeconds?: number;
+  objectX?: number;
+  objectY?: number;
+  objectWidth?: number;
+  objectHeight?: number;
+  audioPath?: string | null;
+}
+
 export interface RustBackendVideoEncodeFinishPayload {
   sessionId: string;
 }
@@ -65,6 +80,9 @@ export interface RustBackendVideoEncodeBridge {
   ) => Promise<RustBackendVideoEncodeResult>;
   writeNativeEncodeFrame?: (
     payload: RustBackendVideoEncodeWriteNativeFramePayload
+  ) => Promise<RustBackendVideoEncodeResult>;
+  transcodeVideo?: (
+    payload: RustBackendVideoTranscodePayload
   ) => Promise<RustBackendVideoEncodeResult>;
   finishVideoEncode: (
     payload: RustBackendVideoEncodeFinishPayload
@@ -104,6 +122,19 @@ export const writeRustBackendVideoEncodeNativeFrame = (
     });
   }
   return bridge.writeNativeEncodeFrame(payload);
+};
+
+export const transcodeRustBackendVideo = (
+  payload: RustBackendVideoTranscodePayload,
+  bridge: RustBackendVideoEncodeBridge = window.rustVideoEncoder
+): Promise<RustBackendVideoEncodeResult> => {
+  if (typeof bridge.transcodeVideo !== 'function') {
+    return Promise.resolve({
+      success: false,
+      error: 'Rust backend video transcode bridge is unavailable.',
+    });
+  }
+  return bridge.transcodeVideo(payload);
 };
 
 export const finishRustBackendVideoEncode = (

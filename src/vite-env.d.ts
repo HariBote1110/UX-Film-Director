@@ -121,6 +121,20 @@ interface Window {
       media: unknown[];
       sources: unknown[];
     }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
+    transcodeVideo?: (payload: {
+      inputPath: string;
+      outputPath: string;
+      width: number;
+      height: number;
+      fps: number;
+      durationSeconds: number;
+      startSeconds?: number;
+      objectX?: number;
+      objectY?: number;
+      objectWidth?: number;
+      objectHeight?: number;
+      audioPath?: string | null;
+    }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
     finishVideoEncode: (payload: {
       sessionId: string;
     }) => Promise<{ success: boolean; result?: unknown; error?: string }>;

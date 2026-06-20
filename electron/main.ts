@@ -11,6 +11,7 @@ import {
   abortRustVideoEncodeViaBackend,
   finishRustVideoEncodeViaBackend,
   startRustVideoEncodeViaBackend,
+  transcodeRustVideoViaBackend,
   writeRustVideoEncodeFrameViaBackend,
   writeRustVideoEncodeNativeFrameViaBackend,
 } from './rustVideoEncodeBackendBridge';
@@ -810,6 +811,9 @@ app.whenReady().then(() => {
   );
   ipcMain.handle(rustVideoEncodeIpcChannels.writeNativeFrame, async (_event, payload: unknown) =>
     writeRustVideoEncodeNativeFrameViaBackend(payload, callRustBackend)
+  );
+  ipcMain.handle(rustVideoEncodeIpcChannels.transcodeVideo, async (_event, payload: unknown) =>
+    transcodeRustVideoViaBackend(payload, callRustBackend)
   );
   ipcMain.handle(rustVideoEncodeIpcChannels.finish, async (_event, payload: unknown) =>
     finishRustVideoEncodeViaBackend(payload, callRustBackend)
