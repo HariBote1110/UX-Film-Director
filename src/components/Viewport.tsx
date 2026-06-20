@@ -847,6 +847,7 @@ const Viewport: React.FC = () => {
     let externalVideoSourcesByClipId = new Map<string, unknown>();
     if (isExporting) {
       disposeSharedRendererExternalVideoSources(sharedRendererExternalVideoSourcesRef.current);
+      sharedRendererPresenterSessionKeyRef.current = null;
     } else {
       externalVideoSourcesByClipId = syncSharedRendererExternalVideoSources({
         session: sharedRendererPreviewSession,

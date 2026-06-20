@@ -7136,3 +7136,23 @@
 
 ### 残課題・次のステップ
 - 実Electron windowのexportクリックを通るE2Eを追加し、保存ダイアログ・失敗時modal終了・次回export再試行まで検証する。
+
+## 2026-06-20 — encode.start timeoutとexport後preview復帰を修正
+
+### 実施内容
+- 実Electron windowで `エクスポート失敗: Rust backend request timed out: encode.start` が出る問題を受け、Rust encode startのIPC timeoutを15秒から120秒へ延長した。
+- Red: `rustVideoEncodeBackendBridge` に、`encode.start` が120秒timeoutで呼ばれる契約を追加した。
+- 動画が消滅する症状への対策として、export中にexternal video sourceを破棄した場合は presenter session keyも無効化し、export失敗/終了後に同じsession扱いで破棄済み動画sourceを再利用しないようにした。
+- Red: `viewportRustVideoOnlyBoundary` に、export中のexternal video source破棄がpresenter session keyを無効化する契約を追加した。
+- 版を `0.1.1-Beta-224f` に更新した。
+
+### 検証
+- `npm test -- rustVideoEncodeBackendBridge viewportRustVideoOnlyBoundary`
+- `npm test -- sharedRendererExternalVideoSource sharedRendererPreviewPresenterController sharedRendererViewportPresenterOrchestration`
+- `/Volumes/ExtendSSD-W/GX020052.MP4` で `UXFD_VIDEO_LOAD_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_LOAD_E2E_EXPECT_EXTERNAL_TEXTURE=1 npm run test:video-load:e2e` 成功。
+- E2E結果: `presenterStatus=ready` / `videoOwner=sharedRenderer` / `videoPresentationSource=external-video-source` / `uniquePresentedFrameCount=21` / `presentedFrameSpan=300` / `blockedSampleCount=0` / `externalVideoMaxAbsDriftMs=6` / `blockingDiagnostics=[]`。
+- 対象ファイルで絞った `tsc` は既存の `ThreeStageViewport.tsx` three型エラーのみ。
+
+### 残課題・次のステップ
+- 実Electron windowのexportクリックを通るE2Eを追加し、保存ダイアログ・失敗時modal終了・次回export再試行まで検証する。
+- まだ `encode.start` timeoutが出る場合は、Rust backendが直前のdecode/native render/proxy生成で詰まっていないか、RPCキュー時間を診断へ出す。

@@ -10,7 +10,7 @@ export interface RustVideoEncodeBackendBridgeResult {
   error?: string;
 }
 
-const START_ENCODE_TIMEOUT_MS = 15_000;
+const START_ENCODE_TIMEOUT_MS = 120_000;
 const WRITE_FRAME_TIMEOUT_MS = 20_000;
 const FINISH_ENCODE_TIMEOUT_MS = 60_000;
 const ABORT_ENCODE_TIMEOUT_MS = 10_000;

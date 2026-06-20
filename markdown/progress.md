@@ -1118,3 +1118,11 @@
 - production IPCにはVideoDecoder検証専用fixture resolverを戻していない。
 - 検証: `npm test -- exportTestHarnessBoundary productionVideoDependencyBoundary` は9件成功。`npm run test:export:fast` は ALL PASSED。対象ファイルで絞った `tsc` は既存の `mp4box` 型解決エラーのみ。
 - 版: `0.1.1-Beta-224e`。
+
+## 2026-06-20
+- 実Electron windowで `エクスポート失敗: Rust backend request timed out: encode.start` が出る問題を受け、Rust encode startのIPC timeoutを15秒から120秒へ延長した。
+- Red: `rustVideoEncodeBackendBridge` に、`encode.start` が120秒timeoutで呼ばれる契約を追加した。
+- 動画が消滅する症状への対策として、export中にexternal video sourceを破棄した場合は presenter session keyも無効化し、export失敗/終了後に同じsession扱いで破棄済み動画sourceを再利用しないようにした。
+- Red: `viewportRustVideoOnlyBoundary` に、export中のexternal video source破棄がpresenter session keyを無効化する契約を追加した。
+- 検証: `npm test -- rustVideoEncodeBackendBridge viewportRustVideoOnlyBoundary` は28件成功。`npm test -- sharedRendererExternalVideoSource sharedRendererPreviewPresenterController sharedRendererViewportPresenterOrchestration` は63件成功。`/Volumes/ExtendSSD-W/GX020052.MP4` の動画ロードE2Eは `presenterStatus=ready` / `videoOwner=sharedRenderer` / `uniquePresentedFrameCount=21` / `blockedSampleCount=0` / `externalVideoMaxAbsDriftMs=6` / `blockingDiagnostics=[]` で成功。対象ファイルで絞った `tsc` は既存の `ThreeStageViewport.tsx` three型エラーのみ。
+- 版: `0.1.1-Beta-224f`。
