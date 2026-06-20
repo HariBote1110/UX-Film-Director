@@ -77,6 +77,16 @@ describe('Viewport Rust video-only boundary', () => {
     expect(presenterBlock).toContain('sharedRendererExternalVideoSourcesByClipId');
   });
 
+  it('disposes external video sources before export presenter starts without them', () => {
+    const code = viewportSource();
+    const start = code.indexOf('const externalVideoSourcesByClipId =');
+    const end = code.indexOf('sharedRendererPresenterStartingRef.current = true;', start);
+    const externalSourceBlock = code.slice(start, end);
+
+    expect(externalSourceBlock).toContain('if (isExporting) {');
+    expect(externalSourceBlock).toContain('disposeSharedRendererExternalVideoSources(sharedRendererExternalVideoSourcesRef.current)');
+  });
+
   it('requires the Rust video control plane in Rust video-only presenter orchestration', () => {
     const code = viewportSource();
     const start = code.indexOf('void startSharedRendererViewportPresenter({');
