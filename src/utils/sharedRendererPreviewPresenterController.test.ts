@@ -1256,6 +1256,77 @@ describe('startSharedRendererPreviewPresenter', () => {
     expect(dataset).not.toHaveProperty('uxfdSharedRendererPresenterNativeRenderFailureDetail');
   });
 
+  it('presents external video sources without using the Rust RGBA upload path', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const events: string[] = [];
+    const externalVideoSource = { tagName: 'VIDEO' };
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: videoSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      rustVideoPlaneWasmEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererExternalVideoSourcesByClipId: new Map([
+        ['video-1', externalVideoSource],
+      ]),
+      rustVideoFrameDecodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video.mp4',
+          sourceFrame: 90,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 12,
+          width: 1280,
+          height: 720,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onImportExternalTexture: (descriptor) => {
+              events.push(`external:${(descriptor as { source: unknown }).source === externalVideoSource}`);
+              return 'external-video-texture';
+            },
+            onWriteTexture: () => {
+              events.push('writeTexture');
+            },
+            createRenderPipeline: (descriptor?: { label?: string }) => ({
+              toString: () => descriptor?.label ?? 'solid-colour-pipeline',
+              getBindGroupLayout: (index: number) => `bind-group-layout-${index}`,
+            }),
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    });
+
+    expect(control).toMatchObject({
+      ok: true,
+      videoOwnership: {
+        owner: 'sharedRenderer',
+        reason: 'rustDecodedFrameUploadReady',
+        videoObjectIds: ['video-1'],
+      },
+    });
+    expect(events).toContain('external:true');
+    expect(events).not.toContain('writeTexture');
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterVideoFrameUploadReady: 'true',
+      uxfdSharedRendererPresenterVideoOwner: 'sharedRenderer',
+    });
+  });
+
   it('does not claim multi-video ownership from a legacy single decoded upload without clip scope', async () => {
     const dataset: Record<string, string | undefined> = {};
     const events: string[] = [];
@@ -2705,6 +2776,7 @@ const fakeDevice = ({
   onCopyTextureToBuffer = () => undefined,
   onSubmittedWorkDone = async () => undefined,
   onSubmit = () => undefined,
+  onImportExternalTexture = () => 'external-video-texture',
   createRenderPipeline,
   createTexture,
   exposeWriteTexture = true,
@@ -2730,6 +2802,7 @@ const fakeDevice = ({
   ) => void;
   onSubmittedWorkDone?: () => Promise<void>;
   onSubmit?: (commandBuffers: unknown[]) => void;
+  onImportExternalTexture?: (descriptor: unknown) => unknown;
   createRenderPipeline?: (descriptor?: { label?: string }) => unknown;
   createTexture?: () => unknown;
   exposeWriteTexture?: boolean;
@@ -2749,6 +2822,7 @@ const fakeDevice = ({
   createTexture: createTexture ?? (() => ({
     createView: () => 'video-frame-texture-view',
   })),
+  importExternalTexture: (descriptor: unknown) => onImportExternalTexture(descriptor),
   createShaderModule: () => 'solid-colour-shader-module',
   ...(exposeCreateRenderPipeline ? {
     createRenderPipeline: createRenderPipeline ?? ((descriptor?: { label?: string }) => ({
