@@ -131,4 +131,64 @@ describe('sharedRendererExternalVideoSource', () => {
     expect(playbackState.seekCount).toBe(2);
     expect(playbackState.pauseCount).toBe(1);
   });
+
+  it('throttles near-target playback sync checks while the video element is already playing', async () => {
+    const calls: string[] = [];
+    const element = fakeVideoElement({
+      play: async () => {
+        calls.push('play');
+      },
+      pause: () => {
+        calls.push('pause');
+      },
+    });
+    const source = createSharedRendererExternalVideoSource({
+      url: 'file:///Volumes/ExtendSSD-W/GX020052.MP4',
+      elementFactory: () => element,
+    });
+    const playbackState: SharedRendererExternalVideoPlaybackState = {};
+
+    syncSharedRendererExternalVideoPlayback({
+      source,
+      playbackState,
+      targetTimeSeconds: 10,
+      isPlaying: true,
+      minimumPlayingSyncIntervalMs: 50,
+      nowMs: 1000,
+    });
+    element.currentTime = 10.01;
+
+    const throttled = syncSharedRendererExternalVideoPlayback({
+      source,
+      playbackState,
+      targetTimeSeconds: 10.02,
+      isPlaying: true,
+      minimumPlayingSyncIntervalMs: 50,
+      nowMs: 1020,
+    });
+    expect(throttled).toMatchObject({
+      sought: false,
+      played: false,
+      paused: false,
+      throttled: true,
+    });
+    expect(calls).toEqual(['play']);
+    expect(playbackState.seekCount).toBe(1);
+    expect(playbackState.suppressedSeekCount).toBeUndefined();
+    expect(playbackState.throttledSyncCount).toBe(1);
+
+    const counted = syncSharedRendererExternalVideoPlayback({
+      source,
+      playbackState,
+      targetTimeSeconds: 10.08,
+      isPlaying: true,
+      minimumPlayingSyncIntervalMs: 50,
+      nowMs: 1060,
+    });
+    expect(counted).toMatchObject({
+      sought: false,
+      throttled: false,
+    });
+    expect(playbackState.suppressedSeekCount).toBe(1);
+  });
 });
