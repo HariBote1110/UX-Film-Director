@@ -4,6 +4,7 @@ use std::time::Duration;
 use uxfd_golden_harness::{compare_rgba_frames, ComparisonThresholds, RgbaFrame};
 use uxfd_native_wgpu_renderer::{
     measure_native_wgpu_frame_stages, NativeWgpuFrameStageTimings, NativeWgpuRenderError,
+    NativeWgpuRenderer,
 };
 use uxfd_reference_renderer::render_reference_frame;
 use uxfd_rust_core::{ColourPipeline, EvaluatedClip, SceneSnapshot, Transform};
@@ -63,6 +64,51 @@ fn stage_timings_separate_upload_render_and_readback_encode_legs() {
         comparison.passed,
         "measured native frame differed from CPU reference: {comparison:?}"
     );
+}
+
+#[test]
+fn persistent_renderer_keeps_gpu_setup_out_of_per_frame_timings() {
+    let width = 64;
+    let height = 64;
+    let snapshot = SceneSnapshot {
+        frame_index: 0,
+        colour: ColourPipeline::rec709_sdr_linear(),
+        clips: vec![EvaluatedClip {
+            clip_id: "clip-1".to_string(),
+            track_id: "track-1".to_string(),
+            media_id: "source-1".to_string(),
+            source_frame: 0,
+            z_index: 0,
+            transform: Transform::identity(),
+            opacity: 1.0,
+            effects: Vec::new(),
+        }],
+    };
+    let sources = HashMap::from([(
+        "source-1".to_string(),
+        gradient_frame(width, height).expect("valid gradient frame"),
+    )]);
+
+    let renderer = match pollster::block_on(NativeWgpuRenderer::new(width, height)) {
+        Ok(renderer) => renderer,
+        Err(NativeWgpuRenderError::AdapterUnavailable) => {
+            eprintln!("skipping persistent renderer test: no GPU adapter available");
+            return;
+        }
+        Err(error) => panic!("persistent native wgpu renderer setup failed: {error:?}"),
+    };
+    let first = pollster::block_on(renderer.render_frame_stages(&snapshot, &sources))
+        .expect("first persistent render succeeds");
+    let second = pollster::block_on(renderer.render_frame_stages(&snapshot, &sources))
+        .expect("second persistent render succeeds");
+
+    assert_eq!(renderer.width(), width);
+    assert_eq!(renderer.height(), height);
+    assert_eq!(first.timings.setup, Duration::ZERO);
+    assert_eq!(second.timings.setup, Duration::ZERO);
+    assert_duration_recorded(second.timings.source_upload);
+    assert_duration_recorded(second.timings.render);
+    assert_duration_recorded(second.timings.readback_encode);
 }
 
 fn assert_stage_timings_are_populated(timings: NativeWgpuFrameStageTimings) {
