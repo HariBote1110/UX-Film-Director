@@ -211,6 +211,42 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
     });
   });
 
+  it('passes external video sources into the presenter start input without requiring Rust RGBA uploads', async () => {
+    let presenterInput: unknown;
+    const externalSources = new Map<string, unknown>([
+      ['video-1', { tagName: 'VIDEO' }],
+    ]);
+    const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {
+      presenterInput = input;
+      return control;
+    };
+
+    await startSharedRendererViewportPresenter({
+      canvas,
+      session,
+      datasets: [],
+      diagnosticSwatchEnabled: true,
+      videoCutoverEnabled: true,
+      activeVideoDecodeJobs: [],
+      requestId: 12,
+      sharedRendererExternalVideoSourcesByClipId: externalSources,
+      prepareVideoUploads: async () => ({
+        ok: false,
+        reason: 'noVideoDecodeRequest',
+        detail: 'external texture fast path skips Rust RGBA upload',
+        activeJobs: [],
+      }),
+      startPresenter,
+    } as Parameters<typeof startSharedRendererViewportPresenter>[0] & {
+      sharedRendererExternalVideoSourcesByClipId: Map<string, unknown>;
+    });
+
+    expect(presenterInput).toMatchObject({
+      sharedRendererExternalVideoSourcesByClipId: externalSources,
+      sharedRendererDecodedVideoFrameUploads: undefined,
+    });
+  });
+
   it('passes a prepared Rust decoded video upload into the presenter start input', async () => {
     let presenterInput: unknown;
     const events: string[] = [];
