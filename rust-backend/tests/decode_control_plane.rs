@@ -613,6 +613,154 @@ fn native_rendered_image_frame_can_directly_feed_encode_without_output_shared_me
 }
 
 #[test]
+fn native_rendered_video_frame_direct_encode_uses_cpu_fast_path() {
+    let mut backend = BackendProcess::start();
+    let temp_dir = TestTempDir::new("native-video-direct-cpu-fast-path");
+    let output_path = temp_dir.path().join("native-video-direct-cpu-fast-path.mp4");
+    let output_path_string = output_path.to_string_lossy().into_owned();
+    let source_memory_id = unique_shm_name();
+    let slot_count = 1;
+    let width = 4;
+    let height = 4;
+    let stride_bytes = 256;
+    let slot_byte_len = stride_bytes * height;
+    let tight_rgba = test_frame_pixels(width, height, 0);
+    let padded_rgba = pad_rgba_rows(&tight_rgba, width, height, stride_bytes as usize);
+    let source_ring = PosixSharedRing::create_with_slot_count(
+        &source_memory_id,
+        slot_count,
+        slot_byte_len as usize,
+    )
+    .expect("create direct encode source ring");
+    source_ring
+        .write_frame(0, &padded_rgba)
+        .expect("write direct encode source frame");
+
+    let start = backend.request(json!({
+        "id": 111,
+        "method": "encode.start",
+        "params": {
+            "sessionId": "encode-native-video-direct-cpu",
+            "filePath": output_path_string.clone(),
+            "width": width,
+            "height": height,
+            "fps": 60,
+            "pixelFormat": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(start["ok"], true, "{start}");
+
+    let write = backend.request(json!({
+        "id": 112,
+        "method": "encode.writeNativeFrame",
+        "params": {
+            "sessionId": "encode-native-video-direct-cpu",
+            "renderId": "native-video-direct-cpu-encode",
+            "frameIndex": 0,
+            "timestampUs": 0,
+            "width": width,
+            "height": height,
+            "snapshot": {
+                "frame_index": 0,
+                "colour": {
+                    "profile": "rec709-sdr",
+                    "working_space": "linear-light",
+                    "alpha": "premultiplied"
+                },
+                "clips": [{
+                    "clip_id": "clip-native-video-direct",
+                    "track_id": "track-1",
+                    "media_id": "video-1",
+                    "source_frame": 0,
+                    "z_index": 0,
+                    "transform": {
+                        "translation_x": 0.0,
+                        "translation_y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation_degrees": 0.0,
+                        "sampling": "nearest"
+                    },
+                    "opacity": 1.0,
+                    "effects": []
+                }]
+            },
+            "media": [{
+                "id": "video-1",
+                "kind": "Video",
+                "source": "/tmp/video-source.mp4",
+                "width": width,
+                "height": height,
+                "source_rate": {
+                    "numerator": 60,
+                    "denominator": 1
+                }
+            }],
+            "sources": [{
+                "mediaId": "video-1",
+                "slotCount": slot_count,
+                "frame": {
+                    "descriptor": {
+                        "memoryId": source_memory_id,
+                        "slotIndex": 0,
+                        "generation": 1,
+                        "byteOffset": 0,
+                        "byteLen": slot_byte_len,
+                        "width": width,
+                        "height": height,
+                        "strideBytes": stride_bytes,
+                        "format": "rgba8Srgb",
+                        "colour": {
+                            "primaries": "bt709",
+                            "transfer": "srgb",
+                            "matrix": "rgb",
+                            "range": "full"
+                        }
+                    },
+                    "ptsFrame": 0
+                }
+            }]
+        }
+    }));
+    assert_eq!(write["ok"], true, "{write}");
+    assert_eq!(write["result"]["written"], true);
+    assert_eq!(write["result"]["writtenNativeFrame"], true);
+    assert_eq!(write["result"]["renderPath"], "cpuSimpleVideoComposite");
+    assert_eq!(write["result"]["frameCount"], 1);
+    assert!(
+        write["result"].get("memoryId").is_none(),
+        "direct native encode must not allocate output shared memory: {write}"
+    );
+    assert_no_frame_bytes_recursive(&write["result"]);
+    source_ring
+        .wait_until_free(Duration::from_secs(1))
+        .expect("direct native encode returns decoded source slot to free");
+
+    let finish = backend.request(json!({
+        "id": 113,
+        "method": "encode.finish",
+        "params": {
+            "sessionId": "encode-native-video-direct-cpu"
+        }
+    }));
+    assert_eq!(finish["ok"], true, "{finish}");
+    assert_eq!(finish["result"]["filePath"], output_path_string);
+    assert_eq!(finish["result"]["frameCount"], 1);
+    assert!(
+        fs::metadata(&output_path)
+            .expect("direct video encode output file exists")
+            .len()
+            > 0
+    );
+}
+
+#[test]
 fn native_render_shared_frame_consumes_source_shm_and_returns_descriptor_only() {
     let mut backend = BackendProcess::start();
     let source_memory_id = unique_shm_name();

@@ -179,6 +179,9 @@ describe('runRustBackendVideoEncodeExport', () => {
         nativeEncodeFramePayload,
         releaseNativeEncodeSourcesAfterWrite: {
           kind: 'nativeRenderSources' as const,
+          releaseAfterEncodeSuccess: async () => {
+            calls.push(['releaseAfterEncodeSuccess']);
+          },
           releaseAfterEncodeFailure: async () => {
             calls.push(['releaseAfterEncodeFailure']);
           },
@@ -218,6 +221,7 @@ describe('runRustBackendVideoEncodeExport', () => {
         },
       }],
       ['writeNativeEncodeFrame', nativeEncodeFramePayload],
+      ['releaseAfterEncodeSuccess'],
       ['finishVideoEncode', {
         sessionId: 'session-native-direct',
       }],

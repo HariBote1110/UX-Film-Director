@@ -1315,10 +1315,9 @@ describe('createSharedRendererExportFrameSource', () => {
     });
   });
 
-  it('returns native direct encode payloads when the Rust encoder exposes native frame writes', async () => {
+  it('returns native direct encode payloads for simple video CPU composites when the Rust encoder exposes native frame writes', async () => {
     vi.stubGlobal('window', {
       rustVideoEncoder: {
-        nativeDirectEncodeEnabled: true,
         writeNativeEncodeFrame: async () => ({ success: true }),
       },
       rustBackend: {},
@@ -1472,7 +1471,10 @@ describe('createSharedRendererExportFrameSource', () => {
         time: 7 / 60,
         width: 4,
         height: 4,
-        objects: [image()],
+        objects: [video({
+          width: 4,
+          height: 4,
+        })],
         encodeSessionId: 'native-session',
       });
 
@@ -1495,8 +1497,15 @@ describe('createSharedRendererExportFrameSource', () => {
         },
       });
       expect(result && 'releaseNativeEncodeSourcesAfterWrite' in result).toBe(true);
+      const nativeResult = result as typeof result & {
+        releaseNativeEncodeSourcesAfterWrite?: {
+          releaseAfterEncodeSuccess?: () => Promise<void>;
+        };
+      };
+      await nativeResult?.releaseNativeEncodeSourcesAfterWrite?.releaseAfterEncodeSuccess?.();
       expect(calls).toEqual([
         ['prepareNativeRenderSources'],
+        ['releaseAfterNativeRenderComplete'],
       ]);
       expect(canvas.dataset).toMatchObject({
         uxfdRustExportFrameSourceFrameStatus: 'ready',
