@@ -208,10 +208,27 @@ export const useProjectExport = (
             startedAtMs: Date.now(),
             stepDetail: 'Rust export: direct video transcode running',
           });
-          const transcodeResponse = await transcodeRustBackendVideo({
-            ...transcodeFastPath,
-            outputPath: savePath,
+          const unsubscribeTranscodeProgress = window.rustVideoEncoder.onTranscodeProgress?.((event) => {
+            if (event.sessionId !== rustEncodeSessionId) return;
+            const currentProgress = useStore.getState().exportProgress;
+            setExportProgress(updateExportProgressPhase(currentProgress, {
+              phase: 'transcoding',
+              currentFrame: event.completedFrames,
+              totalFrames: event.totalFrames,
+              stepDetail: `Rust export: direct video transcode ${event.percent.toFixed(1)}%`,
+            }));
           });
+          const transcodeResponse = await (async () => {
+            try {
+              return await transcodeRustBackendVideo({
+                ...transcodeFastPath,
+                sessionId: rustEncodeSessionId,
+                outputPath: savePath,
+              });
+            } finally {
+              unsubscribeTranscodeProgress?.();
+            }
+          })();
           if (!transcodeResponse.success) {
             throw new Error(transcodeResponse.error ?? 'Rust backend video transcode failed.');
           }

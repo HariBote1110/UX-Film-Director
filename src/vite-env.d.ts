@@ -122,6 +122,7 @@ interface Window {
       sources: unknown[];
     }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
     transcodeVideo?: (payload: {
+      sessionId?: string;
       inputPath: string;
       outputPath: string;
       width: number;
@@ -137,6 +138,13 @@ interface Window {
       objectHeight?: number;
       audioPath?: string | null;
     }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
+    onTranscodeProgress?: (listener: (event: {
+      sessionId: string;
+      completedFrames: number;
+      totalFrames: number;
+      percent: number;
+      status?: string;
+    }) => void) => (() => void);
     finishVideoEncode: (payload: {
       sessionId: string;
     }) => Promise<{ success: boolean; result?: unknown; error?: string }>;

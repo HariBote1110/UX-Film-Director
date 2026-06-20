@@ -28,7 +28,11 @@ export const getExportProgressPresentation = (
 ): ExportProgressPresentation => {
   const totalFrames = progress.totalFrames;
   const currentFrame = progress.currentFrame;
-  const isDeterminate = (progress.phase === 'rendering' || progress.phase === 'saving') && totalFrames > 0;
+  const isDeterminate = (
+    progress.phase === 'transcoding'
+    || progress.phase === 'rendering'
+    || progress.phase === 'saving'
+  ) && totalFrames > 0;
   const ratio = isDeterminate ? Math.min(1, Math.max(0, currentFrame / totalFrames)) : 0;
   const percent = Math.round(ratio * 100);
   const frameLabel = language === 'ja' ? 'フレーム' : 'Frame';
@@ -36,7 +40,13 @@ export const getExportProgressPresentation = (
 
   if (isDeterminate) {
     statsLines.push(`${frameLabel} ${currentFrame} / ${totalFrames}`);
-    statsLines.push(`${percent}%`);
+    statsLines.push(`${language === 'ja' ? '進捗' : 'Progress'} ${percent}%`);
+    if (progress.phase === 'transcoding' && typeof progress.startedAtMs === 'number') {
+      const elapsedSeconds = Math.max(0, (nowMs - progress.startedAtMs) / 1000);
+      const elapsedLabel = language === 'ja' ? '経過' : 'Elapsed';
+      const secondsLabel = language === 'ja' ? '秒' : 's';
+      statsLines.push(`${elapsedLabel} ${elapsedSeconds.toFixed(1)} ${secondsLabel}`);
+    }
   } else if (progress.phase === 'transcoding' && totalFrames > 0) {
     const targetLabel = language === 'ja' ? '処理対象' : 'Target';
     statsLines.push(`${targetLabel} ${totalFrames} ${frameLabel.toLowerCase()}`);

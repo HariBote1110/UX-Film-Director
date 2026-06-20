@@ -7,6 +7,7 @@ use std::fs;
 use std::io::{self, BufRead, Read, Write};
 use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time::Duration;
 use uxfd_golden_harness::{load_rgba_jpeg, load_rgba_png, RgbaFrame};
 use uxfd_native_wgpu_renderer::{NativeWgpuRenderError, NativeWgpuRenderer};
@@ -243,6 +244,8 @@ struct EncodeAbortParams {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct EncodeTranscodeVideoParams {
+    #[serde(default)]
+    session_id: Option<String>,
     input_path: String,
     output_path: String,
     width: u32,
@@ -828,6 +831,35 @@ fn abort_encode_session(session: EncodeSession) -> EncodeAbortSummary {
     }
 }
 
+fn emit_transcode_progress_event(
+    session_id: &str,
+    completed_frames: u64,
+    total_frames: u64,
+    progress_status: &str,
+) {
+    let bounded_completed = completed_frames.min(total_frames);
+    let percent = if total_frames > 0 {
+        (bounded_completed as f64 / total_frames as f64 * 100.0).clamp(0.0, 100.0)
+    } else {
+        0.0
+    };
+    let event = json!({
+        "event": "encode.transcodeVideo.progress",
+        "payload": {
+            "sessionId": session_id,
+            "completedFrames": bounded_completed,
+            "totalFrames": total_frames,
+            "percent": percent,
+            "status": progress_status,
+        }
+    });
+    if let Ok(serialised) = serde_json::to_string(&event) {
+        let mut stdout = io::stdout().lock();
+        let _ = writeln!(stdout, "{serialised}");
+        let _ = stdout.flush();
+    }
+}
+
 fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
     let parsed = match serde_json::from_value::<EncodeTranscodeVideoParams>(params) {
         Ok(value) => value,
@@ -877,6 +909,12 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
         .clamp(0.0, 4.0);
     let include_source_audio = parsed.include_audio && audio_path.is_none() && audio_volume > 0.0;
     let frame_count = (parsed.duration_seconds * f64::from(parsed.fps)).ceil() as u64;
+    let session_id = parsed
+        .session_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("transcode-video");
     let object_x = parsed.object_x.unwrap_or(0);
     let object_y = parsed.object_y.unwrap_or(0);
     let object_width = parsed.object_width.unwrap_or(parsed.width);
@@ -929,6 +967,7 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
     cmd.arg("-hide_banner")
         .arg("-loglevel")
         .arg("error")
+        .arg("-nostats")
         .arg("-y");
     if start_seconds > 0.0 {
         cmd.arg("-ss").arg(format!("{start_seconds:.6}"));
@@ -939,6 +978,8 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
     }
     cmd.arg("-t")
         .arg(format!("{:.6}", parsed.duration_seconds))
+        .arg("-progress")
+        .arg("pipe:1")
         .arg("-vf")
         .arg(scale_filter)
         .arg("-r")
@@ -979,10 +1020,10 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
     cmd.arg("-movflags")
         .arg("+faststart")
         .arg(&parsed.output_path)
-        .stdout(Stdio::null())
+        .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-    let output = match cmd.output() {
+    let mut child = match cmd.spawn() {
         Ok(value) => value,
         Err(error) => {
             return response_error(
@@ -992,9 +1033,79 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
             );
         }
     };
+    let stdout = match child.stdout.take() {
+        Some(value) => value,
+        None => {
+            let _ = child.kill();
+            return response_error(id, -32058, "Failed to capture Rust transcode ffmpeg stdout");
+        }
+    };
+    let stderr = match child.stderr.take() {
+        Some(value) => value,
+        None => {
+            let _ = child.kill();
+            return response_error(id, -32058, "Failed to capture Rust transcode ffmpeg stderr");
+        }
+    };
+    let stderr_handle = thread::spawn(move || {
+        let mut stderr_reader = stderr;
+        let mut stderr_text = String::new();
+        let _ = stderr_reader.read_to_string(&mut stderr_text);
+        stderr_text
+    });
 
-    if !output.status.success() {
-        let stderr_detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    emit_transcode_progress_event(session_id, 0, frame_count, "started");
+    let mut latest_frame = 0_u64;
+    let mut latest_out_time_us = 0_u64;
+    let stdout_reader = io::BufReader::new(stdout);
+    for line_result in stdout_reader.lines() {
+        let line = match line_result {
+            Ok(value) => value,
+            Err(_) => break,
+        };
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        match key {
+            "frame" => {
+                latest_frame = value.trim().parse::<u64>().unwrap_or(latest_frame);
+            }
+            "out_time_ms" => {
+                latest_out_time_us = value.trim().parse::<u64>().unwrap_or(latest_out_time_us);
+            }
+            "progress" => {
+                let completed_from_time = ((latest_out_time_us as f64 / 1_000_000.0)
+                    * f64::from(parsed.fps))
+                .round() as u64;
+                let completed_frames = latest_frame.max(completed_from_time);
+                emit_transcode_progress_event(
+                    session_id,
+                    if value.trim() == "end" {
+                        frame_count
+                    } else {
+                        completed_frames
+                    },
+                    frame_count,
+                    value.trim(),
+                );
+            }
+            _ => {}
+        }
+    }
+
+    let status = match child.wait() {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32059,
+                &format!("Rust transcode ffmpeg wait failed: {error}"),
+            );
+        }
+    };
+    let stderr_detail = stderr_handle.join().unwrap_or_default().trim().to_string();
+
+    if !status.success() {
         let stderr_suffix = if stderr_detail.is_empty() {
             String::new()
         } else {
@@ -1005,10 +1116,11 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
             -32059,
             &format!(
                 "Rust transcode ffmpeg exited with failure status: code={:?}.{stderr_suffix}",
-                output.status.code()
+                status.code()
             ),
         );
     }
+    emit_transcode_progress_event(session_id, frame_count, frame_count, "completed");
 
     RpcResponse {
         id,

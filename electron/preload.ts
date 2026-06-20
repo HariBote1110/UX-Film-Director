@@ -167,6 +167,11 @@ contextBridge.exposeInMainWorld('rustVideoEncoder', {
   transcodeVideo(payload: unknown) {
     return ipcRenderer.invoke(rustVideoEncodeIpcChannels.transcodeVideo, payload)
   },
+  onTranscodeProgress(listener: (event: unknown) => void) {
+    const wrapped = (_event: Electron.IpcRendererEvent, payload: unknown) => listener(payload)
+    ipcRenderer.on(rustVideoEncodeIpcChannels.transcodeVideoProgress, wrapped)
+    return () => ipcRenderer.off(rustVideoEncodeIpcChannels.transcodeVideoProgress, wrapped)
+  },
   finishVideoEncode(payload: unknown) {
     return ipcRenderer.invoke(rustVideoEncodeIpcChannels.finish, payload)
   },

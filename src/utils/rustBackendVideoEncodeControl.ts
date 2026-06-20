@@ -43,6 +43,7 @@ export interface RustBackendVideoEncodeWriteNativeFramePayload {
 }
 
 export interface RustBackendVideoTranscodePayload {
+  sessionId?: string;
   inputPath: string;
   outputPath: string;
   width: number;
@@ -57,6 +58,14 @@ export interface RustBackendVideoTranscodePayload {
   objectWidth?: number;
   objectHeight?: number;
   audioPath?: string | null;
+}
+
+export interface RustBackendVideoTranscodeProgressEvent {
+  sessionId: string;
+  completedFrames: number;
+  totalFrames: number;
+  percent: number;
+  status?: string;
 }
 
 export interface RustBackendVideoEncodeFinishPayload {
@@ -86,6 +95,9 @@ export interface RustBackendVideoEncodeBridge {
   transcodeVideo?: (
     payload: RustBackendVideoTranscodePayload
   ) => Promise<RustBackendVideoEncodeResult>;
+  onTranscodeProgress?: (
+    listener: (event: RustBackendVideoTranscodeProgressEvent) => void
+  ) => (() => void);
   finishVideoEncode: (
     payload: RustBackendVideoEncodeFinishPayload
   ) => Promise<RustBackendVideoEncodeResult>;

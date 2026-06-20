@@ -54,6 +54,11 @@ type RustRpcResponse = {
   };
 };
 
+type RustBackendEvent = {
+  event?: string;
+  payload?: unknown;
+};
+
 const rustPendingRequests = new Map<number, PendingRustRequest>();
 
 // VITE_EXPORT_TEST=1 のとき devtools を非表示にして余分なウィンドウを出さない
@@ -282,14 +287,20 @@ const handleRustStdout = (chunk: string) => {
     const line = rawLine.trim();
     if (!line) continue;
 
-    let response: RustRpcResponse;
+    let response: RustRpcResponse | RustBackendEvent;
     try {
-      response = JSON.parse(line) as RustRpcResponse;
+      response = JSON.parse(line) as RustRpcResponse | RustBackendEvent;
     } catch (error) {
       console.error(`[RustBackend] Invalid response JSON: ${line}`);
       continue;
     }
 
+    if (!('id' in response)) {
+      if (response.event === 'encode.transcodeVideo.progress') {
+        win?.webContents.send(rustVideoEncodeIpcChannels.transcodeVideoProgress, response.payload);
+      }
+      continue;
+    }
     if (typeof response.id !== 'number') {
       continue;
     }

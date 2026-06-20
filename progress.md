@@ -1,3 +1,26 @@
+## 2026-06-20 — direct transcodeの実percent進捗をUIへ表示
+
+### 実施内容
+- Red: Rust backendの `encode.transcodeVideo` がprogress eventを出し、`sessionId` / `completedFrames` / `totalFrames` / `percent` を含める契約を追加した。
+- Red: Electron/renderer IPCに direct transcode progress 専用チャンネルを追加し、`useProjectExport` が同一 `sessionId` のeventだけをprogressへ反映する契約を追加した。
+- Red: `ExportProgressModal` がtranscoding中もRust進捗eventから `フレーム x / total` と `進捗 n%` を表示する契約へ変更した。
+- Green: Rust backendでffmpegを `-progress pipe:1` 付きで起動し、`frame` / `out_time_ms` / `progress` を読んでJSON eventとしてstdoutへ流すようにした。
+- Green: Electron mainが `id` を持たないRust backend eventを通常RPC responseから分離し、`rust-backend-encode-transcode-video-progress` でrendererへ転送するようにした。
+- Green: preloadに `window.rustVideoEncoder.onTranscodeProgress` を追加し、unsubscribe可能な購読APIにした。
+- Green: direct transcode payloadへ `sessionId` を渡し、progress eventで `currentFrame` / `totalFrames` を更新するようにした。
+- 版を `0.1.1-Beta-229e` に更新した。
+
+### 検証
+- `npm test -- --run src/components/ExportProgressModal.test.ts src/utils/useProjectExportBoundary.test.ts src/utils/rustVideoEncodeIpcChannels.test.ts src/utils/rustBackendVideoEncodeControl.test.ts src/utils/rustVideoEncodeBackendBridge.test.ts`
+- `cargo fmt --manifest-path rust-backend/Cargo.toml && cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane encode_transcode_video -- --nocapture`
+- `npx tsc --noEmit 2>&1 | rg "electron/main|electron/preload|rustVideoEncodeIpc|src/components/ExportProgressModal|src/hooks/useProjectExport|src/store/useStore|src/vite-env|rustBackendVideoEncodeControl"`
+- `UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=5 npm run test:video-export:e2e`
+
+### 結果・残課題
+- E2Eの `progressSamples` で `フレーム 155 / 300進捗 52%経過 4.5 秒` のようにpercentが段階的に更新されることを確認した。
+- 5秒300frameのdirect transcodeは8749ms / 約34.29fpsで完了した。progress event追加後の単発計測なので、次に速度を見るときは複数回平均で確認する。
+- `npx tsc --noEmit` は今回触った範囲に追加エラーなし。ただし既存の `src/utils/rustBackendVideoEncodeControl.test.ts` native frame payload型エラーは残っている。
+
 ## 2026-06-20 — direct transcode中の進捗UIを正直な表示へ修正
 
 ### 実施内容

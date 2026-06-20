@@ -217,7 +217,7 @@ describe('getExportProgressPresentation', () => {
       percent: 50,
       statsLines: [
         'フレーム 150 / 300',
-        '50%',
+        '進捗 50%',
         '経過 2.5 秒',
       ],
     });
@@ -234,7 +234,7 @@ describe('getExportProgressPresentation', () => {
       percent: 50,
       statsLines: [
         'Frame 150 / 300',
-        '50%',
+        'Progress 50%',
       ],
     });
   });
