@@ -69,6 +69,49 @@ type SharedRendererExternalVideoSourceEntry = {
   playbackState: SharedRendererExternalVideoPlaybackState;
 };
 
+const clearSharedRendererExternalVideoSourceDiagnostics = () => {
+  if (typeof document === 'undefined') return;
+  const dataset = document.documentElement.dataset as Record<string, string | undefined>;
+  delete dataset.uxfdSharedRendererExternalVideoSourceCount;
+  delete dataset.uxfdSharedRendererExternalVideoSeekCount;
+  delete dataset.uxfdSharedRendererExternalVideoSuppressedSeekCount;
+  delete dataset.uxfdSharedRendererExternalVideoPlayCount;
+  delete dataset.uxfdSharedRendererExternalVideoPauseCount;
+  delete dataset.uxfdSharedRendererExternalVideoMaxAbsDriftMs;
+};
+
+const publishSharedRendererExternalVideoSourceDiagnostics = (
+  entries: Map<string, SharedRendererExternalVideoSourceEntry>
+) => {
+  if (typeof document === 'undefined') return;
+  if (entries.size === 0) {
+    clearSharedRendererExternalVideoSourceDiagnostics();
+    return;
+  }
+
+  let seekCount = 0;
+  let suppressedSeekCount = 0;
+  let playCount = 0;
+  let pauseCount = 0;
+  let maxAbsDriftSeconds = 0;
+  entries.forEach((entry) => {
+    const state = entry.playbackState;
+    seekCount += state.seekCount ?? 0;
+    suppressedSeekCount += state.suppressedSeekCount ?? 0;
+    playCount += state.playCount ?? 0;
+    pauseCount += state.pauseCount ?? 0;
+    maxAbsDriftSeconds = Math.max(maxAbsDriftSeconds, Math.abs(state.lastDriftSeconds ?? 0));
+  });
+
+  const dataset = document.documentElement.dataset as Record<string, string | undefined>;
+  dataset.uxfdSharedRendererExternalVideoSourceCount = String(entries.size);
+  dataset.uxfdSharedRendererExternalVideoSeekCount = String(seekCount);
+  dataset.uxfdSharedRendererExternalVideoSuppressedSeekCount = String(suppressedSeekCount);
+  dataset.uxfdSharedRendererExternalVideoPlayCount = String(playCount);
+  dataset.uxfdSharedRendererExternalVideoPauseCount = String(pauseCount);
+  dataset.uxfdSharedRendererExternalVideoMaxAbsDriftMs = String(Math.round(maxAbsDriftSeconds * 1000));
+};
+
 const disposeSharedRendererExternalVideoSources = (
   entries: Map<string, SharedRendererExternalVideoSourceEntry>
 ) => {
@@ -76,6 +119,7 @@ const disposeSharedRendererExternalVideoSources = (
     entry.source.dispose();
   });
   entries.clear();
+  clearSharedRendererExternalVideoSourceDiagnostics();
 };
 
 const resolveSharedRendererExternalVideoUrl = (
@@ -154,6 +198,7 @@ const syncSharedRendererExternalVideoSources = ({
     entry.source.dispose();
     entries.delete(clipId);
   });
+  publishSharedRendererExternalVideoSourceDiagnostics(entries);
 
   return sourcesByClipId;
 };

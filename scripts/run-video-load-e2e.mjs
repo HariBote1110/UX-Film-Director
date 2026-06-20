@@ -490,6 +490,9 @@ const waitForPlaybackFrameAdvance = async (client, initialState) => client.evalu
         videoOwner: document.documentElement.dataset.uxfdSharedRendererPresenterVideoOwner,
         videoFrameUploadReady: document.documentElement.dataset.uxfdSharedRendererPresenterVideoFrameUploadReady,
         videoPresentationSource: document.documentElement.dataset.uxfdSharedRendererPresenterVideoPresentationSource,
+        externalVideoSeekCount: Number(document.documentElement.dataset.uxfdSharedRendererExternalVideoSeekCount ?? NaN),
+        externalVideoSuppressedSeekCount: Number(document.documentElement.dataset.uxfdSharedRendererExternalVideoSuppressedSeekCount ?? NaN),
+        externalVideoMaxAbsDriftMs: Number(document.documentElement.dataset.uxfdSharedRendererExternalVideoMaxAbsDriftMs ?? NaN),
         presentedSourceFrame: Number(document.documentElement.dataset.uxfdSharedRendererPresenterVideoPresentedSourceFrame ?? NaN),
         presentedFrameIndex: Number(document.documentElement.dataset.uxfdSharedRendererPresenterVideoPresentedFrameIndex ?? NaN),
       };
@@ -531,6 +534,9 @@ const samplePlaybackPresentationSmoothness = async (client) => client.evaluate(`
         videoOwner: document.documentElement.dataset.uxfdSharedRendererPresenterVideoOwner,
         videoFrameUploadReady: document.documentElement.dataset.uxfdSharedRendererPresenterVideoFrameUploadReady,
         videoPresentationSource: document.documentElement.dataset.uxfdSharedRendererPresenterVideoPresentationSource,
+        externalVideoSeekCount: Number(document.documentElement.dataset.uxfdSharedRendererExternalVideoSeekCount ?? NaN),
+        externalVideoSuppressedSeekCount: Number(document.documentElement.dataset.uxfdSharedRendererExternalVideoSuppressedSeekCount ?? NaN),
+        externalVideoMaxAbsDriftMs: Number(document.documentElement.dataset.uxfdSharedRendererExternalVideoMaxAbsDriftMs ?? NaN),
         presentedSourceFrame: Number(document.documentElement.dataset.uxfdSharedRendererPresenterVideoPresentedSourceFrame ?? NaN),
         presentedFrameIndex: Number(document.documentElement.dataset.uxfdSharedRendererPresenterVideoPresentedFrameIndex ?? NaN),
       };
@@ -546,6 +552,7 @@ const samplePlaybackPresentationSmoothness = async (client) => client.evaluate(`
         const externalTextureSampleCount = samples.filter((entry) => (
           entry.videoPresentationSource === 'external-video-source'
         )).length;
+        const lastSample = samples[samples.length - 1] ?? {};
         const span = typeof firstPresentedFrame === 'number' && typeof lastPresentedFrame === 'number'
           ? lastPresentedFrame - firstPresentedFrame
           : 0;
@@ -565,6 +572,15 @@ const samplePlaybackPresentationSmoothness = async (client) => client.evaluate(`
           presentedFrameSpan: span,
           blockedSampleCount,
           externalTextureSampleCount,
+          externalVideoSeekCount: Number.isFinite(lastSample.externalVideoSeekCount)
+            ? lastSample.externalVideoSeekCount
+            : null,
+          externalVideoSuppressedSeekCount: Number.isFinite(lastSample.externalVideoSuppressedSeekCount)
+            ? lastSample.externalVideoSuppressedSeekCount
+            : null,
+          externalVideoMaxAbsDriftMs: Number.isFinite(lastSample.externalVideoMaxAbsDriftMs)
+            ? lastSample.externalVideoMaxAbsDriftMs
+            : null,
           samples,
         });
         return;

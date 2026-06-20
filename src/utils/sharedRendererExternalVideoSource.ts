@@ -25,6 +25,11 @@ export type SharedRendererExternalVideoSource = {
 
 export type SharedRendererExternalVideoPlaybackState = {
   mode?: 'playing' | 'paused';
+  seekCount?: number;
+  suppressedSeekCount?: number;
+  playCount?: number;
+  pauseCount?: number;
+  lastDriftSeconds?: number;
 };
 
 export type SharedRendererExternalVideoPlaybackSyncResult = {
@@ -125,22 +130,28 @@ export const syncSharedRendererExternalVideoPlayback = ({
 
   if (shouldSeek) {
     source.seekTo(safeTargetTimeSeconds);
+    playbackState.seekCount = (playbackState.seekCount ?? 0) + 1;
     sought = true;
+  } else {
+    playbackState.suppressedSeekCount = (playbackState.suppressedSeekCount ?? 0) + 1;
   }
 
   if (isPlaying) {
     if (playbackState.mode !== 'playing') {
       void source.play().catch(() => undefined);
+      playbackState.playCount = (playbackState.playCount ?? 0) + 1;
       played = true;
     }
     playbackState.mode = 'playing';
   } else {
     if (playbackState.mode !== 'paused') {
       source.pause();
+      playbackState.pauseCount = (playbackState.pauseCount ?? 0) + 1;
       paused = true;
     }
     playbackState.mode = 'paused';
   }
+  playbackState.lastDriftSeconds = driftSeconds;
 
   return {
     sought,
