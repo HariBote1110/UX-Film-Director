@@ -150,6 +150,30 @@ const isSharedRendererExternalVideoOnlySession = (session: SharedRendererPreview
   return session.surfaceGate.snapshot.clips.every((clip) => mediaKindById.get(clip.media_id) === 'Video');
 };
 
+const publishSharedRendererExternalVideoPresentationDiagnostics = (
+  session: SharedRendererPreviewSession,
+  datasets: SharedRendererPresenterDiagnosticDataset[],
+  presenterStartCount: number,
+) => {
+  if (!session.surfaceGate.ok) return;
+
+  const surfaceGate = session.surfaceGate;
+  const mediaKindById = new Map(surfaceGate.media.map((media) => [media.id, media.kind]));
+  const firstVideoClip = surfaceGate.snapshot.clips
+    .filter((clip) => mediaKindById.get(clip.media_id) === 'Video')
+    .sort((left, right) => left.z_index - right.z_index)[0];
+  if (!firstVideoClip) return;
+
+  datasets.forEach((dataset) => {
+    dataset.uxfdSharedRendererPresenterStatus = 'ready';
+    dataset.uxfdSharedRendererPresenterStartCount = String(presenterStartCount);
+    dataset.uxfdSharedRendererPresenterVideoPresentationSource = 'external-video-source';
+    dataset.uxfdSharedRendererPresenterVideoFrameUploadReady = 'true';
+    dataset.uxfdSharedRendererPresenterVideoPresentedSourceFrame = String(firstVideoClip.source_frame);
+    dataset.uxfdSharedRendererPresenterVideoPresentedFrameIndex = String(surfaceGate.snapshot.frame_index);
+  });
+};
+
 const syncSharedRendererExternalVideoSources = ({
   session,
   objects,
@@ -728,6 +752,14 @@ const Viewport: React.FC = () => {
           session,
           sourcesByClipId,
         });
+        publishSharedRendererExternalVideoPresentationDiagnostics(
+          session,
+          [
+            document.documentElement.dataset as Record<string, string | undefined>,
+            ...(surfaceCanvas ? [surfaceCanvas.dataset as Record<string, string | undefined>] : []),
+          ],
+          sharedRendererPresenterStartCountRef.current
+        );
         setSharedRendererPreviewDiagnostic(buildSharedRendererPreviewDiagnostic(
           document.documentElement.dataset as Record<string, string | undefined>,
           control
@@ -925,6 +957,11 @@ const Viewport: React.FC = () => {
             session: pendingSession,
             sourcesByClipId,
           });
+          publishSharedRendererExternalVideoPresentationDiagnostics(
+            pendingSession,
+            liveDatasets,
+            sharedRendererPresenterStartCountRef.current
+          );
           setSharedRendererPreviewDiagnostic(buildSharedRendererPreviewDiagnostic(rootDataset, control));
         }
       }
