@@ -1324,6 +1324,8 @@ describe('startSharedRendererPreviewPresenter', () => {
     expect(dataset).toMatchObject({
       uxfdSharedRendererPresenterVideoFrameUploadReady: 'true',
       uxfdSharedRendererPresenterVideoOwner: 'sharedRenderer',
+      uxfdSharedRendererPresenterVideoPresentationSource: 'external-video-source',
+      uxfdSharedRendererPresenterVideoPresentedSourceFrame: '90',
     });
   });
 
