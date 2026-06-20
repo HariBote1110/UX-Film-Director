@@ -128,7 +128,6 @@ export type RustSceneVideoSourceMode = 'previewProxy' | 'exportOriginal';
 
 type SupportedMediaObject = ImageObject | VideoObject | PsdObject;
 type SupportedSceneObject = SupportedMediaObject | ShapeObject;
-const EXPORT_ORIGINAL_VIDEO_MAX_EDGE = 2048;
 
 const rustColourPipeline = (): RustColourPipeline => ({
   profile: 'rec709-sdr',
@@ -392,10 +391,10 @@ const mediaDimensionsForObject = (
   videoSourceMode: RustSceneVideoSourceMode
 ): { width: number; height: number } => {
   if (object.type === 'video' && videoSourceMode === 'exportOriginal') {
-    return limitVideoDimensionsToMaxEdge({
-      width: positiveNumberOrFallback(object.sourceWidth, object.width),
-      height: positiveNumberOrFallback(object.sourceHeight, object.height),
-    }, EXPORT_ORIGINAL_VIDEO_MAX_EDGE);
+    return {
+      width: positiveNumberOrFallback(object.width, 1),
+      height: positiveNumberOrFallback(object.height, 1),
+    };
   }
   return {
     width: object.width,
@@ -425,20 +424,6 @@ const safeScaleRatio = (displaySize: number, sourceSize: number): number => {
     return 1;
   }
   return displaySize / sourceSize;
-};
-
-const limitVideoDimensionsToMaxEdge = (
-  dimensions: { width: number; height: number },
-  maxEdge: number
-): { width: number; height: number } => {
-  const width = Math.max(1, Math.round(dimensions.width));
-  const height = Math.max(1, Math.round(dimensions.height));
-  const safeMaxEdge = Number.isFinite(maxEdge) && maxEdge > 0 ? maxEdge : EXPORT_ORIGINAL_VIDEO_MAX_EDGE;
-  const scale = Math.min(1, safeMaxEdge / width, safeMaxEdge / height);
-  return {
-    width: Math.max(1, Math.round(width * scale)),
-    height: Math.max(1, Math.round(height * scale)),
-  };
 };
 
 const mediaKindForObject = (object: SupportedMediaObject): RustSceneMediaReference['kind'] => {

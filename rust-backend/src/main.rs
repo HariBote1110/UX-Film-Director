@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use uxfd_golden_harness::{load_rgba_jpeg, load_rgba_png, RgbaFrame};
 use uxfd_native_wgpu_renderer::{NativeWgpuRenderError, NativeWgpuRenderer};
-use uxfd_rust_core::{EvaluatedClip, MediaKind, SceneMediaReference, SceneSnapshot};
+use uxfd_rust_core::{EvaluatedClip, MediaKind, SamplingMode, SceneMediaReference, SceneSnapshot};
 #[cfg(unix)]
 use uxfd_shared_memory_spike::{PosixSharedRing, PosixShmError};
 use uxfd_sidecar_protocol::{
@@ -942,6 +942,9 @@ fn try_render_simple_video_frame_to_shared_ring(
         height,
         translation_x,
         translation_y,
+        clip.transform.scale_x,
+        clip.transform.scale_y,
+        clip.transform.sampling,
     )?;
 
     let colour = ColourMetadata::rec709_srgb();
@@ -977,13 +980,51 @@ fn try_render_simple_video_frame_to_shared_ring(
 fn is_simple_video_composite_clip(clip: &EvaluatedClip) -> bool {
     clip.effects.is_empty()
         && nearly_equal_f32(clip.opacity, 1.0)
-        && nearly_equal_f32(clip.transform.scale_x, 1.0)
-        && nearly_equal_f32(clip.transform.scale_y, 1.0)
+        && clip.transform.scale_x.is_finite()
+        && clip.transform.scale_y.is_finite()
+        && clip.transform.scale_x > 0.0
+        && clip.transform.scale_y > 0.0
         && nearly_equal_f32(clip.transform.rotation_degrees, 0.0)
 }
 
 #[cfg(unix)]
 fn blit_simple_video_source(
+    source: &RgbaFrame,
+    output: &mut [u8],
+    output_width: u32,
+    output_height: u32,
+    translation_x: i64,
+    translation_y: i64,
+    scale_x: f32,
+    scale_y: f32,
+    sampling: SamplingMode,
+) -> Result<(), String> {
+    if nearly_equal_f32(scale_x, 1.0) && nearly_equal_f32(scale_y, 1.0) {
+        return blit_unscaled_simple_video_source(
+            source,
+            output,
+            output_width,
+            output_height,
+            translation_x,
+            translation_y,
+        );
+    }
+
+    blit_scaled_simple_video_source(
+        source,
+        output,
+        output_width,
+        output_height,
+        translation_x as f32,
+        translation_y as f32,
+        scale_x,
+        scale_y,
+        sampling,
+    )
+}
+
+#[cfg(unix)]
+fn blit_unscaled_simple_video_source(
     source: &RgbaFrame,
     output: &mut [u8],
     output_width: u32,
@@ -1040,6 +1081,140 @@ fn blit_simple_video_source(
     }
 
     Ok(())
+}
+
+#[cfg(unix)]
+fn blit_scaled_simple_video_source(
+    source: &RgbaFrame,
+    output: &mut [u8],
+    output_width: u32,
+    output_height: u32,
+    translation_x: f32,
+    translation_y: f32,
+    scale_x: f32,
+    scale_y: f32,
+    sampling: SamplingMode,
+) -> Result<(), String> {
+    let output_width_usize = usize::try_from(output_width)
+        .map_err(|_| format!("output width overflows usize: {output_width}"))?;
+    let source_width = source.width as f32;
+    let source_height = source.height as f32;
+    let destination_x_start = translation_x.ceil().max(0.0) as i64;
+    let destination_y_start = translation_y.ceil().max(0.0) as i64;
+    let destination_x_end = (translation_x + source_width * scale_x)
+        .ceil()
+        .min(output_width as f32)
+        .max(0.0) as i64;
+    let destination_y_end = (translation_y + source_height * scale_y)
+        .ceil()
+        .min(output_height as f32)
+        .max(0.0) as i64;
+    if destination_x_start >= destination_x_end || destination_y_start >= destination_y_end {
+        return Ok(());
+    }
+
+    for destination_y in destination_y_start..destination_y_end {
+        let source_y = (destination_y as f32 - translation_y) / scale_y;
+        if source_y < 0.0 || source_y >= source_height {
+            continue;
+        }
+        let destination_y = usize::try_from(destination_y)
+            .map_err(|_| "destination y overflows usize".to_string())?;
+        for destination_x in destination_x_start..destination_x_end {
+            let source_x = (destination_x as f32 - translation_x) / scale_x;
+            if source_x < 0.0 || source_x >= source_width {
+                continue;
+            }
+            let destination_x = usize::try_from(destination_x)
+                .map_err(|_| "destination x overflows usize".to_string())?;
+            let destination_offset = (destination_y * output_width_usize + destination_x)
+                .checked_mul(4)
+                .ok_or_else(|| "CPU scaled video destination offset overflows".to_string())?;
+            let pixel = sample_simple_video_source(source, source_x, source_y, sampling)?;
+            output[destination_offset..destination_offset + 4].copy_from_slice(&pixel);
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(unix)]
+fn sample_simple_video_source(
+    source: &RgbaFrame,
+    source_x: f32,
+    source_y: f32,
+    sampling: SamplingMode,
+) -> Result<[u8; 4], String> {
+    match sampling {
+        SamplingMode::Nearest => sample_nearest_simple_video_source(source, source_x, source_y),
+        SamplingMode::Bilinear => sample_bilinear_simple_video_source(source, source_x, source_y),
+    }
+}
+
+#[cfg(unix)]
+fn sample_nearest_simple_video_source(
+    source: &RgbaFrame,
+    source_x: f32,
+    source_y: f32,
+) -> Result<[u8; 4], String> {
+    let x = source_x.floor().clamp(0.0, (source.width - 1) as f32) as usize;
+    let y = source_y.floor().clamp(0.0, (source.height - 1) as f32) as usize;
+    read_simple_video_source_pixel(source, x, y)
+}
+
+#[cfg(unix)]
+fn sample_bilinear_simple_video_source(
+    source: &RgbaFrame,
+    source_x: f32,
+    source_y: f32,
+) -> Result<[u8; 4], String> {
+    let floor_x = source_x.floor();
+    let floor_y = source_y.floor();
+    let x0 = floor_x.clamp(0.0, (source.width - 1) as f32) as usize;
+    let y0 = floor_y.clamp(0.0, (source.height - 1) as f32) as usize;
+    let x1 = (floor_x + 1.0).clamp(0.0, (source.width - 1) as f32) as usize;
+    let y1 = (floor_y + 1.0).clamp(0.0, (source.height - 1) as f32) as usize;
+    let tx = source_x - floor_x;
+    let ty = source_y - floor_y;
+    let top_left = read_simple_video_source_pixel(source, x0, y0)?;
+    let top_right = read_simple_video_source_pixel(source, x1, y0)?;
+    let bottom_left = read_simple_video_source_pixel(source, x0, y1)?;
+    let bottom_right = read_simple_video_source_pixel(source, x1, y1)?;
+    let mut output = [0_u8; 4];
+    for channel in 0..4 {
+        let top = lerp(top_left[channel] as f32, top_right[channel] as f32, tx);
+        let bottom = lerp(
+            bottom_left[channel] as f32,
+            bottom_right[channel] as f32,
+            tx,
+        );
+        output[channel] = lerp(top, bottom, ty).round().clamp(0.0, 255.0) as u8;
+    }
+    Ok(output)
+}
+
+#[cfg(unix)]
+fn read_simple_video_source_pixel(
+    source: &RgbaFrame,
+    x: usize,
+    y: usize,
+) -> Result<[u8; 4], String> {
+    let source_width = usize::try_from(source.width)
+        .map_err(|_| format!("source width overflows usize: {}", source.width))?;
+    let offset = (y * source_width + x)
+        .checked_mul(4)
+        .ok_or_else(|| "CPU scaled video source offset overflows".to_string())?;
+    Ok([
+        source.pixels[offset],
+        source.pixels[offset + 1],
+        source.pixels[offset + 2],
+        source.pixels[offset + 3],
+    ])
+}
+
+#[cfg(unix)]
+fn lerp(left: f32, right: f32, amount: f32) -> f32 {
+    left + (right - left) * amount
 }
 
 #[cfg(unix)]
