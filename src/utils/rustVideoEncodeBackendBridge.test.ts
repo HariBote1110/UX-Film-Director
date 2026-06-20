@@ -80,7 +80,7 @@ describe('rustVideoEncodeBackendBridge', () => {
     expect(backend.calls).toEqual([{
       method: 'encode.start',
       params: startPayload,
-      timeoutMs: 15_000,
+      timeoutMs: 120_000,
     }]);
     expect(JSON.stringify(backend.calls)).not.toContain('start-export');
   });

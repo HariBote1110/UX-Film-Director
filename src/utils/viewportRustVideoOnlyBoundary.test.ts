@@ -132,6 +132,16 @@ describe('Viewport Rust video-only boundary', () => {
     expect(externalSourceBlock).toContain('disposeSharedRendererExternalVideoSources(sharedRendererExternalVideoSourcesRef.current)');
   });
 
+  it('invalidates the presenter session key when export disposes external video sources', () => {
+    const code = viewportSource();
+    const start = code.indexOf('if (isExporting) {');
+    const end = code.indexOf('} else {', start);
+    const exportExternalSourceBlock = code.slice(start, end);
+
+    expect(exportExternalSourceBlock).toContain('disposeSharedRendererExternalVideoSources(sharedRendererExternalVideoSourcesRef.current)');
+    expect(exportExternalSourceBlock).toContain('sharedRendererPresenterSessionKeyRef.current = null');
+  });
+
   it('requires the Rust video control plane in Rust video-only presenter orchestration', () => {
     const code = viewportSource();
     const start = code.indexOf('void startSharedRendererViewportPresenter({');
