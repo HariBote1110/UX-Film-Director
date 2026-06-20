@@ -15,6 +15,7 @@ const OUTPUT_MP4 = resolve(OUTPUT_DIR, 'video-export-e2e-output.mp4');
 const RESULT_JSON = resolve(OUTPUT_DIR, 'result.json');
 const RESULT_LOG = resolve(OUTPUT_DIR, 'result.log');
 const OVERALL_TIMEOUT_MS = Number(process.env.UXFD_VIDEO_EXPORT_E2E_TIMEOUT_MS ?? 180_000);
+const EXPORT_DURATION_SECONDS = Number(process.env.UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS ?? 1);
 
 let vite = null;
 let electron = null;
@@ -188,6 +189,11 @@ const collectRuntimeErrors = (client) => client.events
       ?? 'Runtime exception';
   });
 
+const parseExportedFrameCount = (dialogMessage) => {
+  const match = String(dialogMessage ?? '').match(/フレーム:\s*(\d+)/);
+  return match ? Number(match[1]) : null;
+};
+
 const writeResult = (result) => {
   mkdirSync(OUTPUT_DIR, { recursive: true });
   writeFileSync(RESULT_JSON, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
@@ -326,13 +332,14 @@ const main = async () => {
     throw new Error(`動画読み込みに失敗しました: ${JSON.stringify(loadResult)}`);
   }
   const durationShortened = await client.evaluate(`
-    window.__UXFD_VIDEO_EXPORT_E2E_SET_VIDEO_DURATION__?.(1) ?? false
+    window.__UXFD_VIDEO_EXPORT_E2E_SET_VIDEO_DURATION__?.(${JSON.stringify(EXPORT_DURATION_SECONDS)}) ?? false
   `);
   if (!durationShortened) {
     throw new Error('動画export E2E用の短尺化に失敗しました。');
   }
 
   log(`動画出力を開始: ${OUTPUT_MP4}`);
+  const exportStartTimeMs = Date.now();
   const exportClicked = await client.evaluate(`
     (() => {
       const buttons = [...document.querySelectorAll('button')];
@@ -383,6 +390,11 @@ const main = async () => {
       error: error instanceof Error ? error.message : String(error),
     })),
   };
+  const exportDurationMs = Date.now() - exportStartTimeMs;
+  const exportedFrameCount = parseExportedFrameCount(exportResult.dialog?.message);
+  const exportFramesPerSecond = exportedFrameCount && exportDurationMs > 0
+    ? exportedFrameCount / (exportDurationMs / 1000)
+    : null;
 
   await sleep(500);
   const outputStat = existsSync(OUTPUT_MP4)
@@ -396,6 +408,10 @@ const main = async () => {
     videoPath: VIDEO_PATH,
     outputPath: OUTPUT_MP4,
     outputStat,
+    exportDurationSeconds: EXPORT_DURATION_SECONDS,
+    exportDurationMs,
+    exportedFrameCount,
+    exportFramesPerSecond,
     loadResult,
     exportResult,
     dialogs: client.dialogs,

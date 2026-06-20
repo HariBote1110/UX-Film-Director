@@ -1155,3 +1155,11 @@
 - 検証: `npm test -- --run src/utils/rustBackendVideoEncodeExport.test.ts` は14件成功。`npm test -- --run src/utils/rustBackendVideoEncodeExport.test.ts src/utils/rustBackendVideoEncodeControl.test.ts src/utils/projectExportRustEncodeFrame.test.ts src/utils/sharedRendererExportFrameSource.test.ts` は64件成功。`UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 npm run test:video-export:e2e` は成功し、起動込み約25秒、60 frames / `506379` bytes のMP4生成を確認した。
 - 残課題: 今回の改善はrender/write待ちの重なりを作る低リスク施策で、decode/native renderそのものの回数はまだ減っていない。次はE2Eにexport開始から完了までの純粋なdurationを記録し、2〜5秒尺で差分を測る。
 - 版: `0.1.1-Beta-224i`。
+
+## 2026-06-20
+- 動画export高速化の判断材料として、E2E resultへElectron/Vite起動時間を除いたexportボタン押下から完了dialogまでの `exportDurationMs` を記録するようにした。
+- Red: `packageScripts.test` に、`run-video-export-e2e.mjs` が `UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS`、`exportDurationMs`、`exportFramesPerSecond` を持つ契約を追加した。
+- Green: `UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS` でE2E用timeline durationを可変にし、dialogの `フレーム:` から `exportedFrameCount` を抽出して `exportFramesPerSecond` を算出するようにした。
+- 検証: `npm test -- --run src/utils/packageScripts.test.ts` は2件成功。`UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=1 npm run test:video-export:e2e` は60 frames / `16306` ms / 約 `3.68` fps / `506379` bytesで成功。`UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=2 npm run test:video-export:e2e` は120 frames / `29373` ms / 約 `4.09` fps / `1029465` bytesで成功。
+- 残課題: 現状は動画only exportで約4fps。次はframe単位に `native render/decode/write` の時間を分解し、最も大きい待ちを優先して削る。
+- 版: `0.1.1-Beta-224j`。
