@@ -1,3 +1,24 @@
+## 2026-06-20 — direct transcodeのresizeとsource音声を修正
+
+### 実施内容
+- Red: direct transcode fast pathが `scaleX/scaleY` によるリサイズを正確な出力矩形として受け入れる契約を追加した。
+- Red: direct transcodeでsource動画の音声を保持する契約を追加した。
+- Green: `resolveProjectExportVideoTranscodeFastPath` が `width * scaleX` / `height * scaleY` を矩形サイズとして返すようにした。
+- Green: Rust `encode.transcodeVideo` のvideo filterをアスペクト維持scaleではなく指定矩形へのexact scaleに変更し、リサイズ結果とexportを揃えた。
+- Green: direct transcodeで `includeAudio` がtrueのとき、source動画の `0:a:0?` をAACとして出力へmapするようにした。ミュート時は音声を落とす。
+- 版を `0.1.1-Beta-229b` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/projectExportVideoTranscodeFastPath.test.ts src/utils/rustVideoEncodeBackendBridge.test.ts src/utils/rustVideoEncodeIpcChannels.test.ts src/utils/rustBackendVideoEncodeControl.test.ts`
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane encode_transcode_video -- --nocapture`
+- `UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=5 npm run test:video-export:e2e`
+- `ffprobe -v error -select_streams a -show_entries stream=codec_type,codec_name -of json .codex/video-export-e2e/video-export-e2e-output.mp4`
+
+### 結果・残課題
+- 5秒300frame E2Eは `Rust backend direct transcode` で 4581ms / 約65.49fps。
+- ffprobeで出力MP4にAAC audio streamが入ることを確認した。
+- direct transcodeは回転、opacity、filter、複数objectなど合成が必要なケースでは従来経路へ戻る。次は図形・画像をffmpeg filter graphへ載せるか、GPU合成側の高速化へ進む。
+
 ## 2026-06-20 — 単一動画exportをdirect transcode fast pathへ接続
 
 ### 実施内容

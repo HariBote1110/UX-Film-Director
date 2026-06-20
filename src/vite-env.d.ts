@@ -129,6 +129,8 @@ interface Window {
       fps: number;
       durationSeconds: number;
       startSeconds?: number;
+      includeAudio?: boolean;
+      audioVolume?: number;
       objectX?: number;
       objectY?: number;
       objectWidth?: number;

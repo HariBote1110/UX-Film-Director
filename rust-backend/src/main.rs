@@ -262,6 +262,10 @@ struct EncodeTranscodeVideoParams {
     #[serde(default)]
     audio_path: Option<String>,
     #[serde(default)]
+    include_audio: bool,
+    #[serde(default)]
+    audio_volume: Option<f64>,
+    #[serde(default)]
     ffmpeg_path: Option<String>,
 }
 
@@ -866,6 +870,12 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
         .as_ref()
         .map(|value| value.trim())
         .filter(|value| !value.is_empty());
+    let audio_volume = parsed
+        .audio_volume
+        .filter(|value| value.is_finite() && *value >= 0.0)
+        .unwrap_or(1.0)
+        .clamp(0.0, 4.0);
+    let include_source_audio = parsed.include_audio && audio_path.is_none() && audio_volume > 0.0;
     let frame_count = (parsed.duration_seconds * f64::from(parsed.fps)).ceil() as u64;
     let object_x = parsed.object_x.unwrap_or(0);
     let object_y = parsed.object_y.unwrap_or(0);
@@ -893,16 +903,8 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
         );
     }
     let scale_filter = format!(
-        "scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,setsar=1,pad={}:{}:{}:{}:black,fps={}",
-        object_width,
-        object_height,
-        object_width,
-        object_height,
-        parsed.width,
-        parsed.height,
-        object_x,
-        object_y,
-        parsed.fps
+        "scale={}:{},setsar=1,pad={}:{}:{}:{}:black,fps={}",
+        object_width, object_height, parsed.width, parsed.height, object_x, object_y, parsed.fps
     );
 
     let mut cmd = Command::new(&ffmpeg_path);
@@ -931,15 +933,27 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
         .arg("yuv420p");
 
     if audio_path.is_some() {
-        cmd.arg("-c:a")
-            .arg("aac")
-            .arg("-b:a")
-            .arg("192k")
-            .arg("-map")
+        cmd.arg("-map")
             .arg("0:v:0")
             .arg("-map")
             .arg("1:a:0")
+            .arg("-c:a")
+            .arg("aac")
+            .arg("-b:a")
+            .arg("192k")
             .arg("-shortest");
+    } else if include_source_audio {
+        cmd.arg("-map")
+            .arg("0:v:0")
+            .arg("-map")
+            .arg("0:a:0?")
+            .arg("-c:a")
+            .arg("aac")
+            .arg("-b:a")
+            .arg("192k");
+        if (audio_volume - 1.0).abs() > 1e-6 {
+            cmd.arg("-af").arg(format!("volume={audio_volume:.6}"));
+        }
     } else {
         cmd.arg("-an");
     }
@@ -988,6 +1002,7 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
             "width": parsed.width,
             "height": parsed.height,
             "fps": parsed.fps,
+            "includedAudio": audio_path.is_some() || include_source_audio,
         })),
         error: None,
     }
