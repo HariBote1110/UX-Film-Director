@@ -8,6 +8,7 @@ import { buildOrderedPerfHeavyVideoPaths } from '../src/perf/perfHeavyVideo';
 import { serialisePerfAgentPayload, type PerfHarnessAgentPayload } from '../src/perf/perfAgentPayload';
 import { PERFORMANCE_CSV_HEADER_LINE } from '../src/perf/performanceReport';
 import {
+  abortRustVideoEncodeViaBackend,
   finishRustVideoEncodeViaBackend,
   startRustVideoEncodeViaBackend,
   writeRustVideoEncodeFrameViaBackend,
@@ -808,6 +809,9 @@ app.whenReady().then(() => {
   );
   ipcMain.handle(rustVideoEncodeIpcChannels.finish, async (_event, payload: unknown) =>
     finishRustVideoEncodeViaBackend(payload, callRustBackend)
+  );
+  ipcMain.handle(rustVideoEncodeIpcChannels.abort, async (_event, payload: unknown) =>
+    abortRustVideoEncodeViaBackend(payload, callRustBackend)
   );
 
   ipcMain.handle('quit-app', (_event, payload?: { exitCode?: number }) => {

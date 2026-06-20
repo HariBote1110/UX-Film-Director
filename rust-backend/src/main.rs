@@ -92,6 +92,14 @@ struct EncodeSession {
     frame_count: u64,
 }
 
+struct EncodeAbortSummary {
+    session_id: String,
+    file_path: String,
+    frame_count: u64,
+    ffmpeg_status: String,
+    stderr: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DecodeStopRequest {
@@ -212,6 +220,12 @@ struct EncodeFinishParams {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct EncodeAbortParams {
+    session_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct NativeRenderSharedFrameParams {
     render_id: String,
     memory_id: String,
@@ -288,6 +302,7 @@ fn handle_request(request: RpcRequest, state: &mut BackendState) -> RpcResponse 
         "encode.start" => handle_encode_start(request.id, request.params, state),
         "encode.writeFrame" => handle_encode_write_frame(request.id, request.params, state),
         "encode.finish" => handle_encode_finish(request.id, request.params, state),
+        "encode.abort" => handle_encode_abort(request.id, request.params, state),
         "render.nativeSharedFrame" => {
             handle_native_render_shared_frame(request.id, request.params, state)
         }
@@ -505,6 +520,84 @@ fn handle_encode_finish(id: u64, params: Value, state: &mut BackendState) -> Rpc
             "frameCount": session.frame_count,
         })),
         error: None,
+    }
+}
+
+fn handle_encode_abort(id: u64, params: Value, state: &mut BackendState) -> RpcResponse {
+    let parsed = match serde_json::from_value::<EncodeAbortParams>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32602,
+                &format!("Invalid encode.abort params: {error}"),
+            );
+        }
+    };
+
+    let Some(session) = state.encode_sessions.remove(&parsed.session_id) else {
+        return RpcResponse {
+            id,
+            ok: true,
+            result: Some(json!({
+                "aborted": false,
+                "sessionId": parsed.session_id,
+                "alreadyClosed": true,
+            })),
+            error: None,
+        };
+    };
+
+    let summary = abort_encode_session(session);
+    RpcResponse {
+        id,
+        ok: true,
+        result: Some(json!({
+            "aborted": true,
+            "sessionId": summary.session_id,
+            "filePath": summary.file_path,
+            "frameCount": summary.frame_count,
+            "ffmpegStatus": summary.ffmpeg_status,
+            "stderr": summary.stderr,
+        })),
+        error: None,
+    }
+}
+
+fn abort_encode_session(session: EncodeSession) -> EncodeAbortSummary {
+    let EncodeSession {
+        mut child,
+        mut stdin,
+        mut stderr,
+        session_id,
+        file_path,
+        frame_count,
+        ..
+    } = session;
+
+    let _ = stdin.flush();
+    drop(stdin);
+
+    let ffmpeg_status = match child.try_wait() {
+        Ok(Some(status)) => format!("alreadyExited:{:?}", status.code()),
+        Ok(None) => {
+            let _ = child.kill();
+            match child.wait() {
+                Ok(status) => format!("killed:{:?}", status.code()),
+                Err(error) => format!("waitFailed:{error}"),
+            }
+        }
+        Err(error) => format!("statusFailed:{error}"),
+    };
+    let mut stderr_text = String::new();
+    let _ = stderr.read_to_string(&mut stderr_text);
+
+    EncodeAbortSummary {
+        session_id,
+        file_path,
+        frame_count,
+        ffmpeg_status,
+        stderr: stderr_text.trim().to_string(),
     }
 }
 

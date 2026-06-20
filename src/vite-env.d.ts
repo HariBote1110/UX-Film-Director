@@ -112,6 +112,9 @@ interface Window {
     finishVideoEncode: (payload: {
       sessionId: string;
     }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
+    abortVideoEncode?: (payload: {
+      sessionId: string;
+    }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
   };
   sharedVideoFrame: {
     getPresentedFrameHandoffCapabilities?: () => {

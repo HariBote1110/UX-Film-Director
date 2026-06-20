@@ -7098,3 +7098,24 @@
 ### 残課題・次のステップ
 - 実Electron windowでScale X/Y変更後の動画描画範囲をE2E観測する。
 - 動画入りエクスポートの実経路を再現するE2Eを追加し、停止または失敗理由を修正する。
+
+## 2026-06-20 — export失敗時のRust encode session残留を修正
+
+### 実施内容
+- 動画入りexportで `encode.start` 後にshared-frame生成やframe writeが失敗した場合、`encode.finish` に到達せずRust backend側のffmpeg/sessionが残る問題を修正した。
+- Red: renderer export helper、Electron backend bridge、IPC channel、Rust backend RPCに `encode.abort` 契約を追加した。
+- Green: `runRustBackendVideoEncodeExport` を `try/finally` 化し、finish未完了の失敗時は元エラーを隠さず `abortVideoEncode` をbest-effortで呼ぶようにした。
+- Rust backendに冪等な `encode.abort` を追加し、active sessionをremoveしてstdinを閉じ、ffmpegをkill/waitし、stderrをdrainするようにした。
+- Electron main/preloadから `rust-backend-encode-abort` / `window.rustVideoEncoder.abortVideoEncode` を公開した。
+- 版を `0.1.1-Beta-224d` に更新した。
+
+### 検証
+- `npm test -- rustBackendVideoEncodeExport rustBackendVideoEncodeControl rustVideoEncodeBackendBridge rustVideoEncodeIpcChannels`
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane encode_abort_removes_active_session_after_frame_source_failure -- --nocapture`
+- `npm test -- useProjectExportBoundary projectExportFrameCanvas projectExportFrameRenderer sharedRendererExportFrameSource rustBackendVideoEncodeExport rustBackendVideoEncodeControl projectExportRustEncodeFrame`
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane encode_ -- --nocapture`
+- 対象ファイルで絞った `tsc` 出力は空。
+
+### 残課題・次のステップ
+- `test:export:fast` は古い `resolve-4k-proxy-video` IPCをexport test harnessが呼んで失敗する。production IPCへ戻さず、harness側のfixture解決へ切り替える。
+- 実Electron windowのexportクリックを通るE2Eを追加し、保存ダイアログ・失敗時modal終了・次回export再試行まで検証する。

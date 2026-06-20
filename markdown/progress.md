@@ -1101,3 +1101,12 @@
 - Rust core側にも、動画平面の右下頂点が `reference.width/height * scale_x/scale_y` で計算される契約を追加した。
 - 検証: `npm test -- rustSceneSnapshot sharedRendererVideoPlaneScene sharedRendererRustVideoPlaneScene` は23件成功。`cargo test --manifest-path rust-core/Cargo.toml applies_video_transform_scale` は1件成功。
 - 版: `0.1.1-Beta-224c`。
+
+## 2026-06-20
+- 動画入りexportで `encode.start` 後にshared-frame生成やframe writeが失敗した場合、`encode.finish` に到達せずRust backend側のffmpeg/sessionが残る問題を修正した。
+- Red: renderer export helper、Electron backend bridge、IPC channel、Rust backend RPCに `encode.abort` 契約を追加した。
+- Green: `runRustBackendVideoEncodeExport` を `try/finally` 化し、finish未完了の失敗時は元エラーを隠さず `abortVideoEncode` をbest-effortで呼ぶようにした。
+- Rust backendに冪等な `encode.abort` を追加し、active sessionをremoveしてstdinを閉じ、ffmpegをkill/waitし、stderrをdrainするようにした。
+- Electron main/preloadから `rust-backend-encode-abort` / `window.rustVideoEncoder.abortVideoEncode` を公開した。
+- 検証: `npm test -- rustBackendVideoEncodeExport rustBackendVideoEncodeControl rustVideoEncodeBackendBridge rustVideoEncodeIpcChannels` は23件成功。`cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane encode_abort_removes_active_session_after_frame_source_failure -- --nocapture` は1件成功。export周辺unitは132件成功。Rust encode統合は7件成功。対象ファイルで絞った `tsc` 出力は空。
+- 版: `0.1.1-Beta-224d`。

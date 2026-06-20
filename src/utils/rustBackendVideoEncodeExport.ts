@@ -1,4 +1,5 @@
 import {
+  abortRustBackendVideoEncode,
   finishRustBackendVideoEncode,
   startRustBackendVideoEncode,
   writeRustBackendVideoEncodeFrame,
@@ -123,49 +124,55 @@ export const runRustBackendVideoEncodeExport = async ({
   }, encoderBridge);
   assertBridgeSuccess(startResponse.success, startResponse.error, 'Rust backend video encode start failed.');
 
-  let frameCount = 0;
-  for await (const frame of frames) {
-    if (!isSharedFramePayloadFrame(frame)) {
-      throw new Error('Rust backend video encode export requires shared-frame payloads.');
+  let finished = false;
+  try {
+    for await (const frame of frames) {
+      if (!isSharedFramePayloadFrame(frame)) {
+        throw new Error('Rust backend video encode export requires shared-frame payloads.');
+      }
+
+      let writeResponse;
+      try {
+        writeResponse = await writeRustBackendVideoEncodeFrame(frame.sharedFramePayload, encoderBridge);
+      } catch (error) {
+        await releaseNativeRenderOutputAfterEncodeFailure(
+          frame,
+          'encodeWriteFailed',
+          nativeRenderBridge,
+          onNativeRenderOutputRelease
+        );
+        throw error;
+      }
+      if (!writeResponse.success) {
+        await releaseNativeRenderOutputAfterEncodeFailure(
+          frame,
+          'encodeWriteFailed',
+          nativeRenderBridge,
+          onNativeRenderOutputRelease
+        );
+      }
+      assertBridgeSuccess(
+        writeResponse.success,
+        writeResponse.error,
+        'Rust backend video encode frame write failed.'
+      );
     }
 
-    let writeResponse;
-    try {
-      writeResponse = await writeRustBackendVideoEncodeFrame(frame.sharedFramePayload, encoderBridge);
-    } catch (error) {
-      await releaseNativeRenderOutputAfterEncodeFailure(
-        frame,
-        'encodeWriteFailed',
-        nativeRenderBridge,
-        onNativeRenderOutputRelease
-      );
-      throw error;
+    const finishResponse = await finishRustBackendVideoEncode({ sessionId }, encoderBridge);
+    assertBridgeSuccess(finishResponse.success, finishResponse.error, 'Rust backend video encode finish failed.');
+    finished = true;
+    const finishSummary = parseRustBackendVideoEncodeFinishSummary(finishResponse.result);
+
+    return {
+      frameCount: finishSummary.frameCount,
+      sessionId: finishSummary.sessionId,
+      filePath: finishSummary.filePath,
+    };
+  } finally {
+    if (!finished) {
+      await abortRustBackendVideoEncode({ sessionId }, encoderBridge).catch(() => {});
     }
-    if (!writeResponse.success) {
-      await releaseNativeRenderOutputAfterEncodeFailure(
-        frame,
-        'encodeWriteFailed',
-        nativeRenderBridge,
-        onNativeRenderOutputRelease
-      );
-    }
-    assertBridgeSuccess(
-      writeResponse.success,
-      writeResponse.error,
-      'Rust backend video encode frame write failed.'
-    );
-    frameCount += 1;
   }
-
-  const finishResponse = await finishRustBackendVideoEncode({ sessionId }, encoderBridge);
-  assertBridgeSuccess(finishResponse.success, finishResponse.error, 'Rust backend video encode finish failed.');
-  const finishSummary = parseRustBackendVideoEncodeFinishSummary(finishResponse.result);
-
-  return {
-    frameCount: finishSummary.frameCount,
-    sessionId: finishSummary.sessionId,
-    filePath: finishSummary.filePath,
-  };
 };
 
 const parseRustBackendVideoEncodeFinishSummary = (

@@ -13,6 +13,7 @@ export interface RustVideoEncodeBackendBridgeResult {
 const START_ENCODE_TIMEOUT_MS = 15_000;
 const WRITE_FRAME_TIMEOUT_MS = 20_000;
 const FINISH_ENCODE_TIMEOUT_MS = 60_000;
+const ABORT_ENCODE_TIMEOUT_MS = 10_000;
 
 const toErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
@@ -51,3 +52,9 @@ export const finishRustVideoEncodeViaBackend = (
   callRustBackend: RustBackendCaller
 ): Promise<RustVideoEncodeBackendBridgeResult> =>
   callRustVideoEncodeRpc('encode.finish', payload, callRustBackend, FINISH_ENCODE_TIMEOUT_MS);
+
+export const abortRustVideoEncodeViaBackend = (
+  payload: unknown,
+  callRustBackend: RustBackendCaller
+): Promise<RustVideoEncodeBackendBridgeResult> =>
+  callRustVideoEncodeRpc('encode.abort', payload, callRustBackend, ABORT_ENCODE_TIMEOUT_MS);

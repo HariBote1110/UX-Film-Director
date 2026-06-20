@@ -27,6 +27,10 @@ export interface RustBackendVideoEncodeFinishPayload {
   sessionId: string;
 }
 
+export interface RustBackendVideoEncodeAbortPayload {
+  sessionId: string;
+}
+
 export interface RustBackendVideoEncodeResult<T = unknown> {
   success: boolean;
   result?: T;
@@ -42,6 +46,9 @@ export interface RustBackendVideoEncodeBridge {
   ) => Promise<RustBackendVideoEncodeResult>;
   finishVideoEncode: (
     payload: RustBackendVideoEncodeFinishPayload
+  ) => Promise<RustBackendVideoEncodeResult>;
+  abortVideoEncode?: (
+    payload: RustBackendVideoEncodeAbortPayload
   ) => Promise<RustBackendVideoEncodeResult>;
 }
 
@@ -69,3 +76,16 @@ export const finishRustBackendVideoEncode = (
   bridge: RustBackendVideoEncodeBridge = window.rustVideoEncoder
 ): Promise<RustBackendVideoEncodeResult> =>
   bridge.finishVideoEncode(payload);
+
+export const abortRustBackendVideoEncode = (
+  payload: RustBackendVideoEncodeAbortPayload,
+  bridge: RustBackendVideoEncodeBridge = window.rustVideoEncoder
+): Promise<RustBackendVideoEncodeResult> => {
+  if (typeof bridge.abortVideoEncode !== 'function') {
+    return Promise.resolve({
+      success: false,
+      error: 'Rust backend video encode abort bridge is unavailable.',
+    });
+  }
+  return bridge.abortVideoEncode(payload);
+};

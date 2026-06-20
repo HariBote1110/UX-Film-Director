@@ -163,6 +163,9 @@ contextBridge.exposeInMainWorld('rustVideoEncoder', {
   finishVideoEncode(payload: unknown) {
     return ipcRenderer.invoke(rustVideoEncodeIpcChannels.finish, payload)
   },
+  abortVideoEncode(payload: unknown) {
+    return ipcRenderer.invoke(rustVideoEncodeIpcChannels.abort, payload)
+  },
 })
 
 contextBridge.exposeInMainWorld('sharedVideoFrame', {
