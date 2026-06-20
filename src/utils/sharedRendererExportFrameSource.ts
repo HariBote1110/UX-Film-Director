@@ -479,7 +479,14 @@ export function createSharedRendererExportFrameSource({
         frame: source.frame,
       })),
     };
-    if (isDefaultNativeEncodeFrameWriterAvailable()) {
+    if (
+      isDefaultNativeEncodeFrameWriterAvailable()
+      && isSimpleVideoNativeDirectEncodeFrame({
+        snapshot: surfaceGate.snapshot,
+        media: surfaceGate.media,
+        nativeRenderSources,
+      })
+    ) {
       writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
         status: 'ready',
         frameIndex: request.frameIndex,
@@ -788,6 +795,46 @@ const requestObjectsRepresentIdentityVideoPassthrough = (
     && object.opacity === 1
     && object.width === request.width
     && object.height === request.height;
+};
+
+const isSimpleVideoNativeDirectEncodeFrame = ({
+  snapshot,
+  media,
+  nativeRenderSources,
+}: {
+  snapshot: RustSceneSnapshot;
+  media: readonly RustSceneMediaReference[];
+  nativeRenderSources: readonly SharedRendererViewportNativeRenderSource[];
+}): boolean => {
+  if (snapshot.clips.length !== 1 || media.length !== 1 || nativeRenderSources.length !== 1) {
+    return false;
+  }
+  const clip = snapshot.clips[0];
+  const reference = media[0];
+  const source = nativeRenderSources[0];
+  const descriptor = source.frame.descriptor;
+  return reference.kind === 'Video'
+    && clip.media_id === reference.id
+    && source.mediaId === reference.id
+    && clip.source_frame === source.frame.ptsFrame
+    && clip.opacity === 1
+    && clip.effects.length === 0
+    && Number.isFinite(clip.transform.translation_x)
+    && Number.isFinite(clip.transform.translation_y)
+    && Math.abs(clip.transform.translation_x - Math.round(clip.transform.translation_x)) <= 1e-6
+    && Math.abs(clip.transform.translation_y - Math.round(clip.transform.translation_y)) <= 1e-6
+    && Number.isFinite(clip.transform.scale_x)
+    && Number.isFinite(clip.transform.scale_y)
+    && clip.transform.scale_x > 0
+    && clip.transform.scale_y > 0
+    && clip.transform.rotation_degrees === 0
+    && reference.width === descriptor.width
+    && reference.height === descriptor.height
+    && descriptor.format === 'rgba8Srgb'
+    && descriptor.colour.primaries === 'bt709'
+    && descriptor.colour.transfer === 'srgb'
+    && descriptor.colour.matrix === 'rgb'
+    && descriptor.colour.range === 'full';
 };
 
 const defaultCreateFrameBitmap: SharedRendererExportFrameBitmapFactory = (

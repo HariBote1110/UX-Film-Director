@@ -29,6 +29,7 @@ export interface RustBackendVideoEncodeNativeFramePayloadFrame {
   nativeEncodeFramePayload: RustBackendVideoEncodeWriteNativeFramePayload;
   releaseNativeEncodeSourcesAfterWrite?: {
     kind: 'nativeRenderSources';
+    releaseAfterEncodeSuccess?: () => Promise<void>;
     releaseAfterEncodeFailure: () => Promise<void>;
   };
 }
@@ -244,6 +245,7 @@ const writeNativeFrameToRustBackend = async (
     );
     return;
   }
+  await frame.releaseNativeEncodeSourcesAfterWrite?.releaseAfterEncodeSuccess?.();
 };
 
 const writeFrameToRustBackend = async (

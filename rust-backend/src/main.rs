@@ -532,6 +532,50 @@ fn handle_encode_write_native_frame(
         );
     }
 
+    if let Some(frame) = match try_render_simple_video_frame(
+        &parsed.snapshot,
+        &parsed.media,
+        &sources,
+        parsed.width,
+        parsed.height,
+    ) {
+        Ok(value) => value,
+        Err(message) => return response_error(id, -32071, &message),
+    } {
+        let (session_id, frame_count, encoded_frame_byte_len) = {
+            let Some(session) = state.encode_sessions.get_mut(&parsed.session_id) else {
+                return response_error(id, -32052, "No active encode session");
+            };
+            let encoded_frame_byte_len = match write_rgba_frame_to_encoder(session, &frame) {
+                Ok(value) => value,
+                Err(message) => return response_error(id, -32053, &message),
+            };
+            session.frame_count += 1;
+            (
+                session.session_id.clone(),
+                session.frame_count,
+                encoded_frame_byte_len,
+            )
+        };
+
+        return RpcResponse {
+            id,
+            ok: true,
+            result: Some(json!({
+                "written": true,
+                "writtenNativeFrame": true,
+                "sessionId": session_id,
+                "renderId": parsed.render_id,
+                "renderPath": "cpuSimpleVideoComposite",
+                "frameIndex": parsed.frame_index,
+                "timestampUs": parsed.timestamp_us,
+                "encodedFrameByteLen": encoded_frame_byte_len,
+                "frameCount": frame_count,
+            })),
+            error: None,
+        };
+    }
+
     let renderer = match get_or_create_native_wgpu_renderer(state, parsed.width, parsed.height) {
         Ok(value) => value,
         Err(NativeWgpuRenderError::AdapterUnavailable) => {
@@ -906,6 +950,48 @@ fn try_render_simple_video_frame_to_shared_ring(
     slot_count: u32,
     pts_frame: u64,
 ) -> Result<Option<CpuSimpleVideoRenderReport>, String> {
+    let Some(frame) = try_render_simple_video_frame(snapshot, media_items, sources, width, height)?
+    else {
+        return Ok(None);
+    };
+
+    let colour = ColourMetadata::rec709_srgb();
+    let layout = rgba8_srgb_ring_layout(memory_id, slot_count, width, height, colour)
+        .map_err(|error| format!("CPU simple video output layout failed: {error:?}"))?;
+    let descriptor = layout
+        .descriptor_for_slot(0)
+        .map_err(|error| format!("CPU simple video output descriptor failed: {error:?}"))?;
+    let padded = pad_rgba_rows(&frame.pixels, width, height, descriptor.stride_bytes)?;
+    let slot_byte_len = usize::try_from(descriptor.byte_len).map_err(|_| {
+        format!(
+            "CPU simple video output byteLen overflows usize: {}",
+            descriptor.byte_len
+        )
+    })?;
+    let ring = PosixSharedRing::create_with_slot_count(memory_id, slot_count, slot_byte_len)
+        .map_err(|error| format!("CPU simple video output shared memory failed: {error:?}"))?;
+    ring.write_frame(pts_frame, &padded)
+        .map_err(|error| format!("CPU simple video output write failed: {error:?}"))?;
+
+    Ok(Some(CpuSimpleVideoRenderReport {
+        ring,
+        slot_count,
+        slot_byte_len: descriptor.byte_len,
+        shared_frame: SharedFrame {
+            descriptor,
+            pts_frame,
+        },
+    }))
+}
+
+#[cfg(unix)]
+fn try_render_simple_video_frame(
+    snapshot: &SceneSnapshot,
+    media_items: &[SceneMediaReference],
+    sources: &HashMap<String, RgbaFrame>,
+    width: u32,
+    height: u32,
+) -> Result<Option<RgbaFrame>, String> {
     if snapshot.clips.len() != 1 || sources.len() != 1 {
         return Ok(None);
     }
@@ -947,33 +1033,9 @@ fn try_render_simple_video_frame_to_shared_ring(
         clip.transform.sampling,
     )?;
 
-    let colour = ColourMetadata::rec709_srgb();
-    let layout = rgba8_srgb_ring_layout(memory_id, slot_count, width, height, colour)
-        .map_err(|error| format!("CPU simple video output layout failed: {error:?}"))?;
-    let descriptor = layout
-        .descriptor_for_slot(0)
-        .map_err(|error| format!("CPU simple video output descriptor failed: {error:?}"))?;
-    let padded = pad_rgba_rows(&output, width, height, descriptor.stride_bytes)?;
-    let slot_byte_len = usize::try_from(descriptor.byte_len).map_err(|_| {
-        format!(
-            "CPU simple video output byteLen overflows usize: {}",
-            descriptor.byte_len
-        )
-    })?;
-    let ring = PosixSharedRing::create_with_slot_count(memory_id, slot_count, slot_byte_len)
-        .map_err(|error| format!("CPU simple video output shared memory failed: {error:?}"))?;
-    ring.write_frame(pts_frame, &padded)
-        .map_err(|error| format!("CPU simple video output write failed: {error:?}"))?;
-
-    Ok(Some(CpuSimpleVideoRenderReport {
-        ring,
-        slot_count,
-        slot_byte_len: descriptor.byte_len,
-        shared_frame: SharedFrame {
-            descriptor,
-            pts_frame,
-        },
-    }))
+    RgbaFrame::from_rgba8(width, height, output)
+        .map(Some)
+        .map_err(|error| format!("CPU simple video output frame is invalid: {error:?}"))
 }
 
 #[cfg(unix)]

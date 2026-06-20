@@ -616,7 +616,9 @@ fn native_rendered_image_frame_can_directly_feed_encode_without_output_shared_me
 fn native_rendered_video_frame_direct_encode_uses_cpu_fast_path() {
     let mut backend = BackendProcess::start();
     let temp_dir = TestTempDir::new("native-video-direct-cpu-fast-path");
-    let output_path = temp_dir.path().join("native-video-direct-cpu-fast-path.mp4");
+    let output_path = temp_dir
+        .path()
+        .join("native-video-direct-cpu-fast-path.mp4");
     let output_path_string = output_path.to_string_lossy().into_owned();
     let source_memory_id = unique_shm_name();
     let slot_count = 1;
