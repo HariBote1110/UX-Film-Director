@@ -218,6 +218,7 @@ const main = async () => {
     env: {
       ...process.env,
       VITE_DEV_SERVER_URL: `http://localhost:${VITE_PORT}/?videoExportE2e=1`,
+      UXFD_VIDEO_EXPORT_E2E_SAVE_PATH: OUTPUT_MP4,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -324,19 +325,12 @@ const main = async () => {
   if (!loadResult?.ok) {
     throw new Error(`動画読み込みに失敗しました: ${JSON.stringify(loadResult)}`);
   }
-
-  await client.evaluate(`
-    (() => {
-      const originalInvoke = window.ipcRenderer?.invoke?.bind(window.ipcRenderer);
-      if (!originalInvoke) return false;
-      window.__UXFD_VIDEO_EXPORT_E2E_ORIGINAL_INVOKE__ = originalInvoke;
-      window.ipcRenderer.invoke = (channel, payload) => {
-        if (channel === 'show-save-dialog') return Promise.resolve(${JSON.stringify(OUTPUT_MP4)});
-        return originalInvoke(channel, payload);
-      };
-      return true;
-    })()
+  const durationShortened = await client.evaluate(`
+    window.__UXFD_VIDEO_EXPORT_E2E_SET_VIDEO_DURATION__?.(1) ?? false
   `);
+  if (!durationShortened) {
+    throw new Error('動画export E2E用の短尺化に失敗しました。');
+  }
 
   log(`動画出力を開始: ${OUTPUT_MP4}`);
   const exportClicked = await client.evaluate(`

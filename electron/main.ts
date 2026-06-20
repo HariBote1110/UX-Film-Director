@@ -835,6 +835,11 @@ app.whenReady().then(() => {
   // ── 互換エクスポート用ハンドラ（Phase 3）────────────────────────────
   // ファイル保存先ダイアログを表示してパスだけを返す
   ipcMain.handle('show-save-dialog', async (_event, options: { defaultPath?: string; filters?: Electron.FileFilter[] }) => {
+    const e2eSavePath = process.env.UXFD_VIDEO_EXPORT_E2E_SAVE_PATH?.trim();
+    if (e2eSavePath) {
+      return e2eSavePath;
+    }
+
     const { filePath } = await dialog.showSaveDialog({
       title: 'Export Video',
       defaultPath: options.defaultPath ?? 'output.mp4',

@@ -228,10 +228,10 @@ export const prepareSharedRendererViewportVideoUploads = async ({
       mode: 'latestWins',
     } as const;
     let decodeResponse = await requestRustBackendVideoDecodeFrame(decodeFramePayload, rustBackendBridge);
-    if (!decodeResponse.success && activeMatch && isRecoverableCachedDecodeJobFrameRequestError(decodeResponse.error)) {
+    if (!decodeResponse.success && shouldRecoverDecodeFrameRequestError(decodeResponse.error, Boolean(activeMatch))) {
       if (isNoFreeDecodeFrameSlotError(decodeResponse.error)) {
         const stopResponse = await stopRustBackendVideoDecode({
-          jobId: activeMatch.jobId,
+          jobId: resolvedJob.jobId,
         }, rustBackendBridge);
         if (!stopResponse.success) {
           const abortReleaseFailure = await releasePreparedViewportVideoUploadsAfterAbort(uploads);
@@ -456,10 +456,13 @@ export const prepareSharedRendererViewportVideoUpload = async ({
     mode: 'latestWins',
   } as const;
   let decodeResponse = await requestRustBackendVideoDecodeFrame(decodeFramePayload, rustBackendBridge);
-  if (!decodeResponse.success && sameDecodeJob(activeJob, nextJob) && isRecoverableCachedDecodeJobFrameRequestError(decodeResponse.error)) {
+  if (!decodeResponse.success && shouldRecoverDecodeFrameRequestError(
+    decodeResponse.error,
+    sameDecodeJob(activeJob, nextJob)
+  )) {
     if (isNoFreeDecodeFrameSlotError(decodeResponse.error)) {
       const stopResponse = await stopRustBackendVideoDecode({
-        jobId: activeJob.jobId,
+        jobId: resolvedJob.jobId,
       }, rustBackendBridge);
       if (!stopResponse.success) {
         return {
@@ -618,9 +621,12 @@ const isNoFreeDecodeFrameSlotError = (error: string | undefined): boolean =>
   typeof error === 'string'
   && error.toLowerCase().includes('no free decode frame slot');
 
-const isRecoverableCachedDecodeJobFrameRequestError = (error: string | undefined): boolean =>
-  isNoActiveDecodeSessionError(error)
-  || isNoFreeDecodeFrameSlotError(error);
+const shouldRecoverDecodeFrameRequestError = (
+  error: string | undefined,
+  hasCachedActiveJob: boolean
+): boolean =>
+  isNoFreeDecodeFrameSlotError(error)
+  || (hasCachedActiveJob && isNoActiveDecodeSessionError(error));
 
 const isDecodeSessionAlreadyActiveForJobIdError = (error: string | undefined): boolean =>
   typeof error === 'string'

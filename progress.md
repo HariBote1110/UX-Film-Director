@@ -7176,3 +7176,22 @@
 ### 残課題・次のステップ
 - 実Electron windowで `/Volumes/ExtendSSD-W/GX020052.MP4` を配置し、pause/resumeとexportを連続実行して `NoFreeSlot` が再発しないか確認する。
 - `src/e2e/rustVideoPreview.e2e.test.ts` は現在のorchestrationがvideo upload成功時にnative render prepareをskipするため、古いイベント順期待で失敗する。次回、現行仕様に合わせてE2E契約を更新する。
+
+## 2026-06-20 — 実動画export E2Eを通し、共有メモリ名とdecode復旧を修正
+
+### 実施内容
+- 実Electron windowで `/Volumes/ExtendSSD-W/GX020052.MP4` を読み込み、動画出力ボタンからRust backend rawvideo/ffmpeg経路でMP4を生成するE2Eを追加した。
+- Red: E2Eが実ファイル選択、Timeline配置、Rust shared renderer readiness、動画出力クリック、完了dialog、成果物MP4の存在とサイズを検証する契約を追加した。
+- Green: macOSの `shm_open` で失敗していた長すぎるshared memory名を、export sourceは `/uxe-...`、native render outputは `/uxn-...` の短い安定hash名へ変更した。
+- Green: Rust backend側では同じdecode jobが既にactiveなのにrenderer側の `activeJobs` cacheが空の状態で `No free decode frame slot: NoFreeSlot` が返る場合も、対象jobをstop/startして同じframe requestをretryするようにした。
+- E2E専用に `UXFD_VIDEO_EXPORT_E2E_SAVE_PATH` をElectron mainへ渡し、保存ダイアログを固定出力先へ迂回して、テストが実成果物を確実に検査できるようにした。通常のユーザー操作では従来どおり保存ダイアログを表示する。
+- 版を `0.1.1-Beta-224h` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/legacyBase64ExportBoundary.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/sharedRendererExportFrameSource.test.ts` は72件成功。
+- `UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 npm run test:video-export:e2e` は成功。
+- E2E結果: `エクスポート完了` / `コーデック: Rust backend rawvideo/ffmpeg` / `フレーム: 60` / 出力 `/Users/yuki/GitHub/UX-Film-Director/.codex/video-export-e2e/video-export-e2e-output.mp4` / サイズ `506379` bytes。
+
+### 残課題・次のステップ
+- 今回のE2Eは確実な回帰検出のため1秒/60フレームに短縮している。長尺4K exportの速度と安定性は別途計測・最適化する。
+- export中のpreviewは `status=fallback / reason=exporting` になる。これはexport中にpreview surfaceを止める既存制御であり、書き出し自体はRust shared-frame sourceで完了している。

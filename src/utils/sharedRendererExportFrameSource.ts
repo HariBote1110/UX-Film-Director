@@ -655,15 +655,23 @@ const isDefaultNativeSharedFrameRendererAvailable = (): boolean =>
   && typeof window.rustBackend?.renderNativeSharedFrame === 'function';
 
 const buildEncodeSourceMemoryId = (encodeSessionId: string): string => {
-  const safeSessionId = encodeSessionId.replace(/[^A-Za-z0-9_-]/g, '-');
-  return `/uxfd-export-source-${safeSessionId}`;
+  return `/uxe-${hashSharedMemoryIdPart(encodeSessionId)}`;
 };
 
 const buildNativeRenderId = (encodeSessionId: string, frameIndex: number): string =>
   `${sanitiseNativeRenderPart(encodeSessionId)}-frame-${frameIndex}`;
 
 const buildNativeRenderMemoryId = (encodeSessionId: string, frameIndex: number): string =>
-  `/uxfd-native-render-${buildNativeRenderId(encodeSessionId, frameIndex)}`;
+  `/uxn-${hashSharedMemoryIdPart(encodeSessionId)}-${Math.max(0, frameIndex).toString(36)}`;
+
+const hashSharedMemoryIdPart = (value: string): string => {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36).padStart(7, '0');
+};
 
 const sanitiseNativeRenderPart = (value: string): string => {
   const sanitised = value

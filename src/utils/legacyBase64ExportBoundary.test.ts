@@ -39,4 +39,14 @@ describe('legacy base64 export boundary', () => {
 
     expect(offenders).toEqual([]);
   });
+
+  it('allows the real Electron export E2E to bypass the save dialog with a deterministic output path', () => {
+    const code = readFileSync(join(projectRoot, 'electron/main.ts'), 'utf8');
+    const handlerStart = code.indexOf("ipcMain.handle('show-save-dialog'");
+    const handlerEnd = code.indexOf("ipcMain.handle('save-buffer-to-file'", handlerStart);
+    const handlerCode = code.slice(handlerStart, handlerEnd);
+
+    expect(handlerCode).toContain('UXFD_VIDEO_EXPORT_E2E_SAVE_PATH');
+    expect(handlerCode.indexOf('UXFD_VIDEO_EXPORT_E2E_SAVE_PATH')).toBeLessThan(handlerCode.indexOf('dialog.showSaveDialog'));
+  });
 });

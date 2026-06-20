@@ -468,6 +468,105 @@ describe('prepareSharedRendererViewportNativeRenderSources', () => {
     }]);
   });
 
+  it('replaces a backend-active Rust decode job when native render has no cached active job but frame slots are exhausted', async () => {
+    const calls: unknown[] = [];
+    const frame = sharedFrame();
+    let startCount = 0;
+    let requestCount = 0;
+
+    const result = await prepareSharedRendererViewportNativeRenderSources({
+      session: session(),
+      requestId: 103,
+      activeJobs: [],
+      rustBackendBridge: {
+        startVideoDecode: async (payload) => {
+          calls.push(['startVideoDecode', payload]);
+          startCount += 1;
+          if (startCount === 1) {
+            return {
+              success: false,
+              error: 'Decode session already active for jobId',
+            };
+          }
+          return { success: true };
+        },
+        requestVideoDecodeFrame: async (payload) => {
+          calls.push(['requestVideoDecodeFrame', payload]);
+          requestCount += 1;
+          if (requestCount === 1) {
+            return {
+              success: false,
+              error: 'No free decode frame slot: NoFreeSlot',
+            };
+          }
+          return {
+            success: true,
+            result: {
+              accepted: true,
+              jobId: payload.jobId,
+              requestId: payload.requestId,
+              frameIndex: payload.frameIndex,
+              mode: payload.mode,
+              frame,
+              verification: {
+                frameIndex: payload.frameIndex,
+                checksum: {
+                  algorithm: 'crc32',
+                  valueHex: '00000000',
+                  byteLen: frame.descriptor.byteLen,
+                },
+                status: 'withinTolerance',
+              },
+            },
+          };
+        },
+        releaseVideoDecodeFrame: async (payload) => {
+          calls.push(['releaseVideoDecodeFrame', payload]);
+          return { success: true };
+        },
+        stopVideoDecode: async (payload) => {
+          calls.push(['stopVideoDecode', payload]);
+          return { success: true };
+        },
+      },
+      decodeRequestBuilder: () => ({
+        ok: true,
+        requestCount: 1,
+        requests: [{
+          clipId: 'clip-video-1',
+          mediaId: 'video-1',
+          source: '/tmp/video-1.mp4',
+          sourceFrame: 12,
+          sourceRate: {
+            numerator: 60,
+            denominator: 1,
+          },
+          timelineFrame: 2,
+          width: 4,
+          height: 4,
+          format: 'rgba8Srgb',
+          colour: 'rec709SrgbFullRange',
+        }],
+      }),
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      sources: [{
+        mediaId: 'video-1',
+        slotCount: 2,
+        frame,
+      }],
+    });
+    expect(calls.map((call) => Array.isArray(call) ? call[0] : call)).toEqual([
+      'startVideoDecode',
+      'requestVideoDecodeFrame',
+      'stopVideoDecode',
+      'startVideoDecode',
+      'requestVideoDecodeFrame',
+    ]);
+  });
+
   it('reuses a backend decode session for native render sources when start reports the same job is already active', async () => {
     const calls: unknown[] = [];
     const frame = sharedFrame();

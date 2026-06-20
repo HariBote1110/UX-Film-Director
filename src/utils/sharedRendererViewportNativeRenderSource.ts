@@ -172,10 +172,10 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
       mode: 'latestWins',
     } as const;
     let decodeResponse = await requestRustBackendVideoDecodeFrame(decodeFramePayload, bridge);
-    if (!decodeResponse.success && activeMatch && isRecoverableCachedDecodeJobFrameRequestError(decodeResponse.error)) {
+    if (!decodeResponse.success && shouldRecoverDecodeFrameRequestError(decodeResponse.error, Boolean(activeMatch))) {
       if (isNoFreeDecodeFrameSlotError(decodeResponse.error)) {
         const stopResponse = await stopRustBackendVideoDecode({
-          jobId: activeMatch.jobId,
+          jobId: resolvedJob.jobId,
         }, bridge);
         if (!stopResponse.success) {
           const preparedSourceReleaseFailure = await releasePreparedNativeRenderSourcesAfterAbort(sources);
@@ -366,9 +366,12 @@ const isNoFreeDecodeFrameSlotError = (error: string | undefined): boolean =>
   typeof error === 'string'
   && error.toLowerCase().includes('no free decode frame slot');
 
-const isRecoverableCachedDecodeJobFrameRequestError = (error: string | undefined): boolean =>
-  isNoActiveDecodeSessionError(error)
-  || isNoFreeDecodeFrameSlotError(error);
+const shouldRecoverDecodeFrameRequestError = (
+  error: string | undefined,
+  hasCachedActiveJob: boolean
+): boolean =>
+  isNoFreeDecodeFrameSlotError(error)
+  || (hasCachedActiveJob && isNoActiveDecodeSessionError(error));
 
 const isDecodeSessionAlreadyActiveForJobIdError = (error: string | undefined): boolean =>
   typeof error === 'string'

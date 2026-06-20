@@ -506,7 +506,7 @@ describe('createSharedRendererExportFrameSource', () => {
     expect(calls).toEqual([
       ['takePresentedFrameSharedFrame', {
         encodeSessionId: 'direct-shared-frame-session',
-        memoryId: '/uxfd-export-source-direct-shared-frame-session',
+        memoryId: expect.stringMatching(/^\/uxe-[a-z0-9]+$/),
         frameIndex: 6,
         timestampUs: 100_000,
         width: 2,
@@ -870,26 +870,26 @@ describe('createSharedRendererExportFrameSource', () => {
       },
       ptsFrame: 7,
     } as const;
-    const renderedFrame = {
+    let renderedFrame: {
       descriptor: {
-        memoryId: '/uxfd-native-render-native-session-frame-7',
-        slotIndex: 0,
-        generation: 1,
-        byteOffset: 0,
-        byteLen: 1024,
-        width: 4,
-        height: 4,
-        strideBytes: 256,
-        format: 'rgba8Srgb',
+        memoryId: string;
+        slotIndex: 0;
+        generation: 1;
+        byteOffset: 0;
+        byteLen: 1024;
+        width: 4;
+        height: 4;
+        strideBytes: 256;
+        format: 'rgba8Srgb';
         colour: {
-          primaries: 'bt709',
-          transfer: 'srgb',
-          matrix: 'rgb',
-          range: 'full',
-        },
-      },
-      ptsFrame: 7,
-    } as const;
+          primaries: 'bt709';
+          transfer: 'srgb';
+          matrix: 'rgb';
+          range: 'full';
+        };
+      };
+      ptsFrame: 7;
+    } | null = null;
     const snapshot = {
       frame_index: 7,
       colour: {
@@ -1021,15 +1021,41 @@ describe('createSharedRendererExportFrameSource', () => {
       }) satisfies SharedRendererExportNativeRenderSourcesPreparer,
       renderNativeSharedFrame: (async (payload) => {
         calls.push(['renderNativeSharedFrame', payload]);
+        renderedFrame = {
+          descriptor: {
+            memoryId: payload.memoryId,
+            slotIndex: 0,
+            generation: 1,
+            byteOffset: 0,
+            byteLen: 1024,
+            width: 4,
+            height: 4,
+            strideBytes: 256,
+            format: 'rgba8Srgb',
+            colour: {
+              primaries: 'bt709',
+              transfer: 'srgb',
+              matrix: 'rgb',
+              range: 'full',
+            },
+          },
+          ptsFrame: 7,
+        };
         return {
           success: true,
           result: {
             rendered: true,
             renderId: 'native-session-frame-7',
-            memoryId: '/uxfd-native-render-native-session-frame-7',
+            memoryId: payload.memoryId,
             slotCount: 1,
             slotByteLen: 1024,
-            frame: renderedFrame,
+            frame: {
+              ...renderedFrame,
+              descriptor: {
+                ...renderedFrame.descriptor,
+                memoryId: payload.memoryId,
+              },
+            },
           },
         };
       }) satisfies SharedRendererExportNativeSharedFrameRenderer,
@@ -1043,7 +1069,7 @@ describe('createSharedRendererExportFrameSource', () => {
       renderNativeSharedFrame: unknown;
     });
 
-    await expect(source.renderEncodeFrame?.({
+    const result = await source.renderEncodeFrame?.({
       frameIndex: 7,
       timestampUs: 116_667,
       time: 7 / 60,
@@ -1051,7 +1077,14 @@ describe('createSharedRendererExportFrameSource', () => {
       height: 4,
       objects: [image()],
       encodeSessionId: 'native-session',
-    })).resolves.toEqual({
+    });
+    const renderCall = calls.find((call): call is ['renderNativeSharedFrame', { memoryId: string }] =>
+      Array.isArray(call) && call[0] === 'renderNativeSharedFrame'
+    );
+    expect(renderCall?.[1].memoryId).toMatch(/^\/uxn-[a-z0-9]+-7$/);
+    expect(renderCall?.[1].memoryId.length).toBeLessThanOrEqual(31);
+    expect(renderedFrame).not.toBeNull();
+    expect(result).toEqual({
       timestamp: 116_667,
       sharedFramePayload: {
         sessionId: 'native-session',
@@ -1062,7 +1095,7 @@ describe('createSharedRendererExportFrameSource', () => {
       },
       releaseAfterEncodeFailure: {
         kind: 'nativeRenderOutput',
-        memoryId: '/uxfd-native-render-native-session-frame-7',
+        memoryId: renderCall?.[1].memoryId,
       },
     });
 
@@ -1074,7 +1107,7 @@ describe('createSharedRendererExportFrameSource', () => {
       }],
       ['renderNativeSharedFrame', {
         renderId: 'native-session-frame-7',
-        memoryId: '/uxfd-native-render-native-session-frame-7',
+        memoryId: renderCall?.[1].memoryId,
         slotCount: 1,
         ptsFrame: 7,
         width: 4,
@@ -1250,7 +1283,7 @@ describe('createSharedRendererExportFrameSource', () => {
     expect(calls).toEqual([
       ['renderNativeSharedFrame', {
         renderId: 'native-render-failure-session-frame-7',
-        memoryId: '/uxfd-native-render-native-render-failure-session-frame-7',
+        memoryId: expect.stringMatching(/^\/uxn-[a-z0-9]+-7$/),
         slotCount: 1,
         ptsFrame: 7,
         width: 4,
@@ -2350,7 +2383,7 @@ describe('createSharedRendererExportFrameSource', () => {
     } as const;
     const renderedFrame = {
       descriptor: {
-        memoryId: '/uxfd-native-render-video-psd-session-frame-8',
+        memoryId: expect.stringMatching(/^\/uxn-[a-z0-9]+-8$/),
         slotIndex: 0,
         generation: 1,
         byteOffset: 0,
@@ -2494,7 +2527,7 @@ describe('createSharedRendererExportFrameSource', () => {
           result: {
             rendered: true,
             renderId: 'video-psd-session-frame-8',
-            memoryId: '/uxfd-native-render-video-psd-session-frame-8',
+            memoryId: expect.stringMatching(/^\/uxn-[a-z0-9]+-8$/),
             slotCount: 1,
             slotByteLen: 1024,
             frame: renderedFrame,
@@ -2529,14 +2562,14 @@ describe('createSharedRendererExportFrameSource', () => {
       },
       releaseAfterEncodeFailure: {
         kind: 'nativeRenderOutput',
-        memoryId: '/uxfd-native-render-video-psd-session-frame-8',
+        memoryId: expect.stringMatching(/^\/uxn-[a-z0-9]+-8$/),
       },
     });
 
     expect(calls).toEqual([
       ['renderNativeSharedFrame', {
         renderId: 'video-psd-session-frame-8',
-        memoryId: '/uxfd-native-render-video-psd-session-frame-8',
+        memoryId: expect.stringMatching(/^\/uxn-[a-z0-9]+-8$/),
         slotCount: 1,
         ptsFrame: 8,
         width: 4,
@@ -2746,7 +2779,7 @@ describe('createSharedRendererExportFrameSource', () => {
     } as unknown as HTMLCanvasElement;
     const renderedFrame = {
       descriptor: {
-        memoryId: '/uxfd-native-render-media-only-session-frame-3',
+        memoryId: expect.stringMatching(/^\/uxn-[a-z0-9]+-3$/),
         slotIndex: 0,
         generation: 1,
         byteOffset: 0,
@@ -2886,10 +2919,16 @@ describe('createSharedRendererExportFrameSource', () => {
           result: {
             rendered: true,
             renderId: 'media-only-session-frame-3',
-            memoryId: '/uxfd-native-render-media-only-session-frame-3',
+            memoryId: expect.stringMatching(/^\/uxn-[a-z0-9]+-3$/),
             slotCount: 1,
             slotByteLen: 1024,
-            frame: renderedFrame,
+            frame: {
+              ...renderedFrame,
+              descriptor: {
+                ...renderedFrame.descriptor,
+                memoryId: payload.memoryId,
+              },
+            },
           },
         };
       }) satisfies SharedRendererExportNativeSharedFrameRenderer,
@@ -2922,7 +2961,7 @@ describe('createSharedRendererExportFrameSource', () => {
       },
       releaseAfterEncodeFailure: {
         kind: 'nativeRenderOutput',
-        memoryId: '/uxfd-native-render-media-only-session-frame-3',
+        memoryId: expect.stringMatching(/^\/uxn-[a-z0-9]+-3$/),
       },
     });
 
@@ -2933,7 +2972,7 @@ describe('createSharedRendererExportFrameSource', () => {
       }],
       ['renderNativeSharedFrame', {
         renderId: 'media-only-session-frame-3',
-        memoryId: '/uxfd-native-render-media-only-session-frame-3',
+        memoryId: expect.stringMatching(/^\/uxn-[a-z0-9]+-3$/),
         slotCount: 1,
         ptsFrame: 3,
         width: 4,
@@ -3083,7 +3122,7 @@ describe('createSharedRendererExportFrameSource', () => {
     } as unknown as HTMLCanvasElement;
     const renderedFrame = {
       descriptor: {
-        memoryId: '/uxfd-native-render-psd-only-session-frame-4',
+        memoryId: expect.stringMatching(/^\/uxn-[a-z0-9]+-4$/),
         slotIndex: 0,
         generation: 1,
         byteOffset: 0,
@@ -3196,10 +3235,16 @@ describe('createSharedRendererExportFrameSource', () => {
           result: {
             rendered: true,
             renderId: 'psd-only-session-frame-4',
-            memoryId: '/uxfd-native-render-psd-only-session-frame-4',
+            memoryId: expect.stringMatching(/^\/uxn-[a-z0-9]+-4$/),
             slotCount: 1,
             slotByteLen: 1024,
-            frame: renderedFrame,
+            frame: {
+              ...renderedFrame,
+              descriptor: {
+                ...renderedFrame.descriptor,
+                memoryId: payload.memoryId,
+              },
+            },
           },
         };
       }) satisfies SharedRendererExportNativeSharedFrameRenderer,
@@ -3231,14 +3276,14 @@ describe('createSharedRendererExportFrameSource', () => {
       },
       releaseAfterEncodeFailure: {
         kind: 'nativeRenderOutput',
-        memoryId: '/uxfd-native-render-psd-only-session-frame-4',
+        memoryId: expect.stringMatching(/^\/uxn-[a-z0-9]+-4$/),
       },
     });
 
     expect(calls).toEqual([
       ['renderNativeSharedFrame', {
         renderId: 'psd-only-session-frame-4',
-        memoryId: '/uxfd-native-render-psd-only-session-frame-4',
+        memoryId: expect.stringMatching(/^\/uxn-[a-z0-9]+-4$/),
         slotCount: 1,
         ptsFrame: 4,
         width: 4,

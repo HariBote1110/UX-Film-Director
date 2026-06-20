@@ -8,7 +8,7 @@ schedulePerformanceHarness()
 
 const urlSearchParams = new URLSearchParams(window.location.search)
 
-if (urlSearchParams.has('videoLoadE2e')) {
+if (urlSearchParams.has('videoLoadE2e') || urlSearchParams.has('videoExportE2e')) {
   useStore.getState().initializeProject({
     width: 1920,
     height: 1080,
@@ -16,6 +16,20 @@ if (urlSearchParams.has('videoLoadE2e')) {
     sampleRate: 48000,
     editorMode: '2d',
   });
+}
+
+if (urlSearchParams.has('videoExportE2e')) {
+  (window as typeof window & {
+    __UXFD_VIDEO_EXPORT_E2E_SET_VIDEO_DURATION__?: (duration: number) => boolean;
+  }).__UXFD_VIDEO_EXPORT_E2E_SET_VIDEO_DURATION__ = (duration: number) => {
+    const state = useStore.getState();
+    const videoObjects = state.objects.filter((object) => object.type === 'video');
+    videoObjects.forEach((object) => {
+      state.updateObject(object.id, { duration });
+    });
+    state.setDuration(duration);
+    return videoObjects.length > 0;
+  };
 }
 
 // ?exportTest=1 または VITE_EXPORT_TEST=1 でエクスポートテストを自動実行
