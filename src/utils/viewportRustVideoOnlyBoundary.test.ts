@@ -87,6 +87,26 @@ describe('Viewport Rust video-only boundary', () => {
     expect(beforePresenterStartBlock).toContain('sharedRendererPresenterStartCountRef.current += 1');
   });
 
+  it('reuses the existing external video presenter across playback ticks', () => {
+    const code = viewportSource();
+    const start = code.indexOf('const nextPresenterKey = buildSharedRendererPresenterSessionKey(session');
+    const end = code.indexOf('if (sharedRendererPresenterSessionKeyRef.current !== nextPresenterKey)', start);
+    const presenterKeyBlock = code.slice(start, end);
+    const pendingStart = code.indexOf('if (isPlaying && sharedRendererPresenterStartingRef.current)');
+    const pendingEnd = code.indexOf('if (sharedRendererPresenterSessionKeyRef.current !== nextPresenterKey)', pendingStart);
+    const pendingBlock = code.slice(pendingStart, pendingEnd);
+
+    expect(code).toContain('isSharedRendererExternalVideoOnlySession');
+    expect(presenterKeyBlock).toContain('includePlaybackFrame: !canReuseExternalVideoPresenter');
+    expect(presenterKeyBlock).toContain('syncSharedRendererExternalVideoSources({');
+    expect(presenterKeyBlock).toContain('presentExternalVideoFrameScene?.({');
+    expect(presenterKeyBlock.indexOf('syncSharedRendererExternalVideoSources({')).toBeLessThan(
+      presenterKeyBlock.indexOf('presentExternalVideoFrameScene?.({')
+    );
+    expect(pendingBlock).toContain('sharedRendererPendingPreviewSessionRef.current = session');
+    expect(pendingBlock).not.toContain('if (!sharedRendererPendingPreviewSessionRef.current)');
+  });
+
   it('disposes external video sources before export presenter starts without them', () => {
     const code = viewportSource();
     const start = code.indexOf('let externalVideoSourcesByClipId =');
