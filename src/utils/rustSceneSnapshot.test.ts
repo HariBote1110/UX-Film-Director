@@ -321,6 +321,26 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('keeps scaled video planes inside the Rust scene snapshot', () => {
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      objects: [baseVideo({
+        scaleX: 0.5,
+        scaleY: 0.25,
+      })],
+      time: 2.5,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected scaled video snapshot build to pass');
+
+    expect(result.snapshot.clips[0].transform).toMatchObject({
+      scale_x: 0.5,
+      scale_y: 0.25,
+    });
+  });
+
   it('uses an existing proxy file as the Rust video media source for preview decode', () => {
     const result = buildRustSceneSnapshotForTimeline({
       projectSettings: settings,
