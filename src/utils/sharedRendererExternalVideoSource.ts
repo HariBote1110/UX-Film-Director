@@ -27,9 +27,11 @@ export type SharedRendererExternalVideoPlaybackState = {
   mode?: 'playing' | 'paused';
   seekCount?: number;
   suppressedSeekCount?: number;
+  throttledSyncCount?: number;
   playCount?: number;
   pauseCount?: number;
   lastDriftSeconds?: number;
+  lastSyncMonotonicMs?: number;
 };
 
 export type SharedRendererExternalVideoPlaybackSyncResult = {
@@ -37,6 +39,7 @@ export type SharedRendererExternalVideoPlaybackSyncResult = {
   played: boolean;
   paused: boolean;
   driftSeconds: number;
+  throttled: boolean;
 };
 
 export type SharedRendererExternalVideoMetadata = {
@@ -107,6 +110,8 @@ export const syncSharedRendererExternalVideoPlayback = ({
   isPlaying,
   playingSeekDriftToleranceSeconds = PLAYING_SEEK_DRIFT_TOLERANCE_SECONDS,
   pausedSeekDriftToleranceSeconds = PAUSED_SEEK_DRIFT_TOLERANCE_SECONDS,
+  minimumPlayingSyncIntervalMs = 0,
+  nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now(),
 }: {
   source: SharedRendererExternalVideoSource;
   playbackState: SharedRendererExternalVideoPlaybackState;
@@ -114,6 +119,8 @@ export const syncSharedRendererExternalVideoPlayback = ({
   isPlaying: boolean;
   playingSeekDriftToleranceSeconds?: number;
   pausedSeekDriftToleranceSeconds?: number;
+  minimumPlayingSyncIntervalMs?: number;
+  nowMs?: number;
 }): SharedRendererExternalVideoPlaybackSyncResult => {
   const safeTargetTimeSeconds = Math.max(0, Number.isFinite(targetTimeSeconds) ? targetTimeSeconds : 0);
   const currentTime = Number.isFinite(source.source.currentTime) ? source.source.currentTime : 0;
@@ -124,9 +131,29 @@ export const syncSharedRendererExternalVideoPlayback = ({
   const shouldSeek = playbackState.mode !== 'playing'
     || !isPlaying
     || Math.abs(driftSeconds) > toleranceSeconds;
+  const elapsedSyncMs = Number.isFinite(playbackState.lastSyncMonotonicMs)
+    ? nowMs - (playbackState.lastSyncMonotonicMs ?? 0)
+    : Number.POSITIVE_INFINITY;
+  const shouldThrottleSync = isPlaying
+    && playbackState.mode === 'playing'
+    && !shouldSeek
+    && minimumPlayingSyncIntervalMs > 0
+    && elapsedSyncMs >= 0
+    && elapsedSyncMs < minimumPlayingSyncIntervalMs;
   let sought = false;
   let played = false;
   let paused = false;
+
+  if (shouldThrottleSync) {
+    playbackState.throttledSyncCount = (playbackState.throttledSyncCount ?? 0) + 1;
+    return {
+      sought: false,
+      played: false,
+      paused: false,
+      driftSeconds,
+      throttled: true,
+    };
+  }
 
   if (shouldSeek) {
     source.seekTo(safeTargetTimeSeconds);
@@ -152,12 +179,14 @@ export const syncSharedRendererExternalVideoPlayback = ({
     playbackState.mode = 'paused';
   }
   playbackState.lastDriftSeconds = driftSeconds;
+  playbackState.lastSyncMonotonicMs = nowMs;
 
   return {
     sought,
     played,
     paused,
     driftSeconds,
+    throttled: false,
   };
 };
 

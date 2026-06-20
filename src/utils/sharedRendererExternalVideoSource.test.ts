@@ -176,6 +176,7 @@ describe('sharedRendererExternalVideoSource', () => {
     expect(playbackState.seekCount).toBe(1);
     expect(playbackState.suppressedSeekCount).toBeUndefined();
     expect(playbackState.throttledSyncCount).toBe(1);
+    expect(playbackState.lastDriftSeconds).toBe(10);
 
     const counted = syncSharedRendererExternalVideoPlayback({
       source,

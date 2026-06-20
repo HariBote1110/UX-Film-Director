@@ -49,6 +49,7 @@ import { toFileProtocolUrl } from '../utils/mediaMetadata';
 
 const GROUP_GRADIENT_COMPONENT_PREFIX = 'group-gradient-component-';
 const RESIZE_HANDLE_PREFIX = 'resize-handle-';
+const SHARED_RENDERER_EXTERNAL_VIDEO_PLAYING_SYNC_INTERVAL_MS = 50;
 /** 角ハンドルのスクリーン上の目標サイズ（px）。 */
 const RESIZE_HANDLE_SCREEN_PX = 10;
 
@@ -220,6 +221,7 @@ const syncSharedRendererExternalVideoSources = ({
       playbackState: entry.playbackState,
       targetTimeSeconds: sourceFrameToSeconds(clip.source_frame, media.source_rate),
       isPlaying,
+      minimumPlayingSyncIntervalMs: SHARED_RENDERER_EXTERNAL_VIDEO_PLAYING_SYNC_INTERVAL_MS,
     });
     sourcesByClipId.set(clip.clip_id, entry.source.source);
   });
