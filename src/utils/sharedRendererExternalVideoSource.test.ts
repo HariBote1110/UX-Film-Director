@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   createSharedRendererExternalVideoSource,
   loadExternalVideoSourceMetadata,
+  syncSharedRendererExternalVideoPlayback,
   type SharedRendererExternalVideoElementLike,
+  type SharedRendererExternalVideoPlaybackState,
 } from './sharedRendererExternalVideoSource';
 
 const fakeVideoElement = (
@@ -76,5 +78,50 @@ describe('sharedRendererExternalVideoSource', () => {
       width: 3840,
       height: 2160,
     });
+  });
+
+  it('avoids repeated timeline seeks while an external video source is already playing near the target time', async () => {
+    const calls: string[] = [];
+    const element = fakeVideoElement({
+      play: async () => {
+        calls.push('play');
+      },
+      pause: () => {
+        calls.push('pause');
+      },
+    });
+    const source = createSharedRendererExternalVideoSource({
+      url: 'file:///Volumes/ExtendSSD-W/GX020052.MP4',
+      elementFactory: () => element,
+    });
+    const playbackState: SharedRendererExternalVideoPlaybackState = {};
+
+    syncSharedRendererExternalVideoPlayback({
+      source,
+      playbackState,
+      targetTimeSeconds: 10,
+      isPlaying: true,
+    });
+    expect(element.currentTime).toBe(10);
+    expect(calls).toEqual(['play']);
+
+    element.currentTime = 10.12;
+    syncSharedRendererExternalVideoPlayback({
+      source,
+      playbackState,
+      targetTimeSeconds: 10.18,
+      isPlaying: true,
+    });
+    expect(element.currentTime).toBe(10.12);
+    expect(calls).toEqual(['play']);
+
+    syncSharedRendererExternalVideoPlayback({
+      source,
+      playbackState,
+      targetTimeSeconds: 11,
+      isPlaying: false,
+    });
+    expect(element.currentTime).toBe(11);
+    expect(calls).toEqual(['play', 'pause']);
   });
 });
