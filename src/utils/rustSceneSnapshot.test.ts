@@ -365,6 +365,37 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     })]);
   });
 
+  it('uses original video media for export while preserving proxy-sized visual geometry', () => {
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      objects: [baseVideo({
+        filePath: '/tmp/original-4k.mp4',
+        proxyFilePath: '/tmp/original-4k.proxy.mp4',
+        width: 640,
+        height: 360,
+        sourceWidth: 3840,
+        sourceHeight: 2160,
+      })],
+      time: 2.5,
+      videoSourceMode: 'exportOriginal',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected export snapshot build to pass');
+    expect(result.media).toEqual([expect.objectContaining({
+      id: 'video-1',
+      kind: 'Video',
+      source: '/tmp/original-4k.mp4',
+      width: 3840,
+      height: 2160,
+    })]);
+    expect(result.snapshot.clips[0].transform).toMatchObject({
+      scale_x: 640 / 3840,
+      scale_y: 360 / 2160,
+    });
+  });
+
   it('builds a rust-core compatible media reference for active PSD planes', () => {
     const layers = createDefaultLayers();
     const result = buildRustSceneSnapshotForTimeline({

@@ -211,4 +211,40 @@ describe('buildSharedRendererExportSession', () => {
       sourceMediaIds: ['video-1'],
     });
   });
+
+  it('builds export video media from the original file instead of the preview proxy', () => {
+    const session = buildSharedRendererExportSession({
+      enabled: true,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      objects: [video({
+        filePath: '/tmp/original-4k.mp4',
+        proxyFilePath: '/tmp/original-4k.proxy.mp4',
+        width: 640,
+        height: 360,
+        sourceWidth: 3840,
+        sourceHeight: 2160,
+      })],
+      time: 1,
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+    });
+
+    expect(session.plan.mode).toBe('parallelCompare');
+    if (session.plan.mode !== 'parallelCompare') {
+      throw new Error('expected export session to use shared renderer');
+    }
+    expect(session.plan.media).toEqual([expect.objectContaining({
+      id: 'video-1',
+      kind: 'Video',
+      source: '/tmp/original-4k.mp4',
+      width: 3840,
+      height: 2160,
+    })]);
+    expect(session.plan.snapshot.clips[0].transform).toMatchObject({
+      scale_x: 640 / 3840,
+      scale_y: 360 / 2160,
+    });
+  });
 });
