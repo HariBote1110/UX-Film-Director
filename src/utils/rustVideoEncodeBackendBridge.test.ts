@@ -3,6 +3,7 @@ import {
   finishRustVideoEncodeViaBackend,
   abortRustVideoEncodeViaBackend,
   startRustVideoEncodeViaBackend,
+  transcodeRustVideoViaBackend,
   writeRustVideoEncodeFrameViaBackend,
   writeRustVideoEncodeNativeFrameViaBackend,
   type RustBackendCaller,
@@ -77,6 +78,15 @@ const abortPayload = {
   sessionId: 'encode-1',
 } as const;
 
+const transcodePayload = {
+  inputPath: '/tmp/input.mp4',
+  outputPath: '/tmp/output.mp4',
+  width: 1920,
+  height: 1080,
+  fps: 60,
+  durationSeconds: 5,
+} as const;
+
 const createBackendCaller = (result: unknown = { accepted: true }): {
   calls: Array<{ method: string; params: unknown; timeoutMs: number | undefined }>;
   callRustBackend: RustBackendCaller;
@@ -149,6 +159,24 @@ describe('rustVideoEncodeBackendBridge', () => {
     expect(serialisedCalls).not.toContain('memoryId');
     expect(serialisedCalls).not.toContain('frameBase64');
     expect(serialisedCalls).not.toContain('rgbaBytes');
+  });
+
+  it('routes simple video transcodes to encode.transcodeVideo', async () => {
+    const backend = createBackendCaller({ outputPath: '/tmp/output.mp4', frameCount: 300 });
+
+    const response = await transcodeRustVideoViaBackend(transcodePayload, backend.callRustBackend);
+
+    expect(response).toEqual({
+      success: true,
+      result: { outputPath: '/tmp/output.mp4', frameCount: 300 },
+    });
+    expect(backend.calls).toEqual([{
+      method: 'encode.transcodeVideo',
+      params: transcodePayload,
+      timeoutMs: 300_000,
+    }]);
+    expect(JSON.stringify(backend.calls)).not.toContain('encode.writeFrame');
+    expect(JSON.stringify(backend.calls)).not.toContain('frameBase64');
   });
 
   it('routes finish to the Rust backend encode.finish RPC', async () => {

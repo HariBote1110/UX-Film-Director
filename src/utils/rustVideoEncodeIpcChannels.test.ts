@@ -7,6 +7,7 @@ describe('rustVideoEncodeIpcChannels', () => {
       start: 'rust-backend-encode-start',
       writeFrame: 'rust-backend-encode-write-frame',
       writeNativeFrame: 'rust-backend-encode-write-native-frame',
+      transcodeVideo: 'rust-backend-encode-transcode-video',
       finish: 'rust-backend-encode-finish',
       abort: 'rust-backend-encode-abort',
     });
