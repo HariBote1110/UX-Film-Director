@@ -1093,3 +1093,11 @@
 - 検証: `npm test -- sharedRendererExternalVideoSource viewportRustVideoOnlyBoundary` は26件成功。対象ファイルで絞った `tsc` は今回変更分の新規エラーなし（既存の `ThreeStageViewport.tsx` の three 型定義エラーのみ）。
 - 実機E2E: `/Volumes/ExtendSSD-W/GX020052.MP4` で `npm run test:video-load:e2e` 成功。最終値は `presenterStartCount=6` / `uniquePresentedFrameCount=21` / `presentedFrameSpan=305` / `externalVideoSuppressedSeekCount=97` / `externalVideoMaxAbsDriftMs=34` / `blockedSampleCount=0` / `externalTextureSampleCount=21`。
 - 版: `0.1.1-Beta-224b`。
+
+## 2026-06-20
+- 動画の `Scale X/Y` を変更すると Rust/shared renderer 経路の scene snapshot が `unsupportedTransform` で弾かれ、スケールが効かない問題を修正した。
+- Red: `rustSceneSnapshot` に、動画だけは正の有限 `scaleX/scaleY` を Rust snapshot へ通す契約を追加した。
+- Green: shared renderer transform gateを分岐し、画像/PSD/図形は従来どおりidentity scaleのみ、動画は正の有限scaleを許可するようにした。
+- Rust core側にも、動画平面の右下頂点が `reference.width/height * scale_x/scale_y` で計算される契約を追加した。
+- 検証: `npm test -- rustSceneSnapshot sharedRendererVideoPlaneScene sharedRendererRustVideoPlaneScene` は23件成功。`cargo test --manifest-path rust-core/Cargo.toml applies_video_transform_scale` は1件成功。
+- 版: `0.1.1-Beta-224c`。

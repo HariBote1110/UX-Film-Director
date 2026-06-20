@@ -7081,3 +7081,20 @@
 ### 残課題・次のステップ
 - Rust backend/native bridge側のchecksum report生成テストを再実行し、renderer側fail-loud契約と一致していることを確認する。
 - 実機GoPro素材でcopy report mismatch時の診断表示を追えるようにする。
+
+## 2026-06-20 — 動画スケールのRust snapshot gateを修正
+
+### 実施内容
+- 動画の `Scale X/Y` を変更すると Rust/shared renderer 経路の scene snapshot が `unsupportedTransform` で弾かれ、スケールが効かない問題を修正した。
+- Red: `rustSceneSnapshot` に、動画だけは正の有限 `scaleX/scaleY` を Rust snapshot へ通す契約を追加した。
+- Green: shared renderer transform gateを分岐し、画像/PSD/図形は従来どおりidentity scaleのみ、動画は正の有限scaleを許可するようにした。
+- Rust core側にも、動画平面の右下頂点が `reference.width/height * scale_x/scale_y` で計算される契約を追加した。
+- 版を `0.1.1-Beta-224c` に更新した。
+
+### 検証
+- `npm test -- rustSceneSnapshot sharedRendererVideoPlaneScene sharedRendererRustVideoPlaneScene`
+- `cargo test --manifest-path rust-core/Cargo.toml applies_video_transform_scale`
+
+### 残課題・次のステップ
+- 実Electron windowでScale X/Y変更後の動画描画範囲をE2E観測する。
+- 動画入りエクスポートの実経路を再現するE2Eを追加し、停止または失敗理由を修正する。

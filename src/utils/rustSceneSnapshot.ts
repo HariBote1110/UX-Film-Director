@@ -256,18 +256,11 @@ const collectBuildIssues = (objects: TimelineObject[], time: number): RustSceneS
     }
 
     const position = evaluateObjectPositionAtTime(object, time);
-    if (
-      !Number.isFinite(object.scaleX)
-      || !Number.isFinite(object.scaleY)
-      || object.scaleX !== 1
-      || object.scaleY !== 1
-      || !isInteger(position.x)
-      || !isInteger(position.y)
-    ) {
+    if (hasUnsupportedSharedRendererTransform(object, position)) {
       issues.push({
         code: 'unsupportedTransform',
         objectId: object.id,
-        detail: 'Phase5 bridge currently allows only identity scale and integer translation.',
+        detail: 'Phase5 bridge currently allows positive video scale or identity scale, plus integer translation.',
       });
     }
 
@@ -305,6 +298,18 @@ const isVisualSceneObject = (object: TimelineObject): boolean =>
 
 const isSupportedRectangleShape = (object: ShapeObject): boolean =>
   object.shapeType === 'rect';
+
+const hasUnsupportedSharedRendererTransform = (
+  object: SupportedSceneObject,
+  position: { x: number; y: number }
+): boolean => {
+  if (!Number.isFinite(object.scaleX) || !Number.isFinite(object.scaleY)) return true;
+  if (!isInteger(position.x) || !isInteger(position.y)) return true;
+  if (object.type === 'video') {
+    return object.scaleX <= 0 || object.scaleY <= 0;
+  }
+  return object.scaleX !== 1 || object.scaleY !== 1;
+};
 
 const mediaReferenceForObject = (
   object: SupportedSceneObject,

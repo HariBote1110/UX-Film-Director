@@ -88,6 +88,34 @@ fn rust_core_builds_video_plane_vertices_and_metadata() {
 }
 
 #[test]
+fn rust_core_applies_video_transform_scale_to_plane_vertices() {
+    let mut snapshot = video_snapshot();
+    let video_clip = snapshot
+        .clips
+        .iter_mut()
+        .find(|clip| clip.clip_id == "video-1")
+        .expect("video clip");
+    video_clip.transform.scale_x = 0.5;
+    video_clip.transform.scale_y = 0.25;
+
+    let scene = build_video_plane_vertex_scene(
+        &snapshot,
+        &scene_media(),
+        CanvasSize {
+            width: 1920,
+            height: 1080,
+        },
+    )
+    .expect("scaled video plane vertex scene");
+
+    assert_eq!(scene.plane_count, 1);
+    assert_eq!(
+        &scene.vertices[40..48],
+        &[-0.3229167, 0.6296296, 1.0, 1.0, 0.75, 1.0, 0.0, 1.0]
+    );
+}
+
+#[test]
 fn rust_core_reports_empty_video_scene_without_touching_other_media() {
     let mut snapshot = video_snapshot();
     snapshot.clips.retain(|clip| clip.media_id != "video-1");
