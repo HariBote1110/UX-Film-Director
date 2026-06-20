@@ -1163,3 +1163,13 @@
 - 検証: `npm test -- --run src/utils/packageScripts.test.ts` は2件成功。`UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=1 npm run test:video-export:e2e` は60 frames / `16306` ms / 約 `3.68` fps / `506379` bytesで成功。`UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=2 npm run test:video-export:e2e` は120 frames / `29373` ms / 約 `4.09` fps / `1029465` bytesで成功。
 - 残課題: 現状は動画only exportで約4fps。次はframe単位に `native render/decode/write` の時間を分解し、最も大きい待ちを優先して削る。
 - 版: `0.1.1-Beta-224j`。
+
+## 2026-06-20
+- Rust backendの動画export hot pathで、frameごとのWGPU adapter/device/pipeline/output texture/readback buffer再生成を避けるため、`BackendState` に `NativeWgpuRenderer` を保持して解像度が変わらない限り再利用するようにした。
+- native WGPU readback formatを `Rgba16Float` から `Rgba8Srgb` に変更し、CPU half-float decode / linear-to-srgb変換 / unpremultiplyをexport hot pathから外した。
+- Red: native WGPU rendererのsetup時間が永続rendererのframe timingへ入らない契約、Rust backendがrendererを再利用する契約、native WGPU readbackがRGBA8で返る契約を追加済み。
+- Green: `NativeWgpuRenderer::new` / `render_frame_stages` / `render_frame_to_shared_ring` を追加し、既存の単発APIは永続rendererを内部利用する互換実装に整理した。
+- 検証: `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test frame_stage_timings -- --nocapture` は3件成功。`cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test native_reference_parity -- --nocapture` は10件成功。`cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane native_render_shared_frame -- --nocapture` は10件成功。`cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane native_rendered_image_frame_can_feed_audio_muxed_encode -- --nocapture` は1件成功。`npm test -- --run src/utils/rustBackendNativeRenderBoundary.test.ts` は3件成功。`cargo build --manifest-path rust-backend/Cargo.toml` は成功。
+- 実Electron E2E: `/Volumes/ExtendSSD-W/GX020052.MP4` で1秒尺は60 frames / 3017ms / 約19.89fps、2秒尺は120 frames / 4348ms / 約27.60fps、5秒尺は300 frames / 8910ms / 約33.67fpsで成功した。
+- 残課題: 5秒尺では30fpsを超えたが短尺では初期化・Electron側待ちの比率が残る。次はshared memory往復を削るRust内direct encode pathと、decode/source texture再利用を優先する。
+- 版: `0.1.1-Beta-225a`。

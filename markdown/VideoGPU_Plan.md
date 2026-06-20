@@ -1,5 +1,22 @@
 # 動画処理 WebGPU/WebCodecs 高速化計画
 
+## 2026-06-20 現在の実装方針
+
+現在のexport高速化は、PixiJS/WebCodecs中心ではなく **Rust backend + native WGPU renderer + ffmpeg rawvideo encode** を主経路にする。
+この文書の下部に残るWebCodecs/PixiJS計画は、初期検討として保持するが、実装上のSingle Source of TruthはRed/Green済みのRust native exportテストと `markdown/progress.md` の実測記録に置く。
+
+### 達成済み
+
+- Rust backendが `NativeWgpuRenderer` を保持し、frameごとのadapter/device/pipeline/output/readback buffer再生成を避ける。
+- native WGPU readbackを `Rgba16Float` から `Rgba8Srgb` に変更し、CPU half-float変換をexport hot pathから外す。
+- `UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=5 npm run test:video-export:e2e` で、300 frames / 8910ms / 約33.67fpsを確認した。
+
+### 次の高速化候補
+
+- native render outputをshared memoryへ書いた後にencode側で再読込する往復を削り、Rust内でrender resultを直接encoderへ渡す。
+- decode frame upload/source textureの再利用を進め、動画only exportでframeごとのsource texture再作成を削る。
+- ffmpeg rawvideo stdin writeとnative renderの並列度を2〜3frame程度まで広げ、メモリ上限を見ながら30fps超を安定化する。
+
 > **前回の失敗（WebCodecsAPI-transfer ブランチ）の教訓を踏まえた実装計画。**
 > 実装は時間のある時に行う。この文書が設計の Single Source of Truth。
 

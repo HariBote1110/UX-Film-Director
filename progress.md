@@ -7232,3 +7232,25 @@
 ### 残課題・次のステップ
 - 現状は1〜2秒の動画only exportで約4fpsに留まっている。次はframe単位に `native render/decode/write` の時間を分解し、最も大きい待ちを優先して削る。
 - E2Eのdurationは完了dialog検知のpollingを含むため、より細かい最適化ではrenderer内のexport progress diagnosticsにも開始/終了timestampを入れる。
+
+## 2026-06-20 — native WGPU renderer永続化とRGBA8 readbackで30fps級exportへ到達
+
+### 実施内容
+- Rust backendの動画export hot pathで、frameごとにWGPU adapter/device/pipeline/output texture/readback bufferを作り直していた構造を改め、`BackendState` に `NativeWgpuRenderer` を保持して解像度が変わらない限り再利用するようにした。
+- native WGPU readback formatを `Rgba16Float` から `Rgba8Srgb` に変更し、CPU側のhalf-float decode / linear-to-srgb変換 / unpremultiply処理を外した。
+- Red: native WGPU rendererのsetup時間が永続rendererのframe timingへ入らない契約、Rust backendがrendererを再利用する契約、native WGPU readbackがRGBA8で返る契約を追加済み。
+- Green: `NativeWgpuRenderer::new` / `render_frame_stages` / `render_frame_to_shared_ring` を追加し、既存の単発APIは永続rendererを内部利用する互換実装に整理した。
+- 版を `0.1.1-Beta-225a` に更新した。
+
+### 検証
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test frame_stage_timings -- --nocapture` は3件成功。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test native_reference_parity -- --nocapture` は10件成功。
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane native_render_shared_frame -- --nocapture` は10件成功。
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane native_rendered_image_frame_can_feed_audio_muxed_encode -- --nocapture` は1件成功。
+- `npm test -- --run src/utils/rustBackendNativeRenderBoundary.test.ts` は3件成功。
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功。
+- `/Volumes/ExtendSSD-W/GX020052.MP4` の実Electron E2Eで、1秒尺は60 frames / 3017ms / 約19.89fps、2秒尺は120 frames / 4348ms / 約27.60fps、5秒尺は300 frames / 8910ms / 約33.67fpsで成功。
+
+### 残課題・次のステップ
+- 5秒尺では30fpsを超えたが、短尺では初期化・Electron側待ちの比率が残る。次はRust renderer出力をshared memoryへ書いてからencode側で再読込する往復を削り、Rust内direct encode pathへ寄せる。
+- decode frame source textureをframeごとに作り直している可能性が残るため、動画only exportではsource texture/cache再利用を計測してから進める。

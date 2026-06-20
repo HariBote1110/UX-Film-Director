@@ -9,7 +9,7 @@ use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use uxfd_golden_harness::{load_rgba_jpeg, load_rgba_png, RgbaFrame};
-use uxfd_native_wgpu_renderer::{render_native_wgpu_frame_to_shared_ring, NativeWgpuRenderError};
+use uxfd_native_wgpu_renderer::{NativeWgpuRenderError, NativeWgpuRenderer};
 use uxfd_rust_core::{MediaKind, SceneMediaReference, SceneSnapshot};
 #[cfg(unix)]
 use uxfd_shared_memory_spike::{PosixSharedRing, PosixShmError};
@@ -116,6 +116,7 @@ struct BackendState {
     encode_sessions: HashMap<String, EncodeSession>,
     #[cfg(unix)]
     native_render_outputs: HashMap<String, PosixSharedRing>,
+    native_wgpu_renderer: Option<NativeWgpuRenderer>,
     /// Background blob writer: set by psd.parse, drained by psd.await_blob.
     psd_blob_result: Option<BlobWriteResult>,
 }
@@ -675,11 +676,23 @@ fn handle_native_render_shared_frame(
         );
     }
 
-    let render = match pollster::block_on(render_native_wgpu_frame_to_shared_ring(
+    let renderer = match get_or_create_native_wgpu_renderer(state, parsed.width, parsed.height) {
+        Ok(value) => value,
+        Err(NativeWgpuRenderError::AdapterUnavailable) => {
+            return response_error(id, -32070, "Native WebGPU adapter is unavailable");
+        }
+        Err(error) => {
+            return response_error(
+                id,
+                -32071,
+                &format!("Native WebGPU renderer setup failed: {error:?}"),
+            );
+        }
+    };
+
+    let render = match pollster::block_on(renderer.render_frame_to_shared_ring(
         &parsed.snapshot,
         &sources,
-        parsed.width,
-        parsed.height,
         &parsed.memory_id,
         parsed.slot_count,
         parsed.pts_frame,
@@ -717,6 +730,28 @@ fn handle_native_render_shared_frame(
         })),
         error: None,
     }
+}
+
+fn get_or_create_native_wgpu_renderer(
+    state: &mut BackendState,
+    width: u32,
+    height: u32,
+) -> Result<&NativeWgpuRenderer, NativeWgpuRenderError> {
+    let needs_new_renderer = state
+        .native_wgpu_renderer
+        .as_ref()
+        .map(|renderer| renderer.width() != width || renderer.height() != height)
+        .unwrap_or(true);
+
+    if needs_new_renderer {
+        state.native_wgpu_renderer =
+            Some(pollster::block_on(NativeWgpuRenderer::new(width, height))?);
+    }
+
+    Ok(state
+        .native_wgpu_renderer
+        .as_ref()
+        .expect("native WGPU renderer should be present after creation"))
 }
 
 fn build_solid_colour_source_frame(media: &SceneMediaReference) -> Result<RgbaFrame, String> {

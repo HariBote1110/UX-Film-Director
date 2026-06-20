@@ -1,4 +1,3 @@
-use half::f16;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::mpsc;
@@ -7,14 +6,18 @@ use uxfd_golden_harness::{RgbaFrame, RgbaFrameError};
 use uxfd_rust_core::{Effect, SamplingMode, SceneSnapshot};
 use uxfd_shared_memory_spike::PosixSharedRing;
 use uxfd_sidecar_protocol::{
-    rgba8_srgb_ring_layout, ColourMetadata, FrameRingLayoutBuildError, SharedFrame,
+    rgba8_srgb_ring_layout, ColourMetadata, FrameFormat, FrameRingLayoutBuildError, SharedFrame,
 };
 use wgpu::util::DeviceExt;
 
-const OUTPUT_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
-const OUTPUT_BYTES_PER_PIXEL: u32 = 8;
+const OUTPUT_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
+const OUTPUT_BYTES_PER_PIXEL: u32 = 4;
 const SOURCE_BYTES_PER_PIXEL: u32 = 4;
 const COPY_BYTES_PER_ROW_ALIGNMENT: u32 = 256;
+
+pub fn native_wgpu_readback_frame_format() -> FrameFormat {
+    FrameFormat::Rgba8Srgb
+}
 
 #[derive(Debug)]
 pub enum NativeWgpuRenderError {
@@ -71,6 +74,231 @@ pub struct NativeWgpuSharedFrameReport {
     pub timings: NativeWgpuFrameStageTimings,
 }
 
+pub struct NativeWgpuRenderer {
+    width: u32,
+    height: u32,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    pipeline: wgpu::RenderPipeline,
+    bind_group_layout: wgpu::BindGroupLayout,
+    output_texture: wgpu::Texture,
+    readback_buffer: wgpu::Buffer,
+}
+
+impl NativeWgpuRenderer {
+    pub async fn new(width: u32, height: u32) -> Result<Self, NativeWgpuRenderError> {
+        let instance = wgpu::Instance::default();
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::HighPerformance,
+                compatible_surface: None,
+                force_fallback_adapter: false,
+            })
+            .await
+            .ok_or(NativeWgpuRenderError::AdapterUnavailable)?;
+        let required_limits = required_limits_for_frame(&adapter, width, height)?;
+        let (device, queue) = adapter
+            .request_device(
+                &wgpu::DeviceDescriptor {
+                    label: Some("UXFD native wgpu device"),
+                    required_features: wgpu::Features::empty(),
+                    required_limits,
+                },
+                None,
+            )
+            .await
+            .map_err(NativeWgpuRenderError::RequestDevice)?;
+
+        let pipeline = create_pipeline(&device);
+        let bind_group_layout = pipeline.get_bind_group_layout(0);
+        let output_texture = create_output_texture(&device, width, height);
+        let readback_buffer = create_readback_buffer(&device, width, height);
+
+        Ok(Self {
+            width,
+            height,
+            device,
+            queue,
+            pipeline,
+            bind_group_layout,
+            output_texture,
+            readback_buffer,
+        })
+    }
+
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
+    pub async fn render_frame_stages(
+        &self,
+        snapshot: &SceneSnapshot,
+        sources: &HashMap<String, RgbaFrame>,
+    ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
+        let total_start = Instant::now();
+        self.render_frame_stages_with_setup(snapshot, sources, Duration::ZERO, total_start)
+            .await
+    }
+
+    pub async fn render_frame_to_shared_ring(
+        &self,
+        snapshot: &SceneSnapshot,
+        sources: &HashMap<String, RgbaFrame>,
+        memory_id: &str,
+        slot_count: u32,
+        pts_frame: u64,
+    ) -> Result<NativeWgpuSharedFrameReport, NativeWgpuRenderError> {
+        let report = self.render_frame_stages(snapshot, sources).await?;
+        frame_report_to_shared_ring(report, memory_id, slot_count, pts_frame)
+    }
+
+    async fn render_frame_stages_with_setup(
+        &self,
+        snapshot: &SceneSnapshot,
+        sources: &HashMap<String, RgbaFrame>,
+        setup: Duration,
+        total_start: Instant,
+    ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
+        let mut clips = snapshot.clips.clone();
+        clips.sort_by_key(|clip| clip.z_index);
+
+        let mut prepared_clips = Vec::with_capacity(clips.len());
+        let upload_start = Instant::now();
+        for clip in &clips {
+            if !clip.transform.rotation_degrees.is_finite()
+                || clip.transform.scale_x <= 0.0
+                || clip.transform.scale_y <= 0.0
+            {
+                return Err(NativeWgpuRenderError::UnsupportedTransform {
+                    clip_id: clip.clip_id.clone(),
+                });
+            }
+            let rotation_radians = clip.transform.rotation_degrees.to_radians();
+
+            let source =
+                sources
+                    .get(&clip.media_id)
+                    .ok_or_else(|| NativeWgpuRenderError::MissingSource {
+                        media_id: clip.media_id.clone(),
+                    })?;
+            prepared_clips.push(prepare_clip(
+                &self.device,
+                &self.queue,
+                &self.bind_group_layout,
+                source,
+                RenderParams {
+                    opacity: clip.opacity,
+                    gain: clip
+                        .effects
+                        .iter()
+                        .fold(1.0, |gain, effect| gain * effect_gain(effect)),
+                    source_width: source.width as f32,
+                    source_height: source.height as f32,
+                    translation_x: clip.transform.translation_x,
+                    translation_y: clip.transform.translation_y,
+                    scale_x: clip.transform.scale_x,
+                    scale_y: clip.transform.scale_y,
+                    sampling_mode: sampling_mode_value(clip.transform.sampling),
+                    rotation_cos: rotation_radians.cos(),
+                    rotation_sin: rotation_radians.sin(),
+                    _padding: 0.0,
+                },
+            ));
+        }
+        self.queue.submit(std::iter::empty());
+        wait_for_submitted_work(&self.device, &self.queue)?;
+        let source_upload = upload_start.elapsed();
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("UXFD native wgpu encoder"),
+            });
+
+        let output_view = self
+            .output_texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("UXFD native wgpu render pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &output_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+
+            pass.set_pipeline(&self.pipeline);
+            for prepared_clip in &prepared_clips {
+                pass.set_bind_group(0, &prepared_clip.bind_group, &[]);
+                pass.draw(0..3, 0..1);
+            }
+        }
+        let render_start = Instant::now();
+        self.queue.submit(Some(encoder.finish()));
+        wait_for_submitted_work(&self.device, &self.queue)?;
+        let render = render_start.elapsed();
+
+        let mut readback_encoder =
+            self.device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("UXFD native wgpu readback encoder"),
+                });
+
+        let padded_bytes_per_row = padded_bytes_per_row(self.width);
+        readback_encoder.copy_texture_to_buffer(
+            wgpu::ImageCopyTexture {
+                texture: &self.output_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::ImageCopyBuffer {
+                buffer: &self.readback_buffer,
+                layout: wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(padded_bytes_per_row),
+                    rows_per_image: Some(self.height),
+                },
+            },
+            wgpu::Extent3d {
+                width: self.width,
+                height: self.height,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        let readback_encode_start = Instant::now();
+        self.queue.submit(Some(readback_encoder.finish()));
+        let frame = readback_to_rgba8(&self.device, &self.readback_buffer, self.width, self.height)?;
+        let readback_encode = readback_encode_start.elapsed();
+
+        Ok(NativeWgpuFrameReport {
+            width: self.width,
+            height: self.height,
+            frame,
+            timings: NativeWgpuFrameStageTimings {
+                setup,
+                source_upload,
+                render,
+                readback_encode,
+                steady_state: source_upload + render + readback_encode,
+                total: total_start.elapsed(),
+            },
+        })
+    }
+}
+
 pub async fn render_native_wgpu_frame(
     snapshot: &SceneSnapshot,
     sources: &HashMap<String, RgbaFrame>,
@@ -92,13 +320,22 @@ pub async fn render_native_wgpu_frame_to_shared_ring(
     pts_frame: u64,
 ) -> Result<NativeWgpuSharedFrameReport, NativeWgpuRenderError> {
     let report = measure_native_wgpu_frame_stages(snapshot, sources, width, height).await?;
+    frame_report_to_shared_ring(report, memory_id, slot_count, pts_frame)
+}
+
+fn frame_report_to_shared_ring(
+    report: NativeWgpuFrameReport,
+    memory_id: &str,
+    slot_count: u32,
+    pts_frame: u64,
+) -> Result<NativeWgpuSharedFrameReport, NativeWgpuRenderError> {
     let colour = ColourMetadata {
         primaries: "bt709".to_string(),
         transfer: "srgb".to_string(),
         matrix: "rgb".to_string(),
         range: "full".to_string(),
     };
-    let layout = rgba8_srgb_ring_layout(memory_id, slot_count, width, height, colour)
+    let layout = rgba8_srgb_ring_layout(memory_id, slot_count, report.width, report.height, colour)
         .map_err(NativeWgpuRenderError::SharedFrameLayout)?;
     let descriptor = layout.descriptor_for_slot(0).map_err(|error| {
         NativeWgpuRenderError::SharedFrameLayout(FrameRingLayoutBuildError::Layout(error))
@@ -130,161 +367,11 @@ pub async fn measure_native_wgpu_frame_stages(
     height: u32,
 ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
     let total_start = Instant::now();
-    let instance = wgpu::Instance::default();
-    let adapter = instance
-        .request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            compatible_surface: None,
-            force_fallback_adapter: false,
-        })
-        .await
-        .ok_or(NativeWgpuRenderError::AdapterUnavailable)?;
-    let required_limits = required_limits_for_frame(&adapter, width, height)?;
-    let (device, queue) = adapter
-        .request_device(
-            &wgpu::DeviceDescriptor {
-                label: Some("UXFD native wgpu device"),
-                required_features: wgpu::Features::empty(),
-                required_limits,
-            },
-            None,
-        )
-        .await
-        .map_err(NativeWgpuRenderError::RequestDevice)?;
-
-    let pipeline = create_pipeline(&device);
-    let output_texture = create_output_texture(&device, width, height);
-    let bind_group_layout = pipeline.get_bind_group_layout(0);
-    let readback_buffer = create_readback_buffer(&device, width, height);
+    let renderer = NativeWgpuRenderer::new(width, height).await?;
     let setup = total_start.elapsed();
-
-    let mut clips = snapshot.clips.clone();
-    clips.sort_by_key(|clip| clip.z_index);
-
-    let mut prepared_clips = Vec::with_capacity(clips.len());
-    let upload_start = Instant::now();
-    for clip in &clips {
-        if !clip.transform.rotation_degrees.is_finite()
-            || clip.transform.scale_x <= 0.0
-            || clip.transform.scale_y <= 0.0
-        {
-            return Err(NativeWgpuRenderError::UnsupportedTransform {
-                clip_id: clip.clip_id.clone(),
-            });
-        }
-        let rotation_radians = clip.transform.rotation_degrees.to_radians();
-
-        let source =
-            sources
-                .get(&clip.media_id)
-                .ok_or_else(|| NativeWgpuRenderError::MissingSource {
-                    media_id: clip.media_id.clone(),
-                })?;
-        prepared_clips.push(prepare_clip(
-            &device,
-            &queue,
-            &bind_group_layout,
-            source,
-            RenderParams {
-                opacity: clip.opacity,
-                gain: clip
-                    .effects
-                    .iter()
-                    .fold(1.0, |gain, effect| gain * effect_gain(effect)),
-                source_width: source.width as f32,
-                source_height: source.height as f32,
-                translation_x: clip.transform.translation_x,
-                translation_y: clip.transform.translation_y,
-                scale_x: clip.transform.scale_x,
-                scale_y: clip.transform.scale_y,
-                sampling_mode: sampling_mode_value(clip.transform.sampling),
-                rotation_cos: rotation_radians.cos(),
-                rotation_sin: rotation_radians.sin(),
-                _padding: 0.0,
-            },
-        ));
-    }
-    queue.submit(std::iter::empty());
-    wait_for_submitted_work(&device, &queue)?;
-    let source_upload = upload_start.elapsed();
-
-    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-        label: Some("UXFD native wgpu encoder"),
-    });
-
-    let output_view = output_texture.create_view(&wgpu::TextureViewDescriptor::default());
-    {
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("UXFD native wgpu render pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &output_view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            occlusion_query_set: None,
-            timestamp_writes: None,
-        });
-
-        pass.set_pipeline(&pipeline);
-        for prepared_clip in &prepared_clips {
-            pass.set_bind_group(0, &prepared_clip.bind_group, &[]);
-            pass.draw(0..3, 0..1);
-        }
-    }
-    let render_start = Instant::now();
-    queue.submit(Some(encoder.finish()));
-    wait_for_submitted_work(&device, &queue)?;
-    let render = render_start.elapsed();
-
-    let mut readback_encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-        label: Some("UXFD native wgpu readback encoder"),
-    });
-
-    let padded_bytes_per_row = padded_bytes_per_row(width);
-    readback_encoder.copy_texture_to_buffer(
-        wgpu::ImageCopyTexture {
-            texture: &output_texture,
-            mip_level: 0,
-            origin: wgpu::Origin3d::ZERO,
-            aspect: wgpu::TextureAspect::All,
-        },
-        wgpu::ImageCopyBuffer {
-            buffer: &readback_buffer,
-            layout: wgpu::ImageDataLayout {
-                offset: 0,
-                bytes_per_row: Some(padded_bytes_per_row),
-                rows_per_image: Some(height),
-            },
-        },
-        wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-    );
-
-    let readback_encode_start = Instant::now();
-    queue.submit(Some(readback_encoder.finish()));
-    let frame = readback_to_rgba8(&device, &readback_buffer, width, height)?;
-    let readback_encode = readback_encode_start.elapsed();
-
-    Ok(NativeWgpuFrameReport {
-        width,
-        height,
-        frame,
-        timings: NativeWgpuFrameStageTimings {
-            setup,
-            source_upload,
-            render,
-            readback_encode,
-            steady_state: source_upload + render + readback_encode,
-            total: total_start.elapsed(),
-        },
-    })
+    renderer
+        .render_frame_stages_with_setup(snapshot, sources, setup, total_start)
+        .await
 }
 
 fn pad_rgba_frame_for_stride(
@@ -570,13 +657,7 @@ fn readback_to_rgba8(
     for row_index in 0..height as usize {
         let row_start = row_index * padded_row;
         let row = &mapped[row_start..row_start + unpadded_row];
-        for pixel in row.chunks_exact(OUTPUT_BYTES_PER_PIXEL as usize) {
-            let red = f16::from_le_bytes([pixel[0], pixel[1]]).to_f32();
-            let green = f16::from_le_bytes([pixel[2], pixel[3]]).to_f32();
-            let blue = f16::from_le_bytes([pixel[4], pixel[5]]).to_f32();
-            let alpha = f16::from_le_bytes([pixel[6], pixel[7]]).to_f32();
-            pixels.extend(premultiplied_to_straight_rgba8(red, green, blue, alpha));
-        }
+        pixels.extend_from_slice(row);
     }
 
     drop(mapped);
@@ -597,34 +678,6 @@ fn wait_for_submitted_work(
     receiver
         .recv()
         .map_err(|_| NativeWgpuRenderError::BufferMap)
-}
-
-fn premultiplied_to_straight_rgba8(red: f32, green: f32, blue: f32, alpha: f32) -> [u8; 4] {
-    if alpha <= 0.0 {
-        return [0, 0, 0, 0];
-    }
-
-    [
-        linear_to_srgb_u8(red / alpha),
-        linear_to_srgb_u8(green / alpha),
-        linear_to_srgb_u8(blue / alpha),
-        encode_unorm8(alpha),
-    ]
-}
-
-fn linear_to_srgb_u8(value: f32) -> u8 {
-    let linear = value.clamp(0.0, 1.0);
-    let encoded = if linear <= 0.003_130_8 {
-        linear * 12.92
-    } else {
-        1.055 * linear.powf(1.0 / 2.4) - 0.055
-    };
-
-    encode_unorm8(encoded)
-}
-
-fn encode_unorm8(value: f32) -> u8 {
-    (value.clamp(0.0, 1.0) * 255.0).round() as u8
 }
 
 fn padded_bytes_per_row(width: u32) -> u32 {
