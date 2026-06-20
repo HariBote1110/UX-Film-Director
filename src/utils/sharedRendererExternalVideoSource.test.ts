@@ -104,6 +104,8 @@ describe('sharedRendererExternalVideoSource', () => {
     });
     expect(element.currentTime).toBe(10);
     expect(calls).toEqual(['play']);
+    expect(playbackState.seekCount).toBe(1);
+    expect(playbackState.playCount).toBe(1);
 
     element.currentTime = 10.12;
     syncSharedRendererExternalVideoPlayback({
@@ -114,6 +116,9 @@ describe('sharedRendererExternalVideoSource', () => {
     });
     expect(element.currentTime).toBe(10.12);
     expect(calls).toEqual(['play']);
+    expect(playbackState.seekCount).toBe(1);
+    expect(playbackState.suppressedSeekCount).toBe(1);
+    expect(playbackState.lastDriftSeconds).toBeCloseTo(0.06);
 
     syncSharedRendererExternalVideoPlayback({
       source,
@@ -123,5 +128,7 @@ describe('sharedRendererExternalVideoSource', () => {
     });
     expect(element.currentTime).toBe(11);
     expect(calls).toEqual(['play', 'pause']);
+    expect(playbackState.seekCount).toBe(2);
+    expect(playbackState.pauseCount).toBe(1);
   });
 });
