@@ -804,7 +804,12 @@ const Viewport: React.FC = () => {
       ? liveDatasets.map(() => ({}))
       : liveDatasets;
     const previousPresenterControl = sharedRendererPresenterControlRef.current;
-    const presenterSessionKey = buildSharedRendererPresenterSessionKey(sharedRendererPreviewSession);
+    const canReuseCurrentPresenterSession = isPlaying
+      && !isExporting
+      && isSharedRendererExternalVideoOnlySession(sharedRendererPreviewSession);
+    const presenterSessionKey = buildSharedRendererPresenterSessionKey(sharedRendererPreviewSession, {
+      includePlaybackFrame: !canReuseCurrentPresenterSession,
+    });
     let externalVideoSourcesByClipId = new Map<string, unknown>();
     if (isExporting) {
       disposeSharedRendererExternalVideoSources(sharedRendererExternalVideoSourcesRef.current);
