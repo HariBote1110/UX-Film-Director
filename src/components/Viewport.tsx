@@ -41,6 +41,8 @@ import {
 } from '../utils/sharedRendererPlaybackPreviewSettings';
 import {
   createSharedRendererExternalVideoSource,
+  syncSharedRendererExternalVideoPlayback,
+  type SharedRendererExternalVideoPlaybackState,
   type SharedRendererExternalVideoSource,
 } from '../utils/sharedRendererExternalVideoSource';
 import { toFileProtocolUrl } from '../utils/mediaMetadata';
@@ -64,6 +66,7 @@ type SharedRendererPresenterDiagnosticDataset = Record<string, string | undefine
 type SharedRendererExternalVideoSourceEntry = {
   url: string;
   source: SharedRendererExternalVideoSource;
+  playbackState: SharedRendererExternalVideoPlaybackState;
 };
 
 const disposeSharedRendererExternalVideoSources = (
@@ -132,16 +135,17 @@ const syncSharedRendererExternalVideoSources = ({
       entry = {
         url,
         source: createSharedRendererExternalVideoSource({ url, muted: true }),
+        playbackState: {},
       };
       entries.set(clip.clip_id, entry);
     }
 
-    entry.source.seekTo(sourceFrameToSeconds(clip.source_frame, media.source_rate));
-    if (isPlaying) {
-      void entry.source.play().catch(() => undefined);
-    } else {
-      entry.source.pause();
-    }
+    syncSharedRendererExternalVideoPlayback({
+      source: entry.source,
+      playbackState: entry.playbackState,
+      targetTimeSeconds: sourceFrameToSeconds(clip.source_frame, media.source_rate),
+      isPlaying,
+    });
     sourcesByClipId.set(clip.clip_id, entry.source.source);
   });
 

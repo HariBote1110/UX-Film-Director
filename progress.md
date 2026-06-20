@@ -1,3 +1,20 @@
+## 2026-06-20 — external動画sourceの再生中seekを抑制
+
+### 実施内容
+- Red: external video sourceが再生中かつtimeline targetに近い場合、毎tick `currentTime` を書き換えない契約を追加した。
+- Green: `syncSharedRendererExternalVideoPlayback` を追加し、再生開始時または大きなdrift時だけseekし、停止中は正確にseekするようにした。
+- Green: Viewportのexternal texture preview同期を `seekTo/play/pause` 直呼びから同期helper経由へ変更した。
+- 変更前E2E baselineは `/Volumes/ExtendSSD-W/GX020052.MP4` で `uniquePresentedFrameCount=15`、`presentedFrameSpan=305`、`blockedSampleCount=0`、`externalTextureSampleCount=21/21` だった。
+- 版を `0.1.1-Beta-223a` に更新した。
+
+### 検証
+- `npm test -- sharedRendererExternalVideoSource viewportRustVideoOnlyBoundary sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController`
+- `npx tsc --noEmit 2>&1 | rg "src/components/Viewport\\.tsx|src/utils/sharedRendererExternalVideoSource|src/utils/viewportRustVideoOnlyBoundary|src/utils/sharedRendererViewportPresenterOrchestration|src/utils/sharedRendererPreviewPresenterController"`
+
+### 結果・残課題
+- 再生中の高頻度seekを避け、ブラウザ/Electronの動画decoderが連続再生しやすい状態にした。
+- 次に同じ4K原本E2Eを走らせ、baselineより良いか悪いかを確認する。
+
 ## 2026-06-20 — 再生成される作業ファイルをignoreへ整理
 
 ### 実施内容
