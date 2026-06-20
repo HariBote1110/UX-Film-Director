@@ -27,4 +27,15 @@ describe('package scripts', () => {
     expect(script.indexOf('const exportStartTimeMs = Date.now()'))
       .toBeLessThan(script.indexOf('exportDurationMs'));
   });
+
+  it('provides a real video export quality comparison command', () => {
+    expect(packageJson.scripts['test:video-export:quality']).toBe('node scripts/compare-video-export-quality.mjs');
+
+    const script = readFileSync(new URL('../../scripts/compare-video-export-quality.mjs', import.meta.url), 'utf8');
+    expect(script).toContain('run-video-export-e2e.mjs');
+    expect(script).toContain('psnr=');
+    expect(script).toContain('ssim=');
+    expect(script).toContain('libvmaf');
+    expect(script).toContain('quality-report.json');
+  });
 });
