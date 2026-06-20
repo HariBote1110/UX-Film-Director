@@ -33,12 +33,19 @@ if (urlSearchParams.has('videoExportE2e')) {
   };
   (window as typeof window & {
     __UXFD_VIDEO_EXPORT_E2E_PATCH_FIRST_VIDEO__?: (patch: Record<string, unknown>) => boolean;
+    __UXFD_VIDEO_EXPORT_E2E_GET_FIRST_VIDEO__?: () => Record<string, unknown> | null;
   }).__UXFD_VIDEO_EXPORT_E2E_PATCH_FIRST_VIDEO__ = (patch: Record<string, unknown>) => {
     const state = useStore.getState();
     const videoObject = state.objects.find((object) => object.type === 'video');
     if (!videoObject) return false;
     state.updateObject(videoObject.id, patch);
     return true;
+  };
+  (window as typeof window & {
+    __UXFD_VIDEO_EXPORT_E2E_GET_FIRST_VIDEO__?: () => Record<string, unknown> | null;
+  }).__UXFD_VIDEO_EXPORT_E2E_GET_FIRST_VIDEO__ = () => {
+    const videoObject = useStore.getState().objects.find((object) => object.type === 'video');
+    return videoObject ? { ...videoObject } : null;
   };
 }
 

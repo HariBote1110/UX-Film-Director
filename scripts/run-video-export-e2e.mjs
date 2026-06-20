@@ -348,6 +348,9 @@ const main = async () => {
       throw new Error(`動画export E2E用の配置patchに失敗しました: ${JSON.stringify(VIDEO_PATCH)}`);
     }
   }
+  const videoObject = await client.evaluate(`
+    window.__UXFD_VIDEO_EXPORT_E2E_GET_FIRST_VIDEO__?.() ?? null
+  `);
 
   log(`動画出力を開始: ${OUTPUT_MP4}`);
   const exportStartTimeMs = Date.now();
@@ -430,6 +433,7 @@ const main = async () => {
     outputStat,
     exportDurationSeconds: EXPORT_DURATION_SECONDS,
     videoPatch: VIDEO_PATCH,
+    videoObject,
     exportDurationMs,
     exportedFrameCount,
     exportFramesPerSecond,

@@ -1,3 +1,24 @@
+## 2026-06-20 — video export品質比較をPSNR/SSIM/VMAFで検証
+
+### 実施内容
+- Red: video export品質比較scriptの契約を追加し、direct transcodeと同じ配置geometryで参照映像を作る期待を固定した。
+- Red: `package.json` に `test:video-export:quality` があり、E2E export後にPSNR/SSIM/VMAFと `quality-report.json` を生成する契約を追加した。
+- Green: `scripts/compare-video-export-quality.mjs` を追加し、Electron実ウィンドウE2Eで書き出したMP4を、原本から同一配置へ変換したreference映像と比較するようにした。
+- Green: `scripts/run-video-export-e2e.mjs` とE2E用window hookにvideo object geometry取得を追加し、品質比較側がTL上の `x/y/scaleX/scaleY` を使えるようにした。
+- Green: 比較結果として `.codex/video-export-quality/quality-report.json`、`psnr.log`、`ssim.log`、`vmaf.json` を出力するようにした。
+- 版を `0.1.1-Beta-230a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/videoExportQualityScript.test.ts src/utils/packageScripts.test.ts`
+- `node --check scripts/compare-video-export-quality.mjs && node --check scripts/run-video-export-e2e.mjs`
+- `UXFD_VIDEO_EXPORT_QUALITY_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_EXPORT_QUALITY_DURATION_SECONDS=5 npm run test:video-export:quality`
+- `UXFD_VIDEO_EXPORT_QUALITY_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_EXPORT_QUALITY_DURATION_SECONDS=5 UXFD_VIDEO_EXPORT_QUALITY_VIDEO_PATCH_JSON='{"x":0,"y":0,"scaleX":3,"scaleY":3}' npm run test:video-export:quality`
+
+### 結果・残課題
+- 通常配置 `640x360 centred`: exportは4607ms / 約65.12fps。PSNR average 51.073674、PSNR min 50.120192、SSIM All 0.997877、VMAF mean 94.789002で品質gateを通過した。
+- フル画面寄せ `1920x1080`: exportは4089ms / 約73.37fps。PSNR average 38.500467、PSNR min 36.711483、SSIM All 0.960762、VMAF mean 83.878676で、速度は高いがSSIM/VMAFが閾値未満になった。
+- 現在の高速direct transcodeは、縮小表示ではかなり良好だが、原本4KをフルHD全画面へ落とす条件では品質劣化が検出される。次はencoder preset/CRF/scale filterの比較matrixを作り、60fpsを維持しながらSSIM 0.97 / VMAF 85以上へ戻せる設定を探す。
+
 ## 2026-06-20 — direct transcodeの実percent進捗をUIへ表示
 
 ### 実施内容

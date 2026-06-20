@@ -1,7 +1,7 @@
 {
   "name": "ux-film-director",
   "private": true,
-  "version": "0.1.1-Beta-229e",
+  "version": "0.1.1-Beta-230a",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -15,6 +15,7 @@
     "test:export:fast": "EXPORT_FAST=1 node scripts/run-export-test.mjs",
     "test:video-load:e2e": "node scripts/run-video-load-e2e.mjs",
     "test:video-export:e2e": "node scripts/run-video-export-e2e.mjs",
+    "test:video-export:quality": "node scripts/compare-video-export-quality.mjs",
     "build": "tsc && vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
     "preview": "vite preview",
     "rust:build:debug": "cargo build --manifest-path rust-backend/Cargo.toml",

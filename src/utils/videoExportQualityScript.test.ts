@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-const loadModule = () => import('../../scripts/compare-video-export-quality.mjs');
+const qualityScriptUrl = new URL('../../scripts/compare-video-export-quality.mjs', import.meta.url).href;
+const loadModule = () => import(qualityScriptUrl);
 
 describe('video export quality comparison script', () => {
   it('builds the same centred reference geometry as the direct transcode fast path', async () => {
