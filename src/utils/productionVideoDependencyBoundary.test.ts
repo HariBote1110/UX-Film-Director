@@ -130,4 +130,14 @@ describe('production video dependency boundary', () => {
     expect(code).toContain('optimizeDeps');
     expect(code).toContain("entries: ['index.html']");
   });
+
+  it('aliases MP4Box to the shipped module file for Vite scans', () => {
+    const code = readFileSync(viteConfigPath, 'utf8');
+
+    expect(code).toContain('resolve');
+    expect(code).toContain('alias');
+    expect(code).toContain('mp4boxModulePath');
+    expect(code).toContain("new URL('./node_modules/mp4box/dist/mp4box.all.mjs', import.meta.url)");
+    expect(code).toContain('mp4box: mp4boxModulePath');
+  });
 });

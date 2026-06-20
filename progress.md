@@ -6,17 +6,22 @@
 - Green: `syncSharedRendererExternalVideoPlayback` を追加し、再生開始時または大きなdrift時だけseekし、停止中は正確にseekするようにした。
 - Green: Viewportのexternal texture preview同期を `seekTo/play/pause` 直呼びから同期helper経由へ変更した。
 - Green: E2E結果へ `externalVideoSeekCount` / `externalVideoSuppressedSeekCount` / `externalVideoMaxAbsDriftMs` を出すようにした。
+- Green: Viteの `mp4box` 解決を実体の `.mjs` へ向け、E2E中のdep-scan errorを解消した。
 - 変更前E2E baselineは `/Volumes/ExtendSSD-W/GX020052.MP4` で `uniquePresentedFrameCount=15`、`presentedFrameSpan=305`、`blockedSampleCount=0`、`externalTextureSampleCount=21/21` だった。
-- 版を `0.1.1-Beta-223b` に更新した。
+- 変更後E2Eは `uniquePresentedFrameCount=16`、`presentedFrameSpan=335`、`blockedSampleCount=0`、`externalTextureSampleCount=21/21`、`externalVideoSeekCount=5`、`externalVideoSuppressedSeekCount=36`、pixel delta OKだった。
+- 版を `0.1.1-Beta-223c` に更新した。
 
 ### 検証
 - `npm test -- sharedRendererExternalVideoSource viewportRustVideoOnlyBoundary sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController`
+- `npm test -- productionVideoDependencyBoundary`
 - `npx tsc --noEmit 2>&1 | rg "src/components/Viewport\\.tsx|src/utils/sharedRendererExternalVideoSource|src/utils/viewportRustVideoOnlyBoundary|src/utils/sharedRendererViewportPresenterOrchestration|src/utils/sharedRendererPreviewPresenterController"`
 - `node --check scripts/run-video-load-e2e.mjs`
+- `UXFD_VIDEO_LOAD_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_LOAD_E2E_EXPECT_EXTERNAL_TEXTURE=1 UXFD_VIDEO_LOAD_E2E_TIMEOUT_MS=240000 npm run test:video-load:e2e`
 
 ### 結果・残課題
 - 再生中の高頻度seekを避け、ブラウザ/Electronの動画decoderが連続再生しやすい状態にした。
-- 次に同じ4K原本E2Eを走らせ、baselineより良いか悪いかを確認する。
+- 単発E2E比較では `unique +1`、`span +30`、`blocked ±0` で、少なくともこの条件では性能低下ではなく改善寄りだった。
+- 残りはpresenter再起動回数そのものを減らすことと、`requestVideoFrameCallback` 相当の動画frame駆動presentへ進むこと。
 
 ## 2026-06-20 — 再生成される作業ファイルをignoreへ整理
 
