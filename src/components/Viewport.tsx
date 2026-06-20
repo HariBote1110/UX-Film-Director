@@ -143,6 +143,13 @@ const sourceFrameToSeconds = (
   return Math.max(0, sourceFrame * sourceRate.denominator / sourceRate.numerator);
 };
 
+const isSharedRendererExternalVideoOnlySession = (session: SharedRendererPreviewSession): boolean => {
+  if (!session.surfaceGate.ok || session.surfaceGate.snapshot.clips.length === 0) return false;
+
+  const mediaKindById = new Map(session.surfaceGate.media.map((media) => [media.id, media.kind]));
+  return session.surfaceGate.snapshot.clips.every((clip) => mediaKindById.get(clip.media_id) === 'Video');
+};
+
 const syncSharedRendererExternalVideoSources = ({
   session,
   objects,
@@ -697,13 +704,39 @@ const Viewport: React.FC = () => {
       }
     }
 
-    const nextPresenterKey = buildSharedRendererPresenterSessionKey(session);
+    const canReuseExternalVideoPresenter = isPlaying
+      && !isExporting
+      && isSharedRendererExternalVideoOnlySession(session);
+    const nextPresenterKey = buildSharedRendererPresenterSessionKey(session, {
+      includePlaybackFrame: !canReuseExternalVideoPresenter,
+    });
     if (isPlaying && sharedRendererPresenterStartingRef.current) {
-      if (!sharedRendererPendingPreviewSessionRef.current) {
-        sharedRendererPendingPreviewSessionRef.current = session;
-        sharedRendererPendingPresenterSessionKeyRef.current = nextPresenterKey;
-      }
+      sharedRendererPendingPreviewSessionRef.current = session;
+      sharedRendererPendingPresenterSessionKeyRef.current = nextPresenterKey;
       return;
+    }
+    if (canReuseExternalVideoPresenter && sharedRendererPresenterSessionKeyRef.current === nextPresenterKey) {
+      const control = sharedRendererPresenterControlRef.current;
+      if (control?.ok && control.presentExternalVideoFrameScene) {
+        const sourcesByClipId = syncSharedRendererExternalVideoSources({
+          session,
+          objects: currentObjects,
+          entries: sharedRendererExternalVideoSourcesRef.current,
+          isPlaying,
+        });
+        const presentation = control.presentExternalVideoFrameScene?.({
+          session,
+          sourcesByClipId,
+        });
+        setSharedRendererPreviewDiagnostic(buildSharedRendererPreviewDiagnostic(
+          document.documentElement.dataset as Record<string, string | undefined>,
+          control
+        ));
+        if (presentation?.ok) {
+          return;
+        }
+        sharedRendererPresenterSessionKeyRef.current = null;
+      }
     }
     if (sharedRendererPresenterSessionKeyRef.current !== nextPresenterKey) {
       sharedRendererPresenterSessionKeyRef.current = nextPresenterKey;
@@ -874,6 +907,21 @@ const Viewport: React.FC = () => {
       if (pendingSession && pendingSessionKey && pendingSessionKey !== presenterSessionKey) {
         sharedRendererPresenterSessionKeyRef.current = pendingSessionKey;
         setSharedRendererPreviewSession(pendingSession);
+      } else if (pendingSession && pendingSessionKey && isSharedRendererExternalVideoOnlySession(pendingSession)) {
+        const control = sharedRendererPresenterControlRef.current;
+        if (control?.ok && control.presentExternalVideoFrameScene) {
+          const sourcesByClipId = syncSharedRendererExternalVideoSources({
+            session: pendingSession,
+            objects,
+            entries: sharedRendererExternalVideoSourcesRef.current,
+            isPlaying,
+          });
+          control.presentExternalVideoFrameScene?.({
+            session: pendingSession,
+            sourcesByClipId,
+          });
+          setSharedRendererPreviewDiagnostic(buildSharedRendererPreviewDiagnostic(rootDataset, control));
+        }
       }
     });
 
