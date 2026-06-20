@@ -16,6 +16,9 @@ const RESULT_JSON = resolve(OUTPUT_DIR, 'result.json');
 const RESULT_LOG = resolve(OUTPUT_DIR, 'result.log');
 const OVERALL_TIMEOUT_MS = Number(process.env.UXFD_VIDEO_EXPORT_E2E_TIMEOUT_MS ?? 180_000);
 const EXPORT_DURATION_SECONDS = Number(process.env.UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS ?? 1);
+const VIDEO_PATCH = process.env.UXFD_VIDEO_EXPORT_E2E_VIDEO_PATCH_JSON
+  ? JSON.parse(process.env.UXFD_VIDEO_EXPORT_E2E_VIDEO_PATCH_JSON)
+  : null;
 
 let vite = null;
 let electron = null;
@@ -337,6 +340,14 @@ const main = async () => {
   if (!durationShortened) {
     throw new Error('動画export E2E用の短尺化に失敗しました。');
   }
+  if (VIDEO_PATCH) {
+    const patchApplied = await client.evaluate(`
+      window.__UXFD_VIDEO_EXPORT_E2E_PATCH_FIRST_VIDEO__?.(${JSON.stringify(VIDEO_PATCH)}) ?? false
+    `);
+    if (!patchApplied) {
+      throw new Error(`動画export E2E用の配置patchに失敗しました: ${JSON.stringify(VIDEO_PATCH)}`);
+    }
+  }
 
   log(`動画出力を開始: ${OUTPUT_MP4}`);
   const exportStartTimeMs = Date.now();
@@ -409,6 +420,7 @@ const main = async () => {
     outputPath: OUTPUT_MP4,
     outputStat,
     exportDurationSeconds: EXPORT_DURATION_SECONDS,
+    videoPatch: VIDEO_PATCH,
     exportDurationMs,
     exportedFrameCount,
     exportFramesPerSecond,

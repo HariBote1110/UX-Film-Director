@@ -21,6 +21,7 @@ if (urlSearchParams.has('videoLoadE2e') || urlSearchParams.has('videoExportE2e')
 if (urlSearchParams.has('videoExportE2e')) {
   (window as typeof window & {
     __UXFD_VIDEO_EXPORT_E2E_SET_VIDEO_DURATION__?: (duration: number) => boolean;
+    __UXFD_VIDEO_EXPORT_E2E_PATCH_FIRST_VIDEO__?: (patch: Record<string, unknown>) => boolean;
   }).__UXFD_VIDEO_EXPORT_E2E_SET_VIDEO_DURATION__ = (duration: number) => {
     const state = useStore.getState();
     const videoObjects = state.objects.filter((object) => object.type === 'video');
@@ -29,6 +30,15 @@ if (urlSearchParams.has('videoExportE2e')) {
     });
     state.setDuration(duration);
     return videoObjects.length > 0;
+  };
+  (window as typeof window & {
+    __UXFD_VIDEO_EXPORT_E2E_PATCH_FIRST_VIDEO__?: (patch: Record<string, unknown>) => boolean;
+  }).__UXFD_VIDEO_EXPORT_E2E_PATCH_FIRST_VIDEO__ = (patch: Record<string, unknown>) => {
+    const state = useStore.getState();
+    const videoObject = state.objects.find((object) => object.type === 'video');
+    if (!videoObject) return false;
+    state.updateObject(videoObject.id, patch);
+    return true;
   };
 }
 

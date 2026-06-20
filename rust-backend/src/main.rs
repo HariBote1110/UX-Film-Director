@@ -881,30 +881,48 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
     let object_y = parsed.object_y.unwrap_or(0);
     let object_width = parsed.object_width.unwrap_or(parsed.width);
     let object_height = parsed.object_height.unwrap_or(parsed.height);
+    let output_width = i64::from(parsed.width);
+    let output_height = i64::from(parsed.height);
+    let object_x_i64 = i64::from(object_x);
+    let object_y_i64 = i64::from(object_y);
+    let object_width_i64 = i64::from(object_width);
+    let object_height_i64 = i64::from(object_height);
+    let object_right = object_x_i64 + object_width_i64;
+    let object_bottom = object_y_i64 + object_height_i64;
     if object_width == 0
         || object_height == 0
-        || object_x < 0
-        || object_y < 0
-        || u32::try_from(object_x)
-            .ok()
-            .and_then(|value| value.checked_add(object_width))
-            .map(|value| value > parsed.width)
-            .unwrap_or(true)
-        || u32::try_from(object_y)
-            .ok()
-            .and_then(|value| value.checked_add(object_height))
-            .map(|value| value > parsed.height)
-            .unwrap_or(true)
+        || object_right <= 0
+        || object_bottom <= 0
+        || object_x_i64 >= output_width
+        || object_y_i64 >= output_height
     {
         return response_error(
             id,
             -32602,
-            "object placement must fit inside the output frame",
+            "object placement must intersect the output frame",
         );
     }
+    let crop_x = 0_i64.max(-object_x_i64);
+    let crop_y = 0_i64.max(-object_y_i64);
+    let right_overflow = 0_i64.max(object_right - output_width);
+    let bottom_overflow = 0_i64.max(object_bottom - output_height);
+    let canvas_width = output_width + crop_x + right_overflow;
+    let canvas_height = output_height + crop_y + bottom_overflow;
+    let pad_x = 0_i64.max(object_x_i64);
+    let pad_y = 0_i64.max(object_y_i64);
     let scale_filter = format!(
-        "scale={}:{},setsar=1,pad={}:{}:{}:{}:black,fps={}",
-        object_width, object_height, parsed.width, parsed.height, object_x, object_y, parsed.fps
+        "scale={}:{},setsar=1,pad={}:{}:{}:{}:black,crop={}:{}:{}:{},fps={}",
+        object_width,
+        object_height,
+        canvas_width,
+        canvas_height,
+        pad_x,
+        pad_y,
+        parsed.width,
+        parsed.height,
+        crop_x,
+        crop_y,
+        parsed.fps
     );
 
     let mut cmd = Command::new(&ffmpeg_path);

@@ -1,3 +1,33 @@
+## 2026-06-20 — direct transcodeをはみ出し配置とE2E変形測定へ拡張
+
+### 実施内容
+- Red: direct transcode fast pathが、拡大した動画の一部が出力フレーム外にはみ出す配置を受け入れる契約を追加した。
+- Red: 完全に出力フレーム外へ出た動画はfast path対象外にする契約を追加した。
+- Green: `resolveProjectExportVideoTranscodeFastPath` の配置判定を「出力フレーム内に収まる」から「出力フレームと交差する」へ変更した。
+- Green: Rust `encode.transcodeVideo` のfilterを `scale -> pad -> crop -> fps` に変更し、負の座標・右下方向のはみ出し・拡大クロップをdirect transcodeで処理できるようにした。
+- Green: Electron動画export E2Eへ `UXFD_VIDEO_EXPORT_E2E_VIDEO_PATCH_JSON` を追加し、読み込み後のvideo objectへ `x/y/scaleX/scaleY` などを当てて実ウィンドウ測定できるようにした。
+- 版を `0.1.1-Beta-229c` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/projectExportVideoTranscodeFastPath.test.ts src/utils/rustBackendVideoEncodeControl.test.ts`
+- `cargo fmt --manifest-path rust-backend/Cargo.toml && cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane encode_transcode_video -- --nocapture`
+- `node --check scripts/run-video-export-e2e.mjs`
+- `npx tsc --noEmit 2>&1 | rg "src/main\\.tsx|projectExportVideoTranscodeFastPath|rustBackendVideoEncodeControl|run-video-export-e2e"`
+- `UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=5 npm run test:video-export:e2e`
+- `UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=5 UXFD_VIDEO_EXPORT_E2E_VIDEO_PATCH_JSON='{"x":100,"y":80,"scaleX":0.5,"scaleY":0.5}' npm run test:video-export:e2e`
+- `UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=5 UXFD_VIDEO_EXPORT_E2E_VIDEO_PATCH_JSON='{"x":-240,"y":-120,"scaleX":1.5,"scaleY":1.5}' npm run test:video-export:e2e`
+- `UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=5 UXFD_VIDEO_EXPORT_E2E_VIDEO_PATCH_JSON='{"x":1700,"y":900,"scaleX":0.5,"scaleY":0.5}' npm run test:video-export:e2e`
+- `ffprobe -v error -show_entries stream=index,codec_type,codec_name,width,height,avg_frame_rate -of json .codex/video-export-e2e/video-export-e2e-output.mp4`
+
+### 結果・残課題
+- 通常配置: 5秒300frameを5071msでexport、約59.16fps。
+- 縮小端寄せ `x=100,y=80,scale=0.5`: 5秒300frameを6132msでexport、約48.92fps。
+- 拡大左上クロップ `x=-240,y=-120,scale=1.5`: 5秒300frameを5105msでexport、約58.77fps。
+- 右下はみ出し `x=1700,y=900,scale=0.5`: 5秒300frameを5108msでexport、約58.73fps。
+- ffprobeで出力は1920x1080/60fps H.264 + AAC音声であることを確認した。
+- `npx tsc --noEmit` は今回触った範囲に追加エラーなし。ただし既存の `src/utils/rustBackendVideoEncodeControl.test.ts` 型エラーは残っている。
+- direct transcodeは引き続き単一動画が対象。図形・画像・複数object・rotation・opacity・filterありは合成経路の高速化が別途必要。
+
 ## 2026-06-20 — direct transcodeのresizeとsource音声を修正
 
 ### 実施内容

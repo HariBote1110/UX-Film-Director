@@ -53,9 +53,9 @@ export const resolveProjectExportVideoTranscodeFastPath = ({
   const objectWidth = Math.round(video.width * video.scaleX);
   const objectHeight = Math.round(video.height * video.scaleY);
   const audioVolume = video.muted ? 0 : Math.max(0, Math.min(4, video.volume ?? 1));
-  if (objectX < 0 || objectY < 0) return null;
   if (objectWidth <= 0 || objectHeight <= 0) return null;
-  if (objectX + objectWidth > width || objectY + objectHeight > height) return null;
+  if (objectX + objectWidth <= 0 || objectY + objectHeight <= 0) return null;
+  if (objectX >= width || objectY >= height) return null;
   if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) return null;
   if (!Number.isFinite(fps) || fps <= 0) return null;
 
