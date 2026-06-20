@@ -1071,3 +1071,15 @@
 - このテストではPixiJS動画描画へ戻さず、Rust decoded uploadが `sharedRendererDecodedVideoFrameUploads` としてpresenterへ渡ることを確認している。
 - 検証: `npm test -- rustVideoPreview.e2e` は1件成功。`npm test -- rustVideoPreview.e2e sharedRendererViewportPresenterOrchestration sharedRendererPreviewPresenterController` は53件成功。対象E2Eファイルで絞った `tsc` 出力は空。
 - 版: `0.1.1-Beta-219b` 据え置き。
+
+## 2026-06-20
+- 4K動画preview高速化として、external video source の WebGPU presenter を再生中に再利用する経路を追加した。
+- Red: `sharedRendererPreviewPresenterController` に、既存presenterへ次のexternal video frame sceneを再presentでき、診断の `presentedSourceFrame` / `presentedFrameIndex` が進む契約を追加した。
+- Green: `SharedRendererPreviewPresenterControl.presentExternalVideoFrameScene` を追加し、controller側で外部動画再presentと診断更新を行うようにした。
+- Red: `sharedRendererPresenterSessionKey` に、playback専用の `frameIndex` / `sourceFrame` だけを presenter lifecycle key から外せる契約を追加した。
+- Green: `buildSharedRendererPresenterSessionKey(..., { includePlaybackFrame: false })` を追加し、transform/effects/media/canvasは引き続きkeyへ残した。
+- Red: `viewportRustVideoOnlyBoundary` に、Viewport が external video-only session だけ時刻非依存keyを使い、key unchanged時に `syncSharedRendererExternalVideoSources` 後に既存presenterへ再presentする契約を追加した。
+- Green: `Viewport` の再生中fast pathで presenter 再起動を避け、起動中pending sessionも最新へ差し替え、live datasetへ再present診断を反映するようにした。
+- 検証: `npm test -- viewportRustVideoOnlyBoundary sharedRendererPreviewPresenterController sharedRendererPresenterSessionKey` は69件成功。対象ファイルで絞った `tsc` は今回変更分の新規エラーなし（既存の `ThreeStageViewport.tsx` の three 型定義エラーのみ）。
+- 実機E2E: `/Volumes/ExtendSSD-W/GX020052.MP4` で `npm run test:video-load:e2e` 成功。改善前の5秒smoothnessは `presenterStartCount=46` / `uniquePresentedFrameCount=15` / `presentedFrameSpan=290`、改善後は `presenterStartCount=6` / `uniquePresentedFrameCount=21` / `presentedFrameSpan=300` / `blockedSampleCount=0` / `externalTextureSampleCount=21`。
+- 版: `0.1.1-Beta-224a`。
