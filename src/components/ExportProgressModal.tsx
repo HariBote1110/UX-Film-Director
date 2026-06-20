@@ -14,6 +14,48 @@ const phaseLabelKey: Record<ExportPhase, 'exportPhasePreparing' | 'exportPhaseTr
   cancelling: 'exportPhaseCancelling',
 };
 
+export interface ExportProgressPresentation {
+  isDeterminate: boolean;
+  ratio: number;
+  percent: number;
+  statsLines: string[];
+}
+
+export const getExportProgressPresentation = (
+  progress: ExportProgress,
+  language: 'ja' | 'en',
+  nowMs = Date.now()
+): ExportProgressPresentation => {
+  const totalFrames = progress.totalFrames;
+  const currentFrame = progress.currentFrame;
+  const isDeterminate = (progress.phase === 'rendering' || progress.phase === 'saving') && totalFrames > 0;
+  const ratio = isDeterminate ? Math.min(1, Math.max(0, currentFrame / totalFrames)) : 0;
+  const percent = Math.round(ratio * 100);
+  const frameLabel = language === 'ja' ? 'フレーム' : 'Frame';
+  const statsLines: string[] = [];
+
+  if (isDeterminate) {
+    statsLines.push(`${frameLabel} ${currentFrame} / ${totalFrames}`);
+    statsLines.push(`${percent}%`);
+  } else if (progress.phase === 'transcoding' && totalFrames > 0) {
+    const targetLabel = language === 'ja' ? '処理対象' : 'Target';
+    statsLines.push(`${targetLabel} ${totalFrames} ${frameLabel.toLowerCase()}`);
+    if (typeof progress.startedAtMs === 'number') {
+      const elapsedSeconds = Math.max(0, (nowMs - progress.startedAtMs) / 1000);
+      const elapsedLabel = language === 'ja' ? '経過' : 'Elapsed';
+      const secondsLabel = language === 'ja' ? '秒' : 's';
+      statsLines.push(`${elapsedLabel} ${elapsedSeconds.toFixed(1)} ${secondsLabel}`);
+    }
+  }
+
+  return {
+    isDeterminate,
+    ratio,
+    percent,
+    statsLines,
+  };
+};
+
 export const formatNativeRenderOutputReleaseDiagnostic = (
   event: RustBackendNativeRenderOutputReleaseEvent,
   language: 'ja' | 'en'
@@ -146,6 +188,13 @@ const ExportProgressModal: React.FC = () => {
   }), shallow);
 
   const t = useTranslation(language);
+  const [nowMs, setNowMs] = React.useState(() => Date.now());
+
+  React.useEffect(() => {
+    if (!isExporting) return undefined;
+    const intervalId = window.setInterval(() => setNowMs(Date.now()), 500);
+    return () => window.clearInterval(intervalId);
+  }, [isExporting]);
 
   if (!isExporting) {
     const lastDiagnostics = formatLastExportDiagnosticsSummary(lastExportDiagnostics, language);
@@ -160,13 +209,12 @@ const ExportProgressModal: React.FC = () => {
   }
 
   const phase: ExportPhase = exportProgress?.phase ?? 'preparing';
-  const totalFrames = exportProgress?.totalFrames ?? 0;
-  const currentFrame = exportProgress?.currentFrame ?? 0;
   const stepDetail = exportProgress?.stepDetail ?? null;
-  // レンダリング中かつ総フレーム数が判明しているときだけ確定プログレスを出す。
-  const isDeterminate = phase === 'rendering' && totalFrames > 0;
-  const ratio = isDeterminate ? Math.min(1, currentFrame / totalFrames) : 0;
-  const percent = Math.round(ratio * 100);
+  const progressPresentation = getExportProgressPresentation(
+    exportProgress ?? { phase, currentFrame: 0, totalFrames: 0 },
+    language,
+    nowMs
+  );
   const nativeRenderOutputReleaseDiagnostic = exportProgress?.nativeRenderOutputRelease
     ? formatNativeRenderOutputReleaseDiagnostic(exportProgress.nativeRenderOutputRelease, language)
     : null;
@@ -192,15 +240,16 @@ const ExportProgressModal: React.FC = () => {
 
         <div className="export-modal-bar">
           <div
-            className={`export-modal-bar-fill${isDeterminate ? '' : ' export-modal-bar-indeterminate'}`}
-            style={isDeterminate ? { width: `${percent}%` } : undefined}
+            className={`export-modal-bar-fill${progressPresentation.isDeterminate ? '' : ' export-modal-bar-indeterminate'}`}
+            style={progressPresentation.isDeterminate ? { width: `${progressPresentation.percent}%` } : undefined}
           />
         </div>
 
-        {isDeterminate && (
+        {progressPresentation.statsLines.length > 0 && (
           <div className="export-modal-stats">
-            <span>{t('exportFrameProgress')} {currentFrame} / {totalFrames}</span>
-            <span>{percent}%</span>
+            {progressPresentation.statsLines.map((line) => (
+              <span key={line}>{line}</span>
+            ))}
           </div>
         )}
 

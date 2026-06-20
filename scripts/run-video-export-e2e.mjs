@@ -365,6 +365,7 @@ const main = async () => {
 
   const startedExportWait = Date.now();
   let exportResult = null;
+  const progressSamples = [];
   while (Date.now() - startedExportWait < 120000) {
     const dialog = client.dialogs.find((entry) => (
       entry.message.includes('エクスポート完了')
@@ -373,11 +374,18 @@ const main = async () => {
     const progressSnapshot = await client.evaluate(`
       (() => ({
         dataset: { ...document.documentElement.dataset },
+        exportModalText: document.querySelector('.export-modal')?.textContent || null,
         body: document.body.innerText || '',
       }))()
     `).catch((error) => ({
       error: error instanceof Error ? error.message : String(error),
     }));
+    if (progressSamples.length < 40) {
+      progressSamples.push({
+        elapsedMs: Date.now() - exportStartTimeMs,
+        exportModalText: progressSnapshot.exportModalText ?? null,
+      });
+    }
     if (dialog) {
       exportResult = {
         ok: dialog.message.includes('エクスポート完了'),
@@ -395,6 +403,7 @@ const main = async () => {
     progressSnapshot: await client.evaluate(`
       (() => ({
         dataset: { ...document.documentElement.dataset },
+        exportModalText: document.querySelector('.export-modal')?.textContent || null,
         body: document.body.innerText || '',
       }))()
     `).catch((error) => ({
@@ -426,6 +435,7 @@ const main = async () => {
     exportFramesPerSecond,
     loadResult,
     exportResult,
+    progressSamples,
     dialogs: client.dialogs,
     consoleLines: collectConsoleEvents(client),
     runtimeErrors: collectRuntimeErrors(client),

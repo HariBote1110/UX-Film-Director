@@ -85,6 +85,8 @@ export interface ExportProgress {
   totalFrames: number;
   /** Rust export が現在待っている工程。 */
   stepDetail?: string;
+  /** 現在の書き出し工程が始まった時刻。UI上の経過表示に使う。 */
+  startedAtMs?: number;
   /** Rust/shared renderer frame source plan の失敗診断。 */
   exportFrameSourcePlanFailure?: Pick<Extract<ProjectExportFrameSourcePlanResult, { ok: false }>, 'reason' | 'detail'>;
   /** Rust/shared renderer frame source がblockedになった時の診断。 */

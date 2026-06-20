@@ -1,3 +1,25 @@
+## 2026-06-20 — direct transcode中の進捗UIを正直な表示へ修正
+
+### 実施内容
+- Red: direct transcode中は確定%を偽装せず、不確定バーのまま処理対象フレーム数と経過時間を表示する契約を追加した。
+- Red: `useProjectExport` がdirect transcode開始時刻をprogress payloadへ入れる契約を追加した。
+- Green: `ExportProgressModal` に `getExportProgressPresentation` を追加し、rendering/savingは従来通り確定progress、transcodingは `処理対象 N フレーム` と `経過 N 秒` を表示するようにした。
+- Green: direct transcode開始時に `startedAtMs` と `Rust export: direct video transcode running` をprogressへ保存するようにした。
+- Green: `exportPhaseTranscoding` の文言を `高速動画を書き出し中...` へ変更し、中間ファイル生成に見える誤解を避けた。
+- Green: Electron動画export E2Eへ進捗モーダルテキストのサンプリングを追加した。
+- 版を `0.1.1-Beta-229d` に更新した。
+
+### 検証
+- `npm test -- --run src/components/ExportProgressModal.test.ts src/utils/useProjectExportBoundary.test.ts src/store/exportProgress.test.ts`
+- `node --check scripts/run-video-export-e2e.mjs`
+- `npx tsc --noEmit 2>&1 | rg "src/components/ExportProgressModal|src/hooks/useProjectExport|src/store/useStore|src/i18n|src/utils/useProjectExportBoundary"`
+- `UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=5 npm run test:video-export:e2e`
+
+### 結果・残課題
+- 外付けSSDのGoPro MP4 export中に、E2Eの `progressSamples` で `書き出し中...高速動画を書き出し中...Rust export: direct video transcode running処理対象 300 フレーム経過 0.0 秒...` から `経過 5.5 秒` まで更新されることを確認した。
+- 5秒300frameのdirect transcodeは6214ms / 約48.28fpsで完了した。
+- 現時点ではRust backendからffmpegの実progress eventをstreamしていないため、transcoding中のバーは不確定表示。次により正確な%が必要なら、Rust側で `ffmpeg -progress pipe` を読んでcontrol eventとしてrendererへ流す。
+
 ## 2026-06-20 — direct transcodeをはみ出し配置とE2E変形測定へ拡張
 
 ### 実施内容

@@ -11,7 +11,7 @@ export const locales = {
   exportVideo: { ja: '動画で書き出し', en: 'Export Video' },
   exportingVideo: { ja: '書き出し中...', en: 'Exporting...' },
   exportPhasePreparing: { ja: '準備中...', en: 'Preparing...' },
-  exportPhaseTranscoding: { ja: '高速化のため中間ファイルを生成中...', en: 'Generating intermediate for speed...' },
+  exportPhaseTranscoding: { ja: '高速動画を書き出し中...', en: 'Writing video with fast path...' },
   exportPhaseRendering: { ja: 'フレームを描画中', en: 'Rendering frames' },
   exportPhaseSaving: { ja: 'ファイルを保存中...', en: 'Saving file...' },
   exportPhaseCancelling: { ja: 'キャンセル中...', en: 'Cancelling...' },

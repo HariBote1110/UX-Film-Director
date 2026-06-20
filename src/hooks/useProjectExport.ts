@@ -205,7 +205,8 @@ export const useProjectExport = (
             phase: 'transcoding',
             currentFrame: 0,
             totalFrames,
-            stepDetail: 'Rust export: direct video transcode fast path',
+            startedAtMs: Date.now(),
+            stepDetail: 'Rust export: direct video transcode running',
           });
           const transcodeResponse = await transcodeRustBackendVideo({
             ...transcodeFastPath,
