@@ -534,16 +534,18 @@ const samplePlaybackPresentationSmoothness = async (client) => client.evaluate(`
         const uniquePresentedFrames = [...new Set(presentedFrames)];
         const firstPresentedFrame = uniquePresentedFrames[0] ?? null;
         const lastPresentedFrame = uniquePresentedFrames[uniquePresentedFrames.length - 1] ?? null;
+        const blockedSampleCount = samples.filter((entry) => entry.presenterStatus === 'blocked').length;
         const span = typeof firstPresentedFrame === 'number' && typeof lastPresentedFrame === 'number'
           ? lastPresentedFrame - firstPresentedFrame
           : 0;
         resolve({
-          ok: uniquePresentedFrames.length >= 8 && span >= 60,
+          ok: uniquePresentedFrames.length >= 8 && span >= 60 && blockedSampleCount <= 1,
           sampleCount: samples.length,
           uniquePresentedFrameCount: uniquePresentedFrames.length,
           firstPresentedFrame,
           lastPresentedFrame,
           presentedFrameSpan: span,
+          blockedSampleCount,
           samples,
         });
         return;
