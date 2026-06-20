@@ -122,6 +122,19 @@ describe('Viewport Rust video-only boundary', () => {
     expect(syncBlock).toContain('minimumPlayingSyncIntervalMs: SHARED_RENDERER_EXTERNAL_VIDEO_PLAYING_SYNC_INTERVAL_MS');
   });
 
+  it('does not retain the previous shared renderer presenter when playback has just paused', () => {
+    const code = viewportSource();
+    const playbackStateStart = code.indexOf('const nextPlaybackState = useStore.getState().isPlaying');
+    const cleanupStart = code.lastIndexOf('return () => {', playbackStateStart);
+    const cleanupEnd = code.indexOf('};', cleanupStart);
+    const cleanupBlock = code.slice(cleanupStart, cleanupEnd);
+
+    expect(playbackStateStart).toBeGreaterThan(0);
+    expect(cleanupBlock).toContain('const nextPlaybackState = useStore.getState().isPlaying');
+    expect(cleanupBlock).toContain('nextPlaybackState');
+    expect(cleanupBlock).not.toContain('(isPlaying || nextPlaybackState)');
+  });
+
   it('disposes external video sources before export presenter starts without them', () => {
     const code = viewportSource();
     const start = code.indexOf('let externalVideoSourcesByClipId =');
