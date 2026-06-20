@@ -4,6 +4,7 @@ import {
   type RustSceneMediaReference,
   type RustSceneSnapshot,
   type RustSceneSnapshotBuildIssue,
+  type RustSceneVideoSourceMode,
 } from './rustSceneSnapshot';
 
 export type SharedRendererPreviewPlan =
@@ -30,6 +31,7 @@ export interface SharedRendererPreviewPlanInput {
   layers: LayerState[];
   objects: TimelineObject[];
   time: number;
+  videoSourceMode?: RustSceneVideoSourceMode;
 }
 
 export const buildSharedRendererPreviewPlan = ({
@@ -38,6 +40,7 @@ export const buildSharedRendererPreviewPlan = ({
   layers,
   objects,
   time,
+  videoSourceMode = 'previewProxy',
 }: SharedRendererPreviewPlanInput): SharedRendererPreviewPlan => {
   if (!enabled) {
     return {
@@ -51,6 +54,7 @@ export const buildSharedRendererPreviewPlan = ({
     layers,
     objects,
     time,
+    videoSourceMode,
   });
 
   if (!snapshotResult.ok) {

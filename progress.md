@@ -7297,3 +7297,21 @@
 ### 残課題・次のステップ
 - CPU simple compositeは「単一動画・単純配置」専用。scaleや複数オブジェクト、フィルタが入ると従来のnative WGPU合成へ戻る。
 - 次は単純scale付き動画、静止画+動画、音声付きexportの実測を分け、どの時点から重くなるかをE2Eで見える化する。
+
+## 2026-06-20 — exportで低解像度プロキシを使わないように修正
+
+### 実施内容
+- Red: previewでは既存プロキシを使い、exportでは原本動画file pathを使う契約を追加した。
+- Red: export用decodeではviewport向けの縮小上限を呼び出し側で制御できる契約を追加した。
+- Green: `VideoObject` に `sourceWidth` / `sourceHeight` を追加し、動画インポート時に原本metadataを保持するようにした。
+- Green: `buildRustSceneSnapshotForTimeline` に `videoSourceMode` を追加し、previewは `previewProxy`、exportは `exportOriginal` を使うようにした。
+- Green: export時はプロキシではなく原本sourceを使い、原本サイズをrender-safeな2048px上限へ縮小したmedia referenceにする。visual geometryは `object.width / decodedWidth` のscale補正で維持する。
+- Green: export frame sourceはnative render source準備時のdecode edgeを2048へ上げ、640pxプロキシ由来のモニョモニョ画質を避けるようにした。
+- 版を `0.1.1-Beta-228a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererExportSession.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/sharedRendererExportFrameSource.test.ts` は76件成功。
+- 実Electron E2E: `/Volumes/ExtendSSD-W/GX020052.MP4` 1秒尺は60 frames / 7758ms / 約7.73fpsで成功。出力MP4は1920x1080 / 60fps。
+
+### 残課題・次のステップ
+- 品質優先で原本2048px decodeへ戻したため、直前のプロキシ高速経路より速度は落ちる。次は「原本高品質decode + 単純scale合成fast path」を追加して、画質と速度を両立する。

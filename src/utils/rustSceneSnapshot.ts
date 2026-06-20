@@ -121,10 +121,14 @@ export interface RustSceneSnapshotBuildInput {
   layers: LayerState[];
   objects: TimelineObject[];
   time: number;
+  videoSourceMode?: RustSceneVideoSourceMode;
 }
+
+export type RustSceneVideoSourceMode = 'previewProxy' | 'exportOriginal';
 
 type SupportedMediaObject = ImageObject | VideoObject | PsdObject;
 type SupportedSceneObject = SupportedMediaObject | ShapeObject;
+const EXPORT_ORIGINAL_VIDEO_MAX_EDGE = 2048;
 
 const rustColourPipeline = (): RustColourPipeline => ({
   profile: 'rec709-sdr',
@@ -137,11 +141,12 @@ export const buildRustSceneSnapshotForTimeline = ({
   layers,
   objects,
   time,
+  videoSourceMode = 'previewProxy',
 }: RustSceneSnapshotBuildInput): RustSceneSnapshotBuildResult => {
   const frameIndex = secondsToFrameIndex(time, projectSettings.fps);
   const visibleObjects = collectVisibleObjects(objects, layers, time);
   const visualObjects = visibleObjects.filter(isVisualSceneObject);
-  const issues = collectBuildIssues(visualObjects, time);
+  const issues = collectBuildIssues(visualObjects, time, videoSourceMode);
 
   if (issues.length > 0) {
     return { ok: false, issues };
@@ -159,6 +164,7 @@ export const buildRustSceneSnapshotForTimeline = ({
   const clips = supportedObjects.map((object, zIndex): RustEvaluatedClip => {
     const position = evaluateObjectPositionAtTime(object, time);
     const opacity = clamp01((object.opacity ?? 1) * getFadeOpacityMultiplier(object));
+    const transformScale = mediaSourceScaleForObject(object, videoSourceMode);
     return {
       clip_id: object.id,
       track_id: `layer-${object.layer}`,
@@ -168,8 +174,8 @@ export const buildRustSceneSnapshotForTimeline = ({
         transform: {
           translation_x: position.x,
           translation_y: position.y,
-          scale_x: object.scaleX,
-          scale_y: object.scaleY,
+          scale_x: object.scaleX * transformScale.x,
+          scale_y: object.scaleY * transformScale.y,
           rotation_degrees: normaliseRotationDegrees(object.rotation),
           sampling: object.type === 'shape' && object.gradient?.enabled !== true ? 'nearest' : 'bilinear',
         },
@@ -185,7 +191,7 @@ export const buildRustSceneSnapshotForTimeline = ({
       colour: rustColourPipeline(),
       clips,
     },
-    media: supportedObjects.map((object) => mediaReferenceForObject(object, projectSettings.fps)),
+    media: supportedObjects.map((object) => mediaReferenceForObject(object, projectSettings.fps, videoSourceMode)),
   };
 };
 
@@ -210,7 +216,11 @@ const collectVisibleObjects = (
     return time >= object.startTime && time < object.startTime + object.duration;
   });
 
-const collectBuildIssues = (objects: TimelineObject[], time: number): RustSceneSnapshotBuildIssue[] => {
+const collectBuildIssues = (
+  objects: TimelineObject[],
+  time: number,
+  videoSourceMode: RustSceneVideoSourceMode
+): RustSceneSnapshotBuildIssue[] => {
   const issues: RustSceneSnapshotBuildIssue[] = [];
 
   objects.forEach((object) => {
@@ -231,7 +241,7 @@ const collectBuildIssues = (objects: TimelineObject[], time: number): RustSceneS
       });
     }
 
-    if (isSupportedMediaObject(object) && !mediaSourceForObject(object)) {
+    if (isSupportedMediaObject(object) && !mediaSourceForObject(object, videoSourceMode)) {
       issues.push({
         code: 'missingMediaSource',
         objectId: object.id,
@@ -313,7 +323,8 @@ const hasUnsupportedSharedRendererTransform = (
 
 const mediaReferenceForObject = (
   object: SupportedSceneObject,
-  projectFps: number
+  projectFps: number,
+  videoSourceMode: RustSceneVideoSourceMode
 ): RustSceneMediaReference => {
   if (object.type === 'shape') {
     if (object.gradient?.enabled === true) {
@@ -335,12 +346,13 @@ const mediaReferenceForObject = (
     };
   }
 
+  const dimensions = mediaDimensionsForObject(object, videoSourceMode);
   const reference: RustSceneMediaReference = {
     id: object.id,
     kind: mediaKindForObject(object),
-    source: mediaSourceForObject(object),
-    width: object.width,
-    height: object.height,
+    source: mediaSourceForObject(object, videoSourceMode),
+    width: dimensions.width,
+    height: dimensions.height,
     ...(object.type === 'video' ? { source_rate: fpsToFrameRate(projectFps) } : {}),
   };
   if (object.type === 'psd') {
@@ -365,11 +377,68 @@ const serialiseGeneratedGradientSource = (gradient: GradientFill): string =>
     direction: Number.isFinite(gradient.direction) ? gradient.direction : 0,
   });
 
-const mediaSourceForObject = (object: SupportedMediaObject): string => {
-  if (object.type === 'video' && object.proxyFilePath) {
+const mediaSourceForObject = (
+  object: SupportedMediaObject,
+  videoSourceMode: RustSceneVideoSourceMode = 'previewProxy'
+): string => {
+  if (object.type === 'video' && videoSourceMode === 'previewProxy' && object.proxyFilePath) {
     return object.proxyFilePath;
   }
   return object.filePath || object.src || '';
+};
+
+const mediaDimensionsForObject = (
+  object: SupportedSceneObject,
+  videoSourceMode: RustSceneVideoSourceMode
+): { width: number; height: number } => {
+  if (object.type === 'video' && videoSourceMode === 'exportOriginal') {
+    return limitVideoDimensionsToMaxEdge({
+      width: positiveNumberOrFallback(object.sourceWidth, object.width),
+      height: positiveNumberOrFallback(object.sourceHeight, object.height),
+    }, EXPORT_ORIGINAL_VIDEO_MAX_EDGE);
+  }
+  return {
+    width: object.width,
+    height: object.height,
+  };
+};
+
+const mediaSourceScaleForObject = (
+  object: SupportedSceneObject,
+  videoSourceMode: RustSceneVideoSourceMode
+): { x: number; y: number } => {
+  if (object.type !== 'video' || videoSourceMode !== 'exportOriginal') {
+    return { x: 1, y: 1 };
+  }
+  const dimensions = mediaDimensionsForObject(object, videoSourceMode);
+  return {
+    x: safeScaleRatio(object.width, dimensions.width),
+    y: safeScaleRatio(object.height, dimensions.height),
+  };
+};
+
+const positiveNumberOrFallback = (value: unknown, fallback: number): number =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
+
+const safeScaleRatio = (displaySize: number, sourceSize: number): number => {
+  if (!Number.isFinite(displaySize) || !Number.isFinite(sourceSize) || sourceSize <= 0) {
+    return 1;
+  }
+  return displaySize / sourceSize;
+};
+
+const limitVideoDimensionsToMaxEdge = (
+  dimensions: { width: number; height: number },
+  maxEdge: number
+): { width: number; height: number } => {
+  const width = Math.max(1, Math.round(dimensions.width));
+  const height = Math.max(1, Math.round(dimensions.height));
+  const safeMaxEdge = Number.isFinite(maxEdge) && maxEdge > 0 ? maxEdge : EXPORT_ORIGINAL_VIDEO_MAX_EDGE;
+  const scale = Math.min(1, safeMaxEdge / width, safeMaxEdge / height);
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  };
 };
 
 const mediaKindForObject = (object: SupportedMediaObject): RustSceneMediaReference['kind'] => {

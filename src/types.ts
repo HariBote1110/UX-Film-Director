@@ -299,6 +299,10 @@ export interface VideoObject extends BaseObject {
   filePath?: string;
   /** プロキシファイルの絶対パス（例: /path/to/clip.proxy.mp4）。存在する場合は再生に使用する */
   proxyFilePath?: string;
+  /** 原本動画の幅。プロキシを使うプレビューと原本を使う書き出しを分離するために保持する */
+  sourceWidth?: number;
+  /** 原本動画の高さ。プロキシを使うプレビューと原本を使う書き出しを分離するために保持する */
+  sourceHeight?: number;
   width: number;
   height: number;
   volume: number;

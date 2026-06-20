@@ -61,6 +61,7 @@ export const buildSharedRendererExportSession = ({
     layers,
     objects,
     time,
+    videoSourceMode: 'exportOriginal',
   });
 
   const surfaceGate = buildSharedRendererPreviewSurfaceGate({

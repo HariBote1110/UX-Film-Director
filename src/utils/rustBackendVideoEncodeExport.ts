@@ -273,7 +273,7 @@ const releasePrefetchedNativeRenderOutputAfterEncodeFailure = async (
     event: RustBackendNativeRenderOutputReleaseEvent
   ) => void
 ): Promise<void> => {
-  let frameResult: IteratorResult<RustBackendVideoEncodeSharedFramePayloadFrame>;
+  let frameResult: IteratorResult<RustBackendVideoEncodeSharedFramePayloadFrame | RustBackendVideoEncodeNativeFramePayloadFrame>;
   try {
     frameResult = await frameResultPromise;
   } catch {

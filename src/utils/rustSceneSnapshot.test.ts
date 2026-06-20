@@ -365,7 +365,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     })]);
   });
 
-  it('uses original video media for export while preserving proxy-sized visual geometry', () => {
+  it('uses render-safe original video media for export while preserving proxy-sized visual geometry', () => {
     const result = buildRustSceneSnapshotForTimeline({
       projectSettings: settings,
       layers: createDefaultLayers(),
@@ -387,12 +387,12 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       id: 'video-1',
       kind: 'Video',
       source: '/tmp/original-4k.mp4',
-      width: 3840,
-      height: 2160,
+      width: 2048,
+      height: 1152,
     })]);
     expect(result.snapshot.clips[0].transform).toMatchObject({
-      scale_x: 640 / 3840,
-      scale_y: 360 / 2160,
+      scale_x: 640 / 2048,
+      scale_y: 360 / 1152,
     });
   });
 

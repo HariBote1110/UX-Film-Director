@@ -43,6 +43,7 @@ export interface PrepareSharedRendererViewportNativeRenderSourcesInput {
   session: SharedRendererPreviewSession;
   requestId?: number;
   slotCount?: number;
+  maxDecodeEdge?: number | null;
   activeJobs?: readonly SharedRendererViewportVideoDecodeJob[];
   rustBackendBridge?: RustBackendVideoDecodeBridge;
   decodeRequestBuilder?: SharedRendererVideoFrameDecodeRequestBuilder;
@@ -75,6 +76,7 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
   session,
   requestId,
   slotCount = 2,
+  maxDecodeEdge = MAX_VIEWPORT_VIDEO_DECODE_EDGE,
   activeJobs = [],
   rustBackendBridge,
   decodeRequestBuilder = buildSharedRendererVideoFrameDecodeRequests,
@@ -117,7 +119,7 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
   const resolvedRequestId = requestId ?? surfaceGate.snapshot.frame_index;
   const requestedJobs = decodeRequests.requests.map((request) => ({
     request,
-    nextJob: buildViewportNativeRenderDecodeJob(request, slotCount),
+    nextJob: buildViewportNativeRenderDecodeJob(request, slotCount, maxDecodeEdge),
   }));
   const visibleActiveJobs = activeJobs.filter((job) =>
     requestedJobs.some(({ nextJob }) => sameDecodeJob(job, nextJob)));
@@ -398,9 +400,10 @@ const buildStaleDecodedFrameDetail = (
 
 const buildViewportNativeRenderDecodeJob = (
   request: SharedRendererVideoFrameDecodeRequest,
-  slotCount: number
+  slotCount: number,
+  maxDecodeEdge: number | null
 ): SharedRendererViewportVideoDecodeJob => {
-  const size = resolveViewportVideoDecodeSize(request);
+  const size = resolveViewportVideoDecodeSize(request, maxDecodeEdge);
   return {
     jobId: [
       'shared-renderer-video',
@@ -417,12 +420,22 @@ const buildViewportNativeRenderDecodeJob = (
 };
 
 const resolveViewportVideoDecodeSize = (
-  request: SharedRendererVideoFrameDecodeRequest
+  request: SharedRendererVideoFrameDecodeRequest,
+  maxDecodeEdge: number | null
 ): { width: number; height: number } => {
   const sourceWidth = Math.max(1, request.width);
   const sourceHeight = Math.max(1, request.height);
-  const maxWidth = Math.max(1, Math.min(sourceWidth, MAX_VIEWPORT_VIDEO_DECODE_EDGE));
-  const maxHeight = Math.max(1, Math.min(sourceHeight, MAX_VIEWPORT_VIDEO_DECODE_EDGE));
+  if (maxDecodeEdge === null) {
+    return {
+      width: sourceWidth,
+      height: sourceHeight,
+    };
+  }
+  const safeMaxDecodeEdge = Number.isFinite(maxDecodeEdge) && maxDecodeEdge > 0
+    ? maxDecodeEdge
+    : MAX_VIEWPORT_VIDEO_DECODE_EDGE;
+  const maxWidth = Math.max(1, Math.min(sourceWidth, safeMaxDecodeEdge));
+  const maxHeight = Math.max(1, Math.min(sourceHeight, safeMaxDecodeEdge));
   const scale = Math.min(1, maxWidth / sourceWidth, maxHeight / sourceHeight);
 
   return {

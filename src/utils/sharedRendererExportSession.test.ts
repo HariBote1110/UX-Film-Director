@@ -239,12 +239,12 @@ describe('buildSharedRendererExportSession', () => {
       id: 'video-1',
       kind: 'Video',
       source: '/tmp/original-4k.mp4',
-      width: 3840,
-      height: 2160,
+      width: 2048,
+      height: 1152,
     })]);
     expect(session.plan.snapshot.clips[0].transform).toMatchObject({
-      scale_x: 640 / 3840,
-      scale_y: 360 / 2160,
+      scale_x: 640 / 2048,
+      scale_y: 360 / 1152,
     });
   });
 });

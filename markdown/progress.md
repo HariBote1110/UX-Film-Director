@@ -1193,3 +1193,14 @@
 - 実Electron E2E: `/Volumes/ExtendSSD-W/GX020052.MP4` 5秒尺は300 frames / 8518ms / 約35.22fpsで成功。fast path前に同条件で再測定したWGPU経路は約24.30〜25.17fps、以前の良好値は約33.82fps。
 - 残課題: scaleや複数オブジェクト、フィルタが入ると従来のnative WGPU合成へ戻る。次は単純scale付き動画、静止画+動画、音声付きexportのどこから重くなるかをE2Eで分解する。
 - 版: `0.1.1-Beta-227a`。
+
+## 2026-06-20
+- export済み動画がモニョモニョする問題を受け、書き出し時にプレビュー用640pxプロキシを素材として使わないように修正した。
+- Red: previewでは既存プロキシを使い、exportでは原本動画file pathを使う契約を追加した。
+- Red: export用decodeではviewport向けの縮小上限を呼び出し側で制御できる契約を追加した。
+- Green: `VideoObject` に `sourceWidth` / `sourceHeight` を追加し、動画インポート時に原本metadataを保持するようにした。
+- Green: `buildRustSceneSnapshotForTimeline` に `videoSourceMode` を追加し、previewは `previewProxy`、exportは `exportOriginal` を使うようにした。
+- Green: export時は原本sourceを使い、WGPU texture上限を踏まえた2048px decodeへ変換する。visual geometryは `object.width / decodedWidth` のscale補正で維持する。
+- 検証: `npm test -- --run src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererExportSession.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/sharedRendererExportFrameSource.test.ts` は76件成功。実Electron E2Eは `/Volumes/ExtendSSD-W/GX020052.MP4` 1秒尺で60 frames / 7758ms / 約7.73fps、出力MP4は1920x1080 / 60fps。
+- 残課題: 品質優先で原本2048px decodeへ戻したため、直前のプロキシ高速経路より速度は落ちる。次は「原本高品質decode + 単純scale合成fast path」を追加して、画質と速度を両立する。
+- 版: `0.1.1-Beta-228a`。

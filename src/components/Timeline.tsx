@@ -358,6 +358,8 @@ const Timeline: React.FC = () => {
           id: crypto.randomUUID(), type: 'video', name: file.name, layer: target.layer, startTime: target.time, duration: metadata.duration,
           x: centred.x, y: centred.y, width: metadata.width, height: metadata.height, src: url, filePath: sourceImport.filePath ?? filePath ?? undefined,
           proxyFilePath: proxyFilePath,
+          sourceWidth: sourceMetadata.width,
+          sourceHeight: sourceMetadata.height,
           volume: 1.0, muted: false,
           enableAnimation: false, endX: centred.x, endY: centred.y, easing: 'linear', offset: 0,
           rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,

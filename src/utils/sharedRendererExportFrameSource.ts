@@ -342,6 +342,7 @@ export function createSharedRendererExportFrameSource({
       session,
       requestId: nextRequestId,
       activeJobs: activeVideoDecodeJobs,
+      maxDecodeEdge: 2048,
     });
 
     let nativeRenderSources: SharedRendererViewportNativeRenderSource[];

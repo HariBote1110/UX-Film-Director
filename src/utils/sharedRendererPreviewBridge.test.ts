@@ -68,18 +68,18 @@ describe('buildSharedRendererPreviewPlan', () => {
     expect(plan.media[0].source).toBe('/tmp/image.png');
   });
 
-  it('falls back to Pixi when the adapter reports unsupported features', () => {
+  it('falls back to Pixi when the scene uses unsupported image scaling', () => {
     const plan = buildSharedRendererPreviewPlan({
       enabled: true,
       projectSettings: settings,
       layers: createDefaultLayers(),
-      objects: [image({ rotation: 12 })],
+      objects: [image({ scaleX: 2 })],
       time: 1,
     });
 
     expect(plan.mode).toBe('pixiFallback');
     if (plan.mode !== 'pixiFallback') throw new Error('expected Pixi fallback plan');
     expect(plan.reason).toBe('unsupportedScene');
-    expect(plan.issues.map((issue) => issue.code)).toEqual(['unsupportedRotation']);
+    expect(plan.issues.map((issue) => issue.code)).toEqual(['unsupportedTransform']);
   });
 });
