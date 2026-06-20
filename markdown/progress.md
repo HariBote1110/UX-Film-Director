@@ -1083,3 +1083,13 @@
 - 検証: `npm test -- viewportRustVideoOnlyBoundary sharedRendererPreviewPresenterController sharedRendererPresenterSessionKey` は69件成功。対象ファイルで絞った `tsc` は今回変更分の新規エラーなし（既存の `ThreeStageViewport.tsx` の three 型定義エラーのみ）。
 - 実機E2E: `/Volumes/ExtendSSD-W/GX020052.MP4` で `npm run test:video-load:e2e` 成功。改善前の5秒smoothnessは `presenterStartCount=46` / `uniquePresentedFrameCount=15` / `presentedFrameSpan=290`、改善後は `presenterStartCount=6` / `uniquePresentedFrameCount=21` / `presentedFrameSpan=300` / `blockedSampleCount=0` / `externalTextureSampleCount=21`。
 - 版: `0.1.1-Beta-224a`。
+
+## 2026-06-20
+- 4K動画previewの現実目標値として、`presenterStartCount` 4〜6、`uniquePresentedFrameCount` 20〜21/21、`externalVideoSuppressedSeekCount` 100前後/5秒、`externalVideoMaxAbsDriftMs` 50ms以内を置き、external video source同期の間引きを追加した。
+- Red: `sharedRendererExternalVideoSource` に、再生中・既にplaying・drift許容内・同期間隔未満ではseek/play/pause/countを更新せず `throttled: true` を返す契約を追加した。
+- Green: `syncSharedRendererExternalVideoPlayback` に `minimumPlayingSyncIntervalMs` と `nowMs` を追加し、throttled returnでは `lastSyncMonotonicMs` / `lastDriftSeconds` を更新しないようにした。
+- Red: `viewportRustVideoOnlyBoundary` に、Viewportがexternal video playback syncへ同期間隔定数を渡す契約を追加した。
+- Green: Viewportのexternal video source同期だけを75ms間隔へ間引き、`presentExternalVideoFrameScene` 自体は毎tick維持した。
+- 検証: `npm test -- sharedRendererExternalVideoSource viewportRustVideoOnlyBoundary` は26件成功。対象ファイルで絞った `tsc` は今回変更分の新規エラーなし（既存の `ThreeStageViewport.tsx` の three 型定義エラーのみ）。
+- 実機E2E: `/Volumes/ExtendSSD-W/GX020052.MP4` で `npm run test:video-load:e2e` 成功。最終値は `presenterStartCount=6` / `uniquePresentedFrameCount=21` / `presentedFrameSpan=305` / `externalVideoSuppressedSeekCount=97` / `externalVideoMaxAbsDriftMs=34` / `blockedSampleCount=0` / `externalTextureSampleCount=21`。
+- 版: `0.1.1-Beta-224b`。
