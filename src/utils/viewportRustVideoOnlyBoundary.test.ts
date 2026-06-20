@@ -104,6 +104,7 @@ describe('Viewport Rust video-only boundary', () => {
     expect(effectKeyBlock).toContain('includePlaybackFrame: !canReuseCurrentPresenterSession');
     expect(presenterKeyBlock).toContain('syncSharedRendererExternalVideoSources({');
     expect(presenterKeyBlock).toContain('presentExternalVideoFrameScene?.({');
+    expect(presenterKeyBlock).toContain('publishSharedRendererExternalVideoPresentationDiagnostics(');
     expect(presenterKeyBlock.indexOf('syncSharedRendererExternalVideoSources({')).toBeLessThan(
       presenterKeyBlock.indexOf('presentExternalVideoFrameScene?.({')
     );
