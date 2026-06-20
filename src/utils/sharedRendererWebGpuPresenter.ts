@@ -48,6 +48,7 @@ export interface SharedRendererWebGpuDeviceLike {
   createRenderPipeline?: (descriptor: unknown) => unknown;
   createBuffer?: (descriptor: { label?: string; size: number; usage: number }) => unknown;
   createTexture?: (descriptor: SharedRendererVideoTextureDescriptor) => unknown;
+  importExternalTexture?: (descriptor: { source: unknown }) => unknown;
   createSampler?: (descriptor: SharedRendererVideoSamplerDescriptor) => unknown;
   createBindGroup?: (descriptor: SharedRendererVideoBindGroupDescriptor) => unknown;
   createCommandEncoder?: () => {
@@ -141,6 +142,7 @@ export type SharedRendererWebGpuPresenterResult =
       uploadVideoFrameTexture: (input: SharedRendererVideoFrameTextureUploadInput) => SharedRendererVideoFrameTextureUploadResult;
       presentNativeRenderFrame: (frame: SharedRendererNativeRenderFrameInput) => SharedRendererNativeRenderFramePresentationResult;
       presentVideoFrameScene: (scene: SharedRendererVideoFrameSceneInput) => SharedRendererVideoFrameScenePresentationResult;
+      presentExternalVideoFrameScene: (scene: SharedRendererExternalVideoFrameSceneInput) => SharedRendererVideoFrameScenePresentationResult;
       readPresentedFrameRgbaBytes: (input: SharedRendererPresentedFrameReadbackInput) => Promise<SharedRendererPresentedFrameReadbackResult>;
       takePresentedFrameSharedFrame: (input: SharedRendererPresentedFrameSharedFrameInput) => Promise<RustBackendVideoEncodeWriteFramePayload>;
     }
@@ -325,6 +327,14 @@ export interface SharedRendererVideoFrameSceneInput {
   videoObjectIds?: ReadonlySet<string>;
 }
 
+export interface SharedRendererExternalVideoFrameSceneInput {
+  snapshot: RustSceneSnapshot;
+  media: RustSceneMediaReference[];
+  source?: unknown;
+  sourcesByClipId?: ReadonlyMap<string, unknown>;
+  videoObjectIds?: ReadonlySet<string>;
+}
+
 export type SharedRendererVideoFrameScenePresentationResult =
   | {
       ok: true;
@@ -480,6 +490,7 @@ export const createSharedRendererWebGpuPresenter = async ({
 
   let solidColourPipeline: unknown | null = null;
   let videoFramePipeline: unknown | null = null;
+  let externalVideoFramePipeline: unknown | null = null;
   let nativeRenderFramePipeline: unknown | null = null;
   const presentSolidColourScene = ({
     snapshot,
@@ -838,6 +849,160 @@ export const createSharedRendererWebGpuPresenter = async ({
     };
   };
 
+  const presentExternalVideoFrameScene = ({
+    snapshot,
+    media,
+    source,
+    sourcesByClipId,
+    videoObjectIds,
+  }: SharedRendererExternalVideoFrameSceneInput): SharedRendererVideoFrameScenePresentationResult => {
+    if (!canUsePresenter()) return disposedDrawUnavailable('external video frame');
+
+    const vertexScene = videoPlaneVertexSceneBuilder({
+      snapshot,
+      media,
+      canvas: { width: canvas.width, height: canvas.height },
+    });
+    if (!vertexScene.ok) {
+      return {
+        ok: false,
+        reason: 'unsupportedVideoScene',
+        detail: 'Shared renderer could not build an external video plane scene.',
+      };
+    }
+
+    if (
+      !context.getCurrentTexture
+      || !device.createCommandEncoder
+      || !device.queue
+      || !device.queue.writeBuffer
+      || !device.createBuffer
+      || !device.createShaderModule
+      || !device.createRenderPipeline
+      || !device.createSampler
+      || !device.createBindGroup
+      || !device.importExternalTexture
+    ) {
+      return {
+        ok: false,
+        reason: 'webGpuDrawUnavailable',
+        detail: 'WebGPU device does not expose the external texture APIs needed for low-copy video presentation.',
+      };
+    }
+
+    if (!externalVideoFramePipeline) {
+      const shader = device.createShaderModule({
+        code: externalVideoFrameShaderCode,
+      });
+      externalVideoFramePipeline = device.createRenderPipeline({
+        label: 'external-video-frame-pipeline',
+        layout: 'auto',
+        vertex: {
+          module: shader,
+          entryPoint: 'vs_main',
+          buffers: [
+            {
+              arrayStride: 32,
+              attributes: [
+                { shaderLocation: 0, offset: 0, format: 'float32x2' },
+                { shaderLocation: 1, offset: 8, format: 'float32x2' },
+                { shaderLocation: 2, offset: 16, format: 'float32' },
+              ],
+            },
+          ],
+        },
+        fragment: {
+          module: shader,
+          entryPoint: 'fs_main',
+          targets: [{ format }],
+        },
+        primitive: {
+          topology: 'triangle-list',
+        },
+      });
+    }
+
+    const drawablePlanes: Array<{
+      index: number;
+      externalTexture: unknown;
+    }> = [];
+    for (const [index, plane] of vertexScene.planes.entries()) {
+      if (videoObjectIds && !videoObjectIds.has(plane.clipId)) {
+        continue;
+      }
+      const planeSource = sourcesByClipId
+        ? sourcesByClipId.get(plane.clipId)
+        : source;
+      if (!planeSource) continue;
+      drawablePlanes.push({
+        index,
+        externalTexture: device.importExternalTexture({ source: planeSource }),
+      });
+    }
+    if (drawablePlanes.length === 0) {
+      return {
+        ok: false,
+        reason: 'videoTextureViewUnavailable',
+        detail: 'No external video source was available for the video plane scene.',
+      };
+    }
+
+    const vertices = vertexScene.vertices;
+    const vertexBuffer = device.createBuffer({
+      label: 'video-plane-vertex-buffer',
+      size: vertices.byteLength,
+      usage: bufferUsageVertex | bufferUsageCopyDst,
+    });
+    device.queue.writeBuffer(vertexBuffer, 0, vertices);
+
+    const sampler = device.createSampler({
+      magFilter: 'linear',
+      minFilter: 'linear',
+      mipmapFilter: 'nearest',
+    });
+    const createVideoBindGroup = device.createBindGroup.bind(device);
+    const bindGroups = drawablePlanes.map((plane) => createVideoBindGroup({
+      layout: pipelineBindGroupLayout(externalVideoFramePipeline, 0),
+      entries: [
+        { binding: 0, resource: sampler },
+        { binding: 1, resource: plane.externalTexture },
+      ],
+    }));
+
+    const encoder = device.createCommandEncoder();
+    const targetTexture = context.getCurrentTexture();
+    lastPresentedTexture = targetTexture;
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: targetTexture.createView(),
+          clearValue: { r: 0, g: 0, b: 0, a: 0 },
+          loadOp: 'clear',
+          storeOp: 'store',
+        },
+      ],
+    });
+    pass.setPipeline?.(externalVideoFramePipeline);
+    if (sourcesByClipId || videoObjectIds) {
+      pass.setVertexBuffer?.(0, vertexBuffer);
+      bindGroups.forEach((bindGroup, drawIndex) => {
+        pass.setBindGroup?.(0, bindGroup);
+        pass.draw?.(6, 1, drawablePlanes[drawIndex].index * 6);
+      });
+    } else {
+      pass.setBindGroup?.(0, bindGroups[0]);
+      pass.setVertexBuffer?.(0, vertexBuffer);
+      pass.draw?.(vertices.length / 8);
+    }
+    pass.end();
+    device.queue.submit([encoder.finish()]);
+
+    return {
+      ok: true,
+      planeCount: drawablePlanes.length,
+    };
+  };
+
   const presentNativeRenderFrame = ({
     texture,
   }: SharedRendererNativeRenderFrameInput): SharedRendererNativeRenderFramePresentationResult => {
@@ -1053,10 +1218,41 @@ export const createSharedRendererWebGpuPresenter = async ({
     uploadVideoFrameTexture,
     presentNativeRenderFrame,
     presentVideoFrameScene,
+    presentExternalVideoFrameScene,
     readPresentedFrameRgbaBytes,
     takePresentedFrameSharedFrame,
   };
 };
+
+const externalVideoFrameShaderCode = `
+struct VertexOut {
+  @builtin(position) position: vec4<f32>,
+  @location(0) uv: vec2<f32>,
+  @location(1) opacity: f32,
+};
+
+@group(0) @binding(0) var videoSampler: sampler;
+@group(0) @binding(1) var videoTexture: texture_external;
+
+@vertex
+fn vs_main(
+  @location(0) position: vec2<f32>,
+  @location(1) uv: vec2<f32>,
+  @location(2) opacity: f32
+) -> VertexOut {
+  var out: VertexOut;
+  out.position = vec4<f32>(position, 0.0, 1.0);
+  out.uv = uv;
+  out.opacity = opacity;
+  return out;
+}
+
+@fragment
+fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
+  let colour = textureSampleBaseClampToEdge(videoTexture, videoSampler, in.uv);
+  return vec4<f32>(colour.rgb, in.opacity);
+}
+`;
 
 const videoFrameShaderCode = `
 struct VertexOut {

@@ -1436,13 +1436,19 @@ const fakeDevice = ({
   },
   createRenderPipeline: (descriptor: unknown) => {
     onCreateRenderPipeline(descriptor);
-    const pipelineLabel = typeof descriptor === 'object'
+    const descriptorLabel = typeof descriptor === 'object'
       && descriptor !== null
       && 'label' in descriptor
-      && descriptor.label === 'video-frame-pipeline'
-      ? 'video-frame-pipeline'
+      && typeof descriptor.label === 'string'
+      ? descriptor.label
       : 'solid-colour-pipeline';
-    return pipelineLabel === 'video-frame-pipeline'
+    if (descriptorLabel === 'external-video-frame-pipeline') {
+      return {
+        toString: () => 'external-video-frame-pipeline',
+        getBindGroupLayout: () => 'external-video-frame-bind-group-layout',
+      };
+    }
+    return descriptorLabel === 'video-frame-pipeline'
       ? {
         toString: () => 'video-frame-pipeline',
         getBindGroupLayout: () => 'video-frame-bind-group-layout',

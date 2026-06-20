@@ -292,6 +292,25 @@ PixiJS レンダー（GPU）
 
 ## 実装の順序（重要）
 
+### 2026-06-20 追記: StormEditor知見を使ったUX FD向け順序
+
+StormEditorは「React UI + Rust/WASM WebGPU renderer + napi-rs backend」という分担で、重い描画loopをElectron IPCへ流していない。
+UX FDも同じ知見を使い、4K原本previewではRust子プロセスstdio + RGBA shared memory + JS uploadを主経路にしない。
+短期のfast pathは WebGPU presenter に `importExternalTexture` を持たせ、外部動画sourceを `texture_external` shaderで直接描く。
+この経路はpreview専用の近似fast pathであり、export parityの正本ではない。export/正確性検証は引き続きRust decode / sidecar decode / colour contract gateで担保する。
+
+実装順は次に変更する。
+
+```
+Phase 1-b0: WebGPU presenter に external texture 描画APIを追加（完了）
+  ↓
+Phase 1-b1: presenter専用 external video source provider を隔離して追加
+  ↓
+Phase 1-b2: GoPro 4K原本をproxyなしで5秒再生するE2Eを追加
+  ↓
+Phase 1-c: napi-rs / native bridgeでVideoToolbox相当のsourceへ差し替えられる境界を作る
+```
+
 ```
 Phase 0: 環境確認（1日）
   ↓ WebGPU OK / WebCodecs OK が確認できたら進む

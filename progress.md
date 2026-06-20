@@ -1,3 +1,20 @@
+## 2026-06-20 — 4K低コピーpreviewへ向けたexternal texture presenterを追加
+
+### 実施内容
+- Red: WebGPU presenterに、外部動画sourceを `importExternalTexture` で描画し、Rust decoded RGBAの `writeTexture` 経路を使わない契約を追加した。
+- Green: `presentExternalVideoFrameScene` を追加し、`texture_external` / `textureSampleBaseClampToEdge` 専用WGSLで動画planeを描けるようにした。
+- Green: 既存のRust decoded RGBA upload経路は残し、4K原本preview向けの低コピーfast pathを別メソッドとして並走できる形にした。
+- 版を `0.1.1-Beta-219o` に更新した。
+
+### 検証
+- `npm test -- sharedRendererWebGpuPresenter`
+- `npx tsc --noEmit 2>&1 | rg "src/utils/sharedRendererWebGpuPresenter|src/utils/sharedRendererWebGpuPresenter\\.test|src/utils/productionVideoDependencyBoundary|src/utils/viewportRustVideoOnlyBoundary"`
+
+### 結果・残課題
+- presenter単体では、外部動画sourceを `importExternalTexture({ source })` し、RGBA byte uploadなしでWebGPU render passへ渡す契約が通った。
+- `npm test -- sharedRendererWebGpuPresenter productionVideoDependencyBoundary viewportRustVideoOnlyBoundary` は、今回の変更とは別に `src/utils/mediaMetadata.ts` の既存HTMLVideoElement metadata fallback境界で失敗した。
+- 次はWebGPU presenter専用の外部動画source providerを、Pixi/legacy HTMLVideoElement fallbackとは別gateとして設計し、実ウィンドウでGoPro 4K原本を直接再生するE2Eへ接続する。
+
 ## 2026-06-20 — 動画preview再生中のblocked点滅を抑制
 
 ### 実施内容
