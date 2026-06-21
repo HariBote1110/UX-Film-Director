@@ -5,7 +5,9 @@ export type AviUtlMotionPresetId =
   | 'entrance-slide-left'
   | 'entrance-pop-up'
   | 'random-wiggle'
-  | 'repeat-side-to-side';
+  | 'repeat-side-to-side'
+  | 'motion-path-arc'
+  | 'motion-path-s-curve';
 
 export interface AviUtlMotionPreset {
   id: AviUtlMotionPresetId;
@@ -13,7 +15,8 @@ export interface AviUtlMotionPreset {
   sourceCandidateId:
     | 'ymm4-entrance-exit'
     | 'ymm4-random-motion'
-    | 'ymm4-repeat-motion';
+    | 'ymm4-repeat-motion'
+    | 'tim-motion-path';
   defaultDistancePx: number;
   defaultSpanSeconds: number;
   defaultIntervalSeconds: number;
@@ -63,6 +66,22 @@ const presets: AviUtlMotionPreset[] = [
     sourceCandidateId: 'ymm4-repeat-motion',
     defaultDistancePx: 24,
     defaultSpanSeconds: 0.45,
+    defaultIntervalSeconds: 0.5
+  },
+  {
+    id: 'motion-path-arc',
+    labelJa: 'パス: 弧を描く',
+    sourceCandidateId: 'tim-motion-path',
+    defaultDistancePx: 160,
+    defaultSpanSeconds: 1,
+    defaultIntervalSeconds: 0.5
+  },
+  {
+    id: 'motion-path-s-curve',
+    labelJa: 'パス: S字',
+    sourceCandidateId: 'tim-motion-path',
+    defaultDistancePx: 160,
+    defaultSpanSeconds: 1,
     defaultIntervalSeconds: 0.5
   }
 ];
@@ -126,6 +145,28 @@ export const buildAviUtlMotionPresetPatch = (
         easing
       });
       break;
+    case 'motion-path-arc':
+      easing = 'easeInOutSine';
+      keyframes = buildMotionPathArcKeyframes({
+        startTime,
+        endTime,
+        x,
+        y,
+        distancePx,
+        easing
+      });
+      break;
+    case 'motion-path-s-curve':
+      easing = 'easeInOutSine';
+      keyframes = buildMotionPathSCurveKeyframes({
+        startTime,
+        endTime,
+        x,
+        y,
+        distancePx,
+        easing
+      });
+      break;
     case 'entrance-slide-left':
     default:
       easing = 'easeOutCubic';
@@ -147,8 +188,8 @@ export const buildAviUtlMotionPresetPatch = (
     enableAnimation: keyframes.length >= 2,
     x,
     y,
-    endX: x,
-    endY: y,
+    endX: keyframes[keyframes.length - 1]?.x ?? x,
+    endY: keyframes[keyframes.length - 1]?.y ?? y,
     easing
   };
 };
@@ -245,6 +286,54 @@ const buildRepeatSideToSideKeyframes = ({
   }
   keyframes.push(makeKeyframe('repeat-return', endTime, x, y, 'linear'));
   return keyframes;
+};
+
+const buildMotionPathArcKeyframes = ({
+  startTime,
+  endTime,
+  x,
+  y,
+  distancePx,
+  easing
+}: {
+  startTime: number;
+  endTime: number;
+  x: number;
+  y: number;
+  distancePx: number;
+  easing: EasingType;
+}): PositionKeyframe[] => {
+  const midTime = startTime + (endTime - startTime) / 2;
+  return [
+    makeKeyframe('motion-path-arc-start', startTime, x, y, easing),
+    makeKeyframe('motion-path-arc-peak', midTime, x + distancePx / 2, y - distancePx / 2, easing),
+    makeKeyframe('motion-path-arc-end', endTime, x + distancePx, y, 'linear')
+  ];
+};
+
+const buildMotionPathSCurveKeyframes = ({
+  startTime,
+  endTime,
+  x,
+  y,
+  distancePx,
+  easing
+}: {
+  startTime: number;
+  endTime: number;
+  x: number;
+  y: number;
+  distancePx: number;
+  easing: EasingType;
+}): PositionKeyframe[] => {
+  const step = (endTime - startTime) / 4;
+  return [
+    makeKeyframe('motion-path-s-start', startTime, x, y, easing),
+    makeKeyframe('motion-path-s-control-a', startTime + step, x + distancePx * 0.25, y - distancePx / 2, easing),
+    makeKeyframe('motion-path-s-control-b', startTime + step * 2, x + distancePx * 0.5, y + distancePx / 2, easing),
+    makeKeyframe('motion-path-s-control-c', startTime + step * 3, x + distancePx * 0.75, y - distancePx / 2, easing),
+    makeKeyframe('motion-path-s-end', endTime, x + distancePx, y, 'linear')
+  ];
 };
 
 const makeKeyframe = (

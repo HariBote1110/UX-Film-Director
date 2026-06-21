@@ -163,7 +163,14 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     phase: 'P2',
     implementationTarget: 'native-motion-preset',
     bundlingMode: 'native-compatible-reimplementation',
-    sourceRelativePaths: ['script/てぃむ/@モーションパスA-V2.anm', 'script/てぃむ/@モーションパスB-V2.anm', 'script/てぃむ/@モーションパスC.anm'],
+    sourceRelativePaths: [
+      'script/てぃむ/@モーションパスA-V2.anm',
+      'script/てぃむ/@モーションパスB-V2.anm',
+      'script/てぃむ/@モーションパスC.anm',
+      'script/てぃむ/@モーションパスD.anm',
+      'script/てぃむ/ベジェ軌道T.obj',
+      'script/てぃむ/ベジェ軌道T.tra'
+    ],
     rationaleJa: '既存キーフレーム基盤と接続できるが、タイムライン編集UIの追加が必要。'
   },
   {

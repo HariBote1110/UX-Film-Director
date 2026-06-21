@@ -32,6 +32,11 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('tim-luminance-wipe')?.implementationTarget).toBe('rust-webgpu-effect');
     expect(byId.get('audio-waveform-r')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('particle-standard')?.implementationTarget).toBe('native-generated-object');
+    expect(byId.get('tim-motion-path')?.sourceRelativePaths).toEqual(expect.arrayContaining([
+      'script/てぃむ/@モーションパスA-V2.anm',
+      'script/てぃむ/@モーションパスD.anm',
+      'script/てぃむ/ベジェ軌道T.obj'
+    ]));
 
     expect(candidates.map((candidate) => candidate.bundlingMode)).not.toContain('copy-third-party-script');
   });

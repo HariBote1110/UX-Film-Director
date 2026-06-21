@@ -1,3 +1,18 @@
+## 2026-06-21 — Timモーションパスをネイティブmotion presetへ追加
+
+### 実施内容
+- Red: AviUtlPackV4 `script/てぃむ` のモーションパス候補を、`motion-path-arc` と `motion-path-s-curve` として標準motion presetに追加する契約を作った。
+- Green: 既存キーフレーム基盤へ、弧を描くパスとS字パスを生成するネイティブ再実装を追加した。
+- Green: iCloud Drive内の `@モーションパスA/B/C/D` と `ベジェ軌道T` をカタログ/棚卸し文書の参照メタデータへ反映した。
+- 版を `0.1.1-Beta-260a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/aviutlMotionPresets.test.ts src/components/PropertyPanelBoundary.test.ts` は10件成功。
+- 対象ファイル名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足のみ検出した。
+
+### 残課題・次のステップ
+- ベジェ制御点をUIで編集する本格パスエディタは未実装。次は生成効果入り混在exportの高速化、または風揺れ/オーラ/グリッドワイプなどP2候補の追加へ進む。
+
 ## 2026-06-21 — 生成効果入り実Electron exportの画素検査を通過
 
 ### 実施内容
