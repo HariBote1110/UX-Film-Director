@@ -237,6 +237,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '情報パネル風の角落ち枠をRust生成の注釈素材として標準搭載する。'
   },
   {
+    id: '93-simple-tube',
+    labelJa: '93 SimpleTube',
+    category: 'generated-object',
+    phase: 'P1',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/SimpleTube.obj', 'script/93/SimpleTube2.obj'],
+    rationaleJa: 'チューブ/トーラス状の3D風ライン素材を、Rust生成の解説・背景演出として標準搭載する。'
+  },
+  {
     id: 'hksy-checker-grid',
     labelJa: 'hksy チェッカー/グリッド',
     category: 'generated-object',

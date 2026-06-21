@@ -22,6 +22,7 @@ import { buildAviUtlProtractorObject } from '../utils/protractorObjectFactory';
 import { buildAviUtlRandomLineExObject } from '../utils/randomLineExObjectFactory';
 import { buildAviUtlCutCornerRegionFrameObject, buildAviUtlEllipseRegionFrameObject, buildAviUtlRegionFrameObject } from '../utils/regionFrameObjectFactory';
 import { buildAviUtlShakingPolygonObject } from '../utils/shakingPolygonObjectFactory';
+import { buildAviUtlSimpleTubeObject } from '../utils/simpleTubeObjectFactory';
 import { buildAviUtlSunburstObject } from '../utils/sunburstObjectFactory';
 import { buildAviUtlTartanCheckObject } from '../utils/tartanCheckObjectFactory';
 import { buildAviUtlToneCurveObject } from '../utils/toneCurveObjectFactory';
@@ -337,6 +338,17 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
 
   const handleAddShakingPolygon = () => {
     addObject(buildAviUtlShakingPolygonObject({
+      id: crypto.randomUUID(),
+      projectWidth: projectSettings.width,
+      projectHeight: projectSettings.height,
+      startTime: state.time,
+      layer: state.layer,
+    }));
+    onClose();
+  };
+
+  const handleAddSimpleTube = () => {
+    addObject(buildAviUtlSimpleTubeObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
@@ -676,6 +688,7 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHologram}>{language === 'en' ? 'Add Hologram' : 'ホログラムを追加'}</div>
                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddProtractor}>{language === 'en' ? 'Add Protractor' : '分度器を追加'}</div>
                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddShakingPolygon}>{language === 'en' ? 'Add Shaking Polygon' : '多角形_震えるを追加'}</div>
+                    <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddSimpleTube}>{language === 'en' ? 'Add 93 SimpleTube' : '93 SimpleTubeを追加'}</div>
                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddTriangleBracket}>{language === 'en' ? 'Add Triangle Bracket' : '三角括弧を追加'}</div>
          </>
        )}

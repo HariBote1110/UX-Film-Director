@@ -335,6 +335,7 @@ export const hasProjectExportNativeRenderMediaObjects = (
     || object.type === 'getcolor_dot_field'
     || object.type === 'hksy_checker_grid'
     || object.type === 'region_frame'
+    || object.type === 'simple_tube'
     || object.type === 'sunburst'
     || object.type === 'circular_arrow'
     || object.type === 'triangle_bracket'

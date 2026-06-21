@@ -478,6 +478,22 @@ struct GeneratedRegionFrameSource {
     background_colour: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedSimpleTubeSource {
+    generator: String,
+    radius: f32,
+    depth: f32,
+    segments: u32,
+    rings: u32,
+    twist_degrees: f32,
+    random_amount: f32,
+    stroke_width: f32,
+    colour: String,
+    secondary_colour: String,
+    seed: i64,
+    torus: bool,
+}
+
 fn default_region_frame_shape() -> String {
     "rectangle".to_string()
 }
@@ -2477,6 +2493,7 @@ fn collect_native_render_sources(
                 build_generated_hksy_checker_grid_source_frame(media)?
             }
             MediaKind::GeneratedRegionFrame => build_generated_region_frame_source_frame(media)?,
+            MediaKind::GeneratedSimpleTube => build_generated_simple_tube_source_frame(media)?,
             MediaKind::GeneratedSunburst => build_generated_sunburst_source_frame(media)?,
             MediaKind::GeneratedCircularArrow => {
                 build_generated_circular_arrow_source_frame(media)?
@@ -5515,6 +5532,284 @@ fn build_generated_region_frame_source_frame(
         .map_err(|error| format!("GeneratedRegionFrame media frame is invalid: {error:?}"))
 }
 
+fn build_generated_simple_tube_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedSimpleTube media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let simple_tube: GeneratedSimpleTubeSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedSimpleTube media '{}': {error}", media.id))?;
+    validate_generated_simple_tube_source(&simple_tube).map_err(|message| {
+        format!(
+            "Invalid GeneratedSimpleTube media '{}': {message}",
+            media.id
+        )
+    })?;
+    let colour = parse_hex_colour_source(&simple_tube.colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedSimpleTube media '{}': colour {message}",
+            media.id
+        )
+    })?;
+    let secondary_colour =
+        parse_hex_colour_source(&simple_tube.secondary_colour).map_err(|message| {
+            format!(
+                "Invalid GeneratedSimpleTube media '{}': secondary_colour {message}",
+                media.id
+            )
+        })?;
+
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedSimpleTube media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedSimpleTube media byte length overflows".to_string())?;
+    let mut pixels = vec![0; byte_len];
+    draw_simple_tube_rgba(
+        &mut pixels,
+        media.width,
+        media.height,
+        &simple_tube,
+        colour,
+        secondary_colour,
+    );
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedSimpleTube media frame is invalid: {error:?}"))
+}
+
+fn draw_simple_tube_rgba(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    tube: &GeneratedSimpleTubeSource,
+    colour: [u8; 3],
+    secondary_colour: [u8; 3],
+) {
+    let centre_x = width as f32 * 0.5;
+    let centre_y = height as f32 * 0.5;
+    let radius_x = (tube.radius - 10.0).max(1.0).min(width as f32 * 0.45);
+    let radius_y = (radius_x * 0.32).max(1.0).min(height as f32 * 0.3);
+    let depth = tube.depth.abs().min(height as f32 * 0.85);
+    let stroke_width = tube.stroke_width.max(0.5);
+
+    if tube.torus {
+        draw_simple_tube_torus_rgba(
+            pixels,
+            width,
+            height,
+            centre_x,
+            centre_y,
+            radius_x,
+            radius_y,
+            tube,
+            colour,
+            secondary_colour,
+            stroke_width,
+        );
+        return;
+    }
+
+    let ring_count = tube.rings.max(2);
+    let segment_count = tube.segments.max(3);
+    let top = centre_y - depth * 0.5;
+    let step = if ring_count <= 1 {
+        0.0
+    } else {
+        depth / (ring_count - 1) as f32
+    };
+    let twist_total = tube.twist_degrees.to_radians();
+    let mut rings = Vec::new();
+
+    for ring_index in 0..ring_count {
+        let phase = ring_index as f32 / (ring_count - 1).max(1) as f32;
+        let y = top + step * ring_index as f32;
+        let twist = twist_total * phase;
+        let perspective = 0.82 + 0.18 * (1.0 - (phase - 0.5).abs() * 2.0);
+        let points = simple_tube_ellipse_points(
+            centre_x,
+            y,
+            radius_x * perspective,
+            radius_y * perspective,
+            segment_count,
+            twist,
+            tube.random_amount,
+            tube.seed + ring_index as i64,
+        );
+        for pair in points.windows(2) {
+            draw_line_segment_rgba(
+                pixels,
+                width,
+                height,
+                pair[0],
+                pair[1],
+                colour,
+                stroke_width,
+            );
+        }
+        if let (Some(first), Some(last)) = (points.first(), points.last()) {
+            draw_line_segment_rgba(pixels, width, height, *last, *first, colour, stroke_width);
+        }
+        rings.push(points);
+    }
+
+    for segment_index in 0..segment_count as usize {
+        for pair in rings.windows(2) {
+            draw_line_segment_rgba(
+                pixels,
+                width,
+                height,
+                pair[0][segment_index],
+                pair[1][segment_index],
+                secondary_colour,
+                stroke_width,
+            );
+        }
+    }
+
+    let centre_ring = simple_tube_ellipse_points(
+        centre_x,
+        centre_y,
+        radius_x,
+        radius_y,
+        segment_count,
+        twist_total * 0.5,
+        tube.random_amount,
+        tube.seed + 10_000,
+    );
+    for pair in centre_ring.windows(2) {
+        draw_line_segment_rgba(
+            pixels,
+            width,
+            height,
+            pair[0],
+            pair[1],
+            colour,
+            stroke_width,
+        );
+    }
+    if let (Some(first), Some(last)) = (centre_ring.first(), centre_ring.last()) {
+        draw_line_segment_rgba(pixels, width, height, *last, *first, colour, stroke_width);
+    }
+
+    draw_line_segment_rgba(
+        pixels,
+        width,
+        height,
+        (centre_x, top),
+        (centre_x, top + depth),
+        secondary_colour,
+        stroke_width,
+    );
+}
+
+fn draw_simple_tube_torus_rgba(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    centre_x: f32,
+    centre_y: f32,
+    radius_x: f32,
+    radius_y: f32,
+    tube: &GeneratedSimpleTubeSource,
+    colour: [u8; 3],
+    secondary_colour: [u8; 3],
+    stroke_width: f32,
+) {
+    let segment_count = tube.segments.max(3);
+    let ring_count = tube.rings.max(2);
+    let outer_radius_x = radius_x.min(width as f32 * 0.4);
+    let outer_radius_y = radius_y.max(1.0).min(height as f32 * 0.22);
+    let points = simple_tube_ellipse_points(
+        centre_x,
+        centre_y,
+        outer_radius_x,
+        outer_radius_y,
+        segment_count,
+        tube.twist_degrees.to_radians(),
+        tube.random_amount,
+        tube.seed,
+    );
+    for pair in points.windows(2) {
+        draw_line_segment_rgba(
+            pixels,
+            width,
+            height,
+            pair[0],
+            pair[1],
+            colour,
+            stroke_width,
+        );
+    }
+    if let (Some(first), Some(last)) = (points.first(), points.last()) {
+        draw_line_segment_rgba(pixels, width, height, *last, *first, colour, stroke_width);
+    }
+    for ring_index in 0..ring_count {
+        let phase = ring_index as f32 / ring_count as f32;
+        let angle = phase * std::f32::consts::TAU;
+        let x = centre_x + outer_radius_x * angle.cos();
+        let y = centre_y + outer_radius_y * angle.sin();
+        draw_line_segment_rgba(
+            pixels,
+            width,
+            height,
+            (centre_x, centre_y),
+            (x, y),
+            secondary_colour,
+            stroke_width,
+        );
+    }
+}
+
+fn simple_tube_ellipse_points(
+    centre_x: f32,
+    centre_y: f32,
+    radius_x: f32,
+    radius_y: f32,
+    segment_count: u32,
+    twist: f32,
+    random_amount: f32,
+    seed: i64,
+) -> Vec<(f32, f32)> {
+    (0..segment_count)
+        .map(|index| {
+            let angle = (index as f32 / segment_count as f32) * std::f32::consts::TAU + twist;
+            let jitter = if random_amount.abs() <= f32::EPSILON {
+                0.0
+            } else {
+                deterministic_signed_noise(seed, index as i64) * random_amount * 0.01
+            };
+            let scale = (1.0 + jitter).max(0.1);
+            (
+                centre_x + angle.cos() * radius_x * scale,
+                centre_y + angle.sin() * radius_y * scale,
+            )
+        })
+        .collect()
+}
+
+fn deterministic_signed_noise(seed: i64, index: i64) -> f32 {
+    let mut value = (seed as u64)
+        .wrapping_mul(6364136223846793005)
+        .wrapping_add(index as u64)
+        .wrapping_add(1442695040888963407);
+    value ^= value >> 33;
+    value = value.wrapping_mul(0xff51afd7ed558ccd);
+    value ^= value >> 33;
+    let unit = (value & 0xffff) as f32 / 65535.0;
+    unit * 2.0 - 1.0
+}
+
 fn draw_region_frame_rectangle_rgba(
     pixels: &mut [u8],
     width: u32,
@@ -6907,6 +7202,36 @@ fn validate_generated_region_frame_source(
     }
     parse_hex_colour_source(&source.frame_colour)?;
     parse_hex_colour_source(&source.background_colour)?;
+    Ok(())
+}
+
+fn validate_generated_simple_tube_source(source: &GeneratedSimpleTubeSource) -> Result<(), String> {
+    if source.generator != "simple-tube-93" {
+        return Err("generator must be simple-tube-93".to_string());
+    }
+    if !source.radius.is_finite() || !(0.0..=9000.0).contains(&source.radius) {
+        return Err("radius must be 0..9000".to_string());
+    }
+    if !source.depth.is_finite() || !(-12000.0..=12000.0).contains(&source.depth) {
+        return Err("depth must be -12000..12000".to_string());
+    }
+    if source.segments < 3 || source.segments > 128 {
+        return Err("segments must be 3..128".to_string());
+    }
+    if source.rings < 2 || source.rings > 128 {
+        return Err("rings must be 2..128".to_string());
+    }
+    if !source.twist_degrees.is_finite() || !(-1800.0..=1800.0).contains(&source.twist_degrees) {
+        return Err("twist_degrees must be -1800..1800".to_string());
+    }
+    if !source.random_amount.is_finite() || !(-300.0..=300.0).contains(&source.random_amount) {
+        return Err("random_amount must be -300..300".to_string());
+    }
+    if !source.stroke_width.is_finite() || !(0.0..=200.0).contains(&source.stroke_width) {
+        return Err("stroke_width must be 0..200".to_string());
+    }
+    parse_hex_colour_source(&source.colour)?;
+    parse_hex_colour_source(&source.secondary_colour)?;
     Ok(())
 }
 

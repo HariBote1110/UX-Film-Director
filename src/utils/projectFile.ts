@@ -103,6 +103,7 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'getcolor_dot_field',
   'hksy_checker_grid',
   'region_frame',
+  'simple_tube',
   'sunburst',
   'circular_arrow',
   'triangle_bracket',
@@ -512,6 +513,21 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!isFiniteNumber(candidate.backgroundOpacity) || candidate.backgroundOpacity < 0 || candidate.backgroundOpacity > 1) return false;
     if (typeof candidate.frameColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.frameColour)) return false;
     if (typeof candidate.backgroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.backgroundColour)) return false;
+  }
+  if (candidate.type === 'simple_tube') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.radius) || candidate.radius < 0 || candidate.radius > 9000) return false;
+    if (!isFiniteNumber(candidate.depth) || candidate.depth < -12000 || candidate.depth > 12000) return false;
+    if (typeof candidate.segments !== 'number' || !Number.isInteger(candidate.segments) || candidate.segments < 3 || candidate.segments > 128) return false;
+    if (typeof candidate.rings !== 'number' || !Number.isInteger(candidate.rings) || candidate.rings < 2 || candidate.rings > 128) return false;
+    if (!isFiniteNumber(candidate.twistDegrees) || candidate.twistDegrees < -1800 || candidate.twistDegrees > 1800) return false;
+    if (!isFiniteNumber(candidate.randomAmount) || candidate.randomAmount < -300 || candidate.randomAmount > 300) return false;
+    if (!isFiniteNumber(candidate.strokeWidth) || candidate.strokeWidth < 0 || candidate.strokeWidth > 200) return false;
+    if (typeof candidate.colour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.colour)) return false;
+    if (typeof candidate.secondaryColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.secondaryColour)) return false;
+    if (!isFiniteNumber(candidate.seed)) return false;
+    if (typeof candidate.torus !== 'boolean') return false;
   }
   return true;
 };

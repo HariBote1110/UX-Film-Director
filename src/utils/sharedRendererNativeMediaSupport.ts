@@ -20,6 +20,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedGetColorDots') return isSharedRendererNativeGeneratedGetColorDotsSourceSupported(reference.source);
   if (reference.kind === 'GeneratedHksyCheckerGrid') return isSharedRendererNativeGeneratedHksyCheckerGridSourceSupported(reference.source);
   if (reference.kind === 'GeneratedRegionFrame') return isSharedRendererNativeGeneratedRegionFrameSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedSimpleTube') return isSharedRendererNativeGeneratedSimpleTubeSourceSupported(reference.source);
   if (reference.kind === 'GeneratedSunburst') return isSharedRendererNativeGeneratedSunburstSourceSupported(reference.source);
   if (reference.kind === 'GeneratedCircularArrow') return isSharedRendererNativeGeneratedCircularArrowSourceSupported(reference.source);
   if (reference.kind === 'GeneratedTriangleBracket') return isSharedRendererNativeGeneratedTriangleBracketSourceSupported(reference.source);
@@ -1286,6 +1287,64 @@ const isSharedRendererNativeGeneratedRegionFrameSourceSupported = (source: strin
       && /^#[0-9a-f]{6}$/i.test(parsed.frame_colour)
       && typeof parsed.background_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedSimpleTubeSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      radius?: unknown;
+      depth?: unknown;
+      segments?: unknown;
+      rings?: unknown;
+      twist_degrees?: unknown;
+      random_amount?: unknown;
+      stroke_width?: unknown;
+      colour?: unknown;
+      secondary_colour?: unknown;
+      seed?: unknown;
+      torus?: unknown;
+    };
+    return (
+      parsed.generator === 'simple-tube-93'
+      && typeof parsed.radius === 'number'
+      && Number.isFinite(parsed.radius)
+      && parsed.radius >= 0
+      && parsed.radius <= 9000
+      && typeof parsed.depth === 'number'
+      && Number.isFinite(parsed.depth)
+      && parsed.depth >= -12000
+      && parsed.depth <= 12000
+      && typeof parsed.segments === 'number'
+      && Number.isInteger(parsed.segments)
+      && parsed.segments >= 3
+      && parsed.segments <= 128
+      && typeof parsed.rings === 'number'
+      && Number.isInteger(parsed.rings)
+      && parsed.rings >= 2
+      && parsed.rings <= 128
+      && typeof parsed.twist_degrees === 'number'
+      && Number.isFinite(parsed.twist_degrees)
+      && parsed.twist_degrees >= -1800
+      && parsed.twist_degrees <= 1800
+      && typeof parsed.random_amount === 'number'
+      && Number.isFinite(parsed.random_amount)
+      && parsed.random_amount >= -300
+      && parsed.random_amount <= 300
+      && typeof parsed.stroke_width === 'number'
+      && Number.isFinite(parsed.stroke_width)
+      && parsed.stroke_width >= 0
+      && parsed.stroke_width <= 200
+      && typeof parsed.colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.colour)
+      && typeof parsed.secondary_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.secondary_colour)
+      && Number.isInteger(parsed.seed)
+      && typeof parsed.torus === 'boolean'
     );
   } catch {
     return false;
