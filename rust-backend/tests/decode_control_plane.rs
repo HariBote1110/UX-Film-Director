@@ -1914,6 +1914,82 @@ fn native_render_shared_frame_builds_generated_particle_sources_from_media() {
 }
 
 #[test]
+fn native_render_generated_particle_uses_clip_source_frame_for_motion() {
+    let mut backend = BackendProcess::start();
+    let output_memory_id = unique_shm_name();
+    let slot_count = 1;
+    let width = 4;
+    let height = 4;
+    let particle_source = "{\"generator\":\"standard-particle\",\"seed\":0,\"particle_count\":1,\"spread\":0,\"speed\":1,\"size\":1,\"colour\":\"#ffffff\",\"lifetime_seconds\":2}";
+
+    let response = backend.request(json!({
+        "id": 40,
+        "method": "render.nativeSharedFrame",
+        "params": {
+            "renderId": "native-render-generated-particle-motion",
+            "memoryId": output_memory_id,
+            "slotCount": slot_count,
+            "ptsFrame": 60,
+            "width": width,
+            "height": height,
+            "snapshot": {
+                "frame_index": 60,
+                "colour": {
+                    "profile": "rec709-sdr",
+                    "working_space": "linear-light",
+                    "alpha": "premultiplied"
+                },
+                "clips": [{
+                    "clip_id": "clip-generated-particle-motion",
+                    "track_id": "track-1",
+                    "media_id": "particle-1",
+                    "source_frame": 60,
+                    "z_index": 0,
+                    "transform": {
+                        "translation_x": 0.0,
+                        "translation_y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation_degrees": 0.0,
+                        "sampling": "nearest"
+                    },
+                    "opacity": 1.0,
+                    "effects": []
+                }]
+            },
+            "media": [{
+                "id": "particle-1",
+                "kind": "GeneratedParticle",
+                "source": particle_source,
+                "width": width,
+                "height": height
+            }],
+            "sources": []
+        }
+    }));
+
+    assert_eq!(response["ok"], true, "{response}");
+
+    let output_slot_byte_len = response["result"]["frame"]["descriptor"]["byteLen"]
+        .as_u64()
+        .expect("output byte length") as usize;
+    let output_ring = PosixSharedRing::attach_with_retry_for_layout(
+        response["result"]["frame"]["descriptor"]["memoryId"]
+            .as_str()
+            .expect("output memory id"),
+        slot_count,
+        output_slot_byte_len,
+        Duration::from_secs(1),
+    )
+    .expect("attach to moving generated particle output ring");
+    let output_frame = output_ring
+        .read_frame(60)
+        .expect("read moving generated particle output frame");
+    assert_eq!(&output_frame.bytes[520..524], &[0, 0, 0, 0]);
+    assert_eq!(&output_frame.bytes[524..528], &[255, 255, 255, 255]);
+}
+
+#[test]
 fn native_render_shared_frame_composites_video_source_with_generated_gradient_media() {
     let mut backend = BackendProcess::start();
     let source_memory_id = unique_shm_name();
