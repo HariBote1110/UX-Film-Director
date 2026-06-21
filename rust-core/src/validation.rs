@@ -132,6 +132,23 @@ fn effect_is_finite(effect: &crate::schema::Effect) -> bool {
         crate::schema::Effect::Wipe { progress, .. } => {
             progress.is_finite() && *progress >= 0.0 && *progress <= 1.0
         }
+        crate::schema::Effect::Clipping {
+            top,
+            bottom,
+            left,
+            right,
+            angle_degrees,
+        } => {
+            top.is_finite()
+                && *top >= 0.0
+                && bottom.is_finite()
+                && *bottom >= 0.0
+                && left.is_finite()
+                && *left >= 0.0
+                && right.is_finite()
+                && *right >= 0.0
+                && angle_degrees.is_finite()
+        }
     }
 }
 

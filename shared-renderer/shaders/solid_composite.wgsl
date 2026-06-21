@@ -10,7 +10,11 @@ struct RenderParams {
     outline_opacity: f32,
     wipe_edge: f32,
     wipe_progress: f32,
-    _padding0: f32,
+    clipping_top: f32,
+    clipping_bottom: f32,
+    clipping_left: f32,
+    clipping_right: f32,
+    clipping_angle: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -63,6 +67,9 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     if (!passes_wipe(source_position)) {
         return vec4<f32>(0.0);
     }
+    if (!passes_clipping(source_position)) {
+        return vec4<f32>(0.0);
+    }
 
     let source = sample_source_linear(source_position);
     let aberration_offset = vec2<f32>(
@@ -96,6 +103,26 @@ fn passes_wipe(source_position: vec2<f32>) -> bool {
         return source_position.y < params.source_height * progress;
     }
     return source_position.y >= params.source_height * (1.0 - progress);
+}
+
+fn passes_clipping(source_position: vec2<f32>) -> bool {
+    let dimensions = vec2<f32>(params.source_width, params.source_height);
+    let centre = dimensions * 0.5;
+    let p = source_position - centre;
+    let c = cos(-params.clipping_angle);
+    let s = sin(-params.clipping_angle);
+    let p_rot = vec2<f32>(p.x * c - p.y * s, p.x * s + p.y * c);
+    let p_check = p_rot + centre;
+    let top_limit = params.clipping_top;
+    let bottom_limit = dimensions.y - params.clipping_bottom;
+    let left_limit = params.clipping_left;
+    let right_limit = dimensions.x - params.clipping_right;
+    return !(
+        p_check.y < top_limit
+        || p_check.y > bottom_limit
+        || p_check.x < left_limit
+        || p_check.x > right_limit
+    );
 }
 
 fn clamp_source_position(source_position: vec2<f32>) -> vec2<f32> {

@@ -1,3 +1,25 @@
+## 2026-06-21 — 扇クリッピング近似をRust/WebGPU境界へ追加
+
+### 実施内容
+- Red: 既存の `clipping` filterが `Clipping` effectとしてRust scene snapshotへ出る契約を追加した。
+- Red: Rust coreの `Effect::Clipping` と、切り取り量/角度の検証、native-wgpu-rendererの軸揃えクリッピング画素契約を追加した。
+- Green: `rustSceneSnapshot` が `clipping` filterを `Clipping { top, bottom, left, right, angle_degrees }` へ変換し、shared rendererのunsupported filter判定から外すようにした。
+- Green: Rust coreに `Effect::Clipping` を追加し、serde境界とvalidationへ接続した。
+- Green: native-wgpu-rendererのuniform/WGSL shaderへ斜めクリッピング判定を追加し、Pixi側の既存DiagonalClippingFilterに近い中心回転クリップを行うようにした。
+- 版を `0.1.1-Beta-243a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/rustSceneSnapshot.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "src/utils/rustSceneSnapshot|src/types|src/utils/filterStack|src/utils/aviutlEffectPresets"`
+- `cargo test --manifest-path rust-core/Cargo.toml --test timeline_snapshot_contract --test project_validation -- --nocapture`
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test native_reference_parity -- --nocapture`
+
+### 結果・残課題
+- TS snapshotテストは21件成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- Rust coreは `timeline_snapshot_contract` 5件、`project_validation` 11件成功。
+- native-wgpu-rendererは `native_reference_parity` 14件成功し、`native_wgpu_applies_axis_aligned_clipping` で実shader効果を確認した。
+- 現段階は既存UIの斜めクリッピング近似をRustへ載せた段階。極座標の本格的な扇クリッピングR再現は追加effectとして拡張する。
+
 ## 2026-06-21 — 輝度ワイプをRust/WebGPU境界へ追加
 
 ### 実施内容

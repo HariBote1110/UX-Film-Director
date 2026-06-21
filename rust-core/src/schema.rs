@@ -113,6 +113,13 @@ pub enum Effect {
         edge: WipeEdge,
         progress: f32,
     },
+    Clipping {
+        top: f32,
+        bottom: f32,
+        left: f32,
+        right: f32,
+        angle_degrees: f32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

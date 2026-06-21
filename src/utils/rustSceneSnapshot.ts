@@ -37,7 +37,8 @@ export type RustEffect =
   | { LinearGain: { gain: number } }
   | { ColourAberration: { offset_x: number; offset_y: number } }
   | { Outline: { colour: [number, number, number]; thickness: number; opacity: number } }
-  | { Wipe: { edge: 'left' | 'right' | 'top' | 'bottom'; progress: number } };
+  | { Wipe: { edge: 'left' | 'right' | 'top' | 'bottom'; progress: number } }
+  | { Clipping: { top: number; bottom: number; left: number; right: number; angle_degrees: number } };
 
 export interface RustEvaluatedClip {
   clip_id: string;
@@ -290,6 +291,7 @@ const collectBuildIssues = (
       && filter.type !== 'colour_aberration'
       && filter.type !== 'outline'
       && filter.type !== 'wipe'
+      && filter.type !== 'clipping'
       && !(object.type === 'shape' && filter.type === 'gradient')
     ));
     if (unsupportedFilter) {
@@ -331,6 +333,17 @@ const rustEffectsForObject = (object: TimelineObject, time: number): RustEffect[
         Wipe: {
           edge: filter.params.edge,
           progress,
+        },
+      });
+    }
+    if (filter.type === 'clipping') {
+      effects.push({
+        Clipping: {
+          top: Math.max(0, finiteNumberOr(filter.params.top, 0)),
+          bottom: Math.max(0, finiteNumberOr(filter.params.bottom, 0)),
+          left: Math.max(0, finiteNumberOr(filter.params.left, 0)),
+          right: Math.max(0, finiteNumberOr(filter.params.right, 0)),
+          angle_degrees: finiteNumberOr(filter.params.angle, 0),
         },
       });
     }
@@ -667,6 +680,14 @@ const validateEffects = (
     if (isRecord(effect.Wipe)) {
       validateEnum(effect.Wipe.edge, `${effectPath}.Wipe.edge`, ['left', 'right', 'top', 'bottom'], issues);
       validateUnitInterval(effect.Wipe.progress, `${effectPath}.Wipe.progress`, issues);
+      return;
+    }
+    if (isRecord(effect.Clipping)) {
+      validateFiniteNumber(effect.Clipping.top, `${effectPath}.Clipping.top`, issues);
+      validateFiniteNumber(effect.Clipping.bottom, `${effectPath}.Clipping.bottom`, issues);
+      validateFiniteNumber(effect.Clipping.left, `${effectPath}.Clipping.left`, issues);
+      validateFiniteNumber(effect.Clipping.right, `${effectPath}.Clipping.right`, issues);
+      validateFiniteNumber(effect.Clipping.angle_degrees, `${effectPath}.Clipping.angle_degrees`, issues);
       return;
     }
     addIssue(issues, 'schemaMismatch', effectPath, 'Unknown Rust effect.');

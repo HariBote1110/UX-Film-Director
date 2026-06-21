@@ -214,7 +214,23 @@ impl NativeWgpuRenderer {
                     outline_opacity: outline_opacity(clip),
                     wipe_edge: wipe_edge(clip),
                     wipe_progress: wipe_progress(clip),
-                    _padding0: 0.0,
+                    clipping_top: clipping_extent(clip, |effect| match effect {
+                        Effect::Clipping { top, .. } => Some(*top),
+                        _ => None,
+                    }),
+                    clipping_bottom: clipping_extent(clip, |effect| match effect {
+                        Effect::Clipping { bottom, .. } => Some(*bottom),
+                        _ => None,
+                    }),
+                    clipping_left: clipping_extent(clip, |effect| match effect {
+                        Effect::Clipping { left, .. } => Some(*left),
+                        _ => None,
+                    }),
+                    clipping_right: clipping_extent(clip, |effect| match effect {
+                        Effect::Clipping { right, .. } => Some(*right),
+                        _ => None,
+                    }),
+                    clipping_angle: clipping_angle(clip),
                     source_width: source.width as f32,
                     source_height: source.height as f32,
                     translation_x: clip.transform.translation_x,
@@ -453,7 +469,11 @@ struct RenderParams {
     outline_opacity: f32,
     wipe_edge: f32,
     wipe_progress: f32,
-    _padding0: f32,
+    clipping_top: f32,
+    clipping_bottom: f32,
+    clipping_left: f32,
+    clipping_right: f32,
+    clipping_angle: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -725,6 +745,7 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::ColourAberration { .. } => 1.0,
         Effect::Outline { .. } => 1.0,
         Effect::Wipe { .. } => 1.0,
+        Effect::Clipping { .. } => 1.0,
     }
 }
 
@@ -796,4 +817,22 @@ fn wipe_progress(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
         .last()
         .unwrap_or(1.0)
         .clamp(0.0, 1.0)
+}
+
+fn clipping_extent<F>(clip: &uxfd_rust_core::EvaluatedClip, pick: F) -> f32
+where
+    F: Fn(&Effect) -> Option<f32>,
+{
+    clip.effects.iter().filter_map(pick).sum::<f32>().max(0.0)
+}
+
+fn clipping_angle(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::Clipping { angle_degrees, .. } => Some(angle_degrees.to_radians()),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
 }
