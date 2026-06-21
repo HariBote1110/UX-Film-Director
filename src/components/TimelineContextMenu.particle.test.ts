@@ -36,6 +36,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('buildGetColorDiamondDotFieldObject');
     expect(code).toContain('buildGetColorDotFieldObject');
     expect(code).toContain('buildGetColorOutlinedSquareDotFieldObject');
+    expect(code).toContain('buildGetColorSampledDotFieldObject');
     expect(code).toContain('buildHksyAnchorLineObject');
     expect(code).toContain('buildHksyCheckerGridObject');
     expect(code).toContain('buildHksyDiamondObject');
@@ -80,6 +81,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('handleAddGetColorDiamondDotField');
     expect(code).toContain('handleAddGetColorDotField');
     expect(code).toContain('handleAddGetColorOutlinedSquareDotField');
+    expect(code).toContain('handleAddGetColorSampledDotField');
     expect(code).toContain('handleAddHksyAnchorLine');
     expect(code).toContain('handleAddHksyCheckerGrid');
     expect(code).toContain('handleAddHksyDiamond');
@@ -124,6 +126,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('Add GetColor V2R Diamond Dots');
     expect(code).toContain('Add GetColor V2R Dot Field');
     expect(code).toContain('Add GetColor V2R Outlined Square Dots');
+    expect(code).toContain('Add GetColor V2R Sampled Dots');
     expect(code).toContain('Add hksy Anchor Line');
     expect(code).toContain('Add hksy Checker/Grid');
     expect(code).toContain('Add hksy Diamond');
@@ -168,6 +171,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('GetColor V2R菱形ドットフィールドを追加');
     expect(code).toContain('GetColor V2Rドットフィールドを追加');
     expect(code).toContain('GetColor V2R枠線四角ドットフィールドを追加');
+    expect(code).toContain('GetColor V2R画像サンプリングドットを追加');
     expect(code).toContain('hksyライン（アンカー指定）を追加');
     expect(code).toContain('hksyチェッカー/グリッドを追加');
     expect(code).toContain('hksy菱形を追加');

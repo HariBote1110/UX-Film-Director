@@ -1060,6 +1060,44 @@ describe('parseProjectPayloadV2', () => {
     expect(parsed.scenes[0].objects).toEqual([getColorDiamondDots]);
   });
 
+  it('round-trips a GetColor V2R sampled dot field through JSON payload', () => {
+    const layers = createDefaultLayers();
+    const camera = createDefaultCamera();
+    const getColorSampledDots: GetColorDotFieldObject = {
+      ...minimalGetColorDotField(),
+      id: 'getcolor-sampled-dot-field-1',
+      name: 'GetColor V2R 画像サンプリングドット',
+      dotSize: 16,
+      dotShape: 'circle',
+      strokeWidth: 0,
+      sampleSourcePath: 'file:///tmp/source-colours.png',
+      sampleStrength: 1,
+    };
+    const file = buildProjectFileData({
+      projectSettings: projectSettings(),
+      scenes: [
+        {
+          id: 's1',
+          name: 'One',
+          duration: 10,
+          layers,
+          objects: [getColorSampledDots],
+          camera,
+          stageCamera3D: defaultStage()
+        }
+      ],
+      activeSceneId: 's1',
+      objects: [getColorSampledDots],
+      layers,
+      duration: 10,
+      camera,
+      stageCamera3D: defaultStage()
+    });
+
+    const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
+    expect(parsed.scenes[0].objects).toEqual([getColorSampledDots]);
+  });
+
   it('round-trips an hksy diamond pattern object through JSON payload', () => {
     const layers = createDefaultLayers();
     const camera = createDefaultCamera();

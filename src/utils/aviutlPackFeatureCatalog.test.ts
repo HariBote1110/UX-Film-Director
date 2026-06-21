@@ -34,6 +34,11 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('getcolor-v2r-dot-field')?.sourceRelativePaths).toContain('script/@GetColor/@GetColor-V2R.anm');
     expect(byId.get('getcolor-v2r-diamond-dots')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('getcolor-v2r-outlined-square-dots')?.implementationTarget).toBe('native-generated-object');
+    expect(byId.get('getcolor-v2r-sampled-dots')?.sourceRelativePaths).toEqual(expect.arrayContaining([
+      'script/@GetColor/@GetColor-V2R.anm',
+      'script/93/@GetColor.anm',
+    ]));
+    expect(byId.get('getcolor-v2r-sampled-dots')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('hksy-checker-grid')?.sourceRelativePaths).toContain('script/@hksy/@hksy.obj');
     expect(byId.get('hksy-line')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('hksy-multi-colour-checker')?.implementationTarget).toBe('native-generated-object');
@@ -120,6 +125,7 @@ describe('AviUtlPackV4 feature catalogue', () => {
       'getcolor-v2r-dot-field',
       'getcolor-v2r-diamond-dots',
       'getcolor-v2r-outlined-square-dots',
+      'getcolor-v2r-sampled-dots',
       '93-audio-sphere',
       '93-delay-move',
       '93-spotlight',
@@ -132,6 +138,6 @@ describe('AviUtlPackV4 feature catalogue', () => {
       'hksy-anchor-line'
     ];
 
-    expect(roadmapIds.slice(0, 26)).toEqual(expect.arrayContaining(priorityIds));
+    expect(roadmapIds.slice(0, 27)).toEqual(expect.arrayContaining(priorityIds));
   });
 });

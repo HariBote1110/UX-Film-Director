@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildGetColorDiamondDotFieldObject, buildGetColorDotFieldObject, buildGetColorOutlinedSquareDotFieldObject } from './getColorDotFieldObjectFactory';
+import { buildGetColorDiamondDotFieldObject, buildGetColorDotFieldObject, buildGetColorOutlinedSquareDotFieldObject, buildGetColorSampledDotFieldObject } from './getColorDotFieldObjectFactory';
 
 describe('getColorDotFieldObjectFactory', () => {
   it('builds a GetColor V2R dot field object for timeline insertion', () => {
@@ -93,6 +93,41 @@ describe('getColorDotFieldObjectFactory', () => {
       dotSize: 22,
       dotShape: 'square',
       strokeWidth: 5,
+      foregroundColour: '#ffffff',
+      secondaryColour: '#36c2ff',
+      backgroundColour: '#000000',
+      seed: 93,
+    });
+  });
+
+  it('builds a GetColor V2R sampled dot field object for image colour pickup', () => {
+    const object = buildGetColorSampledDotFieldObject({
+      id: 'getcolor-sampled-dot-field-1',
+      projectWidth: 1920,
+      projectHeight: 1080,
+      startTime: 3,
+      layer: 32,
+      sampleSourcePath: '/tmp/source-colours.png',
+    });
+
+    expect(object).toMatchObject({
+      id: 'getcolor-sampled-dot-field-1',
+      type: 'getcolor_dot_field',
+      name: 'GetColor V2R 画像サンプリングドット',
+      layer: 32,
+      startTime: 3,
+      duration: 5,
+      x: 560,
+      y: 315,
+      width: 800,
+      height: 450,
+      columns: 32,
+      rows: 18,
+      dotSize: 16,
+      dotShape: 'circle',
+      strokeWidth: 0,
+      sampleSourcePath: '/tmp/source-colours.png',
+      sampleStrength: 1,
       foregroundColour: '#ffffff',
       secondaryColour: '#36c2ff',
       backgroundColour: '#000000',

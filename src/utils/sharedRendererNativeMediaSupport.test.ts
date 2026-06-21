@@ -424,6 +424,24 @@ describe('sharedRendererNativeMediaSupport', () => {
     })).toBe(true);
   });
 
+  it('accepts GetColor V2R sampled image generator sources and rejects invalid sample strength', () => {
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'getcolor-sampled-dot-field-1',
+      kind: 'GeneratedGetColorDots',
+      source: '{"generator":"getcolor-v2r-dot-field","columns":32,"rows":18,"dot_size":16,"size_influence":0.65,"luminance_influence":0.7,"hue_shift_degrees":0,"alternate_rows":true,"foreground_colour":"#ffffff","secondary_colour":"#36c2ff","background_colour":"#000000","seed":93,"dot_shape":"circle","stroke_width":0,"source_image":"file:///tmp/source-colours.png","sample_strength":1}',
+      width: 800,
+      height: 450,
+    })).toBe(true);
+
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'getcolor-sampled-dot-field-invalid-1',
+      kind: 'GeneratedGetColorDots',
+      source: '{"generator":"getcolor-v2r-dot-field","columns":32,"rows":18,"dot_size":16,"size_influence":0.65,"luminance_influence":0.7,"hue_shift_degrees":0,"alternate_rows":true,"foreground_colour":"#ffffff","secondary_colour":"#36c2ff","background_colour":"#000000","seed":93,"dot_shape":"circle","stroke_width":0,"source_image":"file:///tmp/source-colours.png","sample_strength":2}',
+      width: 800,
+      height: 450,
+    })).toBe(false);
+  });
+
   it('accepts 93 SimpleTube generator sources as native renderable media', () => {
     expect(isSharedRendererNativeMediaReferenceSupported({
       id: 'simple-tube-1',

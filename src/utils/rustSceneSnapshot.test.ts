@@ -2492,6 +2492,54 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('serialises a GetColor V2R sampled dot field with source image pickup into the Rust generator payload', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseGetColorDotField({
+        id: 'getcolor-sampled-dot-field-1',
+        name: 'GetColor V2R 画像サンプリングドット',
+        dotSize: 16,
+        dotShape: 'circle',
+        strokeWidth: 0,
+        sampleSourcePath: 'file:///tmp/source-colours.png',
+        sampleStrength: 1,
+      })],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated GetColor sampled dot snapshot to pass');
+
+    expect(result.media).toEqual([
+      {
+        id: 'getcolor-sampled-dot-field-1',
+        kind: 'GeneratedGetColorDots',
+        source: JSON.stringify({
+          generator: 'getcolor-v2r-dot-field',
+          columns: 32,
+          rows: 18,
+          dot_size: 16,
+          size_influence: 0.65,
+          luminance_influence: 0.7,
+          hue_shift_degrees: 0,
+          alternate_rows: true,
+          foreground_colour: '#ffffff',
+          secondary_colour: '#36c2ff',
+          background_colour: '#000000',
+          seed: 93,
+          dot_shape: 'circle',
+          stroke_width: 0,
+          source_image: 'file:///tmp/source-colours.png',
+          sample_strength: 1,
+        }),
+        width: 800,
+        height: 450,
+      },
+    ]);
+  });
+
   it('serialises a 93 region frame object into the Rust generator payload', () => {
     const layers = createDefaultLayers();
     const result = buildRustSceneSnapshotForTimeline({

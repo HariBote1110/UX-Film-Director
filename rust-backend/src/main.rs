@@ -9889,6 +9889,62 @@ fn response_error(id: u64, code: i64, message: &str) -> RpcResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use flate2::{write::ZlibEncoder, Compression};
+    use std::io::Write;
+
+    fn write_test_rgba_png(name: &str, width: u32, height: u32, rgba: &[u8]) -> std::path::PathBuf {
+        let expected_len = usize::try_from(width)
+            .ok()
+            .and_then(|width| {
+                usize::try_from(height)
+                    .ok()
+                    .and_then(|height| width.checked_mul(height))
+            })
+            .and_then(|pixels| pixels.checked_mul(4))
+            .expect("test PNG dimensions should fit usize");
+        assert_eq!(rgba.len(), expected_len);
+
+        let pid = std::process::id();
+        let path = std::env::temp_dir().join(format!("{name}-{pid}.png"));
+        let mut png = Vec::new();
+        png.extend_from_slice(b"\x89PNG\r\n\x1a\n");
+
+        let mut ihdr = Vec::new();
+        ihdr.extend_from_slice(&width.to_be_bytes());
+        ihdr.extend_from_slice(&height.to_be_bytes());
+        ihdr.extend_from_slice(&[8, 6, 0, 0, 0]);
+        write_png_chunk(&mut png, b"IHDR", &ihdr);
+
+        let row_len = usize::try_from(width).expect("width should fit usize") * 4;
+        let mut scanlines = Vec::with_capacity(
+            (row_len + 1) * usize::try_from(height).expect("height should fit usize"),
+        );
+        for row in 0..usize::try_from(height).expect("height should fit usize") {
+            scanlines.push(0);
+            let start = row * row_len;
+            scanlines.extend_from_slice(&rgba[start..start + row_len]);
+        }
+        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+        encoder
+            .write_all(&scanlines)
+            .expect("test PNG scanlines should encode");
+        let compressed = encoder.finish().expect("test PNG zlib stream should finish");
+        write_png_chunk(&mut png, b"IDAT", &compressed);
+        write_png_chunk(&mut png, b"IEND", &[]);
+
+        std::fs::write(&path, png).expect("test PNG should be written");
+        path
+    }
+
+    fn write_png_chunk(png: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
+        png.extend_from_slice(&(data.len() as u32).to_be_bytes());
+        png.extend_from_slice(kind);
+        png.extend_from_slice(data);
+        let mut hasher = crc32fast::Hasher::new();
+        hasher.update(kind);
+        hasher.update(data);
+        png.extend_from_slice(&hasher.finalize().to_be_bytes());
+    }
 
     #[test]
     fn generated_barcode_source_frame_contains_background_and_bars() {
@@ -10879,6 +10935,48 @@ mod tests {
             [0, 0, 0, 255]
         );
         assert_ne!(&frame.pixels[edge_offset..edge_offset + 4], [0, 0, 0, 255]);
+    }
+
+    #[test]
+    fn generated_getcolor_dots_source_frame_samples_source_image_colour_and_alpha() {
+        let source_path = write_test_rgba_png(
+            "uxfd-getcolor-sampled-source",
+            2,
+            1,
+            &[
+                255, 0, 0, 255,
+                0, 64, 255, 128,
+            ],
+        );
+        let source = format!(
+            r##"{{"generator":"getcolor-v2r-dot-field","columns":2,"rows":1,"dot_size":36,"size_influence":0,"luminance_influence":0,"hue_shift_degrees":0,"alternate_rows":false,"foreground_colour":"#ffffff","secondary_colour":"#36c2ff","background_colour":"#000000","seed":93,"dot_shape":"circle","stroke_width":0,"source_image":"{}","sample_strength":1}}"##,
+            source_path.to_string_lossy()
+        );
+        let media = SceneMediaReference {
+            id: "getcolor-sampled-dot-field-1".to_string(),
+            kind: MediaKind::GeneratedGetColorDots,
+            source,
+            width: 120,
+            height: 60,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_getcolor_dots_source_frame(&media)
+            .expect("generated GetColor sampled dot frame should render");
+        let left_centre_offset = ((30_usize * media.width as usize) + 30_usize) * 4;
+        let right_centre_offset = ((30_usize * media.width as usize) + 90_usize) * 4;
+
+        assert_eq!(
+            &frame.pixels[left_centre_offset..left_centre_offset + 4],
+            [255, 0, 0, 255]
+        );
+        assert_eq!(
+            &frame.pixels[right_centre_offset..right_centre_offset + 4],
+            [0, 64, 255, 128]
+        );
+
+        let _ = std::fs::remove_file(source_path);
     }
 
     #[test]
