@@ -9394,4 +9394,25 @@ mod tests {
         assert!(background_count > 180_000);
         assert!(fully_opaque);
     }
+
+    #[test]
+    fn generated_getcolor_dots_source_frame_renders_diamond_dot_shape() {
+        let media = SceneMediaReference {
+            id: "getcolor-diamond-dot-field-1".to_string(),
+            kind: MediaKind::GeneratedGetColorDots,
+            source: r##"{"generator":"getcolor-v2r-dot-field","columns":1,"rows":1,"dot_size":40,"size_influence":0,"luminance_influence":0,"hue_shift_degrees":0,"alternate_rows":false,"foreground_colour":"#ffffff","secondary_colour":"#36c2ff","background_colour":"#000000","seed":93,"dot_shape":"diamond","stroke_width":0}"##.to_string(),
+            width: 100,
+            height: 100,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_getcolor_dots_source_frame(&media)
+            .expect("generated GetColor diamond dot frame should render");
+        let centre_offset = ((50_usize * media.width as usize) + 50_usize) * 4;
+        let circle_only_corner_offset = ((63_usize * media.width as usize) + 63_usize) * 4;
+
+        assert_ne!(&frame.pixels[centre_offset..centre_offset + 4], [0, 0, 0, 255]);
+        assert_eq!(&frame.pixels[circle_only_corner_offset..circle_only_corner_offset + 4], [0, 0, 0, 255]);
+    }
 }

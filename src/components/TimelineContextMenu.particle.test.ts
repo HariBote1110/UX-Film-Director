@@ -26,6 +26,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('buildAviUtlGearObject');
     expect(code).toContain('buildAviUtlGourdObject');
     expect(code).toContain('buildAviUtlHistogramObject');
+    expect(code).toContain('buildGetColorDiamondDotFieldObject');
     expect(code).toContain('buildGetColorDotFieldObject');
     expect(code).toContain('buildHksyAnchorLineObject');
     expect(code).toContain('buildHksyCheckerGridObject');
@@ -61,6 +62,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('handleAddGear');
     expect(code).toContain('handleAddGourd');
     expect(code).toContain('handleAddHistogram');
+    expect(code).toContain('handleAddGetColorDiamondDotField');
     expect(code).toContain('handleAddGetColorDotField');
     expect(code).toContain('handleAddHksyAnchorLine');
     expect(code).toContain('handleAddHksyCheckerGrid');
@@ -96,6 +98,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('Add Gear');
     expect(code).toContain('Add Gourd');
     expect(code).toContain('Add Histogram');
+    expect(code).toContain('Add GetColor V2R Diamond Dots');
     expect(code).toContain('Add GetColor V2R Dot Field');
     expect(code).toContain('Add hksy Anchor Line');
     expect(code).toContain('Add hksy Checker/Grid');
@@ -131,6 +134,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('歯車を追加');
     expect(code).toContain('ひょうたんを追加');
     expect(code).toContain('簡易ヒストグラムを追加');
+    expect(code).toContain('GetColor V2R菱形ドットフィールドを追加');
     expect(code).toContain('GetColor V2Rドットフィールドを追加');
     expect(code).toContain('hksyライン（アンカー指定）を追加');
     expect(code).toContain('hksyチェッカー/グリッドを追加');

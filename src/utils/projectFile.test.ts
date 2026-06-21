@@ -990,6 +990,42 @@ describe('parseProjectPayloadV2', () => {
     expect(parsed.scenes[0].objects).toEqual([particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, hologram, protractor, shakingPolygon, toneCurve, hksyCheckerGrid, getColorDotField, audioSphere]);
   });
 
+  it('round-trips a GetColor V2R diamond dot field through JSON payload', () => {
+    const layers = createDefaultLayers();
+    const camera = createDefaultCamera();
+    const getColorDiamondDots: GetColorDotFieldObject = {
+      ...minimalGetColorDotField(),
+      id: 'getcolor-diamond-dot-field-1',
+      name: 'GetColor V2R 菱形ドットフィールド',
+      dotSize: 18,
+      dotShape: 'diamond',
+      strokeWidth: 0,
+    };
+    const file = buildProjectFileData({
+      projectSettings: projectSettings(),
+      scenes: [
+        {
+          id: 's1',
+          name: 'One',
+          duration: 10,
+          layers,
+          objects: [getColorDiamondDots],
+          camera,
+          stageCamera3D: defaultStage()
+        }
+      ],
+      activeSceneId: 's1',
+      objects: [getColorDiamondDots],
+      layers,
+      duration: 10,
+      camera,
+      stageCamera3D: defaultStage()
+    });
+
+    const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
+    expect(parsed.scenes[0].objects).toEqual([getColorDiamondDots]);
+  });
+
   it('round-trips an hksy diamond pattern object through JSON payload', () => {
     const layers = createDefaultLayers();
     const camera = createDefaultCamera();

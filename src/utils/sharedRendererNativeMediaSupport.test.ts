@@ -402,4 +402,14 @@ describe('sharedRendererNativeMediaSupport', () => {
       media,
     })).toBe(false);
   });
+
+  it('accepts GetColor V2R diamond dot generator sources as native renderable media', () => {
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'getcolor-diamond-dot-field-1',
+      kind: 'GeneratedGetColorDots',
+      source: '{"generator":"getcolor-v2r-dot-field","columns":32,"rows":18,"dot_size":18,"size_influence":0.65,"luminance_influence":0.7,"hue_shift_degrees":0,"alternate_rows":true,"foreground_colour":"#ffffff","secondary_colour":"#36c2ff","background_colour":"#000000","seed":93,"dot_shape":"diamond","stroke_width":0}',
+      width: 800,
+      height: 450,
+    })).toBe(true);
+  });
 });

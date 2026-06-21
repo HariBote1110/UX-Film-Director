@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildGetColorDotFieldObject } from './getColorDotFieldObjectFactory';
+import { buildGetColorDiamondDotFieldObject, buildGetColorDotFieldObject } from './getColorDotFieldObjectFactory';
 
 describe('getColorDotFieldObjectFactory', () => {
   it('builds a GetColor V2R dot field object for timeline insertion', () => {
@@ -29,6 +29,38 @@ describe('getColorDotFieldObjectFactory', () => {
       luminanceInfluence: 0.7,
       hueShiftDegrees: 0,
       alternateRows: true,
+      foregroundColour: '#ffffff',
+      secondaryColour: '#36c2ff',
+      backgroundColour: '#000000',
+      seed: 93,
+    });
+  });
+
+  it('builds a GetColor V2R diamond dot field object for the figure preset', () => {
+    const object = buildGetColorDiamondDotFieldObject({
+      id: 'getcolor-diamond-dot-field-1',
+      projectWidth: 1920,
+      projectHeight: 1080,
+      startTime: 2,
+      layer: 30,
+    });
+
+    expect(object).toMatchObject({
+      id: 'getcolor-diamond-dot-field-1',
+      type: 'getcolor_dot_field',
+      name: 'GetColor V2R 菱形ドットフィールド',
+      layer: 30,
+      startTime: 2,
+      duration: 5,
+      x: 560,
+      y: 315,
+      width: 800,
+      height: 450,
+      columns: 32,
+      rows: 18,
+      dotSize: 18,
+      dotShape: 'diamond',
+      strokeWidth: 0,
       foregroundColour: '#ffffff',
       secondaryColour: '#36c2ff',
       backgroundColour: '#000000',
