@@ -1,4 +1,6 @@
 import type {
+  AudioObject,
+  AudioVisualizationObject,
   GradientFill,
   ImageObject,
   LayerState,
@@ -59,7 +61,7 @@ export interface RustSceneSnapshot {
 
 export interface RustSceneMediaReference {
   id: string;
-  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'Psd';
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'Psd';
   source: string;
   width: number;
   height: number;
@@ -132,7 +134,8 @@ export interface RustSceneSnapshotBuildInput {
 export type RustSceneVideoSourceMode = 'previewProxy' | 'exportOriginal';
 
 type SupportedMediaObject = ImageObject | VideoObject | PsdObject;
-type SupportedSceneObject = SupportedMediaObject | ShapeObject;
+type SupportedGeneratedObject = AudioVisualizationObject;
+type SupportedSceneObject = SupportedMediaObject | ShapeObject | SupportedGeneratedObject;
 
 const rustColourPipeline = (): RustColourPipeline => ({
   profile: 'rec709-sdr',
@@ -195,7 +198,7 @@ export const buildRustSceneSnapshotForTimeline = ({
       colour: rustColourPipeline(),
       clips,
     },
-    media: supportedObjects.map((object) => mediaReferenceForObject(object, projectSettings.fps, videoSourceMode)),
+    media: supportedObjects.map((object) => mediaReferenceForObject(object, projectSettings.fps, videoSourceMode, objects, time)),
   };
 };
 
@@ -366,7 +369,7 @@ const isSupportedMediaObject = (object: TimelineObject): object is SupportedMedi
   object.type === 'image' || object.type === 'video' || object.type === 'psd';
 
 const isSupportedSceneObject = (object: TimelineObject): object is SupportedSceneObject =>
-  isSupportedMediaObject(object) || object.type === 'shape';
+  isSupportedMediaObject(object) || object.type === 'shape' || object.type === 'audio_visualization';
 
 const isVisualSceneObject = (object: TimelineObject): boolean =>
   object.type !== 'audio';
@@ -388,7 +391,9 @@ const hasUnsupportedSharedRendererTransform = (
 const mediaReferenceForObject = (
   object: SupportedSceneObject,
   projectFps: number,
-  videoSourceMode: RustSceneVideoSourceMode
+  videoSourceMode: RustSceneVideoSourceMode,
+  objects: TimelineObject[],
+  time: number
 ): RustSceneMediaReference => {
   if (object.type === 'shape') {
     if (object.gradient?.enabled === true) {
@@ -405,6 +410,16 @@ const mediaReferenceForObject = (
       id: object.id,
       kind: 'SolidColour',
       source: object.fill,
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'audio_visualization') {
+    return {
+      id: object.id,
+      kind: 'GeneratedAudioWaveform',
+      source: serialiseGeneratedAudioWaveformSource(object, objects, time),
       width: object.width,
       height: object.height,
     };
@@ -441,8 +456,48 @@ const serialiseGeneratedGradientSource = (gradient: GradientFill): string =>
     direction: Number.isFinite(gradient.direction) ? gradient.direction : 0,
   });
 
+const serialiseGeneratedAudioWaveformSource = (
+  object: AudioVisualizationObject,
+  objects: TimelineObject[],
+  time: number
+): string => {
+  const targetAudio = findTargetAudioForWaveform(object, objects, time);
+  return JSON.stringify({
+    generator: 'audio-waveform-r',
+    target_audio_id: targetAudio?.id ?? '',
+    target_source: targetAudio ? mediaSourceForObject(targetAudio) : '',
+    sample_window_seconds: 0.05,
+    colour: object.color || '#00ff00',
+    thickness: Math.max(1, finiteNumberOr(object.thickness, 2)),
+    amplitude: Math.max(0, finiteNumberOr(object.amplitude, 1)),
+  });
+};
+
+const findTargetAudioForWaveform = (
+  object: AudioVisualizationObject,
+  objects: TimelineObject[],
+  time: number
+): AudioObject | null => {
+  if (object.targetAudioId) {
+    const direct = objects.find((candidate): candidate is AudioObject => (
+      candidate.type === 'audio' && candidate.id === object.targetAudioId
+    ));
+    if (direct) return direct;
+  }
+  if (typeof object.targetLayer === 'number' && object.targetLayer >= 0) {
+    const layerTarget = objects.find((candidate): candidate is AudioObject => (
+      candidate.type === 'audio'
+      && candidate.layer === object.targetLayer
+      && time >= candidate.startTime
+      && time < candidate.startTime + candidate.duration
+    ));
+    if (layerTarget) return layerTarget;
+  }
+  return null;
+};
+
 const mediaSourceForObject = (
-  object: SupportedMediaObject,
+  object: SupportedMediaObject | AudioObject,
   videoSourceMode: RustSceneVideoSourceMode = 'previewProxy'
 ): string => {
   if (object.type === 'video' && videoSourceMode === 'previewProxy' && object.proxyFilePath) {
@@ -508,6 +563,7 @@ const sourceFrameForObject = (
   if (object.type === 'shape') return 0;
   if (object.type === 'image') return 0;
   if (object.type === 'psd') return 0;
+  if (object.type === 'audio_visualization') return secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
   const localTime = Math.max(0, time - object.startTime);
   const mediaTime = localTime + (object.offset ?? 0);
   return secondsToFrameIndex(mediaTime, fps);
@@ -714,7 +770,7 @@ const validateMediaReferences = (
     }
     validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height', 'source_rate', 'active_layer_ids'], issues);
     validateString(reference.id, `${path}.id`, issues);
-    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'Psd'], issues);
+    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'Psd'], issues);
     validateString(reference.source, `${path}.source`, issues);
     validatePositiveInteger(reference.width, `${path}.width`, issues);
     validatePositiveInteger(reference.height, `${path}.height`, issues);

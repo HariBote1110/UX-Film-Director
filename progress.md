@@ -1,3 +1,23 @@
+## 2026-06-21 — Audio waveform RをRust生成メディア境界へ追加
+
+### 実施内容
+- Red: `audio_visualization` オブジェクトが対象audioを参照した `GeneratedAudioWaveform` media planeとしてRust scene snapshotへ出る契約を追加した。
+- Red: Rust coreの `MediaKind::GeneratedAudioWaveform` と `ClipKind::GeneratedAudioWaveformPlane` を受け入れるスキーマ契約を追加した。
+- Green: `rustSceneSnapshot` が `audio_visualization` をshared renderer対応オブジェクトとして扱い、`audio-waveform-r` generator metadataをJSON sourceへ格納するようにした。
+- Green: `targetAudioId` 優先、未指定時は対象レイヤーの再生中audioを参照する解決処理を追加した。
+- Green: Rust core schemaに `GeneratedAudioWaveform` / `GeneratedAudioWaveformPlane` を追加した。
+- 版を `0.1.1-Beta-244a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/rustSceneSnapshot.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "src/utils/rustSceneSnapshot|src/types|rustSceneSnapshot.test"`
+- `cargo test --manifest-path rust-core/Cargo.toml --test timeline_snapshot_contract -- --nocapture`
+
+### 結果・残課題
+- TS snapshotテストは22件成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- Rust coreは `timeline_snapshot_contract` 6件成功。
+- 現段階は波形の生成メタデータをRust境界へ渡すところまで。次はRust側で音声サンプルを読み、波形mesh/textureを生成してnative-wgpu-rendererへ描画させる。
+
 ## 2026-06-21 — 扇クリッピング近似をRust/WebGPU境界へ追加
 
 ### 実施内容

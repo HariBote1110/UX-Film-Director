@@ -35,6 +35,7 @@ pub enum MediaKind {
     Image,
     SolidColour,
     GeneratedGradient,
+    GeneratedAudioWaveform,
     Psd,
 }
 
@@ -50,6 +51,7 @@ pub enum ClipKind {
     VideoPlane,
     ImagePlane,
     SolidColourPlane,
+    GeneratedAudioWaveformPlane,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

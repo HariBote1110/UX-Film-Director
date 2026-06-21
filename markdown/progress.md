@@ -1,6 +1,17 @@
 # 進捗ログ
 
 ## 2026-06-21
+- Audio waveform RをRust生成メディア境界へ追加した。
+- Red: `audio_visualization` オブジェクトが対象audioを参照した `GeneratedAudioWaveform` media planeとしてRust scene snapshotへ出る契約を追加した。
+- Red: Rust coreの `MediaKind::GeneratedAudioWaveform` と `ClipKind::GeneratedAudioWaveformPlane` を受け入れるスキーマ契約を追加した。
+- Green: `rustSceneSnapshot` が `audio_visualization` をshared renderer対応オブジェクトとして扱い、`audio-waveform-r` generator metadataをJSON sourceへ格納するようにした。
+- Green: `targetAudioId` 優先、未指定時は対象レイヤーの再生中audioを参照する解決処理を追加した。
+- Green: Rust core schemaに `GeneratedAudioWaveform` / `GeneratedAudioWaveformPlane` を追加した。
+- 版を `0.1.1-Beta-244a` に更新した。
+- 検証: TS snapshotテスト22件、Rust core `timeline_snapshot_contract` 6件が成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- 残課題: 次はRust側で音声サンプルを読み、波形mesh/textureを生成してnative-wgpu-rendererへ描画させる。
+
+## 2026-06-21
 - 扇クリッピング近似をRust/WebGPU境界へ追加した。
 - Red: 既存の `clipping` filterが `Clipping` effectとしてRust scene snapshotへ出る契約を追加した。
 - Red: Rust coreの `Effect::Clipping` と、切り取り量/角度の検証、native-wgpu-rendererの軸揃えクリッピング画素契約を追加した。
