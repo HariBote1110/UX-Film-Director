@@ -24,6 +24,7 @@ import type {
   SunburstObject,
   TartanCheckObject,
   HoundstoothObject,
+  PaperAirplaneObject,
   YagasuriObject,
   TimelineObject,
   TrackBarObject,
@@ -419,6 +420,20 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     foregroundColour: '#000000',
     backgroundColour: '#ffffff',
   };
+  const paperAirplane: PaperAirplaneObject = {
+    ...baseObject('ssd-paper-airplane', 'paper_airplane', 25),
+    type: 'paper_airplane',
+    name: '紙飛行機',
+    width: 320,
+    height: 240,
+    bodyLength: 200,
+    wingWidth: 80,
+    foldHeight: 50,
+    gap: 50,
+    followMotionDirection: false,
+    axisMode: 0,
+    fillColour: '#ffffff',
+  };
 
   return [
     solidShape,
@@ -443,6 +458,7 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     tartanCheck,
     houndstooth,
     yagasuri,
+    paperAirplane,
   ];
 };
 
@@ -525,6 +541,7 @@ describe('全読込可能メディア E2E', () => {
       'GeneratedTartanCheck',
       'GeneratedHoundstooth',
       'GeneratedYagasuri',
+      'GeneratedPaperAirplane',
     ]);
     expect(snapshotResult.media
       .filter((media) => media.kind === 'Video')
@@ -675,6 +692,16 @@ describe('全読込可能メディア E2E', () => {
       foreground_colour: '#000000',
       background_colour: '#ffffff',
     });
+    expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'ssd-paper-airplane')?.source ?? '{}')).toMatchObject({
+      generator: 'paper-airplane',
+      body_length: 200,
+      wing_width: 80,
+      fold_height: 50,
+      gap: 50,
+      follow_motion_direction: false,
+      axis_mode: 0,
+      fill_colour: '#ffffff',
+    });
     expect(snapshotResult.media.some((media) => media.source.endsWith('.wav'))).toBe(false);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'shape-solid-rect')?.transform).toMatchObject({
       translation_x: 64.5,
@@ -710,6 +737,7 @@ describe('全読込可能メディア E2E', () => {
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-tartan-check')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-houndstooth')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-yagasuri')?.source_frame).toBe(0);
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-paper-airplane')?.source_frame).toBe(0);
     expect(validateRustSceneSnapshotBoundary({
       snapshot: snapshotResult.snapshot,
       media: snapshotResult.media,

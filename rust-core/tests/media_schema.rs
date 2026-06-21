@@ -275,3 +275,19 @@ fn rust_core_accepts_generated_yagasuri_media_kind_at_the_json_boundary() {
     assert_eq!(media.width, 800);
     assert_eq!(media.height, 450);
 }
+
+#[test]
+fn rust_core_accepts_generated_paper_airplane_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "paper-airplane-1",
+        "kind": "GeneratedPaperAirplane",
+        "source": "{\"generator\":\"paper-airplane\",\"body_length\":200,\"wing_width\":80,\"fold_height\":50,\"gap\":50,\"follow_motion_direction\":false,\"axis_mode\":0,\"fill_colour\":\"#ffffff\"}",
+        "width": 320,
+        "height": 240
+    }))
+    .expect("GeneratedPaperAirplane media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedPaperAirplane);
+    assert_eq!(media.width, 320);
+    assert_eq!(media.height, 240);
+}

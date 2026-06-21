@@ -10,6 +10,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
 
     expect(code).toContain('buildAviUtlHoundstoothObject');
     expect(code).toContain('buildAviUtlYagasuriObject');
+    expect(code).toContain('buildAviUtlPaperAirplaneObject');
     expect(code).toContain('buildAviUtlCircularArrowObject');
     expect(code).toContain('buildAviUtlTartanCheckObject');
     expect(code).toContain('buildAviUtlTriangleBracketObject');
@@ -29,6 +30,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('buildDefaultStandardParticleObject');
     expect(code).toContain('handleAddHoundstooth');
     expect(code).toContain('handleAddYagasuri');
+    expect(code).toContain('handleAddPaperAirplane');
     expect(code).toContain('handleAddCircularArrow');
     expect(code).toContain('handleAddTartanCheck');
     expect(code).toContain('handleAddTriangleBracket');
@@ -48,6 +50,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('handleAddTrackBar');
     expect(code).toContain('Add Houndstooth');
     expect(code).toContain('Add Yagasuri');
+    expect(code).toContain('Add Paper Airplane');
     expect(code).toContain('Add Barcode');
     expect(code).toContain('Add Circular Arrow');
     expect(code).toContain('Add Tartan Check');
@@ -67,6 +70,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('Add Track Bar');
     expect(code).toContain('千鳥格子を追加');
     expect(code).toContain('矢がすりを追加');
+    expect(code).toContain('紙飛行機を追加');
     expect(code).toContain('バーコードを追加');
     expect(code).toContain('円矢印を追加');
     expect(code).toContain('タータンチェックを追加');

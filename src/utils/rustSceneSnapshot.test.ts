@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, HoundstoothObject, ImageObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, HoundstoothObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -588,6 +588,35 @@ const baseYagasuri = (patch: Partial<YagasuriObject> = {}): YagasuriObject => ({
   staggered: true,
   foregroundColour: '#000000',
   backgroundColour: '#ffffff',
+  ...patch,
+});
+
+const basePaperAirplane = (patch: Partial<PaperAirplaneObject> = {}): PaperAirplaneObject => ({
+  id: 'paper-airplane-1',
+  type: 'paper_airplane',
+  name: '紙飛行機',
+  layer: 20,
+  startTime: 1,
+  duration: 4,
+  x: 800,
+  y: 420,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 800,
+  endY: 420,
+  easing: 'linear',
+  width: 320,
+  height: 240,
+  bodyLength: 200,
+  wingWidth: 80,
+  foldHeight: 50,
+  gap: 50,
+  followMotionDirection: false,
+  axisMode: 0,
+  fillColour: '#ffffff',
   ...patch,
 });
 
@@ -1294,6 +1323,45 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         }),
         width: 800,
         height: 450,
+      },
+    ]);
+  });
+
+  it('builds a generated paper airplane media plane from a paper airplane object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [basePaperAirplane()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated paper airplane snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'paper-airplane-1',
+      track_id: 'layer-20',
+      media_id: 'paper-airplane-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'paper-airplane-1',
+        kind: 'GeneratedPaperAirplane',
+        source: JSON.stringify({
+          generator: 'paper-airplane',
+          body_length: 200,
+          wing_width: 80,
+          fold_height: 50,
+          gap: 50,
+          follow_motion_direction: false,
+          axis_mode: 0,
+          fill_colour: '#ffffff',
+        }),
+        width: 320,
+        height: 240,
       },
     ]);
   });

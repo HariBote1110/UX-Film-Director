@@ -160,6 +160,12 @@ const media: RustSceneMediaReference[] = [{
   width: 800,
   height: 450,
 }, {
+  id: 'paper-airplane-1',
+  kind: 'GeneratedPaperAirplane' as RustSceneMediaReference['kind'],
+  source: '{"generator":"paper-airplane","body_length":200,"wing_width":80,"fold_height":50,"gap":50,"follow_motion_direction":false,"axis_mode":0,"fill_colour":"#ffffff"}',
+  width: 320,
+  height: 240,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -215,8 +221,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[18])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[19])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[20])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[21])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[21])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[22])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[23])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {
