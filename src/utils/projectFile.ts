@@ -104,6 +104,7 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'hksy_checker_grid',
   'region_frame',
   'simple_tube',
+  'sphere_dots',
   'sunburst',
   'circular_arrow',
   'triangle_bracket',
@@ -531,6 +532,22 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (candidate.fogColour !== undefined && (typeof candidate.fogColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.fogColour))) return false;
     if (!isFiniteNumber(candidate.seed)) return false;
     if (typeof candidate.torus !== 'boolean') return false;
+  }
+  if (candidate.type === 'sphere_dots') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.radius) || candidate.radius < 1 || candidate.radius > 5000) return false;
+    if (typeof candidate.columns !== 'number' || !Number.isInteger(candidate.columns) || candidate.columns < 3 || candidate.columns > 256) return false;
+    if (typeof candidate.rows !== 'number' || !Number.isInteger(candidate.rows) || candidate.rows < 2 || candidate.rows > 256) return false;
+    if (!isFiniteNumber(candidate.rotationDegrees) || candidate.rotationDegrees < -1000 || candidate.rotationDegrees > 1000) return false;
+    if (!isFiniteNumber(candidate.offsetDegrees) || candidate.offsetDegrees < -360 || candidate.offsetDegrees > 360) return false;
+    if (!isFiniteNumber(candidate.luminanceInfluence) || candidate.luminanceInfluence < -5000 || candidate.luminanceInfluence > 5000) return false;
+    if (!isFiniteNumber(candidate.pointSize) || candidate.pointSize < 0 || candidate.pointSize > 200) return false;
+    if (!isFiniteNumber(candidate.latitudeLineWidth) || candidate.latitudeLineWidth < 0 || candidate.latitudeLineWidth > 100) return false;
+    if (typeof candidate.colour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.colour)) return false;
+    if (typeof candidate.secondaryColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.secondaryColour)) return false;
+    if (!isFiniteNumber(candidate.seed)) return false;
+    if (typeof candidate.planeMode !== 'boolean') return false;
   }
   return true;
 };

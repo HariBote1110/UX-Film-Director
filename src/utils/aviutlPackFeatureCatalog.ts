@@ -317,6 +317,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: 'hksyのアンカー指定ラインを、Rust生成の折れ線素材として標準搭載する。'
   },
   {
+    id: '93-sphere-drawpixel',
+    labelJa: '93 Sphere(DrawPixel)',
+    category: 'generated-object',
+    phase: 'P1',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/@Sphere.anm'],
+    rationaleJa: 'ピクセルを球状点群へ並べる発想を、Rust生成の球状ドット素材として標準搭載する。'
+  },
+  {
     id: 'particle-standard',
     labelJa: '標準パーティクル',
     category: 'generated-object',

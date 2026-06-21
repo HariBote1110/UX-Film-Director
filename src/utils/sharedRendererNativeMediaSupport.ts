@@ -21,6 +21,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedHksyCheckerGrid') return isSharedRendererNativeGeneratedHksyCheckerGridSourceSupported(reference.source);
   if (reference.kind === 'GeneratedRegionFrame') return isSharedRendererNativeGeneratedRegionFrameSourceSupported(reference.source);
   if (reference.kind === 'GeneratedSimpleTube') return isSharedRendererNativeGeneratedSimpleTubeSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedSphereDots') return isSharedRendererNativeGeneratedSphereDotsSourceSupported(reference.source);
   if (reference.kind === 'GeneratedSunburst') return isSharedRendererNativeGeneratedSunburstSourceSupported(reference.source);
   if (reference.kind === 'GeneratedCircularArrow') return isSharedRendererNativeGeneratedCircularArrowSourceSupported(reference.source);
   if (reference.kind === 'GeneratedTriangleBracket') return isSharedRendererNativeGeneratedTriangleBracketSourceSupported(reference.source);
@@ -1355,6 +1356,69 @@ const isSharedRendererNativeGeneratedSimpleTubeSourceSupported = (source: string
       && /^#[0-9a-f]{6}$/i.test(parsed.fog_colour)
       && Number.isInteger(parsed.seed)
       && typeof parsed.torus === 'boolean'
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedSphereDotsSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      radius?: unknown;
+      columns?: unknown;
+      rows?: unknown;
+      rotation_degrees?: unknown;
+      offset_degrees?: unknown;
+      luminance_influence?: unknown;
+      point_size?: unknown;
+      latitude_line_width?: unknown;
+      colour?: unknown;
+      secondary_colour?: unknown;
+      seed?: unknown;
+      plane_mode?: unknown;
+    };
+    return (
+      parsed.generator === 'sphere-drawpixel-93'
+      && typeof parsed.radius === 'number'
+      && Number.isFinite(parsed.radius)
+      && parsed.radius >= 1
+      && parsed.radius <= 5000
+      && typeof parsed.columns === 'number'
+      && Number.isInteger(parsed.columns)
+      && parsed.columns >= 3
+      && parsed.columns <= 256
+      && typeof parsed.rows === 'number'
+      && Number.isInteger(parsed.rows)
+      && parsed.rows >= 2
+      && parsed.rows <= 256
+      && typeof parsed.rotation_degrees === 'number'
+      && Number.isFinite(parsed.rotation_degrees)
+      && parsed.rotation_degrees >= -1000
+      && parsed.rotation_degrees <= 1000
+      && typeof parsed.offset_degrees === 'number'
+      && Number.isFinite(parsed.offset_degrees)
+      && parsed.offset_degrees >= -360
+      && parsed.offset_degrees <= 360
+      && typeof parsed.luminance_influence === 'number'
+      && Number.isFinite(parsed.luminance_influence)
+      && parsed.luminance_influence >= -5000
+      && parsed.luminance_influence <= 5000
+      && typeof parsed.point_size === 'number'
+      && Number.isFinite(parsed.point_size)
+      && parsed.point_size >= 0
+      && parsed.point_size <= 200
+      && typeof parsed.latitude_line_width === 'number'
+      && Number.isFinite(parsed.latitude_line_width)
+      && parsed.latitude_line_width >= 0
+      && parsed.latitude_line_width <= 100
+      && typeof parsed.colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.colour)
+      && typeof parsed.secondary_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.secondary_colour)
+      && Number.isInteger(parsed.seed)
+      && typeof parsed.plane_mode === 'boolean'
     );
   } catch {
     return false;
