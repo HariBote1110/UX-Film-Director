@@ -1,6 +1,18 @@
 # 進捗ログ
 
 ## 2026-06-22
+- hksy菱形をRust生成プリセットへ追加した。
+- Red: `hksy-diamond` がAviUtlPackV4カタログ、Timeline右クリックメニュー、factory、保存/読込、Rust scene snapshot、shared renderer native media、Rust backend画素生成を通る契約を追加した。
+- Green: `HksyCheckerGridObject.pattern` を追加し、`pattern: "diamond"` を `GeneratedHksyCheckerGrid` のJSON payloadへ渡すようにした。
+- Green: Rust backendで `pattern == "diamond"` の場合、透明背景に太さ付き菱形ポリゴンをRGBA生成するようにした。
+- Green: Timeline右クリックメニューに `hksy菱形を追加` / `Add hksy Diamond` を追加した。
+- 版を `0.1.1-Beta-296a` に更新した。
+- 検証: `npm test -- --run src/utils/hksyCheckerGridObjectFactory.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/packageScripts.test.ts --reporter=dot` は115件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_hksy_checker_grid_source_frame -- --nocapture` は3件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回のhksy菱形由来の型エラーは出ていない。
+- 次はhksyのグリッド/ラインアンカー系、GetColor画像サンプリング寄り拡張、または93系の残候補へ進む。
+
+## 2026-06-22
 - hksy複数色チェッカーをRust生成プリセットへ追加した。
 - Red: `hksy-multi-colour-checker` がAviUtlPackV4カタログ、Timeline右クリックメニュー、factory、保存/読込、Rust scene snapshot、shared renderer native media、Rust backend画素生成を通る契約を追加した。
 - Green: `HksyCheckerGridObject.paletteColours` を追加し、`GeneratedHksyCheckerGrid` のJSON payloadへ `palette_colours` を渡すようにした。

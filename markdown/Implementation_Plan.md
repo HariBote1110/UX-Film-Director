@@ -79,6 +79,7 @@
 60. ✅ `P1` GetColor / hksy / 93優先効果を実Electron動画export E2Eで固有画素検査まで通す
 61. ✅ `P1` hksy直線を既存Rust GeneratedHksyCheckerGrid生成メディアの線のみプリセットとして追加する
 62. ✅ `P1` hksy複数色チェッカーをRust GeneratedHksyCheckerGridのpalette付き生成プリセットとして追加する
+63. ✅ `P1` hksy菱形をRust GeneratedHksyCheckerGridのdiamond pattern生成プリセットとして追加する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。
