@@ -33,6 +33,14 @@ describe('Rust backend native render bridge boundary', () => {
     expect(viteEnvSource()).toContain('releaseNativeSharedFrame: (payload: unknown)');
   });
 
+  it('exposes audio.waveformSamples through Electron and renderer types', () => {
+    expect(mainSource()).toContain("'rust-backend-audio-waveform-samples'");
+    expect(mainSource()).toContain("callRustBackend('audio.waveformSamples'");
+    expect(preloadSource()).toContain('requestAudioWaveformSamples(payload: unknown)');
+    expect(preloadSource()).toContain("'rust-backend-audio-waveform-samples'");
+    expect(viteEnvSource()).toContain('requestAudioWaveformSamples: (payload:');
+  });
+
   it('keeps a persistent native WGPU renderer in backend state for repeated export frames', () => {
     const code = rustBackendSource();
 
