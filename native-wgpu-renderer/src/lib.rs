@@ -170,6 +170,31 @@ impl NativeWgpuRenderer {
         frame_report_to_shared_ring(report, memory_id, slot_count, pts_frame)
     }
 
+    pub async fn render_frame_to_shared_ring_with_audio_waveforms(
+        &self,
+        snapshot: &SceneSnapshot,
+        sources: &HashMap<String, RgbaFrame>,
+        waveforms: &[NativeAudioWaveformInput],
+        memory_id: &str,
+        slot_count: u32,
+        pts_frame: u64,
+    ) -> Result<NativeWgpuSharedFrameReport, NativeWgpuRenderError> {
+        let report = self
+            .render_frame_stages_with_audio_waveforms(snapshot, sources, waveforms)
+            .await?;
+        frame_report_to_shared_ring(report, memory_id, slot_count, pts_frame)
+    }
+
+    pub async fn render_frame_stages_with_audio_waveforms(
+        &self,
+        snapshot: &SceneSnapshot,
+        sources: &HashMap<String, RgbaFrame>,
+        waveforms: &[NativeAudioWaveformInput],
+    ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
+        let generated_sources = build_audio_waveform_sources(snapshot, sources, waveforms)?;
+        self.render_frame_stages(snapshot, &generated_sources).await
+    }
+
     async fn render_frame_stages_with_setup(
         &self,
         snapshot: &SceneSnapshot,
@@ -369,6 +394,15 @@ pub async fn render_native_wgpu_frame_with_audio_waveforms(
     width: u32,
     height: u32,
 ) -> Result<RgbaFrame, NativeWgpuRenderError> {
+    let generated_sources = build_audio_waveform_sources(snapshot, sources, waveforms)?;
+    render_native_wgpu_frame(snapshot, &generated_sources, width, height).await
+}
+
+fn build_audio_waveform_sources(
+    snapshot: &SceneSnapshot,
+    sources: &HashMap<String, RgbaFrame>,
+    waveforms: &[NativeAudioWaveformInput],
+) -> Result<HashMap<String, RgbaFrame>, NativeWgpuRenderError> {
     let mut generated_sources = sources.clone();
     for waveform in waveforms {
         let source_frame = snapshot
@@ -381,7 +415,7 @@ pub async fn render_native_wgpu_frame_with_audio_waveforms(
         generated_sources.insert(waveform.media_id.clone(), frame);
     }
 
-    render_native_wgpu_frame(snapshot, &generated_sources, width, height).await
+    Ok(generated_sources)
 }
 
 pub async fn render_native_wgpu_frame_to_shared_ring(

@@ -1,3 +1,24 @@
+## 2026-06-21 — Audio waveform Rをnative render payloadへ接続
+
+### 実施内容
+- Red: GeneratedAudioWaveformがpreview native renderでPCMを要求し、`audioWaveforms` としてRust native render payloadへ渡る契約を追加した。
+- Red: Rust backendの `render.nativeSharedFrame` が `audioWaveforms` だけでGeneratedAudioWaveformをshared frame出力できる契約を追加した。
+- Green: `RustBackendNativeRenderSharedFramePayload.audioWaveforms` を追加し、preview native render準備で `audio-waveform-r` metadataからPCMサンプルを要求するようにした。
+- Green: GeneratedAudioWaveformをRust native render対応メディアとしてgateへ追加した。
+- Green: rust-backendが `audioWaveforms` を `NativeAudioWaveformInput` へ変換し、native-wgpu-rendererの波形描画経路へ渡すようにした。
+- Green: direct native encode側も `audioWaveforms` を受けられるようにし、preview/export両方のRust backend境界を揃えた。
+- 版を `0.1.1-Beta-249a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/rustBackendNativeRenderControl.test.ts src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts`
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane native_render_shared_frame_builds_generated_audio_waveform_from_payload -- --nocapture`
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test native_reference_parity native_wgpu_renders_generated_audio_waveform_frame -- --nocapture`
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererViewportNativeRenderUpload|rustBackendNativeRenderControl|sharedRendererNativeMediaSupport|vite-env|electron/main|native render"`
+
+### 結果・残課題
+- TS対象20件、Rust backendの波形native shared frameテスト1件、native-wgpu-rendererの波形描画テスト1件が成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- 次はexport frame sourceでGeneratedAudioWaveformのPCM要求を行い、direct native encode payloadにも実際の `audioWaveforms` を積む。
+
 ## 2026-06-21 — Audio waveform RのElectron bridgeを追加
 
 ### 実施内容

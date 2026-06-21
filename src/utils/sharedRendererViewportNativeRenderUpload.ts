@@ -1,12 +1,18 @@
 import {
   releaseRustBackendNativeSharedFrame,
   renderRustBackendNativeSharedFrame,
+  type RustBackendNativeRenderAudioWaveform,
   type RustBackendNativeRenderReleaseSharedFramePayload,
   type RustBackendNativeRenderSharedFramePayload,
   type RustBackendNativeRenderSharedFrameResult,
 } from './rustBackendNativeRenderControl';
+import {
+  requestRustBackendAudioWaveformSamples,
+  type RustBackendAudioWaveformBridge,
+} from './rustBackendAudioWaveformControl';
 import type { RustBackendResult } from './rustBackendVideoDecodeControl';
 import type { SharedRendererPreviewSession } from './sharedRendererPreviewSession';
+import type { RustSceneMediaReference } from './rustSceneSnapshot';
 import {
   prepareSharedRendererDecodedVideoFrameUpload,
   type PrepareSharedRendererDecodedVideoFrameUploadResult,
@@ -49,6 +55,7 @@ export interface PrepareSharedRendererViewportNativeRenderUploadInput {
   prepareNativeRenderSources?: SharedRendererViewportNativeRenderSourcesPreparer;
   renderNativeSharedFrame?: SharedRendererViewportNativeSharedFrameRenderer;
   releaseNativeSharedFrame?: SharedRendererViewportNativeSharedFrameReleaser;
+  requestAudioWaveformSamples?: RustBackendAudioWaveformBridge['requestAudioWaveformSamples'];
   copyBridge?: SharedVideoFrameCopyBridge;
 }
 
@@ -84,6 +91,7 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
   prepareNativeRenderSources = prepareSharedRendererViewportNativeRenderSources,
   renderNativeSharedFrame = renderRustBackendNativeSharedFrame,
   releaseNativeSharedFrame = releaseRustBackendNativeSharedFrame,
+  requestAudioWaveformSamples = requestRustBackendAudioWaveformSamples,
   copyBridge = window.sharedVideoFrame,
 }: PrepareSharedRendererViewportNativeRenderUploadInput): Promise<PrepareSharedRendererViewportNativeRenderUploadResult> => {
   if (!session.surfaceGate.ok) {
@@ -189,6 +197,10 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
 
   const renderId = buildPreviewNativeRenderId(resolvedRequestId);
   const renderMemoryId = buildPreviewNativeRenderMemoryId(resolvedRequestId);
+  const audioWaveforms = await prepareNativeRenderAudioWaveforms({
+    media: surfaceGate.media,
+    requestAudioWaveformSamples,
+  });
   let renderResponse: RustBackendResult<RustBackendNativeRenderSharedFrameResult>;
   try {
     renderResponse = await renderNativeSharedFrame({
@@ -201,6 +213,7 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
       snapshot: surfaceGate.snapshot,
       media: surfaceGate.media,
       sources: renderSources,
+      ...(audioWaveforms.length > 0 ? { audioWaveforms } : {}),
     });
   } catch (error) {
     const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
@@ -321,6 +334,89 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
     activeJobs: activeRenderJobs,
     upload,
   };
+};
+
+const DEFAULT_AUDIO_WAVEFORM_SAMPLE_RATE = 8000;
+
+type AudioWaveformSourceMetadata = {
+  generator: string;
+  target_audio_id: string;
+  target_source: string;
+  sample_window_seconds: number;
+  colour: string;
+  thickness: number;
+  amplitude: number;
+};
+
+const prepareNativeRenderAudioWaveforms = async ({
+  media,
+  requestAudioWaveformSamples,
+}: {
+  media: readonly RustSceneMediaReference[];
+  requestAudioWaveformSamples: RustBackendAudioWaveformBridge['requestAudioWaveformSamples'];
+}): Promise<RustBackendNativeRenderAudioWaveform[]> => {
+  const waveforms = media
+    .filter((reference) => reference.kind === 'GeneratedAudioWaveform')
+    .map((reference) => ({
+      reference,
+      metadata: parseAudioWaveformSourceMetadata(reference.source),
+    }))
+    .filter((entry): entry is { reference: RustSceneMediaReference; metadata: AudioWaveformSourceMetadata } =>
+      entry.metadata !== null
+    );
+
+  const prepared = await Promise.all(waveforms.map(async ({ reference, metadata }) => {
+    const sampleRate = DEFAULT_AUDIO_WAVEFORM_SAMPLE_RATE;
+    const durationSeconds = metadata.sample_window_seconds;
+    const response = await requestAudioWaveformSamples({
+      source: metadata.target_source,
+      sampleRate,
+      maxSamples: Math.max(1, Math.ceil(sampleRate * durationSeconds)),
+      startSeconds: 0,
+      durationSeconds,
+    });
+    if (!response.success || !response.result) {
+      throw new Error(response.error ?? `Rust backend audio waveform sample request failed for '${reference.id}'.`);
+    }
+    return {
+      mediaId: reference.id,
+      source: reference.source,
+      samples: response.result.samples,
+      sampleRate: response.result.sampleRate,
+      width: reference.width,
+      height: reference.height,
+    };
+  }));
+
+  return prepared;
+};
+
+const parseAudioWaveformSourceMetadata = (source: string): AudioWaveformSourceMetadata | null => {
+  try {
+    const parsed = JSON.parse(source) as Partial<AudioWaveformSourceMetadata>;
+    if (
+      parsed.generator !== 'audio-waveform-r'
+      || typeof parsed.target_audio_id !== 'string'
+      || parsed.target_audio_id.length === 0
+      || typeof parsed.target_source !== 'string'
+      || parsed.target_source.length === 0
+      || typeof parsed.sample_window_seconds !== 'number'
+      || !Number.isFinite(parsed.sample_window_seconds)
+      || parsed.sample_window_seconds <= 0
+      || typeof parsed.colour !== 'string'
+      || typeof parsed.thickness !== 'number'
+      || !Number.isFinite(parsed.thickness)
+      || parsed.thickness <= 0
+      || typeof parsed.amplitude !== 'number'
+      || !Number.isFinite(parsed.amplitude)
+      || parsed.amplitude < 0
+    ) {
+      return null;
+    }
+    return parsed as AudioWaveformSourceMetadata;
+  } catch {
+    return null;
+  }
 };
 
 const buildPreviewNativeRenderId = (requestId: number): string =>

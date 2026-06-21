@@ -30,7 +30,8 @@
 12. ✅ `P1` Audio waveform Rをnative-wgpu-rendererへ接続
 13. ✅ `P1` Audio waveform R用PCM供給RPCをRust backendへ追加
 14. ✅ `P1` Audio waveform RのElectron bridgeを追加
-15. E2Eで代表素材に効果を載せ、preview/exportの一致を検証
+15. ✅ `P1` Audio waveform Rをnative render payloadへ接続
+16. E2Eで代表素材に効果を載せ、preview/exportの一致を検証
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

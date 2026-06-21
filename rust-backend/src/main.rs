@@ -11,8 +11,12 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use uxfd_golden_harness::{load_rgba_jpeg, load_rgba_png, RgbaFrame};
-use uxfd_native_wgpu_renderer::{NativeWgpuRenderError, NativeWgpuRenderer};
-use uxfd_rust_core::{EvaluatedClip, MediaKind, SamplingMode, SceneMediaReference, SceneSnapshot};
+use uxfd_native_wgpu_renderer::{
+    NativeAudioWaveformInput, NativeWgpuRenderError, NativeWgpuRenderer,
+};
+use uxfd_rust_core::{
+    AudioWaveformSource, EvaluatedClip, MediaKind, SamplingMode, SceneMediaReference, SceneSnapshot,
+};
 #[cfg(unix)]
 use uxfd_shared_memory_spike::{PosixSharedRing, PosixShmError};
 use uxfd_sidecar_protocol::{
@@ -235,6 +239,8 @@ struct EncodeWriteNativeFrameParams {
     #[serde(default)]
     media: Vec<SceneMediaReference>,
     sources: Vec<NativeRenderSharedFrameSource>,
+    #[serde(default)]
+    audio_waveforms: Vec<NativeRenderAudioWaveformSource>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -378,6 +384,8 @@ struct NativeRenderSharedFrameParams {
     #[serde(default)]
     media: Vec<SceneMediaReference>,
     sources: Vec<NativeRenderSharedFrameSource>,
+    #[serde(default)]
+    audio_waveforms: Vec<NativeRenderAudioWaveformSource>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -386,6 +394,17 @@ struct NativeRenderSharedFrameSource {
     media_id: String,
     slot_count: u32,
     frame: SharedFrame,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeRenderAudioWaveformSource {
+    media_id: String,
+    source: String,
+    samples: Vec<f32>,
+    sample_rate: u32,
+    width: u32,
+    height: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -665,56 +684,62 @@ fn handle_encode_write_native_frame(
             return response_error(id, native_render_source_error_code(&message), &message);
         }
     };
-    if sources.is_empty() {
+    let audio_waveforms = match collect_native_render_audio_waveforms(&parsed.audio_waveforms) {
+        Ok(value) => value,
+        Err(message) => return response_error(id, -32602, &message),
+    };
+    if sources.is_empty() && audio_waveforms.is_empty() {
         return response_error(
             id,
             -32602,
-            "sources, Image media, or SolidColour media must include at least one render source",
+            "sources, Image media, SolidColour media, or audioWaveforms must include at least one render source",
         );
     }
 
-    if let Some(frame) = match try_render_simple_video_frame(
-        &parsed.snapshot,
-        &parsed.media,
-        &sources,
-        parsed.width,
-        parsed.height,
-    ) {
-        Ok(value) => value,
-        Err(message) => return response_error(id, -32071, &message),
-    } {
-        let (session_id, frame_count, encoded_frame_byte_len) = {
-            let Some(session) = state.encode_sessions.get_mut(&parsed.session_id) else {
-                return response_error(id, -32052, "No active encode session");
+    if audio_waveforms.is_empty() {
+        if let Some(frame) = match try_render_simple_video_frame(
+            &parsed.snapshot,
+            &parsed.media,
+            &sources,
+            parsed.width,
+            parsed.height,
+        ) {
+            Ok(value) => value,
+            Err(message) => return response_error(id, -32071, &message),
+        } {
+            let (session_id, frame_count, encoded_frame_byte_len) = {
+                let Some(session) = state.encode_sessions.get_mut(&parsed.session_id) else {
+                    return response_error(id, -32052, "No active encode session");
+                };
+                let encoded_frame_byte_len = match write_rgba_frame_to_encoder(session, &frame) {
+                    Ok(value) => value,
+                    Err(message) => return response_error(id, -32053, &message),
+                };
+                session.frame_count += 1;
+                (
+                    session.session_id.clone(),
+                    session.frame_count,
+                    encoded_frame_byte_len,
+                )
             };
-            let encoded_frame_byte_len = match write_rgba_frame_to_encoder(session, &frame) {
-                Ok(value) => value,
-                Err(message) => return response_error(id, -32053, &message),
-            };
-            session.frame_count += 1;
-            (
-                session.session_id.clone(),
-                session.frame_count,
-                encoded_frame_byte_len,
-            )
-        };
 
-        return RpcResponse {
-            id,
-            ok: true,
-            result: Some(json!({
-                "written": true,
-                "writtenNativeFrame": true,
-                "sessionId": session_id,
-                "renderId": parsed.render_id,
-                "renderPath": "cpuSimpleVideoComposite",
-                "frameIndex": parsed.frame_index,
-                "timestampUs": parsed.timestamp_us,
-                "encodedFrameByteLen": encoded_frame_byte_len,
-                "frameCount": frame_count,
-            })),
-            error: None,
-        };
+            return RpcResponse {
+                id,
+                ok: true,
+                result: Some(json!({
+                    "written": true,
+                    "writtenNativeFrame": true,
+                    "sessionId": session_id,
+                    "renderId": parsed.render_id,
+                    "renderPath": "cpuSimpleVideoComposite",
+                    "frameIndex": parsed.frame_index,
+                    "timestampUs": parsed.timestamp_us,
+                    "encodedFrameByteLen": encoded_frame_byte_len,
+                    "frameCount": frame_count,
+                })),
+                error: None,
+            };
+        }
     }
 
     let renderer = match get_or_create_native_wgpu_renderer(state, parsed.width, parsed.height) {
@@ -731,8 +756,11 @@ fn handle_encode_write_native_frame(
         }
     };
 
-    let render = match pollster::block_on(renderer.render_frame_stages(&parsed.snapshot, &sources))
-    {
+    let render = match pollster::block_on(renderer.render_frame_stages_with_audio_waveforms(
+        &parsed.snapshot,
+        &sources,
+        &audio_waveforms,
+    )) {
         Ok(value) => value,
         Err(NativeWgpuRenderError::AdapterUnavailable) => {
             return response_error(id, -32070, "Native WebGPU adapter is unavailable");
@@ -1604,54 +1632,60 @@ fn handle_native_render_shared_frame(
             return response_error(id, native_render_source_error_code(&message), &message);
         }
     };
-    if sources.is_empty() {
+    let audio_waveforms = match collect_native_render_audio_waveforms(&parsed.audio_waveforms) {
+        Ok(value) => value,
+        Err(message) => return response_error(id, -32602, &message),
+    };
+    if sources.is_empty() && audio_waveforms.is_empty() {
         return response_error(
             id,
             -32602,
-            "sources, Image media, or SolidColour media must include at least one render source",
+            "sources, Image media, SolidColour media, or audioWaveforms must include at least one render source",
         );
     }
 
-    match try_render_simple_video_frame_to_shared_ring(
-        &parsed.snapshot,
-        &parsed.media,
-        &sources,
-        parsed.width,
-        parsed.height,
-        &parsed.memory_id,
-        parsed.slot_count,
-        parsed.pts_frame,
-    ) {
-        Ok(Some(render)) => {
-            let frame = render.shared_frame.clone();
-            let slot_count = render.slot_count;
-            let slot_byte_len = render.slot_byte_len;
-            state
-                .native_render_outputs
-                .insert(parsed.memory_id.clone(), render.ring);
+    if audio_waveforms.is_empty() {
+        match try_render_simple_video_frame_to_shared_ring(
+            &parsed.snapshot,
+            &parsed.media,
+            &sources,
+            parsed.width,
+            parsed.height,
+            &parsed.memory_id,
+            parsed.slot_count,
+            parsed.pts_frame,
+        ) {
+            Ok(Some(render)) => {
+                let frame = render.shared_frame.clone();
+                let slot_count = render.slot_count;
+                let slot_byte_len = render.slot_byte_len;
+                state
+                    .native_render_outputs
+                    .insert(parsed.memory_id.clone(), render.ring);
 
-            return RpcResponse {
-                id,
-                ok: true,
-                result: Some(json!({
-                    "rendered": true,
-                    "renderPath": "cpuSimpleVideoComposite",
-                    "renderId": parsed.render_id,
-                    "memoryId": parsed.memory_id,
-                    "slotCount": slot_count,
-                    "slotByteLen": slot_byte_len,
-                    "frame": frame,
-                })),
-                error: None,
-            };
-        }
-        Ok(None) => {}
-        Err(message) => {
-            return response_error(
-                id,
-                -32071,
-                &format!("Native CPU simple video render failed: {message}"),
-            );
+                return RpcResponse {
+                    id,
+                    ok: true,
+                    result: Some(json!({
+                        "rendered": true,
+                        "renderPath": "cpuSimpleVideoComposite",
+                        "renderId": parsed.render_id,
+                        "memoryId": parsed.memory_id,
+                        "slotCount": slot_count,
+                        "slotByteLen": slot_byte_len,
+                        "frame": frame,
+                    })),
+                    error: None,
+                };
+            }
+            Ok(None) => {}
+            Err(message) => {
+                return response_error(
+                    id,
+                    -32071,
+                    &format!("Native CPU simple video render failed: {message}"),
+                );
+            }
         }
     }
 
@@ -1669,25 +1703,27 @@ fn handle_native_render_shared_frame(
         }
     };
 
-    let render = match pollster::block_on(renderer.render_frame_to_shared_ring(
-        &parsed.snapshot,
-        &sources,
-        &parsed.memory_id,
-        parsed.slot_count,
-        parsed.pts_frame,
-    )) {
-        Ok(value) => value,
-        Err(NativeWgpuRenderError::AdapterUnavailable) => {
-            return response_error(id, -32070, "Native WebGPU adapter is unavailable");
-        }
-        Err(error) => {
-            return response_error(
-                id,
-                -32071,
-                &format!("Native WebGPU render failed: {error:?}"),
-            );
-        }
-    };
+    let render =
+        match pollster::block_on(renderer.render_frame_to_shared_ring_with_audio_waveforms(
+            &parsed.snapshot,
+            &sources,
+            &audio_waveforms,
+            &parsed.memory_id,
+            parsed.slot_count,
+            parsed.pts_frame,
+        )) {
+            Ok(value) => value,
+            Err(NativeWgpuRenderError::AdapterUnavailable) => {
+                return response_error(id, -32070, "Native WebGPU adapter is unavailable");
+            }
+            Err(error) => {
+                return response_error(
+                    id,
+                    -32071,
+                    &format!("Native WebGPU render failed: {error:?}"),
+                );
+            }
+        };
 
     let frame = render.shared_frame.clone();
     let slot_count = render.slot_count;
@@ -2110,6 +2146,27 @@ fn collect_native_render_sources(
     }
 
     Ok(sources)
+}
+
+fn collect_native_render_audio_waveforms(
+    waveforms: &[NativeRenderAudioWaveformSource],
+) -> Result<Vec<NativeAudioWaveformInput>, String> {
+    waveforms
+        .iter()
+        .map(|waveform| {
+            let source = AudioWaveformSource::from_json(&waveform.source).map_err(|error| {
+                format!("Invalid native render audio waveform source: {error:?}")
+            })?;
+            Ok(NativeAudioWaveformInput {
+                media_id: waveform.media_id.clone(),
+                source,
+                samples: waveform.samples.clone(),
+                sample_rate: waveform.sample_rate,
+                width: waveform.width,
+                height: waveform.height,
+            })
+        })
+        .collect()
 }
 
 fn native_render_source_error_code(message: &str) -> i64 {

@@ -1,6 +1,18 @@
 # 進捗ログ
 
 ## 2026-06-21
+- Audio waveform Rをnative render payloadへ接続した。
+- Red: GeneratedAudioWaveformがpreview native renderでPCMを要求し、`audioWaveforms` としてRust native render payloadへ渡る契約を追加した。
+- Red: Rust backendの `render.nativeSharedFrame` が `audioWaveforms` だけでGeneratedAudioWaveformをshared frame出力できる契約を追加した。
+- Green: `RustBackendNativeRenderSharedFramePayload.audioWaveforms` を追加し、preview native render準備で `audio-waveform-r` metadataからPCMサンプルを要求するようにした。
+- Green: GeneratedAudioWaveformをRust native render対応メディアとしてgateへ追加した。
+- Green: rust-backendが `audioWaveforms` を `NativeAudioWaveformInput` へ変換し、native-wgpu-rendererの波形描画経路へ渡すようにした。
+- Green: direct native encode側も `audioWaveforms` を受けられるようにし、preview/export両方のRust backend境界を揃えた。
+- 版を `0.1.1-Beta-249a` に更新した。
+- 検証: TS対象20件、Rust backendの波形native shared frameテスト1件、native-wgpu-rendererの波形描画テスト1件が成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- 残課題: 次はexport frame sourceでGeneratedAudioWaveformのPCM要求を行い、direct native encode payloadにも実際の `audioWaveforms` を積む。
+
+## 2026-06-21
 - Audio waveform RのElectron bridgeを追加した。
 - Red: rendererから `audio.waveformSamples` を呼び出す `rustBackendAudioWaveformControl` 契約と、Electron main/preload/vite-envのbridge露出契約を追加した。
 - Green: `requestRustBackendAudioWaveformSamples` を追加し、rendererから `window.rustBackend.requestAudioWaveformSamples` 経由でPCMサンプル要求を送れるようにした。

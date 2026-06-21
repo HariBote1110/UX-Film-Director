@@ -5,6 +5,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
 ): boolean => {
   if (reference.kind === 'SolidColour') return true;
   if (reference.kind === 'GeneratedGradient') return isSharedRendererNativeGeneratedGradientSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedAudioWaveform') return isSharedRendererNativeGeneratedAudioWaveformSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -49,6 +50,40 @@ const isSharedRendererNativeGeneratedGradientSourceSupported = (source: string):
         && parsed.stops.every((stop) => typeof stop === 'number' && Number.isFinite(stop))
       ))
       && (parsed.direction === undefined || (typeof parsed.direction === 'number' && Number.isFinite(parsed.direction)))
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedAudioWaveformSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      target_audio_id?: unknown;
+      target_source?: unknown;
+      sample_window_seconds?: unknown;
+      colour?: unknown;
+      thickness?: unknown;
+      amplitude?: unknown;
+    };
+    return (
+      parsed.generator === 'audio-waveform-r'
+      && typeof parsed.target_audio_id === 'string'
+      && parsed.target_audio_id.length > 0
+      && typeof parsed.target_source === 'string'
+      && parsed.target_source.length > 0
+      && typeof parsed.sample_window_seconds === 'number'
+      && Number.isFinite(parsed.sample_window_seconds)
+      && parsed.sample_window_seconds > 0
+      && typeof parsed.colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.colour)
+      && typeof parsed.thickness === 'number'
+      && Number.isFinite(parsed.thickness)
+      && parsed.thickness > 0
+      && typeof parsed.amplitude === 'number'
+      && Number.isFinite(parsed.amplitude)
+      && parsed.amplitude >= 0
     );
   } catch {
     return false;

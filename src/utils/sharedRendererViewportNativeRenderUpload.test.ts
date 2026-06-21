@@ -276,7 +276,7 @@ const buildAudioWaveformSession = (): SharedRendererPreviewSession => {
     ...mediaOnlySession.surfaceGate.snapshot.clips[0],
     clip_id: 'waveform-1',
     media_id: 'waveform-1',
-    source_frame: 30,
+    source_frame: 0,
     z_index: 0,
     transform: {
       ...mediaOnlySession.surfaceGate.snapshot.clips[0].transform,

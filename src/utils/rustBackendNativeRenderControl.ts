@@ -13,6 +13,15 @@ export interface RustBackendNativeRenderSharedFrameSource {
   frame: RustBackendSharedVideoFrame;
 }
 
+export interface RustBackendNativeRenderAudioWaveform {
+  mediaId: string;
+  source: string;
+  samples: number[];
+  sampleRate: number;
+  width: number;
+  height: number;
+}
+
 export interface RustBackendNativeRenderSharedFramePayload {
   renderId: string;
   memoryId: string;
@@ -23,6 +32,7 @@ export interface RustBackendNativeRenderSharedFramePayload {
   snapshot: RustSceneSnapshot;
   media: RustSceneMediaReference[];
   sources: RustBackendNativeRenderSharedFrameSource[];
+  audioWaveforms?: RustBackendNativeRenderAudioWaveform[];
 }
 
 export interface RustBackendNativeRenderSharedFrameResult {
