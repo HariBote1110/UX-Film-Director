@@ -153,6 +153,53 @@ fn project_schema_accepts_solid_colour_media_for_rectangle_shapes() {
 }
 
 #[test]
+fn project_schema_accepts_generated_audio_waveform_media() {
+    let project = Project {
+        id: "project-1".to_string(),
+        version: 1,
+        size: ProjectSize {
+            width: 1920,
+            height: 1080,
+        },
+        fps: Fps {
+            numerator: 60,
+            denominator: 1,
+        },
+        colour: ColourPipeline::rec709_sdr_linear(),
+        media: vec![MediaReference {
+            id: "waveform-1".to_string(),
+            kind: MediaKind::GeneratedAudioWaveform,
+            source: r##"{"generator":"audio-waveform-r","target_audio_id":"audio-1","target_source":"/tmp/music.wav","sample_window_seconds":0.05,"colour":"#00ff00","thickness":2,"amplitude":1}"##.to_string(),
+        }],
+        tracks: vec![Track {
+            id: "track-1".to_string(),
+            clips: vec![Clip {
+                id: "waveform-clip-1".to_string(),
+                media_id: "waveform-1".to_string(),
+                kind: ClipKind::GeneratedAudioWaveformPlane,
+                start_frame: 0,
+                duration_frames: 60,
+                transform: Transform::identity(),
+                opacity: 1.0,
+                opacity_keyframes: Vec::new(),
+                effects: Vec::new(),
+            }],
+        }],
+    };
+
+    let encoded = serde_json::to_value(&project).expect("serialise project");
+    assert_eq!(encoded["media"][0]["kind"], "GeneratedAudioWaveform");
+    assert_eq!(
+        encoded["tracks"][0]["clips"][0]["kind"],
+        "GeneratedAudioWaveformPlane"
+    );
+
+    let snapshot = evaluate_frame(&project, 0);
+    assert_eq!(snapshot.clips[0].media_id, "waveform-1");
+    assert_eq!(snapshot.clips[0].source_frame, 0);
+}
+
+#[test]
 fn scene_snapshot_serialises_with_renderer_boundary_field_names() {
     let project = project_with_transform();
     let snapshot = evaluate_frame(&project, 10);

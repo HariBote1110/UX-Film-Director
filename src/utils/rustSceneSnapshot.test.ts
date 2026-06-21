@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AudioObject, ImageObject, ProjectSettings, PsdObject, ShapeObject, TimelineObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, ImageObject, ProjectSettings, PsdObject, ShapeObject, TimelineObject, VideoObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -140,6 +140,33 @@ const baseAudio = (patch: Partial<AudioObject> = {}): AudioObject => ({
   ...patch,
 });
 
+const baseAudioVisualisation = (patch: Partial<AudioVisualizationObject> = {}): AudioVisualizationObject => ({
+  id: 'waveform-1',
+  type: 'audio_visualization',
+  name: 'Audio waveform R',
+  layer: 4,
+  startTime: 1,
+  duration: 4,
+  x: 320,
+  y: 240,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 320,
+  endY: 240,
+  easing: 'linear',
+  targetAudioId: 'audio-1',
+  visualizationType: 'waveform',
+  color: '#00ff00',
+  thickness: 2,
+  width: 640,
+  height: 120,
+  amplitude: 1,
+  ...patch,
+});
+
 describe('buildRustSceneSnapshotForTimeline', () => {
   it('builds a solid colour plane for active rectangle shapes', () => {
     const layers = createDefaultLayers();
@@ -197,6 +224,56 @@ describe('buildRustSceneSnapshotForTimeline', () => {
 
     expect(result.snapshot.clips.map((clip) => clip.clip_id)).toEqual(['shape-1']);
     expect(result.media.map((reference) => reference.id)).toEqual(['shape-1']);
+  });
+
+  it('builds a generated Audio waveform R media plane from an audio visualisation object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseAudio(), baseAudioVisualisation()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated audio waveform snapshot to pass');
+
+    expect(result.snapshot.clips).toEqual([
+      {
+        clip_id: 'waveform-1',
+        track_id: 'layer-4',
+        media_id: 'waveform-1',
+        source_frame: 60,
+        z_index: 0,
+        transform: {
+          translation_x: 320,
+          translation_y: 240,
+          scale_x: 1,
+          scale_y: 1,
+          rotation_degrees: 0,
+          sampling: 'bilinear',
+        },
+        opacity: 1,
+        effects: [],
+      },
+    ]);
+    expect(result.media).toEqual([
+      {
+        id: 'waveform-1',
+        kind: 'GeneratedAudioWaveform',
+        source: JSON.stringify({
+          generator: 'audio-waveform-r',
+          target_audio_id: 'audio-1',
+          target_source: '/tmp/music.wav',
+          sample_window_seconds: 0.05,
+          colour: '#00ff00',
+          thickness: 2,
+          amplitude: 1,
+        }),
+        width: 640,
+        height: 120,
+      },
+    ]);
   });
 
   it('builds a generated gradient plane for active rectangle shapes', () => {
