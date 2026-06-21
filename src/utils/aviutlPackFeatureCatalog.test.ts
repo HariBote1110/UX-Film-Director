@@ -35,6 +35,7 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('tim-aura-emission')?.sourceRelativePaths).toContain('script/てぃむ/オーラ放出.anm');
     expect(byId.get('tim-bubbles')?.sourceRelativePaths).toContain('script/てぃむ/泡.obj');
     expect(byId.get('tim-focus-lines')?.sourceRelativePaths).toContain('script/てぃむ/@集中線T.obj');
+    expect(byId.get('tim-ink-splash')?.sourceRelativePaths).toContain('script/てぃむ/インクTM.obj');
     expect(byId.get('tim-motion-path')?.sourceRelativePaths).toEqual(expect.arrayContaining([
       'script/てぃむ/@モーションパスA-V2.anm',
       'script/てぃむ/@モーションパスD.anm',

@@ -1,6 +1,17 @@
 # 進捗ログ
 
 ## 2026-06-21
+- TimインクTMを標準生成オブジェクトへ追加した。
+- Red: `script/てぃむ/インクTM.obj` を、Timeline右クリックから追加できるAviUtlPackV4標準生成オブジェクトにする契約を作った。
+- Green: `buildAviUtlInkSplashObject` を追加し、標準パーティクル基盤でインク飛沫近似のParticleObjectを生成できるようにした。
+- Green: Timeline context menuへ `インクを追加` / `Add Ink Splash` を追加した。
+- Green: `tim-ink-splash` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-265a` に更新した。
+- 検証: `npm test -- --run src/utils/particleObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/aviutlPackFeatureCatalog.test.ts` は36件成功した。
+- 検証: 対象ファイル名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足のみ検出した。
+- 残課題: インクTMは標準パーティクル近似で、元スクリプト固有の輪郭生成、円形度合、展開アニメーション、飛散形状の差分までは未実装。
+
+## 2026-06-21
 - Tim集中線Tを標準生成オブジェクトへ追加した。
 - Red: `script/てぃむ/@集中線T.obj` を、Timeline右クリックから追加できるAviUtlPackV4標準生成オブジェクトにする契約を作った。
 - Green: `buildAviUtlFocusLinesObject` を追加し、標準パーティクル基盤で集中線T近似のParticleObjectを生成できるようにした。

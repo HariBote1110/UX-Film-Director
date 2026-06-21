@@ -187,6 +187,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '注目・ツッコミ・強調の演出で使いやすく、短寿命の高速粒子で近似しやすい。'
   },
   {
+    id: 'tim-ink-splash',
+    labelJa: 'インクTM',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/てぃむ/インクTM.obj'],
+    rationaleJa: '黒い飛沫や汚し表現として使いやすく、標準パーティクル基盤で近似しやすい。'
+  },
+  {
     id: 'tim-motion-path',
     labelJa: 'モーションパス',
     category: 'motion',

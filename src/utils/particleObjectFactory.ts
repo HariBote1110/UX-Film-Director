@@ -165,3 +165,43 @@ export const buildAviUtlFocusLinesObject = ({
     lifetimeSeconds: 0.85,
   };
 };
+
+export const buildAviUtlInkSplashObject = ({
+  id,
+  projectWidth,
+  projectHeight,
+  startTime,
+  layer,
+}: BuildDefaultStandardParticleObjectInput): ParticleObject => {
+  const size = Math.max(220, Math.round(Math.min(projectWidth, projectHeight) * 0.378));
+  const x = Math.round((projectWidth - size) / 2);
+  const y = Math.round((projectHeight - size) / 2);
+
+  return {
+    id,
+    type: 'particle',
+    name: 'インクTM',
+    layer,
+    startTime,
+    duration: 4,
+    x,
+    y,
+    width: size,
+    height: size,
+    rotation: 0,
+    scaleX: 1,
+    scaleY: 1,
+    opacity: 1,
+    enableAnimation: false,
+    endX: x,
+    endY: y,
+    easing: 'linear',
+    particleCount: 88,
+    seed: 3000,
+    spread: 360,
+    speed: 38,
+    size: 18,
+    colour: '#111111',
+    lifetimeSeconds: 3.2,
+  };
+};
