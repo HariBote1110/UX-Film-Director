@@ -7,6 +7,7 @@ import type {
   AudioObject,
   AudioVisualizationObject,
   BaseObject,
+  BarcodeObject,
   ImageObject,
   LayerState,
   ParticleObject,
@@ -220,6 +221,19 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     colour: '#ffffff',
     lifetimeSeconds: 1.5,
   };
+  const barcode: BarcodeObject = {
+    ...baseObject('barcode-t', 'barcode', 11),
+    type: 'barcode',
+    name: 'バーコードT',
+    width: 520,
+    height: 180,
+    data: 'AviUtl',
+    minimumBarWidth: 2,
+    horizontalMargin: 30,
+    verticalMargin: 20,
+    foregroundColour: '#000000',
+    backgroundColour: '#ffffff',
+  };
 
   return [
     solidShape,
@@ -230,6 +244,7 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     audio,
     audioVisualisation,
     standardParticle,
+    barcode,
   ];
 };
 
@@ -298,6 +313,7 @@ describe('全読込可能メディア E2E', () => {
       'Psd',
       'GeneratedAudioWaveform',
       'GeneratedParticle',
+      'GeneratedBarcode',
     ]);
     expect(snapshotResult.media
       .filter((media) => media.kind === 'Video')
@@ -318,6 +334,15 @@ describe('全読込可能メディア E2E', () => {
       size: 6,
       colour: '#ffffff',
       lifetime_seconds: 1.5,
+    });
+    expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'barcode-t')?.source ?? '{}')).toMatchObject({
+      generator: 'barcode-t',
+      data: 'AviUtl',
+      minimum_bar_width: 2,
+      horizontal_margin: 30,
+      vertical_margin: 20,
+      foreground_colour: '#000000',
+      background_colour: '#ffffff',
     });
     expect(snapshotResult.media.some((media) => media.source.endsWith('.wav'))).toBe(false);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'shape-solid-rect')?.transform).toMatchObject({
@@ -340,6 +365,7 @@ describe('全読込可能メディア E2E', () => {
     });
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'audio-waveform-r')?.source_frame).toBe(60);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'particle-standard')?.source_frame).toBe(60);
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'barcode-t')?.source_frame).toBe(0);
     expect(validateRustSceneSnapshotBoundary({
       snapshot: snapshotResult.snapshot,
       media: snapshotResult.media,

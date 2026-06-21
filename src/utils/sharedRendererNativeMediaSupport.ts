@@ -7,6 +7,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedGradient') return isSharedRendererNativeGeneratedGradientSourceSupported(reference.source);
   if (reference.kind === 'GeneratedAudioWaveform') return isSharedRendererNativeGeneratedAudioWaveformSourceSupported(reference.source);
   if (reference.kind === 'GeneratedParticle') return isSharedRendererNativeGeneratedParticleSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedBarcode') return isSharedRendererNativeGeneratedBarcodeSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -124,6 +125,44 @@ const isSharedRendererNativeGeneratedParticleSourceSupported = (source: string):
       && typeof parsed.lifetime_seconds === 'number'
       && Number.isFinite(parsed.lifetime_seconds)
       && parsed.lifetime_seconds > 0
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedBarcodeSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      data?: unknown;
+      minimum_bar_width?: unknown;
+      horizontal_margin?: unknown;
+      vertical_margin?: unknown;
+      foreground_colour?: unknown;
+      background_colour?: unknown;
+    };
+    return (
+      parsed.generator === 'barcode-t'
+      && typeof parsed.data === 'string'
+      && parsed.data.length > 0
+      && parsed.data.length <= 128
+      && typeof parsed.minimum_bar_width === 'number'
+      && Number.isInteger(parsed.minimum_bar_width)
+      && parsed.minimum_bar_width > 0
+      && parsed.minimum_bar_width <= 32
+      && typeof parsed.horizontal_margin === 'number'
+      && Number.isInteger(parsed.horizontal_margin)
+      && parsed.horizontal_margin >= 0
+      && parsed.horizontal_margin <= 1000
+      && typeof parsed.vertical_margin === 'number'
+      && Number.isInteger(parsed.vertical_margin)
+      && parsed.vertical_margin >= 0
+      && parsed.vertical_margin <= 1000
+      && typeof parsed.foreground_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.foreground_colour)
+      && typeof parsed.background_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
     );
   } catch {
     return false;

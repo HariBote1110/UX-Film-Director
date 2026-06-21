@@ -164,6 +164,17 @@ struct GeneratedParticleSource {
     lifetime_seconds: f32,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedBarcodeSource {
+    generator: String,
+    data: String,
+    minimum_bar_width: u32,
+    horizontal_margin: u32,
+    vertical_margin: u32,
+    foreground_colour: String,
+    background_colour: String,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2141,6 +2152,7 @@ fn collect_native_render_sources(
                 media,
                 source_frame_for_media(snapshot, &media.id),
             )?,
+            MediaKind::GeneratedBarcode => build_generated_barcode_source_frame(media)?,
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform => continue,
@@ -2364,6 +2376,84 @@ fn build_generated_particle_source_frame(
         .map_err(|error| format!("GeneratedParticle media frame is invalid: {error:?}"))
 }
 
+fn build_generated_barcode_source_frame(media: &SceneMediaReference) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedBarcode media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let barcode: GeneratedBarcodeSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedBarcode media '{}': {error}", media.id))?;
+    validate_generated_barcode_source(&barcode)
+        .map_err(|message| format!("Invalid GeneratedBarcode media '{}': {message}", media.id))?;
+    let [fg_red, fg_green, fg_blue] = parse_hex_colour_source(&barcode.foreground_colour)
+        .map_err(|message| format!("Invalid GeneratedBarcode media '{}': {message}", media.id))?;
+    let [bg_red, bg_green, bg_blue] = parse_hex_colour_source(&barcode.background_colour)
+        .map_err(|message| format!("Invalid GeneratedBarcode media '{}': {message}", media.id))?;
+
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedBarcode media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedBarcode media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+    for chunk in pixels.chunks_exact_mut(4) {
+        chunk.copy_from_slice(&[bg_red, bg_green, bg_blue, 255]);
+    }
+
+    let left = barcode.horizontal_margin.min(media.width);
+    let right = media
+        .width
+        .saturating_sub(barcode.horizontal_margin.min(media.width));
+    let top = barcode.vertical_margin.min(media.height);
+    let bottom = media
+        .height
+        .saturating_sub(barcode.vertical_margin.min(media.height));
+    if right <= left || bottom <= top {
+        return RgbaFrame::from_rgba8(media.width, media.height, pixels)
+            .map_err(|error| format!("GeneratedBarcode media frame is invalid: {error:?}"));
+    }
+
+    let pattern = barcode_bar_pattern(&barcode.data);
+    let mut x = left;
+    let mut index = 0_usize;
+    while x < right {
+        let width_units = pattern[index % pattern.len()];
+        let bar_width = barcode
+            .minimum_bar_width
+            .saturating_mul(width_units as u32)
+            .max(1);
+        let draw_foreground = index % 2 == 0;
+        let end_x = (x.saturating_add(bar_width)).min(right);
+        if draw_foreground {
+            for py in top..bottom {
+                for px in x..end_x {
+                    write_particle_pixel(
+                        &mut pixels,
+                        media.width,
+                        media.height,
+                        px as i32,
+                        py as i32,
+                        [fg_red, fg_green, fg_blue, 255],
+                    );
+                }
+            }
+        }
+        x = end_x;
+        index += 1;
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedBarcode media frame is invalid: {error:?}"))
+}
+
 fn validate_generated_particle_source(source: &GeneratedParticleSource) -> Result<(), String> {
     if source.generator != "standard-particle" {
         return Err("generator must be standard-particle".to_string());
@@ -2385,6 +2475,52 @@ fn validate_generated_particle_source(source: &GeneratedParticleSource) -> Resul
     }
     parse_hex_colour_source(&source.colour)?;
     Ok(())
+}
+
+fn validate_generated_barcode_source(source: &GeneratedBarcodeSource) -> Result<(), String> {
+    if source.generator != "barcode-t" {
+        return Err("generator must be barcode-t".to_string());
+    }
+    if source.data.is_empty() || source.data.chars().count() > 128 {
+        return Err("data length must be 1..128".to_string());
+    }
+    if source.minimum_bar_width == 0 || source.minimum_bar_width > 32 {
+        return Err("minimum_bar_width must be 1..32".to_string());
+    }
+    if source.horizontal_margin > 1000 {
+        return Err("horizontal_margin must be 0..1000".to_string());
+    }
+    if source.vertical_margin > 1000 {
+        return Err("vertical_margin must be 0..1000".to_string());
+    }
+    parse_hex_colour_source(&source.foreground_colour)?;
+    parse_hex_colour_source(&source.background_colour)?;
+    Ok(())
+}
+
+fn barcode_bar_pattern(data: &str) -> Vec<u8> {
+    let mut pattern = vec![2, 1, 1, 2, 1, 4];
+    let mut checksum = 104_u32;
+    for (position, byte) in data.bytes().enumerate() {
+        let value = byte.saturating_sub(32).min(94) as u32;
+        checksum = checksum.wrapping_add((position as u32 + 1) * value);
+        pattern.extend_from_slice(&[
+            ((value % 3) + 1) as u8,
+            (((value / 3) % 2) + 1) as u8,
+            (((value / 7) % 4) + 1) as u8,
+            (((value / 11) % 2) + 1) as u8,
+        ]);
+    }
+    pattern.extend_from_slice(&[
+        ((checksum % 4) + 1) as u8,
+        (((checksum / 5) % 3) + 1) as u8,
+        2,
+        3,
+        3,
+        1,
+        1,
+    ]);
+    pattern
 }
 
 fn deterministic_unit(seed: u64, index: u32, lane: u64) -> f32 {
@@ -4254,5 +4390,37 @@ fn response_error(id: u64, code: i64, message: &str) -> RpcResponse {
             code,
             message: message.to_string(),
         }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generated_barcode_source_frame_contains_background_and_bars() {
+        let media = SceneMediaReference {
+            id: "barcode-1".to_string(),
+            kind: MediaKind::GeneratedBarcode,
+            source: r##"{"generator":"barcode-t","data":"AviUtl","minimum_bar_width":2,"horizontal_margin":8,"vertical_margin":6,"foreground_colour":"#000000","background_colour":"#ffffff"}"##.to_string(),
+            width: 96,
+            height: 48,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_barcode_source_frame(&media)
+            .expect("generated barcode frame should render");
+        let has_black_bar = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [0, 0, 0, 255]);
+        let has_white_background = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [255, 255, 255, 255]);
+
+        assert!(has_black_bar);
+        assert!(has_white_background);
     }
 }

@@ -197,6 +197,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '黒い飛沫や汚し表現として使いやすく、標準パーティクル基盤で近似しやすい。'
   },
   {
+    id: 'tim-barcode',
+    labelJa: 'バーコードT',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/てぃむ/バーコードT.obj'],
+    rationaleJa: '暗号化風UI、警告表示、データ演出に使いやすく、Rust側で決定的にラスタ生成できる。'
+  },
+  {
     id: 'tim-motion-path',
     labelJa: 'モーションパス',
     category: 'motion',

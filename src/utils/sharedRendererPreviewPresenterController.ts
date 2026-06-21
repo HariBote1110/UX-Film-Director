@@ -856,13 +856,13 @@ const collectGeneratedPaintObjectIds = (session: SharedRendererPreviewSession): 
 };
 
 const isGeneratedPaintMediaKind = (
-  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'Psd' | undefined
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'Psd' | undefined
 ): boolean =>
   kind === 'SolidColour' || kind === 'GeneratedGradient';
 
 const collectObjectIdsByMediaKind = (
   session: SharedRendererPreviewSession,
-  kind: 'Video' | 'SolidColour' | 'Image' | 'Psd' | 'GeneratedAudioWaveform' | 'GeneratedParticle'
+  kind: 'Video' | 'SolidColour' | 'Image' | 'Psd' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode'
 ): string[] => {
   if (!session.surfaceGate.ok) return [];
 
@@ -876,6 +876,7 @@ const collectObjectIdsByMediaKind = (
 const collectGeneratedEffectObjectIds = (session: SharedRendererPreviewSession): string[] => [
   ...collectObjectIdsByMediaKind(session, 'GeneratedAudioWaveform'),
   ...collectObjectIdsByMediaKind(session, 'GeneratedParticle'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedBarcode'),
 ];
 
 const resolveFirstPresentedVideoSourceFrame = (

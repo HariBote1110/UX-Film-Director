@@ -322,6 +322,7 @@ export const hasProjectExportNativeRenderMediaObjects = (
     || object.type === 'psd'
     || object.type === 'video'
     || object.type === 'particle'
+    || object.type === 'barcode'
     || object.type === 'audio_visualization'
   );
 

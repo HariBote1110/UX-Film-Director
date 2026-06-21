@@ -12,7 +12,7 @@ import {
   shouldSynchroniseTimelineForProjectExportFrame,
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
-import type { AudioObject, AudioVisualizationObject, ImageObject, ParticleObject, PsdObject, ShapeObject, TimelineObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, ImageObject, ParticleObject, PsdObject, ShapeObject, TimelineObject, VideoObject } from '../types';
 
 const source = () =>
   readFileSync(new URL('./projectExportFrameCanvas.ts', import.meta.url), 'utf8');
@@ -194,6 +194,34 @@ const particle = (patch: Partial<ParticleObject> = {}): ParticleObject => ({
   size: 6,
   colour: '#ffffff',
   lifetimeSeconds: 1.5,
+  ...patch,
+});
+
+const barcode = (patch: Partial<BarcodeObject> = {}): BarcodeObject => ({
+  id: 'barcode-1',
+  type: 'barcode',
+  name: 'バーコードT',
+  layer: 4,
+  startTime: 0,
+  duration: 5,
+  x: 700,
+  y: 450,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 700,
+  endY: 450,
+  easing: 'linear',
+  width: 520,
+  height: 180,
+  data: 'AviUtl',
+  minimumBarWidth: 2,
+  horizontalMargin: 30,
+  verticalMargin: 20,
+  foregroundColour: '#000000',
+  backgroundColour: '#ffffff',
   ...patch,
 });
 
@@ -628,7 +656,7 @@ describe('resolveProjectExportRustFrameSourceContext', () => {
   });
 
   it('marks standard particle exports as native-render media instead of legacy canvas work', () => {
-    const objects: TimelineObject[] = [particle(), audio()];
+    const objects: TimelineObject[] = [particle(), barcode(), audio()];
 
     expect(hasProjectExportNativeRenderMediaObjects(objects)).toBe(true);
     expect(resolveProjectExportRustFrameSourceContext({

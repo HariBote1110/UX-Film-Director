@@ -89,7 +89,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'psd',
   'group_control',
   'audio_visualization',
-  'particle'
+  'particle',
+  'barcode'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -162,6 +163,16 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!isFiniteNumber(candidate.size) || candidate.size <= 0) return false;
     if (typeof candidate.colour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.colour)) return false;
     if (!isFiniteNumber(candidate.lifetimeSeconds) || candidate.lifetimeSeconds <= 0) return false;
+  }
+  if (candidate.type === 'barcode') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (typeof candidate.data !== 'string') return false;
+    if (!isFiniteNumber(candidate.minimumBarWidth) || candidate.minimumBarWidth <= 0) return false;
+    if (!isFiniteNumber(candidate.horizontalMargin) || candidate.horizontalMargin < 0) return false;
+    if (!isFiniteNumber(candidate.verticalMargin) || candidate.verticalMargin < 0) return false;
+    if (typeof candidate.foregroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.foregroundColour)) return false;
+    if (typeof candidate.backgroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.backgroundColour)) return false;
   }
   return true;
 };

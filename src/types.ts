@@ -45,7 +45,7 @@ export interface LayerState {
   locked: boolean;
 }
 
-export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization' | 'particle';
+export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization' | 'particle' | 'barcode';
 
 // --- グラデーション・シャドウ・軌道 ---
 
@@ -380,6 +380,19 @@ export interface ParticleObject extends BaseObject {
   lifetimeSeconds: number;
 }
 
+// AviUtlPackV4 バーコードT互換の生成オブジェクト
+export interface BarcodeObject extends BaseObject {
+  type: 'barcode';
+  width: number;
+  height: number;
+  data: string;
+  minimumBarWidth: number;
+  horizontalMargin: number;
+  verticalMargin: number;
+  foregroundColour: string;
+  backgroundColour: string;
+}
+
 // --- PSD連携用 ---
 
 export interface PsdLayerStruct {
@@ -424,7 +437,7 @@ export interface PsdObject extends BaseObject {
   worldPlacement?: PsdWorldPlacement;
 }
 
-export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject | ParticleObject;
+export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject | ParticleObject | BarcodeObject;
 
 /** タイムライン1本分（シーン） */
 export interface SceneData {

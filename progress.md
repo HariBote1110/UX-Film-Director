@@ -1,3 +1,22 @@
+## 2026-06-21 — TimバーコードTをRust生成オブジェクトへ追加
+
+### 実施内容
+- Red: `script/てぃむ/バーコードT.obj` を、Rust `GeneratedBarcode` mediaとして扱う境界契約を作った。
+- Green: `BarcodeObject` と `buildAviUtlBarcodeObject` を追加し、Timeline右クリックから `バーコードを追加` / `Add Barcode` で置けるようにした。
+- Green: `rustSceneSnapshot` / shared renderer native support / Rust core schema / Rust backendに `GeneratedBarcode` を追加した。
+- Green: Rust backendで白背景と黒バーを持つ決定的バーコード風フレームを生成できるようにした。
+- Green: `tim-barcode` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-266a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/barcodeObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/pixiRenderHelperGeneratedEffectCutover.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/e2e/allReadableMedia.e2e.test.ts` は79件成功。
+- `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は4件成功。
+- `cargo test --manifest-path rust-backend/Cargo.toml generated_barcode_source_frame_contains_background_and_bars -- --nocapture` は1件成功。
+- 対象ファイル名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足のみ検出した。
+
+### 残課題・次のステップ
+- 現時点の `GeneratedBarcode` はバーコードTの視覚再実装で、Code128としてのスキャン互換までは未実装。
+
 ## 2026-06-21 — TimインクTMを標準生成オブジェクトへ追加
 
 ### 実施内容
