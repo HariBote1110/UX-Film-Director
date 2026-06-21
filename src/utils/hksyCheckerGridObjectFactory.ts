@@ -48,3 +48,15 @@ export const buildHksyCheckerGridObject = ({
     backgroundColour: '#000000',
   };
 };
+
+export const buildHksyLineObject = (input: BuildHksyCheckerGridObjectInput): HksyCheckerGridObject => ({
+  ...buildHksyCheckerGridObject(input),
+  name: 'hksy 直線',
+  cellSize: 64,
+  lineWidth: 4,
+  checkerEnabled: false,
+  gridEnabled: true,
+  foregroundColour: '#ffffff',
+  secondaryColour: '#ffffff',
+  backgroundColour: '#000000',
+});

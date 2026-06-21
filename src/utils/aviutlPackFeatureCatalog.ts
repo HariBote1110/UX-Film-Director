@@ -197,6 +197,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: 'hksy内でもチェッカー、複数色チェッカー、グリッド、直線は背景・解説UIとして使いやすく、Rust生成オブジェクトへ小さく切り出せる。'
   },
   {
+    id: 'hksy-line',
+    labelJa: 'hksy 直線',
+    category: 'generated-object',
+    phase: 'P1',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/@hksy/@hksy.obj', 'script/@hksy/@hksy.anm'],
+    rationaleJa: 'hksyの直線表現を、既存Rustチェッカー/グリッド生成メディアの線のみプリセットとして標準搭載する。'
+  },
+  {
     id: 'particle-standard',
     labelJa: '標準パーティクル',
     category: 'generated-object',

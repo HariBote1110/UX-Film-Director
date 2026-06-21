@@ -1,6 +1,18 @@
 # 進捗ログ
 
 ## 2026-06-22
+- hksy直線をRust生成プリセットへ追加した。
+- Red: `hksy-line` がAviUtlPackV4カタログへ入り、Timeline右クリックメニューとfactoryから `hksy 直線` を追加できる契約を作った。
+- Green: `buildHksyLineObject` を追加し、既存の `hksy_checker_grid` / `GeneratedHksyCheckerGrid` 経路を使う線のみプリセットとして標準搭載した。
+- Green: Timeline右クリックメニューに `hksy直線を追加` / `Add hksy Lines` を追加した。
+- 版を `0.1.1-Beta-294a` に更新した。
+- 検証: `npm test -- --run src/utils/hksyCheckerGridObjectFactory.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/pixiGeneratedEffectCutover.test.ts --reporter=dot` は104件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_hksy_checker_grid_source_frame_contains_checker_cells_and_grid -- --nocapture` は1件成功した。
+- 検証: `npm test -- --run src/utils/packageScripts.test.ts --reporter=dot` は6件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回変更由来の型エラーは出ていない。
+- 次はhksy複数色チェッカー、またはGetColorの画像サンプリング寄り拡張へ進む。
+
+## 2026-06-22
 - AviUtl優先効果のexport E2E固有画素検査を追加した。
 - Red: `test:video-export:e2e` が、GetColor V2R、hksyチェッカー/グリッド、93 SpotLight、93音声玉それぞれの固有画素検査フィールドを持つ契約を追加した。
 - Green: E2E専用hookでAviUtl優先効果を画面上に分離配置し、export後のRGBAフレームから領域別に代表色を検査するようにした。
