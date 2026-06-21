@@ -13,6 +13,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedGourd') return isSharedRendererNativeGeneratedGourdSourceSupported(reference.source);
   if (reference.kind === 'GeneratedGear') return isSharedRendererNativeGeneratedGearSourceSupported(reference.source);
   if (reference.kind === 'GeneratedTrackBar') return isSharedRendererNativeGeneratedTrackBarSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedPieChart') return isSharedRendererNativeGeneratedPieChartSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -345,6 +346,44 @@ const isSharedRendererNativeGeneratedTrackBarSourceSupported = (source: string):
       && Number.isFinite(parsed.background_opacity)
       && parsed.background_opacity >= 0
       && parsed.background_opacity <= 1
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedPieChartSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      values?: unknown;
+      sort_mode?: unknown;
+      normalise_to_hundred?: unknown;
+      label_mode?: unknown;
+      progress_percent?: unknown;
+      stroke_width?: unknown;
+      slice_colours?: unknown;
+    };
+    return (
+      parsed.generator === 'pie-sheet-graph'
+      && Array.isArray(parsed.values)
+      && parsed.values.length > 0
+      && parsed.values.length <= 64
+      && parsed.values.every((value) => typeof value === 'number' && Number.isFinite(value) && value >= 0)
+      && (parsed.sort_mode === 'none' || parsed.sort_mode === 'descending' || parsed.sort_mode === 'ascending')
+      && typeof parsed.normalise_to_hundred === 'boolean'
+      && (parsed.label_mode === 'none' || parsed.label_mode === 'percentage' || parsed.label_mode === 'input')
+      && typeof parsed.progress_percent === 'number'
+      && Number.isFinite(parsed.progress_percent)
+      && parsed.progress_percent >= 0
+      && parsed.progress_percent <= 100
+      && typeof parsed.stroke_width === 'number'
+      && Number.isFinite(parsed.stroke_width)
+      && parsed.stroke_width > 0
+      && Array.isArray(parsed.slice_colours)
+      && parsed.slice_colours.length > 0
+      && parsed.slice_colours.length <= 64
+      && parsed.slice_colours.every((colour) => typeof colour === 'string' && /^#[0-9a-f]{6}$/i.test(colour))
     );
   } catch {
     return false;

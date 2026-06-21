@@ -95,7 +95,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'colour_wheel',
   'gourd',
   'gear',
-  'track_bar'
+  'track_bar',
+  'pie_chart'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -232,6 +233,17 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!Array.isArray(candidate.labels) || candidate.labels.length !== 4 || !candidate.labels.every((label) => typeof label === 'string')) return false;
     if (typeof candidate.barColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.barColour)) return false;
     if (!isFiniteNumber(candidate.backgroundOpacity) || candidate.backgroundOpacity < 0 || candidate.backgroundOpacity > 1) return false;
+  }
+  if (candidate.type === 'pie_chart') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!Array.isArray(candidate.values) || candidate.values.length === 0 || !candidate.values.every((value) => isFiniteNumber(value) && value >= 0)) return false;
+    if (candidate.sortMode !== 'none' && candidate.sortMode !== 'descending' && candidate.sortMode !== 'ascending') return false;
+    if (typeof candidate.normaliseToHundred !== 'boolean') return false;
+    if (candidate.labelMode !== 'none' && candidate.labelMode !== 'percentage' && candidate.labelMode !== 'input') return false;
+    if (!isFiniteNumber(candidate.progressPercent) || candidate.progressPercent < 0 || candidate.progressPercent > 100) return false;
+    if (!isFiniteNumber(candidate.strokeWidth) || candidate.strokeWidth <= 0) return false;
+    if (!Array.isArray(candidate.sliceColours) || candidate.sliceColours.length === 0 || !candidate.sliceColours.every((colour) => typeof colour === 'string' && /^#[0-9a-f]{6}$/i.test(colour))) return false;
   }
   return true;
 };

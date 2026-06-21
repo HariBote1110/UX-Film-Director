@@ -3,7 +3,7 @@ import { shouldSkipPixiGeneratedEffectForSharedRenderer } from './pixiGeneratedE
 
 describe('pixiGeneratedEffectCutover', () => {
   it('skips Pixi generated effect rendering when the Rust native frame owns it', () => {
-    const sharedRendererGeneratedEffectObjectIds = new Set(['waveform-1', 'particle-1', 'barcode-1', 'puzzle-1', 'colour-wheel-1', 'gourd-1', 'gear-1', 'track-bar-1']);
+    const sharedRendererGeneratedEffectObjectIds = new Set(['waveform-1', 'particle-1', 'barcode-1', 'puzzle-1', 'colour-wheel-1', 'gourd-1', 'gear-1', 'track-bar-1', 'pie-chart-1']);
 
     expect(shouldSkipPixiGeneratedEffectForSharedRenderer({
       objectId: 'waveform-1',

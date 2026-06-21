@@ -226,6 +226,18 @@ struct GeneratedTrackBarSource {
     background_opacity: f32,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedPieChartSource {
+    generator: String,
+    values: Vec<f32>,
+    sort_mode: String,
+    normalise_to_hundred: bool,
+    label_mode: String,
+    progress_percent: f32,
+    stroke_width: f32,
+    slice_colours: Vec<String>,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2209,6 +2221,7 @@ fn collect_native_render_sources(
             MediaKind::GeneratedGourd => build_generated_gourd_source_frame(media)?,
             MediaKind::GeneratedGear => build_generated_gear_source_frame(media)?,
             MediaKind::GeneratedTrackBar => build_generated_track_bar_source_frame(media)?,
+            MediaKind::GeneratedPieChart => build_generated_pie_chart_source_frame(media)?,
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform => continue,
@@ -2930,6 +2943,105 @@ fn build_generated_track_bar_source_frame(
         .map_err(|error| format!("GeneratedTrackBar media frame is invalid: {error:?}"))
 }
 
+fn build_generated_pie_chart_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedPieChart media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let pie_chart: GeneratedPieChartSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedPieChart media '{}': {error}", media.id))?;
+    validate_generated_pie_chart_source(&pie_chart)
+        .map_err(|message| format!("Invalid GeneratedPieChart media '{}': {message}", media.id))?;
+
+    let mut values = pie_chart.values.clone();
+    match pie_chart.sort_mode.as_str() {
+        "descending" => values
+            .sort_by(|left, right| right.partial_cmp(left).unwrap_or(std::cmp::Ordering::Equal)),
+        "ascending" => values
+            .sort_by(|left, right| left.partial_cmp(right).unwrap_or(std::cmp::Ordering::Equal)),
+        _ => {}
+    }
+    let total = if pie_chart.normalise_to_hundred {
+        values.iter().sum::<f32>()
+    } else {
+        100.0
+    };
+    if !total.is_finite() || total <= 0.0 {
+        return Err(format!(
+            "Invalid GeneratedPieChart media '{}': values must produce a positive total",
+            media.id
+        ));
+    }
+
+    let colours = pie_chart
+        .slice_colours
+        .iter()
+        .map(|colour| {
+            parse_hex_colour_source(colour).map_err(|message| {
+                format!("Invalid GeneratedPieChart media '{}': {message}", media.id)
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedPieChart media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedPieChart media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+
+    let centre_x = (media.width as f32 - 1.0) * 0.5;
+    let centre_y = (media.height as f32 - 1.0) * 0.5;
+    let outer_radius = media.width.min(media.height) as f32 * 0.5 - 1.0;
+    let stroke_width = pie_chart.stroke_width.min(outer_radius).max(1.0);
+    let inner_radius = (outer_radius - stroke_width).max(0.0);
+    let progress_radians =
+        (pie_chart.progress_percent.clamp(0.0, 100.0) * 0.01) * std::f32::consts::TAU;
+
+    for y in 0..media.height {
+        for x in 0..media.width {
+            let dx = x as f32 - centre_x;
+            let dy = y as f32 - centre_y;
+            let radius = (dx * dx + dy * dy).sqrt();
+            if radius < inner_radius || radius > outer_radius {
+                continue;
+            }
+            let mut angle = dy.atan2(dx) + std::f32::consts::FRAC_PI_2;
+            if angle < 0.0 {
+                angle += std::f32::consts::TAU;
+            }
+            if angle > progress_radians {
+                continue;
+            }
+
+            let mut cumulative = 0.0_f32;
+            let mut colour_index = values.len().saturating_sub(1);
+            for (index, value) in values.iter().enumerate() {
+                cumulative += (*value / total) * std::f32::consts::TAU;
+                if angle <= cumulative {
+                    colour_index = index;
+                    break;
+                }
+            }
+            let [red, green, blue] = colours[colour_index % colours.len()];
+            let offset = ((y as usize * media.width as usize + x as usize) * 4) as usize;
+            pixels[offset..offset + 4].copy_from_slice(&[red, green, blue, 255]);
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedPieChart media frame is invalid: {error:?}"))
+}
+
 fn fill_rect_rgba(
     pixels: &mut [u8],
     width: u32,
@@ -3136,6 +3248,53 @@ fn validate_generated_track_bar_source(source: &GeneratedTrackBarSource) -> Resu
         return Err("background_opacity must be 0..1".to_string());
     }
     parse_hex_colour_source(&source.bar_colour)?;
+    Ok(())
+}
+
+fn validate_generated_pie_chart_source(source: &GeneratedPieChartSource) -> Result<(), String> {
+    if source.generator != "pie-sheet-graph" {
+        return Err("generator must be pie-sheet-graph".to_string());
+    }
+    if source.values.is_empty() || source.values.len() > 64 {
+        return Err("values must contain 1..64 values".to_string());
+    }
+    if source
+        .values
+        .iter()
+        .any(|value| !value.is_finite() || *value < 0.0)
+    {
+        return Err("values must be finite non-negative numbers".to_string());
+    }
+    if source.values.iter().all(|value| *value <= f32::EPSILON) {
+        return Err("values must contain at least one positive value".to_string());
+    }
+    if source.sort_mode != "none"
+        && source.sort_mode != "descending"
+        && source.sort_mode != "ascending"
+    {
+        return Err("sort_mode must be none, descending, or ascending".to_string());
+    }
+    if source.label_mode != "none"
+        && source.label_mode != "percentage"
+        && source.label_mode != "input"
+    {
+        return Err("label_mode must be none, percentage, or input".to_string());
+    }
+    if !source.progress_percent.is_finite()
+        || source.progress_percent < 0.0
+        || source.progress_percent > 100.0
+    {
+        return Err("progress_percent must be 0..100".to_string());
+    }
+    if !source.stroke_width.is_finite() || source.stroke_width <= 0.0 {
+        return Err("stroke_width must be positive".to_string());
+    }
+    if source.slice_colours.is_empty() || source.slice_colours.len() > 64 {
+        return Err("slice_colours must contain 1..64 colours".to_string());
+    }
+    for colour in &source.slice_colours {
+        parse_hex_colour_source(colour)?;
+    }
     Ok(())
 }
 
@@ -5249,6 +5408,41 @@ mod tests {
 
         assert!(has_solid_bar);
         assert!(has_low_alpha_background);
+        assert!(has_transparent_background);
+    }
+
+    #[test]
+    fn generated_pie_chart_source_frame_contains_slices_hole_and_transparency() {
+        let media = SceneMediaReference {
+            id: "pie-chart-1".to_string(),
+            kind: MediaKind::GeneratedPieChart,
+            source: r##"{"generator":"pie-sheet-graph","values":[10,20,30,40],"sort_mode":"descending","normalise_to_hundred":true,"label_mode":"percentage","progress_percent":100,"stroke_width":20,"slice_colours":["#389ba6","#f2e2c4","#f29422","#f27830","#f24b0f"]}"##.to_string(),
+            width: 400,
+            height: 400,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_pie_chart_source_frame(&media)
+            .expect("generated pie chart frame should render");
+        let has_first_colour = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [0x38, 0x9b, 0xa6, 255]);
+        let has_second_colour = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [0xf2, 0xe2, 0xc4, 255]);
+        let centre_offset = ((200 * 400 + 200) * 4) as usize;
+        let centre_is_hole = frame.pixels[centre_offset..centre_offset + 4] == [0, 0, 0, 0];
+        let has_transparent_background = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [0, 0, 0, 0]);
+
+        assert!(has_first_colour);
+        assert!(has_second_colour);
+        assert!(centre_is_hole);
         assert!(has_transparent_background);
     }
 }

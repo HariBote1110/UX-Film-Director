@@ -9,6 +9,7 @@ import type {
   ImageObject,
   LayerState,
   ParticleObject,
+  PieChartObject,
   ProjectSettings,
   PsdObject,
   PuzzlePieceObject,
@@ -68,7 +69,7 @@ export interface RustSceneSnapshot {
 
 export interface RustSceneMediaReference {
   id: string;
-  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'Psd';
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'Psd';
   source: string;
   width: number;
   height: number;
@@ -141,7 +142,7 @@ export interface RustSceneSnapshotBuildInput {
 export type RustSceneVideoSourceMode = 'previewProxy' | 'exportOriginal';
 
 type SupportedMediaObject = ImageObject | VideoObject | PsdObject;
-type SupportedGeneratedObject = AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject;
+type SupportedGeneratedObject = AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject;
 type SupportedSceneObject = SupportedMediaObject | ShapeObject | SupportedGeneratedObject;
 
 const rustColourPipeline = (): RustColourPipeline => ({
@@ -385,7 +386,8 @@ const isSupportedSceneObject = (object: TimelineObject): object is SupportedScen
   || object.type === 'colour_wheel'
   || object.type === 'gourd'
   || object.type === 'gear'
-  || object.type === 'track_bar';
+  || object.type === 'track_bar'
+  || object.type === 'pie_chart';
 
 const isVisualSceneObject = (object: TimelineObject): boolean =>
   object.type !== 'audio';
@@ -506,6 +508,16 @@ const mediaReferenceForObject = (
       id: object.id,
       kind: 'GeneratedTrackBar',
       source: serialiseGeneratedTrackBarSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'pie_chart') {
+    return {
+      id: object.id,
+      kind: 'GeneratedPieChart',
+      source: serialiseGeneratedPieChartSource(object),
       width: object.width,
       height: object.height,
     };
@@ -633,6 +645,18 @@ const serialiseGeneratedTrackBarSource = (object: TrackBarObject): string =>
     background_opacity: Math.min(1, Math.max(0, finiteNumberOr(object.backgroundOpacity, 0.05))),
   });
 
+const serialiseGeneratedPieChartSource = (object: PieChartObject): string =>
+  JSON.stringify({
+    generator: 'pie-sheet-graph',
+    values: normalisePieChartValues(object.values),
+    sort_mode: normalisePieChartSortMode(object.sortMode),
+    normalise_to_hundred: object.normaliseToHundred === true,
+    label_mode: normalisePieChartLabelMode(object.labelMode),
+    progress_percent: Math.min(100, Math.max(0, finiteNumberOr(object.progressPercent, 100))),
+    stroke_width: Math.max(1, Math.trunc(finiteNumberOr(object.strokeWidth, 20))),
+    slice_colours: normalisePieChartColours(object.sliceColours),
+  });
+
 const normaliseTrackBarValues = (values: readonly number[]): number[] =>
   Array.from({ length: 4 }, (_, index) => finiteNumberOr(values[index], 0));
 
@@ -646,6 +670,24 @@ const normaliseTrackBarRanges = (ranges: readonly [number, number][]): [number, 
 
 const normaliseTrackBarLabels = (labels: readonly string[]): string[] =>
   Array.from({ length: 4 }, (_, index) => labels[index] || `Track${String.fromCharCode(65 + index)}`);
+
+const normalisePieChartValues = (values: readonly number[]): number[] =>
+  values
+    .map((value) => Math.max(0, finiteNumberOr(value, 0)))
+    .filter((value) => value > 0)
+    .slice(0, 64);
+
+const normalisePieChartSortMode = (sortMode: PieChartObject['sortMode']): PieChartObject['sortMode'] =>
+  sortMode === 'ascending' || sortMode === 'descending' ? sortMode : 'none';
+
+const normalisePieChartLabelMode = (labelMode: PieChartObject['labelMode']): PieChartObject['labelMode'] =>
+  labelMode === 'none' || labelMode === 'input' ? labelMode : 'percentage';
+
+const normalisePieChartColours = (colours: readonly string[]): string[] => {
+  const validColours = colours.filter((colour) => /^#[0-9a-f]{6}$/i.test(colour)).slice(0, 64);
+  return validColours.length > 0 ? validColours : ['#389ba6', '#f2e2c4', '#f29422', '#f27830', '#f24b0f'];
+};
+
 
 const findTargetAudioForWaveform = (
   object: AudioVisualizationObject,
@@ -745,6 +787,7 @@ const sourceFrameForObject = (
   if (object.type === 'gourd') return 0;
   if (object.type === 'gear') return 0;
   if (object.type === 'track_bar') return 0;
+  if (object.type === 'pie_chart') return 0;
   const localTime = Math.max(0, time - object.startTime);
   const mediaTime = localTime + (object.offset ?? 0);
   return secondsToFrameIndex(mediaTime, fps);
@@ -951,7 +994,7 @@ const validateMediaReferences = (
     }
     validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height', 'source_rate', 'active_layer_ids'], issues);
     validateString(reference.id, `${path}.id`, issues);
-    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'Psd'], issues);
+    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'GeneratedPieChart', 'Psd'], issues);
     validateString(reference.source, `${path}.source`, issues);
     validatePositiveInteger(reference.width, `${path}.width`, issues);
     validatePositiveInteger(reference.height, `${path}.height`, issues);

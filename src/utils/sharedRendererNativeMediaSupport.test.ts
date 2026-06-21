@@ -165,8 +165,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[10])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[11])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[12])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[13])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[13])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[14])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[15])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {
