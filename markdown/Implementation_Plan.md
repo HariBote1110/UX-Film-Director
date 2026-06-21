@@ -17,7 +17,7 @@
 
 ### 直近実装順
 1. ✅ AviUtlPackV4棚卸しと標準搭載候補カタログの追加
-2. `P0` motion presetを既存キーフレーム/easingへ接続
+2. ✅ `P0` motion presetの中核を既存キーフレーム/easingへ接続
 3. `P1` Rust/WebGPU effectの境界型を拡張
 4. PropertyPanelのFilter Stackへ標準搭載候補を露出
 5. E2Eで代表素材に効果を載せ、preview/exportの一致を検証

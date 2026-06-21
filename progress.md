@@ -1,3 +1,19 @@
+## 2026-06-21 — AviUtlPackV4 P0モーションプリセット中核を追加
+
+### 実施内容
+- Red: AviUtlPackV4由来のP0候補を、UX FDネイティブのmotion presetとして列挙し、選択オブジェクトへ位置キーフレームを生成する契約を追加した。
+- Green: `src/utils/aviutlMotionPresets.ts` を追加し、左からスライド、下からポップ、ランダム揺れ、左右反復のプリセットを実装した。
+- Green: 既存の `PositionKeyframe` / `EasingType` へ直接落とし込み、現行preview/export経路で扱える形にした。
+- 版を `0.1.1-Beta-236a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/aviutlMotionPresets.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "src/utils/aviutlMotionPresets|aviutlMotionPresets"`
+
+### 結果・残課題
+- P0 motion presetの中核テストは4件成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- 次はPropertyPanelへAviUtl motion presetボタンを出し、実際の編集UIから適用できるようにする。
+
 ## 2026-06-21 — AviUtlPackV4標準効果カタログを追加
 
 ### 実施内容
