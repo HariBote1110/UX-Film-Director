@@ -8,6 +8,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
   it('exposes the AviUtlPackV4 standard particle insertion command', () => {
     const code = source();
 
+    expect(code).toContain('buildAviUtlCircularArrowObject');
     expect(code).toContain('buildAviUtlBarcodeObject');
     expect(code).toContain('buildAviUtlColourWheelObject');
     expect(code).toContain('buildAviUtlGearObject');
@@ -22,6 +23,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('buildAviUtlSunburstObject');
     expect(code).toContain('buildAviUtlTrackBarObject');
     expect(code).toContain('buildDefaultStandardParticleObject');
+    expect(code).toContain('handleAddCircularArrow');
     expect(code).toContain('handleAddBarcode');
     expect(code).toContain('handleAddColourWheel');
     expect(code).toContain('handleAddGear');
@@ -37,6 +39,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('handleAddSunburst');
     expect(code).toContain('handleAddTrackBar');
     expect(code).toContain('Add Barcode');
+    expect(code).toContain('Add Circular Arrow');
     expect(code).toContain('Add Colour Wheel');
     expect(code).toContain('Add Gear');
     expect(code).toContain('Add Gourd');
@@ -51,6 +54,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('Add Sunburst');
     expect(code).toContain('Add Track Bar');
     expect(code).toContain('バーコードを追加');
+    expect(code).toContain('円矢印を追加');
     expect(code).toContain('色相環を追加');
     expect(code).toContain('歯車を追加');
     expect(code).toContain('ひょうたんを追加');

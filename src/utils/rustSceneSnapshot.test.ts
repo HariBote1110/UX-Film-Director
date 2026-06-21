@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, ImageObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TimelineObject, TrackBarObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, ImageObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TimelineObject, TrackBarObject, VideoObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -448,6 +448,38 @@ const baseSunburst = (patch: Partial<SunburstObject> = {}): SunburstObject => ({
   motifShape: 'circle',
   rayColour: '#ff0000',
   backgroundColour: '#ffff00',
+  ...patch,
+});
+
+const baseCircularArrow = (patch: Partial<CircularArrowObject> = {}): CircularArrowObject => ({
+  id: 'circular-arrow-1',
+  type: 'circular_arrow',
+  name: '円矢印',
+  layer: 15,
+  startTime: 1,
+  duration: 4,
+  x: 860,
+  y: 440,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 860,
+  endY: 440,
+  easing: 'linear',
+  width: 200,
+  height: 200,
+  radius: 100,
+  lineWidth: 20,
+  headSize: 50,
+  angleDegrees: 260,
+  centreAngleDegrees: 0,
+  headShape: 'triangle',
+  showTailHead: false,
+  flipVertical: false,
+  flipHorizontal: false,
+  arrowColour: '#ffff00',
   ...patch,
 });
 
@@ -964,6 +996,48 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         }),
         width: 800,
         height: 450,
+      },
+    ]);
+  });
+
+  it('builds a generated circular arrow media plane from a circular arrow object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseCircularArrow()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated circular arrow snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'circular-arrow-1',
+      track_id: 'layer-15',
+      media_id: 'circular-arrow-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'circular-arrow-1',
+        kind: 'GeneratedCircularArrow',
+        source: JSON.stringify({
+          generator: 'circular-arrow',
+          radius: 100,
+          line_width: 20,
+          head_size: 50,
+          angle_degrees: 260,
+          centre_angle_degrees: 0,
+          head_shape: 'triangle',
+          show_tail_head: false,
+          flip_vertical: false,
+          flip_horizontal: false,
+          arrow_colour: '#ffff00',
+        }),
+        width: 200,
+        height: 200,
       },
     ]);
   });

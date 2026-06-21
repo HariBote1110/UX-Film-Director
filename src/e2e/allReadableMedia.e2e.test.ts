@@ -8,6 +8,7 @@ import type {
   AudioVisualizationObject,
   BaseObject,
   BarcodeObject,
+  CircularArrowObject,
   ColourWheelObject,
   GearObject,
   GourdObject,
@@ -349,6 +350,23 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     rayColour: '#ff0000',
     backgroundColour: '#ffff00',
   };
+  const circularArrow: CircularArrowObject = {
+    ...baseObject('ssd-circular-arrow', 'circular_arrow', 20),
+    type: 'circular_arrow',
+    name: '円矢印',
+    width: 200,
+    height: 200,
+    radius: 100,
+    lineWidth: 20,
+    headSize: 50,
+    angleDegrees: 260,
+    centreAngleDegrees: 0,
+    headShape: 'triangle',
+    showTailHead: false,
+    flipVertical: false,
+    flipHorizontal: false,
+    arrowColour: '#ffff00',
+  };
 
   return [
     solidShape,
@@ -368,6 +386,7 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     pieChart,
     histogram,
     sunburst,
+    circularArrow,
   ];
 };
 
@@ -445,6 +464,7 @@ describe('全読込可能メディア E2E', () => {
       'GeneratedPieChart',
       'GeneratedHistogram',
       'GeneratedSunburst',
+      'GeneratedCircularArrow',
     ]);
     expect(snapshotResult.media
       .filter((media) => media.kind === 'Video')
@@ -550,6 +570,19 @@ describe('全読込可能メディア E2E', () => {
       ray_colour: '#ff0000',
       background_colour: '#ffff00',
     });
+    expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'ssd-circular-arrow')?.source ?? '{}')).toMatchObject({
+      generator: 'circular-arrow',
+      radius: 100,
+      line_width: 20,
+      head_size: 50,
+      angle_degrees: 260,
+      centre_angle_degrees: 0,
+      head_shape: 'triangle',
+      show_tail_head: false,
+      flip_vertical: false,
+      flip_horizontal: false,
+      arrow_colour: '#ffff00',
+    });
     expect(snapshotResult.media.some((media) => media.source.endsWith('.wav'))).toBe(false);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'shape-solid-rect')?.transform).toMatchObject({
       translation_x: 64.5,
@@ -580,6 +613,7 @@ describe('全読込可能メディア E2E', () => {
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'pie-sheet-graph')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'simple-histogram')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-sunburst')?.source_frame).toBe(0);
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-circular-arrow')?.source_frame).toBe(0);
     expect(validateRustSceneSnapshotBoundary({
       snapshot: snapshotResult.snapshot,
       media: snapshotResult.media,

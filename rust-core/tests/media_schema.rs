@@ -195,3 +195,19 @@ fn rust_core_accepts_generated_sunburst_media_kind_at_the_json_boundary() {
     assert_eq!(media.width, 800);
     assert_eq!(media.height, 450);
 }
+
+#[test]
+fn rust_core_accepts_generated_circular_arrow_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "circular-arrow-1",
+        "kind": "GeneratedCircularArrow",
+        "source": "{\"generator\":\"circular-arrow\",\"radius\":100,\"line_width\":20,\"head_size\":50,\"angle_degrees\":260,\"centre_angle_degrees\":0,\"head_shape\":\"triangle\",\"show_tail_head\":false,\"flip_vertical\":false,\"flip_horizontal\":false,\"arrow_colour\":\"#ffff00\"}",
+        "width": 200,
+        "height": 200
+    }))
+    .expect("GeneratedCircularArrow media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedCircularArrow);
+    assert_eq!(media.width, 200);
+    assert_eq!(media.height, 200);
+}

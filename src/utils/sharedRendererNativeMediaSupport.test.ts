@@ -130,6 +130,12 @@ const media: RustSceneMediaReference[] = [{
   width: 800,
   height: 450,
 }, {
+  id: 'circular-arrow-1',
+  kind: 'GeneratedCircularArrow' as RustSceneMediaReference['kind'],
+  source: '{"generator":"circular-arrow","radius":100,"line_width":20,"head_size":50,"angle_degrees":260,"centre_angle_degrees":0,"head_shape":"triangle","show_tail_head":false,"flip_vertical":false,"flip_horizontal":false,"arrow_colour":"#ffff00"}',
+  width: 200,
+  height: 200,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -180,8 +186,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[13])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[14])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[15])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[16])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[16])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[17])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[18])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { BarcodeObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TrackBarObject } from '../types';
+import type { BarcodeObject, CircularArrowObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TrackBarObject } from '../types';
 import { MAX_LAYERS } from '../components/timelineConstants';
 import { createDefaultCamera, createDefaultLayers, createDefaultStageCamera3D } from './sceneState';
 import { buildProjectFileData, parseProjectPayloadV2, restoreProjectObjects } from './projectFile';
@@ -347,6 +347,37 @@ const minimalSunburst = (): SunburstObject => ({
   backgroundColour: '#ffff00',
 });
 
+const minimalCircularArrow = (): CircularArrowObject => ({
+  id: 'circular-arrow-1',
+  type: 'circular_arrow',
+  name: '円矢印',
+  layer: 12,
+  startTime: 1,
+  duration: 5,
+  x: 860,
+  y: 440,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 860,
+  endY: 440,
+  easing: 'linear',
+  width: 200,
+  height: 200,
+  radius: 100,
+  lineWidth: 20,
+  headSize: 50,
+  angleDegrees: 260,
+  centreAngleDegrees: 0,
+  headShape: 'triangle',
+  showTailHead: false,
+  flipVertical: false,
+  flipHorizontal: false,
+  arrowColour: '#ffff00',
+});
+
 describe('buildProjectFileData', () => {
   it('flushes active editor state into the matching scene and stamps metadata', () => {
     const layers = createDefaultLayers();
@@ -493,6 +524,7 @@ describe('parseProjectPayloadV2', () => {
     const pieChart = minimalPieChart();
     const histogram = minimalHistogram();
     const sunburst = minimalSunburst();
+    const circularArrow = minimalCircularArrow();
     const file = buildProjectFileData({
       projectSettings: projectSettings(),
       scenes: [
@@ -501,13 +533,13 @@ describe('parseProjectPayloadV2', () => {
           name: 'One',
           duration: 10,
           layers,
-          objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst],
+          objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow],
           camera,
           stageCamera3D: defaultStage()
         }
       ],
       activeSceneId: 's1',
-      objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst],
+      objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow],
       layers,
       duration: 10,
       camera,
@@ -515,7 +547,7 @@ describe('parseProjectPayloadV2', () => {
     });
 
     const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
-    expect(parsed.scenes[0].objects).toEqual([particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst]);
+    expect(parsed.scenes[0].objects).toEqual([particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow]);
   });
 
   it('rejects invalid worldPlacement on psd objects', () => {
