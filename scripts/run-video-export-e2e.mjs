@@ -23,7 +23,11 @@ const VIDEO_PATCH = process.env.UXFD_VIDEO_EXPORT_E2E_VIDEO_PATCH_JSON
   ? JSON.parse(process.env.UXFD_VIDEO_EXPORT_E2E_VIDEO_PATCH_JSON)
   : null;
 const ADD_MIXED_MEDIA = process.env.UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA === '1';
+const ADD_PSD = process.env.UXFD_VIDEO_EXPORT_E2E_ADD_PSD === '1';
 const IMAGE_PATH = resolve(ROOT, 'public/icon.jpg');
+const PSD_PATH = process.env.UXFD_VIDEO_EXPORT_E2E_PSD_PATH
+  ? resolve(process.env.UXFD_VIDEO_EXPORT_E2E_PSD_PATH)
+  : resolve(ROOT, '葵ちゃん.psd');
 const AUDIO_WAV = resolve(OUTPUT_DIR, 'mixed-audio.wav');
 const PROJECT_FPS = 60;
 
@@ -246,6 +250,17 @@ const clickToolbarButton = async (client, titles) => client.evaluate(`
   })()
 `);
 
+const clickToolbarTextButton = async (client, labels) => client.evaluate(`
+  (() => {
+    const wanted = new Set(${JSON.stringify(labels)});
+    const button = [...document.querySelectorAll('button')]
+      .find((entry) => wanted.has((entry.textContent || '').trim()));
+    if (!button) return false;
+    button.click();
+    return true;
+  })()
+`);
+
 const setFileInput = async (client, selector, filePath, label) => {
   const inputNodeId = await client.querySelector(selector);
   if (!inputNodeId) throw new Error(`${label} inputが見つかりません。`);
@@ -312,6 +327,37 @@ const addMixedMediaToTimeline = async (client) => {
   const audioName = AUDIO_WAV.split('/').pop() ?? 'mixed-audio.wav';
   const audioResult = await waitForTimelineItems(client, ['Rectangle', imageName, audioName]);
   return { ...audioResult, enabled: true, stage: 'complete' };
+};
+
+const addPsdToTimeline = async (client) => {
+  if (!ADD_PSD) {
+    return { enabled: false };
+  }
+  if (!existsSync(PSD_PATH)) {
+    throw new Error(`PSD fixture is missing: ${PSD_PATH}`);
+  }
+
+  const psdClicked = await clickToolbarTextButton(client, ['PSD']);
+  if (!psdClicked) throw new Error('PSD追加ボタンが見つかりません。');
+  await sleep(300);
+  await setFileInput(client, 'input[accept=".psd"]', PSD_PATH, 'PSD');
+  const psdName = PSD_PATH.split('/').pop() ?? 'standing.psd';
+  const psdResult = await waitForTimelineItems(client, [psdName], 90000);
+  const parseFailedDialog = client.dialogs.find((dialog) => (
+    dialog.message.includes('Failed to parse PSD file')
+    || dialog.message.includes('psd.parse')
+  ));
+  if (parseFailedDialog) {
+    return {
+      ok: false,
+      enabled: true,
+      stage: 'psd',
+      reason: 'parseFailedDialog',
+      dialog: parseFailedDialog,
+      ...psdResult,
+    };
+  }
+  return { ...psdResult, enabled: true, stage: 'complete', psdPath: PSD_PATH };
 };
 
 const shortenAllObjectsForExport = async (client) => client.evaluate(`
@@ -476,10 +522,14 @@ const main = async () => {
   if (ADD_MIXED_MEDIA && !mixedMediaResult?.ok) {
     throw new Error(`混在メディア追加に失敗しました: ${JSON.stringify(mixedMediaResult)}`);
   }
-  const mixedMediaDurationResult = ADD_MIXED_MEDIA
+  const psdMediaResult = await addPsdToTimeline(client);
+  if (ADD_PSD && !psdMediaResult?.ok) {
+    throw new Error(`PSDメディア追加に失敗しました: ${JSON.stringify(psdMediaResult)}`);
+  }
+  const mixedMediaDurationResult = ADD_MIXED_MEDIA || ADD_PSD
     ? await shortenAllObjectsForExport(client)
     : null;
-  if (ADD_MIXED_MEDIA && !mixedMediaDurationResult?.ok) {
+  if ((ADD_MIXED_MEDIA || ADD_PSD) && !mixedMediaDurationResult?.ok) {
     throw new Error(`混在メディア短尺化に失敗しました: ${JSON.stringify(mixedMediaDurationResult)}`);
   }
 
@@ -552,6 +602,9 @@ const main = async () => {
   const exportFramesPerSecond = exportedFrameCount && exportDurationMs > 0
     ? exportedFrameCount / (exportDurationMs / 1000)
     : null;
+  const exportUsedDirectTranscode = client.dialogs.some((dialog) => (
+    dialog.message.includes('Rust backend direct transcode')
+  ));
 
   await sleep(500);
   const outputStat = existsSync(OUTPUT_MP4)
@@ -566,7 +619,9 @@ const main = async () => {
       && outputStat.size > 0
       && client.dialogs.some((dialog) => dialog.message.includes('エクスポート完了'))
       && (!ADD_MIXED_MEDIA || mixedMediaResult?.ok)
-      && (!ADD_MIXED_MEDIA || mixedMediaDurationResult?.ok)
+      && (!ADD_PSD || psdMediaResult?.ok)
+      && (!(ADD_MIXED_MEDIA || ADD_PSD) || mixedMediaDurationResult?.ok)
+      && (!(ADD_MIXED_MEDIA || ADD_PSD) || exportUsedDirectTranscode)
       && frameCountMatchesDuration
     ),
     videoPath: VIDEO_PATH,
@@ -576,12 +631,14 @@ const main = async () => {
     videoPatch: VIDEO_PATCH,
     videoObject,
     mixedMediaResult,
+    psdMediaResult,
     mixedMediaDurationResult,
     exportDurationMs,
     exportedFrameCount,
     expectedFrameCount,
     frameCountMatchesDuration,
     exportFramesPerSecond,
+    exportUsedDirectTranscode,
     loadResult,
     exportResult,
     progressSamples,

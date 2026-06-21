@@ -13,11 +13,14 @@
 - `npm test -- --run src/utils/rustBackendVideoEncodeControl.test.ts src/utils/projectExportVideoTranscodeFastPath.test.ts src/utils/useProjectExportBoundary.test.ts src/utils/rustSceneSnapshot.test.ts`
 - `npx tsc --noEmit 2>&1 | rg "src/utils/projectExportVideoTranscodeFastPath|src/utils/rustBackendVideoEncodeControl|src/hooks/useProjectExport|src/vite-env|rustSceneSnapshot"`
 - `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane encode_transcode_video -- --nocapture`
+- `UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA=1 UXFD_VIDEO_EXPORT_E2E_ADD_PSD=1 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=1 UXFD_VIDEO_EXPORT_E2E_TIMEOUT_MS=300000 npm run test:video-export:e2e`
+- `ffprobe -v error -show_entries stream=codec_type -of csv=p=0 .codex/video-export-e2e/video-export-e2e-output.mp4`
 
 ### 結果・残課題
 - PSD overlay単体契約はGreen。関連TSテストは57件成功、Rust transcode系テストは7件成功。
 - 前段の混在ffmpeg fast pathは `/Volumes/ExtendSSD-W/GX020052.MP4` 5秒素材で300 frames、5507ms、約54.48fpsまで出た。
-- 次は実Electron E2Eで動画+PSD+音声をUI投入し、direct transcode経路・見た目・速度を確認する。回転PSD、lip sync PSD、複数動画はまだnative render経路。
+- 実Electron E2Eで動画+図形+画像+音声+PSDをUI投入し、`Rust backend direct transcode` で60 frames、10883ms、約5.51fps、`video` / `audio` streamありを確認した。
+- 葵ちゃんPSDは171 layerで、export冒頭のPSD parse/composite準備が支配的。次はPSD flattened RGBAのcache化で、同じPSD状態の再exportを高速化する。回転PSD、lip sync PSD、複数動画はまだnative render経路。
 
 ## 2026-06-21 — 混在メディアをffmpeg fast pathへ接続
 
