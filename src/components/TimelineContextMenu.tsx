@@ -15,6 +15,7 @@ import { buildAviUtlHoundstoothObject } from '../utils/houndstoothObjectFactory'
 import { buildAviUtlPaperAirplaneObject } from '../utils/paperAirplaneObjectFactory';
 import { buildAviUtlPieChartObject } from '../utils/pieChartObjectFactory';
 import { buildAviUtlPuzzlePieceObject } from '../utils/puzzlePieceObjectFactory';
+import { buildAviUtlProtractorObject } from '../utils/protractorObjectFactory';
 import { buildAviUtlRandomLineExObject } from '../utils/randomLineExObjectFactory';
 import { buildAviUtlSunburstObject } from '../utils/sunburstObjectFactory';
 import { buildAviUtlTartanCheckObject } from '../utils/tartanCheckObjectFactory';
@@ -284,6 +285,17 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
     onClose();
   };
 
+  const handleAddProtractor = () => {
+    addObject(buildAviUtlProtractorObject({
+      id: crypto.randomUUID(),
+      projectWidth: projectSettings.width,
+      projectHeight: projectSettings.height,
+      startTime: state.time,
+      layer: state.layer,
+    }));
+    onClose();
+  };
+
   const handleAddColourWheel = () => {
     addObject(buildAviUtlColourWheelObject({
       id: crypto.randomUUID(),
@@ -475,9 +487,10 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
                  <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddPaperAirplane}>{language === 'en' ? 'Add Paper Airplane' : '紙飛行機を追加'}</div>
                  <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddAsanohaPattern}>{language === 'en' ? 'Add Asanoha Pattern' : '麻の葉模様を追加'}</div>
                   <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddFocusLinesPlus}>{language === 'en' ? 'Add Focus Lines Plus' : '集中線plusを追加'}</div>
-                  <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddRandomLineEx}>{language === 'en' ? 'Add Random Line EX' : 'ランダムラインEXを追加'}</div>
-                  <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHologram}>{language === 'en' ? 'Add Hologram' : 'ホログラムを追加'}</div>
-                  <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddTriangleBracket}>{language === 'en' ? 'Add Triangle Bracket' : '三角括弧を追加'}</div>
+                   <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddRandomLineEx}>{language === 'en' ? 'Add Random Line EX' : 'ランダムラインEXを追加'}</div>
+                   <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHologram}>{language === 'en' ? 'Add Hologram' : 'ホログラムを追加'}</div>
+                   <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddProtractor}>{language === 'en' ? 'Add Protractor' : '分度器を追加'}</div>
+                   <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddTriangleBracket}>{language === 'en' ? 'Add Triangle Bracket' : '三角括弧を追加'}</div>
          </>
        )}
       {state.type === 'object' && state.targetObjectId && (

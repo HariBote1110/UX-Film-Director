@@ -387,6 +387,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '近未来風の背景や強調演出に使いやすく、Rust側で不透明な斜めプリズム模様を決定的に生成できる。'
   },
   {
+    id: 'ssd-protractor',
+    labelJa: '分度器',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/ANM/ANM_ssd/分度器.obj'],
+    rationaleJa: '角度説明や図形解説に使いやすく、Rust側で半円目盛りと測定角ラベルを決定的に生成できる。'
+  },
+  {
     id: 'tim-motion-path',
     labelJa: 'モーションパス',
     category: 'motion',

@@ -341,6 +341,7 @@ export const hasProjectExportNativeRenderMediaObjects = (
     || object.type === 'focus_lines_plus'
     || object.type === 'random_line_ex'
     || object.type === 'hologram'
+    || object.type === 'protractor'
     || object.type === 'audio_visualization'
   );
 

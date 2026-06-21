@@ -48,6 +48,7 @@
 | P2 | 集中線plus | native generated object | ツッコミや注目演出に使いやすい |
 | P2 | ランダムラインEX | native generated object | 不穏な背景やノイズ演出に使いやすい |
 | P2 | ホログラム | native generated object | 近未来風の背景や強調演出に使いやすい |
+| P2 | 分度器 | native generated object | 角度説明や図形解説に使いやすい |
 | P2 | モーションパス / ベジェ軌道T | native motion preset | 既存キーフレームに接続し、弧やS字移動を少ない操作で作れる |
 | P2 | 風揺れT | native motion preset | 立ち絵や字幕に軽い揺れを付ける定番演出 |
 | P3 | Luaスクリプト互換 | script runtime later | 安全性、性能、ライセンス確認が大きい |

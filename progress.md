@@ -1,3 +1,22 @@
+## 2026-06-22 — SSD分度器をRust生成オブジェクトへ追加
+
+### 実施内容
+- Red: `script/ANM/ANM_ssd/分度器.obj` を、Rust `GeneratedProtractor` mediaとして扱う境界契約を作った。
+- Green: `ProtractorObject` と `buildAviUtlProtractorObject` を追加し、Timeline右クリックから `分度器を追加` / `Add Protractor` で置けるようにした。
+- Green: `rustSceneSnapshot` / shared renderer native support / Rust core schema / Rust backendに `GeneratedProtractor` を追加した。
+- Green: Rust backendで透明背景、半円目盛り、測定角ライン、角度ラベルを持つ決定的な分度器フレームを生成できるようにした。
+- Green: `ssd-protractor` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-285a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/protractorObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/e2e/allReadableMedia.e2e.test.ts --reporter=dot` は97件成功。
+- `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は23件成功。
+- `cargo test --manifest-path rust-backend/Cargo.toml generated_protractor_source_frame_contains_ticks_angle_line_and_transparency -- --nocapture` は1件成功。
+- 対象名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足、`mp4box` 型定義不足、`heavyEffectsStress.test.ts` の `PositionKeyframe` 未定義のみ検出した。
+
+### 残課題・次のステップ
+- 現時点の `GeneratedProtractor` は元スクリプトの3点アンカー角度計算テキストを、Rust側の半円分度器と固定測定角ラベル生成へ拡張した互換再実装。アンカー連動の角度計算UIは後続の編集UI拡張で扱う。
+
 ## 2026-06-22 — SSDホログラムをRust生成オブジェクトへ追加
 
 ### 実施内容

@@ -26,6 +26,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedFocusLinesPlus') return isSharedRendererNativeGeneratedFocusLinesPlusSourceSupported(reference.source);
   if (reference.kind === 'GeneratedRandomLineEx') return isSharedRendererNativeGeneratedRandomLineExSourceSupported(reference.source);
   if (reference.kind === 'GeneratedHologram') return isSharedRendererNativeGeneratedHologramSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedProtractor') return isSharedRendererNativeGeneratedProtractorSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -867,6 +868,53 @@ const isSharedRendererNativeGeneratedHologramSourceSupported = (source: string):
       && parsed.colour_mode <= 2
       && typeof parsed.tint_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.tint_colour)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedProtractorSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      radius?: unknown;
+      measured_angle_degrees?: unknown;
+      tick_step_degrees?: unknown;
+      major_tick_step_degrees?: unknown;
+      decimal_places?: unknown;
+      line_colour?: unknown;
+      text_colour?: unknown;
+      shadow_colour?: unknown;
+    };
+    return (
+      parsed.generator === 'protractor'
+      && typeof parsed.radius === 'number'
+      && Number.isInteger(parsed.radius)
+      && parsed.radius >= 1
+      && parsed.radius <= 2000
+      && typeof parsed.measured_angle_degrees === 'number'
+      && Number.isFinite(parsed.measured_angle_degrees)
+      && parsed.measured_angle_degrees >= 0
+      && parsed.measured_angle_degrees <= 180
+      && typeof parsed.tick_step_degrees === 'number'
+      && Number.isInteger(parsed.tick_step_degrees)
+      && parsed.tick_step_degrees >= 1
+      && parsed.tick_step_degrees <= 90
+      && typeof parsed.major_tick_step_degrees === 'number'
+      && Number.isInteger(parsed.major_tick_step_degrees)
+      && parsed.major_tick_step_degrees >= 1
+      && parsed.major_tick_step_degrees <= 180
+      && typeof parsed.decimal_places === 'number'
+      && Number.isInteger(parsed.decimal_places)
+      && parsed.decimal_places >= 0
+      && parsed.decimal_places <= 5
+      && typeof parsed.line_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.line_colour)
+      && typeof parsed.text_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.text_colour)
+      && typeof parsed.shadow_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.shadow_colour)
     );
   } catch {
     return false;

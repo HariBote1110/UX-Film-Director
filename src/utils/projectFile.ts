@@ -108,7 +108,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'asanoha_pattern',
   'focus_lines_plus',
   'random_line_ex',
-  'hologram'
+  'hologram',
+  'protractor'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -386,6 +387,18 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!isFiniteNumber(candidate.gradientAngleDegrees) || candidate.gradientAngleDegrees < -720 || candidate.gradientAngleDegrees > 720) return false;
     if (!isFiniteNumber(candidate.colourMode) || candidate.colourMode < 0 || candidate.colourMode > 2) return false;
     if (typeof candidate.tintColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.tintColour)) return false;
+  }
+  if (candidate.type === 'protractor') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.radius) || candidate.radius < 1 || candidate.radius > 2000) return false;
+    if (!isFiniteNumber(candidate.measuredAngleDegrees) || candidate.measuredAngleDegrees < 0 || candidate.measuredAngleDegrees > 180) return false;
+    if (!isFiniteNumber(candidate.tickStepDegrees) || candidate.tickStepDegrees < 1 || candidate.tickStepDegrees > 90) return false;
+    if (!isFiniteNumber(candidate.majorTickStepDegrees) || candidate.majorTickStepDegrees < 1 || candidate.majorTickStepDegrees > 180) return false;
+    if (!isFiniteNumber(candidate.decimalPlaces) || candidate.decimalPlaces < 0 || candidate.decimalPlaces > 5) return false;
+    if (typeof candidate.lineColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.lineColour)) return false;
+    if (typeof candidate.textColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.textColour)) return false;
+    if (typeof candidate.shadowColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.shadowColour)) return false;
   }
   return true;
 };

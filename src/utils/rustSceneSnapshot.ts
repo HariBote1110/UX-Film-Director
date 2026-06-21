@@ -18,6 +18,7 @@ import type {
   ParticleObject,
   PieChartObject,
   ProjectSettings,
+  ProtractorObject,
   PsdObject,
   PuzzlePieceObject,
   RandomLineExObject,
@@ -81,7 +82,7 @@ export interface RustSceneSnapshot {
 
 export interface RustSceneMediaReference {
   id: string;
-  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'GeneratedTriangleBracket' | 'GeneratedTartanCheck' | 'GeneratedHoundstooth' | 'GeneratedYagasuri' | 'GeneratedPaperAirplane' | 'GeneratedAsanohaPattern' | 'GeneratedFocusLinesPlus' | 'GeneratedRandomLineEx' | 'GeneratedHologram' | 'Psd';
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'GeneratedTriangleBracket' | 'GeneratedTartanCheck' | 'GeneratedHoundstooth' | 'GeneratedYagasuri' | 'GeneratedPaperAirplane' | 'GeneratedAsanohaPattern' | 'GeneratedFocusLinesPlus' | 'GeneratedRandomLineEx' | 'GeneratedHologram' | 'GeneratedProtractor' | 'Psd';
   source: string;
   width: number;
   height: number;
@@ -154,7 +155,7 @@ export interface RustSceneSnapshotBuildInput {
 export type RustSceneVideoSourceMode = 'previewProxy' | 'exportOriginal';
 
 type SupportedMediaObject = ImageObject | VideoObject | PsdObject;
-type SupportedGeneratedObject = AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject | RandomLineExObject | HologramObject;
+type SupportedGeneratedObject = AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject | RandomLineExObject | HologramObject | ProtractorObject;
 type SupportedSceneObject = SupportedMediaObject | ShapeObject | SupportedGeneratedObject;
 
 const rustColourPipeline = (): RustColourPipeline => ({
@@ -411,7 +412,8 @@ const isSupportedSceneObject = (object: TimelineObject): object is SupportedScen
   || object.type === 'asanoha_pattern'
   || object.type === 'focus_lines_plus'
   || object.type === 'random_line_ex'
-  || object.type === 'hologram';
+  || object.type === 'hologram'
+  || object.type === 'protractor';
 
 const isVisualSceneObject = (object: TimelineObject): boolean =>
   object.type !== 'audio';
@@ -662,6 +664,16 @@ const mediaReferenceForObject = (
       id: object.id,
       kind: 'GeneratedHologram',
       source: serialiseGeneratedHologramSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'protractor') {
+    return {
+      id: object.id,
+      kind: 'GeneratedProtractor',
+      source: serialiseGeneratedProtractorSource(object),
       width: object.width,
       height: object.height,
     };
@@ -942,6 +954,19 @@ const serialiseGeneratedHologramSource = (object: HologramObject): string =>
     tint_colour: /^#[0-9a-f]{6}$/i.test(object.tintColour) ? object.tintColour : '#ffffff',
   });
 
+const serialiseGeneratedProtractorSource = (object: ProtractorObject): string =>
+  JSON.stringify({
+    generator: 'protractor',
+    radius: Math.min(2000, Math.max(1, Math.trunc(finiteNumberOr(object.radius, 180)))),
+    measured_angle_degrees: Math.min(180, Math.max(0, finiteNumberOr(object.measuredAngleDegrees, 90))),
+    tick_step_degrees: Math.min(90, Math.max(1, Math.trunc(finiteNumberOr(object.tickStepDegrees, 10)))),
+    major_tick_step_degrees: Math.min(180, Math.max(1, Math.trunc(finiteNumberOr(object.majorTickStepDegrees, 30)))),
+    decimal_places: Math.min(5, Math.max(0, Math.trunc(finiteNumberOr(object.decimalPlaces, 1)))),
+    line_colour: /^#[0-9a-f]{6}$/i.test(object.lineColour) ? object.lineColour : '#ffffff',
+    text_colour: /^#[0-9a-f]{6}$/i.test(object.textColour) ? object.textColour : '#ffffff',
+    shadow_colour: /^#[0-9a-f]{6}$/i.test(object.shadowColour) ? object.shadowColour : '#000000',
+  });
+
 const normaliseTrackBarValues = (values: readonly number[]): number[] =>
   Array.from({ length: 4 }, (_, index) => finiteNumberOr(values[index], 0));
 
@@ -1104,6 +1129,7 @@ const sourceFrameForObject = (
   }
   if (object.type === 'random_line_ex') return 0;
   if (object.type === 'hologram') return 0;
+  if (object.type === 'protractor') return 0;
   const localTime = Math.max(0, time - object.startTime);
   const mediaTime = localTime + (object.offset ?? 0);
   return secondsToFrameIndex(mediaTime, fps);
@@ -1310,7 +1336,7 @@ const validateMediaReferences = (
     }
     validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height', 'source_rate', 'active_layer_ids'], issues);
     validateString(reference.id, `${path}.id`, issues);
-    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'GeneratedPieChart', 'GeneratedHistogram', 'GeneratedSunburst', 'GeneratedCircularArrow', 'GeneratedTriangleBracket', 'GeneratedTartanCheck', 'GeneratedHoundstooth', 'GeneratedYagasuri', 'GeneratedPaperAirplane', 'GeneratedAsanohaPattern', 'GeneratedFocusLinesPlus', 'GeneratedRandomLineEx', 'GeneratedHologram', 'Psd'], issues);
+    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'GeneratedPieChart', 'GeneratedHistogram', 'GeneratedSunburst', 'GeneratedCircularArrow', 'GeneratedTriangleBracket', 'GeneratedTartanCheck', 'GeneratedHoundstooth', 'GeneratedYagasuri', 'GeneratedPaperAirplane', 'GeneratedAsanohaPattern', 'GeneratedFocusLinesPlus', 'GeneratedRandomLineEx', 'GeneratedHologram', 'GeneratedProtractor', 'Psd'], issues);
     validateString(reference.source, `${path}.source`, issues);
     validatePositiveInteger(reference.width, `${path}.width`, issues);
     validatePositiveInteger(reference.height, `${path}.height`, issues);
