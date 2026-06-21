@@ -357,6 +357,18 @@ struct GeneratedFocusLinesPlusSource {
     line_colour: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedRandomLineExSource {
+    generator: String,
+    line_count: u32,
+    line_width: f32,
+    threshold: u32,
+    noise_cell_size: u32,
+    width_variance: f32,
+    seed: i64,
+    line_colour: String,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2362,6 +2374,7 @@ fn collect_native_render_sources(
                 media,
                 source_frame_for_media(snapshot, &media.id),
             )?,
+            MediaKind::GeneratedRandomLineEx => build_generated_random_line_ex_source_frame(media)?,
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform => continue,
@@ -4121,6 +4134,147 @@ fn fill_focus_lines_plus_ray(
     }
 }
 
+fn build_generated_random_line_ex_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedRandomLineEx media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let random_line: GeneratedRandomLineExSource =
+        serde_json::from_str(&media.source).map_err(|error| {
+            format!(
+                "Invalid GeneratedRandomLineEx media '{}': {error}",
+                media.id
+            )
+        })?;
+    validate_generated_random_line_ex_source(&random_line).map_err(|message| {
+        format!(
+            "Invalid GeneratedRandomLineEx media '{}': {message}",
+            media.id
+        )
+    })?;
+    let line_colour = parse_hex_colour_source(&random_line.line_colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedRandomLineEx media '{}': {message}",
+            media.id
+        )
+    })?;
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedRandomLineEx media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedRandomLineEx media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+    let diagonal = ((media.width * media.width + media.height * media.height) as f32).sqrt();
+    let seed = random_line.seed as u64;
+
+    for index in 0..random_line.line_count {
+        let centre_x = (deterministic_unit(seed, index, 0) - 0.5) * media.width as f32;
+        let centre_y = (deterministic_unit(seed, index, 1) - 0.5) * media.height as f32;
+        let angle = deterministic_unit(seed, index, 2) * std::f32::consts::PI;
+        let width = random_line.line_width
+            + deterministic_unit(seed, index, 3) * random_line.width_variance;
+        let direction = (angle.cos(), angle.sin());
+        let normal = (-direction.1, direction.0);
+        let half_len = diagonal;
+        let half_width = (width * 0.5).max(0.0);
+        let quad = [
+            (
+                centre_x + direction.0 * half_len + normal.0 * half_width,
+                centre_y + direction.1 * half_len + normal.1 * half_width,
+            ),
+            (
+                centre_x + direction.0 * half_len - normal.0 * half_width,
+                centre_y + direction.1 * half_len - normal.1 * half_width,
+            ),
+            (
+                centre_x - direction.0 * half_len - normal.0 * half_width,
+                centre_y - direction.1 * half_len - normal.1 * half_width,
+            ),
+            (
+                centre_x - direction.0 * half_len + normal.0 * half_width,
+                centre_y - direction.1 * half_len + normal.1 * half_width,
+            ),
+        ];
+        fill_random_line_ex_quad(
+            &mut pixels,
+            media.width,
+            media.height,
+            quad,
+            line_colour,
+            &random_line,
+            index,
+        );
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedRandomLineEx media frame is invalid: {error:?}"))
+}
+
+fn fill_random_line_ex_quad(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    quad: [(f32, f32); 4],
+    colour: [u8; 3],
+    source: &GeneratedRandomLineExSource,
+    line_index: u32,
+) {
+    let min_x = quad
+        .iter()
+        .map(|point| point.0)
+        .fold(f32::INFINITY, f32::min)
+        .floor()
+        .max(0.0) as u32;
+    let max_x = quad
+        .iter()
+        .map(|point| point.0)
+        .fold(f32::NEG_INFINITY, f32::max)
+        .ceil()
+        .min(width.saturating_sub(1) as f32) as u32;
+    let min_y = quad
+        .iter()
+        .map(|point| point.1)
+        .fold(f32::INFINITY, f32::min)
+        .floor()
+        .max(0.0) as u32;
+    let max_y = quad
+        .iter()
+        .map(|point| point.1)
+        .fold(f32::NEG_INFINITY, f32::max)
+        .ceil()
+        .min(height.saturating_sub(1) as f32) as u32;
+    let cell = source.noise_cell_size.max(1);
+
+    for y in min_y..=max_y {
+        for x in min_x..=max_x {
+            let sample_x = x as f32 + 0.5;
+            let sample_y = y as f32 + 0.5;
+            let inside = point_in_triangle(sample_x, sample_y, [quad[0], quad[1], quad[2]])
+                || point_in_triangle(sample_x, sample_y, [quad[0], quad[2], quad[3]]);
+            if inside {
+                let noise_index = (x / cell) ^ ((y / cell) << 8) ^ (line_index << 16);
+                let noise =
+                    (deterministic_unit(source.seed as u64, noise_index, 37) * 255.0) as u32;
+                if noise >= source.threshold {
+                    let offset = (y as usize * width as usize + x as usize) * 4;
+                    pixels[offset..offset + 4]
+                        .copy_from_slice(&[colour[0], colour[1], colour[2], 255]);
+                }
+            }
+        }
+    }
+}
+
 fn draw_line_segment_rgba(
     pixels: &mut [u8],
     width: u32,
@@ -4720,6 +4874,34 @@ fn validate_generated_focus_lines_plus_source(
         || source.centre_jitter_percent > 100.0
     {
         return Err("centre_jitter_percent must be 0..100".to_string());
+    }
+    parse_hex_colour_source(&source.line_colour)?;
+    Ok(())
+}
+
+fn validate_generated_random_line_ex_source(
+    source: &GeneratedRandomLineExSource,
+) -> Result<(), String> {
+    if source.generator != "random-line-ex" {
+        return Err("generator must be random-line-ex".to_string());
+    }
+    if source.line_count == 0 || source.line_count > 100 {
+        return Err("line_count must be 1..100".to_string());
+    }
+    if !source.line_width.is_finite() || source.line_width < 0.0 || source.line_width > 2000.0 {
+        return Err("line_width must be 0..2000".to_string());
+    }
+    if source.threshold > 255 {
+        return Err("threshold must be 0..255".to_string());
+    }
+    if source.noise_cell_size > 50 {
+        return Err("noise_cell_size must be 0..50".to_string());
+    }
+    if !source.width_variance.is_finite()
+        || source.width_variance < 0.0
+        || source.width_variance > 2000.0
+    {
+        return Err("width_variance must be 0..2000".to_string());
     }
     parse_hex_colour_source(&source.line_colour)?;
     Ok(())
@@ -7195,5 +7377,34 @@ mod tests {
         assert!(white_count > 5_000);
         assert!(transparent_count > 150_000);
         assert!(centre_is_transparent);
+    }
+
+    #[test]
+    fn generated_random_line_ex_source_frame_contains_noisy_lines_and_transparency() {
+        let media = SceneMediaReference {
+            id: "random-line-ex-1".to_string(),
+            kind: MediaKind::GeneratedRandomLineEx,
+            source: r##"{"generator":"random-line-ex","line_count":3,"line_width":6,"threshold":128,"noise_cell_size":12,"width_variance":0,"seed":0,"line_colour":"#ffffff"}"##.to_string(),
+            width: 800,
+            height: 450,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_random_line_ex_source_frame(&media)
+            .expect("generated random line EX frame should render");
+        let white_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [255, 255, 255, 255])
+            .count();
+        let transparent_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| rgba[3] == 0)
+            .count();
+
+        assert!(white_count > 1_000);
+        assert!(transparent_count > 250_000);
     }
 }

@@ -106,7 +106,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'yagasuri',
   'paper_airplane',
   'asanoha_pattern',
-  'focus_lines_plus'
+  'focus_lines_plus',
+  'random_line_ex'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -363,6 +364,17 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!isFiniteNumber(candidate.centreJitterPercent) || candidate.centreJitterPercent < 0 || candidate.centreJitterPercent > 100) return false;
     if (!isFiniteNumber(candidate.seed)) return false;
     if (!isFiniteNumber(candidate.keyframeInterval) || candidate.keyframeInterval < 0) return false;
+    if (typeof candidate.lineColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.lineColour)) return false;
+  }
+  if (candidate.type === 'random_line_ex') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.lineCount) || candidate.lineCount < 1 || candidate.lineCount > 100) return false;
+    if (!isFiniteNumber(candidate.lineWidth) || candidate.lineWidth < 0 || candidate.lineWidth > 2000) return false;
+    if (!isFiniteNumber(candidate.threshold) || candidate.threshold < 0 || candidate.threshold > 255) return false;
+    if (!isFiniteNumber(candidate.noiseCellSize) || candidate.noiseCellSize < 0 || candidate.noiseCellSize > 50) return false;
+    if (!isFiniteNumber(candidate.widthVariance) || candidate.widthVariance < 0 || candidate.widthVariance > 2000) return false;
+    if (!isFiniteNumber(candidate.seed)) return false;
     if (typeof candidate.lineColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.lineColour)) return false;
   }
   return true;

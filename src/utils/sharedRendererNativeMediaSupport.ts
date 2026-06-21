@@ -24,6 +24,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedPaperAirplane') return isSharedRendererNativeGeneratedPaperAirplaneSourceSupported(reference.source);
   if (reference.kind === 'GeneratedAsanohaPattern') return isSharedRendererNativeGeneratedAsanohaPatternSourceSupported(reference.source);
   if (reference.kind === 'GeneratedFocusLinesPlus') return isSharedRendererNativeGeneratedFocusLinesPlusSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedRandomLineEx') return isSharedRendererNativeGeneratedRandomLineExSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -783,6 +784,50 @@ const isSharedRendererNativeGeneratedFocusLinesPlusSourceSupported = (source: st
       && typeof parsed.keyframe_interval === 'number'
       && Number.isInteger(parsed.keyframe_interval)
       && parsed.keyframe_interval >= 0
+      && typeof parsed.line_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.line_colour)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedRandomLineExSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      line_count?: unknown;
+      line_width?: unknown;
+      threshold?: unknown;
+      noise_cell_size?: unknown;
+      width_variance?: unknown;
+      seed?: unknown;
+      line_colour?: unknown;
+    };
+    return (
+      parsed.generator === 'random-line-ex'
+      && typeof parsed.line_count === 'number'
+      && Number.isInteger(parsed.line_count)
+      && parsed.line_count >= 1
+      && parsed.line_count <= 100
+      && typeof parsed.line_width === 'number'
+      && Number.isFinite(parsed.line_width)
+      && parsed.line_width >= 0
+      && parsed.line_width <= 2000
+      && typeof parsed.threshold === 'number'
+      && Number.isInteger(parsed.threshold)
+      && parsed.threshold >= 0
+      && parsed.threshold <= 255
+      && typeof parsed.noise_cell_size === 'number'
+      && Number.isInteger(parsed.noise_cell_size)
+      && parsed.noise_cell_size >= 0
+      && parsed.noise_cell_size <= 50
+      && typeof parsed.width_variance === 'number'
+      && Number.isFinite(parsed.width_variance)
+      && parsed.width_variance >= 0
+      && parsed.width_variance <= 2000
+      && typeof parsed.seed === 'number'
+      && Number.isInteger(parsed.seed)
       && typeof parsed.line_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.line_colour)
     );

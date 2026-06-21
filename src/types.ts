@@ -45,7 +45,7 @@ export interface LayerState {
   locked: boolean;
 }
 
-export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization' | 'particle' | 'barcode' | 'puzzle_piece' | 'colour_wheel' | 'gourd' | 'gear' | 'track_bar' | 'pie_chart' | 'histogram' | 'sunburst' | 'circular_arrow' | 'triangle_bracket' | 'tartan_check' | 'houndstooth' | 'yagasuri' | 'paper_airplane' | 'asanoha_pattern' | 'focus_lines_plus';
+export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization' | 'particle' | 'barcode' | 'puzzle_piece' | 'colour_wheel' | 'gourd' | 'gear' | 'track_bar' | 'pie_chart' | 'histogram' | 'sunburst' | 'circular_arrow' | 'triangle_bracket' | 'tartan_check' | 'houndstooth' | 'yagasuri' | 'paper_airplane' | 'asanoha_pattern' | 'focus_lines_plus' | 'random_line_ex';
 
 // --- グラデーション・シャドウ・軌道 ---
 
@@ -607,6 +607,20 @@ export interface FocusLinesPlusObject extends BaseObject {
   lineColour: string;
 }
 
+// AviUtlPackV4 ランダムラインEX互換の生成オブジェクト
+export interface RandomLineExObject extends BaseObject {
+  type: 'random_line_ex';
+  width: number;
+  height: number;
+  lineCount: number;
+  lineWidth: number;
+  threshold: number;
+  noiseCellSize: number;
+  widthVariance: number;
+  seed: number;
+  lineColour: string;
+}
+
 // --- PSD連携用 ---
 
 export interface PsdLayerStruct {
@@ -651,7 +665,7 @@ export interface PsdObject extends BaseObject {
   worldPlacement?: PsdWorldPlacement;
 }
 
-export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject;
+export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject | RandomLineExObject;
 
 /** タイムライン1本分（シーン） */
 export interface SceneData {

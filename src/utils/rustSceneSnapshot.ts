@@ -19,6 +19,7 @@ import type {
   ProjectSettings,
   PsdObject,
   PuzzlePieceObject,
+  RandomLineExObject,
   ShapeObject,
   SunburstObject,
   TartanCheckObject,
@@ -79,7 +80,7 @@ export interface RustSceneSnapshot {
 
 export interface RustSceneMediaReference {
   id: string;
-  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'GeneratedTriangleBracket' | 'GeneratedTartanCheck' | 'GeneratedHoundstooth' | 'GeneratedYagasuri' | 'GeneratedPaperAirplane' | 'GeneratedAsanohaPattern' | 'GeneratedFocusLinesPlus' | 'Psd';
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'GeneratedTriangleBracket' | 'GeneratedTartanCheck' | 'GeneratedHoundstooth' | 'GeneratedYagasuri' | 'GeneratedPaperAirplane' | 'GeneratedAsanohaPattern' | 'GeneratedFocusLinesPlus' | 'GeneratedRandomLineEx' | 'Psd';
   source: string;
   width: number;
   height: number;
@@ -152,7 +153,7 @@ export interface RustSceneSnapshotBuildInput {
 export type RustSceneVideoSourceMode = 'previewProxy' | 'exportOriginal';
 
 type SupportedMediaObject = ImageObject | VideoObject | PsdObject;
-type SupportedGeneratedObject = AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject;
+type SupportedGeneratedObject = AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject | RandomLineExObject;
 type SupportedSceneObject = SupportedMediaObject | ShapeObject | SupportedGeneratedObject;
 
 const rustColourPipeline = (): RustColourPipeline => ({
@@ -407,7 +408,8 @@ const isSupportedSceneObject = (object: TimelineObject): object is SupportedScen
   || object.type === 'yagasuri'
   || object.type === 'paper_airplane'
   || object.type === 'asanoha_pattern'
-  || object.type === 'focus_lines_plus';
+  || object.type === 'focus_lines_plus'
+  || object.type === 'random_line_ex';
 
 const isVisualSceneObject = (object: TimelineObject): boolean =>
   object.type !== 'audio';
@@ -638,6 +640,16 @@ const mediaReferenceForObject = (
       id: object.id,
       kind: 'GeneratedFocusLinesPlus',
       source: serialiseGeneratedFocusLinesPlusSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'random_line_ex') {
+    return {
+      id: object.id,
+      kind: 'GeneratedRandomLineEx',
+      source: serialiseGeneratedRandomLineExSource(object),
       width: object.width,
       height: object.height,
     };
@@ -896,6 +908,18 @@ const serialiseGeneratedFocusLinesPlusSource = (object: FocusLinesPlusObject): s
     line_colour: /^#[0-9a-f]{6}$/i.test(object.lineColour) ? object.lineColour : '#ffffff',
   });
 
+const serialiseGeneratedRandomLineExSource = (object: RandomLineExObject): string =>
+  JSON.stringify({
+    generator: 'random-line-ex',
+    line_count: Math.min(100, Math.max(1, Math.trunc(finiteNumberOr(object.lineCount, 3)))),
+    line_width: Math.min(2000, Math.max(0, finiteNumberOr(object.lineWidth, 6))),
+    threshold: Math.min(255, Math.max(0, Math.trunc(finiteNumberOr(object.threshold, 128)))),
+    noise_cell_size: Math.min(50, Math.max(0, Math.trunc(finiteNumberOr(object.noiseCellSize, 12)))),
+    width_variance: Math.min(2000, Math.max(0, finiteNumberOr(object.widthVariance, 0))),
+    seed: Math.trunc(finiteNumberOr(object.seed, 0)),
+    line_colour: /^#[0-9a-f]{6}$/i.test(object.lineColour) ? object.lineColour : '#ffffff',
+  });
+
 const normaliseTrackBarValues = (values: readonly number[]): number[] =>
   Array.from({ length: 4 }, (_, index) => finiteNumberOr(values[index], 0));
 
@@ -1056,6 +1080,7 @@ const sourceFrameForObject = (
     const localFrame = secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
     return Math.floor(localFrame / interval) * interval;
   }
+  if (object.type === 'random_line_ex') return 0;
   const localTime = Math.max(0, time - object.startTime);
   const mediaTime = localTime + (object.offset ?? 0);
   return secondsToFrameIndex(mediaTime, fps);
@@ -1262,7 +1287,7 @@ const validateMediaReferences = (
     }
     validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height', 'source_rate', 'active_layer_ids'], issues);
     validateString(reference.id, `${path}.id`, issues);
-    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'GeneratedPieChart', 'GeneratedHistogram', 'GeneratedSunburst', 'GeneratedCircularArrow', 'GeneratedTriangleBracket', 'GeneratedTartanCheck', 'GeneratedHoundstooth', 'GeneratedYagasuri', 'GeneratedPaperAirplane', 'GeneratedAsanohaPattern', 'GeneratedFocusLinesPlus', 'Psd'], issues);
+    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'GeneratedPieChart', 'GeneratedHistogram', 'GeneratedSunburst', 'GeneratedCircularArrow', 'GeneratedTriangleBracket', 'GeneratedTartanCheck', 'GeneratedHoundstooth', 'GeneratedYagasuri', 'GeneratedPaperAirplane', 'GeneratedAsanohaPattern', 'GeneratedFocusLinesPlus', 'GeneratedRandomLineEx', 'Psd'], issues);
     validateString(reference.source, `${path}.source`, issues);
     validatePositiveInteger(reference.width, `${path}.width`, issues);
     validatePositiveInteger(reference.height, `${path}.height`, issues);
