@@ -281,6 +281,30 @@ fn encode_start_accepts_audio_path_and_muxes_audio_with_shared_frames() {
 }
 
 #[test]
+fn audio_waveform_samples_decodes_pcm_for_native_waveform_generation() {
+    let mut backend = BackendProcess::start();
+    let temp_dir = TestTempDir::new("audio-waveform-samples");
+    let audio_path = temp_dir.path().join("silent-waveform.wav");
+    write_silent_wav_fixture(&audio_path, 4, 4);
+
+    let response = backend.request(json!({
+        "id": 301,
+        "method": "audio.waveformSamples",
+        "params": {
+            "source": audio_path.to_string_lossy(),
+            "sampleRate": 4,
+            "maxSamples": 4
+        }
+    }));
+
+    assert_eq!(response["ok"], true, "{response}");
+    assert_eq!(response["result"]["sampleRate"], 4);
+    assert_eq!(response["result"]["sampleCount"], 4);
+    assert_eq!(response["result"]["samples"], json!([0.0, 0.0, 0.0, 0.0]));
+    assert_no_frame_bytes_recursive(&response["result"]);
+}
+
+#[test]
 fn encode_finish_reports_ffmpeg_stderr_when_muxing_fails() {
     let mut backend = BackendProcess::start();
     let temp_dir = TestTempDir::new("encode-ffmpeg-stderr");
