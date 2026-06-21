@@ -33,8 +33,10 @@
 15. ✅ `P1` Audio waveform Rをnative render payloadへ接続
 16. ✅ `P1` Audio waveform Rをexport native encode payloadへ接続
 17. ✅ `P2` 標準パーティクルを生成メディア境界へ追加
-18. `P2` 標準パーティクルをRust backend/native rendererで描画
-19. E2Eで代表素材に効果を載せ、preview/exportの一致を検証
+18. ✅ `P2` 標準パーティクルをRust backend/native rendererで描画
+19. `P2` 標準パーティクルをsource frame対応の動的生成へ拡張
+20. `P2` 標準パーティクル追加UIとPropertyPanel編集を追加
+21. E2Eで代表素材に効果を載せ、preview/exportの一致を検証
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

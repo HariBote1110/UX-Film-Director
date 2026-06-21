@@ -1,3 +1,22 @@
+## 2026-06-21 — 標準パーティクルをRust backend native renderへ接続
+
+### 実施内容
+- Red: `render.nativeSharedFrame` が `GeneratedParticle` mediaをshared frameへ描ける契約を追加した。
+- Green: rust-backendに `GeneratedParticleSource` metadataを追加し、`standard-particle` を検証できるようにした。
+- Green: `collect_native_render_sources` が `GeneratedParticle` をRGBA source frameへ生成するようにした。
+- Green: seed/count/spread/size/colourを使い、決定的な静的パーティクルをラスタライズするようにした。
+- 版を `0.1.1-Beta-252a` に更新した。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane native_render_shared_frame_builds_generated_particle_sources_from_media -- --nocapture`
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane generated -- --nocapture`
+- `npm test -- --run src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "Particle|particle|rust-backend|rustSceneSnapshot|sharedRendererNativeMediaSupport"`
+
+### 結果・残課題
+- rust-backendのgenerated media関連4件、TS対象27件が成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- 現段階の標準パーティクルは静的な決定的生成。次はsource frame/timeを使った速度・寿命つきの動的パーティクル化とUI追加へ進む。
+
 ## 2026-06-21 — 標準パーティクルを生成メディア境界へ追加
 
 ### 実施内容

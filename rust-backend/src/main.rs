@@ -152,6 +152,18 @@ struct GeneratedGradientSource {
     direction: f32,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedParticleSource {
+    generator: String,
+    seed: u64,
+    particle_count: u32,
+    spread: f32,
+    speed: f32,
+    size: f32,
+    colour: String,
+    lifetime_seconds: f32,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2122,6 +2134,7 @@ fn collect_native_render_sources(
         let frame = match media.kind {
             MediaKind::SolidColour => build_solid_colour_source_frame(media)?,
             MediaKind::GeneratedGradient => build_generated_gradient_source_frame(media)?,
+            MediaKind::GeneratedParticle => build_generated_particle_source_frame(media)?,
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform => continue,
@@ -2271,6 +2284,110 @@ fn build_generated_gradient_source_frame(media: &SceneMediaReference) -> Result<
 
     RgbaFrame::from_rgba8(media.width, media.height, pixels)
         .map_err(|error| format!("GeneratedGradient media frame is invalid: {error:?}"))
+}
+
+fn build_generated_particle_source_frame(media: &SceneMediaReference) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedParticle media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let particle: GeneratedParticleSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedParticle media '{}': {error}", media.id))?;
+    validate_generated_particle_source(&particle)
+        .map_err(|message| format!("Invalid GeneratedParticle media '{}': {message}", media.id))?;
+    let [red, green, blue] = parse_hex_colour_source(&particle.colour)
+        .map_err(|message| format!("Invalid GeneratedParticle media '{}': {message}", media.id))?;
+
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedParticle media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedParticle media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+    let centre_x = media.width as f32 / 2.0;
+    let centre_y = media.height as f32 / 2.0;
+    let radius = ((particle.size.max(1.0).round() as i32) - 1) / 2;
+
+    for index in 0..particle.particle_count {
+        let angle = deterministic_unit(particle.seed, index, 0) * std::f32::consts::TAU;
+        let distance = deterministic_unit(particle.seed, index, 1) * particle.spread;
+        let speed_offset = deterministic_unit(particle.seed, index, 2) * particle.speed * 0.0;
+        let x = (centre_x + angle.cos() * (distance + speed_offset)).round() as i32;
+        let y = (centre_y + angle.sin() * (distance + speed_offset)).round() as i32;
+        for offset_y in -radius..=radius {
+            for offset_x in -radius..=radius {
+                write_particle_pixel(
+                    &mut pixels,
+                    media.width,
+                    media.height,
+                    x + offset_x,
+                    y + offset_y,
+                    [red, green, blue, 255],
+                );
+            }
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedParticle media frame is invalid: {error:?}"))
+}
+
+fn validate_generated_particle_source(source: &GeneratedParticleSource) -> Result<(), String> {
+    if source.generator != "standard-particle" {
+        return Err("generator must be standard-particle".to_string());
+    }
+    if source.particle_count == 0 || source.particle_count > 10_000 {
+        return Err("particle_count must be 1..10000".to_string());
+    }
+    if !source.spread.is_finite() || source.spread < 0.0 {
+        return Err("spread must be a finite non-negative number".to_string());
+    }
+    if !source.speed.is_finite() || source.speed < 0.0 {
+        return Err("speed must be a finite non-negative number".to_string());
+    }
+    if !source.size.is_finite() || source.size <= 0.0 {
+        return Err("size must be a finite positive number".to_string());
+    }
+    if !source.lifetime_seconds.is_finite() || source.lifetime_seconds <= 0.0 {
+        return Err("lifetime_seconds must be a finite positive number".to_string());
+    }
+    parse_hex_colour_source(&source.colour)?;
+    Ok(())
+}
+
+fn deterministic_unit(seed: u64, index: u32, lane: u64) -> f32 {
+    let mut value = seed
+        ^ ((index as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15))
+        ^ lane.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    value ^= value >> 30;
+    value = value.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    value ^= value >> 27;
+    value = value.wrapping_mul(0x94d0_49bb_1331_11eb);
+    value ^= value >> 31;
+    (value as f64 / u64::MAX as f64) as f32
+}
+
+fn write_particle_pixel(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    x: i32,
+    y: i32,
+    colour: [u8; 4],
+) {
+    if x < 0 || y < 0 || x >= width as i32 || y >= height as i32 {
+        return;
+    }
+    let offset = ((y as u32 * width + x as u32) * 4) as usize;
+    pixels[offset..offset + 4].copy_from_slice(&colour);
 }
 
 fn normalise_gradient_stops(

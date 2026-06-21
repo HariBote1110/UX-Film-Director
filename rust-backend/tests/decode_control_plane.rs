@@ -1910,7 +1910,7 @@ fn native_render_shared_frame_builds_generated_particle_sources_from_media() {
         .read_frame(0)
         .expect("read native generated particle output frame");
     assert_eq!(&output_frame.bytes[0..4], &[0, 0, 0, 0]);
-    assert_eq!(&output_frame.bytes[512..516], &[255, 255, 255, 255]);
+    assert_eq!(&output_frame.bytes[520..524], &[255, 255, 255, 255]);
 }
 
 #[test]
