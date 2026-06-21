@@ -238,6 +238,20 @@ struct GeneratedPieChartSource {
     slice_colours: Vec<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedHistogramSource {
+    generator: String,
+    bin_values: Vec<f32>,
+    height_scale_percent: f32,
+    line_width: f32,
+    show_luminance: bool,
+    show_red: bool,
+    show_green: bool,
+    show_blue: bool,
+    channel_colours: Vec<String>,
+    background_colour: String,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2222,6 +2236,7 @@ fn collect_native_render_sources(
             MediaKind::GeneratedGear => build_generated_gear_source_frame(media)?,
             MediaKind::GeneratedTrackBar => build_generated_track_bar_source_frame(media)?,
             MediaKind::GeneratedPieChart => build_generated_pie_chart_source_frame(media)?,
+            MediaKind::GeneratedHistogram => build_generated_histogram_source_frame(media)?,
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform => continue,
@@ -3042,6 +3057,105 @@ fn build_generated_pie_chart_source_frame(
         .map_err(|error| format!("GeneratedPieChart media frame is invalid: {error:?}"))
 }
 
+fn build_generated_histogram_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedHistogram media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let histogram: GeneratedHistogramSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedHistogram media '{}': {error}", media.id))?;
+    validate_generated_histogram_source(&histogram)
+        .map_err(|message| format!("Invalid GeneratedHistogram media '{}': {message}", media.id))?;
+
+    let background = parse_hex_colour_source(&histogram.background_colour)
+        .map_err(|message| format!("Invalid GeneratedHistogram media '{}': {message}", media.id))?;
+    let colours = histogram
+        .channel_colours
+        .iter()
+        .map(|colour| {
+            parse_hex_colour_source(colour).map_err(|message| {
+                format!("Invalid GeneratedHistogram media '{}': {message}", media.id)
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedHistogram media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedHistogram media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+    fill_rect_rgba(
+        &mut pixels,
+        media.width,
+        media.height,
+        0,
+        0,
+        media.width as i32,
+        media.height as i32,
+        [background[0], background[1], background[2], 255],
+    );
+
+    let enabled_channels = [
+        histogram.show_luminance,
+        histogram.show_red,
+        histogram.show_green,
+        histogram.show_blue,
+    ];
+    let enabled_count = enabled_channels
+        .iter()
+        .filter(|enabled| **enabled)
+        .count()
+        .max(1) as i32;
+    let bin_count = histogram.bin_values.len() as i32;
+    let bin_width = (media.width as f32 / bin_count as f32).max(1.0);
+    let line_width = histogram.line_width.max(1.0).round() as i32;
+    let height_scale = histogram.height_scale_percent.clamp(1.0, 1000.0) * 0.01;
+    let channel_height_scales = [1.0_f32, 0.82_f32, 0.66_f32, 0.5_f32];
+
+    for (bin_index, value) in histogram.bin_values.iter().enumerate() {
+        let bin_left = (bin_index as f32 * bin_width).round() as i32;
+        let bin_right = ((bin_index as f32 + 1.0) * bin_width).round() as i32;
+        let channel_width = ((bin_right - bin_left).max(1) / enabled_count).max(1);
+        let mut channel_slot = 0_i32;
+        for channel_index in 0..4 {
+            if !enabled_channels[channel_index] {
+                continue;
+            }
+            let scaled_value =
+                (value * height_scale * channel_height_scales[channel_index]).clamp(0.0, 1.0);
+            let bar_height = (media.height as f32 * scaled_value).round() as i32;
+            let left = bin_left + channel_slot * channel_width;
+            let right = (left + channel_width.max(line_width)).min(bin_right.max(left + 1));
+            let top = media.height as i32 - bar_height.max(1);
+            let [red, green, blue] = colours[channel_index];
+            fill_rect_rgba(
+                &mut pixels,
+                media.width,
+                media.height,
+                left,
+                top,
+                right,
+                media.height as i32,
+                [red, green, blue, 255],
+            );
+            channel_slot += 1;
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedHistogram media frame is invalid: {error:?}"))
+}
+
 fn fill_rect_rgba(
     pixels: &mut [u8],
     width: u32,
@@ -3295,6 +3409,42 @@ fn validate_generated_pie_chart_source(source: &GeneratedPieChartSource) -> Resu
     for colour in &source.slice_colours {
         parse_hex_colour_source(colour)?;
     }
+    Ok(())
+}
+
+fn validate_generated_histogram_source(source: &GeneratedHistogramSource) -> Result<(), String> {
+    if source.generator != "simple-histogram" {
+        return Err("generator must be simple-histogram".to_string());
+    }
+    if source.bin_values.is_empty() || source.bin_values.len() > 256 {
+        return Err("bin_values must contain 1..256 values".to_string());
+    }
+    if source
+        .bin_values
+        .iter()
+        .any(|value| !value.is_finite() || *value < 0.0 || *value > 1.0)
+    {
+        return Err("bin_values must be finite numbers in 0..1".to_string());
+    }
+    if !source.height_scale_percent.is_finite()
+        || source.height_scale_percent <= 0.0
+        || source.height_scale_percent > 1000.0
+    {
+        return Err("height_scale_percent must be 1..1000".to_string());
+    }
+    if !source.line_width.is_finite() || source.line_width <= 0.0 {
+        return Err("line_width must be positive".to_string());
+    }
+    if !source.show_luminance && !source.show_red && !source.show_green && !source.show_blue {
+        return Err("at least one histogram channel must be visible".to_string());
+    }
+    if source.channel_colours.len() != 4 {
+        return Err("channel_colours must contain 4 colours".to_string());
+    }
+    for colour in &source.channel_colours {
+        parse_hex_colour_source(colour)?;
+    }
+    parse_hex_colour_source(&source.background_colour)?;
     Ok(())
 }
 
@@ -5444,5 +5594,47 @@ mod tests {
         assert!(has_second_colour);
         assert!(centre_is_hole);
         assert!(has_transparent_background);
+    }
+
+    #[test]
+    fn generated_histogram_source_frame_contains_channel_bars_and_background() {
+        let media = SceneMediaReference {
+            id: "histogram-1".to_string(),
+            kind: MediaKind::GeneratedHistogram,
+            source: r##"{"generator":"simple-histogram","bin_values":[0.08,0.18,0.32,0.55,0.78,0.92,0.64,0.36],"height_scale_percent":100,"line_width":1,"show_luminance":true,"show_red":true,"show_green":true,"show_blue":true,"channel_colours":["#ffffff","#ff4b4b","#4bff6a","#4b8cff"],"background_colour":"#000000"}"##.to_string(),
+            width: 256,
+            height: 200,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_histogram_source_frame(&media)
+            .expect("generated histogram frame should render");
+        let has_luminance = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [255, 255, 255, 255]);
+        let has_red = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [255, 75, 75, 255]);
+        let has_green = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [75, 255, 106, 255]);
+        let has_blue = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [75, 140, 255, 255]);
+        let has_background = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [0, 0, 0, 255]);
+
+        assert!(has_luminance);
+        assert!(has_red);
+        assert!(has_green);
+        assert!(has_blue);
+        assert!(has_background);
     }
 }

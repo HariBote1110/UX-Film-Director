@@ -96,7 +96,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'gourd',
   'gear',
   'track_bar',
-  'pie_chart'
+  'pie_chart',
+  'histogram'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -244,6 +245,20 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!isFiniteNumber(candidate.progressPercent) || candidate.progressPercent < 0 || candidate.progressPercent > 100) return false;
     if (!isFiniteNumber(candidate.strokeWidth) || candidate.strokeWidth <= 0) return false;
     if (!Array.isArray(candidate.sliceColours) || candidate.sliceColours.length === 0 || !candidate.sliceColours.every((colour) => typeof colour === 'string' && /^#[0-9a-f]{6}$/i.test(colour))) return false;
+  }
+  if (candidate.type === 'histogram') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!Array.isArray(candidate.binValues) || candidate.binValues.length === 0 || candidate.binValues.length > 256) return false;
+    if (!candidate.binValues.every((value) => isFiniteNumber(value) && value >= 0 && value <= 1)) return false;
+    if (!isFiniteNumber(candidate.heightScalePercent) || candidate.heightScalePercent <= 0 || candidate.heightScalePercent > 1000) return false;
+    if (!isFiniteNumber(candidate.lineWidth) || candidate.lineWidth <= 0) return false;
+    if (typeof candidate.showLuminance !== 'boolean') return false;
+    if (typeof candidate.showRed !== 'boolean') return false;
+    if (typeof candidate.showGreen !== 'boolean') return false;
+    if (typeof candidate.showBlue !== 'boolean') return false;
+    if (!Array.isArray(candidate.channelColours) || candidate.channelColours.length !== 4 || !candidate.channelColours.every((colour) => typeof colour === 'string' && /^#[0-9a-f]{6}$/i.test(colour))) return false;
+    if (typeof candidate.backgroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.backgroundColour)) return false;
   }
   return true;
 };

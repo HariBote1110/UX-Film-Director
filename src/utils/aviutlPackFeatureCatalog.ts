@@ -267,6 +267,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '割合表示や解説UIに使いやすく、Rust側でドーナツ状の円グラフを決定的に生成できる。'
   },
   {
+    id: 'tim-simple-histogram',
+    labelJa: '簡易ヒストグラム',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/てぃむ/簡易ヒストグラム.obj'],
+    rationaleJa: '色・明度の分布を解説UIとして見せやすく、Rust側で複数チャンネルの棒グラフを決定的に生成できる。'
+  },
+  {
     id: 'tim-motion-path',
     labelJa: 'モーションパス',
     category: 'motion',

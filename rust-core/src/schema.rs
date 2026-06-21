@@ -44,6 +44,7 @@ pub enum MediaKind {
     GeneratedGear,
     GeneratedTrackBar,
     GeneratedPieChart,
+    GeneratedHistogram,
     Psd,
 }
 
@@ -68,6 +69,7 @@ pub enum ClipKind {
     GeneratedGearPlane,
     GeneratedTrackBarPlane,
     GeneratedPieChartPlane,
+    GeneratedHistogramPlane,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

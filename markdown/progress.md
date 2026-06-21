@@ -1,6 +1,20 @@
 # 進捗ログ
 
 ## 2026-06-21
+- Tim簡易ヒストグラムをRust生成オブジェクトへ追加した。
+- Red: `script/てぃむ/簡易ヒストグラム.obj` を、Rust `GeneratedHistogram` mediaとして扱う境界契約を作った。
+- Green: `HistogramObject` と `buildAviUtlHistogramObject` を追加し、Timeline右クリックから `簡易ヒストグラムを追加` / `Add Histogram` で置けるようにした。
+- Green: `rustSceneSnapshot` / shared renderer native support / Rust core schema / Rust backendに `GeneratedHistogram` を追加した。
+- Green: Rust backendで黒背景、輝度/R/G/Bチャンネルの棒を持つ決定的なヒストグラムフレームを生成できるようにした。
+- Green: `tim-simple-histogram` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-273a` に更新した。
+- 検証: `npm test -- --run src/utils/histogramObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/e2e/allReadableMedia.e2e.test.ts --reporter=dot` は85件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は11件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_histogram_source_frame_contains_channel_bars_and_background -- --nocapture` は1件成功した。
+- 検証: 対象名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足、`mp4box` 型定義不足、`heavyEffectsStress.test.ts` の `PositionKeyframe` 未定義のみ検出した。
+- 残課題: 現時点の `GeneratedHistogram` は元スクリプトの対象レイヤーピクセル解析を、固定bin入力のRustラスタ生成へ置き換えた互換再実装。実レイヤーからのRGB/輝度bin抽出は後段で接続する。
+
+## 2026-06-21
 - 93パイシートグラフをRust生成オブジェクトへ追加した。
 - Red: `script/93/パイシートグラフ.obj` を、Rust `GeneratedPieChart` mediaとして扱う境界契約を作った。
 - Green: `PieChartObject` と `buildAviUtlPieChartObject` を追加し、Timeline右クリックから `パイシートグラフを追加` / `Add Pie Chart` で置けるようにした。

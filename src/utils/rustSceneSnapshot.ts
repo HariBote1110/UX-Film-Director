@@ -5,6 +5,7 @@ import type {
   ColourWheelObject,
   GearObject,
   GourdObject,
+  HistogramObject,
   GradientFill,
   ImageObject,
   LayerState,
@@ -69,7 +70,7 @@ export interface RustSceneSnapshot {
 
 export interface RustSceneMediaReference {
   id: string;
-  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'Psd';
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'Psd';
   source: string;
   width: number;
   height: number;
@@ -142,7 +143,7 @@ export interface RustSceneSnapshotBuildInput {
 export type RustSceneVideoSourceMode = 'previewProxy' | 'exportOriginal';
 
 type SupportedMediaObject = ImageObject | VideoObject | PsdObject;
-type SupportedGeneratedObject = AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject;
+type SupportedGeneratedObject = AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject;
 type SupportedSceneObject = SupportedMediaObject | ShapeObject | SupportedGeneratedObject;
 
 const rustColourPipeline = (): RustColourPipeline => ({
@@ -387,7 +388,8 @@ const isSupportedSceneObject = (object: TimelineObject): object is SupportedScen
   || object.type === 'gourd'
   || object.type === 'gear'
   || object.type === 'track_bar'
-  || object.type === 'pie_chart';
+  || object.type === 'pie_chart'
+  || object.type === 'histogram';
 
 const isVisualSceneObject = (object: TimelineObject): boolean =>
   object.type !== 'audio';
@@ -518,6 +520,16 @@ const mediaReferenceForObject = (
       id: object.id,
       kind: 'GeneratedPieChart',
       source: serialiseGeneratedPieChartSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'histogram') {
+    return {
+      id: object.id,
+      kind: 'GeneratedHistogram',
+      source: serialiseGeneratedHistogramSource(object),
       width: object.width,
       height: object.height,
     };
@@ -657,6 +669,20 @@ const serialiseGeneratedPieChartSource = (object: PieChartObject): string =>
     slice_colours: normalisePieChartColours(object.sliceColours),
   });
 
+const serialiseGeneratedHistogramSource = (object: HistogramObject): string =>
+  JSON.stringify({
+    generator: 'simple-histogram',
+    bin_values: normaliseHistogramBins(object.binValues),
+    height_scale_percent: Math.min(1000, Math.max(1, finiteNumberOr(object.heightScalePercent, 100))),
+    line_width: Math.max(1, Math.trunc(finiteNumberOr(object.lineWidth, 1))),
+    show_luminance: object.showLuminance === true,
+    show_red: object.showRed === true,
+    show_green: object.showGreen === true,
+    show_blue: object.showBlue === true,
+    channel_colours: normaliseHistogramColours(object.channelColours),
+    background_colour: /^#[0-9a-f]{6}$/i.test(object.backgroundColour) ? object.backgroundColour : '#000000',
+  });
+
 const normaliseTrackBarValues = (values: readonly number[]): number[] =>
   Array.from({ length: 4 }, (_, index) => finiteNumberOr(values[index], 0));
 
@@ -687,6 +713,20 @@ const normalisePieChartColours = (colours: readonly string[]): string[] => {
   const validColours = colours.filter((colour) => /^#[0-9a-f]{6}$/i.test(colour)).slice(0, 64);
   return validColours.length > 0 ? validColours : ['#389ba6', '#f2e2c4', '#f29422', '#f27830', '#f24b0f'];
 };
+
+const normaliseHistogramBins = (values: readonly number[]): number[] => {
+  const bins = values
+    .map((value) => Math.min(1, Math.max(0, finiteNumberOr(value, 0))))
+    .slice(0, 256);
+  return bins.length > 0 ? bins : [0];
+};
+
+const normaliseHistogramColours = (colours: readonly string[]): string[] =>
+  Array.from({ length: 4 }, (_, index) => {
+    const fallback = ['#ffffff', '#ff4b4b', '#4bff6a', '#4b8cff'][index];
+    const colour = colours[index];
+    return /^#[0-9a-f]{6}$/i.test(colour) ? colour : fallback;
+  });
 
 
 const findTargetAudioForWaveform = (
@@ -788,6 +828,7 @@ const sourceFrameForObject = (
   if (object.type === 'gear') return 0;
   if (object.type === 'track_bar') return 0;
   if (object.type === 'pie_chart') return 0;
+  if (object.type === 'histogram') return 0;
   const localTime = Math.max(0, time - object.startTime);
   const mediaTime = localTime + (object.offset ?? 0);
   return secondsToFrameIndex(mediaTime, fps);
@@ -994,7 +1035,7 @@ const validateMediaReferences = (
     }
     validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height', 'source_rate', 'active_layer_ids'], issues);
     validateString(reference.id, `${path}.id`, issues);
-    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'GeneratedPieChart', 'Psd'], issues);
+    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'GeneratedPieChart', 'GeneratedHistogram', 'Psd'], issues);
     validateString(reference.source, `${path}.source`, issues);
     validatePositiveInteger(reference.width, `${path}.width`, issues);
     validatePositiveInteger(reference.height, `${path}.height`, issues);

@@ -14,6 +14,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedGear') return isSharedRendererNativeGeneratedGearSourceSupported(reference.source);
   if (reference.kind === 'GeneratedTrackBar') return isSharedRendererNativeGeneratedTrackBarSourceSupported(reference.source);
   if (reference.kind === 'GeneratedPieChart') return isSharedRendererNativeGeneratedPieChartSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedHistogram') return isSharedRendererNativeGeneratedHistogramSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -384,6 +385,48 @@ const isSharedRendererNativeGeneratedPieChartSourceSupported = (source: string):
       && parsed.slice_colours.length > 0
       && parsed.slice_colours.length <= 64
       && parsed.slice_colours.every((colour) => typeof colour === 'string' && /^#[0-9a-f]{6}$/i.test(colour))
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedHistogramSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      bin_values?: unknown;
+      height_scale_percent?: unknown;
+      line_width?: unknown;
+      show_luminance?: unknown;
+      show_red?: unknown;
+      show_green?: unknown;
+      show_blue?: unknown;
+      channel_colours?: unknown;
+      background_colour?: unknown;
+    };
+    return (
+      parsed.generator === 'simple-histogram'
+      && Array.isArray(parsed.bin_values)
+      && parsed.bin_values.length > 0
+      && parsed.bin_values.length <= 256
+      && parsed.bin_values.every((value) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1)
+      && typeof parsed.height_scale_percent === 'number'
+      && Number.isFinite(parsed.height_scale_percent)
+      && parsed.height_scale_percent > 0
+      && parsed.height_scale_percent <= 1000
+      && typeof parsed.line_width === 'number'
+      && Number.isFinite(parsed.line_width)
+      && parsed.line_width > 0
+      && typeof parsed.show_luminance === 'boolean'
+      && typeof parsed.show_red === 'boolean'
+      && typeof parsed.show_green === 'boolean'
+      && typeof parsed.show_blue === 'boolean'
+      && Array.isArray(parsed.channel_colours)
+      && parsed.channel_colours.length === 4
+      && parsed.channel_colours.every((colour) => typeof colour === 'string' && /^#[0-9a-f]{6}$/i.test(colour))
+      && typeof parsed.background_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
     );
   } catch {
     return false;

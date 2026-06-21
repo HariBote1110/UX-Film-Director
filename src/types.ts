@@ -45,7 +45,7 @@ export interface LayerState {
   locked: boolean;
 }
 
-export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization' | 'particle' | 'barcode' | 'puzzle_piece' | 'colour_wheel' | 'gourd' | 'gear' | 'track_bar' | 'pie_chart';
+export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization' | 'particle' | 'barcode' | 'puzzle_piece' | 'colour_wheel' | 'gourd' | 'gear' | 'track_bar' | 'pie_chart' | 'histogram';
 
 // --- グラデーション・シャドウ・軌道 ---
 
@@ -468,6 +468,22 @@ export interface PieChartObject extends BaseObject {
   sliceColours: string[];
 }
 
+// AviUtlPackV4 簡易ヒストグラム互換の生成オブジェクト
+export interface HistogramObject extends BaseObject {
+  type: 'histogram';
+  width: number;
+  height: number;
+  binValues: number[];
+  heightScalePercent: number;
+  lineWidth: number;
+  showLuminance: boolean;
+  showRed: boolean;
+  showGreen: boolean;
+  showBlue: boolean;
+  channelColours: string[];
+  backgroundColour: string;
+}
+
 // --- PSD連携用 ---
 
 export interface PsdLayerStruct {
@@ -512,7 +528,7 @@ export interface PsdObject extends BaseObject {
   worldPlacement?: PsdWorldPlacement;
 }
 
-export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject;
+export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject;
 
 /** タイムライン1本分（シーン） */
 export interface SceneData {

@@ -6,6 +6,7 @@ import { buildAviUtlBarcodeObject } from '../utils/barcodeObjectFactory';
 import { buildAviUtlColourWheelObject } from '../utils/colourWheelObjectFactory';
 import { buildAviUtlGearObject } from '../utils/gearObjectFactory';
 import { buildAviUtlGourdObject } from '../utils/gourdObjectFactory';
+import { buildAviUtlHistogramObject } from '../utils/histogramObjectFactory';
 import { buildAviUtlPieChartObject } from '../utils/pieChartObjectFactory';
 import { buildAviUtlPuzzlePieceObject } from '../utils/puzzlePieceObjectFactory';
 import { buildAviUtlTrackBarObject } from '../utils/trackBarObjectFactory';
@@ -272,6 +273,17 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
     onClose();
   };
 
+  const handleAddHistogram = () => {
+    addObject(buildAviUtlHistogramObject({
+      id: crypto.randomUUID(),
+      projectWidth: projectSettings.width,
+      projectHeight: projectSettings.height,
+      startTime: state.time,
+      layer: state.layer,
+    }));
+    onClose();
+  };
+
   const ensureObjectSelection = (objectId: string) => {
     if (!selectedIds.includes(objectId)) {
       selectObject(objectId);
@@ -322,6 +334,7 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddInkSplash}>{language === 'en' ? 'Add Ink Splash' : 'インクを追加'}</div>
              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddTrackBar}>{language === 'en' ? 'Add Track Bar' : 'トラックバーを追加'}</div>
              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddPieChart}>{language === 'en' ? 'Add Pie Chart' : 'パイシートグラフを追加'}</div>
+             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHistogram}>{language === 'en' ? 'Add Histogram' : '簡易ヒストグラムを追加'}</div>
          </>
        )}
       {state.type === 'object' && state.targetObjectId && (
