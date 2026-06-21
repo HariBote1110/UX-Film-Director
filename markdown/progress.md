@@ -1,6 +1,12 @@
 # 進捗ログ
 
 ## 2026-06-22
+- AviUtlPackV4移植ゴールの運用スコープを更新した。
+- ツール上のactive goal本文は直接差し替えできないため、`markdown/Implementation_Plan.md` と `markdown/Task.md` に現在の作業ゴールを明文化した。
+- 直近スコープは `GetColor`、`hksy`（ユーザー表記: hsky）、`script/93` とし、Timeline追加、保存/読込、Rust/WebGPU preview/export、境界テスト、画素テストまで通すことを完了条件にした。
+- 次候補として、93 Sphere(DrawPixel)、93 SphericalField、GetColorの元画像サンプリング寄り拡張を優先する。
+
+## 2026-06-22
 - 93 SimpleTubeトーラスをRust生成プリセットへ追加した。
 - Red: `93 SimpleTubeトーラス` がfactory、Timeline右クリックメニュー、AviUtlPackV4カタログ、Rust scene snapshot、shared renderer native media、Rust backend画素生成を通る契約を追加した。
 - Green: `SimpleTubeObject` に `colourPattern` / `fogStrength` / `fogColour` を追加し、`GeneratedSimpleTube` payloadへ `colour_pattern` / `fog_strength` / `fog_colour` を渡すようにした。

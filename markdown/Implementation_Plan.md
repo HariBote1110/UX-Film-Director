@@ -1,7 +1,13 @@
 # 実装計画
 
-## AviUtlPackV4標準搭載ロードマップ（2026-06-21）
+## AviUtlPackV4標準搭載ロードマップ（2026-06-22）
 詳細は `markdown/AviUtlPackV4_Inventory.md` と `src/utils/aviutlPackFeatureCatalog.ts` を正とする。
+
+### 現在の作業ゴール
+1. iCloud Drive内の `AviUtlPackV4` 全体を参照元にしつつ、直近の実装対象は `GetColor`、`hksy`（ユーザー表記: hsky）、`script/93` に絞る。
+2. 目標は「候補を眺める」ではなく、Timelineへ追加でき、保存/読込でき、Rust/WebGPU側でpreview/exportに出せ、境界テストと画素テストで壊れにくい標準搭載機能へ変えること。
+3. UIはReact/Electronに残し、Canvas描画結果へ関わる生成オブジェクト、フィルタ、音声反応表現はRust/WebGPUへ寄せる。
+4. 完全互換より先に、ボイロ動画で遊べる見た目と安定したexportを優先する。AviUtlスクリプト固有の細部は後続の互換拡張として扱う。
 
 ### 方針
 1. iCloud Driveの利用中Packを「機能の参照元」として棚卸しする。
@@ -12,7 +18,7 @@
 
 ### 優先順位
 1. `P0`: AviUtl/YMM4系イージング、登場退場、ランダム、反復モーション
-2. `P1`: GetColor系生成効果、hksyチェッカー/グリッド、93音声玉/Delay個別/SpotLight、輝度ワイプ、縁取り、色収差、扇クリッピング、音声波形
+2. `P1`: GetColor系生成効果、hksyチェッカー/グリッド/ライン、93音声玉/Delay個別/SpotLight/領域枠/SimpleTube/Sphere系、輝度ワイプ、縁取り、色収差、扇クリッピング、音声波形
 3. `P2`: パーティクル、モーションパス、より複雑な生成オブジェクト
 4. `P3`: カメラ補助、Luaスクリプト互換ランタイム、Pack由来の高度互換
 
@@ -88,6 +94,9 @@
 69. ✅ `P1` 93領域枠(楕円)/(角落ち)をRust GeneratedRegionFrame派生プリセットとして追加する
 70. ✅ `P1` 93 SimpleTubeをRust GeneratedSimpleTube生成プリセットとして追加する
 71. ✅ `P1` 93 SimpleTubeトーラスをRust GeneratedSimpleTube派生プリセットとして追加する
+72. `P1` 93 Sphere(DrawPixel)をRust生成プリセットとして追加する
+73. `P1` 93 SphericalFieldのうちTimelineで使いやすい球状配置/変形表現をRust側へ切り出す
+74. `P1` GetColorの元画像サンプリング寄り挙動をRust生成経路へ接続する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

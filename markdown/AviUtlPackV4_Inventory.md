@@ -9,6 +9,7 @@
 - `script/YMM4`: 登場退場、ランダム、反復、YMM4イージング。
 - `script/てぃむ`: 輝度ワイプ、縁取りT、色収差、モーションパス、各種演出効果。
 - `script/93`: Audio waveform R、DelayMove、GetColor、Displacement、SpotLightなど。
+- `script/hksy`: チェッカー、グリッド、ライン、菱形など。ユーザー会話上の `hsky` 表記はこの `hksy` 系を指すものとして扱う。
 - `script/その他`: 扇クリッピングR、PixelSorterなど。
 - `script/パーティクル`: 標準particle系。
 - `Plugins/x264guiEx_stg`: 高画質、高速、YouTube、Twitterなどの出力プリセット。
@@ -29,6 +30,8 @@
 | P1 | 93 Delay個別 | native motion preset | 個別オブジェクトの遅延移動を複数選択/キーフレームへ接続しやすい |
 | P1 | 93 SpotLight | Rust/WebGPU effect | 注目箇所へ向かう光束や加算グローとして使いやすい |
 | P1 | hksy チェッカー/グリッド | native generated object | 背景・解説UI用の格子素材として使いやすい |
+| P1 | 93 Sphere(DrawPixel) / SphericalField | native generated object / Rust effect | 球状点群や球状配置は音声玉・SimpleTubeと相性がよく、93系の次の可視表現として効果が大きい |
+| P1 | GetColor 画像サンプリング系 | native generated object | 既存ドットフィールドを元画像の色・透明度へ接続すると、AviUtlらしい素材反応表現に近づく |
 | P2 | 標準パーティクル | native generated object | GPU instancing設計後に効く |
 | P2 | オーラ放出 | native generated object | 立ち絵の強調や演出背景に使いやすい |
 | P2 | 泡 | native generated object | 水中・回想・柔らかい背景演出に使いやすい |

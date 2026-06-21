@@ -1,3 +1,16 @@
+## 2026-06-22 — AviUtlPackV4移植ゴールの運用スコープを更新
+
+### 実施内容
+- ツール上のactive goal本文は直接差し替えできないため、`markdown/Implementation_Plan.md` と `markdown/Task.md` に現在の作業ゴールを明文化した。
+- 直近スコープを `GetColor`、`hksy`（ユーザー表記: hsky）、`script/93` に絞り、候補棚卸しよりも実際にTimeline追加、保存/読込、Rust/WebGPU preview/export、境界テスト、画素テストまで到達する実装を優先する方針へ更新した。
+- `markdown/AviUtlPackV4_Inventory.md` に `hksy` と `hsky` 表記の対応、93 Sphere(DrawPixel) / SphericalField、GetColor画像サンプリング系をP1候補として追記した。
+
+### 検証
+- 文書更新のみ。次の実装タスクでRed/Green検証を行う。
+
+### 残課題・次のステップ
+- 93 Sphere(DrawPixel)、93 SphericalField、GetColorの元画像サンプリング寄り拡張を優先して、Rust生成プリセットまたはRust/WebGPU effectとして追加する。
+
 ## 2026-06-22 — 93 SimpleTubeトーラスをRust生成プリセットへ追加
 
 ### 実施内容
