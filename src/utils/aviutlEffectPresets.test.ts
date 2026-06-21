@@ -39,7 +39,8 @@ describe('AviUtlPackV4 effect presets', () => {
       { id: 'luminance-wipe-basic', sourceCandidateId: 'tim-luminance-wipe', filterType: 'wipe' },
       { id: 'edge-outline-soft', sourceCandidateId: 'tim-edge-outline', filterType: 'outline' },
       { id: 'colour-aberration-rgb', sourceCandidateId: 'tim-colour-aberration', filterType: 'colour_aberration' },
-      { id: 'fan-clipping-diagonal', sourceCandidateId: 'fan-clipping-r', filterType: 'clipping' }
+      { id: 'fan-clipping-diagonal', sourceCandidateId: 'fan-clipping-r', filterType: 'clipping' },
+      { id: '93-spotlight-soft', sourceCandidateId: '93-spotlight', filterType: 'spot_light' }
     ]);
   });
 
@@ -63,6 +64,11 @@ describe('AviUtlPackV4 effect presets', () => {
       type: 'clipping',
       enabled: true,
       params: { top: 0, bottom: 0, left: 0, right: 0, angle: 45, radius: 0 }
+    });
+    expect(buildAviUtlEffectPresetFilter('93-spotlight-soft')).toMatchObject({
+      type: 'spot_light',
+      enabled: true,
+      params: { centreX: 0.5, centreY: 0.5, radius: 0.65, intensity: 0.75, colour: '#fff4c2' }
     });
   });
 

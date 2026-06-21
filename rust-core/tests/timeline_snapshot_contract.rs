@@ -62,6 +62,13 @@ fn project_with_transform() -> Project {
                         right: 4.0,
                         angle_degrees: 45.0,
                     },
+                    Effect::SpotLight {
+                        centre_x: 0.5,
+                        centre_y: 0.25,
+                        radius: 0.6,
+                        intensity: 0.8,
+                        colour: [1.0, 0.95686275, 0.7607843],
+                    },
                 ],
             }],
         }],
@@ -257,6 +264,14 @@ fn scene_snapshot_serialises_with_renderer_boundary_field_names() {
                         "left": 3.0,
                         "right": 4.0,
                         "angle_degrees": 45.0
+                    }
+                }, {
+                    "SpotLight": {
+                        "centre_x": 0.5,
+                        "centre_y": 0.25,
+                        "radius": 0.6,
+                        "intensity": 0.8,
+                        "colour": [1.0, 0.95686275, 0.7607843]
                     }
                 }]
             }]

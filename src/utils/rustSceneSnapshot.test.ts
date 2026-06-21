@@ -2614,6 +2614,42 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('serialises 93 SpotLight filters as Rust scene effects', () => {
+    const layers = createDefaultLayers();
+    const spotlight = baseImage({
+      id: 'spotlight',
+      filters: [
+        {
+          id: 'spot-1',
+          type: 'spot_light',
+          enabled: true,
+          params: { centreX: 0.5, centreY: 0.25, radius: 0.6, intensity: 0.8, colour: '#fff4c2' },
+        } as any,
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [spotlight],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected spotlight snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([
+      {
+        SpotLight: {
+          centre_x: 0.5,
+          centre_y: 0.25,
+          radius: 0.6,
+          intensity: 0.8,
+          colour: [1, 0xf4 / 255, 0xc2 / 255],
+        },
+      },
+    ]);
+  });
+
   it('fails loud for visible Pixi features the shared renderer cannot represent yet', () => {
     const layers = createDefaultLayers();
     const unsupportedText: TimelineObject = {
