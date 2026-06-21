@@ -371,7 +371,7 @@ fn native_wgpu_renders_generated_audio_sphere_frame_from_audio_samples() {
     let quiet = NativeAudioWaveformInput {
         media_id: "audio-sphere-1".to_string(),
         source: AudioWaveformSource::from_json(
-            r##"{"generator":"audio-sphere-93","target_audio_id":"audio-1","target_source":"/tmp/music.wav","sample_window_seconds":0.1,"colour":"#36c2ff","thickness":1,"amplitude":1,"columns":8,"rows":6,"base_radius":22,"audio_influence":0.6,"point_size":2,"polygon_size":0.35,"random_amount":0.05,"seed":93}"##,
+            r##"{"generator":"audio-sphere-93","target_audio_id":"audio-1","target_source":"/tmp/music.wav","sample_window_seconds":0.1,"colour":"#36c2ff","columns":8,"rows":6,"base_radius":22,"audio_influence":0.6,"point_size":2,"polygon_size":0.35,"random_amount":0.05,"seed":93}"##,
         )
         .expect("valid audio sphere source"),
         samples: vec![0.0; 64],

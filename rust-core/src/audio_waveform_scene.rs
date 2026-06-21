@@ -7,8 +7,8 @@ pub struct AudioWaveformSource {
     pub target_source: String,
     pub sample_window_seconds: f32,
     pub colour: String,
-    pub thickness: f32,
-    pub amplitude: f32,
+    pub thickness: Option<f32>,
+    pub amplitude: Option<f32>,
     pub columns: Option<u32>,
     pub rows: Option<u32>,
     pub base_radius: Option<f32>,
@@ -32,10 +32,12 @@ impl AudioWaveformSource {
         }
         match source.generator.as_str() {
             "audio-waveform-r" => {
-                if !source.thickness.is_finite()
-                    || source.thickness <= 0.0
-                    || !source.amplitude.is_finite()
-                    || source.amplitude < 0.0
+                let thickness = source.thickness.unwrap_or(f32::NAN);
+                let amplitude = source.amplitude.unwrap_or(f32::NAN);
+                if !thickness.is_finite()
+                    || thickness <= 0.0
+                    || !amplitude.is_finite()
+                    || amplitude < 0.0
                 {
                     return Err(AudioWaveformSceneError::InvalidSourceMetadata);
                 }
@@ -125,14 +127,15 @@ pub fn build_audio_waveform_line_strip(
         } else {
             0.0
         };
-        let y = (centre_y + normalised * half_height * source.amplitude).clamp(0.0, height as f32);
+        let amplitude = source.amplitude.unwrap_or(1.0);
+        let y = (centre_y + normalised * half_height * amplitude).clamp(0.0, height as f32);
         points.push((x as f32, y));
     }
 
     Ok(AudioWaveformLineStrip {
         points,
         colour: parse_hex_colour(&source.colour),
-        thickness: source.thickness,
+        thickness: source.thickness.unwrap_or(1.0),
     })
 }
 

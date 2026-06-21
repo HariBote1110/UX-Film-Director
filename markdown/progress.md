@@ -1,6 +1,17 @@
 # 進捗ログ
 
 ## 2026-06-22
+- 93音声玉source JSONをRust export境界で受理できるようにした。
+- Red: 93音声玉の `audio-sphere-93` source JSONが、波形専用の `thickness` / `amplitude` を含まなくてもRust境界で受理される契約を追加した。
+- Green: `AudioWaveformSource` の `thickness` / `amplitude` をgenerator別の任意フィールドへ変更し、`audio-waveform-r` の場合だけ必須検証するようにした。
+- Green: native-wgpu-rendererの93音声玉テストを、実際のTypeScript snapshotが出す最小JSONへ寄せた。
+- 版を `0.1.1-Beta-293b` に更新した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test audio_waveform_scene -- --nocapture` は3件成功した。
+- 検証: `cargo test --manifest-path native-wgpu-renderer/Cargo.toml native_wgpu_renders_generated_audio_sphere_frame_from_audio_samples -- --nocapture` は1件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane native_render -- --nocapture` は22件成功した。
+- 次は実Electron E2Eで、GetColor / hksy / 93優先効果を混在させた動画exportが通るか再確認する。
+
+## 2026-06-22
 - GetColor V2RドットフィールドをRust生成オブジェクトへ追加した。
 - Red: `GetColor V2R` のドットフィールドがタイムライン挿入、保存/読込、Rust scene snapshot、shared renderer native media、Pixi cutover、Rust core schema境界、Rust backendラスタ生成を通る契約を追加した。
 - Green: `getcolor_dot_field` TimelineObjectと `GeneratedGetColorDots` media kindを追加し、右クリックメニューから「GetColor V2Rドットフィールドを追加」できるようにした。

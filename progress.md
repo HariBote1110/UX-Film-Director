@@ -8869,6 +8869,22 @@
 ### 残課題・次のステップ
 - 次は `UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA=1 UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS=1` の実Electron E2Eを短尺で走らせ、出力MP4内に優先効果が見えることを画素検査へ広げる。
 
+## 2026-06-22 — 93音声玉source JSONをRust export境界で受理
+
+### 実施内容
+- Red: 93音声玉の `audio-sphere-93` source JSONが、波形専用の `thickness` / `amplitude` を含まなくてもRust境界で受理される契約を追加した。
+- Green: `AudioWaveformSource` の `thickness` / `amplitude` をgenerator別の任意フィールドへ変更し、`audio-waveform-r` の場合だけ必須検証するようにした。
+- Green: native-wgpu-rendererの93音声玉テストを、実際のTypeScript snapshotが出す最小JSONへ寄せた。
+- 版を `0.1.1-Beta-293b` に更新した。
+
+### 検証
+- `cargo test --manifest-path rust-core/Cargo.toml --test audio_waveform_scene -- --nocapture` は3件成功。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml native_wgpu_renders_generated_audio_sphere_frame_from_audio_samples -- --nocapture` は1件成功。
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane native_render -- --nocapture` は22件成功。
+
+### 残課題・次のステップ
+- 実Electron E2Eで、GetColor / hksy / 93優先効果を混在させた動画exportが通るか再確認する。
+
 ## 2026-06-22 — 93 SpotLightをRust/WebGPU effectへ追加
 
 ### 実施内容

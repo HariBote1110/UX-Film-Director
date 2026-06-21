@@ -12,8 +12,8 @@ fn parses_audio_waveform_r_source_metadata() {
     assert_eq!(source.target_source, "/tmp/music.wav");
     assert_eq!(source.sample_window_seconds, 1.0);
     assert_eq!(source.colour, "#00ff00");
-    assert_eq!(source.thickness, 2.0);
-    assert_eq!(source.amplitude, 1.5);
+    assert_eq!(source.thickness, Some(2.0));
+    assert_eq!(source.amplitude, Some(1.5));
 }
 
 #[test]
