@@ -31,6 +31,11 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('tim-colour-aberration')?.implementationTarget).toBe('rust-webgpu-effect');
     expect(byId.get('tim-luminance-wipe')?.implementationTarget).toBe('rust-webgpu-effect');
     expect(byId.get('audio-waveform-r')?.implementationTarget).toBe('native-generated-object');
+    expect(byId.get('getcolor-v2r-dot-field')?.sourceRelativePaths).toContain('script/@GetColor/@GetColor-V2R.anm');
+    expect(byId.get('hksy-checker-grid')?.sourceRelativePaths).toContain('script/@hksy/@hksy.obj');
+    expect(byId.get('93-audio-sphere')?.sourceRelativePaths).toContain('script/93/音声玉.obj');
+    expect(byId.get('93-delay-move')?.sourceRelativePaths).toContain('script/93/@DelayMove.anm');
+    expect(byId.get('93-spotlight')?.sourceRelativePaths).toContain('script/93/@SpotLight.anm');
     expect(byId.get('particle-standard')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('tim-aura-emission')?.sourceRelativePaths).toContain('script/てぃむ/オーラ放出.anm');
     expect(byId.get('tim-bubbles')?.sourceRelativePaths).toContain('script/てぃむ/泡.obj');
@@ -88,5 +93,18 @@ describe('AviUtlPackV4 feature catalogue', () => {
       'ymm4-random-motion',
       'ymm4-repeat-motion'
     ]);
+  });
+
+  it('promotes GetColor, hksy and 93 scripts into the next implementation lane', () => {
+    const roadmapIds = getStandardAviUtlNativeEffectRoadmap().map((item) => item.id);
+    const priorityIds = [
+      'getcolor-v2r-dot-field',
+      '93-audio-sphere',
+      '93-delay-move',
+      '93-spotlight',
+      'hksy-checker-grid'
+    ];
+
+    expect(roadmapIds.slice(0, 18)).toEqual(expect.arrayContaining(priorityIds));
   });
 });
