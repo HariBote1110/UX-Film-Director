@@ -53,6 +53,16 @@ describe('package scripts', () => {
     expect(main).toContain('state.setDuration(safeDuration)');
   });
 
+  it('waits for the Electron bundle before launching the video export E2E window', () => {
+    const script = readFileSync(new URL('../../scripts/run-video-export-e2e.mjs', import.meta.url), 'utf8');
+
+    expect(script).toContain('waitForElectronBundle');
+    expect(script).toContain('dist-electron/main.js');
+    expect(script).toContain('dist-electron/preload.js');
+    expect(script.indexOf('await waitForElectronBundle()'))
+      .toBeLessThan(script.indexOf('Electron 起動: remote-debugging-port='));
+  });
+
   it('provides a real video export quality comparison command', () => {
     expect(packageJson.scripts['test:video-export:quality']).toBe('node scripts/compare-video-export-quality.mjs');
 
