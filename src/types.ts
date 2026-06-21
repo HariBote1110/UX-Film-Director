@@ -784,6 +784,9 @@ export interface SimpleTubeObject extends BaseObject {
   strokeWidth: number;
   colour: string;
   secondaryColour: string;
+  colourPattern?: 'single' | 'ring' | 'depth';
+  fogStrength?: number;
+  fogColour?: string;
   seed: number;
   torus: boolean;
 }

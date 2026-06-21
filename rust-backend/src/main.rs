@@ -490,8 +490,22 @@ struct GeneratedSimpleTubeSource {
     stroke_width: f32,
     colour: String,
     secondary_colour: String,
+    #[serde(default = "default_simple_tube_colour_pattern")]
+    colour_pattern: String,
+    #[serde(default)]
+    fog_strength: f32,
+    #[serde(default = "default_simple_tube_fog_colour")]
+    fog_colour: String,
     seed: i64,
     torus: bool,
+}
+
+fn default_simple_tube_colour_pattern() -> String {
+    "single".to_string()
+}
+
+fn default_simple_tube_fog_colour() -> String {
+    "#ffffff".to_string()
 }
 
 fn default_region_frame_shape() -> String {
@@ -5562,6 +5576,12 @@ fn build_generated_simple_tube_source_frame(
                 media.id
             )
         })?;
+    let fog_colour = parse_hex_colour_source(&simple_tube.fog_colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedSimpleTube media '{}': fog_colour {message}",
+            media.id
+        )
+    })?;
 
     let pixel_count = usize::try_from(media.width)
         .ok()
@@ -5582,6 +5602,7 @@ fn build_generated_simple_tube_source_frame(
         &simple_tube,
         colour,
         secondary_colour,
+        fog_colour,
     );
 
     RgbaFrame::from_rgba8(media.width, media.height, pixels)
@@ -5595,6 +5616,7 @@ fn draw_simple_tube_rgba(
     tube: &GeneratedSimpleTubeSource,
     colour: [u8; 3],
     secondary_colour: [u8; 3],
+    fog_colour: [u8; 3],
 ) {
     let centre_x = width as f32 * 0.5;
     let centre_y = height as f32 * 0.5;
@@ -5615,6 +5637,7 @@ fn draw_simple_tube_rgba(
             tube,
             colour,
             secondary_colour,
+            fog_colour,
             stroke_width,
         );
         return;
@@ -5646,6 +5669,14 @@ fn draw_simple_tube_rgba(
             tube.random_amount,
             tube.seed + ring_index as i64,
         );
+        let ring_colour = simple_tube_colour_for_ring(
+            tube,
+            ring_index,
+            ring_count,
+            colour,
+            secondary_colour,
+            fog_colour,
+        );
         for pair in points.windows(2) {
             draw_line_segment_rgba(
                 pixels,
@@ -5653,17 +5684,33 @@ fn draw_simple_tube_rgba(
                 height,
                 pair[0],
                 pair[1],
-                colour,
+                ring_colour,
                 stroke_width,
             );
         }
         if let (Some(first), Some(last)) = (points.first(), points.last()) {
-            draw_line_segment_rgba(pixels, width, height, *last, *first, colour, stroke_width);
+            draw_line_segment_rgba(
+                pixels,
+                width,
+                height,
+                *last,
+                *first,
+                ring_colour,
+                stroke_width,
+            );
         }
         rings.push(points);
     }
 
     for segment_index in 0..segment_count as usize {
+        let depth_colour = simple_tube_colour_for_ring(
+            tube,
+            segment_index as u32,
+            segment_count,
+            colour,
+            secondary_colour,
+            fog_colour,
+        );
         for pair in rings.windows(2) {
             draw_line_segment_rgba(
                 pixels,
@@ -5671,7 +5718,7 @@ fn draw_simple_tube_rgba(
                 height,
                 pair[0][segment_index],
                 pair[1][segment_index],
-                secondary_colour,
+                depth_colour,
                 stroke_width,
             );
         }
@@ -5687,6 +5734,14 @@ fn draw_simple_tube_rgba(
         tube.random_amount,
         tube.seed + 10_000,
     );
+    let centre_colour = simple_tube_colour_for_ring(
+        tube,
+        ring_count / 2,
+        ring_count,
+        colour,
+        secondary_colour,
+        fog_colour,
+    );
     for pair in centre_ring.windows(2) {
         draw_line_segment_rgba(
             pixels,
@@ -5694,12 +5749,20 @@ fn draw_simple_tube_rgba(
             height,
             pair[0],
             pair[1],
-            colour,
+            centre_colour,
             stroke_width,
         );
     }
     if let (Some(first), Some(last)) = (centre_ring.first(), centre_ring.last()) {
-        draw_line_segment_rgba(pixels, width, height, *last, *first, colour, stroke_width);
+        draw_line_segment_rgba(
+            pixels,
+            width,
+            height,
+            *last,
+            *first,
+            centre_colour,
+            stroke_width,
+        );
     }
 
     draw_line_segment_rgba(
@@ -5724,6 +5787,7 @@ fn draw_simple_tube_torus_rgba(
     tube: &GeneratedSimpleTubeSource,
     colour: [u8; 3],
     secondary_colour: [u8; 3],
+    fog_colour: [u8; 3],
     stroke_width: f32,
 ) {
     let segment_count = tube.segments.max(3);
@@ -5740,6 +5804,7 @@ fn draw_simple_tube_torus_rgba(
         tube.random_amount,
         tube.seed,
     );
+    let ring_colour = simple_tube_colour_for_ring(tube, 0, 1, colour, secondary_colour, fog_colour);
     for pair in points.windows(2) {
         draw_line_segment_rgba(
             pixels,
@@ -5747,28 +5812,80 @@ fn draw_simple_tube_torus_rgba(
             height,
             pair[0],
             pair[1],
-            colour,
+            ring_colour,
             stroke_width,
         );
     }
     if let (Some(first), Some(last)) = (points.first(), points.last()) {
-        draw_line_segment_rgba(pixels, width, height, *last, *first, colour, stroke_width);
+        draw_line_segment_rgba(
+            pixels,
+            width,
+            height,
+            *last,
+            *first,
+            ring_colour,
+            stroke_width,
+        );
     }
     for ring_index in 0..ring_count {
         let phase = ring_index as f32 / ring_count as f32;
         let angle = phase * std::f32::consts::TAU;
         let x = centre_x + outer_radius_x * angle.cos();
         let y = centre_y + outer_radius_y * angle.sin();
+        let spoke_colour = simple_tube_colour_for_ring(
+            tube,
+            ring_index,
+            ring_count,
+            colour,
+            secondary_colour,
+            fog_colour,
+        );
         draw_line_segment_rgba(
             pixels,
             width,
             height,
             (centre_x, centre_y),
             (x, y),
-            secondary_colour,
+            spoke_colour,
             stroke_width,
         );
     }
+}
+
+fn simple_tube_colour_for_ring(
+    tube: &GeneratedSimpleTubeSource,
+    index: u32,
+    count: u32,
+    colour: [u8; 3],
+    secondary_colour: [u8; 3],
+    fog_colour: [u8; 3],
+) -> [u8; 3] {
+    let pattern_colour = match tube.colour_pattern.as_str() {
+        "ring" if index % 2 == 1 => secondary_colour,
+        "depth" => {
+            let amount = if count <= 1 {
+                0.0
+            } else {
+                index as f32 / (count - 1) as f32
+            };
+            mix_rgb_u8(colour, secondary_colour, amount)
+        }
+        _ => colour,
+    };
+    mix_rgb_u8(
+        pattern_colour,
+        fog_colour,
+        tube.fog_strength.clamp(0.0, 1.0),
+    )
+}
+
+fn mix_rgb_u8(left: [u8; 3], right: [u8; 3], amount: f32) -> [u8; 3] {
+    let amount = amount.clamp(0.0, 1.0);
+    [
+        (left[0] as f32 * (1.0 - amount) + right[0] as f32 * amount).round() as u8,
+        (left[1] as f32 * (1.0 - amount) + right[1] as f32 * amount).round() as u8,
+        (left[2] as f32 * (1.0 - amount) + right[2] as f32 * amount).round() as u8,
+    ]
 }
 
 fn simple_tube_ellipse_points(
@@ -7230,8 +7347,18 @@ fn validate_generated_simple_tube_source(source: &GeneratedSimpleTubeSource) -> 
     if !source.stroke_width.is_finite() || !(0.0..=200.0).contains(&source.stroke_width) {
         return Err("stroke_width must be 0..200".to_string());
     }
+    if source.colour_pattern != "single"
+        && source.colour_pattern != "ring"
+        && source.colour_pattern != "depth"
+    {
+        return Err("colour_pattern must be single, ring, or depth".to_string());
+    }
+    if !source.fog_strength.is_finite() || !(0.0..=1.0).contains(&source.fog_strength) {
+        return Err("fog_strength must be 0..1".to_string());
+    }
     parse_hex_colour_source(&source.colour)?;
     parse_hex_colour_source(&source.secondary_colour)?;
+    parse_hex_colour_source(&source.fog_colour)?;
     Ok(())
 }
 
@@ -10357,7 +10484,7 @@ mod tests {
 
         assert_eq!(
             &frame.pixels[centre_offset..centre_offset + 4],
-            [249, 249, 249, 255]
+            [251, 251, 251, 255]
         );
         assert_ne!(
             &frame.pixels[right_ring_offset..right_ring_offset + 4],

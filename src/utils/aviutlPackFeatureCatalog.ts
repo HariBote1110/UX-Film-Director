@@ -247,6 +247,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: 'チューブ/トーラス状の3D風ライン素材を、Rust生成の解説・背景演出として標準搭載する。'
   },
   {
+    id: '93-simple-tube-torus',
+    labelJa: '93 SimpleTube トーラス',
+    category: 'generated-object',
+    phase: 'P1',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/SimpleTube2.obj'],
+    rationaleJa: 'SimpleTube2のトーラス指定をRust生成の円環ライン素材として標準搭載する。'
+  },
+  {
     id: 'hksy-checker-grid',
     labelJa: 'hksy チェッカー/グリッド',
     category: 'generated-object',

@@ -1213,6 +1213,9 @@ const serialiseGeneratedSimpleTubeSource = (object: SimpleTubeObject): string =>
     stroke_width: Math.min(200, Math.max(0, finiteNumberOr(object.strokeWidth, 3))),
     colour: /^#[0-9a-f]{6}$/i.test(object.colour) ? object.colour : '#0e769f',
     secondary_colour: /^#[0-9a-f]{6}$/i.test(object.secondaryColour) ? object.secondaryColour : '#ffffff',
+    colour_pattern: object.colourPattern === 'ring' || object.colourPattern === 'depth' ? object.colourPattern : 'single',
+    fog_strength: Math.min(1, Math.max(0, finiteNumberOr(object.fogStrength, 0))),
+    fog_colour: object.fogColour && /^#[0-9a-f]{6}$/i.test(object.fogColour) ? object.fogColour : '#ffffff',
     seed: Math.trunc(finiteNumberOr(object.seed, 93)),
     torus: object.torus === true,
   });

@@ -526,6 +526,9 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!isFiniteNumber(candidate.strokeWidth) || candidate.strokeWidth < 0 || candidate.strokeWidth > 200) return false;
     if (typeof candidate.colour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.colour)) return false;
     if (typeof candidate.secondaryColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.secondaryColour)) return false;
+    if (candidate.colourPattern !== undefined && candidate.colourPattern !== 'single' && candidate.colourPattern !== 'ring' && candidate.colourPattern !== 'depth') return false;
+    if (candidate.fogStrength !== undefined && (!isFiniteNumber(candidate.fogStrength) || candidate.fogStrength < 0 || candidate.fogStrength > 1)) return false;
+    if (candidate.fogColour !== undefined && (typeof candidate.fogColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.fogColour))) return false;
     if (!isFiniteNumber(candidate.seed)) return false;
     if (typeof candidate.torus !== 'boolean') return false;
   }

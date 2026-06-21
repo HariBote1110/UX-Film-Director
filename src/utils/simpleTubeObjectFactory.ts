@@ -8,13 +8,13 @@ export interface BuildAviUtlSimpleTubeObjectInput {
   layer: number;
 }
 
-export const buildAviUtlSimpleTubeObject = ({
+const buildBaseSimpleTubeObject = ({
   id,
   projectWidth,
   projectHeight,
   startTime,
   layer,
-}: BuildAviUtlSimpleTubeObjectInput): SimpleTubeObject => {
+}: BuildAviUtlSimpleTubeObjectInput): Omit<SimpleTubeObject, 'name'> => {
   const width = Math.max(320, Math.round(projectWidth * 0.4167));
   const height = Math.max(180, Math.round(projectHeight * 0.4167));
   const x = Math.round((projectWidth - width) / 2);
@@ -23,7 +23,6 @@ export const buildAviUtlSimpleTubeObject = ({
   return {
     id,
     type: 'simple_tube',
-    name: '93 SimpleTube',
     layer,
     startTime,
     duration: 5,
@@ -48,7 +47,30 @@ export const buildAviUtlSimpleTubeObject = ({
     strokeWidth: 3,
     colour: '#0e769f',
     secondaryColour: '#ffffff',
+    colourPattern: 'single',
+    fogStrength: 0,
+    fogColour: '#ffffff',
     seed: 93,
     torus: false,
   };
 };
+
+export const buildAviUtlSimpleTubeObject = (input: BuildAviUtlSimpleTubeObjectInput): SimpleTubeObject => ({
+  ...buildBaseSimpleTubeObject(input),
+  name: '93 SimpleTube',
+});
+
+export const buildAviUtlSimpleTubeTorusObject = (input: BuildAviUtlSimpleTubeObjectInput): SimpleTubeObject => ({
+  ...buildBaseSimpleTubeObject(input),
+  name: '93 SimpleTube トーラス',
+  radius: 170,
+  depth: 260,
+  segments: 24,
+  rings: 16,
+  twistDegrees: 120,
+  secondaryColour: '#f9f9f9',
+  colourPattern: 'ring',
+  fogStrength: 0.35,
+  fogColour: '#ffffff',
+  torus: true,
+});

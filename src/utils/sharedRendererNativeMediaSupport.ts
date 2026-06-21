@@ -1306,6 +1306,9 @@ const isSharedRendererNativeGeneratedSimpleTubeSourceSupported = (source: string
       stroke_width?: unknown;
       colour?: unknown;
       secondary_colour?: unknown;
+      colour_pattern?: unknown;
+      fog_strength?: unknown;
+      fog_colour?: unknown;
       seed?: unknown;
       torus?: unknown;
     };
@@ -1343,6 +1346,13 @@ const isSharedRendererNativeGeneratedSimpleTubeSourceSupported = (source: string
       && /^#[0-9a-f]{6}$/i.test(parsed.colour)
       && typeof parsed.secondary_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.secondary_colour)
+      && (parsed.colour_pattern === 'single' || parsed.colour_pattern === 'ring' || parsed.colour_pattern === 'depth')
+      && typeof parsed.fog_strength === 'number'
+      && Number.isFinite(parsed.fog_strength)
+      && parsed.fog_strength >= 0
+      && parsed.fog_strength <= 1
+      && typeof parsed.fog_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.fog_colour)
       && Number.isInteger(parsed.seed)
       && typeof parsed.torus === 'boolean'
     );
