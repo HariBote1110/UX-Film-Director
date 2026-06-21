@@ -10,6 +10,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
 
     expect(code).toContain('buildAviUtlBarcodeObject');
     expect(code).toContain('buildAviUtlColourWheelObject');
+    expect(code).toContain('buildAviUtlGearObject');
     expect(code).toContain('buildAviUtlGourdObject');
     expect(code).toContain('buildAviUtlPuzzlePieceObject');
     expect(code).toContain('buildAviUtlAuraEmissionObject');
@@ -19,6 +20,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('buildDefaultStandardParticleObject');
     expect(code).toContain('handleAddBarcode');
     expect(code).toContain('handleAddColourWheel');
+    expect(code).toContain('handleAddGear');
     expect(code).toContain('handleAddGourd');
     expect(code).toContain('handleAddPuzzlePiece');
     expect(code).toContain('handleAddParticle');
@@ -28,6 +30,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('handleAddInkSplash');
     expect(code).toContain('Add Barcode');
     expect(code).toContain('Add Colour Wheel');
+    expect(code).toContain('Add Gear');
     expect(code).toContain('Add Gourd');
     expect(code).toContain('Add Puzzle Piece');
     expect(code).toContain('Add Standard Particle');
@@ -37,6 +40,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('Add Ink Splash');
     expect(code).toContain('バーコードを追加');
     expect(code).toContain('色相環を追加');
+    expect(code).toContain('歯車を追加');
     expect(code).toContain('ひょうたんを追加');
     expect(code).toContain('パズルピースを追加');
     expect(code).toContain('標準パーティクルを追加');

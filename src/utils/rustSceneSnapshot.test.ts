@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GourdObject, ImageObject, ParticleObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GearObject, GourdObject, ImageObject, ParticleObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, VideoObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -301,6 +301,34 @@ const baseGourd = (patch: Partial<GourdObject> = {}): GourdObject => ({
   waistRadius: 10,
   squashPercent: 40,
   repeatCount: 1,
+  fillColour: '#ffffff',
+  ...patch,
+});
+
+const baseGear = (patch: Partial<GearObject> = {}): GearObject => ({
+  id: 'gear-1',
+  type: 'gear',
+  name: '歯車',
+  layer: 10,
+  startTime: 1,
+  duration: 4,
+  x: 800,
+  y: 380,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 800,
+  endY: 380,
+  easing: 'linear',
+  width: 320,
+  height: 320,
+  outerRadius: 160,
+  innerRadiusPercent: 45,
+  toothCount: 20,
+  toothDepthPercent: 18,
+  toothSkewPercent: 0,
   fillColour: '#ffffff',
   ...patch,
 });
@@ -622,6 +650,44 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         }),
         width: 400,
         height: 400,
+      },
+    ]);
+  });
+
+  it('builds a generated gear media plane from a gear object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseGear()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated gear snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'gear-1',
+      track_id: 'layer-10',
+      media_id: 'gear-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'gear-1',
+        kind: 'GeneratedGear',
+        source: JSON.stringify({
+          generator: 'gear-t',
+          outer_radius: 160,
+          inner_radius_percent: 45,
+          tooth_count: 20,
+          tooth_depth_percent: 18,
+          tooth_skew_percent: 0,
+          fill_colour: '#ffffff',
+        }),
+        width: 320,
+        height: 320,
       },
     ]);
   });

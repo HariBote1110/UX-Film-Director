@@ -12,7 +12,7 @@ import {
   shouldSynchroniseTimelineForProjectExportFrame,
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GourdObject, ImageObject, ParticleObject, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GearObject, GourdObject, ImageObject, ParticleObject, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, VideoObject } from '../types';
 
 const source = () =>
   readFileSync(new URL('./projectExportFrameCanvas.ts', import.meta.url), 'utf8');
@@ -302,6 +302,34 @@ const gourd = (patch: Partial<GourdObject> = {}): GourdObject => ({
   waistRadius: 10,
   squashPercent: 40,
   repeatCount: 1,
+  fillColour: '#ffffff',
+  ...patch,
+});
+
+const gear = (patch: Partial<GearObject> = {}): GearObject => ({
+  id: 'gear-1',
+  type: 'gear',
+  name: '歯車',
+  layer: 8,
+  startTime: 0,
+  duration: 5,
+  x: 800,
+  y: 380,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 800,
+  endY: 380,
+  easing: 'linear',
+  width: 320,
+  height: 320,
+  outerRadius: 160,
+  innerRadiusPercent: 45,
+  toothCount: 20,
+  toothDepthPercent: 18,
+  toothSkewPercent: 0,
   fillColour: '#ffffff',
   ...patch,
 });
@@ -737,7 +765,7 @@ describe('resolveProjectExportRustFrameSourceContext', () => {
   });
 
   it('marks standard particle exports as native-render media instead of legacy canvas work', () => {
-    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), gourd(), audio()];
+    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), gourd(), gear(), audio()];
 
     expect(hasProjectExportNativeRenderMediaObjects(objects)).toBe(true);
     expect(resolveProjectExportRustFrameSourceContext({

@@ -9,6 +9,7 @@ import type {
   BaseObject,
   BarcodeObject,
   ColourWheelObject,
+  GearObject,
   GourdObject,
   ImageObject,
   LayerState,
@@ -273,6 +274,19 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     repeatCount: 1,
     fillColour: '#ffffff',
   };
+  const gear: GearObject = {
+    ...baseObject('gear-t', 'gear', 15),
+    type: 'gear',
+    name: '歯車',
+    width: 320,
+    height: 320,
+    outerRadius: 160,
+    innerRadiusPercent: 45,
+    toothCount: 20,
+    toothDepthPercent: 18,
+    toothSkewPercent: 0,
+    fillColour: '#ffffff',
+  };
 
   return [
     solidShape,
@@ -287,6 +301,7 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     puzzlePiece,
     colourWheel,
     gourd,
+    gear,
   ];
 };
 
@@ -359,6 +374,7 @@ describe('全読込可能メディア E2E', () => {
       'GeneratedPuzzlePiece',
       'GeneratedColourWheel',
       'GeneratedGourd',
+      'GeneratedGear',
     ]);
     expect(snapshotResult.media
       .filter((media) => media.kind === 'Video')
@@ -413,6 +429,15 @@ describe('全読込可能メディア E2E', () => {
       repeat_count: 1,
       fill_colour: '#ffffff',
     });
+    expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'gear-t')?.source ?? '{}')).toMatchObject({
+      generator: 'gear-t',
+      outer_radius: 160,
+      inner_radius_percent: 45,
+      tooth_count: 20,
+      tooth_depth_percent: 18,
+      tooth_skew_percent: 0,
+      fill_colour: '#ffffff',
+    });
     expect(snapshotResult.media.some((media) => media.source.endsWith('.wav'))).toBe(false);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'shape-solid-rect')?.transform).toMatchObject({
       translation_x: 64.5,
@@ -438,6 +463,7 @@ describe('全読込可能メディア E2E', () => {
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'puzzle-piece')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'colour-wheel')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'gourd-tm')?.source_frame).toBe(0);
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'gear-t')?.source_frame).toBe(0);
     expect(validateRustSceneSnapshotBoundary({
       snapshot: snapshotResult.snapshot,
       media: snapshotResult.media,

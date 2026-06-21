@@ -100,6 +100,12 @@ const media: RustSceneMediaReference[] = [{
   width: 400,
   height: 400,
 }, {
+  id: 'gear-1',
+  kind: 'GeneratedGear' as RustSceneMediaReference['kind'],
+  source: '{"generator":"gear-t","outer_radius":160,"inner_radius_percent":45,"tooth_count":20,"tooth_depth_percent":18,"tooth_skew_percent":0,"fill_colour":"#ffffff"}',
+  width: 320,
+  height: 320,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -145,8 +151,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[8])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[9])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[10])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[11])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[11])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[12])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[13])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {

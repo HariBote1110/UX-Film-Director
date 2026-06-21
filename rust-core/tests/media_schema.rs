@@ -115,3 +115,19 @@ fn rust_core_accepts_generated_gourd_media_kind_at_the_json_boundary() {
     assert_eq!(media.width, 400);
     assert_eq!(media.height, 400);
 }
+
+#[test]
+fn rust_core_accepts_generated_gear_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "gear-1",
+        "kind": "GeneratedGear",
+        "source": "{\"generator\":\"gear-t\",\"outer_radius\":160,\"inner_radius_percent\":45,\"tooth_count\":20,\"tooth_depth_percent\":18,\"tooth_skew_percent\":0,\"fill_colour\":\"#ffffff\"}",
+        "width": 320,
+        "height": 320
+    }))
+    .expect("GeneratedGear media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedGear);
+    assert_eq!(media.width, 320);
+    assert_eq!(media.height, 320);
+}
