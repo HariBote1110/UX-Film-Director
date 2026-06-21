@@ -1091,8 +1091,16 @@ const serialiseGeneratedToneCurveSource = (object: ToneCurveObject): string =>
     background_colour: /^#[0-9a-f]{6}$/i.test(object.backgroundColour) ? object.backgroundColour : '#000000',
   });
 
-const serialiseGeneratedHksyCheckerGridSource = (object: HksyCheckerGridObject): string =>
-  JSON.stringify({
+const normaliseHksyPaletteColours = (colours: readonly string[] | undefined): string[] => {
+  if (!Array.isArray(colours)) return [];
+  return colours
+    .filter((colour) => /^#[0-9a-f]{6}$/i.test(colour))
+    .slice(0, 16);
+};
+
+const serialiseGeneratedHksyCheckerGridSource = (object: HksyCheckerGridObject): string => {
+  const paletteColours = normaliseHksyPaletteColours(object.paletteColours);
+  return JSON.stringify({
     generator: 'hksy-checker-grid',
     cell_size: Math.min(1000, Math.max(1, Math.trunc(finiteNumberOr(object.cellSize, 50)))),
     line_width: Math.min(100, Math.max(0, Math.trunc(finiteNumberOr(object.lineWidth, 2)))),
@@ -1101,7 +1109,9 @@ const serialiseGeneratedHksyCheckerGridSource = (object: HksyCheckerGridObject):
     foreground_colour: /^#[0-9a-f]{6}$/i.test(object.foregroundColour) ? object.foregroundColour : '#ffffff',
     secondary_colour: /^#[0-9a-f]{6}$/i.test(object.secondaryColour) ? object.secondaryColour : '#333333',
     background_colour: /^#[0-9a-f]{6}$/i.test(object.backgroundColour) ? object.backgroundColour : '#000000',
+    ...(paletteColours.length >= 2 ? { palette_colours: paletteColours } : {}),
   });
+};
 
 const serialiseGeneratedGetColorDotsSource = (object: GetColorDotFieldObject): string =>
   JSON.stringify({

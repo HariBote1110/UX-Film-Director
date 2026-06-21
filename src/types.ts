@@ -726,6 +726,7 @@ export interface HksyCheckerGridObject extends BaseObject {
   foregroundColour: string;
   secondaryColour: string;
   backgroundColour: string;
+  paletteColours?: string[];
 }
 
 // GetColor V2R ドット化表現互換の生成オブジェクト

@@ -1100,7 +1100,17 @@ const isSharedRendererNativeGeneratedHksyCheckerGridSourceSupported = (source: s
       foreground_colour?: unknown;
       secondary_colour?: unknown;
       background_colour?: unknown;
+      palette_colours?: unknown;
     };
+    const paletteColoursSupported = parsed.palette_colours === undefined || (
+      Array.isArray(parsed.palette_colours)
+      && parsed.palette_colours.length >= 2
+      && parsed.palette_colours.length <= 16
+      && parsed.palette_colours.every((colour) => (
+        typeof colour === 'string'
+        && /^#[0-9a-f]{6}$/i.test(colour)
+      ))
+    );
     return (
       parsed.generator === 'hksy-checker-grid'
       && typeof parsed.cell_size === 'number'
@@ -1119,6 +1129,7 @@ const isSharedRendererNativeGeneratedHksyCheckerGridSourceSupported = (source: s
       && /^#[0-9a-f]{6}$/i.test(parsed.secondary_colour)
       && typeof parsed.background_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
+      && paletteColoursSupported
     );
   } catch {
     return false;

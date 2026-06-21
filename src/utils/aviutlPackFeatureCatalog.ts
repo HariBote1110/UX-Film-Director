@@ -207,6 +207,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: 'hksyの直線表現を、既存Rustチェッカー/グリッド生成メディアの線のみプリセットとして標準搭載する。'
   },
   {
+    id: 'hksy-multi-colour-checker',
+    labelJa: 'hksy 複数色チェッカー',
+    category: 'generated-object',
+    phase: 'P1',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/@hksy/@hksy.obj', 'script/@hksy/@hksy.anm'],
+    rationaleJa: 'hksyの複数色チェッカー表現を、Rust生成メディアのpalette付きタイル描画として標準搭載する。'
+  },
+  {
     id: 'particle-standard',
     labelJa: '標準パーティクル',
     category: 'generated-object',

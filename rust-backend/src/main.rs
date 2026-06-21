@@ -446,6 +446,7 @@ struct GeneratedHksyCheckerGridSource {
     foreground_colour: String,
     secondary_colour: String,
     background_colour: String,
+    palette_colours: Option<Vec<String>>,
 }
 
 fn main() {
@@ -5084,6 +5085,23 @@ fn build_generated_hksy_checker_grid_source_frame(
                 media.id
             )
         })?;
+    let palette_colours = checker_grid
+        .palette_colours
+        .as_ref()
+        .map(|colours| {
+            colours
+                .iter()
+                .map(|colour| parse_hex_colour_source(colour))
+                .collect::<Result<Vec<[u8; 3]>, String>>()
+        })
+        .transpose()
+        .map_err(|message| {
+            format!(
+                "Invalid GeneratedHksyCheckerGrid media '{}': palette_colours {message}",
+                media.id
+            )
+        })?
+        .unwrap_or_default();
 
     let pixel_count = usize::try_from(media.width)
         .ok()
@@ -5103,7 +5121,10 @@ fn build_generated_hksy_checker_grid_source_frame(
             let colour = if checker_grid.checker_enabled {
                 let tile_x = x / checker_grid.cell_size;
                 let tile_y = y / checker_grid.cell_size;
-                if (tile_x + tile_y) % 2 == 0 {
+                if !palette_colours.is_empty() {
+                    let palette_index = ((tile_x + tile_y) as usize) % palette_colours.len();
+                    palette_colours[palette_index]
+                } else if (tile_x + tile_y) % 2 == 0 {
                     foreground
                 } else {
                     background
@@ -6134,6 +6155,14 @@ fn validate_generated_hksy_checker_grid_source(
     parse_hex_colour_source(&source.foreground_colour)?;
     parse_hex_colour_source(&source.secondary_colour)?;
     parse_hex_colour_source(&source.background_colour)?;
+    if let Some(palette_colours) = &source.palette_colours {
+        if palette_colours.len() < 2 || palette_colours.len() > 16 {
+            return Err("palette_colours must contain 2..16 colours".to_string());
+        }
+        for colour in palette_colours {
+            parse_hex_colour_source(colour)?;
+        }
+    }
     Ok(())
 }
 

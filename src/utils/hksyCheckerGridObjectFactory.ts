@@ -60,3 +60,16 @@ export const buildHksyLineObject = (input: BuildHksyCheckerGridObjectInput): Hks
   secondaryColour: '#ffffff',
   backgroundColour: '#000000',
 });
+
+export const buildHksyMultiColourCheckerObject = (input: BuildHksyCheckerGridObjectInput): HksyCheckerGridObject => ({
+  ...buildHksyCheckerGridObject(input),
+  name: 'hksy 複数色チェッカー',
+  cellSize: 56,
+  lineWidth: 0,
+  checkerEnabled: true,
+  gridEnabled: false,
+  foregroundColour: '#ff5c8a',
+  secondaryColour: '#36c2ff',
+  backgroundColour: '#111111',
+  paletteColours: ['#ff5c8a', '#36c2ff', '#ffd166', '#70e000'],
+});

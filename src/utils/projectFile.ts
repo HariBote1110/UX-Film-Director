@@ -458,6 +458,11 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (typeof candidate.foregroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.foregroundColour)) return false;
     if (typeof candidate.secondaryColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.secondaryColour)) return false;
     if (typeof candidate.backgroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.backgroundColour)) return false;
+    if (candidate.paletteColours !== undefined) {
+      if (!Array.isArray(candidate.paletteColours)) return false;
+      if (candidate.paletteColours.length < 2 || candidate.paletteColours.length > 16) return false;
+      if (!candidate.paletteColours.every((colour) => typeof colour === 'string' && /^#[0-9a-f]{6}$/i.test(colour))) return false;
+    }
   }
   if (candidate.type === 'getcolor_dot_field') {
     if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
