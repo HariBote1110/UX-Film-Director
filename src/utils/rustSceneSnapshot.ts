@@ -654,7 +654,7 @@ const mediaReferenceForObject = (
     return {
       id: object.id,
       kind: 'GeneratedGetColorDots',
-      source: serialiseGeneratedGetColorDotsSource(object),
+      source: serialiseGeneratedGetColorDotsSource(object, objects, time),
       width: object.width,
       height: object.height,
     };
@@ -1190,8 +1190,13 @@ const serialiseGeneratedHksyCheckerGridSource = (object: HksyCheckerGridObject):
   });
 };
 
-const serialiseGeneratedGetColorDotsSource = (object: GetColorDotFieldObject): string =>
-  JSON.stringify({
+const serialiseGeneratedGetColorDotsSource = (
+  object: GetColorDotFieldObject,
+  objects: TimelineObject[] = [],
+  time = object.startTime
+): string => {
+  const sampleSourcePath = resolveGetColorSampleSourcePath(object, objects, time);
+  return JSON.stringify({
     generator: 'getcolor-v2r-dot-field',
     columns: Math.min(512, Math.max(1, Math.trunc(finiteNumberOr(object.columns, 32)))),
     rows: Math.min(512, Math.max(1, Math.trunc(finiteNumberOr(object.rows, 18)))),
@@ -1208,11 +1213,43 @@ const serialiseGeneratedGetColorDotsSource = (object: GetColorDotFieldObject): s
       dot_shape: object.dotShape,
       stroke_width: Math.min(200, Math.max(0, finiteNumberOr(object.strokeWidth, 0))),
     } : {}),
-    ...(typeof object.sampleSourcePath === 'string' && object.sampleSourcePath.length > 0 ? {
-      source_image: object.sampleSourcePath,
+    ...(sampleSourcePath ? {
+      source_image: sampleSourcePath,
       sample_strength: Math.min(1, Math.max(0, finiteNumberOr(object.sampleStrength, 1))),
     } : {}),
   });
+};
+
+const resolveGetColorSampleSourcePath = (
+  object: GetColorDotFieldObject,
+  objects: TimelineObject[],
+  time: number
+): string | undefined => {
+  if (typeof object.sampleSourcePath === 'string' && object.sampleSourcePath.length > 0) {
+    return object.sampleSourcePath;
+  }
+
+  const candidates = objects
+    .filter(isGetColorSampleSourceObject)
+    .filter((candidate) => time >= candidate.startTime && time < candidate.startTime + candidate.duration);
+
+  if (typeof object.sampleSourceObjectId === 'string' && object.sampleSourceObjectId.length > 0) {
+    const matched = candidates.find((candidate) => candidate.id === object.sampleSourceObjectId);
+    const source = matched ? mediaSourceForObject(matched) : '';
+    return source || undefined;
+  }
+
+  if (typeof object.sampleSourceLayer === 'number' && Number.isFinite(object.sampleSourceLayer)) {
+    const matched = candidates.find((candidate) => candidate.layer === object.sampleSourceLayer);
+    const source = matched ? mediaSourceForObject(matched) : '';
+    return source || undefined;
+  }
+
+  return undefined;
+};
+
+const isGetColorSampleSourceObject = (object: TimelineObject): object is ImageObject =>
+  object.type === 'image';
 
 const serialiseGeneratedRegionFrameSource = (object: RegionFrameObject): string =>
   JSON.stringify({

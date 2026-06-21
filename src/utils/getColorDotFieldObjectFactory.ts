@@ -82,5 +82,6 @@ export const buildGetColorSampledDotFieldObject = (input: BuildGetColorSampledDo
   dotShape: 'circle',
   strokeWidth: 0,
   sampleSourcePath: input.sampleSourcePath,
+  sampleSourceLayer: Math.max(0, input.layer - 1),
   sampleStrength: 1,
 });
