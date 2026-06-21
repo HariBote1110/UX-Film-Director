@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GearObject, GourdObject, ImageObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, TrackBarObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, ImageObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, TrackBarObject, VideoObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -386,6 +386,37 @@ const basePieChart = (patch: Partial<PieChartObject> = {}): PieChartObject => ({
   progressPercent: 100,
   strokeWidth: 20,
   sliceColours: ['#389ba6', '#f2e2c4', '#f29422', '#f27830', '#f24b0f'],
+  ...patch,
+});
+
+const baseHistogram = (patch: Partial<HistogramObject> = {}): HistogramObject => ({
+  id: 'histogram-1',
+  type: 'histogram',
+  name: '簡易ヒストグラム',
+  layer: 13,
+  startTime: 1,
+  duration: 4,
+  x: 832,
+  y: 440,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 832,
+  endY: 440,
+  easing: 'linear',
+  width: 256,
+  height: 200,
+  binValues: [0.08, 0.18, 0.32, 0.55, 0.78, 0.92, 0.64, 0.36],
+  heightScalePercent: 100,
+  lineWidth: 1,
+  showLuminance: true,
+  showRed: true,
+  showGreen: true,
+  showBlue: true,
+  channelColours: ['#ffffff', '#ff4b4b', '#4bff6a', '#4b8cff'],
+  backgroundColour: '#000000',
   ...patch,
 });
 
@@ -820,6 +851,47 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         }),
         width: 400,
         height: 400,
+      },
+    ]);
+  });
+
+  it('builds a generated histogram media plane from a histogram object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseHistogram()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated histogram snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'histogram-1',
+      track_id: 'layer-13',
+      media_id: 'histogram-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'histogram-1',
+        kind: 'GeneratedHistogram',
+        source: JSON.stringify({
+          generator: 'simple-histogram',
+          bin_values: [0.08, 0.18, 0.32, 0.55, 0.78, 0.92, 0.64, 0.36],
+          height_scale_percent: 100,
+          line_width: 1,
+          show_luminance: true,
+          show_red: true,
+          show_green: true,
+          show_blue: true,
+          channel_colours: ['#ffffff', '#ff4b4b', '#4bff6a', '#4b8cff'],
+          background_colour: '#000000',
+        }),
+        width: 256,
+        height: 200,
       },
     ]);
   });

@@ -118,6 +118,12 @@ const media: RustSceneMediaReference[] = [{
   width: 400,
   height: 400,
 }, {
+  id: 'histogram-1',
+  kind: 'GeneratedHistogram' as RustSceneMediaReference['kind'],
+  source: '{"generator":"simple-histogram","bin_values":[0.08,0.18,0.32,0.55,0.78,0.92,0.64,0.36],"height_scale_percent":100,"line_width":1,"show_luminance":true,"show_red":true,"show_green":true,"show_blue":true,"channel_colours":["#ffffff","#ff4b4b","#4bff6a","#4b8cff"],"background_colour":"#000000"}',
+  width: 256,
+  height: 200,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -166,8 +172,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[11])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[12])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[13])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[14])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[14])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[15])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[16])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {

@@ -11,6 +11,7 @@ import type {
   ColourWheelObject,
   GearObject,
   GourdObject,
+  HistogramObject,
   ImageObject,
   LayerState,
   ParticleObject,
@@ -315,6 +316,22 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     strokeWidth: 20,
     sliceColours: ['#389ba6', '#f2e2c4', '#f29422', '#f27830', '#f24b0f'],
   };
+  const histogram: HistogramObject = {
+    ...baseObject('simple-histogram', 'histogram', 18),
+    type: 'histogram',
+    name: '簡易ヒストグラム',
+    width: 256,
+    height: 200,
+    binValues: [0.08, 0.18, 0.32, 0.55, 0.78, 0.92, 0.64, 0.36],
+    heightScalePercent: 100,
+    lineWidth: 1,
+    showLuminance: true,
+    showRed: true,
+    showGreen: true,
+    showBlue: true,
+    channelColours: ['#ffffff', '#ff4b4b', '#4bff6a', '#4b8cff'],
+    backgroundColour: '#000000',
+  };
 
   return [
     solidShape,
@@ -332,6 +349,7 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     gear,
     trackBar,
     pieChart,
+    histogram,
   ];
 };
 
@@ -407,6 +425,7 @@ describe('全読込可能メディア E2E', () => {
       'GeneratedGear',
       'GeneratedTrackBar',
       'GeneratedPieChart',
+      'GeneratedHistogram',
     ]);
     expect(snapshotResult.media
       .filter((media) => media.kind === 'Video')
@@ -488,6 +507,18 @@ describe('全読込可能メディア E2E', () => {
       stroke_width: 20,
       slice_colours: ['#389ba6', '#f2e2c4', '#f29422', '#f27830', '#f24b0f'],
     });
+    expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'simple-histogram')?.source ?? '{}')).toMatchObject({
+      generator: 'simple-histogram',
+      bin_values: [0.08, 0.18, 0.32, 0.55, 0.78, 0.92, 0.64, 0.36],
+      height_scale_percent: 100,
+      line_width: 1,
+      show_luminance: true,
+      show_red: true,
+      show_green: true,
+      show_blue: true,
+      channel_colours: ['#ffffff', '#ff4b4b', '#4bff6a', '#4b8cff'],
+      background_colour: '#000000',
+    });
     expect(snapshotResult.media.some((media) => media.source.endsWith('.wav'))).toBe(false);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'shape-solid-rect')?.transform).toMatchObject({
       translation_x: 64.5,
@@ -516,6 +547,7 @@ describe('全読込可能メディア E2E', () => {
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'gear-t')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'custom-track-bar')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'pie-sheet-graph')?.source_frame).toBe(0);
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'simple-histogram')?.source_frame).toBe(0);
     expect(validateRustSceneSnapshotBoundary({
       snapshot: snapshotResult.snapshot,
       media: snapshotResult.media,

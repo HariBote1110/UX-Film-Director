@@ -12,7 +12,7 @@ import {
   shouldSynchroniseTimelineForProjectExportFrame,
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GearObject, GourdObject, ImageObject, ParticleObject, PieChartObject, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, TrackBarObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, ImageObject, ParticleObject, PieChartObject, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, TrackBarObject, VideoObject } from '../types';
 
 const source = () =>
   readFileSync(new URL('./projectExportFrameCanvas.ts', import.meta.url), 'utf8');
@@ -387,6 +387,37 @@ const pieChart = (patch: Partial<PieChartObject> = {}): PieChartObject => ({
   progressPercent: 100,
   strokeWidth: 20,
   sliceColours: ['#389ba6', '#f2e2c4', '#f29422', '#f27830', '#f24b0f'],
+  ...patch,
+});
+
+const histogram = (patch: Partial<HistogramObject> = {}): HistogramObject => ({
+  id: 'histogram-1',
+  type: 'histogram',
+  name: '簡易ヒストグラム',
+  layer: 11,
+  startTime: 0,
+  duration: 5,
+  x: 832,
+  y: 440,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 832,
+  endY: 440,
+  easing: 'linear',
+  width: 256,
+  height: 200,
+  binValues: [0.08, 0.18, 0.32, 0.55, 0.78, 0.92, 0.64, 0.36],
+  heightScalePercent: 100,
+  lineWidth: 1,
+  showLuminance: true,
+  showRed: true,
+  showGreen: true,
+  showBlue: true,
+  channelColours: ['#ffffff', '#ff4b4b', '#4bff6a', '#4b8cff'],
+  backgroundColour: '#000000',
   ...patch,
 });
 
@@ -821,7 +852,7 @@ describe('resolveProjectExportRustFrameSourceContext', () => {
   });
 
   it('marks standard particle exports as native-render media instead of legacy canvas work', () => {
-    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), gourd(), gear(), trackBar(), pieChart(), audio()];
+    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), gourd(), gear(), trackBar(), pieChart(), histogram(), audio()];
 
     expect(hasProjectExportNativeRenderMediaObjects(objects)).toBe(true);
     expect(resolveProjectExportRustFrameSourceContext({

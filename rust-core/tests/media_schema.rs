@@ -163,3 +163,19 @@ fn rust_core_accepts_generated_pie_chart_media_kind_at_the_json_boundary() {
     assert_eq!(media.width, 400);
     assert_eq!(media.height, 400);
 }
+
+#[test]
+fn rust_core_accepts_generated_histogram_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "histogram-1",
+        "kind": "GeneratedHistogram",
+        "source": "{\"generator\":\"simple-histogram\",\"bin_values\":[0.08,0.18,0.32,0.55,0.78,0.92,0.64,0.36],\"height_scale_percent\":100,\"line_width\":1,\"show_luminance\":true,\"show_red\":true,\"show_green\":true,\"show_blue\":true,\"channel_colours\":[\"#ffffff\",\"#ff4b4b\",\"#4bff6a\",\"#4b8cff\"],\"background_colour\":\"#000000\"}",
+        "width": 256,
+        "height": 200
+    }))
+    .expect("GeneratedHistogram media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedHistogram);
+    assert_eq!(media.width, 256);
+    assert_eq!(media.height, 200);
+}
