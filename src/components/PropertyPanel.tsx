@@ -996,6 +996,18 @@ const PropertyPanel: React.FC = () => {
 
   const handleApplyAviUtlMotionPreset = (presetId: AviUtlMotionPresetId) => {
     pushHistory();
+    if (presetId === 'delay-move-individual' && selectedObjects.length > 1) {
+      selectedObjects.forEach((object, index) => {
+        updateObject(
+          object.id,
+          buildAviUtlMotionPresetPatch(object, presetId, {
+            sequenceIndex: index,
+            sequenceTotal: selectedObjects.length
+          }) as Partial<TimelineObject>
+        );
+      });
+      return;
+    }
     updateObject(
       selectedObject.id,
       buildAviUtlMotionPresetPatch(selectedObject, presetId) as Partial<TimelineObject>

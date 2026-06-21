@@ -2031,6 +2031,20 @@
 - 検証: `npm test -- --run src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererExportSession.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/sharedRendererExportFrameSource.test.ts` は76件成功。実Electron E2Eは `/Volumes/ExtendSSD-W/GX020052.MP4` 1秒尺で60 frames / 7758ms / 約7.73fps、出力MP4は1920x1080 / 60fps。
 - 残課題: 品質優先で原本2048px decodeへ戻したため、直前のプロキシ高速経路より速度は落ちる。次は「原本高品質decode + 単純scale合成fast path」を追加して、画質と速度を両立する。
 - 版: `0.1.1-Beta-228a`。
+## 2026-06-22 — 93 Delay個別をnative motion presetへ追加
+
+### 実施内容
+- Red: `93 Delay個別` がAviUtlPackV4 motion preset一覧へ入り、index/totalに応じた開始遅延と逆順をキーフレームとして生成する契約を追加した。
+- Green: `delay-move-individual` presetを追加し、全体遅延時間を選択数で割って開始タイミングをずらすnative keyframe生成へ接続した。
+- Green: PropertyPanelのAviUtl Motionから複数選択中に `93: Delay個別` を押すと、選択中オブジェクトへ順番付きでプリセットを適用するようにした。
+- 版を `0.1.1-Beta-291a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/aviutlMotionPresets.test.ts src/components/PropertyPanelBoundary.test.ts --reporter=dot` は13件成功。
+
+### 残課題・次のステップ
+- 次は `93 SpotLight` をRust/WebGPU effectへ追加する。
+
 ## 2026-06-22 — 93音声玉をRust音声反応生成オブジェクトへ追加
 
 ### 実施内容

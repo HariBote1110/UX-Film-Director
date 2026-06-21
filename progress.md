@@ -8854,6 +8854,20 @@
 
 ## 残課題・次のステップ
 - まだサブピクセルtranslation、複雑なmask/group/filterはfail-loudのまま。次はCanvas系の回転・画像/PSD混在・音声付きexportをE2Eで確認し、Rust/native render側の実フレーム品質と速度を測る。
+## 2026-06-22 — 93 Delay個別をnative motion presetへ追加
+
+### 実施内容
+- Red: `93 Delay個別` がAviUtlPackV4 motion preset一覧へ入り、index/totalに応じた開始遅延と逆順をキーフレームとして生成する契約を追加した。
+- Green: `delay-move-individual` presetを追加し、全体遅延時間を選択数で割って開始タイミングをずらすnative keyframe生成へ接続した。
+- Green: PropertyPanelのAviUtl Motionから複数選択中に `93: Delay個別` を押すと、選択中オブジェクトへ順番付きでプリセットを適用するようにした。
+- 版を `0.1.1-Beta-291a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/aviutlMotionPresets.test.ts src/components/PropertyPanelBoundary.test.ts --reporter=dot` は13件成功。
+
+### 残課題・次のステップ
+- 次は `93 SpotLight` をRust/WebGPU effectへ追加する。
+
 ## 2026-06-22 — 93音声玉をRust音声反応生成オブジェクトへ追加
 
 ### 実施内容

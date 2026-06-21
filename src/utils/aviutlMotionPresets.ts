@@ -8,7 +8,8 @@ export type AviUtlMotionPresetId =
   | 'repeat-side-to-side'
   | 'motion-path-arc'
   | 'motion-path-s-curve'
-  | 'wind-sway-soft';
+  | 'wind-sway-soft'
+  | 'delay-move-individual';
 
 export interface AviUtlMotionPreset {
   id: AviUtlMotionPresetId;
@@ -18,7 +19,8 @@ export interface AviUtlMotionPreset {
     | 'ymm4-random-motion'
     | 'ymm4-repeat-motion'
     | 'tim-motion-path'
-    | 'tim-wind-sway';
+    | 'tim-wind-sway'
+    | '93-delay-move';
   defaultDistancePx: number;
   defaultSpanSeconds: number;
   defaultIntervalSeconds: number;
@@ -28,6 +30,9 @@ export interface AviUtlMotionPresetOptions {
   distancePx?: number;
   spanSeconds?: number;
   intervalSeconds?: number;
+  sequenceIndex?: number;
+  sequenceTotal?: number;
+  reverseOrder?: boolean;
 }
 
 export type AviUtlMotionPresetPatch = Pick<
@@ -92,6 +97,14 @@ const presets: AviUtlMotionPreset[] = [
     sourceCandidateId: 'tim-wind-sway',
     defaultDistancePx: 16,
     defaultSpanSeconds: 1,
+    defaultIntervalSeconds: 1
+  },
+  {
+    id: 'delay-move-individual',
+    labelJa: '93: Delay個別',
+    sourceCandidateId: '93-delay-move',
+    defaultDistancePx: 96,
+    defaultSpanSeconds: 0.5,
     defaultIntervalSeconds: 1
   }
 ];
@@ -186,6 +199,22 @@ export const buildAviUtlMotionPresetPatch = (
         x,
         y,
         distancePx,
+        easing
+      });
+      break;
+    case 'delay-move-individual':
+      easing = 'easeInOutSine';
+      keyframes = buildDelayMoveIndividualKeyframes({
+        startTime,
+        endTime,
+        x,
+        y,
+        distancePx,
+        spanSeconds,
+        totalDelaySeconds: intervalSeconds,
+        sequenceIndex: nonNegativeIntegerOr(options.sequenceIndex, 0),
+        sequenceTotal: positiveIntegerOr(options.sequenceTotal, 1),
+        reverseOrder: options.reverseOrder === true,
         easing
       });
       break;
@@ -394,6 +423,56 @@ const buildWindSwayKeyframes = ({
   return keyframes;
 };
 
+const buildDelayMoveIndividualKeyframes = ({
+  startTime,
+  endTime,
+  x,
+  y,
+  distancePx,
+  spanSeconds,
+  totalDelaySeconds,
+  sequenceIndex,
+  sequenceTotal,
+  reverseOrder,
+  easing
+}: {
+  startTime: number;
+  endTime: number;
+  x: number;
+  y: number;
+  distancePx: number;
+  spanSeconds: number;
+  totalDelaySeconds: number;
+  sequenceIndex: number;
+  sequenceTotal: number;
+  reverseOrder: boolean;
+  easing: EasingType;
+}): PositionKeyframe[] => {
+  const lastIndex = Math.max(0, sequenceTotal - 1);
+  const clampedIndex = Math.min(lastIndex, sequenceIndex);
+  const orderIndex = reverseOrder ? lastIndex - clampedIndex : clampedIndex;
+  const orderRatio = lastIndex === 0 ? 0 : orderIndex / lastIndex;
+  const delaySeconds = Math.max(0, totalDelaySeconds) * orderRatio;
+  const motionStart = Math.min(endTime, startTime + delaySeconds);
+  const motionEnd = Math.min(endTime, motionStart + Math.max(0.01, spanSeconds));
+  const endX = x + distancePx;
+  const keyframes: PositionKeyframe[] = [
+    makeKeyframe('delay-move-hold-start', startTime, x, y, 'linear')
+  ];
+
+  if (motionStart > startTime + 0.0001) {
+    keyframes.push(makeKeyframe('delay-move-start', motionStart, x, y, easing));
+  }
+
+  keyframes.push(makeKeyframe('delay-move-end', motionEnd, endX, y, 'linear'));
+
+  if (endTime > motionEnd + 0.0001) {
+    keyframes.push(makeKeyframe('delay-move-hold-end', endTime, endX, y, 'linear'));
+  }
+
+  return keyframes;
+};
+
 const makeKeyframe = (
   suffix: string,
   time: number,
@@ -414,6 +493,16 @@ const finiteNumberOr = (value: unknown, fallback: number): number =>
 const positiveNumberOr = (value: unknown, fallback: number): number => {
   const parsed = finiteNumberOr(value, fallback);
   return parsed > 0 ? parsed : fallback;
+};
+
+const positiveIntegerOr = (value: unknown, fallback: number): number => {
+  const parsed = finiteNumberOr(value, fallback);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const nonNegativeIntegerOr = (value: unknown, fallback: number): number => {
+  const parsed = finiteNumberOr(value, fallback);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
 };
 
 const roundTime = (value: number): number =>
