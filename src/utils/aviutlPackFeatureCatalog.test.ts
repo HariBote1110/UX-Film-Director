@@ -46,6 +46,10 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('93-region-frame')?.sourceRelativePaths).toContain('script/93/@領域枠.anm');
     expect(byId.get('93-region-frame-ellipse')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('93-region-frame-cut-corner')?.implementationTarget).toBe('native-generated-object');
+    expect(byId.get('93-simple-tube')?.sourceRelativePaths).toEqual(expect.arrayContaining([
+      'script/93/SimpleTube.obj',
+      'script/93/SimpleTube2.obj'
+    ]));
     expect(byId.get('particle-standard')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('tim-aura-emission')?.sourceRelativePaths).toContain('script/てぃむ/オーラ放出.anm');
     expect(byId.get('tim-bubbles')?.sourceRelativePaths).toContain('script/てぃむ/泡.obj');

@@ -423,4 +423,24 @@ describe('sharedRendererNativeMediaSupport', () => {
       height: 450,
     })).toBe(true);
   });
+
+  it('accepts 93 SimpleTube generator sources as native renderable media', () => {
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'simple-tube-1',
+      kind: 'GeneratedSimpleTube',
+      source: '{"generator":"simple-tube-93","radius":150,"depth":280,"segments":16,"rings":10,"twist_degrees":0,"random_amount":0,"stroke_width":3,"colour":"#0e769f","secondary_colour":"#ffffff","seed":93,"torus":false}',
+      width: 800,
+      height: 450,
+    })).toBe(true);
+    expect(canRenderSharedRendererNativeMediaOnlyFrame({
+      snapshot: snapshotWithMedia('solid-1', 'simple-tube-1'),
+      media: [...media, {
+        id: 'simple-tube-1',
+        kind: 'GeneratedSimpleTube',
+        source: '{"generator":"simple-tube-93","radius":150,"depth":280,"segments":16,"rings":10,"twist_degrees":0,"random_amount":0,"stroke_width":3,"colour":"#0e769f","secondary_colour":"#ffffff","seed":93,"torus":false}',
+        width: 800,
+        height: 450,
+      }],
+    })).toBe(true);
+  });
 });

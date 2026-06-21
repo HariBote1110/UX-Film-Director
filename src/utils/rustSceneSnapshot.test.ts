@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, RegionFrameObject, ShakingPolygonObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, RegionFrameObject, ShakingPolygonObject, ShapeObject, SimpleTubeObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -948,6 +948,39 @@ const baseRegionFrame = (patch: Partial<RegionFrameObject> = {}): RegionFrameObj
   backgroundOpacity: 0.2,
   frameColour: '#ffffff',
   backgroundColour: '#ccccff',
+  ...patch,
+});
+
+const baseSimpleTube = (patch: Partial<SimpleTubeObject> = {}): SimpleTubeObject => ({
+  id: 'simple-tube-1',
+  type: 'simple_tube',
+  name: '93 SimpleTube',
+  layer: 35,
+  startTime: 6,
+  duration: 5,
+  x: 560,
+  y: 315,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 560,
+  endY: 315,
+  easing: 'linear',
+  width: 800,
+  height: 450,
+  radius: 150,
+  depth: 280,
+  segments: 16,
+  rings: 10,
+  twistDegrees: 0,
+  randomAmount: 0,
+  strokeWidth: 3,
+  colour: '#0e769f',
+  secondaryColour: '#ffffff',
+  seed: 93,
+  torus: false,
   ...patch,
 });
 
@@ -2463,6 +2496,42 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         background_opacity: 0.2,
         frame_colour: '#ffffff',
         background_colour: '#ccccff',
+      },
+    ]);
+  });
+
+  it('serialises a 93 SimpleTube object into the Rust generator payload', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseSimpleTube()],
+      time: 6,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated SimpleTube snapshot to pass');
+
+    expect(result.media).toEqual([
+      {
+        id: 'simple-tube-1',
+        kind: 'GeneratedSimpleTube',
+        source: JSON.stringify({
+          generator: 'simple-tube-93',
+          radius: 150,
+          depth: 280,
+          segments: 16,
+          rings: 10,
+          twist_degrees: 0,
+          random_amount: 0,
+          stroke_width: 3,
+          colour: '#0e769f',
+          secondary_colour: '#ffffff',
+          seed: 93,
+          torus: false,
+        }),
+        width: 800,
+        height: 450,
       },
     ]);
   });

@@ -9979,4 +9979,36 @@ mod tests {
             [204, 204, 255, 51]
         );
     }
+
+    #[test]
+    fn generated_simple_tube_source_frame_renders_tube_lines() {
+        let media = SceneMediaReference {
+            id: "simple-tube-1".to_string(),
+            kind: MediaKind::GeneratedSimpleTube,
+            source: r##"{"generator":"simple-tube-93","radius":150,"depth":280,"segments":16,"rings":10,"twist_degrees":0,"random_amount":0,"stroke_width":3,"colour":"#0e769f","secondary_colour":"#ffffff","seed":93,"torus":false}"##.to_string(),
+            width: 800,
+            height: 450,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_simple_tube_source_frame(&media)
+            .expect("generated SimpleTube frame should render");
+        let centre_line_offset = ((225_usize * media.width as usize) + 400_usize) * 4;
+        let edge_line_offset = ((225_usize * media.width as usize) + 260_usize) * 4;
+        let empty_corner_offset = 0_usize;
+
+        assert_eq!(
+            &frame.pixels[centre_line_offset..centre_line_offset + 4],
+            [255, 255, 255, 255]
+        );
+        assert_eq!(
+            &frame.pixels[edge_line_offset..edge_line_offset + 4],
+            [14, 118, 159, 255]
+        );
+        assert_eq!(
+            &frame.pixels[empty_corner_offset..empty_corner_offset + 4],
+            [0, 0, 0, 0]
+        );
+    }
 }
