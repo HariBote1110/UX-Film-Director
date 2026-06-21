@@ -36,3 +36,20 @@ describe('PropertyPanel AviUtl effect preset controls', () => {
     expect(code).toContain('AviUtl Effects');
   });
 });
+
+describe('PropertyPanel standard particle controls', () => {
+  it('exposes editable controls for Rust-native standard particle parameters', () => {
+    const code = source();
+
+    expect(code).toContain('ParticleObject');
+    expect(code).toContain("selectedObject.type === 'particle'");
+    expect(code).toContain('Particle Settings');
+    expect(code).toContain('Particle Count');
+    expect(code).toContain('Seed');
+    expect(code).toContain('Spread');
+    expect(code).toContain('Speed');
+    expect(code).toContain('Particle Size');
+    expect(code).toContain('Lifetime');
+    expect(code).toContain("(selectedObject as ParticleObject).colour");
+  });
+});
