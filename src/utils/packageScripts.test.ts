@@ -27,11 +27,14 @@ describe('package scripts', () => {
     expect(script).toContain('exportDurationMs');
     expect(script).toContain('exportFramesPerSecond');
     expect(script).toContain('UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA');
+    expect(script).toContain('UXFD_VIDEO_EXPORT_E2E_ADD_PSD');
     expect(script).toContain('mixedMediaResult');
+    expect(script).toContain('psdMediaResult');
     expect(script).toContain('__UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__');
     expect(script).toContain('mixedMediaDurationResult');
     expect(script).toContain('expectedFrameCount');
     expect(script).toContain('frameCountMatchesDuration');
+    expect(script).toContain('exportUsedDirectTranscode');
     expect(script.indexOf('const exportStartTimeMs = Date.now()'))
       .toBeLessThan(script.indexOf('exportDurationMs'));
   });
