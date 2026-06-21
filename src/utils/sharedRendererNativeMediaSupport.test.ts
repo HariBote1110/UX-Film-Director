@@ -184,6 +184,12 @@ const media: RustSceneMediaReference[] = [{
   width: 800,
   height: 450,
 }, {
+  id: 'hologram-1',
+  kind: 'GeneratedHologram' as RustSceneMediaReference['kind'],
+  source: '{"generator":"hologram","tile_size":80,"rotation_degrees":0,"gradient_angle_degrees":-60,"colour_mode":1,"tint_colour":"#ffffff"}',
+  width: 800,
+  height: 450,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -243,8 +249,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[22])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[23])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[24])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[25])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[25])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[26])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[27])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {
@@ -258,6 +265,10 @@ describe('sharedRendererNativeMediaSupport', () => {
     })).toBe(true);
     expect(canRenderSharedRendererNativeMediaOnlyFrame({
       snapshot: snapshotWithMedia('solid-1', 'psd-1', 'gradient-1'),
+      media,
+    })).toBe(true);
+    expect(canRenderSharedRendererNativeMediaOnlyFrame({
+      snapshot: snapshotWithMedia('solid-1', 'hologram-1'),
       media,
     })).toBe(true);
     expect(canRenderSharedRendererNativeMediaOnlyFrame({

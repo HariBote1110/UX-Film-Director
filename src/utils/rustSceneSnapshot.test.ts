@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AsanohaPatternObject, AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HoundstoothObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, RandomLineExObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, RandomLineExObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -704,6 +704,33 @@ const baseRandomLineEx = (patch: Partial<RandomLineExObject> = {}): RandomLineEx
   widthVariance: 0,
   seed: 0,
   lineColour: '#ffffff',
+  ...patch,
+});
+
+const baseHologram = (patch: Partial<HologramObject> = {}): HologramObject => ({
+  id: 'hologram-1',
+  type: 'hologram',
+  name: 'ホログラム',
+  layer: 24,
+  startTime: 1,
+  duration: 4,
+  x: 560,
+  y: 315,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 560,
+  endY: 315,
+  easing: 'linear',
+  width: 800,
+  height: 450,
+  tileSize: 80,
+  rotationDegrees: 0,
+  gradientAngleDegrees: -60,
+  colourMode: 1,
+  tintColour: '#ffffff',
   ...patch,
 });
 
@@ -1563,6 +1590,43 @@ describe('buildRustSceneSnapshotForTimeline', () => {
           width_variance: 0,
           seed: 0,
           line_colour: '#ffffff',
+        }),
+        width: 800,
+        height: 450,
+      },
+    ]);
+  });
+
+  it('builds a generated hologram media plane from a hologram object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseHologram()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated hologram snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'hologram-1',
+      track_id: 'layer-24',
+      media_id: 'hologram-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'hologram-1',
+        kind: 'GeneratedHologram',
+        source: JSON.stringify({
+          generator: 'hologram',
+          tile_size: 80,
+          rotation_degrees: 0,
+          gradient_angle_degrees: -60,
+          colour_mode: 1,
+          tint_colour: '#ffffff',
         }),
         width: 800,
         height: 450,

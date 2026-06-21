@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AsanohaPatternObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HoundstoothObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, RandomLineExObject, ShapeObject, SunburstObject, TartanCheckObject, TrackBarObject, TriangleBracketObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, RandomLineExObject, ShapeObject, SunburstObject, TartanCheckObject, TrackBarObject, TriangleBracketObject, YagasuriObject } from '../types';
 import { MAX_LAYERS } from '../components/timelineConstants';
 import { createDefaultCamera, createDefaultLayers, createDefaultStageCamera3D } from './sceneState';
 import { buildProjectFileData, parseProjectPayloadV2, restoreProjectObjects } from './projectFile';
@@ -594,6 +594,32 @@ const minimalRandomLineEx = (): RandomLineExObject => ({
   lineColour: '#ffffff',
 });
 
+const minimalHologram = (): HologramObject => ({
+  id: 'hologram-1',
+  type: 'hologram',
+  name: 'ホログラム',
+  layer: 21,
+  startTime: 1,
+  duration: 5,
+  x: 560,
+  y: 315,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 560,
+  endY: 315,
+  easing: 'linear',
+  width: 800,
+  height: 450,
+  tileSize: 80,
+  rotationDegrees: 0,
+  gradientAngleDegrees: -60,
+  colourMode: 1,
+  tintColour: '#ffffff',
+});
+
 describe('buildProjectFileData', () => {
   it('flushes active editor state into the matching scene and stamps metadata', () => {
     const layers = createDefaultLayers();
@@ -749,6 +775,7 @@ describe('parseProjectPayloadV2', () => {
     const asanohaPattern = minimalAsanohaPattern();
     const focusLinesPlus = minimalFocusLinesPlus();
     const randomLineEx = minimalRandomLineEx();
+    const hologram = minimalHologram();
     const file = buildProjectFileData({
       projectSettings: projectSettings(),
       scenes: [
@@ -757,13 +784,13 @@ describe('parseProjectPayloadV2', () => {
           name: 'One',
           duration: 10,
           layers,
-          objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx],
+          objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, hologram],
           camera,
           stageCamera3D: defaultStage()
         }
       ],
       activeSceneId: 's1',
-      objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx],
+      objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, hologram],
       layers,
       duration: 10,
       camera,
@@ -771,7 +798,7 @@ describe('parseProjectPayloadV2', () => {
     });
 
     const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
-    expect(parsed.scenes[0].objects).toEqual([particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx]);
+    expect(parsed.scenes[0].objects).toEqual([particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, hologram]);
   });
 
   it('rejects invalid worldPlacement on psd objects', () => {

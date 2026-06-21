@@ -339,3 +339,19 @@ fn rust_core_accepts_generated_random_line_ex_media_kind_at_the_json_boundary() 
     assert_eq!(media.width, 800);
     assert_eq!(media.height, 450);
 }
+
+#[test]
+fn rust_core_accepts_generated_hologram_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "hologram-1",
+        "kind": "GeneratedHologram",
+        "source": "{\"generator\":\"hologram\",\"tile_size\":80,\"rotation_degrees\":0,\"gradient_angle_degrees\":-60,\"colour_mode\":1,\"tint_colour\":\"#ffffff\"}",
+        "width": 800,
+        "height": 450
+    }))
+    .expect("GeneratedHologram media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedHologram);
+    assert_eq!(media.width, 800);
+    assert_eq!(media.height, 450);
+}

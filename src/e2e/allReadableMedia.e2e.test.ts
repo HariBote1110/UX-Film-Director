@@ -15,6 +15,7 @@ import type {
   GearObject,
   GourdObject,
   HistogramObject,
+  HologramObject,
   ImageObject,
   LayerState,
   ParticleObject,
@@ -479,6 +480,18 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     seed: 0,
     lineColour: '#ffffff',
   };
+  const hologram: HologramObject = {
+    ...baseObject('ssd-hologram', 'hologram', 29),
+    type: 'hologram',
+    name: 'ホログラム',
+    width: 800,
+    height: 450,
+    tileSize: 80,
+    rotationDegrees: 0,
+    gradientAngleDegrees: -60,
+    colourMode: 1,
+    tintColour: '#ffffff',
+  };
 
   return [
     solidShape,
@@ -507,6 +520,7 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     asanohaPattern,
     focusLinesPlus,
     randomLineEx,
+    hologram,
   ];
 };
 
@@ -593,6 +607,7 @@ describe('全読込可能メディア E2E', () => {
       'GeneratedAsanohaPattern',
       'GeneratedFocusLinesPlus',
       'GeneratedRandomLineEx',
+      'GeneratedHologram',
     ]);
     expect(snapshotResult.media
       .filter((media) => media.kind === 'Video')
@@ -783,6 +798,14 @@ describe('全読込可能メディア E2E', () => {
       seed: 0,
       line_colour: '#ffffff',
     });
+    expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'ssd-hologram')?.source ?? '{}')).toMatchObject({
+      generator: 'hologram',
+      tile_size: 80,
+      rotation_degrees: 0,
+      gradient_angle_degrees: -60,
+      colour_mode: 1,
+      tint_colour: '#ffffff',
+    });
     expect(snapshotResult.media.some((media) => media.source.endsWith('.wav'))).toBe(false);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'shape-solid-rect')?.transform).toMatchObject({
       translation_x: 64.5,
@@ -822,6 +845,7 @@ describe('全読込可能メディア E2E', () => {
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-asanoha-pattern')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-focus-lines-plus')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-random-line-ex')?.source_frame).toBe(0);
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-hologram')?.source_frame).toBe(0);
     expect(validateRustSceneSnapshotBoundary({
       snapshot: snapshotResult.snapshot,
       media: snapshotResult.media,
