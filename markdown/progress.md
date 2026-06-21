@@ -1,6 +1,18 @@
 # 進捗ログ
 
 ## 2026-06-22
+- GetColor画像レイヤー参照をRust生成へ接続した。
+- Red: GetColor V2R画像サンプリングドットが、直接画像パスだけでなく `sampleSourceLayer` と `sampleSourceObjectId` から画像オブジェクトのローカルパスを解決して `source_image` へ渡す契約を追加した。
+- Green: `GetColorDotFieldObject` に `sampleSourceLayer` / `sampleSourceObjectId` を追加し、保存/読込検証で保持できるようにした。
+- Green: `buildGetColorSampledDotFieldObject` は、配置レイヤーの一つ上を既定サンプル元レイヤーとして持つようにした。
+- Green: Rust scene snapshotで、`sampleSourcePath` 明示指定を最優先し、次に `sampleSourceObjectId`、最後に `sampleSourceLayer` のアクティブな画像オブジェクトを解決して `GeneratedGetColorDots` source JSONへ渡すようにした。
+- 版を `0.1.1-Beta-308a` に更新した。
+- 検証: `npm test -- --run src/utils/getColorDotFieldObjectFactory.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/projectFile.test.ts --reporter=dot` は79件成功した。
+- 検証: `npm test -- --run src/utils/getColorDotFieldObjectFactory.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/projectFile.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/packageScripts.test.ts --reporter=dot` は100件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_getcolor_dots_source_frame -- --nocapture` は4件成功した。
+- 現時点の自動参照は画像オブジェクトのPNG/JPEGに限定。PSDを直接 `source_image` として読む経路や、PropertyPanel/source pickerで明示的に選ぶUIは後続で接続する。
+
+## 2026-06-22
 - GetColor画像サンプリングをRust生成へ接続した。
 - Red: GetColor V2R画像サンプリングドットがfactory、Timeline右クリックメニュー、AviUtlPackV4カタログ、保存/読込、Rust scene snapshot、shared renderer native media、Rust backend画素生成を通る契約を追加した。
 - Green: `GetColorDotFieldObject` に `sampleSourcePath` / `sampleStrength` を追加し、`GeneratedGetColorDots` source JSONへ `source_image` / `sample_strength` を渡せるようにした。
