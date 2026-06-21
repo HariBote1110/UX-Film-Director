@@ -856,13 +856,13 @@ const collectGeneratedPaintObjectIds = (session: SharedRendererPreviewSession): 
 };
 
 const isGeneratedPaintMediaKind = (
-  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedSunburst' | 'Psd' | undefined
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'Psd' | undefined
 ): boolean =>
   kind === 'SolidColour' || kind === 'GeneratedGradient';
 
 const collectObjectIdsByMediaKind = (
   session: SharedRendererPreviewSession,
-  kind: 'Video' | 'SolidColour' | 'Image' | 'Psd' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedSunburst'
+  kind: 'Video' | 'SolidColour' | 'Image' | 'Psd' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedSunburst' | 'GeneratedCircularArrow'
 ): string[] => {
   if (!session.surfaceGate.ok) return [];
 
@@ -885,6 +885,7 @@ const collectGeneratedEffectObjectIds = (session: SharedRendererPreviewSession):
   ...collectObjectIdsByMediaKind(session, 'GeneratedPieChart'),
   ...collectObjectIdsByMediaKind(session, 'GeneratedHistogram'),
   ...collectObjectIdsByMediaKind(session, 'GeneratedSunburst'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedCircularArrow'),
 ];
 
 const resolveFirstPresentedVideoSourceFrame = (

@@ -1,6 +1,20 @@
 # 進捗ログ
 
 ## 2026-06-21
+- SSD円矢印をRust生成オブジェクトへ追加した。
+- Red: `script/ANM/ANM_ssd/円矢印.obj` を、Rust `GeneratedCircularArrow` mediaとして扱う境界契約を作った。
+- Green: `CircularArrowObject` と `buildAviUtlCircularArrowObject` を追加し、Timeline右クリックから `円矢印を追加` / `Add Circular Arrow` で置けるようにした。
+- Green: `rustSceneSnapshot` / shared renderer native support / Rust core schema / Rust backendに `GeneratedCircularArrow` を追加した。
+- Green: Rust backendで透明背景、黄色の円弧、三角形の矢じりを持つ決定的な円矢印フレームを生成できるようにした。
+- Green: `ssd-circular-arrow` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-275a` に更新した。
+- 検証: `npm test -- --run src/utils/circularArrowObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/e2e/allReadableMedia.e2e.test.ts --reporter=dot` は87件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は13件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_circular_arrow_source_frame_contains_arc_head_and_transparency -- --nocapture` は1件成功した。
+- 検証: 対象名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足、`mp4box` 型定義不足、`heavyEffectsStress.test.ts` の `PositionKeyframe` 未定義のみ検出した。
+- 残課題: 現時点の `GeneratedCircularArrow` は元スクリプトの図形モチーフ選択や複雑な合成処理を、透明背景の円弧/矢じりRustラスタ生成へ置き換えた互換再実装。
+
+## 2026-06-21
 - SSD日の出をRust生成オブジェクトへ追加した。
 - Red: `script/ANM/ANM_ssd/日の出.obj` を、Rust `GeneratedSunburst` mediaとして扱う境界契約を作った。
 - Green: `SunburstObject` と `buildAviUtlSunburstObject` を追加し、Timeline右クリックから `日の出を追加` / `Add Sunburst` で置けるようにした。

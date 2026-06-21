@@ -98,7 +98,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'track_bar',
   'pie_chart',
   'histogram',
-  'sunburst'
+  'sunburst',
+  'circular_arrow'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -273,6 +274,20 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (candidate.motifShape !== 'circle' && candidate.motifShape !== 'rect') return false;
     if (typeof candidate.rayColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.rayColour)) return false;
     if (typeof candidate.backgroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.backgroundColour)) return false;
+  }
+  if (candidate.type === 'circular_arrow') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.radius) || candidate.radius <= 0) return false;
+    if (!isFiniteNumber(candidate.lineWidth) || candidate.lineWidth <= 0) return false;
+    if (!isFiniteNumber(candidate.headSize) || candidate.headSize < 0) return false;
+    if (!isFiniteNumber(candidate.angleDegrees) || candidate.angleDegrees < 0 || candidate.angleDegrees > 360) return false;
+    if (!isFiniteNumber(candidate.centreAngleDegrees)) return false;
+    if (candidate.headShape !== 'triangle' && candidate.headShape !== 'circle') return false;
+    if (typeof candidate.showTailHead !== 'boolean') return false;
+    if (typeof candidate.flipVertical !== 'boolean') return false;
+    if (typeof candidate.flipHorizontal !== 'boolean') return false;
+    if (typeof candidate.arrowColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.arrowColour)) return false;
   }
   return true;
 };

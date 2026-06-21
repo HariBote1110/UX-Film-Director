@@ -3,6 +3,7 @@ import { useStore } from '../store/useStore';
 import { shallow } from 'zustand/shallow';
 import { useTranslation } from '../i18n';
 import { buildAviUtlBarcodeObject } from '../utils/barcodeObjectFactory';
+import { buildAviUtlCircularArrowObject } from '../utils/circularArrowObjectFactory';
 import { buildAviUtlColourWheelObject } from '../utils/colourWheelObjectFactory';
 import { buildAviUtlGearObject } from '../utils/gearObjectFactory';
 import { buildAviUtlGourdObject } from '../utils/gourdObjectFactory';
@@ -155,6 +156,17 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
 
   const handleAddBarcode = () => {
     addObject(buildAviUtlBarcodeObject({
+      id: crypto.randomUUID(),
+      projectWidth: projectSettings.width,
+      projectHeight: projectSettings.height,
+      startTime: state.time,
+      layer: state.layer,
+    }));
+    onClose();
+  };
+
+  const handleAddCircularArrow = () => {
+    addObject(buildAviUtlCircularArrowObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
@@ -348,6 +360,7 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddPieChart}>{language === 'en' ? 'Add Pie Chart' : 'パイシートグラフを追加'}</div>
              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHistogram}>{language === 'en' ? 'Add Histogram' : '簡易ヒストグラムを追加'}</div>
              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddSunburst}>{language === 'en' ? 'Add Sunburst' : '日の出を追加'}</div>
+             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddCircularArrow}>{language === 'en' ? 'Add Circular Arrow' : '円矢印を追加'}</div>
          </>
        )}
       {state.type === 'object' && state.targetObjectId && (

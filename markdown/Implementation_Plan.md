@@ -55,7 +55,8 @@
 37. ✅ `P2` 93パイシートグラフをRust GeneratedPieChart生成オブジェクトへ追加
 38. ✅ `P2` Tim簡易ヒストグラムをRust GeneratedHistogram生成オブジェクトへ追加
 39. ✅ `P2` SSD日の出をRust GeneratedSunburst生成オブジェクトへ追加
-40. `P2` 生成効果入り混在exportのnative render source待ち時間を分解して高速化する
+40. ✅ `P2` SSD円矢印をRust GeneratedCircularArrow生成オブジェクトへ追加
+41. `P2` 生成効果入り混在exportのnative render source待ち時間を分解して高速化する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

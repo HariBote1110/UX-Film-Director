@@ -45,7 +45,7 @@ export interface LayerState {
   locked: boolean;
 }
 
-export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization' | 'particle' | 'barcode' | 'puzzle_piece' | 'colour_wheel' | 'gourd' | 'gear' | 'track_bar' | 'pie_chart' | 'histogram' | 'sunburst';
+export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization' | 'particle' | 'barcode' | 'puzzle_piece' | 'colour_wheel' | 'gourd' | 'gear' | 'track_bar' | 'pie_chart' | 'histogram' | 'sunburst' | 'circular_arrow';
 
 // --- グラデーション・シャドウ・軌道 ---
 
@@ -500,6 +500,23 @@ export interface SunburstObject extends BaseObject {
   backgroundColour: string;
 }
 
+// AviUtlPackV4 円矢印互換の生成オブジェクト
+export interface CircularArrowObject extends BaseObject {
+  type: 'circular_arrow';
+  width: number;
+  height: number;
+  radius: number;
+  lineWidth: number;
+  headSize: number;
+  angleDegrees: number;
+  centreAngleDegrees: number;
+  headShape: 'triangle' | 'circle';
+  showTailHead: boolean;
+  flipVertical: boolean;
+  flipHorizontal: boolean;
+  arrowColour: string;
+}
+
 // --- PSD連携用 ---
 
 export interface PsdLayerStruct {
@@ -544,7 +561,7 @@ export interface PsdObject extends BaseObject {
   worldPlacement?: PsdWorldPlacement;
 }
 
-export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | SunburstObject;
+export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | SunburstObject | CircularArrowObject;
 
 /** タイムライン1本分（シーン） */
 export interface SceneData {

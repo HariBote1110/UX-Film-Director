@@ -16,6 +16,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedPieChart') return isSharedRendererNativeGeneratedPieChartSourceSupported(reference.source);
   if (reference.kind === 'GeneratedHistogram') return isSharedRendererNativeGeneratedHistogramSourceSupported(reference.source);
   if (reference.kind === 'GeneratedSunburst') return isSharedRendererNativeGeneratedSunburstSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedCircularArrow') return isSharedRendererNativeGeneratedCircularArrowSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -476,6 +477,53 @@ const isSharedRendererNativeGeneratedSunburstSourceSupported = (source: string):
       && /^#[0-9a-f]{6}$/i.test(parsed.ray_colour)
       && typeof parsed.background_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedCircularArrowSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      radius?: unknown;
+      line_width?: unknown;
+      head_size?: unknown;
+      angle_degrees?: unknown;
+      centre_angle_degrees?: unknown;
+      head_shape?: unknown;
+      show_tail_head?: unknown;
+      flip_vertical?: unknown;
+      flip_horizontal?: unknown;
+      arrow_colour?: unknown;
+    };
+    return (
+      parsed.generator === 'circular-arrow'
+      && typeof parsed.radius === 'number'
+      && Number.isInteger(parsed.radius)
+      && parsed.radius > 0
+      && parsed.radius <= 2000
+      && typeof parsed.line_width === 'number'
+      && Number.isInteger(parsed.line_width)
+      && parsed.line_width > 0
+      && parsed.line_width <= 1000
+      && typeof parsed.head_size === 'number'
+      && Number.isInteger(parsed.head_size)
+      && parsed.head_size >= 0
+      && parsed.head_size <= 1000
+      && typeof parsed.angle_degrees === 'number'
+      && Number.isFinite(parsed.angle_degrees)
+      && parsed.angle_degrees >= 0
+      && parsed.angle_degrees <= 360
+      && typeof parsed.centre_angle_degrees === 'number'
+      && Number.isFinite(parsed.centre_angle_degrees)
+      && (parsed.head_shape === 'triangle' || parsed.head_shape === 'circle')
+      && typeof parsed.show_tail_head === 'boolean'
+      && typeof parsed.flip_vertical === 'boolean'
+      && typeof parsed.flip_horizontal === 'boolean'
+      && typeof parsed.arrow_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.arrow_colour)
     );
   } catch {
     return false;

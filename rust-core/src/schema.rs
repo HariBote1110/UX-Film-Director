@@ -46,6 +46,7 @@ pub enum MediaKind {
     GeneratedPieChart,
     GeneratedHistogram,
     GeneratedSunburst,
+    GeneratedCircularArrow,
     Psd,
 }
 
@@ -72,6 +73,7 @@ pub enum ClipKind {
     GeneratedPieChartPlane,
     GeneratedHistogramPlane,
     GeneratedSunburstPlane,
+    GeneratedCircularArrowPlane,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -287,6 +287,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '背景や強調演出に使いやすく、Rust側で放射状レイと中心モチーフを決定的に生成できる。'
   },
   {
+    id: 'ssd-circular-arrow',
+    labelJa: '円矢印',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/ANM/ANM_ssd/円矢印.obj'],
+    rationaleJa: '注釈、循環、誘導表示に使いやすく、Rust側で透明背景付きの円弧と矢じりを決定的に生成できる。'
+  },
+  {
     id: 'tim-motion-path',
     labelJa: 'モーションパス',
     category: 'motion',

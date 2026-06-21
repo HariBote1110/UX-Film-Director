@@ -266,6 +266,21 @@ struct GeneratedSunburstSource {
     background_colour: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedCircularArrowSource {
+    generator: String,
+    radius: u32,
+    line_width: u32,
+    head_size: u32,
+    angle_degrees: f32,
+    centre_angle_degrees: f32,
+    head_shape: String,
+    show_tail_head: bool,
+    flip_vertical: bool,
+    flip_horizontal: bool,
+    arrow_colour: String,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2252,6 +2267,9 @@ fn collect_native_render_sources(
             MediaKind::GeneratedPieChart => build_generated_pie_chart_source_frame(media)?,
             MediaKind::GeneratedHistogram => build_generated_histogram_source_frame(media)?,
             MediaKind::GeneratedSunburst => build_generated_sunburst_source_frame(media)?,
+            MediaKind::GeneratedCircularArrow => {
+                build_generated_circular_arrow_source_frame(media)?
+            }
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform => continue,
@@ -3250,6 +3268,164 @@ fn build_generated_sunburst_source_frame(media: &SceneMediaReference) -> Result<
         .map_err(|error| format!("GeneratedSunburst media frame is invalid: {error:?}"))
 }
 
+fn build_generated_circular_arrow_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedCircularArrow media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let arrow: GeneratedCircularArrowSource =
+        serde_json::from_str(&media.source).map_err(|error| {
+            format!(
+                "Invalid GeneratedCircularArrow media '{}': {error}",
+                media.id
+            )
+        })?;
+    validate_generated_circular_arrow_source(&arrow).map_err(|message| {
+        format!(
+            "Invalid GeneratedCircularArrow media '{}': {message}",
+            media.id
+        )
+    })?;
+
+    let colour = parse_hex_colour_source(&arrow.arrow_colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedCircularArrow media '{}': {message}",
+            media.id
+        )
+    })?;
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedCircularArrow media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedCircularArrow media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+
+    let centre_x = media.width as f32 * 0.5;
+    let centre_y = media.height as f32 * 0.5;
+    let radius = (arrow.radius as f32)
+        .min(media.width.min(media.height) as f32 * 0.5 - 1.0)
+        .max(1.0);
+    let half_line = (arrow.line_width as f32 * 0.5).max(0.5);
+    let span = arrow
+        .angle_degrees
+        .to_radians()
+        .clamp(0.0, std::f32::consts::TAU);
+    let centre_angle = arrow.centre_angle_degrees.to_radians() - std::f32::consts::FRAC_PI_2;
+    let start_angle = centre_angle - span * 0.5;
+    let end_angle = centre_angle + span * 0.5;
+    let start_point = point_on_circle(centre_x, centre_y, radius, start_angle);
+    let end_point = point_on_circle(centre_x, centre_y, radius, end_angle);
+    let end_head = circular_arrow_head(end_point, end_angle, arrow.head_size as f32);
+    let start_head = circular_arrow_head(
+        start_point,
+        start_angle + std::f32::consts::PI,
+        arrow.head_size as f32,
+    );
+    let head_radius = arrow.head_size as f32 * 0.5;
+
+    for y in 0..media.height {
+        for x in 0..media.width {
+            let sample_x = if arrow.flip_horizontal {
+                media.width as f32 - 1.0 - x as f32
+            } else {
+                x as f32
+            };
+            let sample_y = if arrow.flip_vertical {
+                media.height as f32 - 1.0 - y as f32
+            } else {
+                y as f32
+            };
+            let dx = sample_x + 0.5 - centre_x;
+            let dy = sample_y + 0.5 - centre_y;
+            let distance = (dx * dx + dy * dy).sqrt();
+            let angle = dy.atan2(dx);
+            let in_arc = span > 0.0
+                && (distance - radius).abs() <= half_line
+                && circular_arrow_angle_in_span(angle, start_angle, span);
+            let in_end_head = if arrow.head_shape == "circle" {
+                distance_to_point(sample_x + 0.5, sample_y + 0.5, end_point.0, end_point.1)
+                    <= head_radius
+            } else {
+                point_in_triangle(sample_x + 0.5, sample_y + 0.5, end_head)
+            };
+            let in_start_head = arrow.show_tail_head
+                && if arrow.head_shape == "circle" {
+                    distance_to_point(sample_x + 0.5, sample_y + 0.5, start_point.0, start_point.1)
+                        <= head_radius
+                } else {
+                    point_in_triangle(sample_x + 0.5, sample_y + 0.5, start_head)
+                };
+            if in_arc || in_end_head || in_start_head {
+                let offset = ((y as usize * media.width as usize + x as usize) * 4) as usize;
+                pixels[offset..offset + 4].copy_from_slice(&[colour[0], colour[1], colour[2], 255]);
+            }
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedCircularArrow media frame is invalid: {error:?}"))
+}
+
+fn point_on_circle(centre_x: f32, centre_y: f32, radius: f32, angle: f32) -> (f32, f32) {
+    (
+        centre_x + angle.cos() * radius,
+        centre_y + angle.sin() * radius,
+    )
+}
+
+fn circular_arrow_angle_in_span(angle: f32, start_angle: f32, span: f32) -> bool {
+    let phase = (angle - start_angle).rem_euclid(std::f32::consts::TAU);
+    phase <= span
+}
+
+fn circular_arrow_head(tip: (f32, f32), tangent_angle: f32, head_size: f32) -> [(f32, f32); 3] {
+    let length = head_size.max(0.0);
+    let width = length * 0.75;
+    let base_centre = (
+        tip.0 - tangent_angle.cos() * length,
+        tip.1 - tangent_angle.sin() * length,
+    );
+    let normal = (-tangent_angle.sin(), tangent_angle.cos());
+    [
+        tip,
+        (
+            base_centre.0 + normal.0 * width * 0.5,
+            base_centre.1 + normal.1 * width * 0.5,
+        ),
+        (
+            base_centre.0 - normal.0 * width * 0.5,
+            base_centre.1 - normal.1 * width * 0.5,
+        ),
+    ]
+}
+
+fn point_in_triangle(x: f32, y: f32, triangle: [(f32, f32); 3]) -> bool {
+    let area = triangle_edge(triangle[0], triangle[1], (x, y));
+    let b = triangle_edge(triangle[1], triangle[2], (x, y));
+    let c = triangle_edge(triangle[2], triangle[0], (x, y));
+    (area >= 0.0 && b >= 0.0 && c >= 0.0) || (area <= 0.0 && b <= 0.0 && c <= 0.0)
+}
+
+fn triangle_edge(a: (f32, f32), b: (f32, f32), p: (f32, f32)) -> f32 {
+    (p.0 - a.0) * (b.1 - a.1) - (p.1 - a.1) * (b.0 - a.0)
+}
+
+fn distance_to_point(x: f32, y: f32, point_x: f32, point_y: f32) -> f32 {
+    let dx = x - point_x;
+    let dy = y - point_y;
+    (dx * dx + dy * dy).sqrt()
+}
+
 fn fill_rect_rgba(
     pixels: &mut [u8],
     width: u32,
@@ -3572,6 +3748,37 @@ fn validate_generated_sunburst_source(source: &GeneratedSunburstSource) -> Resul
     }
     parse_hex_colour_source(&source.ray_colour)?;
     parse_hex_colour_source(&source.background_colour)?;
+    Ok(())
+}
+
+fn validate_generated_circular_arrow_source(
+    source: &GeneratedCircularArrowSource,
+) -> Result<(), String> {
+    if source.generator != "circular-arrow" {
+        return Err("generator must be circular-arrow".to_string());
+    }
+    if source.radius == 0 || source.radius > 2000 {
+        return Err("radius must be 1..2000".to_string());
+    }
+    if source.line_width == 0 || source.line_width > 1000 {
+        return Err("line_width must be 1..1000".to_string());
+    }
+    if source.head_size > 1000 {
+        return Err("head_size must be 0..1000".to_string());
+    }
+    if !source.angle_degrees.is_finite()
+        || source.angle_degrees < 0.0
+        || source.angle_degrees > 360.0
+    {
+        return Err("angle_degrees must be 0..360".to_string());
+    }
+    if !source.centre_angle_degrees.is_finite() {
+        return Err("centre_angle_degrees must be finite".to_string());
+    }
+    if source.head_shape != "triangle" && source.head_shape != "circle" {
+        return Err("head_shape must be triangle or circle".to_string());
+    }
+    parse_hex_colour_source(&source.arrow_colour)?;
     Ok(())
 }
 
@@ -5793,5 +6000,34 @@ mod tests {
         assert!(has_ray);
         assert!(has_background);
         assert!(centre_is_motif);
+    }
+
+    #[test]
+    fn generated_circular_arrow_source_frame_contains_arc_head_and_transparency() {
+        let media = SceneMediaReference {
+            id: "circular-arrow-1".to_string(),
+            kind: MediaKind::GeneratedCircularArrow,
+            source: r##"{"generator":"circular-arrow","radius":80,"line_width":16,"head_size":40,"angle_degrees":260,"centre_angle_degrees":0,"head_shape":"triangle","show_tail_head":false,"flip_vertical":false,"flip_horizontal":false,"arrow_colour":"#ffff00"}"##.to_string(),
+            width: 200,
+            height: 200,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_circular_arrow_source_frame(&media)
+            .expect("generated circular arrow frame should render");
+        let yellow_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [255, 255, 0, 255])
+            .count();
+        let transparent_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| rgba[3] == 0)
+            .count();
+
+        assert!(yellow_count > 500);
+        assert!(transparent_count > 10_000);
     }
 }
