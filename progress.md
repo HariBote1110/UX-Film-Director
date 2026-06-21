@@ -1,3 +1,19 @@
+## 2026-06-22 — GetColor V2R枠線四角ドットを標準プリセットへ追加
+
+### 実施内容
+- Red: `getcolor-v2r-outlined-square-dots` がAviUtlPackV4カタログ、Timeline右クリックメニュー、factory、Rust scene snapshot、Rust backend画素生成を通る契約を追加した。
+- Green: 既存の `GeneratedGetColorDots` の `dot_shape: "square"` / `stroke_width` を使う標準プリセットとして、factoryとTimeline右クリックメニューへ露出した。
+- Green: Rust backendの枠線付き四角ドット描画を画素テストで確認した。
+- Version: `0.1.1-Beta-300a`。
+
+### 検証
+- `npm test -- --run src/utils/getColorDotFieldObjectFactory.test.ts src/utils/hksyCheckerGridObjectFactory.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/packageScripts.test.ts --reporter=dot` は128件成功。
+- `cargo test --manifest-path rust-backend/Cargo.toml generated_getcolor_dots_source_frame -- --nocapture` は3件成功。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回のGetColor枠線四角ドット由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- GetColorはドットフィールド、菱形、枠線四角の図形指定までRust生成メディアへ乗った。次は元画像サンプリング/Field/Twist方向、または93系の残候補へ進む。
+
 ## 2026-06-22 — GetColor V2R菱形ドットをRust生成プリセットへ追加
 
 ### 実施内容
