@@ -352,7 +352,7 @@ const PropertyPanel: React.FC = () => {
     const end = sampleObject.startTime + sampleObject.duration;
     return objects.filter((object) => {
       if (object.id === sampleObject.id) return false;
-      if (object.type !== 'image') return false;
+      if (object.type !== 'image' && object.type !== 'psd') return false;
       const objectStart = object.startTime;
       const objectEnd = object.startTime + object.duration;
       return objectStart < end && objectEnd > start;
@@ -2263,8 +2263,8 @@ const PropertyPanel: React.FC = () => {
                  </Row>
                  <div style={{ fontSize: '11px', color: '#888', marginTop: '5px', marginBottom: '8px' }}>
                      {language === 'en'
-                       ? 'PNG/JPEG image objects are used as Rust GetColor sample sources.'
-                       : 'PNG/JPEG画像オブジェクトをRust GetColorのサンプル元として使います。'}
+                        ? 'PNG/JPEG image objects or PSD objects are used as Rust GetColor sample sources.'
+                        : 'PNG/JPEG画像またはPSDをRust GetColorのサンプル元として使います。'}
                  </div>
              </>
          )}
