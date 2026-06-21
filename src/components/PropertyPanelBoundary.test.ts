@@ -25,3 +25,14 @@ describe('PropertyPanel AviUtl motion preset controls', () => {
     expect(code).toContain('AviUtl Motion');
   });
 });
+
+describe('PropertyPanel AviUtl effect preset controls', () => {
+  it('exposes AviUtlPackV4 effect presets through the filter stack panel', () => {
+    const code = source();
+
+    expect(code).toContain("import { applyAviUtlEffectPresetToObject, getAviUtlPackEffectPresets");
+    expect(code).toContain('const aviUtlEffectPresets = getAviUtlPackEffectPresets()');
+    expect(code).toContain('handleApplyAviUtlEffectPreset');
+    expect(code).toContain('AviUtl Effects');
+  });
+});
