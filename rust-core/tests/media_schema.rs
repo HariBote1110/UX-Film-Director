@@ -485,6 +485,22 @@ fn rust_core_accepts_generated_sphere_dots_media_kind_at_the_json_boundary() {
 }
 
 #[test]
+fn rust_core_accepts_generated_spherical_field_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "spherical-field-1",
+        "kind": "GeneratedSphericalField",
+        "source": "{\"generator\":\"spherical-field-93\",\"radius\":160,\"strength\":100,\"colour_amount\":100,\"alpha_amount\":0,\"line_width\":3,\"ring_count\":4,\"vector_count\":16,\"field_colour\":\"#ff3b30\",\"secondary_colour\":\"#36c2ff\",\"background_opacity\":0.08,\"container\":false,\"seed\":93}",
+        "width": 480,
+        "height": 480
+    }))
+    .expect("GeneratedSphericalField media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedSphericalField);
+    assert_eq!(media.width, 480);
+    assert_eq!(media.height, 480);
+}
+
+#[test]
 fn rust_core_accepts_generated_audio_sphere_media_kind_at_the_json_boundary() {
     let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
         "id": "audio-sphere-1",

@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, RegionFrameObject, ShakingPolygonObject, ShapeObject, SimpleTubeObject, SphereDotsObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, RegionFrameObject, ShakingPolygonObject, ShapeObject, SimpleTubeObject, SphereDotsObject, SphericalFieldObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -1018,6 +1018,40 @@ const baseSphereDots = (patch: Partial<SphereDotsObject> = {}): SphereDotsObject
   secondaryColour: '#36c2ff',
   seed: 93,
   planeMode: false,
+  ...patch,
+});
+
+const baseSphericalField = (patch: Partial<SphericalFieldObject> = {}): SphericalFieldObject => ({
+  id: 'spherical-field-1',
+  type: 'spherical_field',
+  name: '93 SphericalField',
+  layer: 38,
+  startTime: 9,
+  duration: 5,
+  x: 720,
+  y: 300,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 720,
+  endY: 300,
+  easing: 'linear',
+  width: 480,
+  height: 480,
+  radius: 160,
+  strength: 100,
+  colourAmount: 100,
+  alphaAmount: 0,
+  lineWidth: 3,
+  ringCount: 4,
+  vectorCount: 16,
+  fieldColour: '#ff3b30',
+  secondaryColour: '#36c2ff',
+  backgroundOpacity: 0.08,
+  container: false,
+  seed: 93,
   ...patch,
 });
 
@@ -2658,6 +2692,43 @@ describe('buildRustSceneSnapshotForTimeline', () => {
           secondary_colour: '#36c2ff',
           seed: 93,
           plane_mode: false,
+        }),
+        width: 480,
+        height: 480,
+      },
+    ]);
+  });
+
+  it('serialises a 93 SphericalField object into the Rust generator payload', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseSphericalField()],
+      time: 9,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated SphericalField snapshot to pass');
+
+    expect(result.media).toEqual([
+      {
+        id: 'spherical-field-1',
+        kind: 'GeneratedSphericalField',
+        source: JSON.stringify({
+          generator: 'spherical-field-93',
+          radius: 160,
+          strength: 100,
+          colour_amount: 100,
+          alpha_amount: 0,
+          line_width: 3,
+          ring_count: 4,
+          vector_count: 16,
+          field_colour: '#ff3b30',
+          secondary_colour: '#36c2ff',
+          background_opacity: 0.08,
+          container: false,
+          seed: 93,
         }),
         width: 480,
         height: 480,

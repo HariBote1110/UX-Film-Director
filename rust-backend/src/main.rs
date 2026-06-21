@@ -10825,4 +10825,36 @@ mod tests {
             [0, 0, 0, 0]
         );
     }
+
+    #[test]
+    fn generated_spherical_field_source_frame_renders_force_ring() {
+        let media = SceneMediaReference {
+            id: "spherical-field-1".to_string(),
+            kind: MediaKind::GeneratedSphericalField,
+            source: r##"{"generator":"spherical-field-93","radius":160,"strength":100,"colour_amount":100,"alpha_amount":0,"line_width":3,"ring_count":4,"vector_count":16,"field_colour":"#ff3b30","secondary_colour":"#36c2ff","background_opacity":0.08,"container":false,"seed":93}"##.to_string(),
+            width: 480,
+            height: 480,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_spherical_field_source_frame(&media)
+            .expect("generated SphericalField frame should render");
+        let right_ring_offset = ((240_usize * media.width as usize) + 400_usize) * 4;
+        let centre_offset = ((240_usize * media.width as usize) + 240_usize) * 4;
+        let empty_corner_offset = 0_usize;
+
+        assert_eq!(
+            &frame.pixels[right_ring_offset..right_ring_offset + 4],
+            [255, 59, 48, 255]
+        );
+        assert_eq!(
+            &frame.pixels[centre_offset..centre_offset + 4],
+            [54, 194, 255, 255]
+        );
+        assert_eq!(
+            &frame.pixels[empty_corner_offset..empty_corner_offset + 4],
+            [0, 0, 0, 0]
+        );
+    }
 }

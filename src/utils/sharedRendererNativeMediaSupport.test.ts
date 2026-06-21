@@ -473,4 +473,14 @@ describe('sharedRendererNativeMediaSupport', () => {
       }],
     })).toBe(true);
   });
+
+  it('accepts 93 SphericalField generator sources as native renderable media', () => {
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'spherical-field-1',
+      kind: 'GeneratedSphericalField',
+      source: '{"generator":"spherical-field-93","radius":160,"strength":100,"colour_amount":100,"alpha_amount":0,"line_width":3,"ring_count":4,"vector_count":16,"field_colour":"#ff3b30","secondary_colour":"#36c2ff","background_opacity":0.08,"container":false,"seed":93}',
+      width: 480,
+      height: 480,
+    })).toBe(true);
+  });
 });
