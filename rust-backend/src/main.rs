@@ -421,6 +421,22 @@ struct GeneratedToneCurveSource {
 }
 
 #[derive(Debug, Deserialize)]
+struct GeneratedGetColorDotsSource {
+    generator: String,
+    columns: u32,
+    rows: u32,
+    dot_size: f32,
+    size_influence: f32,
+    luminance_influence: f32,
+    hue_shift_degrees: f32,
+    alternate_rows: bool,
+    foreground_colour: String,
+    secondary_colour: String,
+    background_colour: String,
+    seed: i64,
+}
+
+#[derive(Debug, Deserialize)]
 struct GeneratedHksyCheckerGridSource {
     generator: String,
     cell_size: u32,
@@ -2418,6 +2434,7 @@ fn collect_native_render_sources(
             MediaKind::GeneratedPieChart => build_generated_pie_chart_source_frame(media)?,
             MediaKind::GeneratedHistogram => build_generated_histogram_source_frame(media)?,
             MediaKind::GeneratedToneCurve => build_generated_tone_curve_source_frame(media)?,
+            MediaKind::GeneratedGetColorDots => build_generated_getcolor_dots_source_frame(media)?,
             MediaKind::GeneratedHksyCheckerGrid => {
                 build_generated_hksy_checker_grid_source_frame(media)?
             }
@@ -5133,6 +5150,127 @@ fn build_generated_hksy_checker_grid_source_frame(
         .map_err(|error| format!("GeneratedHksyCheckerGrid media frame is invalid: {error:?}"))
 }
 
+fn build_generated_getcolor_dots_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedGetColorDots media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let dots: GeneratedGetColorDotsSource =
+        serde_json::from_str(&media.source).map_err(|error| {
+            format!(
+                "Invalid GeneratedGetColorDots media '{}': {error}",
+                media.id
+            )
+        })?;
+    validate_generated_getcolor_dots_source(&dots).map_err(|message| {
+        format!(
+            "Invalid GeneratedGetColorDots media '{}': {message}",
+            media.id
+        )
+    })?;
+
+    let foreground = parse_hex_colour_source(&dots.foreground_colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedGetColorDots media '{}': foreground_colour {message}",
+            media.id
+        )
+    })?;
+    let secondary = parse_hex_colour_source(&dots.secondary_colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedGetColorDots media '{}': secondary_colour {message}",
+            media.id
+        )
+    })?;
+    let background = parse_hex_colour_source(&dots.background_colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedGetColorDots media '{}': background_colour {message}",
+            media.id
+        )
+    })?;
+
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedGetColorDots media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedGetColorDots media byte length overflows".to_string())?;
+    let mut pixels = Vec::with_capacity(byte_len);
+    for _ in 0..pixel_count {
+        pixels.extend_from_slice(&[background[0], background[1], background[2], 255]);
+    }
+
+    if dots.dot_size <= 0.0 {
+        return RgbaFrame::from_rgba8(media.width, media.height, pixels)
+            .map_err(|error| format!("GeneratedGetColorDots media frame is invalid: {error:?}"));
+    }
+
+    let cell_width = media.width as f32 / dots.columns as f32;
+    let cell_height = media.height as f32 / dots.rows as f32;
+    let max_radius = (cell_width.min(cell_height) * 0.48).max(0.5);
+    let base_radius = (dots.dot_size * 0.5).min(max_radius);
+    let seed = dots.seed as u64;
+    for row in 0..dots.rows {
+        for column in 0..dots.columns {
+            let index = row.saturating_mul(dots.columns).saturating_add(column);
+            let u = if dots.columns > 1 {
+                column as f32 / (dots.columns - 1) as f32
+            } else {
+                0.5
+            };
+            let v = if dots.rows > 1 {
+                row as f32 / (dots.rows - 1) as f32
+            } else {
+                0.5
+            };
+            let random = deterministic_unit(seed, index, 11);
+            let hue_wave =
+                ((u + dots.hue_shift_degrees / 360.0) * std::f32::consts::TAU).sin() * 0.5 + 0.5;
+            let luminance = ((u * 0.35) + ((1.0 - v) * 0.35) + (random * 0.2) + (hue_wave * 0.1))
+                .clamp(0.0, 1.0);
+            let radius_factor = (1.0 - dots.size_influence)
+                + dots.size_influence * (0.35 + luminance * dots.luminance_influence);
+            let radius = (base_radius * radius_factor).clamp(0.5, max_radius);
+            let offset_x = if dots.alternate_rows && row % 2 == 1 {
+                cell_width * 0.5
+            } else {
+                0.0
+            };
+            let centre_x = (column as f32 + 0.5) * cell_width + offset_x;
+            if centre_x >= media.width as f32 {
+                continue;
+            }
+            let centre_y = (row as f32 + 0.5) * cell_height;
+            let colour = if luminance >= 0.55 {
+                foreground
+            } else {
+                secondary
+            };
+            draw_filled_circle_rgba(
+                &mut pixels,
+                media.width,
+                media.height,
+                centre_x,
+                centre_y,
+                radius,
+                colour,
+                255,
+            );
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedGetColorDots media frame is invalid: {error:?}"))
+}
+
 fn tone_curve_curve_points(points: &[f32], width: f32, height: f32) -> Vec<(f32, f32)> {
     let last_index = points.len().saturating_sub(1).max(1) as f32;
     points
@@ -5992,6 +6130,45 @@ fn validate_generated_hksy_checker_grid_source(
     }
     if source.line_width > 100 {
         return Err("line_width must be 0..100".to_string());
+    }
+    parse_hex_colour_source(&source.foreground_colour)?;
+    parse_hex_colour_source(&source.secondary_colour)?;
+    parse_hex_colour_source(&source.background_colour)?;
+    Ok(())
+}
+
+fn validate_generated_getcolor_dots_source(
+    source: &GeneratedGetColorDotsSource,
+) -> Result<(), String> {
+    if source.generator != "getcolor-v2r-dot-field" {
+        return Err("generator must be getcolor-v2r-dot-field".to_string());
+    }
+    if source.columns == 0 || source.columns > 512 {
+        return Err("columns must be 1..512".to_string());
+    }
+    if source.rows == 0 || source.rows > 512 {
+        return Err("rows must be 1..512".to_string());
+    }
+    if !source.dot_size.is_finite() || source.dot_size < 0.0 || source.dot_size > 2000.0 {
+        return Err("dot_size must be 0..2000".to_string());
+    }
+    if !source.size_influence.is_finite()
+        || source.size_influence < 0.0
+        || source.size_influence > 4.0
+    {
+        return Err("size_influence must be 0..4".to_string());
+    }
+    if !source.luminance_influence.is_finite()
+        || source.luminance_influence < 0.0
+        || source.luminance_influence > 4.0
+    {
+        return Err("luminance_influence must be 0..4".to_string());
+    }
+    if !source.hue_shift_degrees.is_finite()
+        || source.hue_shift_degrees < -720.0
+        || source.hue_shift_degrees > 720.0
+    {
+        return Err("hue_shift_degrees must be -720..720".to_string());
     }
     parse_hex_colour_source(&source.foreground_colour)?;
     parse_hex_colour_source(&source.secondary_colour)?;

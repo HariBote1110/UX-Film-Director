@@ -1,6 +1,17 @@
 # 進捗ログ
 
 ## 2026-06-22
+- GetColor V2RドットフィールドをRust生成オブジェクトへ追加した。
+- Red: `GetColor V2R` のドットフィールドがタイムライン挿入、保存/読込、Rust scene snapshot、shared renderer native media、Pixi cutover、Rust core schema境界、Rust backendラスタ生成を通る契約を追加した。
+- Green: `getcolor_dot_field` TimelineObjectと `GeneratedGetColorDots` media kindを追加し、右クリックメニューから「GetColor V2Rドットフィールドを追加」できるようにした。
+- Green: Rust backendで背景色上に、U/V位置・疑似明度・乱数を使った前景/二次色ドットフィールドをRGBA生成する実装を入れた。
+- 版を `0.1.1-Beta-289a` に更新した。
+- 検証: `npm test -- --run src/utils/getColorDotFieldObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts --reporter=dot` は97件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test media_schema rust_core_accepts_generated_getcolor_dots_media_kind_at_the_json_boundary -- --nocapture` は1件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_getcolor_dots_source_frame_contains_dot_field_and_background -- --nocapture` は1件成功した。
+- 残課題: 現時点の `GeneratedGetColorDots` は画像サンプリング前の内蔵ドットフィールド互換。元画像の色/透明度を直接サンプルする本格GetColor挙動、Field/Twist/ColorShift/AudioReactは後続で段階的に接続する。
+
+## 2026-06-22
 - hksyチェッカー/グリッドをRust生成オブジェクトへ追加した。
 - Red: `@hksy` のチェッカー/グリッドがタイムライン挿入、保存/読込、Rust scene snapshot、shared renderer native media、Pixi cutover、Rust core schema境界を通る契約を追加した。
 - Green: `hksy_checker_grid` TimelineObjectと `GeneratedHksyCheckerGrid` media kindを追加し、Rust backendでチェッカーセルとグリッド線をRGBA生成する実装を入れた。

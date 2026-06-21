@@ -99,6 +99,7 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'pie_chart',
   'histogram',
   'tone_curve',
+  'getcolor_dot_field',
   'hksy_checker_grid',
   'sunburst',
   'circular_arrow',
@@ -440,6 +441,21 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (typeof candidate.foregroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.foregroundColour)) return false;
     if (typeof candidate.secondaryColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.secondaryColour)) return false;
     if (typeof candidate.backgroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.backgroundColour)) return false;
+  }
+  if (candidate.type === 'getcolor_dot_field') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.columns) || candidate.columns < 1 || candidate.columns > 512) return false;
+    if (!isFiniteNumber(candidate.rows) || candidate.rows < 1 || candidate.rows > 512) return false;
+    if (!isFiniteNumber(candidate.dotSize) || candidate.dotSize < 0 || candidate.dotSize > 2000) return false;
+    if (!isFiniteNumber(candidate.sizeInfluence) || candidate.sizeInfluence < 0 || candidate.sizeInfluence > 4) return false;
+    if (!isFiniteNumber(candidate.luminanceInfluence) || candidate.luminanceInfluence < 0 || candidate.luminanceInfluence > 4) return false;
+    if (!isFiniteNumber(candidate.hueShiftDegrees) || candidate.hueShiftDegrees < -720 || candidate.hueShiftDegrees > 720) return false;
+    if (typeof candidate.alternateRows !== 'boolean') return false;
+    if (typeof candidate.foregroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.foregroundColour)) return false;
+    if (typeof candidate.secondaryColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.secondaryColour)) return false;
+    if (typeof candidate.backgroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.backgroundColour)) return false;
+    if (!isFiniteNumber(candidate.seed)) return false;
   }
   return true;
 };

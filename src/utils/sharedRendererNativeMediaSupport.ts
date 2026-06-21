@@ -16,6 +16,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedPieChart') return isSharedRendererNativeGeneratedPieChartSourceSupported(reference.source);
   if (reference.kind === 'GeneratedHistogram') return isSharedRendererNativeGeneratedHistogramSourceSupported(reference.source);
   if (reference.kind === 'GeneratedToneCurve') return isSharedRendererNativeGeneratedToneCurveSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedGetColorDots') return isSharedRendererNativeGeneratedGetColorDotsSourceSupported(reference.source);
   if (reference.kind === 'GeneratedHksyCheckerGrid') return isSharedRendererNativeGeneratedHksyCheckerGridSourceSupported(reference.source);
   if (reference.kind === 'GeneratedSunburst') return isSharedRendererNativeGeneratedSunburstSourceSupported(reference.source);
   if (reference.kind === 'GeneratedCircularArrow') return isSharedRendererNativeGeneratedCircularArrowSourceSupported(reference.source);
@@ -1052,6 +1053,63 @@ const isSharedRendererNativeGeneratedHksyCheckerGridSourceSupported = (source: s
       && /^#[0-9a-f]{6}$/i.test(parsed.secondary_colour)
       && typeof parsed.background_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedGetColorDotsSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      columns?: unknown;
+      rows?: unknown;
+      dot_size?: unknown;
+      size_influence?: unknown;
+      luminance_influence?: unknown;
+      hue_shift_degrees?: unknown;
+      alternate_rows?: unknown;
+      foreground_colour?: unknown;
+      secondary_colour?: unknown;
+      background_colour?: unknown;
+      seed?: unknown;
+    };
+    return (
+      parsed.generator === 'getcolor-v2r-dot-field'
+      && typeof parsed.columns === 'number'
+      && Number.isInteger(parsed.columns)
+      && parsed.columns >= 1
+      && parsed.columns <= 512
+      && typeof parsed.rows === 'number'
+      && Number.isInteger(parsed.rows)
+      && parsed.rows >= 1
+      && parsed.rows <= 512
+      && typeof parsed.dot_size === 'number'
+      && Number.isFinite(parsed.dot_size)
+      && parsed.dot_size >= 0
+      && parsed.dot_size <= 2000
+      && typeof parsed.size_influence === 'number'
+      && Number.isFinite(parsed.size_influence)
+      && parsed.size_influence >= 0
+      && parsed.size_influence <= 4
+      && typeof parsed.luminance_influence === 'number'
+      && Number.isFinite(parsed.luminance_influence)
+      && parsed.luminance_influence >= 0
+      && parsed.luminance_influence <= 4
+      && typeof parsed.hue_shift_degrees === 'number'
+      && Number.isFinite(parsed.hue_shift_degrees)
+      && parsed.hue_shift_degrees >= -720
+      && parsed.hue_shift_degrees <= 720
+      && typeof parsed.alternate_rows === 'boolean'
+      && typeof parsed.foreground_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.foreground_colour)
+      && typeof parsed.secondary_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.secondary_colour)
+      && typeof parsed.background_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
+      && typeof parsed.seed === 'number'
+      && Number.isInteger(parsed.seed)
     );
   } catch {
     return false;
