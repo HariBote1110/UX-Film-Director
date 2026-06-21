@@ -125,6 +125,68 @@ describe('runRustBackendVideoEncodeExport', () => {
     await runPromise;
   });
 
+  it('prefetches two shared frames while the current frame is being written', async () => {
+    const events: string[] = [];
+    const firstWriteStarted = deferredVoid();
+    const firstWriteRelease = deferredVoid();
+    const encoderBridge: RustBackendVideoEncodeBridge = {
+      startVideoEncode: async () => {
+        events.push('start');
+        return { success: true, result: { accepted: true } };
+      },
+      writeVideoEncodeFrame: async (payload) => {
+        events.push(`write-start-${payload.frameIndex}`);
+        if (payload.frameIndex === 0) {
+          firstWriteStarted.resolve();
+          await firstWriteRelease.promise;
+        }
+        events.push(`write-end-${payload.frameIndex}`);
+        return { success: true, result: { written: true } };
+      },
+      finishVideoEncode: async () => ({
+        success: true,
+        result: {
+          finished: true,
+          sessionId: 'session-prefetch-two',
+          filePath: '/tmp/prefetch-two.mp4',
+          frameCount: 3,
+        },
+      }),
+    };
+
+    async function* prefetchedFrames() {
+      events.push('render-0');
+      yield { timestamp: 0, sharedFramePayload: sharedFramePayload(0, 0, 'session-prefetch-two') };
+      events.push('render-1');
+      yield { timestamp: 16_667, sharedFramePayload: sharedFramePayload(1, 16_667, 'session-prefetch-two') };
+      events.push('render-2');
+      yield { timestamp: 33_333, sharedFramePayload: sharedFramePayload(2, 33_333, 'session-prefetch-two') };
+    }
+
+    const runPromise = runRustBackendVideoEncodeExport({
+      sessionId: 'session-prefetch-two',
+      filePath: '/tmp/prefetch-two.mp4',
+      width: 4,
+      height: 2,
+      fps: 60,
+      frames: prefetchedFrames(),
+      encoderBridge,
+      renderAheadFrameCount: 2,
+    });
+
+    await firstWriteStarted.promise;
+    await Promise.resolve();
+    expect(events).toEqual([
+      'start',
+      'render-0',
+      'write-start-0',
+      'render-1',
+      'render-2',
+    ]);
+    firstWriteRelease.resolve();
+    await runPromise;
+  });
+
   it('writes native encode frames directly without shared render output release bookkeeping', async () => {
     const calls: unknown[] = [];
     const encoderBridge: RustBackendVideoEncodeBridge = {
