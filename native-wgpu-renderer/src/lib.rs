@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 use uxfd_golden_harness::{RgbaFrame, RgbaFrameError};
-use uxfd_rust_core::{Effect, SamplingMode, SceneSnapshot, WipeEdge};
+use uxfd_rust_core::{
+    build_audio_waveform_line_strip, AudioWaveformSceneError, AudioWaveformSource, Effect,
+    SamplingMode, SceneSnapshot, WipeEdge,
+};
 use uxfd_shared_memory_spike::PosixSharedRing;
 use uxfd_sidecar_protocol::{
     rgba8_srgb_ring_layout, ColourMetadata, FrameFormat, FrameRingLayoutBuildError, SharedFrame,
@@ -43,8 +46,19 @@ pub enum NativeWgpuRenderError {
     },
     SharedFrameLayout(FrameRingLayoutBuildError),
     SharedMemory(uxfd_shared_memory_spike::PosixShmError),
+    AudioWaveform(AudioWaveformSceneError),
     BufferMap,
     InvalidFrame(RgbaFrameError),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct NativeAudioWaveformInput {
+    pub media_id: String,
+    pub source: AudioWaveformSource,
+    pub samples: Vec<f32>,
+    pub sample_rate: u32,
+    pub width: u32,
+    pub height: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -348,6 +362,28 @@ pub async fn render_native_wgpu_frame(
         .map(|report| report.frame)
 }
 
+pub async fn render_native_wgpu_frame_with_audio_waveforms(
+    snapshot: &SceneSnapshot,
+    sources: &HashMap<String, RgbaFrame>,
+    waveforms: &[NativeAudioWaveformInput],
+    width: u32,
+    height: u32,
+) -> Result<RgbaFrame, NativeWgpuRenderError> {
+    let mut generated_sources = sources.clone();
+    for waveform in waveforms {
+        let source_frame = snapshot
+            .clips
+            .iter()
+            .find(|clip| clip.media_id == waveform.media_id)
+            .map(|clip| clip.source_frame)
+            .unwrap_or(0);
+        let frame = rasterise_audio_waveform_input(waveform, source_frame)?;
+        generated_sources.insert(waveform.media_id.clone(), frame);
+    }
+
+    render_native_wgpu_frame(snapshot, &generated_sources, width, height).await
+}
+
 pub async fn render_native_wgpu_frame_to_shared_ring(
     snapshot: &SceneSnapshot,
     sources: &HashMap<String, RgbaFrame>,
@@ -359,6 +395,67 @@ pub async fn render_native_wgpu_frame_to_shared_ring(
 ) -> Result<NativeWgpuSharedFrameReport, NativeWgpuRenderError> {
     let report = measure_native_wgpu_frame_stages(snapshot, sources, width, height).await?;
     frame_report_to_shared_ring(report, memory_id, slot_count, pts_frame)
+}
+
+fn rasterise_audio_waveform_input(
+    input: &NativeAudioWaveformInput,
+    source_frame: u64,
+) -> Result<RgbaFrame, NativeWgpuRenderError> {
+    let line = build_audio_waveform_line_strip(
+        &input.source,
+        &input.samples,
+        input.sample_rate,
+        source_frame,
+        60,
+        input.width,
+        input.height,
+    )
+    .map_err(NativeWgpuRenderError::AudioWaveform)?;
+    let mut pixels = vec![0_u8; input.width as usize * input.height as usize * 4];
+    let colour = [
+        float_colour_to_u8(line.colour[0]),
+        float_colour_to_u8(line.colour[1]),
+        float_colour_to_u8(line.colour[2]),
+        float_colour_to_u8(line.colour[3]),
+    ];
+    let radius = ((line.thickness.max(1.0).round() as i32) - 1) / 2;
+
+    for (x, y) in line.points {
+        let x = x.round() as i32;
+        let y = y.round() as i32;
+        for offset_y in -radius..=radius {
+            write_waveform_pixel(
+                &mut pixels,
+                input.width,
+                input.height,
+                x,
+                y + offset_y,
+                colour,
+            );
+        }
+    }
+
+    RgbaFrame::from_rgba8(input.width, input.height, pixels)
+        .map_err(NativeWgpuRenderError::InvalidFrame)
+}
+
+fn write_waveform_pixel(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    x: i32,
+    y: i32,
+    colour: [u8; 4],
+) {
+    if x < 0 || y < 0 || x >= width as i32 || y >= height as i32 {
+        return;
+    }
+    let index = ((y as u32 * width + x as u32) * 4) as usize;
+    pixels[index..index + 4].copy_from_slice(&colour);
+}
+
+fn float_colour_to_u8(value: f32) -> u8 {
+    (value.clamp(0.0, 1.0) * 255.0).round() as u8
 }
 
 fn frame_report_to_shared_ring(

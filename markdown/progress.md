@@ -1,6 +1,15 @@
 # 進捗ログ
 
 ## 2026-06-21
+- Audio waveform Rをnative-wgpu-rendererへ接続した。
+- Red: `NativeAudioWaveformInput` を渡すと、native-wgpu-rendererが生成波形をGPU合成結果へ描く契約を追加した。
+- Green: `render_native_wgpu_frame_with_audio_waveforms` を追加し、PCMサンプルからRust coreのline stripを作り、RGBAフレーム化して既存WebGPU合成へ流すようにした。
+- Green: 波形色、線幅、sample rate、source frameを利用し、生成メディアを通常の `RgbaFrame` sourceと同じ経路で扱えるようにした。
+- 版を `0.1.1-Beta-246a` に更新した。
+- 検証: native-wgpu-rendererの `native_reference_parity` 15件、Rust coreの `audio_waveform_scene` 2件が成功。
+- 残課題: 次はRust backend/sidecarで音声ファイルからPCMを供給し、renderer側のAudio waveform R生成入力へ接続する。
+
+## 2026-06-21
 - Audio waveform RのRust波形生成コアを追加した。
 - Red: `audio-waveform-r` metadata JSONをRustで読み取り、PCMサンプルから波形ラインストリップを生成する契約を追加した。
 - Green: `rust-core/src/audio_waveform_scene.rs` を追加し、`AudioWaveformSource::from_json` と `build_audio_waveform_line_strip` を実装した。
