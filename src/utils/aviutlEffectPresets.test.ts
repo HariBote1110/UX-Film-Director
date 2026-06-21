@@ -38,6 +38,7 @@ describe('AviUtlPackV4 effect presets', () => {
     }))).toEqual([
       { id: 'luminance-wipe-basic', sourceCandidateId: 'tim-luminance-wipe', filterType: 'wipe' },
       { id: 'edge-outline-soft', sourceCandidateId: 'tim-edge-outline', filterType: 'shadow' },
+      { id: 'colour-aberration-rgb', sourceCandidateId: 'tim-colour-aberration', filterType: 'colour_aberration' },
       { id: 'fan-clipping-diagonal', sourceCandidateId: 'fan-clipping-r', filterType: 'clipping' }
     ]);
   });
@@ -53,6 +54,11 @@ describe('AviUtlPackV4 effect presets', () => {
       enabled: true,
       params: { colour: '#000000', blur: 0, offsetX: 0, offsetY: 0, opacity: 0.85 }
     });
+    expect(buildAviUtlEffectPresetFilter('colour-aberration-rgb')).toMatchObject({
+      type: 'colour_aberration',
+      enabled: true,
+      params: { offsetX: 3, offsetY: 0 }
+    });
     expect(buildAviUtlEffectPresetFilter('fan-clipping-diagonal')).toMatchObject({
       type: 'clipping',
       enabled: true,
@@ -61,6 +67,20 @@ describe('AviUtlPackV4 effect presets', () => {
   });
 
   it('appends presets to the existing filter stack without discarding old filters', () => {
+    const object = {
+      ...baseShape(),
+      filters: [buildAviUtlEffectPresetFilter('edge-outline-soft')]
+    };
+    const next = applyAviUtlEffectPresetToObject(object, 'fan-clipping-diagonal');
+
+    expect(next.filters?.map((filter) => filter.type)).toEqual(['shadow', 'colour_aberration']);
+    expect(next.filters?.[1]).toMatchObject({
+      type: 'colour_aberration',
+      params: { offsetX: 3, offsetY: 0 }
+    });
+  });
+
+  it('continues to sync legacy clipping when adding the fan clipping preset', () => {
     const object = {
       ...baseShape(),
       filters: [buildAviUtlEffectPresetFilter('edge-outline-soft')]

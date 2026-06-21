@@ -610,6 +610,34 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     expect(result.snapshot.clips[0].transform.rotation_degrees).toBe(90);
   });
 
+  it('serialises colour aberration filters as Rust scene effects', () => {
+    const layers = createDefaultLayers();
+    const aberrated = baseImage({
+      id: 'aberrated',
+      filters: [
+        {
+          id: 'ca-1',
+          type: 'colour_aberration',
+          enabled: true,
+          params: { offsetX: 3, offsetY: 1 },
+        },
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [aberrated],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected colour aberration snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([
+      { ColourAberration: { offset_x: 3, offset_y: 1 } },
+    ]);
+  });
+
   it('fails loud for visible Pixi features the shared renderer cannot represent yet', () => {
     const layers = createDefaultLayers();
     const unsupportedText: TimelineObject = {
