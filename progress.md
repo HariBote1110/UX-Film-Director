@@ -1,3 +1,20 @@
+## 2026-06-21 — 動画export E2EのElectron bundle待機を追加
+
+### 実施内容
+- Red: `run-video-export-e2e.mjs` がElectron起動前にbundle完了を待つ契約を追加した。
+- Green: `dist-electron/main.js` / `dist-electron/preload.js` の更新時刻とIPC markerを確認してからElectronを起動するようにした。
+- 版を `0.1.1-Beta-259b` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/packageScripts.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "run-video-export-e2e|packageScripts"`
+- `UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA=1 UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS=1 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=1 UXFD_VIDEO_EXPORT_E2E_TIMEOUT_MS=240000 npm run test:video-export:e2e`
+
+### 結果・残課題
+- bundle待機後の実Electron E2Eは動画+図形+画像+音声+Audio waveform R+標準パーティクルで成功した。
+- 出力: 60 frames / 17,662ms / 約3.40fps / 1,092,837 bytes。
+- 起動ログ上、`dist-electron/preload.js` と `dist-electron/main.js` のbuild完了後にElectronを起動できている。
+
 ## 2026-06-21 — 実Electron動画export E2EにAviUtl生成効果を投入
 
 ### 実施内容

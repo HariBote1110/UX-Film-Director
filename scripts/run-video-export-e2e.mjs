@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -14,6 +14,8 @@ const OUTPUT_DIR = resolve(ROOT, '.codex/video-export-e2e');
 const OUTPUT_MP4 = resolve(OUTPUT_DIR, 'video-export-e2e-output.mp4');
 const RESULT_JSON = resolve(OUTPUT_DIR, 'result.json');
 const RESULT_LOG = resolve(OUTPUT_DIR, 'result.log');
+const ELECTRON_MAIN_BUNDLE = resolve(ROOT, 'dist-electron/main.js');
+const ELECTRON_PRELOAD_BUNDLE = resolve(ROOT, 'dist-electron/preload.js');
 const USER_DATA_DIR = process.env.UXFD_VIDEO_EXPORT_E2E_USER_DATA_DIR
   ? resolve(process.env.UXFD_VIDEO_EXPORT_E2E_USER_DATA_DIR)
   : resolve(OUTPUT_DIR, `electron-profile-${process.pid}`);
@@ -94,6 +96,30 @@ const waitForDebugTarget = async (timeoutMs = 30_000) => {
     await sleep(250);
   }
   throw new Error('Electron renderer debug target did not become ready');
+};
+
+const electronBundleReady = (startedAtMs) => {
+  if (!existsSync(ELECTRON_MAIN_BUNDLE) || !existsSync(ELECTRON_PRELOAD_BUNDLE)) {
+    return false;
+  }
+  const mainStat = statSync(ELECTRON_MAIN_BUNDLE);
+  const preloadStat = statSync(ELECTRON_PRELOAD_BUNDLE);
+  if (mainStat.mtimeMs < startedAtMs || preloadStat.mtimeMs < startedAtMs) {
+    return false;
+  }
+  const mainSource = readFileSync(ELECTRON_MAIN_BUNDLE, 'utf8');
+  const preloadSource = readFileSync(ELECTRON_PRELOAD_BUNDLE, 'utf8');
+  return mainSource.includes('rust-backend-audio-waveform-samples')
+    && preloadSource.includes('rust-backend-audio-waveform-samples');
+};
+
+const waitForElectronBundle = async (startedAtMs, timeoutMs = 30_000) => {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (electronBundleReady(startedAtMs)) return;
+    await sleep(250);
+  }
+  throw new Error('Electron bundle did not finish before launching the video export E2E window.');
 };
 
 class CdpClient {
@@ -496,6 +522,7 @@ const main = async () => {
   rmSync(USER_DATA_DIR, { recursive: true, force: true });
   mkdirSync(USER_DATA_DIR, { recursive: true });
   log(`Vite 起動: port=${VITE_PORT}`);
+  const viteStartedAtMs = Date.now();
   vite = spawn('npx', ['vite', '--port', String(VITE_PORT), '--strictPort'], {
     cwd: ROOT,
     env: { ...process.env },
@@ -505,6 +532,7 @@ const main = async () => {
   vite.stderr.on('data', (chunk) => log(chunk.toString().trim()));
   vite.on('error', (error) => log(`Vite error: ${error.message}`));
   await waitForPort(VITE_PORT);
+  await waitForElectronBundle(viteStartedAtMs);
 
   log(`Electron 起動: remote-debugging-port=${DEBUG_PORT}`);
   electron = spawn(resolve(ROOT, 'node_modules/.bin/electron'), [
