@@ -26,6 +26,8 @@ describe('package scripts', () => {
     expect(script).toContain('--user-data-dir=');
     expect(script).toContain('exportDurationMs');
     expect(script).toContain('exportFramesPerSecond');
+    expect(script).toContain('UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA');
+    expect(script).toContain('mixedMediaResult');
     expect(script.indexOf('const exportStartTimeMs = Date.now()'))
       .toBeLessThan(script.indexOf('exportDurationMs'));
   });
