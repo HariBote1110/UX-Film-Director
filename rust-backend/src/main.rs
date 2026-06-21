@@ -291,6 +291,17 @@ struct GeneratedTriangleBracketSource {
     bracket_colour: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedTartanCheckSource {
+    generator: String,
+    tile_size: u32,
+    blur_radius: u32,
+    base_colour: String,
+    stripe_colour_a: String,
+    stripe_colour_b: String,
+    line_colour: String,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2283,6 +2294,7 @@ fn collect_native_render_sources(
             MediaKind::GeneratedTriangleBracket => {
                 build_generated_triangle_bracket_source_frame(media)?
             }
+            MediaKind::GeneratedTartanCheck => build_generated_tartan_check_source_frame(media)?,
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform => continue,
@@ -3464,6 +3476,104 @@ fn build_generated_triangle_bracket_source_frame(
         .map_err(|error| format!("GeneratedTriangleBracket media frame is invalid: {error:?}"))
 }
 
+fn build_generated_tartan_check_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedTartanCheck media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let tartan: GeneratedTartanCheckSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedTartanCheck media '{}': {error}", media.id))?;
+    validate_generated_tartan_check_source(&tartan).map_err(|message| {
+        format!(
+            "Invalid GeneratedTartanCheck media '{}': {message}",
+            media.id
+        )
+    })?;
+
+    let base = parse_hex_colour_source(&tartan.base_colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedTartanCheck media '{}': {message}",
+            media.id
+        )
+    })?;
+    let stripe_a = parse_hex_colour_source(&tartan.stripe_colour_a).map_err(|message| {
+        format!(
+            "Invalid GeneratedTartanCheck media '{}': {message}",
+            media.id
+        )
+    })?;
+    let stripe_b = parse_hex_colour_source(&tartan.stripe_colour_b).map_err(|message| {
+        format!(
+            "Invalid GeneratedTartanCheck media '{}': {message}",
+            media.id
+        )
+    })?;
+    let line = parse_hex_colour_source(&tartan.line_colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedTartanCheck media '{}': {message}",
+            media.id
+        )
+    })?;
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedTartanCheck media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedTartanCheck media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+    let tile = tartan.tile_size.max(10);
+    let red_band = (tile / 4).max(2);
+    let yellow_band = (tile / 5).max(2);
+    let line_width = (tartan.blur_radius + 1).min(tile / 8).max(1);
+
+    for y in 0..media.height {
+        for x in 0..media.width {
+            let tx = x % tile;
+            let ty = y % tile;
+            let mut colour = base;
+            if tx < red_band || ty >= tile.saturating_sub(red_band) {
+                colour = stripe_a;
+            }
+            if (tx >= tile / 2 && tx < tile / 2 + yellow_band)
+                || (ty >= tile / 3 && ty < tile / 3 + yellow_band)
+            {
+                colour = blend_rgb8(colour, stripe_b, 0.75);
+            }
+            if tx < line_width
+                || ty < line_width
+                || (tx >= tile / 2 && tx < tile / 2 + line_width)
+                || (ty >= tile / 2 && ty < tile / 2 + line_width)
+            {
+                colour = line;
+            }
+            let offset = ((y as usize * media.width as usize + x as usize) * 4) as usize;
+            pixels[offset..offset + 4].copy_from_slice(&[colour[0], colour[1], colour[2], 255]);
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedTartanCheck media frame is invalid: {error:?}"))
+}
+
+fn blend_rgb8(left: [u8; 3], right: [u8; 3], right_weight: f32) -> [u8; 3] {
+    let weight = right_weight.clamp(0.0, 1.0);
+    let left_weight = 1.0 - weight;
+    [
+        (left[0] as f32 * left_weight + right[0] as f32 * weight).round() as u8,
+        (left[1] as f32 * left_weight + right[1] as f32 * weight).round() as u8,
+        (left[2] as f32 * left_weight + right[2] as f32 * weight).round() as u8,
+    ]
+}
+
 fn point_on_circle(centre_x: f32, centre_y: f32, radius: f32, angle: f32) -> (f32, f32) {
     (
         centre_x + angle.cos() * radius,
@@ -3905,6 +4015,25 @@ fn validate_generated_triangle_bracket_source(
         return Err("offset_distance must be -10000..10000".to_string());
     }
     parse_hex_colour_source(&source.bracket_colour)?;
+    Ok(())
+}
+
+fn validate_generated_tartan_check_source(
+    source: &GeneratedTartanCheckSource,
+) -> Result<(), String> {
+    if source.generator != "tartan-check" {
+        return Err("generator must be tartan-check".to_string());
+    }
+    if source.tile_size < 10 || source.tile_size > 800 {
+        return Err("tile_size must be 10..800".to_string());
+    }
+    if source.blur_radius > 300 {
+        return Err("blur_radius must be 0..300".to_string());
+    }
+    parse_hex_colour_source(&source.base_colour)?;
+    parse_hex_colour_source(&source.stripe_colour_a)?;
+    parse_hex_colour_source(&source.stripe_colour_b)?;
+    parse_hex_colour_source(&source.line_colour)?;
     Ok(())
 }
 
@@ -6184,5 +6313,39 @@ mod tests {
 
         assert!(white_count > 300);
         assert!(transparent_count > 10_000);
+    }
+
+    #[test]
+    fn generated_tartan_check_source_frame_contains_all_pattern_colours() {
+        let media = SceneMediaReference {
+            id: "tartan-check-1".to_string(),
+            kind: MediaKind::GeneratedTartanCheck,
+            source: r##"{"generator":"tartan-check","tile_size":100,"blur_radius":1,"base_colour":"#143e10","stripe_colour_a":"#a81616","stripe_colour_b":"#c9c526","line_colour":"#000000"}"##.to_string(),
+            width: 800,
+            height: 450,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_tartan_check_source_frame(&media)
+            .expect("generated tartan check frame should render");
+        let has_base = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [0x14, 0x3e, 0x10, 255]);
+        let has_stripe_a = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [0xa8, 0x16, 0x16, 255]);
+        let has_line = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [0, 0, 0, 255]);
+        let fully_opaque = frame.pixels.chunks_exact(4).all(|rgba| rgba[3] == 255);
+
+        assert!(has_base);
+        assert!(has_stripe_a);
+        assert!(has_line);
+        assert!(fully_opaque);
     }
 }

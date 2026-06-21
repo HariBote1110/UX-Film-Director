@@ -307,6 +307,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '注釈対象を挟む強調表示に使いやすく、Rust側で透明背景付きの斜線ブラケットを決定的に生成できる。'
   },
   {
+    id: 'ssd-tartan-check',
+    labelJa: 'タータンチェック',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/ANM/ANM_ssd/タータンチェック_ISTN.obj'],
+    rationaleJa: '解説画面や背景素材に使いやすく、Rust側で不透明な格子パターンを決定的に生成できる。'
+  },
+  {
     id: 'tim-motion-path',
     labelJa: 'モーションパス',
     category: 'motion',

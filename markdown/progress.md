@@ -1,6 +1,20 @@
 # 進捗ログ
 
 ## 2026-06-21
+- SSDタータンチェックをRust生成オブジェクトへ追加した。
+- Red: `script/ANM/ANM_ssd/タータンチェック_ISTN.obj` を、Rust `GeneratedTartanCheck` mediaとして扱う境界契約を作った。
+- Green: `TartanCheckObject` と `buildAviUtlTartanCheckObject` を追加し、Timeline右クリックから `タータンチェックを追加` / `Add Tartan Check` で置けるようにした。
+- Green: `rustSceneSnapshot` / shared renderer native support / Rust core schema / Rust backendに `GeneratedTartanCheck` を追加した。
+- Green: Rust backendで不透明背景、赤/黄/黒の格子を持つ決定的なタータンチェックフレームを生成できるようにした。
+- Green: `ssd-tartan-check` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-277a` に更新した。
+- 検証: `npm test -- --run src/utils/tartanCheckObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/e2e/allReadableMedia.e2e.test.ts --reporter=dot` は89件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は15件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_tartan_check_source_frame_contains_all_pattern_colours -- --nocapture` は1件成功した。
+- 検証: 対象名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足、`mp4box` 型定義不足、`heavyEffectsStress.test.ts` の `PositionKeyframe` 未定義のみ検出した。
+- 残課題: 現時点の `GeneratedTartanCheck` は元スクリプトの130pxタイルとぼかし処理を、Rust側の決定的な不透明格子パターン生成へ置き換えた互換再実装。
+
+## 2026-06-21
 - SSD三角括弧をRust生成オブジェクトへ追加した。
 - Red: `script/ANM/ANM_ssd/三角括弧.obj` を、Rust `GeneratedTriangleBracket` mediaとして扱う境界契約を作った。
 - Green: `TriangleBracketObject` と `buildAviUtlTriangleBracketObject` を追加し、Timeline右クリックから `三角括弧を追加` / `Add Triangle Bracket` で置けるようにした。

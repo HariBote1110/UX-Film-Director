@@ -18,6 +18,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedSunburst') return isSharedRendererNativeGeneratedSunburstSourceSupported(reference.source);
   if (reference.kind === 'GeneratedCircularArrow') return isSharedRendererNativeGeneratedCircularArrowSourceSupported(reference.source);
   if (reference.kind === 'GeneratedTriangleBracket') return isSharedRendererNativeGeneratedTriangleBracketSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedTartanCheck') return isSharedRendererNativeGeneratedTartanCheckSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -561,6 +562,41 @@ const isSharedRendererNativeGeneratedTriangleBracketSourceSupported = (source: s
       && parsed.offset_distance <= 10000
       && typeof parsed.bracket_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.bracket_colour)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedTartanCheckSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      tile_size?: unknown;
+      blur_radius?: unknown;
+      base_colour?: unknown;
+      stripe_colour_a?: unknown;
+      stripe_colour_b?: unknown;
+      line_colour?: unknown;
+    };
+    return (
+      parsed.generator === 'tartan-check'
+      && typeof parsed.tile_size === 'number'
+      && Number.isInteger(parsed.tile_size)
+      && parsed.tile_size >= 10
+      && parsed.tile_size <= 800
+      && typeof parsed.blur_radius === 'number'
+      && Number.isInteger(parsed.blur_radius)
+      && parsed.blur_radius >= 0
+      && parsed.blur_radius <= 300
+      && typeof parsed.base_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.base_colour)
+      && typeof parsed.stripe_colour_a === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.stripe_colour_a)
+      && typeof parsed.stripe_colour_b === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.stripe_colour_b)
+      && typeof parsed.line_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.line_colour)
     );
   } catch {
     return false;

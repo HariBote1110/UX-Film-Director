@@ -100,7 +100,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'histogram',
   'sunburst',
   'circular_arrow',
-  'triangle_bracket'
+  'triangle_bracket',
+  'tartan_check'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -298,6 +299,16 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!isFiniteNumber(candidate.armLength) || candidate.armLength < 0) return false;
     if (!isFiniteNumber(candidate.offsetDistance) || candidate.offsetDistance < -10000 || candidate.offsetDistance > 10000) return false;
     if (typeof candidate.bracketColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.bracketColour)) return false;
+  }
+  if (candidate.type === 'tartan_check') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.tileSize) || candidate.tileSize < 10 || candidate.tileSize > 800) return false;
+    if (!isFiniteNumber(candidate.blurRadius) || candidate.blurRadius < 0 || candidate.blurRadius > 300) return false;
+    if (typeof candidate.baseColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.baseColour)) return false;
+    if (typeof candidate.stripeColourA !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.stripeColourA)) return false;
+    if (typeof candidate.stripeColourB !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.stripeColourB)) return false;
+    if (typeof candidate.lineColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.lineColour)) return false;
   }
   return true;
 };

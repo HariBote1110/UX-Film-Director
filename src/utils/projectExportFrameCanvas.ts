@@ -333,6 +333,7 @@ export const hasProjectExportNativeRenderMediaObjects = (
     || object.type === 'sunburst'
     || object.type === 'circular_arrow'
     || object.type === 'triangle_bracket'
+    || object.type === 'tartan_check'
     || object.type === 'audio_visualization'
   );
 
