@@ -9528,4 +9528,25 @@ mod tests {
         assert_eq!(&frame.pixels[centre_offset..centre_offset + 4], [0, 0, 0, 255]);
         assert_ne!(&frame.pixels[edge_offset..edge_offset + 4], [0, 0, 0, 255]);
     }
+
+    #[test]
+    fn generated_region_frame_source_frame_renders_border_and_background() {
+        let media = SceneMediaReference {
+            id: "region-frame-1".to_string(),
+            kind: MediaKind::GeneratedRegionFrame,
+            source: r##"{"generator":"region-frame-93","line_width":10,"extra_width":0,"extra_height":0,"background_opacity":0.2,"frame_colour":"#ffffff","background_colour":"#ccccff"}"##.to_string(),
+            width: 800,
+            height: 450,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_region_frame_source_frame(&media)
+            .expect("generated region frame should render");
+        let top_border_offset = ((4_usize * media.width as usize) + 400_usize) * 4;
+        let centre_offset = ((225_usize * media.width as usize) + 400_usize) * 4;
+
+        assert_eq!(&frame.pixels[top_border_offset..top_border_offset + 4], [255, 255, 255, 255]);
+        assert_eq!(&frame.pixels[centre_offset..centre_offset + 4], [204, 204, 255, 51]);
+    }
 }

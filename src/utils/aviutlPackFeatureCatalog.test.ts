@@ -43,6 +43,7 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('93-audio-sphere')?.sourceRelativePaths).toContain('script/93/音声玉.obj');
     expect(byId.get('93-delay-move')?.sourceRelativePaths).toContain('script/93/@DelayMove.anm');
     expect(byId.get('93-spotlight')?.sourceRelativePaths).toContain('script/93/@SpotLight.anm');
+    expect(byId.get('93-region-frame')?.sourceRelativePaths).toContain('script/93/@領域枠.anm');
     expect(byId.get('particle-standard')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('tim-aura-emission')?.sourceRelativePaths).toContain('script/てぃむ/オーラ放出.anm');
     expect(byId.get('tim-bubbles')?.sourceRelativePaths).toContain('script/てぃむ/泡.obj');
@@ -111,6 +112,7 @@ describe('AviUtlPackV4 feature catalogue', () => {
       '93-audio-sphere',
       '93-delay-move',
       '93-spotlight',
+      '93-region-frame',
       'hksy-checker-grid',
       'hksy-line',
       'hksy-multi-colour-checker',
@@ -119,6 +121,6 @@ describe('AviUtlPackV4 feature catalogue', () => {
       'hksy-anchor-line'
     ];
 
-    expect(roadmapIds.slice(0, 25)).toEqual(expect.arrayContaining(priorityIds));
+    expect(roadmapIds.slice(0, 26)).toEqual(expect.arrayContaining(priorityIds));
   });
 });

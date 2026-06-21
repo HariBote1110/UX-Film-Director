@@ -15,6 +15,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('buildAviUtlAudioSphereObject');
     expect(code).toContain('buildAviUtlFocusLinesPlusObject');
     expect(code).toContain('buildAviUtlRandomLineExObject');
+    expect(code).toContain('buildAviUtlRegionFrameObject');
     expect(code).toContain('buildAviUtlHologramObject');
     expect(code).toContain('buildAviUtlProtractorObject');
     expect(code).toContain('buildAviUtlShakingPolygonObject');
@@ -52,6 +53,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('handleAddAudioSphere');
     expect(code).toContain('handleAddFocusLinesPlus');
     expect(code).toContain('handleAddRandomLineEx');
+    expect(code).toContain('handleAddRegionFrame');
     expect(code).toContain('handleAddHologram');
     expect(code).toContain('handleAddProtractor');
     expect(code).toContain('handleAddShakingPolygon');
@@ -89,6 +91,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('Add 93 Audio Sphere');
     expect(code).toContain('Add Focus Lines Plus');
     expect(code).toContain('Add Random Line EX');
+    expect(code).toContain('Add 93 Region Frame');
     expect(code).toContain('Add Hologram');
     expect(code).toContain('Add Protractor');
     expect(code).toContain('Add Shaking Polygon');
@@ -126,6 +129,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('93音声玉を追加');
     expect(code).toContain('集中線plusを追加');
     expect(code).toContain('ランダムラインEXを追加');
+    expect(code).toContain('93領域枠を追加');
     expect(code).toContain('ホログラムを追加');
     expect(code).toContain('分度器を追加');
     expect(code).toContain('多角形_震えるを追加');

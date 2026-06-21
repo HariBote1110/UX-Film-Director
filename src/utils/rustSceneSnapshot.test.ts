@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, RegionFrameObject, ShakingPolygonObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -919,6 +919,34 @@ const baseGetColorDotField = (patch: Partial<GetColorDotFieldObject> = {}): GetC
   secondaryColour: '#36c2ff',
   backgroundColour: '#000000',
   seed: 93,
+  ...patch,
+});
+
+const baseRegionFrame = (patch: Partial<RegionFrameObject> = {}): RegionFrameObject => ({
+  id: 'region-frame-1',
+  type: 'region_frame',
+  name: '93 領域枠',
+  layer: 32,
+  startTime: 3,
+  duration: 5,
+  x: 560,
+  y: 315,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 560,
+  endY: 315,
+  easing: 'linear',
+  width: 800,
+  height: 450,
+  lineWidth: 10,
+  extraWidth: 0,
+  extraHeight: 0,
+  backgroundOpacity: 0.2,
+  frameColour: '#ffffff',
+  backgroundColour: '#ccccff',
   ...patch,
 });
 
@@ -2352,6 +2380,37 @@ describe('buildRustSceneSnapshotForTimeline', () => {
           seed: 93,
           dot_shape: 'square',
           stroke_width: 5,
+        }),
+        width: 800,
+        height: 450,
+      },
+    ]);
+  });
+
+  it('serialises a 93 region frame object into the Rust generator payload', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseRegionFrame()],
+      time: 3,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated region frame snapshot to pass');
+
+    expect(result.media).toEqual([
+      {
+        id: 'region-frame-1',
+        kind: 'GeneratedRegionFrame',
+        source: JSON.stringify({
+          generator: 'region-frame-93',
+          line_width: 10,
+          extra_width: 0,
+          extra_height: 0,
+          background_opacity: 0.2,
+          frame_colour: '#ffffff',
+          background_colour: '#ccccff',
         }),
         width: 800,
         height: 450,

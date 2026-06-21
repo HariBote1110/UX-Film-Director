@@ -250,6 +250,12 @@ const media: RustSceneMediaReference[] = [{
   width: 480,
   height: 360,
 }, {
+  id: 'region-frame-1',
+  kind: 'GeneratedRegionFrame' as RustSceneMediaReference['kind'],
+  source: '{"generator":"region-frame-93","line_width":10,"extra_width":0,"extra_height":0,"background_opacity":0.2,"frame_colour":"#ffffff","background_colour":"#ccccff"}',
+  width: 800,
+  height: 450,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -320,8 +326,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[33])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[34])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[35])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[36])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[36])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[37])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[38])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {
@@ -379,6 +386,10 @@ describe('sharedRendererNativeMediaSupport', () => {
     })).toBe(true);
     expect(canRenderSharedRendererNativeMediaOnlyFrame({
       snapshot: snapshotWithMedia('solid-1', 'hksy-anchor-line-1'),
+      media,
+    })).toBe(true);
+    expect(canRenderSharedRendererNativeMediaOnlyFrame({
+      snapshot: snapshotWithMedia('solid-1', 'region-frame-1'),
       media,
     })).toBe(true);
     expect(canRenderSharedRendererNativeMediaOnlyFrame({

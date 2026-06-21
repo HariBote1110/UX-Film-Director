@@ -437,6 +437,22 @@ fn rust_core_accepts_generated_getcolor_dots_media_kind_at_the_json_boundary() {
 }
 
 #[test]
+fn rust_core_accepts_generated_region_frame_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "region-frame-1",
+        "kind": "GeneratedRegionFrame",
+        "source": "{\"generator\":\"region-frame-93\",\"line_width\":10,\"extra_width\":0,\"extra_height\":0,\"background_opacity\":0.2,\"frame_colour\":\"#ffffff\",\"background_colour\":\"#ccccff\"}",
+        "width": 800,
+        "height": 450
+    }))
+    .expect("GeneratedRegionFrame media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedRegionFrame);
+    assert_eq!(media.width, 800);
+    assert_eq!(media.height, 450);
+}
+
+#[test]
 fn rust_core_accepts_generated_audio_sphere_media_kind_at_the_json_boundary() {
     let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
         "id": "audio-sphere-1",
