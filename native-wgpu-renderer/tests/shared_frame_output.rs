@@ -3,9 +3,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use uxfd_golden_harness::RgbaFrame;
 use uxfd_native_wgpu_renderer::{
-    render_native_wgpu_frame, render_native_wgpu_frame_to_shared_ring, NativeWgpuRenderError,
+    render_native_wgpu_frame, render_native_wgpu_frame_to_shared_ring,
+    render_native_wgpu_frame_to_shared_ring_with_audio_waveforms,
+    render_native_wgpu_frame_with_audio_waveforms, NativeAudioWaveformInput, NativeWgpuRenderError,
 };
-use uxfd_rust_core::{ColourPipeline, EvaluatedClip, SceneSnapshot, Transform};
+use uxfd_rust_core::{
+    AudioWaveformSource, ColourPipeline, EvaluatedClip, SceneSnapshot, Transform,
+};
 use uxfd_sidecar_protocol::FrameFormat;
 
 #[test]
@@ -77,6 +81,105 @@ fn native_wgpu_frame_can_be_written_to_shared_frame_ring() {
         output.shared_frame.descriptor.byte_len
     );
 
+    for row in 0..height as usize {
+        let source_start = row * width as usize * 4;
+        let source_end = source_start + width as usize * 4;
+        let shared_start = row * output.shared_frame.descriptor.stride_bytes as usize;
+        let shared_end = shared_start + width as usize * 4;
+        assert_eq!(
+            &mapped.bytes[shared_start..shared_end],
+            &rendered.pixels[source_start..source_end]
+        );
+    }
+}
+
+#[test]
+fn native_wgpu_generated_waveform_shared_frame_matches_direct_frame() {
+    let width = 8;
+    let height = 4;
+    let snapshot = SceneSnapshot {
+        frame_index: 5,
+        colour: ColourPipeline::rec709_sdr_linear(),
+        clips: vec![
+            EvaluatedClip {
+                clip_id: "clip-background".to_string(),
+                track_id: "track-1".to_string(),
+                media_id: "background".to_string(),
+                source_frame: 0,
+                z_index: 0,
+                transform: Transform::identity(),
+                opacity: 1.0,
+                effects: Vec::new(),
+            },
+            EvaluatedClip {
+                clip_id: "clip-waveform".to_string(),
+                track_id: "track-2".to_string(),
+                media_id: "waveform-1".to_string(),
+                source_frame: 3,
+                z_index: 1,
+                transform: Transform::identity(),
+                opacity: 1.0,
+                effects: Vec::new(),
+            },
+        ],
+    };
+    let sources = HashMap::from([(
+        "background".to_string(),
+        RgbaFrame::from_rgba8(width, height, vec![12, 18, 24, 255].repeat(width as usize * height as usize))
+            .expect("valid background frame"),
+    )]);
+    let waveform = NativeAudioWaveformInput {
+        media_id: "waveform-1".to_string(),
+        source: AudioWaveformSource::from_json(
+            r##"{"generator":"audio-waveform-r","target_audio_id":"audio-1","target_source":"/tmp/music.wav","sample_window_seconds":1,"colour":"#00ff66","thickness":1,"amplitude":1}"##,
+        )
+        .expect("valid waveform source"),
+        samples: vec![-1.0, -0.5, 0.0, 0.5, 1.0, 0.5, 0.0, -0.5],
+        sample_rate: 8,
+        width,
+        height,
+    };
+    let memory_id = unique_shm_name();
+
+    let rendered = match pollster::block_on(render_native_wgpu_frame_with_audio_waveforms(
+        &snapshot,
+        &sources,
+        &[waveform.clone()],
+        width,
+        height,
+    )) {
+        Ok(frame) => frame,
+        Err(NativeWgpuRenderError::AdapterUnavailable) => {
+            eprintln!("skipping generated waveform shared-frame test: no GPU adapter available");
+            return;
+        }
+        Err(error) => panic!("native wgpu generated waveform render failed: {error:?}"),
+    };
+
+    let output = match pollster::block_on(
+        render_native_wgpu_frame_to_shared_ring_with_audio_waveforms(
+            &snapshot,
+            &sources,
+            &[waveform],
+            width,
+            height,
+            &memory_id,
+            2,
+            5,
+        ),
+    ) {
+        Ok(output) => output,
+        Err(NativeWgpuRenderError::AdapterUnavailable) => {
+            eprintln!("skipping generated waveform shared-frame test: no GPU adapter available");
+            return;
+        }
+        Err(error) => panic!("native wgpu generated waveform shared-frame render failed: {error:?}"),
+    };
+
+    let mapped = output
+        .ring
+        .read_frame(5)
+        .expect("read rendered generated waveform shared frame");
     for row in 0..height as usize {
         let source_start = row * width as usize * 4;
         let source_end = source_start + width as usize * 4;
