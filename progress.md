@@ -1,3 +1,18 @@
+## 2026-06-21 — 音声波形をRust export経路判定に追加
+
+### 実施内容
+- Red: plain audioは非visualのまま、`audio_visualization` はRust-native visual mediaとして扱う契約を追加した。
+- Green: `hasProjectExportNativeRenderMediaObjects` の対象に `audio_visualization` を追加した。
+- 版を `0.1.1-Beta-258a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/projectExportFrameCanvas.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "projectExportFrameCanvas|AudioVisualizationObject|audio_visualization"`
+
+### 結果・残課題
+- projectExportFrameCanvas対象37件が成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- 次は代表素材E2Eに標準パーティクルと音声波形を混ぜたpreview/export境界確認へ進む。
+
 ## 2026-06-21 — 標準パーティクルをRust export経路判定に追加
 
 ### 実施内容
