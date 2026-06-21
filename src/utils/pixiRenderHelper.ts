@@ -841,11 +841,11 @@ export const updatePixiContent = (
         isExporting,
         sharedRendererGeneratedEffectObjectIds,
     })) {
-        const children = container.removeChildren();
-        children.forEach((child) => child.destroy({ children: true, texture: false, context: true }));
+        hidePixiChildrenForSharedRendererCutover(container.children);
         container.hitArea = new PIXI.Rectangle(0, 0, (obj as any).width ?? 1, (obj as any).height ?? 1);
         return undefined;
     }
+    showPixiChildrenForSharedRendererCutover(container.children);
 
     if (obj.type === 'shape') {
         if (shouldSkipPixiSolidColourForSharedRenderer({
@@ -971,4 +971,18 @@ export const updatePixiContent = (
         content = graphics;
     }
     return content;
+};
+
+const hidePixiChildrenForSharedRendererCutover = (children: readonly PIXI.ContainerChild[]): void => {
+    children.forEach((child) => {
+        child.visible = false;
+        child.renderable = false;
+    });
+};
+
+const showPixiChildrenForSharedRendererCutover = (children: readonly PIXI.ContainerChild[]): void => {
+    children.forEach((child) => {
+        child.visible = true;
+        child.renderable = true;
+    });
 };

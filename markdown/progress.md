@@ -1,6 +1,14 @@
 # 進捗ログ
 
 ## 2026-06-21
+- 生成効果入り実Electron exportの画素検査を通過した。
+- Green: 生成効果cutover時にPixi子要素を破棄/取り外しせず、非表示・非renderableで保持してWebGPU render groupの古い参照を踏まないようにした。
+- Green: 動画export E2Eの成果物MP4から先頭フレームをRGBA抽出し、標準パーティクルの白画素とAudio waveform Rの下部緑ラインを検査するようにした。
+- 版を `0.1.1-Beta-259g` に更新した。
+- 検証: 対象unit/staticは33件成功し、生成効果入り実Electron export E2Eは60 frames、runtimeErrors 0、Audio waveform R 714px、標準パーティクル 38,504px検出で成功した。
+- 残課題: 生成効果入り混在exportはまだ約4fpsなので、次はnative render sourceの待ち時間とdecode/writeの重なりを再分解して高速化する。
+
+## 2026-06-21
 - 生成効果のPixi二重描画レースを抑止した。
 - Red: `Viewport` がshared renderer preview session生成直後にGeneratedAudioWaveform/GeneratedParticleのPixi cutover IDを更新する契約を追加した。
 - Green: `collectSharedRendererGeneratedEffectObjectIdsFromSession` を追加し、Presenter完了前でもRust所有の生成効果をPixi描画から外すようにした。

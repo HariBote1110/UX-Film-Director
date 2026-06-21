@@ -1,3 +1,19 @@
+## 2026-06-21 — 生成効果入り実Electron exportの画素検査を通過
+
+### 実施内容
+- Green: 生成効果cutover時にPixi子要素を破棄/取り外しせず、非表示・非renderableで保持してWebGPU render groupの古い参照を踏まないようにした。
+- Green: 動画export E2Eの成果物MP4から先頭フレームをRGBA抽出し、標準パーティクルの白画素とAudio waveform Rの下部緑ラインを検査するようにした。
+- 版を `0.1.1-Beta-259g` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/packageScripts.test.ts src/utils/pixiRenderHelperGeneratedEffectCutover.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts` は33件成功。
+- `node --check scripts/run-video-export-e2e.mjs` は成功。
+- `UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA=1 UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS=1 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=1 UXFD_VIDEO_EXPORT_E2E_TIMEOUT_MS=240000 npm run test:video-export:e2e` は成功。
+- 実Electron E2Eは60 frames、約3.97fps、runtimeErrors 0、Audio waveform R 714px、標準パーティクル 38,504pxを検出した。
+
+### 残課題・次のステップ
+- 生成効果入り混在exportはまだ約4fpsなので、次はnative render sourceの待ち時間とdecode/writeの重なりを再分解して高速化する。
+
 ## 2026-06-21 — 生成効果のPixi二重描画レースを抑止
 
 ### 実施内容

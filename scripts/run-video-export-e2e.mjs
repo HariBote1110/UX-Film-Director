@@ -12,6 +12,7 @@ const VIDEO_PATH = process.env.UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH
 const VIDEO_NAME = VIDEO_PATH.split('/').pop() ?? 'video';
 const OUTPUT_DIR = resolve(ROOT, '.codex/video-export-e2e');
 const OUTPUT_MP4 = resolve(OUTPUT_DIR, 'video-export-e2e-output.mp4');
+const OUTPUT_FRAME_RGBA = resolve(OUTPUT_DIR, 'video-export-e2e-frame0.rgba');
 const RESULT_JSON = resolve(OUTPUT_DIR, 'result.json');
 const RESULT_LOG = resolve(OUTPUT_DIR, 'result.log');
 const ELECTRON_MAIN_BUNDLE = resolve(ROOT, 'dist-electron/main.js');
@@ -238,6 +239,151 @@ const parseExportedFrameCount = (dialogMessage) => {
 };
 
 const calculateExpectedFrameCount = () => Math.round(EXPORT_DURATION_SECONDS * PROJECT_FPS);
+
+const runCommand = (command, args, timeoutMs = 30_000) => new Promise((resolveRun) => {
+  const child = spawn(command, args, {
+    cwd: ROOT,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const stdout = [];
+  const stderr = [];
+  const timer = setTimeout(() => {
+    child.kill('SIGTERM');
+    resolveRun({
+      ok: false,
+      code: null,
+      stdout: Buffer.concat(stdout).toString('utf8'),
+      stderr: `timeout ${timeoutMs}ms\n${Buffer.concat(stderr).toString('utf8')}`,
+    });
+  }, timeoutMs);
+  child.stdout.on('data', (chunk) => stdout.push(Buffer.from(chunk)));
+  child.stderr.on('data', (chunk) => stderr.push(Buffer.from(chunk)));
+  child.on('error', (error) => {
+    clearTimeout(timer);
+    resolveRun({
+      ok: false,
+      code: null,
+      stdout: Buffer.concat(stdout).toString('utf8'),
+      stderr: error.message,
+    });
+  });
+  child.on('close', (code) => {
+    clearTimeout(timer);
+    resolveRun({
+      ok: code === 0,
+      code,
+      stdout: Buffer.concat(stdout).toString('utf8'),
+      stderr: Buffer.concat(stderr).toString('utf8'),
+    });
+  });
+});
+
+const hexColourToRgb = (hex) => {
+  const value = hex.trim().replace(/^#/, '');
+  return [
+    Number.parseInt(value.slice(0, 2), 16),
+    Number.parseInt(value.slice(2, 4), 16),
+    Number.parseInt(value.slice(4, 6), 16),
+  ];
+};
+
+const countNearColourPixels = (buffer, hex, tolerance) => {
+  const [red, green, blue] = hexColourToRgb(hex);
+  let count = 0;
+  for (let index = 0; index + 3 < buffer.length; index += 4) {
+    if (
+      Math.abs(buffer[index] - red) <= tolerance
+      && Math.abs(buffer[index + 1] - green) <= tolerance
+      && Math.abs(buffer[index + 2] - blue) <= tolerance
+      && buffer[index + 3] > 180
+    ) {
+      count += 1;
+    }
+  }
+  return count;
+};
+
+const countGeneratedWaveformBandPixels = (buffer, width) => {
+  const height = buffer.length / 4 / width;
+  if (!Number.isInteger(height)) return 0;
+  const minX = Math.floor(width * 0.45);
+  const maxX = Math.ceil(width * 0.95);
+  const minY = Math.floor(height * 0.84);
+  const maxY = Math.ceil(height * 0.91);
+  let count = 0;
+  for (let y = minY; y < maxY; y += 1) {
+    for (let x = minX; x < maxX; x += 1) {
+      const index = (y * width + x) * 4;
+      const red = buffer[index];
+      const green = buffer[index + 1];
+      const blue = buffer[index + 2];
+      const alpha = buffer[index + 3];
+      if (
+        alpha > 180
+        && green >= 140
+        && green >= red + 35
+        && green >= blue + 5
+        && blue >= 80
+        && blue <= 190
+        && red <= 150
+      ) {
+        count += 1;
+      }
+    }
+  }
+  return count;
+};
+
+const inspectExportedGeneratedEffectsFrame = async () => {
+  if (!ADD_AVIUTL_GENERATED_EFFECTS) {
+    return { enabled: false };
+  }
+  rmSync(OUTPUT_FRAME_RGBA, { force: true });
+  const ffmpeg = await runCommand('ffmpeg', [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-y',
+    '-i',
+    OUTPUT_MP4,
+    '-frames:v',
+    '1',
+    '-f',
+    'rawvideo',
+    '-pix_fmt',
+    'rgba',
+    OUTPUT_FRAME_RGBA,
+  ]);
+  if (!ffmpeg.ok) {
+    return {
+      ok: false,
+      enabled: true,
+      reason: 'ffmpegFrameExtractFailed',
+      ffmpeg,
+    };
+  }
+  const frame = readFileSync(OUTPUT_FRAME_RGBA);
+  const waveformColour = '#00ff88';
+  const particleColour = '#ffffff';
+  const frameWidth = 1920;
+  const waveformPixelCount = countGeneratedWaveformBandPixels(frame, frameWidth);
+  const particlePixelCount = countNearColourPixels(frame, particleColour, 24);
+  const minWaveformPixels = 16;
+  const minParticlePixels = 16;
+  return {
+    ok: waveformPixelCount >= minWaveformPixels && particlePixelCount >= minParticlePixels,
+    enabled: true,
+    framePath: OUTPUT_FRAME_RGBA,
+    byteLength: frame.length,
+    frameWidth,
+    waveformColour,
+    particleColour,
+    waveformPixelCount,
+    particlePixelCount,
+    minWaveformPixels,
+    minParticlePixels,
+  };
+};
 
 const writeTinyWaveFixture = (audioPath) => {
   const sampleRate = 48000;
@@ -701,6 +847,7 @@ const main = async () => {
     : null;
   const directTranscodeRequired = (ADD_MIXED_MEDIA || ADD_PSD) && !ADD_AVIUTL_GENERATED_EFFECTS;
   const runtimeErrors = collectRuntimeErrors(client);
+  const generatedEffectsFrameInspection = await inspectExportedGeneratedEffectsFrame();
   const result = {
     passed: Boolean(
       exportAttempts.every((attempt) => (
@@ -716,6 +863,7 @@ const main = async () => {
       && (!directTranscodeRequired || exportAttempts.every((attempt) => attempt.exportUsedDirectTranscode))
       && (!EXPECT_REPEAT_SPEEDUP || repeatSpeedupObserved)
       && runtimeErrors.length === 0
+      && generatedEffectsFrameInspection?.ok !== false
     ),
     videoPath: VIDEO_PATH,
     outputPath: OUTPUT_MP4,
@@ -728,6 +876,7 @@ const main = async () => {
     mixedMediaResult,
     psdMediaResult,
     aviUtlGeneratedEffectsResult,
+    generatedEffectsFrameInspection,
     mixedMediaDurationResult,
     directTranscodeRequired,
     exportAttempts,
