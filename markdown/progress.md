@@ -1,6 +1,17 @@
 # 進捗ログ
 
 ## 2026-06-21
+- 色収差をFilter StackとRust/WebGPU境界へ追加した。
+- Red: `colour_aberration` フィルタをFilter Stack、AviUtl効果プリセット、Rust scene snapshotへ通す契約を追加した。
+- Green: `ColourAberrationFilterParams` と `colour_aberration` filterを追加し、AviUtl Effectsの `色収差` ボタンから追加できるようにした。
+- Green: Pixiプレビュー用にRGBチャンネルをずらすGPU filterを追加した。
+- Green: Rust coreの `Effect` に `ColourAberration` を追加し、scene snapshot JSON境界、validation、native-wgpu-rendererのWGSL shaderへ接続した。
+- Green: native-wgpu-rendererに3px手作り素材でチャンネルオフセットを検証するテストを追加した。
+- 版を `0.1.1-Beta-240a` に更新した。
+- 検証: TS関連テスト40件、Rust core `timeline_snapshot_contract` 5件、`project_validation` 8件、native-wgpu-renderer `native_reference_parity` 11件が成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- 残課題: 次は縁取り/輝度ワイプ/扇クリッピングのRust native effect化、またはAudio waveform Rのnative generated object化へ進む。
+
+## 2026-06-21
 - AviUtlPackV4 P1効果プリセットをPropertyPanelへ追加した。
 - Red: `PropertyPanel` がAviUtlPackV4効果プリセットをFilter Stack周辺に露出する契約を追加した。
 - Green: `AviUtl Effects` セクションを追加し、輝度ワイプ近似、縁取りT近似、扇クリッピング近似をボタンから追加できるようにした。

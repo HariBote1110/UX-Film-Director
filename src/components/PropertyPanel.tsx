@@ -417,9 +417,10 @@ const PropertyPanel: React.FC = () => {
     const parsed = parseFloat(rawValue);
     return Number.isFinite(parsed) ? parsed : fallback;
   };
-  const filterLabel: Record<FilterType, string> = {
-    color_correction: language === 'en' ? 'Color Correction' : '色調補正',
-    clipping: language === 'en' ? 'Clipping' : 'クリッピング',
+   const filterLabel: Record<FilterType, string> = {
+     color_correction: language === 'en' ? 'Color Correction' : '色調補正',
+     colour_aberration: language === 'en' ? 'Colour Aberration' : '色収差',
+     clipping: language === 'en' ? 'Clipping' : 'クリッピング',
     vibration: language === 'en' ? 'Vibration' : '振動',
     shadow: language === 'en' ? 'Shadow' : '影',
     gradient: language === 'en' ? 'Gradient' : 'グラデーション',
@@ -1493,6 +1494,30 @@ const PropertyPanel: React.FC = () => {
                                 step="1"
                                 value={activeFilter.params.hue}
                                 onInput={(e) => handleFilterParamChange(activeFilter, { hue: parseFloat(e.currentTarget.value) })}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                    </>
+                )}
+                {activeFilter.type === 'colour_aberration' && (
+                    <>
+                        <Row label="Offset X">
+                            <Slider
+                                min="0"
+                                max="24"
+                                step="0.5"
+                                value={activeFilter.params.offsetX}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { offsetX: parseFloat(e.currentTarget.value) })}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                        <Row label="Offset Y">
+                            <Slider
+                                min="0"
+                                max="24"
+                                step="0.5"
+                                value={activeFilter.params.offsetY}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { offsetY: parseFloat(e.currentTarget.value) })}
                                 style={{ width: '100%' }}
                             />
                         </Row>

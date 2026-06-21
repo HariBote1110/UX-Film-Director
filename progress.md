@@ -1,3 +1,25 @@
+## 2026-06-21 — 色収差をFilter StackとRust/WebGPU境界へ追加
+
+### 実施内容
+- Red: `colour_aberration` フィルタをFilter Stack、AviUtl効果プリセット、Rust scene snapshotへ通す契約を追加した。
+- Green: `ColourAberrationFilterParams` と `colour_aberration` filterを追加し、AviUtl Effectsの `色収差` ボタンから追加できるようにした。
+- Green: Pixiプレビュー用にRGBチャンネルをずらすGPU filterを追加した。
+- Green: Rust coreの `Effect` に `ColourAberration` を追加し、scene snapshot JSON境界、validation、native-wgpu-rendererのWGSL shaderへ接続した。
+- Green: native-wgpu-rendererに3px手作り素材でチャンネルオフセットを検証するテストを追加した。
+- 版を `0.1.1-Beta-240a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/filterStack.test.ts src/utils/aviutlEffectPresets.test.ts src/utils/rustSceneSnapshot.test.ts src/components/PropertyPanelBoundary.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "src/types|src/utils/filterStack|src/utils/aviutlEffectPresets|src/utils/rustSceneSnapshot|src/utils/pixiRenderHelper|src/components/PropertyPanel"`
+- `cargo test --manifest-path rust-core/Cargo.toml --test timeline_snapshot_contract --test project_validation -- --nocapture`
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test native_reference_parity -- --nocapture`
+
+### 結果・残課題
+- TS関連テストは40件成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- Rust coreは `timeline_snapshot_contract` 5件、`project_validation` 8件成功。
+- native-wgpu-rendererは `native_reference_parity` 11件成功し、`native_wgpu_applies_colour_aberration_channel_offsets` で実shader効果を確認した。
+- 次は縁取り/輝度ワイプ/扇クリッピングのRust native effect化、またはAudio waveform Rのnative generated object化へ進む。
+
 ## 2026-06-21 — AviUtlPackV4 P1効果プリセットをPropertyPanelへ追加
 
 ### 実施内容

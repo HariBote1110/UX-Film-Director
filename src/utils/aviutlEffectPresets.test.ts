@@ -71,7 +71,7 @@ describe('AviUtlPackV4 effect presets', () => {
       ...baseShape(),
       filters: [buildAviUtlEffectPresetFilter('edge-outline-soft')]
     };
-    const next = applyAviUtlEffectPresetToObject(object, 'fan-clipping-diagonal');
+    const next = applyAviUtlEffectPresetToObject(object, 'colour-aberration-rgb');
 
     expect(next.filters?.map((filter) => filter.type)).toEqual(['shadow', 'colour_aberration']);
     expect(next.filters?.[1]).toMatchObject({

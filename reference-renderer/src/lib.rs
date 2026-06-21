@@ -69,6 +69,7 @@ pub fn render_reference_frame(
 fn effect_gain(effect: &Effect) -> f32 {
     match effect {
         Effect::LinearGain { gain } => *gain,
+        Effect::ColourAberration { .. } => 1.0,
     }
 }
 

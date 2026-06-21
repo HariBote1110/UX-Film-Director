@@ -16,6 +16,11 @@ const DEFAULT_COLOR_CORRECTION: Omit<ColorCorrection, 'enabled'> = {
   hue: 0
 };
 
+const DEFAULT_COLOUR_ABERRATION = {
+  offsetX: 3,
+  offsetY: 0
+};
+
 const DEFAULT_CLIPPING: Omit<ClippingParams, 'enabled'> = {
   top: 0,
   bottom: 0,
@@ -77,6 +82,7 @@ const toBoolean = (value: unknown, fallback: boolean): boolean => {
 
 const isFilterType = (value: unknown): value is FilterType => {
   return value === 'color_correction'
+    || value === 'colour_aberration'
     || value === 'clipping'
     || value === 'vibration'
     || value === 'shadow'
@@ -84,6 +90,14 @@ const isFilterType = (value: unknown): value is FilterType => {
     || value === 'blur'
     || value === 'fade'
     || value === 'wipe';
+};
+
+const normaliseColourAberrationParams = (params: unknown): import('../types').ColourAberrationFilterParams => {
+  const source = isRecord(params) ? params : {};
+  return {
+    offsetX: Math.max(0, toNumber(source.offsetX, DEFAULT_COLOUR_ABERRATION.offsetX)),
+    offsetY: Math.max(0, toNumber(source.offsetY, DEFAULT_COLOUR_ABERRATION.offsetY))
+  };
 };
 
 const normaliseBlurParams = (params: unknown): import('../types').BlurFilterParams => {
@@ -192,6 +206,13 @@ export const createDefaultFilter = (type: FilterType): ObjectFilter => {
         enabled: true,
         params: { ...DEFAULT_COLOR_CORRECTION }
       };
+    case 'colour_aberration':
+      return {
+        id: createFilterId(type),
+        type,
+        enabled: true,
+        params: { ...DEFAULT_COLOUR_ABERRATION }
+      };
     case 'clipping':
       return {
         id: createFilterId(type),
@@ -269,6 +290,13 @@ const normaliseFilter = (value: unknown): ObjectFilter | null => {
         type: 'color_correction',
         enabled,
         params: normaliseColorParams(value.params)
+      };
+    case 'colour_aberration':
+      return {
+        id,
+        type: 'colour_aberration',
+        enabled,
+        params: normaliseColourAberrationParams(value.params)
       };
     case 'clipping':
       return {

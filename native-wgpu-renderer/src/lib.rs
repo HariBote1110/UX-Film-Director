@@ -179,12 +179,11 @@ impl NativeWgpuRenderer {
             }
             let rotation_radians = clip.transform.rotation_degrees.to_radians();
 
-            let source =
-                sources
-                    .get(&clip.media_id)
-                    .ok_or_else(|| NativeWgpuRenderError::MissingSource {
-                        media_id: clip.media_id.clone(),
-                    })?;
+            let source = sources.get(&clip.media_id).ok_or_else(|| {
+                NativeWgpuRenderError::MissingSource {
+                    media_id: clip.media_id.clone(),
+                }
+            })?;
             prepared_clips.push(prepare_clip(
                 &self.device,
                 &self.queue,
@@ -196,6 +195,18 @@ impl NativeWgpuRenderer {
                         .effects
                         .iter()
                         .fold(1.0, |gain, effect| gain * effect_gain(effect)),
+                    colour_aberration_offset_x: effect_colour_aberration_offset(clip, |effect| {
+                        match effect {
+                            Effect::ColourAberration { offset_x, .. } => Some(*offset_x),
+                            _ => None,
+                        }
+                    }),
+                    colour_aberration_offset_y: effect_colour_aberration_offset(clip, |effect| {
+                        match effect {
+                            Effect::ColourAberration { offset_y, .. } => Some(*offset_y),
+                            _ => None,
+                        }
+                    }),
                     source_width: source.width as f32,
                     source_height: source.height as f32,
                     translation_x: clip.transform.translation_x,
@@ -205,7 +216,7 @@ impl NativeWgpuRenderer {
                     sampling_mode: sampling_mode_value(clip.transform.sampling),
                     rotation_cos: rotation_radians.cos(),
                     rotation_sin: rotation_radians.sin(),
-                    _padding: 0.0,
+                    _padding0: 0.0,
                 },
             ));
         }
@@ -280,7 +291,8 @@ impl NativeWgpuRenderer {
 
         let readback_encode_start = Instant::now();
         self.queue.submit(Some(readback_encoder.finish()));
-        let frame = readback_to_rgba8(&self.device, &self.readback_buffer, self.width, self.height)?;
+        let frame =
+            readback_to_rgba8(&self.device, &self.readback_buffer, self.width, self.height)?;
         let readback_encode = readback_encode_start.elapsed();
 
         Ok(NativeWgpuFrameReport {
@@ -422,6 +434,8 @@ struct PreparedClip {
 struct RenderParams {
     opacity: f32,
     gain: f32,
+    colour_aberration_offset_x: f32,
+    colour_aberration_offset_y: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -431,7 +445,7 @@ struct RenderParams {
     sampling_mode: f32,
     rotation_cos: f32,
     rotation_sin: f32,
-    _padding: f32,
+    _padding0: f32,
 }
 
 fn sampling_mode_value(sampling: SamplingMode) -> f32 {
@@ -688,5 +702,13 @@ fn padded_bytes_per_row(width: u32) -> u32 {
 fn effect_gain(effect: &Effect) -> f32 {
     match effect {
         Effect::LinearGain { gain } => *gain,
+        Effect::ColourAberration { .. } => 1.0,
     }
+}
+
+fn effect_colour_aberration_offset<F>(clip: &uxfd_rust_core::EvaluatedClip, pick: F) -> f32
+where
+    F: Fn(&Effect) -> Option<f32>,
+{
+    clip.effects.iter().filter_map(pick).sum::<f32>().max(0.0)
 }

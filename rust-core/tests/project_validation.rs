@@ -105,3 +105,16 @@ fn rejects_non_finite_effect_values() {
 
     assert!(validation_codes(&project).contains(&ValidationCode::NonFiniteNumber));
 }
+
+#[test]
+fn rejects_negative_colour_aberration_effect_offsets() {
+    let mut project = valid_project();
+    project.tracks[0].clips[0]
+        .effects
+        .push(Effect::ColourAberration {
+            offset_x: -1.0,
+            offset_y: 0.0,
+        });
+
+    assert!(validation_codes(&project).contains(&ValidationCode::NonFiniteNumber));
+}

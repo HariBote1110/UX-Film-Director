@@ -21,7 +21,7 @@
 3. ✅ PropertyPanelへP0 AviUtl motion presetを露出
 4. ✅ `P1` 標準効果プリセットの中核を既存Filter Stackへ接続
 5. ✅ PropertyPanelのFilter StackへP1標準搭載候補を露出
-6. `P1` Rust/WebGPU effectの境界型を拡張
+6. ✅ `P1` Rust/WebGPU effectの境界型へ色収差を追加
 7. E2Eで代表素材に効果を載せ、preview/exportの一致を検証
 
 ## AviUtl互換ロードマップ（2026-02-11）

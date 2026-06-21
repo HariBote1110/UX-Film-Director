@@ -171,6 +171,29 @@ fn native_wgpu_matches_hand_anchored_gain_above_one_clamp() {
 }
 
 #[test]
+fn native_wgpu_applies_colour_aberration_channel_offsets() {
+    assert_native_matches_direct_hand_anchor(
+        scene_snapshot(vec![evaluated_clip(
+            "foreground",
+            0,
+            1.0,
+            vec![Effect::ColourAberration {
+                offset_x: 1.0,
+                offset_y: 0.0,
+            }],
+        )]),
+        HashMap::from([(
+            "foreground".to_string(),
+            RgbaFrame::from_rgba8(3, 1, vec![0, 0, 255, 255, 0, 255, 0, 255, 255, 0, 0, 255])
+                .expect("valid foreground"),
+        )]),
+        3,
+        1,
+        vec![0, 0, 255, 255, 255, 255, 255, 255, 255, 0, 0, 255],
+    );
+}
+
+#[test]
 fn native_wgpu_matches_hand_anchored_two_pixel_coordinates() {
     assert_native_matches_hand_anchor(
         scene_snapshot(vec![
@@ -213,10 +236,9 @@ fn native_wgpu_matches_reference_for_identity_transform_partial_source_at_origin
         4,
         4,
         vec![
-            255, 0, 0, 255, 255, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0,
-            255, 0, 0, 255, 255, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            255, 0, 0, 255, 255, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0, 255, 0, 0, 255, 255, 0, 0, 255,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ],
     );
 }
@@ -307,10 +329,44 @@ fn native_wgpu_matches_reference_for_top_left_pivot_rotation() {
         )]),
         2,
         2,
-        vec![
-            0, 0, 0, 0, 255, 0, 0, 255,
-            0, 0, 255, 255, 0, 0, 0, 0,
-        ],
+        vec![0, 0, 0, 0, 255, 0, 0, 255, 0, 0, 255, 255, 0, 0, 0, 0],
+    );
+}
+
+fn assert_native_matches_direct_hand_anchor(
+    snapshot: SceneSnapshot,
+    sources: HashMap<String, RgbaFrame>,
+    width: u32,
+    height: u32,
+    anchor_pixels: Vec<u8>,
+) {
+    let hand_anchored = RgbaFrame::from_rgba8(width, height, anchor_pixels).expect("valid anchor");
+    let native_result =
+        pollster::block_on(render_native_wgpu_frame(&snapshot, &sources, width, height));
+    let native = match native_result {
+        Ok(frame) => frame,
+        Err(NativeWgpuRenderError::AdapterUnavailable) => {
+            eprintln!("skipping native wgpu direct test: no GPU adapter available");
+            return;
+        }
+        Err(error) => panic!("native wgpu render failed: {error:?}"),
+    };
+
+    let comparison = compare_rgba_frames(
+        &hand_anchored,
+        &native,
+        ComparisonThresholds {
+            max_channel_delta: 1,
+            max_mean_absolute_error: 1.0,
+            min_psnr: 48.0,
+            min_ssim: 0.99,
+        },
+    );
+
+    assert!(
+        comparison.passed,
+        "native wgpu frame differed from direct hand anchor: {comparison:?}, native={:?}, anchor={:?}",
+        native.pixels, hand_anchored.pixels
     );
 }
 

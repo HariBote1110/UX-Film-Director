@@ -1,6 +1,8 @@
 struct RenderParams {
     opacity: f32,
     gain: f32,
+    colour_aberration_offset_x: f32,
+    colour_aberration_offset_y: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -49,11 +51,25 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     }
 
     let source = sample_source_linear(source_position);
+    let aberration_offset = vec2<f32>(
+        params.colour_aberration_offset_x,
+        params.colour_aberration_offset_y,
+    );
+    let red_source = sample_source_linear(clamp_source_position(source_position + aberration_offset)).r;
+    let blue_source = sample_source_linear(clamp_source_position(source_position - aberration_offset)).b;
     let alpha = source.a * params.opacity;
-    let linear_rgb = source.rgb;
+    let linear_rgb = vec3<f32>(red_source, source.g, blue_source);
     let premultiplied_rgb = linear_rgb * params.gain * alpha;
 
     return vec4<f32>(premultiplied_rgb, alpha);
+}
+
+fn clamp_source_position(source_position: vec2<f32>) -> vec2<f32> {
+    return clamp(
+        source_position,
+        vec2<f32>(0.0, 0.0),
+        vec2<f32>(params.source_width - 1.0, params.source_height - 1.0),
+    );
 }
 
 fn sample_source_linear(source_position: vec2<f32>) -> vec4<f32> {

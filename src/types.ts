@@ -127,6 +127,7 @@ export interface ClippingParams {
 
 export type FilterType =
   | 'color_correction'
+  | 'colour_aberration'
   | 'clipping'
   | 'vibration'
   | 'shadow'
@@ -163,6 +164,11 @@ export interface WipeFilterParams {
   reverse: boolean;
 }
 
+export interface ColourAberrationFilterParams {
+  offsetX: number;
+  offsetY: number;
+}
+
 interface BaseFilter {
   id: string;
   type: FilterType;
@@ -172,6 +178,11 @@ interface BaseFilter {
 export interface ColorCorrectionFilter extends BaseFilter {
   type: 'color_correction';
   params: Omit<ColorCorrection, 'enabled'>;
+}
+
+export interface ColourAberrationFilter extends BaseFilter {
+  type: 'colour_aberration';
+  params: ColourAberrationFilterParams;
 }
 
 export interface ClippingFilter extends BaseFilter {
@@ -211,6 +222,7 @@ export interface WipeObjectFilter extends BaseFilter {
 
 export type ObjectFilter =
   | ColorCorrectionFilter
+  | ColourAberrationFilter
   | ClippingFilter
   | VibrationFilter
   | ShadowFilter

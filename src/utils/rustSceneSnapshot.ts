@@ -33,7 +33,9 @@ export interface RustTransform {
   sampling: RustSamplingMode;
 }
 
-export type RustEffect = { LinearGain: { gain: number } };
+export type RustEffect =
+  | { LinearGain: { gain: number } }
+  | { ColourAberration: { offset_x: number; offset_y: number } };
 
 export interface RustEvaluatedClip {
   clip_id: string;
@@ -179,7 +181,7 @@ export const buildRustSceneSnapshotForTimeline = ({
           sampling: object.type === 'shape' && object.gradient?.enabled !== true ? 'nearest' : 'bilinear',
         },
       opacity,
-      effects: [],
+      effects: rustEffectsForObject(object),
     };
   });
 
@@ -282,7 +284,9 @@ const collectBuildIssues = (
     }
 
     const unsupportedFilter = getEnabledObjectFiltersInOrder(object).find((filter) => (
-      filter.type !== 'fade' && !(object.type === 'shape' && filter.type === 'gradient')
+      filter.type !== 'fade'
+      && filter.type !== 'colour_aberration'
+      && !(object.type === 'shape' && filter.type === 'gradient')
     ));
     if (unsupportedFilter) {
       issues.push({
@@ -294,6 +298,21 @@ const collectBuildIssues = (
   });
 
   return issues;
+};
+
+const rustEffectsForObject = (object: TimelineObject): RustEffect[] => {
+  const effects: RustEffect[] = [];
+  getEnabledObjectFiltersInOrder(object).forEach((filter) => {
+    if (filter.type === 'colour_aberration') {
+      effects.push({
+        ColourAberration: {
+          offset_x: Math.max(0, finiteNumberOr(filter.params.offsetX, 0)),
+          offset_y: Math.max(0, finiteNumberOr(filter.params.offsetY, 0)),
+        },
+      });
+    }
+  });
+  return effects;
 };
 
 const isSupportedMediaObject = (object: TimelineObject): object is SupportedMediaObject =>
@@ -417,6 +436,9 @@ const mediaSourceScaleForObject = (
 
 const positiveNumberOrFallback = (value: unknown, fallback: number): number =>
   typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
+
+const finiteNumberOr = (value: unknown, fallback: number): number =>
+  typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 
 const safeScaleRatio = (displaySize: number, sourceSize: number): number => {
   if (!Number.isFinite(displaySize) || !Number.isFinite(sourceSize) || sourceSize <= 0) {
@@ -589,11 +611,20 @@ const validateEffects = (
 
   effects.forEach((effect, index) => {
     const effectPath = `${path}[${index}]`;
-    if (!isRecord(effect) || Object.keys(effect).length !== 1 || !isRecord(effect.LinearGain)) {
-      addIssue(issues, 'schemaMismatch', effectPath, 'Only LinearGain effects are supported at the Rust boundary.');
+    if (!isRecord(effect) || Object.keys(effect).length !== 1) {
+      addIssue(issues, 'schemaMismatch', effectPath, 'Only known Rust effects are supported at the Rust boundary.');
       return;
     }
-    validateFiniteNumber(effect.LinearGain.gain, `${effectPath}.LinearGain.gain`, issues);
+    if (isRecord(effect.LinearGain)) {
+      validateFiniteNumber(effect.LinearGain.gain, `${effectPath}.LinearGain.gain`, issues);
+      return;
+    }
+    if (isRecord(effect.ColourAberration)) {
+      validateFiniteNumber(effect.ColourAberration.offset_x, `${effectPath}.ColourAberration.offset_x`, issues);
+      validateFiniteNumber(effect.ColourAberration.offset_y, `${effectPath}.ColourAberration.offset_y`, issues);
+      return;
+    }
+    addIssue(issues, 'schemaMismatch', effectPath, 'Unknown Rust effect.');
   });
 };
 

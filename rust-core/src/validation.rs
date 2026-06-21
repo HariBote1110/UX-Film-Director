@@ -112,6 +112,9 @@ pub fn validate_project(project: &Project) -> Result<(), Vec<ValidationIssue>> {
 fn effect_is_finite(effect: &crate::schema::Effect) -> bool {
     match effect {
         crate::schema::Effect::LinearGain { gain } => gain.is_finite(),
+        crate::schema::Effect::ColourAberration { offset_x, offset_y } => {
+            offset_x.is_finite() && *offset_x >= 0.0 && offset_y.is_finite() && *offset_y >= 0.0
+        }
     }
 }
 

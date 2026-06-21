@@ -40,7 +40,13 @@ fn project_with_transform() -> Project {
                 },
                 opacity: 0.75,
                 opacity_keyframes: Vec::new(),
-                effects: vec![Effect::LinearGain { gain: 1.25 }],
+                effects: vec![
+                    Effect::LinearGain { gain: 1.25 },
+                    Effect::ColourAberration {
+                        offset_x: 3.0,
+                        offset_y: 1.0,
+                    },
+                ],
             }],
         }],
     }
@@ -164,6 +170,11 @@ fn scene_snapshot_serialises_with_renderer_boundary_field_names() {
                 "effects": [{
                     "LinearGain": {
                         "gain": 1.25
+                    }
+                }, {
+                    "ColourAberration": {
+                        "offset_x": 3.0,
+                        "offset_y": 1.0
                     }
                 }]
             }]

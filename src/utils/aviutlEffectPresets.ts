@@ -4,6 +4,7 @@ import { getObjectFiltersInOrder, syncLegacyEffectsWithFilters } from './filterS
 export type AviUtlEffectPresetId =
   | 'luminance-wipe-basic'
   | 'edge-outline-soft'
+  | 'colour-aberration-rgb'
   | 'fan-clipping-diagonal';
 
 export interface AviUtlEffectPreset {
@@ -12,6 +13,7 @@ export interface AviUtlEffectPreset {
   sourceCandidateId:
     | 'tim-luminance-wipe'
     | 'tim-edge-outline'
+    | 'tim-colour-aberration'
     | 'fan-clipping-r';
   filterType: FilterType;
 }
@@ -28,6 +30,12 @@ const presets: AviUtlEffectPreset[] = [
     labelJa: '縁取りT近似',
     sourceCandidateId: 'tim-edge-outline',
     filterType: 'shadow'
+  },
+  {
+    id: 'colour-aberration-rgb',
+    labelJa: '色収差',
+    sourceCandidateId: 'tim-colour-aberration',
+    filterType: 'colour_aberration'
   },
   {
     id: 'fan-clipping-diagonal',
@@ -53,6 +61,17 @@ export const buildAviUtlEffectPresetFilter = (presetId: AviUtlEffectPresetId): O
           offsetX: 0,
           offsetY: 0,
           opacity: 0.85
+        }
+      };
+    }
+    case 'colour-aberration-rgb': {
+      return {
+        id: `aviutl-${presetId}`,
+        type: 'colour_aberration',
+        enabled: true,
+        params: {
+          offsetX: 3,
+          offsetY: 0
         }
       };
     }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ShapeObject, TimelineObject } from '../types';
+import type { ObjectFilter, ShapeObject, TimelineObject } from '../types';
 import {
   addFilterToObject,
   createDefaultFilter,
@@ -44,14 +44,17 @@ describe('createDefaultFilter', () => {
     const blur = createDefaultFilter('blur');
     expect(blur.type).toBe('blur');
     expect(blur.enabled).toBe(true);
+    if (blur.type !== 'blur') throw new Error('expected blur');
     expect(blur.params.quality).toBeGreaterThanOrEqual(1);
 
     const wipe = createDefaultFilter('wipe');
     expect(wipe.type).toBe('wipe');
+    if (wipe.type !== 'wipe') throw new Error('expected wipe');
     expect(['left', 'right', 'top', 'bottom']).toContain(wipe.params.edge);
 
     const colourAberration = createDefaultFilter('colour_aberration');
     expect(colourAberration.type).toBe('colour_aberration');
+    if (colourAberration.type !== 'colour_aberration') throw new Error('expected colour aberration');
     expect(colourAberration.params.offsetX).toBeGreaterThan(0);
     expect(colourAberration.params.offsetY).toBe(0);
   });
@@ -62,8 +65,8 @@ describe('normaliseObjectFilters', () => {
     const result = normaliseObjectFilters([
       { id: 'x', type: 'fade' as const, enabled: true, params: { opacity: 2 } },
       { id: 'ca', type: 'colour_aberration' as const, enabled: true, params: { offsetX: -5, offsetY: 3 } },
-      { id: '', type: 'not-a-filter' as never, enabled: true, params: {} }
-    ]);
+      { id: '', type: 'not-a-filter' as never, enabled: true, params: {} as never }
+    ] as ObjectFilter[]);
     expect(result).toHaveLength(2);
     if (result[0].type !== 'fade') throw new Error('expected fade');
     expect(result[0].params.opacity).toBe(1);
@@ -108,7 +111,8 @@ describe('getFadeOpacityMultiplier', () => {
     const shape = minimalShape();
     const a = createDefaultFilter('fade');
     const b = createDefaultFilter('fade');
-    const filters = [
+    if (a.type !== 'fade' || b.type !== 'fade') throw new Error('expected fade filters');
+    const filters: ObjectFilter[] = [
       { ...a, id: 'fade-a', params: { opacity: 0.5 } },
       { ...b, id: 'fade-b', enabled: false, params: { opacity: 0.1 } },
       { ...createDefaultFilter('blur'), id: 'blur-1' }
@@ -135,12 +139,12 @@ describe('getPrimaryWipeFilter', () => {
 describe('syncLegacyEffectsWithFilters', () => {
   it('writes last matching filter back to legacy shape fields', () => {
     const shape = minimalShape();
-    const first = { ...createDefaultFilter('color_correction'), params: { brightness: 1, contrast: 1, saturation: 1, hue: 0 } };
+    const first: ObjectFilter = { ...createDefaultFilter('color_correction'), params: { brightness: 1, contrast: 1, saturation: 1, hue: 0 } } as ObjectFilter;
     const second = {
       ...createDefaultFilter('color_correction'),
       id: 'cc-2',
       params: { brightness: 1.5, contrast: 1, saturation: 1, hue: 0 }
-    };
+    } as ObjectFilter;
     const synced = syncLegacyEffectsWithFilters({ ...shape, filters: [first, second] });
     expect(synced.colorCorrection?.brightness).toBe(1.5);
   });
