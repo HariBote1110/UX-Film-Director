@@ -80,6 +80,7 @@
 61. ✅ `P1` hksy直線を既存Rust GeneratedHksyCheckerGrid生成メディアの線のみプリセットとして追加する
 62. ✅ `P1` hksy複数色チェッカーをRust GeneratedHksyCheckerGridのpalette付き生成プリセットとして追加する
 63. ✅ `P1` hksy菱形をRust GeneratedHksyCheckerGridのdiamond pattern生成プリセットとして追加する
+64. ✅ `P1` hksyグリッドをRust GeneratedHksyCheckerGridのmeasured-grid pattern生成プリセットとして追加する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。
