@@ -157,6 +157,17 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     expect(transcodePayloadBlock).toContain('...exportEncodeSettings');
   });
 
+  it('passes the Rust export render-ahead setting into shared-frame encode export', () => {
+    const code = source();
+    const encodeExportBlock = code.slice(
+      code.indexOf('const result = await runRustBackendVideoEncodeExport({'),
+      code.indexOf('onNativeRenderOutputRelease: (event) => {')
+    );
+
+    expect(code).toContain('const rustExportRenderAheadFrameCount = Number(import.meta.env.VITE_UXFD_RUST_EXPORT_RENDER_AHEAD_FRAMES)');
+    expect(encodeExportBlock).toContain('renderAheadFrameCount: rustExportRenderAheadFrameCount');
+  });
+
   it('subscribes to direct transcode progress events and updates percentage counters', () => {
     const code = source();
 

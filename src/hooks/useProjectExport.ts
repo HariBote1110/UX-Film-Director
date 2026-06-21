@@ -95,6 +95,7 @@ export const useProjectExport = (
         preset: import.meta.env.VITE_UXFD_VIDEO_EXPORT_QUALITY_PRESET,
         videoBitrateKbps: Number(import.meta.env.VITE_UXFD_VIDEO_EXPORT_BITRATE_KBPS),
       });
+      const rustExportRenderAheadFrameCount = Number(import.meta.env.VITE_UXFD_RUST_EXPORT_RENDER_AHEAD_FRAMES);
       const { projectSettings, objects, layers } = useStore.getState();
       const exportObjects = objects.filter((obj) => layers[obj.layer]?.visible !== false);
       const hasVideoObjects = exportObjects.some((obj) => obj.type === 'video');
@@ -351,6 +352,7 @@ export const useProjectExport = (
               height: encHeight,
               fps,
               frames: renderRustEncodeFrames(),
+              renderAheadFrameCount: rustExportRenderAheadFrameCount,
               onNativeRenderOutputRelease: (event) => {
                 const currentProgress = useStore.getState().exportProgress;
                 if (!currentProgress) return;

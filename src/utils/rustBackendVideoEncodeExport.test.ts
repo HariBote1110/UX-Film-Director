@@ -4,6 +4,7 @@ import {
 } from './rustBackendVideoEncodeExport';
 import type {
   RustBackendVideoEncodeBridge,
+  RustBackendVideoEncodeWriteNativeFramePayload,
   RustBackendVideoEncodeWriteFramePayload,
 } from './rustBackendVideoEncodeControl';
 import type { RustBackendNativeRenderSharedFrameBridge } from './rustBackendNativeRenderControl';
@@ -215,7 +216,7 @@ describe('runRustBackendVideoEncodeExport', () => {
         };
       },
     };
-    const nativeEncodeFramePayload = {
+    const nativeEncodeFramePayload: RustBackendVideoEncodeWriteNativeFramePayload = {
       sessionId: 'session-native-direct',
       renderId: 'native-direct-frame-0',
       frameIndex: 0,

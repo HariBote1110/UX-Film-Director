@@ -71,6 +71,7 @@ export interface RunRustBackendVideoEncodeExportInput {
   height: number;
   fps: number;
   frames: AsyncIterable<RustBackendVideoEncodeSharedFramePayloadFrame | RustBackendVideoEncodeNativeFramePayloadFrame>;
+  renderAheadFrameCount?: number;
   sessionId?: string;
   encoderBridge?: RustBackendVideoEncodeBridge;
   nativeRenderBridge?: RustBackendNativeRenderOutputReleaseBridge;
@@ -100,6 +101,13 @@ interface RustBackendVideoEncodeFinishSummary {
 const createDefaultSessionId = (): string =>
   `uxfd-export-${Date.now().toString(36)}`;
 
+const DEFAULT_RENDER_AHEAD_FRAME_COUNT = 2;
+
+const normaliseRenderAheadFrameCount = (value: number | undefined): number => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_RENDER_AHEAD_FRAME_COUNT;
+  return Math.max(1, Math.min(4, Math.floor(value)));
+};
+
 const assertBridgeSuccess = (
   success: boolean,
   error: string | undefined,
@@ -117,6 +125,7 @@ export const runRustBackendVideoEncodeExport = async ({
   height,
   fps,
   frames,
+  renderAheadFrameCount,
   sessionId = createDefaultSessionId(),
   encoderBridge = window.rustVideoEncoder,
   nativeRenderBridge,
@@ -142,6 +151,16 @@ export const runRustBackendVideoEncodeExport = async ({
   let finished = false;
   try {
     const frameIterator = frames[Symbol.asyncIterator]();
+    const readAheadLimit = normaliseRenderAheadFrameCount(renderAheadFrameCount);
+    const prefetchedFrameResults: Promise<IteratorResult<RustBackendVideoEncodeSharedFramePayloadFrame | RustBackendVideoEncodeNativeFramePayloadFrame>>[] = [];
+    const prefetchNextFrame = () => {
+      prefetchedFrameResults.push(frameIterator.next());
+    };
+    const fillRenderAheadQueue = () => {
+      while (prefetchedFrameResults.length < readAheadLimit) {
+        prefetchNextFrame();
+      }
+    };
     let nextFrameResult = await frameIterator.next();
     while (!nextFrameResult.done) {
       const frame = nextFrameResult.value;
@@ -155,19 +174,22 @@ export const runRustBackendVideoEncodeExport = async ({
         nativeRenderBridge,
         onNativeRenderOutputRelease
       );
-      const prefetchedFrameResult = frameIterator.next();
+      fillRenderAheadQueue();
       try {
         await writeFrameResult;
       } catch (error) {
-        await releasePrefetchedNativeRenderOutputAfterEncodeFailure(
-          prefetchedFrameResult,
+        await releasePrefetchedEncodeFramesAfterEncodeFailure(
+          prefetchedFrameResults,
           nativeRenderBridge,
           onNativeRenderOutputRelease
         );
         throw error;
       }
-      nextFrameResult = await prefetchedFrameResult;
+      nextFrameResult = prefetchedFrameResults.length > 0
+        ? await prefetchedFrameResults.shift()!
+        : await frameIterator.next();
     }
+    await Promise.allSettled(prefetchedFrameResults);
 
     const finishResponse = await finishRustBackendVideoEncode({ sessionId }, encoderBridge);
     assertBridgeSuccess(finishResponse.success, finishResponse.error, 'Rust backend video encode finish failed.');
@@ -268,7 +290,23 @@ const writeFrameToRustBackend = async (
   );
 };
 
-const releasePrefetchedNativeRenderOutputAfterEncodeFailure = async (
+const releasePrefetchedEncodeFramesAfterEncodeFailure = async (
+  frameResultPromises: readonly Promise<IteratorResult<RustBackendVideoEncodeSharedFramePayloadFrame | RustBackendVideoEncodeNativeFramePayloadFrame>>[],
+  nativeRenderBridge?: RustBackendNativeRenderOutputReleaseBridge,
+  onNativeRenderOutputRelease?: (
+    event: RustBackendNativeRenderOutputReleaseEvent
+  ) => void
+): Promise<void> => {
+  await Promise.all(frameResultPromises.map((frameResultPromise) =>
+    releasePrefetchedEncodeFrameAfterEncodeFailure(
+      frameResultPromise,
+      nativeRenderBridge,
+      onNativeRenderOutputRelease
+    )
+  ));
+};
+
+const releasePrefetchedEncodeFrameAfterEncodeFailure = async (
   frameResultPromise: Promise<IteratorResult<RustBackendVideoEncodeSharedFramePayloadFrame | RustBackendVideoEncodeNativeFramePayloadFrame>>,
   nativeRenderBridge?: RustBackendNativeRenderOutputReleaseBridge,
   onNativeRenderOutputRelease?: (
@@ -282,6 +320,9 @@ const releasePrefetchedNativeRenderOutputAfterEncodeFailure = async (
     return;
   }
   if (frameResult.done || !isSharedFramePayloadFrame(frameResult.value)) {
+    if (!frameResult.done && isNativeEncodeFramePayloadFrame(frameResult.value)) {
+      await frameResult.value.releaseNativeEncodeSourcesAfterWrite?.releaseAfterEncodeFailure();
+    }
     return;
   }
   await releaseNativeRenderOutputAfterEncodeFailure(
