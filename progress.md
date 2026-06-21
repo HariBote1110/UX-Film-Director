@@ -1,3 +1,19 @@
+## 2026-06-21 — AviUtlPackV4標準効果カタログを追加
+
+### 実施内容
+- Red: iCloud Drive配下の `AviUtlPackV4` 棚卸し結果と、標準搭載候補の優先順を返す契約を追加した。
+- Green: `src/utils/aviutlPackFeatureCatalog.ts` を追加し、AviUtl/YMM4系イージング、登場退場、ランダム/反復、輝度ワイプ、縁取り、色収差、扇クリッピング、音声波形、パーティクルなどをUX FDネイティブ再実装候補として整理した。
+- Green: `markdown/AviUtlPackV4_Inventory.md` を追加し、Packの拡張子数、主要ディレクトリ、標準搭載優先候補を記録した。
+- 版を `0.1.1-Beta-235a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/aviutlPackFeatureCatalog.test.ts`
+
+### 結果・残課題
+- Packの実測ファイル数は `.anm` 137、`.obj` 61、`.tra` 12、`.cam` 6、`.scn` 2、`.lua` 15、`.stg` 18。
+- 第三者スクリプト本体はコピーせず、UX FDネイティブの互換再実装として標準搭載する方針を固定した。
+- 次はP0 motion presetを既存キーフレーム/easingへ接続し、PropertyPanelから使えるようにする。
+
 ## 2026-06-21 — PSD overlay flatten cacheを追加
 
 ### 実施内容

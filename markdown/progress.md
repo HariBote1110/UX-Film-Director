@@ -1,6 +1,15 @@
 # 進捗ログ
 
 ## 2026-06-21
+- AviUtlPackV4標準効果カタログを追加した。
+- Red: iCloud Drive配下の `AviUtlPackV4` 棚卸し結果と、標準搭載候補の優先順を返す契約を追加した。
+- Green: `src/utils/aviutlPackFeatureCatalog.ts` を追加し、AviUtl/YMM4系イージング、登場退場、ランダム/反復、輝度ワイプ、縁取り、色収差、扇クリッピング、音声波形、パーティクルなどをUX FDネイティブ再実装候補として整理した。
+- Green: `markdown/AviUtlPackV4_Inventory.md` を追加し、Packの拡張子数、主要ディレクトリ、標準搭載優先候補を記録した。
+- 版を `0.1.1-Beta-235a` に更新した。
+- 検証: `npm test -- --run src/utils/aviutlPackFeatureCatalog.test.ts` は3件成功。
+- 残課題: 次はP0 motion presetを既存キーフレーム/easingへ接続し、PropertyPanelから使えるようにする。
+
+## 2026-06-21
 - PSD overlay flatten cacheを追加した。
 - Red: 同じPSD overlayを2回 `encode.transcodeVideo` した時、2回目に `psdOverlayCacheHits=1` が返る契約を追加した。
 - Green: Rust backendのプロセス内状態にPSD overlay cacheを追加し、`filePath + activeLayerIds + mtime + size` が同じ場合はflatten済みRGBA入力を再利用するようにした。

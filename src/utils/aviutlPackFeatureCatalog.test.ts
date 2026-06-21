@@ -33,7 +33,7 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('audio-waveform-r')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('particle-standard')?.implementationTarget).toBe('native-generated-object');
 
-    expect(candidates.every((candidate) => candidate.bundlingMode !== 'copy-third-party-script')).toBe(true);
+    expect(candidates.map((candidate) => candidate.bundlingMode)).not.toContain('copy-third-party-script');
   });
 
   it('orders the first standard bundle by quick usability before script-runtime compatibility', () => {

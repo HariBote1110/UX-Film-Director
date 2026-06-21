@@ -1,5 +1,27 @@
 # 実装計画
 
+## AviUtlPackV4標準搭載ロードマップ（2026-06-21）
+詳細は `markdown/AviUtlPackV4_Inventory.md` と `src/utils/aviutlPackFeatureCatalog.ts` を正とする。
+
+### 方針
+1. iCloud Driveの利用中Packを「機能の参照元」として棚卸しする。
+2. 第三者スクリプト本体の同梱やLua実行を初手にせず、UX FDネイティブの互換再実装として標準搭載する。
+3. UI以外のCanvas/描画に関わる効果はRust/WebGPUへ寄せる。
+4. ボイロ動画で使用頻度が高く、実装効果が大きいものからP0/P1へ置く。
+
+### 優先順位
+1. `P0`: AviUtl/YMM4系イージング、登場退場、ランダム、反復モーション
+2. `P1`: 輝度ワイプ、縁取り、色収差、扇クリッピング、音声波形
+3. `P2`: パーティクル、モーションパス、より複雑な生成オブジェクト
+4. `P3`: カメラ補助、Luaスクリプト互換ランタイム、Pack由来の高度互換
+
+### 直近実装順
+1. ✅ AviUtlPackV4棚卸しと標準搭載候補カタログの追加
+2. `P0` motion presetを既存キーフレーム/easingへ接続
+3. `P1` Rust/WebGPU effectの境界型を拡張
+4. PropertyPanelのFilter Stackへ標準搭載候補を露出
+5. E2Eで代表素材に効果を載せ、preview/exportの一致を検証
+
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。
 
