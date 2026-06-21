@@ -1,6 +1,14 @@
 # 進捗ログ
 
 ## 2026-06-21
+- 生成波形の共有フレーム画素一致を確認した。
+- Red: `native-wgpu-renderer` に、Audio waveform R生成フレームが直接フレーム出力と共有メモリ出力で一致する契約を追加した。
+- Green: `render_native_wgpu_frame_to_shared_ring_with_audio_waveforms` を追加し、生成波形をRust native rendererの共有フレーム出力へ接続した。
+- 版を `0.1.1-Beta-259c` に更新した。
+- 検証: `cargo test --test shared_frame_output native_wgpu_generated_waveform_shared_frame_matches_direct_frame` と `cargo test --test shared_frame_output` は成功した。
+- 残課題: 次は標準パーティクルを含む生成ソースと、実Electron preview/export成果物の画素比較へ広げる。
+
+## 2026-06-21
 - 動画export E2EのElectron bundle待機を追加した。
 - Red: `run-video-export-e2e.mjs` がElectron起動前にbundle完了を待つ契約を追加した。
 - Green: `dist-electron/main.js` / `dist-electron/preload.js` の更新時刻とIPC markerを確認してからElectronを起動するようにした。

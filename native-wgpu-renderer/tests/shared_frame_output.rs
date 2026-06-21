@@ -125,8 +125,12 @@ fn native_wgpu_generated_waveform_shared_frame_matches_direct_frame() {
     };
     let sources = HashMap::from([(
         "background".to_string(),
-        RgbaFrame::from_rgba8(width, height, vec![12, 18, 24, 255].repeat(width as usize * height as usize))
-            .expect("valid background frame"),
+        RgbaFrame::from_rgba8(
+            width,
+            height,
+            vec![12, 18, 24, 255].repeat(width as usize * height as usize),
+        )
+        .expect("valid background frame"),
     )]);
     let waveform = NativeAudioWaveformInput {
         media_id: "waveform-1".to_string(),
@@ -173,7 +177,9 @@ fn native_wgpu_generated_waveform_shared_frame_matches_direct_frame() {
             eprintln!("skipping generated waveform shared-frame test: no GPU adapter available");
             return;
         }
-        Err(error) => panic!("native wgpu generated waveform shared-frame render failed: {error:?}"),
+        Err(error) => {
+            panic!("native wgpu generated waveform shared-frame render failed: {error:?}")
+        }
     };
 
     let mapped = output

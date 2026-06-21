@@ -431,6 +431,29 @@ pub async fn render_native_wgpu_frame_to_shared_ring(
     frame_report_to_shared_ring(report, memory_id, slot_count, pts_frame)
 }
 
+pub async fn render_native_wgpu_frame_to_shared_ring_with_audio_waveforms(
+    snapshot: &SceneSnapshot,
+    sources: &HashMap<String, RgbaFrame>,
+    waveforms: &[NativeAudioWaveformInput],
+    width: u32,
+    height: u32,
+    memory_id: &str,
+    slot_count: u32,
+    pts_frame: u64,
+) -> Result<NativeWgpuSharedFrameReport, NativeWgpuRenderError> {
+    let generated_sources = build_audio_waveform_sources(snapshot, sources, waveforms)?;
+    render_native_wgpu_frame_to_shared_ring(
+        snapshot,
+        &generated_sources,
+        width,
+        height,
+        memory_id,
+        slot_count,
+        pts_frame,
+    )
+    .await
+}
+
 fn rasterise_audio_waveform_input(
     input: &NativeAudioWaveformInput,
     source_frame: u64,
