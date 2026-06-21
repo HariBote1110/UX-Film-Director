@@ -1,3 +1,20 @@
+## 2026-06-21 — 標準パーティクル追加UIをTimeline context menuへ接続
+
+### 実施内容
+- Red: 標準パーティクル用のデフォルトParticleObject生成契約を追加した。
+- Red: Timeline context menuが標準パーティクル追加コマンドを露出する契約を追加した。
+- Green: `buildDefaultStandardParticleObject` を追加し、プロジェクトサイズに合わせた中央配置の標準パーティクルを生成できるようにした。
+- Green: canvas右クリックメニューへ `Add Standard Particle` / `標準パーティクルを追加` を追加した。
+- 版を `0.1.1-Beta-254a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/particleObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "particleObjectFactory|TimelineContextMenu|ParticleObject|particle|projectFile"`
+
+### 結果・残課題
+- UI追加契約2件が成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- 次はParticleObjectのプロジェクト保存/読込許可とPropertyPanel編集UIを追加する。
+
 ## 2026-06-21 — 標準パーティクルをsource frame対応の動的生成へ拡張
 
 ### 実施内容

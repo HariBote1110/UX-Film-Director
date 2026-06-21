@@ -2,6 +2,7 @@ import React, { useRef, useLayoutEffect, useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { shallow } from 'zustand/shallow';
 import { useTranslation } from '../i18n';
+import { buildDefaultStandardParticleObject } from '../utils/particleObjectFactory';
 
 export interface ContextMenuState {
   visible: boolean;
@@ -126,6 +127,17 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
       onClose();
   };
 
+  const handleAddParticle = () => {
+    addObject(buildDefaultStandardParticleObject({
+      id: crypto.randomUUID(),
+      projectWidth: projectSettings.width,
+      projectHeight: projectSettings.height,
+      startTime: state.time,
+      layer: state.layer,
+    }));
+    onClose();
+  };
+
   const ensureObjectSelection = (objectId: string) => {
     if (!selectedIds.includes(objectId)) {
       selectObject(objectId);
@@ -164,6 +176,7 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddPsd(); onClose(); }}>{language === 'en' ? 'Add PSD' : 'PSD立ち絵を追加'}</div>
             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddGroup(); onClose(); }}>{language === 'en' ? 'Add Group Control' : 'グループ制御を追加'}</div>
             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddWaveform}>{language === 'en' ? 'Add Waveform' : '音声波形を追加'}</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddParticle}>{language === 'en' ? 'Add Standard Particle' : '標準パーティクルを追加'}</div>
         </>
       )}
       {state.type === 'object' && state.targetObjectId && (
