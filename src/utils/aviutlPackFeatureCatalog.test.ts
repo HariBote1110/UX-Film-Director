@@ -37,6 +37,7 @@ describe('AviUtlPackV4 feature catalogue', () => {
       'script/てぃむ/@モーションパスD.anm',
       'script/てぃむ/ベジェ軌道T.obj'
     ]));
+    expect(byId.get('tim-wind-sway')?.sourceRelativePaths).toContain('script/てぃむ/風揺れT.anm');
 
     expect(candidates.map((candidate) => candidate.bundlingMode)).not.toContain('copy-third-party-script');
   });

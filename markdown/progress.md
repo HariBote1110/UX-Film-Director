@@ -1,6 +1,15 @@
 # 進捗ログ
 
 ## 2026-06-21
+- Tim風揺れTをネイティブmotion presetへ追加した。
+- Red: AviUtlPackV4 `script/てぃむ/風揺れT.anm` を、`wind-sway-soft` として標準motion presetに追加する契約を作った。
+- Green: 既存キーフレーム基盤へ、元の位置へ戻る小さな風揺れループを生成するネイティブ再実装を追加した。
+- Green: `tim-wind-sway` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-261a` に更新した。
+- 検証: `npm test -- --run src/utils/aviutlMotionPresets.test.ts src/components/PropertyPanelBoundary.test.ts` は11件成功した。
+- 残課題: 風による曲面変形そのものは未実装。現時点ではRust scene snapshotへ乗る位置キーフレーム近似として扱う。
+
+## 2026-06-21
 - Timモーションパスをネイティブmotion presetへ追加した。
 - Red: AviUtlPackV4 `script/てぃむ` のモーションパス候補を、`motion-path-arc` と `motion-path-s-curve` として標準motion presetに追加する契約を作った。
 - Green: 既存キーフレーム基盤へ、弧を描くパスとS字パスを生成するネイティブ再実装を追加した。

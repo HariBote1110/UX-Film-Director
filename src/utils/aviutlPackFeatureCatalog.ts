@@ -174,6 +174,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '既存キーフレーム基盤と接続できるが、タイムライン編集UIの追加が必要。'
   },
   {
+    id: 'tim-wind-sway',
+    labelJa: '風揺れT',
+    category: 'motion',
+    phase: 'P2',
+    implementationTarget: 'native-motion-preset',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/てぃむ/風揺れT.anm'],
+    rationaleJa: '立ち絵や字幕に軽い揺れを付けるボイロ動画向けの定番演出。'
+  },
+  {
     id: 'camera-target',
     labelJa: 'カメラ目標指定',
     category: 'camera',

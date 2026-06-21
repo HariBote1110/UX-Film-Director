@@ -7,7 +7,8 @@ export type AviUtlMotionPresetId =
   | 'random-wiggle'
   | 'repeat-side-to-side'
   | 'motion-path-arc'
-  | 'motion-path-s-curve';
+  | 'motion-path-s-curve'
+  | 'wind-sway-soft';
 
 export interface AviUtlMotionPreset {
   id: AviUtlMotionPresetId;
@@ -16,7 +17,8 @@ export interface AviUtlMotionPreset {
     | 'ymm4-entrance-exit'
     | 'ymm4-random-motion'
     | 'ymm4-repeat-motion'
-    | 'tim-motion-path';
+    | 'tim-motion-path'
+    | 'tim-wind-sway';
   defaultDistancePx: number;
   defaultSpanSeconds: number;
   defaultIntervalSeconds: number;
@@ -83,6 +85,14 @@ const presets: AviUtlMotionPreset[] = [
     defaultDistancePx: 160,
     defaultSpanSeconds: 1,
     defaultIntervalSeconds: 0.5
+  },
+  {
+    id: 'wind-sway-soft',
+    labelJa: '風揺れ: やわらか',
+    sourceCandidateId: 'tim-wind-sway',
+    defaultDistancePx: 16,
+    defaultSpanSeconds: 1,
+    defaultIntervalSeconds: 1
   }
 ];
 
@@ -161,6 +171,18 @@ export const buildAviUtlMotionPresetPatch = (
       keyframes = buildMotionPathSCurveKeyframes({
         startTime,
         endTime,
+        x,
+        y,
+        distancePx,
+        easing
+      });
+      break;
+    case 'wind-sway-soft':
+      easing = 'easeInOutSine';
+      keyframes = buildWindSwayKeyframes({
+        startTime,
+        endTime,
+        intervalSeconds,
         x,
         y,
         distancePx,
@@ -334,6 +356,42 @@ const buildMotionPathSCurveKeyframes = ({
     makeKeyframe('motion-path-s-control-c', startTime + step * 3, x + distancePx * 0.75, y - distancePx / 2, easing),
     makeKeyframe('motion-path-s-end', endTime, x + distancePx, y, 'linear')
   ];
+};
+
+const buildWindSwayKeyframes = ({
+  startTime,
+  endTime,
+  intervalSeconds,
+  x,
+  y,
+  distancePx,
+  easing
+}: {
+  startTime: number;
+  endTime: number;
+  intervalSeconds: number;
+  x: number;
+  y: number;
+  distancePx: number;
+  easing: EasingType;
+}): PositionKeyframe[] => {
+  const interval = Math.max(0.05, intervalSeconds);
+  const count = Math.max(1, Math.floor((endTime - startTime) / interval));
+  const keyframes: PositionKeyframe[] = [
+    makeKeyframe('wind-sway-start', startTime, x, y, easing)
+  ];
+  for (let index = 1; index < count; index += 1) {
+    const direction = index % 2 === 1 ? 1 : -1;
+    keyframes.push(makeKeyframe(
+      `wind-sway-${index}`,
+      startTime + interval * index,
+      x + direction * distancePx * 0.5,
+      y - direction * distancePx * 0.25,
+      easing
+    ));
+  }
+  keyframes.push(makeKeyframe('wind-sway-return', endTime, x, y, 'linear'));
+  return keyframes;
 };
 
 const makeKeyframe = (
