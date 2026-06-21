@@ -1,3 +1,21 @@
+## 2026-06-22 — 93 SimpleTubeをRust生成プリセットへ追加
+
+### 実施内容
+- Red: `93-simple-tube` がAviUtlPackV4カタログ、Timeline右クリックメニュー、factory、保存/読込、Rust scene snapshot、shared renderer native media、rust-core schema、Rust backend画素生成を通る契約を追加した。
+- Green: `SimpleTubeObject` と `GeneratedSimpleTube` media kindを追加し、`simple-tube-93` source JSONで半径、奥行き、分割数、リング数、ねじれ、ランダム度、線幅、色、トーラス指定をRustへ渡すようにした。
+- Green: Rust backendで透明背景にチューブ状リング、奥行き線、中心補助線をRGBA生成する初期互換実装を追加した。
+- Green: Timeline右クリックメニューに `93 SimpleTubeを追加` / `Add 93 SimpleTube` を追加した。
+- Version: `0.1.1-Beta-303a`。
+
+### 検証
+- `npm test -- --run src/utils/simpleTubeObjectFactory.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/packageScripts.test.ts --reporter=dot` は124件成功。
+- `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は30件成功。
+- `cargo test --manifest-path rust-backend/Cargo.toml generated_simple_tube_source_frame_renders_tube_lines -- --nocapture` は1件成功。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回のSimpleTube由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- SimpleTubeはRust生成の初期線描画版で、AviUtlの3Dポリゴン/fog/fade/色パターン完全互換は未実装。次はSimpleTube2の色パターン/fog近似、Sphere系、またはGetColorの元画像サンプリング/Field/Twist方向へ進む。
+
 ## 2026-06-22 — 93領域枠(楕円)/(角落ち)をRust生成プリセットへ追加
 
 ### 実施内容
