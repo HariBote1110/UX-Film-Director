@@ -14,6 +14,7 @@ import type {
   PuzzlePieceObject,
   ShapeObject,
   TimelineObject,
+  TrackBarObject,
   VideoObject,
 } from '../types';
 import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier } from './filterStack';
@@ -67,7 +68,7 @@ export interface RustSceneSnapshot {
 
 export interface RustSceneMediaReference {
   id: string;
-  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'Psd';
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'Psd';
   source: string;
   width: number;
   height: number;
@@ -140,7 +141,7 @@ export interface RustSceneSnapshotBuildInput {
 export type RustSceneVideoSourceMode = 'previewProxy' | 'exportOriginal';
 
 type SupportedMediaObject = ImageObject | VideoObject | PsdObject;
-type SupportedGeneratedObject = AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject;
+type SupportedGeneratedObject = AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject;
 type SupportedSceneObject = SupportedMediaObject | ShapeObject | SupportedGeneratedObject;
 
 const rustColourPipeline = (): RustColourPipeline => ({
@@ -383,7 +384,8 @@ const isSupportedSceneObject = (object: TimelineObject): object is SupportedScen
   || object.type === 'puzzle_piece'
   || object.type === 'colour_wheel'
   || object.type === 'gourd'
-  || object.type === 'gear';
+  || object.type === 'gear'
+  || object.type === 'track_bar';
 
 const isVisualSceneObject = (object: TimelineObject): boolean =>
   object.type !== 'audio';
@@ -494,6 +496,16 @@ const mediaReferenceForObject = (
       id: object.id,
       kind: 'GeneratedGear',
       source: serialiseGeneratedGearSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'track_bar') {
+    return {
+      id: object.id,
+      kind: 'GeneratedTrackBar',
+      source: serialiseGeneratedTrackBarSource(object),
       width: object.width,
       height: object.height,
     };
@@ -611,6 +623,30 @@ const serialiseGeneratedGearSource = (object: GearObject): string =>
     fill_colour: /^#[0-9a-f]{6}$/i.test(object.fillColour) ? object.fillColour : '#ffffff',
   });
 
+const serialiseGeneratedTrackBarSource = (object: TrackBarObject): string =>
+  JSON.stringify({
+    generator: 'custom-track-bar',
+    track_values: normaliseTrackBarValues(object.trackValues),
+    track_ranges: normaliseTrackBarRanges(object.trackRanges),
+    labels: normaliseTrackBarLabels(object.labels),
+    bar_colour: /^#[0-9a-f]{6}$/i.test(object.barColour) ? object.barColour : '#ffffff',
+    background_opacity: Math.min(1, Math.max(0, finiteNumberOr(object.backgroundOpacity, 0.05))),
+  });
+
+const normaliseTrackBarValues = (values: readonly number[]): number[] =>
+  Array.from({ length: 4 }, (_, index) => finiteNumberOr(values[index], 0));
+
+const normaliseTrackBarRanges = (ranges: readonly [number, number][]): [number, number][] =>
+  Array.from({ length: 4 }, (_, index) => {
+    const range = ranges[index] ?? [0, 100];
+    const min = finiteNumberOr(range[0], 0);
+    const max = finiteNumberOr(range[1], 100);
+    return min === max ? [min, min + 1] : [min, max];
+  });
+
+const normaliseTrackBarLabels = (labels: readonly string[]): string[] =>
+  Array.from({ length: 4 }, (_, index) => labels[index] || `Track${String.fromCharCode(65 + index)}`);
+
 const findTargetAudioForWaveform = (
   object: AudioVisualizationObject,
   objects: TimelineObject[],
@@ -708,6 +744,7 @@ const sourceFrameForObject = (
   if (object.type === 'colour_wheel') return 0;
   if (object.type === 'gourd') return 0;
   if (object.type === 'gear') return 0;
+  if (object.type === 'track_bar') return 0;
   const localTime = Math.max(0, time - object.startTime);
   const mediaTime = localTime + (object.offset ?? 0);
   return secondsToFrameIndex(mediaTime, fps);
@@ -914,7 +951,7 @@ const validateMediaReferences = (
     }
     validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height', 'source_rate', 'active_layer_ids'], issues);
     validateString(reference.id, `${path}.id`, issues);
-    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'Psd'], issues);
+    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'Psd'], issues);
     validateString(reference.source, `${path}.source`, issues);
     validatePositiveInteger(reference.width, `${path}.width`, issues);
     validatePositiveInteger(reference.height, `${path}.height`, issues);

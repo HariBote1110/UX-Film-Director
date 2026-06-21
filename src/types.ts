@@ -45,7 +45,7 @@ export interface LayerState {
   locked: boolean;
 }
 
-export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization' | 'particle' | 'barcode' | 'puzzle_piece' | 'colour_wheel' | 'gourd' | 'gear';
+export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization' | 'particle' | 'barcode' | 'puzzle_piece' | 'colour_wheel' | 'gourd' | 'gear' | 'track_bar';
 
 // --- グラデーション・シャドウ・軌道 ---
 
@@ -442,6 +442,18 @@ export interface GearObject extends BaseObject {
   fillColour: string;
 }
 
+// AviUtlPackV4 カスタムトラックバー互換の生成オブジェクト
+export interface TrackBarObject extends BaseObject {
+  type: 'track_bar';
+  width: number;
+  height: number;
+  trackValues: number[];
+  trackRanges: [number, number][];
+  labels: string[];
+  barColour: string;
+  backgroundOpacity: number;
+}
+
 // --- PSD連携用 ---
 
 export interface PsdLayerStruct {
@@ -486,7 +498,7 @@ export interface PsdObject extends BaseObject {
   worldPlacement?: PsdWorldPlacement;
 }
 
-export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject;
+export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject;
 
 /** タイムライン1本分（シーン） */
 export interface SceneData {

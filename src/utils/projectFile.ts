@@ -94,7 +94,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'puzzle_piece',
   'colour_wheel',
   'gourd',
-  'gear'
+  'gear',
+  'track_bar'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -132,6 +133,14 @@ const isPositionKeyframe = (value: unknown): boolean => {
     (candidate.easing === undefined || typeof candidate.easing === 'string')
   );
 };
+
+const isTrackRangeTuple = (value: unknown): value is [number, number] => (
+  Array.isArray(value)
+  && value.length === 2
+  && isFiniteNumber(value[0])
+  && isFiniteNumber(value[1])
+  && value[0] !== value[1]
+);
 
 const isTimelineObject = (value: unknown): value is TimelineObject => {
   if (!value || typeof value !== 'object') return false;
@@ -214,6 +223,15 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!isFiniteNumber(candidate.toothDepthPercent) || candidate.toothDepthPercent <= 0 || candidate.toothDepthPercent > 95) return false;
     if (!isFiniteNumber(candidate.toothSkewPercent) || candidate.toothSkewPercent < -100 || candidate.toothSkewPercent > 100) return false;
     if (typeof candidate.fillColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.fillColour)) return false;
+  }
+  if (candidate.type === 'track_bar') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!Array.isArray(candidate.trackValues) || candidate.trackValues.length !== 4 || !candidate.trackValues.every(isFiniteNumber)) return false;
+    if (!Array.isArray(candidate.trackRanges) || candidate.trackRanges.length !== 4 || !candidate.trackRanges.every(isTrackRangeTuple)) return false;
+    if (!Array.isArray(candidate.labels) || candidate.labels.length !== 4 || !candidate.labels.every((label) => typeof label === 'string')) return false;
+    if (typeof candidate.barColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.barColour)) return false;
+    if (!isFiniteNumber(candidate.backgroundOpacity) || candidate.backgroundOpacity < 0 || candidate.backgroundOpacity > 1) return false;
   }
   return true;
 };

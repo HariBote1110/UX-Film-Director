@@ -1,6 +1,20 @@
 # 進捗ログ
 
 ## 2026-06-21
+- 93カスタムトラックバーをRust生成オブジェクトへ追加した。
+- Red: `script/93/カスタムトラックバー.obj` を、Rust `GeneratedTrackBar` mediaとして扱う境界契約を作った。
+- Green: `TrackBarObject` と `buildAviUtlTrackBarObject` を追加し、Timeline右クリックから `トラックバーを追加` / `Add Track Bar` で置けるようにした。
+- Green: `rustSceneSnapshot` / shared renderer native support / Rust core schema / Rust backendに `GeneratedTrackBar` を追加した。
+- Green: Rust backendで透明背景、低透明度背景レーン、4本の決定的な進捗バーを生成できるようにした。
+- Green: `custom-track-bar` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-271a` に更新した。
+- 検証: `npm test -- --run src/utils/trackBarObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/e2e/allReadableMedia.e2e.test.ts --reporter=dot` は83件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は9件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_track_bar_source_frame_contains_bars_and_background -- --nocapture` は1件成功した。
+- 検証: 対象名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足、`mp4box` 型定義不足、`heavyEffectsStress.test.ts` の `PositionKeyframe` 未定義のみ検出した。
+- 残課題: 現時点の `GeneratedTrackBar` は元スクリプトのLua/GDI風テキスト描画をRust側ラスタバー生成へ置き換えた互換再実装で、ラベル文字の直接描画は未対応。
+
+## 2026-06-21
 - Tim歯車をRust生成オブジェクトへ追加した。
 - Red: `script/てぃむ/歯車.anm` を、Rust `GeneratedGear` mediaとして扱う境界契約を作った。
 - Green: `GearObject` と `buildAviUtlGearObject` を追加し、Timeline右クリックから `歯車を追加` / `Add Gear` で置けるようにした。

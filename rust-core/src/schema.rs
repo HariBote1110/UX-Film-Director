@@ -42,6 +42,7 @@ pub enum MediaKind {
     GeneratedColourWheel,
     GeneratedGourd,
     GeneratedGear,
+    GeneratedTrackBar,
     Psd,
 }
 
@@ -64,6 +65,7 @@ pub enum ClipKind {
     GeneratedColourWheelPlane,
     GeneratedGourdPlane,
     GeneratedGearPlane,
+    GeneratedTrackBarPlane,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

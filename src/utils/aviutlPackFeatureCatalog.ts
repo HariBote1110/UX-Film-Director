@@ -247,6 +247,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '機械風UIや回転演出の素材として使いやすく、Rust側で透明背景付き歯車ラスタを決定的に生成できる。'
   },
   {
+    id: 'custom-track-bar',
+    labelJa: 'カスタムトラックバー',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/カスタムトラックバー.obj'],
+    rationaleJa: '動画内UIやパラメータ可視化に使いやすく、Rust側で4本の進捗バーを決定的に生成できる。'
+  },
+  {
     id: 'tim-motion-path',
     labelJa: 'モーションパス',
     category: 'motion',

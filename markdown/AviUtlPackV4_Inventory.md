@@ -34,6 +34,7 @@
 | P2 | 色相環 | native generated object | 色選びや解説演出に使いやすい |
 | P2 | ひょうたんTM | native generated object | くびれ付きシルエットや反復装飾に使いやすい |
 | P2 | 歯車 | native generated object | 機械風UIや回転演出の素材として使いやすい |
+| P2 | カスタムトラックバー | native generated object | 動画内UIやパラメータ可視化に使いやすい |
 | P2 | モーションパス / ベジェ軌道T | native motion preset | 既存キーフレームに接続し、弧やS字移動を少ない操作で作れる |
 | P2 | 風揺れT | native motion preset | 立ち絵や字幕に軽い揺れを付ける定番演出 |
 | P3 | Luaスクリプト互換 | script runtime later | 安全性、性能、ライセンス確認が大きい |

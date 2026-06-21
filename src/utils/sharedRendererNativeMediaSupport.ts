@@ -12,6 +12,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedColourWheel') return isSharedRendererNativeGeneratedColourWheelSourceSupported(reference.source);
   if (reference.kind === 'GeneratedGourd') return isSharedRendererNativeGeneratedGourdSourceSupported(reference.source);
   if (reference.kind === 'GeneratedGear') return isSharedRendererNativeGeneratedGearSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedTrackBar') return isSharedRendererNativeGeneratedTrackBarSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -320,6 +321,53 @@ const isSharedRendererNativeGeneratedGearSourceSupported = (source: string): boo
     return false;
   }
 };
+
+const isSharedRendererNativeGeneratedTrackBarSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      track_values?: unknown;
+      track_ranges?: unknown;
+      labels?: unknown;
+      bar_colour?: unknown;
+      background_opacity?: unknown;
+    };
+    return (
+      parsed.generator === 'custom-track-bar'
+      && isFiniteNumberArrayOfLength(parsed.track_values, 4)
+      && isTrackBarRangeArray(parsed.track_ranges)
+      && Array.isArray(parsed.labels)
+      && parsed.labels.length === 4
+      && parsed.labels.every((label) => typeof label === 'string' && label.length <= 64)
+      && typeof parsed.bar_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.bar_colour)
+      && typeof parsed.background_opacity === 'number'
+      && Number.isFinite(parsed.background_opacity)
+      && parsed.background_opacity >= 0
+      && parsed.background_opacity <= 1
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isFiniteNumberArrayOfLength = (value: unknown, length: number): value is number[] =>
+  Array.isArray(value)
+  && value.length === length
+  && value.every((item) => typeof item === 'number' && Number.isFinite(item));
+
+const isTrackBarRangeArray = (value: unknown): value is [number, number][] =>
+  Array.isArray(value)
+  && value.length === 4
+  && value.every((range) => (
+    Array.isArray(range)
+    && range.length === 2
+    && typeof range[0] === 'number'
+    && typeof range[1] === 'number'
+    && Number.isFinite(range[0])
+    && Number.isFinite(range[1])
+    && range[0] !== range[1]
+  ));
 
 const isLocalNativeMediaSource = (source: string): boolean => {
   if (isWindowsLocalPath(source)) return true;

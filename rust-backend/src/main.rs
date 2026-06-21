@@ -216,6 +216,16 @@ struct GeneratedGearSource {
     fill_colour: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedTrackBarSource {
+    generator: String,
+    track_values: Vec<f32>,
+    track_ranges: Vec<[f32; 2]>,
+    labels: Vec<String>,
+    bar_colour: String,
+    background_opacity: f32,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2198,6 +2208,7 @@ fn collect_native_render_sources(
             MediaKind::GeneratedColourWheel => build_generated_colour_wheel_source_frame(media)?,
             MediaKind::GeneratedGourd => build_generated_gourd_source_frame(media)?,
             MediaKind::GeneratedGear => build_generated_gear_source_frame(media)?,
+            MediaKind::GeneratedTrackBar => build_generated_track_bar_source_frame(media)?,
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform => continue,
@@ -2843,6 +2854,106 @@ fn trapezoid_tooth_factor(phase: f32) -> f32 {
     }
 }
 
+fn build_generated_track_bar_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedTrackBar media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let track_bar: GeneratedTrackBarSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedTrackBar media '{}': {error}", media.id))?;
+    validate_generated_track_bar_source(&track_bar)
+        .map_err(|message| format!("Invalid GeneratedTrackBar media '{}': {message}", media.id))?;
+    let [red, green, blue] = parse_hex_colour_source(&track_bar.bar_colour)
+        .map_err(|message| format!("Invalid GeneratedTrackBar media '{}': {message}", media.id))?;
+
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedTrackBar media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedTrackBar media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+
+    let margin = (media.width.min(media.height) as f32 * 0.066)
+        .max(6.0)
+        .round() as i32;
+    let row_count = track_bar.track_values.len() as i32;
+    let gap = (media.height as f32 * 0.06).max(4.0).round() as i32;
+    let row_height =
+        ((media.height as i32 - margin * 2 - gap * (row_count - 1)) / row_count).max(4);
+    let label_width = (media.width as f32 * 0.28).round() as i32;
+    let bar_left = margin + label_width;
+    let bar_right = media.width as i32 - margin;
+    let bar_width = (bar_right - bar_left).max(1);
+    let bg_alpha = (track_bar.background_opacity.clamp(0.0, 1.0) * 255.0).round() as u8;
+
+    for index in 0..track_bar.track_values.len() {
+        let top = margin + index as i32 * (row_height + gap);
+        let bottom = (top + row_height).min(media.height as i32 - margin);
+        fill_rect_rgba(
+            &mut pixels,
+            media.width,
+            media.height,
+            margin,
+            top,
+            media.width as i32 - margin,
+            bottom,
+            [red, green, blue, bg_alpha],
+        );
+
+        let value = track_bar.track_values[index];
+        let [min, max] = track_bar.track_ranges[index];
+        let progress = ((value - min) / (max - min)).clamp(0.0, 1.0);
+        let fill_right = bar_left + (bar_width as f32 * progress).round() as i32;
+        fill_rect_rgba(
+            &mut pixels,
+            media.width,
+            media.height,
+            bar_left,
+            top + 2,
+            fill_right.max(bar_left + 1),
+            bottom - 2,
+            [red, green, blue, 255],
+        );
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedTrackBar media frame is invalid: {error:?}"))
+}
+
+fn fill_rect_rgba(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    left: i32,
+    top: i32,
+    right: i32,
+    bottom: i32,
+    colour: [u8; 4],
+) {
+    let left = left.clamp(0, width as i32);
+    let right = right.clamp(0, width as i32);
+    let top = top.clamp(0, height as i32);
+    let bottom = bottom.clamp(0, height as i32);
+    if left >= right || top >= bottom {
+        return;
+    }
+    for y in top..bottom {
+        for x in left..right {
+            write_particle_pixel(pixels, width, height, x, y, colour);
+        }
+    }
+}
+
 fn validate_generated_particle_source(source: &GeneratedParticleSource) -> Result<(), String> {
     if source.generator != "standard-particle" {
         return Err("generator must be standard-particle".to_string());
@@ -2988,6 +3099,43 @@ fn validate_generated_gear_source(source: &GeneratedGearSource) -> Result<(), St
         return Err("tooth_skew_percent must be -100..100".to_string());
     }
     parse_hex_colour_source(&source.fill_colour)?;
+    Ok(())
+}
+
+fn validate_generated_track_bar_source(source: &GeneratedTrackBarSource) -> Result<(), String> {
+    if source.generator != "custom-track-bar" {
+        return Err("generator must be custom-track-bar".to_string());
+    }
+    if source.track_values.len() != 4 {
+        return Err("track_values must contain 4 values".to_string());
+    }
+    if source.track_ranges.len() != 4 {
+        return Err("track_ranges must contain 4 ranges".to_string());
+    }
+    if source.labels.len() != 4 {
+        return Err("labels must contain 4 values".to_string());
+    }
+    if source.track_values.iter().any(|value| !value.is_finite()) {
+        return Err("track_values must be finite".to_string());
+    }
+    for range in &source.track_ranges {
+        if !range[0].is_finite()
+            || !range[1].is_finite()
+            || (range[0] - range[1]).abs() < f32::EPSILON
+        {
+            return Err("track_ranges must be finite non-zero ranges".to_string());
+        }
+    }
+    if source.labels.iter().any(|label| label.chars().count() > 64) {
+        return Err("labels must be at most 64 characters".to_string());
+    }
+    if !source.background_opacity.is_finite()
+        || source.background_opacity < 0.0
+        || source.background_opacity > 1.0
+    {
+        return Err("background_opacity must be 0..1".to_string());
+    }
+    parse_hex_colour_source(&source.bar_colour)?;
     Ok(())
 }
 
@@ -5071,5 +5219,36 @@ mod tests {
         assert!(has_white_shape);
         assert!(has_transparent_background);
         assert!(centre_is_hole);
+    }
+
+    #[test]
+    fn generated_track_bar_source_frame_contains_bars_and_background() {
+        let media = SceneMediaReference {
+            id: "track-bar-1".to_string(),
+            kind: MediaKind::GeneratedTrackBar,
+            source: r##"{"generator":"custom-track-bar","track_values":[0,25,50,-50],"track_ranges":[[0,100],[0,100],[0,100],[-100,100]],"labels":["TrackA","TrackB","TrackC","TrackD"],"bar_colour":"#ffffff","background_opacity":0.05}"##.to_string(),
+            width: 360,
+            height: 120,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_track_bar_source_frame(&media)
+            .expect("generated track bar frame should render");
+        let has_solid_bar = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [255, 255, 255, 255]);
+        let has_low_alpha_background = frame.pixels.chunks_exact(4).any(|rgba| {
+            rgba[0] == 255 && rgba[1] == 255 && rgba[2] == 255 && rgba[3] > 0 && rgba[3] < 32
+        });
+        let has_transparent_background = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [0, 0, 0, 0]);
+
+        assert!(has_solid_bar);
+        assert!(has_low_alpha_background);
+        assert!(has_transparent_background);
     }
 }

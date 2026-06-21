@@ -7,6 +7,7 @@ import { buildAviUtlColourWheelObject } from '../utils/colourWheelObjectFactory'
 import { buildAviUtlGearObject } from '../utils/gearObjectFactory';
 import { buildAviUtlGourdObject } from '../utils/gourdObjectFactory';
 import { buildAviUtlPuzzlePieceObject } from '../utils/puzzlePieceObjectFactory';
+import { buildAviUtlTrackBarObject } from '../utils/trackBarObjectFactory';
 import {
   buildAviUtlAuraEmissionObject,
   buildAviUtlBubbleObject,
@@ -248,6 +249,17 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
     onClose();
   };
 
+  const handleAddTrackBar = () => {
+    addObject(buildAviUtlTrackBarObject({
+      id: crypto.randomUUID(),
+      projectWidth: projectSettings.width,
+      projectHeight: projectSettings.height,
+      startTime: state.time,
+      layer: state.layer,
+    }));
+    onClose();
+  };
+
   const ensureObjectSelection = (objectId: string) => {
     if (!selectedIds.includes(objectId)) {
       selectObject(objectId);
@@ -293,11 +305,12 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddPuzzlePiece}>{language === 'en' ? 'Add Puzzle Piece' : 'パズルピースを追加'}</div>
             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddParticle}>{language === 'en' ? 'Add Standard Particle' : '標準パーティクルを追加'}</div>
             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddAuraEmission}>{language === 'en' ? 'Add Aura Emission' : 'オーラ放出を追加'}</div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddBubble}>{language === 'en' ? 'Add Bubbles' : '泡を追加'}</div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddFocusLines}>{language === 'en' ? 'Add Focus Lines' : '集中線を追加'}</div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddInkSplash}>{language === 'en' ? 'Add Ink Splash' : 'インクを追加'}</div>
-        </>
-      )}
+             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddBubble}>{language === 'en' ? 'Add Bubbles' : '泡を追加'}</div>
+             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddFocusLines}>{language === 'en' ? 'Add Focus Lines' : '集中線を追加'}</div>
+             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddInkSplash}>{language === 'en' ? 'Add Ink Splash' : 'インクを追加'}</div>
+             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddTrackBar}>{language === 'en' ? 'Add Track Bar' : 'トラックバーを追加'}</div>
+         </>
+       )}
       {state.type === 'object' && state.targetObjectId && (
          <>
             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { splitObject(); onClose(); }}>{t('split')}</div>
