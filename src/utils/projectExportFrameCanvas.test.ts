@@ -4,6 +4,7 @@ import {
   buildProjectExportFrameSourcePlan,
   createSingleUseProjectExportFrameSourceCloser,
   formatProjectExportRustFrameSourceUnavailableDetail,
+  hasProjectExportNativeRenderMediaObjects,
   resolveProjectExportRustFrameSourceContext,
   resolveProjectExportFrameSourcePolicyForEncode,
   resolveProjectExportFrameRuntimePlan,
@@ -11,7 +12,7 @@ import {
   shouldSynchroniseTimelineForProjectExportFrame,
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
-import type { AudioObject, ImageObject, PsdObject, ShapeObject, TimelineObject, VideoObject } from '../types';
+import type { AudioObject, ImageObject, ParticleObject, PsdObject, ShapeObject, TimelineObject, VideoObject } from '../types';
 
 const source = () =>
   readFileSync(new URL('./projectExportFrameCanvas.ts', import.meta.url), 'utf8');
@@ -137,6 +138,35 @@ const psd = (patch: Partial<PsdObject> = {}): PsdObject => ({
   height: 768,
   scale: 1,
   activeLayerIds: {},
+  ...patch,
+});
+
+const particle = (patch: Partial<ParticleObject> = {}): ParticleObject => ({
+  id: 'particle-1',
+  type: 'particle',
+  name: '標準パーティクル',
+  layer: 3,
+  startTime: 0,
+  duration: 5,
+  x: 960,
+  y: 540,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 960,
+  endY: 540,
+  easing: 'linear',
+  width: 640,
+  height: 360,
+  particleCount: 32,
+  seed: 93,
+  spread: 180,
+  speed: 120,
+  size: 6,
+  colour: '#ffffff',
+  lifetimeSeconds: 1.5,
   ...patch,
 });
 
@@ -555,6 +585,25 @@ describe('resolveProjectExportRustFrameSourceContext', () => {
   it('marks shape-only MVP exports as native-render media instead of legacy canvas work', () => {
     const objects: TimelineObject[] = [shape(), audio()];
 
+    expect(resolveProjectExportRustFrameSourceContext({
+      objects,
+      time: 0,
+      encodeEngine: 'webCodecsMp4Muxer',
+      presentedFrameSharedFrameTaker: undefined,
+    })).toEqual({
+      objects,
+      hasVideoObjects: false,
+      hasNativeRenderMediaObjects: true,
+      time: 0,
+      preferEncodeOnly: false,
+      presentedFrameSharedFrameTaker: undefined,
+    });
+  });
+
+  it('marks standard particle exports as native-render media instead of legacy canvas work', () => {
+    const objects: TimelineObject[] = [particle(), audio()];
+
+    expect(hasProjectExportNativeRenderMediaObjects(objects)).toBe(true);
     expect(resolveProjectExportRustFrameSourceContext({
       objects,
       time: 0,
