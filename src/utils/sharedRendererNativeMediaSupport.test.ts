@@ -202,6 +202,12 @@ const media: RustSceneMediaReference[] = [{
   width: 360,
   height: 360,
 }, {
+  id: 'tone-curve-1',
+  kind: 'GeneratedToneCurve' as RustSceneMediaReference['kind'],
+  source: '{"generator":"simple-tone-curve","grid_divisions":4,"line_width":3,"curve_points":[0,0.16,0.42,0.7,1],"curve_colour":"#ffffff","grid_colour":"#333333","background_colour":"#000000"}',
+  width: 360,
+  height: 360,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -264,8 +270,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[25])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[26])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[27])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[28])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[28])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[29])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[30])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {
@@ -291,6 +298,10 @@ describe('sharedRendererNativeMediaSupport', () => {
     })).toBe(true);
     expect(canRenderSharedRendererNativeMediaOnlyFrame({
       snapshot: snapshotWithMedia('solid-1', 'shaking-polygon-1'),
+      media,
+    })).toBe(true);
+    expect(canRenderSharedRendererNativeMediaOnlyFrame({
+      snapshot: snapshotWithMedia('solid-1', 'tone-curve-1'),
       media,
     })).toBe(true);
     expect(canRenderSharedRendererNativeMediaOnlyFrame({

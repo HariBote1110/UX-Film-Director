@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AsanohaPatternObject, AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -795,6 +795,34 @@ const baseShakingPolygon = (patch: Partial<ShakingPolygonObject> = {}): ShakingP
   stepped: false,
   colour: '#ffffff',
   seed: 0,
+  ...patch,
+});
+
+const baseToneCurve = (patch: Partial<ToneCurveObject> = {}): ToneCurveObject => ({
+  id: 'tone-curve-1',
+  type: 'tone_curve',
+  name: '簡易トーンカーブ',
+  layer: 27,
+  startTime: 1,
+  duration: 4,
+  x: 780,
+  y: 360,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 780,
+  endY: 360,
+  easing: 'linear',
+  width: 360,
+  height: 360,
+  gridDivisions: 4,
+  lineWidth: 3,
+  curvePoints: [0, 0.16, 0.42, 0.7, 1],
+  curveColour: '#ffffff',
+  gridColour: '#333333',
+  backgroundColour: '#000000',
   ...patch,
 });
 
@@ -1775,6 +1803,44 @@ describe('buildRustSceneSnapshotForTimeline', () => {
           stepped: false,
           colour: '#ffffff',
           seed: 0,
+        }),
+        width: 360,
+        height: 360,
+      },
+    ]);
+  });
+
+  it('builds a generated tone curve media plane from a tone curve object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseToneCurve()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated tone curve snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'tone-curve-1',
+      track_id: 'layer-27',
+      media_id: 'tone-curve-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'tone-curve-1',
+        kind: 'GeneratedToneCurve',
+        source: JSON.stringify({
+          generator: 'simple-tone-curve',
+          grid_divisions: 4,
+          line_width: 3,
+          curve_points: [0, 0.16, 0.42, 0.7, 1],
+          curve_colour: '#ffffff',
+          grid_colour: '#333333',
+          background_colour: '#000000',
         }),
         width: 360,
         height: 360,

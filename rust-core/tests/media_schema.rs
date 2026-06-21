@@ -387,3 +387,19 @@ fn rust_core_accepts_generated_shaking_polygon_media_kind_at_the_json_boundary()
     assert_eq!(media.width, 360);
     assert_eq!(media.height, 360);
 }
+
+#[test]
+fn rust_core_accepts_generated_tone_curve_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "tone-curve-1",
+        "kind": "GeneratedToneCurve",
+        "source": "{\"generator\":\"simple-tone-curve\",\"grid_divisions\":4,\"line_width\":3,\"curve_points\":[0,0.16,0.42,0.7,1],\"curve_colour\":\"#ffffff\",\"grid_colour\":\"#333333\",\"background_colour\":\"#000000\"}",
+        "width": 360,
+        "height": 360
+    }))
+    .expect("GeneratedToneCurve media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedToneCurve);
+    assert_eq!(media.width, 360);
+    assert_eq!(media.height, 360);
+}
