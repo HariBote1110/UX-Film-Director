@@ -11,6 +11,7 @@ import {
 } from './sharedRendererExportFrameSource';
 import type { SharedRendererViewportVideoDecodeJob } from './sharedRendererViewportVideoUpload';
 import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
+import type { RustBackendAudioWaveformSamplesPayload } from './rustBackendAudioWaveformControl';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -1614,7 +1615,7 @@ describe('createSharedRendererExportFrameSource', () => {
           detail: 'no video',
           activeJobs: [],
         }),
-        requestAudioWaveformSamples: async (payload) => {
+        requestAudioWaveformSamples: async (payload: RustBackendAudioWaveformSamplesPayload) => {
           calls.push(['requestAudioWaveformSamples', payload]);
           return {
             success: true,

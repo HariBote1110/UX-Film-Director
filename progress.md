@@ -1,3 +1,20 @@
+## 2026-06-21 — Audio waveform Rをexport native encode payloadへ接続
+
+### 実施内容
+- Red: export frame sourceがGeneratedAudioWaveformのPCMを要求し、direct native encode payloadへ `audioWaveforms` を渡す契約を追加した。
+- Green: preview native renderで使う `prepareNativeRenderAudioWaveforms` をexport側でも再利用できるようにした。
+- Green: `RustBackendVideoEncodeWriteNativeFramePayload` に `audioWaveforms` を追加し、direct native encodeとnative shared-frame fallbackの両方に渡すようにした。
+- Green: exportテストのmock PCM要求に型注釈を追加し、対象TypeScriptエラーを解消した。
+- 版を `0.1.1-Beta-250a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/sharedRendererExportFrameSource.test.ts src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/rustBackendVideoEncodeControl.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererExportFrameSource|sharedRendererViewportNativeRenderUpload|rustBackendVideoEncodeControl|rustBackendNativeRenderControl"`
+
+### 結果・残課題
+- TS対象66件が成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- Audio waveform Rはpreview/exportのnative payload境界まで接続済み。次は実ウィンドウ/E2Eで代表素材に効果を載せ、表示とエンコード結果を確認する。
+
 ## 2026-06-21 — Audio waveform Rをnative render payloadへ接続
 
 ### 実施内容

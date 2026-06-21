@@ -26,6 +26,11 @@ import {
   type PrepareSharedRendererViewportNativeRenderSourcesResult,
   type SharedRendererViewportNativeRenderSource,
 } from './sharedRendererViewportNativeRenderSource';
+import { prepareNativeRenderAudioWaveforms } from './sharedRendererViewportNativeRenderUpload';
+import {
+  requestRustBackendAudioWaveformSamples,
+  type RustBackendAudioWaveformBridge,
+} from './rustBackendAudioWaveformControl';
 import type { SharedRendererViewportVideoDecodeJob } from './sharedRendererViewportVideoUpload';
 import { stopRustBackendVideoDecode } from './rustBackendVideoDecodeControl';
 import type { RustBackendResult } from './rustBackendVideoDecodeControl';
@@ -116,6 +121,7 @@ export interface CreateSharedRendererExportFrameSourceInput {
   prepareNativeRenderSources?: SharedRendererExportNativeRenderSourcesPreparer;
   renderNativeSharedFrame?: SharedRendererExportNativeSharedFrameRenderer;
   releaseNativeSharedFrame?: SharedRendererExportNativeSharedFrameReleaser;
+  requestAudioWaveformSamples?: RustBackendAudioWaveformBridge['requestAudioWaveformSamples'];
 }
 
 export type SharedRendererExportProjectFrameSource = ProjectExportRustFrameSource & Required<Pick<
@@ -180,6 +186,7 @@ export function createSharedRendererExportFrameSource({
   prepareNativeRenderSources = prepareSharedRendererViewportNativeRenderSources,
   renderNativeSharedFrame: inputRenderNativeSharedFrame,
   releaseNativeSharedFrame = releaseRustBackendNativeSharedFrame,
+  requestAudioWaveformSamples = requestRustBackendAudioWaveformSamples,
 }: CreateSharedRendererExportFrameSourceInput): SharedRendererEncodeOnlyExportProjectFrameSource {
   let activeVideoDecodeJobs: SharedRendererViewportVideoDecodeJob[] = [];
   let requestId = 0;
@@ -464,6 +471,10 @@ export function createSharedRendererExportFrameSource({
     }
 
     const renderId = buildNativeRenderId(request.encodeSessionId, request.frameIndex);
+    const audioWaveforms = await prepareNativeRenderAudioWaveforms({
+      media: surfaceGate.media,
+      requestAudioWaveformSamples,
+    });
     const nativeEncodeFramePayload = {
       sessionId: request.encodeSessionId,
       renderId,
@@ -478,6 +489,7 @@ export function createSharedRendererExportFrameSource({
         slotCount: source.slotCount,
         frame: source.frame,
       })),
+      ...(audioWaveforms.length > 0 ? { audioWaveforms } : {}),
     };
     if (isDefaultNativeEncodeFrameWriterAvailable()) {
       writeFrameDiagnostics(canvas.dataset as unknown as PresenterDataset, {
@@ -516,6 +528,7 @@ export function createSharedRendererExportFrameSource({
         snapshot: nativeEncodeFramePayload.snapshot,
         media: nativeEncodeFramePayload.media,
         sources: nativeEncodeFramePayload.sources,
+        ...(audioWaveforms.length > 0 ? { audioWaveforms } : {}),
       });
     } catch (error) {
       const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);

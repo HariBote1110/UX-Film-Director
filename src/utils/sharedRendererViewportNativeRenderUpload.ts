@@ -336,7 +336,7 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
   };
 };
 
-const DEFAULT_AUDIO_WAVEFORM_SAMPLE_RATE = 8000;
+export const DEFAULT_AUDIO_WAVEFORM_SAMPLE_RATE = 8000;
 
 type AudioWaveformSourceMetadata = {
   generator: string;
@@ -348,7 +348,7 @@ type AudioWaveformSourceMetadata = {
   amplitude: number;
 };
 
-const prepareNativeRenderAudioWaveforms = async ({
+export const prepareNativeRenderAudioWaveforms = async ({
   media,
   requestAudioWaveformSamples,
 }: {

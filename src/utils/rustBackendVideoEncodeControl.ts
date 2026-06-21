@@ -7,6 +7,7 @@ import type {
   RustBackendVideoDecodeColour,
 } from './rustBackendVideoDecodeControl';
 import type {
+  RustBackendNativeRenderAudioWaveform,
   RustBackendNativeRenderSharedFrameSource,
 } from './rustBackendNativeRenderControl';
 import type {
@@ -43,6 +44,7 @@ export interface RustBackendVideoEncodeWriteNativeFramePayload {
   snapshot: RustSceneSnapshot;
   media: readonly RustSceneMediaReference[];
   sources: readonly RustBackendNativeRenderSharedFrameSource[];
+  audioWaveforms?: readonly RustBackendNativeRenderAudioWaveform[];
 }
 
 export interface RustBackendVideoTranscodePayload {
