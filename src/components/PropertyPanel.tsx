@@ -19,6 +19,7 @@ import { buildOverlayPositionKeyframesFromVisionTrack } from '../utils/visionTra
 import { buildSubjectCropKeyframesFromVisionTrackSamples } from '../utils/subjectCropKeyframes';
 import { buildAspectLockedScalePatch } from '../utils/aspectRatioScale';
 import { buildAviUtlMotionPresetPatch, getAviUtlPackMotionPresets, type AviUtlMotionPresetId } from '../utils/aviutlMotionPresets';
+import { applyAviUtlEffectPresetToObject, getAviUtlPackEffectPresets, type AviUtlEffectPresetId } from '../utils/aviutlEffectPresets';
 import type { VisionNormBoundingBox } from '../utils/visionTrackingGeometry';
 
 const Slider = ({
@@ -928,6 +929,7 @@ const PropertyPanel: React.FC = () => {
   const canEditKeyframes = selectedObject.type !== 'audio';
   const keyframes = (selectedObject.keyframes ?? []).slice().sort((a, b) => a.time - b.time);
   const aviUtlMotionPresets = getAviUtlPackMotionPresets();
+  const aviUtlEffectPresets = getAviUtlPackEffectPresets();
 
   const applyKeyframes = (nextKeyframes: PositionKeyframe[]) => {
     const sorted = nextKeyframes.slice().sort((a, b) => a.time - b.time);
@@ -996,6 +998,21 @@ const PropertyPanel: React.FC = () => {
       selectedObject.id,
       buildAviUtlMotionPresetPatch(selectedObject, presetId) as Partial<TimelineObject>
     );
+  };
+
+  const handleApplyAviUtlEffectPreset = (presetId: AviUtlEffectPresetId) => {
+    pushHistory();
+    const nextObject = applyAviUtlEffectPresetToObject(selectedObject, presetId);
+    const nextFilters = nextObject.filters ?? [];
+    updateObject(selectedObject.id, {
+      filters: nextFilters,
+      colorCorrection: nextObject.colorCorrection,
+      customClipping: nextObject.customClipping,
+      vibration: nextObject.vibration,
+      shadow: nextObject.shadow,
+      ...(nextObject.type === 'shape' ? { gradient: nextObject.gradient } : {})
+    } as Partial<TimelineObject>);
+    setActiveFilterId(nextFilters[nextFilters.length - 1]?.id ?? null);
   };
 
   const handlePsdLayerToggle = (seq: string | null) => {
@@ -1295,6 +1312,18 @@ const PropertyPanel: React.FC = () => {
             {canUseGradientFilter && (
                 <button type="button" onClick={() => handleAddFilter('gradient')}>+ {filterLabel.gradient}</button>
             )}
+        </div>
+        <SectionHeader label="AviUtl Effects" />
+        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '8px' }}>
+            {aviUtlEffectPresets.map((preset) => (
+                <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => handleApplyAviUtlEffectPreset(preset.id)}
+                >
+                    + {preset.labelJa}
+                </button>
+            ))}
         </div>
         <div style={{ border: '1px solid #333', borderRadius: '4px', overflow: 'hidden', marginBottom: '8px' }}>
             {filters.length === 0 && (

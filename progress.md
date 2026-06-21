@@ -1,3 +1,19 @@
+## 2026-06-21 — AviUtlPackV4 P1効果プリセットをPropertyPanelへ追加
+
+### 実施内容
+- Red: `PropertyPanel` がAviUtlPackV4効果プリセットをFilter Stack周辺に露出する契約を追加した。
+- Green: `AviUtl Effects` セクションを追加し、輝度ワイプ近似、縁取りT近似、扇クリッピング近似をボタンから追加できるようにした。
+- Green: 追加後は末尾の新規filterを編集中filterとして選択するようにした。
+- 版を `0.1.1-Beta-239a` に更新した。
+
+### 検証
+- `npm test -- --run src/components/PropertyPanelBoundary.test.ts src/utils/aviutlEffectPresets.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "src/components/PropertyPanel|PropertyPanel|src/utils/aviutlEffectPresets|aviutlEffectPresets"`
+
+### 結果・残課題
+- UI境界テスト3件と効果プリセット単体テスト3件が成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- P1効果は現時点では既存Filter Stackへの近似。Rust/WebGPU本実装は次の段階で境界型から広げる。
+
 ## 2026-06-21 — AviUtlPackV4 P1効果プリセット中核を追加
 
 ### 実施内容
