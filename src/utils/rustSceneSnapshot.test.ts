@@ -707,6 +707,42 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('serialises clipping filters as Rust scene effects', () => {
+    const layers = createDefaultLayers();
+    const clipped = baseImage({
+      id: 'clipped',
+      filters: [
+        {
+          id: 'clip-1',
+          type: 'clipping',
+          enabled: true,
+          params: { top: 1, bottom: 2, left: 3, right: 4, angle: 45, radius: 0 },
+        },
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [clipped],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected clipping snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([
+      {
+        Clipping: {
+          top: 1,
+          bottom: 2,
+          left: 3,
+          right: 4,
+          angle_degrees: 45,
+        },
+      },
+    ]);
+  });
+
   it('fails loud for visible Pixi features the shared renderer cannot represent yet', () => {
     const layers = createDefaultLayers();
     const unsupportedText: TimelineObject = {

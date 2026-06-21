@@ -141,3 +141,17 @@ fn rejects_invalid_wipe_effect_progress() {
 
     assert!(validation_codes(&project).contains(&ValidationCode::NonFiniteNumber));
 }
+
+#[test]
+fn rejects_invalid_clipping_effect_values() {
+    let mut project = valid_project();
+    project.tracks[0].clips[0].effects.push(Effect::Clipping {
+        top: -1.0,
+        bottom: 0.0,
+        left: 0.0,
+        right: 0.0,
+        angle_degrees: f32::INFINITY,
+    });
+
+    assert!(validation_codes(&project).contains(&ValidationCode::NonFiniteNumber));
+}

@@ -55,6 +55,13 @@ fn project_with_transform() -> Project {
                         edge: WipeEdge::Left,
                         progress: 0.5,
                     },
+                    Effect::Clipping {
+                        top: 1.0,
+                        bottom: 2.0,
+                        left: 3.0,
+                        right: 4.0,
+                        angle_degrees: 45.0,
+                    },
                 ],
             }],
         }],
@@ -195,6 +202,14 @@ fn scene_snapshot_serialises_with_renderer_boundary_field_names() {
                     "Wipe": {
                         "edge": "left",
                         "progress": 0.5
+                    }
+                }, {
+                    "Clipping": {
+                        "top": 1.0,
+                        "bottom": 2.0,
+                        "left": 3.0,
+                        "right": 4.0,
+                        "angle_degrees": 45.0
                     }
                 }]
             }]
