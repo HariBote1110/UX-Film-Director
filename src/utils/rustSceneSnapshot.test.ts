@@ -2621,6 +2621,47 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     });
   });
 
+  it('resolves a GetColor V2R sampled dot field source image from an explicit PSD object id with active layers', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [
+        basePsd({
+          id: 'sample-psd-explicit-1',
+          layer: 20,
+          filePath: '/tmp/standing-source.psd',
+          src: 'blob:psd',
+          activeLayerIds: {
+            'mouth-open': true,
+            'mouth-closed': false,
+            root: true,
+            'eye-open': true,
+          },
+        }),
+        baseGetColorDotField({
+          id: 'getcolor-psd-sampled-dot-field-1',
+          name: 'GetColor V2R PSDサンプリングドット',
+          layer: 29,
+          sampleSourceObjectId: 'sample-psd-explicit-1',
+          sampleStrength: 0.75,
+        }),
+      ],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated GetColor PSD sampled dot snapshot to pass');
+
+    const getColorMedia = result.media.find((reference) => reference.id === 'getcolor-psd-sampled-dot-field-1');
+    expect(JSON.parse(getColorMedia?.source ?? '{}')).toMatchObject({
+      generator: 'getcolor-v2r-dot-field',
+      source_image: '/tmp/standing-source.psd',
+      source_active_layer_ids: ['eye-open', 'mouth-open', 'root'],
+      sample_strength: 0.75,
+    });
+  });
+
   it('serialises a 93 region frame object into the Rust generator payload', () => {
     const layers = createDefaultLayers();
     const result = buildRustSceneSnapshotForTimeline({

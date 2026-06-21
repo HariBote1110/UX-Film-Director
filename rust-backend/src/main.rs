@@ -11069,6 +11069,36 @@ mod tests {
     }
 
     #[test]
+    fn generated_getcolor_dots_source_accepts_psd_source_with_active_layer_ids() {
+        let source = GeneratedGetColorDotsSource {
+            generator: "getcolor-v2r-dot-field".to_string(),
+            columns: 2,
+            rows: 1,
+            dot_size: 36.0,
+            dot_shape: Some("circle".to_string()),
+            stroke_width: Some(0.0),
+            size_influence: 0.0,
+            luminance_influence: 0.0,
+            hue_shift_degrees: 0.0,
+            alternate_rows: false,
+            foreground_colour: "#ffffff".to_string(),
+            secondary_colour: "#36c2ff".to_string(),
+            background_colour: "#000000".to_string(),
+            source_image: Some("file:///tmp/standing-source.psd".to_string()),
+            source_active_layer_ids: Some(vec![
+                "eye-open".to_string(),
+                "mouth-open".to_string(),
+                "root".to_string(),
+            ]),
+            sample_strength: Some(0.75),
+            seed: 93,
+        };
+
+        validate_generated_getcolor_dots_source(&source)
+            .expect("GetColor PSD sample source should validate");
+    }
+
+    #[test]
     fn generated_region_frame_source_frame_renders_border_and_background() {
         let media = SceneMediaReference {
             id: "region-frame-1".to_string(),
