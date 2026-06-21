@@ -33,6 +33,7 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('audio-waveform-r')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('getcolor-v2r-dot-field')?.sourceRelativePaths).toContain('script/@GetColor/@GetColor-V2R.anm');
     expect(byId.get('getcolor-v2r-diamond-dots')?.implementationTarget).toBe('native-generated-object');
+    expect(byId.get('getcolor-v2r-outlined-square-dots')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('hksy-checker-grid')?.sourceRelativePaths).toContain('script/@hksy/@hksy.obj');
     expect(byId.get('hksy-line')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('hksy-multi-colour-checker')?.implementationTarget).toBe('native-generated-object');
@@ -106,6 +107,7 @@ describe('AviUtlPackV4 feature catalogue', () => {
     const priorityIds = [
       'getcolor-v2r-dot-field',
       'getcolor-v2r-diamond-dots',
+      'getcolor-v2r-outlined-square-dots',
       '93-audio-sphere',
       '93-delay-move',
       '93-spotlight',
@@ -117,6 +119,6 @@ describe('AviUtlPackV4 feature catalogue', () => {
       'hksy-anchor-line'
     ];
 
-    expect(roadmapIds.slice(0, 24)).toEqual(expect.arrayContaining(priorityIds));
+    expect(roadmapIds.slice(0, 25)).toEqual(expect.arrayContaining(priorityIds));
   });
 });

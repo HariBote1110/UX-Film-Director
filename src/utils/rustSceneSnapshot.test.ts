@@ -2313,6 +2313,52 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('serialises a GetColor V2R outlined square dot field into the Rust generator payload', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseGetColorDotField({
+        id: 'getcolor-outlined-square-dot-field-1',
+        name: 'GetColor V2R 枠線四角ドットフィールド',
+        columns: 28,
+        rows: 16,
+        dotSize: 22,
+        dotShape: 'square',
+        strokeWidth: 5,
+      })],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated GetColor outlined square dot snapshot to pass');
+
+    expect(result.media).toEqual([
+      {
+        id: 'getcolor-outlined-square-dot-field-1',
+        kind: 'GeneratedGetColorDots',
+        source: JSON.stringify({
+          generator: 'getcolor-v2r-dot-field',
+          columns: 28,
+          rows: 16,
+          dot_size: 22,
+          size_influence: 0.65,
+          luminance_influence: 0.7,
+          hue_shift_degrees: 0,
+          alternate_rows: true,
+          foreground_colour: '#ffffff',
+          secondary_colour: '#36c2ff',
+          background_colour: '#000000',
+          seed: 93,
+          dot_shape: 'square',
+          stroke_width: 5,
+        }),
+        width: 800,
+        height: 450,
+      },
+    ]);
+  });
+
   it('builds a generated gradient plane for active rectangle shapes', () => {
     const layers = createDefaultLayers();
     const result = buildRustSceneSnapshotForTimeline({

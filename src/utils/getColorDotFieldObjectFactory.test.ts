@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildGetColorDiamondDotFieldObject, buildGetColorDotFieldObject } from './getColorDotFieldObjectFactory';
+import { buildGetColorDiamondDotFieldObject, buildGetColorDotFieldObject, buildGetColorOutlinedSquareDotFieldObject } from './getColorDotFieldObjectFactory';
 
 describe('getColorDotFieldObjectFactory', () => {
   it('builds a GetColor V2R dot field object for timeline insertion', () => {
@@ -61,6 +61,38 @@ describe('getColorDotFieldObjectFactory', () => {
       dotSize: 18,
       dotShape: 'diamond',
       strokeWidth: 0,
+      foregroundColour: '#ffffff',
+      secondaryColour: '#36c2ff',
+      backgroundColour: '#000000',
+      seed: 93,
+    });
+  });
+
+  it('builds a GetColor V2R outlined square dot field object for the line width preset', () => {
+    const object = buildGetColorOutlinedSquareDotFieldObject({
+      id: 'getcolor-outlined-square-dot-field-1',
+      projectWidth: 1920,
+      projectHeight: 1080,
+      startTime: 2.5,
+      layer: 31,
+    });
+
+    expect(object).toMatchObject({
+      id: 'getcolor-outlined-square-dot-field-1',
+      type: 'getcolor_dot_field',
+      name: 'GetColor V2R 枠線四角ドットフィールド',
+      layer: 31,
+      startTime: 2.5,
+      duration: 5,
+      x: 560,
+      y: 315,
+      width: 800,
+      height: 450,
+      columns: 28,
+      rows: 16,
+      dotSize: 22,
+      dotShape: 'square',
+      strokeWidth: 5,
       foregroundColour: '#ffffff',
       secondaryColour: '#36c2ff',
       backgroundColour: '#000000',
