@@ -1,3 +1,24 @@
+## 2026-06-21 — 静的PSD overlayをffmpeg fast pathへ接続
+
+### 実施内容
+- Red: `resolveProjectExportVideoTranscodeFastPath` が動画1本+静的PSDを `kind: 'psd'` overlayとして受け入れる契約を追加した。
+- Red: Rust backend `encode.transcodeVideo` がPSD overlayを受け取り、出力MP4を生成する契約を追加した。
+- Green: TS resolverでPSDの `filePath` / `activeLayerIds` / `scale` / opacityをdirect transcode overlayへ渡すようにした。
+- Green: Rust backendでPSDを一度だけparse/compositeし、一時RGBA入力としてffmpeg `overlay` filterへ渡すようにした。
+- Green: lip sync有効PSDと3D world placement有効PSDは、動的表現が必要なためfast path対象外のままにした。
+
+### 検証
+- `npm test -- --run src/utils/projectExportVideoTranscodeFastPath.test.ts`
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane encode_transcode_video_accepts_static_psd_overlay_filters -- --nocapture`
+- `npm test -- --run src/utils/rustBackendVideoEncodeControl.test.ts src/utils/projectExportVideoTranscodeFastPath.test.ts src/utils/useProjectExportBoundary.test.ts src/utils/rustSceneSnapshot.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "src/utils/projectExportVideoTranscodeFastPath|src/utils/rustBackendVideoEncodeControl|src/hooks/useProjectExport|src/vite-env|rustSceneSnapshot"`
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane encode_transcode_video -- --nocapture`
+
+### 結果・残課題
+- PSD overlay単体契約はGreen。関連TSテストは57件成功、Rust transcode系テストは7件成功。
+- 前段の混在ffmpeg fast pathは `/Volumes/ExtendSSD-W/GX020052.MP4` 5秒素材で300 frames、5507ms、約54.48fpsまで出た。
+- 次は実Electron E2Eで動画+PSD+音声をUI投入し、direct transcode経路・見た目・速度を確認する。回転PSD、lip sync PSD、複数動画はまだnative render経路。
+
 ## 2026-06-21 — 混在メディアをffmpeg fast pathへ接続
 
 ### 実施内容
@@ -17,9 +38,10 @@
 
 ### 結果・残課題
 - 混在メディアE2Eは `Rust backend direct transcode` に入り、60frameを2060ms、約29.13fpsで出力した。
+- `/Volumes/ExtendSSD-W/GX020052.MP4` の5秒混在E2Eは300 frames、5507ms、約54.48fpsで成功した。
 - 前回のper-frame native render経路は約13.1秒/4.58fpsだったため、短尺条件では大幅改善。
 - 出力MP4には `video` と `audio` streamの両方が存在した。
-- 次は5秒以上の実素材で平均速度を測り、30fps超を安定させる。回転・複数動画・PSD overlayはまだnative render経路。
+- 5秒以上では30fps超を確認済み。回転・複数動画・動的PSD overlayはまだnative render経路。
 
 ## 2026-06-21 — 混在native render export高速化の初回実測
 

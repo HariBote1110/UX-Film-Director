@@ -155,6 +155,16 @@ interface Window {
             height: number;
             opacity: number;
           }
+        | {
+            kind: 'psd';
+            path: string;
+            activeLayerIds: string[];
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+            opacity: number;
+          }
       >;
       audioPath?: string | null;
       qualityPreset?: string;

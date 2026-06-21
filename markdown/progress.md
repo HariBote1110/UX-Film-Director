@@ -1,6 +1,19 @@
 # 進捗ログ
 
 ## 2026-06-21
+- 静的PSD overlayを、per-frame native renderではなく `encode.transcodeVideo` のffmpeg filter fast pathへ載せた。
+- Red: `resolveProjectExportVideoTranscodeFastPath` に、動画1本+静的PSDを `kind: 'psd'` overlayとして受け入れる契約を追加した。
+- Red: Rust backend `encode.transcodeVideo` に、PSD overlayを受け取り `overlayCount` 付きで出力できる契約を追加した。
+- Green: TS resolverがPSDの `filePath` / `activeLayerIds` / `scale` / opacityをRust transcode overlayへ渡すようにした。lip sync有効PSDと3D world placement有効PSDは引き続きfast path対象外。
+- Green: Rust backendがPSDを一度だけparse/compositeし、一時RGBA入力としてffmpegへ渡して `overlay` filterで合成するようにした。
+- 検証: `npm test -- --run src/utils/projectExportVideoTranscodeFastPath.test.ts` は9件成功。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane encode_transcode_video_accepts_static_psd_overlay_filters -- --nocapture` は1件成功。
+- 検証: `npm test -- --run src/utils/rustBackendVideoEncodeControl.test.ts src/utils/projectExportVideoTranscodeFastPath.test.ts src/utils/useProjectExportBoundary.test.ts src/utils/rustSceneSnapshot.test.ts` は57件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane encode_transcode_video -- --nocapture` は7件成功。
+- 補足実測: 前段の混在ffmpeg fast pathは `/Volumes/ExtendSSD-W/GX020052.MP4` 5秒素材で300 frames、5507ms、約54.48fpsまで出た。
+- 残課題: 実Electron E2Eで動画+PSD+音声をUI投入して、direct transcode経路・見た目・速度を確認する。回転PSD、lip sync PSD、複数動画はまだnative render経路。
+
+## 2026-06-21
 - 動画1本+静的図形/画像+音声を、per-frame native renderではなく `encode.transcodeVideo` のffmpeg filter fast pathへ載せた。
 - Red: `resolveProjectExportVideoTranscodeFastPath` に、動画+矩形+画像+音声を `overlays` / `requiresAudioMix` 付きfast pathとして受け入れる契約を追加した。
 - Red: Rust backend `encode.transcodeVideo` に `overlays` を渡し、`overlayCount` を返す契約を追加した。
@@ -12,7 +25,8 @@
 - 検証: `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane encode_transcode_video -- --nocapture` は6件成功。
 - 実測: `UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA=1 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=1 UXFD_VIDEO_EXPORT_E2E_TIMEOUT_MS=240000 npm run test:video-export:e2e` は成功。`Rust backend direct transcode` で60 frames、2060ms、約29.13fps。前回標準混在経路の約13.1秒/4.58fpsから大きく改善した。
 - 検証: 出力MP4を `ffprobe` で確認し、`video` / `audio` streamの両方が存在した。
-- 残課題: 1秒短尺では29fps付近。次は5秒以上の実素材で平均値を取り、画像overlay/filter_complex込みで30fps超を安定させる。回転・複数動画・PSD overlayはまだnative render経路。
+- 実測: `/Volumes/ExtendSSD-W/GX020052.MP4` の5秒混在E2Eは300 frames、5507ms、約54.48fpsで成功した。
+- 残課題: 1秒短尺では29fps付近。5秒以上では30fps超を確認済み。回転・複数動画・動的PSD overlayはまだnative render経路。
 
 ## 2026-06-21
 - 混在native render export高速化の第一段として、Rust encode exportのrender-ahead深度を `VITE_UXFD_RUST_EXPORT_RENDER_AHEAD_FRAMES` で調整できるようにした。

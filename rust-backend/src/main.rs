@@ -5,10 +5,11 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, BufRead, Read, Write};
+use std::path::PathBuf;
 use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use uxfd_golden_harness::{load_rgba_jpeg, load_rgba_png, RgbaFrame};
 use uxfd_native_wgpu_renderer::{NativeWgpuRenderError, NativeWgpuRenderer};
 use uxfd_rust_core::{EvaluatedClip, MediaKind, SamplingMode, SceneMediaReference, SceneSnapshot};
@@ -292,6 +293,33 @@ struct EncodeTranscodeVideoOverlayParams {
     opacity: Option<f64>,
     #[serde(default)]
     path: Option<String>,
+    #[serde(default)]
+    active_layer_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+struct NormalisedTranscodeOverlay {
+    kind: NormalisedTranscodeOverlayKind,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    opacity: f64,
+}
+
+#[derive(Debug, Clone)]
+enum NormalisedTranscodeOverlayKind {
+    SolidColour {
+        colour: String,
+    },
+    Image {
+        path: String,
+    },
+    RawRgbaImage {
+        path: PathBuf,
+        source_width: u32,
+        source_height: u32,
+    },
 }
 
 fn normalise_transcode_quality_preset(value: Option<&str>) -> &'static str {
@@ -914,7 +942,7 @@ fn emit_transcode_progress_event(
 
 fn normalise_transcode_overlays(
     overlays: &[EncodeTranscodeVideoOverlayParams],
-) -> Result<Vec<EncodeTranscodeVideoOverlayParams>, String> {
+) -> Result<Vec<NormalisedTranscodeOverlay>, String> {
     overlays
         .iter()
         .map(|overlay| {
@@ -932,15 +960,13 @@ fn normalise_transcode_overlays(
                         "solidColour overlay colour must not be empty".to_string()
                     })?;
                     let colour = normalise_hex_colour(colour)?;
-                    Ok(EncodeTranscodeVideoOverlayParams {
-                        kind: overlay.kind.clone(),
+                    Ok(NormalisedTranscodeOverlay {
+                        kind: NormalisedTranscodeOverlayKind::SolidColour { colour },
                         x: overlay.x,
                         y: overlay.y,
                         width: overlay.width,
                         height: overlay.height,
-                        colour: Some(colour),
-                        opacity: Some(opacity),
-                        path: None,
+                        opacity,
                     })
                 }
                 "image" => {
@@ -950,21 +976,76 @@ fn normalise_transcode_overlays(
                         .map(str::trim)
                         .filter(|value| !value.is_empty())
                         .ok_or_else(|| "image overlay path must not be empty".to_string())?;
-                    Ok(EncodeTranscodeVideoOverlayParams {
-                        kind: overlay.kind.clone(),
+                    Ok(NormalisedTranscodeOverlay {
+                        kind: NormalisedTranscodeOverlayKind::Image {
+                            path: path.to_string(),
+                        },
                         x: overlay.x,
                         y: overlay.y,
                         width: overlay.width,
                         height: overlay.height,
-                        colour: None,
-                        opacity: Some(opacity),
-                        path: Some(path.to_string()),
+                        opacity,
+                    })
+                }
+                "psd" => {
+                    let path = overlay
+                        .path
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                        .ok_or_else(|| "psd overlay path must not be empty".to_string())?;
+                    let (raw_path, source_width, source_height) =
+                        prepare_psd_overlay_raw_rgba(path, &overlay.active_layer_ids)?;
+                    Ok(NormalisedTranscodeOverlay {
+                        kind: NormalisedTranscodeOverlayKind::RawRgbaImage {
+                            path: raw_path,
+                            source_width,
+                            source_height,
+                        },
+                        x: overlay.x,
+                        y: overlay.y,
+                        width: overlay.width,
+                        height: overlay.height,
+                        opacity,
                     })
                 }
                 _ => Err(format!("unsupported overlay kind: {}", overlay.kind)),
             }
         })
         .collect()
+}
+
+fn prepare_psd_overlay_raw_rgba(
+    source: &str,
+    active_layer_ids: &[String],
+) -> Result<(PathBuf, u32, u32), String> {
+    let source_path = local_media_source_path(source, "Psd overlay")?;
+    let bytes = fs::read(&source_path)
+        .map_err(|error| format!("psd overlay failed to read source: {error}"))?;
+    let psd = psd_fast::parse_psd_fast(&bytes)
+        .map_err(|error| format!("psd overlay failed to parse source: {error}"))?;
+    let frame =
+        psd_fast::composite_visible_psd_layers_with_active_layer_ids(&psd, active_layer_ids)
+            .map_err(|error| format!("psd overlay failed to composite source: {error}"))?;
+    let micros = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_micros();
+    let path = std::env::temp_dir().join(format!(
+        "uxfd-transcode-psd-{}-{micros}.rgba",
+        std::process::id()
+    ));
+    fs::write(&path, &frame.pixels)
+        .map_err(|error| format!("psd overlay failed to write temporary RGBA input: {error}"))?;
+    Ok((path, frame.width, frame.height))
+}
+
+fn remove_temporary_transcode_overlay_inputs(overlays: &[NormalisedTranscodeOverlay]) {
+    for overlay in overlays {
+        if let NormalisedTranscodeOverlayKind::RawRgbaImage { path, .. } = &overlay.kind {
+            let _ = fs::remove_file(path);
+        }
+    }
 }
 
 fn normalise_hex_colour(value: &str) -> Result<String, String> {
@@ -988,17 +1069,16 @@ fn normalise_hex_colour(value: &str) -> Result<String, String> {
 
 fn build_transcode_filter_complex(
     base_filter: &str,
-    overlays: &[EncodeTranscodeVideoOverlayParams],
+    overlays: &[NormalisedTranscodeOverlay],
     overlay_inputs: &[Option<usize>],
 ) -> (String, String) {
     let mut parts = vec![format!("[0:v]{base_filter}[v0]")];
     let mut previous_label = "v0".to_string();
     for (index, overlay) in overlays.iter().enumerate() {
         let next_label = format!("v{}", index + 1);
-        match overlay.kind.as_str() {
-            "solidColour" => {
-                let colour = overlay.colour.as_deref().unwrap_or("ffffff");
-                let opacity = overlay.opacity.unwrap_or(1.0).clamp(0.0, 1.0);
+        match &overlay.kind {
+            NormalisedTranscodeOverlayKind::SolidColour { colour } => {
+                let opacity = overlay.opacity.clamp(0.0, 1.0);
                 parts.push(format!(
                     "[{previous_label}]drawbox=x={}:y={}:w={}:h={}:color=0x{}@{:.6}:t=fill[{next_label}]",
                     overlay.x,
@@ -1009,10 +1089,11 @@ fn build_transcode_filter_complex(
                     opacity
                 ));
             }
-            "image" => {
+            NormalisedTranscodeOverlayKind::Image { .. }
+            | NormalisedTranscodeOverlayKind::RawRgbaImage { .. } => {
                 let input_index = overlay_inputs[index].unwrap_or(1);
                 let overlay_label = format!("ov{index}");
-                let opacity = overlay.opacity.unwrap_or(1.0).clamp(0.0, 1.0);
+                let opacity = overlay.opacity.clamp(0.0, 1.0);
                 parts.push(format!(
                     "[{input_index}:v]scale={}:{}:force_original_aspect_ratio=disable,format=rgba,colorchannelmixer=aa={:.6}[{overlay_label}]",
                     overlay.width,
@@ -1024,7 +1105,6 @@ fn build_transcode_filter_complex(
                     overlay.x, overlay.y
                 ));
             }
-            _ => {}
         }
         previous_label = next_label;
     }
@@ -1154,20 +1234,42 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
     let mut next_input_index = 1_usize;
     let mut overlay_inputs: Vec<Option<usize>> = Vec::with_capacity(overlays.len());
     for overlay in &overlays {
-        if overlay.kind == "image" {
-            let Some(path) = overlay.path.as_deref() else {
-                return response_error(id, -32602, "image overlay path must not be empty");
-            };
-            cmd.arg("-loop")
-                .arg("1")
-                .arg("-t")
-                .arg(format!("{:.6}", parsed.duration_seconds))
-                .arg("-i")
-                .arg(path);
-            overlay_inputs.push(Some(next_input_index));
-            next_input_index += 1;
-        } else {
-            overlay_inputs.push(None);
+        match &overlay.kind {
+            NormalisedTranscodeOverlayKind::Image { path } => {
+                cmd.arg("-loop")
+                    .arg("1")
+                    .arg("-t")
+                    .arg(format!("{:.6}", parsed.duration_seconds))
+                    .arg("-i")
+                    .arg(path);
+                overlay_inputs.push(Some(next_input_index));
+                next_input_index += 1;
+            }
+            NormalisedTranscodeOverlayKind::RawRgbaImage {
+                path,
+                source_width,
+                source_height,
+            } => {
+                cmd.arg("-stream_loop")
+                    .arg("-1")
+                    .arg("-f")
+                    .arg("rawvideo")
+                    .arg("-pix_fmt")
+                    .arg("rgba")
+                    .arg("-s")
+                    .arg(format!("{}x{}", source_width, source_height))
+                    .arg("-r")
+                    .arg(parsed.fps.to_string())
+                    .arg("-t")
+                    .arg(format!("{:.6}", parsed.duration_seconds))
+                    .arg("-i")
+                    .arg(path);
+                overlay_inputs.push(Some(next_input_index));
+                next_input_index += 1;
+            }
+            NormalisedTranscodeOverlayKind::SolidColour { .. } => {
+                overlay_inputs.push(None);
+            }
         }
     }
     let audio_input_index = audio_path.map(|_| next_input_index);
@@ -1236,6 +1338,7 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
     let mut child = match cmd.spawn() {
         Ok(value) => value,
         Err(error) => {
+            remove_temporary_transcode_overlay_inputs(&overlays);
             return response_error(
                 id,
                 -32058,
@@ -1247,6 +1350,7 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
         Some(value) => value,
         None => {
             let _ = child.kill();
+            remove_temporary_transcode_overlay_inputs(&overlays);
             return response_error(id, -32058, "Failed to capture Rust transcode ffmpeg stdout");
         }
     };
@@ -1254,6 +1358,7 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
         Some(value) => value,
         None => {
             let _ = child.kill();
+            remove_temporary_transcode_overlay_inputs(&overlays);
             return response_error(id, -32058, "Failed to capture Rust transcode ffmpeg stderr");
         }
     };
@@ -1306,6 +1411,7 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
     let status = match child.wait() {
         Ok(value) => value,
         Err(error) => {
+            remove_temporary_transcode_overlay_inputs(&overlays);
             return response_error(
                 id,
                 -32059,
@@ -1314,6 +1420,7 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
         }
     };
     let stderr_detail = stderr_handle.join().unwrap_or_default().trim().to_string();
+    remove_temporary_transcode_overlay_inputs(&overlays);
 
     if !status.success() {
         let stderr_suffix = if stderr_detail.is_empty() {

@@ -1,4 +1,4 @@
-import type { AudioObject, ImageObject, ShapeObject, TimelineObject, VideoObject } from '../types';
+import type { AudioObject, ImageObject, PsdObject, ShapeObject, TimelineObject, VideoObject } from '../types';
 import { resolveVideoFsPath } from './resolveVideoFsPath';
 
 export type ProjectExportVideoTranscodeOverlay =
@@ -14,6 +14,16 @@ export type ProjectExportVideoTranscodeOverlay =
   | {
       kind: 'image';
       path: string;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      opacity: number;
+    }
+  | {
+      kind: 'psd';
+      path: string;
+      activeLayerIds: string[];
       x: number;
       y: number;
       width: number;
@@ -142,6 +152,9 @@ const resolveStaticOverlay = (
   if (object.type === 'image') {
     return resolveImageOverlay(object, opacity);
   }
+  if (object.type === 'psd') {
+    return resolvePsdOverlay(object, opacity);
+  }
   return null;
 };
 
@@ -163,6 +176,38 @@ const resolveShapeOverlay = (
     width,
     height,
     colour: shape.fill,
+    opacity,
+  };
+};
+
+const resolvePsdOverlay = (
+  psd: PsdObject,
+  opacity: number
+): ProjectExportVideoTranscodeOverlay | null => {
+  const path = psd.filePath?.trim();
+  if (!path || !/\.psd$/i.test(path)) return null;
+  if (!Number.isFinite(psd.scale) || psd.scale <= 0) return null;
+  if (psd.lipSync?.enabled) return null;
+  if (psd.worldPlacement?.enabled) return null;
+  const width = Math.round(psd.width * psd.scale * psd.scaleX);
+  const height = Math.round(psd.height * psd.scale * psd.scaleY);
+  if (width <= 0 || height <= 0) return null;
+  const activeLayerIds = Object.entries(psd.activeLayerIds ?? {})
+    .filter(([, enabled]) => enabled)
+    .map(([layerId]) => layerId)
+    .sort((left, right) => {
+      if (left === 'root') return right === 'root' ? 0 : -1;
+      if (right === 'root') return 1;
+      return left.localeCompare(right);
+    });
+  return {
+    kind: 'psd',
+    path,
+    activeLayerIds,
+    x: Math.round(psd.x),
+    y: Math.round(psd.y),
+    width,
+    height,
     opacity,
   };
 };

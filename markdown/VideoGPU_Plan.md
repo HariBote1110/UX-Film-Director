@@ -12,12 +12,13 @@
 - `UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=5 npm run test:video-export:e2e` で、300 frames / 8910ms / 約33.67fpsを確認した。
 - direct transcodeに `compact` / `speed` / `balanced` / `quality` presetを追加し、bitrateで速度・品質・容量の比較点を操作できるようにした。
 - `npm run test:video-export:quality` はPSNR/SSIM/VMAFと出力容量を出し、`UXFD_VIDEO_EXPORT_QUALITY_PRESET_MATRIX` で複数presetを同一素材・同一配置で比較できる。
-- 動画1本+静的矩形+静的画像+音声は、per-frame native renderではなく `encode.transcodeVideo` のffmpeg filter fast pathへ載る。2026-06-21の混在E2Eでは1秒60frameが2060ms、約29.13fpsで完了し、audio streamも維持できた。
+- 動画1本+静的矩形+静的画像+音声は、per-frame native renderではなく `encode.transcodeVideo` のffmpeg filter fast pathへ載る。2026-06-21の混在E2Eでは1秒60frameが2060ms、約29.13fpsで完了し、audio streamも維持できた。`/Volumes/ExtendSSD-W/GX020052.MP4` の5秒混在E2Eでは300 frames / 5507ms / 約54.48fpsを確認した。
+- 静的PSD overlayは、Rust backendで一度だけPSDをparse/compositeして一時RGBA入力にし、ffmpeg `overlay` filterへ渡すfast pathへ載る。
 
 ### 次の高速化候補
 
-- ffmpeg filter fast pathを5秒以上の実素材で複数回測定し、30fps超を安定させる。
-- ffmpeg filter fast pathの対応範囲を、静的PSD flattened source、opacity付き画像、複数画像、簡単なcropへ広げる。
+- ffmpeg filter fast pathの実Electron E2Eを動画+PSD+音声まで広げ、UI投入時のdirect transcode経路・見た目・速度を確認する。
+- ffmpeg filter fast pathの対応範囲を、複数画像、簡単なcrop、回転なしtextの事前rasteriseへ広げる。
 - native render outputをshared memoryへ書いた後にencode側で再読込する往復を削り、Rust内でrender resultを直接encoderへ渡す。ただし単純なdirect native encodeは2026-06-21時点の混在E2Eで遅かったため、再設計が必要。
 - decode frame upload/source textureの再利用を進め、動画only exportでframeごとのsource texture再作成を削る。
 - ffmpeg rawvideo stdin writeとnative renderの並列度を2〜3frame程度まで広げ、メモリ上限を見ながら30fps超を安定化する。
