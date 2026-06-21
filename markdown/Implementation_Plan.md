@@ -37,7 +37,7 @@
 19. ✅ `P2` 標準パーティクルをsource frame対応の動的生成へ拡張
 20. ✅ `P2` 標準パーティクル追加UIをTimeline context menuへ接続
 21. ✅ `P2` 標準パーティクルのプロジェクト保存/読込許可を追加
-22. `P2` 標準パーティクルPropertyPanel編集を追加
+22. ✅ `P2` 標準パーティクルPropertyPanel編集を追加
 23. E2Eで代表素材に効果を載せ、preview/exportの一致を検証
 
 ## AviUtl互換ロードマップ（2026-02-11）

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState, PsdWorldPlacement, VideoObject } from '../types';
+import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState, PsdWorldPlacement, VideoObject, ParticleObject } from '../types';
 import { buildPsdLayerTree, togglePsdLayer } from '../utils/psdParser';
 import { easingNames, EasingType } from '../utils/easings';
 import { buildEndpointKeyframes, evaluateObjectPositionAtTime } from '../utils/keyframes';
@@ -2067,6 +2067,106 @@ const PropertyPanel: React.FC = () => {
                 </Row>
                 <Row label="Height">
                     <input type="number" value={selectedObject.height} onChange={(e) => handleNumericChange('height', e.target.value)} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
+                </Row>
+            </>
+        )}
+
+        {selectedObject.type === 'particle' && (
+            <>
+                <SectionHeader label="Particle Settings" />
+                <Row label="Particle Count">
+                    <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={(selectedObject as ParticleObject).particleCount}
+                        onChange={(e) => {
+                            const parsed = parseInt(e.target.value, 10);
+                            if (!Number.isFinite(parsed)) return;
+                            updateObject(selectedObject.id, { particleCount: Math.max(1, parsed) } as Partial<TimelineObject>);
+                        }}
+                        style={{ width: '70px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                    />
+                </Row>
+                <Row label="Seed">
+                    <input
+                        type="number"
+                        step="1"
+                        value={(selectedObject as ParticleObject).seed}
+                        onChange={(e) => {
+                            const parsed = parseInt(e.target.value, 10);
+                            if (!Number.isFinite(parsed)) return;
+                            updateObject(selectedObject.id, { seed: parsed } as Partial<TimelineObject>);
+                        }}
+                        style={{ width: '70px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                    />
+                </Row>
+                <Row label="Spread">
+                    <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={(selectedObject as ParticleObject).spread}
+                        onChange={(e) => handleNumericChange('spread', e.target.value)}
+                        style={{ width: '70px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                    />
+                </Row>
+                <Row label="Speed">
+                    <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={(selectedObject as ParticleObject).speed}
+                        onChange={(e) => handleNumericChange('speed', e.target.value)}
+                        style={{ width: '70px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                    />
+                </Row>
+                <Row label="Particle Size">
+                    <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={(selectedObject as ParticleObject).size}
+                        onChange={(e) => handleNumericChange('size', e.target.value)}
+                        style={{ width: '70px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                    />
+                </Row>
+                <Row label="Colour">
+                    <input
+                        type="color"
+                        value={(selectedObject as ParticleObject).colour}
+                        onChange={(e) => handleChange('colour', e.target.value)}
+                    />
+                </Row>
+                <Row label="Lifetime">
+                    <input
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        value={(selectedObject as ParticleObject).lifetimeSeconds}
+                        onChange={(e) => handleNumericChange('lifetimeSeconds', e.target.value)}
+                        style={{ width: '70px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                    />
+                </Row>
+                <Row label="Width">
+                    <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={(selectedObject as ParticleObject).width}
+                        onChange={(e) => handleNumericChange('width', e.target.value)}
+                        style={{ width: '70px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                    />
+                </Row>
+                <Row label="Height">
+                    <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={(selectedObject as ParticleObject).height}
+                        onChange={(e) => handleNumericChange('height', e.target.value)}
+                        style={{ width: '70px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                    />
                 </Row>
             </>
         )}

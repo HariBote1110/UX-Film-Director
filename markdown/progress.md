@@ -1,6 +1,14 @@
 # 進捗ログ
 
 ## 2026-06-21
+- 標準パーティクルPropertyPanel編集を追加した。
+- Red: PropertyPanelにRust-native標準パーティクル編集欄があることを確認する境界テストを追加した。
+- Green: `ParticleObject` のcount/seed/spread/speed/size/colour/lifetime/width/heightを編集できるUIを追加した。
+- 版を `0.1.1-Beta-256a` に更新した。
+- 検証: PropertyPanel境界テストが成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- 残課題: 次は代表素材に標準パーティクルを載せたpreview/export一致確認を進める。
+
+## 2026-06-21
 - 標準パーティクルのプロジェクト保存/読込を許可した。
 - Red: `ParticleObject` がプロジェクトJSONをround-tripできる契約を追加した。
 - Green: `projectFile` のTimelineObject許可リストへ `particle` を追加した。
