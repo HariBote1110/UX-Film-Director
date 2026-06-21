@@ -46,6 +46,10 @@ describe('package scripts', () => {
     expect(script).toContain('inspectExportedGeneratedEffectsFrame');
     expect(script).toContain('generatedEffectsFrameInspection');
     expect(script).toContain('generatedEffectsFrameInspection?.ok !== false');
+    expect(script).toContain('GetColor V2R ドットフィールド');
+    expect(script).toContain('hksyチェッカー/グリッド');
+    expect(script).toContain('93 SpotLight Probe');
+    expect(script).toContain('93音声玉');
     expect(script).toContain('#00ff88');
     expect(script).toContain('#ffffff');
     expect(script.indexOf('const runtimeErrors = collectRuntimeErrors(client)'))
@@ -58,6 +62,11 @@ describe('package scripts', () => {
     const main = readFileSync(new URL('../../src/main.tsx', import.meta.url), 'utf8');
     expect(main).toContain('__UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__');
     expect(main).toContain('__UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS__');
+    expect(main).toContain('GetColor V2R ドットフィールド');
+    expect(main).toContain('hksyチェッカー/グリッド');
+    expect(main).toContain('93 SpotLight Probe');
+    expect(main).toContain('93音声玉');
+    expect(main).toContain('spot_light');
     expect(main).toContain('state.objects.forEach');
     expect(main).toContain('state.setDuration(safeDuration)');
   });
