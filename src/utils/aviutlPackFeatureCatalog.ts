@@ -317,6 +317,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '解説画面や背景素材に使いやすく、Rust側で不透明な格子パターンを決定的に生成できる。'
   },
   {
+    id: 'ssd-houndstooth',
+    labelJa: '千鳥格子',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/ANM/ANM_ssd/千鳥格子.obj'],
+    rationaleJa: '背景素材や解説画面の装飾に使いやすく、Rust側で不透明な千鳥格子パターンを決定的に生成できる。'
+  },
+  {
     id: 'tim-motion-path',
     labelJa: 'モーションパス',
     category: 'motion',

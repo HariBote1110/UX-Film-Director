@@ -58,7 +58,8 @@
 40. ✅ `P2` SSD円矢印をRust GeneratedCircularArrow生成オブジェクトへ追加
 41. ✅ `P2` SSD三角括弧をRust GeneratedTriangleBracket生成オブジェクトへ追加
 42. ✅ `P2` SSDタータンチェックをRust GeneratedTartanCheck生成オブジェクトへ追加
-43. `P2` 生成効果入り混在exportのnative render source待ち時間を分解して高速化する
+43. ✅ `P2` SSD千鳥格子をRust GeneratedHoundstooth生成オブジェクトへ追加
+44. `P2` 生成効果入り混在exportのnative render source待ち時間を分解して高速化する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

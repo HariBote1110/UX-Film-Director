@@ -49,6 +49,7 @@ pub enum MediaKind {
     GeneratedCircularArrow,
     GeneratedTriangleBracket,
     GeneratedTartanCheck,
+    GeneratedHoundstooth,
     Psd,
 }
 
@@ -78,6 +79,7 @@ pub enum ClipKind {
     GeneratedCircularArrowPlane,
     GeneratedTriangleBracketPlane,
     GeneratedTartanCheckPlane,
+    GeneratedHoundstoothPlane,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

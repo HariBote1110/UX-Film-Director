@@ -101,7 +101,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'sunburst',
   'circular_arrow',
   'triangle_bracket',
-  'tartan_check'
+  'tartan_check',
+  'houndstooth'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -309,6 +310,13 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (typeof candidate.stripeColourA !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.stripeColourA)) return false;
     if (typeof candidate.stripeColourB !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.stripeColourB)) return false;
     if (typeof candidate.lineColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.lineColour)) return false;
+  }
+  if (candidate.type === 'houndstooth') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.patternSize) || candidate.patternSize < 10 || candidate.patternSize > 200) return false;
+    if (typeof candidate.foregroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.foregroundColour)) return false;
+    if (typeof candidate.backgroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.backgroundColour)) return false;
   }
   return true;
 };

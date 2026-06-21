@@ -1,6 +1,20 @@
 # 進捗ログ
 
 ## 2026-06-21
+- SSD千鳥格子をRust生成オブジェクトへ追加した。
+- Red: `script/ANM/ANM_ssd/千鳥格子.obj` を、Rust `GeneratedHoundstooth` mediaとして扱う境界契約を作った。
+- Green: `HoundstoothObject` と `buildAviUtlHoundstoothObject` を追加し、Timeline右クリックから `千鳥格子を追加` / `Add Houndstooth` で置けるようにした。
+- Green: `rustSceneSnapshot` / shared renderer native support / Rust core schema / Rust backendに `GeneratedHoundstooth` を追加した。
+- Green: Rust backendで不透明背景、黒白の反復千鳥格子パターンを持つ決定的なフレームを生成できるようにした。
+- Green: `ssd-houndstooth` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-278a` に更新した。
+- 検証: `npm test -- --run src/utils/houndstoothObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/e2e/allReadableMedia.e2e.test.ts --reporter=dot` は90件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は16件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_houndstooth_source_frame_contains_foreground_background_and_opacity -- --nocapture` は1件成功した。
+- 検証: 対象名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足、`mp4box` 型定義不足、`heavyEffectsStress.test.ts` の `PositionKeyframe` 未定義のみ検出した。
+- 残課題: 現時点の `GeneratedHoundstooth` は元スクリプトのポリゴン列を、黒白の決定的なRustラスタ生成へ置き換えた互換再実装。
+
+## 2026-06-21
 - SSDタータンチェックをRust生成オブジェクトへ追加した。
 - Red: `script/ANM/ANM_ssd/タータンチェック_ISTN.obj` を、Rust `GeneratedTartanCheck` mediaとして扱う境界契約を作った。
 - Green: `TartanCheckObject` と `buildAviUtlTartanCheckObject` を追加し、Timeline右クリックから `タータンチェックを追加` / `Add Tartan Check` で置けるようにした。

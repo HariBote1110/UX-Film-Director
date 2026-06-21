@@ -19,6 +19,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedCircularArrow') return isSharedRendererNativeGeneratedCircularArrowSourceSupported(reference.source);
   if (reference.kind === 'GeneratedTriangleBracket') return isSharedRendererNativeGeneratedTriangleBracketSourceSupported(reference.source);
   if (reference.kind === 'GeneratedTartanCheck') return isSharedRendererNativeGeneratedTartanCheckSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedHoundstooth') return isSharedRendererNativeGeneratedHoundstoothSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -597,6 +598,30 @@ const isSharedRendererNativeGeneratedTartanCheckSourceSupported = (source: strin
       && /^#[0-9a-f]{6}$/i.test(parsed.stripe_colour_b)
       && typeof parsed.line_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.line_colour)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedHoundstoothSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      pattern_size?: unknown;
+      foreground_colour?: unknown;
+      background_colour?: unknown;
+    };
+    return (
+      parsed.generator === 'houndstooth'
+      && typeof parsed.pattern_size === 'number'
+      && Number.isInteger(parsed.pattern_size)
+      && parsed.pattern_size >= 10
+      && parsed.pattern_size <= 200
+      && typeof parsed.foreground_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.foreground_colour)
+      && typeof parsed.background_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
     );
   } catch {
     return false;

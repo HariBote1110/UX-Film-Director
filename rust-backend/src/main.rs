@@ -302,6 +302,14 @@ struct GeneratedTartanCheckSource {
     line_colour: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedHoundstoothSource {
+    generator: String,
+    pattern_size: u32,
+    foreground_colour: String,
+    background_colour: String,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2295,6 +2303,7 @@ fn collect_native_render_sources(
                 build_generated_triangle_bracket_source_frame(media)?
             }
             MediaKind::GeneratedTartanCheck => build_generated_tartan_check_source_frame(media)?,
+            MediaKind::GeneratedHoundstooth => build_generated_houndstooth_source_frame(media)?,
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform => continue,
@@ -3574,6 +3583,77 @@ fn blend_rgb8(left: [u8; 3], right: [u8; 3], right_weight: f32) -> [u8; 3] {
     ]
 }
 
+fn build_generated_houndstooth_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedHoundstooth media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let houndstooth: GeneratedHoundstoothSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedHoundstooth media '{}': {error}", media.id))?;
+    validate_generated_houndstooth_source(&houndstooth).map_err(|message| {
+        format!(
+            "Invalid GeneratedHoundstooth media '{}': {message}",
+            media.id
+        )
+    })?;
+
+    let foreground =
+        parse_hex_colour_source(&houndstooth.foreground_colour).map_err(|message| {
+            format!(
+                "Invalid GeneratedHoundstooth media '{}': {message}",
+                media.id
+            )
+        })?;
+    let background =
+        parse_hex_colour_source(&houndstooth.background_colour).map_err(|message| {
+            format!(
+                "Invalid GeneratedHoundstooth media '{}': {message}",
+                media.id
+            )
+        })?;
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedHoundstooth media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedHoundstooth media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+    let tooth = houndstooth.pattern_size.max(10);
+    let tile = tooth * 2;
+    let half = tooth as f32;
+
+    for y in 0..media.height {
+        for x in 0..media.width {
+            let lx = (x % tile) as f32;
+            let ly = (y % tile) as f32;
+            let upper_left = lx < half && ly < half;
+            let lower_right = lx >= half && ly >= half;
+            let notch_a = lx >= half && ly < half && ly < (lx - half) * 0.35;
+            let notch_b = lx < half && ly >= half && (ly - half) > half - lx * 0.35;
+            let use_foreground = upper_left || lower_right || notch_a || notch_b;
+            let colour = if use_foreground {
+                foreground
+            } else {
+                background
+            };
+            let offset = (y as usize * media.width as usize + x as usize) * 4;
+            pixels[offset..offset + 4].copy_from_slice(&[colour[0], colour[1], colour[2], 255]);
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedHoundstooth media frame is invalid: {error:?}"))
+}
+
 fn point_on_circle(centre_x: f32, centre_y: f32, radius: f32, angle: f32) -> (f32, f32) {
     (
         centre_x + angle.cos() * radius,
@@ -4034,6 +4114,20 @@ fn validate_generated_tartan_check_source(
     parse_hex_colour_source(&source.stripe_colour_a)?;
     parse_hex_colour_source(&source.stripe_colour_b)?;
     parse_hex_colour_source(&source.line_colour)?;
+    Ok(())
+}
+
+fn validate_generated_houndstooth_source(
+    source: &GeneratedHoundstoothSource,
+) -> Result<(), String> {
+    if source.generator != "houndstooth" {
+        return Err("generator must be houndstooth".to_string());
+    }
+    if source.pattern_size < 10 || source.pattern_size > 200 {
+        return Err("pattern_size must be 10..200".to_string());
+    }
+    parse_hex_colour_source(&source.foreground_colour)?;
+    parse_hex_colour_source(&source.background_colour)?;
     Ok(())
 }
 
@@ -6346,6 +6440,37 @@ mod tests {
         assert!(has_base);
         assert!(has_stripe_a);
         assert!(has_line);
+        assert!(fully_opaque);
+    }
+
+    #[test]
+    fn generated_houndstooth_source_frame_contains_foreground_background_and_opacity() {
+        let media = SceneMediaReference {
+            id: "houndstooth-1".to_string(),
+            kind: MediaKind::GeneratedHoundstooth,
+            source: r##"{"generator":"houndstooth","pattern_size":50,"foreground_colour":"#000000","background_colour":"#ffffff"}"##.to_string(),
+            width: 800,
+            height: 450,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_houndstooth_source_frame(&media)
+            .expect("generated houndstooth frame should render");
+        let foreground_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [0, 0, 0, 255])
+            .count();
+        let background_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [255, 255, 255, 255])
+            .count();
+        let fully_opaque = frame.pixels.chunks_exact(4).all(|rgba| rgba[3] == 255);
+
+        assert!(foreground_count > 100_000);
+        assert!(background_count > 100_000);
         assert!(fully_opaque);
     }
 }
