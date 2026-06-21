@@ -9,7 +9,7 @@ import { buildAviUtlCircularArrowObject } from '../utils/circularArrowObjectFact
 import { buildAviUtlColourWheelObject } from '../utils/colourWheelObjectFactory';
 import { buildAviUtlFocusLinesPlusObject } from '../utils/focusLinesPlusObjectFactory';
 import { buildAviUtlGearObject } from '../utils/gearObjectFactory';
-import { buildGetColorDiamondDotFieldObject, buildGetColorDotFieldObject } from '../utils/getColorDotFieldObjectFactory';
+import { buildGetColorDiamondDotFieldObject, buildGetColorDotFieldObject, buildGetColorOutlinedSquareDotFieldObject } from '../utils/getColorDotFieldObjectFactory';
 import { buildAviUtlGourdObject } from '../utils/gourdObjectFactory';
 import { buildAviUtlHistogramObject } from '../utils/histogramObjectFactory';
 import { buildHksyAnchorLineObject, buildHksyCheckerGridObject, buildHksyDiamondObject, buildHksyLineObject, buildHksyMeasuredGridObject, buildHksyMultiColourCheckerObject } from '../utils/hksyCheckerGridObjectFactory';
@@ -455,6 +455,17 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
     onClose();
   };
 
+  const handleAddGetColorOutlinedSquareDotField = () => {
+    addObject(buildGetColorOutlinedSquareDotFieldObject({
+      id: crypto.randomUUID(),
+      projectWidth: projectSettings.width,
+      projectHeight: projectSettings.height,
+      startTime: state.time,
+      layer: state.layer,
+    }));
+    onClose();
+  };
+
   const handleAddAudioSphere = () => {
     addObject(buildAviUtlAudioSphereObject({
       id: crypto.randomUUID(),
@@ -605,9 +616,10 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddTrackBar}>{language === 'en' ? 'Add Track Bar' : 'トラックバーを追加'}</div>
               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddPieChart}>{language === 'en' ? 'Add Pie Chart' : 'パイシートグラフを追加'}</div>
               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHistogram}>{language === 'en' ? 'Add Histogram' : '簡易ヒストグラムを追加'}</div>
-              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddGetColorDotField}>{language === 'en' ? 'Add GetColor V2R Dot Field' : 'GetColor V2Rドットフィールドを追加'}</div>
-              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddGetColorDiamondDotField}>{language === 'en' ? 'Add GetColor V2R Diamond Dots' : 'GetColor V2R菱形ドットフィールドを追加'}</div>
-              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHksyCheckerGrid}>{language === 'en' ? 'Add hksy Checker/Grid' : 'hksyチェッカー/グリッドを追加'}</div>
+               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddGetColorDotField}>{language === 'en' ? 'Add GetColor V2R Dot Field' : 'GetColor V2Rドットフィールドを追加'}</div>
+               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddGetColorDiamondDotField}>{language === 'en' ? 'Add GetColor V2R Diamond Dots' : 'GetColor V2R菱形ドットフィールドを追加'}</div>
+               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddGetColorOutlinedSquareDotField}>{language === 'en' ? 'Add GetColor V2R Outlined Square Dots' : 'GetColor V2R枠線四角ドットフィールドを追加'}</div>
+               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHksyCheckerGrid}>{language === 'en' ? 'Add hksy Checker/Grid' : 'hksyチェッカー/グリッドを追加'}</div>
               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHksyLine}>{language === 'en' ? 'Add hksy Lines' : 'hksy直線を追加'}</div>
               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHksyMultiColourChecker}>{language === 'en' ? 'Add hksy Multi-Colour Checker' : 'hksy複数色チェッカーを追加'}</div>
               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHksyDiamond}>{language === 'en' ? 'Add hksy Diamond' : 'hksy菱形を追加'}</div>

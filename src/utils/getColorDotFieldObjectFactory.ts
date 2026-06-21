@@ -60,3 +60,13 @@ export const buildGetColorDiamondDotFieldObject = (input: BuildGetColorDotFieldO
   dotShape: 'diamond',
   strokeWidth: 0,
 });
+
+export const buildGetColorOutlinedSquareDotFieldObject = (input: BuildGetColorDotFieldObjectInput): GetColorDotFieldObject => ({
+  ...buildGetColorDotFieldObject(input),
+  name: 'GetColor V2R 枠線四角ドットフィールド',
+  columns: 28,
+  rows: 16,
+  dotSize: 22,
+  dotShape: 'square',
+  strokeWidth: 5,
+});

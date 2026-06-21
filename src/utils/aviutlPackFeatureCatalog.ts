@@ -167,6 +167,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: 'GetColor V2Rの図形指定を、Rust生成の菱形ドットプリセットとして標準搭載する。'
   },
   {
+    id: 'getcolor-v2r-outlined-square-dots',
+    labelJa: 'GetColor V2R 枠線四角ドットフィールド',
+    category: 'generated-object',
+    phase: 'P1',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/@GetColor/@GetColor-V2R.anm'],
+    rationaleJa: 'GetColor V2Rの図形線幅指定を、Rust生成の枠線付き四角ドットプリセットとして標準搭載する。'
+  },
+  {
     id: '93-audio-sphere',
     labelJa: '93 音声玉',
     category: 'audio-visual',
