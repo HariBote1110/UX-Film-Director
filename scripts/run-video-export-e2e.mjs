@@ -700,6 +700,7 @@ const main = async () => {
     ? exportAttempts[1].exportDurationMs / exportAttempts[0].exportDurationMs
     : null;
   const directTranscodeRequired = (ADD_MIXED_MEDIA || ADD_PSD) && !ADD_AVIUTL_GENERATED_EFFECTS;
+  const runtimeErrors = collectRuntimeErrors(client);
   const result = {
     passed: Boolean(
       exportAttempts.every((attempt) => (
@@ -714,6 +715,7 @@ const main = async () => {
       && (!shouldShortenAllObjects || mixedMediaDurationResult?.ok)
       && (!directTranscodeRequired || exportAttempts.every((attempt) => attempt.exportUsedDirectTranscode))
       && (!EXPECT_REPEAT_SPEEDUP || repeatSpeedupObserved)
+      && runtimeErrors.length === 0
     ),
     videoPath: VIDEO_PATH,
     outputPath: OUTPUT_MP4,
@@ -742,7 +744,7 @@ const main = async () => {
     progressSamples: firstAttempt.progressSamples,
     dialogs: exportAttempts.flatMap((attempt) => attempt.dialogs),
     consoleLines: collectConsoleEvents(client),
-    runtimeErrors: collectRuntimeErrors(client),
+    runtimeErrors,
     processLines: logLines,
   };
   writeResult(result);

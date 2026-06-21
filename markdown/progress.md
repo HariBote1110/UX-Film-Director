@@ -41,6 +41,14 @@
 - 残課題: 次は実Electron E2Eでpreview screenshotとexport frame decodeを比較し、UI経由の画素一致へ進む。
 
 ## 2026-06-21
+- 動画export E2Eでruntime errorを失敗扱いに変更した。
+- Red: `run-video-export-e2e.mjs` が `Runtime.exceptionThrown` を `passed` 判定へ含める契約を追加した。
+- Green: E2E結果作成前に `collectRuntimeErrors(client)` を評価し、runtime errorが1件でもあれば `passed=false` にするようにした。
+- テスト基盤の厳格化のため、版は `0.1.1-Beta-259d` のままとした。
+- 検証: `npm test -- --run src/utils/packageScripts.test.ts -t "records real video export"` は成功した。
+- 残課題: 次は生成効果入りE2Eで出ているPixi WebGPU runtime errorを潰す。
+
+## 2026-06-21
 - 動画export E2EのElectron bundle待機を追加した。
 - Red: `run-video-export-e2e.mjs` がElectron起動前にbundle完了を待つ契約を追加した。
 - Green: `dist-electron/main.js` / `dist-electron/preload.js` の更新時刻とIPC markerを確認してからElectronを起動するようにした。

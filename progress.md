@@ -72,6 +72,20 @@
 - export直結経路でもGeneratedAudioWaveformとGeneratedParticleを含むRust native frameを書けることを確認した。
 - 次は実Electron E2Eでpreview screenshotとexport frame decodeを比較し、UI経由の画素一致へ進む。
 
+## 2026-06-21 — 動画export E2Eでruntime errorを失敗扱いに変更
+
+### 実施内容
+- Red: `run-video-export-e2e.mjs` が `Runtime.exceptionThrown` を `passed` 判定へ含める契約を追加した。
+- Green: E2E結果作成前に `collectRuntimeErrors(client)` を評価し、runtime errorが1件でもあれば `passed=false` にするようにした。
+- テスト基盤の厳格化のため、版は `0.1.1-Beta-259d` のままとした。
+
+### 検証
+- `npm test -- --run src/utils/packageScripts.test.ts -t "records real video export"`
+
+### 結果・残課題
+- 実Electron exportが完了しても、Viewport/Pixi等のruntime errorが出ていればE2Eで検出できるようになった。
+- 次は生成効果入りE2Eで出ているPixi WebGPU runtime errorを潰す。
+
 ## 2026-06-21 — 動画export E2EのElectron bundle待機を追加
 
 ### 実施内容
