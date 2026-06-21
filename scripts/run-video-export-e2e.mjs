@@ -26,6 +26,7 @@ const VIDEO_PATCH = process.env.UXFD_VIDEO_EXPORT_E2E_VIDEO_PATCH_JSON
   : null;
 const ADD_MIXED_MEDIA = process.env.UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA === '1';
 const ADD_PSD = process.env.UXFD_VIDEO_EXPORT_E2E_ADD_PSD === '1';
+const ADD_AVIUTL_GENERATED_EFFECTS = process.env.UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS === '1';
 const IMAGE_PATH = resolve(ROOT, 'public/icon.jpg');
 const PSD_PATH = process.env.UXFD_VIDEO_EXPORT_E2E_PSD_PATH
   ? resolve(process.env.UXFD_VIDEO_EXPORT_E2E_PSD_PATH)
@@ -362,6 +363,26 @@ const addPsdToTimeline = async (client) => {
   return { ...psdResult, enabled: true, stage: 'complete', psdPath: PSD_PATH };
 };
 
+const addAviUtlGeneratedEffectsToTimeline = async (client) => {
+  if (!ADD_AVIUTL_GENERATED_EFFECTS) {
+    return { enabled: false };
+  }
+
+  const hookResult = await client.evaluate(`
+    window.__UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS__?.(${JSON.stringify(EXPORT_DURATION_SECONDS)}) ?? null
+  `);
+  if (!hookResult?.ok) {
+    return { ok: false, enabled: true, stage: 'hook', hookResult };
+  }
+  const timelineResult = await waitForTimelineItems(client, ['Audio waveform R', '標準パーティクル'], 30000);
+  return {
+    ...timelineResult,
+    enabled: true,
+    stage: 'complete',
+    hookResult,
+  };
+};
+
 const shortenAllObjectsForExport = async (client) => client.evaluate(`
   window.__UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__?.(${JSON.stringify(EXPORT_DURATION_SECONDS)}) ?? null
 `);
@@ -627,10 +648,15 @@ const main = async () => {
   if (ADD_PSD && !psdMediaResult?.ok) {
     throw new Error(`PSDメディア追加に失敗しました: ${JSON.stringify(psdMediaResult)}`);
   }
-  const mixedMediaDurationResult = ADD_MIXED_MEDIA || ADD_PSD
+  const aviUtlGeneratedEffectsResult = await addAviUtlGeneratedEffectsToTimeline(client);
+  if (ADD_AVIUTL_GENERATED_EFFECTS && !aviUtlGeneratedEffectsResult?.ok) {
+    throw new Error(`AviUtl生成効果追加に失敗しました: ${JSON.stringify(aviUtlGeneratedEffectsResult)}`);
+  }
+  const shouldShortenAllObjects = ADD_MIXED_MEDIA || ADD_PSD || ADD_AVIUTL_GENERATED_EFFECTS;
+  const mixedMediaDurationResult = shouldShortenAllObjects
     ? await shortenAllObjectsForExport(client)
     : null;
-  if ((ADD_MIXED_MEDIA || ADD_PSD) && !mixedMediaDurationResult?.ok) {
+  if (shouldShortenAllObjects && !mixedMediaDurationResult?.ok) {
     throw new Error(`混在メディア短尺化に失敗しました: ${JSON.stringify(mixedMediaDurationResult)}`);
   }
 
@@ -645,6 +671,7 @@ const main = async () => {
   const repeatSpeedupRatio = exportAttempts.length >= 2 && exportAttempts[0].exportDurationMs > 0
     ? exportAttempts[1].exportDurationMs / exportAttempts[0].exportDurationMs
     : null;
+  const directTranscodeRequired = (ADD_MIXED_MEDIA || ADD_PSD) && !ADD_AVIUTL_GENERATED_EFFECTS;
   const result = {
     passed: Boolean(
       exportAttempts.every((attempt) => (
@@ -655,8 +682,9 @@ const main = async () => {
       ))
       && (!ADD_MIXED_MEDIA || mixedMediaResult?.ok)
       && (!ADD_PSD || psdMediaResult?.ok)
-      && (!(ADD_MIXED_MEDIA || ADD_PSD) || mixedMediaDurationResult?.ok)
-      && (!(ADD_MIXED_MEDIA || ADD_PSD) || exportAttempts.every((attempt) => attempt.exportUsedDirectTranscode))
+      && (!ADD_AVIUTL_GENERATED_EFFECTS || aviUtlGeneratedEffectsResult?.ok)
+      && (!shouldShortenAllObjects || mixedMediaDurationResult?.ok)
+      && (!directTranscodeRequired || exportAttempts.every((attempt) => attempt.exportUsedDirectTranscode))
       && (!EXPECT_REPEAT_SPEEDUP || repeatSpeedupObserved)
     ),
     videoPath: VIDEO_PATH,
@@ -669,7 +697,9 @@ const main = async () => {
     videoObject,
     mixedMediaResult,
     psdMediaResult,
+    aviUtlGeneratedEffectsResult,
     mixedMediaDurationResult,
+    directTranscodeRequired,
     exportAttempts,
     repeatSpeedupObserved,
     repeatSpeedupRatio,

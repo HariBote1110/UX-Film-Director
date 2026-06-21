@@ -1,3 +1,23 @@
+## 2026-06-21 — 実Electron動画export E2EにAviUtl生成効果を投入
+
+### 実施内容
+- Red: `UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS` とrenderer hookの存在契約を追加した。
+- Green: `run-video-export-e2e.mjs` にAviUtl生成効果投入フラグを追加した。
+- Green: `videoExportE2e` 専用hookで `Audio waveform R` と `標準パーティクル` をTimelineへ追加できるようにした。
+- Green: 生成効果入りではdirect transcode固定ではなく、Rust native合成exportの成功を検証するようにした。
+- 版を `0.1.1-Beta-259a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/packageScripts.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "main.tsx|run-video-export-e2e|packageScripts|AudioVisualizationObject|ParticleObject"`
+- `UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA=1 UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS=1 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=1 UXFD_VIDEO_EXPORT_E2E_TIMEOUT_MS=240000 npm run test:video-export:e2e`
+
+### 結果・残課題
+- 実Electron E2Eは動画+図形+画像+音声+Audio waveform R+標準パーティクルで成功した。
+- 出力: 60 frames / 18,863ms / 約3.18fps / 1,092,837 bytes。
+- 診断: native render envelope は `SolidColour,Image,Video,GeneratedAudioWaveform,GeneratedParticle` を含んだ。
+- 初回実行では古い `dist-electron/main.js` を掴んだ疑いがあり、`rust-backend-audio-waveform-samples` handler未登録で失敗した。再実行では成功したため、次はE2E起動前にElectron bundle完了を待つ安定化を検討する。
+
 ## 2026-06-21 — 代表素材E2Eに標準パーティクルと音声波形を追加
 
 ### 実施内容

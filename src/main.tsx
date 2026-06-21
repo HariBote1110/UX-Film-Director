@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import { schedulePerformanceHarness } from './perf/schedulePerformanceHarness'
 import { useStore } from './store/useStore'
+import type { AudioObject, AudioVisualizationObject, ParticleObject } from './types'
 
 schedulePerformanceHarness()
 
@@ -24,11 +25,18 @@ if (urlSearchParams.has('videoExportE2e')) {
     objectCount: number;
     duration: number;
   };
+  type VideoExportE2eGeneratedEffectsResult = {
+    ok: boolean;
+    audioTargetFound: boolean;
+    addedIds: string[];
+    objectCount: number;
+  };
 
   (window as typeof window & {
     __UXFD_VIDEO_EXPORT_E2E_SET_VIDEO_DURATION__?: (duration: number) => boolean;
     __UXFD_VIDEO_EXPORT_E2E_PATCH_FIRST_VIDEO__?: (patch: Record<string, unknown>) => boolean;
     __UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__?: (duration: number) => VideoExportE2eDurationResult;
+    __UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS__?: (duration: number) => VideoExportE2eGeneratedEffectsResult;
   }).__UXFD_VIDEO_EXPORT_E2E_SET_VIDEO_DURATION__ = (duration: number) => {
     const state = useStore.getState();
     const videoObjects = state.objects.filter((object) => object.type === 'video');
@@ -54,6 +62,77 @@ if (urlSearchParams.has('videoExportE2e')) {
       ok: state.objects.length > 0,
       objectCount: state.objects.length,
       duration: safeDuration,
+    };
+  };
+  (window as typeof window & {
+    __UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS__?: (duration: number) => VideoExportE2eGeneratedEffectsResult;
+  }).__UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS__ = (duration: number) => {
+    const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 1;
+    const state = useStore.getState();
+    const audioTarget = state.objects.find((object): object is AudioObject => object.type === 'audio') ?? null;
+    const maxLayer = state.objects.reduce((current, object) => Math.max(current, object.layer), 0);
+    const addedIds: string[] = [];
+    const audioVisualisation: AudioVisualizationObject = {
+      id: 'e2e-audio-waveform-r',
+      type: 'audio_visualization',
+      name: 'Audio waveform R',
+      layer: Math.min(99, maxLayer + 1),
+      startTime: 0,
+      duration: safeDuration,
+      x: 960,
+      y: 860,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      opacity: 1,
+      enableAnimation: false,
+      endX: 960,
+      endY: 860,
+      easing: 'linear',
+      targetAudioId: audioTarget?.id ?? null,
+      targetLayer: audioTarget?.layer,
+      visualizationType: 'waveform',
+      color: '#00ff88',
+      thickness: 2,
+      width: 960,
+      height: 160,
+      amplitude: 1.25,
+    };
+    const particle: ParticleObject = {
+      id: 'e2e-standard-particle',
+      type: 'particle',
+      name: '標準パーティクル',
+      layer: Math.min(99, maxLayer + 2),
+      startTime: 0,
+      duration: safeDuration,
+      x: 960,
+      y: 540,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      opacity: 0.9,
+      enableAnimation: false,
+      endX: 960,
+      endY: 540,
+      easing: 'linear',
+      width: 720,
+      height: 420,
+      particleCount: 64,
+      seed: 93,
+      spread: 180,
+      speed: 140,
+      size: 7,
+      colour: '#ffffff',
+      lifetimeSeconds: 1.5,
+    };
+    state.addObject(audioVisualisation);
+    state.addObject(particle);
+    addedIds.push(audioVisualisation.id, particle.id);
+    return {
+      ok: addedIds.length === 2,
+      audioTargetFound: audioTarget !== null,
+      addedIds,
+      objectCount: useStore.getState().objects.length,
     };
   };
   (window as typeof window & {
