@@ -1,6 +1,19 @@
 # 進捗ログ
 
 ## 2026-06-22
+- GetColorサンプリング編集UIをPropertyPanelへ追加した。
+- Red: PropertyPanelが `getcolor_dot_field` 選択時に `GetColor Sampling`、`Sample Layer`、`Sample Object`、`Sample Strength` を露出する契約を追加した。
+- Green: PropertyPanelにGetColorサンプリング編集UIを追加し、画像オブジェクト候補から `sampleSourceObjectId` を選択できるようにした。
+- Green: `sampleSourceLayer` は1始まりのレイヤー番号として編集でき、`sampleStrength` は0〜1のスライダーで編集できるようにした。
+- Green: 明示画像オブジェクト選択時は直接パス指定を解除し、Rust scene snapshot側のオブジェクトID参照解決に寄せるようにした。
+- 版を `0.1.1-Beta-309a` に更新した。
+- 検証: `npm test -- --run src/components/PropertyPanelBoundary.test.ts --reporter=dot` は5件成功した。
+- 検証: `npm test -- --run src/components/PropertyPanelBoundary.test.ts src/utils/getColorDotFieldObjectFactory.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/projectFile.test.ts src/utils/packageScripts.test.ts --reporter=dot` は100件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_getcolor_dots_source_frame -- --nocapture` は4件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回のGetColorサンプリング編集UI由来の型エラーは出ていない。
+- 画像オブジェクト候補はPNG/JPEGに限定。PSDを合成済みサンプルとして扱うUI/Rust経路は後続で追加する。
+
+## 2026-06-22
 - GetColor画像レイヤー参照をRust生成へ接続した。
 - Red: GetColor V2R画像サンプリングドットが、直接画像パスだけでなく `sampleSourceLayer` と `sampleSourceObjectId` から画像オブジェクトのローカルパスを解決して `source_image` へ渡す契約を追加した。
 - Green: `GetColorDotFieldObject` に `sampleSourceLayer` / `sampleSourceObjectId` を追加し、保存/読込検証で保持できるようにした。
