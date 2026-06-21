@@ -1,0 +1,98 @@
+import { describe, expect, it } from 'vitest';
+import type { ShapeObject } from '../types';
+import {
+  buildAviUtlMotionPresetPatch,
+  getAviUtlPackMotionPresets
+} from './aviutlMotionPresets';
+
+const baseShape = (patch: Partial<ShapeObject> = {}): ShapeObject => ({
+  id: 'shape-1',
+  type: 'shape',
+  name: 'Rect',
+  layer: 0,
+  startTime: 10,
+  duration: 4,
+  x: 320,
+  y: 240,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 320,
+  endY: 240,
+  easing: 'linear',
+  shapeType: 'rect',
+  width: 100,
+  height: 80,
+  fill: '#ffffff',
+  ...patch
+});
+
+describe('AviUtlPackV4 motion presets', () => {
+  it('exposes the P0 Pack motion candidates as native presets', () => {
+    expect(getAviUtlPackMotionPresets().map((preset) => ({
+      id: preset.id,
+      sourceCandidateId: preset.sourceCandidateId
+    }))).toEqual([
+      { id: 'entrance-slide-left', sourceCandidateId: 'ymm4-entrance-exit' },
+      { id: 'entrance-pop-up', sourceCandidateId: 'ymm4-entrance-exit' },
+      { id: 'random-wiggle', sourceCandidateId: 'ymm4-random-motion' },
+      { id: 'repeat-side-to-side', sourceCandidateId: 'ymm4-repeat-motion' }
+    ]);
+  });
+
+  it('builds an entrance slide without moving the settled object position', () => {
+    const patch = buildAviUtlMotionPresetPatch(baseShape(), 'entrance-slide-left', {
+      distancePx: 160,
+      spanSeconds: 0.5
+    });
+
+    expect(patch.enableAnimation).toBe(true);
+    expect(patch.x).toBe(320);
+    expect(patch.y).toBe(240);
+    expect(patch.endX).toBe(320);
+    expect(patch.endY).toBe(240);
+    expect(patch.easing).toBe('easeOutCubic');
+    expect(patch.keyframes).toEqual([
+      expect.objectContaining({ time: 10, x: 160, y: 240, easing: 'easeOutCubic' }),
+      expect.objectContaining({ time: 10.5, x: 320, y: 240, easing: 'linear' }),
+      expect.objectContaining({ time: 14, x: 320, y: 240, easing: 'linear' })
+    ]);
+  });
+
+  it('builds deterministic bounded random wiggle keyframes', () => {
+    const first = buildAviUtlMotionPresetPatch(baseShape(), 'random-wiggle', {
+      distancePx: 12,
+      intervalSeconds: 0.5
+    });
+    const second = buildAviUtlMotionPresetPatch(baseShape(), 'random-wiggle', {
+      distancePx: 12,
+      intervalSeconds: 0.5
+    });
+
+    expect(second.keyframes).toEqual(first.keyframes);
+    expect(first.keyframes).toHaveLength(9);
+    first.keyframes?.forEach((keyframe) => {
+      expect(keyframe.x).toBeGreaterThanOrEqual(308);
+      expect(keyframe.x).toBeLessThanOrEqual(332);
+      expect(keyframe.y).toBeGreaterThanOrEqual(228);
+      expect(keyframe.y).toBeLessThanOrEqual(252);
+    });
+  });
+
+  it('builds repeat side-to-side motion that returns to the original position', () => {
+    const patch = buildAviUtlMotionPresetPatch(baseShape(), 'repeat-side-to-side', {
+      distancePx: 30,
+      intervalSeconds: 1
+    });
+
+    expect(patch.keyframes).toEqual([
+      expect.objectContaining({ time: 10, x: 290, y: 240, easing: 'easeInOutSine' }),
+      expect.objectContaining({ time: 11, x: 350, y: 240, easing: 'easeInOutSine' }),
+      expect.objectContaining({ time: 12, x: 290, y: 240, easing: 'easeInOutSine' }),
+      expect.objectContaining({ time: 13, x: 350, y: 240, easing: 'easeInOutSine' }),
+      expect.objectContaining({ time: 14, x: 320, y: 240, easing: 'linear' })
+    ]);
+  });
+});
