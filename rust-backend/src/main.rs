@@ -333,6 +333,15 @@ struct GeneratedPaperAirplaneSource {
     fill_colour: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedAsanohaPatternSource {
+    generator: String,
+    pattern_size: u32,
+    line_width: u32,
+    foreground_colour: String,
+    background_colour: String,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2331,6 +2340,9 @@ fn collect_native_render_sources(
             MediaKind::GeneratedPaperAirplane => {
                 build_generated_paper_airplane_source_frame(media)?
             }
+            MediaKind::GeneratedAsanohaPattern => {
+                build_generated_asanoha_pattern_source_frame(media)?
+            }
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform => continue,
@@ -3832,6 +3844,141 @@ fn build_generated_paper_airplane_source_frame(
         .map_err(|error| format!("GeneratedPaperAirplane media frame is invalid: {error:?}"))
 }
 
+fn build_generated_asanoha_pattern_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedAsanohaPattern media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let asanoha: GeneratedAsanohaPatternSource =
+        serde_json::from_str(&media.source).map_err(|error| {
+            format!(
+                "Invalid GeneratedAsanohaPattern media '{}': {error}",
+                media.id
+            )
+        })?;
+    validate_generated_asanoha_pattern_source(&asanoha).map_err(|message| {
+        format!(
+            "Invalid GeneratedAsanohaPattern media '{}': {message}",
+            media.id
+        )
+    })?;
+    let foreground = parse_hex_colour_source(&asanoha.foreground_colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedAsanohaPattern media '{}': {message}",
+            media.id
+        )
+    })?;
+    let background = parse_hex_colour_source(&asanoha.background_colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedAsanohaPattern media '{}': {message}",
+            media.id
+        )
+    })?;
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedAsanohaPattern media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedAsanohaPattern media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+    for pixel in pixels.chunks_exact_mut(4) {
+        pixel.copy_from_slice(&[background[0], background[1], background[2], 255]);
+    }
+
+    let radius = asanoha.pattern_size.max(10) as f32;
+    let line_width = asanoha.line_width as f32;
+    let row_step = radius * 3.0_f32.sqrt();
+    let column_step = radius * 1.5;
+    let row_count = (media.height as f32 / row_step).ceil() as i32 + 3;
+    let column_count = (media.width as f32 / column_step).ceil() as i32 + 3;
+
+    if line_width <= 0.0 {
+        return RgbaFrame::from_rgba8(media.width, media.height, pixels)
+            .map_err(|error| format!("GeneratedAsanohaPattern media frame is invalid: {error:?}"));
+    }
+
+    for row in -1..row_count {
+        let centre_y = row as f32 * row_step + radius;
+        let row_offset = if row.rem_euclid(2) == 0 {
+            0.0
+        } else {
+            column_step * 0.5
+        };
+        for column in -1..column_count {
+            let centre_x = column as f32 * column_step + row_offset + radius;
+            let points = [
+                (centre_x + radius, centre_y),
+                (centre_x + radius * 0.5, centre_y + row_step * 0.5),
+                (centre_x - radius * 0.5, centre_y + row_step * 0.5),
+                (centre_x - radius, centre_y),
+                (centre_x - radius * 0.5, centre_y - row_step * 0.5),
+                (centre_x + radius * 0.5, centre_y - row_step * 0.5),
+            ];
+            for index in 0..points.len() {
+                draw_line_segment_rgba(
+                    &mut pixels,
+                    media.width,
+                    media.height,
+                    points[index],
+                    points[(index + 1) % points.len()],
+                    foreground,
+                    line_width,
+                );
+                draw_line_segment_rgba(
+                    &mut pixels,
+                    media.width,
+                    media.height,
+                    (centre_x, centre_y),
+                    points[index],
+                    foreground,
+                    line_width,
+                );
+            }
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedAsanohaPattern media frame is invalid: {error:?}"))
+}
+
+fn draw_line_segment_rgba(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    start: (f32, f32),
+    end: (f32, f32),
+    colour: [u8; 3],
+    line_width: f32,
+) {
+    let half_line = (line_width * 0.5).max(0.5);
+    let min_x = (start.0.min(end.0) - half_line - 1.0).floor().max(0.0) as u32;
+    let max_x = (start.0.max(end.0) + half_line + 1.0)
+        .ceil()
+        .min(width.saturating_sub(1) as f32) as u32;
+    let min_y = (start.1.min(end.1) - half_line - 1.0).floor().max(0.0) as u32;
+    let max_y = (start.1.max(end.1) + half_line + 1.0)
+        .ceil()
+        .min(height.saturating_sub(1) as f32) as u32;
+
+    for y in min_y..=max_y {
+        for x in min_x..=max_x {
+            if distance_to_segment(x as f32 + 0.5, y as f32 + 0.5, start, end) <= half_line {
+                let offset = (y as usize * width as usize + x as usize) * 4;
+                pixels[offset..offset + 4].copy_from_slice(&[colour[0], colour[1], colour[2], 255]);
+            }
+        }
+    }
+}
+
 fn point_on_circle(centre_x: f32, centre_y: f32, radius: f32, angle: f32) -> (f32, f32) {
     (
         centre_x + angle.cos() * radius,
@@ -4350,6 +4497,23 @@ fn validate_generated_paper_airplane_source(
     }
     let _ = source.follow_motion_direction;
     parse_hex_colour_source(&source.fill_colour)?;
+    Ok(())
+}
+
+fn validate_generated_asanoha_pattern_source(
+    source: &GeneratedAsanohaPatternSource,
+) -> Result<(), String> {
+    if source.generator != "asanoha-pattern" {
+        return Err("generator must be asanoha-pattern".to_string());
+    }
+    if source.pattern_size < 10 || source.pattern_size > 500 {
+        return Err("pattern_size must be 10..500".to_string());
+    }
+    if source.line_width > 50 {
+        return Err("line_width must be 0..50".to_string());
+    }
+    parse_hex_colour_source(&source.foreground_colour)?;
+    parse_hex_colour_source(&source.background_colour)?;
     Ok(())
 }
 
@@ -6760,5 +6924,36 @@ mod tests {
         assert!(white_count > 5_000);
         assert!(shadow_count > 500);
         assert!(transparent_count > 40_000);
+    }
+
+    #[test]
+    fn generated_asanoha_pattern_source_frame_contains_foreground_background_and_opacity() {
+        let media = SceneMediaReference {
+            id: "asanoha-pattern-1".to_string(),
+            kind: MediaKind::GeneratedAsanohaPattern,
+            source: r##"{"generator":"asanoha-pattern","pattern_size":50,"line_width":2,"foreground_colour":"#000000","background_colour":"#ffffff"}"##.to_string(),
+            width: 800,
+            height: 450,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_asanoha_pattern_source_frame(&media)
+            .expect("generated asanoha pattern frame should render");
+        let foreground_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [0, 0, 0, 255])
+            .count();
+        let background_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [255, 255, 255, 255])
+            .count();
+        let fully_opaque = frame.pixels.chunks_exact(4).all(|rgba| rgba[3] == 255);
+
+        assert!(foreground_count > 5_000);
+        assert!(background_count > 100_000);
+        assert!(fully_opaque);
     }
 }

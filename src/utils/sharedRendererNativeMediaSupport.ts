@@ -22,6 +22,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedHoundstooth') return isSharedRendererNativeGeneratedHoundstoothSourceSupported(reference.source);
   if (reference.kind === 'GeneratedYagasuri') return isSharedRendererNativeGeneratedYagasuriSourceSupported(reference.source);
   if (reference.kind === 'GeneratedPaperAirplane') return isSharedRendererNativeGeneratedPaperAirplaneSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedAsanohaPattern') return isSharedRendererNativeGeneratedAsanohaPatternSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -700,6 +701,35 @@ const isSharedRendererNativeGeneratedPaperAirplaneSourceSupported = (source: str
       && (parsed.axis_mode === 0 || parsed.axis_mode === 1)
       && typeof parsed.fill_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.fill_colour)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedAsanohaPatternSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      pattern_size?: unknown;
+      line_width?: unknown;
+      foreground_colour?: unknown;
+      background_colour?: unknown;
+    };
+    return (
+      parsed.generator === 'asanoha-pattern'
+      && typeof parsed.pattern_size === 'number'
+      && Number.isInteger(parsed.pattern_size)
+      && parsed.pattern_size >= 10
+      && parsed.pattern_size <= 500
+      && typeof parsed.line_width === 'number'
+      && Number.isInteger(parsed.line_width)
+      && parsed.line_width >= 0
+      && parsed.line_width <= 50
+      && typeof parsed.foreground_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.foreground_colour)
+      && typeof parsed.background_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
     );
   } catch {
     return false;

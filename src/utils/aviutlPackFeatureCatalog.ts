@@ -347,6 +347,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '注釈や移動演出のモチーフとして使いやすく、Rust側で透明背景付きの紙飛行機形状を決定的に生成できる。'
   },
   {
+    id: 'ssd-asanoha-pattern',
+    labelJa: '麻の葉模様',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/ANM/ANM_ssd/麻の葉模様.obj'],
+    rationaleJa: '和柄背景や装飾枠に使いやすく、Rust側で不透明な幾何学模様を決定的に生成できる。'
+  },
+  {
     id: 'tim-motion-path',
     labelJa: 'モーションパス',
     category: 'motion',

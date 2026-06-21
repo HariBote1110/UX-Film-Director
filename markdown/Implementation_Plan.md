@@ -61,7 +61,8 @@
 43. ✅ `P2` SSD千鳥格子をRust GeneratedHoundstooth生成オブジェクトへ追加
 44. ✅ `P2` SSD矢がすりをRust GeneratedYagasuri生成オブジェクトへ追加
 45. ✅ `P2` SSD紙飛行機をRust GeneratedPaperAirplane生成オブジェクトへ追加
-46. `P2` 生成効果入り混在exportのnative render source待ち時間を分解して高速化する
+46. ✅ `P2` SSD麻の葉模様をRust GeneratedAsanohaPattern生成オブジェクトへ追加
+47. `P2` 生成効果入り混在exportのnative render source待ち時間を分解して高速化する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

@@ -104,7 +104,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'tartan_check',
   'houndstooth',
   'yagasuri',
-  'paper_airplane'
+  'paper_airplane',
+  'asanoha_pattern'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -340,6 +341,14 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (typeof candidate.followMotionDirection !== 'boolean') return false;
     if (candidate.axisMode !== 0 && candidate.axisMode !== 1) return false;
     if (typeof candidate.fillColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.fillColour)) return false;
+  }
+  if (candidate.type === 'asanoha_pattern') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.patternSize) || candidate.patternSize < 10 || candidate.patternSize > 500) return false;
+    if (!isFiniteNumber(candidate.lineWidth) || candidate.lineWidth < 0 || candidate.lineWidth > 50) return false;
+    if (typeof candidate.foregroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.foregroundColour)) return false;
+    if (typeof candidate.backgroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.backgroundColour)) return false;
   }
   return true;
 };

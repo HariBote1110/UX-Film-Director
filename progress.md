@@ -1,3 +1,22 @@
+## 2026-06-22 — SSD麻の葉模様をRust生成オブジェクトへ追加
+
+### 実施内容
+- Red: `script/ANM/ANM_ssd/麻の葉模様.obj` を、Rust `GeneratedAsanohaPattern` mediaとして扱う境界契約を作った。
+- Green: `AsanohaPatternObject` と `buildAviUtlAsanohaPatternObject` を追加し、Timeline右クリックから `麻の葉模様を追加` / `Add Asanoha Pattern` で置けるようにした。
+- Green: `rustSceneSnapshot` / shared renderer native support / Rust core schema / Rust backendに `GeneratedAsanohaPattern` を追加した。
+- Green: Rust backendで不透明背景、黒白の六角格子・放射線を持つ決定的な麻の葉模様フレームを生成できるようにした。
+- Green: `ssd-asanoha-pattern` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-281a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/asanohaPatternObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/e2e/allReadableMedia.e2e.test.ts --reporter=dot` は93件成功。
+- `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は19件成功。
+- `cargo test --manifest-path rust-backend/Cargo.toml generated_asanoha_pattern_source_frame_contains_foreground_background_and_opacity -- --nocapture` は1件成功。
+- 対象名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足、`mp4box` 型定義不足、`heavyEffectsStress.test.ts` の `PositionKeyframe` 未定義のみ検出した。
+
+### 残課題・次のステップ
+- 現時点の `GeneratedAsanohaPattern` は元スクリプトのLua polygon描画を、黒白の決定的なRustラスタ生成へ置き換えた互換再実装。負値色による透明化や元Luaの完全な加算/減算合成までは未接続。
+
 ## 2026-06-21 — SSD紙飛行機をRust生成オブジェクトへ追加
 
 ### 実施内容

@@ -52,6 +52,7 @@ pub enum MediaKind {
     GeneratedHoundstooth,
     GeneratedYagasuri,
     GeneratedPaperAirplane,
+    GeneratedAsanohaPattern,
     Psd,
 }
 
@@ -84,6 +85,7 @@ pub enum ClipKind {
     GeneratedHoundstoothPlane,
     GeneratedYagasuriPlane,
     GeneratedPaperAirplanePlane,
+    GeneratedAsanohaPatternPlane,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
