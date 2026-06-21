@@ -172,14 +172,15 @@ const readyControl: SharedRendererPreviewPresenterControl = {
     reason: 'noPsdScene',
     psdObjectIds: [],
   },
+  generatedEffectObjectIds: [],
   dispose: vi.fn(),
 };
 
 describe('Rust video preview E2E', () => {
-  it('keeps GoPro video preview on the Rust upload path when native render reports unsupported media only', async () => {
+  it('keeps GoPro video preview on the Rust upload path without probing optional native render fallback', async () => {
     const events: string[] = [];
     let presenterInput: unknown;
-    const prepareNativeRenderUpload: SharedRendererViewportNativeRenderUploadPreparer = async () => {
+    const prepareNativeRenderUpload = vi.fn<SharedRendererViewportNativeRenderUploadPreparer>(async () => {
       events.push('nativeRenderUnsupportedMediaOnly');
       return {
         ok: false,
@@ -187,7 +188,7 @@ describe('Rust video preview E2E', () => {
         detail: 'Shared renderer preview session does not contain only Rust native-renderable media.',
         activeJobs: [],
       };
-    };
+    });
     const prepareVideoUploads: SharedRendererViewportVideoUploadsPreparer = async () => {
       events.push('rustVideoUpload');
       return {
@@ -235,26 +236,17 @@ describe('Rust video preview E2E', () => {
       startPresenter,
     });
 
-    expect(events).toEqual([
-      'nativeRenderUnsupportedMediaOnly',
-      'rustVideoUpload',
-      'presenterReady',
-    ]);
+    expect(events).toEqual(['rustVideoUpload', 'presenterReady']);
+    expect(prepareNativeRenderUpload).not.toHaveBeenCalled();
     expect(result.control.ok).toBe(true);
-    expect(result.nativeRenderUploadResult).toMatchObject({
-      ok: false,
-      reason: 'nativeRenderUnsupportedMediaOnly',
-    });
+    expect(result.nativeRenderUploadResult).toBeUndefined();
     expect(result.videoUploadsResult).toMatchObject({
       ok: true,
       activeJobs: [videoJob],
     });
     expect(presenterInput).toMatchObject({
       requireSharedRendererVideo: true,
-      sharedRendererNativeRenderFailure: {
-        reason: 'nativeRenderUnsupportedMediaOnly',
-        detail: 'Shared renderer preview session does not contain only Rust native-renderable media.',
-      },
+      sharedRendererNativeRenderFailure: undefined,
       sharedRendererDecodedVideoFrameUploads: [{
         clipId: 'gopro',
         mediaId: 'gopro',

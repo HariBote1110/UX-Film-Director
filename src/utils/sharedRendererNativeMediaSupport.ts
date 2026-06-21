@@ -9,6 +9,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedParticle') return isSharedRendererNativeGeneratedParticleSourceSupported(reference.source);
   if (reference.kind === 'GeneratedBarcode') return isSharedRendererNativeGeneratedBarcodeSourceSupported(reference.source);
   if (reference.kind === 'GeneratedPuzzlePiece') return isSharedRendererNativeGeneratedPuzzlePieceSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedColourWheel') return isSharedRendererNativeGeneratedColourWheelSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -192,6 +193,44 @@ const isSharedRendererNativeGeneratedPuzzlePieceSourceSupported = (source: strin
       && (parsed.connector_mode === 'convex' || parsed.connector_mode === 'concave')
       && typeof parsed.fill_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.fill_colour)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedColourWheelSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      radius?: unknown;
+      saturation?: unknown;
+      brightness?: unknown;
+      ring_width_percent?: unknown;
+      segment_count?: unknown;
+    };
+    return (
+      parsed.generator === 'colour-wheel'
+      && typeof parsed.radius === 'number'
+      && Number.isInteger(parsed.radius)
+      && parsed.radius > 0
+      && parsed.radius <= 2000
+      && typeof parsed.saturation === 'number'
+      && Number.isFinite(parsed.saturation)
+      && parsed.saturation >= 0
+      && parsed.saturation <= 100
+      && typeof parsed.brightness === 'number'
+      && Number.isFinite(parsed.brightness)
+      && parsed.brightness >= 0
+      && parsed.brightness <= 100
+      && typeof parsed.ring_width_percent === 'number'
+      && Number.isFinite(parsed.ring_width_percent)
+      && parsed.ring_width_percent > 0
+      && parsed.ring_width_percent <= 100
+      && typeof parsed.segment_count === 'number'
+      && Number.isInteger(parsed.segment_count)
+      && parsed.segment_count >= 3
+      && parsed.segment_count <= 360
     );
   } catch {
     return false;

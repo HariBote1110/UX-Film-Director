@@ -856,13 +856,13 @@ const collectGeneratedPaintObjectIds = (session: SharedRendererPreviewSession): 
 };
 
 const isGeneratedPaintMediaKind = (
-  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'Psd' | undefined
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'Psd' | undefined
 ): boolean =>
   kind === 'SolidColour' || kind === 'GeneratedGradient';
 
 const collectObjectIdsByMediaKind = (
   session: SharedRendererPreviewSession,
-  kind: 'Video' | 'SolidColour' | 'Image' | 'Psd' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece'
+  kind: 'Video' | 'SolidColour' | 'Image' | 'Psd' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel'
 ): string[] => {
   if (!session.surfaceGate.ok) return [];
 
@@ -878,6 +878,7 @@ const collectGeneratedEffectObjectIds = (session: SharedRendererPreviewSession):
   ...collectObjectIdsByMediaKind(session, 'GeneratedParticle'),
   ...collectObjectIdsByMediaKind(session, 'GeneratedBarcode'),
   ...collectObjectIdsByMediaKind(session, 'GeneratedPuzzlePiece'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedColourWheel'),
 ];
 
 const resolveFirstPresentedVideoSourceFrame = (

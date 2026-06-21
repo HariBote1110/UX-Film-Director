@@ -12,7 +12,7 @@ import {
   shouldSynchroniseTimelineForProjectExportFrame,
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, ImageObject, ParticleObject, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, ImageObject, ParticleObject, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, VideoObject } from '../types';
 
 const source = () =>
   readFileSync(new URL('./projectExportFrameCanvas.ts', import.meta.url), 'utf8');
@@ -248,6 +248,33 @@ const puzzlePiece = (patch: Partial<PuzzlePieceObject> = {}): PuzzlePieceObject 
   shapeVariant: 1,
   connectorMode: 'convex',
   fillColour: '#ffffff',
+  ...patch,
+});
+
+const colourWheel = (patch: Partial<ColourWheelObject> = {}): ColourWheelObject => ({
+  id: 'colour-wheel-1',
+  type: 'colour_wheel',
+  name: '色相環',
+  layer: 6,
+  startTime: 0,
+  duration: 5,
+  x: 840,
+  y: 420,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 840,
+  endY: 420,
+  easing: 'linear',
+  width: 240,
+  height: 240,
+  radius: 120,
+  saturation: 100,
+  brightness: 100,
+  ringWidthPercent: 25,
+  segmentCount: 24,
   ...patch,
 });
 
@@ -682,7 +709,7 @@ describe('resolveProjectExportRustFrameSourceContext', () => {
   });
 
   it('marks standard particle exports as native-render media instead of legacy canvas work', () => {
-    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), audio()];
+    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), audio()];
 
     expect(hasProjectExportNativeRenderMediaObjects(objects)).toBe(true);
     expect(resolveProjectExportRustFrameSourceContext({

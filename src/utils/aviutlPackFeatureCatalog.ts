@@ -217,6 +217,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '分割・組み合わせ・ゲーム風演出で使いやすく、Rust側で透明背景付きラスタ生成できる。'
   },
   {
+    id: 'tim-colour-wheel',
+    labelJa: '色相環',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/てぃむ/色相環.obj'],
+    rationaleJa: '色選びや解説演出に使いやすく、Rust側で透明背景付きHSVリングを決定的に生成できる。'
+  },
+  {
     id: 'tim-motion-path',
     labelJa: 'モーションパス',
     category: 'motion',

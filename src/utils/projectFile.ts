@@ -91,7 +91,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'audio_visualization',
   'particle',
   'barcode',
-  'puzzle_piece'
+  'puzzle_piece',
+  'colour_wheel'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -182,6 +183,15 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (typeof candidate.shapeVariant !== 'number' || !Number.isInteger(candidate.shapeVariant) || candidate.shapeVariant < 1 || candidate.shapeVariant > 22) return false;
     if (candidate.connectorMode !== 'convex' && candidate.connectorMode !== 'concave') return false;
     if (typeof candidate.fillColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.fillColour)) return false;
+  }
+  if (candidate.type === 'colour_wheel') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.radius) || candidate.radius <= 0) return false;
+    if (!isFiniteNumber(candidate.saturation) || candidate.saturation < 0 || candidate.saturation > 100) return false;
+    if (!isFiniteNumber(candidate.brightness) || candidate.brightness < 0 || candidate.brightness > 100) return false;
+    if (!isFiniteNumber(candidate.ringWidthPercent) || candidate.ringWidthPercent <= 0 || candidate.ringWidthPercent > 100) return false;
+    if (typeof candidate.segmentCount !== 'number' || !Number.isInteger(candidate.segmentCount) || candidate.segmentCount < 3 || candidate.segmentCount > 360) return false;
   }
   return true;
 };

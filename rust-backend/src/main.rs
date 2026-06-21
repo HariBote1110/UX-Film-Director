@@ -184,6 +184,16 @@ struct GeneratedPuzzlePieceSource {
     fill_colour: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedColourWheelSource {
+    generator: String,
+    radius: u32,
+    saturation: f32,
+    brightness: f32,
+    ring_width_percent: f32,
+    segment_count: u32,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2163,6 +2173,7 @@ fn collect_native_render_sources(
             )?,
             MediaKind::GeneratedBarcode => build_generated_barcode_source_frame(media)?,
             MediaKind::GeneratedPuzzlePiece => build_generated_puzzle_piece_source_frame(media)?,
+            MediaKind::GeneratedColourWheel => build_generated_colour_wheel_source_frame(media)?,
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform => continue,
@@ -2550,6 +2561,73 @@ fn build_generated_puzzle_piece_source_frame(
         .map_err(|error| format!("GeneratedPuzzlePiece media frame is invalid: {error:?}"))
 }
 
+fn build_generated_colour_wheel_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedColourWheel media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let wheel: GeneratedColourWheelSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedColourWheel media '{}': {error}", media.id))?;
+    validate_generated_colour_wheel_source(&wheel).map_err(|message| {
+        format!(
+            "Invalid GeneratedColourWheel media '{}': {message}",
+            media.id
+        )
+    })?;
+
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedColourWheel media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedColourWheel media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+
+    let centre_x = media.width as f32 / 2.0;
+    let centre_y = media.height as f32 / 2.0;
+    let outer_radius = (wheel.radius as f32).min(media.width.min(media.height) as f32 / 2.0);
+    let inner_radius = outer_radius * (1.0 - wheel.ring_width_percent * 0.01).clamp(0.0, 0.99);
+    let saturation = (wheel.saturation * 0.01).clamp(0.0, 1.0);
+    let brightness = (wheel.brightness * 0.01).clamp(0.0, 1.0);
+    let segment_count = wheel.segment_count.max(3) as f32;
+
+    for y in 0..media.height {
+        for x in 0..media.width {
+            let px = x as f32 + 0.5 - centre_x;
+            let py = y as f32 + 0.5 - centre_y;
+            let radius = (px * px + py * py).sqrt();
+            if radius < inner_radius || radius > outer_radius {
+                continue;
+            }
+
+            let angle = py.atan2(px).rem_euclid(std::f32::consts::TAU);
+            let segment = (angle / std::f32::consts::TAU * segment_count).floor();
+            let hue = segment / segment_count * 360.0;
+            let [red, green, blue] = hsv_to_rgb8(hue, saturation, brightness);
+            write_particle_pixel(
+                &mut pixels,
+                media.width,
+                media.height,
+                x as i32,
+                y as i32,
+                [red, green, blue, 255],
+            );
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedColourWheel media frame is invalid: {error:?}"))
+}
+
 fn validate_generated_particle_source(source: &GeneratedParticleSource) -> Result<(), String> {
     if source.generator != "standard-particle" {
         return Err("generator must be standard-particle".to_string());
@@ -2611,6 +2689,58 @@ fn validate_generated_puzzle_piece_source(
     }
     parse_hex_colour_source(&source.fill_colour)?;
     Ok(())
+}
+
+fn validate_generated_colour_wheel_source(
+    source: &GeneratedColourWheelSource,
+) -> Result<(), String> {
+    if source.generator != "colour-wheel" {
+        return Err("generator must be colour-wheel".to_string());
+    }
+    if source.radius == 0 || source.radius > 2000 {
+        return Err("radius must be 1..2000".to_string());
+    }
+    if !source.saturation.is_finite() || source.saturation < 0.0 || source.saturation > 100.0 {
+        return Err("saturation must be 0..100".to_string());
+    }
+    if !source.brightness.is_finite() || source.brightness < 0.0 || source.brightness > 100.0 {
+        return Err("brightness must be 0..100".to_string());
+    }
+    if !source.ring_width_percent.is_finite()
+        || source.ring_width_percent <= 0.0
+        || source.ring_width_percent > 100.0
+    {
+        return Err("ring_width_percent must be 0..100".to_string());
+    }
+    if source.segment_count < 3 || source.segment_count > 360 {
+        return Err("segment_count must be 3..360".to_string());
+    }
+    Ok(())
+}
+
+fn hsv_to_rgb8(hue_degrees: f32, saturation: f32, value: f32) -> [u8; 3] {
+    let hue = hue_degrees.rem_euclid(360.0) / 60.0;
+    let chroma = value * saturation;
+    let x = chroma * (1.0 - ((hue % 2.0) - 1.0).abs());
+    let m = value - chroma;
+    let (red, green, blue) = if hue < 1.0 {
+        (chroma, x, 0.0)
+    } else if hue < 2.0 {
+        (x, chroma, 0.0)
+    } else if hue < 3.0 {
+        (0.0, chroma, x)
+    } else if hue < 4.0 {
+        (0.0, x, chroma)
+    } else if hue < 5.0 {
+        (x, 0.0, chroma)
+    } else {
+        (chroma, 0.0, x)
+    };
+    [
+        ((red + m).clamp(0.0, 1.0) * 255.0).round() as u8,
+        ((green + m).clamp(0.0, 1.0) * 255.0).round() as u8,
+        ((blue + m).clamp(0.0, 1.0) * 255.0).round() as u8,
+    ]
 }
 
 fn puzzle_piece_connectors(shape_variant: u32) -> [(u8, bool); 4] {
@@ -4579,5 +4709,37 @@ mod tests {
 
         assert!(has_white_shape);
         assert!(has_transparent_background);
+    }
+
+    #[test]
+    fn generated_colour_wheel_source_frame_contains_hues_and_transparency() {
+        let media = SceneMediaReference {
+            id: "colour-wheel-1".to_string(),
+            kind: MediaKind::GeneratedColourWheel,
+            source: r##"{"generator":"colour-wheel","radius":48,"saturation":100,"brightness":100,"ring_width_percent":25,"segment_count":24}"##.to_string(),
+            width: 96,
+            height: 96,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_colour_wheel_source_frame(&media)
+            .expect("generated colour wheel frame should render");
+        let has_transparent_background = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [0, 0, 0, 0]);
+        let has_red = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba[0] > 220 && rgba[1] < 80 && rgba[2] < 80 && rgba[3] == 255);
+        let has_blue = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba[2] > 220 && rgba[0] < 120 && rgba[1] < 120 && rgba[3] == 255);
+
+        assert!(has_transparent_background);
+        assert!(has_red);
+        assert!(has_blue);
     }
 }

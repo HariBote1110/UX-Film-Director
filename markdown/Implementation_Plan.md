@@ -48,7 +48,8 @@
 30. ✅ `P2` TimインクTMを標準パーティクル生成オブジェクトへ追加
 31. ✅ `P2` TimバーコードTをRust GeneratedBarcode生成オブジェクトへ追加
 32. ✅ `P2` TimパズルピースをRust GeneratedPuzzlePiece生成オブジェクトへ追加
-33. `P2` 生成効果入り混在exportのnative render source待ち時間を分解して高速化する
+33. ✅ `P2` Tim色相環をRust GeneratedColourWheel生成オブジェクトへ追加
+34. `P2` 生成効果入り混在exportのnative render source待ち時間を分解して高速化する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

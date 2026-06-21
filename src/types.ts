@@ -45,7 +45,7 @@ export interface LayerState {
   locked: boolean;
 }
 
-export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization' | 'particle' | 'barcode' | 'puzzle_piece';
+export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization' | 'particle' | 'barcode' | 'puzzle_piece' | 'colour_wheel';
 
 // --- グラデーション・シャドウ・軌道 ---
 
@@ -404,6 +404,18 @@ export interface PuzzlePieceObject extends BaseObject {
   fillColour: string;
 }
 
+// AviUtlPackV4 色相環互換の生成オブジェクト
+export interface ColourWheelObject extends BaseObject {
+  type: 'colour_wheel';
+  width: number;
+  height: number;
+  radius: number;
+  saturation: number;
+  brightness: number;
+  ringWidthPercent: number;
+  segmentCount: number;
+}
+
 // --- PSD連携用 ---
 
 export interface PsdLayerStruct {
@@ -448,7 +460,7 @@ export interface PsdObject extends BaseObject {
   worldPlacement?: PsdWorldPlacement;
 }
 
-export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject;
+export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject;
 
 /** タイムライン1本分（シーン） */
 export interface SceneData {

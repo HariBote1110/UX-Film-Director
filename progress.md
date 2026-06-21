@@ -1,3 +1,22 @@
+## 2026-06-21 — Tim色相環をRust生成オブジェクトへ追加
+
+### 実施内容
+- Red: `script/てぃむ/色相環.obj` を、Rust `GeneratedColourWheel` mediaとして扱う境界契約を作った。
+- Green: `ColourWheelObject` と `buildAviUtlColourWheelObject` を追加し、Timeline右クリックから `色相環を追加` / `Add Colour Wheel` で置けるようにした。
+- Green: `rustSceneSnapshot` / shared renderer native support / Rust core schema / Rust backendに `GeneratedColourWheel` を追加した。
+- Green: Rust backendで透明背景と複数色のHSVリングを持つ決定的フレームを生成できるようにした。
+- Green: `tim-colour-wheel` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-268a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/colourWheelObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/pixiRenderHelperGeneratedEffectCutover.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/e2e/allReadableMedia.e2e.test.ts src/e2e/rustVideoPreview.e2e.test.ts --reporter=dot` は82件成功。
+- `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は6件成功。
+- `cargo test --manifest-path rust-backend/Cargo.toml generated_colour_wheel_source_frame_contains_hues_and_transparency -- --nocapture` は1件成功。
+- 対象名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足、`mp4box` 型定義不足、`heavyEffectsStress.test.ts` の `PositionKeyframe` 未定義のみ検出した。
+
+### 残課題・次のステップ
+- 現時点の `GeneratedColourWheel` はピクセル単位のHSVリングで、元スクリプトの四角形ポリゴン分割境界とは完全一致しない。
+
 ## 2026-06-21 — TimパズルピースをRust生成オブジェクトへ追加
 
 ### 実施内容

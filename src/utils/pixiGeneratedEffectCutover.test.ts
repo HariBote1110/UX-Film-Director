@@ -3,7 +3,7 @@ import { shouldSkipPixiGeneratedEffectForSharedRenderer } from './pixiGeneratedE
 
 describe('pixiGeneratedEffectCutover', () => {
   it('skips Pixi generated effect rendering when the Rust native frame owns it', () => {
-    const sharedRendererGeneratedEffectObjectIds = new Set(['waveform-1', 'particle-1', 'barcode-1', 'puzzle-1']);
+    const sharedRendererGeneratedEffectObjectIds = new Set(['waveform-1', 'particle-1', 'barcode-1', 'puzzle-1', 'colour-wheel-1']);
 
     expect(shouldSkipPixiGeneratedEffectForSharedRenderer({
       objectId: 'waveform-1',
@@ -26,6 +26,12 @@ describe('pixiGeneratedEffectCutover', () => {
     expect(shouldSkipPixiGeneratedEffectForSharedRenderer({
       objectId: 'puzzle-1',
       objectType: 'puzzle_piece',
+      isExporting: true,
+      sharedRendererGeneratedEffectObjectIds,
+    })).toBe(true);
+    expect(shouldSkipPixiGeneratedEffectForSharedRenderer({
+      objectId: 'colour-wheel-1',
+      objectType: 'colour_wheel',
       isExporting: true,
       sharedRendererGeneratedEffectObjectIds,
     })).toBe(true);

@@ -10,5 +10,5 @@ export const shouldSkipPixiGeneratedEffectForSharedRenderer = ({
   objectType,
   sharedRendererGeneratedEffectObjectIds,
 }: ShouldSkipPixiGeneratedEffectForSharedRendererInput): boolean =>
-  (objectType === 'audio_visualization' || objectType === 'particle' || objectType === 'barcode' || objectType === 'puzzle_piece')
+  (objectType === 'audio_visualization' || objectType === 'particle' || objectType === 'barcode' || objectType === 'puzzle_piece' || objectType === 'colour_wheel')
   && sharedRendererGeneratedEffectObjectIds?.has(objectId) === true;
