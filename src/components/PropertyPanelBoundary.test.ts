@@ -53,3 +53,20 @@ describe('PropertyPanel standard particle controls', () => {
     expect(code).toContain("(selectedObject as ParticleObject).colour");
   });
 });
+
+describe('PropertyPanel GetColor sampling controls', () => {
+  it('exposes editable controls for Rust-native GetColor image sampling', () => {
+    const code = source();
+
+    expect(code).toContain('GetColorDotFieldObject');
+    expect(code).toContain("selectedObject.type === 'getcolor_dot_field'");
+    expect(code).toContain('GetColor Sampling');
+    expect(code).toContain('Sample Layer');
+    expect(code).toContain('Sample Object');
+    expect(code).toContain('Sample Strength');
+    expect(code).toContain('sampleSourceLayer');
+    expect(code).toContain('sampleSourceObjectId');
+    expect(code).toContain('sampleStrength');
+    expect(code).toContain('getColorSampleCandidates');
+  });
+});
