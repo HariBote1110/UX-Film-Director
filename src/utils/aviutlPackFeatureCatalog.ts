@@ -157,6 +157,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '画像をドット化し、色相・彩度・輝度・透明度で変形できる大物。UX FDではまずRust生成の色/輝度ドットフィールドとして分割実装する。'
   },
   {
+    id: 'getcolor-v2r-diamond-dots',
+    labelJa: 'GetColor V2R 菱形ドットフィールド',
+    category: 'generated-object',
+    phase: 'P1',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/@GetColor/@GetColor-V2R.anm'],
+    rationaleJa: 'GetColor V2Rの図形指定を、Rust生成の菱形ドットプリセットとして標準搭載する。'
+  },
+  {
     id: '93-audio-sphere',
     labelJa: '93 音声玉',
     category: 'audio-visual',

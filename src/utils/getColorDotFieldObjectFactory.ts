@@ -52,3 +52,11 @@ export const buildGetColorDotFieldObject = ({
     seed: 93,
   };
 };
+
+export const buildGetColorDiamondDotFieldObject = (input: BuildGetColorDotFieldObjectInput): GetColorDotFieldObject => ({
+  ...buildGetColorDotFieldObject(input),
+  name: 'GetColor V2R 菱形ドットフィールド',
+  dotSize: 18,
+  dotShape: 'diamond',
+  strokeWidth: 0,
+});

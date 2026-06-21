@@ -426,6 +426,8 @@ struct GeneratedGetColorDotsSource {
     columns: u32,
     rows: u32,
     dot_size: f32,
+    dot_shape: Option<String>,
+    stroke_width: Option<f32>,
     size_influence: f32,
     luminance_influence: f32,
     hue_shift_degrees: f32,
@@ -5507,14 +5509,17 @@ fn build_generated_getcolor_dots_source_frame(
             } else {
                 secondary
             };
-            draw_filled_circle_rgba(
+            draw_getcolor_dot_shape_rgba(
                 &mut pixels,
                 media.width,
                 media.height,
                 centre_x,
                 centre_y,
                 radius,
+                dots.dot_shape.as_deref().unwrap_or("circle"),
+                dots.stroke_width.unwrap_or(0.0),
                 colour,
+                background,
                 255,
             );
         }
@@ -5522,6 +5527,83 @@ fn build_generated_getcolor_dots_source_frame(
 
     RgbaFrame::from_rgba8(media.width, media.height, pixels)
         .map_err(|error| format!("GeneratedGetColorDots media frame is invalid: {error:?}"))
+}
+
+fn draw_getcolor_dot_shape_rgba(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    centre_x: f32,
+    centre_y: f32,
+    radius: f32,
+    shape: &str,
+    stroke_width: f32,
+    colour: [u8; 3],
+    background: [u8; 3],
+    alpha: u8,
+) {
+    let stroke_width = stroke_width.clamp(0.0, radius);
+    match shape {
+        "square" => {
+            draw_getcolor_square_dot_rgba(pixels, width, height, centre_x, centre_y, radius, colour, alpha);
+            if stroke_width > 0.0 && radius > stroke_width {
+                draw_getcolor_square_dot_rgba(pixels, width, height, centre_x, centre_y, radius - stroke_width, background, alpha);
+            }
+        }
+        "diamond" => {
+            draw_getcolor_diamond_dot_rgba(pixels, width, height, centre_x, centre_y, radius, colour, alpha);
+            if stroke_width > 0.0 && radius > stroke_width {
+                draw_getcolor_diamond_dot_rgba(pixels, width, height, centre_x, centre_y, radius - stroke_width, background, alpha);
+            }
+        }
+        _ => {
+            draw_filled_circle_rgba(pixels, width, height, centre_x, centre_y, radius, colour, alpha);
+            if stroke_width > 0.0 && radius > stroke_width {
+                draw_filled_circle_rgba(pixels, width, height, centre_x, centre_y, radius - stroke_width, background, alpha);
+            }
+        }
+    }
+}
+
+fn draw_getcolor_square_dot_rgba(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    centre_x: f32,
+    centre_y: f32,
+    radius: f32,
+    colour: [u8; 3],
+    alpha: u8,
+) {
+    fill_rect_rgba(
+        pixels,
+        width,
+        height,
+        (centre_x - radius).floor() as i32,
+        (centre_y - radius).floor() as i32,
+        (centre_x + radius).ceil() as i32,
+        (centre_y + radius).ceil() as i32,
+        [colour[0], colour[1], colour[2], alpha],
+    );
+}
+
+fn draw_getcolor_diamond_dot_rgba(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    centre_x: f32,
+    centre_y: f32,
+    radius: f32,
+    colour: [u8; 3],
+    alpha: u8,
+) {
+    let points = [
+        (centre_x, centre_y - radius),
+        (centre_x + radius, centre_y),
+        (centre_x, centre_y + radius),
+        (centre_x - radius, centre_y),
+    ];
+    fill_polygon_fan_rgba(pixels, width, height, &points, (centre_x, centre_y), colour, alpha);
 }
 
 fn tone_curve_curve_points(points: &[f32], width: f32, height: f32) -> Vec<(f32, f32)> {
@@ -6490,6 +6572,16 @@ fn validate_generated_getcolor_dots_source(
     }
     if !source.dot_size.is_finite() || source.dot_size < 0.0 || source.dot_size > 2000.0 {
         return Err("dot_size must be 0..2000".to_string());
+    }
+    if let Some(dot_shape) = source.dot_shape.as_deref() {
+        if dot_shape != "circle" && dot_shape != "square" && dot_shape != "diamond" {
+            return Err("dot_shape must be circle, square or diamond".to_string());
+        }
+    }
+    if let Some(stroke_width) = source.stroke_width {
+        if !stroke_width.is_finite() || !(0.0..=200.0).contains(&stroke_width) {
+            return Err("stroke_width must be 0..200".to_string());
+        }
     }
     if !source.size_influence.is_finite()
         || source.size_influence < 0.0

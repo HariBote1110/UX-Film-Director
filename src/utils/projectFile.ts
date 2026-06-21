@@ -489,6 +489,8 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!isFiniteNumber(candidate.columns) || candidate.columns < 1 || candidate.columns > 512) return false;
     if (!isFiniteNumber(candidate.rows) || candidate.rows < 1 || candidate.rows > 512) return false;
     if (!isFiniteNumber(candidate.dotSize) || candidate.dotSize < 0 || candidate.dotSize > 2000) return false;
+    if (candidate.dotShape !== undefined && candidate.dotShape !== 'circle' && candidate.dotShape !== 'square' && candidate.dotShape !== 'diamond') return false;
+    if (candidate.strokeWidth !== undefined && (!isFiniteNumber(candidate.strokeWidth) || candidate.strokeWidth < 0 || candidate.strokeWidth > 200)) return false;
     if (!isFiniteNumber(candidate.sizeInfluence) || candidate.sizeInfluence < 0 || candidate.sizeInfluence > 4) return false;
     if (!isFiniteNumber(candidate.luminanceInfluence) || candidate.luminanceInfluence < 0 || candidate.luminanceInfluence > 4) return false;
     if (!isFiniteNumber(candidate.hueShiftDegrees) || candidate.hueShiftDegrees < -720 || candidate.hueShiftDegrees > 720) return false;

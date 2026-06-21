@@ -743,6 +743,8 @@ export interface GetColorDotFieldObject extends BaseObject {
   columns: number;
   rows: number;
   dotSize: number;
+  dotShape?: 'circle' | 'square' | 'diamond';
+  strokeWidth?: number;
   sizeInfluence: number;
   luminanceInfluence: number;
   hueShiftDegrees: number;

@@ -1156,6 +1156,10 @@ const serialiseGeneratedGetColorDotsSource = (object: GetColorDotFieldObject): s
     secondary_colour: /^#[0-9a-f]{6}$/i.test(object.secondaryColour) ? object.secondaryColour : '#36c2ff',
     background_colour: /^#[0-9a-f]{6}$/i.test(object.backgroundColour) ? object.backgroundColour : '#000000',
     seed: Math.trunc(finiteNumberOr(object.seed, 93)),
+    ...(object.dotShape === 'circle' || object.dotShape === 'square' || object.dotShape === 'diamond' ? {
+      dot_shape: object.dotShape,
+      stroke_width: Math.min(200, Math.max(0, finiteNumberOr(object.strokeWidth, 0))),
+    } : {}),
   });
 
 const normaliseToneCurvePoints = (points: readonly number[]): number[] => {

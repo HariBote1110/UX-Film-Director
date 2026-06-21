@@ -1192,7 +1192,19 @@ const isSharedRendererNativeGeneratedGetColorDotsSourceSupported = (source: stri
       secondary_colour?: unknown;
       background_colour?: unknown;
       seed?: unknown;
+      dot_shape?: unknown;
+      stroke_width?: unknown;
     };
+    const dotShapeSupported = parsed.dot_shape === undefined
+      || parsed.dot_shape === 'circle'
+      || parsed.dot_shape === 'square'
+      || parsed.dot_shape === 'diamond';
+    const strokeWidthSupported = parsed.stroke_width === undefined || (
+      typeof parsed.stroke_width === 'number'
+      && Number.isFinite(parsed.stroke_width)
+      && parsed.stroke_width >= 0
+      && parsed.stroke_width <= 200
+    );
     return (
       parsed.generator === 'getcolor-v2r-dot-field'
       && typeof parsed.columns === 'number'
@@ -1228,6 +1240,8 @@ const isSharedRendererNativeGeneratedGetColorDotsSourceSupported = (source: stri
       && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
       && typeof parsed.seed === 'number'
       && Number.isInteger(parsed.seed)
+      && dotShapeSupported
+      && strokeWidthSupported
     );
   } catch {
     return false;
