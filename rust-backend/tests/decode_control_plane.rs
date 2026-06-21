@@ -953,6 +953,47 @@ fn encode_transcode_video_crops_partially_offscreen_object() {
 }
 
 #[test]
+fn encode_transcode_video_accepts_static_overlay_filters() {
+    let temp_dir = TestTempDir::new("encode-transcode-video-overlays");
+    let fixture = build_two_frame_h264_fixture(temp_dir.path());
+    let output_path = temp_dir.path().join("transcoded-overlay-output.mp4");
+    let output_path_string = output_path.to_string_lossy().into_owned();
+    let mut backend = BackendProcess::start();
+
+    let response = backend.request(json!({
+        "id": 126,
+        "method": "encode.transcodeVideo",
+        "params": {
+            "inputPath": fixture.path.to_string_lossy(),
+            "outputPath": output_path_string.clone(),
+            "width": fixture.width,
+            "height": fixture.height,
+            "fps": 30,
+            "durationSeconds": 1.0,
+            "overlays": [{
+                "kind": "solidColour",
+                "x": 1,
+                "y": 1,
+                "width": 2,
+                "height": 2,
+                "colour": "#ff0000",
+                "opacity": 0.5
+            }]
+        }
+    }));
+
+    assert_eq!(response["ok"], true, "{response}");
+    assert_eq!(response["result"]["overlayCount"], 1);
+    assert_eq!(response["result"]["outputPath"], output_path_string);
+    assert!(
+        fs::metadata(&output_path)
+            .expect("overlay transcode output file exists")
+            .len()
+            > 0
+    );
+}
+
+#[test]
 fn native_render_shared_frame_consumes_source_shm_and_returns_descriptor_only() {
     let mut backend = BackendProcess::start();
     let source_memory_id = unique_shm_name();
