@@ -1,6 +1,14 @@
 # 進捗ログ
 
 ## 2026-06-21
+- 生成効果のPixi二重描画レースを抑止した。
+- Red: `Viewport` がshared renderer preview session生成直後にGeneratedAudioWaveform/GeneratedParticleのPixi cutover IDを更新する契約を追加した。
+- Green: `collectSharedRendererGeneratedEffectObjectIdsFromSession` を追加し、Presenter完了前でもRust所有の生成効果をPixi描画から外すようにした。
+- 版を `0.1.1-Beta-259f` に更新した。
+- 検証: `npm test -- --run src/utils/viewportRustVideoOnlyBoundary.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/packageScripts.test.ts -t "generated effect|records real video export|skips Rust-owned generated effects"` は3件成功した。
+- 残課題: 実Electron export E2Eで、生成効果入り成果物の画素検査とruntime error検出を通す。
+
+## 2026-06-21
 - 生成波形の共有フレーム画素一致を確認した。
 - Red: `native-wgpu-renderer` に、Audio waveform R生成フレームが直接フレーム出力と共有メモリ出力で一致する契約を追加した。
 - Green: `render_native_wgpu_frame_to_shared_ring_with_audio_waveforms` を追加し、生成波形をRust native rendererの共有フレーム出力へ接続した。

@@ -38,7 +38,8 @@
 20. ✅ `P2` 標準パーティクル追加UIをTimeline context menuへ接続
 21. ✅ `P2` 標準パーティクルのプロジェクト保存/読込許可を追加
 22. ✅ `P2` 標準パーティクルPropertyPanel編集を追加
-23. `P2` E2Eで代表素材に効果を載せ、preview/exportの一致を検証（境界E2Eと実Electron生成効果exportは確認済み。Audio waveform RはRust native renderer内で直接フレーム/共有メモリフレームの画素一致と指定色画素の可視性を確認済み。Rust backendではAudio waveform R+標準パーティクル混在の共有メモリ合成とdirect encode書き出しを確認済み。Audio waveform RのPCM取得はsource frameへ追従済み。生成効果のPixi二重描画runtime errorは実Electron E2Eで解消済み。実Electron成果物の画素比較は継続）
+23. ✅ `P2` Rust所有の生成効果はpreview session生成直後にPixi描画から外す
+24. `P2` E2Eで代表素材に効果を載せ、preview/exportの一致を検証（境界E2Eと実Electron生成効果exportは確認済み。Audio waveform RはRust native renderer内で直接フレーム/共有メモリフレームの画素一致と指定色画素の可視性を確認済み。Rust backendではAudio waveform R+標準パーティクル混在の共有メモリ合成とdirect encode書き出しを確認済み。Audio waveform RのPCM取得はsource frameへ追従済み。生成効果のPixi二重描画runtime errorは実Electron E2Eで解消済み。実Electron成果物の画素比較は継続）
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

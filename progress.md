@@ -1,3 +1,17 @@
+## 2026-06-21 — 生成効果のPixi二重描画レースを抑止
+
+### 実施内容
+- Red: `Viewport` がshared renderer preview session生成直後にGeneratedAudioWaveform/GeneratedParticleのPixi cutover IDを更新する契約を追加した。
+- Green: `collectSharedRendererGeneratedEffectObjectIdsFromSession` を追加し、Presenter完了前でもRust所有の生成効果をPixi描画から外すようにした。
+- 版を `0.1.1-Beta-259f` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/viewportRustVideoOnlyBoundary.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/packageScripts.test.ts -t "generated effect|records real video export|skips Rust-owned generated effects"` は3件成功。
+- 対象ファイル名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足のみ検出した。
+
+### 残課題・次のステップ
+- 実Electron export E2Eで、生成効果入り成果物の画素検査とruntime error検出を通す。
+
 ## 2026-06-21 — 生成波形の共有フレーム画素一致を確認
 
 ### 実施内容

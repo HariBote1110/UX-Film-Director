@@ -18,6 +18,7 @@ import { visionNormBoundingBoxToVideoLocalRect } from '../utils/visionTrackingGe
 import type { ResizeCorner } from '../utils/transformGeometry';
 import {
   buildSharedRendererPreviewSession,
+  collectSharedRendererGeneratedEffectObjectIdsFromSession,
   type SharedRendererPreviewSession,
 } from '../utils/sharedRendererPreviewSession';
 import { buildSharedRendererPresenterSessionKey } from '../utils/sharedRendererPresenterSessionKey';
@@ -713,6 +714,7 @@ const Viewport: React.FC = () => {
       webGpuAvailable: sharedRendererGpuStatus.webGpuAvailable,
       fallbackAdapter: sharedRendererGpuStatus.fallbackAdapter,
     });
+    updateSharedRendererGeneratedEffectObjectIds(collectSharedRendererGeneratedEffectObjectIdsFromSession(session));
     const diagnosticsWindow = window as unknown as {
       __UXFD_SHARED_RENDERER_PREVIEW_PLAN__?: unknown;
       __UXFD_SHARED_RENDERER_PREVIEW_SURFACE_GATE__?: unknown;
@@ -811,6 +813,7 @@ const Viewport: React.FC = () => {
     sharedRendererGpuStatus.webGpuAvailable,
     sharedRendererPreviewEnabled,
     rustVideoOnlyEnabled,
+    updateSharedRendererGeneratedEffectObjectIds,
   ]);
 
   useEffect(() => {
