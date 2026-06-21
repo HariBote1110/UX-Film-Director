@@ -70,6 +70,12 @@ const media: RustSceneMediaReference[] = [{
   width: 4,
   height: 4,
 }, {
+  id: 'particle-1',
+  kind: 'GeneratedParticle' as RustSceneMediaReference['kind'],
+  source: '{"generator":"standard-particle","seed":93,"particle_count":16,"spread":180,"speed":120,"size":6,"colour":"#ffffff","lifetime_seconds":1.5}',
+  width: 4,
+  height: 4,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -110,8 +116,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[3])).toBe(false);
     expect(isSharedRendererNativeMediaReferenceSupported(media[4])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[5])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[6])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[6])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[7])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[8])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {

@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AudioObject, AudioVisualizationObject, ImageObject, ProjectSettings, PsdObject, ShapeObject, TimelineObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, ImageObject, ParticleObject, ProjectSettings, PsdObject, ShapeObject, TimelineObject, VideoObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -167,6 +167,35 @@ const baseAudioVisualisation = (patch: Partial<AudioVisualizationObject> = {}): 
   ...patch,
 });
 
+const baseParticle = (patch: Partial<ParticleObject> = {}): ParticleObject => ({
+  id: 'particle-1',
+  type: 'particle',
+  name: '標準パーティクル',
+  layer: 5,
+  startTime: 1,
+  duration: 4,
+  x: 960,
+  y: 540,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.8,
+  enableAnimation: false,
+  endX: 960,
+  endY: 540,
+  easing: 'linear',
+  width: 640,
+  height: 360,
+  particleCount: 32,
+  seed: 93,
+  spread: 180,
+  speed: 120,
+  size: 6,
+  colour: '#ffffff',
+  lifetimeSeconds: 1.5,
+  ...patch,
+});
+
 describe('buildRustSceneSnapshotForTimeline', () => {
   it('builds a solid colour plane for active rectangle shapes', () => {
     const layers = createDefaultLayers();
@@ -272,6 +301,57 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         }),
         width: 640,
         height: 120,
+      },
+    ]);
+  });
+
+  it('builds a generated standard particle media plane from a particle object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseParticle()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated particle snapshot to pass');
+
+    expect(result.snapshot.clips).toEqual([
+      {
+        clip_id: 'particle-1',
+        track_id: 'layer-5',
+        media_id: 'particle-1',
+        source_frame: 60,
+        z_index: 0,
+        transform: {
+          translation_x: 960,
+          translation_y: 540,
+          scale_x: 1,
+          scale_y: 1,
+          rotation_degrees: 0,
+          sampling: 'bilinear',
+        },
+        opacity: 0.8,
+        effects: [],
+      },
+    ]);
+    expect(result.media).toEqual([
+      {
+        id: 'particle-1',
+        kind: 'GeneratedParticle',
+        source: JSON.stringify({
+          generator: 'standard-particle',
+          seed: 93,
+          particle_count: 32,
+          spread: 180,
+          speed: 120,
+          size: 6,
+          colour: '#ffffff',
+          lifetime_seconds: 1.5,
+        }),
+        width: 640,
+        height: 360,
       },
     ]);
   });

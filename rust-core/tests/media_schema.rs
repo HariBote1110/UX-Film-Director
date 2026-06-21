@@ -35,3 +35,19 @@ fn rust_core_accepts_generated_gradient_media_kind_at_the_json_boundary() {
     assert_eq!(media.width, 200);
     assert_eq!(media.height, 100);
 }
+
+#[test]
+fn rust_core_accepts_generated_particle_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "particle-1",
+        "kind": "GeneratedParticle",
+        "source": "{\"generator\":\"standard-particle\",\"seed\":93,\"particle_count\":16,\"spread\":180,\"speed\":120,\"size\":6,\"colour\":\"#ffffff\",\"lifetime_seconds\":1.5}",
+        "width": 640,
+        "height": 360
+    }))
+    .expect("GeneratedParticle media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedParticle);
+    assert_eq!(media.width, 640);
+    assert_eq!(media.height, 360);
+}
