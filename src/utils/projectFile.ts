@@ -103,7 +103,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'triangle_bracket',
   'tartan_check',
   'houndstooth',
-  'yagasuri'
+  'yagasuri',
+  'paper_airplane'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -328,6 +329,17 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (typeof candidate.staggered !== 'boolean') return false;
     if (typeof candidate.foregroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.foregroundColour)) return false;
     if (typeof candidate.backgroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.backgroundColour)) return false;
+  }
+  if (candidate.type === 'paper_airplane') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.bodyLength) || candidate.bodyLength < 1 || candidate.bodyLength > 2000) return false;
+    if (!isFiniteNumber(candidate.wingWidth) || candidate.wingWidth < 0 || candidate.wingWidth > 1000) return false;
+    if (!isFiniteNumber(candidate.foldHeight) || candidate.foldHeight < 0 || candidate.foldHeight > 1000) return false;
+    if (!isFiniteNumber(candidate.gap) || candidate.gap < 0 || candidate.gap > 1000) return false;
+    if (typeof candidate.followMotionDirection !== 'boolean') return false;
+    if (candidate.axisMode !== 0 && candidate.axisMode !== 1) return false;
+    if (typeof candidate.fillColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.fillColour)) return false;
   }
   return true;
 };

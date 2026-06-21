@@ -321,6 +321,18 @@ struct GeneratedYagasuriSource {
     background_colour: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedPaperAirplaneSource {
+    generator: String,
+    body_length: u32,
+    wing_width: u32,
+    fold_height: u32,
+    gap: u32,
+    follow_motion_direction: bool,
+    axis_mode: u32,
+    fill_colour: String,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2316,6 +2328,9 @@ fn collect_native_render_sources(
             MediaKind::GeneratedTartanCheck => build_generated_tartan_check_source_frame(media)?,
             MediaKind::GeneratedHoundstooth => build_generated_houndstooth_source_frame(media)?,
             MediaKind::GeneratedYagasuri => build_generated_yagasuri_source_frame(media)?,
+            MediaKind::GeneratedPaperAirplane => {
+                build_generated_paper_airplane_source_frame(media)?
+            }
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform => continue,
@@ -3734,6 +3749,89 @@ fn build_generated_yagasuri_source_frame(media: &SceneMediaReference) -> Result<
         .map_err(|error| format!("GeneratedYagasuri media frame is invalid: {error:?}"))
 }
 
+fn build_generated_paper_airplane_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedPaperAirplane media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let plane: GeneratedPaperAirplaneSource =
+        serde_json::from_str(&media.source).map_err(|error| {
+            format!(
+                "Invalid GeneratedPaperAirplane media '{}': {error}",
+                media.id
+            )
+        })?;
+    validate_generated_paper_airplane_source(&plane).map_err(|message| {
+        format!(
+            "Invalid GeneratedPaperAirplane media '{}': {message}",
+            media.id
+        )
+    })?;
+    let fill = parse_hex_colour_source(&plane.fill_colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedPaperAirplane media '{}': {message}",
+            media.id
+        )
+    })?;
+    let shadow = [
+        (fill[0] as f32 * 0.72).round() as u8,
+        (fill[1] as f32 * 0.72).round() as u8,
+        (fill[2] as f32 * 0.72).round() as u8,
+    ];
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedPaperAirplane media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedPaperAirplane media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+    let centre_x = media.width as f32 / 2.0;
+    let centre_y = media.height as f32 / 2.0;
+    let half_length = (plane.body_length as f32 / 2.0).min(media.height as f32 / 2.0 - 2.0);
+    let wing_width = plane.wing_width as f32;
+    let fold_height = plane.fold_height as f32;
+    let gap = plane.gap as f32 / 2.0;
+    let nose = (centre_x, (centre_y - half_length).max(0.0));
+    let tail_y = (centre_y + half_length).min(media.height as f32 - 1.0);
+    let left_tail = ((centre_x - wing_width - gap).max(0.0), tail_y);
+    let right_tail = (
+        (centre_x + wing_width + gap).min(media.width as f32 - 1.0),
+        tail_y,
+    );
+    let left_inner = ((centre_x - gap).max(0.0), tail_y);
+    let right_inner = ((centre_x + gap).min(media.width as f32 - 1.0), tail_y);
+    let fold_tip = (centre_x, (tail_y - fold_height).max(nose.1));
+
+    for y in 0..media.height {
+        for x in 0..media.width {
+            let sample_x = x as f32 + 0.5;
+            let sample_y = y as f32 + 0.5;
+            let in_left_wing = point_in_triangle(sample_x, sample_y, [nose, left_tail, left_inner]);
+            let in_right_wing =
+                point_in_triangle(sample_x, sample_y, [nose, right_inner, right_tail]);
+            let in_fold = point_in_triangle(sample_x, sample_y, [nose, left_inner, fold_tip])
+                || point_in_triangle(sample_x, sample_y, [nose, fold_tip, right_inner]);
+            if in_left_wing || in_right_wing || in_fold {
+                let colour = if in_fold { shadow } else { fill };
+                let offset = (y as usize * media.width as usize + x as usize) * 4;
+                pixels[offset..offset + 4].copy_from_slice(&[colour[0], colour[1], colour[2], 255]);
+            }
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedPaperAirplane media frame is invalid: {error:?}"))
+}
+
 fn point_on_circle(centre_x: f32, centre_y: f32, radius: f32, angle: f32) -> (f32, f32) {
     (
         centre_x + angle.cos() * radius,
@@ -4226,6 +4324,32 @@ fn validate_generated_yagasuri_source(source: &GeneratedYagasuriSource) -> Resul
     }
     parse_hex_colour_source(&source.foreground_colour)?;
     parse_hex_colour_source(&source.background_colour)?;
+    Ok(())
+}
+
+fn validate_generated_paper_airplane_source(
+    source: &GeneratedPaperAirplaneSource,
+) -> Result<(), String> {
+    if source.generator != "paper-airplane" {
+        return Err("generator must be paper-airplane".to_string());
+    }
+    if source.body_length == 0 || source.body_length > 2000 {
+        return Err("body_length must be 1..2000".to_string());
+    }
+    if source.wing_width > 1000 {
+        return Err("wing_width must be 0..1000".to_string());
+    }
+    if source.fold_height > 1000 {
+        return Err("fold_height must be 0..1000".to_string());
+    }
+    if source.gap > 1000 {
+        return Err("gap must be 0..1000".to_string());
+    }
+    if source.axis_mode > 1 {
+        return Err("axis_mode must be 0 or 1".to_string());
+    }
+    let _ = source.follow_motion_direction;
+    parse_hex_colour_source(&source.fill_colour)?;
     Ok(())
 }
 
@@ -6601,5 +6725,40 @@ mod tests {
         assert!(foreground_count > 80_000);
         assert!(background_count > 120_000);
         assert!(fully_opaque);
+    }
+
+    #[test]
+    fn generated_paper_airplane_source_frame_contains_wings_shadow_and_transparency() {
+        let media = SceneMediaReference {
+            id: "paper-airplane-1".to_string(),
+            kind: MediaKind::GeneratedPaperAirplane,
+            source: r##"{"generator":"paper-airplane","body_length":200,"wing_width":80,"fold_height":50,"gap":50,"follow_motion_direction":false,"axis_mode":0,"fill_colour":"#ffffff"}"##.to_string(),
+            width: 320,
+            height: 240,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_paper_airplane_source_frame(&media)
+            .expect("generated paper airplane frame should render");
+        let white_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [255, 255, 255, 255])
+            .count();
+        let shadow_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [184, 184, 184, 255])
+            .count();
+        let transparent_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| rgba[3] == 0)
+            .count();
+
+        assert!(white_count > 5_000);
+        assert!(shadow_count > 500);
+        assert!(transparent_count > 40_000);
     }
 }

@@ -11,6 +11,7 @@ import type {
   GradientFill,
   ImageObject,
   LayerState,
+  PaperAirplaneObject,
   ParticleObject,
   PieChartObject,
   ProjectSettings,
@@ -76,7 +77,7 @@ export interface RustSceneSnapshot {
 
 export interface RustSceneMediaReference {
   id: string;
-  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'GeneratedTriangleBracket' | 'GeneratedTartanCheck' | 'GeneratedHoundstooth' | 'GeneratedYagasuri' | 'Psd';
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'GeneratedTriangleBracket' | 'GeneratedTartanCheck' | 'GeneratedHoundstooth' | 'GeneratedYagasuri' | 'GeneratedPaperAirplane' | 'Psd';
   source: string;
   width: number;
   height: number;
@@ -149,7 +150,7 @@ export interface RustSceneSnapshotBuildInput {
 export type RustSceneVideoSourceMode = 'previewProxy' | 'exportOriginal';
 
 type SupportedMediaObject = ImageObject | VideoObject | PsdObject;
-type SupportedGeneratedObject = AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject;
+type SupportedGeneratedObject = AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject;
 type SupportedSceneObject = SupportedMediaObject | ShapeObject | SupportedGeneratedObject;
 
 const rustColourPipeline = (): RustColourPipeline => ({
@@ -401,7 +402,8 @@ const isSupportedSceneObject = (object: TimelineObject): object is SupportedScen
   || object.type === 'triangle_bracket'
   || object.type === 'tartan_check'
   || object.type === 'houndstooth'
-  || object.type === 'yagasuri';
+  || object.type === 'yagasuri'
+  || object.type === 'paper_airplane';
 
 const isVisualSceneObject = (object: TimelineObject): boolean =>
   object.type !== 'audio';
@@ -602,6 +604,16 @@ const mediaReferenceForObject = (
       id: object.id,
       kind: 'GeneratedYagasuri',
       source: serialiseGeneratedYagasuriSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'paper_airplane') {
+    return {
+      id: object.id,
+      kind: 'GeneratedPaperAirplane',
+      source: serialiseGeneratedPaperAirplaneSource(object),
       width: object.width,
       height: object.height,
     };
@@ -824,6 +836,18 @@ const serialiseGeneratedYagasuriSource = (object: YagasuriObject): string =>
     background_colour: /^#[0-9a-f]{6}$/i.test(object.backgroundColour) ? object.backgroundColour : '#ffffff',
   });
 
+const serialiseGeneratedPaperAirplaneSource = (object: PaperAirplaneObject): string =>
+  JSON.stringify({
+    generator: 'paper-airplane',
+    body_length: Math.min(2000, Math.max(1, Math.trunc(finiteNumberOr(object.bodyLength, 200)))),
+    wing_width: Math.min(1000, Math.max(0, Math.trunc(finiteNumberOr(object.wingWidth, 80)))),
+    fold_height: Math.min(1000, Math.max(0, Math.trunc(finiteNumberOr(object.foldHeight, 50)))),
+    gap: Math.min(1000, Math.max(0, Math.trunc(finiteNumberOr(object.gap, 50)))),
+    follow_motion_direction: object.followMotionDirection === true,
+    axis_mode: Math.trunc(finiteNumberOr(object.axisMode, 0)) === 1 ? 1 : 0,
+    fill_colour: /^#[0-9a-f]{6}$/i.test(object.fillColour) ? object.fillColour : '#ffffff',
+  });
+
 const normaliseTrackBarValues = (values: readonly number[]): number[] =>
   Array.from({ length: 4 }, (_, index) => finiteNumberOr(values[index], 0));
 
@@ -976,6 +1000,7 @@ const sourceFrameForObject = (
   if (object.type === 'tartan_check') return 0;
   if (object.type === 'houndstooth') return 0;
   if (object.type === 'yagasuri') return 0;
+  if (object.type === 'paper_airplane') return 0;
   const localTime = Math.max(0, time - object.startTime);
   const mediaTime = localTime + (object.offset ?? 0);
   return secondsToFrameIndex(mediaTime, fps);
@@ -1182,7 +1207,7 @@ const validateMediaReferences = (
     }
     validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height', 'source_rate', 'active_layer_ids'], issues);
     validateString(reference.id, `${path}.id`, issues);
-    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'GeneratedPieChart', 'GeneratedHistogram', 'GeneratedSunburst', 'GeneratedCircularArrow', 'GeneratedTriangleBracket', 'GeneratedTartanCheck', 'GeneratedHoundstooth', 'GeneratedYagasuri', 'Psd'], issues);
+    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'GeneratedPieChart', 'GeneratedHistogram', 'GeneratedSunburst', 'GeneratedCircularArrow', 'GeneratedTriangleBracket', 'GeneratedTartanCheck', 'GeneratedHoundstooth', 'GeneratedYagasuri', 'GeneratedPaperAirplane', 'Psd'], issues);
     validateString(reference.source, `${path}.source`, issues);
     validatePositiveInteger(reference.width, `${path}.width`, issues);
     validatePositiveInteger(reference.height, `${path}.height`, issues);

@@ -1,6 +1,20 @@
 # 進捗ログ
 
 ## 2026-06-21
+- SSD紙飛行機をRust生成オブジェクトへ追加した。
+- Red: `script/ANM/ANM_ssd/紙飛行機.obj` を、Rust `GeneratedPaperAirplane` mediaとして扱う境界契約を作った。
+- Green: `PaperAirplaneObject` と `buildAviUtlPaperAirplaneObject` を追加し、Timeline右クリックから `紙飛行機を追加` / `Add Paper Airplane` で置けるようにした。
+- Green: `rustSceneSnapshot` / shared renderer native support / Rust core schema / Rust backendに `GeneratedPaperAirplane` を追加した。
+- Green: Rust backendで透明背景、白い左右翼と折り目影を持つ決定的な紙飛行機フレームを生成できるようにした。
+- Green: `ssd-paper-airplane` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-280a` に更新した。
+- 検証: `npm test -- --run src/utils/paperAirplaneObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/e2e/allReadableMedia.e2e.test.ts --reporter=dot` は92件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は18件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_paper_airplane_source_frame_contains_wings_shadow_and_transparency -- --nocapture` は1件成功した。
+- 検証: 対象名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足、`mp4box` 型定義不足、`heavyEffectsStress.test.ts` の `PositionKeyframe` 未定義のみ検出した。
+- 残課題: 現時点の `GeneratedPaperAirplane` は元スクリプトの移動方向追従3D描画を、透明背景の静的な紙飛行機Rustラスタ生成へ置き換えた互換再実装。移動方向追従はキーフレーム方向と接続する後段拡張に残す。
+
+## 2026-06-21
 - SSD矢がすりをRust生成オブジェクトへ追加した。
 - Red: `script/ANM/ANM_ssd/矢がすり.obj` を、Rust `GeneratedYagasuri` mediaとして扱う境界契約を作った。
 - Green: `YagasuriObject` と `buildAviUtlYagasuriObject` を追加し、Timeline右クリックから `矢がすりを追加` / `Add Yagasuri` で置けるようにした。

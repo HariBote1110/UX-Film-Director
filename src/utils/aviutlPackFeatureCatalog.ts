@@ -337,6 +337,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '和柄背景や解説画面の装飾に使いやすく、Rust側で不透明な矢羽根パターンを決定的に生成できる。'
   },
   {
+    id: 'ssd-paper-airplane',
+    labelJa: '紙飛行機',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/ANM/ANM_ssd/紙飛行機.obj'],
+    rationaleJa: '注釈や移動演出のモチーフとして使いやすく、Rust側で透明背景付きの紙飛行機形状を決定的に生成できる。'
+  },
+  {
     id: 'tim-motion-path',
     labelJa: 'モーションパス',
     category: 'motion',

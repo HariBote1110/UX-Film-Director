@@ -21,6 +21,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedTartanCheck') return isSharedRendererNativeGeneratedTartanCheckSourceSupported(reference.source);
   if (reference.kind === 'GeneratedHoundstooth') return isSharedRendererNativeGeneratedHoundstoothSourceSupported(reference.source);
   if (reference.kind === 'GeneratedYagasuri') return isSharedRendererNativeGeneratedYagasuriSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedPaperAirplane') return isSharedRendererNativeGeneratedPaperAirplaneSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -659,6 +660,46 @@ const isSharedRendererNativeGeneratedYagasuriSourceSupported = (source: string):
       && /^#[0-9a-f]{6}$/i.test(parsed.foreground_colour)
       && typeof parsed.background_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedPaperAirplaneSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      body_length?: unknown;
+      wing_width?: unknown;
+      fold_height?: unknown;
+      gap?: unknown;
+      follow_motion_direction?: unknown;
+      axis_mode?: unknown;
+      fill_colour?: unknown;
+    };
+    return (
+      parsed.generator === 'paper-airplane'
+      && typeof parsed.body_length === 'number'
+      && Number.isInteger(parsed.body_length)
+      && parsed.body_length >= 1
+      && parsed.body_length <= 2000
+      && typeof parsed.wing_width === 'number'
+      && Number.isInteger(parsed.wing_width)
+      && parsed.wing_width >= 0
+      && parsed.wing_width <= 1000
+      && typeof parsed.fold_height === 'number'
+      && Number.isInteger(parsed.fold_height)
+      && parsed.fold_height >= 0
+      && parsed.fold_height <= 1000
+      && typeof parsed.gap === 'number'
+      && Number.isInteger(parsed.gap)
+      && parsed.gap >= 0
+      && parsed.gap <= 1000
+      && typeof parsed.follow_motion_direction === 'boolean'
+      && (parsed.axis_mode === 0 || parsed.axis_mode === 1)
+      && typeof parsed.fill_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.fill_colour)
     );
   } catch {
     return false;
