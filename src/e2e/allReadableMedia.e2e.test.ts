@@ -86,8 +86,8 @@ const baseObject = (
   layer,
   startTime: 0,
   duration: 4,
-  x: 64 + layer * 16,
-  y: 48 + layer * 16,
+  x: 64.5 + layer * 16,
+  y: 48.25 + layer * 16,
   rotation: 0,
   scaleX: 1,
   scaleY: 1,
@@ -132,6 +132,8 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     shapeType: 'rect',
     width: 320,
     height: 180,
+    scaleX: 1.25,
+    scaleY: 1.25,
     fill: '#2878d8',
   };
   const gradientShape: ShapeObject = {
@@ -156,6 +158,8 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     filePath: imageFixture,
     width: 512,
     height: 512,
+    scaleX: 0.75,
+    scaleY: 0.75,
   };
   const videos: VideoObject[] = videoFixtures.map((fixture, index) => ({
     ...baseObject(fixture.id, 'video', 3 + index),
@@ -174,6 +178,8 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     filePath: psdFixture,
     width: 800,
     height: 1200,
+    scaleX: 0.5,
+    scaleY: 0.5,
     scale: 1,
     activeLayerIds: {
       root: true,
@@ -266,6 +272,24 @@ describe('全読込可能メディア E2E', () => {
       .filter((media) => media.kind === 'Video')
       .map((media) => media.source)).toEqual(videoFixtures.map((fixture) => fixture.filePath));
     expect(snapshotResult.media.some((media) => media.source.endsWith('.wav'))).toBe(false);
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'shape-solid-rect')?.transform).toMatchObject({
+      translation_x: 64.5,
+      translation_y: 48.25,
+      scale_x: 1.25,
+      scale_y: 1.25,
+    });
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'image-icon-jpg')?.transform).toMatchObject({
+      translation_x: 96.5,
+      translation_y: 80.25,
+      scale_x: 0.75,
+      scale_y: 0.75,
+    });
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'psd-aoi-chan')?.transform).toMatchObject({
+      translation_x: 176.5,
+      translation_y: 160.25,
+      scale_x: 0.5,
+      scale_y: 0.5,
+    });
     expect(validateRustSceneSnapshotBoundary({
       snapshot: snapshotResult.snapshot,
       media: snapshotResult.media,
