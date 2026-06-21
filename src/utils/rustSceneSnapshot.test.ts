@@ -360,6 +360,51 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('passes sub-pixel canvas media translations through to the Rust scene snapshot', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [
+        baseShape({
+          id: 'shape-subpixel',
+          x: 300.5,
+          y: 120.25,
+        }),
+        baseImage({
+          id: 'image-subpixel',
+          x: 100.5,
+          y: 200.25,
+        }),
+        basePsd({
+          id: 'psd-subpixel',
+          x: 400.5,
+          y: 120.25,
+        }),
+        baseVideo({
+          id: 'video-subpixel',
+          x: 10.5,
+          y: 20.25,
+        }),
+      ],
+      time: 2.5,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected sub-pixel canvas media snapshot to pass');
+
+    expect(result.snapshot.clips.map((clip) => ({
+      clipId: clip.clip_id,
+      x: clip.transform.translation_x,
+      y: clip.transform.translation_y,
+    }))).toEqual([
+      { clipId: 'shape-subpixel', x: 300.5, y: 120.25 },
+      { clipId: 'video-subpixel', x: 10.5, y: 20.25 },
+      { clipId: 'image-subpixel', x: 100.5, y: 200.25 },
+      { clipId: 'psd-subpixel', x: 400.5, y: 120.25 },
+    ]);
+  });
+
   it('keeps scaled video planes inside the Rust scene snapshot', () => {
     const result = buildRustSceneSnapshotForTimeline({
       projectSettings: settings,
