@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { BarcodeObject, ColourWheelObject, GearObject, GourdObject, ParticleObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject } from '../types';
+import type { BarcodeObject, ColourWheelObject, GearObject, GourdObject, ParticleObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, TrackBarObject } from '../types';
 import { MAX_LAYERS } from '../components/timelineConstants';
 import { createDefaultCamera, createDefaultLayers, createDefaultStageCamera3D } from './sceneState';
 import { buildProjectFileData, parseProjectPayloadV2, restoreProjectObjects } from './projectFile';
@@ -233,6 +233,32 @@ const minimalGear = (): GearObject => ({
   fillColour: '#ffffff',
 });
 
+const minimalTrackBar = (): TrackBarObject => ({
+  id: 'track-bar-1',
+  type: 'track_bar',
+  name: 'カスタムトラックバー',
+  layer: 8,
+  startTime: 1,
+  duration: 5,
+  x: 780,
+  y: 480,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 780,
+  endY: 480,
+  easing: 'linear',
+  width: 360,
+  height: 120,
+  trackValues: [0, 25, 50, -50],
+  trackRanges: [[0, 100], [0, 100], [0, 100], [-100, 100]],
+  labels: ['TrackA', 'TrackB', 'TrackC', 'TrackD'],
+  barColour: '#ffffff',
+  backgroundOpacity: 0.05,
+});
+
 describe('buildProjectFileData', () => {
   it('flushes active editor state into the matching scene and stamps metadata', () => {
     const layers = createDefaultLayers();
@@ -375,6 +401,7 @@ describe('parseProjectPayloadV2', () => {
     const colourWheel = minimalColourWheel();
     const gourd = minimalGourd();
     const gear = minimalGear();
+    const trackBar = minimalTrackBar();
     const file = buildProjectFileData({
       projectSettings: projectSettings(),
       scenes: [
@@ -383,13 +410,13 @@ describe('parseProjectPayloadV2', () => {
           name: 'One',
           duration: 10,
           layers,
-          objects: [particle, barcode, puzzle, colourWheel, gourd, gear],
+          objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar],
           camera,
           stageCamera3D: defaultStage()
         }
       ],
       activeSceneId: 's1',
-      objects: [particle, barcode, puzzle, colourWheel, gourd, gear],
+      objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar],
       layers,
       duration: 10,
       camera,
@@ -397,7 +424,7 @@ describe('parseProjectPayloadV2', () => {
     });
 
     const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
-    expect(parsed.scenes[0].objects).toEqual([particle, barcode, puzzle, colourWheel, gourd, gear]);
+    expect(parsed.scenes[0].objects).toEqual([particle, barcode, puzzle, colourWheel, gourd, gear, trackBar]);
   });
 
   it('rejects invalid worldPlacement on psd objects', () => {

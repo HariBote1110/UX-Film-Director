@@ -106,6 +106,12 @@ const media: RustSceneMediaReference[] = [{
   width: 320,
   height: 320,
 }, {
+  id: 'track-bar-1',
+  kind: 'GeneratedTrackBar' as RustSceneMediaReference['kind'],
+  source: '{"generator":"custom-track-bar","track_values":[0,25,50,-50],"track_ranges":[[0,100],[0,100],[0,100],[-100,100]],"labels":["TrackA","TrackB","TrackC","TrackD"],"bar_colour":"#ffffff","background_opacity":0.05}',
+  width: 360,
+  height: 120,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -152,8 +158,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[9])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[10])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[11])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[12])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[12])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[13])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[14])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {

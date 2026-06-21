@@ -131,3 +131,19 @@ fn rust_core_accepts_generated_gear_media_kind_at_the_json_boundary() {
     assert_eq!(media.width, 320);
     assert_eq!(media.height, 320);
 }
+
+#[test]
+fn rust_core_accepts_generated_track_bar_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "track-bar-1",
+        "kind": "GeneratedTrackBar",
+        "source": "{\"generator\":\"custom-track-bar\",\"track_values\":[0,25,50,-50],\"track_ranges\":[[0,100],[0,100],[0,100],[-100,100]],\"labels\":[\"TrackA\",\"TrackB\",\"TrackC\",\"TrackD\"],\"bar_colour\":\"#ffffff\",\"background_opacity\":0.05}",
+        "width": 360,
+        "height": 120
+    }))
+    .expect("GeneratedTrackBar media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedTrackBar);
+    assert_eq!(media.width, 360);
+    assert_eq!(media.height, 120);
+}

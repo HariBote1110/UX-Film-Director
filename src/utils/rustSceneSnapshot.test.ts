@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GearObject, GourdObject, ImageObject, ParticleObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GearObject, GourdObject, ImageObject, ParticleObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, TrackBarObject, VideoObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -330,6 +330,33 @@ const baseGear = (patch: Partial<GearObject> = {}): GearObject => ({
   toothDepthPercent: 18,
   toothSkewPercent: 0,
   fillColour: '#ffffff',
+  ...patch,
+});
+
+const baseTrackBar = (patch: Partial<TrackBarObject> = {}): TrackBarObject => ({
+  id: 'track-bar-1',
+  type: 'track_bar',
+  name: 'カスタムトラックバー',
+  layer: 11,
+  startTime: 1,
+  duration: 4,
+  x: 780,
+  y: 480,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 780,
+  endY: 480,
+  easing: 'linear',
+  width: 360,
+  height: 120,
+  trackValues: [0, 25, 50, -50],
+  trackRanges: [[0, 100], [0, 100], [0, 100], [-100, 100]],
+  labels: ['TrackA', 'TrackB', 'TrackC', 'TrackD'],
+  barColour: '#ffffff',
+  backgroundOpacity: 0.05,
   ...patch,
 });
 
@@ -688,6 +715,43 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         }),
         width: 320,
         height: 320,
+      },
+    ]);
+  });
+
+  it('builds a generated track bar media plane from a track bar object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseTrackBar()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated track bar snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'track-bar-1',
+      track_id: 'layer-11',
+      media_id: 'track-bar-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'track-bar-1',
+        kind: 'GeneratedTrackBar',
+        source: JSON.stringify({
+          generator: 'custom-track-bar',
+          track_values: [0, 25, 50, -50],
+          track_ranges: [[0, 100], [0, 100], [0, 100], [-100, 100]],
+          labels: ['TrackA', 'TrackB', 'TrackC', 'TrackD'],
+          bar_colour: '#ffffff',
+          background_opacity: 0.05,
+        }),
+        width: 360,
+        height: 120,
       },
     ]);
   });

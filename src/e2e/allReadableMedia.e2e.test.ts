@@ -19,6 +19,7 @@ import type {
   PuzzlePieceObject,
   ShapeObject,
   TimelineObject,
+  TrackBarObject,
   VideoObject,
 } from '../types';
 import {
@@ -287,6 +288,18 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     toothSkewPercent: 0,
     fillColour: '#ffffff',
   };
+  const trackBar: TrackBarObject = {
+    ...baseObject('custom-track-bar', 'track_bar', 16),
+    type: 'track_bar',
+    name: 'カスタムトラックバー',
+    width: 360,
+    height: 120,
+    trackValues: [0, 25, 50, -50],
+    trackRanges: [[0, 100], [0, 100], [0, 100], [-100, 100]],
+    labels: ['TrackA', 'TrackB', 'TrackC', 'TrackD'],
+    barColour: '#ffffff',
+    backgroundOpacity: 0.05,
+  };
 
   return [
     solidShape,
@@ -302,6 +315,7 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     colourWheel,
     gourd,
     gear,
+    trackBar,
   ];
 };
 
@@ -375,6 +389,7 @@ describe('全読込可能メディア E2E', () => {
       'GeneratedColourWheel',
       'GeneratedGourd',
       'GeneratedGear',
+      'GeneratedTrackBar',
     ]);
     expect(snapshotResult.media
       .filter((media) => media.kind === 'Video')
@@ -438,6 +453,14 @@ describe('全読込可能メディア E2E', () => {
       tooth_skew_percent: 0,
       fill_colour: '#ffffff',
     });
+    expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'custom-track-bar')?.source ?? '{}')).toMatchObject({
+      generator: 'custom-track-bar',
+      track_values: [0, 25, 50, -50],
+      track_ranges: [[0, 100], [0, 100], [0, 100], [-100, 100]],
+      labels: ['TrackA', 'TrackB', 'TrackC', 'TrackD'],
+      bar_colour: '#ffffff',
+      background_opacity: 0.05,
+    });
     expect(snapshotResult.media.some((media) => media.source.endsWith('.wav'))).toBe(false);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'shape-solid-rect')?.transform).toMatchObject({
       translation_x: 64.5,
@@ -464,6 +487,7 @@ describe('全読込可能メディア E2E', () => {
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'colour-wheel')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'gourd-tm')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'gear-t')?.source_frame).toBe(0);
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'custom-track-bar')?.source_frame).toBe(0);
     expect(validateRustSceneSnapshotBoundary({
       snapshot: snapshotResult.snapshot,
       media: snapshotResult.media,

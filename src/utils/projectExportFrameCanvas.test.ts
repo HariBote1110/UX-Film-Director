@@ -12,7 +12,7 @@ import {
   shouldSynchroniseTimelineForProjectExportFrame,
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GearObject, GourdObject, ImageObject, ParticleObject, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GearObject, GourdObject, ImageObject, ParticleObject, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, TrackBarObject, VideoObject } from '../types';
 
 const source = () =>
   readFileSync(new URL('./projectExportFrameCanvas.ts', import.meta.url), 'utf8');
@@ -331,6 +331,33 @@ const gear = (patch: Partial<GearObject> = {}): GearObject => ({
   toothDepthPercent: 18,
   toothSkewPercent: 0,
   fillColour: '#ffffff',
+  ...patch,
+});
+
+const trackBar = (patch: Partial<TrackBarObject> = {}): TrackBarObject => ({
+  id: 'track-bar-1',
+  type: 'track_bar',
+  name: 'カスタムトラックバー',
+  layer: 9,
+  startTime: 0,
+  duration: 5,
+  x: 780,
+  y: 480,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 780,
+  endY: 480,
+  easing: 'linear',
+  width: 360,
+  height: 120,
+  trackValues: [0, 25, 50, -50],
+  trackRanges: [[0, 100], [0, 100], [0, 100], [-100, 100]],
+  labels: ['TrackA', 'TrackB', 'TrackC', 'TrackD'],
+  barColour: '#ffffff',
+  backgroundOpacity: 0.05,
   ...patch,
 });
 
@@ -765,7 +792,7 @@ describe('resolveProjectExportRustFrameSourceContext', () => {
   });
 
   it('marks standard particle exports as native-render media instead of legacy canvas work', () => {
-    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), gourd(), gear(), audio()];
+    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), gourd(), gear(), trackBar(), audio()];
 
     expect(hasProjectExportNativeRenderMediaObjects(objects)).toBe(true);
     expect(resolveProjectExportRustFrameSourceContext({
