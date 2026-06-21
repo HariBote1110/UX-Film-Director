@@ -18,6 +18,7 @@ import { resolveVideoFsPath } from '../utils/resolveVideoFsPath';
 import { buildOverlayPositionKeyframesFromVisionTrack } from '../utils/visionTrackingKeyframes';
 import { buildSubjectCropKeyframesFromVisionTrackSamples } from '../utils/subjectCropKeyframes';
 import { buildAspectLockedScalePatch } from '../utils/aspectRatioScale';
+import { buildAviUtlMotionPresetPatch, getAviUtlPackMotionPresets, type AviUtlMotionPresetId } from '../utils/aviutlMotionPresets';
 import type { VisionNormBoundingBox } from '../utils/visionTrackingGeometry';
 
 const Slider = ({
@@ -926,6 +927,7 @@ const PropertyPanel: React.FC = () => {
   const groupGradientState = normaliseGroupGradient(currentGroupGradient);
   const canEditKeyframes = selectedObject.type !== 'audio';
   const keyframes = (selectedObject.keyframes ?? []).slice().sort((a, b) => a.time - b.time);
+  const aviUtlMotionPresets = getAviUtlPackMotionPresets();
 
   const applyKeyframes = (nextKeyframes: PositionKeyframe[]) => {
     const sorted = nextKeyframes.slice().sort((a, b) => a.time - b.time);
@@ -986,6 +988,14 @@ const PropertyPanel: React.FC = () => {
 
   const handleDeleteKeyframe = (keyframeId: string) => {
     applyKeyframes(keyframes.filter((keyframe) => keyframe.id !== keyframeId));
+  };
+
+  const handleApplyAviUtlMotionPreset = (presetId: AviUtlMotionPresetId) => {
+    pushHistory();
+    updateObject(
+      selectedObject.id,
+      buildAviUtlMotionPresetPatch(selectedObject, presetId) as Partial<TimelineObject>
+    );
   };
 
   const handlePsdLayerToggle = (seq: string | null) => {
@@ -1189,6 +1199,18 @@ const PropertyPanel: React.FC = () => {
                     >
                         {language === 'ja' ? '両端生成' : 'Endpoints'}
                     </button>
+                </div>
+                <SectionHeader label="AviUtl Motion" />
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                    {aviUtlMotionPresets.map((preset) => (
+                        <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => handleApplyAviUtlMotionPreset(preset.id)}
+                        >
+                            {preset.labelJa}
+                        </button>
+                    ))}
                 </div>
                 <div style={{ border: '1px solid #333', borderRadius: '4px', padding: '8px', marginBottom: '8px', background: '#1f1f1f' }}>
                     {keyframes.length === 0 && (

@@ -1,3 +1,19 @@
+## 2026-06-21 — AviUtlPackV4 P0モーションプリセットをPropertyPanelへ追加
+
+### 実施内容
+- Red: `PropertyPanel` がAviUtlPackV4 motion presetをKeyframes周辺に露出する契約を追加した。
+- Green: `AviUtl Motion` セクションを追加し、左からスライド、下からポップ、ランダム揺れ、左右反復をボタンから適用できるようにした。
+- Green: 適用時は既存の `PositionKeyframe` として保存されるため、現行preview/export経路にそのまま乗る。
+- 版を `0.1.1-Beta-237a` に更新した。
+
+### 検証
+- `npm test -- --run src/components/PropertyPanelBoundary.test.ts src/utils/aviutlMotionPresets.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "src/components/PropertyPanel|PropertyPanel|src/utils/aviutlMotionPresets|aviutlMotionPresets"`
+
+### 結果・残課題
+- UI境界テスト2件とmotion preset単体テスト4件が成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- 次はP1の輝度ワイプ、縁取り、色収差、扇クリッピングをRust/WebGPU effect境界に追加する。
+
 ## 2026-06-21 — AviUtlPackV4 P0モーションプリセット中核を追加
 
 ### 実施内容
