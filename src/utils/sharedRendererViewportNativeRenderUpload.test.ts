@@ -316,6 +316,55 @@ const buildAudioWaveformSession = (): SharedRendererPreviewSession => {
 
 const audioWaveformSession = buildAudioWaveformSession();
 
+const buildAudioSphereSession = (): SharedRendererPreviewSession => {
+  if (!mediaOnlySession.surfaceGate.ok) {
+    throw new Error('mediaOnlySession fixture must be renderable');
+  }
+
+  const audioSphereClip = {
+    ...mediaOnlySession.surfaceGate.snapshot.clips[0],
+    clip_id: 'audio-sphere-1',
+    media_id: 'audio-sphere-1',
+    source_frame: 30,
+    z_index: 0,
+    transform: {
+      ...mediaOnlySession.surfaceGate.snapshot.clips[0].transform,
+      sampling: 'bilinear' as const,
+    },
+  };
+  const snapshot = {
+    ...mediaOnlySession.surfaceGate.snapshot,
+    frame_index: 30,
+    clips: [audioSphereClip],
+  };
+  const media = [{
+    id: 'audio-sphere-1',
+    kind: 'GeneratedAudioSphere' as const,
+    source: '{"generator":"audio-sphere-93","target_audio_id":"audio-1","target_source":"/tmp/dialogue.wav","sample_window_seconds":0.1,"columns":16,"rows":12,"base_radius":170,"audio_influence":0.6,"point_size":5,"polygon_size":0.35,"random_amount":0.05,"colour":"#36c2ff","seed":93}',
+    width: 480,
+    height: 480,
+  }];
+
+  return {
+    ...mediaOnlySession,
+    plan: {
+      mode: 'parallelCompare',
+      primary: 'pixi',
+      candidate: 'sharedRenderer',
+      snapshot,
+      media,
+    },
+    surfaceGate: {
+      ...mediaOnlySession.surfaceGate,
+      canvas: { width: 480, height: 480 },
+      snapshot,
+      media,
+    },
+  };
+};
+
+const audioSphereSession = buildAudioSphereSession();
+
 const renderResult: RustBackendNativeRenderSharedFrameResult = {
   rendered: true,
   renderId: 'preview-native-render-24',
@@ -509,6 +558,106 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
           sampleRate: 8000,
           width: 4,
           height: 2,
+        }],
+      }],
+    ]);
+  });
+
+  it('requests generated 93 audio sphere samples and passes them to native render', async () => {
+    const calls: unknown[] = [];
+
+    const result = await prepareSharedRendererViewportNativeRenderUpload({
+      session: audioSphereSession,
+      requestId: 31,
+      activeJobs: [],
+      prepareNativeRenderSources: async () => ({
+        ok: false,
+        reason: 'noVideoDecodeRequest',
+        detail: 'no video',
+        activeJobs: [],
+      }),
+      requestAudioWaveformSamples: async (payload) => {
+        calls.push(['requestAudioWaveformSamples', payload]);
+        return {
+          success: true,
+          result: {
+            source: payload.source,
+            sampleRate: payload.sampleRate,
+            sampleCount: 4,
+            samples: [0, 0.5, 0.25, -0.25],
+          },
+        };
+      },
+      renderNativeSharedFrame: async (payload) => {
+        calls.push(['renderNativeSharedFrame', {
+          media: payload.media,
+          sources: payload.sources,
+          audioWaveforms: payload.audioWaveforms,
+        }]);
+        return {
+          success: true,
+          result: {
+            ...renderResult,
+            renderId: 'preview-native-render-31',
+            frame: {
+              descriptor: {
+                ...descriptor,
+                memoryId: '/uxfd-preview-native-render-31',
+                width: 480,
+                height: 480,
+              },
+              ptsFrame: 30,
+            },
+          },
+        };
+      },
+      releaseNativeSharedFrame: async (payload) => {
+        calls.push(['releaseNativeSharedFrame', payload]);
+        return { success: true };
+      },
+      copyBridge: {
+        copyIntoUploadBuffer: async (_payload, target) => {
+          target.fill(0x7e);
+          return {
+            success: true,
+            result: {
+              sequence: 31,
+              slotIndex: descriptor.slotIndex,
+              generation: descriptor.generation,
+              byteLen: descriptor.byteLen,
+              expectedChecksum: 0x1234,
+              actualChecksum: 0x1234,
+            },
+          };
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      activeJobs: [],
+      upload: {
+        ptsFrame: 30,
+      },
+    });
+    expect(calls).toEqual([
+      ['requestAudioWaveformSamples', {
+        source: '/tmp/dialogue.wav',
+        sampleRate: 8000,
+        maxSamples: 800,
+        startSeconds: 0.5,
+        durationSeconds: 0.1,
+      }],
+      ['renderNativeSharedFrame', {
+        media: audioSphereSession.surfaceGate.ok ? audioSphereSession.surfaceGate.media : null,
+        sources: [],
+        audioWaveforms: [{
+          mediaId: 'audio-sphere-1',
+          source: '{"generator":"audio-sphere-93","target_audio_id":"audio-1","target_source":"/tmp/dialogue.wav","sample_window_seconds":0.1,"columns":16,"rows":12,"base_radius":170,"audio_influence":0.6,"point_size":5,"polygon_size":0.35,"random_amount":0.05,"colour":"#36c2ff","seed":93}',
+          samples: [0, 0.5, 0.25, -0.25],
+          sampleRate: 8000,
+          width: 480,
+          height: 480,
         }],
       }],
     ]);

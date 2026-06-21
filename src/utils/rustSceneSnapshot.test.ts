@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AsanohaPatternObject, AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -164,6 +164,40 @@ const baseAudioVisualisation = (patch: Partial<AudioVisualizationObject> = {}): 
   width: 640,
   height: 120,
   amplitude: 1,
+  ...patch,
+});
+
+const baseAudioSphere = (patch: Partial<AudioSphereObject> = {}): AudioSphereObject => ({
+  id: 'audio-sphere-1',
+  type: 'audio_sphere',
+  name: '93 音声玉',
+  layer: 30,
+  startTime: 1,
+  duration: 4,
+  x: 720,
+  y: 300,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 720,
+  endY: 300,
+  easing: 'linear',
+  width: 480,
+  height: 480,
+  columns: 16,
+  rows: 12,
+  baseRadius: 170,
+  audioInfluence: 0.6,
+  pointSize: 5,
+  polygonSize: 0.35,
+  randomAmount: 0.05,
+  colour: '#36c2ff',
+  targetAudioId: 'audio-1',
+  targetLayer: 3,
+  sampleWindowSeconds: 0.1,
+  seed: 93,
   ...patch,
 });
 
@@ -993,6 +1027,50 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         }),
         width: 640,
         height: 120,
+      },
+    ]);
+  });
+
+  it('builds a generated 93 audio sphere media plane with target audio metadata', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseAudio(), baseAudioSphere()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated audio sphere snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'audio-sphere-1',
+      track_id: 'layer-30',
+      media_id: 'audio-sphere-1',
+      source_frame: 60,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'audio-sphere-1',
+        kind: 'GeneratedAudioSphere',
+        source: JSON.stringify({
+          generator: 'audio-sphere-93',
+          target_audio_id: 'audio-1',
+          target_source: '/tmp/music.wav',
+          sample_window_seconds: 0.1,
+          columns: 16,
+          rows: 12,
+          base_radius: 170,
+          audio_influence: 0.6,
+          point_size: 5,
+          polygon_size: 0.35,
+          random_amount: 0.05,
+          colour: '#36c2ff',
+          seed: 93,
+        }),
+        width: 480,
+        height: 480,
       },
     ]);
   });

@@ -324,6 +324,71 @@ fn native_wgpu_renders_generated_audio_waveform_frame() {
 }
 
 #[test]
+fn native_wgpu_renders_generated_audio_sphere_frame_from_audio_samples() {
+    let snapshot = scene_snapshot(vec![evaluated_clip("audio-sphere-1", 0, 1.0, Vec::new())]);
+    let quiet = NativeAudioWaveformInput {
+        media_id: "audio-sphere-1".to_string(),
+        source: AudioWaveformSource::from_json(
+            r##"{"generator":"audio-sphere-93","target_audio_id":"audio-1","target_source":"/tmp/music.wav","sample_window_seconds":0.1,"colour":"#36c2ff","thickness":1,"amplitude":1,"columns":8,"rows":6,"base_radius":22,"audio_influence":0.6,"point_size":2,"polygon_size":0.35,"random_amount":0.05,"seed":93}"##,
+        )
+        .expect("valid audio sphere source"),
+        samples: vec![0.0; 64],
+        sample_rate: 64,
+        width: 64,
+        height: 64,
+    };
+    let loud = NativeAudioWaveformInput {
+        samples: vec![0.8; 64],
+        ..quiet.clone()
+    };
+
+    let quiet_result = pollster::block_on(render_native_wgpu_frame_with_audio_waveforms(
+        &snapshot,
+        &HashMap::new(),
+        &[quiet],
+        64,
+        64,
+    ));
+    let loud_result = pollster::block_on(render_native_wgpu_frame_with_audio_waveforms(
+        &snapshot,
+        &HashMap::new(),
+        &[loud],
+        64,
+        64,
+    ));
+    let (quiet_frame, loud_frame) = match (quiet_result, loud_result) {
+        (Ok(quiet_frame), Ok(loud_frame)) => (quiet_frame, loud_frame),
+        (Err(NativeWgpuRenderError::AdapterUnavailable), _)
+        | (_, Err(NativeWgpuRenderError::AdapterUnavailable)) => {
+            eprintln!("skipping generated audio sphere native wgpu test: no GPU adapter available");
+            return;
+        }
+        (Err(error), _) | (_, Err(error)) => panic!("native wgpu render failed: {error:?}"),
+    };
+
+    let quiet_opaque = quiet_frame
+        .pixels
+        .chunks_exact(4)
+        .filter(|rgba| rgba[3] > 0)
+        .count();
+    let loud_opaque = loud_frame
+        .pixels
+        .chunks_exact(4)
+        .filter(|rgba| rgba[3] > 0)
+        .count();
+    let changed_bytes = quiet_frame
+        .pixels
+        .iter()
+        .zip(loud_frame.pixels.iter())
+        .filter(|(left, right)| left != right)
+        .count();
+
+    assert!(quiet_opaque > 100);
+    assert!(loud_opaque > quiet_opaque);
+    assert!(changed_bytes > 200);
+}
+
+#[test]
 fn native_wgpu_matches_hand_anchored_two_pixel_coordinates() {
     assert_native_matches_hand_anchor(
         scene_snapshot(vec![

@@ -12,6 +12,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('buildAviUtlYagasuriObject');
     expect(code).toContain('buildAviUtlPaperAirplaneObject');
     expect(code).toContain('buildAviUtlAsanohaPatternObject');
+    expect(code).toContain('buildAviUtlAudioSphereObject');
     expect(code).toContain('buildAviUtlFocusLinesPlusObject');
     expect(code).toContain('buildAviUtlRandomLineExObject');
     expect(code).toContain('buildAviUtlHologramObject');
@@ -41,6 +42,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('handleAddYagasuri');
     expect(code).toContain('handleAddPaperAirplane');
     expect(code).toContain('handleAddAsanohaPattern');
+    expect(code).toContain('handleAddAudioSphere');
     expect(code).toContain('handleAddFocusLinesPlus');
     expect(code).toContain('handleAddRandomLineEx');
     expect(code).toContain('handleAddHologram');
@@ -70,6 +72,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('Add Yagasuri');
     expect(code).toContain('Add Paper Airplane');
     expect(code).toContain('Add Asanoha Pattern');
+    expect(code).toContain('Add 93 Audio Sphere');
     expect(code).toContain('Add Focus Lines Plus');
     expect(code).toContain('Add Random Line EX');
     expect(code).toContain('Add Hologram');
@@ -99,6 +102,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('矢がすりを追加');
     expect(code).toContain('紙飛行機を追加');
     expect(code).toContain('麻の葉模様を追加');
+    expect(code).toContain('93音声玉を追加');
     expect(code).toContain('集中線plusを追加');
     expect(code).toContain('ランダムラインEXを追加');
     expect(code).toContain('ホログラムを追加');

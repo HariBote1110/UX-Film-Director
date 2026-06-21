@@ -435,3 +435,19 @@ fn rust_core_accepts_generated_getcolor_dots_media_kind_at_the_json_boundary() {
     assert_eq!(media.width, 800);
     assert_eq!(media.height, 450);
 }
+
+#[test]
+fn rust_core_accepts_generated_audio_sphere_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "audio-sphere-1",
+        "kind": "GeneratedAudioSphere",
+        "source": "{\"generator\":\"audio-sphere-93\",\"target_audio_id\":\"audio-1\",\"target_source\":\"/tmp/music.wav\",\"sample_window_seconds\":0.1,\"columns\":16,\"rows\":12,\"base_radius\":170,\"audio_influence\":0.6,\"point_size\":5,\"polygon_size\":0.35,\"random_amount\":0.05,\"colour\":\"#36c2ff\",\"seed\":93}",
+        "width": 480,
+        "height": 480
+    }))
+    .expect("GeneratedAudioSphere media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedAudioSphere);
+    assert_eq!(media.width, 480);
+    assert_eq!(media.height, 480);
+}

@@ -208,6 +208,12 @@ const media: RustSceneMediaReference[] = [{
   width: 360,
   height: 360,
 }, {
+  id: 'audio-sphere-1',
+  kind: 'GeneratedAudioSphere' as RustSceneMediaReference['kind'],
+  source: '{"generator":"audio-sphere-93","target_audio_id":"audio-1","target_source":"/tmp/music.wav","sample_window_seconds":0.1,"columns":16,"rows":12,"base_radius":170,"audio_influence":0.6,"point_size":5,"polygon_size":0.35,"random_amount":0.05,"colour":"#36c2ff","seed":93}',
+  width: 480,
+  height: 480,
+}, {
   id: 'getcolor-dot-field-1',
   kind: 'GeneratedGetColorDots' as RustSceneMediaReference['kind'],
   source: '{"generator":"getcolor-v2r-dot-field","columns":32,"rows":18,"dot_size":14,"size_influence":0.65,"luminance_influence":0.7,"hue_shift_degrees":0,"alternate_rows":true,"foreground_colour":"#ffffff","secondary_colour":"#36c2ff","background_colour":"#000000","seed":93}',
@@ -285,8 +291,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[28])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[29])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[30])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[31])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[31])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[32])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[33])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {
@@ -320,6 +327,10 @@ describe('sharedRendererNativeMediaSupport', () => {
     })).toBe(true);
     expect(canRenderSharedRendererNativeMediaOnlyFrame({
       snapshot: snapshotWithMedia('solid-1', 'getcolor-dot-field-1'),
+      media,
+    })).toBe(true);
+    expect(canRenderSharedRendererNativeMediaOnlyFrame({
+      snapshot: snapshotWithMedia('solid-1', 'audio-sphere-1'),
       media,
     })).toBe(true);
     expect(canRenderSharedRendererNativeMediaOnlyFrame({
