@@ -1,6 +1,16 @@
 # 進捗ログ
 
 ## 2026-06-21
+- Audio waveform RのElectron bridgeを追加した。
+- Red: rendererから `audio.waveformSamples` を呼び出す `rustBackendAudioWaveformControl` 契約と、Electron main/preload/vite-envのbridge露出契約を追加した。
+- Green: `requestRustBackendAudioWaveformSamples` を追加し、rendererから `window.rustBackend.requestAudioWaveformSamples` 経由でPCMサンプル要求を送れるようにした。
+- Green: Electron preloadへ `requestAudioWaveformSamples` を露出し、main IPC `rust-backend-audio-waveform-samples` からRust backendの `audio.waveformSamples` を呼ぶようにした。
+- Green: `src/vite-env.d.ts` に波形サンプル要求/応答型を追加した。
+- 版を `0.1.1-Beta-248a` に更新した。
+- 検証: renderer/Electron境界テスト6件が成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- 残課題: 次はrendererで `audio_visualization` のmetadataからPCM要求を発行し、`NativeAudioWaveformInput` へ接続してpreview/exportの実波形表示へ進む。
+
+## 2026-06-21
 - Audio waveform R用PCM供給RPCをRust backendへ追加した。
 - Red: `audio.waveformSamples` RPCが音声ファイルから波形生成用のmono f32 PCMを返す契約を追加した。
 - Green: `AudioWaveformSamplesParams` と `handle_audio_waveform_samples` を追加し、ffmpegで `f32le` mono PCMをstdout抽出するようにした。

@@ -1115,6 +1115,18 @@ app.whenReady().then(() => {
     }
   });
 
+  ipcMain.handle('rust-backend-audio-waveform-samples', async (_event, payload: unknown) => {
+    try {
+      const result = await callRustBackend('audio.waveformSamples', payload, 15_000);
+      return { success: true, result };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
   ipcMain.handle('coreml-track-object-supported', () => ({
     supported: process.platform === 'darwin',
   }));

@@ -66,6 +66,22 @@ interface Window {
     }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
     renderNativeSharedFrame: (payload: unknown) => Promise<{ success: boolean; result?: unknown; error?: string }>;
     releaseNativeSharedFrame: (payload: unknown) => Promise<{ success: boolean; result?: unknown; error?: string }>;
+    requestAudioWaveformSamples: (payload: {
+      source: string;
+      sampleRate: number;
+      maxSamples: number;
+      startSeconds?: number;
+      durationSeconds?: number;
+    }) => Promise<{
+      success: boolean;
+      result?: {
+        source: string;
+        sampleRate: number;
+        sampleCount: number;
+        samples: number[];
+      };
+      error?: string;
+    }>;
   };
   rustVideoEncoder: {
     nativeDirectEncodeEnabled?: boolean;

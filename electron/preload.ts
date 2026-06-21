@@ -151,6 +151,9 @@ contextBridge.exposeInMainWorld('rustBackend', {
   releaseNativeSharedFrame(payload: unknown) {
     return ipcRenderer.invoke('rust-backend-render-release-native-shared-frame', payload)
   },
+  requestAudioWaveformSamples(payload: unknown) {
+    return ipcRenderer.invoke('rust-backend-audio-waveform-samples', payload)
+  },
 })
 
 contextBridge.exposeInMainWorld('rustVideoEncoder', {
