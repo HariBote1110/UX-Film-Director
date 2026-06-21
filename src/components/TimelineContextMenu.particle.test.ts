@@ -22,6 +22,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('buildAviUtlProtractorObject');
     expect(code).toContain('buildAviUtlShakingPolygonObject');
     expect(code).toContain('buildAviUtlSimpleTubeObject');
+    expect(code).toContain('buildAviUtlSimpleTubeTorusObject');
     expect(code).toContain('buildAviUtlCircularArrowObject');
     expect(code).toContain('buildAviUtlTartanCheckObject');
     expect(code).toContain('buildAviUtlTriangleBracketObject');
@@ -63,6 +64,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('handleAddProtractor');
     expect(code).toContain('handleAddShakingPolygon');
     expect(code).toContain('handleAddSimpleTube');
+    expect(code).toContain('handleAddSimpleTubeTorus');
     expect(code).toContain('handleAddCircularArrow');
     expect(code).toContain('handleAddTartanCheck');
     expect(code).toContain('handleAddTriangleBracket');
@@ -104,6 +106,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('Add Protractor');
     expect(code).toContain('Add Shaking Polygon');
     expect(code).toContain('Add 93 SimpleTube');
+    expect(code).toContain('Add 93 SimpleTube Torus');
     expect(code).toContain('Add Barcode');
     expect(code).toContain('Add Circular Arrow');
     expect(code).toContain('Add Tartan Check');
@@ -145,6 +148,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('分度器を追加');
     expect(code).toContain('多角形_震えるを追加');
     expect(code).toContain('93 SimpleTubeを追加');
+    expect(code).toContain('93 SimpleTubeトーラスを追加');
     expect(code).toContain('バーコードを追加');
     expect(code).toContain('円矢印を追加');
     expect(code).toContain('タータンチェックを追加');

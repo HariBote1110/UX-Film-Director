@@ -428,7 +428,7 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported({
       id: 'simple-tube-1',
       kind: 'GeneratedSimpleTube',
-      source: '{"generator":"simple-tube-93","radius":150,"depth":280,"segments":16,"rings":10,"twist_degrees":0,"random_amount":0,"stroke_width":3,"colour":"#0e769f","secondary_colour":"#ffffff","seed":93,"torus":false}',
+      source: '{"generator":"simple-tube-93","radius":150,"depth":280,"segments":16,"rings":10,"twist_degrees":0,"random_amount":0,"stroke_width":3,"colour":"#0e769f","secondary_colour":"#ffffff","colour_pattern":"single","fog_strength":0,"fog_colour":"#ffffff","seed":93,"torus":false}',
       width: 800,
       height: 450,
     })).toBe(true);
@@ -437,10 +437,20 @@ describe('sharedRendererNativeMediaSupport', () => {
       media: [...media, {
         id: 'simple-tube-1',
         kind: 'GeneratedSimpleTube',
-        source: '{"generator":"simple-tube-93","radius":150,"depth":280,"segments":16,"rings":10,"twist_degrees":0,"random_amount":0,"stroke_width":3,"colour":"#0e769f","secondary_colour":"#ffffff","seed":93,"torus":false}',
+        source: '{"generator":"simple-tube-93","radius":150,"depth":280,"segments":16,"rings":10,"twist_degrees":0,"random_amount":0,"stroke_width":3,"colour":"#0e769f","secondary_colour":"#ffffff","colour_pattern":"single","fog_strength":0,"fog_colour":"#ffffff","seed":93,"torus":false}',
         width: 800,
         height: 450,
       }],
+    })).toBe(true);
+  });
+
+  it('accepts 93 SimpleTube torus generator sources with colour pattern and fog', () => {
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'simple-tube-torus-1',
+      kind: 'GeneratedSimpleTube',
+      source: '{"generator":"simple-tube-93","radius":170,"depth":260,"segments":24,"rings":16,"twist_degrees":120,"random_amount":0,"stroke_width":3,"colour":"#0e769f","secondary_colour":"#f9f9f9","colour_pattern":"ring","fog_strength":0.35,"fog_colour":"#ffffff","seed":93,"torus":true}',
+      width: 800,
+      height: 450,
     })).toBe(true);
   });
 });

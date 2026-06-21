@@ -979,6 +979,9 @@ const baseSimpleTube = (patch: Partial<SimpleTubeObject> = {}): SimpleTubeObject
   strokeWidth: 3,
   colour: '#0e769f',
   secondaryColour: '#ffffff',
+  colourPattern: 'single',
+  fogStrength: 0,
+  fogColour: '#ffffff',
   seed: 93,
   torus: false,
   ...patch,
@@ -2527,8 +2530,63 @@ describe('buildRustSceneSnapshotForTimeline', () => {
           stroke_width: 3,
           colour: '#0e769f',
           secondary_colour: '#ffffff',
+          colour_pattern: 'single',
+          fog_strength: 0,
+          fog_colour: '#ffffff',
           seed: 93,
           torus: false,
+        }),
+        width: 800,
+        height: 450,
+      },
+    ]);
+  });
+
+  it('serialises a 93 SimpleTube torus object with colour pattern and fog into the Rust payload', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseSimpleTube({
+        id: 'simple-tube-torus-1',
+        name: '93 SimpleTube トーラス',
+        torus: true,
+        radius: 170,
+        depth: 260,
+        segments: 24,
+        rings: 16,
+        twistDegrees: 120,
+        secondaryColour: '#f9f9f9',
+        colourPattern: 'ring',
+        fogStrength: 0.35,
+        fogColour: '#ffffff',
+      })],
+      time: 7,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated SimpleTube torus snapshot to pass');
+
+    expect(result.media).toEqual([
+      {
+        id: 'simple-tube-torus-1',
+        kind: 'GeneratedSimpleTube',
+        source: JSON.stringify({
+          generator: 'simple-tube-93',
+          radius: 170,
+          depth: 260,
+          segments: 24,
+          rings: 16,
+          twist_degrees: 120,
+          random_amount: 0,
+          stroke_width: 3,
+          colour: '#0e769f',
+          secondary_colour: '#f9f9f9',
+          colour_pattern: 'ring',
+          fog_strength: 0.35,
+          fog_colour: '#ffffff',
+          seed: 93,
+          torus: true,
         }),
         width: 800,
         height: 450,

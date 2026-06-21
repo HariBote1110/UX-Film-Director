@@ -10336,4 +10336,36 @@ mod tests {
             [0, 0, 0, 0]
         );
     }
+
+    #[test]
+    fn generated_simple_tube_source_frame_renders_torus_with_fogged_ring_pattern() {
+        let media = SceneMediaReference {
+            id: "simple-tube-torus-1".to_string(),
+            kind: MediaKind::GeneratedSimpleTube,
+            source: r##"{"generator":"simple-tube-93","radius":170,"depth":260,"segments":24,"rings":16,"twist_degrees":120,"random_amount":0,"stroke_width":3,"colour":"#0e769f","secondary_colour":"#f9f9f9","colour_pattern":"ring","fog_strength":0.35,"fog_colour":"#ffffff","seed":93,"torus":true}"##.to_string(),
+            width: 800,
+            height: 450,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_simple_tube_source_frame(&media)
+            .expect("generated SimpleTube torus frame should render");
+        let centre_offset = ((225_usize * media.width as usize) + 400_usize) * 4;
+        let right_ring_offset = ((225_usize * media.width as usize) + 553_usize) * 4;
+        let empty_corner_offset = 0_usize;
+
+        assert_eq!(
+            &frame.pixels[centre_offset..centre_offset + 4],
+            [249, 249, 249, 255]
+        );
+        assert_ne!(
+            &frame.pixels[right_ring_offset..right_ring_offset + 4],
+            [14, 118, 159, 255]
+        );
+        assert_eq!(
+            &frame.pixels[empty_corner_offset..empty_corner_offset + 4],
+            [0, 0, 0, 0]
+        );
+    }
 }
