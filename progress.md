@@ -1,3 +1,19 @@
+## 2026-06-21 — 代表素材E2Eに標準パーティクルと音声波形を追加
+
+### 実施内容
+- Test: 全読込可能メディアE2Eへ `audio_visualization` と `particle` を追加した。
+- Test: Rust scene snapshotが `GeneratedAudioWaveform` と `GeneratedParticle` を生成することを検証した。
+- Test: 音声波形metadataが対象audioへ解決され、標準パーティクルmetadataがseed/count/spread/speed/size/colour/lifetimeを保持することを検証した。
+- 挙動変更なしのテスト強化のため、版は `0.1.1-Beta-258a` のままとした。
+
+### 検証
+- `npm test -- --run src/e2e/allReadableMedia.e2e.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "allReadableMedia|AudioVisualizationObject|ParticleObject|GeneratedParticle|GeneratedAudioWaveform"`
+
+### 結果・残課題
+- 代表素材E2Eは既存実装で成功した。
+- 残りは実Electron上の画素/エンコード結果で、生成効果込みのpreview/export一致を確認する。
+
 ## 2026-06-21 — 音声波形をRust export経路判定に追加
 
 ### 実施内容

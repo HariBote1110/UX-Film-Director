@@ -5,9 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type {
   AudioObject,
+  AudioVisualizationObject,
   BaseObject,
   ImageObject,
   LayerState,
+  ParticleObject,
   ProjectSettings,
   PsdObject,
   ShapeObject,
@@ -193,6 +195,31 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     volume: 1,
     muted: false,
   };
+  const audioVisualisation: AudioVisualizationObject = {
+    ...baseObject('audio-waveform-r', 'audio_visualization', 9),
+    type: 'audio_visualization',
+    targetAudioId: audio.id,
+    visualizationType: 'waveform',
+    color: '#00ff88',
+    thickness: 2,
+    width: 960,
+    height: 160,
+    amplitude: 1.25,
+  };
+  const standardParticle: ParticleObject = {
+    ...baseObject('particle-standard', 'particle', 10),
+    type: 'particle',
+    name: '標準パーティクル',
+    width: 640,
+    height: 360,
+    particleCount: 48,
+    seed: 93,
+    spread: 180,
+    speed: 120,
+    size: 6,
+    colour: '#ffffff',
+    lifetimeSeconds: 1.5,
+  };
 
   return [
     solidShape,
@@ -201,6 +228,8 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     ...videos,
     psd,
     audio,
+    audioVisualisation,
+    standardParticle,
   ];
 };
 
@@ -267,10 +296,29 @@ describe('全読込可能メディア E2E', () => {
       'Video',
       'Video',
       'Psd',
+      'GeneratedAudioWaveform',
+      'GeneratedParticle',
     ]);
     expect(snapshotResult.media
       .filter((media) => media.kind === 'Video')
       .map((media) => media.source)).toEqual(videoFixtures.map((fixture) => fixture.filePath));
+    expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'audio-waveform-r')?.source ?? '{}')).toMatchObject({
+      generator: 'audio-waveform-r',
+      target_audio_id: 'audio-generated-wave',
+      colour: '#00ff88',
+      thickness: 2,
+      amplitude: 1.25,
+    });
+    expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'particle-standard')?.source ?? '{}')).toMatchObject({
+      generator: 'standard-particle',
+      seed: 93,
+      particle_count: 48,
+      spread: 180,
+      speed: 120,
+      size: 6,
+      colour: '#ffffff',
+      lifetime_seconds: 1.5,
+    });
     expect(snapshotResult.media.some((media) => media.source.endsWith('.wav'))).toBe(false);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'shape-solid-rect')?.transform).toMatchObject({
       translation_x: 64.5,
@@ -290,6 +338,8 @@ describe('全読込可能メディア E2E', () => {
       scale_x: 0.5,
       scale_y: 0.5,
     });
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'audio-waveform-r')?.source_frame).toBe(60);
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'particle-standard')?.source_frame).toBe(60);
     expect(validateRustSceneSnapshotBoundary({
       snapshot: snapshotResult.snapshot,
       media: snapshotResult.media,

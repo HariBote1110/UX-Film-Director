@@ -38,7 +38,7 @@
 20. ✅ `P2` 標準パーティクル追加UIをTimeline context menuへ接続
 21. ✅ `P2` 標準パーティクルのプロジェクト保存/読込許可を追加
 22. ✅ `P2` 標準パーティクルPropertyPanel編集を追加
-23. E2Eで代表素材に効果を載せ、preview/exportの一致を検証
+23. `P2` E2Eで代表素材に効果を載せ、preview/exportの一致を検証（境界E2Eへ標準パーティクル/音声波形を追加済み。実画素一致と実Electron確認は継続）
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。
