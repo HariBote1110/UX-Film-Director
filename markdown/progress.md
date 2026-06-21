@@ -1,6 +1,20 @@
 # 進捗ログ
 
 ## 2026-06-21
+- 動画1本+静的図形/画像+音声を、per-frame native renderではなく `encode.transcodeVideo` のffmpeg filter fast pathへ載せた。
+- Red: `resolveProjectExportVideoTranscodeFastPath` に、動画+矩形+画像+音声を `overlays` / `requiresAudioMix` 付きfast pathとして受け入れる契約を追加した。
+- Red: Rust backend `encode.transcodeVideo` に `overlays` を渡し、`overlayCount` を返す契約を追加した。
+- Red: `useProjectExport` が混在fast pathの音声mix WAVをdirect transcodeへ渡す契約を追加した。
+- Green: TS resolverで静的rect/image overlayを抽出し、音声オブジェクトがある場合はsource audio直結ではなくmixed audio pathを要求するようにした。
+- Green: Rust backendが `filter_complex` でbase video transform後に `drawbox` / image `overlay` を適用できるようにした。
+- Green: direct transcode前に音声mix WAVを保存し、`audioPath` としてRust backendへ渡し、完了/失敗後に削除するようにした。
+- 検証: `npm test -- --run src/utils/rustBackendVideoEncodeControl.test.ts src/utils/projectExportVideoTranscodeFastPath.test.ts src/utils/useProjectExportBoundary.test.ts src/utils/rustSceneSnapshot.test.ts` は56件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane encode_transcode_video -- --nocapture` は6件成功。
+- 実測: `UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA=1 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=1 UXFD_VIDEO_EXPORT_E2E_TIMEOUT_MS=240000 npm run test:video-export:e2e` は成功。`Rust backend direct transcode` で60 frames、2060ms、約29.13fps。前回標準混在経路の約13.1秒/4.58fpsから大きく改善した。
+- 検証: 出力MP4を `ffprobe` で確認し、`video` / `audio` streamの両方が存在した。
+- 残課題: 1秒短尺では29fps付近。次は5秒以上の実素材で平均値を取り、画像overlay/filter_complex込みで30fps超を安定させる。回転・複数動画・PSD overlayはまだnative render経路。
+
+## 2026-06-21
 - 混在native render export高速化の第一段として、Rust encode exportのrender-ahead深度を `VITE_UXFD_RUST_EXPORT_RENDER_AHEAD_FRAMES` で調整できるようにした。
 - Red: `runRustBackendVideoEncodeExport` に、current frame write中に2フレーム先までframe source生成を進められる契約を追加した。
 - Green: encode writeとframe source生成の重なりを可変queue化した。既定は実測悪化を避けるため1、明示指定時のみ最大4まで先読みする。

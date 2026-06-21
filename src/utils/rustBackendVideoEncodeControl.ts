@@ -1,4 +1,7 @@
 import type {
+  ProjectExportVideoTranscodeOverlay,
+} from './projectExportVideoTranscodeFastPath';
+import type {
   RustBackendDecodedVideoFrameFormat,
   RustBackendSharedVideoFrame,
   RustBackendVideoDecodeColour,
@@ -38,8 +41,8 @@ export interface RustBackendVideoEncodeWriteNativeFramePayload {
   width: number;
   height: number;
   snapshot: RustSceneSnapshot;
-  media: RustSceneMediaReference[];
-  sources: RustBackendNativeRenderSharedFrameSource[];
+  media: readonly RustSceneMediaReference[];
+  sources: readonly RustBackendNativeRenderSharedFrameSource[];
 }
 
 export interface RustBackendVideoTranscodePayload {
@@ -57,6 +60,7 @@ export interface RustBackendVideoTranscodePayload {
   objectY?: number;
   objectWidth?: number;
   objectHeight?: number;
+  overlays?: ProjectExportVideoTranscodeOverlay[];
   audioPath?: string | null;
   qualityPreset?: string;
   videoBitrateKbps?: number;

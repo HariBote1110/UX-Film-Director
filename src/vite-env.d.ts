@@ -118,8 +118,8 @@ interface Window {
       width: number;
       height: number;
       snapshot: unknown;
-      media: unknown[];
-      sources: unknown[];
+      media: readonly unknown[];
+      sources: readonly unknown[];
     }) => Promise<{ success: boolean; result?: unknown; error?: string }>;
     transcodeVideo?: (payload: {
       sessionId?: string;
@@ -136,6 +136,26 @@ interface Window {
       objectY?: number;
       objectWidth?: number;
       objectHeight?: number;
+      overlays?: Array<
+        | {
+            kind: 'solidColour';
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+            colour: string;
+            opacity: number;
+          }
+        | {
+            kind: 'image';
+            path: string;
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+            opacity: number;
+          }
+      >;
       audioPath?: string | null;
       qualityPreset?: string;
       videoBitrateKbps?: number;

@@ -47,6 +47,28 @@ const closeEncodedFrameBitmap = (frame: RustBackendVideoEncodeFrame): void => {
   }
 };
 
+const prepareProjectExportTranscodeAudioPath = async ({
+  objects,
+  exportDuration,
+  sampleRate,
+  ipcRenderer,
+}: {
+  objects: TimelineObject[];
+  exportDuration: number;
+  sampleRate: number;
+  ipcRenderer: Window['ipcRenderer'];
+}): Promise<string> => {
+  const mixedAudioWav = await buildExportAudioMixWav(objects, exportDuration, sampleRate);
+  if (!mixedAudioWav) {
+    throw new Error('混在音声の一時WAVを生成できませんでした');
+  }
+  const audioSaveResult = await ipcRenderer.invoke('save-temp-audio', mixedAudioWav);
+  if (!audioSaveResult?.success || typeof audioSaveResult.path !== 'string') {
+    throw new Error(audioSaveResult?.error || '音声一時ファイルを保存できませんでした');
+  }
+  return audioSaveResult.path;
+};
+
 const withExportStepTimeout = async <T,>(
   promise: Promise<T>,
   detail: string,
@@ -207,6 +229,8 @@ export const useProjectExport = (
           && transcodeFastPath
           && typeof window.rustVideoEncoder.transcodeVideo === 'function'
         ) {
+          const { requiresAudioMix, ...transcodePayload } = transcodeFastPath;
+          let preparedTranscodeAudioPath: string | null = null;
           setExportProgress({
             phase: 'transcoding',
             currentFrame: 0,
@@ -226,14 +250,27 @@ export const useProjectExport = (
           });
           const transcodeResponse = await (async () => {
             try {
+              const transcodeAudioPath = requiresAudioMix
+                ? await prepareProjectExportTranscodeAudioPath({
+                  objects: exportObjects,
+                  exportDuration,
+                  sampleRate,
+                  ipcRenderer,
+                })
+                : null;
+              preparedTranscodeAudioPath = transcodeAudioPath;
               return await transcodeRustBackendVideo({
-                ...transcodeFastPath,
+                ...transcodePayload,
                 ...exportEncodeSettings,
+                audioPath: transcodeAudioPath,
                 sessionId: rustEncodeSessionId,
                 outputPath: savePath,
               });
             } finally {
               unsubscribeTranscodeProgress?.();
+              if (preparedTranscodeAudioPath) {
+                await ipcRenderer.invoke('delete-temp-file', { filePath: preparedTranscodeAudioPath }).catch(() => {});
+              }
             }
           })();
           if (!transcodeResponse.success) {

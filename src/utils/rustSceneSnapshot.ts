@@ -43,13 +43,13 @@ export interface RustEvaluatedClip {
   z_index: number;
   transform: RustTransform;
   opacity: number;
-  effects: RustEffect[];
+  effects: readonly RustEffect[];
 }
 
 export interface RustSceneSnapshot {
   frame_index: number;
   colour: RustColourPipeline;
-  clips: RustEvaluatedClip[];
+  clips: readonly RustEvaluatedClip[];
 }
 
 export interface RustSceneMediaReference {

@@ -273,7 +273,25 @@ struct EncodeTranscodeVideoParams {
     #[serde(default)]
     video_bitrate_kbps: Option<u32>,
     #[serde(default)]
+    overlays: Vec<EncodeTranscodeVideoOverlayParams>,
+    #[serde(default)]
     ffmpeg_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct EncodeTranscodeVideoOverlayParams {
+    kind: String,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    #[serde(default)]
+    colour: Option<String>,
+    #[serde(default)]
+    opacity: Option<f64>,
+    #[serde(default)]
+    path: Option<String>,
 }
 
 fn normalise_transcode_quality_preset(value: Option<&str>) -> &'static str {
@@ -894,6 +912,125 @@ fn emit_transcode_progress_event(
     }
 }
 
+fn normalise_transcode_overlays(
+    overlays: &[EncodeTranscodeVideoOverlayParams],
+) -> Result<Vec<EncodeTranscodeVideoOverlayParams>, String> {
+    overlays
+        .iter()
+        .map(|overlay| {
+            if overlay.width == 0 || overlay.height == 0 {
+                return Err("overlay width and height must be greater than zero".to_string());
+            }
+            let opacity = overlay
+                .opacity
+                .filter(|value| value.is_finite())
+                .unwrap_or(1.0)
+                .clamp(0.0, 1.0);
+            match overlay.kind.as_str() {
+                "solidColour" => {
+                    let colour = overlay.colour.as_deref().ok_or_else(|| {
+                        "solidColour overlay colour must not be empty".to_string()
+                    })?;
+                    let colour = normalise_hex_colour(colour)?;
+                    Ok(EncodeTranscodeVideoOverlayParams {
+                        kind: overlay.kind.clone(),
+                        x: overlay.x,
+                        y: overlay.y,
+                        width: overlay.width,
+                        height: overlay.height,
+                        colour: Some(colour),
+                        opacity: Some(opacity),
+                        path: None,
+                    })
+                }
+                "image" => {
+                    let path = overlay
+                        .path
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                        .ok_or_else(|| "image overlay path must not be empty".to_string())?;
+                    Ok(EncodeTranscodeVideoOverlayParams {
+                        kind: overlay.kind.clone(),
+                        x: overlay.x,
+                        y: overlay.y,
+                        width: overlay.width,
+                        height: overlay.height,
+                        colour: None,
+                        opacity: Some(opacity),
+                        path: Some(path.to_string()),
+                    })
+                }
+                _ => Err(format!("unsupported overlay kind: {}", overlay.kind)),
+            }
+        })
+        .collect()
+}
+
+fn normalise_hex_colour(value: &str) -> Result<String, String> {
+    let trimmed = value.trim();
+    let hex = trimmed
+        .strip_prefix('#')
+        .ok_or_else(|| "overlay colour must be a hex colour".to_string())?;
+    if hex.len() == 3 && hex.chars().all(|char| char.is_ascii_hexdigit()) {
+        let mut expanded = String::with_capacity(6);
+        for char in hex.chars() {
+            expanded.push(char);
+            expanded.push(char);
+        }
+        return Ok(expanded.to_ascii_lowercase());
+    }
+    if hex.len() == 6 && hex.chars().all(|char| char.is_ascii_hexdigit()) {
+        return Ok(hex.to_ascii_lowercase());
+    }
+    Err("overlay colour must be a 3 or 6 digit hex colour".to_string())
+}
+
+fn build_transcode_filter_complex(
+    base_filter: &str,
+    overlays: &[EncodeTranscodeVideoOverlayParams],
+    overlay_inputs: &[Option<usize>],
+) -> (String, String) {
+    let mut parts = vec![format!("[0:v]{base_filter}[v0]")];
+    let mut previous_label = "v0".to_string();
+    for (index, overlay) in overlays.iter().enumerate() {
+        let next_label = format!("v{}", index + 1);
+        match overlay.kind.as_str() {
+            "solidColour" => {
+                let colour = overlay.colour.as_deref().unwrap_or("ffffff");
+                let opacity = overlay.opacity.unwrap_or(1.0).clamp(0.0, 1.0);
+                parts.push(format!(
+                    "[{previous_label}]drawbox=x={}:y={}:w={}:h={}:color=0x{}@{:.6}:t=fill[{next_label}]",
+                    overlay.x,
+                    overlay.y,
+                    overlay.width,
+                    overlay.height,
+                    colour,
+                    opacity
+                ));
+            }
+            "image" => {
+                let input_index = overlay_inputs[index].unwrap_or(1);
+                let overlay_label = format!("ov{index}");
+                let opacity = overlay.opacity.unwrap_or(1.0).clamp(0.0, 1.0);
+                parts.push(format!(
+                    "[{input_index}:v]scale={}:{}:force_original_aspect_ratio=disable,format=rgba,colorchannelmixer=aa={:.6}[{overlay_label}]",
+                    overlay.width,
+                    overlay.height,
+                    opacity
+                ));
+                parts.push(format!(
+                    "[{previous_label}][{overlay_label}]overlay={}:{}:format=auto[{next_label}]",
+                    overlay.x, overlay.y
+                ));
+            }
+            _ => {}
+        }
+        previous_label = next_label;
+    }
+    (parts.join(";"), format!("[{previous_label}]"))
+}
+
 fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
     let parsed = match serde_json::from_value::<EncodeTranscodeVideoParams>(params) {
         Ok(value) => value,
@@ -999,6 +1136,10 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
         crop_y,
         parsed.fps
     );
+    let overlays = match normalise_transcode_overlays(&parsed.overlays) {
+        Ok(value) => value,
+        Err(error) => return response_error(id, -32602, &error),
+    };
 
     let mut cmd = Command::new(&ffmpeg_path);
     cmd.arg("-hide_banner")
@@ -1010,16 +1151,46 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
         cmd.arg("-ss").arg(format!("{start_seconds:.6}"));
     }
     cmd.arg("-i").arg(&parsed.input_path);
+    let mut next_input_index = 1_usize;
+    let mut overlay_inputs: Vec<Option<usize>> = Vec::with_capacity(overlays.len());
+    for overlay in &overlays {
+        if overlay.kind == "image" {
+            let Some(path) = overlay.path.as_deref() else {
+                return response_error(id, -32602, "image overlay path must not be empty");
+            };
+            cmd.arg("-loop")
+                .arg("1")
+                .arg("-t")
+                .arg(format!("{:.6}", parsed.duration_seconds))
+                .arg("-i")
+                .arg(path);
+            overlay_inputs.push(Some(next_input_index));
+            next_input_index += 1;
+        } else {
+            overlay_inputs.push(None);
+        }
+    }
+    let audio_input_index = audio_path.map(|_| next_input_index);
     if let Some(audio_path) = audio_path {
         cmd.arg("-i").arg(audio_path);
+    }
+    let mapped_complex_video = !overlays.is_empty();
+    if mapped_complex_video {
+        let (filter_complex, final_label) =
+            build_transcode_filter_complex(&scale_filter, &overlays, &overlay_inputs);
+        cmd.arg("-filter_complex")
+            .arg(filter_complex)
+            .arg("-map")
+            .arg(final_label);
     }
     cmd.arg("-t")
         .arg(format!("{:.6}", parsed.duration_seconds))
         .arg("-progress")
-        .arg("pipe:1")
-        .arg("-vf")
-        .arg(scale_filter)
-        .arg("-r")
+        .arg("pipe:1");
+    if !mapped_complex_video {
+        cmd.arg("-vf").arg(scale_filter);
+    }
+    cmd.arg("-r")
         .arg(parsed.fps.to_string())
         .arg("-c:v")
         .arg(get_video_codec())
@@ -1029,19 +1200,21 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
         .arg("yuv420p");
 
     if audio_path.is_some() {
+        if !mapped_complex_video {
+            cmd.arg("-map").arg("0:v:0");
+        }
         cmd.arg("-map")
-            .arg("0:v:0")
-            .arg("-map")
-            .arg("1:a:0")
+            .arg(format!("{}:a:0", audio_input_index.unwrap_or(1)))
             .arg("-c:a")
             .arg("aac")
             .arg("-b:a")
             .arg("192k")
             .arg("-shortest");
     } else if include_source_audio {
+        if !mapped_complex_video {
+            cmd.arg("-map").arg("0:v:0");
+        }
         cmd.arg("-map")
-            .arg("0:v:0")
-            .arg("-map")
             .arg("0:a:0?")
             .arg("-c:a")
             .arg("aac")
@@ -1169,6 +1342,7 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
             "width": parsed.width,
             "height": parsed.height,
             "fps": parsed.fps,
+            "overlayCount": overlays.len(),
             "includedAudio": audio_path.is_some() || include_source_audio,
             "encodeSettings": {
                 "qualityPreset": quality_preset,
