@@ -49,6 +49,16 @@
 - 残課題: 次は生成効果入りE2Eで出ているPixi WebGPU runtime errorを潰す。
 
 ## 2026-06-21
+- 生成効果のPixi二重描画runtime errorを修正した。
+- Red: Rust native frameが所有するAudio waveform R / 標準パーティクルはPixiで描画しない契約を追加した。
+- Green: `pixiGeneratedEffectCutover` を追加し、`audio_visualization` / `particle` がRust native frameに含まれる場合はPixi描画をスキップするようにした。
+- Green: shared renderer presenter controlから生成効果object idをViewportへ渡し、Pixi描画ヘルパーへ接続した。
+- 版を `0.1.1-Beta-259e` に更新した。
+- 検証: 実Electron E2Eは動画+図形+画像+音声+Audio waveform R+標準パーティクルで成功し、`runtimeErrors: []` を確認した。
+- 結果: 60 frames / 17,679ms / 約3.39fps / 1,092,837 bytes。
+- 残課題: 次はpreview screenshotとexport frame decodeの画素比較へ進む。
+
+## 2026-06-21
 - 動画export E2EのElectron bundle待機を追加した。
 - Red: `run-video-export-e2e.mjs` がElectron起動前にbundle完了を待つ契約を追加した。
 - Green: `dist-electron/main.js` / `dist-electron/preload.js` の更新時刻とIPC markerを確認してからElectronを起動するようにした。

@@ -6,6 +6,7 @@ import { getEnabledObjectFiltersInOrder } from './filterStack';
 import { shouldSkipPixiSolidColourForSharedRenderer } from './pixiSolidColourCutover';
 import { shouldSkipPixiImageForSharedRenderer } from './pixiImageCutover';
 import { shouldSkipPixiPsdForSharedRenderer } from './pixiPsdCutover';
+import { shouldSkipPixiGeneratedEffectForSharedRenderer } from './pixiGeneratedEffectCutover';
 
 // ... (Shader definitions omitted for brevity - same as previous) ...
 const vertexShader = `
@@ -810,9 +811,10 @@ export const updatePixiContent = (
         sharedRendererSolidColourObjectIds?: ReadonlySet<string>;
         sharedRendererImageObjectIds?: ReadonlySet<string>;
         sharedRendererPsdObjectIds?: ReadonlySet<string>;
+        sharedRendererGeneratedEffectObjectIds?: ReadonlySet<string>;
     }
 ) => {
-    const { textureCache, loadingUrls, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, sharedRendererSolidColourObjectIds, sharedRendererImageObjectIds, sharedRendererPsdObjectIds } = resources;
+    const { textureCache, loadingUrls, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, sharedRendererSolidColourObjectIds, sharedRendererImageObjectIds, sharedRendererPsdObjectIds, sharedRendererGeneratedEffectObjectIds } = resources;
     let content = container.children[0] as (PIXI.Sprite | PIXI.Graphics | PIXI.Text | PIXI.Container | undefined);
     
     // Check for recreation
@@ -831,6 +833,18 @@ export const updatePixiContent = (
         const children = container.removeChildren();
         children.forEach(c => c.destroy({ children: true, texture: false, context: true }));
         content = undefined;
+    }
+
+    if (shouldSkipPixiGeneratedEffectForSharedRenderer({
+        objectId: obj.id,
+        objectType: obj.type,
+        isExporting,
+        sharedRendererGeneratedEffectObjectIds,
+    })) {
+        const children = container.removeChildren();
+        children.forEach((child) => child.destroy({ children: true, texture: false, context: true }));
+        container.hitArea = new PIXI.Rectangle(0, 0, (obj as any).width ?? 1, (obj as any).height ?? 1);
+        return undefined;
     }
 
     if (obj.type === 'shape') {

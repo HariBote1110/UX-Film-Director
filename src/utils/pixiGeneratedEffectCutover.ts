@@ -1,0 +1,14 @@
+export interface ShouldSkipPixiGeneratedEffectForSharedRendererInput {
+  objectId: string;
+  objectType: string;
+  isExporting: boolean;
+  sharedRendererGeneratedEffectObjectIds?: ReadonlySet<string>;
+}
+
+export const shouldSkipPixiGeneratedEffectForSharedRenderer = ({
+  objectId,
+  objectType,
+  sharedRendererGeneratedEffectObjectIds,
+}: ShouldSkipPixiGeneratedEffectForSharedRendererInput): boolean =>
+  (objectType === 'audio_visualization' || objectType === 'particle')
+  && sharedRendererGeneratedEffectObjectIds?.has(objectId) === true;

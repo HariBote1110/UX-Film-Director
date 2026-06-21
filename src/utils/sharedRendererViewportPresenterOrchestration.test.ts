@@ -95,6 +95,7 @@ const control: SharedRendererPreviewPresenterControl = {
     reason: 'noPsdScene',
     psdObjectIds: [],
   },
+  generatedEffectObjectIds: [],
   dispose: vi.fn(),
 };
 

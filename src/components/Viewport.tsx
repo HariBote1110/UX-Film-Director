@@ -377,6 +377,7 @@ const Viewport: React.FC = () => {
   const sharedRendererSolidColourObjectIdsRef = useRef<Set<string>>(new Set());
   const sharedRendererImageObjectIdsRef = useRef<Set<string>>(new Set());
   const sharedRendererPsdObjectIdsRef = useRef<Set<string>>(new Set());
+  const sharedRendererGeneratedEffectObjectIdsRef = useRef<Set<string>>(new Set());
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   
   const audioBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
@@ -426,6 +427,15 @@ const Viewport: React.FC = () => {
     const unchanged = current.size === next.size && [...current].every((objectId) => next.has(objectId));
     if (unchanged) return;
     sharedRendererPsdObjectIdsRef.current = next;
+    setRenderTick((previous) => previous + 1);
+  }, []);
+
+  const updateSharedRendererGeneratedEffectObjectIds = useCallback((objectIds: string[]) => {
+    const current = sharedRendererGeneratedEffectObjectIdsRef.current;
+    const next = new Set(objectIds);
+    const unchanged = current.size === next.size && [...current].every((objectId) => next.has(objectId));
+    if (unchanged) return;
+    sharedRendererGeneratedEffectObjectIdsRef.current = next;
     setRenderTick((previous) => previous + 1);
   }, []);
 
@@ -917,6 +927,7 @@ const Viewport: React.FC = () => {
         updateSharedRendererSolidColourObjectIds(previousPresenterControl.solidColourOwnership.solidColourObjectIds);
         updateSharedRendererImageObjectIds(previousPresenterControl.imageOwnership.imageObjectIds);
         updateSharedRendererPsdObjectIds(previousPresenterControl.psdOwnership.psdObjectIds);
+        updateSharedRendererGeneratedEffectObjectIds(previousPresenterControl.generatedEffectObjectIds);
         return;
       }
       if (stagePresenterDiagnostics) {
@@ -934,6 +945,7 @@ const Viewport: React.FC = () => {
       updateSharedRendererSolidColourObjectIds(control.ok ? control.solidColourOwnership.solidColourObjectIds : []);
       updateSharedRendererImageObjectIds(control.ok ? control.imageOwnership.imageObjectIds : []);
       updateSharedRendererPsdObjectIds(control.ok ? control.psdOwnership.psdObjectIds : []);
+      updateSharedRendererGeneratedEffectObjectIds(control.ok ? control.generatedEffectObjectIds : []);
     }).catch((error) => {
       if (cancelled) return;
       const detail = error instanceof Error
@@ -1000,7 +1012,7 @@ const Viewport: React.FC = () => {
         sharedRendererPresenterControlRef.current = null;
       }
     };
-  }, [isExporting, isPlaying, objects, rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererImageObjectIds, updateSharedRendererPsdObjectIds, updateSharedRendererSolidColourObjectIds]);
+  }, [isExporting, isPlaying, objects, rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererGeneratedEffectObjectIds, updateSharedRendererImageObjectIds, updateSharedRendererPsdObjectIds, updateSharedRendererSolidColourObjectIds]);
 
   // --- Main Render Logic ---
   const renderScene = useCallback((time: number, currentObjects: TimelineObject[]) => {
@@ -1112,6 +1124,7 @@ const Viewport: React.FC = () => {
           sharedRendererSolidColourObjectIds: sharedRendererSolidColourObjectIdsRef.current,
           sharedRendererImageObjectIds: sharedRendererImageObjectIdsRef.current,
           sharedRendererPsdObjectIds: sharedRendererPsdObjectIdsRef.current,
+          sharedRendererGeneratedEffectObjectIds: sharedRendererGeneratedEffectObjectIdsRef.current,
       });
 
       const shadowFilters = getEnabledObjectFiltersInOrder(obj).filter((filter): filter is Extract<ObjectFilter, { type: 'shadow' }> => {

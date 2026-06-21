@@ -74,6 +74,7 @@ export type SharedRendererPreviewPresenterControl =
       videoOwnership: SharedRendererVideoOwnership;
       imageOwnership: SharedRendererImageOwnership;
       psdOwnership: SharedRendererPsdOwnership;
+      generatedEffectObjectIds: string[];
       takePresentedFrameSharedFrame?: (
         input: SharedRendererPresentedFrameSharedFrameInput
       ) => Promise<RustBackendVideoEncodeWriteFramePayload>;
@@ -798,6 +799,9 @@ export const startSharedRendererPreviewPresenter = async ({
     videoOwnership,
     imageOwnership,
     psdOwnership,
+    generatedEffectObjectIds: nativeRenderFrameReady
+      ? collectGeneratedEffectObjectIds(session)
+      : [],
     takePresentedFrameSharedFrame: presenter.takePresentedFrameSharedFrame,
     presentExternalVideoFrameScene,
     dispose: presenter.dispose,
@@ -858,7 +862,7 @@ const isGeneratedPaintMediaKind = (
 
 const collectObjectIdsByMediaKind = (
   session: SharedRendererPreviewSession,
-  kind: 'Video' | 'SolidColour' | 'Image' | 'Psd'
+  kind: 'Video' | 'SolidColour' | 'Image' | 'Psd' | 'GeneratedAudioWaveform' | 'GeneratedParticle'
 ): string[] => {
   if (!session.surfaceGate.ok) return [];
 
@@ -868,6 +872,11 @@ const collectObjectIdsByMediaKind = (
     .sort((left, right) => left.z_index - right.z_index)
     .map((clip) => clip.clip_id);
 };
+
+const collectGeneratedEffectObjectIds = (session: SharedRendererPreviewSession): string[] => [
+  ...collectObjectIdsByMediaKind(session, 'GeneratedAudioWaveform'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedParticle'),
+];
 
 const resolveFirstPresentedVideoSourceFrame = (
   session: SharedRendererPreviewSession,
