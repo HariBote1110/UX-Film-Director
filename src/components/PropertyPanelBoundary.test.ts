@@ -68,5 +68,7 @@ describe('PropertyPanel GetColor sampling controls', () => {
     expect(code).toContain('sampleSourceObjectId');
     expect(code).toContain('sampleStrength');
     expect(code).toContain('getColorSampleCandidates');
+    expect(code).toContain("object.type !== 'image' && object.type !== 'psd'");
+    expect(code).toContain('PNG/JPEG画像またはPSD');
   });
 });
