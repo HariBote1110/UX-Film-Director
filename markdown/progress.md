@@ -1,6 +1,15 @@
 # 進捗ログ
 
 ## 2026-06-21
+- AviUtlPackV4 P1効果プリセット中核を追加した。
+- Red: 輝度ワイプ、縁取りT、扇クリッピングRをUX FDのFilter Stackプリセットとして追加する契約を作成した。
+- Green: `src/utils/aviutlEffectPresets.ts` を追加し、P1候補を既存の `wipe` / `shadow` / `clipping` フィルタへ近似接続した。
+- Green: 既存filterを破棄せず末尾へ追加し、legacy effect fieldsも同期するようにした。
+- 版を `0.1.1-Beta-238a` に更新した。
+- 検証: `npm test -- --run src/utils/aviutlEffectPresets.test.ts` は3件成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- 残課題: これはRust/WebGPU本実装前の近似プリセット。次はPropertyPanelへ入口を追加し、その後にRust effect境界を広げる。
+
+## 2026-06-21
 - AviUtlPackV4 P0モーションプリセットをPropertyPanelへ追加した。
 - Red: `PropertyPanel` がAviUtlPackV4 motion presetをKeyframes周辺に露出する契約を追加した。
 - Green: `AviUtl Motion` セクションを追加し、左からスライド、下からポップ、ランダム揺れ、左右反復をボタンから適用できるようにした。

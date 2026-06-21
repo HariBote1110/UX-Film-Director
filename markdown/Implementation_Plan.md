@@ -19,9 +19,10 @@
 1. ✅ AviUtlPackV4棚卸しと標準搭載候補カタログの追加
 2. ✅ `P0` motion presetの中核を既存キーフレーム/easingへ接続
 3. ✅ PropertyPanelへP0 AviUtl motion presetを露出
-4. `P1` Rust/WebGPU effectの境界型を拡張
-5. PropertyPanelのFilter StackへP1標準搭載候補を露出
-6. E2Eで代表素材に効果を載せ、preview/exportの一致を検証
+4. ✅ `P1` 標準効果プリセットの中核を既存Filter Stackへ接続
+5. `P1` Rust/WebGPU effectの境界型を拡張
+6. PropertyPanelのFilter StackへP1標準搭載候補を露出
+7. E2Eで代表素材に効果を載せ、preview/exportの一致を検証
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。
