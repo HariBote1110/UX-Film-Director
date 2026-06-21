@@ -99,7 +99,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'pie_chart',
   'histogram',
   'sunburst',
-  'circular_arrow'
+  'circular_arrow',
+  'triangle_bracket'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -288,6 +289,15 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (typeof candidate.flipVertical !== 'boolean') return false;
     if (typeof candidate.flipHorizontal !== 'boolean') return false;
     if (typeof candidate.arrowColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.arrowColour)) return false;
+  }
+  if (candidate.type === 'triangle_bracket') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.bracketWidth) || candidate.bracketWidth <= 0) return false;
+    if (!isFiniteNumber(candidate.angleDegrees) || candidate.angleDegrees < 1 || candidate.angleDegrees > 180) return false;
+    if (!isFiniteNumber(candidate.armLength) || candidate.armLength < 0) return false;
+    if (!isFiniteNumber(candidate.offsetDistance) || candidate.offsetDistance < -10000 || candidate.offsetDistance > 10000) return false;
+    if (typeof candidate.bracketColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.bracketColour)) return false;
   }
   return true;
 };

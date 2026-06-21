@@ -281,6 +281,16 @@ struct GeneratedCircularArrowSource {
     arrow_colour: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedTriangleBracketSource {
+    generator: String,
+    bracket_width: u32,
+    angle_degrees: f32,
+    arm_length: u32,
+    offset_distance: i32,
+    bracket_colour: String,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2270,6 +2280,9 @@ fn collect_native_render_sources(
             MediaKind::GeneratedCircularArrow => {
                 build_generated_circular_arrow_source_frame(media)?
             }
+            MediaKind::GeneratedTriangleBracket => {
+                build_generated_triangle_bracket_source_frame(media)?
+            }
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform => continue,
@@ -3376,6 +3389,81 @@ fn build_generated_circular_arrow_source_frame(
         .map_err(|error| format!("GeneratedCircularArrow media frame is invalid: {error:?}"))
 }
 
+fn build_generated_triangle_bracket_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedTriangleBracket media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let bracket: GeneratedTriangleBracketSource =
+        serde_json::from_str(&media.source).map_err(|error| {
+            format!(
+                "Invalid GeneratedTriangleBracket media '{}': {error}",
+                media.id
+            )
+        })?;
+    validate_generated_triangle_bracket_source(&bracket).map_err(|message| {
+        format!(
+            "Invalid GeneratedTriangleBracket media '{}': {message}",
+            media.id
+        )
+    })?;
+
+    let colour = parse_hex_colour_source(&bracket.bracket_colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedTriangleBracket media '{}': {message}",
+            media.id
+        )
+    })?;
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedTriangleBracket media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedTriangleBracket media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+
+    let half_height = bracket.bracket_width as f32 * 0.5;
+    let half_angle = (bracket.angle_degrees * 0.5).to_radians();
+    let angle_inset = if half_angle.tan().abs() <= f32::EPSILON {
+        0.0
+    } else {
+        half_height / half_angle.tan()
+    };
+    let total_width = bracket.arm_length as f32 + angle_inset.max(0.0);
+    let centre_x = media.width as f32 * 0.5 + bracket.offset_distance as f32;
+    let centre_y = media.height as f32 * 0.5;
+    let tip = (centre_x - total_width * 0.5, centre_y);
+    let right_x = tip.0 + bracket.arm_length as f32;
+    let top = (right_x, centre_y - half_height);
+    let bottom = (right_x, centre_y + half_height);
+    let stroke_width = (bracket.bracket_width as f32 * 0.08).max(2.0);
+
+    for y in 0..media.height {
+        for x in 0..media.width {
+            let px = x as f32 + 0.5;
+            let py = y as f32 + 0.5;
+            let top_distance = distance_to_segment(px, py, tip, top);
+            let bottom_distance = distance_to_segment(px, py, tip, bottom);
+            if top_distance <= stroke_width || bottom_distance <= stroke_width {
+                let offset = ((y as usize * media.width as usize + x as usize) * 4) as usize;
+                pixels[offset..offset + 4].copy_from_slice(&[colour[0], colour[1], colour[2], 255]);
+            }
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedTriangleBracket media frame is invalid: {error:?}"))
+}
+
 fn point_on_circle(centre_x: f32, centre_y: f32, radius: f32, angle: f32) -> (f32, f32) {
     (
         centre_x + angle.cos() * radius,
@@ -3424,6 +3512,19 @@ fn distance_to_point(x: f32, y: f32, point_x: f32, point_y: f32) -> f32 {
     let dx = x - point_x;
     let dy = y - point_y;
     (dx * dx + dy * dy).sqrt()
+}
+
+fn distance_to_segment(x: f32, y: f32, start: (f32, f32), end: (f32, f32)) -> f32 {
+    let vx = end.0 - start.0;
+    let vy = end.1 - start.1;
+    let length_squared = vx * vx + vy * vy;
+    if length_squared <= f32::EPSILON {
+        return distance_to_point(x, y, start.0, start.1);
+    }
+    let t = (((x - start.0) * vx + (y - start.1) * vy) / length_squared).clamp(0.0, 1.0);
+    let closest_x = start.0 + vx * t;
+    let closest_y = start.1 + vy * t;
+    distance_to_point(x, y, closest_x, closest_y)
 }
 
 fn fill_rect_rgba(
@@ -3779,6 +3880,31 @@ fn validate_generated_circular_arrow_source(
         return Err("head_shape must be triangle or circle".to_string());
     }
     parse_hex_colour_source(&source.arrow_colour)?;
+    Ok(())
+}
+
+fn validate_generated_triangle_bracket_source(
+    source: &GeneratedTriangleBracketSource,
+) -> Result<(), String> {
+    if source.generator != "triangle-bracket" {
+        return Err("generator must be triangle-bracket".to_string());
+    }
+    if source.bracket_width == 0 || source.bracket_width > 2000 {
+        return Err("bracket_width must be 1..2000".to_string());
+    }
+    if !source.angle_degrees.is_finite()
+        || source.angle_degrees < 1.0
+        || source.angle_degrees > 180.0
+    {
+        return Err("angle_degrees must be 1..180".to_string());
+    }
+    if source.arm_length > 2000 {
+        return Err("arm_length must be 0..2000".to_string());
+    }
+    if source.offset_distance < -10000 || source.offset_distance > 10000 {
+        return Err("offset_distance must be -10000..10000".to_string());
+    }
+    parse_hex_colour_source(&source.bracket_colour)?;
     Ok(())
 }
 
@@ -6028,6 +6154,35 @@ mod tests {
             .count();
 
         assert!(yellow_count > 500);
+        assert!(transparent_count > 10_000);
+    }
+
+    #[test]
+    fn generated_triangle_bracket_source_frame_contains_arms_and_transparency() {
+        let media = SceneMediaReference {
+            id: "triangle-bracket-1".to_string(),
+            kind: MediaKind::GeneratedTriangleBracket,
+            source: r##"{"generator":"triangle-bracket","bracket_width":100,"angle_degrees":120,"arm_length":50,"offset_distance":0,"bracket_colour":"#ffffff"}"##.to_string(),
+            width: 160,
+            height: 100,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_triangle_bracket_source_frame(&media)
+            .expect("generated triangle bracket frame should render");
+        let white_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [255, 255, 255, 255])
+            .count();
+        let transparent_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| rgba[3] == 0)
+            .count();
+
+        assert!(white_count > 300);
         assert!(transparent_count > 10_000);
     }
 }

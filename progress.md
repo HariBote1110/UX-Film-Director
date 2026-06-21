@@ -1,3 +1,22 @@
+## 2026-06-21 — SSD三角括弧をRust生成オブジェクトへ追加
+
+### 実施内容
+- Red: `script/ANM/ANM_ssd/三角括弧.obj` を、Rust `GeneratedTriangleBracket` mediaとして扱う境界契約を作った。
+- Green: `TriangleBracketObject` と `buildAviUtlTriangleBracketObject` を追加し、Timeline右クリックから `三角括弧を追加` / `Add Triangle Bracket` で置けるようにした。
+- Green: `rustSceneSnapshot` / shared renderer native support / Rust core schema / Rust backendに `GeneratedTriangleBracket` を追加した。
+- Green: Rust backendで透明背景、白い上下2本の斜線ブラケットを持つ決定的な三角括弧フレームを生成できるようにした。
+- Green: `ssd-triangle-bracket` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-276a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/triangleBracketObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/e2e/allReadableMedia.e2e.test.ts --reporter=dot` は88件成功。
+- `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は14件成功。
+- `cargo test --manifest-path rust-backend/Cargo.toml generated_triangle_bracket_source_frame_contains_arms_and_transparency -- --nocapture` は1件成功。
+- 対象名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足、`mp4box` 型定義不足、`heavyEffectsStress.test.ts` の `PositionKeyframe` 未定義のみ検出した。
+
+### 残課題・次のステップ
+- 現時点の `GeneratedTriangleBracket` は元スクリプトのポリゴン合成を、透明背景の斜線ブラケットRustラスタ生成へ置き換えた互換再実装。
+
 ## 2026-06-21 — SSD円矢印をRust生成オブジェクトへ追加
 
 ### 実施内容

@@ -297,6 +297,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '注釈、循環、誘導表示に使いやすく、Rust側で透明背景付きの円弧と矢じりを決定的に生成できる。'
   },
   {
+    id: 'ssd-triangle-bracket',
+    labelJa: '三角括弧',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/ANM/ANM_ssd/三角括弧.obj'],
+    rationaleJa: '注釈対象を挟む強調表示に使いやすく、Rust側で透明背景付きの斜線ブラケットを決定的に生成できる。'
+  },
+  {
     id: 'tim-motion-path',
     labelJa: 'モーションパス',
     category: 'motion',

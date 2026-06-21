@@ -17,6 +17,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedHistogram') return isSharedRendererNativeGeneratedHistogramSourceSupported(reference.source);
   if (reference.kind === 'GeneratedSunburst') return isSharedRendererNativeGeneratedSunburstSourceSupported(reference.source);
   if (reference.kind === 'GeneratedCircularArrow') return isSharedRendererNativeGeneratedCircularArrowSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedTriangleBracket') return isSharedRendererNativeGeneratedTriangleBracketSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -524,6 +525,42 @@ const isSharedRendererNativeGeneratedCircularArrowSourceSupported = (source: str
       && typeof parsed.flip_horizontal === 'boolean'
       && typeof parsed.arrow_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.arrow_colour)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedTriangleBracketSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      bracket_width?: unknown;
+      angle_degrees?: unknown;
+      arm_length?: unknown;
+      offset_distance?: unknown;
+      bracket_colour?: unknown;
+    };
+    return (
+      parsed.generator === 'triangle-bracket'
+      && typeof parsed.bracket_width === 'number'
+      && Number.isInteger(parsed.bracket_width)
+      && parsed.bracket_width > 0
+      && parsed.bracket_width <= 2000
+      && typeof parsed.angle_degrees === 'number'
+      && Number.isFinite(parsed.angle_degrees)
+      && parsed.angle_degrees >= 1
+      && parsed.angle_degrees <= 180
+      && typeof parsed.arm_length === 'number'
+      && Number.isInteger(parsed.arm_length)
+      && parsed.arm_length >= 0
+      && parsed.arm_length <= 2000
+      && typeof parsed.offset_distance === 'number'
+      && Number.isInteger(parsed.offset_distance)
+      && parsed.offset_distance >= -10000
+      && parsed.offset_distance <= 10000
+      && typeof parsed.bracket_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.bracket_colour)
     );
   } catch {
     return false;
