@@ -1,6 +1,6 @@
 use uxfd_rust_core::{
     validate_project, Clip, ClipKind, ColourPipeline, Effect, Fps, MediaKind, MediaReference,
-    Project, ProjectSize, Track, Transform, ValidationCode,
+    Project, ProjectSize, Track, Transform, ValidationCode, WipeEdge,
 };
 
 fn valid_project() -> Project {
@@ -126,6 +126,17 @@ fn rejects_invalid_outline_effect_values() {
         colour: [0.0, 1.2, 0.0],
         thickness: -1.0,
         opacity: 2.0,
+    });
+
+    assert!(validation_codes(&project).contains(&ValidationCode::NonFiniteNumber));
+}
+
+#[test]
+fn rejects_invalid_wipe_effect_progress() {
+    let mut project = valid_project();
+    project.tracks[0].clips[0].effects.push(Effect::Wipe {
+        edge: WipeEdge::Left,
+        progress: 1.2,
     });
 
     assert!(validation_codes(&project).contains(&ValidationCode::NonFiniteNumber));

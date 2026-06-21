@@ -672,6 +672,41 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('serialises wipe filters as evaluated Rust scene effects', () => {
+    const layers = createDefaultLayers();
+    const wiped = baseImage({
+      id: 'wiped',
+      startTime: 1,
+      duration: 4,
+      filters: [
+        {
+          id: 'wipe-1',
+          type: 'wipe',
+          enabled: true,
+          params: { edge: 'left', reverse: false },
+        },
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [wiped],
+      time: 3,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected wipe snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([
+      {
+        Wipe: {
+          edge: 'left',
+          progress: 0.5,
+        },
+      },
+    ]);
+  });
+
   it('fails loud for visible Pixi features the shared renderer cannot represent yet', () => {
     const layers = createDefaultLayers();
     const unsupportedText: TimelineObject = {

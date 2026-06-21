@@ -1,7 +1,7 @@
 use serde_json::json;
 use uxfd_rust_core::{
     evaluate_frame, Clip, ClipKind, ColourPipeline, Effect, Fps, MediaKind, MediaReference,
-    Project, ProjectSize, SamplingMode, SceneSnapshot, Track, Transform,
+    Project, ProjectSize, SamplingMode, SceneSnapshot, Track, Transform, WipeEdge,
 };
 
 fn project_with_transform() -> Project {
@@ -50,6 +50,10 @@ fn project_with_transform() -> Project {
                         colour: [0.0, 0.0, 0.0],
                         thickness: 2.0,
                         opacity: 0.75,
+                    },
+                    Effect::Wipe {
+                        edge: WipeEdge::Left,
+                        progress: 0.5,
                     },
                 ],
             }],

@@ -3,7 +3,7 @@ use uxfd_golden_harness::{compare_rgba_frames, ComparisonThresholds, RgbaFrame};
 use uxfd_native_wgpu_renderer::{render_native_wgpu_frame, NativeWgpuRenderError};
 use uxfd_reference_renderer::render_reference_frame;
 use uxfd_rust_core::{
-    ColourPipeline, Effect, EvaluatedClip, SamplingMode, SceneSnapshot, Transform,
+    ColourPipeline, Effect, EvaluatedClip, SamplingMode, SceneSnapshot, Transform, WipeEdge,
 };
 
 #[test]
@@ -214,6 +214,35 @@ fn native_wgpu_applies_outline_to_transparent_neighbours() {
         3,
         1,
         vec![0, 0, 0, 255, 255, 255, 255, 255, 0, 0, 0, 255],
+    );
+}
+
+#[test]
+fn native_wgpu_applies_left_wipe_progress() {
+    assert_native_matches_direct_hand_anchor(
+        scene_snapshot(vec![evaluated_clip(
+            "foreground",
+            0,
+            1.0,
+            vec![Effect::Wipe {
+                edge: WipeEdge::Left,
+                progress: 0.5,
+            }],
+        )]),
+        HashMap::from([(
+            "foreground".to_string(),
+            RgbaFrame::from_rgba8(
+                4,
+                1,
+                vec![
+                    255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255,
+                ],
+            )
+            .expect("valid foreground"),
+        )]),
+        4,
+        1,
+        vec![255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0],
     );
 }
 
