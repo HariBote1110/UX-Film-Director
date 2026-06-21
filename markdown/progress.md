@@ -1,6 +1,19 @@
 # 進捗ログ
 
 ## 2026-06-22
+- 93領域枠をRust生成プリセットへ追加した。
+- Red: `93-region-frame` がAviUtlPackV4カタログ、Timeline右クリックメニュー、factory、Rust scene snapshot、shared renderer native media、rust-core schema、Rust backend画素生成を通る契約を追加した。
+- Green: `RegionFrameObject` と `GeneratedRegionFrame` media kindを追加し、`region-frame-93` source JSONで枠線幅、背景不透明度、枠色、背景色をRustへ渡すようにした。
+- Green: Rust backendで半透明背景と不透明枠をRGBA生成するようにした。
+- Green: Timeline右クリックメニューに `93領域枠を追加` / `Add 93 Region Frame` を追加した。
+- 版を `0.1.1-Beta-301a` に更新した。
+- 検証: `npm test -- --run src/utils/regionFrameObjectFactory.test.ts src/utils/getColorDotFieldObjectFactory.test.ts src/utils/hksyCheckerGridObjectFactory.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/packageScripts.test.ts --reporter=dot` は130件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は29件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_region_frame_source_frame -- --nocapture` は1件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の93領域枠由来の型エラーは出ていない。
+- 次は93系のSimpleTube/Sphere系、またはGetColorの元画像サンプリング/Field/Twist方向へ進む。
+
+## 2026-06-22
 - GetColor V2R枠線四角ドットフィールドを標準プリセットへ追加した。
 - Red: `getcolor-v2r-outlined-square-dots` がAviUtlPackV4カタログ、Timeline右クリックメニュー、factory、Rust scene snapshot、Rust backend画素生成を通る契約を追加した。
 - Green: 既存の `GeneratedGetColorDots` の `dot_shape: "square"` / `stroke_width` を使う標準プリセットとして、factoryとTimeline右クリックメニューへ露出した。

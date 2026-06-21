@@ -84,6 +84,7 @@
 65. ✅ `P1` hksyライン（アンカー指定）をRust GeneratedHksyCheckerGridのanchor-line pattern生成プリセットとして追加する
 66. ✅ `P1` GetColor V2R菱形ドットをRust GeneratedGetColorDotsのdot_shape指定プリセットとして追加する
 67. ✅ `P1` GetColor V2R枠線四角ドットをRust GeneratedGetColorDotsのdot_shape/stroke_width指定プリセットとして追加する
+68. ✅ `P1` 93領域枠をRust GeneratedRegionFrame生成プリセットとして追加する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。
