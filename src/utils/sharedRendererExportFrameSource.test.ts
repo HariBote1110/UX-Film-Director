@@ -1512,6 +1512,180 @@ describe('createSharedRendererExportFrameSource', () => {
     }
   });
 
+  it('passes generated audio waveform samples into native direct encode payloads', async () => {
+    vi.stubGlobal('window', {
+      rustVideoEncoder: {
+        nativeDirectEncodeEnabled: true,
+        writeNativeEncodeFrame: async () => ({ success: true }),
+      },
+      rustBackend: {},
+    });
+    try {
+      const canvas = {
+        width: 1,
+        height: 1,
+        dataset: {},
+      } as unknown as HTMLCanvasElement;
+      const waveformSource = '{"generator":"audio-waveform-r","target_audio_id":"audio-1","target_source":"/tmp/dialogue.wav","sample_window_seconds":1,"colour":"#00ff00","thickness":1,"amplitude":1}';
+      const snapshot = {
+        frame_index: 0,
+        colour: {
+          profile: 'rec709-sdr',
+          working_space: 'linear-light',
+          alpha: 'premultiplied',
+        },
+        clips: [{
+          clip_id: 'waveform-1',
+          track_id: 'layer-1',
+          media_id: 'waveform-1',
+          source_frame: 0,
+          z_index: 0,
+          transform: {
+            translation_x: 0,
+            translation_y: 0,
+            scale_x: 1,
+            scale_y: 1,
+            rotation_degrees: 0,
+            sampling: 'bilinear',
+          },
+          opacity: 1,
+          effects: [],
+        }],
+      } as const;
+      const media = [{
+        id: 'waveform-1',
+        kind: 'GeneratedAudioWaveform',
+        source: waveformSource,
+        width: 4,
+        height: 2,
+      }] as const;
+      const calls: unknown[] = [];
+      const source = createSharedRendererExportFrameSource({
+        canvas,
+        projectSettings: {
+          ...settings,
+          width: 4,
+          height: 2,
+        },
+        layers: createDefaultLayers(),
+        editorMode: '2d',
+        webGpuAvailable: true,
+        fallbackAdapter: false,
+        videoCutoverEnabled: true,
+        bitmapCaptureEnabled: false,
+        buildExportSession: () => ({
+          plan: {
+            mode: 'parallelCompare',
+            primary: 'pixi',
+            candidate: 'sharedRenderer',
+            snapshot,
+            media,
+          },
+          presentationContract: {
+            canvas: {
+              colorSpace: 'srgb',
+              alphaMode: 'premultiplied',
+            },
+            comparisonReadback: {
+              target: 'offscreenRenderTarget',
+              includesPageCompositing: false,
+            },
+            frameTiming: {
+              source: 'frozenSceneSnapshot',
+            },
+            deviceLost: {
+              fallback: 'pixi',
+              staleSharedFrameAllowed: false,
+            },
+          },
+          surfaceGate: {
+            ok: true,
+            canvas: {
+              width: 4,
+              height: 2,
+            },
+            snapshot,
+            media,
+          },
+        }),
+        prepareNativeRenderSources: async () => ({
+          ok: false,
+          reason: 'noVideoDecodeRequest',
+          detail: 'no video',
+          activeJobs: [],
+        }),
+        requestAudioWaveformSamples: async (payload) => {
+          calls.push(['requestAudioWaveformSamples', payload]);
+          return {
+            success: true,
+            result: {
+              source: payload.source,
+              sampleRate: payload.sampleRate,
+              sampleCount: 4,
+              samples: [0, 0.25, -0.25, 0],
+            },
+          };
+        },
+        renderNativeSharedFrame: async () => {
+          throw new Error('native shared-frame render must not run when native direct encode is available.');
+        },
+        startViewportPresenter: async () => {
+          throw new Error('WebGPU presenter must not start for generated waveform native direct encode.');
+        },
+      } as unknown as Parameters<typeof createSharedRendererExportFrameSource>[0] & {
+        bitmapCaptureEnabled: false;
+        prepareNativeRenderSources: unknown;
+        requestAudioWaveformSamples: unknown;
+        renderNativeSharedFrame: unknown;
+      });
+
+      const result = await source.renderEncodeFrame?.({
+        frameIndex: 0,
+        timestampUs: 0,
+        time: 0,
+        width: 4,
+        height: 2,
+        objects: [],
+        encodeSessionId: 'waveform-direct-session',
+      });
+
+      expect(result).toMatchObject({
+        timestamp: 0,
+        nativeEncodeFramePayload: {
+          sessionId: 'waveform-direct-session',
+          renderId: 'waveform-direct-session-frame-0',
+          frameIndex: 0,
+          timestampUs: 0,
+          width: 4,
+          height: 2,
+          snapshot,
+          media,
+          sources: [],
+          audioWaveforms: [{
+            mediaId: 'waveform-1',
+            source: waveformSource,
+            samples: [0, 0.25, -0.25, 0],
+            sampleRate: 8000,
+            width: 4,
+            height: 2,
+          }],
+        },
+      });
+      expect(calls).toEqual([[
+        'requestAudioWaveformSamples',
+        {
+          source: '/tmp/dialogue.wav',
+          sampleRate: 8000,
+          maxSamples: 8000,
+          startSeconds: 0,
+          durationSeconds: 1,
+        },
+      ]]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('releases decoded native render sources as aborted when Rust native render fails', async () => {
     const canvas = {
       width: 1,
