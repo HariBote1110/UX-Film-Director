@@ -15,6 +15,8 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('buildAviUtlAudioSphereObject');
     expect(code).toContain('buildAviUtlFocusLinesPlusObject');
     expect(code).toContain('buildAviUtlRandomLineExObject');
+    expect(code).toContain('buildAviUtlCutCornerRegionFrameObject');
+    expect(code).toContain('buildAviUtlEllipseRegionFrameObject');
     expect(code).toContain('buildAviUtlRegionFrameObject');
     expect(code).toContain('buildAviUtlHologramObject');
     expect(code).toContain('buildAviUtlProtractorObject');
@@ -53,6 +55,8 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('handleAddAudioSphere');
     expect(code).toContain('handleAddFocusLinesPlus');
     expect(code).toContain('handleAddRandomLineEx');
+    expect(code).toContain('handleAddCutCornerRegionFrame');
+    expect(code).toContain('handleAddEllipseRegionFrame');
     expect(code).toContain('handleAddRegionFrame');
     expect(code).toContain('handleAddHologram');
     expect(code).toContain('handleAddProtractor');
@@ -91,6 +95,8 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('Add 93 Audio Sphere');
     expect(code).toContain('Add Focus Lines Plus');
     expect(code).toContain('Add Random Line EX');
+    expect(code).toContain('Add 93 Cut-Corner Region Frame');
+    expect(code).toContain('Add 93 Ellipse Region Frame');
     expect(code).toContain('Add 93 Region Frame');
     expect(code).toContain('Add Hologram');
     expect(code).toContain('Add Protractor');
@@ -129,6 +135,8 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('93音声玉を追加');
     expect(code).toContain('集中線plusを追加');
     expect(code).toContain('ランダムラインEXを追加');
+    expect(code).toContain('93領域枠(角落ち)を追加');
+    expect(code).toContain('93領域枠(楕円)を追加');
     expect(code).toContain('93領域枠を追加');
     expect(code).toContain('ホログラムを追加');
     expect(code).toContain('分度器を追加');

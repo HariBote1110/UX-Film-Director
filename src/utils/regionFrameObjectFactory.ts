@@ -8,13 +8,13 @@ export interface BuildAviUtlRegionFrameObjectInput {
   layer: number;
 }
 
-export const buildAviUtlRegionFrameObject = ({
+const buildBaseRegionFrameObject = ({
   id,
   projectWidth,
   projectHeight,
   startTime,
   layer,
-}: BuildAviUtlRegionFrameObjectInput): RegionFrameObject => {
+}: BuildAviUtlRegionFrameObjectInput): Omit<RegionFrameObject, 'name' | 'shape' | 'cornerCut'> => {
   const width = Math.max(320, Math.round(projectWidth * 0.4167));
   const height = Math.max(180, Math.round(projectHeight * 0.4167));
   const x = Math.round((projectWidth - width) / 2);
@@ -23,7 +23,6 @@ export const buildAviUtlRegionFrameObject = ({
   return {
     id,
     type: 'region_frame',
-    name: '93 領域枠',
     layer,
     startTime,
     duration: 5,
@@ -47,3 +46,22 @@ export const buildAviUtlRegionFrameObject = ({
     backgroundColour: '#ccccff',
   };
 };
+
+export const buildAviUtlRegionFrameObject = (input: BuildAviUtlRegionFrameObjectInput): RegionFrameObject => ({
+  ...buildBaseRegionFrameObject(input),
+  name: '93 領域枠',
+  shape: 'rectangle',
+});
+
+export const buildAviUtlEllipseRegionFrameObject = (input: BuildAviUtlRegionFrameObjectInput): RegionFrameObject => ({
+  ...buildBaseRegionFrameObject(input),
+  name: '93 領域枠(楕円)',
+  shape: 'ellipse',
+});
+
+export const buildAviUtlCutCornerRegionFrameObject = (input: BuildAviUtlRegionFrameObjectInput): RegionFrameObject => ({
+  ...buildBaseRegionFrameObject(input),
+  name: '93 領域枠(角落ち)',
+  shape: 'cut_corner',
+  cornerCut: 20,
+});

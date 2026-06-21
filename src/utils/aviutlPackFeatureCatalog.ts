@@ -217,6 +217,26 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: 'オブジェクトや注釈範囲を囲む枠と薄い背景を、Rust生成の解説UI素材として標準搭載する。'
   },
   {
+    id: '93-region-frame-ellipse',
+    labelJa: '93 領域枠(楕円)',
+    category: 'generated-object',
+    phase: 'P1',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/@領域枠.anm'],
+    rationaleJa: '丸い注目範囲や柔らかい囲みをRust生成の楕円枠として標準搭載する。'
+  },
+  {
+    id: '93-region-frame-cut-corner',
+    labelJa: '93 領域枠(角落ち)',
+    category: 'generated-object',
+    phase: 'P1',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/@領域枠.anm'],
+    rationaleJa: '情報パネル風の角落ち枠をRust生成の注釈素材として標準搭載する。'
+  },
+  {
     id: 'hksy-checker-grid',
     labelJa: 'hksy チェッカー/グリッド',
     category: 'generated-object',

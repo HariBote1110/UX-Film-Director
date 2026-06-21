@@ -1178,6 +1178,10 @@ const serialiseGeneratedRegionFrameSource = (object: RegionFrameObject): string 
   JSON.stringify({
     generator: 'region-frame-93',
     line_width: Math.min(5000, Math.max(0, finiteNumberOr(object.lineWidth, 10))),
+    shape: object.shape === 'ellipse' || object.shape === 'cut_corner' ? object.shape : 'rectangle',
+    ...(object.shape === 'cut_corner' ? {
+      corner_cut: Math.min(5000, Math.max(0, finiteNumberOr(object.cornerCut, 20))),
+    } : {}),
     extra_width: Math.min(5000, Math.max(-5000, finiteNumberOr(object.extraWidth, 0))),
     extra_height: Math.min(5000, Math.max(-5000, finiteNumberOr(object.extraHeight, 0))),
     background_opacity: Math.min(1, Math.max(0, finiteNumberOr(object.backgroundOpacity, 0.2))),

@@ -1254,6 +1254,8 @@ const isSharedRendererNativeGeneratedRegionFrameSourceSupported = (source: strin
     const parsed = JSON.parse(source) as {
       generator?: unknown;
       line_width?: unknown;
+      shape?: unknown;
+      corner_cut?: unknown;
       extra_width?: unknown;
       extra_height?: unknown;
       background_opacity?: unknown;
@@ -1266,6 +1268,8 @@ const isSharedRendererNativeGeneratedRegionFrameSourceSupported = (source: strin
       && Number.isFinite(parsed.line_width)
       && parsed.line_width >= 0
       && parsed.line_width <= 5000
+      && (parsed.shape === undefined || parsed.shape === 'rectangle' || parsed.shape === 'ellipse' || parsed.shape === 'cut_corner')
+      && (parsed.shape !== 'cut_corner' || (typeof parsed.corner_cut === 'number' && Number.isFinite(parsed.corner_cut) && parsed.corner_cut >= 0 && parsed.corner_cut <= 5000))
       && typeof parsed.extra_width === 'number'
       && Number.isFinite(parsed.extra_width)
       && parsed.extra_width >= -5000

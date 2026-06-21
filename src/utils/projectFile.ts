@@ -505,6 +505,8 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
     if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
     if (!isFiniteNumber(candidate.lineWidth) || candidate.lineWidth < 0 || candidate.lineWidth > 5000) return false;
+    if (candidate.shape !== undefined && candidate.shape !== 'rectangle' && candidate.shape !== 'ellipse' && candidate.shape !== 'cut_corner') return false;
+    if (candidate.cornerCut !== undefined && (!isFiniteNumber(candidate.cornerCut) || candidate.cornerCut < 0 || candidate.cornerCut > 5000)) return false;
     if (!isFiniteNumber(candidate.extraWidth) || candidate.extraWidth < -5000 || candidate.extraWidth > 5000) return false;
     if (!isFiniteNumber(candidate.extraHeight) || candidate.extraHeight < -5000 || candidate.extraHeight > 5000) return false;
     if (!isFiniteNumber(candidate.backgroundOpacity) || candidate.backgroundOpacity < 0 || candidate.backgroundOpacity > 1) return false;

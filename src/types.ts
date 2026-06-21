@@ -761,6 +761,8 @@ export interface RegionFrameObject extends BaseObject {
   width: number;
   height: number;
   lineWidth: number;
+  shape?: 'rectangle' | 'ellipse' | 'cut_corner';
+  cornerCut?: number;
   extraWidth: number;
   extraHeight: number;
   backgroundOpacity: number;
