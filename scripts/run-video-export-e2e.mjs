@@ -25,6 +25,7 @@ const VIDEO_PATCH = process.env.UXFD_VIDEO_EXPORT_E2E_VIDEO_PATCH_JSON
 const ADD_MIXED_MEDIA = process.env.UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA === '1';
 const IMAGE_PATH = resolve(ROOT, 'public/icon.jpg');
 const AUDIO_WAV = resolve(OUTPUT_DIR, 'mixed-audio.wav');
+const PROJECT_FPS = 60;
 
 let vite = null;
 let electron = null;
@@ -203,6 +204,8 @@ const parseExportedFrameCount = (dialogMessage) => {
   return match ? Number(match[1]) : null;
 };
 
+const calculateExpectedFrameCount = () => Math.round(EXPORT_DURATION_SECONDS * PROJECT_FPS);
+
 const writeTinyWaveFixture = (audioPath) => {
   const sampleRate = 48000;
   const frames = sampleRate;
@@ -310,6 +313,10 @@ const addMixedMediaToTimeline = async (client) => {
   const audioResult = await waitForTimelineItems(client, ['Rectangle', imageName, audioName]);
   return { ...audioResult, enabled: true, stage: 'complete' };
 };
+
+const shortenAllObjectsForExport = async (client) => client.evaluate(`
+  window.__UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__?.(${JSON.stringify(EXPORT_DURATION_SECONDS)}) ?? null
+`);
 
 const main = async () => {
   if (!existsSync(VIDEO_PATH)) {
@@ -469,6 +476,12 @@ const main = async () => {
   if (ADD_MIXED_MEDIA && !mixedMediaResult?.ok) {
     throw new Error(`混在メディア追加に失敗しました: ${JSON.stringify(mixedMediaResult)}`);
   }
+  const mixedMediaDurationResult = ADD_MIXED_MEDIA
+    ? await shortenAllObjectsForExport(client)
+    : null;
+  if (ADD_MIXED_MEDIA && !mixedMediaDurationResult?.ok) {
+    throw new Error(`混在メディア短尺化に失敗しました: ${JSON.stringify(mixedMediaDurationResult)}`);
+  }
 
   log(`動画出力を開始: ${OUTPUT_MP4}`);
   const exportStartTimeMs = Date.now();
@@ -533,6 +546,9 @@ const main = async () => {
   };
   const exportDurationMs = Date.now() - exportStartTimeMs;
   const exportedFrameCount = parseExportedFrameCount(exportResult.dialog?.message);
+  const expectedFrameCount = calculateExpectedFrameCount();
+  const frameCountMatchesDuration = typeof exportedFrameCount === 'number'
+    && Math.abs(exportedFrameCount - expectedFrameCount) <= 1;
   const exportFramesPerSecond = exportedFrameCount && exportDurationMs > 0
     ? exportedFrameCount / (exportDurationMs / 1000)
     : null;
@@ -550,6 +566,8 @@ const main = async () => {
       && outputStat.size > 0
       && client.dialogs.some((dialog) => dialog.message.includes('エクスポート完了'))
       && (!ADD_MIXED_MEDIA || mixedMediaResult?.ok)
+      && (!ADD_MIXED_MEDIA || mixedMediaDurationResult?.ok)
+      && frameCountMatchesDuration
     ),
     videoPath: VIDEO_PATH,
     outputPath: OUTPUT_MP4,
@@ -558,8 +576,11 @@ const main = async () => {
     videoPatch: VIDEO_PATCH,
     videoObject,
     mixedMediaResult,
+    mixedMediaDurationResult,
     exportDurationMs,
     exportedFrameCount,
+    expectedFrameCount,
+    frameCountMatchesDuration,
     exportFramesPerSecond,
     loadResult,
     exportResult,

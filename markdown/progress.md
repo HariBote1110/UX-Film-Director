@@ -1,6 +1,15 @@
 # 進捗ログ
 
 ## 2026-06-21
+- 混在メディア入り動画export E2Eで、`UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=1` でも図形・画像・音声の既定durationに引っ張られて300 frames出力になる課題を修正した。
+- Red: `packageScripts` に、混在メディア追加後の全オブジェクト短尺化hookと、期待フレーム数照合をE2E scriptへ持たせる契約を追加した。
+- Green: `?videoExportE2e=1` 専用の `__UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__` を追加し、混在メディア投入後にTimeline上の全オブジェクトdurationを短尺化するようにした。
+- Green: 実Electron動画export E2Eが `expectedFrameCount` / `frameCountMatchesDuration` / `mixedMediaDurationResult` を記録し、完了dialogだけでなく期待フレーム数一致も合格条件にするようにした。
+- 検証: `npm test -- --run src/utils/packageScripts.test.ts` は5件成功。`node --check scripts/run-video-export-e2e.mjs` は成功。対象ファイル名で絞った `tsc` 出力は空。
+- 検証: `UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA=1 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=1 UXFD_VIDEO_EXPORT_E2E_TIMEOUT_MS=240000 npm run test:video-export:e2e` は成功し、`GX010052.MP4` / `Rectangle` / `icon.jpg` / `mixed-audio.wav` を含むTimelineで `expectedFrameCount=60` / `exportedFrameCount=60` / `frameCountMatchesDuration=true` を確認した。
+- 残課題: 混在native render exportは1秒60frameで12.6秒、約4.76fps。300frame誤出力は潰れたが、画像・図形・動画混在時のframe source待ちが次の高速化対象。
+
+## 2026-06-21
 - 実Electron動画export E2Eに `UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA=1` を追加し、動画に加えて図形・画像・音声をUI経由でTimelineへ投入できるようにした。
 - Red: `packageScripts` に混在メディアE2E用の環境変数と `mixedMediaResult` を記録する契約を追加した。
 - Green: E2E scriptが `public/icon.jpg` と生成WAVをUIのImage/Audio入力へ投入し、Timeline item出現を待ってからexportへ進むようにした。

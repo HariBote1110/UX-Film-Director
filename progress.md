@@ -1,3 +1,22 @@
+## 2026-06-21 — 混在メディアexportの短尺E2Eを修正
+
+### 実施内容
+- Red: 実Electron動画export E2Eに、混在メディア追加後の全オブジェクト短尺化hookと期待フレーム数照合の契約を追加した。
+- Green: `?videoExportE2e=1` 専用の `__UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__` を追加し、動画・図形・画像・音声をまとめて指定durationへ短尺化できるようにした。
+- Green: `scripts/run-video-export-e2e.mjs` が混在メディア投入後に短尺化hookを呼び、`expectedFrameCount` / `frameCountMatchesDuration` / `mixedMediaDurationResult` を結果JSONへ記録するようにした。
+- Green: export E2Eの合格条件に、完了dialogと出力ファイルだけでなく期待フレーム数一致を含めた。
+
+### 検証
+- `npm test -- --run src/utils/packageScripts.test.ts`
+- `node --check scripts/run-video-export-e2e.mjs`
+- `npx tsc --noEmit 2>&1 | rg "src/main.tsx|src/utils/packageScripts|run-video-export-e2e"`
+- `UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA=1 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=1 UXFD_VIDEO_EXPORT_E2E_TIMEOUT_MS=240000 npm run test:video-export:e2e`
+
+### 結果・残課題
+- 混在メディア入り実Electron exportで `expectedFrameCount=60` / `exportedFrameCount=60` / `frameCountMatchesDuration=true` を確認した。
+- 以前の1秒指定なのに300frame出力される課題は解消した。
+- ただし混在native render exportは1秒60frameで12.6秒、約4.76fps。次はframe source待ちと画像・図形合成経路の高速化が対象。
+
 ## 2026-06-20 — リサイズ比率ロックとpreview診断表示を整理
 
 ### 実施内容

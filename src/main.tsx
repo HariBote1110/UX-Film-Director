@@ -19,9 +19,16 @@ if (urlSearchParams.has('videoLoadE2e') || urlSearchParams.has('videoExportE2e')
 }
 
 if (urlSearchParams.has('videoExportE2e')) {
+  type VideoExportE2eDurationResult = {
+    ok: boolean;
+    objectCount: number;
+    duration: number;
+  };
+
   (window as typeof window & {
     __UXFD_VIDEO_EXPORT_E2E_SET_VIDEO_DURATION__?: (duration: number) => boolean;
     __UXFD_VIDEO_EXPORT_E2E_PATCH_FIRST_VIDEO__?: (patch: Record<string, unknown>) => boolean;
+    __UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__?: (duration: number) => VideoExportE2eDurationResult;
   }).__UXFD_VIDEO_EXPORT_E2E_SET_VIDEO_DURATION__ = (duration: number) => {
     const state = useStore.getState();
     const videoObjects = state.objects.filter((object) => object.type === 'video');
@@ -30,6 +37,24 @@ if (urlSearchParams.has('videoExportE2e')) {
     });
     state.setDuration(duration);
     return videoObjects.length > 0;
+  };
+  (window as typeof window & {
+    __UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__?: (duration: number) => VideoExportE2eDurationResult;
+  }).__UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__ = (duration: number) => {
+    const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 1;
+    const state = useStore.getState();
+    state.objects.forEach((object) => {
+      const startTime = Number.isFinite(object.startTime) ? Math.max(0, object.startTime) : 0;
+      state.updateObject(object.id, {
+        duration: Math.max(1 / 60, safeDuration - startTime),
+      });
+    });
+    state.setDuration(safeDuration);
+    return {
+      ok: state.objects.length > 0,
+      objectCount: state.objects.length,
+      duration: safeDuration,
+    };
   };
   (window as typeof window & {
     __UXFD_VIDEO_EXPORT_E2E_PATCH_FIRST_VIDEO__?: (patch: Record<string, unknown>) => boolean;
