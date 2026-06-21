@@ -326,6 +326,7 @@ export const hasProjectExportNativeRenderMediaObjects = (
     || object.type === 'puzzle_piece'
     || object.type === 'colour_wheel'
     || object.type === 'gourd'
+    || object.type === 'gear'
     || object.type === 'audio_visualization'
   );
 

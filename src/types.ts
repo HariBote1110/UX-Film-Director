@@ -45,7 +45,7 @@ export interface LayerState {
   locked: boolean;
 }
 
-export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization' | 'particle' | 'barcode' | 'puzzle_piece' | 'colour_wheel' | 'gourd';
+export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization' | 'particle' | 'barcode' | 'puzzle_piece' | 'colour_wheel' | 'gourd' | 'gear';
 
 // --- グラデーション・シャドウ・軌道 ---
 
@@ -429,6 +429,19 @@ export interface GourdObject extends BaseObject {
   fillColour: string;
 }
 
+// AviUtlPackV4 歯車互換の生成オブジェクト
+export interface GearObject extends BaseObject {
+  type: 'gear';
+  width: number;
+  height: number;
+  outerRadius: number;
+  innerRadiusPercent: number;
+  toothCount: number;
+  toothDepthPercent: number;
+  toothSkewPercent: number;
+  fillColour: string;
+}
+
 // --- PSD連携用 ---
 
 export interface PsdLayerStruct {
@@ -473,7 +486,7 @@ export interface PsdObject extends BaseObject {
   worldPlacement?: PsdWorldPlacement;
 }
 
-export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject;
+export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject;
 
 /** タイムライン1本分（シーン） */
 export interface SceneData {

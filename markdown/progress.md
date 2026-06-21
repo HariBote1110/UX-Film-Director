@@ -1,6 +1,20 @@
 # 進捗ログ
 
 ## 2026-06-21
+- Tim歯車をRust生成オブジェクトへ追加した。
+- Red: `script/てぃむ/歯車.anm` を、Rust `GeneratedGear` mediaとして扱う境界契約を作った。
+- Green: `GearObject` と `buildAviUtlGearObject` を追加し、Timeline右クリックから `歯車を追加` / `Add Gear` で置けるようにした。
+- Green: `rustSceneSnapshot` / shared renderer native support / Rust core schema / Rust backendに `GeneratedGear` を追加した。
+- Green: Rust backendで透明背景、内側穴、歯先/歯底を持つ決定的な2D歯車フレームを生成できるようにした。
+- Green: `tim-gear` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-270a` に更新した。
+- 検証: `npm test -- --run src/utils/gearObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/e2e/allReadableMedia.e2e.test.ts --reporter=dot` は82件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は8件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_gear_source_frame_contains_teeth_hole_and_transparency -- --nocapture` は1件成功した。
+- 検証: 対象名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足、`mp4box` 型定義不足、`heavyEffectsStress.test.ts` の `PositionKeyframe` 未定義のみ検出した。
+- 残課題: 現時点の `GeneratedGear` は元スクリプトの3D厚み・側面ポリゴン・テクスチャ貼りを、2D歯車ラスタ生成へ置き換えた互換再実装。
+
+## 2026-06-21
 - TimひょうたんTMをRust生成オブジェクトへ追加した。
 - Red: `script/てぃむ/ひょうたんTM.obj` を、Rust `GeneratedGourd` mediaとして扱う境界契約を作った。
 - Green: `GourdObject` と `buildAviUtlGourdObject` を追加し、Timeline右クリックから `ひょうたんを追加` / `Add Gourd` で置けるようにした。

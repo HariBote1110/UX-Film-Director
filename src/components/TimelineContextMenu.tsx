@@ -4,6 +4,7 @@ import { shallow } from 'zustand/shallow';
 import { useTranslation } from '../i18n';
 import { buildAviUtlBarcodeObject } from '../utils/barcodeObjectFactory';
 import { buildAviUtlColourWheelObject } from '../utils/colourWheelObjectFactory';
+import { buildAviUtlGearObject } from '../utils/gearObjectFactory';
 import { buildAviUtlGourdObject } from '../utils/gourdObjectFactory';
 import { buildAviUtlPuzzlePieceObject } from '../utils/puzzlePieceObjectFactory';
 import {
@@ -170,6 +171,17 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
     onClose();
   };
 
+  const handleAddGear = () => {
+    addObject(buildAviUtlGearObject({
+      id: crypto.randomUUID(),
+      projectWidth: projectSettings.width,
+      projectHeight: projectSettings.height,
+      startTime: state.time,
+      layer: state.layer,
+    }));
+    onClose();
+  };
+
   const handleAddGourd = () => {
     addObject(buildAviUtlGourdObject({
       id: crypto.randomUUID(),
@@ -276,6 +288,7 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddWaveform}>{language === 'en' ? 'Add Waveform' : '音声波形を追加'}</div>
              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddBarcode}>{language === 'en' ? 'Add Barcode' : 'バーコードを追加'}</div>
              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddColourWheel}>{language === 'en' ? 'Add Colour Wheel' : '色相環を追加'}</div>
+             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddGear}>{language === 'en' ? 'Add Gear' : '歯車を追加'}</div>
              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddGourd}>{language === 'en' ? 'Add Gourd' : 'ひょうたんを追加'}</div>
              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddPuzzlePiece}>{language === 'en' ? 'Add Puzzle Piece' : 'パズルピースを追加'}</div>
             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddParticle}>{language === 'en' ? 'Add Standard Particle' : '標準パーティクルを追加'}</div>

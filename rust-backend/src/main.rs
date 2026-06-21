@@ -205,6 +205,17 @@ struct GeneratedGourdSource {
     fill_colour: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedGearSource {
+    generator: String,
+    outer_radius: u32,
+    inner_radius_percent: f32,
+    tooth_count: u32,
+    tooth_depth_percent: f32,
+    tooth_skew_percent: f32,
+    fill_colour: String,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2186,6 +2197,7 @@ fn collect_native_render_sources(
             MediaKind::GeneratedPuzzlePiece => build_generated_puzzle_piece_source_frame(media)?,
             MediaKind::GeneratedColourWheel => build_generated_colour_wheel_source_frame(media)?,
             MediaKind::GeneratedGourd => build_generated_gourd_source_frame(media)?,
+            MediaKind::GeneratedGear => build_generated_gear_source_frame(media)?,
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform => continue,
@@ -2753,6 +2765,84 @@ fn point_inside_gourd(
     y.abs() <= boundary
 }
 
+fn build_generated_gear_source_frame(media: &SceneMediaReference) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedGear media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let gear: GeneratedGearSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedGear media '{}': {error}", media.id))?;
+    validate_generated_gear_source(&gear)
+        .map_err(|message| format!("Invalid GeneratedGear media '{}': {message}", media.id))?;
+    let [red, green, blue] = parse_hex_colour_source(&gear.fill_colour)
+        .map_err(|message| format!("Invalid GeneratedGear media '{}': {message}", media.id))?;
+
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedGear media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedGear media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+
+    let centre_x = media.width as f32 / 2.0;
+    let centre_y = media.height as f32 / 2.0;
+    let outer_radius = (gear.outer_radius as f32).min(media.width.min(media.height) as f32 / 2.0);
+    let inner_radius = outer_radius * (gear.inner_radius_percent * 0.01).clamp(0.0, 0.99);
+    let root_radius = outer_radius * (1.0 - gear.tooth_depth_percent * 0.01).clamp(0.05, 0.99);
+    let tooth_count = gear.tooth_count.max(3) as f32;
+    let skew = (gear.tooth_skew_percent * 0.005).clamp(-0.5, 0.5);
+
+    for y in 0..media.height {
+        for x in 0..media.width {
+            let px = x as f32 + 0.5 - centre_x;
+            let py = y as f32 + 0.5 - centre_y;
+            let radius = (px * px + py * py).sqrt();
+            if radius < inner_radius || radius > outer_radius {
+                continue;
+            }
+
+            let angle = py.atan2(px).rem_euclid(std::f32::consts::TAU);
+            let tooth_phase = (angle / std::f32::consts::TAU * tooth_count + skew).fract();
+            let tooth_top = trapezoid_tooth_factor(tooth_phase);
+            let boundary = root_radius + (outer_radius - root_radius) * tooth_top;
+            if radius <= boundary {
+                write_particle_pixel(
+                    &mut pixels,
+                    media.width,
+                    media.height,
+                    x as i32,
+                    y as i32,
+                    [red, green, blue, 255],
+                );
+            }
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedGear media frame is invalid: {error:?}"))
+}
+
+fn trapezoid_tooth_factor(phase: f32) -> f32 {
+    let phase = phase.rem_euclid(1.0);
+    if phase < 0.18 {
+        phase / 0.18
+    } else if phase < 0.5 {
+        1.0
+    } else if phase < 0.68 {
+        1.0 - (phase - 0.5) / 0.18
+    } else {
+        0.0
+    }
+}
+
 fn validate_generated_particle_source(source: &GeneratedParticleSource) -> Result<(), String> {
     if source.generator != "standard-particle" {
         return Err("generator must be standard-particle".to_string());
@@ -2864,6 +2954,38 @@ fn validate_generated_gourd_source(source: &GeneratedGourdSource) -> Result<(), 
     }
     if source.repeat_count == 0 || source.repeat_count > 36 {
         return Err("repeat_count must be 1..36".to_string());
+    }
+    parse_hex_colour_source(&source.fill_colour)?;
+    Ok(())
+}
+
+fn validate_generated_gear_source(source: &GeneratedGearSource) -> Result<(), String> {
+    if source.generator != "gear-t" {
+        return Err("generator must be gear-t".to_string());
+    }
+    if source.outer_radius == 0 || source.outer_radius > 2000 {
+        return Err("outer_radius must be 1..2000".to_string());
+    }
+    if !source.inner_radius_percent.is_finite()
+        || source.inner_radius_percent < 0.0
+        || source.inner_radius_percent >= 100.0
+    {
+        return Err("inner_radius_percent must be 0..<100".to_string());
+    }
+    if source.tooth_count < 3 || source.tooth_count > 240 {
+        return Err("tooth_count must be 3..240".to_string());
+    }
+    if !source.tooth_depth_percent.is_finite()
+        || source.tooth_depth_percent <= 0.0
+        || source.tooth_depth_percent > 95.0
+    {
+        return Err("tooth_depth_percent must be 0..95".to_string());
+    }
+    if !source.tooth_skew_percent.is_finite()
+        || source.tooth_skew_percent < -100.0
+        || source.tooth_skew_percent > 100.0
+    {
+        return Err("tooth_skew_percent must be -100..100".to_string());
     }
     parse_hex_colour_source(&source.fill_colour)?;
     Ok(())
@@ -4919,5 +5041,35 @@ mod tests {
 
         assert!(has_white_shape);
         assert!(has_transparent_background);
+    }
+
+    #[test]
+    fn generated_gear_source_frame_contains_teeth_hole_and_transparency() {
+        let media = SceneMediaReference {
+            id: "gear-1".to_string(),
+            kind: MediaKind::GeneratedGear,
+            source: r##"{"generator":"gear-t","outer_radius":160,"inner_radius_percent":45,"tooth_count":20,"tooth_depth_percent":18,"tooth_skew_percent":0,"fill_colour":"#ffffff"}"##.to_string(),
+            width: 320,
+            height: 320,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame =
+            build_generated_gear_source_frame(&media).expect("generated gear frame should render");
+        let has_white_shape = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [255, 255, 255, 255]);
+        let has_transparent_background = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [0, 0, 0, 0]);
+        let centre_offset = ((160 * 320 + 160) * 4) as usize;
+        let centre_is_hole = frame.pixels[centre_offset..centre_offset + 4] == [0, 0, 0, 0];
+
+        assert!(has_white_shape);
+        assert!(has_transparent_background);
+        assert!(centre_is_hole);
     }
 }

@@ -3,6 +3,7 @@ import type {
   AudioVisualizationObject,
   BarcodeObject,
   ColourWheelObject,
+  GearObject,
   GourdObject,
   GradientFill,
   ImageObject,
@@ -66,7 +67,7 @@ export interface RustSceneSnapshot {
 
 export interface RustSceneMediaReference {
   id: string;
-  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'Psd';
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'Psd';
   source: string;
   width: number;
   height: number;
@@ -139,7 +140,7 @@ export interface RustSceneSnapshotBuildInput {
 export type RustSceneVideoSourceMode = 'previewProxy' | 'exportOriginal';
 
 type SupportedMediaObject = ImageObject | VideoObject | PsdObject;
-type SupportedGeneratedObject = AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject;
+type SupportedGeneratedObject = AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject;
 type SupportedSceneObject = SupportedMediaObject | ShapeObject | SupportedGeneratedObject;
 
 const rustColourPipeline = (): RustColourPipeline => ({
@@ -381,7 +382,8 @@ const isSupportedSceneObject = (object: TimelineObject): object is SupportedScen
   || object.type === 'barcode'
   || object.type === 'puzzle_piece'
   || object.type === 'colour_wheel'
-  || object.type === 'gourd';
+  || object.type === 'gourd'
+  || object.type === 'gear';
 
 const isVisualSceneObject = (object: TimelineObject): boolean =>
   object.type !== 'audio';
@@ -482,6 +484,16 @@ const mediaReferenceForObject = (
       id: object.id,
       kind: 'GeneratedGourd',
       source: serialiseGeneratedGourdSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'gear') {
+    return {
+      id: object.id,
+      kind: 'GeneratedGear',
+      source: serialiseGeneratedGearSource(object),
       width: object.width,
       height: object.height,
     };
@@ -588,6 +600,17 @@ const serialiseGeneratedGourdSource = (object: GourdObject): string =>
     fill_colour: /^#[0-9a-f]{6}$/i.test(object.fillColour) ? object.fillColour : '#ffffff',
   });
 
+const serialiseGeneratedGearSource = (object: GearObject): string =>
+  JSON.stringify({
+    generator: 'gear-t',
+    outer_radius: Math.max(1, Math.trunc(finiteNumberOr(object.outerRadius, Math.min(object.width, object.height) / 2))),
+    inner_radius_percent: Math.min(99, Math.max(0, finiteNumberOr(object.innerRadiusPercent, 45))),
+    tooth_count: Math.min(240, Math.max(3, Math.trunc(finiteNumberOr(object.toothCount, 20)))),
+    tooth_depth_percent: Math.min(95, Math.max(1, finiteNumberOr(object.toothDepthPercent, 18))),
+    tooth_skew_percent: Math.min(100, Math.max(-100, finiteNumberOr(object.toothSkewPercent, 0))),
+    fill_colour: /^#[0-9a-f]{6}$/i.test(object.fillColour) ? object.fillColour : '#ffffff',
+  });
+
 const findTargetAudioForWaveform = (
   object: AudioVisualizationObject,
   objects: TimelineObject[],
@@ -684,6 +707,7 @@ const sourceFrameForObject = (
   if (object.type === 'puzzle_piece') return 0;
   if (object.type === 'colour_wheel') return 0;
   if (object.type === 'gourd') return 0;
+  if (object.type === 'gear') return 0;
   const localTime = Math.max(0, time - object.startTime);
   const mediaTime = localTime + (object.offset ?? 0);
   return secondsToFrameIndex(mediaTime, fps);
@@ -890,7 +914,7 @@ const validateMediaReferences = (
     }
     validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height', 'source_rate', 'active_layer_ids'], issues);
     validateString(reference.id, `${path}.id`, issues);
-    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'Psd'], issues);
+    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'Psd'], issues);
     validateString(reference.source, `${path}.source`, issues);
     validatePositiveInteger(reference.width, `${path}.width`, issues);
     validatePositiveInteger(reference.height, `${path}.height`, issues);

@@ -93,7 +93,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'barcode',
   'puzzle_piece',
   'colour_wheel',
-  'gourd'
+  'gourd',
+  'gear'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -202,6 +203,16 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!isFiniteNumber(candidate.waistRadius) || candidate.waistRadius < 0) return false;
     if (!isFiniteNumber(candidate.squashPercent) || candidate.squashPercent < 0 || candidate.squashPercent > 100) return false;
     if (typeof candidate.repeatCount !== 'number' || !Number.isInteger(candidate.repeatCount) || candidate.repeatCount < 1 || candidate.repeatCount > 36) return false;
+    if (typeof candidate.fillColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.fillColour)) return false;
+  }
+  if (candidate.type === 'gear') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.outerRadius) || candidate.outerRadius <= 0) return false;
+    if (!isFiniteNumber(candidate.innerRadiusPercent) || candidate.innerRadiusPercent < 0 || candidate.innerRadiusPercent >= 100) return false;
+    if (typeof candidate.toothCount !== 'number' || !Number.isInteger(candidate.toothCount) || candidate.toothCount < 3 || candidate.toothCount > 240) return false;
+    if (!isFiniteNumber(candidate.toothDepthPercent) || candidate.toothDepthPercent <= 0 || candidate.toothDepthPercent > 95) return false;
+    if (!isFiniteNumber(candidate.toothSkewPercent) || candidate.toothSkewPercent < -100 || candidate.toothSkewPercent > 100) return false;
     if (typeof candidate.fillColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.fillColour)) return false;
   }
   return true;

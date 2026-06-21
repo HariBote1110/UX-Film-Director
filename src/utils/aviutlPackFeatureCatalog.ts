@@ -237,6 +237,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: 'くびれ付きのシルエットや反復装飾として使いやすく、Rust側で透明背景付きラスタ生成できる。'
   },
   {
+    id: 'tim-gear',
+    labelJa: '歯車',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/てぃむ/歯車.anm'],
+    rationaleJa: '機械風UIや回転演出の素材として使いやすく、Rust側で透明背景付き歯車ラスタを決定的に生成できる。'
+  },
+  {
     id: 'tim-motion-path',
     labelJa: 'モーションパス',
     category: 'motion',

@@ -11,6 +11,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedPuzzlePiece') return isSharedRendererNativeGeneratedPuzzlePieceSourceSupported(reference.source);
   if (reference.kind === 'GeneratedColourWheel') return isSharedRendererNativeGeneratedColourWheelSourceSupported(reference.source);
   if (reference.kind === 'GeneratedGourd') return isSharedRendererNativeGeneratedGourdSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedGear') return isSharedRendererNativeGeneratedGearSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -271,6 +272,47 @@ const isSharedRendererNativeGeneratedGourdSourceSupported = (source: string): bo
       && Number.isInteger(parsed.repeat_count)
       && parsed.repeat_count >= 1
       && parsed.repeat_count <= 36
+      && typeof parsed.fill_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.fill_colour)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedGearSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      outer_radius?: unknown;
+      inner_radius_percent?: unknown;
+      tooth_count?: unknown;
+      tooth_depth_percent?: unknown;
+      tooth_skew_percent?: unknown;
+      fill_colour?: unknown;
+    };
+    return (
+      parsed.generator === 'gear-t'
+      && typeof parsed.outer_radius === 'number'
+      && Number.isInteger(parsed.outer_radius)
+      && parsed.outer_radius > 0
+      && parsed.outer_radius <= 2000
+      && typeof parsed.inner_radius_percent === 'number'
+      && Number.isFinite(parsed.inner_radius_percent)
+      && parsed.inner_radius_percent >= 0
+      && parsed.inner_radius_percent < 100
+      && typeof parsed.tooth_count === 'number'
+      && Number.isInteger(parsed.tooth_count)
+      && parsed.tooth_count >= 3
+      && parsed.tooth_count <= 240
+      && typeof parsed.tooth_depth_percent === 'number'
+      && Number.isFinite(parsed.tooth_depth_percent)
+      && parsed.tooth_depth_percent > 0
+      && parsed.tooth_depth_percent <= 95
+      && typeof parsed.tooth_skew_percent === 'number'
+      && Number.isFinite(parsed.tooth_skew_percent)
+      && parsed.tooth_skew_percent >= -100
+      && parsed.tooth_skew_percent <= 100
       && typeof parsed.fill_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.fill_colour)
     );
