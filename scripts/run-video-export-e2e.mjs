@@ -22,6 +22,9 @@ const EXPORT_DURATION_SECONDS = Number(process.env.UXFD_VIDEO_EXPORT_E2E_DURATIO
 const VIDEO_PATCH = process.env.UXFD_VIDEO_EXPORT_E2E_VIDEO_PATCH_JSON
   ? JSON.parse(process.env.UXFD_VIDEO_EXPORT_E2E_VIDEO_PATCH_JSON)
   : null;
+const ADD_MIXED_MEDIA = process.env.UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA === '1';
+const IMAGE_PATH = resolve(ROOT, 'public/icon.jpg');
+const AUDIO_WAV = resolve(OUTPUT_DIR, 'mixed-audio.wav');
 
 let vite = null;
 let electron = null;
@@ -200,10 +203,112 @@ const parseExportedFrameCount = (dialogMessage) => {
   return match ? Number(match[1]) : null;
 };
 
+const writeTinyWaveFixture = (audioPath) => {
+  const sampleRate = 48000;
+  const frames = sampleRate;
+  const bytesPerSample = 2;
+  const channels = 1;
+  const dataBytes = frames * channels * bytesPerSample;
+  const buffer = Buffer.alloc(44 + dataBytes);
+  buffer.write('RIFF', 0);
+  buffer.writeUInt32LE(36 + dataBytes, 4);
+  buffer.write('WAVE', 8);
+  buffer.write('fmt ', 12);
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(channels, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate * channels * bytesPerSample, 28);
+  buffer.writeUInt16LE(channels * bytesPerSample, 32);
+  buffer.writeUInt16LE(16, 34);
+  buffer.write('data', 36);
+  buffer.writeUInt32LE(dataBytes, 40);
+  writeFileSync(audioPath, buffer);
+};
+
 const writeResult = (result) => {
   mkdirSync(OUTPUT_DIR, { recursive: true });
   writeFileSync(RESULT_JSON, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
   writeFileSync(RESULT_LOG, `${logLines.join('\n')}\n`, 'utf8');
+};
+
+const clickToolbarButton = async (client, titles) => client.evaluate(`
+  (() => {
+    const wanted = new Set(${JSON.stringify(titles)});
+    const button = [...document.querySelectorAll('button')]
+      .find((entry) => wanted.has(entry.getAttribute('title') || ''));
+    if (!button) return false;
+    button.click();
+    return true;
+  })()
+`);
+
+const setFileInput = async (client, selector, filePath, label) => {
+  const inputNodeId = await client.querySelector(selector);
+  if (!inputNodeId) throw new Error(`${label} inputが見つかりません。`);
+  await client.send('DOM.setFileInputFiles', {
+    nodeId: inputNodeId,
+    files: [filePath],
+  });
+};
+
+const waitForTimelineItems = async (client, expectedTexts, timeoutMs = 30000) => client.evaluate(`
+  new Promise((resolve) => {
+    const expectedTexts = ${JSON.stringify(expectedTexts)};
+    const started = Date.now();
+    const tick = () => {
+      const items = [...document.querySelectorAll('[data-timeline-item="true"]')]
+        .map((node) => node.textContent || '');
+      const body = document.body.innerText || '';
+      const missing = expectedTexts.filter((expected) => !items.some((text) => text.includes(expected)));
+      if (missing.length === 0) {
+        resolve({ ok: true, items });
+        return;
+      }
+      if (body.includes('Failed to load audio') || body.includes('Failed to load image')) {
+        resolve({ ok: false, reason: 'uiFailedToLoad', missing, items, body });
+        return;
+      }
+      if (Date.now() - started > ${JSON.stringify(timeoutMs)}) {
+        resolve({ ok: false, reason: 'timeout', missing, items, body });
+        return;
+      }
+      setTimeout(tick, 250);
+    };
+    tick();
+  })
+`);
+
+const addMixedMediaToTimeline = async (client) => {
+  if (!ADD_MIXED_MEDIA) {
+    return { enabled: false };
+  }
+  if (!existsSync(IMAGE_PATH)) {
+    throw new Error(`image fixture is missing: ${IMAGE_PATH}`);
+  }
+  writeTinyWaveFixture(AUDIO_WAV);
+
+  const shapeClicked = await clickToolbarButton(client, ['図形の形', 'Shape Type']);
+  if (!shapeClicked) throw new Error('図形追加ボタンが見つかりません。');
+  const shapeResult = await waitForTimelineItems(client, ['Rectangle']);
+  if (!shapeResult?.ok) return { ok: false, enabled: true, stage: 'shape', ...shapeResult };
+
+  const imageClicked = await clickToolbarButton(client, ['Image']);
+  if (!imageClicked) throw new Error('画像追加ボタンが見つかりません。');
+  await sleep(300);
+  await setFileInput(client, 'input[accept="image/*"]', IMAGE_PATH, '画像');
+  const imageName = IMAGE_PATH.split('/').pop() ?? 'icon.jpg';
+  const imageResult = await waitForTimelineItems(client, ['Rectangle', imageName]);
+  if (!imageResult?.ok) return { ok: false, enabled: true, stage: 'image', ...imageResult };
+
+  const audioClicked = await clickToolbarButton(client, ['Audio']);
+  if (!audioClicked) throw new Error('音声追加ボタンが見つかりません。');
+  await sleep(300);
+  await setFileInput(client, 'input[accept="audio/*"]', AUDIO_WAV, '音声');
+
+  const audioName = AUDIO_WAV.split('/').pop() ?? 'mixed-audio.wav';
+  const audioResult = await waitForTimelineItems(client, ['Rectangle', imageName, audioName]);
+  return { ...audioResult, enabled: true, stage: 'complete' };
 };
 
 const main = async () => {
@@ -360,6 +465,10 @@ const main = async () => {
   const videoObject = await client.evaluate(`
     window.__UXFD_VIDEO_EXPORT_E2E_GET_FIRST_VIDEO__?.() ?? null
   `);
+  const mixedMediaResult = await addMixedMediaToTimeline(client);
+  if (ADD_MIXED_MEDIA && !mixedMediaResult?.ok) {
+    throw new Error(`混在メディア追加に失敗しました: ${JSON.stringify(mixedMediaResult)}`);
+  }
 
   log(`動画出力を開始: ${OUTPUT_MP4}`);
   const exportStartTimeMs = Date.now();
@@ -436,13 +545,19 @@ const main = async () => {
     }
     : { exists: false, size: 0 };
   const result = {
-    passed: Boolean(outputStat.exists && outputStat.size > 0 && client.dialogs.some((dialog) => dialog.message.includes('エクスポート完了'))),
+    passed: Boolean(
+      outputStat.exists
+      && outputStat.size > 0
+      && client.dialogs.some((dialog) => dialog.message.includes('エクスポート完了'))
+      && (!ADD_MIXED_MEDIA || mixedMediaResult?.ok)
+    ),
     videoPath: VIDEO_PATH,
     outputPath: OUTPUT_MP4,
     outputStat,
     exportDurationSeconds: EXPORT_DURATION_SECONDS,
     videoPatch: VIDEO_PATCH,
     videoObject,
+    mixedMediaResult,
     exportDurationMs,
     exportedFrameCount,
     exportFramesPerSecond,

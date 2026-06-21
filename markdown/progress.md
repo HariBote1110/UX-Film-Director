@@ -1,6 +1,13 @@
 # 進捗ログ
 
 ## 2026-06-21
+- 実Electron動画export E2Eに `UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA=1` を追加し、動画に加えて図形・画像・音声をUI経由でTimelineへ投入できるようにした。
+- Red: `packageScripts` に混在メディアE2E用の環境変数と `mixedMediaResult` を記録する契約を追加した。
+- Green: E2E scriptが `public/icon.jpg` と生成WAVをUIのImage/Audio入力へ投入し、Timeline item出現を待ってからexportへ進むようにした。
+- 検証: `npm test -- --run src/utils/packageScripts.test.ts` は4件成功。`UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA=1 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=1 UXFD_VIDEO_EXPORT_E2E_TIMEOUT_MS=240000 npm run test:video-export:e2e` は成功し、`GX010052.MP4` / `Rectangle` / `icon.jpg` / `mixed-audio.wav` を含むTimelineから `Rust backend rawvideo/ffmpeg` で300 frames、2,719,114 bytesのMP4を出力した。
+- 残課題: `UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=1` でも混在ケースは300 frames出力になり、57.3秒 / 約5.23fpsだった。混在時のproject duration短縮と、画像/図形/音声入りnative renderの速度改善が次の対象。
+
+## 2026-06-21
 - 全読込可能メディアE2Eを明示実行できる `test:all-readable-media:e2e` scriptを追加した。
 - Red: `packageScripts` に全読込可能メディアE2E commandの契約を追加し、未定義で失敗することを確認した。
 - Green: package scriptを追加し、同E2Eでは図形・画像・PSDのsub-pixel translation / scaleがRust snapshotへ残ることも確認するようにした。

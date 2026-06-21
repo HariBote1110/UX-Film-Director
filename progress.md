@@ -7504,6 +7504,21 @@
 ### 残課題・次のステップ
 - 品質優先で原本2048px decodeへ戻したため、直前のプロキシ高速経路より速度は落ちる。次は「原本高品質decode + 単純scale合成fast path」を追加して、画質と速度を両立する。
 
+# 2026-06-21 — 実Electron動画export E2Eに混在メディア投入を追加
+
+## 実施内容
+- Red: `packageScripts` に、動画export E2E scriptが `UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA` と `mixedMediaResult` を持つ契約を追加した。
+- Green: `UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA=1` の時、実Electron windowで動画に加えて図形・`public/icon.jpg`・生成WAVをUI経由でTimelineへ追加してからexportするようにした。
+- 画像追加完了前に音声追加を走らせると `insertTarget` が競合するため、各Timeline item出現を待ってから次の入力へ進むようにした。
+
+## 検証
+- `npm test -- --run src/utils/packageScripts.test.ts` は4件成功。
+- `UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA=1 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=1 UXFD_VIDEO_EXPORT_E2E_TIMEOUT_MS=240000 npm run test:video-export:e2e` は成功。
+- 実測: `GX010052.MP4` / `Rectangle` / `icon.jpg` / `mixed-audio.wav` を含むTimelineから `Rust backend rawvideo/ffmpeg` で300 frames、2,719,114 bytesのMP4を出力した。
+
+## 残課題・次のステップ
+- `UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=1` でも混在ケースは300 frames出力になり、57.3秒 / 約5.23fpsだった。次は混在時にもproject durationを短縮できるようにし、画像/図形/音声入りnative renderの速度を測る。
+
 # 2026-06-21 — 全読込可能メディアRust境界E2Eの実行導線を追加
 
 ## 実施内容
