@@ -34,6 +34,18 @@ describe('Viewport Rust video-only boundary', () => {
     expect(code).not.toContain('updateSharedRendererVideoObjectIds');
   });
 
+  it('updates generated effect Pixi cutover ids from the shared renderer preview session before presenter completion', () => {
+    const code = viewportSource();
+    const start = code.indexOf('const session = buildSharedRendererPreviewSession({');
+    const end = code.indexOf('setSharedRendererPreviewSession(session)', start);
+    const publishSessionBlock = code.slice(start, end);
+
+    expect(code).toContain('collectSharedRendererGeneratedEffectObjectIdsFromSession');
+    expect(publishSessionBlock).toContain(
+      'updateSharedRendererGeneratedEffectObjectIds(collectSharedRendererGeneratedEffectObjectIdsFromSession(session))'
+    );
+  });
+
   it('does not let the Viewport own legacy Pixi HTMLVideoElement texture resources', () => {
     const code = viewportSource();
 
