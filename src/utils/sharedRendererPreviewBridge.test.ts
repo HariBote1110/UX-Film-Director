@@ -81,4 +81,19 @@ describe('buildSharedRendererPreviewPlan', () => {
     if (plan.mode !== 'parallelCompare') throw new Error('expected shared renderer comparison plan');
     expect(plan.snapshot.clips[0].transform.scale_x).toBe(2);
   });
+
+  it('keeps sub-pixel image translations in the shared renderer comparison plan', () => {
+    const plan = buildSharedRendererPreviewPlan({
+      enabled: true,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      objects: [image({ x: 32.5, y: 48.25 })],
+      time: 1,
+    });
+
+    expect(plan.mode).toBe('parallelCompare');
+    if (plan.mode !== 'parallelCompare') throw new Error('expected shared renderer comparison plan');
+    expect(plan.snapshot.clips[0].transform.translation_x).toBe(32.5);
+    expect(plan.snapshot.clips[0].transform.translation_y).toBe(48.25);
+  });
 });

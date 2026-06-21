@@ -7503,6 +7503,23 @@
 
 ### 残課題・次のステップ
 - 品質優先で原本2048px decodeへ戻したため、直前のプロキシ高速経路より速度は落ちる。次は「原本高品質decode + 単純scale合成fast path」を追加して、画質と速度を両立する。
+# 2026-06-21 — sub-pixel配置をRust scene snapshotへ移管
+
+## 実施内容
+- Red: 図形・画像・PSD・動画の `x/y` が小数でも `translation_x/translation_y` としてRust scene snapshotへ残る契約を追加した。
+- Green: shared renderer transform gateの整数translation制限を撤廃し、finite translation / positive finite scale / finite rotationをRust境界へ渡すようにした。
+- Green: preview/export sessionにもsub-pixel画像配置の契約を追加し、Pixi fallbackではなくshared renderer comparison/export surfaceへ進むようにした。
+- 設計ドキュメントを更新し、SceneSnapshot/native render境界はsub-pixel translationを扱い、整数translation専用fast pathは最適化として残ることを明記した。
+- 版を `0.1.1-Beta-234a` に更新した。
+
+## 検証
+- `npm test -- --run src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererPreviewBridge.test.ts src/utils/sharedRendererPreviewSurface.test.ts src/utils/sharedRendererExportSession.test.ts` は29件成功。
+- `npm test -- --run src/utils/sharedRendererExportFrameSource.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts` は127件成功。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test native_reference_parity` は10件成功。
+
+## 残課題・次のステップ
+- mask / group / blur / shadowなどの複雑filterはまだfail-loud。次は実ウィンドウE2Eで画像・PSD・動画・音声を混在させ、Rust exportの見た目・音声・速度を確認する。
+
 # 2026-06-20 — Canvas media scaleをRust scene snapshotへ移管
 
 ## 実施内容

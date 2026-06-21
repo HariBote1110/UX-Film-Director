@@ -720,17 +720,17 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
-  it('fails loud for sub-pixel transform sampling outside the proven migration envelope', () => {
+  it('fails loud for non-finite transform sampling outside the proven migration envelope', () => {
     const layers = createDefaultLayers();
-    const subPixel = baseImage({
-      id: 'sub-pixel',
-      x: 10.5,
+    const nonFinite = baseImage({
+      id: 'non-finite',
+      x: Number.NaN,
     });
 
     const result = buildRustSceneSnapshotForTimeline({
       projectSettings: settings,
       layers,
-      objects: [subPixel],
+      objects: [nonFinite],
       time: 2,
     });
 

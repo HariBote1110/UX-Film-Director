@@ -143,6 +143,25 @@ describe('buildSharedRendererExportSession', () => {
     expect(session.surfaceGate.snapshot.clips[0].transform.scale_x).toBe(2);
   });
 
+  it('keeps sub-pixel image export scenes inside the Rust boundary gate', () => {
+    const session = buildSharedRendererExportSession({
+      enabled: true,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      objects: [image({ x: 32.5, y: 48.25 })],
+      time: 1,
+      editorMode: '2d',
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+    });
+
+    expect(session.plan.mode).toBe('parallelCompare');
+    expect(session.surfaceGate.ok).toBe(true);
+    if (!session.surfaceGate.ok) throw new Error('expected export surface gate to pass');
+    expect(session.surfaceGate.snapshot.clips[0].transform.translation_x).toBe(32.5);
+    expect(session.surfaceGate.snapshot.clips[0].transform.translation_y).toBe(48.25);
+  });
+
   it('exposes a native render envelope for real video and PSD timeline objects', () => {
     const session = buildSharedRendererExportSession({
       enabled: true,

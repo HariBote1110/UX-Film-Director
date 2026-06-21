@@ -269,7 +269,7 @@ const collectBuildIssues = (
       issues.push({
         code: 'unsupportedTransform',
         objectId: object.id,
-        detail: 'Phase5 bridge currently allows positive video scale or identity scale, plus integer translation.',
+        detail: 'Phase5 bridge currently allows finite translation, positive finite scale, and finite rotation.',
       });
     }
 
@@ -314,7 +314,8 @@ const hasUnsupportedSharedRendererTransform = (
 ): boolean => {
   if (!Number.isFinite(object.scaleX) || !Number.isFinite(object.scaleY)) return true;
   if (object.scaleX <= 0 || object.scaleY <= 0) return true;
-  if (!isInteger(position.x) || !isInteger(position.y)) return true;
+  if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) return true;
+  if (!Number.isFinite(object.rotation)) return true;
   return false;
 };
 
@@ -483,9 +484,6 @@ const clamp01 = (value: number): number => {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(1, value));
 };
-
-const isInteger = (value: number): boolean =>
-  Number.isFinite(value) && Math.abs(value - Math.round(value)) < 1e-6;
 
 const normaliseRotationDegrees = (value: number): number =>
   Number.isFinite(value) ? value : 0;

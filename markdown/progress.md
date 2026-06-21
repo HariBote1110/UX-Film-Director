@@ -1,5 +1,13 @@
 # 進捗ログ
 
+## 2026-06-21
+- Canvas描画結果に関わるsub-pixel配置をRust/shared renderer境界へ通すようにした。
+- Red: `rustSceneSnapshot` に、図形・画像・PSD・動画の `x/y` が小数でも `translation_x/translation_y` としてRust scene snapshotへ残る契約を追加した。
+- Green: `hasUnsupportedSharedRendererTransform` の整数translation制限を撤廃し、finite translation / positive finite scale / finite rotationを共有renderer対応範囲として扱うようにした。
+- Green: preview/export sessionの契約を追加し、sub-pixel画像配置もPixi fallbackではなくshared renderer comparison/export surfaceへ進むようにした。
+- 検証: `npm test -- --run src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererPreviewBridge.test.ts src/utils/sharedRendererPreviewSurface.test.ts src/utils/sharedRendererExportSession.test.ts` は29件成功。`npm test -- --run src/utils/sharedRendererExportFrameSource.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts` は127件成功。`cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test native_reference_parity` は10件成功。
+- 版: `0.1.1-Beta-234a`。
+
 ## 2026-06-20
 - UIはTypeScript/Reactのまま維持しつつ、Canvas描画結果に関わる画像・PSD・SolidColour矩形のscale transformをRust scene snapshotへ渡すようにした。
 - Red: `rustSceneSnapshot` に、画像・PSD・SolidColour矩形の正の有限 `scaleX/scaleY` が `scale_x/scale_y` としてRust境界へ残る契約を追加した。

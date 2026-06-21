@@ -39,10 +39,11 @@ PixiJSから既存実装を少しずつ剥がすのではなく、UX Film Direct
 - CPU reference / native wgpu parityを持つ範囲だけをRust経路へ通す。
 - 現時点で扱う範囲:
   - linear-light source-over
-  - integer translation
+  - finite / sub-pixel translation
+  - positive finite scale
   - nearest / bilinear sampling
   - top-left pivot rotation
-  - SolidColour / GeneratedGradient / Image
+  - SolidColour / GeneratedGradient / Image / PSD / Video source frame
 
 ### 4. Encode
 
@@ -63,7 +64,7 @@ PixiJSから既存実装を少しずつ剥がすのではなく、UX Film Direct
 - Text rendering
 - blur / shadow / clippingなど複雑filter
 - group gradient
-- arbitrary scale / fractional transformの完全parity
+- skew / perspectiveなど、translate-scale-rotateを超える任意transform
 - video decodeの複数source scheduler
 - Windows最適化
 

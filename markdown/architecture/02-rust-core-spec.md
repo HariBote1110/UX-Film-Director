@@ -101,10 +101,11 @@ premultiplied colour の矩形 draw list と WebGPU vertex buffer 用の float �
 
 - `#rrggbb` colour source の parse。
 - clip opacity を掛けた premultiplied colour の生成。
-- integer translation / identity scale 前提の矩形 vertex 生成。
+- SceneSnapshot 境界では finite translation / positive finite scale / finite rotation を保持する。
+- 旧 solid-colour vertex helper は限定的なpreview補助として残し、実出力はnative render pathで扱う。
 - canvas pixel 座標から clip-space 座標への変換。
 
-円、丸角、グラデーション、回転、任意 scale、anti-aliasing coverage はまだ別 gate とし、既存 bridge では
+円、丸角、anti-aliasing coverage はまだ別 gate とし、既存 bridge では
 fail-loud または Pixi fallback に留める。
 
 ### Video Plane Geometry

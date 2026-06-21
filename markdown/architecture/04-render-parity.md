@@ -139,6 +139,8 @@ Linear-light bilinear sampling gate:
 - sampling: 4 texel を `textureLoad` で読み、sRGB -> linear light decode 後に手動 bilinear 補間する。hardware sampler と `-srgb` texture view は使わない。
 - CPU reference と native wgpu の比較: `maxDelta=0`。
 - WebGPU preview harness: Chrome 149 / Apple Metal adapter で `linear-light bilinear midpoint` case が `maxDelta=0` / `meanAbsoluteError=0`。
+- TS scene snapshot gate は、有限の sub-pixel translation を `translation_x` / `translation_y` として Rust 境界へ渡す。
+  整数translation専用の軽量fast pathに乗らない場合は、native wgpu render pathで扱う。
 Top-left pivot rotation gate:
 
 - 対象: 2x1 source（red / blue）を `translation=(1,0)`、`scale=(1,1)`、`rotation=90deg`、

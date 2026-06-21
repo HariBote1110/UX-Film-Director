@@ -73,7 +73,7 @@ describe('buildSharedRendererPreviewSurfaceGate', () => {
       enabled: true,
       projectSettings: settings,
       layers: createDefaultLayers(),
-      objects: [image({ x: 32.5 })],
+      objects: [image({ x: Number.NaN })],
       time: 1,
     });
 
