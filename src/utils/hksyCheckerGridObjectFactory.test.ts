@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildHksyCheckerGridObject,
+  buildHksyDiamondObject,
   buildHksyLineObject,
   buildHksyMultiColourCheckerObject,
 } from './hksyCheckerGridObjectFactory';
@@ -94,6 +95,37 @@ describe('hksyCheckerGridObjectFactory', () => {
       secondaryColour: '#36c2ff',
       backgroundColour: '#111111',
       paletteColours: ['#ff5c8a', '#36c2ff', '#ffd166', '#70e000'],
+    });
+  });
+
+  it('builds an hksy diamond object using the Rust checker/grid generator path', () => {
+    const object = buildHksyDiamondObject({
+      id: 'hksy-diamond-1',
+      projectWidth: 1920,
+      projectHeight: 1080,
+      startTime: 4,
+      layer: 31,
+    });
+
+    expect(object).toMatchObject({
+      id: 'hksy-diamond-1',
+      type: 'hksy_checker_grid',
+      name: 'hksy 菱形',
+      layer: 31,
+      startTime: 4,
+      duration: 5,
+      x: 720,
+      y: 360,
+      width: 480,
+      height: 360,
+      pattern: 'diamond',
+      cellSize: 64,
+      lineWidth: 96,
+      checkerEnabled: false,
+      gridEnabled: false,
+      foregroundColour: '#ffffff',
+      secondaryColour: '#ffffff',
+      backgroundColour: '#000000',
     });
   });
 });

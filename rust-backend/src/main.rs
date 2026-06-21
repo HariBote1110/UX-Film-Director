@@ -8948,6 +8948,40 @@ mod tests {
     }
 
     #[test]
+    fn generated_hksy_checker_grid_source_frame_renders_diamond_pattern_with_transparency() {
+        let media = SceneMediaReference {
+            id: "hksy-diamond-1".to_string(),
+            kind: MediaKind::GeneratedHksyCheckerGrid,
+            source: r##"{"generator":"hksy-checker-grid","pattern":"diamond","cell_size":64,"line_width":96,"checker_enabled":false,"grid_enabled":false,"foreground_colour":"#ffffff","secondary_colour":"#ffffff","background_colour":"#000000"}"##.to_string(),
+            width: 480,
+            height: 360,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_hksy_checker_grid_source_frame(&media)
+            .expect("generated hksy diamond frame should render");
+        let white_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [255, 255, 255, 255])
+            .count();
+        let transparent_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| rgba[3] == 0)
+            .count();
+        let centre_offset = ((media.height as usize / 2) * media.width as usize
+            + (media.width as usize / 2))
+            * 4;
+        let centre_pixel = &frame.pixels[centre_offset..centre_offset + 4];
+
+        assert!(white_count > 20_000);
+        assert!(transparent_count > 40_000);
+        assert_eq!(centre_pixel, [0, 0, 0, 0]);
+    }
+
+    #[test]
     fn generated_getcolor_dots_source_frame_contains_dot_field_and_background() {
         let media = SceneMediaReference {
             id: "getcolor-dot-field-1".to_string(),

@@ -990,6 +990,49 @@ describe('parseProjectPayloadV2', () => {
     expect(parsed.scenes[0].objects).toEqual([particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, hologram, protractor, shakingPolygon, toneCurve, hksyCheckerGrid, getColorDotField, audioSphere]);
   });
 
+  it('round-trips an hksy diamond pattern object through JSON payload', () => {
+    const layers = createDefaultLayers();
+    const camera = createDefaultCamera();
+    const hksyDiamond: HksyCheckerGridObject = {
+      ...minimalHksyCheckerGrid(),
+      id: 'hksy-diamond-1',
+      name: 'hksy 菱形',
+      width: 480,
+      height: 360,
+      pattern: 'diamond',
+      cellSize: 64,
+      lineWidth: 96,
+      checkerEnabled: false,
+      gridEnabled: false,
+      foregroundColour: '#ffffff',
+      secondaryColour: '#ffffff',
+      backgroundColour: '#000000',
+    };
+    const file = buildProjectFileData({
+      projectSettings: projectSettings(),
+      scenes: [
+        {
+          id: 's1',
+          name: 'One',
+          duration: 10,
+          layers,
+          objects: [hksyDiamond],
+          camera,
+          stageCamera3D: defaultStage()
+        }
+      ],
+      activeSceneId: 's1',
+      objects: [hksyDiamond],
+      layers,
+      duration: 10,
+      camera,
+      stageCamera3D: defaultStage()
+    });
+
+    const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
+    expect(parsed.scenes[0].objects).toEqual([hksyDiamond]);
+  });
+
   it('rejects invalid worldPlacement on psd objects', () => {
     const bad = {
       format: 'uxfd-project',

@@ -2070,6 +2070,52 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('serialises an hksy diamond object into the Rust generator payload', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseHksyCheckerGrid({
+        id: 'hksy-diamond-1',
+        name: 'hksy 菱形',
+        width: 480,
+        height: 360,
+        pattern: 'diamond',
+        cellSize: 64,
+        lineWidth: 96,
+        checkerEnabled: false,
+        gridEnabled: false,
+        foregroundColour: '#ffffff',
+        secondaryColour: '#ffffff',
+        backgroundColour: '#000000',
+      })],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated hksy diamond snapshot to pass');
+
+    expect(result.media).toEqual([
+      {
+        id: 'hksy-diamond-1',
+        kind: 'GeneratedHksyCheckerGrid',
+        source: JSON.stringify({
+          generator: 'hksy-checker-grid',
+          pattern: 'diamond',
+          cell_size: 64,
+          line_width: 96,
+          checker_enabled: false,
+          grid_enabled: false,
+          foreground_colour: '#ffffff',
+          secondary_colour: '#ffffff',
+          background_colour: '#000000',
+        }),
+        width: 480,
+        height: 360,
+      },
+    ]);
+  });
+
   it('builds a generated GetColor V2R dot media plane from a dot field object', () => {
     const layers = createDefaultLayers();
     const result = buildRustSceneSnapshotForTimeline({
