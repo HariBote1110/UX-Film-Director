@@ -8854,6 +8854,21 @@
 
 ## 残課題・次のステップ
 - まだサブピクセルtranslation、複雑なmask/group/filterはfail-loudのまま。次はCanvas系の回転・画像/PSD混在・音声付きexportをE2Eで確認し、Rust/native render側の実フレーム品質と速度を測る。
+## 2026-06-22 — GetColor / hksy / 93優先効果を動画export E2E代表ケースへ投入
+
+### 実施内容
+- Red: `test:video-export:e2e` のAviUtl生成効果投入導線が、GetColor V2Rドットフィールド、hksyチェッカー/グリッド、93 SpotLight Probe、93音声玉を代表ケースとして扱う契約を追加した。
+- Green: `__UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS__` hookへ、既存のAudio waveform R / 標準パーティクルに加えて GetColor V2R、hksy、SpotLight付きshape、音声がある場合の93音声玉を追加するようにした。
+- Green: `scripts/run-video-export-e2e.mjs` はhookが返す `timelineNames` を待機対象に使い、音声有無で増減する代表効果にも追従できるようにした。
+- 版を `0.1.1-Beta-293a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/packageScripts.test.ts --reporter=dot` は6件成功。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回のE2E hook由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- 次は `UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA=1 UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS=1` の実Electron E2Eを短尺で走らせ、出力MP4内に優先効果が見えることを画素検査へ広げる。
+
 ## 2026-06-22 — 93 SpotLightをRust/WebGPU effectへ追加
 
 ### 実施内容

@@ -75,6 +75,7 @@
 56. ✅ `P1` 93 SpotLightをRust/WebGPU effectへ追加
 57. ✅ `P1` hksyチェッカー/グリッドをRust GeneratedHksyCheckerGrid生成オブジェクトへ追加
 58. `P2` 生成効果入り混在exportのnative render source待ち時間を分解して高速化する
+59. ✅ `P1` GetColor / hksy / 93優先効果を実Electron動画export E2E代表ケースへ投入する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

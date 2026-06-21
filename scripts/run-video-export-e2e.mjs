@@ -546,12 +546,16 @@ const addAviUtlGeneratedEffectsToTimeline = async (client) => {
   if (!hookResult?.ok) {
     return { ok: false, enabled: true, stage: 'hook', hookResult };
   }
-  const timelineResult = await waitForTimelineItems(client, ['Audio waveform R', '標準パーティクル'], 30000);
+  const timelineNames = Array.isArray(hookResult.timelineNames) && hookResult.timelineNames.length > 0
+    ? hookResult.timelineNames
+    : ['Audio waveform R', '標準パーティクル', 'GetColor V2R ドットフィールド', 'hksyチェッカー/グリッド', '93 SpotLight Probe', '93音声玉'];
+  const timelineResult = await waitForTimelineItems(client, timelineNames, 30000);
   return {
     ...timelineResult,
     enabled: true,
     stage: 'complete',
     hookResult,
+    timelineNames,
   };
 };
 

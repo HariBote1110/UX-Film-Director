@@ -2031,6 +2031,21 @@
 - 検証: `npm test -- --run src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererExportSession.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/sharedRendererExportFrameSource.test.ts` は76件成功。実Electron E2Eは `/Volumes/ExtendSSD-W/GX020052.MP4` 1秒尺で60 frames / 7758ms / 約7.73fps、出力MP4は1920x1080 / 60fps。
 - 残課題: 品質優先で原本2048px decodeへ戻したため、直前のプロキシ高速経路より速度は落ちる。次は「原本高品質decode + 単純scale合成fast path」を追加して、画質と速度を両立する。
 - 版: `0.1.1-Beta-228a`。
+## 2026-06-22 — GetColor / hksy / 93優先効果を動画export E2E代表ケースへ投入
+
+### 実施内容
+- Red: `test:video-export:e2e` のAviUtl生成効果投入導線が、GetColor V2Rドットフィールド、hksyチェッカー/グリッド、93 SpotLight Probe、93音声玉を代表ケースとして扱う契約を追加した。
+- Green: `__UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS__` hookへ、既存のAudio waveform R / 標準パーティクルに加えて GetColor V2R、hksy、SpotLight付きshape、音声がある場合の93音声玉を追加するようにした。
+- Green: `scripts/run-video-export-e2e.mjs` はhookが返す `timelineNames` を待機対象に使い、音声有無で増減する代表効果にも追従できるようにした。
+- 版を `0.1.1-Beta-293a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/packageScripts.test.ts --reporter=dot` は6件成功。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回のE2E hook由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- 次は `UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA=1 UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS=1` の実Electron E2Eを短尺で走らせ、出力MP4内に優先効果が見えることを画素検査へ広げる。
+
 ## 2026-06-22 — 93 SpotLightをRust/WebGPU effectへ追加
 
 ### 実施内容

@@ -3,7 +3,10 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import { schedulePerformanceHarness } from './perf/schedulePerformanceHarness'
 import { useStore } from './store/useStore'
-import type { AudioObject, AudioVisualizationObject, ParticleObject } from './types'
+import { buildAviUtlAudioSphereObject } from './utils/audioSphereObjectFactory'
+import { buildGetColorDotFieldObject } from './utils/getColorDotFieldObjectFactory'
+import { buildHksyCheckerGridObject } from './utils/hksyCheckerGridObjectFactory'
+import type { AudioObject, AudioVisualizationObject, ParticleObject, ShapeObject } from './types'
 
 schedulePerformanceHarness()
 
@@ -29,6 +32,7 @@ if (urlSearchParams.has('videoExportE2e')) {
     ok: boolean;
     audioTargetFound: boolean;
     addedIds: string[];
+    timelineNames: string[];
     objectCount: number;
   };
 
@@ -72,6 +76,7 @@ if (urlSearchParams.has('videoExportE2e')) {
     const audioTarget = state.objects.find((object): object is AudioObject => object.type === 'audio') ?? null;
     const maxLayer = state.objects.reduce((current, object) => Math.max(current, object.layer), 0);
     const addedIds: string[] = [];
+    const timelineNames: string[] = [];
     const audioVisualisation: AudioVisualizationObject = {
       id: 'e2e-audio-waveform-r',
       type: 'audio_visualization',
@@ -125,13 +130,90 @@ if (urlSearchParams.has('videoExportE2e')) {
       colour: '#ffffff',
       lifetimeSeconds: 1.5,
     };
+    const getColorDotField = {
+      ...buildGetColorDotFieldObject({
+        id: 'e2e-getcolor-v2r-dot-field',
+        projectWidth: 1920,
+        projectHeight: 1080,
+        startTime: 0,
+        layer: Math.min(99, maxLayer + 3),
+      }),
+      name: 'GetColor V2R ドットフィールド',
+    };
+    const hksyCheckerGrid = {
+      ...buildHksyCheckerGridObject({
+        id: 'e2e-hksy-checker-grid',
+        projectWidth: 1920,
+        projectHeight: 1080,
+        startTime: 0,
+        layer: Math.min(99, maxLayer + 4),
+      }),
+      name: 'hksyチェッカー/グリッド',
+    };
+    const spotLightProbe: ShapeObject = {
+      id: 'e2e-93-spotlight-probe',
+      type: 'shape',
+      name: '93 SpotLight Probe',
+      layer: Math.min(99, maxLayer + 5),
+      startTime: 0,
+      duration: safeDuration,
+      x: 880,
+      y: 420,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      opacity: 1,
+      enableAnimation: false,
+      endX: 880,
+      endY: 420,
+      easing: 'linear',
+      shapeType: 'rect',
+      width: 240,
+      height: 160,
+      fill: '#111111',
+      filters: [{
+        id: 'e2e-93-spotlight-filter',
+        type: 'spot_light',
+        enabled: true,
+        params: {
+          centreX: 0.5,
+          centreY: 0.5,
+          radius: 0.75,
+          intensity: 0.9,
+          colour: '#fff4c2',
+        },
+      }],
+    };
+    const audioSphere = audioTarget ? {
+      ...buildAviUtlAudioSphereObject({
+        id: 'e2e-93-audio-sphere',
+        projectWidth: 1920,
+        projectHeight: 1080,
+        startTime: 0,
+        layer: Math.min(99, maxLayer + 6),
+      }),
+      targetAudioId: audioTarget.id,
+      targetLayer: audioTarget.layer,
+      name: '93音声玉',
+      duration: safeDuration,
+    } : null;
     state.addObject(audioVisualisation);
     state.addObject(particle);
-    addedIds.push(audioVisualisation.id, particle.id);
+    state.addObject(getColorDotField);
+    state.addObject(hksyCheckerGrid);
+    state.addObject(spotLightProbe);
+    addedIds.push(audioVisualisation.id, particle.id, getColorDotField.id, hksyCheckerGrid.id, spotLightProbe.id);
+    timelineNames.push(audioVisualisation.name, particle.name, getColorDotField.name, hksyCheckerGrid.name, spotLightProbe.name);
+    if (audioSphere) {
+      state.addObject(audioSphere);
+      addedIds.push(audioSphere.id);
+      timelineNames.push(audioSphere.name);
+    }
     return {
-      ok: addedIds.length === 2,
+      ok: addedIds.length >= 5,
       audioTargetFound: audioTarget !== null,
       addedIds,
+      timelineNames,
       objectCount: useStore.getState().objects.length,
     };
   };
