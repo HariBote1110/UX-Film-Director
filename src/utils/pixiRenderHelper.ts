@@ -854,8 +854,7 @@ export const updatePixiContent = (
             isExporting,
             sharedRendererSolidColourObjectIds,
         })) {
-            const children = container.removeChildren();
-            children.forEach((child) => child.destroy({ children: true, texture: false, context: true }));
+            hidePixiChildrenForSharedRendererCutover(container.children);
             container.hitArea = new PIXI.Rectangle(0, 0, obj.width, obj.height);
             return undefined;
         }
@@ -952,8 +951,7 @@ export const updatePixiContent = (
         content = psdContent;
 
     } else if (obj.type === 'video') {
-        const children = container.removeChildren();
-        children.forEach((child) => child.destroy({ children: true, texture: false, context: true }));
+        hidePixiChildrenForSharedRendererCutover(container.children);
         container.hitArea = new PIXI.Rectangle(0, 0, obj.width, obj.height);
         return undefined;
 

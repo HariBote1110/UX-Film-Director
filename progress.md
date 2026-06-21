@@ -8885,6 +8885,21 @@
 ### 残課題・次のステップ
 - 実Electron E2Eで、GetColor / hksy / 93優先効果を混在させた動画exportが通るか再確認する。
 
+## 2026-06-22 — Rust所有cutoverでPixi WebGPU context破壊を回避
+
+### 実施内容
+- Red: Rust/shared renderer所有のSolidColour shape cutover時と、Rust video専有時に、PixiのGPU contextをdestroyしない契約を追加した。
+- Green: shape/video cutoverを `removeChildren()` + `destroy({ context: true })` から、生成効果と同じ `hidePixiChildrenForSharedRendererCutover` に切り替えた。
+- 版を `0.1.1-Beta-293c` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/pixiRenderHelperGeneratedEffectCutover.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts src/utils/pixiSolidColourCutover.test.ts --reporter=dot` は30件成功。
+- `UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA=1 UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS=1 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=1 UXFD_VIDEO_EXPORT_E2E_TIMEOUT_MS=240000 npm run test:video-export:e2e` は成功。60/60フレームを書き出し、生成効果画素検査が通り、`runtimeErrors` は空。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回変更由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- GetColor / hksy / 93優先効果の代表exportは通った。次は画素検査対象をGetColor/hksy/SpotLight/93音声玉固有色や形状へ広げるか、次のAviUtlPackV4優先候補をRust生成効果へ追加する。
+
 ## 2026-06-22 — 93 SpotLightをRust/WebGPU effectへ追加
 
 ### 実施内容

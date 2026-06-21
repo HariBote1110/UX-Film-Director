@@ -25,4 +25,15 @@ describe('pixiRenderHelper generated effect cutover', () => {
     expect(cutoverBlock).not.toContain('removeChildren()');
     expect(cutoverBlock).not.toContain('context: true');
   });
+
+  it('does not destroy Pixi GPU context while routing video rendering to Rust', () => {
+    const code = helperSource();
+    const start = code.indexOf("} else if (obj.type === 'video') {");
+    const end = code.indexOf("} else if (obj.type === 'audio_visualization')", start);
+    const videoBlock = code.slice(start, end);
+
+    expect(videoBlock).toContain('hidePixiChildrenForSharedRendererCutover(container.children)');
+    expect(videoBlock).not.toContain('removeChildren()');
+    expect(videoBlock).not.toContain('context: true');
+  });
 });

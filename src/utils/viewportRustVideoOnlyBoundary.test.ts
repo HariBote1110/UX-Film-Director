@@ -61,9 +61,13 @@ describe('Viewport Rust video-only boundary', () => {
 
   it('does not route Pixi video cleanup through the stale Pixi video cutover gate', () => {
     const code = pixiRenderHelperSource();
+    const start = code.indexOf("} else if (obj.type === 'video') {");
+    const end = code.indexOf("} else if (obj.type === 'audio_visualization')", start);
+    const videoBlock = code.slice(start, end);
 
     expect(code).toContain("obj.type === 'video'");
-    expect(code).toContain('container.removeChildren()');
+    expect(videoBlock).toContain('hidePixiChildrenForSharedRendererCutover(container.children)');
+    expect(videoBlock).not.toContain('removeChildren()');
     expect(code).not.toContain('pixiVideoCutover');
     expect(code).not.toContain('resolvePixiVideoRenderPath');
   });
