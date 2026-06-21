@@ -1,6 +1,14 @@
 # 進捗ログ
 
 ## 2026-06-21
+- 標準パーティクルをRust export経路判定に追加した。
+- Red: 標準パーティクル単独/音声付きのexportでもRust-native visual mediaとして扱う契約を追加した。
+- Green: `hasProjectExportNativeRenderMediaObjects` の対象に `particle` を追加した。
+- 版を `0.1.1-Beta-257a` に更新した。
+- 検証: projectExportFrameCanvas対象36件が成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- 残課題: 次は代表素材E2Eへ標準パーティクルを混ぜ、preview/export境界をまとめて確認する。
+
+## 2026-06-21
 - 標準パーティクルPropertyPanel編集を追加した。
 - Red: PropertyPanelにRust-native標準パーティクル編集欄があることを確認する境界テストを追加した。
 - Green: `ParticleObject` のcount/seed/spread/speed/size/colour/lifetime/width/heightを編集できるUIを追加した。
