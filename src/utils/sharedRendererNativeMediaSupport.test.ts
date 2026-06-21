@@ -82,6 +82,12 @@ const media: RustSceneMediaReference[] = [{
   width: 160,
   height: 80,
 }, {
+  id: 'puzzle-1',
+  kind: 'GeneratedPuzzlePiece' as RustSceneMediaReference['kind'],
+  source: '{"generator":"puzzle-piece","size":120,"shape_variant":1,"connector_mode":"convex","fill_colour":"#ffffff"}',
+  width: 240,
+  height: 240,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -124,8 +130,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[5])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[6])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[7])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[8])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[8])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[9])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[10])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {

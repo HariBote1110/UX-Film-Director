@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, ImageObject, ParticleObject, ProjectSettings, PsdObject, ShapeObject, TimelineObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, ImageObject, ParticleObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, VideoObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -224,6 +224,32 @@ const baseBarcode = (patch: Partial<BarcodeObject> = {}): BarcodeObject => ({
   ...patch,
 });
 
+const basePuzzlePiece = (patch: Partial<PuzzlePieceObject> = {}): PuzzlePieceObject => ({
+  id: 'puzzle-1',
+  type: 'puzzle_piece',
+  name: 'パズルピース',
+  layer: 7,
+  startTime: 1,
+  duration: 4,
+  x: 840,
+  y: 420,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.85,
+  enableAnimation: false,
+  endX: 840,
+  endY: 420,
+  easing: 'linear',
+  width: 240,
+  height: 240,
+  size: 120,
+  shapeVariant: 1,
+  connectorMode: 'convex',
+  fillColour: '#ffffff',
+  ...patch,
+});
+
 describe('buildRustSceneSnapshotForTimeline', () => {
   it('builds a solid colour plane for active rectangle shapes', () => {
     const layers = createDefaultLayers();
@@ -430,6 +456,42 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         }),
         width: 420,
         height: 160,
+      },
+    ]);
+  });
+
+  it('builds a generated puzzle piece media plane from a puzzle piece object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [basePuzzlePiece()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated puzzle piece snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'puzzle-1',
+      track_id: 'layer-7',
+      media_id: 'puzzle-1',
+      source_frame: 0,
+      opacity: 0.85,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'puzzle-1',
+        kind: 'GeneratedPuzzlePiece',
+        source: JSON.stringify({
+          generator: 'puzzle-piece',
+          size: 120,
+          shape_variant: 1,
+          connector_mode: 'convex',
+          fill_colour: '#ffffff',
+        }),
+        width: 240,
+        height: 240,
       },
     ]);
   });

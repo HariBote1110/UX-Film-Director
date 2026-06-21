@@ -67,3 +67,19 @@ fn rust_core_accepts_generated_barcode_media_kind_at_the_json_boundary() {
     assert_eq!(media.width, 420);
     assert_eq!(media.height, 160);
 }
+
+#[test]
+fn rust_core_accepts_generated_puzzle_piece_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "puzzle-1",
+        "kind": "GeneratedPuzzlePiece",
+        "source": "{\"generator\":\"puzzle-piece\",\"size\":120,\"shape_variant\":1,\"connector_mode\":\"convex\",\"fill_colour\":\"#ffffff\"}",
+        "width": 240,
+        "height": 240
+    }))
+    .expect("GeneratedPuzzlePiece media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedPuzzlePiece);
+    assert_eq!(media.width, 240);
+    assert_eq!(media.height, 240);
+}
