@@ -404,6 +404,20 @@ struct MediaProbeParams {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct AudioWaveformSamplesParams {
+    source: String,
+    sample_rate: u32,
+    max_samples: u32,
+    #[serde(default)]
+    start_seconds: Option<f64>,
+    #[serde(default)]
+    duration_seconds: Option<f64>,
+    #[serde(default)]
+    ffmpeg_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct PsdParseParams {
     file_path: String,
 }
@@ -431,6 +445,7 @@ fn handle_request(request: RpcRequest, state: &mut BackendState) -> RpcResponse 
             error: None,
         },
         "media.probe" => handle_media_probe(request.id, request.params),
+        "audio.waveformSamples" => handle_audio_waveform_samples(request.id, request.params),
         "psd.parse" => handle_psd_parse(request.id, request.params, state),
         "psd.await_blob" => handle_psd_await_blob(request.id, state),
         "decode.start" => handle_decode_start(request.id, request.params, state),
@@ -2073,6 +2088,7 @@ fn collect_native_render_sources(
             MediaKind::GeneratedGradient => build_generated_gradient_source_frame(media)?,
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
+            MediaKind::GeneratedAudioWaveform => continue,
             MediaKind::Video => continue,
         };
         if sources.insert(media.id.clone(), frame).is_some() {
@@ -2970,6 +2986,101 @@ fn handle_media_probe(id: u64, params: Value) -> RpcResponse {
             "hasAudio": has_audio,
             "hasVideo": has_video,
             "ffprobePath": ffprobe_path,
+        })),
+        error: None,
+    }
+}
+
+fn handle_audio_waveform_samples(id: u64, params: Value) -> RpcResponse {
+    let parsed = match serde_json::from_value::<AudioWaveformSamplesParams>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32602,
+                &format!("Invalid audio.waveformSamples params: {error}"),
+            );
+        }
+    };
+
+    if parsed.source.trim().is_empty() {
+        return response_error(id, -32602, "source must not be empty");
+    }
+    if parsed.sample_rate == 0 {
+        return response_error(id, -32602, "sampleRate must be positive");
+    }
+    if parsed.max_samples == 0 {
+        return response_error(id, -32602, "maxSamples must be positive");
+    }
+
+    let ffmpeg_path = parsed
+        .ffmpeg_path
+        .or_else(|| std::env::var("UXFD_FFMPEG_BIN").ok())
+        .unwrap_or_else(|| "ffmpeg".to_string());
+    let start_seconds = parsed.start_seconds.unwrap_or(0.0).max(0.0);
+    let duration_seconds = parsed
+        .duration_seconds
+        .unwrap_or_else(|| parsed.max_samples as f64 / parsed.sample_rate as f64)
+        .max(0.0);
+
+    let mut command = Command::new(&ffmpeg_path);
+    command
+        .arg("-hide_banner")
+        .arg("-loglevel")
+        .arg("error")
+        .arg("-ss")
+        .arg(format!("{start_seconds:.6}"))
+        .arg("-t")
+        .arg(format!("{duration_seconds:.6}"))
+        .arg("-i")
+        .arg(&parsed.source)
+        .arg("-vn")
+        .arg("-ac")
+        .arg("1")
+        .arg("-ar")
+        .arg(parsed.sample_rate.to_string())
+        .arg("-f")
+        .arg("f32le")
+        .arg("pipe:1")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let output = match command.output() {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32080,
+                &format!("Failed to start audio waveform ffmpeg ({ffmpeg_path}): {error}"),
+            );
+        }
+    };
+    if !output.status.success() {
+        return response_error(
+            id,
+            -32081,
+            &format!(
+                "audio waveform ffmpeg exited with code {:?}: {}",
+                output.status.code(),
+                String::from_utf8_lossy(&output.stderr).trim()
+            ),
+        );
+    }
+
+    let max_bytes = parsed.max_samples as usize * std::mem::size_of::<f32>();
+    let mut samples = Vec::with_capacity(parsed.max_samples as usize);
+    for chunk in output.stdout[..output.stdout.len().min(max_bytes)].chunks_exact(4) {
+        samples.push(f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]));
+    }
+
+    RpcResponse {
+        id,
+        ok: true,
+        result: Some(json!({
+            "source": parsed.source,
+            "sampleRate": parsed.sample_rate,
+            "sampleCount": samples.len(),
+            "samples": samples,
         })),
         error: None,
     }

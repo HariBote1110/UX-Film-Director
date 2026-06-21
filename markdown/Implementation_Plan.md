@@ -28,7 +28,8 @@
 10. ✅ `P1` Audio waveform RをRust生成メディア境界へ追加
 11. ✅ `P1` Audio waveform RのRust波形生成コアを追加
 12. ✅ `P1` Audio waveform Rをnative-wgpu-rendererへ接続
-13. E2Eで代表素材に効果を載せ、preview/exportの一致を検証
+13. ✅ `P1` Audio waveform R用PCM供給RPCをRust backendへ追加
+14. E2Eで代表素材に効果を載せ、preview/exportの一致を検証
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

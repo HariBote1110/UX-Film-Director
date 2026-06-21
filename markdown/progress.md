@@ -1,6 +1,16 @@
 # 進捗ログ
 
 ## 2026-06-21
+- Audio waveform R用PCM供給RPCをRust backendへ追加した。
+- Red: `audio.waveformSamples` RPCが音声ファイルから波形生成用のmono f32 PCMを返す契約を追加した。
+- Green: `AudioWaveformSamplesParams` と `handle_audio_waveform_samples` を追加し、ffmpegで `f32le` mono PCMをstdout抽出するようにした。
+- Green: `sampleRate` / `maxSamples` / `startSeconds` / `durationSeconds` を受け取り、制御面に載せるサンプル数を上限管理するようにした。
+- Green: backendのnative render source収集で `GeneratedAudioWaveform` を通常画像source読み込み対象から外し、生成入力として扱えるようにした。
+- 版を `0.1.1-Beta-247a` に更新した。
+- 検証: rust-backendのPCM供給テスト1件、native-wgpu-rendererの波形描画テスト1件が成功。
+- 残課題: 次はrenderer/Electron側で `audio_visualization` のmetadataから `audio.waveformSamples` を呼び、`NativeAudioWaveformInput` へ接続する。
+
+## 2026-06-21
 - Audio waveform Rをnative-wgpu-rendererへ接続した。
 - Red: `NativeAudioWaveformInput` を渡すと、native-wgpu-rendererが生成波形をGPU合成結果へ描く契約を追加した。
 - Green: `render_native_wgpu_frame_with_audio_waveforms` を追加し、PCMサンプルからRust coreのline stripを作り、RGBAフレーム化して既存WebGPU合成へ流すようにした。
