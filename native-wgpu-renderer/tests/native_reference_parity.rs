@@ -1,9 +1,13 @@
 use std::collections::HashMap;
 use uxfd_golden_harness::{compare_rgba_frames, ComparisonThresholds, RgbaFrame};
-use uxfd_native_wgpu_renderer::{render_native_wgpu_frame, NativeWgpuRenderError};
+use uxfd_native_wgpu_renderer::{
+    render_native_wgpu_frame, render_native_wgpu_frame_with_audio_waveforms,
+    NativeAudioWaveformInput, NativeWgpuRenderError,
+};
 use uxfd_reference_renderer::render_reference_frame;
 use uxfd_rust_core::{
-    ColourPipeline, Effect, EvaluatedClip, SamplingMode, SceneSnapshot, Transform, WipeEdge,
+    AudioWaveformSource, ColourPipeline, Effect, EvaluatedClip, SamplingMode, SceneSnapshot,
+    Transform, WipeEdge,
 };
 
 #[test]
@@ -277,6 +281,45 @@ fn native_wgpu_applies_axis_aligned_clipping() {
         vec![
             0, 0, 0, 0, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255,
         ],
+    );
+}
+
+#[test]
+fn native_wgpu_renders_generated_audio_waveform_frame() {
+    let snapshot = scene_snapshot(vec![evaluated_clip("waveform-1", 0, 1.0, Vec::new())]);
+    let waveform = NativeAudioWaveformInput {
+        media_id: "waveform-1".to_string(),
+        source: AudioWaveformSource::from_json(
+            r##"{"generator":"audio-waveform-r","target_audio_id":"audio-1","target_source":"/tmp/music.wav","sample_window_seconds":1,"colour":"#00ff00","thickness":1,"amplitude":1}"##,
+        )
+        .expect("valid waveform source"),
+        samples: vec![0.0, 0.0, 0.0, 0.0],
+        sample_rate: 4,
+        width: 4,
+        height: 2,
+    };
+    let native_result = pollster::block_on(render_native_wgpu_frame_with_audio_waveforms(
+        &snapshot,
+        &HashMap::new(),
+        &[waveform],
+        4,
+        2,
+    ));
+    let native = match native_result {
+        Ok(frame) => frame,
+        Err(NativeWgpuRenderError::AdapterUnavailable) => {
+            eprintln!("skipping generated waveform native wgpu test: no GPU adapter available");
+            return;
+        }
+        Err(error) => panic!("native wgpu render failed: {error:?}"),
+    };
+
+    assert_eq!(
+        native.pixels,
+        vec![
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255,
+        ]
     );
 }
 
