@@ -12,7 +12,7 @@ import {
   shouldSynchroniseTimelineForProjectExportFrame,
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
-import type { AsanohaPatternObject, AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const source = () =>
   readFileSync(new URL('./projectExportFrameCanvas.ts', import.meta.url), 'utf8');
@@ -765,6 +765,40 @@ const protractor = (patch: Partial<ProtractorObject> = {}): ProtractorObject => 
   ...patch,
 });
 
+const shakingPolygon = (patch: Partial<ShakingPolygonObject> = {}): ShakingPolygonObject => ({
+  id: 'shaking-polygon-1',
+  type: 'shaking_polygon',
+  name: '多角形_震える',
+  layer: 24,
+  startTime: 0,
+  duration: 5,
+  x: 780,
+  y: 360,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 780,
+  endY: 360,
+  easing: 'linear',
+  width: 360,
+  height: 360,
+  lineWidth: 20,
+  vertexCount: 3,
+  fixedDiameter: 260,
+  verticalDistortionPercent: 0,
+  repeatCount: 1,
+  repeatFrequency: 1,
+  fill: false,
+  jitterRange: 20,
+  jitterInterval: 10,
+  stepped: false,
+  colour: '#ffffff',
+  seed: 0,
+  ...patch,
+});
+
 describe('resolveProjectExportFrameCanvas', () => {
   it('uses the explicit export canvas without requiring a legacy canvas', () => {
     const sharedRendererCanvas = { id: 'shared-renderer-export' } as unknown as HTMLCanvasElement;
@@ -1196,7 +1230,7 @@ describe('resolveProjectExportRustFrameSourceContext', () => {
   });
 
   it('marks standard particle exports as native-render media instead of legacy canvas work', () => {
-    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), gourd(), gear(), trackBar(), pieChart(), histogram(), sunburst(), circularArrow(), triangleBracket(), tartanCheck(), houndstooth(), yagasuri(), paperAirplane(), asanohaPattern(), focusLinesPlus(), randomLineEx(), hologram(), protractor(), audio()];
+    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), gourd(), gear(), trackBar(), pieChart(), histogram(), sunburst(), circularArrow(), triangleBracket(), tartanCheck(), houndstooth(), yagasuri(), paperAirplane(), asanohaPattern(), focusLinesPlus(), randomLineEx(), hologram(), protractor(), shakingPolygon(), audio()];
 
     expect(hasProjectExportNativeRenderMediaObjects(objects)).toBe(true);
     expect(resolveProjectExportRustFrameSourceContext({

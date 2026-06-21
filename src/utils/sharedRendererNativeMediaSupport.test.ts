@@ -196,6 +196,12 @@ const media: RustSceneMediaReference[] = [{
   width: 420,
   height: 240,
 }, {
+  id: 'shaking-polygon-1',
+  kind: 'GeneratedShakingPolygon' as RustSceneMediaReference['kind'],
+  source: '{"generator":"shaking-polygon","line_width":20,"vertex_count":3,"fixed_diameter":260,"vertical_distortion_percent":0,"repeat_count":1,"repeat_frequency":1,"fill":false,"jitter_range":20,"jitter_interval":10,"stepped":false,"colour":"#ffffff","seed":0}',
+  width: 360,
+  height: 360,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -257,8 +263,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[24])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[25])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[26])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[27])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[27])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[28])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[29])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {
@@ -280,6 +287,10 @@ describe('sharedRendererNativeMediaSupport', () => {
     })).toBe(true);
     expect(canRenderSharedRendererNativeMediaOnlyFrame({
       snapshot: snapshotWithMedia('solid-1', 'protractor-1'),
+      media,
+    })).toBe(true);
+    expect(canRenderSharedRendererNativeMediaOnlyFrame({
+      snapshot: snapshotWithMedia('solid-1', 'shaking-polygon-1'),
       media,
     })).toBe(true);
     expect(canRenderSharedRendererNativeMediaOnlyFrame({

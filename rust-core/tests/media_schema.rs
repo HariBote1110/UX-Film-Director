@@ -371,3 +371,19 @@ fn rust_core_accepts_generated_protractor_media_kind_at_the_json_boundary() {
     assert_eq!(media.width, 420);
     assert_eq!(media.height, 240);
 }
+
+#[test]
+fn rust_core_accepts_generated_shaking_polygon_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "shaking-polygon-1",
+        "kind": "GeneratedShakingPolygon",
+        "source": "{\"generator\":\"shaking-polygon\",\"line_width\":20,\"vertex_count\":3,\"fixed_diameter\":260,\"vertical_distortion_percent\":0,\"repeat_count\":1,\"repeat_frequency\":1,\"fill\":false,\"jitter_range\":20,\"jitter_interval\":10,\"stepped\":false,\"colour\":\"#ffffff\",\"seed\":0}",
+        "width": 360,
+        "height": 360
+    }))
+    .expect("GeneratedShakingPolygon media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedShakingPolygon);
+    assert_eq!(media.width, 360);
+    assert_eq!(media.height, 360);
+}

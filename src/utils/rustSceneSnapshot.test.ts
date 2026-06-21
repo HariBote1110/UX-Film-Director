@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AsanohaPatternObject, AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -761,6 +761,40 @@ const baseProtractor = (patch: Partial<ProtractorObject> = {}): ProtractorObject
   lineColour: '#ffffff',
   textColour: '#ffffff',
   shadowColour: '#000000',
+  ...patch,
+});
+
+const baseShakingPolygon = (patch: Partial<ShakingPolygonObject> = {}): ShakingPolygonObject => ({
+  id: 'shaking-polygon-1',
+  type: 'shaking_polygon',
+  name: '多角形_震える',
+  layer: 26,
+  startTime: 1,
+  duration: 4,
+  x: 780,
+  y: 360,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 780,
+  endY: 360,
+  easing: 'linear',
+  width: 360,
+  height: 360,
+  lineWidth: 20,
+  vertexCount: 3,
+  fixedDiameter: 260,
+  verticalDistortionPercent: 0,
+  repeatCount: 1,
+  repeatFrequency: 1,
+  fill: false,
+  jitterRange: 20,
+  jitterInterval: 10,
+  stepped: false,
+  colour: '#ffffff',
+  seed: 0,
   ...patch,
 });
 
@@ -1700,6 +1734,50 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         }),
         width: 420,
         height: 240,
+      },
+    ]);
+  });
+
+  it('builds a generated shaking polygon media plane from a shaking polygon object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseShakingPolygon()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated shaking polygon snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'shaking-polygon-1',
+      track_id: 'layer-26',
+      media_id: 'shaking-polygon-1',
+      source_frame: 60,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'shaking-polygon-1',
+        kind: 'GeneratedShakingPolygon',
+        source: JSON.stringify({
+          generator: 'shaking-polygon',
+          line_width: 20,
+          vertex_count: 3,
+          fixed_diameter: 260,
+          vertical_distortion_percent: 0,
+          repeat_count: 1,
+          repeat_frequency: 1,
+          fill: false,
+          jitter_range: 20,
+          jitter_interval: 10,
+          stepped: false,
+          colour: '#ffffff',
+          seed: 0,
+        }),
+        width: 360,
+        height: 360,
       },
     ]);
   });

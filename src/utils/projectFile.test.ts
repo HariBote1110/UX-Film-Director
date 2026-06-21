@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AsanohaPatternObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShapeObject, SunburstObject, TartanCheckObject, TrackBarObject, TriangleBracketObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, SunburstObject, TartanCheckObject, TrackBarObject, TriangleBracketObject, YagasuriObject } from '../types';
 import { MAX_LAYERS } from '../components/timelineConstants';
 import { createDefaultCamera, createDefaultLayers, createDefaultStageCamera3D } from './sceneState';
 import { buildProjectFileData, parseProjectPayloadV2, restoreProjectObjects } from './projectFile';
@@ -649,6 +649,39 @@ const minimalProtractor = (): ProtractorObject => ({
   shadowColour: '#000000',
 });
 
+const minimalShakingPolygon = (): ShakingPolygonObject => ({
+  id: 'shaking-polygon-1',
+  type: 'shaking_polygon',
+  name: '多角形_震える',
+  layer: 23,
+  startTime: 1,
+  duration: 5,
+  x: 780,
+  y: 360,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 780,
+  endY: 360,
+  easing: 'linear',
+  width: 360,
+  height: 360,
+  lineWidth: 20,
+  vertexCount: 3,
+  fixedDiameter: 260,
+  verticalDistortionPercent: 0,
+  repeatCount: 1,
+  repeatFrequency: 1,
+  fill: false,
+  jitterRange: 20,
+  jitterInterval: 10,
+  stepped: false,
+  colour: '#ffffff',
+  seed: 0,
+});
+
 describe('buildProjectFileData', () => {
   it('flushes active editor state into the matching scene and stamps metadata', () => {
     const layers = createDefaultLayers();
@@ -806,6 +839,7 @@ describe('parseProjectPayloadV2', () => {
     const randomLineEx = minimalRandomLineEx();
     const hologram = minimalHologram();
     const protractor = minimalProtractor();
+    const shakingPolygon = minimalShakingPolygon();
     const file = buildProjectFileData({
       projectSettings: projectSettings(),
       scenes: [
@@ -814,13 +848,13 @@ describe('parseProjectPayloadV2', () => {
           name: 'One',
           duration: 10,
           layers,
-          objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, hologram, protractor],
+          objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, hologram, protractor, shakingPolygon],
           camera,
           stageCamera3D: defaultStage()
         }
       ],
       activeSceneId: 's1',
-      objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, hologram, protractor],
+      objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, hologram, protractor, shakingPolygon],
       layers,
       duration: 10,
       camera,
@@ -828,7 +862,7 @@ describe('parseProjectPayloadV2', () => {
     });
 
     const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
-    expect(parsed.scenes[0].objects).toEqual([particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, hologram, protractor]);
+    expect(parsed.scenes[0].objects).toEqual([particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, hologram, protractor, shakingPolygon]);
   });
 
   it('rejects invalid worldPlacement on psd objects', () => {

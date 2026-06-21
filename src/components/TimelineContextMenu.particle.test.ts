@@ -16,6 +16,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('buildAviUtlRandomLineExObject');
     expect(code).toContain('buildAviUtlHologramObject');
     expect(code).toContain('buildAviUtlProtractorObject');
+    expect(code).toContain('buildAviUtlShakingPolygonObject');
     expect(code).toContain('buildAviUtlCircularArrowObject');
     expect(code).toContain('buildAviUtlTartanCheckObject');
     expect(code).toContain('buildAviUtlTriangleBracketObject');
@@ -41,6 +42,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('handleAddRandomLineEx');
     expect(code).toContain('handleAddHologram');
     expect(code).toContain('handleAddProtractor');
+    expect(code).toContain('handleAddShakingPolygon');
     expect(code).toContain('handleAddCircularArrow');
     expect(code).toContain('handleAddTartanCheck');
     expect(code).toContain('handleAddTriangleBracket');
@@ -66,6 +68,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('Add Random Line EX');
     expect(code).toContain('Add Hologram');
     expect(code).toContain('Add Protractor');
+    expect(code).toContain('Add Shaking Polygon');
     expect(code).toContain('Add Barcode');
     expect(code).toContain('Add Circular Arrow');
     expect(code).toContain('Add Tartan Check');
@@ -91,6 +94,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('ランダムラインEXを追加');
     expect(code).toContain('ホログラムを追加');
     expect(code).toContain('分度器を追加');
+    expect(code).toContain('多角形_震えるを追加');
     expect(code).toContain('バーコードを追加');
     expect(code).toContain('円矢印を追加');
     expect(code).toContain('タータンチェックを追加');

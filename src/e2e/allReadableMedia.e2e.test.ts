@@ -25,6 +25,7 @@ import type {
   PsdObject,
   PuzzlePieceObject,
   RandomLineExObject,
+  ShakingPolygonObject,
   ShapeObject,
   SunburstObject,
   TartanCheckObject,
@@ -508,6 +509,25 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     textColour: '#ffffff',
     shadowColour: '#000000',
   };
+  const shakingPolygon: ShakingPolygonObject = {
+    ...baseObject('ssd-shaking-polygon', 'shaking_polygon', 31),
+    type: 'shaking_polygon',
+    name: '多角形_震える',
+    width: 360,
+    height: 360,
+    lineWidth: 20,
+    vertexCount: 3,
+    fixedDiameter: 260,
+    verticalDistortionPercent: 0,
+    repeatCount: 1,
+    repeatFrequency: 1,
+    fill: false,
+    jitterRange: 20,
+    jitterInterval: 10,
+    stepped: false,
+    colour: '#ffffff',
+    seed: 0,
+  };
 
   return [
     solidShape,
@@ -538,6 +558,7 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     randomLineEx,
     hologram,
     protractor,
+    shakingPolygon,
   ];
 };
 
@@ -626,6 +647,7 @@ describe('全読込可能メディア E2E', () => {
       'GeneratedRandomLineEx',
       'GeneratedHologram',
       'GeneratedProtractor',
+      'GeneratedShakingPolygon',
     ]);
     expect(snapshotResult.media
       .filter((media) => media.kind === 'Video')
@@ -835,6 +857,21 @@ describe('全読込可能メディア E2E', () => {
       text_colour: '#ffffff',
       shadow_colour: '#000000',
     });
+    expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'ssd-shaking-polygon')?.source ?? '{}')).toMatchObject({
+      generator: 'shaking-polygon',
+      line_width: 20,
+      vertex_count: 3,
+      fixed_diameter: 260,
+      vertical_distortion_percent: 0,
+      repeat_count: 1,
+      repeat_frequency: 1,
+      fill: false,
+      jitter_range: 20,
+      jitter_interval: 10,
+      stepped: false,
+      colour: '#ffffff',
+      seed: 0,
+    });
     expect(snapshotResult.media.some((media) => media.source.endsWith('.wav'))).toBe(false);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'shape-solid-rect')?.transform).toMatchObject({
       translation_x: 64.5,
@@ -876,6 +913,7 @@ describe('全読込可能メディア E2E', () => {
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-random-line-ex')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-hologram')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-protractor')?.source_frame).toBe(0);
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-shaking-polygon')?.source_frame).toBe(60);
     expect(validateRustSceneSnapshotBoundary({
       snapshot: snapshotResult.snapshot,
       media: snapshotResult.media,

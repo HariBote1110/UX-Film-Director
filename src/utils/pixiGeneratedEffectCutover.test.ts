@@ -3,7 +3,7 @@ import { shouldSkipPixiGeneratedEffectForSharedRenderer } from './pixiGeneratedE
 
 describe('pixiGeneratedEffectCutover', () => {
   it('skips Pixi generated effect rendering when the Rust native frame owns it', () => {
-    const sharedRendererGeneratedEffectObjectIds = new Set(['waveform-1', 'particle-1', 'barcode-1', 'puzzle-1', 'colour-wheel-1', 'gourd-1', 'gear-1', 'track-bar-1', 'pie-chart-1', 'histogram-1', 'sunburst-1', 'circular-arrow-1', 'triangle-bracket-1', 'tartan-check-1', 'houndstooth-1', 'yagasuri-1', 'paper-airplane-1', 'asanoha-pattern-1', 'focus-lines-plus-1', 'random-line-ex-1', 'hologram-1', 'protractor-1']);
+    const sharedRendererGeneratedEffectObjectIds = new Set(['waveform-1', 'particle-1', 'barcode-1', 'puzzle-1', 'colour-wheel-1', 'gourd-1', 'gear-1', 'track-bar-1', 'pie-chart-1', 'histogram-1', 'sunburst-1', 'circular-arrow-1', 'triangle-bracket-1', 'tartan-check-1', 'houndstooth-1', 'yagasuri-1', 'paper-airplane-1', 'asanoha-pattern-1', 'focus-lines-plus-1', 'random-line-ex-1', 'hologram-1', 'protractor-1', 'shaking-polygon-1']);
 
     expect(shouldSkipPixiGeneratedEffectForSharedRenderer({
       objectId: 'waveform-1',
@@ -134,6 +134,12 @@ describe('pixiGeneratedEffectCutover', () => {
     expect(shouldSkipPixiGeneratedEffectForSharedRenderer({
       objectId: 'protractor-1',
       objectType: 'protractor',
+      isExporting: true,
+      sharedRendererGeneratedEffectObjectIds,
+    })).toBe(true);
+    expect(shouldSkipPixiGeneratedEffectForSharedRenderer({
+      objectId: 'shaking-polygon-1',
+      objectType: 'shaking_polygon',
       isExporting: true,
       sharedRendererGeneratedEffectObjectIds,
     })).toBe(true);
