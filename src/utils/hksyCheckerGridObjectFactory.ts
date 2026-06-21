@@ -100,3 +100,32 @@ export const buildHksyDiamondObject = (input: BuildHksyCheckerGridObjectInput): 
     backgroundColour: '#000000',
   };
 };
+
+export const buildHksyMeasuredGridObject = (input: BuildHksyCheckerGridObjectInput): HksyCheckerGridObject => {
+  const base = buildHksyCheckerGridObject(input);
+  const width = Math.max(480, Math.round(input.projectWidth * 0.5));
+  const height = Math.max(270, Math.round(input.projectHeight * 0.5));
+  const x = Math.round((input.projectWidth - width) / 2);
+  const y = Math.round((input.projectHeight - height) / 2);
+
+  return {
+    ...base,
+    name: 'hksy グリッド',
+    x,
+    y,
+    width,
+    height,
+    endX: x,
+    endY: y,
+    pattern: 'measured-grid',
+    cellSize: 32,
+    lineWidth: 1,
+    checkerEnabled: false,
+    gridEnabled: true,
+    foregroundColour: '#ffffff',
+    secondaryColour: '#bbeeff',
+    backgroundColour: '#10131a',
+    separateInterval: 5,
+    separateLineWidth: 3,
+  };
+};

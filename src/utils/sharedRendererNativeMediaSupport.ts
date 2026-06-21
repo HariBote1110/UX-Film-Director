@@ -1102,6 +1102,8 @@ const isSharedRendererNativeGeneratedHksyCheckerGridSourceSupported = (source: s
       secondary_colour?: unknown;
       background_colour?: unknown;
       palette_colours?: unknown;
+      separate_interval?: unknown;
+      separate_line_width?: unknown;
     };
     const paletteColoursSupported = parsed.palette_colours === undefined || (
       Array.isArray(parsed.palette_colours)
@@ -1112,9 +1114,19 @@ const isSharedRendererNativeGeneratedHksyCheckerGridSourceSupported = (source: s
         && /^#[0-9a-f]{6}$/i.test(colour)
       ))
     );
+    const measuredGridFieldsSupported = parsed.pattern !== 'measured-grid' || (
+      typeof parsed.separate_interval === 'number'
+      && Number.isInteger(parsed.separate_interval)
+      && parsed.separate_interval >= 1
+      && parsed.separate_interval <= 1000
+      && typeof parsed.separate_line_width === 'number'
+      && Number.isInteger(parsed.separate_line_width)
+      && parsed.separate_line_width >= 0
+      && parsed.separate_line_width <= 100
+    );
     return (
       parsed.generator === 'hksy-checker-grid'
-      && (parsed.pattern === undefined || parsed.pattern === 'checker-grid' || parsed.pattern === 'diamond')
+      && (parsed.pattern === undefined || parsed.pattern === 'checker-grid' || parsed.pattern === 'diamond' || parsed.pattern === 'measured-grid')
       && typeof parsed.cell_size === 'number'
       && Number.isInteger(parsed.cell_size)
       && parsed.cell_size >= 1
@@ -1132,6 +1144,7 @@ const isSharedRendererNativeGeneratedHksyCheckerGridSourceSupported = (source: s
       && typeof parsed.background_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
       && paletteColoursSupported
+      && measuredGridFieldsSupported
     );
   } catch {
     return false;

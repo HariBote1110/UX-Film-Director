@@ -451,7 +451,7 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
   if (candidate.type === 'hksy_checker_grid') {
     if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
     if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
-    if (candidate.pattern !== undefined && candidate.pattern !== 'checker-grid' && candidate.pattern !== 'diamond') return false;
+    if (candidate.pattern !== undefined && candidate.pattern !== 'checker-grid' && candidate.pattern !== 'diamond' && candidate.pattern !== 'measured-grid') return false;
     if (!isFiniteNumber(candidate.cellSize) || candidate.cellSize < 1 || candidate.cellSize > 1000) return false;
     if (!isFiniteNumber(candidate.lineWidth) || candidate.lineWidth < 0 || candidate.lineWidth > 100) return false;
     if (typeof candidate.checkerEnabled !== 'boolean') return false;
@@ -464,6 +464,8 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
       if (candidate.paletteColours.length < 2 || candidate.paletteColours.length > 16) return false;
       if (!candidate.paletteColours.every((colour) => typeof colour === 'string' && /^#[0-9a-f]{6}$/i.test(colour))) return false;
     }
+    if (candidate.separateInterval !== undefined && (!isFiniteNumber(candidate.separateInterval) || candidate.separateInterval < 1 || candidate.separateInterval > 1000)) return false;
+    if (candidate.separateLineWidth !== undefined && (!isFiniteNumber(candidate.separateLineWidth) || candidate.separateLineWidth < 0 || candidate.separateLineWidth > 100)) return false;
   }
   if (candidate.type === 'getcolor_dot_field') {
     if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;

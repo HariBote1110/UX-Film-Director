@@ -1100,7 +1100,7 @@ const normaliseHksyPaletteColours = (colours: readonly string[] | undefined): st
 
 const serialiseGeneratedHksyCheckerGridSource = (object: HksyCheckerGridObject): string => {
   const paletteColours = normaliseHksyPaletteColours(object.paletteColours);
-  const pattern = object.pattern === 'diamond' ? object.pattern : undefined;
+  const pattern = object.pattern === 'diamond' || object.pattern === 'measured-grid' ? object.pattern : undefined;
   return JSON.stringify({
     generator: 'hksy-checker-grid',
     ...(pattern ? { pattern } : {}),
@@ -1112,6 +1112,10 @@ const serialiseGeneratedHksyCheckerGridSource = (object: HksyCheckerGridObject):
     secondary_colour: /^#[0-9a-f]{6}$/i.test(object.secondaryColour) ? object.secondaryColour : '#333333',
     background_colour: /^#[0-9a-f]{6}$/i.test(object.backgroundColour) ? object.backgroundColour : '#000000',
     ...(paletteColours.length >= 2 ? { palette_colours: paletteColours } : {}),
+    ...(pattern === 'measured-grid' ? {
+      separate_interval: Math.min(1000, Math.max(1, Math.trunc(finiteNumberOr(object.separateInterval, 5)))),
+      separate_line_width: Math.min(100, Math.max(0, Math.trunc(finiteNumberOr(object.separateLineWidth, 3)))),
+    } : {}),
   });
 };
 

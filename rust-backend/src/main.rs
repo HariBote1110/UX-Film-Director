@@ -448,6 +448,8 @@ struct GeneratedHksyCheckerGridSource {
     secondary_colour: String,
     background_colour: String,
     palette_colours: Option<Vec<String>>,
+    separate_interval: Option<u32>,
+    separate_line_width: Option<u32>,
 }
 
 fn main() {
@@ -5129,6 +5131,25 @@ fn build_generated_hksy_checker_grid_source_frame(
             format!("GeneratedHksyCheckerGrid media frame is invalid: {error:?}")
         });
     }
+    if checker_grid.pattern.as_deref() == Some("measured-grid") {
+        draw_hksy_measured_grid_pattern_rgba(
+            &mut pixels,
+            media.width,
+            media.height,
+            HksyMeasuredGridStyle {
+                background,
+                line_colour: secondary,
+                separate_colour: foreground,
+                cell_size: checker_grid.cell_size,
+                line_width: checker_grid.line_width,
+                separate_interval: checker_grid.separate_interval.unwrap_or(5),
+                separate_line_width: checker_grid.separate_line_width.unwrap_or(3),
+            },
+        );
+        return RgbaFrame::from_rgba8(media.width, media.height, pixels).map_err(|error| {
+            format!("GeneratedHksyCheckerGrid media frame is invalid: {error:?}")
+        });
+    }
 
     for y in 0..media.height {
         for x in 0..media.width {
@@ -5241,6 +5262,88 @@ fn draw_hksy_diamond_pattern_rgba(
             polygon.iter().map(|point| point.1).sum::<f32>() / polygon.len() as f32,
         );
         fill_polygon_fan_rgba(pixels, width, height, &polygon, fan_centre, colour, 255);
+    }
+}
+
+struct HksyMeasuredGridStyle {
+    background: [u8; 3],
+    line_colour: [u8; 3],
+    separate_colour: [u8; 3],
+    cell_size: u32,
+    line_width: u32,
+    separate_interval: u32,
+    separate_line_width: u32,
+}
+
+fn draw_hksy_measured_grid_pattern_rgba(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    style: HksyMeasuredGridStyle,
+) {
+    for y in 0..height {
+        for x in 0..width {
+            let offset = (y as usize * width as usize + x as usize) * 4;
+            pixels[offset..offset + 4].copy_from_slice(&[
+                style.background[0],
+                style.background[1],
+                style.background[2],
+                255,
+            ]);
+        }
+    }
+    if style.cell_size == 0 {
+        return;
+    }
+
+    let centre_x = width as f32 * 0.5;
+    let centre_y = height as f32 * 0.5;
+    let max_distance = centre_x.max(centre_y);
+
+    let mut index = 0_u32;
+    let mut position = 0.0_f32;
+    while position <= max_distance + style.cell_size as f32 {
+        let is_separate = style.separate_interval > 0 && index % style.separate_interval == 0;
+        let line_width = if is_separate {
+            style.separate_line_width
+        } else {
+            style.line_width
+        };
+        if line_width > 0 {
+            let colour = if is_separate {
+                style.separate_colour
+            } else {
+                style.line_colour
+            };
+            for sign in [-1.0_f32, 1.0_f32] {
+                let x = centre_x + position * sign;
+                let y = centre_y + position * sign;
+                if x >= 0.0 && x <= width.saturating_sub(1) as f32 {
+                    draw_line_segment_rgba(
+                        pixels,
+                        width,
+                        height,
+                        (x, 0.0),
+                        (x, height.saturating_sub(1) as f32),
+                        colour,
+                        line_width as f32,
+                    );
+                }
+                if y >= 0.0 && y <= height.saturating_sub(1) as f32 {
+                    draw_line_segment_rgba(
+                        pixels,
+                        width,
+                        height,
+                        (0.0, y),
+                        (width.saturating_sub(1) as f32, y),
+                        colour,
+                        line_width as f32,
+                    );
+                }
+            }
+        }
+        index = index.saturating_add(1);
+        position += style.cell_size as f32;
     }
 }
 
@@ -6220,8 +6323,8 @@ fn validate_generated_hksy_checker_grid_source(
         return Err("generator must be hksy-checker-grid".to_string());
     }
     if let Some(pattern) = source.pattern.as_deref() {
-        if pattern != "checker-grid" && pattern != "diamond" {
-            return Err("pattern must be checker-grid or diamond".to_string());
+        if pattern != "checker-grid" && pattern != "diamond" && pattern != "measured-grid" {
+            return Err("pattern must be checker-grid, diamond or measured-grid".to_string());
         }
     }
     if source.cell_size == 0 || source.cell_size > 1000 {
@@ -6239,6 +6342,16 @@ fn validate_generated_hksy_checker_grid_source(
         }
         for colour in palette_colours {
             parse_hex_colour_source(colour)?;
+        }
+    }
+    if let Some(separate_interval) = source.separate_interval {
+        if separate_interval == 0 || separate_interval > 1000 {
+            return Err("separate_interval must be 1..1000".to_string());
+        }
+    }
+    if let Some(separate_line_width) = source.separate_line_width {
+        if separate_line_width > 100 {
+            return Err("separate_line_width must be 0..100".to_string());
         }
     }
     Ok(())

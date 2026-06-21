@@ -227,6 +227,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: 'hksyの菱形カスタムオブジェクトを、透明背景のRust生成メディアとして標準搭載する。'
   },
   {
+    id: 'hksy-measured-grid',
+    labelJa: 'hksy グリッド',
+    category: 'generated-object',
+    phase: 'P1',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/@hksy/@hksy.obj'],
+    rationaleJa: 'hksyの通常線と区切り線を持つグリッドを、Rust生成の解説背景素材として標準搭載する。'
+  },
+  {
     id: 'particle-standard',
     labelJa: '標準パーティクル',
     category: 'generated-object',
