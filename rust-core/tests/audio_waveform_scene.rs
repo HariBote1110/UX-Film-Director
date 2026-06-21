@@ -35,4 +35,3 @@ fn builds_waveform_line_strip_from_pcm_samples() {
     assert_eq!(line.points[2], (2.0, 0.0));
     assert_eq!(line.points[3], (3.0, 50.0));
 }
-

@@ -1,3 +1,4 @@
+pub mod audio_waveform_scene;
 pub mod command;
 pub mod keyframe;
 pub mod schema;
@@ -7,6 +8,10 @@ pub mod validation;
 pub mod video_decode_request;
 pub mod video_plane_scene;
 
+pub use audio_waveform_scene::{
+    build_audio_waveform_line_strip, AudioWaveformLineStrip, AudioWaveformSceneError,
+    AudioWaveformSource,
+};
 pub use command::{apply_command, AppliedCommand, Command, CommandError};
 pub use schema::{
     Clip, ClipKind, ColourPipeline, Effect, Fps, MediaKind, MediaReference, Project, ProjectSize,

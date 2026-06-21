@@ -1,3 +1,20 @@
+## 2026-06-21 — Audio waveform RのRust波形生成コアを追加
+
+### 実施内容
+- Red: `audio-waveform-r` metadata JSONをRustで読み取り、PCMサンプルから波形ラインストリップを生成する契約を追加した。
+- Green: `rust-core/src/audio_waveform_scene.rs` を追加し、`AudioWaveformSource::from_json` と `build_audio_waveform_line_strip` を実装した。
+- Green: source frame / fps / sample rate / 表示サイズから、現在フレームに対応するサンプル窓を画面座標へ変換できるようにした。
+- Green: `#rrggbb` の色、線幅、振幅をRust側の生成結果へ保持するようにした。
+- 版を `0.1.1-Beta-245a` に更新した。
+
+### 検証
+- `cargo test --manifest-path rust-core/Cargo.toml --test audio_waveform_scene -- --nocapture`
+- `cargo test --manifest-path rust-core/Cargo.toml --test timeline_snapshot_contract --test audio_waveform_scene -- --nocapture`
+
+### 結果・残課題
+- Rust coreの `audio_waveform_scene` 2件、`timeline_snapshot_contract` 6件が成功。
+- 次はRust backend/sidecarで対象音声をPCMへdecodeし、このline stripをnative-wgpu-rendererへ渡して実描画する。
+
 ## 2026-06-21 — Audio waveform RをRust生成メディア境界へ追加
 
 ### 実施内容
