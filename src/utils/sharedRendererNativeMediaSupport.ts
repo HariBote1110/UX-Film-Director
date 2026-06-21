@@ -6,6 +6,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'SolidColour') return true;
   if (reference.kind === 'GeneratedGradient') return isSharedRendererNativeGeneratedGradientSourceSupported(reference.source);
   if (reference.kind === 'GeneratedAudioWaveform') return isSharedRendererNativeGeneratedAudioWaveformSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedAudioSphere') return isSharedRendererNativeGeneratedAudioSphereSourceSupported(reference.source);
   if (reference.kind === 'GeneratedParticle') return isSharedRendererNativeGeneratedParticleSourceSupported(reference.source);
   if (reference.kind === 'GeneratedBarcode') return isSharedRendererNativeGeneratedBarcodeSourceSupported(reference.source);
   if (reference.kind === 'GeneratedPuzzlePiece') return isSharedRendererNativeGeneratedPuzzlePieceSourceSupported(reference.source);
@@ -109,6 +110,71 @@ const isSharedRendererNativeGeneratedAudioWaveformSourceSupported = (source: str
       && typeof parsed.amplitude === 'number'
       && Number.isFinite(parsed.amplitude)
       && parsed.amplitude >= 0
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedAudioSphereSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      target_audio_id?: unknown;
+      target_source?: unknown;
+      sample_window_seconds?: unknown;
+      columns?: unknown;
+      rows?: unknown;
+      base_radius?: unknown;
+      audio_influence?: unknown;
+      point_size?: unknown;
+      polygon_size?: unknown;
+      random_amount?: unknown;
+      colour?: unknown;
+      seed?: unknown;
+    };
+    return (
+      parsed.generator === 'audio-sphere-93'
+      && typeof parsed.target_audio_id === 'string'
+      && parsed.target_audio_id.length > 0
+      && typeof parsed.target_source === 'string'
+      && parsed.target_source.length > 0
+      && typeof parsed.sample_window_seconds === 'number'
+      && Number.isFinite(parsed.sample_window_seconds)
+      && parsed.sample_window_seconds > 0
+      && parsed.sample_window_seconds <= 10
+      && typeof parsed.columns === 'number'
+      && Number.isInteger(parsed.columns)
+      && parsed.columns >= 2
+      && parsed.columns <= 64
+      && typeof parsed.rows === 'number'
+      && Number.isInteger(parsed.rows)
+      && parsed.rows >= 2
+      && parsed.rows <= 64
+      && typeof parsed.base_radius === 'number'
+      && Number.isFinite(parsed.base_radius)
+      && parsed.base_radius > 0
+      && parsed.base_radius <= 2000
+      && typeof parsed.audio_influence === 'number'
+      && Number.isFinite(parsed.audio_influence)
+      && parsed.audio_influence >= 0
+      && parsed.audio_influence <= 4
+      && typeof parsed.point_size === 'number'
+      && Number.isFinite(parsed.point_size)
+      && parsed.point_size >= 0
+      && parsed.point_size <= 200
+      && typeof parsed.polygon_size === 'number'
+      && Number.isFinite(parsed.polygon_size)
+      && parsed.polygon_size >= 0
+      && parsed.polygon_size <= 4
+      && typeof parsed.random_amount === 'number'
+      && Number.isFinite(parsed.random_amount)
+      && parsed.random_amount >= 0
+      && parsed.random_amount <= 4
+      && typeof parsed.colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.colour)
+      && typeof parsed.seed === 'number'
+      && Number.isInteger(parsed.seed)
     );
   } catch {
     return false;

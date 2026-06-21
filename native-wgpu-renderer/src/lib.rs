@@ -458,6 +458,9 @@ fn rasterise_audio_waveform_input(
     input: &NativeAudioWaveformInput,
     source_frame: u64,
 ) -> Result<RgbaFrame, NativeWgpuRenderError> {
+    if input.source.generator == "audio-sphere-93" {
+        return rasterise_audio_sphere_input(input, source_frame);
+    }
     let line = build_audio_waveform_line_strip(
         &input.source,
         &input.samples,
@@ -494,6 +497,129 @@ fn rasterise_audio_waveform_input(
 
     RgbaFrame::from_rgba8(input.width, input.height, pixels)
         .map_err(NativeWgpuRenderError::InvalidFrame)
+}
+
+fn rasterise_audio_sphere_input(
+    input: &NativeAudioWaveformInput,
+    source_frame: u64,
+) -> Result<RgbaFrame, NativeWgpuRenderError> {
+    if input.width == 0 || input.height == 0 || input.sample_rate == 0 {
+        return RgbaFrame::from_rgba8(input.width, input.height, Vec::new())
+            .map_err(NativeWgpuRenderError::InvalidFrame);
+    }
+
+    let columns = input.source.columns.unwrap_or(16).clamp(2, 64);
+    let rows = input.source.rows.unwrap_or(12).clamp(2, 64);
+    let base_radius = input.source.base_radius.unwrap_or(170.0).max(1.0);
+    let audio_influence = input.source.audio_influence.unwrap_or(0.6).max(0.0);
+    let point_size = input.source.point_size.unwrap_or(5.0).max(0.0);
+    let random_amount = input.source.random_amount.unwrap_or(0.05).max(0.0);
+    let seed = input.source.seed.unwrap_or(93) as u64;
+    let colour = parse_audio_sphere_colour(&input.source.colour);
+    let mut pixels = vec![0_u8; input.width as usize * input.height as usize * 4];
+    let start_sample = ((source_frame as f32 / 60.0) * input.sample_rate as f32)
+        .floor()
+        .max(0.0) as usize;
+    let window_len = (input.source.sample_window_seconds * input.sample_rate as f32)
+        .floor()
+        .max(1.0) as usize;
+    let centre_x = input.width as f32 * 0.5;
+    let centre_y = input.height as f32 * 0.5;
+    let normalise_radius = base_radius.max(1.0);
+    let projected_base_radius = input.width.min(input.height) as f32 * 0.38;
+
+    for column in 0..columns {
+        let spectrum_index = start_sample.saturating_add(
+            ((column as usize * window_len) / columns as usize).min(window_len.saturating_sub(1)),
+        );
+        let sample = input
+            .samples
+            .get(spectrum_index)
+            .copied()
+            .unwrap_or_else(|| input.samples.get(column as usize).copied().unwrap_or(0.0))
+            .abs()
+            .clamp(0.0, 1.0);
+        for row in 0..rows {
+            let theta = std::f32::consts::PI * (column as f32 + 0.5) / columns as f32;
+            let phi = std::f32::consts::TAU * row as f32 / rows as f32
+                + deterministic_audio_sphere_unit(seed, column, row, 0) * random_amount;
+            let expansion = 1.0 + sample * audio_influence;
+            let sphere_radius = (base_radius / normalise_radius) * projected_base_radius * expansion;
+            let x3 = theta.sin() * phi.cos();
+            let y3 = theta.cos();
+            let z3 = theta.sin() * phi.sin();
+            let perspective = 0.72 + z3 * 0.28;
+            let x = centre_x + x3 * sphere_radius * perspective;
+            let y = centre_y + y3 * sphere_radius * perspective;
+            let radius = (point_size * (0.65 + sample * 1.4) * perspective.max(0.35)).max(0.5);
+            draw_filled_disc(
+                &mut pixels,
+                input.width,
+                input.height,
+                x,
+                y,
+                radius,
+                colour,
+            );
+        }
+    }
+
+    RgbaFrame::from_rgba8(input.width, input.height, pixels)
+        .map_err(NativeWgpuRenderError::InvalidFrame)
+}
+
+fn parse_audio_sphere_colour(raw: &str) -> [u8; 4] {
+    let value = raw.trim().strip_prefix('#').unwrap_or(raw.trim());
+    if value.len() != 6 {
+        return [0x36, 0xc2, 0xff, 255];
+    }
+    let parse = |range: std::ops::Range<usize>| -> u8 {
+        u8::from_str_radix(&value[range], 16).unwrap_or(0)
+    };
+    [parse(0..2), parse(2..4), parse(4..6), 255]
+}
+
+fn draw_filled_disc(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    centre_x: f32,
+    centre_y: f32,
+    radius: f32,
+    colour: [u8; 4],
+) {
+    let min_x = (centre_x - radius).floor().max(0.0) as u32;
+    let max_x = (centre_x + radius)
+        .ceil()
+        .min(width.saturating_sub(1) as f32) as u32;
+    let min_y = (centre_y - radius).floor().max(0.0) as u32;
+    let max_y = (centre_y + radius)
+        .ceil()
+        .min(height.saturating_sub(1) as f32) as u32;
+    let radius_sq = radius * radius;
+    for y in min_y..=max_y {
+        for x in min_x..=max_x {
+            let dx = x as f32 + 0.5 - centre_x;
+            let dy = y as f32 + 0.5 - centre_y;
+            if dx * dx + dy * dy <= radius_sq {
+                let offset = (y as usize * width as usize + x as usize) * 4;
+                pixels[offset..offset + 4].copy_from_slice(&colour);
+            }
+        }
+    }
+}
+
+fn deterministic_audio_sphere_unit(seed: u64, column: u32, row: u32, lane: u64) -> f32 {
+    let mut value = seed
+        ^ ((column as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15))
+        ^ ((row as u64).wrapping_mul(0xbf58_476d_1ce4_e5b9))
+        ^ lane.wrapping_mul(0x94d0_49bb_1331_11eb);
+    value ^= value >> 30;
+    value = value.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    value ^= value >> 27;
+    value = value.wrapping_mul(0x94d0_49bb_1331_11eb);
+    value ^= value >> 31;
+    (value as f64 / u64::MAX as f64) as f32
 }
 
 fn write_waveform_pixel(

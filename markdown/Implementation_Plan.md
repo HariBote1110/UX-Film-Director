@@ -8,10 +8,11 @@
 2. 第三者スクリプト本体の同梱やLua実行を初手にせず、UX FDネイティブの互換再実装として標準搭載する。
 3. UI以外のCanvas/描画に関わる効果はRust/WebGPUへ寄せる。
 4. ボイロ動画で使用頻度が高く、実装効果が大きいものからP0/P1へ置く。
+5. 現在の優先ゴールは `GetColor`、`hksy`、`93` ディレクトリの効果を先に固め、保存/読込・プレビュー・exportまで一気通貫で動く標準搭載機能へすること。
 
 ### 優先順位
 1. `P0`: AviUtl/YMM4系イージング、登場退場、ランダム、反復モーション
-2. `P1`: 輝度ワイプ、縁取り、色収差、扇クリッピング、音声波形
+2. `P1`: GetColor系生成効果、hksyチェッカー/グリッド、93音声玉/Delay個別/SpotLight、輝度ワイプ、縁取り、色収差、扇クリッピング、音声波形
 3. `P2`: パーティクル、モーションパス、より複雑な生成オブジェクト
 4. `P3`: カメラ補助、Luaスクリプト互換ランタイム、Pack由来の高度互換
 
@@ -69,7 +70,7 @@
 51. ✅ `P2` SSD多角形_震えるをRust GeneratedShakingPolygon生成オブジェクトへ追加
 52. ✅ `P2` Tim簡易トーンカーブをRust GeneratedToneCurve生成オブジェクトへ追加
 53. ✅ `P1` GetColor V2RをRust GeneratedGetColorDots生成オブジェクトへ追加
-54. `P1` 93音声玉をRust音声連動生成オブジェクトへ追加
+54. ✅ `P1` 93音声玉をRust GeneratedAudioSphere音声連動生成オブジェクトへ追加
 55. `P1` 93 Delay個別をnative motion presetへ追加
 56. `P1` 93 SpotLightをRust/WebGPU effectへ追加
 57. ✅ `P1` hksyチェッカー/グリッドをRust GeneratedHksyCheckerGrid生成オブジェクトへ追加

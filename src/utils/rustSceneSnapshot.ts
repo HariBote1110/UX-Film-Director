@@ -1,5 +1,6 @@
 import type {
   AudioObject,
+  AudioSphereObject,
   AudioVisualizationObject,
   AsanohaPatternObject,
   BarcodeObject,
@@ -86,7 +87,7 @@ export interface RustSceneSnapshot {
 
 export interface RustSceneMediaReference {
   id: string;
-  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedToneCurve' | 'GeneratedGetColorDots' | 'GeneratedHksyCheckerGrid' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'GeneratedTriangleBracket' | 'GeneratedTartanCheck' | 'GeneratedHoundstooth' | 'GeneratedYagasuri' | 'GeneratedPaperAirplane' | 'GeneratedAsanohaPattern' | 'GeneratedFocusLinesPlus' | 'GeneratedRandomLineEx' | 'GeneratedHologram' | 'GeneratedProtractor' | 'GeneratedShakingPolygon' | 'Psd';
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedAudioSphere' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedToneCurve' | 'GeneratedGetColorDots' | 'GeneratedHksyCheckerGrid' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'GeneratedTriangleBracket' | 'GeneratedTartanCheck' | 'GeneratedHoundstooth' | 'GeneratedYagasuri' | 'GeneratedPaperAirplane' | 'GeneratedAsanohaPattern' | 'GeneratedFocusLinesPlus' | 'GeneratedRandomLineEx' | 'GeneratedHologram' | 'GeneratedProtractor' | 'GeneratedShakingPolygon' | 'Psd';
   source: string;
   width: number;
   height: number;
@@ -159,7 +160,7 @@ export interface RustSceneSnapshotBuildInput {
 export type RustSceneVideoSourceMode = 'previewProxy' | 'exportOriginal';
 
 type SupportedMediaObject = ImageObject | VideoObject | PsdObject;
-type SupportedGeneratedObject = AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | ToneCurveObject | GetColorDotFieldObject | HksyCheckerGridObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject | RandomLineExObject | HologramObject | ProtractorObject | ShakingPolygonObject;
+type SupportedGeneratedObject = AudioVisualizationObject | AudioSphereObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | ToneCurveObject | GetColorDotFieldObject | HksyCheckerGridObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject | RandomLineExObject | HologramObject | ProtractorObject | ShakingPolygonObject;
 type SupportedSceneObject = SupportedMediaObject | ShapeObject | SupportedGeneratedObject;
 
 const rustColourPipeline = (): RustColourPipeline => ({
@@ -397,6 +398,7 @@ const isSupportedSceneObject = (object: TimelineObject): object is SupportedScen
   isSupportedMediaObject(object)
   || object.type === 'shape'
   || object.type === 'audio_visualization'
+  || object.type === 'audio_sphere'
   || object.type === 'particle'
   || object.type === 'barcode'
   || object.type === 'puzzle_piece'
@@ -472,6 +474,16 @@ const mediaReferenceForObject = (
       id: object.id,
       kind: 'GeneratedAudioWaveform',
       source: serialiseGeneratedAudioWaveformSource(object, objects, time),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'audio_sphere') {
+    return {
+      id: object.id,
+      kind: 'GeneratedAudioSphere',
+      source: serialiseGeneratedAudioSphereSource(object, objects, time),
       width: object.width,
       height: object.height,
     };
@@ -763,7 +775,7 @@ const serialiseGeneratedAudioWaveformSource = (
   objects: TimelineObject[],
   time: number
 ): string => {
-  const targetAudio = findTargetAudioForWaveform(object, objects, time);
+  const targetAudio = findTargetAudioForGeneratedAudio(object, objects, time);
   return JSON.stringify({
     generator: 'audio-waveform-r',
     target_audio_id: targetAudio?.id ?? '',
@@ -772,6 +784,29 @@ const serialiseGeneratedAudioWaveformSource = (
     colour: object.color || '#00ff00',
     thickness: Math.max(1, finiteNumberOr(object.thickness, 2)),
     amplitude: Math.max(0, finiteNumberOr(object.amplitude, 1)),
+  });
+};
+
+const serialiseGeneratedAudioSphereSource = (
+  object: AudioSphereObject,
+  objects: TimelineObject[],
+  time: number
+): string => {
+  const targetAudio = findTargetAudioForGeneratedAudio(object, objects, time);
+  return JSON.stringify({
+    generator: 'audio-sphere-93',
+    target_audio_id: targetAudio?.id ?? '',
+    target_source: targetAudio ? mediaSourceForObject(targetAudio) : '',
+    sample_window_seconds: Math.min(10, Math.max(0.001, finiteNumberOr(object.sampleWindowSeconds, 0.1))),
+    columns: Math.min(64, Math.max(2, Math.trunc(finiteNumberOr(object.columns, 16)))),
+    rows: Math.min(64, Math.max(2, Math.trunc(finiteNumberOr(object.rows, 12)))),
+    base_radius: Math.min(2000, Math.max(1, finiteNumberOr(object.baseRadius, 170))),
+    audio_influence: Math.min(4, Math.max(0, finiteNumberOr(object.audioInfluence, 0.6))),
+    point_size: Math.min(200, Math.max(0, finiteNumberOr(object.pointSize, 5))),
+    polygon_size: Math.min(4, Math.max(0, finiteNumberOr(object.polygonSize, 0.35))),
+    random_amount: Math.min(4, Math.max(0, finiteNumberOr(object.randomAmount, 0.05))),
+    colour: /^#[0-9a-f]{6}$/i.test(object.colour) ? object.colour : '#36c2ff',
+    seed: Math.trunc(finiteNumberOr(object.seed, 93)),
   });
 };
 
@@ -1125,8 +1160,8 @@ const normaliseHistogramColours = (colours: readonly string[]): string[] =>
   });
 
 
-const findTargetAudioForWaveform = (
-  object: AudioVisualizationObject,
+const findTargetAudioForGeneratedAudio = (
+  object: Pick<AudioVisualizationObject | AudioSphereObject, 'targetAudioId' | 'targetLayer'>,
   objects: TimelineObject[],
   time: number
 ): AudioObject | null => {
@@ -1216,6 +1251,7 @@ const sourceFrameForObject = (
   if (object.type === 'image') return 0;
   if (object.type === 'psd') return 0;
   if (object.type === 'audio_visualization') return secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
+  if (object.type === 'audio_sphere') return secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
   if (object.type === 'particle') return secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
   if (object.type === 'barcode') return 0;
   if (object.type === 'puzzle_piece') return 0;
@@ -1452,7 +1488,7 @@ const validateMediaReferences = (
     }
     validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height', 'source_rate', 'active_layer_ids'], issues);
     validateString(reference.id, `${path}.id`, issues);
-    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'GeneratedPieChart', 'GeneratedHistogram', 'GeneratedToneCurve', 'GeneratedGetColorDots', 'GeneratedHksyCheckerGrid', 'GeneratedSunburst', 'GeneratedCircularArrow', 'GeneratedTriangleBracket', 'GeneratedTartanCheck', 'GeneratedHoundstooth', 'GeneratedYagasuri', 'GeneratedPaperAirplane', 'GeneratedAsanohaPattern', 'GeneratedFocusLinesPlus', 'GeneratedRandomLineEx', 'GeneratedHologram', 'GeneratedProtractor', 'GeneratedShakingPolygon', 'Psd'], issues);
+    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedAudioSphere', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'GeneratedPieChart', 'GeneratedHistogram', 'GeneratedToneCurve', 'GeneratedGetColorDots', 'GeneratedHksyCheckerGrid', 'GeneratedSunburst', 'GeneratedCircularArrow', 'GeneratedTriangleBracket', 'GeneratedTartanCheck', 'GeneratedHoundstooth', 'GeneratedYagasuri', 'GeneratedPaperAirplane', 'GeneratedAsanohaPattern', 'GeneratedFocusLinesPlus', 'GeneratedRandomLineEx', 'GeneratedHologram', 'GeneratedProtractor', 'GeneratedShakingPolygon', 'Psd'], issues);
     validateString(reference.source, `${path}.source`, issues);
     validatePositiveInteger(reference.width, `${path}.width`, issues);
     validatePositiveInteger(reference.height, `${path}.height`, issues);

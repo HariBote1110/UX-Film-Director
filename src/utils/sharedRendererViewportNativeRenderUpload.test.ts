@@ -621,7 +621,7 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
           return {
             success: true,
             result: {
-              sequence: 31,
+              sequence: 30,
               slotIndex: descriptor.slotIndex,
               generation: descriptor.generation,
               byteLen: descriptor.byteLen,

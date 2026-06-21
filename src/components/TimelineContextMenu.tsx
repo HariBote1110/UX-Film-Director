@@ -3,6 +3,7 @@ import { useStore } from '../store/useStore';
 import { shallow } from 'zustand/shallow';
 import { useTranslation } from '../i18n';
 import { buildAviUtlAsanohaPatternObject } from '../utils/asanohaPatternObjectFactory';
+import { buildAviUtlAudioSphereObject } from '../utils/audioSphereObjectFactory';
 import { buildAviUtlBarcodeObject } from '../utils/barcodeObjectFactory';
 import { buildAviUtlCircularArrowObject } from '../utils/circularArrowObjectFactory';
 import { buildAviUtlColourWheelObject } from '../utils/colourWheelObjectFactory';
@@ -443,6 +444,17 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
     onClose();
   };
 
+  const handleAddAudioSphere = () => {
+    addObject(buildAviUtlAudioSphereObject({
+      id: crypto.randomUUID(),
+      projectWidth: projectSettings.width,
+      projectHeight: projectSettings.height,
+      startTime: state.time,
+      layer: state.layer,
+    }));
+    onClose();
+  };
+
   const handleAddToneCurve = () => {
     addObject(buildAviUtlToneCurveObject({
       id: crypto.randomUUID(),
@@ -535,9 +547,10 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddTartanCheck}>{language === 'en' ? 'Add Tartan Check' : 'タータンチェックを追加'}</div>
                <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHoundstooth}>{language === 'en' ? 'Add Houndstooth' : '千鳥格子を追加'}</div>
                <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddYagasuri}>{language === 'en' ? 'Add Yagasuri' : '矢がすりを追加'}</div>
-                 <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddPaperAirplane}>{language === 'en' ? 'Add Paper Airplane' : '紙飛行機を追加'}</div>
-                 <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddAsanohaPattern}>{language === 'en' ? 'Add Asanoha Pattern' : '麻の葉模様を追加'}</div>
-                  <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddFocusLinesPlus}>{language === 'en' ? 'Add Focus Lines Plus' : '集中線plusを追加'}</div>
+                  <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddPaperAirplane}>{language === 'en' ? 'Add Paper Airplane' : '紙飛行機を追加'}</div>
+                  <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddAsanohaPattern}>{language === 'en' ? 'Add Asanoha Pattern' : '麻の葉模様を追加'}</div>
+                   <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddAudioSphere}>{language === 'en' ? 'Add 93 Audio Sphere' : '93音声玉を追加'}</div>
+                   <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddFocusLinesPlus}>{language === 'en' ? 'Add Focus Lines Plus' : '集中線plusを追加'}</div>
                    <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddRandomLineEx}>{language === 'en' ? 'Add Random Line EX' : 'ランダムラインEXを追加'}</div>
                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHologram}>{language === 'en' ? 'Add Hologram' : 'ホログラムを追加'}</div>
                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddProtractor}>{language === 'en' ? 'Add Protractor' : '分度器を追加'}</div>

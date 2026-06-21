@@ -89,6 +89,7 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'psd',
   'group_control',
   'audio_visualization',
+  'audio_sphere',
   'particle',
   'barcode',
   'puzzle_piece',
@@ -194,6 +195,22 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!isFiniteNumber(candidate.size) || candidate.size <= 0) return false;
     if (typeof candidate.colour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.colour)) return false;
     if (!isFiniteNumber(candidate.lifetimeSeconds) || candidate.lifetimeSeconds <= 0) return false;
+  }
+  if (candidate.type === 'audio_sphere') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.columns) || candidate.columns < 2 || candidate.columns > 64) return false;
+    if (!isFiniteNumber(candidate.rows) || candidate.rows < 2 || candidate.rows > 64) return false;
+    if (!isFiniteNumber(candidate.baseRadius) || candidate.baseRadius <= 0 || candidate.baseRadius > 2000) return false;
+    if (!isFiniteNumber(candidate.audioInfluence) || candidate.audioInfluence < 0 || candidate.audioInfluence > 4) return false;
+    if (!isFiniteNumber(candidate.pointSize) || candidate.pointSize < 0 || candidate.pointSize > 200) return false;
+    if (!isFiniteNumber(candidate.polygonSize) || candidate.polygonSize < 0 || candidate.polygonSize > 4) return false;
+    if (!isFiniteNumber(candidate.randomAmount) || candidate.randomAmount < 0 || candidate.randomAmount > 4) return false;
+    if (typeof candidate.colour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.colour)) return false;
+    if (candidate.targetAudioId !== null && typeof candidate.targetAudioId !== 'string') return false;
+    if (candidate.targetLayer !== undefined && !isFiniteNumber(candidate.targetLayer)) return false;
+    if (!isFiniteNumber(candidate.sampleWindowSeconds) || candidate.sampleWindowSeconds <= 0 || candidate.sampleWindowSeconds > 10) return false;
+    if (!isFiniteNumber(candidate.seed)) return false;
   }
   if (candidate.type === 'barcode') {
     if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;

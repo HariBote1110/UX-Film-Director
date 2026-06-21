@@ -2467,7 +2467,7 @@ fn collect_native_render_sources(
             )?,
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
-            MediaKind::GeneratedAudioWaveform => continue,
+            MediaKind::GeneratedAudioWaveform | MediaKind::GeneratedAudioSphere => continue,
             MediaKind::Video => continue,
         };
         if sources.insert(media.id.clone(), frame).is_some() {

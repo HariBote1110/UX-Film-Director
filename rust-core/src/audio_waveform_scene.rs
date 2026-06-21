@@ -9,23 +9,64 @@ pub struct AudioWaveformSource {
     pub colour: String,
     pub thickness: f32,
     pub amplitude: f32,
+    pub columns: Option<u32>,
+    pub rows: Option<u32>,
+    pub base_radius: Option<f32>,
+    pub audio_influence: Option<f32>,
+    pub point_size: Option<f32>,
+    pub polygon_size: Option<f32>,
+    pub random_amount: Option<f32>,
+    pub seed: Option<i64>,
 }
 
 impl AudioWaveformSource {
     pub fn from_json(raw: &str) -> Result<Self, AudioWaveformSceneError> {
         let source: Self =
             serde_json::from_str(raw).map_err(|_| AudioWaveformSceneError::InvalidSourceJson)?;
-        if source.generator != "audio-waveform-r"
-            || source.target_audio_id.is_empty()
+        if source.target_audio_id.is_empty()
             || source.target_source.is_empty()
             || !source.sample_window_seconds.is_finite()
             || source.sample_window_seconds <= 0.0
-            || !source.thickness.is_finite()
-            || source.thickness <= 0.0
-            || !source.amplitude.is_finite()
-            || source.amplitude < 0.0
         {
             return Err(AudioWaveformSceneError::InvalidSourceMetadata);
+        }
+        match source.generator.as_str() {
+            "audio-waveform-r" => {
+                if !source.thickness.is_finite()
+                    || source.thickness <= 0.0
+                    || !source.amplitude.is_finite()
+                    || source.amplitude < 0.0
+                {
+                    return Err(AudioWaveformSceneError::InvalidSourceMetadata);
+                }
+            }
+            "audio-sphere-93" => {
+                let columns = source.columns.unwrap_or(0);
+                let rows = source.rows.unwrap_or(0);
+                let base_radius = source.base_radius.unwrap_or(0.0);
+                let audio_influence = source.audio_influence.unwrap_or(-1.0);
+                let point_size = source.point_size.unwrap_or(-1.0);
+                let polygon_size = source.polygon_size.unwrap_or(-1.0);
+                let random_amount = source.random_amount.unwrap_or(-1.0);
+                if columns < 2
+                    || columns > 64
+                    || rows < 2
+                    || rows > 64
+                    || !base_radius.is_finite()
+                    || base_radius <= 0.0
+                    || !audio_influence.is_finite()
+                    || audio_influence < 0.0
+                    || !point_size.is_finite()
+                    || point_size < 0.0
+                    || !polygon_size.is_finite()
+                    || polygon_size < 0.0
+                    || !random_amount.is_finite()
+                    || random_amount < 0.0
+                {
+                    return Err(AudioWaveformSceneError::InvalidSourceMetadata);
+                }
+            }
+            _ => return Err(AudioWaveformSceneError::InvalidSourceMetadata),
         }
         Ok(source)
     }

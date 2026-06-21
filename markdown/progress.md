@@ -2031,3 +2031,34 @@
 - 検証: `npm test -- --run src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererExportSession.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/sharedRendererExportFrameSource.test.ts` は76件成功。実Electron E2Eは `/Volumes/ExtendSSD-W/GX020052.MP4` 1秒尺で60 frames / 7758ms / 約7.73fps、出力MP4は1920x1080 / 60fps。
 - 残課題: 品質優先で原本2048px decodeへ戻したため、直前のプロキシ高速経路より速度は落ちる。次は「原本高品質decode + 単純scale合成fast path」を追加して、画質と速度を両立する。
 - 版: `0.1.1-Beta-228a`。
+## 2026-06-22 — 93音声玉をRust音声反応生成オブジェクトへ追加
+
+### 実施内容
+- Red済みの93音声玉契約に対して、`AudioSphereObject` と `buildAviUtlAudioSphereObject` を追加し、Timeline右クリックメニューから `93音声玉` を配置できるようにした。
+- `audio_sphere` をプロジェクト保存/読込、Rust scene snapshot、shared renderer native media support、Pixi cutover、export native render gateへ接続した。
+- Rust境界へ `GeneratedAudioSphere` / `audio-sphere-93` を追加し、音声サンプルpayloadを使ってnative-wgpu-renderer側で音声反応する球状点群を生成するようにした。
+- Rust backendのnative render source収集では `GeneratedAudioSphere` を `GeneratedAudioWaveform` と同じくsource upload不要の音声反応生成メディアとして扱うようにした。
+- 版を `0.1.1-Beta-290a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/audioSphereObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererViewportNativeRenderUpload.test.ts --reporter=dot` は113件成功。
+- `cargo test --manifest-path rust-core/Cargo.toml --test media_schema rust_core_accepts_generated_audio_sphere_media_kind_at_the_json_boundary -- --nocapture` は1件成功。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml native_wgpu_renders_generated_audio_sphere_frame_from_audio_samples -- --nocapture` は1件成功。
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane native_render -- --nocapture` は22件成功。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の `AudioSphere` / `GeneratedAudioSphere` 由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- 93系の次候補として、`Delay個別` をnative motion presetへ追加し、その後 `SpotLight` をRust/WebGPU effectへ追加する。
+
+## 2026-06-22 — AviUtlPackV4移植ゴールの優先対象を更新
+
+### 実施内容
+- アクティブな開発ゴールの運用上の優先対象を、`AviUtlPackV4` 全体の広範な標準搭載から、まず `GetColor`、`hksy`、`93` ディレクトリの高優先効果をRust/WebGPUネイティブ実装へ載せる方針へ更新した。
+- `markdown/Task.md` に現在の完了条件を追記し、GetColor系生成効果、hksyチェッカー/グリッド、93音声玉/Delay個別/SpotLightを保存/読込・プレビュー・export・境界テスト付きで利用できる状態にすることを明文化した。
+- `markdown/Implementation_Plan.md` のAviUtlPackV4標準搭載ロードマップへ、`GetColor`、`hksy`、`93` を当面のP1優先レーンとして追記した。
+
+### 検証
+- 文書更新のみ。実装テストは次の93音声玉Green検証で実施する。
+
+### 残課題・次のステップ
+- 進行中の93音声玉Green実装を完了し、続けて93 Delay個別と93 SpotLightへ進む。

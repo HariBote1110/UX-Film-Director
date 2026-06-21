@@ -349,6 +349,24 @@ type AudioWaveformSourceMetadata = {
   amplitude: number;
 };
 
+type AudioSphereSourceMetadata = {
+  generator: string;
+  target_audio_id: string;
+  target_source: string;
+  sample_window_seconds: number;
+  columns: number;
+  rows: number;
+  base_radius: number;
+  audio_influence: number;
+  point_size: number;
+  polygon_size: number;
+  random_amount: number;
+  colour: string;
+  seed: number;
+};
+
+type AudioReactiveSourceMetadata = AudioWaveformSourceMetadata | AudioSphereSourceMetadata;
+
 export const prepareNativeRenderAudioWaveforms = async ({
   snapshot,
   media,
@@ -359,12 +377,12 @@ export const prepareNativeRenderAudioWaveforms = async ({
   requestAudioWaveformSamples: RustBackendAudioWaveformBridge['requestAudioWaveformSamples'];
 }): Promise<RustBackendNativeRenderAudioWaveform[]> => {
   const waveforms = media
-    .filter((reference) => reference.kind === 'GeneratedAudioWaveform')
+    .filter((reference) => reference.kind === 'GeneratedAudioWaveform' || reference.kind === 'GeneratedAudioSphere')
     .map((reference) => ({
       reference,
-      metadata: parseAudioWaveformSourceMetadata(reference.source),
+      metadata: parseAudioReactiveSourceMetadata(reference.source),
     }))
-    .filter((entry): entry is { reference: RustSceneMediaReference; metadata: AudioWaveformSourceMetadata } =>
+    .filter((entry): entry is { reference: RustSceneMediaReference; metadata: AudioReactiveSourceMetadata } =>
       entry.metadata !== null
     );
 
@@ -429,6 +447,57 @@ const parseAudioWaveformSourceMetadata = (source: string): AudioWaveformSourceMe
     return null;
   }
 };
+
+const parseAudioSphereSourceMetadata = (source: string): AudioSphereSourceMetadata | null => {
+  try {
+    const parsed = JSON.parse(source) as Partial<AudioSphereSourceMetadata>;
+    if (
+      parsed.generator !== 'audio-sphere-93'
+      || typeof parsed.target_audio_id !== 'string'
+      || parsed.target_audio_id.length === 0
+      || typeof parsed.target_source !== 'string'
+      || parsed.target_source.length === 0
+      || typeof parsed.sample_window_seconds !== 'number'
+      || !Number.isFinite(parsed.sample_window_seconds)
+      || parsed.sample_window_seconds <= 0
+      || parsed.sample_window_seconds > 10
+      || typeof parsed.columns !== 'number'
+      || !Number.isInteger(parsed.columns)
+      || parsed.columns < 2
+      || parsed.columns > 64
+      || typeof parsed.rows !== 'number'
+      || !Number.isInteger(parsed.rows)
+      || parsed.rows < 2
+      || parsed.rows > 64
+      || typeof parsed.base_radius !== 'number'
+      || !Number.isFinite(parsed.base_radius)
+      || parsed.base_radius <= 0
+      || typeof parsed.audio_influence !== 'number'
+      || !Number.isFinite(parsed.audio_influence)
+      || parsed.audio_influence < 0
+      || typeof parsed.point_size !== 'number'
+      || !Number.isFinite(parsed.point_size)
+      || parsed.point_size < 0
+      || typeof parsed.polygon_size !== 'number'
+      || !Number.isFinite(parsed.polygon_size)
+      || parsed.polygon_size < 0
+      || typeof parsed.random_amount !== 'number'
+      || !Number.isFinite(parsed.random_amount)
+      || parsed.random_amount < 0
+      || typeof parsed.colour !== 'string'
+      || typeof parsed.seed !== 'number'
+      || !Number.isInteger(parsed.seed)
+    ) {
+      return null;
+    }
+    return parsed as AudioSphereSourceMetadata;
+  } catch {
+    return null;
+  }
+};
+
+const parseAudioReactiveSourceMetadata = (source: string): AudioReactiveSourceMetadata | null =>
+  parseAudioWaveformSourceMetadata(source) ?? parseAudioSphereSourceMetadata(source);
 
 const buildPreviewNativeRenderId = (requestId: number): string =>
   `preview-native-render-${sanitiseNativeRenderPart(String(requestId))}`;
