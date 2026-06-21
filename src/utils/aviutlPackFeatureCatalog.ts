@@ -357,6 +357,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '和柄背景や装飾枠に使いやすく、Rust側で不透明な幾何学模様を決定的に生成できる。'
   },
   {
+    id: 'ssd-focus-lines-plus',
+    labelJa: '集中線plus',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/ANM/ANM_ssd/集中線plus.obj'],
+    rationaleJa: 'ツッコミや注目演出に使いやすく、Rust側で透明背景付きの放射状ラインを決定的に生成できる。'
+  },
+  {
     id: 'tim-motion-path',
     labelJa: 'モーションパス',
     category: 'motion',

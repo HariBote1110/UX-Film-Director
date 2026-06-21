@@ -1,6 +1,20 @@
 # 進捗ログ
 
 ## 2026-06-22
+- SSD集中線plusをRust生成オブジェクトへ追加した。
+- Red: `script/ANM/ANM_ssd/集中線plus.obj` を、Rust `GeneratedFocusLinesPlus` mediaとして扱う境界契約を作った。
+- Green: `FocusLinesPlusObject` と `buildAviUtlFocusLinesPlusObject` を追加し、Timeline右クリックから `集中線plusを追加` / `Add Focus Lines Plus` で置けるようにした。
+- Green: `rustSceneSnapshot` / shared renderer native support / Rust core schema / Rust backendに `GeneratedFocusLinesPlus` を追加した。
+- Green: Rust backendで透明背景、白い放射状ポリゴン、中心抜けを持つ決定的な集中線plusフレームを生成できるようにした。
+- Green: `ssd-focus-lines-plus` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-282a` に更新した。
+- 検証: `npm test -- --run src/utils/focusLinesPlusObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/e2e/allReadableMedia.e2e.test.ts --reporter=dot` は94件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は20件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_focus_lines_plus_source_frame_contains_rays_and_centre_hole -- --nocapture` は1件成功した。
+- 検証: 対象名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足、`mp4box` 型定義不足、`heavyEffectsStress.test.ts` の `PositionKeyframe` 未定義のみ検出した。
+- 残課題: 現時点の `GeneratedFocusLinesPlus` は元スクリプトの乱数ポリゴン生成を、Rust側の透明背景・白い放射状ライン生成へ置き換えた互換再実装。`keyframe_interval` による乱数更新の入口は保持したが、UI編集や元Lua完全一致の乱数系列までは未接続。
+
+## 2026-06-22
 - SSD麻の葉模様をRust生成オブジェクトへ追加した。
 - Red: `script/ANM/ANM_ssd/麻の葉模様.obj` を、Rust `GeneratedAsanohaPattern` mediaとして扱う境界契約を作った。
 - Green: `AsanohaPatternObject` と `buildAviUtlAsanohaPatternObject` を追加し、Timeline右クリックから `麻の葉模様を追加` / `Add Asanoha Pattern` で置けるようにした。

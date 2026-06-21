@@ -342,6 +342,21 @@ struct GeneratedAsanohaPatternSource {
     background_colour: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedFocusLinesPlusSource {
+    generator: String,
+    ray_width: f32,
+    gap: f32,
+    centre_radius: f32,
+    rotation_degrees: f32,
+    centre_x: f32,
+    centre_y: f32,
+    centre_jitter_percent: f32,
+    seed: i64,
+    keyframe_interval: u64,
+    line_colour: String,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2343,6 +2358,10 @@ fn collect_native_render_sources(
             MediaKind::GeneratedAsanohaPattern => {
                 build_generated_asanoha_pattern_source_frame(media)?
             }
+            MediaKind::GeneratedFocusLinesPlus => build_generated_focus_lines_plus_source_frame(
+                media,
+                source_frame_for_media(snapshot, &media.id),
+            )?,
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform => continue,
@@ -3950,6 +3969,158 @@ fn build_generated_asanoha_pattern_source_frame(
         .map_err(|error| format!("GeneratedAsanohaPattern media frame is invalid: {error:?}"))
 }
 
+fn build_generated_focus_lines_plus_source_frame(
+    media: &SceneMediaReference,
+    source_frame: u64,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedFocusLinesPlus media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let focus_lines: GeneratedFocusLinesPlusSource =
+        serde_json::from_str(&media.source).map_err(|error| {
+            format!(
+                "Invalid GeneratedFocusLinesPlus media '{}': {error}",
+                media.id
+            )
+        })?;
+    validate_generated_focus_lines_plus_source(&focus_lines).map_err(|message| {
+        format!(
+            "Invalid GeneratedFocusLinesPlus media '{}': {message}",
+            media.id
+        )
+    })?;
+    let line_colour = parse_hex_colour_source(&focus_lines.line_colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedFocusLinesPlus media '{}': {message}",
+            media.id
+        )
+    })?;
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedFocusLinesPlus media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedFocusLinesPlus media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+    let max_x = focus_lines
+        .centre_x
+        .max(media.width as f32 - focus_lines.centre_x);
+    let max_y = focus_lines
+        .centre_y
+        .max(media.height as f32 - focus_lines.centre_y);
+    let outer_radius = (max_x * max_x + max_y * max_y).sqrt() * 1.25;
+    let rotation = focus_lines.rotation_degrees.to_radians();
+    let frame_bucket = if focus_lines.keyframe_interval == 0 {
+        0
+    } else {
+        source_frame / focus_lines.keyframe_interval
+    };
+    let seed =
+        (focus_lines.seed as u64).wrapping_add(frame_bucket.wrapping_mul(0x517c_c1b7_2722_0a95));
+    let centre_jitter_radius =
+        focus_lines.centre_radius * focus_lines.centre_jitter_percent / 100.0;
+    let jitter_angle = deterministic_unit(seed, 0, 21) * std::f32::consts::TAU;
+    let jitter_distance = deterministic_unit(seed, 0, 22) * centre_jitter_radius;
+    let centre_x = focus_lines.centre_x + jitter_angle.cos() * jitter_distance;
+    let centre_y = focus_lines.centre_y + jitter_angle.sin() * jitter_distance;
+
+    let mut cursor = 0.0_f32;
+    let mut index = 1_u32;
+    while cursor <= 100.0 && index < 512 {
+        let gap = deterministic_unit(seed, index, 0) * focus_lines.gap;
+        let ray_width = deterministic_unit(seed, index, 1) * focus_lines.ray_width;
+        let start = cursor + gap;
+        let end = (start + ray_width).min(100.0);
+        if end > start {
+            let start_angle = rotation + std::f32::consts::TAU * start / 100.0;
+            let end_angle = rotation + std::f32::consts::TAU * end / 100.0;
+            let mid_angle = (start_angle + end_angle) * 0.5;
+            let inner = (
+                centre_x + focus_lines.centre_radius * mid_angle.cos(),
+                centre_y + focus_lines.centre_radius * mid_angle.sin(),
+            );
+            let outer_start = (
+                centre_x + outer_radius * start_angle.cos(),
+                centre_y + outer_radius * start_angle.sin(),
+            );
+            let outer_mid = (
+                centre_x + outer_radius * mid_angle.cos(),
+                centre_y + outer_radius * mid_angle.sin(),
+            );
+            let outer_end = (
+                centre_x + outer_radius * end_angle.cos(),
+                centre_y + outer_radius * end_angle.sin(),
+            );
+            fill_focus_lines_plus_ray(
+                &mut pixels,
+                media.width,
+                media.height,
+                [inner, outer_start, outer_mid, outer_end],
+                line_colour,
+            );
+        }
+        cursor = end;
+        index += 1;
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedFocusLinesPlus media frame is invalid: {error:?}"))
+}
+
+fn fill_focus_lines_plus_ray(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    quad: [(f32, f32); 4],
+    colour: [u8; 3],
+) {
+    let min_x = quad
+        .iter()
+        .map(|point| point.0)
+        .fold(f32::INFINITY, f32::min)
+        .floor()
+        .max(0.0) as u32;
+    let max_x = quad
+        .iter()
+        .map(|point| point.0)
+        .fold(f32::NEG_INFINITY, f32::max)
+        .ceil()
+        .min(width.saturating_sub(1) as f32) as u32;
+    let min_y = quad
+        .iter()
+        .map(|point| point.1)
+        .fold(f32::INFINITY, f32::min)
+        .floor()
+        .max(0.0) as u32;
+    let max_y = quad
+        .iter()
+        .map(|point| point.1)
+        .fold(f32::NEG_INFINITY, f32::max)
+        .ceil()
+        .min(height.saturating_sub(1) as f32) as u32;
+
+    for y in min_y..=max_y {
+        for x in min_x..=max_x {
+            let sample_x = x as f32 + 0.5;
+            let sample_y = y as f32 + 0.5;
+            let inside = point_in_triangle(sample_x, sample_y, [quad[0], quad[1], quad[2]])
+                || point_in_triangle(sample_x, sample_y, [quad[0], quad[2], quad[3]]);
+            if inside {
+                let offset = (y as usize * width as usize + x as usize) * 4;
+                pixels[offset..offset + 4].copy_from_slice(&[colour[0], colour[1], colour[2], 255]);
+            }
+        }
+    }
+}
+
 fn draw_line_segment_rgba(
     pixels: &mut [u8],
     width: u32,
@@ -4514,6 +4685,43 @@ fn validate_generated_asanoha_pattern_source(
     }
     parse_hex_colour_source(&source.foreground_colour)?;
     parse_hex_colour_source(&source.background_colour)?;
+    Ok(())
+}
+
+fn validate_generated_focus_lines_plus_source(
+    source: &GeneratedFocusLinesPlusSource,
+) -> Result<(), String> {
+    if source.generator != "focus-lines-plus" {
+        return Err("generator must be focus-lines-plus".to_string());
+    }
+    if !source.ray_width.is_finite() || source.ray_width < 0.1 || source.ray_width > 10.0 {
+        return Err("ray_width must be 0.1..10".to_string());
+    }
+    if !source.gap.is_finite() || source.gap < 1.0 || source.gap > 20.0 {
+        return Err("gap must be 1..20".to_string());
+    }
+    if !source.centre_radius.is_finite()
+        || source.centre_radius < 0.0
+        || source.centre_radius > 800.0
+    {
+        return Err("centre_radius must be 0..800".to_string());
+    }
+    if !source.rotation_degrees.is_finite()
+        || source.rotation_degrees < -720.0
+        || source.rotation_degrees > 720.0
+    {
+        return Err("rotation_degrees must be -720..720".to_string());
+    }
+    if !source.centre_x.is_finite() || !source.centre_y.is_finite() {
+        return Err("centre coordinates must be finite".to_string());
+    }
+    if !source.centre_jitter_percent.is_finite()
+        || source.centre_jitter_percent < 0.0
+        || source.centre_jitter_percent > 100.0
+    {
+        return Err("centre_jitter_percent must be 0..100".to_string());
+    }
+    parse_hex_colour_source(&source.line_colour)?;
     Ok(())
 }
 
@@ -6955,5 +7163,37 @@ mod tests {
         assert!(foreground_count > 5_000);
         assert!(background_count > 100_000);
         assert!(fully_opaque);
+    }
+
+    #[test]
+    fn generated_focus_lines_plus_source_frame_contains_rays_and_centre_hole() {
+        let media = SceneMediaReference {
+            id: "focus-lines-plus-1".to_string(),
+            kind: MediaKind::GeneratedFocusLinesPlus,
+            source: r##"{"generator":"focus-lines-plus","ray_width":1,"gap":5,"centre_radius":100,"rotation_degrees":0,"centre_x":400,"centre_y":225,"centre_jitter_percent":20,"seed":0,"keyframe_interval":0,"line_colour":"#ffffff"}"##.to_string(),
+            width: 800,
+            height: 450,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_focus_lines_plus_source_frame(&media, 0)
+            .expect("generated focus lines plus frame should render");
+        let white_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [255, 255, 255, 255])
+            .count();
+        let transparent_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| rgba[3] == 0)
+            .count();
+        let centre_offset = (225_usize * 800 + 400) * 4;
+        let centre_is_transparent = frame.pixels[centre_offset + 3] == 0;
+
+        assert!(white_count > 5_000);
+        assert!(transparent_count > 150_000);
+        assert!(centre_is_transparent);
     }
 }

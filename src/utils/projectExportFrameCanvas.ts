@@ -338,6 +338,7 @@ export const hasProjectExportNativeRenderMediaObjects = (
     || object.type === 'yagasuri'
     || object.type === 'paper_airplane'
     || object.type === 'asanoha_pattern'
+    || object.type === 'focus_lines_plus'
     || object.type === 'audio_visualization'
   );
 

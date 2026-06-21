@@ -23,6 +23,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedYagasuri') return isSharedRendererNativeGeneratedYagasuriSourceSupported(reference.source);
   if (reference.kind === 'GeneratedPaperAirplane') return isSharedRendererNativeGeneratedPaperAirplaneSourceSupported(reference.source);
   if (reference.kind === 'GeneratedAsanohaPattern') return isSharedRendererNativeGeneratedAsanohaPatternSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedFocusLinesPlus') return isSharedRendererNativeGeneratedFocusLinesPlusSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -730,6 +731,60 @@ const isSharedRendererNativeGeneratedAsanohaPatternSourceSupported = (source: st
       && /^#[0-9a-f]{6}$/i.test(parsed.foreground_colour)
       && typeof parsed.background_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedFocusLinesPlusSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      ray_width?: unknown;
+      gap?: unknown;
+      centre_radius?: unknown;
+      rotation_degrees?: unknown;
+      centre_x?: unknown;
+      centre_y?: unknown;
+      centre_jitter_percent?: unknown;
+      seed?: unknown;
+      keyframe_interval?: unknown;
+      line_colour?: unknown;
+    };
+    return (
+      parsed.generator === 'focus-lines-plus'
+      && typeof parsed.ray_width === 'number'
+      && Number.isFinite(parsed.ray_width)
+      && parsed.ray_width >= 0.1
+      && parsed.ray_width <= 10
+      && typeof parsed.gap === 'number'
+      && Number.isFinite(parsed.gap)
+      && parsed.gap >= 1
+      && parsed.gap <= 20
+      && typeof parsed.centre_radius === 'number'
+      && Number.isFinite(parsed.centre_radius)
+      && parsed.centre_radius >= 0
+      && parsed.centre_radius <= 800
+      && typeof parsed.rotation_degrees === 'number'
+      && Number.isFinite(parsed.rotation_degrees)
+      && parsed.rotation_degrees >= -720
+      && parsed.rotation_degrees <= 720
+      && typeof parsed.centre_x === 'number'
+      && Number.isFinite(parsed.centre_x)
+      && typeof parsed.centre_y === 'number'
+      && Number.isFinite(parsed.centre_y)
+      && typeof parsed.centre_jitter_percent === 'number'
+      && Number.isFinite(parsed.centre_jitter_percent)
+      && parsed.centre_jitter_percent >= 0
+      && parsed.centre_jitter_percent <= 100
+      && typeof parsed.seed === 'number'
+      && Number.isInteger(parsed.seed)
+      && typeof parsed.keyframe_interval === 'number'
+      && Number.isInteger(parsed.keyframe_interval)
+      && parsed.keyframe_interval >= 0
+      && typeof parsed.line_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.line_colour)
     );
   } catch {
     return false;

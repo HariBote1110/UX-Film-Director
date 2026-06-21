@@ -105,7 +105,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'houndstooth',
   'yagasuri',
   'paper_airplane',
-  'asanoha_pattern'
+  'asanoha_pattern',
+  'focus_lines_plus'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -349,6 +350,20 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!isFiniteNumber(candidate.lineWidth) || candidate.lineWidth < 0 || candidate.lineWidth > 50) return false;
     if (typeof candidate.foregroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.foregroundColour)) return false;
     if (typeof candidate.backgroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.backgroundColour)) return false;
+  }
+  if (candidate.type === 'focus_lines_plus') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.rayWidth) || candidate.rayWidth < 0.1 || candidate.rayWidth > 10) return false;
+    if (!isFiniteNumber(candidate.gap) || candidate.gap < 1 || candidate.gap > 20) return false;
+    if (!isFiniteNumber(candidate.centreRadius) || candidate.centreRadius < 0 || candidate.centreRadius > 800) return false;
+    if (!isFiniteNumber(candidate.rotationDegrees) || candidate.rotationDegrees < -720 || candidate.rotationDegrees > 720) return false;
+    if (!isFiniteNumber(candidate.centreX)) return false;
+    if (!isFiniteNumber(candidate.centreY)) return false;
+    if (!isFiniteNumber(candidate.centreJitterPercent) || candidate.centreJitterPercent < 0 || candidate.centreJitterPercent > 100) return false;
+    if (!isFiniteNumber(candidate.seed)) return false;
+    if (!isFiniteNumber(candidate.keyframeInterval) || candidate.keyframeInterval < 0) return false;
+    if (typeof candidate.lineColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.lineColour)) return false;
   }
   return true;
 };

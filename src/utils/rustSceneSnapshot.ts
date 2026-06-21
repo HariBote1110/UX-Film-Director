@@ -5,6 +5,7 @@ import type {
   BarcodeObject,
   CircularArrowObject,
   ColourWheelObject,
+  FocusLinesPlusObject,
   GearObject,
   GourdObject,
   HistogramObject,
@@ -78,7 +79,7 @@ export interface RustSceneSnapshot {
 
 export interface RustSceneMediaReference {
   id: string;
-  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'GeneratedTriangleBracket' | 'GeneratedTartanCheck' | 'GeneratedHoundstooth' | 'GeneratedYagasuri' | 'GeneratedPaperAirplane' | 'GeneratedAsanohaPattern' | 'Psd';
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'GeneratedTriangleBracket' | 'GeneratedTartanCheck' | 'GeneratedHoundstooth' | 'GeneratedYagasuri' | 'GeneratedPaperAirplane' | 'GeneratedAsanohaPattern' | 'GeneratedFocusLinesPlus' | 'Psd';
   source: string;
   width: number;
   height: number;
@@ -151,7 +152,7 @@ export interface RustSceneSnapshotBuildInput {
 export type RustSceneVideoSourceMode = 'previewProxy' | 'exportOriginal';
 
 type SupportedMediaObject = ImageObject | VideoObject | PsdObject;
-type SupportedGeneratedObject = AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject;
+type SupportedGeneratedObject = AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject;
 type SupportedSceneObject = SupportedMediaObject | ShapeObject | SupportedGeneratedObject;
 
 const rustColourPipeline = (): RustColourPipeline => ({
@@ -405,7 +406,8 @@ const isSupportedSceneObject = (object: TimelineObject): object is SupportedScen
   || object.type === 'houndstooth'
   || object.type === 'yagasuri'
   || object.type === 'paper_airplane'
-  || object.type === 'asanoha_pattern';
+  || object.type === 'asanoha_pattern'
+  || object.type === 'focus_lines_plus';
 
 const isVisualSceneObject = (object: TimelineObject): boolean =>
   object.type !== 'audio';
@@ -626,6 +628,16 @@ const mediaReferenceForObject = (
       id: object.id,
       kind: 'GeneratedAsanohaPattern',
       source: serialiseGeneratedAsanohaPatternSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'focus_lines_plus') {
+    return {
+      id: object.id,
+      kind: 'GeneratedFocusLinesPlus',
+      source: serialiseGeneratedFocusLinesPlusSource(object),
       width: object.width,
       height: object.height,
     };
@@ -869,6 +881,21 @@ const serialiseGeneratedAsanohaPatternSource = (object: AsanohaPatternObject): s
     background_colour: /^#[0-9a-f]{6}$/i.test(object.backgroundColour) ? object.backgroundColour : '#ffffff',
   });
 
+const serialiseGeneratedFocusLinesPlusSource = (object: FocusLinesPlusObject): string =>
+  JSON.stringify({
+    generator: 'focus-lines-plus',
+    ray_width: Math.min(10, Math.max(0.1, finiteNumberOr(object.rayWidth, 1))),
+    gap: Math.min(20, Math.max(1, finiteNumberOr(object.gap, 5))),
+    centre_radius: Math.min(800, Math.max(0, finiteNumberOr(object.centreRadius, 100))),
+    rotation_degrees: Math.min(720, Math.max(-720, finiteNumberOr(object.rotationDegrees, 0))),
+    centre_x: finiteNumberOr(object.centreX, object.width / 2),
+    centre_y: finiteNumberOr(object.centreY, object.height / 2),
+    centre_jitter_percent: Math.min(100, Math.max(0, finiteNumberOr(object.centreJitterPercent, 20))),
+    seed: Math.trunc(finiteNumberOr(object.seed, 0)),
+    keyframe_interval: Math.max(0, Math.trunc(finiteNumberOr(object.keyframeInterval, 0))),
+    line_colour: /^#[0-9a-f]{6}$/i.test(object.lineColour) ? object.lineColour : '#ffffff',
+  });
+
 const normaliseTrackBarValues = (values: readonly number[]): number[] =>
   Array.from({ length: 4 }, (_, index) => finiteNumberOr(values[index], 0));
 
@@ -1023,6 +1050,12 @@ const sourceFrameForObject = (
   if (object.type === 'yagasuri') return 0;
   if (object.type === 'paper_airplane') return 0;
   if (object.type === 'asanoha_pattern') return 0;
+  if (object.type === 'focus_lines_plus') {
+    const interval = Math.max(0, Math.trunc(finiteNumberOr(object.keyframeInterval, 0)));
+    if (interval === 0) return 0;
+    const localFrame = secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
+    return Math.floor(localFrame / interval) * interval;
+  }
   const localTime = Math.max(0, time - object.startTime);
   const mediaTime = localTime + (object.offset ?? 0);
   return secondsToFrameIndex(mediaTime, fps);
@@ -1229,7 +1262,7 @@ const validateMediaReferences = (
     }
     validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height', 'source_rate', 'active_layer_ids'], issues);
     validateString(reference.id, `${path}.id`, issues);
-    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'GeneratedPieChart', 'GeneratedHistogram', 'GeneratedSunburst', 'GeneratedCircularArrow', 'GeneratedTriangleBracket', 'GeneratedTartanCheck', 'GeneratedHoundstooth', 'GeneratedYagasuri', 'GeneratedPaperAirplane', 'GeneratedAsanohaPattern', 'Psd'], issues);
+    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'GeneratedPieChart', 'GeneratedHistogram', 'GeneratedSunburst', 'GeneratedCircularArrow', 'GeneratedTriangleBracket', 'GeneratedTartanCheck', 'GeneratedHoundstooth', 'GeneratedYagasuri', 'GeneratedPaperAirplane', 'GeneratedAsanohaPattern', 'GeneratedFocusLinesPlus', 'Psd'], issues);
     validateString(reference.source, `${path}.source`, issues);
     validatePositiveInteger(reference.width, `${path}.width`, issues);
     validatePositiveInteger(reference.height, `${path}.height`, issues);

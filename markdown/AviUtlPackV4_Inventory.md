@@ -45,6 +45,7 @@
 | P2 | 矢がすり | native generated object | 和柄背景や解説画面の装飾に使いやすい |
 | P2 | 紙飛行機 | native generated object | 注釈や移動演出のモチーフとして使いやすい |
 | P2 | 麻の葉模様 | native generated object | 和柄背景や装飾枠に使いやすい |
+| P2 | 集中線plus | native generated object | ツッコミや注目演出に使いやすい |
 | P2 | モーションパス / ベジェ軌道T | native motion preset | 既存キーフレームに接続し、弧やS字移動を少ない操作で作れる |
 | P2 | 風揺れT | native motion preset | 立ち絵や字幕に軽い揺れを付ける定番演出 |
 | P3 | Luaスクリプト互換 | script runtime later | 安全性、性能、ライセンス確認が大きい |
