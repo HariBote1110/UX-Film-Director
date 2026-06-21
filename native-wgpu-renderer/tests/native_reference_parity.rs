@@ -222,6 +222,48 @@ fn native_wgpu_applies_outline_to_transparent_neighbours() {
 }
 
 #[test]
+fn native_wgpu_applies_spot_light_to_centre_pixels() {
+    let native_result = pollster::block_on(render_native_wgpu_frame(
+        &scene_snapshot(vec![evaluated_clip(
+            "foreground",
+            0,
+            1.0,
+            vec![Effect::SpotLight {
+                centre_x: 1.0 / 3.0,
+                centre_y: 0.0,
+                radius: 0.45,
+                intensity: 1.0,
+                colour: [1.0, 1.0, 1.0],
+            }],
+        )]),
+        &HashMap::from([(
+            "foreground".to_string(),
+            RgbaFrame::from_rgba8(3, 1, vec![0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255])
+                .expect("valid foreground"),
+        )]),
+        3,
+        1,
+    ));
+    let native = match native_result {
+        Ok(frame) => frame,
+        Err(NativeWgpuRenderError::AdapterUnavailable) => {
+            eprintln!("skipping native wgpu spotlight test: no GPU adapter available");
+            return;
+        }
+        Err(error) => panic!("native wgpu render failed: {error:?}"),
+    };
+
+    let left_red = native.pixels[0];
+    let centre_red = native.pixels[4];
+    let right_red = native.pixels[8];
+    assert!(
+        centre_red > left_red && centre_red > right_red,
+        "spotlight should brighten the centre more than the edges: {:?}",
+        native.pixels
+    );
+}
+
+#[test]
 fn native_wgpu_applies_left_wipe_progress() {
     assert_native_matches_direct_hand_anchor(
         scene_snapshot(vec![evaluated_clip(

@@ -149,6 +149,27 @@ fn effect_is_finite(effect: &crate::schema::Effect) -> bool {
                 && *right >= 0.0
                 && angle_degrees.is_finite()
         }
+        crate::schema::Effect::SpotLight {
+            centre_x,
+            centre_y,
+            radius,
+            intensity,
+            colour,
+        } => {
+            centre_x.is_finite()
+                && *centre_x >= 0.0
+                && *centre_x <= 1.0
+                && centre_y.is_finite()
+                && *centre_y >= 0.0
+                && *centre_y <= 1.0
+                && radius.is_finite()
+                && *radius >= 0.0
+                && intensity.is_finite()
+                && *intensity >= 0.0
+                && colour
+                    .iter()
+                    .all(|component| component.is_finite() && *component >= 0.0 && *component <= 1.0)
+        }
     }
 }
 

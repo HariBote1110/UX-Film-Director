@@ -8854,6 +8854,25 @@
 
 ## 残課題・次のステップ
 - まだサブピクセルtranslation、複雑なmask/group/filterはfail-loudのまま。次はCanvas系の回転・画像/PSD混在・音声付きexportをE2Eで確認し、Rust/native render側の実フレーム品質と速度を測る。
+## 2026-06-22 — 93 SpotLightをRust/WebGPU effectへ追加
+
+### 実施内容
+- Red: `93 SpotLight` がAviUtlPackV4 effect preset一覧へ入り、`spot_light` filterとしてRust scene snapshotへ `SpotLight` effectを渡す契約を追加した。
+- Green: `SpotLightFilterParams` と `spot_light` filterを追加し、Filter Stackの正規化・PropertyPanel表示名・AviUtl Effects presetへ接続した。
+- Green: rust-coreの `Effect::SpotLight` schemaとvalidationを追加し、中心・半径・強度・色をRust境界で保持できるようにした。
+- Green: native-wgpu shaderへsource座標ベースのスポットライト加算を追加し、中心ピクセルが端より明るくなる画素テストを追加した。
+- 版を `0.1.1-Beta-292a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/aviutlEffectPresets.test.ts src/utils/rustSceneSnapshot.test.ts src/components/PropertyPanelBoundary.test.ts src/utils/filterStack.test.ts --reporter=dot` は72件成功。
+- `cargo test --manifest-path rust-core/Cargo.toml --test timeline_snapshot_contract evaluated_clip_carries_effects_for_renderer_contract -- --nocapture` は1件成功。
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane native_render -- --nocapture` は22件成功。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml native_wgpu_applies_spot_light_to_centre_pixels -- --nocapture` は1件成功。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の `SpotLight` / `spot_light` 由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- GetColor / hksy / 93の最優先レーンは一通り入った。次は代表ケースを組み合わせたプレビュー/export確認、または93ディレクトリ内の追加候補を棚卸しして次のP1/P2を選ぶ。
+
 ## 2026-06-22 — 93 Delay個別をnative motion presetへ追加
 
 ### 実施内容

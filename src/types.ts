@@ -135,7 +135,8 @@ export type FilterType =
   | 'gradient'
   | 'blur'
   | 'fade'
-  | 'wipe';
+  | 'wipe'
+  | 'spot_light';
 
 /** プレビュー／書き出し共通の仮想カメラ（シーン単位） */
 export interface CameraState {
@@ -174,6 +175,14 @@ export interface OutlineFilterParams {
   colour: string;
   thickness: number;
   opacity: number;
+}
+
+export interface SpotLightFilterParams {
+  centreX: number;
+  centreY: number;
+  radius: number;
+  intensity: number;
+  colour: string;
 }
 
 interface BaseFilter {
@@ -232,6 +241,11 @@ export interface WipeObjectFilter extends BaseFilter {
   params: WipeFilterParams;
 }
 
+export interface SpotLightObjectFilter extends BaseFilter {
+  type: 'spot_light';
+  params: SpotLightFilterParams;
+}
+
 export type ObjectFilter =
   | ColorCorrectionFilter
   | ColourAberrationFilter
@@ -242,7 +256,8 @@ export type ObjectFilter =
   | GradientFilter
   | BlurObjectFilter
   | FadeObjectFilter
-  | WipeObjectFilter;
+  | WipeObjectFilter
+  | SpotLightObjectFilter;
 
 // --- オブジェクト定義 ---
 

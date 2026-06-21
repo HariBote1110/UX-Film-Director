@@ -66,7 +66,8 @@ export type RustEffect =
   | { ColourAberration: { offset_x: number; offset_y: number } }
   | { Outline: { colour: [number, number, number]; thickness: number; opacity: number } }
   | { Wipe: { edge: 'left' | 'right' | 'top' | 'bottom'; progress: number } }
-  | { Clipping: { top: number; bottom: number; left: number; right: number; angle_degrees: number } };
+  | { Clipping: { top: number; bottom: number; left: number; right: number; angle_degrees: number } }
+  | { SpotLight: { centre_x: number; centre_y: number; radius: number; intensity: number; colour: [number, number, number] } };
 
 export interface RustEvaluatedClip {
   clip_id: string;
@@ -321,6 +322,7 @@ const collectBuildIssues = (
       && filter.type !== 'outline'
       && filter.type !== 'wipe'
       && filter.type !== 'clipping'
+      && filter.type !== 'spot_light'
       && !(object.type === 'shape' && filter.type === 'gradient')
     ));
     if (unsupportedFilter) {
@@ -373,6 +375,17 @@ const rustEffectsForObject = (object: TimelineObject, time: number): RustEffect[
           left: Math.max(0, finiteNumberOr(filter.params.left, 0)),
           right: Math.max(0, finiteNumberOr(filter.params.right, 0)),
           angle_degrees: finiteNumberOr(filter.params.angle, 0),
+        },
+      });
+    }
+    if (filter.type === 'spot_light') {
+      effects.push({
+        SpotLight: {
+          centre_x: Math.max(0, Math.min(1, finiteNumberOr(filter.params.centreX, 0.5))),
+          centre_y: Math.max(0, Math.min(1, finiteNumberOr(filter.params.centreY, 0.5))),
+          radius: Math.max(0, finiteNumberOr(filter.params.radius, 0.65)),
+          intensity: Math.max(0, finiteNumberOr(filter.params.intensity, 0.75)),
+          colour: parseHexColourToLinearTriplet(filter.params.colour),
         },
       });
     }
@@ -1462,6 +1475,14 @@ const validateEffects = (
       validateFiniteNumber(effect.Clipping.left, `${effectPath}.Clipping.left`, issues);
       validateFiniteNumber(effect.Clipping.right, `${effectPath}.Clipping.right`, issues);
       validateFiniteNumber(effect.Clipping.angle_degrees, `${effectPath}.Clipping.angle_degrees`, issues);
+      return;
+    }
+    if (isRecord(effect.SpotLight)) {
+      validateUnitInterval(effect.SpotLight.centre_x, `${effectPath}.SpotLight.centre_x`, issues);
+      validateUnitInterval(effect.SpotLight.centre_y, `${effectPath}.SpotLight.centre_y`, issues);
+      validateFiniteNumber(effect.SpotLight.radius, `${effectPath}.SpotLight.radius`, issues);
+      validateFiniteNumber(effect.SpotLight.intensity, `${effectPath}.SpotLight.intensity`, issues);
+      validateNumberArray(effect.SpotLight.colour, `${effectPath}.SpotLight.colour`, 3, issues);
       return;
     }
     addIssue(issues, 'schemaMismatch', effectPath, 'Unknown Rust effect.');

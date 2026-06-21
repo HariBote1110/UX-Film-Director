@@ -15,6 +15,13 @@ struct RenderParams {
     clipping_left: f32,
     clipping_right: f32,
     clipping_angle: f32,
+    spot_light_colour_r: f32,
+    spot_light_colour_g: f32,
+    spot_light_colour_b: f32,
+    spot_light_centre_x: f32,
+    spot_light_centre_y: f32,
+    spot_light_radius: f32,
+    spot_light_intensity: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -25,8 +32,6 @@ struct RenderParams {
     rotation_cos: f32,
     rotation_sin: f32,
     _padding3: f32,
-    _padding4: f32,
-    _padding5: f32,
 }
 
 @group(0) @binding(0)
@@ -87,8 +92,27 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
         params.outline_colour_g,
         params.outline_colour_b,
     ) * outline_alpha;
+    let spot_rgb = spot_light_rgb(source_position, alpha);
 
-    return vec4<f32>(premultiplied_rgb + outline_rgb * (1.0 - alpha), max(alpha, outline_alpha));
+    return vec4<f32>(premultiplied_rgb + outline_rgb * (1.0 - alpha) + spot_rgb, max(alpha, outline_alpha));
+}
+
+fn spot_light_rgb(source_position: vec2<f32>, source_alpha: f32) -> vec3<f32> {
+    if params.spot_light_intensity <= 0.0 || params.spot_light_radius <= 0.0 || source_alpha <= 0.0 {
+        return vec3<f32>(0.0);
+    }
+    let dimensions = max(vec2<f32>(params.source_width, params.source_height), vec2<f32>(1.0));
+    let normalised = source_position / dimensions;
+    let centre = vec2<f32>(params.spot_light_centre_x, params.spot_light_centre_y);
+    let distance_from_centre = length(normalised - centre);
+    let radius = max(params.spot_light_radius, 0.0001);
+    let falloff = pow(clamp(1.0 - distance_from_centre / radius, 0.0, 1.0), 2.0);
+    let colour = vec3<f32>(
+        params.spot_light_colour_r,
+        params.spot_light_colour_g,
+        params.spot_light_colour_b,
+    );
+    return colour * falloff * params.spot_light_intensity * source_alpha;
 }
 
 fn passes_wipe(source_position: vec2<f32>) -> bool {

@@ -174,6 +174,13 @@ pub enum Effect {
         right: f32,
         angle_degrees: f32,
     },
+    SpotLight {
+        centre_x: f32,
+        centre_y: f32,
+        radius: f32,
+        intensity: f32,
+        colour: [f32; 3],
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

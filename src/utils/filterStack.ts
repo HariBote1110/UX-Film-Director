@@ -6,7 +6,8 @@ import {
   ClippingParams,
   Vibration,
   ShadowEffect,
-  GradientFill
+  GradientFill,
+  SpotLightFilterParams
 } from '../types';
 
 const DEFAULT_COLOR_CORRECTION: Omit<ColorCorrection, 'enabled'> = {
@@ -70,6 +71,14 @@ const DEFAULT_WIPE = {
   reverse: false
 };
 
+const DEFAULT_SPOT_LIGHT: SpotLightFilterParams = {
+  centreX: 0.5,
+  centreY: 0.5,
+  radius: 0.65,
+  intensity: 0.75,
+  colour: '#fff4c2'
+};
+
 const createFilterId = (type: FilterType): string => {
   return `${type}-${crypto.randomUUID()}`;
 };
@@ -96,7 +105,8 @@ const isFilterType = (value: unknown): value is FilterType => {
     || value === 'gradient'
     || value === 'blur'
     || value === 'fade'
-    || value === 'wipe';
+    || value === 'wipe'
+    || value === 'spot_light';
 };
 
 const normaliseOutlineParams = (params: unknown): import('../types').OutlineFilterParams => {
@@ -142,6 +152,19 @@ const normaliseWipeParams = (params: unknown): import('../types').WipeFilterPara
   return {
     edge: isWipeEdge(source.edge) ? source.edge : DEFAULT_WIPE.edge,
     reverse: toBoolean(source.reverse, DEFAULT_WIPE.reverse)
+  };
+};
+
+const normaliseSpotLightParams = (params: unknown): SpotLightFilterParams => {
+  const source = isRecord(params) ? params : {};
+  return {
+    centreX: Math.max(0, Math.min(1, toNumber(source.centreX, DEFAULT_SPOT_LIGHT.centreX))),
+    centreY: Math.max(0, Math.min(1, toNumber(source.centreY, DEFAULT_SPOT_LIGHT.centreY))),
+    radius: Math.max(0, toNumber(source.radius, DEFAULT_SPOT_LIGHT.radius)),
+    intensity: Math.max(0, toNumber(source.intensity, DEFAULT_SPOT_LIGHT.intensity)),
+    colour: typeof source.colour === 'string' && source.colour.trim() !== ''
+      ? source.colour
+      : DEFAULT_SPOT_LIGHT.colour
   };
 };
 
@@ -291,6 +314,13 @@ export const createDefaultFilter = (type: FilterType): ObjectFilter => {
         enabled: true,
         params: { ...DEFAULT_WIPE }
       };
+    case 'spot_light':
+      return {
+        id: createFilterId(type),
+        type,
+        enabled: true,
+        params: { ...DEFAULT_SPOT_LIGHT }
+      };
     default:
       return {
         id: createFilterId('color_correction'),
@@ -378,6 +408,13 @@ const normaliseFilter = (value: unknown): ObjectFilter | null => {
         type: 'wipe',
         enabled,
         params: normaliseWipeParams(value.params)
+      };
+    case 'spot_light':
+      return {
+        id,
+        type: 'spot_light',
+        enabled,
+        params: normaliseSpotLightParams(value.params)
       };
     default:
       return null;

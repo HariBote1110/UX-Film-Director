@@ -73,6 +73,7 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::Outline { .. } => 1.0,
         Effect::Wipe { .. } => 1.0,
         Effect::Clipping { .. } => 1.0,
+        Effect::SpotLight { .. } => 1.0,
     }
 }
 

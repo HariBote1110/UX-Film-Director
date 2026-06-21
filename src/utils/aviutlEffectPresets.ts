@@ -5,7 +5,8 @@ export type AviUtlEffectPresetId =
   | 'luminance-wipe-basic'
   | 'edge-outline-soft'
   | 'colour-aberration-rgb'
-  | 'fan-clipping-diagonal';
+  | 'fan-clipping-diagonal'
+  | '93-spotlight-soft';
 
 export interface AviUtlEffectPreset {
   id: AviUtlEffectPresetId;
@@ -14,7 +15,8 @@ export interface AviUtlEffectPreset {
     | 'tim-luminance-wipe'
     | 'tim-edge-outline'
     | 'tim-colour-aberration'
-    | 'fan-clipping-r';
+    | 'fan-clipping-r'
+    | '93-spotlight';
   filterType: FilterType;
 }
 
@@ -42,6 +44,12 @@ const presets: AviUtlEffectPreset[] = [
     labelJa: '扇クリッピング近似',
     sourceCandidateId: 'fan-clipping-r',
     filterType: 'clipping'
+  },
+  {
+    id: '93-spotlight-soft',
+    labelJa: '93 SpotLight',
+    sourceCandidateId: '93-spotlight',
+    filterType: 'spot_light'
   }
 ];
 
@@ -85,6 +93,20 @@ export const buildAviUtlEffectPresetFilter = (presetId: AviUtlEffectPresetId): O
           right: 0,
           angle: 45,
           radius: 0
+        }
+      };
+    }
+    case '93-spotlight-soft': {
+      return {
+        id: `aviutl-${presetId}`,
+        type: 'spot_light',
+        enabled: true,
+        params: {
+          centreX: 0.5,
+          centreY: 0.5,
+          radius: 0.65,
+          intensity: 0.75,
+          colour: '#fff4c2'
         }
       };
     }

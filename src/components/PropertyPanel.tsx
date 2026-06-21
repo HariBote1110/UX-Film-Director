@@ -427,7 +427,8 @@ const PropertyPanel: React.FC = () => {
     gradient: language === 'en' ? 'Gradient' : 'グラデーション',
     blur: language === 'en' ? 'Blur' : 'ぼかし',
     fade: language === 'en' ? 'Fade' : 'フェード（不透明度）',
-    wipe: language === 'en' ? 'Wipe' : 'ワイプ'
+    wipe: language === 'en' ? 'Wipe' : 'ワイプ',
+    spot_light: language === 'en' ? 'SpotLight' : 'SpotLight'
   };
   const canUseGradientFilter = selectedObject.type === 'shape';
   const currentGroupId = selectedObject.groupId ?? null;

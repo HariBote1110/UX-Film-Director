@@ -270,6 +270,13 @@ impl NativeWgpuRenderer {
                         _ => None,
                     }),
                     clipping_angle: clipping_angle(clip),
+                    spot_light_colour_r: spot_light_colour_component(clip, 0),
+                    spot_light_colour_g: spot_light_colour_component(clip, 1),
+                    spot_light_colour_b: spot_light_colour_component(clip, 2),
+                    spot_light_centre_x: spot_light_centre_component(clip, 0),
+                    spot_light_centre_y: spot_light_centre_component(clip, 1),
+                    spot_light_radius: spot_light_radius(clip),
+                    spot_light_intensity: spot_light_intensity(clip),
                     source_width: source.width as f32,
                     source_height: source.height as f32,
                     translation_x: clip.transform.translation_x,
@@ -280,8 +287,6 @@ impl NativeWgpuRenderer {
                     rotation_cos: rotation_radians.cos(),
                     rotation_sin: rotation_radians.sin(),
                     _padding3: 0.0,
-                    _padding4: 0.0,
-                    _padding5: 0.0,
                 },
             ));
         }
@@ -754,6 +759,13 @@ struct RenderParams {
     clipping_left: f32,
     clipping_right: f32,
     clipping_angle: f32,
+    spot_light_colour_r: f32,
+    spot_light_colour_g: f32,
+    spot_light_colour_b: f32,
+    spot_light_centre_x: f32,
+    spot_light_centre_y: f32,
+    spot_light_radius: f32,
+    spot_light_intensity: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -764,8 +776,6 @@ struct RenderParams {
     rotation_cos: f32,
     rotation_sin: f32,
     _padding3: f32,
-    _padding4: f32,
-    _padding5: f32,
 }
 
 fn sampling_mode_value(sampling: SamplingMode) -> f32 {
@@ -1026,6 +1036,7 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::Outline { .. } => 1.0,
         Effect::Wipe { .. } => 1.0,
         Effect::Clipping { .. } => 1.0,
+        Effect::SpotLight { .. } => 1.0,
     }
 }
 
@@ -1115,4 +1126,55 @@ fn clipping_angle(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
         })
         .last()
         .unwrap_or(0.0)
+}
+
+fn spot_light_colour_component(clip: &uxfd_rust_core::EvaluatedClip, index: usize) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::SpotLight { colour, .. } => Some(colour[index]),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(1.0)
+        .clamp(0.0, 1.0)
+}
+
+fn spot_light_centre_component(clip: &uxfd_rust_core::EvaluatedClip, index: usize) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::SpotLight {
+                centre_x,
+                centre_y,
+                ..
+            } => Some(if index == 0 { *centre_x } else { *centre_y }),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.5)
+        .clamp(0.0, 1.0)
+}
+
+fn spot_light_radius(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::SpotLight { radius, .. } => Some(*radius),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .max(0.0)
+}
+
+fn spot_light_intensity(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::SpotLight { intensity, .. } => Some(*intensity),
+            _ => None,
+        })
+        .sum::<f32>()
+        .max(0.0)
 }
