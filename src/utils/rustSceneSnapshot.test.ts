@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, ImageObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, TrackBarObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, ImageObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TimelineObject, TrackBarObject, VideoObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -417,6 +417,37 @@ const baseHistogram = (patch: Partial<HistogramObject> = {}): HistogramObject =>
   showBlue: true,
   channelColours: ['#ffffff', '#ff4b4b', '#4bff6a', '#4b8cff'],
   backgroundColour: '#000000',
+  ...patch,
+});
+
+const baseSunburst = (patch: Partial<SunburstObject> = {}): SunburstObject => ({
+  id: 'sunburst-1',
+  type: 'sunburst',
+  name: '日の出',
+  layer: 14,
+  startTime: 1,
+  duration: 4,
+  x: 560,
+  y: 315,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 560,
+  endY: 315,
+  easing: 'linear',
+  width: 800,
+  height: 450,
+  rayCount: 10,
+  rayCoveragePercent: 50,
+  rotationOffsetDegrees: 0,
+  centreXPercent: 50,
+  centreYPercent: 50,
+  motifSize: 200,
+  motifShape: 'circle',
+  rayColour: '#ff0000',
+  backgroundColour: '#ffff00',
   ...patch,
 });
 
@@ -892,6 +923,47 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         }),
         width: 256,
         height: 200,
+      },
+    ]);
+  });
+
+  it('builds a generated sunburst media plane from a sunrise object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseSunburst()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated sunburst snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'sunburst-1',
+      track_id: 'layer-14',
+      media_id: 'sunburst-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'sunburst-1',
+        kind: 'GeneratedSunburst',
+        source: JSON.stringify({
+          generator: 'sunrise',
+          ray_count: 10,
+          ray_coverage_percent: 50,
+          rotation_offset_degrees: 0,
+          centre_x_percent: 50,
+          centre_y_percent: 50,
+          motif_size: 200,
+          motif_shape: 'circle',
+          ray_colour: '#ff0000',
+          background_colour: '#ffff00',
+        }),
+        width: 800,
+        height: 450,
       },
     ]);
   });

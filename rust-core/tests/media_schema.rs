@@ -179,3 +179,19 @@ fn rust_core_accepts_generated_histogram_media_kind_at_the_json_boundary() {
     assert_eq!(media.width, 256);
     assert_eq!(media.height, 200);
 }
+
+#[test]
+fn rust_core_accepts_generated_sunburst_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "sunburst-1",
+        "kind": "GeneratedSunburst",
+        "source": "{\"generator\":\"sunrise\",\"ray_count\":10,\"ray_coverage_percent\":50,\"rotation_offset_degrees\":0,\"centre_x_percent\":50,\"centre_y_percent\":50,\"motif_size\":200,\"motif_shape\":\"circle\",\"ray_colour\":\"#ff0000\",\"background_colour\":\"#ffff00\"}",
+        "width": 800,
+        "height": 450
+    }))
+    .expect("GeneratedSunburst media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedSunburst);
+    assert_eq!(media.width, 800);
+    assert_eq!(media.height, 450);
+}

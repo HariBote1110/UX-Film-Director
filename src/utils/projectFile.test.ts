@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { BarcodeObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, TrackBarObject } from '../types';
+import type { BarcodeObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TrackBarObject } from '../types';
 import { MAX_LAYERS } from '../components/timelineConstants';
 import { createDefaultCamera, createDefaultLayers, createDefaultStageCamera3D } from './sceneState';
 import { buildProjectFileData, parseProjectPayloadV2, restoreProjectObjects } from './projectFile';
@@ -317,6 +317,36 @@ const minimalHistogram = (): HistogramObject => ({
   backgroundColour: '#000000',
 });
 
+const minimalSunburst = (): SunburstObject => ({
+  id: 'sunburst-1',
+  type: 'sunburst',
+  name: '日の出',
+  layer: 11,
+  startTime: 1,
+  duration: 5,
+  x: 560,
+  y: 315,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 560,
+  endY: 315,
+  easing: 'linear',
+  width: 800,
+  height: 450,
+  rayCount: 10,
+  rayCoveragePercent: 50,
+  rotationOffsetDegrees: 0,
+  centreXPercent: 50,
+  centreYPercent: 50,
+  motifSize: 200,
+  motifShape: 'circle',
+  rayColour: '#ff0000',
+  backgroundColour: '#ffff00',
+});
+
 describe('buildProjectFileData', () => {
   it('flushes active editor state into the matching scene and stamps metadata', () => {
     const layers = createDefaultLayers();
@@ -462,6 +492,7 @@ describe('parseProjectPayloadV2', () => {
     const trackBar = minimalTrackBar();
     const pieChart = minimalPieChart();
     const histogram = minimalHistogram();
+    const sunburst = minimalSunburst();
     const file = buildProjectFileData({
       projectSettings: projectSettings(),
       scenes: [
@@ -470,13 +501,13 @@ describe('parseProjectPayloadV2', () => {
           name: 'One',
           duration: 10,
           layers,
-          objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram],
+          objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst],
           camera,
           stageCamera3D: defaultStage()
         }
       ],
       activeSceneId: 's1',
-      objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram],
+      objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst],
       layers,
       duration: 10,
       camera,
@@ -484,7 +515,7 @@ describe('parseProjectPayloadV2', () => {
     });
 
     const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
-    expect(parsed.scenes[0].objects).toEqual([particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram]);
+    expect(parsed.scenes[0].objects).toEqual([particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst]);
   });
 
   it('rejects invalid worldPlacement on psd objects', () => {

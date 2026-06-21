@@ -124,6 +124,12 @@ const media: RustSceneMediaReference[] = [{
   width: 256,
   height: 200,
 }, {
+  id: 'sunburst-1',
+  kind: 'GeneratedSunburst' as RustSceneMediaReference['kind'],
+  source: '{"generator":"sunrise","ray_count":10,"ray_coverage_percent":50,"rotation_offset_degrees":0,"centre_x_percent":50,"centre_y_percent":50,"motif_size":200,"motif_shape":"circle","ray_colour":"#ff0000","background_colour":"#ffff00"}',
+  width: 800,
+  height: 450,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -173,8 +179,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[12])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[13])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[14])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[15])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[15])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[16])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[17])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {

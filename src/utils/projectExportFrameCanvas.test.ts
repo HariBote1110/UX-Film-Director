@@ -12,7 +12,7 @@ import {
   shouldSynchroniseTimelineForProjectExportFrame,
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, ImageObject, ParticleObject, PieChartObject, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, TrackBarObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, ImageObject, ParticleObject, PieChartObject, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TimelineObject, TrackBarObject, VideoObject } from '../types';
 
 const source = () =>
   readFileSync(new URL('./projectExportFrameCanvas.ts', import.meta.url), 'utf8');
@@ -418,6 +418,37 @@ const histogram = (patch: Partial<HistogramObject> = {}): HistogramObject => ({
   showBlue: true,
   channelColours: ['#ffffff', '#ff4b4b', '#4bff6a', '#4b8cff'],
   backgroundColour: '#000000',
+  ...patch,
+});
+
+const sunburst = (patch: Partial<SunburstObject> = {}): SunburstObject => ({
+  id: 'sunburst-1',
+  type: 'sunburst',
+  name: '日の出',
+  layer: 12,
+  startTime: 0,
+  duration: 5,
+  x: 560,
+  y: 315,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 560,
+  endY: 315,
+  easing: 'linear',
+  width: 800,
+  height: 450,
+  rayCount: 10,
+  rayCoveragePercent: 50,
+  rotationOffsetDegrees: 0,
+  centreXPercent: 50,
+  centreYPercent: 50,
+  motifSize: 200,
+  motifShape: 'circle',
+  rayColour: '#ff0000',
+  backgroundColour: '#ffff00',
   ...patch,
 });
 
@@ -852,7 +883,7 @@ describe('resolveProjectExportRustFrameSourceContext', () => {
   });
 
   it('marks standard particle exports as native-render media instead of legacy canvas work', () => {
-    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), gourd(), gear(), trackBar(), pieChart(), histogram(), audio()];
+    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), gourd(), gear(), trackBar(), pieChart(), histogram(), sunburst(), audio()];
 
     expect(hasProjectExportNativeRenderMediaObjects(objects)).toBe(true);
     expect(resolveProjectExportRustFrameSourceContext({

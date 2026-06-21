@@ -20,6 +20,7 @@ import type {
   PsdObject,
   PuzzlePieceObject,
   ShapeObject,
+  SunburstObject,
   TimelineObject,
   TrackBarObject,
   VideoObject,
@@ -332,6 +333,22 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     channelColours: ['#ffffff', '#ff4b4b', '#4bff6a', '#4b8cff'],
     backgroundColour: '#000000',
   };
+  const sunburst: SunburstObject = {
+    ...baseObject('ssd-sunburst', 'sunburst', 19),
+    type: 'sunburst',
+    name: '日の出',
+    width: 800,
+    height: 450,
+    rayCount: 10,
+    rayCoveragePercent: 50,
+    rotationOffsetDegrees: 0,
+    centreXPercent: 50,
+    centreYPercent: 50,
+    motifSize: 200,
+    motifShape: 'circle',
+    rayColour: '#ff0000',
+    backgroundColour: '#ffff00',
+  };
 
   return [
     solidShape,
@@ -350,6 +367,7 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     trackBar,
     pieChart,
     histogram,
+    sunburst,
   ];
 };
 
@@ -426,6 +444,7 @@ describe('全読込可能メディア E2E', () => {
       'GeneratedTrackBar',
       'GeneratedPieChart',
       'GeneratedHistogram',
+      'GeneratedSunburst',
     ]);
     expect(snapshotResult.media
       .filter((media) => media.kind === 'Video')
@@ -519,6 +538,18 @@ describe('全読込可能メディア E2E', () => {
       channel_colours: ['#ffffff', '#ff4b4b', '#4bff6a', '#4b8cff'],
       background_colour: '#000000',
     });
+    expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'ssd-sunburst')?.source ?? '{}')).toMatchObject({
+      generator: 'sunrise',
+      ray_count: 10,
+      ray_coverage_percent: 50,
+      rotation_offset_degrees: 0,
+      centre_x_percent: 50,
+      centre_y_percent: 50,
+      motif_size: 200,
+      motif_shape: 'circle',
+      ray_colour: '#ff0000',
+      background_colour: '#ffff00',
+    });
     expect(snapshotResult.media.some((media) => media.source.endsWith('.wav'))).toBe(false);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'shape-solid-rect')?.transform).toMatchObject({
       translation_x: 64.5,
@@ -548,6 +579,7 @@ describe('全読込可能メディア E2E', () => {
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'custom-track-bar')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'pie-sheet-graph')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'simple-histogram')?.source_frame).toBe(0);
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-sunburst')?.source_frame).toBe(0);
     expect(validateRustSceneSnapshotBoundary({
       snapshot: snapshotResult.snapshot,
       media: snapshotResult.media,
