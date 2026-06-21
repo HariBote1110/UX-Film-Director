@@ -8,6 +8,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedAudioWaveform') return isSharedRendererNativeGeneratedAudioWaveformSourceSupported(reference.source);
   if (reference.kind === 'GeneratedParticle') return isSharedRendererNativeGeneratedParticleSourceSupported(reference.source);
   if (reference.kind === 'GeneratedBarcode') return isSharedRendererNativeGeneratedBarcodeSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedPuzzlePiece') return isSharedRendererNativeGeneratedPuzzlePieceSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -163,6 +164,34 @@ const isSharedRendererNativeGeneratedBarcodeSourceSupported = (source: string): 
       && /^#[0-9a-f]{6}$/i.test(parsed.foreground_colour)
       && typeof parsed.background_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedPuzzlePieceSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      size?: unknown;
+      shape_variant?: unknown;
+      connector_mode?: unknown;
+      fill_colour?: unknown;
+    };
+    return (
+      parsed.generator === 'puzzle-piece'
+      && typeof parsed.size === 'number'
+      && Number.isInteger(parsed.size)
+      && parsed.size > 0
+      && parsed.size <= 2000
+      && typeof parsed.shape_variant === 'number'
+      && Number.isInteger(parsed.shape_variant)
+      && parsed.shape_variant >= 1
+      && parsed.shape_variant <= 22
+      && (parsed.connector_mode === 'convex' || parsed.connector_mode === 'concave')
+      && typeof parsed.fill_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.fill_colour)
     );
   } catch {
     return false;

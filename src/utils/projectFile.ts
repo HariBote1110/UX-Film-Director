@@ -90,7 +90,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'group_control',
   'audio_visualization',
   'particle',
-  'barcode'
+  'barcode',
+  'puzzle_piece'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -173,6 +174,14 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!isFiniteNumber(candidate.verticalMargin) || candidate.verticalMargin < 0) return false;
     if (typeof candidate.foregroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.foregroundColour)) return false;
     if (typeof candidate.backgroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.backgroundColour)) return false;
+  }
+  if (candidate.type === 'puzzle_piece') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.size) || candidate.size <= 0) return false;
+    if (typeof candidate.shapeVariant !== 'number' || !Number.isInteger(candidate.shapeVariant) || candidate.shapeVariant < 1 || candidate.shapeVariant > 22) return false;
+    if (candidate.connectorMode !== 'convex' && candidate.connectorMode !== 'concave') return false;
+    if (typeof candidate.fillColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.fillColour)) return false;
   }
   return true;
 };

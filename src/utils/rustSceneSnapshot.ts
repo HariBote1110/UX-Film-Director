@@ -8,6 +8,7 @@ import type {
   ParticleObject,
   ProjectSettings,
   PsdObject,
+  PuzzlePieceObject,
   ShapeObject,
   TimelineObject,
   VideoObject,
@@ -63,7 +64,7 @@ export interface RustSceneSnapshot {
 
 export interface RustSceneMediaReference {
   id: string;
-  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'Psd';
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'Psd';
   source: string;
   width: number;
   height: number;
@@ -136,7 +137,7 @@ export interface RustSceneSnapshotBuildInput {
 export type RustSceneVideoSourceMode = 'previewProxy' | 'exportOriginal';
 
 type SupportedMediaObject = ImageObject | VideoObject | PsdObject;
-type SupportedGeneratedObject = AudioVisualizationObject | ParticleObject | BarcodeObject;
+type SupportedGeneratedObject = AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject;
 type SupportedSceneObject = SupportedMediaObject | ShapeObject | SupportedGeneratedObject;
 
 const rustColourPipeline = (): RustColourPipeline => ({
@@ -375,7 +376,8 @@ const isSupportedSceneObject = (object: TimelineObject): object is SupportedScen
   || object.type === 'shape'
   || object.type === 'audio_visualization'
   || object.type === 'particle'
-  || object.type === 'barcode';
+  || object.type === 'barcode'
+  || object.type === 'puzzle_piece';
 
 const isVisualSceneObject = (object: TimelineObject): boolean =>
   object.type !== 'audio';
@@ -451,6 +453,16 @@ const mediaReferenceForObject = (
     };
   }
 
+  if (object.type === 'puzzle_piece') {
+    return {
+      id: object.id,
+      kind: 'GeneratedPuzzlePiece',
+      source: serialiseGeneratedPuzzlePieceSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
   const dimensions = mediaDimensionsForObject(object, videoSourceMode);
   const reference: RustSceneMediaReference = {
     id: object.id,
@@ -520,6 +532,15 @@ const serialiseGeneratedBarcodeSource = (object: BarcodeObject): string =>
     vertical_margin: Math.max(0, Math.trunc(finiteNumberOr(object.verticalMargin, 20))),
     foreground_colour: /^#[0-9a-f]{6}$/i.test(object.foregroundColour) ? object.foregroundColour : '#000000',
     background_colour: /^#[0-9a-f]{6}$/i.test(object.backgroundColour) ? object.backgroundColour : '#ffffff',
+  });
+
+const serialiseGeneratedPuzzlePieceSource = (object: PuzzlePieceObject): string =>
+  JSON.stringify({
+    generator: 'puzzle-piece',
+    size: Math.max(1, Math.trunc(finiteNumberOr(object.size, Math.min(object.width, object.height) / 2))),
+    shape_variant: Math.min(22, Math.max(1, Math.trunc(finiteNumberOr(object.shapeVariant, 1)))),
+    connector_mode: object.connectorMode === 'concave' ? 'concave' : 'convex',
+    fill_colour: /^#[0-9a-f]{6}$/i.test(object.fillColour) ? object.fillColour : '#ffffff',
   });
 
 const findTargetAudioForWaveform = (
@@ -615,6 +636,7 @@ const sourceFrameForObject = (
   if (object.type === 'audio_visualization') return secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
   if (object.type === 'particle') return secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
   if (object.type === 'barcode') return 0;
+  if (object.type === 'puzzle_piece') return 0;
   const localTime = Math.max(0, time - object.startTime);
   const mediaTime = localTime + (object.offset ?? 0);
   return secondsToFrameIndex(mediaTime, fps);
@@ -821,7 +843,7 @@ const validateMediaReferences = (
     }
     validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height', 'source_rate', 'active_layer_ids'], issues);
     validateString(reference.id, `${path}.id`, issues);
-    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode', 'Psd'], issues);
+    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'Psd'], issues);
     validateString(reference.source, `${path}.source`, issues);
     validatePositiveInteger(reference.width, `${path}.width`, issues);
     validatePositiveInteger(reference.height, `${path}.height`, issues);

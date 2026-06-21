@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { BarcodeObject, ParticleObject, ProjectSettings, PsdObject, ShapeObject } from '../types';
+import type { BarcodeObject, ParticleObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject } from '../types';
 import { MAX_LAYERS } from '../components/timelineConstants';
 import { createDefaultCamera, createDefaultLayers, createDefaultStageCamera3D } from './sceneState';
 import { buildProjectFileData, parseProjectPayloadV2, restoreProjectObjects } from './projectFile';
@@ -126,6 +126,31 @@ const minimalBarcode = (): BarcodeObject => ({
   verticalMargin: 20,
   foregroundColour: '#000000',
   backgroundColour: '#ffffff',
+});
+
+const minimalPuzzlePiece = (): PuzzlePieceObject => ({
+  id: 'puzzle-1',
+  type: 'puzzle_piece',
+  name: 'パズルピース',
+  layer: 4,
+  startTime: 1,
+  duration: 5,
+  x: 840,
+  y: 420,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 840,
+  endY: 420,
+  easing: 'linear',
+  width: 240,
+  height: 240,
+  size: 120,
+  shapeVariant: 1,
+  connectorMode: 'convex',
+  fillColour: '#ffffff',
 });
 
 describe('buildProjectFileData', () => {
@@ -266,6 +291,7 @@ describe('parseProjectPayloadV2', () => {
     const camera = createDefaultCamera();
     const particle = minimalParticle();
     const barcode = minimalBarcode();
+    const puzzle = minimalPuzzlePiece();
     const file = buildProjectFileData({
       projectSettings: projectSettings(),
       scenes: [
@@ -274,13 +300,13 @@ describe('parseProjectPayloadV2', () => {
           name: 'One',
           duration: 10,
           layers,
-          objects: [particle, barcode],
+          objects: [particle, barcode, puzzle],
           camera,
           stageCamera3D: defaultStage()
         }
       ],
       activeSceneId: 's1',
-      objects: [particle, barcode],
+      objects: [particle, barcode, puzzle],
       layers,
       duration: 10,
       camera,
@@ -288,7 +314,7 @@ describe('parseProjectPayloadV2', () => {
     });
 
     const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
-    expect(parsed.scenes[0].objects).toEqual([particle, barcode]);
+    expect(parsed.scenes[0].objects).toEqual([particle, barcode, puzzle]);
   });
 
   it('rejects invalid worldPlacement on psd objects', () => {

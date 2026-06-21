@@ -12,7 +12,7 @@ import {
   shouldSynchroniseTimelineForProjectExportFrame,
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, ImageObject, ParticleObject, PsdObject, ShapeObject, TimelineObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, ImageObject, ParticleObject, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, VideoObject } from '../types';
 
 const source = () =>
   readFileSync(new URL('./projectExportFrameCanvas.ts', import.meta.url), 'utf8');
@@ -222,6 +222,32 @@ const barcode = (patch: Partial<BarcodeObject> = {}): BarcodeObject => ({
   verticalMargin: 20,
   foregroundColour: '#000000',
   backgroundColour: '#ffffff',
+  ...patch,
+});
+
+const puzzlePiece = (patch: Partial<PuzzlePieceObject> = {}): PuzzlePieceObject => ({
+  id: 'puzzle-1',
+  type: 'puzzle_piece',
+  name: 'パズルピース',
+  layer: 5,
+  startTime: 0,
+  duration: 5,
+  x: 840,
+  y: 420,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 840,
+  endY: 420,
+  easing: 'linear',
+  width: 240,
+  height: 240,
+  size: 120,
+  shapeVariant: 1,
+  connectorMode: 'convex',
+  fillColour: '#ffffff',
   ...patch,
 });
 
@@ -656,7 +682,7 @@ describe('resolveProjectExportRustFrameSourceContext', () => {
   });
 
   it('marks standard particle exports as native-render media instead of legacy canvas work', () => {
-    const objects: TimelineObject[] = [particle(), barcode(), audio()];
+    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), audio()];
 
     expect(hasProjectExportNativeRenderMediaObjects(objects)).toBe(true);
     expect(resolveProjectExportRustFrameSourceContext({

@@ -175,6 +175,15 @@ struct GeneratedBarcodeSource {
     background_colour: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedPuzzlePieceSource {
+    generator: String,
+    size: u32,
+    shape_variant: u32,
+    connector_mode: String,
+    fill_colour: String,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2153,6 +2162,7 @@ fn collect_native_render_sources(
                 source_frame_for_media(snapshot, &media.id),
             )?,
             MediaKind::GeneratedBarcode => build_generated_barcode_source_frame(media)?,
+            MediaKind::GeneratedPuzzlePiece => build_generated_puzzle_piece_source_frame(media)?,
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform => continue,
@@ -2454,6 +2464,92 @@ fn build_generated_barcode_source_frame(media: &SceneMediaReference) -> Result<R
         .map_err(|error| format!("GeneratedBarcode media frame is invalid: {error:?}"))
 }
 
+fn build_generated_puzzle_piece_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedPuzzlePiece media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let puzzle: GeneratedPuzzlePieceSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedPuzzlePiece media '{}': {error}", media.id))?;
+    validate_generated_puzzle_piece_source(&puzzle).map_err(|message| {
+        format!(
+            "Invalid GeneratedPuzzlePiece media '{}': {message}",
+            media.id
+        )
+    })?;
+    let [red, green, blue] = parse_hex_colour_source(&puzzle.fill_colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedPuzzlePiece media '{}': {message}",
+            media.id
+        )
+    })?;
+
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedPuzzlePiece media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedPuzzlePiece media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+
+    let centre_x = media.width as f32 / 2.0;
+    let centre_y = media.height as f32 / 2.0;
+    let half = (puzzle.size as f32 / 2.0).min(media.width.min(media.height) as f32 / 2.0);
+    let knob_radius = (puzzle.size as f32 * 0.18).max(2.0);
+    let connector_distance = half;
+    let connectors = puzzle_piece_connectors(puzzle.shape_variant);
+
+    for y in 0..media.height {
+        for x in 0..media.width {
+            let px = x as f32 + 0.5 - centre_x;
+            let py = y as f32 + 0.5 - centre_y;
+            let mut inside = px.abs() <= half && py.abs() <= half;
+
+            for (direction, enabled) in connectors {
+                if !enabled {
+                    continue;
+                }
+                let (cx, cy) = match direction {
+                    0 => (0.0, -connector_distance),
+                    1 => (connector_distance, 0.0),
+                    2 => (0.0, connector_distance),
+                    _ => (-connector_distance, 0.0),
+                };
+                let distance = ((px - cx).powi(2) + (py - cy).powi(2)).sqrt();
+                let in_knob = distance <= knob_radius;
+                if puzzle.connector_mode == "convex" {
+                    inside = inside || in_knob;
+                } else if in_knob {
+                    inside = false;
+                }
+            }
+
+            if inside {
+                write_particle_pixel(
+                    &mut pixels,
+                    media.width,
+                    media.height,
+                    x as i32,
+                    y as i32,
+                    [red, green, blue, 255],
+                );
+            }
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedPuzzlePiece media frame is invalid: {error:?}"))
+}
+
 fn validate_generated_particle_source(source: &GeneratedParticleSource) -> Result<(), String> {
     if source.generator != "standard-particle" {
         return Err("generator must be standard-particle".to_string());
@@ -2496,6 +2592,40 @@ fn validate_generated_barcode_source(source: &GeneratedBarcodeSource) -> Result<
     parse_hex_colour_source(&source.foreground_colour)?;
     parse_hex_colour_source(&source.background_colour)?;
     Ok(())
+}
+
+fn validate_generated_puzzle_piece_source(
+    source: &GeneratedPuzzlePieceSource,
+) -> Result<(), String> {
+    if source.generator != "puzzle-piece" {
+        return Err("generator must be puzzle-piece".to_string());
+    }
+    if source.size == 0 || source.size > 2000 {
+        return Err("size must be 1..2000".to_string());
+    }
+    if source.shape_variant == 0 || source.shape_variant > 22 {
+        return Err("shape_variant must be 1..22".to_string());
+    }
+    if source.connector_mode != "convex" && source.connector_mode != "concave" {
+        return Err("connector_mode must be convex or concave".to_string());
+    }
+    parse_hex_colour_source(&source.fill_colour)?;
+    Ok(())
+}
+
+fn puzzle_piece_connectors(shape_variant: u32) -> [(u8, bool); 4] {
+    match shape_variant {
+        1 => [(0, true), (1, false), (2, true), (3, false)],
+        2 => [(0, true), (1, true), (2, false), (3, false)],
+        3 => [(0, true), (1, true), (2, true), (3, true)],
+        4 => [(0, true), (1, false), (2, false), (3, false)],
+        9 | 13 | 18 => [(0, true), (1, false), (2, true), (3, false)],
+        10 | 14 | 19 => [(0, true), (1, true), (2, false), (3, false)],
+        11 | 15 | 20 => [(0, true), (1, true), (2, true), (3, true)],
+        12 | 16 | 21 => [(0, true), (1, false), (2, false), (3, false)],
+        17 | 22 => [(0, true), (1, true), (2, true), (3, true)],
+        _ => [(0, false), (1, true), (2, false), (3, true)],
+    }
 }
 
 fn barcode_bar_pattern(data: &str) -> Vec<u8> {
@@ -4422,5 +4552,32 @@ mod tests {
 
         assert!(has_black_bar);
         assert!(has_white_background);
+    }
+
+    #[test]
+    fn generated_puzzle_piece_source_frame_contains_shape_and_transparency() {
+        let media = SceneMediaReference {
+            id: "puzzle-1".to_string(),
+            kind: MediaKind::GeneratedPuzzlePiece,
+            source: r##"{"generator":"puzzle-piece","size":48,"shape_variant":1,"connector_mode":"convex","fill_colour":"#ffffff"}"##.to_string(),
+            width: 96,
+            height: 96,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_puzzle_piece_source_frame(&media)
+            .expect("generated puzzle piece frame should render");
+        let has_white_shape = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [255, 255, 255, 255]);
+        let has_transparent_background = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [0, 0, 0, 0]);
+
+        assert!(has_white_shape);
+        assert!(has_transparent_background);
     }
 }

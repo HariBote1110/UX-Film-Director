@@ -1,3 +1,22 @@
+## 2026-06-21 — TimパズルピースをRust生成オブジェクトへ追加
+
+### 実施内容
+- Red: `script/てぃむ/パズルピース.obj` を、Rust `GeneratedPuzzlePiece` mediaとして扱う境界契約を作った。
+- Green: `PuzzlePieceObject` と `buildAviUtlPuzzlePieceObject` を追加し、Timeline右クリックから `パズルピースを追加` / `Add Puzzle Piece` で置けるようにした。
+- Green: `rustSceneSnapshot` / shared renderer native support / Rust core schema / Rust backendに `GeneratedPuzzlePiece` を追加した。
+- Green: Rust backendで透明背景と白いパズルピース形状を持つ決定的フレームを生成できるようにした。
+- Green: `tim-puzzle-piece` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-267a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/puzzlePieceObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/pixiRenderHelperGeneratedEffectCutover.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/e2e/allReadableMedia.e2e.test.ts` は80件成功。
+- `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は5件成功。
+- `cargo test --manifest-path rust-backend/Cargo.toml generated_puzzle_piece_source_frame_contains_shape_and_transparency -- --nocapture` は1件成功。
+- 対象ファイル名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足のみ検出した。
+
+### 残課題・次のステップ
+- 現時点の `GeneratedPuzzlePiece` はP形状と凹凸の主要挙動を単純化した視覚再実装で、元スクリプトの全22形状の細かな輪郭差分までは未再現。
+
 ## 2026-06-21 — TimバーコードTをRust生成オブジェクトへ追加
 
 ### 実施内容

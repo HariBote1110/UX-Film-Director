@@ -13,6 +13,7 @@ import type {
   ParticleObject,
   ProjectSettings,
   PsdObject,
+  PuzzlePieceObject,
   ShapeObject,
   TimelineObject,
   VideoObject,
@@ -234,6 +235,17 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     foregroundColour: '#000000',
     backgroundColour: '#ffffff',
   };
+  const puzzlePiece: PuzzlePieceObject = {
+    ...baseObject('puzzle-piece', 'puzzle_piece', 12),
+    type: 'puzzle_piece',
+    name: 'パズルピース',
+    width: 240,
+    height: 240,
+    size: 120,
+    shapeVariant: 1,
+    connectorMode: 'convex',
+    fillColour: '#ffffff',
+  };
 
   return [
     solidShape,
@@ -245,6 +257,7 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     audioVisualisation,
     standardParticle,
     barcode,
+    puzzlePiece,
   ];
 };
 
@@ -314,6 +327,7 @@ describe('全読込可能メディア E2E', () => {
       'GeneratedAudioWaveform',
       'GeneratedParticle',
       'GeneratedBarcode',
+      'GeneratedPuzzlePiece',
     ]);
     expect(snapshotResult.media
       .filter((media) => media.kind === 'Video')
@@ -344,6 +358,13 @@ describe('全読込可能メディア E2E', () => {
       foreground_colour: '#000000',
       background_colour: '#ffffff',
     });
+    expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'puzzle-piece')?.source ?? '{}')).toMatchObject({
+      generator: 'puzzle-piece',
+      size: 120,
+      shape_variant: 1,
+      connector_mode: 'convex',
+      fill_colour: '#ffffff',
+    });
     expect(snapshotResult.media.some((media) => media.source.endsWith('.wav'))).toBe(false);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'shape-solid-rect')?.transform).toMatchObject({
       translation_x: 64.5,
@@ -366,6 +387,7 @@ describe('全読込可能メディア E2E', () => {
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'audio-waveform-r')?.source_frame).toBe(60);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'particle-standard')?.source_frame).toBe(60);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'barcode-t')?.source_frame).toBe(0);
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'puzzle-piece')?.source_frame).toBe(0);
     expect(validateRustSceneSnapshotBoundary({
       snapshot: snapshotResult.snapshot,
       media: snapshotResult.media,

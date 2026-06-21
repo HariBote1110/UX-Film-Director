@@ -66,18 +66,18 @@ export const buildSharedRendererPreviewSession = ({
 
 export const collectSharedRendererGeneratedEffectObjectIdsFromSession = (
   session: SharedRendererPreviewSession,
-): string[] => collectSharedRendererObjectIdsByMediaKind(session, ['GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode']);
+): string[] => collectSharedRendererObjectIdsByMediaKind(session, ['GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece']);
 
 const collectSharedRendererObjectIdsByMediaKind = (
   session: SharedRendererPreviewSession,
-  targetKinds: ReadonlyArray<'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode'>,
+  targetKinds: ReadonlyArray<'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece'>,
 ): string[] => {
   if (!session.surfaceGate.ok) return [];
 
   const targetKindSet = new Set(targetKinds);
   const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
   return session.surfaceGate.snapshot.clips
-    .filter((clip) => targetKindSet.has(mediaKindById.get(clip.media_id) as 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode'))
+    .filter((clip) => targetKindSet.has(mediaKindById.get(clip.media_id) as 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece'))
     .sort((left, right) => left.z_index - right.z_index)
     .map((clip) => clip.clip_id);
 };
