@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState, PsdWorldPlacement, VideoObject, ParticleObject } from '../types';
+import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState, PsdWorldPlacement, VideoObject, ParticleObject, GetColorDotFieldObject } from '../types';
 import { buildPsdLayerTree, togglePsdLayer } from '../utils/psdParser';
 import { easingNames, EasingType } from '../utils/easings';
 import { buildEndpointKeyframes, evaluateObjectPositionAtTime } from '../utils/keyframes';
@@ -342,6 +342,20 @@ const PropertyPanel: React.FC = () => {
       const o0 = o.startTime;
       const o1 = o.startTime + o.duration;
       return o0 < v1 && o1 > v0;
+    });
+  }, [objects, selectedObject]);
+
+  const getColorSampleCandidates = useMemo(() => {
+    if (selectedObject?.type !== 'getcolor_dot_field') return [];
+    const sampleObject = selectedObject as GetColorDotFieldObject;
+    const start = sampleObject.startTime;
+    const end = sampleObject.startTime + sampleObject.duration;
+    return objects.filter((object) => {
+      if (object.id === sampleObject.id) return false;
+      if (object.type !== 'image') return false;
+      const objectStart = object.startTime;
+      const objectEnd = object.startTime + object.duration;
+      return objectStart < end && objectEnd > start;
     });
   }, [objects, selectedObject]);
 
@@ -804,6 +818,32 @@ const PropertyPanel: React.FC = () => {
       const next = parseFloat(rawValue);
       if (Number.isNaN(next)) return;
       updateObject(selectedObject.id, { scale: clamp(next, 0.1, 10) } as Partial<TimelineObject>);
+  };
+
+  const handleGetColorSampleLayerChange = (rawValue: string) => {
+    if (selectedObject.type !== 'getcolor_dot_field') return;
+    const parsed = parseInt(rawValue, 10);
+    if (!Number.isFinite(parsed)) return;
+    updateObject(selectedObject.id, {
+      sampleSourceLayer: Math.max(0, parsed - 1),
+    } as Partial<TimelineObject>);
+  };
+
+  const handleGetColorSampleObjectChange = (objectId: string) => {
+    if (selectedObject.type !== 'getcolor_dot_field') return;
+    updateObject(selectedObject.id, {
+      sampleSourceObjectId: objectId || undefined,
+      sampleSourcePath: undefined,
+    } as Partial<TimelineObject>);
+  };
+
+  const handleGetColorSampleStrengthChange = (rawValue: string) => {
+    if (selectedObject.type !== 'getcolor_dot_field') return;
+    const parsed = parseFloat(rawValue);
+    if (!Number.isFinite(parsed)) return;
+    updateObject(selectedObject.id, {
+      sampleStrength: clamp(parsed, 0, 1),
+    } as Partial<TimelineObject>);
   };
 
   const handleAddFilter = (type: FilterType) => {
@@ -2084,9 +2124,9 @@ const PropertyPanel: React.FC = () => {
             </>
         )}
 
-        {selectedObject.type === 'particle' && (
-            <>
-                <SectionHeader label="Particle Settings" />
+         {selectedObject.type === 'particle' && (
+             <>
+                 <SectionHeader label="Particle Settings" />
                 <Row label="Particle Count">
                     <input
                         type="number"
@@ -2181,11 +2221,56 @@ const PropertyPanel: React.FC = () => {
                         style={{ width: '70px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
                     />
                 </Row>
-            </>
-        )}
-        
-        {/* --- 音声波形設定 --- */}
-        {selectedObject.type === 'audio_visualization' && (
+             </>
+         )}
+
+         {selectedObject.type === 'getcolor_dot_field' && (
+             <>
+                 <SectionHeader label="GetColor Sampling" />
+                 <Row label="Sample Layer">
+                     <input
+                         type="number"
+                         min="1"
+                         step="1"
+                         value={((selectedObject as GetColorDotFieldObject).sampleSourceLayer ?? Math.max(0, selectedObject.layer - 1)) + 1}
+                         onChange={(e) => handleGetColorSampleLayerChange(e.target.value)}
+                         style={{ width: '70px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Sample Object">
+                     <select
+                         value={(selectedObject as GetColorDotFieldObject).sampleSourceObjectId ?? ''}
+                         onChange={(e) => handleGetColorSampleObjectChange(e.target.value)}
+                         style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     >
+                         <option value="">{language === 'en' ? 'Use sample layer' : 'サンプルレイヤーを使う'}</option>
+                         {getColorSampleCandidates.map((candidate) => (
+                             <option key={candidate.id} value={candidate.id}>
+                                 {candidate.name} / L{candidate.layer + 1}
+                             </option>
+                         ))}
+                     </select>
+                 </Row>
+                 <Row label="Sample Strength">
+                     <Slider
+                         min="0"
+                         max="1"
+                         step="0.01"
+                         value={(selectedObject as GetColorDotFieldObject).sampleStrength ?? 1}
+                         onInput={(e) => handleGetColorSampleStrengthChange(e.currentTarget.value)}
+                         style={{ width: '100%' }}
+                     />
+                 </Row>
+                 <div style={{ fontSize: '11px', color: '#888', marginTop: '5px', marginBottom: '8px' }}>
+                     {language === 'en'
+                       ? 'PNG/JPEG image objects are used as Rust GetColor sample sources.'
+                       : 'PNG/JPEG画像オブジェクトをRust GetColorのサンプル元として使います。'}
+                 </div>
+             </>
+         )}
+         
+         {/* --- 音声波形設定 --- */}
+         {selectedObject.type === 'audio_visualization' && (
             <>
                 <SectionHeader label="Waveform Settings" />
                 <Row label="Colour">
