@@ -14,4 +14,15 @@ describe('pixiRenderHelper generated effect cutover', () => {
     expect(cutoverBlock).not.toContain('removeChildren()');
     expect(cutoverBlock).not.toContain('context: true');
   });
+
+  it('does not destroy Pixi Graphics GPU context while cutting Rust-owned solid colours over', () => {
+    const code = helperSource();
+    const start = code.indexOf('if (shouldSkipPixiSolidColourForSharedRenderer({');
+    const end = code.indexOf('container.hitArea = null;', start);
+    const cutoverBlock = code.slice(start, end);
+
+    expect(cutoverBlock).toContain('hidePixiChildrenForSharedRendererCutover(container.children)');
+    expect(cutoverBlock).not.toContain('removeChildren()');
+    expect(cutoverBlock).not.toContain('context: true');
+  });
 });
