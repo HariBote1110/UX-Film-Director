@@ -45,6 +45,19 @@
 - preview/exportともに、Audio waveform Rが常に0秒地点のPCMだけを見る問題を修正した。
 - 次は生成効果が実Electron上で見えているかを、preview screenshotとexport frame decodeの画素比較で確認する。
 
+## 2026-06-21 — Audio waveform RのRust画素可視性を確認
+
+### 実施内容
+- Test: `native-wgpu-renderer` の生成波形共有フレーム一致テストに、指定色 `#00ff66` の画素が直接フレーム内に存在するアサートを追加した。
+- 挙動変更なしの確認強化のため、版は `0.1.1-Beta-259d` のままとした。
+
+### 検証
+- `cargo test --test shared_frame_output native_wgpu_generated_waveform_shared_frame_matches_direct_frame`
+
+### 結果・残課題
+- 直接フレームと共有メモリフレームの一致だけでなく、Audio waveform R自体が実際に描画されていることも確認できるようになった。
+- 次は `encode.writeNativeFrame` の生成効果込みexport直結経路を確認する。
+
 ## 2026-06-21 — 動画export E2EのElectron bundle待機を追加
 
 ### 実施内容

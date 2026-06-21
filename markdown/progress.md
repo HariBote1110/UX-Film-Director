@@ -26,6 +26,13 @@
 - 残課題: 次は生成効果が実Electron上で見えているかを、preview screenshotとexport frame decodeの画素比較で確認する。
 
 ## 2026-06-21
+- Audio waveform RのRust画素可視性を確認した。
+- Test: `native-wgpu-renderer` の生成波形共有フレーム一致テストに、指定色 `#00ff66` の画素が直接フレーム内に存在するアサートを追加した。
+- 挙動変更なしの確認強化のため、版は `0.1.1-Beta-259d` のままとした。
+- 検証: `cargo test --test shared_frame_output native_wgpu_generated_waveform_shared_frame_matches_direct_frame` は成功した。
+- 残課題: 次は `encode.writeNativeFrame` の生成効果込みexport直結経路を確認する。
+
+## 2026-06-21
 - 動画export E2EのElectron bundle待機を追加した。
 - Red: `run-video-export-e2e.mjs` がElectron起動前にbundle完了を待つ契約を追加した。
 - Green: `dist-electron/main.js` / `dist-electron/preload.js` の更新時刻とIPC markerを確認してからElectronを起動するようにした。

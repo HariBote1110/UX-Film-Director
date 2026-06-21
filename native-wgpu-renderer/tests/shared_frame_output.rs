@@ -159,6 +159,13 @@ fn native_wgpu_generated_waveform_shared_frame_matches_direct_frame() {
         }
         Err(error) => panic!("native wgpu generated waveform render failed: {error:?}"),
     };
+    assert!(
+        rendered
+            .pixels
+            .chunks_exact(4)
+            .any(|pixel| pixel == [0, 255, 102, 255]),
+        "generated waveform colour should be visible in the direct frame"
+    );
 
     let output = match pollster::block_on(
         render_native_wgpu_frame_to_shared_ring_with_audio_waveforms(
