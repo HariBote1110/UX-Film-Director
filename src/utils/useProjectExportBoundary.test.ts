@@ -157,6 +157,20 @@ describe('useProjectExport legacy browser dependency boundary', () => {
     expect(transcodePayloadBlock).toContain('...exportEncodeSettings');
   });
 
+  it('passes mixed-media transcode overlays and prepared audio mix into direct transcode', () => {
+    const code = source();
+    const transcodePayloadBlock = code.slice(
+      code.indexOf('return await transcodeRustBackendVideo({'),
+      code.indexOf('outputPath: savePath,') + 'outputPath: savePath,'.length
+    );
+
+    expect(code).toContain('const { requiresAudioMix, ...transcodePayload } = transcodeFastPath;');
+    expect(code).toContain('const transcodeAudioPath = requiresAudioMix');
+    expect(code).toContain('await prepareProjectExportTranscodeAudioPath');
+    expect(transcodePayloadBlock).toContain('...transcodePayload');
+    expect(transcodePayloadBlock).toContain('audioPath: transcodeAudioPath');
+  });
+
   it('passes the Rust export render-ahead setting into shared-frame encode export', () => {
     const code = source();
     const encodeExportBlock = code.slice(
