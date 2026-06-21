@@ -12,7 +12,7 @@ import {
   shouldSynchroniseTimelineForProjectExportFrame,
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
-import type { AudioObject, ImageObject, ParticleObject, PsdObject, ShapeObject, TimelineObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, ImageObject, ParticleObject, PsdObject, ShapeObject, TimelineObject, VideoObject } from '../types';
 
 const source = () =>
   readFileSync(new URL('./projectExportFrameCanvas.ts', import.meta.url), 'utf8');
@@ -112,6 +112,33 @@ const audio = (patch: Partial<AudioObject> = {}): AudioObject => ({
   filePath: '/tmp/music.wav',
   volume: 1,
   muted: false,
+  ...patch,
+});
+
+const audioVisualisation = (patch: Partial<AudioVisualizationObject> = {}): AudioVisualizationObject => ({
+  id: 'waveform-1',
+  type: 'audio_visualization',
+  name: 'Audio waveform',
+  layer: 3,
+  startTime: 0,
+  duration: 5,
+  x: 640,
+  y: 540,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 640,
+  endY: 540,
+  easing: 'linear',
+  targetAudioId: 'audio-1',
+  visualizationType: 'waveform',
+  color: '#00ff88',
+  thickness: 2,
+  width: 640,
+  height: 160,
+  amplitude: 1,
   ...patch,
 });
 
@@ -603,6 +630,26 @@ describe('resolveProjectExportRustFrameSourceContext', () => {
   it('marks standard particle exports as native-render media instead of legacy canvas work', () => {
     const objects: TimelineObject[] = [particle(), audio()];
 
+    expect(hasProjectExportNativeRenderMediaObjects(objects)).toBe(true);
+    expect(resolveProjectExportRustFrameSourceContext({
+      objects,
+      time: 0,
+      encodeEngine: 'webCodecsMp4Muxer',
+      presentedFrameSharedFrameTaker: undefined,
+    })).toEqual({
+      objects,
+      hasVideoObjects: false,
+      hasNativeRenderMediaObjects: true,
+      time: 0,
+      preferEncodeOnly: false,
+      presentedFrameSharedFrameTaker: undefined,
+    });
+  });
+
+  it('marks audio visualisation exports as native-render visual media while plain audio stays non-visual', () => {
+    const objects: TimelineObject[] = [audio(), audioVisualisation()];
+
+    expect(hasProjectExportNativeRenderMediaObjects([audio()])).toBe(false);
     expect(hasProjectExportNativeRenderMediaObjects(objects)).toBe(true);
     expect(resolveProjectExportRustFrameSourceContext({
       objects,
