@@ -82,6 +82,7 @@
 63. ✅ `P1` hksy菱形をRust GeneratedHksyCheckerGridのdiamond pattern生成プリセットとして追加する
 64. ✅ `P1` hksyグリッドをRust GeneratedHksyCheckerGridのmeasured-grid pattern生成プリセットとして追加する
 65. ✅ `P1` hksyライン（アンカー指定）をRust GeneratedHksyCheckerGridのanchor-line pattern生成プリセットとして追加する
+66. ✅ `P1` GetColor V2R菱形ドットをRust GeneratedGetColorDotsのdot_shape指定プリセットとして追加する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

@@ -1,6 +1,18 @@
 # 進捗ログ
 
 ## 2026-06-22
+- GetColor V2R菱形ドットフィールドをRust生成プリセットへ追加した。
+- Red: `getcolor-v2r-diamond-dots` がAviUtlPackV4カタログ、Timeline右クリックメニュー、factory、保存/読込、Rust scene snapshot、shared renderer native media、Rust backend画素生成を通る契約を追加した。
+- Green: `GetColorDotFieldObject` に `dotShape` / `strokeWidth` を追加し、`GeneratedGetColorDots` のJSON payloadへ `dot_shape` / `stroke_width` を渡すようにした。
+- Green: Rust backendでGetColorドットを `circle` / `square` / `diamond` として描き分けられるようにした。
+- Green: Timeline右クリックメニューに `GetColor V2R菱形ドットフィールドを追加` / `Add GetColor V2R Diamond Dots` を追加した。
+- 版を `0.1.1-Beta-299a` に更新した。
+- 検証: `npm test -- --run src/utils/getColorDotFieldObjectFactory.test.ts src/utils/hksyCheckerGridObjectFactory.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/packageScripts.test.ts --reporter=dot` は126件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_getcolor_dots_source_frame -- --nocapture` は2件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回のGetColor菱形ドット由来の型エラーは出ていない。
+- 次はGetColorの元画像サンプリング/Field/Twist方向、または93系の残候補へ進む。
+
+## 2026-06-22
 - hksyライン（アンカー指定）をRust生成プリセットへ追加した。
 - Red: `hksy-anchor-line` がAviUtlPackV4カタログ、Timeline右クリックメニュー、factory、保存/読込、Rust scene snapshot、shared renderer native media、Rust backend画素生成を通る契約を追加した。
 - Green: `HksyCheckerGridObject.pattern` に `anchor-line` を追加し、アンカー点、丸端、最大接続距離をRust payloadへ渡すようにした。
