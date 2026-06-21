@@ -13,6 +13,21 @@
 - Audio waveform RはRust native renderer内で直接フレームと共有メモリフレームの画素一致を確認できた。
 - 次は標準パーティクルを含む生成ソースと、実Electron preview/export成果物の画素比較へ広げる。
 
+## 2026-06-21 — 生成波形と標準パーティクルの混在Rust出力を確認
+
+### 実施内容
+- Test: `rust-backend` の `render.nativeSharedFrame` に、Audio waveform Rと標準パーティクルを同一フレームで合成する境界テストを追加した。
+- Test: 赤い波形ラインと白い粒子が同じ共有メモリフレームに出ることを検証した。
+- 挙動変更なしの確認強化のため、版は `0.1.1-Beta-259c` のままとした。
+
+### 検証
+- `cargo test --test decode_control_plane native_render_shared_frame_builds_generated -- --nocapture`
+- `cargo test --test decode_control_plane native_render_shared_frame_composites_generated_waveform_and_particle_sources -- --nocapture`
+
+### 結果・残課題
+- Rust backend境界では、GeneratedAudioWaveformとGeneratedParticleの混在合成が共有メモリ出力まで成功することを確認できた。
+- 次は実Electronのpreview/export成果物を画像として比較し、UI経由の見た目まで確認する。
+
 ## 2026-06-21 — 動画export E2EのElectron bundle待機を追加
 
 ### 実施内容

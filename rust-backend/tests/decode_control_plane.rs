@@ -1914,6 +1914,122 @@ fn native_render_shared_frame_builds_generated_particle_sources_from_media() {
 }
 
 #[test]
+fn native_render_shared_frame_composites_generated_waveform_and_particle_sources() {
+    let mut backend = BackendProcess::start();
+    let output_memory_id = unique_shm_name();
+    let slot_count = 1;
+    let width = 4;
+    let height = 4;
+    let waveform_source = "{\"generator\":\"audio-waveform-r\",\"target_audio_id\":\"audio-1\",\"target_source\":\"/tmp/dialogue.wav\",\"sample_window_seconds\":1,\"colour\":\"#ff0000\",\"thickness\":1,\"amplitude\":1}";
+    let particle_source = "{\"generator\":\"standard-particle\",\"seed\":0,\"particle_count\":1,\"spread\":0,\"speed\":0,\"size\":1,\"colour\":\"#ffffff\",\"lifetime_seconds\":1}";
+
+    let response = backend.request(json!({
+        "id": 40,
+        "method": "render.nativeSharedFrame",
+        "params": {
+            "renderId": "native-render-generated-waveform-and-particle",
+            "memoryId": output_memory_id,
+            "slotCount": slot_count,
+            "ptsFrame": 0,
+            "width": width,
+            "height": height,
+            "snapshot": {
+                "frame_index": 0,
+                "colour": {
+                    "profile": "rec709-sdr",
+                    "working_space": "linear-light",
+                    "alpha": "premultiplied"
+                },
+                "clips": [
+                    {
+                        "clip_id": "clip-generated-waveform",
+                        "track_id": "track-1",
+                        "media_id": "waveform-1",
+                        "source_frame": 0,
+                        "z_index": 0,
+                        "transform": {
+                            "translation_x": 0.0,
+                            "translation_y": 0.0,
+                            "scale_x": 1.0,
+                            "scale_y": 1.0,
+                            "rotation_degrees": 0.0,
+                            "sampling": "nearest"
+                        },
+                        "opacity": 1.0,
+                        "effects": []
+                    },
+                    {
+                        "clip_id": "clip-generated-particle",
+                        "track_id": "track-2",
+                        "media_id": "particle-1",
+                        "source_frame": 0,
+                        "z_index": 1,
+                        "transform": {
+                            "translation_x": 0.0,
+                            "translation_y": 0.0,
+                            "scale_x": 1.0,
+                            "scale_y": 1.0,
+                            "rotation_degrees": 0.0,
+                            "sampling": "nearest"
+                        },
+                        "opacity": 1.0,
+                        "effects": []
+                    }
+                ]
+            },
+            "media": [
+                {
+                    "id": "waveform-1",
+                    "kind": "GeneratedAudioWaveform",
+                    "source": waveform_source,
+                    "width": width,
+                    "height": height
+                },
+                {
+                    "id": "particle-1",
+                    "kind": "GeneratedParticle",
+                    "source": particle_source,
+                    "width": width,
+                    "height": height
+                }
+            ],
+            "sources": [],
+            "audioWaveforms": [{
+                "mediaId": "waveform-1",
+                "source": waveform_source,
+                "samples": [-1.0, -1.0, -1.0, -1.0],
+                "sampleRate": 4,
+                "width": width,
+                "height": height
+            }]
+        }
+    }));
+
+    assert_eq!(response["ok"], true, "{response}");
+    assert_eq!(response["result"]["rendered"], true);
+    assert_no_frame_bytes_recursive(&response["result"]);
+
+    let output_slot_byte_len = response["result"]["frame"]["descriptor"]["byteLen"]
+        .as_u64()
+        .expect("output byte length") as usize;
+    let output_ring = PosixSharedRing::attach_with_retry_for_layout(
+        response["result"]["frame"]["descriptor"]["memoryId"]
+            .as_str()
+            .expect("output memory id"),
+        slot_count,
+        output_slot_byte_len,
+        Duration::from_secs(1),
+    )
+    .expect("attach to native generated waveform and particle output ring");
+    let output_frame = output_ring
+        .read_frame(0)
+        .expect("read native generated waveform and particle output frame");
+
+    assert_eq!(&output_frame.bytes[0..4], &[255, 0, 0, 255]);
+    assert_eq!(&output_frame.bytes[520..524], &[255, 255, 255, 255]);
+}
+
+#[test]
 fn native_render_generated_particle_uses_clip_source_frame_for_motion() {
     let mut backend = BackendProcess::start();
     let output_memory_id = unique_shm_name();
