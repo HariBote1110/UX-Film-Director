@@ -1,3 +1,25 @@
+## 2026-06-22 — GetColor ColorShift初期互換としてサンプル色相シフトを追加
+
+### 実施内容
+- Red: `GeneratedGetColorDots` が `sample_hue_shift_degrees` をsnapshot/native gate/Rust画素生成で扱う契約を追加した。
+- Red: PropertyPanelのGetColor Sampling UIが `sampleHueShiftDegrees` と `Sample Hue Shift` を露出する契約を追加した。
+- Green: `GetColorDotFieldObject` に `sampleHueShiftDegrees` を追加し、Rust scene snapshotで `sample_hue_shift_degrees` として渡すようにした。
+- Green: shared renderer native gateとproject file検証で `sample_hue_shift_degrees` / `sampleHueShiftDegrees` を `-720..720` に制限した。
+- Green: Rust backendでサンプル済みRGBをHSVへ変換し、指定角度だけ色相を回してからドットへ描画するようにした。
+- Green: PropertyPanelに `Sample Hue Shift` 数値入力を追加し、UIからGetColor(ColorShift)初期互換を調整できるようにした。
+- 版を `0.1.1-Beta-313a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts --reporter=dot` は76件成功した。
+- `npm test -- --run src/components/PropertyPanelBoundary.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts --reporter=dot` は81件成功した。
+- `npm test -- --run src/utils/projectFile.test.ts src/utils/packageScripts.test.ts --reporter=dot` は17件成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml generated_getcolor_dots_source -- --nocapture` は6件成功した。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回のGetColor ColorShift初期互換由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- 現時点はサンプル色の色相シフト初期互換。AviUtl GetColor(ColorShift)の閾値タイプ、段階表示、HEX/Alpha連動は後続で段階的に追加する。
+- 次はGetColor(Twist/Field/AudioReact)か、`hksy` / `93` の未移植候補へ進む。
+
 ## 2026-06-22 — GetColor PSDサンプル参照をRust生成とPropertyPanelへ接続
 
 ### 実施内容
