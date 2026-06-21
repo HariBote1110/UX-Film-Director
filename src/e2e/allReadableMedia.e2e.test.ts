@@ -24,6 +24,7 @@ import type {
   SunburstObject,
   TimelineObject,
   TrackBarObject,
+  TriangleBracketObject,
   VideoObject,
 } from '../types';
 import {
@@ -367,6 +368,18 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     flipHorizontal: false,
     arrowColour: '#ffff00',
   };
+  const triangleBracket: TriangleBracketObject = {
+    ...baseObject('ssd-triangle-bracket', 'triangle_bracket', 21),
+    type: 'triangle_bracket',
+    name: '三角括弧',
+    width: 160,
+    height: 100,
+    bracketWidth: 100,
+    angleDegrees: 120,
+    armLength: 50,
+    offsetDistance: 0,
+    bracketColour: '#ffffff',
+  };
 
   return [
     solidShape,
@@ -387,6 +400,7 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     histogram,
     sunburst,
     circularArrow,
+    triangleBracket,
   ];
 };
 
@@ -465,6 +479,7 @@ describe('全読込可能メディア E2E', () => {
       'GeneratedHistogram',
       'GeneratedSunburst',
       'GeneratedCircularArrow',
+      'GeneratedTriangleBracket',
     ]);
     expect(snapshotResult.media
       .filter((media) => media.kind === 'Video')
@@ -583,6 +598,14 @@ describe('全読込可能メディア E2E', () => {
       flip_horizontal: false,
       arrow_colour: '#ffff00',
     });
+    expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'ssd-triangle-bracket')?.source ?? '{}')).toMatchObject({
+      generator: 'triangle-bracket',
+      bracket_width: 100,
+      angle_degrees: 120,
+      arm_length: 50,
+      offset_distance: 0,
+      bracket_colour: '#ffffff',
+    });
     expect(snapshotResult.media.some((media) => media.source.endsWith('.wav'))).toBe(false);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'shape-solid-rect')?.transform).toMatchObject({
       translation_x: 64.5,
@@ -614,6 +637,7 @@ describe('全読込可能メディア E2E', () => {
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'simple-histogram')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-sunburst')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-circular-arrow')?.source_frame).toBe(0);
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-triangle-bracket')?.source_frame).toBe(0);
     expect(validateRustSceneSnapshotBoundary({
       snapshot: snapshotResult.snapshot,
       media: snapshotResult.media,

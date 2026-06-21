@@ -12,7 +12,7 @@ import {
   shouldSynchroniseTimelineForProjectExportFrame,
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, ImageObject, ParticleObject, PieChartObject, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TimelineObject, TrackBarObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, ImageObject, ParticleObject, PieChartObject, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject } from '../types';
 
 const source = () =>
   readFileSync(new URL('./projectExportFrameCanvas.ts', import.meta.url), 'utf8');
@@ -484,6 +484,33 @@ const circularArrow = (patch: Partial<CircularArrowObject> = {}): CircularArrowO
   ...patch,
 });
 
+const triangleBracket = (patch: Partial<TriangleBracketObject> = {}): TriangleBracketObject => ({
+  id: 'triangle-bracket-1',
+  type: 'triangle_bracket',
+  name: '三角括弧',
+  layer: 14,
+  startTime: 0,
+  duration: 5,
+  x: 880,
+  y: 490,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 880,
+  endY: 490,
+  easing: 'linear',
+  width: 160,
+  height: 100,
+  bracketWidth: 100,
+  angleDegrees: 120,
+  armLength: 50,
+  offsetDistance: 0,
+  bracketColour: '#ffffff',
+  ...patch,
+});
+
 describe('resolveProjectExportFrameCanvas', () => {
   it('uses the explicit export canvas without requiring a legacy canvas', () => {
     const sharedRendererCanvas = { id: 'shared-renderer-export' } as unknown as HTMLCanvasElement;
@@ -915,7 +942,7 @@ describe('resolveProjectExportRustFrameSourceContext', () => {
   });
 
   it('marks standard particle exports as native-render media instead of legacy canvas work', () => {
-    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), gourd(), gear(), trackBar(), pieChart(), histogram(), sunburst(), circularArrow(), audio()];
+    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), gourd(), gear(), trackBar(), pieChart(), histogram(), sunburst(), circularArrow(), triangleBracket(), audio()];
 
     expect(hasProjectExportNativeRenderMediaObjects(objects)).toBe(true);
     expect(resolveProjectExportRustFrameSourceContext({

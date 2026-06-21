@@ -136,6 +136,12 @@ const media: RustSceneMediaReference[] = [{
   width: 200,
   height: 200,
 }, {
+  id: 'triangle-bracket-1',
+  kind: 'GeneratedTriangleBracket' as RustSceneMediaReference['kind'],
+  source: '{"generator":"triangle-bracket","bracket_width":100,"angle_degrees":120,"arm_length":50,"offset_distance":0,"bracket_colour":"#ffffff"}',
+  width: 160,
+  height: 100,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -187,8 +193,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[14])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[15])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[16])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[17])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[17])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[18])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[19])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {

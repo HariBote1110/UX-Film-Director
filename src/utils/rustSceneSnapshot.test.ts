@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, ImageObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TimelineObject, TrackBarObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, ImageObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -480,6 +480,33 @@ const baseCircularArrow = (patch: Partial<CircularArrowObject> = {}): CircularAr
   flipVertical: false,
   flipHorizontal: false,
   arrowColour: '#ffff00',
+  ...patch,
+});
+
+const baseTriangleBracket = (patch: Partial<TriangleBracketObject> = {}): TriangleBracketObject => ({
+  id: 'triangle-bracket-1',
+  type: 'triangle_bracket',
+  name: '三角括弧',
+  layer: 16,
+  startTime: 1,
+  duration: 4,
+  x: 880,
+  y: 490,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 880,
+  endY: 490,
+  easing: 'linear',
+  width: 160,
+  height: 100,
+  bracketWidth: 100,
+  angleDegrees: 120,
+  armLength: 50,
+  offsetDistance: 0,
+  bracketColour: '#ffffff',
   ...patch,
 });
 
@@ -1038,6 +1065,43 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         }),
         width: 200,
         height: 200,
+      },
+    ]);
+  });
+
+  it('builds a generated triangle bracket media plane from a triangle bracket object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseTriangleBracket()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated triangle bracket snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'triangle-bracket-1',
+      track_id: 'layer-16',
+      media_id: 'triangle-bracket-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'triangle-bracket-1',
+        kind: 'GeneratedTriangleBracket',
+        source: JSON.stringify({
+          generator: 'triangle-bracket',
+          bracket_width: 100,
+          angle_degrees: 120,
+          arm_length: 50,
+          offset_distance: 0,
+          bracket_colour: '#ffffff',
+        }),
+        width: 160,
+        height: 100,
       },
     ]);
   });

@@ -211,3 +211,19 @@ fn rust_core_accepts_generated_circular_arrow_media_kind_at_the_json_boundary() 
     assert_eq!(media.width, 200);
     assert_eq!(media.height, 200);
 }
+
+#[test]
+fn rust_core_accepts_generated_triangle_bracket_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "triangle-bracket-1",
+        "kind": "GeneratedTriangleBracket",
+        "source": "{\"generator\":\"triangle-bracket\",\"bracket_width\":100,\"angle_degrees\":120,\"arm_length\":50,\"offset_distance\":0,\"bracket_colour\":\"#ffffff\"}",
+        "width": 160,
+        "height": 100
+    }))
+    .expect("GeneratedTriangleBracket media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedTriangleBracket);
+    assert_eq!(media.width, 160);
+    assert_eq!(media.height, 100);
+}

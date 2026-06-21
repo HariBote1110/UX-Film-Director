@@ -44,6 +44,7 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('tim-simple-histogram')?.sourceRelativePaths).toContain('script/てぃむ/簡易ヒストグラム.obj');
     expect(byId.get('ssd-sunburst')?.sourceRelativePaths).toContain('script/ANM/ANM_ssd/日の出.obj');
     expect(byId.get('ssd-circular-arrow')?.sourceRelativePaths).toContain('script/ANM/ANM_ssd/円矢印.obj');
+    expect(byId.get('ssd-triangle-bracket')?.sourceRelativePaths).toContain('script/ANM/ANM_ssd/三角括弧.obj');
     expect(byId.get('custom-track-bar')?.sourceRelativePaths).toContain('script/93/カスタムトラックバー.obj');
     expect(byId.get('pie-sheet-graph')?.sourceRelativePaths).toContain('script/93/パイシートグラフ.obj');
     expect(byId.get('tim-motion-path')?.sourceRelativePaths).toEqual(expect.arrayContaining([
