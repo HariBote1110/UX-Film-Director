@@ -64,7 +64,8 @@
 46. ✅ `P2` SSD麻の葉模様をRust GeneratedAsanohaPattern生成オブジェクトへ追加
 47. ✅ `P2` SSD集中線plusをRust GeneratedFocusLinesPlus生成オブジェクトへ追加
 48. ✅ `P2` SSDランダムラインEXをRust GeneratedRandomLineEx生成オブジェクトへ追加
-49. `P2` 生成効果入り混在exportのnative render source待ち時間を分解して高速化する
+49. ✅ `P2` SSDホログラムをRust GeneratedHologram生成オブジェクトへ追加
+50. `P2` 生成効果入り混在exportのnative render source待ち時間を分解して高速化する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

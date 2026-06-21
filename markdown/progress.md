@@ -1,6 +1,20 @@
 # 進捗ログ
 
 ## 2026-06-22
+- SSDホログラムをRust生成オブジェクトへ追加した。
+- Red: `script/ANM/ANM_ssd/ホログラム.obj` を、Rust `GeneratedHologram` mediaとして扱う境界契約を作った。
+- Green: `HologramObject` と `buildAviUtlHologramObject` を追加し、Timeline右クリックから `ホログラムを追加` / `Add Hologram` で置けるようにした。
+- Green: `rustSceneSnapshot` / shared renderer native support / Rust core schema / Rust backendに `GeneratedHologram` を追加した。
+- Green: Rust backendで不透明背景、斜めプリズム帯、明暗ストライプを持つ決定的なホログラムフレームを生成できるようにした。
+- Green: `ssd-hologram` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-284a` に更新した。
+- 検証: `npm test -- --run src/utils/hologramObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/e2e/allReadableMedia.e2e.test.ts --reporter=dot` は96件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は22件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_hologram_source_frame_contains_prism_stripes_and_opacity -- --nocapture` は1件成功した。
+- 検証: 対象名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足、`mp4box` 型定義不足、`heavyEffectsStress.test.ts` の `PositionKeyframe` 未定義のみ検出した。
+- 残課題: 現時点の `GeneratedHologram` は元スクリプトのタイル生成・ぼかし・カラー処理を、Rust側の不透明な斜めプリズム模様生成へ置き換えた互換再実装。
+
+## 2026-06-22
 - SSDランダムラインEXをRust生成オブジェクトへ追加した。
 - Red: `script/ANM/ANM_ssd/ランダムラインEX.obj` を、Rust `GeneratedRandomLineEx` mediaとして扱う境界契約を作った。
 - Green: `RandomLineExObject` と `buildAviUtlRandomLineExObject` を追加し、Timeline右クリックから `ランダムラインEXを追加` / `Add Random Line EX` で置けるようにした。

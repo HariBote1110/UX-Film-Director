@@ -107,7 +107,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'paper_airplane',
   'asanoha_pattern',
   'focus_lines_plus',
-  'random_line_ex'
+  'random_line_ex',
+  'hologram'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -376,6 +377,15 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!isFiniteNumber(candidate.widthVariance) || candidate.widthVariance < 0 || candidate.widthVariance > 2000) return false;
     if (!isFiniteNumber(candidate.seed)) return false;
     if (typeof candidate.lineColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.lineColour)) return false;
+  }
+  if (candidate.type === 'hologram') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.tileSize) || candidate.tileSize < 10 || candidate.tileSize > 1000) return false;
+    if (!isFiniteNumber(candidate.rotationDegrees) || candidate.rotationDegrees < -720 || candidate.rotationDegrees > 720) return false;
+    if (!isFiniteNumber(candidate.gradientAngleDegrees) || candidate.gradientAngleDegrees < -720 || candidate.gradientAngleDegrees > 720) return false;
+    if (!isFiniteNumber(candidate.colourMode) || candidate.colourMode < 0 || candidate.colourMode > 2) return false;
+    if (typeof candidate.tintColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.tintColour)) return false;
   }
   return true;
 };

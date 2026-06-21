@@ -369,6 +369,16 @@ struct GeneratedRandomLineExSource {
     line_colour: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedHologramSource {
+    generator: String,
+    tile_size: u32,
+    rotation_degrees: f32,
+    gradient_angle_degrees: f32,
+    colour_mode: u32,
+    tint_colour: String,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2375,6 +2385,7 @@ fn collect_native_render_sources(
                 source_frame_for_media(snapshot, &media.id),
             )?,
             MediaKind::GeneratedRandomLineEx => build_generated_random_line_ex_source_frame(media)?,
+            MediaKind::GeneratedHologram => build_generated_hologram_source_frame(media)?,
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform => continue,
@@ -4275,6 +4286,112 @@ fn fill_random_line_ex_quad(
     }
 }
 
+fn build_generated_hologram_source_frame(media: &SceneMediaReference) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedHologram media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let hologram: GeneratedHologramSource =
+        serde_json::from_str(&media.source).map_err(|error| {
+            format!("Invalid GeneratedHologram media '{}': {error}", media.id)
+        })?;
+    validate_generated_hologram_source(&hologram).map_err(|message| {
+        format!("Invalid GeneratedHologram media '{}': {message}", media.id)
+    })?;
+    let tint = parse_hex_colour_source(&hologram.tint_colour)
+        .map_err(|message| format!("Invalid GeneratedHologram media '{}': {message}", media.id))?;
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedHologram media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedHologram media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+    let tile = hologram.tile_size as f32;
+    let rotation = hologram.rotation_degrees.to_radians();
+    let gradient_angle = hologram.gradient_angle_degrees.to_radians();
+    let cos_r = rotation.cos();
+    let sin_r = rotation.sin();
+    let cos_g = gradient_angle.cos();
+    let sin_g = gradient_angle.sin();
+    let centre_x = media.width as f32 * 0.5;
+    let centre_y = media.height as f32 * 0.5;
+
+    for y in 0..media.height {
+        for x in 0..media.width {
+            let px = x as f32 + 0.5 - centre_x;
+            let py = y as f32 + 0.5 - centre_y;
+            let rx = px * cos_r - py * sin_r;
+            let ry = px * sin_r + py * cos_r;
+            let band = ((rx + ry * 0.65).rem_euclid(tile)) / tile;
+            let stripe_phase = (rx.rem_euclid(tile) / tile - 0.5).abs();
+            let mut colour = hologram_colour_for_band(band, stripe_phase, tint);
+
+            if hologram.colour_mode == 1 {
+                colour = blend_rgb8(colour, tint, 0.18);
+            } else if hologram.colour_mode == 2 {
+                let gradient_position =
+                    ((px * cos_g + py * sin_g) / (media.width.max(media.height) as f32)
+                        + 0.5)
+                        .rem_euclid(1.0);
+                colour = blend_rgb8(
+                    colour,
+                    hsv_to_rgb8(gradient_position * 360.0, 0.72, 1.0),
+                    0.46,
+                );
+            }
+
+            let offset = (y as usize * media.width as usize + x as usize) * 4;
+            pixels[offset..offset + 4].copy_from_slice(&[colour[0], colour[1], colour[2], 255]);
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedHologram media frame is invalid: {error:?}"))
+}
+
+fn hologram_colour_for_band(band: f32, stripe_phase: f32, tint: [u8; 3]) -> [u8; 3] {
+    let base = [118, 122, 130];
+    let cool = [122, 210, 255];
+    let warm = [255, 118, 172];
+    let white = [242, 248, 255];
+    let shadow = [20, 22, 28];
+    let dark = [48, 52, 62];
+
+    let colour = if band < 0.10 {
+        shadow
+    } else if band < 0.18 {
+        cool
+    } else if band < 0.30 {
+        white
+    } else if band < 0.43 {
+        blend_rgb8(base, tint, 0.18)
+    } else if band < 0.52 {
+        dark
+    } else if band < 0.66 {
+        warm
+    } else if band < 0.78 {
+        blend_rgb8(base, cool, 0.35)
+    } else {
+        blend_rgb8(base, white, 0.30)
+    };
+
+    if stripe_phase < 0.045 {
+        blend_rgb8(colour, [255, 255, 255], 0.55)
+    } else if stripe_phase > 0.455 {
+        blend_rgb8(colour, [0, 0, 0], 0.35)
+    } else {
+        colour
+    }
+}
+
 fn draw_line_segment_rgba(
     pixels: &mut [u8],
     width: u32,
@@ -4904,6 +5021,32 @@ fn validate_generated_random_line_ex_source(
         return Err("width_variance must be 0..2000".to_string());
     }
     parse_hex_colour_source(&source.line_colour)?;
+    Ok(())
+}
+
+fn validate_generated_hologram_source(source: &GeneratedHologramSource) -> Result<(), String> {
+    if source.generator != "hologram" {
+        return Err("generator must be hologram".to_string());
+    }
+    if source.tile_size < 10 || source.tile_size > 1000 {
+        return Err("tile_size must be 10..1000".to_string());
+    }
+    if !source.rotation_degrees.is_finite()
+        || source.rotation_degrees < -720.0
+        || source.rotation_degrees > 720.0
+    {
+        return Err("rotation_degrees must be -720..720".to_string());
+    }
+    if !source.gradient_angle_degrees.is_finite()
+        || source.gradient_angle_degrees < -720.0
+        || source.gradient_angle_degrees > 720.0
+    {
+        return Err("gradient_angle_degrees must be -720..720".to_string());
+    }
+    if source.colour_mode > 2 {
+        return Err("colour_mode must be 0..2".to_string());
+    }
+    parse_hex_colour_source(&source.tint_colour)?;
     Ok(())
 }
 
@@ -7406,5 +7549,50 @@ mod tests {
 
         assert!(white_count > 1_000);
         assert!(transparent_count > 250_000);
+    }
+
+    #[test]
+    fn generated_hologram_source_frame_contains_prism_stripes_and_opacity() {
+        let media = SceneMediaReference {
+            id: "hologram-1".to_string(),
+            kind: MediaKind::GeneratedHologram,
+            source: r##"{"generator":"hologram","tile_size":80,"rotation_degrees":0,"gradient_angle_degrees":-60,"colour_mode":1,"tint_colour":"#ffffff"}"##.to_string(),
+            width: 800,
+            height: 450,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame =
+            build_generated_hologram_source_frame(&media).expect("generated hologram frame should render");
+        let opaque_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| rgba[3] == 255)
+            .count();
+        let bright_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| rgba[0] > 210 && rgba[1] > 210 && rgba[2] > 210 && rgba[3] == 255)
+            .count();
+        let shadow_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| rgba[0] < 80 && rgba[1] < 85 && rgba[2] < 95 && rgba[3] == 255)
+            .count();
+        let coloured_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| {
+                rgba[3] == 255
+                    && ((rgba[0] as i16 - rgba[1] as i16).abs() > 30
+                        || (rgba[1] as i16 - rgba[2] as i16).abs() > 30)
+            })
+            .count();
+
+        assert_eq!(opaque_count, 800 * 450);
+        assert!(bright_count > 15_000);
+        assert!(shadow_count > 10_000);
+        assert!(coloured_count > 40_000);
     }
 }

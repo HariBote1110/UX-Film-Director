@@ -55,6 +55,7 @@ pub enum MediaKind {
     GeneratedAsanohaPattern,
     GeneratedFocusLinesPlus,
     GeneratedRandomLineEx,
+    GeneratedHologram,
     Psd,
 }
 
@@ -90,6 +91,7 @@ pub enum ClipKind {
     GeneratedAsanohaPatternPlane,
     GeneratedFocusLinesPlusPlane,
     GeneratedRandomLineExPlane,
+    GeneratedHologramPlane,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

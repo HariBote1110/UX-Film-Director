@@ -25,6 +25,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedAsanohaPattern') return isSharedRendererNativeGeneratedAsanohaPatternSourceSupported(reference.source);
   if (reference.kind === 'GeneratedFocusLinesPlus') return isSharedRendererNativeGeneratedFocusLinesPlusSourceSupported(reference.source);
   if (reference.kind === 'GeneratedRandomLineEx') return isSharedRendererNativeGeneratedRandomLineExSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedHologram') return isSharedRendererNativeGeneratedHologramSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -830,6 +831,42 @@ const isSharedRendererNativeGeneratedRandomLineExSourceSupported = (source: stri
       && Number.isInteger(parsed.seed)
       && typeof parsed.line_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.line_colour)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedHologramSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      tile_size?: unknown;
+      rotation_degrees?: unknown;
+      gradient_angle_degrees?: unknown;
+      colour_mode?: unknown;
+      tint_colour?: unknown;
+    };
+    return (
+      parsed.generator === 'hologram'
+      && typeof parsed.tile_size === 'number'
+      && Number.isInteger(parsed.tile_size)
+      && parsed.tile_size >= 10
+      && parsed.tile_size <= 1000
+      && typeof parsed.rotation_degrees === 'number'
+      && Number.isFinite(parsed.rotation_degrees)
+      && parsed.rotation_degrees >= -720
+      && parsed.rotation_degrees <= 720
+      && typeof parsed.gradient_angle_degrees === 'number'
+      && Number.isFinite(parsed.gradient_angle_degrees)
+      && parsed.gradient_angle_degrees >= -720
+      && parsed.gradient_angle_degrees <= 720
+      && typeof parsed.colour_mode === 'number'
+      && Number.isInteger(parsed.colour_mode)
+      && parsed.colour_mode >= 0
+      && parsed.colour_mode <= 2
+      && typeof parsed.tint_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.tint_colour)
     );
   } catch {
     return false;

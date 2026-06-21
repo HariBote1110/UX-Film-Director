@@ -377,6 +377,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '不穏な背景やノイズ演出に使いやすく、Rust側で透明背景付きのランダム斜線を決定的に生成できる。'
   },
   {
+    id: 'ssd-hologram',
+    labelJa: 'ホログラム',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/ANM/ANM_ssd/ホログラム.obj'],
+    rationaleJa: '近未来風の背景や強調演出に使いやすく、Rust側で不透明な斜めプリズム模様を決定的に生成できる。'
+  },
+  {
     id: 'tim-motion-path',
     labelJa: 'モーションパス',
     category: 'motion',
