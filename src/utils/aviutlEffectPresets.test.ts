@@ -37,7 +37,7 @@ describe('AviUtlPackV4 effect presets', () => {
       filterType: preset.filterType
     }))).toEqual([
       { id: 'luminance-wipe-basic', sourceCandidateId: 'tim-luminance-wipe', filterType: 'wipe' },
-      { id: 'edge-outline-soft', sourceCandidateId: 'tim-edge-outline', filterType: 'shadow' },
+      { id: 'edge-outline-soft', sourceCandidateId: 'tim-edge-outline', filterType: 'outline' },
       { id: 'colour-aberration-rgb', sourceCandidateId: 'tim-colour-aberration', filterType: 'colour_aberration' },
       { id: 'fan-clipping-diagonal', sourceCandidateId: 'fan-clipping-r', filterType: 'clipping' }
     ]);
@@ -50,9 +50,9 @@ describe('AviUtlPackV4 effect presets', () => {
       params: { edge: 'left', reverse: false }
     });
     expect(buildAviUtlEffectPresetFilter('edge-outline-soft')).toMatchObject({
-      type: 'shadow',
+      type: 'outline',
       enabled: true,
-      params: { colour: '#000000', blur: 0, offsetX: 0, offsetY: 0, opacity: 0.85 }
+      params: { colour: '#000000', thickness: 3, opacity: 0.85 }
     });
     expect(buildAviUtlEffectPresetFilter('colour-aberration-rgb')).toMatchObject({
       type: 'colour_aberration',
@@ -73,7 +73,7 @@ describe('AviUtlPackV4 effect presets', () => {
     };
     const next = applyAviUtlEffectPresetToObject(object, 'colour-aberration-rgb');
 
-    expect(next.filters?.map((filter) => filter.type)).toEqual(['shadow', 'colour_aberration']);
+    expect(next.filters?.map((filter) => filter.type)).toEqual(['outline', 'colour_aberration']);
     expect(next.filters?.[1]).toMatchObject({
       type: 'colour_aberration',
       params: { offsetX: 3, offsetY: 0 }
@@ -87,7 +87,7 @@ describe('AviUtlPackV4 effect presets', () => {
     };
     const next = applyAviUtlEffectPresetToObject(object, 'fan-clipping-diagonal');
 
-    expect(next.filters?.map((filter) => filter.type)).toEqual(['shadow', 'clipping']);
+    expect(next.filters?.map((filter) => filter.type)).toEqual(['outline', 'clipping']);
     expect(next.customClipping).toMatchObject({
       enabled: true,
       angle: 45

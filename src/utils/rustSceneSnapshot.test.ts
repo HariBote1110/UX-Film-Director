@@ -638,6 +638,40 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('serialises outline filters as Rust scene effects', () => {
+    const layers = createDefaultLayers();
+    const outlined = baseImage({
+      id: 'outlined',
+      filters: [
+        {
+          id: 'outline-1',
+          type: 'outline',
+          enabled: true,
+          params: { colour: '#112233', thickness: 4, opacity: 0.75 },
+        },
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [outlined],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected outline snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([
+      {
+        Outline: {
+          colour: [0x11 / 255, 0x22 / 255, 0x33 / 255],
+          thickness: 4,
+          opacity: 0.75,
+        },
+      },
+    ]);
+  });
+
   it('fails loud for visible Pixi features the shared renderer cannot represent yet', () => {
     const layers = createDefaultLayers();
     const unsupportedText: TimelineObject = {

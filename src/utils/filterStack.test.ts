@@ -57,6 +57,12 @@ describe('createDefaultFilter', () => {
     if (colourAberration.type !== 'colour_aberration') throw new Error('expected colour aberration');
     expect(colourAberration.params.offsetX).toBeGreaterThan(0);
     expect(colourAberration.params.offsetY).toBe(0);
+
+    const outline = createDefaultFilter('outline');
+    expect(outline.type).toBe('outline');
+    if (outline.type !== 'outline') throw new Error('expected outline');
+    expect(outline.params.thickness).toBeGreaterThan(0);
+    expect(outline.params.colour).toBe('#000000');
   });
 });
 
@@ -65,14 +71,19 @@ describe('normaliseObjectFilters', () => {
     const result = normaliseObjectFilters([
       { id: 'x', type: 'fade' as const, enabled: true, params: { opacity: 2 } },
       { id: 'ca', type: 'colour_aberration' as const, enabled: true, params: { offsetX: -5, offsetY: 3 } },
+      { id: 'ol', type: 'outline' as const, enabled: true, params: { thickness: -3, colour: '', opacity: 2 } },
       { id: '', type: 'not-a-filter' as never, enabled: true, params: {} as never }
     ] as ObjectFilter[]);
-    expect(result).toHaveLength(2);
+    expect(result).toHaveLength(3);
     if (result[0].type !== 'fade') throw new Error('expected fade');
     expect(result[0].params.opacity).toBe(1);
     if (result[1].type !== 'colour_aberration') throw new Error('expected colour aberration');
     expect(result[1].params.offsetX).toBe(0);
     expect(result[1].params.offsetY).toBe(3);
+    if (result[2].type !== 'outline') throw new Error('expected outline');
+    expect(result[2].params.thickness).toBe(0);
+    expect(result[2].params.colour).toBe('#000000');
+    expect(result[2].params.opacity).toBe(1);
   });
 });
 
