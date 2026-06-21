@@ -14,11 +14,11 @@
 - `npm run test:video-export:quality` はPSNR/SSIM/VMAFと出力容量を出し、`UXFD_VIDEO_EXPORT_QUALITY_PRESET_MATRIX` で複数presetを同一素材・同一配置で比較できる。
 - 動画1本+静的矩形+静的画像+音声は、per-frame native renderではなく `encode.transcodeVideo` のffmpeg filter fast pathへ載る。2026-06-21の混在E2Eでは1秒60frameが2060ms、約29.13fpsで完了し、audio streamも維持できた。`/Volumes/ExtendSSD-W/GX020052.MP4` の5秒混在E2Eでは300 frames / 5507ms / 約54.48fpsを確認した。
 - 静的PSD overlayは、Rust backendで一度だけPSDをparse/compositeして一時RGBA入力にし、ffmpeg `overlay` filterへ渡すfast pathへ載る。実Electron E2Eでは動画+図形+画像+音声+PSDが `Rust backend direct transcode` に入り、1秒60frameを10883ms、約5.51fpsで出力し、audio streamも維持できた。
-- Rust backendはPSD overlayのflatten済みRGBAを `filePath + activeLayerIds + mtime + size` でcacheする。同じbackendプロセス内の同一PSD状態なら、2回目以降のtranscodeでPSD parse/compositeを再実行しない。
+- Rust backendはPSD overlayのflatten済みRGBAを `filePath + activeLayerIds + mtime + size` でcacheする。同じbackendプロセス内の同一PSD状態なら、2回目以降のtranscodeでPSD parse/compositeを再実行しない。実Electron E2Eでは動画+図形+画像+音声+PSDの連続exportで、1回目10850msから2回目2767msまで短縮された。
 
 ### 次の高速化候補
 
-- 実Electron E2Eで同一プロセス内2回exportを走らせ、PSD flatten cacheが葵ちゃんPSD込みexportを実測で短縮することを確認する。
+- 2回目でも約21.7fps止まりの残り要因を分ける。候補はffmpeg起動/入力初期化、音声mix生成、PSD RGBA raw inputの読み込み、短尺1秒の固定オーバーヘッド。
 - ffmpeg filter fast pathの対応範囲を、複数画像、簡単なcrop、回転なしtextの事前rasteriseへ広げる。
 - native render outputをshared memoryへ書いた後にencode側で再読込する往復を削り、Rust内でrender resultを直接encoderへ渡す。ただし単純なdirect native encodeは2026-06-21時点の混在E2Eで遅かったため、再設計が必要。
 - decode frame upload/source textureの再利用を進め、動画only exportでframeごとのsource texture再作成を削る。

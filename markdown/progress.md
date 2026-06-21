@@ -5,9 +5,12 @@
 - Red: 同じPSD overlayを2回 `encode.transcodeVideo` した時、2回目に `psdOverlayCacheHits=1` が返る契約を追加した。
 - Green: Rust backendのプロセス内状態にPSD overlay cacheを追加し、`filePath + activeLayerIds + mtime + size` が同じ場合はflatten済みRGBA入力を再利用するようにした。
 - Green: cache済みRGBAはffmpeg実行後に削除せず、同じbackendプロセス内の再exportで使えるようにした。
+- Green: 実Electron動画export E2Eに `UXFD_VIDEO_EXPORT_E2E_REPEAT_EXPORTS` と `UXFD_VIDEO_EXPORT_E2E_EXPECT_REPEAT_SPEEDUP` を追加し、同じウィンドウ内の連続exportを計測できるようにした。
 - 検証: `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane encode_transcode_video_reuses_static_psd_overlay_cache -- --nocapture` は1件成功。
 - 検証: `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane encode_transcode_video -- --nocapture` は8件成功。
-- 残課題: 実Electron E2Eで同一プロセス内2回exportを走らせ、葵ちゃんPSD込みの2回目が実測で短縮されることを確認する。
+- 検証: `npm test -- --run src/utils/packageScripts.test.ts` と `node --check scripts/run-video-export-e2e.mjs` は成功。
+- 検証: `UXFD_VIDEO_EXPORT_E2E_VIDEO_PATH=/Volumes/ExtendSSD-W/GX020052.MP4 UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA=1 UXFD_VIDEO_EXPORT_E2E_ADD_PSD=1 UXFD_VIDEO_EXPORT_E2E_REPEAT_EXPORTS=2 UXFD_VIDEO_EXPORT_E2E_EXPECT_REPEAT_SPEEDUP=1 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=1 UXFD_VIDEO_EXPORT_E2E_TIMEOUT_MS=360000 npm run test:video-export:e2e` は成功。1回目は60 frames / 10850ms / 約5.53fps、2回目は60 frames / 2767ms / 約21.68fps。2回目は1回目の約25.5%まで短縮された。出力MP4は `video` / `audio` streamを維持した。
+- 残課題: 2回目でも約21.7fps止まりの残り要因を分ける。候補はffmpeg起動/入力初期化、音声mix生成、PSD RGBA raw inputの読み込み、短尺1秒の固定オーバーヘッド。
 
 ## 2026-06-21
 - 静的PSD overlayを、per-frame native renderではなく `encode.transcodeVideo` のffmpeg filter fast pathへ載せた。

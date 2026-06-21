@@ -19,6 +19,8 @@ const USER_DATA_DIR = process.env.UXFD_VIDEO_EXPORT_E2E_USER_DATA_DIR
   : resolve(OUTPUT_DIR, `electron-profile-${process.pid}`);
 const OVERALL_TIMEOUT_MS = Number(process.env.UXFD_VIDEO_EXPORT_E2E_TIMEOUT_MS ?? 180_000);
 const EXPORT_DURATION_SECONDS = Number(process.env.UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS ?? 1);
+const REPEAT_EXPORTS = Math.max(1, Math.min(3, Number(process.env.UXFD_VIDEO_EXPORT_E2E_REPEAT_EXPORTS ?? 1)));
+const EXPECT_REPEAT_SPEEDUP = process.env.UXFD_VIDEO_EXPORT_E2E_EXPECT_REPEAT_SPEEDUP === '1';
 const VIDEO_PATCH = process.env.UXFD_VIDEO_EXPORT_E2E_VIDEO_PATCH_JSON
   ? JSON.parse(process.env.UXFD_VIDEO_EXPORT_E2E_VIDEO_PATCH_JSON)
   : null;
@@ -364,6 +366,105 @@ const shortenAllObjectsForExport = async (client) => client.evaluate(`
   window.__UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__?.(${JSON.stringify(EXPORT_DURATION_SECONDS)}) ?? null
 `);
 
+const runVideoExportAttempt = async (client, attemptIndex) => {
+  client.dialogs.length = 0;
+  log(`動画出力を開始(${attemptIndex}/${REPEAT_EXPORTS}): ${OUTPUT_MP4}`);
+  const exportStartTimeMs = Date.now();
+  const exportClicked = await client.evaluate(`
+    (() => {
+      const buttons = [...document.querySelectorAll('button')];
+      const button = buttons.find((entry) => (entry.textContent || '').includes('動画出力'))
+        ?? buttons.find((entry) => (entry.textContent || '').includes('Export'));
+      if (!button) return false;
+      button.click();
+      return true;
+    })()
+  `);
+  if (!exportClicked) throw new Error('動画出力ボタンが見つかりません。');
+
+  const startedExportWait = Date.now();
+  let exportResult = null;
+  const progressSamples = [];
+  while (Date.now() - startedExportWait < 120000) {
+    const dialog = client.dialogs.find((entry) => (
+      entry.message.includes('エクスポート完了')
+      || entry.message.includes('エクスポート失敗')
+    ));
+    const progressSnapshot = await client.evaluate(`
+      (() => ({
+        dataset: { ...document.documentElement.dataset },
+        exportModalText: document.querySelector('.export-modal')?.textContent || null,
+        body: document.body.innerText || '',
+      }))()
+    `).catch((error) => ({
+      error: error instanceof Error ? error.message : String(error),
+    }));
+    if (progressSamples.length < 40) {
+      progressSamples.push({
+        elapsedMs: Date.now() - exportStartTimeMs,
+        exportModalText: progressSnapshot.exportModalText ?? null,
+      });
+    }
+    if (dialog) {
+      exportResult = {
+        ok: dialog.message.includes('エクスポート完了'),
+        reason: dialog.message.includes('エクスポート完了') ? 'completionDialog' : 'failureDialog',
+        dialog,
+        progressSnapshot,
+      };
+      break;
+    }
+    await sleep(500);
+  }
+  exportResult ??= {
+    ok: false,
+    reason: 'exportTimeout',
+    progressSnapshot: await client.evaluate(`
+      (() => ({
+        dataset: { ...document.documentElement.dataset },
+        exportModalText: document.querySelector('.export-modal')?.textContent || null,
+        body: document.body.innerText || '',
+      }))()
+    `).catch((error) => ({
+      error: error instanceof Error ? error.message : String(error),
+    })),
+  };
+  const exportDurationMs = Date.now() - exportStartTimeMs;
+  const exportedFrameCount = parseExportedFrameCount(exportResult.dialog?.message);
+  const expectedFrameCount = calculateExpectedFrameCount();
+  const frameCountMatchesDuration = typeof exportedFrameCount === 'number'
+    && Math.abs(exportedFrameCount - expectedFrameCount) <= 1;
+  const exportFramesPerSecond = exportedFrameCount && exportDurationMs > 0
+    ? exportedFrameCount / (exportDurationMs / 1000)
+    : null;
+  const exportUsedDirectTranscode = client.dialogs.some((dialog) => (
+    dialog.message.includes('Rust backend direct transcode')
+  ));
+
+  await sleep(500);
+  const outputStat = existsSync(OUTPUT_MP4)
+    ? {
+      exists: true,
+      size: statSync(OUTPUT_MP4).size,
+    }
+    : { exists: false, size: 0 };
+
+  return {
+    attemptIndex,
+    outputPath: OUTPUT_MP4,
+    outputStat,
+    exportDurationMs,
+    exportedFrameCount,
+    expectedFrameCount,
+    frameCountMatchesDuration,
+    exportFramesPerSecond,
+    exportUsedDirectTranscode,
+    exportResult,
+    progressSamples,
+    dialogs: [...client.dialogs],
+  };
+};
+
 const main = async () => {
   if (!existsSync(VIDEO_PATH)) {
     throw new Error(`video fixture is missing: ${VIDEO_PATH}`);
@@ -533,116 +634,55 @@ const main = async () => {
     throw new Error(`混在メディア短尺化に失敗しました: ${JSON.stringify(mixedMediaDurationResult)}`);
   }
 
-  log(`動画出力を開始: ${OUTPUT_MP4}`);
-  const exportStartTimeMs = Date.now();
-  const exportClicked = await client.evaluate(`
-    (() => {
-      const buttons = [...document.querySelectorAll('button')];
-      const button = buttons.find((entry) => (entry.textContent || '').includes('動画出力'))
-        ?? buttons.find((entry) => (entry.textContent || '').includes('Export'));
-      if (!button) return false;
-      button.click();
-      return true;
-    })()
-  `);
-  if (!exportClicked) throw new Error('動画出力ボタンが見つかりません。');
-
-  const startedExportWait = Date.now();
-  let exportResult = null;
-  const progressSamples = [];
-  while (Date.now() - startedExportWait < 120000) {
-    const dialog = client.dialogs.find((entry) => (
-      entry.message.includes('エクスポート完了')
-      || entry.message.includes('エクスポート失敗')
-    ));
-    const progressSnapshot = await client.evaluate(`
-      (() => ({
-        dataset: { ...document.documentElement.dataset },
-        exportModalText: document.querySelector('.export-modal')?.textContent || null,
-        body: document.body.innerText || '',
-      }))()
-    `).catch((error) => ({
-      error: error instanceof Error ? error.message : String(error),
-    }));
-    if (progressSamples.length < 40) {
-      progressSamples.push({
-        elapsedMs: Date.now() - exportStartTimeMs,
-        exportModalText: progressSnapshot.exportModalText ?? null,
-      });
-    }
-    if (dialog) {
-      exportResult = {
-        ok: dialog.message.includes('エクスポート完了'),
-        reason: dialog.message.includes('エクスポート完了') ? 'completionDialog' : 'failureDialog',
-        dialog,
-        progressSnapshot,
-      };
-      break;
-    }
-    await sleep(500);
+  const exportAttempts = [];
+  for (let attemptIndex = 1; attemptIndex <= REPEAT_EXPORTS; attemptIndex += 1) {
+    exportAttempts.push(await runVideoExportAttempt(client, attemptIndex));
   }
-  exportResult ??= {
-    ok: false,
-    reason: 'exportTimeout',
-    progressSnapshot: await client.evaluate(`
-      (() => ({
-        dataset: { ...document.documentElement.dataset },
-        exportModalText: document.querySelector('.export-modal')?.textContent || null,
-        body: document.body.innerText || '',
-      }))()
-    `).catch((error) => ({
-      error: error instanceof Error ? error.message : String(error),
-    })),
-  };
-  const exportDurationMs = Date.now() - exportStartTimeMs;
-  const exportedFrameCount = parseExportedFrameCount(exportResult.dialog?.message);
-  const expectedFrameCount = calculateExpectedFrameCount();
-  const frameCountMatchesDuration = typeof exportedFrameCount === 'number'
-    && Math.abs(exportedFrameCount - expectedFrameCount) <= 1;
-  const exportFramesPerSecond = exportedFrameCount && exportDurationMs > 0
-    ? exportedFrameCount / (exportDurationMs / 1000)
+  const firstAttempt = exportAttempts[0];
+  const lastAttempt = exportAttempts[exportAttempts.length - 1];
+  const repeatSpeedupObserved = exportAttempts.length >= 2
+    && exportAttempts[1].exportDurationMs < exportAttempts[0].exportDurationMs;
+  const repeatSpeedupRatio = exportAttempts.length >= 2 && exportAttempts[0].exportDurationMs > 0
+    ? exportAttempts[1].exportDurationMs / exportAttempts[0].exportDurationMs
     : null;
-  const exportUsedDirectTranscode = client.dialogs.some((dialog) => (
-    dialog.message.includes('Rust backend direct transcode')
-  ));
-
-  await sleep(500);
-  const outputStat = existsSync(OUTPUT_MP4)
-    ? {
-      exists: true,
-      size: statSync(OUTPUT_MP4).size,
-    }
-    : { exists: false, size: 0 };
   const result = {
     passed: Boolean(
-      outputStat.exists
-      && outputStat.size > 0
-      && client.dialogs.some((dialog) => dialog.message.includes('エクスポート完了'))
+      exportAttempts.every((attempt) => (
+        attempt.outputStat.exists
+        && attempt.outputStat.size > 0
+        && attempt.dialogs.some((dialog) => dialog.message.includes('エクスポート完了'))
+        && attempt.frameCountMatchesDuration
+      ))
       && (!ADD_MIXED_MEDIA || mixedMediaResult?.ok)
       && (!ADD_PSD || psdMediaResult?.ok)
       && (!(ADD_MIXED_MEDIA || ADD_PSD) || mixedMediaDurationResult?.ok)
-      && (!(ADD_MIXED_MEDIA || ADD_PSD) || exportUsedDirectTranscode)
-      && frameCountMatchesDuration
+      && (!(ADD_MIXED_MEDIA || ADD_PSD) || exportAttempts.every((attempt) => attempt.exportUsedDirectTranscode))
+      && (!EXPECT_REPEAT_SPEEDUP || repeatSpeedupObserved)
     ),
     videoPath: VIDEO_PATH,
     outputPath: OUTPUT_MP4,
-    outputStat,
+    outputStat: lastAttempt.outputStat,
     exportDurationSeconds: EXPORT_DURATION_SECONDS,
+    repeatExports: REPEAT_EXPORTS,
+    expectRepeatSpeedup: EXPECT_REPEAT_SPEEDUP,
     videoPatch: VIDEO_PATCH,
     videoObject,
     mixedMediaResult,
     psdMediaResult,
     mixedMediaDurationResult,
-    exportDurationMs,
-    exportedFrameCount,
-    expectedFrameCount,
-    frameCountMatchesDuration,
-    exportFramesPerSecond,
-    exportUsedDirectTranscode,
+    exportAttempts,
+    repeatSpeedupObserved,
+    repeatSpeedupRatio,
+    exportDurationMs: firstAttempt.exportDurationMs,
+    exportedFrameCount: firstAttempt.exportedFrameCount,
+    expectedFrameCount: firstAttempt.expectedFrameCount,
+    frameCountMatchesDuration: firstAttempt.frameCountMatchesDuration,
+    exportFramesPerSecond: firstAttempt.exportFramesPerSecond,
+    exportUsedDirectTranscode: firstAttempt.exportUsedDirectTranscode,
     loadResult,
-    exportResult,
-    progressSamples,
-    dialogs: client.dialogs,
+    exportResult: firstAttempt.exportResult,
+    progressSamples: firstAttempt.progressSamples,
+    dialogs: exportAttempts.flatMap((attempt) => attempt.dialogs),
     consoleLines: collectConsoleEvents(client),
     runtimeErrors: collectRuntimeErrors(client),
     processLines: logLines,
