@@ -99,7 +99,7 @@
 74. ✅ `P1` GetColorの元画像サンプリング寄り挙動をRust生成経路へ接続する
 75. ✅ `P1` GetColor画像サンプリングの上位画像レイヤー参照 / 明示画像オブジェクト参照をRust生成経路へ接続する
 76. ✅ `P1` GetColor画像サンプリングのPropertyPanel source picker / sample strength編集を追加する
-77. `P1` GetColor画像サンプリングのPSD合成済みサンプル参照をUI/Rust生成経路へ接続する
+77. ✅ `P1` GetColor画像サンプリングのPSD合成済みサンプル参照をUI/Rust生成経路へ接続する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

@@ -1,6 +1,21 @@
 # 進捗ログ
 
 ## 2026-06-22
+- GetColor PSDサンプル参照をRust生成とPropertyPanelへ接続した。
+- Red: Rust scene snapshot、shared renderer native media gate、Rust backend validatorが、PSDを `GeneratedGetColorDots` の `source_image` として受け取り、`source_active_layer_ids` を保持する契約を追加した。
+- Red: PropertyPanelのGetColor Sampling UIが、PNG/JPEG画像だけでなくPSDオブジェクトもサンプル候補として扱う契約を追加した。
+- Green: Rust scene snapshotでPSDオブジェクト参照時に `source_image` と `source_active_layer_ids` を `GeneratedGetColorDots` source JSONへ渡すようにした。
+- Green: Rust backendでGetColorサンプル元PSDを読み込み、アクティブレイヤーだけを合成したフレームからドット色と透明度をサンプリングできるようにした。
+- Green: PropertyPanelのSample Object候補にPSDオブジェクトを含め、UI説明文もPNG/JPEGまたはPSDに更新した。
+- 版を `0.1.1-Beta-311a` に更新した。
+- 検証: `npm test -- --run src/components/PropertyPanelBoundary.test.ts --reporter=dot` は5件成功した。
+- 検証: `npm test -- --run src/components/PropertyPanelBoundary.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/projectFile.test.ts src/utils/packageScripts.test.ts --reporter=dot` は98件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_getcolor_dots_source -- --nocapture` は5件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回のGetColor PSDサンプル対応由来の型エラーは出ていない。
+- 小型PSD fixtureを用意できたら、実PSDファイルを使う画素E2EでレイヤーON/OFF差分まで検証する。
+- 次はGetColorのField/Twist/ColorShift/AudioReact系、または `hksy` / `93` の残候補へ進む。
+
+## 2026-06-22
 - GetColorサンプリング編集UIをPropertyPanelへ追加した。
 - Red: PropertyPanelが `getcolor_dot_field` 選択時に `GetColor Sampling`、`Sample Layer`、`Sample Object`、`Sample Strength` を露出する契約を追加した。
 - Green: PropertyPanelにGetColorサンプリング編集UIを追加し、画像オブジェクト候補から `sampleSourceObjectId` を選択できるようにした。
