@@ -41,6 +41,10 @@ describe('package scripts', () => {
     expect(script).toContain('expectedFrameCount');
     expect(script).toContain('frameCountMatchesDuration');
     expect(script).toContain('exportUsedDirectTranscode');
+    expect(script).toContain('const runtimeErrors = collectRuntimeErrors(client)');
+    expect(script).toContain('runtimeErrors.length === 0');
+    expect(script.indexOf('const runtimeErrors = collectRuntimeErrors(client)'))
+      .toBeLessThan(script.indexOf('const result = {'));
     expect(script.indexOf('const exportStartTimeMs = Date.now()'))
       .toBeLessThan(script.indexOf('exportDurationMs'));
   });
