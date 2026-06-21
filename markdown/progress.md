@@ -17,6 +17,15 @@
 - 残課題: 次は実Electronのpreview/export成果物を画像として比較し、UI経由の見た目まで確認する。
 
 ## 2026-06-21
+- Audio waveform RのPCM取得をsource frameへ追従させた。
+- Red: previewのAudio waveform R PCM取得が `clip.source_frame` 基準の開始秒を使う契約を追加した。
+- Green: `prepareNativeRenderAudioWaveforms` に `SceneSnapshot` を渡し、対象mediaの `source_frame / 60` を `startSeconds` としてRust backendへ渡すようにした。
+- Green: export direct encode側も同じ時間基準でAudio waveform RのPCMを取得するようにした。
+- 版を `0.1.1-Beta-259d` に更新した。
+- 検証: preview/exportのaudio waveform対象テストは成功した。対象ファイル名に関するTypeScriptエラーは出ていない。
+- 残課題: 次は生成効果が実Electron上で見えているかを、preview screenshotとexport frame decodeの画素比較で確認する。
+
+## 2026-06-21
 - 動画export E2EのElectron bundle待機を追加した。
 - Red: `run-video-export-e2e.mjs` がElectron起動前にbundle完了を待つ契約を追加した。
 - Green: `dist-electron/main.js` / `dist-electron/preload.js` の更新時刻とIPC markerを確認してからElectronを起動するようにした。

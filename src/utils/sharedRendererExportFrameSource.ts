@@ -472,6 +472,7 @@ export function createSharedRendererExportFrameSource({
 
     const renderId = buildNativeRenderId(request.encodeSessionId, request.frameIndex);
     const audioWaveforms = await prepareNativeRenderAudioWaveforms({
+      snapshot: surfaceGate.snapshot,
       media: surfaceGate.media,
       requestAudioWaveformSamples,
     });

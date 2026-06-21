@@ -28,6 +28,23 @@
 - Rust backend境界では、GeneratedAudioWaveformとGeneratedParticleの混在合成が共有メモリ出力まで成功することを確認できた。
 - 次は実Electronのpreview/export成果物を画像として比較し、UI経由の見た目まで確認する。
 
+## 2026-06-21 — Audio waveform RのPCM取得をsource frameへ追従
+
+### 実施内容
+- Red: previewのAudio waveform R PCM取得が `clip.source_frame` 基準の開始秒を使う契約を追加した。
+- Green: `prepareNativeRenderAudioWaveforms` に `SceneSnapshot` を渡し、対象mediaの `source_frame / 60` を `startSeconds` としてRust backendへ渡すようにした。
+- Green: export direct encode側も同じ時間基準でAudio waveform RのPCMを取得するようにした。
+- 版を `0.1.1-Beta-259d` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/sharedRendererViewportNativeRenderUpload.test.ts -t "requests generated audio waveform samples"`
+- `npm test -- --run src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/sharedRendererExportFrameSource.test.ts -t "audio waveform"`
+- `npx tsc --noEmit 2>&1 | rg "sharedRendererViewportNativeRenderUpload|sharedRendererExportFrameSource"`
+
+### 結果・残課題
+- preview/exportともに、Audio waveform Rが常に0秒地点のPCMだけを見る問題を修正した。
+- 次は生成効果が実Electron上で見えているかを、preview screenshotとexport frame decodeの画素比較で確認する。
+
 ## 2026-06-21 — 動画export E2EのElectron bundle待機を追加
 
 ### 実施内容

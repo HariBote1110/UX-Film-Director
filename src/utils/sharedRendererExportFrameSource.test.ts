@@ -1529,7 +1529,7 @@ describe('createSharedRendererExportFrameSource', () => {
       } as unknown as HTMLCanvasElement;
       const waveformSource = '{"generator":"audio-waveform-r","target_audio_id":"audio-1","target_source":"/tmp/dialogue.wav","sample_window_seconds":1,"colour":"#00ff00","thickness":1,"amplitude":1}';
       const snapshot = {
-        frame_index: 0,
+        frame_index: 30,
         colour: {
           profile: 'rec709-sdr',
           working_space: 'linear-light',
@@ -1539,7 +1539,7 @@ describe('createSharedRendererExportFrameSource', () => {
           clip_id: 'waveform-1',
           track_id: 'layer-1',
           media_id: 'waveform-1',
-          source_frame: 0,
+          source_frame: 30,
           z_index: 0,
           transform: {
             translation_x: 0,
@@ -1641,9 +1641,9 @@ describe('createSharedRendererExportFrameSource', () => {
       });
 
       const result = await source.renderEncodeFrame?.({
-        frameIndex: 0,
-        timestampUs: 0,
-        time: 0,
+        frameIndex: 30,
+        timestampUs: 500_000,
+        time: 0.5,
         width: 4,
         height: 2,
         objects: [],
@@ -1651,12 +1651,12 @@ describe('createSharedRendererExportFrameSource', () => {
       });
 
       expect(result).toMatchObject({
-        timestamp: 0,
+        timestamp: 500_000,
         nativeEncodeFramePayload: {
           sessionId: 'waveform-direct-session',
-          renderId: 'waveform-direct-session-frame-0',
-          frameIndex: 0,
-          timestampUs: 0,
+          renderId: 'waveform-direct-session-frame-30',
+          frameIndex: 30,
+          timestampUs: 500_000,
           width: 4,
           height: 2,
           snapshot,
@@ -1678,7 +1678,7 @@ describe('createSharedRendererExportFrameSource', () => {
           source: '/tmp/dialogue.wav',
           sampleRate: 8000,
           maxSamples: 8000,
-          startSeconds: 0,
+          startSeconds: 0.5,
           durationSeconds: 1,
         },
       ]]);

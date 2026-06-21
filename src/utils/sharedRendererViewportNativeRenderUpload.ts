@@ -12,7 +12,7 @@ import {
 } from './rustBackendAudioWaveformControl';
 import type { RustBackendResult } from './rustBackendVideoDecodeControl';
 import type { SharedRendererPreviewSession } from './sharedRendererPreviewSession';
-import type { RustSceneMediaReference } from './rustSceneSnapshot';
+import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
 import {
   prepareSharedRendererDecodedVideoFrameUpload,
   type PrepareSharedRendererDecodedVideoFrameUploadResult,
@@ -198,6 +198,7 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
   const renderId = buildPreviewNativeRenderId(resolvedRequestId);
   const renderMemoryId = buildPreviewNativeRenderMemoryId(resolvedRequestId);
   const audioWaveforms = await prepareNativeRenderAudioWaveforms({
+    snapshot: surfaceGate.snapshot,
     media: surfaceGate.media,
     requestAudioWaveformSamples,
   });
@@ -349,9 +350,11 @@ type AudioWaveformSourceMetadata = {
 };
 
 export const prepareNativeRenderAudioWaveforms = async ({
+  snapshot,
   media,
   requestAudioWaveformSamples,
 }: {
+  snapshot: RustSceneSnapshot;
   media: readonly RustSceneMediaReference[];
   requestAudioWaveformSamples: RustBackendAudioWaveformBridge['requestAudioWaveformSamples'];
 }): Promise<RustBackendNativeRenderAudioWaveform[]> => {
@@ -368,11 +371,12 @@ export const prepareNativeRenderAudioWaveforms = async ({
   const prepared = await Promise.all(waveforms.map(async ({ reference, metadata }) => {
     const sampleRate = DEFAULT_AUDIO_WAVEFORM_SAMPLE_RATE;
     const durationSeconds = metadata.sample_window_seconds;
+    const startSeconds = sourceFrameSecondsForMedia(snapshot, reference.id);
     const response = await requestAudioWaveformSamples({
       source: metadata.target_source,
       sampleRate,
       maxSamples: Math.max(1, Math.ceil(sampleRate * durationSeconds)),
-      startSeconds: 0,
+      startSeconds,
       durationSeconds,
     });
     if (!response.success || !response.result) {
@@ -389,6 +393,13 @@ export const prepareNativeRenderAudioWaveforms = async ({
   }));
 
   return prepared;
+};
+
+const SOURCE_FRAME_RATE = 60;
+
+const sourceFrameSecondsForMedia = (snapshot: RustSceneSnapshot, mediaId: string): number => {
+  const sourceFrame = snapshot.clips.find((clip) => clip.media_id === mediaId)?.source_frame ?? 0;
+  return Math.max(0, sourceFrame) / SOURCE_FRAME_RATE;
 };
 
 const parseAudioWaveformSourceMetadata = (source: string): AudioWaveformSourceMetadata | null => {
