@@ -94,7 +94,7 @@
 69. ✅ `P1` 93領域枠(楕円)/(角落ち)をRust GeneratedRegionFrame派生プリセットとして追加する
 70. ✅ `P1` 93 SimpleTubeをRust GeneratedSimpleTube生成プリセットとして追加する
 71. ✅ `P1` 93 SimpleTubeトーラスをRust GeneratedSimpleTube派生プリセットとして追加する
-72. `P1` 93 Sphere(DrawPixel)をRust生成プリセットとして追加する
+72. ✅ `P1` 93 Sphere(DrawPixel)をRust GeneratedSphereDots生成プリセットとして追加する
 73. `P1` 93 SphericalFieldのうちTimelineで使いやすい球状配置/変形表現をRust側へ切り出す
 74. `P1` GetColorの元画像サンプリング寄り挙動をRust生成経路へ接続する
 

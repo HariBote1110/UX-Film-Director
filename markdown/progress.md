@@ -1,6 +1,20 @@
 # 進捗ログ
 
 ## 2026-06-22
+- 93 Sphere(DrawPixel)をRust生成プリセットへ追加した。
+- Red: `sphere_dots` がfactory、Timeline右クリックメニュー、AviUtlPackV4カタログ、Rust scene snapshot、shared renderer native media、rust-core schema、Rust backend画素生成を通る契約を追加した。
+- Green: `SphereDotsObject` と `GeneratedSphereDots` media kindを追加し、`sphere-drawpixel-93` source JSONで半径、列/行、回転、ズレ、輝度影響、点サイズ、緯線幅、色、平面化指定をRustへ渡すようにした。
+- Green: Rust backendで透明背景に球状点群、緯線、中心補助線をRGBA生成する初期互換実装を追加した。
+- Green: Timeline右クリックメニューに `93 Sphere(DrawPixel)を追加` / `Add 93 Sphere(DrawPixel)` を追加した。
+- 版を `0.1.1-Beta-305a` に更新した。
+- 検証: `npm test -- --run src/utils/sphereDotsObjectFactory.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/components/TimelineContextMenu.particle.test.ts --reporter=dot` は74件成功した。
+- 検証: `npm test -- --run src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/packageScripts.test.ts --reporter=dot` は54件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は31件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_sphere_dots_source_frame_renders_equator_points -- --nocapture` は1件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の93 Sphere(DrawPixel)由来の型エラーは出ていない。
+- 現時点の93 Sphere(DrawPixel)は元画像ピクセルサンプリング/DOF/delay前のRust球状ドット初期互換。次は93 SphericalField、またはGetColorの元画像サンプリング寄り拡張へ進む。
+
+## 2026-06-22
 - AviUtlPackV4移植ゴールの運用スコープを更新した。
 - ツール上のactive goal本文は直接差し替えできないため、`markdown/Implementation_Plan.md` と `markdown/Task.md` に現在の作業ゴールを明文化した。
 - 直近スコープは `GetColor`、`hksy`（ユーザー表記: hsky）、`script/93` とし、Timeline追加、保存/読込、Rust/WebGPU preview/export、境界テスト、画素テストまで通すことを完了条件にした。
