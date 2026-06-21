@@ -52,6 +52,10 @@ describe('package scripts', () => {
     expect(script).toContain('93音声玉');
     expect(script).toContain('#00ff88');
     expect(script).toContain('#ffffff');
+    expect(script).toContain('getColorCyanPixelCount');
+    expect(script).toContain('hksyDarkCellPixelCount');
+    expect(script).toContain('spotLightWarmPixelCount');
+    expect(script).toContain('audioSphereCyanPixelCount');
     expect(script.indexOf('const runtimeErrors = collectRuntimeErrors(client)'))
       .toBeLessThan(script.indexOf('const result = {'));
     expect(script.indexOf('const exportStartTimeMs = Date.now()'))
@@ -66,6 +70,10 @@ describe('package scripts', () => {
     expect(main).toContain('hksyチェッカー/グリッド');
     expect(main).toContain('93 SpotLight Probe');
     expect(main).toContain('93音声玉');
+    expect(main).toContain('E2E_AVIUTL_GETCOLOR_REGION');
+    expect(main).toContain('E2E_AVIUTL_HKSY_REGION');
+    expect(main).toContain('E2E_AVIUTL_SPOTLIGHT_REGION');
+    expect(main).toContain('E2E_AVIUTL_AUDIO_SPHERE_REGION');
     expect(main).toContain('spot_light');
     expect(main).toContain('state.objects.forEach');
     expect(main).toContain('state.setDuration(safeDuration)');
