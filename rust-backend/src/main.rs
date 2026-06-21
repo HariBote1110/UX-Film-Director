@@ -116,11 +116,18 @@ type BlobWriteResult = Arc<Mutex<Option<Result<String, String>>>>;
 struct BackendState {
     decode_sessions: HashMap<String, DecodeSession>,
     encode_sessions: HashMap<String, EncodeSession>,
+    psd_overlay_cache: HashMap<String, PsdOverlayCacheEntry>,
     #[cfg(unix)]
     native_render_outputs: HashMap<String, PosixSharedRing>,
     native_wgpu_renderer: Option<NativeWgpuRenderer>,
     /// Background blob writer: set by psd.parse, drained by psd.await_blob.
     psd_blob_result: Option<BlobWriteResult>,
+}
+
+struct PsdOverlayCacheEntry {
+    raw_path: PathBuf,
+    source_width: u32,
+    source_height: u32,
 }
 
 #[derive(Debug, Serialize)]
@@ -307,6 +314,11 @@ struct NormalisedTranscodeOverlay {
     opacity: f64,
 }
 
+struct NormalisedTranscodeOverlays {
+    overlays: Vec<NormalisedTranscodeOverlay>,
+    psd_overlay_cache_hits: u64,
+}
+
 #[derive(Debug, Clone)]
 enum NormalisedTranscodeOverlayKind {
     SolidColour {
@@ -319,6 +331,7 @@ enum NormalisedTranscodeOverlayKind {
         path: PathBuf,
         source_width: u32,
         source_height: u32,
+        temporary: bool,
     },
 }
 
@@ -434,7 +447,7 @@ fn handle_request(request: RpcRequest, state: &mut BackendState) -> RpcResponse 
         "encode.writeNativeFrame" => {
             handle_encode_write_native_frame(request.id, request.params, state)
         }
-        "encode.transcodeVideo" => handle_encode_transcode_video(request.id, request.params),
+        "encode.transcodeVideo" => handle_encode_transcode_video(request.id, request.params, state),
         "encode.finish" => handle_encode_finish(request.id, request.params, state),
         "encode.abort" => handle_encode_abort(request.id, request.params, state),
         "render.nativeSharedFrame" => {
@@ -942,84 +955,141 @@ fn emit_transcode_progress_event(
 
 fn normalise_transcode_overlays(
     overlays: &[EncodeTranscodeVideoOverlayParams],
-) -> Result<Vec<NormalisedTranscodeOverlay>, String> {
-    overlays
-        .iter()
-        .map(|overlay| {
-            if overlay.width == 0 || overlay.height == 0 {
-                return Err("overlay width and height must be greater than zero".to_string());
+    psd_overlay_cache: &mut HashMap<String, PsdOverlayCacheEntry>,
+) -> Result<NormalisedTranscodeOverlays, String> {
+    let mut normalised = Vec::with_capacity(overlays.len());
+    let mut psd_overlay_cache_hits = 0_u64;
+    for overlay in overlays {
+        if overlay.width == 0 || overlay.height == 0 {
+            return Err("overlay width and height must be greater than zero".to_string());
+        }
+        let opacity = overlay
+            .opacity
+            .filter(|value| value.is_finite())
+            .unwrap_or(1.0)
+            .clamp(0.0, 1.0);
+        match overlay.kind.as_str() {
+            "solidColour" => {
+                let colour = overlay
+                    .colour
+                    .as_deref()
+                    .ok_or_else(|| "solidColour overlay colour must not be empty".to_string())?;
+                let colour = normalise_hex_colour(colour)?;
+                normalised.push(NormalisedTranscodeOverlay {
+                    kind: NormalisedTranscodeOverlayKind::SolidColour { colour },
+                    x: overlay.x,
+                    y: overlay.y,
+                    width: overlay.width,
+                    height: overlay.height,
+                    opacity,
+                });
             }
-            let opacity = overlay
-                .opacity
-                .filter(|value| value.is_finite())
-                .unwrap_or(1.0)
-                .clamp(0.0, 1.0);
-            match overlay.kind.as_str() {
-                "solidColour" => {
-                    let colour = overlay.colour.as_deref().ok_or_else(|| {
-                        "solidColour overlay colour must not be empty".to_string()
-                    })?;
-                    let colour = normalise_hex_colour(colour)?;
-                    Ok(NormalisedTranscodeOverlay {
-                        kind: NormalisedTranscodeOverlayKind::SolidColour { colour },
-                        x: overlay.x,
-                        y: overlay.y,
-                        width: overlay.width,
-                        height: overlay.height,
-                        opacity,
-                    })
-                }
-                "image" => {
-                    let path = overlay
-                        .path
-                        .as_deref()
-                        .map(str::trim)
-                        .filter(|value| !value.is_empty())
-                        .ok_or_else(|| "image overlay path must not be empty".to_string())?;
-                    Ok(NormalisedTranscodeOverlay {
-                        kind: NormalisedTranscodeOverlayKind::Image {
-                            path: path.to_string(),
-                        },
-                        x: overlay.x,
-                        y: overlay.y,
-                        width: overlay.width,
-                        height: overlay.height,
-                        opacity,
-                    })
-                }
-                "psd" => {
-                    let path = overlay
-                        .path
-                        .as_deref()
-                        .map(str::trim)
-                        .filter(|value| !value.is_empty())
-                        .ok_or_else(|| "psd overlay path must not be empty".to_string())?;
-                    let (raw_path, source_width, source_height) =
-                        prepare_psd_overlay_raw_rgba(path, &overlay.active_layer_ids)?;
-                    Ok(NormalisedTranscodeOverlay {
-                        kind: NormalisedTranscodeOverlayKind::RawRgbaImage {
-                            path: raw_path,
-                            source_width,
-                            source_height,
-                        },
-                        x: overlay.x,
-                        y: overlay.y,
-                        width: overlay.width,
-                        height: overlay.height,
-                        opacity,
-                    })
-                }
-                _ => Err(format!("unsupported overlay kind: {}", overlay.kind)),
+            "image" => {
+                let path = overlay
+                    .path
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .ok_or_else(|| "image overlay path must not be empty".to_string())?;
+                normalised.push(NormalisedTranscodeOverlay {
+                    kind: NormalisedTranscodeOverlayKind::Image {
+                        path: path.to_string(),
+                    },
+                    x: overlay.x,
+                    y: overlay.y,
+                    width: overlay.width,
+                    height: overlay.height,
+                    opacity,
+                });
             }
-        })
-        .collect()
+            "psd" => {
+                let path = overlay
+                    .path
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .ok_or_else(|| "psd overlay path must not be empty".to_string())?;
+                let prepared = prepare_psd_overlay_raw_rgba(
+                    path,
+                    &overlay.active_layer_ids,
+                    psd_overlay_cache,
+                )?;
+                if prepared.cache_hit {
+                    psd_overlay_cache_hits += 1;
+                }
+                normalised.push(NormalisedTranscodeOverlay {
+                    kind: NormalisedTranscodeOverlayKind::RawRgbaImage {
+                        path: prepared.raw_path,
+                        source_width: prepared.source_width,
+                        source_height: prepared.source_height,
+                        temporary: false,
+                    },
+                    x: overlay.x,
+                    y: overlay.y,
+                    width: overlay.width,
+                    height: overlay.height,
+                    opacity,
+                });
+            }
+            _ => return Err(format!("unsupported overlay kind: {}", overlay.kind)),
+        }
+    }
+    Ok(NormalisedTranscodeOverlays {
+        overlays: normalised,
+        psd_overlay_cache_hits,
+    })
+}
+
+struct PreparedPsdOverlayInput {
+    raw_path: PathBuf,
+    source_width: u32,
+    source_height: u32,
+    cache_hit: bool,
 }
 
 fn prepare_psd_overlay_raw_rgba(
     source: &str,
     active_layer_ids: &[String],
-) -> Result<(PathBuf, u32, u32), String> {
+    psd_overlay_cache: &mut HashMap<String, PsdOverlayCacheEntry>,
+) -> Result<PreparedPsdOverlayInput, String> {
     let source_path = local_media_source_path(source, "Psd overlay")?;
+    let metadata = fs::metadata(&source_path)
+        .map_err(|error| format!("psd overlay failed to stat source: {error}"))?;
+    let cache_key = psd_overlay_cache_key(&source_path, &metadata, active_layer_ids);
+    if let Some(entry) = psd_overlay_cache.get(&cache_key) {
+        if entry.raw_path.exists() {
+            return Ok(PreparedPsdOverlayInput {
+                raw_path: entry.raw_path.clone(),
+                source_width: entry.source_width,
+                source_height: entry.source_height,
+                cache_hit: true,
+            });
+        }
+    }
+    psd_overlay_cache.remove(&cache_key);
+
+    let (raw_path, source_width, source_height) =
+        prepare_psd_overlay_raw_rgba_uncached(&source_path, active_layer_ids)?;
+    psd_overlay_cache.insert(
+        cache_key,
+        PsdOverlayCacheEntry {
+            raw_path: raw_path.clone(),
+            source_width,
+            source_height,
+        },
+    );
+    Ok(PreparedPsdOverlayInput {
+        raw_path,
+        source_width,
+        source_height,
+        cache_hit: false,
+    })
+}
+
+fn prepare_psd_overlay_raw_rgba_uncached(
+    source_path: &str,
+    active_layer_ids: &[String],
+) -> Result<(PathBuf, u32, u32), String> {
     let bytes = fs::read(&source_path)
         .map_err(|error| format!("psd overlay failed to read source: {error}"))?;
     let psd = psd_fast::parse_psd_fast(&bytes)
@@ -1040,9 +1110,37 @@ fn prepare_psd_overlay_raw_rgba(
     Ok((path, frame.width, frame.height))
 }
 
+fn psd_overlay_cache_key(
+    source_path: &str,
+    metadata: &fs::Metadata,
+    active_layer_ids: &[String],
+) -> String {
+    let mut active_layer_ids = active_layer_ids.to_vec();
+    active_layer_ids.sort();
+    let modified_ns = metadata
+        .modified()
+        .ok()
+        .and_then(|modified| modified.duration_since(UNIX_EPOCH).ok())
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0);
+    format!(
+        "{}|{}|{}|{}",
+        source_path,
+        metadata.len(),
+        modified_ns,
+        active_layer_ids.join("\u{1f}")
+    )
+}
+
 fn remove_temporary_transcode_overlay_inputs(overlays: &[NormalisedTranscodeOverlay]) {
     for overlay in overlays {
-        if let NormalisedTranscodeOverlayKind::RawRgbaImage { path, .. } = &overlay.kind {
+        if let NormalisedTranscodeOverlayKind::RawRgbaImage {
+            path, temporary, ..
+        } = &overlay.kind
+        {
+            if !temporary {
+                continue;
+            }
             let _ = fs::remove_file(path);
         }
     }
@@ -1111,7 +1209,7 @@ fn build_transcode_filter_complex(
     (parts.join(";"), format!("[{previous_label}]"))
 }
 
-fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
+fn handle_encode_transcode_video(id: u64, params: Value, state: &mut BackendState) -> RpcResponse {
     let parsed = match serde_json::from_value::<EncodeTranscodeVideoParams>(params) {
         Ok(value) => value,
         Err(error) => {
@@ -1216,10 +1314,13 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
         crop_y,
         parsed.fps
     );
-    let overlays = match normalise_transcode_overlays(&parsed.overlays) {
-        Ok(value) => value,
-        Err(error) => return response_error(id, -32602, &error),
-    };
+    let normalised_overlays =
+        match normalise_transcode_overlays(&parsed.overlays, &mut state.psd_overlay_cache) {
+            Ok(value) => value,
+            Err(error) => return response_error(id, -32602, &error),
+        };
+    let psd_overlay_cache_hits = normalised_overlays.psd_overlay_cache_hits;
+    let overlays = normalised_overlays.overlays;
 
     let mut cmd = Command::new(&ffmpeg_path);
     cmd.arg("-hide_banner")
@@ -1249,6 +1350,7 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
                 path,
                 source_width,
                 source_height,
+                ..
             } => {
                 cmd.arg("-stream_loop")
                     .arg("-1")
@@ -1450,6 +1552,7 @@ fn handle_encode_transcode_video(id: u64, params: Value) -> RpcResponse {
             "height": parsed.height,
             "fps": parsed.fps,
             "overlayCount": overlays.len(),
+            "psdOverlayCacheHits": psd_overlay_cache_hits,
             "includedAudio": audio_path.is_some() || include_source_audio,
             "encodeSettings": {
                 "qualityPreset": quality_preset,

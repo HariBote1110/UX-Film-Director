@@ -1,3 +1,19 @@
+## 2026-06-21 — PSD overlay flatten cacheを追加
+
+### 実施内容
+- Red: 同じPSD overlayを2回 `encode.transcodeVideo` した時、2回目に `psdOverlayCacheHits=1` が返る契約を追加した。
+- Green: Rust backendのプロセス内状態にPSD overlay cacheを追加し、`filePath + activeLayerIds + mtime + size` が同じ場合はflatten済みRGBA入力を再利用するようにした。
+- Green: cache済みRGBAはffmpeg実行後に削除せず、同じbackendプロセス内の再exportで使えるようにした。
+
+### 検証
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane encode_transcode_video_reuses_static_psd_overlay_cache -- --nocapture`
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane encode_transcode_video -- --nocapture`
+
+### 結果・残課題
+- Rust transcode系テストは8件成功。
+- 初回exportはPSD parse/compositeが必要。2回目以降の同一PSD状態はflatten済みRGBAを再利用できる。
+- 次は実Electron E2Eで同一プロセス内2回exportを走らせ、葵ちゃんPSD込みの2回目が実測で短縮されることを確認する。
+
 ## 2026-06-21 — 静的PSD overlayをffmpeg fast pathへ接続
 
 ### 実施内容
