@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildAviUtlAuraEmissionObject,
+  buildAviUtlBubbleObject,
   buildDefaultStandardParticleObject,
 } from './particleObjectFactory';
 
@@ -62,6 +63,36 @@ describe('particleObjectFactory', () => {
       size: 9,
       colour: '#80d8ff',
       lifetimeSeconds: 2.8,
+    });
+  });
+
+  it('builds an AviUtlPackV4 bubble particle object for timeline insertion', () => {
+    const object = buildAviUtlBubbleObject({
+      id: 'bubble-1',
+      projectWidth: 1920,
+      projectHeight: 1080,
+      startTime: 1.25,
+      layer: 6,
+    });
+
+    expect(object).toMatchObject({
+      id: 'bubble-1',
+      type: 'particle',
+      name: '泡',
+      layer: 6,
+      startTime: 1.25,
+      duration: 6,
+      x: 576,
+      y: 324,
+      width: 768,
+      height: 432,
+      particleCount: 72,
+      seed: 731,
+      spread: 140,
+      speed: 34,
+      size: 12,
+      colour: '#b8f3ff',
+      lifetimeSeconds: 3.4,
     });
   });
 });
