@@ -1,6 +1,16 @@
 # 進捗ログ
 
 ## 2026-06-21
+- 標準パーティクルをsource frame対応の動的生成へ拡張した。
+- Red: `GeneratedParticle` がclipの `source_frame` を使って粒子位置を進める契約を追加した。
+- Green: rust-backendのnative render source収集へ `SceneSnapshot` を渡し、media idに対応するclipの `source_frame` を参照できるようにした。
+- Green: `standard-particle` の `speed` と `lifetime_seconds` を使い、60fps基準の経過秒で粒子を決定的に移動させるようにした。
+- Green: direct native encodeとpreview native shared frameの両方で同じsource frame評価を使うようにした。
+- 版を `0.1.1-Beta-253a` に更新した。
+- 検証: rust-backendのgenerated media関連5件、TS対象27件が成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- 残課題: 次は標準パーティクルをTimeline/PropertyPanelから追加・編集できるUIへ接続する。
+
+## 2026-06-21
 - 標準パーティクルをRust backend native renderへ接続した。
 - Red: `render.nativeSharedFrame` が `GeneratedParticle` mediaをshared frameへ描ける契約を追加した。
 - Green: rust-backendに `GeneratedParticleSource` metadataを追加し、`standard-particle` を検証できるようにした。

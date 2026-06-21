@@ -690,12 +690,13 @@ fn handle_encode_write_native_frame(
         }
     }
 
-    let sources = match collect_native_render_sources(&parsed.media, &parsed.sources) {
-        Ok(value) => value,
-        Err(message) => {
-            return response_error(id, native_render_source_error_code(&message), &message);
-        }
-    };
+    let sources =
+        match collect_native_render_sources(&parsed.snapshot, &parsed.media, &parsed.sources) {
+            Ok(value) => value,
+            Err(message) => {
+                return response_error(id, native_render_source_error_code(&message), &message);
+            }
+        };
     let audio_waveforms = match collect_native_render_audio_waveforms(&parsed.audio_waveforms) {
         Ok(value) => value,
         Err(message) => return response_error(id, -32602, &message),
@@ -1638,12 +1639,13 @@ fn handle_native_render_shared_frame(
     if parsed.slot_count == 0 {
         return response_error(id, -32602, "slotCount must be greater than zero");
     }
-    let sources = match collect_native_render_sources(&parsed.media, &parsed.sources) {
-        Ok(value) => value,
-        Err(message) => {
-            return response_error(id, native_render_source_error_code(&message), &message);
-        }
-    };
+    let sources =
+        match collect_native_render_sources(&parsed.snapshot, &parsed.media, &parsed.sources) {
+            Ok(value) => value,
+            Err(message) => {
+                return response_error(id, native_render_source_error_code(&message), &message);
+            }
+        };
     let audio_waveforms = match collect_native_render_audio_waveforms(&parsed.audio_waveforms) {
         Ok(value) => value,
         Err(message) => return response_error(id, -32602, &message),
@@ -2126,6 +2128,7 @@ fn nearly_equal_f32(left: f32, right: f32) -> bool {
 
 #[cfg(unix)]
 fn collect_native_render_sources(
+    snapshot: &SceneSnapshot,
     media_items: &[SceneMediaReference],
     shared_sources: &[NativeRenderSharedFrameSource],
 ) -> Result<HashMap<String, RgbaFrame>, String> {
@@ -2134,7 +2137,10 @@ fn collect_native_render_sources(
         let frame = match media.kind {
             MediaKind::SolidColour => build_solid_colour_source_frame(media)?,
             MediaKind::GeneratedGradient => build_generated_gradient_source_frame(media)?,
-            MediaKind::GeneratedParticle => build_generated_particle_source_frame(media)?,
+            MediaKind::GeneratedParticle => build_generated_particle_source_frame(
+                media,
+                source_frame_for_media(snapshot, &media.id),
+            )?,
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform => continue,
@@ -2180,6 +2186,15 @@ fn collect_native_render_audio_waveforms(
             })
         })
         .collect()
+}
+
+fn source_frame_for_media(snapshot: &SceneSnapshot, media_id: &str) -> u64 {
+    snapshot
+        .clips
+        .iter()
+        .find(|clip| clip.media_id == media_id)
+        .map(|clip| clip.source_frame)
+        .unwrap_or(0)
 }
 
 fn native_render_source_error_code(message: &str) -> i64 {
@@ -2286,7 +2301,10 @@ fn build_generated_gradient_source_frame(media: &SceneMediaReference) -> Result<
         .map_err(|error| format!("GeneratedGradient media frame is invalid: {error:?}"))
 }
 
-fn build_generated_particle_source_frame(media: &SceneMediaReference) -> Result<RgbaFrame, String> {
+fn build_generated_particle_source_frame(
+    media: &SceneMediaReference,
+    source_frame: u64,
+) -> Result<RgbaFrame, String> {
     if media.width == 0 || media.height == 0 {
         return Err(format!(
             "GeneratedParticle media dimensions must be positive, got {}x{}",
@@ -2315,13 +2333,19 @@ fn build_generated_particle_source_frame(media: &SceneMediaReference) -> Result<
     let centre_x = media.width as f32 / 2.0;
     let centre_y = media.height as f32 / 2.0;
     let radius = ((particle.size.max(1.0).round() as i32) - 1) / 2;
+    let source_seconds = source_frame as f32 / 60.0;
 
     for index in 0..particle.particle_count {
         let angle = deterministic_unit(particle.seed, index, 0) * std::f32::consts::TAU;
         let distance = deterministic_unit(particle.seed, index, 1) * particle.spread;
-        let speed_offset = deterministic_unit(particle.seed, index, 2) * particle.speed * 0.0;
-        let x = (centre_x + angle.cos() * (distance + speed_offset)).round() as i32;
-        let y = (centre_y + angle.sin() * (distance + speed_offset)).round() as i32;
+        let lifetime_position = if particle.lifetime_seconds <= f32::EPSILON {
+            0.0
+        } else {
+            source_seconds.rem_euclid(particle.lifetime_seconds)
+        };
+        let motion = particle.speed * lifetime_position;
+        let x = (centre_x + angle.cos() * (distance + motion)).round() as i32;
+        let y = (centre_y + angle.sin() * (distance + motion)).round() as i32;
         for offset_y in -radius..=radius {
             for offset_x in -radius..=radius {
                 write_particle_pixel(
