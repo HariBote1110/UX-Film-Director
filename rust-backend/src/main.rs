@@ -11118,6 +11118,40 @@ mod tests {
     }
 
     #[test]
+    fn generated_getcolor_dots_source_frame_applies_sample_hue_shift() {
+        let source_path = write_test_rgba_png(
+            "uxfd-getcolor-sampled-hue-shift-source",
+            1,
+            1,
+            &[255, 0, 0, 255],
+        );
+        let source = format!(
+            r##"{{"generator":"getcolor-v2r-dot-field","columns":1,"rows":1,"dot_size":36,"size_influence":0,"luminance_influence":0,"hue_shift_degrees":0,"alternate_rows":false,"foreground_colour":"#ffffff","secondary_colour":"#36c2ff","background_colour":"#000000","seed":93,"dot_shape":"circle","stroke_width":0,"source_image":"{}","sample_strength":1,"sample_hue_shift_degrees":120}}"##,
+            source_path.to_string_lossy()
+        );
+        let media = SceneMediaReference {
+            id: "getcolor-sampled-hue-shift-dot-field-1".to_string(),
+            kind: MediaKind::GeneratedGetColorDots,
+            source,
+            width: 60,
+            height: 60,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_getcolor_dots_source_frame(&media)
+            .expect("generated GetColor sampled hue shift frame should render");
+        let centre_offset = ((30_usize * media.width as usize) + 30_usize) * 4;
+
+        assert_eq!(
+            &frame.pixels[centre_offset..centre_offset + 4],
+            [0, 255, 0, 255]
+        );
+
+        let _ = std::fs::remove_file(source_path);
+    }
+
+    #[test]
     fn generated_getcolor_dots_source_accepts_psd_source_with_active_layer_ids() {
         let source = GeneratedGetColorDotsSource {
             generator: "getcolor-v2r-dot-field".to_string(),

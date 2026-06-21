@@ -2505,6 +2505,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         strokeWidth: 0,
         sampleSourcePath: 'file:///tmp/source-colours.png',
         sampleStrength: 1,
+        sampleHueShiftDegrees: 120,
       })],
       time: 2,
     });
@@ -2533,6 +2534,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
           stroke_width: 0,
           source_image: 'file:///tmp/source-colours.png',
           sample_strength: 1,
+          sample_hue_shift_degrees: 120,
         }),
         width: 800,
         height: 450,
