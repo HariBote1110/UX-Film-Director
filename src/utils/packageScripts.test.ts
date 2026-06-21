@@ -28,12 +28,15 @@ describe('package scripts', () => {
     expect(script).toContain('exportFramesPerSecond');
     expect(script).toContain('UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA');
     expect(script).toContain('UXFD_VIDEO_EXPORT_E2E_ADD_PSD');
+    expect(script).toContain('UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS');
     expect(script).toContain('UXFD_VIDEO_EXPORT_E2E_REPEAT_EXPORTS');
     expect(script).toContain('UXFD_VIDEO_EXPORT_E2E_EXPECT_REPEAT_SPEEDUP');
     expect(script).toContain('mixedMediaResult');
     expect(script).toContain('psdMediaResult');
+    expect(script).toContain('aviUtlGeneratedEffectsResult');
     expect(script).toContain('exportAttempts');
     expect(script).toContain('__UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__');
+    expect(script).toContain('__UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS__');
     expect(script).toContain('mixedMediaDurationResult');
     expect(script).toContain('expectedFrameCount');
     expect(script).toContain('frameCountMatchesDuration');
@@ -45,6 +48,7 @@ describe('package scripts', () => {
   it('keeps mixed-media video export E2E duration controlled by the renderer hook', () => {
     const main = readFileSync(new URL('../../src/main.tsx', import.meta.url), 'utf8');
     expect(main).toContain('__UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__');
+    expect(main).toContain('__UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS__');
     expect(main).toContain('state.objects.forEach');
     expect(main).toContain('state.setDuration(safeDuration)');
   });
