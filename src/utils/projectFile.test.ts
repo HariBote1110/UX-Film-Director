@@ -1078,6 +1078,56 @@ describe('parseProjectPayloadV2', () => {
     expect(parsed.scenes[0].objects).toEqual([hksyMeasuredGrid]);
   });
 
+  it('round-trips an hksy anchor line pattern object through JSON payload', () => {
+    const layers = createDefaultLayers();
+    const camera = createDefaultCamera();
+    const hksyAnchorLine: HksyCheckerGridObject = {
+      ...minimalHksyCheckerGrid(),
+      id: 'hksy-anchor-line-1',
+      name: 'hksy ライン（アンカー指定）',
+      width: 480,
+      height: 360,
+      pattern: 'anchor-line',
+      cellSize: 64,
+      lineWidth: 20,
+      checkerEnabled: false,
+      gridEnabled: false,
+      foregroundColour: '#ffffff',
+      secondaryColour: '#ffffff',
+      backgroundColour: '#000000',
+      anchorPoints: [
+        { x: -88, y: 50 },
+        { x: 0, y: -100 },
+        { x: 88, y: 50 },
+      ],
+      roundCaps: true,
+      maxJoinDistance: 50,
+    };
+    const file = buildProjectFileData({
+      projectSettings: projectSettings(),
+      scenes: [
+        {
+          id: 's1',
+          name: 'One',
+          duration: 10,
+          layers,
+          objects: [hksyAnchorLine],
+          camera,
+          stageCamera3D: defaultStage()
+        }
+      ],
+      activeSceneId: 's1',
+      objects: [hksyAnchorLine],
+      layers,
+      duration: 10,
+      camera,
+      stageCamera3D: defaultStage()
+    });
+
+    const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
+    expect(parsed.scenes[0].objects).toEqual([hksyAnchorLine]);
+  });
+
   it('rejects invalid worldPlacement on psd objects', () => {
     const bad = {
       format: 'uxfd-project',

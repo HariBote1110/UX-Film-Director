@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildHksyCheckerGridObject,
+  buildHksyAnchorLineObject,
   buildHksyDiamondObject,
   buildHksyMeasuredGridObject,
   buildHksyLineObject,
@@ -160,6 +161,44 @@ describe('hksyCheckerGridObjectFactory', () => {
       backgroundColour: '#10131a',
       separateInterval: 5,
       separateLineWidth: 3,
+    });
+  });
+
+  it('builds an hksy anchor line object using the Rust checker/grid generator path', () => {
+    const object = buildHksyAnchorLineObject({
+      id: 'hksy-anchor-line-1',
+      projectWidth: 1920,
+      projectHeight: 1080,
+      startTime: 6,
+      layer: 33,
+    });
+
+    expect(object).toMatchObject({
+      id: 'hksy-anchor-line-1',
+      type: 'hksy_checker_grid',
+      name: 'hksy ライン（アンカー指定）',
+      layer: 33,
+      startTime: 6,
+      duration: 5,
+      x: 720,
+      y: 360,
+      width: 480,
+      height: 360,
+      pattern: 'anchor-line',
+      cellSize: 64,
+      lineWidth: 20,
+      checkerEnabled: false,
+      gridEnabled: false,
+      foregroundColour: '#ffffff',
+      secondaryColour: '#ffffff',
+      backgroundColour: '#000000',
+      anchorPoints: [
+        { x: -88, y: 50 },
+        { x: 0, y: -100 },
+        { x: 88, y: 50 },
+      ],
+      roundCaps: true,
+      maxJoinDistance: 50,
     });
   });
 });

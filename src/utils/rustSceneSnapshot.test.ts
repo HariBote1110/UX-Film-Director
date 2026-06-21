@@ -2166,6 +2166,66 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('serialises an hksy anchor line object into the Rust generator payload', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseHksyCheckerGrid({
+        id: 'hksy-anchor-line-1',
+        name: 'hksy ライン（アンカー指定）',
+        width: 480,
+        height: 360,
+        pattern: 'anchor-line',
+        cellSize: 64,
+        lineWidth: 20,
+        checkerEnabled: false,
+        gridEnabled: false,
+        foregroundColour: '#ffffff',
+        secondaryColour: '#ffffff',
+        backgroundColour: '#000000',
+        anchorPoints: [
+          { x: -88, y: 50 },
+          { x: 0, y: -100 },
+          { x: 88, y: 50 },
+        ],
+        roundCaps: true,
+        maxJoinDistance: 50,
+      })],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated hksy anchor line snapshot to pass');
+
+    expect(result.media).toEqual([
+      {
+        id: 'hksy-anchor-line-1',
+        kind: 'GeneratedHksyCheckerGrid',
+        source: JSON.stringify({
+          generator: 'hksy-checker-grid',
+          pattern: 'anchor-line',
+          cell_size: 64,
+          line_width: 20,
+          checker_enabled: false,
+          grid_enabled: false,
+          foreground_colour: '#ffffff',
+          secondary_colour: '#ffffff',
+          background_colour: '#000000',
+          anchor_points: [
+            { x: -88, y: 50 },
+            { x: 0, y: -100 },
+            { x: 88, y: 50 },
+          ],
+          round_caps: true,
+          max_join_distance: 50,
+        }),
+        width: 480,
+        height: 360,
+      },
+    ]);
+  });
+
   it('builds a generated GetColor V2R dot media plane from a dot field object', () => {
     const layers = createDefaultLayers();
     const result = buildRustSceneSnapshotForTimeline({

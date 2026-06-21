@@ -9208,6 +9208,38 @@ mod tests {
     }
 
     #[test]
+    fn generated_hksy_checker_grid_source_frame_renders_anchor_line_pattern() {
+        let media = SceneMediaReference {
+            id: "hksy-anchor-line-1".to_string(),
+            kind: MediaKind::GeneratedHksyCheckerGrid,
+            source: r##"{"generator":"hksy-checker-grid","pattern":"anchor-line","cell_size":64,"line_width":20,"checker_enabled":false,"grid_enabled":false,"foreground_colour":"#ffffff","secondary_colour":"#ffffff","background_colour":"#000000","anchor_points":[{"x":-88,"y":50},{"x":0,"y":-100},{"x":88,"y":50}],"round_caps":true,"max_join_distance":50}"##.to_string(),
+            width: 480,
+            height: 360,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_hksy_checker_grid_source_frame(&media)
+            .expect("generated hksy anchor line frame should render");
+        let white_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [255, 255, 255, 255])
+            .count();
+        let transparent_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| rgba[3] == 0)
+            .count();
+        let apex_offset = ((80_usize * media.width as usize) + 240_usize) * 4;
+        let apex_pixel = &frame.pixels[apex_offset..apex_offset + 4];
+
+        assert!(white_count > 6_000);
+        assert!(transparent_count > 140_000);
+        assert_eq!(apex_pixel, [255, 255, 255, 255]);
+    }
+
+    #[test]
     fn generated_getcolor_dots_source_frame_contains_dot_field_and_background() {
         let media = SceneMediaReference {
             id: "getcolor-dot-field-1".to_string(),
