@@ -50,6 +50,7 @@ pub enum MediaKind {
     GeneratedTriangleBracket,
     GeneratedTartanCheck,
     GeneratedHoundstooth,
+    GeneratedYagasuri,
     Psd,
 }
 
@@ -80,6 +81,7 @@ pub enum ClipKind {
     GeneratedTriangleBracketPlane,
     GeneratedTartanCheckPlane,
     GeneratedHoundstoothPlane,
+    GeneratedYagasuriPlane,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

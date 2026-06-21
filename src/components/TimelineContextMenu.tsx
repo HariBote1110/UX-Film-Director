@@ -15,6 +15,7 @@ import { buildAviUtlSunburstObject } from '../utils/sunburstObjectFactory';
 import { buildAviUtlTartanCheckObject } from '../utils/tartanCheckObjectFactory';
 import { buildAviUtlTrackBarObject } from '../utils/trackBarObjectFactory';
 import { buildAviUtlTriangleBracketObject } from '../utils/triangleBracketObjectFactory';
+import { buildAviUtlYagasuriObject } from '../utils/yagasuriObjectFactory';
 import {
   buildAviUtlAuraEmissionObject,
   buildAviUtlBubbleObject,
@@ -212,6 +213,17 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
     onClose();
   };
 
+  const handleAddYagasuri = () => {
+    addObject(buildAviUtlYagasuriObject({
+      id: crypto.randomUUID(),
+      projectWidth: projectSettings.width,
+      projectHeight: projectSettings.height,
+      startTime: state.time,
+      layer: state.layer,
+    }));
+    onClose();
+  };
+
   const handleAddColourWheel = () => {
     addObject(buildAviUtlColourWheelObject({
       id: crypto.randomUUID(),
@@ -399,6 +411,7 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddCircularArrow}>{language === 'en' ? 'Add Circular Arrow' : '円矢印を追加'}</div>
               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddTartanCheck}>{language === 'en' ? 'Add Tartan Check' : 'タータンチェックを追加'}</div>
               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHoundstooth}>{language === 'en' ? 'Add Houndstooth' : '千鳥格子を追加'}</div>
+              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddYagasuri}>{language === 'en' ? 'Add Yagasuri' : '矢がすりを追加'}</div>
               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddTriangleBracket}>{language === 'en' ? 'Add Triangle Bracket' : '三角括弧を追加'}</div>
          </>
        )}

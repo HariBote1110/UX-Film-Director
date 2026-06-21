@@ -42,6 +42,7 @@
 | P2 | 三角括弧 | native generated object | 注釈対象を挟む強調表示に使いやすい |
 | P2 | タータンチェック | native generated object | 解説画面や背景素材に使いやすい |
 | P2 | 千鳥格子 | native generated object | 解説画面や背景素材に使いやすい |
+| P2 | 矢がすり | native generated object | 和柄背景や解説画面の装飾に使いやすい |
 | P2 | モーションパス / ベジェ軌道T | native motion preset | 既存キーフレームに接続し、弧やS字移動を少ない操作で作れる |
 | P2 | 風揺れT | native motion preset | 立ち絵や字幕に軽い揺れを付ける定番演出 |
 | P3 | Luaスクリプト互換 | script runtime later | 安全性、性能、ライセンス確認が大きい |

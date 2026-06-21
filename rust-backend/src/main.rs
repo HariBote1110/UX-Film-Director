@@ -310,6 +310,17 @@ struct GeneratedHoundstoothSource {
     background_colour: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedYagasuriSource {
+    generator: String,
+    arrow_width: u32,
+    arrow_height: u32,
+    line_width: u32,
+    staggered: bool,
+    foreground_colour: String,
+    background_colour: String,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2304,6 +2315,7 @@ fn collect_native_render_sources(
             }
             MediaKind::GeneratedTartanCheck => build_generated_tartan_check_source_frame(media)?,
             MediaKind::GeneratedHoundstooth => build_generated_houndstooth_source_frame(media)?,
+            MediaKind::GeneratedYagasuri => build_generated_yagasuri_source_frame(media)?,
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform => continue,
@@ -3654,6 +3666,74 @@ fn build_generated_houndstooth_source_frame(
         .map_err(|error| format!("GeneratedHoundstooth media frame is invalid: {error:?}"))
 }
 
+fn build_generated_yagasuri_source_frame(media: &SceneMediaReference) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedYagasuri media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let yagasuri: GeneratedYagasuriSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedYagasuri media '{}': {error}", media.id))?;
+    validate_generated_yagasuri_source(&yagasuri)
+        .map_err(|message| format!("Invalid GeneratedYagasuri media '{}': {message}", media.id))?;
+
+    let foreground = parse_hex_colour_source(&yagasuri.foreground_colour)
+        .map_err(|message| format!("Invalid GeneratedYagasuri media '{}': {message}", media.id))?;
+    let background = parse_hex_colour_source(&yagasuri.background_colour)
+        .map_err(|message| format!("Invalid GeneratedYagasuri media '{}': {message}", media.id))?;
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedYagasuri media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedYagasuri media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+    let arrow_width = yagasuri.arrow_width.max(1) as f32;
+    let arrow_height = yagasuri.arrow_height.max(1) as f32;
+    let line_width = yagasuri.line_width as f32;
+    let period = (arrow_width * 4.0 + line_width * 2.0).max(1.0);
+    let row_height = arrow_height.max(1.0);
+
+    for y in 0..media.height {
+        let row = (y as f32 / row_height).floor() as u32;
+        let row_y = (y as f32).rem_euclid(row_height);
+        let row_shift = if yagasuri.staggered && row % 2 == 1 {
+            arrow_width * 2.0 + line_width
+        } else {
+            0.0
+        };
+        let diagonal = row_y / row_height * arrow_width;
+        for x in 0..media.width {
+            let local_x = ((x as f32 - row_shift).rem_euclid(period) + period).rem_euclid(period);
+            let left_start = (arrow_width - diagonal).max(0.0);
+            let left_end = left_start + arrow_width;
+            let right_start = arrow_width + line_width + diagonal;
+            let right_end = right_start + arrow_width;
+            let line_start = arrow_width * 2.0 + line_width;
+            let line_end = line_start + line_width.max(1.0);
+            let use_foreground = (local_x >= left_start && local_x <= left_end)
+                || (local_x >= right_start && local_x <= right_end)
+                || (line_width > 0.0 && local_x >= line_start && local_x <= line_end);
+            let colour = if use_foreground {
+                foreground
+            } else {
+                background
+            };
+            let offset = (y as usize * media.width as usize + x as usize) * 4;
+            pixels[offset..offset + 4].copy_from_slice(&[colour[0], colour[1], colour[2], 255]);
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedYagasuri media frame is invalid: {error:?}"))
+}
+
 fn point_on_circle(centre_x: f32, centre_y: f32, radius: f32, angle: f32) -> (f32, f32) {
     (
         centre_x + angle.cos() * radius,
@@ -4125,6 +4205,24 @@ fn validate_generated_houndstooth_source(
     }
     if source.pattern_size < 10 || source.pattern_size > 200 {
         return Err("pattern_size must be 10..200".to_string());
+    }
+    parse_hex_colour_source(&source.foreground_colour)?;
+    parse_hex_colour_source(&source.background_colour)?;
+    Ok(())
+}
+
+fn validate_generated_yagasuri_source(source: &GeneratedYagasuriSource) -> Result<(), String> {
+    if source.generator != "yagasuri" {
+        return Err("generator must be yagasuri".to_string());
+    }
+    if source.arrow_width == 0 || source.arrow_width > 500 {
+        return Err("arrow_width must be 1..500".to_string());
+    }
+    if source.arrow_height == 0 || source.arrow_height > 500 {
+        return Err("arrow_height must be 1..500".to_string());
+    }
+    if source.line_width > 100 {
+        return Err("line_width must be 0..100".to_string());
     }
     parse_hex_colour_source(&source.foreground_colour)?;
     parse_hex_colour_source(&source.background_colour)?;
@@ -6471,6 +6569,37 @@ mod tests {
 
         assert!(foreground_count > 100_000);
         assert!(background_count > 100_000);
+        assert!(fully_opaque);
+    }
+
+    #[test]
+    fn generated_yagasuri_source_frame_contains_arrow_pattern_and_opacity() {
+        let media = SceneMediaReference {
+            id: "yagasuri-1".to_string(),
+            kind: MediaKind::GeneratedYagasuri,
+            source: r##"{"generator":"yagasuri","arrow_width":15,"arrow_height":65,"line_width":2,"staggered":true,"foreground_colour":"#000000","background_colour":"#ffffff"}"##.to_string(),
+            width: 800,
+            height: 450,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_yagasuri_source_frame(&media)
+            .expect("generated yagasuri frame should render");
+        let foreground_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [0, 0, 0, 255])
+            .count();
+        let background_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [255, 255, 255, 255])
+            .count();
+        let fully_opaque = frame.pixels.chunks_exact(4).all(|rgba| rgba[3] == 255);
+
+        assert!(foreground_count > 80_000);
+        assert!(background_count > 120_000);
         assert!(fully_opaque);
     }
 }

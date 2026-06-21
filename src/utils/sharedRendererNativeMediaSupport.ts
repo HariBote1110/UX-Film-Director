@@ -20,6 +20,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedTriangleBracket') return isSharedRendererNativeGeneratedTriangleBracketSourceSupported(reference.source);
   if (reference.kind === 'GeneratedTartanCheck') return isSharedRendererNativeGeneratedTartanCheckSourceSupported(reference.source);
   if (reference.kind === 'GeneratedHoundstooth') return isSharedRendererNativeGeneratedHoundstoothSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedYagasuri') return isSharedRendererNativeGeneratedYagasuriSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -618,6 +619,42 @@ const isSharedRendererNativeGeneratedHoundstoothSourceSupported = (source: strin
       && Number.isInteger(parsed.pattern_size)
       && parsed.pattern_size >= 10
       && parsed.pattern_size <= 200
+      && typeof parsed.foreground_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.foreground_colour)
+      && typeof parsed.background_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedYagasuriSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      arrow_width?: unknown;
+      arrow_height?: unknown;
+      line_width?: unknown;
+      staggered?: unknown;
+      foreground_colour?: unknown;
+      background_colour?: unknown;
+    };
+    return (
+      parsed.generator === 'yagasuri'
+      && Number.isInteger(parsed.arrow_width)
+      && typeof parsed.arrow_width === 'number'
+      && parsed.arrow_width >= 1
+      && parsed.arrow_width <= 500
+      && Number.isInteger(parsed.arrow_height)
+      && typeof parsed.arrow_height === 'number'
+      && parsed.arrow_height >= 1
+      && parsed.arrow_height <= 500
+      && Number.isInteger(parsed.line_width)
+      && typeof parsed.line_width === 'number'
+      && parsed.line_width >= 0
+      && parsed.line_width <= 100
+      && typeof parsed.staggered === 'boolean'
       && typeof parsed.foreground_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.foreground_colour)
       && typeof parsed.background_colour === 'string'

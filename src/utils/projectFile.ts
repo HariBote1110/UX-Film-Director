@@ -102,7 +102,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'circular_arrow',
   'triangle_bracket',
   'tartan_check',
-  'houndstooth'
+  'houndstooth',
+  'yagasuri'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -315,6 +316,16 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
     if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
     if (!isFiniteNumber(candidate.patternSize) || candidate.patternSize < 10 || candidate.patternSize > 200) return false;
+    if (typeof candidate.foregroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.foregroundColour)) return false;
+    if (typeof candidate.backgroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.backgroundColour)) return false;
+  }
+  if (candidate.type === 'yagasuri') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.arrowWidth) || candidate.arrowWidth < 1 || candidate.arrowWidth > 500) return false;
+    if (!isFiniteNumber(candidate.arrowHeight) || candidate.arrowHeight < 1 || candidate.arrowHeight > 500) return false;
+    if (!isFiniteNumber(candidate.lineWidth) || candidate.lineWidth < 0 || candidate.lineWidth > 100) return false;
+    if (typeof candidate.staggered !== 'boolean') return false;
     if (typeof candidate.foregroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.foregroundColour)) return false;
     if (typeof candidate.backgroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.backgroundColour)) return false;
   }

@@ -335,6 +335,7 @@ export const hasProjectExportNativeRenderMediaObjects = (
     || object.type === 'triangle_bracket'
     || object.type === 'tartan_check'
     || object.type === 'houndstooth'
+    || object.type === 'yagasuri'
     || object.type === 'audio_visualization'
   );
 
