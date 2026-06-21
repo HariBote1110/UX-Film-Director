@@ -38,7 +38,9 @@ describe('AviUtlPackV4 motion presets', () => {
       { id: 'entrance-slide-left', sourceCandidateId: 'ymm4-entrance-exit' },
       { id: 'entrance-pop-up', sourceCandidateId: 'ymm4-entrance-exit' },
       { id: 'random-wiggle', sourceCandidateId: 'ymm4-random-motion' },
-      { id: 'repeat-side-to-side', sourceCandidateId: 'ymm4-repeat-motion' }
+      { id: 'repeat-side-to-side', sourceCandidateId: 'ymm4-repeat-motion' },
+      { id: 'motion-path-arc', sourceCandidateId: 'tim-motion-path' },
+      { id: 'motion-path-s-curve', sourceCandidateId: 'tim-motion-path' }
     ]);
   });
 
@@ -93,6 +95,40 @@ describe('AviUtlPackV4 motion presets', () => {
       expect.objectContaining({ time: 12, x: 290, y: 240, easing: 'easeInOutSine' }),
       expect.objectContaining({ time: 13, x: 350, y: 240, easing: 'easeInOutSine' }),
       expect.objectContaining({ time: 14, x: 320, y: 240, easing: 'linear' })
+    ]);
+  });
+
+  it('builds a Tim motion path arc that lands at the path endpoint', () => {
+    const patch = buildAviUtlMotionPresetPatch(baseShape(), 'motion-path-arc', {
+      distancePx: 120
+    });
+
+    expect(patch.enableAnimation).toBe(true);
+    expect(patch.x).toBe(320);
+    expect(patch.y).toBe(240);
+    expect(patch.endX).toBe(440);
+    expect(patch.endY).toBe(240);
+    expect(patch.easing).toBe('easeInOutSine');
+    expect(patch.keyframes).toEqual([
+      expect.objectContaining({ time: 10, x: 320, y: 240, easing: 'easeInOutSine' }),
+      expect.objectContaining({ time: 12, x: 380, y: 180, easing: 'easeInOutSine' }),
+      expect.objectContaining({ time: 14, x: 440, y: 240, easing: 'linear' })
+    ]);
+  });
+
+  it('builds a Tim motion path S-curve with alternating control points', () => {
+    const patch = buildAviUtlMotionPresetPatch(baseShape(), 'motion-path-s-curve', {
+      distancePx: 120
+    });
+
+    expect(patch.endX).toBe(440);
+    expect(patch.endY).toBe(240);
+    expect(patch.keyframes).toEqual([
+      expect.objectContaining({ time: 10, x: 320, y: 240, easing: 'easeInOutSine' }),
+      expect.objectContaining({ time: 11, x: 350, y: 180, easing: 'easeInOutSine' }),
+      expect.objectContaining({ time: 12, x: 380, y: 300, easing: 'easeInOutSine' }),
+      expect.objectContaining({ time: 13, x: 410, y: 180, easing: 'easeInOutSine' }),
+      expect.objectContaining({ time: 14, x: 440, y: 240, easing: 'linear' })
     ]);
   });
 });
