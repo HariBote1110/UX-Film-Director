@@ -109,6 +109,19 @@ pub enum Effect {
         thickness: f32,
         opacity: f32,
     },
+    Wipe {
+        edge: WipeEdge,
+        progress: f32,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WipeEdge {
+    Left,
+    Right,
+    Top,
+    Bottom,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

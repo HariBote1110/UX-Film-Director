@@ -1,3 +1,25 @@
+## 2026-06-21 — 輝度ワイプをRust/WebGPU境界へ追加
+
+### 実施内容
+- Red: 既存の `wipe` filterが時刻評価済み `Wipe` effectとしてRust scene snapshotへ出る契約を追加した。
+- Red: Rust coreの `Effect::Wipe` / `WipeEdge` と、progress範囲検証、native-wgpu-rendererの左ワイプ画素契約を追加した。
+- Green: `rustSceneSnapshot` が `wipe` filterを `Wipe { edge, progress }` へ変換し、shared rendererのunsupported filter判定から外すようにした。
+- Green: Rust coreに `WipeEdge` と `Effect::Wipe` を追加し、serde境界とvalidationへ接続した。
+- Green: native-wgpu-rendererのuniform/WGSL shaderへwipe edge/progressを追加し、対象外ピクセルを透明化するようにした。
+- 版を `0.1.1-Beta-242a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/rustSceneSnapshot.test.ts src/utils/aviutlEffectPresets.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "src/utils/rustSceneSnapshot|src/types|src/utils/filterStack|src/utils/aviutlEffectPresets"`
+- `cargo test --manifest-path rust-core/Cargo.toml --test timeline_snapshot_contract --test project_validation -- --nocapture`
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test native_reference_parity -- --nocapture`
+
+### 結果・残課題
+- TS関連テストは24件成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- Rust coreは `timeline_snapshot_contract` 5件、`project_validation` 10件成功。
+- native-wgpu-rendererは `native_reference_parity` 13件成功し、`native_wgpu_applies_left_wipe_progress` で実shader効果を確認した。
+- 次は扇クリッピングのRust native effect化、またはAudio waveform Rのnative generated object化へ進む。
+
 ## 2026-06-21 — 縁取りをFilter StackとRust/WebGPU境界へ追加
 
 ### 実施内容

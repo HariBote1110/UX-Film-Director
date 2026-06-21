@@ -36,7 +36,8 @@ export interface RustTransform {
 export type RustEffect =
   | { LinearGain: { gain: number } }
   | { ColourAberration: { offset_x: number; offset_y: number } }
-  | { Outline: { colour: [number, number, number]; thickness: number; opacity: number } };
+  | { Outline: { colour: [number, number, number]; thickness: number; opacity: number } }
+  | { Wipe: { edge: 'left' | 'right' | 'top' | 'bottom'; progress: number } };
 
 export interface RustEvaluatedClip {
   clip_id: string;
@@ -182,7 +183,7 @@ export const buildRustSceneSnapshotForTimeline = ({
           sampling: object.type === 'shape' && object.gradient?.enabled !== true ? 'nearest' : 'bilinear',
         },
       opacity,
-      effects: rustEffectsForObject(object),
+      effects: rustEffectsForObject(object, time),
     };
   });
 
@@ -288,6 +289,7 @@ const collectBuildIssues = (
       filter.type !== 'fade'
       && filter.type !== 'colour_aberration'
       && filter.type !== 'outline'
+      && filter.type !== 'wipe'
       && !(object.type === 'shape' && filter.type === 'gradient')
     ));
     if (unsupportedFilter) {
@@ -302,7 +304,7 @@ const collectBuildIssues = (
   return issues;
 };
 
-const rustEffectsForObject = (object: TimelineObject): RustEffect[] => {
+const rustEffectsForObject = (object: TimelineObject, time: number): RustEffect[] => {
   const effects: RustEffect[] = [];
   getEnabledObjectFiltersInOrder(object).forEach((filter) => {
     if (filter.type === 'colour_aberration') {
@@ -319,6 +321,16 @@ const rustEffectsForObject = (object: TimelineObject): RustEffect[] => {
           colour: parseHexColourToLinearTriplet(filter.params.colour),
           thickness: Math.max(0, finiteNumberOr(filter.params.thickness, 0)),
           opacity: Math.max(0, Math.min(1, finiteNumberOr(filter.params.opacity, 1))),
+        },
+      });
+    }
+    if (filter.type === 'wipe') {
+      let progress = Math.max(0, Math.min(1, (time - object.startTime) / object.duration));
+      if (filter.params.reverse) progress = 1 - progress;
+      effects.push({
+        Wipe: {
+          edge: filter.params.edge,
+          progress,
         },
       });
     }
@@ -650,6 +662,11 @@ const validateEffects = (
       validateNumberArray(effect.Outline.colour, `${effectPath}.Outline.colour`, 3, issues);
       validateFiniteNumber(effect.Outline.thickness, `${effectPath}.Outline.thickness`, issues);
       validateUnitInterval(effect.Outline.opacity, `${effectPath}.Outline.opacity`, issues);
+      return;
+    }
+    if (isRecord(effect.Wipe)) {
+      validateEnum(effect.Wipe.edge, `${effectPath}.Wipe.edge`, ['left', 'right', 'top', 'bottom'], issues);
+      validateUnitInterval(effect.Wipe.progress, `${effectPath}.Wipe.progress`, issues);
       return;
     }
     addIssue(issues, 'schemaMismatch', effectPath, 'Unknown Rust effect.');

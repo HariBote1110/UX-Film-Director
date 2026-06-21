@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 use uxfd_golden_harness::{RgbaFrame, RgbaFrameError};
-use uxfd_rust_core::{Effect, SamplingMode, SceneSnapshot};
+use uxfd_rust_core::{Effect, SamplingMode, SceneSnapshot, WipeEdge};
 use uxfd_shared_memory_spike::PosixSharedRing;
 use uxfd_sidecar_protocol::{
     rgba8_srgb_ring_layout, ColourMetadata, FrameFormat, FrameRingLayoutBuildError, SharedFrame,
@@ -212,9 +212,9 @@ impl NativeWgpuRenderer {
                     outline_colour_b: outline_colour_component(clip, 2),
                     outline_thickness: outline_thickness(clip),
                     outline_opacity: outline_opacity(clip),
+                    wipe_edge: wipe_edge(clip),
+                    wipe_progress: wipe_progress(clip),
                     _padding0: 0.0,
-                    _padding1: 0.0,
-                    _padding2: 0.0,
                     source_width: source.width as f32,
                     source_height: source.height as f32,
                     translation_x: clip.transform.translation_x,
@@ -225,6 +225,8 @@ impl NativeWgpuRenderer {
                     rotation_cos: rotation_radians.cos(),
                     rotation_sin: rotation_radians.sin(),
                     _padding3: 0.0,
+                    _padding4: 0.0,
+                    _padding5: 0.0,
                 },
             ));
         }
@@ -449,9 +451,9 @@ struct RenderParams {
     outline_colour_b: f32,
     outline_thickness: f32,
     outline_opacity: f32,
+    wipe_edge: f32,
+    wipe_progress: f32,
     _padding0: f32,
-    _padding1: f32,
-    _padding2: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -462,6 +464,8 @@ struct RenderParams {
     rotation_cos: f32,
     rotation_sin: f32,
     _padding3: f32,
+    _padding4: f32,
+    _padding5: f32,
 }
 
 fn sampling_mode_value(sampling: SamplingMode) -> f32 {
@@ -720,6 +724,7 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::LinearGain { gain } => *gain,
         Effect::ColourAberration { .. } => 1.0,
         Effect::Outline { .. } => 1.0,
+        Effect::Wipe { .. } => 1.0,
     }
 }
 
@@ -762,5 +767,33 @@ fn outline_opacity(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
         })
         .last()
         .unwrap_or(0.0)
+        .clamp(0.0, 1.0)
+}
+
+fn wipe_edge(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::Wipe { edge, .. } => Some(match edge {
+                WipeEdge::Left => 0.0,
+                WipeEdge::Right => 1.0,
+                WipeEdge::Top => 2.0,
+                WipeEdge::Bottom => 3.0,
+            }),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+}
+
+fn wipe_progress(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::Wipe { progress, .. } => Some(*progress),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(1.0)
         .clamp(0.0, 1.0)
 }

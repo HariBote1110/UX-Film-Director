@@ -23,7 +23,8 @@
 5. ✅ PropertyPanelのFilter StackへP1標準搭載候補を露出
 6. ✅ `P1` Rust/WebGPU effectの境界型へ色収差を追加
 7. ✅ `P1` Rust/WebGPU effectの境界型へ縁取りを追加
-8. E2Eで代表素材に効果を載せ、preview/exportの一致を検証
+8. ✅ `P1` Rust/WebGPU effectの境界型へ輝度ワイプを追加
+9. E2Eで代表素材に効果を載せ、preview/exportの一致を検証
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

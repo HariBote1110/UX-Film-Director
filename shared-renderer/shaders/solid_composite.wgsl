@@ -8,9 +8,9 @@ struct RenderParams {
     outline_colour_b: f32,
     outline_thickness: f32,
     outline_opacity: f32,
+    wipe_edge: f32,
+    wipe_progress: f32,
     _padding0: f32,
-    _padding1: f32,
-    _padding2: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -21,6 +21,8 @@ struct RenderParams {
     rotation_cos: f32,
     rotation_sin: f32,
     _padding3: f32,
+    _padding4: f32,
+    _padding5: f32,
 }
 
 @group(0) @binding(0)
@@ -58,6 +60,10 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
         return vec4<f32>(0.0);
     }
 
+    if (!passes_wipe(source_position)) {
+        return vec4<f32>(0.0);
+    }
+
     let source = sample_source_linear(source_position);
     let aberration_offset = vec2<f32>(
         params.colour_aberration_offset_x,
@@ -76,6 +82,20 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     ) * outline_alpha;
 
     return vec4<f32>(premultiplied_rgb + outline_rgb * (1.0 - alpha), max(alpha, outline_alpha));
+}
+
+fn passes_wipe(source_position: vec2<f32>) -> bool {
+    let progress = clamp(params.wipe_progress, 0.0, 1.0);
+    if params.wipe_edge < 0.5 {
+        return source_position.x < params.source_width * progress;
+    }
+    if params.wipe_edge < 1.5 {
+        return source_position.x >= params.source_width * (1.0 - progress);
+    }
+    if params.wipe_edge < 2.5 {
+        return source_position.y < params.source_height * progress;
+    }
+    return source_position.y >= params.source_height * (1.0 - progress);
 }
 
 fn clamp_source_position(source_position: vec2<f32>) -> vec2<f32> {

@@ -191,6 +191,11 @@ fn scene_snapshot_serialises_with_renderer_boundary_field_names() {
                         "thickness": 2.0,
                         "opacity": 0.75
                     }
+                }, {
+                    "Wipe": {
+                        "edge": "left",
+                        "progress": 0.5
+                    }
                 }]
             }]
         })

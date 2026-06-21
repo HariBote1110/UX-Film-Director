@@ -10,7 +10,7 @@ pub mod video_plane_scene;
 pub use command::{apply_command, AppliedCommand, Command, CommandError};
 pub use schema::{
     Clip, ClipKind, ColourPipeline, Effect, Fps, MediaKind, MediaReference, Project, ProjectSize,
-    SamplingMode, ScalarKeyframe, Track, Transform,
+    SamplingMode, ScalarKeyframe, Track, Transform, WipeEdge,
 };
 pub use solid_colour_scene::{
     build_solid_colour_draw_list, build_solid_colour_vertex_scene, CanvasSize, NormalisedColour,

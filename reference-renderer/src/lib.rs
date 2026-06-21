@@ -71,6 +71,7 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::LinearGain { gain } => *gain,
         Effect::ColourAberration { .. } => 1.0,
         Effect::Outline { .. } => 1.0,
+        Effect::Wipe { .. } => 1.0,
     }
 }
 

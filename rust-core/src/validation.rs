@@ -129,6 +129,9 @@ fn effect_is_finite(effect: &crate::schema::Effect) -> bool {
                 && *opacity >= 0.0
                 && *opacity <= 1.0
         }
+        crate::schema::Effect::Wipe { progress, .. } => {
+            progress.is_finite() && *progress >= 0.0 && *progress <= 1.0
+        }
     }
 }
 
