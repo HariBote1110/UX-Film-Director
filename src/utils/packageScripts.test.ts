@@ -43,6 +43,6 @@ describe('package scripts', () => {
 
   it('provides an all-readable-media Rust boundary E2E command', () => {
     expect(packageJson.scripts['test:all-readable-media:e2e'])
-      .toBe('vitest run --config vite.config.ts --include src/e2e/allReadableMedia.e2e.test.ts');
+      .toBe('vitest run --config vite.config.ts src/e2e/allReadableMedia.e2e.test.ts');
   });
 });

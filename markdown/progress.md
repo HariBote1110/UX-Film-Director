@@ -1,6 +1,12 @@
 # 進捗ログ
 
 ## 2026-06-21
+- 全読込可能メディアE2Eを明示実行できる `test:all-readable-media:e2e` scriptを追加した。
+- Red: `packageScripts` に全読込可能メディアE2E commandの契約を追加し、未定義で失敗することを確認した。
+- Green: package scriptを追加し、同E2Eでは図形・画像・PSDのsub-pixel translation / scaleがRust snapshotへ残ることも確認するようにした。
+- 検証: `npm test -- --run src/utils/packageScripts.test.ts src/e2e/allReadableMedia.e2e.test.ts` は5件成功。`npm run test:all-readable-media:e2e` は1件成功。
+
+## 2026-06-21
 - Canvas描画結果に関わるsub-pixel配置をRust/shared renderer境界へ通すようにした。
 - Red: `rustSceneSnapshot` に、図形・画像・PSD・動画の `x/y` が小数でも `translation_x/translation_y` としてRust scene snapshotへ残る契約を追加した。
 - Green: `hasUnsupportedSharedRendererTransform` の整数translation制限を撤廃し、finite translation / positive finite scale / finite rotationを共有renderer対応範囲として扱うようにした。

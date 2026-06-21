@@ -7503,6 +7503,21 @@
 
 ### 残課題・次のステップ
 - 品質優先で原本2048px decodeへ戻したため、直前のプロキシ高速経路より速度は落ちる。次は「原本高品質decode + 単純scale合成fast path」を追加して、画質と速度を両立する。
+
+# 2026-06-21 — 全読込可能メディアRust境界E2Eの実行導線を追加
+
+## 実施内容
+- Red: `packageScripts` に `test:all-readable-media:e2e` の契約を追加し、未定義で失敗することを確認した。
+- Red: 全読込可能メディアE2Eを強化し、図形・画像・PSDのsub-pixel translation / scaleがRust snapshotに残ることを確認するようにした。
+- Green: `package.json` に `test:all-readable-media:e2e` scriptを追加した。
+
+## 検証
+- `npm test -- --run src/utils/packageScripts.test.ts src/e2e/allReadableMedia.e2e.test.ts` は5件成功。
+- `npm run test:all-readable-media:e2e` は1件成功。
+
+## 残課題・次のステップ
+- 次は実Electron windowで画像・音声・動画を追加して、実export成果物の音声/映像/進捗を確認するE2Eへ広げる。
+
 # 2026-06-21 — sub-pixel配置をRust scene snapshotへ移管
 
 ## 実施内容
