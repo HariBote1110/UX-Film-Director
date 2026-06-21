@@ -154,6 +154,12 @@ const media: RustSceneMediaReference[] = [{
   width: 800,
   height: 450,
 }, {
+  id: 'yagasuri-1',
+  kind: 'GeneratedYagasuri' as RustSceneMediaReference['kind'],
+  source: '{"generator":"yagasuri","arrow_width":15,"arrow_height":65,"line_width":2,"staggered":true,"foreground_colour":"#000000","background_colour":"#ffffff"}',
+  width: 800,
+  height: 450,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -208,8 +214,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[17])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[18])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[19])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[20])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[20])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[21])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[22])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {

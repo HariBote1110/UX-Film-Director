@@ -12,7 +12,7 @@ import {
   shouldSynchroniseTimelineForProjectExportFrame,
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, HoundstoothObject, ImageObject, ParticleObject, PieChartObject, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, HoundstoothObject, ImageObject, ParticleObject, PieChartObject, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const source = () =>
   readFileSync(new URL('./projectExportFrameCanvas.ts', import.meta.url), 'utf8');
@@ -564,6 +564,34 @@ const houndstooth = (patch: Partial<HoundstoothObject> = {}): HoundstoothObject 
   ...patch,
 });
 
+const yagasuri = (patch: Partial<YagasuriObject> = {}): YagasuriObject => ({
+  id: 'yagasuri-1',
+  type: 'yagasuri',
+  name: '矢がすり',
+  layer: 17,
+  startTime: 0,
+  duration: 5,
+  x: 560,
+  y: 315,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 560,
+  endY: 315,
+  easing: 'linear',
+  width: 800,
+  height: 450,
+  arrowWidth: 15,
+  arrowHeight: 65,
+  lineWidth: 2,
+  staggered: true,
+  foregroundColour: '#000000',
+  backgroundColour: '#ffffff',
+  ...patch,
+});
+
 describe('resolveProjectExportFrameCanvas', () => {
   it('uses the explicit export canvas without requiring a legacy canvas', () => {
     const sharedRendererCanvas = { id: 'shared-renderer-export' } as unknown as HTMLCanvasElement;
@@ -995,7 +1023,7 @@ describe('resolveProjectExportRustFrameSourceContext', () => {
   });
 
   it('marks standard particle exports as native-render media instead of legacy canvas work', () => {
-    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), gourd(), gear(), trackBar(), pieChart(), histogram(), sunburst(), circularArrow(), triangleBracket(), tartanCheck(), audio()];
+    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), gourd(), gear(), trackBar(), pieChart(), histogram(), sunburst(), circularArrow(), triangleBracket(), tartanCheck(), houndstooth(), yagasuri(), audio()];
 
     expect(hasProjectExportNativeRenderMediaObjects(objects)).toBe(true);
     expect(resolveProjectExportRustFrameSourceContext({

@@ -24,6 +24,7 @@ import type {
   SunburstObject,
   TartanCheckObject,
   HoundstoothObject,
+  YagasuriObject,
   TimelineObject,
   TrackBarObject,
   TriangleBracketObject,
@@ -405,6 +406,19 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     foregroundColour: '#000000',
     backgroundColour: '#ffffff',
   };
+  const yagasuri: YagasuriObject = {
+    ...baseObject('ssd-yagasuri', 'yagasuri', 24),
+    type: 'yagasuri',
+    name: '矢がすり',
+    width: 800,
+    height: 450,
+    arrowWidth: 15,
+    arrowHeight: 65,
+    lineWidth: 2,
+    staggered: true,
+    foregroundColour: '#000000',
+    backgroundColour: '#ffffff',
+  };
 
   return [
     solidShape,
@@ -428,6 +442,7 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     triangleBracket,
     tartanCheck,
     houndstooth,
+    yagasuri,
   ];
 };
 
@@ -509,6 +524,7 @@ describe('全読込可能メディア E2E', () => {
       'GeneratedTriangleBracket',
       'GeneratedTartanCheck',
       'GeneratedHoundstooth',
+      'GeneratedYagasuri',
     ]);
     expect(snapshotResult.media
       .filter((media) => media.kind === 'Video')
@@ -650,6 +666,15 @@ describe('全読込可能メディア E2E', () => {
       foreground_colour: '#000000',
       background_colour: '#ffffff',
     });
+    expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'ssd-yagasuri')?.source ?? '{}')).toMatchObject({
+      generator: 'yagasuri',
+      arrow_width: 15,
+      arrow_height: 65,
+      line_width: 2,
+      staggered: true,
+      foreground_colour: '#000000',
+      background_colour: '#ffffff',
+    });
     expect(snapshotResult.media.some((media) => media.source.endsWith('.wav'))).toBe(false);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'shape-solid-rect')?.transform).toMatchObject({
       translation_x: 64.5,
@@ -684,6 +709,7 @@ describe('全読込可能メディア E2E', () => {
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-triangle-bracket')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-tartan-check')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-houndstooth')?.source_frame).toBe(0);
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-yagasuri')?.source_frame).toBe(0);
     expect(validateRustSceneSnapshotBoundary({
       snapshot: snapshotResult.snapshot,
       media: snapshotResult.media,

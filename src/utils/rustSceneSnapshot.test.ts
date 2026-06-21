@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, HoundstoothObject, ImageObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, HoundstoothObject, ImageObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -558,6 +558,34 @@ const baseHoundstooth = (patch: Partial<HoundstoothObject> = {}): HoundstoothObj
   width: 800,
   height: 450,
   patternSize: 50,
+  foregroundColour: '#000000',
+  backgroundColour: '#ffffff',
+  ...patch,
+});
+
+const baseYagasuri = (patch: Partial<YagasuriObject> = {}): YagasuriObject => ({
+  id: 'yagasuri-1',
+  type: 'yagasuri',
+  name: '矢がすり',
+  layer: 19,
+  startTime: 1,
+  duration: 4,
+  x: 560,
+  y: 315,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 560,
+  endY: 315,
+  easing: 'linear',
+  width: 800,
+  height: 450,
+  arrowWidth: 15,
+  arrowHeight: 65,
+  lineWidth: 2,
+  staggered: true,
   foregroundColour: '#000000',
   backgroundColour: '#ffffff',
   ...patch,
@@ -1223,6 +1251,44 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         source: JSON.stringify({
           generator: 'houndstooth',
           pattern_size: 50,
+          foreground_colour: '#000000',
+          background_colour: '#ffffff',
+        }),
+        width: 800,
+        height: 450,
+      },
+    ]);
+  });
+
+  it('builds a generated yagasuri media plane from a yagasuri object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseYagasuri()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated yagasuri snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'yagasuri-1',
+      track_id: 'layer-19',
+      media_id: 'yagasuri-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'yagasuri-1',
+        kind: 'GeneratedYagasuri',
+        source: JSON.stringify({
+          generator: 'yagasuri',
+          arrow_width: 15,
+          arrow_height: 65,
+          line_width: 2,
+          staggered: true,
           foreground_colour: '#000000',
           background_colour: '#ffffff',
         }),
