@@ -41,7 +41,8 @@ describe('AviUtlPackV4 motion presets', () => {
       { id: 'repeat-side-to-side', sourceCandidateId: 'ymm4-repeat-motion' },
       { id: 'motion-path-arc', sourceCandidateId: 'tim-motion-path' },
       { id: 'motion-path-s-curve', sourceCandidateId: 'tim-motion-path' },
-      { id: 'wind-sway-soft', sourceCandidateId: 'tim-wind-sway' }
+      { id: 'wind-sway-soft', sourceCandidateId: 'tim-wind-sway' },
+      { id: 'delay-move-individual', sourceCandidateId: '93-delay-move' }
     ]);
   });
 
@@ -148,6 +149,47 @@ describe('AviUtlPackV4 motion presets', () => {
       expect.objectContaining({ time: 12, x: 312, y: 244, easing: 'easeInOutSine' }),
       expect.objectContaining({ time: 13, x: 328, y: 236, easing: 'easeInOutSine' }),
       expect.objectContaining({ time: 14, x: 320, y: 240, easing: 'linear' })
+    ]);
+  });
+
+  it('builds a 93 Delay個別 motion with a sequence-based start offset', () => {
+    const patch = buildAviUtlMotionPresetPatch(baseShape({ id: 'shape-3' }), 'delay-move-individual', {
+      distancePx: 90,
+      spanSeconds: 0.6,
+      intervalSeconds: 0.4,
+      sequenceIndex: 2,
+      sequenceTotal: 5
+    });
+
+    expect(patch.enableAnimation).toBe(true);
+    expect(patch.x).toBe(320);
+    expect(patch.y).toBe(240);
+    expect(patch.endX).toBe(410);
+    expect(patch.endY).toBe(240);
+    expect(patch.easing).toBe('easeInOutSine');
+    expect(patch.keyframes).toEqual([
+      expect.objectContaining({ time: 10, x: 320, y: 240, easing: 'linear' }),
+      expect.objectContaining({ time: 10.2, x: 320, y: 240, easing: 'easeInOutSine' }),
+      expect.objectContaining({ time: 10.8, x: 410, y: 240, easing: 'linear' }),
+      expect.objectContaining({ time: 14, x: 410, y: 240, easing: 'linear' })
+    ]);
+  });
+
+  it('reverses the 93 Delay個別 order when requested', () => {
+    const patch = buildAviUtlMotionPresetPatch(baseShape({ id: 'shape-1' }), 'delay-move-individual', {
+      distancePx: 60,
+      spanSeconds: 0.5,
+      intervalSeconds: 0.4,
+      sequenceIndex: 1,
+      sequenceTotal: 5,
+      reverseOrder: true
+    });
+
+    expect(patch.keyframes).toEqual([
+      expect.objectContaining({ time: 10, x: 320, y: 240, easing: 'linear' }),
+      expect.objectContaining({ time: 10.3, x: 320, y: 240, easing: 'easeInOutSine' }),
+      expect.objectContaining({ time: 10.8, x: 380, y: 240, easing: 'linear' }),
+      expect.objectContaining({ time: 14, x: 380, y: 240, easing: 'linear' })
     ]);
   });
 });
