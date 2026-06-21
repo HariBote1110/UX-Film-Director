@@ -994,6 +994,50 @@ fn encode_transcode_video_accepts_static_overlay_filters() {
 }
 
 #[test]
+fn encode_transcode_video_accepts_static_psd_overlay_filters() {
+    let temp_dir = TestTempDir::new("encode-transcode-video-psd-overlay");
+    let fixture = build_two_frame_h264_fixture(temp_dir.path());
+    let psd_path = temp_dir.path().join("standing.psd");
+    write_single_layer_psd_fixture(&psd_path, 2, 2, [0, 255, 0, 255]);
+    let output_path = temp_dir.path().join("transcoded-psd-overlay-output.mp4");
+    let output_path_string = output_path.to_string_lossy().into_owned();
+    let mut backend = BackendProcess::start();
+
+    let response = backend.request(json!({
+        "id": 127,
+        "method": "encode.transcodeVideo",
+        "params": {
+            "inputPath": fixture.path.to_string_lossy(),
+            "outputPath": output_path_string.clone(),
+            "width": fixture.width,
+            "height": fixture.height,
+            "fps": 30,
+            "durationSeconds": 1.0,
+            "overlays": [{
+                "kind": "psd",
+                "path": psd_path.to_string_lossy(),
+                "activeLayerIds": ["root", "psd-layer-0"],
+                "x": 1,
+                "y": 1,
+                "width": 2,
+                "height": 2,
+                "opacity": 1.0
+            }]
+        }
+    }));
+
+    assert_eq!(response["ok"], true, "{response}");
+    assert_eq!(response["result"]["overlayCount"], 1);
+    assert_eq!(response["result"]["outputPath"], output_path_string);
+    assert!(
+        fs::metadata(&output_path)
+            .expect("PSD overlay transcode output file exists")
+            .len()
+            > 0
+    );
+}
+
+#[test]
 fn native_render_shared_frame_consumes_source_shm_and_returns_descriptor_only() {
     let mut backend = BackendProcess::start();
     let source_memory_id = unique_shm_name();

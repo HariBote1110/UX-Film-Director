@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AudioObject, ImageObject, ShapeObject, VideoObject } from '../types';
+import type { AudioObject, ImageObject, PsdObject, ShapeObject, VideoObject } from '../types';
 import { resolveProjectExportVideoTranscodeFastPath } from './projectExportVideoTranscodeFastPath';
 
 const video = (patch: Partial<VideoObject> = {}): VideoObject => ({
@@ -98,6 +98,36 @@ const audio = (patch: Partial<AudioObject> = {}): AudioObject => ({
   filePath: '/tmp/voice.wav',
   volume: 1,
   muted: false,
+  ...patch,
+});
+
+const psd = (patch: Partial<PsdObject> = {}): PsdObject => ({
+  id: 'psd-1',
+  type: 'psd',
+  name: 'standing.psd',
+  layer: 4,
+  startTime: 0,
+  duration: 5,
+  x: 80,
+  y: 90,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 80,
+  endY: 90,
+  easing: 'linear',
+  src: 'blob:psd',
+  filePath: '/tmp/standing.psd',
+  width: 256,
+  height: 512,
+  scale: 0.5,
+  activeLayerIds: {
+    root: true,
+    'psd-layer-1': true,
+    'psd-layer-2': false,
+  },
   ...patch,
 });
 
@@ -259,6 +289,31 @@ describe('resolveProjectExportVideoTranscodeFastPath', () => {
         y: 120,
         width: 320,
         height: 180,
+        opacity: 1,
+      }],
+    });
+  });
+
+  it('accepts a single video with a static PSD overlay as a Rust transcode overlay', () => {
+    expect(resolveProjectExportVideoTranscodeFastPath({
+      objects: [
+        video({ width: 1280, height: 720, x: 320, y: 180 }),
+        psd(),
+      ],
+      width: 1920,
+      height: 1080,
+      fps: 60,
+      durationSeconds: 5,
+    })).toMatchObject({
+      inputPath: '/tmp/clip.mp4',
+      overlays: [{
+        kind: 'psd',
+        path: '/tmp/standing.psd',
+        activeLayerIds: ['root', 'psd-layer-1'],
+        x: 80,
+        y: 90,
+        width: 128,
+        height: 256,
         opacity: 1,
       }],
     });
