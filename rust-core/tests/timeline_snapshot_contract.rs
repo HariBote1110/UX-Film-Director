@@ -46,6 +46,11 @@ fn project_with_transform() -> Project {
                         offset_x: 3.0,
                         offset_y: 1.0,
                     },
+                    Effect::Outline {
+                        colour: [0.0, 0.0, 0.0],
+                        thickness: 2.0,
+                        opacity: 0.75,
+                    },
                 ],
             }],
         }],
@@ -175,6 +180,12 @@ fn scene_snapshot_serialises_with_renderer_boundary_field_names() {
                     "ColourAberration": {
                         "offset_x": 3.0,
                         "offset_y": 1.0
+                    }
+                }, {
+                    "Outline": {
+                        "colour": [0.0, 0.0, 0.0],
+                        "thickness": 2.0,
+                        "opacity": 0.75
                     }
                 }]
             }]

@@ -420,6 +420,7 @@ const PropertyPanel: React.FC = () => {
    const filterLabel: Record<FilterType, string> = {
      color_correction: language === 'en' ? 'Color Correction' : '色調補正',
      colour_aberration: language === 'en' ? 'Colour Aberration' : '色収差',
+     outline: language === 'en' ? 'Outline' : '縁取り',
      clipping: language === 'en' ? 'Clipping' : 'クリッピング',
     vibration: language === 'en' ? 'Vibration' : '振動',
     shadow: language === 'en' ? 'Shadow' : '影',
@@ -1518,6 +1519,33 @@ const PropertyPanel: React.FC = () => {
                                 step="0.5"
                                 value={activeFilter.params.offsetY}
                                 onInput={(e) => handleFilterParamChange(activeFilter, { offsetY: parseFloat(e.currentTarget.value) })}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                    </>
+                )}
+                {activeFilter.type === 'outline' && (
+                    <>
+                        <Row label="Colour">
+                            <input type="color" value={activeFilter.params.colour} onChange={(e) => handleFilterParamChange(activeFilter, { colour: e.target.value })} />
+                        </Row>
+                        <Row label="Thickness">
+                            <Slider
+                                min="0"
+                                max="16"
+                                step="0.5"
+                                value={activeFilter.params.thickness}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { thickness: parseFloat(e.currentTarget.value) })}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                        <Row label="Opacity">
+                            <Slider
+                                min="0"
+                                max="1"
+                                step="0.05"
+                                value={activeFilter.params.opacity}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { opacity: parseFloat(e.currentTarget.value) })}
                                 style={{ width: '100%' }}
                             />
                         </Row>

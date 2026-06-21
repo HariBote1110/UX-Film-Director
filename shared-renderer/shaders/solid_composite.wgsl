@@ -3,6 +3,14 @@ struct RenderParams {
     gain: f32,
     colour_aberration_offset_x: f32,
     colour_aberration_offset_y: f32,
+    outline_colour_r: f32,
+    outline_colour_g: f32,
+    outline_colour_b: f32,
+    outline_thickness: f32,
+    outline_opacity: f32,
+    _padding0: f32,
+    _padding1: f32,
+    _padding2: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -12,7 +20,7 @@ struct RenderParams {
     sampling_mode: f32,
     rotation_cos: f32,
     rotation_sin: f32,
-    _padding0: f32,
+    _padding3: f32,
 }
 
 @group(0) @binding(0)
@@ -60,8 +68,14 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     let alpha = source.a * params.opacity;
     let linear_rgb = vec3<f32>(red_source, source.g, blue_source);
     let premultiplied_rgb = linear_rgb * params.gain * alpha;
+    let outline_alpha = outline_alpha_at(source_position, source.a) * params.outline_opacity * params.opacity;
+    let outline_rgb = vec3<f32>(
+        params.outline_colour_r,
+        params.outline_colour_g,
+        params.outline_colour_b,
+    ) * outline_alpha;
 
-    return vec4<f32>(premultiplied_rgb, alpha);
+    return vec4<f32>(premultiplied_rgb + outline_rgb * (1.0 - alpha), max(alpha, outline_alpha));
 }
 
 fn clamp_source_position(source_position: vec2<f32>) -> vec2<f32> {
@@ -78,6 +92,23 @@ fn sample_source_linear(source_position: vec2<f32>) -> vec4<f32> {
     }
 
     return load_source_linear(vec2<i32>(floor(source_position)));
+}
+
+fn outline_alpha_at(source_position: vec2<f32>, source_alpha: f32) -> f32 {
+    if params.outline_thickness <= 0.0 || params.outline_opacity <= 0.0 {
+        return 0.0;
+    }
+    let t = params.outline_thickness;
+    var neighbour_alpha = 0.0;
+    neighbour_alpha = max(neighbour_alpha, sample_source_linear(clamp_source_position(source_position + vec2<f32>(t, 0.0))).a);
+    neighbour_alpha = max(neighbour_alpha, sample_source_linear(clamp_source_position(source_position - vec2<f32>(t, 0.0))).a);
+    neighbour_alpha = max(neighbour_alpha, sample_source_linear(clamp_source_position(source_position + vec2<f32>(0.0, t))).a);
+    neighbour_alpha = max(neighbour_alpha, sample_source_linear(clamp_source_position(source_position - vec2<f32>(0.0, t))).a);
+    neighbour_alpha = max(neighbour_alpha, sample_source_linear(clamp_source_position(source_position + vec2<f32>(t, t))).a);
+    neighbour_alpha = max(neighbour_alpha, sample_source_linear(clamp_source_position(source_position - vec2<f32>(t, t))).a);
+    neighbour_alpha = max(neighbour_alpha, sample_source_linear(clamp_source_position(source_position + vec2<f32>(t, -t))).a);
+    neighbour_alpha = max(neighbour_alpha, sample_source_linear(clamp_source_position(source_position + vec2<f32>(-t, t))).a);
+    return max(0.0, neighbour_alpha - source_alpha);
 }
 
 fn sample_bilinear_linear(source_position: vec2<f32>) -> vec4<f32> {

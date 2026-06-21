@@ -21,6 +21,12 @@ const DEFAULT_COLOUR_ABERRATION = {
   offsetY: 0
 };
 
+const DEFAULT_OUTLINE = {
+  colour: '#000000',
+  thickness: 3,
+  opacity: 0.85
+};
+
 const DEFAULT_CLIPPING: Omit<ClippingParams, 'enabled'> = {
   top: 0,
   bottom: 0,
@@ -83,6 +89,7 @@ const toBoolean = (value: unknown, fallback: boolean): boolean => {
 const isFilterType = (value: unknown): value is FilterType => {
   return value === 'color_correction'
     || value === 'colour_aberration'
+    || value === 'outline'
     || value === 'clipping'
     || value === 'vibration'
     || value === 'shadow'
@@ -90,6 +97,17 @@ const isFilterType = (value: unknown): value is FilterType => {
     || value === 'blur'
     || value === 'fade'
     || value === 'wipe';
+};
+
+const normaliseOutlineParams = (params: unknown): import('../types').OutlineFilterParams => {
+  const source = isRecord(params) ? params : {};
+  return {
+    colour: typeof source.colour === 'string' && source.colour.trim() !== ''
+      ? source.colour
+      : DEFAULT_OUTLINE.colour,
+    thickness: Math.max(0, toNumber(source.thickness, DEFAULT_OUTLINE.thickness)),
+    opacity: Math.max(0, Math.min(1, toNumber(source.opacity, DEFAULT_OUTLINE.opacity)))
+  };
 };
 
 const normaliseColourAberrationParams = (params: unknown): import('../types').ColourAberrationFilterParams => {
@@ -213,6 +231,13 @@ export const createDefaultFilter = (type: FilterType): ObjectFilter => {
         enabled: true,
         params: { ...DEFAULT_COLOUR_ABERRATION }
       };
+    case 'outline':
+      return {
+        id: createFilterId(type),
+        type,
+        enabled: true,
+        params: { ...DEFAULT_OUTLINE }
+      };
     case 'clipping':
       return {
         id: createFilterId(type),
@@ -297,6 +322,13 @@ const normaliseFilter = (value: unknown): ObjectFilter | null => {
         type: 'colour_aberration',
         enabled,
         params: normaliseColourAberrationParams(value.params)
+      };
+    case 'outline':
+      return {
+        id,
+        type: 'outline',
+        enabled,
+        params: normaliseOutlineParams(value.params)
       };
     case 'clipping':
       return {

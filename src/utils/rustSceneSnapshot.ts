@@ -35,7 +35,8 @@ export interface RustTransform {
 
 export type RustEffect =
   | { LinearGain: { gain: number } }
-  | { ColourAberration: { offset_x: number; offset_y: number } };
+  | { ColourAberration: { offset_x: number; offset_y: number } }
+  | { Outline: { colour: [number, number, number]; thickness: number; opacity: number } };
 
 export interface RustEvaluatedClip {
   clip_id: string;
@@ -286,6 +287,7 @@ const collectBuildIssues = (
     const unsupportedFilter = getEnabledObjectFiltersInOrder(object).find((filter) => (
       filter.type !== 'fade'
       && filter.type !== 'colour_aberration'
+      && filter.type !== 'outline'
       && !(object.type === 'shape' && filter.type === 'gradient')
     ));
     if (unsupportedFilter) {
@@ -311,8 +313,28 @@ const rustEffectsForObject = (object: TimelineObject): RustEffect[] => {
         },
       });
     }
+    if (filter.type === 'outline') {
+      effects.push({
+        Outline: {
+          colour: parseHexColourToLinearTriplet(filter.params.colour),
+          thickness: Math.max(0, finiteNumberOr(filter.params.thickness, 0)),
+          opacity: Math.max(0, Math.min(1, finiteNumberOr(filter.params.opacity, 1))),
+        },
+      });
+    }
   });
   return effects;
+};
+
+const parseHexColourToLinearTriplet = (value: string): [number, number, number] => {
+  const match = /^#?([0-9a-f]{6})$/i.exec(value.trim());
+  if (!match) return [0, 0, 0];
+  const raw = match[1];
+  return [
+    parseInt(raw.slice(0, 2), 16) / 255,
+    parseInt(raw.slice(2, 4), 16) / 255,
+    parseInt(raw.slice(4, 6), 16) / 255,
+  ];
 };
 
 const isSupportedMediaObject = (object: TimelineObject): object is SupportedMediaObject =>
@@ -624,6 +646,12 @@ const validateEffects = (
       validateFiniteNumber(effect.ColourAberration.offset_y, `${effectPath}.ColourAberration.offset_y`, issues);
       return;
     }
+    if (isRecord(effect.Outline)) {
+      validateNumberArray(effect.Outline.colour, `${effectPath}.Outline.colour`, 3, issues);
+      validateFiniteNumber(effect.Outline.thickness, `${effectPath}.Outline.thickness`, issues);
+      validateUnitInterval(effect.Outline.opacity, `${effectPath}.Outline.opacity`, issues);
+      return;
+    }
     addIssue(issues, 'schemaMismatch', effectPath, 'Unknown Rust effect.');
   });
 };
@@ -699,6 +727,23 @@ const validateStringArray = (
     return;
   }
   value.forEach((item, index) => validateString(item, `${path}[${index}]`, issues));
+};
+
+const validateNumberArray = (
+  value: unknown,
+  path: string,
+  expectedLength: number,
+  issues: RustSceneSnapshotBoundaryIssue[]
+) => {
+  if (!Array.isArray(value)) {
+    addIssue(issues, 'schemaMismatch', path, 'Expected an array of numbers.');
+    return;
+  }
+  if (value.length !== expectedLength) {
+    addIssue(issues, 'schemaMismatch', path, `Expected ${expectedLength} numbers.`);
+    return;
+  }
+  value.forEach((item, index) => validateFiniteNumber(item, `${path}[${index}]`, issues));
 };
 
 const validateFrameRate = (

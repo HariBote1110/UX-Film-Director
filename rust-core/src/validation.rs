@@ -115,6 +115,20 @@ fn effect_is_finite(effect: &crate::schema::Effect) -> bool {
         crate::schema::Effect::ColourAberration { offset_x, offset_y } => {
             offset_x.is_finite() && *offset_x >= 0.0 && offset_y.is_finite() && *offset_y >= 0.0
         }
+        crate::schema::Effect::Outline {
+            colour,
+            thickness,
+            opacity,
+        } => {
+            colour
+                .iter()
+                .all(|component| component.is_finite() && *component >= 0.0 && *component <= 1.0)
+                && thickness.is_finite()
+                && *thickness >= 0.0
+                && opacity.is_finite()
+                && *opacity >= 0.0
+                && *opacity <= 1.0
+        }
     }
 }
 

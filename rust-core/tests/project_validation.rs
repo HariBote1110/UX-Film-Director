@@ -118,3 +118,15 @@ fn rejects_negative_colour_aberration_effect_offsets() {
 
     assert!(validation_codes(&project).contains(&ValidationCode::NonFiniteNumber));
 }
+
+#[test]
+fn rejects_invalid_outline_effect_values() {
+    let mut project = valid_project();
+    project.tracks[0].clips[0].effects.push(Effect::Outline {
+        colour: [0.0, 1.2, 0.0],
+        thickness: -1.0,
+        opacity: 2.0,
+    });
+
+    assert!(validation_codes(&project).contains(&ValidationCode::NonFiniteNumber));
+}

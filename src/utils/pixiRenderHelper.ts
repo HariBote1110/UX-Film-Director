@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-import { TimelineObject, GroupControlObject, AudioVisualizationObject, AudioObject, ClippingParams, GradientFill, ObjectFilter, ColourAberrationFilterParams } from '../types';
+import { TimelineObject, GroupControlObject, AudioVisualizationObject, AudioObject, ClippingParams, GradientFill, ObjectFilter, ColourAberrationFilterParams, OutlineFilterParams } from '../types';
 import { createGradientTexture, drawShape, getCurrentViseme, renderPsdTree, cacheTextureFromUrl } from './pixiUtils';
 import { evaluateObjectPositionAtTime } from './keyframes';
 import { getEnabledObjectFiltersInOrder } from './filterStack';
@@ -265,6 +265,152 @@ class ColourAberrationPixiFilter extends PIXI.Filter {
         uniforms.uDimensions = new Float32Array([width, height]);
     }
 }
+
+const outlineFragmentShader = `
+varying vec2 vTextureCoord;
+uniform sampler2D uSampler;
+uniform vec4 uColour;
+uniform float uThickness;
+uniform float uOpacity;
+uniform vec2 uDimensions;
+
+void main(void) {
+    vec4 centre = texture2D(uSampler, vTextureCoord);
+    vec2 offset = vec2(uThickness) / max(uDimensions, vec2(1.0, 1.0));
+    float neighbourAlpha = 0.0;
+    neighbourAlpha = max(neighbourAlpha, texture2D(uSampler, vTextureCoord + vec2(offset.x, 0.0)).a);
+    neighbourAlpha = max(neighbourAlpha, texture2D(uSampler, vTextureCoord - vec2(offset.x, 0.0)).a);
+    neighbourAlpha = max(neighbourAlpha, texture2D(uSampler, vTextureCoord + vec2(0.0, offset.y)).a);
+    neighbourAlpha = max(neighbourAlpha, texture2D(uSampler, vTextureCoord - vec2(0.0, offset.y)).a);
+    neighbourAlpha = max(neighbourAlpha, texture2D(uSampler, vTextureCoord + offset).a);
+    neighbourAlpha = max(neighbourAlpha, texture2D(uSampler, vTextureCoord - offset).a);
+    neighbourAlpha = max(neighbourAlpha, texture2D(uSampler, vTextureCoord + vec2(offset.x, -offset.y)).a);
+    neighbourAlpha = max(neighbourAlpha, texture2D(uSampler, vTextureCoord + vec2(-offset.x, offset.y)).a);
+    float outlineAlpha = max(0.0, neighbourAlpha - centre.a) * uOpacity;
+    vec4 outline = vec4(uColour.rgb, outlineAlpha);
+    gl_FragColor = centre + outline * (1.0 - centre.a);
+}
+`;
+
+const outlineWgslShader = `
+struct GlobalFilterUniforms {
+  uInputSize: vec4<f32>,
+  uInputPixel: vec4<f32>,
+  uInputClamp: vec4<f32>,
+  uOutputFrame: vec4<f32>,
+  uGlobalFrame: vec4<f32>,
+  uOutputTexture: vec4<f32>,
+};
+
+struct OutlineUniforms {
+  uColour: vec4<f32>,
+  uThickness: f32,
+  uOpacity: f32,
+  uDimensions: vec2<f32>,
+};
+
+@group(0) @binding(0) var<uniform> gfu: GlobalFilterUniforms;
+@group(0) @binding(1) var uTexture: texture_2d<f32>;
+@group(0) @binding(2) var uSampler: sampler;
+
+@group(1) @binding(0) var<uniform> outlineUniforms: OutlineUniforms;
+
+struct VSOutput {
+  @builtin(position) position: vec4<f32>,
+  @location(0) uv: vec2<f32>,
+};
+
+fn filterVertexPosition(aPosition: vec2<f32>) -> vec4<f32> {
+  var position = aPosition * gfu.uOutputFrame.zw + gfu.uOutputFrame.xy;
+  position.x = position.x * (2.0 / gfu.uOutputTexture.x) - 1.0;
+  position.y = position.y * (2.0 * gfu.uOutputTexture.z / gfu.uOutputTexture.y) - gfu.uOutputTexture.z;
+  return vec4<f32>(position, 0.0, 1.0);
+}
+
+fn filterTextureCoord(aPosition: vec2<f32>) -> vec2<f32> {
+  return aPosition * (gfu.uOutputFrame.zw * gfu.uInputSize.zw);
+}
+
+@vertex
+fn mainVertex(
+  @location(0) aPosition: vec2<f32>
+) -> VSOutput {
+  return VSOutput(
+    filterVertexPosition(aPosition),
+    filterTextureCoord(aPosition)
+  );
+}
+
+@fragment
+fn mainFragment(
+  @location(0) uv: vec2<f32>
+) -> @location(0) vec4<f32> {
+  let centre = textureSample(uTexture, uSampler, uv);
+  let dimensions = max(outlineUniforms.uDimensions, vec2<f32>(1.0, 1.0));
+  let offset = vec2<f32>(outlineUniforms.uThickness, outlineUniforms.uThickness) / dimensions;
+  var neighbourAlpha = 0.0;
+  neighbourAlpha = max(neighbourAlpha, textureSample(uTexture, uSampler, uv + vec2<f32>(offset.x, 0.0)).a);
+  neighbourAlpha = max(neighbourAlpha, textureSample(uTexture, uSampler, uv - vec2<f32>(offset.x, 0.0)).a);
+  neighbourAlpha = max(neighbourAlpha, textureSample(uTexture, uSampler, uv + vec2<f32>(0.0, offset.y)).a);
+  neighbourAlpha = max(neighbourAlpha, textureSample(uTexture, uSampler, uv - vec2<f32>(0.0, offset.y)).a);
+  neighbourAlpha = max(neighbourAlpha, textureSample(uTexture, uSampler, uv + offset).a);
+  neighbourAlpha = max(neighbourAlpha, textureSample(uTexture, uSampler, uv - offset).a);
+  neighbourAlpha = max(neighbourAlpha, textureSample(uTexture, uSampler, uv + vec2<f32>(offset.x, -offset.y)).a);
+  neighbourAlpha = max(neighbourAlpha, textureSample(uTexture, uSampler, uv + vec2<f32>(-offset.x, offset.y)).a);
+  let outlineAlpha = max(0.0, neighbourAlpha - centre.a) * outlineUniforms.uOpacity;
+  let outline = vec4<f32>(outlineUniforms.uColour.rgb, outlineAlpha);
+  return centre + outline * (1.0 - centre.a);
+}
+`;
+
+class OutlinePixiFilter extends PIXI.Filter {
+    constructor(params: OutlineFilterParams, width: number, height: number) {
+        const colour = parseFilterColour(params.colour);
+        super({
+            gpuProgram: PIXI.GpuProgram.from({
+                vertex: {
+                    source: outlineWgslShader,
+                    entryPoint: 'mainVertex'
+                },
+                fragment: {
+                    source: outlineWgslShader,
+                    entryPoint: 'mainFragment'
+                }
+            }),
+            glProgram: PIXI.GlProgram.from({
+                vertex: vertexShader,
+                fragment: outlineFragmentShader,
+            }),
+            resources: {
+                outlineUniforms: {
+                    uColour: { value: new Float32Array([colour[0], colour[1], colour[2], 1]), type: 'vec4<f32>' },
+                    uThickness: { value: params.thickness, type: 'f32' },
+                    uOpacity: { value: params.opacity, type: 'f32' },
+                    uDimensions: { value: new Float32Array([width, height]), type: 'vec2<f32>' },
+                },
+            },
+        } as any);
+    }
+
+    updateParams(params: OutlineFilterParams, width: number, height: number) {
+        const colour = parseFilterColour(params.colour);
+        const uniforms = (this.resources as any).outlineUniforms.uniforms;
+        uniforms.uColour = new Float32Array([colour[0], colour[1], colour[2], 1]);
+        uniforms.uThickness = params.thickness;
+        uniforms.uOpacity = params.opacity;
+        uniforms.uDimensions = new Float32Array([width, height]);
+    }
+}
+
+const parseFilterColour = (value: string): [number, number, number] => {
+    const match = /^#?([0-9a-f]{6})$/i.exec(value.trim());
+    if (!match) return [0, 0, 0];
+    return [
+        parseInt(match[1].slice(0, 2), 16) / 255,
+        parseInt(match[1].slice(2, 4), 16) / 255,
+        parseInt(match[1].slice(4, 6), 16) / 255,
+    ];
+};
 
 const groupGradientFragmentShader = `
 varying vec2 vTextureCoord;
@@ -571,6 +717,9 @@ export const applyObjectEffects = (container: PIXI.Container, obj: TimelineObjec
     const reusableColourAberrationFilters = (container.filters ?? []).filter((filter): filter is ColourAberrationPixiFilter => {
         return filter instanceof ColourAberrationPixiFilter;
     });
+    const reusableOutlineFilters = (container.filters ?? []).filter((filter): filter is OutlinePixiFilter => {
+        return filter instanceof OutlinePixiFilter;
+    });
     const localBounds = container.getLocalBounds();
     const clippingWidth = Math.max(1, Number.isFinite(localBounds.width) && localBounds.width > 0
         ? localBounds.width
@@ -580,6 +729,7 @@ export const applyObjectEffects = (container: PIXI.Container, obj: TimelineObjec
         : ((obj as any).height || 100));
     let clippingCursor = 0;
     let colourAberrationCursor = 0;
+    let outlineCursor = 0;
     const nextPixiFilters: PIXI.Filter[] = [];
 
     enabledFilters.forEach((filter) => {
@@ -615,6 +765,18 @@ export const applyObjectEffects = (container: PIXI.Container, obj: TimelineObjec
                 nextPixiFilters.push(new ColourAberrationPixiFilter(filter.params, clippingWidth, clippingHeight));
             }
             colourAberrationCursor += 1;
+            return;
+        }
+
+        if (filter.type === 'outline') {
+            const existingFilter = reusableOutlineFilters[outlineCursor];
+            if (existingFilter) {
+                existingFilter.updateParams(filter.params, clippingWidth, clippingHeight);
+                nextPixiFilters.push(existingFilter);
+            } else {
+                nextPixiFilters.push(new OutlinePixiFilter(filter.params, clippingWidth, clippingHeight));
+            }
+            outlineCursor += 1;
             return;
         }
 

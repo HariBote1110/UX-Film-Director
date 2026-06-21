@@ -1,6 +1,18 @@
 # 進捗ログ
 
 ## 2026-06-21
+- 縁取りをFilter StackとRust/WebGPU境界へ追加した。
+- Red: `outline` フィルタをFilter Stack、AviUtl効果プリセット、Rust scene snapshotへ通す契約を追加した。
+- Green: `OutlineFilterParams` と `outline` filterを追加し、AviUtl Effectsの `縁取りT` をshadow近似から独立フィルタへ昇格した。
+- Green: PropertyPanelで縁取りの色、太さ、不透明度を編集できるようにした。
+- Green: Pixiプレビュー用にsource alpha近傍へ縁色を出すGPU filterを追加した。
+- Green: Rust coreの `Effect` に `Outline` を追加し、scene snapshot JSON境界、validation、native-wgpu-rendererのWGSL shaderへ接続した。
+- Green: native-wgpu-rendererに透明近傍へoutlineが出ることを検証するテストを追加した。
+- 版を `0.1.1-Beta-241a` に更新した。
+- 検証: TS関連テスト41件、Rust core `timeline_snapshot_contract` 5件、`project_validation` 9件、native-wgpu-renderer `native_reference_parity` 12件が成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- 残課題: 次は輝度ワイプ/扇クリッピングのRust native effect化、またはAudio waveform Rのnative generated object化へ進む。
+
+## 2026-06-21
 - 色収差をFilter StackとRust/WebGPU境界へ追加した。
 - Red: `colour_aberration` フィルタをFilter Stack、AviUtl効果プリセット、Rust scene snapshotへ通す契約を追加した。
 - Green: `ColourAberrationFilterParams` と `colour_aberration` filterを追加し、AviUtl Effectsの `色収差` ボタンから追加できるようにした。

@@ -207,6 +207,14 @@ impl NativeWgpuRenderer {
                             _ => None,
                         }
                     }),
+                    outline_colour_r: outline_colour_component(clip, 0),
+                    outline_colour_g: outline_colour_component(clip, 1),
+                    outline_colour_b: outline_colour_component(clip, 2),
+                    outline_thickness: outline_thickness(clip),
+                    outline_opacity: outline_opacity(clip),
+                    _padding0: 0.0,
+                    _padding1: 0.0,
+                    _padding2: 0.0,
                     source_width: source.width as f32,
                     source_height: source.height as f32,
                     translation_x: clip.transform.translation_x,
@@ -216,7 +224,7 @@ impl NativeWgpuRenderer {
                     sampling_mode: sampling_mode_value(clip.transform.sampling),
                     rotation_cos: rotation_radians.cos(),
                     rotation_sin: rotation_radians.sin(),
-                    _padding0: 0.0,
+                    _padding3: 0.0,
                 },
             ));
         }
@@ -436,6 +444,14 @@ struct RenderParams {
     gain: f32,
     colour_aberration_offset_x: f32,
     colour_aberration_offset_y: f32,
+    outline_colour_r: f32,
+    outline_colour_g: f32,
+    outline_colour_b: f32,
+    outline_thickness: f32,
+    outline_opacity: f32,
+    _padding0: f32,
+    _padding1: f32,
+    _padding2: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -445,7 +461,7 @@ struct RenderParams {
     sampling_mode: f32,
     rotation_cos: f32,
     rotation_sin: f32,
-    _padding0: f32,
+    _padding3: f32,
 }
 
 fn sampling_mode_value(sampling: SamplingMode) -> f32 {
@@ -703,6 +719,7 @@ fn effect_gain(effect: &Effect) -> f32 {
     match effect {
         Effect::LinearGain { gain } => *gain,
         Effect::ColourAberration { .. } => 1.0,
+        Effect::Outline { .. } => 1.0,
     }
 }
 
@@ -711,4 +728,39 @@ where
     F: Fn(&Effect) -> Option<f32>,
 {
     clip.effects.iter().filter_map(pick).sum::<f32>().max(0.0)
+}
+
+fn outline_colour_component(clip: &uxfd_rust_core::EvaluatedClip, index: usize) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::Outline { colour, .. } => Some(colour[index]),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .clamp(0.0, 1.0)
+}
+
+fn outline_thickness(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::Outline { thickness, .. } => Some(*thickness),
+            _ => None,
+        })
+        .sum::<f32>()
+        .max(0.0)
+}
+
+fn outline_opacity(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::Outline { opacity, .. } => Some(*opacity),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .clamp(0.0, 1.0)
 }

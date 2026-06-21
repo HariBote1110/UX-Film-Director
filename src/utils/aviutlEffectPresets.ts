@@ -27,9 +27,9 @@ const presets: AviUtlEffectPreset[] = [
   },
   {
     id: 'edge-outline-soft',
-    labelJa: '縁取りT近似',
+    labelJa: '縁取りT',
     sourceCandidateId: 'tim-edge-outline',
-    filterType: 'shadow'
+    filterType: 'outline'
   },
   {
     id: 'colour-aberration-rgb',
@@ -53,13 +53,11 @@ export const buildAviUtlEffectPresetFilter = (presetId: AviUtlEffectPresetId): O
     case 'edge-outline-soft': {
       return {
         id: `aviutl-${presetId}`,
-        type: 'shadow',
+        type: 'outline',
         enabled: true,
         params: {
           colour: '#000000',
-          blur: 0,
-          offsetX: 0,
-          offsetY: 0,
+          thickness: 3,
           opacity: 0.85
         }
       };

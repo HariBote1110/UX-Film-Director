@@ -97,8 +97,18 @@ impl SamplingMode {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Effect {
-    LinearGain { gain: f32 },
-    ColourAberration { offset_x: f32, offset_y: f32 },
+    LinearGain {
+        gain: f32,
+    },
+    ColourAberration {
+        offset_x: f32,
+        offset_y: f32,
+    },
+    Outline {
+        colour: [f32; 3],
+        thickness: f32,
+        opacity: f32,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
