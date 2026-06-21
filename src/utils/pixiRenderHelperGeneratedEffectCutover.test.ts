@@ -10,7 +10,8 @@ describe('pixiRenderHelper generated effect cutover', () => {
     const end = code.indexOf("if (obj.type === 'shape')", start);
     const cutoverBlock = code.slice(start, end);
 
-    expect(cutoverBlock).toContain('destroyPixiChildrenForSharedRendererCutover(children)');
+    expect(cutoverBlock).toContain('hidePixiChildrenForSharedRendererCutover(container.children)');
+    expect(cutoverBlock).not.toContain('removeChildren()');
     expect(cutoverBlock).not.toContain('context: true');
   });
 });
