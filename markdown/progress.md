@@ -1,6 +1,20 @@
 # 進捗ログ
 
 ## 2026-06-22
+- GetColor画像サンプリングをRust生成へ接続した。
+- Red: GetColor V2R画像サンプリングドットがfactory、Timeline右クリックメニュー、AviUtlPackV4カタログ、保存/読込、Rust scene snapshot、shared renderer native media、Rust backend画素生成を通る契約を追加した。
+- Green: `GetColorDotFieldObject` に `sampleSourcePath` / `sampleStrength` を追加し、`GeneratedGetColorDots` source JSONへ `source_image` / `sample_strength` を渡せるようにした。
+- Green: Rust backendで `source_image` のPNG/JPEGを既存ローカルメディアパス処理経由で読み、各ドット位置の元画像色と透明度をサンプリングしてRGBA生成へ反映するようにした。
+- Green: native render gateで `source_image` をローカルPNG/JPEGまたは `file://` に限定し、`sample_strength` を0〜1に制限した。
+- Green: Timeline右クリックメニューに `GetColor V2R画像サンプリングドットを追加` / `Add GetColor V2R Sampled Dots` を追加した。
+- 版を `0.1.1-Beta-307a` に更新した。
+- 検証: `npm test -- --run src/utils/getColorDotFieldObjectFactory.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/projectFile.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/components/TimelineContextMenu.particle.test.ts --reporter=dot` は92件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_getcolor_dots_source_frame_samples_source_image_colour_and_alpha -- --nocapture` は1件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_getcolor_dots_source_frame -- --nocapture` は4件成功した。
+- 検証: `npm test -- --run src/utils/pixiGeneratedEffectCutover.test.ts src/utils/packageScripts.test.ts --reporter=dot` は7件成功した。
+- 今回はRust生成経路とプロジェクト永続化の接続まで。実用面では画像パス指定UI、または上位画像レイヤーを自動参照する導線を追加すると、GetColorらしい素材反応表現として使いやすくなる。
+
+## 2026-06-22
 - 93 SphericalFieldをRust生成プリセットへ追加した。
 - Red: `spherical_field` がfactory、Timeline右クリックメニュー、AviUtlPackV4カタログ、Rust scene snapshot、shared renderer native media、rust-core schema、Rust backend画素生成を通る契約を追加した。
 - Green: `SphericalFieldObject` と `GeneratedSphericalField` media kindを追加し、`spherical-field-93` source JSONで半径、強度、色量、透明度、線幅、リング数、ベクトル数、色、背景不透明度、container指定をRustへ渡すようにした。

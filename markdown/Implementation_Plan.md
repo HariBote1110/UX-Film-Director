@@ -96,7 +96,8 @@
 71. ✅ `P1` 93 SimpleTubeトーラスをRust GeneratedSimpleTube派生プリセットとして追加する
 72. ✅ `P1` 93 Sphere(DrawPixel)をRust GeneratedSphereDots生成プリセットとして追加する
 73. ✅ `P1` 93 SphericalFieldのうちTimelineで使いやすい球状フィールド可視化をRust GeneratedSphericalField生成プリセットとして追加する
-74. `P1` GetColorの元画像サンプリング寄り挙動をRust生成経路へ接続する
+74. ✅ `P1` GetColorの元画像サンプリング寄り挙動をRust生成経路へ接続する
+75. `P1` GetColor画像サンプリングのsource picker / 上位画像レイヤー参照をUIへ接続する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。
