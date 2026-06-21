@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildAviUtlAuraEmissionObject,
   buildAviUtlBubbleObject,
+  buildAviUtlFocusLinesObject,
   buildDefaultStandardParticleObject,
 } from './particleObjectFactory';
 
@@ -93,6 +94,36 @@ describe('particleObjectFactory', () => {
       size: 12,
       colour: '#b8f3ff',
       lifetimeSeconds: 3.4,
+    });
+  });
+
+  it('builds an AviUtlPackV4 focus lines particle object for timeline insertion', () => {
+    const object = buildAviUtlFocusLinesObject({
+      id: 'focus-1',
+      projectWidth: 1920,
+      projectHeight: 1080,
+      startTime: 0.5,
+      layer: 8,
+    });
+
+    expect(object).toMatchObject({
+      id: 'focus-1',
+      type: 'particle',
+      name: '集中線T',
+      layer: 8,
+      startTime: 0.5,
+      duration: 3,
+      x: 0,
+      y: 0,
+      width: 1920,
+      height: 1080,
+      particleCount: 180,
+      seed: 1201,
+      spread: 360,
+      speed: 180,
+      size: 3,
+      colour: '#ffffff',
+      lifetimeSeconds: 0.85,
     });
   });
 });
