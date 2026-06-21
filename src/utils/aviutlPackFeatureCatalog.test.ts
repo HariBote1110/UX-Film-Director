@@ -39,6 +39,7 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('tim-barcode')?.sourceRelativePaths).toContain('script/てぃむ/バーコードT.obj');
     expect(byId.get('tim-puzzle-piece')?.sourceRelativePaths).toContain('script/てぃむ/パズルピース.obj');
     expect(byId.get('tim-colour-wheel')?.sourceRelativePaths).toContain('script/てぃむ/色相環.obj');
+    expect(byId.get('tim-gourd')?.sourceRelativePaths).toContain('script/てぃむ/ひょうたんTM.obj');
     expect(byId.get('tim-motion-path')?.sourceRelativePaths).toEqual(expect.arrayContaining([
       'script/てぃむ/@モーションパスA-V2.anm',
       'script/てぃむ/@モーションパスD.anm',

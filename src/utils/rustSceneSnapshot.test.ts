@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, ImageObject, ParticleObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GourdObject, ImageObject, ParticleObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, VideoObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -274,6 +274,34 @@ const baseColourWheel = (patch: Partial<ColourWheelObject> = {}): ColourWheelObj
   brightness: 100,
   ringWidthPercent: 25,
   segmentCount: 24,
+  ...patch,
+});
+
+const baseGourd = (patch: Partial<GourdObject> = {}): GourdObject => ({
+  id: 'gourd-1',
+  type: 'gourd',
+  name: 'ひょうたんTM',
+  layer: 9,
+  startTime: 1,
+  duration: 4,
+  x: 760,
+  y: 340,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 760,
+  endY: 340,
+  easing: 'linear',
+  width: 400,
+  height: 400,
+  bodyRadius: 80,
+  bodyWidth: 250,
+  waistRadius: 10,
+  squashPercent: 40,
+  repeatCount: 1,
+  fillColour: '#ffffff',
   ...patch,
 });
 
@@ -556,6 +584,44 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         }),
         width: 240,
         height: 240,
+      },
+    ]);
+  });
+
+  it('builds a generated gourd media plane from a gourd object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseGourd()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated gourd snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'gourd-1',
+      track_id: 'layer-9',
+      media_id: 'gourd-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'gourd-1',
+        kind: 'GeneratedGourd',
+        source: JSON.stringify({
+          generator: 'gourd-tm',
+          body_radius: 80,
+          body_width: 250,
+          waist_radius: 10,
+          squash_percent: 40,
+          repeat_count: 1,
+          fill_colour: '#ffffff',
+        }),
+        width: 400,
+        height: 400,
       },
     ]);
   });

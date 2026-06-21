@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { BarcodeObject, ColourWheelObject, ParticleObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject } from '../types';
+import type { BarcodeObject, ColourWheelObject, GourdObject, ParticleObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject } from '../types';
 import { MAX_LAYERS } from '../components/timelineConstants';
 import { createDefaultCamera, createDefaultLayers, createDefaultStageCamera3D } from './sceneState';
 import { buildProjectFileData, parseProjectPayloadV2, restoreProjectObjects } from './projectFile';
@@ -179,6 +179,33 @@ const minimalColourWheel = (): ColourWheelObject => ({
   segmentCount: 24,
 });
 
+const minimalGourd = (): GourdObject => ({
+  id: 'gourd-1',
+  type: 'gourd',
+  name: 'ひょうたんTM',
+  layer: 6,
+  startTime: 1,
+  duration: 5,
+  x: 760,
+  y: 340,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 760,
+  endY: 340,
+  easing: 'linear',
+  width: 400,
+  height: 400,
+  bodyRadius: 80,
+  bodyWidth: 250,
+  waistRadius: 10,
+  squashPercent: 40,
+  repeatCount: 1,
+  fillColour: '#ffffff',
+});
+
 describe('buildProjectFileData', () => {
   it('flushes active editor state into the matching scene and stamps metadata', () => {
     const layers = createDefaultLayers();
@@ -319,6 +346,7 @@ describe('parseProjectPayloadV2', () => {
     const barcode = minimalBarcode();
     const puzzle = minimalPuzzlePiece();
     const colourWheel = minimalColourWheel();
+    const gourd = minimalGourd();
     const file = buildProjectFileData({
       projectSettings: projectSettings(),
       scenes: [
@@ -327,13 +355,13 @@ describe('parseProjectPayloadV2', () => {
           name: 'One',
           duration: 10,
           layers,
-          objects: [particle, barcode, puzzle, colourWheel],
+          objects: [particle, barcode, puzzle, colourWheel, gourd],
           camera,
           stageCamera3D: defaultStage()
         }
       ],
       activeSceneId: 's1',
-      objects: [particle, barcode, puzzle, colourWheel],
+      objects: [particle, barcode, puzzle, colourWheel, gourd],
       layers,
       duration: 10,
       camera,
@@ -341,7 +369,7 @@ describe('parseProjectPayloadV2', () => {
     });
 
     const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
-    expect(parsed.scenes[0].objects).toEqual([particle, barcode, puzzle, colourWheel]);
+    expect(parsed.scenes[0].objects).toEqual([particle, barcode, puzzle, colourWheel, gourd]);
   });
 
   it('rejects invalid worldPlacement on psd objects', () => {

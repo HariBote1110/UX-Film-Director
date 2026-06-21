@@ -94,6 +94,12 @@ const media: RustSceneMediaReference[] = [{
   width: 240,
   height: 240,
 }, {
+  id: 'gourd-1',
+  kind: 'GeneratedGourd' as RustSceneMediaReference['kind'],
+  source: '{"generator":"gourd-tm","body_radius":80,"body_width":250,"waist_radius":10,"squash_percent":40,"repeat_count":1,"fill_colour":"#ffffff"}',
+  width: 400,
+  height: 400,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -138,8 +144,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[7])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[8])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[9])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[10])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[10])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[11])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[12])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {

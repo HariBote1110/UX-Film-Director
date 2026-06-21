@@ -12,7 +12,7 @@ import {
   shouldSynchroniseTimelineForProjectExportFrame,
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, ImageObject, ParticleObject, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GourdObject, ImageObject, ParticleObject, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, VideoObject } from '../types';
 
 const source = () =>
   readFileSync(new URL('./projectExportFrameCanvas.ts', import.meta.url), 'utf8');
@@ -275,6 +275,34 @@ const colourWheel = (patch: Partial<ColourWheelObject> = {}): ColourWheelObject 
   brightness: 100,
   ringWidthPercent: 25,
   segmentCount: 24,
+  ...patch,
+});
+
+const gourd = (patch: Partial<GourdObject> = {}): GourdObject => ({
+  id: 'gourd-1',
+  type: 'gourd',
+  name: 'ひょうたんTM',
+  layer: 7,
+  startTime: 0,
+  duration: 5,
+  x: 760,
+  y: 340,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 760,
+  endY: 340,
+  easing: 'linear',
+  width: 400,
+  height: 400,
+  bodyRadius: 80,
+  bodyWidth: 250,
+  waistRadius: 10,
+  squashPercent: 40,
+  repeatCount: 1,
+  fillColour: '#ffffff',
   ...patch,
 });
 
@@ -709,7 +737,7 @@ describe('resolveProjectExportRustFrameSourceContext', () => {
   });
 
   it('marks standard particle exports as native-render media instead of legacy canvas work', () => {
-    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), audio()];
+    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), gourd(), audio()];
 
     expect(hasProjectExportNativeRenderMediaObjects(objects)).toBe(true);
     expect(resolveProjectExportRustFrameSourceContext({

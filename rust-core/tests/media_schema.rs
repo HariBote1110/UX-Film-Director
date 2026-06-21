@@ -99,3 +99,19 @@ fn rust_core_accepts_generated_colour_wheel_media_kind_at_the_json_boundary() {
     assert_eq!(media.width, 240);
     assert_eq!(media.height, 240);
 }
+
+#[test]
+fn rust_core_accepts_generated_gourd_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "gourd-1",
+        "kind": "GeneratedGourd",
+        "source": "{\"generator\":\"gourd-tm\",\"body_radius\":80,\"body_width\":250,\"waist_radius\":10,\"squash_percent\":40,\"repeat_count\":1,\"fill_colour\":\"#ffffff\"}",
+        "width": 400,
+        "height": 400
+    }))
+    .expect("GeneratedGourd media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedGourd);
+    assert_eq!(media.width, 400);
+    assert_eq!(media.height, 400);
+}
