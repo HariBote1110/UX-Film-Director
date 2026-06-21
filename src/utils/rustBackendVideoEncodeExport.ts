@@ -101,7 +101,7 @@ interface RustBackendVideoEncodeFinishSummary {
 const createDefaultSessionId = (): string =>
   `uxfd-export-${Date.now().toString(36)}`;
 
-const DEFAULT_RENDER_AHEAD_FRAME_COUNT = 2;
+const DEFAULT_RENDER_AHEAD_FRAME_COUNT = 1;
 
 const normaliseRenderAheadFrameCount = (value: number | undefined): number => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_RENDER_AHEAD_FRAME_COUNT;

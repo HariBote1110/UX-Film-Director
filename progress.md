@@ -1,3 +1,22 @@
+## 2026-06-21 — 混在native render export高速化の初回実測
+
+### 実施内容
+- Red: `runRustBackendVideoEncodeExport` に、encode write中に2フレーム先までframe source生成を進められる契約を追加した。
+- Green: Rust encode exportのrender-ahead深度を可変queue化し、`VITE_UXFD_RUST_EXPORT_RENDER_AHEAD_FRAMES` で1〜4へ調整できるようにした。
+- Green: 実測で悪化したため既定値は1へ戻し、明示指定時だけ2以上を試す形にした。
+- Red/Green: `VITE_UXFD_NATIVE_DIRECT_ENCODE=1` 有効時に、混在native-renderable frameも `nativeEncodeFramePayload` を返せるようにした。
+
+### 検証
+- `npm test -- --run src/utils/sharedRendererExportFrameSource.test.ts src/utils/rustBackendVideoEncodeExport.test.ts src/utils/useProjectExportBoundary.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "src/utils/sharedRendererExportFrameSource|src/utils/rustBackendVideoEncodeExport|src/hooks/useProjectExport"`
+- `UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA=1 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=1 UXFD_VIDEO_EXPORT_E2E_TIMEOUT_MS=240000 npm run test:video-export:e2e`
+- `VITE_UXFD_NATIVE_DIRECT_ENCODE=1 VITE_UXFD_RUST_EXPORT_RENDER_AHEAD_FRAMES=1 UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA=1 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=1 UXFD_VIDEO_EXPORT_E2E_TIMEOUT_MS=240000 npm run test:video-export:e2e`
+
+### 結果・残課題
+- 標準混在E2Eは1秒60frameで13.1秒、約4.58fps。短尺化と出力frame数は正常。
+- render-ahead 2は13.1秒で改善なし。native direct encodeはrender-ahead 2でdecoded slot generation競合、render-ahead 1では成功するが31.4秒、約1.91fpsまで悪化した。
+- 次の本命は、動画1本+静的図形/画像+音声をffmpeg filter fast pathへ載せ、frameごとのnative renderを回避すること。
+
 ## 2026-06-21 — 混在メディアexportの短尺E2Eを修正
 
 ### 実施内容

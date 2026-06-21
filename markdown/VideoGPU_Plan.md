@@ -15,7 +15,8 @@
 
 ### 次の高速化候補
 
-- native render outputをshared memoryへ書いた後にencode側で再読込する往復を削り、Rust内でrender resultを直接encoderへ渡す。
+- 動画1本+静的図形/画像+音声のような軽い混在構成は、per-frame native renderへ送らず、`encode.transcodeVideo` のffmpeg filter fast pathへ載せる。これが次の本命。
+- native render outputをshared memoryへ書いた後にencode側で再読込する往復を削り、Rust内でrender resultを直接encoderへ渡す。ただし単純なdirect native encodeは2026-06-21時点の混在E2Eで遅かったため、再設計が必要。
 - decode frame upload/source textureの再利用を進め、動画only exportでframeごとのsource texture再作成を削る。
 - ffmpeg rawvideo stdin writeとnative renderの並列度を2〜3frame程度まで広げ、メモリ上限を見ながら30fps超を安定化する。
 
@@ -24,6 +25,8 @@
 `encode.writeNativeFrame` は実装済みで、`VITE_UXFD_NATIVE_DIRECT_ENCODE=1` の時だけ使用する。
 ただし2026-06-20時点の実測では、direct pathはRust backendの1 RPC内にdecode source read / native render / ffmpeg writeを閉じ込めるため、既存の1フレーム先読みで作れていたrender/writeの重なりが消え、2秒尺で約13.54fpsまで落ちた。
 そのため通常のexportは従来のshared native render output経路を維持する。次に往復削減へ進む場合は、単純なRPC結合ではなく、Rust側にrender queue / encode queueを分けるか、direct outputを複数frame pipeline化して重なりを保つ。
+2026-06-21の混在E2Eでは、`VITE_UXFD_RUST_EXPORT_RENDER_AHEAD_FRAMES=2` がdecoded slot generation競合で失敗し、render-ahead 1では成功したものの1秒60frameで31.4秒、約1.91fpsまで悪化した。
+同日のshared-frame標準経路は約13.1秒、約4.58fps。従ってdirect native encodeはまだ既定化しない。
 
 > **前回の失敗（WebCodecsAPI-transfer ブランチ）の教訓を踏まえた実装計画。**
 > 実装は時間のある時に行う。この文書が設計の Single Source of Truth。

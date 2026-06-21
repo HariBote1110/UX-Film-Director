@@ -1,6 +1,15 @@
 # 進捗ログ
 
 ## 2026-06-21
+- 混在native render export高速化の第一段として、Rust encode exportのrender-ahead深度を `VITE_UXFD_RUST_EXPORT_RENDER_AHEAD_FRAMES` で調整できるようにした。
+- Red: `runRustBackendVideoEncodeExport` に、current frame write中に2フレーム先までframe source生成を進められる契約を追加した。
+- Green: encode writeとframe source生成の重なりを可変queue化した。既定は実測悪化を避けるため1、明示指定時のみ最大4まで先読みする。
+- Red/Green: `VITE_UXFD_NATIVE_DIRECT_ENCODE=1` 有効時に、動画+PSDなど混在native-renderable frameも `nativeEncodeFramePayload` を返し、shared-frame render RPCを避けられる契約を追加した。
+- 検証: `npm test -- --run src/utils/sharedRendererExportFrameSource.test.ts src/utils/rustBackendVideoEncodeExport.test.ts src/utils/useProjectExportBoundary.test.ts` は87件成功。対象ファイル名で絞った `tsc` 出力は空。
+- 実測: 標準混在E2Eは1秒60frameで13.1秒、約4.58fps。`VITE_UXFD_RUST_EXPORT_RENDER_AHEAD_FRAMES=2` は13.1秒で改善なし。`VITE_UXFD_NATIVE_DIRECT_ENCODE=1` はrender-ahead 2でdecoded slot generation競合、render-ahead 1では成功するが31.4秒、約1.91fpsまで悪化した。
+- 判定: per-frame native render / encode RPCの小手先の重ね合わせは本命ではない。次は動画1本+静的図形/画像+音声を `encode.transcodeVideo` のffmpeg filter fast pathへ載せ、frameごとのRust renderを回避する。
+
+## 2026-06-21
 - 混在メディア入り動画export E2Eで、`UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=1` でも図形・画像・音声の既定durationに引っ張られて300 frames出力になる課題を修正した。
 - Red: `packageScripts` に、混在メディア追加後の全オブジェクト短尺化hookと、期待フレーム数照合をE2E scriptへ持たせる契約を追加した。
 - Green: `?videoExportE2e=1` 専用の `__UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__` を追加し、混在メディア投入後にTimeline上の全オブジェクトdurationを短尺化するようにした。
