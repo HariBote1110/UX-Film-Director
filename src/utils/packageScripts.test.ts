@@ -28,8 +28,11 @@ describe('package scripts', () => {
     expect(script).toContain('exportFramesPerSecond');
     expect(script).toContain('UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA');
     expect(script).toContain('UXFD_VIDEO_EXPORT_E2E_ADD_PSD');
+    expect(script).toContain('UXFD_VIDEO_EXPORT_E2E_REPEAT_EXPORTS');
+    expect(script).toContain('UXFD_VIDEO_EXPORT_E2E_EXPECT_REPEAT_SPEEDUP');
     expect(script).toContain('mixedMediaResult');
     expect(script).toContain('psdMediaResult');
+    expect(script).toContain('exportAttempts');
     expect(script).toContain('__UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__');
     expect(script).toContain('mixedMediaDurationResult');
     expect(script).toContain('expectedFrameCount');
