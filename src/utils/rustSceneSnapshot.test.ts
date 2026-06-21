@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AudioObject, AudioVisualizationObject, ImageObject, ParticleObject, ProjectSettings, PsdObject, ShapeObject, TimelineObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, ImageObject, ParticleObject, ProjectSettings, PsdObject, ShapeObject, TimelineObject, VideoObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -196,6 +196,34 @@ const baseParticle = (patch: Partial<ParticleObject> = {}): ParticleObject => ({
   ...patch,
 });
 
+const baseBarcode = (patch: Partial<BarcodeObject> = {}): BarcodeObject => ({
+  id: 'barcode-1',
+  type: 'barcode',
+  name: 'バーコードT',
+  layer: 6,
+  startTime: 1,
+  duration: 4,
+  x: 640,
+  y: 360,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 640,
+  endY: 360,
+  easing: 'linear',
+  width: 420,
+  height: 160,
+  data: 'AviUtl',
+  minimumBarWidth: 2,
+  horizontalMargin: 30,
+  verticalMargin: 20,
+  foregroundColour: '#000000',
+  backgroundColour: '#ffffff',
+  ...patch,
+});
+
 describe('buildRustSceneSnapshotForTimeline', () => {
   it('builds a solid colour plane for active rectangle shapes', () => {
     const layers = createDefaultLayers();
@@ -352,6 +380,56 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         }),
         width: 640,
         height: 360,
+      },
+    ]);
+  });
+
+  it('builds a generated barcode media plane from a barcode object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseBarcode()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated barcode snapshot to pass');
+
+    expect(result.snapshot.clips).toEqual([
+      {
+        clip_id: 'barcode-1',
+        track_id: 'layer-6',
+        media_id: 'barcode-1',
+        source_frame: 0,
+        z_index: 0,
+        transform: {
+          translation_x: 640,
+          translation_y: 360,
+          scale_x: 1,
+          scale_y: 1,
+          rotation_degrees: 0,
+          sampling: 'bilinear',
+        },
+        opacity: 0.9,
+        effects: [],
+      },
+    ]);
+    expect(result.media).toEqual([
+      {
+        id: 'barcode-1',
+        kind: 'GeneratedBarcode',
+        source: JSON.stringify({
+          generator: 'barcode-t',
+          data: 'AviUtl',
+          minimum_bar_width: 2,
+          horizontal_margin: 30,
+          vertical_margin: 20,
+          foreground_colour: '#000000',
+          background_colour: '#ffffff',
+        }),
+        width: 420,
+        height: 160,
       },
     ]);
   });

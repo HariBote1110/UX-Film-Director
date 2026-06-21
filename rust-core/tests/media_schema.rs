@@ -51,3 +51,19 @@ fn rust_core_accepts_generated_particle_media_kind_at_the_json_boundary() {
     assert_eq!(media.width, 640);
     assert_eq!(media.height, 360);
 }
+
+#[test]
+fn rust_core_accepts_generated_barcode_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "barcode-1",
+        "kind": "GeneratedBarcode",
+        "source": "{\"generator\":\"barcode-t\",\"data\":\"AviUtl\",\"minimum_bar_width\":2,\"horizontal_margin\":30,\"vertical_margin\":20,\"foreground_colour\":\"#000000\",\"background_colour\":\"#ffffff\"}",
+        "width": 420,
+        "height": 160
+    }))
+    .expect("GeneratedBarcode media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedBarcode);
+    assert_eq!(media.width, 420);
+    assert_eq!(media.height, 160);
+}

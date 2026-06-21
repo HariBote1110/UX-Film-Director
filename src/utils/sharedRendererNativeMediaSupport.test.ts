@@ -76,6 +76,12 @@ const media: RustSceneMediaReference[] = [{
   width: 4,
   height: 4,
 }, {
+  id: 'barcode-1',
+  kind: 'GeneratedBarcode' as RustSceneMediaReference['kind'],
+  source: '{"generator":"barcode-t","data":"AviUtl","minimum_bar_width":2,"horizontal_margin":30,"vertical_margin":20,"foreground_colour":"#000000","background_colour":"#ffffff"}',
+  width: 160,
+  height: 80,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -117,8 +123,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[4])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[5])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[6])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[7])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[7])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[8])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[9])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {
