@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AsanohaPatternObject, AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, HoundstoothObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HoundstoothObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -643,6 +643,38 @@ const baseAsanohaPattern = (patch: Partial<AsanohaPatternObject> = {}): AsanohaP
   lineWidth: 2,
   foregroundColour: '#000000',
   backgroundColour: '#ffffff',
+  ...patch,
+});
+
+const baseFocusLinesPlus = (patch: Partial<FocusLinesPlusObject> = {}): FocusLinesPlusObject => ({
+  id: 'focus-lines-plus-1',
+  type: 'focus_lines_plus',
+  name: '集中線plus',
+  layer: 22,
+  startTime: 1,
+  duration: 4,
+  x: 560,
+  y: 315,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 560,
+  endY: 315,
+  easing: 'linear',
+  width: 800,
+  height: 450,
+  rayWidth: 1,
+  gap: 5,
+  centreRadius: 100,
+  rotationDegrees: 0,
+  centreX: 400,
+  centreY: 225,
+  centreJitterPercent: 20,
+  seed: 0,
+  keyframeInterval: 0,
+  lineColour: '#ffffff',
   ...patch,
 });
 
@@ -1421,6 +1453,48 @@ describe('buildRustSceneSnapshotForTimeline', () => {
           line_width: 2,
           foreground_colour: '#000000',
           background_colour: '#ffffff',
+        }),
+        width: 800,
+        height: 450,
+      },
+    ]);
+  });
+
+  it('builds a generated focus lines plus media plane from a focus lines plus object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseFocusLinesPlus()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated focus lines plus snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'focus-lines-plus-1',
+      track_id: 'layer-22',
+      media_id: 'focus-lines-plus-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'focus-lines-plus-1',
+        kind: 'GeneratedFocusLinesPlus',
+        source: JSON.stringify({
+          generator: 'focus-lines-plus',
+          ray_width: 1,
+          gap: 5,
+          centre_radius: 100,
+          rotation_degrees: 0,
+          centre_x: 400,
+          centre_y: 225,
+          centre_jitter_percent: 20,
+          seed: 0,
+          keyframe_interval: 0,
+          line_colour: '#ffffff',
         }),
         width: 800,
         height: 450,

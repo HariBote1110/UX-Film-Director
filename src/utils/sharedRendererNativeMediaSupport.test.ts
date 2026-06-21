@@ -172,6 +172,12 @@ const media: RustSceneMediaReference[] = [{
   width: 800,
   height: 450,
 }, {
+  id: 'focus-lines-plus-1',
+  kind: 'GeneratedFocusLinesPlus' as RustSceneMediaReference['kind'],
+  source: '{"generator":"focus-lines-plus","ray_width":1,"gap":5,"centre_radius":100,"rotation_degrees":0,"centre_x":400,"centre_y":225,"centre_jitter_percent":20,"seed":0,"keyframe_interval":0,"line_colour":"#ffffff"}',
+  width: 800,
+  height: 450,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -229,8 +235,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[20])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[21])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[22])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[23])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[23])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[24])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[25])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {

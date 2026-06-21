@@ -307,3 +307,19 @@ fn rust_core_accepts_generated_asanoha_pattern_media_kind_at_the_json_boundary()
     assert_eq!(media.width, 800);
     assert_eq!(media.height, 450);
 }
+
+#[test]
+fn rust_core_accepts_generated_focus_lines_plus_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "focus-lines-plus-1",
+        "kind": "GeneratedFocusLinesPlus",
+        "source": "{\"generator\":\"focus-lines-plus\",\"ray_width\":1,\"gap\":5,\"centre_radius\":100,\"rotation_degrees\":0,\"centre_x\":400,\"centre_y\":225,\"centre_jitter_percent\":20,\"seed\":0,\"keyframe_interval\":0,\"line_colour\":\"#ffffff\"}",
+        "width": 800,
+        "height": 450
+    }))
+    .expect("GeneratedFocusLinesPlus media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedFocusLinesPlus);
+    assert_eq!(media.width, 800);
+    assert_eq!(media.height, 450);
+}

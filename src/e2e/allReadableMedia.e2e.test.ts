@@ -11,6 +11,7 @@ import type {
   BarcodeObject,
   CircularArrowObject,
   ColourWheelObject,
+  FocusLinesPlusObject,
   GearObject,
   GourdObject,
   HistogramObject,
@@ -446,6 +447,23 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     foregroundColour: '#000000',
     backgroundColour: '#ffffff',
   };
+  const focusLinesPlus: FocusLinesPlusObject = {
+    ...baseObject('ssd-focus-lines-plus', 'focus_lines_plus', 27),
+    type: 'focus_lines_plus',
+    name: '集中線plus',
+    width: 800,
+    height: 450,
+    rayWidth: 1,
+    gap: 5,
+    centreRadius: 100,
+    rotationDegrees: 0,
+    centreX: 400,
+    centreY: 225,
+    centreJitterPercent: 20,
+    seed: 0,
+    keyframeInterval: 0,
+    lineColour: '#ffffff',
+  };
 
   return [
     solidShape,
@@ -472,6 +490,7 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     yagasuri,
     paperAirplane,
     asanohaPattern,
+    focusLinesPlus,
   ];
 };
 
@@ -556,6 +575,7 @@ describe('全読込可能メディア E2E', () => {
       'GeneratedYagasuri',
       'GeneratedPaperAirplane',
       'GeneratedAsanohaPattern',
+      'GeneratedFocusLinesPlus',
     ]);
     expect(snapshotResult.media
       .filter((media) => media.kind === 'Video')
@@ -723,6 +743,19 @@ describe('全読込可能メディア E2E', () => {
       foreground_colour: '#000000',
       background_colour: '#ffffff',
     });
+    expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'ssd-focus-lines-plus')?.source ?? '{}')).toMatchObject({
+      generator: 'focus-lines-plus',
+      ray_width: 1,
+      gap: 5,
+      centre_radius: 100,
+      rotation_degrees: 0,
+      centre_x: 400,
+      centre_y: 225,
+      centre_jitter_percent: 20,
+      seed: 0,
+      keyframe_interval: 0,
+      line_colour: '#ffffff',
+    });
     expect(snapshotResult.media.some((media) => media.source.endsWith('.wav'))).toBe(false);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'shape-solid-rect')?.transform).toMatchObject({
       translation_x: 64.5,
@@ -760,6 +793,7 @@ describe('全読込可能メディア E2E', () => {
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-yagasuri')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-paper-airplane')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-asanoha-pattern')?.source_frame).toBe(0);
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-focus-lines-plus')?.source_frame).toBe(0);
     expect(validateRustSceneSnapshotBoundary({
       snapshot: snapshotResult.snapshot,
       media: snapshotResult.media,
