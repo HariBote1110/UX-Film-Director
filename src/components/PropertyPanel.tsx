@@ -846,6 +846,15 @@ const PropertyPanel: React.FC = () => {
     } as Partial<TimelineObject>);
   };
 
+  const handleGetColorSampleHueShiftChange = (rawValue: string) => {
+    if (selectedObject.type !== 'getcolor_dot_field') return;
+    const parsed = parseFloat(rawValue);
+    if (!Number.isFinite(parsed)) return;
+    updateObject(selectedObject.id, {
+      sampleHueShiftDegrees: clamp(parsed, -720, 720),
+    } as Partial<TimelineObject>);
+  };
+
   const handleAddFilter = (type: FilterType) => {
     addObjectFilter(selectedObject.id, type);
   };
@@ -2251,19 +2260,30 @@ const PropertyPanel: React.FC = () => {
                          ))}
                      </select>
                  </Row>
-                 <Row label="Sample Strength">
-                     <Slider
-                         min="0"
-                         max="1"
-                         step="0.01"
+                  <Row label="Sample Strength">
+                      <Slider
+                          min="0"
+                          max="1"
+                          step="0.01"
                          value={(selectedObject as GetColorDotFieldObject).sampleStrength ?? 1}
                          onInput={(e) => handleGetColorSampleStrengthChange(e.currentTarget.value)}
-                         style={{ width: '100%' }}
-                     />
-                 </Row>
-                 <div style={{ fontSize: '11px', color: '#888', marginTop: '5px', marginBottom: '8px' }}>
-                     {language === 'en'
-                        ? 'PNG/JPEG image objects or PSD objects are used as Rust GetColor sample sources.'
+                          style={{ width: '100%' }}
+                      />
+                  </Row>
+                  <Row label="Sample Hue Shift">
+                      <input
+                          type="number"
+                          min="-720"
+                          max="720"
+                          step="1"
+                          value={(selectedObject as GetColorDotFieldObject).sampleHueShiftDegrees ?? 0}
+                          onChange={(e) => handleGetColorSampleHueShiftChange(e.target.value)}
+                          style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                      />
+                  </Row>
+                  <div style={{ fontSize: '11px', color: '#888', marginTop: '5px', marginBottom: '8px' }}>
+                      {language === 'en'
+                         ? 'PNG/JPEG image objects or PSD objects are used as Rust GetColor sample sources.'
                         : 'PNG/JPEG画像またはPSDをRust GetColorのサンプル元として使います。'}
                  </div>
              </>
