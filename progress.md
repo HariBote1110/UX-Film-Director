@@ -1,3 +1,23 @@
+## 2026-06-22 — 93 SphericalFieldをRust生成プリセットへ追加
+
+### 実施内容
+- Red: `spherical_field` がfactory、Timeline右クリックメニュー、AviUtlPackV4カタログ、Rust scene snapshot、shared renderer native media、rust-core schema、Rust backend画素生成を通る契約を追加した。
+- Green: `SphericalFieldObject` と `GeneratedSphericalField` media kindを追加し、`spherical-field-93` source JSONで半径、強度、色量、透明度、線幅、リング数、ベクトル数、色、背景不透明度、container指定をRustへ渡すようにした。
+- Green: Rust backendで透明背景に球状フィールド、複数リング、外向き/内向きベクトル、中心マーカーをRGBA生成する初期互換実装を追加した。
+- Green: Timeline右クリックメニューに `93 SphericalFieldを追加` / `Add 93 SphericalField` を追加した。
+- Green: 保存/読込、export native render判定、Pixi二重描画除外、shared renderer preview session収集にも `spherical_field` / `GeneratedSphericalField` を接続した。
+- Version: `0.1.1-Beta-306a`。
+
+### 検証
+- `npm test -- --run src/utils/sphericalFieldObjectFactory.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/components/TimelineContextMenu.particle.test.ts --reporter=dot` は76件成功。
+- `npm test -- --run src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/packageScripts.test.ts --reporter=dot` は54件成功。
+- `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は32件成功。
+- `cargo test --manifest-path rust-backend/Cargo.toml generated_spherical_field_source_frame_renders_force_ring -- --nocapture` は1件成功。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の93 SphericalField由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- SphericalField本来のオブジェクト座標押し出し/吸い込みは未実装。次はGetColorの元画像サンプリング寄り拡張へ進む。
+
 ## 2026-06-22 — 93 Sphere(DrawPixel)をRust生成プリセットへ追加
 
 ### 実施内容
