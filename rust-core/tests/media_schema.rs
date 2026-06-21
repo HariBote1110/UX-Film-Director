@@ -469,6 +469,22 @@ fn rust_core_accepts_generated_simple_tube_media_kind_at_the_json_boundary() {
 }
 
 #[test]
+fn rust_core_accepts_generated_sphere_dots_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "sphere-dots-1",
+        "kind": "GeneratedSphereDots",
+        "source": "{\"generator\":\"sphere-drawpixel-93\",\"radius\":170,\"columns\":16,\"rows\":12,\"rotation_degrees\":10,\"offset_degrees\":0,\"luminance_influence\":0,\"point_size\":6,\"latitude_line_width\":2,\"colour\":\"#ffffff\",\"secondary_colour\":\"#36c2ff\",\"seed\":93,\"plane_mode\":false}",
+        "width": 480,
+        "height": 480
+    }))
+    .expect("GeneratedSphereDots media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedSphereDots);
+    assert_eq!(media.width, 480);
+    assert_eq!(media.height, 480);
+}
+
+#[test]
 fn rust_core_accepts_generated_audio_sphere_media_kind_at_the_json_boundary() {
     let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
         "id": "audio-sphere-1",

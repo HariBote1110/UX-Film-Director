@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, RegionFrameObject, ShakingPolygonObject, ShapeObject, SimpleTubeObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, RegionFrameObject, ShakingPolygonObject, ShapeObject, SimpleTubeObject, SphereDotsObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -984,6 +984,40 @@ const baseSimpleTube = (patch: Partial<SimpleTubeObject> = {}): SimpleTubeObject
   fogColour: '#ffffff',
   seed: 93,
   torus: false,
+  ...patch,
+});
+
+const baseSphereDots = (patch: Partial<SphereDotsObject> = {}): SphereDotsObject => ({
+  id: 'sphere-dots-1',
+  type: 'sphere_dots',
+  name: '93 Sphere(DrawPixel)',
+  layer: 37,
+  startTime: 8,
+  duration: 5,
+  x: 720,
+  y: 300,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 720,
+  endY: 300,
+  easing: 'linear',
+  width: 480,
+  height: 480,
+  radius: 170,
+  columns: 16,
+  rows: 12,
+  rotationDegrees: 10,
+  offsetDegrees: 0,
+  luminanceInfluence: 0,
+  pointSize: 6,
+  latitudeLineWidth: 2,
+  colour: '#ffffff',
+  secondaryColour: '#36c2ff',
+  seed: 93,
+  planeMode: false,
   ...patch,
 });
 
@@ -2590,6 +2624,43 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         }),
         width: 800,
         height: 450,
+      },
+    ]);
+  });
+
+  it('serialises a 93 Sphere(DrawPixel) object into the Rust generator payload', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseSphereDots()],
+      time: 8,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated Sphere(DrawPixel) snapshot to pass');
+
+    expect(result.media).toEqual([
+      {
+        id: 'sphere-dots-1',
+        kind: 'GeneratedSphereDots',
+        source: JSON.stringify({
+          generator: 'sphere-drawpixel-93',
+          radius: 170,
+          columns: 16,
+          rows: 12,
+          rotation_degrees: 10,
+          offset_degrees: 0,
+          luminance_influence: 0,
+          point_size: 6,
+          latitude_line_width: 2,
+          colour: '#ffffff',
+          secondary_colour: '#36c2ff',
+          seed: 93,
+          plane_mode: false,
+        }),
+        width: 480,
+        height: 480,
       },
     ]);
   });

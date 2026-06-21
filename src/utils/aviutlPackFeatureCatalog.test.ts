@@ -51,6 +51,8 @@ describe('AviUtlPackV4 feature catalogue', () => {
       'script/93/SimpleTube2.obj'
     ]));
     expect(byId.get('93-simple-tube-torus')?.implementationTarget).toBe('native-generated-object');
+    expect(byId.get('93-sphere-drawpixel')?.sourceRelativePaths).toContain('script/93/@Sphere.anm');
+    expect(byId.get('93-sphere-drawpixel')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('particle-standard')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('tim-aura-emission')?.sourceRelativePaths).toContain('script/てぃむ/オーラ放出.anm');
     expect(byId.get('tim-bubbles')?.sourceRelativePaths).toContain('script/てぃむ/泡.obj');

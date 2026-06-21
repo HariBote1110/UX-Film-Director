@@ -10495,4 +10495,36 @@ mod tests {
             [0, 0, 0, 0]
         );
     }
+
+    #[test]
+    fn generated_sphere_dots_source_frame_renders_equator_points() {
+        let media = SceneMediaReference {
+            id: "sphere-dots-1".to_string(),
+            kind: MediaKind::GeneratedSphereDots,
+            source: r##"{"generator":"sphere-drawpixel-93","radius":170,"columns":16,"rows":11,"rotation_degrees":0,"offset_degrees":0,"luminance_influence":0,"point_size":6,"latitude_line_width":2,"colour":"#ffffff","secondary_colour":"#36c2ff","seed":93,"plane_mode":false}"##.to_string(),
+            width: 480,
+            height: 480,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_sphere_dots_source_frame(&media)
+            .expect("generated Sphere(DrawPixel) frame should render");
+        let right_equator_offset = ((240_usize * media.width as usize) + 410_usize) * 4;
+        let centre_offset = ((240_usize * media.width as usize) + 240_usize) * 4;
+        let empty_corner_offset = 0_usize;
+
+        assert_eq!(
+            &frame.pixels[right_equator_offset..right_equator_offset + 4],
+            [255, 255, 255, 255]
+        );
+        assert_eq!(
+            &frame.pixels[centre_offset..centre_offset + 4],
+            [54, 194, 255, 255]
+        );
+        assert_eq!(
+            &frame.pixels[empty_corner_offset..empty_corner_offset + 4],
+            [0, 0, 0, 0]
+        );
+    }
 }

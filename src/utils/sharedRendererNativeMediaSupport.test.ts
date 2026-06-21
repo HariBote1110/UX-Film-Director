@@ -453,4 +453,24 @@ describe('sharedRendererNativeMediaSupport', () => {
       height: 450,
     })).toBe(true);
   });
+
+  it('accepts 93 Sphere(DrawPixel) generator sources as native renderable media', () => {
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'sphere-dots-1',
+      kind: 'GeneratedSphereDots',
+      source: '{"generator":"sphere-drawpixel-93","radius":170,"columns":16,"rows":12,"rotation_degrees":10,"offset_degrees":0,"luminance_influence":0,"point_size":6,"latitude_line_width":2,"colour":"#ffffff","secondary_colour":"#36c2ff","seed":93,"plane_mode":false}',
+      width: 480,
+      height: 480,
+    })).toBe(true);
+    expect(canRenderSharedRendererNativeMediaOnlyFrame({
+      snapshot: snapshotWithMedia('solid-1', 'sphere-dots-1'),
+      media: [...media, {
+        id: 'sphere-dots-1',
+        kind: 'GeneratedSphereDots',
+        source: '{"generator":"sphere-drawpixel-93","radius":170,"columns":16,"rows":12,"rotation_degrees":10,"offset_degrees":0,"luminance_influence":0,"point_size":6,"latitude_line_width":2,"colour":"#ffffff","secondary_colour":"#36c2ff","seed":93,"plane_mode":false}',
+        width: 480,
+        height: 480,
+      }],
+    })).toBe(true);
+  });
 });
