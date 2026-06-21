@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ProjectSettings, PsdObject, ShapeObject } from '../types';
+import type { ParticleObject, ProjectSettings, PsdObject, ShapeObject } from '../types';
 import { MAX_LAYERS } from '../components/timelineConstants';
 import { createDefaultCamera, createDefaultLayers, createDefaultStageCamera3D } from './sceneState';
 import { buildProjectFileData, parseProjectPayloadV2, restoreProjectObjects } from './projectFile';
@@ -71,6 +71,34 @@ const minimalShape = (): ShapeObject => ({
   width: 4,
   height: 4,
   fill: '#111111'
+});
+
+const minimalParticle = (): ParticleObject => ({
+  id: 'particle-1',
+  type: 'particle',
+  name: '標準パーティクル',
+  layer: 2,
+  startTime: 1,
+  duration: 5,
+  x: 640,
+  y: 360,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 640,
+  endY: 360,
+  easing: 'linear',
+  width: 640,
+  height: 360,
+  particleCount: 96,
+  seed: 93,
+  spread: 160,
+  speed: 90,
+  size: 4,
+  colour: '#ffffff',
+  lifetimeSeconds: 2,
 });
 
 describe('buildProjectFileData', () => {
@@ -204,6 +232,35 @@ describe('parseProjectPayloadV2', () => {
     expect(obj.worldPlacement?.position).toEqual({ x: -1, y: 0, z: 2 });
     expect(obj.worldPlacement?.billboard).toBe(true);
     expect(parsed.projectSettings.editorMode).toBe('3d_stage');
+  });
+
+  it('round-trips standard particle objects through JSON payload', () => {
+    const layers = createDefaultLayers();
+    const camera = createDefaultCamera();
+    const particle = minimalParticle();
+    const file = buildProjectFileData({
+      projectSettings: projectSettings(),
+      scenes: [
+        {
+          id: 's1',
+          name: 'One',
+          duration: 10,
+          layers,
+          objects: [particle],
+          camera,
+          stageCamera3D: defaultStage()
+        }
+      ],
+      activeSceneId: 's1',
+      objects: [particle],
+      layers,
+      duration: 10,
+      camera,
+      stageCamera3D: defaultStage()
+    });
+
+    const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
+    expect(parsed.scenes[0].objects).toEqual([particle]);
   });
 
   it('rejects invalid worldPlacement on psd objects', () => {
