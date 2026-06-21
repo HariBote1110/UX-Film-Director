@@ -1,3 +1,19 @@
+## 2026-06-21 — 標準パーティクルのプロジェクト保存/読込を許可
+
+### 実施内容
+- Red: `ParticleObject` がプロジェクトJSONをround-tripできる契約を追加した。
+- Green: `projectFile` のTimelineObject許可リストへ `particle` を追加した。
+- Green: `particle` の幅/高さ/count/seed/spread/speed/size/colour/lifetimeを読込時に検証するようにした。
+- 版を `0.1.1-Beta-255a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/projectFile.test.ts`
+- `npx tsc --noEmit 2>&1 | rg "projectFile|ParticleObject|particle"`
+
+### 結果・残課題
+- projectFile対象6件が成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- 次はPropertyPanelから標準パーティクルのパラメータを編集できるようにする。
+
 ## 2026-06-21 — 標準パーティクル追加UIをTimeline context menuへ接続
 
 ### 実施内容

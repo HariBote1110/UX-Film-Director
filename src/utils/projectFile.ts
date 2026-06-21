@@ -88,7 +88,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'audio',
   'psd',
   'group_control',
-  'audio_visualization'
+  'audio_visualization',
+  'particle'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -150,6 +151,17 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
   if (candidate.type === 'psd') {
     const wp = candidate.worldPlacement;
     if (wp !== undefined && !isPsdWorldPlacement(wp)) return false;
+  }
+  if (candidate.type === 'particle') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (typeof candidate.particleCount !== 'number' || !Number.isInteger(candidate.particleCount) || candidate.particleCount <= 0) return false;
+    if (typeof candidate.seed !== 'number' || !Number.isInteger(candidate.seed)) return false;
+    if (!isFiniteNumber(candidate.spread) || candidate.spread < 0) return false;
+    if (!isFiniteNumber(candidate.speed) || candidate.speed < 0) return false;
+    if (!isFiniteNumber(candidate.size) || candidate.size <= 0) return false;
+    if (typeof candidate.colour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.colour)) return false;
+    if (!isFiniteNumber(candidate.lifetimeSeconds) || candidate.lifetimeSeconds <= 0) return false;
   }
   return true;
 };
