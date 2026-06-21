@@ -27,6 +27,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedRandomLineEx') return isSharedRendererNativeGeneratedRandomLineExSourceSupported(reference.source);
   if (reference.kind === 'GeneratedHologram') return isSharedRendererNativeGeneratedHologramSourceSupported(reference.source);
   if (reference.kind === 'GeneratedProtractor') return isSharedRendererNativeGeneratedProtractorSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedShakingPolygon') return isSharedRendererNativeGeneratedShakingPolygonSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -915,6 +916,67 @@ const isSharedRendererNativeGeneratedProtractorSourceSupported = (source: string
       && /^#[0-9a-f]{6}$/i.test(parsed.text_colour)
       && typeof parsed.shadow_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.shadow_colour)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedShakingPolygonSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      line_width?: unknown;
+      vertex_count?: unknown;
+      fixed_diameter?: unknown;
+      vertical_distortion_percent?: unknown;
+      repeat_count?: unknown;
+      repeat_frequency?: unknown;
+      fill?: unknown;
+      jitter_range?: unknown;
+      jitter_interval?: unknown;
+      stepped?: unknown;
+      colour?: unknown;
+      seed?: unknown;
+    };
+    return (
+      parsed.generator === 'shaking-polygon'
+      && typeof parsed.line_width === 'number'
+      && Number.isInteger(parsed.line_width)
+      && parsed.line_width >= 1
+      && parsed.line_width <= 100
+      && typeof parsed.vertex_count === 'number'
+      && Number.isInteger(parsed.vertex_count)
+      && parsed.vertex_count >= 2
+      && parsed.vertex_count <= 16
+      && typeof parsed.fixed_diameter === 'number'
+      && Number.isInteger(parsed.fixed_diameter)
+      && parsed.fixed_diameter >= 0
+      && parsed.fixed_diameter <= 2000
+      && typeof parsed.vertical_distortion_percent === 'number'
+      && Number.isFinite(parsed.vertical_distortion_percent)
+      && parsed.vertical_distortion_percent >= -100
+      && parsed.vertical_distortion_percent <= 100
+      && typeof parsed.repeat_count === 'number'
+      && Number.isInteger(parsed.repeat_count)
+      && parsed.repeat_count >= 1
+      && parsed.repeat_count <= 100
+      && typeof parsed.repeat_frequency === 'number'
+      && Number.isInteger(parsed.repeat_frequency)
+      && parsed.repeat_frequency >= 1
+      && typeof parsed.fill === 'boolean'
+      && typeof parsed.jitter_range === 'number'
+      && Number.isFinite(parsed.jitter_range)
+      && parsed.jitter_range >= 0
+      && parsed.jitter_range <= 2000
+      && typeof parsed.jitter_interval === 'number'
+      && Number.isInteger(parsed.jitter_interval)
+      && parsed.jitter_interval >= 1
+      && typeof parsed.stepped === 'boolean'
+      && typeof parsed.colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.colour)
+      && typeof parsed.seed === 'number'
+      && Number.isInteger(parsed.seed)
     );
   } catch {
     return false;

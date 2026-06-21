@@ -1,6 +1,20 @@
 # 進捗ログ
 
 ## 2026-06-22
+- SSD多角形_震えるをRust生成オブジェクトへ追加した。
+- Red: `script/ANM/ANM_ssd/多角形_震える.obj` を、Rust `GeneratedShakingPolygon` mediaとして扱う境界契約を作った。
+- Green: `ShakingPolygonObject` と `buildAviUtlShakingPolygonObject` を追加し、Timeline右クリックから `多角形_震えるを追加` / `Add Shaking Polygon` で置けるようにした。
+- Green: `rustSceneSnapshot` / shared renderer native support / Rust core schema / Rust backendに `GeneratedShakingPolygon` を追加した。
+- Green: Rust backendで透明背景、線幅付き多角形アウトライン、任意塗り、フレーム依存の頂点揺れを持つ決定的なフレームを生成できるようにした。
+- Green: `ssd-shaking-polygon` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-286a` に更新した。
+- 検証: `npm test -- --run src/utils/shakingPolygonObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/e2e/allReadableMedia.e2e.test.ts --reporter=dot` は98件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は24件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_shaking_polygon_source_frame_contains_jittered_outline_and_transparency -- --nocapture` は1件成功した。
+- 検証: 対象名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足、`mp4box` 型定義不足、`heavyEffectsStress.test.ts` の `PositionKeyframe` 未定義のみ検出した。
+- 残課題: 現時点の `GeneratedShakingPolygon` は元スクリプトのアンカー任意座標編集を、固定直径ベースの多角形生成へ寄せた互換再実装。任意頂点アンカー編集UIは後続のPropertyPanel拡張で扱う。
+
+## 2026-06-22
 - SSD分度器をRust生成オブジェクトへ追加した。
 - Red: `script/ANM/ANM_ssd/分度器.obj` を、Rust `GeneratedProtractor` mediaとして扱う境界契約を作った。
 - Green: `ProtractorObject` と `buildAviUtlProtractorObject` を追加し、Timeline右クリックから `分度器を追加` / `Add Protractor` で置けるようにした。

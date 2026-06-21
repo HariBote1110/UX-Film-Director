@@ -45,7 +45,7 @@ export interface LayerState {
   locked: boolean;
 }
 
-export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization' | 'particle' | 'barcode' | 'puzzle_piece' | 'colour_wheel' | 'gourd' | 'gear' | 'track_bar' | 'pie_chart' | 'histogram' | 'sunburst' | 'circular_arrow' | 'triangle_bracket' | 'tartan_check' | 'houndstooth' | 'yagasuri' | 'paper_airplane' | 'asanoha_pattern' | 'focus_lines_plus' | 'random_line_ex' | 'hologram' | 'protractor';
+export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization' | 'particle' | 'barcode' | 'puzzle_piece' | 'colour_wheel' | 'gourd' | 'gear' | 'track_bar' | 'pie_chart' | 'histogram' | 'sunburst' | 'circular_arrow' | 'triangle_bracket' | 'tartan_check' | 'houndstooth' | 'yagasuri' | 'paper_airplane' | 'asanoha_pattern' | 'focus_lines_plus' | 'random_line_ex' | 'hologram' | 'protractor' | 'shaking_polygon';
 
 // --- グラデーション・シャドウ・軌道 ---
 
@@ -648,6 +648,25 @@ export interface ProtractorObject extends BaseObject {
   shadowColour: string;
 }
 
+// AviUtlPackV4 多角形_震える互換の生成オブジェクト
+export interface ShakingPolygonObject extends BaseObject {
+  type: 'shaking_polygon';
+  width: number;
+  height: number;
+  lineWidth: number;
+  vertexCount: number;
+  fixedDiameter: number;
+  verticalDistortionPercent: number;
+  repeatCount: number;
+  repeatFrequency: number;
+  fill: boolean;
+  jitterRange: number;
+  jitterInterval: number;
+  stepped: boolean;
+  colour: string;
+  seed: number;
+}
+
 // --- PSD連携用 ---
 
 export interface PsdLayerStruct {
@@ -692,7 +711,7 @@ export interface PsdObject extends BaseObject {
   worldPlacement?: PsdWorldPlacement;
 }
 
-export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject | RandomLineExObject | HologramObject | ProtractorObject;
+export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject | RandomLineExObject | HologramObject | ProtractorObject | ShakingPolygonObject;
 
 /** タイムライン1本分（シーン） */
 export interface SceneData {

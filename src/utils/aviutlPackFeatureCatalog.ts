@@ -397,6 +397,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '角度説明や図形解説に使いやすく、Rust側で半円目盛りと測定角ラベルを決定的に生成できる。'
   },
   {
+    id: 'ssd-shaking-polygon',
+    labelJa: '多角形_震える',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/ANM/ANM_ssd/多角形_震える.obj'],
+    rationaleJa: '図形の強調や不安定な演出に使いやすく、Rust側で透明背景付きの揺れる多角形を決定的に生成できる。'
+  },
+  {
     id: 'tim-motion-path',
     labelJa: 'モーションパス',
     category: 'motion',

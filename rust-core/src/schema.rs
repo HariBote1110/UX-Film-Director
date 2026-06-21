@@ -57,6 +57,7 @@ pub enum MediaKind {
     GeneratedRandomLineEx,
     GeneratedHologram,
     GeneratedProtractor,
+    GeneratedShakingPolygon,
     Psd,
 }
 
@@ -94,6 +95,7 @@ pub enum ClipKind {
     GeneratedRandomLineExPlane,
     GeneratedHologramPlane,
     GeneratedProtractorPlane,
+    GeneratedShakingPolygonPlane,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

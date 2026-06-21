@@ -109,7 +109,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'focus_lines_plus',
   'random_line_ex',
   'hologram',
-  'protractor'
+  'protractor',
+  'shaking_polygon'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -399,6 +400,22 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (typeof candidate.lineColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.lineColour)) return false;
     if (typeof candidate.textColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.textColour)) return false;
     if (typeof candidate.shadowColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.shadowColour)) return false;
+  }
+  if (candidate.type === 'shaking_polygon') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.lineWidth) || candidate.lineWidth < 1 || candidate.lineWidth > 100) return false;
+    if (!isFiniteNumber(candidate.vertexCount) || candidate.vertexCount < 2 || candidate.vertexCount > 16) return false;
+    if (!isFiniteNumber(candidate.fixedDiameter) || candidate.fixedDiameter < 0 || candidate.fixedDiameter > 2000) return false;
+    if (!isFiniteNumber(candidate.verticalDistortionPercent) || candidate.verticalDistortionPercent < -100 || candidate.verticalDistortionPercent > 100) return false;
+    if (!isFiniteNumber(candidate.repeatCount) || candidate.repeatCount < 1 || candidate.repeatCount > 100) return false;
+    if (!isFiniteNumber(candidate.repeatFrequency) || candidate.repeatFrequency < 1) return false;
+    if (typeof candidate.fill !== 'boolean') return false;
+    if (!isFiniteNumber(candidate.jitterRange) || candidate.jitterRange < 0 || candidate.jitterRange > 2000) return false;
+    if (!isFiniteNumber(candidate.jitterInterval) || candidate.jitterInterval < 1) return false;
+    if (typeof candidate.stepped !== 'boolean') return false;
+    if (typeof candidate.colour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.colour)) return false;
+    if (!isFiniteNumber(candidate.seed)) return false;
   }
   return true;
 };
