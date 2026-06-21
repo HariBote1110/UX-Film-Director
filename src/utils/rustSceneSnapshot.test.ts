@@ -942,6 +942,7 @@ const baseRegionFrame = (patch: Partial<RegionFrameObject> = {}): RegionFrameObj
   width: 800,
   height: 450,
   lineWidth: 10,
+  shape: 'rectangle',
   extraWidth: 0,
   extraHeight: 0,
   backgroundOpacity: 0.2,
@@ -2406,6 +2407,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         source: JSON.stringify({
           generator: 'region-frame-93',
           line_width: 10,
+          shape: 'rectangle',
           extra_width: 0,
           extra_height: 0,
           background_opacity: 0.2,
@@ -2414,6 +2416,53 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         }),
         width: 800,
         height: 450,
+      },
+    ]);
+  });
+
+  it('serialises 93 ellipse and cut-corner region frame variants into the Rust generator payload', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [
+        baseRegionFrame({
+          id: 'ellipse-region-frame-1',
+          shape: 'ellipse',
+        }),
+        baseRegionFrame({
+          id: 'cut-region-frame-1',
+          shape: 'cut_corner',
+          cornerCut: 20,
+        }),
+      ],
+      time: 3,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated region frame variants to pass');
+
+    expect(result.media.map((media) => JSON.parse(media.source))).toEqual([
+      {
+        generator: 'region-frame-93',
+        line_width: 10,
+        shape: 'ellipse',
+        extra_width: 0,
+        extra_height: 0,
+        background_opacity: 0.2,
+        frame_colour: '#ffffff',
+        background_colour: '#ccccff',
+      },
+      {
+        generator: 'region-frame-93',
+        line_width: 10,
+        shape: 'cut_corner',
+        corner_cut: 20,
+        extra_width: 0,
+        extra_height: 0,
+        background_opacity: 0.2,
+        frame_colour: '#ffffff',
+        background_colour: '#ccccff',
       },
     ]);
   });

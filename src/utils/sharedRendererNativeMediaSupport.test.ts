@@ -252,7 +252,7 @@ const media: RustSceneMediaReference[] = [{
 }, {
   id: 'region-frame-1',
   kind: 'GeneratedRegionFrame' as RustSceneMediaReference['kind'],
-  source: '{"generator":"region-frame-93","line_width":10,"extra_width":0,"extra_height":0,"background_opacity":0.2,"frame_colour":"#ffffff","background_colour":"#ccccff"}',
+  source: '{"generator":"region-frame-93","line_width":10,"shape":"rectangle","extra_width":0,"extra_height":0,"background_opacity":0.2,"frame_colour":"#ffffff","background_colour":"#ccccff"}',
   width: 800,
   height: 450,
 }, {

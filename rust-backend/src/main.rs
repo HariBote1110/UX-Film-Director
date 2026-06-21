@@ -9642,7 +9642,7 @@ mod tests {
         let media = SceneMediaReference {
             id: "region-frame-1".to_string(),
             kind: MediaKind::GeneratedRegionFrame,
-            source: r##"{"generator":"region-frame-93","line_width":10,"extra_width":0,"extra_height":0,"background_opacity":0.2,"frame_colour":"#ffffff","background_colour":"#ccccff"}"##.to_string(),
+            source: r##"{"generator":"region-frame-93","line_width":10,"shape":"rectangle","extra_width":0,"extra_height":0,"background_opacity":0.2,"frame_colour":"#ffffff","background_colour":"#ccccff"}"##.to_string(),
             width: 800,
             height: 450,
             source_rate: None,
@@ -9654,6 +9654,52 @@ mod tests {
         let top_border_offset = ((4_usize * media.width as usize) + 400_usize) * 4;
         let centre_offset = ((225_usize * media.width as usize) + 400_usize) * 4;
 
+        assert_eq!(&frame.pixels[top_border_offset..top_border_offset + 4], [255, 255, 255, 255]);
+        assert_eq!(&frame.pixels[centre_offset..centre_offset + 4], [204, 204, 255, 51]);
+    }
+
+    #[test]
+    fn generated_region_frame_source_frame_renders_ellipse_variant_with_transparent_corners() {
+        let media = SceneMediaReference {
+            id: "ellipse-region-frame-1".to_string(),
+            kind: MediaKind::GeneratedRegionFrame,
+            source: r##"{"generator":"region-frame-93","line_width":10,"shape":"ellipse","extra_width":0,"extra_height":0,"background_opacity":0.2,"frame_colour":"#ffffff","background_colour":"#ccccff"}"##.to_string(),
+            width: 200,
+            height: 120,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_region_frame_source_frame(&media)
+            .expect("generated ellipse region frame should render");
+        let corner_offset = 0_usize;
+        let top_border_offset = ((1_usize * media.width as usize) + 100_usize) * 4;
+        let centre_offset = ((60_usize * media.width as usize) + 100_usize) * 4;
+
+        assert_eq!(&frame.pixels[corner_offset..corner_offset + 4], [0, 0, 0, 0]);
+        assert_eq!(&frame.pixels[top_border_offset..top_border_offset + 4], [255, 255, 255, 255]);
+        assert_eq!(&frame.pixels[centre_offset..centre_offset + 4], [204, 204, 255, 51]);
+    }
+
+    #[test]
+    fn generated_region_frame_source_frame_renders_cut_corner_variant() {
+        let media = SceneMediaReference {
+            id: "cut-region-frame-1".to_string(),
+            kind: MediaKind::GeneratedRegionFrame,
+            source: r##"{"generator":"region-frame-93","line_width":8,"shape":"cut_corner","corner_cut":24,"extra_width":0,"extra_height":0,"background_opacity":0.2,"frame_colour":"#ffffff","background_colour":"#ccccff"}"##.to_string(),
+            width: 200,
+            height: 120,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_region_frame_source_frame(&media)
+            .expect("generated cut-corner region frame should render");
+        let corner_offset = 0_usize;
+        let top_border_offset = ((1_usize * media.width as usize) + 100_usize) * 4;
+        let centre_offset = ((60_usize * media.width as usize) + 100_usize) * 4;
+
+        assert_eq!(&frame.pixels[corner_offset..corner_offset + 4], [0, 0, 0, 0]);
         assert_eq!(&frame.pixels[top_border_offset..top_border_offset + 4], [255, 255, 255, 255]);
         assert_eq!(&frame.pixels[centre_offset..centre_offset + 4], [204, 204, 255, 51]);
     }
