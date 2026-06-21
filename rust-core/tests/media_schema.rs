@@ -83,3 +83,19 @@ fn rust_core_accepts_generated_puzzle_piece_media_kind_at_the_json_boundary() {
     assert_eq!(media.width, 240);
     assert_eq!(media.height, 240);
 }
+
+#[test]
+fn rust_core_accepts_generated_colour_wheel_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "colour-wheel-1",
+        "kind": "GeneratedColourWheel",
+        "source": "{\"generator\":\"colour-wheel\",\"radius\":120,\"saturation\":100,\"brightness\":100,\"ring_width_percent\":25,\"segment_count\":24}",
+        "width": 240,
+        "height": 240
+    }))
+    .expect("GeneratedColourWheel media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedColourWheel);
+    assert_eq!(media.width, 240);
+    assert_eq!(media.height, 240);
+}

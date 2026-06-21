@@ -88,6 +88,12 @@ const media: RustSceneMediaReference[] = [{
   width: 240,
   height: 240,
 }, {
+  id: 'colour-wheel-1',
+  kind: 'GeneratedColourWheel' as RustSceneMediaReference['kind'],
+  source: '{"generator":"colour-wheel","radius":120,"saturation":100,"brightness":100,"ring_width_percent":25,"segment_count":24}',
+  width: 240,
+  height: 240,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -131,8 +137,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[6])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[7])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[8])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[9])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[9])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[10])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[11])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {

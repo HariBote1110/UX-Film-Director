@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, ImageObject, ParticleObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, ImageObject, ParticleObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, VideoObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -250,6 +250,33 @@ const basePuzzlePiece = (patch: Partial<PuzzlePieceObject> = {}): PuzzlePieceObj
   ...patch,
 });
 
+const baseColourWheel = (patch: Partial<ColourWheelObject> = {}): ColourWheelObject => ({
+  id: 'colour-wheel-1',
+  type: 'colour_wheel',
+  name: '色相環',
+  layer: 8,
+  startTime: 1,
+  duration: 4,
+  x: 840,
+  y: 420,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 840,
+  endY: 420,
+  easing: 'linear',
+  width: 240,
+  height: 240,
+  radius: 120,
+  saturation: 100,
+  brightness: 100,
+  ringWidthPercent: 25,
+  segmentCount: 24,
+  ...patch,
+});
+
 describe('buildRustSceneSnapshotForTimeline', () => {
   it('builds a solid colour plane for active rectangle shapes', () => {
     const layers = createDefaultLayers();
@@ -489,6 +516,43 @@ describe('buildRustSceneSnapshotForTimeline', () => {
           shape_variant: 1,
           connector_mode: 'convex',
           fill_colour: '#ffffff',
+        }),
+        width: 240,
+        height: 240,
+      },
+    ]);
+  });
+
+  it('builds a generated colour wheel media plane from a colour wheel object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseColourWheel()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated colour wheel snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'colour-wheel-1',
+      track_id: 'layer-8',
+      media_id: 'colour-wheel-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'colour-wheel-1',
+        kind: 'GeneratedColourWheel',
+        source: JSON.stringify({
+          generator: 'colour-wheel',
+          radius: 120,
+          saturation: 100,
+          brightness: 100,
+          ring_width_percent: 25,
+          segment_count: 24,
         }),
         width: 240,
         height: 240,
