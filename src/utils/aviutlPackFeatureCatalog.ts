@@ -277,6 +277,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '色・明度の分布を解説UIとして見せやすく、Rust側で複数チャンネルの棒グラフを決定的に生成できる。'
   },
   {
+    id: 'tim-simple-tone-curve',
+    labelJa: '簡易トーンカーブ',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/てぃむ/簡易トーンカーブ.obj'],
+    rationaleJa: '明るさ補正の説明や調整UI演出に使いやすく、Rust側で透明背景付きのグリッドとカーブを決定的に生成できる。'
+  },
+  {
     id: 'ssd-sunburst',
     labelJa: '日の出',
     category: 'generated-object',

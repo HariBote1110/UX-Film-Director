@@ -98,6 +98,7 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'track_bar',
   'pie_chart',
   'histogram',
+  'tone_curve',
   'sunburst',
   'circular_arrow',
   'triangle_bracket',
@@ -416,6 +417,17 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (typeof candidate.stepped !== 'boolean') return false;
     if (typeof candidate.colour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.colour)) return false;
     if (!isFiniteNumber(candidate.seed)) return false;
+  }
+  if (candidate.type === 'tone_curve') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.gridDivisions) || candidate.gridDivisions < 1 || candidate.gridDivisions > 16) return false;
+    if (!isFiniteNumber(candidate.lineWidth) || candidate.lineWidth < 1 || candidate.lineWidth > 100) return false;
+    if (!Array.isArray(candidate.curvePoints) || candidate.curvePoints.length < 2 || candidate.curvePoints.length > 64) return false;
+    if (!candidate.curvePoints.every((point) => isFiniteNumber(point) && point >= 0 && point <= 1)) return false;
+    if (typeof candidate.curveColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.curveColour)) return false;
+    if (typeof candidate.gridColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.gridColour)) return false;
+    if (typeof candidate.backgroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.backgroundColour)) return false;
   }
   return true;
 };

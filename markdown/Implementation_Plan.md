@@ -67,7 +67,8 @@
 49. ✅ `P2` SSDホログラムをRust GeneratedHologram生成オブジェクトへ追加
 50. ✅ `P2` SSD分度器をRust GeneratedProtractor生成オブジェクトへ追加
 51. ✅ `P2` SSD多角形_震えるをRust GeneratedShakingPolygon生成オブジェクトへ追加
-52. `P2` 生成効果入り混在exportのnative render source待ち時間を分解して高速化する
+52. ✅ `P2` Tim簡易トーンカーブをRust GeneratedToneCurve生成オブジェクトへ追加
+53. `P2` 生成効果入り混在exportのnative render source待ち時間を分解して高速化する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

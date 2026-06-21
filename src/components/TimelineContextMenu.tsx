@@ -20,6 +20,7 @@ import { buildAviUtlRandomLineExObject } from '../utils/randomLineExObjectFactor
 import { buildAviUtlShakingPolygonObject } from '../utils/shakingPolygonObjectFactory';
 import { buildAviUtlSunburstObject } from '../utils/sunburstObjectFactory';
 import { buildAviUtlTartanCheckObject } from '../utils/tartanCheckObjectFactory';
+import { buildAviUtlToneCurveObject } from '../utils/toneCurveObjectFactory';
 import { buildAviUtlTrackBarObject } from '../utils/trackBarObjectFactory';
 import { buildAviUtlTriangleBracketObject } from '../utils/triangleBracketObjectFactory';
 import { buildAviUtlYagasuriObject } from '../utils/yagasuriObjectFactory';
@@ -429,6 +430,17 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
     onClose();
   };
 
+  const handleAddToneCurve = () => {
+    addObject(buildAviUtlToneCurveObject({
+      id: crypto.randomUUID(),
+      projectWidth: projectSettings.width,
+      projectHeight: projectSettings.height,
+      startTime: state.time,
+      layer: state.layer,
+    }));
+    onClose();
+  };
+
   const handleAddSunburst = () => {
     addObject(buildAviUtlSunburstObject({
       id: crypto.randomUUID(),
@@ -491,6 +503,7 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddTrackBar}>{language === 'en' ? 'Add Track Bar' : 'トラックバーを追加'}</div>
              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddPieChart}>{language === 'en' ? 'Add Pie Chart' : 'パイシートグラフを追加'}</div>
              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHistogram}>{language === 'en' ? 'Add Histogram' : '簡易ヒストグラムを追加'}</div>
+             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddToneCurve}>{language === 'en' ? 'Add Tone Curve' : '簡易トーンカーブを追加'}</div>
              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddSunburst}>{language === 'en' ? 'Add Sunburst' : '日の出を追加'}</div>
               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddCircularArrow}>{language === 'en' ? 'Add Circular Arrow' : '円矢印を追加'}</div>
               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddTartanCheck}>{language === 'en' ? 'Add Tartan Check' : 'タータンチェックを追加'}</div>

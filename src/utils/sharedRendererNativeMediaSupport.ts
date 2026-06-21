@@ -15,6 +15,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedTrackBar') return isSharedRendererNativeGeneratedTrackBarSourceSupported(reference.source);
   if (reference.kind === 'GeneratedPieChart') return isSharedRendererNativeGeneratedPieChartSourceSupported(reference.source);
   if (reference.kind === 'GeneratedHistogram') return isSharedRendererNativeGeneratedHistogramSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedToneCurve') return isSharedRendererNativeGeneratedToneCurveSourceSupported(reference.source);
   if (reference.kind === 'GeneratedSunburst') return isSharedRendererNativeGeneratedSunburstSourceSupported(reference.source);
   if (reference.kind === 'GeneratedCircularArrow') return isSharedRendererNativeGeneratedCircularArrowSourceSupported(reference.source);
   if (reference.kind === 'GeneratedTriangleBracket') return isSharedRendererNativeGeneratedTriangleBracketSourceSupported(reference.source);
@@ -977,6 +978,43 @@ const isSharedRendererNativeGeneratedShakingPolygonSourceSupported = (source: st
       && /^#[0-9a-f]{6}$/i.test(parsed.colour)
       && typeof parsed.seed === 'number'
       && Number.isInteger(parsed.seed)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedToneCurveSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      grid_divisions?: unknown;
+      line_width?: unknown;
+      curve_points?: unknown;
+      curve_colour?: unknown;
+      grid_colour?: unknown;
+      background_colour?: unknown;
+    };
+    return (
+      parsed.generator === 'simple-tone-curve'
+      && typeof parsed.grid_divisions === 'number'
+      && Number.isInteger(parsed.grid_divisions)
+      && parsed.grid_divisions >= 1
+      && parsed.grid_divisions <= 16
+      && typeof parsed.line_width === 'number'
+      && Number.isInteger(parsed.line_width)
+      && parsed.line_width >= 1
+      && parsed.line_width <= 100
+      && Array.isArray(parsed.curve_points)
+      && parsed.curve_points.length >= 2
+      && parsed.curve_points.length <= 64
+      && parsed.curve_points.every((point) => typeof point === 'number' && Number.isFinite(point) && point >= 0 && point <= 1)
+      && typeof parsed.curve_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.curve_colour)
+      && typeof parsed.grid_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.grid_colour)
+      && typeof parsed.background_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
     );
   } catch {
     return false;

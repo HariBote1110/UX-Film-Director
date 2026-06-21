@@ -1,6 +1,20 @@
 # 進捗ログ
 
 ## 2026-06-22
+- Tim簡易トーンカーブをRust生成オブジェクトへ追加した。
+- Red: `script/てぃむ/簡易トーンカーブ.obj` を、Rust `GeneratedToneCurve` mediaとして扱う境界契約を作った。
+- Green: `ToneCurveObject` と `buildAviUtlToneCurveObject` を追加し、Timeline右クリックから `簡易トーンカーブを追加` / `Add Tone Curve` で置けるようにした。
+- Green: `rustSceneSnapshot` / shared renderer native support / Rust core schema / Rust backendに `GeneratedToneCurve` を追加した。
+- Green: Rust backendで不透明背景、グリッド、線幅付きトーンカーブを持つ決定的なフレームを生成できるようにした。
+- Green: `tim-simple-tone-curve` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-287a` に更新した。
+- 検証: `npm test -- --run src/utils/toneCurveObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts --reporter=dot` は98件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test media_schema rust_core_accepts_generated_tone_curve_media_kind_at_the_json_boundary -- --nocapture` は1件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_tone_curve_source_frame_contains_grid_and_curve -- --nocapture` は1件成功した。
+- 検証: 対象名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足、`mp4box` 型定義不足、`heavyEffectsStress.test.ts` の `PositionKeyframe` 未定義のみ検出した。
+- 残課題: 現時点の `GeneratedToneCurve` は表示用UIパネルとしての互換再実装。実際の色補正フィルタとして入力映像へトーンカーブを適用する処理は、後続のRust/WebGPU filter拡張で扱う。
+
+## 2026-06-22
 - SSD多角形_震えるをRust生成オブジェクトへ追加した。
 - Red: `script/ANM/ANM_ssd/多角形_震える.obj` を、Rust `GeneratedShakingPolygon` mediaとして扱う境界契約を作った。
 - Green: `ShakingPolygonObject` と `buildAviUtlShakingPolygonObject` を追加し、Timeline右クリックから `多角形_震えるを追加` / `Add Shaking Polygon` で置けるようにした。

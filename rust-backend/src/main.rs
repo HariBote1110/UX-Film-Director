@@ -409,6 +409,17 @@ struct GeneratedShakingPolygonSource {
     seed: i64,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedToneCurveSource {
+    generator: String,
+    grid_divisions: u32,
+    line_width: u32,
+    curve_points: Vec<f32>,
+    curve_colour: String,
+    grid_colour: String,
+    background_colour: String,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2394,6 +2405,7 @@ fn collect_native_render_sources(
             MediaKind::GeneratedTrackBar => build_generated_track_bar_source_frame(media)?,
             MediaKind::GeneratedPieChart => build_generated_pie_chart_source_frame(media)?,
             MediaKind::GeneratedHistogram => build_generated_histogram_source_frame(media)?,
+            MediaKind::GeneratedToneCurve => build_generated_tone_curve_source_frame(media)?,
             MediaKind::GeneratedSunburst => build_generated_sunburst_source_frame(media)?,
             MediaKind::GeneratedCircularArrow => {
                 build_generated_circular_arrow_source_frame(media)?
@@ -4851,6 +4863,95 @@ fn jitter_value(seed: u64, vertex_index: u32, phase: u64, lane: u64, range: f32)
         * range
 }
 
+fn build_generated_tone_curve_source_frame(media: &SceneMediaReference) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedToneCurve media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let tone_curve: GeneratedToneCurveSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedToneCurve media '{}': {error}", media.id))?;
+    validate_generated_tone_curve_source(&tone_curve).map_err(|message| {
+        format!(
+            "Invalid GeneratedToneCurve media '{}': {message}",
+            media.id
+        )
+    })?;
+    let background = parse_hex_colour_source(&tone_curve.background_colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedToneCurve media '{}': background_colour {message}",
+            media.id
+        )
+    })?;
+    let grid = parse_hex_colour_source(&tone_curve.grid_colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedToneCurve media '{}': grid_colour {message}",
+            media.id
+        )
+    })?;
+    let curve = parse_hex_colour_source(&tone_curve.curve_colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedToneCurve media '{}': curve_colour {message}",
+            media.id
+        )
+    })?;
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedToneCurve media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedToneCurve media byte length overflows".to_string())?;
+    let mut pixels = Vec::with_capacity(byte_len);
+    for _ in 0..pixel_count {
+        pixels.extend_from_slice(&[background[0], background[1], background[2], 255]);
+    }
+
+    let width = media.width as f32;
+    let height = media.height as f32;
+    let divisions = tone_curve.grid_divisions.max(1);
+    for index in 0..=divisions {
+        let x = index as f32 * (width - 1.0) / divisions as f32;
+        let y = index as f32 * (height - 1.0) / divisions as f32;
+        draw_line_segment_rgba(&mut pixels, media.width, media.height, (x, 0.0), (x, height - 1.0), grid, 1.0);
+        draw_line_segment_rgba(&mut pixels, media.width, media.height, (0.0, y), (width - 1.0, y), grid, 1.0);
+    }
+
+    let points = tone_curve_curve_points(&tone_curve.curve_points, width, height);
+    for pair in points.windows(2) {
+        draw_line_segment_rgba(
+            &mut pixels,
+            media.width,
+            media.height,
+            pair[0],
+            pair[1],
+            curve,
+            tone_curve.line_width as f32,
+        );
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedToneCurve media frame is invalid: {error:?}"))
+}
+
+fn tone_curve_curve_points(points: &[f32], width: f32, height: f32) -> Vec<(f32, f32)> {
+    let last_index = points.len().saturating_sub(1).max(1) as f32;
+    points
+        .iter()
+        .enumerate()
+        .map(|(index, value)| {
+            let x = index as f32 * (width - 1.0) / last_index;
+            let y = (1.0 - value.clamp(0.0, 1.0)) * (height - 1.0);
+            (x, y)
+        })
+        .collect()
+}
+
 fn draw_polygon_outline_rgba(
     pixels: &mut [u8],
     width: u32,
@@ -5655,6 +5756,32 @@ fn validate_generated_shaking_polygon_source(
         return Err("jitter_interval must be at least 1".to_string());
     }
     parse_hex_colour_source(&source.colour)?;
+    Ok(())
+}
+
+fn validate_generated_tone_curve_source(source: &GeneratedToneCurveSource) -> Result<(), String> {
+    if source.generator != "simple-tone-curve" {
+        return Err("generator must be simple-tone-curve".to_string());
+    }
+    if source.grid_divisions == 0 || source.grid_divisions > 16 {
+        return Err("grid_divisions must be 1..16".to_string());
+    }
+    if source.line_width == 0 || source.line_width > 100 {
+        return Err("line_width must be 1..100".to_string());
+    }
+    if source.curve_points.len() < 2 || source.curve_points.len() > 64 {
+        return Err("curve_points length must be 2..64".to_string());
+    }
+    if !source
+        .curve_points
+        .iter()
+        .all(|point| point.is_finite() && *point >= 0.0 && *point <= 1.0)
+    {
+        return Err("curve_points must be finite values in 0..1".to_string());
+    }
+    parse_hex_colour_source(&source.curve_colour)?;
+    parse_hex_colour_source(&source.grid_colour)?;
+    parse_hex_colour_source(&source.background_colour)?;
     Ok(())
 }
 
@@ -8279,5 +8406,40 @@ mod tests {
         assert!(white_count > 8_000);
         assert!(transparent_count > 90_000);
         assert!(changed_bytes > 2_000);
+    }
+
+    #[test]
+    fn generated_tone_curve_source_frame_contains_grid_and_curve() {
+        let media = SceneMediaReference {
+            id: "tone-curve-1".to_string(),
+            kind: MediaKind::GeneratedToneCurve,
+            source: r##"{"generator":"simple-tone-curve","grid_divisions":4,"line_width":3,"curve_points":[0,0.16,0.42,0.7,1],"curve_colour":"#ffffff","grid_colour":"#333333","background_colour":"#000000"}"##.to_string(),
+            width: 360,
+            height: 360,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame =
+            build_generated_tone_curve_source_frame(&media).expect("generated tone curve frame should render");
+        let white_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [255, 255, 255, 255])
+            .count();
+        let grid_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [51, 51, 51, 255])
+            .count();
+        let background_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [0, 0, 0, 255])
+            .count();
+
+        assert!(white_count > 1_000);
+        assert!(grid_count > 2_000);
+        assert!(background_count > 100_000);
     }
 }
