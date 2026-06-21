@@ -23,6 +23,7 @@ import type {
   ShapeObject,
   SunburstObject,
   TartanCheckObject,
+  HoundstoothObject,
   TimelineObject,
   TrackBarObject,
   TriangleBracketObject,
@@ -394,6 +395,16 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     stripeColourB: '#c9c526',
     lineColour: '#000000',
   };
+  const houndstooth: HoundstoothObject = {
+    ...baseObject('ssd-houndstooth', 'houndstooth', 23),
+    type: 'houndstooth',
+    name: '千鳥格子',
+    width: 800,
+    height: 450,
+    patternSize: 50,
+    foregroundColour: '#000000',
+    backgroundColour: '#ffffff',
+  };
 
   return [
     solidShape,
@@ -416,6 +427,7 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     circularArrow,
     triangleBracket,
     tartanCheck,
+    houndstooth,
   ];
 };
 
@@ -496,6 +508,7 @@ describe('全読込可能メディア E2E', () => {
       'GeneratedCircularArrow',
       'GeneratedTriangleBracket',
       'GeneratedTartanCheck',
+      'GeneratedHoundstooth',
     ]);
     expect(snapshotResult.media
       .filter((media) => media.kind === 'Video')
@@ -631,6 +644,12 @@ describe('全読込可能メディア E2E', () => {
       stripe_colour_b: '#c9c526',
       line_colour: '#000000',
     });
+    expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'ssd-houndstooth')?.source ?? '{}')).toMatchObject({
+      generator: 'houndstooth',
+      pattern_size: 50,
+      foreground_colour: '#000000',
+      background_colour: '#ffffff',
+    });
     expect(snapshotResult.media.some((media) => media.source.endsWith('.wav'))).toBe(false);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'shape-solid-rect')?.transform).toMatchObject({
       translation_x: 64.5,
@@ -664,6 +683,7 @@ describe('全読込可能メディア E2E', () => {
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-circular-arrow')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-triangle-bracket')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-tartan-check')?.source_frame).toBe(0);
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-houndstooth')?.source_frame).toBe(0);
     expect(validateRustSceneSnapshotBoundary({
       snapshot: snapshotResult.snapshot,
       media: snapshotResult.media,

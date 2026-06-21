@@ -12,7 +12,7 @@ import {
   shouldSynchroniseTimelineForProjectExportFrame,
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, ImageObject, ParticleObject, PieChartObject, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, HoundstoothObject, ImageObject, ParticleObject, PieChartObject, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject } from '../types';
 
 const source = () =>
   readFileSync(new URL('./projectExportFrameCanvas.ts', import.meta.url), 'utf8');
@@ -536,6 +536,31 @@ const tartanCheck = (patch: Partial<TartanCheckObject> = {}): TartanCheckObject 
   stripeColourA: '#a81616',
   stripeColourB: '#c9c526',
   lineColour: '#000000',
+  ...patch,
+});
+
+const houndstooth = (patch: Partial<HoundstoothObject> = {}): HoundstoothObject => ({
+  id: 'houndstooth-1',
+  type: 'houndstooth',
+  name: '千鳥格子',
+  layer: 16,
+  startTime: 0,
+  duration: 5,
+  x: 560,
+  y: 315,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 560,
+  endY: 315,
+  easing: 'linear',
+  width: 800,
+  height: 450,
+  patternSize: 50,
+  foregroundColour: '#000000',
+  backgroundColour: '#ffffff',
   ...patch,
 });
 

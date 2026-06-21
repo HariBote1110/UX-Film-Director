@@ -3,7 +3,7 @@ import { shouldSkipPixiGeneratedEffectForSharedRenderer } from './pixiGeneratedE
 
 describe('pixiGeneratedEffectCutover', () => {
   it('skips Pixi generated effect rendering when the Rust native frame owns it', () => {
-    const sharedRendererGeneratedEffectObjectIds = new Set(['waveform-1', 'particle-1', 'barcode-1', 'puzzle-1', 'colour-wheel-1', 'gourd-1', 'gear-1', 'track-bar-1', 'pie-chart-1', 'histogram-1', 'sunburst-1', 'circular-arrow-1', 'triangle-bracket-1', 'tartan-check-1']);
+    const sharedRendererGeneratedEffectObjectIds = new Set(['waveform-1', 'particle-1', 'barcode-1', 'puzzle-1', 'colour-wheel-1', 'gourd-1', 'gear-1', 'track-bar-1', 'pie-chart-1', 'histogram-1', 'sunburst-1', 'circular-arrow-1', 'triangle-bracket-1', 'tartan-check-1', 'houndstooth-1']);
 
     expect(shouldSkipPixiGeneratedEffectForSharedRenderer({
       objectId: 'waveform-1',
@@ -86,6 +86,12 @@ describe('pixiGeneratedEffectCutover', () => {
     expect(shouldSkipPixiGeneratedEffectForSharedRenderer({
       objectId: 'tartan-check-1',
       objectType: 'tartan_check',
+      isExporting: true,
+      sharedRendererGeneratedEffectObjectIds,
+    })).toBe(true);
+    expect(shouldSkipPixiGeneratedEffectForSharedRenderer({
+      objectId: 'houndstooth-1',
+      objectType: 'houndstooth',
       isExporting: true,
       sharedRendererGeneratedEffectObjectIds,
     })).toBe(true);

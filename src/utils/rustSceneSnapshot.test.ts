@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, ImageObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, HoundstoothObject, ImageObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -535,6 +535,31 @@ const baseTartanCheck = (patch: Partial<TartanCheckObject> = {}): TartanCheckObj
   stripeColourA: '#a81616',
   stripeColourB: '#c9c526',
   lineColour: '#000000',
+  ...patch,
+});
+
+const baseHoundstooth = (patch: Partial<HoundstoothObject> = {}): HoundstoothObject => ({
+  id: 'houndstooth-1',
+  type: 'houndstooth',
+  name: '千鳥格子',
+  layer: 18,
+  startTime: 1,
+  duration: 4,
+  x: 560,
+  y: 315,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 560,
+  endY: 315,
+  easing: 'linear',
+  width: 800,
+  height: 450,
+  patternSize: 50,
+  foregroundColour: '#000000',
+  backgroundColour: '#ffffff',
   ...patch,
 });
 
@@ -1165,6 +1190,41 @@ describe('buildRustSceneSnapshotForTimeline', () => {
           stripe_colour_a: '#a81616',
           stripe_colour_b: '#c9c526',
           line_colour: '#000000',
+        }),
+        width: 800,
+        height: 450,
+      },
+    ]);
+  });
+
+  it('builds a generated houndstooth media plane from a houndstooth object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseHoundstooth()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated houndstooth snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'houndstooth-1',
+      track_id: 'layer-18',
+      media_id: 'houndstooth-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'houndstooth-1',
+        kind: 'GeneratedHoundstooth',
+        source: JSON.stringify({
+          generator: 'houndstooth',
+          pattern_size: 50,
+          foreground_colour: '#000000',
+          background_colour: '#ffffff',
         }),
         width: 800,
         height: 450,

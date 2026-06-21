@@ -148,6 +148,12 @@ const media: RustSceneMediaReference[] = [{
   width: 800,
   height: 450,
 }, {
+  id: 'houndstooth-1',
+  kind: 'GeneratedHoundstooth' as RustSceneMediaReference['kind'],
+  source: '{"generator":"houndstooth","pattern_size":50,"foreground_colour":"#000000","background_colour":"#ffffff"}',
+  width: 800,
+  height: 450,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -201,8 +207,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[16])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[17])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[18])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[19])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[19])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[20])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[21])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {

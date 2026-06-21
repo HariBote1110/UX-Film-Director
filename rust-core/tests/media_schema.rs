@@ -243,3 +243,19 @@ fn rust_core_accepts_generated_tartan_check_media_kind_at_the_json_boundary() {
     assert_eq!(media.width, 800);
     assert_eq!(media.height, 450);
 }
+
+#[test]
+fn rust_core_accepts_generated_houndstooth_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "houndstooth-1",
+        "kind": "GeneratedHoundstooth",
+        "source": "{\"generator\":\"houndstooth\",\"pattern_size\":50,\"foreground_colour\":\"#000000\",\"background_colour\":\"#ffffff\"}",
+        "width": 800,
+        "height": 450
+    }))
+    .expect("GeneratedHoundstooth media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedHoundstooth);
+    assert_eq!(media.width, 800);
+    assert_eq!(media.height, 450);
+}
