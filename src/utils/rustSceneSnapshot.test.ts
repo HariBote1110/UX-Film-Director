@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GearObject, GourdObject, ImageObject, ParticleObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, TrackBarObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GearObject, GourdObject, ImageObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, TrackBarObject, VideoObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -357,6 +357,35 @@ const baseTrackBar = (patch: Partial<TrackBarObject> = {}): TrackBarObject => ({
   labels: ['TrackA', 'TrackB', 'TrackC', 'TrackD'],
   barColour: '#ffffff',
   backgroundOpacity: 0.05,
+  ...patch,
+});
+
+const basePieChart = (patch: Partial<PieChartObject> = {}): PieChartObject => ({
+  id: 'pie-chart-1',
+  type: 'pie_chart',
+  name: 'パイシートグラフ',
+  layer: 12,
+  startTime: 1,
+  duration: 4,
+  x: 760,
+  y: 340,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 760,
+  endY: 340,
+  easing: 'linear',
+  width: 400,
+  height: 400,
+  values: [10, 20, 30, 40],
+  sortMode: 'descending',
+  normaliseToHundred: true,
+  labelMode: 'percentage',
+  progressPercent: 100,
+  strokeWidth: 20,
+  sliceColours: ['#389ba6', '#f2e2c4', '#f29422', '#f27830', '#f24b0f'],
   ...patch,
 });
 
@@ -752,6 +781,45 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         }),
         width: 360,
         height: 120,
+      },
+    ]);
+  });
+
+  it('builds a generated pie chart media plane from a pie chart object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [basePieChart()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated pie chart snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'pie-chart-1',
+      track_id: 'layer-12',
+      media_id: 'pie-chart-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'pie-chart-1',
+        kind: 'GeneratedPieChart',
+        source: JSON.stringify({
+          generator: 'pie-sheet-graph',
+          values: [10, 20, 30, 40],
+          sort_mode: 'descending',
+          normalise_to_hundred: true,
+          label_mode: 'percentage',
+          progress_percent: 100,
+          stroke_width: 20,
+          slice_colours: ['#389ba6', '#f2e2c4', '#f29422', '#f27830', '#f24b0f'],
+        }),
+        width: 400,
+        height: 400,
       },
     ]);
   });

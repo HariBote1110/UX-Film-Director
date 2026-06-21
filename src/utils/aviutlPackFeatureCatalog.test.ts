@@ -42,6 +42,7 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('tim-gourd')?.sourceRelativePaths).toContain('script/てぃむ/ひょうたんTM.obj');
     expect(byId.get('tim-gear')?.sourceRelativePaths).toContain('script/てぃむ/歯車.anm');
     expect(byId.get('custom-track-bar')?.sourceRelativePaths).toContain('script/93/カスタムトラックバー.obj');
+    expect(byId.get('pie-sheet-graph')?.sourceRelativePaths).toContain('script/93/パイシートグラフ.obj');
     expect(byId.get('tim-motion-path')?.sourceRelativePaths).toEqual(expect.arrayContaining([
       'script/てぃむ/@モーションパスA-V2.anm',
       'script/てぃむ/@モーションパスD.anm',

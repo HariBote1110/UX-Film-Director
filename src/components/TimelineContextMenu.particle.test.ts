@@ -17,6 +17,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('buildAviUtlBubbleObject');
     expect(code).toContain('buildAviUtlFocusLinesObject');
     expect(code).toContain('buildAviUtlInkSplashObject');
+    expect(code).toContain('buildAviUtlPieChartObject');
     expect(code).toContain('buildAviUtlTrackBarObject');
     expect(code).toContain('buildDefaultStandardParticleObject');
     expect(code).toContain('handleAddBarcode');
@@ -29,6 +30,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('handleAddBubble');
     expect(code).toContain('handleAddFocusLines');
     expect(code).toContain('handleAddInkSplash');
+    expect(code).toContain('handleAddPieChart');
     expect(code).toContain('handleAddTrackBar');
     expect(code).toContain('Add Barcode');
     expect(code).toContain('Add Colour Wheel');
@@ -40,6 +42,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('Add Bubbles');
     expect(code).toContain('Add Focus Lines');
     expect(code).toContain('Add Ink Splash');
+    expect(code).toContain('Add Pie Chart');
     expect(code).toContain('Add Track Bar');
     expect(code).toContain('バーコードを追加');
     expect(code).toContain('色相環を追加');
@@ -51,6 +54,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('泡を追加');
     expect(code).toContain('集中線を追加');
     expect(code).toContain('インクを追加');
+    expect(code).toContain('パイシートグラフを追加');
     expect(code).toContain('トラックバーを追加');
   });
 });

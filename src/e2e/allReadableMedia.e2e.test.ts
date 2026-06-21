@@ -14,6 +14,7 @@ import type {
   ImageObject,
   LayerState,
   ParticleObject,
+  PieChartObject,
   ProjectSettings,
   PsdObject,
   PuzzlePieceObject,
@@ -300,6 +301,20 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     barColour: '#ffffff',
     backgroundOpacity: 0.05,
   };
+  const pieChart: PieChartObject = {
+    ...baseObject('pie-sheet-graph', 'pie_chart', 17),
+    type: 'pie_chart',
+    name: 'パイシートグラフ',
+    width: 400,
+    height: 400,
+    values: [10, 20, 30, 40],
+    sortMode: 'descending',
+    normaliseToHundred: true,
+    labelMode: 'percentage',
+    progressPercent: 100,
+    strokeWidth: 20,
+    sliceColours: ['#389ba6', '#f2e2c4', '#f29422', '#f27830', '#f24b0f'],
+  };
 
   return [
     solidShape,
@@ -316,6 +331,7 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     gourd,
     gear,
     trackBar,
+    pieChart,
   ];
 };
 
@@ -390,6 +406,7 @@ describe('全読込可能メディア E2E', () => {
       'GeneratedGourd',
       'GeneratedGear',
       'GeneratedTrackBar',
+      'GeneratedPieChart',
     ]);
     expect(snapshotResult.media
       .filter((media) => media.kind === 'Video')
@@ -461,6 +478,16 @@ describe('全読込可能メディア E2E', () => {
       bar_colour: '#ffffff',
       background_opacity: 0.05,
     });
+    expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'pie-sheet-graph')?.source ?? '{}')).toMatchObject({
+      generator: 'pie-sheet-graph',
+      values: [10, 20, 30, 40],
+      sort_mode: 'descending',
+      normalise_to_hundred: true,
+      label_mode: 'percentage',
+      progress_percent: 100,
+      stroke_width: 20,
+      slice_colours: ['#389ba6', '#f2e2c4', '#f29422', '#f27830', '#f24b0f'],
+    });
     expect(snapshotResult.media.some((media) => media.source.endsWith('.wav'))).toBe(false);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'shape-solid-rect')?.transform).toMatchObject({
       translation_x: 64.5,
@@ -488,6 +515,7 @@ describe('全読込可能メディア E2E', () => {
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'gourd-tm')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'gear-t')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'custom-track-bar')?.source_frame).toBe(0);
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'pie-sheet-graph')?.source_frame).toBe(0);
     expect(validateRustSceneSnapshotBoundary({
       snapshot: snapshotResult.snapshot,
       media: snapshotResult.media,

@@ -112,6 +112,12 @@ const media: RustSceneMediaReference[] = [{
   width: 360,
   height: 120,
 }, {
+  id: 'pie-chart-1',
+  kind: 'GeneratedPieChart' as RustSceneMediaReference['kind'],
+  source: '{"generator":"pie-sheet-graph","values":[10,20,30,40],"sort_mode":"descending","normalise_to_hundred":true,"label_mode":"percentage","progress_percent":100,"stroke_width":20,"slice_colours":["#389ba6","#f2e2c4","#f29422","#f27830","#f24b0f"]}',
+  width: 400,
+  height: 400,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',

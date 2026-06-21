@@ -147,3 +147,19 @@ fn rust_core_accepts_generated_track_bar_media_kind_at_the_json_boundary() {
     assert_eq!(media.width, 360);
     assert_eq!(media.height, 120);
 }
+
+#[test]
+fn rust_core_accepts_generated_pie_chart_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "pie-chart-1",
+        "kind": "GeneratedPieChart",
+        "source": "{\"generator\":\"pie-sheet-graph\",\"values\":[10,20,30,40],\"sort_mode\":\"descending\",\"normalise_to_hundred\":true,\"label_mode\":\"percentage\",\"progress_percent\":100,\"stroke_width\":20,\"slice_colours\":[\"#389ba6\",\"#f2e2c4\",\"#f29422\",\"#f27830\",\"#f24b0f\"]}",
+        "width": 400,
+        "height": 400
+    }))
+    .expect("GeneratedPieChart media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedPieChart);
+    assert_eq!(media.width, 400);
+    assert_eq!(media.height, 400);
+}

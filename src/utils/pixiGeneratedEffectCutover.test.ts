@@ -54,6 +54,12 @@ describe('pixiGeneratedEffectCutover', () => {
       sharedRendererGeneratedEffectObjectIds,
     })).toBe(true);
     expect(shouldSkipPixiGeneratedEffectForSharedRenderer({
+      objectId: 'pie-chart-1',
+      objectType: 'pie_chart',
+      isExporting: true,
+      sharedRendererGeneratedEffectObjectIds,
+    })).toBe(true);
+    expect(shouldSkipPixiGeneratedEffectForSharedRenderer({
       objectId: 'text-1',
       objectType: 'text',
       isExporting: false,

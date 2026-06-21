@@ -12,7 +12,7 @@ import {
   shouldSynchroniseTimelineForProjectExportFrame,
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GearObject, GourdObject, ImageObject, ParticleObject, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, TrackBarObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, ColourWheelObject, GearObject, GourdObject, ImageObject, ParticleObject, PieChartObject, PsdObject, PuzzlePieceObject, ShapeObject, TimelineObject, TrackBarObject, VideoObject } from '../types';
 
 const source = () =>
   readFileSync(new URL('./projectExportFrameCanvas.ts', import.meta.url), 'utf8');
@@ -358,6 +358,35 @@ const trackBar = (patch: Partial<TrackBarObject> = {}): TrackBarObject => ({
   labels: ['TrackA', 'TrackB', 'TrackC', 'TrackD'],
   barColour: '#ffffff',
   backgroundOpacity: 0.05,
+  ...patch,
+});
+
+const pieChart = (patch: Partial<PieChartObject> = {}): PieChartObject => ({
+  id: 'pie-chart-1',
+  type: 'pie_chart',
+  name: 'パイシートグラフ',
+  layer: 10,
+  startTime: 0,
+  duration: 5,
+  x: 760,
+  y: 340,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 760,
+  endY: 340,
+  easing: 'linear',
+  width: 400,
+  height: 400,
+  values: [10, 20, 30, 40],
+  sortMode: 'descending',
+  normaliseToHundred: true,
+  labelMode: 'percentage',
+  progressPercent: 100,
+  strokeWidth: 20,
+  sliceColours: ['#389ba6', '#f2e2c4', '#f29422', '#f27830', '#f24b0f'],
   ...patch,
 });
 
@@ -792,7 +821,7 @@ describe('resolveProjectExportRustFrameSourceContext', () => {
   });
 
   it('marks standard particle exports as native-render media instead of legacy canvas work', () => {
-    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), gourd(), gear(), trackBar(), audio()];
+    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), gourd(), gear(), trackBar(), pieChart(), audio()];
 
     expect(hasProjectExportNativeRenderMediaObjects(objects)).toBe(true);
     expect(resolveProjectExportRustFrameSourceContext({
