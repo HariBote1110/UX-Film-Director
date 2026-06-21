@@ -22,6 +22,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedRegionFrame') return isSharedRendererNativeGeneratedRegionFrameSourceSupported(reference.source);
   if (reference.kind === 'GeneratedSimpleTube') return isSharedRendererNativeGeneratedSimpleTubeSourceSupported(reference.source);
   if (reference.kind === 'GeneratedSphereDots') return isSharedRendererNativeGeneratedSphereDotsSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedSphericalField') return isSharedRendererNativeGeneratedSphericalFieldSourceSupported(reference.source);
   if (reference.kind === 'GeneratedSunburst') return isSharedRendererNativeGeneratedSunburstSourceSupported(reference.source);
   if (reference.kind === 'GeneratedCircularArrow') return isSharedRendererNativeGeneratedCircularArrowSourceSupported(reference.source);
   if (reference.kind === 'GeneratedTriangleBracket') return isSharedRendererNativeGeneratedTriangleBracketSourceSupported(reference.source);
@@ -1419,6 +1420,69 @@ const isSharedRendererNativeGeneratedSphereDotsSourceSupported = (source: string
       && /^#[0-9a-f]{6}$/i.test(parsed.secondary_colour)
       && Number.isInteger(parsed.seed)
       && typeof parsed.plane_mode === 'boolean'
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedSphericalFieldSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      radius?: unknown;
+      strength?: unknown;
+      colour_amount?: unknown;
+      alpha_amount?: unknown;
+      line_width?: unknown;
+      ring_count?: unknown;
+      vector_count?: unknown;
+      field_colour?: unknown;
+      secondary_colour?: unknown;
+      background_opacity?: unknown;
+      container?: unknown;
+      seed?: unknown;
+    };
+    return (
+      parsed.generator === 'spherical-field-93'
+      && typeof parsed.radius === 'number'
+      && Number.isFinite(parsed.radius)
+      && parsed.radius >= 0
+      && parsed.radius <= 5000
+      && typeof parsed.strength === 'number'
+      && Number.isFinite(parsed.strength)
+      && parsed.strength >= -200
+      && parsed.strength <= 200
+      && typeof parsed.colour_amount === 'number'
+      && Number.isFinite(parsed.colour_amount)
+      && parsed.colour_amount >= -100
+      && parsed.colour_amount <= 100
+      && typeof parsed.alpha_amount === 'number'
+      && Number.isFinite(parsed.alpha_amount)
+      && parsed.alpha_amount >= -100
+      && parsed.alpha_amount <= 100
+      && typeof parsed.line_width === 'number'
+      && Number.isFinite(parsed.line_width)
+      && parsed.line_width >= 0
+      && parsed.line_width <= 100
+      && typeof parsed.ring_count === 'number'
+      && Number.isInteger(parsed.ring_count)
+      && parsed.ring_count >= 1
+      && parsed.ring_count <= 64
+      && typeof parsed.vector_count === 'number'
+      && Number.isInteger(parsed.vector_count)
+      && parsed.vector_count >= 0
+      && parsed.vector_count <= 256
+      && typeof parsed.field_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.field_colour)
+      && typeof parsed.secondary_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.secondary_colour)
+      && typeof parsed.background_opacity === 'number'
+      && Number.isFinite(parsed.background_opacity)
+      && parsed.background_opacity >= 0
+      && parsed.background_opacity <= 1
+      && typeof parsed.container === 'boolean'
+      && Number.isInteger(parsed.seed)
     );
   } catch {
     return false;

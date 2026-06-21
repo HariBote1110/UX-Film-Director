@@ -517,6 +517,23 @@ struct GeneratedSphereDotsSource {
     plane_mode: bool,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedSphericalFieldSource {
+    generator: String,
+    radius: f32,
+    strength: f32,
+    colour_amount: f32,
+    alpha_amount: f32,
+    line_width: f32,
+    ring_count: u32,
+    vector_count: u32,
+    field_colour: String,
+    secondary_colour: String,
+    background_opacity: f32,
+    container: bool,
+    seed: i64,
+}
+
 fn default_simple_tube_colour_pattern() -> String {
     "single".to_string()
 }
@@ -2526,6 +2543,9 @@ fn collect_native_render_sources(
             MediaKind::GeneratedRegionFrame => build_generated_region_frame_source_frame(media)?,
             MediaKind::GeneratedSimpleTube => build_generated_simple_tube_source_frame(media)?,
             MediaKind::GeneratedSphereDots => build_generated_sphere_dots_source_frame(media)?,
+            MediaKind::GeneratedSphericalField => {
+                build_generated_spherical_field_source_frame(media)?
+            }
             MediaKind::GeneratedSunburst => build_generated_sunburst_source_frame(media)?,
             MediaKind::GeneratedCircularArrow => {
                 build_generated_circular_arrow_source_frame(media)?
@@ -6025,6 +6045,187 @@ fn draw_sphere_dots_plane_rgba(
     }
 }
 
+fn build_generated_spherical_field_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedSphericalField media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let field: GeneratedSphericalFieldSource = serde_json::from_str(&media.source).map_err(|error| {
+        format!(
+            "Invalid GeneratedSphericalField media '{}': {error}",
+            media.id
+        )
+    })?;
+    validate_generated_spherical_field_source(&field).map_err(|message| {
+        format!(
+            "Invalid GeneratedSphericalField media '{}': {message}",
+            media.id
+        )
+    })?;
+    let field_colour = parse_hex_colour_source(&field.field_colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedSphericalField media '{}': field_colour {message}",
+            media.id
+        )
+    })?;
+    let secondary_colour =
+        parse_hex_colour_source(&field.secondary_colour).map_err(|message| {
+            format!(
+                "Invalid GeneratedSphericalField media '{}': secondary_colour {message}",
+                media.id
+            )
+        })?;
+
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedSphericalField media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedSphericalField media byte length overflows".to_string())?;
+    let mut pixels = vec![0; byte_len];
+    draw_spherical_field_rgba(
+        &mut pixels,
+        media.width,
+        media.height,
+        &field,
+        field_colour,
+        secondary_colour,
+    );
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedSphericalField media frame is invalid: {error:?}"))
+}
+
+fn draw_spherical_field_rgba(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    field: &GeneratedSphericalFieldSource,
+    field_colour: [u8; 3],
+    secondary_colour: [u8; 3],
+) {
+    let centre_x = width as f32 * 0.5;
+    let centre_y = height as f32 * 0.5;
+    let radius = field
+        .radius
+        .min(width.min(height) as f32 * 0.46)
+        .max(1.0);
+    let line_width = field.line_width.max(0.5);
+    let ring_count = field.ring_count.max(1);
+    let vector_count = field.vector_count;
+    let strength_amount = (field.strength / 100.0).clamp(-2.0, 2.0);
+    let colour_amount = (field.colour_amount.abs() / 100.0).clamp(0.0, 1.0);
+    let alpha_factor = if field.alpha_amount >= 0.0 {
+        1.0 - (field.alpha_amount / 100.0).clamp(0.0, 1.0) * 0.5
+    } else {
+        1.0
+    };
+    let field_line_colour = mix_rgb_u8(secondary_colour, field_colour, colour_amount);
+    let fill_alpha = (field.background_opacity.clamp(0.0, 1.0) * 255.0 * alpha_factor)
+        .round()
+        .clamp(0.0, 255.0) as u8;
+    let _seed = field.seed;
+
+    if fill_alpha > 0 {
+        fill_disc_rgba(
+            pixels,
+            width,
+            height,
+            (centre_x, centre_y),
+            radius,
+            field_line_colour,
+            fill_alpha,
+        );
+    }
+
+    for ring_index in 1..=ring_count {
+        let ring_radius = radius * ring_index as f32 / ring_count as f32;
+        draw_circle_outline_rgba(
+            pixels,
+            width,
+            height,
+            (centre_x, centre_y),
+            ring_radius,
+            field_line_colour,
+            line_width,
+        );
+    }
+
+    if vector_count > 0 {
+        for vector_index in 0..vector_count {
+            let angle = std::f32::consts::TAU * vector_index as f32 / vector_count as f32;
+            let inner = radius * 0.16;
+            let outer = radius * (0.88 + strength_amount.abs().min(1.0) * 0.08);
+            let start_radius = if field.container || strength_amount < 0.0 {
+                outer
+            } else {
+                inner
+            };
+            let end_radius = if field.container || strength_amount < 0.0 {
+                inner
+            } else {
+                outer
+            };
+            draw_line_segment_rgba(
+                pixels,
+                width,
+                height,
+                (
+                    centre_x + angle.cos() * start_radius,
+                    centre_y + angle.sin() * start_radius,
+                ),
+                (
+                    centre_x + angle.cos() * end_radius,
+                    centre_y + angle.sin() * end_radius,
+                ),
+                secondary_colour,
+                (line_width * 0.75).max(0.5),
+            );
+        }
+    }
+
+    fill_disc_rgba(
+        pixels,
+        width,
+        height,
+        (centre_x, centre_y),
+        (line_width * 1.5).max(2.0),
+        secondary_colour,
+        255,
+    );
+}
+
+fn draw_circle_outline_rgba(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    centre: (f32, f32),
+    radius: f32,
+    colour: [u8; 3],
+    line_width: f32,
+) {
+    if radius <= 0.0 || line_width <= 0.0 {
+        return;
+    }
+    let segments = ((radius * 0.75).round() as u32).clamp(24, 192);
+    let mut previous = point_on_circle(centre.0, centre.1, radius, 0.0);
+    for segment_index in 1..=segments {
+        let angle = std::f32::consts::TAU * segment_index as f32 / segments as f32;
+        let next = point_on_circle(centre.0, centre.1, radius, angle);
+        draw_line_segment_rgba(pixels, width, height, previous, next, colour, line_width);
+        previous = next;
+    }
+}
+
 fn draw_simple_tube_torus_rgba(
     pixels: &mut [u8],
     width: u32,
@@ -7656,6 +7857,47 @@ fn validate_generated_sphere_dots_source(source: &GeneratedSphereDotsSource) -> 
         return Err("latitude_line_width must be 0..100".to_string());
     }
     parse_hex_colour_source(&source.colour)?;
+    parse_hex_colour_source(&source.secondary_colour)?;
+    Ok(())
+}
+
+fn validate_generated_spherical_field_source(
+    source: &GeneratedSphericalFieldSource,
+) -> Result<(), String> {
+    if source.generator != "spherical-field-93" {
+        return Err("generator must be spherical-field-93".to_string());
+    }
+    if !source.radius.is_finite() || !(0.0..=5000.0).contains(&source.radius) {
+        return Err("radius must be 0..5000".to_string());
+    }
+    if !source.strength.is_finite() || !(-200.0..=200.0).contains(&source.strength) {
+        return Err("strength must be -200..200".to_string());
+    }
+    if !source.colour_amount.is_finite()
+        || !(-100.0..=100.0).contains(&source.colour_amount)
+    {
+        return Err("colour_amount must be -100..100".to_string());
+    }
+    if !source.alpha_amount.is_finite()
+        || !(-100.0..=100.0).contains(&source.alpha_amount)
+    {
+        return Err("alpha_amount must be -100..100".to_string());
+    }
+    if !source.line_width.is_finite() || !(0.0..=100.0).contains(&source.line_width) {
+        return Err("line_width must be 0..100".to_string());
+    }
+    if source.ring_count == 0 || source.ring_count > 64 {
+        return Err("ring_count must be 1..64".to_string());
+    }
+    if source.vector_count > 256 {
+        return Err("vector_count must be 0..256".to_string());
+    }
+    if !source.background_opacity.is_finite()
+        || !(0.0..=1.0).contains(&source.background_opacity)
+    {
+        return Err("background_opacity must be 0..1".to_string());
+    }
+    parse_hex_colour_source(&source.field_colour)?;
     parse_hex_colour_source(&source.secondary_colour)?;
     Ok(())
 }

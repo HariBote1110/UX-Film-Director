@@ -105,6 +105,7 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'region_frame',
   'simple_tube',
   'sphere_dots',
+  'spherical_field',
   'sunburst',
   'circular_arrow',
   'triangle_bracket',
@@ -548,6 +549,22 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (typeof candidate.secondaryColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.secondaryColour)) return false;
     if (!isFiniteNumber(candidate.seed)) return false;
     if (typeof candidate.planeMode !== 'boolean') return false;
+  }
+  if (candidate.type === 'spherical_field') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.radius) || candidate.radius < 0 || candidate.radius > 5000) return false;
+    if (!isFiniteNumber(candidate.strength) || candidate.strength < -200 || candidate.strength > 200) return false;
+    if (!isFiniteNumber(candidate.colourAmount) || candidate.colourAmount < -100 || candidate.colourAmount > 100) return false;
+    if (!isFiniteNumber(candidate.alphaAmount) || candidate.alphaAmount < -100 || candidate.alphaAmount > 100) return false;
+    if (!isFiniteNumber(candidate.lineWidth) || candidate.lineWidth < 0 || candidate.lineWidth > 100) return false;
+    if (typeof candidate.ringCount !== 'number' || !Number.isInteger(candidate.ringCount) || candidate.ringCount < 1 || candidate.ringCount > 64) return false;
+    if (typeof candidate.vectorCount !== 'number' || !Number.isInteger(candidate.vectorCount) || candidate.vectorCount < 0 || candidate.vectorCount > 256) return false;
+    if (typeof candidate.fieldColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.fieldColour)) return false;
+    if (typeof candidate.secondaryColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.secondaryColour)) return false;
+    if (!isFiniteNumber(candidate.backgroundOpacity) || candidate.backgroundOpacity < 0 || candidate.backgroundOpacity > 1) return false;
+    if (typeof candidate.container !== 'boolean') return false;
+    if (!isFiniteNumber(candidate.seed)) return false;
   }
   return true;
 };

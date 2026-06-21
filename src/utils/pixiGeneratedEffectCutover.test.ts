@@ -3,7 +3,7 @@ import { shouldSkipPixiGeneratedEffectForSharedRenderer } from './pixiGeneratedE
 
 describe('pixiGeneratedEffectCutover', () => {
   it('skips Pixi generated effect rendering when the Rust native frame owns it', () => {
-    const sharedRendererGeneratedEffectObjectIds = new Set(['waveform-1', 'audio-sphere-1', 'particle-1', 'barcode-1', 'puzzle-1', 'colour-wheel-1', 'gourd-1', 'gear-1', 'track-bar-1', 'pie-chart-1', 'histogram-1', 'getcolor-dot-field-1', 'hksy-checker-grid-1', 'tone-curve-1', 'sunburst-1', 'circular-arrow-1', 'triangle-bracket-1', 'tartan-check-1', 'houndstooth-1', 'yagasuri-1', 'paper-airplane-1', 'asanoha-pattern-1', 'focus-lines-plus-1', 'random-line-ex-1', 'hologram-1', 'protractor-1', 'shaking-polygon-1']);
+    const sharedRendererGeneratedEffectObjectIds = new Set(['waveform-1', 'audio-sphere-1', 'particle-1', 'barcode-1', 'puzzle-1', 'colour-wheel-1', 'gourd-1', 'gear-1', 'track-bar-1', 'pie-chart-1', 'histogram-1', 'getcolor-dot-field-1', 'hksy-checker-grid-1', 'spherical-field-1', 'tone-curve-1', 'sunburst-1', 'circular-arrow-1', 'triangle-bracket-1', 'tartan-check-1', 'houndstooth-1', 'yagasuri-1', 'paper-airplane-1', 'asanoha-pattern-1', 'focus-lines-plus-1', 'random-line-ex-1', 'hologram-1', 'protractor-1', 'shaking-polygon-1']);
 
     expect(shouldSkipPixiGeneratedEffectForSharedRenderer({
       objectId: 'waveform-1',
@@ -86,6 +86,12 @@ describe('pixiGeneratedEffectCutover', () => {
     expect(shouldSkipPixiGeneratedEffectForSharedRenderer({
       objectId: 'hksy-checker-grid-1',
       objectType: 'hksy_checker_grid',
+      isExporting: true,
+      sharedRendererGeneratedEffectObjectIds,
+    })).toBe(true);
+    expect(shouldSkipPixiGeneratedEffectForSharedRenderer({
+      objectId: 'spherical-field-1',
+      objectType: 'spherical_field',
       isExporting: true,
       sharedRendererGeneratedEffectObjectIds,
     })).toBe(true);

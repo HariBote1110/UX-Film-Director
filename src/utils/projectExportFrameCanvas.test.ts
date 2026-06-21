@@ -12,7 +12,7 @@ import {
   shouldSynchroniseTimelineForProjectExportFrame,
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
-import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, SphericalFieldObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const source = () =>
   readFileSync(new URL('./projectExportFrameCanvas.ts', import.meta.url), 'utf8');
@@ -923,6 +923,40 @@ const audioSphere = (patch: Partial<AudioSphereObject> = {}): AudioSphereObject 
   ...patch,
 });
 
+const sphericalField = (patch: Partial<SphericalFieldObject> = {}): SphericalFieldObject => ({
+  id: 'spherical-field-1',
+  type: 'spherical_field',
+  name: '93 SphericalField',
+  layer: 29,
+  startTime: 0,
+  duration: 5,
+  x: 720,
+  y: 300,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 720,
+  endY: 300,
+  easing: 'linear',
+  width: 480,
+  height: 480,
+  radius: 160,
+  strength: 100,
+  colourAmount: 100,
+  alphaAmount: 0,
+  lineWidth: 3,
+  ringCount: 4,
+  vectorCount: 16,
+  fieldColour: '#ff3b30',
+  secondaryColour: '#36c2ff',
+  backgroundOpacity: 0.08,
+  container: false,
+  seed: 93,
+  ...patch,
+});
+
 describe('resolveProjectExportFrameCanvas', () => {
   it('uses the explicit export canvas without requiring a legacy canvas', () => {
     const sharedRendererCanvas = { id: 'shared-renderer-export' } as unknown as HTMLCanvasElement;
@@ -1354,7 +1388,7 @@ describe('resolveProjectExportRustFrameSourceContext', () => {
   });
 
   it('marks standard particle exports as native-render media instead of legacy canvas work', () => {
-    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), gourd(), gear(), trackBar(), pieChart(), histogram(), toneCurve(), hksyCheckerGrid(), getColorDotField(), audioSphere(), sunburst(), circularArrow(), triangleBracket(), tartanCheck(), houndstooth(), yagasuri(), paperAirplane(), asanohaPattern(), focusLinesPlus(), randomLineEx(), hologram(), protractor(), shakingPolygon(), audio()];
+    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), gourd(), gear(), trackBar(), pieChart(), histogram(), toneCurve(), hksyCheckerGrid(), getColorDotField(), audioSphere(), sphericalField(), sunburst(), circularArrow(), triangleBracket(), tartanCheck(), houndstooth(), yagasuri(), paperAirplane(), asanohaPattern(), focusLinesPlus(), randomLineEx(), hologram(), protractor(), shakingPolygon(), audio()];
 
     expect(hasProjectExportNativeRenderMediaObjects(objects)).toBe(true);
     expect(resolveProjectExportRustFrameSourceContext({
