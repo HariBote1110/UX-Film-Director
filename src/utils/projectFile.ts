@@ -102,6 +102,7 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'tone_curve',
   'getcolor_dot_field',
   'hksy_checker_grid',
+  'region_frame',
   'sunburst',
   'circular_arrow',
   'triangle_bracket',
@@ -499,6 +500,16 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (typeof candidate.secondaryColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.secondaryColour)) return false;
     if (typeof candidate.backgroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.backgroundColour)) return false;
     if (!isFiniteNumber(candidate.seed)) return false;
+  }
+  if (candidate.type === 'region_frame') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.lineWidth) || candidate.lineWidth < 0 || candidate.lineWidth > 5000) return false;
+    if (!isFiniteNumber(candidate.extraWidth) || candidate.extraWidth < -5000 || candidate.extraWidth > 5000) return false;
+    if (!isFiniteNumber(candidate.extraHeight) || candidate.extraHeight < -5000 || candidate.extraHeight > 5000) return false;
+    if (!isFiniteNumber(candidate.backgroundOpacity) || candidate.backgroundOpacity < 0 || candidate.backgroundOpacity > 1) return false;
+    if (typeof candidate.frameColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.frameColour)) return false;
+    if (typeof candidate.backgroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.backgroundColour)) return false;
   }
   return true;
 };

@@ -25,6 +25,7 @@ import type {
   PsdObject,
   PuzzlePieceObject,
   RandomLineExObject,
+  RegionFrameObject,
   ShakingPolygonObject,
   ShapeObject,
   SunburstObject,
@@ -88,7 +89,7 @@ export interface RustSceneSnapshot {
 
 export interface RustSceneMediaReference {
   id: string;
-  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedAudioSphere' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedToneCurve' | 'GeneratedGetColorDots' | 'GeneratedHksyCheckerGrid' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'GeneratedTriangleBracket' | 'GeneratedTartanCheck' | 'GeneratedHoundstooth' | 'GeneratedYagasuri' | 'GeneratedPaperAirplane' | 'GeneratedAsanohaPattern' | 'GeneratedFocusLinesPlus' | 'GeneratedRandomLineEx' | 'GeneratedHologram' | 'GeneratedProtractor' | 'GeneratedShakingPolygon' | 'Psd';
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedAudioSphere' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedToneCurve' | 'GeneratedGetColorDots' | 'GeneratedHksyCheckerGrid' | 'GeneratedRegionFrame' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'GeneratedTriangleBracket' | 'GeneratedTartanCheck' | 'GeneratedHoundstooth' | 'GeneratedYagasuri' | 'GeneratedPaperAirplane' | 'GeneratedAsanohaPattern' | 'GeneratedFocusLinesPlus' | 'GeneratedRandomLineEx' | 'GeneratedHologram' | 'GeneratedProtractor' | 'GeneratedShakingPolygon' | 'Psd';
   source: string;
   width: number;
   height: number;
@@ -161,7 +162,7 @@ export interface RustSceneSnapshotBuildInput {
 export type RustSceneVideoSourceMode = 'previewProxy' | 'exportOriginal';
 
 type SupportedMediaObject = ImageObject | VideoObject | PsdObject;
-type SupportedGeneratedObject = AudioVisualizationObject | AudioSphereObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | ToneCurveObject | GetColorDotFieldObject | HksyCheckerGridObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject | RandomLineExObject | HologramObject | ProtractorObject | ShakingPolygonObject;
+type SupportedGeneratedObject = AudioVisualizationObject | AudioSphereObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | ToneCurveObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject | RandomLineExObject | HologramObject | ProtractorObject | ShakingPolygonObject;
 type SupportedSceneObject = SupportedMediaObject | ShapeObject | SupportedGeneratedObject;
 
 const rustColourPipeline = (): RustColourPipeline => ({
@@ -424,6 +425,7 @@ const isSupportedSceneObject = (object: TimelineObject): object is SupportedScen
   || object.type === 'tone_curve'
   || object.type === 'getcolor_dot_field'
   || object.type === 'hksy_checker_grid'
+  || object.type === 'region_frame'
   || object.type === 'sunburst'
   || object.type === 'circular_arrow'
   || object.type === 'triangle_bracket'
@@ -597,6 +599,16 @@ const mediaReferenceForObject = (
       id: object.id,
       kind: 'GeneratedHksyCheckerGrid',
       source: serialiseGeneratedHksyCheckerGridSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'region_frame') {
+    return {
+      id: object.id,
+      kind: 'GeneratedRegionFrame',
+      source: serialiseGeneratedRegionFrameSource(object),
       width: object.width,
       height: object.height,
     };
@@ -1162,6 +1174,17 @@ const serialiseGeneratedGetColorDotsSource = (object: GetColorDotFieldObject): s
     } : {}),
   });
 
+const serialiseGeneratedRegionFrameSource = (object: RegionFrameObject): string =>
+  JSON.stringify({
+    generator: 'region-frame-93',
+    line_width: Math.min(5000, Math.max(0, finiteNumberOr(object.lineWidth, 10))),
+    extra_width: Math.min(5000, Math.max(-5000, finiteNumberOr(object.extraWidth, 0))),
+    extra_height: Math.min(5000, Math.max(-5000, finiteNumberOr(object.extraHeight, 0))),
+    background_opacity: Math.min(1, Math.max(0, finiteNumberOr(object.backgroundOpacity, 0.2))),
+    frame_colour: /^#[0-9a-f]{6}$/i.test(object.frameColour) ? object.frameColour : '#ffffff',
+    background_colour: /^#[0-9a-f]{6}$/i.test(object.backgroundColour) ? object.backgroundColour : '#ccccff',
+  });
+
 const normaliseToneCurvePoints = (points: readonly number[]): number[] => {
   const validPoints = points
     .filter((point) => Number.isFinite(point))
@@ -1338,6 +1361,7 @@ const sourceFrameForObject = (
   if (object.type === 'tone_curve') return 0;
   if (object.type === 'getcolor_dot_field') return 0;
   if (object.type === 'hksy_checker_grid') return 0;
+  if (object.type === 'region_frame') return 0;
   const localTime = Math.max(0, time - object.startTime);
   const mediaTime = localTime + (object.offset ?? 0);
   return secondsToFrameIndex(mediaTime, fps);
@@ -1552,7 +1576,7 @@ const validateMediaReferences = (
     }
     validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height', 'source_rate', 'active_layer_ids'], issues);
     validateString(reference.id, `${path}.id`, issues);
-    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedAudioSphere', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'GeneratedPieChart', 'GeneratedHistogram', 'GeneratedToneCurve', 'GeneratedGetColorDots', 'GeneratedHksyCheckerGrid', 'GeneratedSunburst', 'GeneratedCircularArrow', 'GeneratedTriangleBracket', 'GeneratedTartanCheck', 'GeneratedHoundstooth', 'GeneratedYagasuri', 'GeneratedPaperAirplane', 'GeneratedAsanohaPattern', 'GeneratedFocusLinesPlus', 'GeneratedRandomLineEx', 'GeneratedHologram', 'GeneratedProtractor', 'GeneratedShakingPolygon', 'Psd'], issues);
+    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedAudioSphere', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'GeneratedPieChart', 'GeneratedHistogram', 'GeneratedToneCurve', 'GeneratedGetColorDots', 'GeneratedHksyCheckerGrid', 'GeneratedRegionFrame', 'GeneratedSunburst', 'GeneratedCircularArrow', 'GeneratedTriangleBracket', 'GeneratedTartanCheck', 'GeneratedHoundstooth', 'GeneratedYagasuri', 'GeneratedPaperAirplane', 'GeneratedAsanohaPattern', 'GeneratedFocusLinesPlus', 'GeneratedRandomLineEx', 'GeneratedHologram', 'GeneratedProtractor', 'GeneratedShakingPolygon', 'Psd'], issues);
     validateString(reference.source, `${path}.source`, issues);
     validatePositiveInteger(reference.width, `${path}.width`, issues);
     validatePositiveInteger(reference.height, `${path}.height`, issues);

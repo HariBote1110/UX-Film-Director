@@ -19,6 +19,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedToneCurve') return isSharedRendererNativeGeneratedToneCurveSourceSupported(reference.source);
   if (reference.kind === 'GeneratedGetColorDots') return isSharedRendererNativeGeneratedGetColorDotsSourceSupported(reference.source);
   if (reference.kind === 'GeneratedHksyCheckerGrid') return isSharedRendererNativeGeneratedHksyCheckerGridSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedRegionFrame') return isSharedRendererNativeGeneratedRegionFrameSourceSupported(reference.source);
   if (reference.kind === 'GeneratedSunburst') return isSharedRendererNativeGeneratedSunburstSourceSupported(reference.source);
   if (reference.kind === 'GeneratedCircularArrow') return isSharedRendererNativeGeneratedCircularArrowSourceSupported(reference.source);
   if (reference.kind === 'GeneratedTriangleBracket') return isSharedRendererNativeGeneratedTriangleBracketSourceSupported(reference.source);
@@ -1242,6 +1243,45 @@ const isSharedRendererNativeGeneratedGetColorDotsSourceSupported = (source: stri
       && Number.isInteger(parsed.seed)
       && dotShapeSupported
       && strokeWidthSupported
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedRegionFrameSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      line_width?: unknown;
+      extra_width?: unknown;
+      extra_height?: unknown;
+      background_opacity?: unknown;
+      frame_colour?: unknown;
+      background_colour?: unknown;
+    };
+    return (
+      parsed.generator === 'region-frame-93'
+      && typeof parsed.line_width === 'number'
+      && Number.isFinite(parsed.line_width)
+      && parsed.line_width >= 0
+      && parsed.line_width <= 5000
+      && typeof parsed.extra_width === 'number'
+      && Number.isFinite(parsed.extra_width)
+      && parsed.extra_width >= -5000
+      && parsed.extra_width <= 5000
+      && typeof parsed.extra_height === 'number'
+      && Number.isFinite(parsed.extra_height)
+      && parsed.extra_height >= -5000
+      && parsed.extra_height <= 5000
+      && typeof parsed.background_opacity === 'number'
+      && Number.isFinite(parsed.background_opacity)
+      && parsed.background_opacity >= 0
+      && parsed.background_opacity <= 1
+      && typeof parsed.frame_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.frame_colour)
+      && typeof parsed.background_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
     );
   } catch {
     return false;

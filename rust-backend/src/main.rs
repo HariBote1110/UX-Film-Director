@@ -463,6 +463,17 @@ struct GeneratedHksyAnchorPoint {
     y: f32,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedRegionFrameSource {
+    generator: String,
+    line_width: f32,
+    extra_width: f32,
+    extra_height: f32,
+    background_opacity: f32,
+    frame_colour: String,
+    background_colour: String,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2453,6 +2464,7 @@ fn collect_native_render_sources(
             MediaKind::GeneratedHksyCheckerGrid => {
                 build_generated_hksy_checker_grid_source_frame(media)?
             }
+            MediaKind::GeneratedRegionFrame => build_generated_region_frame_source_frame(media)?,
             MediaKind::GeneratedSunburst => build_generated_sunburst_source_frame(media)?,
             MediaKind::GeneratedCircularArrow => {
                 build_generated_circular_arrow_source_frame(media)?
@@ -5405,6 +5417,79 @@ fn draw_hksy_anchor_line_pattern_rgba(
     }
 }
 
+fn build_generated_region_frame_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedRegionFrame media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let region_frame: GeneratedRegionFrameSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedRegionFrame media '{}': {error}", media.id))?;
+    validate_generated_region_frame_source(&region_frame)
+        .map_err(|message| format!("Invalid GeneratedRegionFrame media '{}': {message}", media.id))?;
+    let frame_colour = parse_hex_colour_source(&region_frame.frame_colour)
+        .map_err(|message| format!("Invalid GeneratedRegionFrame media '{}': frame_colour {message}", media.id))?;
+    let background_colour = parse_hex_colour_source(&region_frame.background_colour)
+        .map_err(|message| format!("Invalid GeneratedRegionFrame media '{}': background_colour {message}", media.id))?;
+
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedRegionFrame media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedRegionFrame media byte length overflows".to_string())?;
+    let alpha = (region_frame.background_opacity * 255.0).round().clamp(0.0, 255.0) as u8;
+    let mut pixels = Vec::with_capacity(byte_len);
+    for _ in 0..pixel_count {
+        pixels.extend_from_slice(&[
+            background_colour[0],
+            background_colour[1],
+            background_colour[2],
+            alpha,
+        ]);
+    }
+
+    let line_width = region_frame.line_width.ceil().max(0.0) as i32;
+    if line_width > 0 {
+        let border = [frame_colour[0], frame_colour[1], frame_colour[2], 255];
+        let width = media.width as i32;
+        let height = media.height as i32;
+        fill_rect_rgba(&mut pixels, media.width, media.height, 0, 0, width, line_width, border);
+        fill_rect_rgba(
+            &mut pixels,
+            media.width,
+            media.height,
+            0,
+            height.saturating_sub(line_width),
+            width,
+            height,
+            border,
+        );
+        fill_rect_rgba(&mut pixels, media.width, media.height, 0, 0, line_width, height, border);
+        fill_rect_rgba(
+            &mut pixels,
+            media.width,
+            media.height,
+            width.saturating_sub(line_width),
+            0,
+            width,
+            height,
+            border,
+        );
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedRegionFrame media frame is invalid: {error:?}"))
+}
+
 fn build_generated_getcolor_dots_source_frame(
     media: &SceneMediaReference,
 ) -> Result<RgbaFrame, String> {
@@ -6555,6 +6640,29 @@ fn validate_generated_hksy_checker_grid_source(
             return Err("max_join_distance must be 0..300".to_string());
         }
     }
+    Ok(())
+}
+
+fn validate_generated_region_frame_source(source: &GeneratedRegionFrameSource) -> Result<(), String> {
+    if source.generator != "region-frame-93" {
+        return Err("generator must be region-frame-93".to_string());
+    }
+    if !source.line_width.is_finite() || !(0.0..=5000.0).contains(&source.line_width) {
+        return Err("line_width must be 0..5000".to_string());
+    }
+    if !source.extra_width.is_finite() || !(-5000.0..=5000.0).contains(&source.extra_width) {
+        return Err("extra_width must be -5000..5000".to_string());
+    }
+    if !source.extra_height.is_finite() || !(-5000.0..=5000.0).contains(&source.extra_height) {
+        return Err("extra_height must be -5000..5000".to_string());
+    }
+    if !source.background_opacity.is_finite()
+        || !(0.0..=1.0).contains(&source.background_opacity)
+    {
+        return Err("background_opacity must be 0..1".to_string());
+    }
+    parse_hex_colour_source(&source.frame_colour)?;
+    parse_hex_colour_source(&source.background_colour)?;
     Ok(())
 }
 

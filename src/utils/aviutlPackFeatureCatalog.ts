@@ -207,6 +207,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '立ち絵や注目箇所へ向かう光束表現として使いやすく、WebGPU上の加算グロー/減衰描画へ落とし込める。'
   },
   {
+    id: '93-region-frame',
+    labelJa: '93 領域枠',
+    category: 'generated-object',
+    phase: 'P1',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/@領域枠.anm'],
+    rationaleJa: 'オブジェクトや注釈範囲を囲む枠と薄い背景を、Rust生成の解説UI素材として標準搭載する。'
+  },
+  {
     id: 'hksy-checker-grid',
     labelJa: 'hksy チェッカー/グリッド',
     category: 'generated-object',
