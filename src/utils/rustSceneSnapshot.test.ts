@@ -2027,6 +2027,49 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('serialises hksy multi-colour checker palette into the Rust generator payload', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseHksyCheckerGrid({
+        id: 'hksy-multi-colour-checker-1',
+        name: 'hksy 複数色チェッカー',
+        cellSize: 56,
+        lineWidth: 0,
+        gridEnabled: false,
+        foregroundColour: '#ff5c8a',
+        secondaryColour: '#36c2ff',
+        backgroundColour: '#111111',
+        paletteColours: ['#ff5c8a', '#36c2ff', '#ffd166', '#70e000'],
+      })],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated hksy multi-colour checker snapshot to pass');
+
+    expect(result.media).toEqual([
+      {
+        id: 'hksy-multi-colour-checker-1',
+        kind: 'GeneratedHksyCheckerGrid',
+        source: JSON.stringify({
+          generator: 'hksy-checker-grid',
+          cell_size: 56,
+          line_width: 0,
+          checker_enabled: true,
+          grid_enabled: false,
+          foreground_colour: '#ff5c8a',
+          secondary_colour: '#36c2ff',
+          background_colour: '#111111',
+          palette_colours: ['#ff5c8a', '#36c2ff', '#ffd166', '#70e000'],
+        }),
+        width: 800,
+        height: 450,
+      },
+    ]);
+  });
+
   it('builds a generated GetColor V2R dot media plane from a dot field object', () => {
     const layers = createDefaultLayers();
     const result = buildRustSceneSnapshotForTimeline({

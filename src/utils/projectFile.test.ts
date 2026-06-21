@@ -735,6 +735,7 @@ const minimalHksyCheckerGrid = (): HksyCheckerGridObject => ({
   foregroundColour: '#ffffff',
   secondaryColour: '#333333',
   backgroundColour: '#000000',
+  paletteColours: ['#ff5c8a', '#36c2ff', '#ffd166', '#70e000'],
 });
 
 const minimalGetColorDotField = (): GetColorDotFieldObject => ({

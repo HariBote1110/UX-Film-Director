@@ -29,6 +29,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('buildGetColorDotFieldObject');
     expect(code).toContain('buildHksyCheckerGridObject');
     expect(code).toContain('buildHksyLineObject');
+    expect(code).toContain('buildHksyMultiColourCheckerObject');
     expect(code).toContain('buildAviUtlToneCurveObject');
     expect(code).toContain('buildAviUtlPuzzlePieceObject');
     expect(code).toContain('buildAviUtlAuraEmissionObject');
@@ -60,6 +61,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('handleAddGetColorDotField');
     expect(code).toContain('handleAddHksyCheckerGrid');
     expect(code).toContain('handleAddHksyLine');
+    expect(code).toContain('handleAddHksyMultiColourChecker');
     expect(code).toContain('handleAddToneCurve');
     expect(code).toContain('handleAddPuzzlePiece');
     expect(code).toContain('handleAddParticle');
@@ -91,6 +93,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('Add GetColor V2R Dot Field');
     expect(code).toContain('Add hksy Checker/Grid');
     expect(code).toContain('Add hksy Lines');
+    expect(code).toContain('Add hksy Multi-Colour Checker');
     expect(code).toContain('Add Tone Curve');
     expect(code).toContain('Add Puzzle Piece');
     expect(code).toContain('Add Standard Particle');
@@ -122,6 +125,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('GetColor V2Rドットフィールドを追加');
     expect(code).toContain('hksyチェッカー/グリッドを追加');
     expect(code).toContain('hksy直線を追加');
+    expect(code).toContain('hksy複数色チェッカーを追加');
     expect(code).toContain('簡易トーンカーブを追加');
     expect(code).toContain('パズルピースを追加');
     expect(code).toContain('標準パーティクルを追加');

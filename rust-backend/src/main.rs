@@ -8878,6 +8878,47 @@ mod tests {
     }
 
     #[test]
+    fn generated_hksy_checker_grid_source_frame_uses_palette_colours_for_checker_tiles() {
+        let media = SceneMediaReference {
+            id: "hksy-multi-colour-checker-1".to_string(),
+            kind: MediaKind::GeneratedHksyCheckerGrid,
+            source: r##"{"generator":"hksy-checker-grid","cell_size":20,"line_width":0,"checker_enabled":true,"grid_enabled":false,"foreground_colour":"#ff5c8a","secondary_colour":"#36c2ff","background_colour":"#111111","palette_colours":["#ff5c8a","#36c2ff","#ffd166","#70e000"]}"##.to_string(),
+            width: 120,
+            height: 80,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_hksy_checker_grid_source_frame(&media)
+            .expect("generated hksy multi-colour checker frame should render");
+        let pink_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [255, 92, 138, 255])
+            .count();
+        let blue_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [54, 194, 255, 255])
+            .count();
+        let yellow_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [255, 209, 102, 255])
+            .count();
+        let green_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [112, 224, 0, 255])
+            .count();
+
+        assert!(pink_count > 0);
+        assert!(blue_count > 0);
+        assert!(yellow_count > 0);
+        assert!(green_count > 0);
+    }
+
+    #[test]
     fn generated_getcolor_dots_source_frame_contains_dot_field_and_background() {
         let media = SceneMediaReference {
             id: "getcolor-dot-field-1".to_string(),
