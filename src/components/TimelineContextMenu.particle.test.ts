@@ -25,6 +25,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('buildAviUtlGearObject');
     expect(code).toContain('buildAviUtlGourdObject');
     expect(code).toContain('buildAviUtlHistogramObject');
+    expect(code).toContain('buildHksyCheckerGridObject');
     expect(code).toContain('buildAviUtlToneCurveObject');
     expect(code).toContain('buildAviUtlPuzzlePieceObject');
     expect(code).toContain('buildAviUtlAuraEmissionObject');
@@ -52,6 +53,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('handleAddGear');
     expect(code).toContain('handleAddGourd');
     expect(code).toContain('handleAddHistogram');
+    expect(code).toContain('handleAddHksyCheckerGrid');
     expect(code).toContain('handleAddToneCurve');
     expect(code).toContain('handleAddPuzzlePiece');
     expect(code).toContain('handleAddParticle');
@@ -79,6 +81,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('Add Gear');
     expect(code).toContain('Add Gourd');
     expect(code).toContain('Add Histogram');
+    expect(code).toContain('Add hksy Checker/Grid');
     expect(code).toContain('Add Tone Curve');
     expect(code).toContain('Add Puzzle Piece');
     expect(code).toContain('Add Standard Particle');
@@ -106,6 +109,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('歯車を追加');
     expect(code).toContain('ひょうたんを追加');
     expect(code).toContain('簡易ヒストグラムを追加');
+    expect(code).toContain('hksyチェッカー/グリッドを追加');
     expect(code).toContain('簡易トーンカーブを追加');
     expect(code).toContain('パズルピースを追加');
     expect(code).toContain('標準パーティクルを追加');

@@ -208,6 +208,12 @@ const media: RustSceneMediaReference[] = [{
   width: 360,
   height: 360,
 }, {
+  id: 'hksy-checker-grid-1',
+  kind: 'GeneratedHksyCheckerGrid' as RustSceneMediaReference['kind'],
+  source: '{"generator":"hksy-checker-grid","cell_size":50,"line_width":2,"checker_enabled":true,"grid_enabled":true,"foreground_colour":"#ffffff","secondary_colour":"#333333","background_colour":"#000000"}',
+  width: 800,
+  height: 450,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -271,8 +277,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[26])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[27])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[28])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[29])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[29])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[30])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[31])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {
@@ -302,6 +309,10 @@ describe('sharedRendererNativeMediaSupport', () => {
     })).toBe(true);
     expect(canRenderSharedRendererNativeMediaOnlyFrame({
       snapshot: snapshotWithMedia('solid-1', 'tone-curve-1'),
+      media,
+    })).toBe(true);
+    expect(canRenderSharedRendererNativeMediaOnlyFrame({
+      snapshot: snapshotWithMedia('solid-1', 'hksy-checker-grid-1'),
       media,
     })).toBe(true);
     expect(canRenderSharedRendererNativeMediaOnlyFrame({

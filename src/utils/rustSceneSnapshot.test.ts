@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AsanohaPatternObject, AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -822,6 +822,35 @@ const baseToneCurve = (patch: Partial<ToneCurveObject> = {}): ToneCurveObject =>
   curvePoints: [0, 0.16, 0.42, 0.7, 1],
   curveColour: '#ffffff',
   gridColour: '#333333',
+  backgroundColour: '#000000',
+  ...patch,
+});
+
+const baseHksyCheckerGrid = (patch: Partial<HksyCheckerGridObject> = {}): HksyCheckerGridObject => ({
+  id: 'hksy-checker-grid-1',
+  type: 'hksy_checker_grid',
+  name: 'hksy チェッカー/グリッド',
+  layer: 28,
+  startTime: 1,
+  duration: 4,
+  x: 560,
+  y: 315,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 560,
+  endY: 315,
+  easing: 'linear',
+  width: 800,
+  height: 450,
+  cellSize: 50,
+  lineWidth: 2,
+  checkerEnabled: true,
+  gridEnabled: true,
+  foregroundColour: '#ffffff',
+  secondaryColour: '#333333',
   backgroundColour: '#000000',
   ...patch,
 });
@@ -1844,6 +1873,45 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         }),
         width: 360,
         height: 360,
+      },
+    ]);
+  });
+
+  it('builds a generated hksy checker/grid media plane from a checker grid object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseHksyCheckerGrid()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated hksy checker/grid snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'hksy-checker-grid-1',
+      track_id: 'layer-28',
+      media_id: 'hksy-checker-grid-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'hksy-checker-grid-1',
+        kind: 'GeneratedHksyCheckerGrid',
+        source: JSON.stringify({
+          generator: 'hksy-checker-grid',
+          cell_size: 50,
+          line_width: 2,
+          checker_enabled: true,
+          grid_enabled: true,
+          foreground_colour: '#ffffff',
+          secondary_colour: '#333333',
+          background_colour: '#000000',
+        }),
+        width: 800,
+        height: 450,
       },
     ]);
   });

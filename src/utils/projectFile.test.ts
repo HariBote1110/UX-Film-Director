@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AsanohaPatternObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, SunburstObject, TartanCheckObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, SunburstObject, TartanCheckObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, YagasuriObject } from '../types';
 import { MAX_LAYERS } from '../components/timelineConstants';
 import { createDefaultCamera, createDefaultLayers, createDefaultStageCamera3D } from './sceneState';
 import { buildProjectFileData, parseProjectPayloadV2, restoreProjectObjects } from './projectFile';
@@ -709,6 +709,34 @@ const minimalToneCurve = (): ToneCurveObject => ({
   backgroundColour: '#000000',
 });
 
+const minimalHksyCheckerGrid = (): HksyCheckerGridObject => ({
+  id: 'hksy-checker-grid-1',
+  type: 'hksy_checker_grid',
+  name: 'hksy チェッカー/グリッド',
+  layer: 25,
+  startTime: 1,
+  duration: 5,
+  x: 560,
+  y: 315,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 560,
+  endY: 315,
+  easing: 'linear',
+  width: 800,
+  height: 450,
+  cellSize: 50,
+  lineWidth: 2,
+  checkerEnabled: true,
+  gridEnabled: true,
+  foregroundColour: '#ffffff',
+  secondaryColour: '#333333',
+  backgroundColour: '#000000',
+});
+
 describe('buildProjectFileData', () => {
   it('flushes active editor state into the matching scene and stamps metadata', () => {
     const layers = createDefaultLayers();
@@ -868,6 +896,7 @@ describe('parseProjectPayloadV2', () => {
     const protractor = minimalProtractor();
     const shakingPolygon = minimalShakingPolygon();
     const toneCurve = minimalToneCurve();
+    const hksyCheckerGrid = minimalHksyCheckerGrid();
     const file = buildProjectFileData({
       projectSettings: projectSettings(),
       scenes: [
@@ -876,13 +905,13 @@ describe('parseProjectPayloadV2', () => {
           name: 'One',
           duration: 10,
           layers,
-          objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, hologram, protractor, shakingPolygon, toneCurve],
+          objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, hologram, protractor, shakingPolygon, toneCurve, hksyCheckerGrid],
           camera,
           stageCamera3D: defaultStage()
         }
       ],
       activeSceneId: 's1',
-      objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, hologram, protractor, shakingPolygon, toneCurve],
+      objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, hologram, protractor, shakingPolygon, toneCurve, hksyCheckerGrid],
       layers,
       duration: 10,
       camera,
@@ -890,7 +919,7 @@ describe('parseProjectPayloadV2', () => {
     });
 
     const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
-    expect(parsed.scenes[0].objects).toEqual([particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, hologram, protractor, shakingPolygon, toneCurve]);
+    expect(parsed.scenes[0].objects).toEqual([particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, hologram, protractor, shakingPolygon, toneCurve, hksyCheckerGrid]);
   });
 
   it('rejects invalid worldPlacement on psd objects', () => {

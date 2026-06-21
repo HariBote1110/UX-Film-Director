@@ -403,3 +403,19 @@ fn rust_core_accepts_generated_tone_curve_media_kind_at_the_json_boundary() {
     assert_eq!(media.width, 360);
     assert_eq!(media.height, 360);
 }
+
+#[test]
+fn rust_core_accepts_generated_hksy_checker_grid_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "hksy-checker-grid-1",
+        "kind": "GeneratedHksyCheckerGrid",
+        "source": "{\"generator\":\"hksy-checker-grid\",\"cell_size\":50,\"line_width\":2,\"checker_enabled\":true,\"grid_enabled\":true,\"foreground_colour\":\"#ffffff\",\"secondary_colour\":\"#333333\",\"background_colour\":\"#000000\"}",
+        "width": 800,
+        "height": 450
+    }))
+    .expect("GeneratedHksyCheckerGrid media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedHksyCheckerGrid);
+    assert_eq!(media.width, 800);
+    assert_eq!(media.height, 450);
+}
