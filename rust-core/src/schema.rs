@@ -40,6 +40,7 @@ pub enum MediaKind {
     GeneratedBarcode,
     GeneratedPuzzlePiece,
     GeneratedColourWheel,
+    GeneratedGourd,
     Psd,
 }
 
@@ -60,6 +61,7 @@ pub enum ClipKind {
     GeneratedBarcodePlane,
     GeneratedPuzzlePiecePlane,
     GeneratedColourWheelPlane,
+    GeneratedGourdPlane,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

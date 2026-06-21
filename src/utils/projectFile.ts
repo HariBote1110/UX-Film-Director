@@ -92,7 +92,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'particle',
   'barcode',
   'puzzle_piece',
-  'colour_wheel'
+  'colour_wheel',
+  'gourd'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -192,6 +193,16 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!isFiniteNumber(candidate.brightness) || candidate.brightness < 0 || candidate.brightness > 100) return false;
     if (!isFiniteNumber(candidate.ringWidthPercent) || candidate.ringWidthPercent <= 0 || candidate.ringWidthPercent > 100) return false;
     if (typeof candidate.segmentCount !== 'number' || !Number.isInteger(candidate.segmentCount) || candidate.segmentCount < 3 || candidate.segmentCount > 360) return false;
+  }
+  if (candidate.type === 'gourd') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.bodyRadius) || candidate.bodyRadius <= 0) return false;
+    if (!isFiniteNumber(candidate.bodyWidth) || candidate.bodyWidth <= 0) return false;
+    if (!isFiniteNumber(candidate.waistRadius) || candidate.waistRadius < 0) return false;
+    if (!isFiniteNumber(candidate.squashPercent) || candidate.squashPercent < 0 || candidate.squashPercent > 100) return false;
+    if (typeof candidate.repeatCount !== 'number' || !Number.isInteger(candidate.repeatCount) || candidate.repeatCount < 1 || candidate.repeatCount > 36) return false;
+    if (typeof candidate.fillColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.fillColour)) return false;
   }
   return true;
 };

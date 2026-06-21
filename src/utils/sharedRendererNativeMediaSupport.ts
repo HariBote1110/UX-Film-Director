@@ -10,6 +10,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedBarcode') return isSharedRendererNativeGeneratedBarcodeSourceSupported(reference.source);
   if (reference.kind === 'GeneratedPuzzlePiece') return isSharedRendererNativeGeneratedPuzzlePieceSourceSupported(reference.source);
   if (reference.kind === 'GeneratedColourWheel') return isSharedRendererNativeGeneratedColourWheelSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedGourd') return isSharedRendererNativeGeneratedGourdSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -231,6 +232,47 @@ const isSharedRendererNativeGeneratedColourWheelSourceSupported = (source: strin
       && Number.isInteger(parsed.segment_count)
       && parsed.segment_count >= 3
       && parsed.segment_count <= 360
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedGourdSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      body_radius?: unknown;
+      body_width?: unknown;
+      waist_radius?: unknown;
+      squash_percent?: unknown;
+      repeat_count?: unknown;
+      fill_colour?: unknown;
+    };
+    return (
+      parsed.generator === 'gourd-tm'
+      && typeof parsed.body_radius === 'number'
+      && Number.isInteger(parsed.body_radius)
+      && parsed.body_radius > 0
+      && parsed.body_radius <= 2000
+      && typeof parsed.body_width === 'number'
+      && Number.isInteger(parsed.body_width)
+      && parsed.body_width > 0
+      && parsed.body_width <= 4000
+      && typeof parsed.waist_radius === 'number'
+      && Number.isInteger(parsed.waist_radius)
+      && parsed.waist_radius >= 0
+      && parsed.waist_radius <= 2000
+      && typeof parsed.squash_percent === 'number'
+      && Number.isFinite(parsed.squash_percent)
+      && parsed.squash_percent >= 0
+      && parsed.squash_percent <= 100
+      && typeof parsed.repeat_count === 'number'
+      && Number.isInteger(parsed.repeat_count)
+      && parsed.repeat_count >= 1
+      && parsed.repeat_count <= 36
+      && typeof parsed.fill_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.fill_colour)
     );
   } catch {
     return false;

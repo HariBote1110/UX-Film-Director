@@ -1,3 +1,22 @@
+## 2026-06-21 — TimひょうたんTMをRust生成オブジェクトへ追加
+
+### 実施内容
+- Red: `script/てぃむ/ひょうたんTM.obj` を、Rust `GeneratedGourd` mediaとして扱う境界契約を作った。
+- Green: `GourdObject` と `buildAviUtlGourdObject` を追加し、Timeline右クリックから `ひょうたんを追加` / `Add Gourd` で置けるようにした。
+- Green: `rustSceneSnapshot` / shared renderer native support / Rust core schema / Rust backendに `GeneratedGourd` を追加した。
+- Green: Rust backendで透明背景とくびれ付きシルエットを持つ決定的フレームを生成できるようにした。
+- Green: `tim-gourd` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-269a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/gourdObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/e2e/allReadableMedia.e2e.test.ts --reporter=dot` は81件成功。
+- `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は7件成功。
+- `cargo test --manifest-path rust-backend/Cargo.toml generated_gourd_source_frame_contains_shape_and_transparency -- --nocapture` は1件成功。
+- 対象名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足、`mp4box` 型定義不足、`heavyEffectsStress.test.ts` の `PositionKeyframe` 未定義のみ検出した。
+
+### 残課題・次のステップ
+- 現時点の `GeneratedGourd` は元スクリプトのポリゴン分割をRust側のピクセル輪郭生成へ置き換えた互換再実装で、AviUtlのアンチエイリアスや半分リサイズ挙動までは完全一致しない。
+
 ## 2026-06-21 — Tim色相環をRust生成オブジェクトへ追加
 
 ### 実施内容

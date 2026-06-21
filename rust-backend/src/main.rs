@@ -194,6 +194,17 @@ struct GeneratedColourWheelSource {
     segment_count: u32,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedGourdSource {
+    generator: String,
+    body_radius: u32,
+    body_width: u32,
+    waist_radius: u32,
+    squash_percent: f32,
+    repeat_count: u32,
+    fill_colour: String,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2174,6 +2185,7 @@ fn collect_native_render_sources(
             MediaKind::GeneratedBarcode => build_generated_barcode_source_frame(media)?,
             MediaKind::GeneratedPuzzlePiece => build_generated_puzzle_piece_source_frame(media)?,
             MediaKind::GeneratedColourWheel => build_generated_colour_wheel_source_frame(media)?,
+            MediaKind::GeneratedGourd => build_generated_gourd_source_frame(media)?,
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform => continue,
@@ -2628,6 +2640,119 @@ fn build_generated_colour_wheel_source_frame(
         .map_err(|error| format!("GeneratedColourWheel media frame is invalid: {error:?}"))
 }
 
+fn build_generated_gourd_source_frame(media: &SceneMediaReference) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedGourd media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let gourd: GeneratedGourdSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedGourd media '{}': {error}", media.id))?;
+    validate_generated_gourd_source(&gourd)
+        .map_err(|message| format!("Invalid GeneratedGourd media '{}': {message}", media.id))?;
+    let [red, green, blue] = parse_hex_colour_source(&gourd.fill_colour)
+        .map_err(|message| format!("Invalid GeneratedGourd media '{}': {message}", media.id))?;
+
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedGourd media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedGourd media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+
+    let radius = (gourd.body_radius as f32 * 0.5).max(1.0);
+    let half_width = (gourd.body_width as f32 * 0.5).max(radius);
+    let waist = (gourd.waist_radius as f32 * 0.5).min(radius);
+    let aspect = (1.0 - gourd.squash_percent * 0.01).clamp(0.05, 1.0);
+    let fit_width = media.width as f32 / (half_width * 2.0);
+    let fit_height = media.height as f32 / (radius * 2.0);
+    let scale = fit_width.min(fit_height).max(0.001) * 0.9;
+    let centre_x = media.width as f32 / 2.0;
+    let centre_y = media.height as f32 / 2.0;
+    let repeats = gourd.repeat_count.max(1);
+
+    for y in 0..media.height {
+        for x in 0..media.width {
+            let local_x = (x as f32 + 0.5 - centre_x) / scale;
+            let local_y = (y as f32 + 0.5 - centre_y) / scale;
+            let mut inside = false;
+            for index in 0..repeats {
+                let angle = index as f32 / repeats as f32 * std::f32::consts::PI;
+                let (sin, cos) = angle.sin_cos();
+                let rotated_x = local_x * cos + local_y * sin;
+                let rotated_y = -local_x * sin + local_y * cos;
+                if point_inside_gourd(rotated_x, rotated_y, radius, half_width, waist, aspect) {
+                    inside = true;
+                    break;
+                }
+            }
+            if inside {
+                write_particle_pixel(
+                    &mut pixels,
+                    media.width,
+                    media.height,
+                    x as i32,
+                    y as i32,
+                    [red, green, blue, 255],
+                );
+            }
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedGourd media frame is invalid: {error:?}"))
+}
+
+fn point_inside_gourd(
+    x: f32,
+    y: f32,
+    radius: f32,
+    half_width: f32,
+    waist: f32,
+    aspect: f32,
+) -> bool {
+    let x_abs = x.abs();
+    if x_abs > half_width {
+        return false;
+    }
+
+    let radius = radius.min(half_width).max(1.0);
+    let waist = waist.min(radius);
+    let m = half_width - radius;
+    let boundary = if (radius - waist).abs() < f32::EPSILON {
+        radius * aspect
+    } else {
+        let r2 = 0.5 * (m * m / (radius - waist) - radius - waist);
+        let x0 = if (radius + r2).abs() > f32::EPSILON {
+            m * r2 / (radius + r2)
+        } else {
+            0.0
+        };
+        if r2 > 0.0 && x0 > 0.0 && x_abs <= x0 {
+            let inner = r2 * r2 - x_abs * x_abs;
+            if inner < 0.0 {
+                return false;
+            }
+            (waist + r2 - inner.sqrt()) * aspect
+        } else {
+            let inner = radius * radius - (x_abs - m) * (x_abs - m);
+            if inner < 0.0 {
+                return false;
+            }
+            inner.sqrt() * aspect
+        }
+    };
+
+    y.abs() <= boundary
+}
+
 fn validate_generated_particle_source(source: &GeneratedParticleSource) -> Result<(), String> {
     if source.generator != "standard-particle" {
         return Err("generator must be standard-particle".to_string());
@@ -2715,6 +2840,32 @@ fn validate_generated_colour_wheel_source(
     if source.segment_count < 3 || source.segment_count > 360 {
         return Err("segment_count must be 3..360".to_string());
     }
+    Ok(())
+}
+
+fn validate_generated_gourd_source(source: &GeneratedGourdSource) -> Result<(), String> {
+    if source.generator != "gourd-tm" {
+        return Err("generator must be gourd-tm".to_string());
+    }
+    if source.body_radius == 0 || source.body_radius > 2000 {
+        return Err("body_radius must be 1..2000".to_string());
+    }
+    if source.body_width == 0 || source.body_width > 4000 {
+        return Err("body_width must be 1..4000".to_string());
+    }
+    if source.waist_radius > 2000 {
+        return Err("waist_radius must be 0..2000".to_string());
+    }
+    if !source.squash_percent.is_finite()
+        || source.squash_percent < 0.0
+        || source.squash_percent > 100.0
+    {
+        return Err("squash_percent must be 0..100".to_string());
+    }
+    if source.repeat_count == 0 || source.repeat_count > 36 {
+        return Err("repeat_count must be 1..36".to_string());
+    }
+    parse_hex_colour_source(&source.fill_colour)?;
     Ok(())
 }
 
@@ -4741,5 +4892,32 @@ mod tests {
         assert!(has_transparent_background);
         assert!(has_red);
         assert!(has_blue);
+    }
+
+    #[test]
+    fn generated_gourd_source_frame_contains_shape_and_transparency() {
+        let media = SceneMediaReference {
+            id: "gourd-1".to_string(),
+            kind: MediaKind::GeneratedGourd,
+            source: r##"{"generator":"gourd-tm","body_radius":80,"body_width":250,"waist_radius":10,"squash_percent":40,"repeat_count":1,"fill_colour":"#ffffff"}"##.to_string(),
+            width: 400,
+            height: 400,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_gourd_source_frame(&media)
+            .expect("generated gourd frame should render");
+        let has_white_shape = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [255, 255, 255, 255]);
+        let has_transparent_background = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [0, 0, 0, 0]);
+
+        assert!(has_white_shape);
+        assert!(has_transparent_background);
     }
 }
