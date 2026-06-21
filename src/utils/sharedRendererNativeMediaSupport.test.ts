@@ -178,6 +178,12 @@ const media: RustSceneMediaReference[] = [{
   width: 800,
   height: 450,
 }, {
+  id: 'random-line-ex-1',
+  kind: 'GeneratedRandomLineEx' as RustSceneMediaReference['kind'],
+  source: '{"generator":"random-line-ex","line_count":3,"line_width":6,"threshold":128,"noise_cell_size":12,"width_variance":0,"seed":0,"line_colour":"#ffffff"}',
+  width: 800,
+  height: 450,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -236,8 +242,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[21])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[22])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[23])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[24])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[24])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[25])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[26])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {

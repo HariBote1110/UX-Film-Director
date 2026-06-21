@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AsanohaPatternObject, AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HoundstoothObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HoundstoothObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, RandomLineExObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -674,6 +674,35 @@ const baseFocusLinesPlus = (patch: Partial<FocusLinesPlusObject> = {}): FocusLin
   centreJitterPercent: 20,
   seed: 0,
   keyframeInterval: 0,
+  lineColour: '#ffffff',
+  ...patch,
+});
+
+const baseRandomLineEx = (patch: Partial<RandomLineExObject> = {}): RandomLineExObject => ({
+  id: 'random-line-ex-1',
+  type: 'random_line_ex',
+  name: 'ランダムラインEX',
+  layer: 23,
+  startTime: 1,
+  duration: 4,
+  x: 560,
+  y: 315,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 560,
+  endY: 315,
+  easing: 'linear',
+  width: 800,
+  height: 450,
+  lineCount: 3,
+  lineWidth: 6,
+  threshold: 128,
+  noiseCellSize: 12,
+  widthVariance: 0,
+  seed: 0,
   lineColour: '#ffffff',
   ...patch,
 });
@@ -1494,6 +1523,45 @@ describe('buildRustSceneSnapshotForTimeline', () => {
           centre_jitter_percent: 20,
           seed: 0,
           keyframe_interval: 0,
+          line_colour: '#ffffff',
+        }),
+        width: 800,
+        height: 450,
+      },
+    ]);
+  });
+
+  it('builds a generated random line EX media plane from a random line EX object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseRandomLineEx()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated random line EX snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'random-line-ex-1',
+      track_id: 'layer-23',
+      media_id: 'random-line-ex-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'random-line-ex-1',
+        kind: 'GeneratedRandomLineEx',
+        source: JSON.stringify({
+          generator: 'random-line-ex',
+          line_count: 3,
+          line_width: 6,
+          threshold: 128,
+          noise_cell_size: 12,
+          width_variance: 0,
+          seed: 0,
           line_colour: '#ffffff',
         }),
         width: 800,

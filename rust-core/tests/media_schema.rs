@@ -323,3 +323,19 @@ fn rust_core_accepts_generated_focus_lines_plus_media_kind_at_the_json_boundary(
     assert_eq!(media.width, 800);
     assert_eq!(media.height, 450);
 }
+
+#[test]
+fn rust_core_accepts_generated_random_line_ex_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "random-line-ex-1",
+        "kind": "GeneratedRandomLineEx",
+        "source": "{\"generator\":\"random-line-ex\",\"line_count\":3,\"line_width\":6,\"threshold\":128,\"noise_cell_size\":12,\"width_variance\":0,\"seed\":0,\"line_colour\":\"#ffffff\"}",
+        "width": 800,
+        "height": 450
+    }))
+    .expect("GeneratedRandomLineEx media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedRandomLineEx);
+    assert_eq!(media.width, 800);
+    assert_eq!(media.height, 450);
+}

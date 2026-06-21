@@ -22,6 +22,7 @@ import type {
   ProjectSettings,
   PsdObject,
   PuzzlePieceObject,
+  RandomLineExObject,
   ShapeObject,
   SunburstObject,
   TartanCheckObject,
@@ -464,6 +465,20 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     keyframeInterval: 0,
     lineColour: '#ffffff',
   };
+  const randomLineEx: RandomLineExObject = {
+    ...baseObject('ssd-random-line-ex', 'random_line_ex', 28),
+    type: 'random_line_ex',
+    name: 'ランダムラインEX',
+    width: 800,
+    height: 450,
+    lineCount: 3,
+    lineWidth: 6,
+    threshold: 128,
+    noiseCellSize: 12,
+    widthVariance: 0,
+    seed: 0,
+    lineColour: '#ffffff',
+  };
 
   return [
     solidShape,
@@ -491,6 +506,7 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     paperAirplane,
     asanohaPattern,
     focusLinesPlus,
+    randomLineEx,
   ];
 };
 
@@ -576,6 +592,7 @@ describe('全読込可能メディア E2E', () => {
       'GeneratedPaperAirplane',
       'GeneratedAsanohaPattern',
       'GeneratedFocusLinesPlus',
+      'GeneratedRandomLineEx',
     ]);
     expect(snapshotResult.media
       .filter((media) => media.kind === 'Video')
@@ -756,6 +773,16 @@ describe('全読込可能メディア E2E', () => {
       keyframe_interval: 0,
       line_colour: '#ffffff',
     });
+    expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'ssd-random-line-ex')?.source ?? '{}')).toMatchObject({
+      generator: 'random-line-ex',
+      line_count: 3,
+      line_width: 6,
+      threshold: 128,
+      noise_cell_size: 12,
+      width_variance: 0,
+      seed: 0,
+      line_colour: '#ffffff',
+    });
     expect(snapshotResult.media.some((media) => media.source.endsWith('.wav'))).toBe(false);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'shape-solid-rect')?.transform).toMatchObject({
       translation_x: 64.5,
@@ -794,6 +821,7 @@ describe('全読込可能メディア E2E', () => {
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-paper-airplane')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-asanoha-pattern')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-focus-lines-plus')?.source_frame).toBe(0);
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-random-line-ex')?.source_frame).toBe(0);
     expect(validateRustSceneSnapshotBoundary({
       snapshot: snapshotResult.snapshot,
       media: snapshotResult.media,
