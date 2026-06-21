@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ShapeObject, VideoObject } from '../types';
+import type { AudioObject, ImageObject, ShapeObject, VideoObject } from '../types';
 import { resolveProjectExportVideoTranscodeFastPath } from './projectExportVideoTranscodeFastPath';
 
 const video = (patch: Partial<VideoObject> = {}): VideoObject => ({
@@ -29,7 +29,7 @@ const video = (patch: Partial<VideoObject> = {}): VideoObject => ({
   ...patch,
 });
 
-const shape = (): ShapeObject => ({
+const shape = (patch: Partial<ShapeObject> = {}): ShapeObject => ({
   id: 'shape-1',
   type: 'shape',
   name: 'Rectangle',
@@ -50,6 +50,55 @@ const shape = (): ShapeObject => ({
   width: 100,
   height: 100,
   fill: '#fff',
+  ...patch,
+});
+
+const image = (patch: Partial<ImageObject> = {}): ImageObject => ({
+  id: 'image-1',
+  type: 'image',
+  name: 'overlay.png',
+  layer: 2,
+  startTime: 0,
+  duration: 5,
+  x: 100,
+  y: 120,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 100,
+  endY: 120,
+  easing: 'linear',
+  src: 'blob:image',
+  filePath: '/tmp/overlay.png',
+  width: 320,
+  height: 180,
+  ...patch,
+});
+
+const audio = (patch: Partial<AudioObject> = {}): AudioObject => ({
+  id: 'audio-1',
+  type: 'audio',
+  name: 'voice.wav',
+  layer: 3,
+  startTime: 0,
+  duration: 5,
+  x: 0,
+  y: 0,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 0,
+  endY: 0,
+  easing: 'linear',
+  src: 'blob:audio',
+  filePath: '/tmp/voice.wav',
+  volume: 1,
+  muted: false,
+  ...patch,
 });
 
 describe('resolveProjectExportVideoTranscodeFastPath', () => {
@@ -179,9 +228,45 @@ describe('resolveProjectExportVideoTranscodeFastPath', () => {
     });
   });
 
+  it('accepts a single video with static rectangle, image, and mixed audio overlays', () => {
+    expect(resolveProjectExportVideoTranscodeFastPath({
+      objects: [
+        video({ width: 1280, height: 720, x: 320, y: 180 }),
+        shape(),
+        image(),
+        audio(),
+      ],
+      width: 1920,
+      height: 1080,
+      fps: 60,
+      durationSeconds: 5,
+    })).toMatchObject({
+      inputPath: '/tmp/clip.mp4',
+      includeAudio: false,
+      requiresAudioMix: true,
+      overlays: [{
+        kind: 'solidColour',
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+        colour: '#fff',
+        opacity: 1,
+      }, {
+        kind: 'image',
+        path: '/tmp/overlay.png',
+        x: 100,
+        y: 120,
+        width: 320,
+        height: 180,
+        opacity: 1,
+      }],
+    });
+  });
+
   it('rejects timelines that need composition', () => {
     expect(resolveProjectExportVideoTranscodeFastPath({
-      objects: [video(), shape()],
+      objects: [video(), shape({ rotation: 15 })],
       width: 1920,
       height: 1080,
       fps: 60,
