@@ -2540,6 +2540,87 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('resolves a GetColor V2R sampled dot field source image from the referenced image layer', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [
+        baseImage({
+          id: 'sample-image-1',
+          layer: 28,
+          filePath: '/tmp/layer-source.png',
+          src: 'blob:image',
+        }),
+        baseGetColorDotField({
+          id: 'getcolor-layer-sampled-dot-field-1',
+          name: 'GetColor V2R 画像サンプリングドット',
+          layer: 29,
+          sampleSourceLayer: 28,
+          sampleStrength: 1,
+        }),
+      ],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated GetColor layer sampled dot snapshot to pass');
+
+    const getColorMedia = result.media.find((reference) => reference.id === 'getcolor-layer-sampled-dot-field-1');
+    expect(getColorMedia).toMatchObject({
+      id: 'getcolor-layer-sampled-dot-field-1',
+      kind: 'GeneratedGetColorDots',
+      width: 800,
+      height: 450,
+    });
+    expect(JSON.parse(getColorMedia?.source ?? '{}')).toMatchObject({
+      generator: 'getcolor-v2r-dot-field',
+      source_image: '/tmp/layer-source.png',
+      sample_strength: 1,
+    });
+  });
+
+  it('resolves a GetColor V2R sampled dot field source image from an explicit image object id', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [
+        baseImage({
+          id: 'sample-image-layer-1',
+          layer: 28,
+          filePath: '/tmp/layer-source.png',
+          src: 'blob:image',
+        }),
+        baseImage({
+          id: 'sample-image-explicit-1',
+          layer: 20,
+          filePath: '/tmp/object-source.jpg',
+          src: 'blob:image',
+        }),
+        baseGetColorDotField({
+          id: 'getcolor-object-sampled-dot-field-1',
+          name: 'GetColor V2R 画像サンプリングドット',
+          layer: 29,
+          sampleSourceLayer: 28,
+          sampleSourceObjectId: 'sample-image-explicit-1',
+          sampleStrength: 0.8,
+        }),
+      ],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated GetColor object sampled dot snapshot to pass');
+
+    const getColorMedia = result.media.find((reference) => reference.id === 'getcolor-object-sampled-dot-field-1');
+    expect(JSON.parse(getColorMedia?.source ?? '{}')).toMatchObject({
+      generator: 'getcolor-v2r-dot-field',
+      source_image: '/tmp/object-source.jpg',
+      sample_strength: 0.8,
+    });
+  });
+
   it('serialises a 93 region frame object into the Rust generator payload', () => {
     const layers = createDefaultLayers();
     const result = buildRustSceneSnapshotForTimeline({

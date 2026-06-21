@@ -127,6 +127,7 @@ describe('getColorDotFieldObjectFactory', () => {
       dotShape: 'circle',
       strokeWidth: 0,
       sampleSourcePath: '/tmp/source-colours.png',
+      sampleSourceLayer: 31,
       sampleStrength: 1,
       foregroundColour: '#ffffff',
       secondaryColour: '#36c2ff',

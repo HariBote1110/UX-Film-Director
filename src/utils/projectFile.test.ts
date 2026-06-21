@@ -1071,6 +1071,8 @@ describe('parseProjectPayloadV2', () => {
       dotShape: 'circle',
       strokeWidth: 0,
       sampleSourcePath: 'file:///tmp/source-colours.png',
+      sampleSourceLayer: 25,
+      sampleSourceObjectId: 'image-source-1',
       sampleStrength: 1,
     };
     const file = buildProjectFileData({
