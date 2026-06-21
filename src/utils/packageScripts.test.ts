@@ -43,6 +43,11 @@ describe('package scripts', () => {
     expect(script).toContain('exportUsedDirectTranscode');
     expect(script).toContain('const runtimeErrors = collectRuntimeErrors(client)');
     expect(script).toContain('runtimeErrors.length === 0');
+    expect(script).toContain('inspectExportedGeneratedEffectsFrame');
+    expect(script).toContain('generatedEffectsFrameInspection');
+    expect(script).toContain('generatedEffectsFrameInspection?.ok !== false');
+    expect(script).toContain('#00ff88');
+    expect(script).toContain('#ffffff');
     expect(script.indexOf('const runtimeErrors = collectRuntimeErrors(client)'))
       .toBeLessThan(script.indexOf('const result = {'));
     expect(script.indexOf('const exportStartTimeMs = Date.now()'))
