@@ -1,6 +1,16 @@
 # 進捗ログ
 
 ## 2026-06-21
+- Tim泡を標準生成オブジェクトへ追加した。
+- Red: `script/てぃむ/泡.obj` を、Timeline右クリックから追加できるAviUtlPackV4標準生成オブジェクトにする契約を作った。
+- Green: `buildAviUtlBubbleObject` を追加し、標準パーティクル基盤で泡近似のParticleObjectを生成できるようにした。
+- Green: Timeline context menuへ `泡を追加` / `Add Bubbles` を追加した。
+- Green: `tim-bubbles` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-263a` に更新した。
+- 検証: `npm test -- --run src/utils/particleObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts` は31件成功した。
+- 残課題: 泡は標準パーティクル近似で、元スクリプト固有の円形描画・屈折・加算/スクリーン合成までは未実装。
+
+## 2026-06-21
 - Timオーラ放出を標準生成オブジェクトへ追加した。
 - Red: `script/てぃむ/オーラ放出.anm` を、Timeline右クリックから追加できるAviUtlPackV4標準生成オブジェクトにする契約を作った。
 - Green: `buildAviUtlAuraEmissionObject` を追加し、標準パーティクル基盤でオーラ放出近似のParticleObjectを生成できるようにした。

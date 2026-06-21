@@ -167,6 +167,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '立ち絵の強調や演出背景に使いやすく、標準パーティクル基盤で近似しやすい。'
   },
   {
+    id: 'tim-bubbles',
+    labelJa: '泡',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/てぃむ/泡.obj'],
+    rationaleJa: '水中・回想・柔らかい背景演出に使いやすく、標準パーティクル基盤で近似しやすい。'
+  },
+  {
     id: 'tim-motion-path',
     labelJa: 'モーションパス',
     category: 'motion',

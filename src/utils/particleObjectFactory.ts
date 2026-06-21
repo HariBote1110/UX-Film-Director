@@ -88,3 +88,44 @@ export const buildAviUtlAuraEmissionObject = ({
     lifetimeSeconds: 2.8,
   };
 };
+
+export const buildAviUtlBubbleObject = ({
+  id,
+  projectWidth,
+  projectHeight,
+  startTime,
+  layer,
+}: BuildDefaultStandardParticleObjectInput): ParticleObject => {
+  const width = Math.max(240, Math.round(projectWidth * 0.4));
+  const height = Math.max(160, Math.round(projectHeight * 0.4));
+  const x = Math.round((projectWidth - width) / 2);
+  const y = Math.round((projectHeight - height) / 2);
+
+  return {
+    id,
+    type: 'particle',
+    name: '泡',
+    layer,
+    startTime,
+    duration: 6,
+    x,
+    y,
+    width,
+    height,
+    rotation: 0,
+    scaleX: 1,
+    scaleY: 1,
+    opacity: 1,
+    enableAnimation: false,
+    endX: x,
+    endY: y,
+    easing: 'linear',
+    particleCount: 72,
+    seed: 731,
+    spread: 140,
+    speed: 34,
+    size: 12,
+    colour: '#b8f3ff',
+    lifetimeSeconds: 3.4,
+  };
+};
