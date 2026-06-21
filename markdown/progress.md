@@ -1,6 +1,14 @@
 # 進捗ログ
 
 ## 2026-06-22
+- GetColor / hksy / 93系を優先実装レーンへ追加した。
+- Red: `GetColor V2R`、`@hksy`、`script/93` の代表候補がAviUtlPackV4カタログと直近ロードマップへ入る契約を追加した。
+- Green: `getcolor-v2r-dot-field`、`93-audio-sphere`、`93-delay-move`、`93-spotlight`、`hksy-checker-grid` をカタログへ追加した。
+- Green: 棚卸しとImplementation Planで、GetColor / hksy / 93系をP1優先レーンへ移した。
+- 検証: `npm test -- --run src/utils/aviutlPackFeatureCatalog.test.ts --reporter=dot` は4件成功した。
+- 次は `93-audio-sphere` か `getcolor-v2r-dot-field` の実体をRed/Greenで追加する。音声連動の価値が高いので、先に `93-audio-sphere` を既存audio waveformサンプル取得経路へ接続するのが有力。
+
+## 2026-06-22
 - Tim簡易トーンカーブをRust生成オブジェクトへ追加した。
 - Red: `script/てぃむ/簡易トーンカーブ.obj` を、Rust `GeneratedToneCurve` mediaとして扱う境界契約を作った。
 - Green: `ToneCurveObject` と `buildAviUtlToneCurveObject` を追加し、Timeline右クリックから `簡易トーンカーブを追加` / `Add Tone Curve` で置けるようにした。

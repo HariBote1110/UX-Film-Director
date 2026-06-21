@@ -147,6 +147,56 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '音声中心の動画で需要が高く、既存のaudio_visualizationを伸ばしやすい。'
   },
   {
+    id: 'getcolor-v2r-dot-field',
+    labelJa: 'GetColor V2R ドットフィールド',
+    category: 'generated-object',
+    phase: 'P1',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/@GetColor/@GetColor-V2R.anm', 'script/93/@GetColor.anm', 'script/93/@GetColorTool.anm'],
+    rationaleJa: '画像をドット化し、色相・彩度・輝度・透明度で変形できる大物。UX FDではまずRust生成の色/輝度ドットフィールドとして分割実装する。'
+  },
+  {
+    id: '93-audio-sphere',
+    labelJa: '93 音声玉',
+    category: 'audio-visual',
+    phase: 'P1',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/音声玉.obj'],
+    rationaleJa: '音声スペクトラムで球状メッシュを膨らませる演出で、音声中心動画との相性が高く、既存audio waveformサンプル取得経路を拡張しやすい。'
+  },
+  {
+    id: '93-delay-move',
+    labelJa: '93 Delay個別',
+    category: 'motion',
+    phase: 'P1',
+    implementationTarget: 'native-motion-preset',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/@DelayMove.anm'],
+    rationaleJa: '個別オブジェクトの移動・回転・透明度を順番に遅らせる定番表現。複数選択/キーフレーム生成へ接続できる。'
+  },
+  {
+    id: '93-spotlight',
+    labelJa: '93 SpotLight',
+    category: 'visual-effect',
+    phase: 'P1',
+    implementationTarget: 'rust-webgpu-effect',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/@SpotLight.anm'],
+    rationaleJa: '立ち絵や注目箇所へ向かう光束表現として使いやすく、WebGPU上の加算グロー/減衰描画へ落とし込める。'
+  },
+  {
+    id: 'hksy-checker-grid',
+    labelJa: 'hksy チェッカー/グリッド',
+    category: 'generated-object',
+    phase: 'P1',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/@hksy/@hksy.obj', 'script/@hksy/@hksy.anm'],
+    rationaleJa: 'hksy内でもチェッカー、複数色チェッカー、グリッド、直線は背景・解説UIとして使いやすく、Rust生成オブジェクトへ小さく切り出せる。'
+  },
+  {
     id: 'particle-standard',
     labelJa: '標準パーティクル',
     category: 'generated-object',

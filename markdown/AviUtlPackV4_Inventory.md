@@ -24,6 +24,11 @@
 | P1 | 色収差 | Rust/WebGPU effect | 軽量なGPU効果として演出価値が高い |
 | P1 | 扇クリッピングR | Rust/WebGPU effect | 場面転換と表情切替へ使いやすい |
 | P1 | Audio waveform R | native generated object | 音声中心動画に向く |
+| P1 | GetColor V2R | native generated object | 色・輝度・透明度を使ったドット化表現を優先実装する |
+| P1 | 93 音声玉 | native generated object | 音声スペクトラムに反応する球状演出としてボイロ動画向き |
+| P1 | 93 Delay個別 | native motion preset | 個別オブジェクトの遅延移動を複数選択/キーフレームへ接続しやすい |
+| P1 | 93 SpotLight | Rust/WebGPU effect | 注目箇所へ向かう光束や加算グローとして使いやすい |
+| P1 | hksy チェッカー/グリッド | native generated object | 背景・解説UI用の格子素材として使いやすい |
 | P2 | 標準パーティクル | native generated object | GPU instancing設計後に効く |
 | P2 | オーラ放出 | native generated object | 立ち絵の強調や演出背景に使いやすい |
 | P2 | 泡 | native generated object | 水中・回想・柔らかい背景演出に使いやすい |

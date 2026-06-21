@@ -68,7 +68,12 @@
 50. ✅ `P2` SSD分度器をRust GeneratedProtractor生成オブジェクトへ追加
 51. ✅ `P2` SSD多角形_震えるをRust GeneratedShakingPolygon生成オブジェクトへ追加
 52. ✅ `P2` Tim簡易トーンカーブをRust GeneratedToneCurve生成オブジェクトへ追加
-53. `P2` 生成効果入り混在exportのnative render source待ち時間を分解して高速化する
+53. `P1` GetColor V2RをRust GeneratedGetColorDots生成オブジェクトへ追加
+54. `P1` 93音声玉をRust音声連動生成オブジェクトへ追加
+55. `P1` 93 Delay個別をnative motion presetへ追加
+56. `P1` 93 SpotLightをRust/WebGPU effectへ追加
+57. `P1` hksyチェッカー/グリッドをRust生成オブジェクトへ追加
+58. `P2` 生成効果入り混在exportのnative render source待ち時間を分解して高速化する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。
