@@ -436,6 +436,7 @@ struct GeneratedGetColorDotsSource {
     secondary_colour: String,
     background_colour: String,
     source_image: Option<String>,
+    source_active_layer_ids: Option<Vec<String>>,
     sample_strength: Option<f32>,
     seed: i64,
 }
@@ -6595,7 +6596,11 @@ fn build_generated_getcolor_dots_source_frame(
         )
     })?;
     let sample_frame = if let Some(source_image) = dots.source_image.as_deref() {
-        Some(load_getcolor_source_image_frame(source_image, &media.id)?)
+        Some(load_getcolor_source_image_frame(
+            source_image,
+            dots.source_active_layer_ids.as_deref().unwrap_or(&[]),
+            &media.id,
+        )?)
     } else {
         None
     };
@@ -6691,8 +6696,15 @@ fn build_generated_getcolor_dots_source_frame(
         .map_err(|error| format!("GeneratedGetColorDots media frame is invalid: {error:?}"))
 }
 
-fn load_getcolor_source_image_frame(source: &str, media_id: &str) -> Result<RgbaFrame, String> {
+fn load_getcolor_source_image_frame(
+    source: &str,
+    active_layer_ids: &[String],
+    media_id: &str,
+) -> Result<RgbaFrame, String> {
     let source_path = local_media_source_path(source, "GeneratedGetColorDots source_image")?;
+    if is_psd_source(&source_path) {
+        return load_getcolor_psd_source_frame(&source_path, active_layer_ids, media_id);
+    }
     if is_jpeg_source(&source_path) {
         return load_rgba_jpeg(&source_path).map_err(|error| {
             format!(
@@ -6706,6 +6718,30 @@ fn load_getcolor_source_image_frame(source: &str, media_id: &str) -> Result<Rgba
             "Invalid GeneratedGetColorDots media '{media_id}': failed to load source_image PNG: {error:?}"
         )
     })
+}
+
+fn load_getcolor_psd_source_frame(
+    source_path: &str,
+    active_layer_ids: &[String],
+    media_id: &str,
+) -> Result<RgbaFrame, String> {
+    let bytes = fs::read(source_path).map_err(|error| {
+        format!(
+            "Invalid GeneratedGetColorDots media '{media_id}': failed to read source_image PSD: {error}"
+        )
+    })?;
+    let psd = psd_fast::parse_psd_fast(&bytes).map_err(|error| {
+        format!(
+            "Invalid GeneratedGetColorDots media '{media_id}': failed to parse source_image PSD: {error}"
+        )
+    })?;
+    psd_fast::composite_visible_psd_layers_with_active_layer_ids(&psd, active_layer_ids).map_err(
+        |error| {
+            format!(
+                "Invalid GeneratedGetColorDots media '{media_id}': failed to composite source_image PSD: {error}"
+            )
+        },
+    )
 }
 
 fn sample_getcolor_dot_colour(
@@ -8028,8 +8064,17 @@ fn validate_generated_getcolor_dots_source(
     if let Some(source_image) = source.source_image.as_deref() {
         let source_path = local_media_source_path(source_image, "GeneratedGetColorDots source_image")?;
         let lower = source_path.to_ascii_lowercase();
-        if !(lower.ends_with(".png") || lower.ends_with(".jpg") || lower.ends_with(".jpeg")) {
-            return Err("source_image must be PNG or JPEG".to_string());
+        if !(lower.ends_with(".png")
+            || lower.ends_with(".jpg")
+            || lower.ends_with(".jpeg")
+            || lower.ends_with(".psd"))
+        {
+            return Err("source_image must be PNG, JPEG or PSD".to_string());
+        }
+    }
+    if let Some(active_layer_ids) = source.source_active_layer_ids.as_ref() {
+        if active_layer_ids.iter().any(|layer_id| layer_id.is_empty()) {
+            return Err("source_active_layer_ids must not contain empty ids".to_string());
         }
     }
     if let Some(sample_strength) = source.sample_strength {
@@ -8304,6 +8349,10 @@ fn load_image_media_frame(media: &SceneMediaReference) -> Result<RgbaFrame, Stri
 fn is_jpeg_source(source: &str) -> bool {
     let lower = source.to_ascii_lowercase();
     lower.ends_with(".jpg") || lower.ends_with(".jpeg")
+}
+
+fn is_psd_source(source: &str) -> bool {
+    source.to_ascii_lowercase().ends_with(".psd")
 }
 
 fn local_media_source_path(source: &str, media_kind: &str) -> Result<String, String> {

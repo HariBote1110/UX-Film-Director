@@ -1199,6 +1199,7 @@ const isSharedRendererNativeGeneratedGetColorDotsSourceSupported = (source: stri
       dot_shape?: unknown;
       stroke_width?: unknown;
       source_image?: unknown;
+      source_active_layer_ids?: unknown;
       sample_strength?: unknown;
     };
     const dotShapeSupported = parsed.dot_shape === undefined
@@ -1215,7 +1216,11 @@ const isSharedRendererNativeGeneratedGetColorDotsSourceSupported = (source: stri
       typeof parsed.source_image === 'string'
       && parsed.source_image.length > 0
       && isLocalNativeMediaSource(parsed.source_image)
-      && /\.(png|jpe?g)$/i.test(nativeMediaSourcePathname(parsed.source_image))
+      && /\.(png|jpe?g|psd)$/i.test(nativeMediaSourcePathname(parsed.source_image))
+    );
+    const sourceActiveLayerIdsSupported = parsed.source_active_layer_ids === undefined || (
+      Array.isArray(parsed.source_active_layer_ids)
+      && parsed.source_active_layer_ids.every((layerId) => typeof layerId === 'string' && layerId.length > 0)
     );
     const sampleStrengthSupported = parsed.sample_strength === undefined || (
       typeof parsed.sample_strength === 'number'
@@ -1261,6 +1266,7 @@ const isSharedRendererNativeGeneratedGetColorDotsSourceSupported = (source: stri
       && dotShapeSupported
       && strokeWidthSupported
       && sourceImageSupported
+      && sourceActiveLayerIdsSupported
       && sampleStrengthSupported
     );
   } catch {

@@ -1195,7 +1195,7 @@ const serialiseGeneratedGetColorDotsSource = (
   objects: TimelineObject[] = [],
   time = object.startTime
 ): string => {
-  const sampleSourcePath = resolveGetColorSampleSourcePath(object, objects, time);
+  const sampleSource = resolveGetColorSampleSource(object, objects, time);
   return JSON.stringify({
     generator: 'getcolor-v2r-dot-field',
     columns: Math.min(512, Math.max(1, Math.trunc(finiteNumberOr(object.columns, 32)))),
@@ -1213,20 +1213,21 @@ const serialiseGeneratedGetColorDotsSource = (
       dot_shape: object.dotShape,
       stroke_width: Math.min(200, Math.max(0, finiteNumberOr(object.strokeWidth, 0))),
     } : {}),
-    ...(sampleSourcePath ? {
-      source_image: sampleSourcePath,
+    ...(sampleSource ? {
+      source_image: sampleSource.source,
+      ...(sampleSource.activeLayerIds ? { source_active_layer_ids: sampleSource.activeLayerIds } : {}),
       sample_strength: Math.min(1, Math.max(0, finiteNumberOr(object.sampleStrength, 1))),
     } : {}),
   });
 };
 
-const resolveGetColorSampleSourcePath = (
+const resolveGetColorSampleSource = (
   object: GetColorDotFieldObject,
   objects: TimelineObject[],
   time: number
-): string | undefined => {
+): { source: string; activeLayerIds?: string[] } | undefined => {
   if (typeof object.sampleSourcePath === 'string' && object.sampleSourcePath.length > 0) {
-    return object.sampleSourcePath;
+    return { source: object.sampleSourcePath };
   }
 
   const candidates = objects
@@ -1235,21 +1236,34 @@ const resolveGetColorSampleSourcePath = (
 
   if (typeof object.sampleSourceObjectId === 'string' && object.sampleSourceObjectId.length > 0) {
     const matched = candidates.find((candidate) => candidate.id === object.sampleSourceObjectId);
-    const source = matched ? mediaSourceForObject(matched) : '';
-    return source || undefined;
+    return getColorSampleSourceForObject(matched);
   }
 
   if (typeof object.sampleSourceLayer === 'number' && Number.isFinite(object.sampleSourceLayer)) {
     const matched = candidates.find((candidate) => candidate.layer === object.sampleSourceLayer);
-    const source = matched ? mediaSourceForObject(matched) : '';
-    return source || undefined;
+    return getColorSampleSourceForObject(matched);
   }
 
   return undefined;
 };
 
-const isGetColorSampleSourceObject = (object: TimelineObject): object is ImageObject =>
-  object.type === 'image';
+const isGetColorSampleSourceObject = (object: TimelineObject): object is ImageObject | PsdObject =>
+  object.type === 'image' || object.type === 'psd';
+
+const getColorSampleSourceForObject = (
+  object: ImageObject | PsdObject | undefined
+): { source: string; activeLayerIds?: string[] } | undefined => {
+  if (!object) return undefined;
+  const source = mediaSourceForObject(object);
+  if (!source) return undefined;
+  if (object.type === 'psd') {
+    return {
+      source,
+      activeLayerIds: activeLayerIdsForPsd(object),
+    };
+  }
+  return { source };
+};
 
 const serialiseGeneratedRegionFrameSource = (object: RegionFrameObject): string =>
   JSON.stringify({
