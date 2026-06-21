@@ -1,3 +1,20 @@
+## 2026-06-22 — 93 SimpleTubeトーラスをRust生成プリセットへ追加
+
+### 実施内容
+- Red: `93 SimpleTubeトーラス` がfactory、Timeline右クリックメニュー、AviUtlPackV4カタログ、Rust scene snapshot、shared renderer native media、Rust backend画素生成を通る契約を追加した。
+- Green: `SimpleTubeObject` に `colourPattern` / `fogStrength` / `fogColour` を追加し、`GeneratedSimpleTube` payloadへ `colour_pattern` / `fog_strength` / `fog_colour` を渡すようにした。
+- Green: `buildAviUtlSimpleTubeTorusObject` と Timeline右クリックメニューの `93 SimpleTubeトーラスを追加` / `Add 93 SimpleTube Torus` を追加した。
+- Green: Rust backendでSimpleTubeの色パターン `single` / `ring` / `depth` とfog色寄せを処理し、トーラス派生で反映するようにした。
+- Version: `0.1.1-Beta-304a`。
+
+### 検証
+- `npm test -- --run src/utils/simpleTubeObjectFactory.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/projectFile.test.ts src/utils/packageScripts.test.ts --reporter=dot` は89件成功。
+- `cargo test --manifest-path rust-backend/Cargo.toml generated_simple_tube_source_frame -- --nocapture` は2件成功。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回のSimpleTubeトーラス由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- SimpleTube2の完全な3Dポリゴン/fade/fog挙動は未実装。次はSphere系、SphericalField、またはGetColorの元画像サンプリング/Field/Twist方向へ進む。
+
 ## 2026-06-22 — 93 SimpleTubeをRust生成プリセットへ追加
 
 ### 実施内容
