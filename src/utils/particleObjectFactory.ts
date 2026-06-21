@@ -48,3 +48,43 @@ export const buildDefaultStandardParticleObject = ({
     lifetimeSeconds: 2,
   };
 };
+
+export const buildAviUtlAuraEmissionObject = ({
+  id,
+  projectWidth,
+  projectHeight,
+  startTime,
+  layer,
+}: BuildDefaultStandardParticleObjectInput): ParticleObject => {
+  const size = Math.max(160, Math.round((Math.min(projectWidth, projectHeight) * 0.45) / 16) * 16);
+  const x = Math.round((projectWidth - size) / 2);
+  const y = Math.round((projectHeight - size) / 2);
+
+  return {
+    id,
+    type: 'particle',
+    name: 'オーラ放出',
+    layer,
+    startTime,
+    duration: 5,
+    x,
+    y,
+    width: size,
+    height: size,
+    rotation: 0,
+    scaleX: 1,
+    scaleY: 1,
+    opacity: 1,
+    enableAnimation: false,
+    endX: x,
+    endY: y,
+    easing: 'linear',
+    particleCount: 160,
+    seed: 417,
+    spread: 220,
+    speed: 52,
+    size: 9,
+    colour: '#80d8ff',
+    lifetimeSeconds: 2.8,
+  };
+};

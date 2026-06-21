@@ -1,3 +1,19 @@
+## 2026-06-21 — Timオーラ放出を標準生成オブジェクトへ追加
+
+### 実施内容
+- Red: `script/てぃむ/オーラ放出.anm` を、Timeline右クリックから追加できるAviUtlPackV4標準生成オブジェクトにする契約を作った。
+- Green: `buildAviUtlAuraEmissionObject` を追加し、標準パーティクル基盤でオーラ放出近似のParticleObjectを生成できるようにした。
+- Green: Timeline context menuへ `オーラ放出を追加` / `Add Aura Emission` を追加した。
+- Green: `tim-aura-emission` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-262a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/particleObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts` は30件成功。
+- 対象ファイル名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足のみ検出した。
+
+### 残課題・次のステップ
+- オーラ放出は標準パーティクル近似で、元スクリプト固有のゆらぎや加算合成までは未実装。次はnative renderer側の合成モードや生成効果入りexport高速化へ進む。
+
 ## 2026-06-21 — Tim風揺れTをネイティブmotion presetへ追加
 
 ### 実施内容

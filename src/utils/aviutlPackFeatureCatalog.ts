@@ -157,6 +157,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '演出力は高いが、決定的再生とGPU instancing設計が必要なのでP2に置く。'
   },
   {
+    id: 'tim-aura-emission',
+    labelJa: 'オーラ放出',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/てぃむ/オーラ放出.anm'],
+    rationaleJa: '立ち絵の強調や演出背景に使いやすく、標準パーティクル基盤で近似しやすい。'
+  },
+  {
     id: 'tim-motion-path',
     labelJa: 'モーションパス',
     category: 'motion',

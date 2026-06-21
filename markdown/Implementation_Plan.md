@@ -42,7 +42,8 @@
 24. ✅ `P2` E2Eで代表素材に効果を載せ、preview/exportの一致を検証（境界E2Eと実Electron生成効果exportは確認済み。Audio waveform RはRust native renderer内で直接フレーム/共有メモリフレームの画素一致と指定色画素の可視性を確認済み。Rust backendではAudio waveform R+標準パーティクル混在の共有メモリ合成とdirect encode書き出しを確認済み。Audio waveform RのPCM取得はsource frameへ追従済み。生成効果のPixi二重描画runtime errorは実Electron E2Eで解消済み。実Electron成果物は波形/粒子の画素検査まで通過済み）
 25. ✅ `P2` Timモーションパスをネイティブmotion presetへ追加
 26. ✅ `P2` Tim風揺れTをネイティブmotion presetへ追加
-27. `P2` 生成効果入り混在exportのnative render source待ち時間を分解して高速化する
+27. ✅ `P2` Timオーラ放出を標準パーティクル生成オブジェクトへ追加
+28. `P2` 生成効果入り混在exportのnative render source待ち時間を分解して高速化する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

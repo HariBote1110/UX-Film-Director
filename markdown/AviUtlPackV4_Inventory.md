@@ -25,6 +25,7 @@
 | P1 | 扇クリッピングR | Rust/WebGPU effect | 場面転換と表情切替へ使いやすい |
 | P1 | Audio waveform R | native generated object | 音声中心動画に向く |
 | P2 | 標準パーティクル | native generated object | GPU instancing設計後に効く |
+| P2 | オーラ放出 | native generated object | 立ち絵の強調や演出背景に使いやすい |
 | P2 | モーションパス / ベジェ軌道T | native motion preset | 既存キーフレームに接続し、弧やS字移動を少ない操作で作れる |
 | P2 | 風揺れT | native motion preset | 立ち絵や字幕に軽い揺れを付ける定番演出 |
 | P3 | Luaスクリプト互換 | script runtime later | 安全性、性能、ライセンス確認が大きい |

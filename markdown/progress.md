@@ -1,6 +1,16 @@
 # 進捗ログ
 
 ## 2026-06-21
+- Timオーラ放出を標準生成オブジェクトへ追加した。
+- Red: `script/てぃむ/オーラ放出.anm` を、Timeline右クリックから追加できるAviUtlPackV4標準生成オブジェクトにする契約を作った。
+- Green: `buildAviUtlAuraEmissionObject` を追加し、標準パーティクル基盤でオーラ放出近似のParticleObjectを生成できるようにした。
+- Green: Timeline context menuへ `オーラ放出を追加` / `Add Aura Emission` を追加した。
+- Green: `tim-aura-emission` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-262a` に更新した。
+- 検証: `npm test -- --run src/utils/particleObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts` は30件成功した。
+- 残課題: オーラ放出は標準パーティクル近似で、元スクリプト固有のゆらぎや加算合成までは未実装。
+
+## 2026-06-21
 - Tim風揺れTをネイティブmotion presetへ追加した。
 - Red: AviUtlPackV4 `script/てぃむ/風揺れT.anm` を、`wind-sway-soft` として標準motion presetに追加する契約を作った。
 - Green: 既存キーフレーム基盤へ、元の位置へ戻る小さな風揺れループを生成するネイティブ再実装を追加した。
