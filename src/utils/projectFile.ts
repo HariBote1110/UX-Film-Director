@@ -99,6 +99,7 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'pie_chart',
   'histogram',
   'tone_curve',
+  'hksy_checker_grid',
   'sunburst',
   'circular_arrow',
   'triangle_bracket',
@@ -427,6 +428,17 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!candidate.curvePoints.every((point) => isFiniteNumber(point) && point >= 0 && point <= 1)) return false;
     if (typeof candidate.curveColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.curveColour)) return false;
     if (typeof candidate.gridColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.gridColour)) return false;
+    if (typeof candidate.backgroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.backgroundColour)) return false;
+  }
+  if (candidate.type === 'hksy_checker_grid') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.cellSize) || candidate.cellSize < 1 || candidate.cellSize > 1000) return false;
+    if (!isFiniteNumber(candidate.lineWidth) || candidate.lineWidth < 0 || candidate.lineWidth > 100) return false;
+    if (typeof candidate.checkerEnabled !== 'boolean') return false;
+    if (typeof candidate.gridEnabled !== 'boolean') return false;
+    if (typeof candidate.foregroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.foregroundColour)) return false;
+    if (typeof candidate.secondaryColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.secondaryColour)) return false;
     if (typeof candidate.backgroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.backgroundColour)) return false;
   }
   return true;

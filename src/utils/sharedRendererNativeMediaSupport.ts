@@ -16,6 +16,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedPieChart') return isSharedRendererNativeGeneratedPieChartSourceSupported(reference.source);
   if (reference.kind === 'GeneratedHistogram') return isSharedRendererNativeGeneratedHistogramSourceSupported(reference.source);
   if (reference.kind === 'GeneratedToneCurve') return isSharedRendererNativeGeneratedToneCurveSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedHksyCheckerGrid') return isSharedRendererNativeGeneratedHksyCheckerGridSourceSupported(reference.source);
   if (reference.kind === 'GeneratedSunburst') return isSharedRendererNativeGeneratedSunburstSourceSupported(reference.source);
   if (reference.kind === 'GeneratedCircularArrow') return isSharedRendererNativeGeneratedCircularArrowSourceSupported(reference.source);
   if (reference.kind === 'GeneratedTriangleBracket') return isSharedRendererNativeGeneratedTriangleBracketSourceSupported(reference.source);
@@ -1013,6 +1014,42 @@ const isSharedRendererNativeGeneratedToneCurveSourceSupported = (source: string)
       && /^#[0-9a-f]{6}$/i.test(parsed.curve_colour)
       && typeof parsed.grid_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.grid_colour)
+      && typeof parsed.background_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedHksyCheckerGridSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      cell_size?: unknown;
+      line_width?: unknown;
+      checker_enabled?: unknown;
+      grid_enabled?: unknown;
+      foreground_colour?: unknown;
+      secondary_colour?: unknown;
+      background_colour?: unknown;
+    };
+    return (
+      parsed.generator === 'hksy-checker-grid'
+      && typeof parsed.cell_size === 'number'
+      && Number.isInteger(parsed.cell_size)
+      && parsed.cell_size >= 1
+      && parsed.cell_size <= 1000
+      && typeof parsed.line_width === 'number'
+      && Number.isInteger(parsed.line_width)
+      && parsed.line_width >= 0
+      && parsed.line_width <= 100
+      && typeof parsed.checker_enabled === 'boolean'
+      && typeof parsed.grid_enabled === 'boolean'
+      && typeof parsed.foreground_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.foreground_colour)
+      && typeof parsed.secondary_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.secondary_colour)
       && typeof parsed.background_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
     );

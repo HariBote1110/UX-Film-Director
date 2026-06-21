@@ -1,6 +1,17 @@
 # 進捗ログ
 
 ## 2026-06-22
+- hksyチェッカー/グリッドをRust生成オブジェクトへ追加した。
+- Red: `@hksy` のチェッカー/グリッドがタイムライン挿入、保存/読込、Rust scene snapshot、shared renderer native media、Pixi cutover、Rust core schema境界を通る契約を追加した。
+- Green: `hksy_checker_grid` TimelineObjectと `GeneratedHksyCheckerGrid` media kindを追加し、Rust backendでチェッカーセルとグリッド線をRGBA生成する実装を入れた。
+- Green: 右クリックメニューに「hksyチェッカー/グリッドを追加」を追加し、export frame source policyでもnative render mediaとして扱うようにした。
+- 版を `0.1.1-Beta-288a` に更新した。
+- 検証: `npm test -- --run src/utils/hksyCheckerGridObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts --reporter=dot` は96件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test media_schema rust_core_accepts_generated_hksy_checker_grid_media_kind_at_the_json_boundary -- --nocapture` は1件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_hksy_checker_grid_source_frame_contains_checker_cells_and_grid -- --nocapture` は1件成功した。
+- 残課題: `@hksy` の直線、複数色チェッカー、マスク系までは未移植。次は `GetColor V2R` のドットフィールド、または `93` の音声玉に進む。
+
+## 2026-06-22
 - GetColor / hksy / 93系を優先実装レーンへ追加した。
 - Red: `GetColor V2R`、`@hksy`、`script/93` の代表候補がAviUtlPackV4カタログと直近ロードマップへ入る契約を追加した。
 - Green: `getcolor-v2r-dot-field`、`93-audio-sphere`、`93-delay-move`、`93-spotlight`、`hksy-checker-grid` をカタログへ追加した。

@@ -420,6 +420,18 @@ struct GeneratedToneCurveSource {
     background_colour: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedHksyCheckerGridSource {
+    generator: String,
+    cell_size: u32,
+    line_width: u32,
+    checker_enabled: bool,
+    grid_enabled: bool,
+    foreground_colour: String,
+    secondary_colour: String,
+    background_colour: String,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2406,6 +2418,9 @@ fn collect_native_render_sources(
             MediaKind::GeneratedPieChart => build_generated_pie_chart_source_frame(media)?,
             MediaKind::GeneratedHistogram => build_generated_histogram_source_frame(media)?,
             MediaKind::GeneratedToneCurve => build_generated_tone_curve_source_frame(media)?,
+            MediaKind::GeneratedHksyCheckerGrid => {
+                build_generated_hksy_checker_grid_source_frame(media)?
+            }
             MediaKind::GeneratedSunburst => build_generated_sunburst_source_frame(media)?,
             MediaKind::GeneratedCircularArrow => {
                 build_generated_circular_arrow_source_frame(media)?
@@ -4340,13 +4355,10 @@ fn build_generated_hologram_source_frame(media: &SceneMediaReference) -> Result<
             media.width, media.height
         ));
     }
-    let hologram: GeneratedHologramSource =
-        serde_json::from_str(&media.source).map_err(|error| {
-            format!("Invalid GeneratedHologram media '{}': {error}", media.id)
-        })?;
-    validate_generated_hologram_source(&hologram).map_err(|message| {
-        format!("Invalid GeneratedHologram media '{}': {message}", media.id)
-    })?;
+    let hologram: GeneratedHologramSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedHologram media '{}': {error}", media.id))?;
+    validate_generated_hologram_source(&hologram)
+        .map_err(|message| format!("Invalid GeneratedHologram media '{}': {message}", media.id))?;
     let tint = parse_hex_colour_source(&hologram.tint_colour)
         .map_err(|message| format!("Invalid GeneratedHologram media '{}': {message}", media.id))?;
     let pixel_count = usize::try_from(media.width)
@@ -4385,8 +4397,7 @@ fn build_generated_hologram_source_frame(media: &SceneMediaReference) -> Result<
                 colour = blend_rgb8(colour, tint, 0.18);
             } else if hologram.colour_mode == 2 {
                 let gradient_position =
-                    ((px * cos_g + py * sin_g) / (media.width.max(media.height) as f32)
-                        + 0.5)
+                    ((px * cos_g + py * sin_g) / (media.width.max(media.height) as f32) + 0.5)
                         .rem_euclid(1.0);
                 colour = blend_rgb8(
                     colour,
@@ -4448,21 +4459,31 @@ fn build_generated_protractor_source_frame(
             media.width, media.height
         ));
     }
-    let protractor: GeneratedProtractorSource =
-        serde_json::from_str(&media.source).map_err(|error| {
-            format!("Invalid GeneratedProtractor media '{}': {error}", media.id)
-        })?;
+    let protractor: GeneratedProtractorSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedProtractor media '{}': {error}", media.id))?;
     validate_generated_protractor_source(&protractor).map_err(|message| {
-        format!("Invalid GeneratedProtractor media '{}': {message}", media.id)
+        format!(
+            "Invalid GeneratedProtractor media '{}': {message}",
+            media.id
+        )
     })?;
     let line_colour = parse_hex_colour_source(&protractor.line_colour).map_err(|message| {
-        format!("Invalid GeneratedProtractor media '{}': {message}", media.id)
+        format!(
+            "Invalid GeneratedProtractor media '{}': {message}",
+            media.id
+        )
     })?;
     let text_colour = parse_hex_colour_source(&protractor.text_colour).map_err(|message| {
-        format!("Invalid GeneratedProtractor media '{}': {message}", media.id)
+        format!(
+            "Invalid GeneratedProtractor media '{}': {message}",
+            media.id
+        )
     })?;
     let shadow_colour = parse_hex_colour_source(&protractor.shadow_colour).map_err(|message| {
-        format!("Invalid GeneratedProtractor media '{}': {message}", media.id)
+        format!(
+            "Invalid GeneratedProtractor media '{}': {message}",
+            media.id
+        )
     })?;
     let pixel_count = usize::try_from(media.width)
         .ok()
@@ -4484,7 +4505,15 @@ fn build_generated_protractor_source_frame(
         .min(media.height.saturating_sub(28))
         .max(1) as f32;
 
-    draw_protractor_arc(&mut pixels, media.width, media.height, centre_x, centre_y, radius, line_colour);
+    draw_protractor_arc(
+        &mut pixels,
+        media.width,
+        media.height,
+        centre_x,
+        centre_y,
+        radius,
+        line_colour,
+    );
     draw_line_segment_rgba(
         &mut pixels,
         media.width,
@@ -4499,7 +4528,10 @@ fn build_generated_protractor_source_frame(
     while degree <= 180 {
         let is_major = degree % protractor.major_tick_step_degrees == 0;
         let angle = std::f32::consts::PI - (degree as f32).to_radians();
-        let outer = (centre_x + angle.cos() * radius, centre_y - angle.sin() * radius);
+        let outer = (
+            centre_x + angle.cos() * radius,
+            centre_y - angle.sin() * radius,
+        );
         let tick_len = if is_major { 18.0 } else { 9.0 };
         let inner = (
             centre_x + angle.cos() * (radius - tick_len),
@@ -4602,9 +4634,13 @@ fn draw_filled_circle_rgba(
     alpha: u8,
 ) {
     let min_x = (centre_x - radius).floor().max(0.0) as u32;
-    let max_x = (centre_x + radius).ceil().min(width.saturating_sub(1) as f32) as u32;
+    let max_x = (centre_x + radius)
+        .ceil()
+        .min(width.saturating_sub(1) as f32) as u32;
     let min_y = (centre_y - radius).floor().max(0.0) as u32;
-    let max_y = (centre_y + radius).ceil().min(height.saturating_sub(1) as f32) as u32;
+    let max_y = (centre_y + radius)
+        .ceil()
+        .min(height.saturating_sub(1) as f32) as u32;
     let radius_sq = radius * radius;
     for y in min_y..=max_y {
         for x in min_x..=max_x {
@@ -4612,7 +4648,8 @@ fn draw_filled_circle_rgba(
             let dy = y as f32 + 0.5 - centre_y;
             if dx * dx + dy * dy <= radius_sq {
                 let offset = (y as usize * width as usize + x as usize) * 4;
-                pixels[offset..offset + 4].copy_from_slice(&[colour[0], colour[1], colour[2], alpha]);
+                pixels[offset..offset + 4]
+                    .copy_from_slice(&[colour[0], colour[1], colour[2], alpha]);
             }
         }
     }
@@ -4629,7 +4666,16 @@ fn draw_seven_segment_label(
     colour: [u8; 3],
     shadow_colour: [u8; 3],
 ) {
-    draw_seven_segment_label_at(pixels, width, height, label, x + 2, y + 2, scale, shadow_colour);
+    draw_seven_segment_label_at(
+        pixels,
+        width,
+        height,
+        label,
+        x + 2,
+        y + 2,
+        scale,
+        shadow_colour,
+    );
     draw_seven_segment_label_at(pixels, width, height, label, x, y, scale, colour);
 }
 
@@ -4646,10 +4692,21 @@ fn draw_seven_segment_label_at(
     let mut cursor_x = x;
     for character in label.chars() {
         if character == '.' {
-            fill_rect_rgba_i32(pixels, width, height, cursor_x, y + 16 * scale, 2 * scale, 2 * scale, colour);
+            fill_rect_rgba_i32(
+                pixels,
+                width,
+                height,
+                cursor_x,
+                y + 16 * scale,
+                2 * scale,
+                2 * scale,
+                colour,
+            );
             cursor_x += 4 * scale;
         } else {
-            draw_seven_segment_character(pixels, width, height, character, cursor_x, y, scale, colour);
+            draw_seven_segment_character(
+                pixels, width, height, character, cursor_x, y, scale, colour,
+            );
             cursor_x += 9 * scale;
         }
     }
@@ -4778,13 +4835,20 @@ fn build_generated_shaking_polygon_source_frame(
         let rotation = if polygon.repeat_count <= 1 {
             0.0
         } else {
-            repeat_index as f32
-                * std::f32::consts::TAU
+            repeat_index as f32 * std::f32::consts::TAU
                 / (polygon.repeat_count * polygon.repeat_frequency) as f32
         };
         let points = shaking_polygon_points(&polygon, source_frame, centre, base_radius, rotation);
         if polygon.fill {
-            fill_polygon_fan_rgba(&mut pixels, media.width, media.height, &points, centre, colour, 96);
+            fill_polygon_fan_rgba(
+                &mut pixels,
+                media.width,
+                media.height,
+                &points,
+                centre,
+                colour,
+                96,
+            );
         }
         draw_polygon_outline_rgba(
             &mut pixels,
@@ -4840,9 +4904,13 @@ fn shaking_polygon_points(
     let seed = polygon.seed as u64;
     (0..polygon.vertex_count)
         .map(|index| {
-            let base_angle =
-                rotation + index as f32 * std::f32::consts::TAU / polygon.vertex_count as f32
-                    + if polygon.vertex_count == 4 { std::f32::consts::FRAC_PI_4 } else { 0.0 };
+            let base_angle = rotation
+                + index as f32 * std::f32::consts::TAU / polygon.vertex_count as f32
+                + if polygon.vertex_count == 4 {
+                    std::f32::consts::FRAC_PI_4
+                } else {
+                    0.0
+                };
             let jitter_x0 = jitter_value(seed, index, phase, 0, polygon.jitter_range);
             let jitter_y0 = jitter_value(seed, index, phase, 1, polygon.jitter_range);
             let jitter_x1 = jitter_value(seed, index, phase + 1, 0, polygon.jitter_range);
@@ -4858,12 +4926,18 @@ fn shaking_polygon_points(
 }
 
 fn jitter_value(seed: u64, vertex_index: u32, phase: u64, lane: u64, range: f32) -> f32 {
-    (deterministic_unit(seed, vertex_index, phase.saturating_mul(13).saturating_add(lane)) * 2.0
+    (deterministic_unit(
+        seed,
+        vertex_index,
+        phase.saturating_mul(13).saturating_add(lane),
+    ) * 2.0
         - 1.0)
         * range
 }
 
-fn build_generated_tone_curve_source_frame(media: &SceneMediaReference) -> Result<RgbaFrame, String> {
+fn build_generated_tone_curve_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
     if media.width == 0 || media.height == 0 {
         return Err(format!(
             "GeneratedToneCurve media dimensions must be positive, got {}x{}",
@@ -4872,12 +4946,8 @@ fn build_generated_tone_curve_source_frame(media: &SceneMediaReference) -> Resul
     }
     let tone_curve: GeneratedToneCurveSource = serde_json::from_str(&media.source)
         .map_err(|error| format!("Invalid GeneratedToneCurve media '{}': {error}", media.id))?;
-    validate_generated_tone_curve_source(&tone_curve).map_err(|message| {
-        format!(
-            "Invalid GeneratedToneCurve media '{}': {message}",
-            media.id
-        )
-    })?;
+    validate_generated_tone_curve_source(&tone_curve)
+        .map_err(|message| format!("Invalid GeneratedToneCurve media '{}': {message}", media.id))?;
     let background = parse_hex_colour_source(&tone_curve.background_colour).map_err(|message| {
         format!(
             "Invalid GeneratedToneCurve media '{}': background_colour {message}",
@@ -4918,8 +4988,24 @@ fn build_generated_tone_curve_source_frame(media: &SceneMediaReference) -> Resul
     for index in 0..=divisions {
         let x = index as f32 * (width - 1.0) / divisions as f32;
         let y = index as f32 * (height - 1.0) / divisions as f32;
-        draw_line_segment_rgba(&mut pixels, media.width, media.height, (x, 0.0), (x, height - 1.0), grid, 1.0);
-        draw_line_segment_rgba(&mut pixels, media.width, media.height, (0.0, y), (width - 1.0, y), grid, 1.0);
+        draw_line_segment_rgba(
+            &mut pixels,
+            media.width,
+            media.height,
+            (x, 0.0),
+            (x, height - 1.0),
+            grid,
+            1.0,
+        );
+        draw_line_segment_rgba(
+            &mut pixels,
+            media.width,
+            media.height,
+            (0.0, y),
+            (width - 1.0, y),
+            grid,
+            1.0,
+        );
     }
 
     let points = tone_curve_curve_points(&tone_curve.curve_points, width, height);
@@ -4937,6 +5023,114 @@ fn build_generated_tone_curve_source_frame(media: &SceneMediaReference) -> Resul
 
     RgbaFrame::from_rgba8(media.width, media.height, pixels)
         .map_err(|error| format!("GeneratedToneCurve media frame is invalid: {error:?}"))
+}
+
+fn build_generated_hksy_checker_grid_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedHksyCheckerGrid media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let checker_grid: GeneratedHksyCheckerGridSource = serde_json::from_str(&media.source)
+        .map_err(|error| {
+            format!(
+                "Invalid GeneratedHksyCheckerGrid media '{}': {error}",
+                media.id
+            )
+        })?;
+    validate_generated_hksy_checker_grid_source(&checker_grid).map_err(|message| {
+        format!(
+            "Invalid GeneratedHksyCheckerGrid media '{}': {message}",
+            media.id
+        )
+    })?;
+    let foreground =
+        parse_hex_colour_source(&checker_grid.foreground_colour).map_err(|message| {
+            format!(
+                "Invalid GeneratedHksyCheckerGrid media '{}': foreground_colour {message}",
+                media.id
+            )
+        })?;
+    let secondary = parse_hex_colour_source(&checker_grid.secondary_colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedHksyCheckerGrid media '{}': secondary_colour {message}",
+            media.id
+        )
+    })?;
+    let background =
+        parse_hex_colour_source(&checker_grid.background_colour).map_err(|message| {
+            format!(
+                "Invalid GeneratedHksyCheckerGrid media '{}': background_colour {message}",
+                media.id
+            )
+        })?;
+
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedHksyCheckerGrid media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedHksyCheckerGrid media byte length overflows".to_string())?;
+    let mut pixels = vec![0; byte_len];
+
+    for y in 0..media.height {
+        for x in 0..media.width {
+            let colour = if checker_grid.checker_enabled {
+                let tile_x = x / checker_grid.cell_size;
+                let tile_y = y / checker_grid.cell_size;
+                if (tile_x + tile_y) % 2 == 0 {
+                    foreground
+                } else {
+                    background
+                }
+            } else {
+                background
+            };
+            let offset = (y as usize * media.width as usize + x as usize) * 4;
+            pixels[offset..offset + 4].copy_from_slice(&[colour[0], colour[1], colour[2], 255]);
+        }
+    }
+
+    if checker_grid.grid_enabled && checker_grid.line_width > 0 {
+        let line_width = checker_grid.line_width as f32;
+        let mut x = 0;
+        while x < media.width {
+            draw_line_segment_rgba(
+                &mut pixels,
+                media.width,
+                media.height,
+                (x as f32, 0.0),
+                (x as f32, media.height.saturating_sub(1) as f32),
+                secondary,
+                line_width,
+            );
+            x = x.saturating_add(checker_grid.cell_size);
+        }
+        let mut y = 0;
+        while y < media.height {
+            draw_line_segment_rgba(
+                &mut pixels,
+                media.width,
+                media.height,
+                (0.0, y as f32),
+                (media.width.saturating_sub(1) as f32, y as f32),
+                secondary,
+                line_width,
+            );
+            y = y.saturating_add(checker_grid.cell_size);
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedHksyCheckerGrid media frame is invalid: {error:?}"))
 }
 
 fn tone_curve_curve_points(points: &[f32], width: f32, height: f32) -> Vec<(f32, f32)> {
@@ -5030,7 +5224,8 @@ fn fill_triangle_rgba(
         for x in min_x..=max_x {
             if point_in_triangle(x as f32 + 0.5, y as f32 + 0.5, triangle) {
                 let offset = (y as usize * width as usize + x as usize) * 4;
-                pixels[offset..offset + 4].copy_from_slice(&[colour[0], colour[1], colour[2], alpha]);
+                pixels[offset..offset + 4]
+                    .copy_from_slice(&[colour[0], colour[1], colour[2], alpha]);
             }
         }
     }
@@ -5749,7 +5944,8 @@ fn validate_generated_shaking_polygon_source(
     if source.repeat_frequency == 0 {
         return Err("repeat_frequency must be at least 1".to_string());
     }
-    if !source.jitter_range.is_finite() || source.jitter_range < 0.0 || source.jitter_range > 2000.0 {
+    if !source.jitter_range.is_finite() || source.jitter_range < 0.0 || source.jitter_range > 2000.0
+    {
         return Err("jitter_range must be 0..2000".to_string());
     }
     if source.jitter_interval == 0 {
@@ -5781,6 +5977,24 @@ fn validate_generated_tone_curve_source(source: &GeneratedToneCurveSource) -> Re
     }
     parse_hex_colour_source(&source.curve_colour)?;
     parse_hex_colour_source(&source.grid_colour)?;
+    parse_hex_colour_source(&source.background_colour)?;
+    Ok(())
+}
+
+fn validate_generated_hksy_checker_grid_source(
+    source: &GeneratedHksyCheckerGridSource,
+) -> Result<(), String> {
+    if source.generator != "hksy-checker-grid" {
+        return Err("generator must be hksy-checker-grid".to_string());
+    }
+    if source.cell_size == 0 || source.cell_size > 1000 {
+        return Err("cell_size must be 1..1000".to_string());
+    }
+    if source.line_width > 100 {
+        return Err("line_width must be 0..100".to_string());
+    }
+    parse_hex_colour_source(&source.foreground_colour)?;
+    parse_hex_colour_source(&source.secondary_colour)?;
     parse_hex_colour_source(&source.background_colour)?;
     Ok(())
 }
@@ -8298,8 +8512,8 @@ mod tests {
             active_layer_ids: Vec::new(),
         };
 
-        let frame =
-            build_generated_hologram_source_frame(&media).expect("generated hologram frame should render");
+        let frame = build_generated_hologram_source_frame(&media)
+            .expect("generated hologram frame should render");
         let opaque_count = frame
             .pixels
             .chunks_exact(4)
@@ -8343,8 +8557,8 @@ mod tests {
             active_layer_ids: Vec::new(),
         };
 
-        let frame =
-            build_generated_protractor_source_frame(&media).expect("generated protractor frame should render");
+        let frame = build_generated_protractor_source_frame(&media)
+            .expect("generated protractor frame should render");
         let white_count = frame
             .pixels
             .chunks_exact(4)
@@ -8366,8 +8580,14 @@ mod tests {
         assert!(white_count > 2_000);
         assert!(shadow_count > 100);
         assert!(transparent_count > 90_000);
-        assert_eq!(&frame.pixels[centre_offset..centre_offset + 4], &[255, 255, 255, 255]);
-        assert_eq!(&frame.pixels[ninety_degree_line_offset..ninety_degree_line_offset + 4], &[255, 255, 255, 255]);
+        assert_eq!(
+            &frame.pixels[centre_offset..centre_offset + 4],
+            &[255, 255, 255, 255]
+        );
+        assert_eq!(
+            &frame.pixels[ninety_degree_line_offset..ninety_degree_line_offset + 4],
+            &[255, 255, 255, 255]
+        );
     }
 
     #[test]
@@ -8420,8 +8640,8 @@ mod tests {
             active_layer_ids: Vec::new(),
         };
 
-        let frame =
-            build_generated_tone_curve_source_frame(&media).expect("generated tone curve frame should render");
+        let frame = build_generated_tone_curve_source_frame(&media)
+            .expect("generated tone curve frame should render");
         let white_count = frame
             .pixels
             .chunks_exact(4)
@@ -8441,5 +8661,42 @@ mod tests {
         assert!(white_count > 1_000);
         assert!(grid_count > 2_000);
         assert!(background_count > 100_000);
+    }
+
+    #[test]
+    fn generated_hksy_checker_grid_source_frame_contains_checker_cells_and_grid() {
+        let media = SceneMediaReference {
+            id: "hksy-checker-grid-1".to_string(),
+            kind: MediaKind::GeneratedHksyCheckerGrid,
+            source: r##"{"generator":"hksy-checker-grid","cell_size":50,"line_width":2,"checker_enabled":true,"grid_enabled":true,"foreground_colour":"#ffffff","secondary_colour":"#333333","background_colour":"#000000"}"##.to_string(),
+            width: 800,
+            height: 450,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_hksy_checker_grid_source_frame(&media)
+            .expect("generated hksy checker grid frame should render");
+        let foreground_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [255, 255, 255, 255])
+            .count();
+        let grid_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [51, 51, 51, 255])
+            .count();
+        let background_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [0, 0, 0, 255])
+            .count();
+        let fully_opaque = frame.pixels.chunks_exact(4).all(|rgba| rgba[3] == 255);
+
+        assert!(foreground_count > 120_000);
+        assert!(grid_count > 15_000);
+        assert!(background_count > 120_000);
+        assert!(fully_opaque);
     }
 }

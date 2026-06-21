@@ -331,6 +331,7 @@ export const hasProjectExportNativeRenderMediaObjects = (
     || object.type === 'pie_chart'
     || object.type === 'histogram'
     || object.type === 'tone_curve'
+    || object.type === 'hksy_checker_grid'
     || object.type === 'sunburst'
     || object.type === 'circular_arrow'
     || object.type === 'triangle_bracket'

@@ -72,7 +72,7 @@
 54. `P1` 93音声玉をRust音声連動生成オブジェクトへ追加
 55. `P1` 93 Delay個別をnative motion presetへ追加
 56. `P1` 93 SpotLightをRust/WebGPU effectへ追加
-57. `P1` hksyチェッカー/グリッドをRust生成オブジェクトへ追加
+57. ✅ `P1` hksyチェッカー/グリッドをRust GeneratedHksyCheckerGrid生成オブジェクトへ追加
 58. `P2` 生成効果入り混在exportのnative render source待ち時間を分解して高速化する
 
 ## AviUtl互換ロードマップ（2026-02-11）
