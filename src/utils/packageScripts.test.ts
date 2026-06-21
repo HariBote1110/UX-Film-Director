@@ -28,8 +28,19 @@ describe('package scripts', () => {
     expect(script).toContain('exportFramesPerSecond');
     expect(script).toContain('UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA');
     expect(script).toContain('mixedMediaResult');
+    expect(script).toContain('__UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__');
+    expect(script).toContain('mixedMediaDurationResult');
+    expect(script).toContain('expectedFrameCount');
+    expect(script).toContain('frameCountMatchesDuration');
     expect(script.indexOf('const exportStartTimeMs = Date.now()'))
       .toBeLessThan(script.indexOf('exportDurationMs'));
+  });
+
+  it('keeps mixed-media video export E2E duration controlled by the renderer hook', () => {
+    const main = readFileSync(new URL('../../src/main.tsx', import.meta.url), 'utf8');
+    expect(main).toContain('__UXFD_VIDEO_EXPORT_E2E_SET_ALL_OBJECT_DURATIONS__');
+    expect(main).toContain('state.objects.forEach');
+    expect(main).toContain('state.setDuration(safeDuration)');
   });
 
   it('provides a real video export quality comparison command', () => {
