@@ -502,6 +502,8 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (typeof candidate.foregroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.foregroundColour)) return false;
     if (typeof candidate.secondaryColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.secondaryColour)) return false;
     if (typeof candidate.backgroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.backgroundColour)) return false;
+    if (candidate.sampleSourcePath !== undefined && (typeof candidate.sampleSourcePath !== 'string' || candidate.sampleSourcePath.length === 0)) return false;
+    if (candidate.sampleStrength !== undefined && (!isFiniteNumber(candidate.sampleStrength) || candidate.sampleStrength < 0 || candidate.sampleStrength > 1)) return false;
     if (!isFiniteNumber(candidate.seed)) return false;
   }
   if (candidate.type === 'region_frame') {

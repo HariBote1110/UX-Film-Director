@@ -1208,6 +1208,10 @@ const serialiseGeneratedGetColorDotsSource = (object: GetColorDotFieldObject): s
       dot_shape: object.dotShape,
       stroke_width: Math.min(200, Math.max(0, finiteNumberOr(object.strokeWidth, 0))),
     } : {}),
+    ...(typeof object.sampleSourcePath === 'string' && object.sampleSourcePath.length > 0 ? {
+      source_image: object.sampleSourcePath,
+      sample_strength: Math.min(1, Math.max(0, finiteNumberOr(object.sampleStrength, 1))),
+    } : {}),
   });
 
 const serialiseGeneratedRegionFrameSource = (object: RegionFrameObject): string =>

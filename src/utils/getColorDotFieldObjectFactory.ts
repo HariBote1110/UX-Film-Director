@@ -8,6 +8,10 @@ export interface BuildGetColorDotFieldObjectInput {
   layer: number;
 }
 
+export interface BuildGetColorSampledDotFieldObjectInput extends BuildGetColorDotFieldObjectInput {
+  sampleSourcePath?: string;
+}
+
 export const buildGetColorDotFieldObject = ({
   id,
   projectWidth,
@@ -69,4 +73,14 @@ export const buildGetColorOutlinedSquareDotFieldObject = (input: BuildGetColorDo
   dotSize: 22,
   dotShape: 'square',
   strokeWidth: 5,
+});
+
+export const buildGetColorSampledDotFieldObject = (input: BuildGetColorSampledDotFieldObjectInput): GetColorDotFieldObject => ({
+  ...buildGetColorDotFieldObject(input),
+  name: 'GetColor V2R 画像サンプリングドット',
+  dotSize: 16,
+  dotShape: 'circle',
+  strokeWidth: 0,
+  sampleSourcePath: input.sampleSourcePath,
+  sampleStrength: 1,
 });

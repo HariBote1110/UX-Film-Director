@@ -435,6 +435,8 @@ struct GeneratedGetColorDotsSource {
     foreground_colour: String,
     secondary_colour: String,
     background_colour: String,
+    source_image: Option<String>,
+    sample_strength: Option<f32>,
     seed: i64,
 }
 
@@ -6592,6 +6594,12 @@ fn build_generated_getcolor_dots_source_frame(
             media.id
         )
     })?;
+    let sample_frame = if let Some(source_image) = dots.source_image.as_deref() {
+        Some(load_getcolor_source_image_frame(source_image, &media.id)?)
+    } else {
+        None
+    };
+    let sample_strength = dots.sample_strength.unwrap_or(1.0).clamp(0.0, 1.0);
 
     let pixel_count = usize::try_from(media.width)
         .ok()
@@ -6655,6 +6663,14 @@ fn build_generated_getcolor_dots_source_frame(
             } else {
                 secondary
             };
+            let (colour, alpha) = sample_getcolor_dot_colour(
+                sample_frame.as_ref(),
+                u,
+                v,
+                colour,
+                255,
+                sample_strength,
+            );
             draw_getcolor_dot_shape_rgba(
                 &mut pixels,
                 media.width,
@@ -6666,13 +6682,74 @@ fn build_generated_getcolor_dots_source_frame(
                 dots.stroke_width.unwrap_or(0.0),
                 colour,
                 background,
-                255,
+                alpha,
             );
         }
     }
 
     RgbaFrame::from_rgba8(media.width, media.height, pixels)
         .map_err(|error| format!("GeneratedGetColorDots media frame is invalid: {error:?}"))
+}
+
+fn load_getcolor_source_image_frame(source: &str, media_id: &str) -> Result<RgbaFrame, String> {
+    let source_path = local_media_source_path(source, "GeneratedGetColorDots source_image")?;
+    if is_jpeg_source(&source_path) {
+        return load_rgba_jpeg(&source_path).map_err(|error| {
+            format!(
+                "Invalid GeneratedGetColorDots media '{media_id}': failed to load source_image JPEG: {error:?}"
+            )
+        });
+    }
+
+    load_rgba_png(&source_path).map_err(|error| {
+        format!(
+            "Invalid GeneratedGetColorDots media '{media_id}': failed to load source_image PNG: {error:?}"
+        )
+    })
+}
+
+fn sample_getcolor_dot_colour(
+    source: Option<&RgbaFrame>,
+    u: f32,
+    v: f32,
+    fallback_colour: [u8; 3],
+    fallback_alpha: u8,
+    sample_strength: f32,
+) -> ([u8; 3], u8) {
+    let Some(source) = source else {
+        return (fallback_colour, fallback_alpha);
+    };
+    if sample_strength <= 0.0 || source.width == 0 || source.height == 0 {
+        return (fallback_colour, fallback_alpha);
+    }
+
+    let sample_x = ((source.width.saturating_sub(1)) as f32 * u.clamp(0.0, 1.0)).round() as u32;
+    let sample_y = ((source.height.saturating_sub(1)) as f32 * v.clamp(0.0, 1.0)).round() as u32;
+    let offset = ((sample_y as usize * source.width as usize) + sample_x as usize) * 4;
+    if offset + 3 >= source.pixels.len() {
+        return (fallback_colour, fallback_alpha);
+    }
+
+    let sampled = [
+        source.pixels[offset],
+        source.pixels[offset + 1],
+        source.pixels[offset + 2],
+    ];
+    let sampled_alpha = source.pixels[offset + 3];
+    let mix_channel = |fallback: u8, sampled: u8| -> u8 {
+        ((fallback as f32 * (1.0 - sample_strength)) + (sampled as f32 * sample_strength))
+            .round()
+            .clamp(0.0, 255.0) as u8
+    };
+
+    (
+        [
+            mix_channel(fallback_colour[0], sampled[0]),
+            mix_channel(fallback_colour[1], sampled[1]),
+            mix_channel(fallback_colour[2], sampled[2]),
+        ],
+        mix_channel(fallback_alpha, sampled_alpha),
+    )
 }
 
 fn draw_getcolor_dot_shape_rgba(
@@ -7948,6 +8025,18 @@ fn validate_generated_getcolor_dots_source(
     parse_hex_colour_source(&source.foreground_colour)?;
     parse_hex_colour_source(&source.secondary_colour)?;
     parse_hex_colour_source(&source.background_colour)?;
+    if let Some(source_image) = source.source_image.as_deref() {
+        let source_path = local_media_source_path(source_image, "GeneratedGetColorDots source_image")?;
+        let lower = source_path.to_ascii_lowercase();
+        if !(lower.ends_with(".png") || lower.ends_with(".jpg") || lower.ends_with(".jpeg")) {
+            return Err("source_image must be PNG or JPEG".to_string());
+        }
+    }
+    if let Some(sample_strength) = source.sample_strength {
+        if !sample_strength.is_finite() || !(0.0..=1.0).contains(&sample_strength) {
+            return Err("sample_strength must be 0..1".to_string());
+        }
+    }
     Ok(())
 }
 

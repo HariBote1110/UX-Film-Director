@@ -752,6 +752,8 @@ export interface GetColorDotFieldObject extends BaseObject {
   foregroundColour: string;
   secondaryColour: string;
   backgroundColour: string;
+  sampleSourcePath?: string;
+  sampleStrength?: number;
   seed: number;
 }
 

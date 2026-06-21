@@ -177,6 +177,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: 'GetColor V2Rの図形線幅指定を、Rust生成の枠線付き四角ドットプリセットとして標準搭載する。'
   },
   {
+    id: 'getcolor-v2r-sampled-dots',
+    labelJa: 'GetColor V2R 画像サンプリングドット',
+    category: 'generated-object',
+    phase: 'P1',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/@GetColor/@GetColor-V2R.anm', 'script/93/@GetColor.anm', 'script/93/@GetColorTool.anm'],
+    rationaleJa: 'GetColor V2Rの本命である元画像の色・透明度取得を、Rust生成ドットへ接続する。'
+  },
+  {
     id: '93-audio-sphere',
     labelJa: '93 音声玉',
     category: 'audio-visual',

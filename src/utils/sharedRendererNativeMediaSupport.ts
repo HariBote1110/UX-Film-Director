@@ -1198,6 +1198,8 @@ const isSharedRendererNativeGeneratedGetColorDotsSourceSupported = (source: stri
       seed?: unknown;
       dot_shape?: unknown;
       stroke_width?: unknown;
+      source_image?: unknown;
+      sample_strength?: unknown;
     };
     const dotShapeSupported = parsed.dot_shape === undefined
       || parsed.dot_shape === 'circle'
@@ -1208,6 +1210,18 @@ const isSharedRendererNativeGeneratedGetColorDotsSourceSupported = (source: stri
       && Number.isFinite(parsed.stroke_width)
       && parsed.stroke_width >= 0
       && parsed.stroke_width <= 200
+    );
+    const sourceImageSupported = parsed.source_image === undefined || (
+      typeof parsed.source_image === 'string'
+      && parsed.source_image.length > 0
+      && isLocalNativeMediaSource(parsed.source_image)
+      && /\.(png|jpe?g)$/i.test(nativeMediaSourcePathname(parsed.source_image))
+    );
+    const sampleStrengthSupported = parsed.sample_strength === undefined || (
+      typeof parsed.sample_strength === 'number'
+      && Number.isFinite(parsed.sample_strength)
+      && parsed.sample_strength >= 0
+      && parsed.sample_strength <= 1
     );
     return (
       parsed.generator === 'getcolor-v2r-dot-field'
@@ -1246,6 +1260,8 @@ const isSharedRendererNativeGeneratedGetColorDotsSourceSupported = (source: stri
       && Number.isInteger(parsed.seed)
       && dotShapeSupported
       && strokeWidthSupported
+      && sourceImageSupported
+      && sampleStrengthSupported
     );
   } catch {
     return false;
