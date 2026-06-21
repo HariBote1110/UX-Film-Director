@@ -36,6 +36,7 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('hksy-line')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('hksy-multi-colour-checker')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('hksy-diamond')?.implementationTarget).toBe('native-generated-object');
+    expect(byId.get('hksy-measured-grid')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('93-audio-sphere')?.sourceRelativePaths).toContain('script/93/音声玉.obj');
     expect(byId.get('93-delay-move')?.sourceRelativePaths).toContain('script/93/@DelayMove.anm');
     expect(byId.get('93-spotlight')?.sourceRelativePaths).toContain('script/93/@SpotLight.anm');
@@ -108,9 +109,10 @@ describe('AviUtlPackV4 feature catalogue', () => {
       'hksy-checker-grid',
       'hksy-line',
       'hksy-multi-colour-checker',
-      'hksy-diamond'
+      'hksy-diamond',
+      'hksy-measured-grid'
     ];
 
-    expect(roadmapIds.slice(0, 21)).toEqual(expect.arrayContaining(priorityIds));
+    expect(roadmapIds.slice(0, 22)).toEqual(expect.arrayContaining(priorityIds));
   });
 });

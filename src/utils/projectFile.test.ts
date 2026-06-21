@@ -1033,6 +1033,51 @@ describe('parseProjectPayloadV2', () => {
     expect(parsed.scenes[0].objects).toEqual([hksyDiamond]);
   });
 
+  it('round-trips an hksy measured grid pattern object through JSON payload', () => {
+    const layers = createDefaultLayers();
+    const camera = createDefaultCamera();
+    const hksyMeasuredGrid: HksyCheckerGridObject = {
+      ...minimalHksyCheckerGrid(),
+      id: 'hksy-measured-grid-1',
+      name: 'hksy グリッド',
+      width: 960,
+      height: 540,
+      pattern: 'measured-grid',
+      cellSize: 32,
+      lineWidth: 1,
+      checkerEnabled: false,
+      gridEnabled: true,
+      foregroundColour: '#ffffff',
+      secondaryColour: '#bbeeff',
+      backgroundColour: '#10131a',
+      separateInterval: 5,
+      separateLineWidth: 3,
+    };
+    const file = buildProjectFileData({
+      projectSettings: projectSettings(),
+      scenes: [
+        {
+          id: 's1',
+          name: 'One',
+          duration: 10,
+          layers,
+          objects: [hksyMeasuredGrid],
+          camera,
+          stageCamera3D: defaultStage()
+        }
+      ],
+      activeSceneId: 's1',
+      objects: [hksyMeasuredGrid],
+      layers,
+      duration: 10,
+      camera,
+      stageCamera3D: defaultStage()
+    });
+
+    const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
+    expect(parsed.scenes[0].objects).toEqual([hksyMeasuredGrid]);
+  });
+
   it('rejects invalid worldPlacement on psd objects', () => {
     const bad = {
       format: 'uxfd-project',

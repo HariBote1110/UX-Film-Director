@@ -2116,6 +2116,56 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('serialises an hksy measured grid object into the Rust generator payload', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseHksyCheckerGrid({
+        id: 'hksy-measured-grid-1',
+        name: 'hksy グリッド',
+        width: 960,
+        height: 540,
+        pattern: 'measured-grid',
+        cellSize: 32,
+        lineWidth: 1,
+        checkerEnabled: false,
+        gridEnabled: true,
+        foregroundColour: '#ffffff',
+        secondaryColour: '#bbeeff',
+        backgroundColour: '#10131a',
+        separateInterval: 5,
+        separateLineWidth: 3,
+      })],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated hksy measured grid snapshot to pass');
+
+    expect(result.media).toEqual([
+      {
+        id: 'hksy-measured-grid-1',
+        kind: 'GeneratedHksyCheckerGrid',
+        source: JSON.stringify({
+          generator: 'hksy-checker-grid',
+          pattern: 'measured-grid',
+          cell_size: 32,
+          line_width: 1,
+          checker_enabled: false,
+          grid_enabled: true,
+          foreground_colour: '#ffffff',
+          secondary_colour: '#bbeeff',
+          background_colour: '#10131a',
+          separate_interval: 5,
+          separate_line_width: 3,
+        }),
+        width: 960,
+        height: 540,
+      },
+    ]);
+  });
+
   it('builds a generated GetColor V2R dot media plane from a dot field object', () => {
     const layers = createDefaultLayers();
     const result = buildRustSceneSnapshotForTimeline({

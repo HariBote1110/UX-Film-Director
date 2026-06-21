@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildHksyCheckerGridObject,
   buildHksyDiamondObject,
+  buildHksyMeasuredGridObject,
   buildHksyLineObject,
   buildHksyMultiColourCheckerObject,
 } from './hksyCheckerGridObjectFactory';
@@ -126,6 +127,39 @@ describe('hksyCheckerGridObjectFactory', () => {
       foregroundColour: '#ffffff',
       secondaryColour: '#ffffff',
       backgroundColour: '#000000',
+    });
+  });
+
+  it('builds an hksy measured grid object using the Rust checker/grid generator path', () => {
+    const object = buildHksyMeasuredGridObject({
+      id: 'hksy-measured-grid-1',
+      projectWidth: 1920,
+      projectHeight: 1080,
+      startTime: 5,
+      layer: 32,
+    });
+
+    expect(object).toMatchObject({
+      id: 'hksy-measured-grid-1',
+      type: 'hksy_checker_grid',
+      name: 'hksy グリッド',
+      layer: 32,
+      startTime: 5,
+      duration: 5,
+      x: 480,
+      y: 270,
+      width: 960,
+      height: 540,
+      pattern: 'measured-grid',
+      cellSize: 32,
+      lineWidth: 1,
+      checkerEnabled: false,
+      gridEnabled: true,
+      foregroundColour: '#ffffff',
+      secondaryColour: '#bbeeff',
+      backgroundColour: '#10131a',
+      separateInterval: 5,
+      separateLineWidth: 3,
     });
   });
 });

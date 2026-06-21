@@ -30,6 +30,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('buildHksyCheckerGridObject');
     expect(code).toContain('buildHksyDiamondObject');
     expect(code).toContain('buildHksyLineObject');
+    expect(code).toContain('buildHksyMeasuredGridObject');
     expect(code).toContain('buildHksyMultiColourCheckerObject');
     expect(code).toContain('buildAviUtlToneCurveObject');
     expect(code).toContain('buildAviUtlPuzzlePieceObject');
@@ -63,6 +64,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('handleAddHksyCheckerGrid');
     expect(code).toContain('handleAddHksyDiamond');
     expect(code).toContain('handleAddHksyLine');
+    expect(code).toContain('handleAddHksyMeasuredGrid');
     expect(code).toContain('handleAddHksyMultiColourChecker');
     expect(code).toContain('handleAddToneCurve');
     expect(code).toContain('handleAddPuzzlePiece');
@@ -96,6 +98,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('Add hksy Checker/Grid');
     expect(code).toContain('Add hksy Diamond');
     expect(code).toContain('Add hksy Lines');
+    expect(code).toContain('Add hksy Grid');
     expect(code).toContain('Add hksy Multi-Colour Checker');
     expect(code).toContain('Add Tone Curve');
     expect(code).toContain('Add Puzzle Piece');
@@ -129,6 +132,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('hksyチェッカー/グリッドを追加');
     expect(code).toContain('hksy菱形を追加');
     expect(code).toContain('hksy直線を追加');
+    expect(code).toContain('hksyグリッドを追加');
     expect(code).toContain('hksy複数色チェッカーを追加');
     expect(code).toContain('簡易トーンカーブを追加');
     expect(code).toContain('パズルピースを追加');

@@ -9060,6 +9060,41 @@ mod tests {
     }
 
     #[test]
+    fn generated_hksy_checker_grid_source_frame_renders_measured_grid_lines() {
+        let media = SceneMediaReference {
+            id: "hksy-measured-grid-1".to_string(),
+            kind: MediaKind::GeneratedHksyCheckerGrid,
+            source: r##"{"generator":"hksy-checker-grid","pattern":"measured-grid","cell_size":32,"line_width":1,"checker_enabled":false,"grid_enabled":true,"foreground_colour":"#ffffff","secondary_colour":"#bbeeff","background_colour":"#10131a","separate_interval":5,"separate_line_width":3}"##.to_string(),
+            width: 320,
+            height: 240,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_hksy_checker_grid_source_frame(&media)
+            .expect("generated hksy measured grid frame should render");
+        let base_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [16, 19, 26, 255])
+            .count();
+        let line_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [187, 238, 255, 255])
+            .count();
+        let separate_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [255, 255, 255, 255])
+            .count();
+
+        assert!(base_count > 60_000);
+        assert!(line_count > 1_000);
+        assert!(separate_count > 1_000);
+    }
+
+    #[test]
     fn generated_getcolor_dots_source_frame_contains_dot_field_and_background() {
         let media = SceneMediaReference {
             id: "getcolor-dot-field-1".to_string(),
