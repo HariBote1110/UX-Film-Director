@@ -6,6 +6,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'SolidColour') return true;
   if (reference.kind === 'GeneratedGradient') return isSharedRendererNativeGeneratedGradientSourceSupported(reference.source);
   if (reference.kind === 'GeneratedAudioWaveform') return isSharedRendererNativeGeneratedAudioWaveformSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedParticle') return isSharedRendererNativeGeneratedParticleSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -84,6 +85,45 @@ const isSharedRendererNativeGeneratedAudioWaveformSourceSupported = (source: str
       && typeof parsed.amplitude === 'number'
       && Number.isFinite(parsed.amplitude)
       && parsed.amplitude >= 0
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedParticleSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      seed?: unknown;
+      particle_count?: unknown;
+      spread?: unknown;
+      speed?: unknown;
+      size?: unknown;
+      colour?: unknown;
+      lifetime_seconds?: unknown;
+    };
+    return (
+      parsed.generator === 'standard-particle'
+      && Number.isInteger(parsed.seed)
+      && typeof parsed.particle_count === 'number'
+      && Number.isInteger(parsed.particle_count)
+      && parsed.particle_count > 0
+      && parsed.particle_count <= 10000
+      && typeof parsed.spread === 'number'
+      && Number.isFinite(parsed.spread)
+      && parsed.spread >= 0
+      && typeof parsed.speed === 'number'
+      && Number.isFinite(parsed.speed)
+      && parsed.speed >= 0
+      && typeof parsed.size === 'number'
+      && Number.isFinite(parsed.size)
+      && parsed.size > 0
+      && typeof parsed.colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.colour)
+      && typeof parsed.lifetime_seconds === 'number'
+      && Number.isFinite(parsed.lifetime_seconds)
+      && parsed.lifetime_seconds > 0
     );
   } catch {
     return false;

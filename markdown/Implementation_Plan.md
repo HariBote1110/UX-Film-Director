@@ -32,7 +32,9 @@
 14. ✅ `P1` Audio waveform RのElectron bridgeを追加
 15. ✅ `P1` Audio waveform Rをnative render payloadへ接続
 16. ✅ `P1` Audio waveform Rをexport native encode payloadへ接続
-17. E2Eで代表素材に効果を載せ、preview/exportの一致を検証
+17. ✅ `P2` 標準パーティクルを生成メディア境界へ追加
+18. `P2` 標準パーティクルをRust backend/native rendererで描画
+19. E2Eで代表素材に効果を載せ、preview/exportの一致を検証
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

@@ -1,6 +1,19 @@
 # 進捗ログ
 
 ## 2026-06-21
+- 標準パーティクルを生成メディア境界へ追加した。
+- Red: ParticleObjectがRust scene snapshotで `GeneratedParticle` mediaになる契約を追加した。
+- Red: native media gateが `standard-particle` metadataをRust生成メディアとして受け入れる契約を追加した。
+- Red: rust-core JSON境界が `GeneratedParticle` media kindを受け入れる契約を追加した。
+- Green: `ParticleObject` をTimelineObjectへ追加し、AviUtlPackV4標準パーティクル互換の基本パラメータを持てるようにした。
+- Green: `rustSceneSnapshot` が `particle` を `GeneratedParticle` media referenceへ変換するようにした。
+- Green: `sharedRendererNativeMediaSupport` に `standard-particle` metadata検証を追加した。
+- Green: rust-core schemaに `GeneratedParticle` / `GeneratedParticlePlane` を追加した。
+- 版を `0.1.1-Beta-251a` に更新した。
+- 検証: TS対象27件、rust-core media schema 1件が成功。対象ファイルに関するTypeScriptエラーは出ていない。
+- 残課題: 次はRust backend/native rendererで `GeneratedParticle` を実RGBA frameへ生成し、preview/exportのnative render経路へ接続する。
+
+## 2026-06-21
 - Audio waveform Rをexport native encode payloadへ接続した。
 - Red: export frame sourceがGeneratedAudioWaveformのPCMを要求し、direct native encode payloadへ `audioWaveforms` を渡す契約を追加した。
 - Green: preview native renderで使う `prepareNativeRenderAudioWaveforms` をexport側でも再利用できるようにした。

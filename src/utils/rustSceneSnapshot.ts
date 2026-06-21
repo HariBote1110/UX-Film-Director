@@ -4,6 +4,7 @@ import type {
   GradientFill,
   ImageObject,
   LayerState,
+  ParticleObject,
   ProjectSettings,
   PsdObject,
   ShapeObject,
@@ -61,7 +62,7 @@ export interface RustSceneSnapshot {
 
 export interface RustSceneMediaReference {
   id: string;
-  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'Psd';
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'Psd';
   source: string;
   width: number;
   height: number;
@@ -134,7 +135,7 @@ export interface RustSceneSnapshotBuildInput {
 export type RustSceneVideoSourceMode = 'previewProxy' | 'exportOriginal';
 
 type SupportedMediaObject = ImageObject | VideoObject | PsdObject;
-type SupportedGeneratedObject = AudioVisualizationObject;
+type SupportedGeneratedObject = AudioVisualizationObject | ParticleObject;
 type SupportedSceneObject = SupportedMediaObject | ShapeObject | SupportedGeneratedObject;
 
 const rustColourPipeline = (): RustColourPipeline => ({
@@ -178,14 +179,14 @@ export const buildRustSceneSnapshotForTimeline = ({
       media_id: object.id,
       source_frame: sourceFrameForObject(object, time, projectSettings.fps),
       z_index: zIndex,
-        transform: {
-          translation_x: position.x,
-          translation_y: position.y,
-          scale_x: object.scaleX * transformScale.x,
-          scale_y: object.scaleY * transformScale.y,
-          rotation_degrees: normaliseRotationDegrees(object.rotation),
-          sampling: object.type === 'shape' && object.gradient?.enabled !== true ? 'nearest' : 'bilinear',
-        },
+      transform: {
+        translation_x: position.x,
+        translation_y: position.y,
+        scale_x: object.scaleX * transformScale.x,
+        scale_y: object.scaleY * transformScale.y,
+        rotation_degrees: normaliseRotationDegrees(object.rotation),
+        sampling: object.type === 'shape' && object.gradient?.enabled !== true ? 'nearest' : 'bilinear',
+      },
       opacity,
       effects: rustEffectsForObject(object, time),
     };
@@ -369,7 +370,10 @@ const isSupportedMediaObject = (object: TimelineObject): object is SupportedMedi
   object.type === 'image' || object.type === 'video' || object.type === 'psd';
 
 const isSupportedSceneObject = (object: TimelineObject): object is SupportedSceneObject =>
-  isSupportedMediaObject(object) || object.type === 'shape' || object.type === 'audio_visualization';
+  isSupportedMediaObject(object)
+  || object.type === 'shape'
+  || object.type === 'audio_visualization'
+  || object.type === 'particle';
 
 const isVisualSceneObject = (object: TimelineObject): boolean =>
   object.type !== 'audio';
@@ -425,6 +429,16 @@ const mediaReferenceForObject = (
     };
   }
 
+  if (object.type === 'particle') {
+    return {
+      id: object.id,
+      kind: 'GeneratedParticle',
+      source: serialiseGeneratedParticleSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
   const dimensions = mediaDimensionsForObject(object, videoSourceMode);
   const reference: RustSceneMediaReference = {
     id: object.id,
@@ -472,6 +486,18 @@ const serialiseGeneratedAudioWaveformSource = (
     amplitude: Math.max(0, finiteNumberOr(object.amplitude, 1)),
   });
 };
+
+const serialiseGeneratedParticleSource = (object: ParticleObject): string =>
+  JSON.stringify({
+    generator: 'standard-particle',
+    seed: Math.trunc(finiteNumberOr(object.seed, 0)),
+    particle_count: Math.max(1, Math.trunc(finiteNumberOr(object.particleCount, 1))),
+    spread: Math.max(0, finiteNumberOr(object.spread, 0)),
+    speed: Math.max(0, finiteNumberOr(object.speed, 0)),
+    size: Math.max(1, finiteNumberOr(object.size, 1)),
+    colour: /^#[0-9a-f]{6}$/i.test(object.colour) ? object.colour : '#ffffff',
+    lifetime_seconds: Math.max(1 / 60, finiteNumberOr(object.lifetimeSeconds, 1)),
+  });
 
 const findTargetAudioForWaveform = (
   object: AudioVisualizationObject,
@@ -564,6 +590,7 @@ const sourceFrameForObject = (
   if (object.type === 'image') return 0;
   if (object.type === 'psd') return 0;
   if (object.type === 'audio_visualization') return secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
+  if (object.type === 'particle') return secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
   const localTime = Math.max(0, time - object.startTime);
   const mediaTime = localTime + (object.offset ?? 0);
   return secondsToFrameIndex(mediaTime, fps);
@@ -770,7 +797,7 @@ const validateMediaReferences = (
     }
     validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height', 'source_rate', 'active_layer_ids'], issues);
     validateString(reference.id, `${path}.id`, issues);
-    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'Psd'], issues);
+    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedParticle', 'Psd'], issues);
     validateString(reference.source, `${path}.source`, issues);
     validatePositiveInteger(reference.width, `${path}.width`, issues);
     validatePositiveInteger(reference.height, `${path}.height`, issues);

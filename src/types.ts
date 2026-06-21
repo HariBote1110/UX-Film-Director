@@ -45,7 +45,7 @@ export interface LayerState {
   locked: boolean;
 }
 
-export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization';
+export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization' | 'particle';
 
 // --- グラデーション・シャドウ・軌道 ---
 
@@ -366,6 +366,20 @@ export interface AudioVisualizationObject extends BaseObject {
     amplitude: number; 
 }
 
+// AviUtlPackV4 標準パーティクル互換の生成オブジェクト
+export interface ParticleObject extends BaseObject {
+  type: 'particle';
+  width: number;
+  height: number;
+  particleCount: number;
+  seed: number;
+  spread: number;
+  speed: number;
+  size: number;
+  colour: string;
+  lifetimeSeconds: number;
+}
+
 // --- PSD連携用 ---
 
 export interface PsdLayerStruct {
@@ -410,7 +424,7 @@ export interface PsdObject extends BaseObject {
   worldPlacement?: PsdWorldPlacement;
 }
 
-export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject;
+export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject | ParticleObject;
 
 /** タイムライン1本分（シーン） */
 export interface SceneData {
