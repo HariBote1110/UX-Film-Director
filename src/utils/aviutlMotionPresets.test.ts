@@ -40,7 +40,8 @@ describe('AviUtlPackV4 motion presets', () => {
       { id: 'random-wiggle', sourceCandidateId: 'ymm4-random-motion' },
       { id: 'repeat-side-to-side', sourceCandidateId: 'ymm4-repeat-motion' },
       { id: 'motion-path-arc', sourceCandidateId: 'tim-motion-path' },
-      { id: 'motion-path-s-curve', sourceCandidateId: 'tim-motion-path' }
+      { id: 'motion-path-s-curve', sourceCandidateId: 'tim-motion-path' },
+      { id: 'wind-sway-soft', sourceCandidateId: 'tim-wind-sway' }
     ]);
   });
 
@@ -129,6 +130,24 @@ describe('AviUtlPackV4 motion presets', () => {
       expect.objectContaining({ time: 12, x: 380, y: 300, easing: 'easeInOutSine' }),
       expect.objectContaining({ time: 13, x: 410, y: 180, easing: 'easeInOutSine' }),
       expect.objectContaining({ time: 14, x: 440, y: 240, easing: 'linear' })
+    ]);
+  });
+
+  it('builds a Tim wind sway loop that keeps the object near its resting position', () => {
+    const patch = buildAviUtlMotionPresetPatch(baseShape(), 'wind-sway-soft', {
+      distancePx: 16,
+      intervalSeconds: 1
+    });
+
+    expect(patch.endX).toBe(320);
+    expect(patch.endY).toBe(240);
+    expect(patch.easing).toBe('easeInOutSine');
+    expect(patch.keyframes).toEqual([
+      expect.objectContaining({ time: 10, x: 320, y: 240, easing: 'easeInOutSine' }),
+      expect.objectContaining({ time: 11, x: 328, y: 236, easing: 'easeInOutSine' }),
+      expect.objectContaining({ time: 12, x: 312, y: 244, easing: 'easeInOutSine' }),
+      expect.objectContaining({ time: 13, x: 328, y: 236, easing: 'easeInOutSine' }),
+      expect.objectContaining({ time: 14, x: 320, y: 240, easing: 'linear' })
     ]);
   });
 });
