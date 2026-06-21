@@ -1750,6 +1750,92 @@ fn native_render_shared_frame_builds_generated_gradient_sources_from_media() {
 }
 
 #[test]
+fn native_render_shared_frame_builds_generated_audio_waveform_from_payload() {
+    let mut backend = BackendProcess::start();
+    let output_memory_id = unique_shm_name();
+    let slot_count = 1;
+    let width = 4;
+    let height = 2;
+    let waveform_source = "{\"generator\":\"audio-waveform-r\",\"target_audio_id\":\"audio-1\",\"target_source\":\"/tmp/dialogue.wav\",\"sample_window_seconds\":1,\"colour\":\"#00ff00\",\"thickness\":1,\"amplitude\":1}";
+
+    let response = backend.request(json!({
+        "id": 38,
+        "method": "render.nativeSharedFrame",
+        "params": {
+            "renderId": "native-render-generated-audio-waveform",
+            "memoryId": output_memory_id,
+            "slotCount": slot_count,
+            "ptsFrame": 0,
+            "width": width,
+            "height": height,
+            "snapshot": {
+                "frame_index": 0,
+                "colour": {
+                    "profile": "rec709-sdr",
+                    "working_space": "linear-light",
+                    "alpha": "premultiplied"
+                },
+                "clips": [{
+                    "clip_id": "clip-generated-waveform",
+                    "track_id": "track-1",
+                    "media_id": "waveform-1",
+                    "source_frame": 0,
+                    "z_index": 0,
+                    "transform": {
+                        "translation_x": 0.0,
+                        "translation_y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation_degrees": 0.0,
+                        "sampling": "nearest"
+                    },
+                    "opacity": 1.0,
+                    "effects": []
+                }]
+            },
+            "media": [{
+                "id": "waveform-1",
+                "kind": "GeneratedAudioWaveform",
+                "source": waveform_source,
+                "width": width,
+                "height": height
+            }],
+            "sources": [],
+            "audioWaveforms": [{
+                "mediaId": "waveform-1",
+                "source": waveform_source,
+                "samples": [0.0, 0.0, 0.0, 0.0],
+                "sampleRate": 4,
+                "width": width,
+                "height": height
+            }]
+        }
+    }));
+
+    assert_eq!(response["ok"], true, "{response}");
+    assert_eq!(response["result"]["rendered"], true);
+    assert_no_frame_bytes_recursive(&response["result"]);
+
+    let output_slot_byte_len = response["result"]["frame"]["descriptor"]["byteLen"]
+        .as_u64()
+        .expect("output byte length") as usize;
+    let output_ring = PosixSharedRing::attach_with_retry_for_layout(
+        response["result"]["frame"]["descriptor"]["memoryId"]
+            .as_str()
+            .expect("output memory id"),
+        slot_count,
+        output_slot_byte_len,
+        Duration::from_secs(1),
+    )
+    .expect("attach to native generated audio waveform output ring");
+    let output_frame = output_ring
+        .read_frame(0)
+        .expect("read native generated audio waveform output frame");
+    assert_eq!(&output_frame.bytes[0..4], &[0, 0, 0, 0]);
+    assert_eq!(&output_frame.bytes[256..260], &[0, 255, 0, 255]);
+}
+
+#[test]
 fn native_render_shared_frame_composites_video_source_with_generated_gradient_media() {
     let mut backend = BackendProcess::start();
     let source_memory_id = unique_shm_name();

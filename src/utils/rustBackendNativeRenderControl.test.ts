@@ -76,6 +76,14 @@ const payload: RustBackendNativeRenderSharedFramePayload = {
       ptsFrame: 0,
     },
   }],
+  audioWaveforms: [{
+    mediaId: 'waveform-1',
+    source: '{"generator":"audio-waveform-r","target_audio_id":"audio-1","target_source":"/tmp/dialogue.wav","sample_window_seconds":1,"colour":"#00ff00","thickness":1,"amplitude":1}',
+    samples: [0, 0.25, -0.25, 0],
+    sampleRate: 8000,
+    width: 4,
+    height: 2,
+  }],
 };
 
 describe('rustBackendNativeRenderControl', () => {

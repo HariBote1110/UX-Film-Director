@@ -267,6 +267,55 @@ const buildVideoWithGeneratedGradientSession = (): SharedRendererPreviewSession 
 
 const videoWithGeneratedGradientSession = buildVideoWithGeneratedGradientSession();
 
+const buildAudioWaveformSession = (): SharedRendererPreviewSession => {
+  if (!mediaOnlySession.surfaceGate.ok) {
+    throw new Error('mediaOnlySession fixture must be renderable');
+  }
+
+  const waveformClip = {
+    ...mediaOnlySession.surfaceGate.snapshot.clips[0],
+    clip_id: 'waveform-1',
+    media_id: 'waveform-1',
+    source_frame: 30,
+    z_index: 0,
+    transform: {
+      ...mediaOnlySession.surfaceGate.snapshot.clips[0].transform,
+      sampling: 'bilinear' as const,
+    },
+  };
+  const snapshot = {
+    ...mediaOnlySession.surfaceGate.snapshot,
+    frame_index: 30,
+    clips: [waveformClip],
+  };
+  const media = [{
+    id: 'waveform-1',
+    kind: 'GeneratedAudioWaveform' as const,
+    source: '{"generator":"audio-waveform-r","target_audio_id":"audio-1","target_source":"/tmp/dialogue.wav","sample_window_seconds":1,"colour":"#00ff00","thickness":1,"amplitude":1}',
+    width: 4,
+    height: 2,
+  }];
+
+  return {
+    ...mediaOnlySession,
+    plan: {
+      mode: 'parallelCompare',
+      primary: 'pixi',
+      candidate: 'sharedRenderer',
+      snapshot,
+      media,
+    },
+    surfaceGate: {
+      ...mediaOnlySession.surfaceGate,
+      canvas: { width: 4, height: 2 },
+      snapshot,
+      media,
+    },
+  };
+};
+
+const audioWaveformSession = buildAudioWaveformSession();
+
 const renderResult: RustBackendNativeRenderSharedFrameResult = {
   rendered: true,
   renderId: 'preview-native-render-24',
@@ -362,6 +411,105 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
       }],
       ['releaseNativeSharedFrame', {
         memoryId: descriptor.memoryId,
+      }],
+    ]);
+  });
+
+  it('requests generated audio waveform samples and passes them to native render', async () => {
+    const calls: unknown[] = [];
+
+    const result = await prepareSharedRendererViewportNativeRenderUpload({
+      session: audioWaveformSession,
+      requestId: 30,
+      activeJobs: [],
+      prepareNativeRenderSources: async () => ({
+        ok: false,
+        reason: 'noVideoDecodeRequest',
+        detail: 'no video',
+        activeJobs: [],
+      }),
+      requestAudioWaveformSamples: async (payload) => {
+        calls.push(['requestAudioWaveformSamples', payload]);
+        return {
+          success: true,
+          result: {
+            source: payload.source,
+            sampleRate: payload.sampleRate,
+            sampleCount: 4,
+            samples: [0, 0.25, -0.25, 0],
+          },
+        };
+      },
+      renderNativeSharedFrame: async (payload) => {
+        calls.push(['renderNativeSharedFrame', {
+          media: payload.media,
+          sources: payload.sources,
+          audioWaveforms: payload.audioWaveforms,
+        }]);
+        return {
+          success: true,
+          result: {
+            ...renderResult,
+            renderId: 'preview-native-render-30',
+            frame: {
+              descriptor: {
+                ...descriptor,
+                memoryId: '/uxfd-preview-native-render-30',
+                height: 2,
+              },
+              ptsFrame: 30,
+            },
+          },
+        };
+      },
+      releaseNativeSharedFrame: async (payload) => {
+        calls.push(['releaseNativeSharedFrame', payload]);
+        return { success: true };
+      },
+      copyBridge: {
+        copyIntoUploadBuffer: async (_payload, target) => {
+          target.fill(0x7e);
+          return {
+            success: true,
+            result: {
+              sequence: 30,
+              slotIndex: descriptor.slotIndex,
+              generation: descriptor.generation,
+              byteLen: descriptor.byteLen,
+              expectedChecksum: 0x1234,
+              actualChecksum: 0x1234,
+            },
+          };
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      activeJobs: [],
+      upload: {
+        ptsFrame: 30,
+      },
+    });
+    expect(calls).toEqual([
+      ['requestAudioWaveformSamples', {
+        source: '/tmp/dialogue.wav',
+        sampleRate: 8000,
+        maxSamples: 8000,
+        startSeconds: 0,
+        durationSeconds: 1,
+      }],
+      ['renderNativeSharedFrame', {
+        media: audioWaveformSession.surfaceGate.ok ? audioWaveformSession.surfaceGate.media : null,
+        sources: [],
+        audioWaveforms: [{
+          mediaId: 'waveform-1',
+          source: '{"generator":"audio-waveform-r","target_audio_id":"audio-1","target_source":"/tmp/dialogue.wav","sample_window_seconds":1,"colour":"#00ff00","thickness":1,"amplitude":1}',
+          samples: [0, 0.25, -0.25, 0],
+          sampleRate: 8000,
+          width: 4,
+          height: 2,
+        }],
       }],
     ]);
   });
