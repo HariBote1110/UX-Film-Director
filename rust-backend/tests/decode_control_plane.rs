@@ -1038,6 +1038,49 @@ fn encode_transcode_video_accepts_static_psd_overlay_filters() {
 }
 
 #[test]
+fn encode_transcode_video_reuses_static_psd_overlay_cache() {
+    let temp_dir = TestTempDir::new("encode-transcode-video-psd-overlay-cache");
+    let fixture = build_two_frame_h264_fixture(temp_dir.path());
+    let psd_path = temp_dir.path().join("standing.psd");
+    write_single_layer_psd_fixture(&psd_path, 2, 2, [0, 255, 0, 255]);
+    let mut backend = BackendProcess::start();
+
+    let mut transcode_once = |id: u64, output_name: &str| {
+        let output_path = temp_dir.path().join(output_name);
+        backend.request(json!({
+            "id": id,
+            "method": "encode.transcodeVideo",
+            "params": {
+                "inputPath": fixture.path.to_string_lossy(),
+                "outputPath": output_path.to_string_lossy(),
+                "width": fixture.width,
+                "height": fixture.height,
+                "fps": 30,
+                "durationSeconds": 1.0,
+                "overlays": [{
+                    "kind": "psd",
+                    "path": psd_path.to_string_lossy(),
+                    "activeLayerIds": ["root", "psd-layer-0"],
+                    "x": 1,
+                    "y": 1,
+                    "width": 2,
+                    "height": 2,
+                    "opacity": 1.0
+                }]
+            }
+        }))
+    };
+
+    let first = transcode_once(128, "transcoded-psd-cache-first.mp4");
+    assert_eq!(first["ok"], true, "{first}");
+    assert_eq!(first["result"]["psdOverlayCacheHits"], 0);
+
+    let second = transcode_once(129, "transcoded-psd-cache-second.mp4");
+    assert_eq!(second["ok"], true, "{second}");
+    assert_eq!(second["result"]["psdOverlayCacheHits"], 1);
+}
+
+#[test]
 fn native_render_shared_frame_consumes_source_shm_and_returns_descriptor_only() {
     let mut backend = BackendProcess::start();
     let source_memory_id = unique_shm_name();
