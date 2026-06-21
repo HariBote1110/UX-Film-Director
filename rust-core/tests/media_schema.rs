@@ -355,3 +355,19 @@ fn rust_core_accepts_generated_hologram_media_kind_at_the_json_boundary() {
     assert_eq!(media.width, 800);
     assert_eq!(media.height, 450);
 }
+
+#[test]
+fn rust_core_accepts_generated_protractor_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "protractor-1",
+        "kind": "GeneratedProtractor",
+        "source": "{\"generator\":\"protractor\",\"radius\":180,\"measured_angle_degrees\":90,\"tick_step_degrees\":10,\"major_tick_step_degrees\":30,\"decimal_places\":1,\"line_colour\":\"#ffffff\",\"text_colour\":\"#ffffff\",\"shadow_colour\":\"#000000\"}",
+        "width": 420,
+        "height": 240
+    }))
+    .expect("GeneratedProtractor media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedProtractor);
+    assert_eq!(media.width, 420);
+    assert_eq!(media.height, 240);
+}

@@ -20,6 +20,7 @@ import type {
   LayerState,
   ParticleObject,
   PieChartObject,
+  ProtractorObject,
   ProjectSettings,
   PsdObject,
   PuzzlePieceObject,
@@ -492,6 +493,21 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     colourMode: 1,
     tintColour: '#ffffff',
   };
+  const protractor: ProtractorObject = {
+    ...baseObject('ssd-protractor', 'protractor', 30),
+    type: 'protractor',
+    name: '分度器',
+    width: 420,
+    height: 240,
+    radius: 180,
+    measuredAngleDegrees: 90,
+    tickStepDegrees: 10,
+    majorTickStepDegrees: 30,
+    decimalPlaces: 1,
+    lineColour: '#ffffff',
+    textColour: '#ffffff',
+    shadowColour: '#000000',
+  };
 
   return [
     solidShape,
@@ -521,6 +537,7 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     focusLinesPlus,
     randomLineEx,
     hologram,
+    protractor,
   ];
 };
 
@@ -608,6 +625,7 @@ describe('全読込可能メディア E2E', () => {
       'GeneratedFocusLinesPlus',
       'GeneratedRandomLineEx',
       'GeneratedHologram',
+      'GeneratedProtractor',
     ]);
     expect(snapshotResult.media
       .filter((media) => media.kind === 'Video')
@@ -806,6 +824,17 @@ describe('全読込可能メディア E2E', () => {
       colour_mode: 1,
       tint_colour: '#ffffff',
     });
+    expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'ssd-protractor')?.source ?? '{}')).toMatchObject({
+      generator: 'protractor',
+      radius: 180,
+      measured_angle_degrees: 90,
+      tick_step_degrees: 10,
+      major_tick_step_degrees: 30,
+      decimal_places: 1,
+      line_colour: '#ffffff',
+      text_colour: '#ffffff',
+      shadow_colour: '#000000',
+    });
     expect(snapshotResult.media.some((media) => media.source.endsWith('.wav'))).toBe(false);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'shape-solid-rect')?.transform).toMatchObject({
       translation_x: 64.5,
@@ -846,6 +875,7 @@ describe('全読込可能メディア E2E', () => {
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-focus-lines-plus')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-random-line-ex')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-hologram')?.source_frame).toBe(0);
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-protractor')?.source_frame).toBe(0);
     expect(validateRustSceneSnapshotBoundary({
       snapshot: snapshotResult.snapshot,
       media: snapshotResult.media,

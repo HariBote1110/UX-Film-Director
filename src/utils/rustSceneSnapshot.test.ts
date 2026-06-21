@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AsanohaPatternObject, AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, RandomLineExObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -731,6 +731,36 @@ const baseHologram = (patch: Partial<HologramObject> = {}): HologramObject => ({
   gradientAngleDegrees: -60,
   colourMode: 1,
   tintColour: '#ffffff',
+  ...patch,
+});
+
+const baseProtractor = (patch: Partial<ProtractorObject> = {}): ProtractorObject => ({
+  id: 'protractor-1',
+  type: 'protractor',
+  name: '分度器',
+  layer: 25,
+  startTime: 1,
+  duration: 4,
+  x: 750,
+  y: 420,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 750,
+  endY: 420,
+  easing: 'linear',
+  width: 420,
+  height: 240,
+  radius: 180,
+  measuredAngleDegrees: 90,
+  tickStepDegrees: 10,
+  majorTickStepDegrees: 30,
+  decimalPlaces: 1,
+  lineColour: '#ffffff',
+  textColour: '#ffffff',
+  shadowColour: '#000000',
   ...patch,
 });
 
@@ -1630,6 +1660,46 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         }),
         width: 800,
         height: 450,
+      },
+    ]);
+  });
+
+  it('builds a generated protractor media plane from a protractor object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseProtractor()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated protractor snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'protractor-1',
+      track_id: 'layer-25',
+      media_id: 'protractor-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'protractor-1',
+        kind: 'GeneratedProtractor',
+        source: JSON.stringify({
+          generator: 'protractor',
+          radius: 180,
+          measured_angle_degrees: 90,
+          tick_step_degrees: 10,
+          major_tick_step_degrees: 30,
+          decimal_places: 1,
+          line_colour: '#ffffff',
+          text_colour: '#ffffff',
+          shadow_colour: '#000000',
+        }),
+        width: 420,
+        height: 240,
       },
     ]);
   });

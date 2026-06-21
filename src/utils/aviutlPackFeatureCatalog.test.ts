@@ -53,6 +53,7 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('ssd-focus-lines-plus')?.sourceRelativePaths).toContain('script/ANM/ANM_ssd/集中線plus.obj');
     expect(byId.get('ssd-random-line-ex')?.sourceRelativePaths).toContain('script/ANM/ANM_ssd/ランダムラインEX.obj');
     expect(byId.get('ssd-hologram')?.sourceRelativePaths).toContain('script/ANM/ANM_ssd/ホログラム.obj');
+    expect(byId.get('ssd-protractor')?.sourceRelativePaths).toContain('script/ANM/ANM_ssd/分度器.obj');
     expect(byId.get('custom-track-bar')?.sourceRelativePaths).toContain('script/93/カスタムトラックバー.obj');
     expect(byId.get('pie-sheet-graph')?.sourceRelativePaths).toContain('script/93/パイシートグラフ.obj');
     expect(byId.get('tim-motion-path')?.sourceRelativePaths).toEqual(expect.arrayContaining([

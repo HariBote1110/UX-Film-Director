@@ -190,6 +190,12 @@ const media: RustSceneMediaReference[] = [{
   width: 800,
   height: 450,
 }, {
+  id: 'protractor-1',
+  kind: 'GeneratedProtractor' as RustSceneMediaReference['kind'],
+  source: '{"generator":"protractor","radius":180,"measured_angle_degrees":90,"tick_step_degrees":10,"major_tick_step_degrees":30,"decimal_places":1,"line_colour":"#ffffff","text_colour":"#ffffff","shadow_colour":"#000000"}',
+  width: 420,
+  height: 240,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -250,8 +256,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[23])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[24])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[25])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[26])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[26])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[27])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[28])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {
@@ -269,6 +276,10 @@ describe('sharedRendererNativeMediaSupport', () => {
     })).toBe(true);
     expect(canRenderSharedRendererNativeMediaOnlyFrame({
       snapshot: snapshotWithMedia('solid-1', 'hologram-1'),
+      media,
+    })).toBe(true);
+    expect(canRenderSharedRendererNativeMediaOnlyFrame({
+      snapshot: snapshotWithMedia('solid-1', 'protractor-1'),
       media,
     })).toBe(true);
     expect(canRenderSharedRendererNativeMediaOnlyFrame({
