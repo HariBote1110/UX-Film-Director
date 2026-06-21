@@ -506,6 +506,7 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (candidate.sampleSourceObjectId !== undefined && (typeof candidate.sampleSourceObjectId !== 'string' || candidate.sampleSourceObjectId.length === 0)) return false;
     if (candidate.sampleSourceLayer !== undefined && (!isFiniteNumber(candidate.sampleSourceLayer) || candidate.sampleSourceLayer < 0)) return false;
     if (candidate.sampleStrength !== undefined && (!isFiniteNumber(candidate.sampleStrength) || candidate.sampleStrength < 0 || candidate.sampleStrength > 1)) return false;
+    if (candidate.sampleHueShiftDegrees !== undefined && (!isFiniteNumber(candidate.sampleHueShiftDegrees) || candidate.sampleHueShiftDegrees < -720 || candidate.sampleHueShiftDegrees > 720)) return false;
     if (!isFiniteNumber(candidate.seed)) return false;
   }
   if (candidate.type === 'region_frame') {

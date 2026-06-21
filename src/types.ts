@@ -756,6 +756,7 @@ export interface GetColorDotFieldObject extends BaseObject {
   sampleSourceObjectId?: string;
   sampleSourceLayer?: number;
   sampleStrength?: number;
+  sampleHueShiftDegrees?: number;
   seed: number;
 }
 

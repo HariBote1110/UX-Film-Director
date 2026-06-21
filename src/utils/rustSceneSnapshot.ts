@@ -1217,6 +1217,7 @@ const serialiseGeneratedGetColorDotsSource = (
       source_image: sampleSource.source,
       ...(sampleSource.activeLayerIds ? { source_active_layer_ids: sampleSource.activeLayerIds } : {}),
       sample_strength: Math.min(1, Math.max(0, finiteNumberOr(object.sampleStrength, 1))),
+      sample_hue_shift_degrees: Math.min(720, Math.max(-720, finiteNumberOr(object.sampleHueShiftDegrees, 0))),
     } : {}),
   });
 };

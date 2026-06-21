@@ -438,6 +438,7 @@ struct GeneratedGetColorDotsSource {
     source_image: Option<String>,
     source_active_layer_ids: Option<Vec<String>>,
     sample_strength: Option<f32>,
+    sample_hue_shift_degrees: Option<f32>,
     seed: i64,
 }
 
@@ -6605,6 +6606,10 @@ fn build_generated_getcolor_dots_source_frame(
         None
     };
     let sample_strength = dots.sample_strength.unwrap_or(1.0).clamp(0.0, 1.0);
+    let sample_hue_shift_degrees = dots
+        .sample_hue_shift_degrees
+        .unwrap_or(0.0)
+        .clamp(-720.0, 720.0);
 
     let pixel_count = usize::try_from(media.width)
         .ok()
@@ -6675,6 +6680,7 @@ fn build_generated_getcolor_dots_source_frame(
                 colour,
                 255,
                 sample_strength,
+                sample_hue_shift_degrees,
             );
             draw_getcolor_dot_shape_rgba(
                 &mut pixels,
@@ -6751,6 +6757,7 @@ fn sample_getcolor_dot_colour(
     fallback_colour: [u8; 3],
     fallback_alpha: u8,
     sample_strength: f32,
+    sample_hue_shift_degrees: f32,
 ) -> ([u8; 3], u8) {
     let Some(source) = source else {
         return (fallback_colour, fallback_alpha);
@@ -6778,14 +6785,23 @@ fn sample_getcolor_dot_colour(
             .clamp(0.0, 255.0) as u8
     };
 
-    (
-        [
-            mix_channel(fallback_colour[0], sampled[0]),
-            mix_channel(fallback_colour[1], sampled[1]),
-            mix_channel(fallback_colour[2], sampled[2]),
-        ],
-        mix_channel(fallback_alpha, sampled_alpha),
-    )
+    let mixed_colour = [
+        mix_channel(fallback_colour[0], sampled[0]),
+        mix_channel(fallback_colour[1], sampled[1]),
+        mix_channel(fallback_colour[2], sampled[2]),
+    ];
+    let colour = if sample_hue_shift_degrees.abs() > f32::EPSILON {
+        shift_rgb_hue(mixed_colour, sample_hue_shift_degrees)
+    } else {
+        mixed_colour
+    };
+
+    (colour, mix_channel(fallback_alpha, sampled_alpha))
+}
+
+fn shift_rgb_hue(colour: [u8; 3], shift_degrees: f32) -> [u8; 3] {
+    let (hue, saturation, value) = rgb8_to_hsv(colour);
+    hsv_to_rgb8(hue + shift_degrees, saturation, value)
 }
 
 fn draw_getcolor_dot_shape_rgba(
@@ -8082,7 +8098,34 @@ fn validate_generated_getcolor_dots_source(
             return Err("sample_strength must be 0..1".to_string());
         }
     }
+    if let Some(sample_hue_shift_degrees) = source.sample_hue_shift_degrees {
+        if !sample_hue_shift_degrees.is_finite()
+            || !(-720.0..=720.0).contains(&sample_hue_shift_degrees)
+        {
+            return Err("sample_hue_shift_degrees must be -720..720".to_string());
+        }
+    }
     Ok(())
+}
+
+fn rgb8_to_hsv(colour: [u8; 3]) -> (f32, f32, f32) {
+    let red = colour[0] as f32 / 255.0;
+    let green = colour[1] as f32 / 255.0;
+    let blue = colour[2] as f32 / 255.0;
+    let max = red.max(green).max(blue);
+    let min = red.min(green).min(blue);
+    let delta = max - min;
+    let hue = if delta <= f32::EPSILON {
+        0.0
+    } else if (max - red).abs() <= f32::EPSILON {
+        60.0 * ((green - blue) / delta).rem_euclid(6.0)
+    } else if (max - green).abs() <= f32::EPSILON {
+        60.0 * (((blue - red) / delta) + 2.0)
+    } else {
+        60.0 * (((red - green) / delta) + 4.0)
+    };
+    let saturation = if max <= f32::EPSILON { 0.0 } else { delta / max };
+    (hue, saturation, max)
 }
 
 fn hsv_to_rgb8(hue_degrees: f32, saturation: f32, value: f32) -> [u8; 3] {
@@ -11174,6 +11217,7 @@ mod tests {
                 "root".to_string(),
             ]),
             sample_strength: Some(0.75),
+            sample_hue_shift_degrees: None,
             seed: 93,
         };
 

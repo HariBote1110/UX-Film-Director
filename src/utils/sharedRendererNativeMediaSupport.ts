@@ -1201,6 +1201,7 @@ const isSharedRendererNativeGeneratedGetColorDotsSourceSupported = (source: stri
       source_image?: unknown;
       source_active_layer_ids?: unknown;
       sample_strength?: unknown;
+      sample_hue_shift_degrees?: unknown;
     };
     const dotShapeSupported = parsed.dot_shape === undefined
       || parsed.dot_shape === 'circle'
@@ -1227,6 +1228,12 @@ const isSharedRendererNativeGeneratedGetColorDotsSourceSupported = (source: stri
       && Number.isFinite(parsed.sample_strength)
       && parsed.sample_strength >= 0
       && parsed.sample_strength <= 1
+    );
+    const sampleHueShiftSupported = parsed.sample_hue_shift_degrees === undefined || (
+      typeof parsed.sample_hue_shift_degrees === 'number'
+      && Number.isFinite(parsed.sample_hue_shift_degrees)
+      && parsed.sample_hue_shift_degrees >= -720
+      && parsed.sample_hue_shift_degrees <= 720
     );
     return (
       parsed.generator === 'getcolor-v2r-dot-field'
@@ -1268,6 +1275,7 @@ const isSharedRendererNativeGeneratedGetColorDotsSourceSupported = (source: stri
       && sourceImageSupported
       && sourceActiveLayerIdsSupported
       && sampleStrengthSupported
+      && sampleHueShiftSupported
     );
   } catch {
     return false;
