@@ -58,6 +58,20 @@
 - 直接フレームと共有メモリフレームの一致だけでなく、Audio waveform R自体が実際に描画されていることも確認できるようになった。
 - 次は `encode.writeNativeFrame` の生成効果込みexport直結経路を確認する。
 
+## 2026-06-21 — 生成効果込みdirect encode境界を確認
+
+### 実施内容
+- Test: `encode.start` → `encode.writeNativeFrame` → `encode.finish` で、Audio waveform Rと標準パーティクルを含む1フレームを書き出すRust backend境界テストを追加した。
+- Test: 生成効果入りdirect encodeが出力共有メモリを返さず、WGPU render timingsを持つnative frameとして書けることを検証した。
+- 挙動変更なしの確認強化のため、版は `0.1.1-Beta-259d` のままとした。
+
+### 検証
+- `cargo test --test decode_control_plane native_generated_effects_can_directly_feed_encode_without_output_shared_memory -- --nocapture`
+
+### 結果・残課題
+- export直結経路でもGeneratedAudioWaveformとGeneratedParticleを含むRust native frameを書けることを確認した。
+- 次は実Electron E2Eでpreview screenshotとexport frame decodeを比較し、UI経由の画素一致へ進む。
+
 ## 2026-06-21 — 動画export E2EのElectron bundle待機を追加
 
 ### 実施内容

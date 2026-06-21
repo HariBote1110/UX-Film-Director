@@ -33,6 +33,14 @@
 - 残課題: 次は `encode.writeNativeFrame` の生成効果込みexport直結経路を確認する。
 
 ## 2026-06-21
+- 生成効果込みdirect encode境界を確認した。
+- Test: `encode.start` → `encode.writeNativeFrame` → `encode.finish` で、Audio waveform Rと標準パーティクルを含む1フレームを書き出すRust backend境界テストを追加した。
+- Test: 生成効果入りdirect encodeが出力共有メモリを返さず、WGPU render timingsを持つnative frameとして書けることを検証した。
+- 挙動変更なしの確認強化のため、版は `0.1.1-Beta-259d` のままとした。
+- 検証: `cargo test --test decode_control_plane native_generated_effects_can_directly_feed_encode_without_output_shared_memory -- --nocapture` は成功した。
+- 残課題: 次は実Electron E2Eでpreview screenshotとexport frame decodeを比較し、UI経由の画素一致へ進む。
+
+## 2026-06-21
 - 動画export E2EのElectron bundle待機を追加した。
 - Red: `run-video-export-e2e.mjs` がElectron起動前にbundle完了を待つ契約を追加した。
 - Green: `dist-electron/main.js` / `dist-electron/preload.js` の更新時刻とIPC markerを確認してからElectronを起動するようにした。

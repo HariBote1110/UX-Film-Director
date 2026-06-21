@@ -637,6 +637,163 @@ fn native_rendered_image_frame_can_directly_feed_encode_without_output_shared_me
 }
 
 #[test]
+fn native_generated_effects_can_directly_feed_encode_without_output_shared_memory() {
+    let mut backend = BackendProcess::start();
+    let temp_dir = TestTempDir::new("native-generated-effects-direct-encode");
+    let output_path = temp_dir.path().join("native-generated-effects-direct.mp4");
+    let output_path_string = output_path.to_string_lossy().into_owned();
+    let width = 4;
+    let height = 4;
+    let waveform_source = "{\"generator\":\"audio-waveform-r\",\"target_audio_id\":\"audio-1\",\"target_source\":\"/tmp/dialogue.wav\",\"sample_window_seconds\":1,\"colour\":\"#ff0000\",\"thickness\":1,\"amplitude\":1}";
+    let particle_source = "{\"generator\":\"standard-particle\",\"seed\":0,\"particle_count\":1,\"spread\":0,\"speed\":0,\"size\":1,\"colour\":\"#ffffff\",\"lifetime_seconds\":1}";
+
+    let start = backend.request(json!({
+        "id": 104,
+        "method": "encode.start",
+        "params": {
+            "sessionId": "encode-native-generated-effects-direct",
+            "filePath": output_path_string.clone(),
+            "width": width,
+            "height": height,
+            "fps": 30,
+            "pixelFormat": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(start["ok"], true, "{start}");
+
+    let write = backend.request(json!({
+        "id": 105,
+        "method": "encode.writeNativeFrame",
+        "params": {
+            "sessionId": "encode-native-generated-effects-direct",
+            "renderId": "native-generated-effects-direct-encode",
+            "frameIndex": 0,
+            "timestampUs": 0,
+            "width": width,
+            "height": height,
+            "snapshot": {
+                "frame_index": 0,
+                "colour": {
+                    "profile": "rec709-sdr",
+                    "working_space": "linear-light",
+                    "alpha": "premultiplied"
+                },
+                "clips": [
+                    {
+                        "clip_id": "clip-generated-waveform",
+                        "track_id": "track-1",
+                        "media_id": "waveform-1",
+                        "source_frame": 0,
+                        "z_index": 0,
+                        "transform": {
+                            "translation_x": 0.0,
+                            "translation_y": 0.0,
+                            "scale_x": 1.0,
+                            "scale_y": 1.0,
+                            "rotation_degrees": 0.0,
+                            "sampling": "nearest"
+                        },
+                        "opacity": 1.0,
+                        "effects": []
+                    },
+                    {
+                        "clip_id": "clip-generated-particle",
+                        "track_id": "track-2",
+                        "media_id": "particle-1",
+                        "source_frame": 0,
+                        "z_index": 1,
+                        "transform": {
+                            "translation_x": 0.0,
+                            "translation_y": 0.0,
+                            "scale_x": 1.0,
+                            "scale_y": 1.0,
+                            "rotation_degrees": 0.0,
+                            "sampling": "nearest"
+                        },
+                        "opacity": 1.0,
+                        "effects": []
+                    }
+                ]
+            },
+            "media": [
+                {
+                    "id": "waveform-1",
+                    "kind": "GeneratedAudioWaveform",
+                    "source": waveform_source,
+                    "width": width,
+                    "height": height
+                },
+                {
+                    "id": "particle-1",
+                    "kind": "GeneratedParticle",
+                    "source": particle_source,
+                    "width": width,
+                    "height": height
+                }
+            ],
+            "sources": [],
+            "audioWaveforms": [{
+                "mediaId": "waveform-1",
+                "source": waveform_source,
+                "samples": [-1.0, -1.0, -1.0, -1.0],
+                "sampleRate": 4,
+                "width": width,
+                "height": height
+            }]
+        }
+    }));
+    assert_eq!(write["ok"], true, "{write}");
+    assert_eq!(write["result"]["written"], true);
+    assert_eq!(write["result"]["writtenNativeFrame"], true);
+    assert_eq!(
+        write["result"]["sessionId"],
+        "encode-native-generated-effects-direct"
+    );
+    assert_eq!(
+        write["result"]["renderId"],
+        "native-generated-effects-direct-encode"
+    );
+    assert_eq!(write["result"]["frameCount"], 1);
+    assert!(
+        write["result"]["timings"]["renderMs"].is_number(),
+        "{write}"
+    );
+    assert!(
+        write["result"].get("memoryId").is_none(),
+        "direct generated-effects encode must not return an output shared memory id: {write}"
+    );
+    assert!(
+        write["result"].get("frame").is_none(),
+        "direct generated-effects encode must not return a shared frame descriptor: {write}"
+    );
+    assert_no_frame_bytes_recursive(&write["result"]);
+
+    let finish = backend.request(json!({
+        "id": 106,
+        "method": "encode.finish",
+        "params": {
+            "sessionId": "encode-native-generated-effects-direct"
+        }
+    }));
+    assert_eq!(finish["ok"], true, "{finish}");
+    assert_eq!(finish["result"]["filePath"], output_path_string);
+    assert_eq!(finish["result"]["frameCount"], 1);
+    assert_no_frame_bytes_recursive(&finish["result"]);
+    assert!(
+        fs::metadata(&output_path)
+            .expect("direct generated-effects encode output file exists")
+            .len()
+            > 0
+    );
+}
+
+#[test]
 fn native_rendered_video_frame_direct_encode_uses_cpu_fast_path() {
     let mut backend = BackendProcess::start();
     let temp_dir = TestTempDir::new("native-video-direct-cpu-fast-path");
