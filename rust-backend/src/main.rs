@@ -8699,4 +8699,41 @@ mod tests {
         assert!(background_count > 120_000);
         assert!(fully_opaque);
     }
+
+    #[test]
+    fn generated_getcolor_dots_source_frame_contains_dot_field_and_background() {
+        let media = SceneMediaReference {
+            id: "getcolor-dot-field-1".to_string(),
+            kind: MediaKind::GeneratedGetColorDots,
+            source: r##"{"generator":"getcolor-v2r-dot-field","columns":32,"rows":18,"dot_size":14,"size_influence":0.65,"luminance_influence":0.7,"hue_shift_degrees":0,"alternate_rows":true,"foreground_colour":"#ffffff","secondary_colour":"#36c2ff","background_colour":"#000000","seed":93}"##.to_string(),
+            width: 800,
+            height: 450,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_getcolor_dots_source_frame(&media)
+            .expect("generated GetColor dot field frame should render");
+        let foreground_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [255, 255, 255, 255])
+            .count();
+        let secondary_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [54, 194, 255, 255])
+            .count();
+        let background_count = frame
+            .pixels
+            .chunks_exact(4)
+            .filter(|rgba| *rgba == [0, 0, 0, 255])
+            .count();
+        let fully_opaque = frame.pixels.chunks_exact(4).all(|rgba| rgba[3] == 255);
+
+        assert!(foreground_count > 10_000);
+        assert!(secondary_count > 10_000);
+        assert!(background_count > 180_000);
+        assert!(fully_opaque);
+    }
 }

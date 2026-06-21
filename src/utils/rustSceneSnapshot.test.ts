@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AsanohaPatternObject, AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -852,6 +852,39 @@ const baseHksyCheckerGrid = (patch: Partial<HksyCheckerGridObject> = {}): HksyCh
   foregroundColour: '#ffffff',
   secondaryColour: '#333333',
   backgroundColour: '#000000',
+  ...patch,
+});
+
+const baseGetColorDotField = (patch: Partial<GetColorDotFieldObject> = {}): GetColorDotFieldObject => ({
+  id: 'getcolor-dot-field-1',
+  type: 'getcolor_dot_field',
+  name: 'GetColor V2R ドットフィールド',
+  layer: 29,
+  startTime: 1,
+  duration: 4,
+  x: 560,
+  y: 315,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 560,
+  endY: 315,
+  easing: 'linear',
+  width: 800,
+  height: 450,
+  columns: 32,
+  rows: 18,
+  dotSize: 14,
+  sizeInfluence: 0.65,
+  luminanceInfluence: 0.7,
+  hueShiftDegrees: 0,
+  alternateRows: true,
+  foregroundColour: '#ffffff',
+  secondaryColour: '#36c2ff',
+  backgroundColour: '#000000',
+  seed: 93,
   ...patch,
 });
 
@@ -1909,6 +1942,49 @@ describe('buildRustSceneSnapshotForTimeline', () => {
           foreground_colour: '#ffffff',
           secondary_colour: '#333333',
           background_colour: '#000000',
+        }),
+        width: 800,
+        height: 450,
+      },
+    ]);
+  });
+
+  it('builds a generated GetColor V2R dot media plane from a dot field object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseGetColorDotField()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated GetColor dot field snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'getcolor-dot-field-1',
+      track_id: 'layer-29',
+      media_id: 'getcolor-dot-field-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'getcolor-dot-field-1',
+        kind: 'GeneratedGetColorDots',
+        source: JSON.stringify({
+          generator: 'getcolor-v2r-dot-field',
+          columns: 32,
+          rows: 18,
+          dot_size: 14,
+          size_influence: 0.65,
+          luminance_influence: 0.7,
+          hue_shift_degrees: 0,
+          alternate_rows: true,
+          foreground_colour: '#ffffff',
+          secondary_colour: '#36c2ff',
+          background_colour: '#000000',
+          seed: 93,
         }),
         width: 800,
         height: 450,

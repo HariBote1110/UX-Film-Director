@@ -208,6 +208,12 @@ const media: RustSceneMediaReference[] = [{
   width: 360,
   height: 360,
 }, {
+  id: 'getcolor-dot-field-1',
+  kind: 'GeneratedGetColorDots' as RustSceneMediaReference['kind'],
+  source: '{"generator":"getcolor-v2r-dot-field","columns":32,"rows":18,"dot_size":14,"size_influence":0.65,"luminance_influence":0.7,"hue_shift_degrees":0,"alternate_rows":true,"foreground_colour":"#ffffff","secondary_colour":"#36c2ff","background_colour":"#000000","seed":93}',
+  width: 800,
+  height: 450,
+}, {
   id: 'hksy-checker-grid-1',
   kind: 'GeneratedHksyCheckerGrid' as RustSceneMediaReference['kind'],
   source: '{"generator":"hksy-checker-grid","cell_size":50,"line_width":2,"checker_enabled":true,"grid_enabled":true,"foreground_colour":"#ffffff","secondary_colour":"#333333","background_colour":"#000000"}',
@@ -278,8 +284,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[27])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[28])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[29])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[30])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[30])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[31])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[32])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {
@@ -309,6 +316,10 @@ describe('sharedRendererNativeMediaSupport', () => {
     })).toBe(true);
     expect(canRenderSharedRendererNativeMediaOnlyFrame({
       snapshot: snapshotWithMedia('solid-1', 'tone-curve-1'),
+      media,
+    })).toBe(true);
+    expect(canRenderSharedRendererNativeMediaOnlyFrame({
+      snapshot: snapshotWithMedia('solid-1', 'getcolor-dot-field-1'),
       media,
     })).toBe(true);
     expect(canRenderSharedRendererNativeMediaOnlyFrame({

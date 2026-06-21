@@ -419,3 +419,19 @@ fn rust_core_accepts_generated_hksy_checker_grid_media_kind_at_the_json_boundary
     assert_eq!(media.width, 800);
     assert_eq!(media.height, 450);
 }
+
+#[test]
+fn rust_core_accepts_generated_getcolor_dots_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "getcolor-dot-field-1",
+        "kind": "GeneratedGetColorDots",
+        "source": "{\"generator\":\"getcolor-v2r-dot-field\",\"columns\":32,\"rows\":18,\"dot_size\":14,\"size_influence\":0.65,\"luminance_influence\":0.7,\"hue_shift_degrees\":0,\"alternate_rows\":true,\"foreground_colour\":\"#ffffff\",\"secondary_colour\":\"#36c2ff\",\"background_colour\":\"#000000\",\"seed\":93}",
+        "width": 800,
+        "height": 450
+    }))
+    .expect("GeneratedGetColorDots media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedGetColorDots);
+    assert_eq!(media.width, 800);
+    assert_eq!(media.height, 450);
+}

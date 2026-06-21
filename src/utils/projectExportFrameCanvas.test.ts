@@ -12,7 +12,7 @@ import {
   shouldSynchroniseTimelineForProjectExportFrame,
   type ProjectExportRustFrameSource,
 } from './projectExportFrameCanvas';
-import type { AsanohaPatternObject, AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const source = () =>
   readFileSync(new URL('./projectExportFrameCanvas.ts', import.meta.url), 'utf8');
@@ -856,6 +856,39 @@ const hksyCheckerGrid = (patch: Partial<HksyCheckerGridObject> = {}): HksyChecke
   ...patch,
 });
 
+const getColorDotField = (patch: Partial<GetColorDotFieldObject> = {}): GetColorDotFieldObject => ({
+  id: 'getcolor-dot-field-1',
+  type: 'getcolor_dot_field',
+  name: 'GetColor V2R ドットフィールド',
+  layer: 27,
+  startTime: 0,
+  duration: 5,
+  x: 560,
+  y: 315,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 560,
+  endY: 315,
+  easing: 'linear',
+  width: 800,
+  height: 450,
+  columns: 32,
+  rows: 18,
+  dotSize: 14,
+  sizeInfluence: 0.65,
+  luminanceInfluence: 0.7,
+  hueShiftDegrees: 0,
+  alternateRows: true,
+  foregroundColour: '#ffffff',
+  secondaryColour: '#36c2ff',
+  backgroundColour: '#000000',
+  seed: 93,
+  ...patch,
+});
+
 describe('resolveProjectExportFrameCanvas', () => {
   it('uses the explicit export canvas without requiring a legacy canvas', () => {
     const sharedRendererCanvas = { id: 'shared-renderer-export' } as unknown as HTMLCanvasElement;
@@ -1287,7 +1320,7 @@ describe('resolveProjectExportRustFrameSourceContext', () => {
   });
 
   it('marks standard particle exports as native-render media instead of legacy canvas work', () => {
-    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), gourd(), gear(), trackBar(), pieChart(), histogram(), toneCurve(), hksyCheckerGrid(), sunburst(), circularArrow(), triangleBracket(), tartanCheck(), houndstooth(), yagasuri(), paperAirplane(), asanohaPattern(), focusLinesPlus(), randomLineEx(), hologram(), protractor(), shakingPolygon(), audio()];
+    const objects: TimelineObject[] = [particle(), barcode(), puzzlePiece(), colourWheel(), gourd(), gear(), trackBar(), pieChart(), histogram(), toneCurve(), hksyCheckerGrid(), getColorDotField(), sunburst(), circularArrow(), triangleBracket(), tartanCheck(), houndstooth(), yagasuri(), paperAirplane(), asanohaPattern(), focusLinesPlus(), randomLineEx(), hologram(), protractor(), shakingPolygon(), audio()];
 
     expect(hasProjectExportNativeRenderMediaObjects(objects)).toBe(true);
     expect(resolveProjectExportRustFrameSourceContext({
