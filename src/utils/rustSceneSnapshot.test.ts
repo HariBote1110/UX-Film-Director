@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, HoundstoothObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, HoundstoothObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -617,6 +617,32 @@ const basePaperAirplane = (patch: Partial<PaperAirplaneObject> = {}): PaperAirpl
   followMotionDirection: false,
   axisMode: 0,
   fillColour: '#ffffff',
+  ...patch,
+});
+
+const baseAsanohaPattern = (patch: Partial<AsanohaPatternObject> = {}): AsanohaPatternObject => ({
+  id: 'asanoha-pattern-1',
+  type: 'asanoha_pattern',
+  name: '麻の葉模様',
+  layer: 21,
+  startTime: 1,
+  duration: 4,
+  x: 560,
+  y: 315,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 560,
+  endY: 315,
+  easing: 'linear',
+  width: 800,
+  height: 450,
+  patternSize: 50,
+  lineWidth: 2,
+  foregroundColour: '#000000',
+  backgroundColour: '#ffffff',
   ...patch,
 });
 
@@ -1362,6 +1388,42 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         }),
         width: 320,
         height: 240,
+      },
+    ]);
+  });
+
+  it('builds a generated asanoha pattern media plane from an asanoha pattern object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseAsanohaPattern()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated asanoha pattern snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'asanoha-pattern-1',
+      track_id: 'layer-21',
+      media_id: 'asanoha-pattern-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'asanoha-pattern-1',
+        kind: 'GeneratedAsanohaPattern',
+        source: JSON.stringify({
+          generator: 'asanoha-pattern',
+          pattern_size: 50,
+          line_width: 2,
+          foreground_colour: '#000000',
+          background_colour: '#ffffff',
+        }),
+        width: 800,
+        height: 450,
       },
     ]);
   });

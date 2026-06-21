@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import type {
   AudioObject,
   AudioVisualizationObject,
+  AsanohaPatternObject,
   BaseObject,
   BarcodeObject,
   CircularArrowObject,
@@ -434,6 +435,17 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     axisMode: 0,
     fillColour: '#ffffff',
   };
+  const asanohaPattern: AsanohaPatternObject = {
+    ...baseObject('ssd-asanoha-pattern', 'asanoha_pattern', 26),
+    type: 'asanoha_pattern',
+    name: '麻の葉模様',
+    width: 800,
+    height: 450,
+    patternSize: 50,
+    lineWidth: 2,
+    foregroundColour: '#000000',
+    backgroundColour: '#ffffff',
+  };
 
   return [
     solidShape,
@@ -459,6 +471,7 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     houndstooth,
     yagasuri,
     paperAirplane,
+    asanohaPattern,
   ];
 };
 
@@ -542,6 +555,7 @@ describe('全読込可能メディア E2E', () => {
       'GeneratedHoundstooth',
       'GeneratedYagasuri',
       'GeneratedPaperAirplane',
+      'GeneratedAsanohaPattern',
     ]);
     expect(snapshotResult.media
       .filter((media) => media.kind === 'Video')
@@ -702,6 +716,13 @@ describe('全読込可能メディア E2E', () => {
       axis_mode: 0,
       fill_colour: '#ffffff',
     });
+    expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'ssd-asanoha-pattern')?.source ?? '{}')).toMatchObject({
+      generator: 'asanoha-pattern',
+      pattern_size: 50,
+      line_width: 2,
+      foreground_colour: '#000000',
+      background_colour: '#ffffff',
+    });
     expect(snapshotResult.media.some((media) => media.source.endsWith('.wav'))).toBe(false);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'shape-solid-rect')?.transform).toMatchObject({
       translation_x: 64.5,
@@ -738,6 +759,7 @@ describe('全読込可能メディア E2E', () => {
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-houndstooth')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-yagasuri')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-paper-airplane')?.source_frame).toBe(0);
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-asanoha-pattern')?.source_frame).toBe(0);
     expect(validateRustSceneSnapshotBoundary({
       snapshot: snapshotResult.snapshot,
       media: snapshotResult.media,

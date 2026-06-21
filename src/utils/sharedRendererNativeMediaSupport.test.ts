@@ -166,6 +166,12 @@ const media: RustSceneMediaReference[] = [{
   width: 320,
   height: 240,
 }, {
+  id: 'asanoha-pattern-1',
+  kind: 'GeneratedAsanohaPattern' as RustSceneMediaReference['kind'],
+  source: '{"generator":"asanoha-pattern","pattern_size":50,"line_width":2,"foreground_colour":"#000000","background_colour":"#ffffff"}',
+  width: 800,
+  height: 450,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -222,8 +228,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[19])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[20])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[21])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[22])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[22])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[23])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[24])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {

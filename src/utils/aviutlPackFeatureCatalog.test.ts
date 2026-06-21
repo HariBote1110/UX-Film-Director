@@ -49,6 +49,7 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('ssd-houndstooth')?.sourceRelativePaths).toContain('script/ANM/ANM_ssd/千鳥格子.obj');
     expect(byId.get('ssd-yagasuri')?.sourceRelativePaths).toContain('script/ANM/ANM_ssd/矢がすり.obj');
     expect(byId.get('ssd-paper-airplane')?.sourceRelativePaths).toContain('script/ANM/ANM_ssd/紙飛行機.obj');
+    expect(byId.get('ssd-asanoha-pattern')?.sourceRelativePaths).toContain('script/ANM/ANM_ssd/麻の葉模様.obj');
     expect(byId.get('custom-track-bar')?.sourceRelativePaths).toContain('script/93/カスタムトラックバー.obj');
     expect(byId.get('pie-sheet-graph')?.sourceRelativePaths).toContain('script/93/パイシートグラフ.obj');
     expect(byId.get('tim-motion-path')?.sourceRelativePaths).toEqual(expect.arrayContaining([

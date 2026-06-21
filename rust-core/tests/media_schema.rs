@@ -291,3 +291,19 @@ fn rust_core_accepts_generated_paper_airplane_media_kind_at_the_json_boundary() 
     assert_eq!(media.width, 320);
     assert_eq!(media.height, 240);
 }
+
+#[test]
+fn rust_core_accepts_generated_asanoha_pattern_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "asanoha-pattern-1",
+        "kind": "GeneratedAsanohaPattern",
+        "source": "{\"generator\":\"asanoha-pattern\",\"pattern_size\":50,\"line_width\":2,\"foreground_colour\":\"#000000\",\"background_colour\":\"#ffffff\"}",
+        "width": 800,
+        "height": 450
+    }))
+    .expect("GeneratedAsanohaPattern media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedAsanohaPattern);
+    assert_eq!(media.width, 800);
+    assert_eq!(media.height, 450);
+}
