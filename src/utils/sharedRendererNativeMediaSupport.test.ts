@@ -142,6 +142,12 @@ const media: RustSceneMediaReference[] = [{
   width: 160,
   height: 100,
 }, {
+  id: 'tartan-check-1',
+  kind: 'GeneratedTartanCheck' as RustSceneMediaReference['kind'],
+  source: '{"generator":"tartan-check","tile_size":100,"blur_radius":1,"base_colour":"#143e10","stripe_colour_a":"#a81616","stripe_colour_b":"#c9c526","line_colour":"#000000"}',
+  width: 800,
+  height: 450,
+}, {
   id: 'remote-psd-1',
   kind: 'Psd',
   source: 'https://example.com/standing.psd',
@@ -194,8 +200,9 @@ describe('sharedRendererNativeMediaSupport', () => {
     expect(isSharedRendererNativeMediaReferenceSupported(media[15])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[16])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[17])).toBe(true);
-    expect(isSharedRendererNativeMediaReferenceSupported(media[18])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[18])).toBe(true);
     expect(isSharedRendererNativeMediaReferenceSupported(media[19])).toBe(false);
+    expect(isSharedRendererNativeMediaReferenceSupported(media[20])).toBe(false);
   });
 
   it('allows media-only native render only when every visible clip has a Rust-generated source', () => {

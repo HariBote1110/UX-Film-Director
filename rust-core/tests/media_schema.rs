@@ -227,3 +227,19 @@ fn rust_core_accepts_generated_triangle_bracket_media_kind_at_the_json_boundary(
     assert_eq!(media.width, 160);
     assert_eq!(media.height, 100);
 }
+
+#[test]
+fn rust_core_accepts_generated_tartan_check_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "tartan-check-1",
+        "kind": "GeneratedTartanCheck",
+        "source": "{\"generator\":\"tartan-check\",\"tile_size\":100,\"blur_radius\":1,\"base_colour\":\"#143e10\",\"stripe_colour_a\":\"#a81616\",\"stripe_colour_b\":\"#c9c526\",\"line_colour\":\"#000000\"}",
+        "width": 800,
+        "height": 450
+    }))
+    .expect("GeneratedTartanCheck media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedTartanCheck);
+    assert_eq!(media.width, 800);
+    assert_eq!(media.height, 450);
+}

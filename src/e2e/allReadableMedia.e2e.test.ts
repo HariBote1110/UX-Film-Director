@@ -22,6 +22,7 @@ import type {
   PuzzlePieceObject,
   ShapeObject,
   SunburstObject,
+  TartanCheckObject,
   TimelineObject,
   TrackBarObject,
   TriangleBracketObject,
@@ -380,6 +381,19 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     offsetDistance: 0,
     bracketColour: '#ffffff',
   };
+  const tartanCheck: TartanCheckObject = {
+    ...baseObject('ssd-tartan-check', 'tartan_check', 22),
+    type: 'tartan_check',
+    name: 'タータンチェック',
+    width: 800,
+    height: 450,
+    tileSize: 100,
+    blurRadius: 1,
+    baseColour: '#143e10',
+    stripeColourA: '#a81616',
+    stripeColourB: '#c9c526',
+    lineColour: '#000000',
+  };
 
   return [
     solidShape,
@@ -401,6 +415,7 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     sunburst,
     circularArrow,
     triangleBracket,
+    tartanCheck,
   ];
 };
 
@@ -480,6 +495,7 @@ describe('全読込可能メディア E2E', () => {
       'GeneratedSunburst',
       'GeneratedCircularArrow',
       'GeneratedTriangleBracket',
+      'GeneratedTartanCheck',
     ]);
     expect(snapshotResult.media
       .filter((media) => media.kind === 'Video')
@@ -606,6 +622,15 @@ describe('全読込可能メディア E2E', () => {
       offset_distance: 0,
       bracket_colour: '#ffffff',
     });
+    expect(JSON.parse(snapshotResult.media.find((media) => media.id === 'ssd-tartan-check')?.source ?? '{}')).toMatchObject({
+      generator: 'tartan-check',
+      tile_size: 100,
+      blur_radius: 1,
+      base_colour: '#143e10',
+      stripe_colour_a: '#a81616',
+      stripe_colour_b: '#c9c526',
+      line_colour: '#000000',
+    });
     expect(snapshotResult.media.some((media) => media.source.endsWith('.wav'))).toBe(false);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'shape-solid-rect')?.transform).toMatchObject({
       translation_x: 64.5,
@@ -638,6 +663,7 @@ describe('全読込可能メディア E2E', () => {
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-sunburst')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-circular-arrow')?.source_frame).toBe(0);
     expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-triangle-bracket')?.source_frame).toBe(0);
+    expect(snapshotResult.snapshot.clips.find((clip) => clip.clip_id === 'ssd-tartan-check')?.source_frame).toBe(0);
     expect(validateRustSceneSnapshotBoundary({
       snapshot: snapshotResult.snapshot,
       media: snapshotResult.media,

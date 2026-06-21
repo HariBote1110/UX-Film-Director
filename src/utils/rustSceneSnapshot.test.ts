@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, ImageObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject } from '../types';
+import type { AudioObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, GearObject, GourdObject, HistogramObject, ImageObject, ParticleObject, PieChartObject, ProjectSettings, PsdObject, PuzzlePieceObject, ShapeObject, SunburstObject, TartanCheckObject, TimelineObject, TrackBarObject, TriangleBracketObject, VideoObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -507,6 +507,34 @@ const baseTriangleBracket = (patch: Partial<TriangleBracketObject> = {}): Triang
   armLength: 50,
   offsetDistance: 0,
   bracketColour: '#ffffff',
+  ...patch,
+});
+
+const baseTartanCheck = (patch: Partial<TartanCheckObject> = {}): TartanCheckObject => ({
+  id: 'tartan-check-1',
+  type: 'tartan_check',
+  name: 'タータンチェック',
+  layer: 17,
+  startTime: 1,
+  duration: 4,
+  x: 560,
+  y: 315,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 560,
+  endY: 315,
+  easing: 'linear',
+  width: 800,
+  height: 450,
+  tileSize: 100,
+  blurRadius: 1,
+  baseColour: '#143e10',
+  stripeColourA: '#a81616',
+  stripeColourB: '#c9c526',
+  lineColour: '#000000',
   ...patch,
 });
 
@@ -1102,6 +1130,44 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         }),
         width: 160,
         height: 100,
+      },
+    ]);
+  });
+
+  it('builds a generated tartan check media plane from a tartan check object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseTartanCheck()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated tartan check snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'tartan-check-1',
+      track_id: 'layer-17',
+      media_id: 'tartan-check-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'tartan-check-1',
+        kind: 'GeneratedTartanCheck',
+        source: JSON.stringify({
+          generator: 'tartan-check',
+          tile_size: 100,
+          blur_radius: 1,
+          base_colour: '#143e10',
+          stripe_colour_a: '#a81616',
+          stripe_colour_b: '#c9c526',
+          line_colour: '#000000',
+        }),
+        width: 800,
+        height: 450,
       },
     ]);
   });
