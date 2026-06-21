@@ -276,7 +276,7 @@ const buildAudioWaveformSession = (): SharedRendererPreviewSession => {
     ...mediaOnlySession.surfaceGate.snapshot.clips[0],
     clip_id: 'waveform-1',
     media_id: 'waveform-1',
-    source_frame: 0,
+    source_frame: 30,
     z_index: 0,
     transform: {
       ...mediaOnlySession.surfaceGate.snapshot.clips[0].transform,
@@ -496,7 +496,7 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
         source: '/tmp/dialogue.wav',
         sampleRate: 8000,
         maxSamples: 8000,
-        startSeconds: 0,
+        startSeconds: 0.5,
         durationSeconds: 1,
       }],
       ['renderNativeSharedFrame', {
