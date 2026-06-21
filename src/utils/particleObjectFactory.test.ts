@@ -3,6 +3,7 @@ import {
   buildAviUtlAuraEmissionObject,
   buildAviUtlBubbleObject,
   buildAviUtlFocusLinesObject,
+  buildAviUtlInkSplashObject,
   buildDefaultStandardParticleObject,
 } from './particleObjectFactory';
 
@@ -124,6 +125,36 @@ describe('particleObjectFactory', () => {
       size: 3,
       colour: '#ffffff',
       lifetimeSeconds: 0.85,
+    });
+  });
+
+  it('builds an AviUtlPackV4 ink splash particle object for timeline insertion', () => {
+    const object = buildAviUtlInkSplashObject({
+      id: 'ink-1',
+      projectWidth: 1920,
+      projectHeight: 1080,
+      startTime: 1.75,
+      layer: 9,
+    });
+
+    expect(object).toMatchObject({
+      id: 'ink-1',
+      type: 'particle',
+      name: 'インクTM',
+      layer: 9,
+      startTime: 1.75,
+      duration: 4,
+      x: 756,
+      y: 336,
+      width: 408,
+      height: 408,
+      particleCount: 88,
+      seed: 3000,
+      spread: 360,
+      speed: 38,
+      size: 18,
+      colour: '#111111',
+      lifetimeSeconds: 3.2,
     });
   });
 });
