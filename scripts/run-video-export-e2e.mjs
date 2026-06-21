@@ -303,6 +303,31 @@ const countNearColourPixels = (buffer, hex, tolerance) => {
   return count;
 };
 
+const countNearColourPixelsInRegion = (buffer, width, region, hex, tolerance) => {
+  const height = buffer.length / 4 / width;
+  if (!Number.isInteger(height)) return 0;
+  const [red, green, blue] = hexColourToRgb(hex);
+  const minX = Math.max(0, Math.floor(region.x));
+  const minY = Math.max(0, Math.floor(region.y));
+  const maxX = Math.min(width, Math.ceil(region.x + region.width));
+  const maxY = Math.min(height, Math.ceil(region.y + region.height));
+  let count = 0;
+  for (let y = minY; y < maxY; y += 1) {
+    for (let x = minX; x < maxX; x += 1) {
+      const index = (y * width + x) * 4;
+      if (
+        Math.abs(buffer[index] - red) <= tolerance
+        && Math.abs(buffer[index + 1] - green) <= tolerance
+        && Math.abs(buffer[index + 2] - blue) <= tolerance
+        && buffer[index + 3] > 180
+      ) {
+        count += 1;
+      }
+    }
+  }
+  return count;
+};
+
 const countGeneratedWaveformBandPixels = (buffer, width) => {
   const height = buffer.length / 4 / width;
   if (!Number.isInteger(height)) return 0;
@@ -365,23 +390,83 @@ const inspectExportedGeneratedEffectsFrame = async () => {
   const frame = readFileSync(OUTPUT_FRAME_RGBA);
   const waveformColour = '#00ff88';
   const particleColour = '#ffffff';
+  const getColorSecondaryColour = '#36c2ff';
+  const hksyDarkCellColour = '#333333';
+  const spotLightWarmColour = '#fff4c2';
+  const audioSphereColour = '#36c2ff';
   const frameWidth = 1920;
+  const aviUtlInspectionRegions = {
+    getColor: { x: 80, y: 120, width: 360, height: 220 },
+    hksy: { x: 520, y: 120, width: 360, height: 220 },
+    spotLight: { x: 960, y: 120, width: 260, height: 180 },
+    audioSphere: { x: 1240, y: 400, width: 420, height: 420 },
+  };
   const waveformPixelCount = countGeneratedWaveformBandPixels(frame, frameWidth);
   const particlePixelCount = countNearColourPixels(frame, particleColour, 24);
+  const getColorCyanPixelCount = countNearColourPixelsInRegion(
+    frame,
+    frameWidth,
+    aviUtlInspectionRegions.getColor,
+    getColorSecondaryColour,
+    32
+  );
+  const hksyDarkCellPixelCount = countNearColourPixelsInRegion(
+    frame,
+    frameWidth,
+    aviUtlInspectionRegions.hksy,
+    hksyDarkCellColour,
+    18
+  );
+  const spotLightWarmPixelCount = countNearColourPixelsInRegion(
+    frame,
+    frameWidth,
+    aviUtlInspectionRegions.spotLight,
+    spotLightWarmColour,
+    48
+  );
+  const audioSphereCyanPixelCount = countNearColourPixelsInRegion(
+    frame,
+    frameWidth,
+    aviUtlInspectionRegions.audioSphere,
+    audioSphereColour,
+    32
+  );
   const minWaveformPixels = 16;
   const minParticlePixels = 16;
+  const minGetColorCyanPixels = 8;
+  const minHksyDarkCellPixels = 64;
+  const minSpotLightWarmPixels = 16;
+  const minAudioSphereCyanPixels = 16;
   return {
-    ok: waveformPixelCount >= minWaveformPixels && particlePixelCount >= minParticlePixels,
+    ok: waveformPixelCount >= minWaveformPixels
+      && particlePixelCount >= minParticlePixels
+      && getColorCyanPixelCount >= minGetColorCyanPixels
+      && hksyDarkCellPixelCount >= minHksyDarkCellPixels
+      && spotLightWarmPixelCount >= minSpotLightWarmPixels
+      && audioSphereCyanPixelCount >= minAudioSphereCyanPixels,
     enabled: true,
     framePath: OUTPUT_FRAME_RGBA,
     byteLength: frame.length,
     frameWidth,
+    aviUtlInspectionRegions,
     waveformColour,
     particleColour,
+    getColorSecondaryColour,
+    hksyDarkCellColour,
+    spotLightWarmColour,
+    audioSphereColour,
     waveformPixelCount,
     particlePixelCount,
+    getColorCyanPixelCount,
+    hksyDarkCellPixelCount,
+    spotLightWarmPixelCount,
+    audioSphereCyanPixelCount,
     minWaveformPixels,
     minParticlePixels,
+    minGetColorCyanPixels,
+    minHksyDarkCellPixels,
+    minSpotLightWarmPixels,
+    minAudioSphereCyanPixels,
   };
 };
 

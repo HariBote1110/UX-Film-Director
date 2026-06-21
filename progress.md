@@ -8900,6 +8900,23 @@
 ### 残課題・次のステップ
 - GetColor / hksy / 93優先効果の代表exportは通った。次は画素検査対象をGetColor/hksy/SpotLight/93音声玉固有色や形状へ広げるか、次のAviUtlPackV4優先候補をRust生成効果へ追加する。
 
+## 2026-06-22 — AviUtl優先効果のexport E2E固有画素検査を追加
+
+### 実施内容
+- Red: `test:video-export:e2e` が、GetColor V2R、hksyチェッカー/グリッド、93 SpotLight、93音声玉それぞれの固有画素検査フィールドを持つ契約を追加した。
+- Green: E2E専用hookでAviUtl優先効果を画面上に分離配置し、export後のRGBAフレームから領域別に代表色を検査するようにした。
+- Green: `generatedEffectsFrameInspection` に `getColorCyanPixelCount`、`hksyDarkCellPixelCount`、`spotLightWarmPixelCount`、`audioSphereCyanPixelCount` を追加した。
+- 版を `0.1.1-Beta-293d` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/packageScripts.test.ts --reporter=dot` は6件成功。
+- `UXFD_VIDEO_EXPORT_E2E_ADD_MIXED_MEDIA=1 UXFD_VIDEO_EXPORT_E2E_ADD_AVIUTL_GENERATED_EFFECTS=1 UXFD_VIDEO_EXPORT_E2E_DURATION_SECONDS=1 UXFD_VIDEO_EXPORT_E2E_TIMEOUT_MS=240000 npm run test:video-export:e2e` は成功。60/60フレームを書き出し、`runtimeErrors` は空。
+- 実E2Eの固有画素検査は `getColorCyanPixelCount=14080`、`hksyDarkCellPixelCount=6405`、`spotLightWarmPixelCount=2393`、`audioSphereCyanPixelCount=1903` で、各最小閾値を上回った。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回変更由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- GetColor / hksy / 93代表効果は、タイムライン投入だけでなくexport結果内の固有画素まで確認できた。次はAviUtlPackV4の次候補を選び、Rust生成効果またはRust/WebGPU effectへ追加する。
+
 ## 2026-06-22 — 93 SpotLightをRust/WebGPU effectへ追加
 
 ### 実施内容

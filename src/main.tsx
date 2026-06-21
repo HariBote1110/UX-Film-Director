@@ -23,6 +23,10 @@ if (urlSearchParams.has('videoLoadE2e') || urlSearchParams.has('videoExportE2e')
 }
 
 if (urlSearchParams.has('videoExportE2e')) {
+  const E2E_AVIUTL_GETCOLOR_REGION = { x: 80, y: 120, width: 360, height: 220 };
+  const E2E_AVIUTL_HKSY_REGION = { x: 520, y: 120, width: 360, height: 220 };
+  const E2E_AVIUTL_SPOTLIGHT_REGION = { x: 960, y: 120, width: 260, height: 180 };
+  const E2E_AVIUTL_AUDIO_SPHERE_REGION = { x: 1240, y: 400, width: 420, height: 420 };
   type VideoExportE2eDurationResult = {
     ok: boolean;
     objectCount: number;
@@ -139,6 +143,9 @@ if (urlSearchParams.has('videoExportE2e')) {
         layer: Math.min(99, maxLayer + 3),
       }),
       name: 'GetColor V2R ドットフィールド',
+      ...E2E_AVIUTL_GETCOLOR_REGION,
+      endX: E2E_AVIUTL_GETCOLOR_REGION.x,
+      endY: E2E_AVIUTL_GETCOLOR_REGION.y,
     };
     const hksyCheckerGrid = {
       ...buildHksyCheckerGridObject({
@@ -149,6 +156,9 @@ if (urlSearchParams.has('videoExportE2e')) {
         layer: Math.min(99, maxLayer + 4),
       }),
       name: 'hksyチェッカー/グリッド',
+      ...E2E_AVIUTL_HKSY_REGION,
+      endX: E2E_AVIUTL_HKSY_REGION.x,
+      endY: E2E_AVIUTL_HKSY_REGION.y,
     };
     const spotLightProbe: ShapeObject = {
       id: 'e2e-93-spotlight-probe',
@@ -157,19 +167,19 @@ if (urlSearchParams.has('videoExportE2e')) {
       layer: Math.min(99, maxLayer + 5),
       startTime: 0,
       duration: safeDuration,
-      x: 880,
-      y: 420,
+      x: E2E_AVIUTL_SPOTLIGHT_REGION.x,
+      y: E2E_AVIUTL_SPOTLIGHT_REGION.y,
       rotation: 0,
       scaleX: 1,
       scaleY: 1,
       opacity: 1,
       enableAnimation: false,
-      endX: 880,
-      endY: 420,
+      endX: E2E_AVIUTL_SPOTLIGHT_REGION.x,
+      endY: E2E_AVIUTL_SPOTLIGHT_REGION.y,
       easing: 'linear',
       shapeType: 'rect',
-      width: 240,
-      height: 160,
+      width: E2E_AVIUTL_SPOTLIGHT_REGION.width,
+      height: E2E_AVIUTL_SPOTLIGHT_REGION.height,
       fill: '#111111',
       filters: [{
         id: 'e2e-93-spotlight-filter',
@@ -196,6 +206,9 @@ if (urlSearchParams.has('videoExportE2e')) {
       targetLayer: audioTarget.layer,
       name: '93音声玉',
       duration: safeDuration,
+      ...E2E_AVIUTL_AUDIO_SPHERE_REGION,
+      endX: E2E_AVIUTL_AUDIO_SPHERE_REGION.x,
+      endY: E2E_AVIUTL_AUDIO_SPHERE_REGION.y,
     } : null;
     state.addObject(audioVisualisation);
     state.addObject(particle);
