@@ -14,3 +14,14 @@ describe('PropertyPanel aspect ratio controls', () => {
     expect(code).toContain('比率を固定');
   });
 });
+
+describe('PropertyPanel AviUtl motion preset controls', () => {
+  it('exposes AviUtlPackV4 motion presets through the keyframe panel', () => {
+    const code = source();
+
+    expect(code).toContain("import { buildAviUtlMotionPresetPatch, getAviUtlPackMotionPresets");
+    expect(code).toContain('const aviUtlMotionPresets = getAviUtlPackMotionPresets()');
+    expect(code).toContain('handleApplyAviUtlMotionPreset');
+    expect(code).toContain('AviUtl Motion');
+  });
+});
