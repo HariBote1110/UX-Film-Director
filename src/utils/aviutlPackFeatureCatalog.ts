@@ -217,6 +217,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: 'hksyの複数色チェッカー表現を、Rust生成メディアのpalette付きタイル描画として標準搭載する。'
   },
   {
+    id: 'hksy-diamond',
+    labelJa: 'hksy 菱形',
+    category: 'generated-object',
+    phase: 'P1',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/@hksy/@hksy.obj'],
+    rationaleJa: 'hksyの菱形カスタムオブジェクトを、透明背景のRust生成メディアとして標準搭載する。'
+  },
+  {
     id: 'particle-standard',
     labelJa: '標準パーティクル',
     category: 'generated-object',

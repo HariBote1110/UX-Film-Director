@@ -719,6 +719,7 @@ export interface HksyCheckerGridObject extends BaseObject {
   type: 'hksy_checker_grid';
   width: number;
   height: number;
+  pattern?: 'checker-grid' | 'diamond';
   cellSize: number;
   lineWidth: number;
   checkerEnabled: boolean;

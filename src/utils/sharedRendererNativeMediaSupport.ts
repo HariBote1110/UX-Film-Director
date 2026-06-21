@@ -1093,6 +1093,7 @@ const isSharedRendererNativeGeneratedHksyCheckerGridSourceSupported = (source: s
   try {
     const parsed = JSON.parse(source) as {
       generator?: unknown;
+      pattern?: unknown;
       cell_size?: unknown;
       line_width?: unknown;
       checker_enabled?: unknown;
@@ -1113,6 +1114,7 @@ const isSharedRendererNativeGeneratedHksyCheckerGridSourceSupported = (source: s
     );
     return (
       parsed.generator === 'hksy-checker-grid'
+      && (parsed.pattern === undefined || parsed.pattern === 'checker-grid' || parsed.pattern === 'diamond')
       && typeof parsed.cell_size === 'number'
       && Number.isInteger(parsed.cell_size)
       && parsed.cell_size >= 1

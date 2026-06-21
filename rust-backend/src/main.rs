@@ -439,6 +439,7 @@ struct GeneratedGetColorDotsSource {
 #[derive(Debug, Deserialize)]
 struct GeneratedHksyCheckerGridSource {
     generator: String,
+    pattern: Option<String>,
     cell_size: u32,
     line_width: u32,
     checker_enabled: bool,
@@ -5116,6 +5117,19 @@ fn build_generated_hksy_checker_grid_source_frame(
         .ok_or_else(|| "GeneratedHksyCheckerGrid media byte length overflows".to_string())?;
     let mut pixels = vec![0; byte_len];
 
+    if checker_grid.pattern.as_deref() == Some("diamond") {
+        draw_hksy_diamond_pattern_rgba(
+            &mut pixels,
+            media.width,
+            media.height,
+            foreground,
+            checker_grid.line_width as f32,
+        );
+        return RgbaFrame::from_rgba8(media.width, media.height, pixels).map_err(|error| {
+            format!("GeneratedHksyCheckerGrid media frame is invalid: {error:?}")
+        });
+    }
+
     for y in 0..media.height {
         for x in 0..media.width {
             let colour = if checker_grid.checker_enabled {
@@ -5169,6 +5183,65 @@ fn build_generated_hksy_checker_grid_source_frame(
 
     RgbaFrame::from_rgba8(media.width, media.height, pixels)
         .map_err(|error| format!("GeneratedHksyCheckerGrid media frame is invalid: {error:?}"))
+}
+
+fn draw_hksy_diamond_pattern_rgba(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    colour: [u8; 3],
+    line_width: f32,
+) {
+    if width == 0 || height == 0 || line_width <= 0.0 {
+        return;
+    }
+
+    let centre_x = width as f32 * 0.5;
+    let centre_y = height as f32 * 0.5;
+    let half_width = centre_x;
+    let half_height = centre_y;
+    let longest_side = width.max(height) as f32;
+    let inner_x = (half_width - (width as f32 / longest_side) * line_width).max(0.0);
+    let inner_y = (half_height - (height as f32 / longest_side) * line_width).max(0.0);
+    let left = 0.0;
+    let right = width.saturating_sub(1) as f32;
+    let top = 0.0;
+    let bottom = height.saturating_sub(1) as f32;
+
+    let polygons = [
+        [
+            (centre_x, top),
+            (left, centre_y),
+            (centre_x - inner_x, centre_y),
+            (centre_x, centre_y - inner_y),
+        ],
+        [
+            (centre_x, top),
+            (right, centre_y),
+            (centre_x + inner_x, centre_y),
+            (centre_x, centre_y - inner_y),
+        ],
+        [
+            (centre_x, bottom),
+            (left, centre_y),
+            (centre_x - inner_x, centre_y),
+            (centre_x, centre_y + inner_y),
+        ],
+        [
+            (centre_x, bottom),
+            (right, centre_y),
+            (centre_x + inner_x, centre_y),
+            (centre_x, centre_y + inner_y),
+        ],
+    ];
+
+    for polygon in polygons {
+        let fan_centre = (
+            polygon.iter().map(|point| point.0).sum::<f32>() / polygon.len() as f32,
+            polygon.iter().map(|point| point.1).sum::<f32>() / polygon.len() as f32,
+        );
+        fill_polygon_fan_rgba(pixels, width, height, &polygon, fan_centre, colour, 255);
+    }
 }
 
 fn build_generated_getcolor_dots_source_frame(
@@ -6145,6 +6218,11 @@ fn validate_generated_hksy_checker_grid_source(
 ) -> Result<(), String> {
     if source.generator != "hksy-checker-grid" {
         return Err("generator must be hksy-checker-grid".to_string());
+    }
+    if let Some(pattern) = source.pattern.as_deref() {
+        if pattern != "checker-grid" && pattern != "diamond" {
+            return Err("pattern must be checker-grid or diamond".to_string());
+        }
     }
     if source.cell_size == 0 || source.cell_size > 1000 {
         return Err("cell_size must be 1..1000".to_string());

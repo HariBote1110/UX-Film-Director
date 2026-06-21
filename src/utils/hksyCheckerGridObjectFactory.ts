@@ -73,3 +73,30 @@ export const buildHksyMultiColourCheckerObject = (input: BuildHksyCheckerGridObj
   backgroundColour: '#111111',
   paletteColours: ['#ff5c8a', '#36c2ff', '#ffd166', '#70e000'],
 });
+
+export const buildHksyDiamondObject = (input: BuildHksyCheckerGridObjectInput): HksyCheckerGridObject => {
+  const base = buildHksyCheckerGridObject(input);
+  const width = Math.max(240, Math.round(input.projectWidth * 0.25));
+  const height = Math.max(180, Math.round(input.projectHeight * 0.3333));
+  const x = Math.round((input.projectWidth - width) / 2);
+  const y = Math.round((input.projectHeight - height) / 2);
+
+  return {
+    ...base,
+    name: 'hksy 菱形',
+    x,
+    y,
+    width,
+    height,
+    endX: x,
+    endY: y,
+    pattern: 'diamond',
+    cellSize: 64,
+    lineWidth: 96,
+    checkerEnabled: false,
+    gridEnabled: false,
+    foregroundColour: '#ffffff',
+    secondaryColour: '#ffffff',
+    backgroundColour: '#000000',
+  };
+};

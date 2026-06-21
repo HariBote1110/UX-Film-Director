@@ -1100,8 +1100,10 @@ const normaliseHksyPaletteColours = (colours: readonly string[] | undefined): st
 
 const serialiseGeneratedHksyCheckerGridSource = (object: HksyCheckerGridObject): string => {
   const paletteColours = normaliseHksyPaletteColours(object.paletteColours);
+  const pattern = object.pattern === 'diamond' ? object.pattern : undefined;
   return JSON.stringify({
     generator: 'hksy-checker-grid',
+    ...(pattern ? { pattern } : {}),
     cell_size: Math.min(1000, Math.max(1, Math.trunc(finiteNumberOr(object.cellSize, 50)))),
     line_width: Math.min(100, Math.max(0, Math.trunc(finiteNumberOr(object.lineWidth, 2)))),
     checker_enabled: object.checkerEnabled === true,
