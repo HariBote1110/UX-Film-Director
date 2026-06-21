@@ -5,6 +5,7 @@ import { useTranslation } from '../i18n';
 import {
   buildAviUtlAuraEmissionObject,
   buildAviUtlBubbleObject,
+  buildAviUtlFocusLinesObject,
   buildDefaultStandardParticleObject,
 } from '../utils/particleObjectFactory';
 
@@ -164,6 +165,17 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
     onClose();
   };
 
+  const handleAddFocusLines = () => {
+    addObject(buildAviUtlFocusLinesObject({
+      id: crypto.randomUUID(),
+      projectWidth: projectSettings.width,
+      projectHeight: projectSettings.height,
+      startTime: state.time,
+      layer: state.layer,
+    }));
+    onClose();
+  };
+
   const ensureObjectSelection = (objectId: string) => {
     if (!selectedIds.includes(objectId)) {
       selectObject(objectId);
@@ -205,6 +217,7 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddParticle}>{language === 'en' ? 'Add Standard Particle' : '標準パーティクルを追加'}</div>
             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddAuraEmission}>{language === 'en' ? 'Add Aura Emission' : 'オーラ放出を追加'}</div>
             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddBubble}>{language === 'en' ? 'Add Bubbles' : '泡を追加'}</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddFocusLines}>{language === 'en' ? 'Add Focus Lines' : '集中線を追加'}</div>
         </>
       )}
       {state.type === 'object' && state.targetObjectId && (

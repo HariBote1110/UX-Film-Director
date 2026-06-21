@@ -1,6 +1,16 @@
 # 進捗ログ
 
 ## 2026-06-21
+- Tim集中線Tを標準生成オブジェクトへ追加した。
+- Red: `script/てぃむ/@集中線T.obj` を、Timeline右クリックから追加できるAviUtlPackV4標準生成オブジェクトにする契約を作った。
+- Green: `buildAviUtlFocusLinesObject` を追加し、標準パーティクル基盤で集中線T近似のParticleObjectを生成できるようにした。
+- Green: Timeline context menuへ `集中線を追加` / `Add Focus Lines` を追加した。
+- Green: `tim-focus-lines` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-264a` に更新した。
+- 検証: `npm test -- --run src/utils/particleObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts` は32件成功した。
+- 残課題: 集中線Tは標準パーティクル近似で、元スクリプト固有の線分描画・遠近感までは未実装。
+
+## 2026-06-21
 - Tim泡を標準生成オブジェクトへ追加した。
 - Red: `script/てぃむ/泡.obj` を、Timeline右クリックから追加できるAviUtlPackV4標準生成オブジェクトにする契約を作った。
 - Green: `buildAviUtlBubbleObject` を追加し、標準パーティクル基盤で泡近似のParticleObjectを生成できるようにした。

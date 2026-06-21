@@ -177,6 +177,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '水中・回想・柔らかい背景演出に使いやすく、標準パーティクル基盤で近似しやすい。'
   },
   {
+    id: 'tim-focus-lines',
+    labelJa: '集中線T',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/てぃむ/@集中線T.obj'],
+    rationaleJa: '注目・ツッコミ・強調の演出で使いやすく、短寿命の高速粒子で近似しやすい。'
+  },
+  {
     id: 'tim-motion-path',
     labelJa: 'モーションパス',
     category: 'motion',

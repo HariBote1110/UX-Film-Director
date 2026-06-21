@@ -129,3 +129,39 @@ export const buildAviUtlBubbleObject = ({
     lifetimeSeconds: 3.4,
   };
 };
+
+export const buildAviUtlFocusLinesObject = ({
+  id,
+  projectWidth,
+  projectHeight,
+  startTime,
+  layer,
+}: BuildDefaultStandardParticleObjectInput): ParticleObject => {
+  return {
+    id,
+    type: 'particle',
+    name: '集中線T',
+    layer,
+    startTime,
+    duration: 3,
+    x: 0,
+    y: 0,
+    width: projectWidth,
+    height: projectHeight,
+    rotation: 0,
+    scaleX: 1,
+    scaleY: 1,
+    opacity: 1,
+    enableAnimation: false,
+    endX: 0,
+    endY: 0,
+    easing: 'linear',
+    particleCount: 180,
+    seed: 1201,
+    spread: 360,
+    speed: 180,
+    size: 3,
+    colour: '#ffffff',
+    lifetimeSeconds: 0.85,
+  };
+};
