@@ -12,7 +12,7 @@ import { buildAviUtlGearObject } from '../utils/gearObjectFactory';
 import { buildGetColorDotFieldObject } from '../utils/getColorDotFieldObjectFactory';
 import { buildAviUtlGourdObject } from '../utils/gourdObjectFactory';
 import { buildAviUtlHistogramObject } from '../utils/histogramObjectFactory';
-import { buildHksyCheckerGridObject, buildHksyDiamondObject, buildHksyLineObject, buildHksyMeasuredGridObject, buildHksyMultiColourCheckerObject } from '../utils/hksyCheckerGridObjectFactory';
+import { buildHksyAnchorLineObject, buildHksyCheckerGridObject, buildHksyDiamondObject, buildHksyLineObject, buildHksyMeasuredGridObject, buildHksyMultiColourCheckerObject } from '../utils/hksyCheckerGridObjectFactory';
 import { buildAviUtlHologramObject } from '../utils/hologramObjectFactory';
 import { buildAviUtlHoundstoothObject } from '../utils/houndstoothObjectFactory';
 import { buildAviUtlPaperAirplaneObject } from '../utils/paperAirplaneObjectFactory';
@@ -510,6 +510,17 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
     onClose();
   };
 
+  const handleAddHksyAnchorLine = () => {
+    addObject(buildHksyAnchorLineObject({
+      id: crypto.randomUUID(),
+      projectWidth: projectSettings.width,
+      projectHeight: projectSettings.height,
+      startTime: state.time,
+      layer: state.layer,
+    }));
+    onClose();
+  };
+
   const handleAddHksyMultiColourChecker = () => {
     addObject(buildHksyMultiColourCheckerObject({
       id: crypto.randomUUID(),
@@ -589,6 +600,7 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHksyMultiColourChecker}>{language === 'en' ? 'Add hksy Multi-Colour Checker' : 'hksy複数色チェッカーを追加'}</div>
               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHksyDiamond}>{language === 'en' ? 'Add hksy Diamond' : 'hksy菱形を追加'}</div>
               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHksyMeasuredGrid}>{language === 'en' ? 'Add hksy Grid' : 'hksyグリッドを追加'}</div>
+              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHksyAnchorLine}>{language === 'en' ? 'Add hksy Anchor Line' : 'hksyライン（アンカー指定）を追加'}</div>
              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddToneCurve}>{language === 'en' ? 'Add Tone Curve' : '簡易トーンカーブを追加'}</div>
              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddSunburst}>{language === 'en' ? 'Add Sunburst' : '日の出を追加'}</div>
               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddCircularArrow}>{language === 'en' ? 'Add Circular Arrow' : '円矢印を追加'}</div>

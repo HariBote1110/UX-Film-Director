@@ -237,6 +237,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: 'hksyの通常線と区切り線を持つグリッドを、Rust生成の解説背景素材として標準搭載する。'
   },
   {
+    id: 'hksy-anchor-line',
+    labelJa: 'hksy ライン（アンカー指定）',
+    category: 'generated-object',
+    phase: 'P1',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/@hksy/@hksy.obj'],
+    rationaleJa: 'hksyのアンカー指定ラインを、Rust生成の折れ線素材として標準搭載する。'
+  },
+  {
     id: 'particle-standard',
     labelJa: '標準パーティクル',
     category: 'generated-object',

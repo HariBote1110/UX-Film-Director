@@ -129,3 +129,37 @@ export const buildHksyMeasuredGridObject = (input: BuildHksyCheckerGridObjectInp
     separateLineWidth: 3,
   };
 };
+
+export const buildHksyAnchorLineObject = (input: BuildHksyCheckerGridObjectInput): HksyCheckerGridObject => {
+  const base = buildHksyCheckerGridObject(input);
+  const width = Math.max(240, Math.round(input.projectWidth * 0.25));
+  const height = Math.max(180, Math.round(input.projectHeight * 0.3333));
+  const x = Math.round((input.projectWidth - width) / 2);
+  const y = Math.round((input.projectHeight - height) / 2);
+
+  return {
+    ...base,
+    name: 'hksy ライン（アンカー指定）',
+    x,
+    y,
+    width,
+    height,
+    endX: x,
+    endY: y,
+    pattern: 'anchor-line',
+    cellSize: 64,
+    lineWidth: 20,
+    checkerEnabled: false,
+    gridEnabled: false,
+    foregroundColour: '#ffffff',
+    secondaryColour: '#ffffff',
+    backgroundColour: '#000000',
+    anchorPoints: [
+      { x: -88, y: 50 },
+      { x: 0, y: -100 },
+      { x: 88, y: 50 },
+    ],
+    roundCaps: true,
+    maxJoinDistance: 50,
+  };
+};

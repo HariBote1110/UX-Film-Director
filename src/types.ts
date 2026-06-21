@@ -719,7 +719,7 @@ export interface HksyCheckerGridObject extends BaseObject {
   type: 'hksy_checker_grid';
   width: number;
   height: number;
-  pattern?: 'checker-grid' | 'diamond' | 'measured-grid';
+  pattern?: 'checker-grid' | 'diamond' | 'measured-grid' | 'anchor-line';
   cellSize: number;
   lineWidth: number;
   checkerEnabled: boolean;
@@ -730,6 +730,9 @@ export interface HksyCheckerGridObject extends BaseObject {
   paletteColours?: string[];
   separateInterval?: number;
   separateLineWidth?: number;
+  anchorPoints?: Array<{ x: number; y: number }>;
+  roundCaps?: boolean;
+  maxJoinDistance?: number;
 }
 
 // GetColor V2R ドット化表現互換の生成オブジェクト

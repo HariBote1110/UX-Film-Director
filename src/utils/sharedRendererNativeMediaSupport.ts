@@ -1104,6 +1104,9 @@ const isSharedRendererNativeGeneratedHksyCheckerGridSourceSupported = (source: s
       palette_colours?: unknown;
       separate_interval?: unknown;
       separate_line_width?: unknown;
+      anchor_points?: unknown;
+      round_caps?: unknown;
+      max_join_distance?: unknown;
     };
     const paletteColoursSupported = parsed.palette_colours === undefined || (
       Array.isArray(parsed.palette_colours)
@@ -1124,9 +1127,31 @@ const isSharedRendererNativeGeneratedHksyCheckerGridSourceSupported = (source: s
       && parsed.separate_line_width >= 0
       && parsed.separate_line_width <= 100
     );
+    const anchorLineFieldsSupported = parsed.pattern !== 'anchor-line' || (
+      Array.isArray(parsed.anchor_points)
+      && parsed.anchor_points.length >= 2
+      && parsed.anchor_points.length <= 16
+      && parsed.anchor_points.every((point) => (
+        typeof point === 'object'
+        && point !== null
+        && typeof (point as { x?: unknown }).x === 'number'
+        && Number.isFinite((point as { x: number }).x)
+        && (point as { x: number }).x >= -1000
+        && (point as { x: number }).x <= 1000
+        && typeof (point as { y?: unknown }).y === 'number'
+        && Number.isFinite((point as { y: number }).y)
+        && (point as { y: number }).y >= -1000
+        && (point as { y: number }).y <= 1000
+      ))
+      && typeof parsed.round_caps === 'boolean'
+      && typeof parsed.max_join_distance === 'number'
+      && Number.isFinite(parsed.max_join_distance)
+      && parsed.max_join_distance >= 0
+      && parsed.max_join_distance <= 300
+    );
     return (
       parsed.generator === 'hksy-checker-grid'
-      && (parsed.pattern === undefined || parsed.pattern === 'checker-grid' || parsed.pattern === 'diamond' || parsed.pattern === 'measured-grid')
+      && (parsed.pattern === undefined || parsed.pattern === 'checker-grid' || parsed.pattern === 'diamond' || parsed.pattern === 'measured-grid' || parsed.pattern === 'anchor-line')
       && typeof parsed.cell_size === 'number'
       && Number.isInteger(parsed.cell_size)
       && parsed.cell_size >= 1
@@ -1145,6 +1170,7 @@ const isSharedRendererNativeGeneratedHksyCheckerGridSourceSupported = (source: s
       && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
       && paletteColoursSupported
       && measuredGridFieldsSupported
+      && anchorLineFieldsSupported
     );
   } catch {
     return false;

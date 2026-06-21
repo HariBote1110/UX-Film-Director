@@ -450,6 +450,15 @@ struct GeneratedHksyCheckerGridSource {
     palette_colours: Option<Vec<String>>,
     separate_interval: Option<u32>,
     separate_line_width: Option<u32>,
+    anchor_points: Option<Vec<GeneratedHksyAnchorPoint>>,
+    round_caps: Option<bool>,
+    max_join_distance: Option<f32>,
+}
+
+#[derive(Debug, Deserialize, Clone, Copy)]
+struct GeneratedHksyAnchorPoint {
+    x: f32,
+    y: f32,
 }
 
 fn main() {
@@ -5150,6 +5159,21 @@ fn build_generated_hksy_checker_grid_source_frame(
             format!("GeneratedHksyCheckerGrid media frame is invalid: {error:?}")
         });
     }
+    if checker_grid.pattern.as_deref() == Some("anchor-line") {
+        let anchor_points = checker_grid.anchor_points.as_deref().unwrap_or(&[]);
+        draw_hksy_anchor_line_pattern_rgba(
+            &mut pixels,
+            media.width,
+            media.height,
+            anchor_points,
+            foreground,
+            checker_grid.line_width as f32,
+            checker_grid.round_caps.unwrap_or(true),
+        );
+        return RgbaFrame::from_rgba8(media.width, media.height, pixels).map_err(|error| {
+            format!("GeneratedHksyCheckerGrid media frame is invalid: {error:?}")
+        });
+    }
 
     for y in 0..media.height {
         for x in 0..media.width {
@@ -5344,6 +5368,38 @@ fn draw_hksy_measured_grid_pattern_rgba(
         }
         index = index.saturating_add(1);
         position += style.cell_size as f32;
+    }
+}
+
+fn draw_hksy_anchor_line_pattern_rgba(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    anchor_points: &[GeneratedHksyAnchorPoint],
+    colour: [u8; 3],
+    line_width: f32,
+    round_caps: bool,
+) {
+    if width == 0 || height == 0 || anchor_points.len() < 2 || line_width <= 0.0 {
+        return;
+    }
+
+    let centre_x = width as f32 * 0.5;
+    let centre_y = height as f32 * 0.5;
+    let points = anchor_points
+        .iter()
+        .map(|point| (centre_x + point.x, centre_y + point.y))
+        .collect::<Vec<_>>();
+
+    for pair in points.windows(2) {
+        draw_line_segment_rgba(pixels, width, height, pair[0], pair[1], colour, line_width);
+    }
+
+    if round_caps {
+        let radius = (line_width * 0.5).max(0.5);
+        for point in points {
+            fill_disc_rgba(pixels, width, height, point, radius, colour, 255);
+        }
     }
 }
 
@@ -5558,6 +5614,41 @@ fn fill_triangle_rgba(
     for y in min_y..=max_y {
         for x in min_x..=max_x {
             if point_in_triangle(x as f32 + 0.5, y as f32 + 0.5, triangle) {
+                let offset = (y as usize * width as usize + x as usize) * 4;
+                pixels[offset..offset + 4]
+                    .copy_from_slice(&[colour[0], colour[1], colour[2], alpha]);
+            }
+        }
+    }
+}
+
+fn fill_disc_rgba(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    centre: (f32, f32),
+    radius: f32,
+    colour: [u8; 3],
+    alpha: u8,
+) {
+    if width == 0 || height == 0 || radius <= 0.0 {
+        return;
+    }
+    let min_x = (centre.0 - radius).floor().max(0.0) as u32;
+    let max_x = (centre.0 + radius)
+        .ceil()
+        .min(width.saturating_sub(1) as f32) as u32;
+    let min_y = (centre.1 - radius).floor().max(0.0) as u32;
+    let max_y = (centre.1 + radius)
+        .ceil()
+        .min(height.saturating_sub(1) as f32) as u32;
+    let radius_squared = radius * radius;
+
+    for y in min_y..=max_y {
+        for x in min_x..=max_x {
+            let dx = x as f32 + 0.5 - centre.0;
+            let dy = y as f32 + 0.5 - centre.1;
+            if dx * dx + dy * dy <= radius_squared {
                 let offset = (y as usize * width as usize + x as usize) * 4;
                 pixels[offset..offset + 4]
                     .copy_from_slice(&[colour[0], colour[1], colour[2], alpha]);
@@ -6323,8 +6414,8 @@ fn validate_generated_hksy_checker_grid_source(
         return Err("generator must be hksy-checker-grid".to_string());
     }
     if let Some(pattern) = source.pattern.as_deref() {
-        if pattern != "checker-grid" && pattern != "diamond" && pattern != "measured-grid" {
-            return Err("pattern must be checker-grid, diamond or measured-grid".to_string());
+        if pattern != "checker-grid" && pattern != "diamond" && pattern != "measured-grid" && pattern != "anchor-line" {
+            return Err("pattern must be checker-grid, diamond, measured-grid or anchor-line".to_string());
         }
     }
     if source.cell_size == 0 || source.cell_size > 1000 {
@@ -6352,6 +6443,34 @@ fn validate_generated_hksy_checker_grid_source(
     if let Some(separate_line_width) = source.separate_line_width {
         if separate_line_width > 100 {
             return Err("separate_line_width must be 0..100".to_string());
+        }
+    }
+    if source.pattern.as_deref() == Some("anchor-line") {
+        let anchor_points = source
+            .anchor_points
+            .as_ref()
+            .ok_or_else(|| "anchor_points is required for anchor-line".to_string())?;
+        if anchor_points.len() < 2 || anchor_points.len() > 16 {
+            return Err("anchor_points must contain 2..16 points".to_string());
+        }
+        if anchor_points.iter().any(|point| {
+            !point.x.is_finite()
+                || !point.y.is_finite()
+                || point.x < -1000.0
+                || point.x > 1000.0
+                || point.y < -1000.0
+                || point.y > 1000.0
+        }) {
+            return Err("anchor_points must be finite values in -1000..1000".to_string());
+        }
+        if source.round_caps.is_none() {
+            return Err("round_caps is required for anchor-line".to_string());
+        }
+        let max_join_distance = source
+            .max_join_distance
+            .ok_or_else(|| "max_join_distance is required for anchor-line".to_string())?;
+        if !max_join_distance.is_finite() || !(0.0..=300.0).contains(&max_join_distance) {
+            return Err("max_join_distance must be 0..300".to_string());
         }
     }
     Ok(())

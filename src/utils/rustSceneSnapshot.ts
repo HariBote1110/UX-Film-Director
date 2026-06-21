@@ -1098,9 +1098,27 @@ const normaliseHksyPaletteColours = (colours: readonly string[] | undefined): st
     .slice(0, 16);
 };
 
+const defaultHksyAnchorPoints = [
+  { x: -88, y: 50 },
+  { x: 0, y: -100 },
+  { x: 88, y: 50 },
+];
+
+const normaliseHksyAnchorPoints = (points: HksyCheckerGridObject['anchorPoints']): Array<{ x: number; y: number }> => {
+  if (!Array.isArray(points)) return defaultHksyAnchorPoints;
+  const normalised = points
+    .filter((point) => Number.isFinite(point?.x) && Number.isFinite(point?.y))
+    .map((point) => ({
+      x: Math.min(1000, Math.max(-1000, point.x)),
+      y: Math.min(1000, Math.max(-1000, point.y)),
+    }))
+    .slice(0, 16);
+  return normalised.length >= 2 ? normalised : defaultHksyAnchorPoints;
+};
+
 const serialiseGeneratedHksyCheckerGridSource = (object: HksyCheckerGridObject): string => {
   const paletteColours = normaliseHksyPaletteColours(object.paletteColours);
-  const pattern = object.pattern === 'diamond' || object.pattern === 'measured-grid' ? object.pattern : undefined;
+  const pattern = object.pattern === 'diamond' || object.pattern === 'measured-grid' || object.pattern === 'anchor-line' ? object.pattern : undefined;
   return JSON.stringify({
     generator: 'hksy-checker-grid',
     ...(pattern ? { pattern } : {}),
@@ -1115,6 +1133,11 @@ const serialiseGeneratedHksyCheckerGridSource = (object: HksyCheckerGridObject):
     ...(pattern === 'measured-grid' ? {
       separate_interval: Math.min(1000, Math.max(1, Math.trunc(finiteNumberOr(object.separateInterval, 5)))),
       separate_line_width: Math.min(100, Math.max(0, Math.trunc(finiteNumberOr(object.separateLineWidth, 3)))),
+    } : {}),
+    ...(pattern === 'anchor-line' ? {
+      anchor_points: normaliseHksyAnchorPoints(object.anchorPoints),
+      round_caps: object.roundCaps !== false,
+      max_join_distance: Math.min(300, Math.max(0, finiteNumberOr(object.maxJoinDistance, 50))),
     } : {}),
   });
 };
