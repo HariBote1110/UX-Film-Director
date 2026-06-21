@@ -330,6 +330,7 @@ export const hasProjectExportNativeRenderMediaObjects = (
     || object.type === 'track_bar'
     || object.type === 'pie_chart'
     || object.type === 'histogram'
+    || object.type === 'sunburst'
     || object.type === 'audio_visualization'
   );
 

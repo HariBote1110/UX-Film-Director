@@ -37,6 +37,7 @@
 | P2 | カスタムトラックバー | native generated object | 動画内UIやパラメータ可視化に使いやすい |
 | P2 | パイシートグラフ | native generated object | 割合表示や解説UIに使いやすい |
 | P2 | 簡易ヒストグラム | native generated object | 色・明度の分布を解説UIとして見せやすい |
+| P2 | 日の出 | native generated object | 背景や強調演出に使いやすい |
 | P2 | モーションパス / ベジェ軌道T | native motion preset | 既存キーフレームに接続し、弧やS字移動を少ない操作で作れる |
 | P2 | 風揺れT | native motion preset | 立ち絵や字幕に軽い揺れを付ける定番演出 |
 | P3 | Luaスクリプト互換 | script runtime later | 安全性、性能、ライセンス確認が大きい |

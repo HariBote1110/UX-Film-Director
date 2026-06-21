@@ -15,6 +15,7 @@ import type {
   PsdObject,
   PuzzlePieceObject,
   ShapeObject,
+  SunburstObject,
   TimelineObject,
   TrackBarObject,
   VideoObject,
@@ -70,7 +71,7 @@ export interface RustSceneSnapshot {
 
 export interface RustSceneMediaReference {
   id: string;
-  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'Psd';
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedSunburst' | 'Psd';
   source: string;
   width: number;
   height: number;
@@ -143,7 +144,7 @@ export interface RustSceneSnapshotBuildInput {
 export type RustSceneVideoSourceMode = 'previewProxy' | 'exportOriginal';
 
 type SupportedMediaObject = ImageObject | VideoObject | PsdObject;
-type SupportedGeneratedObject = AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject;
+type SupportedGeneratedObject = AudioVisualizationObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | SunburstObject;
 type SupportedSceneObject = SupportedMediaObject | ShapeObject | SupportedGeneratedObject;
 
 const rustColourPipeline = (): RustColourPipeline => ({
@@ -389,7 +390,8 @@ const isSupportedSceneObject = (object: TimelineObject): object is SupportedScen
   || object.type === 'gear'
   || object.type === 'track_bar'
   || object.type === 'pie_chart'
-  || object.type === 'histogram';
+  || object.type === 'histogram'
+  || object.type === 'sunburst';
 
 const isVisualSceneObject = (object: TimelineObject): boolean =>
   object.type !== 'audio';
@@ -530,6 +532,16 @@ const mediaReferenceForObject = (
       id: object.id,
       kind: 'GeneratedHistogram',
       source: serialiseGeneratedHistogramSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'sunburst') {
+    return {
+      id: object.id,
+      kind: 'GeneratedSunburst',
+      source: serialiseGeneratedSunburstSource(object),
       width: object.width,
       height: object.height,
     };
@@ -683,6 +695,20 @@ const serialiseGeneratedHistogramSource = (object: HistogramObject): string =>
     background_colour: /^#[0-9a-f]{6}$/i.test(object.backgroundColour) ? object.backgroundColour : '#000000',
   });
 
+const serialiseGeneratedSunburstSource = (object: SunburstObject): string =>
+  JSON.stringify({
+    generator: 'sunrise',
+    ray_count: Math.min(360, Math.max(1, Math.trunc(finiteNumberOr(object.rayCount, 10)))),
+    ray_coverage_percent: Math.min(100, Math.max(0, finiteNumberOr(object.rayCoveragePercent, 50))),
+    rotation_offset_degrees: finiteNumberOr(object.rotationOffsetDegrees, 0),
+    centre_x_percent: Math.min(200, Math.max(-100, finiteNumberOr(object.centreXPercent, 50))),
+    centre_y_percent: Math.min(200, Math.max(-100, finiteNumberOr(object.centreYPercent, 50))),
+    motif_size: Math.max(0, Math.trunc(finiteNumberOr(object.motifSize, 200))),
+    motif_shape: object.motifShape === 'rect' ? 'rect' : 'circle',
+    ray_colour: /^#[0-9a-f]{6}$/i.test(object.rayColour) ? object.rayColour : '#ff0000',
+    background_colour: /^#[0-9a-f]{6}$/i.test(object.backgroundColour) ? object.backgroundColour : '#ffff00',
+  });
+
 const normaliseTrackBarValues = (values: readonly number[]): number[] =>
   Array.from({ length: 4 }, (_, index) => finiteNumberOr(values[index], 0));
 
@@ -829,6 +855,7 @@ const sourceFrameForObject = (
   if (object.type === 'track_bar') return 0;
   if (object.type === 'pie_chart') return 0;
   if (object.type === 'histogram') return 0;
+  if (object.type === 'sunburst') return 0;
   const localTime = Math.max(0, time - object.startTime);
   const mediaTime = localTime + (object.offset ?? 0);
   return secondsToFrameIndex(mediaTime, fps);
@@ -1035,7 +1062,7 @@ const validateMediaReferences = (
     }
     validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height', 'source_rate', 'active_layer_ids'], issues);
     validateString(reference.id, `${path}.id`, issues);
-    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'GeneratedPieChart', 'GeneratedHistogram', 'Psd'], issues);
+    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'GeneratedPieChart', 'GeneratedHistogram', 'GeneratedSunburst', 'Psd'], issues);
     validateString(reference.source, `${path}.source`, issues);
     validatePositiveInteger(reference.width, `${path}.width`, issues);
     validatePositiveInteger(reference.height, `${path}.height`, issues);

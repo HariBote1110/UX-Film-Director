@@ -252,6 +252,20 @@ struct GeneratedHistogramSource {
     background_colour: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct GeneratedSunburstSource {
+    generator: String,
+    ray_count: u32,
+    ray_coverage_percent: f32,
+    rotation_offset_degrees: f32,
+    centre_x_percent: f32,
+    centre_y_percent: f32,
+    motif_size: u32,
+    motif_shape: String,
+    ray_colour: String,
+    background_colour: String,
+}
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
@@ -2237,6 +2251,7 @@ fn collect_native_render_sources(
             MediaKind::GeneratedTrackBar => build_generated_track_bar_source_frame(media)?,
             MediaKind::GeneratedPieChart => build_generated_pie_chart_source_frame(media)?,
             MediaKind::GeneratedHistogram => build_generated_histogram_source_frame(media)?,
+            MediaKind::GeneratedSunburst => build_generated_sunburst_source_frame(media)?,
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform => continue,
@@ -3156,6 +3171,85 @@ fn build_generated_histogram_source_frame(
         .map_err(|error| format!("GeneratedHistogram media frame is invalid: {error:?}"))
 }
 
+fn build_generated_sunburst_source_frame(media: &SceneMediaReference) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedSunburst media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let sunburst: GeneratedSunburstSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedSunburst media '{}': {error}", media.id))?;
+    validate_generated_sunburst_source(&sunburst)
+        .map_err(|message| format!("Invalid GeneratedSunburst media '{}': {message}", media.id))?;
+
+    let ray_colour = parse_hex_colour_source(&sunburst.ray_colour)
+        .map_err(|message| format!("Invalid GeneratedSunburst media '{}': {message}", media.id))?;
+    let background_colour = parse_hex_colour_source(&sunburst.background_colour)
+        .map_err(|message| format!("Invalid GeneratedSunburst media '{}': {message}", media.id))?;
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedSunburst media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedSunburst media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+    fill_rect_rgba(
+        &mut pixels,
+        media.width,
+        media.height,
+        0,
+        0,
+        media.width as i32,
+        media.height as i32,
+        [
+            background_colour[0],
+            background_colour[1],
+            background_colour[2],
+            255,
+        ],
+    );
+
+    let centre_x = media.width as f32 * sunburst.centre_x_percent * 0.01;
+    let centre_y = media.height as f32 * sunburst.centre_y_percent * 0.01;
+    let ray_count = sunburst.ray_count.max(1) as f32;
+    let coverage = (sunburst.ray_coverage_percent * 0.01).clamp(0.0, 1.0);
+    let rotation = sunburst.rotation_offset_degrees.to_radians() - std::f32::consts::FRAC_PI_2;
+    let motif_radius = sunburst.motif_size as f32 * 0.5;
+
+    for y in 0..media.height {
+        for x in 0..media.width {
+            let dx = x as f32 - centre_x;
+            let dy = y as f32 - centre_y;
+            let angle = (dy.atan2(dx) - rotation).rem_euclid(std::f32::consts::TAU);
+            let phase = ((angle / std::f32::consts::TAU) * ray_count).fract();
+            let in_ray = phase <= coverage;
+            let in_motif = if sunburst.motif_shape == "rect" {
+                dx.abs() <= motif_radius && dy.abs() <= motif_radius
+            } else {
+                (dx * dx + dy * dy).sqrt() <= motif_radius
+            };
+            if in_ray || in_motif {
+                let offset = ((y as usize * media.width as usize + x as usize) * 4) as usize;
+                pixels[offset..offset + 4].copy_from_slice(&[
+                    ray_colour[0],
+                    ray_colour[1],
+                    ray_colour[2],
+                    255,
+                ]);
+            }
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedSunburst media frame is invalid: {error:?}"))
+}
+
 fn fill_rect_rgba(
     pixels: &mut [u8],
     width: u32,
@@ -3444,6 +3538,39 @@ fn validate_generated_histogram_source(source: &GeneratedHistogramSource) -> Res
     for colour in &source.channel_colours {
         parse_hex_colour_source(colour)?;
     }
+    parse_hex_colour_source(&source.background_colour)?;
+    Ok(())
+}
+
+fn validate_generated_sunburst_source(source: &GeneratedSunburstSource) -> Result<(), String> {
+    if source.generator != "sunrise" {
+        return Err("generator must be sunrise".to_string());
+    }
+    if source.ray_count == 0 || source.ray_count > 360 {
+        return Err("ray_count must be 1..360".to_string());
+    }
+    if !source.ray_coverage_percent.is_finite()
+        || source.ray_coverage_percent < 0.0
+        || source.ray_coverage_percent > 100.0
+    {
+        return Err("ray_coverage_percent must be 0..100".to_string());
+    }
+    if !source.rotation_offset_degrees.is_finite() {
+        return Err("rotation_offset_degrees must be finite".to_string());
+    }
+    if !source.centre_x_percent.is_finite()
+        || source.centre_x_percent < -100.0
+        || source.centre_x_percent > 200.0
+        || !source.centre_y_percent.is_finite()
+        || source.centre_y_percent < -100.0
+        || source.centre_y_percent > 200.0
+    {
+        return Err("centre percentages must be -100..200".to_string());
+    }
+    if source.motif_shape != "circle" && source.motif_shape != "rect" {
+        return Err("motif_shape must be circle or rect".to_string());
+    }
+    parse_hex_colour_source(&source.ray_colour)?;
     parse_hex_colour_source(&source.background_colour)?;
     Ok(())
 }
@@ -5636,5 +5763,35 @@ mod tests {
         assert!(has_green);
         assert!(has_blue);
         assert!(has_background);
+    }
+
+    #[test]
+    fn generated_sunburst_source_frame_contains_rays_background_and_motif() {
+        let media = SceneMediaReference {
+            id: "sunburst-1".to_string(),
+            kind: MediaKind::GeneratedSunburst,
+            source: r##"{"generator":"sunrise","ray_count":10,"ray_coverage_percent":50,"rotation_offset_degrees":0,"centre_x_percent":50,"centre_y_percent":50,"motif_size":200,"motif_shape":"circle","ray_colour":"#ff0000","background_colour":"#ffff00"}"##.to_string(),
+            width: 800,
+            height: 450,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+        let frame = build_generated_sunburst_source_frame(&media)
+            .expect("generated sunburst frame should render");
+        let has_ray = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [255, 0, 0, 255]);
+        let has_background = frame
+            .pixels
+            .chunks_exact(4)
+            .any(|rgba| rgba == [255, 255, 0, 255]);
+        let centre_offset = ((225 * 800 + 400) * 4) as usize;
+        let centre_is_motif = frame.pixels[centre_offset..centre_offset + 4] == [255, 0, 0, 255];
+
+        assert!(has_ray);
+        assert!(has_background);
+        assert!(centre_is_motif);
     }
 }

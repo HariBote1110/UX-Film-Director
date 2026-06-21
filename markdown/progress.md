@@ -1,6 +1,20 @@
 # 進捗ログ
 
 ## 2026-06-21
+- SSD日の出をRust生成オブジェクトへ追加した。
+- Red: `script/ANM/ANM_ssd/日の出.obj` を、Rust `GeneratedSunburst` mediaとして扱う境界契約を作った。
+- Green: `SunburstObject` と `buildAviUtlSunburstObject` を追加し、Timeline右クリックから `日の出を追加` / `Add Sunburst` で置けるようにした。
+- Green: `rustSceneSnapshot` / shared renderer native support / Rust core schema / Rust backendに `GeneratedSunburst` を追加した。
+- Green: Rust backendで黄色背景、赤い放射状レイ、中心円モチーフを持つ決定的な日の出フレームを生成できるようにした。
+- Green: `ssd-sunburst` をPackカタログ/棚卸し文書へ追加した。
+- 版を `0.1.1-Beta-274a` に更新した。
+- 検証: `npm test -- --run src/utils/sunburstObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/aviutlPackFeatureCatalog.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/projectFile.test.ts src/utils/projectExportFrameCanvas.test.ts src/e2e/allReadableMedia.e2e.test.ts --reporter=dot` は86件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は12件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_sunburst_source_frame_contains_rays_background_and_motif -- --nocapture` は1件成功した。
+- 検証: 対象名で絞った `npx tsc --noEmit` は今回変更ファイル由来のエラーなし。既存の `ThreeStageViewport.tsx` Three.js型定義不足、`mp4box` 型定義不足、`heavyEffectsStress.test.ts` の `PositionKeyframe` 未定義のみ検出した。
+- 残課題: 現時点の `GeneratedSunburst` は元スクリプトの任意図形モチーフを、円/矩形モチーフと放射状レイのRustラスタ生成へ置き換えた互換再実装。
+
+## 2026-06-21
 - Tim簡易ヒストグラムをRust生成オブジェクトへ追加した。
 - Red: `script/てぃむ/簡易ヒストグラム.obj` を、Rust `GeneratedHistogram` mediaとして扱う境界契約を作った。
 - Green: `HistogramObject` と `buildAviUtlHistogramObject` を追加し、Timeline右クリックから `簡易ヒストグラムを追加` / `Add Histogram` で置けるようにした。

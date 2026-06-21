@@ -15,6 +15,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedTrackBar') return isSharedRendererNativeGeneratedTrackBarSourceSupported(reference.source);
   if (reference.kind === 'GeneratedPieChart') return isSharedRendererNativeGeneratedPieChartSourceSupported(reference.source);
   if (reference.kind === 'GeneratedHistogram') return isSharedRendererNativeGeneratedHistogramSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedSunburst') return isSharedRendererNativeGeneratedSunburstSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -425,6 +426,54 @@ const isSharedRendererNativeGeneratedHistogramSourceSupported = (source: string)
       && Array.isArray(parsed.channel_colours)
       && parsed.channel_colours.length === 4
       && parsed.channel_colours.every((colour) => typeof colour === 'string' && /^#[0-9a-f]{6}$/i.test(colour))
+      && typeof parsed.background_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedSunburstSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      ray_count?: unknown;
+      ray_coverage_percent?: unknown;
+      rotation_offset_degrees?: unknown;
+      centre_x_percent?: unknown;
+      centre_y_percent?: unknown;
+      motif_size?: unknown;
+      motif_shape?: unknown;
+      ray_colour?: unknown;
+      background_colour?: unknown;
+    };
+    return (
+      parsed.generator === 'sunrise'
+      && typeof parsed.ray_count === 'number'
+      && Number.isInteger(parsed.ray_count)
+      && parsed.ray_count >= 1
+      && parsed.ray_count <= 360
+      && typeof parsed.ray_coverage_percent === 'number'
+      && Number.isFinite(parsed.ray_coverage_percent)
+      && parsed.ray_coverage_percent >= 0
+      && parsed.ray_coverage_percent <= 100
+      && typeof parsed.rotation_offset_degrees === 'number'
+      && Number.isFinite(parsed.rotation_offset_degrees)
+      && typeof parsed.centre_x_percent === 'number'
+      && Number.isFinite(parsed.centre_x_percent)
+      && parsed.centre_x_percent >= -100
+      && parsed.centre_x_percent <= 200
+      && typeof parsed.centre_y_percent === 'number'
+      && Number.isFinite(parsed.centre_y_percent)
+      && parsed.centre_y_percent >= -100
+      && parsed.centre_y_percent <= 200
+      && typeof parsed.motif_size === 'number'
+      && Number.isFinite(parsed.motif_size)
+      && parsed.motif_size >= 0
+      && (parsed.motif_shape === 'circle' || parsed.motif_shape === 'rect')
+      && typeof parsed.ray_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.ray_colour)
       && typeof parsed.background_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.background_colour)
     );

@@ -277,6 +277,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '色・明度の分布を解説UIとして見せやすく、Rust側で複数チャンネルの棒グラフを決定的に生成できる。'
   },
   {
+    id: 'ssd-sunburst',
+    labelJa: '日の出',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/ANM/ANM_ssd/日の出.obj'],
+    rationaleJa: '背景や強調演出に使いやすく、Rust側で放射状レイと中心モチーフを決定的に生成できる。'
+  },
+  {
     id: 'tim-motion-path',
     labelJa: 'モーションパス',
     category: 'motion',

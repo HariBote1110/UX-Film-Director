@@ -97,7 +97,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'gear',
   'track_bar',
   'pie_chart',
-  'histogram'
+  'histogram',
+  'sunburst'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -258,6 +259,19 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (typeof candidate.showGreen !== 'boolean') return false;
     if (typeof candidate.showBlue !== 'boolean') return false;
     if (!Array.isArray(candidate.channelColours) || candidate.channelColours.length !== 4 || !candidate.channelColours.every((colour) => typeof colour === 'string' && /^#[0-9a-f]{6}$/i.test(colour))) return false;
+    if (typeof candidate.backgroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.backgroundColour)) return false;
+  }
+  if (candidate.type === 'sunburst') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (typeof candidate.rayCount !== 'number' || !Number.isInteger(candidate.rayCount) || candidate.rayCount < 1 || candidate.rayCount > 360) return false;
+    if (!isFiniteNumber(candidate.rayCoveragePercent) || candidate.rayCoveragePercent < 0 || candidate.rayCoveragePercent > 100) return false;
+    if (!isFiniteNumber(candidate.rotationOffsetDegrees)) return false;
+    if (!isFiniteNumber(candidate.centreXPercent) || candidate.centreXPercent < -100 || candidate.centreXPercent > 200) return false;
+    if (!isFiniteNumber(candidate.centreYPercent) || candidate.centreYPercent < -100 || candidate.centreYPercent > 200) return false;
+    if (!isFiniteNumber(candidate.motifSize) || candidate.motifSize < 0) return false;
+    if (candidate.motifShape !== 'circle' && candidate.motifShape !== 'rect') return false;
+    if (typeof candidate.rayColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.rayColour)) return false;
     if (typeof candidate.backgroundColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.backgroundColour)) return false;
   }
   return true;

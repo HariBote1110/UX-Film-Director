@@ -856,13 +856,13 @@ const collectGeneratedPaintObjectIds = (session: SharedRendererPreviewSession): 
 };
 
 const isGeneratedPaintMediaKind = (
-  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'Psd' | undefined
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedSunburst' | 'Psd' | undefined
 ): boolean =>
   kind === 'SolidColour' || kind === 'GeneratedGradient';
 
 const collectObjectIdsByMediaKind = (
   session: SharedRendererPreviewSession,
-  kind: 'Video' | 'SolidColour' | 'Image' | 'Psd' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram'
+  kind: 'Video' | 'SolidColour' | 'Image' | 'Psd' | 'GeneratedAudioWaveform' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedSunburst'
 ): string[] => {
   if (!session.surfaceGate.ok) return [];
 
@@ -884,6 +884,7 @@ const collectGeneratedEffectObjectIds = (session: SharedRendererPreviewSession):
   ...collectObjectIdsByMediaKind(session, 'GeneratedTrackBar'),
   ...collectObjectIdsByMediaKind(session, 'GeneratedPieChart'),
   ...collectObjectIdsByMediaKind(session, 'GeneratedHistogram'),
+  ...collectObjectIdsByMediaKind(session, 'GeneratedSunburst'),
 ];
 
 const resolveFirstPresentedVideoSourceFrame = (

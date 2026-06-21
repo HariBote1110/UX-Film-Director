@@ -9,6 +9,7 @@ import { buildAviUtlGourdObject } from '../utils/gourdObjectFactory';
 import { buildAviUtlHistogramObject } from '../utils/histogramObjectFactory';
 import { buildAviUtlPieChartObject } from '../utils/pieChartObjectFactory';
 import { buildAviUtlPuzzlePieceObject } from '../utils/puzzlePieceObjectFactory';
+import { buildAviUtlSunburstObject } from '../utils/sunburstObjectFactory';
 import { buildAviUtlTrackBarObject } from '../utils/trackBarObjectFactory';
 import {
   buildAviUtlAuraEmissionObject,
@@ -284,6 +285,17 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
     onClose();
   };
 
+  const handleAddSunburst = () => {
+    addObject(buildAviUtlSunburstObject({
+      id: crypto.randomUUID(),
+      projectWidth: projectSettings.width,
+      projectHeight: projectSettings.height,
+      startTime: state.time,
+      layer: state.layer,
+    }));
+    onClose();
+  };
+
   const ensureObjectSelection = (objectId: string) => {
     if (!selectedIds.includes(objectId)) {
       selectObject(objectId);
@@ -335,6 +347,7 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddTrackBar}>{language === 'en' ? 'Add Track Bar' : 'トラックバーを追加'}</div>
              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddPieChart}>{language === 'en' ? 'Add Pie Chart' : 'パイシートグラフを追加'}</div>
              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHistogram}>{language === 'en' ? 'Add Histogram' : '簡易ヒストグラムを追加'}</div>
+             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddSunburst}>{language === 'en' ? 'Add Sunburst' : '日の出を追加'}</div>
          </>
        )}
       {state.type === 'object' && state.targetObjectId && (
