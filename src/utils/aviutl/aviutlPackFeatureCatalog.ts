@@ -397,6 +397,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '3Dステージ上で選択オブジェクトへカメラ注視点を合わせる補助として先に標準搭載する。'
   },
   {
+    id: '93-spfield',
+    labelJa: '93 SPfield',
+    category: 'generated-object',
+    phase: 'P1',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/SPfield.lua'],
+    rationaleJa: '座標を押す/吸う球状フィールド補助を、Rust生成の強めの力場可視化プリセットとして標準搭載する。'
+  },
+  {
     id: '93-region-frame-ellipse',
     labelJa: '93 領域枠(楕円)',
     category: 'generated-object',

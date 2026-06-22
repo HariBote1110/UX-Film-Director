@@ -28,7 +28,7 @@ import { buildAviUtlShakingPolygonObject } from '../utils/objectFactories/shakin
 import { buildAviUtlShatteredSphereObject } from '../utils/objectFactories/shatteredSphereObjectFactory';
 import { buildAviUtlSimpleTubeObject, buildAviUtlSimpleTubeTorusObject } from '../utils/objectFactories/simpleTubeObjectFactory';
 import { buildAviUtlSphereDotsObject } from '../utils/objectFactories/sphereDotsObjectFactory';
-import { buildAviUtlSphericalFieldObject } from '../utils/objectFactories/sphericalFieldObjectFactory';
+import { buildAviUtlSPFieldObject, buildAviUtlSphericalFieldObject } from '../utils/objectFactories/sphericalFieldObjectFactory';
 import { buildAviUtlSunburstObject } from '../utils/objectFactories/sunburstObjectFactory';
 import { buildAviUtlTartanCheckObject } from '../utils/objectFactories/tartanCheckObjectFactory';
 import { buildAviUtlToneCurveObject } from '../utils/objectFactories/toneCurveObjectFactory';
@@ -452,6 +452,17 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
     onClose();
   };
 
+  const handleAddSPField = () => {
+    addObject(buildAviUtlSPFieldObject({
+      id: crypto.randomUUID(),
+      projectWidth: projectSettings.width,
+      projectHeight: projectSettings.height,
+      startTime: state.time,
+      layer: state.layer,
+    }));
+    onClose();
+  };
+
   const handleAddColourWheel = () => {
     addObject(buildAviUtlColourWheelObject({
       id: crypto.randomUUID(),
@@ -803,6 +814,7 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddSimpleTubeTorus}>{language === 'en' ? 'Add 93 SimpleTube Torus' : '93 SimpleTubeトーラスを追加'}</div>
                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddSphereDots}>{language === 'en' ? 'Add 93 Sphere(DrawPixel)' : '93 Sphere(DrawPixel)を追加'}</div>
                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddSphericalField}>{language === 'en' ? 'Add 93 SphericalField' : '93 SphericalFieldを追加'}</div>
+                    <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddSPField}>{language === 'en' ? 'Add 93 SPfield' : '93 SPfieldを追加'}</div>
                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddTriangleBracket}>{language === 'en' ? 'Add Triangle Bracket' : '三角括弧を追加'}</div>
          </>
        )}

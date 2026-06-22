@@ -52,3 +52,22 @@ export const buildAviUtlSphericalFieldObject = ({
     seed: 93,
   };
 };
+
+export const buildAviUtlSPFieldObject = (
+  input: BuildAviUtlSphericalFieldObjectInput
+): SphericalFieldObject => ({
+  ...buildAviUtlSphericalFieldObject(input),
+  name: '93 SPfield',
+  radius: 220,
+  strength: 140,
+  colourAmount: 70,
+  alphaAmount: 0,
+  lineWidth: 4,
+  ringCount: 5,
+  vectorCount: 24,
+  fieldColour: '#8b5cf6',
+  secondaryColour: '#22d3ee',
+  backgroundOpacity: 0.12,
+  container: false,
+  seed: 930,
+});
