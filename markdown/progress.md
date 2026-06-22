@@ -1,6 +1,23 @@
 # 進捗ログ
 
 ## 2026-06-22
+- 93 簡易変形(oct)をRust/WebGPUフィルタへ追加した。
+- Red: Filter Stackの `oct_transform`、AviUtl effect preset、AviUtlPackV4カタログ、Rust scene snapshot、rust-core validation、native-wgpuスケール変形を通る契約を追加した。
+- Green: `OctTransform` effectをTypeScript/Rust schemaへ追加し、画像/動画/PSD/図形へFilter Stackから追加できるようにした。
+- Green: PropertyPanelへScale、Rotation、Vertices、Warp、Strength編集UIを追加し、AviUtl Effectsには `93 簡易変形(oct)` presetを追加した。
+- Green: native-wgpuの `solid_composite.wgsl` で中心基準の回転/拡縮と頂点数に基づく多角形ワープを追加し、nearest samplingで3px素材のスケール変形画素テストを通した。
+- Green: reference rendererはOctTransformをgain非変更の効果として許可し、Rust境界の網羅matchを更新した。
+- 版を `0.1.1-Beta-321a` に更新した。
+- 検証: `npm test -- --run src/utils/filterStack.test.ts src/utils/aviutl/aviutlEffectPresets.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts src/utils/rustSceneSnapshot.test.ts --reporter=dot` は96件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test project_validation oct_transform -- --nocapture` は2件成功した。
+- 検証: `cargo test --manifest-path native-wgpu-renderer/Cargo.toml native_wgpu_applies_oct_transform_scale -- --nocapture` は1件成功した。
+- 検証: `cargo test --manifest-path reference-renderer/Cargo.toml -- --nocapture` は12件成功した。
+- 検証: `npm test -- --run src/utils/packageScripts.test.ts --reporter=dot` は6件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の93 簡易変形(oct)由来の型エラーは出ていない。
+- 現時点の93 簡易変形(oct)はAviUtlスクリプトの仮想バッファ、音声反応、頂点個別編集、マスク合成の完全互換ではなく、Rust/WebGPU上の中心基準多角形ワープ初期互換。後続で頂点ごとの変形量、音声連動、領域拡張との連携へ拡張する。
+- 次はGetColor未移植派生、hksy残候補、または93の `@effect-B.anm` 系へ進む。
+
+## 2026-06-22
 - 93 MultiSlicerをRust/WebGPUフィルタへ追加した。
 - Red: Filter Stackの `multi_slicer`、AviUtl effect preset、AviUtlPackV4カタログ、Rust scene snapshot、rust-core validation、native-wgpu交互スライスオフセットを通る契約を追加した。
 - Green: `MultiSlicer` effectをTypeScript/Rust schemaへ追加し、画像/動画/PSD/図形へFilter Stackから追加できるようにした。
