@@ -139,7 +139,8 @@ export type FilterType =
   | 'spot_light'
   | 'displacement_map'
   | 'fake_dof'
-  | 'auto_blur';
+  | 'auto_blur'
+  | 'stretch';
 
 /** プレビュー／書き出し共通の仮想カメラ（シーン単位） */
 export interface CameraState {
@@ -208,6 +209,12 @@ export interface AutoBlurFilterParams {
   speed: number;
   strength: number;
   colourShift: number;
+}
+
+export interface StretchFilterParams {
+  angle: number;
+  amount: number;
+  strength: number;
 }
 
 interface BaseFilter {
@@ -286,6 +293,11 @@ export interface AutoBlurObjectFilter extends BaseFilter {
   params: AutoBlurFilterParams;
 }
 
+export interface StretchObjectFilter extends BaseFilter {
+  type: 'stretch';
+  params: StretchFilterParams;
+}
+
 export type ObjectFilter =
   | ColorCorrectionFilter
   | ColourAberrationFilter
@@ -300,7 +312,8 @@ export type ObjectFilter =
   | SpotLightObjectFilter
   | DisplacementMapObjectFilter
   | FakeDofObjectFilter
-  | AutoBlurObjectFilter;
+  | AutoBlurObjectFilter
+  | StretchObjectFilter;
 
 // --- オブジェクト定義 ---
 

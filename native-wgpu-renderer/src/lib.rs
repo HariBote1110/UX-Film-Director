@@ -290,6 +290,9 @@ impl NativeWgpuRenderer {
                     auto_blur_radius: auto_blur_radius(clip),
                     auto_blur_strength: auto_blur_strength(clip),
                     auto_blur_colour_shift: auto_blur_colour_shift(clip),
+                    stretch_angle: stretch_angle(clip),
+                    stretch_amount: stretch_amount(clip),
+                    stretch_strength: stretch_strength(clip),
                     source_width: source.width as f32,
                     source_height: source.height as f32,
                     translation_x: clip.transform.translation_x,
@@ -795,6 +798,9 @@ struct RenderParams {
     auto_blur_radius: f32,
     auto_blur_strength: f32,
     auto_blur_colour_shift: f32,
+    stretch_angle: f32,
+    stretch_amount: f32,
+    stretch_strength: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -1072,6 +1078,7 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::DisplacementMap { .. } => 1.0,
         Effect::FakeDof { .. } => 1.0,
         Effect::AutoBlur { .. } => 1.0,
+        Effect::Stretch { .. } => 1.0,
     }
 }
 
@@ -1341,6 +1348,41 @@ fn auto_blur_colour_shift(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
         .iter()
         .filter_map(|effect| match effect {
             Effect::AutoBlur { colour_shift, .. } => Some(*colour_shift),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .clamp(0.0, 1.0)
+}
+
+fn stretch_angle(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::Stretch { angle_degrees, .. } => Some(angle_degrees.to_radians()),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+}
+
+fn stretch_amount(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::Stretch { amount, .. } => Some(*amount),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .max(0.0)
+}
+
+fn stretch_strength(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::Stretch { strength, .. } => Some(*strength),
             _ => None,
         })
         .last()

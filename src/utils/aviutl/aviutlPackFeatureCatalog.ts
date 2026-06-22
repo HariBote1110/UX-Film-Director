@@ -277,6 +277,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '移動速度から方向ブラーと色ずれを自動算出する演出を、Rust sceneの速度推定とWebGPU方向ブラーとして標準搭載する。'
   },
   {
+    id: '93-stretch',
+    labelJa: '93 Stretch',
+    category: 'visual-effect',
+    phase: 'P1',
+    implementationTarget: 'rust-webgpu-effect',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/@Stretch.anm'],
+    rationaleJa: '指定角度方向に素材を伸ばす表現を、Rust/WebGPUの中心基準方向ストレッチとして標準搭載する。'
+  },
+  {
     id: '93-region-frame-ellipse',
     labelJa: '93 領域枠(楕円)',
     category: 'generated-object',

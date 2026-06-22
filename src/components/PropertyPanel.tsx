@@ -445,7 +445,8 @@ const PropertyPanel: React.FC = () => {
     spot_light: language === 'en' ? 'SpotLight' : 'SpotLight',
     displacement_map: language === 'en' ? '93 Displacement Map B' : '93 ディスプレイスメントマップB',
     fake_dof: language === 'en' ? '93 Fake DOF2' : '93 偽被写界深度2',
-    auto_blur: language === 'en' ? '93 Auto Blur+' : '93 オートブラー+'
+    auto_blur: language === 'en' ? '93 Auto Blur+' : '93 オートブラー+',
+    stretch: language === 'en' ? '93 Stretch' : '93 Stretch'
   };
   const canUseGradientFilter = selectedObject.type === 'shape';
   const currentGroupId = selectedObject.groupId ?? null;
@@ -1379,6 +1380,7 @@ const PropertyPanel: React.FC = () => {
             <button type="button" onClick={() => handleAddFilter('displacement_map')}>+ {filterLabel.displacement_map}</button>
             <button type="button" onClick={() => handleAddFilter('fake_dof')}>+ {filterLabel.fake_dof}</button>
             <button type="button" onClick={() => handleAddFilter('auto_blur')}>+ {filterLabel.auto_blur}</button>
+            <button type="button" onClick={() => handleAddFilter('stretch')}>+ {filterLabel.stretch}</button>
             {canUseGradientFilter && (
                 <button type="button" onClick={() => handleAddFilter('gradient')}>+ {filterLabel.gradient}</button>
             )}
@@ -1931,6 +1933,40 @@ const PropertyPanel: React.FC = () => {
                                 step="0.01"
                                 value={activeFilter.params.colourShift}
                                 onInput={(e) => handleFilterParamChange(activeFilter, { colourShift: parseFloat(e.currentTarget.value) })}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                    </>
+                )}
+                {activeFilter.type === 'stretch' && (
+                    <>
+                        <Row label="Angle">
+                            <Slider
+                                min="-360"
+                                max="360"
+                                step="1"
+                                value={activeFilter.params.angle}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { angle: parseFloat(e.currentTarget.value) })}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                        <Row label="Amount">
+                            <Slider
+                                min="0"
+                                max="4"
+                                step="0.05"
+                                value={activeFilter.params.amount}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { amount: parseFloat(e.currentTarget.value) })}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                        <Row label="Strength">
+                            <Slider
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                value={activeFilter.params.strength}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { strength: parseFloat(e.currentTarget.value) })}
                                 style={{ width: '100%' }}
                             />
                         </Row>

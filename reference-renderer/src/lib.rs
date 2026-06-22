@@ -77,6 +77,7 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::DisplacementMap { .. } => 1.0,
         Effect::FakeDof { .. } => 1.0,
         Effect::AutoBlur { .. } => 1.0,
+        Effect::Stretch { .. } => 1.0,
     }
 }
 

@@ -212,6 +212,11 @@ pub enum Effect {
         strength: f32,
         colour_shift: f32,
     },
+    Stretch {
+        angle_degrees: f32,
+        amount: f32,
+        strength: f32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

@@ -35,6 +35,9 @@ struct RenderParams {
     auto_blur_radius: f32,
     auto_blur_strength: f32,
     auto_blur_colour_shift: f32,
+    stretch_angle: f32,
+    stretch_amount: f32,
+    stretch_strength: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -92,7 +95,7 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
         return vec4<f32>(0.0);
     }
 
-    let displaced_source_position = displaced_position(source_position);
+    let displaced_source_position = displaced_position(stretched_position(source_position));
     let source = sample_source_with_fake_dof(displaced_source_position);
     let aberration_offset = vec2<f32>(
         params.colour_aberration_offset_x,
@@ -126,6 +129,20 @@ fn displaced_position(source_position: vec2<f32>) -> vec2<f32> {
         params.displacement_amount_y,
     ) * params.displacement_strength * wave;
     return clamp_source_position(source_position - offset);
+}
+
+fn stretched_position(source_position: vec2<f32>) -> vec2<f32> {
+    if params.stretch_strength <= 0.0 || params.stretch_amount <= 0.0 {
+        return source_position;
+    }
+    let centre = vec2<f32>(params.source_width - 1.0, params.source_height - 1.0) * 0.5;
+    let direction = vec2<f32>(cos(params.stretch_angle), sin(params.stretch_angle));
+    let perpendicular = vec2<f32>(-direction.y, direction.x);
+    let relative = source_position - centre;
+    let along = dot(relative, direction);
+    let across = dot(relative, perpendicular);
+    let scale = 1.0 + params.stretch_amount * params.stretch_strength;
+    return clamp_source_position(centre + direction * (along / scale) + perpendicular * across);
 }
 
 fn sample_source_with_fake_dof(source_position: vec2<f32>) -> vec4<f32> {

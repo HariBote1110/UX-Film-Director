@@ -10,7 +10,8 @@ import {
   SpotLightFilterParams,
   DisplacementMapFilterParams,
   FakeDofFilterParams,
-  AutoBlurFilterParams
+  AutoBlurFilterParams,
+  StretchFilterParams
 } from '../types';
 
 const DEFAULT_COLOR_CORRECTION: Omit<ColorCorrection, 'enabled'> = {
@@ -104,6 +105,12 @@ const DEFAULT_AUTO_BLUR: AutoBlurFilterParams = {
   colourShift: 0
 };
 
+const DEFAULT_STRETCH: StretchFilterParams = {
+  angle: 0,
+  amount: 1,
+  strength: 1
+};
+
 const createFilterId = (type: FilterType): string => {
   return `${type}-${crypto.randomUUID()}`;
 };
@@ -134,7 +141,8 @@ const isFilterType = (value: unknown): value is FilterType => {
     || value === 'spot_light'
     || value === 'displacement_map'
     || value === 'fake_dof'
-    || value === 'auto_blur';
+    || value === 'auto_blur'
+    || value === 'stretch';
 };
 
 const normaliseOutlineParams = (params: unknown): import('../types').OutlineFilterParams => {
@@ -224,6 +232,15 @@ const normaliseAutoBlurParams = (params: unknown): AutoBlurFilterParams => {
     speed: Math.max(0, toNumber(source.speed, DEFAULT_AUTO_BLUR.speed)),
     strength: Math.max(0, Math.min(1, toNumber(source.strength, DEFAULT_AUTO_BLUR.strength))),
     colourShift: Math.max(0, Math.min(1, toNumber(source.colourShift, DEFAULT_AUTO_BLUR.colourShift)))
+  };
+};
+
+const normaliseStretchParams = (params: unknown): StretchFilterParams => {
+  const source = isRecord(params) ? params : {};
+  return {
+    angle: toNumber(source.angle, DEFAULT_STRETCH.angle),
+    amount: Math.max(0, toNumber(source.amount, DEFAULT_STRETCH.amount)),
+    strength: Math.max(0, Math.min(1, toNumber(source.strength, DEFAULT_STRETCH.strength)))
   };
 };
 
@@ -401,6 +418,13 @@ export const createDefaultFilter = (type: FilterType): ObjectFilter => {
         enabled: true,
         params: { ...DEFAULT_AUTO_BLUR }
       };
+    case 'stretch':
+      return {
+        id: createFilterId(type),
+        type,
+        enabled: true,
+        params: { ...DEFAULT_STRETCH }
+      };
     default:
       return {
         id: createFilterId('color_correction'),
@@ -516,6 +540,13 @@ const normaliseFilter = (value: unknown): ObjectFilter | null => {
         type: 'auto_blur',
         enabled,
         params: normaliseAutoBlurParams(value.params)
+      };
+    case 'stretch':
+      return {
+        id,
+        type: 'stretch',
+        enabled,
+        params: normaliseStretchParams(value.params)
       };
     default:
       return null;

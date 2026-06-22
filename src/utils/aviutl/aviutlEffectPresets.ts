@@ -9,7 +9,8 @@ export type AviUtlEffectPresetId =
   | '93-spotlight-soft'
   | '93-displacement-map-b-wave'
   | '93-fake-dof2-focus'
-  | '93-auto-blur-plus-motion';
+  | '93-auto-blur-plus-motion'
+  | '93-stretch-directional';
 
 export interface AviUtlEffectPreset {
   id: AviUtlEffectPresetId;
@@ -22,7 +23,8 @@ export interface AviUtlEffectPreset {
     | '93-spotlight'
     | '93-displacement-map-b'
     | '93-fake-dof2'
-    | '93-auto-blur-plus';
+    | '93-auto-blur-plus'
+    | '93-stretch';
   filterType: FilterType;
 }
 
@@ -74,6 +76,12 @@ const presets: AviUtlEffectPreset[] = [
     labelJa: '93 オートブラー+',
     sourceCandidateId: '93-auto-blur-plus',
     filterType: 'auto_blur'
+  },
+  {
+    id: '93-stretch-directional',
+    labelJa: '93 Stretch',
+    sourceCandidateId: '93-stretch',
+    filterType: 'stretch'
   }
 ];
 
@@ -171,6 +179,18 @@ export const buildAviUtlEffectPresetFilter = (presetId: AviUtlEffectPresetId): O
           speed: 1,
           strength: 1,
           colourShift: 0
+        }
+      };
+    }
+    case '93-stretch-directional': {
+      return {
+        id: `aviutl-${presetId}`,
+        type: 'stretch',
+        enabled: true,
+        params: {
+          angle: 0,
+          amount: 1,
+          strength: 1
         }
       };
     }

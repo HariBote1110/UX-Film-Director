@@ -76,7 +76,8 @@ export type RustEffect =
   | { SpotLight: { centre_x: number; centre_y: number; radius: number; intensity: number; colour: [number, number, number] } }
   | { DisplacementMap: { amount_x: number; amount_y: number; size: number; strength: number } }
   | { FakeDof: { focus_x: number; focus_y: number; focus_radius: number; blur: number; strength: number } }
-  | { AutoBlur: { angle_degrees: number; radius: number; strength: number; colour_shift: number } };
+  | { AutoBlur: { angle_degrees: number; radius: number; strength: number; colour_shift: number } }
+  | { Stretch: { angle_degrees: number; amount: number; strength: number } };
 
 export interface RustEvaluatedClip {
   clip_id: string;
@@ -335,6 +336,7 @@ const collectBuildIssues = (
       && filter.type !== 'displacement_map'
       && filter.type !== 'fake_dof'
       && filter.type !== 'auto_blur'
+      && filter.type !== 'stretch'
       && !(object.type === 'shape' && filter.type === 'gradient')
     ));
     if (unsupportedFilter) {
@@ -436,6 +438,15 @@ const rustEffectsForObject = (object: TimelineObject, time: number): RustEffect[
           radius,
           strength: Math.max(0, Math.min(1, finiteNumberOr(filter.params.strength, 1))),
           colour_shift: Math.max(0, Math.min(1, finiteNumberOr(filter.params.colourShift, 0))),
+        },
+      });
+    }
+    if (filter.type === 'stretch') {
+      effects.push({
+        Stretch: {
+          angle_degrees: finiteNumberOr(filter.params.angle, 0),
+          amount: Math.max(0, finiteNumberOr(filter.params.amount, 1)),
+          strength: Math.max(0, Math.min(1, finiteNumberOr(filter.params.strength, 1))),
         },
       });
     }
@@ -1817,6 +1828,12 @@ const validateEffects = (
       validateFiniteNumber(effect.AutoBlur.radius, `${effectPath}.AutoBlur.radius`, issues);
       validateUnitInterval(effect.AutoBlur.strength, `${effectPath}.AutoBlur.strength`, issues);
       validateUnitInterval(effect.AutoBlur.colour_shift, `${effectPath}.AutoBlur.colour_shift`, issues);
+      return;
+    }
+    if (isRecord(effect.Stretch)) {
+      validateFiniteNumber(effect.Stretch.angle_degrees, `${effectPath}.Stretch.angle_degrees`, issues);
+      validateFiniteNumber(effect.Stretch.amount, `${effectPath}.Stretch.amount`, issues);
+      validateUnitInterval(effect.Stretch.strength, `${effectPath}.Stretch.strength`, issues);
       return;
     }
     addIssue(issues, 'schemaMismatch', effectPath, 'Unknown Rust effect.');

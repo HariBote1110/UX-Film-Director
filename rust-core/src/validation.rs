@@ -223,6 +223,18 @@ fn effect_is_finite(effect: &crate::schema::Effect) -> bool {
                 && *colour_shift >= 0.0
                 && *colour_shift <= 1.0
         }
+        crate::schema::Effect::Stretch {
+            angle_degrees,
+            amount,
+            strength,
+        } => {
+            angle_degrees.is_finite()
+                && amount.is_finite()
+                && *amount >= 0.0
+                && strength.is_finite()
+                && *strength >= 0.0
+                && *strength <= 1.0
+        }
     }
 }
 

@@ -322,9 +322,9 @@ fn native_wgpu_applies_stretch_along_horizontal_axis() {
         3,
         1,
         vec![
-            188, 188, 0, 255,
+            255, 0, 0, 255,
             0, 255, 0, 255,
-            0, 188, 188, 255,
+            0, 255, 0, 255,
         ],
     );
 }
