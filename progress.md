@@ -1,3 +1,20 @@
+## 2026-06-22 — フェーズ3: Rust backendのGetColorDots生成器をサブモジュール化
+
+### 実施内容
+- `rust-backend/src/generated.rs` から `GeneratedGetColorDots` の生成フレーム実装を `rust-backend/src/generated/getcolor.rs` へ分離した。
+- PNG/JPEG/PSDのsource_image読み込み、PSD active layer合成、サンプル色のhue shift、dot shape描画helperをGetColorDots専用モジュールへ閉じ込めた。
+- `generated.rs` から画像読み込み・PSD合成用のimportを取り除き、生成器本体の依存境界を軽くした。
+- `generated.rs` は 4,312 行から 3,921 行になり、GetColorDots実装397行を独立ファイルへ移した。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はSphere/SphericalField、SimpleTube、HK-SYなど、効果ファミリー単位で生成器実装をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのGenerated共有helperをサブモジュール化
 
 ### 実施内容
