@@ -1,6 +1,18 @@
 # 進捗ログ
 
 ## 2026-06-23
+- AviUtl詰め用代表シーンfixtureを追加した。
+- Red: `GetColor` / `hksy` / `93` が混在する代表シーンの契約を追加し、未実装の `aviutlPolishRepresentativeScene` で失敗することを確認した。
+- Green: `buildAviUtlPackPolishRepresentativeScene` を追加し、GetColorサンプル、hksy measured-grid、hksy anchor-line、93領域枠、93 SimpleTube、93音声玉を同じTimelineへ配置するfixtureを作成した。
+- Green: 代表シーンがRust scene snapshotへ `SolidColour`、`GeneratedGetColorDots`、`GeneratedHksyCheckerGrid`、`GeneratedRegionFrame`、`GeneratedSimpleTube`、`GeneratedAudioSphere` として出力され、native media supportとproject file round-tripを通ることを検証した。
+- 方針を「新規移植追加」から「既存GetColor/hksy/93のUI・preview・export品質の詰め」へ切り替えた。
+- 版を `0.1.1-Beta-345a` に更新した。
+- 検証: `npm test -- --run src/utils/aviutl/aviutlPolishRepresentativeScene.test.ts --reporter=dot` はRed時に未実装モジュールで失敗することを確認した。
+- 検証: `npm test -- --run src/utils/aviutl/aviutlPolishRepresentativeScene.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/projectFile.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts --reporter=dot` は106件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の代表シーンfixture由来の型エラーは出ていない。
+- 次はこの代表シーンを実Electron preview/export E2Eまたは画素検査に接続し、UI調整や描画変更のたびに「見える/崩れない」を確認できるようにする。
+
+## 2026-06-23
 - hksy詳細パラメータ編集UIを追加した。
 - Red: PropertyPanel境界テストへ、`measured-grid` 用の `Separate Interval` / `Separate Line Width` と、`anchor-line` 用のアンカー座標、round cap、join distance 編集導線を要求する契約を追加した。
 - Green: PropertyPanelの `hksy Checker/Grid` 欄へ `separateInterval`、`separateLineWidth`、2点アンカー、`roundCaps`、`maxJoinDistance` の編集UIを追加し、既存Rust `GeneratedHksyCheckerGrid` の詳細source payloadへ値が流れるようにした。

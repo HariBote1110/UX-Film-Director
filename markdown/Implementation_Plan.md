@@ -1,13 +1,14 @@
 # 実装計画
 
 ## AviUtlPackV4標準搭載ロードマップ（2026-06-22）
-詳細は `markdown/AviUtlPackV4_Inventory.md` と `src/utils/aviutlPackFeatureCatalog.ts` を正とする。
+詳細は `markdown/AviUtlPackV4_Inventory.md` と `src/utils/aviutl/aviutlPackFeatureCatalog.ts` を正とする。
 
 ### 現在の作業ゴール
 1. iCloud Drive内の `AviUtlPackV4` 全体を参照元にしつつ、直近の実装対象は `GetColor`、`hksy`（ユーザー表記: hsky）、`script/93` に絞る。
 2. 目標は「候補を眺める」ではなく、Timelineへ追加でき、保存/読込でき、Rust/WebGPU側でpreview/exportに出せ、境界テストと画素テストで壊れにくい標準搭載機能へ変えること。
 3. UIはReact/Electronに残し、Canvas描画結果へ関わる生成オブジェクト、フィルタ、音声反応表現はRust/WebGPUへ寄せる。
 4. 完全互換より先に、ボイロ動画で遊べる見た目と安定したexportを優先する。AviUtlスクリプト固有の細部は後続の互換拡張として扱う。
+5. 2026-06-23以降、広範囲の新規移植はいったん止め、既存の `GetColor` / `hksy` / `93` 系を代表シーン・UI・プレビュー・export品質の観点で詰める。
 
 ### 方針
 1. iCloud Driveの利用中Packを「機能の参照元」として棚卸しする。
@@ -125,6 +126,7 @@
 100. ✅ `P1` 93 座標格納 / 座標の取得を選択オブジェクトのnative座標snapshot/recall utilityとして追加する
 101. ✅ `P1` hksyチェッカー/グリッドの基本パラメータ編集UIをPropertyPanelへ追加する
 102. ✅ `P1` hksy measured-grid / anchor-line の詳細パラメータ編集UIをPropertyPanelへ追加する
+103. ✅ `詰め` GetColor / hksy / 93 混在の代表シーンfixtureを追加し、Rust snapshot / native media support / project round-tripで検証する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

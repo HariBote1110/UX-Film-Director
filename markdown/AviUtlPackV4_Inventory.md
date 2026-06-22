@@ -64,6 +64,6 @@
 | P3 | Luaスクリプト互換 | script runtime later | 安全性、性能、ライセンス確認が大きい |
 
 ## 実装メモ
-- `src/utils/aviutlPackFeatureCatalog.ts` を機械可読なカタログとして追加した。
+- `src/utils/aviutl/aviutlPackFeatureCatalog.ts` を機械可読なカタログとして追加した。
 - このカタログはUI表示、Rust scene effect境界、実装優先順位の共通参照点にする。
 - Pack内のファイル名は参照情報として保持するが、スクリプト本文は取り込まない。

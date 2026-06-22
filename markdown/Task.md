@@ -13,6 +13,11 @@
 - 直近の完了条件は、GetColor系生成効果、hksyチェッカー/グリッド、93音声玉/Delay個別/SpotLightを、保存/読込・プレビュー・export・境界テスト付きで利用できる状態にすることとする。
 - 次の候補は、93 Sphere(DrawPixel)、93 SphericalField、GetColorの元画像サンプリング寄り拡張を優先する。
 
+## 追加タスク（2026-06-23）
+- AviUtlPackV4の広範囲な新規移植はいったん止め、既に入れた `GetColor`、`hksy`、`93` 系の詰めへ移る。
+- 代表シーンを固定し、GetColor / hksy / 93 が混在した状態で、保存/読込、Rust scene snapshot、native media support、preview/export品質確認を継続できるテスト基盤を整える。
+- 以後の優先順位は、機能数追加よりも、UI整理、パラメータ理解性、即時プレビュー、exportとの差分低減、画素検査、操作性改善を上位に置く。
+
 ## 追加タスク（2026-02-11）
 - AviUtl 互換性を拡張するため、現行実装とのギャップ分析を実施する。
 - 比較対象は `AviUtl version 1.10 (aviutl110)` と `拡張編集 0.92 (exedit92)` とする。
