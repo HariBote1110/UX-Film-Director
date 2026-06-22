@@ -1049,7 +1049,7 @@ describe('parseProjectPayloadV2', () => {
     });
 
     const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
-    expect(parsed.scenes[0].objects).toEqual([particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, hologram, protractor, shakingPolygon, toneCurve, hksyCheckerGrid, getColorDotField, audioSphere, sphericalField]);
+    expect(parsed.scenes[0].objects).toEqual([particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, contourTrace, hologram, protractor, shakingPolygon, toneCurve, hksyCheckerGrid, getColorDotField, audioSphere, sphericalField]);
   });
 
   it('round-trips a GetColor V2R diamond dot field through JSON payload', () => {

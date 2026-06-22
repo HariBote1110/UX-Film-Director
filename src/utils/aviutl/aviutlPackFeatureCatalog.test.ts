@@ -144,6 +144,6 @@ describe('AviUtlPackV4 feature catalogue', () => {
       '93-contour-trace'
     ];
 
-    expect(roadmapIds.slice(0, 27)).toEqual(expect.arrayContaining(priorityIds));
+    expect(roadmapIds.slice(0, 28)).toEqual(expect.arrayContaining(priorityIds));
   });
 });

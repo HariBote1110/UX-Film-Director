@@ -63,6 +63,9 @@ pub(crate) fn collect_native_render_sources(
                 source_frame_for_media(snapshot, &media.id),
             )?,
             MediaKind::GeneratedRandomLineEx => build_generated_random_line_ex_source_frame(media)?,
+            MediaKind::GeneratedContourTrace => {
+                build_generated_contour_trace_source_frame(media)?
+            }
             MediaKind::GeneratedHologram => build_generated_hologram_source_frame(media)?,
             MediaKind::GeneratedProtractor => build_generated_protractor_source_frame(media)?,
             MediaKind::GeneratedShakingPolygon => build_generated_shaking_polygon_source_frame(

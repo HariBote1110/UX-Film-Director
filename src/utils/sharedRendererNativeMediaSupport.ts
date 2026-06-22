@@ -33,6 +33,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedAsanohaPattern') return isSharedRendererNativeGeneratedAsanohaPatternSourceSupported(reference.source);
   if (reference.kind === 'GeneratedFocusLinesPlus') return isSharedRendererNativeGeneratedFocusLinesPlusSourceSupported(reference.source);
   if (reference.kind === 'GeneratedRandomLineEx') return isSharedRendererNativeGeneratedRandomLineExSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedContourTrace') return isSharedRendererNativeGeneratedContourTraceSourceSupported(reference.source);
   if (reference.kind === 'GeneratedHologram') return isSharedRendererNativeGeneratedHologramSourceSupported(reference.source);
   if (reference.kind === 'GeneratedProtractor') return isSharedRendererNativeGeneratedProtractorSourceSupported(reference.source);
   if (reference.kind === 'GeneratedShakingPolygon') return isSharedRendererNativeGeneratedShakingPolygonSourceSupported(reference.source);
@@ -906,6 +907,45 @@ const isSharedRendererNativeGeneratedRandomLineExSourceSupported = (source: stri
       && Number.isInteger(parsed.seed)
       && typeof parsed.line_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.line_colour)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedContourTraceSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      line_width?: unknown;
+      contour_count?: unknown;
+      jitter_amount?: unknown;
+      trace_colour?: unknown;
+      background_opacity?: unknown;
+      seed?: unknown;
+    };
+    return (
+      parsed.generator === 'contour-trace-93'
+      && typeof parsed.line_width === 'number'
+      && Number.isFinite(parsed.line_width)
+      && parsed.line_width >= 1
+      && parsed.line_width <= 200
+      && typeof parsed.contour_count === 'number'
+      && Number.isInteger(parsed.contour_count)
+      && parsed.contour_count >= 1
+      && parsed.contour_count <= 64
+      && typeof parsed.jitter_amount === 'number'
+      && Number.isFinite(parsed.jitter_amount)
+      && parsed.jitter_amount >= 0
+      && parsed.jitter_amount <= 100
+      && typeof parsed.trace_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.trace_colour)
+      && typeof parsed.background_opacity === 'number'
+      && Number.isFinite(parsed.background_opacity)
+      && parsed.background_opacity >= 0
+      && parsed.background_opacity <= 1
+      && typeof parsed.seed === 'number'
+      && Number.isInteger(parsed.seed)
     );
   } catch {
     return false;

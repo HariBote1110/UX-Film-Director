@@ -7,6 +7,7 @@ import { buildAviUtlAudioSphereObject } from '../utils/objectFactories/audioSphe
 import { buildAviUtlBarcodeObject } from '../utils/objectFactories/barcodeObjectFactory';
 import { buildAviUtlCircularArrowObject } from '../utils/objectFactories/circularArrowObjectFactory';
 import { buildAviUtlColourWheelObject } from '../utils/objectFactories/colourWheelObjectFactory';
+import { buildAviUtlContourTraceObject } from '../utils/objectFactories/contourTraceObjectFactory';
 import { buildAviUtlFocusLinesPlusObject } from '../utils/objectFactories/focusLinesPlusObjectFactory';
 import { buildAviUtlGearObject } from '../utils/objectFactories/gearObjectFactory';
 import { buildGetColorDiamondDotFieldObject, buildGetColorDotFieldObject, buildGetColorOutlinedSquareDotFieldObject, buildGetColorSampledDotFieldObject } from '../utils/objectFactories/getColorDotFieldObjectFactory';
@@ -274,6 +275,17 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
 
   const handleAddRandomLineEx = () => {
     addObject(buildAviUtlRandomLineExObject({
+      id: crypto.randomUUID(),
+      projectWidth: projectSettings.width,
+      projectHeight: projectSettings.height,
+      startTime: state.time,
+      layer: state.layer,
+    }));
+    onClose();
+  };
+
+  const handleAddContourTrace = () => {
+    addObject(buildAviUtlContourTraceObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
@@ -727,9 +739,10 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
                   <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddPaperAirplane}>{language === 'en' ? 'Add Paper Airplane' : '紙飛行機を追加'}</div>
                   <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddAsanohaPattern}>{language === 'en' ? 'Add Asanoha Pattern' : '麻の葉模様を追加'}</div>
                    <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddAudioSphere}>{language === 'en' ? 'Add 93 Audio Sphere' : '93音声玉を追加'}</div>
-                   <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddFocusLinesPlus}>{language === 'en' ? 'Add Focus Lines Plus' : '集中線plusを追加'}</div>
-                    <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddRandomLineEx}>{language === 'en' ? 'Add Random Line EX' : 'ランダムラインEXを追加'}</div>
-                    <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddRegionFrame}>{language === 'en' ? 'Add 93 Region Frame' : '93領域枠を追加'}</div>
+                    <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddFocusLinesPlus}>{language === 'en' ? 'Add Focus Lines Plus' : '集中線plusを追加'}</div>
+                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddRandomLineEx}>{language === 'en' ? 'Add Random Line EX' : 'ランダムラインEXを追加'}</div>
+                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddContourTrace}>{language === 'en' ? 'Add 93 Contour Trace' : '93輪郭トレスを追加'}</div>
+                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddRegionFrame}>{language === 'en' ? 'Add 93 Region Frame' : '93領域枠を追加'}</div>
                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddEllipseRegionFrame}>{language === 'en' ? 'Add 93 Ellipse Region Frame' : '93領域枠(楕円)を追加'}</div>
                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddCutCornerRegionFrame}>{language === 'en' ? 'Add 93 Cut-Corner Region Frame' : '93領域枠(角落ち)を追加'}</div>
                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHologram}>{language === 'en' ? 'Add Hologram' : 'ホログラムを追加'}</div>

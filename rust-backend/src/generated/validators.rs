@@ -153,6 +153,34 @@ pub(crate) fn validate_generated_random_line_ex_source(
     Ok(())
 }
 
+pub(crate) fn validate_generated_contour_trace_source(
+    source: &GeneratedContourTraceSource,
+) -> Result<(), String> {
+    if source.generator != "contour-trace-93" {
+        return Err("generator must be contour-trace-93".to_string());
+    }
+    if !source.line_width.is_finite() || source.line_width < 1.0 || source.line_width > 200.0 {
+        return Err("line_width must be 1..200".to_string());
+    }
+    if source.contour_count == 0 || source.contour_count > 64 {
+        return Err("contour_count must be 1..64".to_string());
+    }
+    if !source.jitter_amount.is_finite()
+        || source.jitter_amount < 0.0
+        || source.jitter_amount > 100.0
+    {
+        return Err("jitter_amount must be 0..100".to_string());
+    }
+    if !source.background_opacity.is_finite()
+        || source.background_opacity < 0.0
+        || source.background_opacity > 1.0
+    {
+        return Err("background_opacity must be 0..1".to_string());
+    }
+    parse_hex_colour_source(&source.trace_colour)?;
+    Ok(())
+}
+
 pub(crate) fn validate_generated_hologram_source(
     source: &GeneratedHologramSource,
 ) -> Result<(), String> {

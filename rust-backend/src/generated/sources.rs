@@ -229,6 +229,17 @@ pub(crate) struct GeneratedRandomLineExSource {
 }
 
 #[derive(Debug, Deserialize)]
+pub(crate) struct GeneratedContourTraceSource {
+    pub(crate) generator: String,
+    pub(crate) line_width: f32,
+    pub(crate) contour_count: u32,
+    pub(crate) jitter_amount: f32,
+    pub(crate) trace_colour: String,
+    pub(crate) background_opacity: f32,
+    pub(crate) seed: i64,
+}
+
+#[derive(Debug, Deserialize)]
 pub(crate) struct GeneratedHologramSource {
     pub(crate) generator: String,
     pub(crate) tile_size: u32,

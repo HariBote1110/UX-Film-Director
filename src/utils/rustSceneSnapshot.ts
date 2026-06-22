@@ -6,6 +6,7 @@ import type {
   BarcodeObject,
   CircularArrowObject,
   ColourWheelObject,
+  ContourTraceObject,
   FocusLinesPlusObject,
   GearObject,
   GetColorDotFieldObject,
@@ -92,7 +93,7 @@ export interface RustSceneSnapshot {
 
 export interface RustSceneMediaReference {
   id: string;
-  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedAudioSphere' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedToneCurve' | 'GeneratedGetColorDots' | 'GeneratedHksyCheckerGrid' | 'GeneratedRegionFrame' | 'GeneratedSimpleTube' | 'GeneratedSphereDots' | 'GeneratedSphericalField' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'GeneratedTriangleBracket' | 'GeneratedTartanCheck' | 'GeneratedHoundstooth' | 'GeneratedYagasuri' | 'GeneratedPaperAirplane' | 'GeneratedAsanohaPattern' | 'GeneratedFocusLinesPlus' | 'GeneratedRandomLineEx' | 'GeneratedHologram' | 'GeneratedProtractor' | 'GeneratedShakingPolygon' | 'Psd';
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedAudioSphere' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedToneCurve' | 'GeneratedGetColorDots' | 'GeneratedHksyCheckerGrid' | 'GeneratedRegionFrame' | 'GeneratedSimpleTube' | 'GeneratedSphereDots' | 'GeneratedSphericalField' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'GeneratedTriangleBracket' | 'GeneratedTartanCheck' | 'GeneratedHoundstooth' | 'GeneratedYagasuri' | 'GeneratedPaperAirplane' | 'GeneratedAsanohaPattern' | 'GeneratedFocusLinesPlus' | 'GeneratedRandomLineEx' | 'GeneratedContourTrace' | 'GeneratedHologram' | 'GeneratedProtractor' | 'GeneratedShakingPolygon' | 'Psd';
   source: string;
   width: number;
   height: number;
@@ -165,7 +166,7 @@ export interface RustSceneSnapshotBuildInput {
 export type RustSceneVideoSourceMode = 'previewProxy' | 'exportOriginal';
 
 type SupportedMediaObject = ImageObject | VideoObject | PsdObject;
-type SupportedGeneratedObject = AudioVisualizationObject | AudioSphereObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | ToneCurveObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject | SphereDotsObject | SphericalFieldObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject | RandomLineExObject | HologramObject | ProtractorObject | ShakingPolygonObject;
+type SupportedGeneratedObject = AudioVisualizationObject | AudioSphereObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | ToneCurveObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject | SphereDotsObject | SphericalFieldObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject | RandomLineExObject | ContourTraceObject | HologramObject | ProtractorObject | ShakingPolygonObject;
 type SupportedSceneObject = SupportedMediaObject | ShapeObject | SupportedGeneratedObject;
 
 const rustColourPipeline = (): RustColourPipeline => ({
@@ -442,6 +443,7 @@ const isSupportedSceneObject = (object: TimelineObject): object is SupportedScen
   || object.type === 'asanoha_pattern'
   || object.type === 'focus_lines_plus'
   || object.type === 'random_line_ex'
+  || object.type === 'contour_trace'
   || object.type === 'hologram'
   || object.type === 'protractor'
   || object.type === 'shaking_polygon';
@@ -755,6 +757,16 @@ const mediaReferenceForObject = (
       id: object.id,
       kind: 'GeneratedRandomLineEx',
       source: serialiseGeneratedRandomLineExSource(object),
+      width: object.width,
+      height: object.height,
+    };
+  }
+
+  if (object.type === 'contour_trace') {
+    return {
+      id: object.id,
+      kind: 'GeneratedContourTrace',
+      source: serialiseGeneratedContourTraceSource(object),
       width: object.width,
       height: object.height,
     };
@@ -1086,6 +1098,17 @@ const serialiseGeneratedRandomLineExSource = (object: RandomLineExObject): strin
     width_variance: Math.min(2000, Math.max(0, finiteNumberOr(object.widthVariance, 0))),
     seed: Math.trunc(finiteNumberOr(object.seed, 0)),
     line_colour: /^#[0-9a-f]{6}$/i.test(object.lineColour) ? object.lineColour : '#ffffff',
+  });
+
+const serialiseGeneratedContourTraceSource = (object: ContourTraceObject): string =>
+  JSON.stringify({
+    generator: 'contour-trace-93',
+    line_width: Math.min(200, Math.max(1, finiteNumberOr(object.lineWidth, 3))),
+    contour_count: Math.min(64, Math.max(1, Math.trunc(finiteNumberOr(object.contourCount, 5)))),
+    jitter_amount: Math.min(100, Math.max(0, finiteNumberOr(object.jitterAmount, 1.5))),
+    trace_colour: /^#[0-9a-f]{6}$/i.test(object.traceColour) ? object.traceColour : '#ffffff',
+    background_opacity: Math.min(1, Math.max(0, finiteNumberOr(object.backgroundOpacity, 0))),
+    seed: Math.trunc(finiteNumberOr(object.seed, 93)),
   });
 
 const serialiseGeneratedHologramSource = (object: HologramObject): string =>
@@ -1504,6 +1527,7 @@ const sourceFrameForObject = (
     return Math.floor(localFrame / interval) * interval;
   }
   if (object.type === 'random_line_ex') return 0;
+  if (object.type === 'contour_trace') return 0;
   if (object.type === 'hologram') return 0;
   if (object.type === 'protractor') return 0;
   if (object.type === 'shaking_polygon') return secondsToFrameIndex(Math.max(0, time - object.startTime), fps);
@@ -1726,7 +1750,7 @@ const validateMediaReferences = (
     }
     validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height', 'source_rate', 'active_layer_ids'], issues);
     validateString(reference.id, `${path}.id`, issues);
-    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedAudioSphere', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'GeneratedPieChart', 'GeneratedHistogram', 'GeneratedToneCurve', 'GeneratedGetColorDots', 'GeneratedHksyCheckerGrid', 'GeneratedRegionFrame', 'GeneratedSimpleTube', 'GeneratedSphereDots', 'GeneratedSphericalField', 'GeneratedSunburst', 'GeneratedCircularArrow', 'GeneratedTriangleBracket', 'GeneratedTartanCheck', 'GeneratedHoundstooth', 'GeneratedYagasuri', 'GeneratedPaperAirplane', 'GeneratedAsanohaPattern', 'GeneratedFocusLinesPlus', 'GeneratedRandomLineEx', 'GeneratedHologram', 'GeneratedProtractor', 'GeneratedShakingPolygon', 'Psd'], issues);
+    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedAudioSphere', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'GeneratedPieChart', 'GeneratedHistogram', 'GeneratedToneCurve', 'GeneratedGetColorDots', 'GeneratedHksyCheckerGrid', 'GeneratedRegionFrame', 'GeneratedSimpleTube', 'GeneratedSphereDots', 'GeneratedSphericalField', 'GeneratedSunburst', 'GeneratedCircularArrow', 'GeneratedTriangleBracket', 'GeneratedTartanCheck', 'GeneratedHoundstooth', 'GeneratedYagasuri', 'GeneratedPaperAirplane', 'GeneratedAsanohaPattern', 'GeneratedFocusLinesPlus', 'GeneratedRandomLineEx', 'GeneratedContourTrace', 'GeneratedHologram', 'GeneratedProtractor', 'GeneratedShakingPolygon', 'Psd'], issues);
     validateString(reference.source, `${path}.source`, issues);
     validatePositiveInteger(reference.width, `${path}.width`, issues);
     validatePositiveInteger(reference.height, `${path}.height`, issues);

@@ -227,6 +227,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: 'オブジェクトや注釈範囲を囲む枠と薄い背景を、Rust生成の解説UI素材として標準搭載する。'
   },
   {
+    id: '93-contour-trace',
+    labelJa: '93 輪郭トレス',
+    category: 'generated-object',
+    phase: 'P1',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/Contour.anm', 'script/93/輪郭トレス.anm'],
+    rationaleJa: '立ち絵・図形の外周をなぞる輪郭線表現を、Rust生成の注釈/強調素材として標準搭載する。'
+  },
+  {
     id: '93-region-frame-ellipse',
     labelJa: '93 領域枠(楕円)',
     category: 'generated-object',

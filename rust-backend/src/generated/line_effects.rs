@@ -241,6 +241,125 @@ pub(crate) fn build_generated_random_line_ex_source_frame(
         .map_err(|error| format!("GeneratedRandomLineEx media frame is invalid: {error:?}"))
 }
 
+pub(crate) fn build_generated_contour_trace_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedContourTrace media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let contour: GeneratedContourTraceSource =
+        serde_json::from_str(&media.source).map_err(|error| {
+            format!(
+                "Invalid GeneratedContourTrace media '{}': {error}",
+                media.id
+            )
+        })?;
+    validate_generated_contour_trace_source(&contour).map_err(|message| {
+        format!(
+            "Invalid GeneratedContourTrace media '{}': {message}",
+            media.id
+        )
+    })?;
+    let trace_colour = parse_hex_colour_source(&contour.trace_colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedContourTrace media '{}': {message}",
+            media.id
+        )
+    })?;
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedContourTrace media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedContourTrace media byte length overflows".to_string())?;
+    let background_alpha = (contour.background_opacity.clamp(0.0, 1.0) * 255.0).round() as u8;
+    let mut pixels = vec![0_u8; byte_len];
+    if background_alpha > 0 {
+        for rgba in pixels.chunks_exact_mut(4) {
+            rgba.copy_from_slice(&[0, 0, 0, background_alpha]);
+        }
+    }
+
+    let centre_x = media.width as f32 * 0.5;
+    let centre_y = media.height as f32 * 0.5;
+    let base_rx = media.width as f32 * 0.32;
+    let base_ry = media.height as f32 * 0.28;
+    let stroke_half = contour.line_width * 0.5;
+    let seed = contour.seed as u64;
+
+    for index in 0..contour.contour_count {
+        let t = if contour.contour_count <= 1 {
+            0.0
+        } else {
+            index as f32 / (contour.contour_count - 1) as f32
+        };
+        let scale = 1.0 + (t - 0.5) * 0.36;
+        let jitter_x = (deterministic_unit(seed, index, 31) - 0.5) * contour.jitter_amount * 2.0;
+        let jitter_y = (deterministic_unit(seed, index, 32) - 0.5) * contour.jitter_amount * 2.0;
+        let rx = (base_rx * scale + jitter_x.abs()).max(1.0);
+        let ry = (base_ry * scale + jitter_y.abs()).max(1.0);
+        let cx = centre_x + jitter_x;
+        let cy = centre_y + jitter_y;
+        draw_contour_trace_ellipse(
+            &mut pixels,
+            media.width,
+            media.height,
+            cx,
+            cy,
+            rx,
+            ry,
+            stroke_half,
+            trace_colour,
+        );
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedContourTrace media frame is invalid: {error:?}"))
+}
+
+fn draw_contour_trace_ellipse(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    centre_x: f32,
+    centre_y: f32,
+    radius_x: f32,
+    radius_y: f32,
+    stroke_half: f32,
+    colour: [u8; 3],
+) {
+    let min_x = (centre_x - radius_x - stroke_half - 1.0).floor().max(0.0) as u32;
+    let max_x = (centre_x + radius_x + stroke_half + 1.0)
+        .ceil()
+        .min(width.saturating_sub(1) as f32) as u32;
+    let min_y = (centre_y - radius_y - stroke_half - 1.0).floor().max(0.0) as u32;
+    let max_y = (centre_y + radius_y + stroke_half + 1.0)
+        .ceil()
+        .min(height.saturating_sub(1) as f32) as u32;
+    let average_radius = ((radius_x + radius_y) * 0.5).max(1.0);
+    let normalised_half = (stroke_half / average_radius).max(0.001);
+
+    for y in min_y..=max_y {
+        for x in min_x..=max_x {
+            let dx = (x as f32 + 0.5 - centre_x) / radius_x;
+            let dy = (y as f32 + 0.5 - centre_y) / radius_y;
+            let distance = (dx * dx + dy * dy).sqrt();
+            if (distance - 1.0).abs() <= normalised_half {
+                let offset = (y as usize * width as usize + x as usize) * 4;
+                pixels[offset..offset + 4].copy_from_slice(&[colour[0], colour[1], colour[2], 255]);
+            }
+        }
+    }
+}
+
 fn fill_random_line_ex_quad(
     pixels: &mut [u8],
     width: u32,

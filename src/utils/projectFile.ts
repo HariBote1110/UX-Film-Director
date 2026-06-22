@@ -116,6 +116,7 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'asanoha_pattern',
   'focus_lines_plus',
   'random_line_ex',
+  'contour_trace',
   'hologram',
   'protractor',
   'shaking_polygon'
@@ -403,6 +404,16 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!isFiniteNumber(candidate.widthVariance) || candidate.widthVariance < 0 || candidate.widthVariance > 2000) return false;
     if (!isFiniteNumber(candidate.seed)) return false;
     if (typeof candidate.lineColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.lineColour)) return false;
+  }
+  if (candidate.type === 'contour_trace') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.lineWidth) || candidate.lineWidth < 1 || candidate.lineWidth > 200) return false;
+    if (!isFiniteNumber(candidate.contourCount) || candidate.contourCount < 1 || candidate.contourCount > 64) return false;
+    if (!isFiniteNumber(candidate.jitterAmount) || candidate.jitterAmount < 0 || candidate.jitterAmount > 100) return false;
+    if (typeof candidate.traceColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.traceColour)) return false;
+    if (!isFiniteNumber(candidate.backgroundOpacity) || candidate.backgroundOpacity < 0 || candidate.backgroundOpacity > 1) return false;
+    if (!isFiniteNumber(candidate.seed)) return false;
   }
   if (candidate.type === 'hologram') {
     if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
