@@ -1,3 +1,17 @@
+## 2026-06-22 — フェーズ2: historySliceをuseStoreから分離
+
+### 実施内容
+- `pastStates` / `futureStates` と、`pushHistory` / `undo` / `redo` を `src/store/slices/historySlice.ts` へ切り出した。
+- `useStore` は `createHistorySlice(set)` を合成する形にし、Undo/Redoの公開APIと挙動は維持した。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `npm test -- --run src/store src/utils/layerTrackOps.test.ts src/components/PropertyPanelBoundary.test.ts src/hooks/useTimelineDrop.test.ts --reporter=dot` は5ファイル28件成功した。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の抽出由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- 次は `layerSlice` を切り出し、その後にシーン操作・オブジェクトCRUDの重い領域を段階的に分ける。
+
 ## 2026-06-22 — フェーズ2: workspaceSliceをuseStoreから分離
 
 ### 実施内容

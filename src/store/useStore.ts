@@ -57,6 +57,7 @@ import { createExportSlice } from './slices/exportSlice';
 import { createPlaybackSlice } from './slices/playbackSlice';
 import { createSelectionSlice } from './slices/selectionSlice';
 import { createWorkspaceSlice } from './slices/workspaceSlice';
+import { createHistorySlice } from './slices/historySlice';
 
 export type {
   ExportDiagnostics,
@@ -81,8 +82,7 @@ export const useStore = create<AppState>((set, get) => ({
   ...createSelectionSlice(set),
   clipboard: null,
 
-  pastStates: [],
-  futureStates: [],
+  ...createHistorySlice(set),
 
   initializeProject: (settings) => {
     const sceneId = crypto.randomUUID();
@@ -402,79 +402,6 @@ export const useStore = create<AppState>((set, get) => ({
         : scene
     ))
   })),
-
-  // 変更前の状態を履歴に保存する
-  pushHistory: () => set((state) => ({
-    pastStates: [
-      ...state.pastStates,
-      {
-        objects: state.objects,
-        layers: state.layers.map((layer) => ({ ...layer })),
-        camera: { ...state.camera },
-        stageCamera3D: {
-          position: { ...state.stageCamera3D.position },
-          target: { ...state.stageCamera3D.target }
-        }
-      }
-    ],
-    futureStates: [] // 新しい操作をしたらRedoスタックはクリア
-  })),
-
-  undo: () => set((state) => {
-    if (state.pastStates.length === 0) return {};
-    const previous = state.pastStates[state.pastStates.length - 1];
-    const newPast = state.pastStates.slice(0, -1);
-    return {
-      objects: previous.objects,
-      layers: previous.layers.map((layer) => ({ ...layer })),
-      camera: sanitiseCamera(previous.camera),
-      stageCamera3D: sanitiseStageCamera3D(previous.stageCamera3D),
-      pastStates: newPast,
-      futureStates: [
-        {
-          objects: state.objects,
-          layers: state.layers.map((layer) => ({ ...layer })),
-          camera: { ...state.camera },
-          stageCamera3D: {
-            position: { ...state.stageCamera3D.position },
-            target: { ...state.stageCamera3D.target }
-          }
-        },
-        ...state.futureStates
-      ],
-      duration: calculateAutoDuration(previous.objects),
-      selectedId: null,
-      selectedIds: []
-    };
-  }),
-
-  redo: () => set((state) => {
-    if (state.futureStates.length === 0) return {};
-    const next = state.futureStates[0];
-    const newFuture = state.futureStates.slice(1);
-    return {
-      objects: next.objects,
-      layers: next.layers.map((layer) => ({ ...layer })),
-      camera: sanitiseCamera(next.camera),
-      stageCamera3D: sanitiseStageCamera3D(next.stageCamera3D),
-      pastStates: [
-        ...state.pastStates,
-        {
-          objects: state.objects,
-          layers: state.layers.map((layer) => ({ ...layer })),
-          camera: { ...state.camera },
-          stageCamera3D: {
-            position: { ...state.stageCamera3D.position },
-            target: { ...state.stageCamera3D.target }
-          }
-        }
-      ],
-      futureStates: newFuture,
-      duration: calculateAutoDuration(next.objects),
-      selectedId: null,
-      selectedIds: []
-    };
-  }),
 
   addObject: (obj) => {
     const targetLayer = clampLayerIndex(obj.layer);
