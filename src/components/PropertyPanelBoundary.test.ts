@@ -60,6 +60,19 @@ describe('PropertyPanel GetColor sampling controls', () => {
 
     expect(code).toContain('GetColorDotFieldObject');
     expect(code).toContain("selectedObject.type === 'getcolor_dot_field'");
+    expect(code).toContain('GetColor Dot Field');
+    expect(code).toContain('Columns');
+    expect(code).toContain('Rows');
+    expect(code).toContain('Dot Size');
+    expect(code).toContain('Dot Shape');
+    expect(code).toContain('Stroke Width');
+    expect(code).toContain('Size Influence');
+    expect(code).toContain('Luminance Influence');
+    expect(code).toContain('Hue Shift');
+    expect(code).toContain('Alternate Rows');
+    expect(code).toContain("(selectedObject as GetColorDotFieldObject).foregroundColour");
+    expect(code).toContain("(selectedObject as GetColorDotFieldObject).secondaryColour");
+    expect(code).toContain("(selectedObject as GetColorDotFieldObject).backgroundColour");
     expect(code).toContain('GetColor Sampling');
     expect(code).toContain('Sample Layer');
     expect(code).toContain('Sample Object');
