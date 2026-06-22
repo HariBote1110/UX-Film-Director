@@ -92,6 +92,8 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('93-area-expand-s')?.implementationTarget).toBe('rust-webgpu-effect');
     expect(byId.get('93-clipping-s')?.sourceRelativePaths).toContain('script/93/@effect-B.anm');
     expect(byId.get('93-clipping-s')?.implementationTarget).toBe('rust-webgpu-effect');
+    expect(byId.get('93-border-depth')?.sourceRelativePaths).toContain('script/93/Border.zip');
+    expect(byId.get('93-border-depth')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('93-plain-effector-line')?.sourceRelativePaths).toContain('script/93/@PlainEffector.anm');
     expect(byId.get('93-plain-effector-line')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('93-shattered-sphere')?.sourceRelativePaths).toContain('script/93/砕け散る球.anm');
@@ -185,9 +187,10 @@ describe('AviUtlPackV4 feature catalogue', () => {
       '93-multi-slicer',
       '93-oct-transform',
       '93-area-expand-s',
-      '93-clipping-s'
+      '93-clipping-s',
+      '93-border-depth'
     ];
 
-    expect(roadmapIds.slice(0, 42)).toEqual(expect.arrayContaining(priorityIds));
+    expect(roadmapIds.slice(0, 43)).toEqual(expect.arrayContaining(priorityIds));
   });
 });

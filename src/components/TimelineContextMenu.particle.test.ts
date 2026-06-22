@@ -16,6 +16,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('buildAviUtlFocusLinesPlusObject');
     expect(code).toContain('buildAviUtlRandomLineExObject');
     expect(code).toContain('buildAviUtlCutCornerRegionFrameObject');
+    expect(code).toContain('buildAviUtlBorderDepthRegionFrameObject');
     expect(code).toContain('buildAviUtlEllipseRegionFrameObject');
     expect(code).toContain('buildAviUtlRegionFrameObject');
     expect(code).toContain('buildAviUtlHologramObject');
@@ -65,6 +66,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('handleAddFocusLinesPlus');
     expect(code).toContain('handleAddRandomLineEx');
     expect(code).toContain('handleAddCutCornerRegionFrame');
+    expect(code).toContain('handleAddBorderDepthRegionFrame');
     expect(code).toContain('handleAddEllipseRegionFrame');
     expect(code).toContain('handleAddRegionFrame');
     expect(code).toContain('handleAddHologram');

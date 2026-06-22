@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildAviUtlBorderDepthRegionFrameObject,
   buildAviUtlCutCornerRegionFrameObject,
   buildAviUtlEllipseRegionFrameObject,
   buildAviUtlRegionFrameObject,
@@ -80,6 +81,33 @@ describe('regionFrameObjectFactory', () => {
       shape: 'cut_corner',
       cornerCut: 20,
       backgroundOpacity: 0.2,
+    });
+  });
+
+  it('builds a 93 Border depth generated object using the Rust region frame path', () => {
+    const object = buildAviUtlBorderDepthRegionFrameObject({
+      id: 'border-depth-1',
+      projectWidth: 1920,
+      projectHeight: 1080,
+      startTime: 6,
+      layer: 35,
+    });
+
+    expect(object).toMatchObject({
+      id: 'border-depth-1',
+      type: 'region_frame',
+      name: '93 Border Depth',
+      layer: 35,
+      startTime: 6,
+      width: 800,
+      height: 450,
+      lineWidth: 18,
+      shape: 'rectangle',
+      extraWidth: 32,
+      extraHeight: 32,
+      backgroundOpacity: 0.35,
+      frameColour: '#ffffff',
+      backgroundColour: '#0b1020',
     });
   });
 });
