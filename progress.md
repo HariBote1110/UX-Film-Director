@@ -1,3 +1,20 @@
+## 2026-06-22 — フェーズ3: Rust backendの生成器テスト群をmain.rsから分離
+
+### 実施内容
+- `rust-backend/src/main.rs` に残っていた生成器フレームテスト群を `rust-backend/src/generated_frame_tests.rs` へ分離した。
+- `main.rs` は 1,531 行から 157 行になり、stdio RPC入口とmethod dispatchに近い責務だけを持つ状態へ整理した。
+- `generated_frame_tests.rs` は 1,374 行で、生成器の期待振る舞いを定義するテスト群を専用に所有する。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+- 生成器テストは `generated_frame_tests::...` として検出され、テスト件数は維持された。
+
+### 残課題・次のステップ
+- 次はRPC dispatchを `rpc_dispatch` などへ分離するか、`generated_frame_tests.rs` を生成器ファミリー別にさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのsource frame収集責務をmain.rsから分離
 
 ### 実施内容
