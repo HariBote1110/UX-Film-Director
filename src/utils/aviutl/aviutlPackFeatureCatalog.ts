@@ -317,6 +317,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: 'ベジエ制御点で移動軌道を作る発想を、UX FDのnative keyframe列へ変換する曲線移動presetとして標準搭載する。'
   },
   {
+    id: '93-individual-coordinate-rearrange',
+    labelJa: '93 個別座標再配置2',
+    category: 'motion',
+    phase: 'P1',
+    implementationTarget: 'native-motion-preset',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/個別座標再配置2.anm'],
+    rationaleJa: '個別オブジェクトの座標を保存/呼び出す発想を、まず複数選択順に円形スロットへ再配置するnative motion presetとして標準搭載する。'
+  },
+  {
     id: '93-multi-slicer',
     labelJa: '93 MultiSlicer',
     category: 'visual-effect',

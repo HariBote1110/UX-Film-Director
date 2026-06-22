@@ -55,6 +55,11 @@ const SectionHeader = ({ label }: { label: string }) => (
   </div>
 );
 
+const sequenceAwareMotionPresets = new Set<AviUtlMotionPresetId>([
+  'delay-move-individual',
+  'individual-coordinate-rearrange-circle'
+]);
+
 const defaultPsdWorldPlacement = (): PsdWorldPlacement => ({
   enabled: true,
   position: { x: 0, y: 0, z: 0 },
@@ -1054,7 +1059,7 @@ const PropertyPanel: React.FC = () => {
 
   const handleApplyAviUtlMotionPreset = (presetId: AviUtlMotionPresetId) => {
     pushHistory();
-    if (presetId === 'delay-move-individual' && selectedObjects.length > 1) {
+    if (sequenceAwareMotionPresets.has(presetId) && selectedObjects.length > 1) {
       selectedObjects.forEach((object, index) => {
         updateObject(
           object.id,

@@ -12,7 +12,8 @@ export type AviUtlMotionPresetId =
   | 'delay-move-individual'
   | 'coordinate-plus-snap-move'
   | 'ta-easing-overshoot-arrive'
-  | 'bezier-orbit-t-plus';
+  | 'bezier-orbit-t-plus'
+  | 'individual-coordinate-rearrange-circle';
 
 export interface AviUtlMotionPreset {
   id: AviUtlMotionPresetId;
@@ -26,7 +27,8 @@ export interface AviUtlMotionPreset {
     | '93-delay-move'
     | '93-coordinate-plus'
     | '93-ta-easing'
-    | '93-bezier-orbit-t-plus';
+    | '93-bezier-orbit-t-plus'
+    | '93-individual-coordinate-rearrange';
   defaultDistancePx: number;
   defaultSpanSeconds: number;
   defaultIntervalSeconds: number;
@@ -136,6 +138,14 @@ const presets: AviUtlMotionPreset[] = [
     defaultDistancePx: 160,
     defaultSpanSeconds: 1,
     defaultIntervalSeconds: 0.25
+  },
+  {
+    id: 'individual-coordinate-rearrange-circle',
+    labelJa: '93: 個別座標再配置2 円形',
+    sourceCandidateId: '93-individual-coordinate-rearrange',
+    defaultDistancePx: 120,
+    defaultSpanSeconds: 0.5,
+    defaultIntervalSeconds: 1
   }
 ];
 
@@ -287,6 +297,20 @@ export const buildAviUtlMotionPresetPatch = (
         x,
         y,
         distancePx,
+        easing
+      });
+      break;
+    case 'individual-coordinate-rearrange-circle':
+      easing = 'easeInOutSine';
+      keyframes = buildIndividualCoordinateRearrangeCircleKeyframes({
+        startTime,
+        endTime,
+        x,
+        y,
+        radiusPx: distancePx,
+        spanSeconds,
+        sequenceIndex: nonNegativeIntegerOr(options.sequenceIndex, 0),
+        sequenceTotal: positiveIntegerOr(options.sequenceTotal, 1),
         easing
       });
       break;
@@ -655,6 +679,43 @@ const cubicBezierPoint = (
     x: start.x * startWeight + controlA.x * controlAWeight + controlB.x * controlBWeight + end.x * endWeight,
     y: start.y * startWeight + controlA.y * controlAWeight + controlB.y * controlBWeight + end.y * endWeight
   };
+};
+
+const buildIndividualCoordinateRearrangeCircleKeyframes = ({
+  startTime,
+  endTime,
+  x,
+  y,
+  radiusPx,
+  spanSeconds,
+  sequenceIndex,
+  sequenceTotal,
+  easing
+}: {
+  startTime: number;
+  endTime: number;
+  x: number;
+  y: number;
+  radiusPx: number;
+  spanSeconds: number;
+  sequenceIndex: number;
+  sequenceTotal: number;
+  easing: EasingType;
+}): PositionKeyframe[] => {
+  const total = Math.max(1, sequenceTotal);
+  const index = Math.min(total - 1, sequenceIndex);
+  const angle = -Math.PI / 2 + (Math.PI * 2 * index) / total;
+  const targetX = x + Math.cos(angle) * radiusPx;
+  const targetY = y + Math.sin(angle) * radiusPx;
+  const settleTime = Math.min(endTime, startTime + Math.max(0.01, spanSeconds));
+  const keyframes = [
+    makeKeyframe('individual-coordinate-rearrange-start', startTime, x, y, easing),
+    makeKeyframe('individual-coordinate-rearrange-slot', settleTime, targetX, targetY, 'linear')
+  ];
+  if (endTime > settleTime + 0.0001) {
+    keyframes.push(makeKeyframe('individual-coordinate-rearrange-hold', endTime, targetX, targetY, 'linear'));
+  }
+  return keyframes;
 };
 
 const makeKeyframe = (
