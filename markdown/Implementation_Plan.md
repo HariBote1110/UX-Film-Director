@@ -115,6 +115,7 @@
 90. ✅ `P1` 93 ベジエ軌道T+をnative motion presetの曲線移動として追加する
 91. ✅ `P1` 93 個別座標再配置2をnative motion presetの円形再配置として追加する
 92. ✅ `P1` 93 Border DepthをRust GeneratedRegionFrame派生プリセットとして追加する
+93. ✅ `P1` 93 Reflection PolyをRust/WebGPU SpotLight派生effect presetとして追加する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

@@ -1,3 +1,18 @@
+## 2026-06-23 — 93 Reflection PolyをRust/WebGPU effect presetへ追加
+
+### 実施内容
+- Red: `script/93/@Reflection_poly.anm` を `93-reflection-poly` としてAviUtlPackV4カタログへ載せ、AviUtl Effectsに出るeffect preset契約を追加した。
+- Green: `93-reflection-poly-glint` presetを追加し、既存Rust/WebGPU `spot_light` effectを偏心した反射ハイライトとして使うようにした。
+- Green: PropertyPanelのAviUtl Effects一覧へ自動露出され、選択中オブジェクトのfilter stackへ追加できる。
+- 版を `0.1.1-Beta-335a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/aviutl/aviutlEffectPresets.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts --reporter=dot` は8件成功した。
+- `npm test -- --run src/components/PropertyPanelBoundary.test.ts --reporter=dot` は9件成功した。
+
+### 残課題・次のステップ
+- 元スクリプトのライトレイヤー、ポリゴン面計算、Reflection-Getpixel/Draw分離は未対応。次は93の自己完結生成/効果、またはGetColor/hksy派生を続ける。
+
 ## 2026-06-23 — 93 Border DepthをRust生成プリセットへ追加
 
 ### 実施内容
