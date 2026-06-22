@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendのHK-SY生成器をサブモジュール化
+
+### 実施内容
+- `rust-backend/src/generated.rs` から `GeneratedHksyCheckerGrid` の生成フレーム実装を `rust-backend/src/generated/hksy.rs` へ分離した。
+- checker-grid、diamond、measured-grid、anchor-lineの描画helperと `HksyMeasuredGridStyle` をHK-SY専用モジュールへ閉じ込めた。
+- `generated.rs` は 3,921 行から 3,575 行になり、HK-SY実装352行を独立ファイルへ移した。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はSimpleTube、Sphere/SphericalFieldなどの93系生成器を効果ファミリー単位で分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのGetColorDots生成器をサブモジュール化
 
 ### 実施内容
