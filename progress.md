@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendのPaperAirplane/Asanoha描画をgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `build_generated_paper_airplane_source_frame` と `build_generated_asanoha_pattern_source_frame` を `rust-backend/src/generated.rs` へ抽出した。
+- `draw_line_segment_rgba` を `generated.rs` の `pub(crate)` helperへ移し、後続の線描画系生成フレーム描画から共有できる位置にした。
+- `main.rs` は 4,932 行から 4,714 行になった。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はfocus lines plus、random line ex、hologramなどの線・ノイズ系生成フレーム描画関数をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのパターン系生成描画をgenerated.rsへ分離
 
 ### 実施内容
