@@ -64,6 +64,8 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('93-spfield')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('93-object-copy-ext')?.sourceRelativePaths).toContain('script/93/ObjectCopyEXT.obj');
     expect(byId.get('93-object-copy-ext')?.implementationTarget).toBe('native-motion-preset');
+    expect(byId.get('93-background-colour-eyedropper')?.sourceRelativePaths).toContain('script/93/背景色スポイト.anm');
+    expect(byId.get('93-background-colour-eyedropper')?.implementationTarget).toBe('native-utility');
     expect(byId.get('93-contour-trace')?.sourceRelativePaths).toEqual(expect.arrayContaining([
       'script/93/Contour.anm',
       'script/93/輪郭トレス.anm'
@@ -203,7 +205,8 @@ describe('AviUtlPackV4 feature catalogue', () => {
       '93-reflection-poly',
       '93-camera-target',
       '93-spfield',
-      '93-object-copy-ext'
+      '93-object-copy-ext',
+      '93-background-colour-eyedropper'
     ];
 
     expect(roadmapIds.slice(0, 47)).toEqual(expect.arrayContaining(priorityIds));
