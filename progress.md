@@ -1,3 +1,17 @@
+## 2026-06-22 — フェーズ2: selectionSliceをuseStoreから分離
+
+### 実施内容
+- `selectedId` / `selectedIds` と、`selectObject` / `toggleObjectSelection` / `selectObjects` / `clearSelection` を `src/store/slices/selectionSlice.ts` へ切り出した。
+- `useStore` は `createSelectionSlice(set)` を合成する形にし、複数選択の公開APIと挙動は維持した。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `npm test -- --run src/store src/hooks/useTimelineDrop.test.ts src/components/TimelineContextMenu.particle.test.ts src/components/PropertyPanelBoundary.test.ts --reporter=dot` は5ファイル23件成功した。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の抽出由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- 次は軽量な `workspaceSlice`（snapshot / preview / vision）か、履歴管理の `historySlice` を切り出す。
+
 ## 2026-06-22 — フェーズ2: playbackSliceをuseStoreから分離
 
 ### 実施内容
