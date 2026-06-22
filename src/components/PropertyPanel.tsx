@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState, PsdWorldPlacement, VideoObject, ParticleObject, GetColorDotFieldObject, PlainEffectorLineObject, ShatteredSphereObject } from '../types';
+import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState, PsdWorldPlacement, VideoObject, ParticleObject, GetColorDotFieldObject, PlainEffectorLineObject, ShatteredSphereObject, SphereDotsObject, SphericalFieldObject } from '../types';
 import { buildPsdLayerTree, togglePsdLayer } from '../utils/psdParser';
 import { easingNames, EasingType } from '../utils/easings';
 import { buildEndpointKeyframes, evaluateObjectPositionAtTime } from '../utils/keyframes';
@@ -2805,6 +2805,307 @@ const PropertyPanel: React.FC = () => {
                              updateObject(selectedObject.id, { colourAmount: next } as Partial<TimelineObject>);
                          }}
                          style={{ width: '100%' }}
+                     />
+                 </Row>
+             </>
+         )}
+
+         {selectedObject.type === 'sphere_dots' && (
+             <>
+                 <SectionHeader label="Sphere(DrawPixel) Settings" />
+                 <Row label="Radius">
+                     <input
+                         type="number"
+                         min="1"
+                         max="5000"
+                         step="1"
+                         value={(selectedObject as SphereDotsObject).radius}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 170), 1, 5000);
+                             updateObject(selectedObject.id, { radius: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Columns">
+                     <input
+                         type="number"
+                         min="3"
+                         max="256"
+                         step="1"
+                         value={(selectedObject as SphereDotsObject).columns}
+                         onChange={(e) => {
+                             const next = Math.round(clamp(toNumberOr(e.target.value, 16), 3, 256));
+                             updateObject(selectedObject.id, { columns: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Rows">
+                     <input
+                         type="number"
+                         min="2"
+                         max="256"
+                         step="1"
+                         value={(selectedObject as SphereDotsObject).rows}
+                         onChange={(e) => {
+                             const next = Math.round(clamp(toNumberOr(e.target.value, 12), 2, 256));
+                             updateObject(selectedObject.id, { rows: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Rotation Degrees">
+                     <input
+                         type="number"
+                         min="-1000"
+                         max="1000"
+                         step="1"
+                         value={(selectedObject as SphereDotsObject).rotationDegrees}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 10), -1000, 1000);
+                             updateObject(selectedObject.id, { rotationDegrees: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Offset Degrees">
+                     <input
+                         type="number"
+                         min="-360"
+                         max="360"
+                         step="1"
+                         value={(selectedObject as SphereDotsObject).offsetDegrees}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 0), -360, 360);
+                             updateObject(selectedObject.id, { offsetDegrees: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Luminance Influence">
+                     <input
+                         type="number"
+                         min="-5000"
+                         max="5000"
+                         step="1"
+                         value={(selectedObject as SphereDotsObject).luminanceInfluence}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 0), -5000, 5000);
+                             updateObject(selectedObject.id, { luminanceInfluence: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Point Size">
+                     <input
+                         type="number"
+                         min="0"
+                         max="200"
+                         step="0.5"
+                         value={(selectedObject as SphereDotsObject).pointSize}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 6), 0, 200);
+                             updateObject(selectedObject.id, { pointSize: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Latitude Line Width">
+                     <input
+                         type="number"
+                         min="0"
+                         max="100"
+                         step="0.5"
+                         value={(selectedObject as SphereDotsObject).latitudeLineWidth}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 2), 0, 100);
+                             updateObject(selectedObject.id, { latitudeLineWidth: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Colour">
+                     <input
+                         type="color"
+                         value={(selectedObject as SphereDotsObject).colour}
+                         onChange={(e) => handleChange('colour', e.target.value)}
+                     />
+                 </Row>
+                 <Row label="Secondary Colour">
+                     <input
+                         type="color"
+                         value={(selectedObject as SphereDotsObject).secondaryColour}
+                         onChange={(e) => handleChange('secondaryColour', e.target.value)}
+                     />
+                 </Row>
+                 <Row label="Plane Mode">
+                     <input
+                         type="checkbox"
+                         checked={(selectedObject as SphereDotsObject).planeMode}
+                         onChange={(e) => updateObject(selectedObject.id, { planeMode: e.target.checked } as Partial<TimelineObject>)}
+                     />
+                 </Row>
+                 <Row label="Seed">
+                     <input
+                         type="number"
+                         step="1"
+                         value={(selectedObject as SphereDotsObject).seed}
+                         onChange={(e) => {
+                             const next = Math.round(toNumberOr(e.target.value, 93));
+                             updateObject(selectedObject.id, { seed: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+             </>
+         )}
+
+         {selectedObject.type === 'spherical_field' && (
+             <>
+                 <SectionHeader label="SphericalField Settings" />
+                 <Row label="Radius">
+                     <input
+                         type="number"
+                         min="0"
+                         max="5000"
+                         step="1"
+                         value={(selectedObject as SphericalFieldObject).radius}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 160), 0, 5000);
+                             updateObject(selectedObject.id, { radius: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Strength">
+                     <input
+                         type="number"
+                         min="-200"
+                         max="200"
+                         step="1"
+                         value={(selectedObject as SphericalFieldObject).strength}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 100), -200, 200);
+                             updateObject(selectedObject.id, { strength: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Colour Amount">
+                     <input
+                         type="number"
+                         min="-100"
+                         max="100"
+                         step="1"
+                         value={(selectedObject as SphericalFieldObject).colourAmount}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 100), -100, 100);
+                             updateObject(selectedObject.id, { colourAmount: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Alpha Amount">
+                     <input
+                         type="number"
+                         min="-100"
+                         max="100"
+                         step="1"
+                         value={(selectedObject as SphericalFieldObject).alphaAmount}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 0), -100, 100);
+                             updateObject(selectedObject.id, { alphaAmount: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Line Width">
+                     <input
+                         type="number"
+                         min="0"
+                         max="100"
+                         step="0.5"
+                         value={(selectedObject as SphericalFieldObject).lineWidth}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 3), 0, 100);
+                             updateObject(selectedObject.id, { lineWidth: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Ring Count">
+                     <input
+                         type="number"
+                         min="1"
+                         max="64"
+                         step="1"
+                         value={(selectedObject as SphericalFieldObject).ringCount}
+                         onChange={(e) => {
+                             const next = Math.round(clamp(toNumberOr(e.target.value, 4), 1, 64));
+                             updateObject(selectedObject.id, { ringCount: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Vector Count">
+                     <input
+                         type="number"
+                         min="0"
+                         max="256"
+                         step="1"
+                         value={(selectedObject as SphericalFieldObject).vectorCount}
+                         onChange={(e) => {
+                             const next = Math.round(clamp(toNumberOr(e.target.value, 16), 0, 256));
+                             updateObject(selectedObject.id, { vectorCount: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Field Colour">
+                     <input
+                         type="color"
+                         value={(selectedObject as SphericalFieldObject).fieldColour}
+                         onChange={(e) => handleChange('fieldColour', e.target.value)}
+                     />
+                 </Row>
+                 <Row label="Secondary Colour">
+                     <input
+                         type="color"
+                         value={(selectedObject as SphericalFieldObject).secondaryColour}
+                         onChange={(e) => handleChange('secondaryColour', e.target.value)}
+                     />
+                 </Row>
+                 <Row label="Background Opacity">
+                     <Slider
+                         min="0"
+                         max="1"
+                         step="0.01"
+                         value={(selectedObject as SphericalFieldObject).backgroundOpacity}
+                         onInput={(e) => {
+                             const next = clamp(toNumberOr(e.currentTarget.value, 0.08), 0, 1);
+                             updateObject(selectedObject.id, { backgroundOpacity: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '100%' }}
+                     />
+                 </Row>
+                 <Row label="Container">
+                     <input
+                         type="checkbox"
+                         checked={(selectedObject as SphericalFieldObject).container}
+                         onChange={(e) => updateObject(selectedObject.id, { container: e.target.checked } as Partial<TimelineObject>)}
+                     />
+                 </Row>
+                 <Row label="Seed">
+                     <input
+                         type="number"
+                         step="1"
+                         value={(selectedObject as SphericalFieldObject).seed}
+                         onChange={(e) => {
+                             const next = Math.round(toNumberOr(e.target.value, 93));
+                             updateObject(selectedObject.id, { seed: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
                      />
                  </Row>
              </>
