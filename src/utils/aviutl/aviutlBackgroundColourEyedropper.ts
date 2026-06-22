@@ -1,4 +1,4 @@
-import type { TimelineObject } from '../../types';
+import type { GetColorDotFieldObject, TimelineObject } from '../../types';
 
 export interface AviUtlBackgroundColourPaletteEntry {
   colour: string;
@@ -9,6 +9,7 @@ export interface AviUtlBackgroundColourPaletteEntry {
 export interface AviUtlBackgroundColourEyedropperOptions {
   maxColours?: number;
   fallbackColours?: string[];
+  excludeObjectIds?: string[];
 }
 
 const colourFieldNames = [
@@ -80,8 +81,12 @@ export const extractAviUtlBackgroundColourPalette = (
   const maxColours = Math.max(1, Math.floor(options.maxColours ?? 16));
   const palette: AviUtlBackgroundColourPaletteEntry[] = [];
   const seen = new Set<string>();
+  const excludedIds = new Set(options.excludeObjectIds ?? []);
 
   for (const object of objects) {
+    if (excludedIds.has(object.id)) {
+      continue;
+    }
     if (object.opacity <= 0) {
       continue;
     }
@@ -101,4 +106,24 @@ export const extractAviUtlBackgroundColourPalette = (
   }
 
   return palette;
+};
+
+export const buildAviUtlBackgroundColourPalettePatch = (
+  objects: TimelineObject[],
+  options: AviUtlBackgroundColourEyedropperOptions = {}
+): Pick<GetColorDotFieldObject, 'foregroundColour' | 'secondaryColour' | 'backgroundColour'> | null => {
+  const palette = extractAviUtlBackgroundColourPalette(objects, {
+    ...options,
+    maxColours: Math.max(3, options.maxColours ?? 3)
+  });
+
+  if (palette.length < 3) {
+    return null;
+  }
+
+  return {
+    foregroundColour: palette[0].colour,
+    secondaryColour: palette[1].colour,
+    backgroundColour: palette[2].colour
+  };
 };

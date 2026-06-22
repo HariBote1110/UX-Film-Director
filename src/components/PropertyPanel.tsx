@@ -21,6 +21,7 @@ import { buildAspectLockedScalePatch } from '../utils/aspectRatioScale';
 import { buildAviUtlMotionPresetPatch, getAviUtlPackMotionPresets, type AviUtlMotionPresetId } from '../utils/aviutl/aviutlMotionPresets';
 import { applyAviUtlEffectPresetToObject, getAviUtlPackEffectPresets, type AviUtlEffectPresetId } from '../utils/aviutl/aviutlEffectPresets';
 import { buildAviUtlCameraTargetPatch, getAviUtlPackCameraPresets } from '../utils/aviutl/aviutlCameraPresets';
+import { buildAviUtlBackgroundColourPalettePatch, extractAviUtlBackgroundColourPalette } from '../utils/aviutl/aviutlBackgroundColourEyedropper';
 import type { VisionNormBoundingBox } from '../utils/visionTrackingGeometry';
 
 const Slider = ({
@@ -398,6 +399,14 @@ const PropertyPanel: React.FC = () => {
       const objectStart = object.startTime;
       const objectEnd = object.startTime + object.duration;
       return objectStart < end && objectEnd > start;
+    });
+  }, [objects, selectedObject]);
+
+  const getColorBackgroundColourPalette = useMemo(() => {
+    if (selectedObject?.type !== 'getcolor_dot_field') return [];
+    return extractAviUtlBackgroundColourPalette(objects, {
+      maxColours: 8,
+      excludeObjectIds: [selectedObject.id]
     });
   }, [objects, selectedObject]);
 
@@ -903,6 +912,15 @@ const PropertyPanel: React.FC = () => {
     updateObject(selectedObject.id, {
       sampleHueShiftDegrees: clamp(parsed, -720, 720),
     } as Partial<TimelineObject>);
+  };
+
+  const handleApplyAviUtlBackgroundColourPalette = () => {
+    if (selectedObject.type !== 'getcolor_dot_field') return;
+    const patch = buildAviUtlBackgroundColourPalettePatch(objects, {
+      excludeObjectIds: [selectedObject.id]
+    });
+    if (!patch) return;
+    updateObject(selectedObject.id, patch as Partial<TimelineObject>);
   };
 
   const handleAddFilter = (type: FilterType) => {
@@ -2829,6 +2847,35 @@ const PropertyPanel: React.FC = () => {
                          style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
                      />
                  </Row>
+                 <SectionHeader label="93 Background Colour Eyedropper" />
+                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', margin: '4px 0 8px' }}>
+                     {getColorBackgroundColourPalette.length > 0 ? getColorBackgroundColourPalette.map((entry) => (
+                         <span
+                             key={`${entry.sourceObjectId ?? 'fallback'}-${entry.sourceField}-${entry.colour}`}
+                             title={`${entry.sourceField}: ${entry.colour}`}
+                             style={{
+                                 width: '22px',
+                                 height: '22px',
+                                 borderRadius: '4px',
+                                 border: '1px solid #555',
+                                 background: entry.colour,
+                                 display: 'inline-block'
+                             }}
+                         />
+                     )) : (
+                         <span style={{ fontSize: '11px', color: '#888' }}>
+                             {language === 'en' ? 'No scene colours found.' : '利用できるシーン色がありません。'}
+                         </span>
+                     )}
+                 </div>
+                 <button
+                     type="button"
+                     disabled={getColorBackgroundColourPalette.length < 3}
+                     onClick={handleApplyAviUtlBackgroundColourPalette}
+                     style={{ width: '100%', marginBottom: '10px' }}
+                 >
+                     {language === 'en' ? 'Apply Background Colour Palette' : '背景色スポイトpaletteを適用'}
+                 </button>
                  <SectionHeader label="GetColor Sampling" />
                  <Row label="Sample Layer">
                      <input
