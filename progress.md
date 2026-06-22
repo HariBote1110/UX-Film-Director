@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendのHKSY checker grid生成validatorをgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `validate_generated_hksy_checker_grid_source` を `rust-backend/src/generated.rs` へ抽出した。
+- checker-grid、diamond、measured-grid、anchor-line 各patternの入力検証を生成メディア型定義と同じモジュールへ寄せた。
+- `main.rs` は 6,661 行から 6,586 行になった。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次は `validate_generated_getcolor_dots_source`、native render source収集、または生成フレーム描画関数群をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendの残り浅い生成validatorをgenerated.rsへ分離
 
 ### 実施内容
