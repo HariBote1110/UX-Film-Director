@@ -23,7 +23,7 @@ import { buildAviUtlPlainEffectorLineObject } from '../utils/objectFactories/pla
 import { buildAviUtlPuzzlePieceObject } from '../utils/objectFactories/puzzlePieceObjectFactory';
 import { buildAviUtlProtractorObject } from '../utils/objectFactories/protractorObjectFactory';
 import { buildAviUtlRandomLineExObject } from '../utils/objectFactories/randomLineExObjectFactory';
-import { buildAviUtlCutCornerRegionFrameObject, buildAviUtlEllipseRegionFrameObject, buildAviUtlRegionFrameObject } from '../utils/objectFactories/regionFrameObjectFactory';
+import { buildAviUtlBorderDepthRegionFrameObject, buildAviUtlCutCornerRegionFrameObject, buildAviUtlEllipseRegionFrameObject, buildAviUtlRegionFrameObject } from '../utils/objectFactories/regionFrameObjectFactory';
 import { buildAviUtlShakingPolygonObject } from '../utils/objectFactories/shakingPolygonObjectFactory';
 import { buildAviUtlShatteredSphereObject } from '../utils/objectFactories/shatteredSphereObjectFactory';
 import { buildAviUtlSimpleTubeObject, buildAviUtlSimpleTubeTorusObject } from '../utils/objectFactories/simpleTubeObjectFactory';
@@ -344,6 +344,17 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
 
   const handleAddCutCornerRegionFrame = () => {
     addObject(buildAviUtlCutCornerRegionFrameObject({
+      id: crypto.randomUUID(),
+      projectWidth: projectSettings.width,
+      projectHeight: projectSettings.height,
+      startTime: state.time,
+      layer: state.layer,
+    }));
+    onClose();
+  };
+
+  const handleAddBorderDepthRegionFrame = () => {
+    addObject(buildAviUtlBorderDepthRegionFrameObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
@@ -783,6 +794,7 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
                        <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddRegionFrame}>{language === 'en' ? 'Add 93 Region Frame' : '93領域枠を追加'}</div>
                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddEllipseRegionFrame}>{language === 'en' ? 'Add 93 Ellipse Region Frame' : '93領域枠(楕円)を追加'}</div>
                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddCutCornerRegionFrame}>{language === 'en' ? 'Add 93 Cut-Corner Region Frame' : '93領域枠(角落ち)を追加'}</div>
+                    <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddBorderDepthRegionFrame}>{language === 'en' ? 'Add 93 Border Depth' : '93 Border Depthを追加'}</div>
                      <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHologram}>{language === 'en' ? 'Add Hologram' : 'ホログラムを追加'}</div>
                      <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddProtractor}>{language === 'en' ? 'Add Protractor' : '分度器を追加'}</div>
                      <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddShakingPolygon}>{language === 'en' ? 'Add Shaking Polygon' : '多角形_震えるを追加'}</div>

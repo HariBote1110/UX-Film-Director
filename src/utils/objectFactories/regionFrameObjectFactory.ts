@@ -65,3 +65,15 @@ export const buildAviUtlCutCornerRegionFrameObject = (input: BuildAviUtlRegionFr
   shape: 'cut_corner',
   cornerCut: 20,
 });
+
+export const buildAviUtlBorderDepthRegionFrameObject = (input: BuildAviUtlRegionFrameObjectInput): RegionFrameObject => ({
+  ...buildBaseRegionFrameObject(input),
+  name: '93 Border Depth',
+  shape: 'rectangle',
+  lineWidth: 18,
+  extraWidth: 32,
+  extraHeight: 32,
+  backgroundOpacity: 0.35,
+  frameColour: '#ffffff',
+  backgroundColour: '#0b1020',
+});

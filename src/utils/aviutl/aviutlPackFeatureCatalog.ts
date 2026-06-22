@@ -367,6 +367,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '上下左右リンク、倍率、反転を持つクリッピング補助を、UXFDのSmart Clippingとして受け取りRust/WebGPU Clippingへ変換する。'
   },
   {
+    id: '93-border-depth',
+    labelJa: '93 Border Depth',
+    category: 'generated-object',
+    phase: 'P1',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/Border.zip'],
+    rationaleJa: '輪郭をZ方向に重ねるBorder表現を、まずRust GeneratedRegionFrameの厚み付き枠プリセットとして標準搭載する。'
+  },
+  {
     id: '93-region-frame-ellipse',
     labelJa: '93 領域枠(楕円)',
     category: 'generated-object',
