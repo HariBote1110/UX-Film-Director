@@ -1,3 +1,20 @@
+## 2026-06-22 — フェーズ3: Rust backendのdecode RPCをdecode.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `decode.start` / `decode.stop` / `decode.requestFrame` / `decode.requestFrameInline` / `decode.releaseFrame` のハンドラを `rust-backend/src/decode.rs` へ抽出した。
+- decode用の共有メモリdata plane、streaming ffmpeg decode、video metadata probe、decode frame slot releaseの補助関数も `decode.rs` へ移し、decode責務を1モジュールにまとめた。
+- `DecodeDataPlaneRing` の定義を `decode.rs` に移したため、`rust-backend/src/sessions.rs` は `crate::decode::DecodeDataPlaneRing` を参照する形に変更した。
+- `main.rs` は `pub(crate) mod decode` とdecode handler importのみを持つ形にし、RPCルーティングの挙動は変更していない。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はencode handler本体、またはnative render/generate描画関数をさらに責務ごとに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのframe転送ユーティリティをframes.rsへ分離
 
 ### 実施内容

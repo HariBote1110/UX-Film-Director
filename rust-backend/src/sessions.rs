@@ -1,7 +1,7 @@
 use std::process::{Child, ChildStderr, ChildStdin, ChildStdout};
 use uxfd_sidecar_protocol::{ColourMetadata, DecodeStartResponse, FrameFormat, SharedFrameRing};
 
-use crate::DecodeDataPlaneRing;
+use crate::decode::DecodeDataPlaneRing;
 
 pub(crate) struct DecodeSession {
     pub(crate) start_response: DecodeStartResponse,
