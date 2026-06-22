@@ -406,6 +406,35 @@ fn native_wgpu_applies_oct_transform_scale() {
 }
 
 #[test]
+fn native_wgpu_applies_area_expand_fill_to_right_edge() {
+    assert_native_matches_direct_hand_anchor(
+        scene_snapshot(vec![evaluated_clip(
+            "foreground",
+            0,
+            1.0,
+            vec![Effect::AreaExpand {
+                top: 0.0,
+                bottom: 0.0,
+                left: 0.0,
+                right: 2.0,
+                fill: true,
+            }],
+        )]),
+        HashMap::from([(
+            "foreground".to_string(),
+            RgbaFrame::from_rgba8(1, 1, vec![255, 0, 0, 255]).expect("valid foreground"),
+        )]),
+        3,
+        1,
+        vec![
+            255, 0, 0, 255,
+            255, 0, 0, 255,
+            255, 0, 0, 255,
+        ],
+    );
+}
+
+#[test]
 fn native_wgpu_applies_outline_to_transparent_neighbours() {
     assert_native_matches_direct_hand_anchor(
         scene_snapshot(vec![evaluated_clip(

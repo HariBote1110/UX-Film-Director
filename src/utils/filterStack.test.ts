@@ -113,6 +113,15 @@ describe('createDefaultFilter', () => {
     expect(octTransform.params.vertexCount).toBe(8);
     expect(octTransform.params.warp).toBe(0.2);
     expect(octTransform.params.strength).toBe(1);
+
+    const areaExpand = createDefaultFilter('area_expand' as any);
+    expect(areaExpand.type).toBe('area_expand');
+    if (areaExpand.type !== 'area_expand') throw new Error('expected area expand');
+    expect(areaExpand.params.top).toBe(0);
+    expect(areaExpand.params.bottom).toBe(0);
+    expect(areaExpand.params.left).toBe(0);
+    expect(areaExpand.params.right).toBe(32);
+    expect(areaExpand.params.fill).toBe(true);
   });
 });
 
@@ -128,9 +137,10 @@ describe('normaliseObjectFilters', () => {
       { id: 'st', type: 'stretch' as any, enabled: true, params: { angle: Number.POSITIVE_INFINITY, amount: -2, strength: 2 } },
       { id: 'ms', type: 'multi_slicer' as any, enabled: true, params: { angle: Number.POSITIVE_INFINITY, offset: -20, slices: 1, expansion: -4, strength: 2 } },
       { id: 'oct', type: 'oct_transform' as any, enabled: true, params: { scale: 0, rotation: Number.POSITIVE_INFINITY, vertexCount: 2, warp: -1, strength: 2 } },
+      { id: 'ae', type: 'area_expand' as any, enabled: true, params: { top: -1, bottom: Number.POSITIVE_INFINITY, left: -2, right: 3, fill: 'yes' } },
       { id: '', type: 'not-a-filter' as never, enabled: true, params: {} as never }
     ] as ObjectFilter[]);
-    expect(result).toHaveLength(9);
+    expect(result).toHaveLength(10);
     if (result[0].type !== 'fade') throw new Error('expected fade');
     expect(result[0].params.opacity).toBe(1);
     if (result[1].type !== 'colour_aberration') throw new Error('expected colour aberration');
@@ -152,6 +162,8 @@ describe('normaliseObjectFilters', () => {
     expect(result[7].params).toEqual({ angle: 45, offset: 0, slices: 2, expansion: 0, strength: 1 });
     if (result[8].type !== 'oct_transform') throw new Error('expected oct transform');
     expect(result[8].params).toEqual({ scale: 0.01, rotation: 0, vertexCount: 3, warp: 0, strength: 1 });
+    if (result[9].type !== 'area_expand') throw new Error('expected area expand');
+    expect(result[9].params).toEqual({ top: 0, bottom: 0, left: 0, right: 3, fill: true });
   });
 });
 

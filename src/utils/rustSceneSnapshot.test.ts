@@ -3844,6 +3844,42 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('serialises 93 領域拡張S filters as Rust scene effects', () => {
+    const layers = createDefaultLayers();
+    const expanded = baseImage({
+      id: 'area-expanded',
+      filters: [
+        {
+          id: 'area-expand-1',
+          type: 'area_expand',
+          enabled: true,
+          params: { top: 1, bottom: 2, left: 3, right: 4, fill: true },
+        } as any,
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [expanded],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected area expand snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([
+      {
+        AreaExpand: {
+          top: 1,
+          bottom: 2,
+          left: 3,
+          right: 4,
+          fill: true,
+        },
+      },
+    ]);
+  });
+
   it('fails loud for visible Pixi features the shared renderer cannot represent yet', () => {
     const layers = createDefaultLayers();
     const unsupportedText: TimelineObject = {

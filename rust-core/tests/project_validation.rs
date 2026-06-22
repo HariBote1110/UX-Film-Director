@@ -296,6 +296,34 @@ fn rejects_invalid_oct_transform_effect_values() {
 }
 
 #[test]
+fn accepts_finite_area_expand_effect_values() {
+    let mut project = valid_project();
+    project.tracks[0].clips[0].effects.push(Effect::AreaExpand {
+        top: 1.0,
+        bottom: 2.0,
+        left: 3.0,
+        right: 4.0,
+        fill: true,
+    });
+
+    assert!(validate_project(&project).is_ok());
+}
+
+#[test]
+fn rejects_invalid_area_expand_effect_values() {
+    let mut project = valid_project();
+    project.tracks[0].clips[0].effects.push(Effect::AreaExpand {
+        top: -1.0,
+        bottom: f32::NAN,
+        left: -2.0,
+        right: 4.0,
+        fill: true,
+    });
+
+    assert!(validation_codes(&project).contains(&ValidationCode::NonFiniteNumber));
+}
+
+#[test]
 fn rejects_invalid_wipe_effect_progress() {
     let mut project = valid_project();
     project.tracks[0].clips[0].effects.push(Effect::Wipe {

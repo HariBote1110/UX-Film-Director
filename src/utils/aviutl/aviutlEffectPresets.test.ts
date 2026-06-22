@@ -46,7 +46,8 @@ describe('AviUtlPackV4 effect presets', () => {
       { id: '93-auto-blur-plus-motion', sourceCandidateId: '93-auto-blur-plus', filterType: 'auto_blur' },
       { id: '93-stretch-directional', sourceCandidateId: '93-stretch', filterType: 'stretch' },
       { id: '93-multi-slicer-basic', sourceCandidateId: '93-multi-slicer', filterType: 'multi_slicer' },
-      { id: '93-oct-transform-basic', sourceCandidateId: '93-oct-transform', filterType: 'oct_transform' }
+      { id: '93-oct-transform-basic', sourceCandidateId: '93-oct-transform', filterType: 'oct_transform' },
+      { id: '93-area-expand-s-fill', sourceCandidateId: '93-area-expand-s', filterType: 'area_expand' }
     ]);
   });
 
@@ -105,6 +106,11 @@ describe('AviUtlPackV4 effect presets', () => {
       type: 'oct_transform',
       enabled: true,
       params: { scale: 1, rotation: 0, vertexCount: 8, warp: 0.2, strength: 1 }
+    });
+    expect(buildAviUtlEffectPresetFilter('93-area-expand-s-fill')).toMatchObject({
+      type: 'area_expand',
+      enabled: true,
+      params: { top: 0, bottom: 0, left: 0, right: 32, fill: true }
     });
   });
 
