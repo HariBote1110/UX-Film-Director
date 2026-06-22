@@ -3037,6 +3037,119 @@ const PropertyPanel: React.FC = () => {
                          onChange={(e) => updateObject(selectedObject.id, { gridEnabled: e.target.checked } as Partial<TimelineObject>)}
                      />
                  </Row>
+                 <Row label="Separate Interval">
+                     <input
+                         type="number"
+                         min="1"
+                         max="1000"
+                         step="1"
+                         value={(selectedObject as HksyCheckerGridObject).separateInterval ?? 5}
+                         onChange={(e) => {
+                             const next = Math.round(clamp(toNumberOr(e.target.value, 5), 1, 1000));
+                             updateObject(selectedObject.id, { separateInterval: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Separate Line Width">
+                     <input
+                         type="number"
+                         min="0"
+                         max="100"
+                         step="1"
+                         value={(selectedObject as HksyCheckerGridObject).separateLineWidth ?? 3}
+                         onChange={(e) => {
+                             const next = Math.round(clamp(toNumberOr(e.target.value, 3), 0, 100));
+                             updateObject(selectedObject.id, { separateLineWidth: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Anchor A X">
+                     <input
+                         type="number"
+                         min="-1000"
+                         max="1000"
+                         step="1"
+                         value={(selectedObject as HksyCheckerGridObject).anchorPoints?.[0]?.x ?? -88}
+                         onChange={(e) => {
+                             const points = [...((selectedObject as HksyCheckerGridObject).anchorPoints ?? [{ x: -88, y: 50 }, { x: 0, y: -100 }, { x: 88, y: 50 }])];
+                             const next = clamp(toNumberOr(e.target.value, -88), -1000, 1000);
+                             points[0] = { ...(points[0] ?? { x: -88, y: 50 }), x: next };
+                             updateObject(selectedObject.id, { anchorPoints: points } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Anchor A Y">
+                     <input
+                         type="number"
+                         min="-1000"
+                         max="1000"
+                         step="1"
+                         value={(selectedObject as HksyCheckerGridObject).anchorPoints?.[0]?.y ?? 50}
+                         onChange={(e) => {
+                             const points = [...((selectedObject as HksyCheckerGridObject).anchorPoints ?? [{ x: -88, y: 50 }, { x: 0, y: -100 }, { x: 88, y: 50 }])];
+                             const next = clamp(toNumberOr(e.target.value, 50), -1000, 1000);
+                             points[0] = { ...(points[0] ?? { x: -88, y: 50 }), y: next };
+                             updateObject(selectedObject.id, { anchorPoints: points } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Anchor B X">
+                     <input
+                         type="number"
+                         min="-1000"
+                         max="1000"
+                         step="1"
+                         value={(selectedObject as HksyCheckerGridObject).anchorPoints?.[1]?.x ?? 0}
+                         onChange={(e) => {
+                             const points = [...((selectedObject as HksyCheckerGridObject).anchorPoints ?? [{ x: -88, y: 50 }, { x: 0, y: -100 }, { x: 88, y: 50 }])];
+                             const next = clamp(toNumberOr(e.target.value, 0), -1000, 1000);
+                             points[1] = { ...(points[1] ?? { x: 0, y: -100 }), x: next };
+                             updateObject(selectedObject.id, { anchorPoints: points } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Anchor B Y">
+                     <input
+                         type="number"
+                         min="-1000"
+                         max="1000"
+                         step="1"
+                         value={(selectedObject as HksyCheckerGridObject).anchorPoints?.[1]?.y ?? -100}
+                         onChange={(e) => {
+                             const points = [...((selectedObject as HksyCheckerGridObject).anchorPoints ?? [{ x: -88, y: 50 }, { x: 0, y: -100 }, { x: 88, y: 50 }])];
+                             const next = clamp(toNumberOr(e.target.value, -100), -1000, 1000);
+                             points[1] = { ...(points[1] ?? { x: 0, y: -100 }), y: next };
+                             updateObject(selectedObject.id, { anchorPoints: points } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Round Caps">
+                     <input
+                         type="checkbox"
+                         checked={(selectedObject as HksyCheckerGridObject).roundCaps ?? true}
+                         onChange={(e) => updateObject(selectedObject.id, { roundCaps: e.target.checked } as Partial<TimelineObject>)}
+                     />
+                 </Row>
+                 <Row label="Max Join Distance">
+                     <input
+                         type="number"
+                         min="0"
+                         max="300"
+                         step="1"
+                         value={(selectedObject as HksyCheckerGridObject).maxJoinDistance ?? 50}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 50), 0, 300);
+                             updateObject(selectedObject.id, { maxJoinDistance: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
                  <Row label="Foreground Colour">
                      <input
                          type="color"
