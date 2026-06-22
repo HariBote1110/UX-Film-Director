@@ -2639,6 +2639,154 @@ const PropertyPanel: React.FC = () => {
 
          {selectedObject.type === 'getcolor_dot_field' && (
              <>
+                 <SectionHeader label="GetColor Dot Field" />
+                 <Row label="Columns">
+                     <input
+                         type="number"
+                         min="1"
+                         max="512"
+                         step="1"
+                         value={(selectedObject as GetColorDotFieldObject).columns}
+                         onChange={(e) => {
+                             const next = Math.round(clamp(toNumberOr(e.target.value, 32), 1, 512));
+                             updateObject(selectedObject.id, { columns: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '70px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Rows">
+                     <input
+                         type="number"
+                         min="1"
+                         max="512"
+                         step="1"
+                         value={(selectedObject as GetColorDotFieldObject).rows}
+                         onChange={(e) => {
+                             const next = Math.round(clamp(toNumberOr(e.target.value, 18), 1, 512));
+                             updateObject(selectedObject.id, { rows: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '70px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Dot Size">
+                     <input
+                         type="number"
+                         min="0"
+                         max="2000"
+                         step="0.5"
+                         value={(selectedObject as GetColorDotFieldObject).dotSize}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 14), 0, 2000);
+                             updateObject(selectedObject.id, { dotSize: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '70px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Dot Shape">
+                     <select
+                         value={(selectedObject as GetColorDotFieldObject).dotShape ?? 'circle'}
+                         onChange={(e) => handleChange('dotShape', e.target.value as GetColorDotFieldObject['dotShape'])}
+                         style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     >
+                         <option value="circle">Circle</option>
+                         <option value="square">Square</option>
+                         <option value="diamond">Diamond</option>
+                     </select>
+                 </Row>
+                 <Row label="Stroke Width">
+                     <input
+                         type="number"
+                         min="0"
+                         max="200"
+                         step="0.5"
+                         value={(selectedObject as GetColorDotFieldObject).strokeWidth ?? 0}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 0), 0, 200);
+                             updateObject(selectedObject.id, { strokeWidth: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '70px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Size Influence">
+                     <Slider
+                         min="0"
+                         max="4"
+                         step="0.01"
+                         value={(selectedObject as GetColorDotFieldObject).sizeInfluence}
+                         onInput={(e) => {
+                             const next = clamp(toNumberOr(e.currentTarget.value, 0.65), 0, 4);
+                             updateObject(selectedObject.id, { sizeInfluence: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '100%' }}
+                     />
+                 </Row>
+                 <Row label="Luminance Influence">
+                     <Slider
+                         min="0"
+                         max="4"
+                         step="0.01"
+                         value={(selectedObject as GetColorDotFieldObject).luminanceInfluence}
+                         onInput={(e) => {
+                             const next = clamp(toNumberOr(e.currentTarget.value, 0.7), 0, 4);
+                             updateObject(selectedObject.id, { luminanceInfluence: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '100%' }}
+                     />
+                 </Row>
+                 <Row label="Hue Shift">
+                     <input
+                         type="number"
+                         min="-720"
+                         max="720"
+                         step="1"
+                         value={(selectedObject as GetColorDotFieldObject).hueShiftDegrees}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 0), -720, 720);
+                             updateObject(selectedObject.id, { hueShiftDegrees: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Alternate Rows">
+                     <input
+                         type="checkbox"
+                         checked={(selectedObject as GetColorDotFieldObject).alternateRows}
+                         onChange={(e) => updateObject(selectedObject.id, { alternateRows: e.target.checked } as Partial<TimelineObject>)}
+                     />
+                 </Row>
+                 <Row label="Foreground Colour">
+                     <input
+                         type="color"
+                         value={(selectedObject as GetColorDotFieldObject).foregroundColour}
+                         onChange={(e) => handleChange('foregroundColour', e.target.value)}
+                     />
+                 </Row>
+                 <Row label="Secondary Colour">
+                     <input
+                         type="color"
+                         value={(selectedObject as GetColorDotFieldObject).secondaryColour}
+                         onChange={(e) => handleChange('secondaryColour', e.target.value)}
+                     />
+                 </Row>
+                 <Row label="Background Colour">
+                     <input
+                         type="color"
+                         value={(selectedObject as GetColorDotFieldObject).backgroundColour}
+                         onChange={(e) => handleChange('backgroundColour', e.target.value)}
+                     />
+                 </Row>
+                 <Row label="Seed">
+                     <input
+                         type="number"
+                         step="1"
+                         value={(selectedObject as GetColorDotFieldObject).seed}
+                         onChange={(e) => {
+                             const next = Math.round(toNumberOr(e.target.value, 93));
+                             updateObject(selectedObject.id, { seed: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
                  <SectionHeader label="GetColor Sampling" />
                  <Row label="Sample Layer">
                      <input
