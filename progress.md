@@ -1,3 +1,20 @@
+## 2026-06-22 — フェーズ3: Rust backendのHK-SY Checker Grid描画をgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `build_generated_hksy_checker_grid_source_frame` を `rust-backend/src/generated.rs` へ抽出した。
+- diamond、measured-grid、anchor-line用のHK-SY専用helperと `HksyMeasuredGridStyle` を `generated.rs` にまとめた。
+- `fill_disc_rgba` を `generated.rs` の `pub(crate)` helperへ移し、tube/sphere/GetColor系の後続分割でも共有できる位置にした。
+- `main.rs` は 3,394 行から 3,011 行になった。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はsimple tube、sphere dots、spherical field、GetColorDotsの生成フレーム描画関数をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのRegionFrame描画をgenerated.rsへ分離
 
 ### 実施内容
