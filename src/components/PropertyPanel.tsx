@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState, PsdWorldPlacement, VideoObject, ParticleObject, GetColorDotFieldObject, PlainEffectorLineObject } from '../types';
+import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState, PsdWorldPlacement, VideoObject, ParticleObject, GetColorDotFieldObject, PlainEffectorLineObject, ShatteredSphereObject } from '../types';
 import { buildPsdLayerTree, togglePsdLayer } from '../utils/psdParser';
 import { easingNames, EasingType } from '../utils/easings';
 import { buildEndpointKeyframes, evaluateObjectPositionAtTime } from '../utils/keyframes';
@@ -2805,6 +2805,227 @@ const PropertyPanel: React.FC = () => {
                              updateObject(selectedObject.id, { colourAmount: next } as Partial<TimelineObject>);
                          }}
                          style={{ width: '100%' }}
+                     />
+                 </Row>
+             </>
+         )}
+
+         {selectedObject.type === 'shattered_sphere' && (
+             <>
+                 <SectionHeader label="Shattered Sphere Settings" />
+                 <Row label="Fracture Amount">
+                     <input
+                         type="number"
+                         min="0"
+                         max="5000"
+                         step="1"
+                         value={(selectedObject as ShatteredSphereObject).fractureAmount}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 100), 0, 5000);
+                             updateObject(selectedObject.id, { fractureAmount: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Delay">
+                     <input
+                         type="number"
+                         min="0"
+                         max="1000"
+                         step="1"
+                         value={(selectedObject as ShatteredSphereObject).delay}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 100), 0, 1000);
+                             updateObject(selectedObject.id, { delay: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Radius">
+                     <input
+                         type="number"
+                         min="1"
+                         max="10000"
+                         step="1"
+                         value={(selectedObject as ShatteredSphereObject).radius}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 160), 1, 10000);
+                             updateObject(selectedObject.id, { radius: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Limit Distance">
+                     <input
+                         type="number"
+                         min="0"
+                         max="10000"
+                         step="1"
+                         value={(selectedObject as ShatteredSphereObject).limitDistance}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 150), 0, 10000);
+                             updateObject(selectedObject.id, { limitDistance: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Thickness">
+                     <input
+                         type="number"
+                         min="0"
+                         max="1000"
+                         step="1"
+                         value={(selectedObject as ShatteredSphereObject).thickness}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 20), 0, 1000);
+                             updateObject(selectedObject.id, { thickness: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Fragment Size">
+                     <input
+                         type="number"
+                         min="1"
+                         max="1000"
+                         step="1"
+                         value={(selectedObject as ShatteredSphereObject).fragmentSize}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 40), 1, 1000);
+                             updateObject(selectedObject.id, { fragmentSize: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Random Shape">
+                     <input
+                         type="number"
+                         min="0"
+                         max="100"
+                         step="1"
+                         value={(selectedObject as ShatteredSphereObject).randomShape}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 100), 0, 100);
+                             updateObject(selectedObject.id, { randomShape: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Speed">
+                     <input
+                         type="number"
+                         min="0"
+                         max="1000"
+                         step="1"
+                         value={(selectedObject as ShatteredSphereObject).speed}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 100), 0, 1000);
+                             updateObject(selectedObject.id, { speed: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Impact">
+                     <input
+                         type="number"
+                         min="0"
+                         max="1000"
+                         step="1"
+                         value={(selectedObject as ShatteredSphereObject).impact}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 100), 0, 1000);
+                             updateObject(selectedObject.id, { impact: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Gravity X">
+                     <input
+                         type="number"
+                         min="-1000"
+                         max="1000"
+                         step="1"
+                         value={(selectedObject as ShatteredSphereObject).gravityX}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 0), -1000, 1000);
+                             updateObject(selectedObject.id, { gravityX: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Gravity Y">
+                     <input
+                         type="number"
+                         min="-1000"
+                         max="1000"
+                         step="1"
+                         value={(selectedObject as ShatteredSphereObject).gravityY}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 100), -1000, 1000);
+                             updateObject(selectedObject.id, { gravityY: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Gravity Z">
+                     <input
+                         type="number"
+                         min="-1000"
+                         max="1000"
+                         step="1"
+                         value={(selectedObject as ShatteredSphereObject).gravityZ}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 0), -1000, 1000);
+                             updateObject(selectedObject.id, { gravityZ: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Spin">
+                     <input
+                         type="number"
+                         min="0"
+                         max="1000"
+                         step="1"
+                         value={(selectedObject as ShatteredSphereObject).spin}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 100), 0, 1000);
+                             updateObject(selectedObject.id, { spin: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Direction Diffusion">
+                     <input
+                         type="number"
+                         min="0"
+                         max="1000"
+                         step="1"
+                         value={(selectedObject as ShatteredSphereObject).directionDiffusion}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 100), 0, 1000);
+                             updateObject(selectedObject.id, { directionDiffusion: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Colour">
+                     <input
+                         type="color"
+                         value={(selectedObject as ShatteredSphereObject).colour}
+                         onChange={(e) => handleChange('colour', e.target.value)}
+                     />
+                 </Row>
+                 <Row label="Seed">
+                     <input
+                         type="number"
+                         step="1"
+                         value={(selectedObject as ShatteredSphereObject).seed}
+                         onChange={(e) => {
+                             const next = Math.round(toNumberOr(e.target.value, 93));
+                             updateObject(selectedObject.id, { seed: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
                      />
                  </Row>
              </>
