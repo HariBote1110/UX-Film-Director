@@ -287,6 +287,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '指定角度方向に素材を伸ばす表現を、Rust/WebGPUの中心基準方向ストレッチとして標準搭載する。'
   },
   {
+    id: '93-multi-slicer',
+    labelJa: '93 MultiSlicer',
+    category: 'visual-effect',
+    phase: 'P1',
+    implementationTarget: 'rust-webgpu-effect',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/@MultiSlicer.anm'],
+    rationaleJa: '素材を複数スライスへ分けて交互にずらす演出を、Rust/WebGPUの縞状サンプルオフセットとして標準搭載する。'
+  },
+  {
     id: '93-region-frame-ellipse',
     labelJa: '93 領域枠(楕円)',
     category: 'generated-object',

@@ -77,7 +77,8 @@ export type RustEffect =
   | { DisplacementMap: { amount_x: number; amount_y: number; size: number; strength: number } }
   | { FakeDof: { focus_x: number; focus_y: number; focus_radius: number; blur: number; strength: number } }
   | { AutoBlur: { angle_degrees: number; radius: number; strength: number; colour_shift: number } }
-  | { Stretch: { angle_degrees: number; amount: number; strength: number } };
+  | { Stretch: { angle_degrees: number; amount: number; strength: number } }
+  | { MultiSlicer: { angle_degrees: number; offset: number; slices: number; expansion: number; strength: number } };
 
 export interface RustEvaluatedClip {
   clip_id: string;
@@ -337,6 +338,7 @@ const collectBuildIssues = (
       && filter.type !== 'fake_dof'
       && filter.type !== 'auto_blur'
       && filter.type !== 'stretch'
+      && filter.type !== 'multi_slicer'
       && !(object.type === 'shape' && filter.type === 'gradient')
     ));
     if (unsupportedFilter) {
@@ -446,6 +448,17 @@ const rustEffectsForObject = (object: TimelineObject, time: number): RustEffect[
         Stretch: {
           angle_degrees: finiteNumberOr(filter.params.angle, 0),
           amount: Math.max(0, finiteNumberOr(filter.params.amount, 1)),
+          strength: Math.max(0, Math.min(1, finiteNumberOr(filter.params.strength, 1))),
+        },
+      });
+    }
+    if (filter.type === 'multi_slicer') {
+      effects.push({
+        MultiSlicer: {
+          angle_degrees: finiteNumberOr(filter.params.angle, 45),
+          offset: Math.max(0, finiteNumberOr(filter.params.offset, 16)),
+          slices: Math.max(2, Math.round(finiteNumberOr(filter.params.slices, 18))),
+          expansion: Math.max(0, finiteNumberOr(filter.params.expansion, 0)),
           strength: Math.max(0, Math.min(1, finiteNumberOr(filter.params.strength, 1))),
         },
       });
@@ -1834,6 +1847,14 @@ const validateEffects = (
       validateFiniteNumber(effect.Stretch.angle_degrees, `${effectPath}.Stretch.angle_degrees`, issues);
       validateFiniteNumber(effect.Stretch.amount, `${effectPath}.Stretch.amount`, issues);
       validateUnitInterval(effect.Stretch.strength, `${effectPath}.Stretch.strength`, issues);
+      return;
+    }
+    if (isRecord(effect.MultiSlicer)) {
+      validateFiniteNumber(effect.MultiSlicer.angle_degrees, `${effectPath}.MultiSlicer.angle_degrees`, issues);
+      validateFiniteNumber(effect.MultiSlicer.offset, `${effectPath}.MultiSlicer.offset`, issues);
+      validateFiniteNumber(effect.MultiSlicer.slices, `${effectPath}.MultiSlicer.slices`, issues);
+      validateFiniteNumber(effect.MultiSlicer.expansion, `${effectPath}.MultiSlicer.expansion`, issues);
+      validateUnitInterval(effect.MultiSlicer.strength, `${effectPath}.MultiSlicer.strength`, issues);
       return;
     }
     addIssue(issues, 'schemaMismatch', effectPath, 'Unknown Rust effect.');

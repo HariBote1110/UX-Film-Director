@@ -11,7 +11,8 @@ import {
   DisplacementMapFilterParams,
   FakeDofFilterParams,
   AutoBlurFilterParams,
-  StretchFilterParams
+  StretchFilterParams,
+  MultiSlicerFilterParams
 } from '../types';
 
 const DEFAULT_COLOR_CORRECTION: Omit<ColorCorrection, 'enabled'> = {
@@ -111,6 +112,14 @@ const DEFAULT_STRETCH: StretchFilterParams = {
   strength: 1
 };
 
+const DEFAULT_MULTI_SLICER: MultiSlicerFilterParams = {
+  angle: 45,
+  offset: 16,
+  slices: 18,
+  expansion: 0,
+  strength: 1
+};
+
 const createFilterId = (type: FilterType): string => {
   return `${type}-${crypto.randomUUID()}`;
 };
@@ -142,7 +151,8 @@ const isFilterType = (value: unknown): value is FilterType => {
     || value === 'displacement_map'
     || value === 'fake_dof'
     || value === 'auto_blur'
-    || value === 'stretch';
+    || value === 'stretch'
+    || value === 'multi_slicer';
 };
 
 const normaliseOutlineParams = (params: unknown): import('../types').OutlineFilterParams => {
@@ -241,6 +251,17 @@ const normaliseStretchParams = (params: unknown): StretchFilterParams => {
     angle: toNumber(source.angle, DEFAULT_STRETCH.angle),
     amount: Math.max(0, toNumber(source.amount, DEFAULT_STRETCH.amount)),
     strength: Math.max(0, Math.min(1, toNumber(source.strength, DEFAULT_STRETCH.strength)))
+  };
+};
+
+const normaliseMultiSlicerParams = (params: unknown): MultiSlicerFilterParams => {
+  const source = isRecord(params) ? params : {};
+  return {
+    angle: toNumber(source.angle, DEFAULT_MULTI_SLICER.angle),
+    offset: Math.max(0, toNumber(source.offset, DEFAULT_MULTI_SLICER.offset)),
+    slices: Math.max(2, Math.round(toNumber(source.slices, DEFAULT_MULTI_SLICER.slices))),
+    expansion: Math.max(0, toNumber(source.expansion, DEFAULT_MULTI_SLICER.expansion)),
+    strength: Math.max(0, Math.min(1, toNumber(source.strength, DEFAULT_MULTI_SLICER.strength)))
   };
 };
 
@@ -425,6 +446,13 @@ export const createDefaultFilter = (type: FilterType): ObjectFilter => {
         enabled: true,
         params: { ...DEFAULT_STRETCH }
       };
+    case 'multi_slicer':
+      return {
+        id: createFilterId(type),
+        type,
+        enabled: true,
+        params: { ...DEFAULT_MULTI_SLICER }
+      };
     default:
       return {
         id: createFilterId('color_correction'),
@@ -547,6 +575,13 @@ const normaliseFilter = (value: unknown): ObjectFilter | null => {
         type: 'stretch',
         enabled,
         params: normaliseStretchParams(value.params)
+      };
+    case 'multi_slicer':
+      return {
+        id,
+        type: 'multi_slicer',
+        enabled,
+        params: normaliseMultiSlicerParams(value.params)
       };
     default:
       return null;

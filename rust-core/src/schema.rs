@@ -217,6 +217,13 @@ pub enum Effect {
         amount: f32,
         strength: f32,
     },
+    MultiSlicer {
+        angle_degrees: f32,
+        offset: f32,
+        slices: u32,
+        expansion: f32,
+        strength: f32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

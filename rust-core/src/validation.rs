@@ -235,6 +235,23 @@ fn effect_is_finite(effect: &crate::schema::Effect) -> bool {
                 && *strength >= 0.0
                 && *strength <= 1.0
         }
+        crate::schema::Effect::MultiSlicer {
+            angle_degrees,
+            offset,
+            slices,
+            expansion,
+            strength,
+        } => {
+            angle_degrees.is_finite()
+                && offset.is_finite()
+                && *offset >= 0.0
+                && *slices >= 2
+                && expansion.is_finite()
+                && *expansion >= 0.0
+                && strength.is_finite()
+                && *strength >= 0.0
+                && *strength <= 1.0
+        }
     }
 }
 

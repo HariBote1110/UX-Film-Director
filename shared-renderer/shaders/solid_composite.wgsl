@@ -38,6 +38,11 @@ struct RenderParams {
     stretch_angle: f32,
     stretch_amount: f32,
     stretch_strength: f32,
+    multi_slicer_angle: f32,
+    multi_slicer_offset: f32,
+    multi_slicer_slices: f32,
+    multi_slicer_expansion: f32,
+    multi_slicer_strength: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -95,7 +100,7 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
         return vec4<f32>(0.0);
     }
 
-    let displaced_source_position = displaced_position(stretched_position(source_position));
+    let displaced_source_position = displaced_position(stretched_position(multi_sliced_position(source_position)));
     let source = sample_source_with_fake_dof(displaced_source_position);
     let aberration_offset = vec2<f32>(
         params.colour_aberration_offset_x,
@@ -143,6 +148,23 @@ fn stretched_position(source_position: vec2<f32>) -> vec2<f32> {
     let across = dot(relative, perpendicular);
     let scale = 1.0 + params.stretch_amount * params.stretch_strength;
     return clamp_source_position(centre + direction * (along / scale) + perpendicular * across);
+}
+
+fn multi_sliced_position(source_position: vec2<f32>) -> vec2<f32> {
+    if params.multi_slicer_strength <= 0.0 || params.multi_slicer_offset <= 0.0 || params.multi_slicer_slices < 2.0 {
+        return source_position;
+    }
+    let direction = vec2<f32>(cos(params.multi_slicer_angle), sin(params.multi_slicer_angle));
+    let perpendicular = vec2<f32>(-direction.y, direction.x);
+    let centre = vec2<f32>(params.source_width - 1.0, params.source_height - 1.0) * 0.5;
+    let span = max(abs(dot(vec2<f32>(params.source_width, params.source_height), abs(perpendicular))), 1.0);
+    let relative = source_position - centre;
+    let slice_coord = dot(relative, perpendicular) + span * 0.5;
+    let slice_size = max(span / max(params.multi_slicer_slices, 2.0), 1.0);
+    let slice_index = floor(slice_coord / slice_size);
+    let sign = select(-1.0, 1.0, (slice_index - floor(slice_index / 2.0) * 2.0) < 0.5);
+    let offset = direction * sign * (params.multi_slicer_offset + params.multi_slicer_expansion) * params.multi_slicer_strength;
+    return clamp_source_position(source_position + offset);
 }
 
 fn sample_source_with_fake_dof(source_position: vec2<f32>) -> vec4<f32> {

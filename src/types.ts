@@ -140,7 +140,8 @@ export type FilterType =
   | 'displacement_map'
   | 'fake_dof'
   | 'auto_blur'
-  | 'stretch';
+  | 'stretch'
+  | 'multi_slicer';
 
 /** プレビュー／書き出し共通の仮想カメラ（シーン単位） */
 export interface CameraState {
@@ -214,6 +215,14 @@ export interface AutoBlurFilterParams {
 export interface StretchFilterParams {
   angle: number;
   amount: number;
+  strength: number;
+}
+
+export interface MultiSlicerFilterParams {
+  angle: number;
+  offset: number;
+  slices: number;
+  expansion: number;
   strength: number;
 }
 
@@ -298,6 +307,11 @@ export interface StretchObjectFilter extends BaseFilter {
   params: StretchFilterParams;
 }
 
+export interface MultiSlicerObjectFilter extends BaseFilter {
+  type: 'multi_slicer';
+  params: MultiSlicerFilterParams;
+}
+
 export type ObjectFilter =
   | ColorCorrectionFilter
   | ColourAberrationFilter
@@ -313,7 +327,8 @@ export type ObjectFilter =
   | DisplacementMapObjectFilter
   | FakeDofObjectFilter
   | AutoBlurObjectFilter
-  | StretchObjectFilter;
+  | StretchObjectFilter
+  | MultiSlicerObjectFilter;
 
 // --- オブジェクト定義 ---
 

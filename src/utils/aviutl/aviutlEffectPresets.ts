@@ -10,7 +10,8 @@ export type AviUtlEffectPresetId =
   | '93-displacement-map-b-wave'
   | '93-fake-dof2-focus'
   | '93-auto-blur-plus-motion'
-  | '93-stretch-directional';
+  | '93-stretch-directional'
+  | '93-multi-slicer-basic';
 
 export interface AviUtlEffectPreset {
   id: AviUtlEffectPresetId;
@@ -24,7 +25,8 @@ export interface AviUtlEffectPreset {
     | '93-displacement-map-b'
     | '93-fake-dof2'
     | '93-auto-blur-plus'
-    | '93-stretch';
+    | '93-stretch'
+    | '93-multi-slicer';
   filterType: FilterType;
 }
 
@@ -82,6 +84,12 @@ const presets: AviUtlEffectPreset[] = [
     labelJa: '93 Stretch',
     sourceCandidateId: '93-stretch',
     filterType: 'stretch'
+  },
+  {
+    id: '93-multi-slicer-basic',
+    labelJa: '93 MultiSlicer',
+    sourceCandidateId: '93-multi-slicer',
+    filterType: 'multi_slicer'
   }
 ];
 
@@ -190,6 +198,20 @@ export const buildAviUtlEffectPresetFilter = (presetId: AviUtlEffectPresetId): O
         params: {
           angle: 0,
           amount: 1,
+          strength: 1
+        }
+      };
+    }
+    case '93-multi-slicer-basic': {
+      return {
+        id: `aviutl-${presetId}`,
+        type: 'multi_slicer',
+        enabled: true,
+        params: {
+          angle: 45,
+          offset: 16,
+          slices: 18,
+          expansion: 0,
           strength: 1
         }
       };

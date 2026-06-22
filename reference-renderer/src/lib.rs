@@ -78,6 +78,7 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::FakeDof { .. } => 1.0,
         Effect::AutoBlur { .. } => 1.0,
         Effect::Stretch { .. } => 1.0,
+        Effect::MultiSlicer { .. } => 1.0,
     }
 }
 

@@ -293,6 +293,11 @@ impl NativeWgpuRenderer {
                     stretch_angle: stretch_angle(clip),
                     stretch_amount: stretch_amount(clip),
                     stretch_strength: stretch_strength(clip),
+                    multi_slicer_angle: multi_slicer_angle(clip),
+                    multi_slicer_offset: multi_slicer_offset(clip),
+                    multi_slicer_slices: multi_slicer_slices(clip),
+                    multi_slicer_expansion: multi_slicer_expansion(clip),
+                    multi_slicer_strength: multi_slicer_strength(clip),
                     source_width: source.width as f32,
                     source_height: source.height as f32,
                     translation_x: clip.transform.translation_x,
@@ -801,6 +806,11 @@ struct RenderParams {
     stretch_angle: f32,
     stretch_amount: f32,
     stretch_strength: f32,
+    multi_slicer_angle: f32,
+    multi_slicer_offset: f32,
+    multi_slicer_slices: f32,
+    multi_slicer_expansion: f32,
+    multi_slicer_strength: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -1079,6 +1089,7 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::FakeDof { .. } => 1.0,
         Effect::AutoBlur { .. } => 1.0,
         Effect::Stretch { .. } => 1.0,
+        Effect::MultiSlicer { .. } => 1.0,
     }
 }
 
@@ -1383,6 +1394,63 @@ fn stretch_strength(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
         .iter()
         .filter_map(|effect| match effect {
             Effect::Stretch { strength, .. } => Some(*strength),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .clamp(0.0, 1.0)
+}
+
+fn multi_slicer_angle(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::MultiSlicer { angle_degrees, .. } => Some(angle_degrees.to_radians()),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+}
+
+fn multi_slicer_offset(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::MultiSlicer { offset, .. } => Some(*offset),
+            _ => None,
+        })
+        .sum::<f32>()
+        .max(0.0)
+}
+
+fn multi_slicer_slices(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::MultiSlicer { slices, .. } => Some(*slices as f32),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .max(0.0)
+}
+
+fn multi_slicer_expansion(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::MultiSlicer { expansion, .. } => Some(*expansion),
+            _ => None,
+        })
+        .sum::<f32>()
+        .max(0.0)
+}
+
+fn multi_slicer_strength(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::MultiSlicer { strength, .. } => Some(*strength),
             _ => None,
         })
         .last()

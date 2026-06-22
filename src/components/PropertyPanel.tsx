@@ -446,7 +446,8 @@ const PropertyPanel: React.FC = () => {
     displacement_map: language === 'en' ? '93 Displacement Map B' : '93 ディスプレイスメントマップB',
     fake_dof: language === 'en' ? '93 Fake DOF2' : '93 偽被写界深度2',
     auto_blur: language === 'en' ? '93 Auto Blur+' : '93 オートブラー+',
-    stretch: language === 'en' ? '93 Stretch' : '93 Stretch'
+    stretch: language === 'en' ? '93 Stretch' : '93 Stretch',
+    multi_slicer: language === 'en' ? '93 MultiSlicer' : '93 MultiSlicer'
   };
   const canUseGradientFilter = selectedObject.type === 'shape';
   const currentGroupId = selectedObject.groupId ?? null;
@@ -1381,6 +1382,7 @@ const PropertyPanel: React.FC = () => {
             <button type="button" onClick={() => handleAddFilter('fake_dof')}>+ {filterLabel.fake_dof}</button>
             <button type="button" onClick={() => handleAddFilter('auto_blur')}>+ {filterLabel.auto_blur}</button>
             <button type="button" onClick={() => handleAddFilter('stretch')}>+ {filterLabel.stretch}</button>
+            <button type="button" onClick={() => handleAddFilter('multi_slicer')}>+ {filterLabel.multi_slicer}</button>
             {canUseGradientFilter && (
                 <button type="button" onClick={() => handleAddFilter('gradient')}>+ {filterLabel.gradient}</button>
             )}
@@ -1957,6 +1959,60 @@ const PropertyPanel: React.FC = () => {
                                 step="0.05"
                                 value={activeFilter.params.amount}
                                 onInput={(e) => handleFilterParamChange(activeFilter, { amount: parseFloat(e.currentTarget.value) })}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                        <Row label="Strength">
+                            <Slider
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                value={activeFilter.params.strength}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { strength: parseFloat(e.currentTarget.value) })}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                    </>
+                )}
+                {activeFilter.type === 'multi_slicer' && (
+                    <>
+                        <Row label="Angle">
+                            <Slider
+                                min="-360"
+                                max="360"
+                                step="1"
+                                value={activeFilter.params.angle}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { angle: parseFloat(e.currentTarget.value) })}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                        <Row label="Offset">
+                            <Slider
+                                min="0"
+                                max="128"
+                                step="1"
+                                value={activeFilter.params.offset}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { offset: parseFloat(e.currentTarget.value) })}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                        <Row label="Slices">
+                            <input
+                                type="number"
+                                min={2}
+                                max={100}
+                                value={activeFilter.params.slices}
+                                onChange={(e) => handleFilterParamChange(activeFilter, { slices: Math.round(parseFloat(e.target.value) || 18) })}
+                                style={{ width: '64px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                            />
+                        </Row>
+                        <Row label="Expansion">
+                            <Slider
+                                min="0"
+                                max="128"
+                                step="1"
+                                value={activeFilter.params.expansion}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { expansion: parseFloat(e.currentTarget.value) })}
                                 style={{ width: '100%' }}
                             />
                         </Row>
