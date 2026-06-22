@@ -25,6 +25,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('buildAviUtlSimpleTubeObject');
     expect(code).toContain('buildAviUtlSimpleTubeTorusObject');
     expect(code).toContain('buildAviUtlSphereDotsObject');
+    expect(code).toContain('buildAviUtlSPFieldObject');
     expect(code).toContain('buildAviUtlSphericalFieldObject');
     expect(code).toContain('buildAviUtlContourTraceObject');
     expect(code).toContain('buildAviUtlDisplacementPolyObject');
@@ -75,6 +76,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('handleAddSimpleTube');
     expect(code).toContain('handleAddSimpleTubeTorus');
     expect(code).toContain('handleAddSphereDots');
+    expect(code).toContain('handleAddSPField');
     expect(code).toContain('handleAddSphericalField');
     expect(code).toContain('handleAddContourTrace');
     expect(code).toContain('handleAddDisplacementPoly');
@@ -118,6 +120,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('Add 93 Cut-Corner Region Frame');
     expect(code).toContain('Add 93 Ellipse Region Frame');
     expect(code).toContain('Add 93 Region Frame');
+    expect(code).toContain('Add 93 SPfield');
     expect(code).toContain('Add Hologram');
     expect(code).toContain('Add Protractor');
     expect(code).toContain('Add Shaking Polygon');
@@ -174,6 +177,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('93 SimpleTubeトーラスを追加');
     expect(code).toContain('93 Sphere(DrawPixel)を追加');
     expect(code).toContain('93 SphericalFieldを追加');
+    expect(code).toContain('93 SPfieldを追加');
     expect(code).toContain('93 DisplacementPolyを追加');
     expect(code).toContain('93 PlainEffector Lineを追加');
     expect(code).toContain('93砕け散る球を追加');

@@ -60,6 +60,8 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('93-sphere-drawpixel')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('93-spherical-field')?.sourceRelativePaths).toContain('script/93/SphericalField.anm');
     expect(byId.get('93-spherical-field')?.implementationTarget).toBe('native-generated-object');
+    expect(byId.get('93-spfield')?.sourceRelativePaths).toContain('script/93/SPfield.lua');
+    expect(byId.get('93-spfield')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('93-contour-trace')?.sourceRelativePaths).toEqual(expect.arrayContaining([
       'script/93/Contour.anm',
       'script/93/輪郭トレス.anm'
@@ -197,9 +199,10 @@ describe('AviUtlPackV4 feature catalogue', () => {
       '93-clipping-s',
       '93-border-depth',
       '93-reflection-poly',
-      '93-camera-target'
+      '93-camera-target',
+      '93-spfield'
     ];
 
-    expect(roadmapIds.slice(0, 45)).toEqual(expect.arrayContaining(priorityIds));
+    expect(roadmapIds.slice(0, 46)).toEqual(expect.arrayContaining(priorityIds));
   });
 });
