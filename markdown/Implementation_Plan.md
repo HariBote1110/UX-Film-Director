@@ -118,6 +118,7 @@
 93. ✅ `P1` 93 Reflection PolyをRust/WebGPU SpotLight派生effect presetとして追加する
 94. ✅ `P1` 93 カメラ目標指定を3Dステージのnative camera toolとして追加する
 95. ✅ `P1` 93 SPfieldをRust GeneratedSphericalField派生プリセットとして追加する
+96. ✅ `P1` 93 ObjectCopyEXTを選択オブジェクトのnative複製列として追加する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

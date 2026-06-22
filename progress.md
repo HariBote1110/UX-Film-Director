@@ -1,3 +1,19 @@
+## 2026-06-23 — 93 ObjectCopyEXTをnative複製列として追加
+
+### 実施内容
+- Red: `script/93/ObjectCopyEXT.obj` を `93-object-copy-ext` としてAviUtlPackV4カタログへ載せ、選択オブジェクトから複製列を作る契約を追加した。
+- Green: `buildAviUtlObjectCopyExtClones` を追加し、元オブジェクトの位置、時間、レイヤー、キーフレームを相対オフセットした複製列を生成できるようにした。
+- Green: `duplicateSelectedObjectsWithObjectCopyExt` をストアへ追加し、Timeline右クリックのオブジェクトメニューから `93 ObjectCopyEXT複製列` を作れるようにした。
+- 版を `0.1.1-Beta-338a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/aviutl/aviutlObjectCopyExt.test.ts src/store/objectCopyExt.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts src/components/TimelineContextMenu.particle.test.ts --reporter=dot` は7件成功した。
+- `npm test -- --run src/store/advanceTime.test.ts src/store/exportProgress.test.ts src/utils/packageScripts.test.ts --reporter=dot` は20件成功した。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回のObjectCopyEXT由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- 元スクリプトのレイヤーバッファ、拡大/透明度/回転リンク、フィルタリンク、tempbuffer互換は未対応。次は `背景色スポイト`、`座標格納/座標の取得`、またはGetColor/hksy派生へ進む。
+
 ## 2026-06-23 — 93 SPfieldをRust生成プリセットへ追加
 
 ### 実施内容
