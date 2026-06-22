@@ -1,6 +1,15 @@
 # 進捗ログ
 
 ## 2026-06-23
+- 93 Border DepthをRust生成プリセットへ追加した。
+- Red: `script/93/Border.zip` を `93-border-depth` としてAviUtlPackV4カタログへ載せ、Timelineから追加できるRust生成プリセット契約を追加した。
+- Green: `buildAviUtlBorderDepthRegionFrameObject` を追加し、既存 `region_frame` Rust生成経路を使う厚み付き枠プリセットとして実装した。
+- Green: Timeline右クリックメニューに `93 Border Depth` 追加コマンドを接続した。
+- 版を `0.1.1-Beta-334a` に更新した。
+- 検証: `npm test -- --run src/utils/objectFactories/regionFrameObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts --reporter=dot` は9件成功した。
+- 元スクリプトのZ方向多層輪郭、面張り、フレームバッファ輪郭抽出は未対応。次は93の自己完結生成/効果、またはGetColor/hksy派生を続ける。
+
+## 2026-06-23
 - 93 個別座標再配置2をnative motion presetへ追加した。
 - Red: `script/93/個別座標再配置2.anm` を `93-individual-coordinate-rearrange` としてAviUtlPackV4カタログへ載せ、複数選択順を使うnative motion preset契約を追加した。
 - Green: `individual-coordinate-rearrange-circle` presetを追加し、選択順に応じてオブジェクトを円形スロットへ移動するキーフレームを生成するようにした。
