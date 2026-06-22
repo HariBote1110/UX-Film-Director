@@ -80,6 +80,8 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('93-stretch')?.implementationTarget).toBe('rust-webgpu-effect');
     expect(byId.get('93-ta-easing')?.sourceRelativePaths).toContain('script/93/@TA-Easing.anm');
     expect(byId.get('93-ta-easing')?.implementationTarget).toBe('native-motion-preset');
+    expect(byId.get('93-bezier-orbit-t-plus')?.sourceRelativePaths).toContain('script/93/ベジエ軌道Ｔ+.obj');
+    expect(byId.get('93-bezier-orbit-t-plus')?.implementationTarget).toBe('native-motion-preset');
     expect(byId.get('93-multi-slicer')?.sourceRelativePaths).toContain('script/93/@MultiSlicer.anm');
     expect(byId.get('93-multi-slicer')?.implementationTarget).toBe('rust-webgpu-effect');
     expect(byId.get('93-oct-transform')?.sourceRelativePaths).toContain('script/93/簡易変形(oct).anm');
@@ -176,12 +178,13 @@ describe('AviUtlPackV4 feature catalogue', () => {
       '93-stretch',
       '93-coordinate-plus',
       '93-ta-easing',
+      '93-bezier-orbit-t-plus',
       '93-multi-slicer',
       '93-oct-transform',
       '93-area-expand-s',
       '93-clipping-s'
     ];
 
-    expect(roadmapIds.slice(0, 40)).toEqual(expect.arrayContaining(priorityIds));
+    expect(roadmapIds.slice(0, 41)).toEqual(expect.arrayContaining(priorityIds));
   });
 });

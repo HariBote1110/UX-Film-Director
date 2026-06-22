@@ -44,7 +44,8 @@ describe('AviUtlPackV4 motion presets', () => {
       { id: 'wind-sway-soft', sourceCandidateId: 'tim-wind-sway' },
       { id: 'delay-move-individual', sourceCandidateId: '93-delay-move' },
       { id: 'coordinate-plus-snap-move', sourceCandidateId: '93-coordinate-plus' },
-      { id: 'ta-easing-overshoot-arrive', sourceCandidateId: '93-ta-easing' }
+      { id: 'ta-easing-overshoot-arrive', sourceCandidateId: '93-ta-easing' },
+      { id: 'bezier-orbit-t-plus', sourceCandidateId: '93-bezier-orbit-t-plus' }
     ]);
   });
 
@@ -240,6 +241,29 @@ describe('AviUtlPackV4 motion presets', () => {
       expect.objectContaining({ time: 1.56, x: 320, y: 222, easing: 'easeInOutSine' }),
       expect.objectContaining({ time: 1.8, x: 320, y: 240, easing: 'linear' }),
       expect.objectContaining({ time: 4, x: 320, y: 240, easing: 'linear' })
+    ]);
+  });
+
+  it('builds a 93 ベジエ軌道T+ cubic path using native keyframes', () => {
+    const patch = buildAviUtlMotionPresetPatch(baseShape({
+      startTime: 2,
+      duration: 2
+    }), 'bezier-orbit-t-plus', {
+      distancePx: 120
+    });
+
+    expect(patch.enableAnimation).toBe(true);
+    expect(patch.x).toBe(320);
+    expect(patch.y).toBe(240);
+    expect(patch.endX).toBe(440);
+    expect(patch.endY).toBe(240);
+    expect(patch.easing).toBe('easeInOutSine');
+    expect(patch.keyframes).toEqual([
+      expect.objectContaining({ time: 2, x: 320, y: 240, easing: 'easeInOutSine' }),
+      expect.objectContaining({ time: 2.5, x: 347.1875, y: 218.90625, easing: 'easeInOutSine' }),
+      expect.objectContaining({ time: 3, x: 380, y: 228.75, easing: 'easeInOutSine' }),
+      expect.objectContaining({ time: 3.5, x: 412.8125, y: 244.21875, easing: 'easeInOutSine' }),
+      expect.objectContaining({ time: 4, x: 440, y: 240, easing: 'linear' })
     ]);
   });
 });
