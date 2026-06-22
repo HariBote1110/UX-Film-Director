@@ -1589,6 +1589,12 @@ Seedを編集できるようにする。
 既存の画像/PSDサンプリング導線と同じPropertyPanel内で、GetColor V2Rのドット構造と色調整を直接触れるようにし、
 Rust生成ドットフィールドを実際の画作りへ使える標準搭載素材へ引き上げる。
 
+270. AviUtlPackV4: 93 座標plus スナップ移動をnative motion presetへ追加する
+`script/93/@座標plus.anm` の座標加算・スナップ思想を、まず2D timelineで使える
+`coordinate-plus-snap-move` として再実装する。
+対象オブジェクトの現在位置を指定グリッドへスナップし、スナップ後の基準位置から一定距離へ移動するキーフレームを生成する。
+PropertyPanelのAviUtl Motion一覧へ自動露出し、元スクリプトのレイヤー参照・Z座標・回転plusは後続拡張として残す。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

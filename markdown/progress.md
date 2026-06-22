@@ -1,6 +1,18 @@
 # 進捗ログ
 
 ## 2026-06-23
+- 93 座標plus スナップ移動をnative motion presetへ追加した。
+- Red: `script/93/@座標plus.anm` を `93-coordinate-plus` としてAviUtlPackV4カタログへ載せ、PropertyPanelのAviUtl Motionに出るnative preset契約を追加した。
+- Green: `coordinate-plus-snap-move` presetを追加し、現在座標をグリッド幅へfloor snapしてから一定距離へ移動するキーフレームを生成するようにした。
+- Green: `intervalSeconds` を座標plusのsnap幅として使い、`distancePx` と `spanSeconds` で移動距離と移動時間を調整できるようにした。
+- 版を `0.1.1-Beta-330a` に更新した。
+- 検証: `npm test -- --run src/utils/aviutl/aviutlMotionPresets.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts --reporter=dot` は14件成功した。
+- 検証: `npm test -- --run src/components/PropertyPanelBoundary.test.ts --reporter=dot` は8件成功した。
+- 検証: `npm test -- --run src/utils/packageScripts.test.ts --reporter=dot` は6件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の `coordinate-plus-snap-move` 由来の型エラーは出ていない。
+- 座標plusのレイヤー参照、Z座標、回転plus、パラメータ格納は未対応。次は93の自己完結motion/effect候補か、GetColor/hksy派生を続ける。
+
+## 2026-06-23
 - GetColor V2R基本編集UIを追加した。
 - Red: PropertyPanelのGetColor契約を拡張し、画像サンプリングだけでなくドット構造・形状・色を編集できることを要求した。
 - Green: `getcolor_dot_field` 選択時に `GetColor Dot Field` セクションを追加し、Columns、Rows、Dot Size、Dot Shape、Stroke Width、Size Influence、Luminance Influence、Hue Shift、Alternate Rows、Foreground Colour、Secondary Colour、Background Colour、Seedを編集できるようにした。
