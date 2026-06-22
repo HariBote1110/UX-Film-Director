@@ -1,3 +1,21 @@
+## 2026-06-22 — フェーズ3: Rust backendのtranscode RPC本体をtranscode.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `handle_encode_transcode_video` と `emit_transcode_progress_event` を `rust-backend/src/transcode.rs` へ抽出した。
+- `encode.transcodeVideo` の入力検証、ffmpegコマンド構築、progress pipe読取、stderr収集、成功/失敗レスポンス生成を `transcode.rs` に集約した。
+- `transcode.rs` は `encode::get_video_codec` を利用する形にし、既存のcodec選択・bitrate設定・progress event形式は変更していない。
+- `main.rs` は `use transcode::handle_encode_transcode_video` でRPCルーティングから呼び出すだけにした。
+- `main.rs` から不要になった `get_video_codec` と `Read` importを削除した。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はnative render RPC、CPU simple video fast path、source収集、または生成フレーム描画関数をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのtranscode補助関数をtranscode.rsへ分離
 
 ### 実施内容

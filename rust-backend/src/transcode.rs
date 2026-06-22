@@ -1,15 +1,409 @@
 use std::collections::HashMap;
 use std::fs;
+use std::io::{self, BufRead, Read, Write};
 use std::path::PathBuf;
+use std::process::{Command, Stdio};
+use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::encode::get_video_codec;
 use crate::local_media_source_path;
 use crate::params::{
-    EncodeTranscodeVideoOverlayParams, NormalisedTranscodeOverlay, NormalisedTranscodeOverlayKind,
-    NormalisedTranscodeOverlays,
+    normalise_transcode_quality_preset, resolve_transcode_video_bitrate_kbps,
+    EncodeTranscodeVideoOverlayParams, EncodeTranscodeVideoParams, NormalisedTranscodeOverlay,
+    NormalisedTranscodeOverlayKind, NormalisedTranscodeOverlays,
 };
 use crate::psd_fast;
-use crate::state::PsdOverlayCacheEntry;
+use crate::rpc::{response_error, RpcResponse};
+use crate::state::{BackendState, PsdOverlayCacheEntry};
+use serde_json::{json, Value};
+
+pub(crate) fn handle_encode_transcode_video(
+    id: u64,
+    params: Value,
+    state: &mut BackendState,
+) -> RpcResponse {
+    let parsed = match serde_json::from_value::<EncodeTranscodeVideoParams>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32602,
+                &format!("Invalid encode.transcodeVideo params: {error}"),
+            );
+        }
+    };
+
+    if parsed.input_path.trim().is_empty() {
+        return response_error(id, -32602, "inputPath must not be empty");
+    }
+    if parsed.output_path.trim().is_empty() {
+        return response_error(id, -32602, "outputPath must not be empty");
+    }
+    if parsed.width == 0 || parsed.height == 0 || parsed.fps == 0 {
+        return response_error(
+            id,
+            -32602,
+            "width, height, and fps must be greater than zero",
+        );
+    }
+    if !parsed.duration_seconds.is_finite() || parsed.duration_seconds <= 0.0 {
+        return response_error(id, -32602, "durationSeconds must be greater than zero");
+    }
+
+    let ffmpeg_path = parsed
+        .ffmpeg_path
+        .or_else(|| std::env::var("UXFD_FFMPEG_BIN").ok())
+        .unwrap_or_else(|| "ffmpeg".to_string());
+    let start_seconds = parsed
+        .start_seconds
+        .filter(|value| value.is_finite() && *value > 0.0)
+        .unwrap_or(0.0);
+    let audio_path = parsed
+        .audio_path
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty());
+    let audio_volume = parsed
+        .audio_volume
+        .filter(|value| value.is_finite() && *value >= 0.0)
+        .unwrap_or(1.0)
+        .clamp(0.0, 4.0);
+    let quality_preset = normalise_transcode_quality_preset(parsed.quality_preset.as_deref());
+    let video_bitrate_kbps =
+        resolve_transcode_video_bitrate_kbps(quality_preset, parsed.video_bitrate_kbps);
+    let include_source_audio = parsed.include_audio && audio_path.is_none() && audio_volume > 0.0;
+    let frame_count = (parsed.duration_seconds * f64::from(parsed.fps)).ceil() as u64;
+    let session_id = parsed
+        .session_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("transcode-video");
+    let object_x = parsed.object_x.unwrap_or(0);
+    let object_y = parsed.object_y.unwrap_or(0);
+    let object_width = parsed.object_width.unwrap_or(parsed.width);
+    let object_height = parsed.object_height.unwrap_or(parsed.height);
+    let output_width = i64::from(parsed.width);
+    let output_height = i64::from(parsed.height);
+    let object_x_i64 = i64::from(object_x);
+    let object_y_i64 = i64::from(object_y);
+    let object_width_i64 = i64::from(object_width);
+    let object_height_i64 = i64::from(object_height);
+    let object_right = object_x_i64 + object_width_i64;
+    let object_bottom = object_y_i64 + object_height_i64;
+    if object_width == 0
+        || object_height == 0
+        || object_right <= 0
+        || object_bottom <= 0
+        || object_x_i64 >= output_width
+        || object_y_i64 >= output_height
+    {
+        return response_error(
+            id,
+            -32602,
+            "object placement must intersect the output frame",
+        );
+    }
+    let crop_x = 0_i64.max(-object_x_i64);
+    let crop_y = 0_i64.max(-object_y_i64);
+    let right_overflow = 0_i64.max(object_right - output_width);
+    let bottom_overflow = 0_i64.max(object_bottom - output_height);
+    let canvas_width = output_width + crop_x + right_overflow;
+    let canvas_height = output_height + crop_y + bottom_overflow;
+    let pad_x = 0_i64.max(object_x_i64);
+    let pad_y = 0_i64.max(object_y_i64);
+    let scale_filter = format!(
+        "scale={}:{},setsar=1,pad={}:{}:{}:{}:black,crop={}:{}:{}:{},fps={}",
+        object_width,
+        object_height,
+        canvas_width,
+        canvas_height,
+        pad_x,
+        pad_y,
+        parsed.width,
+        parsed.height,
+        crop_x,
+        crop_y,
+        parsed.fps
+    );
+    let normalised_overlays =
+        match normalise_transcode_overlays(&parsed.overlays, &mut state.psd_overlay_cache) {
+            Ok(value) => value,
+            Err(error) => return response_error(id, -32602, &error),
+        };
+    let psd_overlay_cache_hits = normalised_overlays.psd_overlay_cache_hits;
+    let overlays = normalised_overlays.overlays;
+
+    let mut cmd = Command::new(&ffmpeg_path);
+    cmd.arg("-hide_banner")
+        .arg("-loglevel")
+        .arg("error")
+        .arg("-nostats")
+        .arg("-y");
+    if start_seconds > 0.0 {
+        cmd.arg("-ss").arg(format!("{start_seconds:.6}"));
+    }
+    cmd.arg("-i").arg(&parsed.input_path);
+    let mut next_input_index = 1_usize;
+    let mut overlay_inputs: Vec<Option<usize>> = Vec::with_capacity(overlays.len());
+    for overlay in &overlays {
+        match &overlay.kind {
+            NormalisedTranscodeOverlayKind::Image { path } => {
+                cmd.arg("-loop")
+                    .arg("1")
+                    .arg("-t")
+                    .arg(format!("{:.6}", parsed.duration_seconds))
+                    .arg("-i")
+                    .arg(path);
+                overlay_inputs.push(Some(next_input_index));
+                next_input_index += 1;
+            }
+            NormalisedTranscodeOverlayKind::RawRgbaImage {
+                path,
+                source_width,
+                source_height,
+                ..
+            } => {
+                cmd.arg("-stream_loop")
+                    .arg("-1")
+                    .arg("-f")
+                    .arg("rawvideo")
+                    .arg("-pix_fmt")
+                    .arg("rgba")
+                    .arg("-s")
+                    .arg(format!("{}x{}", source_width, source_height))
+                    .arg("-r")
+                    .arg(parsed.fps.to_string())
+                    .arg("-t")
+                    .arg(format!("{:.6}", parsed.duration_seconds))
+                    .arg("-i")
+                    .arg(path);
+                overlay_inputs.push(Some(next_input_index));
+                next_input_index += 1;
+            }
+            NormalisedTranscodeOverlayKind::SolidColour { .. } => {
+                overlay_inputs.push(None);
+            }
+        }
+    }
+    let audio_input_index = audio_path.map(|_| next_input_index);
+    if let Some(audio_path) = audio_path {
+        cmd.arg("-i").arg(audio_path);
+    }
+    let mapped_complex_video = !overlays.is_empty();
+    if mapped_complex_video {
+        let (filter_complex, final_label) =
+            build_transcode_filter_complex(&scale_filter, &overlays, &overlay_inputs);
+        cmd.arg("-filter_complex")
+            .arg(filter_complex)
+            .arg("-map")
+            .arg(final_label);
+    }
+    cmd.arg("-t")
+        .arg(format!("{:.6}", parsed.duration_seconds))
+        .arg("-progress")
+        .arg("pipe:1");
+    if !mapped_complex_video {
+        cmd.arg("-vf").arg(scale_filter);
+    }
+    cmd.arg("-r")
+        .arg(parsed.fps.to_string())
+        .arg("-c:v")
+        .arg(get_video_codec())
+        .arg("-b:v")
+        .arg(format!("{video_bitrate_kbps}k"))
+        .arg("-pix_fmt")
+        .arg("yuv420p");
+
+    if audio_path.is_some() {
+        if !mapped_complex_video {
+            cmd.arg("-map").arg("0:v:0");
+        }
+        cmd.arg("-map")
+            .arg(format!("{}:a:0", audio_input_index.unwrap_or(1)))
+            .arg("-c:a")
+            .arg("aac")
+            .arg("-b:a")
+            .arg("192k")
+            .arg("-shortest");
+    } else if include_source_audio {
+        if !mapped_complex_video {
+            cmd.arg("-map").arg("0:v:0");
+        }
+        cmd.arg("-map")
+            .arg("0:a:0?")
+            .arg("-c:a")
+            .arg("aac")
+            .arg("-b:a")
+            .arg("192k");
+        if (audio_volume - 1.0).abs() > 1e-6 {
+            cmd.arg("-af").arg(format!("volume={audio_volume:.6}"));
+        }
+    } else {
+        cmd.arg("-an");
+    }
+
+    cmd.arg("-movflags")
+        .arg("+faststart")
+        .arg(&parsed.output_path)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let mut child = match cmd.spawn() {
+        Ok(value) => value,
+        Err(error) => {
+            remove_temporary_transcode_overlay_inputs(&overlays);
+            return response_error(
+                id,
+                -32058,
+                &format!("Failed to start Rust transcode ffmpeg ({ffmpeg_path}): {error}"),
+            );
+        }
+    };
+    let stdout = match child.stdout.take() {
+        Some(value) => value,
+        None => {
+            let _ = child.kill();
+            remove_temporary_transcode_overlay_inputs(&overlays);
+            return response_error(id, -32058, "Failed to capture Rust transcode ffmpeg stdout");
+        }
+    };
+    let stderr = match child.stderr.take() {
+        Some(value) => value,
+        None => {
+            let _ = child.kill();
+            remove_temporary_transcode_overlay_inputs(&overlays);
+            return response_error(id, -32058, "Failed to capture Rust transcode ffmpeg stderr");
+        }
+    };
+    let stderr_handle = thread::spawn(move || {
+        let mut stderr_reader = stderr;
+        let mut stderr_text = String::new();
+        let _ = stderr_reader.read_to_string(&mut stderr_text);
+        stderr_text
+    });
+
+    emit_transcode_progress_event(session_id, 0, frame_count, "started");
+    let mut latest_frame = 0_u64;
+    let mut latest_out_time_us = 0_u64;
+    let stdout_reader = io::BufReader::new(stdout);
+    for line_result in stdout_reader.lines() {
+        let line = match line_result {
+            Ok(value) => value,
+            Err(_) => break,
+        };
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        match key {
+            "frame" => {
+                latest_frame = value.trim().parse::<u64>().unwrap_or(latest_frame);
+            }
+            "out_time_ms" => {
+                latest_out_time_us = value.trim().parse::<u64>().unwrap_or(latest_out_time_us);
+            }
+            "progress" => {
+                let completed_from_time = ((latest_out_time_us as f64 / 1_000_000.0)
+                    * f64::from(parsed.fps))
+                .round() as u64;
+                let completed_frames = latest_frame.max(completed_from_time);
+                emit_transcode_progress_event(
+                    session_id,
+                    if value.trim() == "end" {
+                        frame_count
+                    } else {
+                        completed_frames
+                    },
+                    frame_count,
+                    value.trim(),
+                );
+            }
+            _ => {}
+        }
+    }
+
+    let status = match child.wait() {
+        Ok(value) => value,
+        Err(error) => {
+            remove_temporary_transcode_overlay_inputs(&overlays);
+            return response_error(
+                id,
+                -32059,
+                &format!("Rust transcode ffmpeg wait failed: {error}"),
+            );
+        }
+    };
+    let stderr_detail = stderr_handle.join().unwrap_or_default().trim().to_string();
+    remove_temporary_transcode_overlay_inputs(&overlays);
+
+    if !status.success() {
+        let stderr_suffix = if stderr_detail.is_empty() {
+            String::new()
+        } else {
+            format!(" stderr: {stderr_detail}")
+        };
+        return response_error(
+            id,
+            -32059,
+            &format!(
+                "Rust transcode ffmpeg exited with failure status: code={:?}.{stderr_suffix}",
+                status.code()
+            ),
+        );
+    }
+    emit_transcode_progress_event(session_id, frame_count, frame_count, "completed");
+
+    RpcResponse {
+        id,
+        ok: true,
+        result: Some(json!({
+            "transcoded": true,
+            "outputPath": parsed.output_path,
+            "frameCount": frame_count,
+            "width": parsed.width,
+            "height": parsed.height,
+            "fps": parsed.fps,
+            "overlayCount": overlays.len(),
+            "psdOverlayCacheHits": psd_overlay_cache_hits,
+            "includedAudio": audio_path.is_some() || include_source_audio,
+            "encodeSettings": {
+                "qualityPreset": quality_preset,
+                "videoBitrateKbps": video_bitrate_kbps,
+            },
+        })),
+        error: None,
+    }
+}
+
+fn emit_transcode_progress_event(
+    session_id: &str,
+    completed_frames: u64,
+    total_frames: u64,
+    progress_status: &str,
+) {
+    let bounded_completed = completed_frames.min(total_frames);
+    let percent = if total_frames > 0 {
+        (bounded_completed as f64 / total_frames as f64 * 100.0).clamp(0.0, 100.0)
+    } else {
+        0.0
+    };
+    let event = json!({
+        "event": "encode.transcodeVideo.progress",
+        "payload": {
+            "sessionId": session_id,
+            "completedFrames": bounded_completed,
+            "totalFrames": total_frames,
+            "percent": percent,
+            "status": progress_status,
+        }
+    });
+    if let Ok(serialised) = serde_json::to_string(&event) {
+        let mut stdout = io::stdout().lock();
+        let _ = writeln!(stdout, "{serialised}");
+        let _ = stdout.flush();
+    }
+}
 
 pub(crate) fn normalise_transcode_overlays(
     overlays: &[EncodeTranscodeVideoOverlayParams],
