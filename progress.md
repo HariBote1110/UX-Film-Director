@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendの小型図形生成器をサブモジュール化
+
+### 実施内容
+- `rust-backend/src/generated.rs` から `GeneratedPuzzlePiece`、`GeneratedGourd`、`GeneratedGear` の生成フレーム実装を `rust-backend/src/generated/shape_effects.rs` へ分離した。
+- puzzle connector判定、gourd形状判定、gear tooth計算は既存の共有helperを使い、生成器本体を図形系専用モジュールへ閉じ込めた。
+- `generated.rs` は 1,475 行から 1,252 行になり、図形系実装229行を独立ファイルへ移した。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はTrackBar/PieChart/Histogramなどのチャート系生成器、または `generated_frame_tests.rs` のファミリー別分割を進める。
+
 ## 2026-06-22 — フェーズ3: Rust backendのRPC dispatchをmain.rsから分離
 
 ### 実施内容
