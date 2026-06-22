@@ -185,6 +185,128 @@ pub(crate) fn validate_generated_track_bar_source(
     Ok(())
 }
 
+pub(crate) fn validate_generated_pie_chart_source(
+    source: &GeneratedPieChartSource,
+) -> Result<(), String> {
+    if source.generator != "pie-sheet-graph" {
+        return Err("generator must be pie-sheet-graph".to_string());
+    }
+    if source.values.is_empty() || source.values.len() > 64 {
+        return Err("values must contain 1..64 values".to_string());
+    }
+    if source
+        .values
+        .iter()
+        .any(|value| !value.is_finite() || *value < 0.0)
+    {
+        return Err("values must be finite non-negative numbers".to_string());
+    }
+    if source.values.iter().all(|value| *value <= f32::EPSILON) {
+        return Err("values must contain at least one positive value".to_string());
+    }
+    if source.sort_mode != "none"
+        && source.sort_mode != "descending"
+        && source.sort_mode != "ascending"
+    {
+        return Err("sort_mode must be none, descending, or ascending".to_string());
+    }
+    if source.label_mode != "none"
+        && source.label_mode != "percentage"
+        && source.label_mode != "input"
+    {
+        return Err("label_mode must be none, percentage, or input".to_string());
+    }
+    if !source.progress_percent.is_finite()
+        || source.progress_percent < 0.0
+        || source.progress_percent > 100.0
+    {
+        return Err("progress_percent must be 0..100".to_string());
+    }
+    if !source.stroke_width.is_finite() || source.stroke_width <= 0.0 {
+        return Err("stroke_width must be positive".to_string());
+    }
+    if source.slice_colours.is_empty() || source.slice_colours.len() > 64 {
+        return Err("slice_colours must contain 1..64 colours".to_string());
+    }
+    for colour in &source.slice_colours {
+        parse_hex_colour_source(colour)?;
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_generated_histogram_source(
+    source: &GeneratedHistogramSource,
+) -> Result<(), String> {
+    if source.generator != "simple-histogram" {
+        return Err("generator must be simple-histogram".to_string());
+    }
+    if source.bin_values.is_empty() || source.bin_values.len() > 256 {
+        return Err("bin_values must contain 1..256 values".to_string());
+    }
+    if source
+        .bin_values
+        .iter()
+        .any(|value| !value.is_finite() || *value < 0.0 || *value > 1.0)
+    {
+        return Err("bin_values must be finite numbers in 0..1".to_string());
+    }
+    if !source.height_scale_percent.is_finite()
+        || source.height_scale_percent <= 0.0
+        || source.height_scale_percent > 1000.0
+    {
+        return Err("height_scale_percent must be 1..1000".to_string());
+    }
+    if !source.line_width.is_finite() || source.line_width <= 0.0 {
+        return Err("line_width must be positive".to_string());
+    }
+    if !source.show_luminance && !source.show_red && !source.show_green && !source.show_blue {
+        return Err("at least one histogram channel must be visible".to_string());
+    }
+    if source.channel_colours.len() != 4 {
+        return Err("channel_colours must contain 4 colours".to_string());
+    }
+    for colour in &source.channel_colours {
+        parse_hex_colour_source(colour)?;
+    }
+    parse_hex_colour_source(&source.background_colour)?;
+    Ok(())
+}
+
+pub(crate) fn validate_generated_sunburst_source(
+    source: &GeneratedSunburstSource,
+) -> Result<(), String> {
+    if source.generator != "sunrise" {
+        return Err("generator must be sunrise".to_string());
+    }
+    if source.ray_count == 0 || source.ray_count > 360 {
+        return Err("ray_count must be 1..360".to_string());
+    }
+    if !source.ray_coverage_percent.is_finite()
+        || source.ray_coverage_percent < 0.0
+        || source.ray_coverage_percent > 100.0
+    {
+        return Err("ray_coverage_percent must be 0..100".to_string());
+    }
+    if !source.rotation_offset_degrees.is_finite() {
+        return Err("rotation_offset_degrees must be finite".to_string());
+    }
+    if !source.centre_x_percent.is_finite()
+        || source.centre_x_percent < -100.0
+        || source.centre_x_percent > 200.0
+        || !source.centre_y_percent.is_finite()
+        || source.centre_y_percent < -100.0
+        || source.centre_y_percent > 200.0
+    {
+        return Err("centre percentages must be -100..200".to_string());
+    }
+    if source.motif_shape != "circle" && source.motif_shape != "rect" {
+        return Err("motif_shape must be circle or rect".to_string());
+    }
+    parse_hex_colour_source(&source.ray_colour)?;
+    parse_hex_colour_source(&source.background_colour)?;
+    Ok(())
+}
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct GeneratedGradientSource {
     #[serde(rename = "type")]

@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendのチャート系生成validatorをgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `validate_generated_pie_chart_source`、`validate_generated_histogram_source`、`validate_generated_sunburst_source` を `rust-backend/src/generated.rs` へ抽出した。
+- pie chart、histogram、sunburstの入力検証を生成メディア型定義と同じモジュールへ寄せた。
+- `main.rs` は 7,276 行から 7,160 行になった。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次は残りの生成validator、native render source収集、または生成フレーム描画関数群をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendの生成validatorを追加でgenerated.rsへ分離
 
 ### 実施内容
