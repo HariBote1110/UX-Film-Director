@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendのRPC入力型をparams.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `DecodeStopRequest`、encode系params、native render系params、media/audio/PSD paramsを `rust-backend/src/params.rs` へ抽出した。
+- 同じ範囲に含まれるtranscode overlay正規化型とquality/bitrate補助関数も `params.rs` へ移し、transcode入力の正規化境界をまとめた。
+- `main.rs` は `mod params` と `use params::*` で参照する形にし、RPC入力のserde schemaやtranscode bitrate既定値は変更していない。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 末尾側に残る `ProxyGenerateParams` とproxy handler、またはencode/decode handler本体を次の小さな単位で分離する。
+
 ## 2026-06-22 — フェーズ3: Rust backendの共有状態型をstate.rsへ分離
 
 ### 実施内容
