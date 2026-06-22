@@ -313,6 +313,9 @@ const PropertyPanel: React.FC = () => {
   const removeObjectFilter = useStore((state) => state.removeObjectFilter);
   const updateObjectFilterParams = useStore((state) => state.updateObjectFilterParams);
   const setGroupGradient = useStore((state) => state.setGroupGradient);
+  const aviUtlCoordinateStoreSnapshot = useStore((state) => state.aviUtlCoordinateStoreSnapshot);
+  const captureSelectedCoordinatesWithAviUtlStore = useStore((state) => state.captureSelectedCoordinatesWithAviUtlStore);
+  const applyAviUtlStoredCoordinatesToSelection = useStore((state) => state.applyAviUtlStoredCoordinatesToSelection);
   const currentTime = useStore((state) => state.currentTime);
   const visionDetectionPreviewEnabled = useStore((state) => state.visionDetectionPreviewEnabled);
   const setVisionDetectionPreviewEnabled = useStore((state) => state.setVisionDetectionPreviewEnabled);
@@ -1149,6 +1152,14 @@ const PropertyPanel: React.FC = () => {
     );
   };
 
+  const handleCaptureAviUtlCoordinateStore = () => {
+    captureSelectedCoordinatesWithAviUtlStore(`selection-${selectedCount}`);
+  };
+
+  const handleApplyAviUtlCoordinateStore = () => {
+    applyAviUtlStoredCoordinatesToSelection();
+  };
+
   const handleApplyAviUtlEffectPreset = (presetId: AviUtlEffectPresetId) => {
     pushHistory();
     const nextObject = applyAviUtlEffectPresetToObject(selectedObject, presetId);
@@ -1368,6 +1379,19 @@ const PropertyPanel: React.FC = () => {
                 </div>
                 <SectionHeader label="AviUtl Motion" />
                 <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                    <button
+                        type="button"
+                        onClick={handleCaptureAviUtlCoordinateStore}
+                    >
+                        93 座標格納
+                    </button>
+                    <button
+                        type="button"
+                        disabled={!aviUtlCoordinateStoreSnapshot}
+                        onClick={handleApplyAviUtlCoordinateStore}
+                    >
+                        93 座標の取得
+                    </button>
                     {aviUtlMotionPresets.map((preset) => (
                         <button
                             key={preset.id}
@@ -1378,6 +1402,11 @@ const PropertyPanel: React.FC = () => {
                         </button>
                     ))}
                 </div>
+                {aviUtlCoordinateStoreSnapshot && (
+                    <div style={{ fontSize: '11px', color: '#888', marginBottom: '8px' }}>
+                        {`93 座標格納: ${aviUtlCoordinateStoreSnapshot.name} / ${aviUtlCoordinateStoreSnapshot.entries.length} objects`}
+                    </div>
+                )}
                 <div style={{ border: '1px solid #333', borderRadius: '4px', padding: '8px', marginBottom: '8px', background: '#1f1f1f' }}>
                     {keyframes.length === 0 && (
                         <div style={{ fontSize: '11px', color: '#888' }}>中間点はまだありません。</div>
