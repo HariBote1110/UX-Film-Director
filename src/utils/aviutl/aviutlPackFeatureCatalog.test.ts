@@ -86,6 +86,8 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('93-area-expand-s')?.implementationTarget).toBe('rust-webgpu-effect');
     expect(byId.get('93-clipping-s')?.sourceRelativePaths).toContain('script/93/@effect-B.anm');
     expect(byId.get('93-clipping-s')?.implementationTarget).toBe('rust-webgpu-effect');
+    expect(byId.get('93-plain-effector-line')?.sourceRelativePaths).toContain('script/93/@PlainEffector.anm');
+    expect(byId.get('93-plain-effector-line')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('particle-standard')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('tim-aura-emission')?.sourceRelativePaths).toContain('script/てぃむ/オーラ放出.anm');
     expect(byId.get('tim-bubbles')?.sourceRelativePaths).toContain('script/てぃむ/泡.obj');

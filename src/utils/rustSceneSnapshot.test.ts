@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, ContourTraceObject, DisplacementPolyObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, RegionFrameObject, ShakingPolygonObject, ShapeObject, SimpleTubeObject, SphereDotsObject, SphericalFieldObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, ContourTraceObject, DisplacementPolyObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, PlainEffectorLineObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, RegionFrameObject, ShakingPolygonObject, ShapeObject, SimpleTubeObject, SphereDotsObject, SphericalFieldObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -796,6 +796,38 @@ const baseDisplacementPoly = (patch: Partial<DisplacementPolyObject> = {}): Disp
   fillOpacity: 0.18,
   lineColour: '#36c2ff',
   fillColour: '#0b1020',
+  seed: 93,
+  ...patch,
+});
+
+const basePlainEffectorLine = (patch: Partial<PlainEffectorLineObject> = {}): PlainEffectorLineObject => ({
+  id: 'plain-effector-line-1',
+  type: 'plain_effector_line',
+  name: '93 PlainEffector Line',
+  layer: 26,
+  startTime: 1,
+  duration: 4,
+  x: 560,
+  y: 315,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 560,
+  endY: 315,
+  easing: 'linear',
+  width: 800,
+  height: 450,
+  radius: 100,
+  strength: 1,
+  randomness: 0,
+  zoom: 1,
+  invert: false,
+  lineCount: 24,
+  lineWidth: 2,
+  colour: '#f74d52',
+  colourAmount: 1,
   seed: 93,
   ...patch,
 });
@@ -2092,6 +2124,48 @@ describe('buildRustSceneSnapshotForTimeline', () => {
           fill_opacity: 0.18,
           line_colour: '#36c2ff',
           fill_colour: '#0b1020',
+          seed: 93,
+        }),
+        width: 800,
+        height: 450,
+      },
+    ]);
+  });
+
+  it('builds a generated 93 PlainEffector Line media plane from a plain effector line object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [basePlainEffectorLine()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated plain effector line snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'plain-effector-line-1',
+      track_id: 'layer-26',
+      media_id: 'plain-effector-line-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'plain-effector-line-1',
+        kind: 'GeneratedPlainEffectorLine',
+        source: JSON.stringify({
+          generator: 'plain-effector-line-93',
+          radius: 100,
+          strength: 1,
+          randomness: 0,
+          zoom: 1,
+          invert: false,
+          line_count: 24,
+          line_width: 2,
+          colour: '#f74d52',
+          colour_amount: 1,
           seed: 93,
         }),
         width: 800,

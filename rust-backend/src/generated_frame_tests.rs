@@ -685,6 +685,35 @@ fn generated_displacement_poly_source_frame_contains_displaced_mesh_and_fill() {
 }
 
 #[test]
+fn generated_plain_effector_line_source_frame_contains_coloured_field_lines_and_transparency() {
+    let media = SceneMediaReference {
+            id: "plain-effector-line-1".to_string(),
+            kind: MediaKind::GeneratedPlainEffectorLine,
+            source: r##"{"generator":"plain-effector-line-93","radius":100,"strength":1,"randomness":0,"zoom":1,"invert":false,"line_count":24,"line_width":2,"colour":"#f74d52","colour_amount":1,"seed":93}"##.to_string(),
+            width: 800,
+            height: 450,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+    let frame = build_generated_plain_effector_line_source_frame(&media)
+        .expect("generated plain effector line frame should render");
+    let line_count = frame
+        .pixels
+        .chunks_exact(4)
+        .filter(|rgba| rgba[0] > 200 && rgba[1] > 50 && rgba[1] < 120 && rgba[2] > 60 && rgba[2] < 120 && rgba[3] > 180)
+        .count();
+    let transparent_count = frame
+        .pixels
+        .chunks_exact(4)
+        .filter(|rgba| rgba[3] == 0)
+        .count();
+
+    assert!(line_count > 3_000);
+    assert!(transparent_count > 250_000);
+}
+
+#[test]
 fn generated_hologram_source_frame_contains_prism_stripes_and_opacity() {
     let media = SceneMediaReference {
             id: "hologram-1".to_string(),

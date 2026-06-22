@@ -373,6 +373,22 @@ fn rust_core_accepts_generated_displacement_poly_media_kind_at_the_json_boundary
 }
 
 #[test]
+fn rust_core_accepts_generated_plain_effector_line_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "plain-effector-line-1",
+        "kind": "GeneratedPlainEffectorLine",
+        "source": "{\"generator\":\"plain-effector-line-93\",\"radius\":100,\"strength\":1,\"randomness\":0,\"zoom\":1,\"invert\":false,\"line_count\":24,\"line_width\":2,\"colour\":\"#f74d52\",\"colour_amount\":1,\"seed\":93}",
+        "width": 800,
+        "height": 450
+    }))
+    .expect("GeneratedPlainEffectorLine media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedPlainEffectorLine);
+    assert_eq!(media.width, 800);
+    assert_eq!(media.height, 450);
+}
+
+#[test]
 fn rust_core_accepts_generated_hologram_media_kind_at_the_json_boundary() {
     let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
         "id": "hologram-1",

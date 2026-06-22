@@ -524,6 +524,24 @@ describe('sharedRendererNativeMediaSupport', () => {
     })).toBe(false);
   });
 
+  it('accepts 93 PlainEffector Line generator sources as native renderable media', () => {
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'plain-effector-line-1',
+      kind: 'GeneratedPlainEffectorLine',
+      source: '{"generator":"plain-effector-line-93","radius":100,"strength":1,"randomness":0,"zoom":1,"invert":false,"line_count":24,"line_width":2,"colour":"#f74d52","colour_amount":1,"seed":93}',
+      width: 800,
+      height: 450,
+    })).toBe(true);
+
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'plain-effector-line-invalid-1',
+      kind: 'GeneratedPlainEffectorLine',
+      source: '{"generator":"plain-effector-line-93","radius":0,"strength":1,"randomness":0,"zoom":1,"invert":false,"line_count":24,"line_width":2,"colour":"#f74d52","colour_amount":1,"seed":93}',
+      width: 800,
+      height: 450,
+    })).toBe(false);
+  });
+
   it('accepts 93 SimpleTube torus generator sources with colour pattern and fog', () => {
     expect(isSharedRendererNativeMediaReferenceSupported({
       id: 'simple-tube-torus-1',
