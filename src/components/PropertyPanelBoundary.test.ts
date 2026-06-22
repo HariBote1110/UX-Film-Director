@@ -24,6 +24,15 @@ describe('PropertyPanel AviUtl motion preset controls', () => {
     expect(code).toContain('handleApplyAviUtlMotionPreset');
     expect(code).toContain('AviUtl Motion');
   });
+
+  it('passes selection order into individual 93 motion presets', () => {
+    const code = source();
+
+    expect(code).toContain("const sequenceAwareMotionPresets = new Set<AviUtlMotionPresetId>([");
+    expect(code).toContain("'delay-move-individual'");
+    expect(code).toContain("'individual-coordinate-rearrange-circle'");
+    expect(code).toContain('sequenceAwareMotionPresets.has(presetId) && selectedObjects.length > 1');
+  });
 });
 
 describe('PropertyPanel AviUtl effect preset controls', () => {
