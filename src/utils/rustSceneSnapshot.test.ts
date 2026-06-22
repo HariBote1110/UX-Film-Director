@@ -3772,6 +3772,42 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('serialises 93 MultiSlicer filters as Rust scene effects', () => {
+    const layers = createDefaultLayers();
+    const sliced = baseImage({
+      id: 'sliced',
+      filters: [
+        {
+          id: 'multi-slicer-1',
+          type: 'multi_slicer',
+          enabled: true,
+          params: { angle: 45, offset: 16, slices: 18, expansion: 0, strength: 0.75 },
+        } as any,
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [sliced],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected multi slicer snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([
+      {
+        MultiSlicer: {
+          angle_degrees: 45,
+          offset: 16,
+          slices: 18,
+          expansion: 0,
+          strength: 0.75,
+        },
+      },
+    ]);
+  });
+
   it('fails loud for visible Pixi features the shared renderer cannot represent yet', () => {
     const layers = createDefaultLayers();
     const unsupportedText: TimelineObject = {

@@ -44,7 +44,8 @@ describe('AviUtlPackV4 effect presets', () => {
       { id: '93-displacement-map-b-wave', sourceCandidateId: '93-displacement-map-b', filterType: 'displacement_map' },
       { id: '93-fake-dof2-focus', sourceCandidateId: '93-fake-dof2', filterType: 'fake_dof' },
       { id: '93-auto-blur-plus-motion', sourceCandidateId: '93-auto-blur-plus', filterType: 'auto_blur' },
-      { id: '93-stretch-directional', sourceCandidateId: '93-stretch', filterType: 'stretch' }
+      { id: '93-stretch-directional', sourceCandidateId: '93-stretch', filterType: 'stretch' },
+      { id: '93-multi-slicer-basic', sourceCandidateId: '93-multi-slicer', filterType: 'multi_slicer' }
     ]);
   });
 
@@ -93,6 +94,11 @@ describe('AviUtlPackV4 effect presets', () => {
       type: 'stretch',
       enabled: true,
       params: { angle: 0, amount: 1, strength: 1 }
+    });
+    expect(buildAviUtlEffectPresetFilter('93-multi-slicer-basic')).toMatchObject({
+      type: 'multi_slicer',
+      enabled: true,
+      params: { angle: 45, offset: 16, slices: 18, expansion: 0, strength: 1 }
     });
   });
 

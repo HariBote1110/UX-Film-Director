@@ -78,6 +78,8 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('93-auto-blur-plus')?.implementationTarget).toBe('rust-webgpu-effect');
     expect(byId.get('93-stretch')?.sourceRelativePaths).toContain('script/93/@Stretch.anm');
     expect(byId.get('93-stretch')?.implementationTarget).toBe('rust-webgpu-effect');
+    expect(byId.get('93-multi-slicer')?.sourceRelativePaths).toContain('script/93/@MultiSlicer.anm');
+    expect(byId.get('93-multi-slicer')?.implementationTarget).toBe('rust-webgpu-effect');
     expect(byId.get('particle-standard')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('tim-aura-emission')?.sourceRelativePaths).toContain('script/てぃむ/オーラ放出.anm');
     expect(byId.get('tim-bubbles')?.sourceRelativePaths).toContain('script/てぃむ/泡.obj');
@@ -159,9 +161,10 @@ describe('AviUtlPackV4 feature catalogue', () => {
       '93-displacement-map-b',
       '93-fake-dof2',
       '93-auto-blur-plus',
-      '93-stretch'
+      '93-stretch',
+      '93-multi-slicer'
     ];
 
-    expect(roadmapIds.slice(0, 33)).toEqual(expect.arrayContaining(priorityIds));
+    expect(roadmapIds.slice(0, 34)).toEqual(expect.arrayContaining(priorityIds));
   });
 });

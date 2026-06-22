@@ -330,6 +330,44 @@ fn native_wgpu_applies_stretch_along_horizontal_axis() {
 }
 
 #[test]
+fn native_wgpu_applies_multi_slicer_offsets_alternate_slices() {
+    assert_native_matches_direct_hand_anchor(
+        scene_snapshot(vec![evaluated_clip(
+            "foreground",
+            0,
+            1.0,
+            vec![Effect::MultiSlicer {
+                angle_degrees: 0.0,
+                offset: 1.0,
+                slices: 3,
+                expansion: 0.0,
+                strength: 1.0,
+            }],
+        )]),
+        HashMap::from([(
+            "foreground".to_string(),
+            RgbaFrame::from_rgba8(
+                3,
+                3,
+                vec![
+                    255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255,
+                    255, 255, 0, 255, 0, 255, 255, 255, 255, 0, 255, 255,
+                    255, 255, 255, 255, 128, 128, 128, 255, 0, 0, 0, 255,
+                ],
+            )
+            .expect("valid foreground"),
+        )]),
+        3,
+        3,
+        vec![
+            0, 255, 0, 255, 0, 0, 255, 255, 0, 0, 255, 255,
+            255, 255, 0, 255, 0, 255, 255, 255, 255, 0, 255, 255,
+            128, 128, 128, 255, 0, 0, 0, 255, 0, 0, 0, 255,
+        ],
+    );
+}
+
+#[test]
 fn native_wgpu_applies_outline_to_transparent_neighbours() {
     assert_native_matches_direct_hand_anchor(
         scene_snapshot(vec![evaluated_clip(

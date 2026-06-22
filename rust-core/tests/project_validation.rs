@@ -240,6 +240,34 @@ fn rejects_invalid_stretch_effect_values() {
 }
 
 #[test]
+fn accepts_finite_multi_slicer_effect_values() {
+    let mut project = valid_project();
+    project.tracks[0].clips[0].effects.push(Effect::MultiSlicer {
+        angle_degrees: 45.0,
+        offset: 16.0,
+        slices: 18,
+        expansion: 0.0,
+        strength: 0.75,
+    });
+
+    assert!(validate_project(&project).is_ok());
+}
+
+#[test]
+fn rejects_invalid_multi_slicer_effect_values() {
+    let mut project = valid_project();
+    project.tracks[0].clips[0].effects.push(Effect::MultiSlicer {
+        angle_degrees: f32::NAN,
+        offset: -1.0,
+        slices: 1,
+        expansion: -1.0,
+        strength: 2.0,
+    });
+
+    assert!(validation_codes(&project).contains(&ValidationCode::NonFiniteNumber));
+}
+
+#[test]
 fn rejects_invalid_wipe_effect_progress() {
     let mut project = valid_project();
     project.tracks[0].clips[0].effects.push(Effect::Wipe {

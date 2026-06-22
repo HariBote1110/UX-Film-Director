@@ -95,6 +95,15 @@ describe('createDefaultFilter', () => {
     expect(stretch.params.angle).toBe(0);
     expect(stretch.params.amount).toBe(1);
     expect(stretch.params.strength).toBe(1);
+
+    const multiSlicer = createDefaultFilter('multi_slicer' as any);
+    expect(multiSlicer.type).toBe('multi_slicer');
+    if (multiSlicer.type !== 'multi_slicer') throw new Error('expected multi slicer');
+    expect(multiSlicer.params.angle).toBe(45);
+    expect(multiSlicer.params.offset).toBe(16);
+    expect(multiSlicer.params.slices).toBe(18);
+    expect(multiSlicer.params.expansion).toBe(0);
+    expect(multiSlicer.params.strength).toBe(1);
   });
 });
 
@@ -108,9 +117,10 @@ describe('normaliseObjectFilters', () => {
       { id: 'dof', type: 'fake_dof' as any, enabled: true, params: { focusX: 2, focusY: -1, focusRadius: 0, blur: -8, strength: 2 } },
       { id: 'ab', type: 'auto_blur' as any, enabled: true, params: { blur: -5, speed: Number.POSITIVE_INFINITY, strength: 2, colourShift: -1 } },
       { id: 'st', type: 'stretch' as any, enabled: true, params: { angle: Number.POSITIVE_INFINITY, amount: -2, strength: 2 } },
+      { id: 'ms', type: 'multi_slicer' as any, enabled: true, params: { angle: Number.POSITIVE_INFINITY, offset: -20, slices: 1, expansion: -4, strength: 2 } },
       { id: '', type: 'not-a-filter' as never, enabled: true, params: {} as never }
     ] as ObjectFilter[]);
-    expect(result).toHaveLength(7);
+    expect(result).toHaveLength(8);
     if (result[0].type !== 'fade') throw new Error('expected fade');
     expect(result[0].params.opacity).toBe(1);
     if (result[1].type !== 'colour_aberration') throw new Error('expected colour aberration');
@@ -128,6 +138,8 @@ describe('normaliseObjectFilters', () => {
     expect(result[5].params).toEqual({ blur: 0, speed: 1, strength: 1, colourShift: 0 });
     if (result[6].type !== 'stretch') throw new Error('expected stretch');
     expect(result[6].params).toEqual({ angle: 0, amount: 0, strength: 1 });
+    if (result[7].type !== 'multi_slicer') throw new Error('expected multi slicer');
+    expect(result[7].params).toEqual({ angle: 45, offset: 0, slices: 2, expansion: 0, strength: 1 });
   });
 });
 
