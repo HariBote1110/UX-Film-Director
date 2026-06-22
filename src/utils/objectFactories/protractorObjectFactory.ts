@@ -1,6 +1,6 @@
-import type { SunburstObject } from '../types';
+import type { ProtractorObject } from '../../types';
 
-export interface BuildAviUtlSunburstObjectInput {
+export interface BuildAviUtlProtractorObjectInput {
   id: string;
   projectWidth: number;
   projectHeight: number;
@@ -8,22 +8,22 @@ export interface BuildAviUtlSunburstObjectInput {
   layer: number;
 }
 
-export const buildAviUtlSunburstObject = ({
+export const buildAviUtlProtractorObject = ({
   id,
   projectWidth,
   projectHeight,
   startTime,
   layer,
-}: BuildAviUtlSunburstObjectInput): SunburstObject => {
-  const width = 800;
-  const height = 450;
+}: BuildAviUtlProtractorObjectInput): ProtractorObject => {
+  const width = 420;
+  const height = 240;
   const x = Math.round((projectWidth - width) / 2);
   const y = Math.round((projectHeight - height) / 2);
 
   return {
     id,
-    type: 'sunburst',
-    name: '日の出',
+    type: 'protractor',
+    name: '分度器',
     layer,
     startTime,
     duration: 5,
@@ -39,14 +39,13 @@ export const buildAviUtlSunburstObject = ({
     endX: x,
     endY: y,
     easing: 'linear',
-    rayCount: 10,
-    rayCoveragePercent: 50,
-    rotationOffsetDegrees: 0,
-    centreXPercent: 50,
-    centreYPercent: 50,
-    motifSize: 200,
-    motifShape: 'circle',
-    rayColour: '#ff0000',
-    backgroundColour: '#ffff00',
+    radius: 180,
+    measuredAngleDegrees: 90,
+    tickStepDegrees: 10,
+    majorTickStepDegrees: 30,
+    decimalPlaces: 1,
+    lineColour: '#ffffff',
+    textColour: '#ffffff',
+    shadowColour: '#000000',
   };
 };

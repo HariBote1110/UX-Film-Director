@@ -1,6 +1,6 @@
-import type { ColourWheelObject } from '../types';
+import type { AsanohaPatternObject } from '../../types';
 
-export interface BuildAviUtlColourWheelObjectInput {
+export interface BuildAviUtlAsanohaPatternObjectInput {
   id: string;
   projectWidth: number;
   projectHeight: number;
@@ -8,23 +8,22 @@ export interface BuildAviUtlColourWheelObjectInput {
   layer: number;
 }
 
-export const buildAviUtlColourWheelObject = ({
+export const buildAviUtlAsanohaPatternObject = ({
   id,
   projectWidth,
   projectHeight,
   startTime,
   layer,
-}: BuildAviUtlColourWheelObjectInput): ColourWheelObject => {
-  const radius = Math.max(80, Math.round(Math.min(projectWidth, projectHeight) / 9));
-  const width = radius * 2;
-  const height = radius * 2;
+}: BuildAviUtlAsanohaPatternObjectInput): AsanohaPatternObject => {
+  const width = 800;
+  const height = 450;
   const x = Math.round((projectWidth - width) / 2);
   const y = Math.round((projectHeight - height) / 2);
 
   return {
     id,
-    type: 'colour_wheel',
-    name: '色相環',
+    type: 'asanoha_pattern',
+    name: '麻の葉模様',
     layer,
     startTime,
     duration: 5,
@@ -40,10 +39,9 @@ export const buildAviUtlColourWheelObject = ({
     endX: x,
     endY: y,
     easing: 'linear',
-    radius,
-    saturation: 100,
-    brightness: 100,
-    ringWidthPercent: 25,
-    segmentCount: 24,
+    patternSize: 50,
+    lineWidth: 2,
+    foregroundColour: '#000000',
+    backgroundColour: '#ffffff',
   };
 };

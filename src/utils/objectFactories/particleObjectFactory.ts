@@ -1,4 +1,4 @@
-import type { ParticleObject } from '../types';
+import type { ParticleObject } from '../../types';
 
 export interface BuildDefaultStandardParticleObjectInput {
   id: string;

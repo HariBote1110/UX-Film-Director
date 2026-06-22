@@ -1,4 +1,4 @@
-import type { HksyCheckerGridObject } from '../types';
+import type { HksyCheckerGridObject } from '../../types';
 
 export interface BuildHksyCheckerGridObjectInput {
   id: string;

@@ -1,6 +1,6 @@
-import type { TartanCheckObject } from '../types';
+import type { HologramObject } from '../../types';
 
-export interface BuildAviUtlTartanCheckObjectInput {
+export interface BuildAviUtlHologramObjectInput {
   id: string;
   projectWidth: number;
   projectHeight: number;
@@ -8,13 +8,13 @@ export interface BuildAviUtlTartanCheckObjectInput {
   layer: number;
 }
 
-export const buildAviUtlTartanCheckObject = ({
+export const buildAviUtlHologramObject = ({
   id,
   projectWidth,
   projectHeight,
   startTime,
   layer,
-}: BuildAviUtlTartanCheckObjectInput): TartanCheckObject => {
+}: BuildAviUtlHologramObjectInput): HologramObject => {
   const width = 800;
   const height = 450;
   const x = Math.round((projectWidth - width) / 2);
@@ -22,8 +22,8 @@ export const buildAviUtlTartanCheckObject = ({
 
   return {
     id,
-    type: 'tartan_check',
-    name: 'タータンチェック',
+    type: 'hologram',
+    name: 'ホログラム',
     layer,
     startTime,
     duration: 5,
@@ -39,11 +39,10 @@ export const buildAviUtlTartanCheckObject = ({
     endX: x,
     endY: y,
     easing: 'linear',
-    tileSize: 100,
-    blurRadius: 1,
-    baseColour: '#143e10',
-    stripeColourA: '#a81616',
-    stripeColourB: '#c9c526',
-    lineColour: '#000000',
+    tileSize: 80,
+    rotationDegrees: 0,
+    gradientAngleDegrees: -60,
+    colourMode: 1,
+    tintColour: '#ffffff',
   };
 };

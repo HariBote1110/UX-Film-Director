@@ -1,6 +1,6 @@
-import type { YagasuriObject } from '../types';
+import type { FocusLinesPlusObject } from '../../types';
 
-export interface BuildAviUtlYagasuriObjectInput {
+export interface BuildAviUtlFocusLinesPlusObjectInput {
   id: string;
   projectWidth: number;
   projectHeight: number;
@@ -8,13 +8,13 @@ export interface BuildAviUtlYagasuriObjectInput {
   layer: number;
 }
 
-export const buildAviUtlYagasuriObject = ({
+export const buildAviUtlFocusLinesPlusObject = ({
   id,
   projectWidth,
   projectHeight,
   startTime,
   layer,
-}: BuildAviUtlYagasuriObjectInput): YagasuriObject => {
+}: BuildAviUtlFocusLinesPlusObjectInput): FocusLinesPlusObject => {
   const width = 800;
   const height = 450;
   const x = Math.round((projectWidth - width) / 2);
@@ -22,8 +22,8 @@ export const buildAviUtlYagasuriObject = ({
 
   return {
     id,
-    type: 'yagasuri',
-    name: '矢がすり',
+    type: 'focus_lines_plus',
+    name: '集中線plus',
     layer,
     startTime,
     duration: 5,
@@ -39,11 +39,15 @@ export const buildAviUtlYagasuriObject = ({
     endX: x,
     endY: y,
     easing: 'linear',
-    arrowWidth: 15,
-    arrowHeight: 65,
-    lineWidth: 2,
-    staggered: true,
-    foregroundColour: '#000000',
-    backgroundColour: '#ffffff',
+    rayWidth: 1,
+    gap: 5,
+    centreRadius: 100,
+    rotationDegrees: 0,
+    centreX: width / 2,
+    centreY: height / 2,
+    centreJitterPercent: 20,
+    seed: 0,
+    keyframeInterval: 0,
+    lineColour: '#ffffff',
   };
 };

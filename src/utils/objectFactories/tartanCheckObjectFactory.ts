@@ -1,6 +1,6 @@
-import type { ProtractorObject } from '../types';
+import type { TartanCheckObject } from '../../types';
 
-export interface BuildAviUtlProtractorObjectInput {
+export interface BuildAviUtlTartanCheckObjectInput {
   id: string;
   projectWidth: number;
   projectHeight: number;
@@ -8,22 +8,22 @@ export interface BuildAviUtlProtractorObjectInput {
   layer: number;
 }
 
-export const buildAviUtlProtractorObject = ({
+export const buildAviUtlTartanCheckObject = ({
   id,
   projectWidth,
   projectHeight,
   startTime,
   layer,
-}: BuildAviUtlProtractorObjectInput): ProtractorObject => {
-  const width = 420;
-  const height = 240;
+}: BuildAviUtlTartanCheckObjectInput): TartanCheckObject => {
+  const width = 800;
+  const height = 450;
   const x = Math.round((projectWidth - width) / 2);
   const y = Math.round((projectHeight - height) / 2);
 
   return {
     id,
-    type: 'protractor',
-    name: '分度器',
+    type: 'tartan_check',
+    name: 'タータンチェック',
     layer,
     startTime,
     duration: 5,
@@ -39,13 +39,11 @@ export const buildAviUtlProtractorObject = ({
     endX: x,
     endY: y,
     easing: 'linear',
-    radius: 180,
-    measuredAngleDegrees: 90,
-    tickStepDegrees: 10,
-    majorTickStepDegrees: 30,
-    decimalPlaces: 1,
-    lineColour: '#ffffff',
-    textColour: '#ffffff',
-    shadowColour: '#000000',
+    tileSize: 100,
+    blurRadius: 1,
+    baseColour: '#143e10',
+    stripeColourA: '#a81616',
+    stripeColourB: '#c9c526',
+    lineColour: '#000000',
   };
 };

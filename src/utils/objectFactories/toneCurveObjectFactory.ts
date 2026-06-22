@@ -1,6 +1,6 @@
-import type { ShakingPolygonObject } from '../types';
+import type { ToneCurveObject } from '../../types';
 
-export interface BuildAviUtlShakingPolygonObjectInput {
+export interface BuildAviUtlToneCurveObjectInput {
   id: string;
   projectWidth: number;
   projectHeight: number;
@@ -8,13 +8,13 @@ export interface BuildAviUtlShakingPolygonObjectInput {
   layer: number;
 }
 
-export const buildAviUtlShakingPolygonObject = ({
+export const buildAviUtlToneCurveObject = ({
   id,
   projectWidth,
   projectHeight,
   startTime,
   layer,
-}: BuildAviUtlShakingPolygonObjectInput): ShakingPolygonObject => {
+}: BuildAviUtlToneCurveObjectInput): ToneCurveObject => {
   const width = 360;
   const height = 360;
   const x = Math.round((projectWidth - width) / 2);
@@ -22,8 +22,8 @@ export const buildAviUtlShakingPolygonObject = ({
 
   return {
     id,
-    type: 'shaking_polygon',
-    name: '多角形_震える',
+    type: 'tone_curve',
+    name: '簡易トーンカーブ',
     layer,
     startTime,
     duration: 5,
@@ -39,17 +39,11 @@ export const buildAviUtlShakingPolygonObject = ({
     endX: x,
     endY: y,
     easing: 'linear',
-    lineWidth: 20,
-    vertexCount: 3,
-    fixedDiameter: 260,
-    verticalDistortionPercent: 0,
-    repeatCount: 1,
-    repeatFrequency: 1,
-    fill: false,
-    jitterRange: 20,
-    jitterInterval: 10,
-    stepped: false,
-    colour: '#ffffff',
-    seed: 0,
+    gridDivisions: 4,
+    lineWidth: 3,
+    curvePoints: [0, 0.16, 0.42, 0.7, 1],
+    curveColour: '#ffffff',
+    gridColour: '#333333',
+    backgroundColour: '#000000',
   };
 };

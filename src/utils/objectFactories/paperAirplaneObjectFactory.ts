@@ -1,4 +1,4 @@
-import type { PaperAirplaneObject } from '../types';
+import type { PaperAirplaneObject } from '../../types';
 
 export interface BuildAviUtlPaperAirplaneObjectInput {
   id: string;

@@ -1,4 +1,4 @@
-import type { PieChartObject } from '../types';
+import type { PieChartObject } from '../../types';
 
 export interface BuildAviUtlPieChartObjectInput {
   id: string;

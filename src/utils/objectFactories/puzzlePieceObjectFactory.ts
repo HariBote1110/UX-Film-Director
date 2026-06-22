@@ -1,6 +1,6 @@
-import type { ToneCurveObject } from '../types';
+import type { PuzzlePieceObject } from '../../types';
 
-export interface BuildAviUtlToneCurveObjectInput {
+export interface BuildAviUtlPuzzlePieceObjectInput {
   id: string;
   projectWidth: number;
   projectHeight: number;
@@ -8,22 +8,23 @@ export interface BuildAviUtlToneCurveObjectInput {
   layer: number;
 }
 
-export const buildAviUtlToneCurveObject = ({
+export const buildAviUtlPuzzlePieceObject = ({
   id,
   projectWidth,
   projectHeight,
   startTime,
   layer,
-}: BuildAviUtlToneCurveObjectInput): ToneCurveObject => {
-  const width = 360;
-  const height = 360;
+}: BuildAviUtlPuzzlePieceObjectInput): PuzzlePieceObject => {
+  const size = Math.max(80, Math.round(Math.min(projectWidth, projectHeight) / 9));
+  const width = size * 2;
+  const height = size * 2;
   const x = Math.round((projectWidth - width) / 2);
   const y = Math.round((projectHeight - height) / 2);
 
   return {
     id,
-    type: 'tone_curve',
-    name: '簡易トーンカーブ',
+    type: 'puzzle_piece',
+    name: 'パズルピース',
     layer,
     startTime,
     duration: 5,
@@ -39,11 +40,9 @@ export const buildAviUtlToneCurveObject = ({
     endX: x,
     endY: y,
     easing: 'linear',
-    gridDivisions: 4,
-    lineWidth: 3,
-    curvePoints: [0, 0.16, 0.42, 0.7, 1],
-    curveColour: '#ffffff',
-    gridColour: '#333333',
-    backgroundColour: '#000000',
+    size,
+    shapeVariant: 1,
+    connectorMode: 'convex',
+    fillColour: '#ffffff',
   };
 };

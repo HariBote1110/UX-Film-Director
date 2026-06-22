@@ -1,4 +1,4 @@
-import type { GetColorDotFieldObject } from '../types';
+import type { GetColorDotFieldObject } from '../../types';
 
 export interface BuildGetColorDotFieldObjectInput {
   id: string;

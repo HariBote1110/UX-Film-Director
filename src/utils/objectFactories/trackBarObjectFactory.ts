@@ -1,4 +1,4 @@
-import type { TrackBarObject } from '../types';
+import type { TrackBarObject } from '../../types';
 
 export interface BuildAviUtlTrackBarObjectInput {
   id: string;

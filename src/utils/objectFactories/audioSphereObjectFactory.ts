@@ -1,6 +1,6 @@
-import type { SphericalFieldObject } from '../types';
+import type { AudioSphereObject } from '../../types';
 
-export interface BuildAviUtlSphericalFieldObjectInput {
+export interface BuildAviUtlAudioSphereObjectInput {
   id: string;
   projectWidth: number;
   projectHeight: number;
@@ -8,21 +8,21 @@ export interface BuildAviUtlSphericalFieldObjectInput {
   layer: number;
 }
 
-export const buildAviUtlSphericalFieldObject = ({
+export const buildAviUtlAudioSphereObject = ({
   id,
   projectWidth,
   projectHeight,
   startTime,
   layer,
-}: BuildAviUtlSphericalFieldObjectInput): SphericalFieldObject => {
+}: BuildAviUtlAudioSphereObjectInput): AudioSphereObject => {
   const size = Math.max(240, Math.round(Math.min(projectWidth, projectHeight) * 0.4444));
   const x = Math.round((projectWidth - size) / 2);
   const y = Math.round((projectHeight - size) / 2);
 
   return {
     id,
-    type: 'spherical_field',
-    name: '93 SphericalField',
+    type: 'audio_sphere',
+    name: '93 音声玉',
     layer,
     startTime,
     duration: 5,
@@ -38,17 +38,17 @@ export const buildAviUtlSphericalFieldObject = ({
     endX: x,
     endY: y,
     easing: 'linear',
-    radius: 160,
-    strength: 100,
-    colourAmount: 100,
-    alphaAmount: 0,
-    lineWidth: 3,
-    ringCount: 4,
-    vectorCount: 16,
-    fieldColour: '#ff3b30',
-    secondaryColour: '#36c2ff',
-    backgroundOpacity: 0.08,
-    container: false,
+    columns: 16,
+    rows: 12,
+    baseRadius: 170,
+    audioInfluence: 0.6,
+    pointSize: 5,
+    polygonSize: 0.35,
+    randomAmount: 0.05,
+    colour: '#36c2ff',
+    targetAudioId: null,
+    targetLayer: layer - 1 >= 0 ? layer - 1 : -1,
+    sampleWindowSeconds: 0.1,
     seed: 93,
   };
 };

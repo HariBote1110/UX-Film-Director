@@ -1,6 +1,6 @@
-import type { HologramObject } from '../types';
+import type { HoundstoothObject } from '../../types';
 
-export interface BuildAviUtlHologramObjectInput {
+export interface BuildAviUtlHoundstoothObjectInput {
   id: string;
   projectWidth: number;
   projectHeight: number;
@@ -8,13 +8,13 @@ export interface BuildAviUtlHologramObjectInput {
   layer: number;
 }
 
-export const buildAviUtlHologramObject = ({
+export const buildAviUtlHoundstoothObject = ({
   id,
   projectWidth,
   projectHeight,
   startTime,
   layer,
-}: BuildAviUtlHologramObjectInput): HologramObject => {
+}: BuildAviUtlHoundstoothObjectInput): HoundstoothObject => {
   const width = 800;
   const height = 450;
   const x = Math.round((projectWidth - width) / 2);
@@ -22,8 +22,8 @@ export const buildAviUtlHologramObject = ({
 
   return {
     id,
-    type: 'hologram',
-    name: 'ホログラム',
+    type: 'houndstooth',
+    name: '千鳥格子',
     layer,
     startTime,
     duration: 5,
@@ -39,10 +39,8 @@ export const buildAviUtlHologramObject = ({
     endX: x,
     endY: y,
     easing: 'linear',
-    tileSize: 80,
-    rotationDegrees: 0,
-    gradientAngleDegrees: -60,
-    colourMode: 1,
-    tintColour: '#ffffff',
+    patternSize: 50,
+    foregroundColour: '#000000',
+    backgroundColour: '#ffffff',
   };
 };

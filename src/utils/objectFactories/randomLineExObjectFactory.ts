@@ -1,6 +1,6 @@
-import type { HoundstoothObject } from '../types';
+import type { RandomLineExObject } from '../../types';
 
-export interface BuildAviUtlHoundstoothObjectInput {
+export interface BuildAviUtlRandomLineExObjectInput {
   id: string;
   projectWidth: number;
   projectHeight: number;
@@ -8,13 +8,13 @@ export interface BuildAviUtlHoundstoothObjectInput {
   layer: number;
 }
 
-export const buildAviUtlHoundstoothObject = ({
+export const buildAviUtlRandomLineExObject = ({
   id,
   projectWidth,
   projectHeight,
   startTime,
   layer,
-}: BuildAviUtlHoundstoothObjectInput): HoundstoothObject => {
+}: BuildAviUtlRandomLineExObjectInput): RandomLineExObject => {
   const width = 800;
   const height = 450;
   const x = Math.round((projectWidth - width) / 2);
@@ -22,8 +22,8 @@ export const buildAviUtlHoundstoothObject = ({
 
   return {
     id,
-    type: 'houndstooth',
-    name: '千鳥格子',
+    type: 'random_line_ex',
+    name: 'ランダムラインEX',
     layer,
     startTime,
     duration: 5,
@@ -39,8 +39,12 @@ export const buildAviUtlHoundstoothObject = ({
     endX: x,
     endY: y,
     easing: 'linear',
-    patternSize: 50,
-    foregroundColour: '#000000',
-    backgroundColour: '#ffffff',
+    lineCount: 3,
+    lineWidth: 6,
+    threshold: 128,
+    noiseCellSize: 12,
+    widthVariance: 0,
+    seed: 0,
+    lineColour: '#ffffff',
   };
 };

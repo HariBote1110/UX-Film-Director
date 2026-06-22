@@ -1,6 +1,6 @@
-import type { SphereDotsObject } from '../types';
+import type { SphericalFieldObject } from '../../types';
 
-export interface BuildAviUtlSphereDotsObjectInput {
+export interface BuildAviUtlSphericalFieldObjectInput {
   id: string;
   projectWidth: number;
   projectHeight: number;
@@ -8,21 +8,21 @@ export interface BuildAviUtlSphereDotsObjectInput {
   layer: number;
 }
 
-export const buildAviUtlSphereDotsObject = ({
+export const buildAviUtlSphericalFieldObject = ({
   id,
   projectWidth,
   projectHeight,
   startTime,
   layer,
-}: BuildAviUtlSphereDotsObjectInput): SphereDotsObject => {
+}: BuildAviUtlSphericalFieldObjectInput): SphericalFieldObject => {
   const size = Math.max(240, Math.round(Math.min(projectWidth, projectHeight) * 0.4444));
   const x = Math.round((projectWidth - size) / 2);
   const y = Math.round((projectHeight - size) / 2);
 
   return {
     id,
-    type: 'sphere_dots',
-    name: '93 Sphere(DrawPixel)',
+    type: 'spherical_field',
+    name: '93 SphericalField',
     layer,
     startTime,
     duration: 5,
@@ -38,17 +38,17 @@ export const buildAviUtlSphereDotsObject = ({
     endX: x,
     endY: y,
     easing: 'linear',
-    radius: 170,
-    columns: 16,
-    rows: 12,
-    rotationDegrees: 10,
-    offsetDegrees: 0,
-    luminanceInfluence: 0,
-    pointSize: 6,
-    latitudeLineWidth: 2,
-    colour: '#ffffff',
+    radius: 160,
+    strength: 100,
+    colourAmount: 100,
+    alphaAmount: 0,
+    lineWidth: 3,
+    ringCount: 4,
+    vectorCount: 16,
+    fieldColour: '#ff3b30',
     secondaryColour: '#36c2ff',
+    backgroundOpacity: 0.08,
+    container: false,
     seed: 93,
-    planeMode: false,
   };
 };

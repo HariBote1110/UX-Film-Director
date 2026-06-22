@@ -1,6 +1,6 @@
-import type { TriangleBracketObject } from '../types';
+import type { YagasuriObject } from '../../types';
 
-export interface BuildAviUtlTriangleBracketObjectInput {
+export interface BuildAviUtlYagasuriObjectInput {
   id: string;
   projectWidth: number;
   projectHeight: number;
@@ -8,22 +8,22 @@ export interface BuildAviUtlTriangleBracketObjectInput {
   layer: number;
 }
 
-export const buildAviUtlTriangleBracketObject = ({
+export const buildAviUtlYagasuriObject = ({
   id,
   projectWidth,
   projectHeight,
   startTime,
   layer,
-}: BuildAviUtlTriangleBracketObjectInput): TriangleBracketObject => {
-  const width = 160;
-  const height = 100;
+}: BuildAviUtlYagasuriObjectInput): YagasuriObject => {
+  const width = 800;
+  const height = 450;
   const x = Math.round((projectWidth - width) / 2);
   const y = Math.round((projectHeight - height) / 2);
 
   return {
     id,
-    type: 'triangle_bracket',
-    name: '三角括弧',
+    type: 'yagasuri',
+    name: '矢がすり',
     layer,
     startTime,
     duration: 5,
@@ -39,10 +39,11 @@ export const buildAviUtlTriangleBracketObject = ({
     endX: x,
     endY: y,
     easing: 'linear',
-    bracketWidth: 100,
-    angleDegrees: 120,
-    armLength: 50,
-    offsetDistance: 0,
-    bracketColour: '#ffffff',
+    arrowWidth: 15,
+    arrowHeight: 65,
+    lineWidth: 2,
+    staggered: true,
+    foregroundColour: '#000000',
+    backgroundColour: '#ffffff',
   };
 };

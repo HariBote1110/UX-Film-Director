@@ -1,4 +1,4 @@
-import type { BarcodeObject } from '../types';
+import type { BarcodeObject } from '../../types';
 
 export interface BuildAviUtlBarcodeObjectInput {
   id: string;

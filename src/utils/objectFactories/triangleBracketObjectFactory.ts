@@ -1,6 +1,6 @@
-import type { PuzzlePieceObject } from '../types';
+import type { TriangleBracketObject } from '../../types';
 
-export interface BuildAviUtlPuzzlePieceObjectInput {
+export interface BuildAviUtlTriangleBracketObjectInput {
   id: string;
   projectWidth: number;
   projectHeight: number;
@@ -8,23 +8,22 @@ export interface BuildAviUtlPuzzlePieceObjectInput {
   layer: number;
 }
 
-export const buildAviUtlPuzzlePieceObject = ({
+export const buildAviUtlTriangleBracketObject = ({
   id,
   projectWidth,
   projectHeight,
   startTime,
   layer,
-}: BuildAviUtlPuzzlePieceObjectInput): PuzzlePieceObject => {
-  const size = Math.max(80, Math.round(Math.min(projectWidth, projectHeight) / 9));
-  const width = size * 2;
-  const height = size * 2;
+}: BuildAviUtlTriangleBracketObjectInput): TriangleBracketObject => {
+  const width = 160;
+  const height = 100;
   const x = Math.round((projectWidth - width) / 2);
   const y = Math.round((projectHeight - height) / 2);
 
   return {
     id,
-    type: 'puzzle_piece',
-    name: 'パズルピース',
+    type: 'triangle_bracket',
+    name: '三角括弧',
     layer,
     startTime,
     duration: 5,
@@ -40,9 +39,10 @@ export const buildAviUtlPuzzlePieceObject = ({
     endX: x,
     endY: y,
     easing: 'linear',
-    size,
-    shapeVariant: 1,
-    connectorMode: 'convex',
-    fillColour: '#ffffff',
+    bracketWidth: 100,
+    angleDegrees: 120,
+    armLength: 50,
+    offsetDistance: 0,
+    bracketColour: '#ffffff',
   };
 };

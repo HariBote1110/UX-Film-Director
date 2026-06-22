@@ -1,6 +1,6 @@
-import type { AudioSphereObject } from '../types';
+import type { SphereDotsObject } from '../../types';
 
-export interface BuildAviUtlAudioSphereObjectInput {
+export interface BuildAviUtlSphereDotsObjectInput {
   id: string;
   projectWidth: number;
   projectHeight: number;
@@ -8,21 +8,21 @@ export interface BuildAviUtlAudioSphereObjectInput {
   layer: number;
 }
 
-export const buildAviUtlAudioSphereObject = ({
+export const buildAviUtlSphereDotsObject = ({
   id,
   projectWidth,
   projectHeight,
   startTime,
   layer,
-}: BuildAviUtlAudioSphereObjectInput): AudioSphereObject => {
+}: BuildAviUtlSphereDotsObjectInput): SphereDotsObject => {
   const size = Math.max(240, Math.round(Math.min(projectWidth, projectHeight) * 0.4444));
   const x = Math.round((projectWidth - size) / 2);
   const y = Math.round((projectHeight - size) / 2);
 
   return {
     id,
-    type: 'audio_sphere',
-    name: '93 音声玉',
+    type: 'sphere_dots',
+    name: '93 Sphere(DrawPixel)',
     layer,
     startTime,
     duration: 5,
@@ -38,17 +38,17 @@ export const buildAviUtlAudioSphereObject = ({
     endX: x,
     endY: y,
     easing: 'linear',
+    radius: 170,
     columns: 16,
     rows: 12,
-    baseRadius: 170,
-    audioInfluence: 0.6,
-    pointSize: 5,
-    polygonSize: 0.35,
-    randomAmount: 0.05,
-    colour: '#36c2ff',
-    targetAudioId: null,
-    targetLayer: layer - 1 >= 0 ? layer - 1 : -1,
-    sampleWindowSeconds: 0.1,
+    rotationDegrees: 10,
+    offsetDegrees: 0,
+    luminanceInfluence: 0,
+    pointSize: 6,
+    latitudeLineWidth: 2,
+    colour: '#ffffff',
+    secondaryColour: '#36c2ff',
     seed: 93,
+    planeMode: false,
   };
 };

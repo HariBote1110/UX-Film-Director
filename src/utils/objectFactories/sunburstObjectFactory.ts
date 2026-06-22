@@ -1,6 +1,6 @@
-import type { FocusLinesPlusObject } from '../types';
+import type { SunburstObject } from '../../types';
 
-export interface BuildAviUtlFocusLinesPlusObjectInput {
+export interface BuildAviUtlSunburstObjectInput {
   id: string;
   projectWidth: number;
   projectHeight: number;
@@ -8,13 +8,13 @@ export interface BuildAviUtlFocusLinesPlusObjectInput {
   layer: number;
 }
 
-export const buildAviUtlFocusLinesPlusObject = ({
+export const buildAviUtlSunburstObject = ({
   id,
   projectWidth,
   projectHeight,
   startTime,
   layer,
-}: BuildAviUtlFocusLinesPlusObjectInput): FocusLinesPlusObject => {
+}: BuildAviUtlSunburstObjectInput): SunburstObject => {
   const width = 800;
   const height = 450;
   const x = Math.round((projectWidth - width) / 2);
@@ -22,8 +22,8 @@ export const buildAviUtlFocusLinesPlusObject = ({
 
   return {
     id,
-    type: 'focus_lines_plus',
-    name: '集中線plus',
+    type: 'sunburst',
+    name: '日の出',
     layer,
     startTime,
     duration: 5,
@@ -39,15 +39,14 @@ export const buildAviUtlFocusLinesPlusObject = ({
     endX: x,
     endY: y,
     easing: 'linear',
-    rayWidth: 1,
-    gap: 5,
-    centreRadius: 100,
-    rotationDegrees: 0,
-    centreX: width / 2,
-    centreY: height / 2,
-    centreJitterPercent: 20,
-    seed: 0,
-    keyframeInterval: 0,
-    lineColour: '#ffffff',
+    rayCount: 10,
+    rayCoveragePercent: 50,
+    rotationOffsetDegrees: 0,
+    centreXPercent: 50,
+    centreYPercent: 50,
+    motifSize: 200,
+    motifShape: 'circle',
+    rayColour: '#ff0000',
+    backgroundColour: '#ffff00',
   };
 };

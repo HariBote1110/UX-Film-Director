@@ -1,4 +1,4 @@
-import type { SimpleTubeObject } from '../types';
+import type { SimpleTubeObject } from '../../types';
 
 export interface BuildAviUtlSimpleTubeObjectInput {
   id: string;

@@ -2,42 +2,42 @@ import React, { useRef, useLayoutEffect, useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { shallow } from 'zustand/shallow';
 import { useTranslation } from '../i18n';
-import { buildAviUtlAsanohaPatternObject } from '../utils/asanohaPatternObjectFactory';
-import { buildAviUtlAudioSphereObject } from '../utils/audioSphereObjectFactory';
-import { buildAviUtlBarcodeObject } from '../utils/barcodeObjectFactory';
-import { buildAviUtlCircularArrowObject } from '../utils/circularArrowObjectFactory';
-import { buildAviUtlColourWheelObject } from '../utils/colourWheelObjectFactory';
-import { buildAviUtlFocusLinesPlusObject } from '../utils/focusLinesPlusObjectFactory';
-import { buildAviUtlGearObject } from '../utils/gearObjectFactory';
-import { buildGetColorDiamondDotFieldObject, buildGetColorDotFieldObject, buildGetColorOutlinedSquareDotFieldObject, buildGetColorSampledDotFieldObject } from '../utils/getColorDotFieldObjectFactory';
-import { buildAviUtlGourdObject } from '../utils/gourdObjectFactory';
-import { buildAviUtlHistogramObject } from '../utils/histogramObjectFactory';
-import { buildHksyAnchorLineObject, buildHksyCheckerGridObject, buildHksyDiamondObject, buildHksyLineObject, buildHksyMeasuredGridObject, buildHksyMultiColourCheckerObject } from '../utils/hksyCheckerGridObjectFactory';
-import { buildAviUtlHologramObject } from '../utils/hologramObjectFactory';
-import { buildAviUtlHoundstoothObject } from '../utils/houndstoothObjectFactory';
-import { buildAviUtlPaperAirplaneObject } from '../utils/paperAirplaneObjectFactory';
-import { buildAviUtlPieChartObject } from '../utils/pieChartObjectFactory';
-import { buildAviUtlPuzzlePieceObject } from '../utils/puzzlePieceObjectFactory';
-import { buildAviUtlProtractorObject } from '../utils/protractorObjectFactory';
-import { buildAviUtlRandomLineExObject } from '../utils/randomLineExObjectFactory';
-import { buildAviUtlCutCornerRegionFrameObject, buildAviUtlEllipseRegionFrameObject, buildAviUtlRegionFrameObject } from '../utils/regionFrameObjectFactory';
-import { buildAviUtlShakingPolygonObject } from '../utils/shakingPolygonObjectFactory';
-import { buildAviUtlSimpleTubeObject, buildAviUtlSimpleTubeTorusObject } from '../utils/simpleTubeObjectFactory';
-import { buildAviUtlSphereDotsObject } from '../utils/sphereDotsObjectFactory';
-import { buildAviUtlSphericalFieldObject } from '../utils/sphericalFieldObjectFactory';
-import { buildAviUtlSunburstObject } from '../utils/sunburstObjectFactory';
-import { buildAviUtlTartanCheckObject } from '../utils/tartanCheckObjectFactory';
-import { buildAviUtlToneCurveObject } from '../utils/toneCurveObjectFactory';
-import { buildAviUtlTrackBarObject } from '../utils/trackBarObjectFactory';
-import { buildAviUtlTriangleBracketObject } from '../utils/triangleBracketObjectFactory';
-import { buildAviUtlYagasuriObject } from '../utils/yagasuriObjectFactory';
+import { buildAviUtlAsanohaPatternObject } from '../utils/objectFactories/asanohaPatternObjectFactory';
+import { buildAviUtlAudioSphereObject } from '../utils/objectFactories/audioSphereObjectFactory';
+import { buildAviUtlBarcodeObject } from '../utils/objectFactories/barcodeObjectFactory';
+import { buildAviUtlCircularArrowObject } from '../utils/objectFactories/circularArrowObjectFactory';
+import { buildAviUtlColourWheelObject } from '../utils/objectFactories/colourWheelObjectFactory';
+import { buildAviUtlFocusLinesPlusObject } from '../utils/objectFactories/focusLinesPlusObjectFactory';
+import { buildAviUtlGearObject } from '../utils/objectFactories/gearObjectFactory';
+import { buildGetColorDiamondDotFieldObject, buildGetColorDotFieldObject, buildGetColorOutlinedSquareDotFieldObject, buildGetColorSampledDotFieldObject } from '../utils/objectFactories/getColorDotFieldObjectFactory';
+import { buildAviUtlGourdObject } from '../utils/objectFactories/gourdObjectFactory';
+import { buildAviUtlHistogramObject } from '../utils/objectFactories/histogramObjectFactory';
+import { buildHksyAnchorLineObject, buildHksyCheckerGridObject, buildHksyDiamondObject, buildHksyLineObject, buildHksyMeasuredGridObject, buildHksyMultiColourCheckerObject } from '../utils/objectFactories/hksyCheckerGridObjectFactory';
+import { buildAviUtlHologramObject } from '../utils/objectFactories/hologramObjectFactory';
+import { buildAviUtlHoundstoothObject } from '../utils/objectFactories/houndstoothObjectFactory';
+import { buildAviUtlPaperAirplaneObject } from '../utils/objectFactories/paperAirplaneObjectFactory';
+import { buildAviUtlPieChartObject } from '../utils/objectFactories/pieChartObjectFactory';
+import { buildAviUtlPuzzlePieceObject } from '../utils/objectFactories/puzzlePieceObjectFactory';
+import { buildAviUtlProtractorObject } from '../utils/objectFactories/protractorObjectFactory';
+import { buildAviUtlRandomLineExObject } from '../utils/objectFactories/randomLineExObjectFactory';
+import { buildAviUtlCutCornerRegionFrameObject, buildAviUtlEllipseRegionFrameObject, buildAviUtlRegionFrameObject } from '../utils/objectFactories/regionFrameObjectFactory';
+import { buildAviUtlShakingPolygonObject } from '../utils/objectFactories/shakingPolygonObjectFactory';
+import { buildAviUtlSimpleTubeObject, buildAviUtlSimpleTubeTorusObject } from '../utils/objectFactories/simpleTubeObjectFactory';
+import { buildAviUtlSphereDotsObject } from '../utils/objectFactories/sphereDotsObjectFactory';
+import { buildAviUtlSphericalFieldObject } from '../utils/objectFactories/sphericalFieldObjectFactory';
+import { buildAviUtlSunburstObject } from '../utils/objectFactories/sunburstObjectFactory';
+import { buildAviUtlTartanCheckObject } from '../utils/objectFactories/tartanCheckObjectFactory';
+import { buildAviUtlToneCurveObject } from '../utils/objectFactories/toneCurveObjectFactory';
+import { buildAviUtlTrackBarObject } from '../utils/objectFactories/trackBarObjectFactory';
+import { buildAviUtlTriangleBracketObject } from '../utils/objectFactories/triangleBracketObjectFactory';
+import { buildAviUtlYagasuriObject } from '../utils/objectFactories/yagasuriObjectFactory';
 import {
   buildAviUtlAuraEmissionObject,
   buildAviUtlBubbleObject,
   buildAviUtlFocusLinesObject,
   buildAviUtlInkSplashObject,
   buildDefaultStandardParticleObject,
-} from '../utils/particleObjectFactory';
+} from '../utils/objectFactories/particleObjectFactory';
 
 export interface ContextMenuState {
   visible: boolean;

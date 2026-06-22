@@ -1,3 +1,19 @@
+## 2026-06-22 — utilsのObjectFactory群をobjectFactoriesへ集約
+
+### 実施内容
+- `glittery-sauteeing-diffie.md` のフェーズ1方針に従い、`src/utils/*ObjectFactory.ts` と対になる `*.test.ts` 30組を `src/utils/objectFactories/` へ移動した。
+- `src/components/TimelineContextMenu.tsx` と `src/main.tsx` の生成オブジェクトfactory importを新しい配置へ更新した。
+- 移動したfactory内の `types` 参照を `../../types` へ調整し、テスト側は同一ディレクトリの相対importを維持した。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは `0.1.1-Beta-313a` のまま据え置いた。
+
+### 検証
+- `npm test -- --run src/utils/objectFactories --reporter=dot` は30ファイル45件成功した。
+- `npm test -- --run src/utils/objectFactories src/components/TimelineContextMenu.particle.test.ts src/utils/projectFile.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/packageScripts.test.ts --reporter=dot` は35ファイル139件成功した。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の移動由来のimportエラーは出ていない。
+
+### 残課題・次のステップ
+- 次は `glittery-sauteeing-diffie.md` のフェーズ1に沿って、`sharedRenderer/` または `export/` などのクラスタを同様に小さく移動する。
+
 ## 2026-06-22 — GetColor ColorShift初期互換としてサンプル色相シフトを追加
 
 ### 実施内容

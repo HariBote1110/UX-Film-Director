@@ -1,6 +1,6 @@
-import type { GourdObject } from '../types';
+import type { GearObject } from '../../types';
 
-export interface BuildAviUtlGourdObjectInput {
+export interface BuildAviUtlGearObjectInput {
   id: string;
   projectWidth: number;
   projectHeight: number;
@@ -8,21 +8,21 @@ export interface BuildAviUtlGourdObjectInput {
   layer: number;
 }
 
-export const buildAviUtlGourdObject = ({
+export const buildAviUtlGearObject = ({
   id,
   projectWidth,
   projectHeight,
   startTime,
   layer,
-}: BuildAviUtlGourdObjectInput): GourdObject => {
-  const size = Math.max(160, Math.round(Math.min(projectWidth, projectHeight) / 2.7));
+}: BuildAviUtlGearObjectInput): GearObject => {
+  const size = Math.max(128, Math.round(Math.min(projectWidth, projectHeight) / 3.375));
   const x = Math.round((projectWidth - size) / 2);
   const y = Math.round((projectHeight - size) / 2);
 
   return {
     id,
-    type: 'gourd',
-    name: 'ひょうたんTM',
+    type: 'gear',
+    name: '歯車',
     layer,
     startTime,
     duration: 5,
@@ -38,11 +38,11 @@ export const buildAviUtlGourdObject = ({
     endX: x,
     endY: y,
     easing: 'linear',
-    bodyRadius: 80,
-    bodyWidth: 250,
-    waistRadius: 10,
-    squashPercent: 40,
-    repeatCount: 1,
+    outerRadius: Math.round(size / 2),
+    innerRadiusPercent: 45,
+    toothCount: 20,
+    toothDepthPercent: 18,
+    toothSkewPercent: 0,
     fillColour: '#ffffff',
   };
 };

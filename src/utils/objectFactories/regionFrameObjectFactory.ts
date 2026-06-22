@@ -1,4 +1,4 @@
-import type { RegionFrameObject } from '../types';
+import type { RegionFrameObject } from '../../types';
 
 export interface BuildAviUtlRegionFrameObjectInput {
   id: string;

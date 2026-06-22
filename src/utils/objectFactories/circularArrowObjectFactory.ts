@@ -1,4 +1,4 @@
-import type { CircularArrowObject } from '../types';
+import type { CircularArrowObject } from '../../types';
 
 export interface BuildAviUtlCircularArrowObjectInput {
   id: string;

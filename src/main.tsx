@@ -3,9 +3,9 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import { schedulePerformanceHarness } from './perf/schedulePerformanceHarness'
 import { useStore } from './store/useStore'
-import { buildAviUtlAudioSphereObject } from './utils/audioSphereObjectFactory'
-import { buildGetColorDotFieldObject } from './utils/getColorDotFieldObjectFactory'
-import { buildHksyCheckerGridObject } from './utils/hksyCheckerGridObjectFactory'
+import { buildAviUtlAudioSphereObject } from './utils/objectFactories/audioSphereObjectFactory'
+import { buildGetColorDotFieldObject } from './utils/objectFactories/getColorDotFieldObjectFactory'
+import { buildHksyCheckerGridObject } from './utils/objectFactories/hksyCheckerGridObjectFactory'
 import type { AudioObject, AudioVisualizationObject, ParticleObject, ShapeObject } from './types'
 
 schedulePerformanceHarness()

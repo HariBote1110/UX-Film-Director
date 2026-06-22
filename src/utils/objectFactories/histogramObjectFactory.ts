@@ -1,4 +1,4 @@
-import type { HistogramObject } from '../types';
+import type { HistogramObject } from '../../types';
 
 export interface BuildAviUtlHistogramObjectInput {
   id: string;
