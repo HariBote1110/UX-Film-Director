@@ -298,6 +298,11 @@ impl NativeWgpuRenderer {
                     multi_slicer_slices: multi_slicer_slices(clip),
                     multi_slicer_expansion: multi_slicer_expansion(clip),
                     multi_slicer_strength: multi_slicer_strength(clip),
+                    oct_transform_scale: oct_transform_scale(clip),
+                    oct_transform_rotation: oct_transform_rotation(clip),
+                    oct_transform_vertex_count: oct_transform_vertex_count(clip),
+                    oct_transform_warp: oct_transform_warp(clip),
+                    oct_transform_strength: oct_transform_strength(clip),
                     source_width: source.width as f32,
                     source_height: source.height as f32,
                     translation_x: clip.transform.translation_x,
@@ -307,9 +312,6 @@ impl NativeWgpuRenderer {
                     sampling_mode: sampling_mode_value(clip.transform.sampling),
                     rotation_cos: rotation_radians.cos(),
                     rotation_sin: rotation_radians.sin(),
-                    _padding3: 0.0,
-                    _padding4: 0.0,
-                    _padding5: 0.0,
                     _padding6: 0.0,
                 },
             ));
@@ -811,6 +813,11 @@ struct RenderParams {
     multi_slicer_slices: f32,
     multi_slicer_expansion: f32,
     multi_slicer_strength: f32,
+    oct_transform_scale: f32,
+    oct_transform_rotation: f32,
+    oct_transform_vertex_count: f32,
+    oct_transform_warp: f32,
+    oct_transform_strength: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -820,9 +827,6 @@ struct RenderParams {
     sampling_mode: f32,
     rotation_cos: f32,
     rotation_sin: f32,
-    _padding3: f32,
-    _padding4: f32,
-    _padding5: f32,
     _padding6: f32,
 }
 
@@ -1090,6 +1094,7 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::AutoBlur { .. } => 1.0,
         Effect::Stretch { .. } => 1.0,
         Effect::MultiSlicer { .. } => 1.0,
+        Effect::OctTransform { .. } => 1.0,
     }
 }
 
@@ -1451,6 +1456,67 @@ fn multi_slicer_strength(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
         .iter()
         .filter_map(|effect| match effect {
             Effect::MultiSlicer { strength, .. } => Some(*strength),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .clamp(0.0, 1.0)
+}
+
+fn oct_transform_scale(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::OctTransform { scale, .. } => Some(*scale),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(1.0)
+        .max(0.01)
+}
+
+fn oct_transform_rotation(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::OctTransform {
+                rotation_degrees, ..
+            } => Some(rotation_degrees.to_radians()),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+}
+
+fn oct_transform_vertex_count(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::OctTransform { vertex_count, .. } => Some(*vertex_count as f32),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(8.0)
+        .max(3.0)
+}
+
+fn oct_transform_warp(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::OctTransform { warp, .. } => Some(*warp),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .max(0.0)
+}
+
+fn oct_transform_strength(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::OctTransform { strength, .. } => Some(*strength),
             _ => None,
         })
         .last()

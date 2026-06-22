@@ -12,7 +12,8 @@ import {
   FakeDofFilterParams,
   AutoBlurFilterParams,
   StretchFilterParams,
-  MultiSlicerFilterParams
+  MultiSlicerFilterParams,
+  OctTransformFilterParams
 } from '../types';
 
 const DEFAULT_COLOR_CORRECTION: Omit<ColorCorrection, 'enabled'> = {
@@ -120,6 +121,14 @@ const DEFAULT_MULTI_SLICER: MultiSlicerFilterParams = {
   strength: 1
 };
 
+const DEFAULT_OCT_TRANSFORM: OctTransformFilterParams = {
+  scale: 1,
+  rotation: 0,
+  vertexCount: 8,
+  warp: 0.2,
+  strength: 1
+};
+
 const createFilterId = (type: FilterType): string => {
   return `${type}-${crypto.randomUUID()}`;
 };
@@ -152,7 +161,8 @@ const isFilterType = (value: unknown): value is FilterType => {
     || value === 'fake_dof'
     || value === 'auto_blur'
     || value === 'stretch'
-    || value === 'multi_slicer';
+    || value === 'multi_slicer'
+    || value === 'oct_transform';
 };
 
 const normaliseOutlineParams = (params: unknown): import('../types').OutlineFilterParams => {
@@ -262,6 +272,17 @@ const normaliseMultiSlicerParams = (params: unknown): MultiSlicerFilterParams =>
     slices: Math.max(2, Math.round(toNumber(source.slices, DEFAULT_MULTI_SLICER.slices))),
     expansion: Math.max(0, toNumber(source.expansion, DEFAULT_MULTI_SLICER.expansion)),
     strength: Math.max(0, Math.min(1, toNumber(source.strength, DEFAULT_MULTI_SLICER.strength)))
+  };
+};
+
+const normaliseOctTransformParams = (params: unknown): OctTransformFilterParams => {
+  const source = isRecord(params) ? params : {};
+  return {
+    scale: Math.max(0.01, toNumber(source.scale, DEFAULT_OCT_TRANSFORM.scale)),
+    rotation: toNumber(source.rotation, DEFAULT_OCT_TRANSFORM.rotation),
+    vertexCount: Math.max(3, Math.round(toNumber(source.vertexCount, DEFAULT_OCT_TRANSFORM.vertexCount))),
+    warp: Math.max(0, toNumber(source.warp, DEFAULT_OCT_TRANSFORM.warp)),
+    strength: Math.max(0, Math.min(1, toNumber(source.strength, DEFAULT_OCT_TRANSFORM.strength)))
   };
 };
 
@@ -453,6 +474,13 @@ export const createDefaultFilter = (type: FilterType): ObjectFilter => {
         enabled: true,
         params: { ...DEFAULT_MULTI_SLICER }
       };
+    case 'oct_transform':
+      return {
+        id: createFilterId(type),
+        type,
+        enabled: true,
+        params: { ...DEFAULT_OCT_TRANSFORM }
+      };
     default:
       return {
         id: createFilterId('color_correction'),
@@ -582,6 +610,13 @@ const normaliseFilter = (value: unknown): ObjectFilter | null => {
         type: 'multi_slicer',
         enabled,
         params: normaliseMultiSlicerParams(value.params)
+      };
+    case 'oct_transform':
+      return {
+        id,
+        type: 'oct_transform',
+        enabled,
+        params: normaliseOctTransformParams(value.params)
       };
     default:
       return null;

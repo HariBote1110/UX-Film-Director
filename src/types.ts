@@ -141,7 +141,8 @@ export type FilterType =
   | 'fake_dof'
   | 'auto_blur'
   | 'stretch'
-  | 'multi_slicer';
+  | 'multi_slicer'
+  | 'oct_transform';
 
 /** プレビュー／書き出し共通の仮想カメラ（シーン単位） */
 export interface CameraState {
@@ -223,6 +224,14 @@ export interface MultiSlicerFilterParams {
   offset: number;
   slices: number;
   expansion: number;
+  strength: number;
+}
+
+export interface OctTransformFilterParams {
+  scale: number;
+  rotation: number;
+  vertexCount: number;
+  warp: number;
   strength: number;
 }
 
@@ -312,6 +321,11 @@ export interface MultiSlicerObjectFilter extends BaseFilter {
   params: MultiSlicerFilterParams;
 }
 
+export interface OctTransformObjectFilter extends BaseFilter {
+  type: 'oct_transform';
+  params: OctTransformFilterParams;
+}
+
 export type ObjectFilter =
   | ColorCorrectionFilter
   | ColourAberrationFilter
@@ -328,7 +342,8 @@ export type ObjectFilter =
   | FakeDofObjectFilter
   | AutoBlurObjectFilter
   | StretchObjectFilter
-  | MultiSlicerObjectFilter;
+  | MultiSlicerObjectFilter
+  | OctTransformObjectFilter;
 
 // --- オブジェクト定義 ---
 

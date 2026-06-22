@@ -224,6 +224,13 @@ pub enum Effect {
         expansion: f32,
         strength: f32,
     },
+    OctTransform {
+        scale: f32,
+        rotation_degrees: f32,
+        vertex_count: u32,
+        warp: f32,
+        strength: f32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

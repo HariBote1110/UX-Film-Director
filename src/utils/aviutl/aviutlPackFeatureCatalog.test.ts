@@ -164,9 +164,10 @@ describe('AviUtlPackV4 feature catalogue', () => {
       '93-fake-dof2',
       '93-auto-blur-plus',
       '93-stretch',
-      '93-multi-slicer'
+      '93-multi-slicer',
+      '93-oct-transform'
     ];
 
-    expect(roadmapIds.slice(0, 34)).toEqual(expect.arrayContaining(priorityIds));
+    expect(roadmapIds.slice(0, 36)).toEqual(expect.arrayContaining(priorityIds));
   });
 });

@@ -43,6 +43,11 @@ struct RenderParams {
     multi_slicer_slices: f32,
     multi_slicer_expansion: f32,
     multi_slicer_strength: f32,
+    oct_transform_scale: f32,
+    oct_transform_rotation: f32,
+    oct_transform_vertex_count: f32,
+    oct_transform_warp: f32,
+    oct_transform_strength: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -52,9 +57,6 @@ struct RenderParams {
     sampling_mode: f32,
     rotation_cos: f32,
     rotation_sin: f32,
-    _padding3: f32,
-    _padding4: f32,
-    _padding5: f32,
     _padding6: f32,
 }
 
@@ -100,7 +102,8 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
         return vec4<f32>(0.0);
     }
 
-    let displaced_source_position = displaced_position(stretched_position(multi_sliced_position(source_position)));
+    let transformed_source_position = oct_transformed_position(source_position);
+    let displaced_source_position = displaced_position(stretched_position(multi_sliced_position(transformed_source_position)));
     let source = sample_source_with_fake_dof(displaced_source_position);
     let aberration_offset = vec2<f32>(
         params.colour_aberration_offset_x,
@@ -165,6 +168,37 @@ fn multi_sliced_position(source_position: vec2<f32>) -> vec2<f32> {
     let sign = select(-1.0, 1.0, (slice_index - floor(slice_index / 2.0) * 2.0) < 0.5);
     let offset = direction * sign * (params.multi_slicer_offset + params.multi_slicer_expansion) * params.multi_slicer_strength;
     return clamp_source_position(source_position + offset);
+}
+
+fn oct_transformed_position(source_position: vec2<f32>) -> vec2<f32> {
+    if params.oct_transform_strength <= 0.0 {
+        return source_position;
+    }
+    let centre = vec2<f32>(params.source_width - 1.0, params.source_height - 1.0) * 0.5;
+    let relative = source_position - centre;
+    let c = cos(-params.oct_transform_rotation);
+    let s = sin(-params.oct_transform_rotation);
+    let rotated = vec2<f32>(
+        relative.x * c - relative.y * s,
+        relative.x * s + relative.y * c,
+    );
+    let vertices = max(params.oct_transform_vertex_count, 3.0);
+    let sector = 6.28318530718 / vertices;
+    let angle = atan2(rotated.y, rotated.x);
+    let sector_angle = angle - floor((angle + sector * 0.5) / sector) * sector;
+    let polygon_radius = cos(sector * 0.5) / max(cos(sector_angle), 0.01);
+    let warped_scale = max(
+        0.01,
+        params.oct_transform_scale + params.oct_transform_warp * params.oct_transform_strength * (polygon_radius - 1.0),
+    );
+    let scaled = rotated / warped_scale;
+    let c_back = cos(params.oct_transform_rotation);
+    let s_back = sin(params.oct_transform_rotation);
+    let unrotated = vec2<f32>(
+        scaled.x * c_back - scaled.y * s_back,
+        scaled.x * s_back + scaled.y * c_back,
+    );
+    return clamp_source_position(centre + unrotated);
 }
 
 fn sample_source_with_fake_dof(source_position: vec2<f32>) -> vec4<f32> {

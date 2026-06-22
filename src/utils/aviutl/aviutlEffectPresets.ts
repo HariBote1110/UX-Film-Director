@@ -11,7 +11,8 @@ export type AviUtlEffectPresetId =
   | '93-fake-dof2-focus'
   | '93-auto-blur-plus-motion'
   | '93-stretch-directional'
-  | '93-multi-slicer-basic';
+  | '93-multi-slicer-basic'
+  | '93-oct-transform-basic';
 
 export interface AviUtlEffectPreset {
   id: AviUtlEffectPresetId;
@@ -26,7 +27,8 @@ export interface AviUtlEffectPreset {
     | '93-fake-dof2'
     | '93-auto-blur-plus'
     | '93-stretch'
-    | '93-multi-slicer';
+    | '93-multi-slicer'
+    | '93-oct-transform';
   filterType: FilterType;
 }
 
@@ -90,6 +92,12 @@ const presets: AviUtlEffectPreset[] = [
     labelJa: '93 MultiSlicer',
     sourceCandidateId: '93-multi-slicer',
     filterType: 'multi_slicer'
+  },
+  {
+    id: '93-oct-transform-basic',
+    labelJa: '93 簡易変形(oct)',
+    sourceCandidateId: '93-oct-transform',
+    filterType: 'oct_transform'
   }
 ];
 
@@ -212,6 +220,20 @@ export const buildAviUtlEffectPresetFilter = (presetId: AviUtlEffectPresetId): O
           offset: 16,
           slices: 18,
           expansion: 0,
+          strength: 1
+        }
+      };
+    }
+    case '93-oct-transform-basic': {
+      return {
+        id: `aviutl-${presetId}`,
+        type: 'oct_transform',
+        enabled: true,
+        params: {
+          scale: 1,
+          rotation: 0,
+          vertexCount: 8,
+          warp: 0.2,
           strength: 1
         }
       };

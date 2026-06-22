@@ -447,7 +447,8 @@ const PropertyPanel: React.FC = () => {
     fake_dof: language === 'en' ? '93 Fake DOF2' : '93 偽被写界深度2',
     auto_blur: language === 'en' ? '93 Auto Blur+' : '93 オートブラー+',
     stretch: language === 'en' ? '93 Stretch' : '93 Stretch',
-    multi_slicer: language === 'en' ? '93 MultiSlicer' : '93 MultiSlicer'
+    multi_slicer: language === 'en' ? '93 MultiSlicer' : '93 MultiSlicer',
+    oct_transform: language === 'en' ? '93 Oct Transform' : '93 簡易変形(oct)'
   };
   const canUseGradientFilter = selectedObject.type === 'shape';
   const currentGroupId = selectedObject.groupId ?? null;
@@ -1383,6 +1384,7 @@ const PropertyPanel: React.FC = () => {
             <button type="button" onClick={() => handleAddFilter('auto_blur')}>+ {filterLabel.auto_blur}</button>
             <button type="button" onClick={() => handleAddFilter('stretch')}>+ {filterLabel.stretch}</button>
             <button type="button" onClick={() => handleAddFilter('multi_slicer')}>+ {filterLabel.multi_slicer}</button>
+            <button type="button" onClick={() => handleAddFilter('oct_transform')}>+ {filterLabel.oct_transform}</button>
             {canUseGradientFilter && (
                 <button type="button" onClick={() => handleAddFilter('gradient')}>+ {filterLabel.gradient}</button>
             )}
@@ -2013,6 +2015,60 @@ const PropertyPanel: React.FC = () => {
                                 step="1"
                                 value={activeFilter.params.expansion}
                                 onInput={(e) => handleFilterParamChange(activeFilter, { expansion: parseFloat(e.currentTarget.value) })}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                        <Row label="Strength">
+                            <Slider
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                value={activeFilter.params.strength}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { strength: parseFloat(e.currentTarget.value) })}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                    </>
+                )}
+                {activeFilter.type === 'oct_transform' && (
+                    <>
+                        <Row label="Scale">
+                            <Slider
+                                min="0.01"
+                                max="4"
+                                step="0.01"
+                                value={activeFilter.params.scale}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { scale: parseFloat(e.currentTarget.value) })}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                        <Row label="Rotation">
+                            <Slider
+                                min="-360"
+                                max="360"
+                                step="1"
+                                value={activeFilter.params.rotation}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { rotation: parseFloat(e.currentTarget.value) })}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                        <Row label="Vertices">
+                            <input
+                                type="number"
+                                min={3}
+                                max={32}
+                                value={activeFilter.params.vertexCount}
+                                onChange={(e) => handleFilterParamChange(activeFilter, { vertexCount: Math.round(parseFloat(e.target.value) || 8) })}
+                                style={{ width: '64px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                            />
+                        </Row>
+                        <Row label="Warp">
+                            <Slider
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                value={activeFilter.params.warp}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { warp: parseFloat(e.currentTarget.value) })}
                                 style={{ width: '100%' }}
                             />
                         </Row>

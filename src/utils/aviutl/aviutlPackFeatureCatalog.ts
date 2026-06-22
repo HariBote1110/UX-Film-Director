@@ -297,6 +297,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '素材を複数スライスへ分けて交互にずらす演出を、Rust/WebGPUの縞状サンプルオフセットとして標準搭載する。'
   },
   {
+    id: '93-oct-transform',
+    labelJa: '93 簡易変形(oct)',
+    category: 'visual-effect',
+    phase: 'P1',
+    implementationTarget: 'rust-webgpu-effect',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/簡易変形(oct).anm'],
+    rationaleJa: '八角形/多角形マスク風の簡易変形を、まずRust/WebGPUの中心基準多角形ワープとして標準搭載する。'
+  },
+  {
     id: '93-region-frame-ellipse',
     labelJa: '93 領域枠(楕円)',
     category: 'generated-object',

@@ -252,6 +252,23 @@ fn effect_is_finite(effect: &crate::schema::Effect) -> bool {
                 && *strength >= 0.0
                 && *strength <= 1.0
         }
+        crate::schema::Effect::OctTransform {
+            scale,
+            rotation_degrees,
+            vertex_count,
+            warp,
+            strength,
+        } => {
+            scale.is_finite()
+                && *scale > 0.0
+                && rotation_degrees.is_finite()
+                && *vertex_count >= 3
+                && warp.is_finite()
+                && *warp >= 0.0
+                && strength.is_finite()
+                && *strength >= 0.0
+                && *strength <= 1.0
+        }
     }
 }
 

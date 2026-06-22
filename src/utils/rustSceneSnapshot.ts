@@ -78,7 +78,8 @@ export type RustEffect =
   | { FakeDof: { focus_x: number; focus_y: number; focus_radius: number; blur: number; strength: number } }
   | { AutoBlur: { angle_degrees: number; radius: number; strength: number; colour_shift: number } }
   | { Stretch: { angle_degrees: number; amount: number; strength: number } }
-  | { MultiSlicer: { angle_degrees: number; offset: number; slices: number; expansion: number; strength: number } };
+  | { MultiSlicer: { angle_degrees: number; offset: number; slices: number; expansion: number; strength: number } }
+  | { OctTransform: { scale: number; rotation_degrees: number; vertex_count: number; warp: number; strength: number } };
 
 export interface RustEvaluatedClip {
   clip_id: string;
@@ -339,6 +340,7 @@ const collectBuildIssues = (
       && filter.type !== 'auto_blur'
       && filter.type !== 'stretch'
       && filter.type !== 'multi_slicer'
+      && filter.type !== 'oct_transform'
       && !(object.type === 'shape' && filter.type === 'gradient')
     ));
     if (unsupportedFilter) {
@@ -459,6 +461,17 @@ const rustEffectsForObject = (object: TimelineObject, time: number): RustEffect[
           offset: Math.max(0, finiteNumberOr(filter.params.offset, 16)),
           slices: Math.max(2, Math.round(finiteNumberOr(filter.params.slices, 18))),
           expansion: Math.max(0, finiteNumberOr(filter.params.expansion, 0)),
+          strength: Math.max(0, Math.min(1, finiteNumberOr(filter.params.strength, 1))),
+        },
+      });
+    }
+    if (filter.type === 'oct_transform') {
+      effects.push({
+        OctTransform: {
+          scale: Math.max(0.01, finiteNumberOr(filter.params.scale, 1)),
+          rotation_degrees: finiteNumberOr(filter.params.rotation, 0),
+          vertex_count: Math.max(3, Math.round(finiteNumberOr(filter.params.vertexCount, 8))),
+          warp: Math.max(0, finiteNumberOr(filter.params.warp, 0.2)),
           strength: Math.max(0, Math.min(1, finiteNumberOr(filter.params.strength, 1))),
         },
       });
