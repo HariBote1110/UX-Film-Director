@@ -1,3 +1,27 @@
+## 2026-06-22 — P1: 93 オートブラー+をRust/WebGPUフィルタへ追加
+
+### 実施内容
+- Redとして、Filter Stackの `auto_blur`、AviUtl effect preset、AviUtlPackV4カタログ、Rust scene snapshot、rust-core validation、native-wgpu方向ブラーを通る契約を追加した。
+- Greenとして、`AutoBlur` effectをTypeScript/Rust schemaへ追加し、画像/動画/PSD/図形へFilter Stackから追加できるようにした。
+- Rust scene snapshotでオブジェクトの `x/endX` と `y/endY`、duration、fpsからpx/frame相当の速度を推定し、角度と半径を算出するようにした。
+- PropertyPanelへBlur、Speed、Strength、Colour Shift編集UIを追加し、AviUtl Effectsには `93 オートブラー+` presetを追加した。
+- native-wgpuの `solid_composite.wgsl` で移動角度方向の前後サンプルをlinear-lightで混ぜる初期オートブラー近似を追加した。
+- reference rendererはAutoBlurをgain非変更の効果として許可し、Rust境界の網羅matchを更新した。
+- 版を `0.1.1-Beta-318a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/filterStack.test.ts src/utils/aviutl/aviutlEffectPresets.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts src/utils/rustSceneSnapshot.test.ts --reporter=dot` は93件成功した。
+- `cargo test --manifest-path rust-core/Cargo.toml --test project_validation auto_blur -- --nocapture` は2件成功した。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml native_wgpu_applies_auto_blur_plus_along_motion_angle -- --nocapture` は1件成功した。
+- `cargo test --manifest-path reference-renderer/Cargo.toml -- --nocapture` は12件成功した。
+- `npm test -- --run src/utils/packageScripts.test.ts --reporter=dot` は6件成功した。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の93 オートブラー+由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- 現時点の93 オートブラー+は直近フレーム履歴ではなく、UXFDの開始/終了座標から速度を推定する初期互換。後続でキーフレーム/中間点/実フレーム差分に追従させる。
+- Colour Shiftは境界とUIに保持しているが、RGB別オフセットの強調は後続でshaderへ反映する。
+- 次はGetColorの未移植派生、hksyの残候補、または93の個別座標/簡易変形系へ進む。
+
 ## 2026-06-22 — P1: 93 偽被写界深度2をRust/WebGPUフィルタへ追加
 
 ### 実施内容
