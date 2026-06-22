@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendのSphere生成器をサブモジュール化
+
+### 実施内容
+- `rust-backend/src/generated.rs` から `GeneratedSphereDots` と `GeneratedSphericalField` の生成フレーム実装を `rust-backend/src/generated/sphere.rs` へ分離した。
+- sphere dots本体、plane mode描画、spherical fieldのring/vector描画、circle outline helperをSphere系専用モジュールへ閉じ込めた。
+- `generated.rs` は 3,188 行から 2,785 行になり、Sphere系実装409行を独立ファイルへ移した。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次は `generated.rs` に残るRegionFrame、Protractor、ShakingPolygon/ToneCurveなどの生成器をさらに効果ファミリー単位で分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのSimpleTube生成器をサブモジュール化
 
 ### 実施内容
