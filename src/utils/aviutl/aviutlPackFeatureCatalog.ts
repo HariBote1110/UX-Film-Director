@@ -287,6 +287,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '指定角度方向に素材を伸ばす表現を、Rust/WebGPUの中心基準方向ストレッチとして標準搭載する。'
   },
   {
+    id: '93-coordinate-plus',
+    labelJa: '93 座標plus',
+    category: 'motion',
+    phase: 'P1',
+    implementationTarget: 'native-motion-preset',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/@座標plus.anm'],
+    rationaleJa: '座標加算・スナップ移動を、まずグリッドに揃えて移動するnative motion presetとして標準搭載する。'
+  },
+  {
     id: '93-multi-slicer',
     labelJa: '93 MultiSlicer',
     category: 'visual-effect',

@@ -9,7 +9,8 @@ export type AviUtlMotionPresetId =
   | 'motion-path-arc'
   | 'motion-path-s-curve'
   | 'wind-sway-soft'
-  | 'delay-move-individual';
+  | 'delay-move-individual'
+  | 'coordinate-plus-snap-move';
 
 export interface AviUtlMotionPreset {
   id: AviUtlMotionPresetId;
@@ -20,7 +21,8 @@ export interface AviUtlMotionPreset {
     | 'ymm4-repeat-motion'
     | 'tim-motion-path'
     | 'tim-wind-sway'
-    | '93-delay-move';
+    | '93-delay-move'
+    | '93-coordinate-plus';
   defaultDistancePx: number;
   defaultSpanSeconds: number;
   defaultIntervalSeconds: number;
@@ -106,6 +108,14 @@ const presets: AviUtlMotionPreset[] = [
     defaultDistancePx: 96,
     defaultSpanSeconds: 0.5,
     defaultIntervalSeconds: 1
+  },
+  {
+    id: 'coordinate-plus-snap-move',
+    labelJa: '93: 座標plus スナップ移動',
+    sourceCandidateId: '93-coordinate-plus',
+    defaultDistancePx: 96,
+    defaultSpanSeconds: 0.5,
+    defaultIntervalSeconds: 32
   }
 ];
 
@@ -129,6 +139,8 @@ export const buildAviUtlMotionPresetPatch = (
 
   let keyframes: PositionKeyframe[];
   let easing: EasingType;
+  let baseX = x;
+  let baseY = y;
 
   switch (preset.id) {
     case 'entrance-pop-up':
@@ -218,6 +230,24 @@ export const buildAviUtlMotionPresetPatch = (
         easing
       });
       break;
+    case 'coordinate-plus-snap-move': {
+      easing = 'easeInOutSine';
+      const gridSize = positiveNumberOr(options.intervalSeconds, preset.defaultIntervalSeconds);
+      const snappedX = snapCoordinate(x, gridSize);
+      const snappedY = snapCoordinate(y, gridSize);
+      baseX = snappedX;
+      baseY = snappedY;
+      keyframes = buildCoordinatePlusSnapMoveKeyframes({
+        startTime,
+        endTime,
+        spanSeconds,
+        x: snappedX,
+        y: snappedY,
+        distancePx,
+        easing
+      });
+      break;
+    }
     case 'entrance-slide-left':
     default:
       easing = 'easeOutCubic';
@@ -237,8 +267,8 @@ export const buildAviUtlMotionPresetPatch = (
   return {
     keyframes,
     enableAnimation: keyframes.length >= 2,
-    x,
-    y,
+    x: baseX,
+    y: baseY,
     endX: keyframes[keyframes.length - 1]?.x ?? x,
     endY: keyframes[keyframes.length - 1]?.y ?? y,
     easing
@@ -473,6 +503,35 @@ const buildDelayMoveIndividualKeyframes = ({
   return keyframes;
 };
 
+const buildCoordinatePlusSnapMoveKeyframes = ({
+  startTime,
+  endTime,
+  spanSeconds,
+  x,
+  y,
+  distancePx,
+  easing
+}: {
+  startTime: number;
+  endTime: number;
+  spanSeconds: number;
+  x: number;
+  y: number;
+  distancePx: number;
+  easing: EasingType;
+}): PositionKeyframe[] => {
+  const settleTime = Math.min(endTime, startTime + Math.max(0.01, spanSeconds));
+  const endX = x + distancePx;
+  const keyframes = [
+    makeKeyframe('coordinate-plus-snap-start', startTime, x, y, easing),
+    makeKeyframe('coordinate-plus-snap-end', settleTime, endX, y, 'linear')
+  ];
+  if (endTime > settleTime + 0.0001) {
+    keyframes.push(makeKeyframe('coordinate-plus-snap-hold', endTime, endX, y, 'linear'));
+  }
+  return keyframes;
+};
+
 const makeKeyframe = (
   suffix: string,
   time: number,
@@ -499,6 +558,9 @@ const positiveIntegerOr = (value: unknown, fallback: number): number => {
   const parsed = finiteNumberOr(value, fallback);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 };
+
+const snapCoordinate = (value: number, gridSize: number): number =>
+  Math.floor(value / gridSize) * gridSize;
 
 const nonNegativeIntegerOr = (value: unknown, fallback: number): number => {
   const parsed = finiteNumberOr(value, fallback);
