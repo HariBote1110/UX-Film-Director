@@ -1,3 +1,18 @@
+## 2026-06-22 — フェーズ2: workspaceSliceをuseStoreから分離
+
+### 実施内容
+- `language`、snapshot要求、preview表示モード、Vision検出プレビュー状態を `src/store/slices/workspaceSlice.ts` へ切り出した。
+- `setLanguage`、`requestSnapshot` / `finishSnapshot`、`setPreviewDisplayMode`、Vision系setterを `workspaceSlice` に移した。
+- `useStore` は `createWorkspaceSlice(set)` を合成する形にし、UI作業状態の公開APIと挙動は維持した。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `npm test -- --run src/store src/components/ViewportDiagnostics.test.ts src/utils/previewDisplayScale.test.ts src/utils/visionTrackingKeyframes.test.ts src/hooks/useProjectExportBoundary.test.ts --reporter=dot` は6ファイル28件成功した。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の抽出由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- 次は `historySlice` または `layerSlice` を切り出し、その後に依存の重いオブジェクトCRUDへ進む。
+
 ## 2026-06-22 — フェーズ2: selectionSliceをuseStoreから分離
 
 ### 実施内容

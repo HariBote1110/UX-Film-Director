@@ -51,13 +51,12 @@ import {
   needsDurationRecalculation,
   normaliseLayers,
   normaliseSceneObjectList,
-  PREVIEW_MODE_STORAGE_KEY,
-  readStoredPreviewMode,
   syncObjectKeyframes,
 } from './storeHelpers';
 import { createExportSlice } from './slices/exportSlice';
 import { createPlaybackSlice } from './slices/playbackSlice';
 import { createSelectionSlice } from './slices/selectionSlice';
+import { createWorkspaceSlice } from './slices/workspaceSlice';
 
 export type {
   ExportDiagnostics,
@@ -67,15 +66,10 @@ export type {
 } from './storeTypes';
 
 export const useStore = create<AppState>((set, get) => ({
-  language: 'ja',
+  ...createWorkspaceSlice(set),
   isProjectLoaded: false,
   projectSettings: { width: 1920, height: 1080, fps: 60, sampleRate: 44100 },
   ...createExportSlice(set),
-  isSnapshotRequested: false,
-  previewDisplayMode: readStoredPreviewMode(),
-  visionDetectionPreviewEnabled: false,
-  visionDetectionRealtimeEnabled: false,
-  visionDetectionOverlay: null,
 
   ...createPlaybackSlice(set, get),
   layers: createDefaultLayers(),
@@ -89,26 +83,6 @@ export const useStore = create<AppState>((set, get) => ({
 
   pastStates: [],
   futureStates: [],
-
-  setLanguage: (lang) => set({ language: lang }),
-
-  setPreviewDisplayMode: (mode) => {
-    try {
-      localStorage.setItem(PREVIEW_MODE_STORAGE_KEY, mode);
-    } catch {
-      /* ignore */
-    }
-    set({ previewDisplayMode: mode });
-  },
-
-  setVisionDetectionPreviewEnabled: (enabled) => set((state) => ({
-    visionDetectionPreviewEnabled: enabled,
-    ...(enabled ? {} : { visionDetectionRealtimeEnabled: false })
-  })),
-
-  setVisionDetectionRealtimeEnabled: (enabled) => set({ visionDetectionRealtimeEnabled: enabled }),
-
-  setVisionDetectionOverlay: (overlay) => set({ visionDetectionOverlay: overlay }),
 
   initializeProject: (settings) => {
     const sceneId = crypto.randomUUID();
@@ -429,9 +403,6 @@ export const useStore = create<AppState>((set, get) => ({
     ))
   })),
 
-  requestSnapshot: () => set({ isSnapshotRequested: true }),
-  finishSnapshot: () => set({ isSnapshotRequested: false }),
-  
   // 変更前の状態を履歴に保存する
   pushHistory: () => set((state) => ({
     pastStates: [
