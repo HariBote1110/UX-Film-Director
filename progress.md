@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendのGeneratedGradient描画をgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `build_generated_gradient_source_frame` を `rust-backend/src/generated.rs` へ抽出した。
+- gradient stops正規化、gradient位置計算、色補間ヘルパーも同じ `generated.rs` へ移し、GeneratedGradient描画の責務を型定義・validatorのあるモジュールに寄せた。
+- `main.rs` は 6,508 行から 6,369 行になった。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はparticle/barcode/puzzleなど、依存の薄い生成フレーム描画関数をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのGetColor dots生成validatorをgenerated.rsへ分離
 
 ### 実施内容

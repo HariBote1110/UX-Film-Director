@@ -1,5 +1,7 @@
 use crate::local_media_source_path;
 use serde::Deserialize;
+use uxfd_golden_harness::RgbaFrame;
+use uxfd_rust_core::SceneMediaReference;
 
 pub(crate) fn parse_hex_colour_source(source: &str) -> Result<[u8; 3], String> {
     let source = source.trim();
@@ -18,6 +20,147 @@ pub(crate) fn parse_hex_colour_source(source: &str) -> Result<[u8; 3], String> {
         .map_err(|_| "source must be a #rrggbb hex colour".to_string())?;
 
     Ok([red, green, blue])
+}
+
+pub(crate) fn build_generated_gradient_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedGradient media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let gradient: GeneratedGradientSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedGradient media '{}': {error}", media.id))?;
+    let stops = normalise_gradient_stops(&gradient)
+        .map_err(|message| format!("Invalid GeneratedGradient media '{}': {message}", media.id))?;
+
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedGradient media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedGradient media byte length overflows".to_string())?;
+    let mut pixels = Vec::with_capacity(byte_len);
+    for y in 0..media.height {
+        for x in 0..media.width {
+            let t = gradient_position(
+                &gradient,
+                media.width,
+                media.height,
+                x as f32 + 0.5,
+                y as f32 + 0.5,
+            );
+            let [red, green, blue] = sample_gradient_colour(&stops, t);
+            pixels.extend_from_slice(&[red, green, blue, 255]);
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedGradient media frame is invalid: {error:?}"))
+}
+
+fn normalise_gradient_stops(
+    gradient: &GeneratedGradientSource,
+) -> Result<Vec<(f32, [u8; 3])>, String> {
+    if gradient.gradient_type != "linear" && gradient.gradient_type != "radial" {
+        return Err("gradient type must be linear or radial".to_string());
+    }
+
+    let colours = if gradient.colours.is_empty() {
+        vec!["#ffffff".to_string(), "#000000".to_string()]
+    } else {
+        gradient.colours.clone()
+    };
+    let last_index = colours.len().saturating_sub(1);
+    let mut stops = Vec::with_capacity(colours.len());
+    for (index, colour) in colours.iter().enumerate() {
+        let colour = parse_hex_colour_source(colour)?;
+        let fallback_stop = if last_index == 0 {
+            0.0
+        } else {
+            index as f32 / last_index as f32
+        };
+        let stop = gradient.stops.get(index).copied().unwrap_or(fallback_stop);
+        if !stop.is_finite() {
+            return Err("gradient stop must be finite".to_string());
+        }
+        stops.push((stop.clamp(0.0, 1.0), colour));
+    }
+    stops.sort_by(|left, right| left.0.total_cmp(&right.0));
+    Ok(stops)
+}
+
+fn gradient_position(
+    gradient: &GeneratedGradientSource,
+    width: u32,
+    height: u32,
+    x: f32,
+    y: f32,
+) -> f32 {
+    if gradient.gradient_type == "radial" {
+        let cx = width as f32 / 2.0;
+        let cy = height as f32 / 2.0;
+        let radius = width.max(height) as f32 / 2.0;
+        if radius <= 0.0 {
+            return 0.0;
+        }
+        let distance = ((x - cx).powi(2) + (y - cy).powi(2)).sqrt();
+        return (distance / radius).clamp(0.0, 1.0);
+    }
+
+    let radians = gradient.direction.to_radians();
+    let cx = width as f32 / 2.0;
+    let cy = height as f32 / 2.0;
+    let half_line = width.max(height) as f32 / 2.0;
+    let x1 = cx - radians.cos() * half_line;
+    let y1 = cy - radians.sin() * half_line;
+    let x2 = cx + radians.cos() * half_line;
+    let y2 = cy + radians.sin() * half_line;
+    let dx = x2 - x1;
+    let dy = y2 - y1;
+    let length_squared = dx * dx + dy * dy;
+    if length_squared <= f32::EPSILON {
+        return 0.0;
+    }
+    (((x - x1) * dx + (y - y1) * dy) / length_squared).clamp(0.0, 1.0)
+}
+
+fn sample_gradient_colour(stops: &[(f32, [u8; 3])], t: f32) -> [u8; 3] {
+    if stops.is_empty() {
+        return [255, 255, 255];
+    }
+    if t <= stops[0].0 {
+        return stops[0].1;
+    }
+    for pair in stops.windows(2) {
+        let (left_stop, left_colour) = pair[0];
+        let (right_stop, right_colour) = pair[1];
+        if t <= right_stop {
+            let span = right_stop - left_stop;
+            let local_t = if span <= f32::EPSILON {
+                0.0
+            } else {
+                ((t - left_stop) / span).clamp(0.0, 1.0)
+            };
+            return [
+                lerp_u8(left_colour[0], right_colour[0], local_t),
+                lerp_u8(left_colour[1], right_colour[1], local_t),
+                lerp_u8(left_colour[2], right_colour[2], local_t),
+            ];
+        }
+    }
+    stops[stops.len() - 1].1
+}
+
+fn lerp_u8(left: u8, right: u8, t: f32) -> u8 {
+    ((left as f32 + (right as f32 - left as f32) * t).round()).clamp(0.0, 255.0) as u8
 }
 
 pub(crate) fn validate_generated_barcode_source(
