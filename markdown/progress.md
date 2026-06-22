@@ -1,6 +1,17 @@
 # 進捗ログ
 
 ## 2026-06-23
+- 93 背景色スポイトをnative palette抽出utilityへ追加した。
+- Red: `script/93/背景色スポイト.anm` を `93-background-colour-eyedropper` としてAviUtlPackV4カタログへ載せ、TimelineObjectの色フィールドから重複なしpaletteを抽出する契約を追加した。
+- Green: `extractAviUtlBackgroundColourPalette` を追加し、`fill`、`foregroundColour`、`fieldColour`、`secondaryColour`、`backgroundColour` などを `#rrggbb` へ正規化して色テーブル化できるようにした。
+- Green: `native-utility` 実装ターゲットを追加し、描画オブジェクトではなく編集補助として標準搭載候補へ分類した。
+- 版を `0.1.1-Beta-339a` に更新した。
+- 検証: `npm test -- --run src/utils/aviutl/aviutlBackgroundColourEyedropper.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts --reporter=dot` は6件成功した。
+- 検証: `npm test -- --run src/components/TimelineContextMenu.particle.test.ts src/store/objectCopyExt.test.ts src/utils/objectFactories/getColorDotFieldObjectFactory.test.ts src/utils/objectFactories/sphericalFieldObjectFactory.test.ts --reporter=dot` は8件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の背景色スポイト由来の型エラーは出ていない。
+- 元スクリプトのフレームバッファ実画素サンプル、座標指定、レイヤー指定、`colt.N` 互換のLuaテーブル出力は未対応。次はこのpaletteをGetColor/PropertyPanelへ露出するか、`座標格納/座標の取得` 系へ進む。
+
+## 2026-06-23
 - 93 ObjectCopyEXTをnative複製列として追加した。
 - Red: `script/93/ObjectCopyEXT.obj` を `93-object-copy-ext` としてAviUtlPackV4カタログへ載せ、選択オブジェクトから複製列を作る契約を追加した。
 - Green: `buildAviUtlObjectCopyExtClones` を追加し、元オブジェクトの位置、時間、レイヤー、キーフレームを相対オフセットした複製列を生成できるようにした。
