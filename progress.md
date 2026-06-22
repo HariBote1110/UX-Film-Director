@@ -1,3 +1,20 @@
+## 2026-06-22 — フェーズ3: Rust backendのRPC dispatchをmain.rsから分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `handle_request` のmethod dispatchを `rust-backend/src/rpc_dispatch.rs` へ分離した。
+- handler import群を `rpc_dispatch.rs` 側へ移し、`main.rs` はstdio RPC loop、JSON parse/serialise、終了時のencode session cleanupに集中する形へ整理した。
+- `main.rs` は 157 行から 82 行になった。
+- `rpc_dispatch.rs` は 79 行で、RPC method名と各handlerの対応表を所有する。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次は `generated_frame_tests.rs` を生成器ファミリー別に分割するか、`generated.rs` に残る小型生成器をさらにサブモジュール化する。
+
 ## 2026-06-22 — フェーズ3: Rust backendの生成器テスト群をmain.rsから分離
 
 ### 実施内容
