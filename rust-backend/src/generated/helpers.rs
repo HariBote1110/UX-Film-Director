@@ -148,6 +148,38 @@ pub(crate) fn fill_disc_rgba(
     }
 }
 
+pub(crate) fn draw_filled_circle_rgba(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    centre_x: f32,
+    centre_y: f32,
+    radius: f32,
+    colour: [u8; 3],
+    alpha: u8,
+) {
+    let min_x = (centre_x - radius).floor().max(0.0) as u32;
+    let max_x = (centre_x + radius)
+        .ceil()
+        .min(width.saturating_sub(1) as f32) as u32;
+    let min_y = (centre_y - radius).floor().max(0.0) as u32;
+    let max_y = (centre_y + radius)
+        .ceil()
+        .min(height.saturating_sub(1) as f32) as u32;
+    let radius_sq = radius * radius;
+    for y in min_y..=max_y {
+        for x in min_x..=max_x {
+            let dx = x as f32 + 0.5 - centre_x;
+            let dy = y as f32 + 0.5 - centre_y;
+            if dx * dx + dy * dy <= radius_sq {
+                let offset = (y as usize * width as usize + x as usize) * 4;
+                pixels[offset..offset + 4]
+                    .copy_from_slice(&[colour[0], colour[1], colour[2], alpha]);
+            }
+        }
+    }
+}
+
 pub(super) fn normalise_gradient_stops(
     gradient: &GeneratedGradientSource,
 ) -> Result<Vec<(f32, [u8; 3])>, String> {
