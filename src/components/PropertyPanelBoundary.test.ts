@@ -22,7 +22,12 @@ describe('PropertyPanel AviUtl motion preset controls', () => {
     expect(code).toContain("import { buildAviUtlMotionPresetPatch, getAviUtlPackMotionPresets");
     expect(code).toContain('const aviUtlMotionPresets = getAviUtlPackMotionPresets()');
     expect(code).toContain('handleApplyAviUtlMotionPreset');
+    expect(code).toContain('captureSelectedCoordinatesWithAviUtlStore');
+    expect(code).toContain('applyAviUtlStoredCoordinatesToSelection');
+    expect(code).toContain('aviUtlCoordinateStoreSnapshot');
     expect(code).toContain('AviUtl Motion');
+    expect(code).toContain('93 座標格納');
+    expect(code).toContain('93 座標の取得');
   });
 
   it('passes selection order into individual 93 motion presets', () => {
