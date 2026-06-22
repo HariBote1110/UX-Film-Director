@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendのRegionFrame描画をgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `build_generated_region_frame_source_frame` を `rust-backend/src/generated.rs` へ抽出した。
+- `draw_region_frame_rectangle_rgba`、`draw_region_frame_ellipse_rgba`、`draw_region_frame_cut_corner_rgba` と形状判定helperを同じ責務側へ移した。
+- `main.rs` は 3,646 行から 3,394 行になった。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はHK-SY checker grid、simple tube、sphere系の生成フレーム描画関数をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのShakingPolygon/ToneCurve描画をgenerated.rsへ分離
 
 ### 実施内容
