@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildProjectFileData, parseProjectPayloadV2 } from '../projectFile';
 import { buildRustSceneSnapshotForTimeline } from '../rustSceneSnapshot';
-import { createDefaultLayers } from '../sceneState';
 import { isSharedRendererNativeMediaReferenceSupported } from '../sharedRendererNativeMediaSupport';
 import { buildAviUtlPackPolishRepresentativeScene } from './aviutlPolishRepresentativeScene';
 
@@ -33,12 +32,12 @@ describe('AviUtlPack polish representative scene', () => {
     const scene = buildAviUtlPackPolishRepresentativeScene();
     const result = buildRustSceneSnapshotForTimeline({
       objects: scene.objects,
-      layers: createDefaultLayers(),
-      settings: scene.settings,
+      layers: scene.layers,
+      projectSettings: scene.settings,
       time: 1,
     });
 
-    if (!result.ok) throw new Error(`expected representative scene snapshot to pass: ${result.issues.map((issue) => issue.message).join(', ')}`);
+    if (!result.ok) throw new Error(`expected representative scene snapshot to pass: ${result.issues.map((issue) => issue.detail).join(', ')}`);
 
     const kinds = new Set(result.media.map((reference) => reference.kind));
     expect(kinds).toEqual(new Set([
@@ -50,7 +49,7 @@ describe('AviUtlPack polish representative scene', () => {
       'GeneratedAudioSphere',
     ]));
     expect(result.media.every(isSharedRendererNativeMediaReferenceSupported)).toBe(true);
-    expect(result.clips.length).toBeGreaterThanOrEqual(6);
+    expect(result.snapshot.clips.length).toBeGreaterThanOrEqual(6);
   });
 
   it('round-trips through the project file format without losing polish objects', () => {
@@ -62,9 +61,16 @@ describe('AviUtlPack polish representative scene', () => {
         id: 'aviutl-polish-representative',
         name: 'AviUtl polish representative',
         objects: scene.objects,
-        layers: createDefaultLayers(),
+        layers: scene.layers,
         duration: scene.duration,
+        camera: scene.camera,
+        stageCamera3D: scene.stageCamera3D,
       }],
+      objects: scene.objects,
+      layers: scene.layers,
+      duration: scene.duration,
+      camera: scene.camera,
+      stageCamera3D: scene.stageCamera3D,
     });
     const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
     const restoredObjects = parsed.scenes[0].objects;
