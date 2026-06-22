@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendのHologram描画をgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `build_generated_hologram_source_frame` を `rust-backend/src/generated.rs` へ抽出した。
+- Hologram専用の `hologram_colour_for_band` も `generated.rs` へ移し、既に分離済みの `blend_rgb8` と `hsv_to_rgb8` を同一責務内で使う構造にした。
+- `main.rs` は 4,421 行から 4,319 行になった。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はprotractor、shaking polygon、tone curveなどの残りの生成フレーム描画関数をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのFocusLines/RandomLine描画をgenerated.rsへ分離
 
 ### 実施内容
