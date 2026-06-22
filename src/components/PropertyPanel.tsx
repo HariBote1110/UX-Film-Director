@@ -20,6 +20,7 @@ import { buildSubjectCropKeyframesFromVisionTrackSamples } from '../utils/subjec
 import { buildAspectLockedScalePatch } from '../utils/aspectRatioScale';
 import { buildAviUtlMotionPresetPatch, getAviUtlPackMotionPresets, type AviUtlMotionPresetId } from '../utils/aviutl/aviutlMotionPresets';
 import { applyAviUtlEffectPresetToObject, getAviUtlPackEffectPresets, type AviUtlEffectPresetId } from '../utils/aviutl/aviutlEffectPresets';
+import { buildAviUtlCameraTargetPatch, getAviUtlPackCameraPresets } from '../utils/aviutl/aviutlCameraPresets';
 import type { VisionNormBoundingBox } from '../utils/visionTrackingGeometry';
 
 const Slider = ({
@@ -73,6 +74,9 @@ const SceneAndCameraPanel: React.FC = () => {
   const activeSceneId = useStore((state) => state.activeSceneId);
   const camera = useStore((state) => state.camera);
   const projectSettings = useStore((state) => state.projectSettings);
+  const objects = useStore((state) => state.objects);
+  const selectedId = useStore((state) => state.selectedId);
+  const selectedIds = useStore((state) => state.selectedIds);
   const stageCamera3D = useStore((state) => state.stageCamera3D);
   const setStageCamera3D = useStore((state) => state.setStageCamera3D);
   const language = useStore((state) => state.language);
@@ -86,6 +90,15 @@ const SceneAndCameraPanel: React.FC = () => {
   const editorMode = projectSettings.editorMode ?? '2d';
   const activeScene = scenes.find((scene) => scene.id === activeSceneId);
   const [renameDraft, setRenameDraft] = useState(activeScene?.name ?? '');
+  const aviUtlCameraPresets = getAviUtlPackCameraPresets();
+  const cameraTargetObject = useMemo(() => {
+    const normalisedSelectedIds = selectedIds.length > 0
+      ? selectedIds
+      : (selectedId ? [selectedId] : []);
+    return objects.find((object) => object.id === selectedId)
+      ?? objects.find((object) => normalisedSelectedIds.includes(object.id))
+      ?? null;
+  }, [objects, selectedId, selectedIds]);
 
   useEffect(() => {
     setRenameDraft(activeScene?.name ?? '');
@@ -99,6 +112,17 @@ const SceneAndCameraPanel: React.FC = () => {
   const applyStageCamera3D = (patch: Parameters<typeof setStageCamera3D>[0]) => {
     pushHistory();
     setStageCamera3D(patch);
+  };
+
+  const handleApplyAviUtlCameraTargetPreset = () => {
+    if (!cameraTargetObject) return;
+    const patch = buildAviUtlCameraTargetPatch(cameraTargetObject, {
+      projectWidth: projectSettings.width,
+      projectHeight: projectSettings.height,
+      distanceZ: Math.max(1, stageCamera3D.position.z - stageCamera3D.target.z || 900),
+      targetZ: stageCamera3D.target.z
+    });
+    applyStageCamera3D(patch);
   };
 
   return (
@@ -228,6 +252,19 @@ const SceneAndCameraPanel: React.FC = () => {
               onChange={(e) => applyStageCamera3D({ target: { z: parseFloat(e.target.value) || 0 } })}
             />
           </Row>
+          <SectionHeader label="AviUtl Camera" />
+          {aviUtlCameraPresets.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              aria-label="93: 選択オブジェクトを目標にする"
+              disabled={!cameraTargetObject}
+              onClick={handleApplyAviUtlCameraTargetPreset}
+              style={{ width: '100%', marginBottom: '8px' }}
+            >
+              {preset.labelJa}
+            </button>
+          ))}
         </>
       )}
     </div>

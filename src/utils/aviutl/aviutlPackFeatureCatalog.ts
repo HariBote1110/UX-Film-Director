@@ -387,6 +387,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: 'ポリゴン面の反射ハイライトを、まずRust/WebGPU SpotLightの偏心グリントとして標準搭載する。'
   },
   {
+    id: '93-camera-target',
+    labelJa: '93 カメラ目標指定',
+    category: 'camera',
+    phase: 'P1',
+    implementationTarget: 'native-camera-tool',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/@カメラ目標化.anm', 'script/93/@カメラ目標指定.cam'],
+    rationaleJa: '3Dステージ上で選択オブジェクトへカメラ注視点を合わせる補助として先に標準搭載する。'
+  },
+  {
     id: '93-region-frame-ellipse',
     labelJa: '93 領域枠(楕円)',
     category: 'generated-object',
