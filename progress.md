@@ -1,3 +1,20 @@
+## 2026-06-22 — フェーズ3: Rust backendのParticle/Puzzle/Gourd描画をgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `build_generated_particle_source_frame`、`build_generated_puzzle_piece_source_frame`、`build_generated_gourd_source_frame` を `rust-backend/src/generated.rs` へ抽出した。
+- `deterministic_unit` を `generated.rs` の `pub(crate)` helperへ移し、particleや後続のランダム系生成描画から共有できる位置にした。
+- `puzzle_piece_connectors` と `point_inside_gourd` も `generated.rs` に移し、各生成描画の専用補助を同じ責務境界にまとめた。
+- `main.rs` は 6,159 行から 5,870 行になり、6,000行未満まで縮小した。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はgear、track bar、pie chartなど依存の薄い生成フレーム描画関数をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのGeneratedColourWheel描画をgenerated.rsへ分離
 
 ### 実施内容

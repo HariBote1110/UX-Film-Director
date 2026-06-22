@@ -213,6 +213,227 @@ pub(crate) fn build_generated_colour_wheel_source_frame(
         .map_err(|error| format!("GeneratedColourWheel media frame is invalid: {error:?}"))
 }
 
+pub(crate) fn build_generated_particle_source_frame(
+    media: &SceneMediaReference,
+    source_frame: u64,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedParticle media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let particle: GeneratedParticleSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedParticle media '{}': {error}", media.id))?;
+    validate_generated_particle_source(&particle)
+        .map_err(|message| format!("Invalid GeneratedParticle media '{}': {message}", media.id))?;
+    let [red, green, blue] = parse_hex_colour_source(&particle.colour)
+        .map_err(|message| format!("Invalid GeneratedParticle media '{}': {message}", media.id))?;
+
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedParticle media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedParticle media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+    let centre_x = media.width as f32 / 2.0;
+    let centre_y = media.height as f32 / 2.0;
+    let radius = ((particle.size.max(1.0).round() as i32) - 1) / 2;
+    let source_seconds = source_frame as f32 / 60.0;
+
+    for index in 0..particle.particle_count {
+        let angle = deterministic_unit(particle.seed, index, 0) * std::f32::consts::TAU;
+        let distance = deterministic_unit(particle.seed, index, 1) * particle.spread;
+        let lifetime_position = if particle.lifetime_seconds <= f32::EPSILON {
+            0.0
+        } else {
+            source_seconds.rem_euclid(particle.lifetime_seconds)
+        };
+        let motion = particle.speed * lifetime_position;
+        let x = (centre_x + angle.cos() * (distance + motion)).round() as i32;
+        let y = (centre_y + angle.sin() * (distance + motion)).round() as i32;
+        for offset_y in -radius..=radius {
+            for offset_x in -radius..=radius {
+                write_particle_pixel(
+                    &mut pixels,
+                    media.width,
+                    media.height,
+                    x + offset_x,
+                    y + offset_y,
+                    [red, green, blue, 255],
+                );
+            }
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedParticle media frame is invalid: {error:?}"))
+}
+
+pub(crate) fn build_generated_puzzle_piece_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedPuzzlePiece media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let puzzle: GeneratedPuzzlePieceSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedPuzzlePiece media '{}': {error}", media.id))?;
+    validate_generated_puzzle_piece_source(&puzzle).map_err(|message| {
+        format!(
+            "Invalid GeneratedPuzzlePiece media '{}': {message}",
+            media.id
+        )
+    })?;
+    let [red, green, blue] = parse_hex_colour_source(&puzzle.fill_colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedPuzzlePiece media '{}': {message}",
+            media.id
+        )
+    })?;
+
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedPuzzlePiece media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedPuzzlePiece media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+
+    let centre_x = media.width as f32 / 2.0;
+    let centre_y = media.height as f32 / 2.0;
+    let half = (puzzle.size as f32 / 2.0).min(media.width.min(media.height) as f32 / 2.0);
+    let knob_radius = (puzzle.size as f32 * 0.18).max(2.0);
+    let connector_distance = half;
+    let connectors = puzzle_piece_connectors(puzzle.shape_variant);
+
+    for y in 0..media.height {
+        for x in 0..media.width {
+            let px = x as f32 + 0.5 - centre_x;
+            let py = y as f32 + 0.5 - centre_y;
+            let mut inside = px.abs() <= half && py.abs() <= half;
+
+            for (direction, enabled) in connectors {
+                if !enabled {
+                    continue;
+                }
+                let (cx, cy) = match direction {
+                    0 => (0.0, -connector_distance),
+                    1 => (connector_distance, 0.0),
+                    2 => (0.0, connector_distance),
+                    _ => (-connector_distance, 0.0),
+                };
+                let distance = ((px - cx).powi(2) + (py - cy).powi(2)).sqrt();
+                let in_knob = distance <= knob_radius;
+                if puzzle.connector_mode == "convex" {
+                    inside = inside || in_knob;
+                } else if in_knob {
+                    inside = false;
+                }
+            }
+
+            if inside {
+                write_particle_pixel(
+                    &mut pixels,
+                    media.width,
+                    media.height,
+                    x as i32,
+                    y as i32,
+                    [red, green, blue, 255],
+                );
+            }
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedPuzzlePiece media frame is invalid: {error:?}"))
+}
+
+pub(crate) fn build_generated_gourd_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedGourd media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let gourd: GeneratedGourdSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedGourd media '{}': {error}", media.id))?;
+    validate_generated_gourd_source(&gourd)
+        .map_err(|message| format!("Invalid GeneratedGourd media '{}': {message}", media.id))?;
+    let [red, green, blue] = parse_hex_colour_source(&gourd.fill_colour)
+        .map_err(|message| format!("Invalid GeneratedGourd media '{}': {message}", media.id))?;
+
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedGourd media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedGourd media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+
+    let radius = (gourd.body_radius as f32 * 0.5).max(1.0);
+    let half_width = (gourd.body_width as f32 * 0.5).max(radius);
+    let waist = (gourd.waist_radius as f32 * 0.5).min(radius);
+    let aspect = (1.0 - gourd.squash_percent * 0.01).clamp(0.05, 1.0);
+    let fit_width = media.width as f32 / (half_width * 2.0);
+    let fit_height = media.height as f32 / (radius * 2.0);
+    let scale = fit_width.min(fit_height).max(0.001) * 0.9;
+    let centre_x = media.width as f32 / 2.0;
+    let centre_y = media.height as f32 / 2.0;
+    let repeats = gourd.repeat_count.max(1);
+
+    for y in 0..media.height {
+        for x in 0..media.width {
+            let local_x = (x as f32 + 0.5 - centre_x) / scale;
+            let local_y = (y as f32 + 0.5 - centre_y) / scale;
+            let mut inside = false;
+            for index in 0..repeats {
+                let angle = index as f32 / repeats as f32 * std::f32::consts::PI;
+                let (sin, cos) = angle.sin_cos();
+                let rotated_x = local_x * cos + local_y * sin;
+                let rotated_y = -local_x * sin + local_y * cos;
+                if point_inside_gourd(rotated_x, rotated_y, radius, half_width, waist, aspect) {
+                    inside = true;
+                    break;
+                }
+            }
+            if inside {
+                write_particle_pixel(
+                    &mut pixels,
+                    media.width,
+                    media.height,
+                    x as i32,
+                    y as i32,
+                    [red, green, blue, 255],
+                );
+            }
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedGourd media frame is invalid: {error:?}"))
+}
+
 fn normalise_gradient_stops(
     gradient: &GeneratedGradientSource,
 ) -> Result<Vec<(f32, [u8; 3])>, String> {
@@ -373,6 +594,76 @@ pub(crate) fn hsv_to_rgb8(hue_degrees: f32, saturation: f32, value: f32) -> [u8;
         ((green + m).clamp(0.0, 1.0) * 255.0).round() as u8,
         ((blue + m).clamp(0.0, 1.0) * 255.0).round() as u8,
     ]
+}
+
+fn puzzle_piece_connectors(shape_variant: u32) -> [(u8, bool); 4] {
+    match shape_variant {
+        1 => [(0, true), (1, false), (2, true), (3, false)],
+        2 => [(0, true), (1, true), (2, false), (3, false)],
+        3 => [(0, true), (1, true), (2, true), (3, true)],
+        4 => [(0, true), (1, false), (2, false), (3, false)],
+        9 | 13 | 18 => [(0, true), (1, false), (2, true), (3, false)],
+        10 | 14 | 19 => [(0, true), (1, true), (2, false), (3, false)],
+        11 | 15 | 20 => [(0, true), (1, true), (2, true), (3, true)],
+        12 | 16 | 21 => [(0, true), (1, false), (2, false), (3, false)],
+        17 | 22 => [(0, true), (1, true), (2, true), (3, true)],
+        _ => [(0, false), (1, true), (2, false), (3, true)],
+    }
+}
+
+pub(crate) fn deterministic_unit(seed: u64, index: u32, lane: u64) -> f32 {
+    let mut value = seed
+        ^ ((index as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15))
+        ^ lane.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    value ^= value >> 30;
+    value = value.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    value ^= value >> 27;
+    value = value.wrapping_mul(0x94d0_49bb_1331_11eb);
+    value ^= value >> 31;
+    (value as f64 / u64::MAX as f64) as f32
+}
+
+fn point_inside_gourd(
+    x: f32,
+    y: f32,
+    radius: f32,
+    half_width: f32,
+    waist: f32,
+    aspect: f32,
+) -> bool {
+    let x_abs = x.abs();
+    if x_abs > half_width {
+        return false;
+    }
+
+    let radius = radius.min(half_width).max(1.0);
+    let waist = waist.min(radius);
+    let m = half_width - radius;
+    let boundary = if (radius - waist).abs() < f32::EPSILON {
+        radius * aspect
+    } else {
+        let r2 = 0.5 * (m * m / (radius - waist) - radius - waist);
+        let x0 = if (radius + r2).abs() > f32::EPSILON {
+            m * r2 / (radius + r2)
+        } else {
+            0.0
+        };
+        if r2 > 0.0 && x0 > 0.0 && x_abs <= x0 {
+            let inner = r2 * r2 - x_abs * x_abs;
+            if inner < 0.0 {
+                return false;
+            }
+            (waist + r2 - inner.sqrt()) * aspect
+        } else {
+            let inner = radius * radius - (x_abs - m) * (x_abs - m);
+            if inner < 0.0 {
+                return false;
+            }
+            inner.sqrt() * aspect
+        }
+    };
+
+    y.abs() <= boundary
 }
 
 pub(crate) fn validate_generated_barcode_source(
