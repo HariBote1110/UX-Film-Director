@@ -1,3 +1,20 @@
+## 2026-06-22 — フェーズ3: Rust backendのtranscode補助関数をtranscode.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `normalise_transcode_overlays`、PSD overlay raw RGBA準備、PSD overlay cache key生成、temporary overlay input削除、hex colour正規化、`build_transcode_filter_complex` を `rust-backend/src/transcode.rs` へ抽出した。
+- `encode.transcodeVideo` handler本体は `main.rs` に残しつつ、overlay正規化とfilter構築の責務を `transcode.rs` に分離した。
+- `local_media_source_path` はPSD overlay準備から再利用するため `pub(crate)` に変更した。
+- `main.rs` から不要になった `PsdOverlayCacheEntry`、`PathBuf`、`SystemTime`、`UNIX_EPOCH` のimportを削除した。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次は `encode.transcodeVideo` handler本体、またはnative render source収集・生成フレーム描画関数をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendの通常encode RPCをencode.rsへ分離
 
 ### 実施内容
