@@ -124,6 +124,7 @@
 99. ✅ `P1` 93 背景色スポイトpaletteをhksy複数色チェッカー編集UIへ接続する
 100. ✅ `P1` 93 座標格納 / 座標の取得を選択オブジェクトのnative座標snapshot/recall utilityとして追加する
 101. ✅ `P1` hksyチェッカー/グリッドの基本パラメータ編集UIをPropertyPanelへ追加する
+102. ✅ `P1` hksy measured-grid / anchor-line の詳細パラメータ編集UIをPropertyPanelへ追加する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

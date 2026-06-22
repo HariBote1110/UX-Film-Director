@@ -1,6 +1,16 @@
 # 進捗ログ
 
 ## 2026-06-23
+- hksy詳細パラメータ編集UIを追加した。
+- Red: PropertyPanel境界テストへ、`measured-grid` 用の `Separate Interval` / `Separate Line Width` と、`anchor-line` 用のアンカー座標、round cap、join distance 編集導線を要求する契約を追加した。
+- Green: PropertyPanelの `hksy Checker/Grid` 欄へ `separateInterval`、`separateLineWidth`、2点アンカー、`roundCaps`、`maxJoinDistance` の編集UIを追加し、既存Rust `GeneratedHksyCheckerGrid` の詳細source payloadへ値が流れるようにした。
+- 版を `0.1.1-Beta-344a` に更新した。
+- 検証: `npm test -- --run src/components/PropertyPanelBoundary.test.ts --reporter=dot` はRed時に `Separate Interval` 未露出で失敗することを確認した。
+- 検証: `npm test -- --run src/components/PropertyPanelBoundary.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/projectFile.test.ts src/utils/objectFactories/hksyCheckerGridObjectFactory.test.ts --reporter=dot` は107件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回のhksy詳細編集UI由来の型エラーは出ていない。
+- anchor-line はまず2点編集のみ。元スクリプト互換の多点編集、点追加/削除、折れ線編集、canvas上での直接操作は未対応。次はhksyの操作性を磨くか、GetColor/93の未露出パラメータへ進む。
+
+## 2026-06-23
 - hksyチェッカー/グリッドの基本パラメータ編集UIを追加した。
 - Red: PropertyPanel境界テストへ、Rust-native hksy生成オブジェクトの `Pattern`、`Cell Size`、`Line Width`、`Checker`、`Grid` 編集導線を要求する契約を追加した。
 - Green: PropertyPanelの `hksy Checker/Grid` 欄へパターン選択、セルサイズ、線幅、チェッカー表示、グリッド表示の編集UIを追加し、既存 `GeneratedHksyCheckerGrid` のRust preview/export入力へ値が流れるようにした。
