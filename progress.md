@@ -1,3 +1,22 @@
+## 2026-06-22 — フェーズ3: Rust backendのnative encode RPCをnative_render.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `handle_encode_write_native_frame` を `rust-backend/src/native_render.rs` へ抽出した。
+- native encode直接書き込みの入力検証、CPU simple video fast path、WebGPU stage render、encoder書き込み、RPCレスポンス生成をnative render境界にまとめた。
+- `native_render.rs` は `encode::write_rgba_frame_to_encoder` を呼び出す形にし、既存のエンコードセッション更新とエラーコードは変更していない。
+- `main.rs` は `encode.writeNativeFrame` のルーティングから `native_render::handle_encode_write_native_frame` を呼び出すだけにした。
+- `main.rs` から不要になった `response_error`、`json`、native encode関連importを削除した。
+- `main.rs` は 7,675 行から 7,479 行になった。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はnative render source収集、audio waveform収集、または生成フレーム描画関数群をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのnative render RPCをnative_render.rsへ分離
 
 ### 実施内容
