@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendの揺れ図形・tone curve生成validatorをgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `validate_generated_shaking_polygon_source` と `validate_generated_tone_curve_source` を `rust-backend/src/generated.rs` へ抽出した。
+- shaking polygonとtone curveの入力検証を生成メディア型定義と同じモジュールへ寄せた。
+- `main.rs` は 6,891 行から 6,827 行になった。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次は残りの複雑な生成validator、native render source収集、または生成フレーム描画関数群をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendの効果系生成validatorをgenerated.rsへ分離
 
 ### 実施内容

@@ -582,6 +582,72 @@ pub(crate) fn validate_generated_protractor_source(
     Ok(())
 }
 
+pub(crate) fn validate_generated_shaking_polygon_source(
+    source: &GeneratedShakingPolygonSource,
+) -> Result<(), String> {
+    if source.generator != "shaking-polygon" {
+        return Err("generator must be shaking-polygon".to_string());
+    }
+    if source.line_width == 0 || source.line_width > 100 {
+        return Err("line_width must be 1..100".to_string());
+    }
+    if source.vertex_count < 2 || source.vertex_count > 16 {
+        return Err("vertex_count must be 2..16".to_string());
+    }
+    if source.fixed_diameter > 2000 {
+        return Err("fixed_diameter must be 0..2000".to_string());
+    }
+    if !source.vertical_distortion_percent.is_finite()
+        || source.vertical_distortion_percent < -100.0
+        || source.vertical_distortion_percent > 100.0
+    {
+        return Err("vertical_distortion_percent must be -100..100".to_string());
+    }
+    if source.repeat_count == 0 || source.repeat_count > 100 {
+        return Err("repeat_count must be 1..100".to_string());
+    }
+    if source.repeat_frequency == 0 {
+        return Err("repeat_frequency must be at least 1".to_string());
+    }
+    if !source.jitter_range.is_finite() || source.jitter_range < 0.0 || source.jitter_range > 2000.0
+    {
+        return Err("jitter_range must be 0..2000".to_string());
+    }
+    if source.jitter_interval == 0 {
+        return Err("jitter_interval must be at least 1".to_string());
+    }
+    parse_hex_colour_source(&source.colour)?;
+    Ok(())
+}
+
+pub(crate) fn validate_generated_tone_curve_source(
+    source: &GeneratedToneCurveSource,
+) -> Result<(), String> {
+    if source.generator != "simple-tone-curve" {
+        return Err("generator must be simple-tone-curve".to_string());
+    }
+    if source.grid_divisions == 0 || source.grid_divisions > 16 {
+        return Err("grid_divisions must be 1..16".to_string());
+    }
+    if source.line_width == 0 || source.line_width > 100 {
+        return Err("line_width must be 1..100".to_string());
+    }
+    if source.curve_points.len() < 2 || source.curve_points.len() > 64 {
+        return Err("curve_points length must be 2..64".to_string());
+    }
+    if !source
+        .curve_points
+        .iter()
+        .all(|point| point.is_finite() && *point >= 0.0 && *point <= 1.0)
+    {
+        return Err("curve_points must be finite values in 0..1".to_string());
+    }
+    parse_hex_colour_source(&source.curve_colour)?;
+    parse_hex_colour_source(&source.grid_colour)?;
+    parse_hex_colour_source(&source.background_colour)?;
+    Ok(())
+}
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct GeneratedGradientSource {
     #[serde(rename = "type")]
