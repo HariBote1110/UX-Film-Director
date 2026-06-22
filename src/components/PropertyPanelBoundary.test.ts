@@ -93,3 +93,27 @@ describe('PropertyPanel 93 PlainEffector Line controls', () => {
     expect(code).toContain('Colour Amount');
   });
 });
+
+describe('PropertyPanel 93 Shattered Sphere controls', () => {
+  it('exposes editable controls for Rust-native shattered sphere parameters', () => {
+    const code = source();
+
+    expect(code).toContain('ShatteredSphereObject');
+    expect(code).toContain("selectedObject.type === 'shattered_sphere'");
+    expect(code).toContain('Shattered Sphere Settings');
+    expect(code).toContain('Fracture Amount');
+    expect(code).toContain('Delay');
+    expect(code).toContain('Radius');
+    expect(code).toContain('Limit Distance');
+    expect(code).toContain('Thickness');
+    expect(code).toContain('Fragment Size');
+    expect(code).toContain('Random Shape');
+    expect(code).toContain('Speed');
+    expect(code).toContain('Impact');
+    expect(code).toContain('Gravity Y');
+    expect(code).toContain('Spin');
+    expect(code).toContain('Direction Diffusion');
+    expect(code).toContain("(selectedObject as ShatteredSphereObject).colour");
+    expect(code).toContain('Seed');
+  });
+});
