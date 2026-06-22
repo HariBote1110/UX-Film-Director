@@ -1,3 +1,20 @@
+## 2026-06-22 — フェーズ3: Rust backendのencode補助関数をencode.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `abort_encode_session`、`validate_encode_shared_frame`、`write_encode_shared_frame`、`start_encode_ffmpeg`、`get_video_codec`、RGBA frame書き込み補助関数を `rust-backend/src/encode.rs` へ抽出した。
+- `encode.rs` は通常encode handlerとtranscode handlerの両方から使うffmpeg起動・codec選択・shared memory frame検証/書き込みの責務を持つ構成にした。
+- `abort_encode_session` のstderr trim挙動を維持し、既存RPCレスポンス形状とエラー文言は変更していない。
+- `main.rs` から不要になった `EncodeAbortSummary` importを削除した。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次は通常encode RPC handler本体、またはtranscode overlay/filter構築を `encode.rs` / `transcode.rs` へさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのdecode RPCをdecode.rsへ分離
 
 ### 実施内容
