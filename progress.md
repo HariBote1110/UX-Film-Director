@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendのパターン系生成描画をgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `build_generated_tartan_check_source_frame`、`build_generated_houndstooth_source_frame`、`build_generated_yagasuri_source_frame` を `rust-backend/src/generated.rs` へ抽出した。
+- `blend_rgb8` を `generated.rs` の `pub(crate)` helperへ移し、後続のhologram系描画などからも共有できる位置にした。
+- `main.rs` は 5,169 行から 4,932 行になった。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はpaper airplane、asanoha、focus lines plusなどの図形・線描画系生成フレーム描画関数をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのCircularArrow/TriangleBracket描画をgenerated.rsへ分離
 
 ### 実施内容
