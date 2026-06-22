@@ -1,6 +1,16 @@
 # 進捗ログ
 
 ## 2026-06-23
+- hksyチェッカー/グリッドの基本パラメータ編集UIを追加した。
+- Red: PropertyPanel境界テストへ、Rust-native hksy生成オブジェクトの `Pattern`、`Cell Size`、`Line Width`、`Checker`、`Grid` 編集導線を要求する契約を追加した。
+- Green: PropertyPanelの `hksy Checker/Grid` 欄へパターン選択、セルサイズ、線幅、チェッカー表示、グリッド表示の編集UIを追加し、既存 `GeneratedHksyCheckerGrid` のRust preview/export入力へ値が流れるようにした。
+- 版を `0.1.1-Beta-343a` に更新した。
+- 検証: `npm test -- --run src/components/PropertyPanelBoundary.test.ts --reporter=dot` はRed時に `Pattern` 未露出で失敗することを確認した。
+- 検証: `npm test -- --run src/components/PropertyPanelBoundary.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/projectFile.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts --reporter=dot` は115件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回のhksy編集UI由来の型エラーは出ていない。
+- hksyの `measured-grid` 用 separate interval/line width、`anchor-line` 用 anchor point、round cap、join distance の細かい編集UIは未対応。次はhksy派生の詳細編集を広げるか、93/GetColorの未露出パラメータへ進む。
+
+## 2026-06-23
 - 93 座標格納 / 座標の取得をnative座標snapshotへ追加した。
 - Red: `script/93/@座標格納.anm` と `script/93/座標の取得.anm` を `93-coordinate-store` としてAviUtlPackV4カタログへ載せ、選択座標のcapture/recall契約を追加した。
 - Green: `captureAviUtlCoordinateStoreSnapshot` と `buildAviUtlCoordinateRecallPatches` を追加し、選択オブジェクト順に座標・回転・scale・opacityを格納し、別の選択へ順番で再適用できるようにした。
