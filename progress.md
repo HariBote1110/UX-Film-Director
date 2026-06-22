@@ -1,3 +1,20 @@
+## 2026-06-22 — フェーズ3: Rust backendのGetColor dots生成validatorをgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `validate_generated_getcolor_dots_source` を `rust-backend/src/generated.rs` へ抽出した。
+- `generated.rs` から `local_media_source_path` を再利用し、source imageのローカルパス検証と拡張子検証を既存と同じ挙動のまま移した。
+- これにより `validate_generated_*` 関数群は `main.rs` から消え、生成メディア型定義のある `generated.rs` 側へ集約された。
+- `main.rs` は 6,586 行から 6,508 行になった。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はnative render source収集、または生成フレーム描画関数群をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのHKSY checker grid生成validatorをgenerated.rsへ分離
 
 ### 実施内容
