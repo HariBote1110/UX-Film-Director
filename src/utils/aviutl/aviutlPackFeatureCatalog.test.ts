@@ -182,6 +182,6 @@ describe('AviUtlPackV4 feature catalogue', () => {
       '93-clipping-s'
     ];
 
-    expect(roadmapIds.slice(0, 38)).toEqual(expect.arrayContaining(priorityIds));
+    expect(roadmapIds.slice(0, 40)).toEqual(expect.arrayContaining(priorityIds));
   });
 });

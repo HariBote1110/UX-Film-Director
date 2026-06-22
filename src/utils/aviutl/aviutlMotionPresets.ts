@@ -10,7 +10,8 @@ export type AviUtlMotionPresetId =
   | 'motion-path-s-curve'
   | 'wind-sway-soft'
   | 'delay-move-individual'
-  | 'coordinate-plus-snap-move';
+  | 'coordinate-plus-snap-move'
+  | 'ta-easing-overshoot-arrive';
 
 export interface AviUtlMotionPreset {
   id: AviUtlMotionPresetId;
@@ -22,7 +23,8 @@ export interface AviUtlMotionPreset {
     | 'tim-motion-path'
     | 'tim-wind-sway'
     | '93-delay-move'
-    | '93-coordinate-plus';
+    | '93-coordinate-plus'
+    | '93-ta-easing';
   defaultDistancePx: number;
   defaultSpanSeconds: number;
   defaultIntervalSeconds: number;
@@ -116,6 +118,14 @@ const presets: AviUtlMotionPreset[] = [
     defaultDistancePx: 96,
     defaultSpanSeconds: 0.5,
     defaultIntervalSeconds: 32
+  },
+  {
+    id: 'ta-easing-overshoot-arrive',
+    labelJa: '93: TA-Easing 跳ね戻り登場',
+    sourceCandidateId: '93-ta-easing',
+    defaultDistancePx: 120,
+    defaultSpanSeconds: 0.8,
+    defaultIntervalSeconds: 0.25
   }
 ];
 
@@ -248,6 +258,17 @@ export const buildAviUtlMotionPresetPatch = (
       });
       break;
     }
+    case 'ta-easing-overshoot-arrive':
+      easing = 'easeOutBack';
+      keyframes = buildTaEasingOvershootArriveKeyframes({
+        startTime,
+        endTime,
+        spanSeconds,
+        x,
+        y,
+        distancePx
+      });
+      break;
     case 'entrance-slide-left':
     default:
       easing = 'easeOutCubic';
@@ -528,6 +549,35 @@ const buildCoordinatePlusSnapMoveKeyframes = ({
   ];
   if (endTime > settleTime + 0.0001) {
     keyframes.push(makeKeyframe('coordinate-plus-snap-hold', endTime, endX, y, 'linear'));
+  }
+  return keyframes;
+};
+
+const buildTaEasingOvershootArriveKeyframes = ({
+  startTime,
+  endTime,
+  spanSeconds,
+  x,
+  y,
+  distancePx
+}: {
+  startTime: number;
+  endTime: number;
+  spanSeconds: number;
+  x: number;
+  y: number;
+  distancePx: number;
+}): PositionKeyframe[] => {
+  const settleTime = Math.min(endTime, startTime + Math.max(0.01, spanSeconds));
+  const overshootTime = Math.min(settleTime, startTime + Math.max(0.01, spanSeconds * 0.7));
+  const overshootDistance = Math.max(2, distancePx * 0.15);
+  const keyframes = [
+    makeKeyframe('ta-easing-arrive-start', startTime, x, y + distancePx, 'easeOutBack'),
+    makeKeyframe('ta-easing-arrive-overshoot', overshootTime, x, y - overshootDistance, 'easeInOutSine'),
+    makeKeyframe('ta-easing-arrive-settle', settleTime, x, y, 'linear')
+  ];
+  if (endTime > settleTime + 0.0001) {
+    keyframes.push(makeKeyframe('ta-easing-arrive-hold', endTime, x, y, 'linear'));
   }
   return keyframes;
 };

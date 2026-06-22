@@ -297,6 +297,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '座標加算・スナップ移動を、まずグリッドに揃えて移動するnative motion presetとして標準搭載する。'
   },
   {
+    id: '93-ta-easing',
+    labelJa: '93 TA-Easing',
+    category: 'motion',
+    phase: 'P1',
+    implementationTarget: 'native-motion-preset',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/@TA-Easing.anm'],
+    rationaleJa: 'TA-Easingの大量のイージング指定を、まず跳ね戻り登場などの実用的なnative keyframe presetとして標準搭載する。'
+  },
+  {
     id: '93-multi-slicer',
     labelJa: '93 MultiSlicer',
     category: 'visual-effect',
