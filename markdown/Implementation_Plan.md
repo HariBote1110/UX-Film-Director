@@ -104,6 +104,7 @@
 79. ✅ `P1` 93輪郭トレスをRust GeneratedContourTrace生成プリセットとして追加する
 80. ✅ `P1` 93 DisplacementPolyをRust GeneratedDisplacementPoly生成プリセットとして追加する
 81. ✅ `P1` 93 ディスプレイスメントマップBをRust/WebGPU DisplacementMapフィルタとして追加する
+82. ✅ `P1` 93 偽被写界深度2をRust/WebGPU FakeDofフィルタとして追加する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

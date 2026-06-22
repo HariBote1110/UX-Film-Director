@@ -1,6 +1,22 @@
 # 進捗ログ
 
 ## 2026-06-22
+- 93 偽被写界深度2をRust/WebGPUフィルタへ追加した。
+- Red: Filter Stackの `fake_dof`、AviUtl effect preset、AviUtlPackV4カタログ、Rust scene snapshot、rust-core validation、native-wgpu焦点外ぼかしを通る契約を追加した。
+- Green: `FakeDof` effectをTypeScript/Rust schemaへ追加し、画像/動画/PSD/図形へFilter Stackから追加できるようにした。
+- Green: PropertyPanelへFocus X、Focus Y、Focus Radius、Blur、Strength編集UIを追加し、AviUtl Effectsには `93 偽被写界深度2` presetを追加した。
+- Green: native-wgpuの `solid_composite.wgsl` で焦点円の外側だけ横方向近傍サンプルをlinear-lightで混ぜる初期DOF近似を追加した。
+- Green: reference rendererはFakeDofをgain非変更の効果として許可し、Rust境界の網羅matchを更新した。
+- 版を `0.1.1-Beta-317a` に更新した。
+- 検証: `npm test -- --run src/utils/filterStack.test.ts src/utils/aviutl/aviutlEffectPresets.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts src/utils/rustSceneSnapshot.test.ts --reporter=dot` は92件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test project_validation fake_dof -- --nocapture` は2件成功した。
+- 検証: `cargo test --manifest-path native-wgpu-renderer/Cargo.toml native_wgpu_applies_fake_dof_blur_outside_focus -- --nocapture` は1件成功した。
+- 検証: `npm test -- --run src/utils/packageScripts.test.ts --reporter=dot` は6件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の93 偽被写界深度2由来の型エラーは出ていない。
+- 現時点の93 偽被写界深度2はAviUtlのカメラZ/焦点距離/レンズブラー完全互換ではなく、Rust/WebGPU上の焦点円ベースの高速ぼけ近似。後続でカメラ距離、レイヤーZ、レンズ形状ブラーへ拡張する。
+- 次は93のオートブラー、GetColorの未移植派生、またはhksyの残候補へ進む。
+
+## 2026-06-22
 - 93 ディスプレイスメントマップBをRust/WebGPUフィルタへ追加した。
 - Red: Filter Stackの `displacement_map`、AviUtl effect preset、AviUtlPackV4カタログ、Rust scene snapshot、rust-core validation、native-wgpu画素変位を通る契約を追加した。
 - Green: `DisplacementMap` effectをTypeScript/Rust schemaへ追加し、画像/動画/PSD/図形へFilter Stackから追加できるようにした。
