@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendのGeneratedColourWheel描画をgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `build_generated_colour_wheel_source_frame` を `rust-backend/src/generated.rs` へ抽出した。
+- `hsv_to_rgb8` を `generated.rs` の `pub(crate)` helperへ移し、colour wheel、hologram、GetColor系描画から共有できる位置にした。
+- `main.rs` は 6,251 行から 6,159 行になった。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はparticle、puzzle、gourdなど依存の薄い生成フレーム描画関数をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのGeneratedBarcode描画をgenerated.rsへ分離
 
 ### 実施内容
