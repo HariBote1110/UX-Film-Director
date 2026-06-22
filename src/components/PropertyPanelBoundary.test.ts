@@ -117,3 +117,34 @@ describe('PropertyPanel 93 Shattered Sphere controls', () => {
     expect(code).toContain('Seed');
   });
 });
+
+describe('PropertyPanel 93 Sphere generated object controls', () => {
+  it('exposes editable controls for Rust-native Sphere(DrawPixel) and SphericalField parameters', () => {
+    const code = source();
+
+    expect(code).toContain('SphereDotsObject');
+    expect(code).toContain("selectedObject.type === 'sphere_dots'");
+    expect(code).toContain('Sphere(DrawPixel) Settings');
+    expect(code).toContain('Columns');
+    expect(code).toContain('Rows');
+    expect(code).toContain('Rotation Degrees');
+    expect(code).toContain('Offset Degrees');
+    expect(code).toContain('Luminance Influence');
+    expect(code).toContain('Point Size');
+    expect(code).toContain('Latitude Line Width');
+    expect(code).toContain("(selectedObject as SphereDotsObject).secondaryColour");
+    expect(code).toContain('Plane Mode');
+
+    expect(code).toContain('SphericalFieldObject');
+    expect(code).toContain("selectedObject.type === 'spherical_field'");
+    expect(code).toContain('SphericalField Settings');
+    expect(code).toContain('Strength');
+    expect(code).toContain('Colour Amount');
+    expect(code).toContain('Alpha Amount');
+    expect(code).toContain('Ring Count');
+    expect(code).toContain('Vector Count');
+    expect(code).toContain("(selectedObject as SphericalFieldObject).fieldColour");
+    expect(code).toContain('Background Opacity');
+    expect(code).toContain('Container');
+  });
+});
