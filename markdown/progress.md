@@ -1,6 +1,23 @@
 # 進捗ログ
 
 ## 2026-06-22
+- 93 MultiSlicerをRust/WebGPUフィルタへ追加した。
+- Red: Filter Stackの `multi_slicer`、AviUtl effect preset、AviUtlPackV4カタログ、Rust scene snapshot、rust-core validation、native-wgpu交互スライスオフセットを通る契約を追加した。
+- Green: `MultiSlicer` effectをTypeScript/Rust schemaへ追加し、画像/動画/PSD/図形へFilter Stackから追加できるようにした。
+- Green: PropertyPanelへAngle、Offset、Slices、Expansion、Strength編集UIを追加し、AviUtl Effectsには `93 MultiSlicer` presetを追加した。
+- Green: native-wgpuの `solid_composite.wgsl` で指定角度に直交する軸を複数スライスへ分け、交互に指定方向へサンプル座標をずらす初期実装を追加した。
+- Green: reference rendererはMultiSlicerをgain非変更の効果として許可し、Rust境界の網羅matchを更新した。
+- 版を `0.1.1-Beta-320a` に更新した。
+- 検証: `npm test -- --run src/utils/filterStack.test.ts src/utils/aviutl/aviutlEffectPresets.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts src/utils/rustSceneSnapshot.test.ts --reporter=dot` は95件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test project_validation multi_slicer -- --nocapture` は2件成功した。
+- 検証: `cargo test --manifest-path native-wgpu-renderer/Cargo.toml native_wgpu_applies_multi_slicer_offsets_alternate_slices -- --nocapture` は1件成功した。
+- 検証: `cargo test --manifest-path reference-renderer/Cargo.toml -- --nocapture` は12件成功した。
+- 検証: `npm test -- --run src/utils/packageScripts.test.ts --reporter=dot` は6件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の93 MultiSlicer由来の型エラーは出ていない。
+- 現時点の93 MultiSlicerはAviUtlのSlice-Option、ランダム化、Easing、色付け、個別オブジェクト分割の完全互換ではなく、Rust/WebGPU上の縞状サンプルオフセット初期互換。後続でランダム/色ずれ/ブラー/仮想バッファ全画面モードへ拡張する。
+- 次は簡易変形(oct)、GetColor未移植派生、hksy残候補へ進む。
+
+## 2026-06-22
 - 93 StretchをRust/WebGPUフィルタへ追加した。
 - Red: Filter Stackの `stretch`、AviUtl effect preset、AviUtlPackV4カタログ、Rust scene snapshot、rust-core validation、native-wgpu水平ストレッチを通る契約を追加した。
 - Green: `Stretch` effectをTypeScript/Rust schemaへ追加し、画像/動画/PSD/図形へFilter Stackから追加できるようにした。
