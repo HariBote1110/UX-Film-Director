@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendのCircularArrow/TriangleBracket描画をgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `build_generated_circular_arrow_source_frame` と `build_generated_triangle_bracket_source_frame` を `rust-backend/src/generated.rs` へ抽出した。
+- `point_on_circle`、`point_in_triangle`、`distance_to_segment` などの幾何ヘルパーを `generated.rs` へ移し、残りの生成描画からも共有できる位置にした。
+- `main.rs` は 5,415 行から 5,169 行になった。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はtartan/houndstooth/yagasuriなどのパターン系生成フレーム描画関数をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのChart/Sunburst描画をgenerated.rsへ分離
 
 ### 実施内容
