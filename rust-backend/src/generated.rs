@@ -577,6 +577,285 @@ pub(crate) fn build_generated_track_bar_source_frame(
         .map_err(|error| format!("GeneratedTrackBar media frame is invalid: {error:?}"))
 }
 
+pub(crate) fn build_generated_pie_chart_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedPieChart media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let pie_chart: GeneratedPieChartSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedPieChart media '{}': {error}", media.id))?;
+    validate_generated_pie_chart_source(&pie_chart)
+        .map_err(|message| format!("Invalid GeneratedPieChart media '{}': {message}", media.id))?;
+
+    let mut values = pie_chart.values.clone();
+    match pie_chart.sort_mode.as_str() {
+        "descending" => values
+            .sort_by(|left, right| right.partial_cmp(left).unwrap_or(std::cmp::Ordering::Equal)),
+        "ascending" => values
+            .sort_by(|left, right| left.partial_cmp(right).unwrap_or(std::cmp::Ordering::Equal)),
+        _ => {}
+    }
+    let total = if pie_chart.normalise_to_hundred {
+        values.iter().sum::<f32>()
+    } else {
+        100.0
+    };
+    if !total.is_finite() || total <= 0.0 {
+        return Err(format!(
+            "Invalid GeneratedPieChart media '{}': values must produce a positive total",
+            media.id
+        ));
+    }
+
+    let colours = pie_chart
+        .slice_colours
+        .iter()
+        .map(|colour| {
+            parse_hex_colour_source(colour).map_err(|message| {
+                format!("Invalid GeneratedPieChart media '{}': {message}", media.id)
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedPieChart media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedPieChart media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+
+    let centre_x = (media.width as f32 - 1.0) * 0.5;
+    let centre_y = (media.height as f32 - 1.0) * 0.5;
+    let outer_radius = media.width.min(media.height) as f32 * 0.5 - 1.0;
+    let stroke_width = pie_chart.stroke_width.min(outer_radius).max(1.0);
+    let inner_radius = (outer_radius - stroke_width).max(0.0);
+    let progress_radians =
+        (pie_chart.progress_percent.clamp(0.0, 100.0) * 0.01) * std::f32::consts::TAU;
+
+    for y in 0..media.height {
+        for x in 0..media.width {
+            let dx = x as f32 - centre_x;
+            let dy = y as f32 - centre_y;
+            let radius = (dx * dx + dy * dy).sqrt();
+            if radius < inner_radius || radius > outer_radius {
+                continue;
+            }
+            let mut angle = dy.atan2(dx) + std::f32::consts::FRAC_PI_2;
+            if angle < 0.0 {
+                angle += std::f32::consts::TAU;
+            }
+            if angle > progress_radians {
+                continue;
+            }
+
+            let mut cumulative = 0.0_f32;
+            let mut colour_index = values.len().saturating_sub(1);
+            for (index, value) in values.iter().enumerate() {
+                cumulative += (*value / total) * std::f32::consts::TAU;
+                if angle <= cumulative {
+                    colour_index = index;
+                    break;
+                }
+            }
+            let [red, green, blue] = colours[colour_index % colours.len()];
+            let offset = ((y as usize * media.width as usize + x as usize) * 4) as usize;
+            pixels[offset..offset + 4].copy_from_slice(&[red, green, blue, 255]);
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedPieChart media frame is invalid: {error:?}"))
+}
+
+pub(crate) fn build_generated_histogram_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedHistogram media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let histogram: GeneratedHistogramSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedHistogram media '{}': {error}", media.id))?;
+    validate_generated_histogram_source(&histogram)
+        .map_err(|message| format!("Invalid GeneratedHistogram media '{}': {message}", media.id))?;
+
+    let background = parse_hex_colour_source(&histogram.background_colour)
+        .map_err(|message| format!("Invalid GeneratedHistogram media '{}': {message}", media.id))?;
+    let colours = histogram
+        .channel_colours
+        .iter()
+        .map(|colour| {
+            parse_hex_colour_source(colour).map_err(|message| {
+                format!("Invalid GeneratedHistogram media '{}': {message}", media.id)
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedHistogram media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedHistogram media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+    fill_rect_rgba(
+        &mut pixels,
+        media.width,
+        media.height,
+        0,
+        0,
+        media.width as i32,
+        media.height as i32,
+        [background[0], background[1], background[2], 255],
+    );
+
+    let enabled_channels = [
+        histogram.show_luminance,
+        histogram.show_red,
+        histogram.show_green,
+        histogram.show_blue,
+    ];
+    let enabled_count = enabled_channels
+        .iter()
+        .filter(|enabled| **enabled)
+        .count()
+        .max(1) as i32;
+    let bin_count = histogram.bin_values.len() as i32;
+    let bin_width = (media.width as f32 / bin_count as f32).max(1.0);
+    let line_width = histogram.line_width.max(1.0).round() as i32;
+    let height_scale = histogram.height_scale_percent.clamp(1.0, 1000.0) * 0.01;
+    let channel_height_scales = [1.0_f32, 0.82_f32, 0.66_f32, 0.5_f32];
+
+    for (bin_index, value) in histogram.bin_values.iter().enumerate() {
+        let bin_left = (bin_index as f32 * bin_width).round() as i32;
+        let bin_right = ((bin_index as f32 + 1.0) * bin_width).round() as i32;
+        let channel_width = ((bin_right - bin_left).max(1) / enabled_count).max(1);
+        let mut channel_slot = 0_i32;
+        for channel_index in 0..4 {
+            if !enabled_channels[channel_index] {
+                continue;
+            }
+            let scaled_value =
+                (value * height_scale * channel_height_scales[channel_index]).clamp(0.0, 1.0);
+            let bar_height = (media.height as f32 * scaled_value).round() as i32;
+            let left = bin_left + channel_slot * channel_width;
+            let right = (left + channel_width.max(line_width)).min(bin_right.max(left + 1));
+            let top = media.height as i32 - bar_height.max(1);
+            let [red, green, blue] = colours[channel_index];
+            fill_rect_rgba(
+                &mut pixels,
+                media.width,
+                media.height,
+                left,
+                top,
+                right,
+                media.height as i32,
+                [red, green, blue, 255],
+            );
+            channel_slot += 1;
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedHistogram media frame is invalid: {error:?}"))
+}
+
+pub(crate) fn build_generated_sunburst_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedSunburst media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let sunburst: GeneratedSunburstSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedSunburst media '{}': {error}", media.id))?;
+    validate_generated_sunburst_source(&sunburst)
+        .map_err(|message| format!("Invalid GeneratedSunburst media '{}': {message}", media.id))?;
+
+    let ray_colour = parse_hex_colour_source(&sunburst.ray_colour)
+        .map_err(|message| format!("Invalid GeneratedSunburst media '{}': {message}", media.id))?;
+    let background_colour = parse_hex_colour_source(&sunburst.background_colour)
+        .map_err(|message| format!("Invalid GeneratedSunburst media '{}': {message}", media.id))?;
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedSunburst media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedSunburst media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+    fill_rect_rgba(
+        &mut pixels,
+        media.width,
+        media.height,
+        0,
+        0,
+        media.width as i32,
+        media.height as i32,
+        [
+            background_colour[0],
+            background_colour[1],
+            background_colour[2],
+            255,
+        ],
+    );
+
+    let centre_x = media.width as f32 * sunburst.centre_x_percent * 0.01;
+    let centre_y = media.height as f32 * sunburst.centre_y_percent * 0.01;
+    let ray_count = sunburst.ray_count.max(1) as f32;
+    let coverage = (sunburst.ray_coverage_percent * 0.01).clamp(0.0, 1.0);
+    let rotation = sunburst.rotation_offset_degrees.to_radians() - std::f32::consts::FRAC_PI_2;
+    let motif_radius = sunburst.motif_size as f32 * 0.5;
+
+    for y in 0..media.height {
+        for x in 0..media.width {
+            let dx = x as f32 - centre_x;
+            let dy = y as f32 - centre_y;
+            let angle = (dy.atan2(dx) - rotation).rem_euclid(std::f32::consts::TAU);
+            let phase = ((angle / std::f32::consts::TAU) * ray_count).fract();
+            let in_ray = phase <= coverage;
+            let in_motif = if sunburst.motif_shape == "rect" {
+                dx.abs() <= motif_radius && dy.abs() <= motif_radius
+            } else {
+                (dx * dx + dy * dy).sqrt() <= motif_radius
+            };
+            if in_ray || in_motif {
+                let offset = ((y as usize * media.width as usize + x as usize) * 4) as usize;
+                pixels[offset..offset + 4].copy_from_slice(&[
+                    ray_colour[0],
+                    ray_colour[1],
+                    ray_colour[2],
+                    255,
+                ]);
+            }
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedSunburst media frame is invalid: {error:?}"))
+}
+
 fn normalise_gradient_stops(
     gradient: &GeneratedGradientSource,
 ) -> Result<Vec<(f32, [u8; 3])>, String> {
