@@ -2476,6 +2476,24 @@
 - 検証: `npm test -- --run src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererExportSession.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/sharedRendererExportFrameSource.test.ts` は76件成功。実Electron E2Eは `/Volumes/ExtendSSD-W/GX020052.MP4` 1秒尺で60 frames / 7758ms / 約7.73fps、出力MP4は1920x1080 / 60fps。
 - 残課題: 品質優先で原本2048px decodeへ戻したため、直前のプロキシ高速経路より速度は落ちる。次は「原本高品質decode + 単純scale合成fast path」を追加して、画質と速度を両立する。
 - 版: `0.1.1-Beta-228a`。
+## 2026-06-22 — 93 PlainEffector LineをRust生成オブジェクトへ追加
+
+### 実施内容
+- Red: `script/93/@PlainEffector.anm` 由来の `93 PlainEffector Line` を、Timeline追加、AviUtlPackV4カタログ、project save/load、Rust scene snapshot、shared renderer native media support、Pixi cutover、rust-core media schema、rust-backend生成フレームの契約として追加した。
+- Green: `PlainEffectorLineObject` と `buildAviUtlPlainEffectorLineObject` を追加し、Timeline右クリックメニューから `93 PlainEffector Line` を配置できるようにした。
+- Green: `plain_effector_line` を `GeneratedPlainEffectorLine` としてRust scene snapshotへ直列化し、preview/exportの生成エフェクト所有リストにも接続した。
+- Green: rust-coreへ `GeneratedPlainEffectorLine` / `GeneratedPlainEffectorLinePlane` を追加し、rust-backendで透明背景に決定的な線状エフェクタをRGBA生成するようにした。
+- 版を `0.1.1-Beta-324a` に更新した。
+
+### 検証
+- `npm test -- --run src/e2e/allReadableMedia.e2e.test.ts src/utils/objectFactories/plainEffectorLineObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/projectFile.test.ts --reporter=dot` は109件成功。
+- `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は35件成功。
+- `cargo test --manifest-path rust-backend/Cargo.toml generated_frame_tests:: -- --nocapture` は43件成功。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の `PlainEffectorLine` / `GeneratedPlainEffectorLine` 由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- `@PlainEffector.anm` の完全互換にはlayer参照、field mode、offset/pos指定、反転時の元スクリプト寄り挙動が残る。次は93の `@Reflection_poly.anm` を棚卸しするか、PlainEffector Lineの編集UIを広げる。
+
 ## 2026-06-22 — GetColor / hksy / 93優先効果を動画export E2E代表ケースへ投入
 
 ### 実施内容

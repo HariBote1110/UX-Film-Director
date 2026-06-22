@@ -1548,6 +1548,13 @@ z-order safetyではGeneratedGradientをSolidColourと同じshared-renderer pain
 先に準備済みのdecoded sourceを `rendererUploadAborted` で解放する。
 Rust decode slotを保持したままPixi fallbackや次フレームへ進まないようにし、multi-video native renderの再試行性を保つ。
 
+264. AviUtlPackV4: 93 PlainEffector LineをRust生成オブジェクトへ追加する
+`script/93/@PlainEffector.anm` の `@Effector(Line)` を、まずは透明背景付きの決定的な線状エフェクタとして
+`plain_effector_line` / `GeneratedPlainEffectorLine` に再実装する。
+Timeline右クリックメニュー、project save/load、Rust scene snapshot、shared renderer native media support、
+Pixi cutover、rust-core schema、rust-backend RGBA source frame生成へ接続し、
+後続で元スクリプトのlayer参照・field mode・反転表現を広げられる足場にする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義
