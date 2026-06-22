@@ -34,6 +34,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedFocusLinesPlus') return isSharedRendererNativeGeneratedFocusLinesPlusSourceSupported(reference.source);
   if (reference.kind === 'GeneratedRandomLineEx') return isSharedRendererNativeGeneratedRandomLineExSourceSupported(reference.source);
   if (reference.kind === 'GeneratedContourTrace') return isSharedRendererNativeGeneratedContourTraceSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedDisplacementPoly') return isSharedRendererNativeGeneratedDisplacementPolySourceSupported(reference.source);
   if (reference.kind === 'GeneratedHologram') return isSharedRendererNativeGeneratedHologramSourceSupported(reference.source);
   if (reference.kind === 'GeneratedProtractor') return isSharedRendererNativeGeneratedProtractorSourceSupported(reference.source);
   if (reference.kind === 'GeneratedShakingPolygon') return isSharedRendererNativeGeneratedShakingPolygonSourceSupported(reference.source);
@@ -944,6 +945,58 @@ const isSharedRendererNativeGeneratedContourTraceSourceSupported = (source: stri
       && Number.isFinite(parsed.background_opacity)
       && parsed.background_opacity >= 0
       && parsed.background_opacity <= 1
+      && typeof parsed.seed === 'number'
+      && Number.isInteger(parsed.seed)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedDisplacementPolySourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      columns?: unknown;
+      rows?: unknown;
+      displacement_scale?: unknown;
+      depth_scale?: unknown;
+      mesh_opacity?: unknown;
+      fill_opacity?: unknown;
+      line_colour?: unknown;
+      fill_colour?: unknown;
+      seed?: unknown;
+    };
+    return (
+      parsed.generator === 'displacement-poly-93'
+      && typeof parsed.columns === 'number'
+      && Number.isInteger(parsed.columns)
+      && parsed.columns >= 1
+      && parsed.columns <= 128
+      && typeof parsed.rows === 'number'
+      && Number.isInteger(parsed.rows)
+      && parsed.rows >= 1
+      && parsed.rows <= 128
+      && typeof parsed.displacement_scale === 'number'
+      && Number.isFinite(parsed.displacement_scale)
+      && parsed.displacement_scale >= 0
+      && parsed.displacement_scale <= 1000
+      && typeof parsed.depth_scale === 'number'
+      && Number.isFinite(parsed.depth_scale)
+      && parsed.depth_scale >= 0
+      && parsed.depth_scale <= 1000
+      && typeof parsed.mesh_opacity === 'number'
+      && Number.isFinite(parsed.mesh_opacity)
+      && parsed.mesh_opacity >= 0
+      && parsed.mesh_opacity <= 1
+      && typeof parsed.fill_opacity === 'number'
+      && Number.isFinite(parsed.fill_opacity)
+      && parsed.fill_opacity >= 0
+      && parsed.fill_opacity <= 1
+      && typeof parsed.line_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.line_colour)
+      && typeof parsed.fill_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.fill_colour)
       && typeof parsed.seed === 'number'
       && Number.isInteger(parsed.seed)
     );

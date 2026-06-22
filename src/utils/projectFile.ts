@@ -117,6 +117,7 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'focus_lines_plus',
   'random_line_ex',
   'contour_trace',
+  'displacement_poly',
   'hologram',
   'protractor',
   'shaking_polygon'
@@ -413,6 +414,19 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!isFiniteNumber(candidate.jitterAmount) || candidate.jitterAmount < 0 || candidate.jitterAmount > 100) return false;
     if (typeof candidate.traceColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.traceColour)) return false;
     if (!isFiniteNumber(candidate.backgroundOpacity) || candidate.backgroundOpacity < 0 || candidate.backgroundOpacity > 1) return false;
+    if (!isFiniteNumber(candidate.seed)) return false;
+  }
+  if (candidate.type === 'displacement_poly') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.columns) || candidate.columns < 1 || candidate.columns > 128) return false;
+    if (!isFiniteNumber(candidate.rows) || candidate.rows < 1 || candidate.rows > 128) return false;
+    if (!isFiniteNumber(candidate.displacementScale) || candidate.displacementScale < 0 || candidate.displacementScale > 1000) return false;
+    if (!isFiniteNumber(candidate.depthScale) || candidate.depthScale < 0 || candidate.depthScale > 1000) return false;
+    if (!isFiniteNumber(candidate.meshOpacity) || candidate.meshOpacity < 0 || candidate.meshOpacity > 1) return false;
+    if (!isFiniteNumber(candidate.fillOpacity) || candidate.fillOpacity < 0 || candidate.fillOpacity > 1) return false;
+    if (typeof candidate.lineColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.lineColour)) return false;
+    if (typeof candidate.fillColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.fillColour)) return false;
     if (!isFiniteNumber(candidate.seed)) return false;
   }
   if (candidate.type === 'hologram') {

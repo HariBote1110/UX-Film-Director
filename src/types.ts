@@ -45,7 +45,7 @@ export interface LayerState {
   locked: boolean;
 }
 
-export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization' | 'audio_sphere' | 'particle' | 'barcode' | 'puzzle_piece' | 'colour_wheel' | 'gourd' | 'gear' | 'track_bar' | 'pie_chart' | 'histogram' | 'tone_curve' | 'getcolor_dot_field' | 'hksy_checker_grid' | 'region_frame' | 'simple_tube' | 'sphere_dots' | 'spherical_field' | 'sunburst' | 'circular_arrow' | 'triangle_bracket' | 'tartan_check' | 'houndstooth' | 'yagasuri' | 'paper_airplane' | 'asanoha_pattern' | 'focus_lines_plus' | 'random_line_ex' | 'contour_trace' | 'hologram' | 'protractor' | 'shaking_polygon';
+export type ObjectType = 'text' | 'shape' | 'image' | 'video' | 'audio' | 'psd' | 'group_control' | 'audio_visualization' | 'audio_sphere' | 'particle' | 'barcode' | 'puzzle_piece' | 'colour_wheel' | 'gourd' | 'gear' | 'track_bar' | 'pie_chart' | 'histogram' | 'tone_curve' | 'getcolor_dot_field' | 'hksy_checker_grid' | 'region_frame' | 'simple_tube' | 'sphere_dots' | 'spherical_field' | 'sunburst' | 'circular_arrow' | 'triangle_bracket' | 'tartan_check' | 'houndstooth' | 'yagasuri' | 'paper_airplane' | 'asanoha_pattern' | 'focus_lines_plus' | 'random_line_ex' | 'contour_trace' | 'displacement_poly' | 'hologram' | 'protractor' | 'shaking_polygon';
 
 // --- グラデーション・シャドウ・軌道 ---
 
@@ -668,6 +668,22 @@ export interface ContourTraceObject extends BaseObject {
   seed: number;
 }
 
+// 93 DisplacementPoly互換の生成オブジェクト
+export interface DisplacementPolyObject extends BaseObject {
+  type: 'displacement_poly';
+  width: number;
+  height: number;
+  columns: number;
+  rows: number;
+  displacementScale: number;
+  depthScale: number;
+  meshOpacity: number;
+  fillOpacity: number;
+  lineColour: string;
+  fillColour: string;
+  seed: number;
+}
+
 // AviUtlPackV4 ホログラム互換の生成オブジェクト
 export interface HologramObject extends BaseObject {
   type: 'hologram';
@@ -891,7 +907,7 @@ export interface PsdObject extends BaseObject {
   worldPlacement?: PsdWorldPlacement;
 }
 
-export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject | AudioSphereObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | ToneCurveObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject | SphereDotsObject | SphericalFieldObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject | RandomLineExObject | ContourTraceObject | HologramObject | ProtractorObject | ShakingPolygonObject;
+export type TimelineObject = TextObject | ShapeObject | ImageObject | VideoObject | AudioObject | PsdObject | GroupControlObject | AudioVisualizationObject | AudioSphereObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | ToneCurveObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject | SphereDotsObject | SphericalFieldObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject | RandomLineExObject | ContourTraceObject | DisplacementPolyObject | HologramObject | ProtractorObject | ShakingPolygonObject;
 
 /** タイムライン1本分（シーン） */
 export interface SceneData {

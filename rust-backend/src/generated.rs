@@ -1,6 +1,7 @@
 mod basic_effects;
 mod chart_effects;
 mod decorative_shapes;
+mod displacement_poly;
 mod getcolor;
 mod helpers;
 mod hksy;
@@ -21,6 +22,7 @@ mod validators;
 pub(crate) use basic_effects::*;
 pub(crate) use chart_effects::*;
 pub(crate) use decorative_shapes::*;
+pub(crate) use displacement_poly::*;
 pub(crate) use getcolor::*;
 pub(crate) use helpers::*;
 pub(crate) use hksy::*;

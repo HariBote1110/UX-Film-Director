@@ -237,6 +237,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '立ち絵・図形の外周をなぞる輪郭線表現を、Rust生成の注釈/強調素材として標準搭載する。'
   },
   {
+    id: '93-displacement-poly',
+    labelJa: '93 DisplacementPoly',
+    category: 'generated-object',
+    phase: 'P1',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/DisplacementPoly.anm'],
+    rationaleJa: '画像の輝度で格子を変位させる発想を、まずRust生成の変位ポリゴングリッド素材として標準搭載する。'
+  },
+  {
     id: '93-region-frame-ellipse',
     labelJa: '93 領域枠(楕円)',
     category: 'generated-object',

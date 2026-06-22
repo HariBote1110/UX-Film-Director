@@ -240,6 +240,20 @@ pub(crate) struct GeneratedContourTraceSource {
 }
 
 #[derive(Debug, Deserialize)]
+pub(crate) struct GeneratedDisplacementPolySource {
+    pub(crate) generator: String,
+    pub(crate) columns: u32,
+    pub(crate) rows: u32,
+    pub(crate) displacement_scale: f32,
+    pub(crate) depth_scale: f32,
+    pub(crate) mesh_opacity: f32,
+    pub(crate) fill_opacity: f32,
+    pub(crate) line_colour: String,
+    pub(crate) fill_colour: String,
+    pub(crate) seed: i64,
+}
+
+#[derive(Debug, Deserialize)]
 pub(crate) struct GeneratedHologramSource {
     pub(crate) generator: String,
     pub(crate) tile_size: u32,

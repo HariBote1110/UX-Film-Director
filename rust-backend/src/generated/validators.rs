@@ -181,6 +181,38 @@ pub(crate) fn validate_generated_contour_trace_source(
     Ok(())
 }
 
+pub(crate) fn validate_generated_displacement_poly_source(
+    source: &GeneratedDisplacementPolySource,
+) -> Result<(), String> {
+    if source.generator != "displacement-poly-93" {
+        return Err("generator must be displacement-poly-93".to_string());
+    }
+    if source.columns == 0 || source.columns > 128 {
+        return Err("columns must be 1..128".to_string());
+    }
+    if source.rows == 0 || source.rows > 128 {
+        return Err("rows must be 1..128".to_string());
+    }
+    if !source.displacement_scale.is_finite()
+        || source.displacement_scale < 0.0
+        || source.displacement_scale > 1000.0
+    {
+        return Err("displacement_scale must be 0..1000".to_string());
+    }
+    if !source.depth_scale.is_finite() || source.depth_scale < 0.0 || source.depth_scale > 1000.0 {
+        return Err("depth_scale must be 0..1000".to_string());
+    }
+    if !source.mesh_opacity.is_finite() || source.mesh_opacity < 0.0 || source.mesh_opacity > 1.0 {
+        return Err("mesh_opacity must be 0..1".to_string());
+    }
+    if !source.fill_opacity.is_finite() || source.fill_opacity < 0.0 || source.fill_opacity > 1.0 {
+        return Err("fill_opacity must be 0..1".to_string());
+    }
+    parse_hex_colour_source(&source.line_colour)?;
+    parse_hex_colour_source(&source.fill_colour)?;
+    Ok(())
+}
+
 pub(crate) fn validate_generated_hologram_source(
     source: &GeneratedHologramSource,
 ) -> Result<(), String> {
