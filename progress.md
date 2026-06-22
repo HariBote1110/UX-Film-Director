@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendのHologram生成器をサブモジュール化
+
+### 実施内容
+- `rust-backend/src/generated.rs` から `GeneratedHologram` の生成フレーム実装を `rust-backend/src/generated/hologram.rs` へ分離した。
+- hologramの色帯計算helper `hologram_colour_for_band` をHologram専用モジュール内のprivate helperにした。
+- `generated.rs` は 1,868 行から 1,766 行になり、Hologram実装108行を独立ファイルへ移した。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はFocusLinesPlus/RandomLineEx、Particle、その他の小型生成器をさらにサブモジュール化する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのToneCurve生成器をサブモジュール化
 
 ### 実施内容
