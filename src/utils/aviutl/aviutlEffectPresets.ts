@@ -8,7 +8,8 @@ export type AviUtlEffectPresetId =
   | 'fan-clipping-diagonal'
   | '93-spotlight-soft'
   | '93-displacement-map-b-wave'
-  | '93-fake-dof2-focus';
+  | '93-fake-dof2-focus'
+  | '93-auto-blur-plus-motion';
 
 export interface AviUtlEffectPreset {
   id: AviUtlEffectPresetId;
@@ -20,7 +21,8 @@ export interface AviUtlEffectPreset {
     | 'fan-clipping-r'
     | '93-spotlight'
     | '93-displacement-map-b'
-    | '93-fake-dof2';
+    | '93-fake-dof2'
+    | '93-auto-blur-plus';
   filterType: FilterType;
 }
 
@@ -66,6 +68,12 @@ const presets: AviUtlEffectPreset[] = [
     labelJa: '93 偽被写界深度2',
     sourceCandidateId: '93-fake-dof2',
     filterType: 'fake_dof'
+  },
+  {
+    id: '93-auto-blur-plus-motion',
+    labelJa: '93 オートブラー+',
+    sourceCandidateId: '93-auto-blur-plus',
+    filterType: 'auto_blur'
   }
 ];
 
@@ -150,6 +158,19 @@ export const buildAviUtlEffectPresetFilter = (presetId: AviUtlEffectPresetId): O
           focusRadius: 0.25,
           blur: 8,
           strength: 1
+        }
+      };
+    }
+    case '93-auto-blur-plus-motion': {
+      return {
+        id: `aviutl-${presetId}`,
+        type: 'auto_blur',
+        enabled: true,
+        params: {
+          blur: 10,
+          speed: 1,
+          strength: 1,
+          colourShift: 0
         }
       };
     }

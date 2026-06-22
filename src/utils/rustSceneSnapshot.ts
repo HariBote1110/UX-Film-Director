@@ -75,7 +75,8 @@ export type RustEffect =
   | { Clipping: { top: number; bottom: number; left: number; right: number; angle_degrees: number } }
   | { SpotLight: { centre_x: number; centre_y: number; radius: number; intensity: number; colour: [number, number, number] } }
   | { DisplacementMap: { amount_x: number; amount_y: number; size: number; strength: number } }
-  | { FakeDof: { focus_x: number; focus_y: number; focus_radius: number; blur: number; strength: number } };
+  | { FakeDof: { focus_x: number; focus_y: number; focus_radius: number; blur: number; strength: number } }
+  | { AutoBlur: { angle_degrees: number; radius: number; strength: number; colour_shift: number } };
 
 export interface RustEvaluatedClip {
   clip_id: string;
@@ -333,6 +334,7 @@ const collectBuildIssues = (
       && filter.type !== 'spot_light'
       && filter.type !== 'displacement_map'
       && filter.type !== 'fake_dof'
+      && filter.type !== 'auto_blur'
       && !(object.type === 'shape' && filter.type === 'gradient')
     ));
     if (unsupportedFilter) {
@@ -417,6 +419,23 @@ const rustEffectsForObject = (object: TimelineObject, time: number): RustEffect[
           focus_radius: Math.max(0.01, Math.min(1, finiteNumberOr(filter.params.focusRadius, 0.25))),
           blur: Math.max(0, finiteNumberOr(filter.params.blur, 8)),
           strength: Math.max(0, Math.min(1, finiteNumberOr(filter.params.strength, 1))),
+        },
+      });
+    }
+    if (filter.type === 'auto_blur') {
+      const movementX = finiteNumberOr(object.endX, object.x) - finiteNumberOr(object.x, 0);
+      const movementY = finiteNumberOr(object.endY, object.y) - finiteNumberOr(object.y, 0);
+      const duration = Math.max(1 / 60, finiteNumberOr(object.duration, 1));
+      const pixelsPerFrame = Math.hypot(movementX, movementY) / Math.max(1, duration * 60);
+      const blur = Math.max(0, finiteNumberOr(filter.params.blur, 10));
+      const speed = Math.max(0, finiteNumberOr(filter.params.speed, 1));
+      const radius = Math.min(blur * 2, pixelsPerFrame * speed * blur * 0.1);
+      effects.push({
+        AutoBlur: {
+          angle_degrees: Math.atan2(movementY, movementX) * 180 / Math.PI,
+          radius,
+          strength: Math.max(0, Math.min(1, finiteNumberOr(filter.params.strength, 1))),
+          colour_shift: Math.max(0, Math.min(1, finiteNumberOr(filter.params.colourShift, 0))),
         },
       });
     }
@@ -1791,6 +1810,13 @@ const validateEffects = (
       validateFiniteNumber(effect.FakeDof.focus_radius, `${effectPath}.FakeDof.focus_radius`, issues);
       validateFiniteNumber(effect.FakeDof.blur, `${effectPath}.FakeDof.blur`, issues);
       validateUnitInterval(effect.FakeDof.strength, `${effectPath}.FakeDof.strength`, issues);
+      return;
+    }
+    if (isRecord(effect.AutoBlur)) {
+      validateFiniteNumber(effect.AutoBlur.angle_degrees, `${effectPath}.AutoBlur.angle_degrees`, issues);
+      validateFiniteNumber(effect.AutoBlur.radius, `${effectPath}.AutoBlur.radius`, issues);
+      validateUnitInterval(effect.AutoBlur.strength, `${effectPath}.AutoBlur.strength`, issues);
+      validateUnitInterval(effect.AutoBlur.colour_shift, `${effectPath}.AutoBlur.colour_shift`, issues);
       return;
     }
     addIssue(issues, 'schemaMismatch', effectPath, 'Unknown Rust effect.');

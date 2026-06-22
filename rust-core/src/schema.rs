@@ -206,6 +206,12 @@ pub enum Effect {
         blur: f32,
         strength: f32,
     },
+    AutoBlur {
+        angle_degrees: f32,
+        radius: f32,
+        strength: f32,
+        colour_shift: f32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

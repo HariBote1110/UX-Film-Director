@@ -76,6 +76,7 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::SpotLight { .. } => 1.0,
         Effect::DisplacementMap { .. } => 1.0,
         Effect::FakeDof { .. } => 1.0,
+        Effect::AutoBlur { .. } => 1.0,
     }
 }
 

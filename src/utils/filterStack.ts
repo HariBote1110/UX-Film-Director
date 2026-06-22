@@ -9,7 +9,8 @@ import {
   GradientFill,
   SpotLightFilterParams,
   DisplacementMapFilterParams,
-  FakeDofFilterParams
+  FakeDofFilterParams,
+  AutoBlurFilterParams
 } from '../types';
 
 const DEFAULT_COLOR_CORRECTION: Omit<ColorCorrection, 'enabled'> = {
@@ -96,6 +97,13 @@ const DEFAULT_FAKE_DOF: FakeDofFilterParams = {
   strength: 1
 };
 
+const DEFAULT_AUTO_BLUR: AutoBlurFilterParams = {
+  blur: 10,
+  speed: 1,
+  strength: 1,
+  colourShift: 0
+};
+
 const createFilterId = (type: FilterType): string => {
   return `${type}-${crypto.randomUUID()}`;
 };
@@ -125,7 +133,8 @@ const isFilterType = (value: unknown): value is FilterType => {
     || value === 'wipe'
     || value === 'spot_light'
     || value === 'displacement_map'
-    || value === 'fake_dof';
+    || value === 'fake_dof'
+    || value === 'auto_blur';
 };
 
 const normaliseOutlineParams = (params: unknown): import('../types').OutlineFilterParams => {
@@ -205,6 +214,16 @@ const normaliseFakeDofParams = (params: unknown): FakeDofFilterParams => {
     focusRadius: Math.max(0.01, Math.min(1, toNumber(source.focusRadius, DEFAULT_FAKE_DOF.focusRadius))),
     blur: Math.max(0, toNumber(source.blur, DEFAULT_FAKE_DOF.blur)),
     strength: Math.max(0, Math.min(1, toNumber(source.strength, DEFAULT_FAKE_DOF.strength)))
+  };
+};
+
+const normaliseAutoBlurParams = (params: unknown): AutoBlurFilterParams => {
+  const source = isRecord(params) ? params : {};
+  return {
+    blur: Math.max(0, toNumber(source.blur, DEFAULT_AUTO_BLUR.blur)),
+    speed: Math.max(0, toNumber(source.speed, DEFAULT_AUTO_BLUR.speed)),
+    strength: Math.max(0, Math.min(1, toNumber(source.strength, DEFAULT_AUTO_BLUR.strength))),
+    colourShift: Math.max(0, Math.min(1, toNumber(source.colourShift, DEFAULT_AUTO_BLUR.colourShift)))
   };
 };
 
@@ -375,6 +394,13 @@ export const createDefaultFilter = (type: FilterType): ObjectFilter => {
         enabled: true,
         params: { ...DEFAULT_FAKE_DOF }
       };
+    case 'auto_blur':
+      return {
+        id: createFilterId(type),
+        type,
+        enabled: true,
+        params: { ...DEFAULT_AUTO_BLUR }
+      };
     default:
       return {
         id: createFilterId('color_correction'),
@@ -483,6 +509,13 @@ const normaliseFilter = (value: unknown): ObjectFilter | null => {
         type: 'fake_dof',
         enabled,
         params: normaliseFakeDofParams(value.params)
+      };
+    case 'auto_blur':
+      return {
+        id,
+        type: 'auto_blur',
+        enabled,
+        params: normaliseAutoBlurParams(value.params)
       };
     default:
       return null;

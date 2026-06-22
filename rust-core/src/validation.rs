@@ -207,6 +207,22 @@ fn effect_is_finite(effect: &crate::schema::Effect) -> bool {
                 && *strength >= 0.0
                 && *strength <= 1.0
         }
+        crate::schema::Effect::AutoBlur {
+            angle_degrees,
+            radius,
+            strength,
+            colour_shift,
+        } => {
+            angle_degrees.is_finite()
+                && radius.is_finite()
+                && *radius >= 0.0
+                && strength.is_finite()
+                && *strength >= 0.0
+                && *strength <= 1.0
+                && colour_shift.is_finite()
+                && *colour_shift >= 0.0
+                && *colour_shift <= 1.0
+        }
     }
 }
 

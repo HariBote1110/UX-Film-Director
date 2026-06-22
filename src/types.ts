@@ -138,7 +138,8 @@ export type FilterType =
   | 'wipe'
   | 'spot_light'
   | 'displacement_map'
-  | 'fake_dof';
+  | 'fake_dof'
+  | 'auto_blur';
 
 /** プレビュー／書き出し共通の仮想カメラ（シーン単位） */
 export interface CameraState {
@@ -200,6 +201,13 @@ export interface FakeDofFilterParams {
   focusRadius: number;
   blur: number;
   strength: number;
+}
+
+export interface AutoBlurFilterParams {
+  blur: number;
+  speed: number;
+  strength: number;
+  colourShift: number;
 }
 
 interface BaseFilter {
@@ -273,6 +281,11 @@ export interface FakeDofObjectFilter extends BaseFilter {
   params: FakeDofFilterParams;
 }
 
+export interface AutoBlurObjectFilter extends BaseFilter {
+  type: 'auto_blur';
+  params: AutoBlurFilterParams;
+}
+
 export type ObjectFilter =
   | ColorCorrectionFilter
   | ColourAberrationFilter
@@ -286,7 +299,8 @@ export type ObjectFilter =
   | WipeObjectFilter
   | SpotLightObjectFilter
   | DisplacementMapObjectFilter
-  | FakeDofObjectFilter;
+  | FakeDofObjectFilter
+  | AutoBlurObjectFilter;
 
 // --- オブジェクト定義 ---
 

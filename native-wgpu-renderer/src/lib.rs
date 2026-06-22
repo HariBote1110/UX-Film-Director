@@ -286,6 +286,10 @@ impl NativeWgpuRenderer {
                     fake_dof_focus_radius: fake_dof_focus_radius(clip),
                     fake_dof_blur: fake_dof_blur(clip),
                     fake_dof_strength: fake_dof_strength(clip),
+                    auto_blur_angle: auto_blur_angle(clip),
+                    auto_blur_radius: auto_blur_radius(clip),
+                    auto_blur_strength: auto_blur_strength(clip),
+                    auto_blur_colour_shift: auto_blur_colour_shift(clip),
                     source_width: source.width as f32,
                     source_height: source.height as f32,
                     translation_x: clip.transform.translation_x,
@@ -787,6 +791,10 @@ struct RenderParams {
     fake_dof_focus_radius: f32,
     fake_dof_blur: f32,
     fake_dof_strength: f32,
+    auto_blur_angle: f32,
+    auto_blur_radius: f32,
+    auto_blur_strength: f32,
+    auto_blur_colour_shift: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -1063,6 +1071,7 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::SpotLight { .. } => 1.0,
         Effect::DisplacementMap { .. } => 1.0,
         Effect::FakeDof { .. } => 1.0,
+        Effect::AutoBlur { .. } => 1.0,
     }
 }
 
@@ -1286,6 +1295,52 @@ fn fake_dof_strength(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
         .iter()
         .filter_map(|effect| match effect {
             Effect::FakeDof { strength, .. } => Some(*strength),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .clamp(0.0, 1.0)
+}
+
+fn auto_blur_angle(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::AutoBlur { angle_degrees, .. } => Some(angle_degrees.to_radians()),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+}
+
+fn auto_blur_radius(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::AutoBlur { radius, .. } => Some(*radius),
+            _ => None,
+        })
+        .sum::<f32>()
+        .max(0.0)
+}
+
+fn auto_blur_strength(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::AutoBlur { strength, .. } => Some(*strength),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .clamp(0.0, 1.0)
+}
+
+fn auto_blur_colour_shift(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::AutoBlur { colour_shift, .. } => Some(*colour_shift),
             _ => None,
         })
         .last()

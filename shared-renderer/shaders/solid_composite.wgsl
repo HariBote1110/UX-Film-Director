@@ -31,6 +31,10 @@ struct RenderParams {
     fake_dof_focus_radius: f32,
     fake_dof_blur: f32,
     fake_dof_strength: f32,
+    auto_blur_angle: f32,
+    auto_blur_radius: f32,
+    auto_blur_strength: f32,
+    auto_blur_colour_shift: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -125,7 +129,7 @@ fn displaced_position(source_position: vec2<f32>) -> vec2<f32> {
 }
 
 fn sample_source_with_fake_dof(source_position: vec2<f32>) -> vec4<f32> {
-    let base = sample_source_linear(source_position);
+    let base = sample_source_with_auto_blur(source_position);
     if params.fake_dof_strength <= 0.0 || params.fake_dof_blur <= 0.0 {
         return base;
     }
@@ -138,9 +142,22 @@ fn sample_source_with_fake_dof(source_position: vec2<f32>) -> vec4<f32> {
         return base;
     }
     let radius = max(params.fake_dof_blur, 0.0);
-    let left = sample_source_linear(clamp_source_position(source_position - vec2<f32>(radius, 0.0)));
-    let right = sample_source_linear(clamp_source_position(source_position + vec2<f32>(radius, 0.0)));
+    let left = sample_source_with_auto_blur(clamp_source_position(source_position - vec2<f32>(radius, 0.0)));
+    let right = sample_source_with_auto_blur(clamp_source_position(source_position + vec2<f32>(radius, 0.0)));
     return mix(base, (left + right) * 0.5, factor);
+}
+
+fn sample_source_with_auto_blur(source_position: vec2<f32>) -> vec4<f32> {
+    let base = sample_source_linear(source_position);
+    if params.auto_blur_strength <= 0.0 || params.auto_blur_radius <= 0.0 {
+        return base;
+    }
+    let direction = vec2<f32>(cos(params.auto_blur_angle), sin(params.auto_blur_angle));
+    let offset = direction * params.auto_blur_radius;
+    let back = sample_source_linear(clamp_source_position(source_position - offset));
+    let forward = sample_source_linear(clamp_source_position(source_position + offset));
+    let blurred = (back + forward) * 0.5;
+    return mix(base, blurred, params.auto_blur_strength);
 }
 
 fn spot_light_rgb(source_position: vec2<f32>, source_alpha: f32) -> vec3<f32> {
