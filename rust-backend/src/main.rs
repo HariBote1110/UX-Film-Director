@@ -2,6 +2,7 @@ mod generated;
 mod psd_fast;
 mod rpc;
 mod sessions;
+mod state;
 
 use generated::*;
 use rpc::{response_error, HealthResult, RpcError, RpcRequest, RpcResponse};
@@ -10,6 +11,7 @@ use serde_json::{json, Value};
 use sessions::{
     DecodeSession, DecodedRgbaFrame, EncodeAbortSummary, EncodeSession, StreamingDecodeProcess,
 };
+use state::{BackendState, BlobWriteResult, PsdOverlayCacheEntry};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, BufRead, Read, Write};
@@ -39,28 +41,6 @@ use uxfd_sidecar_protocol::{
 #[serde(rename_all = "camelCase")]
 struct DecodeStopRequest {
     job_id: String,
-}
-
-/// Shared state for the in-progress PSD pixel blob write.
-/// `None` = no write pending; `Some(Ok(path))` = done; `Some(Err(msg))` = failed.
-type BlobWriteResult = Arc<Mutex<Option<Result<String, String>>>>;
-
-#[derive(Default)]
-struct BackendState {
-    decode_sessions: HashMap<String, DecodeSession>,
-    encode_sessions: HashMap<String, EncodeSession>,
-    psd_overlay_cache: HashMap<String, PsdOverlayCacheEntry>,
-    #[cfg(unix)]
-    native_render_outputs: HashMap<String, PosixSharedRing>,
-    native_wgpu_renderer: Option<NativeWgpuRenderer>,
-    /// Background blob writer: set by psd.parse, drained by psd.await_blob.
-    psd_blob_result: Option<BlobWriteResult>,
-}
-
-struct PsdOverlayCacheEntry {
-    raw_path: PathBuf,
-    source_width: u32,
-    source_height: u32,
 }
 
 fn main() {

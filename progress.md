@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendの共有状態型をstate.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `BackendState`、`PsdOverlayCacheEntry`、`BlobWriteResult` を `rust-backend/src/state.rs` へ抽出した。
+- decode/encodeセッション、PSD overlay cache、native render output、PSD blob writerの状態保持フィールドを `pub(crate)` として既存ハンドラから参照できるようにした。
+- `main.rs` は `mod state` と `use state::{...}` で参照する形にし、RPC状態管理の挙動は変更していない。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次は生成フレーム描画関数またはencode/decodeハンドラを、依存が少ない単位から別モジュールへ移す。
+
 ## 2026-06-22 — フェーズ3: Rust backendの生成ソース型をgenerated.rsへ分離
 
 ### 実施内容
