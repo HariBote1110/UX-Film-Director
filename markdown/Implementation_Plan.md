@@ -120,6 +120,7 @@
 95. ✅ `P1` 93 SPfieldをRust GeneratedSphericalField派生プリセットとして追加する
 96. ✅ `P1` 93 ObjectCopyEXTを選択オブジェクトのnative複製列として追加する
 97. ✅ `P1` 93 背景色スポイトをTimelineObject色フィールドのnative palette抽出utilityとして追加する
+98. ✅ `P1` 93 背景色スポイトpaletteをGetColor V2R編集UIへ接続する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

@@ -1,6 +1,17 @@
 # 進捗ログ
 
 ## 2026-06-23
+- 93 背景色スポイトpaletteをGetColor編集へ接続した。
+- Red: 背景色スポイトpaletteからGetColor V2Rの前景色、二次色、背景色へ一括適用する契約を追加した。
+- Green: `buildAviUtlBackgroundColourPalettePatch` を追加し、編集中のGetColor自身を除外したシーン色から `foregroundColour`、`secondaryColour`、`backgroundColour` を作れるようにした。
+- Green: PropertyPanelのGetColor欄に `93 Background Colour Eyedropper` セクションを追加し、抽出paletteのスウォッチ表示と `背景色スポイトpaletteを適用` ボタンを接続した。
+- 版を `0.1.1-Beta-340a` に更新した。
+- 検証: `npm test -- --run src/utils/aviutl/aviutlBackgroundColourEyedropper.test.ts src/components/PropertyPanelBoundary.test.ts --reporter=dot` は13件成功した。
+- 検証: `npm test -- --run src/utils/aviutl/aviutlPackFeatureCatalog.test.ts src/utils/objectFactories/getColorDotFieldObjectFactory.test.ts src/utils/rustSceneSnapshot.test.ts --reporter=dot` は85件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回のGetColor接続由来の型エラーは出ていない。
+- 現在はTimelineObjectの保持色を拾う段階で、プレビュー実画素のスポイトではない。次はpaletteをhksy palette付き生成オブジェクトへも適用するか、93の座標格納系へ進む。
+
+## 2026-06-23
 - 93 背景色スポイトをnative palette抽出utilityへ追加した。
 - Red: `script/93/背景色スポイト.anm` を `93-background-colour-eyedropper` としてAviUtlPackV4カタログへ載せ、TimelineObjectの色フィールドから重複なしpaletteを抽出する契約を追加した。
 - Green: `extractAviUtlBackgroundColourPalette` を追加し、`fill`、`foregroundColour`、`fieldColour`、`secondaryColour`、`backgroundColour` などを `#rrggbb` へ正規化して色テーブル化できるようにした。
