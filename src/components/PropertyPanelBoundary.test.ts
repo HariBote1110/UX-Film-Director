@@ -151,6 +151,24 @@ describe('PropertyPanel hksy palette controls', () => {
     expect(code).toContain('measured-grid');
     expect(code).toContain('anchor-line');
   });
+
+  it('exposes detailed measured-grid and anchor-line hksy controls for Rust-native hksy objects', () => {
+    const code = source();
+
+    expect(code).toContain('Separate Interval');
+    expect(code).toContain('Separate Line Width');
+    expect(code).toContain('Anchor A X');
+    expect(code).toContain('Anchor A Y');
+    expect(code).toContain('Anchor B X');
+    expect(code).toContain('Anchor B Y');
+    expect(code).toContain('Round Caps');
+    expect(code).toContain('Max Join Distance');
+    expect(code).toContain("(selectedObject as HksyCheckerGridObject).separateInterval");
+    expect(code).toContain("(selectedObject as HksyCheckerGridObject).separateLineWidth");
+    expect(code).toContain("(selectedObject as HksyCheckerGridObject).anchorPoints");
+    expect(code).toContain("(selectedObject as HksyCheckerGridObject).roundCaps");
+    expect(code).toContain("(selectedObject as HksyCheckerGridObject).maxJoinDistance");
+  });
 });
 
 describe('PropertyPanel 93 PlainEffector Line controls', () => {
