@@ -1,3 +1,22 @@
+## 2026-06-22 — フェーズ3: Rust backendの生成器バリデータをファミリー別に分割
+
+### 実施内容
+- `rust-backend/src/generated/validators.rs` からチャート系検証を `rust-backend/src/generated/validators/chart.rs` へ分離した。
+- `rust-backend/src/generated/validators.rs` から小型図形系検証を `rust-backend/src/generated/validators/shape.rs` へ分離した。
+- `rust-backend/src/generated/validators.rs` から装飾図形系検証を `rust-backend/src/generated/validators/decorative.rs` へ分離した。
+- `rust-backend/src/generated/validators.rs` からパターン系検証を `rust-backend/src/generated/validators/pattern.rs` へ分離した。
+- `validators.rs` は 957 行から 603 行になり、切り出した検証モジュールを `mod` と `pub(crate) use` で束ねる親モジュールになり始めた。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次は `validators.rs` に残るline/misc/region/simple_tube/sphere/hksy/getcolor系の検証をさらに分割する。
+- `generated_frame_tests.rs` は 1,373 行のまま残っているため、生成器ファミリー別のテスト分割も引き続き候補とする。
+
 ## 2026-06-22 — フェーズ3: Rust backendの残り生成器をサブモジュール化してgenerated.rsを索引化
 
 ### 実施内容
