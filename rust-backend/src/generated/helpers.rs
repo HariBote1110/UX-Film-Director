@@ -338,6 +338,35 @@ pub(super) fn puzzle_piece_connectors(shape_variant: u32) -> [(u8, bool); 4] {
     }
 }
 
+pub(crate) fn mix_rgb_u8(left: [u8; 3], right: [u8; 3], amount: f32) -> [u8; 3] {
+    let amount = amount.clamp(0.0, 1.0);
+    [
+        (left[0] as f32 * (1.0 - amount) + right[0] as f32 * amount).round() as u8,
+        (left[1] as f32 * (1.0 - amount) + right[1] as f32 * amount).round() as u8,
+        (left[2] as f32 * (1.0 - amount) + right[2] as f32 * amount).round() as u8,
+    ]
+}
+
+pub(crate) fn scale_rgb_u8(colour: [u8; 3], amount: f32) -> [u8; 3] {
+    [
+        (colour[0] as f32 * amount).round().clamp(0.0, 255.0) as u8,
+        (colour[1] as f32 * amount).round().clamp(0.0, 255.0) as u8,
+        (colour[2] as f32 * amount).round().clamp(0.0, 255.0) as u8,
+    ]
+}
+
+pub(crate) fn deterministic_signed_noise(seed: i64, index: i64) -> f32 {
+    let mut value = (seed as u64)
+        .wrapping_mul(6364136223846793005)
+        .wrapping_add(index as u64)
+        .wrapping_add(1442695040888963407);
+    value ^= value >> 33;
+    value = value.wrapping_mul(0xff51afd7ed558ccd);
+    value ^= value >> 33;
+    let unit = (value & 0xffff) as f32 / 65535.0;
+    unit * 2.0 - 1.0
+}
+
 pub(crate) fn deterministic_unit(seed: u64, index: u32, lane: u64) -> f32 {
     let mut value = seed
         ^ ((index as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15))

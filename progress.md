@@ -1,3 +1,20 @@
+## 2026-06-22 — フェーズ3: Rust backendのSimpleTube生成器をサブモジュール化
+
+### 実施内容
+- `rust-backend/src/generated.rs` から `GeneratedSimpleTube` の生成フレーム実装を `rust-backend/src/generated/simple_tube.rs` へ分離した。
+- tube本体、torus描画、ring色計算、ellipse点生成をSimpleTube専用モジュールへ閉じ込めた。
+- `mix_rgb_u8`、`scale_rgb_u8`、`deterministic_signed_noise` はSphere/SphericalField側でも使う共有helperとして `rust-backend/src/generated/helpers.rs` へ移した。
+- `generated.rs` は 3,575 行から 3,188 行になり、SimpleTube実装364行を独立ファイルへ移した。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はSphereDots/SphericalFieldを93系Sphereモジュールへ分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのHK-SY生成器をサブモジュール化
 
 ### 実施内容
