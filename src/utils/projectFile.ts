@@ -121,7 +121,8 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'plain_effector_line',
   'hologram',
   'protractor',
-  'shaking_polygon'
+  'shaking_polygon',
+  'shattered_sphere'
 ]);
 
 const isVec3 = (value: unknown): boolean => {
@@ -478,6 +479,26 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!isFiniteNumber(candidate.jitterRange) || candidate.jitterRange < 0 || candidate.jitterRange > 2000) return false;
     if (!isFiniteNumber(candidate.jitterInterval) || candidate.jitterInterval < 1) return false;
     if (typeof candidate.stepped !== 'boolean') return false;
+    if (typeof candidate.colour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.colour)) return false;
+    if (!isFiniteNumber(candidate.seed)) return false;
+  }
+  if (candidate.type === 'shattered_sphere') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.fractureAmount) || candidate.fractureAmount < 0 || candidate.fractureAmount > 5000) return false;
+    if (!isFiniteNumber(candidate.delay) || candidate.delay < 0 || candidate.delay > 1000) return false;
+    if (!isFiniteNumber(candidate.radius) || candidate.radius < 1 || candidate.radius > 10000) return false;
+    if (!isFiniteNumber(candidate.limitDistance) || candidate.limitDistance < 0 || candidate.limitDistance > 10000) return false;
+    if (!isFiniteNumber(candidate.thickness) || candidate.thickness < 0 || candidate.thickness > 1000) return false;
+    if (!isFiniteNumber(candidate.fragmentSize) || candidate.fragmentSize < 1 || candidate.fragmentSize > 1000) return false;
+    if (!isFiniteNumber(candidate.randomShape) || candidate.randomShape < 0 || candidate.randomShape > 100) return false;
+    if (!isFiniteNumber(candidate.speed) || candidate.speed < 0 || candidate.speed > 1000) return false;
+    if (!isFiniteNumber(candidate.impact) || candidate.impact < 0 || candidate.impact > 1000) return false;
+    if (!isFiniteNumber(candidate.gravityX) || candidate.gravityX < -1000 || candidate.gravityX > 1000) return false;
+    if (!isFiniteNumber(candidate.gravityY) || candidate.gravityY < -1000 || candidate.gravityY > 1000) return false;
+    if (!isFiniteNumber(candidate.gravityZ) || candidate.gravityZ < -1000 || candidate.gravityZ > 1000) return false;
+    if (!isFiniteNumber(candidate.spin) || candidate.spin < 0 || candidate.spin > 1000) return false;
+    if (!isFiniteNumber(candidate.directionDiffusion) || candidate.directionDiffusion < 0 || candidate.directionDiffusion > 1000) return false;
     if (typeof candidate.colour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.colour)) return false;
     if (!isFiniteNumber(candidate.seed)) return false;
   }

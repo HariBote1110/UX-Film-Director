@@ -25,6 +25,7 @@ import { buildAviUtlProtractorObject } from '../utils/objectFactories/protractor
 import { buildAviUtlRandomLineExObject } from '../utils/objectFactories/randomLineExObjectFactory';
 import { buildAviUtlCutCornerRegionFrameObject, buildAviUtlEllipseRegionFrameObject, buildAviUtlRegionFrameObject } from '../utils/objectFactories/regionFrameObjectFactory';
 import { buildAviUtlShakingPolygonObject } from '../utils/objectFactories/shakingPolygonObjectFactory';
+import { buildAviUtlShatteredSphereObject } from '../utils/objectFactories/shatteredSphereObjectFactory';
 import { buildAviUtlSimpleTubeObject, buildAviUtlSimpleTubeTorusObject } from '../utils/objectFactories/simpleTubeObjectFactory';
 import { buildAviUtlSphereDotsObject } from '../utils/objectFactories/sphereDotsObjectFactory';
 import { buildAviUtlSphericalFieldObject } from '../utils/objectFactories/sphericalFieldObjectFactory';
@@ -376,6 +377,17 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
 
   const handleAddShakingPolygon = () => {
     addObject(buildAviUtlShakingPolygonObject({
+      id: crypto.randomUUID(),
+      projectWidth: projectSettings.width,
+      projectHeight: projectSettings.height,
+      startTime: state.time,
+      layer: state.layer,
+    }));
+    onClose();
+  };
+
+  const handleAddShatteredSphere = () => {
+    addObject(buildAviUtlShatteredSphereObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
@@ -771,10 +783,11 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
                        <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddRegionFrame}>{language === 'en' ? 'Add 93 Region Frame' : '93領域枠を追加'}</div>
                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddEllipseRegionFrame}>{language === 'en' ? 'Add 93 Ellipse Region Frame' : '93領域枠(楕円)を追加'}</div>
                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddCutCornerRegionFrame}>{language === 'en' ? 'Add 93 Cut-Corner Region Frame' : '93領域枠(角落ち)を追加'}</div>
-                    <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHologram}>{language === 'en' ? 'Add Hologram' : 'ホログラムを追加'}</div>
-                    <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddProtractor}>{language === 'en' ? 'Add Protractor' : '分度器を追加'}</div>
-                    <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddShakingPolygon}>{language === 'en' ? 'Add Shaking Polygon' : '多角形_震えるを追加'}</div>
-                    <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddSimpleTube}>{language === 'en' ? 'Add 93 SimpleTube' : '93 SimpleTubeを追加'}</div>
+                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHologram}>{language === 'en' ? 'Add Hologram' : 'ホログラムを追加'}</div>
+                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddProtractor}>{language === 'en' ? 'Add Protractor' : '分度器を追加'}</div>
+                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddShakingPolygon}>{language === 'en' ? 'Add Shaking Polygon' : '多角形_震えるを追加'}</div>
+                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddShatteredSphere}>{language === 'en' ? 'Add 93 Shattered Sphere' : '93砕け散る球を追加'}</div>
+                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddSimpleTube}>{language === 'en' ? 'Add 93 SimpleTube' : '93 SimpleTubeを追加'}</div>
                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddSimpleTubeTorus}>{language === 'en' ? 'Add 93 SimpleTube Torus' : '93 SimpleTubeトーラスを追加'}</div>
                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddSphereDots}>{language === 'en' ? 'Add 93 Sphere(DrawPixel)' : '93 Sphere(DrawPixel)を追加'}</div>
                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddSphericalField}>{language === 'en' ? 'Add 93 SphericalField' : '93 SphericalFieldを追加'}</div>

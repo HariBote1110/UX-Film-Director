@@ -346,6 +346,69 @@ pub(crate) fn validate_generated_shaking_polygon_source(
     Ok(())
 }
 
+pub(crate) fn validate_generated_shattered_sphere_source(
+    source: &GeneratedShatteredSphereSource,
+) -> Result<(), String> {
+    if source.generator != "shattered-sphere-93" {
+        return Err("generator must be shattered-sphere-93".to_string());
+    }
+    if !source.fracture_amount.is_finite()
+        || source.fracture_amount < 0.0
+        || source.fracture_amount > 5000.0
+    {
+        return Err("fracture_amount must be 0..5000".to_string());
+    }
+    if !source.delay.is_finite() || source.delay < 0.0 || source.delay > 1000.0 {
+        return Err("delay must be 0..1000".to_string());
+    }
+    if !source.radius.is_finite() || source.radius < 1.0 || source.radius > 10000.0 {
+        return Err("radius must be 1..10000".to_string());
+    }
+    if !source.limit_distance.is_finite()
+        || source.limit_distance < 0.0
+        || source.limit_distance > 10000.0
+    {
+        return Err("limit_distance must be 0..10000".to_string());
+    }
+    if !source.thickness.is_finite() || source.thickness < 0.0 || source.thickness > 1000.0 {
+        return Err("thickness must be 0..1000".to_string());
+    }
+    if !source.fragment_size.is_finite()
+        || source.fragment_size < 1.0
+        || source.fragment_size > 1000.0
+    {
+        return Err("fragment_size must be 1..1000".to_string());
+    }
+    if !source.random_shape.is_finite() || source.random_shape < 0.0 || source.random_shape > 100.0
+    {
+        return Err("random_shape must be 0..100".to_string());
+    }
+    if !source.speed.is_finite() || source.speed < 0.0 || source.speed > 1000.0 {
+        return Err("speed must be 0..1000".to_string());
+    }
+    if !source.impact.is_finite() || source.impact < 0.0 || source.impact > 1000.0 {
+        return Err("impact must be 0..1000".to_string());
+    }
+    if source
+        .gravity
+        .iter()
+        .any(|value| !value.is_finite() || *value < -1000.0 || *value > 1000.0)
+    {
+        return Err("gravity values must be -1000..1000".to_string());
+    }
+    if !source.spin.is_finite() || source.spin < 0.0 || source.spin > 1000.0 {
+        return Err("spin must be 0..1000".to_string());
+    }
+    if !source.direction_diffusion.is_finite()
+        || source.direction_diffusion < 0.0
+        || source.direction_diffusion > 1000.0
+    {
+        return Err("direction_diffusion must be 0..1000".to_string());
+    }
+    parse_hex_colour_source(&source.colour)?;
+    Ok(())
+}
+
 pub(crate) fn validate_generated_tone_curve_source(
     source: &GeneratedToneCurveSource,
 ) -> Result<(), String> {

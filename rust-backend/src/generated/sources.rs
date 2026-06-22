@@ -309,6 +309,25 @@ pub(crate) struct GeneratedShakingPolygonSource {
 }
 
 #[derive(Debug, Deserialize)]
+pub(crate) struct GeneratedShatteredSphereSource {
+    pub(crate) generator: String,
+    pub(crate) fracture_amount: f32,
+    pub(crate) delay: f32,
+    pub(crate) radius: f32,
+    pub(crate) limit_distance: f32,
+    pub(crate) thickness: f32,
+    pub(crate) fragment_size: f32,
+    pub(crate) random_shape: f32,
+    pub(crate) speed: f32,
+    pub(crate) impact: f32,
+    pub(crate) gravity: [f32; 3],
+    pub(crate) spin: f32,
+    pub(crate) direction_diffusion: f32,
+    pub(crate) colour: String,
+    pub(crate) seed: i64,
+}
+
+#[derive(Debug, Deserialize)]
 pub(crate) struct GeneratedToneCurveSource {
     pub(crate) generator: String,
     pub(crate) grid_divisions: u32,

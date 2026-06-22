@@ -727,6 +727,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '線状エフェクタとして背景や強調演出に使いやすく、Rust側で透明背景付きのベクトル場ラインを決定的に生成できる。'
   },
   {
+    id: '93-shattered-sphere',
+    labelJa: '93 砕け散る球',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/砕け散る球.anm'],
+    rationaleJa: '球面状に分割された破片が散る演出で、決定的なRust生成アニメーション素材として強調・崩壊表現に使える。'
+  },
+  {
     id: 'tim-motion-path',
     labelJa: 'モーションパス',
     category: 'motion',

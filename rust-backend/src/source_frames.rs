@@ -76,6 +76,10 @@ pub(crate) fn collect_native_render_sources(
                 media,
                 source_frame_for_media(snapshot, &media.id),
             )?,
+            MediaKind::GeneratedShatteredSphere => build_generated_shattered_sphere_source_frame(
+                media,
+                source_frame_for_media(snapshot, &media.id),
+            )?,
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform | MediaKind::GeneratedAudioSphere => continue,

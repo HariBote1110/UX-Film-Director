@@ -39,6 +39,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedHologram') return isSharedRendererNativeGeneratedHologramSourceSupported(reference.source);
   if (reference.kind === 'GeneratedProtractor') return isSharedRendererNativeGeneratedProtractorSourceSupported(reference.source);
   if (reference.kind === 'GeneratedShakingPolygon') return isSharedRendererNativeGeneratedShakingPolygonSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedShatteredSphere') return isSharedRendererNativeGeneratedShatteredSphereSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   return false;
@@ -1205,6 +1206,54 @@ const isSharedRendererNativeGeneratedShakingPolygonSourceSupported = (source: st
     return false;
   }
 };
+
+const isSharedRendererNativeGeneratedShatteredSphereSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      fracture_amount?: unknown;
+      delay?: unknown;
+      radius?: unknown;
+      limit_distance?: unknown;
+      thickness?: unknown;
+      fragment_size?: unknown;
+      random_shape?: unknown;
+      speed?: unknown;
+      impact?: unknown;
+      gravity?: unknown;
+      spin?: unknown;
+      direction_diffusion?: unknown;
+      colour?: unknown;
+      seed?: unknown;
+    };
+    return (
+      parsed.generator === 'shattered-sphere-93'
+      && finiteNumberInRange(parsed.fracture_amount, 0, 5000)
+      && finiteNumberInRange(parsed.delay, 0, 1000)
+      && finiteNumberInRange(parsed.radius, 1, 10000)
+      && finiteNumberInRange(parsed.limit_distance, 0, 10000)
+      && finiteNumberInRange(parsed.thickness, 0, 1000)
+      && finiteNumberInRange(parsed.fragment_size, 1, 1000)
+      && finiteNumberInRange(parsed.random_shape, 0, 100)
+      && finiteNumberInRange(parsed.speed, 0, 1000)
+      && finiteNumberInRange(parsed.impact, 0, 1000)
+      && Array.isArray(parsed.gravity)
+      && parsed.gravity.length === 3
+      && parsed.gravity.every((value) => finiteNumberInRange(value, -1000, 1000))
+      && finiteNumberInRange(parsed.spin, 0, 1000)
+      && finiteNumberInRange(parsed.direction_diffusion, 0, 1000)
+      && typeof parsed.colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.colour)
+      && typeof parsed.seed === 'number'
+      && Number.isInteger(parsed.seed)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const finiteNumberInRange = (value: unknown, min: number, max: number): boolean =>
+  typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max;
 
 const isSharedRendererNativeGeneratedToneCurveSourceSupported = (source: string): boolean => {
   try {
