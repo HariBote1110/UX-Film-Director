@@ -19,6 +19,16 @@ pub(crate) fn parse_hex_colour_source(source: &str) -> Result<[u8; 3], String> {
     Ok([red, green, blue])
 }
 
+pub(crate) fn blend_rgb8(left: [u8; 3], right: [u8; 3], right_weight: f32) -> [u8; 3] {
+    let weight = right_weight.clamp(0.0, 1.0);
+    let left_weight = 1.0 - weight;
+    [
+        (left[0] as f32 * left_weight + right[0] as f32 * weight).round() as u8,
+        (left[1] as f32 * left_weight + right[1] as f32 * weight).round() as u8,
+        (left[2] as f32 * left_weight + right[2] as f32 * weight).round() as u8,
+    ]
+}
+
 pub(crate) fn point_on_circle(centre_x: f32, centre_y: f32, radius: f32, angle: f32) -> (f32, f32) {
     (
         centre_x + angle.cos() * radius,

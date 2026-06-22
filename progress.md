@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendのパターン系生成器をサブモジュール化
+
+### 実施内容
+- `rust-backend/src/generated.rs` から `GeneratedTartanCheck`、`GeneratedHoundstooth`、`GeneratedYagasuri` の生成フレーム実装を `rust-backend/src/generated/pattern_effects.rs` へ分離した。
+- `blend_rgb8` はHologramとTartanCheckで共有されるため、`rust-backend/src/generated/helpers.rs` へ移した。
+- `generated.rs` は 718 行から 481 行になり、パターン系実装233行を独立ファイルへ移した。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はParticle/PaperAirplane/AsanohaPatternなど、`generated.rs` に残る生成器をさらにサブモジュール化する。
+
 ## 2026-06-22 — フェーズ3: Rust backendの装飾図形生成器をサブモジュール化
 
 ### 実施内容
