@@ -213,6 +213,43 @@ pub(crate) fn validate_generated_displacement_poly_source(
     Ok(())
 }
 
+pub(crate) fn validate_generated_plain_effector_line_source(
+    source: &GeneratedPlainEffectorLineSource,
+) -> Result<(), String> {
+    if source.generator != "plain-effector-line-93" {
+        return Err("generator must be plain-effector-line-93".to_string());
+    }
+    if !source.radius.is_finite() || source.radius < 1.0 || source.radius > 2000.0 {
+        return Err("radius must be 1..2000".to_string());
+    }
+    if !source.strength.is_finite() || source.strength < -10.0 || source.strength > 10.0 {
+        return Err("strength must be -10..10".to_string());
+    }
+    if !source.randomness.is_finite()
+        || source.randomness < -1000.0
+        || source.randomness > 1000.0
+    {
+        return Err("randomness must be -1000..1000".to_string());
+    }
+    if !source.zoom.is_finite() || source.zoom < -2.0 || source.zoom > 5.0 {
+        return Err("zoom must be -2..5".to_string());
+    }
+    if source.line_count == 0 || source.line_count > 128 {
+        return Err("line_count must be 1..128".to_string());
+    }
+    if !source.line_width.is_finite() || source.line_width < 0.25 || source.line_width > 200.0 {
+        return Err("line_width must be 0.25..200".to_string());
+    }
+    if !source.colour_amount.is_finite()
+        || source.colour_amount < 0.0
+        || source.colour_amount > 1.0
+    {
+        return Err("colour_amount must be 0..1".to_string());
+    }
+    parse_hex_colour_source(&source.colour)?;
+    Ok(())
+}
+
 pub(crate) fn validate_generated_hologram_source(
     source: &GeneratedHologramSource,
 ) -> Result<(), String> {

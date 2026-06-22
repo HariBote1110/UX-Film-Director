@@ -67,6 +67,9 @@ pub(crate) fn collect_native_render_sources(
             MediaKind::GeneratedDisplacementPoly => {
                 build_generated_displacement_poly_source_frame(media)?
             }
+            MediaKind::GeneratedPlainEffectorLine => {
+                build_generated_plain_effector_line_source_frame(media)?
+            }
             MediaKind::GeneratedHologram => build_generated_hologram_source_frame(media)?,
             MediaKind::GeneratedProtractor => build_generated_protractor_source_frame(media)?,
             MediaKind::GeneratedShakingPolygon => build_generated_shaking_polygon_source_frame(

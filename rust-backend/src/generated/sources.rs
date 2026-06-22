@@ -254,6 +254,21 @@ pub(crate) struct GeneratedDisplacementPolySource {
 }
 
 #[derive(Debug, Deserialize)]
+pub(crate) struct GeneratedPlainEffectorLineSource {
+    pub(crate) generator: String,
+    pub(crate) radius: f32,
+    pub(crate) strength: f32,
+    pub(crate) randomness: f32,
+    pub(crate) zoom: f32,
+    pub(crate) invert: bool,
+    pub(crate) line_count: u32,
+    pub(crate) line_width: f32,
+    pub(crate) colour: String,
+    pub(crate) colour_amount: f32,
+    pub(crate) seed: i64,
+}
+
+#[derive(Debug, Deserialize)]
 pub(crate) struct GeneratedHologramSource {
     pub(crate) generator: String,
     pub(crate) tile_size: u32,

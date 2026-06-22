@@ -3,6 +3,136 @@ use uxfd_rust_core::SceneMediaReference;
 
 use super::*;
 
+pub(crate) fn build_generated_plain_effector_line_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedPlainEffectorLine media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let source: GeneratedPlainEffectorLineSource =
+        serde_json::from_str(&media.source).map_err(|error| {
+            format!(
+                "Invalid GeneratedPlainEffectorLine media '{}': {error}",
+                media.id
+            )
+        })?;
+    validate_generated_plain_effector_line_source(&source).map_err(|message| {
+        format!(
+            "Invalid GeneratedPlainEffectorLine media '{}': {message}",
+            media.id
+        )
+    })?;
+    let parsed_colour = parse_hex_colour_source(&source.colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedPlainEffectorLine media '{}': {message}",
+            media.id
+        )
+    })?;
+    let colour = if source.invert {
+        [
+            255_u8.saturating_sub(parsed_colour[0]),
+            255_u8.saturating_sub(parsed_colour[1]),
+            255_u8.saturating_sub(parsed_colour[2]),
+        ]
+    } else {
+        parsed_colour
+    };
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedPlainEffectorLine media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedPlainEffectorLine media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+    draw_plain_effector_lines(&mut pixels, media.width, media.height, &source, colour);
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedPlainEffectorLine media frame is invalid: {error:?}"))
+}
+
+fn draw_plain_effector_lines(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    source: &GeneratedPlainEffectorLineSource,
+    colour: [u8; 3],
+) {
+    let centre_x = width as f32 * 0.5;
+    let centre_y = height as f32 * 0.5;
+    let diagonal = ((width as f32).powi(2) + (height as f32).powi(2)).sqrt();
+    let base_radius = source.radius.max(1.0) * source.zoom.max(0.05);
+    let line_length = (base_radius * (1.6 + source.strength.abs() * 0.18)).min(diagonal * 1.2);
+    let alpha = (source.colour_amount.clamp(0.0, 1.0) * 255.0).round() as u8;
+    if alpha == 0 {
+        return;
+    }
+
+    for index in 0..source.line_count {
+        let phase = index as f32 / source.line_count.max(1) as f32;
+        let random_angle = deterministic_unit(source.seed as u64, index, 11) - 0.5;
+        let random_shift = deterministic_unit(source.seed as u64, index, 23) - 0.5;
+        let wobble = random_angle * source.randomness / 1000.0;
+        let angle = phase * std::f32::consts::TAU + wobble + source.strength * 0.05;
+        let radius = base_radius + random_shift * source.randomness.abs() * 0.25;
+        let normal = (-angle.sin(), angle.cos());
+        let anchor = (
+            centre_x + angle.cos() * radius,
+            centre_y + angle.sin() * radius,
+        );
+        let half = line_length * 0.5;
+        let start = (anchor.0 - normal.0 * half, anchor.1 - normal.1 * half);
+        let end = (anchor.0 + normal.0 * half, anchor.1 + normal.1 * half);
+        draw_line_segment_rgba_alpha(
+            pixels,
+            width,
+            height,
+            start,
+            end,
+            colour,
+            alpha,
+            source.line_width,
+        );
+    }
+}
+
+fn draw_line_segment_rgba_alpha(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    start: (f32, f32),
+    end: (f32, f32),
+    colour: [u8; 3],
+    alpha: u8,
+    line_width: f32,
+) {
+    let half_line = (line_width * 0.5).max(0.5);
+    let min_x = (start.0.min(end.0) - half_line - 1.0).floor().max(0.0) as u32;
+    let max_x = (start.0.max(end.0) + half_line + 1.0)
+        .ceil()
+        .min(width.saturating_sub(1) as f32) as u32;
+    let min_y = (start.1.min(end.1) - half_line - 1.0).floor().max(0.0) as u32;
+    let max_y = (start.1.max(end.1) + half_line + 1.0)
+        .ceil()
+        .min(height.saturating_sub(1) as f32) as u32;
+
+    for y in min_y..=max_y {
+        for x in min_x..=max_x {
+            if distance_to_segment(x as f32 + 0.5, y as f32 + 0.5, start, end) <= half_line {
+                let offset = (y as usize * width as usize + x as usize) * 4;
+                pixels[offset..offset + 4].copy_from_slice(&[colour[0], colour[1], colour[2], alpha]);
+            }
+        }
+    }
+}
+
 pub(crate) fn build_generated_focus_lines_plus_source_frame(
     media: &SceneMediaReference,
     source_frame: u64,

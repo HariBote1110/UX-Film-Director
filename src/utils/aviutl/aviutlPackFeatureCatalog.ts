@@ -717,6 +717,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '図形の強調や不安定な演出に使いやすく、Rust側で透明背景付きの揺れる多角形を決定的に生成できる。'
   },
   {
+    id: '93-plain-effector-line',
+    labelJa: '93 PlainEffector Line',
+    category: 'generated-object',
+    phase: 'P2',
+    implementationTarget: 'native-generated-object',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/@PlainEffector.anm'],
+    rationaleJa: '線状エフェクタとして背景や強調演出に使いやすく、Rust側で透明背景付きのベクトル場ラインを決定的に生成できる。'
+  },
+  {
     id: 'tim-motion-path',
     labelJa: 'モーションパス',
     category: 'motion',

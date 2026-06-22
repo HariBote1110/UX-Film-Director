@@ -35,6 +35,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedRandomLineEx') return isSharedRendererNativeGeneratedRandomLineExSourceSupported(reference.source);
   if (reference.kind === 'GeneratedContourTrace') return isSharedRendererNativeGeneratedContourTraceSourceSupported(reference.source);
   if (reference.kind === 'GeneratedDisplacementPoly') return isSharedRendererNativeGeneratedDisplacementPolySourceSupported(reference.source);
+  if (reference.kind === 'GeneratedPlainEffectorLine') return isSharedRendererNativeGeneratedPlainEffectorLineSourceSupported(reference.source);
   if (reference.kind === 'GeneratedHologram') return isSharedRendererNativeGeneratedHologramSourceSupported(reference.source);
   if (reference.kind === 'GeneratedProtractor') return isSharedRendererNativeGeneratedProtractorSourceSupported(reference.source);
   if (reference.kind === 'GeneratedShakingPolygon') return isSharedRendererNativeGeneratedShakingPolygonSourceSupported(reference.source);
@@ -1035,6 +1036,62 @@ const isSharedRendererNativeGeneratedHologramSourceSupported = (source: string):
       && parsed.colour_mode <= 2
       && typeof parsed.tint_colour === 'string'
       && /^#[0-9a-f]{6}$/i.test(parsed.tint_colour)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isSharedRendererNativeGeneratedPlainEffectorLineSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      radius?: unknown;
+      strength?: unknown;
+      randomness?: unknown;
+      zoom?: unknown;
+      invert?: unknown;
+      line_count?: unknown;
+      line_width?: unknown;
+      colour?: unknown;
+      colour_amount?: unknown;
+      seed?: unknown;
+    };
+    return (
+      parsed.generator === 'plain-effector-line-93'
+      && typeof parsed.radius === 'number'
+      && Number.isFinite(parsed.radius)
+      && parsed.radius >= 1
+      && parsed.radius <= 2000
+      && typeof parsed.strength === 'number'
+      && Number.isFinite(parsed.strength)
+      && parsed.strength >= -10
+      && parsed.strength <= 10
+      && typeof parsed.randomness === 'number'
+      && Number.isFinite(parsed.randomness)
+      && parsed.randomness >= -1000
+      && parsed.randomness <= 1000
+      && typeof parsed.zoom === 'number'
+      && Number.isFinite(parsed.zoom)
+      && parsed.zoom >= -2
+      && parsed.zoom <= 5
+      && typeof parsed.invert === 'boolean'
+      && typeof parsed.line_count === 'number'
+      && Number.isInteger(parsed.line_count)
+      && parsed.line_count >= 1
+      && parsed.line_count <= 128
+      && typeof parsed.line_width === 'number'
+      && Number.isFinite(parsed.line_width)
+      && parsed.line_width >= 0.25
+      && parsed.line_width <= 200
+      && typeof parsed.colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.colour)
+      && typeof parsed.colour_amount === 'number'
+      && Number.isFinite(parsed.colour_amount)
+      && parsed.colour_amount >= 0
+      && parsed.colour_amount <= 1
+      && typeof parsed.seed === 'number'
+      && Number.isInteger(parsed.seed)
     );
   } catch {
     return false;

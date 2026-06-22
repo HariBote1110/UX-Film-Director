@@ -118,6 +118,7 @@ const TIMELINE_OBJECT_TYPES = new Set([
   'random_line_ex',
   'contour_trace',
   'displacement_poly',
+  'plain_effector_line',
   'hologram',
   'protractor',
   'shaking_polygon'
@@ -427,6 +428,20 @@ const isTimelineObject = (value: unknown): value is TimelineObject => {
     if (!isFiniteNumber(candidate.fillOpacity) || candidate.fillOpacity < 0 || candidate.fillOpacity > 1) return false;
     if (typeof candidate.lineColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.lineColour)) return false;
     if (typeof candidate.fillColour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.fillColour)) return false;
+    if (!isFiniteNumber(candidate.seed)) return false;
+  }
+  if (candidate.type === 'plain_effector_line') {
+    if (!isFiniteNumber(candidate.width) || candidate.width <= 0) return false;
+    if (!isFiniteNumber(candidate.height) || candidate.height <= 0) return false;
+    if (!isFiniteNumber(candidate.radius) || candidate.radius < 1 || candidate.radius > 2000) return false;
+    if (!isFiniteNumber(candidate.strength) || candidate.strength < -10 || candidate.strength > 10) return false;
+    if (!isFiniteNumber(candidate.randomness) || candidate.randomness < -1000 || candidate.randomness > 1000) return false;
+    if (!isFiniteNumber(candidate.zoom) || candidate.zoom < -2 || candidate.zoom > 5) return false;
+    if (typeof candidate.invert !== 'boolean') return false;
+    if (!isFiniteNumber(candidate.lineCount) || candidate.lineCount < 1 || candidate.lineCount > 128) return false;
+    if (!isFiniteNumber(candidate.lineWidth) || candidate.lineWidth < 0.25 || candidate.lineWidth > 200) return false;
+    if (typeof candidate.colour !== 'string' || !/^#[0-9a-f]{6}$/i.test(candidate.colour)) return false;
+    if (!isFiniteNumber(candidate.colourAmount) || candidate.colourAmount < 0 || candidate.colourAmount > 1) return false;
     if (!isFiniteNumber(candidate.seed)) return false;
   }
   if (candidate.type === 'hologram') {

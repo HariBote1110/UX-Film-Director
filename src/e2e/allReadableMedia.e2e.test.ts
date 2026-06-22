@@ -20,6 +20,7 @@ import type {
   LayerState,
   ParticleObject,
   PieChartObject,
+  PlainEffectorLineObject,
   ProtractorObject,
   ProjectSettings,
   PsdObject,
@@ -482,8 +483,25 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     seed: 0,
     lineColour: '#ffffff',
   };
+  const plainEffectorLine: PlainEffectorLineObject = {
+    ...baseObject('plain-effector-line-93', 'plain_effector_line', 29),
+    type: 'plain_effector_line',
+    name: '93 PlainEffector Line',
+    width: 800,
+    height: 450,
+    radius: 100,
+    strength: 1,
+    randomness: 0,
+    zoom: 1,
+    invert: false,
+    lineCount: 24,
+    lineWidth: 2,
+    colour: '#f74d52',
+    colourAmount: 1,
+    seed: 93,
+  };
   const hologram: HologramObject = {
-    ...baseObject('ssd-hologram', 'hologram', 29),
+    ...baseObject('ssd-hologram', 'hologram', 30),
     type: 'hologram',
     name: 'ホログラム',
     width: 800,
@@ -495,7 +513,7 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     tintColour: '#ffffff',
   };
   const protractor: ProtractorObject = {
-    ...baseObject('ssd-protractor', 'protractor', 30),
+    ...baseObject('ssd-protractor', 'protractor', 31),
     type: 'protractor',
     name: '分度器',
     width: 420,
@@ -510,7 +528,7 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     shadowColour: '#000000',
   };
   const shakingPolygon: ShakingPolygonObject = {
-    ...baseObject('ssd-shaking-polygon', 'shaking_polygon', 31),
+    ...baseObject('ssd-shaking-polygon', 'shaking_polygon', 32),
     type: 'shaking_polygon',
     name: '多角形_震える',
     width: 360,
@@ -556,6 +574,7 @@ const createAllReadableMediaObjects = (): TimelineObject[] => {
     asanohaPattern,
     focusLinesPlus,
     randomLineEx,
+    plainEffectorLine,
     hologram,
     protractor,
     shakingPolygon,
@@ -645,6 +664,7 @@ describe('全読込可能メディア E2E', () => {
       'GeneratedAsanohaPattern',
       'GeneratedFocusLinesPlus',
       'GeneratedRandomLineEx',
+      'GeneratedPlainEffectorLine',
       'GeneratedHologram',
       'GeneratedProtractor',
       'GeneratedShakingPolygon',
