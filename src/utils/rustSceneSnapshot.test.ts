@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, ContourTraceObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, RegionFrameObject, ShakingPolygonObject, ShapeObject, SimpleTubeObject, SphereDotsObject, SphericalFieldObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, ContourTraceObject, DisplacementPolyObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, RegionFrameObject, ShakingPolygonObject, ShapeObject, SimpleTubeObject, SphereDotsObject, SphericalFieldObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -765,6 +765,37 @@ const baseContourTrace = (patch: Partial<ContourTraceObject> = {}): ContourTrace
   jitterAmount: 1.5,
   traceColour: '#ffffff',
   backgroundOpacity: 0,
+  seed: 93,
+  ...patch,
+});
+
+const baseDisplacementPoly = (patch: Partial<DisplacementPolyObject> = {}): DisplacementPolyObject => ({
+  id: 'displacement-poly-1',
+  type: 'displacement_poly',
+  name: '93 DisplacementPoly',
+  layer: 25,
+  startTime: 1,
+  duration: 4,
+  x: 560,
+  y: 315,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 560,
+  endY: 315,
+  easing: 'linear',
+  width: 800,
+  height: 450,
+  columns: 14,
+  rows: 8,
+  displacementScale: 42,
+  depthScale: 18,
+  meshOpacity: 0.85,
+  fillOpacity: 0.18,
+  lineColour: '#36c2ff',
+  fillColour: '#0b1020',
   seed: 93,
   ...patch,
 });
@@ -2020,6 +2051,47 @@ describe('buildRustSceneSnapshotForTimeline', () => {
           jitter_amount: 1.5,
           trace_colour: '#ffffff',
           background_opacity: 0,
+          seed: 93,
+        }),
+        width: 800,
+        height: 450,
+      },
+    ]);
+  });
+
+  it('builds a generated 93 displacement poly media plane from a displacement poly object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseDisplacementPoly()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated displacement poly snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'displacement-poly-1',
+      track_id: 'layer-25',
+      media_id: 'displacement-poly-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'displacement-poly-1',
+        kind: 'GeneratedDisplacementPoly',
+        source: JSON.stringify({
+          generator: 'displacement-poly-93',
+          columns: 14,
+          rows: 8,
+          displacement_scale: 42,
+          depth_scale: 18,
+          mesh_opacity: 0.85,
+          fill_opacity: 0.18,
+          line_colour: '#36c2ff',
+          fill_colour: '#0b1020',
           seed: 93,
         }),
         width: 800,

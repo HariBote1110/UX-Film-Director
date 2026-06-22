@@ -357,6 +357,22 @@ fn rust_core_accepts_generated_contour_trace_media_kind_at_the_json_boundary() {
 }
 
 #[test]
+fn rust_core_accepts_generated_displacement_poly_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "displacement-poly-1",
+        "kind": "GeneratedDisplacementPoly",
+        "source": "{\"generator\":\"displacement-poly-93\",\"columns\":14,\"rows\":8,\"displacement_scale\":42,\"depth_scale\":18,\"mesh_opacity\":0.85,\"fill_opacity\":0.18,\"line_colour\":\"#36c2ff\",\"fill_colour\":\"#0b1020\",\"seed\":93}",
+        "width": 800,
+        "height": 450
+    }))
+    .expect("GeneratedDisplacementPoly media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedDisplacementPoly);
+    assert_eq!(media.width, 800);
+    assert_eq!(media.height, 450);
+}
+
+#[test]
 fn rust_core_accepts_generated_hologram_media_kind_at_the_json_boundary() {
     let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
         "id": "hologram-1",

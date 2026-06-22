@@ -650,6 +650,41 @@ fn generated_contour_trace_source_frame_contains_contour_lines_and_transparency(
 }
 
 #[test]
+fn generated_displacement_poly_source_frame_contains_displaced_mesh_and_fill() {
+    let media = SceneMediaReference {
+            id: "displacement-poly-1".to_string(),
+            kind: MediaKind::GeneratedDisplacementPoly,
+            source: r##"{"generator":"displacement-poly-93","columns":14,"rows":8,"displacement_scale":42,"depth_scale":18,"mesh_opacity":0.85,"fill_opacity":0.18,"line_colour":"#36c2ff","fill_colour":"#0b1020","seed":93}"##.to_string(),
+            width: 800,
+            height: 450,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+    let frame = build_generated_displacement_poly_source_frame(&media)
+        .expect("generated displacement poly frame should render");
+    let mesh_count = frame
+        .pixels
+        .chunks_exact(4)
+        .filter(|rgba| rgba[0] < 80 && rgba[1] > 150 && rgba[2] > 200 && rgba[3] > 180)
+        .count();
+    let fill_count = frame
+        .pixels
+        .chunks_exact(4)
+        .filter(|rgba| rgba[0] < 30 && rgba[1] < 40 && rgba[2] < 80 && rgba[3] > 20)
+        .count();
+    let transparent_count = frame
+        .pixels
+        .chunks_exact(4)
+        .filter(|rgba| rgba[3] == 0)
+        .count();
+
+    assert!(mesh_count > 1_000);
+    assert!(fill_count > 10_000);
+    assert!(transparent_count > 20_000);
+}
+
+#[test]
 fn generated_hologram_source_frame_contains_prism_stripes_and_opacity() {
     let media = SceneMediaReference {
             id: "hologram-1".to_string(),

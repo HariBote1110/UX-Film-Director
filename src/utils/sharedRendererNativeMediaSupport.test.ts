@@ -506,6 +506,24 @@ describe('sharedRendererNativeMediaSupport', () => {
     })).toBe(false);
   });
 
+  it('accepts 93 displacement poly generator sources as native renderable media', () => {
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'displacement-poly-1',
+      kind: 'GeneratedDisplacementPoly',
+      source: '{"generator":"displacement-poly-93","columns":14,"rows":8,"displacement_scale":42,"depth_scale":18,"mesh_opacity":0.85,"fill_opacity":0.18,"line_colour":"#36c2ff","fill_colour":"#0b1020","seed":93}',
+      width: 800,
+      height: 450,
+    })).toBe(true);
+
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'displacement-poly-invalid-1',
+      kind: 'GeneratedDisplacementPoly',
+      source: '{"generator":"displacement-poly-93","columns":0,"rows":8,"displacement_scale":42,"depth_scale":18,"mesh_opacity":0.85,"fill_opacity":0.18,"line_colour":"#36c2ff","fill_colour":"#0b1020","seed":93}',
+      width: 800,
+      height: 450,
+    })).toBe(false);
+  });
+
   it('accepts 93 SimpleTube torus generator sources with colour pattern and fog', () => {
     expect(isSharedRendererNativeMediaReferenceSupported({
       id: 'simple-tube-torus-1',

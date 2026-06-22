@@ -65,6 +65,8 @@ describe('AviUtlPackV4 feature catalogue', () => {
       'script/93/輪郭トレス.anm'
     ]));
     expect(byId.get('93-contour-trace')?.implementationTarget).toBe('native-generated-object');
+    expect(byId.get('93-displacement-poly')?.sourceRelativePaths).toContain('script/93/DisplacementPoly.anm');
+    expect(byId.get('93-displacement-poly')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('particle-standard')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('tim-aura-emission')?.sourceRelativePaths).toContain('script/てぃむ/オーラ放出.anm');
     expect(byId.get('tim-bubbles')?.sourceRelativePaths).toContain('script/てぃむ/泡.obj');
@@ -141,9 +143,10 @@ describe('AviUtlPackV4 feature catalogue', () => {
       'hksy-diamond',
       'hksy-measured-grid',
       'hksy-anchor-line',
-      '93-contour-trace'
+      '93-contour-trace',
+      '93-displacement-poly'
     ];
 
-    expect(roadmapIds.slice(0, 28)).toEqual(expect.arrayContaining(priorityIds));
+    expect(roadmapIds.slice(0, 29)).toEqual(expect.arrayContaining(priorityIds));
   });
 });
