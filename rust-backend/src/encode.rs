@@ -2,12 +2,266 @@ use std::io::{Read, Write};
 use std::process::{Child, ChildStderr, ChildStdin, Command, Stdio};
 use std::time::Duration;
 
-use crate::params::{EncodeStartParams, EncodeWriteFrameParams};
+use crate::params::{
+    EncodeAbortParams, EncodeFinishParams, EncodeStartParams, EncodeWriteFrameParams,
+};
+use crate::rpc::{response_error, RpcResponse};
 use crate::sessions::{EncodeAbortSummary, EncodeSession};
+use crate::state::BackendState;
+use serde_json::{json, Value};
 use uxfd_golden_harness::RgbaFrame;
 #[cfg(unix)]
 use uxfd_shared_memory_spike::PosixSharedRing;
-use uxfd_sidecar_protocol::{validate_renderer_handoff_descriptor, CopyOutState, FrameDescriptor};
+use uxfd_sidecar_protocol::{
+    validate_renderer_handoff_descriptor, ColourMetadata, CopyOutState, FrameDescriptor,
+    FrameFormat,
+};
+
+pub(crate) fn handle_encode_start(id: u64, params: Value, state: &mut BackendState) -> RpcResponse {
+    let parsed = match serde_json::from_value::<EncodeStartParams>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(id, -32602, &format!("Invalid encode.start params: {error}"));
+        }
+    };
+
+    if parsed.session_id.trim().is_empty() {
+        return response_error(id, -32602, "sessionId must not be empty");
+    }
+    if parsed.file_path.trim().is_empty() {
+        return response_error(id, -32602, "filePath must not be empty");
+    }
+    let audio_path = parsed
+        .audio_path
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+    if parsed.width == 0 || parsed.height == 0 {
+        return response_error(id, -32602, "width and height must be greater than zero");
+    }
+    if parsed.fps == 0 {
+        return response_error(id, -32602, "fps must be greater than zero");
+    }
+    if parsed.pixel_format != FrameFormat::Rgba8Srgb {
+        return response_error(id, -32602, "Only rgba8Srgb encode input is supported");
+    }
+    if parsed.colour != ColourMetadata::rec709_srgb() {
+        return response_error(
+            id,
+            -32602,
+            "Only bt709/srgb/rgb/full encode input is supported",
+        );
+    }
+    if state.encode_sessions.contains_key(&parsed.session_id) {
+        return response_error(id, -32051, "Encode session already active for sessionId");
+    }
+
+    let (child, stdin, stderr) = match start_encode_ffmpeg(&parsed) {
+        Ok(value) => value,
+        Err(message) => return response_error(id, -32054, &message),
+    };
+
+    state.encode_sessions.insert(
+        parsed.session_id.clone(),
+        EncodeSession {
+            child,
+            stdin,
+            stderr,
+            session_id: parsed.session_id.clone(),
+            file_path: parsed.file_path.clone(),
+            audio_path: audio_path.clone(),
+            width: parsed.width,
+            height: parsed.height,
+            fps: parsed.fps,
+            pixel_format: parsed.pixel_format,
+            colour: parsed.colour,
+            frame_count: 0,
+        },
+    );
+
+    RpcResponse {
+        id,
+        ok: true,
+        result: Some(json!({
+            "started": true,
+            "sessionId": parsed.session_id,
+            "filePath": parsed.file_path,
+            "width": parsed.width,
+            "height": parsed.height,
+            "fps": parsed.fps,
+            "pixelFormat": "rgba8Srgb",
+            "audioPath": audio_path,
+        })),
+        error: None,
+    }
+}
+
+pub(crate) fn handle_encode_write_frame(
+    id: u64,
+    params: Value,
+    state: &mut BackendState,
+) -> RpcResponse {
+    let parsed = match serde_json::from_value::<EncodeWriteFrameParams>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32602,
+                &format!("Invalid encode.writeFrame params: {error}"),
+            );
+        }
+    };
+
+    let (session_id, frame_count, shared_frame_byte_len, encoded_frame_byte_len) = {
+        let Some(session) = state.encode_sessions.get_mut(&parsed.session_id) else {
+            return response_error(id, -32052, "No active encode session");
+        };
+
+        if let Err(message) = validate_encode_shared_frame(session, &parsed) {
+            return response_error(id, -32602, &message);
+        }
+
+        let (shared_frame_byte_len, encoded_frame_byte_len) =
+            match write_encode_shared_frame(session, &parsed) {
+                Ok(value) => value,
+                Err(message) => return response_error(id, -32053, &message),
+            };
+
+        session.frame_count += 1;
+        (
+            session.session_id.clone(),
+            session.frame_count,
+            shared_frame_byte_len,
+            encoded_frame_byte_len,
+        )
+    };
+    state
+        .native_render_outputs
+        .remove(&parsed.frame.descriptor.memory_id);
+
+    RpcResponse {
+        id,
+        ok: true,
+        result: Some(json!({
+            "written": true,
+            "sessionId": session_id,
+            "frameIndex": parsed.frame_index,
+            "timestampUs": parsed.timestamp_us,
+            "slotCount": parsed.slot_count,
+            "sharedFrameByteLen": shared_frame_byte_len,
+            "encodedFrameByteLen": encoded_frame_byte_len,
+            "frameCount": frame_count,
+        })),
+        error: None,
+    }
+}
+
+pub(crate) fn handle_encode_finish(
+    id: u64,
+    params: Value,
+    state: &mut BackendState,
+) -> RpcResponse {
+    let parsed = match serde_json::from_value::<EncodeFinishParams>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32602,
+                &format!("Invalid encode.finish params: {error}"),
+            );
+        }
+    };
+
+    let Some(session) = state.encode_sessions.remove(&parsed.session_id) else {
+        return response_error(id, -32052, "No active encode session");
+    };
+    let mut session = session;
+
+    let _ = session.stdin.flush();
+    drop(session.stdin);
+
+    let status = match session.child.wait() {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32056,
+                &format!("Failed to wait Rust encode ffmpeg process: {error}"),
+            );
+        }
+    };
+    let mut ffmpeg_stderr = String::new();
+    let _ = session.stderr.read_to_string(&mut ffmpeg_stderr);
+
+    if !status.success() {
+        let stderr_detail = ffmpeg_stderr.trim();
+        let stderr_suffix = if stderr_detail.is_empty() {
+            String::new()
+        } else {
+            format!(" stderr: {stderr_detail}")
+        };
+        return response_error(
+            id,
+            -32057,
+            &format!(
+                "Rust encode ffmpeg exited with failure status: code={:?}.{stderr_suffix}",
+                status.code(),
+            ),
+        );
+    }
+
+    RpcResponse {
+        id,
+        ok: true,
+        result: Some(json!({
+            "finished": true,
+            "sessionId": session.session_id,
+            "filePath": session.file_path,
+            "audioPath": session.audio_path,
+            "fps": session.fps,
+            "frameCount": session.frame_count,
+        })),
+        error: None,
+    }
+}
+
+pub(crate) fn handle_encode_abort(id: u64, params: Value, state: &mut BackendState) -> RpcResponse {
+    let parsed = match serde_json::from_value::<EncodeAbortParams>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(id, -32602, &format!("Invalid encode.abort params: {error}"));
+        }
+    };
+
+    let Some(session) = state.encode_sessions.remove(&parsed.session_id) else {
+        return RpcResponse {
+            id,
+            ok: true,
+            result: Some(json!({
+                "aborted": false,
+                "sessionId": parsed.session_id,
+                "alreadyClosed": true,
+            })),
+            error: None,
+        };
+    };
+
+    let summary = abort_encode_session(session);
+    RpcResponse {
+        id,
+        ok: true,
+        result: Some(json!({
+            "aborted": true,
+            "sessionId": summary.session_id,
+            "filePath": summary.file_path,
+            "frameCount": summary.frame_count,
+            "ffmpegStatus": summary.ffmpeg_status,
+            "stderr": summary.stderr,
+        })),
+        error: None,
+    }
+}
 
 pub(crate) fn abort_encode_session(session: EncodeSession) -> EncodeAbortSummary {
     let EncodeSession {
