@@ -1,3 +1,20 @@
+## 2026-06-22 — フェーズ3: Rust backendのCPU simple video fast pathをcpu_simple_video.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `try_render_simple_video_frame_to_shared_ring`、`try_render_simple_video_frame`、simple video blit/sampling補助関数、`CpuSimpleVideoRenderReport` を `rust-backend/src/cpu_simple_video.rs` へ抽出した。
+- native render共有メモリ出力とnative encode直接書き込みの両方で使うCPU simple video fast pathを1モジュールにまとめた。
+- `main.rs` は `try_render_simple_video_frame` と `try_render_simple_video_frame_to_shared_ring` をimportして呼び出すだけにした。
+- `main.rs` から不要になった `EvaluatedClip`、`SamplingMode`、`rgba8_srgb_ring_layout`、`SharedFrame` のimportを削除した。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はnative render RPC handler本体、source収集、または生成フレーム描画関数群をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのtranscode RPC本体をtranscode.rsへ分離
 
 ### 実施内容
