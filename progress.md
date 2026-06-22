@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendのproxy生成RPCをproxy.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `ProxyGenerateParams` と `handle_proxy_generate` を `rust-backend/src/proxy.rs` へ抽出した。
+- `main.rs` は `mod proxy` と `use proxy::handle_proxy_generate` でRPCルーティングから呼び出す形にし、proxy生成時のffmpeg引数、既定幅、環境変数 `UXFD_FFMPEG_BIN` の扱いは変更していない。
+- 抽出後に不要になった `serde::Deserialize` importを `main.rs` から削除した。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はmedia/audio/PSD系のハンドラ、またはencode/decode handler本体を依存の少ないまとまりから分離する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのRPC入力型をparams.rsへ分離
 
 ### 実施内容
