@@ -268,6 +268,34 @@ fn rejects_invalid_multi_slicer_effect_values() {
 }
 
 #[test]
+fn accepts_finite_oct_transform_effect_values() {
+    let mut project = valid_project();
+    project.tracks[0].clips[0].effects.push(Effect::OctTransform {
+        scale: 1.1,
+        rotation_degrees: 30.0,
+        vertex_count: 8,
+        warp: 0.2,
+        strength: 0.75,
+    });
+
+    assert!(validate_project(&project).is_ok());
+}
+
+#[test]
+fn rejects_invalid_oct_transform_effect_values() {
+    let mut project = valid_project();
+    project.tracks[0].clips[0].effects.push(Effect::OctTransform {
+        scale: 0.0,
+        rotation_degrees: f32::NAN,
+        vertex_count: 2,
+        warp: -1.0,
+        strength: 2.0,
+    });
+
+    assert!(validation_codes(&project).contains(&ValidationCode::NonFiniteNumber));
+}
+
+#[test]
 fn rejects_invalid_wipe_effect_progress() {
     let mut project = valid_project();
     project.tracks[0].clips[0].effects.push(Effect::Wipe {

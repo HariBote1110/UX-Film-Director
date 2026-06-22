@@ -80,6 +80,8 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('93-stretch')?.implementationTarget).toBe('rust-webgpu-effect');
     expect(byId.get('93-multi-slicer')?.sourceRelativePaths).toContain('script/93/@MultiSlicer.anm');
     expect(byId.get('93-multi-slicer')?.implementationTarget).toBe('rust-webgpu-effect');
+    expect(byId.get('93-oct-transform')?.sourceRelativePaths).toContain('script/93/簡易変形(oct).anm');
+    expect(byId.get('93-oct-transform')?.implementationTarget).toBe('rust-webgpu-effect');
     expect(byId.get('particle-standard')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('tim-aura-emission')?.sourceRelativePaths).toContain('script/てぃむ/オーラ放出.anm');
     expect(byId.get('tim-bubbles')?.sourceRelativePaths).toContain('script/てぃむ/泡.obj');

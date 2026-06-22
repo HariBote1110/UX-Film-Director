@@ -3808,6 +3808,42 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('serialises 93 簡易変形(oct) filters as Rust scene effects', () => {
+    const layers = createDefaultLayers();
+    const transformed = baseImage({
+      id: 'oct-transformed',
+      filters: [
+        {
+          id: 'oct-transform-1',
+          type: 'oct_transform',
+          enabled: true,
+          params: { scale: 1.1, rotation: 30, vertexCount: 8, warp: 0.2, strength: 0.75 },
+        } as any,
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [transformed],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected oct transform snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([
+      {
+        OctTransform: {
+          scale: 1.1,
+          rotation_degrees: 30,
+          vertex_count: 8,
+          warp: 0.2,
+          strength: 0.75,
+        },
+      },
+    ]);
+  });
+
   it('fails loud for visible Pixi features the shared renderer cannot represent yet', () => {
     const layers = createDefaultLayers();
     const unsupportedText: TimelineObject = {

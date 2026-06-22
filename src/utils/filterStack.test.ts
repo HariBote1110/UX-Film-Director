@@ -104,6 +104,15 @@ describe('createDefaultFilter', () => {
     expect(multiSlicer.params.slices).toBe(18);
     expect(multiSlicer.params.expansion).toBe(0);
     expect(multiSlicer.params.strength).toBe(1);
+
+    const octTransform = createDefaultFilter('oct_transform' as any);
+    expect(octTransform.type).toBe('oct_transform');
+    if (octTransform.type !== 'oct_transform') throw new Error('expected oct transform');
+    expect(octTransform.params.scale).toBe(1);
+    expect(octTransform.params.rotation).toBe(0);
+    expect(octTransform.params.vertexCount).toBe(8);
+    expect(octTransform.params.warp).toBe(0.2);
+    expect(octTransform.params.strength).toBe(1);
   });
 });
 
@@ -118,9 +127,10 @@ describe('normaliseObjectFilters', () => {
       { id: 'ab', type: 'auto_blur' as any, enabled: true, params: { blur: -5, speed: Number.POSITIVE_INFINITY, strength: 2, colourShift: -1 } },
       { id: 'st', type: 'stretch' as any, enabled: true, params: { angle: Number.POSITIVE_INFINITY, amount: -2, strength: 2 } },
       { id: 'ms', type: 'multi_slicer' as any, enabled: true, params: { angle: Number.POSITIVE_INFINITY, offset: -20, slices: 1, expansion: -4, strength: 2 } },
+      { id: 'oct', type: 'oct_transform' as any, enabled: true, params: { scale: 0, rotation: Number.POSITIVE_INFINITY, vertexCount: 2, warp: -1, strength: 2 } },
       { id: '', type: 'not-a-filter' as never, enabled: true, params: {} as never }
     ] as ObjectFilter[]);
-    expect(result).toHaveLength(8);
+    expect(result).toHaveLength(9);
     if (result[0].type !== 'fade') throw new Error('expected fade');
     expect(result[0].params.opacity).toBe(1);
     if (result[1].type !== 'colour_aberration') throw new Error('expected colour aberration');
@@ -140,6 +150,8 @@ describe('normaliseObjectFilters', () => {
     expect(result[6].params).toEqual({ angle: 0, amount: 0, strength: 1 });
     if (result[7].type !== 'multi_slicer') throw new Error('expected multi slicer');
     expect(result[7].params).toEqual({ angle: 45, offset: 0, slices: 2, expansion: 0, strength: 1 });
+    if (result[8].type !== 'oct_transform') throw new Error('expected oct transform');
+    expect(result[8].params).toEqual({ scale: 0.01, rotation: 0, vertexCount: 3, warp: 0, strength: 1 });
   });
 });
 

@@ -368,6 +368,44 @@ fn native_wgpu_applies_multi_slicer_offsets_alternate_slices() {
 }
 
 #[test]
+fn native_wgpu_applies_oct_transform_scale() {
+    assert_native_matches_direct_hand_anchor(
+        scene_snapshot(vec![evaluated_clip(
+            "foreground",
+            0,
+            1.0,
+            vec![Effect::OctTransform {
+                scale: 2.0,
+                rotation_degrees: 0.0,
+                vertex_count: 4,
+                warp: 0.0,
+                strength: 1.0,
+            }],
+        )]),
+        HashMap::from([(
+            "foreground".to_string(),
+            RgbaFrame::from_rgba8(
+                3,
+                1,
+                vec![
+                    255, 0, 0, 255,
+                    0, 255, 0, 255,
+                    0, 0, 255, 255,
+                ],
+            )
+            .expect("valid foreground"),
+        )]),
+        3,
+        1,
+        vec![
+            255, 0, 0, 255,
+            0, 255, 0, 255,
+            0, 255, 0, 255,
+        ],
+    );
+}
+
+#[test]
 fn native_wgpu_applies_outline_to_transparent_neighbours() {
     assert_native_matches_direct_hand_anchor(
         scene_snapshot(vec![evaluated_clip(
