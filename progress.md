@@ -1,3 +1,20 @@
+## 2026-06-22 — フェーズ3: Rust backendのGear/TrackBar描画をgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `build_generated_gear_source_frame` と `build_generated_track_bar_source_frame` を `rust-backend/src/generated.rs` へ抽出した。
+- gear用の `trapezoid_tooth_factor` を `generated.rs` へ移した。
+- 複数の生成描画関数で使う `fill_rect_rgba` を `generated.rs` の `pub(crate)` helperへ移し、後続のchart/region系描画分割に備えた。
+- `main.rs` は 5,870 行から 5,692 行になった。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はpie chart、histogram、sunburstなどの生成フレーム描画関数をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのParticle/Puzzle/Gourd描画をgenerated.rsへ分離
 
 ### 実施内容

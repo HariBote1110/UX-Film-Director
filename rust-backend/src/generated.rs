@@ -434,6 +434,149 @@ pub(crate) fn build_generated_gourd_source_frame(
         .map_err(|error| format!("GeneratedGourd media frame is invalid: {error:?}"))
 }
 
+pub(crate) fn build_generated_gear_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedGear media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let gear: GeneratedGearSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedGear media '{}': {error}", media.id))?;
+    validate_generated_gear_source(&gear)
+        .map_err(|message| format!("Invalid GeneratedGear media '{}': {message}", media.id))?;
+    let [red, green, blue] = parse_hex_colour_source(&gear.fill_colour)
+        .map_err(|message| format!("Invalid GeneratedGear media '{}': {message}", media.id))?;
+
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedGear media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedGear media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+
+    let centre_x = media.width as f32 / 2.0;
+    let centre_y = media.height as f32 / 2.0;
+    let outer_radius = (gear.outer_radius as f32).min(media.width.min(media.height) as f32 / 2.0);
+    let inner_radius = outer_radius * (gear.inner_radius_percent * 0.01).clamp(0.0, 0.99);
+    let root_radius = outer_radius * (1.0 - gear.tooth_depth_percent * 0.01).clamp(0.05, 0.99);
+    let tooth_count = gear.tooth_count.max(3) as f32;
+    let skew = (gear.tooth_skew_percent * 0.005).clamp(-0.5, 0.5);
+
+    for y in 0..media.height {
+        for x in 0..media.width {
+            let px = x as f32 + 0.5 - centre_x;
+            let py = y as f32 + 0.5 - centre_y;
+            let radius = (px * px + py * py).sqrt();
+            if radius < inner_radius || radius > outer_radius {
+                continue;
+            }
+
+            let angle = py.atan2(px).rem_euclid(std::f32::consts::TAU);
+            let tooth_phase = (angle / std::f32::consts::TAU * tooth_count + skew).fract();
+            let tooth_top = trapezoid_tooth_factor(tooth_phase);
+            let boundary = root_radius + (outer_radius - root_radius) * tooth_top;
+            if radius <= boundary {
+                write_particle_pixel(
+                    &mut pixels,
+                    media.width,
+                    media.height,
+                    x as i32,
+                    y as i32,
+                    [red, green, blue, 255],
+                );
+            }
+        }
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedGear media frame is invalid: {error:?}"))
+}
+
+pub(crate) fn build_generated_track_bar_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedTrackBar media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let track_bar: GeneratedTrackBarSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedTrackBar media '{}': {error}", media.id))?;
+    validate_generated_track_bar_source(&track_bar)
+        .map_err(|message| format!("Invalid GeneratedTrackBar media '{}': {message}", media.id))?;
+    let [red, green, blue] = parse_hex_colour_source(&track_bar.bar_colour)
+        .map_err(|message| format!("Invalid GeneratedTrackBar media '{}': {message}", media.id))?;
+
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedTrackBar media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedTrackBar media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+
+    let margin = (media.width.min(media.height) as f32 * 0.066)
+        .max(6.0)
+        .round() as i32;
+    let row_count = track_bar.track_values.len() as i32;
+    let gap = (media.height as f32 * 0.06).max(4.0).round() as i32;
+    let row_height =
+        ((media.height as i32 - margin * 2 - gap * (row_count - 1)) / row_count).max(4);
+    let label_width = (media.width as f32 * 0.28).round() as i32;
+    let bar_left = margin + label_width;
+    let bar_right = media.width as i32 - margin;
+    let bar_width = (bar_right - bar_left).max(1);
+    let bg_alpha = (track_bar.background_opacity.clamp(0.0, 1.0) * 255.0).round() as u8;
+
+    for index in 0..track_bar.track_values.len() {
+        let top = margin + index as i32 * (row_height + gap);
+        let bottom = (top + row_height).min(media.height as i32 - margin);
+        fill_rect_rgba(
+            &mut pixels,
+            media.width,
+            media.height,
+            margin,
+            top,
+            media.width as i32 - margin,
+            bottom,
+            [red, green, blue, bg_alpha],
+        );
+
+        let value = track_bar.track_values[index];
+        let [min, max] = track_bar.track_ranges[index];
+        let progress = ((value - min) / (max - min)).clamp(0.0, 1.0);
+        let fill_right = bar_left + (bar_width as f32 * progress).round() as i32;
+        fill_rect_rgba(
+            &mut pixels,
+            media.width,
+            media.height,
+            bar_left,
+            top + 2,
+            fill_right.max(bar_left + 1),
+            bottom - 2,
+            [red, green, blue, 255],
+        );
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedTrackBar media frame is invalid: {error:?}"))
+}
+
 fn normalise_gradient_stops(
     gradient: &GeneratedGradientSource,
 ) -> Result<Vec<(f32, [u8; 3])>, String> {
@@ -596,6 +739,19 @@ pub(crate) fn hsv_to_rgb8(hue_degrees: f32, saturation: f32, value: f32) -> [u8;
     ]
 }
 
+fn trapezoid_tooth_factor(phase: f32) -> f32 {
+    let phase = phase.rem_euclid(1.0);
+    if phase < 0.18 {
+        phase / 0.18
+    } else if phase < 0.5 {
+        1.0
+    } else if phase < 0.68 {
+        1.0 - (phase - 0.5) / 0.18
+    } else {
+        0.0
+    }
+}
+
 fn puzzle_piece_connectors(shape_variant: u32) -> [(u8, bool); 4] {
     match shape_variant {
         1 => [(0, true), (1, false), (2, true), (3, false)],
@@ -621,6 +777,30 @@ pub(crate) fn deterministic_unit(seed: u64, index: u32, lane: u64) -> f32 {
     value = value.wrapping_mul(0x94d0_49bb_1331_11eb);
     value ^= value >> 31;
     (value as f64 / u64::MAX as f64) as f32
+}
+
+pub(crate) fn fill_rect_rgba(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    left: i32,
+    top: i32,
+    right: i32,
+    bottom: i32,
+    colour: [u8; 4],
+) {
+    let left = left.clamp(0, width as i32);
+    let right = right.clamp(0, width as i32);
+    let top = top.clamp(0, height as i32);
+    let bottom = bottom.clamp(0, height as i32);
+    if left >= right || top >= bottom {
+        return;
+    }
+    for y in top..bottom {
+        for x in left..right {
+            write_particle_pixel(pixels, width, height, x, y, colour);
+        }
+    }
 }
 
 fn point_inside_gourd(
