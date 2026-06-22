@@ -1,6 +1,17 @@
 # 進捗ログ
 
 ## 2026-06-23
+- 93 砕け散る球の編集UIを追加した。
+- Red: PropertyPanelが `ShatteredSphereObject` を扱い、`shattered_sphere` 選択時にRust-nativeな破片球パラメータを編集できる契約を追加した。
+- Green: PropertyPanelへ `Shattered Sphere Settings` を追加し、Fracture Amount、Delay、Radius、Limit Distance、Thickness、Fragment Size、Random Shape、Speed、Impact、Gravity X/Y/Z、Spin、Direction Diffusion、Colour、Seedを編集できるようにした。
+- Green: 各数値入力はproject保存/読込とRust backend validationの範囲に合わせてclampし、配置後に破片球の散り方をUIから調整できるようにした。
+- 版を `0.1.1-Beta-327a` に更新した。
+- 検証: `npm test -- --run src/components/PropertyPanelBoundary.test.ts --reporter=dot` は7件成功した。
+- 検証: `npm test -- --run src/utils/packageScripts.test.ts --reporter=dot` は6件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の `ShatteredSphereObject` 編集UI由来の型エラーは出ていない。
+- 次はGetColor / hksy / 93の未移植候補から次のP1/P2を選ぶ。`@Reflection_poly.anm` はlayer参照が重いので、自己完結する93生成オブジェクトまたはGetColor派生を優先候補にする。
+
+## 2026-06-23
 - 93 砕け散る球をRust生成オブジェクトへ追加した。
 - Red: `93 砕け散る球` がAviUtlPackV4カタログ、Timeline右クリックメニュー、project保存/読込、Rust scene snapshot、shared renderer native media support、Pixi cutover、rust-core schema、rust-backend source frame生成に接続される契約を追加した。
 - Green: `ShatteredSphereObject` と `buildAviUtlShatteredSphereObject` を追加し、Timeline右クリックメニューから `93砕け散る球` を配置できるようにした。

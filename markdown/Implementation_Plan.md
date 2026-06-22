@@ -1568,6 +1568,12 @@ Timeline右クリックメニュー、project save/load、Rust scene snapshot、
 Pixi cutover、rust-core schema、rust-backend RGBA source frame生成へ接続し、
 配置直後からプレビュー/exportのRust source frame経路で利用できる状態にする。
 
+267. AviUtlPackV4: 93 砕け散る球の編集UIを追加する
+`shattered_sphere` を配置した後に、PropertyPanelからFracture Amount、Delay、Radius、
+Limit Distance、Thickness、Fragment Size、Random Shape、Speed、Impact、Gravity、Spin、
+Direction Diffusion、Colour、Seedを編集できるようにする。
+Rust backendのvalidation範囲へ合わせてUI入力をclampし、破片球の散り方を実際の演出調整に使える状態へ進める。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

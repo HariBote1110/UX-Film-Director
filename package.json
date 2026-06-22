@@ -1,7 +1,7 @@
 {
   "name": "ux-film-director",
   "private": true,
-  "version": "0.1.1-Beta-326a",
+  "version": "0.1.1-Beta-327a",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
