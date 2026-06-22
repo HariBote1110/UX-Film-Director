@@ -112,6 +112,7 @@
 87. ✅ `P1` 93 領域拡張SをRust/WebGPU AreaExpandフィルタとして追加する
 88. ✅ `P1` 93 クリッピングSをSmart Clippingとして追加し、Rust/WebGPU Clippingへ変換する
 89. ✅ `P1` 93 TA-Easingをnative motion presetの跳ね戻り登場として追加する
+90. ✅ `P1` 93 ベジエ軌道T+をnative motion presetの曲線移動として追加する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

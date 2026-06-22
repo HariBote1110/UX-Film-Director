@@ -1,3 +1,18 @@
+## 2026-06-23 — 93 ベジエ軌道T+をnative motion presetへ追加
+
+### 実施内容
+- Red: `script/93/ベジエ軌道Ｔ+.obj` を `93-bezier-orbit-t-plus` としてAviUtlPackV4カタログへ載せ、native motion preset契約を追加した。
+- Green: `bezier-orbit-t-plus` presetを追加し、始点、2つの制御点、終点から5点のキーフレームへ展開するようにした。
+- Green: 既存のAviUtl Motion適用経路にそのまま載るため、PropertyPanelから選択中オブジェクトへ曲線移動を付与できる。
+- 版を `0.1.1-Beta-332a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/aviutl/aviutlMotionPresets.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts --reporter=dot` は16件成功した。
+- `npm test -- --run src/components/PropertyPanelBoundary.test.ts --reporter=dot` は8件成功した。
+
+### 残課題・次のステップ
+- ベジエ制御点のUI編集、複数プリセット、元スクリプトのグラフ表示は未対応。次は93の自己完結生成/効果、またはGetColor/hksy派生を続ける。
+
 ## 2026-06-23 — 93 TA-Easing 跳ね戻り登場をnative motion presetへ追加
 
 ### 実施内容
