@@ -1,5 +1,5 @@
-import type { FilterType, ObjectFilter, TimelineObject } from '../types';
-import { getObjectFiltersInOrder, syncLegacyEffectsWithFilters } from './filterStack';
+import type { FilterType, ObjectFilter, TimelineObject } from '../../types';
+import { getObjectFiltersInOrder, syncLegacyEffectsWithFilters } from '../filterStack';
 
 export type AviUtlEffectPresetId =
   | 'luminance-wipe-basic'

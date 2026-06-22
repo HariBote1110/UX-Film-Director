@@ -1,5 +1,5 @@
-import type { PositionKeyframe, TimelineObject } from '../types';
-import type { EasingType } from './easings';
+import type { PositionKeyframe, TimelineObject } from '../../types';
+import type { EasingType } from '../easings';
 
 export type AviUtlMotionPresetId =
   | 'entrance-slide-left'

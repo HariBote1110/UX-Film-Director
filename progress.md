@@ -1,3 +1,19 @@
+## 2026-06-22 — utilsのAviUtlプリセット群をaviutlへ集約
+
+### 実施内容
+- `glittery-sauteeing-diffie.md` のフェーズ1方針に従い、`aviutlEffectPresets`、`aviutlMotionPresets`、`aviutlPackFeatureCatalog` と対のテストを `src/utils/aviutl/` へ移動した。
+- `PropertyPanel` のAviUtlプリセットimportを新しい配置へ更新した。
+- 移動したファイル内の `types`、`filterStack`、`easings` 参照を新しい階層に合わせて調整した。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `npm test -- --run src/utils/aviutlEffectPresets.test.ts src/utils/aviutlMotionPresets.test.ts src/utils/aviutlPackFeatureCatalog.test.ts --reporter=dot` は3ファイル17件成功した。
+- `npm test -- --run src/utils/aviutl src/components/PropertyPanelBoundary.test.ts --reporter=dot` は4ファイル22件成功した。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の移動由来のimportエラーは出ていない。
+
+### 残課題・次のステップ
+- 次は `export/`、`pixi/`、`sharedRenderer/` など残りの `src/utils/` クラスタを小さく分けて移動する。
+
 ## 2026-06-22 — utilsのObjectFactory群をobjectFactoriesへ集約
 
 ### 実施内容
