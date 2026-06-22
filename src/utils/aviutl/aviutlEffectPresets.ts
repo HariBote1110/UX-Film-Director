@@ -14,7 +14,8 @@ export type AviUtlEffectPresetId =
   | '93-multi-slicer-basic'
   | '93-oct-transform-basic'
   | '93-area-expand-s-fill'
-  | '93-clipping-s-basic';
+  | '93-clipping-s-basic'
+  | '93-reflection-poly-glint';
 
 export interface AviUtlEffectPreset {
   id: AviUtlEffectPresetId;
@@ -32,7 +33,8 @@ export interface AviUtlEffectPreset {
     | '93-multi-slicer'
     | '93-oct-transform'
     | '93-area-expand-s'
-    | '93-clipping-s';
+    | '93-clipping-s'
+    | '93-reflection-poly';
   filterType: FilterType;
 }
 
@@ -114,6 +116,12 @@ const presets: AviUtlEffectPreset[] = [
     labelJa: '93 クリッピングS',
     sourceCandidateId: '93-clipping-s',
     filterType: 'smart_clipping'
+  },
+  {
+    id: '93-reflection-poly-glint',
+    labelJa: '93 Reflection Poly Glint',
+    sourceCandidateId: '93-reflection-poly',
+    filterType: 'spot_light'
   }
 ];
 
@@ -283,6 +291,20 @@ export const buildAviUtlEffectPresetFilter = (presetId: AviUtlEffectPresetId): O
           amount: 1,
           seed: 1,
           reverse: false
+        }
+      };
+    }
+    case '93-reflection-poly-glint': {
+      return {
+        id: `aviutl-${presetId}`,
+        type: 'spot_light',
+        enabled: true,
+        params: {
+          centreX: 0.38,
+          centreY: 0.32,
+          radius: 0.42,
+          intensity: 0.95,
+          colour: '#f9c145'
         }
       };
     }

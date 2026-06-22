@@ -377,6 +377,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '輪郭をZ方向に重ねるBorder表現を、まずRust GeneratedRegionFrameの厚み付き枠プリセットとして標準搭載する。'
   },
   {
+    id: '93-reflection-poly',
+    labelJa: '93 Reflection Poly',
+    category: 'visual-effect',
+    phase: 'P1',
+    implementationTarget: 'rust-webgpu-effect',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/@Reflection_poly.anm'],
+    rationaleJa: 'ポリゴン面の反射ハイライトを、まずRust/WebGPU SpotLightの偏心グリントとして標準搭載する。'
+  },
+  {
     id: '93-region-frame-ellipse',
     labelJa: '93 領域枠(楕円)',
     category: 'generated-object',
