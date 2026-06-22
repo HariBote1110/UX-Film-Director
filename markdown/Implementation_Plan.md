@@ -122,6 +122,7 @@
 97. ✅ `P1` 93 背景色スポイトをTimelineObject色フィールドのnative palette抽出utilityとして追加する
 98. ✅ `P1` 93 背景色スポイトpaletteをGetColor V2R編集UIへ接続する
 99. ✅ `P1` 93 背景色スポイトpaletteをhksy複数色チェッカー編集UIへ接続する
+100. ✅ `P1` 93 座標格納 / 座標の取得を選択オブジェクトのnative座標snapshot/recall utilityとして追加する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

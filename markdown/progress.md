@@ -1,6 +1,18 @@
 # 進捗ログ
 
 ## 2026-06-23
+- 93 座標格納 / 座標の取得をnative座標snapshotへ追加した。
+- Red: `script/93/@座標格納.anm` と `script/93/座標の取得.anm` を `93-coordinate-store` としてAviUtlPackV4カタログへ載せ、選択座標のcapture/recall契約を追加した。
+- Green: `captureAviUtlCoordinateStoreSnapshot` と `buildAviUtlCoordinateRecallPatches` を追加し、選択オブジェクト順に座標・回転・scale・opacityを格納し、別の選択へ順番で再適用できるようにした。
+- Green: store action `captureSelectedCoordinatesWithAviUtlStore` / `applyAviUtlStoredCoordinatesToSelection` を追加し、PropertyPanelのAviUtl Motion欄へ `93 座標格納` / `93 座標の取得` ボタンを露出した。
+- 版を `0.1.1-Beta-342a` に更新した。
+- 検証: `npm test -- --run src/utils/aviutl/aviutlCoordinateStore.test.ts src/store/coordinateStore.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts --reporter=dot` は7件成功した。
+- 検証: `npm test -- --run src/components/PropertyPanelBoundary.test.ts src/store/coordinateStore.test.ts --reporter=dot` は12件成功した。
+- 検証: `npm test -- --run src/utils/aviutl/aviutlCoordinateStore.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts src/utils/aviutl/aviutlMotionPresets.test.ts src/utils/packageScripts.test.ts --reporter=dot` は25件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の座標格納由来の型エラーは出ていない。
+- 元スクリプトのGVA命名空間、Z座標、anchor/wh/alpha/zoom/aspectの完全なparamテーブル、複数name合成、Lua `GVA.comp` 互換は未対応。次はこのsnapshotを3D stageや複数レイヤー合成へ広げるか、93の未移植生成/効果へ進む。
+
+## 2026-06-23
 - 93 背景色スポイトpaletteをhksy編集へ接続した。
 - Red: 背景色スポイトpaletteからhksy生成オブジェクトの `foregroundColour`、`secondaryColour`、`backgroundColour`、`paletteColours` へ一括適用する契約を追加した。
 - Green: `buildAviUtlHksyPalettePatch` を追加し、編集中のhksy自身を除外したシーン色からRust `GeneratedHksyCheckerGrid` 用paletteを作れるようにした。
