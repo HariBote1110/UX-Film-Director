@@ -1,3 +1,21 @@
+## 2026-06-22 — フェーズ3: Rust backendのGetColorDots描画をgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `build_generated_getcolor_dots_source_frame` を `rust-backend/src/generated.rs` へ抽出した。
+- PNG/JPEG/PSDのsource_image読み込み、active layer指定PSD合成、サンプル色のhue shift、square/diamond/circle描画helperを同じ責務側へ移した。
+- `is_jpeg_source` と `is_psd_source` をcrate内共有にして、通常Image/PSD読み込みとGetColorDots読み込みで同じ判定を使えるようにした。
+- `main.rs` は 2,217 行から 1,826 行になった。
+- `main.rs` に残っていた `build_generated_*_source_frame` はすべて `generated.rs` へ移動済みになった。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次は `generated.rs` が大きくなったため、生成ソース定義・描画helper・各生成器実装をさらにサブモジュール化する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのSphere描画をgenerated.rsへ分離
 
 ### 実施内容
