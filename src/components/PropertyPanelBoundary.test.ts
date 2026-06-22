@@ -106,6 +106,11 @@ describe('PropertyPanel GetColor sampling controls', () => {
     expect(code).toContain('getColorSampleCandidates');
     expect(code).toContain("object.type !== 'image' && object.type !== 'psd'");
     expect(code).toContain('PNG/JPEG画像またはPSD');
+    expect(code).toContain("import { buildAviUtlBackgroundColourPalettePatch, extractAviUtlBackgroundColourPalette");
+    expect(code).toContain('getColorBackgroundColourPalette');
+    expect(code).toContain('handleApplyAviUtlBackgroundColourPalette');
+    expect(code).toContain('93 Background Colour Eyedropper');
+    expect(code).toContain('背景色スポイトpaletteを適用');
   });
 });
 
