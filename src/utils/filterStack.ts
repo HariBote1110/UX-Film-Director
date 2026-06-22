@@ -14,7 +14,8 @@ import {
   StretchFilterParams,
   MultiSlicerFilterParams,
   OctTransformFilterParams,
-  AreaExpandFilterParams
+  AreaExpandFilterParams,
+  SmartClippingFilterParams
 } from '../types';
 
 const DEFAULT_COLOR_CORRECTION: Omit<ColorCorrection, 'enabled'> = {
@@ -138,6 +139,18 @@ const DEFAULT_AREA_EXPAND: AreaExpandFilterParams = {
   fill: true
 };
 
+const DEFAULT_SMART_CLIPPING: SmartClippingFilterParams = {
+  top: 0,
+  bottom: 0,
+  left: 0,
+  right: 0,
+  linkAxes: false,
+  mode: 0,
+  amount: 1,
+  seed: 1,
+  reverse: false
+};
+
 const createFilterId = (type: FilterType): string => {
   return `${type}-${crypto.randomUUID()}`;
 };
@@ -172,7 +185,8 @@ const isFilterType = (value: unknown): value is FilterType => {
     || value === 'stretch'
     || value === 'multi_slicer'
     || value === 'oct_transform'
-    || value === 'area_expand';
+    || value === 'area_expand'
+    || value === 'smart_clipping';
 };
 
 const normaliseOutlineParams = (params: unknown): import('../types').OutlineFilterParams => {
@@ -304,6 +318,21 @@ const normaliseAreaExpandParams = (params: unknown): AreaExpandFilterParams => {
     left: Math.max(0, toNumber(source.left, DEFAULT_AREA_EXPAND.left)),
     right: Math.max(0, toNumber(source.right, DEFAULT_AREA_EXPAND.right)),
     fill: toBoolean(source.fill, DEFAULT_AREA_EXPAND.fill)
+  };
+};
+
+const normaliseSmartClippingParams = (params: unknown): SmartClippingFilterParams => {
+  const source = isRecord(params) ? params : {};
+  return {
+    top: Math.max(0, toNumber(source.top, DEFAULT_SMART_CLIPPING.top)),
+    bottom: Math.max(0, toNumber(source.bottom, DEFAULT_SMART_CLIPPING.bottom)),
+    left: Math.max(0, toNumber(source.left, DEFAULT_SMART_CLIPPING.left)),
+    right: Math.max(0, toNumber(source.right, DEFAULT_SMART_CLIPPING.right)),
+    linkAxes: toBoolean(source.linkAxes, DEFAULT_SMART_CLIPPING.linkAxes),
+    mode: Math.max(0, Math.min(5, Math.round(toNumber(source.mode, DEFAULT_SMART_CLIPPING.mode)))),
+    amount: Math.max(0, toNumber(source.amount, DEFAULT_SMART_CLIPPING.amount)),
+    seed: Math.round(toNumber(source.seed, DEFAULT_SMART_CLIPPING.seed)),
+    reverse: toBoolean(source.reverse, DEFAULT_SMART_CLIPPING.reverse)
   };
 };
 
@@ -509,6 +538,13 @@ export const createDefaultFilter = (type: FilterType): ObjectFilter => {
         enabled: true,
         params: { ...DEFAULT_AREA_EXPAND }
       };
+    case 'smart_clipping':
+      return {
+        id: createFilterId(type),
+        type,
+        enabled: true,
+        params: { ...DEFAULT_SMART_CLIPPING }
+      };
     default:
       return {
         id: createFilterId('color_correction'),
@@ -652,6 +688,13 @@ const normaliseFilter = (value: unknown): ObjectFilter | null => {
         type: 'area_expand',
         enabled,
         params: normaliseAreaExpandParams(value.params)
+      };
+    case 'smart_clipping':
+      return {
+        id,
+        type: 'smart_clipping',
+        enabled,
+        params: normaliseSmartClippingParams(value.params)
       };
     default:
       return null;

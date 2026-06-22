@@ -449,7 +449,8 @@ const PropertyPanel: React.FC = () => {
     stretch: language === 'en' ? '93 Stretch' : '93 Stretch',
     multi_slicer: language === 'en' ? '93 MultiSlicer' : '93 MultiSlicer',
     oct_transform: language === 'en' ? '93 Oct Transform' : '93 簡易変形(oct)',
-    area_expand: language === 'en' ? '93 Area Expand S' : '93 領域拡張S'
+    area_expand: language === 'en' ? '93 Area Expand S' : '93 領域拡張S',
+    smart_clipping: language === 'en' ? '93 Clipping S' : '93 クリッピングS'
   };
   const canUseGradientFilter = selectedObject.type === 'shape';
   const currentGroupId = selectedObject.groupId ?? null;
@@ -1387,6 +1388,7 @@ const PropertyPanel: React.FC = () => {
             <button type="button" onClick={() => handleAddFilter('multi_slicer')}>+ {filterLabel.multi_slicer}</button>
             <button type="button" onClick={() => handleAddFilter('oct_transform')}>+ {filterLabel.oct_transform}</button>
             <button type="button" onClick={() => handleAddFilter('area_expand')}>+ {filterLabel.area_expand}</button>
+            <button type="button" onClick={() => handleAddFilter('smart_clipping')}>+ {filterLabel.smart_clipping}</button>
             {canUseGradientFilter && (
                 <button type="button" onClick={() => handleAddFilter('gradient')}>+ {filterLabel.gradient}</button>
             )}
@@ -2129,6 +2131,63 @@ const PropertyPanel: React.FC = () => {
                                 type="checkbox"
                                 checked={activeFilter.params.fill}
                                 onChange={(e) => handleFilterParamChange(activeFilter, { fill: e.target.checked })}
+                            />
+                        </Row>
+                    </>
+                )}
+                {activeFilter.type === 'smart_clipping' && (
+                    <>
+                        {(['top', 'bottom', 'left', 'right'] as const).map((key) => (
+                            <Row key={key} label={key[0].toUpperCase() + key.slice(1)}>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    value={activeFilter.params[key]}
+                                    onChange={(e) => handleFilterParamChange(activeFilter, { [key]: Math.max(0, parseFloat(e.target.value) || 0) })}
+                                    style={{ width: '72px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                                />
+                            </Row>
+                        ))}
+                        <Row label="Link Axes">
+                            <input
+                                type="checkbox"
+                                checked={activeFilter.params.linkAxes}
+                                onChange={(e) => handleFilterParamChange(activeFilter, { linkAxes: e.target.checked })}
+                            />
+                        </Row>
+                        <Row label="Mode">
+                            <input
+                                type="number"
+                                min={0}
+                                max={5}
+                                value={activeFilter.params.mode}
+                                onChange={(e) => handleFilterParamChange(activeFilter, { mode: Math.max(0, Math.min(5, Math.round(parseFloat(e.target.value) || 0))) })}
+                                style={{ width: '72px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                            />
+                        </Row>
+                        <Row label="Amount">
+                            <Slider
+                                min="0"
+                                max="5"
+                                step="0.01"
+                                value={activeFilter.params.amount}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { amount: parseFloat(e.currentTarget.value) })}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                        <Row label="Seed">
+                            <input
+                                type="number"
+                                value={activeFilter.params.seed}
+                                onChange={(e) => handleFilterParamChange(activeFilter, { seed: Math.round(parseFloat(e.target.value) || 1) })}
+                                style={{ width: '72px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                            />
+                        </Row>
+                        <Row label="Reverse">
+                            <input
+                                type="checkbox"
+                                checked={activeFilter.params.reverse}
+                                onChange={(e) => handleFilterParamChange(activeFilter, { reverse: e.target.checked })}
                             />
                         </Row>
                     </>

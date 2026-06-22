@@ -343,6 +343,7 @@ const collectBuildIssues = (
       && filter.type !== 'multi_slicer'
       && filter.type !== 'oct_transform'
       && filter.type !== 'area_expand'
+      && filter.type !== 'smart_clipping'
       && !(object.type === 'shape' && filter.type === 'gradient')
     ));
     if (unsupportedFilter) {
@@ -395,6 +396,36 @@ const rustEffectsForObject = (object: TimelineObject, time: number): RustEffect[
           left: Math.max(0, finiteNumberOr(filter.params.left, 0)),
           right: Math.max(0, finiteNumberOr(filter.params.right, 0)),
           angle_degrees: finiteNumberOr(filter.params.angle, 0),
+        },
+      });
+    }
+    if (filter.type === 'smart_clipping') {
+      const amount = Math.max(0, finiteNumberOr(filter.params.amount, 1));
+      const modeFactor = smartClippingModeFactor(filter.params.mode, filter.params.seed, object.id);
+      const factor = amount * modeFactor;
+      let top = Math.max(0, finiteNumberOr(filter.params.top, 0));
+      let bottom = Math.max(0, finiteNumberOr(filter.params.bottom, 0));
+      let left = Math.max(0, finiteNumberOr(filter.params.left, 0));
+      let right = Math.max(0, finiteNumberOr(filter.params.right, 0));
+      if (filter.params.linkAxes) {
+        bottom = top;
+        right = left;
+      }
+      top *= factor;
+      bottom *= factor;
+      left *= factor;
+      right *= factor;
+      if (filter.params.reverse) {
+        [top, bottom] = [bottom, top];
+        [left, right] = [right, left];
+      }
+      effects.push({
+        Clipping: {
+          top,
+          bottom,
+          left,
+          right,
+          angle_degrees: 0,
         },
       });
     }
@@ -491,6 +522,21 @@ const rustEffectsForObject = (object: TimelineObject, time: number): RustEffect[
     }
   });
   return effects;
+};
+
+const smartClippingModeFactor = (mode: number, seed: number, objectId: string): number => {
+  const cleanMode = Math.max(0, Math.min(5, Math.round(finiteNumberOr(mode, 0))));
+  if (cleanMode === 1) {
+    const hash = `${objectId}:${Math.round(finiteNumberOr(seed, 1))}`.split('').reduce((acc, char) => {
+      return (acc * 31 + char.charCodeAt(0)) >>> 0;
+    }, 2166136261);
+    return 1 + (hash % 4000) / 1000;
+  }
+  if (cleanMode === 2) return 2;
+  if (cleanMode === 3) return 1.5;
+  if (cleanMode === 4) return 1.25;
+  if (cleanMode === 5) return 0.75;
+  return 1;
 };
 
 const parseHexColourToLinearTriplet = (value: string): [number, number, number] => {

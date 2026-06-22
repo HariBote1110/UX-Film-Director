@@ -13,7 +13,8 @@ export type AviUtlEffectPresetId =
   | '93-stretch-directional'
   | '93-multi-slicer-basic'
   | '93-oct-transform-basic'
-  | '93-area-expand-s-fill';
+  | '93-area-expand-s-fill'
+  | '93-clipping-s-basic';
 
 export interface AviUtlEffectPreset {
   id: AviUtlEffectPresetId;
@@ -30,7 +31,8 @@ export interface AviUtlEffectPreset {
     | '93-stretch'
     | '93-multi-slicer'
     | '93-oct-transform'
-    | '93-area-expand-s';
+    | '93-area-expand-s'
+    | '93-clipping-s';
   filterType: FilterType;
 }
 
@@ -106,6 +108,12 @@ const presets: AviUtlEffectPreset[] = [
     labelJa: '93 領域拡張S',
     sourceCandidateId: '93-area-expand-s',
     filterType: 'area_expand'
+  },
+  {
+    id: '93-clipping-s-basic',
+    labelJa: '93 クリッピングS',
+    sourceCandidateId: '93-clipping-s',
+    filterType: 'smart_clipping'
   }
 ];
 
@@ -257,6 +265,24 @@ export const buildAviUtlEffectPresetFilter = (presetId: AviUtlEffectPresetId): O
           left: 0,
           right: 32,
           fill: true
+        }
+      };
+    }
+    case '93-clipping-s-basic': {
+      return {
+        id: `aviutl-${presetId}`,
+        type: 'smart_clipping',
+        enabled: true,
+        params: {
+          top: 0,
+          bottom: 0,
+          left: 0,
+          right: 0,
+          linkAxes: false,
+          mode: 0,
+          amount: 1,
+          seed: 1,
+          reverse: false
         }
       };
     }

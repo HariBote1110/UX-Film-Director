@@ -143,7 +143,8 @@ export type FilterType =
   | 'stretch'
   | 'multi_slicer'
   | 'oct_transform'
-  | 'area_expand';
+  | 'area_expand'
+  | 'smart_clipping';
 
 /** プレビュー／書き出し共通の仮想カメラ（シーン単位） */
 export interface CameraState {
@@ -244,6 +245,18 @@ export interface AreaExpandFilterParams {
   fill: boolean;
 }
 
+export interface SmartClippingFilterParams {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+  linkAxes: boolean;
+  mode: number;
+  amount: number;
+  seed: number;
+  reverse: boolean;
+}
+
 interface BaseFilter {
   id: string;
   type: FilterType;
@@ -340,6 +353,11 @@ export interface AreaExpandObjectFilter extends BaseFilter {
   params: AreaExpandFilterParams;
 }
 
+export interface SmartClippingObjectFilter extends BaseFilter {
+  type: 'smart_clipping';
+  params: SmartClippingFilterParams;
+}
+
 export type ObjectFilter =
   | ColorCorrectionFilter
   | ColourAberrationFilter
@@ -358,7 +376,8 @@ export type ObjectFilter =
   | StretchObjectFilter
   | MultiSlicerObjectFilter
   | OctTransformObjectFilter
-  | AreaExpandObjectFilter;
+  | AreaExpandObjectFilter
+  | SmartClippingObjectFilter;
 
 // --- オブジェクト定義 ---
 
