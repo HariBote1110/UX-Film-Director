@@ -1,6 +1,17 @@
 # 進捗ログ
 
 ## 2026-06-23
+- 93 背景色スポイトpaletteをhksy編集へ接続した。
+- Red: 背景色スポイトpaletteからhksy生成オブジェクトの `foregroundColour`、`secondaryColour`、`backgroundColour`、`paletteColours` へ一括適用する契約を追加した。
+- Green: `buildAviUtlHksyPalettePatch` を追加し、編集中のhksy自身を除外したシーン色からRust `GeneratedHksyCheckerGrid` 用paletteを作れるようにした。
+- Green: PropertyPanelのhksy欄に最低限の色編集UIと `93 Background Colour Eyedropper` セクションを追加し、抽出paletteのスウォッチ表示と `背景色スポイトpaletteをhksyへ適用` ボタンを接続した。
+- 版を `0.1.1-Beta-341a` に更新した。
+- 検証: `npm test -- --run src/utils/aviutl/aviutlBackgroundColourEyedropper.test.ts src/components/PropertyPanelBoundary.test.ts --reporter=dot` は15件成功した。
+- 検証: `npm test -- --run src/utils/objectFactories/hksyCheckerGridObjectFactory.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/projectFile.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts --reporter=dot` は109件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回のhksy接続由来の型エラーは出ていない。
+- hksy編集UIは色/palette適用の最小導線のみ。次はhksyのセルサイズ/線幅/パターン編集を広げるか、93の `座標格納/座標の取得` 系へ進む。
+
+## 2026-06-23
 - 93 背景色スポイトpaletteをGetColor編集へ接続した。
 - Red: 背景色スポイトpaletteからGetColor V2Rの前景色、二次色、背景色へ一括適用する契約を追加した。
 - Green: `buildAviUtlBackgroundColourPalettePatch` を追加し、編集中のGetColor自身を除外したシーン色から `foregroundColour`、`secondaryColour`、`backgroundColour` を作れるようにした。
