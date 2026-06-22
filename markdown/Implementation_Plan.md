@@ -109,6 +109,7 @@
 84. ✅ `P1` 93 StretchをRust/WebGPU Stretchフィルタとして追加する
 85. ✅ `P1` 93 MultiSlicerをRust/WebGPU MultiSlicerフィルタとして追加する
 86. ✅ `P1` 93 簡易変形(oct)をRust/WebGPU OctTransformフィルタとして追加する
+87. ✅ `P1` 93 領域拡張SをRust/WebGPU AreaExpandフィルタとして追加する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。
