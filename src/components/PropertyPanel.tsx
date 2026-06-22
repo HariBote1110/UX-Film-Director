@@ -448,7 +448,8 @@ const PropertyPanel: React.FC = () => {
     auto_blur: language === 'en' ? '93 Auto Blur+' : '93 オートブラー+',
     stretch: language === 'en' ? '93 Stretch' : '93 Stretch',
     multi_slicer: language === 'en' ? '93 MultiSlicer' : '93 MultiSlicer',
-    oct_transform: language === 'en' ? '93 Oct Transform' : '93 簡易変形(oct)'
+    oct_transform: language === 'en' ? '93 Oct Transform' : '93 簡易変形(oct)',
+    area_expand: language === 'en' ? '93 Area Expand S' : '93 領域拡張S'
   };
   const canUseGradientFilter = selectedObject.type === 'shape';
   const currentGroupId = selectedObject.groupId ?? null;
@@ -1385,6 +1386,7 @@ const PropertyPanel: React.FC = () => {
             <button type="button" onClick={() => handleAddFilter('stretch')}>+ {filterLabel.stretch}</button>
             <button type="button" onClick={() => handleAddFilter('multi_slicer')}>+ {filterLabel.multi_slicer}</button>
             <button type="button" onClick={() => handleAddFilter('oct_transform')}>+ {filterLabel.oct_transform}</button>
+            <button type="button" onClick={() => handleAddFilter('area_expand')}>+ {filterLabel.area_expand}</button>
             {canUseGradientFilter && (
                 <button type="button" onClick={() => handleAddFilter('gradient')}>+ {filterLabel.gradient}</button>
             )}
@@ -2080,6 +2082,53 @@ const PropertyPanel: React.FC = () => {
                                 value={activeFilter.params.strength}
                                 onInput={(e) => handleFilterParamChange(activeFilter, { strength: parseFloat(e.currentTarget.value) })}
                                 style={{ width: '100%' }}
+                            />
+                        </Row>
+                    </>
+                )}
+                {activeFilter.type === 'area_expand' && (
+                    <>
+                        <Row label="Top">
+                            <input
+                                type="number"
+                                min={0}
+                                value={activeFilter.params.top}
+                                onChange={(e) => handleFilterParamChange(activeFilter, { top: Math.max(0, parseFloat(e.target.value) || 0) })}
+                                style={{ width: '72px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                            />
+                        </Row>
+                        <Row label="Bottom">
+                            <input
+                                type="number"
+                                min={0}
+                                value={activeFilter.params.bottom}
+                                onChange={(e) => handleFilterParamChange(activeFilter, { bottom: Math.max(0, parseFloat(e.target.value) || 0) })}
+                                style={{ width: '72px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                            />
+                        </Row>
+                        <Row label="Left">
+                            <input
+                                type="number"
+                                min={0}
+                                value={activeFilter.params.left}
+                                onChange={(e) => handleFilterParamChange(activeFilter, { left: Math.max(0, parseFloat(e.target.value) || 0) })}
+                                style={{ width: '72px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                            />
+                        </Row>
+                        <Row label="Right">
+                            <input
+                                type="number"
+                                min={0}
+                                value={activeFilter.params.right}
+                                onChange={(e) => handleFilterParamChange(activeFilter, { right: Math.max(0, parseFloat(e.target.value) || 0) })}
+                                style={{ width: '72px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                            />
+                        </Row>
+                        <Row label="Fill">
+                            <input
+                                type="checkbox"
+                                checked={activeFilter.params.fill}
+                                onChange={(e) => handleFilterParamChange(activeFilter, { fill: e.target.checked })}
                             />
                         </Row>
                     </>

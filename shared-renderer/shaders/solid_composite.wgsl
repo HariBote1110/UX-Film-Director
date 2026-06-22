@@ -48,6 +48,11 @@ struct RenderParams {
     oct_transform_vertex_count: f32,
     oct_transform_warp: f32,
     oct_transform_strength: f32,
+    area_expand_top: f32,
+    area_expand_bottom: f32,
+    area_expand_left: f32,
+    area_expand_right: f32,
+    area_expand_fill: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -86,23 +91,19 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
         -translated.x * params.rotation_sin + translated.y * params.rotation_cos,
     ) / vec2<f32>(params.scale_x, params.scale_y);
 
-    if (
-        source_position.x < 0.0
-        || source_position.y < 0.0
-        || source_position.x >= params.source_width
-        || source_position.y >= params.source_height
-    ) {
+    if (!passes_area_expand_bounds(source_position)) {
+        return vec4<f32>(0.0);
+    }
+    let expanded_source_position = clamp_source_position(source_position);
+
+    if (!passes_wipe(expanded_source_position)) {
+        return vec4<f32>(0.0);
+    }
+    if (!passes_clipping(expanded_source_position)) {
         return vec4<f32>(0.0);
     }
 
-    if (!passes_wipe(source_position)) {
-        return vec4<f32>(0.0);
-    }
-    if (!passes_clipping(source_position)) {
-        return vec4<f32>(0.0);
-    }
-
-    let transformed_source_position = oct_transformed_position(source_position);
+    let transformed_source_position = oct_transformed_position(expanded_source_position);
     let displaced_source_position = displaced_position(stretched_position(multi_sliced_position(transformed_source_position)));
     let source = sample_source_with_fake_dof(displaced_source_position);
     let aberration_offset = vec2<f32>(
@@ -201,6 +202,15 @@ fn oct_transformed_position(source_position: vec2<f32>) -> vec2<f32> {
     return clamp_source_position(centre + unrotated);
 }
 
+fn passes_area_expand_bounds(source_position: vec2<f32>) -> bool {
+    return !(
+        source_position.x < -params.area_expand_left
+        || source_position.y < -params.area_expand_top
+        || source_position.x >= params.source_width + params.area_expand_right
+        || source_position.y >= params.source_height + params.area_expand_bottom
+    );
+}
+
 fn sample_source_with_fake_dof(source_position: vec2<f32>) -> vec4<f32> {
     let base = sample_source_with_auto_blur(source_position);
     if params.fake_dof_strength <= 0.0 || params.fake_dof_blur <= 0.0 {
@@ -266,6 +276,15 @@ fn passes_wipe(source_position: vec2<f32>) -> bool {
 }
 
 fn passes_clipping(source_position: vec2<f32>) -> bool {
+    if (
+        params.clipping_top <= 0.0
+        && params.clipping_bottom <= 0.0
+        && params.clipping_left <= 0.0
+        && params.clipping_right <= 0.0
+        && abs(params.clipping_angle) <= 0.0001
+    ) {
+        return true;
+    }
     let dimensions = vec2<f32>(params.source_width, params.source_height);
     let centre = dimensions * 0.5;
     let p = source_position - centre;

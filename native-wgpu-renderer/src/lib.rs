@@ -303,6 +303,23 @@ impl NativeWgpuRenderer {
                     oct_transform_vertex_count: oct_transform_vertex_count(clip),
                     oct_transform_warp: oct_transform_warp(clip),
                     oct_transform_strength: oct_transform_strength(clip),
+                    area_expand_top: area_expand_extent(clip, |effect| match effect {
+                        Effect::AreaExpand { top, .. } => Some(*top),
+                        _ => None,
+                    }),
+                    area_expand_bottom: area_expand_extent(clip, |effect| match effect {
+                        Effect::AreaExpand { bottom, .. } => Some(*bottom),
+                        _ => None,
+                    }),
+                    area_expand_left: area_expand_extent(clip, |effect| match effect {
+                        Effect::AreaExpand { left, .. } => Some(*left),
+                        _ => None,
+                    }),
+                    area_expand_right: area_expand_extent(clip, |effect| match effect {
+                        Effect::AreaExpand { right, .. } => Some(*right),
+                        _ => None,
+                    }),
+                    area_expand_fill: area_expand_fill(clip),
                     source_width: source.width as f32,
                     source_height: source.height as f32,
                     translation_x: clip.transform.translation_x,
@@ -818,6 +835,11 @@ struct RenderParams {
     oct_transform_vertex_count: f32,
     oct_transform_warp: f32,
     oct_transform_strength: f32,
+    area_expand_top: f32,
+    area_expand_bottom: f32,
+    area_expand_left: f32,
+    area_expand_right: f32,
+    area_expand_fill: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -1095,6 +1117,7 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::Stretch { .. } => 1.0,
         Effect::MultiSlicer { .. } => 1.0,
         Effect::OctTransform { .. } => 1.0,
+        Effect::AreaExpand { .. } => 1.0,
     }
 }
 
@@ -1522,4 +1545,22 @@ fn oct_transform_strength(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
         .last()
         .unwrap_or(0.0)
         .clamp(0.0, 1.0)
+}
+
+fn area_expand_extent<F>(clip: &uxfd_rust_core::EvaluatedClip, pick: F) -> f32
+where
+    F: Fn(&Effect) -> Option<f32>,
+{
+    clip.effects.iter().filter_map(pick).sum::<f32>().max(0.0)
+}
+
+fn area_expand_fill(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::AreaExpand { fill, .. } => Some(if *fill { 1.0 } else { 0.0 }),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
 }

@@ -13,7 +13,8 @@ import {
   AutoBlurFilterParams,
   StretchFilterParams,
   MultiSlicerFilterParams,
-  OctTransformFilterParams
+  OctTransformFilterParams,
+  AreaExpandFilterParams
 } from '../types';
 
 const DEFAULT_COLOR_CORRECTION: Omit<ColorCorrection, 'enabled'> = {
@@ -129,6 +130,14 @@ const DEFAULT_OCT_TRANSFORM: OctTransformFilterParams = {
   strength: 1
 };
 
+const DEFAULT_AREA_EXPAND: AreaExpandFilterParams = {
+  top: 0,
+  bottom: 0,
+  left: 0,
+  right: 32,
+  fill: true
+};
+
 const createFilterId = (type: FilterType): string => {
   return `${type}-${crypto.randomUUID()}`;
 };
@@ -162,7 +171,8 @@ const isFilterType = (value: unknown): value is FilterType => {
     || value === 'auto_blur'
     || value === 'stretch'
     || value === 'multi_slicer'
-    || value === 'oct_transform';
+    || value === 'oct_transform'
+    || value === 'area_expand';
 };
 
 const normaliseOutlineParams = (params: unknown): import('../types').OutlineFilterParams => {
@@ -283,6 +293,17 @@ const normaliseOctTransformParams = (params: unknown): OctTransformFilterParams 
     vertexCount: Math.max(3, Math.round(toNumber(source.vertexCount, DEFAULT_OCT_TRANSFORM.vertexCount))),
     warp: Math.max(0, toNumber(source.warp, DEFAULT_OCT_TRANSFORM.warp)),
     strength: Math.max(0, Math.min(1, toNumber(source.strength, DEFAULT_OCT_TRANSFORM.strength)))
+  };
+};
+
+const normaliseAreaExpandParams = (params: unknown): AreaExpandFilterParams => {
+  const source = isRecord(params) ? params : {};
+  return {
+    top: Math.max(0, toNumber(source.top, DEFAULT_AREA_EXPAND.top)),
+    bottom: Math.max(0, toNumber(source.bottom, DEFAULT_AREA_EXPAND.bottom)),
+    left: Math.max(0, toNumber(source.left, DEFAULT_AREA_EXPAND.left)),
+    right: Math.max(0, toNumber(source.right, DEFAULT_AREA_EXPAND.right)),
+    fill: toBoolean(source.fill, DEFAULT_AREA_EXPAND.fill)
   };
 };
 
@@ -481,6 +502,13 @@ export const createDefaultFilter = (type: FilterType): ObjectFilter => {
         enabled: true,
         params: { ...DEFAULT_OCT_TRANSFORM }
       };
+    case 'area_expand':
+      return {
+        id: createFilterId(type),
+        type,
+        enabled: true,
+        params: { ...DEFAULT_AREA_EXPAND }
+      };
     default:
       return {
         id: createFilterId('color_correction'),
@@ -617,6 +645,13 @@ const normaliseFilter = (value: unknown): ObjectFilter | null => {
         type: 'oct_transform',
         enabled,
         params: normaliseOctTransformParams(value.params)
+      };
+    case 'area_expand':
+      return {
+        id,
+        type: 'area_expand',
+        enabled,
+        params: normaliseAreaExpandParams(value.params)
       };
     default:
       return null;

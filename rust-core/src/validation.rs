@@ -269,6 +269,22 @@ fn effect_is_finite(effect: &crate::schema::Effect) -> bool {
                 && *strength >= 0.0
                 && *strength <= 1.0
         }
+        crate::schema::Effect::AreaExpand {
+            top,
+            bottom,
+            left,
+            right,
+            ..
+        } => {
+            top.is_finite()
+                && *top >= 0.0
+                && bottom.is_finite()
+                && *bottom >= 0.0
+                && left.is_finite()
+                && *left >= 0.0
+                && right.is_finite()
+                && *right >= 0.0
+        }
     }
 }
 

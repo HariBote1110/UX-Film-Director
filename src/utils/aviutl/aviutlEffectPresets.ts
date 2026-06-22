@@ -12,7 +12,8 @@ export type AviUtlEffectPresetId =
   | '93-auto-blur-plus-motion'
   | '93-stretch-directional'
   | '93-multi-slicer-basic'
-  | '93-oct-transform-basic';
+  | '93-oct-transform-basic'
+  | '93-area-expand-s-fill';
 
 export interface AviUtlEffectPreset {
   id: AviUtlEffectPresetId;
@@ -28,7 +29,8 @@ export interface AviUtlEffectPreset {
     | '93-auto-blur-plus'
     | '93-stretch'
     | '93-multi-slicer'
-    | '93-oct-transform';
+    | '93-oct-transform'
+    | '93-area-expand-s';
   filterType: FilterType;
 }
 
@@ -98,6 +100,12 @@ const presets: AviUtlEffectPreset[] = [
     labelJa: '93 簡易変形(oct)',
     sourceCandidateId: '93-oct-transform',
     filterType: 'oct_transform'
+  },
+  {
+    id: '93-area-expand-s-fill',
+    labelJa: '93 領域拡張S',
+    sourceCandidateId: '93-area-expand-s',
+    filterType: 'area_expand'
   }
 ];
 
@@ -235,6 +243,20 @@ export const buildAviUtlEffectPresetFilter = (presetId: AviUtlEffectPresetId): O
           vertexCount: 8,
           warp: 0.2,
           strength: 1
+        }
+      };
+    }
+    case '93-area-expand-s-fill': {
+      return {
+        id: `aviutl-${presetId}`,
+        type: 'area_expand',
+        enabled: true,
+        params: {
+          top: 0,
+          bottom: 0,
+          left: 0,
+          right: 32,
+          fill: true
         }
       };
     }

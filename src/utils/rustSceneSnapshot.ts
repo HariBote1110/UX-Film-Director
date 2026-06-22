@@ -79,7 +79,8 @@ export type RustEffect =
   | { AutoBlur: { angle_degrees: number; radius: number; strength: number; colour_shift: number } }
   | { Stretch: { angle_degrees: number; amount: number; strength: number } }
   | { MultiSlicer: { angle_degrees: number; offset: number; slices: number; expansion: number; strength: number } }
-  | { OctTransform: { scale: number; rotation_degrees: number; vertex_count: number; warp: number; strength: number } };
+  | { OctTransform: { scale: number; rotation_degrees: number; vertex_count: number; warp: number; strength: number } }
+  | { AreaExpand: { top: number; bottom: number; left: number; right: number; fill: boolean } };
 
 export interface RustEvaluatedClip {
   clip_id: string;
@@ -341,6 +342,7 @@ const collectBuildIssues = (
       && filter.type !== 'stretch'
       && filter.type !== 'multi_slicer'
       && filter.type !== 'oct_transform'
+      && filter.type !== 'area_expand'
       && !(object.type === 'shape' && filter.type === 'gradient')
     ));
     if (unsupportedFilter) {
@@ -473,6 +475,17 @@ const rustEffectsForObject = (object: TimelineObject, time: number): RustEffect[
           vertex_count: Math.max(3, Math.round(finiteNumberOr(filter.params.vertexCount, 8))),
           warp: Math.max(0, finiteNumberOr(filter.params.warp, 0.2)),
           strength: Math.max(0, Math.min(1, finiteNumberOr(filter.params.strength, 1))),
+        },
+      });
+    }
+    if (filter.type === 'area_expand') {
+      effects.push({
+        AreaExpand: {
+          top: Math.max(0, finiteNumberOr(filter.params.top, 0)),
+          bottom: Math.max(0, finiteNumberOr(filter.params.bottom, 0)),
+          left: Math.max(0, finiteNumberOr(filter.params.left, 0)),
+          right: Math.max(0, finiteNumberOr(filter.params.right, 0)),
+          fill: filter.params.fill,
         },
       });
     }

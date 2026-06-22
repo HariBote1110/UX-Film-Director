@@ -80,6 +80,7 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::Stretch { .. } => 1.0,
         Effect::MultiSlicer { .. } => 1.0,
         Effect::OctTransform { .. } => 1.0,
+        Effect::AreaExpand { .. } => 1.0,
     }
 }
 

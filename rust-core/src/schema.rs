@@ -231,6 +231,13 @@ pub enum Effect {
         warp: f32,
         strength: f32,
     },
+    AreaExpand {
+        top: f32,
+        bottom: f32,
+        left: f32,
+        right: f32,
+        fill: bool,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

@@ -307,6 +307,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '八角形/多角形マスク風の簡易変形を、まずRust/WebGPUの中心基準多角形ワープとして標準搭載する。'
   },
   {
+    id: '93-area-expand-s',
+    labelJa: '93 領域拡張S',
+    category: 'visual-effect',
+    phase: 'P1',
+    implementationTarget: 'rust-webgpu-effect',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/@effect-B.anm'],
+    rationaleJa: '素材の有効領域を広げ、端画素を埋める前処理をRust/WebGPUの領域拡張フィルタとして標準搭載する。'
+  },
+  {
     id: '93-region-frame-ellipse',
     labelJa: '93 領域枠(楕円)',
     category: 'generated-object',

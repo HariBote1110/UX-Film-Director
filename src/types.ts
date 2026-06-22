@@ -142,7 +142,8 @@ export type FilterType =
   | 'auto_blur'
   | 'stretch'
   | 'multi_slicer'
-  | 'oct_transform';
+  | 'oct_transform'
+  | 'area_expand';
 
 /** プレビュー／書き出し共通の仮想カメラ（シーン単位） */
 export interface CameraState {
@@ -233,6 +234,14 @@ export interface OctTransformFilterParams {
   vertexCount: number;
   warp: number;
   strength: number;
+}
+
+export interface AreaExpandFilterParams {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+  fill: boolean;
 }
 
 interface BaseFilter {
@@ -326,6 +335,11 @@ export interface OctTransformObjectFilter extends BaseFilter {
   params: OctTransformFilterParams;
 }
 
+export interface AreaExpandObjectFilter extends BaseFilter {
+  type: 'area_expand';
+  params: AreaExpandFilterParams;
+}
+
 export type ObjectFilter =
   | ColorCorrectionFilter
   | ColourAberrationFilter
@@ -343,7 +357,8 @@ export type ObjectFilter =
   | AutoBlurObjectFilter
   | StretchObjectFilter
   | MultiSlicerObjectFilter
-  | OctTransformObjectFilter;
+  | OctTransformObjectFilter
+  | AreaExpandObjectFilter;
 
 // --- オブジェクト定義 ---
 
