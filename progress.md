@@ -1,3 +1,25 @@
+## 2026-06-22 — P1: 93輪郭トレスをRust生成プリセットへ追加
+
+### 実施内容
+- ゴール運用を `GetColor`、`hksy`、`script/93` 優先へ寄せた。ツール上のactive goal本文は直接差し替えできないため、実装計画と進捗ログで優先順位を明示する。
+- Redとして、`contour_trace` がfactory、Timeline右クリックメニュー、AviUtlPackV4カタログ、保存/読込、Rust scene snapshot、shared renderer native media、rust-core schema、Rust backend画素生成を通る契約を追加した。
+- Greenとして、`ContourTraceObject` と `GeneratedContourTrace` media kindを追加し、`contour-trace-93` source JSONで線幅、輪郭数、揺らぎ量、線色、背景不透明度、seedをRustへ渡すようにした。
+- Rust backendで透明背景に複数の揺らぎ付き輪郭線をRGBA生成する初期互換実装を追加した。
+- Timeline右クリックメニューに `93輪郭トレスを追加` / `Add 93 Contour Trace` を追加した。
+- 保存/読込、export native render判定、Pixi二重描画除外、shared renderer preview session収集にも `contour_trace` / `GeneratedContourTrace` を接続した。
+- 版を `0.1.1-Beta-314a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/objectFactories/contourTraceObjectFactory.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/projectFile.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts --reporter=dot` は95件成功した。
+- `npm test -- --run src/utils/pixiGeneratedEffectCutover.test.ts src/utils/packageScripts.test.ts --reporter=dot` は7件成功した。
+- `cargo test --manifest-path rust-core/Cargo.toml rust_core_accepts_generated_contour_trace_media_kind_at_the_json_boundary -- --nocapture` は1件成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml generated_contour_trace_source_frame_contains_contour_lines_and_transparency -- --nocapture` は1件成功した。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の93輪郭トレス由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- 現時点の93輪郭トレスは元画像/対象レイヤーからの完全なエッジ抽出ではなく、Rust生成の透明輪郭線プリセット。後続で参照画像・PSD・図形の輪郭抽出へ拡張する。
+- 次は93の未移植候補、またはGetColor/hksyの使用頻度が高い派生を追加する。
+
 ## 2026-06-22 — フェーズ3: Rust backendの生成器バリデータをファミリー別に分割
 
 ### 実施内容
