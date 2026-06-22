@@ -1574,6 +1574,14 @@ Limit Distance、Thickness、Fragment Size、Random Shape、Speed、Impact、Gra
 Direction Diffusion、Colour、Seedを編集できるようにする。
 Rust backendのvalidation範囲へ合わせてUI入力をclampし、破片球の散り方を実際の演出調整に使える状態へ進める。
 
+268. AviUtlPackV4: 93 Sphere/SphericalFieldの編集UIを追加する
+Rust生成メディアとして追加済みの `sphere_dots` と `spherical_field` を、PropertyPanelから調整できるようにする。
+Sphere(DrawPixel)ではRadius、Columns、Rows、Rotation、Offset、Luminance Influence、Point Size、
+Latitude Line Width、Colour、Secondary Colour、Plane Mode、Seedを編集可能にする。
+SphericalFieldではRadius、Strength、Colour Amount、Alpha Amount、Line Width、Ring Count、
+Vector Count、Field Colour、Secondary Colour、Background Opacity、Container、Seedを編集可能にする。
+Rust backend validationと同じ範囲でUI入力をclampし、置けるだけの生成素材から演出調整できる標準搭載素材へ引き上げる。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

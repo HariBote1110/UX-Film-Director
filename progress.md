@@ -1,3 +1,20 @@
+## 2026-06-23 — 93 Sphere/SphericalFieldの編集UIを追加
+
+### 実施内容
+- Red: PropertyPanelが `SphereDotsObject` と `SphericalFieldObject` を扱い、Rust-nativeな球状生成オブジェクトのパラメータを編集できる契約を追加した。
+- Green: `93 Sphere(DrawPixel)` へRadius、Columns、Rows、Rotation Degrees、Offset Degrees、Luminance Influence、Point Size、Latitude Line Width、Colour、Secondary Colour、Plane Mode、Seedの編集UIを追加した。
+- Green: `93 SphericalField` へRadius、Strength、Colour Amount、Alpha Amount、Line Width、Ring Count、Vector Count、Field Colour、Secondary Colour、Background Opacity、Container、Seedの編集UIを追加した。
+- Green: 各数値入力はrust-backend validatorの範囲に合わせてclampし、Rust生成素材を配置後に調整できる状態へ進めた。
+- 版を `0.1.1-Beta-328a` に更新した。
+
+### 検証
+- `npm test -- --run src/components/PropertyPanelBoundary.test.ts --reporter=dot` は8件成功した。
+- `npm test -- --run src/utils/packageScripts.test.ts --reporter=dot` は6件成功した。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の `SphereDotsObject` / `SphericalFieldObject` 編集UI由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- 次はGetColor / hksy / 93の未移植候補をさらに追加する。候補としてはGetColorの実素材サンプリングUI拡張、または93の自己完結スクリプトを優先する。
+
 ## 2026-06-23 — 93 砕け散る球の編集UIを追加
 
 ### 実施内容
