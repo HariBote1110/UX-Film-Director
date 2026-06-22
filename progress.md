@@ -1,3 +1,22 @@
+## 2026-06-22 — P1: 93 クリッピングSをSmart Clippingとして追加
+
+### 実施内容
+- Redとして、Filter Stackの `smart_clipping`、AviUtl effect preset、AviUtlPackV4カタログ、Rust scene snapshotで既存 `Clipping` へ変換される契約を追加した。
+- Greenとして、`SmartClippingFilterParams` をTypeScriptへ追加し、画像/動画/PSD/図形へFilter Stackから追加できるようにした。
+- PropertyPanelへTop、Bottom、Left、Right、Link Axes、Mode、Amount、Seed、Reverse編集UIを追加し、AviUtl Effectsには `93 クリッピングS` presetを追加した。
+- Rust scene snapshotでは新しいRust enumを増やさず、倍率、上下左右リンク、反転を計算して既存の `Clipping` effectへ落とし込むようにした。
+- 版を `0.1.1-Beta-323a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/filterStack.test.ts src/utils/aviutl/aviutlEffectPresets.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts src/utils/rustSceneSnapshot.test.ts --reporter=dot` は98件成功した。
+- `npm test -- --run src/utils/packageScripts.test.ts --reporter=dot` は6件成功した。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml native_wgpu_applies_axis_aligned_clipping -- --nocapture` は1件成功した。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の93 クリッピングS由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- 現時点の93 クリッピングSはAviUtlスクリプトの個別オブジェクト番号、音声連動、Type 1ランダム、Type 2〜5の厳密なobj.index/obj.num連動までは完全互換ではない。まずUXFD単体オブジェクトで扱える倍率/リンク/反転付きクリッピングとして標準搭載した。
+- 次はGetColor未移植派生、hksy残候補、または `@effect-B.anm` のカメラ距離系派生へ進む。
+
 ## 2026-06-22 — P1: 93 領域拡張SをRust/WebGPUフィルタへ追加
 
 ### 実施内容
