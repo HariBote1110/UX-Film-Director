@@ -56,6 +56,7 @@ import {
   syncObjectKeyframes,
 } from './storeHelpers';
 import { createExportSlice } from './slices/exportSlice';
+import { createPlaybackSlice } from './slices/playbackSlice';
 
 export type {
   ExportDiagnostics,
@@ -75,9 +76,7 @@ export const useStore = create<AppState>((set, get) => ({
   visionDetectionRealtimeEnabled: false,
   visionDetectionOverlay: null,
 
-  currentTime: 0,
-  duration: 30,
-  isPlaying: false,
+  ...createPlaybackSlice(set, get),
   layers: createDefaultLayers(),
   objects: [],
   camera: createDefaultCamera(),
@@ -429,40 +428,6 @@ export const useStore = create<AppState>((set, get) => ({
         : scene
     ))
   })),
-
-  setTime: (time) => set((state) => {
-    const nextTime = Math.max(0, time);
-    if (Math.abs(state.currentTime - nextTime) < 0.0001) return {};
-    return { currentTime: nextTime };
-  }),
-  setDuration: (duration) => set((state) => {
-    const nextDuration = Math.max(1, duration);
-    if (Math.abs(state.duration - nextDuration) < 0.0001) return {};
-    return { duration: nextDuration };
-  }),
-
-  advanceTime: (deltaTime) => {
-    const { currentTime, duration, isPlaying } = get();
-    if (!isPlaying) return;
-    let nextTime = currentTime + deltaTime;
-    if (nextTime < 0) nextTime = 0;
-    if (nextTime >= duration) {
-      nextTime = duration;
-      set({ isPlaying: false });
-    }
-    if (Math.abs(nextTime - currentTime) >= 0.0001) {
-      set({ currentTime: nextTime });
-    }
-  },
-
-  togglePlay: () => set((state) => {
-    if (!state.isPlaying && state.currentTime >= state.duration) {
-      return { isPlaying: true, currentTime: 0 };
-    }
-    return { isPlaying: !state.isPlaying };
-  }),
-
-  setIsPlaying: (isPlaying) => set({ isPlaying }),
 
   requestSnapshot: () => set({ isSnapshotRequested: true }),
   finishSnapshot: () => set({ isSnapshotRequested: false }),

@@ -1,3 +1,17 @@
+## 2026-06-22 — フェーズ2: playbackSliceをuseStoreから分離
+
+### 実施内容
+- `currentTime`、`duration`、`isPlaying` と、`setTime` / `setDuration` / `advanceTime` / `togglePlay` / `setIsPlaying` を `src/store/slices/playbackSlice.ts` へ切り出した。
+- `useStore` は `createPlaybackSlice(set, get)` を合成する形にし、再生状態の公開APIと挙動は維持した。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `npm test -- --run src/store src/hooks/useProjectExportBoundary.test.ts --reporter=dot` は3ファイル18件成功した。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の抽出由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- 次は `selectionSlice` か `snapshot/preview/vision` の軽い状態を切り出し、`useStore.ts` の責務をさらに縮める。
+
 ## 2026-06-22 — フェーズ2: useStoreスライス化の前処理とexportSlice抽出
 
 ### 実施内容
