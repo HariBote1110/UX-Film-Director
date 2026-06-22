@@ -1,6 +1,17 @@
 # 進捗ログ
 
 ## 2026-06-23
+- 93 カメラ目標指定を3Dステージcamera presetへ追加した。
+- Red: `script/93/@カメラ目標化.anm` と `script/93/@カメラ目標指定.cam` を `93-camera-target` としてAviUtlPackV4カタログへ載せ、native camera tool契約を追加した。
+- Green: `buildAviUtlCameraTargetPatch` を追加し、2D画面座標を3DステージのY上向き座標へ変換して、選択オブジェクトへカメラ注視点と視点を合わせるようにした。
+- Green: PropertyPanelの3Dステージカメラ欄へ `AviUtl Camera` セクションを追加し、選択中オブジェクトを93カメラ目標として適用できるようにした。
+- 版を `0.1.1-Beta-336a` に更新した。
+- 検証: `npm test -- --run src/utils/aviutl/aviutlCameraPresets.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts src/components/PropertyPanelBoundary.test.ts --reporter=dot` は17件成功した。
+- 検証: `npm test -- --run src/utils/packageScripts.test.ts --reporter=dot` は6件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回のcamera preset由来の型エラーは出ていない。
+- 元スクリプトの相対レイヤー指定、位置/目標%補間、時間差、ランダムカメラ揺れ、回転ロックは未対応。次は93の自己完結生成/効果、またはGetColor/hksy派生を続ける。
+
+## 2026-06-23
 - 93 Reflection PolyをRust/WebGPU effect presetへ追加した。
 - Red: `script/93/@Reflection_poly.anm` を `93-reflection-poly` としてAviUtlPackV4カタログへ載せ、AviUtl Effectsに出るeffect preset契約を追加した。
 - Green: `93-reflection-poly-glint` presetを追加し、既存Rust/WebGPU `spot_light` effectを偏心した反射ハイライトとして使うようにした。
