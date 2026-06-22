@@ -1561,6 +1561,13 @@ Line Count、Line Width、Colour、Colour Amountを編集できるようにす�
 Rust backendのvalidation範囲へ合わせてUI入力をclampし、生成オブジェクトが「置ける」だけでなく
 実際の演出調整に使える状態へ進める。
 
+266. AviUtlPackV4: 93 砕け散る球をRust生成オブジェクトへ追加する
+`script/93/砕け散る球.anm` を、透明背景付きの破片球アニメーションとして
+`shattered_sphere` / `GeneratedShatteredSphere` に再実装する。
+Timeline右クリックメニュー、project save/load、Rust scene snapshot、shared renderer native media support、
+Pixi cutover、rust-core schema、rust-backend RGBA source frame生成へ接続し、
+配置直後からプレビュー/exportのRust source frame経路で利用できる状態にする。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

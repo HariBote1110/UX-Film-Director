@@ -1,3 +1,23 @@
+## 2026-06-23 — 93 砕け散る球をRust生成オブジェクトへ追加
+
+### 実施内容
+- Red: `93 砕け散る球` がAviUtlPackV4カタログ、Timeline右クリックメニュー、project保存/読込、Rust scene snapshot、shared renderer native media support、Pixi cutover、rust-core schema、rust-backend source frame生成に接続される契約を追加した。
+- Green: `ShatteredSphereObject` と `buildAviUtlShatteredSphereObject` を追加し、Timeline右クリックメニューから `93砕け散る球` を配置できるようにした。
+- Green: `shattered_sphere` をRust scene snapshotでは `GeneratedShatteredSphere` mediaとして出し、`source_frame` をローカルフレームから計算するようにした。
+- Green: rust-coreへ `GeneratedShatteredSphere` / `GeneratedShatteredSpherePlane` を追加し、rust-backendでは透明背景の球片ポリゴンが時間経過で散るRGBA source frameを生成するようにした。
+- Green: shared renderer native media supportとPixi generated effect cutoverへ接続し、Pixi依存を増やさずRust source frame経路へ載せた。
+- 版を `0.1.1-Beta-326a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/objectFactories/shatteredSphereObjectFactory.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/projectFile.test.ts --reporter=dot` は110件成功した。
+- `cargo test --manifest-path rust-core/Cargo.toml --test media_schema generated_shattered_sphere -- --nocapture` は1件成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml generated_shattered_sphere_source_frame -- --nocapture` は1件成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml generated_frame_tests:: -- --nocapture` は44件成功した。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の `shattered_sphere` / `GeneratedShatteredSphere` 由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- 次は `93 砕け散る球` のPropertyPanel編集UIを追加するか、GetColor / hksy / 93の未移植候補から次のP1/P2を選ぶ。
+
 ## 2026-06-22 — P1: 93 クリッピングSをSmart Clippingとして追加
 
 ### 実施内容
