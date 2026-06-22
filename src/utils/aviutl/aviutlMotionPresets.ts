@@ -11,7 +11,8 @@ export type AviUtlMotionPresetId =
   | 'wind-sway-soft'
   | 'delay-move-individual'
   | 'coordinate-plus-snap-move'
-  | 'ta-easing-overshoot-arrive';
+  | 'ta-easing-overshoot-arrive'
+  | 'bezier-orbit-t-plus';
 
 export interface AviUtlMotionPreset {
   id: AviUtlMotionPresetId;
@@ -24,7 +25,8 @@ export interface AviUtlMotionPreset {
     | 'tim-wind-sway'
     | '93-delay-move'
     | '93-coordinate-plus'
-    | '93-ta-easing';
+    | '93-ta-easing'
+    | '93-bezier-orbit-t-plus';
   defaultDistancePx: number;
   defaultSpanSeconds: number;
   defaultIntervalSeconds: number;
@@ -125,6 +127,14 @@ const presets: AviUtlMotionPreset[] = [
     sourceCandidateId: '93-ta-easing',
     defaultDistancePx: 120,
     defaultSpanSeconds: 0.8,
+    defaultIntervalSeconds: 0.25
+  },
+  {
+    id: 'bezier-orbit-t-plus',
+    labelJa: '93: ベジエ軌道T+',
+    sourceCandidateId: '93-bezier-orbit-t-plus',
+    defaultDistancePx: 160,
+    defaultSpanSeconds: 1,
     defaultIntervalSeconds: 0.25
   }
 ];
@@ -267,6 +277,17 @@ export const buildAviUtlMotionPresetPatch = (
         x,
         y,
         distancePx
+      });
+      break;
+    case 'bezier-orbit-t-plus':
+      easing = 'easeInOutSine';
+      keyframes = buildBezierOrbitTPlusKeyframes({
+        startTime,
+        endTime,
+        x,
+        y,
+        distancePx,
+        easing
       });
       break;
     case 'entrance-slide-left':
@@ -580,6 +601,60 @@ const buildTaEasingOvershootArriveKeyframes = ({
     keyframes.push(makeKeyframe('ta-easing-arrive-hold', endTime, x, y, 'linear'));
   }
   return keyframes;
+};
+
+const buildBezierOrbitTPlusKeyframes = ({
+  startTime,
+  endTime,
+  x,
+  y,
+  distancePx,
+  easing
+}: {
+  startTime: number;
+  endTime: number;
+  x: number;
+  y: number;
+  distancePx: number;
+  easing: EasingType;
+}): PositionKeyframe[] => {
+  const controlA = { x: x + distancePx * 0.25, y: y - distancePx * 0.5 };
+  const controlB = { x: x + distancePx * 0.75, y: y + distancePx * 0.25 };
+  const end = { x: x + distancePx, y };
+  return [0, 0.25, 0.5, 0.75, 1].map((progress, index) => {
+    const point = cubicBezierPoint(
+      { x, y },
+      controlA,
+      controlB,
+      end,
+      progress
+    );
+    return makeKeyframe(
+      `bezier-orbit-t-plus-${index}`,
+      startTime + (endTime - startTime) * progress,
+      point.x,
+      point.y,
+      progress >= 1 ? 'linear' : easing
+    );
+  });
+};
+
+const cubicBezierPoint = (
+  start: { x: number; y: number },
+  controlA: { x: number; y: number },
+  controlB: { x: number; y: number },
+  end: { x: number; y: number },
+  progress: number
+): { x: number; y: number } => {
+  const inverse = 1 - progress;
+  const startWeight = inverse * inverse * inverse;
+  const controlAWeight = 3 * inverse * inverse * progress;
+  const controlBWeight = 3 * inverse * progress * progress;
+  const endWeight = progress * progress * progress;
+  return {
+    x: start.x * startWeight + controlA.x * controlAWeight + controlB.x * controlBWeight + end.x * endWeight,
+    y: start.y * startWeight + controlA.y * controlAWeight + controlB.y * controlBWeight + end.y * endWeight
+  };
 };
 
 const makeKeyframe = (
