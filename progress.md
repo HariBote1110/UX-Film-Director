@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendのGenerated共有helperをサブモジュール化
+
+### 実施内容
+- `rust-backend/src/generated.rs` から色パース、図形距離、線分/塗り描画、グラデーション補助、バーコード補助、HSV変換、決定的乱数などの共有helperを `rust-backend/src/generated/helpers.rs` へ分離した。
+- 生成器本体からだけ使うhelperは `pub(super)`、crate内で共有する描画helperは `pub(crate)` とし、既存の呼び出し境界を維持した。
+- `generated.rs` は 4,723 行から 4,312 行になり、共有helper 418行を独立ファイルへ移した。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次は生成器実装をカテゴリ別または効果ファミリー別に `generated/` 配下へ分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのGenerated validationをサブモジュール化
 
 ### 実施内容
