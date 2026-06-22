@@ -1,13 +1,15 @@
+mod generated;
 mod psd_fast;
 mod rpc;
 mod sessions;
 
+use generated::*;
 use rpc::{response_error, HealthResult, RpcError, RpcRequest, RpcResponse};
+use serde::Deserialize;
+use serde_json::{json, Value};
 use sessions::{
     DecodeSession, DecodedRgbaFrame, EncodeAbortSummary, EncodeSession, StreamingDecodeProcess,
 };
-use serde::Deserialize;
-use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, BufRead, Read, Write};
@@ -59,419 +61,6 @@ struct PsdOverlayCacheEntry {
     raw_path: PathBuf,
     source_width: u32,
     source_height: u32,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedGradientSource {
-    #[serde(rename = "type")]
-    gradient_type: String,
-    colours: Vec<String>,
-    #[serde(default)]
-    stops: Vec<f32>,
-    #[serde(default)]
-    direction: f32,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedParticleSource {
-    generator: String,
-    seed: u64,
-    particle_count: u32,
-    spread: f32,
-    speed: f32,
-    size: f32,
-    colour: String,
-    lifetime_seconds: f32,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedBarcodeSource {
-    generator: String,
-    data: String,
-    minimum_bar_width: u32,
-    horizontal_margin: u32,
-    vertical_margin: u32,
-    foreground_colour: String,
-    background_colour: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedPuzzlePieceSource {
-    generator: String,
-    size: u32,
-    shape_variant: u32,
-    connector_mode: String,
-    fill_colour: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedColourWheelSource {
-    generator: String,
-    radius: u32,
-    saturation: f32,
-    brightness: f32,
-    ring_width_percent: f32,
-    segment_count: u32,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedGourdSource {
-    generator: String,
-    body_radius: u32,
-    body_width: u32,
-    waist_radius: u32,
-    squash_percent: f32,
-    repeat_count: u32,
-    fill_colour: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedGearSource {
-    generator: String,
-    outer_radius: u32,
-    inner_radius_percent: f32,
-    tooth_count: u32,
-    tooth_depth_percent: f32,
-    tooth_skew_percent: f32,
-    fill_colour: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedTrackBarSource {
-    generator: String,
-    track_values: Vec<f32>,
-    track_ranges: Vec<[f32; 2]>,
-    labels: Vec<String>,
-    bar_colour: String,
-    background_opacity: f32,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedPieChartSource {
-    generator: String,
-    values: Vec<f32>,
-    sort_mode: String,
-    normalise_to_hundred: bool,
-    label_mode: String,
-    progress_percent: f32,
-    stroke_width: f32,
-    slice_colours: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedHistogramSource {
-    generator: String,
-    bin_values: Vec<f32>,
-    height_scale_percent: f32,
-    line_width: f32,
-    show_luminance: bool,
-    show_red: bool,
-    show_green: bool,
-    show_blue: bool,
-    channel_colours: Vec<String>,
-    background_colour: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedSunburstSource {
-    generator: String,
-    ray_count: u32,
-    ray_coverage_percent: f32,
-    rotation_offset_degrees: f32,
-    centre_x_percent: f32,
-    centre_y_percent: f32,
-    motif_size: u32,
-    motif_shape: String,
-    ray_colour: String,
-    background_colour: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedCircularArrowSource {
-    generator: String,
-    radius: u32,
-    line_width: u32,
-    head_size: u32,
-    angle_degrees: f32,
-    centre_angle_degrees: f32,
-    head_shape: String,
-    show_tail_head: bool,
-    flip_vertical: bool,
-    flip_horizontal: bool,
-    arrow_colour: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedTriangleBracketSource {
-    generator: String,
-    bracket_width: u32,
-    angle_degrees: f32,
-    arm_length: u32,
-    offset_distance: i32,
-    bracket_colour: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedTartanCheckSource {
-    generator: String,
-    tile_size: u32,
-    blur_radius: u32,
-    base_colour: String,
-    stripe_colour_a: String,
-    stripe_colour_b: String,
-    line_colour: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedHoundstoothSource {
-    generator: String,
-    pattern_size: u32,
-    foreground_colour: String,
-    background_colour: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedYagasuriSource {
-    generator: String,
-    arrow_width: u32,
-    arrow_height: u32,
-    line_width: u32,
-    staggered: bool,
-    foreground_colour: String,
-    background_colour: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedPaperAirplaneSource {
-    generator: String,
-    body_length: u32,
-    wing_width: u32,
-    fold_height: u32,
-    gap: u32,
-    follow_motion_direction: bool,
-    axis_mode: u32,
-    fill_colour: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedAsanohaPatternSource {
-    generator: String,
-    pattern_size: u32,
-    line_width: u32,
-    foreground_colour: String,
-    background_colour: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedFocusLinesPlusSource {
-    generator: String,
-    ray_width: f32,
-    gap: f32,
-    centre_radius: f32,
-    rotation_degrees: f32,
-    centre_x: f32,
-    centre_y: f32,
-    centre_jitter_percent: f32,
-    seed: i64,
-    keyframe_interval: u64,
-    line_colour: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedRandomLineExSource {
-    generator: String,
-    line_count: u32,
-    line_width: f32,
-    threshold: u32,
-    noise_cell_size: u32,
-    width_variance: f32,
-    seed: i64,
-    line_colour: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedHologramSource {
-    generator: String,
-    tile_size: u32,
-    rotation_degrees: f32,
-    gradient_angle_degrees: f32,
-    colour_mode: u32,
-    tint_colour: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedProtractorSource {
-    generator: String,
-    radius: u32,
-    measured_angle_degrees: f32,
-    tick_step_degrees: u32,
-    major_tick_step_degrees: u32,
-    decimal_places: u32,
-    line_colour: String,
-    text_colour: String,
-    shadow_colour: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedShakingPolygonSource {
-    generator: String,
-    line_width: u32,
-    vertex_count: u32,
-    fixed_diameter: u32,
-    vertical_distortion_percent: f32,
-    repeat_count: u32,
-    repeat_frequency: u32,
-    fill: bool,
-    jitter_range: f32,
-    jitter_interval: u32,
-    stepped: bool,
-    colour: String,
-    seed: i64,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedToneCurveSource {
-    generator: String,
-    grid_divisions: u32,
-    line_width: u32,
-    curve_points: Vec<f32>,
-    curve_colour: String,
-    grid_colour: String,
-    background_colour: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedGetColorDotsSource {
-    generator: String,
-    columns: u32,
-    rows: u32,
-    dot_size: f32,
-    dot_shape: Option<String>,
-    stroke_width: Option<f32>,
-    size_influence: f32,
-    luminance_influence: f32,
-    hue_shift_degrees: f32,
-    alternate_rows: bool,
-    foreground_colour: String,
-    secondary_colour: String,
-    background_colour: String,
-    source_image: Option<String>,
-    source_active_layer_ids: Option<Vec<String>>,
-    sample_strength: Option<f32>,
-    sample_hue_shift_degrees: Option<f32>,
-    seed: i64,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedHksyCheckerGridSource {
-    generator: String,
-    pattern: Option<String>,
-    cell_size: u32,
-    line_width: u32,
-    checker_enabled: bool,
-    grid_enabled: bool,
-    foreground_colour: String,
-    secondary_colour: String,
-    background_colour: String,
-    palette_colours: Option<Vec<String>>,
-    separate_interval: Option<u32>,
-    separate_line_width: Option<u32>,
-    anchor_points: Option<Vec<GeneratedHksyAnchorPoint>>,
-    round_caps: Option<bool>,
-    max_join_distance: Option<f32>,
-}
-
-#[derive(Debug, Deserialize, Clone, Copy)]
-struct GeneratedHksyAnchorPoint {
-    x: f32,
-    y: f32,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedRegionFrameSource {
-    generator: String,
-    line_width: f32,
-    #[serde(default = "default_region_frame_shape")]
-    shape: String,
-    #[serde(default = "default_region_frame_corner_cut")]
-    corner_cut: f32,
-    extra_width: f32,
-    extra_height: f32,
-    background_opacity: f32,
-    frame_colour: String,
-    background_colour: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedSimpleTubeSource {
-    generator: String,
-    radius: f32,
-    depth: f32,
-    segments: u32,
-    rings: u32,
-    twist_degrees: f32,
-    random_amount: f32,
-    stroke_width: f32,
-    colour: String,
-    secondary_colour: String,
-    #[serde(default = "default_simple_tube_colour_pattern")]
-    colour_pattern: String,
-    #[serde(default)]
-    fog_strength: f32,
-    #[serde(default = "default_simple_tube_fog_colour")]
-    fog_colour: String,
-    seed: i64,
-    torus: bool,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedSphereDotsSource {
-    generator: String,
-    radius: f32,
-    columns: u32,
-    rows: u32,
-    rotation_degrees: f32,
-    offset_degrees: f32,
-    luminance_influence: f32,
-    point_size: f32,
-    latitude_line_width: f32,
-    colour: String,
-    secondary_colour: String,
-    seed: i64,
-    plane_mode: bool,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeneratedSphericalFieldSource {
-    generator: String,
-    radius: f32,
-    strength: f32,
-    colour_amount: f32,
-    alpha_amount: f32,
-    line_width: f32,
-    ring_count: u32,
-    vector_count: u32,
-    field_colour: String,
-    secondary_colour: String,
-    background_opacity: f32,
-    container: bool,
-    seed: i64,
-}
-
-fn default_simple_tube_colour_pattern() -> String {
-    "single".to_string()
-}
-
-fn default_simple_tube_fog_colour() -> String {
-    "#ffffff".to_string()
-}
-
-fn default_region_frame_shape() -> String {
-    "rectangle".to_string()
-}
-
-fn default_region_frame_corner_cut() -> f32 {
-    20.0
 }
 
 fn main() {
@@ -5804,18 +5393,13 @@ fn draw_sphere_dots_rgba(
 ) {
     let centre_x = width as f32 * 0.5;
     let centre_y = height as f32 * 0.5;
-    let radius = sphere
-        .radius
-        .min(width.min(height) as f32 * 0.46)
-        .max(1.0);
+    let radius = sphere.radius.min(width.min(height) as f32 * 0.46).max(1.0);
     let rows = sphere.rows.max(2);
     let columns = sphere.columns.max(3);
     let rotation = sphere.rotation_degrees.to_radians();
     let offset = sphere.offset_degrees.to_radians();
     let line_width = sphere.latitude_line_width.max(0.0);
-    let point_radius = (sphere.point_size * 0.5)
-        .max(0.0)
-        .min(radius * 0.2);
+    let point_radius = (sphere.point_size * 0.5).max(0.0).min(radius * 0.2);
     let luminance_amount = (sphere.luminance_influence / 5000.0).clamp(-1.0, 1.0);
     let _seed = sphere.seed;
 
@@ -5842,7 +5426,8 @@ fn draw_sphere_dots_rgba(
         let x_radius = theta.sin() * radius;
         let mut points = Vec::with_capacity(columns as usize);
         for column_index in 0..columns {
-            let phi = offset + rotation + std::f32::consts::TAU * column_index as f32 / columns as f32;
+            let phi =
+                offset + rotation + std::f32::consts::TAU * column_index as f32 / columns as f32;
             points.push((centre_x + phi.cos() * x_radius, y));
         }
         rows_points.push(points);
@@ -5978,12 +5563,13 @@ fn build_generated_spherical_field_source_frame(
             media.width, media.height
         ));
     }
-    let field: GeneratedSphericalFieldSource = serde_json::from_str(&media.source).map_err(|error| {
-        format!(
-            "Invalid GeneratedSphericalField media '{}': {error}",
-            media.id
-        )
-    })?;
+    let field: GeneratedSphericalFieldSource =
+        serde_json::from_str(&media.source).map_err(|error| {
+            format!(
+                "Invalid GeneratedSphericalField media '{}': {error}",
+                media.id
+            )
+        })?;
     validate_generated_spherical_field_source(&field).map_err(|message| {
         format!(
             "Invalid GeneratedSphericalField media '{}': {message}",
@@ -5996,13 +5582,12 @@ fn build_generated_spherical_field_source_frame(
             media.id
         )
     })?;
-    let secondary_colour =
-        parse_hex_colour_source(&field.secondary_colour).map_err(|message| {
-            format!(
-                "Invalid GeneratedSphericalField media '{}': secondary_colour {message}",
-                media.id
-            )
-        })?;
+    let secondary_colour = parse_hex_colour_source(&field.secondary_colour).map_err(|message| {
+        format!(
+            "Invalid GeneratedSphericalField media '{}': secondary_colour {message}",
+            media.id
+        )
+    })?;
 
     let pixel_count = usize::try_from(media.width)
         .ok()
@@ -6039,10 +5624,7 @@ fn draw_spherical_field_rgba(
 ) {
     let centre_x = width as f32 * 0.5;
     let centre_y = height as f32 * 0.5;
-    let radius = field
-        .radius
-        .min(width.min(height) as f32 * 0.46)
-        .max(1.0);
+    let radius = field.radius.min(width.min(height) as f32 * 0.46).max(1.0);
     let line_width = field.line_width.max(0.5);
     let ring_count = field.ring_count.max(1);
     let vector_count = field.vector_count;
@@ -7887,9 +7469,7 @@ fn validate_generated_sphere_dots_source(source: &GeneratedSphereDotsSource) -> 
     {
         return Err("rotation_degrees must be -1000..1000".to_string());
     }
-    if !source.offset_degrees.is_finite()
-        || !(-360.0..=360.0).contains(&source.offset_degrees)
-    {
+    if !source.offset_degrees.is_finite() || !(-360.0..=360.0).contains(&source.offset_degrees) {
         return Err("offset_degrees must be -360..360".to_string());
     }
     if !source.luminance_influence.is_finite()
@@ -7922,14 +7502,10 @@ fn validate_generated_spherical_field_source(
     if !source.strength.is_finite() || !(-200.0..=200.0).contains(&source.strength) {
         return Err("strength must be -200..200".to_string());
     }
-    if !source.colour_amount.is_finite()
-        || !(-100.0..=100.0).contains(&source.colour_amount)
-    {
+    if !source.colour_amount.is_finite() || !(-100.0..=100.0).contains(&source.colour_amount) {
         return Err("colour_amount must be -100..100".to_string());
     }
-    if !source.alpha_amount.is_finite()
-        || !(-100.0..=100.0).contains(&source.alpha_amount)
-    {
+    if !source.alpha_amount.is_finite() || !(-100.0..=100.0).contains(&source.alpha_amount) {
         return Err("alpha_amount must be -100..100".to_string());
     }
     if !source.line_width.is_finite() || !(0.0..=100.0).contains(&source.line_width) {
@@ -7941,9 +7517,7 @@ fn validate_generated_spherical_field_source(
     if source.vector_count > 256 {
         return Err("vector_count must be 0..256".to_string());
     }
-    if !source.background_opacity.is_finite()
-        || !(0.0..=1.0).contains(&source.background_opacity)
-    {
+    if !source.background_opacity.is_finite() || !(0.0..=1.0).contains(&source.background_opacity) {
         return Err("background_opacity must be 0..1".to_string());
     }
     parse_hex_colour_source(&source.field_colour)?;
@@ -7998,7 +7572,8 @@ fn validate_generated_getcolor_dots_source(
     parse_hex_colour_source(&source.secondary_colour)?;
     parse_hex_colour_source(&source.background_colour)?;
     if let Some(source_image) = source.source_image.as_deref() {
-        let source_path = local_media_source_path(source_image, "GeneratedGetColorDots source_image")?;
+        let source_path =
+            local_media_source_path(source_image, "GeneratedGetColorDots source_image")?;
         let lower = source_path.to_ascii_lowercase();
         if !(lower.ends_with(".png")
             || lower.ends_with(".jpg")
@@ -8044,7 +7619,11 @@ fn rgb8_to_hsv(colour: [u8; 3]) -> (f32, f32, f32) {
     } else {
         60.0 * (((red - green) / delta) + 4.0)
     };
-    let saturation = if max <= f32::EPSILON { 0.0 } else { delta / max };
+    let saturation = if max <= f32::EPSILON {
+        0.0
+    } else {
+        delta / max
+    };
     (hue, saturation, max)
 }
 
@@ -10017,7 +9596,9 @@ mod tests {
         encoder
             .write_all(&scanlines)
             .expect("test PNG scanlines should encode");
-        let compressed = encoder.finish().expect("test PNG zlib stream should finish");
+        let compressed = encoder
+            .finish()
+            .expect("test PNG zlib stream should finish");
         write_png_chunk(&mut png, b"IDAT", &compressed);
         write_png_chunk(&mut png, b"IEND", &[]);
 
@@ -11032,10 +10613,7 @@ mod tests {
             "uxfd-getcolor-sampled-source",
             2,
             1,
-            &[
-                255, 0, 0, 255,
-                0, 64, 255, 128,
-            ],
+            &[255, 0, 0, 255, 0, 64, 255, 128],
         );
         let source = format!(
             r##"{{"generator":"getcolor-v2r-dot-field","columns":2,"rows":1,"dot_size":36,"size_influence":0,"luminance_influence":0,"hue_shift_degrees":0,"alternate_rows":false,"foreground_colour":"#ffffff","secondary_colour":"#36c2ff","background_colour":"#000000","seed":93,"dot_shape":"circle","stroke_width":0,"source_image":"{}","sample_strength":1}}"##,

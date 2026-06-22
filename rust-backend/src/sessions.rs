@@ -1,7 +1,5 @@
 use std::process::{Child, ChildStderr, ChildStdin, ChildStdout};
-use uxfd_sidecar_protocol::{
-    ColourMetadata, DecodeStartResponse, FrameFormat, SharedFrameRing,
-};
+use uxfd_sidecar_protocol::{ColourMetadata, DecodeStartResponse, FrameFormat, SharedFrameRing};
 
 use crate::DecodeDataPlaneRing;
 

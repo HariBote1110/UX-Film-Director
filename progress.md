@@ -1,3 +1,18 @@
+## 2026-06-22 — フェーズ3: Rust backendの生成ソース型をgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `Generated*Source` 型群、`GeneratedHksyAnchorPoint`、serde default関数を `rust-backend/src/generated.rs` へ抽出した。
+- `main.rs` は `mod generated` と `use generated::*` で参照する形にし、生成メディアのJSON schema、default値、描画/検証ロジックの挙動は変更していない。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次は生成フレーム描画関数のうち、依存の少ない小さな関数群から `generated/` サブモジュールへ移す。
+
 ## 2026-06-22 — フェーズ3: Rust backendのセッション型をsessions.rsへ分離
 
 ### 実施内容
