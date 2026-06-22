@@ -1,6 +1,16 @@
 # 進捗ログ
 
 ## 2026-06-23
+- 93 TA-Easing 跳ね戻り登場をnative motion presetへ追加した。
+- Red: `script/93/@TA-Easing.anm` を `93-ta-easing` としてAviUtlPackV4カタログへ載せ、PropertyPanelのAviUtl Motionに出るnative preset契約を追加した。
+- Green: `ta-easing-overshoot-arrive` presetを追加し、下方向から入り、少し行き過ぎて戻るキーフレームを生成するようにした。
+- Green: `distancePx` を登場距離、`spanSeconds` を収束時間として扱い、TA-Easingの実用的な跳ね戻り表現をUX FDの既存keyframe/easingへ接続した。
+- 版を `0.1.1-Beta-331a` に更新した。
+- 検証: `npm test -- --run src/utils/aviutl/aviutlMotionPresets.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts --reporter=dot` は15件成功した。
+- 検証: `npm test -- --run src/components/PropertyPanelBoundary.test.ts --reporter=dot` は8件成功した。
+- TA-Easingの拡大率、回転、ブラー、複数式指定は未対応。次は93の自己完結motion/effect候補、またはGetColor/hksy派生を続ける。
+
+## 2026-06-23
 - 93 座標plus スナップ移動をnative motion presetへ追加した。
 - Red: `script/93/@座標plus.anm` を `93-coordinate-plus` としてAviUtlPackV4カタログへ載せ、PropertyPanelのAviUtl Motionに出るnative preset契約を追加した。
 - Green: `coordinate-plus-snap-move` presetを追加し、現在座標をグリッド幅へfloor snapしてから一定距離へ移動するキーフレームを生成するようにした。
