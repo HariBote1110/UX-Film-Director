@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendの装飾図形生成器をサブモジュール化
+
+### 実施内容
+- `rust-backend/src/generated.rs` から `GeneratedSunburst`、`GeneratedCircularArrow`、`GeneratedTriangleBracket` の生成フレーム実装を `rust-backend/src/generated/decorative_shapes.rs` へ分離した。
+- sunburst ray、circular arrow、triangle bracketの描画実装を装飾図形系専用モジュールへ閉じ込めた。
+- `generated.rs` は 980 行から 718 行になり、装飾図形系実装268行を独立ファイルへ移した。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はTartanCheck/Houndstooth/Yagasuri/Asanohaなどのパターン系生成器、または `generated_frame_tests.rs` のファミリー別分割を進める。
+
 ## 2026-06-22 — フェーズ3: Rust backendのチャート系生成器をサブモジュール化
 
 ### 実施内容
