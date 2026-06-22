@@ -1,15 +1,19 @@
-use crate::collect_native_render_audio_waveforms;
 #[cfg(unix)]
 use crate::collect_native_render_sources;
 use crate::cpu_simple_video::{
     try_render_simple_video_frame, try_render_simple_video_frame_to_shared_ring,
 };
 use crate::encode::write_rgba_frame_to_encoder;
-use crate::params::{EncodeWriteNativeFrameParams, NativeRenderSharedFrameParams};
+use crate::params::{
+    EncodeWriteNativeFrameParams, NativeRenderAudioWaveformSource, NativeRenderSharedFrameParams,
+};
 use crate::rpc::{response_error, RpcResponse};
 use crate::state::BackendState;
 use serde_json::{json, Value};
-use uxfd_native_wgpu_renderer::{NativeWgpuRenderError, NativeWgpuRenderer};
+use uxfd_native_wgpu_renderer::{
+    NativeAudioWaveformInput, NativeWgpuRenderError, NativeWgpuRenderer,
+};
+use uxfd_rust_core::AudioWaveformSource;
 use uxfd_sidecar_protocol::{ColourMetadata, FrameFormat};
 
 #[cfg(unix)]
@@ -355,6 +359,27 @@ pub(crate) fn handle_native_render_shared_frame(
         -32070,
         "render.nativeSharedFrame requires POSIX shared memory support",
     )
+}
+
+fn collect_native_render_audio_waveforms(
+    waveforms: &[NativeRenderAudioWaveformSource],
+) -> Result<Vec<NativeAudioWaveformInput>, String> {
+    waveforms
+        .iter()
+        .map(|waveform| {
+            let source = AudioWaveformSource::from_json(&waveform.source).map_err(|error| {
+                format!("Invalid native render audio waveform source: {error:?}")
+            })?;
+            Ok(NativeAudioWaveformInput {
+                media_id: waveform.media_id.clone(),
+                source,
+                samples: waveform.samples.clone(),
+                sample_rate: waveform.sample_rate,
+                width: waveform.width,
+                height: waveform.height,
+            })
+        })
+        .collect()
 }
 
 pub(crate) fn native_render_source_error_code(message: &str) -> i64 {

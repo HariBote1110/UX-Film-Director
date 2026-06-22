@@ -37,8 +37,7 @@ use std::fs;
 use std::io::{self, BufRead, Write};
 use transcode::handle_encode_transcode_video;
 use uxfd_golden_harness::{load_rgba_jpeg, load_rgba_png, RgbaFrame};
-use uxfd_native_wgpu_renderer::NativeAudioWaveformInput;
-use uxfd_rust_core::{AudioWaveformSource, MediaKind, SceneMediaReference, SceneSnapshot};
+use uxfd_rust_core::{MediaKind, SceneMediaReference, SceneSnapshot};
 
 fn main() {
     let stdin = io::stdin();
@@ -237,27 +236,6 @@ pub(crate) fn collect_native_render_sources(
     }
 
     Ok(sources)
-}
-
-pub(crate) fn collect_native_render_audio_waveforms(
-    waveforms: &[NativeRenderAudioWaveformSource],
-) -> Result<Vec<NativeAudioWaveformInput>, String> {
-    waveforms
-        .iter()
-        .map(|waveform| {
-            let source = AudioWaveformSource::from_json(&waveform.source).map_err(|error| {
-                format!("Invalid native render audio waveform source: {error:?}")
-            })?;
-            Ok(NativeAudioWaveformInput {
-                media_id: waveform.media_id.clone(),
-                source,
-                samples: waveform.samples.clone(),
-                sample_rate: waveform.sample_rate,
-                width: waveform.width,
-                height: waveform.height,
-            })
-        })
-        .collect()
 }
 
 fn source_frame_for_media(snapshot: &SceneSnapshot, media_id: &str) -> u64 {
