@@ -1,14 +1,18 @@
 mod psd_fast;
 mod rpc;
+mod sessions;
 
 use rpc::{response_error, HealthResult, RpcError, RpcRequest, RpcResponse};
+use sessions::{
+    DecodeSession, DecodedRgbaFrame, EncodeAbortSummary, EncodeSession, StreamingDecodeProcess,
+};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, BufRead, Read, Write};
 use std::path::PathBuf;
-use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, Command, Stdio};
+use std::process::{Child, ChildStderr, ChildStdin, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -28,61 +32,6 @@ use uxfd_sidecar_protocol::{
     FrameVerificationReport, FrameVerificationStatus, ReadyFrame, SharedFrame, SharedFrameRing,
     SlotRecoveryReason,
 };
-
-struct DecodeSession {
-    start_response: DecodeStartResponse,
-    source: String,
-    ffmpeg_path: String,
-    ffprobe_path: String,
-    ring: SharedFrameRing,
-    data_plane_ring: Option<DecodeDataPlaneRing>,
-    streaming_decoder: Option<StreamingDecodeProcess>,
-}
-
-struct StreamingDecodeProcess {
-    child: Child,
-    stdout: ChildStdout,
-    next_frame_index: u64,
-    frame_byte_len: usize,
-}
-
-impl Drop for StreamingDecodeProcess {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
-
-struct DecodedRgbaFrame {
-    bytes: Vec<u8>,
-    decode_path: &'static str,
-    stream_restarted: bool,
-    stream_skipped_frame_count: u64,
-    decode_invocation_count: u64,
-}
-
-struct EncodeSession {
-    child: Child,
-    stdin: ChildStdin,
-    stderr: ChildStderr,
-    session_id: String,
-    file_path: String,
-    audio_path: Option<String>,
-    width: u32,
-    height: u32,
-    fps: u32,
-    pixel_format: FrameFormat,
-    colour: ColourMetadata,
-    frame_count: u64,
-}
-
-struct EncodeAbortSummary {
-    session_id: String,
-    file_path: String,
-    frame_count: u64,
-    ffmpeg_status: String,
-    stderr: String,
-}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -1,3 +1,18 @@
+## 2026-06-22 — フェーズ3: Rust backendのセッション型をsessions.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `DecodeSession`、`StreamingDecodeProcess`、`DecodedRgbaFrame`、`EncodeSession`、`EncodeAbortSummary` を `rust-backend/src/sessions.rs` へ抽出した。
+- `StreamingDecodeProcess` の `Drop` 実装も型と同じモジュールへ移し、decode/encodeセッション状態の所有境界を明確にした。
+- `main.rs` は `mod sessions` と `use sessions::{...}` で参照する形にし、既存のencode/decode処理の挙動は変更していない。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次は `generated/` へ `Generated*Source` 型群とdefault関数を移し、その後に生成フレーム描画関数・検証関数を段階的に分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのRPC型をrpc.rsへ分離
 
 ### 実施内容
