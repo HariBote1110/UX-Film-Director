@@ -5,6 +5,7 @@ export type AviUtlPackImplementationTarget =
   | 'rust-webgpu-effect'
   | 'native-generated-object'
   | 'native-camera-tool'
+  | 'native-utility'
   | 'script-runtime-later';
 
 export type AviUtlPackBundlingMode =
@@ -415,6 +416,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     bundlingMode: 'native-compatible-reimplementation',
     sourceRelativePaths: ['script/93/ObjectCopyEXT.obj'],
     rationaleJa: 'レイヤー内容を一時保存して再配置する発想を、UX FDでは選択オブジェクトの軽量な複製列として標準搭載する。'
+  },
+  {
+    id: '93-background-colour-eyedropper',
+    labelJa: '93 背景色スポイト',
+    category: 'compatibility',
+    phase: 'P1',
+    implementationTarget: 'native-utility',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/背景色スポイト.anm'],
+    rationaleJa: 'フレームバッファから色テーブルを作る発想を、UX FDではTimelineObjectの色フィールドから重複なしpaletteを抽出するnative utilityとして先に標準搭載する。'
   },
   {
     id: '93-region-frame-ellipse',
