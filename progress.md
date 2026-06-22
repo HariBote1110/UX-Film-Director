@@ -1,3 +1,20 @@
+## 2026-06-22 — フェーズ3: Rust backendのnative shared memory補助をnative_shared.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `handle_release_native_render_shared_frame`、`read_native_render_source_frame`、`tight_rgba_from_padded_descriptor` を `rust-backend/src/native_shared.rs` へ抽出した。
+- native render出力のrelease RPCと、shared memory source frameをtight RGBAへ戻す読み取り処理をnative shared memory境界としてまとめた。
+- `main.rs` はrelease handlerとsource frame読取関数をimportして呼び出す形にした。
+- `main.rs` から不要になった `Duration` importを削除した。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はnative render RPC handler本体、source収集、または生成フレーム描画関数群をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのCPU simple video fast pathをcpu_simple_video.rsへ分離
 
 ### 実施内容
