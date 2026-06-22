@@ -1582,6 +1582,13 @@ SphericalFieldではRadius、Strength、Colour Amount、Alpha Amount、Line Widt
 Vector Count、Field Colour、Secondary Colour、Background Opacity、Container、Seedを編集可能にする。
 Rust backend validationと同じ範囲でUI入力をclampし、置けるだけの生成素材から演出調整できる標準搭載素材へ引き上げる。
 
+269. AviUtlPackV4: GetColor V2R基本編集UIを追加する
+`getcolor_dot_field` を配置した後に、PropertyPanelからColumns、Rows、Dot Size、Dot Shape、
+Stroke Width、Size Influence、Luminance Influence、Hue Shift、Alternate Rows、Foreground/Secondary/Background Colour、
+Seedを編集できるようにする。
+既存の画像/PSDサンプリング導線と同じPropertyPanel内で、GetColor V2Rのドット構造と色調整を直接触れるようにし、
+Rust生成ドットフィールドを実際の画作りへ使える標準搭載素材へ引き上げる。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

@@ -1,3 +1,19 @@
+## 2026-06-23 — GetColor V2R基本編集UIを追加
+
+### 実施内容
+- Red: PropertyPanelのGetColor契約を拡張し、画像サンプリングだけでなくドット構造・形状・色を編集できることを要求した。
+- Green: `getcolor_dot_field` 選択時に `GetColor Dot Field` セクションを追加し、Columns、Rows、Dot Size、Dot Shape、Stroke Width、Size Influence、Luminance Influence、Hue Shift、Alternate Rows、Foreground Colour、Secondary Colour、Background Colour、Seedを編集できるようにした。
+- Green: 各入力はrust-backend validatorとshared renderer native supportの範囲に合わせてclampし、GetColor V2RのRust生成結果を配置後に調整できる状態へ進めた。
+- 版を `0.1.1-Beta-329a` に更新した。
+
+### 検証
+- `npm test -- --run src/components/PropertyPanelBoundary.test.ts --reporter=dot` は8件成功した。
+- `npm test -- --run src/utils/packageScripts.test.ts --reporter=dot` は6件成功した。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回のGetColor基本編集UI由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- 次はGetColorのプリセット追加やhksy/93の未移植候補へ進む。GetColorは現時点で配置、基本調整、画像/PSDサンプリング指定までPropertyPanelから扱える。
+
 ## 2026-06-23 — 93 Sphere/SphericalFieldの編集UIを追加
 
 ### 実施内容
