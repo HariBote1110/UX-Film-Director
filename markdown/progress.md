@@ -1,6 +1,24 @@
 # 進捗ログ
 
 ## 2026-06-22
+- 93 ディスプレイスメントマップBをRust/WebGPUフィルタへ追加した。
+- Red: Filter Stackの `displacement_map`、AviUtl effect preset、AviUtlPackV4カタログ、Rust scene snapshot、rust-core validation、native-wgpu画素変位を通る契約を追加した。
+- Green: `DisplacementMap` effectをTypeScript/Rust schemaへ追加し、画像/動画/PSD/図形へFilter Stackから追加できるようにした。
+- Green: PropertyPanelへAmount X、Amount Y、Size、Strength編集UIを追加し、AviUtl Effectsには `93 ディスプレイスメントマップB` presetを追加した。
+- Green: native-wgpuの `solid_composite.wgsl` でsource sample座標をDisplacementMapによりオフセットし、1px水平変位の画素テストを通した。
+- Green: reference rendererはDisplacementMapをgain非変更の効果として許可し、Rust境界の網羅matchを更新した。
+- 版を `0.1.1-Beta-316a` に更新した。
+- 検証: `npm test -- --run src/utils/filterStack.test.ts src/utils/aviutl/aviutlEffectPresets.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts src/utils/rustSceneSnapshot.test.ts --reporter=dot` は91件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test project_validation displacement_map -- --nocapture` は2件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test timeline_snapshot_contract -- --nocapture` は6件成功した。
+- 検証: `cargo test --manifest-path native-wgpu-renderer/Cargo.toml native_wgpu_applies_displacement_map_b_horizontal_sampling_offset -- --nocapture` は1件成功した。
+- 検証: `cargo test --manifest-path reference-renderer/Cargo.toml -- --nocapture` は12件成功した。
+- 検証: `npm test -- --run src/utils/packageScripts.test.ts --reporter=dot` は6件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の93 ディスプレイスメントマップB由来の型エラーは出ていない。
+- 現時点の93 ディスプレイスメントマップBは別レイヤー/フレームバッファを参照する完全互換ではなく、Rust/WebGPU上の手続き的な変位。後続で参照オブジェクト/レイヤーを変位マップとして読む経路へ拡張する。
+- 次は93の偽被写界深度、オートブラー、またはGetColor/hksyの未移植派生へ進む。
+
+## 2026-06-22
 - 93 DisplacementPolyをRust生成プリセットへ追加した。
 - Red: `displacement_poly` がfactory、Timeline右クリックメニュー、AviUtlPackV4カタログ、保存/読込、Rust scene snapshot、shared renderer native media、rust-core schema、Rust backend画素生成を通る契約を追加した。
 - Green: `DisplacementPolyObject` と `GeneratedDisplacementPoly` media kindを追加し、`displacement-poly-93` source JSONで列数、行数、変位量、奥行き量、メッシュ不透明度、塗り不透明度、線色、塗り色、seedをRustへ渡すようにした。
