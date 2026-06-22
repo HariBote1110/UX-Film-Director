@@ -102,6 +102,7 @@
 77. ✅ `P1` GetColor画像サンプリングのPSD合成済みサンプル参照をUI/Rust生成経路へ接続する
 78. ✅ `P1` GetColor(ColorShift)初期互換としてサンプル色相シフトをRust生成経路とPropertyPanelへ追加する
 79. ✅ `P1` 93輪郭トレスをRust GeneratedContourTrace生成プリセットとして追加する
+80. ✅ `P1` 93 DisplacementPolyをRust GeneratedDisplacementPoly生成プリセットとして追加する
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

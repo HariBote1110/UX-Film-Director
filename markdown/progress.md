@@ -1,6 +1,22 @@
 # 進捗ログ
 
 ## 2026-06-22
+- 93 DisplacementPolyをRust生成プリセットへ追加した。
+- Red: `displacement_poly` がfactory、Timeline右クリックメニュー、AviUtlPackV4カタログ、保存/読込、Rust scene snapshot、shared renderer native media、rust-core schema、Rust backend画素生成を通る契約を追加した。
+- Green: `DisplacementPolyObject` と `GeneratedDisplacementPoly` media kindを追加し、`displacement-poly-93` source JSONで列数、行数、変位量、奥行き量、メッシュ不透明度、塗り不透明度、線色、塗り色、seedをRustへ渡すようにした。
+- Green: Rust backendで決定的ノイズにより格子点を変位させ、薄い塗りのポリゴンセルとメッシュ線をRGBA生成する初期互換実装を追加した。
+- Green: Timeline右クリックメニューに `93 DisplacementPolyを追加` / `Add 93 DisplacementPoly` を追加した。
+- Green: 保存/読込、export native render判定、Pixi二重描画除外、shared renderer preview session収集にも `displacement_poly` / `GeneratedDisplacementPoly` を接続した。
+- 版を `0.1.1-Beta-315a` に更新した。
+- 検証: `npm test -- --run src/utils/objectFactories/displacementPolyObjectFactory.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/projectFile.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/pixiGeneratedEffectCutover.test.ts src/utils/packageScripts.test.ts --reporter=dot` は104件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test media_schema -- --nocapture` は34件成功した。
+- 検証: `cargo test --manifest-path rust-backend/Cargo.toml generated_displacement_poly_source_frame_contains_displaced_mesh_and_fill -- --nocapture` は1件成功した。
+- 検証: `npm test -- --run src/utils/packageScripts.test.ts --reporter=dot` は6件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の93 DisplacementPoly由来の型エラーは出ていない。
+- 現時点の93 DisplacementPolyは元画像/動画を実際にワープする完全互換ではなく、Rust生成の変位ポリゴングリッド素材。後続で画像/PSD/動画フレームを変位マップとして歪ませる実効果へ拡張する。
+- 次は93ディスプレイスメントマップB、偽被写界深度、オートブラー、またはGetColorの未移植派生へ進む。
+
+## 2026-06-22
 - ゴール運用を `GetColor`、`hksy`、`script/93` 優先へ寄せた。ツール上のactive goal本文は直接差し替えできないため、実装計画と進捗ログで優先順位を明示する。
 - 93輪郭トレスをRust生成プリセットへ追加した。
 - Red: `contour_trace` がfactory、Timeline右クリックメニュー、AviUtlPackV4カタログ、保存/読込、Rust scene snapshot、shared renderer native media、rust-core schema、Rust backend画素生成を通る契約を追加した。
