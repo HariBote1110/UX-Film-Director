@@ -88,6 +88,13 @@ describe('createDefaultFilter', () => {
     expect(autoBlur.params.speed).toBe(1);
     expect(autoBlur.params.strength).toBe(1);
     expect(autoBlur.params.colourShift).toBe(0);
+
+    const stretch = createDefaultFilter('stretch' as any);
+    expect(stretch.type).toBe('stretch');
+    if (stretch.type !== 'stretch') throw new Error('expected stretch');
+    expect(stretch.params.angle).toBe(0);
+    expect(stretch.params.amount).toBe(1);
+    expect(stretch.params.strength).toBe(1);
   });
 });
 
@@ -100,9 +107,10 @@ describe('normaliseObjectFilters', () => {
       { id: 'dm', type: 'displacement_map' as const, enabled: true, params: { amountX: -10, amountY: Number.POSITIVE_INFINITY, size: 0, strength: 2 } },
       { id: 'dof', type: 'fake_dof' as any, enabled: true, params: { focusX: 2, focusY: -1, focusRadius: 0, blur: -8, strength: 2 } },
       { id: 'ab', type: 'auto_blur' as any, enabled: true, params: { blur: -5, speed: Number.POSITIVE_INFINITY, strength: 2, colourShift: -1 } },
+      { id: 'st', type: 'stretch' as any, enabled: true, params: { angle: Number.POSITIVE_INFINITY, amount: -2, strength: 2 } },
       { id: '', type: 'not-a-filter' as never, enabled: true, params: {} as never }
     ] as ObjectFilter[]);
-    expect(result).toHaveLength(6);
+    expect(result).toHaveLength(7);
     if (result[0].type !== 'fade') throw new Error('expected fade');
     expect(result[0].params.opacity).toBe(1);
     if (result[1].type !== 'colour_aberration') throw new Error('expected colour aberration');
@@ -118,6 +126,8 @@ describe('normaliseObjectFilters', () => {
     expect(result[4].params).toEqual({ focusX: 1, focusY: 0, focusRadius: 0.01, blur: 0, strength: 1 });
     if (result[5].type !== 'auto_blur') throw new Error('expected auto blur');
     expect(result[5].params).toEqual({ blur: 0, speed: 1, strength: 1, colourShift: 0 });
+    if (result[6].type !== 'stretch') throw new Error('expected stretch');
+    expect(result[6].params).toEqual({ angle: 0, amount: 0, strength: 1 });
   });
 });
 

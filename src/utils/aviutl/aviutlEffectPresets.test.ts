@@ -43,7 +43,8 @@ describe('AviUtlPackV4 effect presets', () => {
       { id: '93-spotlight-soft', sourceCandidateId: '93-spotlight', filterType: 'spot_light' },
       { id: '93-displacement-map-b-wave', sourceCandidateId: '93-displacement-map-b', filterType: 'displacement_map' },
       { id: '93-fake-dof2-focus', sourceCandidateId: '93-fake-dof2', filterType: 'fake_dof' },
-      { id: '93-auto-blur-plus-motion', sourceCandidateId: '93-auto-blur-plus', filterType: 'auto_blur' }
+      { id: '93-auto-blur-plus-motion', sourceCandidateId: '93-auto-blur-plus', filterType: 'auto_blur' },
+      { id: '93-stretch-directional', sourceCandidateId: '93-stretch', filterType: 'stretch' }
     ]);
   });
 
@@ -87,6 +88,11 @@ describe('AviUtlPackV4 effect presets', () => {
       type: 'auto_blur',
       enabled: true,
       params: { blur: 10, speed: 1, strength: 1, colourShift: 0 }
+    });
+    expect(buildAviUtlEffectPresetFilter('93-stretch-directional')).toMatchObject({
+      type: 'stretch',
+      enabled: true,
+      params: { angle: 0, amount: 1, strength: 1 }
     });
   });
 

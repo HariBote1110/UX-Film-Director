@@ -3738,6 +3738,40 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('serialises 93 Stretch filters as Rust scene effects', () => {
+    const layers = createDefaultLayers();
+    const stretched = baseImage({
+      id: 'stretched',
+      filters: [
+        {
+          id: 'stretch-1',
+          type: 'stretch',
+          enabled: true,
+          params: { angle: 45, amount: 1.25, strength: 0.8 },
+        } as any,
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [stretched],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected stretch snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([
+      {
+        Stretch: {
+          angle_degrees: 45,
+          amount: 1.25,
+          strength: 0.8,
+        },
+      },
+    ]);
+  });
+
   it('fails loud for visible Pixi features the shared renderer cannot represent yet', () => {
     const layers = createDefaultLayers();
     const unsupportedText: TimelineObject = {

@@ -298,6 +298,38 @@ fn native_wgpu_applies_auto_blur_plus_along_motion_angle() {
 }
 
 #[test]
+fn native_wgpu_applies_stretch_along_horizontal_axis() {
+    assert_native_matches_direct_hand_anchor(
+        scene_snapshot(vec![evaluated_clip(
+            "foreground",
+            0,
+            1.0,
+            vec![Effect::Stretch {
+                angle_degrees: 0.0,
+                amount: 1.0,
+                strength: 1.0,
+            }],
+        )]),
+        HashMap::from([(
+            "foreground".to_string(),
+            RgbaFrame::from_rgba8(
+                3,
+                1,
+                vec![255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255],
+            )
+            .expect("valid foreground"),
+        )]),
+        3,
+        1,
+        vec![
+            188, 188, 0, 255,
+            0, 255, 0, 255,
+            0, 188, 188, 255,
+        ],
+    );
+}
+
+#[test]
 fn native_wgpu_applies_outline_to_transparent_neighbours() {
     assert_native_matches_direct_hand_anchor(
         scene_snapshot(vec![evaluated_clip(
