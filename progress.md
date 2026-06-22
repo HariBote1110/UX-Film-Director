@@ -1,3 +1,20 @@
+## 2026-06-22 — フェーズ3: Rust backendのShakingPolygon/ToneCurve描画をgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `build_generated_shaking_polygon_source_frame` と `build_generated_tone_curve_source_frame` を `rust-backend/src/generated.rs` へ抽出した。
+- `shaking_polygon_points`、`jitter_value`、`tone_curve_curve_points` を描画責務側へ移した。
+- `draw_polygon_outline_rgba`、`fill_polygon_fan_rgba`、`fill_triangle_rgba` を `generated.rs` の共有helperへ移し、HK-SYやGetColor系の後続分割でも使えるようにした。
+- `main.rs` は 3,987 行から 3,646 行になった。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はHK-SY checker grid、region frame、tube/sphere系の生成フレーム描画関数をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのProtractor描画をgenerated.rsへ分離
 
 ### 実施内容
