@@ -1,3 +1,20 @@
+## 2026-06-22 — フェーズ3: Rust backendのSphere描画をgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `build_generated_sphere_dots_source_frame` と `build_generated_spherical_field_source_frame` を `rust-backend/src/generated.rs` へ抽出した。
+- `draw_sphere_dots_rgba`、`draw_sphere_dots_plane_rgba`、`draw_spherical_field_rgba`、`draw_circle_outline_rgba` を同じ責務側へ移した。
+- `main.rs` は 2,622 行から 2,217 行になった。
+- `main.rs` に残る生成フレーム描画関数は `build_generated_getcolor_dots_source_frame` のみになった。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はGetColorDotsの生成フレーム描画関数と画像サンプリング周辺helperを分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのSimpleTube描画をgenerated.rsへ分離
 
 ### 実施内容
