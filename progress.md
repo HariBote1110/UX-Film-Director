@@ -1,3 +1,20 @@
+## 2026-06-23 — 93 SPfieldをRust生成プリセットへ追加
+
+### 実施内容
+- Red: `script/93/SPfield.lua` を `93-spfield` としてAviUtlPackV4カタログへ載せ、Timelineから追加できるRust生成プリセット契約を追加した。
+- Green: `buildAviUtlSPFieldObject` を追加し、既存 `spherical_field` / `GeneratedSphericalField` Rust生成経路を使う強めの力場可視化プリセットとして実装した。
+- Green: Timeline右クリックメニューに `93 SPfield` 追加コマンドを接続した。
+- 版を `0.1.1-Beta-337a` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/objectFactories/sphericalFieldObjectFactory.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts src/components/TimelineContextMenu.particle.test.ts --reporter=dot` は7件成功した。
+- `npm test -- --run src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/projectFile.test.ts --reporter=dot` は103件成功した。
+- `npm test -- --run src/utils/packageScripts.test.ts --reporter=dot` は6件成功した。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回のSPfield由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- 元Luaの実座標変位、対象レイヤー参照、吸引/コンテナ挙動の厳密再現は未対応。次は93の自己完結生成/効果、またはGetColor/hksy派生を続ける。
+
 ## 2026-06-23 — 93 カメラ目標指定を3Dステージcamera presetへ追加
 
 ### 実施内容
