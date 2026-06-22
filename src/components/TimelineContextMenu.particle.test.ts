@@ -25,6 +25,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('buildAviUtlSimpleTubeTorusObject');
     expect(code).toContain('buildAviUtlSphereDotsObject');
     expect(code).toContain('buildAviUtlSphericalFieldObject');
+    expect(code).toContain('buildAviUtlContourTraceObject');
     expect(code).toContain('buildAviUtlCircularArrowObject');
     expect(code).toContain('buildAviUtlTartanCheckObject');
     expect(code).toContain('buildAviUtlTriangleBracketObject');
@@ -70,6 +71,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('handleAddSimpleTubeTorus');
     expect(code).toContain('handleAddSphereDots');
     expect(code).toContain('handleAddSphericalField');
+    expect(code).toContain('handleAddContourTrace');
     expect(code).toContain('handleAddCircularArrow');
     expect(code).toContain('handleAddTartanCheck');
     expect(code).toContain('handleAddTriangleBracket');
@@ -115,6 +117,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('Add 93 SimpleTube Torus');
     expect(code).toContain('Add 93 Sphere(DrawPixel)');
     expect(code).toContain('Add 93 SphericalField');
+    expect(code).toContain('Add 93 Contour Trace');
     expect(code).toContain('Add Barcode');
     expect(code).toContain('Add Circular Arrow');
     expect(code).toContain('Add Tartan Check');

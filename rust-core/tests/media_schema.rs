@@ -341,6 +341,22 @@ fn rust_core_accepts_generated_random_line_ex_media_kind_at_the_json_boundary() 
 }
 
 #[test]
+fn rust_core_accepts_generated_contour_trace_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "contour-trace-1",
+        "kind": "GeneratedContourTrace",
+        "source": "{\"generator\":\"contour-trace-93\",\"line_width\":3,\"contour_count\":5,\"jitter_amount\":1.5,\"trace_colour\":\"#ffffff\",\"background_opacity\":0,\"seed\":93}",
+        "width": 800,
+        "height": 450
+    }))
+    .expect("GeneratedContourTrace media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedContourTrace);
+    assert_eq!(media.width, 800);
+    assert_eq!(media.height, 450);
+}
+
+#[test]
 fn rust_core_accepts_generated_hologram_media_kind_at_the_json_boundary() {
     let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
         "id": "hologram-1",

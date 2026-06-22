@@ -60,6 +60,11 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('93-sphere-drawpixel')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('93-spherical-field')?.sourceRelativePaths).toContain('script/93/SphericalField.anm');
     expect(byId.get('93-spherical-field')?.implementationTarget).toBe('native-generated-object');
+    expect(byId.get('93-contour-trace')?.sourceRelativePaths).toEqual(expect.arrayContaining([
+      'script/93/Contour.anm',
+      'script/93/輪郭トレス.anm'
+    ]));
+    expect(byId.get('93-contour-trace')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('particle-standard')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('tim-aura-emission')?.sourceRelativePaths).toContain('script/てぃむ/オーラ放出.anm');
     expect(byId.get('tim-bubbles')?.sourceRelativePaths).toContain('script/てぃむ/泡.obj');
@@ -135,7 +140,8 @@ describe('AviUtlPackV4 feature catalogue', () => {
       'hksy-multi-colour-checker',
       'hksy-diamond',
       'hksy-measured-grid',
-      'hksy-anchor-line'
+      'hksy-anchor-line',
+      '93-contour-trace'
     ];
 
     expect(roadmapIds.slice(0, 27)).toEqual(expect.arrayContaining(priorityIds));

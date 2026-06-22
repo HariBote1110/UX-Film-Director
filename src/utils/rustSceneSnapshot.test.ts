@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, RegionFrameObject, ShakingPolygonObject, ShapeObject, SimpleTubeObject, SphereDotsObject, SphericalFieldObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, ContourTraceObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, RegionFrameObject, ShakingPolygonObject, ShapeObject, SimpleTubeObject, SphereDotsObject, SphericalFieldObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -738,6 +738,34 @@ const baseRandomLineEx = (patch: Partial<RandomLineExObject> = {}): RandomLineEx
   widthVariance: 0,
   seed: 0,
   lineColour: '#ffffff',
+  ...patch,
+});
+
+const baseContourTrace = (patch: Partial<ContourTraceObject> = {}): ContourTraceObject => ({
+  id: 'contour-trace-1',
+  type: 'contour_trace',
+  name: '93 輪郭トレス',
+  layer: 24,
+  startTime: 1,
+  duration: 4,
+  x: 560,
+  y: 315,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 560,
+  endY: 315,
+  easing: 'linear',
+  width: 800,
+  height: 450,
+  lineWidth: 3,
+  contourCount: 5,
+  jitterAmount: 1.5,
+  traceColour: '#ffffff',
+  backgroundOpacity: 0,
+  seed: 93,
   ...patch,
 });
 
@@ -1955,6 +1983,44 @@ describe('buildRustSceneSnapshotForTimeline', () => {
           width_variance: 0,
           seed: 0,
           line_colour: '#ffffff',
+        }),
+        width: 800,
+        height: 450,
+      },
+    ]);
+  });
+
+  it('builds a generated 93 contour trace media plane from a contour trace object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseContourTrace()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated contour trace snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'contour-trace-1',
+      track_id: 'layer-24',
+      media_id: 'contour-trace-1',
+      source_frame: 0,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'contour-trace-1',
+        kind: 'GeneratedContourTrace',
+        source: JSON.stringify({
+          generator: 'contour-trace-93',
+          line_width: 3,
+          contour_count: 5,
+          jitter_amount: 1.5,
+          trace_colour: '#ffffff',
+          background_opacity: 0,
+          seed: 93,
         }),
         width: 800,
         height: 450,

@@ -488,6 +488,24 @@ describe('sharedRendererNativeMediaSupport', () => {
     })).toBe(true);
   });
 
+  it('accepts 93 contour trace generator sources as native renderable media', () => {
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'contour-trace-1',
+      kind: 'GeneratedContourTrace',
+      source: '{"generator":"contour-trace-93","line_width":3,"contour_count":5,"jitter_amount":1.5,"trace_colour":"#ffffff","background_opacity":0,"seed":93}',
+      width: 800,
+      height: 450,
+    })).toBe(true);
+
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'contour-trace-invalid-1',
+      kind: 'GeneratedContourTrace',
+      source: '{"generator":"contour-trace-93","line_width":0,"contour_count":5,"jitter_amount":1.5,"trace_colour":"#ffffff","background_opacity":0,"seed":93}',
+      width: 800,
+      height: 450,
+    })).toBe(false);
+  });
+
   it('accepts 93 SimpleTube torus generator sources with colour pattern and fog', () => {
     expect(isSharedRendererNativeMediaReferenceSupported({
       id: 'simple-tube-torus-1',

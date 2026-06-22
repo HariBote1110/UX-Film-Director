@@ -621,6 +621,35 @@ fn generated_random_line_ex_source_frame_contains_noisy_lines_and_transparency()
 }
 
 #[test]
+fn generated_contour_trace_source_frame_contains_contour_lines_and_transparency() {
+    let media = SceneMediaReference {
+            id: "contour-trace-1".to_string(),
+            kind: MediaKind::GeneratedContourTrace,
+            source: r##"{"generator":"contour-trace-93","line_width":3,"contour_count":5,"jitter_amount":1.5,"trace_colour":"#ffffff","background_opacity":0,"seed":93}"##.to_string(),
+            width: 800,
+            height: 450,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+    let frame = build_generated_contour_trace_source_frame(&media)
+        .expect("generated contour trace frame should render");
+    let white_count = frame
+        .pixels
+        .chunks_exact(4)
+        .filter(|rgba| *rgba == [255, 255, 255, 255])
+        .count();
+    let transparent_count = frame
+        .pixels
+        .chunks_exact(4)
+        .filter(|rgba| rgba[3] == 0)
+        .count();
+
+    assert!(white_count > 2_000);
+    assert!(transparent_count > 250_000);
+}
+
+#[test]
 fn generated_hologram_source_frame_contains_prism_stripes_and_opacity() {
     let media = SceneMediaReference {
             id: "hologram-1".to_string(),
