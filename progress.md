@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendのGenerated validationをサブモジュール化
+
+### 実施内容
+- `rust-backend/src/generated.rs` から `validate_generated_*` 関数群を `rust-backend/src/generated/validators.rs` へ分離した。
+- `generated.rs` から `validators` を再exportし、既存の生成フレーム実装が同じ関数名でvalidationを呼べる状態を維持した。
+- `generated.rs` は 5,675 行から 4,723 行になり、validation 957行を独立ファイルへ移した。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次は共有描画helper群、または生成器実装のカテゴリ別モジュール化を進める。
+
 ## 2026-06-22 — フェーズ3: Rust backendのGenerated Source型定義をサブモジュール化
 
 ### 実施内容
