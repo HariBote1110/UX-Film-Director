@@ -66,6 +66,86 @@ pub(crate) fn build_generated_gradient_source_frame(
         .map_err(|error| format!("GeneratedGradient media frame is invalid: {error:?}"))
 }
 
+pub(crate) fn build_generated_barcode_source_frame(
+    media: &SceneMediaReference,
+) -> Result<RgbaFrame, String> {
+    if media.width == 0 || media.height == 0 {
+        return Err(format!(
+            "GeneratedBarcode media dimensions must be positive, got {}x{}",
+            media.width, media.height
+        ));
+    }
+    let barcode: GeneratedBarcodeSource = serde_json::from_str(&media.source)
+        .map_err(|error| format!("Invalid GeneratedBarcode media '{}': {error}", media.id))?;
+    validate_generated_barcode_source(&barcode)
+        .map_err(|message| format!("Invalid GeneratedBarcode media '{}': {message}", media.id))?;
+    let [fg_red, fg_green, fg_blue] = parse_hex_colour_source(&barcode.foreground_colour)
+        .map_err(|message| format!("Invalid GeneratedBarcode media '{}': {message}", media.id))?;
+    let [bg_red, bg_green, bg_blue] = parse_hex_colour_source(&barcode.background_colour)
+        .map_err(|message| format!("Invalid GeneratedBarcode media '{}': {message}", media.id))?;
+
+    let pixel_count = usize::try_from(media.width)
+        .ok()
+        .and_then(|width| {
+            usize::try_from(media.height)
+                .ok()
+                .and_then(|height| width.checked_mul(height))
+        })
+        .ok_or_else(|| "GeneratedBarcode media pixel count overflows".to_string())?;
+    let byte_len = pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| "GeneratedBarcode media byte length overflows".to_string())?;
+    let mut pixels = vec![0_u8; byte_len];
+    for chunk in pixels.chunks_exact_mut(4) {
+        chunk.copy_from_slice(&[bg_red, bg_green, bg_blue, 255]);
+    }
+
+    let left = barcode.horizontal_margin.min(media.width);
+    let right = media
+        .width
+        .saturating_sub(barcode.horizontal_margin.min(media.width));
+    let top = barcode.vertical_margin.min(media.height);
+    let bottom = media
+        .height
+        .saturating_sub(barcode.vertical_margin.min(media.height));
+    if right <= left || bottom <= top {
+        return RgbaFrame::from_rgba8(media.width, media.height, pixels)
+            .map_err(|error| format!("GeneratedBarcode media frame is invalid: {error:?}"));
+    }
+
+    let pattern = barcode_bar_pattern(&barcode.data);
+    let mut x = left;
+    let mut index = 0_usize;
+    while x < right {
+        let width_units = pattern[index % pattern.len()];
+        let bar_width = barcode
+            .minimum_bar_width
+            .saturating_mul(width_units as u32)
+            .max(1);
+        let draw_foreground = index % 2 == 0;
+        let end_x = (x.saturating_add(bar_width)).min(right);
+        if draw_foreground {
+            for py in top..bottom {
+                for px in x..end_x {
+                    write_particle_pixel(
+                        &mut pixels,
+                        media.width,
+                        media.height,
+                        px as i32,
+                        py as i32,
+                        [fg_red, fg_green, fg_blue, 255],
+                    );
+                }
+            }
+        }
+        x = end_x;
+        index += 1;
+    }
+
+    RgbaFrame::from_rgba8(media.width, media.height, pixels)
+        .map_err(|error| format!("GeneratedBarcode media frame is invalid: {error:?}"))
+}
+
 fn normalise_gradient_stops(
     gradient: &GeneratedGradientSource,
 ) -> Result<Vec<(f32, [u8; 3])>, String> {
@@ -161,6 +241,46 @@ fn sample_gradient_colour(stops: &[(f32, [u8; 3])], t: f32) -> [u8; 3] {
 
 fn lerp_u8(left: u8, right: u8, t: f32) -> u8 {
     ((left as f32 + (right as f32 - left as f32) * t).round()).clamp(0.0, 255.0) as u8
+}
+
+fn barcode_bar_pattern(data: &str) -> Vec<u8> {
+    let mut pattern = vec![2, 1, 1, 2, 1, 4];
+    let mut checksum = 104_u32;
+    for (position, byte) in data.bytes().enumerate() {
+        let value = byte.saturating_sub(32).min(94) as u32;
+        checksum = checksum.wrapping_add((position as u32 + 1) * value);
+        pattern.extend_from_slice(&[
+            ((value % 3) + 1) as u8,
+            (((value / 3) % 2) + 1) as u8,
+            (((value / 7) % 4) + 1) as u8,
+            (((value / 11) % 2) + 1) as u8,
+        ]);
+    }
+    pattern.extend_from_slice(&[
+        ((checksum % 4) + 1) as u8,
+        (((checksum / 5) % 3) + 1) as u8,
+        2,
+        3,
+        3,
+        1,
+        1,
+    ]);
+    pattern
+}
+
+pub(crate) fn write_particle_pixel(
+    pixels: &mut [u8],
+    width: u32,
+    height: u32,
+    x: i32,
+    y: i32,
+    colour: [u8; 4],
+) {
+    if x < 0 || y < 0 || x >= width as i32 || y >= height as i32 {
+        return;
+    }
+    let offset = ((y as u32 * width + x as u32) * 4) as usize;
+    pixels[offset..offset + 4].copy_from_slice(&colour);
 }
 
 pub(crate) fn validate_generated_barcode_source(

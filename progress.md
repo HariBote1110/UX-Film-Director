@@ -1,3 +1,20 @@
+## 2026-06-22 — フェーズ3: Rust backendのGeneratedBarcode描画をgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `build_generated_barcode_source_frame` を `rust-backend/src/generated.rs` へ抽出した。
+- barcode pattern生成ヘルパーを `generated.rs` へ移した。
+- 複数の生成描画関数で使う `write_particle_pixel` を `generated.rs` の `pub(crate)` helperへ移し、後続の生成描画関数切り出しに備えた。
+- `main.rs` は 6,369 行から 6,251 行になった。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はparticle、puzzle、colour wheelなど依存の薄い生成フレーム描画関数をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのGeneratedGradient描画をgenerated.rsへ分離
 
 ### 実施内容
