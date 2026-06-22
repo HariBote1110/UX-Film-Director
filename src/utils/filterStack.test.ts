@@ -63,6 +63,14 @@ describe('createDefaultFilter', () => {
     if (outline.type !== 'outline') throw new Error('expected outline');
     expect(outline.params.thickness).toBeGreaterThan(0);
     expect(outline.params.colour).toBe('#000000');
+
+    const displacement = createDefaultFilter('displacement_map');
+    expect(displacement.type).toBe('displacement_map');
+    if (displacement.type !== 'displacement_map') throw new Error('expected displacement map');
+    expect(displacement.params.amountX).toBe(24);
+    expect(displacement.params.amountY).toBe(12);
+    expect(displacement.params.size).toBe(128);
+    expect(displacement.params.strength).toBe(1);
   });
 });
 
@@ -72,9 +80,10 @@ describe('normaliseObjectFilters', () => {
       { id: 'x', type: 'fade' as const, enabled: true, params: { opacity: 2 } },
       { id: 'ca', type: 'colour_aberration' as const, enabled: true, params: { offsetX: -5, offsetY: 3 } },
       { id: 'ol', type: 'outline' as const, enabled: true, params: { thickness: -3, colour: '', opacity: 2 } },
+      { id: 'dm', type: 'displacement_map' as const, enabled: true, params: { amountX: -10, amountY: Number.POSITIVE_INFINITY, size: 0, strength: 2 } },
       { id: '', type: 'not-a-filter' as never, enabled: true, params: {} as never }
     ] as ObjectFilter[]);
-    expect(result).toHaveLength(3);
+    expect(result).toHaveLength(4);
     if (result[0].type !== 'fade') throw new Error('expected fade');
     expect(result[0].params.opacity).toBe(1);
     if (result[1].type !== 'colour_aberration') throw new Error('expected colour aberration');
@@ -84,6 +93,8 @@ describe('normaliseObjectFilters', () => {
     expect(result[2].params.thickness).toBe(0);
     expect(result[2].params.colour).toBe('#000000');
     expect(result[2].params.opacity).toBe(1);
+    if (result[3].type !== 'displacement_map') throw new Error('expected displacement map');
+    expect(result[3].params).toEqual({ amountX: 0, amountY: 12, size: 1, strength: 1 });
   });
 });
 

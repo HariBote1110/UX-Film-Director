@@ -3626,6 +3626,41 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('serialises 93 Displacement Map B filters as Rust scene effects', () => {
+    const layers = createDefaultLayers();
+    const displaced = baseImage({
+      id: 'displaced',
+      filters: [
+        {
+          id: 'displace-1',
+          type: 'displacement_map',
+          enabled: true,
+          params: { amountX: 24, amountY: 12, size: 128, strength: 0.75 },
+        } as any,
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [displaced],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected displacement map snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([
+      {
+        DisplacementMap: {
+          amount_x: 24,
+          amount_y: 12,
+          size: 128,
+          strength: 0.75,
+        },
+      },
+    ]);
+  });
+
   it('fails loud for visible Pixi features the shared renderer cannot represent yet', () => {
     const layers = createDefaultLayers();
     const unsupportedText: TimelineObject = {

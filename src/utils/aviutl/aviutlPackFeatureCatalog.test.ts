@@ -67,6 +67,8 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('93-contour-trace')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('93-displacement-poly')?.sourceRelativePaths).toContain('script/93/DisplacementPoly.anm');
     expect(byId.get('93-displacement-poly')?.implementationTarget).toBe('native-generated-object');
+    expect(byId.get('93-displacement-map-b')?.sourceRelativePaths).toContain('script/93/@ディスプレイスメントマップB.anm');
+    expect(byId.get('93-displacement-map-b')?.implementationTarget).toBe('rust-webgpu-effect');
     expect(byId.get('particle-standard')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('tim-aura-emission')?.sourceRelativePaths).toContain('script/てぃむ/オーラ放出.anm');
     expect(byId.get('tim-bubbles')?.sourceRelativePaths).toContain('script/てぃむ/泡.obj');
@@ -144,9 +146,10 @@ describe('AviUtlPackV4 feature catalogue', () => {
       'hksy-measured-grid',
       'hksy-anchor-line',
       '93-contour-trace',
-      '93-displacement-poly'
+      '93-displacement-poly',
+      '93-displacement-map-b'
     ];
 
-    expect(roadmapIds.slice(0, 29)).toEqual(expect.arrayContaining(priorityIds));
+    expect(roadmapIds.slice(0, 30)).toEqual(expect.arrayContaining(priorityIds));
   });
 });

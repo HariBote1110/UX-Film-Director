@@ -198,6 +198,39 @@ fn native_wgpu_applies_colour_aberration_channel_offsets() {
 }
 
 #[test]
+fn native_wgpu_applies_displacement_map_b_horizontal_sampling_offset() {
+    assert_native_matches_direct_hand_anchor(
+        scene_snapshot(vec![evaluated_clip(
+            "foreground",
+            0,
+            1.0,
+            vec![Effect::DisplacementMap {
+                amount_x: 1.0,
+                amount_y: 0.0,
+                size: 1.0,
+                strength: 1.0,
+            }],
+        )]),
+        HashMap::from([(
+            "foreground".to_string(),
+            RgbaFrame::from_rgba8(
+                4,
+                1,
+                vec![
+                    255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255,
+                ],
+            )
+            .expect("valid foreground"),
+        )]),
+        4,
+        1,
+        vec![
+            255, 0, 0, 255, 255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255,
+        ],
+    );
+}
+
+#[test]
 fn native_wgpu_applies_outline_to_transparent_neighbours() {
     assert_native_matches_direct_hand_anchor(
         scene_snapshot(vec![evaluated_clip(

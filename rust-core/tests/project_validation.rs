@@ -132,6 +132,36 @@ fn rejects_invalid_outline_effect_values() {
 }
 
 #[test]
+fn accepts_finite_displacement_map_effect_values() {
+    let mut project = valid_project();
+    project.tracks[0].clips[0]
+        .effects
+        .push(Effect::DisplacementMap {
+            amount_x: 24.0,
+            amount_y: 12.0,
+            size: 128.0,
+            strength: 0.75,
+        });
+
+    assert!(validate_project(&project).is_ok());
+}
+
+#[test]
+fn rejects_invalid_displacement_map_effect_values() {
+    let mut project = valid_project();
+    project.tracks[0].clips[0]
+        .effects
+        .push(Effect::DisplacementMap {
+            amount_x: f32::NAN,
+            amount_y: 12.0,
+            size: 0.0,
+            strength: 2.0,
+        });
+
+    assert!(validation_codes(&project).contains(&ValidationCode::NonFiniteNumber));
+}
+
+#[test]
 fn rejects_invalid_wipe_effect_progress() {
     let mut project = valid_project();
     project.tracks[0].clips[0].effects.push(Effect::Wipe {

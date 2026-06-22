@@ -273,6 +273,13 @@ fn scene_snapshot_serialises_with_renderer_boundary_field_names() {
                         "intensity": 0.8,
                         "colour": [1.0, 0.95686275, 0.7607843]
                     }
+                }, {
+                    "DisplacementMap": {
+                        "amount_x": 24.0,
+                        "amount_y": 12.0,
+                        "size": 128.0,
+                        "strength": 0.75
+                    }
                 }]
             }]
         })

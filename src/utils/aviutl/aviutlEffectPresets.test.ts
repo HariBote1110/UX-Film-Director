@@ -40,7 +40,8 @@ describe('AviUtlPackV4 effect presets', () => {
       { id: 'edge-outline-soft', sourceCandidateId: 'tim-edge-outline', filterType: 'outline' },
       { id: 'colour-aberration-rgb', sourceCandidateId: 'tim-colour-aberration', filterType: 'colour_aberration' },
       { id: 'fan-clipping-diagonal', sourceCandidateId: 'fan-clipping-r', filterType: 'clipping' },
-      { id: '93-spotlight-soft', sourceCandidateId: '93-spotlight', filterType: 'spot_light' }
+      { id: '93-spotlight-soft', sourceCandidateId: '93-spotlight', filterType: 'spot_light' },
+      { id: '93-displacement-map-b-wave', sourceCandidateId: '93-displacement-map-b', filterType: 'displacement_map' }
     ]);
   });
 
@@ -69,6 +70,11 @@ describe('AviUtlPackV4 effect presets', () => {
       type: 'spot_light',
       enabled: true,
       params: { centreX: 0.5, centreY: 0.5, radius: 0.65, intensity: 0.75, colour: '#fff4c2' }
+    });
+    expect(buildAviUtlEffectPresetFilter('93-displacement-map-b-wave')).toMatchObject({
+      type: 'displacement_map',
+      enabled: true,
+      params: { amountX: 24, amountY: 12, size: 128, strength: 1 }
     });
   });
 
