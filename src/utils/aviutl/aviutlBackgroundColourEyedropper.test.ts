@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { TimelineObject } from '../../types';
 import {
   buildAviUtlBackgroundColourPalettePatch,
+  buildAviUtlHksyPalettePatch,
   extractAviUtlBackgroundColourPalette
 } from './aviutlBackgroundColourEyedropper';
 
@@ -164,6 +165,65 @@ describe('93 背景色スポイト palette extraction', () => {
       foregroundColour: '#e85d75',
       secondaryColour: '#48cae4',
       backgroundColour: '#03045e'
+    });
+  });
+
+  it('builds an hksy palette patch from scene colours while excluding the edited object', () => {
+    const objects = [
+      {
+        ...baseObject,
+        id: 'hksy-1',
+        type: 'hksy_checker_grid',
+        name: 'Edited hksy checker',
+        width: 320,
+        height: 180,
+        cellSize: 56,
+        lineWidth: 0,
+        checkerEnabled: true,
+        gridEnabled: false,
+        foregroundColour: '#ffffff',
+        secondaryColour: '#888888',
+        backgroundColour: '#000000',
+        paletteColours: ['#ffffff', '#888888']
+      },
+      {
+        ...baseObject,
+        id: 'shape-1',
+        type: 'shape',
+        name: 'Palette shape',
+        fill: '#f72585',
+        width: 120,
+        height: 90,
+        shapeType: 'rect'
+      },
+      {
+        ...baseObject,
+        id: 'getcolor-1',
+        type: 'getcolor_dot_field',
+        name: 'Palette GetColor',
+        foregroundColour: '#4cc9f0',
+        secondaryColour: '#7209b7',
+        backgroundColour: '#03045e',
+        width: 320,
+        height: 180,
+        columns: 8,
+        rows: 6,
+        dotSize: 8,
+        sizeInfluence: 1,
+        luminanceInfluence: 1,
+        hueShiftDegrees: 0,
+        alternateRows: false,
+        seed: 93
+      }
+    ] as TimelineObject[];
+
+    expect(buildAviUtlHksyPalettePatch(objects, {
+      excludeObjectIds: ['hksy-1']
+    })).toEqual({
+      foregroundColour: '#f72585',
+      secondaryColour: '#4cc9f0',
+      backgroundColour: '#03045e',
+      paletteColours: ['#f72585', '#4cc9f0', '#7209b7', '#03045e']
     });
   });
 });

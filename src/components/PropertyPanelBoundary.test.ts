@@ -114,6 +114,21 @@ describe('PropertyPanel GetColor sampling controls', () => {
   });
 });
 
+describe('PropertyPanel hksy palette controls', () => {
+  it('exposes 93 background colour eyedropper palette controls for Rust-native hksy objects', () => {
+    const code = source();
+
+    expect(code).toContain('HksyCheckerGridObject');
+    expect(code).toContain("selectedObject.type === 'hksy_checker_grid'");
+    expect(code).toContain('hksy Checker/Grid');
+    expect(code).toContain('hksyBackgroundColourPalette');
+    expect(code).toContain('handleApplyAviUtlHksyBackgroundColourPalette');
+    expect(code).toContain('buildAviUtlHksyPalettePatch');
+    expect(code).toContain('93 Background Colour Eyedropper');
+    expect(code).toContain('背景色スポイトpaletteをhksyへ適用');
+  });
+});
+
 describe('PropertyPanel 93 PlainEffector Line controls', () => {
   it('exposes editable controls for Rust-native PlainEffector Line parameters', () => {
     const code = source();
