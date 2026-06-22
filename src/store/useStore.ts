@@ -4,16 +4,10 @@ import {
   VideoObject,
   SubjectCropNormKeyframe,
   ProjectSettings,
-  LayerState,
-  FilterType,
-  GradientFill,
   CameraState,
   SceneData,
-  PreviewDisplayMode,
   StageCamera3D,
-  EditorMode
 } from '../types';
-import { MAX_LAYERS } from '../components/timelineConstants';
 import {
   createDefaultCamera,
   createDefaultLayers,
@@ -45,337 +39,36 @@ import {
   insertLayerTrack as applyInsertLayerTrack,
   swapLayerTracks as applySwapLayerTracks
 } from '../utils/layerTrackOps';
-import type { CoreMlAnimalObservation } from '../utils/coremlTrackIpc';
-import type { ProjectExportFrameSourcePlanResult } from '../utils/projectExportFrameCanvas';
-import type { RustBackendNativeRenderOutputReleaseEvent } from '../utils/rustBackendVideoEncodeExport';
-import type { SharedRendererExportFrameSourceBlockedReason } from '../utils/sharedRendererExportFrameSource';
-import { normaliseRustFrameSourceBlockedFallback } from '../utils/rustFrameSourceBlockedFallback';
+import type { AppState } from './storeTypes';
+import {
+  buildClipboardState,
+  calculateAutoDuration,
+  clampLayerIndex,
+  cloneTimelineObject,
+  getSelectedObjects,
+  isLayerLocked,
+  KEYFRAME_TIME_EPSILON,
+  needsDurationRecalculation,
+  normaliseLayers,
+  normaliseSceneObjectList,
+  PREVIEW_MODE_STORAGE_KEY,
+  readStoredPreviewMode,
+  syncObjectKeyframes,
+} from './storeHelpers';
+import { createExportSlice } from './slices/exportSlice';
 
-interface ClipboardState {
-  objects: TimelineObject[];
-  anchorStartTime: number;
-  anchorLayer: number;
-  anchorX: number;
-  anchorY: number;
-}
-
-interface HistorySnapshot {
-  objects: TimelineObject[];
-  layers: LayerState[];
-  camera?: CameraState;
-  stageCamera3D?: StageCamera3D;
-}
-
-/** プレビュー上の Vision 検出枠（トラッキングなし・単フレーム）。プロジェクトには保存しない。 */
-export type VisionDetectionOverlayState = {
-  videoId: string;
-  mediaTimeSec: number;
-  observations: CoreMlAnimalObservation[];
-};
-
-/** 書き出し処理のフェーズ。 */
-export type ExportPhase = 'preparing' | 'transcoding' | 'rendering' | 'saving' | 'cancelling';
-
-/** 書き出しの進捗状況。 */
-export interface ExportProgress {
-  phase: ExportPhase;
-  /** レンダリング済みフレーム数。 */
-  currentFrame: number;
-  /** 総フレーム数。0 のときは不確定（プログレスバーを不確定表示）。 */
-  totalFrames: number;
-  /** Rust export が現在待っている工程。 */
-  stepDetail?: string;
-  /** 現在の書き出し工程が始まった時刻。UI上の経過表示に使う。 */
-  startedAtMs?: number;
-  /** Rust/shared renderer frame source plan の失敗診断。 */
-  exportFrameSourcePlanFailure?: Pick<Extract<ProjectExportFrameSourcePlanResult, { ok: false }>, 'reason' | 'detail'>;
-  /** Rust/shared renderer frame source がblockedになった時の診断。 */
-  rustFrameSourceBlocked?: {
-    reason: SharedRendererExportFrameSourceBlockedReason;
-    frameIndex: number;
-    legacyCanvasFallbackAllowed: boolean;
-    detail?: string;
-  };
-  /** Rust native render output のrelease診断。 */
-  nativeRenderOutputRelease?: RustBackendNativeRenderOutputReleaseEvent;
-}
-
-/** 書き出し終了後にも残すRust移行用診断。 */
-export interface ExportDiagnostics {
-  exportFrameSourcePlanFailure?: ExportProgress['exportFrameSourcePlanFailure'];
-  rustFrameSourceBlocked?: ExportProgress['rustFrameSourceBlocked'];
-  nativeRenderOutputRelease?: RustBackendNativeRenderOutputReleaseEvent;
-}
-
-const collectExportDiagnostics = (progress: ExportProgress | null): ExportDiagnostics | null => {
-  if (!progress) return null;
-  const diagnostics: ExportDiagnostics = {};
-  if (progress.exportFrameSourcePlanFailure) {
-    diagnostics.exportFrameSourcePlanFailure = progress.exportFrameSourcePlanFailure;
-  }
-  if (progress.rustFrameSourceBlocked) {
-    diagnostics.rustFrameSourceBlocked = progress.rustFrameSourceBlocked;
-  }
-  if (progress.nativeRenderOutputRelease) {
-    diagnostics.nativeRenderOutputRelease = progress.nativeRenderOutputRelease;
-  }
-  return diagnostics.exportFrameSourcePlanFailure
-    || diagnostics.rustFrameSourceBlocked
-    || diagnostics.nativeRenderOutputRelease
-    ? diagnostics
-    : null;
-};
-
-const normaliseExportProgressDiagnostics = (progress: ExportProgress): ExportProgress => ({
-  ...progress,
-  ...(progress.rustFrameSourceBlocked ? {
-    rustFrameSourceBlocked: normaliseRustFrameSourceBlockedFallback(progress.rustFrameSourceBlocked),
-  } : {}),
-});
-
-interface AppState {
-  // Project State
-  language: 'ja' | 'en';
-  isProjectLoaded: boolean;
-  projectSettings: ProjectSettings;
-  
-  // Export State
-  isExporting: boolean;
-  /** 書き出しの進捗状況（モーダル表示用）。書き出し中以外は null。 */
-  exportProgress: ExportProgress | null;
-  /** 直近のRust export診断。書き出し終了後の調査用に保持する。 */
-  lastExportDiagnostics: ExportDiagnostics | null;
-  /** ユーザーが書き出しのキャンセルを要求したか。 */
-  exportCancelRequested: boolean;
-
-  // Snapshot State
-  isSnapshotRequested: boolean;
-
-  // Preview panel (workspace)
-  previewDisplayMode: PreviewDisplayMode;
-
-  /** macOS Vision: 検出した猫/犬の枠をプレビュー動画上に重ね描きする */
-  visionDetectionPreviewEnabled: boolean;
-  /** 再生・スクラブに合わせて detectSubjects を自動実行する（プレビュー ON 推奨） */
-  visionDetectionRealtimeEnabled: boolean;
-  visionDetectionOverlay: VisionDetectionOverlayState | null;
-
-  // Editor State
-  currentTime: number;
-  duration: number;
-  isPlaying: boolean;
-  layers: LayerState[];
-  objects: TimelineObject[];
-  camera: CameraState;
-  stageCamera3D: StageCamera3D;
-  scenes: SceneData[];
-  activeSceneId: string;
-  selectedId: string | null;
-  selectedIds: string[];
-  clipboard: ClipboardState | null;
-  
-  // History State for Undo/Redo
-  pastStates: HistorySnapshot[];
-  futureStates: HistorySnapshot[];
-
-  // Actions
-  setLanguage: (lang: 'ja' | 'en') => void;
-  initializeProject: (settings: ProjectSettings) => void;
-  loadProject: (settings: ProjectSettings, scenes: SceneData[], activeSceneId: string) => void;
-  setCamera: (patch: Partial<CameraState>) => void;
-  setStageCamera3D: (patch: {
-    position?: Partial<StageCamera3D['position']>;
-    target?: Partial<StageCamera3D['target']>;
-  }) => void;
-  setEditorMode: (mode: EditorMode) => void;
-  switchScene: (sceneId: string) => void;
-  addScene: () => void;
-  deleteScene: (sceneId: string) => void;
-  renameScene: (sceneId: string, name: string) => void;
-  setLayerName: (layer: number, name: string) => void;
-  toggleLayerVisibility: (layer: number) => void;
-  toggleLayerLock: (layer: number) => void;
-  swapLayerTracks: (indexA: number, indexB: number) => void;
-  insertLayerTrackAt: (insertAt: number) => void;
-  deleteLayerTrackAt: (layerIndex: number) => void;
-  setTime: (time: number) => void;
-  setDuration: (duration: number) => void;
-  advanceTime: (deltaTime: number) => void;
-  togglePlay: () => void;
-  setIsPlaying: (isPlaying: boolean) => void;
-  setExporting: (isExporting: boolean) => void;
-  setExportProgress: (progress: ExportProgress | null) => void;
-  requestExportCancel: () => void;
-
-  // Snapshot Actions
-  requestSnapshot: () => void;
-  finishSnapshot: () => void;
-
-  setPreviewDisplayMode: (mode: PreviewDisplayMode) => void;
-  setVisionDetectionPreviewEnabled: (enabled: boolean) => void;
-  setVisionDetectionRealtimeEnabled: (enabled: boolean) => void;
-  setVisionDetectionOverlay: (overlay: VisionDetectionOverlayState | null) => void;
-  
-  // History Actions
-  pushHistory: () => void;
-  undo: () => void;
-  redo: () => void;
-
-  addObject: (obj: TimelineObject) => void;
-  updateObject: (id: string, newProps: Partial<TimelineObject>) => void;
-  addObjectFilter: (objectId: string, filterType: FilterType) => void;
-  toggleObjectFilter: (objectId: string, filterId: string) => void;
-  moveObjectFilter: (objectId: string, filterId: string, direction: 'up' | 'down') => void;
-  removeObjectFilter: (objectId: string, filterId: string) => void;
-  updateObjectFilterParams: (objectId: string, filterId: string, params: Record<string, unknown>) => void;
-  deleteObject: (id: string) => void;
-  deleteSelectedObjects: () => void;
-  splitObject: () => void;
-  copySelectedObjects: () => void;
-  cutSelectedObjects: () => void;
-  pasteClipboardObjects: () => void;
-  duplicateSelectedObjects: () => void;
-  groupSelectedObjects: () => void;
-  ungroupSelectedObjects: () => void;
-  setGroupGradient: (groupId: string, gradient: GradientFill | undefined) => void;
-  selectObject: (id: string | null) => void;
-  toggleObjectSelection: (id: string) => void;
-  selectObjects: (ids: string[], primaryId?: string | null) => void;
-  clearSelection: () => void;
-}
-
-// 期間計算ヘルパー
-const calculateAutoDuration = (objects: TimelineObject[]) => {
-  if (objects.length === 0) return 30;
-  const maxEndTime = Math.max(...objects.map(o => o.startTime + o.duration));
-  return Math.max(maxEndTime, 10);
-};
-
-const needsDurationRecalculation = (newProps: Partial<TimelineObject>) => {
-  return Object.prototype.hasOwnProperty.call(newProps, 'startTime')
-    || Object.prototype.hasOwnProperty.call(newProps, 'duration');
-};
-
-const KEYFRAME_TIME_EPSILON = 0.0001;
-
-const clampLayerIndex = (value: number): number => {
-  return Math.max(0, Math.min(MAX_LAYERS - 1, Math.round(value)));
-};
-
-const normaliseLayers = (layers?: LayerState[]): LayerState[] => {
-  const defaults = createDefaultLayers();
-  if (!Array.isArray(layers)) return defaults;
-
-  return defaults.map((defaultLayer, index) => {
-    const candidate = layers[index];
-    if (!candidate || typeof candidate !== 'object') {
-      return defaultLayer;
-    }
-    const normalisedName = typeof candidate.name === 'string' && candidate.name.trim() !== ''
-      ? candidate.name
-      : defaultLayer.name;
-    return {
-      name: normalisedName,
-      visible: candidate.visible !== false,
-      locked: candidate.locked === true
-    };
-  });
-};
-
-const normaliseObjectLayer = (object: TimelineObject): TimelineObject => {
-  const nextLayer = clampLayerIndex(object.layer);
-  if (nextLayer === object.layer) return object;
-  return { ...object, layer: nextLayer };
-};
-
-const isLayerLocked = (layers: LayerState[], layer: number): boolean => {
-  if (layer < 0 || layer >= layers.length) return false;
-  return layers[layer].locked;
-};
-
-const cloneTimelineObject = (object: TimelineObject): TimelineObject => {
-  return JSON.parse(JSON.stringify(object)) as TimelineObject;
-};
-
-const buildClipboardState = (objects: TimelineObject[]): ClipboardState => {
-  const sorted = objects
-    .slice()
-    .sort((a, b) => a.startTime - b.startTime || a.layer - b.layer);
-  return {
-    objects: sorted.map(cloneTimelineObject),
-    anchorStartTime: Math.min(...sorted.map((obj) => obj.startTime)),
-    anchorLayer: Math.min(...sorted.map((obj) => obj.layer)),
-    anchorX: Math.min(...sorted.map((obj) => obj.x)),
-    anchorY: Math.min(...sorted.map((obj) => obj.y))
-  };
-};
-
-const getCurrentSelection = (state: AppState): string[] => {
-  if (state.selectedIds.length > 0) {
-    return state.selectedIds.filter((id, index, list) => list.indexOf(id) === index);
-  }
-  if (state.selectedId) {
-    return [state.selectedId];
-  }
-  return [];
-};
-
-const getSelectedObjects = (state: AppState): TimelineObject[] => {
-  const selectedIds = getCurrentSelection(state);
-  if (selectedIds.length === 0) return [];
-  const selectedSet = new Set(selectedIds);
-  return state.objects.filter((obj) => selectedSet.has(obj.id));
-};
-
-const normaliseSceneObjectList = (objects: TimelineObject[]): TimelineObject[] => {
-  return objects
-    .map(cloneTimelineObject)
-    .map(normaliseObjectLayer)
-    .map(syncLegacyEffectsWithFilters)
-    .map(syncObjectKeyframes);
-};
-
-const PREVIEW_MODE_STORAGE_KEY = 'uxfd-preview-display-mode';
-
-const readStoredPreviewMode = (): PreviewDisplayMode => {
-  try {
-    const raw = localStorage.getItem(PREVIEW_MODE_STORAGE_KEY);
-    if (raw === 'autoFit' || raw === 'pixelPerfect') return raw;
-  } catch {
-    /* ignore */
-  }
-  return 'autoFit';
-};
-
-const syncObjectKeyframes = (object: TimelineObject): TimelineObject => {
-  const keyframes = normaliseKeyframesForObject(object, object.keyframes);
-  if (keyframes.length === 0) {
-    if (!object.keyframes || object.keyframes.length === 0) return object;
-    return { ...object, keyframes: undefined };
-  }
-
-  const first = keyframes[0];
-  const last = keyframes[keyframes.length - 1];
-  return {
-    ...object,
-    keyframes,
-    enableAnimation: keyframes.length >= 2,
-    x: first.x,
-    y: first.y,
-    endX: last.x,
-    endY: last.y,
-    easing: first.easing ?? object.easing ?? 'linear'
-  };
-};
+export type {
+  ExportDiagnostics,
+  ExportPhase,
+  ExportProgress,
+  VisionDetectionOverlayState,
+} from './storeTypes';
 
 export const useStore = create<AppState>((set, get) => ({
   language: 'ja',
   isProjectLoaded: false,
   projectSettings: { width: 1920, height: 1080, fps: 60, sampleRate: 44100 },
-  isExporting: false,
-  exportProgress: null,
-  lastExportDiagnostics: null,
-  exportCancelRequested: false,
+  ...createExportSlice(set),
   isSnapshotRequested: false,
   previewDisplayMode: readStoredPreviewMode(),
   visionDetectionPreviewEnabled: false,
@@ -770,38 +463,6 @@ export const useStore = create<AppState>((set, get) => ({
   }),
 
   setIsPlaying: (isPlaying) => set({ isPlaying }),
-  setExporting: (isExporting) => set((state) => (
-    isExporting
-      // 書き出し開始時は進捗・キャンセル要求・前回診断を初期化する。
-      ? {
-          isExporting: true,
-          exportProgress: { phase: 'preparing', currentFrame: 0, totalFrames: 0 },
-          lastExportDiagnostics: null,
-          exportCancelRequested: false,
-        }
-      // 終了時は進捗をクリアし、Rust移行用診断だけ保持する。
-      : {
-          isExporting: false,
-          exportProgress: null,
-          lastExportDiagnostics: collectExportDiagnostics(state.exportProgress),
-          exportCancelRequested: false,
-        }
-  )),
-  setExportProgress: (exportProgress) => set({
-    exportProgress: exportProgress
-      ? normaliseExportProgressDiagnostics(exportProgress)
-      : null,
-  }),
-  requestExportCancel: () => set((state) => (
-    state.isExporting
-      ? {
-          exportCancelRequested: true,
-          exportProgress: state.exportProgress
-            ? { ...state.exportProgress, phase: 'cancelling' }
-            : { phase: 'cancelling', currentFrame: 0, totalFrames: 0 },
-        }
-      : {}
-  )),
 
   requestSnapshot: () => set({ isSnapshotRequested: true }),
   finishSnapshot: () => set({ isSnapshotRequested: false }),

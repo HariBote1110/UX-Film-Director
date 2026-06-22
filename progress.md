@@ -1,3 +1,20 @@
+## 2026-06-22 — フェーズ2: useStoreスライス化の前処理とexportSlice抽出
+
+### 実施内容
+- `glittery-sauteeing-diffie.md` のフェーズ2-1に着手し、`useStore.ts` から状態型を `src/store/storeTypes.ts` へ抽出した。
+- `useStore.ts` 内の純粋ヘルパーを `src/store/storeHelpers.ts` へ抽出し、ストア本体をZustand合成へ寄せる足場を作った。
+- 書き出し状態と進捗操作を `src/store/slices/exportSlice.ts` へ切り出し、`useStore` は `createExportSlice(set)` を合成する形にした。
+- 外部から `../store/useStore` 経由で参照されている `ExportProgress` / `ExportDiagnostics` などの型exportは維持した。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `npm test -- --run src/store src/components/ExportProgressModal.test.ts src/utils/exportProgressDiagnostics.test.ts src/utils/exportDiagnosticsLog.test.ts src/utils/filterStack.test.ts src/utils/keyframes.test.ts src/utils/layerTrackOps.test.ts --reporter=dot` は8ファイル73件成功した。
+- `npm test -- --run src/store src/components/ExportProgressModal.test.ts src/utils/exportProgressDiagnostics.test.ts src/utils/exportDiagnosticsLog.test.ts src/hooks/useProjectExportBoundary.test.ts --reporter=dot` は6ファイル43件成功した。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の抽出由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- `playbackSlice`、`selectionSlice`、`historySlice` のように依存が比較的少ない領域から順に切り出し、最後にオブジェクトCRUDとシーン操作へ進む。
+
 ## 2026-06-22 — utilsのAviUtlプリセット群をaviutlへ集約
 
 ### 実施内容
