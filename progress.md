@@ -6,20 +6,21 @@
 - PropertyPanelへTop、Bottom、Left、Right、Fill編集UIを追加し、AviUtl Effectsには `93 領域拡張S` presetを追加した。
 - native-wgpuの `solid_composite.wgsl` でsource bounds判定を上下左右の拡張量へ対応させ、拡張範囲では端画素をclampして埋める初期互換を追加した。
 - 拡張範囲が既存のwipe/clipping判定で落ちないよう、拡張後にclampしたsource座標でフィルタ判定へ渡すようにした。
+- 追加修正として、`fill=false` のときは拡張範囲を透明のまま残す分岐をWGSLへ追加した。
 - reference rendererはAreaExpandをgain非変更の効果として許可し、Rust境界の網羅matchを更新した。
-- 版を `0.1.1-Beta-322a` に更新した。
+- 版を `0.1.1-Beta-322b` に更新した。
 
 ### 検証
 - `npm test -- --run src/utils/filterStack.test.ts src/utils/aviutl/aviutlEffectPresets.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts src/utils/rustSceneSnapshot.test.ts --reporter=dot` は97件成功した。
 - `cargo test --manifest-path rust-core/Cargo.toml --test project_validation area_expand -- --nocapture` は2件成功した。
 - `cargo test --manifest-path native-wgpu-renderer/Cargo.toml native_wgpu_applies_area_expand_fill_to_right_edge -- --nocapture` は1件成功した。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml native_wgpu_keeps_area_expand_transparent_when_fill_is_disabled -- --nocapture` は1件成功した。
 - `cargo test --manifest-path reference-renderer/Cargo.toml -- --nocapture` は12件成功した。
 - `npm test -- --run src/utils/packageScripts.test.ts --reporter=dot` は6件成功した。
 - `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の93 領域拡張S由来の型エラーは出ていない。
 
 ### 残課題・次のステップ
-- 現時点の93 領域拡張SはAviUtlスクリプトのアンカー指定、上下左右リンク、透明拡張、後段クリッピングとの完全な合成順互換ではなく、Rust/WebGPU上の端画素fill拡張初期互換。
-- `fill=false` はUI/scene/schemaに保持しているが、shader上は初期互換として拡張範囲を端画素fillで扱っている。後続で透明拡張モードを分岐する。
+- 現時点の93 領域拡張SはAviUtlスクリプトのアンカー指定、上下左右リンク、後段クリッピングとの完全な合成順互換ではなく、Rust/WebGPU上の端画素fill/透明拡張初期互換。
 - 次は `@effect-B.anm` のクリッピングS派生、GetColor未移植派生、またはhksy残候補へ進む。
 
 ## 2026-06-22 — P1: 93 簡易変形(oct)をRust/WebGPUフィルタへ追加
