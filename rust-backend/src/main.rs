@@ -4,6 +4,7 @@ mod encode;
 mod frames;
 mod generated;
 mod media;
+mod native_render;
 mod native_shared;
 mod params;
 mod proxy;
@@ -13,9 +14,7 @@ mod sessions;
 mod state;
 mod transcode;
 
-use cpu_simple_video::{
-    try_render_simple_video_frame, try_render_simple_video_frame_to_shared_ring,
-};
+use cpu_simple_video::try_render_simple_video_frame;
 use decode::{
     handle_decode_release_frame, handle_decode_request_frame, handle_decode_start,
     handle_decode_stop,
@@ -28,6 +27,10 @@ use generated::*;
 use media::{
     handle_audio_waveform_samples, handle_media_probe, handle_psd_await_blob, handle_psd_parse,
 };
+use native_render::{
+    get_or_create_native_wgpu_renderer, handle_native_render_shared_frame,
+    native_render_source_error_code,
+};
 use native_shared::{handle_release_native_render_shared_frame, read_native_render_source_frame};
 use params::*;
 use proxy::handle_proxy_generate;
@@ -39,9 +42,7 @@ use std::fs;
 use std::io::{self, BufRead, Write};
 use transcode::handle_encode_transcode_video;
 use uxfd_golden_harness::{load_rgba_jpeg, load_rgba_png, RgbaFrame};
-use uxfd_native_wgpu_renderer::{
-    NativeAudioWaveformInput, NativeWgpuRenderError, NativeWgpuRenderer,
-};
+use uxfd_native_wgpu_renderer::{NativeAudioWaveformInput, NativeWgpuRenderError};
 use uxfd_rust_core::{AudioWaveformSource, MediaKind, SceneMediaReference, SceneSnapshot};
 use uxfd_sidecar_protocol::{ColourMetadata, FrameFormat};
 
@@ -348,149 +349,7 @@ fn handle_encode_write_native_frame(
 }
 
 #[cfg(unix)]
-fn handle_native_render_shared_frame(
-    id: u64,
-    params: Value,
-    state: &mut BackendState,
-) -> RpcResponse {
-    let parsed = match serde_json::from_value::<NativeRenderSharedFrameParams>(params) {
-        Ok(value) => value,
-        Err(error) => {
-            return response_error(
-                id,
-                -32602,
-                &format!("Invalid render.nativeSharedFrame params: {error}"),
-            );
-        }
-    };
-
-    if parsed.slot_count == 0 {
-        return response_error(id, -32602, "slotCount must be greater than zero");
-    }
-    let sources =
-        match collect_native_render_sources(&parsed.snapshot, &parsed.media, &parsed.sources) {
-            Ok(value) => value,
-            Err(message) => {
-                return response_error(id, native_render_source_error_code(&message), &message);
-            }
-        };
-    let audio_waveforms = match collect_native_render_audio_waveforms(&parsed.audio_waveforms) {
-        Ok(value) => value,
-        Err(message) => return response_error(id, -32602, &message),
-    };
-    if sources.is_empty() && audio_waveforms.is_empty() {
-        return response_error(
-            id,
-            -32602,
-            "sources, Image media, SolidColour media, or audioWaveforms must include at least one render source",
-        );
-    }
-
-    if audio_waveforms.is_empty() {
-        match try_render_simple_video_frame_to_shared_ring(
-            &parsed.snapshot,
-            &parsed.media,
-            &sources,
-            parsed.width,
-            parsed.height,
-            &parsed.memory_id,
-            parsed.slot_count,
-            parsed.pts_frame,
-        ) {
-            Ok(Some(render)) => {
-                let frame = render.shared_frame.clone();
-                let slot_count = render.slot_count;
-                let slot_byte_len = render.slot_byte_len;
-                state
-                    .native_render_outputs
-                    .insert(parsed.memory_id.clone(), render.ring);
-
-                return RpcResponse {
-                    id,
-                    ok: true,
-                    result: Some(json!({
-                        "rendered": true,
-                        "renderPath": "cpuSimpleVideoComposite",
-                        "renderId": parsed.render_id,
-                        "memoryId": parsed.memory_id,
-                        "slotCount": slot_count,
-                        "slotByteLen": slot_byte_len,
-                        "frame": frame,
-                    })),
-                    error: None,
-                };
-            }
-            Ok(None) => {}
-            Err(message) => {
-                return response_error(
-                    id,
-                    -32071,
-                    &format!("Native CPU simple video render failed: {message}"),
-                );
-            }
-        }
-    }
-
-    let renderer = match get_or_create_native_wgpu_renderer(state, parsed.width, parsed.height) {
-        Ok(value) => value,
-        Err(NativeWgpuRenderError::AdapterUnavailable) => {
-            return response_error(id, -32070, "Native WebGPU adapter is unavailable");
-        }
-        Err(error) => {
-            return response_error(
-                id,
-                -32071,
-                &format!("Native WebGPU renderer setup failed: {error:?}"),
-            );
-        }
-    };
-
-    let render =
-        match pollster::block_on(renderer.render_frame_to_shared_ring_with_audio_waveforms(
-            &parsed.snapshot,
-            &sources,
-            &audio_waveforms,
-            &parsed.memory_id,
-            parsed.slot_count,
-            parsed.pts_frame,
-        )) {
-            Ok(value) => value,
-            Err(NativeWgpuRenderError::AdapterUnavailable) => {
-                return response_error(id, -32070, "Native WebGPU adapter is unavailable");
-            }
-            Err(error) => {
-                return response_error(
-                    id,
-                    -32071,
-                    &format!("Native WebGPU render failed: {error:?}"),
-                );
-            }
-        };
-
-    let frame = render.shared_frame.clone();
-    let slot_count = render.slot_count;
-    let slot_byte_len = render.slot_byte_len;
-    state
-        .native_render_outputs
-        .insert(parsed.memory_id.clone(), render.ring);
-
-    RpcResponse {
-        id,
-        ok: true,
-        result: Some(json!({
-            "rendered": true,
-            "renderId": parsed.render_id,
-            "memoryId": parsed.memory_id,
-            "slotCount": slot_count,
-            "slotByteLen": slot_byte_len,
-            "frame": frame,
-        })),
-        error: None,
-    }
-}
-
-#[cfg(unix)]
-fn collect_native_render_sources(
+pub(crate) fn collect_native_render_sources(
     snapshot: &SceneSnapshot,
     media_items: &[SceneMediaReference],
     shared_sources: &[NativeRenderSharedFrameSource],
@@ -576,7 +435,7 @@ fn collect_native_render_sources(
     Ok(sources)
 }
 
-fn collect_native_render_audio_waveforms(
+pub(crate) fn collect_native_render_audio_waveforms(
     waveforms: &[NativeRenderAudioWaveformSource],
 ) -> Result<Vec<NativeAudioWaveformInput>, String> {
     waveforms
@@ -604,39 +463,6 @@ fn source_frame_for_media(snapshot: &SceneSnapshot, media_id: &str) -> u64 {
         .find(|clip| clip.media_id == media_id)
         .map(|clip| clip.source_frame)
         .unwrap_or(0)
-}
-
-fn native_render_source_error_code(message: &str) -> i64 {
-    if message.starts_with("Failed to attach native render source shared memory")
-        || message.starts_with("Failed to read native render source frame")
-        || message.starts_with("Failed to release native render source frame")
-    {
-        -32072
-    } else {
-        -32602
-    }
-}
-
-fn get_or_create_native_wgpu_renderer(
-    state: &mut BackendState,
-    width: u32,
-    height: u32,
-) -> Result<&NativeWgpuRenderer, NativeWgpuRenderError> {
-    let needs_new_renderer = state
-        .native_wgpu_renderer
-        .as_ref()
-        .map(|renderer| renderer.width() != width || renderer.height() != height)
-        .unwrap_or(true);
-
-    if needs_new_renderer {
-        state.native_wgpu_renderer =
-            Some(pollster::block_on(NativeWgpuRenderer::new(width, height))?);
-    }
-
-    Ok(state
-        .native_wgpu_renderer
-        .as_ref()
-        .expect("native WGPU renderer should be present after creation"))
 }
 
 fn build_solid_colour_source_frame(media: &SceneMediaReference) -> Result<RgbaFrame, String> {
@@ -6469,19 +6295,6 @@ fn parse_hex_colour_source(source: &str) -> Result<[u8; 3], String> {
         .map_err(|_| "source must be a #rrggbb hex colour".to_string())?;
 
     Ok([red, green, blue])
-}
-
-#[cfg(not(unix))]
-fn handle_native_render_shared_frame(
-    id: u64,
-    _params: Value,
-    _state: &mut BackendState,
-) -> RpcResponse {
-    response_error(
-        id,
-        -32070,
-        "render.nativeSharedFrame requires POSIX shared memory support",
-    )
 }
 
 #[cfg(test)]
