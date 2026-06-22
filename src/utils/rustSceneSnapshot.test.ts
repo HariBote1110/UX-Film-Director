@@ -3661,6 +3661,42 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('serialises 93 fake depth of field filters as Rust scene effects', () => {
+    const layers = createDefaultLayers();
+    const focused = baseImage({
+      id: 'focused',
+      filters: [
+        {
+          id: 'dof-1',
+          type: 'fake_dof',
+          enabled: true,
+          params: { focusX: 0.5, focusY: 0.5, focusRadius: 0.25, blur: 8, strength: 0.75 },
+        } as any,
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [focused],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected fake DOF snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([
+      {
+        FakeDof: {
+          focus_x: 0.5,
+          focus_y: 0.5,
+          focus_radius: 0.25,
+          blur: 8,
+          strength: 0.75,
+        },
+      },
+    ]);
+  });
+
   it('fails loud for visible Pixi features the shared renderer cannot represent yet', () => {
     const layers = createDefaultLayers();
     const unsupportedText: TimelineObject = {

@@ -162,6 +162,34 @@ fn rejects_invalid_displacement_map_effect_values() {
 }
 
 #[test]
+fn accepts_finite_fake_dof_effect_values() {
+    let mut project = valid_project();
+    project.tracks[0].clips[0].effects.push(Effect::FakeDof {
+        focus_x: 0.5,
+        focus_y: 0.5,
+        focus_radius: 0.25,
+        blur: 8.0,
+        strength: 0.75,
+    });
+
+    assert!(validate_project(&project).is_ok());
+}
+
+#[test]
+fn rejects_invalid_fake_dof_effect_values() {
+    let mut project = valid_project();
+    project.tracks[0].clips[0].effects.push(Effect::FakeDof {
+        focus_x: f32::NAN,
+        focus_y: 0.5,
+        focus_radius: 0.0,
+        blur: -1.0,
+        strength: 2.0,
+    });
+
+    assert!(validation_codes(&project).contains(&ValidationCode::NonFiniteNumber));
+}
+
+#[test]
 fn rejects_invalid_wipe_effect_progress() {
     let mut project = valid_project();
     project.tracks[0].clips[0].effects.push(Effect::Wipe {

@@ -71,6 +71,15 @@ describe('createDefaultFilter', () => {
     expect(displacement.params.amountY).toBe(12);
     expect(displacement.params.size).toBe(128);
     expect(displacement.params.strength).toBe(1);
+
+    const fakeDof = createDefaultFilter('fake_dof' as any);
+    expect(fakeDof.type).toBe('fake_dof');
+    if (fakeDof.type !== 'fake_dof') throw new Error('expected fake DOF');
+    expect(fakeDof.params.focusX).toBe(0.5);
+    expect(fakeDof.params.focusY).toBe(0.5);
+    expect(fakeDof.params.focusRadius).toBe(0.25);
+    expect(fakeDof.params.blur).toBe(8);
+    expect(fakeDof.params.strength).toBe(1);
   });
 });
 
@@ -81,9 +90,10 @@ describe('normaliseObjectFilters', () => {
       { id: 'ca', type: 'colour_aberration' as const, enabled: true, params: { offsetX: -5, offsetY: 3 } },
       { id: 'ol', type: 'outline' as const, enabled: true, params: { thickness: -3, colour: '', opacity: 2 } },
       { id: 'dm', type: 'displacement_map' as const, enabled: true, params: { amountX: -10, amountY: Number.POSITIVE_INFINITY, size: 0, strength: 2 } },
+      { id: 'dof', type: 'fake_dof' as any, enabled: true, params: { focusX: 2, focusY: -1, focusRadius: 0, blur: -8, strength: 2 } },
       { id: '', type: 'not-a-filter' as never, enabled: true, params: {} as never }
     ] as ObjectFilter[]);
-    expect(result).toHaveLength(4);
+    expect(result).toHaveLength(5);
     if (result[0].type !== 'fade') throw new Error('expected fade');
     expect(result[0].params.opacity).toBe(1);
     if (result[1].type !== 'colour_aberration') throw new Error('expected colour aberration');
@@ -95,6 +105,8 @@ describe('normaliseObjectFilters', () => {
     expect(result[2].params.opacity).toBe(1);
     if (result[3].type !== 'displacement_map') throw new Error('expected displacement map');
     expect(result[3].params).toEqual({ amountX: 0, amountY: 12, size: 1, strength: 1 });
+    if (result[4].type !== 'fake_dof') throw new Error('expected fake DOF');
+    expect(result[4].params).toEqual({ focusX: 1, focusY: 0, focusRadius: 0.01, blur: 0, strength: 1 });
   });
 });
 

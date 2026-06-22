@@ -41,7 +41,8 @@ describe('AviUtlPackV4 effect presets', () => {
       { id: 'colour-aberration-rgb', sourceCandidateId: 'tim-colour-aberration', filterType: 'colour_aberration' },
       { id: 'fan-clipping-diagonal', sourceCandidateId: 'fan-clipping-r', filterType: 'clipping' },
       { id: '93-spotlight-soft', sourceCandidateId: '93-spotlight', filterType: 'spot_light' },
-      { id: '93-displacement-map-b-wave', sourceCandidateId: '93-displacement-map-b', filterType: 'displacement_map' }
+      { id: '93-displacement-map-b-wave', sourceCandidateId: '93-displacement-map-b', filterType: 'displacement_map' },
+      { id: '93-fake-dof2-focus', sourceCandidateId: '93-fake-dof2', filterType: 'fake_dof' }
     ]);
   });
 
@@ -75,6 +76,11 @@ describe('AviUtlPackV4 effect presets', () => {
       type: 'displacement_map',
       enabled: true,
       params: { amountX: 24, amountY: 12, size: 128, strength: 1 }
+    });
+    expect(buildAviUtlEffectPresetFilter('93-fake-dof2-focus')).toMatchObject({
+      type: 'fake_dof',
+      enabled: true,
+      params: { focusX: 0.5, focusY: 0.5, focusRadius: 0.25, blur: 8, strength: 1 }
     });
   });
 

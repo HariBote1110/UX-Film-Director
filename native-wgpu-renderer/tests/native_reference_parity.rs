@@ -231,6 +231,40 @@ fn native_wgpu_applies_displacement_map_b_horizontal_sampling_offset() {
 }
 
 #[test]
+fn native_wgpu_applies_fake_dof_blur_outside_focus() {
+    assert_native_matches_direct_hand_anchor(
+        scene_snapshot(vec![evaluated_clip(
+            "foreground",
+            0,
+            1.0,
+            vec![Effect::FakeDof {
+                focus_x: 0.5,
+                focus_y: 0.0,
+                focus_radius: 0.05,
+                blur: 1.0,
+                strength: 1.0,
+            }],
+        )]),
+        HashMap::from([(
+            "foreground".to_string(),
+            RgbaFrame::from_rgba8(
+                3,
+                1,
+                vec![255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255],
+            )
+            .expect("valid foreground"),
+        )]),
+        3,
+        1,
+        vec![
+            128, 128, 0, 255,
+            0, 255, 0, 255,
+            0, 128, 128, 255,
+        ],
+    );
+}
+
+#[test]
 fn native_wgpu_applies_outline_to_transparent_neighbours() {
     assert_native_matches_direct_hand_anchor(
         scene_snapshot(vec![evaluated_clip(
