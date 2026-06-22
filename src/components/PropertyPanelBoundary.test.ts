@@ -132,6 +132,25 @@ describe('PropertyPanel hksy palette controls', () => {
     expect(code).toContain('93 Background Colour Eyedropper');
     expect(code).toContain('背景色スポイトpaletteをhksyへ適用');
   });
+
+  it('exposes editable hksy checker/grid geometry controls for Rust-native hksy objects', () => {
+    const code = source();
+
+    expect(code).toContain('Pattern');
+    expect(code).toContain('Cell Size');
+    expect(code).toContain('Line Width');
+    expect(code).toContain('Checker');
+    expect(code).toContain('Grid');
+    expect(code).toContain("(selectedObject as HksyCheckerGridObject).pattern");
+    expect(code).toContain("(selectedObject as HksyCheckerGridObject).cellSize");
+    expect(code).toContain("(selectedObject as HksyCheckerGridObject).lineWidth");
+    expect(code).toContain("(selectedObject as HksyCheckerGridObject).checkerEnabled");
+    expect(code).toContain("(selectedObject as HksyCheckerGridObject).gridEnabled");
+    expect(code).toContain('checker-grid');
+    expect(code).toContain('diamond');
+    expect(code).toContain('measured-grid');
+    expect(code).toContain('anchor-line');
+  });
 });
 
 describe('PropertyPanel 93 PlainEffector Line controls', () => {
