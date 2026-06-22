@@ -158,6 +158,7 @@ export interface AppState {
   cutSelectedObjects: () => void;
   pasteClipboardObjects: () => void;
   duplicateSelectedObjects: () => void;
+  duplicateSelectedObjectsWithObjectCopyExt: () => void;
   groupSelectedObjects: () => void;
   ungroupSelectedObjects: () => void;
   setGroupGradient: (groupId: string, gradient: GradientFill | undefined) => void;

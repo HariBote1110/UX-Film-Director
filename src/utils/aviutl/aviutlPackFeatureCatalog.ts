@@ -407,6 +407,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '座標を押す/吸う球状フィールド補助を、Rust生成の強めの力場可視化プリセットとして標準搭載する。'
   },
   {
+    id: '93-object-copy-ext',
+    labelJa: '93 ObjectCopyEXT',
+    category: 'motion',
+    phase: 'P1',
+    implementationTarget: 'native-motion-preset',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/ObjectCopyEXT.obj'],
+    rationaleJa: 'レイヤー内容を一時保存して再配置する発想を、UX FDでは選択オブジェクトの軽量な複製列として標準搭載する。'
+  },
+  {
     id: '93-region-frame-ellipse',
     labelJa: '93 領域枠(楕円)',
     category: 'generated-object',

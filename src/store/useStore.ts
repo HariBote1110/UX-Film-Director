@@ -34,6 +34,7 @@ import {
   normaliseSubjectCropKeyframesForVideo,
   shiftSubjectCropKeyframesForObject
 } from '../utils/subjectCropKeyframes';
+import { buildAviUtlObjectCopyExtClones } from '../utils/aviutl/aviutlObjectCopyExt';
 import type { AppState } from './storeTypes';
 import {
   buildClipboardState,
@@ -842,6 +843,39 @@ export const useStore = create<AppState>((set, get) => ({
         objects: newObjects,
         selectedId: duplicatedObjects[duplicatedObjects.length - 1].id,
         selectedIds: duplicatedObjects.map((obj) => obj.id),
+        duration: calculateAutoDuration(newObjects)
+      };
+    });
+  },
+
+  duplicateSelectedObjectsWithObjectCopyExt: () => {
+    const state = get();
+    const selectedObjects = getSelectedObjects(state);
+    if (selectedObjects.length === 0) return;
+
+    const editableObjects = selectedObjects.filter((object) => !isLayerLocked(state.layers, clampLayerIndex(object.layer)));
+    if (editableObjects.length === 0) return;
+
+    const duplicatedObjects = buildAviUtlObjectCopyExtClones(editableObjects, {
+      copies: 3,
+      offsetX: 16,
+      offsetY: 16,
+      timeOffsetSeconds: 0.1,
+      layerOffset: 1,
+      maxLayer: state.layers.length - 1,
+      idFactory: () => crypto.randomUUID()
+    }).filter((object) => !isLayerLocked(state.layers, clampLayerIndex(object.layer)));
+
+    if (duplicatedObjects.length === 0) return;
+
+    get().pushHistory();
+    set((currentState) => {
+      const syncedObjects = duplicatedObjects.map((object) => syncObjectKeyframes(syncLegacyEffectsWithFilters(object)));
+      const newObjects = [...currentState.objects, ...syncedObjects];
+      return {
+        objects: newObjects,
+        selectedId: syncedObjects[syncedObjects.length - 1].id,
+        selectedIds: syncedObjects.map((object) => object.id),
         duration: calculateAutoDuration(newObjects)
       };
     });
