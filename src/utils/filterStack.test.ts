@@ -122,6 +122,19 @@ describe('createDefaultFilter', () => {
     expect(areaExpand.params.left).toBe(0);
     expect(areaExpand.params.right).toBe(32);
     expect(areaExpand.params.fill).toBe(true);
+
+    const smartClipping = createDefaultFilter('smart_clipping' as any);
+    expect(smartClipping.type).toBe('smart_clipping');
+    if (smartClipping.type !== 'smart_clipping') throw new Error('expected smart clipping');
+    expect(smartClipping.params.top).toBe(0);
+    expect(smartClipping.params.bottom).toBe(0);
+    expect(smartClipping.params.left).toBe(0);
+    expect(smartClipping.params.right).toBe(0);
+    expect(smartClipping.params.linkAxes).toBe(false);
+    expect(smartClipping.params.mode).toBe(0);
+    expect(smartClipping.params.amount).toBe(1);
+    expect(smartClipping.params.seed).toBe(1);
+    expect(smartClipping.params.reverse).toBe(false);
   });
 });
 
@@ -138,9 +151,10 @@ describe('normaliseObjectFilters', () => {
       { id: 'ms', type: 'multi_slicer' as any, enabled: true, params: { angle: Number.POSITIVE_INFINITY, offset: -20, slices: 1, expansion: -4, strength: 2 } },
       { id: 'oct', type: 'oct_transform' as any, enabled: true, params: { scale: 0, rotation: Number.POSITIVE_INFINITY, vertexCount: 2, warp: -1, strength: 2 } },
       { id: 'ae', type: 'area_expand' as any, enabled: true, params: { top: -1, bottom: Number.POSITIVE_INFINITY, left: -2, right: 3, fill: 'yes' } },
+      { id: 'sc', type: 'smart_clipping' as any, enabled: true, params: { top: -1, bottom: 2, left: -3, right: 4, linkAxes: 'no', mode: 8, amount: -1, seed: Number.POSITIVE_INFINITY, reverse: 'no' } },
       { id: '', type: 'not-a-filter' as never, enabled: true, params: {} as never }
     ] as ObjectFilter[]);
-    expect(result).toHaveLength(10);
+    expect(result).toHaveLength(11);
     if (result[0].type !== 'fade') throw new Error('expected fade');
     expect(result[0].params.opacity).toBe(1);
     if (result[1].type !== 'colour_aberration') throw new Error('expected colour aberration');
@@ -164,6 +178,8 @@ describe('normaliseObjectFilters', () => {
     expect(result[8].params).toEqual({ scale: 0.01, rotation: 0, vertexCount: 3, warp: 0, strength: 1 });
     if (result[9].type !== 'area_expand') throw new Error('expected area expand');
     expect(result[9].params).toEqual({ top: 0, bottom: 0, left: 0, right: 3, fill: true });
+    if (result[10].type !== 'smart_clipping') throw new Error('expected smart clipping');
+    expect(result[10].params).toEqual({ top: 0, bottom: 2, left: 0, right: 4, linkAxes: false, mode: 5, amount: 0, seed: 1, reverse: false });
   });
 });
 

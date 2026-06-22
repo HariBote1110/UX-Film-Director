@@ -3590,6 +3590,52 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('serialises 93 クリッピングS filters as computed Rust clipping effects', () => {
+    const layers = createDefaultLayers();
+    const smartClipped = baseImage({
+      id: 'smart-clipped',
+      filters: [
+        {
+          id: 'smart-clipping-1',
+          type: 'smart_clipping',
+          enabled: true,
+          params: {
+            top: 1,
+            bottom: 2,
+            left: 3,
+            right: 4,
+            linkAxes: false,
+            mode: 0,
+            amount: 0.5,
+            seed: 1,
+            reverse: true,
+          },
+        } as any,
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [smartClipped],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected smart clipping snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([
+      {
+        Clipping: {
+          top: 1,
+          bottom: 0.5,
+          left: 2,
+          right: 1.5,
+          angle_degrees: 0,
+        },
+      },
+    ]);
+  });
+
   it('serialises 93 SpotLight filters as Rust scene effects', () => {
     const layers = createDefaultLayers();
     const spotlight = baseImage({
