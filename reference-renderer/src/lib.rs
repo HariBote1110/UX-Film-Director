@@ -74,6 +74,7 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::Wipe { .. } => 1.0,
         Effect::Clipping { .. } => 1.0,
         Effect::SpotLight { .. } => 1.0,
+        Effect::DisplacementMap { .. } => 1.0,
     }
 }
 

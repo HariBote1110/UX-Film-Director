@@ -277,6 +277,10 @@ impl NativeWgpuRenderer {
                     spot_light_centre_y: spot_light_centre_component(clip, 1),
                     spot_light_radius: spot_light_radius(clip),
                     spot_light_intensity: spot_light_intensity(clip),
+                    displacement_amount_x: displacement_amount_component(clip, 0),
+                    displacement_amount_y: displacement_amount_component(clip, 1),
+                    displacement_size: displacement_size(clip),
+                    displacement_strength: displacement_strength(clip),
                     source_width: source.width as f32,
                     source_height: source.height as f32,
                     translation_x: clip.transform.translation_x,
@@ -766,6 +770,10 @@ struct RenderParams {
     spot_light_centre_y: f32,
     spot_light_radius: f32,
     spot_light_intensity: f32,
+    displacement_amount_x: f32,
+    displacement_amount_y: f32,
+    displacement_size: f32,
+    displacement_strength: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -1037,6 +1045,7 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::Wipe { .. } => 1.0,
         Effect::Clipping { .. } => 1.0,
         Effect::SpotLight { .. } => 1.0,
+        Effect::DisplacementMap { .. } => 1.0,
     }
 }
 
@@ -1177,4 +1186,43 @@ fn spot_light_intensity(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
         })
         .sum::<f32>()
         .max(0.0)
+}
+
+fn displacement_amount_component(clip: &uxfd_rust_core::EvaluatedClip, index: usize) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::DisplacementMap {
+                amount_x,
+                amount_y,
+                ..
+            } => Some(if index == 0 { *amount_x } else { *amount_y }),
+            _ => None,
+        })
+        .sum::<f32>()
+        .max(0.0)
+}
+
+fn displacement_size(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::DisplacementMap { size, .. } => Some(*size),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(1.0)
+        .max(1.0)
+}
+
+fn displacement_strength(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::DisplacementMap { strength, .. } => Some(*strength),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .clamp(0.0, 1.0)
 }

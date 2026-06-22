@@ -247,6 +247,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '画像の輝度で格子を変位させる発想を、まずRust生成の変位ポリゴングリッド素材として標準搭載する。'
   },
   {
+    id: '93-displacement-map-b',
+    labelJa: '93 ディスプレイスメントマップB',
+    category: 'visual-effect',
+    phase: 'P1',
+    implementationTarget: 'rust-webgpu-effect',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/@ディスプレイスメントマップB.anm'],
+    rationaleJa: '別レイヤー/フレームバッファを変位マップにする発想を、まずRust/WebGPUの手続き的な波形変位として標準搭載する。'
+  },
+  {
     id: '93-region-frame-ellipse',
     labelJa: '93 領域枠(楕円)',
     category: 'generated-object',

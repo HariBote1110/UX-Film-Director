@@ -73,7 +73,8 @@ export type RustEffect =
   | { Outline: { colour: [number, number, number]; thickness: number; opacity: number } }
   | { Wipe: { edge: 'left' | 'right' | 'top' | 'bottom'; progress: number } }
   | { Clipping: { top: number; bottom: number; left: number; right: number; angle_degrees: number } }
-  | { SpotLight: { centre_x: number; centre_y: number; radius: number; intensity: number; colour: [number, number, number] } };
+  | { SpotLight: { centre_x: number; centre_y: number; radius: number; intensity: number; colour: [number, number, number] } }
+  | { DisplacementMap: { amount_x: number; amount_y: number; size: number; strength: number } };
 
 export interface RustEvaluatedClip {
   clip_id: string;
@@ -329,6 +330,7 @@ const collectBuildIssues = (
       && filter.type !== 'wipe'
       && filter.type !== 'clipping'
       && filter.type !== 'spot_light'
+      && filter.type !== 'displacement_map'
       && !(object.type === 'shape' && filter.type === 'gradient')
     ));
     if (unsupportedFilter) {
@@ -392,6 +394,16 @@ const rustEffectsForObject = (object: TimelineObject, time: number): RustEffect[
           radius: Math.max(0, finiteNumberOr(filter.params.radius, 0.65)),
           intensity: Math.max(0, finiteNumberOr(filter.params.intensity, 0.75)),
           colour: parseHexColourToLinearTriplet(filter.params.colour),
+        },
+      });
+    }
+    if (filter.type === 'displacement_map') {
+      effects.push({
+        DisplacementMap: {
+          amount_x: Math.max(0, finiteNumberOr(filter.params.amountX, 24)),
+          amount_y: Math.max(0, finiteNumberOr(filter.params.amountY, 12)),
+          size: Math.max(1, finiteNumberOr(filter.params.size, 128)),
+          strength: Math.max(0, Math.min(1, finiteNumberOr(filter.params.strength, 1))),
         },
       });
     }
@@ -1751,6 +1763,13 @@ const validateEffects = (
       validateFiniteNumber(effect.SpotLight.radius, `${effectPath}.SpotLight.radius`, issues);
       validateFiniteNumber(effect.SpotLight.intensity, `${effectPath}.SpotLight.intensity`, issues);
       validateNumberArray(effect.SpotLight.colour, `${effectPath}.SpotLight.colour`, 3, issues);
+      return;
+    }
+    if (isRecord(effect.DisplacementMap)) {
+      validateFiniteNumber(effect.DisplacementMap.amount_x, `${effectPath}.DisplacementMap.amount_x`, issues);
+      validateFiniteNumber(effect.DisplacementMap.amount_y, `${effectPath}.DisplacementMap.amount_y`, issues);
+      validateFiniteNumber(effect.DisplacementMap.size, `${effectPath}.DisplacementMap.size`, issues);
+      validateUnitInterval(effect.DisplacementMap.strength, `${effectPath}.DisplacementMap.strength`, issues);
       return;
     }
     addIssue(issues, 'schemaMismatch', effectPath, 'Unknown Rust effect.');

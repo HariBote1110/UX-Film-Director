@@ -6,7 +6,8 @@ export type AviUtlEffectPresetId =
   | 'edge-outline-soft'
   | 'colour-aberration-rgb'
   | 'fan-clipping-diagonal'
-  | '93-spotlight-soft';
+  | '93-spotlight-soft'
+  | '93-displacement-map-b-wave';
 
 export interface AviUtlEffectPreset {
   id: AviUtlEffectPresetId;
@@ -16,7 +17,8 @@ export interface AviUtlEffectPreset {
     | 'tim-edge-outline'
     | 'tim-colour-aberration'
     | 'fan-clipping-r'
-    | '93-spotlight';
+    | '93-spotlight'
+    | '93-displacement-map-b';
   filterType: FilterType;
 }
 
@@ -50,6 +52,12 @@ const presets: AviUtlEffectPreset[] = [
     labelJa: '93 SpotLight',
     sourceCandidateId: '93-spotlight',
     filterType: 'spot_light'
+  },
+  {
+    id: '93-displacement-map-b-wave',
+    labelJa: '93 ディスプレイスメントマップB',
+    sourceCandidateId: '93-displacement-map-b',
+    filterType: 'displacement_map'
   }
 ];
 
@@ -107,6 +115,19 @@ export const buildAviUtlEffectPresetFilter = (presetId: AviUtlEffectPresetId): O
           radius: 0.65,
           intensity: 0.75,
           colour: '#fff4c2'
+        }
+      };
+    }
+    case '93-displacement-map-b-wave': {
+      return {
+        id: `aviutl-${presetId}`,
+        type: 'displacement_map',
+        enabled: true,
+        params: {
+          amountX: 24,
+          amountY: 12,
+          size: 128,
+          strength: 1
         }
       };
     }

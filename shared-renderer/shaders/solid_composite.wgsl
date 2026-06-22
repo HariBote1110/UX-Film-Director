@@ -22,6 +22,10 @@ struct RenderParams {
     spot_light_centre_y: f32,
     spot_light_radius: f32,
     spot_light_intensity: f32,
+    displacement_amount_x: f32,
+    displacement_amount_y: f32,
+    displacement_size: f32,
+    displacement_strength: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -76,13 +80,14 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
         return vec4<f32>(0.0);
     }
 
-    let source = sample_source_linear(source_position);
+    let displaced_source_position = displaced_position(source_position);
+    let source = sample_source_linear(displaced_source_position);
     let aberration_offset = vec2<f32>(
         params.colour_aberration_offset_x,
         params.colour_aberration_offset_y,
     );
-    let red_source = sample_source_linear(clamp_source_position(source_position + aberration_offset)).r;
-    let blue_source = sample_source_linear(clamp_source_position(source_position - aberration_offset)).b;
+    let red_source = sample_source_linear(clamp_source_position(displaced_source_position + aberration_offset)).r;
+    let blue_source = sample_source_linear(clamp_source_position(displaced_source_position - aberration_offset)).b;
     let alpha = source.a * params.opacity;
     let linear_rgb = vec3<f32>(red_source, source.g, blue_source);
     let premultiplied_rgb = linear_rgb * params.gain * alpha;
@@ -95,6 +100,20 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     let spot_rgb = spot_light_rgb(source_position, alpha);
 
     return vec4<f32>(premultiplied_rgb + outline_rgb * (1.0 - alpha) + spot_rgb, max(alpha, outline_alpha));
+}
+
+fn displaced_position(source_position: vec2<f32>) -> vec2<f32> {
+    if params.displacement_strength <= 0.0 {
+        return source_position;
+    }
+    let size = max(params.displacement_size, 1.0);
+    let phase = (source_position.y / size) * 6.28318530718;
+    let wave = select(1.0, 0.5 + 0.5 * sin(phase), size > 1.0);
+    let offset = vec2<f32>(
+        params.displacement_amount_x,
+        params.displacement_amount_y,
+    ) * params.displacement_strength * wave;
+    return clamp_source_position(source_position - offset);
 }
 
 fn spot_light_rgb(source_position: vec2<f32>, source_alpha: f32) -> vec3<f32> {

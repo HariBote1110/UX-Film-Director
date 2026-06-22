@@ -136,7 +136,8 @@ export type FilterType =
   | 'blur'
   | 'fade'
   | 'wipe'
-  | 'spot_light';
+  | 'spot_light'
+  | 'displacement_map';
 
 /** プレビュー／書き出し共通の仮想カメラ（シーン単位） */
 export interface CameraState {
@@ -183,6 +184,13 @@ export interface SpotLightFilterParams {
   radius: number;
   intensity: number;
   colour: string;
+}
+
+export interface DisplacementMapFilterParams {
+  amountX: number;
+  amountY: number;
+  size: number;
+  strength: number;
 }
 
 interface BaseFilter {
@@ -246,6 +254,11 @@ export interface SpotLightObjectFilter extends BaseFilter {
   params: SpotLightFilterParams;
 }
 
+export interface DisplacementMapObjectFilter extends BaseFilter {
+  type: 'displacement_map';
+  params: DisplacementMapFilterParams;
+}
+
 export type ObjectFilter =
   | ColorCorrectionFilter
   | ColourAberrationFilter
@@ -257,7 +270,8 @@ export type ObjectFilter =
   | BlurObjectFilter
   | FadeObjectFilter
   | WipeObjectFilter
-  | SpotLightObjectFilter;
+  | SpotLightObjectFilter
+  | DisplacementMapObjectFilter;
 
 // --- オブジェクト定義 ---
 

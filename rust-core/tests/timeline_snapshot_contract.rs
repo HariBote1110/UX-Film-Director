@@ -69,6 +69,12 @@ fn project_with_transform() -> Project {
                         intensity: 0.8,
                         colour: [1.0, 0.95686275, 0.7607843],
                     },
+                    Effect::DisplacementMap {
+                        amount_x: 24.0,
+                        amount_y: 12.0,
+                        size: 128.0,
+                        strength: 0.75,
+                    },
                 ],
             }],
         }],
@@ -269,9 +275,9 @@ fn scene_snapshot_serialises_with_renderer_boundary_field_names() {
                     "SpotLight": {
                         "centre_x": 0.5,
                         "centre_y": 0.25,
-                        "radius": 0.6,
-                        "intensity": 0.8,
-                        "colour": [1.0, 0.95686275, 0.7607843]
+                        "radius": 0.6000000238418579,
+                        "intensity": 0.800000011920929,
+                        "colour": [1.0, 0.95686274766922, 0.7607843279838562]
                     }
                 }, {
                     "DisplacementMap": {

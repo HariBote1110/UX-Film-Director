@@ -7,7 +7,8 @@ import {
   Vibration,
   ShadowEffect,
   GradientFill,
-  SpotLightFilterParams
+  SpotLightFilterParams,
+  DisplacementMapFilterParams
 } from '../types';
 
 const DEFAULT_COLOR_CORRECTION: Omit<ColorCorrection, 'enabled'> = {
@@ -79,6 +80,13 @@ const DEFAULT_SPOT_LIGHT: SpotLightFilterParams = {
   colour: '#fff4c2'
 };
 
+const DEFAULT_DISPLACEMENT_MAP: DisplacementMapFilterParams = {
+  amountX: 24,
+  amountY: 12,
+  size: 128,
+  strength: 1
+};
+
 const createFilterId = (type: FilterType): string => {
   return `${type}-${crypto.randomUUID()}`;
 };
@@ -106,7 +114,8 @@ const isFilterType = (value: unknown): value is FilterType => {
     || value === 'blur'
     || value === 'fade'
     || value === 'wipe'
-    || value === 'spot_light';
+    || value === 'spot_light'
+    || value === 'displacement_map';
 };
 
 const normaliseOutlineParams = (params: unknown): import('../types').OutlineFilterParams => {
@@ -165,6 +174,16 @@ const normaliseSpotLightParams = (params: unknown): SpotLightFilterParams => {
     colour: typeof source.colour === 'string' && source.colour.trim() !== ''
       ? source.colour
       : DEFAULT_SPOT_LIGHT.colour
+  };
+};
+
+const normaliseDisplacementMapParams = (params: unknown): DisplacementMapFilterParams => {
+  const source = isRecord(params) ? params : {};
+  return {
+    amountX: Math.max(0, toNumber(source.amountX, DEFAULT_DISPLACEMENT_MAP.amountX)),
+    amountY: Math.max(0, toNumber(source.amountY, DEFAULT_DISPLACEMENT_MAP.amountY)),
+    size: Math.max(1, toNumber(source.size, DEFAULT_DISPLACEMENT_MAP.size)),
+    strength: Math.max(0, Math.min(1, toNumber(source.strength, DEFAULT_DISPLACEMENT_MAP.strength)))
   };
 };
 
@@ -321,6 +340,13 @@ export const createDefaultFilter = (type: FilterType): ObjectFilter => {
         enabled: true,
         params: { ...DEFAULT_SPOT_LIGHT }
       };
+    case 'displacement_map':
+      return {
+        id: createFilterId(type),
+        type,
+        enabled: true,
+        params: { ...DEFAULT_DISPLACEMENT_MAP }
+      };
     default:
       return {
         id: createFilterId('color_correction'),
@@ -415,6 +441,13 @@ const normaliseFilter = (value: unknown): ObjectFilter | null => {
         type: 'spot_light',
         enabled,
         params: normaliseSpotLightParams(value.params)
+      };
+    case 'displacement_map':
+      return {
+        id,
+        type: 'displacement_map',
+        enabled,
+        params: normaliseDisplacementMapParams(value.params)
       };
     default:
       return null;

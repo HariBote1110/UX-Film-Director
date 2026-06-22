@@ -170,6 +170,22 @@ fn effect_is_finite(effect: &crate::schema::Effect) -> bool {
                     .iter()
                     .all(|component| component.is_finite() && *component >= 0.0 && *component <= 1.0)
         }
+        crate::schema::Effect::DisplacementMap {
+            amount_x,
+            amount_y,
+            size,
+            strength,
+        } => {
+            amount_x.is_finite()
+                && *amount_x >= 0.0
+                && amount_y.is_finite()
+                && *amount_y >= 0.0
+                && size.is_finite()
+                && *size > 0.0
+                && strength.is_finite()
+                && *strength >= 0.0
+                && *strength <= 1.0
+        }
     }
 }
 

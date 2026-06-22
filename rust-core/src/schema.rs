@@ -193,6 +193,12 @@ pub enum Effect {
         intensity: f32,
         colour: [f32; 3],
     },
+    DisplacementMap {
+        amount_x: f32,
+        amount_y: f32,
+        size: f32,
+        strength: f32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
