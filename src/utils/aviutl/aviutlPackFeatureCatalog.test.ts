@@ -172,6 +172,7 @@ describe('AviUtlPackV4 feature catalogue', () => {
       '93-fake-dof2',
       '93-auto-blur-plus',
       '93-stretch',
+      '93-coordinate-plus',
       '93-multi-slicer',
       '93-oct-transform',
       '93-area-expand-s',

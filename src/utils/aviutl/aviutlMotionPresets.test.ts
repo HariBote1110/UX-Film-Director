@@ -42,7 +42,8 @@ describe('AviUtlPackV4 motion presets', () => {
       { id: 'motion-path-arc', sourceCandidateId: 'tim-motion-path' },
       { id: 'motion-path-s-curve', sourceCandidateId: 'tim-motion-path' },
       { id: 'wind-sway-soft', sourceCandidateId: 'tim-wind-sway' },
-      { id: 'delay-move-individual', sourceCandidateId: '93-delay-move' }
+      { id: 'delay-move-individual', sourceCandidateId: '93-delay-move' },
+      { id: 'coordinate-plus-snap-move', sourceCandidateId: '93-coordinate-plus' }
     ]);
   });
 
@@ -190,6 +191,31 @@ describe('AviUtlPackV4 motion presets', () => {
       expect.objectContaining({ time: 10.3, x: 320, y: 240, easing: 'easeInOutSine' }),
       expect.objectContaining({ time: 10.8, x: 380, y: 240, easing: 'linear' }),
       expect.objectContaining({ time: 14, x: 380, y: 240, easing: 'linear' })
+    ]);
+  });
+
+  it('builds a 93 座標plus snap move from a grid-aligned base position', () => {
+    const patch = buildAviUtlMotionPresetPatch(baseShape({
+      x: 323,
+      y: 247,
+      startTime: 2,
+      duration: 3
+    }), 'coordinate-plus-snap-move', {
+      distancePx: 64,
+      spanSeconds: 0.75,
+      intervalSeconds: 32
+    });
+
+    expect(patch.enableAnimation).toBe(true);
+    expect(patch.x).toBe(320);
+    expect(patch.y).toBe(224);
+    expect(patch.endX).toBe(384);
+    expect(patch.endY).toBe(224);
+    expect(patch.easing).toBe('easeInOutSine');
+    expect(patch.keyframes).toEqual([
+      expect.objectContaining({ time: 2, x: 320, y: 224, easing: 'easeInOutSine' }),
+      expect.objectContaining({ time: 2.75, x: 384, y: 224, easing: 'linear' }),
+      expect.objectContaining({ time: 5, x: 384, y: 224, easing: 'linear' })
     ]);
   });
 });
