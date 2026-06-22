@@ -48,7 +48,8 @@ describe('AviUtlPackV4 effect presets', () => {
       { id: '93-multi-slicer-basic', sourceCandidateId: '93-multi-slicer', filterType: 'multi_slicer' },
       { id: '93-oct-transform-basic', sourceCandidateId: '93-oct-transform', filterType: 'oct_transform' },
       { id: '93-area-expand-s-fill', sourceCandidateId: '93-area-expand-s', filterType: 'area_expand' },
-      { id: '93-clipping-s-basic', sourceCandidateId: '93-clipping-s', filterType: 'smart_clipping' }
+      { id: '93-clipping-s-basic', sourceCandidateId: '93-clipping-s', filterType: 'smart_clipping' },
+      { id: '93-reflection-poly-glint', sourceCandidateId: '93-reflection-poly', filterType: 'spot_light' }
     ]);
   });
 
@@ -117,6 +118,11 @@ describe('AviUtlPackV4 effect presets', () => {
       type: 'smart_clipping',
       enabled: true,
       params: { top: 0, bottom: 0, left: 0, right: 0, linkAxes: false, mode: 0, amount: 1, seed: 1, reverse: false }
+    });
+    expect(buildAviUtlEffectPresetFilter('93-reflection-poly-glint')).toMatchObject({
+      type: 'spot_light',
+      enabled: true,
+      params: { centreX: 0.38, centreY: 0.32, radius: 0.42, intensity: 0.95, colour: '#f9c145' }
     });
   });
 
