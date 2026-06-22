@@ -1,4 +1,4 @@
-import type { GetColorDotFieldObject, TimelineObject } from '../../types';
+import type { GetColorDotFieldObject, HksyCheckerGridObject, TimelineObject } from '../../types';
 
 export interface AviUtlBackgroundColourPaletteEntry {
   colour: string;
@@ -125,5 +125,27 @@ export const buildAviUtlBackgroundColourPalettePatch = (
     foregroundColour: palette[0].colour,
     secondaryColour: palette[1].colour,
     backgroundColour: palette[2].colour
+  };
+};
+
+export const buildAviUtlHksyPalettePatch = (
+  objects: TimelineObject[],
+  options: AviUtlBackgroundColourEyedropperOptions = {}
+): Pick<HksyCheckerGridObject, 'foregroundColour' | 'secondaryColour' | 'backgroundColour' | 'paletteColours'> | null => {
+  const palette = extractAviUtlBackgroundColourPalette(objects, {
+    ...options,
+    maxColours: Math.max(4, options.maxColours ?? 4)
+  });
+
+  if (palette.length < 4) {
+    return null;
+  }
+
+  const paletteColours = palette.slice(0, 8).map((entry) => entry.colour);
+  return {
+    foregroundColour: paletteColours[0],
+    secondaryColour: paletteColours[1],
+    backgroundColour: paletteColours[3],
+    paletteColours
   };
 };

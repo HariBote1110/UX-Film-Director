@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState, PsdWorldPlacement, VideoObject, ParticleObject, GetColorDotFieldObject, PlainEffectorLineObject, ShatteredSphereObject, SphereDotsObject, SphericalFieldObject } from '../types';
+import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState, PsdWorldPlacement, VideoObject, ParticleObject, GetColorDotFieldObject, HksyCheckerGridObject, PlainEffectorLineObject, ShatteredSphereObject, SphereDotsObject, SphericalFieldObject } from '../types';
 import { buildPsdLayerTree, togglePsdLayer } from '../utils/psdParser';
 import { easingNames, EasingType } from '../utils/easings';
 import { buildEndpointKeyframes, evaluateObjectPositionAtTime } from '../utils/keyframes';
@@ -21,7 +21,7 @@ import { buildAspectLockedScalePatch } from '../utils/aspectRatioScale';
 import { buildAviUtlMotionPresetPatch, getAviUtlPackMotionPresets, type AviUtlMotionPresetId } from '../utils/aviutl/aviutlMotionPresets';
 import { applyAviUtlEffectPresetToObject, getAviUtlPackEffectPresets, type AviUtlEffectPresetId } from '../utils/aviutl/aviutlEffectPresets';
 import { buildAviUtlCameraTargetPatch, getAviUtlPackCameraPresets } from '../utils/aviutl/aviutlCameraPresets';
-import { buildAviUtlBackgroundColourPalettePatch, extractAviUtlBackgroundColourPalette } from '../utils/aviutl/aviutlBackgroundColourEyedropper';
+import { buildAviUtlBackgroundColourPalettePatch, extractAviUtlBackgroundColourPalette, buildAviUtlHksyPalettePatch } from '../utils/aviutl/aviutlBackgroundColourEyedropper';
 import type { VisionNormBoundingBox } from '../utils/visionTrackingGeometry';
 
 const Slider = ({
@@ -404,6 +404,14 @@ const PropertyPanel: React.FC = () => {
 
   const getColorBackgroundColourPalette = useMemo(() => {
     if (selectedObject?.type !== 'getcolor_dot_field') return [];
+    return extractAviUtlBackgroundColourPalette(objects, {
+      maxColours: 8,
+      excludeObjectIds: [selectedObject.id]
+    });
+  }, [objects, selectedObject]);
+
+  const hksyBackgroundColourPalette = useMemo(() => {
+    if (selectedObject?.type !== 'hksy_checker_grid') return [];
     return extractAviUtlBackgroundColourPalette(objects, {
       maxColours: 8,
       excludeObjectIds: [selectedObject.id]
@@ -917,6 +925,15 @@ const PropertyPanel: React.FC = () => {
   const handleApplyAviUtlBackgroundColourPalette = () => {
     if (selectedObject.type !== 'getcolor_dot_field') return;
     const patch = buildAviUtlBackgroundColourPalettePatch(objects, {
+      excludeObjectIds: [selectedObject.id]
+    });
+    if (!patch) return;
+    updateObject(selectedObject.id, patch as Partial<TimelineObject>);
+  };
+
+  const handleApplyAviUtlHksyBackgroundColourPalette = () => {
+    if (selectedObject.type !== 'hksy_checker_grid') return;
+    const patch = buildAviUtlHksyPalettePatch(objects, {
       excludeObjectIds: [selectedObject.id]
     });
     if (!patch) return;
@@ -2927,6 +2944,62 @@ const PropertyPanel: React.FC = () => {
                          ? 'PNG/JPEG image objects or PSD objects are used as Rust GetColor sample sources.'
                         : 'PNG/JPEG画像またはPSDをRust GetColorのサンプル元として使います。'}
                  </div>
+             </>
+         )}
+
+         {selectedObject.type === 'hksy_checker_grid' && (
+             <>
+                 <SectionHeader label="hksy Checker/Grid" />
+                 <Row label="Foreground Colour">
+                     <input
+                         type="color"
+                         value={(selectedObject as HksyCheckerGridObject).foregroundColour}
+                         onChange={(e) => handleChange('foregroundColour', e.target.value)}
+                     />
+                 </Row>
+                 <Row label="Secondary Colour">
+                     <input
+                         type="color"
+                         value={(selectedObject as HksyCheckerGridObject).secondaryColour}
+                         onChange={(e) => handleChange('secondaryColour', e.target.value)}
+                     />
+                 </Row>
+                 <Row label="Background Colour">
+                     <input
+                         type="color"
+                         value={(selectedObject as HksyCheckerGridObject).backgroundColour}
+                         onChange={(e) => handleChange('backgroundColour', e.target.value)}
+                     />
+                 </Row>
+                 <SectionHeader label="93 Background Colour Eyedropper" />
+                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', margin: '4px 0 8px' }}>
+                     {hksyBackgroundColourPalette.length > 0 ? hksyBackgroundColourPalette.map((entry) => (
+                         <span
+                             key={`${entry.sourceObjectId ?? 'fallback'}-${entry.sourceField}-${entry.colour}`}
+                             title={`${entry.sourceField}: ${entry.colour}`}
+                             style={{
+                                 width: '22px',
+                                 height: '22px',
+                                 borderRadius: '4px',
+                                 border: '1px solid #555',
+                                 background: entry.colour,
+                                 display: 'inline-block'
+                             }}
+                         />
+                     )) : (
+                         <span style={{ fontSize: '11px', color: '#888' }}>
+                             {language === 'en' ? 'No scene colours found.' : '利用できるシーン色がありません。'}
+                         </span>
+                     )}
+                 </div>
+                 <button
+                     type="button"
+                     disabled={hksyBackgroundColourPalette.length < 4}
+                     onClick={handleApplyAviUtlHksyBackgroundColourPalette}
+                     style={{ width: '100%', marginBottom: '10px' }}
+                 >
+                     {language === 'en' ? 'Apply Palette to hksy' : '背景色スポイトpaletteをhksyへ適用'}
+                 </button>
              </>
          )}
 
