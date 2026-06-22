@@ -1,6 +1,24 @@
 # 進捗ログ
 
 ## 2026-06-22
+- 93 StretchをRust/WebGPUフィルタへ追加した。
+- Red: Filter Stackの `stretch`、AviUtl effect preset、AviUtlPackV4カタログ、Rust scene snapshot、rust-core validation、native-wgpu水平ストレッチを通る契約を追加した。
+- Green: `Stretch` effectをTypeScript/Rust schemaへ追加し、画像/動画/PSD/図形へFilter Stackから追加できるようにした。
+- Green: PropertyPanelへAngle、Amount、Strength編集UIを追加し、AviUtl Effectsには `93 Stretch` presetを追加した。
+- Green: native-wgpuの `solid_composite.wgsl` で中心基準の指定角度方向ストレッチを追加し、nearest samplingで右端が中央へ引き寄せられる画素テストを通した。
+- Green: reference rendererはStretchをgain非変更の効果として許可し、Rust境界の網羅matchを更新した。
+- 版を `0.1.1-Beta-319a` に更新した。
+- 検証: `npm test -- --run src/utils/filterStack.test.ts src/utils/aviutl/aviutlEffectPresets.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts src/utils/rustSceneSnapshot.test.ts --reporter=dot` は94件成功した。
+- 検証: `cargo test --manifest-path rust-core/Cargo.toml --test project_validation stretch -- --nocapture` は2件成功した。
+- 検証: `cargo test --manifest-path native-wgpu-renderer/Cargo.toml native_wgpu_applies_stretch_along_horizontal_axis -- --nocapture` は1件成功した。
+- 検証: `cargo test --manifest-path native-wgpu-renderer/Cargo.toml native_wgpu_applies_fake_dof_blur_outside_focus -- --nocapture` は1件成功し、既存FakeDof期待値の巻き込みがないことを確認した。
+- 検証: `cargo test --manifest-path reference-renderer/Cargo.toml -- --nocapture` は12件成功した。
+- 検証: `npm test -- --run src/utils/packageScripts.test.ts --reporter=dot` は6件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の93 Stretch由来の型エラーは出ていない。
+- 現時点の93 StretchはAviUtlの一時バッファ/領域拡張/ランダム伸縮完全互換ではなく、Rust/WebGPU上の中心基準方向ストレッチ。後続でランダム伸縮派生とクリッピング/領域拡張との連携へ拡張する。
+- 次はGetColorの未移植派生、hksyの残候補、または93のMultiSlicer/簡易変形系へ進む。
+
+## 2026-06-22
 - 93 オートブラー+をRust/WebGPUフィルタへ追加した。
 - Red: Filter Stackの `auto_blur`、AviUtl effect preset、AviUtlPackV4カタログ、Rust scene snapshot、rust-core validation、native-wgpu方向ブラーを通る契約を追加した。
 - Green: `AutoBlur` effectをTypeScript/Rust schemaへ追加し、画像/動画/PSD/図形へFilter Stackから追加できるようにした。
