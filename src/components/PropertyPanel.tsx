@@ -2979,6 +2979,64 @@ const PropertyPanel: React.FC = () => {
          {selectedObject.type === 'hksy_checker_grid' && (
              <>
                  <SectionHeader label="hksy Checker/Grid" />
+                 <Row label="Pattern">
+                     <select
+                         value={(selectedObject as HksyCheckerGridObject).pattern ?? 'checker-grid'}
+                         onChange={(e) => {
+                             updateObject(selectedObject.id, {
+                                 pattern: e.target.value as HksyCheckerGridObject['pattern']
+                             } as Partial<TimelineObject>);
+                         }}
+                         style={{ background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     >
+                         <option value="checker-grid">Checker/Grid</option>
+                         <option value="diamond">Diamond</option>
+                         <option value="measured-grid">Measured Grid</option>
+                         <option value="anchor-line">Anchor Line</option>
+                     </select>
+                 </Row>
+                 <Row label="Cell Size">
+                     <input
+                         type="number"
+                         min="1"
+                         max="1000"
+                         step="1"
+                         value={(selectedObject as HksyCheckerGridObject).cellSize}
+                         onChange={(e) => {
+                             const next = Math.round(clamp(toNumberOr(e.target.value, 50), 1, 1000));
+                             updateObject(selectedObject.id, { cellSize: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Line Width">
+                     <input
+                         type="number"
+                         min="0"
+                         max="100"
+                         step="1"
+                         value={(selectedObject as HksyCheckerGridObject).lineWidth}
+                         onChange={(e) => {
+                             const next = Math.round(clamp(toNumberOr(e.target.value, 2), 0, 100));
+                             updateObject(selectedObject.id, { lineWidth: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Checker">
+                     <input
+                         type="checkbox"
+                         checked={(selectedObject as HksyCheckerGridObject).checkerEnabled}
+                         onChange={(e) => updateObject(selectedObject.id, { checkerEnabled: e.target.checked } as Partial<TimelineObject>)}
+                     />
+                 </Row>
+                 <Row label="Grid">
+                     <input
+                         type="checkbox"
+                         checked={(selectedObject as HksyCheckerGridObject).gridEnabled}
+                         onChange={(e) => updateObject(selectedObject.id, { gridEnabled: e.target.checked } as Partial<TimelineObject>)}
+                     />
+                 </Row>
                  <Row label="Foreground Colour">
                      <input
                          type="color"
