@@ -1,3 +1,20 @@
+## 2026-06-22 — フェーズ3: Rust backendのsource frame収集責務をmain.rsから分離
+
+### 実施内容
+- `rust-backend/src/main.rs` からnative render向けsource frame収集、SolidColour/Image/Psdのsource frame構築、ローカルメディアパス解決を `rust-backend/src/source_frames.rs` へ分離した。
+- `collect_native_render_sources`、`local_media_source_path`、`is_jpeg_source`、`is_psd_source` はcrate rootから再公開し、既存の `native_render`、`transcode`、`generated` 側の呼び出しを保った。
+- `main.rs` は 1,826 行から 1,531 行になり、RPC入口/dispatch寄りの責務へ近づけた。
+- `source_frames.rs` は 306 行で、native render source収集とlocal media source解決をまとめて所有する。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次は `main.rs` に残るテスト群の再配置、またはRPC dispatch/stdio loopを小さなモジュールへ分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendの線エフェクト生成器をサブモジュール化
 
 ### 実施内容
