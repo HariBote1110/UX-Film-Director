@@ -35,6 +35,10 @@ import {
   shiftSubjectCropKeyframesForObject
 } from '../utils/subjectCropKeyframes';
 import { buildAviUtlObjectCopyExtClones } from '../utils/aviutl/aviutlObjectCopyExt';
+import {
+  buildAviUtlCoordinateRecallPatches,
+  captureAviUtlCoordinateStoreSnapshot
+} from '../utils/aviutl/aviutlCoordinateStore';
 import type { AppState } from './storeTypes';
 import {
   buildClipboardState,
@@ -78,6 +82,7 @@ export const useStore = create<AppState>((set, get) => ({
   activeSceneId: '',
   ...createSelectionSlice(set),
   clipboard: null,
+  aviUtlCoordinateStoreSnapshot: null,
 
   ...createHistorySlice(set),
 
@@ -113,6 +118,7 @@ export const useStore = create<AppState>((set, get) => ({
       selectedId: null,
       selectedIds: [],
       clipboard: null,
+      aviUtlCoordinateStoreSnapshot: null,
       pastStates: [],
       futureStates: [],
       visionDetectionPreviewEnabled: false,
@@ -152,6 +158,7 @@ export const useStore = create<AppState>((set, get) => ({
       selectedId: null,
       selectedIds: [],
       clipboard: null,
+      aviUtlCoordinateStoreSnapshot: null,
       pastStates: [],
       futureStates: [],
       visionDetectionPreviewEnabled: false,
@@ -878,6 +885,35 @@ export const useStore = create<AppState>((set, get) => ({
         selectedIds: syncedObjects.map((object) => object.id),
         duration: calculateAutoDuration(newObjects)
       };
+    });
+  },
+
+  captureSelectedCoordinatesWithAviUtlStore: (name = 'default') => {
+    const state = get();
+    const selectedObjects = getSelectedObjects(state);
+    if (selectedObjects.length === 0) return;
+
+    set({
+      aviUtlCoordinateStoreSnapshot: captureAviUtlCoordinateStoreSnapshot(selectedObjects, { name })
+    });
+  },
+
+  applyAviUtlStoredCoordinatesToSelection: () => {
+    const state = get();
+    const selectedObjects = getSelectedObjects(state);
+    const patches = buildAviUtlCoordinateRecallPatches(selectedObjects, state.aviUtlCoordinateStoreSnapshot);
+    if (patches.length === 0) return;
+
+    get().pushHistory();
+    set((currentState) => {
+      const patchById = new Map(patches.map((entry) => [entry.id, entry.patch]));
+      const objects = currentState.objects.map((object) => {
+        const patch = patchById.get(object.id);
+        if (!patch) return object;
+        if (isLayerLocked(currentState.layers, clampLayerIndex(object.layer))) return object;
+        return syncObjectKeyframes(syncLegacyEffectsWithFilters({ ...object, ...patch } as TimelineObject));
+      });
+      return { objects };
     });
   },
 

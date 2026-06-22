@@ -328,6 +328,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '個別オブジェクトの座標を保存/呼び出す発想を、まず複数選択順に円形スロットへ再配置するnative motion presetとして標準搭載する。'
   },
   {
+    id: '93-coordinate-store',
+    labelJa: '93 座標格納 / 座標の取得',
+    category: 'compatibility',
+    phase: 'P1',
+    implementationTarget: 'native-utility',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/@座標格納.anm', 'script/93/座標の取得.anm'],
+    rationaleJa: 'GVAへ座標配列や個別パラメータを格納して再利用する発想を、UX FDでは選択オブジェクトの座標snapshot/recall utilityとして標準搭載する。'
+  },
+  {
     id: '93-multi-slicer',
     labelJa: '93 MultiSlicer',
     category: 'visual-effect',

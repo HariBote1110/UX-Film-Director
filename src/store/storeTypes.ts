@@ -11,6 +11,7 @@ import type {
   TimelineObject,
 } from '../types';
 import type { CoreMlAnimalObservation } from '../utils/coremlTrackIpc';
+import type { AviUtlCoordinateStoreSnapshot } from '../utils/aviutl/aviutlCoordinateStore';
 import type { ProjectExportFrameSourcePlanResult } from '../utils/projectExportFrameCanvas';
 import type { RustBackendNativeRenderOutputReleaseEvent } from '../utils/rustBackendVideoEncodeExport';
 import type { SharedRendererExportFrameSourceBlockedReason } from '../utils/sharedRendererExportFrameSource';
@@ -100,6 +101,7 @@ export interface AppState {
   selectedId: string | null;
   selectedIds: string[];
   clipboard: ClipboardState | null;
+  aviUtlCoordinateStoreSnapshot: AviUtlCoordinateStoreSnapshot | null;
 
   pastStates: HistorySnapshot[];
   futureStates: HistorySnapshot[];
@@ -159,6 +161,8 @@ export interface AppState {
   pasteClipboardObjects: () => void;
   duplicateSelectedObjects: () => void;
   duplicateSelectedObjectsWithObjectCopyExt: () => void;
+  captureSelectedCoordinatesWithAviUtlStore: (name?: string) => void;
+  applyAviUtlStoredCoordinatesToSelection: () => void;
   groupSelectedObjects: () => void;
   ungroupSelectedObjects: () => void;
   setGroupGradient: (groupId: string, gradient: GradientFill | undefined) => void;

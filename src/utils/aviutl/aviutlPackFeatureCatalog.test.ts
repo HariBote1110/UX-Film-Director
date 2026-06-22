@@ -215,6 +215,6 @@ describe('AviUtlPackV4 feature catalogue', () => {
       '93-background-colour-eyedropper'
     ];
 
-    expect(roadmapIds.slice(0, 47)).toEqual(expect.arrayContaining(priorityIds));
+    expect(roadmapIds.slice(0, 48)).toEqual(expect.arrayContaining(priorityIds));
   });
 });
