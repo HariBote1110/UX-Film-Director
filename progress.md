@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendのFocusLines/RandomLine描画をgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `build_generated_focus_lines_plus_source_frame` と `build_generated_random_line_ex_source_frame` を `rust-backend/src/generated.rs` へ抽出した。
+- `fill_focus_lines_plus_ray` と `fill_random_line_ex_quad` を専用helperとして `generated.rs` にまとめた。
+- `main.rs` は 4,714 行から 4,421 行になった。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はhologram、protractor、shaking polygonなどの残りの生成フレーム描画関数をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのPaperAirplane/Asanoha描画をgenerated.rsへ分離
 
 ### 実施内容
