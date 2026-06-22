@@ -1555,6 +1555,12 @@ Timeline右クリックメニュー、project save/load、Rust scene snapshot、
 Pixi cutover、rust-core schema、rust-backend RGBA source frame生成へ接続し、
 後続で元スクリプトのlayer参照・field mode・反転表現を広げられる足場にする。
 
+265. AviUtlPackV4: 93 PlainEffector Lineの編集UIを追加する
+`plain_effector_line` を配置した後に、PropertyPanelからRadius、Strength、Randomness、Zoom、Invert、
+Line Count、Line Width、Colour、Colour Amountを編集できるようにする。
+Rust backendのvalidation範囲へ合わせてUI入力をclampし、生成オブジェクトが「置ける」だけでなく
+実際の演出調整に使える状態へ進める。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

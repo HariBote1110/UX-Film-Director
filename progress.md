@@ -10740,6 +10740,22 @@
 ### 残課題・次のステップ
 - `@PlainEffector.anm` の完全互換にはlayer参照、field mode、offset/pos指定、反転時の元スクリプト寄り挙動が残る。次は93の `@Reflection_poly.anm` を棚卸しするか、PlainEffector Lineの編集UIを広げる。
 
+## 2026-06-22 — 93 PlainEffector Line編集UIを追加
+
+### 実施内容
+- Red: PropertyPanelが `plain_effector_line` 選択時にRust-native PlainEffector Lineの主要パラメータを編集できる契約を追加した。
+- Green: PropertyPanelへ `PlainEffector Line Settings` を追加し、Radius、Strength、Randomness、Zoom、Invert、Line Count、Line Width、Colour、Colour Amountを編集できるようにした。
+- Green: 数値入力はRust backend / project validationと同じ範囲へclampし、配置後に見た目を調整しやすくした。
+- 版を `0.1.1-Beta-325a` に更新した。
+
+### 検証
+- `npm test -- --run src/components/PropertyPanelBoundary.test.ts src/utils/objectFactories/plainEffectorLineObjectFactory.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/projectFile.test.ts --reporter=dot` は94件成功。
+- `npm test -- --run src/utils/packageScripts.test.ts --reporter=dot` は6件成功。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回のPropertyPanel編集UI由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- 次は `@Reflection_poly.anm` の棚卸し、またはPlainEffectorのfield mode / layer参照 / offset / pos再現へ進む。
+
 ## 2026-06-22 — 93 SpotLightをRust/WebGPU effectへ追加
 
 ### 実施内容
