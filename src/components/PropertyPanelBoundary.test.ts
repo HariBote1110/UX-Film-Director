@@ -74,3 +74,22 @@ describe('PropertyPanel GetColor sampling controls', () => {
     expect(code).toContain('PNG/JPEG画像またはPSD');
   });
 });
+
+describe('PropertyPanel 93 PlainEffector Line controls', () => {
+  it('exposes editable controls for Rust-native PlainEffector Line parameters', () => {
+    const code = source();
+
+    expect(code).toContain('PlainEffectorLineObject');
+    expect(code).toContain("selectedObject.type === 'plain_effector_line'");
+    expect(code).toContain('PlainEffector Line Settings');
+    expect(code).toContain('Radius');
+    expect(code).toContain('Strength');
+    expect(code).toContain('Randomness');
+    expect(code).toContain('Zoom');
+    expect(code).toContain('Invert');
+    expect(code).toContain('Line Count');
+    expect(code).toContain('Line Width');
+    expect(code).toContain("(selectedObject as PlainEffectorLineObject).colour");
+    expect(code).toContain('Colour Amount');
+  });
+});
