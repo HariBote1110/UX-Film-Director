@@ -1,3 +1,20 @@
+## 2026-06-22 — フェーズ3: Rust backendのRPC型をrpc.rsへ分離
+
+### 実施内容
+- `glittery-sauteeing-diffie.md` のフェーズ3に着手し、`rust-backend/src/main.rs` からRPC基盤の一部を `rust-backend/src/rpc.rs` へ抽出した。
+- `RpcRequest` / `RpcError` / `RpcResponse` / `HealthResult` と `response_error` を `rpc.rs` に移し、`main.rs` は `mod rpc` と `use rpc::{...}` で参照する形にした。
+- 既存のRPCレスポンス形状、エラーコード、health応答の値は変更していない。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml generated_getcolor_dots_source -- --nocapture` は6件成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+- `npm test -- --run src/utils/rustBackendVideoEncodeExport.test.ts src/utils/rustBackendVideoDecodeControl.test.ts src/utils/rustBackendNativeRenderBoundary.test.ts src/utils/rustBackendVideoEncodeControl.test.ts src/utils/rustVideoEncodeBackendBridge.test.ts --reporter=dot` は45件中43件成功。`rustBackendNativeRenderBoundary.test.ts` の2件は今回の変更前から確認済みの既存文字列境界失敗（`.render_frame_to_shared_ring(` / `render_frame_stages(` 期待）で、RPC抽出由来ではない。
+
+### 残課題・次のステップ
+- 次は `generated/` へ `Generated*Source` 型群とdefault関数を移し、その後に生成フレーム描画関数・検証関数を段階的に分割する。
+
 ## 2026-06-22 — フェーズ2: layerSliceをuseStoreから分離
 
 ### 実施内容

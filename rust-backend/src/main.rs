@@ -1,6 +1,8 @@
 mod psd_fast;
+mod rpc;
 
-use serde::{Deserialize, Serialize};
+use rpc::{response_error, HealthResult, RpcError, RpcRequest, RpcResponse};
+use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs;
@@ -26,30 +28,6 @@ use uxfd_sidecar_protocol::{
     FrameVerificationReport, FrameVerificationStatus, ReadyFrame, SharedFrame, SharedFrameRing,
     SlotRecoveryReason,
 };
-
-#[derive(Debug, Deserialize)]
-struct RpcRequest {
-    id: u64,
-    method: String,
-    #[serde(default)]
-    params: Value,
-}
-
-#[derive(Debug, Serialize)]
-struct RpcError {
-    code: i64,
-    message: String,
-}
-
-#[derive(Debug, Serialize)]
-struct RpcResponse {
-    id: u64,
-    ok: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    result: Option<Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error: Option<RpcError>,
-}
 
 struct DecodeSession {
     start_response: DecodeStartResponse,
@@ -132,13 +110,6 @@ struct PsdOverlayCacheEntry {
     raw_path: PathBuf,
     source_width: u32,
     source_height: u32,
-}
-
-#[derive(Debug, Serialize)]
-struct HealthResult<'a> {
-    status: &'a str,
-    engine: &'a str,
-    version: &'a str,
 }
 
 #[derive(Debug, Deserialize)]
@@ -10052,18 +10023,6 @@ fn handle_proxy_generate(id: u64, params: Value) -> RpcResponse {
             &format!("ffmpeg exited with code {:?}", s.code()),
         ),
         Err(e) => response_error(id, -32002, &format!("Failed to start ffmpeg: {e}")),
-    }
-}
-
-fn response_error(id: u64, code: i64, message: &str) -> RpcResponse {
-    RpcResponse {
-        id,
-        ok: false,
-        result: None,
-        error: Some(RpcError {
-            code,
-            message: message.to_string(),
-        }),
     }
 }
 
