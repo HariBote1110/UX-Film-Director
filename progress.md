@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendのmedia/PSD RPCをmedia.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `handle_media_probe`、`handle_audio_waveform_samples`、`handle_psd_parse`、`handle_psd_await_blob` を `rust-backend/src/media.rs` へ抽出した。
+- `media.rs` は `MediaProbeParams` / `AudioWaveformSamplesParams` / `PsdParseParams` と `BackendState` を受け取り、ffprobe/ffmpeg呼び出し、PSD高速パース、blob書き込み待機の既存挙動を維持する構成にした。
+- 移動後に不要になった `BlobWriteResult`、`Arc`、`Mutex` のimportを `main.rs` から削除した。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はdecode/encode handler本体、またはnative render周辺の補助関数を依存境界ごとに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのproxy生成RPCをproxy.rsへ分離
 
 ### 実施内容
