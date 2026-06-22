@@ -257,6 +257,16 @@ const candidates: AviUtlPackFeatureCandidate[] = [
     rationaleJa: '別レイヤー/フレームバッファを変位マップにする発想を、まずRust/WebGPUの手続き的な波形変位として標準搭載する。'
   },
   {
+    id: '93-fake-dof2',
+    labelJa: '93 偽被写界深度2',
+    category: 'visual-effect',
+    phase: 'P1',
+    implementationTarget: 'rust-webgpu-effect',
+    bundlingMode: 'native-compatible-reimplementation',
+    sourceRelativePaths: ['script/93/偽被写界深度2.anm', 'script/93/DOF2.lua'],
+    rationaleJa: 'カメラ位置と焦点距離でぼけ量を変えるDOF表現を、まずRust/WebGPUの焦点円ベースの高速なぼけ近似として標準搭載する。'
+  },
+  {
     id: '93-region-frame-ellipse',
     labelJa: '93 領域枠(楕円)',
     category: 'generated-object',

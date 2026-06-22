@@ -7,7 +7,8 @@ export type AviUtlEffectPresetId =
   | 'colour-aberration-rgb'
   | 'fan-clipping-diagonal'
   | '93-spotlight-soft'
-  | '93-displacement-map-b-wave';
+  | '93-displacement-map-b-wave'
+  | '93-fake-dof2-focus';
 
 export interface AviUtlEffectPreset {
   id: AviUtlEffectPresetId;
@@ -18,7 +19,8 @@ export interface AviUtlEffectPreset {
     | 'tim-colour-aberration'
     | 'fan-clipping-r'
     | '93-spotlight'
-    | '93-displacement-map-b';
+    | '93-displacement-map-b'
+    | '93-fake-dof2';
   filterType: FilterType;
 }
 
@@ -58,6 +60,12 @@ const presets: AviUtlEffectPreset[] = [
     labelJa: '93 ディスプレイスメントマップB',
     sourceCandidateId: '93-displacement-map-b',
     filterType: 'displacement_map'
+  },
+  {
+    id: '93-fake-dof2-focus',
+    labelJa: '93 偽被写界深度2',
+    sourceCandidateId: '93-fake-dof2',
+    filterType: 'fake_dof'
   }
 ];
 
@@ -127,6 +135,20 @@ export const buildAviUtlEffectPresetFilter = (presetId: AviUtlEffectPresetId): O
           amountX: 24,
           amountY: 12,
           size: 128,
+          strength: 1
+        }
+      };
+    }
+    case '93-fake-dof2-focus': {
+      return {
+        id: `aviutl-${presetId}`,
+        type: 'fake_dof',
+        enabled: true,
+        params: {
+          focusX: 0.5,
+          focusY: 0.5,
+          focusRadius: 0.25,
+          blur: 8,
           strength: 1
         }
       };

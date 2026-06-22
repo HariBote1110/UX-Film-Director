@@ -74,7 +74,8 @@ export type RustEffect =
   | { Wipe: { edge: 'left' | 'right' | 'top' | 'bottom'; progress: number } }
   | { Clipping: { top: number; bottom: number; left: number; right: number; angle_degrees: number } }
   | { SpotLight: { centre_x: number; centre_y: number; radius: number; intensity: number; colour: [number, number, number] } }
-  | { DisplacementMap: { amount_x: number; amount_y: number; size: number; strength: number } };
+  | { DisplacementMap: { amount_x: number; amount_y: number; size: number; strength: number } }
+  | { FakeDof: { focus_x: number; focus_y: number; focus_radius: number; blur: number; strength: number } };
 
 export interface RustEvaluatedClip {
   clip_id: string;
@@ -331,6 +332,7 @@ const collectBuildIssues = (
       && filter.type !== 'clipping'
       && filter.type !== 'spot_light'
       && filter.type !== 'displacement_map'
+      && filter.type !== 'fake_dof'
       && !(object.type === 'shape' && filter.type === 'gradient')
     ));
     if (unsupportedFilter) {
@@ -403,6 +405,17 @@ const rustEffectsForObject = (object: TimelineObject, time: number): RustEffect[
           amount_x: Math.max(0, finiteNumberOr(filter.params.amountX, 24)),
           amount_y: Math.max(0, finiteNumberOr(filter.params.amountY, 12)),
           size: Math.max(1, finiteNumberOr(filter.params.size, 128)),
+          strength: Math.max(0, Math.min(1, finiteNumberOr(filter.params.strength, 1))),
+        },
+      });
+    }
+    if (filter.type === 'fake_dof') {
+      effects.push({
+        FakeDof: {
+          focus_x: Math.max(0, Math.min(1, finiteNumberOr(filter.params.focusX, 0.5))),
+          focus_y: Math.max(0, Math.min(1, finiteNumberOr(filter.params.focusY, 0.5))),
+          focus_radius: Math.max(0.01, Math.min(1, finiteNumberOr(filter.params.focusRadius, 0.25))),
+          blur: Math.max(0, finiteNumberOr(filter.params.blur, 8)),
           strength: Math.max(0, Math.min(1, finiteNumberOr(filter.params.strength, 1))),
         },
       });
@@ -1770,6 +1783,14 @@ const validateEffects = (
       validateFiniteNumber(effect.DisplacementMap.amount_y, `${effectPath}.DisplacementMap.amount_y`, issues);
       validateFiniteNumber(effect.DisplacementMap.size, `${effectPath}.DisplacementMap.size`, issues);
       validateUnitInterval(effect.DisplacementMap.strength, `${effectPath}.DisplacementMap.strength`, issues);
+      return;
+    }
+    if (isRecord(effect.FakeDof)) {
+      validateUnitInterval(effect.FakeDof.focus_x, `${effectPath}.FakeDof.focus_x`, issues);
+      validateUnitInterval(effect.FakeDof.focus_y, `${effectPath}.FakeDof.focus_y`, issues);
+      validateFiniteNumber(effect.FakeDof.focus_radius, `${effectPath}.FakeDof.focus_radius`, issues);
+      validateFiniteNumber(effect.FakeDof.blur, `${effectPath}.FakeDof.blur`, issues);
+      validateUnitInterval(effect.FakeDof.strength, `${effectPath}.FakeDof.strength`, issues);
       return;
     }
     addIssue(issues, 'schemaMismatch', effectPath, 'Unknown Rust effect.');

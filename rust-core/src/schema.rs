@@ -199,6 +199,13 @@ pub enum Effect {
         size: f32,
         strength: f32,
     },
+    FakeDof {
+        focus_x: f32,
+        focus_y: f32,
+        focus_radius: f32,
+        blur: f32,
+        strength: f32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

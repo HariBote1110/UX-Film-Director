@@ -186,6 +186,27 @@ fn effect_is_finite(effect: &crate::schema::Effect) -> bool {
                 && *strength >= 0.0
                 && *strength <= 1.0
         }
+        crate::schema::Effect::FakeDof {
+            focus_x,
+            focus_y,
+            focus_radius,
+            blur,
+            strength,
+        } => {
+            focus_x.is_finite()
+                && *focus_x >= 0.0
+                && *focus_x <= 1.0
+                && focus_y.is_finite()
+                && *focus_y >= 0.0
+                && *focus_y <= 1.0
+                && focus_radius.is_finite()
+                && *focus_radius > 0.0
+                && blur.is_finite()
+                && *blur >= 0.0
+                && strength.is_finite()
+                && *strength >= 0.0
+                && *strength <= 1.0
+        }
     }
 }
 

@@ -443,7 +443,8 @@ const PropertyPanel: React.FC = () => {
     fade: language === 'en' ? 'Fade' : 'フェード（不透明度）',
     wipe: language === 'en' ? 'Wipe' : 'ワイプ',
     spot_light: language === 'en' ? 'SpotLight' : 'SpotLight',
-    displacement_map: language === 'en' ? '93 Displacement Map B' : '93 ディスプレイスメントマップB'
+    displacement_map: language === 'en' ? '93 Displacement Map B' : '93 ディスプレイスメントマップB',
+    fake_dof: language === 'en' ? '93 Fake DOF2' : '93 偽被写界深度2'
   };
   const canUseGradientFilter = selectedObject.type === 'shape';
   const currentGroupId = selectedObject.groupId ?? null;
@@ -1375,6 +1376,7 @@ const PropertyPanel: React.FC = () => {
             <button type="button" onClick={() => handleAddFilter('fade')}>+ {filterLabel.fade}</button>
             <button type="button" onClick={() => handleAddFilter('wipe')}>+ {filterLabel.wipe}</button>
             <button type="button" onClick={() => handleAddFilter('displacement_map')}>+ {filterLabel.displacement_map}</button>
+            <button type="button" onClick={() => handleAddFilter('fake_dof')}>+ {filterLabel.fake_dof}</button>
             {canUseGradientFilter && (
                 <button type="button" onClick={() => handleAddFilter('gradient')}>+ {filterLabel.gradient}</button>
             )}
@@ -1819,6 +1821,60 @@ const PropertyPanel: React.FC = () => {
                                 step="1"
                                 value={activeFilter.params.size}
                                 onInput={(e) => handleFilterParamChange(activeFilter, { size: parseFloat(e.currentTarget.value) })}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                        <Row label="Strength">
+                            <Slider
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                value={activeFilter.params.strength}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { strength: parseFloat(e.currentTarget.value) })}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                    </>
+                )}
+                {activeFilter.type === 'fake_dof' && (
+                    <>
+                        <Row label="Focus X">
+                            <Slider
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                value={activeFilter.params.focusX}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { focusX: parseFloat(e.currentTarget.value) })}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                        <Row label="Focus Y">
+                            <Slider
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                value={activeFilter.params.focusY}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { focusY: parseFloat(e.currentTarget.value) })}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                        <Row label="Focus Radius">
+                            <Slider
+                                min="0.01"
+                                max="1"
+                                step="0.01"
+                                value={activeFilter.params.focusRadius}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { focusRadius: parseFloat(e.currentTarget.value) })}
+                                style={{ width: '100%' }}
+                            />
+                        </Row>
+                        <Row label="Blur">
+                            <Slider
+                                min="0"
+                                max="64"
+                                step="0.5"
+                                value={activeFilter.params.blur}
+                                onInput={(e) => handleFilterParamChange(activeFilter, { blur: parseFloat(e.currentTarget.value) })}
                                 style={{ width: '100%' }}
                             />
                         </Row>

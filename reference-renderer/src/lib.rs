@@ -75,6 +75,7 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::Clipping { .. } => 1.0,
         Effect::SpotLight { .. } => 1.0,
         Effect::DisplacementMap { .. } => 1.0,
+        Effect::FakeDof { .. } => 1.0,
     }
 }
 

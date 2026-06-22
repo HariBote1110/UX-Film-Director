@@ -137,7 +137,8 @@ export type FilterType =
   | 'fade'
   | 'wipe'
   | 'spot_light'
-  | 'displacement_map';
+  | 'displacement_map'
+  | 'fake_dof';
 
 /** プレビュー／書き出し共通の仮想カメラ（シーン単位） */
 export interface CameraState {
@@ -190,6 +191,14 @@ export interface DisplacementMapFilterParams {
   amountX: number;
   amountY: number;
   size: number;
+  strength: number;
+}
+
+export interface FakeDofFilterParams {
+  focusX: number;
+  focusY: number;
+  focusRadius: number;
+  blur: number;
   strength: number;
 }
 
@@ -259,6 +268,11 @@ export interface DisplacementMapObjectFilter extends BaseFilter {
   params: DisplacementMapFilterParams;
 }
 
+export interface FakeDofObjectFilter extends BaseFilter {
+  type: 'fake_dof';
+  params: FakeDofFilterParams;
+}
+
 export type ObjectFilter =
   | ColorCorrectionFilter
   | ColourAberrationFilter
@@ -271,7 +285,8 @@ export type ObjectFilter =
   | FadeObjectFilter
   | WipeObjectFilter
   | SpotLightObjectFilter
-  | DisplacementMapObjectFilter;
+  | DisplacementMapObjectFilter
+  | FakeDofObjectFilter;
 
 // --- オブジェクト定義 ---
 

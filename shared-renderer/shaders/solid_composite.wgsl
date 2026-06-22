@@ -26,6 +26,11 @@ struct RenderParams {
     displacement_amount_y: f32,
     displacement_size: f32,
     displacement_strength: f32,
+    fake_dof_focus_x: f32,
+    fake_dof_focus_y: f32,
+    fake_dof_focus_radius: f32,
+    fake_dof_blur: f32,
+    fake_dof_strength: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -36,6 +41,9 @@ struct RenderParams {
     rotation_cos: f32,
     rotation_sin: f32,
     _padding3: f32,
+    _padding4: f32,
+    _padding5: f32,
+    _padding6: f32,
 }
 
 @group(0) @binding(0)
@@ -81,13 +89,13 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     }
 
     let displaced_source_position = displaced_position(source_position);
-    let source = sample_source_linear(displaced_source_position);
+    let source = sample_source_with_fake_dof(displaced_source_position);
     let aberration_offset = vec2<f32>(
         params.colour_aberration_offset_x,
         params.colour_aberration_offset_y,
     );
-    let red_source = sample_source_linear(clamp_source_position(displaced_source_position + aberration_offset)).r;
-    let blue_source = sample_source_linear(clamp_source_position(displaced_source_position - aberration_offset)).b;
+    let red_source = sample_source_with_fake_dof(clamp_source_position(displaced_source_position + aberration_offset)).r;
+    let blue_source = sample_source_with_fake_dof(clamp_source_position(displaced_source_position - aberration_offset)).b;
     let alpha = source.a * params.opacity;
     let linear_rgb = vec3<f32>(red_source, source.g, blue_source);
     let premultiplied_rgb = linear_rgb * params.gain * alpha;
@@ -114,6 +122,25 @@ fn displaced_position(source_position: vec2<f32>) -> vec2<f32> {
         params.displacement_amount_y,
     ) * params.displacement_strength * wave;
     return clamp_source_position(source_position - offset);
+}
+
+fn sample_source_with_fake_dof(source_position: vec2<f32>) -> vec4<f32> {
+    let base = sample_source_linear(source_position);
+    if params.fake_dof_strength <= 0.0 || params.fake_dof_blur <= 0.0 {
+        return base;
+    }
+    let dimensions = max(vec2<f32>(params.source_width - 1.0, params.source_height - 1.0), vec2<f32>(1.0));
+    let normalised = source_position / dimensions;
+    let focus = vec2<f32>(params.fake_dof_focus_x, params.fake_dof_focus_y);
+    let focus_distance = max(0.0, length(normalised - focus) - max(params.fake_dof_focus_radius, 0.01));
+    let factor = clamp(focus_distance * 4.0, 0.0, 1.0) * params.fake_dof_strength;
+    if factor <= 0.0 {
+        return base;
+    }
+    let radius = max(params.fake_dof_blur, 0.0);
+    let left = sample_source_linear(clamp_source_position(source_position - vec2<f32>(radius, 0.0)));
+    let right = sample_source_linear(clamp_source_position(source_position + vec2<f32>(radius, 0.0)));
+    return mix(base, (left + right) * 0.5, factor);
 }
 
 fn spot_light_rgb(source_position: vec2<f32>, source_alpha: f32) -> vec3<f32> {

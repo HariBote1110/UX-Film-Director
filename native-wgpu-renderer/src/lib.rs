@@ -281,6 +281,11 @@ impl NativeWgpuRenderer {
                     displacement_amount_y: displacement_amount_component(clip, 1),
                     displacement_size: displacement_size(clip),
                     displacement_strength: displacement_strength(clip),
+                    fake_dof_focus_x: fake_dof_focus_component(clip, 0),
+                    fake_dof_focus_y: fake_dof_focus_component(clip, 1),
+                    fake_dof_focus_radius: fake_dof_focus_radius(clip),
+                    fake_dof_blur: fake_dof_blur(clip),
+                    fake_dof_strength: fake_dof_strength(clip),
                     source_width: source.width as f32,
                     source_height: source.height as f32,
                     translation_x: clip.transform.translation_x,
@@ -291,6 +296,9 @@ impl NativeWgpuRenderer {
                     rotation_cos: rotation_radians.cos(),
                     rotation_sin: rotation_radians.sin(),
                     _padding3: 0.0,
+                    _padding4: 0.0,
+                    _padding5: 0.0,
+                    _padding6: 0.0,
                 },
             ));
         }
@@ -774,6 +782,11 @@ struct RenderParams {
     displacement_amount_y: f32,
     displacement_size: f32,
     displacement_strength: f32,
+    fake_dof_focus_x: f32,
+    fake_dof_focus_y: f32,
+    fake_dof_focus_radius: f32,
+    fake_dof_blur: f32,
+    fake_dof_strength: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -784,6 +797,9 @@ struct RenderParams {
     rotation_cos: f32,
     rotation_sin: f32,
     _padding3: f32,
+    _padding4: f32,
+    _padding5: f32,
+    _padding6: f32,
 }
 
 fn sampling_mode_value(sampling: SamplingMode) -> f32 {
@@ -1046,6 +1062,7 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::Clipping { .. } => 1.0,
         Effect::SpotLight { .. } => 1.0,
         Effect::DisplacementMap { .. } => 1.0,
+        Effect::FakeDof { .. } => 1.0,
     }
 }
 
@@ -1220,6 +1237,55 @@ fn displacement_strength(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
         .iter()
         .filter_map(|effect| match effect {
             Effect::DisplacementMap { strength, .. } => Some(*strength),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .clamp(0.0, 1.0)
+}
+
+fn fake_dof_focus_component(clip: &uxfd_rust_core::EvaluatedClip, index: usize) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::FakeDof {
+                focus_x, focus_y, ..
+            } => Some(if index == 0 { *focus_x } else { *focus_y }),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.5)
+        .clamp(0.0, 1.0)
+}
+
+fn fake_dof_focus_radius(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::FakeDof { focus_radius, .. } => Some(*focus_radius),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.25)
+        .clamp(0.01, 1.0)
+}
+
+fn fake_dof_blur(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::FakeDof { blur, .. } => Some(*blur),
+            _ => None,
+        })
+        .sum::<f32>()
+        .max(0.0)
+}
+
+fn fake_dof_strength(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::FakeDof { strength, .. } => Some(*strength),
             _ => None,
         })
         .last()

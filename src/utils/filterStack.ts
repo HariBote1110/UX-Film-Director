@@ -8,7 +8,8 @@ import {
   ShadowEffect,
   GradientFill,
   SpotLightFilterParams,
-  DisplacementMapFilterParams
+  DisplacementMapFilterParams,
+  FakeDofFilterParams
 } from '../types';
 
 const DEFAULT_COLOR_CORRECTION: Omit<ColorCorrection, 'enabled'> = {
@@ -87,6 +88,14 @@ const DEFAULT_DISPLACEMENT_MAP: DisplacementMapFilterParams = {
   strength: 1
 };
 
+const DEFAULT_FAKE_DOF: FakeDofFilterParams = {
+  focusX: 0.5,
+  focusY: 0.5,
+  focusRadius: 0.25,
+  blur: 8,
+  strength: 1
+};
+
 const createFilterId = (type: FilterType): string => {
   return `${type}-${crypto.randomUUID()}`;
 };
@@ -115,7 +124,8 @@ const isFilterType = (value: unknown): value is FilterType => {
     || value === 'fade'
     || value === 'wipe'
     || value === 'spot_light'
-    || value === 'displacement_map';
+    || value === 'displacement_map'
+    || value === 'fake_dof';
 };
 
 const normaliseOutlineParams = (params: unknown): import('../types').OutlineFilterParams => {
@@ -184,6 +194,17 @@ const normaliseDisplacementMapParams = (params: unknown): DisplacementMapFilterP
     amountY: Math.max(0, toNumber(source.amountY, DEFAULT_DISPLACEMENT_MAP.amountY)),
     size: Math.max(1, toNumber(source.size, DEFAULT_DISPLACEMENT_MAP.size)),
     strength: Math.max(0, Math.min(1, toNumber(source.strength, DEFAULT_DISPLACEMENT_MAP.strength)))
+  };
+};
+
+const normaliseFakeDofParams = (params: unknown): FakeDofFilterParams => {
+  const source = isRecord(params) ? params : {};
+  return {
+    focusX: Math.max(0, Math.min(1, toNumber(source.focusX, DEFAULT_FAKE_DOF.focusX))),
+    focusY: Math.max(0, Math.min(1, toNumber(source.focusY, DEFAULT_FAKE_DOF.focusY))),
+    focusRadius: Math.max(0.01, Math.min(1, toNumber(source.focusRadius, DEFAULT_FAKE_DOF.focusRadius))),
+    blur: Math.max(0, toNumber(source.blur, DEFAULT_FAKE_DOF.blur)),
+    strength: Math.max(0, Math.min(1, toNumber(source.strength, DEFAULT_FAKE_DOF.strength)))
   };
 };
 
@@ -347,6 +368,13 @@ export const createDefaultFilter = (type: FilterType): ObjectFilter => {
         enabled: true,
         params: { ...DEFAULT_DISPLACEMENT_MAP }
       };
+    case 'fake_dof':
+      return {
+        id: createFilterId(type),
+        type,
+        enabled: true,
+        params: { ...DEFAULT_FAKE_DOF }
+      };
     default:
       return {
         id: createFilterId('color_correction'),
@@ -448,6 +476,13 @@ const normaliseFilter = (value: unknown): ObjectFilter | null => {
         type: 'displacement_map',
         enabled,
         params: normaliseDisplacementMapParams(value.params)
+      };
+    case 'fake_dof':
+      return {
+        id,
+        type: 'fake_dof',
+        enabled,
+        params: normaliseFakeDofParams(value.params)
       };
     default:
       return null;
