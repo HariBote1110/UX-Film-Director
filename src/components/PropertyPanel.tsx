@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState, PsdWorldPlacement, VideoObject, ParticleObject, GetColorDotFieldObject } from '../types';
+import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState, PsdWorldPlacement, VideoObject, ParticleObject, GetColorDotFieldObject, PlainEffectorLineObject } from '../types';
 import { buildPsdLayerTree, togglePsdLayer } from '../utils/psdParser';
 import { easingNames, EasingType } from '../utils/easings';
 import { buildEndpointKeyframes, evaluateObjectPositionAtTime } from '../utils/keyframes';
@@ -2690,6 +2690,123 @@ const PropertyPanel: React.FC = () => {
                          ? 'PNG/JPEG image objects or PSD objects are used as Rust GetColor sample sources.'
                         : 'PNG/JPEG画像またはPSDをRust GetColorのサンプル元として使います。'}
                  </div>
+             </>
+         )}
+
+         {selectedObject.type === 'plain_effector_line' && (
+             <>
+                 <SectionHeader label="PlainEffector Line Settings" />
+                 <Row label="Radius">
+                     <input
+                         type="number"
+                         min="1"
+                         max="2000"
+                         step="1"
+                         value={(selectedObject as PlainEffectorLineObject).radius}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 100), 1, 2000);
+                             updateObject(selectedObject.id, { radius: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Strength">
+                     <input
+                         type="number"
+                         min="-10"
+                         max="10"
+                         step="0.1"
+                         value={(selectedObject as PlainEffectorLineObject).strength}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 1), -10, 10);
+                             updateObject(selectedObject.id, { strength: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Randomness">
+                     <input
+                         type="number"
+                         min="-1000"
+                         max="1000"
+                         step="1"
+                         value={(selectedObject as PlainEffectorLineObject).randomness}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 0), -1000, 1000);
+                             updateObject(selectedObject.id, { randomness: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Zoom">
+                     <input
+                         type="number"
+                         min="-2"
+                         max="5"
+                         step="0.1"
+                         value={(selectedObject as PlainEffectorLineObject).zoom}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 1), -2, 5);
+                             updateObject(selectedObject.id, { zoom: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Invert">
+                     <input
+                         type="checkbox"
+                         checked={(selectedObject as PlainEffectorLineObject).invert}
+                         onChange={(e) => updateObject(selectedObject.id, { invert: e.target.checked } as Partial<TimelineObject>)}
+                     />
+                 </Row>
+                 <Row label="Line Count">
+                     <input
+                         type="number"
+                         min="1"
+                         max="128"
+                         step="1"
+                         value={(selectedObject as PlainEffectorLineObject).lineCount}
+                         onChange={(e) => {
+                             const next = Math.round(clamp(toNumberOr(e.target.value, 24), 1, 128));
+                             updateObject(selectedObject.id, { lineCount: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Line Width">
+                     <input
+                         type="number"
+                         min="0.25"
+                         max="200"
+                         step="0.25"
+                         value={(selectedObject as PlainEffectorLineObject).lineWidth}
+                         onChange={(e) => {
+                             const next = clamp(toNumberOr(e.target.value, 2), 0.25, 200);
+                             updateObject(selectedObject.id, { lineWidth: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '80px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                     />
+                 </Row>
+                 <Row label="Colour">
+                     <input
+                         type="color"
+                         value={(selectedObject as PlainEffectorLineObject).colour}
+                         onChange={(e) => handleChange('colour', e.target.value)}
+                     />
+                 </Row>
+                 <Row label="Colour Amount">
+                     <Slider
+                         min="0"
+                         max="1"
+                         step="0.01"
+                         value={(selectedObject as PlainEffectorLineObject).colourAmount}
+                         onInput={(e) => {
+                             const next = clamp(toNumberOr(e.currentTarget.value, 1), 0, 1);
+                             updateObject(selectedObject.id, { colourAmount: next } as Partial<TimelineObject>);
+                         }}
+                         style={{ width: '100%' }}
+                     />
+                 </Row>
              </>
          )}
          
