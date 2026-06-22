@@ -94,6 +94,9 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     if (!passes_area_expand_bounds(source_position)) {
         return vec4<f32>(0.0);
     }
+    if (params.area_expand_fill < 0.5 && is_outside_source_bounds(source_position)) {
+        return vec4<f32>(0.0);
+    }
     let expanded_source_position = clamp_source_position(source_position);
 
     if (!passes_wipe(expanded_source_position)) {
@@ -209,6 +212,13 @@ fn passes_area_expand_bounds(source_position: vec2<f32>) -> bool {
         || source_position.x >= params.source_width + params.area_expand_right
         || source_position.y >= params.source_height + params.area_expand_bottom
     );
+}
+
+fn is_outside_source_bounds(source_position: vec2<f32>) -> bool {
+    return source_position.x < 0.0
+        || source_position.y < 0.0
+        || source_position.x >= params.source_width
+        || source_position.y >= params.source_height;
 }
 
 fn sample_source_with_fake_dof(source_position: vec2<f32>) -> vec4<f32> {
