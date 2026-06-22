@@ -74,6 +74,8 @@ describe('AviUtlPackV4 feature catalogue', () => {
       'script/93/DOF2.lua'
     ]));
     expect(byId.get('93-fake-dof2')?.implementationTarget).toBe('rust-webgpu-effect');
+    expect(byId.get('93-auto-blur-plus')?.sourceRelativePaths).toContain('script/93/オートブラー+.anm');
+    expect(byId.get('93-auto-blur-plus')?.implementationTarget).toBe('rust-webgpu-effect');
     expect(byId.get('particle-standard')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('tim-aura-emission')?.sourceRelativePaths).toContain('script/てぃむ/オーラ放出.anm');
     expect(byId.get('tim-bubbles')?.sourceRelativePaths).toContain('script/てぃむ/泡.obj');
@@ -153,9 +155,10 @@ describe('AviUtlPackV4 feature catalogue', () => {
       '93-contour-trace',
       '93-displacement-poly',
       '93-displacement-map-b',
-      '93-fake-dof2'
+      '93-fake-dof2',
+      '93-auto-blur-plus'
     ];
 
-    expect(roadmapIds.slice(0, 31)).toEqual(expect.arrayContaining(priorityIds));
+    expect(roadmapIds.slice(0, 32)).toEqual(expect.arrayContaining(priorityIds));
   });
 });

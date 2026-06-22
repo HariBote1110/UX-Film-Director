@@ -190,6 +190,32 @@ fn rejects_invalid_fake_dof_effect_values() {
 }
 
 #[test]
+fn accepts_finite_auto_blur_effect_values() {
+    let mut project = valid_project();
+    project.tracks[0].clips[0].effects.push(Effect::AutoBlur {
+        angle_degrees: 0.0,
+        radius: 10.0,
+        strength: 0.8,
+        colour_shift: 0.25,
+    });
+
+    assert!(validate_project(&project).is_ok());
+}
+
+#[test]
+fn rejects_invalid_auto_blur_effect_values() {
+    let mut project = valid_project();
+    project.tracks[0].clips[0].effects.push(Effect::AutoBlur {
+        angle_degrees: f32::NAN,
+        radius: -1.0,
+        strength: 2.0,
+        colour_shift: -0.1,
+    });
+
+    assert!(validation_codes(&project).contains(&ValidationCode::NonFiniteNumber));
+}
+
+#[test]
 fn rejects_invalid_wipe_effect_progress() {
     let mut project = valid_project();
     project.tracks[0].clips[0].effects.push(Effect::Wipe {

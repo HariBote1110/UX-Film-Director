@@ -3697,6 +3697,47 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('serialises 93 auto blur plus filters as velocity-derived Rust scene effects', () => {
+    const layers = createDefaultLayers();
+    const moving = baseImage({
+      id: 'moving',
+      x: 0,
+      y: 100,
+      endX: 600,
+      endY: 100,
+      duration: 1,
+      enableAnimation: true,
+      filters: [
+        {
+          id: 'auto-blur-1',
+          type: 'auto_blur',
+          enabled: true,
+          params: { blur: 10, speed: 1, strength: 0.8, colourShift: 0.25 },
+        } as any,
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [moving],
+      time: 1.5,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected auto blur snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([
+      {
+        AutoBlur: {
+          angle_degrees: 0,
+          radius: 10,
+          strength: 0.8,
+          colour_shift: 0.25,
+        },
+      },
+    ]);
+  });
+
   it('fails loud for visible Pixi features the shared renderer cannot represent yet', () => {
     const layers = createDefaultLayers();
     const unsupportedText: TimelineObject = {
