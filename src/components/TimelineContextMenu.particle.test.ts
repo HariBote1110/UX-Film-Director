@@ -110,6 +110,8 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('handleAddPieChart');
     expect(code).toContain('handleAddSunburst');
     expect(code).toContain('handleAddTrackBar');
+    expect(code).toContain('duplicateSelectedObjectsWithObjectCopyExt');
+    expect(code).toContain('handleAddObjectCopyExtClones');
     expect(code).toContain('Add Houndstooth');
     expect(code).toContain('Add Yagasuri');
     expect(code).toContain('Add Paper Airplane');
@@ -160,6 +162,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('Add Pie Chart');
     expect(code).toContain('Add Sunburst');
     expect(code).toContain('Add Track Bar');
+    expect(code).toContain('93 ObjectCopyEXT Clone Strip');
     expect(code).toContain('千鳥格子を追加');
     expect(code).toContain('矢がすりを追加');
     expect(code).toContain('紙飛行機を追加');
@@ -209,5 +212,6 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('パイシートグラフを追加');
     expect(code).toContain('日の出を追加');
     expect(code).toContain('トラックバーを追加');
+    expect(code).toContain('93 ObjectCopyEXT複製列を追加');
   });
 });
