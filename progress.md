@@ -1,3 +1,20 @@
+## 2026-06-22 — フェーズ3: Rust backendのProtractor描画をgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `build_generated_protractor_source_frame` を `rust-backend/src/generated.rs` へ抽出した。
+- `draw_protractor_arc`、七セグラベル描画helper、`fill_rect_rgba_i32` をProtractor専用helperとして `generated.rs` にまとめた。
+- `draw_filled_circle_rgba` を `generated.rs` の `pub(crate)` helperへ移し、ShakingPolygonやGetColorDotsなど残りの生成描画からも共有できる位置にした。
+- `main.rs` は 4,319 行から 3,987 行になった。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はshaking polygon、tone curve、HK-SY checker gridなどの残りの生成フレーム描画関数をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのHologram描画をgenerated.rsへ分離
 
 ### 実施内容
