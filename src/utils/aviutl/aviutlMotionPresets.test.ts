@@ -43,7 +43,8 @@ describe('AviUtlPackV4 motion presets', () => {
       { id: 'motion-path-s-curve', sourceCandidateId: 'tim-motion-path' },
       { id: 'wind-sway-soft', sourceCandidateId: 'tim-wind-sway' },
       { id: 'delay-move-individual', sourceCandidateId: '93-delay-move' },
-      { id: 'coordinate-plus-snap-move', sourceCandidateId: '93-coordinate-plus' }
+      { id: 'coordinate-plus-snap-move', sourceCandidateId: '93-coordinate-plus' },
+      { id: 'ta-easing-overshoot-arrive', sourceCandidateId: '93-ta-easing' }
     ]);
   });
 
@@ -216,6 +217,29 @@ describe('AviUtlPackV4 motion presets', () => {
       expect.objectContaining({ time: 2, x: 320, y: 224, easing: 'easeInOutSine' }),
       expect.objectContaining({ time: 2.75, x: 384, y: 224, easing: 'linear' }),
       expect.objectContaining({ time: 5, x: 384, y: 224, easing: 'linear' })
+    ]);
+  });
+
+  it('builds a 93 TA-Easing overshoot arrival that settles back to the resting position', () => {
+    const patch = buildAviUtlMotionPresetPatch(baseShape({
+      startTime: 1,
+      duration: 3
+    }), 'ta-easing-overshoot-arrive', {
+      distancePx: 120,
+      spanSeconds: 0.8
+    });
+
+    expect(patch.enableAnimation).toBe(true);
+    expect(patch.x).toBe(320);
+    expect(patch.y).toBe(240);
+    expect(patch.endX).toBe(320);
+    expect(patch.endY).toBe(240);
+    expect(patch.easing).toBe('easeOutBack');
+    expect(patch.keyframes).toEqual([
+      expect.objectContaining({ time: 1, x: 320, y: 360, easing: 'easeOutBack' }),
+      expect.objectContaining({ time: 1.56, x: 320, y: 222, easing: 'easeInOutSine' }),
+      expect.objectContaining({ time: 1.8, x: 320, y: 240, easing: 'linear' }),
+      expect.objectContaining({ time: 4, x: 320, y: 240, easing: 'linear' })
     ]);
   });
 });
