@@ -4768,73 +4768,6 @@ fn validate_generated_particle_source(source: &GeneratedParticleSource) -> Resul
     Ok(())
 }
 
-fn validate_generated_barcode_source(source: &GeneratedBarcodeSource) -> Result<(), String> {
-    if source.generator != "barcode-t" {
-        return Err("generator must be barcode-t".to_string());
-    }
-    if source.data.is_empty() || source.data.chars().count() > 128 {
-        return Err("data length must be 1..128".to_string());
-    }
-    if source.minimum_bar_width == 0 || source.minimum_bar_width > 32 {
-        return Err("minimum_bar_width must be 1..32".to_string());
-    }
-    if source.horizontal_margin > 1000 {
-        return Err("horizontal_margin must be 0..1000".to_string());
-    }
-    if source.vertical_margin > 1000 {
-        return Err("vertical_margin must be 0..1000".to_string());
-    }
-    parse_hex_colour_source(&source.foreground_colour)?;
-    parse_hex_colour_source(&source.background_colour)?;
-    Ok(())
-}
-
-fn validate_generated_puzzle_piece_source(
-    source: &GeneratedPuzzlePieceSource,
-) -> Result<(), String> {
-    if source.generator != "puzzle-piece" {
-        return Err("generator must be puzzle-piece".to_string());
-    }
-    if source.size == 0 || source.size > 2000 {
-        return Err("size must be 1..2000".to_string());
-    }
-    if source.shape_variant == 0 || source.shape_variant > 22 {
-        return Err("shape_variant must be 1..22".to_string());
-    }
-    if source.connector_mode != "convex" && source.connector_mode != "concave" {
-        return Err("connector_mode must be convex or concave".to_string());
-    }
-    parse_hex_colour_source(&source.fill_colour)?;
-    Ok(())
-}
-
-fn validate_generated_colour_wheel_source(
-    source: &GeneratedColourWheelSource,
-) -> Result<(), String> {
-    if source.generator != "colour-wheel" {
-        return Err("generator must be colour-wheel".to_string());
-    }
-    if source.radius == 0 || source.radius > 2000 {
-        return Err("radius must be 1..2000".to_string());
-    }
-    if !source.saturation.is_finite() || source.saturation < 0.0 || source.saturation > 100.0 {
-        return Err("saturation must be 0..100".to_string());
-    }
-    if !source.brightness.is_finite() || source.brightness < 0.0 || source.brightness > 100.0 {
-        return Err("brightness must be 0..100".to_string());
-    }
-    if !source.ring_width_percent.is_finite()
-        || source.ring_width_percent <= 0.0
-        || source.ring_width_percent > 100.0
-    {
-        return Err("ring_width_percent must be 0..100".to_string());
-    }
-    if source.segment_count < 3 || source.segment_count > 360 {
-        return Err("segment_count must be 3..360".to_string());
-    }
-    Ok(())
-}
-
 fn validate_generated_gourd_source(source: &GeneratedGourdSource) -> Result<(), String> {
     if source.generator != "gourd-tm" {
         return Err("generator must be gourd-tm".to_string());
@@ -6058,25 +5991,6 @@ fn hex_value(value: u8) -> Option<u8> {
         b'A'..=b'F' => Some(value - b'A' + 10),
         _ => None,
     }
-}
-
-fn parse_hex_colour_source(source: &str) -> Result<[u8; 3], String> {
-    let source = source.trim();
-    let Some(hex) = source.strip_prefix('#') else {
-        return Err("source must be a #rrggbb hex colour".to_string());
-    };
-    if hex.len() != 6 || !hex.chars().all(|character| character.is_ascii_hexdigit()) {
-        return Err("source must be a #rrggbb hex colour".to_string());
-    }
-
-    let red = u8::from_str_radix(&hex[0..2], 16)
-        .map_err(|_| "source must be a #rrggbb hex colour".to_string())?;
-    let green = u8::from_str_radix(&hex[2..4], 16)
-        .map_err(|_| "source must be a #rrggbb hex colour".to_string())?;
-    let blue = u8::from_str_radix(&hex[4..6], 16)
-        .map_err(|_| "source must be a #rrggbb hex colour".to_string())?;
-
-    Ok([red, green, blue])
 }
 
 #[cfg(test)]

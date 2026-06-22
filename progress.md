@@ -1,3 +1,20 @@
+## 2026-06-22 — フェーズ3: Rust backendの生成colour parserと一部validatorをgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `parse_hex_colour_source` を `rust-backend/src/generated.rs` へ抽出した。
+- 依存が浅い `validate_generated_barcode_source`、`validate_generated_puzzle_piece_source`、`validate_generated_colour_wheel_source` を `generated.rs` へ抽出した。
+- 生成メディアの型定義と入力検証の責務を `generated.rs` 側へ寄せ、後続の生成描画関数分割に備えた。
+- `main.rs` は 7,457 行から 7,371 行になった。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次は残りの生成validator、native render source収集、または生成フレーム描画関数群をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのnative audio waveform収集をnative_render.rsへ分離
 
 ### 実施内容
