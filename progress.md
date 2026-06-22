@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendのframe転送ユーティリティをframes.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `tight_rgba_byte_len`、`pad_rgba_rows`、`checksum_for_bytes`、`base64_encode`、`descriptor_for_release` を `rust-backend/src/frames.rs` へ抽出した。
+- decode共有メモリ、inline RGBA応答、native render CPU fast pathで共有するframe転送補助関数を `frames.rs` 経由で再利用する構成にした。
+- `main.rs` から不要になった `ChecksumAlgorithm` と `FrameChecksum` のimportを削除した。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- `frames.rs` に切り出した補助関数を足場にして、次はdecode data planeまたはdecode handler本体を `decode.rs` へ移す。
+
 ## 2026-06-22 — フェーズ3: Rust backendのmedia/PSD RPCをmedia.rsへ分離
 
 ### 実施内容
