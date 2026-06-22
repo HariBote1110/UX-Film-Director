@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AsanohaPatternObject, AudioSphereObject, BarcodeObject, CircularArrowObject, ColourWheelObject, ContourTraceObject, DisplacementPolyObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, PaperAirplaneObject, ParticleObject, PieChartObject, PlainEffectorLineObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, SphericalFieldObject, SunburstObject, TartanCheckObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioSphereObject, BarcodeObject, CircularArrowObject, ColourWheelObject, ContourTraceObject, DisplacementPolyObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, PaperAirplaneObject, ParticleObject, PieChartObject, PlainEffectorLineObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, ShakingPolygonObject, ShapeObject, ShatteredSphereObject, SphericalFieldObject, SunburstObject, TartanCheckObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, YagasuriObject } from '../types';
 import { MAX_LAYERS } from '../components/timelineConstants';
 import { createDefaultCamera, createDefaultLayers, createDefaultStageCamera3D } from './sceneState';
 import { buildProjectFileData, parseProjectPayloadV2, restoreProjectObjects } from './projectFile';
@@ -770,6 +770,43 @@ const minimalShakingPolygon = (): ShakingPolygonObject => ({
   seed: 0,
 });
 
+const minimalShatteredSphere = (): ShatteredSphereObject => ({
+  id: 'shattered-sphere-1',
+  type: 'shattered_sphere',
+  name: '93 砕け散る球',
+  layer: 24,
+  startTime: 1,
+  duration: 5,
+  x: 780,
+  y: 360,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 780,
+  endY: 360,
+  easing: 'linear',
+  width: 360,
+  height: 360,
+  fractureAmount: 100,
+  delay: 100,
+  radius: 160,
+  limitDistance: 150,
+  thickness: 20,
+  fragmentSize: 40,
+  randomShape: 100,
+  speed: 100,
+  impact: 100,
+  gravityX: 0,
+  gravityY: 100,
+  gravityZ: 0,
+  spin: 100,
+  directionDiffusion: 100,
+  colour: '#ffffff',
+  seed: 93,
+});
+
 const minimalToneCurve = (): ToneCurveObject => ({
   id: 'tone-curve-1',
   type: 'tone_curve',
@@ -1085,6 +1122,7 @@ describe('parseProjectPayloadV2', () => {
     const hologram = minimalHologram();
     const protractor = minimalProtractor();
     const shakingPolygon = minimalShakingPolygon();
+    const shatteredSphere = minimalShatteredSphere();
     const toneCurve = minimalToneCurve();
     const hksyCheckerGrid = minimalHksyCheckerGrid();
     const getColorDotField = minimalGetColorDotField();
@@ -1098,13 +1136,13 @@ describe('parseProjectPayloadV2', () => {
           name: 'One',
           duration: 10,
           layers,
-          objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, contourTrace, displacementPoly, plainEffectorLine, hologram, protractor, shakingPolygon, toneCurve, hksyCheckerGrid, getColorDotField, audioSphere, sphericalField],
+          objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, contourTrace, displacementPoly, plainEffectorLine, hologram, protractor, shakingPolygon, shatteredSphere, toneCurve, hksyCheckerGrid, getColorDotField, audioSphere, sphericalField],
           camera,
           stageCamera3D: defaultStage()
         }
       ],
       activeSceneId: 's1',
-      objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, contourTrace, displacementPoly, plainEffectorLine, hologram, protractor, shakingPolygon, toneCurve, hksyCheckerGrid, getColorDotField, audioSphere, sphericalField],
+      objects: [particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, contourTrace, displacementPoly, plainEffectorLine, hologram, protractor, shakingPolygon, shatteredSphere, toneCurve, hksyCheckerGrid, getColorDotField, audioSphere, sphericalField],
       layers,
       duration: 10,
       camera,
@@ -1112,7 +1150,7 @@ describe('parseProjectPayloadV2', () => {
     });
 
     const parsed = parseProjectPayloadV2(JSON.parse(JSON.stringify(file)));
-    expect(parsed.scenes[0].objects).toEqual([particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, contourTrace, displacementPoly, plainEffectorLine, hologram, protractor, shakingPolygon, toneCurve, hksyCheckerGrid, getColorDotField, audioSphere, sphericalField]);
+    expect(parsed.scenes[0].objects).toEqual([particle, barcode, puzzle, colourWheel, gourd, gear, trackBar, pieChart, histogram, sunburst, circularArrow, triangleBracket, tartanCheck, houndstooth, yagasuri, paperAirplane, asanohaPattern, focusLinesPlus, randomLineEx, contourTrace, displacementPoly, plainEffectorLine, hologram, protractor, shakingPolygon, shatteredSphere, toneCurve, hksyCheckerGrid, getColorDotField, audioSphere, sphericalField]);
   });
 
   it('round-trips a GetColor V2R diamond dot field through JSON payload', () => {

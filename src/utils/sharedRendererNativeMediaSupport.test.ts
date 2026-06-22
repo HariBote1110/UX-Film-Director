@@ -542,6 +542,24 @@ describe('sharedRendererNativeMediaSupport', () => {
     })).toBe(false);
   });
 
+  it('accepts 93 shattered sphere generator sources as native renderable media', () => {
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'shattered-sphere-1',
+      kind: 'GeneratedShatteredSphere',
+      source: '{"generator":"shattered-sphere-93","fracture_amount":100,"delay":100,"radius":160,"limit_distance":150,"thickness":20,"fragment_size":40,"random_shape":100,"speed":100,"impact":100,"gravity":[0,100,0],"spin":100,"direction_diffusion":100,"colour":"#ffffff","seed":93}',
+      width: 360,
+      height: 360,
+    })).toBe(true);
+
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'shattered-sphere-invalid-1',
+      kind: 'GeneratedShatteredSphere',
+      source: '{"generator":"shattered-sphere-93","fracture_amount":100,"delay":100,"radius":0,"limit_distance":150,"thickness":20,"fragment_size":40,"random_shape":100,"speed":100,"impact":100,"gravity":[0,100,0],"spin":100,"direction_diffusion":100,"colour":"#ffffff","seed":93}',
+      width: 360,
+      height: 360,
+    })).toBe(false);
+  });
+
   it('accepts 93 SimpleTube torus generator sources with colour pattern and fog', () => {
     expect(isSharedRendererNativeMediaReferenceSupported({
       id: 'simple-tube-torus-1',

@@ -437,6 +437,22 @@ fn rust_core_accepts_generated_shaking_polygon_media_kind_at_the_json_boundary()
 }
 
 #[test]
+fn rust_core_accepts_generated_shattered_sphere_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "shattered-sphere-1",
+        "kind": "GeneratedShatteredSphere",
+        "source": "{\"generator\":\"shattered-sphere-93\",\"fracture_amount\":100,\"delay\":100,\"radius\":160,\"limit_distance\":150,\"thickness\":20,\"fragment_size\":40,\"random_shape\":100,\"speed\":100,\"impact\":100,\"gravity\":[0,100,0],\"spin\":100,\"direction_diffusion\":100,\"colour\":\"#ffffff\",\"seed\":93}",
+        "width": 360,
+        "height": 360
+    }))
+    .expect("GeneratedShatteredSphere media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedShatteredSphere);
+    assert_eq!(media.width, 360);
+    assert_eq!(media.height, 360);
+}
+
+#[test]
 fn rust_core_accepts_generated_tone_curve_media_kind_at_the_json_boundary() {
     let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
         "id": "tone-curve-1",

@@ -28,6 +28,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('buildAviUtlContourTraceObject');
     expect(code).toContain('buildAviUtlDisplacementPolyObject');
     expect(code).toContain('buildAviUtlPlainEffectorLineObject');
+    expect(code).toContain('buildAviUtlShatteredSphereObject');
     expect(code).toContain('buildAviUtlCircularArrowObject');
     expect(code).toContain('buildAviUtlTartanCheckObject');
     expect(code).toContain('buildAviUtlTriangleBracketObject');
@@ -76,6 +77,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('handleAddContourTrace');
     expect(code).toContain('handleAddDisplacementPoly');
     expect(code).toContain('handleAddPlainEffectorLine');
+    expect(code).toContain('handleAddShatteredSphere');
     expect(code).toContain('handleAddCircularArrow');
     expect(code).toContain('handleAddTartanCheck');
     expect(code).toContain('handleAddTriangleBracket');
@@ -124,6 +126,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('Add 93 Contour Trace');
     expect(code).toContain('Add 93 DisplacementPoly');
     expect(code).toContain('Add 93 PlainEffector Line');
+    expect(code).toContain('Add 93 Shattered Sphere');
     expect(code).toContain('Add Barcode');
     expect(code).toContain('Add Circular Arrow');
     expect(code).toContain('Add Tartan Check');
@@ -171,6 +174,7 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('93 SphericalFieldを追加');
     expect(code).toContain('93 DisplacementPolyを追加');
     expect(code).toContain('93 PlainEffector Lineを追加');
+    expect(code).toContain('93砕け散る球を追加');
     expect(code).toContain('バーコードを追加');
     expect(code).toContain('円矢印を追加');
     expect(code).toContain('タータンチェックを追加');

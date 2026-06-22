@@ -842,6 +842,44 @@ fn generated_shaking_polygon_source_frame_contains_jittered_outline_and_transpar
 }
 
 #[test]
+fn generated_shattered_sphere_source_frame_animates_fragments_and_transparency() {
+    let media = SceneMediaReference {
+            id: "shattered-sphere-1".to_string(),
+            kind: MediaKind::GeneratedShatteredSphere,
+            source: r##"{"generator":"shattered-sphere-93","fracture_amount":100,"delay":100,"radius":160,"limit_distance":150,"thickness":20,"fragment_size":40,"random_shape":100,"speed":100,"impact":100,"gravity":[0,100,0],"spin":100,"direction_diffusion":100,"colour":"#ffffff","seed":93}"##.to_string(),
+            width: 360,
+            height: 360,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+
+    let frame_a = build_generated_shattered_sphere_source_frame(&media, 0)
+        .expect("generated shattered sphere frame should render");
+    let frame_b = build_generated_shattered_sphere_source_frame(&media, 60)
+        .expect("generated shattered sphere frame should render at a later frame");
+    let white_count = frame_a
+        .pixels
+        .chunks_exact(4)
+        .filter(|rgba| rgba[0] > 220 && rgba[1] > 220 && rgba[2] > 220 && rgba[3] > 180)
+        .count();
+    let transparent_count = frame_a
+        .pixels
+        .chunks_exact(4)
+        .filter(|rgba| rgba[3] == 0)
+        .count();
+    let changed_bytes = frame_a
+        .pixels
+        .iter()
+        .zip(frame_b.pixels.iter())
+        .filter(|(left, right)| left != right)
+        .count();
+
+    assert!(white_count > 4_000);
+    assert!(transparent_count > 70_000);
+    assert!(changed_bytes > 8_000);
+}
+
+#[test]
 fn generated_tone_curve_source_frame_contains_grid_and_curve() {
     let media = SceneMediaReference {
             id: "tone-curve-1".to_string(),

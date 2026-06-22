@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, ContourTraceObject, DisplacementPolyObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, PlainEffectorLineObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, RegionFrameObject, ShakingPolygonObject, ShapeObject, SimpleTubeObject, SphereDotsObject, SphericalFieldObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, ContourTraceObject, DisplacementPolyObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, PlainEffectorLineObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, RegionFrameObject, ShakingPolygonObject, ShapeObject, ShatteredSphereObject, SimpleTubeObject, SphereDotsObject, SphericalFieldObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -828,6 +828,44 @@ const basePlainEffectorLine = (patch: Partial<PlainEffectorLineObject> = {}): Pl
   lineWidth: 2,
   colour: '#f74d52',
   colourAmount: 1,
+  seed: 93,
+  ...patch,
+});
+
+const baseShatteredSphere = (patch: Partial<ShatteredSphereObject> = {}): ShatteredSphereObject => ({
+  id: 'shattered-sphere-1',
+  type: 'shattered_sphere',
+  name: '93 砕け散る球',
+  layer: 27,
+  startTime: 1,
+  duration: 4,
+  x: 780,
+  y: 360,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 0.9,
+  enableAnimation: false,
+  endX: 780,
+  endY: 360,
+  easing: 'linear',
+  width: 360,
+  height: 360,
+  fractureAmount: 100,
+  delay: 100,
+  radius: 160,
+  limitDistance: 150,
+  thickness: 20,
+  fragmentSize: 40,
+  randomShape: 100,
+  speed: 100,
+  impact: 100,
+  gravityX: 0,
+  gravityY: 100,
+  gravityZ: 0,
+  spin: 100,
+  directionDiffusion: 100,
+  colour: '#ffffff',
   seed: 93,
   ...patch,
 });
@@ -2170,6 +2208,52 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         }),
         width: 800,
         height: 450,
+      },
+    ]);
+  });
+
+  it('builds an animated generated 93 shattered sphere media plane from a shattered sphere object', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseShatteredSphere()],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected generated shattered sphere snapshot to pass');
+
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'shattered-sphere-1',
+      track_id: 'layer-27',
+      media_id: 'shattered-sphere-1',
+      source_frame: 60,
+      opacity: 0.9,
+    });
+    expect(result.media).toEqual([
+      {
+        id: 'shattered-sphere-1',
+        kind: 'GeneratedShatteredSphere',
+        source: JSON.stringify({
+          generator: 'shattered-sphere-93',
+          fracture_amount: 100,
+          delay: 100,
+          radius: 160,
+          limit_distance: 150,
+          thickness: 20,
+          fragment_size: 40,
+          random_shape: 100,
+          speed: 100,
+          impact: 100,
+          gravity: [0, 100, 0],
+          spin: 100,
+          direction_diffusion: 100,
+          colour: '#ffffff',
+          seed: 93,
+        }),
+        width: 360,
+        height: 360,
       },
     ]);
   });
