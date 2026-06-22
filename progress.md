@@ -1,3 +1,21 @@
+## 2026-06-22 — フェーズ3: Rust backendのGenerated Source型定義をサブモジュール化
+
+### 実施内容
+- `rust-backend/src/generated.rs` から全 `Generated*Source` 構造体とserde default関数を `rust-backend/src/generated/sources.rs` へ分離した。
+- `generated.rs` から `sources` を再exportし、既存の呼び出し側とテストから見えるAPIを維持した。
+- `generated.rs` は 6,085 行から 5,675 行になり、型定義414行を独立ファイルへ移した。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- 初回の `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` では `decode_stop_releases_active_session_so_another_source_can_start` のみ一度失敗したが、今回の型定義移動とは独立したdecodeセッション系テストだった。
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane decode_stop_releases_active_session_so_another_source_can_start -- --nocapture` は成功した。
+- 再実行した `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次はvalidation関数群か共有描画helper群を `generated/` 配下へ分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendのGetColorDots描画をgenerated.rsへ分離
 
 ### 実施内容
