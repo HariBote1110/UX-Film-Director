@@ -1,6 +1,15 @@
 # 進捗ログ
 
 ## 2026-06-23
+- 93 個別座標再配置2をnative motion presetへ追加した。
+- Red: `script/93/個別座標再配置2.anm` を `93-individual-coordinate-rearrange` としてAviUtlPackV4カタログへ載せ、複数選択順を使うnative motion preset契約を追加した。
+- Green: `individual-coordinate-rearrange-circle` presetを追加し、選択順に応じてオブジェクトを円形スロットへ移動するキーフレームを生成するようにした。
+- Green: PropertyPanelのAviUtl Motion適用経路を順序対応preset集合へ拡張し、Delay個別と個別座標再配置2の両方へ `sequenceIndex` / `sequenceTotal` を渡すようにした。
+- 版を `0.1.1-Beta-333a` に更新した。
+- 検証: `npm test -- --run src/utils/aviutl/aviutlMotionPresets.test.ts src/utils/aviutl/aviutlPackFeatureCatalog.test.ts src/components/PropertyPanelBoundary.test.ts --reporter=dot` は26件成功した。
+- 元スクリプトの座標保存/呼び出し名、swap、link、pos変数受け取りは未対応。次は93の自己完結生成/効果、またはGetColor/hksy派生を続ける。
+
+## 2026-06-23
 - 93 ベジエ軌道T+をnative motion presetへ追加した。
 - Red: `script/93/ベジエ軌道Ｔ+.obj` を `93-bezier-orbit-t-plus` としてAviUtlPackV4カタログへ載せ、native motion preset契約を追加した。
 - Green: `bezier-orbit-t-plus` presetを追加し、始点、2つの制御点、終点から5点のキーフレームへ展開するようにした。
