@@ -96,6 +96,11 @@ describe('AviUtlPackV4 feature catalogue', () => {
     expect(byId.get('93-border-depth')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('93-reflection-poly')?.sourceRelativePaths).toContain('script/93/@Reflection_poly.anm');
     expect(byId.get('93-reflection-poly')?.implementationTarget).toBe('rust-webgpu-effect');
+    expect(byId.get('93-camera-target')?.sourceRelativePaths).toEqual(expect.arrayContaining([
+      'script/93/@カメラ目標化.anm',
+      'script/93/@カメラ目標指定.cam'
+    ]));
+    expect(byId.get('93-camera-target')?.implementationTarget).toBe('native-camera-tool');
     expect(byId.get('93-plain-effector-line')?.sourceRelativePaths).toContain('script/93/@PlainEffector.anm');
     expect(byId.get('93-plain-effector-line')?.implementationTarget).toBe('native-generated-object');
     expect(byId.get('93-shattered-sphere')?.sourceRelativePaths).toContain('script/93/砕け散る球.anm');
@@ -191,9 +196,10 @@ describe('AviUtlPackV4 feature catalogue', () => {
       '93-area-expand-s',
       '93-clipping-s',
       '93-border-depth',
-      '93-reflection-poly'
+      '93-reflection-poly',
+      '93-camera-target'
     ];
 
-    expect(roadmapIds.slice(0, 44)).toEqual(expect.arrayContaining(priorityIds));
+    expect(roadmapIds.slice(0, 45)).toEqual(expect.arrayContaining(priorityIds));
   });
 });

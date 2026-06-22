@@ -46,6 +46,18 @@ describe('PropertyPanel AviUtl effect preset controls', () => {
   });
 });
 
+describe('PropertyPanel AviUtl camera target controls', () => {
+  it('exposes the 93 camera target helper through the 3D stage camera panel', () => {
+    const code = source();
+
+    expect(code).toContain("import { buildAviUtlCameraTargetPatch, getAviUtlPackCameraPresets");
+    expect(code).toContain('const aviUtlCameraPresets = getAviUtlPackCameraPresets()');
+    expect(code).toContain('handleApplyAviUtlCameraTargetPreset');
+    expect(code).toContain('AviUtl Camera');
+    expect(code).toContain('93: 選択オブジェクトを目標にする');
+  });
+});
+
 describe('PropertyPanel standard particle controls', () => {
   it('exposes editable controls for Rust-native standard particle parameters', () => {
     const code = source();
