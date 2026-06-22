@@ -1,3 +1,19 @@
+## 2026-06-22 — フェーズ3: Rust backendの生成validatorを追加でgenerated.rsへ分離
+
+### 実施内容
+- `rust-backend/src/main.rs` から `validate_generated_gourd_source`、`validate_generated_gear_source`、`validate_generated_track_bar_source` を `rust-backend/src/generated.rs` へ抽出した。
+- hex colour parserだけに依存する生成メディア入力検証を `generated.rs` 側へさらに集約した。
+- `main.rs` は 7,371 行から 7,276 行になった。
+- `cargo fmt --manifest-path rust-backend/Cargo.toml` でRustコード整形を行った。
+- 振る舞い不変のリファクタリングのため、`package.json` のバージョンは据え置いた。
+
+### 検証
+- `cargo build --manifest-path rust-backend/Cargo.toml` は成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml -- --nocapture` は単体42件、`decode_control_plane` 54件の合計96件成功した。
+
+### 残課題・次のステップ
+- 次は残りの生成validator、native render source収集、または生成フレーム描画関数群をさらに分割する。
+
 ## 2026-06-22 — フェーズ3: Rust backendの生成colour parserと一部validatorをgenerated.rsへ分離
 
 ### 実施内容
