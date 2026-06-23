@@ -218,9 +218,10 @@ describe('PropertyPanel 93 Shattered Sphere controls', () => {
 
     expect(code).toContain('ShatteredSphereNumberControl');
     expect(code).toContain('data-testid="shattered-sphere-settings"');
-    expect(code).toContain('data-shattered-sphere-control="fractureAmount"');
-    expect(code).toContain('data-shattered-sphere-control="speed"');
-    expect(code).toContain('data-shattered-sphere-control="gravityY"');
+    expect(code).toContain('data-shattered-sphere-control={controlKey}');
+    expect(code).toContain('controlKey="fractureAmount"');
+    expect(code).toContain('controlKey="speed"');
+    expect(code).toContain('controlKey="gravityY"');
     expect(code).toContain('shatteredSpherePresetPatches');
     expect(code).toContain('Soft Burst');
     expect(code).toContain('Fast Burst');
