@@ -65,6 +65,63 @@ interface TimelineContextMenuProps {
   onAddGroup: () => void;
 }
 
+const contextMenuItemStyle: React.CSSProperties = {
+  padding: '6px 12px',
+  cursor: 'pointer',
+};
+
+const TimelineContextMenuItem = ({
+  children,
+  onClick,
+  tone = 'normal',
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  tone?: 'normal' | 'generated' | 'danger';
+}) => (
+  <div
+    className="context-menu-item"
+    style={{
+      ...contextMenuItemStyle,
+      color: tone === 'danger' ? '#ff6b6b' : (tone === 'generated' ? '#aaffaa' : '#eee'),
+    }}
+    onClick={onClick}
+  >
+    {children}
+  </div>
+);
+
+const TimelineContextMenuSection = ({
+  title,
+  children,
+  defaultOpen = false,
+}: {
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) => (
+  <details
+    className="context-menu-section"
+    open={defaultOpen}
+    style={{ borderTop: '1px solid #333', marginTop: '4px', paddingTop: '2px' }}
+  >
+    <summary
+      style={{
+        padding: '6px 12px',
+        cursor: 'pointer',
+        color: '#cfe8cf',
+        listStyle: 'none',
+        userSelect: 'none',
+      }}
+    >
+      {title}
+    </summary>
+    <div style={{ paddingLeft: '8px', maxHeight: '320px', overflowY: 'auto' }}>
+      {children}
+    </div>
+  </details>
+);
+
 export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
   state,
   onClose,
@@ -766,65 +823,77 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
             <div style={{ padding: '4px 12px', color: '#888', borderBottom: '1px solid #333', marginBottom: '4px' }}>
               Time: {state.time.toFixed(2)}s <br/> Layer: {state.layer + 1}
             </div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddShape(); onClose(); }}>{t('addShape')}</div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddText(); onClose(); }}>{t('addText')}</div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddImage(); onClose(); }}>{t('addImage')}</div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddVideo(); onClose(); }}>{t('addVideo')}</div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddAudio(); onClose(); }}>{t('addAudio')}</div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddPsd(); onClose(); }}>{language === 'en' ? 'Add PSD' : 'PSD立ち絵を追加'}</div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#eee' }} onClick={() => { onAddGroup(); onClose(); }}>{language === 'en' ? 'Add Group Control' : 'グループ制御を追加'}</div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddWaveform}>{language === 'en' ? 'Add Waveform' : '音声波形を追加'}</div>
-             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddBarcode}>{language === 'en' ? 'Add Barcode' : 'バーコードを追加'}</div>
-             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddColourWheel}>{language === 'en' ? 'Add Colour Wheel' : '色相環を追加'}</div>
-             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddGear}>{language === 'en' ? 'Add Gear' : '歯車を追加'}</div>
-             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddGourd}>{language === 'en' ? 'Add Gourd' : 'ひょうたんを追加'}</div>
-             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddPuzzlePiece}>{language === 'en' ? 'Add Puzzle Piece' : 'パズルピースを追加'}</div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddParticle}>{language === 'en' ? 'Add Standard Particle' : '標準パーティクルを追加'}</div>
-            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddAuraEmission}>{language === 'en' ? 'Add Aura Emission' : 'オーラ放出を追加'}</div>
-             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddBubble}>{language === 'en' ? 'Add Bubbles' : '泡を追加'}</div>
-             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddFocusLines}>{language === 'en' ? 'Add Focus Lines' : '集中線を追加'}</div>
-             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddInkSplash}>{language === 'en' ? 'Add Ink Splash' : 'インクを追加'}</div>
-             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddTrackBar}>{language === 'en' ? 'Add Track Bar' : 'トラックバーを追加'}</div>
-              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddPieChart}>{language === 'en' ? 'Add Pie Chart' : 'パイシートグラフを追加'}</div>
-              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHistogram}>{language === 'en' ? 'Add Histogram' : '簡易ヒストグラムを追加'}</div>
-               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddGetColorDotField}>{language === 'en' ? 'Add GetColor V2R Dot Field' : 'GetColor V2Rドットフィールドを追加'}</div>
-               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddGetColorDiamondDotField}>{language === 'en' ? 'Add GetColor V2R Diamond Dots' : 'GetColor V2R菱形ドットフィールドを追加'}</div>
-               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddGetColorOutlinedSquareDotField}>{language === 'en' ? 'Add GetColor V2R Outlined Square Dots' : 'GetColor V2R枠線四角ドットフィールドを追加'}</div>
-               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddGetColorSampledDotField}>{language === 'en' ? 'Add GetColor V2R Sampled Dots' : 'GetColor V2R画像サンプリングドットを追加'}</div>
-               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHksyCheckerGrid}>{language === 'en' ? 'Add hksy Checker/Grid' : 'hksyチェッカー/グリッドを追加'}</div>
-              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHksyLine}>{language === 'en' ? 'Add hksy Lines' : 'hksy直線を追加'}</div>
-              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHksyMultiColourChecker}>{language === 'en' ? 'Add hksy Multi-Colour Checker' : 'hksy複数色チェッカーを追加'}</div>
-              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHksyDiamond}>{language === 'en' ? 'Add hksy Diamond' : 'hksy菱形を追加'}</div>
-              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHksyMeasuredGrid}>{language === 'en' ? 'Add hksy Grid' : 'hksyグリッドを追加'}</div>
-              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHksyAnchorLine}>{language === 'en' ? 'Add hksy Anchor Line' : 'hksyライン（アンカー指定）を追加'}</div>
-             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddToneCurve}>{language === 'en' ? 'Add Tone Curve' : '簡易トーンカーブを追加'}</div>
-             <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddSunburst}>{language === 'en' ? 'Add Sunburst' : '日の出を追加'}</div>
-              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddCircularArrow}>{language === 'en' ? 'Add Circular Arrow' : '円矢印を追加'}</div>
-              <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddTartanCheck}>{language === 'en' ? 'Add Tartan Check' : 'タータンチェックを追加'}</div>
-               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHoundstooth}>{language === 'en' ? 'Add Houndstooth' : '千鳥格子を追加'}</div>
-               <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddYagasuri}>{language === 'en' ? 'Add Yagasuri' : '矢がすりを追加'}</div>
-                  <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddPaperAirplane}>{language === 'en' ? 'Add Paper Airplane' : '紙飛行機を追加'}</div>
-                  <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddAsanohaPattern}>{language === 'en' ? 'Add Asanoha Pattern' : '麻の葉模様を追加'}</div>
-                   <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddAudioSphere}>{language === 'en' ? 'Add 93 Audio Sphere' : '93音声玉を追加'}</div>
-                    <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddFocusLinesPlus}>{language === 'en' ? 'Add Focus Lines Plus' : '集中線plusを追加'}</div>
-                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddRandomLineEx}>{language === 'en' ? 'Add Random Line EX' : 'ランダムラインEXを追加'}</div>
-                       <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddContourTrace}>{language === 'en' ? 'Add 93 Contour Trace' : '93輪郭トレスを追加'}</div>
-                       <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddDisplacementPoly}>{language === 'en' ? 'Add 93 DisplacementPoly' : '93 DisplacementPolyを追加'}</div>
-                       <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddPlainEffectorLine}>{language === 'en' ? 'Add 93 PlainEffector Line' : '93 PlainEffector Lineを追加'}</div>
-                       <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddRegionFrame}>{language === 'en' ? 'Add 93 Region Frame' : '93領域枠を追加'}</div>
-                    <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddEllipseRegionFrame}>{language === 'en' ? 'Add 93 Ellipse Region Frame' : '93領域枠(楕円)を追加'}</div>
-                    <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddCutCornerRegionFrame}>{language === 'en' ? 'Add 93 Cut-Corner Region Frame' : '93領域枠(角落ち)を追加'}</div>
-                    <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddBorderDepthRegionFrame}>{language === 'en' ? 'Add 93 Border Depth' : '93 Border Depthを追加'}</div>
-                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddHologram}>{language === 'en' ? 'Add Hologram' : 'ホログラムを追加'}</div>
-                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddProtractor}>{language === 'en' ? 'Add Protractor' : '分度器を追加'}</div>
-                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddShakingPolygon}>{language === 'en' ? 'Add Shaking Polygon' : '多角形_震えるを追加'}</div>
-                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddShatteredSphere}>{language === 'en' ? 'Add 93 Shattered Sphere' : '93砕け散る球を追加'}</div>
-                     <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddSimpleTube}>{language === 'en' ? 'Add 93 SimpleTube' : '93 SimpleTubeを追加'}</div>
-                    <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddSimpleTubeTorus}>{language === 'en' ? 'Add 93 SimpleTube Torus' : '93 SimpleTubeトーラスを追加'}</div>
-                    <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddSphereDots}>{language === 'en' ? 'Add 93 Sphere(DrawPixel)' : '93 Sphere(DrawPixel)を追加'}</div>
-                    <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddSphericalField}>{language === 'en' ? 'Add 93 SphericalField' : '93 SphericalFieldを追加'}</div>
-                    <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddSPField}>{language === 'en' ? 'Add 93 SPfield' : '93 SPfieldを追加'}</div>
-                    <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#aaffaa' }} onClick={handleAddTriangleBracket}>{language === 'en' ? 'Add Triangle Bracket' : '三角括弧を追加'}</div>
+            <TimelineContextMenuItem onClick={() => { onAddShape(); onClose(); }}>{t('addShape')}</TimelineContextMenuItem>
+            <TimelineContextMenuItem onClick={() => { onAddText(); onClose(); }}>{t('addText')}</TimelineContextMenuItem>
+            <TimelineContextMenuItem onClick={() => { onAddImage(); onClose(); }}>{t('addImage')}</TimelineContextMenuItem>
+            <TimelineContextMenuItem onClick={() => { onAddVideo(); onClose(); }}>{t('addVideo')}</TimelineContextMenuItem>
+            <TimelineContextMenuItem onClick={() => { onAddAudio(); onClose(); }}>{t('addAudio')}</TimelineContextMenuItem>
+            <TimelineContextMenuItem onClick={() => { onAddPsd(); onClose(); }}>{language === 'en' ? 'Add PSD' : 'PSD立ち絵を追加'}</TimelineContextMenuItem>
+            <TimelineContextMenuItem onClick={() => { onAddGroup(); onClose(); }}>{language === 'en' ? 'Add Group Control' : 'グループ制御を追加'}</TimelineContextMenuItem>
+            <TimelineContextMenuSection title={language === 'en' ? 'AviUtl / Generated' : 'AviUtl / 生成'}>
+              <TimelineContextMenuSection title={language === 'en' ? 'Audio / Particles' : '音声 / パーティクル'}>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddWaveform}>{language === 'en' ? 'Add Waveform' : '音声波形を追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddAudioSphere}>{language === 'en' ? 'Add 93 Audio Sphere' : '93音声玉を追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddParticle}>{language === 'en' ? 'Add Standard Particle' : '標準パーティクルを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddAuraEmission}>{language === 'en' ? 'Add Aura Emission' : 'オーラ放出を追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddBubble}>{language === 'en' ? 'Add Bubbles' : '泡を追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddFocusLines}>{language === 'en' ? 'Add Focus Lines' : '集中線を追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddFocusLinesPlus}>{language === 'en' ? 'Add Focus Lines Plus' : '集中線plusを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddInkSplash}>{language === 'en' ? 'Add Ink Splash' : 'インクを追加'}</TimelineContextMenuItem>
+              </TimelineContextMenuSection>
+              <TimelineContextMenuSection title="GetColor">
+                <TimelineContextMenuItem tone="generated" onClick={handleAddGetColorDotField}>{language === 'en' ? 'Add GetColor V2R Dot Field' : 'GetColor V2Rドットフィールドを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddGetColorDiamondDotField}>{language === 'en' ? 'Add GetColor V2R Diamond Dots' : 'GetColor V2R菱形ドットフィールドを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddGetColorOutlinedSquareDotField}>{language === 'en' ? 'Add GetColor V2R Outlined Square Dots' : 'GetColor V2R枠線四角ドットフィールドを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddGetColorSampledDotField}>{language === 'en' ? 'Add GetColor V2R Sampled Dots' : 'GetColor V2R画像サンプリングドットを追加'}</TimelineContextMenuItem>
+              </TimelineContextMenuSection>
+              <TimelineContextMenuSection title="hksy">
+                <TimelineContextMenuItem tone="generated" onClick={handleAddHksyCheckerGrid}>{language === 'en' ? 'Add hksy Checker/Grid' : 'hksyチェッカー/グリッドを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddHksyLine}>{language === 'en' ? 'Add hksy Lines' : 'hksy直線を追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddHksyMultiColourChecker}>{language === 'en' ? 'Add hksy Multi-Colour Checker' : 'hksy複数色チェッカーを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddHksyDiamond}>{language === 'en' ? 'Add hksy Diamond' : 'hksy菱形を追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddHksyMeasuredGrid}>{language === 'en' ? 'Add hksy Grid' : 'hksyグリッドを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddHksyAnchorLine}>{language === 'en' ? 'Add hksy Anchor Line' : 'hksyライン（アンカー指定）を追加'}</TimelineContextMenuItem>
+              </TimelineContextMenuSection>
+              <TimelineContextMenuSection title={language === 'en' ? '93 Scripts' : '93 Scripts'}>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddContourTrace}>{language === 'en' ? 'Add 93 Contour Trace' : '93輪郭トレスを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddDisplacementPoly}>{language === 'en' ? 'Add 93 DisplacementPoly' : '93 DisplacementPolyを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddPlainEffectorLine}>{language === 'en' ? 'Add 93 PlainEffector Line' : '93 PlainEffector Lineを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddRegionFrame}>{language === 'en' ? 'Add 93 Region Frame' : '93領域枠を追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddEllipseRegionFrame}>{language === 'en' ? 'Add 93 Ellipse Region Frame' : '93領域枠(楕円)を追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddCutCornerRegionFrame}>{language === 'en' ? 'Add 93 Cut-Corner Region Frame' : '93領域枠(角落ち)を追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddBorderDepthRegionFrame}>{language === 'en' ? 'Add 93 Border Depth' : '93 Border Depthを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddShatteredSphere}>{language === 'en' ? 'Add 93 Shattered Sphere' : '93砕け散る球を追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddSimpleTube}>{language === 'en' ? 'Add 93 SimpleTube' : '93 SimpleTubeを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddSimpleTubeTorus}>{language === 'en' ? 'Add 93 SimpleTube Torus' : '93 SimpleTubeトーラスを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddSphereDots}>{language === 'en' ? 'Add 93 Sphere(DrawPixel)' : '93 Sphere(DrawPixel)を追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddSphericalField}>{language === 'en' ? 'Add 93 SphericalField' : '93 SphericalFieldを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddSPField}>{language === 'en' ? 'Add 93 SPfield' : '93 SPfieldを追加'}</TimelineContextMenuItem>
+              </TimelineContextMenuSection>
+              <TimelineContextMenuSection title={language === 'en' ? 'Patterns / UI' : 'パターン / UI'}>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddBarcode}>{language === 'en' ? 'Add Barcode' : 'バーコードを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddColourWheel}>{language === 'en' ? 'Add Colour Wheel' : '色相環を追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddGear}>{language === 'en' ? 'Add Gear' : '歯車を追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddGourd}>{language === 'en' ? 'Add Gourd' : 'ひょうたんを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddPuzzlePiece}>{language === 'en' ? 'Add Puzzle Piece' : 'パズルピースを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddTrackBar}>{language === 'en' ? 'Add Track Bar' : 'トラックバーを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddPieChart}>{language === 'en' ? 'Add Pie Chart' : 'パイシートグラフを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddHistogram}>{language === 'en' ? 'Add Histogram' : '簡易ヒストグラムを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddToneCurve}>{language === 'en' ? 'Add Tone Curve' : '簡易トーンカーブを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddSunburst}>{language === 'en' ? 'Add Sunburst' : '日の出を追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddCircularArrow}>{language === 'en' ? 'Add Circular Arrow' : '円矢印を追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddTriangleBracket}>{language === 'en' ? 'Add Triangle Bracket' : '三角括弧を追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddTartanCheck}>{language === 'en' ? 'Add Tartan Check' : 'タータンチェックを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddHoundstooth}>{language === 'en' ? 'Add Houndstooth' : '千鳥格子を追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddYagasuri}>{language === 'en' ? 'Add Yagasuri' : '矢がすりを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddPaperAirplane}>{language === 'en' ? 'Add Paper Airplane' : '紙飛行機を追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddAsanohaPattern}>{language === 'en' ? 'Add Asanoha Pattern' : '麻の葉模様を追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddHologram}>{language === 'en' ? 'Add Hologram' : 'ホログラムを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddProtractor}>{language === 'en' ? 'Add Protractor' : '分度器を追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddShakingPolygon}>{language === 'en' ? 'Add Shaking Polygon' : '多角形_震えるを追加'}</TimelineContextMenuItem>
+                <TimelineContextMenuItem tone="generated" onClick={handleAddRandomLineEx}>{language === 'en' ? 'Add Random Line EX' : 'ランダムラインEXを追加'}</TimelineContextMenuItem>
+              </TimelineContextMenuSection>
+            </TimelineContextMenuSection>
          </>
        )}
       {state.type === 'object' && state.targetObjectId && (
