@@ -1,6 +1,17 @@
 # 進捗ログ
 
 ## 2026-06-23
+- Timeline右クリックの生成項目をカテゴリ化した。
+- Red: Timeline右クリックメニューに `TimelineContextMenuSection` と `AviUtl / Generated`、`Audio / Particles`、`GetColor`、`hksy`、`93 Scripts`、`Patterns / UI` のカテゴリが存在する契約を追加した。
+- Green: 既存の追加ハンドラと全生成項目を維持したまま、canvas右クリックの生成系項目を折りたたみ可能なカテゴリへ移動した。
+- Green: 基本の図形/テキスト/画像/動画/音声/PSD/グループ制御は最上位に残し、AviUtl由来の大量項目だけを畳み込む構成にした。
+- 版を `0.1.1-Beta-346a` に更新した。
+- 検証: `npm test -- --run src/components/TimelineContextMenu.particle.test.ts --reporter=dot` はRed時に `TimelineContextMenuSection` 未実装で失敗することを確認した。
+- 検証: `npm test -- --run src/components/TimelineContextMenu.particle.test.ts src/utils/aviutl/aviutlPolishRepresentativeScene.test.ts src/utils/packageScripts.test.ts --reporter=dot` は11件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の右クリックメニュー整理由来の型エラーは出ていない。
+- 現状は折りたたみカテゴリでの整理。次は頻用項目のピン留め、検索/フィルタ、最近使った項目などを検討するとさらに楽になる。
+
+## 2026-06-23
 - AviUtl詰め用代表シーンfixtureを追加した。
 - Red: `GetColor` / `hksy` / `93` が混在する代表シーンの契約を追加し、未実装の `aviutlPolishRepresentativeScene` で失敗することを確認した。
 - Green: `buildAviUtlPackPolishRepresentativeScene` を追加し、GetColorサンプル、hksy measured-grid、hksy anchor-line、93領域枠、93 SimpleTube、93音声玉を同じTimelineへ配置するfixtureを作成した。
