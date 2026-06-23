@@ -18,6 +18,17 @@ describe('TimelineContextMenu particle insertion boundary', () => {
     expect(code).toContain('context-menu-section');
   });
 
+  it('reveals generated objects immediately by seeking to their insertion time', () => {
+    const code = source();
+
+    expect(code).toContain('setTime: state.setTime');
+    expect(code).toContain('handleAddGeneratedObject');
+    expect(code).toContain('setTime(object.startTime)');
+    expect(code).toContain('handleAddGeneratedObject(buildGetColorDotFieldObject');
+    expect(code).toContain('handleAddGeneratedObject(buildHksyCheckerGridObject');
+    expect(code).toContain('handleAddGeneratedObject(buildAviUtlRegionFrameObject');
+  });
+
   it('exposes the AviUtlPackV4 standard particle insertion command', () => {
     const code = source();
 
