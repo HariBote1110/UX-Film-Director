@@ -239,6 +239,46 @@ describe('sharedVideoFrameUploadBridge', () => {
     });
   });
 
+  it('accepts a context-bridge copied upload buffer outside the copy report payload', async () => {
+    const copiedBytes = new Uint8Array(sharedFrame.descriptor.byteLen);
+    copiedBytes.fill(0x7e);
+    const checksum = crc32ForTest(copiedBytes);
+    const bridge: SharedVideoFrameCopyBridge = {
+      copyIntoUploadBuffer: async () => ({
+        success: true,
+        copiedBytes,
+        result: {
+          sequence: 42,
+          slotIndex: 1,
+          generation: 9,
+          byteLen: sharedFrame.descriptor.byteLen,
+          checksumAlgorithm: 'crc32',
+          expectedChecksum: checksum,
+          actualChecksum: checksum,
+        },
+      } as any),
+    };
+
+    const upload = await prepareSharedRendererDecodedVideoFrameUpload({
+      sharedFrame,
+      slotCount: 2,
+      bridge,
+    });
+
+    expect(upload).toMatchObject({
+      ok: true,
+      copyReport: {
+        checksumAlgorithm: 'crc32',
+        expectedChecksum: checksum,
+        actualChecksum: checksum,
+      },
+    });
+    if (!upload.ok) throw new Error('expected upload preparation to succeed');
+    expect(upload.rgbaBytes[0]).toBe(0x7e);
+    expect(JSON.stringify(upload.copyReport)).not.toContain('copiedBytes');
+    expect(JSON.stringify(upload.copyReport)).not.toContain('rgbaBytes');
+  });
+
   it('rejects bridge copy reports that use an unsupported checksum algorithm', async () => {
     const bridge: SharedVideoFrameCopyBridge = {
       copyIntoUploadBuffer: async () => ({
@@ -336,3 +376,23 @@ describe('sharedVideoFrameUploadBridge', () => {
     });
   });
 });
+
+const crc32ForTest = (bytes: Uint8Array): number => {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc = crc32TableForTest[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+};
+
+const crc32TableForTest = (() => {
+  const table = new Uint32Array(256);
+  for (let i = 0; i < 256; i += 1) {
+    let crc = i;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc & 1) ? (0xedb88320 ^ (crc >>> 1)) : (crc >>> 1);
+    }
+    table[i] = crc >>> 0;
+  }
+  return table;
+})();
