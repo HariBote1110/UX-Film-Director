@@ -14,6 +14,7 @@
     "test:export:ci": "node scripts/run-export-test.mjs",
     "test:export:fast": "EXPORT_FAST=1 node scripts/run-export-test.mjs",
     "test:video-load:e2e": "node scripts/run-video-load-e2e.mjs",
+    "test:shattered-sphere-preview:e2e": "node scripts/run-shattered-sphere-preview-e2e.mjs",
     "test:video-export:e2e": "node scripts/run-video-export-e2e.mjs",
     "test:video-export:quality": "node scripts/compare-video-export-quality.mjs",
     "test:all-readable-media:e2e": "vitest run --config vite.config.ts src/e2e/allReadableMedia.e2e.test.ts",

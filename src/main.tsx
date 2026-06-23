@@ -6,13 +6,14 @@ import { useStore } from './store/useStore'
 import { buildAviUtlAudioSphereObject } from './utils/objectFactories/audioSphereObjectFactory'
 import { buildGetColorDotFieldObject } from './utils/objectFactories/getColorDotFieldObjectFactory'
 import { buildHksyCheckerGridObject } from './utils/objectFactories/hksyCheckerGridObjectFactory'
+import { buildAviUtlShatteredSphereObject } from './utils/objectFactories/shatteredSphereObjectFactory'
 import type { AudioObject, AudioVisualizationObject, ParticleObject, ShapeObject } from './types'
 
 schedulePerformanceHarness()
 
 const urlSearchParams = new URLSearchParams(window.location.search)
 
-if (urlSearchParams.has('videoLoadE2e') || urlSearchParams.has('videoExportE2e')) {
+if (urlSearchParams.has('videoLoadE2e') || urlSearchParams.has('videoExportE2e') || urlSearchParams.has('shatteredSpherePreviewE2e')) {
   useStore.getState().initializeProject({
     width: 1920,
     height: 1080,
@@ -20,6 +21,43 @@ if (urlSearchParams.has('videoLoadE2e') || urlSearchParams.has('videoExportE2e')
     sampleRate: 48000,
     editorMode: '2d',
   });
+}
+
+if (urlSearchParams.has('shatteredSpherePreviewE2e')) {
+  type ShatteredSpherePreviewE2eResult = {
+    ok: boolean;
+    objectCount: number;
+    addedId: string;
+  };
+
+  (window as typeof window & {
+    __UXFD_SHATTERED_SPHERE_PREVIEW_E2E_ADD__?: () => ShatteredSpherePreviewE2eResult;
+  }).__UXFD_SHATTERED_SPHERE_PREVIEW_E2E_ADD__ = () => {
+    const state = useStore.getState();
+    const object = buildAviUtlShatteredSphereObject({
+      id: 'e2e-93-shattered-sphere',
+      projectWidth: 1920,
+      projectHeight: 1080,
+      startTime: 0,
+      layer: 1,
+    });
+    state.addObject({
+      ...object,
+      x: 780,
+      y: 300,
+      endX: 780,
+      endY: 300,
+      duration: 5,
+      colour: '#ffffff',
+    });
+    state.setTime(0);
+    state.setDuration(5);
+    return {
+      ok: true,
+      objectCount: useStore.getState().objects.length,
+      addedId: object.id,
+    };
+  };
 }
 
 if (urlSearchParams.has('videoExportE2e')) {
