@@ -273,6 +273,7 @@ interface Window {
         expectedChecksum: number;
         actualChecksum: number;
       };
+      copiedBytes?: Uint8Array;
       error?: string;
     }>;
   };

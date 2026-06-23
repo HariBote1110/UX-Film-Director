@@ -23,11 +23,15 @@ export interface SharedVideoFrameCopyReport {
   actualChecksum: number;
 }
 
+export type SharedVideoFrameCopyResponse = RustBackendResult<SharedVideoFrameCopyReport> & {
+  copiedBytes?: Uint8Array | number[];
+};
+
 export interface SharedVideoFrameCopyBridge {
   copyIntoUploadBuffer: (
     payload: SharedVideoFrameCopyIntoUploadBufferPayload,
     target: Uint8Array
-  ) => Promise<RustBackendResult<SharedVideoFrameCopyReport>>;
+  ) => Promise<SharedVideoFrameCopyResponse>;
 }
 
 export interface PrepareSharedRendererDecodedVideoFrameUploadInput {
@@ -144,6 +148,19 @@ export const prepareSharedRendererDecodedVideoFrameUpload = async ({
       actualByteLength: response.result.byteLen,
     };
   }
+  const copiedBytes = normaliseCopiedUploadBytes(response.copiedBytes);
+  if (copiedBytes) {
+    if (copiedBytes.byteLength !== descriptor.byteLen) {
+      return {
+        ok: false,
+        reason: 'copyReportByteLengthMismatch',
+        detail: 'Shared video frame copy report must match the decoded frame descriptor.',
+        expectedByteLength: descriptor.byteLen,
+        actualByteLength: copiedBytes.byteLength,
+      };
+    }
+    rgbaBytes.set(copiedBytes);
+  }
   if (
     response.result.slotIndex !== descriptor.slotIndex
     || response.result.generation !== descriptor.generation
@@ -247,6 +264,14 @@ const copyReportPixelPayloadKeys = new Set([
 const copyReportContainsPixelPayload = (report: SharedVideoFrameCopyReport): boolean => {
   const record = report as unknown as Record<string, unknown>;
   return Object.keys(record).some((key) => copyReportPixelPayloadKeys.has(key));
+};
+
+const normaliseCopiedUploadBytes = (value: unknown): Uint8Array | null => {
+  if (value instanceof Uint8Array) return value;
+  if (Array.isArray(value) && value.every((entry) => Number.isInteger(entry) && entry >= 0 && entry <= 255)) {
+    return Uint8Array.from(value);
+  }
+  return null;
 };
 
 let crc32Table: Uint32Array | null = null;

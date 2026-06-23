@@ -47,6 +47,7 @@ type SharedVideoFrameCopyResult = {
     expectedChecksum: number
     actualChecksum: number
   }
+  copiedBytes?: Uint8Array
   error?: string
 }
 
@@ -215,6 +216,11 @@ contextBridge.exposeInMainWorld('sharedVideoFrame', {
       }
     }
 
-    return bridge.copyIntoUploadBuffer(payload, target)
+    const response = await bridge.copyIntoUploadBuffer(payload, target)
+    if (!response.success) return response
+    return {
+      ...response,
+      copiedBytes: target,
+    }
   },
 })
