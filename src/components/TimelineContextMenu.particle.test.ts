@@ -5,6 +5,19 @@ const source = () =>
   readFileSync(new URL('./TimelineContextMenu.tsx', import.meta.url), 'utf8');
 
 describe('TimelineContextMenu particle insertion boundary', () => {
+  it('groups generated insertion commands so the canvas context menu is not a single long list', () => {
+    const code = source();
+
+    expect(code).toContain('TimelineContextMenuSection');
+    expect(code).toContain('AviUtl / Generated');
+    expect(code).toContain('GetColor');
+    expect(code).toContain('hksy');
+    expect(code).toContain('93 Scripts');
+    expect(code).toContain('Patterns / UI');
+    expect(code).toContain('Audio / Particles');
+    expect(code).toContain('context-menu-section');
+  });
+
   it('exposes the AviUtlPackV4 standard particle insertion command', () => {
     const code = source();
 
