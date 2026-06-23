@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState, PsdWorldPlacement, VideoObject, ParticleObject, GetColorDotFieldObject, HksyCheckerGridObject, PlainEffectorLineObject, ShatteredSphereObject, SphereDotsObject, SphericalFieldObject } from '../types';
+import { TimelineObject, AudioVisualizationObject, PsdLayerStruct, PsdObject, ObjectFilter, FilterType, PositionKeyframe, GradientFill, WipeEdge, CameraState, PsdWorldPlacement, VideoObject, ParticleObject, GetColorDotFieldObject, HksyCheckerGridObject, PlainEffectorLineObject, ShatteredSphereObject, SphereDotsObject, SphericalFieldObject, BarcodeObject, PuzzlePieceObject, ColourWheelObject, GourdObject, GearObject, TrackBarObject, PieChartObject, HistogramObject, ToneCurveObject, SunburstObject, CircularArrowObject, TriangleBracketObject, TartanCheckObject, HoundstoothObject, YagasuriObject, PaperAirplaneObject, AsanohaPatternObject, FocusLinesPlusObject, RandomLineExObject, AudioSphereObject, RegionFrameObject, SimpleTubeObject, ContourTraceObject, DisplacementPolyObject, HologramObject, ProtractorObject, ShakingPolygonObject } from '../types';
 import { buildPsdLayerTree, togglePsdLayer } from '../utils/psdParser';
 import { easingNames, EasingType } from '../utils/easings';
 import { buildEndpointKeyframes, evaluateObjectPositionAtTime } from '../utils/keyframes';
@@ -635,6 +635,182 @@ const PropertyPanel: React.FC = () => {
     const parsed = parseFloat(rawValue);
     return Number.isFinite(parsed) ? parsed : fallback;
   };
+
+  const generatedInputStyle: React.CSSProperties = {
+    width: '100%',
+    background: '#1e1e1e',
+    border: '1px solid #444',
+    color: '#eee'
+  };
+
+  const parseNumberList = (rawValue: string, fallback: number[]): number[] => {
+    const values = rawValue
+      .split(',')
+      .map((part) => parseFloat(part.trim()))
+      .filter((value) => Number.isFinite(value));
+    return values.length > 0 ? values : fallback;
+  };
+
+  const parseColourList = (rawValue: string, fallback: string[]): string[] => {
+    const values = rawValue
+      .split(',')
+      .map((part) => part.trim())
+      .filter((value) => /^#[0-9a-f]{6}$/i.test(value));
+    return values.length > 0 ? values : fallback;
+  };
+
+  const parseTextList = (rawValue: string, fallback: string[]): string[] => {
+    const values = rawValue
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean);
+    return values.length > 0 ? values : fallback;
+  };
+
+  const parseTrackRanges = (rawValue: string, fallback: [number, number][]): [number, number][] => {
+    const ranges = rawValue
+      .split(',')
+      .map((part): [number, number] | null => {
+        const [minRaw, maxRaw] = part.split('-');
+        const min = parseFloat(minRaw?.trim() ?? '');
+        const max = parseFloat(maxRaw?.trim() ?? '');
+        if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+        return [min, max];
+      })
+      .filter((range): range is [number, number] => range !== null);
+    return ranges.length > 0 ? ranges : fallback;
+  };
+
+  const renderGeneratedNumberRow = (
+    label: string,
+    key: string,
+    value: number,
+    min: number,
+    max: number,
+    step: number,
+    fallback: number,
+    integer = false
+  ) => (
+    <Row label={label}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(90px, 1fr) 76px', gap: '8px', alignItems: 'center' }}>
+        <Slider
+          min={String(min)}
+          max={String(max)}
+          step={String(step)}
+          value={value}
+          onInput={(e) => {
+            const next = clamp(toNumberOr(e.currentTarget.value, fallback), min, max);
+            handleChange(key, integer ? Math.round(next) : next);
+          }}
+          style={{ width: '100%' }}
+        />
+        <input
+          type="number"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => {
+            const next = clamp(toNumberOr(e.target.value, fallback), min, max);
+            handleChange(key, integer ? Math.round(next) : next);
+          }}
+          style={{ width: '76px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+        />
+      </div>
+    </Row>
+  );
+
+  const renderGeneratedTextRow = (label: string, key: string, value: string) => (
+    <Row label={label}>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => handleChange(key, e.target.value)}
+        style={generatedInputStyle}
+      />
+    </Row>
+  );
+
+  const renderGeneratedColourRow = (label: string, key: string, value: string) => (
+    <Row label={label}>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <input type="color" value={value} onChange={(e) => handleChange(key, e.target.value)} />
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => handleChange(key, e.target.value)}
+          style={{ width: '92px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+        />
+      </div>
+    </Row>
+  );
+
+  const renderGeneratedCheckboxRow = (label: string, key: string, value: boolean) => (
+    <Row label={label}>
+      <input type="checkbox" checked={value} onChange={(e) => handleChange(key, e.target.checked)} />
+    </Row>
+  );
+
+  const renderGeneratedSelectRow = (label: string, key: string, value: string | number, options: Array<{ value: string | number; label: string }>) => (
+    <Row label={label}>
+      <select
+        value={value}
+        onChange={(e) => {
+          const selected = options.find((option) => String(option.value) === e.target.value);
+          handleChange(key, selected?.value ?? e.target.value);
+        }}
+        style={generatedInputStyle}
+      >
+        {options.map((option) => (
+          <option key={String(option.value)} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+    </Row>
+  );
+
+  const renderGeneratedNumberListRow = (label: string, key: string, value: number[]) => (
+    <Row label={label}>
+      <input
+        type="text"
+        value={value.join(', ')}
+        onChange={(e) => handleChange(key, parseNumberList(e.target.value, value))}
+        style={generatedInputStyle}
+      />
+    </Row>
+  );
+
+  const renderGeneratedColourListRow = (label: string, key: string, value: string[]) => (
+    <Row label={label}>
+      <input
+        type="text"
+        value={value.join(', ')}
+        onChange={(e) => handleChange(key, parseColourList(e.target.value, value))}
+        style={generatedInputStyle}
+      />
+    </Row>
+  );
+
+  const renderGeneratedTextListRow = (label: string, key: string, value: string[]) => (
+    <Row label={label}>
+      <input
+        type="text"
+        value={value.join(', ')}
+        onChange={(e) => handleChange(key, parseTextList(e.target.value, value))}
+        style={generatedInputStyle}
+      />
+    </Row>
+  );
+
+  const renderGeneratedTrackRangesRow = (label: string, key: string, value: [number, number][]) => (
+    <Row label={label}>
+      <input
+        type="text"
+        value={value.map(([min, max]) => `${min}-${max}`).join(', ')}
+        onChange={(e) => handleChange(key, parseTrackRanges(e.target.value, value))}
+        style={generatedInputStyle}
+      />
+    </Row>
+  );
    const filterLabel: Record<FilterType, string> = {
      color_correction: language === 'en' ? 'Color Correction' : '色調補正',
      colour_aberration: language === 'en' ? 'Colour Aberration' : '色収差',
@@ -3949,6 +4125,393 @@ const PropertyPanel: React.FC = () => {
                      integer
                      onChange={applyShatteredSphereNumber}
                  />
+             </>
+         )}
+
+         {selectedObject.type === 'barcode' && (
+             <>
+                 <SectionHeader label="Barcode Settings" />
+                 {renderGeneratedTextRow('Data', 'data', (selectedObject as BarcodeObject).data)}
+                 {renderGeneratedNumberRow('Minimum Bar Width', 'minimumBarWidth', (selectedObject as BarcodeObject).minimumBarWidth, 1, 100, 1, 2, true)}
+                 {renderGeneratedNumberRow('Horizontal Margin', 'horizontalMargin', (selectedObject as BarcodeObject).horizontalMargin, 0, 500, 1, 30, true)}
+                 {renderGeneratedNumberRow('Vertical Margin', 'verticalMargin', (selectedObject as BarcodeObject).verticalMargin, 0, 500, 1, 20, true)}
+                 {renderGeneratedColourRow('Foreground Colour', 'foregroundColour', (selectedObject as BarcodeObject).foregroundColour)}
+                 {renderGeneratedColourRow('Background Colour', 'backgroundColour', (selectedObject as BarcodeObject).backgroundColour)}
+             </>
+         )}
+
+         {selectedObject.type === 'puzzle_piece' && (
+             <>
+                 <SectionHeader label="Puzzle Piece Settings" />
+                 {renderGeneratedNumberRow('Size', 'size', (selectedObject as PuzzlePieceObject).size, 1, 2000, 1, 120, true)}
+                 {renderGeneratedNumberRow('Shape Variant', 'shapeVariant', (selectedObject as PuzzlePieceObject).shapeVariant, 1, 22, 1, 1, true)}
+                 {renderGeneratedSelectRow('Connector Mode', 'connectorMode', (selectedObject as PuzzlePieceObject).connectorMode, [
+                     { value: 'convex', label: 'Convex' },
+                     { value: 'concave', label: 'Concave' },
+                 ])}
+                 {renderGeneratedColourRow('Fill Colour', 'fillColour', (selectedObject as PuzzlePieceObject).fillColour)}
+             </>
+         )}
+
+         {selectedObject.type === 'colour_wheel' && (
+             <>
+                 <SectionHeader label="Colour Wheel Settings" />
+                 {renderGeneratedNumberRow('Radius', 'radius', (selectedObject as ColourWheelObject).radius, 1, 2000, 1, 180, true)}
+                 {renderGeneratedNumberRow('Saturation', 'saturation', (selectedObject as ColourWheelObject).saturation, 0, 100, 1, 100)}
+                 {renderGeneratedNumberRow('Brightness', 'brightness', (selectedObject as ColourWheelObject).brightness, 0, 100, 1, 100)}
+                 {renderGeneratedNumberRow('Ring Width %', 'ringWidthPercent', (selectedObject as ColourWheelObject).ringWidthPercent, 1, 100, 1, 25)}
+                 {renderGeneratedNumberRow('Segment Count', 'segmentCount', (selectedObject as ColourWheelObject).segmentCount, 3, 360, 1, 24, true)}
+             </>
+         )}
+
+         {selectedObject.type === 'gourd' && (
+             <>
+                 <SectionHeader label="Gourd Settings" />
+                 {renderGeneratedNumberRow('Body Radius', 'bodyRadius', (selectedObject as GourdObject).bodyRadius, 1, 2000, 1, 80, true)}
+                 {renderGeneratedNumberRow('Body Width', 'bodyWidth', (selectedObject as GourdObject).bodyWidth, 1, 3000, 1, 250, true)}
+                 {renderGeneratedNumberRow('Waist Radius', 'waistRadius', (selectedObject as GourdObject).waistRadius, 0, 1000, 1, 10, true)}
+                 {renderGeneratedNumberRow('Squash %', 'squashPercent', (selectedObject as GourdObject).squashPercent, 0, 100, 1, 40)}
+                 {renderGeneratedNumberRow('Repeat Count', 'repeatCount', (selectedObject as GourdObject).repeatCount, 1, 36, 1, 1, true)}
+                 {renderGeneratedColourRow('Fill Colour', 'fillColour', (selectedObject as GourdObject).fillColour)}
+             </>
+         )}
+
+         {selectedObject.type === 'gear' && (
+             <>
+                 <SectionHeader label="Gear Settings" />
+                 {renderGeneratedNumberRow('Outer Radius', 'outerRadius', (selectedObject as GearObject).outerRadius, 1, 2000, 1, 160, true)}
+                 {renderGeneratedNumberRow('Inner Radius %', 'innerRadiusPercent', (selectedObject as GearObject).innerRadiusPercent, 0, 99, 1, 45)}
+                 {renderGeneratedNumberRow('Tooth Count', 'toothCount', (selectedObject as GearObject).toothCount, 3, 240, 1, 20, true)}
+                 {renderGeneratedNumberRow('Tooth Depth %', 'toothDepthPercent', (selectedObject as GearObject).toothDepthPercent, 1, 95, 1, 18)}
+                 {renderGeneratedNumberRow('Tooth Skew %', 'toothSkewPercent', (selectedObject as GearObject).toothSkewPercent, -100, 100, 1, 0)}
+                 {renderGeneratedColourRow('Fill Colour', 'fillColour', (selectedObject as GearObject).fillColour)}
+             </>
+         )}
+
+         {selectedObject.type === 'track_bar' && (
+             <>
+                 <SectionHeader label="Track Bar Settings" />
+                 {renderGeneratedNumberListRow('Track Values', 'trackValues', (selectedObject as TrackBarObject).trackValues)}
+                 {renderGeneratedTrackRangesRow('Track Ranges', 'trackRanges', (selectedObject as TrackBarObject).trackRanges)}
+                 {renderGeneratedTextListRow('Labels', 'labels', (selectedObject as TrackBarObject).labels)}
+                 {renderGeneratedColourRow('Bar Colour', 'barColour', (selectedObject as TrackBarObject).barColour)}
+                 {renderGeneratedNumberRow('Background Opacity', 'backgroundOpacity', (selectedObject as TrackBarObject).backgroundOpacity, 0, 1, 0.01, 0.05)}
+             </>
+         )}
+
+         {selectedObject.type === 'pie_chart' && (
+             <>
+                 <SectionHeader label="Pie Chart Settings" />
+                 {renderGeneratedNumberListRow('Values', 'values', (selectedObject as PieChartObject).values)}
+                 {renderGeneratedSelectRow('Sort Mode', 'sortMode', (selectedObject as PieChartObject).sortMode, [
+                     { value: 'none', label: 'None' },
+                     { value: 'descending', label: 'Descending' },
+                     { value: 'ascending', label: 'Ascending' },
+                 ])}
+                 {renderGeneratedCheckboxRow('Normalise To 100', 'normaliseToHundred', (selectedObject as PieChartObject).normaliseToHundred)}
+                 {renderGeneratedSelectRow('Label Mode', 'labelMode', (selectedObject as PieChartObject).labelMode, [
+                     { value: 'none', label: 'None' },
+                     { value: 'percentage', label: 'Percentage' },
+                     { value: 'input', label: 'Input' },
+                 ])}
+                 {renderGeneratedNumberRow('Progress %', 'progressPercent', (selectedObject as PieChartObject).progressPercent, 0, 100, 1, 100)}
+                 {renderGeneratedNumberRow('Stroke Width', 'strokeWidth', (selectedObject as PieChartObject).strokeWidth, 1, 500, 1, 20, true)}
+                 {renderGeneratedColourListRow('Slice Colours', 'sliceColours', (selectedObject as PieChartObject).sliceColours)}
+             </>
+         )}
+
+         {selectedObject.type === 'histogram' && (
+             <>
+                 <SectionHeader label="Histogram Settings" />
+                 {renderGeneratedNumberListRow('Bin Values', 'binValues', (selectedObject as HistogramObject).binValues)}
+                 {renderGeneratedNumberRow('Height Scale %', 'heightScalePercent', (selectedObject as HistogramObject).heightScalePercent, 1, 1000, 1, 100)}
+                 {renderGeneratedNumberRow('Line Width', 'lineWidth', (selectedObject as HistogramObject).lineWidth, 1, 100, 1, 1, true)}
+                 {renderGeneratedCheckboxRow('Show Luminance', 'showLuminance', (selectedObject as HistogramObject).showLuminance)}
+                 {renderGeneratedCheckboxRow('Show Red', 'showRed', (selectedObject as HistogramObject).showRed)}
+                 {renderGeneratedCheckboxRow('Show Green', 'showGreen', (selectedObject as HistogramObject).showGreen)}
+                 {renderGeneratedCheckboxRow('Show Blue', 'showBlue', (selectedObject as HistogramObject).showBlue)}
+                 {renderGeneratedColourListRow('Channel Colours', 'channelColours', (selectedObject as HistogramObject).channelColours)}
+                 {renderGeneratedColourRow('Background Colour', 'backgroundColour', (selectedObject as HistogramObject).backgroundColour)}
+             </>
+         )}
+
+         {selectedObject.type === 'tone_curve' && (
+             <>
+                 <SectionHeader label="Tone Curve Settings" />
+                 {renderGeneratedNumberRow('Grid Divisions', 'gridDivisions', (selectedObject as ToneCurveObject).gridDivisions, 1, 16, 1, 4, true)}
+                 {renderGeneratedNumberRow('Line Width', 'lineWidth', (selectedObject as ToneCurveObject).lineWidth, 1, 100, 1, 3, true)}
+                 {renderGeneratedNumberListRow('Curve Points', 'curvePoints', (selectedObject as ToneCurveObject).curvePoints)}
+                 {renderGeneratedColourRow('Curve Colour', 'curveColour', (selectedObject as ToneCurveObject).curveColour)}
+                 {renderGeneratedColourRow('Grid Colour', 'gridColour', (selectedObject as ToneCurveObject).gridColour)}
+                 {renderGeneratedColourRow('Background Colour', 'backgroundColour', (selectedObject as ToneCurveObject).backgroundColour)}
+             </>
+         )}
+
+         {selectedObject.type === 'sunburst' && (
+             <>
+                 <SectionHeader label="Sunburst Settings" />
+                 {renderGeneratedNumberRow('Ray Count', 'rayCount', (selectedObject as SunburstObject).rayCount, 1, 360, 1, 10, true)}
+                 {renderGeneratedNumberRow('Ray Coverage %', 'rayCoveragePercent', (selectedObject as SunburstObject).rayCoveragePercent, 0, 100, 1, 50)}
+                 {renderGeneratedNumberRow('Rotation Offset', 'rotationOffsetDegrees', (selectedObject as SunburstObject).rotationOffsetDegrees, -720, 720, 1, 0)}
+                 {renderGeneratedNumberRow('Centre X %', 'centreXPercent', (selectedObject as SunburstObject).centreXPercent, -100, 200, 1, 50)}
+                 {renderGeneratedNumberRow('Centre Y %', 'centreYPercent', (selectedObject as SunburstObject).centreYPercent, -100, 200, 1, 50)}
+                 {renderGeneratedNumberRow('Motif Size', 'motifSize', (selectedObject as SunburstObject).motifSize, 0, 2000, 1, 200, true)}
+                 {renderGeneratedSelectRow('Motif Shape', 'motifShape', (selectedObject as SunburstObject).motifShape, [
+                     { value: 'circle', label: 'Circle' },
+                     { value: 'rect', label: 'Rect' },
+                 ])}
+                 {renderGeneratedColourRow('Ray Colour', 'rayColour', (selectedObject as SunburstObject).rayColour)}
+                 {renderGeneratedColourRow('Background Colour', 'backgroundColour', (selectedObject as SunburstObject).backgroundColour)}
+             </>
+         )}
+
+         {selectedObject.type === 'circular_arrow' && (
+             <>
+                 <SectionHeader label="Circular Arrow Settings" />
+                 {renderGeneratedNumberRow('Radius', 'radius', (selectedObject as CircularArrowObject).radius, 1, 2000, 1, 160, true)}
+                 {renderGeneratedNumberRow('Line Width', 'lineWidth', (selectedObject as CircularArrowObject).lineWidth, 1, 500, 1, 20, true)}
+                 {renderGeneratedNumberRow('Head Size', 'headSize', (selectedObject as CircularArrowObject).headSize, 0, 1000, 1, 50, true)}
+                 {renderGeneratedNumberRow('Angle', 'angleDegrees', (selectedObject as CircularArrowObject).angleDegrees, 0, 360, 1, 260)}
+                 {renderGeneratedNumberRow('Centre Angle', 'centreAngleDegrees', (selectedObject as CircularArrowObject).centreAngleDegrees, -720, 720, 1, 0)}
+                 {renderGeneratedSelectRow('Head Shape', 'headShape', (selectedObject as CircularArrowObject).headShape, [
+                     { value: 'triangle', label: 'Triangle' },
+                     { value: 'circle', label: 'Circle' },
+                 ])}
+                 {renderGeneratedCheckboxRow('Tail Head', 'showTailHead', (selectedObject as CircularArrowObject).showTailHead)}
+                 {renderGeneratedCheckboxRow('Flip Vertical', 'flipVertical', (selectedObject as CircularArrowObject).flipVertical)}
+                 {renderGeneratedCheckboxRow('Flip Horizontal', 'flipHorizontal', (selectedObject as CircularArrowObject).flipHorizontal)}
+                 {renderGeneratedColourRow('Arrow Colour', 'arrowColour', (selectedObject as CircularArrowObject).arrowColour)}
+             </>
+         )}
+
+         {selectedObject.type === 'triangle_bracket' && (
+             <>
+                 <SectionHeader label="Triangle Bracket Settings" />
+                 {renderGeneratedNumberRow('Bracket Width', 'bracketWidth', (selectedObject as TriangleBracketObject).bracketWidth, 1, 2000, 1, 100, true)}
+                 {renderGeneratedNumberRow('Angle', 'angleDegrees', (selectedObject as TriangleBracketObject).angleDegrees, 1, 180, 1, 120)}
+                 {renderGeneratedNumberRow('Arm Length', 'armLength', (selectedObject as TriangleBracketObject).armLength, 0, 2000, 1, 50, true)}
+                 {renderGeneratedNumberRow('Offset Distance', 'offsetDistance', (selectedObject as TriangleBracketObject).offsetDistance, -2000, 2000, 1, 0, true)}
+                 {renderGeneratedColourRow('Bracket Colour', 'bracketColour', (selectedObject as TriangleBracketObject).bracketColour)}
+             </>
+         )}
+
+         {selectedObject.type === 'tartan_check' && (
+             <>
+                 <SectionHeader label="Tartan Check Settings" />
+                 {renderGeneratedNumberRow('Tile Size', 'tileSize', (selectedObject as TartanCheckObject).tileSize, 10, 800, 1, 100, true)}
+                 {renderGeneratedNumberRow('Blur Radius', 'blurRadius', (selectedObject as TartanCheckObject).blurRadius, 0, 300, 1, 1, true)}
+                 {renderGeneratedColourRow('Base Colour', 'baseColour', (selectedObject as TartanCheckObject).baseColour)}
+                 {renderGeneratedColourRow('Stripe Colour A', 'stripeColourA', (selectedObject as TartanCheckObject).stripeColourA)}
+                 {renderGeneratedColourRow('Stripe Colour B', 'stripeColourB', (selectedObject as TartanCheckObject).stripeColourB)}
+                 {renderGeneratedColourRow('Line Colour', 'lineColour', (selectedObject as TartanCheckObject).lineColour)}
+             </>
+         )}
+
+         {selectedObject.type === 'houndstooth' && (
+             <>
+                 <SectionHeader label="Houndstooth Settings" />
+                 {renderGeneratedNumberRow('Pattern Size', 'patternSize', (selectedObject as HoundstoothObject).patternSize, 10, 200, 1, 50, true)}
+                 {renderGeneratedColourRow('Foreground Colour', 'foregroundColour', (selectedObject as HoundstoothObject).foregroundColour)}
+                 {renderGeneratedColourRow('Background Colour', 'backgroundColour', (selectedObject as HoundstoothObject).backgroundColour)}
+             </>
+         )}
+
+         {selectedObject.type === 'yagasuri' && (
+             <>
+                 <SectionHeader label="Yagasuri Settings" />
+                 {renderGeneratedNumberRow('Arrow Width', 'arrowWidth', (selectedObject as YagasuriObject).arrowWidth, 1, 500, 1, 15, true)}
+                 {renderGeneratedNumberRow('Arrow Height', 'arrowHeight', (selectedObject as YagasuriObject).arrowHeight, 1, 500, 1, 65, true)}
+                 {renderGeneratedNumberRow('Line Width', 'lineWidth', (selectedObject as YagasuriObject).lineWidth, 0, 100, 1, 2, true)}
+                 {renderGeneratedCheckboxRow('Staggered', 'staggered', (selectedObject as YagasuriObject).staggered)}
+                 {renderGeneratedColourRow('Foreground Colour', 'foregroundColour', (selectedObject as YagasuriObject).foregroundColour)}
+                 {renderGeneratedColourRow('Background Colour', 'backgroundColour', (selectedObject as YagasuriObject).backgroundColour)}
+             </>
+         )}
+
+         {selectedObject.type === 'paper_airplane' && (
+             <>
+                 <SectionHeader label="Paper Airplane Settings" />
+                 {renderGeneratedNumberRow('Body Length', 'bodyLength', (selectedObject as PaperAirplaneObject).bodyLength, 1, 2000, 1, 200, true)}
+                 {renderGeneratedNumberRow('Wing Width', 'wingWidth', (selectedObject as PaperAirplaneObject).wingWidth, 0, 1000, 1, 80, true)}
+                 {renderGeneratedNumberRow('Fold Height', 'foldHeight', (selectedObject as PaperAirplaneObject).foldHeight, 0, 1000, 1, 50, true)}
+                 {renderGeneratedNumberRow('Gap', 'gap', (selectedObject as PaperAirplaneObject).gap, 0, 1000, 1, 50, true)}
+                 {renderGeneratedCheckboxRow('Follow Motion Direction', 'followMotionDirection', (selectedObject as PaperAirplaneObject).followMotionDirection)}
+                 {renderGeneratedSelectRow('Axis Mode', 'axisMode', (selectedObject as PaperAirplaneObject).axisMode, [
+                     { value: 0, label: 'X' },
+                     { value: 1, label: 'Y' },
+                 ])}
+                 {renderGeneratedColourRow('Fill Colour', 'fillColour', (selectedObject as PaperAirplaneObject).fillColour)}
+             </>
+         )}
+
+         {selectedObject.type === 'asanoha_pattern' && (
+             <>
+                 <SectionHeader label="Asanoha Pattern Settings" />
+                 {renderGeneratedNumberRow('Pattern Size', 'patternSize', (selectedObject as AsanohaPatternObject).patternSize, 10, 500, 1, 50, true)}
+                 {renderGeneratedNumberRow('Line Width', 'lineWidth', (selectedObject as AsanohaPatternObject).lineWidth, 0, 50, 1, 2, true)}
+                 {renderGeneratedColourRow('Foreground Colour', 'foregroundColour', (selectedObject as AsanohaPatternObject).foregroundColour)}
+                 {renderGeneratedColourRow('Background Colour', 'backgroundColour', (selectedObject as AsanohaPatternObject).backgroundColour)}
+             </>
+         )}
+
+         {selectedObject.type === 'focus_lines_plus' && (
+             <>
+                 <SectionHeader label="Focus Lines Plus Settings" />
+                 {renderGeneratedNumberRow('Ray Width', 'rayWidth', (selectedObject as FocusLinesPlusObject).rayWidth, 0.1, 10, 0.1, 1)}
+                 {renderGeneratedNumberRow('Gap', 'gap', (selectedObject as FocusLinesPlusObject).gap, 1, 20, 0.1, 5)}
+                 {renderGeneratedNumberRow('Centre Radius', 'centreRadius', (selectedObject as FocusLinesPlusObject).centreRadius, 0, 800, 1, 100)}
+                 {renderGeneratedNumberRow('Rotation', 'rotationDegrees', (selectedObject as FocusLinesPlusObject).rotationDegrees, -720, 720, 1, 0)}
+                 {renderGeneratedNumberRow('Centre X', 'centreX', (selectedObject as FocusLinesPlusObject).centreX, -2000, 4000, 1, 0)}
+                 {renderGeneratedNumberRow('Centre Y', 'centreY', (selectedObject as FocusLinesPlusObject).centreY, -2000, 4000, 1, 0)}
+                 {renderGeneratedNumberRow('Centre Jitter %', 'centreJitterPercent', (selectedObject as FocusLinesPlusObject).centreJitterPercent, 0, 100, 1, 20)}
+                 {renderGeneratedNumberRow('Keyframe Interval', 'keyframeInterval', (selectedObject as FocusLinesPlusObject).keyframeInterval, 0, 1000, 1, 0, true)}
+                 {renderGeneratedNumberRow('Seed', 'seed', (selectedObject as FocusLinesPlusObject).seed, 0, 999999, 1, 0, true)}
+                 {renderGeneratedColourRow('Line Colour', 'lineColour', (selectedObject as FocusLinesPlusObject).lineColour)}
+             </>
+         )}
+
+         {selectedObject.type === 'random_line_ex' && (
+             <>
+                 <SectionHeader label="Random Line EX Settings" />
+                 {renderGeneratedNumberRow('Line Count', 'lineCount', (selectedObject as RandomLineExObject).lineCount, 1, 100, 1, 3, true)}
+                 {renderGeneratedNumberRow('Line Width', 'lineWidth', (selectedObject as RandomLineExObject).lineWidth, 0, 2000, 1, 6)}
+                 {renderGeneratedNumberRow('Threshold', 'threshold', (selectedObject as RandomLineExObject).threshold, 0, 255, 1, 128, true)}
+                 {renderGeneratedNumberRow('Noise Cell Size', 'noiseCellSize', (selectedObject as RandomLineExObject).noiseCellSize, 0, 50, 1, 12, true)}
+                 {renderGeneratedNumberRow('Width Variance', 'widthVariance', (selectedObject as RandomLineExObject).widthVariance, 0, 2000, 1, 0)}
+                 {renderGeneratedNumberRow('Seed', 'seed', (selectedObject as RandomLineExObject).seed, 0, 999999, 1, 0, true)}
+                 {renderGeneratedColourRow('Line Colour', 'lineColour', (selectedObject as RandomLineExObject).lineColour)}
+             </>
+         )}
+
+         {selectedObject.type === 'audio_sphere' && (
+             <>
+                 <SectionHeader label="Audio Sphere Settings" />
+                 {renderGeneratedNumberRow('Columns', 'columns', (selectedObject as AudioSphereObject).columns, 1, 256, 1, 24, true)}
+                 {renderGeneratedNumberRow('Rows', 'rows', (selectedObject as AudioSphereObject).rows, 1, 256, 1, 16, true)}
+                 {renderGeneratedNumberRow('Base Radius', 'baseRadius', (selectedObject as AudioSphereObject).baseRadius, 1, 2000, 1, 160)}
+                 {renderGeneratedNumberRow('Audio Influence', 'audioInfluence', (selectedObject as AudioSphereObject).audioInfluence, 0, 1000, 1, 100)}
+                 {renderGeneratedNumberRow('Point Size', 'pointSize', (selectedObject as AudioSphereObject).pointSize, 0, 200, 1, 6)}
+                 {renderGeneratedNumberRow('Polygon Size', 'polygonSize', (selectedObject as AudioSphereObject).polygonSize, 0, 200, 1, 8)}
+                 {renderGeneratedNumberRow('Random Amount', 'randomAmount', (selectedObject as AudioSphereObject).randomAmount, 0, 1000, 1, 0)}
+                 {renderGeneratedNumberRow('Sample Window', 'sampleWindowSeconds', (selectedObject as AudioSphereObject).sampleWindowSeconds, 1 / 60, 10, 0.01, 0.08)}
+                 {renderGeneratedNumberRow('Seed', 'seed', (selectedObject as AudioSphereObject).seed, 0, 999999, 1, 93, true)}
+                 {renderGeneratedColourRow('Colour', 'colour', (selectedObject as AudioSphereObject).colour)}
+             </>
+         )}
+
+         {selectedObject.type === 'region_frame' && (
+             <>
+                 <SectionHeader label="Region Frame Settings" />
+                 {renderGeneratedNumberRow('Line Width', 'lineWidth', (selectedObject as RegionFrameObject).lineWidth, 0, 200, 1, 3)}
+                 {renderGeneratedSelectRow('Shape', 'shape', (selectedObject as RegionFrameObject).shape ?? 'rectangle', [
+                     { value: 'rectangle', label: 'Rectangle' },
+                     { value: 'ellipse', label: 'Ellipse' },
+                     { value: 'cut_corner', label: 'Cut Corner' },
+                 ])}
+                 {renderGeneratedNumberRow('Corner Cut', 'cornerCut', (selectedObject as RegionFrameObject).cornerCut ?? 0, 0, 1000, 1, 0)}
+                 {renderGeneratedNumberRow('Extra Width', 'extraWidth', (selectedObject as RegionFrameObject).extraWidth, -2000, 2000, 1, 0)}
+                 {renderGeneratedNumberRow('Extra Height', 'extraHeight', (selectedObject as RegionFrameObject).extraHeight, -2000, 2000, 1, 0)}
+                 {renderGeneratedNumberRow('Background Opacity', 'backgroundOpacity', (selectedObject as RegionFrameObject).backgroundOpacity, 0, 1, 0.01, 0.08)}
+                 {renderGeneratedColourRow('Frame Colour', 'frameColour', (selectedObject as RegionFrameObject).frameColour)}
+                 {renderGeneratedColourRow('Background Colour', 'backgroundColour', (selectedObject as RegionFrameObject).backgroundColour)}
+             </>
+         )}
+
+         {selectedObject.type === 'simple_tube' && (
+             <>
+                 <SectionHeader label="SimpleTube Settings" />
+                 {renderGeneratedNumberRow('Radius', 'radius', (selectedObject as SimpleTubeObject).radius, 1, 2000, 1, 120)}
+                 {renderGeneratedNumberRow('Depth', 'depth', (selectedObject as SimpleTubeObject).depth, 0, 2000, 1, 160)}
+                 {renderGeneratedNumberRow('Segments', 'segments', (selectedObject as SimpleTubeObject).segments, 3, 256, 1, 32, true)}
+                 {renderGeneratedNumberRow('Rings', 'rings', (selectedObject as SimpleTubeObject).rings, 1, 256, 1, 8, true)}
+                 {renderGeneratedNumberRow('Twist Degrees', 'twistDegrees', (selectedObject as SimpleTubeObject).twistDegrees, -720, 720, 1, 0)}
+                 {renderGeneratedNumberRow('Random Amount', 'randomAmount', (selectedObject as SimpleTubeObject).randomAmount, 0, 1000, 1, 0)}
+                 {renderGeneratedNumberRow('Stroke Width', 'strokeWidth', (selectedObject as SimpleTubeObject).strokeWidth, 0, 100, 1, 2)}
+                 {renderGeneratedSelectRow('Colour Pattern', 'colourPattern', (selectedObject as SimpleTubeObject).colourPattern ?? 'single', [
+                     { value: 'single', label: 'Single' },
+                     { value: 'ring', label: 'Ring' },
+                     { value: 'depth', label: 'Depth' },
+                 ])}
+                 {renderGeneratedNumberRow('Fog Strength', 'fogStrength', (selectedObject as SimpleTubeObject).fogStrength ?? 0, 0, 1, 0.01, 0)}
+                 {renderGeneratedCheckboxRow('Torus', 'torus', (selectedObject as SimpleTubeObject).torus)}
+                 {renderGeneratedNumberRow('Seed', 'seed', (selectedObject as SimpleTubeObject).seed, 0, 999999, 1, 93, true)}
+                 {renderGeneratedColourRow('Colour', 'colour', (selectedObject as SimpleTubeObject).colour)}
+                 {renderGeneratedColourRow('Secondary Colour', 'secondaryColour', (selectedObject as SimpleTubeObject).secondaryColour)}
+                 {renderGeneratedColourRow('Fog Colour', 'fogColour', (selectedObject as SimpleTubeObject).fogColour ?? '#000000')}
+             </>
+         )}
+
+         {selectedObject.type === 'contour_trace' && (
+             <>
+                 <SectionHeader label="Contour Trace Settings" />
+                 {renderGeneratedNumberRow('Line Width', 'lineWidth', (selectedObject as ContourTraceObject).lineWidth, 1, 200, 1, 3)}
+                 {renderGeneratedNumberRow('Contour Count', 'contourCount', (selectedObject as ContourTraceObject).contourCount, 1, 64, 1, 5, true)}
+                 {renderGeneratedNumberRow('Jitter Amount', 'jitterAmount', (selectedObject as ContourTraceObject).jitterAmount, 0, 100, 0.1, 1.5)}
+                 {renderGeneratedNumberRow('Background Opacity', 'backgroundOpacity', (selectedObject as ContourTraceObject).backgroundOpacity, 0, 1, 0.01, 0)}
+                 {renderGeneratedNumberRow('Seed', 'seed', (selectedObject as ContourTraceObject).seed, 0, 999999, 1, 93, true)}
+                 {renderGeneratedColourRow('Trace Colour', 'traceColour', (selectedObject as ContourTraceObject).traceColour)}
+             </>
+         )}
+
+         {selectedObject.type === 'displacement_poly' && (
+             <>
+                 <SectionHeader label="Displacement Poly Settings" />
+                 {renderGeneratedNumberRow('Columns', 'columns', (selectedObject as DisplacementPolyObject).columns, 1, 128, 1, 14, true)}
+                 {renderGeneratedNumberRow('Rows', 'rows', (selectedObject as DisplacementPolyObject).rows, 1, 128, 1, 8, true)}
+                 {renderGeneratedNumberRow('Displacement Scale', 'displacementScale', (selectedObject as DisplacementPolyObject).displacementScale, 0, 1000, 1, 42)}
+                 {renderGeneratedNumberRow('Depth Scale', 'depthScale', (selectedObject as DisplacementPolyObject).depthScale, 0, 1000, 1, 18)}
+                 {renderGeneratedNumberRow('Mesh Opacity', 'meshOpacity', (selectedObject as DisplacementPolyObject).meshOpacity, 0, 1, 0.01, 0.85)}
+                 {renderGeneratedNumberRow('Fill Opacity', 'fillOpacity', (selectedObject as DisplacementPolyObject).fillOpacity, 0, 1, 0.01, 0.18)}
+                 {renderGeneratedNumberRow('Seed', 'seed', (selectedObject as DisplacementPolyObject).seed, 0, 999999, 1, 93, true)}
+                 {renderGeneratedColourRow('Line Colour', 'lineColour', (selectedObject as DisplacementPolyObject).lineColour)}
+                 {renderGeneratedColourRow('Fill Colour', 'fillColour', (selectedObject as DisplacementPolyObject).fillColour)}
+             </>
+         )}
+
+         {selectedObject.type === 'hologram' && (
+             <>
+                 <SectionHeader label="Hologram Settings" />
+                 {renderGeneratedNumberRow('Tile Size', 'tileSize', (selectedObject as HologramObject).tileSize, 10, 1000, 1, 80, true)}
+                 {renderGeneratedNumberRow('Rotation', 'rotationDegrees', (selectedObject as HologramObject).rotationDegrees, -720, 720, 1, 0)}
+                 {renderGeneratedNumberRow('Gradient Angle', 'gradientAngleDegrees', (selectedObject as HologramObject).gradientAngleDegrees, -720, 720, 1, -60)}
+                 {renderGeneratedSelectRow('Colour Mode', 'colourMode', (selectedObject as HologramObject).colourMode, [
+                     { value: 0, label: 'Mono' },
+                     { value: 1, label: 'Rainbow' },
+                     { value: 2, label: 'Tint' },
+                 ])}
+                 {renderGeneratedColourRow('Tint Colour', 'tintColour', (selectedObject as HologramObject).tintColour)}
+             </>
+         )}
+
+         {selectedObject.type === 'protractor' && (
+             <>
+                 <SectionHeader label="Protractor Settings" />
+                 {renderGeneratedNumberRow('Radius', 'radius', (selectedObject as ProtractorObject).radius, 1, 2000, 1, 180, true)}
+                 {renderGeneratedNumberRow('Measured Angle', 'measuredAngleDegrees', (selectedObject as ProtractorObject).measuredAngleDegrees, 0, 180, 1, 90)}
+                 {renderGeneratedNumberRow('Tick Step', 'tickStepDegrees', (selectedObject as ProtractorObject).tickStepDegrees, 1, 90, 1, 10, true)}
+                 {renderGeneratedNumberRow('Major Tick Step', 'majorTickStepDegrees', (selectedObject as ProtractorObject).majorTickStepDegrees, 1, 180, 1, 30, true)}
+                 {renderGeneratedNumberRow('Decimal Places', 'decimalPlaces', (selectedObject as ProtractorObject).decimalPlaces, 0, 5, 1, 1, true)}
+                 {renderGeneratedColourRow('Line Colour', 'lineColour', (selectedObject as ProtractorObject).lineColour)}
+                 {renderGeneratedColourRow('Text Colour', 'textColour', (selectedObject as ProtractorObject).textColour)}
+                 {renderGeneratedColourRow('Shadow Colour', 'shadowColour', (selectedObject as ProtractorObject).shadowColour)}
+             </>
+         )}
+
+         {selectedObject.type === 'shaking_polygon' && (
+             <>
+                 <SectionHeader label="Shaking Polygon Settings" />
+                 {renderGeneratedNumberRow('Line Width', 'lineWidth', (selectedObject as ShakingPolygonObject).lineWidth, 1, 100, 1, 20, true)}
+                 {renderGeneratedNumberRow('Vertex Count', 'vertexCount', (selectedObject as ShakingPolygonObject).vertexCount, 2, 16, 1, 3, true)}
+                 {renderGeneratedNumberRow('Fixed Diameter', 'fixedDiameter', (selectedObject as ShakingPolygonObject).fixedDiameter, 0, 2000, 1, 260, true)}
+                 {renderGeneratedNumberRow('Vertical Distortion %', 'verticalDistortionPercent', (selectedObject as ShakingPolygonObject).verticalDistortionPercent, -100, 100, 1, 0)}
+                 {renderGeneratedNumberRow('Repeat Count', 'repeatCount', (selectedObject as ShakingPolygonObject).repeatCount, 1, 100, 1, 1, true)}
+                 {renderGeneratedNumberRow('Repeat Frequency', 'repeatFrequency', (selectedObject as ShakingPolygonObject).repeatFrequency, 1, 1000, 1, 1, true)}
+                 {renderGeneratedCheckboxRow('Fill', 'fill', (selectedObject as ShakingPolygonObject).fill)}
+                 {renderGeneratedNumberRow('Jitter Range', 'jitterRange', (selectedObject as ShakingPolygonObject).jitterRange, 0, 2000, 1, 20)}
+                 {renderGeneratedNumberRow('Jitter Interval', 'jitterInterval', (selectedObject as ShakingPolygonObject).jitterInterval, 1, 1000, 1, 10, true)}
+                 {renderGeneratedCheckboxRow('Stepped', 'stepped', (selectedObject as ShakingPolygonObject).stepped)}
+                 {renderGeneratedNumberRow('Seed', 'seed', (selectedObject as ShakingPolygonObject).seed, 0, 999999, 1, 0, true)}
+                 {renderGeneratedColourRow('Colour', 'colour', (selectedObject as ShakingPolygonObject).colour)}
              </>
          )}
          
