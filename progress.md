@@ -1,3 +1,25 @@
+## 2026-06-23 — 93 砕け散る球の実Electron preview E2Eを追加して表示を修正
+
+### 実施内容
+- Red: `test:shattered-sphere-preview:e2e` を追加し、Electron実ウィンドウで `GeneratedShatteredSphere` のnative preview readinessとshared renderer canvasの白色破片ピクセルを検査するようにした。
+- Red: E2Eで `GeneratedShatteredSphere` はsessionに入るが、native render uploadが `Shared video frame upload buffer checksum must match the copy report.` で失敗し、`pixi-passthrough` のまま表示されないことを確認した。
+- Red: `sharedVideoFrameUploadBridge` に、Electron `contextBridge` 経由でコピー済みupload bufferがトップレベルに返る契約を追加した。
+- Green: preloadの `sharedVideoFrame.copyIntoUploadBuffer` がnative addonで書き込んだ `Uint8Array` を `copiedBytes` として返し、renderer側で `rgbaBytes` へ反映してからchecksum検証するようにした。
+- Green: copy report本体にはピクセルpayloadを混ぜない制約を維持した。
+- 版を `0.1.1-Beta-347c` に更新した。
+
+### 検証
+- `npm run test:shattered-sphere-preview:e2e` はRed時に `nativePreviewReadyTimeout` / `uploadFailed` / checksum mismatchで失敗することを確認した。
+- `npm test -- --run src/utils/sharedVideoFrameUploadBridge.test.ts --reporter=dot` はRed時にcontextBridge copied buffer未反映で失敗することを確認した。
+- `npm test -- --run src/utils/sharedVideoFrameUploadBridge.test.ts --reporter=dot` は10件成功した。
+- `npm test -- --run src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/sharedRendererPreviewSession.test.ts --reporter=dot` は18件成功した。
+- `npm run test:shattered-sphere-preview:e2e` は成功し、`native-render-frame`、`GeneratedShatteredSphere`、`brightWhiteCount=7567`、`brightNonBackgroundCount=14242`、`colourBucketCount=32` を確認した。スクショは `.codex/shattered-sphere-preview-e2e/shared-renderer-shattered-sphere.png` に保存した。
+- `npm test -- --run src/utils/sharedVideoFrameUploadBridge.test.ts src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/sharedRendererPreviewSession.test.ts src/utils/sharedRendererPreviewPresenterController.test.ts --reporter=dot` は72件成功した。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回のshared frame upload修正由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- `contextBridge` 越しの `copiedBytes` は即時修正としては有効だが、長期的にはrenderer/preload間で大きなframe payloadを返さずに済む共有バッファ/ネイティブハンドオフへ寄せる。
+
 ## 2026-06-23 — 93 砕け散る球の単体preview非表示を修正
 
 ### 実施内容
