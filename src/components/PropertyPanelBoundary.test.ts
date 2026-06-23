@@ -262,3 +262,148 @@ describe('PropertyPanel 93 Sphere generated object controls', () => {
     expect(code).toContain('Container');
   });
 });
+
+describe('PropertyPanel generated object coverage', () => {
+  it('exposes core AviUtl generated object parameters that already feed Rust snapshot sources', () => {
+    const code = source();
+
+    expect(code).toContain('BarcodeObject');
+    expect(code).toContain("selectedObject.type === 'barcode'");
+    expect(code).toContain('Barcode Settings');
+    expect(code).toContain('Minimum Bar Width');
+    expect(code).toContain('Horizontal Margin');
+
+    expect(code).toContain('PuzzlePieceObject');
+    expect(code).toContain("selectedObject.type === 'puzzle_piece'");
+    expect(code).toContain('Puzzle Piece Settings');
+    expect(code).toContain('Connector Mode');
+
+    expect(code).toContain('ColourWheelObject');
+    expect(code).toContain("selectedObject.type === 'colour_wheel'");
+    expect(code).toContain('Colour Wheel Settings');
+    expect(code).toContain('Ring Width %');
+
+    expect(code).toContain('GourdObject');
+    expect(code).toContain("selectedObject.type === 'gourd'");
+    expect(code).toContain('Gourd Settings');
+
+    expect(code).toContain('GearObject');
+    expect(code).toContain("selectedObject.type === 'gear'");
+    expect(code).toContain('Gear Settings');
+    expect(code).toContain('Tooth Skew %');
+  });
+
+  it('exposes chart and curve generated object parameters from Rust snapshot sources', () => {
+    const code = source();
+
+    expect(code).toContain('TrackBarObject');
+    expect(code).toContain("selectedObject.type === 'track_bar'");
+    expect(code).toContain('Track Bar Settings');
+    expect(code).toContain('Track Values');
+    expect(code).toContain('Track Ranges');
+
+    expect(code).toContain('PieChartObject');
+    expect(code).toContain("selectedObject.type === 'pie_chart'");
+    expect(code).toContain('Pie Chart Settings');
+    expect(code).toContain('Sort Mode');
+    expect(code).toContain('Slice Colours');
+
+    expect(code).toContain('HistogramObject');
+    expect(code).toContain("selectedObject.type === 'histogram'");
+    expect(code).toContain('Histogram Settings');
+    expect(code).toContain('Bin Values');
+    expect(code).toContain('Show Luminance');
+
+    expect(code).toContain('ToneCurveObject');
+    expect(code).toContain("selectedObject.type === 'tone_curve'");
+    expect(code).toContain('Tone Curve Settings');
+    expect(code).toContain('Curve Points');
+  });
+
+  it('exposes pattern and motion-utility generated object parameters from Rust snapshot sources', () => {
+    const code = source();
+
+    expect(code).toContain('SunburstObject');
+    expect(code).toContain("selectedObject.type === 'sunburst'");
+    expect(code).toContain('Sunburst Settings');
+    expect(code).toContain('Ray Coverage %');
+
+    expect(code).toContain('CircularArrowObject');
+    expect(code).toContain("selectedObject.type === 'circular_arrow'");
+    expect(code).toContain('Circular Arrow Settings');
+    expect(code).toContain('Tail Head');
+
+    expect(code).toContain('TriangleBracketObject');
+    expect(code).toContain("selectedObject.type === 'triangle_bracket'");
+    expect(code).toContain('Triangle Bracket Settings');
+
+    expect(code).toContain('TartanCheckObject');
+    expect(code).toContain("selectedObject.type === 'tartan_check'");
+    expect(code).toContain('Tartan Check Settings');
+
+    expect(code).toContain('HoundstoothObject');
+    expect(code).toContain("selectedObject.type === 'houndstooth'");
+    expect(code).toContain('Houndstooth Settings');
+
+    expect(code).toContain('YagasuriObject');
+    expect(code).toContain("selectedObject.type === 'yagasuri'");
+    expect(code).toContain('Yagasuri Settings');
+
+    expect(code).toContain('PaperAirplaneObject');
+    expect(code).toContain("selectedObject.type === 'paper_airplane'");
+    expect(code).toContain('Paper Airplane Settings');
+
+    expect(code).toContain('AsanohaPatternObject');
+    expect(code).toContain("selectedObject.type === 'asanoha_pattern'");
+    expect(code).toContain('Asanoha Pattern Settings');
+
+    expect(code).toContain('FocusLinesPlusObject');
+    expect(code).toContain("selectedObject.type === 'focus_lines_plus'");
+    expect(code).toContain('Focus Lines Plus Settings');
+
+    expect(code).toContain('RandomLineExObject');
+    expect(code).toContain("selectedObject.type === 'random_line_ex'");
+    expect(code).toContain('Random Line EX Settings');
+  });
+
+  it('exposes 93 generated object parameters from Rust snapshot sources', () => {
+    const code = source();
+
+    expect(code).toContain('AudioSphereObject');
+    expect(code).toContain("selectedObject.type === 'audio_sphere'");
+    expect(code).toContain('Audio Sphere Settings');
+    expect(code).toContain('Sample Window');
+
+    expect(code).toContain('RegionFrameObject');
+    expect(code).toContain("selectedObject.type === 'region_frame'");
+    expect(code).toContain('Region Frame Settings');
+    expect(code).toContain('Background Opacity');
+
+    expect(code).toContain('SimpleTubeObject');
+    expect(code).toContain("selectedObject.type === 'simple_tube'");
+    expect(code).toContain('SimpleTube Settings');
+    expect(code).toContain('Colour Pattern');
+
+    expect(code).toContain('ContourTraceObject');
+    expect(code).toContain("selectedObject.type === 'contour_trace'");
+    expect(code).toContain('Contour Trace Settings');
+
+    expect(code).toContain('DisplacementPolyObject');
+    expect(code).toContain("selectedObject.type === 'displacement_poly'");
+    expect(code).toContain('Displacement Poly Settings');
+
+    expect(code).toContain('HologramObject');
+    expect(code).toContain("selectedObject.type === 'hologram'");
+    expect(code).toContain('Hologram Settings');
+
+    expect(code).toContain('ProtractorObject');
+    expect(code).toContain("selectedObject.type === 'protractor'");
+    expect(code).toContain('Protractor Settings');
+    expect(code).toContain('Measured Angle');
+
+    expect(code).toContain('ShakingPolygonObject');
+    expect(code).toContain("selectedObject.type === 'shaking_polygon'");
+    expect(code).toContain('Shaking Polygon Settings');
+    expect(code).toContain('Jitter Interval');
+  });
+});
