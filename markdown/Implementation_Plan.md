@@ -129,6 +129,7 @@
 103. ✅ `詰め` GetColor / hksy / 93 混在の代表シーンfixtureを追加し、Rust snapshot / native media support / project round-tripで検証する
 104. ✅ `詰め` Timeline右クリックの生成項目をAviUtl / GetColor / hksy / 93 / Pattern系カテゴリへ畳み込む
 105. ✅ `詰め` Timeline右クリックの生成項目追加後に挿入時刻へシークして、追加直後からプレビューに描画されるようにする
+106. ✅ `詰め` 93 砕け散る球をshared renderer previewの生成効果所有リストへ追加し、単体配置でも描画対象にする
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

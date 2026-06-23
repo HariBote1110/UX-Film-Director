@@ -1,3 +1,20 @@
+## 2026-06-23 — 93 砕け散る球の単体preview非表示を修正
+
+### 実施内容
+- Red: 93 砕け散る球だけを配置した `SharedRendererPreviewSession` から、native preview所有の生成効果IDとして `shattered-sphere-1` が回収される契約を追加した。
+- Green: `collectSharedRendererGeneratedEffectObjectIdsFromSession` の生成メディア対象に `GeneratedShatteredSphere` を追加し、Timeline単体配置でもshared renderer側の生成効果として扱うようにした。
+- Green: 既存の非対応sceneテストは、現在対応済みになった画像回転ではなく、非矩形shapeを使う形に更新した。
+- 版を `0.1.1-Beta-347b` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/sharedRendererPreviewSession.test.ts --reporter=dot` はRed時に `[]` が返り、砕け散る球IDが回収されないことで失敗することを確認した。
+- `npm test -- --run src/utils/sharedRendererPreviewSession.test.ts --reporter=dot` は3件成功した。
+- `npm test -- --run src/utils/sharedRendererPreviewSession.test.ts src/utils/objectFactories/shatteredSphereObjectFactory.test.ts src/utils/rustSceneSnapshot.test.ts src/utils/sharedRendererNativeMediaSupport.test.ts src/utils/pixiGeneratedEffectCutover.test.ts --reporter=dot` は97件成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml generated_shattered_sphere_source_frame -- --nocapture` は1件成功した。
+
+### 残課題・次のステップ
+- 実Electron画面での確認は未実施。まだ表示されない場合は、次にnative render upload結果とcanvas合成側の実ウィンドウE2Eで画素検査する。
+
 ## 2026-06-23 — Timeline右クリックの生成項目追加後に即時表示
 
 ### 実施内容
