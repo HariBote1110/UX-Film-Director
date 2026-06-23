@@ -1,3 +1,22 @@
+## 2026-06-23 — 93 砕け散る球プロパティを実用調整UIへ詰める
+
+### 実施内容
+- Red: PropertyPanel境界テストへ、砕け散る球のプロパティが単なる数値欄ではなく、専用コントロール、スライダー、プリセット、E2E用属性、colour hex入力を持つ契約を追加した。
+- Green: `ShatteredSphereNumberControl` を追加し、Fracture Amount、Delay、Radius、Limit Distance、Thickness、Fragment Size、Random Shape、Speed、Impact、Gravity、Spin、Direction Diffusion、Seedをスライダー＋数値入力で調整できるようにした。
+- Green: `Soft Burst`、`Fast Burst`、`Gravity Drop`、`Reset 93` のプリセットを追加し、絵作りの初動を作りやすくした。
+- Green: Colourにカラーピッカーとhex入力を並べ、選択中の `shattered_sphere` へ即時反映するようにした。
+- 版を `0.1.1-Beta-348a` に更新した。
+
+### 検証
+- `npm test -- --run src/components/PropertyPanelBoundary.test.ts --reporter=dot` はRed時に `ShatteredSphereNumberControl` 未実装で失敗することを確認した。
+- `npm test -- --run src/components/PropertyPanelBoundary.test.ts --reporter=dot` は14件成功した。
+- `npm test -- --run src/utils/rustSceneSnapshot.test.ts src/utils/projectFile.test.ts src/utils/packageScripts.test.ts --reporter=dot` は94件成功した。
+- `npm run test:shattered-sphere-preview:e2e` は成功し、`native-render-frame`、`GeneratedShatteredSphere`、`brightWhiteCount=7567` を確認した。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回のPropertyPanel修正由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- 現状はPropertyPanelからの調整。次はcanvas上での直接ハンドル操作、プロパティ値変更時の実画素E2E、または他の93生成素材にも同じ操作性パターンを広げる。
+
 ## 2026-06-23 — 93 砕け散る球の実Electron preview E2Eを追加して表示を修正
 
 ### 実施内容
