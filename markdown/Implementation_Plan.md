@@ -128,6 +128,7 @@
 102. ✅ `P1` hksy measured-grid / anchor-line の詳細パラメータ編集UIをPropertyPanelへ追加する
 103. ✅ `詰め` GetColor / hksy / 93 混在の代表シーンfixtureを追加し、Rust snapshot / native media support / project round-tripで検証する
 104. ✅ `詰め` Timeline右クリックの生成項目をAviUtl / GetColor / hksy / 93 / Pattern系カテゴリへ畳み込む
+105. ✅ `詰め` Timeline右クリックの生成項目追加後に挿入時刻へシークして、追加直後からプレビューに描画されるようにする
 
 ## AviUtl互換ロードマップ（2026-02-11）
 詳細は `markdown/AviUtl_Gap_Analysis.md` を正とする。

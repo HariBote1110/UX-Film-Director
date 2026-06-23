@@ -1,3 +1,20 @@
+## 2026-06-23 — Timeline右クリックの生成項目追加後に即時表示
+
+### 実施内容
+- Red: Timeline右クリックの生成項目を追加した直後に、挿入時刻へシークして表示できる契約を追加した。
+- Green: 生成系オブジェクト追加を `handleAddGeneratedObject` に集約し、`addObject` 後に `setTime(object.startTime)` を実行してからメニューを閉じるようにした。
+- Green: Waveform、GetColor、hksy、93、パターン/UI、パーティクル系の全生成項目で同じ即時表示経路を使うようにした。
+- 版を `0.1.1-Beta-347a` に更新した。
+
+### 検証
+- `npm test -- --run src/components/TimelineContextMenu.particle.test.ts --reporter=dot` はRed時に `setTime: state.setTime` 未接続で失敗することを確認した。
+- `npm test -- --run src/components/TimelineContextMenu.particle.test.ts --reporter=dot` は3件成功した。
+- `npm test -- --run src/components/TimelineContextMenu.particle.test.ts src/utils/aviutl/aviutlPolishRepresentativeScene.test.ts src/utils/packageScripts.test.ts --reporter=dot` は12件成功した。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の即時表示修正由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- 右クリック位置と再生ヘッド位置がずれていても追加直後に見えるようになった。次は頻用項目のピン留め、検索/フィルタ、またはcanvas上の直接操作で生成項目をより探しやすくする。
+
 ## 2026-06-23 — Timeline右クリックの生成項目をカテゴリ化
 
 ### 実施内容
