@@ -212,6 +212,23 @@ describe('PropertyPanel 93 Shattered Sphere controls', () => {
     expect(code).toContain("(selectedObject as ShatteredSphereObject).colour");
     expect(code).toContain('Seed');
   });
+
+  it('makes shattered sphere parameters practical to tune from the property panel', () => {
+    const code = source();
+
+    expect(code).toContain('ShatteredSphereNumberControl');
+    expect(code).toContain('data-testid="shattered-sphere-settings"');
+    expect(code).toContain('data-shattered-sphere-control="fractureAmount"');
+    expect(code).toContain('data-shattered-sphere-control="speed"');
+    expect(code).toContain('data-shattered-sphere-control="gravityY"');
+    expect(code).toContain('shatteredSpherePresetPatches');
+    expect(code).toContain('Soft Burst');
+    expect(code).toContain('Fast Burst');
+    expect(code).toContain('Gravity Drop');
+    expect(code).toContain('Reset 93');
+    expect(code).toContain('applyShatteredSpherePatch');
+    expect(code).toContain('aria-label="93 shattered sphere colour hex"');
+  });
 });
 
 describe('PropertyPanel 93 Sphere generated object controls', () => {
