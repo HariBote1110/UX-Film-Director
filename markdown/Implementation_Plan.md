@@ -1621,6 +1621,14 @@ PropertyPanelのAviUtl Motion一覧へ自動露出し、元スクリプトのレ
 Colourはカラーピッカーとhex入力の両方から即時反映できるようにする。
 E2Eや境界テストから狙える属性も付け、描画確認済みの砕け散る球を「配置できる」から「触って演出を作れる」状態へ進める。
 
+272. AviUtlPackV4: Rust生成オブジェクトの未露出PropertyPanelを横断追加する
+Rust scene snapshotへsource値が渡っているにもかかわらずPropertyPanelから触れなかった生成オブジェクトを洗い出し、
+Barcode、Puzzle Piece、Colour Wheel、Gourd、Gear、Track Bar、Pie Chart、Histogram、Tone Curve、
+Sunburst、Circular Arrow、Triangle Bracket、Tartan Check、Houndstooth、Yagasuri、Paper Airplane、
+Asanoha Pattern、Focus Lines Plus、Random Line EX、Audio Sphere、Region Frame、SimpleTube、
+Contour Trace、Displacement Poly、Hologram、Protractor、Shaking Polygonの編集欄を追加する。
+配列値や色リストはまずカンマ区切り入力で編集可能にし、後続で専用の行追加/削除UIへ育てる。
+
 ## UI 刷新（2026-04-19）
 
 ### デザインシステム定義

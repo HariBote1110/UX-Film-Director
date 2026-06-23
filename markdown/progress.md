@@ -1,6 +1,21 @@
 # 進捗ログ
 
 ## 2026-06-23
+- Rust生成オブジェクトの未露出プロパティをPropertyPanelへ追加した。
+- Red: PropertyPanel境界テストへ、Rust scene snapshotへ流れているのにPropertyPanelから触れない生成オブジェクト群の契約を追加した。
+- Green: Barcode、Puzzle Piece、Colour Wheel、Gourd、Gearの基本生成素材プロパティを編集できるようにした。
+- Green: Track Bar、Pie Chart、Histogram、Tone Curveの配列・色・表示設定を編集できるようにした。
+- Green: Sunburst、Circular Arrow、Triangle Bracket、Tartan Check、Houndstooth、Yagasuri、Paper Airplane、Asanoha Pattern、Focus Lines Plus、Random Line EXのパターン系プロパティを編集できるようにした。
+- Green: Audio Sphere、Region Frame、SimpleTube、Contour Trace、Displacement Poly、Hologram、Protractor、Shaking Polygonの93系生成プロパティを編集できるようにした。
+- 配列系はまずカンマ区切り入力、range系は `min-max` カンマ区切り入力として実装し、後続で専用UIへ育てられる形にした。
+- 版を `0.1.1-Beta-349a` に更新した。
+- 検証: `npm test -- --run src/components/PropertyPanelBoundary.test.ts --reporter=dot` はRed時に `BarcodeObject` / `TrackBarObject` / `SunburstObject` / `AudioSphereObject` 未露出で失敗することを確認した。
+- 検証: `npm test -- --run src/components/PropertyPanelBoundary.test.ts --reporter=dot` は18件成功した。
+- 検証: `npm test -- --run src/utils/rustSceneSnapshot.test.ts src/utils/projectFile.test.ts src/utils/packageScripts.test.ts --reporter=dot` は94件成功した。
+- 検証: `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回のPropertyPanel追加由来の型エラーは出ていない。
+- 次は配列編集UIを専用化し、代表シーンE2Eや画素比較へ接続して値変更で描画が変わることを確認する。
+
+## 2026-06-23
 - 93 砕け散る球プロパティを実用調整UIへ詰めた。
 - Red: PropertyPanel境界テストへ、砕け散る球のプロパティが専用コントロール、スライダー、プリセット、E2E用属性、colour hex入力を持つ契約を追加した。
 - Green: `ShatteredSphereNumberControl` を追加し、主要パラメータをスライダー＋数値入力で調整できるようにした。
