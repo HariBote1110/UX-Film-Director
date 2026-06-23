@@ -42,6 +42,7 @@ import {
   buildAviUtlInkSplashObject,
   buildDefaultStandardParticleObject,
 } from '../utils/objectFactories/particleObjectFactory';
+import type { TimelineObject } from '../types';
 
 export interface ContextMenuState {
   visible: boolean;
@@ -134,7 +135,7 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
   onAddGroup,
 }) => {
   const {
-    deleteObject, deleteSelectedObjects, selectObject, splitObject, addObject,
+    deleteObject, deleteSelectedObjects, selectObject, splitObject, addObject, setTime,
     copySelectedObjects, cutSelectedObjects, pasteClipboardObjects, duplicateSelectedObjects, duplicateSelectedObjectsWithObjectCopyExt,
     groupSelectedObjects, ungroupSelectedObjects, selectedIds, projectSettings, language
   } = useStore((state) => ({
@@ -143,6 +144,7 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
     selectObject: state.selectObject,
     splitObject: state.splitObject,
     addObject: state.addObject,
+    setTime: state.setTime,
     copySelectedObjects: state.copySelectedObjects,
     cutSelectedObjects: state.cutSelectedObjects,
     pasteClipboardObjects: state.pasteClipboardObjects,
@@ -197,13 +199,19 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
     };
   }, [onClose]);
 
+  const handleAddGeneratedObject = (object: TimelineObject) => {
+    addObject(object);
+    setTime(object.startTime);
+    onClose();
+  };
+
   // 音声波形追加ハンドラ
   const handleAddWaveform = () => {
       const waveformWidth = Math.max(120, Math.round(projectSettings.width * 0.4));
       const waveformHeight = Math.max(80, Math.round(projectSettings.height * 0.14));
       const centredX = Math.round((projectSettings.width - waveformWidth) / 2);
       const centredY = Math.round((projectSettings.height - waveformHeight) / 2);
-      addObject({
+      handleAddGeneratedObject({
           id: crypto.randomUUID(),
           type: 'audio_visualization',
           name: 'Waveform',
@@ -221,568 +229,516 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
           thickness: 2,
           amplitude: 1.0
       });
-      onClose();
   };
 
   const handleAddParticle = () => {
-    addObject(buildDefaultStandardParticleObject({
+    handleAddGeneratedObject(buildDefaultStandardParticleObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddBarcode = () => {
-    addObject(buildAviUtlBarcodeObject({
+    handleAddGeneratedObject(buildAviUtlBarcodeObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddCircularArrow = () => {
-    addObject(buildAviUtlCircularArrowObject({
+    handleAddGeneratedObject(buildAviUtlCircularArrowObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddTriangleBracket = () => {
-    addObject(buildAviUtlTriangleBracketObject({
+    handleAddGeneratedObject(buildAviUtlTriangleBracketObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddTartanCheck = () => {
-    addObject(buildAviUtlTartanCheckObject({
+    handleAddGeneratedObject(buildAviUtlTartanCheckObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddHoundstooth = () => {
-    addObject(buildAviUtlHoundstoothObject({
+    handleAddGeneratedObject(buildAviUtlHoundstoothObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddYagasuri = () => {
-    addObject(buildAviUtlYagasuriObject({
+    handleAddGeneratedObject(buildAviUtlYagasuriObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddPaperAirplane = () => {
-    addObject(buildAviUtlPaperAirplaneObject({
+    handleAddGeneratedObject(buildAviUtlPaperAirplaneObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddAsanohaPattern = () => {
-    addObject(buildAviUtlAsanohaPatternObject({
+    handleAddGeneratedObject(buildAviUtlAsanohaPatternObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddFocusLinesPlus = () => {
-    addObject(buildAviUtlFocusLinesPlusObject({
+    handleAddGeneratedObject(buildAviUtlFocusLinesPlusObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddRandomLineEx = () => {
-    addObject(buildAviUtlRandomLineExObject({
+    handleAddGeneratedObject(buildAviUtlRandomLineExObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddContourTrace = () => {
-    addObject(buildAviUtlContourTraceObject({
+    handleAddGeneratedObject(buildAviUtlContourTraceObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddDisplacementPoly = () => {
-    addObject(buildAviUtlDisplacementPolyObject({
+    handleAddGeneratedObject(buildAviUtlDisplacementPolyObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddPlainEffectorLine = () => {
-    addObject(buildAviUtlPlainEffectorLineObject({
+    handleAddGeneratedObject(buildAviUtlPlainEffectorLineObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddRegionFrame = () => {
-    addObject(buildAviUtlRegionFrameObject({
+    handleAddGeneratedObject(buildAviUtlRegionFrameObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddEllipseRegionFrame = () => {
-    addObject(buildAviUtlEllipseRegionFrameObject({
+    handleAddGeneratedObject(buildAviUtlEllipseRegionFrameObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddCutCornerRegionFrame = () => {
-    addObject(buildAviUtlCutCornerRegionFrameObject({
+    handleAddGeneratedObject(buildAviUtlCutCornerRegionFrameObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddBorderDepthRegionFrame = () => {
-    addObject(buildAviUtlBorderDepthRegionFrameObject({
+    handleAddGeneratedObject(buildAviUtlBorderDepthRegionFrameObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddHologram = () => {
-    addObject(buildAviUtlHologramObject({
+    handleAddGeneratedObject(buildAviUtlHologramObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddProtractor = () => {
-    addObject(buildAviUtlProtractorObject({
+    handleAddGeneratedObject(buildAviUtlProtractorObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddShakingPolygon = () => {
-    addObject(buildAviUtlShakingPolygonObject({
+    handleAddGeneratedObject(buildAviUtlShakingPolygonObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddShatteredSphere = () => {
-    addObject(buildAviUtlShatteredSphereObject({
+    handleAddGeneratedObject(buildAviUtlShatteredSphereObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddSimpleTube = () => {
-    addObject(buildAviUtlSimpleTubeObject({
+    handleAddGeneratedObject(buildAviUtlSimpleTubeObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddSimpleTubeTorus = () => {
-    addObject(buildAviUtlSimpleTubeTorusObject({
+    handleAddGeneratedObject(buildAviUtlSimpleTubeTorusObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddSphereDots = () => {
-    addObject(buildAviUtlSphereDotsObject({
+    handleAddGeneratedObject(buildAviUtlSphereDotsObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddSphericalField = () => {
-    addObject(buildAviUtlSphericalFieldObject({
+    handleAddGeneratedObject(buildAviUtlSphericalFieldObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddSPField = () => {
-    addObject(buildAviUtlSPFieldObject({
+    handleAddGeneratedObject(buildAviUtlSPFieldObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddColourWheel = () => {
-    addObject(buildAviUtlColourWheelObject({
+    handleAddGeneratedObject(buildAviUtlColourWheelObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddGear = () => {
-    addObject(buildAviUtlGearObject({
+    handleAddGeneratedObject(buildAviUtlGearObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddGourd = () => {
-    addObject(buildAviUtlGourdObject({
+    handleAddGeneratedObject(buildAviUtlGourdObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddPuzzlePiece = () => {
-    addObject(buildAviUtlPuzzlePieceObject({
+    handleAddGeneratedObject(buildAviUtlPuzzlePieceObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddAuraEmission = () => {
-    addObject(buildAviUtlAuraEmissionObject({
+    handleAddGeneratedObject(buildAviUtlAuraEmissionObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddBubble = () => {
-    addObject(buildAviUtlBubbleObject({
+    handleAddGeneratedObject(buildAviUtlBubbleObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddFocusLines = () => {
-    addObject(buildAviUtlFocusLinesObject({
+    handleAddGeneratedObject(buildAviUtlFocusLinesObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddInkSplash = () => {
-    addObject(buildAviUtlInkSplashObject({
+    handleAddGeneratedObject(buildAviUtlInkSplashObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddTrackBar = () => {
-    addObject(buildAviUtlTrackBarObject({
+    handleAddGeneratedObject(buildAviUtlTrackBarObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddPieChart = () => {
-    addObject(buildAviUtlPieChartObject({
+    handleAddGeneratedObject(buildAviUtlPieChartObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddHistogram = () => {
-    addObject(buildAviUtlHistogramObject({
+    handleAddGeneratedObject(buildAviUtlHistogramObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddGetColorDotField = () => {
-    addObject(buildGetColorDotFieldObject({
+    handleAddGeneratedObject(buildGetColorDotFieldObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddGetColorDiamondDotField = () => {
-    addObject(buildGetColorDiamondDotFieldObject({
+    handleAddGeneratedObject(buildGetColorDiamondDotFieldObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddGetColorOutlinedSquareDotField = () => {
-    addObject(buildGetColorOutlinedSquareDotFieldObject({
+    handleAddGeneratedObject(buildGetColorOutlinedSquareDotFieldObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddGetColorSampledDotField = () => {
-    addObject(buildGetColorSampledDotFieldObject({
+    handleAddGeneratedObject(buildGetColorSampledDotFieldObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddAudioSphere = () => {
-    addObject(buildAviUtlAudioSphereObject({
+    handleAddGeneratedObject(buildAviUtlAudioSphereObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddToneCurve = () => {
-    addObject(buildAviUtlToneCurveObject({
+    handleAddGeneratedObject(buildAviUtlToneCurveObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddHksyCheckerGrid = () => {
-    addObject(buildHksyCheckerGridObject({
+    handleAddGeneratedObject(buildHksyCheckerGridObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddHksyLine = () => {
-    addObject(buildHksyLineObject({
+    handleAddGeneratedObject(buildHksyLineObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddHksyDiamond = () => {
-    addObject(buildHksyDiamondObject({
+    handleAddGeneratedObject(buildHksyDiamondObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddHksyMeasuredGrid = () => {
-    addObject(buildHksyMeasuredGridObject({
+    handleAddGeneratedObject(buildHksyMeasuredGridObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddHksyAnchorLine = () => {
-    addObject(buildHksyAnchorLineObject({
+    handleAddGeneratedObject(buildHksyAnchorLineObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddHksyMultiColourChecker = () => {
-    addObject(buildHksyMultiColourCheckerObject({
+    handleAddGeneratedObject(buildHksyMultiColourCheckerObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const handleAddSunburst = () => {
-    addObject(buildAviUtlSunburstObject({
+    handleAddGeneratedObject(buildAviUtlSunburstObject({
       id: crypto.randomUUID(),
       projectWidth: projectSettings.width,
       projectHeight: projectSettings.height,
       startTime: state.time,
       layer: state.layer,
     }));
-    onClose();
   };
 
   const ensureObjectSelection = (objectId: string) => {
