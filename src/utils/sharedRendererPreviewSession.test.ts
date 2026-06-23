@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultLayers } from './sceneState';
-import { buildSharedRendererPreviewSession } from './sharedRendererPreviewSession';
+import {
+  buildSharedRendererPreviewSession,
+  collectSharedRendererGeneratedEffectObjectIdsFromSession,
+} from './sharedRendererPreviewSession';
 import { buildSharedRendererPresentationContract } from './sharedRendererPresentationContract';
-import type { ImageObject, ProjectSettings } from '../types';
+import { buildAviUtlShatteredSphereObject } from './objectFactories/shatteredSphereObjectFactory';
+import type { ImageObject, ProjectSettings, ShapeObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -32,6 +36,30 @@ const image = (patch: Partial<ImageObject> = {}): ImageObject => ({
   filePath: '/tmp/image.png',
   width: 640,
   height: 360,
+  ...patch,
+});
+
+const unsupportedShape = (patch: Partial<ShapeObject> = {}): ShapeObject => ({
+  id: 'shape-1',
+  type: 'shape',
+  name: 'circle',
+  layer: 1,
+  startTime: 0,
+  duration: 5,
+  x: 32,
+  y: 48,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 32,
+  endY: 48,
+  easing: 'linear',
+  shapeType: 'circle',
+  width: 320,
+  height: 320,
+  fill: '#ffffff',
   ...patch,
 });
 
@@ -80,7 +108,7 @@ describe('buildSharedRendererPreviewSession', () => {
       enabled: true,
       projectSettings: settings,
       layers: createDefaultLayers(),
-      objects: [image({ rotation: 45 })],
+      objects: [unsupportedShape()],
       time: 1,
       editorMode: '2d',
       isExporting: false,
@@ -94,5 +122,29 @@ describe('buildSharedRendererPreviewSession', () => {
       reason: 'planNotComparable',
       detail: 'Shared renderer surface requires a parallelCompare plan.',
     });
+  });
+
+  it('collects a standalone shattered sphere as a generated effect for native preview ownership', () => {
+    const object = buildAviUtlShatteredSphereObject({
+      id: 'shattered-sphere-1',
+      projectWidth: settings.width,
+      projectHeight: settings.height,
+      startTime: 0,
+      layer: 1,
+    });
+    const session = buildSharedRendererPreviewSession({
+      enabled: true,
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      objects: [object],
+      time: 0,
+      editorMode: '2d',
+      isExporting: false,
+      webGpuAvailable: true,
+      fallbackAdapter: false,
+    });
+
+    expect(session.surfaceGate.ok).toBe(true);
+    expect(collectSharedRendererGeneratedEffectObjectIdsFromSession(session)).toEqual(['shattered-sphere-1']);
   });
 });
