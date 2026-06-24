@@ -184,7 +184,7 @@ export const prepareSharedRendererViewportVideoUploads = async ({
     const stopResponse = await stopRustBackendVideoDecode({
       jobId: staleJob.jobId,
     }, rustBackendBridge);
-    if (!stopResponse.success) {
+    if (!isDecodeStopSatisfied(stopResponse)) {
       return {
         ok: false,
         reason: 'stopFailed',
@@ -233,7 +233,7 @@ export const prepareSharedRendererViewportVideoUploads = async ({
         const stopResponse = await stopRustBackendVideoDecode({
           jobId: resolvedJob.jobId,
         }, rustBackendBridge);
-        if (!stopResponse.success) {
+        if (!isDecodeStopSatisfied(stopResponse)) {
           const abortReleaseFailure = await releasePreparedViewportVideoUploadsAfterAbort(uploads);
           if (abortReleaseFailure) {
             return {
@@ -464,7 +464,7 @@ export const prepareSharedRendererViewportVideoUpload = async ({
       const stopResponse = await stopRustBackendVideoDecode({
         jobId: resolvedJob.jobId,
       }, rustBackendBridge);
-      if (!stopResponse.success) {
+      if (!isDecodeStopSatisfied(stopResponse)) {
         return {
           ok: false,
           reason: 'stopFailed',
@@ -563,7 +563,7 @@ const replaceDecodeJob = async (
     const stopResponse = await stopRustBackendVideoDecode({
       jobId: currentJob.jobId,
     }, rustBackendBridge);
-    if (!stopResponse.success) {
+    if (!isDecodeStopSatisfied(stopResponse)) {
       return {
         ok: false,
         detail: stopResponse.error ?? 'Rust backend rejected the stale video decode stop request.',
@@ -616,6 +616,14 @@ const isDecodeJobStartFailure = (
 const isNoActiveDecodeSessionError = (error: string | undefined): boolean =>
   typeof error === 'string'
   && error.toLowerCase().includes('no active decode session');
+
+// Stopping a decode session that the backend no longer holds is the desired end
+// state, so treat a "No active decode session" stop response as already stopped
+// rather than a fatal failure. This keeps rapid pause/play toggling from aborting
+// the whole upload when the cached active jobs drift out of sync with the backend.
+const isDecodeStopSatisfied = (
+  stopResponse: { success: boolean; error?: string }
+): boolean => stopResponse.success || isNoActiveDecodeSessionError(stopResponse.error);
 
 const isNoFreeDecodeFrameSlotError = (error: string | undefined): boolean =>
   typeof error === 'string'
