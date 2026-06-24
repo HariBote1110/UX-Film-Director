@@ -1,3 +1,18 @@
+## 2026-06-25 — ポーズ時 0 フレーム未提示（赤枠残り）を特定し文書化
+
+### 実施内容
+- 前段の never-throw 化後に残った赤枠 `status=fallback / control=videoTextureViewUnavailable` を調査。読み込み直後・ポーズで 0 フレームが提示されず、シークすると出る挙動を確認した。
+- 原因：外部ビデオ要素の「フレーム準備完了で再提示」する配線が `isPlaying` 時のみ存在し、ポーズ中は未準備フレームのスキップ後に再提示トリガーが無いまま赤枠が残る。
+- 修正方針（`notifyOnNextPresentableFrame` でフレーム準備を検知し再描画ナッジ）を `markdown/Bug_ExternalVideoPausedFrameZero.md` に記録。
+- 併せて「シーク後に色がおかしい」を別件として同 md §5 にメモ（外部ビデオ経路の色パイプライン整合）。
+
+### 選定理由・判断の根拠
+- ポーズ中の未準備は過渡状態であり、フレーム到着で自動回復させるのが筋。`requestVideoFrameCallback` 優先・イベントフォールバックのワンショットにすることで二重登録/無限ループを避ける。
+
+### 残課題・次のステップ
+- TDD：Red（`notifyOnNextPresentableFrame` の契約）→ Green→ Viewport 配線。
+- 色の崩れは独立タスクとして調査予定。
+
 ## 2026-06-24 — 未準備 video 要素への importExternalTexture 失敗を特定し文書化
 
 ### 実施内容
