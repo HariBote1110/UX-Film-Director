@@ -1,3 +1,20 @@
+## 2026-06-24 — デコード停止の非冪等性バグを特定し修正方針を文書化
+
+### 実施内容
+- 動画読み込み時に canvas 下部へ赤枠で出る診断オーバーレイ `Rust shared renderer preview / status=ready / video=stopFailed / No active decode session` の原因を調査・特定した。
+- 原因：すでに終了済みのデコードセッションに対する `decode.stop` が Rust 側で `No active decode session`（-32041）を返し、TS 側 `sharedRendererViewportVideoUpload.ts` がこれを致命的 `stopFailed` として動画アップロード全体を中断していた。
+- 一時停止／再生の連打でキャッシュ `activeJobs` と Rust の `decode_sessions` がずれ、「無いセッションの停止」→中断→プレビュー長時間フリーズに繋がっていた。
+- バグ詳細と修正方針を `markdown/Bug_DecodeStopIdempotency.md` に新規作成して記録した。
+
+### 選定理由・判断の根拠
+- 同じ `No active decode session` は `decode.requestFrame` 経路では既に回復可能扱い（`shouldRecoverDecodeFrameRequestError`）であり、stop 側だけ致命扱いなのは非一貫。意味的に「停止済みを停止」は望んだ最終状態のため冪等（成功扱い）にすべきと判断。
+- Rust 側 `decode.stop` の挙動は変えず、呼び出し側（TS）で `No active decode session` を停止成功とみなす方針にした（API としては「無いセッションを止めた」事実を返すのは妥当なため）。
+
+### 残課題・次のステップ
+- TDD で修正：Red（stop が `No active decode session` を返しても中断しない契約）→ Green（`isDecodeStopSatisfied` ヘルパーで 3 箇所を冪等化）。
+- `sharedRendererViewportNativeRenderSource.ts` の同型処理にも展開を検討。
+- 再生開始の遅さ自体はデコード起動コストが主因で別件。
+
 ## 2026-06-24 — 削除して左寄せ（リップル削除）を追加
 
 ### 実施内容
