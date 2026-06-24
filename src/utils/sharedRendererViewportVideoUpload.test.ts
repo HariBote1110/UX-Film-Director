@@ -824,6 +824,105 @@ describe('sharedRendererViewportVideoUpload', () => {
     ]);
   });
 
+  it('treats a stale decode stop that reports no active session as already stopped', async () => {
+    const { calls, rustBackendBridge, copyBridge } = createBridges();
+    // The backend session for the stale job has already been torn down (e.g. by a
+    // previous stop during rapid pause/play toggling), so stopping it again reports
+    // "No active decode session". That is the desired end state and must not abort
+    // the whole upload.
+    rustBackendBridge.stopVideoDecode = async (payload) => {
+      calls.push(['stopVideoDecode', payload]);
+      return { success: false, error: 'No active decode session' };
+    };
+    const activeJob: SharedRendererViewportVideoDecodeJob = {
+      jobId: expectedJobId,
+      source: '/tmp/gopro clip.mp4',
+      slotCount: 2,
+      width: 64,
+      height: 32,
+      sourceRate: {
+        numerator: 60,
+        denominator: 1,
+      },
+    };
+    const staleJob: SharedRendererViewportVideoDecodeJob = {
+      jobId: 'shared-renderer-video-stale-64x32-60over1',
+      source: '/tmp/stale clip.mp4',
+      slotCount: 2,
+      width: 64,
+      height: 32,
+      sourceRate: {
+        numerator: 60,
+        denominator: 1,
+      },
+    };
+
+    const result = await prepareSharedRendererViewportVideoUploads({
+      session,
+      requestId: 81,
+      slotCount: 2,
+      activeJobs: [activeJob, staleJob],
+      rustBackendBridge,
+      copyBridge,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected an already-gone stale session to be tolerated');
+    expect(result.activeJobs).toEqual([activeJob]);
+    expect(calls).toEqual([
+      ['stopVideoDecode', {
+        jobId: 'shared-renderer-video-stale-64x32-60over1',
+      }],
+      ['requestVideoDecodeFrame', {
+        jobId: expectedJobId,
+        requestId: 81,
+        frameIndex: 42,
+        mode: 'latestWins',
+      }],
+      ['copyIntoUploadBuffer', {
+        memoryId: '/uxfd-node-video-ring',
+        slotCount: 2,
+        slotByteLen: 8192,
+        slotIndex: 0,
+        generation: 3,
+        ptsFrame: 42,
+      }, 8192],
+    ]);
+  });
+
+  it('still reports stopFailed when a stale decode stop fails for a non-session reason', async () => {
+    const { rustBackendBridge, copyBridge } = createBridges();
+    rustBackendBridge.stopVideoDecode = async () => ({
+      success: false,
+      error: 'Rust backend internal stop error',
+    });
+    const staleJob: SharedRendererViewportVideoDecodeJob = {
+      jobId: 'shared-renderer-video-stale-64x32-60over1',
+      source: '/tmp/stale clip.mp4',
+      slotCount: 2,
+      width: 64,
+      height: 32,
+      sourceRate: {
+        numerator: 60,
+        denominator: 1,
+      },
+    };
+
+    const result = await prepareSharedRendererViewportVideoUploads({
+      session,
+      requestId: 81,
+      slotCount: 2,
+      activeJobs: [staleJob],
+      rustBackendBridge,
+      copyBridge,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected a genuine stop failure to abort the upload');
+    expect(result.reason).toBe('stopFailed');
+    expect(result.detail).toBe('Rust backend internal stop error');
+  });
+
   it('restarts a cached Rust decode job when the backend no longer has its active session', async () => {
     const calls: unknown[] = [];
     let requestCount = 0;
