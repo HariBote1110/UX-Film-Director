@@ -9,6 +9,7 @@ export const useAppLogic = () => {
     advanceTime, 
     selectedIds,
     deleteSelectedObjects,
+    rippleDeleteSelectedObjects,
     clearSelection,
     copySelectedObjects,
     cutSelectedObjects,
@@ -24,6 +25,7 @@ export const useAppLogic = () => {
     advanceTime: state.advanceTime,
     selectedIds: state.selectedIds,
     deleteSelectedObjects: state.deleteSelectedObjects,
+    rippleDeleteSelectedObjects: state.rippleDeleteSelectedObjects,
     clearSelection: state.clearSelection,
     copySelectedObjects: state.copySelectedObjects,
     cutSelectedObjects: state.cutSelectedObjects,
@@ -125,7 +127,12 @@ export const useAppLogic = () => {
         case 'Delete':
         case 'Backspace':
           if (selectedIds.length > 0) {
-            deleteSelectedObjects();
+            // Shift 併用で「削除して左寄せ」（リップル削除）。後続クリップを詰める。
+            if (e.shiftKey) {
+              rippleDeleteSelectedObjects();
+            } else {
+              deleteSelectedObjects();
+            }
           }
           break;
         case 'Escape':
@@ -140,6 +147,7 @@ export const useAppLogic = () => {
     selectedIds,
     togglePlay,
     deleteSelectedObjects,
+    rippleDeleteSelectedObjects,
     clearSelection,
     copySelectedObjects,
     cutSelectedObjects,

@@ -40,6 +40,7 @@ export const locales = {
   ungroup: { ja: 'グループ解除', en: 'Ungroup' },
   split: { ja: '分割', en: 'Split' },
   delete: { ja: '削除', en: 'Delete' },
+  rippleDelete: { ja: '削除して左寄せ', en: 'Ripple delete (close gap)' },
 
   // PropertyPanel - Common
   properties: { ja: 'プロパティ', en: 'Properties' },

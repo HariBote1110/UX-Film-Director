@@ -135,12 +135,14 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
   onAddGroup,
 }) => {
   const {
-    deleteObject, deleteSelectedObjects, selectObject, splitObject, addObject, setTime,
+    deleteObject, deleteSelectedObjects, rippleDeleteObject, rippleDeleteSelectedObjects, selectObject, splitObject, addObject, setTime,
     copySelectedObjects, cutSelectedObjects, pasteClipboardObjects, duplicateSelectedObjects, duplicateSelectedObjectsWithObjectCopyExt,
     groupSelectedObjects, ungroupSelectedObjects, selectedIds, projectSettings, language
   } = useStore((state) => ({
     deleteObject: state.deleteObject,
     deleteSelectedObjects: state.deleteSelectedObjects,
+    rippleDeleteObject: state.rippleDeleteObject,
+    rippleDeleteSelectedObjects: state.rippleDeleteSelectedObjects,
     selectObject: state.selectObject,
     splitObject: state.splitObject,
     addObject: state.addObject,
@@ -871,6 +873,15 @@ export const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({
               selectObject(null);
               onClose();
             }}>{t('delete')}</div>
+            <div className="context-menu-item" style={{ padding: '6px 12px', cursor: 'pointer', color: '#ff6b6b' }} onClick={() => {
+              if (selectedIds.includes(state.targetObjectId!)) {
+                rippleDeleteSelectedObjects();
+              } else {
+                rippleDeleteObject(state.targetObjectId!);
+              }
+              selectObject(null);
+              onClose();
+            }}>{t('rippleDelete')}</div>
          </>
       )}
     </div>
