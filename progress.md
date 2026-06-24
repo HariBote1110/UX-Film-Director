@@ -14,8 +14,13 @@
 - Viewport 配線: `syncSharedRendererExternalVideoSources` に `onFrameReady` を追加し、ポーズ中かつ要素未準備（readyState < HAVE_CURRENT_DATA）のとき登録。`requestSharedRendererExternalVideoFrameRepaint` で session key 無効化＋tick bump→セッション再 publish→presenter 再起動で準備済みフレームを提示。entry に解除関数を保持し dispose/差し替えで確実に解除。
 - 検証: 関連 327 件成功。`tsc --noEmit` 本変更由来エラーなし。dev サーバー起動はコンソール/サーバーエラーなしでプロジェクト作成画面が正常描画。版を `0.1.1-Beta-354a` に更新。
 
+### 追修正（354b）：スクラブ時の暴走（真っ白）
+- 354a の再提示ナッジが `!isPlaying` 条件のためスクラブ（シーク中）も対象になり、同一フレームで requestVideoFrameCallback/seeked が毎描画発火→presenter フル再起動が連鎖し WebGPU デバイスロスト（真っ白）になっていた。
+- 修正：登録を (クリップ, source_frame) ごとに高々1回へ重複排除（`frameReadyArmedForFrame`）。準備完了でガード解除。再起動はポーズ既存フローと同オーダーに収束。
+- 検証：関連 49 件 + tsc クリーン、dev サーバー起動コンソール/サーバーエラーなし。版を 354b に更新。
+
 ### 残課題・次のステップ
-- 実動画ロードでの 0 フレーム自動提示は自動検証困難なため実機確認したい。
+- 実動画ロードでの 0 フレーム自動提示／スクラブ安定性は自動検証困難なため実機確認したい。
 - 「シーク後に色がおかしい」は独立タスクとして調査予定（`Bug_ExternalVideoPausedFrameZero.md` §5、外部ビデオ経路の色パイプライン整合）。
 
 ## 2026-06-24 — 未準備 video 要素への importExternalTexture 失敗を特定し文書化

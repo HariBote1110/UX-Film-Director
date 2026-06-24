@@ -1,6 +1,6 @@
 # バグ報告：読み込み直後・ポーズ時に 0 フレームが提示されず赤枠が残る
 
-- **状態**：修正済み（`notifyOnNextPresentableFrame` + Viewport 再描画ナッジ、版 `0.1.1-Beta-354a`）。色崩れ（§5）は別件で未着手。
+- **状態**：修正済み（`notifyOnNextPresentableFrame` + Viewport 再描画ナッジ、版 `0.1.1-Beta-354b`）。スクラブ時の暴走（真っ白）を §7 で追修正。色崩れ（§5）は別件で未着手。
 - **重大度**：高（読み込み直後にプレビューが出ず赤枠のまま）
 - **対象ブランチ**：`feature-proxy`
 - **関連コンポーネント**：Rust shared renderer プレビュー（外部ビデオソース＝HTMLVideoElement 経路）
@@ -78,6 +78,21 @@
 - 本バグ（再提示）とは独立。別タスクとして「外部ビデオ経路の色パイプライン整合（`markdown/architecture/03-colour-pipeline.md` 準拠）」を立てて調査する。
 
 ---
+
+## 7. 追修正：スクラブ時に再提示ナッジが暴走しウィンドウが真っ白になる（354b）
+
+### 症状
+- 再提示ナッジ導入後（354a）、シークを始めるとウィンドウが真っ白になった。
+- ターミナルに `Network service crashed` / `SetApplicationIsDaemon ... -50` が出るが、これは Electron の定型ノイズで主因ではなく、レンダラ不安定の副次。
+
+### 原因
+- 再提示ナッジの登録条件が `!isPlaying`。**スクラブ（シーク中）も `isPlaying===false`** のため対象になっていた。
+- ポーズ要素は同一ターゲットに対して `requestVideoFrameCallback` / `seeked` を**毎描画フレーム発火**しうる。その都度 `onFrameReady` → tick bump → セッション再 publish → **presenter フル再起動** が連鎖し、WebGPU リソースを使い潰してデバイスロスト＝真っ白になった。
+
+### 修正
+- 登録を **(クリップ, `source_frame`) ごとに高々1回** へ重複排除（`entry.frameReadyArmedForFrame`）。同一フレームでの再登録を完全に断ち、再起動の暴走を停止。
+- 要素が準備完了（`readyState >= HAVE_CURRENT_DATA`）になったらガードを解除し、別フレームで再武装できるようにする。
+- これにより「フレーム単位で高々1回の再提示」に収束（presenter 再起動はポーズ既存フローと同オーダー）。0 フレーム初期表示は維持。
 
 ## 6. 参照
 

@@ -70,6 +70,7 @@ type SharedRendererExternalVideoSourceEntry = {
   source: SharedRendererExternalVideoSource;
   playbackState: SharedRendererExternalVideoPlaybackState;
   frameReadyUnregister?: () => void;
+  frameReadyArmedForFrame?: number;
 };
 
 // An HTMLVideoElement holds a presentable frame once it reaches HAVE_CURRENT_DATA.
@@ -237,10 +238,21 @@ const syncSharedRendererExternalVideoSources = ({
     // frame, so the shared renderer skips it and shows a transient diagnostic.
     // Register a one-shot frame-ready notification to re-present once the frame
     // is decoded; without this the preview stays blank until a manual seek.
+    //
+    // Crucially this is de-duplicated per (clip, source_frame): a paused element
+    // can fire requestVideoFrameCallback/seeked many times for the same target
+    // while scrubbing, and re-arming each time would restart the presenter in a
+    // tight loop and exhaust the GPU (blank window). Arm at most once per target
+    // frame, and clear the guard once the frame is ready.
     if (onFrameReady && !isPlaying) {
       const elementReadyState = entry.source.source.readyState ?? 0;
-      if (elementReadyState < HTML_VIDEO_HAVE_CURRENT_DATA) {
+      if (elementReadyState >= HTML_VIDEO_HAVE_CURRENT_DATA) {
         entry.frameReadyUnregister?.();
+        entry.frameReadyUnregister = undefined;
+        entry.frameReadyArmedForFrame = undefined;
+      } else if (entry.frameReadyArmedForFrame !== clip.source_frame) {
+        entry.frameReadyUnregister?.();
+        entry.frameReadyArmedForFrame = clip.source_frame;
         entry.frameReadyUnregister = entry.source.notifyOnNextPresentableFrame(() => {
           entry.frameReadyUnregister = undefined;
           onFrameReady();
