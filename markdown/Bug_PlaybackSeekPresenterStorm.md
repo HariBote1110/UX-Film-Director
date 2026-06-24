@@ -1,6 +1,6 @@
 # バグ報告：再生中シークで presenter 再起動ストーム → ウィンドウ真っ白
 
-- **状態**：原因特定済み・修正未着手
+- **状態**：修正済み（`isTransientExternalVideoPresentationFailure` で過渡的未準備は presenter 保持、版 `0.1.1-Beta-354c`）
 - **重大度**：高（再生中シークでウィンドウが真っ白＝WebGPU デバイスロスト）
 - **対象ブランチ**：`feature-proxy`
 - **関連コンポーネント**：Rust shared renderer プレビュー（外部ビデオ再利用パス）

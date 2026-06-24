@@ -28,6 +28,7 @@ import {
   type SharedRendererPreviewPresenterControl,
 } from '../utils/sharedRendererPreviewPresenterController';
 import { writeSharedRendererPresenterDiagnostics } from '../utils/sharedRendererPresenterDiagnostics';
+import type { SharedRendererVideoFrameScenePresentationResult } from '../utils/sharedRendererWebGpuPresenter';
 import {
   startSharedRendererViewportPresenter,
 } from '../utils/sharedRendererViewportPresenterOrchestration';
@@ -336,6 +337,18 @@ export const buildSharedRendererPreviewDiagnostic = (
 
   return parts.join(' / ');
 };
+
+// A mid-seek external video element may momentarily hold no presentable frame,
+// so the presenter reports videoTextureViewUnavailable. During playback this is
+// transient: keep the current presenter and skip the frame instead of tearing it
+// down, which would restart the presenter every frame and lose the GPU device.
+export const isTransientExternalVideoPresentationFailure = (
+  presentation: SharedRendererVideoFrameScenePresentationResult | undefined | null,
+): boolean => Boolean(
+  presentation
+  && !presentation.ok
+  && presentation.reason === 'videoTextureViewUnavailable',
+);
 
 const boundsIntersect = (a: BoundsLike, b: BoundsLike) => (
   a.x <= b.x + b.width
@@ -839,6 +852,11 @@ const Viewport: React.FC = () => {
           control
         ));
         if (presentation?.ok) {
+          return;
+        }
+        // Mid-seek not-ready frame: retain the presenter and skip this frame.
+        // The next playback tick re-presents once the element holds a frame.
+        if (isTransientExternalVideoPresentationFailure(presentation)) {
           return;
         }
         sharedRendererPresenterSessionKeyRef.current = null;

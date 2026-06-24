@@ -8,8 +8,14 @@
 ### 選定理由・判断の根拠
 - シーク中の未準備は過渡状態。presenter を破棄せず次フレームの present で追従させるのが正。再生中は publish が毎フレーム走るため、スキップしても準備完了で即追従する。
 
+### 修正結果
+- Red/Green: `isTransientExternalVideoPresentationFailure`（`videoTextureViewUnavailable` のみ true）を Viewport に export 実装し、`ViewportDiagnostics.test.ts` に契約を追加。
+- 再利用パス適用: present 失敗が過渡的未準備なら `sharedRendererPresenterSessionKeyRef` を維持して return（presenter 保持・フレームスキップ）。それ以外の失敗のみ従来どおりフル再起動。
+- 検証: 関連 330 件成功、tsc クリーン、dev サーバー起動コンソール/サーバーエラーなし。版を 354c に更新。
+
 ### 残課題・次のステップ
-- TDD：Red（ヘルパーの分岐契約）→ Green→ 再利用パス適用。
+- 再生中シーク／ポーズ時表示の安定性は自動検証困難なため実機確認したい。
+- 「シーク後にごく稀に色がおかしい」はユーザー判断で当面無視可（必要になれば外部ビデオ経路の色パイプライン整合を調査）。
 
 ## 2026-06-25 — ポーズ時 0 フレーム未提示（赤枠残り）を特定し文書化
 
