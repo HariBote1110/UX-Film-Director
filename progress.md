@@ -1,3 +1,17 @@
+## 2026-06-24 — 未準備 video 要素への importExternalTexture 失敗を特定し文書化
+
+### 実施内容
+- 動画読み込み/シーク直後に出る赤枠 `status=fallback / reason=presenterStartFailed / Failed to execute 'importExternalTexture' ... video element that doesn't have back resource` の原因を特定した。
+- 原因：`sharedRendererWebGpuPresenter.ts` の `presentExternalVideoFrameScene` が、カレントフレーム未準備の HTMLVideoElement に `device.importExternalTexture` を呼び、WebGPU が同期例外を throw。これが `startSharedRendererPreviewPresenter` まで伝播し `presenterStartFailed` フォールバックになっていた。
+- バグ詳細と修正方針を `markdown/Bug_ExternalVideoImportNotReady.md` に新規作成して記録した。
+
+### 選定理由・判断の根拠
+- 読み込み/シーク直後の back resource 未準備は過渡状態であり致命扱いすべきでない。presenter を「never throw」境界とし、未準備 plane はスキップ→描画可能 0 件なら `videoTextureViewUnavailable`（ok:false）を返して次フレームで回復させる方針が最小かつ妥当。
+- 準備判定（readyState/videoWidth）に加え import を try/catch で包むのは、判定とインポート可否の競合に対する保険。
+
+### 残課題・次のステップ
+- TDD で修正：Red（import が throw しても例外を投げず ok:false を返す契約）→ Green（try/catch + 準備スキップ）。
+
 ## 2026-06-24 — デコード停止の非冪等性バグを特定し修正方針を文書化
 
 ### 実施内容
