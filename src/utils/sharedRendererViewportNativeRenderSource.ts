@@ -130,7 +130,7 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
     const stopResponse = await stopRustBackendVideoDecode({
       jobId: staleJob.jobId,
     }, bridge);
-    if (!stopResponse.success) {
+    if (!isDecodeStopSatisfied(stopResponse)) {
       return {
         ok: false,
         reason: 'stopFailed',
@@ -179,7 +179,7 @@ export const prepareSharedRendererViewportNativeRenderSources = async ({
         const stopResponse = await stopRustBackendVideoDecode({
           jobId: resolvedJob.jobId,
         }, bridge);
-        if (!stopResponse.success) {
+        if (!isDecodeStopSatisfied(stopResponse)) {
           const preparedSourceReleaseFailure = await releasePreparedNativeRenderSourcesAfterAbort(sources);
           if (preparedSourceReleaseFailure) {
             return {
@@ -363,6 +363,13 @@ const isDecodeJobStartFailure = (
 const isNoActiveDecodeSessionError = (error: string | undefined): boolean =>
   typeof error === 'string'
   && error.toLowerCase().includes('no active decode session');
+
+// Stopping a decode session the backend no longer holds is the desired end state,
+// so treat a "No active decode session" stop response as already stopped rather
+// than a fatal failure (mirrors sharedRendererViewportVideoUpload).
+const isDecodeStopSatisfied = (
+  stopResponse: { success: boolean; error?: string }
+): boolean => stopResponse.success || isNoActiveDecodeSessionError(stopResponse.error);
 
 const isNoFreeDecodeFrameSlotError = (error: string | undefined): boolean =>
   typeof error === 'string'

@@ -10,10 +10,14 @@
 - 同じ `No active decode session` は `decode.requestFrame` 経路では既に回復可能扱い（`shouldRecoverDecodeFrameRequestError`）であり、stop 側だけ致命扱いなのは非一貫。意味的に「停止済みを停止」は望んだ最終状態のため冪等（成功扱い）にすべきと判断。
 - Rust 側 `decode.stop` の挙動は変えず、呼び出し側（TS）で `No active decode session` を停止成功とみなす方針にした（API としては「無いセッションを止めた」事実を返すのは妥当なため）。
 
+### 修正結果
+- Red: `sharedRendererViewportVideoUpload.test.ts` に「stale stop が `No active decode session` を返してもアップロード継続」「それ以外の停止失敗は従来どおり `stopFailed`」の契約を追加。
+- Green: `isDecodeStopSatisfied(stopResponse)`（`success || isNoActiveDecodeSessionError`）を実装し、`sharedRendererViewportVideoUpload.ts` の停止判定 4 箇所を置換。
+- Refactor: 同型処理を持つ `sharedRendererViewportNativeRenderSource.ts` の停止判定 2 箇所にも同ヘルパーを展開。
+- 検証: 両テストファイル計 31 件成功。`tsc --noEmit` は本変更由来エラーなし（既知の three 系のみ）。版を `0.1.1-Beta-352a` に更新。
+
 ### 残課題・次のステップ
-- TDD で修正：Red（stop が `No active decode session` を返しても中断しない契約）→ Green（`isDecodeStopSatisfied` ヘルパーで 3 箇所を冪等化）。
-- `sharedRendererViewportNativeRenderSource.ts` の同型処理にも展開を検討。
-- 再生開始の遅さ自体はデコード起動コストが主因で別件。
+- 再生開始の遅さ自体はデコード起動コストが主因で別件（本修正で中断→リトライ分の上乗せは軽減）。実機で連打フリーズ解消を確認したい。
 
 ## 2026-06-24 — 削除して左寄せ（リップル削除）を追加
 
