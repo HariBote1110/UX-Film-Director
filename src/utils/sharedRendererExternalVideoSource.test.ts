@@ -192,4 +192,74 @@ describe('sharedRendererExternalVideoSource', () => {
     });
     expect(playbackState.suppressedSeekCount).toBe(1);
   });
+
+  it('notifies once via requestVideoFrameCallback when the next presentable frame is ready', () => {
+    let registeredCallback: (() => void) | null = null;
+    let cancelledHandle: number | null = null;
+    const element = fakeVideoElement({
+      readyState: 0,
+      requestVideoFrameCallback: (callback: () => void) => {
+        registeredCallback = callback;
+        return 7;
+      },
+      cancelVideoFrameCallback: (handle: number) => {
+        cancelledHandle = handle;
+      },
+    });
+    const source = createSharedRendererExternalVideoSource({
+      url: 'file:///clip.mp4',
+      elementFactory: () => element,
+    });
+
+    let readyCount = 0;
+    const unregister = source.notifyOnNextPresentableFrame(() => {
+      readyCount += 1;
+    });
+
+    expect(registeredCallback).not.toBeNull();
+    expect(readyCount).toBe(0);
+    registeredCallback?.();
+    expect(readyCount).toBe(1);
+
+    unregister();
+    expect(cancelledHandle).toBe(7);
+  });
+
+  it('falls back to a one-shot seeked listener when requestVideoFrameCallback is unavailable', () => {
+    const listeners = new Map<string, Array<() => void>>();
+    const element = fakeVideoElement({
+      readyState: 0,
+      addEventListener: (type: string, listener: () => void) => {
+        const bucket = listeners.get(type) ?? [];
+        bucket.push(listener);
+        listeners.set(type, bucket);
+      },
+      removeEventListener: (type: string, listener: () => void) => {
+        const bucket = listeners.get(type) ?? [];
+        listeners.set(type, bucket.filter((entry) => entry !== listener));
+      },
+    });
+    const source = createSharedRendererExternalVideoSource({
+      url: 'file:///clip.mp4',
+      elementFactory: () => element,
+    });
+
+    let readyCount = 0;
+    const unregister = source.notifyOnNextPresentableFrame(() => {
+      readyCount += 1;
+    });
+
+    expect((listeners.get('seeked') ?? []).length).toBe(1);
+    listeners.get('seeked')?.[0]?.();
+    expect(readyCount).toBe(1);
+
+    // A second event must not fire the one-shot callback again.
+    listeners.get('seeked')?.[0]?.();
+    expect(readyCount).toBe(1);
+
+    // All listeners are removed after firing / unregistering.
+    unregister();
+    const remaining = [...listeners.values()].reduce((total, bucket) => total + bucket.length, 0);
+    expect(remaining).toBe(0);
+  });
 });
