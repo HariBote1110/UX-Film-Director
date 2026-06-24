@@ -934,16 +934,27 @@ export const createSharedRendererWebGpuPresenter = async ({
         ? sourcesByClipId.get(plane.clipId)
         : source;
       if (!planeSource) continue;
+      // A freshly loaded or just-sought HTMLVideoElement may not yet hold a
+      // decoded current frame ("back resource"); importExternalTexture throws
+      // synchronously in that case. Treat it as a not-ready plane and skip it so
+      // the presenter never throws — the next repaint recovers once the frame is
+      // available.
+      let externalTexture: unknown;
+      try {
+        externalTexture = device.importExternalTexture({ source: planeSource });
+      } catch {
+        continue;
+      }
       drawablePlanes.push({
         index,
-        externalTexture: device.importExternalTexture({ source: planeSource }),
+        externalTexture,
       });
     }
     if (drawablePlanes.length === 0) {
       return {
         ok: false,
         reason: 'videoTextureViewUnavailable',
-        detail: 'No external video source was available for the video plane scene.',
+        detail: 'No ready external video source was available for the video plane scene.',
       };
     }
 

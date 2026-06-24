@@ -9,8 +9,13 @@
 - 読み込み/シーク直後の back resource 未準備は過渡状態であり致命扱いすべきでない。presenter を「never throw」境界とし、未準備 plane はスキップ→描画可能 0 件なら `videoTextureViewUnavailable`（ok:false）を返して次フレームで回復させる方針が最小かつ妥当。
 - 準備判定（readyState/videoWidth）に加え import を try/catch で包むのは、判定とインポート可否の競合に対する保険。
 
+### 修正結果
+- Red: `sharedRendererWebGpuPresenter.test.ts` に「import が throw しても例外を投げず `videoTextureViewUnavailable` を返す」契約を追加。
+- Green: `presentExternalVideoFrameScene` の import ループを try/catch で防御し、throw した plane（未準備）はスキップ。描画可能 0 件なら `videoTextureViewUnavailable`（ok:false）を返す。
+- 検証: presenter 22 件 + controller 系 69 件成功。`tsc --noEmit` 本変更由来エラーなし。版を `0.1.1-Beta-353a` に更新。
+
 ### 残課題・次のステップ
-- TDD で修正：Red（import が throw しても例外を投げず ok:false を返す契約）→ Green（try/catch + 準備スキップ）。
+- presenter は never-throw 化したが、未準備時は依然 ok:false で過渡的な診断表示が出る余地あり。気になる場合は上流（controller/Viewport）の準備ゲートで「未準備は前フレーム維持」に寄せる拡張余地。
 
 ## 2026-06-24 — デコード停止の非冪等性バグを特定し修正方針を文書化
 

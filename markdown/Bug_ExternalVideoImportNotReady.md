@@ -1,6 +1,6 @@
 # バグ報告：未準備の video 要素への importExternalTexture でプレビュー起動が失敗
 
-- **状態**：原因特定済み・修正未着手
+- **状態**：修正済み（import を try/catch で防御し未準備 plane をスキップ、版 `0.1.1-Beta-353a`）
 - **重大度**：高（赤枠フォールバック `presenterStartFailed` でプレビューが落ちる）
 - **対象ブランチ**：`feature-proxy`
 - **関連コンポーネント**：Rust shared renderer プレビュー（外部ビデオソース＝HTMLVideoElement 経路）
