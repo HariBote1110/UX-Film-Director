@@ -21,11 +21,13 @@ export const isTimelineDropVideoFile = (file: File): boolean => {
 };
 
 export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) => {
-  const { isExporting, addObject, projectSettings, layers } = useStore((state) => ({
+  const { isExporting, addObject, projectSettings, layers, beginProxyGeneration, endProxyGeneration } = useStore((state) => ({
     isExporting: state.isExporting,
     addObject: state.addObject,
     projectSettings: state.projectSettings,
     layers: state.layers,
+    beginProxyGeneration: state.beginProxyGeneration,
+    endProxyGeneration: state.endProxyGeneration,
   }), shallow);
 
   const getCentredPosition = (width: number, height: number) => ({
@@ -113,11 +115,15 @@ export const useTimelineDrop = (timelineRef: React.RefObject<HTMLDivElement>) =>
             const url = URL.createObjectURL(file);
             try {
                 const { resolveOrGeneratePreviewProxy } = await import('../utils/proxyUtils');
-                const [sourceImport, proxyFilePath] = await Promise.all([
-                    resolveVideoImportSource(file, url),
-                    resolveOrGeneratePreviewProxy(filePath ?? undefined),
-                ]);
+                const sourceImport = await resolveVideoImportSource(file, url);
                 const sourceMetadata = sourceImport.metadata;
+                // FHD 以下はプロキシ不要。4K 等の高解像度のみ生成し、生成中は進捗表示を出す。
+                const proxyFilePath = await resolveOrGeneratePreviewProxy(
+                    filePath ?? undefined,
+                    undefined,
+                    { width: sourceMetadata.width, height: sourceMetadata.height },
+                    { onGenerateStart: beginProxyGeneration, onGenerateEnd: endProxyGeneration },
+                );
                 const metadata = proxyFilePath
                     ? await resolveVideoMetadataForFilePath(proxyFilePath) ?? sourceMetadata
                     : sourceMetadata;

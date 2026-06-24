@@ -440,6 +440,8 @@ const PropertyPanel: React.FC = () => {
   }, [layers, objects, selectedId, selectedIds]);
   const pushHistory = useStore((state) => state.pushHistory);
   const updateObject = useStore((state) => state.updateObject);
+  const beginProxyGeneration = useStore((state) => state.beginProxyGeneration);
+  const endProxyGeneration = useStore((state) => state.endProxyGeneration);
   const addObjectFilter = useStore((state) => state.addObjectFilter);
   const toggleObjectFilter = useStore((state) => state.toggleObjectFilter);
   const moveObjectFilter = useStore((state) => state.moveObjectFilter);
@@ -1098,8 +1100,14 @@ const PropertyPanel: React.FC = () => {
     }
     setProxyGenerating(true);
     setProxyMessage('プロキシ生成中...');
+    beginProxyGeneration();
     const { generateProxy } = await import('../utils/proxyUtils');
-    const result = await generateProxy({ filePath: diskPath });
+    let result: Awaited<ReturnType<typeof generateProxy>>;
+    try {
+      result = await generateProxy({ filePath: diskPath });
+    } finally {
+      endProxyGeneration();
+    }
     setProxyGenerating(false);
     if (result.success && result.proxyFilePath) {
       updateObject(video.id, { proxyFilePath: result.proxyFilePath } as Partial<TimelineObject>);

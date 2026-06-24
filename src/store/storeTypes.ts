@@ -83,6 +83,8 @@ export interface AppState {
   exportCancelRequested: boolean;
 
   isSnapshotRequested: boolean;
+  /** 現在進行中のプロキシ生成数。0 より大きいとき「プロキシ生成中」表示を出す。 */
+  proxyGenerationCount: number;
   previewDisplayMode: PreviewDisplayMode;
 
   visionDetectionPreviewEnabled: boolean;
@@ -136,6 +138,11 @@ export interface AppState {
 
   requestSnapshot: () => void;
   finishSnapshot: () => void;
+
+  /** プロキシ生成の開始を記録する（カウンタを +1）。 */
+  beginProxyGeneration: () => void;
+  /** プロキシ生成の終了を記録する（カウンタを -1、下限 0）。 */
+  endProxyGeneration: () => void;
 
   setPreviewDisplayMode: (mode: PreviewDisplayMode) => void;
   setVisionDetectionPreviewEnabled: (enabled: boolean) => void;

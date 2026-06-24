@@ -4,6 +4,7 @@ import Timeline from './components/Timeline';
 import PropertyPanel from './components/PropertyPanel';
 import ProjectSetup from './components/ProjectSetup';
 import ExportProgressModal from './components/ExportProgressModal';
+import ProxyGenerationIndicator from './components/ProxyGenerationIndicator';
 import { useAppLogic } from './hooks/useAppLogic';
 import { useStore } from './store/useStore';
 import { shallow } from 'zustand/shallow';
@@ -204,6 +205,7 @@ const App: React.FC = () => {
       </div>
 
       <ExportProgressModal />
+      <ProxyGenerationIndicator />
     </div>
   );
 };

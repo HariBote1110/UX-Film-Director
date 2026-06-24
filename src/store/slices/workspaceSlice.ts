@@ -9,6 +9,7 @@ type WorkspaceSlice = Pick<
   AppState,
   | 'language'
   | 'isSnapshotRequested'
+  | 'proxyGenerationCount'
   | 'previewDisplayMode'
   | 'visionDetectionPreviewEnabled'
   | 'visionDetectionRealtimeEnabled'
@@ -16,6 +17,8 @@ type WorkspaceSlice = Pick<
   | 'setLanguage'
   | 'requestSnapshot'
   | 'finishSnapshot'
+  | 'beginProxyGeneration'
+  | 'endProxyGeneration'
   | 'setPreviewDisplayMode'
   | 'setVisionDetectionPreviewEnabled'
   | 'setVisionDetectionRealtimeEnabled'
@@ -27,6 +30,7 @@ type SetState = StoreApi<AppState>['setState'];
 export const createWorkspaceSlice = (set: SetState): WorkspaceSlice => ({
   language: 'ja',
   isSnapshotRequested: false,
+  proxyGenerationCount: 0,
   previewDisplayMode: readStoredPreviewMode(),
   visionDetectionPreviewEnabled: false,
   visionDetectionRealtimeEnabled: false,
@@ -36,6 +40,13 @@ export const createWorkspaceSlice = (set: SetState): WorkspaceSlice => ({
 
   requestSnapshot: () => set({ isSnapshotRequested: true }),
   finishSnapshot: () => set({ isSnapshotRequested: false }),
+
+  beginProxyGeneration: () => set((state) => ({
+    proxyGenerationCount: state.proxyGenerationCount + 1,
+  })),
+  endProxyGeneration: () => set((state) => ({
+    proxyGenerationCount: Math.max(0, state.proxyGenerationCount - 1),
+  })),
 
   setPreviewDisplayMode: (mode) => {
     try {

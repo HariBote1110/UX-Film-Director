@@ -23,7 +23,8 @@ const Timeline: React.FC = () => {
     currentTime, duration, setTime, addObject,
     objects, selectedIds, selectObject, selectObjects, clearSelection, isExporting, projectSettings,
     layers, setLayerName, toggleLayerVisibility, toggleLayerLock,
-    swapLayerTracks, insertLayerTrackAt, deleteLayerTrackAt
+    swapLayerTracks, insertLayerTrackAt, deleteLayerTrackAt,
+    beginProxyGeneration, endProxyGeneration
   } = useStore((state) => ({
     currentTime: state.currentTime,
     duration: state.duration,
@@ -43,6 +44,8 @@ const Timeline: React.FC = () => {
     swapLayerTracks: state.swapLayerTracks,
     insertLayerTrackAt: state.insertLayerTrackAt,
     deleteLayerTrackAt: state.deleteLayerTrackAt,
+    beginProxyGeneration: state.beginProxyGeneration,
+    endProxyGeneration: state.endProxyGeneration,
   }), shallow);
   
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -345,11 +348,15 @@ const Timeline: React.FC = () => {
 
     try {
       const { resolveOrGeneratePreviewProxy } = await import('../utils/proxyUtils');
-      const [sourceImport, proxyFilePath] = await Promise.all([
-        resolveVideoImportSource(file, url),
-        resolveOrGeneratePreviewProxy(filePath ?? undefined),
-      ]);
+      const sourceImport = await resolveVideoImportSource(file, url);
       const sourceMetadata = sourceImport.metadata;
+      // FHD 以下はプロキシ不要。4K 等の高解像度のみ生成し、生成中は進捗表示を出す。
+      const proxyFilePath = await resolveOrGeneratePreviewProxy(
+        filePath ?? undefined,
+        undefined,
+        { width: sourceMetadata.width, height: sourceMetadata.height },
+        { onGenerateStart: beginProxyGeneration, onGenerateEnd: endProxyGeneration },
+      );
       const metadata = proxyFilePath
         ? await resolveVideoMetadataForFilePath(proxyFilePath) ?? sourceMetadata
         : sourceMetadata;
