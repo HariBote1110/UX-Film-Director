@@ -11,8 +11,21 @@
 - 進捗表示は既存の `exportProgress` と同じ store スライス方式に倣い、ドロップ経路（useTimelineDrop / Timeline）から共通フラグで表示する。PropertyPanel の手動生成にも同フラグを流用できる。
 - GPU は encode.rs に既存の `h264_videotoolbox` 判定パターンがあり、proxy 側も同方式で揃える。GPU 失敗時に CPU へ落とすことで環境差による生成失敗を避ける。
 
+### 実装結果
+- `proxyUtils.ts` に `shouldGenerateProxyForResolution`（長辺>1920 もしくは 短辺>1080 で生成対象、向き非依存）を追加。`resolveOrGeneratePreviewProxy` へ `source` 解像度と `onGenerateStart/onGenerateEnd` フックの引数を追加し、既存プロキシは解像度に関わらず再利用、FHD 以下は新規生成しない挙動にした。
+- ドロップ経路（`useTimelineDrop.ts`）と挿入経路（`Timeline.tsx`）を、`resolveVideoImportSource` で元解像度を先に取得→解像度付きでプロキシ解決する逐次フローへ変更（従来は並列で常に生成していた）。
+- store（workspaceSlice）に `proxyGenerationCount` と `beginProxyGeneration/endProxyGeneration` を追加。`ProxyGenerationIndicator` を App 直下に置き、実生成中のみ右下にスピナー表示。PropertyPanel の手動生成にも同フラグを接続。
+- Rust backend `proxy.rs` を、macOS では `-hwaccel videotoolbox` + `h264_videotoolbox`（GPU）優先、失敗時 `libx264`（CPU）フォールバックへ変更。全 I フレーム（`-g 1`）は維持。VideoToolbox は CRF 非対応のため `-q:v 50` を使用。
+
+### 検証
+- `npx vitest run src/utils/proxyUtils.test.ts src/store` は 24 件成功。
+- `npx tsc --noEmit` は既知の three/mp4box/heavyEffectsStress 由来エラーのみで、本変更由来の型エラーなし。
+- `cargo test`（rust-backend）は 49+54 件成功。新規 `proxy::tests` 3 件含む。
+- 実 ffmpeg スモークテスト: 3840×2160 testsrc から `-hwaccel videotoolbox -c:v h264_videotoolbox` で 640px プロキシ生成が成功（94KiB, speed 1.55x）。
+
 ### 残課題・次のステップ
-- （実装中）
+- 解像度しきい値（FHD 超）は要望ベースの既定値。プロジェクトの作業解像度や素材種別に応じてユーザー設定化する余地がある。
+- 非 macOS の GPU（NVENC/QSV/VAAPI）対応は今回スコープ外。必要になれば `preferred_codec` を拡張する。
 
 ## 2026-06-23 — Rust生成オブジェクトの未露出プロパティをPropertyPanelへ追加
 
