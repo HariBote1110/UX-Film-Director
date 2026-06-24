@@ -1,6 +1,6 @@
 # バグ報告：読み込み直後・ポーズ時に 0 フレームが提示されず赤枠が残る
 
-- **状態**：原因特定済み・修正未着手
+- **状態**：修正済み（`notifyOnNextPresentableFrame` + Viewport 再描画ナッジ、版 `0.1.1-Beta-354a`）。色崩れ（§5）は別件で未着手。
 - **重大度**：高（読み込み直後にプレビューが出ず赤枠のまま）
 - **対象ブランチ**：`feature-proxy`
 - **関連コンポーネント**：Rust shared renderer プレビュー（外部ビデオソース＝HTMLVideoElement 経路）

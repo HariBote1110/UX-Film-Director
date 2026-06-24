@@ -9,9 +9,14 @@
 ### 選定理由・判断の根拠
 - ポーズ中の未準備は過渡状態であり、フレーム到着で自動回復させるのが筋。`requestVideoFrameCallback` 優先・イベントフォールバックのワンショットにすることで二重登録/無限ループを避ける。
 
+### 修正結果
+- Red/Green: `sharedRendererExternalVideoSource.ts` に `notifyOnNextPresentableFrame`（requestVideoFrameCallback 優先・seeked/loadeddata/canplay フォールバックのワンショット）を実装し契約テストを追加。
+- Viewport 配線: `syncSharedRendererExternalVideoSources` に `onFrameReady` を追加し、ポーズ中かつ要素未準備（readyState < HAVE_CURRENT_DATA）のとき登録。`requestSharedRendererExternalVideoFrameRepaint` で session key 無効化＋tick bump→セッション再 publish→presenter 再起動で準備済みフレームを提示。entry に解除関数を保持し dispose/差し替えで確実に解除。
+- 検証: 関連 327 件成功。`tsc --noEmit` 本変更由来エラーなし。dev サーバー起動はコンソール/サーバーエラーなしでプロジェクト作成画面が正常描画。版を `0.1.1-Beta-354a` に更新。
+
 ### 残課題・次のステップ
-- TDD：Red（`notifyOnNextPresentableFrame` の契約）→ Green→ Viewport 配線。
-- 色の崩れは独立タスクとして調査予定。
+- 実動画ロードでの 0 フレーム自動提示は自動検証困難なため実機確認したい。
+- 「シーク後に色がおかしい」は独立タスクとして調査予定（`Bug_ExternalVideoPausedFrameZero.md` §5、外部ビデオ経路の色パイプライン整合）。
 
 ## 2026-06-24 — 未準備 video 要素への importExternalTexture 失敗を特定し文書化
 

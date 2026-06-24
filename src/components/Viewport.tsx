@@ -69,7 +69,11 @@ type SharedRendererExternalVideoSourceEntry = {
   url: string;
   source: SharedRendererExternalVideoSource;
   playbackState: SharedRendererExternalVideoPlaybackState;
+  frameReadyUnregister?: () => void;
 };
+
+// An HTMLVideoElement holds a presentable frame once it reaches HAVE_CURRENT_DATA.
+const HTML_VIDEO_HAVE_CURRENT_DATA = 2;
 
 const clearSharedRendererExternalVideoSourceDiagnostics = () => {
   if (typeof document === 'undefined') return;
@@ -118,6 +122,8 @@ const disposeSharedRendererExternalVideoSources = (
   entries: Map<string, SharedRendererExternalVideoSourceEntry>
 ) => {
   entries.forEach((entry) => {
+    entry.frameReadyUnregister?.();
+    entry.frameReadyUnregister = undefined;
     entry.source.dispose();
   });
   entries.clear();
@@ -181,11 +187,13 @@ const syncSharedRendererExternalVideoSources = ({
   objects,
   entries,
   isPlaying,
+  onFrameReady,
 }: {
   session: SharedRendererPreviewSession;
   objects: TimelineObject[];
   entries: Map<string, SharedRendererExternalVideoSourceEntry>;
   isPlaying: boolean;
+  onFrameReady?: () => void;
 }): Map<string, unknown> => {
   const sourcesByClipId = new Map<string, unknown>();
   if (!session.surfaceGate.ok) {
@@ -224,11 +232,29 @@ const syncSharedRendererExternalVideoSources = ({
       isPlaying,
       minimumPlayingSyncIntervalMs: SHARED_RENDERER_EXTERNAL_VIDEO_PLAYING_SYNC_INTERVAL_MS,
     });
+
+    // While paused, a freshly seeked element may not yet hold a presentable
+    // frame, so the shared renderer skips it and shows a transient diagnostic.
+    // Register a one-shot frame-ready notification to re-present once the frame
+    // is decoded; without this the preview stays blank until a manual seek.
+    if (onFrameReady && !isPlaying) {
+      const elementReadyState = entry.source.source.readyState ?? 0;
+      if (elementReadyState < HTML_VIDEO_HAVE_CURRENT_DATA) {
+        entry.frameReadyUnregister?.();
+        entry.frameReadyUnregister = entry.source.notifyOnNextPresentableFrame(() => {
+          entry.frameReadyUnregister = undefined;
+          onFrameReady();
+        });
+      }
+    }
+
     sourcesByClipId.set(clip.clip_id, entry.source.source);
   });
 
   entries.forEach((entry, clipId) => {
     if (activeClipIds.has(clipId)) return;
+    entry.frameReadyUnregister?.();
+    entry.frameReadyUnregister = undefined;
     entry.source.dispose();
     entries.delete(clipId);
   });
@@ -397,6 +423,13 @@ const Viewport: React.FC = () => {
   });
   const [sharedRendererPreviewSession, setSharedRendererPreviewSession] = useState<SharedRendererPreviewSession | null>(null);
   const [sharedRendererPreviewDiagnostic, setSharedRendererPreviewDiagnostic] = useState<string | null>(null);
+  // Bumped when a paused external video frame becomes presentable, to re-run the
+  // preview session publish and restart the presenter with the now-ready frame.
+  const [sharedRendererExternalVideoFrameReadyTick, setSharedRendererExternalVideoFrameReadyTick] = useState(0);
+  const requestSharedRendererExternalVideoFrameRepaint = useCallback(() => {
+    sharedRendererPresenterSessionKeyRef.current = null;
+    setSharedRendererExternalVideoFrameReadyTick((tick) => tick + 1);
+  }, []);
 
   useEffect(() => () => {
     sharedRendererPresenterControlRef.current?.dispose();
@@ -818,7 +851,9 @@ const Viewport: React.FC = () => {
 
   useEffect(() => {
     publishSharedRendererPreviewSession(currentTime, objects);
-  }, [currentTime, objects, publishSharedRendererPreviewSession]);
+    // sharedRendererExternalVideoFrameReadyTick re-publishes the session so a
+    // paused frame that has just become presentable gets re-presented.
+  }, [currentTime, objects, publishSharedRendererPreviewSession, sharedRendererExternalVideoFrameReadyTick]);
 
   useEffect(() => {
     if (!sharedRendererPreviewEnabled || !sharedRendererPreviewSession) {
@@ -882,6 +917,7 @@ const Viewport: React.FC = () => {
         objects,
         entries: sharedRendererExternalVideoSourcesRef.current,
         isPlaying,
+        onFrameReady: requestSharedRendererExternalVideoFrameRepaint,
       });
     }
     sharedRendererPresenterStartCountRef.current += 1;
@@ -1015,7 +1051,7 @@ const Viewport: React.FC = () => {
         sharedRendererPresenterControlRef.current = null;
       }
     };
-  }, [isExporting, isPlaying, objects, rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererGeneratedEffectObjectIds, updateSharedRendererImageObjectIds, updateSharedRendererPsdObjectIds, updateSharedRendererSolidColourObjectIds]);
+  }, [isExporting, isPlaying, objects, requestSharedRendererExternalVideoFrameRepaint, rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererGeneratedEffectObjectIds, updateSharedRendererImageObjectIds, updateSharedRendererPsdObjectIds, updateSharedRendererSolidColourObjectIds]);
 
   // --- Main Render Logic ---
   const renderScene = useCallback((time: number, currentObjects: TimelineObject[]) => {

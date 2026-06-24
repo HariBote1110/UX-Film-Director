@@ -218,7 +218,7 @@ describe('sharedRendererExternalVideoSource', () => {
 
     expect(registeredCallback).not.toBeNull();
     expect(readyCount).toBe(0);
-    registeredCallback?.();
+    (registeredCallback as (() => void) | null)?.();
     expect(readyCount).toBe(1);
 
     unregister();
