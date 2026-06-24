@@ -44,6 +44,7 @@ import {
   buildClipboardState,
   calculateAutoDuration,
   clampLayerIndex,
+  computeRippledObjects,
   cloneTimelineObject,
   getSelectedObjects,
   isLayerLocked,
@@ -606,6 +607,51 @@ export const useStore = create<AppState>((set, get) => ({
     get().pushHistory();
     set((currentState) => {
       const newObjects = currentState.objects.filter((obj) => !deletableSet.has(obj.id));
+      return {
+        objects: newObjects,
+        selectedId: null,
+        selectedIds: [],
+        duration: calculateAutoDuration(newObjects)
+      };
+    });
+  },
+
+  rippleDeleteObject: (id) => {
+    const currentObject = get().objects.find((obj) => obj.id === id);
+    if (!currentObject) return;
+
+    const layer = clampLayerIndex(currentObject.layer);
+    if (isLayerLocked(get().layers, layer)) return;
+
+    get().pushHistory();
+    set((state) => {
+      const deletedSet = new Set([id]);
+      const newObjects = computeRippledObjects(state.objects, deletedSet);
+      const nextSelectedIds = state.selectedIds.filter((selectedId) => selectedId !== id);
+      const lastSelectedId = nextSelectedIds.length > 0 ? nextSelectedIds[nextSelectedIds.length - 1] : null;
+      return {
+        objects: newObjects,
+        selectedId: state.selectedId === id ? lastSelectedId : state.selectedId,
+        selectedIds: nextSelectedIds,
+        duration: calculateAutoDuration(newObjects)
+      };
+    });
+  },
+
+  rippleDeleteSelectedObjects: () => {
+    const state = get();
+    const selectedObjects = getSelectedObjects(state);
+    if (selectedObjects.length === 0) return;
+
+    const deletableIds = selectedObjects
+      .filter((obj) => !isLayerLocked(state.layers, clampLayerIndex(obj.layer)))
+      .map((obj) => obj.id);
+    if (deletableIds.length === 0) return;
+
+    const deletableSet = new Set(deletableIds);
+    get().pushHistory();
+    set((currentState) => {
+      const newObjects = computeRippledObjects(currentState.objects, deletableSet);
       return {
         objects: newObjects,
         selectedId: null,

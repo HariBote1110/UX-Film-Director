@@ -162,6 +162,10 @@ export interface AppState {
   updateObjectFilterParams: (objectId: string, filterId: string, params: Record<string, unknown>) => void;
   deleteObject: (id: string) => void;
   deleteSelectedObjects: () => void;
+  /** 指定オブジェクトを削除し、同一レイヤーの後続クリップを尺ぶん左へ詰める（YMM の「削除して左寄せ」相当）。 */
+  rippleDeleteObject: (id: string) => void;
+  /** 選択中オブジェクトを削除し、同一レイヤーの後続クリップを左へ詰める。 */
+  rippleDeleteSelectedObjects: () => void;
   splitObject: () => void;
   copySelectedObjects: () => void;
   cutSelectedObjects: () => void;

@@ -38,6 +38,35 @@ export const calculateAutoDuration = (objects: TimelineObject[]) => {
   return Math.max(maxEndTime, 10);
 };
 
+/**
+ * リップル削除（削除して左寄せ）後のオブジェクト列を返す。
+ *
+ * 削除対象を取り除いたうえで、生存する各オブジェクトを「同一レイヤー上で
+ * 自身より前にあった削除対象の合計尺」ぶんだけ左へ詰める。これにより
+ * クリップ間の相対ギャップを保ったまま、複数削除でもギャップを閉じられる。
+ * startTime は 0 未満にならないようクランプする。
+ */
+export const computeRippledObjects = (
+  objects: TimelineObject[],
+  deletedIds: Set<string>,
+): TimelineObject[] => {
+  const deleted = objects.filter((object) => deletedIds.has(object.id));
+  return objects
+    .filter((object) => !deletedIds.has(object.id))
+    .map((object) => {
+      const shift = deleted.reduce(
+        (sum, removed) =>
+          removed.layer === object.layer && removed.startTime < object.startTime
+            ? sum + removed.duration
+            : sum,
+        0,
+      );
+      return shift > 0
+        ? { ...object, startTime: Math.max(0, object.startTime - shift) }
+        : object;
+    });
+};
+
 export const needsDurationRecalculation = (newProps: Partial<TimelineObject>) => {
   return Object.prototype.hasOwnProperty.call(newProps, 'startTime')
     || Object.prototype.hasOwnProperty.call(newProps, 'duration');
