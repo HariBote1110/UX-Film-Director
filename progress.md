@@ -1,3 +1,16 @@
+## 2026-06-25 — 再生中シークの presenter 再起動ストーム（真っ白）を特定し文書化
+
+### 実施内容
+- 再生中にシークするとウィンドウが真っ白になる問題を調査・特定した。
+- 原因：never-throw 化で未準備フレームが ok:false（videoTextureViewUnavailable）を返すようになり、再生中の再利用パスが present 失敗ごとに `sharedRendererPresenterSessionKeyRef` を null→フル再起動。シーク中の未準備フレームごとに毎フレーム再起動が連鎖し WebGPU デバイスロスト（真っ白）になっていた。
+- 修正方針（過渡的未準備では presenter を保持しフレームスキップ。`isTransientExternalVideoPresentationFailure` ヘルパーで分岐）を `markdown/Bug_PlaybackSeekPresenterStorm.md` に記録。
+
+### 選定理由・判断の根拠
+- シーク中の未準備は過渡状態。presenter を破棄せず次フレームの present で追従させるのが正。再生中は publish が毎フレーム走るため、スキップしても準備完了で即追従する。
+
+### 残課題・次のステップ
+- TDD：Red（ヘルパーの分岐契約）→ Green→ 再利用パス適用。
+
 ## 2026-06-25 — ポーズ時 0 フレーム未提示（赤枠残り）を特定し文書化
 
 ### 実施内容
