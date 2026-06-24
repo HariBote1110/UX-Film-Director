@@ -1103,6 +1103,54 @@ describe('createSharedRendererWebGpuPresenter', () => {
     ]);
   });
 
+  it('does not throw when a not-yet-ready video element has no back resource for importExternalTexture', async () => {
+    // A freshly loaded or just-sought HTMLVideoElement has no current frame, so
+    // importExternalTexture throws synchronously. The presenter must absorb that
+    // and report a recoverable failure rather than crashing the presenter start.
+    const externalVideoSource = { tagName: 'VIDEO' };
+
+    const result = await createSharedRendererWebGpuPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      surfaceGate: {
+        ...okSurfaceGate,
+        snapshot: videoSnapshot,
+        media: videoMedia,
+      },
+      presentationContract: buildSharedRendererPresentationContract(),
+      gpu: fakeGpu({
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onImportExternalTexture: () => {
+              throw new Error(
+                "Failed to execute 'importExternalTexture' on 'GPUDevice'. Failed to import texture from video element that doesn't have back resource."
+              );
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+      bufferUsageVertex: 1,
+      bufferUsageCopyDst: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected presenter creation to pass');
+
+    const present = (result as unknown as {
+      presentExternalVideoFrameScene: (input: unknown) => unknown;
+    }).presentExternalVideoFrameScene;
+
+    let outcome: unknown;
+    expect(() => {
+      outcome = present({
+        snapshot: videoSnapshot,
+        media: videoMedia,
+        source: externalVideoSource,
+      });
+    }).not.toThrow();
+    expect(outcome).toMatchObject({ ok: false, reason: 'videoTextureViewUnavailable' });
+  });
+
   it('treats decoded video frames as opaque and applies only object opacity to the output alpha', async () => {
     const shaderModules: Array<{ code?: string }> = [];
 
