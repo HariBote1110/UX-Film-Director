@@ -8,11 +8,16 @@ export type SharedRendererExternalVideoElementLike = {
   duration?: number;
   videoWidth?: number;
   videoHeight?: number;
+  readyState?: number;
   onloadedmetadata: (() => void) | null;
   onerror: (() => void) | null;
   play: () => Promise<void> | void;
   pause: () => void;
   load: () => void;
+  requestVideoFrameCallback?: (callback: () => void) => number;
+  cancelVideoFrameCallback?: (handle: number) => void;
+  addEventListener?: (type: string, listener: () => void) => void;
+  removeEventListener?: (type: string, listener: () => void) => void;
 };
 
 export type SharedRendererExternalVideoSource = {
@@ -20,6 +25,11 @@ export type SharedRendererExternalVideoSource = {
   seekTo: (timeSeconds: number) => void;
   play: () => Promise<void>;
   pause: () => void;
+  // Registers a one-shot callback fired once the element holds a presentable
+  // frame (e.g. after a paused seek finishes decoding). Returns an unregister
+  // function. Used to re-present the shared renderer once a not-yet-ready
+  // external video frame becomes available.
+  notifyOnNextPresentableFrame: (callback: () => void) => () => void;
   dispose: () => void;
 };
 
@@ -92,6 +102,40 @@ export const createSharedRendererExternalVideoSource = ({
     },
     pause: () => {
       source.pause();
+    },
+    notifyOnNextPresentableFrame: (callback) => {
+      let fired = false;
+      const fireOnce = () => {
+        if (fired) return;
+        fired = true;
+        callback();
+      };
+
+      if (typeof source.requestVideoFrameCallback === 'function') {
+        const handle = source.requestVideoFrameCallback(fireOnce);
+        return () => {
+          source.cancelVideoFrameCallback?.(handle);
+        };
+      }
+
+      if (typeof source.addEventListener === 'function') {
+        const eventNames = ['seeked', 'loadeddata', 'canplay'] as const;
+        const removeListeners = () => {
+          eventNames.forEach((eventName) => {
+            source.removeEventListener?.(eventName, handleFrameReady);
+          });
+        };
+        function handleFrameReady() {
+          removeListeners();
+          fireOnce();
+        }
+        eventNames.forEach((eventName) => {
+          source.addEventListener?.(eventName, handleFrameReady);
+        });
+        return removeListeners;
+      }
+
+      return () => undefined;
     },
     dispose: () => {
       source.pause();
