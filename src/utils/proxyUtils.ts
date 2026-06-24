@@ -81,7 +81,12 @@ export const resolveOrGeneratePreviewProxy = async (
    * 元素材の解像度。指定された場合、FHD 以下の素材はプロキシを生成しない。
    * 未指定（従来呼び出し）の場合は解像度ゲートを適用せず常に生成する。
    */
-  source?: { width: number; height: number }
+  source?: { width: number; height: number },
+  /**
+   * 実際に生成（ffmpeg 実行）する場合のみ前後で呼ばれるフック。
+   * 既存プロキシの再利用や FHD スキップでは呼ばれない。進捗表示の制御に使う。
+   */
+  hooks?: { onGenerateStart?: () => void; onGenerateEnd?: () => void }
 ): Promise<string | undefined> => {
   if (!filePath) return undefined;
 
@@ -94,6 +99,11 @@ export const resolveOrGeneratePreviewProxy = async (
     return undefined;
   }
 
-  const generated = await generateProxy({ filePath, width });
-  return generated.success ? generated.proxyFilePath : undefined;
+  hooks?.onGenerateStart?.();
+  try {
+    const generated = await generateProxy({ filePath, width });
+    return generated.success ? generated.proxyFilePath : undefined;
+  } finally {
+    hooks?.onGenerateEnd?.();
+  }
 };

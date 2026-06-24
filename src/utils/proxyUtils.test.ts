@@ -84,6 +84,43 @@ describe('proxyUtils', () => {
     });
   });
 
+  it('invokes generation lifecycle hooks only while actually generating', async () => {
+    const invoke = vi.fn()
+      .mockResolvedValueOnce({ exists: false, proxyPath: '/clips/source.proxy.mp4' })
+      .mockResolvedValueOnce({ success: true, proxyPath: '/clips/source.proxy.mp4' });
+    vi.stubGlobal('window', { ipcRenderer: { invoke } });
+
+    const onGenerateStart = vi.fn();
+    const onGenerateEnd = vi.fn();
+
+    const { resolveOrGeneratePreviewProxy } = await import('./proxyUtils');
+    await resolveOrGeneratePreviewProxy('/clips/source.MP4', undefined, { width: 3840, height: 2160 }, {
+      onGenerateStart,
+      onGenerateEnd,
+    });
+
+    expect(onGenerateStart).toHaveBeenCalledTimes(1);
+    expect(onGenerateEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not invoke generation lifecycle hooks when skipping FHD generation', async () => {
+    const invoke = vi.fn()
+      .mockResolvedValueOnce({ exists: false, proxyPath: '/clips/source.proxy.mp4' });
+    vi.stubGlobal('window', { ipcRenderer: { invoke } });
+
+    const onGenerateStart = vi.fn();
+    const onGenerateEnd = vi.fn();
+
+    const { resolveOrGeneratePreviewProxy } = await import('./proxyUtils');
+    await resolveOrGeneratePreviewProxy('/clips/source.MP4', undefined, { width: 1920, height: 1080 }, {
+      onGenerateStart,
+      onGenerateEnd,
+    });
+
+    expect(onGenerateStart).not.toHaveBeenCalled();
+    expect(onGenerateEnd).not.toHaveBeenCalled();
+  });
+
   it('reuses an existing proxy for FHD sources regardless of resolution gating', async () => {
     const invoke = vi.fn()
       .mockResolvedValueOnce({ exists: true, proxyPath: '/clips/source.proxy.mp4' });
