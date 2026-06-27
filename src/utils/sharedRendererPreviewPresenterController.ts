@@ -61,6 +61,10 @@ export const getSharedRendererSolidSwatchCssColour = (): string => {
 
 type PresenterDataset = Record<string, string | undefined>;
 
+export type SharedRendererPreparedNativeRenderFramePresentationResult =
+  | { ok: true }
+  | { ok: false; reason: string; detail: string };
+
 export interface SharedRendererExternalVideoFrameRepaintInput {
   session: SharedRendererPreviewSession;
   sourcesByClipId?: ReadonlyMap<string, unknown>;
@@ -81,6 +85,9 @@ export type SharedRendererPreviewPresenterControl =
       presentExternalVideoFrameScene?: (
         input: SharedRendererExternalVideoFrameRepaintInput
       ) => SharedRendererVideoFrameScenePresentationResult;
+      presentPreparedNativeRenderFrame?: (
+        upload: SharedRendererDecodedVideoFrameUpload
+      ) => Promise<SharedRendererPreparedNativeRenderFramePresentationResult>;
       dispose: () => void;
     }
   | {
@@ -740,6 +747,30 @@ export const startSharedRendererPreviewPresenter = async ({
     }
     : undefined;
 
+  // Re-present a freshly decoded native frame on this already-initialised
+  // presenter, without tearing down and recreating the WebGPU pipeline. Used by
+  // the rust-only playback reuse path so the preview does not flicker (full
+  // presenter restart per frame) and the streaming decoder stays warm.
+  const presentPreparedNativeRenderFrame = async (
+    upload: SharedRendererDecodedVideoFrameUpload
+  ): Promise<SharedRendererPreparedNativeRenderFramePresentationResult> => {
+    const uploadResult = presenter.uploadVideoFrameTexture(upload);
+    if (!uploadResult.ok) {
+      await releaseDecodedVideoUploadAfterAbort(upload.releaseAfterUploadAbort);
+      return { ok: false, reason: uploadResult.reason, detail: uploadResult.detail };
+    }
+    const presentation = presenter.presentNativeRenderFrame({ texture: uploadResult.texture });
+    if (!presentation.ok) {
+      await releaseDecodedVideoUploadAfterAbort(upload.releaseAfterUploadAbort);
+      return presentation;
+    }
+    if (upload.releaseAfterGpuUpload) {
+      await presenter.device.queue?.onSubmittedWorkDone?.();
+      await releaseDecodedVideoUploadAfterGpuUpload(upload.releaseAfterGpuUpload);
+    }
+    return presentation;
+  };
+
   writeDiagnostics({
     status: 'ready',
     format: presenter.format,
@@ -804,6 +835,7 @@ export const startSharedRendererPreviewPresenter = async ({
       : [],
     takePresentedFrameSharedFrame: presenter.takePresentedFrameSharedFrame,
     presentExternalVideoFrameScene,
+    presentPreparedNativeRenderFrame,
     dispose: presenter.dispose,
   };
 };
