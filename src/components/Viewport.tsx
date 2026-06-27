@@ -166,11 +166,19 @@ const isSharedRendererExternalVideoOnlySession = (session: SharedRendererPreview
 export const shouldReuseExternalVideoPresenterSession = ({
   session,
   isExporting,
+  rustVideoOnly = false,
 }: {
   session: SharedRendererPreviewSession;
   isExporting: boolean;
+  rustVideoOnly?: boolean;
 }): boolean => (
+  // In rust-only mode video frames are presented by the native render path, not
+  // the HTMLVideoElement presenter. Reusing the external-video presenter here
+  // makes every playback tick attempt (and fail) an external-video present, which
+  // nulls the presenter session key and forces a full native-render restart each
+  // frame — the ffmpeg restart storm seen in UXFD_DECODE_TRACE. Never reuse it.
   !isExporting
+  && !rustVideoOnly
   && isSharedRendererExternalVideoOnlySession(session)
 );
 
@@ -861,6 +869,7 @@ const Viewport: React.FC = () => {
     const canReuseExternalVideoPresenter = shouldReuseExternalVideoPresenterSession({
       session,
       isExporting,
+      rustVideoOnly: rustVideoOnlyEnabled,
     });
     const nextPresenterKey = buildSharedRendererPresenterSessionKey(session, {
       includePlaybackFrame: !canReuseExternalVideoPresenter,
@@ -986,6 +995,7 @@ const Viewport: React.FC = () => {
     const canReuseCurrentPresenterSession = shouldReuseExternalVideoPresenterSession({
       session: sharedRendererPreviewSession,
       isExporting,
+      rustVideoOnly: rustVideoOnlyEnabled,
     });
     const presenterSessionKey = buildSharedRendererPresenterSessionKey(sharedRendererPreviewSession, {
       includePlaybackFrame: !canReuseCurrentPresenterSession,

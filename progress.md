@@ -1,3 +1,25 @@
+## 2026-06-28 — Rust ルート：毎フレームのプレゼンターフル再起動（再起動ストーム）の主因を除去（あ）
+
+### 実施内容
+- `UXFD_DECODE_TRACE=1` の実機ログで根本原因を確定：
+  - 再起動率100%（`sequential` 皆無）、毎フレーム ffmpeg コールド起動140〜340ms。
+  - 同一クリップに 320px と 1920px の2解像度ジョブが並走し互いを stale 停止（`firstFrame` ストーム＝デコーダが温まらない）。
+  - 各デコードが遅く再生ヘッドが約1秒先へ走り `forwardGapExceeded`→さらに再起動の暴走ループ。
+- コード追跡で駆動の核心バグを特定：rust-only でも全クリップ video のため `shouldReuseExternalVideoPresenterSession` が true を返し、外部ビデオ再利用パス（`presentExternalVideoFrameScene`、HTMLVideoElement 用）を毎フレーム試行→rust ネイティブ提示では必ず失敗→`sharedRendererPresenterSessionKeyRef=null`→`setSharedRendererPreviewSession`→ネイティブデコードの大エフェクトが毎フレームフル再起動していた。
+- ユーザー方針（あ）に従い最小修正：`shouldReuseExternalVideoPresenterSession` に `rustVideoOnly` を追加し、rust-only では常に false（再利用しない）。両呼び出し元（`publishSharedRendererPreviewSession` と大エフェクト）で `rustVideoOnlyEnabled` を渡す。
+
+### 選定理由・判断の根拠
+- rust-only のフレーム提示はネイティブ経路が担うため、外部ビデオ再利用は概念的に誤り。これを止めれば「失敗→key null→セッション再設定→フル再起動」の毎フレーム連鎖が消える。最小・低リスクでまず効果を計測する方針。
+- 期待：再利用スラッシュが消え、ネイティブ経路が単一解像度ジョブで一貫動作→Rust デコードセッションは decode.start 冪等で保持されデコーダが温存→逐次読み（数ms）化→再生ヘッドの暴走と forwardGapExceeded が収束。
+
+### 修正結果（TDD）
+- Red/Green: `ViewportDiagnostics.test.ts` に「rust-only では reuse=false」契約を追加。`shouldReuseExternalVideoPresenterSession` に `rustVideoOnly` を実装。
+- 検証: ViewportDiagnostics 8 件＋外部ビデオ同期 16 件緑。Viewport.tsx 固有の tsc エラー無し（既存の three/mp4box のみ）。版を `0.1.1-Beta-356a` に更新。
+
+### 残課題・次のステップ
+- 実機で再計測（`UXFD_DECODE_TRACE=1 npm run dev:rust-video`）。`sequential` 比率上昇・decodeMs 低下・1920ジョブ消失を確認したい。
+- 改善が部分的なら（い）単一ジョブ・デコーダ温存の明示化、なお不足なら Phase 3（Rust 側 source rate 連続先読み）。
+
 ## 2026-06-28 — Rust ルートのガタつき：再起動ストームを実機計測する診断を追加
 
 ### 実施内容
