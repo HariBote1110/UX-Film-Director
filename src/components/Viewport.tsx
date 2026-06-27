@@ -1034,8 +1034,14 @@ const Viewport: React.FC = () => {
       activeVideoDecodeJobs: sharedRendererVideoCutoverEnabled
         ? sharedRendererVideoDecodeJobsRef.current
         : [],
-      videoDecodeSlotCount: isPlaying ? SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT : undefined,
-      videoDecodeMaxEdge: isPlaying ? SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE : undefined,
+      // Keep the decode job resolution and slot count stable across play/pause so
+      // the streaming ffmpeg decoder stays warm. Switching to full-res on pause
+      // changed the jobId, evicting (decode.stop) the warm preview decoder and
+      // forcing a cold restart on every play/pause/seek — the firstFrame bursts
+      // and 1920px churn seen in UXFD_DECODE_TRACE. Preview always decodes at the
+      // playback (preview) resolution; full-res stays the export path's concern.
+      videoDecodeSlotCount: SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT,
+      videoDecodeMaxEdge: SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE,
       requestId: (sharedRendererVideoDecodeRequestIdRef.current += 1),
       sharedRendererExternalVideoSourcesByClipId: externalVideoSourcesByClipId.size > 0
         ? externalVideoSourcesByClipId

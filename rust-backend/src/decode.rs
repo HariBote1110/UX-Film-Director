@@ -498,7 +498,12 @@ fn release_decode_data_plane(
     Ok(())
 }
 
-const MAX_STREAMING_DECODE_SKIP_FRAMES: u64 = 30;
+// Forward gap a warm streaming decoder will absorb by discard-reading frames
+// instead of cold-restarting ffmpeg. A cold restart costs ~150-400ms (process
+// spawn + keyframe seek), whereas discard-reading is a few ms per frame, so a
+// generous window lets the decoder recover from a transient hitch (e.g. a brief
+// stall that let the playhead run ahead) without the restart→runaway loop.
+const MAX_STREAMING_DECODE_SKIP_FRAMES: u64 = 90;
 
 fn decode_trace_enabled() -> bool {
     std::env::var("UXFD_DECODE_TRACE")

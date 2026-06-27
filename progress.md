@@ -1,3 +1,25 @@
+## 2026-06-28 — Rust ルート：遷移時の解像度切替チャーンを除去（い-1＋い-2）
+
+### 実施内容
+- （あ）適用後の実機トレースで効果と残課題を確認：定常再生中の 320 ジョブは `sequential`・`decodeMs` 1〜10ms に改善（前回の全フレーム140〜340msコールドから激変）。一方、再生/一時停止/シーク遷移で 1920px ジョブが断続起動し 320 と併存→互いを stale 停止する `firstFrame` バーストと、ハマり後の `forwardGapExceeded`（playhead が約0.7秒先へ走る）が残存。
+- 原因：`videoDecodeMaxEdge: isPlaying ? 320 : undefined(→1920)` が再生/停止で解像度を切替→jobId 変化→温まった 320 デコーダが decode.stop で破棄→コールド再起動。
+- ユーザー方針（い-1＋い-2、停止時も常にプレビュー解像度）で修正：
+  - （い-1）`Viewport.tsx`：`videoDecodeSlotCount`/`videoDecodeMaxEdge` を isPlaying 非依存の固定値（`SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT`/`_MAX_EDGE`）に。再生・停止・シークで jobId 安定→デコーダ温存。
+  - （い-2）`decode.rs`：`MAX_STREAMING_DECODE_SKIP_FRAMES` を 30→90。ハマり後の前方ギャップを逐次スキップ読み（数ms/フレーム）で吸収し、再起動→暴走ループを断つ。
+
+### 選定理由・判断の根拠
+- 遷移チャーンの主因は「解像度切替による jobId 変化＝デコーダ破棄」。解像度を固定すれば decode.start 冪等でセッションが保持され、温存デコーダの逐次読み（数ms）が遷移をまたいで維持される。
+- skip 上限引き上げはコールド再起動（150〜400ms）を逐次読み（数ms×N）に置換するもので、暴走連鎖の抑止に有効。停止時の画質低下（常に320px）は本人合意済みの最小トレードオフ。
+
+### 修正結果（TDD）
+- （い-1）は `shouldReuse` の rust-only 契約（前段 356a）と ViewportDiagnostics/共有レンダラー 294 件緑で回帰なし。Viewport.tsx 固有 tsc エラー無し。
+- （い-2）は定数調整。既存の sequential 契約（skip≤上限）と decode_control_plane 55 件緑。※90フレーム skip 単体テストは長尺 fixture が必要なため未追加（実機トレースで裏取り予定）。
+- 版を `0.1.1-Beta-357a` に更新。
+
+### 残課題・次のステップ
+- 実機再計測（`UXFD_DECODE_TRACE=1 npm run dev:rust-video`）：1920ジョブ消失・firstFrameバースト消失・遷移後 forwardGapExceeded 減を確認。
+- なお遷移直後に残るハマりがあれば、presenter フル再起動自体の頻度削減（フレーム要求のみ更新）や Phase 3 先読みへ。
+
 ## 2026-06-28 — Rust ルート：毎フレームのプレゼンターフル再起動（再起動ストーム）の主因を除去（あ）
 
 ### 実施内容
