@@ -145,16 +145,78 @@ describe('sharedRendererExternalVideoSource', () => {
     expect(playbackState.suppressedSeekCount).toBe(1);
     expect(playbackState.lastDriftSeconds).toBeCloseTo(0.06);
 
-    syncSharedRendererExternalVideoPlayback({
+    // Play → pause transition: the element keeps its live decode position so
+    // the on-screen frame does not jump. Instead of seeking the element back to
+    // the (drifted) timeline head, the sync reports how far the head should snap
+    // forward onto the displayed frame.
+    const pauseResult = syncSharedRendererExternalVideoPlayback({
       source,
       playbackState,
       targetTimeSeconds: 11,
       isPlaying: false,
     });
-    expect(element.currentTime).toBe(11);
+    expect(element.currentTime).toBe(10.12);
     expect(calls).toEqual(['play', 'pause']);
-    expect(playbackState.seekCount).toBe(2);
+    expect(playbackState.seekCount).toBe(1);
     expect(playbackState.pauseCount).toBe(1);
+    // delta = element position − timeline target = 10.12 − 11.
+    expect(pauseResult.sought).toBe(false);
+    expect(pauseResult.pauseSnapTimelineDeltaSeconds).toBeCloseTo(-0.88);
+  });
+
+  it('snaps the timeline head onto the displayed frame at the play to pause transition instead of seeking the element', () => {
+    const calls: string[] = [];
+    const element = fakeVideoElement({
+      play: async () => {
+        calls.push('play');
+      },
+      pause: () => {
+        calls.push('pause');
+      },
+    });
+    const source = createSharedRendererExternalVideoSource({
+      url: 'file:///Volumes/ExtendSSD-W/GX020052.MP4',
+      elementFactory: () => element,
+    });
+    const playbackState: SharedRendererExternalVideoPlaybackState = {};
+
+    // Start playback at 5.0s.
+    syncSharedRendererExternalVideoPlayback({
+      source,
+      playbackState,
+      targetTimeSeconds: 5,
+      isPlaying: true,
+    });
+    expect(element.currentTime).toBe(5);
+
+    // The element free-runs ahead of the throttled/tolerant timeline head.
+    element.currentTime = 5.3;
+
+    const pauseResult = syncSharedRendererExternalVideoPlayback({
+      source,
+      playbackState,
+      targetTimeSeconds: 5,
+      isPlaying: false,
+    });
+
+    // No re-seek: the displayed frame stays exactly where it was.
+    expect(element.currentTime).toBe(5.3);
+    expect(pauseResult.sought).toBe(false);
+    expect(pauseResult.paused).toBe(true);
+    // Head must move +0.3s to land on the displayed frame (5.3).
+    expect(pauseResult.pauseSnapTimelineDeltaSeconds).toBeCloseTo(0.3);
+    expect(playbackState.mode).toBe('paused');
+
+    // A subsequent paused scrub still seeks the element to the new head.
+    const scrubResult = syncSharedRendererExternalVideoPlayback({
+      source,
+      playbackState,
+      targetTimeSeconds: 8,
+      isPlaying: false,
+    });
+    expect(element.currentTime).toBe(8);
+    expect(scrubResult.sought).toBe(true);
+    expect(scrubResult.pauseSnapTimelineDeltaSeconds).toBeUndefined();
   });
 
   it('throttles near-target playback sync checks while the video element is already playing', async () => {
