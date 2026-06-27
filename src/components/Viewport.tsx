@@ -160,6 +160,17 @@ const isSharedRendererExternalVideoOnlySession = (session: SharedRendererPreview
   return session.surfaceGate.snapshot.clips.every((clip) => mediaKindById.get(clip.media_id) === 'Video');
 };
 
+export const shouldReuseExternalVideoPresenterSession = ({
+  session,
+  isExporting,
+}: {
+  session: SharedRendererPreviewSession;
+  isExporting: boolean;
+}): boolean => (
+  !isExporting
+  && isSharedRendererExternalVideoOnlySession(session)
+);
+
 const publishSharedRendererExternalVideoPresentationDiagnostics = (
   session: SharedRendererPreviewSession,
   datasets: SharedRendererPresenterDiagnosticDataset[],
@@ -221,11 +232,19 @@ const syncSharedRendererExternalVideoSources = ({
       entry?.source.dispose();
       entry = {
         url,
-        source: createSharedRendererExternalVideoSource({ url, muted: true }),
+        source: createSharedRendererExternalVideoSource({
+          url,
+          muted: object.muted,
+          volume: object.volume,
+        }),
         playbackState: {},
       };
       entries.set(clip.clip_id, entry);
     }
+    entry.source.setAudioState({
+      muted: object.muted,
+      volume: object.volume,
+    });
 
     syncSharedRendererExternalVideoPlayback({
       source: entry.source,
@@ -815,9 +834,10 @@ const Viewport: React.FC = () => {
       }
     }
 
-    const canReuseExternalVideoPresenter = isPlaying
-      && !isExporting
-      && isSharedRendererExternalVideoOnlySession(session);
+    const canReuseExternalVideoPresenter = shouldReuseExternalVideoPresenterSession({
+      session,
+      isExporting,
+    });
     const nextPresenterKey = buildSharedRendererPresenterSessionKey(session, {
       includePlaybackFrame: !canReuseExternalVideoPresenter,
     });
@@ -834,6 +854,7 @@ const Viewport: React.FC = () => {
           objects: currentObjects,
           entries: sharedRendererExternalVideoSourcesRef.current,
           isPlaying,
+          onFrameReady: requestSharedRendererExternalVideoFrameRepaint,
         });
         const presentation = control.presentExternalVideoFrameScene?.({
           session,
@@ -876,6 +897,7 @@ const Viewport: React.FC = () => {
     sharedRendererGpuStatus.webGpuAvailable,
     sharedRendererPreviewEnabled,
     rustVideoOnlyEnabled,
+    requestSharedRendererExternalVideoFrameRepaint,
     updateSharedRendererGeneratedEffectObjectIds,
   ]);
 
@@ -931,9 +953,10 @@ const Viewport: React.FC = () => {
       ? liveDatasets.map(() => ({}))
       : liveDatasets;
     const previousPresenterControl = sharedRendererPresenterControlRef.current;
-    const canReuseCurrentPresenterSession = isPlaying
-      && !isExporting
-      && isSharedRendererExternalVideoOnlySession(sharedRendererPreviewSession);
+    const canReuseCurrentPresenterSession = shouldReuseExternalVideoPresenterSession({
+      session: sharedRendererPreviewSession,
+      isExporting,
+    });
     const presenterSessionKey = buildSharedRendererPresenterSessionKey(sharedRendererPreviewSession, {
       includePlaybackFrame: !canReuseCurrentPresenterSession,
     });

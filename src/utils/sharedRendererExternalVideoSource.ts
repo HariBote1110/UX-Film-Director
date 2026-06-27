@@ -2,6 +2,7 @@ export type SharedRendererExternalVideoElementLike = {
   src: string;
   preload: string;
   muted: boolean;
+  volume?: number;
   loop: boolean;
   playsInline?: boolean;
   currentTime: number;
@@ -25,6 +26,7 @@ export type SharedRendererExternalVideoSource = {
   seekTo: (timeSeconds: number) => void;
   play: () => Promise<void>;
   pause: () => void;
+  setAudioState: (state: SharedRendererExternalVideoAudioState) => void;
   // Registers a one-shot callback fired once the element holds a presentable
   // frame (e.g. after a paused seek finishes decoding). Returns an unregister
   // function. Used to re-present the shared renderer once a not-yet-ready
@@ -59,6 +61,10 @@ export type SharedRendererExternalVideoMetadata = {
 };
 
 type ExternalVideoElementFactory = () => SharedRendererExternalVideoElementLike;
+type SharedRendererExternalVideoAudioState = {
+  muted: boolean;
+  volume?: number;
+};
 
 const DEFAULT_DURATION_SECONDS = 10;
 const DEFAULT_VIDEO_WIDTH = 1280;
@@ -74,20 +80,37 @@ const PAUSED_SEEK_DRIFT_TOLERANCE_SECONDS = 1 / 120;
 const createDefaultExternalVideoElement = (): SharedRendererExternalVideoElementLike =>
   document.createElement('video') as unknown as SharedRendererExternalVideoElementLike;
 
+const clampVolume = (volume: number | undefined): number => {
+  if (typeof volume !== 'number' || !Number.isFinite(volume)) return 1;
+  return Math.min(1, Math.max(0, volume ?? 1));
+};
+
+const applyExternalVideoAudioState = (
+  source: SharedRendererExternalVideoElementLike,
+  state: SharedRendererExternalVideoAudioState
+) => {
+  source.muted = state.muted;
+  if ('volume' in source) {
+    source.volume = clampVolume(state.volume);
+  }
+};
+
 export const createSharedRendererExternalVideoSource = ({
   url,
   muted = true,
+  volume = 1,
   loop = false,
   elementFactory = createDefaultExternalVideoElement,
 }: {
   url: string;
   muted?: boolean;
+  volume?: number;
   loop?: boolean;
   elementFactory?: ExternalVideoElementFactory;
 }): SharedRendererExternalVideoSource => {
   const source = elementFactory();
   source.preload = 'auto';
-  source.muted = muted;
+  applyExternalVideoAudioState(source, { muted, volume });
   source.loop = loop;
   source.playsInline = true;
   source.src = url;
@@ -102,6 +125,9 @@ export const createSharedRendererExternalVideoSource = ({
     },
     pause: () => {
       source.pause();
+    },
+    setAudioState: (state) => {
+      applyExternalVideoAudioState(source, state);
     },
     notifyOnNextPresentableFrame: (callback) => {
       let fired = false;
