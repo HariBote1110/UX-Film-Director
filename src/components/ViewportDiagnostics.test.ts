@@ -90,4 +90,12 @@ describe('shouldReuseExternalVideoPresenterSession', () => {
       isExporting: true,
     })).toBe(false);
   });
+
+  it('does not reuse the external video presenter in rust-only mode so the native render path drives without per-frame thrash', () => {
+    expect(shouldReuseExternalVideoPresenterSession({
+      session: externalVideoOnlySession,
+      isExporting: false,
+      rustVideoOnly: true,
+    })).toBe(false);
+  });
 });
