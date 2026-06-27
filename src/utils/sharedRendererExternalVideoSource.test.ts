@@ -65,6 +65,31 @@ describe('sharedRendererExternalVideoSource', () => {
     expect(element.onerror).toBeNull();
   });
 
+  it('applies audible video preview state to the presenter-owned element', () => {
+    const element = fakeVideoElement({
+      volume: 0,
+      muted: true,
+    } as Partial<SharedRendererExternalVideoElementLike>);
+
+    const source = createSharedRendererExternalVideoSource({
+      url: 'file:///Volumes/ExtendSSD-W/GX020052.MP4',
+      muted: false,
+      volume: 0.42,
+      elementFactory: () => element,
+    });
+
+    expect(element.muted).toBe(false);
+    expect(element.volume).toBe(0.42);
+
+    source.setAudioState({ muted: true, volume: 1.8 });
+    expect(element.muted).toBe(true);
+    expect(element.volume).toBe(1);
+
+    source.setAudioState({ muted: false, volume: -2 });
+    expect(element.muted).toBe(false);
+    expect(element.volume).toBe(0);
+  });
+
   it('loads metadata through the isolated external video element provider', async () => {
     const element = fakeVideoElement();
     const metadataPromise = loadExternalVideoSourceMetadata('blob:clip', () => element);

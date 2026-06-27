@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   buildSharedRendererPreviewDiagnostic,
   isTransientExternalVideoPresentationFailure,
+  shouldReuseExternalVideoPresenterSession,
 } from './Viewport';
 import type { SharedRendererPreviewPresenterControl } from '../utils/sharedRendererPreviewPresenterController';
+import type { SharedRendererPreviewSession } from '../utils/sharedRendererPreviewSession';
 
 const readyControl = {
   ok: true,
@@ -61,5 +63,31 @@ describe('isTransientExternalVideoPresentationFailure', () => {
     expect(isTransientExternalVideoPresentationFailure({ ok: true, planeCount: 1 })).toBe(false);
     expect(isTransientExternalVideoPresentationFailure(undefined)).toBe(false);
     expect(isTransientExternalVideoPresentationFailure(null)).toBe(false);
+  });
+});
+
+describe('shouldReuseExternalVideoPresenterSession', () => {
+  const externalVideoOnlySession = {
+    surfaceGate: {
+      ok: true,
+      media: [{ id: 'media-video', kind: 'Video' }],
+      snapshot: {
+        clips: [{ media_id: 'media-video', clip_id: 'video-1', z_index: 0 }],
+      },
+    },
+  } as unknown as SharedRendererPreviewSession;
+
+  it('allows an external-video-only presenter to survive the transition from pause to playback', () => {
+    expect(shouldReuseExternalVideoPresenterSession({
+      session: externalVideoOnlySession,
+      isExporting: false,
+    })).toBe(true);
+  });
+
+  it('does not reuse the external video presenter while exporting', () => {
+    expect(shouldReuseExternalVideoPresenterSession({
+      session: externalVideoOnlySession,
+      isExporting: true,
+    })).toBe(false);
   });
 });
