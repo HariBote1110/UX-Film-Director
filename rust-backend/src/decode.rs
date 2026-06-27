@@ -190,6 +190,7 @@ pub(crate) fn handle_decode_request_frame(
     };
     let write_slot_index = write_slot.slot_index;
 
+    let decode_started_at = std::time::Instant::now();
     let decoded_rgba = match decode_rgba_frame_for_session(session, parsed.frame_index) {
         Ok(value) => value,
         Err(error) => {
@@ -203,6 +204,21 @@ pub(crate) fn handle_decode_request_frame(
             );
         }
     };
+    // Opt-in trace (UXFD_DECODE_TRACE=1): one compact line per decode so the
+    // restart cadence and per-frame decode latency are observable on a real
+    // playback/scrub session. Restarts (non-"sequential") are the jank source.
+    if decode_trace_enabled() {
+        let elapsed_ms = decode_started_at.elapsed().as_secs_f64() * 1_000.0;
+        eprintln!(
+            "[decode.trace] job={} frame={} reason={} restarted={} skipped={} decodeMs={:.1}",
+            parsed.job_id,
+            parsed.frame_index,
+            decoded_rgba.stream_restart_reason,
+            decoded_rgba.stream_restarted,
+            decoded_rgba.stream_skipped_frame_count,
+            elapsed_ms,
+        );
+    }
 
     let padded_rgba = match pad_rgba_rows(
         &decoded_rgba.bytes,
@@ -311,6 +327,7 @@ pub(crate) fn handle_decode_request_frame(
             "decodeInvocationCount": decoded_rgba.decode_invocation_count,
             "decodePath": decoded_rgba.decode_path,
             "streamRestarted": decoded_rgba.stream_restarted,
+            "streamRestartReason": decoded_rgba.stream_restart_reason,
             "streamSkippedFrameCount": decoded_rgba.stream_skipped_frame_count,
         })),
         error: None,
@@ -483,6 +500,12 @@ fn release_decode_data_plane(
 
 const MAX_STREAMING_DECODE_SKIP_FRAMES: u64 = 30;
 
+fn decode_trace_enabled() -> bool {
+    std::env::var("UXFD_DECODE_TRACE")
+        .map(|value| value == "1")
+        .unwrap_or(false)
+}
+
 fn decode_rgba_frame_for_session(
     session: &mut DecodeSession,
     frame_index: u64,
@@ -490,35 +513,48 @@ fn decode_rgba_frame_for_session(
     let expected_len =
         tight_rgba_byte_len(session.start_response.width, session.start_response.height)?;
 
-    if let Some(decoder) = session.streaming_decoder.as_mut() {
-        if decoder.frame_byte_len == expected_len
-            && frame_index >= decoder.next_frame_index
-            && frame_index - decoder.next_frame_index <= MAX_STREAMING_DECODE_SKIP_FRAMES
-        {
-            let skipped_frame_count = frame_index - decoder.next_frame_index;
-            let mut scratch = vec![0u8; expected_len];
-            for _ in 0..skipped_frame_count {
-                decoder
-                    .stdout
-                    .read_exact(&mut scratch)
-                    .map_err(|error| format!("failed to skip streaming decoded frame: {error}"))?;
-                decoder.next_frame_index += 1;
-            }
+    // Classify why this request can or cannot reuse the running ffmpeg process.
+    // A restart re-spawns ffprobe + ffmpeg and re-seeks, which stalls preview;
+    // surfacing the reason lets us measure restart-driven jank on real sessions.
+    let restart_reason = match session.streaming_decoder.as_ref() {
+        None => "firstFrame",
+        Some(decoder) if decoder.frame_byte_len != expected_len => "byteLenMismatch",
+        Some(decoder) if frame_index < decoder.next_frame_index => "backwardSeek",
+        Some(decoder) if frame_index - decoder.next_frame_index > MAX_STREAMING_DECODE_SKIP_FRAMES => {
+            "forwardGapExceeded"
+        }
+        Some(_) => "sequential",
+    };
 
-            let mut bytes = vec![0u8; expected_len];
+    if restart_reason == "sequential" {
+        let decoder = session
+            .streaming_decoder
+            .as_mut()
+            .expect("sequential reuse requires a running streaming decoder");
+        let skipped_frame_count = frame_index - decoder.next_frame_index;
+        let mut scratch = vec![0u8; expected_len];
+        for _ in 0..skipped_frame_count {
             decoder
                 .stdout
-                .read_exact(&mut bytes)
-                .map_err(|error| format!("failed to read streaming decoded frame: {error}"))?;
+                .read_exact(&mut scratch)
+                .map_err(|error| format!("failed to skip streaming decoded frame: {error}"))?;
             decoder.next_frame_index += 1;
-            return Ok(DecodedRgbaFrame {
-                bytes,
-                decode_path: "stream",
-                stream_restarted: false,
-                stream_skipped_frame_count: skipped_frame_count,
-                decode_invocation_count: 0,
-            });
         }
+
+        let mut bytes = vec![0u8; expected_len];
+        decoder
+            .stdout
+            .read_exact(&mut bytes)
+            .map_err(|error| format!("failed to read streaming decoded frame: {error}"))?;
+        decoder.next_frame_index += 1;
+        return Ok(DecodedRgbaFrame {
+            bytes,
+            decode_path: "stream",
+            stream_restarted: false,
+            stream_skipped_frame_count: skipped_frame_count,
+            decode_invocation_count: 0,
+            stream_restart_reason: restart_reason,
+        });
     }
 
     let mut decoder = start_streaming_decode_process(session, frame_index, expected_len)?;
@@ -536,6 +572,7 @@ fn decode_rgba_frame_for_session(
         stream_restarted: true,
         stream_skipped_frame_count: 0,
         decode_invocation_count: 1,
+        stream_restart_reason: restart_reason,
     })
 }
 

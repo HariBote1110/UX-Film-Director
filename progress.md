@@ -1,3 +1,30 @@
+## 2026-06-28 — Rust ルートのガタつき：再起動ストームを実機計測する診断を追加
+
+### 実施内容
+- Rust デコード経路（`VITE_UXFD_RUST_VIDEO_ONLY=1`）の「結構ガタガタ」を構造的に調査。主因候補を特定した：
+  - **A（主犯）**：ffmpeg サブプロセスを「厳密前進かつ skip≤30」以外で毎回起動し直す（`decode.rs:decode_rgba_frame_for_session`）。該当＝同一フレーム再要求／1フレームでも手前（スクラブ・一時停止）／30超の前方ジャンプ／初回。spawn＋`-ss` キーフレームseekで毎回数十〜数百ms stall。
+  - **B**：restart 毎に ffprobe を重複実行（color_range はソース不変）。
+  - **C**：直近デコード済みフレームのキャッシュ無し → 同一/直前要求を安く返せず必ず再起動。
+  - **D**：pull 型・先読みバッファ無しでジッタ吸収ゼロ。
+  - **E**：source_frame/source_rate が実動画 fps でなく projectFps 基準。
+- ユーザー方針「まず実機ログで裏取り」に従い、**再起動の頻度と理由・デコード遅延を実機計測できる診断を追加**（推測の前に計測）。
+
+### 選定理由・判断の根拠
+- 仮説（再起動ストーム）の真偽は実セッションのフレーム要求列に依存するため、まず観測可能化するのが最小リスクで決定的。
+- Rust バックエンドは独立プロセスで stderr が Electron main 経由でターミナル（`dev:rust-video`）に出るため、ゲート付き `eprintln!` トレースが実機で確実に見える。デフォルト無効（`UXFD_DECODE_TRACE=1`）で常時オーバーヘッドゼロ。
+
+### 修正結果（TDD）
+- Red/Green: `decode_control_plane.rs` に「`decode.requestFrame` 応答が `streamRestartReason` を返す」契約を追加（firstFrame→sequential→backwardSeek を実 H264 fixture で検証）。
+- 実装: `DecodedRgbaFrame` に `stream_restart_reason`（sequential/firstFrame/backwardSeek/forwardGapExceeded/byteLenMismatch）を追加し応答に出力。`UXFD_DECODE_TRACE=1` で1デコード1行のトレース（reason/restarted/skipped/decodeMs）を eprintln。フロント型 `RustBackendVideoDecodeFrameResult` にも任意フィールドを追加。
+- 検証: decode_control_plane 55 件すべて緑。tsc 本変更由来エラーなし。版を `0.1.1-Beta-355b` に更新。
+
+### 計測手順（ユーザー向け）
+- `UXFD_DECODE_TRACE=1 npm run dev:rust-video` で起動 → 動画を再生／スクラブ → ターミナルの `[decode.trace] ... reason=... decodeMs=...` を観察。
+- reason に backwardSeek/forwardGapExceeded/byteLenMismatch が頻出し decodeMs が大きければ仮説 A 確定 → 次段で Phase 1（直近フレームキャッシュ＋ffprobe キャッシュ）に着手。
+
+### 残課題・次のステップ
+- 実機トレース結果に基づき Phase 1（C/B 解消）→ 2（GOP内後方の小バッファ）→ 3（先読み連続デコード）。
+
 ## 2026-06-28 — 再生→一時停止時の不自然なフレームジャンプを修正
 
 ### 実施内容

@@ -87,6 +87,12 @@ export interface RustBackendVideoDecodeFrameResult {
   frame?: RustBackendSharedVideoFrame;
   verification?: RustBackendVideoFrameVerification;
   decodeInvocationCount?: number;
+  // Diagnostic: why the streaming ffmpeg process was (or was not) restarted for
+  // this frame. Surfaced by the Rust backend to measure restart-driven jank.
+  // 'sequential' | 'firstFrame' | 'backwardSeek' | 'forwardGapExceeded' | 'byteLenMismatch'.
+  streamRestartReason?: string;
+  streamRestarted?: boolean;
+  streamSkippedFrameCount?: number;
 }
 
 export interface RustBackendResult<T = unknown> {

@@ -33,6 +33,11 @@ pub(crate) struct DecodedRgbaFrame {
     pub(crate) stream_restarted: bool,
     pub(crate) stream_skipped_frame_count: u64,
     pub(crate) decode_invocation_count: u64,
+    /// Why (or why not) the streaming ffmpeg process was restarted for this
+    /// frame. Diagnostic signal for measuring restart-driven preview jank.
+    /// One of: "sequential" | "firstFrame" | "backwardSeek" |
+    /// "forwardGapExceeded" | "byteLenMismatch".
+    pub(crate) stream_restart_reason: &'static str,
 }
 
 pub(crate) struct EncodeSession {
