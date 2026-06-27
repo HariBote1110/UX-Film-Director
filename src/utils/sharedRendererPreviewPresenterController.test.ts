@@ -1650,6 +1650,66 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
   });
 
+  it('re-presents a fresh native rendered frame on the existing presenter without restarting it', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const events: string[] = [];
+    const session = {
+      ...okSession,
+      surfaceGate: {
+        ...okSession.surfaceGate,
+        canvas: { width: 4, height: 4 },
+      },
+    };
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      sharedRendererNativeRenderFrameUpload: {
+        descriptor: nativeRenderDescriptor,
+        ptsFrame: 12,
+        rgbaBytes: new Uint8Array(nativeRenderDescriptor.byteLen),
+        releaseAfterGpuUpload: async () => {
+          events.push('release-initial');
+        },
+      },
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onWriteTexture: () => {
+              events.push('writeTexture');
+            },
+            onSubmittedWorkDone: async () => {
+              events.push('gpuUploadDone');
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    } as any);
+
+    expect(control.ok).toBe(true);
+    if (!control.ok) throw new Error('expected ok control');
+    expect(typeof control.presentPreparedNativeRenderFrame).toBe('function');
+
+    events.length = 0;
+    const presentation = await control.presentPreparedNativeRenderFrame!({
+      descriptor: nativeRenderDescriptor,
+      ptsFrame: 13,
+      rgbaBytes: new Uint8Array(nativeRenderDescriptor.byteLen),
+      releaseAfterGpuUpload: async () => {
+        events.push('release-reused');
+      },
+    } as any);
+
+    expect(presentation.ok).toBe(true);
+    // The fresh frame is uploaded, fenced and released on the SAME presenter
+    // (no new adapter/device/pipeline creation).
+    expect(events).toEqual(['writeTexture', 'gpuUploadDone', 'release-reused']);
+  });
+
   it('publishes native render GPU release failures instead of throwing out of the presenter', async () => {
     const dataset: Record<string, string | undefined> = {};
     const events: string[] = [];
