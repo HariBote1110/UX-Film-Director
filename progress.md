@@ -1,3 +1,25 @@
+## 2026-06-28 — 再生→一時停止時の不自然なフレームジャンプを修正
+
+### 実施内容
+- HTMLVideoElement 経路で「再生→一時停止の瞬間に最大350msのフレームジャンプ」が出る不具合を特定・修正した。
+- 原因：再生中は (a) タイムライン再生ヘッド `currentTime`（`requestAnimationFrame` の壁時計駆動 / useAppLogic.ts）と (b) video 要素のメディアクロック（`play()` 後は要素が自走）の2クロックが独立進行。画面に出ているのは要素のライブフレーム。`syncSharedRendererExternalVideoPlayback` は `PLAYING_SEEK_DRIFT_TOLERANCE_SECONDS = 0.35` まで再シークしないため要素はヘッドからズレたまま走る。一時停止すると `!isPlaying` で常に `shouldSeek = true` となり要素をヘッドへ強制 `seekTo` → 溜まったドリフト分だけ画面が飛んでいた。
+- 修正（方針：停止時にヘッドを表示フレームへスナップ。ユーザー選択の最小案）：
+  - `syncSharedRendererExternalVideoPlayback` に「再生→一時停止の遷移（`mode==='playing' && !isPlaying`）では要素をシークせず据え置き、`pauseSnapTimelineDeltaSeconds = element − target` を返す」契約を追加。
+  - `Viewport.syncSharedRendererExternalVideoSources` に `onPauseSnap` を追加し、primary（先頭）video クリップのデルタで `setTime(previewTime + delta)`。reuse 経路（外部ビデオのみセッションはキー安定で停止時も必ず通過）で配線。閾値 `PAUSE_SNAP_MIN_DELTA_SECONDS = 0.004` 未満は無視。
+
+### 選定理由・判断の根拠
+- 「画面に出ているフレームを動かさず、ヘッドをそこへ寄せる」のが NLE 的に自然で、改変が最小（要素を master 化する大改修やドリフト常時ロック=カクツキリスクを回避）。
+- デルタは source 秒だが、1×再生では timeline 秒と 1:1 のため `previewTime + delta` で正しくヘッドへ写像できる（再生速度変更クリップは対象外＝既知の限界）。
+- 配線が reuse 経路のみのため、video＋他メディア混在セッション（`canReuse=false`）では未適用。現状の対象（外部ビデオプレビュー）では機能する。
+
+### 修正結果
+- Red/Green: `sharedRendererExternalVideoSource.test.ts` に停止スナップ契約を追加（既存の「停止時に seekTo する」テストは新契約へ更新）。共有レンダラー系 286 件＋ViewportDiagnostics 7 件すべて緑。
+- tsc は `three` 由来の既存エラーのみで本変更由来なし。版を `0.1.1-Beta-355a` に更新。
+
+### 残課題・次のステップ
+- 実機での停止ジャンプ解消は自動検証困難なため要確認。
+- 必要なら混在セッションへの適用、再生速度変更クリップのデルタ換算（rate 比）対応を別タスクで。
+
 ## 2026-06-25 — 再生中シークの presenter 再起動ストーム（真っ白）を特定し文書化
 
 ### 実施内容

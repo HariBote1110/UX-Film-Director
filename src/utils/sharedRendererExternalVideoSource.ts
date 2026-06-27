@@ -52,6 +52,10 @@ export type SharedRendererExternalVideoPlaybackSyncResult = {
   paused: boolean;
   driftSeconds: number;
   throttled: boolean;
+  // Set only at the play → pause transition: how far (seconds) the timeline head
+  // should move to land on the frame the element is currently displaying, so the
+  // preview does not jump when pausing. Positive means the head moves forward.
+  pauseSnapTimelineDeltaSeconds?: number;
 };
 
 export type SharedRendererExternalVideoMetadata = {
@@ -198,9 +202,15 @@ export const syncSharedRendererExternalVideoPlayback = ({
   const toleranceSeconds = isPlaying
     ? playingSeekDriftToleranceSeconds
     : pausedSeekDriftToleranceSeconds;
-  const shouldSeek = playbackState.mode !== 'playing'
-    || !isPlaying
-    || Math.abs(driftSeconds) > toleranceSeconds;
+  // At the play → pause transition the element is mid-decode at its live media
+  // position, which is what the viewer currently sees. Re-seeking it back to the
+  // (drifted) timeline head would snap the picture; instead we keep the element
+  // in place and report how far the head should snap onto the displayed frame.
+  const isPlayToPauseTransition = !isPlaying && playbackState.mode === 'playing';
+  const shouldSeek = !isPlayToPauseTransition
+    && (playbackState.mode !== 'playing'
+      || !isPlaying
+      || Math.abs(driftSeconds) > toleranceSeconds);
   const elapsedSyncMs = Number.isFinite(playbackState.lastSyncMonotonicMs)
     ? nowMs - (playbackState.lastSyncMonotonicMs ?? 0)
     : Number.POSITIVE_INFINITY;
@@ -257,6 +267,10 @@ export const syncSharedRendererExternalVideoPlayback = ({
     paused,
     driftSeconds,
     throttled: false,
+    // element − target: head += this to land on the displayed frame (−driftSeconds).
+    ...(isPlayToPauseTransition
+      ? { pauseSnapTimelineDeltaSeconds: currentTime - safeTargetTimeSeconds }
+      : {}),
   };
 };
 

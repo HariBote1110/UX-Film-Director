@@ -52,6 +52,9 @@ import { toFileProtocolUrl } from '../utils/mediaMetadata';
 const GROUP_GRADIENT_COMPONENT_PREFIX = 'group-gradient-component-';
 const RESIZE_HANDLE_PREFIX = 'resize-handle-';
 const SHARED_RENDERER_EXTERNAL_VIDEO_PLAYING_SYNC_INTERVAL_MS = 75;
+// 一時停止時にヘッドを表示フレームへスナップする最小デルタ（秒）。これ未満は
+// 体感できないうえ無駄な再レンダーを誘発するため無視する。
+const PAUSE_SNAP_MIN_DELTA_SECONDS = 0.004;
 /** 角ハンドルのスクリーン上の目標サイズ（px）。 */
 const RESIZE_HANDLE_SCREEN_PX = 10;
 
@@ -201,12 +204,14 @@ const syncSharedRendererExternalVideoSources = ({
   entries,
   isPlaying,
   onFrameReady,
+  onPauseSnap,
 }: {
   session: SharedRendererPreviewSession;
   objects: TimelineObject[];
   entries: Map<string, SharedRendererExternalVideoSourceEntry>;
   isPlaying: boolean;
   onFrameReady?: () => void;
+  onPauseSnap?: (deltaSeconds: number) => void;
 }): Map<string, unknown> => {
   const sourcesByClipId = new Map<string, unknown>();
   if (!session.surfaceGate.ok) {
@@ -217,6 +222,7 @@ const syncSharedRendererExternalVideoSources = ({
   const objectsById = new Map(objects.map((object) => [object.id, object]));
   const mediaById = new Map(session.surfaceGate.media.map((media) => [media.id, media]));
   const activeClipIds = new Set<string>();
+  let pauseSnapDeltaSeconds: number | undefined;
 
   session.surfaceGate.snapshot.clips.forEach((clip) => {
     const object = objectsById.get(clip.clip_id);
@@ -246,13 +252,27 @@ const syncSharedRendererExternalVideoSources = ({
       volume: object.volume,
     });
 
-    syncSharedRendererExternalVideoPlayback({
+    const playbackSyncResult = syncSharedRendererExternalVideoPlayback({
       source: entry.source,
       playbackState: entry.playbackState,
       targetTimeSeconds: sourceFrameToSeconds(clip.source_frame, media.source_rate),
       isPlaying,
       minimumPlayingSyncIntervalMs: SHARED_RENDERER_EXTERNAL_VIDEO_PLAYING_SYNC_INTERVAL_MS,
     });
+
+    // On the play → pause edge, move the timeline head onto the frame the
+    // element is actually showing rather than letting the element seek back to
+    // the drifted head (which looked like an unnatural jump). Only the primary
+    // (first) video clip drives the head; sub-frame deltas are ignored to avoid
+    // needless re-renders.
+    if (
+      onPauseSnap
+      && pauseSnapDeltaSeconds === undefined
+      && typeof playbackSyncResult.pauseSnapTimelineDeltaSeconds === 'number'
+      && Math.abs(playbackSyncResult.pauseSnapTimelineDeltaSeconds) > PAUSE_SNAP_MIN_DELTA_SECONDS
+    ) {
+      pauseSnapDeltaSeconds = playbackSyncResult.pauseSnapTimelineDeltaSeconds;
+    }
 
     // While paused, a freshly seeked element may not yet hold a presentable
     // frame, so the shared renderer skips it and shows a transient diagnostic.
@@ -291,6 +311,10 @@ const syncSharedRendererExternalVideoSources = ({
     entries.delete(clipId);
   });
   publishSharedRendererExternalVideoSourceDiagnostics(entries);
+
+  if (onPauseSnap && pauseSnapDeltaSeconds !== undefined) {
+    onPauseSnap(pauseSnapDeltaSeconds);
+  }
 
   return sourcesByClipId;
 };
@@ -855,6 +879,12 @@ const Viewport: React.FC = () => {
           entries: sharedRendererExternalVideoSourcesRef.current,
           isPlaying,
           onFrameReady: requestSharedRendererExternalVideoFrameRepaint,
+          onPauseSnap: (deltaSeconds) => {
+            // Land the timeline head on the frame the element is showing so the
+            // preview does not jump at the play → pause edge. setTime re-publishes
+            // (now paused) and the element stays put, converging in one tick.
+            useStore.getState().setTime(previewTime + deltaSeconds);
+          },
         });
         const presentation = control.presentExternalVideoFrameScene?.({
           session,
