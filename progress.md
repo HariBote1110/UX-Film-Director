@@ -11307,6 +11307,21 @@
 ### 残課題・次のステップ
 - `@PlainEffector.anm` の完全互換にはlayer参照、field mode、offset/pos指定、反転時の元スクリプト寄り挙動が残る。次は93の `@Reflection_poly.anm` を棚卸しするか、PlainEffector Lineの編集UIを広げる。
 
+## 2026-06-27 — Canvas動画プレビューの再生開始遅延と音声無音を修正
+
+### 実施内容
+- Red: 外部動画プレビュー要素へ `muted` / `volume` が反映される契約と、外部動画のみの presenter が停止状態から再生状態へ移る時に再利用される契約を追加した。
+- Green: `SharedRendererExternalVideoSource` に音声状態同期 API を追加し、Canvas に提示している動画オブジェクトの `muted` / `volume` を hidden video 要素へ反映するようにした。
+- Green: 外部動画のみの shared renderer presenter は再生開始時にフレーム時刻を含む key で作り直さず、既存 presenter を保持して `presentExternalVideoFrameScene` を継続するようにした。これにより再生開始直後の presenter 再起動コストを避ける。
+- 版を `0.1.1-Beta-354d` に更新した。
+
+### 検証
+- `npm test -- --run src/utils/sharedRendererExternalVideoSource.test.ts src/components/ViewportDiagnostics.test.ts --reporter=dot` は14件成功。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回の変更由来の型エラーは出ていない。
+
+### 残課題・次のステップ
+- 実Electronで動画クリップを読み込み、再生開始の体感遅延と動画音声の再生を手動確認する。
+
 ## 2026-06-22 — 93 PlainEffector Line編集UIを追加
 
 ### 実施内容
