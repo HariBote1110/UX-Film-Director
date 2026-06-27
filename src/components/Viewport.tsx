@@ -32,6 +32,7 @@ import type { SharedRendererVideoFrameScenePresentationResult } from '../utils/s
 import {
   startSharedRendererViewportPresenter,
 } from '../utils/sharedRendererViewportPresenterOrchestration';
+import { prepareSharedRendererViewportNativeRenderUpload } from '../utils/sharedRendererViewportNativeRenderUpload';
 import type { SharedRendererViewportVideoDecodeJob } from '../utils/sharedRendererViewportVideoUpload';
 import type { ProjectExportRustFrameSourceContext } from '../utils/projectExportFrameCanvas';
 import { buildViewportRustExportFrameSource } from '../utils/viewportRustExportFrameSource';
@@ -471,6 +472,12 @@ const Viewport: React.FC = () => {
   const sharedRendererPendingPresenterSessionKeyRef = useRef<string | null>(null);
   const sharedRendererVideoDecodeJobsRef = useRef<SharedRendererViewportVideoDecodeJob[]>([]);
   const sharedRendererVideoDecodeRequestIdRef = useRef(0);
+  // Single-flight guard for the rust-only native render reuse path: at most one
+  // decode+present is in flight at a time so a slow tick cannot issue a second,
+  // out-of-order frame request (the backwardSeek collisions that restart the
+  // streaming decoder). `pending` holds the latest dropped tick to replay once.
+  const sharedRendererNativeReusePreparingRef = useRef(false);
+  const sharedRendererNativeReusePendingRef = useRef<{ time: number; objects: TimelineObject[] } | null>(null);
   const sharedRendererExternalVideoSourcesRef = useRef<Map<string, SharedRendererExternalVideoSourceEntry>>(new Map());
   const pixiObjectsRef = useRef<Map<string, PIXI.Container>>(new Map());
   const groupContainersRef = useRef<Map<string, PIXI.Container>>(new Map());
@@ -871,8 +878,15 @@ const Viewport: React.FC = () => {
       isExporting,
       rustVideoOnly: rustVideoOnlyEnabled,
     });
+    // In rust-only mode the native render presenter can be reused across playback
+    // frames: instead of a full presenter restart per frame (the flicker + decode
+    // restart storm), keep the presenter and only push a freshly decoded native
+    // frame onto it. Requires an all-video session the native path can render.
+    const canReuseNativeRenderPresenter = rustVideoOnlyEnabled
+      && !isExporting
+      && isSharedRendererExternalVideoOnlySession(session);
     const nextPresenterKey = buildSharedRendererPresenterSessionKey(session, {
-      includePlaybackFrame: !canReuseExternalVideoPresenter,
+      includePlaybackFrame: !(canReuseExternalVideoPresenter || canReuseNativeRenderPresenter),
     });
     if (isPlaying && sharedRendererPresenterStartingRef.current) {
       sharedRendererPendingPreviewSessionRef.current = session;
@@ -922,6 +936,44 @@ const Viewport: React.FC = () => {
         sharedRendererPresenterSessionKeyRef.current = null;
       }
     }
+    if (canReuseNativeRenderPresenter && sharedRendererPresenterSessionKeyRef.current === nextPresenterKey) {
+      const control = sharedRendererPresenterControlRef.current;
+      if (control?.ok && control.presentPreparedNativeRenderFrame) {
+        const presentPreparedNativeRenderFrame = control.presentPreparedNativeRenderFrame;
+        if (sharedRendererNativeReusePreparingRef.current) {
+          // A decode+present is already in flight; replay only the latest tick.
+          sharedRendererNativeReusePendingRef.current = { time, objects: currentObjects };
+          return;
+        }
+        sharedRendererNativeReusePreparingRef.current = true;
+        void (async () => {
+          try {
+            const result = await prepareSharedRendererViewportNativeRenderUpload({
+              session,
+              requestId: (sharedRendererVideoDecodeRequestIdRef.current += 1),
+              activeJobs: sharedRendererVideoDecodeJobsRef.current,
+            });
+            sharedRendererVideoDecodeJobsRef.current = result.activeJobs;
+            if (result.ok) {
+              await presentPreparedNativeRenderFrame(result.upload);
+            } else {
+              // The scene changed under us (e.g. clip swapped); fall back to a full
+              // presenter restart so it rebuilds for the new scene.
+              sharedRendererPresenterSessionKeyRef.current = null;
+              setSharedRendererPreviewSession(session);
+            }
+          } finally {
+            sharedRendererNativeReusePreparingRef.current = false;
+            const pending = sharedRendererNativeReusePendingRef.current;
+            sharedRendererNativeReusePendingRef.current = null;
+            if (pending) {
+              publishSharedRendererPreviewSessionRef.current?.(pending.time, pending.objects);
+            }
+          }
+        })();
+        return;
+      }
+    }
     if (sharedRendererPresenterSessionKeyRef.current !== nextPresenterKey) {
       sharedRendererPresenterSessionKeyRef.current = nextPresenterKey;
       setSharedRendererPreviewSession(session);
@@ -939,6 +991,11 @@ const Viewport: React.FC = () => {
     requestSharedRendererExternalVideoFrameRepaint,
     updateSharedRendererGeneratedEffectObjectIds,
   ]);
+
+  // Latest publish callback, so the native reuse single-flight replay can re-run
+  // the most recent dropped tick without making publish depend on itself.
+  const publishSharedRendererPreviewSessionRef = useRef(publishSharedRendererPreviewSession);
+  publishSharedRendererPreviewSessionRef.current = publishSharedRendererPreviewSession;
 
   useEffect(() => {
     publishSharedRendererPreviewSession(currentTime, objects);

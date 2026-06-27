@@ -1,3 +1,25 @@
+## 2026-06-28 — Rust ルート：ネイティブ再利用パスで毎フレームのpresenterフル再起動（チカチカ）を解消（Option A）
+
+### 実施内容
+- （い-1/い-2）後の実機トレースで「1920ジョブ消滅・定常再生は sequential ~3ms」を確認。一方チカチカは不変で、真因を特定：rust-only で `canReuse=false`→`includePlaybackFrame:true`→presenter session key が毎フレーム変化→`setSharedRendererPreviewSession` 毎フレーム→**ネイティブデコードの大エフェクトが毎フレーム presenter をフル再起動**。WebGPU presenter の毎フレーム破棄＝flicker、非同期 start の重なりで同一/近接フレームの decode が多重化→`backwardSeek` 衝突で温存デコーダ破壊。
+- presenter 制御は外部ビデオ用 `presentExternalVideoFrameScene` しか再利用 API を持たず、ネイティブ用が無いのが根本。Option A としてネイティブ再利用パスを新設：
+  - 制御に `presentPreparedNativeRenderFrame(upload)` を追加（既存 presenter に upload+present+release、WebGPU 再初期化なし）。
+  - Viewport：rust-only かつ全 video セッションで `canReuseNativeRenderPresenter=true`→キーを安定化（playback frame を含めない）。`publishSharedRendererPreviewSession` に再利用分岐を追加し、`prepareSharedRendererViewportNativeRenderUpload` で新フレームをデコード→`presentPreparedNativeRenderFrame` で差し替え。presenter はフル再起動しない。
+  - 単一フライト化（`sharedRendererNativeReusePreparingRef`／`...PendingRef`）：同時に1デコードのみ。遅延 tick は最新だけ replay（`publishSharedRendererPreviewSessionRef` 経由で自己依存回避）。これで多重要求の `backwardSeek` 衝突も抑止。
+
+### 選定理由・判断の根拠
+- flicker の正体は「毎フレーム presenter フル再起動」。外部ビデオ経路に既にある「既存 presenter へフレーム差し替え」をネイティブにも用意するのが本質解（presenter 維持で WebGPU 再初期化と canvas クリアを排除）。
+- 単一フライトは、非同期 start 重なりによる out-of-order decode（backwardSeek 衝突）を構造的に断つ。デコーダ温存を守る。
+- 失敗時（シーン変化等）はキー無効化でフル再起動にフォールバックし安全側。
+
+### 修正結果（TDD）
+- Red/Green: コントローラに「既存 presenter へ再起動なしでネイティブ frame を再提示」契約を追加（writeTexture→gpuUploadDone→release を新フレームで実施）。`presentPreparedNativeRenderFrame` を実装し制御に公開。返り値は upload/present 双方の失敗を表せる緩い型に。
+- Viewport 配線（reuse 判定・安定キー・単一フライト・pending replay）。共有レンダラー＋components 336 件緑、Viewport.tsx 固有 tsc エラーなし。版を `0.1.1-Beta-358a` に更新。
+
+### 残課題・次のステップ
+- 実機再計測（`UXFD_DECODE_TRACE=1 npm run dev:rust-video`）：チカチカ消失、`backwardSeek`/`forwardGapExceeded` の激減、ほぼ全 `sequential` を確認したい。
+- なお残るハマりがあれば Phase 3（Rust 側 source rate 連続先読み）。停止時の最終フレーム精度や色整合は別途。
+
 ## 2026-06-28 — Rust ルート：遷移時の解像度切替チャーンを除去（い-1＋い-2）
 
 ### 実施内容
