@@ -81,9 +81,24 @@ pub(crate) fn try_render_simple_video_frame(
     let Some(source) = sources.get(&clip.media_id) else {
         return Ok(None);
     };
-    if source.width != media.width || source.height != media.height {
+    // The preview decode may downscale the video to a proxy resolution for speed
+    // (e.g. 320px), so the source is allowed to be a proportional downscale of the
+    // media rather than its full resolution. Compute the fit scale that maps the
+    // proxy back up to the media's display size; when source == media this is 1.0
+    // and behaviour is unchanged.
+    if source.width == 0
+        || source.height == 0
+        || media.width == 0
+        || media.height == 0
+        || source.width > media.width
+        || source.height > media.height
+    {
         return Ok(None);
     }
+    let fit_scale_x = f64::from(media.width) / f64::from(source.width);
+    let fit_scale_y = f64::from(media.height) / f64::from(source.height);
+    let effective_scale_x = (f64::from(clip.transform.scale_x) * fit_scale_x) as f32;
+    let effective_scale_y = (f64::from(clip.transform.scale_y) * fit_scale_y) as f32;
     let Some(translation_x) = finite_integer_i64(clip.transform.translation_x) else {
         return Ok(None);
     };
@@ -104,8 +119,8 @@ pub(crate) fn try_render_simple_video_frame(
         height,
         translation_x,
         translation_y,
-        clip.transform.scale_x,
-        clip.transform.scale_y,
+        effective_scale_x,
+        effective_scale_y,
         clip.transform.sampling,
     )?;
 

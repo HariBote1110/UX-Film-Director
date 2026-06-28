@@ -1,3 +1,22 @@
+## 2026-06-28 — プロキシ縮小デコード時のnative合成が極小・左上・黒になる不具合を修正（フィットスケール）
+
+### 実施内容
+- shm 修正後、映像は出る（status=ready）が「極小・左上に偏る・全体的に黒っぽい」「videoFrameUploadReady=false」報告。
+- 原因特定：native CPU 合成 `try_render_simple_video_frame`（`rust-backend/src/cpu_simple_video.rs`）が `source.width != media.width` で**バイパス**する設計。デコードを 320px プロキシに縮小した結果、source(320) != media(1920) で従来効いていた CPU fast-path が無効化。`blit` は `transform.scale`（ユーザースケール、フル解像度前提）しか掛けず、プロキシ用フィットスケール（media/source）が無いため 320px が左上に等倍配置→周囲が黒。
+- 修正：ガードを「アスペクト保持のプロキシ縮小（source ≤ media）」まで許容し、`fit_scale = media_dim / source_dim` を算出、`effective_scale = transform.scale * fit_scale` を blit に適用。source == media のときは fit=1 で従来挙動を完全保存。
+
+### 選定理由・判断の根拠
+- プロキシ縮小デコード（速度のため）と、合成の「source 実寸＝表示寸」前提が衝突していた。合成側でプロキシを表示領域へスケールアップするのが正。translation は出力空間なので不変。
+- f64 で fit を計算し f32 へ。source>media は弾く（プロキシは常に media 以下）。
+
+### 修正結果（TDD）
+- Red/Green: `cpu_simple_video.rs` に「2x1 プロキシ→4x2 media を埋める」ユニットテスト追加（左半赤・右半青で fill 検証）。フィットスケール実装で Green。
+- 検証: rust-backend 全テスト（unit 50＋integration 56）green、回帰なし。版を `0.1.1-Beta-361a` に更新。
+
+### 残課題・次のステップ
+- 実機で極小・黒が解消し全画面表示になるか確認。「色がおかしい」が残る場合は別件（プロキシ/外部ビデオ経路の色域整合）として切り分け。
+- WGPU native renderer 側にも同様のプロキシ前提があれば要確認（現状は CPU fast-path が先に効くため CPU 側修正で表示は復帰見込み）。
+
 ## 2026-06-28 — leakした共有メモリ名でnative renderがブロックする不具合を修正（shm回収）
 
 ### 実施内容
