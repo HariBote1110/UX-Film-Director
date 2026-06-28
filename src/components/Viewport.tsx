@@ -887,6 +887,9 @@ const Viewport: React.FC = () => {
       && isSharedRendererExternalVideoOnlySession(session);
     const nextPresenterKey = buildSharedRendererPresenterSessionKey(session, {
       includePlaybackFrame: !(canReuseExternalVideoPresenter || canReuseNativeRenderPresenter),
+      // The native reuse path re-presents the full Rust-composited frame each
+      // tick, so animated transform/opacity/effects must not churn the key.
+      includeAnimatedSceneContent: !canReuseNativeRenderPresenter,
     });
     if (isPlaying && sharedRendererPresenterStartingRef.current) {
       sharedRendererPendingPreviewSessionRef.current = session;
@@ -1054,8 +1057,14 @@ const Viewport: React.FC = () => {
       isExporting,
       rustVideoOnly: rustVideoOnlyEnabled,
     });
+    const canReuseCurrentNativeRenderPresenter = rustVideoOnlyEnabled
+      && !isExporting
+      && isSharedRendererExternalVideoOnlySession(sharedRendererPreviewSession);
     const presenterSessionKey = buildSharedRendererPresenterSessionKey(sharedRendererPreviewSession, {
-      includePlaybackFrame: !canReuseCurrentPresenterSession,
+      // Mirror publishSharedRendererPreviewSession so the pending-replay key
+      // comparison in .finally matches the key the publish path stored.
+      includePlaybackFrame: !(canReuseCurrentPresenterSession || canReuseCurrentNativeRenderPresenter),
+      includeAnimatedSceneContent: !canReuseCurrentNativeRenderPresenter,
     });
     let externalVideoSourcesByClipId = new Map<string, unknown>();
     if (isExporting) {

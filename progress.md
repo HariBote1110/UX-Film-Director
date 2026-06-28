@@ -1,3 +1,24 @@
+## 2026-06-28 — 自動計測テスト追加＋別エージェント調査でOption A不発火の主因を特定・修正
+
+### 実施内容
+- Option A 後も「チカチカ継続（ダメだった）」との報告。ユーザー依頼で (1) 自動計測テスト実装、(2) 別エージェント調査を実施。
+- **(1) 自動計測テスト**：`decode_control_plane.rs` に `decode_streaming_restart_count_stays_low_across_playback_with_repeats_and_backsteps` を追加。`build_n_frame_h264_fixture`（30フレーム）に再生＋重複/±1後退の現実的系列 `[0,5,5,10,9,10,15,20,20,25,24,25]` を流し、ffmpeg コールド再起動回数を計測。**現状5回／目標≤1（Red）**＝「ダメ」を客観化。トレース目視を CI 指標化。
+- **(2) 別エージェント調査（general-purpose, read-only）**で主因を特定：**presenter session key が `includePlaybackFrame:false` でも毎フレーム変化**。`sharedRendererPresenterSessionKey.ts` が `transform`/`opacity`/`effects`/`z_index`（フェード・位置キーフレーム・時間依存effect＝`rustSceneSnapshot.ts:213-234` で時間評価）を無条件に鍵へ含めるため。→ `Viewport.tsx` の native 再利用分岐 `key === nextKey` が毎フレーム false → フル再起動に落ち、Option A が不発火。チカチカと backwardSeek ストームの主因。
+- **修正（論点1・最小）**：鍵に `includeAnimatedSceneContent` オプション追加（デフォルト true で外部ビデオ経路の既存契約は不変）。native 再利用成立時のみ false にし `transform/opacity/effects/zIndex` を鍵から除外。両鍵生成箇所（`publishSharedRendererPreviewSession` と大エフェクト）で `canReuse(Current)NativeRenderPresenter` に応じて揃えて指定。
+
+### 選定理由・判断の根拠
+- native 再利用は Rust 合成済みフレームを丸ごと差し替え提示するため、transform/effects は既にネイティブ側で反映済み。フロント鍵で比較する意味がなく、除外が正。
+- 外部ビデオ経路の鍵契約（transform 変化で再起動）は別前提のため、新オプションで分離し既存を壊さない。
+
+### 修正結果（TDD）
+- Red/Green: 鍵テストに「native 再利用鍵は時間アニメを無視し構造変化のみ反映」契約を追加→実装。共有レンダラー＋鍵＋診断 296 件緑、Viewport.tsx 固有 tsc エラーなし。版を `0.1.1-Beta-359a` に更新。
+- 計測テスト（decode層）は依然 Red（目標）。論点4のデコード層キャッシュ未実装のため。
+
+### 残課題・次のステップ（エージェント提案、優先順）
+1. 【済】論点1 鍵修正（本コミット）。実機でチカチカ消失・再利用発火を再計測したい。
+2. 論点3：rust-only で `syncSharedRendererExternalVideoSources` をスキップ（不要な HTMLVideoElement 二重デコードと、`onFrameReady` 由来の鍵 null 化＝余計なフル再起動を排除）。
+3. 論点4：`decode.rs`/`sessions.rs` に直近フレーム＋小後退リングキャッシュを追加し、重複/±1後退を再起動せず救済（計測テストを Green 化）。
+
 ## 2026-06-28 — Rust ルート：ネイティブ再利用パスで毎フレームのpresenterフル再起動（チカチカ）を解消（Option A）
 
 ### 実施内容
