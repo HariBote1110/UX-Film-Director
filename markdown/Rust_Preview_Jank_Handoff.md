@@ -4,6 +4,33 @@
 
 ---
 
+## 2026-06-28 現状サマリ（最新・ここから着手）
+
+チカチカ・再起動ストームは解消済み（presenter 再利用・shm leak 回収・解像度固定・直近フレームキャッシュ・dev release 化、版 0.1.1-Beta-362a）。**残る2つの問題**：
+
+### 残問題1：fps が出ない（~15fps）。原因＝native 合成がフルキャンバス解像度で毎フレーム往復している
+- `prepareSharedRendererViewportNativeRenderUpload`（`src/utils/sharedRendererViewportNativeRenderUpload.ts:215`）が `width: surfaceGate.canvas.width, height: canvas.height`（=1920等）で `renderNativeSharedFrame` を呼ぶ。
+- そのため毎フレーム **フルキャンバス(1920×1080)の RGBA を生成 → 共有メモリへ readback（`native-wgpu-renderer/src/lib.rs:408` の readback、または CPU 合成 `rust-backend/src/cpu_simple_video.rs`）→ フロントが presenter の GPU へ 8MB 再アップロード**。プロキシを 720 にデコードしても**出力がキャンバスのまま**なので往復データ量が減らず 15fps の壁。
+- さらに直近修正で CPU 合成パス（`try_render_simple_video_frame`）にフィットスケール（`media/source`）を入れて有効化済み＝「正しいが重い」。
+- **GPU presenter は native フレームをサンプラーでキャンバスへ拡大描画できる**（`src/utils/sharedRendererWebGpuPresenter.ts:1017` `presentNativeRenderFrame` はフルスクリーン quad＋sampler）。
+- **修正方針（プロキシ出力＋GPU拡大）**：native 合成の出力を**プロキシ解像度（≈720、デコードと同じ）**にし、presenter にキャンバス拡大を任せる。毎フレームのデータ量が ~7分の1。
+  - 幾何：WGPU レンダラは clip quad を **ソース実寸**から計算（`native-wgpu-renderer/src/lib.rs:323` `source_width: source.width`）。出力＝ソース寸に揃え、`translation` を `output/canvas` 倍にスケールすれば、全画面1クリップは `source×scale` が出力を満たす。CPU 経路の `media/source` フィットスケールは revert し raw `transform.scale` に戻す（出力＝ソース寸前提に統一）。該当ユニットテスト `cpu_simple_video.rs::proxy_scale_tests` も新方針に更新。
+  - 注意：GPU 描画結果はユニットテストで検証不可。実機 `npm run dev:rust-video`＋目視で「全画面・滑らか」を確認。
+  - さらに余地：backend GPU→shm→frontend GPU の往復自体が重い。プロキシ化で十分でなければ、合成を presenter 側 GPU に寄せて readback を無くす設計も検討。
+
+### 残問題2：映像が暗い（くらい）。原因候補＝デコードの色域処理
+- `rust-backend/src/decode.rs` の `start_streaming_decode_process` がフィルタ `scale=...:in_range=<probed>:out_range=pc,format=rgba` を使用。`probe_video_input_metadata` は `color_range` を読み、**unknown/空/tv は "tv"（リミテッド）にフォールバック**。
+- 動画がフルレンジ（pc）だが未タグ（unknown）の場合 "tv 扱い→暗く"。外部 HTMLVideoElement 経路が正しく見えるのと整合（ブラウザは実レンジを使う）。
+- さらに **colormatrix/primaries/transfer を scale フィルタに渡していない**（range のみ）。マトリクス不一致で色相ずれも起こり得る。
+- **要・実機データ**：対象動画で `ffprobe -v error -select_streams v:0 -show_entries stream=color_range,color_primaries,color_transfer,color_space,pix_fmt -of json <file>` を実行し、`color_range` 等を確認してから対処（unknown 既定を変える／matrix 等を明示）。誤ると正しくタグ付けされた tv 動画を壊すので、データ確認必須。
+
+### 受け入れ基準（追加）
+- 実機で **30fps 以上の体感** かつ **全画面表示**（極小・左上・黒なし）。
+- 暗さ（くらい）が解消し、外部ビデオ経路と同等の明るさ・色。
+- 既存テスト（vitest 関連・`cargo test` decode/native）が緑のまま。
+
+---
+
 ## 2026-06-28 Codex実施結果
 
 - バグA（native経路への `maxDecodeEdge` 未伝播）は修正済み。`prepareSharedRendererViewportNativeRenderUpload` が `maxDecodeEdge`/slot設定を受け取り、native source preparationへ渡す。

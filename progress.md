@@ -1,3 +1,14 @@
+## 2026-06-28 — 残2問題(15fps/暗さ)の真因を特定しハンドオフブリーフへ追記（外部エージェント委任）
+
+### 実施内容
+- release化後も「15fps・くらい(暗い)」継続。2問題の真因を特定：
+  - **15fps**：native 合成が **フルキャンバス解像度(1920)で毎フレーム出力 → shm readback → frontend GPU 再アップロード(8MB)** の往復。プロキシ720デコードも出力がキャンバスのままで往復量が減らない（`sharedRendererViewportNativeRenderUpload.ts:215` が canvas 寸を渡す）。直近の CPU フィットスケールで重い CPU 合成も有効化。修正方針＝native 出力をプロキシ寸にし presenter（sampler 拡大）でキャンバスへ。幾何は `native-wgpu-renderer/src/lib.rs:323` が source 実寸基準のため、出力=ソース寸＋translation×(output/canvas)＋raw scale に統一、CPU フィットスケールは revert。
+  - **暗さ**：`decode.rs` の `probe_video_input_metadata` が color_range unknown/tv→"tv"(limited) フォールバック。フルレンジ未タグ動画が tv 扱いで暗くなる疑い（外部ビデオ経路が正常なのと整合）。matrix/primaries/transfer も scale に未伝播。要 ffprobe 実機データ。
+- ユーザー方針：fps/色とも**外部エージェントに委任**。`markdown/Rust_Preview_Jank_Handoff.md` 冒頭に「2026-06-28 現状サマリ」を追記（残2問題の根因・修正方針・受け入れ基準・要確認データ・該当 file:line）。
+
+### 残課題・次のステップ（ブリーフに委任）
+1. native 合成のプロキシ出力化＋GPU 拡大（fps）。2. デコード色域（暗さ）を ffprobe データに基づき是正。実機目視＋既存テスト緑維持。
+
 ## 2026-06-28 — 0.5fps/ガビガビ対策：dev backendをrelease化＋プレビュー解像度を320→720
 
 ### 実施内容
