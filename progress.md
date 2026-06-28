@@ -1,3 +1,25 @@
+## 2026-06-28 — 0.5fps/ガビガビ対策：dev backendをrelease化＋プレビュー解像度を320→720
+
+### 実施内容
+- フィットスケール修正後「0.5fps・ガビガビ・くらい」報告。原因切り分け：
+  - **0.5fps**：`electron/main.ts` がバックエンドを `target/debug` 優先で解決し、dev は debug ビルドの Rust。native 合成は毎フレーム full-canvas(1920) の RGBA を CPU で生成（プロキシ→キャンバスのスケール blit 含む）。debug の per-pixel 処理が ~10-50x 遅く 0.5fps に。
+  - **ガビガビ**：プロキシが 320px と粗く、GPU/CPU でキャンバスへ拡大するとブロック状。
+  - **くらい**：色域の別件（今回は未対応、切り分け）。
+- 修正：
+  - `scripts/dev-rust-video.mjs`：起動前に `cargo build --release` し、`UXFD_RUST_BACKEND_BIN` を release binary に設定（main.ts は同 env を最優先で解決）。debug の per-pixel 遅延を排除。
+  - `SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE` 320→720（プレビュー解像度を上げてガビガビ緩和。GPU presenter が 720 プロキシをキャンバスへサンプリング拡大）。フィットスケール合成は維持（release で安価）。
+
+### 選定理由・判断の根拠
+- preview は Rust で per-frame RGBA 合成・スケールを行うため、debug ビルドでは実用 fps が出ない。release 化が最小・最大効果の是正（`presentNativeRenderFrame` は元々 GPU サンプラーで拡大可能なので、合成自体を軽くするより先に debug 遅延を除く）。
+- 解像度 720 は decode コスト（release なら数〜十数ms）と画質の妥協点。MAX_EDGE テストは `>= 320` 契約のため無影響。
+
+### 修正結果
+- settings/boundary 30 件 green、dev スクリプト構文OK、release binary 生成確認。版を `0.1.1-Beta-362a` に更新。
+
+### 残課題・次のステップ
+- 実機で fps 回復・ガビガビ緩和を確認。なお遅い場合は native 合成出力をプロキシ解像度に縮小し GPU 拡大へ寄せる（CPU 合成コストを output=canvas から output=proxy へ）アーキ改善。
+- 「くらい（色）」は別件として色域整合を調査（プロキシ decode の range / native 経路の color pipeline）。
+
 ## 2026-06-28 — プロキシ縮小デコード時のnative合成が極小・左上・黒になる不具合を修正（フィットスケール）
 
 ### 実施内容
