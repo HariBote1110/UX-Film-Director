@@ -173,18 +173,30 @@ impl PosixSharedRing {
 
         let name = shm_name(name)?;
         let len = mapping_len(slot_count, frame_len);
-        let fd = unsafe {
+        let open_exclusive = || unsafe {
             libc::shm_open(
                 name.as_ptr(),
                 libc::O_CREAT | libc::O_EXCL | libc::O_RDWR,
                 0o600,
             )
         };
+        let mut fd = open_exclusive();
         if fd < 0 {
-            return Err(PosixShmError::Io {
-                operation: "shm_open(create)",
-                source: io::Error::last_os_error(),
-            });
+            let error = io::Error::last_os_error();
+            // A name collision means a previous owner leaked this shm (e.g. the
+            // process was SIGKILLed before Drop could unlink). These names are
+            // single-owner, so reclaim the stale name by unlinking it and retry
+            // once rather than failing the whole decode/render with AlreadyExists.
+            if error.raw_os_error() == Some(libc::EEXIST) {
+                unsafe { libc::shm_unlink(name.as_ptr()) };
+                fd = open_exclusive();
+            }
+            if fd < 0 {
+                return Err(PosixShmError::Io {
+                    operation: "shm_open(create)",
+                    source: io::Error::last_os_error(),
+                });
+            }
         }
 
         let mut ring = Self {

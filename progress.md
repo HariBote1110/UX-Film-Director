@@ -1,3 +1,21 @@
+## 2026-06-28 — leakした共有メモリ名でnative renderがブロックする不具合を修正（shm回収）
+
+### 実施内容
+- 外部エージェントの修正（native一本化）後、Canvas に `status=blocked / requiredVideoOwnershipUnavailable` と `SharedMemory operation "shm_open(create)" Os code 17 AlreadyExists "File exists"` が表示される報告。
+- レビューで外部エージェントの差分（解像度伝播・経路一本化・external source 破棄・直近フレームキャッシュ）は妥当・テスト改ざんなしと確認（vitest 385件、cargo decode 56件、tsc 新規エラーなし）。
+- 新エラーの原因を特定：POSIX 共有メモリ作成が `O_CREAT|O_EXCL`（`shared-memory-spike/src/lib.rs`）。dev アプリを強制終了（SIGKILL）すると Drop が走らず shm 名が leak し、次回 native render が同名作成で `EEXIST` 失敗→`requiredVideoOwnershipUnavailable` でブロック。「native or nothing」化で従来回復していた失敗が硬直ブロックになった。
+- 修正：`create_with_slot_count` で `EEXIST` 時に stale 名を `shm_unlink` して1回リトライ（leak 回収）。これらの名は単一所有（decode は jobId guard、native 出力は単調増加 requestId）なので unlink は安全。
+
+### 選定理由・判断の根拠
+- POSIX shm はプロセス crash 後も残存するため、shm 利用アプリは「再起動時に自分の leak を回収」できる必要がある（過剰防御でなく必須の堅牢性）。単一所有名なので unlink-before-retry に副作用なし。
+
+### 修正結果（TDD）
+- Red/Green: `posix_shm_two_process.rs` に「crash で leak した shm 名を再作成で回収」契約を追加（`std::mem::forget` で Drop 抑止して leak を再現、エラーはユーザー報告と同一 code 17）。`create_with_slot_count` に unlink-retry を実装。
+- 検証: shm-spike 全テスト＋rust-backend decode 56件 green。版を `0.1.1-Beta-360a` に更新。
+
+### 残課題・次のステップ
+- 実機で blocked が消え native render が出るか、1920ジョブ無し・firstFrame 初回のみ・sequential/cacheHit 中心かを確認。
+
 ## 2026-06-28 — Rustデコード層に直近フレームキャッシュを追加し小後退再起動を解消
 
 ### 実施内容
