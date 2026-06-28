@@ -1,3 +1,41 @@
+## 2026-06-28 — 暗さ(くらい)を修正：video textureを非srgb(rgba8unorm)化し設計文書と整合
+
+### 実施内容
+- 外部エージェント調査で暗さの強候補を特定：presenter が decoded/native frame を `rgba8unorm-srgb` テクスチャへ upload（`sharedRendererWebGpuPresenter.ts:661`）。video fragment shader（`:1292`）は `textureSample` をそのまま return（エンコード無し）。`-srgb` テクスチャはサンプル時に HW で sRGB→linear デコードするため、linear 値が non-srgb canvas（presenter は -srgb canvas を拒否、`:417-428`）へそのまま書かれ暗くなる。
+- 設計文書 `markdown/architecture/04-render-parity.md:112-113` は「source texture は両経路とも `rgba8unorm`、`-srgb` texture view は使わない／sRGB decode は WGSL 内で手動」と固定。実装が文書違反だった。
+- 修正：video texture format を `rgba8unorm-srgb`→`rgba8unorm`（型注釈2＋実体1）。サンプルが生の sRGB バイトを返し shader 素通し→non-srgb canvas で正しい明るさ。不透明 video はこれで正。
+
+### 修正結果（TDD）
+- Red/Green: presenter テストを「非srgb texture 生成」契約へ更新→実装。共有レンダラー 290 件＋presenter系 83 件緑、tsc 本変更由来エラーなし。版を `0.1.1-Beta-363a` に更新。
+
+### 残課題・次のステップ
+- 実機で暗さ解消を目視確認。fps(~15)：native render output をプロキシ寸法化＋GPU 拡大（8.29MB→1.17MB）。引き継ぎブリーフ記載・未実装。
+
+## 2026-06-28 22:41 JST — Rust preview jank 引き継ぎバグ調査開始
+
+### 実施内容
+- `markdown/Rust_Preview_Jank_Handoff.md` を起点に、最新の残問題（native 合成のフルキャンバス往復によるfps低下、decode色域推定による暗さ）を調査対象として整理した。
+- 正本確認として `markdown/Task.md`、`markdown/Implementation_Plan.md`、`markdown/Walk_Through.md`、`markdown/architecture/00-overview.md`、`02-rust-core-spec.md`、`04-render-parity.md`、`05-boundary-ipc.md`、既存 `progress.md` を読んだ。
+- この時点では実装変更は行わず、現コード・テスト・実機データ不足箇所を確認してから、必要ならTDDで修正へ進む。
+
+### 次に確認すること
+- `prepareSharedRendererViewportNativeRenderUpload` が native render output をキャンバス寸法のまま要求しているか。
+- WGPU/CPU native render 側の幾何がプロキシ出力前提へ切り替え可能か、既存テストが何を固定しているか。
+- `rust-backend/src/decode.rs` の `color_range` / colour metadata 取扱いが、未タグ full range 動画を `tv` と誤判定し得るか。
+
+### 調査結果
+- fps 低下の主因は現コードでも残存。`src/utils/sharedRendererViewportNativeRenderUpload.ts` は source decode には `maxDecodeEdge=720` を渡すが、`renderNativeSharedFrame` へは `surfaceGate.canvas.width/height` を渡している。これにより 720px decode 後も native render output は 1920x1080 のまま共有メモリ readback / renderer upload される。
+- 1920x1080 RGBA は約 8.29MB、720x405 RGBA は約 1.17MB で約 7.1倍差。引き継ぎの「プロキシ出力＋presenter GPU拡大」方針は妥当。
+- CPU fast-path `rust-backend/src/cpu_simple_video.rs` は現在、プロキシ source を `media/source` fit scale でフルメディアへ伸ばす契約テストを持つ。プロキシ output 化ではこのテストを Red として新方針へ更新する必要がある。
+- 暗さは `decode.rs` の range fallback だけでは断定不可。手元の `perf/heavy-media/GX010052.MP4` は `ffprobe` で `color_range=pc`、`color_space=bt709`、`color_transfer=bt709`、`color_primaries=bt709`、`pix_fmt=yuvj420p`。同素材で `in_range=pc` と `in_range=tv` の decode差は 0。
+- 暗さのより強い候補として、presenter が `rgba8Srgb` frame を `rgba8unorm-srgb` textureへuploadし、non-srgb canvasへ shader でそのまま返している点を特定。設計文書 `architecture/04-render-parity.md` は `-srgb` texture view を使わない契約なので、現テスト `sharedRendererWebGpuPresenter.test.ts` の `rgba8unorm-srgb` 期待は文書と不一致。
+
+### 確認
+- `npx vitest run src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts --reporter=dot` は45件成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane decode_streaming_restart_count_stays_low_across_playback_with_repeats_and_backsteps -- --nocapture` は1件成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml cpu_simple_video::proxy_scale_tests -- --nocapture` は1件成功した。
+- 今回は調査・文書追記のみで、実装修正と版更新は未実施。
+
 ## 2026-06-28 — 残2問題(15fps/暗さ)の真因を特定しハンドオフブリーフへ追記（外部エージェント委任）
 
 ### 実施内容

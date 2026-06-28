@@ -255,7 +255,7 @@ export type SharedRendererVideoFrameTextureUploadResult =
   | {
       ok: true;
       texture: unknown;
-      textureFormat: 'rgba8unorm-srgb';
+      textureFormat: 'rgba8unorm';
       width: number;
       height: number;
       strideBytes: number;
@@ -301,7 +301,7 @@ interface SharedRendererVideoTextureSize {
 
 interface SharedRendererVideoTextureDescriptor {
   size: SharedRendererVideoTextureSize;
-  format: 'rgba8unorm-srgb';
+  format: 'rgba8unorm';
   usage: number;
 }
 
@@ -658,7 +658,12 @@ export const createSharedRendererWebGpuPresenter = async ({
       };
     }
 
-    const textureFormat = 'rgba8unorm-srgb' as const;
+    // Non-srgb texture per architecture/04-render-parity.md:112 — never use a
+    // -srgb texture view (hardware sRGB→linear decode). The decoded frame bytes
+    // are already sRGB-encoded and pass straight through the shader to the
+    // non-srgb canvas; a -srgb texture decoded them to linear and the shader wrote
+    // those darker linear values to the canvas, making the video look dark.
+    const textureFormat = 'rgba8unorm' as const;
     const size = {
       width: descriptor.width,
       height: descriptor.height,

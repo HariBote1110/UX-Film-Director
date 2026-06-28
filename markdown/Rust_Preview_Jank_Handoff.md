@@ -8,6 +8,14 @@
 
 チカチカ・再起動ストームは解消済み（presenter 再利用・shm leak 回収・解像度固定・直近フレームキャッシュ・dev release 化、版 0.1.1-Beta-362a）。**残る2つの問題**：
 
+### 2026-06-28 追加調査メモ（Codex）
+
+- fps 低下は現コードでも再現性が高い。`prepareSharedRendererViewportNativeRenderUpload` は decode source には `maxDecodeEdge=720` を伝播しているが、native render output は依然 `surfaceGate.canvas.width/height` で要求している。そのため 720px decode 後も、native render の共有メモリ出力・readback・renderer upload は 1920x1080 のままになる。1920x1080 RGBA は約 8.29MB、720x405 RGBA は約 1.17MB で約 7.1 倍差。
+- `rust-backend/src/cpu_simple_video.rs` は現在、プロキシ source を `media/source` の fit scale でフルメディア表示へ拡大するテストを正としている。プロキシ output 化へ進む場合、このテストと実装は新方針（output=source寸、presenter側でキャンバス拡大）へ更新する必要がある。
+- 暗さについては `decode.rs` の range 推定だけで断定しないこと。手元の `perf/heavy-media/GX010052.MP4` は `ffprobe` で `color_range=pc`、`color_space=bt709`、`color_transfer=bt709`、`color_primaries=bt709`、`pix_fmt=yuvj420p` であり、同素材では `in_range=pc` と `in_range=tv` の decode 差は 0 だった。
+- より強い暗さ候補として、WebGPU presenter が `rgba8Srgb` decoded/native frame を `rgba8unorm-srgb` texture へ upload している点がある（`src/utils/sharedRendererWebGpuPresenter.ts`）。canvas format は non-srgb 前提で、設計文書 `architecture/04-render-parity.md` は「`-srgb` texture view による hardware sRGB decode は使わない」と固定している。現 shader は `textureSample` 結果をそのまま返すため、sRGB decode された linear 値を non-srgb canvasへそのまま書き、暗く見える可能性が高い。
+- 現テストは `rgba8unorm-srgb` upload を期待しており、設計文書との不一致を検出できていない。暗さ修正はまず presenter texture format / shader 契約の Red test を追加し、`rgba8unorm` + 明示 sRGB decode/encode、または canvas/texture format方針を文書と再同期してから実装するのが安全。
+
 ### 残問題1：fps が出ない（~15fps）。原因＝native 合成がフルキャンバス解像度で毎フレーム往復している
 - `prepareSharedRendererViewportNativeRenderUpload`（`src/utils/sharedRendererViewportNativeRenderUpload.ts:215`）が `width: surfaceGate.canvas.width, height: canvas.height`（=1920等）で `renderNativeSharedFrame` を呼ぶ。
 - そのため毎フレーム **フルキャンバス(1920×1080)の RGBA を生成 → 共有メモリへ readback（`native-wgpu-renderer/src/lib.rs:408` の readback、または CPU 合成 `rust-backend/src/cpu_simple_video.rs`）→ フロントが presenter の GPU へ 8MB 再アップロード**。プロキシを 720 にデコードしても**出力がキャンバスのまま**なので往復データ量が減らず 15fps の壁。
