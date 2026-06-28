@@ -3923,6 +3923,89 @@ fn decode_request_frame_reuses_streaming_decoder_for_sequential_playback_frames(
     assert_no_frame_bytes_recursive(&second_frame["result"]);
 }
 
+/// Automated jank metric: replay a realistic preview request sequence — forward
+/// playback steps interleaved with the duplicate and ±1 backstep requests the
+/// frontend emits in practice — and assert the streaming decoder almost never
+/// cold-restarts ffmpeg. Each restart is a ~150-400ms stall (visible flicker),
+/// so a smooth pipeline restarts only once (the initial spawn). This replaces
+/// eyeballing UXFD_DECODE_TRACE with a CI-enforced threshold.
+#[test]
+fn decode_streaming_restart_count_stays_low_across_playback_with_repeats_and_backsteps() {
+    let temp_dir = TestTempDir::new("decode-restart-metric");
+    let fixture = build_n_frame_h264_fixture(temp_dir.path(), 30);
+    let mut backend = BackendProcess::start();
+
+    let start_response = backend.request(json!({
+        "id": 1,
+        "method": "decode.start",
+        "params": {
+            "jobId": "decode-restart-metric",
+            "source": fixture.path,
+            "slotCount": 1,
+            "width": fixture.width,
+            "height": fixture.height,
+            "sourceRate": { "numerator": 30, "denominator": 1 },
+            "format": "rgba8Srgb",
+            "colour": { "primaries": "bt709", "transfer": "srgb", "matrix": "rgb", "range": "full" }
+        }
+    }));
+    assert_eq!(start_response["ok"], true, "{start_response}");
+    let memory_id = start_response["result"]["memoryId"].as_str().expect("memory id");
+    let slot_byte_len = start_response["result"]["slotByteLen"].as_u64().expect("slot byte length") as usize;
+    let consumer_ring =
+        PosixSharedRing::attach_with_retry(memory_id, slot_byte_len, Duration::from_secs(1))
+            .expect("attach to streaming decode ring");
+
+    let mut next_id = 2u64;
+    let mut request_frame = |frame_index: u64| -> bool {
+        let response = backend.request(json!({
+            "id": next_id,
+            "method": "decode.requestFrame",
+            "params": {
+                "jobId": "decode-restart-metric",
+                "requestId": next_id,
+                "frameIndex": frame_index,
+                "mode": "latestWins"
+            }
+        }));
+        assert_eq!(response["ok"], true, "{response}");
+        let restarted = response["result"]["streamRestarted"].as_bool().expect("streamRestarted");
+        consumer_ring.read_frame(frame_index).expect("consumer reads streaming frame");
+        let release = backend.request(json!({
+            "id": next_id + 10_000,
+            "method": "decode.releaseFrame",
+            "params": {
+                "jobId": "decode-restart-metric",
+                "slotIndex": response["result"]["frame"]["descriptor"]["slotIndex"],
+                "generation": response["result"]["frame"]["descriptor"]["generation"],
+                "copyOutState": "gpuUploadFenceSignalled"
+            }
+        }));
+        assert_eq!(release["ok"], true, "{release}");
+        consumer_ring.wait_until_free(Duration::from_secs(1)).expect("slot returns to free");
+        next_id += 1;
+        restarted
+    };
+
+    // Forward preview cadence with the realistic noise the frontend produces:
+    // a duplicate of the just-shown frame, and an occasional ±1 backstep.
+    let sequence: [u64; 12] = [0, 5, 5, 10, 9, 10, 15, 20, 20, 25, 24, 25];
+    let mut restart_count = 0u32;
+    for frame_index in sequence {
+        if request_frame(frame_index) {
+            restart_count += 1;
+        }
+    }
+
+    // A smooth pipeline restarts ffmpeg only for the very first frame; duplicates
+    // and tiny backsteps must be served from the warm decoder, not a cold respawn.
+    assert!(
+        restart_count <= 1,
+        "streaming decoder cold-restarted {restart_count} times across a playback-with-noise \
+         sequence (target <= 1). Duplicate/backstep requests are still respawning ffmpeg."
+    );
+}
+
 /// Diagnostic contract: every decode.requestFrame response reports why (or why
 /// not) the streaming ffmpeg process was restarted, so the jank caused by
 /// process restarts can be measured on a real playback/scrub session.
@@ -4788,6 +4871,61 @@ fn build_two_frame_h264_fixture_with_colour_metadata(
         .arg("30")
         .arg(&video_path);
     run_ffmpeg_command(&mut command, "encode two-frame fixture");
+
+    TestVideoFixture {
+        path: video_path,
+        width,
+        height,
+    }
+}
+
+/// Build an N-frame H.264 fixture (every frame a keyframe) for streaming decode
+/// measurement tests that need to step across a realistic playback range.
+fn build_n_frame_h264_fixture(directory: &Path, frame_count: u32) -> TestVideoFixture {
+    let width = 34;
+    let height = 16;
+    let raw_path = directory.join(format!("n-frame-source-{frame_count}.rgba"));
+    let video_path = directory.join(format!("n-frame-source-{frame_count}.mp4"));
+    let mut raw_frames = Vec::new();
+    for frame_index in 0..frame_count {
+        raw_frames.extend(test_frame_pixels(width, height, (frame_index % 256) as u8));
+    }
+    fs::write(&raw_path, raw_frames).expect("write raw test frames");
+
+    let mut command = Command::new("ffmpeg");
+    command
+        .arg("-hide_banner")
+        .arg("-loglevel")
+        .arg("error")
+        .arg("-y")
+        .arg("-f")
+        .arg("rawvideo")
+        .arg("-pixel_format")
+        .arg("rgba")
+        .arg("-video_size")
+        .arg(format!("{width}x{height}"))
+        .arg("-framerate")
+        .arg("30")
+        .arg("-i")
+        .arg(&raw_path)
+        .arg("-frames:v")
+        .arg(frame_count.to_string())
+        .arg("-pix_fmt")
+        .arg("yuv444p")
+        .arg("-c:v")
+        .arg("libx264")
+        .arg("-preset")
+        .arg("ultrafast")
+        .arg("-crf")
+        .arg("0")
+        .arg("-x264-params")
+        .arg("keyint=1:min-keyint=1:scenecut=0:range=pc")
+        .arg("-color_range")
+        .arg("pc")
+        .arg("-video_track_timescale")
+        .arg("30")
+        .arg(&video_path);
+    run_ffmpeg_command(&mut command, "encode n-frame fixture");
 
     TestVideoFixture {
         path: video_path,
