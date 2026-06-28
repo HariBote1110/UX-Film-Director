@@ -180,4 +180,60 @@ describe('buildSharedRendererPresenterSessionKey', () => {
       })
     );
   });
+
+  it('keeps animated transform/opacity/effects out of the native-reuse key so the presenter is not restarted every frame', () => {
+    const firstSnapshot: RustSceneSnapshot = {
+      ...emptySnapshot,
+      frame_index: 10,
+      clips: [
+        {
+          clip_id: 'video-1',
+          track_id: 'layer-0',
+          media_id: 'video-1',
+          source_frame: 100,
+          z_index: 0,
+          transform: {
+            translation_x: 300,
+            translation_y: 120,
+            scale_x: 1,
+            scale_y: 1,
+            rotation_degrees: 0,
+            sampling: 'bilinear',
+          },
+          opacity: 1,
+          effects: [],
+        },
+      ],
+    };
+    // Same clip/media structure, but every per-frame animated value differs
+    // (fade, position keyframe, effect param) — the native render path bakes
+    // these into the Rust-composited frame, so they must not churn the key.
+    const animatedSnapshot: RustSceneSnapshot = {
+      ...firstSnapshot,
+      frame_index: 11,
+      clips: firstSnapshot.clips.map((clip) => ({
+        ...clip,
+        source_frame: 101,
+        z_index: 0,
+        opacity: 0.5,
+        transform: { ...clip.transform, translation_x: 301, rotation_degrees: 4 },
+        effects: [{ kind: 'mosaic', strength: 0.3 } as never],
+      })),
+    };
+
+    const options = { includePlaybackFrame: false, includeAnimatedSceneContent: false } as const;
+    expect(buildSharedRendererPresenterSessionKey(baseSession(firstSnapshot), options)).toBe(
+      buildSharedRendererPresenterSessionKey(baseSession(animatedSnapshot), options)
+    );
+
+    // Structural changes (a different media source) must still rebuild the presenter.
+    const restructuredSnapshot: RustSceneSnapshot = {
+      ...firstSnapshot,
+      clips: firstSnapshot.clips.map((clip) => ({ ...clip, media_id: 'video-2' })),
+      // media reference list is keyed off clips in baseSession; force a structural diff
+    };
+    expect(buildSharedRendererPresenterSessionKey(baseSession(firstSnapshot), options)).not.toBe(
+      buildSharedRendererPresenterSessionKey(baseSession(restructuredSnapshot), options)
+    );
+  });
 });
