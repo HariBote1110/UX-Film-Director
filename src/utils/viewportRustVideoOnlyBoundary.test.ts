@@ -93,6 +93,15 @@ describe('Viewport Rust video-only boundary', () => {
     expect(presenterBlock).toContain('sharedRendererExternalVideoSourcesByClipId');
   });
 
+  it('does not pass HTMLVideoElement external sources into rust-only presenter orchestration', () => {
+    const code = viewportSource();
+    const start = code.indexOf('void startSharedRendererViewportPresenter({');
+    const end = code.indexOf('}).then', start);
+    const presenterBlock = code.slice(start, end);
+
+    expect(presenterBlock).toContain('sharedRendererExternalVideoSourcesByClipId: !rustVideoOnlyEnabled');
+  });
+
   it('publishes shared renderer presenter start count for playback performance diagnostics', () => {
     const code = viewportSource();
     const start = code.indexOf('void startSharedRendererViewportPresenter({');
@@ -116,8 +125,8 @@ describe('Viewport Rust video-only boundary', () => {
     const pendingBlock = code.slice(pendingStart, pendingEnd);
 
     expect(code).toContain('isSharedRendererExternalVideoOnlySession');
-    expect(presenterKeyBlock).toContain('includePlaybackFrame: !canReuseExternalVideoPresenter');
-    expect(effectKeyBlock).toContain('includePlaybackFrame: !canReuseCurrentPresenterSession');
+    expect(presenterKeyBlock).toContain('includePlaybackFrame: !(canReuseExternalVideoPresenter || canReuseNativeRenderPresenter)');
+    expect(effectKeyBlock).toContain('includePlaybackFrame: !(canReuseCurrentPresenterSession || canReuseCurrentNativeRenderPresenter)');
     expect(presenterKeyBlock).toContain('syncSharedRendererExternalVideoSources({');
     expect(presenterKeyBlock).toContain('presentExternalVideoFrameScene?.({');
     expect(presenterKeyBlock).toContain('publishSharedRendererExternalVideoPresentationDiagnostics(');
@@ -126,6 +135,26 @@ describe('Viewport Rust video-only boundary', () => {
     );
     expect(pendingBlock).toContain('sharedRendererPendingPreviewSessionRef.current = session');
     expect(pendingBlock).not.toContain('if (!sharedRendererPendingPreviewSessionRef.current)');
+  });
+
+  it('threads preview decode settings into rust-only native reuse uploads', () => {
+    const code = viewportSource();
+    const start = code.indexOf('const result = await prepareSharedRendererViewportNativeRenderUpload({');
+    const end = code.indexOf('});', start);
+    const nativeReuseUploadBlock = code.slice(start, end);
+
+    expect(nativeReuseUploadBlock).toContain('sourceSlotCount: SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT');
+    expect(nativeReuseUploadBlock).toContain('maxDecodeEdge: SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE');
+  });
+
+  it('prefers native render upload for rust-only presenter starts', () => {
+    const code = viewportSource();
+    const start = code.indexOf('void startSharedRendererViewportPresenter({');
+    const end = code.indexOf('}).then', start);
+    const presenterBlock = code.slice(start, end);
+
+    expect(presenterBlock).toContain('nativeRenderPreviewEnabled: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled');
+    expect(presenterBlock).toContain('preferNativeRenderUpload: rustVideoOnlyEnabled');
   });
 
   it('throttles external video playback sync while the presenter is reused', () => {

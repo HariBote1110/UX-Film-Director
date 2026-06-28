@@ -378,6 +378,58 @@ const renderResult: RustBackendNativeRenderSharedFrameResult = {
 };
 
 describe('prepareSharedRendererViewportNativeRenderUpload', () => {
+  it('passes preview decode edge and source slot settings into native render source preparation', async () => {
+    let sourcePreparationInput: unknown;
+
+    await prepareSharedRendererViewportNativeRenderUpload({
+      session: mediaOnlySession,
+      requestId: 24,
+      activeJobs: [],
+      sourceSlotCount: 6,
+      maxDecodeEdge: 320,
+      prepareNativeRenderSources: async (input) => {
+        sourcePreparationInput = input;
+        return {
+          ok: false,
+          reason: 'noVideoDecodeRequest',
+          detail: 'no video',
+          activeJobs: [],
+        };
+      },
+      renderNativeSharedFrame: async () => ({
+        success: true,
+        result: renderResult,
+      }),
+      releaseNativeSharedFrame: async () => ({
+        success: true,
+      }),
+      copyBridge: {
+        copyIntoUploadBuffer: async (_payload, target) => {
+          target.fill(0x7e);
+          return {
+            success: true,
+            result: {
+              sequence: 24,
+              slotIndex: descriptor.slotIndex,
+              generation: descriptor.generation,
+              byteLen: descriptor.byteLen,
+              expectedChecksum: 0x1234,
+              actualChecksum: 0x1234,
+            },
+          };
+        },
+      },
+    } as any);
+
+    expect(sourcePreparationInput).toMatchObject({
+      session: mediaOnlySession,
+      requestId: 24,
+      slotCount: 6,
+      maxDecodeEdge: 320,
+      activeJobs: [],
+    });
+  });
+
   it('renders a media-only scene natively, copies the output frame, and releases the native render output after GPU upload', async () => {
     const calls: unknown[] = [];
 

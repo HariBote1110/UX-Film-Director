@@ -177,19 +177,18 @@ const readyControl: SharedRendererPreviewPresenterControl = {
 };
 
 describe('Rust video preview E2E', () => {
-  it('keeps GoPro video preview on the Rust upload path without probing optional native render fallback', async () => {
+  it('keeps GoPro rust-only preview on the native render path without probing the video-upload fallback', async () => {
     const events: string[] = [];
     let presenterInput: unknown;
     const prepareNativeRenderUpload = vi.fn<SharedRendererViewportNativeRenderUploadPreparer>(async () => {
-      events.push('nativeRenderUnsupportedMediaOnly');
+      events.push('nativeRenderUpload');
       return {
-        ok: false,
-        reason: 'nativeRenderUnsupportedMediaOnly',
-        detail: 'Shared renderer preview session does not contain only Rust native-renderable media.',
-        activeJobs: [],
+        ok: true,
+        activeJobs: [videoJob],
+        upload: videoUpload,
       };
     });
-    const prepareVideoUploads: SharedRendererViewportVideoUploadsPreparer = async () => {
+    const prepareVideoUploads = vi.fn<SharedRendererViewportVideoUploadsPreparer>(async () => {
       events.push('rustVideoUpload');
       return {
         ok: true,
@@ -213,7 +212,7 @@ describe('Rust video preview E2E', () => {
           upload: videoUpload,
         }],
       };
-    };
+    });
     const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {
       events.push('presenterReady');
       presenterInput = input;
@@ -227,6 +226,7 @@ describe('Rust video preview E2E', () => {
       diagnosticSwatchEnabled: false,
       videoCutoverEnabled: true,
       nativeRenderPreviewEnabled: true,
+      preferNativeRenderUpload: true,
       requireSharedRendererVideo: true,
       activeVideoDecodeJob: null,
       activeVideoDecodeJobs: [],
@@ -234,25 +234,24 @@ describe('Rust video preview E2E', () => {
       prepareNativeRenderUpload,
       prepareVideoUploads,
       startPresenter,
-    });
+    } as any);
 
-    expect(events).toEqual(['rustVideoUpload', 'presenterReady']);
-    expect(prepareNativeRenderUpload).not.toHaveBeenCalled();
+    expect(events).toEqual(['nativeRenderUpload', 'presenterReady']);
+    expect(prepareVideoUploads).not.toHaveBeenCalled();
     expect(result.control.ok).toBe(true);
-    expect(result.nativeRenderUploadResult).toBeUndefined();
-    expect(result.videoUploadsResult).toMatchObject({
+    expect(result.nativeRenderUploadResult).toMatchObject({
       ok: true,
       activeJobs: [videoJob],
     });
+    expect(result.videoUploadsResult).toBeUndefined();
     expect(presenterInput).toMatchObject({
       requireSharedRendererVideo: true,
       sharedRendererNativeRenderFailure: undefined,
-      sharedRendererDecodedVideoFrameUploads: [{
-        clipId: 'gopro',
-        mediaId: 'gopro',
+      sharedRendererNativeRenderFrameUpload: {
         descriptor: videoUpload.descriptor,
         ptsFrame: 10,
-      }],
+      },
+      sharedRendererDecodedVideoFrameUploads: undefined,
       sharedRendererVideoUploadFailure: undefined,
     });
   });

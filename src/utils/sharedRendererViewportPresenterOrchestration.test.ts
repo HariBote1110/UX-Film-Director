@@ -387,6 +387,76 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
     });
   });
 
+  it('prefers native render upload for rust-only preview and forwards preview decode settings', async () => {
+    let presenterInput: unknown;
+    let nativeRenderInput: unknown;
+    const events: string[] = [];
+    const prepareNativeRenderUpload: SharedRendererViewportNativeRenderUploadPreparer = async (input) => {
+      events.push('prepareNativeRenderUpload');
+      nativeRenderInput = input;
+      return {
+        ok: true,
+        activeJobs: [activeJob],
+        upload: upload as any,
+      };
+    };
+    const prepareVideoUploads: SharedRendererViewportVideoUploadsPreparer = async () => {
+      events.push('prepareVideoUploads');
+      return {
+        ok: true,
+        activeJobs: [activeJob],
+        uploads: [
+          {
+            request: { clipId: 'video-1' } as any,
+            upload,
+          },
+        ],
+      };
+    };
+    const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {
+      events.push('startPresenter');
+      presenterInput = input;
+      return control;
+    };
+
+    const result = await startSharedRendererViewportPresenter({
+      canvas,
+      session,
+      datasets: [],
+      diagnosticSwatchEnabled: true,
+      videoCutoverEnabled: true,
+      nativeRenderPreviewEnabled: true,
+      preferNativeRenderUpload: true,
+      activeVideoDecodeJob: activeJob,
+      activeVideoDecodeJobs: [activeJob],
+      videoDecodeSlotCount: 6,
+      videoDecodeMaxEdge: 320,
+      requestId: 19,
+      prepareNativeRenderUpload,
+      prepareVideoUploads,
+      startPresenter,
+    } as any);
+
+    expect(result.activeVideoDecodeJobs).toEqual([activeJob]);
+    expect(events).toEqual([
+      'prepareNativeRenderUpload',
+      'startPresenter',
+    ]);
+    expect(nativeRenderInput).toMatchObject({
+      session,
+      requestId: 19,
+      activeJobs: [activeJob],
+      sourceSlotCount: 6,
+      maxDecodeEdge: 320,
+    });
+    expect(presenterInput).toMatchObject({
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererNativeRenderFrameUpload: upload,
+      sharedRendererDecodedVideoFrameUpload: undefined,
+      sharedRendererDecodedVideoFrameUploads: undefined,
+    });
+  });
+
   it('passes native render preparation failure details into the presenter diagnostics input', async () => {
     let presenterInput: unknown;
     const prepareNativeRenderUpload: SharedRendererViewportNativeRenderUploadPreparer = async () => ({
