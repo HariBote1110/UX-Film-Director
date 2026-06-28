@@ -42,6 +42,22 @@ fn two_processes_exchange_frames_after_attach_retry() {
 }
 
 #[test]
+fn posix_shm_create_reclaims_a_leaked_shm_name_from_a_crashed_owner() {
+    // A previous owner that was SIGKILLed (e.g. the dev app force-quit) never ran
+    // Drop, so its POSIX shm name persists. Simulate that by creating a ring and
+    // leaking it (std::mem::forget skips the unlinking Drop), then prove a fresh
+    // create with the same name reclaims it instead of failing with AlreadyExists.
+    let name = unique_shm_name();
+    let leaked = PosixSharedRing::create_with_slot_count(&name, 1, 16)
+        .expect("create initial ring");
+    std::mem::forget(leaked);
+
+    let reclaimed = PosixSharedRing::create_with_slot_count(&name, 1, 16)
+        .expect("recreate must reclaim the leaked shm name rather than fail AlreadyExists");
+    drop(reclaimed);
+}
+
+#[test]
 fn posix_shm_attach_rejects_layout_hash_mismatch() {
     let name = unique_shm_name();
     let ring = PosixSharedRing::create(&name, 4096).expect("create shm ring");
