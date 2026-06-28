@@ -852,7 +852,11 @@ describe('createSharedRendererWebGpuPresenter', () => {
     })).toEqual({
       ok: true,
       texture: 'video-frame-texture',
-      textureFormat: 'rgba8unorm-srgb',
+      // Non-srgb texture: the design (architecture/04-render-parity.md:112) forbids
+      // hardware sRGB decode via a -srgb view. Sampling must return the raw sRGB
+      // bytes so they pass through to the non-srgb canvas at the correct brightness
+      // (a -srgb texture decoded to linear and was written dark to the canvas).
+      textureFormat: 'rgba8unorm',
       width: 34,
       height: 2,
       strideBytes: 256,
@@ -864,7 +868,7 @@ describe('createSharedRendererWebGpuPresenter', () => {
           height: 2,
           depthOrArrayLayers: 1,
         },
-        format: 'rgba8unorm-srgb',
+        format: 'rgba8unorm',
         usage: 6,
       },
     ]);
