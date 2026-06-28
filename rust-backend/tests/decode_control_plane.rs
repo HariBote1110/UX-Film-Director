@@ -4086,10 +4086,13 @@ fn decode_request_frame_reports_stream_restart_reason_for_diagnostics() {
     assert_eq!(second["result"]["streamRestarted"], false);
     assert_eq!(second["result"]["streamRestartReason"], "sequential");
 
-    // Backward re-request (scrub / repeated frame): forces a process restart.
+    // Backward re-request (scrub / repeated frame): served from the recent-frame
+    // cache so a tiny UI wobble does not respawn ffmpeg.
     let backward = request_frame(&mut backend, &consumer_ring, 4, 23, 0);
-    assert_eq!(backward["result"]["streamRestarted"], true);
-    assert_eq!(backward["result"]["streamRestartReason"], "backwardSeek");
+    assert_eq!(backward["result"]["decodePath"], "cache");
+    assert_eq!(backward["result"]["decodeInvocationCount"], 0);
+    assert_eq!(backward["result"]["streamRestarted"], false);
+    assert_eq!(backward["result"]["streamRestartReason"], "cacheHit");
 }
 
 #[test]
