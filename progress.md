@@ -1,3 +1,25 @@
+## 2026-06-28 — rust-onlyプレビューのnative経路へ320pxデコードを固定しHTMLVideoElement混入を停止
+
+### 実施内容
+- `markdown/Rust_Preview_Jank_Handoff.md` を起点に、現コードでの差分を再調査した。バグAは確定どおり、`prepareSharedRendererViewportNativeRenderUpload` が `maxDecodeEdge` を受け取らず、Option Aのnative再利用が既定1920pxデコードへ戻る状態だった。
+- バグBは現コード上では「常時両方を同時準備」ではなく、初回presenter startが320pxのvideo-uploadを優先し、再利用tickが1920pxのnative uploadへ切り替わる構造として再整理した。この切替でjobIdが変わり、320/1920ジョブの停止・再起動が発生しうる。
+- 追加で、rust-onlyでも `syncSharedRendererExternalVideoSources` がHTMLVideoElement外部ソースを作り、presenterへ渡され得ることを確認した。これはRust-onlyの単一路線と矛盾し、外部video提示や `onFrameReady` 経由の余計な再提示を混ぜるため停止した。
+
+### 修正結果（TDD）
+- Red: native uploadへ `maxDecodeEdge`/slot設定が渡る契約、rust-only presenter startがnative uploadを優先する契約、Viewportがrust-onlyで外部video sourceを渡さない契約を追加した。
+- Green: `prepareSharedRendererViewportNativeRenderUpload` に `maxDecodeEdge` を追加し、native source preparationへ伝播した。`startSharedRendererViewportPresenter` に `preferNativeRenderUpload` を追加し、rust-onlyではnative uploadを初回から優先、fallback video-uploadを走らせないようにした。
+- Green: `Viewport.tsx` のOption A直接native uploadへ `SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE(320)` と `SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT` を渡し、rust-onlyではHTMLVideoElement external sourceをdisposeしてpresenterへ渡さないようにした。
+- 版を `0.1.1-Beta-359b` に更新した。
+
+### 確認
+- `npx vitest run src/utils/sharedRendererViewportNativeRenderUpload.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts src/e2e/rustVideoPreview.e2e.test.ts --reporter=dot` は61件成功した。
+- `npx vitest run src/utils/sharedRendererPreviewPresenterController.test.ts src/components/ViewportDiagnostics.test.ts src/utils/sharedRendererViewportNativeRenderSource.test.ts src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/sharedRendererPlaybackPreviewSettings.test.ts --reporter=dot` は86件成功した。
+- `npx tsc --noEmit` は既知の `ThreeStageViewport.tsx` のthree型、`mp4box` 型、`heavyEffectsStress.test.ts` の `PositionKeyframe` 型エラーのみで、今回変更由来の型エラーは出ていない。
+
+### 残課題
+- 実機 `UXFD_DECODE_TRACE=1 npm run dev:rust-video` で、1920ジョブが出ないこと、定常再生がほぼ `sequential` になることを確認する。
+- Rustデコード層の重複/小後退キャッシュは未実装のため、計測テスト `decode_streaming_restart_count_stays_low_across_playback_with_repeats_and_backsteps` は次段でGreen化する。
+
 ## 2026-06-28 — 鍵修正後の再計測で確定バグ2件を特定し外部エージェント用ブリーフ作成
 
 ### 実施内容

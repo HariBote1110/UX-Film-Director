@@ -955,6 +955,8 @@ const Viewport: React.FC = () => {
               session,
               requestId: (sharedRendererVideoDecodeRequestIdRef.current += 1),
               activeJobs: sharedRendererVideoDecodeJobsRef.current,
+              sourceSlotCount: SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT,
+              maxDecodeEdge: SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE,
             });
             sharedRendererVideoDecodeJobsRef.current = result.activeJobs;
             if (result.ok) {
@@ -1034,7 +1036,8 @@ const Viewport: React.FC = () => {
       return;
     }
 
-    if (!sharedRendererVideoCutoverEnabled) {
+    const rustPreviewDecodeEnabled = sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled;
+    if (!rustPreviewDecodeEnabled) {
       sharedRendererVideoDecodeJobsRef.current = [];
     }
     updateSharedRendererSolidColourObjectIds([]);
@@ -1070,6 +1073,8 @@ const Viewport: React.FC = () => {
     if (isExporting) {
       disposeSharedRendererExternalVideoSources(sharedRendererExternalVideoSourcesRef.current);
       sharedRendererPresenterSessionKeyRef.current = null;
+    } else if (rustVideoOnlyEnabled) {
+      disposeSharedRendererExternalVideoSources(sharedRendererExternalVideoSourcesRef.current);
     } else {
       externalVideoSourcesByClipId = syncSharedRendererExternalVideoSources({
         session: sharedRendererPreviewSession,
@@ -1091,13 +1096,14 @@ const Viewport: React.FC = () => {
       datasets: stagedDatasets,
       diagnosticSwatchEnabled: sharedRendererDiagnosticSwatchEnabled,
       videoCutoverEnabled: sharedRendererVideoCutoverEnabled,
-      nativeRenderPreviewEnabled: sharedRendererVideoCutoverEnabled,
+      nativeRenderPreviewEnabled: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled,
+      preferNativeRenderUpload: rustVideoOnlyEnabled,
       requireSharedRendererVideo: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled,
       requireRustVideoControlPlane: rustVideoOnlyEnabled,
-      activeVideoDecodeJob: sharedRendererVideoCutoverEnabled
+      activeVideoDecodeJob: rustPreviewDecodeEnabled
         ? sharedRendererVideoDecodeJobsRef.current[0] ?? null
         : null,
-      activeVideoDecodeJobs: sharedRendererVideoCutoverEnabled
+      activeVideoDecodeJobs: rustPreviewDecodeEnabled
         ? sharedRendererVideoDecodeJobsRef.current
         : [],
       // Keep the decode job resolution and slot count stable across play/pause so
@@ -1109,7 +1115,7 @@ const Viewport: React.FC = () => {
       videoDecodeSlotCount: SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT,
       videoDecodeMaxEdge: SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE,
       requestId: (sharedRendererVideoDecodeRequestIdRef.current += 1),
-      sharedRendererExternalVideoSourcesByClipId: externalVideoSourcesByClipId.size > 0
+      sharedRendererExternalVideoSourcesByClipId: !rustVideoOnlyEnabled && externalVideoSourcesByClipId.size > 0
         ? externalVideoSourcesByClipId
         : undefined,
       onVideoDecodeJobResolved: (job) => {
@@ -1178,7 +1184,7 @@ const Viewport: React.FC = () => {
       if (pendingSession && pendingSessionKey && pendingSessionKey !== presenterSessionKey) {
         sharedRendererPresenterSessionKeyRef.current = pendingSessionKey;
         setSharedRendererPreviewSession(pendingSession);
-      } else if (pendingSession && pendingSessionKey && isSharedRendererExternalVideoOnlySession(pendingSession)) {
+      } else if (pendingSession && pendingSessionKey && !rustVideoOnlyEnabled && isSharedRendererExternalVideoOnlySession(pendingSession)) {
         const control = sharedRendererPresenterControlRef.current;
         if (control?.ok && control.presentExternalVideoFrameScene) {
           const sourcesByClipId = syncSharedRendererExternalVideoSources({

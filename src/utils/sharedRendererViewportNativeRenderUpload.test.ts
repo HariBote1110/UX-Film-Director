@@ -419,7 +419,7 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
           };
         },
       },
-    } as any);
+    });
 
     expect(sourcePreparationInput).toMatchObject({
       session: mediaOnlySession,

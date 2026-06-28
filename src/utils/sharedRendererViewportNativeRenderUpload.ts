@@ -51,6 +51,7 @@ export interface PrepareSharedRendererViewportNativeRenderUploadInput {
   requestId?: number;
   activeJobs?: readonly SharedRendererViewportVideoDecodeJob[];
   sourceSlotCount?: number;
+  maxDecodeEdge?: number | null;
   outputSlotCount?: number;
   prepareNativeRenderSources?: SharedRendererViewportNativeRenderSourcesPreparer;
   renderNativeSharedFrame?: SharedRendererViewportNativeSharedFrameRenderer;
@@ -87,6 +88,7 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
   requestId,
   activeJobs = [],
   sourceSlotCount = 2,
+  maxDecodeEdge,
   outputSlotCount = 1,
   prepareNativeRenderSources = prepareSharedRendererViewportNativeRenderSources,
   renderNativeSharedFrame = renderRustBackendNativeSharedFrame,
@@ -108,6 +110,7 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
     session,
     requestId: resolvedRequestId,
     slotCount: sourceSlotCount,
+    maxDecodeEdge,
     activeJobs,
   });
   const surfaceGate = session.surfaceGate;

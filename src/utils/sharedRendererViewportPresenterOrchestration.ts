@@ -42,6 +42,7 @@ export interface StartSharedRendererViewportPresenterInput {
   diagnosticSwatchEnabled: boolean;
   videoCutoverEnabled: boolean;
   nativeRenderPreviewEnabled?: boolean;
+  preferNativeRenderUpload?: boolean;
   requireSharedRendererVideo?: boolean;
   requireRustVideoControlPlane?: boolean;
   requireSharedRendererOutput?: boolean;
@@ -77,6 +78,7 @@ export const startSharedRendererViewportPresenter = async ({
   diagnosticSwatchEnabled,
   videoCutoverEnabled,
   nativeRenderPreviewEnabled = false,
+  preferNativeRenderUpload = false,
   requireSharedRendererVideo = false,
   requireRustVideoControlPlane = false,
   requireSharedRendererOutput = false,
@@ -103,7 +105,23 @@ export const startSharedRendererViewportPresenter = async ({
   const shouldUseMultipleVideoUploads = Boolean(activeVideoDecodeJobs);
   const nativeRenderUploadPreparer = prepareNativeRenderUpload
     ?? (nativeRenderPreviewEnabled ? prepareSharedRendererViewportNativeRenderUpload : undefined);
-  const shouldPrepareVideoUploads = effectiveVideoCutoverEnabled;
+  const shouldPreferNativeRenderUpload = preferNativeRenderUpload && Boolean(nativeRenderUploadPreparer);
+  const preferredNativeRenderUploadResult = shouldPreferNativeRenderUpload && nativeRenderUploadPreparer
+    ? await nativeRenderUploadPreparer({
+      session,
+      requestId,
+      activeJobs: nextActiveVideoDecodeJobs,
+      sourceSlotCount: videoDecodeSlotCount,
+      maxDecodeEdge: videoDecodeMaxEdge,
+    })
+    : undefined;
+  if (preferredNativeRenderUploadResult) {
+    nextActiveVideoDecodeJobs = preferredNativeRenderUploadResult.activeJobs;
+    nextActiveVideoDecodeJob = nextActiveVideoDecodeJobs[0] ?? null;
+  }
+  assertPresenterStartCurrent(isStartCurrent);
+
+  const shouldPrepareVideoUploads = effectiveVideoCutoverEnabled && !preferredNativeRenderUploadResult;
   const videoUploadsResult = shouldPrepareVideoUploads && shouldUseMultipleVideoUploads
     ? await prepareVideoUploads({
       session,
@@ -150,13 +168,18 @@ export const startSharedRendererViewportPresenter = async ({
     sharedRendererDecodedVideoFrameUpload
     || (sharedRendererDecodedVideoFrameUploads && sharedRendererDecodedVideoFrameUploads.length > 0)
   );
-  const nativeRenderUploadResult = nativeRenderUploadPreparer && !hasSharedRendererDecodedVideoFrameUpload
+  const fallbackNativeRenderUploadResult = !preferredNativeRenderUploadResult
+    && nativeRenderUploadPreparer
+    && !hasSharedRendererDecodedVideoFrameUpload
     ? await nativeRenderUploadPreparer({
       session,
       requestId,
       activeJobs: nextActiveVideoDecodeJobs,
+      sourceSlotCount: videoDecodeSlotCount,
+      maxDecodeEdge: videoDecodeMaxEdge,
     })
     : undefined;
+  const nativeRenderUploadResult = preferredNativeRenderUploadResult ?? fallbackNativeRenderUploadResult;
   const sharedRendererNativeRenderFrameUpload = nativeRenderUploadResult?.ok
     ? nativeRenderUploadResult.upload
     : undefined;
