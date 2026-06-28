@@ -371,3 +371,85 @@ fn finite_integer_i64(value: f32) -> Option<i64> {
 fn nearly_equal_f32(left: f32, right: f32) -> bool {
     (left - right).abs() <= 1e-6
 }
+
+#[cfg(all(test, unix))]
+mod proxy_scale_tests {
+    use super::try_render_simple_video_frame;
+    use std::collections::HashMap;
+    use uxfd_golden_harness::RgbaFrame;
+    use uxfd_rust_core::{
+        ColourPipeline, EvaluatedClip, MediaKind, SamplingMode, SceneMediaReference, SceneSnapshot,
+        Transform,
+    };
+
+    fn red() -> [u8; 4] {
+        [255, 0, 0, 255]
+    }
+    fn blue() -> [u8; 4] {
+        [0, 0, 255, 255]
+    }
+
+    #[test]
+    fn downscaled_proxy_source_fills_the_full_media_display_rect() {
+        // Media is 4x2 but the preview decode produced a half-resolution 2x1 proxy
+        // (left=red, right=blue). The composite must scale the proxy up to fill the
+        // 4x2 output, not blit it 1:1 into the top-left corner leaving black.
+        let mut proxy = Vec::new();
+        proxy.extend_from_slice(&red());
+        proxy.extend_from_slice(&blue());
+        let source = RgbaFrame::from_rgba8(2, 1, proxy).expect("proxy frame");
+
+        let media = SceneMediaReference {
+            id: "video-1".to_string(),
+            kind: MediaKind::Video,
+            source: "file:///video.mp4".to_string(),
+            width: 4,
+            height: 2,
+            source_rate: None,
+            active_layer_ids: Vec::new(),
+        };
+        let clip = EvaluatedClip {
+            clip_id: "clip-1".to_string(),
+            track_id: "track-1".to_string(),
+            media_id: "video-1".to_string(),
+            source_frame: 0,
+            z_index: 0,
+            transform: Transform {
+                translation_x: 0.0,
+                translation_y: 0.0,
+                scale_x: 1.0,
+                scale_y: 1.0,
+                rotation_degrees: 0.0,
+                sampling: SamplingMode::nearest(),
+            },
+            opacity: 1.0,
+            effects: Vec::new(),
+        };
+        let snapshot = SceneSnapshot {
+            frame_index: 0,
+            colour: ColourPipeline::rec709_sdr_linear(),
+            clips: vec![clip],
+        };
+        let mut sources = HashMap::new();
+        sources.insert("video-1".to_string(), source);
+
+        let frame = try_render_simple_video_frame(&snapshot, &[media], &sources, 4, 2)
+            .expect("render ok")
+            .expect("proxy source must still composite (scaled to fill)");
+
+        let pixel = |x: usize, y: usize| {
+            let offset = (y * 4 + x) * 4;
+            [
+                frame.pixels[offset],
+                frame.pixels[offset + 1],
+                frame.pixels[offset + 2],
+                frame.pixels[offset + 3],
+            ]
+        };
+        // Left half stays red, right half blue, every row filled (no black corner).
+        assert_eq!(pixel(0, 0), red());
+        assert_eq!(pixel(3, 0), blue());
+        assert_eq!(pixel(0, 1), red());
+        assert_eq!(pixel(3, 1), blue());
+    }
+}
