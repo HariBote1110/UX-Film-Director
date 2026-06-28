@@ -1,3 +1,15 @@
+## 2026-06-28 — 鍵修正後の再計測で確定バグ2件を特定し外部エージェント用ブリーフ作成
+
+### 実施内容
+- 論点1（鍵）修正後の実機トレースを再分析。チカチカ・ガタガタ継続。1920ジョブが復活し320と並走churn。
+- コードで**確定バグ2件**を裏取り：
+  - **バグA**：`sharedRendererViewportNativeRenderUpload.ts` の `prepareSharedRendererViewportNativeRenderUpload` が `maxDecodeEdge` を受け取らず `prepareNativeRenderSources` に渡さない→ネイティブ合成は常に `MAX_VIEWPORT_VIDEO_DECODE_EDGE(=1920)` でデコード。修正2の320はvideo-upload経路にしか効かず、ネイティブ経路に届かない。1920デコード30〜100msで60fps維持不可＝ガタガタ。Option A 再利用分岐も解像度未指定で1920。
+  - **バグB**：`sharedRendererViewportPresenterOrchestration.ts` が rust-only で `nativeRenderPreviewEnabled` と `effectiveVideoCutoverEnabled` 両真→ネイティブ経路(1920)とvideo-upload経路(320)を**両方**準備し二重ジョブ→stop churn（firstFrameストーム）。
+- ユーザー依頼により Claude 以外のエージェントへ渡せる自己完結プロンプトを `markdown/Rust_Preview_Jank_Handoff.md` に作成（概要・動かし方・既往修正・確定バグ・目標・受け入れ基準・規約・主要ファイル）。
+
+### 残課題・次のステップ（ブリーフに記載）
+1. ネイティブ経路へ 320/スロットを伝播（バグA）。2. rust-only のデコード経路1本化（バグB）。3. Option A 発火確認。4. デコード層キャッシュで計測テスト Green。5. 不要 HTMLVideoElement 二重デコード停止。
+
 ## 2026-06-28 — 自動計測テスト追加＋別エージェント調査でOption A不発火の主因を特定・修正
 
 ### 実施内容
