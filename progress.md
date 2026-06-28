@@ -1,3 +1,24 @@
+## 2026-06-28 — Rustデコード層に直近フレームキャッシュを追加し小後退再起動を解消
+
+### 実施内容
+- フロント側の経路一本化後も、Rust計測テスト `decode_streaming_restart_count_stays_low_across_playback_with_repeats_and_backsteps` は5回コールド再起動していた。
+- 原因は、温存ffmpegの `next_frame_index` より手前の要求がすべて `backwardSeek` として扱われ、直前に読み捨てたフレームや提示済みフレームを再利用できなかったこと。
+- `DecodeSession` に小さな直近フレームキャッシュを追加し、初回/逐次読み/読み捨てで得たRGBAを最大12フレーム保持するようにした。
+- 同一フレームや小後退要求は `decodePath=cache` / `streamRestartReason=cacheHit` / `streamRestarted=false` として返し、温存ffmpegプロセス自体は前進位置のまま維持するようにした。
+
+### 修正結果（TDD）
+- Red: 既存診断テストを「小後退はcache hitで再起動しない」契約へ更新し、現状が `decodePath=stream` で失敗することを確認した。
+- Green: `rust-backend/src/sessions.rs` に `CachedDecodedRgbaFrame` とキャッシュを追加し、`rust-backend/src/decode.rs` でcache hit判定・逐次読み捨てフレームの保存・容量制限を実装した。
+- 版を `0.1.1-Beta-359c` に更新した。
+
+### 確認
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane decode_request_frame_reports_stream_restart_reason_for_diagnostics -- --nocapture` は1件成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane decode_streaming_restart_count_stays_low_across_playback_with_repeats_and_backsteps -- --nocapture` は1件成功した。
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane -- --nocapture` は56件成功した。
+
+### 残課題
+- 実機 `UXFD_DECODE_TRACE=1 npm run dev:rust-video` で、定常再生時に `firstFrame` が初回のみ、以後 `sequential`/`cacheHit` 中心、320px decodeMsが16ms未満に収まることを確認する。
+
 ## 2026-06-28 — rust-onlyプレビューのnative経路へ320pxデコードを固定しHTMLVideoElement混入を停止
 
 ### 実施内容

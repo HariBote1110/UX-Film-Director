@@ -3950,8 +3950,12 @@ fn decode_streaming_restart_count_stays_low_across_playback_with_repeats_and_bac
         }
     }));
     assert_eq!(start_response["ok"], true, "{start_response}");
-    let memory_id = start_response["result"]["memoryId"].as_str().expect("memory id");
-    let slot_byte_len = start_response["result"]["slotByteLen"].as_u64().expect("slot byte length") as usize;
+    let memory_id = start_response["result"]["memoryId"]
+        .as_str()
+        .expect("memory id");
+    let slot_byte_len = start_response["result"]["slotByteLen"]
+        .as_u64()
+        .expect("slot byte length") as usize;
     let consumer_ring =
         PosixSharedRing::attach_with_retry(memory_id, slot_byte_len, Duration::from_secs(1))
             .expect("attach to streaming decode ring");
@@ -3969,8 +3973,12 @@ fn decode_streaming_restart_count_stays_low_across_playback_with_repeats_and_bac
             }
         }));
         assert_eq!(response["ok"], true, "{response}");
-        let restarted = response["result"]["streamRestarted"].as_bool().expect("streamRestarted");
-        consumer_ring.read_frame(frame_index).expect("consumer reads streaming frame");
+        let restarted = response["result"]["streamRestarted"]
+            .as_bool()
+            .expect("streamRestarted");
+        consumer_ring
+            .read_frame(frame_index)
+            .expect("consumer reads streaming frame");
         let release = backend.request(json!({
             "id": next_id + 10_000,
             "method": "decode.releaseFrame",
@@ -3982,7 +3990,9 @@ fn decode_streaming_restart_count_stays_low_across_playback_with_repeats_and_bac
             }
         }));
         assert_eq!(release["ok"], true, "{release}");
-        consumer_ring.wait_until_free(Duration::from_secs(1)).expect("slot returns to free");
+        consumer_ring
+            .wait_until_free(Duration::from_secs(1))
+            .expect("slot returns to free");
         next_id += 1;
         restarted
     };

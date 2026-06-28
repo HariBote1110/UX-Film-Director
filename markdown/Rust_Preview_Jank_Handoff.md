@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-06-28 Codex実施結果
+
+- バグA（native経路への `maxDecodeEdge` 未伝播）は修正済み。`prepareSharedRendererViewportNativeRenderUpload` が `maxDecodeEdge`/slot設定を受け取り、native source preparationへ渡す。
+- バグBは現コードでは「初回320px video-upload、再利用tickで1920px native uploadへ切替」として再整理し、rust-onlyでは初回からnative render uploadを優先するよう修正済み。
+- rust-onlyで `syncSharedRendererExternalVideoSources` がHTMLVideoElement外部ソースを作ってpresenterへ渡す混入も停止済み。
+- Rustデコード層には直近フレームキャッシュを追加済み。重複/小後退要求は `cacheHit` として返し、計測テスト `decode_streaming_restart_count_stays_low_across_playback_with_repeats_and_backsteps` はGreen。
+- 残る確認は実機 `UXFD_DECODE_TRACE=1 npm run dev:rust-video` での体感・トレース確認。定常再生で1920pxジョブが出ず、`firstFrame` が初回のみ、以後 `sequential`/`cacheHit` 中心になることを見る。
+
+---
+
 ## 0. プロジェクト概要と動かし方
 
 - Electron + React + TypeScript + WebGPU フロントエンド、Rust サイドカー（`rust-backend/`、別プロセス、stdin/stdout の JSON-RPC）。

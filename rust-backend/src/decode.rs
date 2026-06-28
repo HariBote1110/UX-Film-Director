@@ -7,7 +7,9 @@ use crate::frames::{
 };
 use crate::params::DecodeStopRequest;
 use crate::rpc::{response_error, RpcResponse};
-use crate::sessions::{DecodeSession, DecodedRgbaFrame, StreamingDecodeProcess};
+use crate::sessions::{
+    CachedDecodedRgbaFrame, DecodeSession, DecodedRgbaFrame, StreamingDecodeProcess,
+};
 use crate::state::BackendState;
 #[cfg(unix)]
 use uxfd_shared_memory_spike::{PosixSharedRing, PosixShmError};
@@ -120,6 +122,7 @@ pub(crate) fn handle_decode_start(id: u64, params: Value, state: &mut BackendSta
             ring: SharedFrameRing::new(layout),
             data_plane_ring,
             streaming_decoder: None,
+            decoded_frame_cache: std::collections::VecDeque::new(),
         },
     );
 
@@ -504,6 +507,7 @@ fn release_decode_data_plane(
 // generous window lets the decoder recover from a transient hitch (e.g. a brief
 // stall that let the playhead run ahead) without the restart→runaway loop.
 const MAX_STREAMING_DECODE_SKIP_FRAMES: u64 = 90;
+const DECODED_FRAME_CACHE_CAPACITY: usize = 12;
 
 fn decode_trace_enabled() -> bool {
     std::env::var("UXFD_DECODE_TRACE")
@@ -518,6 +522,17 @@ fn decode_rgba_frame_for_session(
     let expected_len =
         tight_rgba_byte_len(session.start_response.width, session.start_response.height)?;
 
+    if let Some(bytes) = cached_decoded_frame_bytes(session, frame_index, expected_len) {
+        return Ok(DecodedRgbaFrame {
+            bytes,
+            decode_path: "cache",
+            stream_restarted: false,
+            stream_skipped_frame_count: 0,
+            decode_invocation_count: 0,
+            stream_restart_reason: "cacheHit",
+        });
+    }
+
     // Classify why this request can or cannot reuse the running ffmpeg process.
     // A restart re-spawns ffprobe + ffmpeg and re-seeks, which stalls preview;
     // surfacing the reason lets us measure restart-driven jank on real sessions.
@@ -525,33 +540,51 @@ fn decode_rgba_frame_for_session(
         None => "firstFrame",
         Some(decoder) if decoder.frame_byte_len != expected_len => "byteLenMismatch",
         Some(decoder) if frame_index < decoder.next_frame_index => "backwardSeek",
-        Some(decoder) if frame_index - decoder.next_frame_index > MAX_STREAMING_DECODE_SKIP_FRAMES => {
+        Some(decoder)
+            if frame_index - decoder.next_frame_index > MAX_STREAMING_DECODE_SKIP_FRAMES =>
+        {
             "forwardGapExceeded"
         }
         Some(_) => "sequential",
     };
 
     if restart_reason == "sequential" {
-        let decoder = session
-            .streaming_decoder
-            .as_mut()
-            .expect("sequential reuse requires a running streaming decoder");
-        let skipped_frame_count = frame_index - decoder.next_frame_index;
-        let mut scratch = vec![0u8; expected_len];
-        for _ in 0..skipped_frame_count {
+        let (bytes, skipped_frame_count, frames_to_cache) = {
+            let decoder = session
+                .streaming_decoder
+                .as_mut()
+                .expect("sequential reuse requires a running streaming decoder");
+            let skipped_frame_count = frame_index - decoder.next_frame_index;
+            let mut frames_to_cache: std::collections::VecDeque<(u64, Vec<u8>)> =
+                std::collections::VecDeque::new();
+            for _ in 0..skipped_frame_count {
+                let skipped_frame_index = decoder.next_frame_index;
+                let mut scratch = vec![0u8; expected_len];
+                decoder
+                    .stdout
+                    .read_exact(&mut scratch)
+                    .map_err(|error| format!("failed to skip streaming decoded frame: {error}"))?;
+                remember_pending_decoded_frame(&mut frames_to_cache, skipped_frame_index, scratch);
+                decoder.next_frame_index += 1;
+            }
+
+            let requested_frame_index = decoder.next_frame_index;
+            let mut bytes = vec![0u8; expected_len];
             decoder
                 .stdout
-                .read_exact(&mut scratch)
-                .map_err(|error| format!("failed to skip streaming decoded frame: {error}"))?;
+                .read_exact(&mut bytes)
+                .map_err(|error| format!("failed to read streaming decoded frame: {error}"))?;
+            remember_pending_decoded_frame(
+                &mut frames_to_cache,
+                requested_frame_index,
+                bytes.clone(),
+            );
             decoder.next_frame_index += 1;
+            (bytes, skipped_frame_count, frames_to_cache)
+        };
+        for (cached_frame_index, cached_bytes) in frames_to_cache {
+            remember_decoded_frame(session, cached_frame_index, cached_bytes);
         }
-
-        let mut bytes = vec![0u8; expected_len];
-        decoder
-            .stdout
-            .read_exact(&mut bytes)
-            .map_err(|error| format!("failed to read streaming decoded frame: {error}"))?;
-        decoder.next_frame_index += 1;
         return Ok(DecodedRgbaFrame {
             bytes,
             decode_path: "stream",
@@ -570,6 +603,7 @@ fn decode_rgba_frame_for_session(
         .map_err(|error| format!("failed to read first streaming decoded frame: {error}"))?;
     decoder.next_frame_index = frame_index + 1;
     session.streaming_decoder = Some(decoder);
+    remember_decoded_frame(session, frame_index, bytes.clone());
 
     Ok(DecodedRgbaFrame {
         bytes,
@@ -579,6 +613,52 @@ fn decode_rgba_frame_for_session(
         decode_invocation_count: 1,
         stream_restart_reason: restart_reason,
     })
+}
+
+fn cached_decoded_frame_bytes(
+    session: &DecodeSession,
+    frame_index: u64,
+    expected_len: usize,
+) -> Option<Vec<u8>> {
+    session
+        .decoded_frame_cache
+        .iter()
+        .rev()
+        .find(|frame| frame.frame_index == frame_index && frame.bytes.len() == expected_len)
+        .map(|frame| frame.bytes.clone())
+}
+
+fn remember_decoded_frame(session: &mut DecodeSession, frame_index: u64, bytes: Vec<u8>) {
+    if let Some(position) = session
+        .decoded_frame_cache
+        .iter()
+        .position(|frame| frame.frame_index == frame_index)
+    {
+        session.decoded_frame_cache.remove(position);
+    }
+    session
+        .decoded_frame_cache
+        .push_back(CachedDecodedRgbaFrame { frame_index, bytes });
+    while session.decoded_frame_cache.len() > DECODED_FRAME_CACHE_CAPACITY {
+        session.decoded_frame_cache.pop_front();
+    }
+}
+
+fn remember_pending_decoded_frame(
+    frames: &mut std::collections::VecDeque<(u64, Vec<u8>)>,
+    frame_index: u64,
+    bytes: Vec<u8>,
+) {
+    if let Some(position) = frames
+        .iter()
+        .position(|(cached_frame_index, _)| *cached_frame_index == frame_index)
+    {
+        frames.remove(position);
+    }
+    frames.push_back((frame_index, bytes));
+    while frames.len() > DECODED_FRAME_CACHE_CAPACITY {
+        frames.pop_front();
+    }
 }
 
 fn start_streaming_decode_process(

@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::process::{Child, ChildStderr, ChildStdin, ChildStdout};
 use uxfd_sidecar_protocol::{ColourMetadata, DecodeStartResponse, FrameFormat, SharedFrameRing};
 
@@ -11,6 +12,7 @@ pub(crate) struct DecodeSession {
     pub(crate) ring: SharedFrameRing,
     pub(crate) data_plane_ring: Option<DecodeDataPlaneRing>,
     pub(crate) streaming_decoder: Option<StreamingDecodeProcess>,
+    pub(crate) decoded_frame_cache: VecDeque<CachedDecodedRgbaFrame>,
 }
 
 pub(crate) struct StreamingDecodeProcess {
@@ -35,9 +37,14 @@ pub(crate) struct DecodedRgbaFrame {
     pub(crate) decode_invocation_count: u64,
     /// Why (or why not) the streaming ffmpeg process was restarted for this
     /// frame. Diagnostic signal for measuring restart-driven preview jank.
-    /// One of: "sequential" | "firstFrame" | "backwardSeek" |
-    /// "forwardGapExceeded" | "byteLenMismatch".
+    /// One of: "sequential" | "cacheHit" | "firstFrame" |
+    /// "backwardSeek" | "forwardGapExceeded" | "byteLenMismatch".
     pub(crate) stream_restart_reason: &'static str,
+}
+
+pub(crate) struct CachedDecodedRgbaFrame {
+    pub(crate) frame_index: u64,
+    pub(crate) bytes: Vec<u8>,
 }
 
 pub(crate) struct EncodeSession {
