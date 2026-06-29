@@ -5,21 +5,18 @@ describe('nativeOverlayViewportGeometry', () => {
   it('builds a viewport-relative attach rectangle with scale factor', () => {
     expect(buildNativeOverlayAttachRect({
       viewportRect: {
-        left: 10,
-        top: 20,
+        left: 100,
+        top: 50,
         width: 800,
-        height: 450,
+        height: 200,
       },
-      windowRect: {
-        left: 2,
-        top: 5,
-      },
+      contentHeight: 600,
       devicePixelRatio: 2,
     })).toEqual({
-      x: 8,
-      y: 15,
+      x: 100,
+      y: 350,
       width: 800,
-      height: 450,
+      height: 200,
       scaleFactor: 2,
     });
   });
@@ -32,10 +29,7 @@ describe('nativeOverlayViewportGeometry', () => {
         width: 0,
         height: Number.NaN,
       },
-      windowRect: {
-        left: 0,
-        top: 0,
-      },
+      contentHeight: 0,
       devicePixelRatio: 0,
     })).toEqual({
       x: 0,
