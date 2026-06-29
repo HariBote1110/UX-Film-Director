@@ -16,6 +16,8 @@ import {
   writeRustVideoEncodeNativeFrameViaBackend,
 } from './rustVideoEncodeBackendBridge';
 import { rustVideoEncodeIpcChannels } from './rustVideoEncodeIpc';
+import { createNativeOverlayMainBridge } from './nativeOverlayMainBridge';
+import { registerNativeOverlayIpcHandlers } from './nativeOverlayIpc';
 
 // --- GPU Acceleration Flags ---
 // 高画質動画の再生負荷を下げるための重要な設定
@@ -478,6 +480,11 @@ app.whenReady().then(() => {
   createWindow()
 
   // --- IPC Handlers ---
+  registerNativeOverlayIpcHandlers(ipcMain, createNativeOverlayMainBridge({
+    env: process.env,
+    cwd: process.cwd(),
+    resourcesPath: process.resourcesPath,
+  }))
 
   ipcMain.handle('save-project-file', async (_event, payload: { data?: string; defaultName?: string }) => {
     const data = typeof payload?.data === 'string' ? payload.data : '';

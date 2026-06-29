@@ -2,6 +2,7 @@ import { ipcRenderer, contextBridge, webUtils } from 'electron'
 import { createRequire } from 'node:module'
 import { resolveSharedVideoFrameNativeBridgeModulePath } from './sharedVideoFrameNativeBridgePath'
 import { rustVideoEncodeIpcChannels } from './rustVideoEncodeIpc'
+import { nativeOverlayIpcChannels } from './nativeOverlayIpc'
 
 const require = createRequire(`${process.cwd()}/package.json`)
 
@@ -181,6 +182,18 @@ contextBridge.exposeInMainWorld('rustVideoEncoder', {
   },
   abortVideoEncode(payload: unknown) {
     return ipcRenderer.invoke(rustVideoEncodeIpcChannels.abort, payload)
+  },
+})
+
+contextBridge.exposeInMainWorld('nativeOverlay', {
+  getCapabilities() {
+    return ipcRenderer.invoke(nativeOverlayIpcChannels.capabilities)
+  },
+  attach(payload: unknown) {
+    return ipcRenderer.invoke(nativeOverlayIpcChannels.attach, payload)
+  },
+  detach(payload: unknown) {
+    return ipcRenderer.invoke(nativeOverlayIpcChannels.detach, payload)
   },
 })
 

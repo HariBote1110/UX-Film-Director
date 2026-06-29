@@ -26,6 +26,7 @@ export interface NativeOverlayResponse {
 export interface NativeOverlayAddon {
   attachNativeOverlay?: (payload: NativeOverlayAttachPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   detachNativeOverlay?: (payload: NativeOverlayDetachPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
+  getNativeOverlayCapabilities?: () => NativeOverlayCapabilities
 }
 
 export interface CreateNativeOverlayMainBridgeInput {
@@ -39,6 +40,12 @@ export interface CreateNativeOverlayMainBridgeInput {
 export interface NativeOverlayMainBridge {
   attach: (payload: NativeOverlayAttachPayload) => Promise<NativeOverlayResponse>
   detach: (payload: NativeOverlayDetachPayload) => Promise<NativeOverlayResponse>
+  getCapabilities: () => NativeOverlayCapabilities
+}
+
+export interface NativeOverlayCapabilities {
+  available: boolean
+  reason?: string
 }
 
 const fallbackResponse = (reason: string): NativeOverlayResponse => ({
@@ -85,6 +92,7 @@ export const createNativeOverlayMainBridge = ({
       const addon = requireModule(modulePath)
       loadedAddon = typeof addon.attachNativeOverlay === 'function'
         || typeof addon.detachNativeOverlay === 'function'
+        || typeof addon.getNativeOverlayCapabilities === 'function'
         ? addon
         : null
     } catch {
@@ -121,6 +129,31 @@ export const createNativeOverlayMainBridge = ({
         return await addon.detachNativeOverlay(payload)
       } catch (error) {
         return fallbackResponse(getErrorMessage(error))
+      }
+    },
+    getCapabilities() {
+      if (env.UXFD_NATIVE_OVERLAY !== '1') {
+        return {
+          available: false,
+          reason: 'Native overlay preview is disabled.',
+        }
+      }
+
+      const addon = loadAddon()
+      if (!addon || typeof addon.getNativeOverlayCapabilities !== 'function') {
+        return {
+          available: false,
+          reason: 'Native overlay addon is unavailable.',
+        }
+      }
+
+      try {
+        return addon.getNativeOverlayCapabilities()
+      } catch (error) {
+        return {
+          available: false,
+          reason: getErrorMessage(error),
+        }
       }
     },
   }

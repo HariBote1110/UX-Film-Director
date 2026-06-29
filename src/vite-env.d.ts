@@ -280,6 +280,33 @@ interface Window {
       error?: string;
     }>;
   };
+  nativeOverlay: {
+    getCapabilities: () => Promise<{
+      available: boolean;
+      reason?: string;
+    }>;
+    attach: (payload: {
+      windowId: number;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      scaleFactor: number;
+    }) => Promise<{
+      success: boolean;
+      attached: boolean;
+      fallback?: 'webgpuPresenter';
+      reason?: string;
+    }>;
+    detach: (payload: {
+      windowId: number;
+    }) => Promise<{
+      success: boolean;
+      attached: boolean;
+      fallback?: 'webgpuPresenter';
+      reason?: string;
+    }>;
+  };
 }
 
 // Webview Tag Definition

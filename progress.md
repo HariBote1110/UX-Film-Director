@@ -1,3 +1,22 @@
+## 2026-06-30 — Phase 1 Native Overlay IPCとpreload公開を追加
+
+### 実施内容
+- `src/utils/nativeOverlayIpc.test.ts` に、`native-overlay-attach` / `native-overlay-detach` / `native-overlay-capabilities` の channel 名と handler 登録契約を追加した。
+- `src/utils/nativeOverlayPreloadBoundary.test.ts` に、`preload` が `window.nativeOverlay` を公開し、frame bytes ではなく座標 payload だけを IPC に渡す境界契約を追加した。
+- Red では `electron/nativeOverlayIpc.ts` が未作成で、`preload` / `vite-env` に `nativeOverlay` が存在しないため失敗することを確認した。
+- `electron/nativeOverlayIpc.ts` を追加し、`electron/main.ts` で `createNativeOverlayMainBridge` と接続した。
+- `electron/preload.ts` と `src/vite-env.d.ts` に `nativeOverlay.getCapabilities` / `attach` / `detach` を追加した。
+- `package.json` の版を `0.1.1-Beta-371a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 1 の実 NSView / CAMetalLayer 実装へ入る前に、renderer から main 内 addon へ到達する制御プレーンを固定する必要があった。
+- `05-boundary-ipc.md` を維持するため、IPC には window id と矩形、scale factor だけを載せ、frame bytes / base64 は載せない契約にした。
+- `npx vitest run src/utils/nativeOverlayIpc.test.ts src/utils/nativeOverlayPreloadBoundary.test.ts src/utils/nativeOverlayMainBridge.test.ts src/utils/nativeOverlayBridgePath.test.ts` は 4 files / 12 tests passed。
+
+### 残課題・次のステップ
+- Phase 1 の次サイクルで、macOS 側の NSView / CAMetalLayer attach に入る。
+- 固定色描画はユニットテストだけでは完全検証できないため、実装後に `UXFD_NATIVE_OVERLAY=1` の目視確認を併用する。
+
 ## 2026-06-30 — Phase 1 Native Overlay crate の最小napi境界を追加
 
 ### 実施内容
