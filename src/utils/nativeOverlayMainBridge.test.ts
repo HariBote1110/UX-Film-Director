@@ -43,6 +43,24 @@ describe('createNativeOverlayMainBridge', () => {
     });
   });
 
+  it('accepts the Vite native overlay flag used by renderer-driven dev startup', async () => {
+    const nativeAddon = {
+      attachNativeOverlay: vi.fn(() => ({ success: true, attached: true })),
+    };
+    const bridge = createNativeOverlayMainBridge({
+      env: { VITE_UXFD_NATIVE_OVERLAY: '1' },
+      cwd: '/repo',
+      existsSync: (candidate) => candidate === '/repo/native-overlay/native-overlay.node',
+      requireModule: vi.fn(() => nativeAddon),
+      resolveNativeWindowHandle: vi.fn(() => Buffer.from([1, 2, 3, 4, 5, 6, 7, 8])),
+    });
+
+    await expect(bridge.attach(attachPayload)).resolves.toEqual({
+      success: true,
+      attached: true,
+    });
+  });
+
   it('attaches and detaches through the native overlay addon when the flag and addon are available', async () => {
     const nativeWindowHandle = Buffer.from([1, 2, 3, 4, 5, 6, 7, 8]);
     const nativeAddon = {
