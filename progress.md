@@ -1,3 +1,24 @@
+## 2026-06-30 — screencapture黒画面問題を切り分け
+
+### 実施内容
+- 旧黒画像 `/tmp/uxfd-native-overlay-appkit-identifier-initial.png` と `/tmp/uxfd-no-native-overlay-compare.png` を確認し、どちらも 4096x2304 の PNG で、1x1 BMP へ縮小した結果が完全黒であることを確認した。
+- `screencapture -D 1`、`-D 2`、`-D 3` を個別に実行し、D1 は Codex / UX、D2 は Safari、D3 は Discord が正常に撮れることを確認した。
+- 通常起動の `npm run dev:rust-video` で UX ウィンドウが D1 の `{384,120}` / `{1280,800}` に存在し、`screencapture -D 1` と default capture の両方で正常に写ることを確認した。
+- `VITE_UXFD_NATIVE_OVERLAY=1 npm run dev:rust-video` でも初期画面と作成後の Native Overlay attach 状態を `screencapture -D 1` と default capture で正常に撮影できることを確認した。
+- Native Overlay attach 後に D1 と default capture を各10回連続で取得し、1x1 BMP の hash が黒画像の hash と一致しないことを確認した。
+- `log show` で 2026-06-30 05:24-05:30 の `screencapture` / `WindowServer` / `ScreenCapture` / `TCC` 関連ログを確認した。TCC 拒否や `screencapture` の明示エラーは見つからず、WindowServer の `Invalid window` が多数出ていたが、黒画像生成の直接原因までは特定できなかった。
+
+### 選定理由・判断の根拠
+- 黒画像はメニューバーや壁紙も含めて完全黒だったため、UX アプリ内描画や Native Overlay の CAMetalLayer だけではなく、WindowServer / display / capture 対象の問題として切り分ける必要があった。
+- 現在は D1 / D2 / D3 / default capture が正常で、Native Overlay attach 状態でも再現しないため、恒常的な Screen Recording 権限不備や CAMetalLayer 起因の常時黒化ではないと判断した。
+- UX ウィンドウ位置は D1 上にあり、D1 指定で安定して撮影できるため、今後の実機証跡は default capture ではなく `screencapture -x -D 1` を優先する。
+- 旧黒画像が生成された 05:26-05:28 の状態は再現できていない。ログ上の `Invalid window` から、Electron 起動/停止や window 制約更新の過渡状態で WindowServer が黒フレームを返した可能性が残る。
+
+### 残課題・次のステップ
+- 以後の目視検証では `screencapture -x -D 1` を使い、撮影直後に 1x1 BMP hash で完全黒を検出する簡易ガードを併用する。
+- 黒画像が再発した場合は、同時刻の `osascript` による Electron window 位置、`screencapture -D 1/2/3` の比較、`log show` の WindowServer/TCC ログを即時保存する。
+- Native Overlay Phase 1 自体は、現在の再検証で初期画面と attach 後の固定色表示が D1 capture に写ることを確認できたため、次は detach 実体化または overlay view 再利用の Red→Green へ進める。
+
 ## 2026-06-30 — Native Overlay既存AppKit viewをattach前に除去
 
 ### 実施内容
