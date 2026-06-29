@@ -1,3 +1,22 @@
+## 2026-06-30 — Phase 1 Native Overlay smoke attachを明示opt-in化
+
+### 実施内容
+- `src/utils/nativeOverlayCrateBoundary.test.ts` に、`scripts/test-native-overlay-addon.mjs` が fake pointer で `attachNativeOverlay` を直呼びしない契約を Red として追加した。
+- Red では smoke script が `Buffer.from([1, 2, 3, 4, 5, 6, 7, 8])` を渡して attach していたため、境界テストが失敗することを確認した。
+- `scripts/test-native-overlay-addon.mjs` を更新し、通常 smoke は export 存在確認と capabilities 取得に留め、`UXFD_NATIVE_OVERLAY_SMOKE_ATTACH` に hex handle が渡された場合だけ attach / detach するようにした。
+- `package.json` の版を `0.1.1-Beta-376a` へ更新した。
+
+### 選定理由・判断の根拠
+- 次サイクルで `macos_overlay.rs` が実 pointer dereference を行うため、fake handle を使う direct smoke test がクラッシュ源にならないよう先に検証経路を分けた。
+- 実 handle attach は Electron main 経由または明示 env 付き smoke に限定し、通常の Node smoke は addon のロードと API surface の健全性だけを見ることにした。
+- `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts` は 1 file / 5 tests passed。
+- `cargo test --manifest-path native-overlay/Cargo.toml` は 4 tests passed。
+- `npm run test:native-overlay-node` は addon build と safe smoke が成功し、`attach:null` / `detach:null` を確認した。
+
+### 残課題・次のステップ
+- Phase 1 の次サイクルで、`macos_overlay.rs` に実 AppKit attach を実装し、Electron main から渡る本物の `NSView*` で目視確認する。
+- 明示 env 付き smoke の実 handle 入手方法は、Electron 起動後の IPC / harness と合わせて設計する。
+
 ## 2026-06-30 — Phase 1 Native Overlay macOS overlay moduleの受け皿を追加
 
 ### 実施内容

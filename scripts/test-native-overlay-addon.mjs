@@ -9,6 +9,7 @@ const addonPath = process.env.UXFD_NATIVE_OVERLAY_MODULE
   : path.join(repoRoot, 'native-overlay', 'native-overlay.node')
 
 const addon = require(addonPath)
+const smokeAttachHandleHex = process.env.UXFD_NATIVE_OVERLAY_SMOKE_ATTACH
 
 for (const exportName of [
   'attachNativeOverlay',
@@ -20,22 +21,26 @@ for (const exportName of [
   }
 }
 
-const attach = addon.attachNativeOverlay({
-  windowId: 1,
-  nativeWindowHandle: Buffer.from([1, 2, 3, 4, 5, 6, 7, 8]),
-  x: 0,
-  y: 0,
-  width: 320,
-  height: 180,
-  scaleFactor: 2,
-})
-if (!attach?.success || attach.attached !== true) {
-  throw new Error(`unexpected attach response: ${JSON.stringify(attach)}`)
-}
+let attach = null
+let detach = null
+if (smokeAttachHandleHex) {
+  attach = addon.attachNativeOverlay({
+    windowId: 1,
+    nativeWindowHandle: Buffer.from(smokeAttachHandleHex, 'hex'),
+    x: 0,
+    y: 0,
+    width: 320,
+    height: 180,
+    scaleFactor: 2,
+  })
+  if (!attach?.success || attach.attached !== true) {
+    throw new Error(`unexpected attach response: ${JSON.stringify(attach)}`)
+  }
 
-const detach = addon.detachNativeOverlay({ windowId: 1 })
-if (!detach?.success || detach.attached !== false) {
-  throw new Error(`unexpected detach response: ${JSON.stringify(detach)}`)
+  detach = addon.detachNativeOverlay({ windowId: 1 })
+  if (!detach?.success || detach.attached !== false) {
+    throw new Error(`unexpected detach response: ${JSON.stringify(detach)}`)
+  }
 }
 
 console.log(JSON.stringify({
