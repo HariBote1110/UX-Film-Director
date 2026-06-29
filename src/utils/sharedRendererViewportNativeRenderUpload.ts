@@ -53,6 +53,7 @@ export interface PrepareSharedRendererViewportNativeRenderUploadInput {
   sourceSlotCount?: number;
   maxDecodeEdge?: number | null;
   outputSlotCount?: number;
+  discardNativeRenderOutputForBenchmark?: boolean;
   prepareNativeRenderSources?: SharedRendererViewportNativeRenderSourcesPreparer;
   renderNativeSharedFrame?: SharedRendererViewportNativeSharedFrameRenderer;
   releaseNativeSharedFrame?: SharedRendererViewportNativeSharedFrameReleaser;
@@ -90,6 +91,7 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
   sourceSlotCount = 2,
   maxDecodeEdge,
   outputSlotCount = 1,
+  discardNativeRenderOutputForBenchmark = false,
   prepareNativeRenderSources = prepareSharedRendererViewportNativeRenderSources,
   renderNativeSharedFrame = renderRustBackendNativeSharedFrame,
   releaseNativeSharedFrame = releaseRustBackendNativeSharedFrame,
@@ -172,6 +174,24 @@ export const prepareSharedRendererViewportNativeRenderUpload = async ({
       ok: false,
       reason: 'nativeRenderSourceReleaseUnavailable',
       detail: sourceReleaseBlock,
+      activeJobs: activeRenderJobs,
+    };
+  }
+
+  if (discardNativeRenderOutputForBenchmark && nativeSources.ok) {
+    const releaseFailure = await releaseNativeRenderSourcesAfterAbort(nativeRenderSources);
+    if (releaseFailure) {
+      return {
+        ok: false,
+        reason: 'nativeRenderSourceReleaseFailed',
+        detail: releaseFailure,
+        activeJobs: activeRenderJobs,
+      };
+    }
+    return {
+      ok: false,
+      reason: 'nativeRenderFailed',
+      detail: 'native render output discarded for benchmark',
       activeJobs: activeRenderJobs,
     };
   }
