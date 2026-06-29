@@ -1,3 +1,22 @@
+## 2026-06-30 — Phase 0 spike2 用 writeTexture no-op 計測フラグを追加
+
+### 実施内容
+- `src/utils/sharedRendererWebGpuPresenter.test.ts` に、`writeTextureNoOpEnabled` 指定時は video texture を作成して成功を返しつつ `queue.writeTexture` を呼ばない契約を追加した。
+- Red では、フラグ指定時にも `writeTexture` が呼ばれることを確認した。
+- `src/utils/sharedRendererWebGpuPresenter.ts` に最小実装を追加し、計測フラグ指定時だけ `writeTexture` を no-op 化した。
+- `src/utils/sharedRendererPreviewPresenterController.test.ts` に、controller 経由でも no-op フラグが渡り、`releaseAfterGpuUpload` の順序が維持される契約を追加した。
+- `src/utils/sharedRendererPreviewPresenterController.ts` に `sharedRendererWriteTextureNoOpEnabled` を追加し、WebGPU presenter へ渡すようにした。
+- `package.json` の版を `0.1.1-Beta-365a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 0 の spike2 は「`writeTexture` を no-op にした場合の fps」を測るため、presenter 本体と controller の両方で計測フラグを通せる必要があった。
+- no-op 時も texture object は作成し、present / release の制御面を維持することで、upload コストだけを切り離して測れるようにした。
+- `releaseAfterGpuUpload` と `onSubmittedWorkDone` の順序は維持し、共有メモリ slot の解放契約を変えないようにした。
+
+### 残課題・次のステップ
+- 実機計測で使うため、`Viewport` / orchestration 呼び出し元へ Phase 0 計測 env を配線する。
+- baseline / spike1 / spike2 の 1080p・720p 実測値を取得し、`markdown/Native_Overlay_Plan.md` の実測表へ追記する。
+
 ## 2026-06-30 — Phase 0 spike1 用 decoded upload 破棄計測フラグを追加
 
 ### 実施内容
