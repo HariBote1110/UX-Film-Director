@@ -430,6 +430,65 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
     });
   });
 
+  it('discards native render output for benchmark but releases prepared sources', async () => {
+    const calls: string[] = [];
+    const nativeRenderJob = {
+      jobId: 'shared-renderer-video-video-1-4x4-60over1',
+      source: '/tmp/video.mp4',
+      slotCount: 2,
+      width: 4,
+      height: 4,
+      sourceRate: {
+        numerator: 60,
+        denominator: 1,
+      },
+    };
+
+    const result = await prepareSharedRendererViewportNativeRenderUpload({
+      session: videoWithRemotePsdSession,
+      requestId: 26,
+      activeJobs: [nativeRenderJob],
+      prepareNativeRenderSources: async () => ({
+        ok: true,
+        activeJobs: [nativeRenderJob],
+        sources: [{
+          mediaId: 'video-1',
+          slotCount: 2,
+          frame: {
+            descriptor,
+            ptsFrame: 26,
+          },
+          releaseAfterNativeRenderComplete: async () => {
+            calls.push('releaseAfterNativeRenderComplete');
+          },
+          releaseAfterNativeRenderAbort: async () => {
+            calls.push('releaseAfterNativeRenderAbort');
+          },
+        }],
+      }),
+      renderNativeSharedFrame: async () => {
+        throw new Error('native render should be skipped when benchmark discard flag is set');
+      },
+      releaseNativeSharedFrame: async () => ({ success: true }),
+      copyBridge: {
+        copyIntoUploadBuffer: async () => {
+          throw new Error('copyIntoUploadBuffer should be skipped when benchmark discard flag is set');
+        },
+      },
+      discardNativeRenderOutputForBenchmark: true,
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      reason: 'nativeRenderFailed',
+      detail: 'native render output discarded for benchmark',
+      activeJobs: [nativeRenderJob],
+    });
+    expect(calls).toEqual([
+      'releaseAfterNativeRenderAbort',
+    ]);
+  });
+
   it('renders a media-only scene natively, copies the output frame, and releases the native render output after GPU upload', async () => {
     const calls: unknown[] = [];
 
