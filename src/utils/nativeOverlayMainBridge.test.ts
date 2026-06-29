@@ -44,6 +44,7 @@ describe('createNativeOverlayMainBridge', () => {
   });
 
   it('attaches and detaches through the native overlay addon when the flag and addon are available', async () => {
+    const nativeWindowHandle = Buffer.from([1, 2, 3, 4, 5, 6, 7, 8]);
     const nativeAddon = {
       attachNativeOverlay: vi.fn(() => ({ success: true, attached: true })),
       detachNativeOverlay: vi.fn(() => ({ success: true, attached: false })),
@@ -53,6 +54,7 @@ describe('createNativeOverlayMainBridge', () => {
       cwd: '/repo',
       existsSync: (candidate) => candidate === '/repo/native-overlay/native-overlay.node',
       requireModule: vi.fn(() => nativeAddon),
+      resolveNativeWindowHandle: vi.fn((windowId) => windowId === 7 ? nativeWindowHandle : null),
     });
 
     await expect(bridge.attach(attachPayload)).resolves.toEqual({
@@ -63,8 +65,30 @@ describe('createNativeOverlayMainBridge', () => {
       success: true,
       attached: false,
     });
-    expect(nativeAddon.attachNativeOverlay).toHaveBeenCalledWith(attachPayload);
+    expect(nativeAddon.attachNativeOverlay).toHaveBeenCalledWith({
+      ...attachPayload,
+      nativeWindowHandle,
+    });
     expect(nativeAddon.detachNativeOverlay).toHaveBeenCalledWith({ windowId: 7 });
+  });
+
+  it('falls back to the WebGPU presenter when the BrowserWindow handle cannot be resolved', async () => {
+    const bridge = createNativeOverlayMainBridge({
+      env: { UXFD_NATIVE_OVERLAY: '1' },
+      cwd: '/repo',
+      existsSync: (candidate) => candidate === '/repo/native-overlay/native-overlay.node',
+      requireModule: vi.fn(() => ({
+        attachNativeOverlay: vi.fn(() => ({ success: true, attached: true })),
+      })),
+      resolveNativeWindowHandle: vi.fn(() => null),
+    });
+
+    await expect(bridge.attach(attachPayload)).resolves.toEqual({
+      success: false,
+      attached: false,
+      fallback: 'webgpuPresenter',
+      reason: 'Native overlay window handle is unavailable.',
+    });
   });
 
   it('falls back to the WebGPU presenter when the addon throws during attach', async () => {
