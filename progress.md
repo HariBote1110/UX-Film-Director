@@ -1,3 +1,22 @@
+## 2026-06-30 — Native Overlay矩形契約をAppKit attachへ渡す
+
+### 実施内容
+- `src/utils/nativeOverlayCrateBoundary.test.ts` に、AppKit attach が `contract.view_width` と `contract.drawable_width` を使う契約を Red として追加した。
+- Red では `native-overlay/src/macos_overlay.rs` が親 view の bounds だけで overlay を作っており、payload 由来の矩形を使わないため対象テストが失敗することを確認した。
+- `native-overlay/src/lib.rs` で `build_overlay_layer_contract` の結果を `macos_overlay::attach_overlay_view` へ渡すようにした。
+- `native-overlay/src/macos_overlay.rs` で overlay view の frame と CAMetalLayer の drawable size に `OverlayLayerContract` を使うようにした。
+- `package.json` の版を `0.1.1-Beta-382a` へ更新した。
+
+### 選定理由・判断の根拠
+- 固定色 present は attach 成功後にウィンドウ全体へ表示され、preview 領域に限定されていなかったため、まず addon 内で矩形契約が捨てられている問題を塞ぐ必要があった。
+- `cargo test --manifest-path native-overlay/Cargo.toml` は 4 tests passed。
+- `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts src/utils/nativeOverlayViewportGeometry.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts src/utils/nativeOverlayMainBridge.test.ts` は 4 files / 43 tests passed。
+- `npm run test:native-overlay-node` は addon build と safe smoke が成功した。
+- `VITE_UXFD_NATIVE_OVERLAY=1 npm run dev:rust-video` では `[NativeOverlay] attach { success: true, attached: true }` を確認した。スクリーンショット `/tmp/uxfd-native-overlay-fixed-colour-clipped.png` の目視では、固定色は全面表示からは改善したが preview 領域にはまだ一致せず、ウィンドウ左下寄りに表示された。
+
+### 残課題・次のステップ
+- DOM 座標と AppKit `NSView` 座標の原点差を Red→Green で固定し、固定色が preview 領域へ重なることを実機目視で再確認する。
+
 ## 2026-06-30 — Native Overlay main flag判定をVite起動に対応
 
 ### 実施内容

@@ -74,11 +74,12 @@ fn attach_native_overlay_inner(payload: NativeOverlayAttachPayload) -> NativeOve
         Ok(bytes) => bytes,
         Err(reason) => return failure(reason),
     };
-    if let Err(reason) = build_overlay_layer_contract(&payload) {
-        return failure(reason);
-    }
+    let contract = match build_overlay_layer_contract(&payload) {
+        Ok(contract) => contract,
+        Err(reason) => return failure(reason),
+    };
     #[cfg(target_os = "macos")]
-    if let Err(reason) = macos_overlay::attach_overlay_view(&native_window_handle) {
+    if let Err(reason) = macos_overlay::attach_overlay_view(&native_window_handle, &contract) {
         return failure(reason);
     }
 
