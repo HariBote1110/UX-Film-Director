@@ -1,3 +1,21 @@
+## 2026-06-30 — Native Overlay main flag判定をVite起動に対応
+
+### 実施内容
+- `src/utils/nativeOverlayMainBridge.test.ts` に、`VITE_UXFD_NATIVE_OVERLAY=1` でも main bridge が native overlay を有効化する契約を Red として追加した。
+- Red では renderer 側 dev 起動で使う `VITE_UXFD_NATIVE_OVERLAY` が main bridge では disabled と判定され、fallback することを確認した。
+- `electron/nativeOverlayMainBridge.ts` に `nativeOverlayEnabled` helper を追加し、`UXFD_NATIVE_OVERLAY` と `VITE_UXFD_NATIVE_OVERLAY` の両方を受けるようにした。
+- `package.json` の版を軽微修正として `0.1.1-Beta-381c` へ更新した。
+
+### 選定理由・判断の根拠
+- 実起動ログで `[NativeOverlay] attach` が `Native overlay preview is disabled.` を返しており、renderer と main の flag 名不一致が固定色未表示の直接原因だった。
+- dev 起動は `VITE_UXFD_NATIVE_OVERLAY=1` を使うため、main process でも同じ env を許容する必要があった。
+- `npx vitest run src/utils/nativeOverlayMainBridge.test.ts src/utils/nativeOverlayIpc.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts` は 3 files / 40 tests passed。
+- `cargo test --manifest-path native-overlay/Cargo.toml` は 4 tests passed。
+- `npm run test:native-overlay-node` は addon build と safe smoke が成功した。
+
+### 残課題・次のステップ
+- `VITE_UXFD_NATIVE_OVERLAY=1 npm run dev:rust-video` を再起動し、attach 成功ログと固定色表示を確認する。
+
 ## 2026-06-30 — Native Overlay attach診断ログを追加
 
 ### 実施内容

@@ -63,6 +63,9 @@ const fallbackResponse = (reason: string): NativeOverlayResponse => ({
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
+const nativeOverlayEnabled = (env: Record<string, string | undefined>): boolean =>
+  env.UXFD_NATIVE_OVERLAY === '1' || env.VITE_UXFD_NATIVE_OVERLAY === '1'
+
 export const createNativeOverlayMainBridge = ({
   env = process.env,
   cwd,
@@ -78,7 +81,7 @@ export const createNativeOverlayMainBridge = ({
       return loadedAddon
     }
 
-    if (env.UXFD_NATIVE_OVERLAY !== '1') {
+    if (!nativeOverlayEnabled(env)) {
       loadedAddon = null
       return loadedAddon
     }
@@ -110,7 +113,7 @@ export const createNativeOverlayMainBridge = ({
 
   return {
     async attach(payload) {
-      if (env.UXFD_NATIVE_OVERLAY !== '1') {
+      if (!nativeOverlayEnabled(env)) {
         return fallbackResponse('Native overlay preview is disabled.')
       }
 
@@ -145,7 +148,7 @@ export const createNativeOverlayMainBridge = ({
       }
     },
     getCapabilities() {
-      if (env.UXFD_NATIVE_OVERLAY !== '1') {
+      if (!nativeOverlayEnabled(env)) {
         return {
           available: false,
           reason: 'Native overlay preview is disabled.',
