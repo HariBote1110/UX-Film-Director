@@ -890,6 +890,53 @@ describe('createSharedRendererWebGpuPresenter', () => {
     ]);
   });
 
+  it('creates a video texture without writing bytes when writeTexture no-op benchmarking is enabled', async () => {
+    const createdTextures: unknown[] = [];
+    const writtenTextures: unknown[] = [];
+    const rgbaBytes = new Uint8Array(decodedVideoDescriptor.byteLen);
+
+    const result = await createSharedRendererWebGpuPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      surfaceGate: okSurfaceGate,
+      presentationContract: buildSharedRendererPresentationContract(),
+      writeTextureNoOpEnabled: true,
+      gpu: fakeGpu({
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onCreateTexture: (descriptor) => {
+              createdTextures.push(descriptor);
+            },
+            onWriteTexture: (...args) => {
+              writtenTextures.push(args);
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+      textureUsageTextureBinding: 4,
+      textureUsageTextureCopyDst: 2,
+    } as Parameters<typeof createSharedRendererWebGpuPresenter>[0] & {
+      writeTextureNoOpEnabled: true;
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected presenter creation to pass');
+
+    expect(result.uploadVideoFrameTexture({
+      descriptor: decodedVideoDescriptor,
+      rgbaBytes,
+    })).toEqual({
+      ok: true,
+      texture: 'video-frame-texture',
+      textureFormat: 'rgba8unorm',
+      width: 34,
+      height: 2,
+      strideBytes: 256,
+    });
+    expect(createdTextures).toHaveLength(1);
+    expect(writtenTextures).toEqual([]);
+  });
+
   it('rejects a Rust decoded RGBA upload when byte length does not match the descriptor', async () => {
     const writtenTextures: unknown[] = [];
     const result = await createSharedRendererWebGpuPresenter({
