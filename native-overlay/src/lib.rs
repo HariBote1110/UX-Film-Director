@@ -100,3 +100,44 @@ fn platform_capabilities() -> NativeOverlayCapabilities {
         reason: Some("Native overlay preview is only available on macOS.".to_string()),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn overlay_layer_contract_uses_bgra8_unorm_and_scaled_drawable_size() {
+        let contract = build_overlay_layer_contract(&NativeOverlayAttachPayload {
+            window_id: 42,
+            x: 12.0,
+            y: 34.0,
+            width: 640.0,
+            height: 360.0,
+            scale_factor: 2.0,
+        })
+        .expect("valid overlay contract");
+
+        assert_eq!(contract.pixel_format, "bgra8Unorm");
+        assert_eq!(contract.view_x, 12.0);
+        assert_eq!(contract.view_y, 34.0);
+        assert_eq!(contract.view_width, 640.0);
+        assert_eq!(contract.view_height, 360.0);
+        assert_eq!(contract.drawable_width, 1280);
+        assert_eq!(contract.drawable_height, 720);
+    }
+
+    #[test]
+    fn overlay_layer_contract_rejects_non_positive_geometry() {
+        let error = build_overlay_layer_contract(&NativeOverlayAttachPayload {
+            window_id: 42,
+            x: 0.0,
+            y: 0.0,
+            width: 0.0,
+            height: 360.0,
+            scale_factor: 2.0,
+        })
+        .expect_err("zero width must be rejected");
+
+        assert_eq!(error, "Native overlay size and scale factor must be positive.");
+    }
+}
