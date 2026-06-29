@@ -1,3 +1,22 @@
+## 2026-06-30 — Native Overlay固定色の目視確認を再実施
+
+### 実施内容
+- `VITE_UXFD_NATIVE_OVERLAY=1 npm run dev:rust-video` をクリーン起動し、Electron window が D1 の `{384,120}` / `{1280,800}` に表示されることを確認した。
+- `screencapture -x -D 1 /tmp/uxfd-visual-native-initial.png` を取得し、初期画面が正常に写ること、1x1 BMP hash が完全黒 hash ではないことを確認した。
+- 作成ボタンを押し、main process log に `[NativeOverlay] attach { success: true, attached: true }` が複数回出ることを確認した。
+- `screencapture -x -D 1 /tmp/uxfd-visual-native-after-create.png` を取得し、固定色 Native Overlay が preview キャンバス領域に収まって表示されることを目視確認した。
+- window size を `{1320,820}` へ変更して `ResizeObserver` / window resize の再 attach 経路を通し、再度 `[NativeOverlay] attach { success: true, attached: true }` を確認した。
+- `screencapture -x -D 1 /tmp/uxfd-visual-native-after-resize.png` を取得し、リサイズ後も固定色 overlay が preview 領域へ追従し、古い overlay が左下や全面に残る見え方がないことを目視確認した。
+
+### 選定理由・判断の根拠
+- 前回の黒画面切り分けで D1 指定の capture が安定すると判明したため、今回の目視証跡はすべて `screencapture -x -D 1` で取得した。
+- 初期画面、attach 後、resize 後の3段階で確認することで、固定色表示だけでなく、座標修正と既存 AppKit view 除去の効果を同時に確認した。
+- 取得画像の 1x1 BMP hash は完全黒 hash と一致せず、スクリーンショット取得自体も正常だった。
+
+### 残課題・次のステップ
+- Phase 1 の次ステップとして、detach 実体化または overlay view 再利用による再 attach コスト削減を Red→Green で進める。
+- GPU 描画は固定色確認まで完了したため、Phase 2 以降で shm frame を addon 側へ接続する準備に進める。
+
 ## 2026-06-30 — screencapture黒画面問題を切り分け
 
 ### 実施内容
