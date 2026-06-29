@@ -10,6 +10,8 @@ use objc::{class, msg_send, sel, sel_impl};
 
 use crate::OverlayLayerContract;
 
+const NATIVE_OVERLAY_VIEW_IDENTIFIER: &str = "UXFDNativeOverlayView";
+
 pub fn attach_overlay_view(
     native_window_handle: &[u8],
     contract: &OverlayLayerContract,
@@ -54,6 +56,8 @@ fn attach_overlay_view_to_parent(
             return Err("Native overlay AppKit attach must run on the main thread.");
         }
 
+        remove_existing_overlay_view(parent_view)?;
+
         let ns_view_class = appkit_class("NSView")?;
         let overlay_view: *mut Object = msg_send![ns_view_class, alloc];
         if overlay_view.is_null() {
@@ -68,6 +72,8 @@ fn attach_overlay_view_to_parent(
         if overlay_view.is_null() {
             return Err("Native overlay NSView initialisation failed.");
         }
+        let identifier = ns_string(NATIVE_OVERLAY_VIEW_IDENTIFIER)?;
+        let () = msg_send![overlay_view, setIdentifier: identifier];
 
         let layer_class = appkit_class("CAMetalLayer")?;
         let layer: *mut Object = msg_send![layer_class, new];
@@ -87,6 +93,50 @@ fn attach_overlay_view_to_parent(
         let () = msg_send![parent_view, addSubview: overlay_view];
         let layer_ref: &MetalLayerRef = std::mem::transmute(layer);
         present_fixed_colour(layer_ref)?;
+    }
+
+    Ok(())
+}
+
+unsafe fn ns_string(value: &str) -> Result<*mut Object, &'static str> {
+    let ns_string_class = appkit_class("NSString")?;
+    let string: *mut Object = msg_send![ns_string_class, alloc];
+    if string.is_null() {
+        return Err("Native overlay NSString allocation failed.");
+    }
+    let string: *mut Object = msg_send![
+        string,
+        initWithBytes: value.as_ptr()
+        length: value.len()
+        encoding: 4usize
+    ];
+    if string.is_null() {
+        return Err("Native overlay NSString initialisation failed.");
+    }
+    Ok(string)
+}
+
+unsafe fn remove_existing_overlay_view(parent_view: *mut Object) -> Result<(), &'static str> {
+    let subviews: *mut Object = msg_send![parent_view, subviews];
+    if subviews.is_null() {
+        return Ok(());
+    }
+
+    let count: usize = msg_send![subviews, count];
+    let expected_identifier = ns_string(NATIVE_OVERLAY_VIEW_IDENTIFIER)?;
+    for index in (0..count).rev() {
+        let subview: *mut Object = msg_send![subviews, objectAtIndex: index];
+        if subview.is_null() {
+            continue;
+        }
+        let identifier: *mut Object = msg_send![subview, identifier];
+        if identifier.is_null() {
+            continue;
+        }
+        let matches: BOOL = msg_send![identifier, isEqualToString: expected_identifier];
+        if matches == YES {
+            let () = msg_send![subview, removeFromSuperview];
+        }
     }
 
     Ok(())

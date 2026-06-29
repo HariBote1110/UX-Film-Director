@@ -1,3 +1,26 @@
+## 2026-06-30 — Native Overlay既存AppKit viewをattach前に除去
+
+### 実施内容
+- `src/utils/nativeOverlayCrateBoundary.test.ts` に、AppKit attach 前に既存 native overlay view を識別して `removeFromSuperview` する契約を Red として追加した。
+- Red では `native-overlay/src/macos_overlay.rs` に `NATIVE_OVERLAY_VIEW_IDENTIFIER`、`remove_existing_overlay_view(parent_view)?;`、`setIdentifier`、`removeFromSuperview` が存在せず対象テストが失敗することを確認した。
+- `native-overlay/src/macos_overlay.rs` に `NATIVE_OVERLAY_VIEW_IDENTIFIER` を追加し、新規 overlay view に identifier を設定するようにした。
+- `native-overlay/src/macos_overlay.rs` に `remove_existing_overlay_view` を追加し、attach 前に同じ identifier の subview を後ろから走査して除去するようにした。
+- `package.json` の版を軽微修正として `0.1.1-Beta-382c` へ更新した。
+
+### 選定理由・判断の根拠
+- `ResizeObserver`、window resize、HMR、再 attach により `attach_overlay_view_to_parent` が複数回呼ばれると、既存実装では NSView / CAMetalLayer が積み増しされ、座標修正の目視確認にも古い overlay が混ざっていた。
+- Phase 1 の最小対応として、まず古い overlay を除去してから新規 attach する方針を採用した。再利用や detach の実体化は責務が広がるため次の Red に分ける。
+- 5.3 Codex Spark 調査でも、最小方針は固定識別子で既存 overlay を検出し、`removeFromSuperview` で 1 件へ収束することだった。
+- `cargo test --manifest-path native-overlay/Cargo.toml` は 4 tests passed。
+- `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts` は 1 file / 6 tests passed。
+- `npm run test:native-overlay-node` は addon build と safe smoke が成功した。
+- `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts src/utils/nativeOverlayViewportGeometry.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts src/utils/nativeOverlayMainBridge.test.ts` は 4 files / 44 tests passed。
+- 実機再起動は `VITE_UXFD_NATIVE_OVERLAY=1 npm run dev:rust-video` と通常の `npm run dev:rust-video` を比較したが、どちらも `screencapture` 結果が全面黒になったため、identifier 経路の目視判定は未確定とした。通常起動でも同じため、この黒画面は今回の Native Overlay attach 変更単独の失敗とは断定しない。
+
+### 残課題・次のステップ
+- スクリーンショット取得経路または別の UI 確認手段を復旧し、identifier 付き overlay の attach がクラッシュせず、再 attach 時に表示が積み増しされないことを確認する。
+- 次の Red では detach の実体化、または既存 overlay の再利用による再 attach コスト削減のどちらを Phase 1 に含めるか判断する。
+
 ## 2026-06-30 — Native Overlay座標をcontent view基準へ修正
 
 ### 実施内容
