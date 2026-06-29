@@ -46,6 +46,7 @@ export interface StartSharedRendererViewportPresenterInput {
   requireSharedRendererVideo?: boolean;
   requireRustVideoControlPlane?: boolean;
   requireSharedRendererOutput?: boolean;
+  skipDecodedVideoUploadForBenchmark?: boolean;
   activeVideoDecodeJob: SharedRendererViewportVideoDecodeJob | null;
   activeVideoDecodeJobs?: SharedRendererViewportVideoDecodeJob[];
   videoDecodeSlotCount?: number;
@@ -82,6 +83,7 @@ export const startSharedRendererViewportPresenter = async ({
   requireSharedRendererVideo = false,
   requireRustVideoControlPlane = false,
   requireSharedRendererOutput = false,
+  skipDecodedVideoUploadForBenchmark = false,
   activeVideoDecodeJob,
   activeVideoDecodeJobs,
   videoDecodeSlotCount,
@@ -121,7 +123,9 @@ export const startSharedRendererViewportPresenter = async ({
   }
   assertPresenterStartCurrent(isStartCurrent);
 
-  const shouldPrepareVideoUploads = effectiveVideoCutoverEnabled && !preferredNativeRenderUploadResult;
+  const shouldPrepareVideoUploads = effectiveVideoCutoverEnabled
+    && !preferredNativeRenderUploadResult
+    && !skipDecodedVideoUploadForBenchmark;
   const videoUploadsResult = shouldPrepareVideoUploads && shouldUseMultipleVideoUploads
     ? await prepareVideoUploads({
       session,
