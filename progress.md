@@ -1,3 +1,22 @@
+## 2026-06-30 — Phase 1 Native Overlay固定色presentを追加
+
+### 実施内容
+- `src/utils/nativeOverlayCrateBoundary.test.ts` に、`macos_overlay.rs` が `present_fixed_colour`、`next_drawable`、`set_clear_color`、`present_drawable` を含む契約を Red として追加した。
+- Red では固定色 present 実装が未存在のため対象テストが失敗することを確認した。
+- `native-overlay/src/macos_overlay.rs` に、CAMetalLayer drawable を Metal render pass で青系の clear colour にして present する最小実装を追加した。
+- `package.json` の版を `0.1.1-Beta-381a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 1 の目的は固定色描画とライフサイクル確認であり、transparent layer attach だけでは目視確認できないため、まず shader / pipeline を使わない clear pass で固定色を出す方針にした。
+- `cargo test --manifest-path native-overlay/Cargo.toml` は 4 tests passed。
+- `npm run test:native-overlay-node` は addon build と safe smoke が成功した。
+- `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts src/utils/nativeOverlayViewportGeometry.test.ts src/utils/nativeOverlayIpc.test.ts src/utils/nativeOverlayMainBridge.test.ts` は 5 files / 45 tests passed。
+- `VITE_UXFD_NATIVE_OVERLAY=1 npm run dev:rust-video` は起動と main / preload build に成功したが、スクリーンショット目視では青い overlay は確認できなかった。
+
+### 残課題・次のステップ
+- attach が成功しているのか fallback しているのかを main process ログで確認できる診断を追加する。
+- 診断結果に応じて、NSView の重なり順、座標、layer present のどこで落ちているかを切り分ける。
+
 ## 2026-06-30 — Phase 1 Native Overlay opt-in実起動を確認
 
 ### 実施内容
