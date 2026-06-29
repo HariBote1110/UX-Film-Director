@@ -1,3 +1,19 @@
+## 2026-06-30 — Phase 0 spike1 用 decoded upload 破棄計測フラグを追加
+
+### 実施内容
+- `src/utils/sharedRendererViewportPresenterOrchestration.test.ts` に、Phase 0 計測用の `skipDecodedVideoUploadForBenchmark` 契約を追加した。
+- Red では、計測フラグ指定時にも `prepareVideoUpload` が呼ばれてしまうことを確認した。
+- `src/utils/sharedRendererViewportPresenterOrchestration.ts` に最小実装を追加し、計測フラグ指定時は decoded video upload preparation をスキップして presenter 起動だけを維持するようにした。
+- `package.json` の版を `0.1.1-Beta-364a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 0 の spike1 は「decode 応答を presenter 側で読まずに捨てる」条件で fps を測るため、まず orchestration 層で upload preparation を切り離せる契約が必要だった。
+- 通常経路の `videoCutoverEnabled`、native render 優先、既存 WebGPU presenter fallback には触れず、計測フラグ指定時だけ動作を変える最小変更にした。
+
+### 残課題・次のステップ
+- Phase 0 spike2 として、`writeTexture` を no-op 化する計測フラグを Red→Green で追加する。
+- spike1 / spike2 の実機計測値を取得し、`markdown/Native_Overlay_Plan.md` の実測表へ追記する。
+
 ## 2026-06-30 — ADR-011 を確定し Native Overlay preview の着手条件を固定
 
 ### 実施内容
