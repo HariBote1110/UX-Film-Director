@@ -290,6 +290,55 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
     });
   });
 
+  it('skips decoded video upload preparation for the Phase 0 benchmark discard path', async () => {
+    let presenterInput: unknown;
+    const events: string[] = [];
+    const prepareVideoUpload: SharedRendererViewportVideoUploadPreparer = async () => {
+      events.push('prepareVideoUpload');
+      return {
+        ok: true,
+        activeJob,
+        request: {} as any,
+        upload,
+      };
+    };
+    const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {
+      events.push('startPresenter');
+      presenterInput = input;
+      return control;
+    };
+
+    const result = await startSharedRendererViewportPresenter({
+      canvas,
+      session,
+      datasets: [],
+      diagnosticSwatchEnabled: true,
+      videoCutoverEnabled: true,
+      activeVideoDecodeJob: activeJob,
+      requestId: 21,
+      skipDecodedVideoUploadForBenchmark: true,
+      prepareVideoUpload,
+      startPresenter,
+      onVideoDecodeJobResolved: (job) => {
+        events.push(`job:${job?.jobId ?? 'none'}`);
+      },
+    } as Parameters<typeof startSharedRendererViewportPresenter>[0] & {
+      skipDecodedVideoUploadForBenchmark: true;
+    });
+
+    expect(result.control).toBe(control);
+    expect(result.activeVideoDecodeJob).toBe(activeJob);
+    expect(events).toEqual([
+      'job:shared-renderer-video-video-1-64x32-60over1',
+      'startPresenter',
+    ]);
+    expect(presenterInput).toMatchObject({
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererDecodedVideoFrameUpload: undefined,
+      sharedRendererDecodedVideoFrameUploads: undefined,
+    });
+  });
+
   it('does not start the WebGPU presenter after video upload when the viewport start is stale', async () => {
     let current = true;
     const events: string[] = [];
