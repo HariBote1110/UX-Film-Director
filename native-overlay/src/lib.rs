@@ -1,3 +1,5 @@
+#![allow(unexpected_cfgs)]
+
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use std::panic::{catch_unwind, AssertUnwindSafe};

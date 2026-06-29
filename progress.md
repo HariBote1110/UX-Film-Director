@@ -1,3 +1,24 @@
+## 2026-06-30 — Phase 1 Native Overlay AppKit attach最小実装を追加
+
+### 実施内容
+- `src/utils/nativeOverlayCrateBoundary.test.ts` に、`macos_overlay.rs` が main thread 確認、`NSView` / `CAMetalLayer` 生成、`setPixelFormat`、`setDrawableSize`、`addSubview` を含む契約を Red として追加した。
+- Red では `macos_overlay.rs` が pointer 復元だけで、AppKit attach の selector を含まないため対象テストが失敗することを確認した。
+- `native-overlay/src/macos_overlay.rs` に、Electron 由来の parent `NSView*` へ overlay `NSView` を追加し、`CAMetalLayer` を設定する最小実装を追加した。
+- `native-overlay/src/lib.rs` に `objc` macro 由来の `unexpected_cfgs` 警告抑制を crate root に限定して追加した。
+- `package.json` の版を `0.1.1-Beta-377a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 1 の目的である NSView / CAMetalLayer overlay 生成に入るため、まず固定色描画より前段の layer attach を最小実装した。
+- Electron 型定義では macOS の native handle は `NSView*` なので、親 view の bounds を使って overlay view と layer frame / drawable size を設定した。
+- 通常の Node smoke は fake pointer attach を実行しないため、実 pointer dereference 実装後もクラッシュしない。
+- `cargo test --manifest-path native-overlay/Cargo.toml` は 4 tests passed。
+- `npm run test:native-overlay-node` は addon build と safe smoke が成功した。
+- `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts src/utils/nativeOverlayMainBridge.test.ts src/utils/nativeOverlayIpc.test.ts src/utils/nativeOverlayPreloadBoundary.test.ts src/utils/nativeOverlayBridgePath.test.ts` は 5 files / 18 tests passed。
+
+### 残課題・次のステップ
+- `UXFD_NATIVE_OVERLAY=1` の Electron 実起動で、実 `NSView*` を使った attach がクラッシュせず成功するかを確認する。
+- 固定色描画はまだ未実装のため、次サイクルで CAMetalLayer / wgpu surface present へ進み、目視確認を `progress.md` に記録する。
+
 ## 2026-06-30 — Phase 1 Native Overlay smoke attachを明示opt-in化
 
 ### 実施内容
