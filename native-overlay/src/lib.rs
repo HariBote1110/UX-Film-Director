@@ -21,6 +21,7 @@ pub struct NativeOverlayAttachPayload {
 #[napi(object)]
 pub struct NativeOverlayDetachPayload {
     pub window_id: u32,
+    pub native_window_handle: Option<Buffer>,
 }
 
 #[napi(object)]
@@ -92,6 +93,14 @@ fn attach_native_overlay_inner(payload: NativeOverlayAttachPayload) -> NativeOve
 
 fn detach_native_overlay_inner(payload: NativeOverlayDetachPayload) -> NativeOverlayResponse {
     let _ = payload.window_id;
+    let native_window_handle = match detach_native_window_handle_bytes(&payload) {
+        Ok(bytes) => bytes,
+        Err(reason) => return failure(reason),
+    };
+    #[cfg(target_os = "macos")]
+    if let Err(reason) = macos_overlay::detach_overlay_view(&native_window_handle) {
+        return failure(reason);
+    }
 
     NativeOverlayResponse {
         success: true,
@@ -134,6 +143,19 @@ pub fn build_overlay_layer_contract(
 
 pub fn native_window_handle_bytes(
     payload: &NativeOverlayAttachPayload,
+) -> Result<Vec<u8>, &'static str> {
+    let Some(handle) = &payload.native_window_handle else {
+        return Err("Native overlay window handle is required.");
+    };
+    let bytes = handle.as_ref();
+    if bytes.len() != std::mem::size_of::<usize>() {
+        return Err("Native overlay window handle has an unexpected byte length.");
+    }
+    Ok(bytes.to_vec())
+}
+
+pub fn detach_native_window_handle_bytes(
+    payload: &NativeOverlayDetachPayload,
 ) -> Result<Vec<u8>, &'static str> {
     let Some(handle) = &payload.native_window_handle else {
         return Err("Native overlay window handle is required.");
@@ -242,6 +264,21 @@ mod tests {
         assert_eq!(
             native_window_handle_bytes(&payload).expect_err("missing handle must be rejected"),
             "Native overlay window handle is required.",
+        );
+    }
+
+    #[test]
+    fn detach_native_window_handle_bytes_are_required_for_detach() {
+        let payload = NativeOverlayDetachPayload {
+            window_id: 42,
+            native_window_handle: Some(napi::bindgen_prelude::Buffer::from(vec![
+                1, 2, 3, 4, 5, 6, 7, 8,
+            ])),
+        };
+
+        assert_eq!(
+            detach_native_window_handle_bytes(&payload).expect("native handle bytes"),
+            vec![1, 2, 3, 4, 5, 6, 7, 8],
         );
     }
 }

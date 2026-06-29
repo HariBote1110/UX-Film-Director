@@ -43,8 +43,8 @@ export const registerNativeOverlayIpcHandlers = (
     options.logDiagnostic?.('attach', response)
     return response
   })
-  ipcMain.handle(nativeOverlayIpcChannels.detach, async (_event, payload) =>
-    bridge.detach(payload as NativeOverlayDetachPayload))
+  ipcMain.handle(nativeOverlayIpcChannels.detach, async (event, payload) =>
+    bridge.detach(withWindowId(payload, event, options.resolveWindowIdFromEvent) as NativeOverlayDetachPayload))
   ipcMain.handle(nativeOverlayIpcChannels.capabilities, async () =>
     bridge.getCapabilities())
 }

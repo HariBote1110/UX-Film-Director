@@ -300,7 +300,7 @@ interface Window {
       reason?: string;
     }>;
     detach: (payload: {
-      windowId: number;
+      windowId?: number;
     }) => Promise<{
       success: boolean;
       attached: boolean;

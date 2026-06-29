@@ -21,6 +21,24 @@ pub fn attach_overlay_view(
     Ok(())
 }
 
+pub fn detach_overlay_view(native_window_handle: &[u8]) -> Result<(), &'static str> {
+    let parent_view = native_window_handle_to_parent_view(native_window_handle)?;
+    if parent_view.is_null() {
+        return Err("Native overlay parent NSView pointer is null.");
+    }
+
+    unsafe {
+        let is_main_thread: BOOL = msg_send![class!(NSThread), isMainThread];
+        if is_main_thread == NO {
+            return Err("Native overlay AppKit detach must run on the main thread.");
+        }
+
+        remove_existing_overlay_view(parent_view)?;
+    }
+
+    Ok(())
+}
+
 fn native_window_handle_to_parent_view(
     native_window_handle: &[u8],
 ) -> Result<*mut Object, &'static str> {

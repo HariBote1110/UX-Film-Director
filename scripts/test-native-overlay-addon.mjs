@@ -37,7 +37,10 @@ if (smokeAttachHandleHex) {
     throw new Error(`unexpected attach response: ${JSON.stringify(attach)}`)
   }
 
-  detach = addon.detachNativeOverlay({ windowId: 1 })
+  detach = addon.detachNativeOverlay({
+    windowId: 1,
+    nativeWindowHandle: Buffer.from(smokeAttachHandleHex, 'hex'),
+  })
   if (!detach?.success || detach.attached !== false) {
     throw new Error(`unexpected detach response: ${JSON.stringify(detach)}`)
   }

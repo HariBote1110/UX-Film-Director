@@ -1,3 +1,31 @@
+## 2026-06-30 — Native Overlay detachをAppKit removeへ接続
+
+### 実施内容
+- `src/utils/nativeOverlayMainBridge.test.ts` に、detach でも main bridge が BrowserWindow native handle を addon payload へ補完する契約を Red として追加した。
+- `src/utils/nativeOverlayMainBridge.test.ts` に、detach 時に native handle を解決できない場合は WebGPU presenter fallback を返す契約を Red として追加した。
+- `src/utils/nativeOverlayIpc.test.ts` に、renderer が detach payload の `windowId` を省略した場合でも IPC event から補完する契約を Red として追加した。
+- `src/utils/nativeOverlayCrateBoundary.test.ts` に、napi detach payload が `nativeWindowHandle` を受け取り、macOS overlay module の `detach_overlay_view` へ渡す契約を Red として追加した。
+- Red では detach が `windowId` 補完、native handle 補完、AppKit remove 呼び出しのいずれも行わず、対象テストが失敗することを確認した。
+- `electron/nativeOverlayIpc.ts` で detach handler にも `withWindowId` を適用した。
+- `electron/nativeOverlayMainBridge.ts` で detach 時にも `resolveNativeWindowHandle` を使い、addon の `detachNativeOverlay` へ `nativeWindowHandle` を渡すようにした。
+- `src/vite-env.d.ts` と `src/components/Viewport.tsx` を更新し、renderer cleanup は `windowId` を持たずに detach できるようにした。
+- `native-overlay/src/lib.rs` に detach 用 `native_window_handle` payload と handle 検証を追加し、macOS では `macos_overlay::detach_overlay_view(&native_window_handle)` を呼ぶようにした。
+- `native-overlay/src/macos_overlay.rs` に `detach_overlay_view` を追加し、既存 overlay view の除去処理へ接続した。
+- `scripts/test-native-overlay-addon.mjs` の明示 attach smoke で detach にも同じ native handle を渡すようにした。
+- `package.json` の版を軽微修正として `0.1.1-Beta-382d` へ更新した。
+
+### 選定理由・判断の根拠
+- 既存の detach は addon まで呼ばれても no-op で、unmount / cleanup 時に AppKit overlay view を明示的に外せなかった。
+- `BrowserWindow.getNativeWindowHandle()` は main process 境界内に閉じるべき情報なので、attach と同じく renderer IPC には frame bytes や native handle を載せず、main bridge で補完する方針を維持した。
+- detach が native handle を解決できない場合は、attach と同様に既存 WebGPU presenter 退避路へ戻すことで ADR-011 の fallback 方針に合わせた。
+- `npx vitest run src/utils/nativeOverlayMainBridge.test.ts src/utils/nativeOverlayIpc.test.ts src/utils/nativeOverlayCrateBoundary.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts` は 4 files / 49 tests passed。
+- `cargo test --manifest-path native-overlay/Cargo.toml` は 5 tests passed。
+- `npm run test:native-overlay-node` は addon build と safe smoke が成功した。
+
+### 残課題・次のステップ
+- Phase 1 の残りとして、必要なら overlay view の再利用で再 attach コストを下げる。ただし固定色 attach / resize / detach 経路の土台は揃った。
+- 次は Phase 2 として、sidecar decode は維持したまま、addon が shm frame metadata を受け取って読み取り準備できる境界を Red→Green で追加する。
+
 ## 2026-06-30 — Native Overlay固定色の目視確認を再実施
 
 ### 実施内容

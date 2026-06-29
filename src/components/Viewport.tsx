@@ -552,7 +552,7 @@ const Viewport: React.FC = () => {
       disposed = true;
       observer?.disconnect();
       window.removeEventListener('resize', attach);
-      void window.nativeOverlay?.detach({ windowId: -1 });
+      void window.nativeOverlay?.detach({});
     };
   }, [nativeOverlayPreviewEnabled]);
 

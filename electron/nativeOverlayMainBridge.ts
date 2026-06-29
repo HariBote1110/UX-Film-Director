@@ -20,6 +20,10 @@ export interface NativeOverlayDetachPayload {
   windowId: number
 }
 
+export interface NativeOverlayAddonDetachPayload extends NativeOverlayDetachPayload {
+  nativeWindowHandle: Uint8Array
+}
+
 export interface NativeOverlayResponse {
   success: boolean
   attached: boolean
@@ -29,7 +33,7 @@ export interface NativeOverlayResponse {
 
 export interface NativeOverlayAddon {
   attachNativeOverlay?: (payload: NativeOverlayAddonAttachPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
-  detachNativeOverlay?: (payload: NativeOverlayDetachPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
+  detachNativeOverlay?: (payload: NativeOverlayAddonDetachPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   getNativeOverlayCapabilities?: () => NativeOverlayCapabilities
 }
 
@@ -136,13 +140,24 @@ export const createNativeOverlayMainBridge = ({
       }
     },
     async detach(payload) {
+      if (!nativeOverlayEnabled(env)) {
+        return fallbackResponse('Native overlay preview is disabled.')
+      }
+
       const addon = loadAddon()
       if (!addon || typeof addon.detachNativeOverlay !== 'function') {
         return fallbackResponse('Native overlay addon is unavailable.')
       }
+      const nativeWindowHandle = resolveNativeWindowHandle?.(payload.windowId) ?? null
+      if (!nativeWindowHandle) {
+        return fallbackResponse('Native overlay window handle is unavailable.')
+      }
 
       try {
-        return await addon.detachNativeOverlay(payload)
+        return await addon.detachNativeOverlay({
+          ...payload,
+          nativeWindowHandle,
+        })
       } catch (error) {
         return fallbackResponse(getErrorMessage(error))
       }
