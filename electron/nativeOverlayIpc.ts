@@ -28,14 +28,38 @@ export interface NativeOverlayIpcBridge {
   getCapabilities: () => NativeOverlayCapabilities
 }
 
+export interface RegisterNativeOverlayIpcHandlersOptions {
+  resolveWindowIdFromEvent?: (event: unknown) => number | null
+}
+
 export const registerNativeOverlayIpcHandlers = (
   ipcMain: NativeOverlayIpcMainLike,
   bridge: NativeOverlayIpcBridge,
+  options: RegisterNativeOverlayIpcHandlersOptions = {},
 ): void => {
-  ipcMain.handle(nativeOverlayIpcChannels.attach, async (_event, payload) =>
-    bridge.attach(payload as NativeOverlayAttachPayload))
+  ipcMain.handle(nativeOverlayIpcChannels.attach, async (event, payload) =>
+    bridge.attach(withWindowId(payload, event, options.resolveWindowIdFromEvent)))
   ipcMain.handle(nativeOverlayIpcChannels.detach, async (_event, payload) =>
     bridge.detach(payload as NativeOverlayDetachPayload))
   ipcMain.handle(nativeOverlayIpcChannels.capabilities, async () =>
     bridge.getCapabilities())
+}
+
+const withWindowId = (
+  payload: unknown,
+  event: unknown,
+  resolveWindowIdFromEvent?: (event: unknown) => number | null,
+): NativeOverlayAttachPayload => {
+  const attachPayload = {
+    ...(typeof payload === 'object' && payload !== null ? payload : {}),
+  } as Partial<NativeOverlayAttachPayload>
+  if (typeof attachPayload.windowId === 'number') {
+    return attachPayload as NativeOverlayAttachPayload
+  }
+
+  const windowId = resolveWindowIdFromEvent?.(event) ?? null
+  return {
+    ...attachPayload,
+    windowId: typeof windowId === 'number' ? windowId : -1,
+  } as NativeOverlayAttachPayload
 }

@@ -286,7 +286,7 @@ interface Window {
       reason?: string;
     }>;
     attach: (payload: {
-      windowId: number;
+      windowId?: number;
       x: number;
       y: number;
       width: number;

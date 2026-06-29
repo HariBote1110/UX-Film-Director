@@ -1,3 +1,24 @@
+## 2026-06-30 — Phase 1 Native Overlay IPCでwindowIdをeventから補完
+
+### 実施内容
+- `src/utils/nativeOverlayIpc.test.ts` に、renderer attach payload が `windowId` を省略した場合でも IPC event から BrowserWindow id を補う契約を Red として追加した。
+- Red では `registerNativeOverlayIpcHandlers` が payload をそのまま bridge に渡し、`windowId` が補完されないことを確認した。
+- `electron/nativeOverlayIpc.ts` に `resolveWindowIdFromEvent` option と `withWindowId` helper を追加した。
+- `electron/main.ts` で `BrowserWindow.fromWebContents(event.sender)?.id` を接続し、renderer は座標 payload だけで attach できるようにした。
+- `src/vite-env.d.ts` の `nativeOverlay.attach` payload で `windowId` を optional にした。
+- `package.json` の版を `0.1.1-Beta-378a` へ更新した。
+
+### 選定理由・判断の根拠
+- 実機目視確認では renderer が自身の BrowserWindow id を知る必要がない方が自然で、main process 内で window id と native handle を完結させられる。
+- 制御プレーン IPC には矩形と scale factor だけを載せ、window handle bytes は引き続き main→addon 境界に限定した。
+- `npx vitest run src/utils/nativeOverlayIpc.test.ts src/utils/nativeOverlayPreloadBoundary.test.ts src/utils/nativeOverlayMainBridge.test.ts src/utils/nativeOverlayBridgePath.test.ts src/utils/nativeOverlayCrateBoundary.test.ts` は 5 files / 19 tests passed。
+- `cargo test --manifest-path native-overlay/Cargo.toml` は 4 tests passed。
+- `npm run test:native-overlay-node` は addon build と safe smoke が成功した。
+
+### 残課題・次のステップ
+- `UXFD_NATIVE_OVERLAY=1` の Electron 実起動で、renderer から `window.nativeOverlay.attach({ x, y, width, height, scaleFactor })` を呼ぶ導線を追加し、実 `NSView*` attach の目視確認へ進む。
+- 固定色描画はまだ未実装なので、attach 成功確認後に CAMetalLayer / wgpu present へ進む。
+
 ## 2026-06-30 — Phase 1 Native Overlay AppKit attach最小実装を追加
 
 ### 実施内容

@@ -485,6 +485,8 @@ app.whenReady().then(() => {
     cwd: process.cwd(),
     resourcesPath: process.resourcesPath,
     resolveNativeWindowHandle: (windowId) => BrowserWindow.fromId(windowId)?.getNativeWindowHandle() ?? null,
+  }), {
+    resolveWindowIdFromEvent: (event) => BrowserWindow.fromWebContents(event.sender)?.id ?? null,
   }))
 
   ipcMain.handle('save-project-file', async (_event, payload: { data?: string; defaultName?: string }) => {
