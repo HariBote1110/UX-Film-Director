@@ -1,3 +1,22 @@
+## 2026-06-30 — Phase 0 実機計測用 env を preview 経路へ配線
+
+### 実施内容
+- `src/utils/sharedRendererViewportPresenterOrchestration.test.ts` に、`sharedRendererWriteTextureNoOpEnabled` を presenter start input へ渡す契約を追加した。
+- `src/utils/viewportRustVideoOnlyBoundary.test.ts` に、`VITE_UXFD_PHASE0_SKIP_DECODED_UPLOAD` と `VITE_UXFD_PHASE0_WRITE_TEXTURE_NOOP` を `Viewport` が読み、orchestration へ渡す契約を追加した。
+- Red では、orchestration が no-op flag を渡さず、`Viewport` に Phase 0 env が存在しないことを確認した。
+- `src/utils/sharedRendererViewportPresenterOrchestration.ts` と `src/components/Viewport.tsx` に最小実装を追加し、Phase 0 の2つの計測 env を実機 preview 経路から使えるようにした。
+- `package.json` の版を `0.1.1-Beta-366a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 0 は実機で baseline / decoded upload 破棄 / writeTexture no-op を比較するため、単体テスト用フラグだけでなく dev 起動時の env 配線が必要だった。
+- 既存の `VITE_UXFD_*` flag パターンに合わせ、明示的に `=== '1'` のときだけ計測モードを有効化した。
+- 通常 preview / export / WebGPU presenter fallback の既定挙動は変えず、Phase 0 env 指定時だけ切り替えるようにした。
+
+### 残課題・次のステップ
+- `UXFD_DECODE_TRACE=1 npm run dev:rust-video` を baseline として計測する。
+- `VITE_UXFD_PHASE0_SKIP_DECODED_UPLOAD=1 UXFD_DECODE_TRACE=1 npm run dev:rust-video` と `VITE_UXFD_PHASE0_WRITE_TEXTURE_NOOP=1 UXFD_DECODE_TRACE=1 npm run dev:rust-video` で比較計測する。
+- 1080p / 720p の fps、frame time、`decodeMs`、presenter start count、writeTexture 有無を `markdown/Native_Overlay_Plan.md` の実測表へ追記する。
+
 ## 2026-06-30 — Phase 0 spike2 用 writeTexture no-op 計測フラグを追加
 
 ### 実施内容
