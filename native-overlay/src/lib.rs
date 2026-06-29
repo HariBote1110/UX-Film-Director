@@ -140,6 +140,9 @@ mod tests {
     fn overlay_layer_contract_uses_bgra8_unorm_and_scaled_drawable_size() {
         let contract = build_overlay_layer_contract(&NativeOverlayAttachPayload {
             window_id: 42,
+            native_window_handle: Some(napi::bindgen_prelude::Buffer::from(vec![
+                1, 2, 3, 4, 5, 6, 7, 8,
+            ])),
             x: 12.0,
             y: 34.0,
             width: 640.0,
@@ -161,6 +164,9 @@ mod tests {
     fn overlay_layer_contract_rejects_non_positive_geometry() {
         let error = build_overlay_layer_contract(&NativeOverlayAttachPayload {
             window_id: 42,
+            native_window_handle: Some(napi::bindgen_prelude::Buffer::from(vec![
+                1, 2, 3, 4, 5, 6, 7, 8,
+            ])),
             x: 0.0,
             y: 0.0,
             width: 0.0,
@@ -170,5 +176,43 @@ mod tests {
         .expect_err("zero width must be rejected");
 
         assert_eq!(error, "Native overlay size and scale factor must be positive.");
+    }
+
+    #[test]
+    fn native_window_handle_bytes_are_required_for_attach() {
+        let payload = NativeOverlayAttachPayload {
+            window_id: 42,
+            native_window_handle: Some(napi::bindgen_prelude::Buffer::from(vec![
+                1, 2, 3, 4, 5, 6, 7, 8,
+            ])),
+            x: 0.0,
+            y: 0.0,
+            width: 320.0,
+            height: 180.0,
+            scale_factor: 2.0,
+        };
+
+        assert_eq!(
+            native_window_handle_bytes(&payload).expect("native handle bytes"),
+            vec![1, 2, 3, 4, 5, 6, 7, 8],
+        );
+    }
+
+    #[test]
+    fn native_window_handle_bytes_reject_missing_handle() {
+        let payload = NativeOverlayAttachPayload {
+            window_id: 42,
+            native_window_handle: None,
+            x: 0.0,
+            y: 0.0,
+            width: 320.0,
+            height: 180.0,
+            scale_factor: 2.0,
+        };
+
+        assert_eq!(
+            native_window_handle_bytes(&payload).expect_err("missing handle must be rejected"),
+            "Native overlay window handle is required.",
+        );
     }
 }
