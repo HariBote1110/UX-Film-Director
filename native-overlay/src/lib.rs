@@ -29,6 +29,17 @@ pub struct NativeOverlayCapabilities {
     pub reason: Option<String>,
 }
 
+#[derive(Debug, PartialEq)]
+pub struct OverlayLayerContract {
+    pub pixel_format: &'static str,
+    pub view_x: f64,
+    pub view_y: f64,
+    pub view_width: f64,
+    pub view_height: f64,
+    pub drawable_width: u32,
+    pub drawable_height: u32,
+}
+
 #[napi(js_name = "attachNativeOverlay")]
 pub fn attach_native_overlay(payload: NativeOverlayAttachPayload) -> NativeOverlayResponse {
     match std::panic::catch_unwind(AssertUnwindSafe(|| attach_native_overlay_inner(payload))) {
@@ -51,14 +62,10 @@ pub fn get_native_overlay_capabilities() -> NativeOverlayCapabilities {
 }
 
 fn attach_native_overlay_inner(payload: NativeOverlayAttachPayload) -> NativeOverlayResponse {
-    let _ = (
-        payload.window_id,
-        payload.x,
-        payload.y,
-        payload.width,
-        payload.height,
-        payload.scale_factor,
-    );
+    let _ = payload.window_id;
+    if let Err(reason) = build_overlay_layer_contract(&payload) {
+        return failure(reason);
+    }
 
     NativeOverlayResponse {
         success: true,
@@ -83,6 +90,30 @@ fn failure(reason: &str) -> NativeOverlayResponse {
         attached: false,
         reason: Some(reason.to_string()),
     }
+}
+
+pub fn build_overlay_layer_contract(
+    payload: &NativeOverlayAttachPayload,
+) -> Result<OverlayLayerContract, &'static str> {
+    if !payload.width.is_finite()
+        || !payload.height.is_finite()
+        || !payload.scale_factor.is_finite()
+        || payload.width <= 0.0
+        || payload.height <= 0.0
+        || payload.scale_factor <= 0.0
+    {
+        return Err("Native overlay size and scale factor must be positive.");
+    }
+
+    Ok(OverlayLayerContract {
+        pixel_format: "bgra8Unorm",
+        view_x: payload.x,
+        view_y: payload.y,
+        view_width: payload.width,
+        view_height: payload.height,
+        drawable_width: (payload.width * payload.scale_factor).round() as u32,
+        drawable_height: (payload.height * payload.scale_factor).round() as u32,
+    })
 }
 
 #[cfg(target_os = "macos")]

@@ -1,3 +1,22 @@
+## 2026-06-30 — Phase 1 Native Overlay layer設定契約を追加
+
+### 実施内容
+- `native-overlay/src/lib.rs` に Rust unit test を追加し、attach payload から `bgra8Unorm`、view rect、scale factor 反映後の drawable size を作る契約を Red にした。
+- Red では `build_overlay_layer_contract` 未実装により `cargo test --manifest-path native-overlay/Cargo.toml` が失敗することを確認した。
+- `OverlayLayerContract` と `build_overlay_layer_contract` を最小実装し、`attachNativeOverlay` の入口で非正値の width / height / scale factor を拒否するようにした。
+- `package.json` の版を `0.1.1-Beta-372a` へ更新した。
+
+### 選定理由・判断の根拠
+- NSView / CAMetalLayer の実呼び出しへ入る前に、layer に渡す pixel format と drawable size の算出を純粋な Rust テストで固定した。
+- Phase 1 の要件である `pixelFormat=bgra8Unorm` と指定サイズの `drawableSize` を、AppKit 依存の前段で検証できる形にした。
+- `cargo test --manifest-path native-overlay/Cargo.toml` は 2 tests passed。
+- `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts src/utils/nativeOverlayIpc.test.ts src/utils/nativeOverlayPreloadBoundary.test.ts src/utils/nativeOverlayMainBridge.test.ts src/utils/nativeOverlayBridgePath.test.ts` は 5 files / 16 tests passed。
+- `npm run test:native-overlay-node` は addon build と Node smoke test が成功した。
+
+### 残課題・次のステップ
+- Phase 1 の次サイクルで、macOS `#[cfg(target_os = "macos")]` 内に NSView / CAMetalLayer attach の実装を追加する。
+- 固定色描画と目視確認は、実 layer attach が通った後に `UXFD_NATIVE_OVERLAY=1` で行う。
+
 ## 2026-06-30 — Phase 1 Native Overlay IPCとpreload公開を追加
 
 ### 実施内容
