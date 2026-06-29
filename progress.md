@@ -1,3 +1,23 @@
+## 2026-06-30 — Phase 1 Native Overlay window handle解決をmain内へ限定
+
+### 実施内容
+- `src/utils/nativeOverlayMainBridge.test.ts` に、renderer 由来の `windowId` から main 内で native window handle を解決し、addon payload にだけ `nativeWindowHandle` を追加する契約を Red として追加した。
+- Red では `attachNativeOverlay` が `nativeWindowHandle` なしで呼ばれ、handle 未解決時にも fallback しないことを確認した。
+- `electron/nativeOverlayMainBridge.ts` に `resolveNativeWindowHandle` 注入点と `NativeOverlayAddonAttachPayload` を追加し、handle 未解決時は既存 WebGPU presenter へ fallback するようにした。
+- `electron/main.ts` で `BrowserWindow.fromId(windowId)?.getNativeWindowHandle()` を bridge に接続した。
+- `package.json` の版を `0.1.1-Beta-373a` へ更新した。
+
+### 選定理由・判断の根拠
+- Rust addon が AppKit / CAMetalLayer を操作するには native window handle が必要だが、renderer / preload / 制御プレーン IPC に handle bytes を露出させない方針を維持する必要があった。
+- `05-boundary-ipc.md` の frame bytes / base64 禁止を維持しつつ、main process 内だけで Electron window handle を解決する構造にした。
+- `npx vitest run src/utils/nativeOverlayMainBridge.test.ts src/utils/nativeOverlayIpc.test.ts src/utils/nativeOverlayPreloadBoundary.test.ts src/utils/nativeOverlayBridgePath.test.ts` は 4 files / 13 tests passed。
+- `npm run test:native-overlay-node` は addon build と Node smoke test が成功した。
+- `cargo test --manifest-path native-overlay/Cargo.toml` は 2 tests passed。
+
+### 残課題・次のステップ
+- Phase 1 の次サイクルで、Rust 側 `NativeOverlayAttachPayload` に `nativeWindowHandle` を受け取り、macOS `#[cfg(target_os = "macos")]` 内で NSWindow / contentView / overlay NSView / CAMetalLayer 生成へ進む。
+- 実 layer attach 後、固定色描画と目視確認を行う。
+
 ## 2026-06-30 — Phase 1 Native Overlay layer設定契約を追加
 
 ### 実施内容

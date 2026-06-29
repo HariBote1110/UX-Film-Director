@@ -12,6 +12,10 @@ export interface NativeOverlayAttachPayload {
   scaleFactor: number
 }
 
+export interface NativeOverlayAddonAttachPayload extends NativeOverlayAttachPayload {
+  nativeWindowHandle: Uint8Array
+}
+
 export interface NativeOverlayDetachPayload {
   windowId: number
 }
@@ -24,7 +28,7 @@ export interface NativeOverlayResponse {
 }
 
 export interface NativeOverlayAddon {
-  attachNativeOverlay?: (payload: NativeOverlayAttachPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
+  attachNativeOverlay?: (payload: NativeOverlayAddonAttachPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   detachNativeOverlay?: (payload: NativeOverlayDetachPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   getNativeOverlayCapabilities?: () => NativeOverlayCapabilities
 }
@@ -35,6 +39,7 @@ export interface CreateNativeOverlayMainBridgeInput {
   resourcesPath?: string
   existsSync?: (candidate: string) => boolean
   requireModule?: (modulePath: string) => NativeOverlayAddon
+  resolveNativeWindowHandle?: (windowId: number) => Uint8Array | null
 }
 
 export interface NativeOverlayMainBridge {
@@ -64,6 +69,7 @@ export const createNativeOverlayMainBridge = ({
   resourcesPath,
   existsSync,
   requireModule = defaultRequire as (modulePath: string) => NativeOverlayAddon,
+  resolveNativeWindowHandle,
 }: CreateNativeOverlayMainBridgeInput): NativeOverlayMainBridge => {
   let loadedAddon: NativeOverlayAddon | null | undefined
 
@@ -112,9 +118,16 @@ export const createNativeOverlayMainBridge = ({
       if (!addon || typeof addon.attachNativeOverlay !== 'function') {
         return fallbackResponse('Native overlay addon is unavailable.')
       }
+      const nativeWindowHandle = resolveNativeWindowHandle?.(payload.windowId) ?? null
+      if (!nativeWindowHandle) {
+        return fallbackResponse('Native overlay window handle is unavailable.')
+      }
 
       try {
-        return await addon.attachNativeOverlay(payload)
+        return await addon.attachNativeOverlay({
+          ...payload,
+          nativeWindowHandle,
+        })
       } catch (error) {
         return fallbackResponse(getErrorMessage(error))
       }

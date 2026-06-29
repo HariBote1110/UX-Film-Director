@@ -101,6 +101,7 @@ describe('createNativeOverlayMainBridge', () => {
           throw new Error('panic guard reported failure');
         },
       })),
+      resolveNativeWindowHandle: vi.fn(() => Buffer.from([1, 2, 3, 4, 5, 6, 7, 8])),
     });
 
     await expect(bridge.attach(attachPayload)).resolves.toEqual({
