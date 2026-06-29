@@ -1,3 +1,22 @@
+## 2026-06-30 — Phase 1 Native Overlay main境界のfallback契約を追加
+
+### 実施内容
+- `src/utils/nativeOverlayBridgePath.test.ts` に、`UXFD_NATIVE_OVERLAY_MODULE`、開発用 `native-overlay/native-overlay.node`、packaged resources、未検出時 `null` の解決契約を追加した。
+- `src/utils/nativeOverlayMainBridge.test.ts` に、`UXFD_NATIVE_OVERLAY` 未設定時、addon 未検出時、addon 例外時は `webgpuPresenter` fallback を返す契約を追加した。
+- Red では、`electron/nativeOverlayBridgePath.ts` と `electron/nativeOverlayMainBridge.ts` が未作成のため対象テストが失敗することを確認した。
+- `electron/nativeOverlayBridgePath.ts` と `electron/nativeOverlayMainBridge.ts` を最小実装し、対象テスト 8 件が通ることを確認した。
+- `package.json` の版を `0.1.1-Beta-369a` へ更新した。
+
+### 選定理由・判断の根拠
+- ADR-011 の補足で定めた「panic 時は既存 WebGPU presenter へ fallback」を、NSView 実装より先に main process 境界のテストで固定する必要があった。
+- 既存 `shared-video-frame-bridge-node` と同じ env override → 開発出力 → packaged resources の解決順に合わせ、配布時と開発時の挙動差を小さくした。
+- Phase 1 の GPU 描画は目視確認が必要になるため、その前段の flag gate と fallback は単体テストで自動検証できる形にした。
+
+### 残課題・次のステップ
+- Phase 1 の次サイクルとして、`native-overlay/` crate と napi-rs の attach / detach API を Red→Green で追加する。
+- その後、Electron main の IPC handler と preload 公開を追加し、renderer から `attach` / `detach` を呼べる契約を固定する。
+- macOS の NSView / CAMetalLayer 生成、固定色描画、目視確認は crate の基本 API が通ってから実施する。
+
 ## 2026-06-30 — Phase 0 自動計測で native render output 往復が支配的と確認
 
 ### 実施内容
