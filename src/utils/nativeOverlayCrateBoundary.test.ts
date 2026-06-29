@@ -51,6 +51,10 @@ describe('native overlay napi crate boundary', () => {
     expect(macosOverlay).toContain('setPixelFormat');
     expect(macosOverlay).toContain('setDrawableSize');
     expect(macosOverlay).toContain('addSubview');
+    expect(macosOverlay).toContain('present_fixed_colour');
+    expect(macosOverlay).toContain('next_drawable');
+    expect(macosOverlay).toContain('set_clear_color');
+    expect(macosOverlay).toContain('present_drawable');
   });
 
   it('provides build and smoke-test scripts for the native overlay addon', () => {
