@@ -1,3 +1,18 @@
+## 2026-06-30 — Native Overlay IPC登録の構文修正
+
+### 実施内容
+- `VITE_UXFD_NATIVE_OVERLAY=1 npm run dev:rust-video` の実起動確認で、`electron/main.ts` の `registerNativeOverlayIpcHandlers` 呼び出しに閉じ括弧が1つ多く、Electron main build が失敗することを確認した。
+- `electron/main.ts` の IPC 登録呼び出しを修正した。
+- `package.json` の版を軽微修正として `0.1.1-Beta-380b` へ更新した。
+
+### 選定理由・判断の根拠
+- 単体境界テストでは文字列契約中心だったため、Electron main の実 bundling 構文エラーが実起動で初めて露出した。
+- Native Overlay attach の実機確認へ進む前に、main process build が通る状態へ戻す必要があった。
+- `npx vitest run src/utils/nativeOverlayIpc.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts src/utils/nativeOverlayPreloadBoundary.test.ts` は 3 files / 35 tests passed。
+
+### 残課題・次のステップ
+- 修正コミット後、改めて `VITE_UXFD_NATIVE_OVERLAY=1 npm run dev:rust-video` を起動し、実 `NSView*` attach のクラッシュ有無を確認する。
+
 ## 2026-06-30 — Phase 1 ViewportからNative Overlay attachをopt-in接続
 
 ### 実施内容
