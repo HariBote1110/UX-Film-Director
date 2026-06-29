@@ -78,4 +78,44 @@ describe('nativeOverlayIpc', () => {
       },
     });
   });
+
+  it('logs native overlay attach results for opt-in diagnostics', async () => {
+    const handlers = new Map<string, (_event: unknown, payload: unknown) => Promise<unknown>>();
+    const ipcMain = {
+      handle: vi.fn((channel: string, handler: (_event: unknown, payload: unknown) => Promise<unknown>) => {
+        handlers.set(channel, handler);
+      }),
+    };
+    const logger = vi.fn();
+    const bridge = {
+      attach: vi.fn(async () => ({
+        success: false,
+        attached: false,
+        fallback: 'webgpuPresenter' as const,
+        reason: 'Native overlay addon is unavailable.',
+      })),
+      detach: vi.fn(async (payload: unknown) => ({ success: true, attached: false, payload })),
+      getCapabilities: vi.fn(() => ({ available: false })),
+    };
+
+    registerNativeOverlayIpcHandlers(ipcMain, bridge, {
+      resolveWindowIdFromEvent: vi.fn(() => 9),
+      logDiagnostic: logger,
+    });
+
+    await handlers.get(nativeOverlayIpcChannels.attach)?.({}, {
+      x: 1,
+      y: 2,
+      width: 320,
+      height: 180,
+      scaleFactor: 2,
+    });
+
+    expect(logger).toHaveBeenCalledWith('attach', {
+      success: false,
+      attached: false,
+      fallback: 'webgpuPresenter',
+      reason: 'Native overlay addon is unavailable.',
+    });
+  });
 });
