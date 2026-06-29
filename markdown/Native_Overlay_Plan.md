@@ -205,6 +205,26 @@ B1 だけで「JS heap 経由」「Chromium GPU process 経由」を消せる。
 
 Phase 0 の実測値はここに追記する。
 
-```text
-（未計測）
-```
+### Phase 0 初回自動計測（2026-06-30）
+
+条件:
+
+- 実行: `VITE_PERF_AGENT_MODE=1 UXFD_DECODE_TRACE=1 npm run dev:rust-video`
+- harness: `raf_heavy_video_scrub`
+- 素材: `perf/heavy-media/20000kbps_60fps.mp4`
+- preview decode: `720x405`
+- project: perf harness 既定の `1280x720 / 60fps`
+- 注意: 本表は自動 harness の初回切り分けであり、計画本文の `GX010052.MP4` / 1080p 直接計測は後続の実機確認で補う。
+
+| 条件 | runId | raf mean | raf p95 | raf max | p95換算fps | 判定 |
+|---|---:|---:|---:|---:|---:|---|
+| baseline（現行 native render → shm → renderer upload） | `b7392965-d991-4689-938b-95a83a5f0e2b` | 18.819ms | 33.235ms | 91.605ms | 30.1fps | NG |
+| `VITE_UXFD_PHASE0_SKIP_DECODED_UPLOAD=1`（video upload 側のみ。rust-only native render 優先には効かない参考値） | `71895333-4a07-4e9e-9d8b-802e0f21ada5` | 19.839ms | 40.235ms | 90.530ms | 24.9fps | 参考 |
+| `VITE_UXFD_PHASE0_WRITE_TEXTURE_NOOP=1` | `e7f7d240-f079-4ccc-832b-57c042d1015d` | 20.018ms | 48.375ms | 87.080ms | 20.7fps | NG |
+| `VITE_UXFD_PHASE0_DISCARD_NATIVE_RENDER_OUTPUT=1`（decode/source preparation は行い、native render output/readback/copy/upload を破棄） | `4ca40f4a-7279-4814-9184-a87ecee00476` | 16.677ms | 17.370ms | 17.690ms | 57.6fps | GO |
+
+補足:
+
+- `writeTexture` だけを no-op 化しても改善しなかったため、単独の renderer upload だけではなく、native render output の生成・readback・copy/upload を含む往復が支配的と見る。
+- native render output/readback/copy/upload を破棄すると p95 が 33.235ms → 17.370ms へ改善し、60fps の 16.67ms にほぼ張り付いた。2回目の同条件計測でも p95 は 17.475ms と再現したが、ハーネス停止待ちの外れ値により mean/max は無効値として扱う。
+- Phase 0 の自動 harness では `readback + upload を抜くと体感60fps近傍まで戻る` 前提は成立した。厳密な 1080p / `GX010052.MP4` の確認は Phase 1 以降の実機目視・追試で継続する。

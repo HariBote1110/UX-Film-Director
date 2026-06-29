@@ -1,3 +1,23 @@
+## 2026-06-30 — Phase 0 自動計測で native render output 往復が支配的と確認
+
+### 実施内容
+- `VITE_PERF_AGENT_MODE=1 UXFD_DECODE_TRACE=1 npm run dev:rust-video` で baseline を計測した。
+- `VITE_UXFD_PHASE0_SKIP_DECODED_UPLOAD=1` と `VITE_UXFD_PHASE0_WRITE_TEXTURE_NOOP=1` をそれぞれ計測した。
+- rust-only native render 優先経路では `skipDecodedUpload` が本質的な readback/upload を抜けないことを確認し、`VITE_UXFD_PHASE0_DISCARD_NATIVE_RENDER_OUTPUT=1` を追加した。
+- true spike1 として、decode / source preparation は行い、native render output / readback / copy / renderer upload を破棄する条件を計測した。
+- `markdown/Native_Overlay_Plan.md` の Phase 0 実測ログに、runId と raf mean / p95 / max を追記した。
+
+### 選定理由・判断の根拠
+- baseline の `raf_heavy_video_scrub` は p95 `33.235ms`（約30.1fps）で、60fps の16.67msを大きく超えた。
+- `writeTexture` no-op 単独は p95 `48.375ms` で改善せず、単独の `writeTexture` だけが支配的ではないと判断した。
+- native render output / readback / copy / upload をまとめて破棄すると p95 `17.370ms`（約57.6fps）まで改善した。2回目も p95 `17.475ms` と再現したため、backend GPU→shm→renderer GPU の往復が支配的という仮説を GO とした。
+- 2回目の true spike はハーネス停止待ちの外れ値で mean / max が無効化されたため、p95 の再現確認としてのみ扱う。
+
+### 残課題・次のステップ
+- Phase 1（NSView / CAMetalLayer overlay の生成）へ進む。
+- Phase 1 では GPU 描画結果をユニットテストだけで完全検証できないため、固定色描画の目視確認と `progress.md` への記録を併用する。
+- 1080p / `GX010052.MP4` の直接計測は Phase 1 以降の実機確認で補う。
+
 ## 2026-06-30 — Phase 0 実機計測用 env を preview 経路へ配線
 
 ### 実施内容
