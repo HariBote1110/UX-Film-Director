@@ -1,3 +1,22 @@
+## 2026-06-30 — preview 経路の構造的不安定への対応方針として Native Overlay 計画を策定
+
+### 実施内容
+- ユーザーから preview の不安定さ（特に `Rust_Preview_Jank_Handoff.md` 残問題1 の「backend GPU→shm→frontend GPU 往復が重い」）への構造的解決の相談を受け、4案（Electron維持＋ネイティブoverlay／Tauri移行／Rustネイティブ全振り／MLT等専用FW）を比較した。
+- 採用候補として「Electron維持＋ネイティブoverlay」（Option A）の実装計画を `markdown/Native_Overlay_Plan.md` に保存した。Phase 0（真因の数値確定）→ Phase 6（既定切替）まで TDD で進める段階計画。
+- 別エージェントへの引き継ぎ用に `markdown/Native_Overlay_Agent_Prompt.md` を作成。Single Source of Truth・TDD・既存設計（ADR-002/003/004）維持・やってはいけないことを明文化。
+
+### 選定理由・判断の根拠
+- データプレーンは既に POSIX shm 化されており（`architecture/05-boundary-ipc.md`）、JSON/base64 経路ではない。残るボトルネックは「sidecar→shm→preload→Uint8Array→WebGPU writeTexture→Chromium GPU process」の3ホップ。
+- Tauri移行案は却下：WKWebView/WebView2 への texture 共有は本質的に解消できず、ADR-002 の「Chromium 同梱で WebGPU 挙動を固定」も失う。
+- Rustネイティブ全振り案は将来候補として保留：UI 実装をすべて作り直す投資が大きく、まず構造改善で60fpsが出るかを Phase 0 で確かめる方が安価。
+- MLT等専用FW案は却下：合成は既に shared-renderer に集約済み（ADR-003）で、置換価値が小さい。
+- Option A は ADR-004（sidecar 隔離）を維持しつつ、render のみ main 同居化する設計。decode のクラッシュドメインを壊さない。
+
+### 残課題・次のステップ
+- 「8. 着手前に確定したい設計判断」3点（ADR-011 napi-rs in main の可否／WebGPU presenter を parity 比較用に残す可否／Phase 3b 含否）をユーザーに確認する。
+- 確定後、別エージェントを起動し Phase 0（真因の数値確定スパイク）から着手する。
+- 本セッションではコード変更を行っていない。
+
 ## 2026-06-28 — 暗さ(くらい)を修正：video textureを非srgb(rgba8unorm)化し設計文書と整合
 
 ### 実施内容
