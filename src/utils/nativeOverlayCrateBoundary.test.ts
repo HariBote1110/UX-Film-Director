@@ -52,6 +52,9 @@ describe('native overlay napi crate boundary', () => {
     expect(existsSync(resolve(root, 'scripts/test-native-overlay-addon.mjs'))).toBe(true);
 
     expect(read('scripts/build-native-overlay-addon.mjs')).toContain('native-overlay.node');
-    expect(read('scripts/test-native-overlay-addon.mjs')).toContain('attachNativeOverlay');
+    const smokeScript = read('scripts/test-native-overlay-addon.mjs');
+    expect(smokeScript).toContain('attachNativeOverlay');
+    expect(smokeScript).toContain('UXFD_NATIVE_OVERLAY_SMOKE_ATTACH');
+    expect(smokeScript).not.toContain('Buffer.from([1, 2, 3, 4, 5, 6, 7, 8])');
   });
 });
