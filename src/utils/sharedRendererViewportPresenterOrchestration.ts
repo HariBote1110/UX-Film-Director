@@ -48,6 +48,7 @@ export interface StartSharedRendererViewportPresenterInput {
   requireSharedRendererOutput?: boolean;
   skipDecodedVideoUploadForBenchmark?: boolean;
   sharedRendererWriteTextureNoOpEnabled?: boolean;
+  discardNativeRenderOutputForBenchmark?: boolean;
   activeVideoDecodeJob: SharedRendererViewportVideoDecodeJob | null;
   activeVideoDecodeJobs?: SharedRendererViewportVideoDecodeJob[];
   videoDecodeSlotCount?: number;
@@ -86,6 +87,7 @@ export const startSharedRendererViewportPresenter = async ({
   requireSharedRendererOutput = false,
   skipDecodedVideoUploadForBenchmark = false,
   sharedRendererWriteTextureNoOpEnabled = false,
+  discardNativeRenderOutputForBenchmark = false,
   activeVideoDecodeJob,
   activeVideoDecodeJobs,
   videoDecodeSlotCount,
@@ -117,6 +119,7 @@ export const startSharedRendererViewportPresenter = async ({
       activeJobs: nextActiveVideoDecodeJobs,
       sourceSlotCount: videoDecodeSlotCount,
       maxDecodeEdge: videoDecodeMaxEdge,
+      discardNativeRenderOutputForBenchmark,
     })
     : undefined;
   if (preferredNativeRenderUploadResult) {
@@ -183,6 +186,7 @@ export const startSharedRendererViewportPresenter = async ({
       activeJobs: nextActiveVideoDecodeJobs,
       sourceSlotCount: videoDecodeSlotCount,
       maxDecodeEdge: videoDecodeMaxEdge,
+      discardNativeRenderOutputForBenchmark,
     })
     : undefined;
   const nativeRenderUploadResult = preferredNativeRenderUploadResult ?? fallbackNativeRenderUploadResult;

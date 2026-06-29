@@ -8,6 +8,7 @@ interface ImportMetaEnv {
   readonly VITE_UXFD_RUST_VIDEO_ONLY?: string;
   readonly VITE_UXFD_PHASE0_SKIP_DECODED_UPLOAD?: string;
   readonly VITE_UXFD_PHASE0_WRITE_TEXTURE_NOOP?: string;
+  readonly VITE_UXFD_PHASE0_DISCARD_NATIVE_RENDER_OUTPUT?: string;
 }
 
 interface ImportMeta {

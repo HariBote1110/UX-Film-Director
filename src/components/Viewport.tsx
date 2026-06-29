@@ -502,6 +502,7 @@ const Viewport: React.FC = () => {
   const rustVideoOnlyEnabled = import.meta.env.VITE_UXFD_RUST_VIDEO_ONLY === '1';
   const phase0SkipDecodedUploadEnabled = import.meta.env.VITE_UXFD_PHASE0_SKIP_DECODED_UPLOAD === '1';
   const phase0WriteTextureNoOpEnabled = import.meta.env.VITE_UXFD_PHASE0_WRITE_TEXTURE_NOOP === '1';
+  const phase0DiscardNativeRenderOutputEnabled = import.meta.env.VITE_UXFD_PHASE0_DISCARD_NATIVE_RENDER_OUTPUT === '1';
   const [sharedRendererGpuStatus, setSharedRendererGpuStatus] = useState({
     webGpuAvailable: false,
     fallbackAdapter: false,
@@ -1104,6 +1105,7 @@ const Viewport: React.FC = () => {
       requireRustVideoControlPlane: rustVideoOnlyEnabled,
       skipDecodedVideoUploadForBenchmark: phase0SkipDecodedUploadEnabled,
       sharedRendererWriteTextureNoOpEnabled: phase0WriteTextureNoOpEnabled,
+      discardNativeRenderOutputForBenchmark: phase0DiscardNativeRenderOutputEnabled,
       activeVideoDecodeJob: rustPreviewDecodeEnabled
         ? sharedRendererVideoDecodeJobsRef.current[0] ?? null
         : null,
