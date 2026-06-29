@@ -41,4 +41,41 @@ describe('nativeOverlayIpc', () => {
       available: true,
     });
   });
+
+  it('fills the current BrowserWindow id from the IPC event when attach omits windowId', async () => {
+    const handlers = new Map<string, (_event: unknown, payload: unknown) => Promise<unknown>>();
+    const ipcMain = {
+      handle: vi.fn((channel: string, handler: (_event: unknown, payload: unknown) => Promise<unknown>) => {
+        handlers.set(channel, handler);
+      }),
+    };
+    const bridge = {
+      attach: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
+      detach: vi.fn(async (payload: unknown) => ({ success: true, attached: false, payload })),
+      getCapabilities: vi.fn(() => ({ available: true })),
+    };
+
+    registerNativeOverlayIpcHandlers(ipcMain, bridge, {
+      resolveWindowIdFromEvent: vi.fn(() => 9),
+    });
+
+    await expect(handlers.get(nativeOverlayIpcChannels.attach)?.({ sender: 'webContents' }, {
+      x: 1,
+      y: 2,
+      width: 320,
+      height: 180,
+      scaleFactor: 2,
+    })).resolves.toEqual({
+      success: true,
+      attached: true,
+      payload: {
+        windowId: 9,
+        x: 1,
+        y: 2,
+        width: 320,
+        height: 180,
+        scaleFactor: 2,
+      },
+    });
+  });
 });
