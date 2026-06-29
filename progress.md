@@ -1,3 +1,25 @@
+## 2026-06-30 — Native Overlay座標をcontent view基準へ修正
+
+### 実施内容
+- `src/utils/nativeOverlayViewportGeometry.test.ts` に、DOM `getBoundingClientRect()` の CSS px を screen 座標へ変換せず、AppKit の非 flipped content view 座標へ y 反転して渡す契約を Red として追加した。
+- Red では旧 helper が `windowRect.left/top` を要求し、`screenX/screenY` 差分前提のまま落ちることを確認した。
+- `src/utils/nativeOverlayViewportGeometry.ts` で `contentHeight` を入力にし、`x = viewportRect.left`、`y = contentHeight - top - height` として 0 下限で丸めるようにした。
+- `src/components/Viewport.tsx` で `window.screenX/screenY` を渡すのをやめ、`window.innerHeight` を `contentHeight` として渡すようにした。
+- `package.json` の版を軽微修正として `0.1.1-Beta-382b` へ更新した。
+
+### 選定理由・判断の根拠
+- `getBoundingClientRect()` は renderer viewport 内の CSS px であり、desktop screen 座標の `screenX/screenY` と混ぜると負方向へずれて AppKit overlay が左下寄りに表示される。
+- `NSView` の frame は左下原点として扱われるため、renderer の top-left 原点から渡すには content height による y 反転が必要だった。
+- 5.4Mini 調査でも、主因候補は `screenX/screenY` の混入と AppKit 左下原点への未変換で一致した。
+- `npx vitest run src/utils/nativeOverlayViewportGeometry.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts` は Red 後の最小確認で 2 files / 32 tests passed。
+- `npx vitest run src/utils/nativeOverlayViewportGeometry.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts src/utils/nativeOverlayCrateBoundary.test.ts src/utils/nativeOverlayMainBridge.test.ts` は 4 files / 43 tests passed。
+- `cargo test --manifest-path native-overlay/Cargo.toml` は 4 tests passed。
+- `npm run test:native-overlay-node` は addon build と safe smoke が成功した。
+- `VITE_UXFD_NATIVE_OVERLAY=1 npm run dev:rust-video` をクリーン起動し、`[NativeOverlay] attach { success: true, attached: true }` を確認した。スクリーンショット `/tmp/uxfd-native-overlay-clean-coordinate-after-create.png` の目視では、固定色が preview キャンバス領域へ重なることを確認した。
+
+### 残課題・次のステップ
+- Green コミット後、Phase 1 の残課題として、複数 attach 時の古い overlay view の除去 / 再利用を Red→Green で固定する。
+
 ## 2026-06-30 — Native Overlay矩形契約をAppKit attachへ渡す
 
 ### 実施内容
