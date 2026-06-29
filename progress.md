@@ -1,3 +1,24 @@
+## 2026-06-30 — Phase 1 ViewportからNative Overlay attachをopt-in接続
+
+### 実施内容
+- `src/utils/viewportRustVideoOnlyBoundary.test.ts` に、`VITE_UXFD_NATIVE_OVERLAY=1` のときだけ `Viewport` が `window.nativeOverlay.attach` / `detach` を使う契約を Red として追加した。
+- Red では `Viewport.tsx` が `buildNativeOverlayAttachRect` も `window.nativeOverlay` も参照しないため対象テストが失敗することを確認した。
+- `src/components/Viewport.tsx` に `nativeOverlayPreviewEnabled` flag と attach / detach effect を追加した。
+- `src/utils/nativeOverlayViewportGeometry.ts` を使い、preview DOM rect から native overlay attach payload を作るようにした。
+- `src/vite-env.d.ts` に `VITE_UXFD_NATIVE_OVERLAY` を追加した。
+- `package.json` の版を `0.1.1-Beta-380a` へ更新した。
+
+### 選定理由・判断の根拠
+- 実 AppKit attach を目視確認するには、renderer preview 領域から main IPC / addon へ到達する opt-in 導線が必要だった。
+- 既存 WebGPU presenter は保持し、`VITE_UXFD_NATIVE_OVERLAY=1` の明示指定時だけ native overlay を attach することで退避路を維持した。
+- `npx vitest run src/utils/viewportRustVideoOnlyBoundary.test.ts src/utils/nativeOverlayViewportGeometry.test.ts src/utils/nativeOverlayIpc.test.ts src/utils/nativeOverlayPreloadBoundary.test.ts src/utils/nativeOverlayMainBridge.test.ts src/utils/nativeOverlayCrateBoundary.test.ts` は 6 files / 47 tests passed。
+- `cargo test --manifest-path native-overlay/Cargo.toml` は 4 tests passed。
+- `npm run test:native-overlay-node` は addon build と safe smoke が成功した。
+
+### 残課題・次のステップ
+- `VITE_UXFD_NATIVE_OVERLAY=1` で Electron を実起動し、実 `NSView*` attach がクラッシュしないことと fallback 状態を目視 / console で確認する。
+- 固定色描画はまだ未実装のため、attach 成功後に CAMetalLayer / wgpu present へ進む。
+
 ## 2026-06-30 — Phase 1 Native Overlay viewport矩形計算helperを追加
 
 ### 実施内容
