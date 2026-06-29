@@ -1,7 +1,7 @@
 {
   "name": "ux-film-director",
   "private": true,
-  "version": "0.1.1-Beta-369a",
+  "version": "0.1.1-Beta-370a",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -24,6 +24,8 @@
     "rust:build:release": "cargo build --release --manifest-path rust-backend/Cargo.toml",
     "bridge:node:build": "node scripts/build-shared-video-frame-node-addon.mjs",
     "test:bridge-node": "npm run bridge:node:build && node scripts/test-shared-video-frame-node-addon.mjs",
+    "native-overlay:node:build": "node scripts/build-native-overlay-addon.mjs",
+    "test:native-overlay-node": "npm run native-overlay:node:build && node scripts/test-native-overlay-addon.mjs",
     "rust:run": "cargo run --manifest-path rust-backend/Cargo.toml",
     "wasm:build:rust-core": "wasm-pack build rust-core-wasm --target web --out-dir ../src/wasm/rust-core --out-name uxfd_rust_core_wasm",
     "swift:build:tracker": "swift build -c release --package-path macos-coreml-tracker"
@@ -59,6 +61,13 @@
         "to": "shared-video-frame-bridge",
         "filter": [
           "shared-video-frame-bridge.node"
+        ]
+      },
+      {
+        "from": "native-overlay/",
+        "to": "native-overlay",
+        "filter": [
+          "native-overlay.node"
         ]
       }
     ],

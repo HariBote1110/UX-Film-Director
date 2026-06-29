@@ -1,3 +1,28 @@
+## 2026-06-30 — Phase 1 Native Overlay crate の最小napi境界を追加
+
+### 実施内容
+- `src/utils/nativeOverlayCrateBoundary.test.ts` に、`native-overlay/` crate、napi export、`catch_unwind`、macOS cfg、ビルド / smoke-test script の境界契約を追加した。
+- Red では `native-overlay/Cargo.toml`、`native-overlay/src/lib.rs`、`scripts/build-native-overlay-addon.mjs` が未作成のため、対象テスト 4 件が失敗することを確認した。
+- `native-overlay/Cargo.toml` を追加し、`cdylib` かつ `napi` / `napi-derive` / `napi-build` を含む Rust crate 形状を作成した。
+- `native-overlay/build.rs` を追加して、napi-rs のビルド連携を追加した。
+- `native-overlay/src/lib.rs` に `attachNativeOverlay`、`detachNativeOverlay`、`getNativeOverlayCapabilities` を `#[napi(js_name = "...")]` でエクスポートした。
+- `attachNativeOverlay` / `detachNativeOverlay` は `std::panic::catch_unwind` で包み、最小成功結果として `{ success: true, attached: true|false }` を返すようにした。
+- 非 macOS 用の `getNativeOverlayCapabilities` を `available: false` + 理由文字列を返す形で実装し、macOS でも同 API へ fallback できる形を維持した。
+- `scripts/build-native-overlay-addon.mjs` と `scripts/test-native-overlay-addon.mjs` を追加した（`.node` 生成 / コントラクト検証）。
+- `package.json` に `native-overlay:node:build` と `test:native-overlay-node`、packaging 用 `extraResources` を追加し、版を `0.1.1-Beta-370a` へ更新した。
+
+### 選定理由・判断の根拠
+- `src/utils/nativeOverlayCrateBoundary.test.ts` の境界契約（関数名、`cfg`、`catch_unwind`）と一致させるため、最小構造で Green にした。
+- 実 NSView / CAMetalLayer を未実装のまま、まず `main` 側 addon API 契約を成立させることが Phase 1 の最小リスクな次工程と判断した。
+- 既存 `shared-video-frame-bridge-node` と同じ `Cargo.lock` 追跡、`target/` と `.node` 除外、build script 方式にそろえた。
+- `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts src/utils/nativeOverlayBridgePath.test.ts src/utils/nativeOverlayMainBridge.test.ts` は 3 files / 12 tests passed。
+- `npm run test:native-overlay-node` は addon build と Node smoke test が成功し、macOS で `capabilities.available: true`、attach / detach の成功応答を確認した。
+- `cargo test --manifest-path native-overlay/Cargo.toml` は 0 tests / compile ok。
+
+### 残課題・次のステップ
+- Phase 1 の次サイクルで、Electron main の IPC handler と preload 公開を Red→Green で追加し、renderer から `attach` / `detach` を呼べる契約を固定する。
+- その後、macOS の NSView / CAMetalLayer 生成、固定色描画、目視確認へ進む。
+
 ## 2026-06-30 — Phase 1 Native Overlay main境界のfallback契約を追加
 
 ### 実施内容
