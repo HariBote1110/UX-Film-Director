@@ -500,6 +500,8 @@ const Viewport: React.FC = () => {
   const sharedRendererDiagnosticSwatchEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_DIAGNOSTIC_SWATCH === '1';
   const sharedRendererVideoCutoverEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER !== '0';
   const rustVideoOnlyEnabled = import.meta.env.VITE_UXFD_RUST_VIDEO_ONLY === '1';
+  const phase0SkipDecodedUploadEnabled = import.meta.env.VITE_UXFD_PHASE0_SKIP_DECODED_UPLOAD === '1';
+  const phase0WriteTextureNoOpEnabled = import.meta.env.VITE_UXFD_PHASE0_WRITE_TEXTURE_NOOP === '1';
   const [sharedRendererGpuStatus, setSharedRendererGpuStatus] = useState({
     webGpuAvailable: false,
     fallbackAdapter: false,
@@ -1100,6 +1102,8 @@ const Viewport: React.FC = () => {
       preferNativeRenderUpload: rustVideoOnlyEnabled,
       requireSharedRendererVideo: sharedRendererVideoCutoverEnabled || rustVideoOnlyEnabled,
       requireRustVideoControlPlane: rustVideoOnlyEnabled,
+      skipDecodedVideoUploadForBenchmark: phase0SkipDecodedUploadEnabled,
+      sharedRendererWriteTextureNoOpEnabled: phase0WriteTextureNoOpEnabled,
       activeVideoDecodeJob: rustPreviewDecodeEnabled
         ? sharedRendererVideoDecodeJobsRef.current[0] ?? null
         : null,

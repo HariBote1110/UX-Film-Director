@@ -47,6 +47,7 @@ export interface StartSharedRendererViewportPresenterInput {
   requireRustVideoControlPlane?: boolean;
   requireSharedRendererOutput?: boolean;
   skipDecodedVideoUploadForBenchmark?: boolean;
+  sharedRendererWriteTextureNoOpEnabled?: boolean;
   activeVideoDecodeJob: SharedRendererViewportVideoDecodeJob | null;
   activeVideoDecodeJobs?: SharedRendererViewportVideoDecodeJob[];
   videoDecodeSlotCount?: number;
@@ -84,6 +85,7 @@ export const startSharedRendererViewportPresenter = async ({
   requireRustVideoControlPlane = false,
   requireSharedRendererOutput = false,
   skipDecodedVideoUploadForBenchmark = false,
+  sharedRendererWriteTextureNoOpEnabled = false,
   activeVideoDecodeJob,
   activeVideoDecodeJobs,
   videoDecodeSlotCount,
@@ -222,6 +224,7 @@ export const startSharedRendererViewportPresenter = async ({
     sharedRendererExternalVideoSourcesByClipId,
     sharedRendererDecodedVideoFrameUpload,
     sharedRendererDecodedVideoFrameUploads,
+    sharedRendererWriteTextureNoOpEnabled,
     presentedFrameSharedFrameTaker,
     isStartCurrent,
   });
