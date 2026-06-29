@@ -22,6 +22,7 @@ for (const exportName of [
 
 const attach = addon.attachNativeOverlay({
   windowId: 1,
+  nativeWindowHandle: Buffer.from([1, 2, 3, 4, 5, 6, 7, 8]),
   x: 0,
   y: 0,
   width: 320,

@@ -1,9 +1,11 @@
+use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 #[napi(object)]
 pub struct NativeOverlayAttachPayload {
     pub window_id: u32,
+    pub native_window_handle: Option<Buffer>,
     pub x: f64,
     pub y: f64,
     pub width: f64,
@@ -63,6 +65,9 @@ pub fn get_native_overlay_capabilities() -> NativeOverlayCapabilities {
 
 fn attach_native_overlay_inner(payload: NativeOverlayAttachPayload) -> NativeOverlayResponse {
     let _ = payload.window_id;
+    if let Err(reason) = native_window_handle_bytes(&payload) {
+        return failure(reason);
+    }
     if let Err(reason) = build_overlay_layer_contract(&payload) {
         return failure(reason);
     }
@@ -114,6 +119,19 @@ pub fn build_overlay_layer_contract(
         drawable_width: (payload.width * payload.scale_factor).round() as u32,
         drawable_height: (payload.height * payload.scale_factor).round() as u32,
     })
+}
+
+pub fn native_window_handle_bytes(
+    payload: &NativeOverlayAttachPayload,
+) -> Result<Vec<u8>, &'static str> {
+    let Some(handle) = &payload.native_window_handle else {
+        return Err("Native overlay window handle is required.");
+    };
+    let bytes = handle.as_ref();
+    if bytes.len() != std::mem::size_of::<usize>() {
+        return Err("Native overlay window handle has an unexpected byte length.");
+    }
+    Ok(bytes.to_vec())
 }
 
 #[cfg(target_os = "macos")]

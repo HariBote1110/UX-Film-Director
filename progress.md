@@ -1,3 +1,23 @@
+## 2026-06-30 — Phase 1 Native Overlay addonでnative window handleを受信
+
+### 実施内容
+- `native-overlay/src/lib.rs` の Rust unit test に、`native_window_handle` を payload として受け取り、ポインタ幅の bytes として検証する契約を Red として追加した。
+- Red では `NativeOverlayAttachPayload` に `native_window_handle` field がなく、`native_window_handle_bytes` も未実装のため `cargo test --manifest-path native-overlay/Cargo.toml` が失敗することを確認した。
+- `NativeOverlayAttachPayload` に `Option<Buffer>` の `native_window_handle` を追加し、attach 入口で handle 不足 / byte 長不一致を失敗応答へ変換するようにした。
+- `scripts/test-native-overlay-addon.mjs` の direct smoke test でも `nativeWindowHandle` を渡すように更新した。
+- `package.json` の版を `0.1.1-Beta-374a` へ更新した。
+
+### 選定理由・判断の根拠
+- Electron main で解決した native window handle を Rust addon が受け取れることを、実 AppKit 操作へ入る前に napi 境界で固定する必要があった。
+- renderer / preload IPC には handle bytes を出さず、main→addon の同一 process 境界だけで `Buffer` を渡す構造を維持した。
+- `cargo test --manifest-path native-overlay/Cargo.toml` は 4 tests passed。
+- `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts src/utils/nativeOverlayMainBridge.test.ts src/utils/nativeOverlayIpc.test.ts src/utils/nativeOverlayPreloadBoundary.test.ts src/utils/nativeOverlayBridgePath.test.ts` は 5 files / 17 tests passed。
+- `npm run test:native-overlay-node` は addon build と `nativeWindowHandle` 付き Node smoke test が成功した。
+
+### 残課題・次のステップ
+- Phase 1 の次サイクルで、受け取った native window handle から macOS の `NSWindow` / `contentView` を取得し、overlay `NSView` と `CAMetalLayer` の attach を実装する。
+- 固定色描画と目視確認は実 layer attach 後に実施する。
+
 ## 2026-06-30 — Phase 1 Native Overlay window handle解決をmain内へ限定
 
 ### 実施内容
