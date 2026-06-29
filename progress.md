@@ -1,3 +1,20 @@
+## 2026-06-30 — Phase 1 Native Overlay viewport矩形計算helperを追加
+
+### 実施内容
+- `src/utils/nativeOverlayViewportGeometry.test.ts` に、viewport DOM rect と window rect / devicePixelRatio から attach payload の `x` / `y` / `width` / `height` / `scaleFactor` を作る契約を Red として追加した。
+- Red では `src/utils/nativeOverlayViewportGeometry.ts` が未作成のため対象テストが失敗することを確認した。
+- `src/utils/nativeOverlayViewportGeometry.ts` を追加し、非有限値や非正値の寸法 / scale factor を IPC 前に安全な値へ丸める helper を実装した。
+- `package.json` の版を `0.1.1-Beta-379a` へ更新した。
+
+### 選定理由・判断の根拠
+- 実機 attach では DOM 上の preview 領域と native overlay の座標を合わせる必要があるため、Viewport へ直接実装する前に pure function として固定した。
+- Phase 4 の追従実装でも同じ計算を使えるよう、window origin との差分と scale factor を明示した。
+- `npx vitest run src/utils/nativeOverlayViewportGeometry.test.ts` は 1 file / 2 tests passed。
+
+### 残課題・次のステップ
+- `Viewport.tsx` から `VITE_UXFD_NATIVE_OVERLAY=1` のときだけ `window.nativeOverlay.attach` を呼ぶ。
+- 実 AppKit attach の目視確認を行い、成功 / fallback / クラッシュ有無を `progress.md` に記録する。
+
 ## 2026-06-30 — Phase 1 Native Overlay IPCでwindowIdをeventから補完
 
 ### 実施内容
