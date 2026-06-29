@@ -532,6 +532,42 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
     });
   });
 
+  it('forwards the Phase 0 native render output discard flag to native render upload preparation', async () => {
+    let nativeRenderInput: unknown;
+    const prepareNativeRenderUpload: SharedRendererViewportNativeRenderUploadPreparer = async (input) => {
+      nativeRenderInput = input;
+      return {
+        ok: false,
+        reason: 'nativeRenderFailed',
+        detail: 'native render output discarded for benchmark',
+        activeJobs: [activeJob],
+      };
+    };
+    const startPresenter: SharedRendererViewportPresenterStarter = async () => control;
+
+    await startSharedRendererViewportPresenter({
+      canvas,
+      session,
+      datasets: [],
+      diagnosticSwatchEnabled: true,
+      videoCutoverEnabled: true,
+      nativeRenderPreviewEnabled: true,
+      preferNativeRenderUpload: true,
+      activeVideoDecodeJob: activeJob,
+      activeVideoDecodeJobs: [activeJob],
+      requestId: 23,
+      discardNativeRenderOutputForBenchmark: true,
+      prepareNativeRenderUpload,
+      startPresenter,
+    } as Parameters<typeof startSharedRendererViewportPresenter>[0] & {
+      discardNativeRenderOutputForBenchmark: true;
+    });
+
+    expect(nativeRenderInput).toMatchObject({
+      discardNativeRenderOutputForBenchmark: true,
+    });
+  });
+
   it('passes native render preparation failure details into the presenter diagnostics input', async () => {
     let presenterInput: unknown;
     const prepareNativeRenderUpload: SharedRendererViewportNativeRenderUploadPreparer = async () => ({

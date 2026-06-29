@@ -10,5 +10,6 @@ describe('Vite env boundary', () => {
 
     expect(viteEnv).toContain('readonly VITE_UXFD_PHASE0_SKIP_DECODED_UPLOAD?: string;');
     expect(viteEnv).toContain('readonly VITE_UXFD_PHASE0_WRITE_TEXTURE_NOOP?: string;');
+    expect(viteEnv).toContain('readonly VITE_UXFD_PHASE0_DISCARD_NATIVE_RENDER_OUTPUT?: string;');
   });
 });

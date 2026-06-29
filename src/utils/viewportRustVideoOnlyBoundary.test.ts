@@ -120,8 +120,10 @@ describe('Viewport Rust video-only boundary', () => {
 
     expect(code).toContain("const phase0SkipDecodedUploadEnabled = import.meta.env.VITE_UXFD_PHASE0_SKIP_DECODED_UPLOAD === '1';");
     expect(code).toContain("const phase0WriteTextureNoOpEnabled = import.meta.env.VITE_UXFD_PHASE0_WRITE_TEXTURE_NOOP === '1';");
+    expect(code).toContain("const phase0DiscardNativeRenderOutputEnabled = import.meta.env.VITE_UXFD_PHASE0_DISCARD_NATIVE_RENDER_OUTPUT === '1';");
     expect(presenterBlock).toContain('skipDecodedVideoUploadForBenchmark: phase0SkipDecodedUploadEnabled');
     expect(presenterBlock).toContain('sharedRendererWriteTextureNoOpEnabled: phase0WriteTextureNoOpEnabled');
+    expect(presenterBlock).toContain('discardNativeRenderOutputForBenchmark: phase0DiscardNativeRenderOutputEnabled');
   });
 
   it('reuses the existing external video presenter across playback ticks', () => {
