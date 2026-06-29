@@ -44,7 +44,13 @@ describe('native overlay napi crate boundary', () => {
     expect(lib).toContain('mod macos_overlay;');
     expect(lib).toContain('macos_overlay::attach_overlay_view');
     expect(existsSync(resolve(root, 'native-overlay/src/macos_overlay.rs'))).toBe(true);
-    expect(read('native-overlay/src/macos_overlay.rs')).toContain('CAMetalLayer');
+    const macosOverlay = read('native-overlay/src/macos_overlay.rs');
+    expect(macosOverlay).toContain('CAMetalLayer');
+    expect(macosOverlay).toContain('isMainThread');
+    expect(macosOverlay).toContain('setWantsLayer');
+    expect(macosOverlay).toContain('setPixelFormat');
+    expect(macosOverlay).toContain('setDrawableSize');
+    expect(macosOverlay).toContain('addSubview');
   });
 
   it('provides build and smoke-test scripts for the native overlay addon', () => {
