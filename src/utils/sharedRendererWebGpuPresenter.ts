@@ -205,6 +205,7 @@ export interface SharedRendererWebGpuPresenterInput {
   solidColourVertexSceneBuilder?: SharedRendererSolidColourVertexSceneBuilder;
   videoPlaneVertexSceneBuilder?: SharedRendererVideoPlaneVertexSceneBuilder;
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
+  writeTextureNoOpEnabled?: boolean;
   onDeviceLost?: (event: SharedRendererDeviceLostEvent) => void;
   isStartCurrent?: () => boolean;
 }
@@ -361,6 +362,7 @@ export const createSharedRendererWebGpuPresenter = async ({
   solidColourVertexSceneBuilder = buildSharedRendererSolidColourVertexScene,
   videoPlaneVertexSceneBuilder = buildSharedRendererVideoPlaneVertexScene,
   presentedFrameSharedFrameTaker,
+  writeTextureNoOpEnabled = false,
   onDeviceLost,
   isStartCurrent,
 }: SharedRendererWebGpuPresenterInput): Promise<SharedRendererWebGpuPresenterResult> => {
@@ -674,16 +676,18 @@ export const createSharedRendererWebGpuPresenter = async ({
       format: textureFormat,
       usage: textureUsageTextureBinding | textureUsageTextureCopyDst,
     });
-    device.queue.writeTexture(
-      { texture },
-      rgbaBytes,
-      {
-        offset: 0,
-        bytesPerRow: descriptor.strideBytes,
-        rowsPerImage: descriptor.height,
-      },
-      size
-    );
+    if (!writeTextureNoOpEnabled) {
+      device.queue.writeTexture(
+        { texture },
+        rgbaBytes,
+        {
+          offset: 0,
+          bytesPerRow: descriptor.strideBytes,
+          rowsPerImage: descriptor.height,
+        },
+        size
+      );
+    }
 
     return {
       ok: true,

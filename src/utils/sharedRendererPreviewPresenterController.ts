@@ -133,6 +133,7 @@ export interface StartSharedRendererPreviewPresenterInput {
   sharedRendererExternalVideoSourcesByClipId?: ReadonlyMap<string, unknown>;
   sharedRendererDecodedVideoFrameUpload?: SharedRendererDecodedVideoFrameUpload;
   sharedRendererDecodedVideoFrameUploads?: SharedRendererDecodedVideoFrameUploadForClip[];
+  sharedRendererWriteTextureNoOpEnabled?: boolean;
   presentedFrameSharedFrameTaker?: SharedRendererPresentedFrameSharedFrameTaker;
   isStartCurrent?: () => boolean;
 }
@@ -176,6 +177,7 @@ export const startSharedRendererPreviewPresenter = async ({
   sharedRendererExternalVideoSourcesByClipId,
   sharedRendererDecodedVideoFrameUpload,
   sharedRendererDecodedVideoFrameUploads,
+  sharedRendererWriteTextureNoOpEnabled = false,
   presentedFrameSharedFrameTaker,
   isStartCurrent,
 }: StartSharedRendererPreviewPresenterInput): Promise<SharedRendererPreviewPresenterControl> => {
@@ -312,6 +314,7 @@ export const startSharedRendererPreviewPresenter = async ({
     bufferUsageMapRead,
     solidColourVertexSceneBuilder: resolvedRustSolidColourVertexSceneBuilder ?? undefined,
     presentedFrameSharedFrameTaker,
+    writeTextureNoOpEnabled: sharedRendererWriteTextureNoOpEnabled,
     isStartCurrent,
     onDeviceLost: (event) => {
       writeDiagnostics({
