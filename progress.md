@@ -1,3 +1,20 @@
+## 2026-06-30 — ADR-011 を確定し Native Overlay preview の着手条件を固定
+
+### 実施内容
+- ユーザー確認により、`napi-rs` addon を Electron main に導入する方針を GO とした。
+- `markdown/architecture/01-decision-record.md` に ADR-011 を追記し、preview renderer を Electron main 内 addon として CAMetalLayer へ直接描画する判断を記録した。
+- ADR-011 の補足として、NSView 操作・wgpu init・surface present・共有メモリ attach を `catch_unwind` で包み、panic 時は既存 WebGPU presenter 経路へ fallback することを明記した。
+- decode は引き続き sidecar 維持とし、addon の責務を描画・共有メモリ読み出し・window handle 操作へ限定することを明記した。
+
+### 選定理由・判断の根拠
+- Phase 0 以降の設計判断が未確定のままだと、main 同居 addon の実装可否と fallback 方針が揺れるため、実装前に ADR として固定した。
+- 既存 WebGPU presenter は Phase 6 後も env / flag 切替で残し、parity 検証と macOS 以外・overlay 破綻時の退避路に使う判断が確定した。
+- Phase 3b の IOSurface zero-copy は初期計画から外し、Phase 3a の in-process memcpy で体感 60fps が出るかを見て再判断する方針が確定した。
+
+### 残課題・次のステップ
+- ADR-011 をコミットした後、Phase 0 の Red test 計画を提示する。
+- Phase 0 では `readback + writeTexture` を抜くと 60fps が出るかを実測し、出なければ Native Overlay 計画を停止して再相談する。
+
 ## 2026-06-30 — preview 経路の構造的不安定への対応方針として Native Overlay 計画を策定
 
 ### 実施内容

@@ -143,3 +143,29 @@ straight alpha と premultiplied alpha の違いは、opacity keyframe、画像�
 ### 却下した案
 
 headless Electron / Chromium を export worker として使う案は初期経路から外す。GPU 初期化、SwiftShader fallback、CI 差、毎フレーム readback の不安定さと重さが大きい。
+
+## ADR-011: preview renderer を Electron main 内の napi-rs addon に置く
+
+### 判断
+
+preview の合成・提示は、Rust + wgpu の napi-rs addon を Electron main プロセス内に置き、macOS では CAMetalLayer へ直接描画する構成を採用する。decode は引き続き sidecar に隔離し、addon は描画、共有メモリ読み出し、window handle 操作だけを扱う。
+
+既存 WebGPU presenter は削除せず、Phase 6 完了後も env / flag 切替で常時起動可能な退避路として残す。新経路との同一 scene pixel diff harness を `04-render-parity.md` に追加し、parity 検証にも使う。
+
+### 理由
+
+- 現 preview 経路は sidecar decode 後に共有メモリ、renderer process、JS heap、WebGPU `writeTexture`、Chromium GPU process をまたぐため、1080p preview では per-frame data movement が大きい。
+- Electron renderer process の WebGPU 経路を bypass し、main 内 addon から CAMetalLayer へ直接 present することで、JS heap / `writeTexture` / Chromium GPU process 経由を preview から外せる。
+- ADR-002 の Electron UI shell は維持でき、React UI と既存 WebGPU presenter を捨てずに段階導入できる。
+- ADR-003 の shared renderer / WGSL 正本を維持し、preview と export の合成仕様を分岐させない。
+- ADR-004 の危険なメディア処理隔離は維持し、ffmpeg / decode / encode / mux は sidecar の責務に残す。
+
+### 補足
+
+- addon の境界である NSView 操作、wgpu init、surface present、共有メモリ attach はすべて `catch_unwind` で包む。panic または復帰不能な失敗を検知した場合は、既存 WebGPU presenter 経路へ fallback する。
+- addon が扱う責務は描画、共有メモリ読み出し、window handle 操作に限定する。decode は sidecar 維持とし、addon 内へ移さない。
+- Phase 3b の IOSurface zero-copy は初期計画から外し、Phase 3a の in-process memcpy 経路で体感 60fps が出るかを確認してから再判断する。
+
+### 却下した案
+
+renderer も sidecar に置き、IOSurface だけで描画結果を main へ渡す案は初期案から外す。CALayer overlay の ownership と `MTLDrawable` の扱いが複雑で、初期検証としては POSIX shm + main 内 present よりリスクが高い。
