@@ -59,6 +59,15 @@ describe('native overlay napi crate boundary', () => {
     expect(macosOverlay).toContain('contract.drawable_width');
   });
 
+  it('removes an existing AppKit overlay view before attaching a replacement', () => {
+    const macosOverlay = read('native-overlay/src/macos_overlay.rs');
+
+    expect(macosOverlay).toContain('NATIVE_OVERLAY_VIEW_IDENTIFIER');
+    expect(macosOverlay).toContain('remove_existing_overlay_view(parent_view)?;');
+    expect(macosOverlay).toContain('setIdentifier');
+    expect(macosOverlay).toContain('removeFromSuperview');
+  });
+
   it('provides build and smoke-test scripts for the native overlay addon', () => {
     expect(existsSync(resolve(root, 'scripts/build-native-overlay-addon.mjs'))).toBe(true);
     expect(existsSync(resolve(root, 'scripts/test-native-overlay-addon.mjs'))).toBe(true);
