@@ -1,3 +1,18 @@
+## 2026-06-30 — Phase 1 Native Overlay opt-in実起動を確認
+
+### 実施内容
+- `VITE_UXFD_NATIVE_OVERLAY=1 npm run dev:rust-video` を再実行した。
+- Electron main / preload の development build が成功することを確認した。
+- 約60秒の runtime ログ監視で、Native Overlay attach 由来の即時クラッシュや追加の build error が出ないことを確認した。
+
+### 選定理由・判断の根拠
+- 前ステップで main process の構文エラーを修正したため、実機 attach 導線が少なくとも起動を阻害しないことを確認する必要があった。
+- 現時点の `macos_overlay.rs` は CAMetalLayer attach までで固定色描画が未実装のため、視覚的な成功判定はまだ弱い。よって runtime error / crash が出ないことを Phase 1 中間確認として扱う。
+
+### 残課題・次のステップ
+- Phase 1 の固定色描画として、CAMetalLayer へ clear colour を present する実装を Red→Green で追加する。
+- 固定色が見える段階で改めて `UXFD_NATIVE_OVERLAY=1` の目視確認を行う。
+
 ## 2026-06-30 — Native Overlay IPC登録の構文修正
 
 ### 実施内容
