@@ -487,6 +487,7 @@ app.whenReady().then(() => {
     resolveNativeWindowHandle: (windowId) => BrowserWindow.fromId(windowId)?.getNativeWindowHandle() ?? null,
   }), {
     resolveWindowIdFromEvent: (event) => BrowserWindow.fromWebContents(event.sender)?.id ?? null,
+    logDiagnostic: (eventName, payload) => console.info('[NativeOverlay]', eventName, payload),
   })
 
   ipcMain.handle('save-project-file', async (_event, payload: { data?: string; defaultName?: string }) => {

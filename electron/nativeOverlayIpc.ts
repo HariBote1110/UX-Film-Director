@@ -30,6 +30,7 @@ export interface NativeOverlayIpcBridge {
 
 export interface RegisterNativeOverlayIpcHandlersOptions {
   resolveWindowIdFromEvent?: (event: unknown) => number | null
+  logDiagnostic?: (eventName: string, payload: unknown) => void
 }
 
 export const registerNativeOverlayIpcHandlers = (
@@ -37,8 +38,11 @@ export const registerNativeOverlayIpcHandlers = (
   bridge: NativeOverlayIpcBridge,
   options: RegisterNativeOverlayIpcHandlersOptions = {},
 ): void => {
-  ipcMain.handle(nativeOverlayIpcChannels.attach, async (event, payload) =>
-    bridge.attach(withWindowId(payload, event, options.resolveWindowIdFromEvent)))
+  ipcMain.handle(nativeOverlayIpcChannels.attach, async (event, payload) => {
+    const response = await bridge.attach(withWindowId(payload, event, options.resolveWindowIdFromEvent))
+    options.logDiagnostic?.('attach', response)
+    return response
+  })
   ipcMain.handle(nativeOverlayIpcChannels.detach, async (_event, payload) =>
     bridge.detach(payload as NativeOverlayDetachPayload))
   ipcMain.handle(nativeOverlayIpcChannels.capabilities, async () =>

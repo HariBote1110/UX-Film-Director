@@ -1,3 +1,23 @@
+## 2026-06-30 — Native Overlay attach診断ログを追加
+
+### 実施内容
+- `src/utils/nativeOverlayIpc.test.ts` に、attach 結果を診断ログへ渡す契約を Red として追加した。
+- Red では `registerNativeOverlayIpcHandlers` が attach 結果を記録しないため対象テストが失敗することを確認した。
+- `electron/nativeOverlayIpc.ts` に `logDiagnostic` option を追加し、attach response をログへ渡すようにした。
+- `electron/main.ts` で `[NativeOverlay]` prefix の `console.info` に接続した。
+- `package.json` の版を軽微修正として `0.1.1-Beta-381b` へ更新した。
+
+### 選定理由・判断の根拠
+- 固定色 present 実装後もスクリーンショットでは青い overlay が確認できなかったため、attach 成功 / fallback / error を main process ログで切り分ける必要があった。
+- attach は `VITE_UXFD_NATIVE_OVERLAY=1` の opt-in 時だけ発生するため、診断ログの範囲は限定的である。
+- `npx vitest run src/utils/nativeOverlayIpc.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts src/utils/nativeOverlayMainBridge.test.ts` は 3 files / 39 tests passed。
+- `cargo test --manifest-path native-overlay/Cargo.toml` は 4 tests passed。
+- `npm run test:native-overlay-node` は addon build と safe smoke が成功した。
+
+### 残課題・次のステップ
+- `VITE_UXFD_NATIVE_OVERLAY=1 npm run dev:rust-video` を再起動し、`[NativeOverlay] attach` の結果を確認する。
+- 成功しているのに表示されない場合は、NSView の重なり順 / layer frame / drawable present を調査する。
+
 ## 2026-06-30 — Phase 1 Native Overlay固定色presentを追加
 
 ### 実施内容
