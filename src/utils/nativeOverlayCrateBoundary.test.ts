@@ -34,6 +34,19 @@ describe('native overlay napi crate boundary', () => {
     expect(lib).toContain('available: false');
   });
 
+  it('keeps AppKit and CAMetalLayer code isolated in a macOS overlay module', () => {
+    const cargoToml = read('native-overlay/Cargo.toml');
+    const lib = read('native-overlay/src/lib.rs');
+
+    expect(cargoToml).toContain('objc = ');
+    expect(cargoToml).toContain('metal = ');
+    expect(cargoToml).toContain('core-graphics-types = ');
+    expect(lib).toContain('mod macos_overlay;');
+    expect(lib).toContain('macos_overlay::attach_overlay_view');
+    expect(existsSync(resolve(root, 'native-overlay/src/macos_overlay.rs'))).toBe(true);
+    expect(read('native-overlay/src/macos_overlay.rs')).toContain('CAMetalLayer');
+  });
+
   it('provides build and smoke-test scripts for the native overlay addon', () => {
     expect(existsSync(resolve(root, 'scripts/build-native-overlay-addon.mjs'))).toBe(true);
     expect(existsSync(resolve(root, 'scripts/test-native-overlay-addon.mjs'))).toBe(true);
