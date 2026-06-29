@@ -1,3 +1,25 @@
+## 2026-06-30 — Phase 1 Native Overlay macOS overlay moduleの受け皿を追加
+
+### 実施内容
+- `src/utils/nativeOverlayCrateBoundary.test.ts` に、AppKit / CAMetalLayer 依存を macOS overlay module に隔離する境界契約を Red として追加した。
+- Red では `native-overlay/Cargo.toml` に `objc` / `metal` / `core-graphics-types` がなく、`macos_overlay.rs` も未作成のため対象テストが失敗することを確認した。
+- `native-overlay/Cargo.toml` に macOS target dependencies として `objc` / `metal` / `core-graphics-types` を追加した。
+- `native-overlay/src/macos_overlay.rs` を追加し、Electron の `NSView*` native handle bytes を pointer へ復元する入口を作った。
+- `native-overlay/src/lib.rs` から `macos_overlay::attach_overlay_view` を `#[cfg(target_os = "macos")]` 内で呼ぶようにした。
+- `package.json` の版を `0.1.1-Beta-375a` へ更新した。
+
+### 選定理由・判断の根拠
+- 実 AppKit 操作の unsafe 範囲を `macos_overlay.rs` に隔離し、napi 境界や非 macOS fallback と混ざらない構造を先に固定した。
+- Electron 型定義では macOS の `getNativeWindowHandle()` は `NSView*` であるため、まず parent view pointer として復元する入口を作った。
+- この Green では fake handle smoke test をクラッシュさせないため、実 pointer dereference はまだ行わず次サイクルに分けた。
+- `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts src/utils/nativeOverlayMainBridge.test.ts` は 2 files / 10 tests passed。
+- `cargo test --manifest-path native-overlay/Cargo.toml` は 4 tests passed。
+- `npm run test:native-overlay-node` は addon build と Node smoke test が成功した。
+
+### 残課題・次のステップ
+- Phase 1 の次サイクルで、`macos_overlay.rs` に main thread 確認、overlay `NSView` 生成、`CAMetalLayer` 設定、parent view への `addSubview:` を実装する。
+- fake handle の direct smoke と実 handle の Electron 目視確認を分け、クラッシュしない検証設計を維持する。
+
 ## 2026-06-30 — Phase 1 Native Overlay addonでnative window handleを受信
 
 ### 実施内容

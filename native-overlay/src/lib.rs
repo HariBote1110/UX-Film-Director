@@ -2,6 +2,9 @@ use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
+#[cfg(target_os = "macos")]
+mod macos_overlay;
+
 #[napi(object)]
 pub struct NativeOverlayAttachPayload {
     pub window_id: u32,
@@ -65,10 +68,15 @@ pub fn get_native_overlay_capabilities() -> NativeOverlayCapabilities {
 
 fn attach_native_overlay_inner(payload: NativeOverlayAttachPayload) -> NativeOverlayResponse {
     let _ = payload.window_id;
-    if let Err(reason) = native_window_handle_bytes(&payload) {
+    let native_window_handle = match native_window_handle_bytes(&payload) {
+        Ok(bytes) => bytes,
+        Err(reason) => return failure(reason),
+    };
+    if let Err(reason) = build_overlay_layer_contract(&payload) {
         return failure(reason);
     }
-    if let Err(reason) = build_overlay_layer_contract(&payload) {
+    #[cfg(target_os = "macos")]
+    if let Err(reason) = macos_overlay::attach_overlay_view(&native_window_handle) {
         return failure(reason);
     }
 
