@@ -339,6 +339,32 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
     });
   });
 
+  it('passes the Phase 0 writeTexture no-op benchmark flag into the presenter start input', async () => {
+    let presenterInput: unknown;
+    const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {
+      presenterInput = input;
+      return control;
+    };
+
+    await startSharedRendererViewportPresenter({
+      canvas,
+      session,
+      datasets: [],
+      diagnosticSwatchEnabled: false,
+      videoCutoverEnabled: false,
+      activeVideoDecodeJob: null,
+      requestId: 22,
+      sharedRendererWriteTextureNoOpEnabled: true,
+      startPresenter,
+    } as Parameters<typeof startSharedRendererViewportPresenter>[0] & {
+      sharedRendererWriteTextureNoOpEnabled: true;
+    });
+
+    expect(presenterInput).toMatchObject({
+      sharedRendererWriteTextureNoOpEnabled: true,
+    });
+  });
+
   it('does not start the WebGPU presenter after video upload when the viewport start is stale', async () => {
     let current = true;
     const events: string[] = [];

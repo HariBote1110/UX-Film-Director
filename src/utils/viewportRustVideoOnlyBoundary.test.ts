@@ -112,6 +112,18 @@ describe('Viewport Rust video-only boundary', () => {
     expect(beforePresenterStartBlock).toContain('sharedRendererPresenterStartCountRef.current += 1');
   });
 
+  it('passes Phase 0 benchmark env flags into shared renderer presenter orchestration', () => {
+    const code = viewportSource();
+    const start = code.indexOf('void startSharedRendererViewportPresenter({');
+    const end = code.indexOf('}).then', start);
+    const presenterBlock = code.slice(start, end);
+
+    expect(code).toContain("const phase0SkipDecodedUploadEnabled = import.meta.env.VITE_UXFD_PHASE0_SKIP_DECODED_UPLOAD === '1';");
+    expect(code).toContain("const phase0WriteTextureNoOpEnabled = import.meta.env.VITE_UXFD_PHASE0_WRITE_TEXTURE_NOOP === '1';");
+    expect(presenterBlock).toContain('skipDecodedVideoUploadForBenchmark: phase0SkipDecodedUploadEnabled');
+    expect(presenterBlock).toContain('sharedRendererWriteTextureNoOpEnabled: phase0WriteTextureNoOpEnabled');
+  });
+
   it('reuses the existing external video presenter across playback ticks', () => {
     const code = viewportSource();
     const start = code.indexOf('const nextPresenterKey = buildSharedRendererPresenterSessionKey(session');
