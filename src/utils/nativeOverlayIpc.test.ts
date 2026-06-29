@@ -79,6 +79,32 @@ describe('nativeOverlayIpc', () => {
     });
   });
 
+  it('fills the current BrowserWindow id from the IPC event when detach omits windowId', async () => {
+    const handlers = new Map<string, (_event: unknown, payload: unknown) => Promise<unknown>>();
+    const ipcMain = {
+      handle: vi.fn((channel: string, handler: (_event: unknown, payload: unknown) => Promise<unknown>) => {
+        handlers.set(channel, handler);
+      }),
+    };
+    const bridge = {
+      attach: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
+      detach: vi.fn(async (payload: unknown) => ({ success: true, attached: false, payload })),
+      getCapabilities: vi.fn(() => ({ available: true })),
+    };
+
+    registerNativeOverlayIpcHandlers(ipcMain, bridge, {
+      resolveWindowIdFromEvent: vi.fn(() => 9),
+    });
+
+    await expect(handlers.get(nativeOverlayIpcChannels.detach)?.({ sender: 'webContents' }, {})).resolves.toEqual({
+      success: true,
+      attached: false,
+      payload: {
+        windowId: 9,
+      },
+    });
+  });
+
   it('logs native overlay attach results for opt-in diagnostics', async () => {
     const handlers = new Map<string, (_event: unknown, payload: unknown) => Promise<unknown>>();
     const ipcMain = {

@@ -68,6 +68,16 @@ describe('native overlay napi crate boundary', () => {
     expect(macosOverlay).toContain('removeFromSuperview');
   });
 
+  it('uses the native window handle to remove the AppKit overlay during detach', () => {
+    const lib = read('native-overlay/src/lib.rs');
+    const macosOverlay = read('native-overlay/src/macos_overlay.rs');
+
+    expect(lib).toContain('pub native_window_handle: Option<Buffer>');
+    expect(lib).toContain('macos_overlay::detach_overlay_view(&native_window_handle)');
+    expect(macosOverlay).toContain('pub fn detach_overlay_view');
+    expect(macosOverlay).toContain('remove_existing_overlay_view(parent_view)?;');
+  });
+
   it('provides build and smoke-test scripts for the native overlay addon', () => {
     expect(existsSync(resolve(root, 'scripts/build-native-overlay-addon.mjs'))).toBe(true);
     expect(existsSync(resolve(root, 'scripts/test-native-overlay-addon.mjs'))).toBe(true);

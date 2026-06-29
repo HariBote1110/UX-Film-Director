@@ -87,7 +87,29 @@ describe('createNativeOverlayMainBridge', () => {
       ...attachPayload,
       nativeWindowHandle,
     });
-    expect(nativeAddon.detachNativeOverlay).toHaveBeenCalledWith({ windowId: 7 });
+    expect(nativeAddon.detachNativeOverlay).toHaveBeenCalledWith({
+      windowId: 7,
+      nativeWindowHandle,
+    });
+  });
+
+  it('falls back when detach cannot resolve the BrowserWindow handle', async () => {
+    const bridge = createNativeOverlayMainBridge({
+      env: { UXFD_NATIVE_OVERLAY: '1' },
+      cwd: '/repo',
+      existsSync: (candidate) => candidate === '/repo/native-overlay/native-overlay.node',
+      requireModule: vi.fn(() => ({
+        detachNativeOverlay: vi.fn(() => ({ success: true, attached: false })),
+      })),
+      resolveNativeWindowHandle: vi.fn(() => null),
+    });
+
+    await expect(bridge.detach({ windowId: 7 })).resolves.toEqual({
+      success: false,
+      attached: false,
+      fallback: 'webgpuPresenter',
+      reason: 'Native overlay window handle is unavailable.',
+    });
   });
 
   it('falls back to the WebGPU presenter when the BrowserWindow handle cannot be resolved', async () => {
