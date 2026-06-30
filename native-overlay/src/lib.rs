@@ -6,9 +6,9 @@ use std::collections::HashMap;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
-use uxfd_golden_harness::RgbaFrame;
+use uxfd_golden_harness::{load_rgba_png, RgbaFrame};
 use uxfd_native_wgpu_renderer::NativeWgpuLiveSurfaceRenderer;
-use uxfd_rust_core::{ColourPipeline, EvaluatedClip, SceneSnapshot, Transform};
+use uxfd_rust_core::{ColourPipeline, EvaluatedClip, SamplingMode, SceneSnapshot, Transform};
 use uxfd_shared_video_frame_bridge::copy_shared_frame_into_upload_buffer;
 
 #[cfg(target_os = "macos")]
@@ -55,8 +55,54 @@ pub struct NativeOverlaySharedFramePresentPayload {
     pub window_id: u32,
     pub native_window_handle: Option<Buffer>,
     pub media_id: String,
+    pub snapshot: Option<NativeOverlaySceneSnapshotPayload>,
+    pub media: Option<Vec<NativeOverlaySceneMediaPayload>>,
     pub slot_count: u32,
     pub frame: NativeOverlaySharedFramePayload,
+}
+
+#[napi(object)]
+pub struct NativeOverlaySceneSnapshotPayload {
+    pub frame_index: f64,
+    pub colour: NativeOverlayColourPipelinePayload,
+    pub clips: Vec<NativeOverlayEvaluatedClipPayload>,
+}
+
+#[napi(object)]
+pub struct NativeOverlayColourPipelinePayload {
+    pub profile: String,
+    pub working_space: String,
+    pub alpha: String,
+}
+
+#[napi(object)]
+pub struct NativeOverlayEvaluatedClipPayload {
+    pub clip_id: String,
+    pub track_id: String,
+    pub media_id: String,
+    pub source_frame: f64,
+    pub z_index: u32,
+    pub transform: NativeOverlayTransformPayload,
+    pub opacity: f64,
+}
+
+#[napi(object)]
+pub struct NativeOverlayTransformPayload {
+    pub translation_x: f64,
+    pub translation_y: f64,
+    pub scale_x: f64,
+    pub scale_y: f64,
+    pub rotation_degrees: f64,
+    pub sampling: Option<String>,
+}
+
+#[napi(object)]
+pub struct NativeOverlaySceneMediaPayload {
+    pub id: String,
+    pub kind: String,
+    pub source: String,
+    pub width: u32,
+    pub height: u32,
 }
 
 #[napi(object)]
@@ -118,9 +164,25 @@ pub struct OverlayUploadFrame {
     pub pixels: Vec<u8>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OverlaySharedFramePresentRequest {
     pub source: OverlaySharedFrameSource,
+    pub scene: Option<NativeOverlaySceneSource>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct NativeOverlaySceneSource {
+    pub snapshot: SceneSnapshot,
+    pub media: Vec<NativeOverlaySceneMedia>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeOverlaySceneMedia {
+    pub id: String,
+    pub kind: String,
+    pub source: String,
+    pub width: u32,
+    pub height: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -188,12 +250,20 @@ impl NativeOverlayLiveSurfaceRenderer {
         })
     }
 
-    fn present_upload_frame(&mut self, upload: &OverlayUploadFrame) -> Result<(), String> {
+    fn present_upload_frame(
+        &mut self,
+        upload: &OverlayUploadFrame,
+        scene: Option<&NativeOverlaySceneSource>,
+    ) -> Result<(), String> {
         let _window_id = self.window_id;
         #[cfg(target_os = "macos")]
         let _layer_handle = self.layer_handle;
-        let (snapshot, sources) =
-            upload_frame_to_single_clip_scene(upload, self.drawable_width, self.drawable_height)?;
+        let (snapshot, sources) = upload_frame_to_scene_sources(
+            upload,
+            scene,
+            self.drawable_width,
+            self.drawable_height,
+        )?;
         pollster::block_on(
             self.renderer
                 .present_scene_to_surface_texture(&snapshot, &sources),
@@ -304,7 +374,7 @@ fn present_native_overlay_shared_frame_inner(
     if let Err(reason) = present_native_window_handle_bytes(&payload) {
         return failure(reason);
     }
-    let request = match overlay_present_request_from_payload(payload) {
+    let request = match scene_present_request_from_payload(payload) {
         Ok(request) => request,
         Err(reason) => return failure(&reason),
     };
@@ -423,9 +493,22 @@ pub fn present_native_window_handle_bytes(
     Ok(bytes.to_vec())
 }
 
-fn overlay_present_request_from_payload(
+fn scene_present_request_from_payload(
     payload: NativeOverlaySharedFramePresentPayload,
 ) -> Result<OverlaySharedFramePresentRequest, String> {
+    let scene = match (payload.snapshot, payload.media) {
+        (Some(snapshot), Some(media)) => Some(NativeOverlaySceneSource {
+            snapshot: scene_snapshot_from_payload(snapshot)?,
+            media: media.into_iter().map(scene_media_from_payload).collect(),
+        }),
+        (None, None) => None,
+        _ => {
+            return Err(
+                "Native overlay scene payload must include both snapshot and media.".to_string(),
+            )
+        }
+    };
+
     Ok(OverlaySharedFramePresentRequest {
         source: OverlaySharedFrameSource {
             media_id: payload.media_id,
@@ -448,6 +531,7 @@ fn overlay_present_request_from_payload(
                 pts_frame: safe_u64_from_f64("ptsFrame", payload.frame.pts_frame)?,
             },
         },
+        scene,
     })
 }
 
@@ -561,7 +645,7 @@ pub fn present_overlay_shared_frame_to_live_surface(
     let renderer = renderers
         .get_mut(&window_id)
         .ok_or_else(|| "Native overlay live surface is not attached.".to_string())?;
-    renderer.present_upload_frame(&upload)?;
+    renderer.present_upload_frame(&upload, request.scene.as_ref())?;
 
     Ok(OverlaySharedFramePresentResponse {
         success: true,
@@ -576,15 +660,22 @@ pub fn present_overlay_shared_frame_to_live_surface(
     })
 }
 
-pub fn upload_frame_to_single_clip_scene(
+pub fn upload_frame_to_scene_sources(
     upload: &OverlayUploadFrame,
+    scene: Option<&NativeOverlaySceneSource>,
     drawable_width: u32,
     drawable_height: u32,
 ) -> Result<(SceneSnapshot, HashMap<String, RgbaFrame>), String> {
     let frame = RgbaFrame::from_rgba8(upload.width, upload.height, upload.pixels.clone())
         .map_err(|error| format!("Native overlay upload frame is invalid: {error:?}"))?;
-    let mut sources = HashMap::new();
+    let mut sources = scene
+        .map(load_overlay_image_sources_for_scene)
+        .transpose()?
+        .unwrap_or_default();
     sources.insert(upload.media_id.clone(), frame);
+    if let Some(scene) = scene {
+        return Ok((scene.snapshot.clone(), sources));
+    }
 
     let scale_x = if upload.width == 0 {
         1.0
@@ -617,6 +708,78 @@ pub fn upload_frame_to_single_clip_scene(
     };
 
     Ok((snapshot, sources))
+}
+
+pub fn load_overlay_image_sources_for_scene(
+    scene: &NativeOverlaySceneSource,
+) -> Result<HashMap<String, RgbaFrame>, String> {
+    let mut sources = HashMap::new();
+    for media in &scene.media {
+        if media.kind != "Image" {
+            continue;
+        }
+        let frame = load_rgba_png(&media.source)
+            .map_err(|error| format!("Native overlay image source load failed: {error:?}"))?;
+        sources.insert(media.id.clone(), frame);
+    }
+    Ok(sources)
+}
+
+fn scene_snapshot_from_payload(
+    payload: NativeOverlaySceneSnapshotPayload,
+) -> Result<SceneSnapshot, String> {
+    Ok(SceneSnapshot {
+        frame_index: safe_u64_from_f64("snapshot.frameIndex", payload.frame_index)?,
+        colour: ColourPipeline {
+            profile: payload.colour.profile,
+            working_space: payload.colour.working_space,
+            alpha: payload.colour.alpha,
+        },
+        clips: payload
+            .clips
+            .into_iter()
+            .map(evaluated_clip_from_payload)
+            .collect::<Result<Vec<_>, _>>()?,
+    })
+}
+
+fn evaluated_clip_from_payload(
+    payload: NativeOverlayEvaluatedClipPayload,
+) -> Result<EvaluatedClip, String> {
+    Ok(EvaluatedClip {
+        clip_id: payload.clip_id,
+        track_id: payload.track_id,
+        media_id: payload.media_id,
+        source_frame: safe_u64_from_f64("clip.sourceFrame", payload.source_frame)?,
+        z_index: payload.z_index,
+        transform: Transform {
+            translation_x: payload.transform.translation_x as f32,
+            translation_y: payload.transform.translation_y as f32,
+            scale_x: payload.transform.scale_x as f32,
+            scale_y: payload.transform.scale_y as f32,
+            rotation_degrees: payload.transform.rotation_degrees as f32,
+            sampling: sampling_mode_from_payload(payload.transform.sampling.as_deref()),
+        },
+        opacity: payload.opacity as f32,
+        effects: Vec::new(),
+    })
+}
+
+fn sampling_mode_from_payload(value: Option<&str>) -> SamplingMode {
+    match value {
+        Some("bilinear") | Some("Bilinear") => SamplingMode::Bilinear,
+        _ => SamplingMode::Nearest,
+    }
+}
+
+fn scene_media_from_payload(payload: NativeOverlaySceneMediaPayload) -> NativeOverlaySceneMedia {
+    NativeOverlaySceneMedia {
+        id: payload.id,
+        kind: payload.kind,
+        source: payload.source,
+        width: payload.width,
+        height: payload.height,
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -813,6 +976,7 @@ mod tests {
                     pts_frame: 9,
                 },
             },
+            scene: None,
         })
         .expect("present overlay shared frame");
 
