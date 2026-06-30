@@ -44,6 +44,9 @@ describe('package scripts', () => {
     expect(script).toContain('UXFD_PERF_RESULT_JSON:');
     expect(script).toContain('raf_heavy_video_scrub');
     expect(script).toContain('perf-agent-output.json');
+    expect(script).toContain('UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS');
+    expect(script).toContain('completedRuns');
+    expect(script).toContain('while');
   });
 
   it('records real video export E2E duration separately from Electron startup time', () => {
