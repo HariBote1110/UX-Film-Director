@@ -1,3 +1,21 @@
+## 2026-06-30 — Native Overlay bench traceの親stdout再出力を抑制
+
+### 実施内容
+- Red として `src/utils/packageScripts.test.ts` に、Native Overlay bench runner が trace を解析しつつ親 stdout への高頻度再出力を抑える契約を追加した。
+- Green として `scripts/run-native-overlay-long-bench.mjs` に `filterNativeOverlayBenchEchoText` を追加し、`UXFD_NATIVE_OVERLAY_BENCH_TRACE=1` 時の `[decode.trace]` / `[RustBackend]` / `presentSharedFrameTrace` 再出力を抑制した。
+- 軽微な Phase 3a bench 負荷修正として `package.json` / `package-lock.json` の版を `0.1.1-Beta-419n` へ更新した。
+
+### 選定理由・判断の根拠
+- 60分 bench は run 9 まで通過した後、run 10 の `native_overlay_steady_playback` が `rafP95Ms=20.9` で失敗した。
+- 同じ run の通常 RAF scenario も `rafP95Ms=112.055` まで跳ねており、overlay present/decode だけではなく、bench runner の高頻度 stdout 再出力による I/O backpressure が renderer jitter に混入した可能性が高い。
+- trace text は parser に渡し続けるため、`decodeMs < 16ms` / `presentMs < 16ms` / release generation gate は維持される。
+
+### 残課題・次のステップ
+- package script / parser テストを Green にする。
+- `npx vitest run src/utils/packageScripts.test.ts --testNamePattern "Native Overlay long bench"` と `npx vitest run src/utils/nativeOverlayBenchTraceParser.test.ts` は Green。
+- `UXFD_NATIVE_OVERLAY_BENCH_TRACE=1 UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=15000 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=90000 npm run bench:native-overlay` は Green。`native_overlay_steady_playback` は `rafMeanMs=16.684` / `rafP95Ms=19.07` / `rafMaxMs=28.375` / `longTaskCount=2`、trace gate は維持された。
+- 次に 60分 bench を再試行し、I/O backpressure 抑制後に `rafP95Ms <= 20.0` が継続するか確認する。
+
 ## 2026-06-30 — steady bench markerをlive playback全体へ拡張
 
 ### 実施内容

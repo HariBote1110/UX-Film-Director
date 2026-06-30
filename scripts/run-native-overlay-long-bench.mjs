@@ -41,9 +41,26 @@ const parseMarkerLine = (line) => {
   }
 };
 
+const filterNativeOverlayBenchEchoText = (text, traceEnabled) => {
+  if (!traceEnabled) {
+    return text;
+  }
+  return text
+    .split(/(\r?\n)/u)
+    .filter((part) => {
+      if (part === '\n' || part === '\r\n') {
+        return true;
+      }
+      return !part.includes('[decode.trace]')
+        && !part.includes('[RustBackend]')
+        && !part.includes('[NativeOverlay] presentSharedFrameTrace');
+    })
+    .join('');
+};
+
 const handleOutput = (chunk, write) => {
   const text = chunk.toString();
-  write(text);
+  write(filterNativeOverlayBenchEchoText(text, decodeTraceEnabled));
   if (decodeTraceEnabled) {
     ingestNativeOverlayBenchTraceText(benchTraceSummary, text);
   }
