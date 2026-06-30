@@ -1,3 +1,27 @@
+## 2026-07-01 — Bug C修正: visual frame cacheのinvalidate条件を3つ正本化
+
+### 実施内容
+- Red として `src/utils/sharedRendererRustVideoUploadPipeline.test.ts` に 3 ケース別個の契約を追加した。
+  - (a) `re-presents when the timeline frame_index advances even if ptsFrame stays the same` — playhead が前進したのに source_frame と ptsFrame が同値のとき、必ず 2 回 present が走ること。
+  - (b) `clears only the target window media caches when the clip removal hook fires` — `resetNativeOverlayVisualFrameCacheForWindow(windowId)` が存在し、当該 window の全 mediaId cache だけを消し、他 window の cache は維持されること。
+  - (c) `exposes a dedicated scene-cleared notifier that drops every media cache for the window` — `notifyNativeOverlaySceneCleared(windowId)` が存在し、当該 window の cache を消すこと。
+- Green として `src/utils/sharedRendererRustVideoUploadPipeline.ts` の `buildNativeOverlayVisualFrameKey` に `snapshot.frame_index` を含めるよう変更し、`resetNativeOverlayVisualFrameCacheForWindow` / `notifyNativeOverlaySceneCleared` を新規 export した。
+- 既存 dedup テスト `releases but skips duplicate Native Overlay presents for an unchanged visual frame` は frame_index を 100 → 101 へ変える前提だったが、Bug C の発症条件そのものだったため「同じ playhead 時刻に張り付いた状態（停止中の再描画など）」に変更し、元コミット 19cbb966 の意図を保持したまま frame_index を不変として dedup が走るシナリオに正した。
+- `npx vitest run src/utils/sharedRendererRustVideoUploadPipeline.test.ts` を実行し 16 tests / 0 failed で Green を確認した。
+- 重大な描画 bug 修正として `package.json` / `package-lock.json` の版を `0.1.1-Beta-423a` へ更新した。
+
+### 選定理由・判断の根拠
+- 原コミット `19cbb966 fix: 重複Native Overlay presentをreleaseのみに短絡` の意図は、同一 ptsFrame の cacheHit が連続して live surface present が 16ms 超の surface 待ちを作る退行の抑止。停止中の同一 playhead での重複は確かに dedup されるべきで、dedup ロジック自体は維持する必要がある。
+- ところが原コミットの `buildNativeOverlayVisualFrameKey` は `colour` と `clips` だけを snapshot 部分に含み、**`snapshot.frame_index` を入れていなかった**。`latestWins` decode mode と量子化により再生中でも `source_frame` と `ptsFrame` が同値に張り付くケースがあり、その間 playhead が前進しても key が変わらず present がスキップされ続け、overlay が静止する（Bug C）。
+- 修正は最小: `frame_index` を key に追加するだけで、(i) 停止中の同一 playhead 重複は引き続き dedup される（元コミットの意図保持）、(ii) 再生中の playhead 前進では key が必ず変わるため present が必ず発行される（Bug C 解消）。
+- (b) `resetNativeOverlayVisualFrameCacheForWindow` と (c) `notifyNativeOverlaySceneCleared` は実装上は同じ動作（window 単位 cache 消去）だが、呼び出し側の context が違う（前者は clip 削除 effect、後者は scene 空集合遷移 effect）ので別 API として残す。Viewport.tsx 側でどちらの effect から呼ぶか意図を明示できる。これらは Bug D の Green 段階で Viewport.tsx から実際に呼ぶ。
+- 却下案: dedup を完全に消す案。元コミットの「同一 ptsFrame 連続による 16ms 超の surface 待ち」退行を再発させるため不採用。
+- 却下案: `ptsFrame` だけを key にする案。frame_index と ptsFrame の関係は `latestWins` decode で常に1対1ではないため、scene 構造（clips の transform 変化など）の情報が落ちて別の退行を生む。現行の `colour+clips+frame_index` 三点が必要。
+
+### 残課題・次のステップ
+- Viewport.tsx 側の Bug D 対応（clip 削除 effect / scene 空集合遷移 effect から本セッションで追加した `resetNativeOverlayVisualFrameCacheForWindow` / `notifyNativeOverlaySceneCleared` を呼ぶ実装、および overlay の transparent clear present 発行）は Bug D の修正段で行う。
+- Bug A（画像 clip が砂嵐）へ着手する。`upload_frame_to_scene_sources` の image source 経路と、image-only project で video upload pipeline を流用している設計の正誤を判断する。
+
 ## 2026-07-01 — Bug B修正: CAMetalLayer.contentsScaleをcontract経由で正本化
 
 ### 実施内容

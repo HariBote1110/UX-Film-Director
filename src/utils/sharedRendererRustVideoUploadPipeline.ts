@@ -124,6 +124,35 @@ export const resetNativeOverlayVisualFrameCache = (windowId?: number, mediaId?: 
   lastNativeOverlayVisualFrameKeyByTarget.clear();
 };
 
+/**
+ * Bug C (b) — clip 削除イベント時に上位経路から呼ぶ dedicated invalidator。
+ * 当該 `windowId` の全 mediaId cache だけを消し、他 window への副作用は起こさない。
+ * `resetNativeOverlayVisualFrameCache(windowId)`（mediaId 省略）は全 window 全 mediaId を消すため、
+ * multi-window 環境での独立性を保つには本 API を使う。
+ */
+export const resetNativeOverlayVisualFrameCacheForWindow = (windowId: number): void => {
+  if (!Number.isFinite(windowId)) {
+    return;
+  }
+  const prefix = `${windowId}:`;
+  for (const key of lastNativeOverlayVisualFrameKeyByTarget.keys()) {
+    if (key.startsWith(prefix)) {
+      lastNativeOverlayVisualFrameKeyByTarget.delete(key);
+    }
+  }
+};
+
+/**
+ * Bug C (c) — scene の clips が空集合に遷移したことを上位経路から伝える dedicated 通知。
+ * 「scene が空になった」という意図を関数名で明示する。実装としては
+ * `resetNativeOverlayVisualFrameCacheForWindow` と等価だが、呼び出し側の context が違う
+ * （前者は clip 削除 effect、後者は scene 空集合への遷移 effect）ので別 API として残す。
+ * 本通知は次の non-empty present で必ず再描画されることを保証する。
+ */
+export const notifyNativeOverlaySceneCleared = (windowId: number): void => {
+  resetNativeOverlayVisualFrameCacheForWindow(windowId);
+};
+
 export const presentNativeOverlayRustDecodedVideoFrame = async ({
   windowId,
   mediaId,
@@ -249,6 +278,11 @@ const buildNativeOverlayVisualFrameKey = ({
   mediaId,
   ptsFrame,
   snapshot: snapshot ? {
+    // Bug C (a) — playhead 進行の正本識別子。原 dedup（19cbb966）は colour+clips だけを見ていたが、
+    // `latestWins` decode や量子化で source_frame と ptsFrame が同値に張り付くと、再生時刻が
+    // 前進しても key が変わらず present がスキップされ続け、overlay が静止する退行になる。
+    // `frame_index` はタイムライン上の playhead frame そのものなので、key に必ず含める。
+    frame_index: snapshot.frame_index,
     colour: snapshot.colour,
     clips: snapshot.clips,
   } : null,

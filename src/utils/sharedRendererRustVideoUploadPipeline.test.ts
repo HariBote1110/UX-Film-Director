@@ -190,7 +190,12 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
     });
   });
 
+  // 元コミット 19cbb966 の dedup 契約。実機 trace で同一 ptsFrame の cacheHit が連続して
+  // 16ms 超の surface 待ちを作っていた退行を抑止する。Bug C 修正後は dedup の判定条件に
+  // snapshot.frame_index を含めるため、本テストでも 2 回目の入力で frame_index を変えず
+  // 「playhead が同じ時刻に張り付いた状態（停止中の再描画など）」を表現する。
   it('releases but skips duplicate Native Overlay presents for an unchanged visual frame', async () => {
+    resetNativeOverlayVisualFrameCache();
     const calls: unknown[] = [];
     const secondFrameResponse: RustBackendResult<RustBackendVideoDecodeFrameResult> = {
       ...decodedFrameResponse,
@@ -268,13 +273,11 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
       ...baseInput,
       decodeResponse: decodedFrameResponse,
     })).resolves.toEqual({ ok: true });
+    // 同じ playhead 時刻（frame_index 不変）での重複 present は dedup される。
+    // 元コミット 19cbb966 の意図そのまま: 同一 ptsFrame の cacheHit 連続による surface 待ちを抑止する。
     await expect(presentNativeOverlayRustDecodedVideoFrame({
       ...baseInput,
       decodeResponse: secondFrameResponse,
-      snapshot: {
-        ...baseInput.snapshot,
-        frame_index: 101,
-      },
     })).resolves.toEqual({ ok: true });
 
     expect(calls).toEqual([
