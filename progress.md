@@ -1,3 +1,20 @@
+## 2026-06-30 — Native Overlay dev起動スクリプトを追加
+
+### 実施内容
+- `src/utils/packageScripts.test.ts` に `dev:native-overlay` が addon build 後に Vite を起動し、Native Overlay / Rust video env を立てる契約を Red として追加した。
+- Red では `package.json` に `dev:native-overlay` が存在せず失敗することを確認した。
+- `scripts/dev-native-overlay.mjs` を追加し、`build-native-overlay-addon`、`build-shared-video-frame-node-addon`、Rust backend release build の順で実行してから Vite を起動するようにした。
+- `package.json` / `package-lock.json` の版を機能追加として `0.1.1-Beta-399a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 6 の最初の完了条件は `VITE_UXFD_NATIVE_OVERLAY=1` opt-in と `npm run dev:native-overlay` 追加なので、既存 `dev:rust-video` の起動規約に合わせた。
+- `dev:native-overlay` は既存 WebGPU presenter fallback を残しつつ、renderer と Electron main の両方に Native Overlay env を渡す。
+- `npx vitest run src/utils/packageScripts.test.ts` は 1 file / 7 tests passed。
+
+### 残課題・次のステップ
+- 次は Phase 6 の長時間ベンチ harness と、overlay / WebGPU preview / export readback の3経路 pixel diff 文書・CI契約を Red→Green で追加する。
+- 既定 ON 切替直前ではユーザー確認が必要。
+
 ## 2026-06-30 — Phase 5入力操作確認を完了
 
 ### 実施内容
