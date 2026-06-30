@@ -1,3 +1,25 @@
+## 2026-06-30 — live overlay presentをscene pipelineへ接続
+
+### 実施内容
+- Red として `src/utils/nativeOverlayCrateBoundary.test.ts` に、`native-wgpu-renderer` が live CAMetalLayer surface 用 renderer と `present_scene_to_surface_texture` を持ち、`native-overlay` が clear pass stub ではなく scene pipeline へ委譲する契約を追加した。
+- Green として `native-wgpu-renderer/src/lib.rs` に `NativeWgpuLiveSurfaceRenderer` を追加し、`wgpu::SurfaceTargetUnsafe::CoreAnimationLayer` から作った live `wgpu::Surface` へ既存 pipeline で描画して `surface_texture.present()` する経路を追加した。
+- `native-overlay/src/lib.rs` の `NativeOverlayLiveSurfaceRenderer` を、addon 内自前 clear pass から `uxfd-native-wgpu-renderer` の live surface renderer を保持する形へ変更した。
+- shared frame upload を単一 clip の `SceneSnapshot` と `RgbaFrame` source に変換する `upload_frame_to_single_clip_scene` を追加し、既存 scene pipeline へ渡す最小橋渡しを作った。
+- `native-overlay/Cargo.toml` / `Cargo.lock` に scene snapshot 生成用の `uxfd-golden-harness` と `uxfd-rust-core` 依存を追加した。
+- `package.json` / `package-lock.json` の版を機能追加として `0.1.1-Beta-406a` へ更新した。
+
+### 選定理由・判断の根拠
+- Red: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts` は 1 failed。`NativeWgpuLiveSurfaceRenderer` と live surface scene pipeline が未実装だった。
+- Green: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts` は 1 file / 10 tests passed。
+- Green: `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test overlay_surface_parity` は 1 passed。
+- Green: `cargo test --manifest-path native-overlay/Cargo.toml` は 8 passed。
+- これで青い clear pass 固定ではなく、少なくとも video shared frame は live surface 上で native-wgpu-renderer の scene pipeline を通る。
+
+### 残課題・次のステップ
+- 次は Red として、画像 clip も overlay へ流せる scene snapshot ベース present 入力をフロントエンド境界で固定する。
+- その後、live overlay の描画結果を読み戻して export readback と diff する end-to-end gate を追加する。
+- 実機 `npm run dev` で画像 clip と動画 clip を配置し、overlay 表示スクリーンショットを `progress.md` に記録する。
+
 ## 2026-06-30 — Native Overlay live surface骨格を追加
 
 ### 実施内容
