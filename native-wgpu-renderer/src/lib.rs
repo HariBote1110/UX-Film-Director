@@ -175,6 +175,15 @@ impl NativeWgpuRenderer {
             .await
     }
 
+    pub async fn render_overlay_surface_frame_for_test(
+        &self,
+        snapshot: &SceneSnapshot,
+        sources: &HashMap<String, RgbaFrame>,
+    ) -> Result<RgbaFrame, NativeWgpuRenderError> {
+        self.present_frame_stages(snapshot, sources).await?;
+        self.read_output_texture_to_rgba8()
+    }
+
     pub async fn render_frame_to_shared_ring(
         &self,
         snapshot: &SceneSnapshot,
@@ -493,6 +502,38 @@ impl NativeWgpuRenderer {
             pass.draw(0..3, 0..1);
         }
     }
+
+    fn read_output_texture_to_rgba8(&self) -> Result<RgbaFrame, NativeWgpuRenderError> {
+        let mut readback_encoder =
+            self.device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("UXFD native wgpu overlay surface test readback encoder"),
+                });
+        let padded_bytes_per_row = padded_bytes_per_row(self.width);
+        readback_encoder.copy_texture_to_buffer(
+            wgpu::ImageCopyTexture {
+                texture: &self.output_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::ImageCopyBuffer {
+                buffer: &self.readback_buffer,
+                layout: wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(padded_bytes_per_row),
+                    rows_per_image: Some(self.height),
+                },
+            },
+            wgpu::Extent3d {
+                width: self.width,
+                height: self.height,
+                depth_or_array_layers: 1,
+            },
+        );
+        self.queue.submit(Some(readback_encoder.finish()));
+        readback_to_rgba8(&self.device, &self.readback_buffer, self.width, self.height)
+    }
 }
 
 pub async fn render_native_wgpu_frame(
@@ -504,6 +545,18 @@ pub async fn render_native_wgpu_frame(
     measure_native_wgpu_frame_stages(snapshot, sources, width, height)
         .await
         .map(|report| report.frame)
+}
+
+pub async fn render_native_wgpu_overlay_surface_frame(
+    snapshot: &SceneSnapshot,
+    sources: &HashMap<String, RgbaFrame>,
+    width: u32,
+    height: u32,
+) -> Result<RgbaFrame, NativeWgpuRenderError> {
+    let renderer = NativeWgpuRenderer::new(width, height).await?;
+    renderer
+        .render_overlay_surface_frame_for_test(snapshot, sources)
+        .await
 }
 
 pub async fn render_native_wgpu_frame_with_audio_waveforms(

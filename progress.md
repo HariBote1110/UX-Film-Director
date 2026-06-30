@@ -1,3 +1,24 @@
+## 2026-06-30 — overlay surface parity gateを追加
+
+### 実施内容
+- `native-wgpu-renderer/tests/overlay_surface_parity.rs` に、Native Overlay surface 相当の描画結果と export readback を `ComparisonThresholds::exact()` で比較する Red を追加した。
+- Red では `render_native_wgpu_overlay_surface_frame` が未定義で compile error になり、overlay surface 検証 API が存在しないことを確認した。
+- `native-wgpu-renderer/src/lib.rs` に `NativeWgpuRenderer::render_overlay_surface_frame_for_test` と `render_native_wgpu_overlay_surface_frame` を追加した。
+- `markdown/architecture/04-render-parity.md` に Native Overlay Phase 2 gate として、Phase 3a reference scene の overlay surface / export readback exact parity を CI 対象にする方針を追記した。
+- `package.json` の版を機能追加として `0.1.1-Beta-384a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 2 の完了条件は overlay surface 描画結果と export readback の `max channel delta=0` なので、製品 steady state に readback を入れず、検証専用 readback で surface 相当の出力を固定した。
+- 既存 export readback 経路は残し、present pass と export pass が同じ composition 関数を共有する構造を維持した。
+- WGSL は変更していないため ADR-003 を維持している。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test overlay_surface_parity` は 1 test passed。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test frame_stage_timings` は 4 tests passed。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test native_reference_parity` は 25 tests passed。
+
+### 残課題・次のステップ
+- Phase 2 の surface parity gate は追加済み。実 CAMetalLayer への steady-state present 接続は Phase 3a の shm 入力接続と合わせて進める。
+- 次は Phase 3a として、sidecar decode が返す POSIX shm descriptor を main/addon 側で読み、upload 後に lease generation を守って release する経路を Red→Green で追加する。
+
 ## 2026-06-30 — Native wgpu present計測経路を追加
 
 ### 実施内容

@@ -95,6 +95,14 @@ RGBA8 量子化規則:
 この規則は CPU reference と native wgpu readback の両方で共有する。GPU render target は `rgba16float` とし、
 中間合成を `rgba8unorm` に落とさない。
 
+Native Overlay Phase 2 gate:
+
+- `native-wgpu-renderer/tests/overlay_surface_parity.rs` を CI 対象にする。
+- 対象 scene は Phase 3a の reference scene から、white 50% over black、white 25% over black、source alpha × clip opacity、gain above one clamp、2 pixel coordinate mapping を使う。
+- CPU reference は手計算 anchor と厳密一致させる。
+- native export readback と overlay surface test readback は `ComparisonThresholds::exact()` で比較し、`max_channel_delta=0` を gate にする。
+- overlay surface test readback は検証専用であり、製品 preview 経路の steady state には readback を含めない。
+
 ### Phase 3b: WebGPU preview / native export parity
 
 Phase 3a が通った後、以下を通す。
