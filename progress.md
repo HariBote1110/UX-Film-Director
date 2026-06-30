@@ -1,3 +1,22 @@
+## 2026-06-30 — Native Overlay decoded frame release接続を追加
+
+### 実施内容
+- `src/utils/sharedRendererRustVideoUploadPipeline.test.ts` に、verified decoded frame を `nativeOverlay.presentSharedFrame` へ渡し、present 成功後に `releaseVideoDecodeFrame(copyOutState=gpuUploadFenceSignalled)` を呼ぶ契約を Red として追加した。
+- Red では `presentNativeOverlayRustDecodedVideoFrame` が未実装で失敗することを確認した。
+- `src/utils/sharedRendererRustVideoUploadPipeline.ts` に `NativeOverlayDecodedFrameBridge` と `presentNativeOverlayRustDecodedVideoFrame` を追加した。
+- `src/utils/sharedRendererRustVideoUploadPipeline.ts` で Native Overlay が返す release payload を元の decoded frame descriptor と照合してから release するようにした。
+- `package.json` の版を機能追加として `0.1.1-Beta-389a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 3a の release generation 違反を避けるには、Native Overlay 側の present 成功だけでなく、返ってきた `memoryId` / `slotIndex` / `generation` / `ptsFrame` が leased frame と一致することを確認してから release する必要がある。
+- WebGPU presenter 用の upload buffer を作らず、decoded shared frame descriptor を Native Overlay に渡すことで JS heap / writeTexture 経由を preview 本線から外す方向に進めた。
+- `npx vitest run src/utils/sharedRendererRustVideoUploadPipeline.test.ts` は 9 tests passed。
+- `npx vitest run src/utils/nativeOverlayIpc.test.ts src/utils/nativeOverlayPreloadBoundary.test.ts src/utils/nativeOverlayMainBridge.test.ts` は 3 files / 15 tests passed。
+
+### 残課題・次のステップ
+- 次は viewport presenter orchestration へ Native Overlay present path を flag gate で接続し、既存 WebGPU presenter fallback を保持したまま Rust decoded frame を overlay 側へ流す。
+- その後、実 decode 1080p の `UXFD_DECODE_TRACE=1` 計測で decodeMs と presenter 提示時間を確認する。
+
 ## 2026-06-30 — Native Overlay shared frame IPC境界を追加
 
 ### 実施内容

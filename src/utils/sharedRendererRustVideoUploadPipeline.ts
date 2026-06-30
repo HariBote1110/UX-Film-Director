@@ -19,6 +19,42 @@ export interface PrepareSharedRendererRustDecodedVideoUploadInput {
   rustBackendBridge: RustBackendVideoDecodeBridge;
 }
 
+export interface NativeOverlayDecodedFrameBridge {
+  presentSharedFrame: (payload: {
+    windowId: number;
+    mediaId: string;
+    slotCount: number;
+    frame: RustBackendSharedVideoFrame;
+  }) => Promise<{
+    success: boolean;
+    attached: boolean;
+    releaseFrame?: {
+      memoryId: string;
+      slotIndex: number;
+      generation: number;
+      ptsFrame: number;
+      copyOutState: 'gpuUploadFenceSignalled';
+    };
+    reason?: string;
+  }>;
+}
+
+export interface PresentNativeOverlayRustDecodedVideoFrameInput {
+  windowId: number;
+  decodeResponse: RustBackendResult<unknown>;
+  slotCount: number;
+  nativeOverlayBridge: NativeOverlayDecodedFrameBridge;
+  rustBackendBridge: RustBackendVideoDecodeBridge;
+}
+
+export type PresentNativeOverlayRustDecodedVideoFrameResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: 'decodedFrameUnavailable' | 'nativeOverlayPresentFailed' | 'nativeOverlayReleaseMismatch';
+      detail: string;
+    };
+
 export type PrepareSharedRendererRustDecodedVideoUploadResult =
   | PrepareSharedRendererDecodedVideoFrameUploadResult
   | {
@@ -26,6 +62,59 @@ export type PrepareSharedRendererRustDecodedVideoUploadResult =
       reason: 'decodedFrameUnavailable';
       detail: string;
     };
+
+export const presentNativeOverlayRustDecodedVideoFrame = async ({
+  windowId,
+  decodeResponse,
+  slotCount,
+  nativeOverlayBridge,
+  rustBackendBridge,
+}: PresentNativeOverlayRustDecodedVideoFrameInput): Promise<PresentNativeOverlayRustDecodedVideoFrameResult> => {
+  if (!isRustBackendDecodedVideoFrameAvailable(decodeResponse)) {
+    return {
+      ok: false,
+      reason: 'decodedFrameUnavailable',
+      detail: 'Rust backend did not return a verified decoded video frame.',
+    };
+  }
+
+  const { frame, jobId } = decodeResponse.result;
+  const presentResponse = await nativeOverlayBridge.presentSharedFrame({
+    windowId,
+    mediaId: jobId,
+    slotCount,
+    frame,
+  });
+  if (!presentResponse.success || !presentResponse.releaseFrame) {
+    return {
+      ok: false,
+      reason: 'nativeOverlayPresentFailed',
+      detail: presentResponse.reason ?? 'Native overlay did not return a decoded frame release payload.',
+    };
+  }
+  const releaseFrame = presentResponse.releaseFrame;
+  if (
+    releaseFrame.memoryId !== frame.descriptor.memoryId
+    || releaseFrame.slotIndex !== frame.descriptor.slotIndex
+    || releaseFrame.generation !== frame.descriptor.generation
+    || releaseFrame.ptsFrame !== frame.ptsFrame
+  ) {
+    return {
+      ok: false,
+      reason: 'nativeOverlayReleaseMismatch',
+      detail: 'Native overlay decoded frame release payload did not match the leased frame descriptor.',
+    };
+  }
+
+  await releaseRustBackendVideoDecodeFrame({
+    jobId,
+    slotIndex: frame.descriptor.slotIndex,
+    generation: frame.descriptor.generation,
+    copyOutState: 'gpuUploadFenceSignalled',
+  }, rustBackendBridge).then(assertDecodedFrameReleaseSucceeded);
+
+  return { ok: true };
+};
 
 export const prepareSharedRendererRustDecodedVideoUpload = async ({
   decodeResponse,
