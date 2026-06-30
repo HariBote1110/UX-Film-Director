@@ -1,3 +1,22 @@
+## 2026-06-30 — Native Overlay Phase 6最終監査を完了
+
+### 実施内容
+- 既定 ON 切替後の現在状態で、package script、Native Overlay env gate、parity、export round-trip、bench smoke、既存操作系 vitest を再確認した。
+- `package.json` は `version=0.1.1-Beta-404a`、`dev=node scripts/dev-native-overlay.mjs`、`dev:native-overlay=node scripts/dev-native-overlay.mjs`、`bench:native-overlay=node scripts/run-native-overlay-long-bench.mjs` を保持している。
+- `VITE_UXFD_NATIVE_OVERLAY=0` / `UXFD_NATIVE_OVERLAY=0` の明示 opt-out 契約をテストで固定し、既存 WebGPU presenter 退避路を維持した。
+- 最終確認後も git tree が clean であることを確認した。
+
+### 選定理由・判断の根拠
+- `npx vitest run src/utils/nativeOverlayMainBridge.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts src/utils/packageScripts.test.ts` は 3 files / 53 tests passed。
+- `npx vitest run src/hooks/useTimelineDrop.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts` は 3 files / 39 tests passed。
+- `npm run test:native-overlay-parity` は 1 passed。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test export_round_trip` は 3 passed。
+- 既定 ON 後の bench smoke は `native_overlay_steady_playback` で `rafMeanMs=16.635` / `rafP95Ms=18.28`、既定 ON 前の60分反復 bench は 150 run 全成功だった。
+
+### 残課題・次のステップ
+- Native Overlay Phase 6 の最終ゴールは達成済み。
+- 残問題2の暗さは本計画スコープ外として、別途扱う。
+
 ## 2026-06-30 — Native Overlayを既定ONへ切り替え
 
 ### 実施内容
