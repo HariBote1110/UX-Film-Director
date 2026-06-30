@@ -102,6 +102,15 @@ describe('native overlay napi crate boundary', () => {
     expect(nativeWgpuRenderer).toContain('readback_to_rgba8');
   });
 
+  it('keeps the wgpu instance alive for live CAMetalLayer adapter selection', () => {
+    const nativeWgpuRenderer = read('native-wgpu-renderer/src/lib.rs');
+
+    expect(nativeWgpuRenderer).toContain('instance: wgpu::Instance');
+    expect(nativeWgpuRenderer).toContain('Self::from_surface(instance, surface, width, height).await');
+    expect(nativeWgpuRenderer).toContain('instance.request_adapter(&wgpu::RequestAdapterOptions');
+    expect(nativeWgpuRenderer).not.toContain('pub async fn from_surface(\n        surface: wgpu::Surface');
+  });
+
   it('accepts scene snapshots and image media in the live overlay shared-frame payload', () => {
     const lib = read('native-overlay/src/lib.rs');
 
