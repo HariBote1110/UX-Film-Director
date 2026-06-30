@@ -136,4 +136,40 @@ UXFD_NATIVE_OVERLAY_STEADY_TRACE_END mediaId=steady-video-1
     expect(summary.decode.count).toBe(2);
     expect(summary.decode.maxMs).toBe(575.1);
   });
+
+  it('ignores failed or detached Native Overlay presents for live surface timing budgets', async () => {
+    const {
+      createNativeOverlayBenchTraceSummary,
+      ingestNativeOverlayBenchTraceText,
+    } = await import('../../scripts/native-overlay-bench-trace.mjs');
+
+    const summary = createNativeOverlayBenchTraceSummary();
+    ingestNativeOverlayBenchTraceText(summary, `
+UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN mediaId=steady-video-1
+[NativeOverlay] presentSharedFrameTrace {
+  mediaId: 'steady-video-1',
+  presentMs: 1.0,
+  success: false,
+  attached: false,
+  slotIndex: 1,
+  generation: 2,
+  ptsFrame: 62
+}
+[NativeOverlay] presentSharedFrameTrace {
+  mediaId: 'steady-video-1',
+  presentMs: 4.7,
+  success: true,
+  attached: true,
+  slotIndex: 0,
+  generation: 38,
+  ptsFrame: 62,
+  releaseGeneration: 38,
+  releasePtsFrame: 62
+}
+UXFD_NATIVE_OVERLAY_STEADY_TRACE_END mediaId=steady-video-1
+`);
+
+    expect(summary.present.count).toBe(1);
+    expect(summary.present.maxMs).toBe(4.7);
+  });
 });
