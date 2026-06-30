@@ -1,3 +1,23 @@
+## 2026-06-30 — Native Overlay 3経路parity gateを追加
+
+### 実施内容
+- `src/utils/nativeOverlayParityBoundary.test.ts` に、overlay surface / WebGPU preview / export readback の3経路 parity gate を文書と npm script で固定する契約を Red として追加した。
+- Red では `test:native-overlay-parity` が存在せず失敗することを確認した。
+- `package.json` に `test:native-overlay-parity` を追加し、`native-wgpu-renderer/tests/overlay_surface_parity.rs` を CI 入口にした。
+- `markdown/architecture/04-render-parity.md` に Native Overlay Phase 6 3経路 parity gate を追記した。
+- `package.json` / `package-lock.json` の版を機能追加として `0.1.1-Beta-401a` へ更新した。
+
+### 選定理由・判断の根拠
+- 既存 WebGPU presenter は削除せず parity 用退避路として保持する ADR-012 方針に従い、overlay / WebGPU preview / export readback の関係を文書化した。
+- overlay surface と export readback は `ComparisonThresholds::exact()` で `max channel delta = 0` を gate にする。
+- WebGPU preview は既存 `phase3b-webgpu-harness/` の shared WGSL parity 実測を同一 reference scene 群の根拠として保持する。
+- `npx vitest run src/utils/nativeOverlayParityBoundary.test.ts src/utils/packageScripts.test.ts` は 2 files / 9 tests passed。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test overlay_surface_parity` は 1 passed。
+
+### 残課題・次のステップ
+- 次は `npm run bench:native-overlay` を実機で動かし、Native Overlay opt-in の安定性、`raf_heavy_video_scrub`、decode trace、present trace を確認する。
+- Phase 6 の既定 ON 切替直前ではユーザー確認が必要。
+
 ## 2026-06-30 — Native Overlay長時間ベンチ導線を追加
 
 ### 実施内容
