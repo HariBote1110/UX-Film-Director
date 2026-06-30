@@ -141,6 +141,8 @@ describe('Viewport Rust video-only boundary', () => {
     const end = code.indexOf('}, [nativeOverlayPreviewEnabled]', start);
     const nativeOverlayEffectBlock = code.slice(start, end);
 
+    expect(nativeOverlayEffectBlock).toContain('lastNativeOverlayAttachKey');
+    expect(nativeOverlayEffectBlock).toContain('if (nextAttachKey === lastNativeOverlayAttachKey) return;');
     expect(nativeOverlayEffectBlock).toContain("visualViewport?.addEventListener('resize', attach)");
     expect(nativeOverlayEffectBlock).toContain("visualViewport?.addEventListener('scroll', attach)");
     expect(nativeOverlayEffectBlock).toContain("document.addEventListener('fullscreenchange', attach)");
