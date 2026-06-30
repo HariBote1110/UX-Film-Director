@@ -484,6 +484,7 @@ const Viewport: React.FC = () => {
   // streaming decoder). `pending` holds the latest dropped tick to replay once.
   const sharedRendererNativeReusePreparingRef = useRef(false);
   const sharedRendererNativeReusePendingRef = useRef<{ time: number; objects: TimelineObject[] } | null>(null);
+  const sharedRendererNativeReuseLastPreviewTimeRef = useRef<number | null>(null);
   const sharedRendererExternalVideoSourcesRef = useRef<Map<string, SharedRendererExternalVideoSourceEntry>>(new Map());
   const pixiObjectsRef = useRef<Map<string, PIXI.Container>>(new Map());
   const groupContainersRef = useRef<Map<string, PIXI.Container>>(new Map());
@@ -883,9 +884,19 @@ const Viewport: React.FC = () => {
 
   const publishSharedRendererPreviewSession = useCallback((time: number, currentObjects: TimelineObject[]) => {
     if (!sharedRendererPreviewEnabled) return;
-    const previewTime = isPlaying
+    const rawPreviewTime = isPlaying
       ? quantiseSharedRendererPlaybackPreviewTime(time)
       : time;
+    const previewTime = isPlaying
+      && rustVideoOnlyEnabled
+      && nativeOverlayPreviewEnabled
+      && sharedRendererNativeReuseLastPreviewTimeRef.current !== null
+      ? resolveSharedRendererNativeReuseReplayTime({
+        requestedTime: sharedRendererNativeReuseLastPreviewTimeRef.current,
+        pendingTime: rawPreviewTime,
+        previewFps: SHARED_RENDERER_PLAYBACK_PREVIEW_FPS,
+      })
+      : rawPreviewTime;
 
     const session = buildSharedRendererPreviewSession({
       enabled: true,
@@ -1020,6 +1031,9 @@ const Viewport: React.FC = () => {
         void (async () => {
           try {
             if (nativeOverlayPreviewEnabled) {
+              if (session.surfaceGate.ok) {
+                sharedRendererNativeReuseLastPreviewTimeRef.current = session.surfaceGate.snapshot.frame_index / projectSettings.fps;
+              }
               const result = await prepareSharedRendererViewportNativeOverlayPresent({
                 session,
                 requestId: (sharedRendererVideoDecodeRequestIdRef.current += 1),
@@ -1037,6 +1051,9 @@ const Viewport: React.FC = () => {
               return;
             }
             if (!presentPreparedNativeRenderFrame) return;
+            if (session.surfaceGate.ok) {
+              sharedRendererNativeReuseLastPreviewTimeRef.current = session.surfaceGate.snapshot.frame_index / projectSettings.fps;
+            }
             const result = await prepareSharedRendererViewportNativeRenderUpload({
               session,
               requestId: (sharedRendererVideoDecodeRequestIdRef.current += 1),

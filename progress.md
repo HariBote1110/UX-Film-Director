@@ -1,3 +1,22 @@
+## 2026-06-30 — Native reuse publish timeの追い越しを抑止
+
+### 実施内容
+- Red として `src/utils/viewportRustVideoOnlyBoundary.test.ts` に、native reuse の再生中 publish time が前回 request 済み preview frame から最大 1 frame へ制限される構造契約を追加した。
+- Green として `src/components/Viewport.tsx` に `sharedRendererNativeReuseLastPreviewTimeRef` を追加し、`publishSharedRendererPreviewSession` の入口で raw preview time を `resolveSharedRendererNativeReuseReplayTime` に通すようにした。
+- native reuse の Native Overlay / native render upload を実際に開始する時だけ last preview time を更新するようにし、in-flight 中の React publish が ref だけを進めてしまうことを避けた。
+- 軽微な Phase 3a 性能修正として `package.json` / `package-lock.json` の版を `0.1.1-Beta-419f` へ更新した。
+
+### 選定理由・判断の根拠
+- 前回修正は pending replay だけを制限したため、通常の `currentTime` 更新から呼ばれる publish 入口が far-ahead session を作る穴が残った。
+- last preview time は decode/present を開始した時だけ進める必要がある。in-flight 中に更新すると、UI tick だけで ref が先へ進み、結局 `forwardGapExceeded` を再発させる。
+- Red: `npx vitest run src/utils/viewportRustVideoOnlyBoundary.test.ts --testNamePattern "clamps rust-only"` は 1 failed。
+- Green: `npx vitest run src/utils/viewportRustVideoOnlyBoundary.test.ts --testNamePattern "clamps rust-only|native-reuse|preview decode settings"` と `npx vitest run src/utils/sharedRendererNativeReuseCadence.test.ts src/utils/sharedRendererPlaybackPreviewSettings.test.ts` は成功した。
+- 短時間実機 bench `UXFD_NATIVE_OVERLAY_BENCH_TRACE=1 UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=15000 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=90000 npm run bench:native-overlay` は成功した。steady marker 内は `frame=61〜66` で、`decodeMs` は最大 0.6ms、live surface `presentMs` は最大 2.9ms 程度、release generation 違反ゼロだった。
+
+### 残課題・次のステップ
+- Phase 3a 完了条件として、短時間ではなく長時間 bench で `decodeMs<16ms`、`presentMs<16ms`、release generation 違反ゼロを確認する。
+- 長時間 bench が安定したら Phase 4 の resize / HiDPI / fullscreen 位置同期へ進む。
+
 ## 2026-06-30 — Native reuse replay timeの追い越しを抑止
 
 ### 実施内容
