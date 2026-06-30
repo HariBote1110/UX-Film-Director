@@ -141,7 +141,9 @@ export const startSharedRendererViewportPresenter = async ({
   const shouldUseMultipleVideoUploads = Boolean(activeVideoDecodeJobs);
   const nativeRenderUploadPreparer = prepareNativeRenderUpload
     ?? (nativeRenderPreviewEnabled ? prepareSharedRendererViewportNativeRenderUpload : undefined);
-  const shouldPreferNativeRenderUpload = preferNativeRenderUpload && Boolean(nativeRenderUploadPreparer);
+  const shouldPreferNativeRenderUpload = preferNativeRenderUpload
+    && !nativeOverlayPreviewEnabled
+    && Boolean(nativeRenderUploadPreparer);
   const preferredNativeRenderUploadResult = shouldPreferNativeRenderUpload && nativeRenderUploadPreparer
     ? await nativeRenderUploadPreparer({
       session,
@@ -227,6 +229,7 @@ export const startSharedRendererViewportPresenter = async ({
   );
   const fallbackNativeRenderUploadResult = !preferredNativeRenderUploadResult
     && nativeRenderUploadPreparer
+    && !nativeOverlayPresentResult?.ok
     && !hasSharedRendererDecodedVideoFrameUpload
     ? await nativeRenderUploadPreparer({
       session,
