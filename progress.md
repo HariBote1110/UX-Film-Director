@@ -1,3 +1,21 @@
+## 2026-06-30 — live readback parityを専用flagへ分離
+
+### 実施内容
+- Red として `src/utils/nativeOverlayCrateBoundary.test.ts` に、live overlay readback parity が `UXFD_NATIVE_OVERLAY_READBACK_TRACE=1` のみで有効になる契約を追加した。
+- Green として `native-overlay/src/lib.rs` の `live_surface_readback_trace_enabled` から `UXFD_DECODE_TRACE` 条件を外した。
+- `package.json` / `package-lock.json` の版を軽微な計測分離修正として `0.1.1-Beta-418d` へ更新した。
+- `UXFD_NATIVE_OVERLAY_BENCH_TRACE=1 UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=60000 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=180000 npm run bench:native-overlay` を実行し、`perf/native-overlay-long-bench/perf-agent-output.json` で成功を確認した。
+
+### 選定理由・判断の根拠
+- Phase 3a 計測で `UXFD_DECODE_TRACE=1` を使うと、live/export parity readback まで走り、presentMs が 300ms 台へ膨らんだ。
+- `UXFD_DECODE_TRACE` は decode / present timing ログ用、`UXFD_NATIVE_OVERLAY_READBACK_TRACE` は重い readback parity 用に分離しないと、60fps 判定を汚す。
+- Red: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts --testNamePattern "dedicated readback"` は 1 failed。
+- Green: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts --testNamePattern "dedicated readback|compares live overlay"`、`cargo test --manifest-path native-overlay/Cargo.toml`、`npm run test:native-overlay-node` は成功した。
+- 実機 bench の `native_overlay_steady_playback` は `video=1920x1080`、`rafMeanMs=16.633`、`rafP95Ms=18.6`、`rafMaxMs=18.865` だった。readback 分離で presentMs は一桁ms台へ戻ったが、Phase 3a の厳密な定常 16ms 未満には追加の絞り込みが必要。
+
+### 残課題・次のステップ
+- Phase 3a の実機計測を、定常 decodeMs / presentMs / release generation 違反を自動集計する gate にする。
+
 ## 2026-06-30 — Native Overlay成功時のWebGPU動画所有blockを解除
 
 ### 実施内容

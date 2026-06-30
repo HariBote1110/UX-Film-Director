@@ -731,11 +731,10 @@ pub fn present_overlay_shared_frame_to_live_surface(
 }
 
 fn live_surface_readback_trace_enabled() -> bool {
-    std::env::var("UXFD_DECODE_TRACE").ok().as_deref() == Some("1")
-        || std::env::var("UXFD_NATIVE_OVERLAY_READBACK_TRACE")
-            .ok()
-            .as_deref()
-            == Some("1")
+    std::env::var("UXFD_NATIVE_OVERLAY_READBACK_TRACE")
+        .ok()
+        .as_deref()
+        == Some("1")
 }
 
 fn live_surface_diagnostics_from_frame_report(
