@@ -1,3 +1,20 @@
+## 2026-06-30 — Native Overlay試行診断を追加
+
+### 実施内容
+- Red として `src/utils/sharedRendererViewportPresenterOrchestration.test.ts` に、Native Overlay present が成功した場合は dataset に `uxfdSharedRendererPresenterNativeOverlayAttempt=ok` が残る契約を追加した。
+- Green として `src/utils/sharedRendererViewportPresenterOrchestration.ts` に Native Overlay の `pending` / `ok` / `failed` と失敗理由・詳細を dataset へ書く diagnostics を追加した。
+- `package.json` / `package-lock.json` の版を軽微修正として `0.1.1-Beta-411c` へ更新した。
+
+### 選定理由・判断の根拠
+- 実機 trace では decode は走る一方、`[NativeOverlay] presentSharedFrameTrace` が出ていなかった。
+- Red: `npx vitest run src/utils/sharedRendererViewportPresenterOrchestration.test.ts --testNamePattern "uses Native Overlay before preferred native render upload"` は 1 failed。Native Overlay の試行結果が dataset に残っていなかった。
+- Green: `npx vitest run src/utils/sharedRendererViewportPresenterOrchestration.test.ts` は 1 file / 21 tests passed。
+- Native Overlay が「未呼び出し」なのか「呼び出し前に失敗」なのかを DOM dataset で実機から読めるようにした。
+
+### 残課題・次のステップ
+- dev server を最新化した状態で実機再投入し、`uxfdSharedRendererPresenterNativeOverlayAttempt` と failure reason/detail を確認する。
+- その結果に応じて、Native Overlay present に到達しない分岐または shm release generation 不一致を次の Red にする。
+
 ## 2026-06-30 — Native Overlay release失敗を結果化
 
 ### 実施内容
