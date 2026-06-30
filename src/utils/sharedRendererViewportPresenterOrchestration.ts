@@ -161,14 +161,23 @@ export const startSharedRendererViewportPresenter = async ({
   assertPresenterStartCurrent(isStartCurrent);
 
   const nativeOverlayPresentResult = nativeOverlayPreviewEnabled && presentNativeOverlayDecodedFrame
-    ? await presentNativeOverlayDecodedFrame({
-      session,
-      requestId,
-      activeJob: nextActiveVideoDecodeJob,
-      activeJobs: nextActiveVideoDecodeJobs,
-      slotCount: videoDecodeSlotCount,
-      maxDecodeEdge: videoDecodeMaxEdge,
-    })
+    ? await (async () => {
+      writeNativeOverlayAttemptDiagnostics(datasets, { attempt: 'pending' });
+      const result = await presentNativeOverlayDecodedFrame({
+        session,
+        requestId,
+        activeJob: nextActiveVideoDecodeJob,
+        activeJobs: nextActiveVideoDecodeJobs,
+        slotCount: videoDecodeSlotCount,
+        maxDecodeEdge: videoDecodeMaxEdge,
+      });
+      writeNativeOverlayAttemptDiagnostics(datasets, {
+        attempt: result.ok ? 'ok' : 'failed',
+        reason: result.ok ? undefined : result.reason,
+        detail: result.ok ? undefined : result.detail,
+      });
+      return result;
+    })()
     : undefined;
   if (nativeOverlayPresentResult) {
     nextActiveVideoDecodeJob = nativeOverlayPresentResult.activeJob;
@@ -293,6 +302,29 @@ export const startSharedRendererViewportPresenter = async ({
     nativeRenderUploadResult,
     nativeOverlayPresentResult,
   };
+};
+
+const writeNativeOverlayAttemptDiagnostics = (
+  datasets: StartSharedRendererPreviewPresenterInput['datasets'],
+  state: {
+    attempt: 'pending' | 'ok' | 'failed';
+    reason?: string;
+    detail?: string;
+  },
+): void => {
+  datasets.forEach((dataset) => {
+    dataset.uxfdSharedRendererPresenterNativeOverlayAttempt = state.attempt;
+    if (state.reason) {
+      dataset.uxfdSharedRendererPresenterNativeOverlayFailureReason = state.reason;
+    } else {
+      delete dataset.uxfdSharedRendererPresenterNativeOverlayFailureReason;
+    }
+    if (state.detail) {
+      dataset.uxfdSharedRendererPresenterNativeOverlayFailureDetail = state.detail;
+    } else {
+      delete dataset.uxfdSharedRendererPresenterNativeOverlayFailureDetail;
+    }
+  });
 };
 
 const resolveSharedRendererVideoUploadFailure = (
