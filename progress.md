@@ -1,3 +1,23 @@
+## 2026-06-30 — live surface present modeを低遅延優先に変更
+
+### 実施内容
+- Red として `native-wgpu-renderer/src/lib.rs` に、live surface present mode が `Immediate` を利用可能な場合に優先する契約を追加した。
+- Green として `choose_live_surface_present_mode` を追加し、live CAMetalLayer surface config の `present_mode` を `Immediate` → `Mailbox` → `Fifo` の順で選ぶようにした。
+- 軽微な Phase 3a 性能修正として `package.json` / `package-lock.json` の版を `0.1.1-Beta-419g` へ更新した。
+
+### 選定理由・判断の根拠
+- 60分設定の trace bench は decode 側が marker 内で 0.x〜1.1ms に収束した一方、live surface `presentMs` が最大 21.307ms になり gate 失敗した。
+- `presentMs` は Electron main bridge の addon 呼び出し全体で、native-wgpu-renderer の `surface.get_current_texture()` / `surface_texture.present()` を含む。
+- 既存実装は `capabilities.present_modes.first()` をそのまま使っており、Metal では `Fifo` が選ばれると vsync / drawable 待ちが main bridge の `presentMs` に乗る。
+- preview は低遅延の live overlay path であり、export/readback parity path ではないため、利用可能なら `Immediate` を優先する。
+- Red: `cargo test --manifest-path native-wgpu-renderer/Cargo.toml live_surface_present_mode_prefers_immediate_for_preview_latency` は未実装関数で失敗した。
+- Green: `cargo test --manifest-path native-wgpu-renderer/Cargo.toml live_surface_present_mode_prefers_immediate_for_preview_latency` と `cargo test --manifest-path native-wgpu-renderer/Cargo.toml surface` は成功した。
+- 短時間実機 bench `UXFD_NATIVE_OVERLAY_BENCH_TRACE=1 UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=15000 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=90000 npm run bench:native-overlay` は `native_overlay_steady_playback p95 exceeded jitter budget: 20.78ms` で未達だった。一方で marker 内の live surface `presentMs` は最大 4.70ms 程度まで下がり、`Immediate` 選択は present trace 上の 16ms 超過を解消した。
+
+### 残課題・次のステップ
+- trace gate が `success:false` / `attached:false` の present sample を budget 対象に含める穴を Red 化して塞ぐ。
+- RAF p95 は trace object log の量にも影響を受けるため、compact trace への変更を検討する。
+
 ## 2026-06-30 — Native reuse publish timeの追い越しを抑止
 
 ### 実施内容

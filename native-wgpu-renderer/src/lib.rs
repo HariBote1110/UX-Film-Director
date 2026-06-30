@@ -171,11 +171,7 @@ impl NativeWgpuLiveSurfaceRenderer {
             format: surface_format,
             width: width.max(1),
             height: height.max(1),
-            present_mode: capabilities
-                .present_modes
-                .first()
-                .copied()
-                .unwrap_or(wgpu::PresentMode::Fifo),
+            present_mode: choose_live_surface_present_mode(&capabilities.present_modes),
             alpha_mode: capabilities
                 .alpha_modes
                 .first()
@@ -1284,6 +1280,16 @@ fn choose_live_surface_format(formats: &[wgpu::TextureFormat]) -> wgpu::TextureF
                 .find(|format| *format == wgpu::TextureFormat::Bgra8Unorm)
         })
         .unwrap_or_else(|| formats[0])
+}
+
+fn choose_live_surface_present_mode(present_modes: &[wgpu::PresentMode]) -> wgpu::PresentMode {
+    present_modes
+        .iter()
+        .copied()
+        .find(|mode| *mode == wgpu::PresentMode::Immediate)
+        .or_else(|| present_modes.iter().copied().find(|mode| *mode == wgpu::PresentMode::Mailbox))
+        .or_else(|| present_modes.iter().copied().find(|mode| *mode == wgpu::PresentMode::Fifo))
+        .unwrap_or(wgpu::PresentMode::Fifo)
 }
 
 fn create_pipeline_for_format(
