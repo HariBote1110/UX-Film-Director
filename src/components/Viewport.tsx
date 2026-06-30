@@ -980,7 +980,7 @@ const Viewport: React.FC = () => {
     }
     if (canReuseNativeRenderPresenter && sharedRendererPresenterSessionKeyRef.current === nextPresenterKey) {
       const control = sharedRendererPresenterControlRef.current;
-      if (control?.ok && control.presentPreparedNativeRenderFrame) {
+      if (control?.ok && (nativeOverlayPreviewEnabled || control.presentPreparedNativeRenderFrame)) {
         const presentPreparedNativeRenderFrame = control.presentPreparedNativeRenderFrame;
         if (sharedRendererNativeReusePreparingRef.current) {
           // A decode+present is already in flight; replay only the latest tick.
@@ -990,6 +990,24 @@ const Viewport: React.FC = () => {
         sharedRendererNativeReusePreparingRef.current = true;
         void (async () => {
           try {
+            if (nativeOverlayPreviewEnabled) {
+              const result = await prepareSharedRendererViewportNativeOverlayPresent({
+                session,
+                requestId: (sharedRendererVideoDecodeRequestIdRef.current += 1),
+                activeJob: sharedRendererVideoDecodeJobsRef.current[0] ?? null,
+                slotCount: SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT,
+                maxDecodeEdge: SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE,
+                nativeOverlayBridge: window.nativeOverlay,
+                rustBackendBridge: window.rustBackend,
+              });
+              sharedRendererVideoDecodeJobsRef.current = result.ok ? [result.activeJob] : [];
+              if (!result.ok) {
+                sharedRendererPresenterSessionKeyRef.current = null;
+                setSharedRendererPreviewSession(session);
+              }
+              return;
+            }
+            if (!presentPreparedNativeRenderFrame) return;
             const result = await prepareSharedRendererViewportNativeRenderUpload({
               session,
               requestId: (sharedRendererVideoDecodeRequestIdRef.current += 1),
@@ -1031,6 +1049,7 @@ const Viewport: React.FC = () => {
     sharedRendererGpuStatus.fallbackAdapter,
     sharedRendererGpuStatus.webGpuAvailable,
     sharedRendererPreviewEnabled,
+    nativeOverlayPreviewEnabled,
     rustVideoOnlyEnabled,
     requestSharedRendererExternalVideoFrameRepaint,
     updateSharedRendererGeneratedEffectObjectIds,

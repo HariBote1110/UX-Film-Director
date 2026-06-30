@@ -1,3 +1,22 @@
+## 2026-06-30 — Native Overlay再生中present接続を追加
+
+### 実施内容
+- `src/utils/viewportRustVideoOnlyBoundary.test.ts` に、Native Overlay 有効時は再生中の native reuse 分岐も `prepareSharedRendererViewportNativeOverlayPresent` へ流す契約を Red として追加した。
+- Red では再生中 reuse が `prepareSharedRendererViewportNativeRenderUpload` → `presentPreparedNativeRenderFrame` の WebGPU presenter 経路に残っており失敗することを確認した。
+- `src/components/Viewport.tsx` の native reuse 分岐に `nativeOverlayPreviewEnabled` branch を追加し、再生中 tick でも decoded shared frame を Native Overlay present へ渡すようにした。
+- Native Overlay 分岐では `activeJob` を単一 decode job として更新し、失敗時は既存どおり presenter restart/fallback へ戻すようにした。
+- `package.json` の版を機能追加として `0.1.1-Beta-394a` へ更新した。
+
+### 選定理由・判断の根拠
+- 実機計測で初回/境界の Native Overlay present は出ていたが、再生中 tick は native reuse 経路に残っていたため、Phase 3a の「writeTexture / Chromium GPU process 経由を preview から排除」に未達だった。
+- 既存 WebGPU presenter の `presentPreparedNativeRenderFrame` は Native Overlay が無効な場合に残し、ADR-012 の退避路を維持した。
+- `npx vitest run src/utils/viewportRustVideoOnlyBoundary.test.ts src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/sharedRendererRustVideoUploadPipeline.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts` は 4 files / 80 tests passed。
+- `git diff --check` は問題なし。
+
+### 残課題・次のステップ
+- 次は同じ 1920x1080 動画で再計測し、再生中も `[NativeOverlay] presentSharedFrameTrace` が継続することを確認する。
+- decodeMs が 16ms を超える状態が続く場合は、Native Overlay 接続とは別に decode skip / requested frame cadence の原因を切り分ける。
+
 ## 2026-06-30 — Native Overlay present計測ログを追加
 
 ### 実施内容
