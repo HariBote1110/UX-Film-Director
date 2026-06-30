@@ -1,3 +1,22 @@
+## 2026-06-30 — Native Overlay orchestration gateを追加
+
+### 実施内容
+- `src/utils/sharedRendererViewportPresenterOrchestration.test.ts` に、`nativeOverlayPreviewEnabled` 時は WebGPU decoded upload を作らず Native Overlay decoded frame present を使う契約を Red として追加した。
+- Red では `nativeOverlayPresentResult` が undefined のままで、Native Overlay 経路が orchestration に反映されていないことを確認した。
+- `src/utils/sharedRendererViewportPresenterOrchestration.ts` に `nativeOverlayPreviewEnabled` と `presentNativeOverlayDecodedFrame` gate を追加した。
+- `src/utils/sharedRendererViewportPresenterOrchestration.ts` で Native Overlay present が成功した場合、decoded WebGPU upload 準備をスキップし、既存 presenter start へは upload なしで進むようにした。
+- `package.json` の版を機能追加として `0.1.1-Beta-390a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 3a の目的は JS heap / writeTexture / Chromium GPU process 経由を preview から外すことなので、Native Overlay 成功時に `prepareVideoUpload` を呼ばない gate が必要だった。
+- 既存 WebGPU presenter は削除せず、Native Overlay present が未設定または失敗した場合は従来の decoded upload 経路へ戻れる構造を維持した。
+- `npx vitest run src/utils/sharedRendererViewportPresenterOrchestration.test.ts` は 20 tests passed。
+- `npx vitest run src/utils/sharedRendererRustVideoUploadPipeline.test.ts` は 9 tests passed。
+
+### 残課題・次のステップ
+- 次は production の Viewport 起動入力で `VITE_UXFD_NATIVE_OVERLAY=1` を `nativeOverlayPreviewEnabled` と `presentNativeOverlayDecodedFrame` に接続する。
+- その後、実 decode 1080p で `UXFD_DECODE_TRACE=1` の decodeMs / present 時間を測る。
+
 ## 2026-06-30 — Native Overlay decoded frame release接続を追加
 
 ### 実施内容
