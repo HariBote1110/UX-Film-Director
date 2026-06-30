@@ -1,12 +1,13 @@
 {
   "name": "ux-film-director",
   "private": true,
-  "version": "0.1.1-Beta-399a",
+  "version": "0.1.1-Beta-400a",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
     "dev:rust-video": "node scripts/dev-rust-video.mjs",
     "dev:native-overlay": "node scripts/dev-native-overlay.mjs",
+    "bench:native-overlay": "node scripts/run-native-overlay-long-bench.mjs",
     "perf": "VITE_PERF_AUTORUN=1 vite",
     "perf:agent": "VITE_PERF_AGENT_MODE=1 vite",
     "test": "vitest run --exclude **/psdParser.perf.test.ts",
