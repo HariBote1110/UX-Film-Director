@@ -152,6 +152,7 @@ pub fn overlay_layer_handle(layer: *mut Object) -> usize {
     layer as usize
 }
 
+#[allow(dead_code)]
 pub fn create_surface_target_from_ca_metal_layer(layer_handle: usize) -> wgpu::SurfaceTargetUnsafe {
     wgpu::SurfaceTargetUnsafe::CoreAnimationLayer(layer_handle as *mut std::ffi::c_void)
 }

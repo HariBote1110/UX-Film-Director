@@ -25,7 +25,9 @@ pub fn native_wgpu_readback_frame_format() -> FrameFormat {
 #[derive(Debug)]
 pub enum NativeWgpuRenderError {
     AdapterUnavailable,
+    CreateSurface(wgpu::CreateSurfaceError),
     RequestDevice(wgpu::RequestDeviceError),
+    Surface(wgpu::SurfaceError),
     MissingSource {
         media_id: String,
     },
@@ -104,6 +106,147 @@ pub struct NativeWgpuRenderer {
     bind_group_layout: wgpu::BindGroupLayout,
     output_texture: wgpu::Texture,
     readback_buffer: wgpu::Buffer,
+}
+
+pub struct NativeWgpuLiveSurfaceRenderer {
+    surface: wgpu::Surface<'static>,
+    surface_config: wgpu::SurfaceConfiguration,
+    core: NativeWgpuRenderer,
+}
+
+impl NativeWgpuLiveSurfaceRenderer {
+    #[cfg(target_os = "macos")]
+    pub async fn from_core_animation_layer(
+        layer_handle: usize,
+        width: u32,
+        height: u32,
+    ) -> Result<Self, NativeWgpuRenderError> {
+        let instance = wgpu::Instance::default();
+        let surface = unsafe {
+            instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::CoreAnimationLayer(
+                layer_handle as *mut std::ffi::c_void,
+            ))
+        }
+        .map_err(NativeWgpuRenderError::CreateSurface)?;
+        Self::from_surface(surface, width, height).await
+    }
+
+    pub async fn from_surface(
+        surface: wgpu::Surface<'static>,
+        width: u32,
+        height: u32,
+    ) -> Result<Self, NativeWgpuRenderError> {
+        let instance = wgpu::Instance::default();
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::HighPerformance,
+                compatible_surface: Some(&surface),
+                force_fallback_adapter: false,
+            })
+            .await
+            .ok_or(NativeWgpuRenderError::AdapterUnavailable)?;
+        let required_limits = required_limits_for_frame(&adapter, width, height)?;
+        let (device, queue) = adapter
+            .request_device(
+                &wgpu::DeviceDescriptor {
+                    label: Some("UXFD native wgpu live surface device"),
+                    required_features: wgpu::Features::empty(),
+                    required_limits,
+                },
+                None,
+            )
+            .await
+            .map_err(NativeWgpuRenderError::RequestDevice)?;
+        let capabilities = surface.get_capabilities(&adapter);
+        let surface_format = capabilities
+            .formats
+            .iter()
+            .copied()
+            .find(|format| *format == wgpu::TextureFormat::Bgra8Unorm)
+            .unwrap_or_else(|| capabilities.formats[0]);
+        let surface_config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: surface_format,
+            width: width.max(1),
+            height: height.max(1),
+            present_mode: capabilities
+                .present_modes
+                .first()
+                .copied()
+                .unwrap_or(wgpu::PresentMode::Fifo),
+            alpha_mode: capabilities
+                .alpha_modes
+                .first()
+                .copied()
+                .unwrap_or(wgpu::CompositeAlphaMode::Auto),
+            view_formats: vec![],
+            desired_maximum_frame_latency: 2,
+        };
+        surface.configure(&device, &surface_config);
+
+        let pipeline = create_pipeline_for_format(&device, surface_format);
+        let bind_group_layout = pipeline.get_bind_group_layout(0);
+        let output_texture =
+            create_output_texture_for_format(&device, width, height, surface_format);
+        let readback_buffer = create_readback_buffer(&device, width, height);
+        let core = NativeWgpuRenderer {
+            width,
+            height,
+            device,
+            queue,
+            pipeline,
+            bind_group_layout,
+            output_texture,
+            readback_buffer,
+        };
+
+        Ok(Self {
+            surface,
+            surface_config,
+            core,
+        })
+    }
+
+    pub async fn present_scene_to_surface_texture(
+        &self,
+        snapshot: &SceneSnapshot,
+        sources: &HashMap<String, RgbaFrame>,
+    ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
+        let total_start = Instant::now();
+        let (prepared_clips, source_upload) = self.core.prepare_scene_clips(snapshot, sources)?;
+        let surface_texture = self
+            .surface
+            .get_current_texture()
+            .map_err(NativeWgpuRenderError::Surface)?;
+        let view = surface_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder =
+            self.core
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("UXFD native wgpu live surface encoder"),
+                });
+        self.core
+            .encode_prepared_clips(&mut encoder, &view, &prepared_clips);
+        let render_start = Instant::now();
+        self.core.queue.submit(Some(encoder.finish()));
+        surface_texture.present();
+        let render = render_start.elapsed();
+
+        Ok(NativeWgpuPresentReport {
+            width: self.surface_config.width,
+            height: self.surface_config.height,
+            timings: NativeWgpuFrameStageTimings {
+                setup: Duration::ZERO,
+                source_upload,
+                render,
+                readback_encode: Duration::ZERO,
+                steady_state: source_upload + render,
+                total: total_start.elapsed(),
+            },
+        })
+    }
 }
 
 impl NativeWgpuRenderer {
@@ -998,6 +1141,13 @@ fn sampling_mode_value(sampling: SamplingMode) -> f32 {
 }
 
 fn create_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
+    create_pipeline_for_format(device, OUTPUT_FORMAT)
+}
+
+fn create_pipeline_for_format(
+    device: &wgpu::Device,
+    output_format: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("UXFD native wgpu shader"),
         source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!(
@@ -1049,7 +1199,7 @@ fn create_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
             module: &shader,
             entry_point: "fs_main",
             targets: &[Some(wgpu::ColorTargetState {
-                format: OUTPUT_FORMAT,
+                format: output_format,
                 blend: Some(wgpu::BlendState {
                     color: wgpu::BlendComponent {
                         src_factor: wgpu::BlendFactor::One,
@@ -1096,6 +1246,15 @@ fn required_limits_for_frame(
 }
 
 fn create_output_texture(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Texture {
+    create_output_texture_for_format(device, width, height, OUTPUT_FORMAT)
+}
+
+fn create_output_texture_for_format(
+    device: &wgpu::Device,
+    width: u32,
+    height: u32,
+    output_format: wgpu::TextureFormat,
+) -> wgpu::Texture {
     device.create_texture(&wgpu::TextureDescriptor {
         label: Some("UXFD native wgpu output texture"),
         size: wgpu::Extent3d {
@@ -1106,7 +1265,7 @@ fn create_output_texture(device: &wgpu::Device, width: u32, height: u32) -> wgpu
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: OUTPUT_FORMAT,
+        format: output_format,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
         view_formats: &[],
     })

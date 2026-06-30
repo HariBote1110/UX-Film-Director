@@ -6,6 +6,9 @@ use std::collections::HashMap;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
+use uxfd_golden_harness::RgbaFrame;
+use uxfd_native_wgpu_renderer::NativeWgpuLiveSurfaceRenderer;
+use uxfd_rust_core::{ColourPipeline, EvaluatedClip, SceneSnapshot, Transform};
 use uxfd_shared_video_frame_bridge::copy_shared_frame_into_upload_buffer;
 
 #[cfg(target_os = "macos")]
@@ -156,8 +159,7 @@ pub struct NativeOverlayLiveSurfaceRenderer {
     drawable_height: u32,
     #[cfg(target_os = "macos")]
     layer_handle: usize,
-    surface: wgpu::Surface<'static>,
-    instance: wgpu::Instance,
+    renderer: NativeWgpuLiveSurfaceRenderer,
 }
 
 unsafe impl Send for NativeOverlayLiveSurfaceRenderer {}
@@ -169,116 +171,34 @@ impl NativeOverlayLiveSurfaceRenderer {
         layer_handle: usize,
         contract: &OverlayLayerContract,
     ) -> Result<Self, String> {
-        let instance = wgpu::Instance::default();
-        let surface = unsafe {
-            instance.create_surface_unsafe(
-                macos_overlay::create_surface_target_from_ca_metal_layer(layer_handle),
-            )
-        }
-        .map_err(|error| format!("Native overlay live surface creation failed: {error:?}"))?;
+        let renderer =
+            pollster::block_on(NativeWgpuLiveSurfaceRenderer::from_core_animation_layer(
+                layer_handle,
+                contract.drawable_width,
+                contract.drawable_height,
+            ))
+            .map_err(|error| format!("Native overlay live surface creation failed: {error:?}"))?;
 
         Ok(Self {
             window_id,
             drawable_width: contract.drawable_width,
             drawable_height: contract.drawable_height,
             layer_handle,
-            surface,
-            instance,
+            renderer,
         })
     }
 
     fn present_upload_frame(&mut self, upload: &OverlayUploadFrame) -> Result<(), String> {
-        pollster::block_on(self.present_upload_frame_async(upload))
-    }
-
-    async fn present_upload_frame_async(
-        &mut self,
-        upload: &OverlayUploadFrame,
-    ) -> Result<(), String> {
         let _window_id = self.window_id;
         #[cfg(target_os = "macos")]
         let _layer_handle = self.layer_handle;
-        let _ = uxfd_native_wgpu_renderer::native_wgpu_readback_frame_format();
-        let adapter = self
-            .instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
-                compatible_surface: Some(&self.surface),
-                force_fallback_adapter: false,
-            })
-            .await
-            .ok_or_else(|| "Native overlay live surface adapter is unavailable.".to_string())?;
-        let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: Some("UXFD native overlay live surface device"),
-                    required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits::downlevel_defaults(),
-                },
-                None,
-            )
-            .await
-            .map_err(|error| {
-                format!("Native overlay live surface device request failed: {error:?}")
-            })?;
-        let capabilities = self.surface.get_capabilities(&adapter);
-        let surface_format = capabilities
-            .formats
-            .iter()
-            .copied()
-            .find(|format| *format == wgpu::TextureFormat::Bgra8Unorm)
-            .unwrap_or_else(|| capabilities.formats[0]);
-        self.surface.configure(
-            &device,
-            &wgpu::SurfaceConfiguration {
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                format: surface_format,
-                width: self.drawable_width.max(1),
-                height: self.drawable_height.max(1),
-                present_mode: capabilities
-                    .present_modes
-                    .first()
-                    .copied()
-                    .unwrap_or(wgpu::PresentMode::Fifo),
-                alpha_mode: capabilities
-                    .alpha_modes
-                    .first()
-                    .copied()
-                    .unwrap_or(wgpu::CompositeAlphaMode::Auto),
-                view_formats: vec![],
-                desired_maximum_frame_latency: 2,
-            },
-        );
-
-        let surface_texture = self
-            .surface
-            .get_current_texture()
-            .map_err(|error| format!("Native overlay surface texture acquire failed: {error:?}"))?;
-        let view = surface_texture
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("UXFD native overlay live surface encoder"),
-        });
-        let clear_colour = sample_upload_clear_colour(upload);
-        {
-            let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("UXFD native overlay live surface pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(clear_colour),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                occlusion_query_set: None,
-                timestamp_writes: None,
-            });
-        }
-        queue.submit(Some(encoder.finish()));
-        surface_texture.present();
+        let (snapshot, sources) =
+            upload_frame_to_single_clip_scene(upload, self.drawable_width, self.drawable_height)?;
+        pollster::block_on(
+            self.renderer
+                .present_scene_to_surface_texture(&snapshot, &sources),
+        )
+        .map_err(|error| format!("Native overlay live surface present failed: {error:?}"))?;
         Ok(())
     }
 }
@@ -328,11 +248,11 @@ fn attach_native_overlay_inner(payload: NativeOverlayAttachPayload) -> NativeOve
     };
     #[cfg(target_os = "macos")]
     {
-        let layer_handle = match macos_overlay::attach_overlay_view(&native_window_handle, &contract)
-        {
-            Ok(layer_handle) => layer_handle,
-            Err(reason) => return failure(reason),
-        };
+        let layer_handle =
+            match macos_overlay::attach_overlay_view(&native_window_handle, &contract) {
+                Ok(layer_handle) => layer_handle,
+                Err(reason) => return failure(reason),
+            };
         if let Err(reason) =
             attach_live_overlay_surface_renderer(window_id, layer_handle, &contract)
         {
@@ -656,14 +576,47 @@ pub fn present_overlay_shared_frame_to_live_surface(
     })
 }
 
-fn sample_upload_clear_colour(upload: &OverlayUploadFrame) -> wgpu::Color {
-    let rgba = upload.pixels.get(0..4).unwrap_or(&[0, 0, 0, 255]);
-    wgpu::Color {
-        r: f64::from(rgba[0]) / 255.0,
-        g: f64::from(rgba[1]) / 255.0,
-        b: f64::from(rgba[2]) / 255.0,
-        a: f64::from(rgba[3]) / 255.0,
-    }
+pub fn upload_frame_to_single_clip_scene(
+    upload: &OverlayUploadFrame,
+    drawable_width: u32,
+    drawable_height: u32,
+) -> Result<(SceneSnapshot, HashMap<String, RgbaFrame>), String> {
+    let frame = RgbaFrame::from_rgba8(upload.width, upload.height, upload.pixels.clone())
+        .map_err(|error| format!("Native overlay upload frame is invalid: {error:?}"))?;
+    let mut sources = HashMap::new();
+    sources.insert(upload.media_id.clone(), frame);
+
+    let scale_x = if upload.width == 0 {
+        1.0
+    } else {
+        drawable_width as f32 / upload.width as f32
+    };
+    let scale_y = if upload.height == 0 {
+        1.0
+    } else {
+        drawable_height as f32 / upload.height as f32
+    };
+
+    let mut transform = Transform::identity();
+    transform.scale_x = scale_x;
+    transform.scale_y = scale_y;
+
+    let snapshot = SceneSnapshot {
+        frame_index: upload.pts_frame,
+        colour: ColourPipeline::rec709_sdr_linear(),
+        clips: vec![EvaluatedClip {
+            clip_id: "native-overlay-upload".to_string(),
+            track_id: "native-overlay-track".to_string(),
+            media_id: upload.media_id.clone(),
+            source_frame: upload.pts_frame,
+            z_index: 0,
+            transform,
+            opacity: 1.0,
+            effects: Vec::new(),
+        }],
+    };
+
+    Ok((snapshot, sources))
 }
 
 #[cfg(target_os = "macos")]
