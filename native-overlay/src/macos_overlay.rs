@@ -1,7 +1,6 @@
 #![allow(unexpected_cfgs)]
 
 use core_graphics_types::geometry::{CGPoint, CGRect, CGSize};
-use metal::MTLPixelFormat;
 use objc::declare::ClassDecl;
 use objc::runtime::{Class, Object, Sel, BOOL, NO, YES};
 use objc::{class, msg_send, sel, sel_impl, Encode, Encoding};
@@ -122,34 +121,13 @@ fn attach_overlay_view_to_parent(
         let identifier = ns_string(NATIVE_OVERLAY_VIEW_IDENTIFIER)?;
         let () = msg_send![overlay_view, setIdentifier: identifier];
 
-        let layer_class = appkit_class("CAMetalLayer")?;
-        let layer: *mut Object = msg_send![layer_class, new];
-        if layer.is_null() {
-            return Err("Native overlay CAMetalLayer allocation failed.");
-        }
-
-        let drawable_size = CGSize::new(
-            f64::from(contract.drawable_width),
-            f64::from(contract.drawable_height),
-        );
-        let () = msg_send![layer, setPixelFormat: MTLPixelFormat::BGRA8Unorm as u64];
-        let () = msg_send![layer, setDrawableSize: drawable_size];
-        let () =
-            msg_send![layer, setFrame: CGRect::new(&CGPoint::new(0.0, 0.0), &overlay_frame.size)];
-        let () = msg_send![overlay_view, setWantsLayer: YES];
-        let () = msg_send![overlay_view, setLayer: layer];
         let () = msg_send![parent_view, addSubview: overlay_view];
-        Ok(overlay_layer_handle(layer))
+        Ok(overlay_view_handle(overlay_view))
     }
 }
 
-pub fn overlay_layer_handle(layer: *mut Object) -> usize {
-    layer as usize
-}
-
-#[allow(dead_code)]
-pub fn create_surface_target_from_ca_metal_layer(layer_handle: usize) -> wgpu::SurfaceTargetUnsafe {
-    wgpu::SurfaceTargetUnsafe::CoreAnimationLayer(layer_handle as *mut std::ffi::c_void)
+pub fn overlay_view_handle(view: *mut Object) -> usize {
+    view as usize
 }
 
 unsafe fn ns_string(value: &str) -> Result<*mut Object, &'static str> {

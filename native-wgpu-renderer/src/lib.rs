@@ -1,5 +1,9 @@
+use raw_window_handle::{
+    AppKitWindowHandle, DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle,
+};
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::ptr::NonNull;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 use uxfd_golden_harness::{RgbaFrame, RgbaFrameError};
@@ -120,18 +124,17 @@ pub struct NativeWgpuLiveSurfaceRenderer {
 
 impl NativeWgpuLiveSurfaceRenderer {
     #[cfg(target_os = "macos")]
-    pub async fn from_core_animation_layer(
-        layer_handle: usize,
+    pub async fn from_appkit_view(
+        view_handle: usize,
         width: u32,
         height: u32,
     ) -> Result<Self, NativeWgpuRenderError> {
         let instance = wgpu::Instance::default();
-        let surface = unsafe {
-            instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::CoreAnimationLayer(
-                layer_handle as *mut std::ffi::c_void,
-            ))
-        }
-        .map_err(NativeWgpuRenderError::CreateSurface)?;
+        let appkit_view = AppKitSurfaceView::new(view_handle);
+        let target = unsafe { wgpu::SurfaceTargetUnsafe::from_window(&appkit_view) }
+            .map_err(|_| NativeWgpuRenderError::AdapterUnavailable)?;
+        let surface = unsafe { instance.create_surface_unsafe(target) }
+            .map_err(NativeWgpuRenderError::CreateSurface)?;
         Self::from_surface(instance, surface, width, height).await
     }
 
@@ -313,6 +316,35 @@ impl NativeWgpuLiveSurfaceRenderer {
                 total: total_start.elapsed(),
             },
         })
+    }
+}
+
+#[cfg(target_os = "macos")]
+struct AppKitSurfaceView {
+    view_handle: usize,
+}
+
+#[cfg(target_os = "macos")]
+impl AppKitSurfaceView {
+    fn new(view_handle: usize) -> Self {
+        Self { view_handle }
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl HasDisplayHandle for AppKitSurfaceView {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        Ok(DisplayHandle::appkit())
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl HasWindowHandle for AppKitSurfaceView {
+    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
+        let view = NonNull::new(self.view_handle as *mut std::ffi::c_void)
+            .ok_or(HandleError::Unavailable)?;
+        let handle = AppKitWindowHandle::new(view);
+        Ok(unsafe { WindowHandle::borrow_raw(handle.into()) })
     }
 }
 

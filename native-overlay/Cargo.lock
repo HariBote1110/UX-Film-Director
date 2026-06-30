@@ -1192,6 +1192,7 @@ dependencies = [
  "bytemuck",
  "half",
  "pollster",
+ "raw-window-handle",
  "uxfd-golden-harness",
  "uxfd-reference-renderer",
  "uxfd-rust-core",

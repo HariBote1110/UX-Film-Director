@@ -1,3 +1,25 @@
+## 2026-06-30 — Native Overlay surface生成をNSView経由へ変更
+
+### 実施内容
+- Red として `src/utils/nativeOverlayCrateBoundary.test.ts` を更新し、AppKit 側が CAMetalLayer の pixel format / drawable size を直接設定せず、NSView handle を `native-wgpu-renderer` に渡す契約へ変更した。
+- Green として `native-overlay/src/macos_overlay.rs` の手作り CAMetalLayer 生成を削除し、overlay NSView handle を返すようにした。
+- Green として `native-wgpu-renderer/src/lib.rs` に AppKit NSView wrapper を追加し、`SurfaceTargetUnsafe::from_window` で wgpu-hal に CAMetalLayer の作成・configure を任せるようにした。
+- `native-wgpu-renderer/Cargo.toml` に `raw-window-handle = "0.6"` を追加した。
+- `package.json` / `package-lock.json` の版を重大な live surface 修正として `0.1.1-Beta-417a` へ更新した。
+
+### 選定理由・判断の根拠
+- 前回実測では `liveReadbackNonTransparentPixels=230400` で GPU texture は描画済みだったが、実画面は黒だった。
+- wgpu-hal の macOS surface 実装は NSView から CAMetalLayer を作成・configure する経路を持つため、AppKit 側の独自 CAMetalLayer 設定を排除して ownership を wgpu 側へ寄せた。
+- Red: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts --testNamePattern "AppKit|stores|uses"` は 3 failed。
+- Green: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts` は 1 file / 13 tests passed。
+- Green: `cargo test --manifest-path native-overlay/Cargo.toml` は 10 passed。
+- Green: `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test overlay_surface_parity` は 1 passed。
+- Green: `npm run test:native-overlay-node` は passed。
+
+### 残課題・次のステップ
+- 最新 addon / renderer で Electron 実機確認を行い、画像 clip と動画 clip が overlay 上に表示されるかを `screencapture` で確認する。
+- 表示されれば live overlay E2E parity gate の追加へ進む。まだ黒い場合は NSView の layer backed state / `wantsLayer` / compositing order の追加切り分けへ進む。
+
 ## 2026-06-30 — live surface readback非透明・画面黒の残存を確認
 
 ### 実施内容

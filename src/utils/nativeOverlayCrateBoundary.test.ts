@@ -34,7 +34,7 @@ describe('native overlay napi crate boundary', () => {
     expect(lib).toContain('available: false');
   });
 
-  it('keeps AppKit and CAMetalLayer code isolated in a macOS overlay module', () => {
+  it('keeps AppKit view code isolated while leaving CAMetalLayer configuration to wgpu', () => {
     const cargoToml = read('native-overlay/Cargo.toml');
     const lib = read('native-overlay/src/lib.rs');
 
@@ -45,7 +45,7 @@ describe('native overlay napi crate boundary', () => {
     expect(lib).toContain('macos_overlay::attach_overlay_view');
     expect(existsSync(resolve(root, 'native-overlay/src/macos_overlay.rs'))).toBe(true);
     const macosOverlay = read('native-overlay/src/macos_overlay.rs');
-    expect(macosOverlay).toContain('CAMetalLayer');
+    expect(macosOverlay).not.toContain('CAMetalLayer');
     expect(macosOverlay).toContain('isMainThread');
     expect(macosOverlay).not.toContain('setPixelFormat');
     expect(macosOverlay).not.toContain('setDrawableSize');

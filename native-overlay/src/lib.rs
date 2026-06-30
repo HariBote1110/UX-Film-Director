@@ -231,7 +231,7 @@ pub struct NativeOverlayLiveSurfaceRenderer {
     drawable_width: u32,
     drawable_height: u32,
     #[cfg(target_os = "macos")]
-    layer_handle: usize,
+    view_handle: usize,
     renderer: NativeWgpuLiveSurfaceRenderer,
 }
 
@@ -239,24 +239,23 @@ unsafe impl Send for NativeOverlayLiveSurfaceRenderer {}
 
 impl NativeOverlayLiveSurfaceRenderer {
     #[cfg(target_os = "macos")]
-    fn from_ca_metal_layer(
+    fn from_appkit_view(
         window_id: u32,
-        layer_handle: usize,
+        view_handle: usize,
         contract: &OverlayLayerContract,
     ) -> Result<Self, String> {
-        let renderer =
-            pollster::block_on(NativeWgpuLiveSurfaceRenderer::from_core_animation_layer(
-                layer_handle,
-                contract.drawable_width,
-                contract.drawable_height,
-            ))
-            .map_err(|error| format!("Native overlay live surface creation failed: {error:?}"))?;
+        let renderer = pollster::block_on(NativeWgpuLiveSurfaceRenderer::from_appkit_view(
+            view_handle,
+            contract.drawable_width,
+            contract.drawable_height,
+        ))
+        .map_err(|error| format!("Native overlay live surface creation failed: {error:?}"))?;
 
         Ok(Self {
             window_id,
             drawable_width: contract.drawable_width,
             drawable_height: contract.drawable_height,
-            layer_handle,
+            view_handle,
             renderer,
         })
     }
@@ -268,7 +267,7 @@ impl NativeOverlayLiveSurfaceRenderer {
     ) -> Result<Option<OverlayLiveSurfaceDiagnostics>, String> {
         let _window_id = self.window_id;
         #[cfg(target_os = "macos")]
-        let _layer_handle = self.layer_handle;
+        let _view_handle = self.view_handle;
         let (snapshot, sources) = upload_frame_to_scene_sources(
             upload,
             scene,
@@ -342,13 +341,12 @@ fn attach_native_overlay_inner(payload: NativeOverlayAttachPayload) -> NativeOve
     };
     #[cfg(target_os = "macos")]
     {
-        let layer_handle =
-            match macos_overlay::attach_overlay_view(&native_window_handle, &contract) {
-                Ok(layer_handle) => layer_handle,
-                Err(reason) => return failure(reason),
-            };
-        if let Err(reason) =
-            attach_live_overlay_surface_renderer(window_id, layer_handle, &contract)
+        let view_handle = match macos_overlay::attach_overlay_view(&native_window_handle, &contract)
+        {
+            Ok(view_handle) => view_handle,
+            Err(reason) => return failure(reason),
+        };
+        if let Err(reason) = attach_live_overlay_surface_renderer(window_id, view_handle, &contract)
         {
             return failure(&reason);
         }
@@ -445,11 +443,11 @@ fn present_native_overlay_shared_frame_inner(
 #[cfg(target_os = "macos")]
 fn attach_live_overlay_surface_renderer(
     window_id: u32,
-    layer_handle: usize,
+    view_handle: usize,
     contract: &OverlayLayerContract,
 ) -> Result<(), String> {
     let renderer =
-        NativeOverlayLiveSurfaceRenderer::from_ca_metal_layer(window_id, layer_handle, contract)?;
+        NativeOverlayLiveSurfaceRenderer::from_appkit_view(window_id, view_handle, contract)?;
     let mut renderers = LIVE_OVERLAY_RENDERERS
         .get_or_init(|| Mutex::new(HashMap::new()))
         .lock()
