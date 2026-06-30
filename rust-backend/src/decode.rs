@@ -762,6 +762,35 @@ fn probe_video_input_metadata(
     Ok(VideoInputMetadata { range })
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn streaming_decode_args_use_videotoolbox_before_input_on_macos() {
+        let args = build_streaming_decode_args(
+            "/tmp/input.mp4",
+            0.5,
+            "scale=w=720:h=405:in_range=tv:out_range=pc,format=rgba",
+        );
+
+        let hwaccel_index = args
+            .iter()
+            .position(|arg| arg == "-hwaccel")
+            .expect("macOS preview decode should request VideoToolbox");
+        let input_index = args
+            .iter()
+            .position(|arg| arg == "-i")
+            .expect("ffmpeg input argument");
+        assert_eq!(args[hwaccel_index + 1], "videotoolbox");
+        assert!(
+            hwaccel_index < input_index,
+            "VideoToolbox hwaccel must be declared before the input"
+        );
+    }
+}
+
 fn stream_metadata_string<'a>(stream: &'a Value, key: &str) -> Result<&'a str, String> {
     stream
         .get(key)
