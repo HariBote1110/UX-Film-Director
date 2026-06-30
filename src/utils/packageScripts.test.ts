@@ -45,6 +45,9 @@ describe('package scripts', () => {
     expect(script).toContain('UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS');
     expect(script).toContain('UXFD_PERF_RESULT_JSON:');
     expect(script).toContain('native_overlay_steady_playback');
+    expect(script).toContain('UXFD_NATIVE_OVERLAY_STEADY_MEAN_BUDGET_MS');
+    expect(script).toContain('UXFD_NATIVE_OVERLAY_STEADY_P95_BUDGET_MS');
+    expect(script).toContain('rafMeanMs');
     expect(script).toContain('perf-agent-output.json');
     expect(script).toContain('UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS');
     expect(script).toContain('completedRuns');
