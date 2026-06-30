@@ -60,7 +60,7 @@ export interface PrepareSharedRendererViewportVideoUploadInput {
 }
 
 export interface PrepareSharedRendererViewportNativeOverlayPresentInput {
-  windowId: number;
+  windowId?: number;
   session: SharedRendererPreviewSession;
   requestId?: number;
   slotCount?: number;

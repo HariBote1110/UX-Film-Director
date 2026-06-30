@@ -1,3 +1,22 @@
+## 2026-06-30 — Viewport Native Overlay present接続を追加
+
+### 実施内容
+- `src/utils/viewportRustVideoOnlyBoundary.test.ts` に、`Viewport` が `VITE_UXFD_NATIVE_OVERLAY=1` のときだけ Native Overlay present preparer を presenter orchestration へ渡す契約を Red として追加した。
+- Red では `prepareSharedRendererViewportNativeOverlayPresent` が `Viewport` に未接続で失敗することを確認した。
+- `src/components/Viewport.tsx` に `prepareSharedRendererViewportNativeOverlayPresent` を接続し、`nativeOverlayPreviewEnabled` と `presentNativeOverlayDecodedFrame` を `startSharedRendererViewportPresenter` へ渡すようにした。
+- `src/utils/sharedRendererRustVideoUploadPipeline.ts` と `src/utils/sharedRendererViewportVideoUpload.ts` で `windowId` を任意化し、renderer では IPC 側の window id 補完を使えるようにした。
+- `package.json` の版を機能追加として `0.1.1-Beta-392a` へ更新した。
+
+### 選定理由・判断の根拠
+- renderer は BrowserWindow id を持たないため、既存の `nativeOverlayIpc.withWindowId` による main 側補完を使うのが最小変更であり、制御プレーン IPC に frame bytes を載せない方針も維持できる。
+- `nativeOverlayPreviewEnabled` が false の場合は `presentNativeOverlayDecodedFrame` を渡さないため、既存 WebGPU presenter fallback を常時利用可能な状態で残せる。
+- `npx vitest run src/utils/viewportRustVideoOnlyBoundary.test.ts src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/sharedRendererRustVideoUploadPipeline.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts` は 4 files / 79 tests passed。
+- `git diff --check` は問題なし。
+
+### 残課題・次のステップ
+- 次は `UXFD_DECODE_TRACE=1` と `VITE_UXFD_NATIVE_OVERLAY=1` の実 decode 計測に向け、presenter 提示時間と release generation 違反ゼロを記録できる診断出力を確認する。
+- Phase 3a の完了判定として、1080p preview で decodeMs<16ms と Native Overlay present<16ms が定常で続くかを実機確認する。
+
 ## 2026-06-30 — Native Overlay viewport decode presentを追加
 
 ### 実施内容

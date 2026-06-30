@@ -21,7 +21,7 @@ export interface PrepareSharedRendererRustDecodedVideoUploadInput {
 
 export interface NativeOverlayDecodedFrameBridge {
   presentSharedFrame: (payload: {
-    windowId: number;
+    windowId?: number;
     mediaId: string;
     slotCount: number;
     frame: RustBackendSharedVideoFrame;
@@ -40,7 +40,7 @@ export interface NativeOverlayDecodedFrameBridge {
 }
 
 export interface PresentNativeOverlayRustDecodedVideoFrameInput {
-  windowId: number;
+  windowId?: number;
   decodeResponse: RustBackendResult<unknown>;
   slotCount: number;
   nativeOverlayBridge: NativeOverlayDecodedFrameBridge;

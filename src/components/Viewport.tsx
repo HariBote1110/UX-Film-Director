@@ -33,7 +33,10 @@ import {
   startSharedRendererViewportPresenter,
 } from '../utils/sharedRendererViewportPresenterOrchestration';
 import { prepareSharedRendererViewportNativeRenderUpload } from '../utils/sharedRendererViewportNativeRenderUpload';
-import type { SharedRendererViewportVideoDecodeJob } from '../utils/sharedRendererViewportVideoUpload';
+import {
+  prepareSharedRendererViewportNativeOverlayPresent,
+  type SharedRendererViewportVideoDecodeJob,
+} from '../utils/sharedRendererViewportVideoUpload';
 import type { ProjectExportRustFrameSourceContext } from '../utils/projectExportFrameCanvas';
 import { buildViewportRustExportFrameSource } from '../utils/viewportRustExportFrameSource';
 import { shouldMountSharedRendererSurfaceCanvas } from '../utils/sharedRendererSurfaceMount';
@@ -1139,6 +1142,14 @@ const Viewport: React.FC = () => {
       skipDecodedVideoUploadForBenchmark: phase0SkipDecodedUploadEnabled,
       sharedRendererWriteTextureNoOpEnabled: phase0WriteTextureNoOpEnabled,
       discardNativeRenderOutputForBenchmark: phase0DiscardNativeRenderOutputEnabled,
+      nativeOverlayPreviewEnabled,
+      presentNativeOverlayDecodedFrame: nativeOverlayPreviewEnabled
+        ? (input) => prepareSharedRendererViewportNativeOverlayPresent({
+          ...input,
+          nativeOverlayBridge: window.nativeOverlay,
+          rustBackendBridge: window.rustBackend,
+        })
+        : undefined,
       activeVideoDecodeJob: rustPreviewDecodeEnabled
         ? sharedRendererVideoDecodeJobsRef.current[0] ?? null
         : null,
