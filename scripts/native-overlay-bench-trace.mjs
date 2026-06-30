@@ -1,6 +1,7 @@
 const emptyTimingSummary = () => ({
   count: 0,
   maxMs: 0,
+  maxDetail: '',
 });
 
 export const createNativeOverlayBenchTraceSummary = () => ({
@@ -13,12 +14,15 @@ export const createNativeOverlayBenchTraceSummary = () => ({
   steadyTraceMarkerSeen: false,
 });
 
-const recordTiming = (summary, field, value) => {
+const recordTiming = (summary, field, value, detail = '') => {
   if (!Number.isFinite(value)) {
     return;
   }
   summary[field].count += 1;
-  summary[field].maxMs = Math.max(summary[field].maxMs, value);
+  if (value > summary[field].maxMs) {
+    summary[field].maxMs = value;
+    summary[field].maxDetail = detail;
+  }
 };
 
 const numberFromMatch = (text, pattern) => {
@@ -62,7 +66,7 @@ const consumePresentTraceBlock = (summary, block) => {
 
   const presentMs = numberFromField(block, 'presentMs');
   if (presentMs !== null) {
-    recordTiming(summary, 'present', presentMs);
+    recordTiming(summary, 'present', presentMs, block);
   }
 
   const generation = numberFromField(block, 'generation');
@@ -102,7 +106,7 @@ export const ingestNativeOverlayBenchTraceText = (summary, text) => {
     if (summary.pendingDecodeTrace) {
       const splitDecodeMs = numberFromMatch(line, /(?:^|\s)([0-9.]+)\s*$/u);
       if (splitDecodeMs !== null) {
-        recordTiming(summary, 'decode', splitDecodeMs);
+        recordTiming(summary, 'decode', splitDecodeMs, summary.pendingDecodeTrace);
       }
       summary.pendingDecodeTrace = '';
       if (splitDecodeMs !== null) {
@@ -113,7 +117,7 @@ export const ingestNativeOverlayBenchTraceText = (summary, text) => {
     const steadyDecode = isSteadyDecodeTraceLine(line);
     const decodeMs = steadyDecode ? numberFromMatch(line, /\[decode\.trace\].*decodeMs=([0-9.]+)/u) : null;
     if (decodeMs !== null) {
-      recordTiming(summary, 'decode', decodeMs);
+      recordTiming(summary, 'decode', decodeMs, line);
     } else if (steadyDecode && /\[decode\.trace\].*decodeMs=\s*$/u.test(line)) {
       summary.pendingDecodeTrace = line;
     }
@@ -151,10 +155,10 @@ export const assertNativeOverlayBenchTraceBudgets = (summary, options = {}) => {
     failures.push(`presentMs samples ${summary.present.count} < ${minimumPresentSamples}`);
   }
   if (summary.decode.maxMs > decodeMaxMs) {
-    failures.push(`decodeMs max ${summary.decode.maxMs}ms > ${decodeMaxMs}ms`);
+    failures.push(`decodeMs max ${summary.decode.maxMs}ms > ${decodeMaxMs}ms${summary.decode.maxDetail ? ` (${summary.decode.maxDetail})` : ''}`);
   }
   if (summary.present.maxMs > presentMaxMs) {
-    failures.push(`presentMs max ${summary.present.maxMs}ms > ${presentMaxMs}ms`);
+    failures.push(`presentMs max ${summary.present.maxMs}ms > ${presentMaxMs}ms${summary.present.maxDetail ? ` (${summary.present.maxDetail})` : ''}`);
   }
   if (summary.releaseGenerationViolationCount > 0) {
     failures.push(`release generation violations ${summary.releaseGenerationViolationCount}`);

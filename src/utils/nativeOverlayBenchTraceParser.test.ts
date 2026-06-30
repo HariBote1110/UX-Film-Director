@@ -66,7 +66,7 @@ describe('native overlay bench trace parser', () => {
       presentMaxMs: 16,
       minimumDecodeSamples: 1,
       minimumPresentSamples: 1,
-    })).toThrow(/decodeMs max 16.1ms > 16ms.*frame=2.*reason=sequential.*presentMs.*release generation/u);
+    })).toThrow(/decodeMs max 16.1ms > 16ms[\s\S]*frame=2[\s\S]*reason=sequential[\s\S]*presentMs[\s\S]*release generation/u);
   });
 
   it('uses steady playback markers to ignore warmup and later scenarios', async () => {

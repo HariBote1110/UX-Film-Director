@@ -1,3 +1,20 @@
+## 2026-06-30 — bench gateにdecode spikeの根拠行を追加
+
+### 実施内容
+- Red として `src/utils/nativeOverlayBenchTraceParser.test.ts` に、`decodeMs` budget 超過時の失敗メッセージへ `frame` / `reason` を含む根拠行を出す契約を追加した。
+- Green として `scripts/native-overlay-bench-trace.mjs` の timing summary に `maxDetail` を追加し、decode / present の最大値を出した trace block を failure に含めるようにした。
+- 軽微な Phase 3a 診断修正として `package.json` / `package-lock.json` の版を `0.1.1-Beta-419o` へ更新した。
+
+### 選定理由・判断の根拠
+- 60分 bench 再試行では `decodeMs max 21.9ms > 16ms` だけが残り、どの frame / reason が spike したか分からなかった。
+- Phase 3a の次の最小前進は、予算超過の原因が `sequential` 実 decode なのか、split log / cacheHit / marker 境界なのかを 1 run で特定できる診断を増やすこと。
+
+### 残課題・次のステップ
+- parser テストを Green にする。
+- `npx vitest run src/utils/nativeOverlayBenchTraceParser.test.ts` と `npx vitest run src/utils/packageScripts.test.ts --testNamePattern "Native Overlay long bench"` は Green。
+- `UXFD_NATIVE_OVERLAY_BENCH_TRACE=1 UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=15000 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=90000 npm run bench:native-overlay` は Green。`native_overlay_steady_playback` は `rafMeanMs=16.674` / `rafP95Ms=18.715` / `rafMaxMs=24.11` / `longTaskCount=2`。
+- 次の長時間失敗時には `decodeMs` / `presentMs` 最大値の根拠 trace block が failure に出るため、その frame / reason をもとに spike 原因を切る。
+
 ## 2026-06-30 — 60分 bench再試行はdecodeMs spikeで停止
 
 ### 実施内容
