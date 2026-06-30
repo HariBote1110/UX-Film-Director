@@ -31,6 +31,12 @@ const numberFromMatch = (text, pattern) => {
 };
 
 const consumePresentTraceBlock = (summary, block) => {
+  const success = /\bsuccess:\s*true\b/u.test(block);
+  const attached = /\battached:\s*true\b/u.test(block);
+  if (!success || !attached) {
+    return;
+  }
+
   const presentMs = numberFromMatch(block, /presentMs:\s*([0-9.]+)/u);
   if (presentMs !== null) {
     recordTiming(summary, 'present', presentMs);

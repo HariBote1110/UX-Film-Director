@@ -1,3 +1,21 @@
+## 2026-06-30 — detached presentをbench gateから除外
+
+### 実施内容
+- Red として `src/utils/nativeOverlayBenchTraceParser.test.ts` に、`success:false` / `attached:false` の Native Overlay present trace を live surface timing budget から除外する契約を追加した。
+- Green として `scripts/native-overlay-bench-trace.mjs` の `consumePresentTraceBlock` で `success:true` かつ `attached:true` の block だけを `presentMs` / release generation 集計対象にした。
+- 軽微な Phase 3a gate 修正として `package.json` / `package-lock.json` の版を `0.1.1-Beta-419h` へ更新した。
+
+### 選定理由・判断の根拠
+- Mini explorer の調査どおり、既存 parser は steady marker 内の `presentSharedFrameTrace` を機械的に数え、live overlay に実際表示されていない `attached:false` の fallback trace も budget に含めていた。
+- Phase 3a が測るべきなのは live CAMetalLayer surface に提示された frame の present 時間であり、fallback / detached trace は別の失敗シグナルとして扱うべきである。
+- Red: `npx vitest run src/utils/nativeOverlayBenchTraceParser.test.ts --testNamePattern "ignores failed"` は 1 failed。
+- Green: `npx vitest run src/utils/nativeOverlayBenchTraceParser.test.ts` と `npx vitest run src/utils/packageScripts.test.ts --testNamePattern "Native Overlay long bench"` は成功した。
+- 短時間実機 bench `UXFD_NATIVE_OVERLAY_BENCH_TRACE=1 UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=15000 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=90000 npm run bench:native-overlay` は `native_overlay_steady_playback p95 exceeded jitter budget: 20.155ms` で未達だった。trace gate 前の RAF gate で落ちており、`presentSharedFrameTrace` の multi-line object log が計測負荷になっている可能性が高い。
+
+### 残課題・次のステップ
+- `presentSharedFrameTrace` の main process 出力を compact 1 行ログ化し、trace 観測が RAF gate を壊さないようにする。
+- compact trace 後に短時間 bench と 60分相当 bench を再実行する。
+
 ## 2026-06-30 — live surface present modeを低遅延優先に変更
 
 ### 実施内容
