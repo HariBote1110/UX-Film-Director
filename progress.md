@@ -1,3 +1,18 @@
+## 2026-06-30 — Phase 3a 60分単一steady playback benchを通過
+
+### 実施内容
+- `caffeinate` 適用後に `UXFD_NATIVE_OVERLAY_BENCH_TRACE=1 UXFD_NATIVE_OVERLAY_STEADY_DURATION_MS=3600000 UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=3600000 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=4500000 npm run bench:native-overlay` を再実行した。
+- `native_overlay_steady_playback` は `durationMs=3600013.609999895` / `rafMeanMs=16.689` / `rafP95Ms=18.305` / `rafMaxMs=47` / `longTaskCount=1` で Green になった。
+- trace gate は `decodeMs<16ms` / `presentMs<16ms` / release generation violation 0 の条件を満たし、run 1 完了で終了した。
+
+### 選定理由・判断の根拠
+- 直前の失敗は `rafMaxMs=139184.545` の単発巨大 gap が平均を壊していたが、sleep 抑止後は `rafMaxMs=47` まで収まり、60分の実 decode + live overlay present が定常で継続した。
+- `objectCountBefore=0` / `objectCountAfter=0` で perf harness 後に preview object は残らず、bench runner の trace gate も release generation violation を検出しなかった。
+- Phase 3a の「1080p preview を実 decode で回し、decodeMs<16ms と presenter 提示<16ms が定常で続く」条件を満たしたと判断する。
+
+### 残課題・次のステップ
+- Phase 4 へ進み、ウィンドウ resize / devtools 開閉 / フルスクリーン / Mission Control 切替で overlay 位置ズレがないこと、HiDPI backingScaleFactor の正本化、座標計算 pure function の単体テストを整える。
+
 ## 2026-06-30 — Native Overlay long benchをcaffeinateでsleep抑止
 
 ### 実施内容
