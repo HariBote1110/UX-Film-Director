@@ -55,6 +55,8 @@ describe('package scripts', () => {
     expect(harness).toContain('steady_playback');
     expect(harness.indexOf('runScenarioNativeOverlaySteadyPlayback(runId)'))
       .toBeLessThan(harness.indexOf('runScenarioRafPlayhead(runId)'));
+    expect(harness.indexOf('runScenarioNativeOverlaySteadyPlayback(runId)'))
+      .toBeLessThan(harness.indexOf('const countBeforeSeed'));
   });
 
   it('records real video export E2E duration separately from Electron startup time', () => {
