@@ -42,8 +42,8 @@ const startVite = () => {
     stdio: 'inherit',
     env: {
       ...process.env,
-      VITE_UXFD_NATIVE_OVERLAY: '1',
-      UXFD_NATIVE_OVERLAY: '1',
+      VITE_UXFD_NATIVE_OVERLAY: process.env.VITE_UXFD_NATIVE_OVERLAY ?? '1',
+      UXFD_NATIVE_OVERLAY: process.env.UXFD_NATIVE_OVERLAY ?? process.env.VITE_UXFD_NATIVE_OVERLAY ?? '1',
       VITE_UXFD_SHARED_RENDERER_PREVIEW: '1',
       VITE_UXFD_SHARED_RENDERER_EXPORT: '1',
       VITE_UXFD_RUST_EXPORT_ONLY: '1',

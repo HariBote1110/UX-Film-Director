@@ -1,10 +1,10 @@
 {
   "name": "ux-film-director",
   "private": true,
-  "version": "0.1.1-Beta-403e",
+  "version": "0.1.1-Beta-404a",
   "main": "dist-electron/main.js",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev-native-overlay.mjs",
     "dev:rust-video": "node scripts/dev-rust-video.mjs",
     "dev:native-overlay": "node scripts/dev-native-overlay.mjs",
     "bench:native-overlay": "node scripts/run-native-overlay-long-bench.mjs",

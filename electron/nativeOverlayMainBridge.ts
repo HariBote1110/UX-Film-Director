@@ -108,7 +108,7 @@ const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
 const nativeOverlayEnabled = (env: Record<string, string | undefined>): boolean =>
-  env.UXFD_NATIVE_OVERLAY === '1' || env.VITE_UXFD_NATIVE_OVERLAY === '1'
+  env.UXFD_NATIVE_OVERLAY !== '0' && env.VITE_UXFD_NATIVE_OVERLAY !== '0'
 
 const nativeOverlayTraceEnabled = (env: Record<string, string | undefined>): boolean =>
   env.UXFD_DECODE_TRACE === '1'
