@@ -351,6 +351,40 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
     });
   });
 
+  it('does not require WebGPU video ownership after Native Overlay presents the decoded scene', async () => {
+    let presenterInput: unknown;
+    const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {
+      presenterInput = input;
+      return control;
+    };
+
+    await startSharedRendererViewportPresenter({
+      canvas,
+      session,
+      datasets: [],
+      diagnosticSwatchEnabled: true,
+      videoCutoverEnabled: true,
+      nativeOverlayPreviewEnabled: true,
+      requireSharedRendererVideo: true,
+      activeVideoDecodeJob: activeJob,
+      requestId: 26,
+      presentNativeOverlayDecodedFrame: async () => ({
+        ok: true,
+        activeJob,
+      }),
+      startPresenter,
+    } as Parameters<typeof startSharedRendererViewportPresenter>[0] & {
+      nativeOverlayPreviewEnabled: true;
+      presentNativeOverlayDecodedFrame: unknown;
+    });
+
+    expect(presenterInput).toMatchObject({
+      requireSharedRendererVideo: false,
+      sharedRendererDecodedVideoFrameUpload: undefined,
+      sharedRendererDecodedVideoFrameUploads: undefined,
+    });
+  });
+
   it('uses Native Overlay before preferred native render upload when both are enabled', async () => {
     const events: string[] = [];
     const dataset: Record<string, string | undefined> = {};
