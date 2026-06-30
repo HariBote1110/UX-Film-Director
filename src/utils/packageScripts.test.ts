@@ -86,6 +86,8 @@ describe('package scripts', () => {
     expect(harness).toContain('let steadyFrame = 0');
     expect(harness).toContain('state.setTime(steadyStartTime + (steadyFrame / 60))');
     expect(harness.indexOf('await emitPerfTraceMarker(`UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN'))
+      .toBeLessThan(harness.indexOf('useStore.getState().setTime(0.5)'));
+    expect(harness.indexOf('await emitPerfTraceMarker(`UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN'))
       .toBeLessThan(harness.indexOf('state.setTime(steadyStartTime + (steadyFrame / 60))'));
     expect(harness.indexOf('state.setTime(steadyStartTime + (steadyFrame / 60))'))
       .toBeLessThan(harness.indexOf('await emitPerfTraceMarker(`UXFD_NATIVE_OVERLAY_STEADY_TRACE_END'));
