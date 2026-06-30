@@ -13,6 +13,39 @@ import {
 } from './sharedVideoFrameUploadBridge';
 import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
 
+type NativeOverlaySceneSnapshotPayload = {
+  frameIndex: number;
+  colour: {
+    profile: string;
+    workingSpace: string;
+    alpha: string;
+  };
+  clips: Array<{
+    clipId: string;
+    trackId: string;
+    mediaId: string;
+    sourceFrame: number;
+    zIndex: number;
+    transform: {
+      translationX: number;
+      translationY: number;
+      scaleX: number;
+      scaleY: number;
+      rotationDegrees: number;
+      sampling?: string;
+    };
+    opacity: number;
+  }>;
+};
+
+type NativeOverlaySceneMediaPayload = {
+  id: string;
+  kind: string;
+  source: string;
+  width: number;
+  height: number;
+};
+
 export interface PrepareSharedRendererRustDecodedVideoUploadInput {
   decodeResponse: RustBackendResult<unknown>;
   slotCount: number;
@@ -24,8 +57,8 @@ export interface NativeOverlayDecodedFrameBridge {
   presentSharedFrame: (payload: {
     windowId?: number;
     mediaId: string;
-    snapshot?: RustSceneSnapshot;
-    media?: readonly RustSceneMediaReference[];
+    snapshot?: NativeOverlaySceneSnapshotPayload;
+    media?: readonly NativeOverlaySceneMediaPayload[];
     slotCount: number;
     frame: RustBackendSharedVideoFrame;
   }) => Promise<{
@@ -93,8 +126,8 @@ export const presentNativeOverlayRustDecodedVideoFrame = async ({
   const presentResponse = await nativeOverlayBridge.presentSharedFrame({
     windowId,
     mediaId: jobId,
-    ...(snapshot ? { snapshot } : {}),
-    ...(media ? { media } : {}),
+    ...(snapshot ? { snapshot: toNativeOverlaySceneSnapshotPayload(snapshot) } : {}),
+    ...(media ? { media: media.map(toNativeOverlaySceneMediaPayload) } : {}),
     slotCount,
     frame,
   });
@@ -135,6 +168,43 @@ export const presentNativeOverlayRustDecodedVideoFrame = async ({
 
   return { ok: true };
 };
+
+const toNativeOverlaySceneSnapshotPayload = (
+  snapshot: RustSceneSnapshot
+): NativeOverlaySceneSnapshotPayload => ({
+  frameIndex: snapshot.frame_index,
+  colour: {
+    profile: snapshot.colour.profile,
+    workingSpace: snapshot.colour.working_space,
+    alpha: snapshot.colour.alpha,
+  },
+  clips: snapshot.clips.map((clip) => ({
+    clipId: clip.clip_id,
+    trackId: clip.track_id,
+    mediaId: clip.media_id,
+    sourceFrame: clip.source_frame,
+    zIndex: clip.z_index,
+    transform: {
+      translationX: clip.transform.translation_x,
+      translationY: clip.transform.translation_y,
+      scaleX: clip.transform.scale_x,
+      scaleY: clip.transform.scale_y,
+      rotationDegrees: clip.transform.rotation_degrees,
+      sampling: clip.transform.sampling,
+    },
+    opacity: clip.opacity,
+  })),
+});
+
+const toNativeOverlaySceneMediaPayload = (
+  media: RustSceneMediaReference
+): NativeOverlaySceneMediaPayload => ({
+  id: media.id,
+  kind: media.kind,
+  source: media.source,
+  width: media.width,
+  height: media.height,
+});
 
 export const prepareSharedRendererRustDecodedVideoUpload = async ({
   decodeResponse,

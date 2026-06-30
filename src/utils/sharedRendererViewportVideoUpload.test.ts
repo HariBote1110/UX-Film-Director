@@ -439,8 +439,64 @@ describe('sharedRendererViewportVideoUpload', () => {
       ['presentSharedFrame', {
         windowId: 7,
         mediaId: expectedJobId,
-        snapshot: imageVideoSession.surfaceGate.ok ? imageVideoSession.surfaceGate.snapshot : undefined,
-        media: imageVideoSession.surfaceGate.ok ? imageVideoSession.surfaceGate.media : undefined,
+        snapshot: {
+          frameIndex: 12,
+          colour: {
+            profile: 'rec709-sdr',
+            workingSpace: 'linear-light',
+            alpha: 'premultiplied',
+          },
+          clips: [
+            {
+              clipId: 'image-1',
+              trackId: 'layer-0',
+              mediaId: 'image-1',
+              sourceFrame: 0,
+              zIndex: 0,
+              transform: {
+                translationX: 12,
+                translationY: 8,
+                scaleX: 1,
+                scaleY: 1,
+                rotationDegrees: 0,
+                sampling: 'bilinear',
+              },
+              opacity: 1,
+            },
+            {
+              clipId: 'video-1',
+              trackId: 'layer-0',
+              mediaId: 'video-1',
+              sourceFrame: 42,
+              zIndex: 1,
+              transform: {
+                translationX: 0,
+                translationY: 0,
+                scaleX: 1,
+                scaleY: 1,
+                rotationDegrees: 0,
+                sampling: 'bilinear',
+              },
+              opacity: 1,
+            },
+          ],
+        },
+        media: [
+          {
+            id: 'image-1',
+            kind: 'Image',
+            source: '/tmp/poster.png',
+            width: 128,
+            height: 72,
+          },
+          {
+            id: 'video-1',
+            kind: 'Video',
+            source: '/tmp/gopro clip.mp4',
+            width: 64,
+            height: 32,
+          },
+        ],
         slotCount: 2,
         frame: {
           descriptor: {
