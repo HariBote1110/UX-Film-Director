@@ -995,6 +995,33 @@ mod tests {
     }
 
     #[test]
+    fn overlay_image_source_loader_rejects_declared_size_mismatch() {
+        let image_path = unique_temp_path("overlay-image-mismatch", "png");
+        let image = RgbaFrame::from_rgba8(2, 1, vec![255, 0, 0, 255, 0, 0, 255, 255])
+            .expect("valid image frame");
+        uxfd_golden_harness::save_rgba_png(&image_path, &image).expect("save image fixture");
+
+        let error = load_overlay_image_sources_for_scene(&NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: 0,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: Vec::new(),
+            },
+            media: vec![NativeOverlaySceneMedia {
+                id: "image-1".to_string(),
+                kind: "Image".to_string(),
+                source: image_path.to_string_lossy().to_string(),
+                width: 1,
+                height: 1,
+            }],
+        })
+        .expect_err("declared image size mismatch must be rejected");
+
+        assert!(error.contains("Native overlay image source size mismatch"));
+        let _ = std::fs::remove_file(image_path);
+    }
+
+    #[test]
     fn macos_overlay_view_is_click_through() {
         let source = include_str!("macos_overlay.rs");
 
@@ -1010,5 +1037,16 @@ mod tests {
             .as_micros()
             % 1_000_000;
         format!("/uxfd-overlay{}-{micros}", std::process::id())
+    }
+
+    fn unique_temp_path(label: &str, extension: &str) -> std::path::PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system clock should be after unix epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "uxfd-{label}-{}-{nanos}.{extension}",
+            std::process::id()
+        ))
     }
 }
