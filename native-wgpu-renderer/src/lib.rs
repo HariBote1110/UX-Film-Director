@@ -1982,3 +1982,28 @@ fn area_expand_fill(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
         .last()
         .unwrap_or(0.0)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bgra_surface_copy_bytes_are_normalised_to_rgba8() {
+        let pixels = normalise_texture_copy_to_rgba8(
+            wgpu::TextureFormat::Bgra8Unorm,
+            &[1, 2, 3, 255, 10, 20, 30, 128],
+        );
+
+        assert_eq!(pixels, vec![3, 2, 1, 255, 30, 20, 10, 128]);
+    }
+
+    #[test]
+    fn rgba_surface_copy_bytes_are_kept_as_rgba8() {
+        let pixels = normalise_texture_copy_to_rgba8(
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+            &[1, 2, 3, 255, 10, 20, 30, 128],
+        );
+
+        assert_eq!(pixels, vec![1, 2, 3, 255, 10, 20, 30, 128]);
+    }
+}
