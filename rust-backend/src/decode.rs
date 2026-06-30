@@ -676,21 +676,9 @@ fn start_streaming_decode_process(
         "scale=w={}:h={}:in_range={}:out_range=pc,format=rgba",
         session.start_response.width, session.start_response.height, input_metadata.range
     );
+    let args = build_streaming_decode_args(&session.source, seek_seconds, &filter);
     let mut child = Command::new(&session.ffmpeg_path)
-        .arg("-hide_banner")
-        .arg("-loglevel")
-        .arg("error")
-        .arg("-ss")
-        .arg(format!("{seek_seconds:.6}"))
-        .arg("-i")
-        .arg(&session.source)
-        .arg("-vf")
-        .arg(filter)
-        .arg("-pix_fmt")
-        .arg("rgba")
-        .arg("-f")
-        .arg("rawvideo")
-        .arg("pipe:1")
+        .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -712,6 +700,44 @@ fn start_streaming_decode_process(
         next_frame_index: frame_index,
         frame_byte_len: expected_len,
     })
+}
+
+fn build_streaming_decode_args(source: &str, seek_seconds: f64, filter: &str) -> Vec<String> {
+    let mut args = vec![
+        "-hide_banner".to_string(),
+        "-loglevel".to_string(),
+        "error".to_string(),
+    ];
+    if streaming_decode_videotoolbox_enabled() {
+        args.push("-hwaccel".to_string());
+        args.push("videotoolbox".to_string());
+    }
+    args.extend([
+        "-ss".to_string(),
+        format!("{seek_seconds:.6}"),
+        "-i".to_string(),
+        source.to_string(),
+        "-vf".to_string(),
+        filter.to_string(),
+        "-pix_fmt".to_string(),
+        "rgba".to_string(),
+        "-f".to_string(),
+        "rawvideo".to_string(),
+        "pipe:1".to_string(),
+    ]);
+    args
+}
+
+#[cfg(target_os = "macos")]
+fn streaming_decode_videotoolbox_enabled() -> bool {
+    std::env::var("UXFD_DISABLE_VIDEOTOOLBOX_DECODE")
+        .map(|value| value != "1")
+        .unwrap_or(true)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn streaming_decode_videotoolbox_enabled() -> bool {
+    false
 }
 
 struct VideoInputMetadata {

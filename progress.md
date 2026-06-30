@@ -1,3 +1,22 @@
+## 2026-06-30 — streaming decodeにVideoToolbox hwaccelを追加
+
+### 実施内容
+- Red として `rust-backend/src/decode.rs` に、macOS の streaming decode ffmpeg 引数が input より前に `-hwaccel videotoolbox` を置く契約を追加した。
+- Green として `build_streaming_decode_args` を追加し、macOS では `UXFD_DISABLE_VIDEOTOOLBOX_DECODE=1` で明示無効化されない限り preview streaming decode に VideoToolbox hwaccel を付与した。
+- Phase 3a の実 decode spike 改善として `package.json` / `package-lock.json` の版を `0.1.1-Beta-420a` へ更新した。
+
+### 選定理由・判断の根拠
+- settle frame 除外後の長時間 bench は `frame=38 reason=sequential restarted=false skipped=0 decodeMs=18.8` で停止し、初期 settle ではなく定常中の CPU decode read spike が残った。
+- 実機 ffmpeg は `videotoolbox` hwaccel を提供しており、`-hwaccel videotoolbox` 付きでも 20Mbps 1080p60 source から 720x405 RGBA rawvideo を出力できることを確認した。
+- Phase 3a は macOS live CAMetalLayer preview が対象なので、macOS 既定の streaming decode を hardware-assisted に寄せるのが最小の性能改善になる。
+
+### 残課題・次のステップ
+- Rust / frontend bench gate テストを Green にする。
+- `cargo test --manifest-path rust-backend/Cargo.toml streaming_decode_args_use_videotoolbox_before_input_on_macos` は Green。
+- `npx vitest run src/utils/nativeOverlayBenchTraceParser.test.ts` と `npx vitest run src/utils/packageScripts.test.ts --testNamePattern "Native Overlay long bench"` は Green。
+- `UXFD_NATIVE_OVERLAY_BENCH_TRACE=1 UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=15000 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=90000 npm run bench:native-overlay` は Green。`native_overlay_steady_playback` は `rafMeanMs=16.686` / `rafP95Ms=18.07` / `rafMaxMs=20.65` / `longTaskCount=1`。
+- 次に 60分 bench を再試行する。
+
 ## 2026-06-30 — skip直後のdecodeを定常gateから除外
 
 ### 実施内容
