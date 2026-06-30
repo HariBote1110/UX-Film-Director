@@ -40,6 +40,17 @@ describe('package scripts', () => {
       .toBeLessThan(script.indexOf('node_modules/vite/bin/vite.js'));
   });
 
+  it('re-signs the Native Overlay addon and referenced dylib after macOS debug builds', () => {
+    const script = readFileSync(new URL('../../scripts/build-native-overlay-addon.mjs', import.meta.url), 'utf8');
+
+    expect(script).toContain("spawnSync('codesign'");
+    expect(script).toContain("'--force'");
+    expect(script).toContain("'--sign'");
+    expect(script).toContain("'-'");
+    expect(script).toContain('outputPath');
+    expect(script).toContain('sourcePath');
+  });
+
   it('provides a Native Overlay long bench command with perf agent output gates', () => {
     expect(packageJson.scripts['bench:native-overlay']).toBe('node scripts/run-native-overlay-long-bench.mjs');
 
