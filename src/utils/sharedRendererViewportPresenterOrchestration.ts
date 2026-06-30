@@ -279,7 +279,7 @@ export const startSharedRendererViewportPresenter = async ({
     datasets,
     diagnosticSwatchEnabled,
     sharedRendererVideoCutoverEnabled: effectiveVideoCutoverEnabled,
-    requireSharedRendererVideo,
+    requireSharedRendererVideo: requireSharedRendererVideo && !nativeOverlayPresentResult?.ok,
     requireRustVideoControlPlane,
     requireSharedRendererOutput,
     sharedRendererNativeRenderFrameUpload,

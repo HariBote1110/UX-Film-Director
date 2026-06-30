@@ -1,3 +1,22 @@
+## 2026-06-30 — Native Overlay成功時のWebGPU動画所有blockを解除
+
+### 実施内容
+- Red として `src/utils/sharedRendererViewportPresenterOrchestration.test.ts` に、Native Overlay が decoded scene を提示済みなら WebGPU presenter へ動画所有を要求しない契約を追加した。
+- Green として `src/utils/sharedRendererViewportPresenterOrchestration.ts` で `nativeOverlayPresentResult.ok` のとき `requireSharedRendererVideo` を false にして presenter を起動するようにした。
+- `package.json` / `package-lock.json` の版を軽微な Phase 3a ownership 修正として `0.1.1-Beta-418c` へ更新した。
+
+### 選定理由・判断の根拠
+- 実機では Native Overlay が画像・動画 scene を live surface に描画し、`nativeOverlayAttempt=ok` になっていた。
+- しかし WebGPU presenter へ `requireSharedRendererVideo=true` を渡し続けていたため、`requiredVideoOwnershipUnavailable` で blocked 診断になっていた。
+- Native Overlay 成功時の描画責務は live CAMetalLayer 側に移るため、WebGPU presenter の video upload ownership は必須条件ではない。
+- Red: `npx vitest run src/utils/sharedRendererViewportPresenterOrchestration.test.ts --testNamePattern "does not require WebGPU"` は 1 failed。
+- Green: `npx vitest run src/utils/sharedRendererViewportPresenterOrchestration.test.ts --testNamePattern "Native Overlay|does not require WebGPU"` は 3 passed。
+- Green: `npx vitest run src/utils/sharedRendererViewportPresenterOrchestration.test.ts src/utils/sharedRendererPresenterDiagnostics.test.ts` は 32 passed。
+- 実機: 画像 clip と動画 clip を配置し、`uxfdSharedRendererPresenterNativeOverlayAttempt=ok` / `uxfdSharedRendererPresenterStatus=ready` を確認した。`requiredVideoOwnershipUnavailable` は消えた。
+
+### 残課題・次のステップ
+- 1080p decode/present 連続計測と release generation 違反ゼロの確認へ進む。
+
 ## 2026-06-30 — live surface BGRA readbackをRGBAへ正規化
 
 ### 実施内容
