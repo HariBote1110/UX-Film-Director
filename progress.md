@@ -1,3 +1,17 @@
+## 2026-06-30 — Phase 3a単一steady playback 60秒benchを通過
+
+### 実施内容
+- `UXFD_NATIVE_OVERLAY_BENCH_TRACE=1 UXFD_NATIVE_OVERLAY_STEADY_DURATION_MS=60000 UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=60000 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=180000 npm run bench:native-overlay` を実行した。
+- `native_overlay_steady_playback` は `durationMs=60006.45999991894` / `rafMeanMs=16.728` / `rafP95Ms=18.605` / `rafMaxMs=65.4` / `longTaskCount=1` で Green になった。
+- trace gate は `decodeMs<16ms` / `presentMs<16ms` の予算超過を検出せず、run 1 完了で終了した。
+
+### 選定理由・判断の根拠
+- Phase 3a の長時間判定は、Electron / Vite 再起動を繰り返す 4.2秒 run ではなく、live preview を単一 run で長く回す方が定常性を測りやすい。
+- 60秒で `rafP95Ms=18.605` に収まり、短時間 10秒 bench と同じ傾向で推移したため、60分 bench へ進める前提を満たした。
+
+### 残課題・次のステップ
+- 同じ単一 steady playback 方式で 60分 bench を実行し、メモリリーク・GPU リソースリーク・slot leak ゼロと Phase 3a 定常予算を確認する。
+
 ## 2026-06-30 — Native Overlay steady bench durationをenv化
 
 ### 実施内容
