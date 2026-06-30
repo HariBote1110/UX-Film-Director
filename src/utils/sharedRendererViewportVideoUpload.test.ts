@@ -107,6 +107,88 @@ type ReadyPreviewSurfaceGate = Extract<SharedRendererPreviewSession['surfaceGate
 const basePlan = session.plan as ComparablePreviewPlan;
 const baseSurfaceGate = session.surfaceGate as ReadyPreviewSurfaceGate;
 
+const imageVideoSession: SharedRendererPreviewSession = {
+  ...session,
+  plan: {
+    ...basePlan,
+    snapshot: {
+      ...basePlan.snapshot,
+      clips: [
+        {
+          clip_id: 'image-1',
+          track_id: 'layer-0',
+          media_id: 'image-1',
+          source_frame: 0,
+          z_index: 0,
+          transform: {
+            translation_x: 12,
+            translation_y: 8,
+            scale_x: 1,
+            scale_y: 1,
+            rotation_degrees: 0,
+            sampling: 'bilinear',
+          },
+          opacity: 1,
+          effects: [],
+        },
+        {
+          ...basePlan.snapshot.clips[0],
+          z_index: 1,
+        },
+      ],
+    },
+    media: [
+      {
+        id: 'image-1',
+        kind: 'Image',
+        source: '/tmp/poster.png',
+        width: 128,
+        height: 72,
+      },
+      ...basePlan.media,
+    ],
+  },
+  surfaceGate: {
+    ...baseSurfaceGate,
+    snapshot: {
+      ...baseSurfaceGate.snapshot,
+      clips: [
+        {
+          clip_id: 'image-1',
+          track_id: 'layer-0',
+          media_id: 'image-1',
+          source_frame: 0,
+          z_index: 0,
+          transform: {
+            translation_x: 12,
+            translation_y: 8,
+            scale_x: 1,
+            scale_y: 1,
+            rotation_degrees: 0,
+            sampling: 'bilinear',
+          },
+          opacity: 1,
+          effects: [],
+        },
+        {
+          ...baseSurfaceGate.snapshot.clips[0],
+          z_index: 1,
+        },
+      ],
+    },
+    media: [
+      {
+        id: 'image-1',
+        kind: 'Image',
+        source: '/tmp/poster.png',
+        width: 128,
+        height: 72,
+      },
+      ...baseSurfaceGate.media,
+    ],
+  },
+};
+
 const multiVideoSession: SharedRendererPreviewSession = {
   ...session,
   plan: {
@@ -285,7 +367,7 @@ const createBridges = () => {
 };
 
 describe('sharedRendererViewportVideoUpload', () => {
-  it('presents a decoded frame through Native Overlay without copying into a WebGPU upload buffer', async () => {
+  it('presents a scene snapshot with image media through Native Overlay without copying into a WebGPU upload buffer', async () => {
     const { calls, rustBackendBridge, copyBridge } = createBridges();
     const nativeOverlayBridge = {
       presentSharedFrame: async (payload: any) => {
@@ -306,7 +388,7 @@ describe('sharedRendererViewportVideoUpload', () => {
 
     const result = await prepareSharedRendererViewportNativeOverlayPresent({
       windowId: 7,
-      session,
+      session: imageVideoSession,
       requestId: 80,
       slotCount: 2,
       activeJob: null,
@@ -357,6 +439,8 @@ describe('sharedRendererViewportVideoUpload', () => {
       ['presentSharedFrame', {
         windowId: 7,
         mediaId: expectedJobId,
+        snapshot: imageVideoSession.surfaceGate.ok ? imageVideoSession.surfaceGate.snapshot : undefined,
+        media: imageVideoSession.surfaceGate.ok ? imageVideoSession.surfaceGate.media : undefined,
         slotCount: 2,
         frame: {
           descriptor: {
