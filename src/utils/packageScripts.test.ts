@@ -68,6 +68,10 @@ describe('package scripts', () => {
     expect(script).toContain('UXFD_NATIVE_OVERLAY_STEADY_P95_BUDGET_MS');
     expect(script).toContain('UXFD_NATIVE_OVERLAY_STEADY_DURATION_MS');
     expect(script).toContain('VITE_UXFD_NATIVE_OVERLAY_STEADY_DURATION_MS');
+    expect(script).toContain('resolveBenchSpawnCommand');
+    expect(script).toContain("process.platform === 'darwin'");
+    expect(script).toContain("'caffeinate'");
+    expect(script).toContain("'-dimsu'");
     expect(script).toContain('assertNativeOverlayBenchTraceBudgets');
     expect(script).toContain('createNativeOverlayBenchTraceSummary');
     expect(script).toContain('ingestNativeOverlayBenchTraceText');
