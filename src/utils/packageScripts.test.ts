@@ -83,6 +83,12 @@ describe('package scripts', () => {
     expect(harness).toContain('UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN');
     expect(harness).toContain('UXFD_NATIVE_OVERLAY_STEADY_TRACE_END');
     expect(harness).toContain('window.setTimeout(resolve, 1200)');
+    expect(harness).toContain('let steadyFrame = 0');
+    expect(harness).toContain('state.setTime(steadyStartTime + (steadyFrame / 60))');
+    expect(harness.indexOf('await emitPerfTraceMarker(`UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN'))
+      .toBeLessThan(harness.indexOf('state.setTime(steadyStartTime + (steadyFrame / 60))'));
+    expect(harness.indexOf('state.setTime(steadyStartTime + (steadyFrame / 60))'))
+      .toBeLessThan(harness.indexOf('await emitPerfTraceMarker(`UXFD_NATIVE_OVERLAY_STEADY_TRACE_END'));
     expect(harness).toContain('steady_playback');
     expect(harness.indexOf('runScenarioNativeOverlaySteadyPlayback(runId)'))
       .toBeLessThan(harness.indexOf('runScenarioRafPlayhead(runId)'));
