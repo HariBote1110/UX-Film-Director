@@ -1,3 +1,22 @@
+## 2026-06-30 — Native Overlayでslot byteOffsetを許容
+
+### 実施内容
+- Red として `native-overlay/src/lib.rs` に、shared frame descriptor の `byteOffset` が `slotIndex * byteLen` の非ゼロ値でも該当 slot を読める契約を追加した。
+- Green として `copy_overlay_shared_frame_source_for_upload` の `byteOffset` 検証を、`0` または `slotIndex * byteLen` の許容へ変更した。
+- Rust unit test の POSIX shm 名衝突を避けるため、test helper `unique_shm_name` に atomic counter を追加した。
+- `package.json` / `package-lock.json` の版を重大な live present 修正として `0.1.1-Beta-413a` へ更新した。
+
+### 選定理由・判断の根拠
+- 実機 dataset で `uxfdSharedRendererPresenterNativeOverlayFailureDetail=Native overlay shared frame byteOffset must be zero.` を確認した。
+- Red: `cargo test --manifest-path native-overlay/Cargo.toml overlay_shared_frame_copy_accepts_slot_relative_byte_offset` は 1 failed。slot 1 の `byteOffset=byteLen` を拒否していた。
+- Green: `cargo test --manifest-path native-overlay/Cargo.toml` は 10 passed。
+- Green: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts` は 1 file / 13 tests passed。
+- decode descriptor の `byteOffset` は ring 全体内 offset であり、読み取り自体は `slotIndex` と `ptsFrame` で行うため、slot 相対 offset を正当な descriptor として受け入れる。
+
+### 残課題・次のステップ
+- addon を rebuild し、実機で `presentSharedFrameTrace success=true` と release generation を確認する。
+- その後、画像 clip と動画 clip が overlay 上に表示されるスクリーンショットを記録する。
+
 ## 2026-06-30 — Native Overlay scene payloadをcamelCase化
 
 ### 実施内容
