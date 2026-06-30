@@ -1,3 +1,23 @@
+## 2026-06-30 — NSView surfaceのnull layer abortを修正
+
+### 実施内容
+- Red として `src/utils/nativeOverlayCrateBoundary.test.ts` に、wgpu へ渡す overlay NSView が layer-backed である契約を追加した。
+- Green として `native-overlay/src/macos_overlay.rs` で overlay view に `setWantsLayer:YES` を設定し、wgpu-hal の `view.layer` 前提を満たすようにした。
+- CAMetalLayer の生成・pixel format・drawable size 設定は引き続き wgpu-hal 管理へ残した。
+- `package.json` / `package-lock.json` の版を軽微な live surface 起動修正として `0.1.1-Beta-417b` へ更新した。
+
+### 選定理由・判断の根拠
+- NSView surface 経路の実機起動時、wgpu-hal `metal/surface.rs:118` で `view.layer` が null のまま `isKindOfClass:` を呼び、非 unwind panic / `SIGABRT` になった。
+- wgpu-hal の `from_view` 相当経路は layer-backed NSView を前提としており、`setWantsLayer:YES` で通常 CALayer を作らせれば、その後 wgpu-hal が CAMetalLayer へ置換できる。
+- Red: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts --testNamePattern "AppKit view"` は 1 failed。
+- Green: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts` は 1 file / 13 tests passed。
+- Green: `cargo test --manifest-path native-overlay/Cargo.toml` は 10 passed。
+- Green: `npm run test:native-overlay-node` は passed。
+
+### 残課題・次のステップ
+- Electron 実機で abort が消えるか確認する。
+- abort が消えたら画像・動画 clip 表示を `screencapture` で再確認する。
+
 ## 2026-06-30 — Native Overlay surface生成をNSView経由へ変更
 
 ### 実施内容

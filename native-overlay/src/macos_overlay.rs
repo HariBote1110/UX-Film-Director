@@ -120,6 +120,7 @@ fn attach_overlay_view_to_parent(
         }
         let identifier = ns_string(NATIVE_OVERLAY_VIEW_IDENTIFIER)?;
         let () = msg_send![overlay_view, setIdentifier: identifier];
+        let () = msg_send![overlay_view, setWantsLayer: YES];
 
         let () = msg_send![parent_view, addSubview: overlay_view];
         Ok(overlay_view_handle(overlay_view))
