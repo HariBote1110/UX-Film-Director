@@ -121,10 +121,45 @@ fn attach_overlay_view_to_parent(
         let identifier = ns_string(NATIVE_OVERLAY_VIEW_IDENTIFIER)?;
         let () = msg_send![overlay_view, setIdentifier: identifier];
         let () = msg_send![overlay_view, setWantsLayer: YES];
+        // CAMetalLayer は `contentsScale` を明示しないと既定値 1.0 のままで、HiDPI 環境では
+        // drawable のうち `bounds × 1.0` ピクセル分（=左下 1/4）しか画面に貼り出されない。
+        // `wgpu` の surface 構築前にも layer を一度初期化しておき、`contentsScale` を contract で正本化する。
+        apply_overlay_layer_contents_scale(overlay_view, contract.contents_scale);
 
         let () = msg_send![parent_view, addSubview: overlay_view];
         Ok(overlay_view_handle(overlay_view))
     }
+}
+
+/// overlay NSView の現在 layer に対して `setContentsScale:` を反映する。
+/// `wgpu` の `create_surface_unsafe` は内部で layer を CAMetalLayer に差し替えるため、
+/// surface 構築後にも本関数を再度呼び出して `contentsScale` を上書きする必要がある。
+pub fn set_overlay_view_contents_scale(view_handle: usize, contents_scale: f64) {
+    if view_handle == 0 || !contents_scale.is_finite() || contents_scale <= 0.0 {
+        return;
+    }
+    let view = view_handle as *mut Object;
+    if view.is_null() {
+        return;
+    }
+    unsafe {
+        let is_main_thread: BOOL = msg_send![class!(NSThread), isMainThread];
+        if is_main_thread == NO {
+            return;
+        }
+        apply_overlay_layer_contents_scale(view, contents_scale);
+    }
+}
+
+unsafe fn apply_overlay_layer_contents_scale(view: *mut Object, contents_scale: f64) {
+    if view.is_null() {
+        return;
+    }
+    let layer: *mut Object = msg_send![view, layer];
+    if layer.is_null() {
+        return;
+    }
+    let () = msg_send![layer, setContentsScale: contents_scale];
 }
 
 pub fn overlay_view_handle(view: *mut Object) -> usize {

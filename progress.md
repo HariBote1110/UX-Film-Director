@@ -1,4 +1,24 @@
-## 2026-06-30 — Phase 6最終gateと既定ON版更新
+## 2026-07-01 — Bug B修正: CAMetalLayer.contentsScaleをcontract経由で正本化
+
+### 実施内容
+- Red として `native-overlay/src/lib.rs` の単体テスト `overlay_layer_contract_uses_bgra8_unorm_and_scaled_drawable_size` に `contract.contents_scale == 2.0` の assertion を追加し、`overlay_layer_contract_contents_scale_matches_payload_scale_factor` で `scale_factor=1.5` のケースも要求した。
+- Green として `OverlayLayerContract` 構造体に `contents_scale: f64` を追加し、`build_overlay_layer_contract` が `payload.scale_factor` をそのまま伝搬するようにした。
+- 実機反映として `native-overlay/src/macos_overlay.rs` に `apply_overlay_layer_contents_scale` / `set_overlay_view_contents_scale` を追加し、`attach_overlay_view_to_parent` の `setWantsLayer:` 直後と、`attach_native_overlay_inner` の `attach_live_overlay_surface_renderer` 直後の二段階で layer の `contentsScale` を contract 値に上書きするようにした。
+- `cargo test --manifest-path native-overlay/Cargo.toml --lib` を実行し、11 tests / 0 failed で Green を確認した。
+- 重大な描画 bug 修正として `package.json` / `package-lock.json` の版を `0.1.1-Beta-422a` へ更新した。
+
+### 選定理由・判断の根拠
+- 実機（1080p canvas + 1080p video）で「動画が canvas の約 1/4 サイズで左下に貼り付く」症状を観測した。`grep contentsScale` が native-overlay / native-wgpu-renderer の双方で 0 ヒットで、CAMetalLayer の `contentsScale` がどこにも設定されていなかった。
+- CAMetalLayer は `contentsScale` を明示しない限り既定値 1.0 のままで、HiDPI（`scale_factor=2.0`）環境で `drawableSize=3840x2160` / `bounds=1920x1080` の組み合わせだと、Core Animation は「`bounds × contentsScale=1920x1080` 分」しか画面に貼り出さず、drawable 全体の左下 1/4 だけが見える挙動になる。実機症状と完全に一致する。
+- 修正は2段階。(1) `wgpu::create_surface_unsafe` は NSView の layer を CAMetalLayer に差し替えるため、surface 構築前の設定は失われる。(2) よって surface 構築前と構築後の両方で `setContentsScale:` を呼ぶ。前者は将来 wgpu が layer を差し替えないバージョンへ移行した場合の互換確保、後者が実効値。
+- 却下案: `build_overlay_layer_contract` で `view_width = drawable_width` のように bounds 側を物理ピクセル化する案は、AppKit の `setFrame:` が論理座標を期待するため layout 全体を破壊する。`drawable_width/height` は wgpu surface 解像度として残し、`contents_scale` を別途正本化するのが Core Animation 規約に沿った直し方。
+- 統合検証として live CALayer から `contentsScale` を読み戻す Rust test は objc 経由で重く、unit test と「実機スクショ」の組み合わせで担保する方針。スクショ取得は本 Bug の DoD 2 で扱う。
+
+### 残課題・次のステップ
+- 実機 `npm run dev` 起動で 1080p video が canvas 全面を埋めるスクショを `.codex/native-overlay-visual/bugB-1080p-fullframe.png` として保存し、Bug B の DoD 2 を満たす。
+- 上のスクショ保存後、Bug C（再生中 overlay が静止フレームのまま）へ着手する。
+
+
 
 ### 実施内容
 - Native Overlay parity gate として `npm run test:native-overlay-parity` を実行した。

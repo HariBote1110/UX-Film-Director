@@ -223,6 +223,10 @@ pub struct OverlayLayerContract {
     pub view_height: f64,
     pub drawable_width: u32,
     pub drawable_height: u32,
+    /// CALayer の `contentsScale` に直接反映する HiDPI 倍率。`payload.scale_factor` をそのまま伝搬する。
+    /// `drawable_size` だけを 2 倍化して `contentsScale` を 1.0 のまま放置すると、Core Animation は
+    /// drawable のうち `bounds × contentsScale` 分（=左下 1/4）しか画面に貼り出さない。
+    pub contents_scale: f64,
 }
 
 static LIVE_OVERLAY_RENDERERS: OnceLock<Mutex<HashMap<u32, NativeOverlayLiveSurfaceRenderer>>> =
@@ -358,6 +362,10 @@ fn attach_native_overlay_inner(payload: NativeOverlayAttachPayload) -> NativeOve
         {
             return failure(&reason);
         }
+        // `wgpu::create_surface_unsafe` は NSView の layer を CAMetalLayer に差し替えるため、
+        // surface 構築前に設定した `contentsScale` は失われている。HiDPI 環境では
+        // ここで再度反映しないと drawable の左下 1/4 しか画面に貼り出されない（Bug B）。
+        macos_overlay::set_overlay_view_contents_scale(view_handle, contract.contents_scale);
     }
 
     NativeOverlayResponse {
@@ -512,6 +520,7 @@ pub fn build_overlay_layer_contract(
         view_height: payload.height,
         drawable_width: (payload.width * payload.scale_factor).round() as u32,
         drawable_height: (payload.height * payload.scale_factor).round() as u32,
+        contents_scale: payload.scale_factor,
     })
 }
 
