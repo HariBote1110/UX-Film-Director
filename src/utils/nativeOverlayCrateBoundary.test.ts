@@ -105,6 +105,18 @@ describe('native overlay napi crate boundary', () => {
     expect(lib).toContain('present_scene_to_surface_texture_with_readback');
   });
 
+  it('compares live overlay readback with export readback without returning frame bytes over IPC', () => {
+    const lib = read('native-overlay/src/lib.rs');
+
+    expect(lib).toContain('live_readback_export_max_channel_delta');
+    expect(lib).toContain('compare_live_overlay_readback_with_export');
+    expect(lib).toContain('render_native_wgpu_frame');
+    expect(lib).toContain('compare_rgba_frames');
+    expect(lib).toContain('ComparisonThresholds::exact()');
+    expect(lib).not.toContain('pub live_readback_pixels');
+    expect(lib).not.toContain('live_readback_frame_bytes');
+  });
+
   it('keeps the wgpu instance alive for live CAMetalLayer adapter selection', () => {
     const nativeWgpuRenderer = read('native-wgpu-renderer/src/lib.rs');
 
