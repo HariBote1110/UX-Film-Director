@@ -959,6 +959,49 @@ mod tests {
     }
 
     #[test]
+    fn overlay_shared_frame_copy_accepts_slot_relative_byte_offset() {
+        let memory_id = unique_shm_name();
+        let first_pixels = vec![0, 0, 0, 255];
+        let second_pixels = vec![255, 128, 64, 255];
+        let ring = uxfd_shared_memory_spike::PosixSharedRing::create_with_slot_count(
+            &memory_id,
+            2,
+            second_pixels.len(),
+        )
+        .expect("create overlay source ring");
+        ring.write_frame(1, &first_pixels)
+            .expect("write first overlay source frame");
+        ring.write_frame(2, &second_pixels)
+            .expect("write second overlay source frame");
+
+        let upload = copy_overlay_shared_frame_source_for_upload(
+            &OverlaySharedFrameSource {
+                media_id: "decoded-video".to_string(),
+                slot_count: 2,
+                frame: OverlaySharedFrame {
+                    descriptor: OverlaySharedFrameDescriptor {
+                        memory_id,
+                        slot_index: 1,
+                        generation: 3,
+                        byte_offset: second_pixels.len() as u32,
+                        byte_len: second_pixels.len() as u32,
+                        width: 1,
+                        height: 1,
+                        stride_bytes: 4,
+                        format: "rgba8Srgb".to_string(),
+                    },
+                    pts_frame: 2,
+                },
+            },
+            std::time::Duration::from_millis(100),
+        )
+        .expect("copy overlay shared frame source from non-zero slot offset");
+
+        assert_eq!(upload.pixels, second_pixels);
+        assert_eq!(upload.generation, 3);
+    }
+
+    #[test]
     fn present_shared_frame_returns_release_payload_after_upload_copy() {
         let memory_id = unique_shm_name();
         let pixels = vec![32, 64, 96, 255];
