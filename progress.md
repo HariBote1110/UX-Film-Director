@@ -1,3 +1,19 @@
+## 2026-06-30 — Native Overlay steady bench durationをenv化
+
+### 実施内容
+- Red として `src/utils/packageScripts.test.ts` に、Native Overlay long bench が `UXFD_NATIVE_OVERLAY_STEADY_DURATION_MS` を受け取り、renderer 側へ `VITE_UXFD_NATIVE_OVERLAY_STEADY_DURATION_MS` として渡す契約を追加した。
+- Green として `scripts/run-native-overlay-long-bench.mjs` に steady duration の env 解決と child env 伝播を追加した。
+- `src/perf/performanceHarness.ts` に `resolveNativeOverlaySteadyDurationMs()` を追加し、`native_overlay_steady_playback` の `collectRafDeltas` 測定窓を固定 4200ms から env 指定へ変更した。
+- 軽微な Phase 3a bench gate 修正として `package.json` / `package-lock.json` の版を `0.1.1-Beta-420b` へ更新した。
+
+### 選定理由・判断の根拠
+- 既存の 60分 bench は 4.2秒の perf agent run を Electron / Vite 再起動込みで繰り返しており、Phase 3a の「定常 live preview が 60fps 相当で続く」条件に対して起動・settle ノイズが大きすぎた。
+- `UXFD_NATIVE_OVERLAY_STEADY_DURATION_MS=10000` の短時間実 bench では `native_overlay_steady_playback` が `durationMs=10009.294999957085` / `rafMeanMs=16.795` / `rafP95Ms=19.805` / `rafMaxMs=44.9` / `longTaskCount=3` で Green になり、steady 測定窓が renderer まで届くことを確認した。
+
+### 残課題・次のステップ
+- 60秒の単一 steady 再生 bench を実行し、decode / present / RAF gate が再起動ループなしで通るか確認する。
+- 60秒が安定したら 60分の単一 steady 再生 bench へ進み、Phase 3a の長時間条件を再判定する。
+
 ## 2026-06-30 — streaming decodeにVideoToolbox hwaccelを追加
 
 ### 実施内容

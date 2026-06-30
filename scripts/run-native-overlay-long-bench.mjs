@@ -15,6 +15,7 @@ const outputDir = resolve(process.cwd(), 'perf', 'native-overlay-long-bench');
 const outputJsonPath = resolve(outputDir, 'perf-agent-output.json');
 const timeoutMs = Number.parseInt(process.env.UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS ?? '', 10) || 3_900_000;
 const benchDurationMs = Number.parseInt(process.env.UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS ?? '', 10) || 3_600_000;
+const steadyDurationMs = Number.parseInt(process.env.UXFD_NATIVE_OVERLAY_STEADY_DURATION_MS ?? '', 10) || 4_200;
 const decodeTraceEnabled = process.env.UXFD_NATIVE_OVERLAY_BENCH_TRACE === '1';
 const steadyMeanBudgetMs = Number.parseFloat(process.env.UXFD_NATIVE_OVERLAY_STEADY_MEAN_BUDGET_MS ?? '') || 16.8;
 const steadyP95BudgetMs = Number.parseFloat(process.env.UXFD_NATIVE_OVERLAY_STEADY_P95_BUDGET_MS ?? '') || 20.0;
@@ -141,6 +142,7 @@ try {
 console.log(`[native-overlay-bench] ${displayCommand} を perf agent mode で起動します`);
 console.log(`[native-overlay-bench] timeoutMs=${timeoutMs}`);
 console.log(`[native-overlay-bench] durationMs=${benchDurationMs}`);
+console.log(`[native-overlay-bench] steadyDurationMs=${steadyDurationMs}`);
 
 const runSingleBench = () => new Promise((resolveRun) => {
   markerPayload = null;
@@ -160,6 +162,7 @@ const runSingleBench = () => new Promise((resolveRun) => {
       UXFD_PERF_OUTPUT_DIR: outputDir,
       UXFD_NATIVE_OVERLAY: '1',
       VITE_UXFD_NATIVE_OVERLAY: '1',
+      VITE_UXFD_NATIVE_OVERLAY_STEADY_DURATION_MS: String(steadyDurationMs),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

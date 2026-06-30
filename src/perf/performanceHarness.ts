@@ -75,6 +75,12 @@ const collectRafDeltas = async (durationMs: number, perFrame: () => void): Promi
   return deltas.length > 1 ? deltas.slice(1) : deltas;
 };
 
+const resolveNativeOverlaySteadyDurationMs = (): number => {
+  const raw = import.meta.env.VITE_UXFD_NATIVE_OVERLAY_STEADY_DURATION_MS;
+  const parsed = Number.parseInt(typeof raw === 'string' ? raw : '', 10);
+  return Number.isFinite(parsed) && parsed >= 1_000 ? parsed : 4_200;
+};
+
 const buildSeedShape = (index: number): ShapeObject => {
   const layer = index % 8;
   const x = 32 + (index % 12) * 48;
@@ -504,8 +510,9 @@ const runScenarioNativeOverlaySteadyPlayback = async (runId: string): Promise<Pe
   });
   const startedAt = performance.now();
   const steadyStartTime = 0.5;
+  const steadyDurationMs = resolveNativeOverlaySteadyDurationMs();
   let steadyFrame = 0;
-  const deltas = await collectRafDeltas(4200, () => {
+  const deltas = await collectRafDeltas(steadyDurationMs, () => {
     const state = useStore.getState();
     state.setTime(steadyStartTime + (steadyFrame / 60));
     steadyFrame += 1;
