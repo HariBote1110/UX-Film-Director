@@ -135,6 +135,22 @@ describe('Viewport Rust video-only boundary', () => {
     expect(code).toContain('window.nativeOverlay?.detach');
   });
 
+  it('resends the native overlay attach rectangle for viewport lifecycle changes', () => {
+    const code = viewportSource();
+    const start = code.indexOf('if (!nativeOverlayPreviewEnabled) return;');
+    const end = code.indexOf('}, [nativeOverlayPreviewEnabled]', start);
+    const nativeOverlayEffectBlock = code.slice(start, end);
+
+    expect(nativeOverlayEffectBlock).toContain("visualViewport?.addEventListener('resize', attach)");
+    expect(nativeOverlayEffectBlock).toContain("visualViewport?.addEventListener('scroll', attach)");
+    expect(nativeOverlayEffectBlock).toContain("document.addEventListener('fullscreenchange', attach)");
+    expect(nativeOverlayEffectBlock).toContain("document.addEventListener('visibilitychange', attach)");
+    expect(nativeOverlayEffectBlock).toContain("window.addEventListener('focus', attach)");
+    expect(nativeOverlayEffectBlock).toContain("window.addEventListener('pageshow', attach)");
+    expect(nativeOverlayEffectBlock).toContain("visualViewport?.removeEventListener('resize', attach)");
+    expect(nativeOverlayEffectBlock).toContain("document.removeEventListener('fullscreenchange', attach)");
+  });
+
   it('connects the native overlay preview presenter path behind the explicit env flag', () => {
     const code = viewportSource();
     const start = code.indexOf('void startSharedRendererViewportPresenter({');
