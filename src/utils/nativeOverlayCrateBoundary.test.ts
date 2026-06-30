@@ -47,14 +47,12 @@ describe('native overlay napi crate boundary', () => {
     const macosOverlay = read('native-overlay/src/macos_overlay.rs');
     expect(macosOverlay).toContain('CAMetalLayer');
     expect(macosOverlay).toContain('isMainThread');
-    expect(macosOverlay).toContain('setWantsLayer');
-    expect(macosOverlay).toContain('setPixelFormat');
-    expect(macosOverlay).toContain('setDrawableSize');
+    expect(macosOverlay).not.toContain('setPixelFormat');
+    expect(macosOverlay).not.toContain('setDrawableSize');
     expect(macosOverlay).toContain('addSubview');
     expect(macosOverlay).not.toContain('present_fixed_colour');
     expect(macosOverlay).not.toContain('set_clear_color');
     expect(macosOverlay).toContain('contract.view_width');
-    expect(macosOverlay).toContain('contract.drawable_width');
   });
 
   it('depends on wgpu, raw-window-handle, and native-wgpu-renderer for live CAMetalLayer presentation', () => {
@@ -74,8 +72,8 @@ describe('native overlay napi crate boundary', () => {
     expect(lib).toContain('attach_live_overlay_surface_renderer');
     expect(lib).toContain('present_overlay_shared_frame_to_live_surface');
     expect(lib).not.toContain('match present_overlay_shared_frame_for_test(request)');
-    expect(macosOverlay).toContain('overlay_layer_handle');
-    expect(macosOverlay).toContain('create_surface_target_from_ca_metal_layer');
+    expect(macosOverlay).toContain('overlay_view_handle');
+    expect(macosOverlay).not.toContain('create_surface_target_from_ca_metal_layer');
   });
 
   it('uses the native-wgpu-renderer scene pipeline for live surface presentation', () => {
@@ -85,7 +83,8 @@ describe('native overlay napi crate boundary', () => {
     expect(nativeWgpuRenderer).toContain('pub struct NativeWgpuLiveSurfaceRenderer');
     expect(nativeWgpuRenderer).toContain('present_scene_to_surface_texture');
     expect(nativeWgpuRenderer).toContain('create_pipeline_for_format');
-    expect(nativeWgpuRenderer).toContain('SurfaceTargetUnsafe::CoreAnimationLayer');
+    expect(nativeWgpuRenderer).toContain('SurfaceTargetUnsafe::from_window');
+    expect(nativeWgpuRenderer).not.toContain('SurfaceTargetUnsafe::CoreAnimationLayer');
     expect(lib).toContain('NativeWgpuLiveSurfaceRenderer');
     expect(lib).toContain('present_scene_to_surface_texture');
     expect(lib).not.toContain('sample_upload_clear_colour');
