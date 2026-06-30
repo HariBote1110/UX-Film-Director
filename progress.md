@@ -1,3 +1,23 @@
+## 2026-06-30 — Native Overlay長時間ベンチsmokeで60fps gate未達
+
+### 実施内容
+- `UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=1 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=360000 npm run bench:native-overlay` を実行した。
+- Native Overlay addon build、shared frame addon build、Rust backend release build、Vite / Electron 起動は成功した。
+- `[NativeOverlay] attach { success: true, attached: true }` が継続し、`presentSharedFrameTrace` は `presentMs=2.988...ms`、`releaseGeneration=2` / `generation=2` の一致を記録した。
+- perf agent は `perf/native-overlay-long-bench/perf-agent-output.json` を出力したが、`raf_heavy_video_scrub` の `rafP95Ms=18.505` により 60fps gate を満たさず runner が exit code 1 で停止した。
+
+### 選定理由・判断の根拠
+- Phase 6 の既定 ON 切替前には Native Overlay opt-in の安定性と 60fps 予算を確認する必要がある。
+- 今回の `raf_heavy_video_scrub` は `20000kbps_60fps.mp4` を使い、`rafMeanMs=19.656` / `rafP95Ms=18.505` / `rafMaxMs=107.155` / `longTaskCount=1` だった。
+- decode trace は初回 seek / backward seek で 400ms 超の restart があり、sequential decode でも一部 `18.8ms` が出た。
+- presenter 自体は 16ms 未満だったため、停止時点では Native Overlay present よりも harness の scrub/decode restart/React RAF 負荷が疑い候補。
+
+### 残課題・次のステップ
+- Phase 6 の既定 ON 切替へは進まず、原因切り分けを先に行う。
+- 仮説1: perf harness の `raf_heavy_video_scrub` が毎 frame `setTime` で seek/backwardSeek を誘発し、通常再生の定常 60fps ではなく scrub 負荷を測っている。
+- 仮説2: 720x405 proxy decode job が選ばれており、1080p preview の Native Overlay 計測条件と異なるうえ、proxy restart が p95 を押し上げている。
+- 仮説3: runner の p95 gate が cold start / firstFrame / restart を除外せず、steady-state present/decode の評価と混ざっている。
+
 ## 2026-06-30 — Native Overlay長時間ベンチ反復実行を追加
 
 ### 実施内容
