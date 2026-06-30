@@ -47,6 +47,7 @@ describe('native overlay napi crate boundary', () => {
     const macosOverlay = read('native-overlay/src/macos_overlay.rs');
     expect(macosOverlay).not.toContain('CAMetalLayer');
     expect(macosOverlay).toContain('isMainThread');
+    expect(macosOverlay).toContain('setWantsLayer');
     expect(macosOverlay).not.toContain('setPixelFormat');
     expect(macosOverlay).not.toContain('setDrawableSize');
     expect(macosOverlay).toContain('addSubview');
