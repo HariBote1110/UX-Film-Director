@@ -1,3 +1,21 @@
+## 2026-06-30 — Phase 4 attach rectのHiDPI入力をbackingScaleFactorへ正本化
+
+### 実施内容
+- Red として `src/utils/nativeOverlayViewportGeometry.test.ts` に、`buildNativeOverlayAttachRect` が `backingScaleFactor` を正本の HiDPI scale 入力として使う契約を追加した。
+- Green として `src/utils/nativeOverlayViewportGeometry.ts` に `backingScaleFactor` 入力を追加し、既存 `devicePixelRatio` は互換 fallback として残した。
+- `src/components/Viewport.tsx` の Native Overlay attach rect 呼び出しを `backingScaleFactor: window.devicePixelRatio` に更新した。
+- 軽微な Phase 4 修正として `package.json` / `package-lock.json` の版を `0.1.1-Beta-420d` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 4 の HiDPI 条件では main process の `screen.getDisplayMatching(...).scaleFactor` が正本であり、renderer 側の `devicePixelRatio` は attach IPC の暫定 hint に過ぎない。
+- pure function の入力名を `backingScaleFactor` に寄せることで、renderer hint と main-process canonical scale の役割差を明示できる。
+
+### 残課題・次のステップ
+- `npx vitest run src/utils/nativeOverlayViewportGeometry.test.ts` は Green。
+- `npx vitest run src/utils/viewportRustVideoOnlyBoundary.test.ts --testNamePattern "native overlay"` は Green。
+- `npx vitest run src/utils/nativeOverlayMainBridge.test.ts --testNamePattern "scale factor"` は Green。
+- 次に Phase 4 の resize / devtools / fullscreen / Mission Control 相当の lifecycle attach 再送契約を締める。
+
 ## 2026-06-30 — Phase 3a 60分単一steady playback benchを通過
 
 ### 実施内容

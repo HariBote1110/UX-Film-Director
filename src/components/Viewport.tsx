@@ -545,7 +545,7 @@ const Viewport: React.FC = () => {
       const nextAttachRect = buildNativeOverlayAttachRect({
         viewportRect,
         contentHeight: visualViewport?.height ?? window.innerHeight,
-        devicePixelRatio: window.devicePixelRatio,
+        backingScaleFactor: window.devicePixelRatio,
         viewportOffsetLeft: visualViewport?.offsetLeft ?? 0,
         viewportOffsetTop: visualViewport?.offsetTop ?? 0,
       });
