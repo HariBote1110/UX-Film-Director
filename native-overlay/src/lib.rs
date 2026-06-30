@@ -720,15 +720,23 @@ pub fn load_overlay_image_sources_for_scene(
         }
         let frame = load_rgba_png(&media.source)
             .map_err(|error| format!("Native overlay image source load failed: {error:?}"))?;
-        if frame.width != media.width || frame.height != media.height {
-            return Err(format!(
-                "Native overlay image source size mismatch for {}, expected {}x{}, got {}x{}.",
-                media.id, media.width, media.height, frame.width, frame.height
-            ));
-        }
+        validate_overlay_image_source_size(media, &frame)?;
         sources.insert(media.id.clone(), frame);
     }
     Ok(sources)
+}
+
+fn validate_overlay_image_source_size(
+    media: &NativeOverlaySceneMedia,
+    frame: &RgbaFrame,
+) -> Result<(), String> {
+    if frame.width == media.width && frame.height == media.height {
+        return Ok(());
+    }
+    Err(format!(
+        "Native overlay image source size mismatch for {}, expected {}x{}, got {}x{}.",
+        media.id, media.width, media.height, frame.width, frame.height
+    ))
 }
 
 fn scene_snapshot_from_payload(
