@@ -206,4 +206,68 @@ describe('createNativeOverlayMainBridge', () => {
       nativeWindowHandle,
     });
   });
+
+  it('emits an opt-in present timing trace with release generation details', async () => {
+    const nativeWindowHandle = Buffer.from([1, 2, 3, 4, 5, 6, 7, 8]);
+    const diagnostics: Array<[string, unknown]> = [];
+    const nowValues = [1000, 1012.75];
+    const releasePayload = {
+      memoryId: '/uxfd-decode-ring',
+      slotIndex: 1,
+      generation: 9,
+      ptsFrame: 24,
+      copyOutState: 'gpuUploadFenceSignalled' as const,
+    };
+    const nativeAddon = {
+      presentNativeOverlaySharedFrame: vi.fn(() => ({
+        success: true,
+        attached: true,
+        releaseFrame: releasePayload,
+      })),
+    };
+    const bridge = createNativeOverlayMainBridge({
+      env: { UXFD_NATIVE_OVERLAY: '1', UXFD_DECODE_TRACE: '1' },
+      cwd: '/repo',
+      existsSync: (candidate) => candidate === '/repo/native-overlay/native-overlay.node',
+      requireModule: vi.fn(() => nativeAddon),
+      resolveNativeWindowHandle: vi.fn(() => nativeWindowHandle),
+      now: () => nowValues.shift() ?? 1012.75,
+      logDiagnostic: (eventName, payload) => diagnostics.push([eventName, payload]),
+    });
+
+    await bridge.presentSharedFrame({
+      windowId: 7,
+      mediaId: 'decode-job-1',
+      slotCount: 2,
+      frame: {
+        descriptor: {
+          memoryId: '/uxfd-decode-ring',
+          slotIndex: 1,
+          generation: 9,
+          byteOffset: 0,
+          byteLen: 16,
+          width: 2,
+          height: 2,
+          strideBytes: 8,
+          format: 'rgba8Srgb',
+        },
+        ptsFrame: 24,
+      },
+    });
+
+    expect(diagnostics).toEqual([[
+      'presentSharedFrameTrace',
+      {
+        mediaId: 'decode-job-1',
+        presentMs: 12.75,
+        success: true,
+        attached: true,
+        slotIndex: 1,
+        generation: 9,
+        ptsFrame: 24,
+        releaseGeneration: 9,
+        releasePtsFrame: 24,
+      },
+    ]]);
+  });
 });
