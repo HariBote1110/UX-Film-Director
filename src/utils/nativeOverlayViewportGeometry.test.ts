@@ -21,6 +21,25 @@ describe('nativeOverlayViewportGeometry', () => {
     });
   });
 
+  it('uses the backing scale factor as the canonical HiDPI scale input', () => {
+    expect(buildNativeOverlayAttachRect({
+      viewportRect: {
+        left: 24,
+        top: 32,
+        width: 480,
+        height: 270,
+      },
+      contentHeight: 720,
+      backingScaleFactor: 2.5,
+    })).toEqual({
+      x: 24,
+      y: 418,
+      width: 480,
+      height: 270,
+      scaleFactor: 2.5,
+    });
+  });
+
   it('clamps invalid dimensions and scale factor before IPC', () => {
     expect(buildNativeOverlayAttachRect({
       viewportRect: {
