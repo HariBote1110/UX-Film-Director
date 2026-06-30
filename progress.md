@@ -1,3 +1,40 @@
+## 2026-06-30 — Native Overlayをnative render uploadより優先
+
+### 実施内容
+- Red として `src/utils/sharedRendererViewportPresenterOrchestration.test.ts` に、Native Overlay と preferred native render upload が同時に有効な場合は Native Overlay present を先に試す契約を追加した。
+- Green として `src/utils/sharedRendererViewportPresenterOrchestration.ts` の preferred native render upload 条件を Native Overlay 無効時に限定した。
+- Native Overlay present が成功した場合は fallback native render upload も走らないようにし、live CAMetalLayer 経路へ描画要求が届く順序を固定した。
+- `package.json` / `package-lock.json` の版を重大な preview 経路修正として `0.1.1-Beta-411a` へ更新した。
+
+### 選定理由・判断の根拠
+- Red: `npx vitest run src/utils/sharedRendererViewportPresenterOrchestration.test.ts --testNamePattern "uses Native Overlay before preferred native render upload"` は 1 failed。`nativeRenderUploadResult` が残り、Native Overlay より native render upload が優先されていた。
+- Green: `npx vitest run src/utils/sharedRendererViewportPresenterOrchestration.test.ts` は 1 file / 21 tests passed。
+- Green: `npx vitest run src/utils/sharedRendererViewportVideoUpload.test.ts` は 1 file / 19 tests passed。
+- 実機確認で diagnostics が `native-render-frame` のままだったため、live surface が attach できても orchestration 側で Native Overlay present に到達していないことを優先して塞いだ。
+
+### 残課題・次のステップ
+- 次は addon を rebuild し、実機 `npm run dev` で画像 clip と動画 clip を配置して diagnostics と画面表示を確認する。
+- スクリーンショットが黒画面になる場合は、CDP capture と macOS `screencapture` の差分から native AppKit overlay が捕捉できているかを切り分ける。
+
+## 2026-06-30 — live surfaceのwgpu instanceを保持
+
+### 実施内容
+- Red として `src/utils/nativeOverlayCrateBoundary.test.ts` に、live CAMetalLayer surface を作成した `wgpu::Instance` を `NativeWgpuLiveSurfaceRenderer` が保持し、その同一 instance から adapter を要求する契約を追加した。
+- Green として `native-wgpu-renderer/src/lib.rs` の `NativeWgpuLiveSurfaceRenderer` に `instance: wgpu::Instance` を保持させた。
+- `from_core_animation_layer` から `from_surface(instance, surface, width, height)` へ同一 instance を渡すようにし、surface と adapter request の instance 不一致を解消した。
+- `package.json` / `package-lock.json` の版を重大な live attach 修正として `0.1.1-Beta-410a` へ更新した。
+
+### 選定理由・判断の根拠
+- Red: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts` は 1 failed。live surface renderer が instance を保持せず、新しい instance で adapter を要求していた。
+- Green: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts` は 1 file / 13 tests passed。
+- Green: `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test overlay_surface_parity` は 1 passed。
+- Green: `cargo test --manifest-path native-overlay/Cargo.toml` は 9 passed。
+- 実機 `VITE_DEV_SERVER_URL=... UXFD_NATIVE_OVERLAY=1 VITE_UXFD_NATIVE_OVERLAY=1 electron ...` で `[NativeOverlay] attach { success: true, attached: true }` を確認し、修正前に出ていた `AdapterUnavailable` は消えた。
+
+### 残課題・次のステップ
+- attach は成功したが diagnostics は `native-render-frame` のままだったため、Native Overlay present が native render upload より後回しになる orchestration を修正する。
+- その後、画像 clip と動画 clip が live overlay に実描画されることを実機スクリーンショットで記録する。
+
 ## 2026-06-30 — live overlay surface readbackを追加
 
 ### 実施内容
