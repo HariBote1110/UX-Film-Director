@@ -316,4 +316,59 @@ describe('createNativeOverlayMainBridge', () => {
       },
     ]]);
   });
+
+  it('includes live surface readback diagnostics in the opt-in present trace', async () => {
+    const nativeWindowHandle = Buffer.from([1, 2, 3, 4, 5, 6, 7, 8]);
+    const diagnostics: Array<[string, unknown]> = [];
+    const nowValues = [2000, 2014.5];
+    const nativeAddon = {
+      presentNativeOverlaySharedFrame: vi.fn(() => ({
+        success: true,
+        attached: true,
+        livePreparedClipCount: 2,
+        liveReadbackNonTransparentPixels: 128,
+        liveReadbackChecksum: 424242,
+      })),
+    };
+    const bridge = createNativeOverlayMainBridge({
+      env: { UXFD_NATIVE_OVERLAY: '1', UXFD_DECODE_TRACE: '1' },
+      cwd: '/repo',
+      existsSync: (candidate) => candidate === '/repo/native-overlay/native-overlay.node',
+      requireModule: vi.fn(() => nativeAddon),
+      resolveNativeWindowHandle: vi.fn(() => nativeWindowHandle),
+      now: () => nowValues.shift() ?? 2014.5,
+      logDiagnostic: (eventName, payload) => diagnostics.push([eventName, payload]),
+    });
+
+    await bridge.presentSharedFrame({
+      windowId: 7,
+      mediaId: 'scene-video-1',
+      slotCount: 2,
+      frame: {
+        descriptor: {
+          memoryId: '/uxfd-decode-ring',
+          slotIndex: 0,
+          generation: 11,
+          byteOffset: 0,
+          byteLen: 16,
+          width: 2,
+          height: 2,
+          strideBytes: 8,
+          format: 'rgba8Srgb',
+        },
+        ptsFrame: 30,
+      },
+    });
+
+    expect(diagnostics).toEqual([[
+      'presentSharedFrameTrace',
+      expect.objectContaining({
+        mediaId: 'scene-video-1',
+        presentMs: 14.5,
+        livePreparedClipCount: 2,
+        liveReadbackNonTransparentPixels: 128,
+        liveReadbackChecksum: 424242,
+      }),
+    ]]);
+  });
 });
