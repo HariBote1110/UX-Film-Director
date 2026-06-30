@@ -78,6 +78,7 @@ pub struct NativeWgpuFrameReport {
     pub width: u32,
     pub height: u32,
     pub frame: RgbaFrame,
+    pub prepared_clip_count: usize,
     pub timings: NativeWgpuFrameStageTimings,
 }
 
@@ -85,6 +86,7 @@ pub struct NativeWgpuFrameReport {
 pub struct NativeWgpuPresentReport {
     pub width: u32,
     pub height: u32,
+    pub prepared_clip_count: usize,
     pub timings: NativeWgpuFrameStageTimings,
 }
 
@@ -240,6 +242,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         Ok(NativeWgpuPresentReport {
             width: self.surface_config.width,
             height: self.surface_config.height,
+            prepared_clip_count: prepared_clips.len(),
             timings: NativeWgpuFrameStageTimings {
                 setup: Duration::ZERO,
                 source_upload,
@@ -300,6 +303,7 @@ impl NativeWgpuLiveSurfaceRenderer {
             width: self.surface_config.width,
             height: self.surface_config.height,
             frame,
+            prepared_clip_count: prepared_clips.len(),
             timings: NativeWgpuFrameStageTimings {
                 setup: Duration::ZERO,
                 source_upload,
@@ -490,6 +494,7 @@ impl NativeWgpuRenderer {
             width: self.width,
             height: self.height,
             frame,
+            prepared_clip_count: prepared_clips.len(),
             timings: NativeWgpuFrameStageTimings {
                 setup,
                 source_upload,
@@ -527,6 +532,7 @@ impl NativeWgpuRenderer {
         Ok(NativeWgpuPresentReport {
             width: self.width,
             height: self.height,
+            prepared_clip_count: prepared_clips.len(),
             timings: NativeWgpuFrameStageTimings {
                 setup,
                 source_upload,

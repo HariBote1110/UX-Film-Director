@@ -66,6 +66,9 @@ export interface NativeOverlayResponse {
   fallback?: 'webgpuPresenter'
   reason?: string
   releaseFrame?: NativeOverlayReleaseFramePayload
+  livePreparedClipCount?: number
+  liveReadbackNonTransparentPixels?: number
+  liveReadbackChecksum?: number
 }
 
 export interface NativeOverlayAddon {
@@ -254,6 +257,9 @@ export const createNativeOverlayMainBridge = ({
             ptsFrame: payload.frame.ptsFrame,
             releaseGeneration: response.releaseFrame?.generation,
             releasePtsFrame: response.releaseFrame?.ptsFrame,
+            livePreparedClipCount: response.livePreparedClipCount,
+            liveReadbackNonTransparentPixels: response.liveReadbackNonTransparentPixels,
+            liveReadbackChecksum: response.liveReadbackChecksum,
           })
         }
         return response

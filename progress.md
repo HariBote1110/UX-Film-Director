@@ -1,3 +1,26 @@
+## 2026-06-30 — live overlay readback診断を追加
+
+### 実施内容
+- Red として `src/utils/nativeOverlayMainBridge.test.ts` に、Native Overlay present trace が live surface readback 診断を含む契約を追加した。
+- Red として `src/utils/nativeOverlayCrateBoundary.test.ts` に、`native-overlay` が live readback 診断を返す境界契約を追加した。
+- Green として `native-wgpu-renderer/src/lib.rs` の present / render report に prepared clip count を追加した。
+- Green として `native-overlay/src/lib.rs` に `UXFD_DECODE_TRACE=1` または `UXFD_NATIVE_OVERLAY_READBACK_TRACE=1` 時だけ `present_scene_to_surface_texture_with_readback` を使い、非透明ピクセル数・checksum・prepared clip 数を返す診断を追加した。
+- Green として `electron/nativeOverlayMainBridge.ts` の `presentSharedFrameTrace` に live readback 診断を載せるようにした。
+- `package.json` / `package-lock.json` の版を重大な live overlay 診断修正として `0.1.1-Beta-415a` へ更新した。
+
+### 選定理由・判断の根拠
+- 実機では `success=true` と release generation 一致を確認できた一方、macOS `screencapture` では overlay が青い clear pass のままで、success だけでは live CAMetalLayer の実描画を測れていなかった。
+- Red: `npx vitest run src/utils/nativeOverlayMainBridge.test.ts` は 1 failed。trace に `liveReadbackNonTransparentPixels` / `liveReadbackChecksum` / `livePreparedClipCount` が含まれていなかった。
+- Red: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts` は 1 failed。`native-overlay` 側に live readback 診断が存在しなかった。
+- Green: `npx vitest run src/utils/nativeOverlayMainBridge.test.ts src/utils/nativeOverlayCrateBoundary.test.ts` は 2 files / 25 tests passed。
+- Green: `cargo test --manifest-path native-wgpu-renderer/Cargo.toml` は全対象 passed。
+- Green: `cargo test --manifest-path native-overlay/Cargo.toml` は 10 passed。
+- Green: `npm run native-overlay:node:build` は passed。
+
+### 残課題・次のステップ
+- 実機で `UXFD_DECODE_TRACE=1 npm run dev` を再投入し、`presentSharedFrameTrace` の `livePreparedClipCount` と `liveReadbackNonTransparentPixels` が 0 かどうかを確認する。
+- readback が非透明なのに `screencapture` が青い場合は CAMetalLayer compositing / layer ordering を疑う。readback が 0 の場合は scene 座標・clip payload・source alpha の切り分けに進む。
+
 ## 2026-06-30 — Native Overlay source idにmediaIdを使う
 
 ### 実施内容

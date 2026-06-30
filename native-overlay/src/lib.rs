@@ -120,6 +120,9 @@ pub struct NativeOverlayResponse {
     pub attached: bool,
     pub reason: Option<String>,
     pub release_frame: Option<NativeOverlayReleaseFramePayload>,
+    pub live_prepared_clip_count: Option<f64>,
+    pub live_readback_non_transparent_pixels: Option<f64>,
+    pub live_readback_checksum: Option<f64>,
 }
 
 #[napi(object)]
@@ -199,6 +202,14 @@ pub struct OverlaySharedFramePresentResponse {
     pub success: bool,
     pub attached: bool,
     pub release_frame: Option<OverlayReleaseFramePayload>,
+    pub live_diagnostics: Option<OverlayLiveSurfaceDiagnostics>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OverlayLiveSurfaceDiagnostics {
+    pub live_prepared_clip_count: usize,
+    pub live_readback_non_transparent_pixels: u64,
+    pub live_readback_checksum: u64,
 }
 
 #[derive(Debug, PartialEq)]
@@ -254,7 +265,7 @@ impl NativeOverlayLiveSurfaceRenderer {
         &mut self,
         upload: &OverlayUploadFrame,
         scene: Option<&NativeOverlaySceneSource>,
-    ) -> Result<(), String> {
+    ) -> Result<Option<OverlayLiveSurfaceDiagnostics>, String> {
         let _window_id = self.window_id;
         #[cfg(target_os = "macos")]
         let _layer_handle = self.layer_handle;
@@ -264,12 +275,25 @@ impl NativeOverlayLiveSurfaceRenderer {
             self.drawable_width,
             self.drawable_height,
         )?;
-        pollster::block_on(
+        if live_surface_readback_trace_enabled() {
+            let report = pollster::block_on(
+                self.renderer
+                    .present_scene_to_surface_texture_with_readback(&snapshot, &sources),
+            )
+            .map_err(|error| format!("Native overlay live surface present failed: {error:?}"))?;
+            return Ok(Some(live_surface_diagnostics_from_frame_report(report)));
+        }
+
+        let report = pollster::block_on(
             self.renderer
                 .present_scene_to_surface_texture(&snapshot, &sources),
         )
         .map_err(|error| format!("Native overlay live surface present failed: {error:?}"))?;
-        Ok(())
+        Ok(Some(OverlayLiveSurfaceDiagnostics {
+            live_prepared_clip_count: report.prepared_clip_count,
+            live_readback_non_transparent_pixels: 0,
+            live_readback_checksum: 0,
+        }))
     }
 }
 
@@ -335,6 +359,9 @@ fn attach_native_overlay_inner(payload: NativeOverlayAttachPayload) -> NativeOve
         attached: true,
         reason: None,
         release_frame: None,
+        live_prepared_clip_count: None,
+        live_readback_non_transparent_pixels: None,
+        live_readback_checksum: None,
     }
 }
 
@@ -355,6 +382,9 @@ fn detach_native_overlay_inner(payload: NativeOverlayDetachPayload) -> NativeOve
         attached: false,
         reason: None,
         release_frame: None,
+        live_prepared_clip_count: None,
+        live_readback_non_transparent_pixels: None,
+        live_readback_checksum: None,
     }
 }
 
@@ -364,6 +394,9 @@ fn failure(reason: &str) -> NativeOverlayResponse {
         attached: false,
         reason: Some(reason.to_string()),
         release_frame: None,
+        live_prepared_clip_count: None,
+        live_readback_non_transparent_pixels: None,
+        live_readback_checksum: None,
     }
 }
 
@@ -383,6 +416,18 @@ fn present_native_overlay_shared_frame_inner(
             success: response.success,
             attached: response.attached,
             reason: None,
+            live_prepared_clip_count: response
+                .live_diagnostics
+                .as_ref()
+                .map(|diagnostics| diagnostics.live_prepared_clip_count as f64),
+            live_readback_non_transparent_pixels: response
+                .live_diagnostics
+                .as_ref()
+                .map(|diagnostics| diagnostics.live_readback_non_transparent_pixels as f64),
+            live_readback_checksum: response
+                .live_diagnostics
+                .as_ref()
+                .map(|diagnostics| diagnostics.live_readback_checksum as f64),
             release_frame: response.release_frame.map(|release_frame| {
                 NativeOverlayReleaseFramePayload {
                     memory_id: release_frame.memory_id,
@@ -628,6 +673,7 @@ pub fn present_overlay_shared_frame_for_test(
     Ok(OverlaySharedFramePresentResponse {
         success: true,
         attached: true,
+        live_diagnostics: None,
         release_frame: Some(OverlayReleaseFramePayload {
             memory_id: descriptor.memory_id.clone(),
             slot_index: descriptor.slot_index,
@@ -652,11 +698,12 @@ pub fn present_overlay_shared_frame_to_live_surface(
     let renderer = renderers
         .get_mut(&window_id)
         .ok_or_else(|| "Native overlay live surface is not attached.".to_string())?;
-    renderer.present_upload_frame(&upload, request.scene.as_ref())?;
+    let live_diagnostics = renderer.present_upload_frame(&upload, request.scene.as_ref())?;
 
     Ok(OverlaySharedFramePresentResponse {
         success: true,
         attached: true,
+        live_diagnostics,
         release_frame: Some(OverlayReleaseFramePayload {
             memory_id: descriptor.memory_id.clone(),
             slot_index: descriptor.slot_index,
@@ -665,6 +712,35 @@ pub fn present_overlay_shared_frame_to_live_surface(
             copy_out_state: "gpuUploadFenceSignalled".to_string(),
         }),
     })
+}
+
+fn live_surface_readback_trace_enabled() -> bool {
+    std::env::var("UXFD_DECODE_TRACE").ok().as_deref() == Some("1")
+        || std::env::var("UXFD_NATIVE_OVERLAY_READBACK_TRACE")
+            .ok()
+            .as_deref()
+            == Some("1")
+}
+
+fn live_surface_diagnostics_from_frame_report(
+    report: uxfd_native_wgpu_renderer::NativeWgpuFrameReport,
+) -> OverlayLiveSurfaceDiagnostics {
+    let live_readback_non_transparent_pixels = report
+        .frame
+        .pixels
+        .chunks_exact(4)
+        .filter(|pixel| pixel[3] != 0)
+        .count() as u64;
+    let live_readback_checksum = report
+        .frame
+        .pixels
+        .iter()
+        .fold(0_u64, |sum, value| sum.wrapping_add(*value as u64));
+    OverlayLiveSurfaceDiagnostics {
+        live_prepared_clip_count: report.prepared_clip_count,
+        live_readback_non_transparent_pixels,
+        live_readback_checksum,
+    }
 }
 
 pub fn upload_frame_to_scene_sources(
