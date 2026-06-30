@@ -1,3 +1,22 @@
+## 2026-06-30 — overlay画像sourceのサイズ検証を追加
+
+### 実施内容
+- Red として `native-overlay/src/lib.rs` の unit test に、PNG 実ファイルサイズと scene media 宣言サイズが違う場合は `load_overlay_image_sources_for_scene` が失敗する契約を追加した。
+- Green として `load_overlay_image_sources_for_scene` に画像 source サイズ検証を追加した。
+- Refactor として `validate_overlay_image_source_size` を抽出し、画像 loader の責務を読み込みと検証に分けた。
+- `package.json` / `package-lock.json` の版を軽微修正として `0.1.1-Beta-408b` へ更新した。
+
+### 選定理由・判断の根拠
+- Red: `cargo test --manifest-path native-overlay/Cargo.toml overlay_image_source_loader_rejects_declared_size_mismatch` は 1 failed。サイズ不一致の PNG をそのまま sources map に入れていた。
+- Green: `cargo test --manifest-path native-overlay/Cargo.toml` は 9 passed。
+- Green: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts` は 1 file / 11 tests passed。
+- Refactor 後も同じ 2 コマンドは Green。
+- 画像 clip を live overlay に流す際、scene transform と source サイズの前提が崩れると表示位置・拡大率の検証が曖昧になるため、addon 境界で早めに拒否する。
+
+### 残課題・次のステップ
+- 次は live overlay の描画結果を読み戻して export readback と比較する end-to-end gate を追加する。
+- その後、実機 `npm run dev` で画像 clip と動画 clip を配置し、overlay 表示スクリーンショットを記録する。
+
 ## 2026-06-30 — Native Overlayでscene payloadを受け取る
 
 ### 実施内容
