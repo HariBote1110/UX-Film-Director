@@ -1,3 +1,22 @@
+## 2026-06-30 — Native Overlay 60分反復ベンチを完走
+
+### 実施内容
+- `UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=3600000 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=420000 npm run bench:native-overlay` を実行し、60分の実機反復ベンチを完走した。
+- `npm run dev:native-overlay` を 150 run 反復し、全 run が `UXFD_PERF_RESULT_JSON success:true` で完了した。
+- 各 run で `[NativeOverlay] attach { success: true, attached: true }` を確認し、定常的な `[NativeOverlay] disabled` や既存 WebGPU presenter への fallback 兆候は確認されなかった。
+- ベンチ後に `run-native-overlay-long-bench` / `dev-native-overlay` / Vite / Electron / rust backend の残プロセスがないことを確認した。
+- 直近 150 件の `native_overlay_steady_playback` は全て `video=1920x1080` で、`objectCountBefore` / `objectCountAfter` の差分は 0 件だった。
+
+### 選定理由・判断の根拠
+- 60分反復ベンチの `native_overlay_steady_playback` 集計は `rafMeanMs min=16.617 / mean=16.686 / p95=16.744 / max=16.783`、`rafP95Ms min=17.335 / mean=18.228 / p95=18.475 / max=18.575` だった。
+- 最終 run は `rafMeanMs=16.705` / `rafP95Ms=18.33` / `rafMaxMs=43.965` / `longTaskCount=1` で、steady-state gate の平均 16.8ms / p95 20ms 予算内だった。
+- object count 差分 0 と残プロセスなしにより、反復起動に伴う slot leak / process leak は確認されなかった。
+- 今回の runner は短い perf agent run を60分間反復する方式であり、同一 Electron プロセスを60分連続再生する leak 検証ではないため、既定 ON 直前の判断ではこの制約を明示する。
+
+### 残課題・次のステップ
+- Phase 6 の既定 ON 切替直前に、ユーザーへ最終確認を行う。
+- 確認後、Native Overlay の既定 ON 切替を TDD で進め、`package.json` の版を機能追加として PhaseVer +1 / SubVer a に更新する。
+
 ## 2026-06-30 — Native Overlay steady-state bench gateを分離
 
 ### 実施内容
