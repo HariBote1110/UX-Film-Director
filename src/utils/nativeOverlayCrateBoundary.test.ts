@@ -117,6 +117,17 @@ describe('native overlay napi crate boundary', () => {
     expect(lib).not.toContain('live_readback_frame_bytes');
   });
 
+  it('keeps live overlay readback parity behind the dedicated readback trace flag', () => {
+    const lib = read('native-overlay/src/lib.rs');
+    const readbackFlagBlock = lib.slice(
+      lib.indexOf('fn live_surface_readback_trace_enabled'),
+      lib.indexOf('fn live_surface_diagnostics_from_frame_report')
+    );
+
+    expect(readbackFlagBlock).toContain('UXFD_NATIVE_OVERLAY_READBACK_TRACE');
+    expect(readbackFlagBlock).not.toContain('UXFD_DECODE_TRACE');
+  });
+
   it('keeps the wgpu instance alive for live CAMetalLayer adapter selection', () => {
     const nativeWgpuRenderer = read('native-wgpu-renderer/src/lib.rs');
 
