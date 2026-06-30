@@ -2080,4 +2080,14 @@ mod tests {
 
         assert_eq!(format, wgpu::TextureFormat::Bgra8UnormSrgb);
     }
+
+    #[test]
+    fn live_surface_present_mode_prefers_immediate_for_preview_latency() {
+        let present_mode = choose_live_surface_present_mode(&[
+            wgpu::PresentMode::Fifo,
+            wgpu::PresentMode::Immediate,
+        ]);
+
+        assert_eq!(present_mode, wgpu::PresentMode::Immediate);
+    }
 }
