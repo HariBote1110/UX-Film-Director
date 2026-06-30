@@ -1,3 +1,24 @@
+## 2026-06-30 — Phase 3a実decode計測を完了
+
+### 実施内容
+- `VITE_UXFD_NATIVE_OVERLAY=1 UXFD_NATIVE_OVERLAY=1 UXFD_DECODE_TRACE=1 npm run dev:rust-video` を起動し、1920x1080 / 60fps の新規プロジェクトに `/Users/yuki/doc/wither.mp4`（1920x1080、約10秒）を配置して再生した。
+- 初回計測では再生中 tick が WebGPU presenter reuse 経路に残っていたため、`Native Overlay再生中present接続` の Red→Green を追加した。
+- 再計測では再生中も `[NativeOverlay] presentSharedFrameTrace` が連続し、`presentMs` は主に 1〜3ms 台で 16ms 未満だった。
+- 再計測ログでは `releaseGeneration` / `releasePtsFrame` が元 frame の `generation` / `ptsFrame` と一致し、lease generation 違反は観測されなかった。
+- decode は初回/seek 直後を除き `cacheHit` または小さい `sequential` が中心で、定常部では 16ms 未満が継続した。
+
+### 選定理由・判断の根拠
+- Phase 3a の主目的は JS heap / `writeTexture` / Chromium GPU process 経由を preview 再生中から外すことなので、初回 presenter start だけでなく再生中 reuse tick も Native Overlay present に流す必要があった。
+- 実機ログで `videoFrameUploadReady=false` と Native Overlay present の連続出力を確認し、既存 WebGPU upload buffer 経由を避けていることを確認した。
+- `npx vitest run src/utils/nativeOverlayMainBridge.test.ts src/utils/sharedRendererRustVideoUploadPipeline.test.ts src/utils/sharedVideoFrameUploadBridge.test.ts src/utils/rustBackendVideoDecodeControl.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts` は 5 files / 69 tests passed。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test overlay_surface_parity` は 1 passed。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test frame_stage_timings present_stage_timings_skip_readback_for_overlay_surface_mode` は 1 passed。
+- `cargo test --manifest-path rust-backend/Cargo.toml --test decode_control_plane` は 56 passed。
+
+### 残課題・次のステップ
+- Phase 4 に進み、ウィンドウ resize / devtools 開閉 / fullscreen / Mission Control 切替でも overlay 位置がずれないことを HiDPI 正本化込みで固定する。
+- Phase 4 では座標計算 pure function の単体テストを先に追加する。
+
 ## 2026-06-30 — Native Overlay再生中present接続を追加
 
 ### 実施内容
