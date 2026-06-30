@@ -17,6 +17,21 @@ describe('package scripts', () => {
       .toBeLessThan(script.indexOf('node_modules/vite/bin/vite.js'));
   });
 
+  it('provides a Native Overlay opt-in dev command that builds the addon before Vite', () => {
+    expect(packageJson.scripts['dev:native-overlay']).toBe('node scripts/dev-native-overlay.mjs');
+
+    const script = readFileSync(new URL('../../scripts/dev-native-overlay.mjs', import.meta.url), 'utf8');
+    expect(script).toContain('scripts/build-native-overlay-addon.mjs');
+    expect(script).toContain('scripts/build-shared-video-frame-node-addon.mjs');
+    expect(script).toContain('VITE_UXFD_NATIVE_OVERLAY');
+    expect(script).toContain('UXFD_NATIVE_OVERLAY');
+    expect(script).toContain('VITE_UXFD_SHARED_RENDERER_PREVIEW');
+    expect(script).toContain('VITE_UXFD_RUST_VIDEO_ONLY');
+    expect(script).toContain('node_modules/vite/bin/vite.js');
+    expect(script.indexOf('scripts/build-native-overlay-addon.mjs'))
+      .toBeLessThan(script.indexOf('node_modules/vite/bin/vite.js'));
+  });
+
   it('records real video export E2E duration separately from Electron startup time', () => {
     expect(packageJson.scripts['test:video-export:e2e']).toBe('node scripts/run-video-export-e2e.mjs');
 
