@@ -8,6 +8,8 @@ export const createNativeOverlayBenchTraceSummary = () => ({
   present: emptyTimingSummary(),
   releaseGenerationViolationCount: 0,
   pendingPresentTrace: '',
+  steadyTraceActive: false,
+  steadyTraceMarkerSeen: false,
 });
 
 const recordTiming = (summary, field, value) => {
@@ -42,6 +44,29 @@ const consumePresentTraceBlock = (summary, block) => {
 
 export const ingestNativeOverlayBenchTraceText = (summary, text) => {
   for (const line of String(text).split(/\r?\n/u)) {
+    if (line.includes('UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN')) {
+      summary.decode = emptyTimingSummary();
+      summary.present = emptyTimingSummary();
+      summary.releaseGenerationViolationCount = 0;
+      summary.steadyTraceActive = true;
+      summary.steadyTraceMarkerSeen = true;
+      summary.pendingPresentTrace = '';
+      continue;
+    }
+    if (line.includes('UXFD_NATIVE_OVERLAY_STEADY_TRACE_END')) {
+      if (summary.pendingPresentTrace) {
+        consumePresentTraceBlock(summary, summary.pendingPresentTrace);
+        summary.pendingPresentTrace = '';
+      }
+      summary.steadyTraceActive = false;
+      summary.steadyTraceMarkerSeen = true;
+      continue;
+    }
+
+    if (summary.steadyTraceMarkerSeen && !summary.steadyTraceActive) {
+      continue;
+    }
+
     const decodeMs = numberFromMatch(line, /\[decode\.trace\].*decodeMs=([0-9.]+)/u);
     if (decodeMs !== null) {
       recordTiming(summary, 'decode', decodeMs);

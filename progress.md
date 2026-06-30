@@ -1,3 +1,22 @@
+## 2026-06-30 — steady playback区間だけをtrace gate対象に分離
+
+### 実施内容
+- `src/utils/nativeOverlayBenchTraceParser.test.ts` に、`UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN` / `END` marker 外の warmup と後続シナリオを無視する契約を追加した。
+- `scripts/native-overlay-bench-trace.mjs` で steady marker 開始時に集計をリセットし、marker 内だけを Phase 3a gate 対象にした。
+- `src/perf/performanceHarness.ts` から `perf-harness-trace-marker` IPC を呼び、Electron main の stdout に marker を出すようにした。
+- `electron/main.ts` に `perf-harness-trace-marker` handler を追加し、Native Overlay steady marker だけを許可して stdout へ流すようにした。
+- 再生開始直後の seek / 初期 decode を避けるため、steady marker は `setIsPlaying(true)` 後 1200ms 待ってから開始するようにした。
+
+### 選定理由・判断の根拠
+- renderer の `console.info` は bench 親プロセス stdout に安定して出なかったため、既存の perf agent と同じ main IPC 経由の marker 出力へ寄せた。
+- marker 導入前は初回 decode / backwardSeek / 後続 scrub の `attached:false` present まで gate に混ざっていた。
+- Green: `npx vitest run src/utils/packageScripts.test.ts --testNamePattern "Native Overlay long bench"` と `npx vitest run src/utils/nativeOverlayBenchTraceParser.test.ts` は成功した。
+- 短時間実機 bench では marker が stdout に出ることを確認した。steady 区間だけで `decodeMs max 47.2ms > 16ms`、`presentMs max 27.229583000000275ms > 16ms` となり、Phase 3a 性能未達が本物として残った。
+
+### 残課題・次のステップ
+- Native Overlay live present の 16ms 超過原因を、surface acquire / render / present の内訳に分けて特定する。
+- decode は 720x405 request でも 47ms のスパイクが残るため、present 側の内訳確認後に decode queue / cacheHit 重複 request を見る。
+
 ## 2026-06-30 — Phase 3a bench trace gateをベンチ本体へ接続
 
 ### 実施内容

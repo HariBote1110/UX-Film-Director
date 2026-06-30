@@ -79,13 +79,19 @@ describe('package scripts', () => {
 
     const harness = readFileSync(new URL('../../src/perf/performanceHarness.ts', import.meta.url), 'utf8');
     expect(harness).toContain('native_overlay_steady_playback');
+    expect(harness).toContain('perf-harness-trace-marker');
     expect(harness).toContain('UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN');
     expect(harness).toContain('UXFD_NATIVE_OVERLAY_STEADY_TRACE_END');
+    expect(harness).toContain('window.setTimeout(resolve, 1200)');
     expect(harness).toContain('steady_playback');
     expect(harness.indexOf('runScenarioNativeOverlaySteadyPlayback(runId)'))
       .toBeLessThan(harness.indexOf('runScenarioRafPlayhead(runId)'));
     expect(harness.indexOf('runScenarioNativeOverlaySteadyPlayback(runId)'))
       .toBeLessThan(harness.indexOf('const countBeforeSeed'));
+
+    const main = readFileSync(new URL('../../electron/main.ts', import.meta.url), 'utf8');
+    expect(main).toContain("ipcMain.handle('perf-harness-trace-marker'");
+    expect(main).toContain('UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN');
   });
 
   it('records real video export E2E duration separately from Electron startup time', () => {

@@ -162,6 +162,21 @@ const notifyPerfAgentIfNeeded = async (payload: PerfHarnessAgentPayload) => {
   }
 };
 
+const emitPerfTraceMarker = async (marker: string) => {
+  const hasElectronIpc = typeof window !== 'undefined'
+    && typeof window.ipcRenderer?.invoke === 'function';
+  if (!hasElectronIpc) {
+    console.info(marker);
+    return;
+  }
+
+  try {
+    await window.ipcRenderer.invoke('perf-harness-trace-marker', { marker });
+  } catch {
+    console.info(marker);
+  }
+};
+
 const runScenarioPlayheadScrubSync = (runId: string): PerformanceHarnessRow => {
   const longTasks = createLongTaskObserver();
   const before = useStore.getState().objects.length;
@@ -481,10 +496,15 @@ const runScenarioNativeOverlaySteadyPlayback = async (runId: string): Promise<Pe
 
   useStore.getState().setTime(0.5);
   useStore.getState().setIsPlaying(true);
+  await new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 1200);
+  });
+  await emitPerfTraceMarker(`UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN mediaId=${videoId}`);
   const startedAt = performance.now();
   const deltas = await collectRafDeltas(4200, () => {});
   const wallMs = performance.now() - startedAt;
   useStore.getState().setIsPlaying(false);
+  await emitPerfTraceMarker(`UXFD_NATIVE_OVERLAY_STEADY_TRACE_END mediaId=${videoId}`);
 
   const stats = summariseRafDeltas(deltas);
   const longTaskCount = longTasks.snapshot();

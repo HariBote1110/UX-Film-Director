@@ -683,6 +683,18 @@ app.whenReady().then(() => {
     return { success: true, jsonFilePath: outputPath };
   });
 
+  ipcMain.handle('perf-harness-trace-marker', async (_event, payload: { marker?: string }) => {
+    const marker = typeof payload?.marker === 'string' ? payload.marker.trim() : '';
+    if (
+      marker.startsWith('UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN')
+      || marker.startsWith('UXFD_NATIVE_OVERLAY_STEADY_TRACE_END')
+    ) {
+      console.log(marker);
+      return { success: true };
+    }
+    return { success: false, error: 'unsupported perf trace marker' };
+  });
+
   ipcMain.handle('save-temp-audio', async (event, buffer: ArrayBuffer) => {
     try {
       const tempPath = path.join(os.tmpdir(), `uxfilm_audio_${Date.now()}.wav`);
