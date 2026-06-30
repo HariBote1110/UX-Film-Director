@@ -428,6 +428,55 @@ mod tests {
         assert_eq!(upload.pixels, pixels);
     }
 
+    #[test]
+    fn present_shared_frame_returns_release_payload_after_upload_copy() {
+        let memory_id = unique_shm_name();
+        let pixels = vec![32, 64, 96, 255];
+        let ring = uxfd_shared_memory_spike::PosixSharedRing::create_with_slot_count(
+            &memory_id,
+            1,
+            pixels.len(),
+        )
+        .expect("create overlay present ring");
+        ring.write_frame(9, &pixels)
+            .expect("write overlay present frame");
+
+        let response = present_overlay_shared_frame_for_test(OverlaySharedFramePresentRequest {
+            source: OverlaySharedFrameSource {
+                media_id: "decoded-video".to_string(),
+                slot_count: 1,
+                frame: OverlaySharedFrame {
+                    descriptor: OverlaySharedFrameDescriptor {
+                        memory_id: memory_id.clone(),
+                        slot_index: 0,
+                        generation: 4,
+                        byte_offset: 0,
+                        byte_len: pixels.len() as u32,
+                        width: 1,
+                        height: 1,
+                        stride_bytes: 4,
+                        format: "rgba8Srgb".to_string(),
+                    },
+                    pts_frame: 9,
+                },
+            },
+        })
+        .expect("present overlay shared frame");
+
+        assert!(response.success);
+        assert!(response.attached);
+        assert_eq!(
+            response.release_frame,
+            Some(OverlayReleaseFramePayload {
+                memory_id,
+                slot_index: 0,
+                generation: 4,
+                pts_frame: 9,
+                copy_out_state: "gpuUploadFenceSignalled".to_string(),
+            })
+        );
+    }
+
     fn unique_shm_name() -> String {
         let micros = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
