@@ -1,3 +1,20 @@
+## 2026-06-30 — compact JSON traceをbench parserへ接続
+
+### 実施内容
+- Red として `src/utils/nativeOverlayBenchTraceParser.test.ts` に、Electron stdout の 1 行 JSON `presentSharedFrameTrace` を集計する契約を追加した。
+- Green として `scripts/native-overlay-bench-trace.mjs` の trace field 抽出を、旧 object 形式と compact JSON 形式の両対応にした。
+- 軽微な Phase 3a trace gate 修正として `package.json` / `package-lock.json` の版を `0.1.1-Beta-419j` へ更新した。
+
+### 選定理由・判断の根拠
+- compact log 化後の短時間 bench は `presentMs samples 0 < 1` で失敗し、実描画ではなく parser が `"success":true` / `"attached":true` / `"presentMs":...` を読めないことが原因だった。
+- trace gate は Phase 3a の完了判定なので、ログ出力形式を変えても旧 multiline trace と新 compact trace の両方を読める必要がある。
+
+### 残課題・次のステップ
+- `npx vitest run src/utils/nativeOverlayBenchTraceParser.test.ts` で Red→Green を確認する。
+- `npx vitest run src/utils/packageScripts.test.ts --testNamePattern "Native Overlay long bench"` も Green。
+- `UXFD_NATIVE_OVERLAY_BENCH_TRACE=1 UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=15000 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=90000 npm run bench:native-overlay` は、compact JSON parsing は復帰した一方で、steady marker 区間に live present が入らず `presentMs samples 0 < 1` で失敗した。
+- 次に steady trace marker の張り方を Red で固定し、present を含む実測窓へ修正する。
+
 ## 2026-06-30 — Native Overlay traceをcompact log化
 
 ### 実施内容

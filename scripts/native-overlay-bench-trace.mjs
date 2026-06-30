@@ -30,20 +30,30 @@ const numberFromMatch = (text, pattern) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const hasTrueField = (text, fieldName) => {
+  const fieldPattern = new RegExp(`(?:\\b${fieldName}:\\s*true\\b|"${fieldName}"\\s*:\\s*true)`, 'u');
+  return fieldPattern.test(text);
+};
+
+const numberFromField = (text, fieldName) => {
+  const fieldPattern = new RegExp(`(?:\\b${fieldName}:\\s*|"${fieldName}"\\s*:\\s*)([0-9.]+)`, 'u');
+  return numberFromMatch(text, fieldPattern);
+};
+
 const consumePresentTraceBlock = (summary, block) => {
-  const success = /\bsuccess:\s*true\b/u.test(block);
-  const attached = /\battached:\s*true\b/u.test(block);
+  const success = hasTrueField(block, 'success');
+  const attached = hasTrueField(block, 'attached');
   if (!success || !attached) {
     return;
   }
 
-  const presentMs = numberFromMatch(block, /presentMs:\s*([0-9.]+)/u);
+  const presentMs = numberFromField(block, 'presentMs');
   if (presentMs !== null) {
     recordTiming(summary, 'present', presentMs);
   }
 
-  const generation = numberFromMatch(block, /(?:^|[\s,{])generation:\s*([0-9.]+)/u);
-  const releaseGeneration = numberFromMatch(block, /releaseGeneration:\s*([0-9.]+)/u);
+  const generation = numberFromField(block, 'generation');
+  const releaseGeneration = numberFromField(block, 'releaseGeneration');
   if (generation !== null && releaseGeneration !== null && generation !== releaseGeneration) {
     summary.releaseGenerationViolationCount += 1;
   }
