@@ -1,3 +1,20 @@
+## 2026-06-30 — Phase 4実機目視でresize/devtools/fullscreen/Mission Control後の位置ズレなしを確認
+
+### 実施内容
+- `npm run dev` で Electron を起動し、Native Overlay 既定 ON の編集画面へ入った。
+- `perf/heavy-media/20000kbps_60fps.mp4` と `.codex/native-overlay-fixtures/overlay-image.png` を UI から追加し、動画 clip と画像 clip が preview 上に表示されることを確認した。
+- DevTools 開閉、フルスクリーン切替、Mission Control 往復後も preview content と選択枠の相対位置が崩れないことを目視確認した。
+- 証跡として以下を保存した: `/Users/yuki/GitHub/UX-Film-Director/.codex/native-overlay-visual/phase4-normal-image-video.png`、`/Users/yuki/GitHub/UX-Film-Director/.codex/native-overlay-visual/phase4-devtools-open.png`、`/Users/yuki/GitHub/UX-Film-Director/.codex/native-overlay-visual/phase4-fullscreen.png`、`/Users/yuki/GitHub/UX-Film-Director/.codex/native-overlay-visual/phase4-mission-control-return.png`。
+
+### 選定理由・判断の根拠
+- `screencapture` は黒画面にならず、画像 clip と動画 clip、DevTools open 状態、fullscreen 状態、Mission Control 復帰後の状態を保存できた。
+- devtools 開閉と fullscreen は layout resize を伴い、Mission Control 復帰は `visibilitychange` / `focus` / `pageshow` 系の attach 再送を確認する実機操作として扱える。
+- dev server ログでは操作中に `[NativeOverlay] attach {"success":true,"attached":true}` が複数回出ており、lifecycle attach 再送が実行されていた。
+
+### 残課題・次のステップ
+- Phase 4 は完了と判断する。
+- Phase 5 へ進み、D&D / スクラブ / ショートカット / コンテキストメニューの既存 vitest と、overlay 上クリックが下層 WebView に通ることを確認する。
+
 ## 2026-06-30 — Phase 4 DPR変化でNative Overlay attachを再送
 
 ### 実施内容
