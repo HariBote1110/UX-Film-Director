@@ -151,4 +151,59 @@ describe('createNativeOverlayMainBridge', () => {
       reason: 'panic guard reported failure',
     });
   });
+
+  it('presents a decoded shared frame through the native addon and returns a release payload', async () => {
+    const nativeWindowHandle = Buffer.from([1, 2, 3, 4, 5, 6, 7, 8]);
+    const releasePayload = {
+      memoryId: '/uxfd-decode-ring',
+      slotIndex: 0,
+      generation: 5,
+      ptsFrame: 12,
+      copyOutState: 'gpuUploadFenceSignalled' as const,
+    };
+    const nativeAddon = {
+      presentNativeOverlaySharedFrame: vi.fn(() => ({
+        success: true,
+        attached: true,
+        releaseFrame: releasePayload,
+      })),
+    };
+    const bridge = createNativeOverlayMainBridge({
+      env: { UXFD_NATIVE_OVERLAY: '1' },
+      cwd: '/repo',
+      existsSync: (candidate) => candidate === '/repo/native-overlay/native-overlay.node',
+      requireModule: vi.fn(() => nativeAddon),
+      resolveNativeWindowHandle: vi.fn((windowId) => windowId === 7 ? nativeWindowHandle : null),
+    });
+
+    const payload = {
+      windowId: 7,
+      mediaId: 'clip-video',
+      slotCount: 2,
+      frame: {
+        descriptor: {
+          memoryId: '/uxfd-decode-ring',
+          slotIndex: 0,
+          generation: 5,
+          byteOffset: 0,
+          byteLen: 8,
+          width: 2,
+          height: 1,
+          strideBytes: 8,
+          format: 'rgba8Srgb',
+        },
+        ptsFrame: 12,
+      },
+    };
+
+    await expect(bridge.presentSharedFrame(payload)).resolves.toEqual({
+      success: true,
+      attached: true,
+      releaseFrame: releasePayload,
+    });
+    expect(nativeAddon.presentNativeOverlaySharedFrame).toHaveBeenCalledWith({
+      ...payload,
+      nativeWindowHandle,
+    });
+  });
 });
