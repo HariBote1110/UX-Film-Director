@@ -428,6 +428,7 @@ dependencies = [
  "napi-derive",
  "objc",
  "uxfd-shared-memory-spike",
+ "uxfd-shared-video-frame-bridge",
 ]
 
 [[package]]
@@ -436,6 +437,14 @@ version = "0.1.0-Alpha-1a"
 dependencies = [
  "crc32fast",
  "libc",
+ "uxfd-sidecar-protocol",
+]
+
+[[package]]
+name = "uxfd-shared-video-frame-bridge"
+version = "0.1.0-Alpha-1a"
+dependencies = [
+ "uxfd-shared-memory-spike",
  "uxfd-sidecar-protocol",
 ]
 

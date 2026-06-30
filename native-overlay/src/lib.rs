@@ -3,6 +3,8 @@
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::time::Duration;
+use uxfd_shared_video_frame_bridge::copy_shared_frame_into_upload_buffer;
 
 #[cfg(target_os = "macos")]
 mod macos_overlay;
@@ -35,6 +37,42 @@ pub struct NativeOverlayResponse {
 pub struct NativeOverlayCapabilities {
     pub available: bool,
     pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OverlaySharedFrameSource {
+    pub media_id: String,
+    pub slot_count: u32,
+    pub frame: OverlaySharedFrame,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OverlaySharedFrame {
+    pub descriptor: OverlaySharedFrameDescriptor,
+    pub pts_frame: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OverlaySharedFrameDescriptor {
+    pub memory_id: String,
+    pub slot_index: u32,
+    pub generation: u64,
+    pub byte_offset: u32,
+    pub byte_len: u32,
+    pub width: u32,
+    pub height: u32,
+    pub stride_bytes: u32,
+    pub format: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OverlayUploadFrame {
+    pub media_id: String,
+    pub width: u32,
+    pub height: u32,
+    pub generation: u64,
+    pub pts_frame: u64,
+    pub pixels: Vec<u8>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -165,6 +203,70 @@ pub fn detach_native_window_handle_bytes(
         return Err("Native overlay window handle has an unexpected byte length.");
     }
     Ok(bytes.to_vec())
+}
+
+pub fn copy_overlay_shared_frame_source_for_upload(
+    source: &OverlaySharedFrameSource,
+    timeout: Duration,
+) -> Result<OverlayUploadFrame, String> {
+    let descriptor = &source.frame.descriptor;
+    if descriptor.format != "rgba8Srgb" {
+        return Err(format!(
+            "Native overlay shared frame format must be rgba8Srgb, got {}.",
+            descriptor.format
+        ));
+    }
+    if descriptor.byte_offset != 0 {
+        return Err("Native overlay shared frame byteOffset must be zero.".to_string());
+    }
+    let row_bytes = descriptor
+        .width
+        .checked_mul(4)
+        .ok_or_else(|| "Native overlay shared frame row byte length overflows.".to_string())?;
+    if descriptor.stride_bytes < row_bytes {
+        return Err("Native overlay shared frame strideBytes is smaller than width * 4.".to_string());
+    }
+    let required_byte_len = descriptor
+        .stride_bytes
+        .checked_mul(descriptor.height)
+        .ok_or_else(|| "Native overlay shared frame byte length overflows.".to_string())?;
+    if descriptor.byte_len != required_byte_len {
+        return Err(format!(
+            "Native overlay shared frame byteLen must equal strideBytes * height, expected {}, got {}.",
+            required_byte_len, descriptor.byte_len
+        ));
+    }
+
+    let mut upload_buffer = vec![0_u8; descriptor.byte_len as usize];
+    copy_shared_frame_into_upload_buffer(
+        &descriptor.memory_id,
+        source.slot_count,
+        descriptor.byte_len as usize,
+        descriptor.slot_index,
+        descriptor.generation,
+        source.frame.pts_frame,
+        &mut upload_buffer,
+        timeout,
+    )
+    .map_err(|error| format!("Native overlay shared frame copy failed: {error:?}"))?;
+
+    let mut pixels =
+        Vec::with_capacity((descriptor.width as usize) * (descriptor.height as usize) * 4);
+    let stride_bytes = descriptor.stride_bytes as usize;
+    let row_bytes = row_bytes as usize;
+    for row_index in 0..descriptor.height as usize {
+        let row_start = row_index * stride_bytes;
+        pixels.extend_from_slice(&upload_buffer[row_start..row_start + row_bytes]);
+    }
+
+    Ok(OverlayUploadFrame {
+        media_id: source.media_id.clone(),
+        width: descriptor.width,
+        height: descriptor.height,
+        generation: descriptor.generation,
+        pts_frame: source.frame.pts_frame,
+        pixels,
+    })
 }
 
 #[cfg(target_os = "macos")]

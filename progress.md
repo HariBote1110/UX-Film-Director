@@ -1,3 +1,22 @@
+## 2026-06-30 — Native Overlay shm uploadコピー境界を追加
+
+### 実施内容
+- `native-overlay/src/lib.rs` に、POSIX shm descriptor から overlay upload 用 RGBA frame を作る `copy_overlay_shared_frame_source_for_upload` の Red を追加した。
+- Red では `OverlaySharedFrameSource` / `OverlaySharedFrame` / `OverlaySharedFrameDescriptor` / `copy_overlay_shared_frame_source_for_upload` が未定義で compile error になることを確認した。
+- `native-overlay/src/lib.rs` に overlay shared frame descriptor 型と upload frame 型を追加し、`uxfd-shared-video-frame-bridge` の `copy_shared_frame_into_upload_buffer` を再利用して shm slot をコピーする実装を追加した。
+- `native-overlay/Cargo.toml` に `uxfd-shared-video-frame-bridge` を追加し、テスト用に `uxfd-shared-memory-spike` を追加した。
+- `package.json` の版を機能追加として `0.1.1-Beta-385a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 3a の空白は main-process native-overlay addon 側の shm attach/copy 境界だったため、まず descriptor と lease generation を保持したまま upload 用 pixels へ変換する最小境界を固定した。
+- 制御プレーンに frame bytes を返さず、pixel bytes は addon 内部の upload frame に閉じることで `05-boundary-ipc.md` のデータプレーン禁則を維持した。
+- `cargo test --manifest-path native-overlay/Cargo.toml overlay_shared_frame_copy_preserves_pixels_and_lease_generation` は 1 test passed。
+- `cargo test --manifest-path native-overlay/Cargo.toml` は 6 tests passed。
+
+### 残課題・次のステップ
+- 次は Phase 3a の続きとして、copy 成功後の wgpu present 完了に合わせて `decode.releaseFrame(copyOutState=gpuUploadFenceSignalled)` 相当の release 指示を main bridge へ返す契約を追加する。
+- その後、実 decode の `SharedFrame.descriptor` を Native Overlay present 経路へ接続し、1080p 計測へ進む。
+
 ## 2026-06-30 — overlay surface parity gateを追加
 
 ### 実施内容

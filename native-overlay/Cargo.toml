@@ -11,6 +11,7 @@ crate-type = ["cdylib"]
 [dependencies]
 napi = "3.9.2"
 napi-derive = "3.5.6"
+uxfd-shared-video-frame-bridge = { path = "../shared-video-frame-bridge" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics-types = "0.1.3"
