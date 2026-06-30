@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildSharedRendererPresentationContract } from './sharedRendererPresentationContract';
 import {
+  prepareSharedRendererViewportNativeOverlayPresent,
   prepareSharedRendererViewportVideoUpload,
   prepareSharedRendererViewportVideoUploads,
   type SharedRendererViewportVideoDecodeJob,
@@ -284,6 +285,111 @@ const createBridges = () => {
 };
 
 describe('sharedRendererViewportVideoUpload', () => {
+  it('presents a decoded frame through Native Overlay without copying into a WebGPU upload buffer', async () => {
+    const { calls, rustBackendBridge, copyBridge } = createBridges();
+    const nativeOverlayBridge = {
+      presentSharedFrame: async (payload: any) => {
+        calls.push(['presentSharedFrame', payload]);
+        return {
+          success: true,
+          attached: true,
+          releaseFrame: {
+            memoryId: payload.frame.descriptor.memoryId,
+            slotIndex: payload.frame.descriptor.slotIndex,
+            generation: payload.frame.descriptor.generation,
+            ptsFrame: payload.frame.ptsFrame,
+            copyOutState: 'gpuUploadFenceSignalled' as const,
+          },
+        };
+      },
+    };
+
+    const result = await prepareSharedRendererViewportNativeOverlayPresent({
+      windowId: 7,
+      session,
+      requestId: 80,
+      slotCount: 2,
+      activeJob: null,
+      rustBackendBridge,
+      nativeOverlayBridge,
+      copyBridge,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      activeJob: {
+        jobId: expectedJobId,
+        source: '/tmp/gopro clip.mp4',
+        slotCount: 2,
+        width: 64,
+        height: 32,
+        sourceRate: {
+          numerator: 60,
+          denominator: 1,
+        },
+      },
+    });
+    expect(calls).toEqual([
+      ['startVideoDecode', {
+        jobId: expectedJobId,
+        source: '/tmp/gopro clip.mp4',
+        slotCount: 2,
+        width: 64,
+        height: 32,
+        sourceRate: {
+          numerator: 60,
+          denominator: 1,
+        },
+        format: 'rgba8Srgb',
+        colour: {
+          primaries: 'bt709',
+          transfer: 'srgb',
+          matrix: 'rgb',
+          range: 'full',
+        },
+      }],
+      ['requestVideoDecodeFrame', {
+        jobId: expectedJobId,
+        requestId: 80,
+        frameIndex: 42,
+        mode: 'latestWins',
+      }],
+      ['presentSharedFrame', {
+        windowId: 7,
+        mediaId: expectedJobId,
+        slotCount: 2,
+        frame: {
+          descriptor: {
+            memoryId: '/uxfd-node-video-ring',
+            slotIndex: 0,
+            generation: 3,
+            byteOffset: 0,
+            byteLen: 8192,
+            width: 64,
+            height: 32,
+            strideBytes: 256,
+            format: 'rgba8Srgb',
+            colour: {
+              primaries: 'bt709',
+              transfer: 'srgb',
+              matrix: 'rgb',
+              range: 'full',
+            },
+          },
+          ptsFrame: 42,
+        },
+      }],
+      ['releaseVideoDecodeFrame', {
+        jobId: expectedJobId,
+        slotIndex: 0,
+        generation: 3,
+        copyOutState: 'gpuUploadFenceSignalled',
+      }],
+    ]);
+    expect(calls.some((call) => Array.isArray(call) && call[0] === 'copyIntoUploadBuffer')).toBe(false);
+    void copyBridge;
+  });
+
   it('prepares Rust decoded uploads for every visible video without stopping other active jobs', async () => {
     const { calls, rustBackendBridge, copyBridge } = createBridges();
 
