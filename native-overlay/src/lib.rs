@@ -657,6 +657,15 @@ mod tests {
         );
     }
 
+    #[test]
+    fn macos_overlay_view_is_click_through() {
+        let source = include_str!("macos_overlay.rs");
+
+        assert!(source.contains("UXFDNativeOverlayPassthroughView"));
+        assert!(source.contains("hit_test_passthrough"));
+        assert!(source.contains("sel!(hitTest:)"));
+    }
+
     fn unique_shm_name() -> String {
         let micros = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
