@@ -93,6 +93,34 @@ describe('createNativeOverlayMainBridge', () => {
     });
   });
 
+  it('canonicalises the attach scale factor from the main-process backing scale factor', async () => {
+    const nativeWindowHandle = Buffer.from([1, 2, 3, 4, 5, 6, 7, 8]);
+    const nativeAddon = {
+      attachNativeOverlay: vi.fn(() => ({ success: true, attached: true })),
+    };
+    const bridge = createNativeOverlayMainBridge({
+      env: { UXFD_NATIVE_OVERLAY: '1' },
+      cwd: '/repo',
+      existsSync: (candidate) => candidate === '/repo/native-overlay/native-overlay.node',
+      requireModule: vi.fn(() => nativeAddon),
+      resolveNativeWindowHandle: vi.fn(() => nativeWindowHandle),
+      resolveBackingScaleFactor: vi.fn((windowId) => windowId === 7 ? 2.5 : null),
+    });
+
+    await expect(bridge.attach({
+      ...attachPayload,
+      scaleFactor: 1,
+    })).resolves.toEqual({
+      success: true,
+      attached: true,
+    });
+    expect(nativeAddon.attachNativeOverlay).toHaveBeenCalledWith({
+      ...attachPayload,
+      scaleFactor: 2.5,
+      nativeWindowHandle,
+    });
+  });
+
   it('falls back when detach cannot resolve the BrowserWindow handle', async () => {
     const bridge = createNativeOverlayMainBridge({
       env: { UXFD_NATIVE_OVERLAY: '1' },
