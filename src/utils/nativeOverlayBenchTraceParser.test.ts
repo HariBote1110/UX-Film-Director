@@ -118,7 +118,7 @@ UXFD_NATIVE_OVERLAY_STEADY_TRACE_END mediaId=steady-video-1
     })).not.toThrow();
   });
 
-  it('continues a split RustBackend decodeMs value onto the next log line', async () => {
+  it('continues a split RustBackend steady decodeMs value onto the next log line', async () => {
     const {
       createNativeOverlayBenchTraceSummary,
       ingestNativeOverlayBenchTraceText,
@@ -133,8 +133,8 @@ UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN mediaId=steady-video-1
 UXFD_NATIVE_OVERLAY_STEADY_TRACE_END mediaId=steady-video-1
 `);
 
-    expect(summary.decode.count).toBe(2);
-    expect(summary.decode.maxMs).toBe(575.1);
+    expect(summary.decode.count).toBe(1);
+    expect(summary.decode.maxMs).toBe(0.0);
   });
 
   it('ignores failed or detached Native Overlay presents for live surface timing budgets', async () => {

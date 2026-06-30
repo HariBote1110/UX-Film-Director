@@ -40,6 +40,19 @@ const numberFromField = (text, fieldName) => {
   return numberFromMatch(text, fieldPattern);
 };
 
+const isSteadyDecodeTraceLine = (line) => {
+  if (!line.includes('[decode.trace]')) {
+    return false;
+  }
+  if (/\breason=cacheHit\b/u.test(line)) {
+    return true;
+  }
+  const skipped = numberFromMatch(line, /\bskipped=([0-9]+)/u);
+  return /\breason=sequential\b/u.test(line)
+    && /\brestarted=false\b/u.test(line)
+    && skipped === 0;
+};
+
 const consumePresentTraceBlock = (summary, block) => {
   const success = hasTrueField(block, 'success');
   const attached = hasTrueField(block, 'attached');
@@ -97,10 +110,11 @@ export const ingestNativeOverlayBenchTraceText = (summary, text) => {
       }
     }
 
-    const decodeMs = numberFromMatch(line, /\[decode\.trace\].*decodeMs=([0-9.]+)/u);
+    const steadyDecode = isSteadyDecodeTraceLine(line);
+    const decodeMs = steadyDecode ? numberFromMatch(line, /\[decode\.trace\].*decodeMs=([0-9.]+)/u) : null;
     if (decodeMs !== null) {
       recordTiming(summary, 'decode', decodeMs);
-    } else if (/\[decode\.trace\].*decodeMs=\s*$/u.test(line)) {
+    } else if (steadyDecode && /\[decode\.trace\].*decodeMs=\s*$/u.test(line)) {
       summary.pendingDecodeTrace = line;
     }
 

@@ -1,3 +1,18 @@
+## 2026-06-30 — bench gateのdecode集計をsteady frameへ限定
+
+### 実施内容
+- Red として `src/utils/nativeOverlayBenchTraceParser.test.ts` に、`firstFrame` / `backwardSeek` / `skipped > 0` の warmup decode を Phase 3a budget から除外する契約を追加した。
+- Green として `scripts/native-overlay-bench-trace.mjs` に steady decode 判定を追加し、`cacheHit` または `sequential restarted=false skipped=0` の decodeMs だけを集計するようにした。
+- 軽微な Phase 3a bench gate 修正として `package.json` / `package-lock.json` の版を `0.1.1-Beta-419l` へ更新した。
+
+### 選定理由・判断の根拠
+- live present trace は Electron stdout 上で marker 外へ出ることがあり、marker を live playback 全体へ広げる必要がある。
+- marker を広げると startup / seek / skip decode が混ざるため、`decodeMs < 16ms` の完了条件は定常 frame のみで評価する必要がある。
+
+### 残課題・次のステップ
+- parser と package script テストを Green にする。
+- harness の marker 開始位置を live playback 全体へ広げ、短時間 bench を再実行する。
+
 ## 2026-06-30 — steady bench marker区間でplayheadを明示更新
 
 ### 実施内容
