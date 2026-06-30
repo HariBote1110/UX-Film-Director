@@ -172,4 +172,31 @@ UXFD_NATIVE_OVERLAY_STEADY_TRACE_END mediaId=steady-video-1
     expect(summary.present.count).toBe(1);
     expect(summary.present.maxMs).toBe(4.7);
   });
+
+  it('summarises compact JSON Native Overlay present traces from Electron stdout', async () => {
+    const {
+      assertNativeOverlayBenchTraceBudgets,
+      createNativeOverlayBenchTraceSummary,
+      ingestNativeOverlayBenchTraceText,
+    } = await import('../../scripts/native-overlay-bench-trace.mjs');
+
+    const summary = createNativeOverlayBenchTraceSummary();
+    ingestNativeOverlayBenchTraceText(summary, `
+UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN mediaId=steady-video-1
+[RustBackend] [decode.trace] job=shared-renderer-video-steady-video-1-720x405-60over1 frame=68 reason=sequential restarted=false skipped=0 decodeMs=1.6
+[NativeOverlay] presentSharedFrameTrace {"mediaId":"steady-video-1","presentMs":2.255,"success":true,"attached":true,"slotIndex":0,"generation":68,"ptsFrame":68,"releaseGeneration":68,"releasePtsFrame":68}
+UXFD_NATIVE_OVERLAY_STEADY_TRACE_END mediaId=steady-video-1
+`);
+
+    expect(summary.decode.count).toBe(1);
+    expect(summary.present.count).toBe(1);
+    expect(summary.present.maxMs).toBe(2.255);
+    expect(summary.releaseGenerationViolationCount).toBe(0);
+    expect(() => assertNativeOverlayBenchTraceBudgets(summary, {
+      decodeMaxMs: 16,
+      presentMaxMs: 16,
+      minimumDecodeSamples: 1,
+      minimumPresentSamples: 1,
+    })).not.toThrow();
+  });
 });
