@@ -1,3 +1,19 @@
+## 2026-06-30 — Phase 3a 60分benchは巨大rAF gapで失敗
+
+### 実施内容
+- `UXFD_NATIVE_OVERLAY_BENCH_TRACE=1 UXFD_NATIVE_OVERLAY_STEADY_DURATION_MS=3600000 UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=3600000 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=4500000 npm run bench:native-overlay` を実行した。
+- bench は 60分の steady marker を完走し、`durationMs=3600021.0750000477` を記録した。
+- 最終 gate は `native_overlay_steady_playback mean exceeded 60fps budget: 18.403ms` で失敗した。
+
+### 選定理由・判断の根拠
+- `native_overlay_steady_playback` の詳細は `rafMeanMs=18.403` / `rafP95Ms=18.09` / `rafMaxMs=139184.545` / `longTaskCount=2` だった。
+- `rafP95Ms` は 60秒 bench と同水準で、平均だけが 139秒級の単発 rAF gap に引っ張られている。
+- Phase 3a の定常性能を測るには、macOS の sleep / display idle による測定中断を bench runner 側で抑止する必要がある。
+
+### 残課題・次のステップ
+- Red として Native Overlay long bench runner が macOS で `caffeinate` を使って実機測定中の sleep / display idle を抑止する契約を追加する。
+- Green 後に 60分 bench を再試行する。
+
 ## 2026-06-30 — Phase 3a単一steady playback 60秒benchを通過
 
 ### 実施内容
