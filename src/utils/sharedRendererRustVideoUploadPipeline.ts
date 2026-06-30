@@ -56,7 +56,11 @@ export type PresentNativeOverlayRustDecodedVideoFrameResult =
   | { ok: true }
   | {
       ok: false;
-      reason: 'decodedFrameUnavailable' | 'nativeOverlayPresentFailed' | 'nativeOverlayReleaseMismatch';
+      reason:
+        | 'decodedFrameUnavailable'
+        | 'nativeOverlayPresentFailed'
+        | 'nativeOverlayReleaseMismatch'
+        | 'nativeOverlayReleaseFailed';
       detail: string;
     };
 
@@ -115,12 +119,19 @@ export const presentNativeOverlayRustDecodedVideoFrame = async ({
     };
   }
 
-  await releaseRustBackendVideoDecodeFrame({
+  const releaseResponse = await releaseRustBackendVideoDecodeFrame({
     jobId,
     slotIndex: frame.descriptor.slotIndex,
     generation: frame.descriptor.generation,
     copyOutState: 'gpuUploadFenceSignalled',
-  }, rustBackendBridge).then(assertDecodedFrameReleaseSucceeded);
+  }, rustBackendBridge);
+  if (!releaseResponse.success) {
+    return {
+      ok: false,
+      reason: 'nativeOverlayReleaseFailed',
+      detail: releaseResponse.error ?? 'Rust backend decoded frame release failed.',
+    };
+  }
 
   return { ok: true };
 };
