@@ -104,6 +104,42 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
     ]);
   });
 
+  it('returns a Native Overlay release failure instead of throwing when the backend rejects the lease', async () => {
+    const result = await presentNativeOverlayRustDecodedVideoFrame({
+      windowId: 7,
+      decodeResponse: decodedFrameResponse,
+      slotCount: 2,
+      nativeOverlayBridge: {
+        presentSharedFrame: async (payload) => ({
+          success: true,
+          attached: true,
+          releaseFrame: {
+            memoryId: payload.frame.descriptor.memoryId,
+            slotIndex: payload.frame.descriptor.slotIndex,
+            generation: payload.frame.descriptor.generation,
+            ptsFrame: payload.frame.ptsFrame,
+            copyOutState: 'gpuUploadFenceSignalled',
+          },
+        }),
+      },
+      rustBackendBridge: {
+        startVideoDecode: async () => ({ success: true }),
+        requestVideoDecodeFrame: async () => ({ success: true, result: decodedFrameResponse.result! }),
+        releaseVideoDecodeFrame: async () => ({
+          success: false,
+          error: 'Failed to release decoded shared memory slot: UnexpectedState { expected: 3, actual: 2 }',
+        }),
+        stopVideoDecode: async () => ({ success: true }),
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'nativeOverlayReleaseFailed',
+      detail: 'Failed to release decoded shared memory slot: UnexpectedState { expected: 3, actual: 2 }',
+    });
+  });
+
   it('copies a verified Rust decoded frame and releases the backend slot after GPU upload', async () => {
     const calls: unknown[] = [];
     const copyBridge: SharedVideoFrameCopyBridge = {
