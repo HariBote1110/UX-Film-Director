@@ -189,6 +189,110 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
     });
   });
 
+  it('releases but skips duplicate Native Overlay presents for an unchanged visual frame', async () => {
+    const calls: unknown[] = [];
+    const secondFrameResponse: RustBackendResult<RustBackendVideoDecodeFrameResult> = {
+      ...decodedFrameResponse,
+      result: {
+        ...decodedFrameResponse.result!,
+        frame: {
+          ...decodedFrameResponse.result!.frame!,
+          descriptor: {
+            ...decodedFrameResponse.result!.frame!.descriptor,
+            generation: 6,
+          },
+        },
+      },
+    };
+    const rustBackendBridge: RustBackendVideoDecodeBridge = {
+      startVideoDecode: async () => ({ success: true }),
+      requestVideoDecodeFrame: async () => ({ success: true, result: decodedFrameResponse.result! }),
+      releaseVideoDecodeFrame: async (payload) => {
+        calls.push(['releaseVideoDecodeFrame', payload]);
+        return { success: true, result: { released: true } };
+      },
+      stopVideoDecode: async () => ({ success: true }),
+    };
+    const nativeOverlayBridge = {
+      presentSharedFrame: async (payload: Parameters<import('./sharedRendererRustVideoUploadPipeline').NativeOverlayDecodedFrameBridge['presentSharedFrame']>[0]) => {
+        calls.push(['presentSharedFrame', payload.frame.descriptor.generation]);
+        return {
+          success: true,
+          attached: true,
+          releaseFrame: {
+            memoryId: payload.frame.descriptor.memoryId,
+            slotIndex: payload.frame.descriptor.slotIndex,
+            generation: payload.frame.descriptor.generation,
+            ptsFrame: payload.frame.ptsFrame,
+            copyOutState: 'gpuUploadFenceSignalled' as const,
+          },
+        };
+      },
+    };
+
+    const baseInput = {
+      windowId: 77,
+      mediaId: 'steady-video-duplicate',
+      snapshot: {
+        frame_index: 100,
+        colour: {
+          profile: 'rec709-sdr',
+          working_space: 'linear-light',
+          alpha: 'premultiplied',
+        },
+        clips: [{
+          clip_id: 'clip-video-duplicate',
+          track_id: 'track-1',
+          media_id: 'steady-video-duplicate',
+          source_frame: 42,
+          z_index: 0,
+          transform: {
+            translation_x: 10,
+            translation_y: 20,
+            scale_x: 1,
+            scale_y: 1,
+            rotation_degrees: 0,
+            sampling: 'bilinear',
+          },
+          opacity: 1,
+          effects: [],
+        }],
+      },
+      slotCount: 2,
+      nativeOverlayBridge,
+      rustBackendBridge,
+    };
+
+    await expect(presentNativeOverlayRustDecodedVideoFrame({
+      ...baseInput,
+      decodeResponse: decodedFrameResponse,
+    })).resolves.toEqual({ ok: true });
+    await expect(presentNativeOverlayRustDecodedVideoFrame({
+      ...baseInput,
+      decodeResponse: secondFrameResponse,
+      snapshot: {
+        ...baseInput.snapshot,
+        frame_index: 101,
+      },
+    })).resolves.toEqual({ ok: true });
+
+    expect(calls).toEqual([
+      ['presentSharedFrame', 5],
+      ['releaseVideoDecodeFrame', {
+        jobId: 'decode-job-1',
+        slotIndex: 1,
+        generation: 5,
+        copyOutState: 'gpuUploadFenceSignalled',
+      }],
+      ['releaseVideoDecodeFrame', {
+        jobId: 'decode-job-1',
+        slotIndex: 1,
+        generation: 6,
+        copyOutState: 'gpuUploadFenceSignalled',
+      }],
+    ]);
+  });
+
   it('copies a verified Rust decoded frame and releases the backend slot after GPU upload', async () => {
     const calls: unknown[] = [];
     const copyBridge: SharedVideoFrameCopyBridge = {
