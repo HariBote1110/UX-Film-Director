@@ -386,6 +386,235 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
     ]);
   });
 
+  // Bug C (a) — playhead 進行で snapshot.frame_index が前進したのに、source_frame と ptsFrame が
+  // 量子化や latestWins で同値に張り付くケース。live overlay が再生中に静止する現象（Bug C）の
+  // 主犯候補。原コミット 19cbb966 の dedup は「同一 ptsFrame の cacheHit を抑止する」意図だが、
+  // 「タイムライン上の異なる playhead 時刻に張り付いた同一 source ptsFrame」は別物として
+  // 扱わなければならない。snapshot.frame_index は再生時刻の正本識別子なので key に含めるべき。
+  it('re-presents when the timeline frame_index advances even if ptsFrame stays the same', async () => {
+    resetNativeOverlayVisualFrameCache();
+    const calls: unknown[] = [];
+    const rustBackendBridge: RustBackendVideoDecodeBridge = {
+      startVideoDecode: async () => ({ success: true }),
+      requestVideoDecodeFrame: async () => ({ success: true, result: decodedFrameResponse.result! }),
+      releaseVideoDecodeFrame: async (payload) => {
+        calls.push(['releaseVideoDecodeFrame', payload]);
+        return { success: true, result: { released: true } };
+      },
+      stopVideoDecode: async () => ({ success: true }),
+    };
+    const nativeOverlayBridge = {
+      presentSharedFrame: async (payload: Parameters<import('./sharedRendererRustVideoUploadPipeline').NativeOverlayDecodedFrameBridge['presentSharedFrame']>[0]) => {
+        calls.push(['presentSharedFrame', payload.snapshot?.frameIndex]);
+        return {
+          success: true,
+          attached: true,
+          releaseFrame: {
+            memoryId: payload.frame.descriptor.memoryId,
+            slotIndex: payload.frame.descriptor.slotIndex,
+            generation: payload.frame.descriptor.generation,
+            ptsFrame: payload.frame.ptsFrame,
+            copyOutState: 'gpuUploadFenceSignalled' as const,
+          },
+        };
+      },
+    };
+
+    const baseInput = {
+      windowId: 81,
+      mediaId: 'playhead-advance',
+      decodeResponse: decodedFrameResponse,
+      slotCount: 2,
+      nativeOverlayBridge,
+      rustBackendBridge,
+      media: [],
+    };
+
+    const snapshotAt = (frameIndex: number) => ({
+      frame_index: frameIndex,
+      colour: {
+        profile: 'rec709-sdr',
+        working_space: 'linear-light',
+        alpha: 'premultiplied',
+      },
+      clips: [{
+        clip_id: 'clip-playhead',
+        track_id: 'track-1',
+        media_id: 'playhead-advance',
+        source_frame: 42,
+        z_index: 0,
+        transform: {
+          translation_x: 0,
+          translation_y: 0,
+          scale_x: 1,
+          scale_y: 1,
+          rotation_degrees: 0,
+          sampling: 'bilinear' as const,
+        },
+        opacity: 1,
+        effects: [],
+      }],
+    });
+
+    await expect(presentNativeOverlayRustDecodedVideoFrame({
+      ...baseInput,
+      snapshot: snapshotAt(100),
+    })).resolves.toEqual({ ok: true });
+    await expect(presentNativeOverlayRustDecodedVideoFrame({
+      ...baseInput,
+      snapshot: snapshotAt(101),
+    })).resolves.toEqual({ ok: true });
+
+    // playhead が 100 → 101 へ前進したので、source ptsFrame が同じでも別の visual frame として
+    // 必ず2回 present が走る。これが満たされないと再生中の overlay が静止する（Bug C）。
+    expect(calls.filter((call) =>
+      Array.isArray(call) && call[0] === 'presentSharedFrame')).toEqual([
+      ['presentSharedFrame', 100],
+      ['presentSharedFrame', 101],
+    ]);
+  });
+
+  // Bug C (b) — clip 削除イベント。再生中に video clip を削除すると activeJob=null になり
+  // presentNativeOverlayRustDecodedVideoFrame 自体が呼ばれなくなる。その間に上位経路が
+  // visual frame cache を invalidate しないと、同じ mediaId の clip を再度配置したとき
+  // 「全く同じ snapshot を再構築できる」可能性があり（例: undo 直後）、誤って dedup される。
+  // Red 期待: clip 削除を契機に「当該 window の全 mediaId cache」だけを消す API
+  // resetNativeOverlayVisualFrameCacheForWindow(windowId) が存在し、他 window の cache は
+  // 維持される。これにより multi-window 環境での独立性が担保される。
+  it('clears only the target window media caches when the clip removal hook fires', async () => {
+    resetNativeOverlayVisualFrameCache();
+    const calls: unknown[] = [];
+    const rustBackendBridge: RustBackendVideoDecodeBridge = {
+      startVideoDecode: async () => ({ success: true }),
+      requestVideoDecodeFrame: async () => ({ success: true, result: decodedFrameResponse.result! }),
+      releaseVideoDecodeFrame: async () => ({ success: true, result: { released: true } }),
+      stopVideoDecode: async () => ({ success: true }),
+    };
+    const nativeOverlayBridge = {
+      presentSharedFrame: async (payload: Parameters<import('./sharedRendererRustVideoUploadPipeline').NativeOverlayDecodedFrameBridge['presentSharedFrame']>[0]) => {
+        calls.push(['presentSharedFrame', payload.windowId, payload.mediaId]);
+        return {
+          success: true,
+          attached: true,
+          releaseFrame: {
+            memoryId: payload.frame.descriptor.memoryId,
+            slotIndex: payload.frame.descriptor.slotIndex,
+            generation: payload.frame.descriptor.generation,
+            ptsFrame: payload.frame.ptsFrame,
+            copyOutState: 'gpuUploadFenceSignalled' as const,
+          },
+        };
+      },
+    };
+
+    const inputAlphaWindow91 = {
+      windowId: 91,
+      mediaId: 'video-alpha',
+      decodeResponse: decodedFrameResponse,
+      slotCount: 2,
+      nativeOverlayBridge,
+      rustBackendBridge,
+    };
+    const inputBetaWindow91 = {
+      windowId: 91,
+      mediaId: 'video-beta',
+      decodeResponse: decodedFrameResponse,
+      slotCount: 2,
+      nativeOverlayBridge,
+      rustBackendBridge,
+    };
+    const inputAlphaWindow92 = {
+      windowId: 92,
+      mediaId: 'video-alpha',
+      decodeResponse: decodedFrameResponse,
+      slotCount: 2,
+      nativeOverlayBridge,
+      rustBackendBridge,
+    };
+
+    // window 91 に 2 つの video clip、window 92 に 1 つの video clip を present して cache を埋める
+    await presentNativeOverlayRustDecodedVideoFrame(inputAlphaWindow91);
+    await presentNativeOverlayRustDecodedVideoFrame(inputBetaWindow91);
+    await presentNativeOverlayRustDecodedVideoFrame(inputAlphaWindow92);
+
+    // 上位経路（Viewport の clip 削除 effect）から呼ばれることを期待する dedicated invalidation。
+    // 関数名で「window 単位で消す」という意図を明示し、他 window への副作用を起こさない。
+    const pipeline = await import('./sharedRendererRustVideoUploadPipeline');
+    expect(typeof pipeline.resetNativeOverlayVisualFrameCacheForWindow).toBe('function');
+    pipeline.resetNativeOverlayVisualFrameCacheForWindow(91);
+
+    // 削除後、同じ scene を再構築して再度 present したら…
+    // window 91 では両 mediaId で present が再発行される（cache が消えている）。
+    // window 92 は cache が残っているので2回目は dedup される。
+    await presentNativeOverlayRustDecodedVideoFrame(inputAlphaWindow91);
+    await presentNativeOverlayRustDecodedVideoFrame(inputBetaWindow91);
+    await presentNativeOverlayRustDecodedVideoFrame(inputAlphaWindow92);
+
+    expect(calls).toEqual([
+      ['presentSharedFrame', 91, 'video-alpha'],
+      ['presentSharedFrame', 91, 'video-beta'],
+      ['presentSharedFrame', 92, 'video-alpha'],
+      ['presentSharedFrame', 91, 'video-alpha'],
+      ['presentSharedFrame', 91, 'video-beta'],
+    ]);
+  });
+
+  // Bug C (c) — scene 空集合遷移。clips が空に遷移したことを上位経路から伝えるための
+  // dedicated API。presentNativeOverlayRustDecodedVideoFrame は video 用なので、scene が空に
+  // なったときは別経路で「全 mediaId cache を消す + transparent clear present の起点を作る」必要が
+  // ある。Red 期待: notifyNativeOverlaySceneCleared(windowId) を呼ぶと、当該 window の全 mediaId
+  // cache が消える。
+  it('exposes a dedicated scene-cleared notifier that drops every media cache for the window', async () => {
+    resetNativeOverlayVisualFrameCache();
+    const calls: unknown[] = [];
+    const rustBackendBridge: RustBackendVideoDecodeBridge = {
+      startVideoDecode: async () => ({ success: true }),
+      requestVideoDecodeFrame: async () => ({ success: true, result: decodedFrameResponse.result! }),
+      releaseVideoDecodeFrame: async () => ({ success: true, result: { released: true } }),
+      stopVideoDecode: async () => ({ success: true }),
+    };
+    const nativeOverlayBridge = {
+      presentSharedFrame: async (payload: Parameters<import('./sharedRendererRustVideoUploadPipeline').NativeOverlayDecodedFrameBridge['presentSharedFrame']>[0]) => {
+        calls.push(['presentSharedFrame', payload.windowId, payload.mediaId]);
+        return {
+          success: true,
+          attached: true,
+          releaseFrame: {
+            memoryId: payload.frame.descriptor.memoryId,
+            slotIndex: payload.frame.descriptor.slotIndex,
+            generation: payload.frame.descriptor.generation,
+            ptsFrame: payload.frame.ptsFrame,
+            copyOutState: 'gpuUploadFenceSignalled' as const,
+          },
+        };
+      },
+    };
+
+    const baseInput = {
+      windowId: 95,
+      mediaId: 'video-scene-cleared',
+      decodeResponse: decodedFrameResponse,
+      slotCount: 2,
+      nativeOverlayBridge,
+      rustBackendBridge,
+    };
+
+    await presentNativeOverlayRustDecodedVideoFrame(baseInput);
+
+    // 上位経路（Viewport の scene 空集合 effect）から呼ばれる dedicated 通知。
+    // 関数名で「scene が空になった」という意図を明示する。
+    const pipeline = await import('./sharedRendererRustVideoUploadPipeline');
+    expect(typeof pipeline.notifyNativeOverlaySceneCleared).toBe('function');
+    pipeline.notifyNativeOverlaySceneCleared(95);
+
+    await presentNativeOverlayRustDecodedVideoFrame(baseInput);
+
+    expect(calls).toEqual([
+      ['presentSharedFrame', 95, 'video-scene-cleared'],
+      ['presentSharedFrame', 95, 'video-scene-cleared'],
+    ]);
+  });
+
   it('copies a verified Rust decoded frame and releases the backend slot after GPU upload', async () => {
     const calls: unknown[] = [];
     const copyBridge: SharedVideoFrameCopyBridge = {
