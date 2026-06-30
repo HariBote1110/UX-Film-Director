@@ -1,3 +1,23 @@
+## 2026-06-30 — live overlay readbackとexport readbackの差分診断を追加
+
+### 実施内容
+- Red として `src/utils/nativeOverlayCrateBoundary.test.ts` に、live overlay readback と export readback を比較し、frame bytes を IPC に返さず `max_channel_delta` だけを返す契約を追加した。
+- Green として `native-overlay/src/lib.rs` で `present_scene_to_surface_texture_with_readback` の結果を `render_native_wgpu_frame` と `compare_rgba_frames(ComparisonThresholds::exact())` で比較し、`live_readback_export_max_channel_delta` を返すようにした。
+- Green として `electron/nativeOverlayMainBridge.ts` の型と trace ログに `liveReadbackExportMaxChannelDelta` を追加した。
+- `package.json` / `package-lock.json` の版を重大な live overlay parity gate 修正として `0.1.1-Beta-418a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 2 の offscreen surface parity gate は実 CAMetalLayer 表示を測れておらず、今回の黒画面問題を見逃した。
+- live CAMetalLayer に対する surface texture の readback と export readback を同一 process 内で比較すれば、制御 plane IPC に frame bytes を載せずに現実の live surface 差分を検出できる。
+- Red: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts --testNamePattern "compares live overlay"` は 1 failed。
+- Green: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts --testNamePattern "compares live overlay"` は 1 passed。
+- Green: `cargo test --manifest-path native-overlay/Cargo.toml` は 10 passed。
+- Green: `npx vitest run src/utils/nativeOverlayMainBridge.test.ts src/utils/nativeOverlayCrateBoundary.test.ts` は 26 passed。
+
+### 残課題・次のステップ
+- `UXFD_NATIVE_OVERLAY_READBACK_TRACE=1` の実機 Electron で `liveReadbackExportMaxChannelDelta=0` を確認する。
+- 確認後、Phase 3a の動画 ownership / release generation gate へ戻る。
+
 ## 2026-06-30 — traceなしlive overlayで画像・動画表示を確認
 
 ### 実施内容

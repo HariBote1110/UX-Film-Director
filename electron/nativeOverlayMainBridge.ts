@@ -69,6 +69,7 @@ export interface NativeOverlayResponse {
   livePreparedClipCount?: number
   liveReadbackNonTransparentPixels?: number
   liveReadbackChecksum?: number
+  liveReadbackExportMaxChannelDelta?: number
 }
 
 export interface NativeOverlayAddon {
@@ -260,6 +261,7 @@ export const createNativeOverlayMainBridge = ({
             livePreparedClipCount: response.livePreparedClipCount,
             liveReadbackNonTransparentPixels: response.liveReadbackNonTransparentPixels,
             liveReadbackChecksum: response.liveReadbackChecksum,
+            liveReadbackExportMaxChannelDelta: response.liveReadbackExportMaxChannelDelta,
           })
         }
         return response

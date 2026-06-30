@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
-use uxfd_golden_harness::{load_rgba_png, RgbaFrame};
-use uxfd_native_wgpu_renderer::NativeWgpuLiveSurfaceRenderer;
+use uxfd_golden_harness::{compare_rgba_frames, load_rgba_png, ComparisonThresholds, RgbaFrame};
+use uxfd_native_wgpu_renderer::{render_native_wgpu_frame, NativeWgpuLiveSurfaceRenderer};
 use uxfd_rust_core::{ColourPipeline, EvaluatedClip, SamplingMode, SceneSnapshot, Transform};
 use uxfd_shared_video_frame_bridge::copy_shared_frame_into_upload_buffer;
 
@@ -123,6 +123,7 @@ pub struct NativeOverlayResponse {
     pub live_prepared_clip_count: Option<f64>,
     pub live_readback_non_transparent_pixels: Option<f64>,
     pub live_readback_checksum: Option<f64>,
+    pub live_readback_export_max_channel_delta: Option<f64>,
 }
 
 #[napi(object)]
@@ -210,6 +211,7 @@ pub struct OverlayLiveSurfaceDiagnostics {
     pub live_prepared_clip_count: usize,
     pub live_readback_non_transparent_pixels: u64,
     pub live_readback_checksum: u64,
+    pub live_readback_export_max_channel_delta: Option<u8>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -280,7 +282,12 @@ impl NativeOverlayLiveSurfaceRenderer {
                     .present_scene_to_surface_texture_with_readback(&snapshot, &sources),
             )
             .map_err(|error| format!("Native overlay live surface present failed: {error:?}"))?;
-            return Ok(Some(live_surface_diagnostics_from_frame_report(report)));
+            let live_readback_export_max_channel_delta =
+                compare_live_overlay_readback_with_export(&report.frame, &snapshot, &sources)?;
+            return Ok(Some(live_surface_diagnostics_from_frame_report(
+                report,
+                Some(live_readback_export_max_channel_delta),
+            )));
         }
 
         let report = pollster::block_on(
@@ -292,6 +299,7 @@ impl NativeOverlayLiveSurfaceRenderer {
             live_prepared_clip_count: report.prepared_clip_count,
             live_readback_non_transparent_pixels: 0,
             live_readback_checksum: 0,
+            live_readback_export_max_channel_delta: None,
         }))
     }
 }
@@ -360,6 +368,7 @@ fn attach_native_overlay_inner(payload: NativeOverlayAttachPayload) -> NativeOve
         live_prepared_clip_count: None,
         live_readback_non_transparent_pixels: None,
         live_readback_checksum: None,
+        live_readback_export_max_channel_delta: None,
     }
 }
 
@@ -383,6 +392,7 @@ fn detach_native_overlay_inner(payload: NativeOverlayDetachPayload) -> NativeOve
         live_prepared_clip_count: None,
         live_readback_non_transparent_pixels: None,
         live_readback_checksum: None,
+        live_readback_export_max_channel_delta: None,
     }
 }
 
@@ -395,6 +405,7 @@ fn failure(reason: &str) -> NativeOverlayResponse {
         live_prepared_clip_count: None,
         live_readback_non_transparent_pixels: None,
         live_readback_checksum: None,
+        live_readback_export_max_channel_delta: None,
     }
 }
 
@@ -426,6 +437,13 @@ fn present_native_overlay_shared_frame_inner(
                 .live_diagnostics
                 .as_ref()
                 .map(|diagnostics| diagnostics.live_readback_checksum as f64),
+            live_readback_export_max_channel_delta: response.live_diagnostics.as_ref().and_then(
+                |diagnostics| {
+                    diagnostics
+                        .live_readback_export_max_channel_delta
+                        .map(|max_channel_delta| max_channel_delta as f64)
+                },
+            ),
             release_frame: response.release_frame.map(|release_frame| {
                 NativeOverlayReleaseFramePayload {
                     memory_id: release_frame.memory_id,
@@ -722,6 +740,7 @@ fn live_surface_readback_trace_enabled() -> bool {
 
 fn live_surface_diagnostics_from_frame_report(
     report: uxfd_native_wgpu_renderer::NativeWgpuFrameReport,
+    live_readback_export_max_channel_delta: Option<u8>,
 ) -> OverlayLiveSurfaceDiagnostics {
     let live_readback_non_transparent_pixels = report
         .frame
@@ -738,7 +757,28 @@ fn live_surface_diagnostics_from_frame_report(
         live_prepared_clip_count: report.prepared_clip_count,
         live_readback_non_transparent_pixels,
         live_readback_checksum,
+        live_readback_export_max_channel_delta,
     }
+}
+
+fn compare_live_overlay_readback_with_export(
+    live_readback: &RgbaFrame,
+    snapshot: &SceneSnapshot,
+    sources: &HashMap<String, RgbaFrame>,
+) -> Result<u8, String> {
+    let export_readback = pollster::block_on(render_native_wgpu_frame(
+        snapshot,
+        sources,
+        live_readback.width,
+        live_readback.height,
+    ))
+    .map_err(|error| format!("Native overlay export readback comparison failed: {error:?}"))?;
+    let comparison = compare_rgba_frames(
+        &export_readback,
+        live_readback,
+        ComparisonThresholds::exact(),
+    );
+    Ok(comparison.metrics.max_channel_delta)
 }
 
 pub fn upload_frame_to_scene_sources(
