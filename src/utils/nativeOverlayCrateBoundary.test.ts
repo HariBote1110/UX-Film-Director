@@ -80,6 +80,19 @@ describe('native overlay napi crate boundary', () => {
     expect(macosOverlay).toContain('create_surface_target_from_ca_metal_layer');
   });
 
+  it('uses the native-wgpu-renderer scene pipeline for live surface presentation', () => {
+    const nativeWgpuRenderer = read('native-wgpu-renderer/src/lib.rs');
+    const lib = read('native-overlay/src/lib.rs');
+
+    expect(nativeWgpuRenderer).toContain('pub struct NativeWgpuLiveSurfaceRenderer');
+    expect(nativeWgpuRenderer).toContain('present_scene_to_surface_texture');
+    expect(nativeWgpuRenderer).toContain('create_pipeline_for_format');
+    expect(nativeWgpuRenderer).toContain('SurfaceTargetUnsafe::CoreAnimationLayer');
+    expect(lib).toContain('NativeWgpuLiveSurfaceRenderer');
+    expect(lib).toContain('present_scene_to_surface_texture');
+    expect(lib).not.toContain('sample_upload_clear_colour');
+  });
+
   it('removes an existing AppKit overlay view before attaching a replacement', () => {
     const macosOverlay = read('native-overlay/src/macos_overlay.rs');
 
