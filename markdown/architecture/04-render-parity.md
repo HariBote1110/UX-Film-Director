@@ -103,6 +103,15 @@ Native Overlay Phase 2 gate:
 - native export readback と overlay surface test readback は `ComparisonThresholds::exact()` で比較し、`max_channel_delta=0` を gate にする。
 - overlay surface test readback は検証専用であり、製品 preview 経路の steady state には readback を含めない。
 
+Native Overlay Phase 6 3経路 parity gate:
+
+- `npm run test:native-overlay-parity` を CI 対象にし、`native-wgpu-renderer/tests/overlay_surface_parity.rs` を実行する。
+- 比較する3経路は overlay surface、WebGPU preview、export readback とする。
+- overlay surface と export readback は同一 `SceneSnapshot` / source RGBA frame を使い、`ComparisonThresholds::exact()` で `max channel delta = 0` を gate にする。
+- WebGPU preview は既存 `phase3b-webgpu-harness/` の reference scene と共有 WGSL parity 結果を同じ scene 群の根拠として保持し、Phase 6 では削除せず parity 用退避路として使う。
+- 製品 preview の Native Overlay steady state は readback を含めない。CI で使う overlay surface readback は検証専用であり、実行時の frame bytes は制御 plane IPC に載せない。
+- `VITE_UXFD_NATIVE_OVERLAY=0` または addon fallback 時は WebGPU preview を常時起動可能に保ち、同一 scene の差分調査に使う。
+
 ### Phase 3b: WebGPU preview / native export parity
 
 Phase 3a が通った後、以下を通す。
