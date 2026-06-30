@@ -145,11 +145,14 @@ describe('Viewport Rust video-only boundary', () => {
     expect(nativeOverlayEffectBlock).toContain('if (nextAttachKey === lastNativeOverlayAttachKey) return;');
     expect(nativeOverlayEffectBlock).toContain("visualViewport?.addEventListener('resize', attach)");
     expect(nativeOverlayEffectBlock).toContain("visualViewport?.addEventListener('scroll', attach)");
+    expect(nativeOverlayEffectBlock).toContain('window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`)');
+    expect(nativeOverlayEffectBlock).toContain("resolutionMediaQuery?.addEventListener('change', attach)");
     expect(nativeOverlayEffectBlock).toContain("document.addEventListener('fullscreenchange', attach)");
     expect(nativeOverlayEffectBlock).toContain("document.addEventListener('visibilitychange', attach)");
     expect(nativeOverlayEffectBlock).toContain("window.addEventListener('focus', attach)");
     expect(nativeOverlayEffectBlock).toContain("window.addEventListener('pageshow', attach)");
     expect(nativeOverlayEffectBlock).toContain("visualViewport?.removeEventListener('resize', attach)");
+    expect(nativeOverlayEffectBlock).toContain("resolutionMediaQuery?.removeEventListener('change', attach)");
     expect(nativeOverlayEffectBlock).toContain("document.removeEventListener('fullscreenchange', attach)");
   });
 
