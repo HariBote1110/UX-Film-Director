@@ -51,10 +51,8 @@ describe('native overlay napi crate boundary', () => {
     expect(macosOverlay).toContain('setPixelFormat');
     expect(macosOverlay).toContain('setDrawableSize');
     expect(macosOverlay).toContain('addSubview');
-    expect(macosOverlay).toContain('present_fixed_colour');
-    expect(macosOverlay).toContain('next_drawable');
-    expect(macosOverlay).toContain('set_clear_color');
-    expect(macosOverlay).toContain('present_drawable');
+    expect(macosOverlay).not.toContain('present_fixed_colour');
+    expect(macosOverlay).not.toContain('set_clear_color');
     expect(macosOverlay).toContain('contract.view_width');
     expect(macosOverlay).toContain('contract.drawable_width');
   });
