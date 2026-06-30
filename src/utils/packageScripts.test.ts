@@ -66,6 +66,11 @@ describe('package scripts', () => {
     expect(script).toContain('native_overlay_steady_playback');
     expect(script).toContain('UXFD_NATIVE_OVERLAY_STEADY_MEAN_BUDGET_MS');
     expect(script).toContain('UXFD_NATIVE_OVERLAY_STEADY_P95_BUDGET_MS');
+    expect(script).toContain('assertNativeOverlayBenchTraceBudgets');
+    expect(script).toContain('createNativeOverlayBenchTraceSummary');
+    expect(script).toContain('ingestNativeOverlayBenchTraceText');
+    expect(script).toContain('UXFD_NATIVE_OVERLAY_DECODE_BUDGET_MS');
+    expect(script).toContain('UXFD_NATIVE_OVERLAY_PRESENT_BUDGET_MS');
     expect(script).toContain('rafMeanMs');
     expect(script).toContain('perf-agent-output.json');
     expect(script).toContain('UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS');
