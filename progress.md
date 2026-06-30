@@ -1,3 +1,21 @@
+## 2026-06-30 — Native Overlay source idにmediaIdを使う
+
+### 実施内容
+- Red として `src/utils/sharedRendererViewportVideoUpload.test.ts` に、Native Overlay shared frame payload の `mediaId` が decode jobId ではなく scene clip が参照する `request.mediaId` になる契約を追加した。
+- Green として `presentNativeOverlayRustDecodedVideoFrame` に optional `mediaId` を追加し、`prepareSharedRendererViewportNativeOverlayPresent` から `request.mediaId` を渡すようにした。
+- `package.json` / `package-lock.json` の版を重大な live overlay source 解決修正として `0.1.1-Beta-414a` へ更新した。
+
+### 選定理由・判断の根拠
+- 実機 dataset で `Native overlay live surface present failed: MissingSource { media_id: ... }` を確認した。
+- Native Overlay 側は decoded frame を `payload.mediaId` で scene sources に追加するが、従来は decode jobId を渡しており、scene snapshot の clip `media_id` と一致しなかった。
+- Red: `npx vitest run src/utils/sharedRendererViewportVideoUpload.test.ts --testNamePattern "presents a scene snapshot"` は 1 failed。
+- Green: `npx vitest run src/utils/sharedRendererViewportVideoUpload.test.ts` は 1 file / 19 tests passed。
+- Green: `npx vitest run src/utils/sharedRendererRustVideoUploadPipeline.test.ts` は 1 file / 10 tests passed。
+
+### 残課題・次のステップ
+- 最新 bundle で実機再投入し、`MissingSource` が消えて `presentSharedFrameTrace success=true` になることを確認する。
+- 成功後、CDP screenshot と macOS `screencapture` の差分を確認し、native overlay の可視性を記録する。
+
 ## 2026-06-30 — Native Overlayでslot byteOffsetを許容
 
 ### 実施内容
