@@ -290,6 +290,67 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
     });
   });
 
+  it('uses Native Overlay decoded frame present instead of WebGPU decoded upload when enabled', async () => {
+    let presenterInput: unknown;
+    const events: string[] = [];
+    const prepareVideoUpload: SharedRendererViewportVideoUploadPreparer = async () => {
+      events.push('prepareVideoUpload');
+      return {
+        ok: true,
+        activeJob,
+        request: {} as any,
+        upload,
+      };
+    };
+    const startPresenter: SharedRendererViewportPresenterStarter = async (input) => {
+      events.push('startPresenter');
+      presenterInput = input;
+      return control;
+    };
+
+    const result = await startSharedRendererViewportPresenter({
+      canvas,
+      session,
+      datasets: [],
+      diagnosticSwatchEnabled: true,
+      videoCutoverEnabled: true,
+      nativeOverlayPreviewEnabled: true,
+      activeVideoDecodeJob: activeJob,
+      requestId: 24,
+      prepareVideoUpload,
+      presentNativeOverlayDecodedFrame: async (input) => {
+        events.push(`nativeOverlay:${input.requestId}:${input.activeJob?.jobId ?? 'none'}`);
+        return {
+          ok: true,
+          activeJob,
+        };
+      },
+      startPresenter,
+      onVideoDecodeJobResolved: (job) => {
+        events.push(`job:${job?.jobId ?? 'none'}`);
+      },
+    } as Parameters<typeof startSharedRendererViewportPresenter>[0] & {
+      nativeOverlayPreviewEnabled: true;
+      presentNativeOverlayDecodedFrame: unknown;
+    });
+
+    expect(result.activeVideoDecodeJob).toBe(activeJob);
+    expect(result.nativeOverlayPresentResult).toEqual({
+      ok: true,
+      activeJob,
+    });
+    expect(events).toEqual([
+      'nativeOverlay:24:shared-renderer-video-video-1-64x32-60over1',
+      'job:shared-renderer-video-video-1-64x32-60over1',
+      'startPresenter',
+    ]);
+    expect(presenterInput).toMatchObject({
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererDecodedVideoFrameUpload: undefined,
+      sharedRendererDecodedVideoFrameUploads: undefined,
+    });
+  });
+
   it('skips decoded video upload preparation for the Phase 0 benchmark discard path', async () => {
     let presenterInput: unknown;
     const events: string[] = [];
