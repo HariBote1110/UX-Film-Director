@@ -1,3 +1,21 @@
+## 2026-06-30 — Native Overlay位置再送イベントを追加
+
+### 実施内容
+- `src/utils/viewportRustVideoOnlyBoundary.test.ts` に、Native Overlay attach rect を `visualViewport` resize/scroll、fullscreen、visibility、focus、pageshow で再送する契約を Red として追加した。
+- Red では既存実装が `ResizeObserver` と `window.resize` だけに反応しており失敗することを確認した。
+- `src/components/Viewport.tsx` の Native Overlay attach effect に `visualViewport` / `fullscreenchange` / `visibilitychange` / `focus` / `pageshow` の add/remove listener を追加した。
+- `package.json` の版を機能追加として `0.1.1-Beta-396a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 4 の resize / devtools 開閉 / fullscreen / Mission Control 復帰では、要素サイズだけでなく visual viewport と window lifecycle の変化でも overlay の `setFrame` 相当を再実行する必要がある。
+- 追加した listener は per-frame ではなく viewport lifecycle のイベントだけなので、Phase 4 の「per-resize イベントのみ」という制約を維持する。
+- `npx vitest run src/utils/viewportRustVideoOnlyBoundary.test.ts src/utils/nativeOverlayViewportGeometry.test.ts` は 2 files / 35 tests passed。
+- `git diff --check` は問題なし。
+
+### 残課題・次のステップ
+- 次は `nativeOverlayViewportGeometry` の pure function を拡張し、visual viewport offset / fractional HiDPI / clamping の座標計算を単体テストで固定する。
+- その後、実機で resize / devtools 開閉 / fullscreen / Mission Control 復帰の目視確認を行う。
+
 ## 2026-06-30 — Native Overlay backingScaleFactor正本化を追加
 
 ### 実施内容

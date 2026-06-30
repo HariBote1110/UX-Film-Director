@@ -548,13 +548,26 @@ const Viewport: React.FC = () => {
     const observer = typeof ResizeObserver !== 'undefined'
       ? new ResizeObserver(attach)
       : null;
+    const visualViewport = window.visualViewport;
     observer?.observe(previewElement);
     window.addEventListener('resize', attach);
+    visualViewport?.addEventListener('resize', attach);
+    visualViewport?.addEventListener('scroll', attach);
+    document.addEventListener('fullscreenchange', attach);
+    document.addEventListener('visibilitychange', attach);
+    window.addEventListener('focus', attach);
+    window.addEventListener('pageshow', attach);
 
     return () => {
       disposed = true;
       observer?.disconnect();
       window.removeEventListener('resize', attach);
+      visualViewport?.removeEventListener('resize', attach);
+      visualViewport?.removeEventListener('scroll', attach);
+      document.removeEventListener('fullscreenchange', attach);
+      document.removeEventListener('visibilitychange', attach);
+      window.removeEventListener('focus', attach);
+      window.removeEventListener('pageshow', attach);
       void window.nativeOverlay?.detach({});
     };
   }, [nativeOverlayPreviewEnabled]);
