@@ -1,3 +1,21 @@
+## 2026-06-30 — Phase 5既存操作テストとoverlay click passthroughを確認
+
+### 実施内容
+- D&D / スクラブ / ショートカット相当 / コンテキストメニュー周辺の既存 vitest として `src/hooks/useTimelineDrop.test.ts`、`src/utils/timelineSeek.test.ts`、`src/utils/transformGeometry.test.ts`、`src/components/TimelineContextMenu.particle.test.ts`、`src/utils/sharedRendererExternalVideoSource.test.ts`、`src/utils/layerTrackOps.test.ts` を実行した。
+- Native Overlay の AppKit passthrough 境界として `src/utils/nativeOverlayCrateBoundary.test.ts --testNamePattern "passthrough|hitTest|AppKit"` を実行した。
+- `npm run dev` の実機画面で `.codex/native-overlay-fixtures/overlay-image.png` を追加し、preview 空白クリックで選択解除、画像上クリックで `overlay-image.png` が再選択されることを確認した。
+
+### 選定理由・判断の根拠
+- Phase 5 は既存の編集操作が Native Overlay により壊れていないことが主条件なので、操作ごとの既存テストを優先して確認した。
+- overlay NSView が mouse hit を奪う場合、preview 空白クリックによる選択解除や画像上クリックによる再選択は WebView に届かない。
+- 実機操作で下層 WebView の selection state が変化したため、`UXFDNativeOverlayPassthroughView` の `hitTest:` null passthrough が機能していると判断した。
+
+### 残課題・次のステップ
+- `npx vitest run src/hooks/useTimelineDrop.test.ts src/utils/timelineSeek.test.ts src/utils/transformGeometry.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/sharedRendererExternalVideoSource.test.ts src/utils/layerTrackOps.test.ts` は Green（6 files / 35 tests）。
+- `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts --testNamePattern "passthrough|hitTest|AppKit"` は Green（3 tests、13 skipped）。
+- Phase 5 は完了と判断する。
+- Phase 6 へ進み、Native Overlay 既定 ON、parity 二重経路、long bench / leak gate、export round-trip parity の最終確認を行う。
+
 ## 2026-06-30 — Phase 4実機目視でresize/devtools/fullscreen/Mission Control後の位置ズレなしを確認
 
 ### 実施内容
