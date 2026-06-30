@@ -80,6 +80,7 @@ export interface CreateNativeOverlayMainBridgeInput {
   existsSync?: (candidate: string) => boolean
   requireModule?: (modulePath: string) => NativeOverlayAddon
   resolveNativeWindowHandle?: (windowId: number) => Uint8Array | null
+  resolveBackingScaleFactor?: (windowId: number) => number | null
   now?: () => number
   logDiagnostic?: (eventName: string, payload: unknown) => void
 }
@@ -112,6 +113,17 @@ const nativeOverlayEnabled = (env: Record<string, string | undefined>): boolean 
 const nativeOverlayTraceEnabled = (env: Record<string, string | undefined>): boolean =>
   env.UXFD_DECODE_TRACE === '1'
 
+const resolveCanonicalScaleFactor = (
+  windowId: number,
+  rendererScaleFactor: number,
+  resolveBackingScaleFactor?: (windowId: number) => number | null,
+): number => {
+  const backingScaleFactor = resolveBackingScaleFactor?.(windowId) ?? null
+  return typeof backingScaleFactor === 'number' && Number.isFinite(backingScaleFactor) && backingScaleFactor > 0
+    ? backingScaleFactor
+    : rendererScaleFactor
+}
+
 export const createNativeOverlayMainBridge = ({
   env = process.env,
   cwd,
@@ -119,6 +131,7 @@ export const createNativeOverlayMainBridge = ({
   existsSync,
   requireModule = defaultRequire as (modulePath: string) => NativeOverlayAddon,
   resolveNativeWindowHandle,
+  resolveBackingScaleFactor,
   now = () => performance.now(),
   logDiagnostic,
 }: CreateNativeOverlayMainBridgeInput): NativeOverlayMainBridge => {
@@ -178,6 +191,7 @@ export const createNativeOverlayMainBridge = ({
       try {
         return await addon.attachNativeOverlay({
           ...payload,
+          scaleFactor: resolveCanonicalScaleFactor(payload.windowId, payload.scaleFactor, resolveBackingScaleFactor),
           nativeWindowHandle,
         })
       } catch (error) {

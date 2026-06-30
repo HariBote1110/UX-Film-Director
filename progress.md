@@ -1,3 +1,22 @@
+## 2026-06-30 — Native Overlay backingScaleFactor正本化を追加
+
+### 実施内容
+- `src/utils/nativeOverlayMainBridge.test.ts` に、renderer の `devicePixelRatio` ではなく main process の backing scale factor を Native Overlay attach payload に使う契約を Red として追加した。
+- Red では addon へ渡る `scaleFactor` が renderer 由来の `1` のままで失敗することを確認した。
+- `electron/nativeOverlayMainBridge.ts` に `resolveBackingScaleFactor` 注入と `resolveCanonicalScaleFactor` を追加し、attach 時に main 側 scale factor を優先するようにした。
+- `electron/main.ts` で `screen.getDisplayMatching(BrowserWindow.getBounds()).scaleFactor` を bridge へ渡すようにした。
+- `package.json` の版を機能追加として `0.1.1-Beta-395a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 4 の既知罠として、macOS HiDPI では renderer の `devicePixelRatio` だけを信用せず main 側の backing scale factor を正本にする必要がある。
+- BrowserWindow の表示ディスプレイに基づく scale factor を main 側で決めることで、devtools 開閉や renderer viewport 変化と scale 判定を分離できる。
+- `npx vitest run src/utils/nativeOverlayMainBridge.test.ts src/utils/nativeOverlayIpc.test.ts` は 2 files / 15 tests passed。
+- `git diff --check` は問題なし。
+
+### 残課題・次のステップ
+- 次は renderer の attach rect 更新イベントを `ResizeObserver` / `window.resize` / `visualViewport` / `visibilitychange` で固定し、devtools 開閉・fullscreen・Mission Control 復帰でも overlay 位置を再送する。
+- 座標計算 pure function に viewport offset / scale 正規化の単体テストを追加する。
+
 ## 2026-06-30 — Phase 3a実decode計測を完了
 
 ### 実施内容

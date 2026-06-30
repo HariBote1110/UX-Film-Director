@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, screen } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process'
@@ -485,6 +485,10 @@ app.whenReady().then(() => {
     cwd: process.cwd(),
     resourcesPath: process.resourcesPath,
     resolveNativeWindowHandle: (windowId) => BrowserWindow.fromId(windowId)?.getNativeWindowHandle() ?? null,
+    resolveBackingScaleFactor: (windowId) => {
+      const targetWindow = BrowserWindow.fromId(windowId)
+      return targetWindow ? screen.getDisplayMatching(targetWindow.getBounds()).scaleFactor : null
+    },
     logDiagnostic: (eventName, payload) => console.info('[NativeOverlay]', eventName, payload),
   }), {
     resolveWindowIdFromEvent: (event) => BrowserWindow.fromWebContents(event.sender)?.id ?? null,
