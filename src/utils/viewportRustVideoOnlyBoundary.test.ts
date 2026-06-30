@@ -218,6 +218,21 @@ describe('Viewport Rust video-only boundary', () => {
     expect(nativeReuseUploadBlock).toContain('maxDecodeEdge: SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE');
   });
 
+  it('clamps rust-only native reuse playback publish time from the last requested preview frame', () => {
+    const code = viewportSource();
+    const publishStart = code.indexOf('const rawPreviewTime = isPlaying');
+    const publishEnd = code.indexOf('const session = buildSharedRendererPreviewSession({', publishStart);
+    const publishTimeBlock = code.slice(publishStart, publishEnd);
+    const nativeReuseStart = code.indexOf('if (canReuseNativeRenderPresenter && sharedRendererPresenterSessionKeyRef.current === nextPresenterKey)');
+    const nativeReuseEnd = code.indexOf('if (sharedRendererPresenterSessionKeyRef.current !== nextPresenterKey)', nativeReuseStart);
+    const nativeReuseBlock = code.slice(nativeReuseStart, nativeReuseEnd);
+
+    expect(code).toContain('sharedRendererNativeReuseLastPreviewTimeRef');
+    expect(publishTimeBlock).toContain('resolveSharedRendererNativeReuseReplayTime({');
+    expect(publishTimeBlock).toContain('requestedTime: sharedRendererNativeReuseLastPreviewTimeRef.current');
+    expect(nativeReuseBlock).toContain('sharedRendererNativeReuseLastPreviewTimeRef.current =');
+  });
+
   it('prefers native render upload for rust-only presenter starts', () => {
     const code = viewportSource();
     const start = code.indexOf('void startSharedRendererViewportPresenter({');
