@@ -1,3 +1,19 @@
+## 2026-06-30 — 重複Native Overlay presentをlease releaseのみへ短絡
+
+### 実施内容
+- Red として `src/utils/sharedRendererRustVideoUploadPipeline.test.ts` に、同じ visual frame を再度受け取った場合は Native Overlay present を省き、decode lease は `gpuUploadFenceSignalled` として release する契約を追加した。
+- Green として `src/utils/sharedRendererRustVideoUploadPipeline.ts` に visual frame key cache を追加し、`windowId` / `mediaId` / `ptsFrame` / scene snapshot の表示要素 / media 参照が同じ場合は present を短絡した。
+- `npx vitest run src/utils/sharedRendererRustVideoUploadPipeline.test.ts` を実行し、11 tests が成功した。
+
+### 選定理由・判断の根拠
+- 実機 trace では同一 `ptsFrame` の `cacheHit` が連続し、そのたびに live surface present が走って 16ms 超の surface 待ちを作っていた。
+- 表示済みの visual frame と同一なら CAMetalLayer へ再提示する必要はないが、decode ring の lease は必ず返す必要がある。
+- 短時間実機 bench では重複 present が大幅に減った一方、steady gate は `presentMs samples 0 < 1`、`decodeMs max 230ms > 16ms` で未達だった。marker 開始後に表示済み frame の cacheHit が続き、新規 present sample が取れていない。
+
+### 残課題・次のステップ
+- steady marker 開始時に visual frame cache を reset し、少なくとも marker 内で 1 回の present sample を取れるようにする。
+- decode trace の `skipped=89` / `decodeMs=230ms` の原因を、decode request cadence と playback time advance の両面から切り分ける。
+
 ## 2026-06-30 — live surface presentのupload fence待ちを除去
 
 ### 実施内容

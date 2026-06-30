@@ -106,6 +106,8 @@ export type PrepareSharedRendererRustDecodedVideoUploadResult =
       detail: string;
     };
 
+const lastNativeOverlayVisualFrameKeyByTarget = new Map<string, string>();
+
 export const presentNativeOverlayRustDecodedVideoFrame = async ({
   windowId,
   mediaId,
@@ -125,6 +127,22 @@ export const presentNativeOverlayRustDecodedVideoFrame = async ({
   }
 
   const { frame, jobId } = decodeResponse.result;
+  const visualFrameKey = buildNativeOverlayVisualFrameKey({
+    windowId,
+    mediaId: mediaId ?? jobId,
+    ptsFrame: frame.ptsFrame,
+    snapshot,
+    media,
+  });
+  const visualFrameTarget = `${windowId ?? 'default'}:${mediaId ?? jobId}`;
+  if (lastNativeOverlayVisualFrameKeyByTarget.get(visualFrameTarget) === visualFrameKey) {
+    return releaseNativeOverlayDecodedFrameLease({
+      jobId,
+      frame,
+      rustBackendBridge,
+    });
+  }
+
   const presentResponse = await nativeOverlayBridge.presentSharedFrame({
     windowId,
     mediaId: mediaId ?? jobId,
@@ -168,8 +186,58 @@ export const presentNativeOverlayRustDecodedVideoFrame = async ({
     };
   }
 
+  lastNativeOverlayVisualFrameKeyByTarget.set(visualFrameTarget, visualFrameKey);
   return { ok: true };
 };
+
+const releaseNativeOverlayDecodedFrameLease = async ({
+  jobId,
+  frame,
+  rustBackendBridge,
+}: {
+  jobId: string;
+  frame: RustBackendSharedVideoFrame;
+  rustBackendBridge: RustBackendVideoDecodeBridge;
+}): Promise<PresentNativeOverlayRustDecodedVideoFrameResult> => {
+  const releaseResponse = await releaseRustBackendVideoDecodeFrame({
+    jobId,
+    slotIndex: frame.descriptor.slotIndex,
+    generation: frame.descriptor.generation,
+    copyOutState: 'gpuUploadFenceSignalled',
+  }, rustBackendBridge);
+  if (!releaseResponse.success) {
+    return {
+      ok: false,
+      reason: 'nativeOverlayReleaseFailed',
+      detail: releaseResponse.error ?? 'Rust backend decoded frame release failed.',
+    };
+  }
+
+  return { ok: true };
+};
+
+const buildNativeOverlayVisualFrameKey = ({
+  windowId,
+  mediaId,
+  ptsFrame,
+  snapshot,
+  media,
+}: {
+  windowId?: number;
+  mediaId: string;
+  ptsFrame: number;
+  snapshot?: RustSceneSnapshot;
+  media?: readonly RustSceneMediaReference[];
+}): string => JSON.stringify({
+  windowId: windowId ?? null,
+  mediaId,
+  ptsFrame,
+  snapshot: snapshot ? {
+    colour: snapshot.colour,
+    clips: snapshot.clips,
+  } : null,
+  media: media ?? null,
+});
 
 const toNativeOverlaySceneSnapshotPayload = (
   snapshot: RustSceneSnapshot
