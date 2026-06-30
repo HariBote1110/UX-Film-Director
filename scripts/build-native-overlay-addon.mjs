@@ -37,4 +37,15 @@ if (!existsSync(sourcePath)) {
 
 mkdirSync(path.dirname(outputPath), { recursive: true })
 copyFileSync(sourcePath, outputPath)
+
+if (process.platform === 'darwin') {
+  const codesign = spawnSync('codesign', ['--force', '--sign', '-', sourcePath, outputPath], {
+    cwd: repoRoot,
+    stdio: 'inherit',
+  })
+  if (codesign.status !== 0) {
+    process.exit(codesign.status ?? 1)
+  }
+}
+
 console.log(outputPath)

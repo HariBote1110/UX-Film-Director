@@ -1,3 +1,21 @@
+## 2026-06-30 — Native Overlay addonをmacOSで再署名
+
+### 実施内容
+- Red として `src/utils/packageScripts.test.ts` に、Native Overlay addon build script が macOS で `.node` と参照 dylib を ad-hoc 再署名する契約を追加した。
+- Green として `scripts/build-native-overlay-addon.mjs` に `codesign --force --sign -` を追加し、`sourcePath` と `outputPath` の両方を再署名するようにした。
+- `package.json` / `package-lock.json` の版を軽微な実機起動修正として `0.1.1-Beta-415b` へ更新した。
+
+### 選定理由・判断の根拠
+- `node -e "require('./native-overlay/native-overlay.node')"` と Electron の新規プロジェクト作成直後が `SIGKILL` で終了した。
+- 最新 crash report は `CODESIGNING / Invalid Page`、`SIGKILL (Code Signature Invalid)` を示しており、JS 例外や Rust panic ではなく dyld の署名検証で落ちていた。
+- 手動で `codesign --force --sign - native-overlay/native-overlay.node native-overlay/target/debug/deps/libuxfd_native_overlay.dylib` を実行すると `require` が復旧した。
+- Red: `npx vitest run src/utils/packageScripts.test.ts --testNamePattern "re-signs"` は 1 failed。
+- Green: `npx vitest run src/utils/packageScripts.test.ts --testNamePattern "re-signs"` は 1 passed。
+- Green: `npm run test:native-overlay-node` は passed。build script 経由で再署名され、`getNativeOverlayCapabilities` が `{ available: true }` を返した。
+
+### 残課題・次のステップ
+- Native Overlay 有効の Electron を再起動し、画像・動画 clip 投入と live readback 診断の取得へ戻る。
+
 ## 2026-06-30 — live overlay readback診断を追加
 
 ### 実施内容
