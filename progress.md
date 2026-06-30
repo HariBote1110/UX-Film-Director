@@ -1,3 +1,21 @@
+## 2026-06-30 — Phase 4 overlay位置追従確認を完了
+
+### 実施内容
+- `VITE_UXFD_NATIVE_OVERLAY=1 UXFD_NATIVE_OVERLAY=1 UXFD_DECODE_TRACE=1 npm run dev:rust-video` を起動し、1920x1080 / 60fps の新規プロジェクトで Native Overlay attach を確認した。
+- ウィンドウ resize で `[NativeOverlay] attach { success: true, attached: true }` が複数回再送され、preview 領域と overlay 領域の目視ズレはなかった。
+- devtools 開閉で attach が再送され、preview 領域と overlay 領域の目視ズレはなかった。
+- fullscreen 出入りで attach が再送され、preview 領域と overlay 領域の目視ズレはなかった。
+- Finder へ focus 移動後にアプリへ戻し、Mission Control 復帰相当の focus 再送で attach が再実行されることを確認した。
+
+### 選定理由・判断の根拠
+- Phase 4 の完了条件は resize / devtools / fullscreen / Mission Control 切替で overlay 位置ズレがないことなので、各操作で attach 再送ログと目視確認を併用した。
+- HiDPI scale factor は main process の `screen.getDisplayMatching(...).scaleFactor` を正本化し、座標は visual viewport offset を pure function で固定済み。
+- `npx vitest run src/utils/nativeOverlayViewportGeometry.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts src/utils/nativeOverlayMainBridge.test.ts src/utils/nativeOverlayIpc.test.ts` は 4 files / 51 tests passed。
+
+### 残課題・次のステップ
+- Phase 5 に進み、D&D / スクラブ / ショートカット / コンテキストメニューの既存 vitest と overlay クリック透過を確認する。
+- overlay 上クリックが下層 WebView に通ることを Red→Green で固定する。
+
 ## 2026-06-30 — Native Overlay visual viewport座標正規化を追加
 
 ### 実施内容
