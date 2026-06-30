@@ -342,6 +342,50 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
     ]);
   });
 
+  it('resets a media visual frame cache across every Native Overlay window when windowId is omitted', async () => {
+    const calls: unknown[] = [];
+    const rustBackendBridge: RustBackendVideoDecodeBridge = {
+      startVideoDecode: async () => ({ success: true }),
+      requestVideoDecodeFrame: async () => ({ success: true, result: decodedFrameResponse.result! }),
+      releaseVideoDecodeFrame: async () => ({ success: true, result: { released: true } }),
+      stopVideoDecode: async () => ({ success: true }),
+    };
+    const nativeOverlayBridge = {
+      presentSharedFrame: async (payload: Parameters<import('./sharedRendererRustVideoUploadPipeline').NativeOverlayDecodedFrameBridge['presentSharedFrame']>[0]) => {
+        calls.push(['presentSharedFrame', payload.windowId, payload.mediaId]);
+        return {
+          success: true,
+          attached: true,
+          releaseFrame: {
+            memoryId: payload.frame.descriptor.memoryId,
+            slotIndex: payload.frame.descriptor.slotIndex,
+            generation: payload.frame.descriptor.generation,
+            ptsFrame: payload.frame.ptsFrame,
+            copyOutState: 'gpuUploadFenceSignalled' as const,
+          },
+        };
+      },
+    };
+
+    const input = {
+      windowId: 79,
+      mediaId: 'steady-video-reset-all-windows',
+      decodeResponse: decodedFrameResponse,
+      slotCount: 2,
+      nativeOverlayBridge,
+      rustBackendBridge,
+    };
+
+    await presentNativeOverlayRustDecodedVideoFrame(input);
+    resetNativeOverlayVisualFrameCache(undefined, 'steady-video-reset-all-windows');
+    await presentNativeOverlayRustDecodedVideoFrame(input);
+
+    expect(calls).toEqual([
+      ['presentSharedFrame', 79, 'steady-video-reset-all-windows'],
+      ['presentSharedFrame', 79, 'steady-video-reset-all-windows'],
+    ]);
+  });
+
   it('copies a verified Rust decoded frame and releases the backend slot after GPU upload', async () => {
     const calls: unknown[] = [];
     const copyBridge: SharedVideoFrameCopyBridge = {
