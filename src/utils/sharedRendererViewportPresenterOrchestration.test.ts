@@ -351,6 +351,57 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
     });
   });
 
+  it('uses Native Overlay before preferred native render upload when both are enabled', async () => {
+    const events: string[] = [];
+    const prepareNativeRenderUpload: SharedRendererViewportNativeRenderUploadPreparer = async () => {
+      events.push('prepareNativeRenderUpload');
+      return {
+        ok: true,
+        activeJobs: [activeJob],
+        upload: upload as any,
+      };
+    };
+    const startPresenter: SharedRendererViewportPresenterStarter = async () => {
+      events.push('startPresenter');
+      return control;
+    };
+
+    const result = await startSharedRendererViewportPresenter({
+      canvas,
+      session,
+      datasets: [],
+      diagnosticSwatchEnabled: true,
+      videoCutoverEnabled: true,
+      nativeRenderPreviewEnabled: true,
+      nativeOverlayPreviewEnabled: true,
+      preferNativeRenderUpload: true,
+      activeVideoDecodeJob: activeJob,
+      activeVideoDecodeJobs: [activeJob],
+      requestId: 25,
+      prepareNativeRenderUpload,
+      presentNativeOverlayDecodedFrame: async (input) => {
+        events.push(`nativeOverlay:${input.requestId}`);
+        return {
+          ok: true,
+          activeJob,
+          activeJobs: [activeJob],
+        };
+      },
+      startPresenter,
+    } as any);
+
+    expect(result.nativeOverlayPresentResult).toEqual({
+      ok: true,
+      activeJob,
+      activeJobs: [activeJob],
+    });
+    expect(result.nativeRenderUploadResult).toBeUndefined();
+    expect(events).toEqual([
+      'nativeOverlay:25',
+      'startPresenter',
+    ]);
+  });
+
   it('skips decoded video upload preparation for the Phase 0 benchmark discard path', async () => {
     let presenterInput: unknown;
     const events: string[] = [];
