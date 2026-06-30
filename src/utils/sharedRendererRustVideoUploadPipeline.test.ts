@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  presentNativeOverlayRustDecodedVideoFrame,
   prepareSharedRendererRustDecodedVideoUpload,
 } from './sharedRendererRustVideoUploadPipeline';
 import type {
@@ -51,6 +52,58 @@ const decodedFrameResponse: RustBackendResult<RustBackendVideoDecodeFrameResult>
 };
 
 describe('sharedRendererRustVideoUploadPipeline', () => {
+  it('presents a verified Rust decoded frame through Native Overlay and releases the backend slot after present', async () => {
+    const calls: unknown[] = [];
+    const rustBackendBridge: RustBackendVideoDecodeBridge = {
+      startVideoDecode: async () => ({ success: true }),
+      requestVideoDecodeFrame: async () => ({ success: true, result: decodedFrameResponse.result! }),
+      releaseVideoDecodeFrame: async (payload) => {
+        calls.push(['releaseVideoDecodeFrame', payload]);
+        return { success: true, result: { released: true } };
+      },
+      stopVideoDecode: async () => ({ success: true }),
+    };
+
+    const result = await presentNativeOverlayRustDecodedVideoFrame({
+      windowId: 7,
+      decodeResponse: decodedFrameResponse,
+      slotCount: 2,
+      nativeOverlayBridge: {
+        presentSharedFrame: async (payload) => {
+          calls.push(['presentSharedFrame', payload]);
+          return {
+            success: true,
+            attached: true,
+            releaseFrame: {
+              memoryId: payload.frame.descriptor.memoryId,
+              slotIndex: payload.frame.descriptor.slotIndex,
+              generation: payload.frame.descriptor.generation,
+              ptsFrame: payload.frame.ptsFrame,
+              copyOutState: 'gpuUploadFenceSignalled',
+            },
+          };
+        },
+      },
+      rustBackendBridge,
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(calls).toEqual([
+      ['presentSharedFrame', {
+        windowId: 7,
+        mediaId: 'decode-job-1',
+        slotCount: 2,
+        frame: decodedFrameResponse.result!.frame,
+      }],
+      ['releaseVideoDecodeFrame', {
+        jobId: 'decode-job-1',
+        slotIndex: 1,
+        generation: 5,
+        copyOutState: 'gpuUploadFenceSignalled',
+      }],
+    ]);
+  });
+
   it('copies a verified Rust decoded frame and releases the backend slot after GPU upload', async () => {
     const calls: unknown[] = [];
     const copyBridge: SharedVideoFrameCopyBridge = {
