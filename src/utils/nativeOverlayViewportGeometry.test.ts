@@ -39,4 +39,25 @@ describe('nativeOverlayViewportGeometry', () => {
       scaleFactor: 1,
     });
   });
+
+  it('adds visual viewport offsets before converting to the native lower-left origin', () => {
+    expect(buildNativeOverlayAttachRect({
+      viewportRect: {
+        left: 10.25,
+        top: 20.5,
+        width: 640.5,
+        height: 360.25,
+      },
+      contentHeight: 800.75,
+      devicePixelRatio: 1.5,
+      viewportOffsetLeft: 3.5,
+      viewportOffsetTop: 7.25,
+    })).toEqual({
+      x: 13.75,
+      y: 412.75,
+      width: 640.5,
+      height: 360.25,
+      scaleFactor: 1.5,
+    });
+  });
 });
