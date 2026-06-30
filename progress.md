@@ -1,3 +1,22 @@
+## 2026-06-30 — Native Overlay visual viewport座標正規化を追加
+
+### 実施内容
+- `src/utils/nativeOverlayViewportGeometry.test.ts` に、visual viewport の offset を加味して native lower-left origin へ変換する契約を Red として追加した。
+- Red では `viewportOffsetLeft` / `viewportOffsetTop` が無視され、x/y がずれることを確認した。
+- `src/utils/nativeOverlayViewportGeometry.ts` に optional の `viewportOffsetLeft` / `viewportOffsetTop` を追加し、x と y の正規化へ反映した。
+- `src/components/Viewport.tsx` から `window.visualViewport` の `height` / `offsetLeft` / `offsetTop` を attach rect 計算へ渡すようにした。
+- `package.json` の版を機能追加として `0.1.1-Beta-397a` へ更新した。
+
+### 選定理由・判断の根拠
+- devtools 開閉や viewport 復帰では `getBoundingClientRect()` と visual viewport の基準差が overlay 位置ずれにつながるため、pure function で offset を明示的に扱う必要がある。
+- 既存の lower-left origin 変換を維持しつつ optional input にしたため、visualViewport 非対応環境では従来挙動を保てる。
+- `npx vitest run src/utils/nativeOverlayViewportGeometry.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts` は 2 files / 36 tests passed。
+- `git diff --check` は問題なし。
+
+### 残課題・次のステップ
+- 次は実機で resize / devtools 開閉 / fullscreen / Mission Control 復帰の目視確認を行い、overlay attach の成功ログと位置追従を記録する。
+- Phase 4 の最後に関連テストをまとめて実行する。
+
 ## 2026-06-30 — Native Overlay位置再送イベントを追加
 
 ### 実施内容

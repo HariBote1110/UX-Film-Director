@@ -9,6 +9,8 @@ export interface NativeOverlayAttachRectInput {
   viewportRect: NativeOverlayViewportRect
   contentHeight: number
   devicePixelRatio: number
+  viewportOffsetLeft?: number
+  viewportOffsetTop?: number
 }
 
 export interface NativeOverlayAttachRect {
@@ -36,13 +38,17 @@ export const buildNativeOverlayAttachRect = ({
   viewportRect,
   contentHeight,
   devicePixelRatio,
+  viewportOffsetLeft = 0,
+  viewportOffsetTop = 0,
 }: NativeOverlayAttachRectInput): NativeOverlayAttachRect => {
   const width = positiveOrOne(viewportRect.width)
   const height = positiveOrOne(viewportRect.height)
   const finiteContentHeight = finiteOrFallback(contentHeight, height)
+  const viewportLeft = finiteOrFallback(viewportOffsetLeft, 0)
+  const viewportTop = finiteOrFallback(viewportOffsetTop, 0)
   return {
-    x: nonNegativeOrZero(viewportRect.left),
-    y: nonNegativeOrZero(finiteContentHeight - viewportRect.top - height),
+    x: nonNegativeOrZero(viewportRect.left + viewportLeft),
+    y: nonNegativeOrZero(finiteContentHeight - viewportRect.top - viewportTop - height),
     width,
     height,
     scaleFactor: positiveOrOne(devicePixelRatio),

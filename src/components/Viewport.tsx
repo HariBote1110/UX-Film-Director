@@ -537,10 +537,13 @@ const Viewport: React.FC = () => {
     const attach = () => {
       if (disposed) return;
       const viewportRect = previewElement.getBoundingClientRect();
+      const visualViewport = window.visualViewport;
       void window.nativeOverlay?.attach(buildNativeOverlayAttachRect({
         viewportRect,
-        contentHeight: window.innerHeight,
+        contentHeight: visualViewport?.height ?? window.innerHeight,
         devicePixelRatio: window.devicePixelRatio,
+        viewportOffsetLeft: visualViewport?.offsetLeft ?? 0,
+        viewportOffsetTop: visualViewport?.offsetTop ?? 0,
       }));
     };
 
