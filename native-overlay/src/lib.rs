@@ -556,8 +556,15 @@ pub fn copy_overlay_shared_frame_source_for_upload(
             descriptor.format
         ));
     }
-    if descriptor.byte_offset != 0 {
-        return Err("Native overlay shared frame byteOffset must be zero.".to_string());
+    let expected_byte_offset = descriptor
+        .byte_len
+        .checked_mul(descriptor.slot_index)
+        .ok_or_else(|| "Native overlay shared frame byteOffset overflows.".to_string())?;
+    if descriptor.byte_offset != 0 && descriptor.byte_offset != expected_byte_offset {
+        return Err(format!(
+            "Native overlay shared frame byteOffset must be zero or slotIndex * byteLen, expected {}, got {}.",
+            expected_byte_offset, descriptor.byte_offset
+        ));
     }
     let row_bytes = descriptor
         .width
@@ -815,6 +822,9 @@ fn platform_capabilities() -> NativeOverlayCapabilities {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static SHM_NAME_COUNTER: AtomicU64 = AtomicU64::new(0);
 
     #[test]
     fn overlay_layer_contract_uses_bgra8_unorm_and_scaled_drawable_size() {
@@ -1093,7 +1103,8 @@ mod tests {
             .expect("system clock should be after unix epoch")
             .as_micros()
             % 1_000_000;
-        format!("/uxfd-overlay{}-{micros}", std::process::id())
+        let counter = SHM_NAME_COUNTER.fetch_add(1, Ordering::Relaxed);
+        format!("/uxfd-overlay{}-{micros}-{counter}", std::process::id())
     }
 
     fn unique_temp_path(label: &str, extension: &str) -> std::path::PathBuf {
