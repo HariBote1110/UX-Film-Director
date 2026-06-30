@@ -66,6 +66,8 @@ describe('package scripts', () => {
     expect(script).toContain('native_overlay_steady_playback');
     expect(script).toContain('UXFD_NATIVE_OVERLAY_STEADY_MEAN_BUDGET_MS');
     expect(script).toContain('UXFD_NATIVE_OVERLAY_STEADY_P95_BUDGET_MS');
+    expect(script).toContain('UXFD_NATIVE_OVERLAY_STEADY_DURATION_MS');
+    expect(script).toContain('VITE_UXFD_NATIVE_OVERLAY_STEADY_DURATION_MS');
     expect(script).toContain('assertNativeOverlayBenchTraceBudgets');
     expect(script).toContain('createNativeOverlayBenchTraceSummary');
     expect(script).toContain('ingestNativeOverlayBenchTraceText');
@@ -86,6 +88,8 @@ describe('package scripts', () => {
     expect(harness).toContain('UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN');
     expect(harness).toContain('UXFD_NATIVE_OVERLAY_STEADY_TRACE_END');
     expect(harness).toContain('window.setTimeout(resolve, 1200)');
+    expect(harness).toContain('resolveNativeOverlaySteadyDurationMs()');
+    expect(harness).toContain('collectRafDeltas(steadyDurationMs');
     expect(harness).toContain('let steadyFrame = 0');
     expect(harness).toContain('state.setTime(steadyStartTime + (steadyFrame / 60))');
     expect(harness.indexOf('await emitPerfTraceMarker(`UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN'))
