@@ -27,10 +27,48 @@ pub struct NativeOverlayDetachPayload {
 }
 
 #[napi(object)]
+pub struct NativeOverlaySharedFrameDescriptorPayload {
+    pub memory_id: String,
+    pub slot_index: u32,
+    pub generation: f64,
+    pub byte_offset: u32,
+    pub byte_len: u32,
+    pub width: u32,
+    pub height: u32,
+    pub stride_bytes: u32,
+    pub format: String,
+}
+
+#[napi(object)]
+pub struct NativeOverlaySharedFramePayload {
+    pub descriptor: NativeOverlaySharedFrameDescriptorPayload,
+    pub pts_frame: f64,
+}
+
+#[napi(object)]
+pub struct NativeOverlaySharedFramePresentPayload {
+    pub window_id: u32,
+    pub native_window_handle: Option<Buffer>,
+    pub media_id: String,
+    pub slot_count: u32,
+    pub frame: NativeOverlaySharedFramePayload,
+}
+
+#[napi(object)]
+pub struct NativeOverlayReleaseFramePayload {
+    pub memory_id: String,
+    pub slot_index: u32,
+    pub generation: f64,
+    pub pts_frame: f64,
+    pub copy_out_state: String,
+}
+
+#[napi(object)]
 pub struct NativeOverlayResponse {
     pub success: bool,
     pub attached: bool,
     pub reason: Option<String>,
+    pub release_frame: Option<NativeOverlayReleaseFramePayload>,
 }
 
 #[napi(object)]
@@ -75,6 +113,27 @@ pub struct OverlayUploadFrame {
     pub pixels: Vec<u8>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OverlaySharedFramePresentRequest {
+    pub source: OverlaySharedFrameSource,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OverlayReleaseFramePayload {
+    pub memory_id: String,
+    pub slot_index: u32,
+    pub generation: u64,
+    pub pts_frame: u64,
+    pub copy_out_state: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OverlaySharedFramePresentResponse {
+    pub success: bool,
+    pub attached: bool,
+    pub release_frame: Option<OverlayReleaseFramePayload>,
+}
+
 #[derive(Debug, PartialEq)]
 pub struct OverlayLayerContract {
     pub pixel_format: &'static str,
@@ -102,6 +161,18 @@ pub fn detach_native_overlay(payload: NativeOverlayDetachPayload) -> NativeOverl
     }
 }
 
+#[napi(js_name = "presentNativeOverlaySharedFrame")]
+pub fn present_native_overlay_shared_frame(
+    payload: NativeOverlaySharedFramePresentPayload,
+) -> NativeOverlayResponse {
+    match catch_unwind(AssertUnwindSafe(|| {
+        present_native_overlay_shared_frame_inner(payload)
+    })) {
+        Ok(response) => response,
+        Err(_) => failure("Native overlay shared frame present panicked."),
+    }
+}
+
 #[napi(js_name = "getNativeOverlayCapabilities")]
 pub fn get_native_overlay_capabilities() -> NativeOverlayCapabilities {
     platform_capabilities()
@@ -126,6 +197,7 @@ fn attach_native_overlay_inner(payload: NativeOverlayAttachPayload) -> NativeOve
         success: true,
         attached: true,
         reason: None,
+        release_frame: None,
     }
 }
 
@@ -144,6 +216,7 @@ fn detach_native_overlay_inner(payload: NativeOverlayDetachPayload) -> NativeOve
         success: true,
         attached: false,
         reason: None,
+        release_frame: None,
     }
 }
 
@@ -152,6 +225,37 @@ fn failure(reason: &str) -> NativeOverlayResponse {
         success: false,
         attached: false,
         reason: Some(reason.to_string()),
+        release_frame: None,
+    }
+}
+
+fn present_native_overlay_shared_frame_inner(
+    payload: NativeOverlaySharedFramePresentPayload,
+) -> NativeOverlayResponse {
+    let _ = payload.window_id;
+    if let Err(reason) = present_native_window_handle_bytes(&payload) {
+        return failure(reason);
+    }
+    let request = match overlay_present_request_from_payload(payload) {
+        Ok(request) => request,
+        Err(reason) => return failure(&reason),
+    };
+    match present_overlay_shared_frame_for_test(request) {
+        Ok(response) => NativeOverlayResponse {
+            success: response.success,
+            attached: response.attached,
+            reason: None,
+            release_frame: response.release_frame.map(|release_frame| {
+                NativeOverlayReleaseFramePayload {
+                    memory_id: release_frame.memory_id,
+                    slot_index: release_frame.slot_index,
+                    generation: release_frame.generation as f64,
+                    pts_frame: release_frame.pts_frame as f64,
+                    copy_out_state: release_frame.copy_out_state,
+                }
+            }),
+        },
+        Err(reason) => failure(&reason),
     }
 }
 
@@ -205,6 +309,57 @@ pub fn detach_native_window_handle_bytes(
     Ok(bytes.to_vec())
 }
 
+pub fn present_native_window_handle_bytes(
+    payload: &NativeOverlaySharedFramePresentPayload,
+) -> Result<Vec<u8>, &'static str> {
+    let Some(handle) = &payload.native_window_handle else {
+        return Err("Native overlay window handle is required.");
+    };
+    let bytes = handle.as_ref();
+    if bytes.len() != std::mem::size_of::<usize>() {
+        return Err("Native overlay window handle has an unexpected byte length.");
+    }
+    Ok(bytes.to_vec())
+}
+
+fn overlay_present_request_from_payload(
+    payload: NativeOverlaySharedFramePresentPayload,
+) -> Result<OverlaySharedFramePresentRequest, String> {
+    Ok(OverlaySharedFramePresentRequest {
+        source: OverlaySharedFrameSource {
+            media_id: payload.media_id,
+            slot_count: payload.slot_count,
+            frame: OverlaySharedFrame {
+                descriptor: OverlaySharedFrameDescriptor {
+                    memory_id: payload.frame.descriptor.memory_id,
+                    slot_index: payload.frame.descriptor.slot_index,
+                    generation: safe_u64_from_f64(
+                        "generation",
+                        payload.frame.descriptor.generation,
+                    )?,
+                    byte_offset: payload.frame.descriptor.byte_offset,
+                    byte_len: payload.frame.descriptor.byte_len,
+                    width: payload.frame.descriptor.width,
+                    height: payload.frame.descriptor.height,
+                    stride_bytes: payload.frame.descriptor.stride_bytes,
+                    format: payload.frame.descriptor.format,
+                },
+                pts_frame: safe_u64_from_f64("ptsFrame", payload.frame.pts_frame)?,
+            },
+        },
+    })
+}
+
+fn safe_u64_from_f64(label: &str, value: f64) -> Result<u64, String> {
+    if !value.is_finite() || value < 0.0 || value.fract() != 0.0 || value > 9_007_199_254_740_991.0
+    {
+        return Err(format!(
+            "{label} must be a safe non-negative integer, got {value}"
+        ));
+    }
+    Ok(value as u64)
+}
+
 pub fn copy_overlay_shared_frame_source_for_upload(
     source: &OverlaySharedFrameSource,
     timeout: Duration,
@@ -224,7 +379,9 @@ pub fn copy_overlay_shared_frame_source_for_upload(
         .checked_mul(4)
         .ok_or_else(|| "Native overlay shared frame row byte length overflows.".to_string())?;
     if descriptor.stride_bytes < row_bytes {
-        return Err("Native overlay shared frame strideBytes is smaller than width * 4.".to_string());
+        return Err(
+            "Native overlay shared frame strideBytes is smaller than width * 4.".to_string(),
+        );
     }
     let required_byte_len = descriptor
         .stride_bytes
@@ -266,6 +423,26 @@ pub fn copy_overlay_shared_frame_source_for_upload(
         generation: descriptor.generation,
         pts_frame: source.frame.pts_frame,
         pixels,
+    })
+}
+
+pub fn present_overlay_shared_frame_for_test(
+    request: OverlaySharedFramePresentRequest,
+) -> Result<OverlaySharedFramePresentResponse, String> {
+    let upload =
+        copy_overlay_shared_frame_source_for_upload(&request.source, Duration::from_millis(100))?;
+    let descriptor = &request.source.frame.descriptor;
+
+    Ok(OverlaySharedFramePresentResponse {
+        success: true,
+        attached: true,
+        release_frame: Some(OverlayReleaseFramePayload {
+            memory_id: descriptor.memory_id.clone(),
+            slot_index: descriptor.slot_index,
+            generation: upload.generation,
+            pts_frame: upload.pts_frame,
+            copy_out_state: "gpuUploadFenceSignalled".to_string(),
+        }),
     })
 }
 
@@ -328,7 +505,10 @@ mod tests {
         })
         .expect_err("zero width must be rejected");
 
-        assert_eq!(error, "Native overlay size and scale factor must be positive.");
+        assert_eq!(
+            error,
+            "Native overlay size and scale factor must be positive."
+        );
     }
 
     #[test]

@@ -1,3 +1,22 @@
+## 2026-06-30 — Native Overlay shared frame present addonを追加
+
+### 実施内容
+- `native-overlay/src/lib.rs` に、shm source を present した後に `gpuUploadFenceSignalled` release payload を返す契約を Red として追加した。
+- Red では `OverlaySharedFramePresentRequest` / `OverlayReleaseFramePayload` / `present_overlay_shared_frame_for_test` が未定義で compile error になることを確認した。
+- `native-overlay/src/lib.rs` に `presentNativeOverlaySharedFrame` N-API と payload/response 型を追加した。
+- `native-overlay/src/lib.rs` で `catch_unwind` 境界を維持し、shared frame descriptor の safe integer 検証、shm copy、release payload 生成を実装した。
+- `package.json` の版を機能追加として `0.1.1-Beta-387a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 3a では addon が shm read と surface present を担うため、まず addon 境界で shared frame descriptor を受け取り、present 成功後に release すべき lease generation を返す経路を固定した。
+- N-API response には pixel bytes を含めず、`memoryId` / `slotIndex` / `generation` / `ptsFrame` / `copyOutState` だけを返すため、制御プレーンとデータプレーンを分離できている。
+- `cargo test --manifest-path native-overlay/Cargo.toml` は 7 tests passed。
+- `npx vitest run src/utils/nativeOverlayMainBridge.test.ts` は 8 tests passed。
+
+### 残課題・次のステップ
+- 次は renderer orchestration / IPC から `presentSharedFrame` を呼び、戻った release payload で `decode.releaseFrame` を実行する接続を Red→Green で追加する。
+- その後、実 CAMetalLayer present と 1080p 実 decode 計測に進む。
+
 ## 2026-06-30 — Native Overlay shared frame present bridgeを追加
 
 ### 実施内容

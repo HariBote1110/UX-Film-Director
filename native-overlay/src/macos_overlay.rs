@@ -2,7 +2,7 @@
 
 use core_graphics_types::geometry::{CGPoint, CGRect, CGSize};
 use metal::{
-    Device, MetalLayerRef, MTLClearColor, MTLLoadAction, MTLPixelFormat, MTLStoreAction,
+    Device, MTLClearColor, MTLLoadAction, MTLPixelFormat, MTLStoreAction, MetalLayerRef,
     RenderPassDescriptor,
 };
 use objc::runtime::{Class, Object, BOOL, NO, YES};
@@ -105,7 +105,8 @@ fn attach_overlay_view_to_parent(
         );
         let () = msg_send![layer, setPixelFormat: MTLPixelFormat::BGRA8Unorm as u64];
         let () = msg_send![layer, setDrawableSize: drawable_size];
-        let () = msg_send![layer, setFrame: CGRect::new(&CGPoint::new(0.0, 0.0), &overlay_frame.size)];
+        let () =
+            msg_send![layer, setFrame: CGRect::new(&CGPoint::new(0.0, 0.0), &overlay_frame.size)];
         let () = msg_send![overlay_view, setWantsLayer: YES];
         let () = msg_send![overlay_view, setLayer: layer];
         let () = msg_send![parent_view, addSubview: overlay_view];
