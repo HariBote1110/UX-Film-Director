@@ -165,7 +165,7 @@ impl NativeWgpuLiveSurfaceRenderer {
             .find(|format| *format == wgpu::TextureFormat::Bgra8Unorm)
             .unwrap_or_else(|| capabilities.formats[0]);
         let surface_config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
             format: surface_format,
             width: width.max(1),
             height: height.max(1),
@@ -243,6 +243,66 @@ impl NativeWgpuLiveSurfaceRenderer {
                 render,
                 readback_encode: Duration::ZERO,
                 steady_state: source_upload + render,
+                total: total_start.elapsed(),
+            },
+        })
+    }
+
+    pub async fn present_scene_to_surface_texture_with_readback(
+        &self,
+        snapshot: &SceneSnapshot,
+        sources: &HashMap<String, RgbaFrame>,
+    ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
+        let total_start = Instant::now();
+        let (prepared_clips, source_upload) = self.core.prepare_scene_clips(snapshot, sources)?;
+        let surface_texture = self
+            .surface
+            .get_current_texture()
+            .map_err(NativeWgpuRenderError::Surface)?;
+        let view = surface_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder =
+            self.core
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("UXFD native wgpu live surface readback encoder"),
+                });
+        self.core
+            .encode_prepared_clips(&mut encoder, &view, &prepared_clips);
+        copy_live_surface_texture_to_readback(
+            &mut encoder,
+            &surface_texture.texture,
+            &self.core.readback_buffer,
+            self.surface_config.width,
+            self.surface_config.height,
+        );
+
+        let render_start = Instant::now();
+        self.core.queue.submit(Some(encoder.finish()));
+        surface_texture.present();
+        wait_for_submitted_work(&self.core.device, &self.core.queue)?;
+        let render = render_start.elapsed();
+
+        let readback_encode_start = Instant::now();
+        let frame = readback_to_rgba8(
+            &self.core.device,
+            &self.core.readback_buffer,
+            self.surface_config.width,
+            self.surface_config.height,
+        )?;
+        let readback_encode = readback_encode_start.elapsed();
+
+        Ok(NativeWgpuFrameReport {
+            width: self.surface_config.width,
+            height: self.surface_config.height,
+            frame,
+            timings: NativeWgpuFrameStageTimings {
+                setup: Duration::ZERO,
+                source_upload,
+                render,
+                readback_encode,
+                steady_state: source_upload + render + readback_encode,
                 total: total_start.elapsed(),
             },
         })
@@ -1269,6 +1329,37 @@ fn create_output_texture_for_format(
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
         view_formats: &[],
     })
+}
+
+fn copy_live_surface_texture_to_readback(
+    encoder: &mut wgpu::CommandEncoder,
+    texture: &wgpu::Texture,
+    buffer: &wgpu::Buffer,
+    width: u32,
+    height: u32,
+) {
+    let padded_bytes_per_row = padded_bytes_per_row(width);
+    encoder.copy_texture_to_buffer(
+        wgpu::ImageCopyTexture {
+            texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::ImageCopyBuffer {
+            buffer,
+            layout: wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(padded_bytes_per_row),
+                rows_per_image: Some(height),
+            },
+        },
+        wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+    );
 }
 
 fn prepare_clip(
