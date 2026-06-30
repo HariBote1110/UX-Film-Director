@@ -117,4 +117,23 @@ UXFD_NATIVE_OVERLAY_STEADY_TRACE_END mediaId=steady-video-1
       minimumPresentSamples: 1,
     })).not.toThrow();
   });
+
+  it('continues a split RustBackend decodeMs value onto the next log line', async () => {
+    const {
+      createNativeOverlayBenchTraceSummary,
+      ingestNativeOverlayBenchTraceText,
+    } = await import('../../scripts/native-overlay-bench-trace.mjs');
+
+    const summary = createNativeOverlayBenchTraceSummary();
+    ingestNativeOverlayBenchTraceText(summary, `
+UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN mediaId=steady-video-1
+[RustBackend] [decode.trace] job=shared-renderer-video-steady-video-1-720x405-60over1 frame=95 reason=cacheHit restarted=false skipped=0 decodeMs=
+[RustBackend] 0.0
+[RustBackend] [decode.trace] job=shared-renderer-video-steady-video-1-720x405-60over1 frame=231 reason=forwardGapExceeded restarted=true skipped=0 decodeMs=575.1
+UXFD_NATIVE_OVERLAY_STEADY_TRACE_END mediaId=steady-video-1
+`);
+
+    expect(summary.decode.count).toBe(2);
+    expect(summary.decode.maxMs).toBe(575.1);
+  });
 });
