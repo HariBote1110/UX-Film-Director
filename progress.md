@@ -1,3 +1,21 @@
+## 2026-06-30 — Native Overlay preview cadenceを60fpsへ固定
+
+### 実施内容
+- Red として `src/utils/sharedRendererPlaybackPreviewSettings.test.ts` に、Native Overlay steady playback の preview cadence が 60fps であることと、量子化が 1/60 秒単位で進むことを固定した。
+- Green として `src/utils/sharedRendererPlaybackPreviewSettings.ts` の `SHARED_RENDERER_PLAYBACK_PREVIEW_FPS` を 60 に更新した。
+- 軽微な Phase 3a 性能修正として `package.json` / `package-lock.json` の版を `0.1.1-Beta-419c` へ更新した。
+
+### 選定理由・判断の根拠
+- 実機 bench では present 側は 2〜5ms 台へ収束したが、decode 側で `skipped=24` / `skipped=54` を伴う sequential catch-up が発生し、`decodeMs` が 16ms を大きく超えていた。
+- 既存の 12fps preview cadence は 60fps source に対して意図的に複数 source frame を飛ばすため、Phase 3a の「1080p preview を体感 60fps」という完了条件と矛盾していた。
+- Red: `npx vitest run src/utils/sharedRendererPlaybackPreviewSettings.test.ts` は 2 failed。
+- Green: `npx vitest run src/utils/sharedRendererPlaybackPreviewSettings.test.ts` と `npx vitest run src/utils/packageScripts.test.ts --testNamePattern "Native Overlay long bench"` は成功した。
+- 短時間実機 bench `UXFD_NATIVE_OVERLAY_BENCH_TRACE=1 UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=15000 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=90000 npm run bench:native-overlay` は `native_overlay_steady_playback p95 exceeded jitter budget: 20.98ms` で失敗した。marker 内にも `frame=231 reason=forwardGapExceeded decodeMs=575.1` が残り、60fps cadence だけでは Phase 3a 未達だった。
+
+### 残課題・次のステップ
+- trace parser が `[RustBackend] ... decodeMs=` と次行の数値に分割されたログを拾い漏らすため、まず gate の観測漏れを Red で固定する。
+- その後、backend の sequential skip / cache 戦略ではなく decode request cadence の single-flight replay を追加で見直す。
+
 ## 2026-06-30 — steady bench開始時にNative Overlay visual cacheをreset
 
 ### 実施内容
