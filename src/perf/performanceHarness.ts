@@ -594,10 +594,10 @@ export const runPerformanceHarness = async (): Promise<PerfHarnessAgentPayload> 
     rows.push(runScenarioPlayheadScrubSync(runId));
     await waitForReactPaint();
 
-    rows.push(await runScenarioRafPlayhead(runId));
+    rows.push(await runScenarioNativeOverlaySteadyPlayback(runId));
     await waitForReactPaint();
 
-    rows.push(await runScenarioNativeOverlaySteadyPlayback(runId));
+    rows.push(await runScenarioRafPlayhead(runId));
     await waitForReactPaint();
 
     rows.push(await runScenarioHeavyVideoRafScrub(runId));
