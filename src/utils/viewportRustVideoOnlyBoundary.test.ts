@@ -149,6 +149,22 @@ describe('Viewport Rust video-only boundary', () => {
     expect(presenterBlock).toContain('rustBackendBridge: window.rustBackend');
   });
 
+  it('routes native-reuse playback frames through Native Overlay when the overlay flag is enabled', () => {
+    const code = viewportSource();
+    const start = code.indexOf('if (canReuseNativeRenderPresenter && sharedRendererPresenterSessionKeyRef.current === nextPresenterKey)');
+    const end = code.indexOf('if (sharedRendererPresenterSessionKeyRef.current !== nextPresenterKey)', start);
+    const nativeReuseBlock = code.slice(start, end);
+
+    expect(nativeReuseBlock).toContain('if (nativeOverlayPreviewEnabled) {');
+    expect(nativeReuseBlock).toContain('prepareSharedRendererViewportNativeOverlayPresent({');
+    expect(nativeReuseBlock).toContain('activeJob: sharedRendererVideoDecodeJobsRef.current[0] ?? null');
+    expect(nativeReuseBlock).toContain('sharedRendererVideoDecodeJobsRef.current = result.ok ? [result.activeJob] : []');
+    expect(nativeReuseBlock).toContain('presentPreparedNativeRenderFrame(result.upload)');
+    expect(nativeReuseBlock.indexOf('if (nativeOverlayPreviewEnabled) {')).toBeLessThan(
+      nativeReuseBlock.indexOf('presentPreparedNativeRenderFrame(result.upload)')
+    );
+  });
+
   it('reuses the existing external video presenter across playback ticks', () => {
     const code = viewportSource();
     const start = code.indexOf('const nextPresenterKey = buildSharedRendererPresenterSessionKey(session');
