@@ -353,6 +353,7 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
 
   it('uses Native Overlay before preferred native render upload when both are enabled', async () => {
     const events: string[] = [];
+    const dataset: Record<string, string | undefined> = {};
     const prepareNativeRenderUpload: SharedRendererViewportNativeRenderUploadPreparer = async () => {
       events.push('prepareNativeRenderUpload');
       return {
@@ -369,7 +370,7 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
     const result = await startSharedRendererViewportPresenter({
       canvas,
       session,
-      datasets: [],
+      datasets: [dataset],
       diagnosticSwatchEnabled: true,
       videoCutoverEnabled: true,
       nativeRenderPreviewEnabled: true,
@@ -400,6 +401,7 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
       'nativeOverlay:25',
       'startPresenter',
     ]);
+    expect(dataset.uxfdSharedRendererPresenterNativeOverlayAttempt).toBe('ok');
   });
 
   it('skips decoded video upload preparation for the Phase 0 benchmark discard path', async () => {
