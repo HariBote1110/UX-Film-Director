@@ -3,6 +3,7 @@ import { useStore } from '../store/useStore';
 import type { ShapeObject, VideoObject } from '../types';
 import { isPerfAgentMode } from './perfEnv';
 import type { PerfHarnessAgentPayload } from './perfAgentPayload';
+import { resetNativeOverlayVisualFrameCache } from '../utils/sharedRendererRustVideoUploadPipeline';
 import {
   buildPerformanceCsvHeader,
   formatPerformanceCsvRow,
@@ -499,6 +500,7 @@ const runScenarioNativeOverlaySteadyPlayback = async (runId: string): Promise<Pe
   await new Promise<void>((resolve) => {
     window.setTimeout(resolve, 1200);
   });
+  resetNativeOverlayVisualFrameCache(undefined, videoId);
   await emitPerfTraceMarker(`UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN mediaId=${videoId}`);
   const startedAt = performance.now();
   const deltas = await collectRafDeltas(4200, () => {});

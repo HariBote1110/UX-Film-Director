@@ -108,6 +108,22 @@ export type PrepareSharedRendererRustDecodedVideoUploadResult =
 
 const lastNativeOverlayVisualFrameKeyByTarget = new Map<string, string>();
 
+export const resetNativeOverlayVisualFrameCache = (windowId?: number, mediaId?: string): void => {
+  if (mediaId) {
+    if (typeof windowId === 'number') {
+      lastNativeOverlayVisualFrameKeyByTarget.delete(`${windowId}:${mediaId}`);
+      return;
+    }
+    for (const key of lastNativeOverlayVisualFrameKeyByTarget.keys()) {
+      if (key.endsWith(`:${mediaId}`)) {
+        lastNativeOverlayVisualFrameKeyByTarget.delete(key);
+      }
+    }
+    return;
+  }
+  lastNativeOverlayVisualFrameKeyByTarget.clear();
+};
+
 export const presentNativeOverlayRustDecodedVideoFrame = async ({
   windowId,
   mediaId,

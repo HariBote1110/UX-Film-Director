@@ -1,3 +1,21 @@
+## 2026-06-30 — steady bench開始時にNative Overlay visual cacheをreset
+
+### 実施内容
+- Red として `src/utils/sharedRendererRustVideoUploadPipeline.test.ts` に、window 未指定の `resetNativeOverlayVisualFrameCache` が同一 media の全 window cache を破棄する契約を追加した。
+- Green として `src/utils/sharedRendererRustVideoUploadPipeline.ts` から `resetNativeOverlayVisualFrameCache` を公開し、`src/perf/performanceHarness.ts` の steady trace marker 直前で対象 video の visual frame cache を reset するようにした。
+- Phase 3a 性能修正の軽微更新として `package.json` / `package-lock.json` の版を `0.1.1-Beta-419b` へ更新した。
+
+### 選定理由・判断の根拠
+- 重複 present 抑止後、marker 開始時に既に表示済みの `ptsFrame` cache が残ると、steady 区間内の Native Overlay present sample が 0 になり、Phase 3a gate が現実の提示時間を測れなかった。
+- `windowId` を指定しない reset は bench harness のように window id を持たない呼び出し元でも media 単位で cache を落とせるため、実アプリの window 単位 reset と両立できる。
+- Red: `npx vitest run src/utils/sharedRendererRustVideoUploadPipeline.test.ts --testNamePattern "across every"` は失敗を確認した。
+- Green: `npx vitest run src/utils/sharedRendererRustVideoUploadPipeline.test.ts --testNamePattern "resetting|across every|duplicate Native Overlay"` と `npx vitest run src/utils/packageScripts.test.ts --testNamePattern "Native Overlay long bench"` は成功した。
+- 短時間実機 bench では marker 内 present sample が復活し、`presentMs` は概ね 2〜5ms 台になった。一方で `decodeMs max 204.1ms > 16ms` により Phase 3a gate は未達だった。
+
+### 残課題・次のステップ
+- Phase 3a の未達要因として、steady 区間内の sequential decode が `skipped=24` / `skipped=54` を伴って 16ms を大きく超える原因を調査する。
+- decode cadence と playback time advance の関係をテストで固定し、実 decode の定常 `decodeMs<16ms` を満たす。
+
 ## 2026-06-30 — 重複Native Overlay presentをlease releaseのみへ短絡
 
 ### 実施内容
