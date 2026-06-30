@@ -1,3 +1,20 @@
+## 2026-06-30 — traceなしlive overlayで画像・動画表示を確認
+
+### 実施内容
+- `npm run dev:native-overlay -- --host 127.0.0.1 --port 5173 --strictPort` で dev server と Native Overlay addon build を起動した。
+- `UXFD_NATIVE_OVERLAY=1 VITE_UXFD_NATIVE_OVERLAY=1` かつ `UXFD_DECODE_TRACE` なしで Electron を起動し、画像 clip `/Users/yuki/GitHub/UX-Film-Director/.codex/native-overlay-fixtures/overlay-image-256.png` と動画 clip `/Users/yuki/GitHub/UX-Film-Director/perf/heavy-media/10000kbps_60fps.mp4` を 1 件ずつ配置した。
+- macOS `screencapture` で `/Users/yuki/GitHub/UX-Film-Director/.codex/native-overlay-visual/system-electron-no-readback-trace-dialog-closed-2.png` を取得し、preview 上に画像 clip と動画 clip が表示されることを確認した。
+- CDP 診断で `uxfdSharedRendererPresenterNativeOverlayAttempt=ok` を確認した。一方で presenter は `requiredVideoOwnershipUnavailable` により blocked のままで、動画 ownership はまだ `pixi` に残っている。
+
+### 選定理由・判断の根拠
+- `UXFD_DECODE_TRACE=1` の readback 診断が live CAMetalLayer 表示を阻害している可能性を切り分けるため、readback なしの通常 present を確認した。
+- スクリーンショットでは固定 blue clear と黒画面は再発せず、NSView surface と layer-backed 化により live CAMetalLayer への描画が実画面へ出る状態になった。
+- ただし動画 ownership が `pixi` のままなので、Phase 3a の shared frame lease / release と 1080p presenter 提示の完了条件は未達である。
+
+### 残課題・次のステップ
+- Phase 2 を実質やり直し、offscreen surface parity だけでなく live overlay 描画結果を測る end-to-end gate を Red から追加する。
+- Phase 3a では画像 clip だけでなく動画 clip も scene snapshot ベースの Native Overlay 経路へ流し、`requiredVideoOwnershipUnavailable` を解消する。
+
 ## 2026-06-30 — NSView surfaceのnull layer abortを修正
 
 ### 実施内容
