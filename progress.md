@@ -1,3 +1,22 @@
+## 2026-06-30 — 同一Native Overlay attachを抑止
+
+### 実施内容
+- Red として `src/utils/viewportRustVideoOnlyBoundary.test.ts` に、同一 attach rectangle の再送を抑止する契約を追加した。
+- Green として `src/components/Viewport.tsx` の Native Overlay attach effect に `lastNativeOverlayAttachKey` を追加し、`x/y/width/height/scaleFactor` が変わらない attach を skip するようにした。
+- resize / scroll / fullscreen / visibility / focus / pageshow の再 attach listener は維持した。
+- `package.json` / `package-lock.json` の版を軽微な live overlay layer 再作成抑止として `0.1.1-Beta-416b` へ更新した。
+
+### 選定理由・判断の根拠
+- 固定 clear 削除後、青は消えたが実機 screenshot では preview が黒く、`presentSharedFrameTrace` は `liveReadbackNonTransparentPixels=230400` のままだった。
+- attach が lifecycle event で複数回走り、present 後に同一 geometry の blank CAMetalLayer が再作成されると、readback は非透明でも画面は未描画 layer になる。
+- Red: `npx vitest run src/utils/viewportRustVideoOnlyBoundary.test.ts --testNamePattern "resends"` は 1 failed。
+- Green: `npx vitest run src/utils/viewportRustVideoOnlyBoundary.test.ts --testNamePattern "resends"` は 1 passed。
+- Green: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts` は 1 file / 13 tests passed。
+
+### 残課題・次のステップ
+- Electron を最新 renderer で再起動し、画像・動画 clip 投入後に追加 attach が present 済み layer を置き換えないことを実機 screenshot と main trace で確認する。
+- まだ黒い場合は CAMetalLayer ownership / wgpu surface configure / presenter blocked 状態を切り分ける。
+
 ## 2026-06-30 — attach時の青い固定clearを削除
 
 ### 実施内容

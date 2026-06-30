@@ -534,17 +534,28 @@ const Viewport: React.FC = () => {
     if (!previewElement || !window.nativeOverlay?.attach) return;
 
     let disposed = false;
+    let lastNativeOverlayAttachKey: string | null = null;
     const attach = () => {
       if (disposed) return;
       const viewportRect = previewElement.getBoundingClientRect();
       const visualViewport = window.visualViewport;
-      void window.nativeOverlay?.attach(buildNativeOverlayAttachRect({
+      const nextAttachRect = buildNativeOverlayAttachRect({
         viewportRect,
         contentHeight: visualViewport?.height ?? window.innerHeight,
         devicePixelRatio: window.devicePixelRatio,
         viewportOffsetLeft: visualViewport?.offsetLeft ?? 0,
         viewportOffsetTop: visualViewport?.offsetTop ?? 0,
-      }));
+      });
+      const nextAttachKey = [
+        nextAttachRect.x,
+        nextAttachRect.y,
+        nextAttachRect.width,
+        nextAttachRect.height,
+        nextAttachRect.scaleFactor,
+      ].join(':');
+      if (nextAttachKey === lastNativeOverlayAttachKey) return;
+      lastNativeOverlayAttachKey = nextAttachKey;
+      void window.nativeOverlay?.attach(nextAttachRect);
     };
 
     attach();
