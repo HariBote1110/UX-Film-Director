@@ -1,3 +1,23 @@
+## 2026-06-30 — Native Overlayでscene payloadを受け取る
+
+### 実施内容
+- Red として `src/utils/nativeOverlayCrateBoundary.test.ts` に、`presentNativeOverlaySharedFrame` の NAPI payload が `snapshot` / `media` を受け取り、画像 source 読み込みと scene source 合流関数を持つ契約を追加した。
+- Green として `native-overlay/src/lib.rs` に `NativeOverlaySceneSnapshotPayload` / `NativeOverlaySceneMediaPayload` などの addon payload 型を追加した。
+- `scene_present_request_from_payload` を追加し、JS から渡された scene payload を `rust-core` の `SceneSnapshot` と addon 内 `NativeOverlaySceneMedia` に変換するようにした。
+- `upload_frame_to_scene_sources` を追加し、動画 shared frame と画像 media source を `native-wgpu-renderer` の sources map に合流させる入口を作った。
+- `load_overlay_image_sources_for_scene` を追加し、まず PNG 画像を既存 `golden-harness` loader で読めるようにした。
+- `package.json` / `package-lock.json` の版を機能追加として `0.1.1-Beta-408a` へ更新した。
+
+### 選定理由・判断の根拠
+- Red: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts` は 1 failed。Rust addon payload が `snapshot` / `media` を受け取っていなかった。
+- Green: `cargo test --manifest-path native-overlay/Cargo.toml` は 8 passed。
+- Green: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts src/utils/sharedRendererViewportVideoUpload.test.ts src/utils/sharedRendererRustVideoUploadPipeline.test.ts src/utils/nativeOverlayMainBridge.test.ts` は 4 files / 50 tests passed。
+- `rust-core` の `MediaReference` は width/height を持たないため、addon 境界では TS 側 payload を addon 専用型で受け、scene snapshot だけ `rust-core` 型へ変換する方針にした。
+
+### 残課題・次のステップ
+- 次は `upload_frame_to_scene_sources` の画像 PNG 合流を Rust unit test で固定し、画像 clip と動画 shared frame が同じ scene に入ることを実データで確認する。
+- その後、live overlay 読み戻し diff の end-to-end gate と実機スクリーンショット確認へ進む。
+
 ## 2026-06-30 — Native Overlayにscene present入力を渡す
 
 ### 実施内容
