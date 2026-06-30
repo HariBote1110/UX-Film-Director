@@ -1,3 +1,22 @@
+## 2026-06-30 — Native wgpu present計測経路を追加
+
+### 実施内容
+- `native-wgpu-renderer/tests/frame_stage_timings.rs` に、overlay surface mode 相当の present 計測では readback_encode を `Duration::ZERO` とし、steady_state が source_upload + render だけで構成される契約を Red として追加した。
+- Red では `measure_native_wgpu_present_stages` が未定義で compile error になり、present 専用 API が存在しないことを確認した。
+- `native-wgpu-renderer/src/lib.rs` に `NativeWgpuPresentReport`、`NativeWgpuRenderer::present_frame_stages`、`measure_native_wgpu_present_stages` を追加した。
+- `native-wgpu-renderer/src/lib.rs` の既存 render 経路を `prepare_scene_clips` と `encode_prepared_clips` に分け、export readback 経路と present 計測経路が同じ composition pass を共有するようにした。
+- `package.json` の版を機能追加として `0.1.1-Beta-383a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 2 は export の readback 経路を壊さず、preview 側だけ readback/writeTexture を抜く準備が必要なため、まず readback を含まない present 計測 API を小さく追加した。
+- WGSL は変更せず、既存の composition pass を共有することで ADR-003 と render parity 方針を維持した。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test frame_stage_timings` は 4 tests passed。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test native_reference_parity` は 25 tests passed。
+
+### 残課題・次のステップ
+- 今回は readback を抜いた present 計測経路の追加までで、実 CAMetalLayer surface への present 接続はまだ未実装。
+- 次は Phase 2 の続きとして、Native Overlay addon からこの present 経路へ接続する境界、または surface view lifecycle と renderer lifecycle の結合を Red→Green で追加する。
+
 ## 2026-06-30 — Native Overlay detachをAppKit removeへ接続
 
 ### 実施内容

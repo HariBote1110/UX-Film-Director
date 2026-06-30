@@ -79,6 +79,13 @@ pub struct NativeWgpuFrameReport {
     pub timings: NativeWgpuFrameStageTimings,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeWgpuPresentReport {
+    pub width: u32,
+    pub height: u32,
+    pub timings: NativeWgpuFrameStageTimings,
+}
+
 #[derive(Debug)]
 pub struct NativeWgpuSharedFrameReport {
     pub ring: PosixSharedRing,
@@ -158,6 +165,16 @@ impl NativeWgpuRenderer {
             .await
     }
 
+    pub async fn present_frame_stages(
+        &self,
+        snapshot: &SceneSnapshot,
+        sources: &HashMap<String, RgbaFrame>,
+    ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
+        let total_start = Instant::now();
+        self.present_frame_stages_with_setup(snapshot, sources, Duration::ZERO, total_start)
+            .await
+    }
+
     pub async fn render_frame_to_shared_ring(
         &self,
         snapshot: &SceneSnapshot,
@@ -202,6 +219,115 @@ impl NativeWgpuRenderer {
         setup: Duration,
         total_start: Instant,
     ) -> Result<NativeWgpuFrameReport, NativeWgpuRenderError> {
+        let (prepared_clips, source_upload) = self.prepare_scene_clips(snapshot, sources)?;
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("UXFD native wgpu encoder"),
+            });
+
+        let output_view = self
+            .output_texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        self.encode_prepared_clips(&mut encoder, &output_view, &prepared_clips);
+
+        let render_start = Instant::now();
+        self.queue.submit(Some(encoder.finish()));
+        wait_for_submitted_work(&self.device, &self.queue)?;
+        let render = render_start.elapsed();
+
+        let mut readback_encoder =
+            self.device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("UXFD native wgpu readback encoder"),
+                });
+
+        let padded_bytes_per_row = padded_bytes_per_row(self.width);
+        readback_encoder.copy_texture_to_buffer(
+            wgpu::ImageCopyTexture {
+                texture: &self.output_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::ImageCopyBuffer {
+                buffer: &self.readback_buffer,
+                layout: wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(padded_bytes_per_row),
+                    rows_per_image: Some(self.height),
+                },
+            },
+            wgpu::Extent3d {
+                width: self.width,
+                height: self.height,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        let readback_encode_start = Instant::now();
+        self.queue.submit(Some(readback_encoder.finish()));
+        let frame =
+            readback_to_rgba8(&self.device, &self.readback_buffer, self.width, self.height)?;
+        let readback_encode = readback_encode_start.elapsed();
+
+        Ok(NativeWgpuFrameReport {
+            width: self.width,
+            height: self.height,
+            frame,
+            timings: NativeWgpuFrameStageTimings {
+                setup,
+                source_upload,
+                render,
+                readback_encode,
+                steady_state: source_upload + render + readback_encode,
+                total: total_start.elapsed(),
+            },
+        })
+    }
+
+    async fn present_frame_stages_with_setup(
+        &self,
+        snapshot: &SceneSnapshot,
+        sources: &HashMap<String, RgbaFrame>,
+        setup: Duration,
+        total_start: Instant,
+    ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
+        let (prepared_clips, source_upload) = self.prepare_scene_clips(snapshot, sources)?;
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("UXFD native wgpu present encoder"),
+            });
+        let output_view = self
+            .output_texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        self.encode_prepared_clips(&mut encoder, &output_view, &prepared_clips);
+
+        let render_start = Instant::now();
+        self.queue.submit(Some(encoder.finish()));
+        wait_for_submitted_work(&self.device, &self.queue)?;
+        let render = render_start.elapsed();
+
+        Ok(NativeWgpuPresentReport {
+            width: self.width,
+            height: self.height,
+            timings: NativeWgpuFrameStageTimings {
+                setup,
+                source_upload,
+                render,
+                readback_encode: Duration::ZERO,
+                steady_state: source_upload + render,
+                total: total_start.elapsed(),
+            },
+        })
+    }
+
+    fn prepare_scene_clips(
+        &self,
+        snapshot: &SceneSnapshot,
+        sources: &HashMap<String, RgbaFrame>,
+    ) -> Result<(Vec<PreparedClip>, Duration), NativeWgpuRenderError> {
         let mut clips = snapshot.clips.clone();
         clips.sort_by_key(|clip| clip.z_index);
 
@@ -337,90 +463,35 @@ impl NativeWgpuRenderer {
         wait_for_submitted_work(&self.device, &self.queue)?;
         let source_upload = upload_start.elapsed();
 
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("UXFD native wgpu encoder"),
-            });
+        Ok((prepared_clips, source_upload))
+    }
 
-        let output_view = self
-            .output_texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-        {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("UXFD native wgpu render pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &output_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                occlusion_query_set: None,
-                timestamp_writes: None,
-            });
-
-            pass.set_pipeline(&self.pipeline);
-            for prepared_clip in &prepared_clips {
-                pass.set_bind_group(0, &prepared_clip.bind_group, &[]);
-                pass.draw(0..3, 0..1);
-            }
-        }
-        let render_start = Instant::now();
-        self.queue.submit(Some(encoder.finish()));
-        wait_for_submitted_work(&self.device, &self.queue)?;
-        let render = render_start.elapsed();
-
-        let mut readback_encoder =
-            self.device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("UXFD native wgpu readback encoder"),
-                });
-
-        let padded_bytes_per_row = padded_bytes_per_row(self.width);
-        readback_encoder.copy_texture_to_buffer(
-            wgpu::ImageCopyTexture {
-                texture: &self.output_texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::ImageCopyBuffer {
-                buffer: &self.readback_buffer,
-                layout: wgpu::ImageDataLayout {
-                    offset: 0,
-                    bytes_per_row: Some(padded_bytes_per_row),
-                    rows_per_image: Some(self.height),
+    fn encode_prepared_clips(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        output_view: &wgpu::TextureView,
+        prepared_clips: &[PreparedClip],
+    ) {
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("UXFD native wgpu render pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: output_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    store: wgpu::StoreOp::Store,
                 },
-            },
-            wgpu::Extent3d {
-                width: self.width,
-                height: self.height,
-                depth_or_array_layers: 1,
-            },
-        );
+            })],
+            depth_stencil_attachment: None,
+            occlusion_query_set: None,
+            timestamp_writes: None,
+        });
 
-        let readback_encode_start = Instant::now();
-        self.queue.submit(Some(readback_encoder.finish()));
-        let frame =
-            readback_to_rgba8(&self.device, &self.readback_buffer, self.width, self.height)?;
-        let readback_encode = readback_encode_start.elapsed();
-
-        Ok(NativeWgpuFrameReport {
-            width: self.width,
-            height: self.height,
-            frame,
-            timings: NativeWgpuFrameStageTimings {
-                setup,
-                source_upload,
-                render,
-                readback_encode,
-                steady_state: source_upload + render + readback_encode,
-                total: total_start.elapsed(),
-            },
-        })
+        pass.set_pipeline(&self.pipeline);
+        for prepared_clip in prepared_clips {
+            pass.set_bind_group(0, &prepared_clip.bind_group, &[]);
+            pass.draw(0..3, 0..1);
+        }
     }
 }
 
@@ -737,6 +808,20 @@ pub async fn measure_native_wgpu_frame_stages(
     let setup = total_start.elapsed();
     renderer
         .render_frame_stages_with_setup(snapshot, sources, setup, total_start)
+        .await
+}
+
+pub async fn measure_native_wgpu_present_stages(
+    snapshot: &SceneSnapshot,
+    sources: &HashMap<String, RgbaFrame>,
+    width: u32,
+    height: u32,
+) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
+    let total_start = Instant::now();
+    let renderer = NativeWgpuRenderer::new(width, height).await?;
+    let setup = total_start.elapsed();
+    renderer
+        .present_frame_stages_with_setup(snapshot, sources, setup, total_start)
         .await
 }
 
