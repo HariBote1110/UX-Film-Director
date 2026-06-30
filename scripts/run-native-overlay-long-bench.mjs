@@ -4,6 +4,11 @@ import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import {
+  assertNativeOverlayBenchTraceBudgets,
+  createNativeOverlayBenchTraceSummary,
+  ingestNativeOverlayBenchTraceText,
+} from './native-overlay-bench-trace.mjs';
 
 const displayCommand = 'npm run dev:native-overlay';
 const outputDir = resolve(process.cwd(), 'perf', 'native-overlay-long-bench');
@@ -13,11 +18,14 @@ const benchDurationMs = Number.parseInt(process.env.UXFD_NATIVE_OVERLAY_BENCH_DU
 const decodeTraceEnabled = process.env.UXFD_NATIVE_OVERLAY_BENCH_TRACE === '1';
 const steadyMeanBudgetMs = Number.parseFloat(process.env.UXFD_NATIVE_OVERLAY_STEADY_MEAN_BUDGET_MS ?? '') || 16.8;
 const steadyP95BudgetMs = Number.parseFloat(process.env.UXFD_NATIVE_OVERLAY_STEADY_P95_BUDGET_MS ?? '') || 20.0;
+const decodeBudgetMs = Number.parseFloat(process.env.UXFD_NATIVE_OVERLAY_DECODE_BUDGET_MS ?? '') || 16.0;
+const presentBudgetMs = Number.parseFloat(process.env.UXFD_NATIVE_OVERLAY_PRESENT_BUDGET_MS ?? '') || 16.0;
 
 let child = null;
 let finished = false;
 let markerPayload = null;
 let completedRuns = 0;
+let benchTraceSummary = createNativeOverlayBenchTraceSummary();
 
 const parseMarkerLine = (line) => {
   const marker = 'UXFD_PERF_RESULT_JSON:';
@@ -36,6 +44,9 @@ const parseMarkerLine = (line) => {
 const handleOutput = (chunk, write) => {
   const text = chunk.toString();
   write(text);
+  if (decodeTraceEnabled) {
+    ingestNativeOverlayBenchTraceText(benchTraceSummary, text);
+  }
   for (const line of text.split(/\r?\n/)) {
     parseMarkerLine(line);
   }
@@ -116,6 +127,7 @@ console.log(`[native-overlay-bench] durationMs=${benchDurationMs}`);
 
 const runSingleBench = () => new Promise((resolveRun) => {
   markerPayload = null;
+  benchTraceSummary = createNativeOverlayBenchTraceSummary();
   try {
     rmSync(outputJsonPath, { force: true });
   } catch {
@@ -151,6 +163,14 @@ const runSingleBench = () => new Promise((resolveRun) => {
     try {
       const payload = readAgentPayload();
       assertBenchPayload(payload);
+      if (decodeTraceEnabled) {
+        assertNativeOverlayBenchTraceBudgets(benchTraceSummary, {
+          decodeMaxMs: decodeBudgetMs,
+          presentMaxMs: presentBudgetMs,
+          minimumDecodeSamples: 1,
+          minimumPresentSamples: 1,
+        });
+      }
       if (markerPayload?.success === false) {
         throw new Error(markerPayload.errorMessage || 'perf marker reported failure');
       }

@@ -1,3 +1,19 @@
+## 2026-06-30 — Phase 3a bench trace gateをベンチ本体へ接続
+
+### 実施内容
+- Red として `src/utils/packageScripts.test.ts` に、`bench:native-overlay` が trace parser と `UXFD_NATIVE_OVERLAY_DECODE_BUDGET_MS` / `UXFD_NATIVE_OVERLAY_PRESENT_BUDGET_MS` を使う契約を追加した。
+- Green として `scripts/run-native-overlay-long-bench.mjs` に `scripts/native-overlay-bench-trace.mjs` を接続し、`UXFD_NATIVE_OVERLAY_BENCH_TRACE=1` の実行時に decode / present / release generation gate を実行するようにした。
+- 短時間実機 bench `UXFD_NATIVE_OVERLAY_BENCH_TRACE=1 UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=15000 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=90000 npm run bench:native-overlay` を実行し、gate が失敗を検出することを確認した。
+
+### 選定理由・判断の根拠
+- Phase 3a の完了条件は RAF 統計だけでは満たせず、decodeMs / presentMs / release generation を実ログから自動判定する必要がある。
+- Red: `npx vitest run src/utils/packageScripts.test.ts --testNamePattern "Native Overlay long bench"` は `assertNativeOverlayBenchTraceBudgets` 未接続で 1 failed。
+- Green: `npx vitest run src/utils/packageScripts.test.ts --testNamePattern "Native Overlay long bench"` と `npx vitest run src/utils/nativeOverlayBenchTraceParser.test.ts` は成功した。
+- 実機 bench は `decodeMs max 662.8ms > 16ms`、`presentMs max 38.68241599999965ms > 16ms` で失敗した。ログには初回 decode / backwardSeek / 後続 scrub シナリオの `attached:false` present が混在しており、定常 playback 区間だけを切り出す marker が不足している。
+
+### 残課題・次のステップ
+- `native_overlay_steady_playback` の開始・終了 marker を harness に追加し、trace parser が定常区間だけを gate するようにする。
+
 ## 2026-06-30 — Phase 3a bench trace parserを追加
 
 ### 実施内容
