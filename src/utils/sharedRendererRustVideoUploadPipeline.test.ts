@@ -67,6 +67,31 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
     const result = await presentNativeOverlayRustDecodedVideoFrame({
       windowId: 7,
       decodeResponse: decodedFrameResponse,
+      snapshot: {
+        frame_index: 42,
+        colour: {
+          profile: 'rec709-sdr',
+          working_space: 'linear-light',
+          alpha: 'premultiplied',
+        },
+        clips: [{
+          clip_id: 'clip-video-1',
+          track_id: 'track-1',
+          media_id: 'decode-job-1',
+          source_frame: 42,
+          z_index: 0,
+          transform: {
+            translation_x: 10,
+            translation_y: 20,
+            scale_x: 1,
+            scale_y: 1,
+            rotation_degrees: 0,
+            sampling: 'bilinear',
+          },
+          opacity: 1,
+          effects: [],
+        }],
+      },
       slotCount: 2,
       nativeOverlayBridge: {
         presentSharedFrame: async (payload) => {
@@ -92,6 +117,30 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
       ['presentSharedFrame', {
         windowId: 7,
         mediaId: 'decode-job-1',
+        snapshot: {
+          frameIndex: 42,
+          colour: {
+            profile: 'rec709-sdr',
+            workingSpace: 'linear-light',
+            alpha: 'premultiplied',
+          },
+          clips: [{
+            clipId: 'clip-video-1',
+            trackId: 'track-1',
+            mediaId: 'decode-job-1',
+            sourceFrame: 42,
+            zIndex: 0,
+            transform: {
+              translationX: 10,
+              translationY: 20,
+              scaleX: 1,
+              scaleY: 1,
+              rotationDegrees: 0,
+              sampling: 'bilinear',
+            },
+            opacity: 1,
+          }],
+        },
         slotCount: 2,
         frame: decodedFrameResponse.result!.frame,
       }],
