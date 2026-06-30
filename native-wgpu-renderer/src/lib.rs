@@ -109,6 +109,8 @@ pub struct NativeWgpuRenderer {
 }
 
 pub struct NativeWgpuLiveSurfaceRenderer {
+    #[allow(dead_code)]
+    instance: wgpu::Instance,
     surface: wgpu::Surface<'static>,
     surface_config: wgpu::SurfaceConfiguration,
     core: NativeWgpuRenderer,
@@ -128,15 +130,15 @@ impl NativeWgpuLiveSurfaceRenderer {
             ))
         }
         .map_err(NativeWgpuRenderError::CreateSurface)?;
-        Self::from_surface(surface, width, height).await
+        Self::from_surface(instance, surface, width, height).await
     }
 
     pub async fn from_surface(
+        instance: wgpu::Instance,
         surface: wgpu::Surface<'static>,
         width: u32,
         height: u32,
     ) -> Result<Self, NativeWgpuRenderError> {
-        let instance = wgpu::Instance::default();
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
@@ -201,6 +203,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         };
 
         Ok(Self {
+            instance,
             surface,
             surface_config,
             core,
@@ -919,7 +922,8 @@ fn rasterise_audio_sphere_input(
             let phi = std::f32::consts::TAU * row as f32 / rows as f32
                 + deterministic_audio_sphere_unit(seed, column, row, 0) * random_amount;
             let expansion = 1.0 + sample * audio_influence;
-            let sphere_radius = (base_radius / normalise_radius) * projected_base_radius * expansion;
+            let sphere_radius =
+                (base_radius / normalise_radius) * projected_base_radius * expansion;
             let x3 = theta.sin() * phi.cos();
             let y3 = theta.cos();
             let z3 = theta.sin() * phi.sin();
@@ -927,15 +931,7 @@ fn rasterise_audio_sphere_input(
             let x = centre_x + x3 * sphere_radius * perspective;
             let y = centre_y + y3 * sphere_radius * perspective;
             let radius = (point_size * (0.65 + sample * 1.4) * perspective.max(0.35)).max(0.5);
-            draw_filled_disc(
-                &mut pixels,
-                input.width,
-                input.height,
-                x,
-                y,
-                radius,
-                colour,
-            );
+            draw_filled_disc(&mut pixels, input.width, input.height, x, y, radius, colour);
         }
     }
 
@@ -1614,9 +1610,7 @@ fn spot_light_centre_component(clip: &uxfd_rust_core::EvaluatedClip, index: usiz
         .iter()
         .filter_map(|effect| match effect {
             Effect::SpotLight {
-                centre_x,
-                centre_y,
-                ..
+                centre_x, centre_y, ..
             } => Some(if index == 0 { *centre_x } else { *centre_y }),
             _ => None,
         })
@@ -1653,9 +1647,7 @@ fn displacement_amount_component(clip: &uxfd_rust_core::EvaluatedClip, index: us
         .iter()
         .filter_map(|effect| match effect {
             Effect::DisplacementMap {
-                amount_x,
-                amount_y,
-                ..
+                amount_x, amount_y, ..
             } => Some(if index == 0 { *amount_x } else { *amount_y }),
             _ => None,
         })

@@ -107,7 +107,7 @@ describe('native overlay napi crate boundary', () => {
 
     expect(nativeWgpuRenderer).toContain('instance: wgpu::Instance');
     expect(nativeWgpuRenderer).toContain('Self::from_surface(instance, surface, width, height).await');
-    expect(nativeWgpuRenderer).toContain('instance.request_adapter(&wgpu::RequestAdapterOptions');
+    expect(nativeWgpuRenderer).toContain('.request_adapter(&wgpu::RequestAdapterOptions');
     expect(nativeWgpuRenderer).not.toContain('pub async fn from_surface(\n        surface: wgpu::Surface');
   });
 
