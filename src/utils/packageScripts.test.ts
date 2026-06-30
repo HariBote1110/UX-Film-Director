@@ -69,6 +69,9 @@ describe('package scripts', () => {
     expect(script).toContain('assertNativeOverlayBenchTraceBudgets');
     expect(script).toContain('createNativeOverlayBenchTraceSummary');
     expect(script).toContain('ingestNativeOverlayBenchTraceText');
+    expect(script).toContain('filterNativeOverlayBenchEchoText');
+    expect(script).toContain('write(filterNativeOverlayBenchEchoText(text, decodeTraceEnabled))');
+    expect(script).not.toContain('write(text);');
     expect(script).toContain('UXFD_NATIVE_OVERLAY_DECODE_BUDGET_MS');
     expect(script).toContain('UXFD_NATIVE_OVERLAY_PRESENT_BUDGET_MS');
     expect(script).toContain('rafMeanMs');
