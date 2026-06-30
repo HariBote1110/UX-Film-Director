@@ -216,7 +216,9 @@ impl NativeWgpuLiveSurfaceRenderer {
         sources: &HashMap<String, RgbaFrame>,
     ) -> Result<NativeWgpuPresentReport, NativeWgpuRenderError> {
         let total_start = Instant::now();
-        let (prepared_clips, source_upload) = self.core.prepare_scene_clips(snapshot, sources)?;
+        let (prepared_clips, source_upload) = self
+            .core
+            .prepare_scene_clips_without_upload_fence(snapshot, sources)?;
         let surface_texture = self
             .surface
             .get_current_texture()
@@ -582,6 +584,23 @@ impl NativeWgpuRenderer {
         snapshot: &SceneSnapshot,
         sources: &HashMap<String, RgbaFrame>,
     ) -> Result<(Vec<PreparedClip>, Duration), NativeWgpuRenderError> {
+        self.prepare_scene_clips_with_upload_fence(snapshot, sources, true)
+    }
+
+    fn prepare_scene_clips_without_upload_fence(
+        &self,
+        snapshot: &SceneSnapshot,
+        sources: &HashMap<String, RgbaFrame>,
+    ) -> Result<(Vec<PreparedClip>, Duration), NativeWgpuRenderError> {
+        self.prepare_scene_clips_with_upload_fence(snapshot, sources, false)
+    }
+
+    fn prepare_scene_clips_with_upload_fence(
+        &self,
+        snapshot: &SceneSnapshot,
+        sources: &HashMap<String, RgbaFrame>,
+        wait_for_upload: bool,
+    ) -> Result<(Vec<PreparedClip>, Duration), NativeWgpuRenderError> {
         let mut clips = snapshot.clips.clone();
         clips.sort_by_key(|clip| clip.z_index);
 
@@ -713,8 +732,10 @@ impl NativeWgpuRenderer {
                 },
             ));
         }
-        self.queue.submit(std::iter::empty());
-        wait_for_submitted_work(&self.device, &self.queue)?;
+        if wait_for_upload {
+            self.queue.submit(std::iter::empty());
+            wait_for_submitted_work(&self.device, &self.queue)?;
+        }
         let source_upload = upload_start.elapsed();
 
         Ok((prepared_clips, source_upload))

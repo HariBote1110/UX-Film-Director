@@ -1,3 +1,21 @@
+## 2026-06-30 — live surface presentのupload fence待ちを除去
+
+### 実施内容
+- Red として `src/utils/nativeOverlayCrateBoundary.test.ts` に、live surface 通常 present が `prepare_scene_clips_without_upload_fence` を使い、per-frame upload fence を避ける契約を追加した。
+- Green として `native-wgpu-renderer/src/lib.rs` に `prepare_scene_clips_without_upload_fence` と `prepare_scene_clips_with_upload_fence` を追加し、通常 live surface present だけ upload 完了同期待ちを省いた。
+- export/readback 経路と live readback parity 経路は従来通り upload fence を維持した。
+
+### 選定理由・判断の根拠
+- `presentMs` は外側の `presentNativeOverlaySharedFrame` 所要時間であり、live present 内の `queue.submit(empty)` + `wait_for_submitted_work` が毎フレーム同期を作っていた。
+- live surface 通常 present は後続 render submit によって upload と描画の順序を保てるため、事前 fence は不要。
+- Red: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts --testNamePattern "upload fence"` は 1 failed。
+- Green: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts --testNamePattern "upload fence"` と `cargo test --manifest-path native-wgpu-renderer/Cargo.toml surface` は成功した。
+- 短時間実機 bench では `presentMs` の低いサンプルが 2〜5ms 台まで増えたが、steady gate は `decodeMs max 95.6ms > 16ms`、`presentMs max 22.055334000000585ms > 16ms` で未達だった。同一 `ptsFrame` の `cacheHit` present が複数回続いている。
+
+### 残課題・次のステップ
+- 同一 decoded frame / `ptsFrame` の重複 Native Overlay present を避け、surface acquire/present 待ちを減らす。
+- decode 側の 16ms 超過は sequential frame のスパイクとして残っているため、重複 present 削減後に再計測する。
+
 ## 2026-06-30 — steady playback区間だけをtrace gate対象に分離
 
 ### 実施内容
