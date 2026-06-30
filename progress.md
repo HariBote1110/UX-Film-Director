@@ -1,3 +1,24 @@
+## 2026-06-30 — Native Overlayを既定ONへ切り替え
+
+### 実施内容
+- Red として、Native Overlay が env 未指定で既定 ON、`UXFD_NATIVE_OVERLAY=0` / `VITE_UXFD_NATIVE_OVERLAY=0` で WebGPU presenter へ退避できる契約を追加した。
+- `package.json` の通常 `dev` を `node scripts/dev-native-overlay.mjs` に切り替え、`dev:native-overlay` は明示起動用として維持した。
+- Electron main の Native Overlay gate と Viewport の presenter gate を、未指定時 ON / 明示 `0` 時 OFF に変更した。
+- `scripts/dev-native-overlay.mjs` は外部 env の `0` を上書きしないようにし、WebGPU presenter 退避を常時起動可能に保った。
+- `package.json` / `package-lock.json` の版を機能追加として `0.1.1-Beta-404a` へ更新した。
+
+### 選定理由・判断の根拠
+- Red: `npx vitest run src/utils/nativeOverlayMainBridge.test.ts src/utils/viewportRustVideoOnlyBoundary.test.ts src/utils/packageScripts.test.ts` は 3 failed。未指定 env で Native Overlay が disabled、通常 `dev` が `vite`、Viewport gate が `=== '1'` のままだった。
+- Green: 同コマンドは 3 files / 53 tests passed。
+- `npm run test:native-overlay-parity` は 1 passed で、overlay surface と export readback の Phase 3a reference scene が max channel delta 0 のまま一致した。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test export_round_trip` は 3 passed で、既存 export round-trip parity は壊れていない。
+- `UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=1 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=360000 npm run bench:native-overlay` は 1 run passed。`native_overlay_steady_playback` は `rafMeanMs=16.635` / `rafP95Ms=18.28` / `rafMaxMs=40.48` / `video=1920x1080`。
+- 既定 ON 前の 60分反復ベンチは 150 run 全成功、`rafMeanMs mean=16.686` / `rafP95Ms mean=18.228` で、`Rust_Preview_Jank_Handoff.md` 残問題1の 15fps 壁は Native Overlay steady-state では解消したと判断する。
+
+### 残課題・次のステップ
+- Phase 6 の主要完了条件は満たした。最終監査として、git tree clean、直近コミット、実行済み gate を再確認する。
+- 残問題2の暗さは本計画スコープ外のため、別計画で扱う。
+
 ## 2026-06-30 — Native Overlay 60分反復ベンチを完走
 
 ### 実施内容
