@@ -585,17 +585,17 @@ export const runPerformanceHarness = async (): Promise<PerfHarnessAgentPayload> 
 
     await waitForReactPaint();
 
-    const countBeforeSeed = useStore.getState().objects.length;
-    if (countBeforeSeed < 6) {
-      seedTimelineObjects(6 - countBeforeSeed);
-      await waitForReactPaint();
-    }
-
     rows.push(runScenarioPlayheadScrubSync(runId));
     await waitForReactPaint();
 
     rows.push(await runScenarioNativeOverlaySteadyPlayback(runId));
     await waitForReactPaint();
+
+    const countBeforeSeed = useStore.getState().objects.length;
+    if (countBeforeSeed < 6) {
+      seedTimelineObjects(6 - countBeforeSeed);
+      await waitForReactPaint();
+    }
 
     rows.push(await runScenarioRafPlayhead(runId));
     await waitForReactPaint();
