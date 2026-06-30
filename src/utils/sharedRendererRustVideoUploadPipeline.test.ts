@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   presentNativeOverlayRustDecodedVideoFrame,
   prepareSharedRendererRustDecodedVideoUpload,
+  resetNativeOverlayVisualFrameCache,
 } from './sharedRendererRustVideoUploadPipeline';
 import type {
   RustBackendResult,
@@ -290,6 +291,54 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
         generation: 6,
         copyOutState: 'gpuUploadFenceSignalled',
       }],
+    ]);
+  });
+
+  it('presents the next frame again after resetting the Native Overlay visual frame cache', async () => {
+    const calls: unknown[] = [];
+    const rustBackendBridge: RustBackendVideoDecodeBridge = {
+      startVideoDecode: async () => ({ success: true }),
+      requestVideoDecodeFrame: async () => ({ success: true, result: decodedFrameResponse.result! }),
+      releaseVideoDecodeFrame: async (payload) => {
+        calls.push(['releaseVideoDecodeFrame', payload]);
+        return { success: true, result: { released: true } };
+      },
+      stopVideoDecode: async () => ({ success: true }),
+    };
+    const nativeOverlayBridge = {
+      presentSharedFrame: async (payload: Parameters<import('./sharedRendererRustVideoUploadPipeline').NativeOverlayDecodedFrameBridge['presentSharedFrame']>[0]) => {
+        calls.push(['presentSharedFrame', payload.frame.descriptor.generation]);
+        return {
+          success: true,
+          attached: true,
+          releaseFrame: {
+            memoryId: payload.frame.descriptor.memoryId,
+            slotIndex: payload.frame.descriptor.slotIndex,
+            generation: payload.frame.descriptor.generation,
+            ptsFrame: payload.frame.ptsFrame,
+            copyOutState: 'gpuUploadFenceSignalled' as const,
+          },
+        };
+      },
+    };
+
+    const input = {
+      windowId: 78,
+      mediaId: 'steady-video-reset',
+      decodeResponse: decodedFrameResponse,
+      slotCount: 2,
+      nativeOverlayBridge,
+      rustBackendBridge,
+    };
+
+    await presentNativeOverlayRustDecodedVideoFrame(input);
+    resetNativeOverlayVisualFrameCache(78, 'steady-video-reset');
+    await presentNativeOverlayRustDecodedVideoFrame(input);
+
+    expect(calls.filter((call) =>
+      Array.isArray(call) && call[0] === 'presentSharedFrame')).toEqual([
+      ['presentSharedFrame', 5],
+      ['presentSharedFrame', 5],
     ]);
   });
 
