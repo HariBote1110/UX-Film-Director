@@ -79,6 +79,8 @@ describe('package scripts', () => {
 
     const harness = readFileSync(new URL('../../src/perf/performanceHarness.ts', import.meta.url), 'utf8');
     expect(harness).toContain('native_overlay_steady_playback');
+    expect(harness).toContain('UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN');
+    expect(harness).toContain('UXFD_NATIVE_OVERLAY_STEADY_TRACE_END');
     expect(harness).toContain('steady_playback');
     expect(harness.indexOf('runScenarioNativeOverlaySteadyPlayback(runId)'))
       .toBeLessThan(harness.indexOf('runScenarioRafPlayhead(runId)'));

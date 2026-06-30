@@ -68,4 +68,53 @@ describe('native overlay bench trace parser', () => {
       minimumPresentSamples: 1,
     })).toThrow(/decodeMs.*presentMs.*release generation/u);
   });
+
+  it('uses steady playback markers to ignore warmup and later scenarios', async () => {
+    const {
+      assertNativeOverlayBenchTraceBudgets,
+      createNativeOverlayBenchTraceSummary,
+      ingestNativeOverlayBenchTraceText,
+    } = await import('../../scripts/native-overlay-bench-trace.mjs');
+
+    const summary = createNativeOverlayBenchTraceSummary();
+    ingestNativeOverlayBenchTraceText(summary, `
+[decode.trace] job=shared-renderer-video-warmup-1920x1080-60over1 frame=0 reason=firstFrame restarted=true skipped=0 decodeMs=440.0
+UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN mediaId=steady-video-1
+[decode.trace] job=shared-renderer-video-steady-video-1-1920x1080-60over1 frame=120 reason=sequential restarted=false skipped=0 decodeMs=5.2
+[NativeOverlay] presentSharedFrameTrace {
+  mediaId: 'steady-video-1',
+  presentMs: 7.5,
+  success: true,
+  attached: true,
+  slotIndex: 0,
+  generation: 31,
+  ptsFrame: 120,
+  releaseGeneration: 31,
+  releasePtsFrame: 120
+}
+UXFD_NATIVE_OVERLAY_STEADY_TRACE_END mediaId=steady-video-1
+[NativeOverlay] presentSharedFrameTrace {
+  mediaId: 'scrub-video-1',
+  presentMs: 42.0,
+  success: false,
+  attached: false,
+  slotIndex: 0,
+  generation: 1,
+  ptsFrame: 0,
+  releaseGeneration: undefined,
+  releasePtsFrame: undefined
+}
+`);
+
+    expect(summary.decode.count).toBe(1);
+    expect(summary.decode.maxMs).toBe(5.2);
+    expect(summary.present.count).toBe(1);
+    expect(summary.present.maxMs).toBe(7.5);
+    expect(() => assertNativeOverlayBenchTraceBudgets(summary, {
+      decodeMaxMs: 16,
+      presentMaxMs: 16,
+      minimumDecodeSamples: 1,
+      minimumPresentSamples: 1,
+    })).not.toThrow();
+  });
 });
