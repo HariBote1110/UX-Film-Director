@@ -7,6 +7,7 @@ export const createNativeOverlayBenchTraceSummary = () => ({
   decode: emptyTimingSummary(),
   present: emptyTimingSummary(),
   releaseGenerationViolationCount: 0,
+  pendingDecodeTrace: '',
   pendingPresentTrace: '',
   steadyTraceActive: false,
   steadyTraceMarkerSeen: false,
@@ -48,6 +49,7 @@ export const ingestNativeOverlayBenchTraceText = (summary, text) => {
       summary.decode = emptyTimingSummary();
       summary.present = emptyTimingSummary();
       summary.releaseGenerationViolationCount = 0;
+      summary.pendingDecodeTrace = '';
       summary.steadyTraceActive = true;
       summary.steadyTraceMarkerSeen = true;
       summary.pendingPresentTrace = '';
@@ -58,6 +60,7 @@ export const ingestNativeOverlayBenchTraceText = (summary, text) => {
         consumePresentTraceBlock(summary, summary.pendingPresentTrace);
         summary.pendingPresentTrace = '';
       }
+      summary.pendingDecodeTrace = '';
       summary.steadyTraceActive = false;
       summary.steadyTraceMarkerSeen = true;
       continue;
@@ -67,9 +70,22 @@ export const ingestNativeOverlayBenchTraceText = (summary, text) => {
       continue;
     }
 
+    if (summary.pendingDecodeTrace) {
+      const splitDecodeMs = numberFromMatch(line, /(?:^|\s)([0-9.]+)\s*$/u);
+      if (splitDecodeMs !== null) {
+        recordTiming(summary, 'decode', splitDecodeMs);
+      }
+      summary.pendingDecodeTrace = '';
+      if (splitDecodeMs !== null) {
+        continue;
+      }
+    }
+
     const decodeMs = numberFromMatch(line, /\[decode\.trace\].*decodeMs=([0-9.]+)/u);
     if (decodeMs !== null) {
       recordTiming(summary, 'decode', decodeMs);
+    } else if (/\[decode\.trace\].*decodeMs=\s*$/u.test(line)) {
+      summary.pendingDecodeTrace = line;
     }
 
     if (summary.pendingPresentTrace) {

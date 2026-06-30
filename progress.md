@@ -1,3 +1,19 @@
+## 2026-06-30 — 分割decode traceの集計漏れを修正
+
+### 実施内容
+- Red として `src/utils/nativeOverlayBenchTraceParser.test.ts` に、`[RustBackend] ... decodeMs=` と次行の数値へ分割された decode trace を 1 sample として集計する契約を追加した。
+- Green として `scripts/native-overlay-bench-trace.mjs` に `pendingDecodeTrace` を追加し、split line の数値を次行から継続して取り込むようにした。
+- 軽微な Phase 3a gate 修正として `package.json` / `package-lock.json` の版を `0.1.1-Beta-419d` へ更新した。
+
+### 選定理由・判断の根拠
+- 実機 bench で `decodeMs=` と `0.0` が別行に分割され、trace parser が sample を拾い漏らしていた。
+- Phase 2 やり直しの教訓は「gate が現実を測っていないこと」だったため、Phase 3a の性能 gate でもログ分割による観測漏れを先に塞ぐ必要がある。
+- Red: `npx vitest run src/utils/nativeOverlayBenchTraceParser.test.ts --testNamePattern "split RustBackend"` は 1 failed。
+
+### 残課題・次のステップ
+- Green テスト後、Viewport native reuse の single-flight 中に再生時計が大きく進んだ場合の catch-up request を抑える契約を Red 化する。
+- Mini explorer の調査どおり、`Viewport.tsx` の latest-only replay と `decode.rs` の sequential skip が組み合わさり `forwardGapExceeded` / 大きな `skipped` を作っているため、decode sidecar は維持したまま request cadence を直す。
+
 ## 2026-06-30 — Native Overlay preview cadenceを60fpsへ固定
 
 ### 実施内容
