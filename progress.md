@@ -1,3 +1,20 @@
+## 2026-06-30 — steady bench markerをlive playback全体へ拡張
+
+### 実施内容
+- Red として `src/utils/packageScripts.test.ts` に、`UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN` が `setTime(0.5)` より前に出る契約を追加した。
+- Green として `src/perf/performanceHarness.ts` の Native Overlay steady bench marker を、cache reset 直後かつ live playback 開始前へ移動した。
+- 軽微な Phase 3a bench gate 修正として `package.json` / `package-lock.json` の版を `0.1.1-Beta-419m` へ更新した。
+
+### 選定理由・判断の根拠
+- live present trace は renderer の marker 窓より前に出ており、短い marker 区間では `presentMs samples 0 < 1` になっていた。
+- marker を live playback 全体へ広げ、decode 側は steady frame filter で startup / seek / skip を除外することで、present と steady decode を同じ実機 run から集計できる。
+
+### 残課題・次のステップ
+- package script / parser テストを Green にする。
+- `npx vitest run src/utils/packageScripts.test.ts --testNamePattern "Native Overlay long bench"` と `npx vitest run src/utils/nativeOverlayBenchTraceParser.test.ts` は Green。
+- `UXFD_NATIVE_OVERLAY_BENCH_TRACE=1 UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=15000 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=90000 npm run bench:native-overlay` は Green。`native_overlay_steady_playback` は `rafMeanMs=16.752` / `rafP95Ms=19.345` / `rafMaxMs=25.535` / `longTaskCount=1`、trace gate は `decodeMs < 16ms` / `presentMs < 16ms` / release generation violation 0 を満たした。
+- 次は Phase 3a の長時間 bench に進み、短時間で通った条件が継続するか確認する。
+
 ## 2026-06-30 — bench gateのdecode集計をsteady frameへ限定
 
 ### 実施内容
