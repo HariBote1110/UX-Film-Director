@@ -1208,13 +1208,19 @@ mod tests {
     }
 
     #[test]
-    fn overlay_image_source_loader_rejects_declared_size_mismatch() {
-        let image_path = unique_temp_path("overlay-image-mismatch", "png");
+    fn overlay_image_source_loader_keeps_native_png_size_when_declared_size_differs() {
+        // TS 側の `mediaDimensionsForObject` は image clip に対して `object.width/height`
+        // （タイムライン上の display size）をそのまま渡す設計で、PNG のネイティブ解像度ではない。
+        // 一方 Rust 側の `prepare_clip` は `source.width`/`source.height` を `RenderParams.source_width/source_height`
+        // にそのまま渡し、`transform.scale_x/scale_y` で display サイズへ拡縮する想定で動く。
+        // よって native overlay も display size と PNG native size の不一致を受け入れ、
+        // PNG の native size をそのまま `sources` に登録するのが正しい契約。
+        let image_path = unique_temp_path("overlay-image-display-vs-native", "png");
         let image = RgbaFrame::from_rgba8(2, 1, vec![255, 0, 0, 255, 0, 0, 255, 255])
             .expect("valid image frame");
         uxfd_golden_harness::save_rgba_png(&image_path, &image).expect("save image fixture");
 
-        let error = load_overlay_image_sources_for_scene(&NativeOverlaySceneSource {
+        let sources = load_overlay_image_sources_for_scene(&NativeOverlaySceneSource {
             snapshot: SceneSnapshot {
                 frame_index: 0,
                 colour: ColourPipeline::rec709_sdr_linear(),
@@ -1224,13 +1230,20 @@ mod tests {
                 id: "image-1".to_string(),
                 kind: "Image".to_string(),
                 source: image_path.to_string_lossy().to_string(),
+                // 意図的に display size と native size を不一致にする。
+                // display=1x1 / native=2x1。current 実装は ここで Err を返すが、
+                // 修正後は PNG の native size をそのまま登録すべき。
                 width: 1,
                 height: 1,
             }],
         })
-        .expect_err("declared image size mismatch must be rejected");
+        .expect("image source must load even when display size differs from PNG native size");
 
-        assert!(error.contains("Native overlay image source size mismatch"));
+        let frame = sources
+            .get("image-1")
+            .expect("image source must be registered under its media id");
+        assert_eq!(frame.width, 2);
+        assert_eq!(frame.height, 1);
         let _ = std::fs::remove_file(image_path);
     }
 
