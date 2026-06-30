@@ -1,3 +1,22 @@
+## 2026-06-30 — Native Overlayにscene present入力を渡す
+
+### 実施内容
+- Red として `src/utils/sharedRendererViewportVideoUpload.test.ts` に、Native Overlay present payload が動画 decoded frame だけでなく `snapshot` / `media` を同梱し、画像 clip を含む scene 情報を失わない契約を追加した。
+- Green として `src/utils/sharedRendererRustVideoUploadPipeline.ts` の `presentSharedFrame` payload に `snapshot` / `media` を追加した。
+- `src/utils/sharedRendererViewportVideoUpload.ts` から `surfaceGate.snapshot` / `surfaceGate.media` を Native Overlay present に渡すようにした。
+- `electron/nativeOverlayMainBridge.ts` と `src/vite-env.d.ts` の型境界を更新し、IPC/addon payload に scene 情報を保持できるようにした。
+- `package.json` / `package-lock.json` の版を機能追加として `0.1.1-Beta-407a` へ更新した。
+
+### 選定理由・判断の根拠
+- Red: `npx vitest run src/utils/sharedRendererViewportVideoUpload.test.ts` は 1 failed。`presentSharedFrame` payload に `snapshot` / `media` が無かった。
+- Green: `npx vitest run src/utils/sharedRendererViewportVideoUpload.test.ts` は 1 file / 19 tests passed。
+- Green: `npx vitest run src/utils/sharedRendererRustVideoUploadPipeline.test.ts src/utils/nativeOverlayMainBridge.test.ts src/utils/nativeOverlayPreloadBoundary.test.ts` は 3 files / 22 tests passed。
+- これでフロントエンド境界では、画像 clip を含む scene snapshot を Native Overlay addon へ渡せる。
+
+### 残課題・次のステップ
+- 次は Rust NAPI payload 側で `snapshot` / `media` を受け取り、動画 shared frame と画像 media を `native-wgpu-renderer` の scene source に変換する Red を追加する。
+- その後、live overlay 読み戻し diff の end-to-end gate と実機スクリーンショット確認へ進む。
+
 ## 2026-06-30 — live overlay presentをscene pipelineへ接続
 
 ### 実施内容
