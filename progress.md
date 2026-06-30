@@ -1,3 +1,23 @@
+## 2026-06-30 — Native Overlayクリック透過NSViewを追加
+
+### 実施内容
+- `native-overlay/src/lib.rs` に、macOS overlay view が click-through subclass を使う契約を Red として追加した。
+- Red では `UXFDNativeOverlayPassthroughView` / `hit_test_passthrough` / `hitTest:` が存在せず失敗することを確認した。
+- `native-overlay/src/macos_overlay.rs` に `UXFDNativeOverlayPassthroughView` subclass 登録を追加し、`hitTest:` で nil を返すようにした。
+- overlay attach 時に通常の `NSView` ではなく passthrough view を生成するようにした。
+- `package.json` の版を機能追加として `0.1.1-Beta-398a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 5 の完了条件では overlay 上クリックが下層 WebView に通る必要があるため、renderer の `pointer-events` だけでなく AppKit の hit-test も透過させる必要がある。
+- `hitTest:` で nil を返す subclass により、CAMetalLayer を持つ overlay view は表示を維持しつつマウスイベントを奪わない。
+- `cargo test --manifest-path native-overlay/Cargo.toml` は 8 passed。
+- `npm run native-overlay:node:build` は成功。
+- `cargo fmt --manifest-path native-overlay/Cargo.toml --check` と `git diff --check` は問題なし。
+
+### 残課題・次のステップ
+- 次は既存の D&D / スクラブ / ショートカット / コンテキストメニュー系 vitest をまとめて実行する。
+- 実機で overlay 表示中に preview/timeline のクリック操作が通ることを確認する。
+
 ## 2026-06-30 — Phase 4 overlay位置追従確認を完了
 
 ### 実施内容

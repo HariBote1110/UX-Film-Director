@@ -5,12 +5,26 @@ use metal::{
     Device, MTLClearColor, MTLLoadAction, MTLPixelFormat, MTLStoreAction, MetalLayerRef,
     RenderPassDescriptor,
 };
-use objc::runtime::{Class, Object, BOOL, NO, YES};
-use objc::{class, msg_send, sel, sel_impl};
+use objc::declare::ClassDecl;
+use objc::runtime::{Class, Object, Sel, BOOL, NO, YES};
+use objc::{class, msg_send, sel, sel_impl, Encode, Encoding};
 
 use crate::OverlayLayerContract;
 
 const NATIVE_OVERLAY_VIEW_IDENTIFIER: &str = "UXFDNativeOverlayView";
+const NATIVE_OVERLAY_PASSTHROUGH_VIEW_CLASS: &str = "UXFDNativeOverlayPassthroughView";
+
+#[repr(C)]
+struct ObjcPoint {
+    x: f64,
+    y: f64,
+}
+
+unsafe impl Encode for ObjcPoint {
+    fn encode() -> Encoding {
+        unsafe { Encoding::from_str("{CGPoint=dd}") }
+    }
+}
 
 pub fn attach_overlay_view(
     native_window_handle: &[u8],
@@ -60,6 +74,25 @@ unsafe fn appkit_class(name: &str) -> Result<&'static Class, &'static str> {
     Class::get(name).ok_or("Native overlay AppKit class is unavailable.")
 }
 
+extern "C" fn hit_test_passthrough(_this: &Object, _cmd: Sel, _point: ObjcPoint) -> *mut Object {
+    std::ptr::null_mut()
+}
+
+unsafe fn overlay_passthrough_view_class() -> Result<&'static Class, &'static str> {
+    if let Some(existing_class) = Class::get(NATIVE_OVERLAY_PASSTHROUGH_VIEW_CLASS) {
+        return Ok(existing_class);
+    }
+
+    let superclass = appkit_class("NSView")?;
+    let mut declaration = ClassDecl::new(NATIVE_OVERLAY_PASSTHROUGH_VIEW_CLASS, superclass)
+        .ok_or("Native overlay passthrough NSView class registration failed.")?;
+    declaration.add_method(
+        sel!(hitTest:),
+        hit_test_passthrough as extern "C" fn(&Object, Sel, ObjcPoint) -> *mut Object,
+    );
+    Ok(declaration.register())
+}
+
 fn attach_overlay_view_to_parent(
     parent_view: *mut Object,
     contract: &OverlayLayerContract,
@@ -76,7 +109,7 @@ fn attach_overlay_view_to_parent(
 
         remove_existing_overlay_view(parent_view)?;
 
-        let ns_view_class = appkit_class("NSView")?;
+        let ns_view_class = overlay_passthrough_view_class()?;
         let overlay_view: *mut Object = msg_send![ns_view_class, alloc];
         if overlay_view.is_null() {
             return Err("Native overlay NSView allocation failed.");
