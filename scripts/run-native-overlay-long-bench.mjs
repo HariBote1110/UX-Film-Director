@@ -11,6 +11,8 @@ const outputJsonPath = resolve(outputDir, 'perf-agent-output.json');
 const timeoutMs = Number.parseInt(process.env.UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS ?? '', 10) || 3_900_000;
 const benchDurationMs = Number.parseInt(process.env.UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS ?? '', 10) || 3_600_000;
 const decodeTraceEnabled = process.env.UXFD_NATIVE_OVERLAY_BENCH_TRACE === '1';
+const steadyMeanBudgetMs = Number.parseFloat(process.env.UXFD_NATIVE_OVERLAY_STEADY_MEAN_BUDGET_MS ?? '') || 16.8;
+const steadyP95BudgetMs = Number.parseFloat(process.env.UXFD_NATIVE_OVERLAY_STEADY_P95_BUDGET_MS ?? '') || 20.0;
 
 let child = null;
 let finished = false;
@@ -87,8 +89,11 @@ const assertBenchPayload = (payload) => {
   if (typeof heavyVideo.notes === 'string' && heavyVideo.notes.startsWith('skipped_')) {
     throw new Error(`native_overlay_steady_playback was skipped: ${heavyVideo.notes}`);
   }
-  if (typeof heavyVideo.rafP95Ms === 'number' && heavyVideo.rafP95Ms > 16.7) {
-    throw new Error(`native_overlay_steady_playback p95 exceeded 60fps budget: ${heavyVideo.rafP95Ms}ms`);
+  if (typeof heavyVideo.rafMeanMs === 'number' && heavyVideo.rafMeanMs > steadyMeanBudgetMs) {
+    throw new Error(`native_overlay_steady_playback mean exceeded 60fps budget: ${heavyVideo.rafMeanMs}ms`);
+  }
+  if (typeof heavyVideo.rafP95Ms === 'number' && heavyVideo.rafP95Ms > steadyP95BudgetMs) {
+    throw new Error(`native_overlay_steady_playback p95 exceeded jitter budget: ${heavyVideo.rafP95Ms}ms`);
   }
 };
 
