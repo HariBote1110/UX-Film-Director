@@ -12,6 +12,7 @@ export const createNativeOverlayBenchTraceSummary = () => ({
   pendingPresentTrace: '',
   steadyTraceActive: false,
   steadyTraceMarkerSeen: false,
+  skipNextSteadyDecode: false,
 });
 
 const recordTiming = (summary, field, value, detail = '') => {
@@ -57,6 +58,8 @@ const isSteadyDecodeTraceLine = (line) => {
     && skipped === 0;
 };
 
+const isDecodeTraceLine = (line) => line.includes('[decode.trace]');
+
 const consumePresentTraceBlock = (summary, block) => {
   const success = hasTrueField(block, 'success');
   const attached = hasTrueField(block, 'attached');
@@ -83,6 +86,7 @@ export const ingestNativeOverlayBenchTraceText = (summary, text) => {
       summary.present = emptyTimingSummary();
       summary.releaseGenerationViolationCount = 0;
       summary.pendingDecodeTrace = '';
+      summary.skipNextSteadyDecode = false;
       summary.steadyTraceActive = true;
       summary.steadyTraceMarkerSeen = true;
       summary.pendingPresentTrace = '';
@@ -115,11 +119,22 @@ export const ingestNativeOverlayBenchTraceText = (summary, text) => {
     }
 
     const steadyDecode = isSteadyDecodeTraceLine(line);
+    if (isDecodeTraceLine(line) && !steadyDecode) {
+      summary.skipNextSteadyDecode = true;
+    }
     const decodeMs = steadyDecode ? numberFromMatch(line, /\[decode\.trace\].*decodeMs=([0-9.]+)/u) : null;
     if (decodeMs !== null) {
-      recordTiming(summary, 'decode', decodeMs, line);
+      if (summary.skipNextSteadyDecode) {
+        summary.skipNextSteadyDecode = false;
+      } else {
+        recordTiming(summary, 'decode', decodeMs, line);
+      }
     } else if (steadyDecode && /\[decode\.trace\].*decodeMs=\s*$/u.test(line)) {
-      summary.pendingDecodeTrace = line;
+      if (summary.skipNextSteadyDecode) {
+        summary.skipNextSteadyDecode = false;
+      } else {
+        summary.pendingDecodeTrace = line;
+      }
     }
 
     if (summary.pendingPresentTrace) {

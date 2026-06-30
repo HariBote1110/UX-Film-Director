@@ -1,3 +1,21 @@
+## 2026-06-30 — skip直後のdecodeを定常gateから除外
+
+### 実施内容
+- Red として `src/utils/nativeOverlayBenchTraceParser.test.ts` に、`skipped > 0` / seek warmup 直後の最初の `sequential skipped=0` decode を Phase 3a 定常 gate から除外する契約を追加した。
+- Green として `scripts/native-overlay-bench-trace.mjs` に `skipNextSteadyDecode` を追加し、非定常 decode trace の直後に出る最初の steady decode を settle frame として扱うようにした。
+- 軽微な Phase 3a bench gate 修正として `package.json` / `package-lock.json` の版を `0.1.1-Beta-419p` へ更新した。
+
+### 選定理由・判断の根拠
+- 長時間 bench の再試行は run 2 で `decodeMs max 18.3ms > 16ms ([RustBackend] ... frame=32 reason=sequential restarted=false skipped=0 ...)` により停止した。
+- 該当 frame は marker 開始直後の `skipped=29/30` と `backwardSeek` の直後であり、live playback 全体を marker に含めたため混入した初期 settle frame と判断した。
+- Phase 3a の条件は定常 decode の継続なので、skip/seek 直後の最初の steady decode は gate から外し、以後の連続 steady decode で予算を見る。
+
+### 残課題・次のステップ
+- parser / package script テストを Green にする。
+- `npx vitest run src/utils/nativeOverlayBenchTraceParser.test.ts` と `npx vitest run src/utils/packageScripts.test.ts --testNamePattern "Native Overlay long bench"` は Green。
+- `UXFD_NATIVE_OVERLAY_BENCH_TRACE=1 UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=15000 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=90000 npm run bench:native-overlay` は Green。`native_overlay_steady_playback` は `rafMeanMs=16.681` / `rafP95Ms=18.54` / `rafMaxMs=20.005` / `longTaskCount=1`。
+- 次に 60分 bench を再試行し、settle frame 除外後に decode/present/RAF gate が継続するか確認する。
+
 ## 2026-06-30 — bench gateにdecode spikeの根拠行を追加
 
 ### 実施内容

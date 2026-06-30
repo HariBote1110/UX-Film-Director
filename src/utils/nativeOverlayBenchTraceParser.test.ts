@@ -214,12 +214,13 @@ UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN mediaId=steady-video-1
 [RustBackend] [decode.trace] job=shared-renderer-video-steady-video-1-720x405-60over1 frame=30 reason=sequential restarted=false skipped=29 decodeMs=88.9
 [RustBackend] [decode.trace] job=shared-renderer-video-steady-video-1-720x405-60over1 frame=0 reason=backwardSeek restarted=true skipped=0 decodeMs=301.8
 [RustBackend] [decode.trace] job=shared-renderer-video-steady-video-1-720x405-60over1 frame=66 reason=sequential restarted=false skipped=0 decodeMs=0.5
+[RustBackend] [decode.trace] job=shared-renderer-video-steady-video-1-720x405-60over1 frame=67 reason=sequential restarted=false skipped=0 decodeMs=0.4
 [NativeOverlay] presentSharedFrameTrace {"mediaId":"steady-video-1","presentMs":2.2,"success":true,"attached":true,"slotIndex":0,"generation":66,"ptsFrame":66,"releaseGeneration":66,"releasePtsFrame":66}
 UXFD_NATIVE_OVERLAY_STEADY_TRACE_END mediaId=steady-video-1
 `);
 
     expect(summary.decode.count).toBe(1);
-    expect(summary.decode.maxMs).toBe(0.5);
+    expect(summary.decode.maxMs).toBe(0.4);
     expect(summary.present.count).toBe(1);
     expect(() => assertNativeOverlayBenchTraceBudgets(summary, {
       decodeMaxMs: 16,
