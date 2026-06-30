@@ -1,3 +1,24 @@
+## 2026-06-30 — Phase 6最終gateと既定ON版更新
+
+### 実施内容
+- Native Overlay parity gate として `npm run test:native-overlay-parity` を実行した。
+- Native Overlay addon smoke として `npm run test:native-overlay-node` を実行した。
+- 既定 ON / fallback / parity 境界の TS gate として `src/utils/nativeOverlayParityBoundary.test.ts`、`src/utils/packageScripts.test.ts`、`src/utils/nativeOverlayMainBridge.test.ts`、`src/utils/sharedRendererViewportPresenterOrchestration.test.ts`、`src/utils/sharedRendererViewportVideoUpload.test.ts`、`src/utils/sharedRendererRustVideoUploadPipeline.test.ts` を実行した。
+- export round-trip の退行確認として `npm run test:export:fast` を実行した。
+- `markdown/Rust_Preview_Jank_Handoff.md` に残問題1（fps 15壁）が Native Overlay Phase 6 の 60分 steady bench で解消済みであることを追記した。
+- Phase 6 完了版として `package.json` / `package-lock.json` の版を `0.1.1-Beta-421a` へ更新した。
+
+### 選定理由・判断の根拠
+- `npm run test:native-overlay-parity` は `overlay_surface_matches_export_readback_for_phase3a_reference_scenes` Green で、overlay surface と export readback の parity gate を満たした。
+- `npm run test:native-overlay-node` は addon build / codesign / capability smoke が Green。
+- TS gate は 6 files / 77 tests Green で、Native Overlay 既定 ON、WebGPU presenter fallback、scene snapshot/image media present、release lease の契約を維持した。
+- `npm run test:export:fast` は `Result: ALL PASSED`、total `28755ms` で、既存 export round-trip parity / encode 経路を壊していない。
+- Phase 3a の 60分 steady bench は `rafMeanMs=16.689` / `rafP95Ms=18.305` / `rafMaxMs=47` / `longTaskCount=1` で、trace gate も `decodeMs<16ms` / `presentMs<16ms` / release generation violation 0 を満たしている。
+
+### 残課題・次のステップ
+- Native Overlay Phase 2→3a→4→5→6 の再完了条件を満たした。
+- 残問題2（暗さ）は本計画スコープ外のまま残す。
+
 ## 2026-06-30 — Phase 5既存操作テストとoverlay click passthroughを確認
 
 ### 実施内容

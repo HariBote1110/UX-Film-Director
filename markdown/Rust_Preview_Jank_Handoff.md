@@ -6,6 +6,13 @@
 
 ## 2026-06-28 現状サマリ（最新・ここから着手）
 
+### 2026-06-30 Native Overlay Phase 6 完了時点の追記
+
+- 残問題1（preview が約15fpsで頭打ちになる問題）は、preview を Native Overlay 既定 ON にし、backend GPU→shm→frontend GPU→`writeTexture` の往復を preview 経路から外したことで解消済み。
+- 実機 `UXFD_NATIVE_OVERLAY_BENCH_TRACE=1 UXFD_NATIVE_OVERLAY_STEADY_DURATION_MS=3600000 UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=3600000 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=4500000 npm run bench:native-overlay` は Green。`native_overlay_steady_playback` は `durationMs=3600013.609999895` / `rafMeanMs=16.689` / `rafP95Ms=18.305` / `rafMaxMs=47` / `longTaskCount=1`。
+- 同 run の trace gate は `decodeMs<16ms` / `presentMs<16ms` / release generation violation 0 を満たした。
+- 残問題2（暗さ）は本 Native Overlay 計画のスコープ外として未解決のまま残す。
+
 チカチカ・再起動ストームは解消済み（presenter 再利用・shm leak 回収・解像度固定・直近フレームキャッシュ・dev release 化、版 0.1.1-Beta-362a）。**残る2つの問題**：
 
 ### 2026-06-28 追加調査メモ（Codex）
