@@ -1,10 +1,7 @@
 #![allow(unexpected_cfgs)]
 
 use core_graphics_types::geometry::{CGPoint, CGRect, CGSize};
-use metal::{
-    Device, MTLClearColor, MTLLoadAction, MTLPixelFormat, MTLStoreAction, MetalLayerRef,
-    RenderPassDescriptor,
-};
+use metal::MTLPixelFormat;
 use objc::declare::ClassDecl;
 use objc::runtime::{Class, Object, Sel, BOOL, NO, YES};
 use objc::{class, msg_send, sel, sel_impl, Encode, Encoding};
@@ -142,8 +139,6 @@ fn attach_overlay_view_to_parent(
         let () = msg_send![overlay_view, setWantsLayer: YES];
         let () = msg_send![overlay_view, setLayer: layer];
         let () = msg_send![parent_view, addSubview: overlay_view];
-        let layer_ref: &MetalLayerRef = std::mem::transmute(layer);
-        present_fixed_colour(layer_ref)?;
         Ok(overlay_layer_handle(layer))
     }
 }
@@ -197,36 +192,6 @@ unsafe fn remove_existing_overlay_view(parent_view: *mut Object) -> Result<(), &
             let () = msg_send![subview, removeFromSuperview];
         }
     }
-
-    Ok(())
-}
-
-fn present_fixed_colour(layer: &MetalLayerRef) -> Result<(), &'static str> {
-    let Some(device) = Device::system_default() else {
-        return Err("Native overlay Metal device is unavailable.");
-    };
-    layer.set_device(&device);
-    layer.set_pixel_format(MTLPixelFormat::BGRA8Unorm);
-    let Some(drawable) = layer.next_drawable() else {
-        return Err("Native overlay CAMetalLayer drawable is unavailable.");
-    };
-
-    let render_pass_descriptor = RenderPassDescriptor::new();
-    let colour_attachment = render_pass_descriptor
-        .color_attachments()
-        .object_at(0)
-        .ok_or("Native overlay colour attachment is unavailable.")?;
-    colour_attachment.set_texture(Some(drawable.texture()));
-    colour_attachment.set_load_action(MTLLoadAction::Clear);
-    colour_attachment.set_clear_color(MTLClearColor::new(0.1, 0.55, 0.95, 1.0));
-    colour_attachment.set_store_action(MTLStoreAction::Store);
-
-    let command_queue = device.new_command_queue();
-    let command_buffer = command_queue.new_command_buffer();
-    let encoder = command_buffer.new_render_command_encoder(render_pass_descriptor);
-    encoder.end_encoding();
-    command_buffer.present_drawable(drawable);
-    command_buffer.commit();
 
     Ok(())
 }

@@ -1,3 +1,24 @@
+## 2026-06-30 — attach時の青い固定clearを削除
+
+### 実施内容
+- Red として `src/utils/nativeOverlayCrateBoundary.test.ts` を更新し、`native-overlay/src/macos_overlay.rs` が attach 時に `present_fixed_colour` / `set_clear_color` を持たない契約へ変更した。
+- Green として `native-overlay/src/macos_overlay.rs` から `present_fixed_colour` と attach 時の Metal 固定描画を削除した。
+- CAMetalLayer の生成、pixel format、drawable size、AppKit overlay view の追加は維持した。
+- `package.json` / `package-lock.json` の版を重大な live overlay 表示修正として `0.1.1-Beta-416a` へ更新した。
+
+### 選定理由・判断の根拠
+- 実機では `presentSharedFrameTrace` が `livePreparedClipCount=2` / `liveReadbackNonTransparentPixels=230400` / `liveReadbackChecksum=70241977` を返し、wgpu 側の live surface texture には画像+動画 scene が描けていた。
+- しかし macOS `screencapture` では `/Users/yuki/GitHub/UX-Film-Director/.codex/native-overlay-visual/system-electron-live-readback-nonzero-dialog-closed.png` が青い固定 clear のままだった。
+- attach 時の `present_fixed_colour` は CAMetalLayer に先行して Metal device と青い drawable を入れており、現実の表示を測る上で誤った可視状態を作っていた。
+- Red: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts --testNamePattern "AppKit and CAMetalLayer"` は 1 failed。
+- Green: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts` は 1 file / 13 tests passed。
+- Green: `cargo test --manifest-path native-overlay/Cargo.toml` は 10 passed。
+- Green: `npm run test:native-overlay-node` は passed。
+
+### 残課題・次のステップ
+- `native-overlay` / boundary テストと addon build を通した後、実機で青い clear が消え、wgpu live surface present が表示されるかを再確認する。
+- まだ表示されない場合は CAMetalLayer の ownership / layer ordering / wgpu surface configure の順に切り分ける。
+
 ## 2026-06-30 — Native Overlay addonをmacOSで再署名
 
 ### 実施内容
