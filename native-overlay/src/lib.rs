@@ -2,7 +2,9 @@
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
+use std::collections::HashMap;
 use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 use uxfd_shared_video_frame_bridge::copy_shared_frame_into_upload_buffer;
 
@@ -145,6 +147,142 @@ pub struct OverlayLayerContract {
     pub drawable_height: u32,
 }
 
+static LIVE_OVERLAY_RENDERERS: OnceLock<Mutex<HashMap<u32, NativeOverlayLiveSurfaceRenderer>>> =
+    OnceLock::new();
+
+pub struct NativeOverlayLiveSurfaceRenderer {
+    window_id: u32,
+    drawable_width: u32,
+    drawable_height: u32,
+    #[cfg(target_os = "macos")]
+    layer_handle: usize,
+    surface: wgpu::Surface<'static>,
+    instance: wgpu::Instance,
+}
+
+unsafe impl Send for NativeOverlayLiveSurfaceRenderer {}
+
+impl NativeOverlayLiveSurfaceRenderer {
+    #[cfg(target_os = "macos")]
+    fn from_ca_metal_layer(
+        window_id: u32,
+        layer_handle: usize,
+        contract: &OverlayLayerContract,
+    ) -> Result<Self, String> {
+        let instance = wgpu::Instance::default();
+        let surface = unsafe {
+            instance.create_surface_unsafe(
+                macos_overlay::create_surface_target_from_ca_metal_layer(layer_handle),
+            )
+        }
+        .map_err(|error| format!("Native overlay live surface creation failed: {error:?}"))?;
+
+        Ok(Self {
+            window_id,
+            drawable_width: contract.drawable_width,
+            drawable_height: contract.drawable_height,
+            layer_handle,
+            surface,
+            instance,
+        })
+    }
+
+    fn present_upload_frame(&mut self, upload: &OverlayUploadFrame) -> Result<(), String> {
+        pollster::block_on(self.present_upload_frame_async(upload))
+    }
+
+    async fn present_upload_frame_async(
+        &mut self,
+        upload: &OverlayUploadFrame,
+    ) -> Result<(), String> {
+        let _window_id = self.window_id;
+        #[cfg(target_os = "macos")]
+        let _layer_handle = self.layer_handle;
+        let _ = uxfd_native_wgpu_renderer::native_wgpu_readback_frame_format();
+        let adapter = self
+            .instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::HighPerformance,
+                compatible_surface: Some(&self.surface),
+                force_fallback_adapter: false,
+            })
+            .await
+            .ok_or_else(|| "Native overlay live surface adapter is unavailable.".to_string())?;
+        let (device, queue) = adapter
+            .request_device(
+                &wgpu::DeviceDescriptor {
+                    label: Some("UXFD native overlay live surface device"),
+                    required_features: wgpu::Features::empty(),
+                    required_limits: wgpu::Limits::downlevel_defaults(),
+                },
+                None,
+            )
+            .await
+            .map_err(|error| {
+                format!("Native overlay live surface device request failed: {error:?}")
+            })?;
+        let capabilities = self.surface.get_capabilities(&adapter);
+        let surface_format = capabilities
+            .formats
+            .iter()
+            .copied()
+            .find(|format| *format == wgpu::TextureFormat::Bgra8Unorm)
+            .unwrap_or_else(|| capabilities.formats[0]);
+        self.surface.configure(
+            &device,
+            &wgpu::SurfaceConfiguration {
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                format: surface_format,
+                width: self.drawable_width.max(1),
+                height: self.drawable_height.max(1),
+                present_mode: capabilities
+                    .present_modes
+                    .first()
+                    .copied()
+                    .unwrap_or(wgpu::PresentMode::Fifo),
+                alpha_mode: capabilities
+                    .alpha_modes
+                    .first()
+                    .copied()
+                    .unwrap_or(wgpu::CompositeAlphaMode::Auto),
+                view_formats: vec![],
+                desired_maximum_frame_latency: 2,
+            },
+        );
+
+        let surface_texture = self
+            .surface
+            .get_current_texture()
+            .map_err(|error| format!("Native overlay surface texture acquire failed: {error:?}"))?;
+        let view = surface_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("UXFD native overlay live surface encoder"),
+        });
+        let clear_colour = sample_upload_clear_colour(upload);
+        {
+            let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("UXFD native overlay live surface pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(clear_colour),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+        }
+        queue.submit(Some(encoder.finish()));
+        surface_texture.present();
+        Ok(())
+    }
+}
+
 #[napi(js_name = "attachNativeOverlay")]
 pub fn attach_native_overlay(payload: NativeOverlayAttachPayload) -> NativeOverlayResponse {
     match std::panic::catch_unwind(AssertUnwindSafe(|| attach_native_overlay_inner(payload))) {
@@ -179,7 +317,7 @@ pub fn get_native_overlay_capabilities() -> NativeOverlayCapabilities {
 }
 
 fn attach_native_overlay_inner(payload: NativeOverlayAttachPayload) -> NativeOverlayResponse {
-    let _ = payload.window_id;
+    let window_id = payload.window_id;
     let native_window_handle = match native_window_handle_bytes(&payload) {
         Ok(bytes) => bytes,
         Err(reason) => return failure(reason),
@@ -189,8 +327,17 @@ fn attach_native_overlay_inner(payload: NativeOverlayAttachPayload) -> NativeOve
         Err(reason) => return failure(reason),
     };
     #[cfg(target_os = "macos")]
-    if let Err(reason) = macos_overlay::attach_overlay_view(&native_window_handle, &contract) {
-        return failure(reason);
+    {
+        let layer_handle = match macos_overlay::attach_overlay_view(&native_window_handle, &contract)
+        {
+            Ok(layer_handle) => layer_handle,
+            Err(reason) => return failure(reason),
+        };
+        if let Err(reason) =
+            attach_live_overlay_surface_renderer(window_id, layer_handle, &contract)
+        {
+            return failure(&reason);
+        }
     }
 
     NativeOverlayResponse {
@@ -202,11 +349,12 @@ fn attach_native_overlay_inner(payload: NativeOverlayAttachPayload) -> NativeOve
 }
 
 fn detach_native_overlay_inner(payload: NativeOverlayDetachPayload) -> NativeOverlayResponse {
-    let _ = payload.window_id;
+    let window_id = payload.window_id;
     let native_window_handle = match detach_native_window_handle_bytes(&payload) {
         Ok(bytes) => bytes,
         Err(reason) => return failure(reason),
     };
+    detach_live_overlay_surface_renderer(window_id);
     #[cfg(target_os = "macos")]
     if let Err(reason) = macos_overlay::detach_overlay_view(&native_window_handle) {
         return failure(reason);
@@ -232,7 +380,7 @@ fn failure(reason: &str) -> NativeOverlayResponse {
 fn present_native_overlay_shared_frame_inner(
     payload: NativeOverlaySharedFramePresentPayload,
 ) -> NativeOverlayResponse {
-    let _ = payload.window_id;
+    let window_id = payload.window_id;
     if let Err(reason) = present_native_window_handle_bytes(&payload) {
         return failure(reason);
     }
@@ -240,7 +388,7 @@ fn present_native_overlay_shared_frame_inner(
         Ok(request) => request,
         Err(reason) => return failure(&reason),
     };
-    match present_overlay_shared_frame_for_test(request) {
+    match present_overlay_shared_frame_to_live_surface(window_id, request) {
         Ok(response) => NativeOverlayResponse {
             success: response.success,
             attached: response.attached,
@@ -256,6 +404,39 @@ fn present_native_overlay_shared_frame_inner(
             }),
         },
         Err(reason) => failure(&reason),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn attach_live_overlay_surface_renderer(
+    window_id: u32,
+    layer_handle: usize,
+    contract: &OverlayLayerContract,
+) -> Result<(), String> {
+    let renderer =
+        NativeOverlayLiveSurfaceRenderer::from_ca_metal_layer(window_id, layer_handle, contract)?;
+    let mut renderers = LIVE_OVERLAY_RENDERERS
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .map_err(|_| "Native overlay live renderer registry is poisoned.".to_string())?;
+    renderers.insert(window_id, renderer);
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn attach_live_overlay_surface_renderer(
+    _window_id: u32,
+    _layer_handle: usize,
+    _contract: &OverlayLayerContract,
+) -> Result<(), String> {
+    Err("Native overlay live surface is only available on macOS.".to_string())
+}
+
+fn detach_live_overlay_surface_renderer(window_id: u32) {
+    if let Some(renderers) = LIVE_OVERLAY_RENDERERS.get() {
+        if let Ok(mut renderers) = renderers.lock() {
+            renderers.remove(&window_id);
+        }
     }
 }
 
@@ -444,6 +625,45 @@ pub fn present_overlay_shared_frame_for_test(
             copy_out_state: "gpuUploadFenceSignalled".to_string(),
         }),
     })
+}
+
+pub fn present_overlay_shared_frame_to_live_surface(
+    window_id: u32,
+    request: OverlaySharedFramePresentRequest,
+) -> Result<OverlaySharedFramePresentResponse, String> {
+    let upload =
+        copy_overlay_shared_frame_source_for_upload(&request.source, Duration::from_millis(100))?;
+    let descriptor = &request.source.frame.descriptor;
+    let mut renderers = LIVE_OVERLAY_RENDERERS
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .map_err(|_| "Native overlay live renderer registry is poisoned.".to_string())?;
+    let renderer = renderers
+        .get_mut(&window_id)
+        .ok_or_else(|| "Native overlay live surface is not attached.".to_string())?;
+    renderer.present_upload_frame(&upload)?;
+
+    Ok(OverlaySharedFramePresentResponse {
+        success: true,
+        attached: true,
+        release_frame: Some(OverlayReleaseFramePayload {
+            memory_id: descriptor.memory_id.clone(),
+            slot_index: descriptor.slot_index,
+            generation: upload.generation,
+            pts_frame: upload.pts_frame,
+            copy_out_state: "gpuUploadFenceSignalled".to_string(),
+        }),
+    })
+}
+
+fn sample_upload_clear_colour(upload: &OverlayUploadFrame) -> wgpu::Color {
+    let rgba = upload.pixels.get(0..4).unwrap_or(&[0, 0, 0, 255]);
+    wgpu::Color {
+        r: f64::from(rgba[0]) / 255.0,
+        g: f64::from(rgba[1]) / 255.0,
+        b: f64::from(rgba[2]) / 255.0,
+        a: f64::from(rgba[3]) / 255.0,
+    }
 }
 
 #[cfg(target_os = "macos")]

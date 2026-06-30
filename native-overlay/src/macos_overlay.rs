@@ -29,10 +29,9 @@ unsafe impl Encode for ObjcPoint {
 pub fn attach_overlay_view(
     native_window_handle: &[u8],
     contract: &OverlayLayerContract,
-) -> Result<(), &'static str> {
+) -> Result<usize, &'static str> {
     let parent_view = native_window_handle_to_parent_view(native_window_handle)?;
-    attach_overlay_view_to_parent(parent_view, contract)?;
-    Ok(())
+    attach_overlay_view_to_parent(parent_view, contract)
 }
 
 pub fn detach_overlay_view(native_window_handle: &[u8]) -> Result<(), &'static str> {
@@ -96,7 +95,7 @@ unsafe fn overlay_passthrough_view_class() -> Result<&'static Class, &'static st
 fn attach_overlay_view_to_parent(
     parent_view: *mut Object,
     contract: &OverlayLayerContract,
-) -> Result<(), &'static str> {
+) -> Result<usize, &'static str> {
     if parent_view.is_null() {
         return Err("Native overlay parent NSView pointer is null.");
     }
@@ -145,9 +144,16 @@ fn attach_overlay_view_to_parent(
         let () = msg_send![parent_view, addSubview: overlay_view];
         let layer_ref: &MetalLayerRef = std::mem::transmute(layer);
         present_fixed_colour(layer_ref)?;
+        Ok(overlay_layer_handle(layer))
     }
+}
 
-    Ok(())
+pub fn overlay_layer_handle(layer: *mut Object) -> usize {
+    layer as usize
+}
+
+pub fn create_surface_target_from_ca_metal_layer(layer_handle: usize) -> wgpu::SurfaceTargetUnsafe {
+    wgpu::SurfaceTargetUnsafe::CoreAnimationLayer(layer_handle as *mut std::ffi::c_void)
 }
 
 unsafe fn ns_string(value: &str) -> Result<*mut Object, &'static str> {
