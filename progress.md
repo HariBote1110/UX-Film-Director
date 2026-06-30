@@ -1,3 +1,22 @@
+## 2026-06-30 — Native Overlay scene payloadをcamelCase化
+
+### 実施内容
+- Red として `src/utils/sharedRendererRustVideoUploadPipeline.test.ts` に、Native Overlay addon へ渡す scene snapshot が `frameIndex` / `workingSpace` / `clipId` など napi-rs 側の camelCase payload になる契約を追加した。
+- Green として `src/utils/sharedRendererRustVideoUploadPipeline.ts` に `toNativeOverlaySceneSnapshotPayload` / `toNativeOverlaySceneMediaPayload` を追加し、Rust scene snapshot の snake_case を addon 境界用 camelCase に変換した。
+- `src/utils/sharedRendererViewportVideoUpload.test.ts` の既存 Native Overlay payload 期待値を camelCase に更新した。
+- `package.json` / `package-lock.json` の版を重大な live present 修正として `0.1.1-Beta-412a` へ更新した。
+
+### 選定理由・判断の根拠
+- 実機 dataset で `uxfdSharedRendererPresenterNativeOverlayFailureDetail=Missing field \`frameIndex\` on NativeOverlaySharedFramePresentPayload.snapshot` を確認した。
+- Red: `npx vitest run src/utils/sharedRendererRustVideoUploadPipeline.test.ts --testNamePattern "presents a verified Rust decoded frame"` は 1 failed。TS は `frame_index` / `working_space` / `clip_id` などをそのまま渡していた。
+- Green: `npx vitest run src/utils/sharedRendererRustVideoUploadPipeline.test.ts` は 1 file / 10 tests passed。
+- Green: `npx vitest run src/utils/sharedRendererViewportVideoUpload.test.ts` は 1 file / 19 tests passed。
+- Green: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts` は 1 file / 13 tests passed。
+
+### 残課題・次のステップ
+- 最新 bundle で実機再投入し、`frameIndex` 欠落が消えて `[NativeOverlay] presentSharedFrameTrace` が出ることを確認する。
+- その後、overlay 上で画像 clip と動画 clip が表示されるかをスクリーンショットで確認し、黒画面なら capture 経路を切り分ける。
+
 ## 2026-06-30 — Native Overlay試行診断を追加
 
 ### 実施内容
