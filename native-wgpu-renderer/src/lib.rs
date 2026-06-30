@@ -165,12 +165,7 @@ impl NativeWgpuLiveSurfaceRenderer {
             .await
             .map_err(NativeWgpuRenderError::RequestDevice)?;
         let capabilities = surface.get_capabilities(&adapter);
-        let surface_format = capabilities
-            .formats
-            .iter()
-            .copied()
-            .find(|format| *format == wgpu::TextureFormat::Bgra8Unorm)
-            .unwrap_or_else(|| capabilities.formats[0]);
+        let surface_format = choose_live_surface_format(&capabilities.formats);
         let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
             format: surface_format,
@@ -297,6 +292,7 @@ impl NativeWgpuLiveSurfaceRenderer {
         let frame = readback_to_rgba8(
             &self.core.device,
             &self.core.readback_buffer,
+            self.surface_config.format,
             self.surface_config.width,
             self.surface_config.height,
         )?;
@@ -518,8 +514,13 @@ impl NativeWgpuRenderer {
 
         let readback_encode_start = Instant::now();
         self.queue.submit(Some(readback_encoder.finish()));
-        let frame =
-            readback_to_rgba8(&self.device, &self.readback_buffer, self.width, self.height)?;
+        let frame = readback_to_rgba8(
+            &self.device,
+            &self.readback_buffer,
+            OUTPUT_FORMAT,
+            self.width,
+            self.height,
+        )?;
         let readback_encode = readback_encode_start.elapsed();
 
         Ok(NativeWgpuFrameReport {
@@ -776,7 +777,13 @@ impl NativeWgpuRenderer {
             },
         );
         self.queue.submit(Some(readback_encoder.finish()));
-        readback_to_rgba8(&self.device, &self.readback_buffer, self.width, self.height)
+        readback_to_rgba8(
+            &self.device,
+            &self.readback_buffer,
+            OUTPUT_FORMAT,
+            self.width,
+            self.height,
+        )
     }
 }
 
@@ -1238,6 +1245,26 @@ fn create_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     create_pipeline_for_format(device, OUTPUT_FORMAT)
 }
 
+fn choose_live_surface_format(formats: &[wgpu::TextureFormat]) -> wgpu::TextureFormat {
+    formats
+        .iter()
+        .copied()
+        .find(|format| *format == wgpu::TextureFormat::Bgra8UnormSrgb)
+        .or_else(|| {
+            formats
+                .iter()
+                .copied()
+                .find(|format| *format == wgpu::TextureFormat::Rgba8UnormSrgb)
+        })
+        .or_else(|| {
+            formats
+                .iter()
+                .copied()
+                .find(|format| *format == wgpu::TextureFormat::Bgra8Unorm)
+        })
+        .unwrap_or_else(|| formats[0])
+}
+
 fn create_pipeline_for_format(
     device: &wgpu::Device,
     output_format: wgpu::TextureFormat,
@@ -1475,6 +1502,7 @@ fn create_readback_buffer(device: &wgpu::Device, width: u32, height: u32) -> wgp
 fn readback_to_rgba8(
     device: &wgpu::Device,
     buffer: &wgpu::Buffer,
+    texture_format: wgpu::TextureFormat,
     width: u32,
     height: u32,
 ) -> Result<RgbaFrame, NativeWgpuRenderError> {
@@ -1497,13 +1525,28 @@ fn readback_to_rgba8(
     for row_index in 0..height as usize {
         let row_start = row_index * padded_row;
         let row = &mapped[row_start..row_start + unpadded_row];
-        pixels.extend_from_slice(row);
+        pixels.extend(normalise_texture_copy_to_rgba8(texture_format, row));
     }
 
     drop(mapped);
     buffer.unmap();
 
     RgbaFrame::from_rgba8(width, height, pixels).map_err(NativeWgpuRenderError::InvalidFrame)
+}
+
+fn normalise_texture_copy_to_rgba8(texture_format: wgpu::TextureFormat, row: &[u8]) -> Vec<u8> {
+    if matches!(
+        texture_format,
+        wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb
+    ) {
+        let mut pixels = Vec::with_capacity(row.len());
+        for pixel in row.chunks_exact(4) {
+            pixels.extend_from_slice(&[pixel[2], pixel[1], pixel[0], pixel[3]]);
+        }
+        return pixels;
+    }
+
+    row.to_vec()
 }
 
 fn wait_for_submitted_work(
@@ -2005,5 +2048,15 @@ mod tests {
         );
 
         assert_eq!(pixels, vec![1, 2, 3, 255, 10, 20, 30, 128]);
+    }
+
+    #[test]
+    fn live_surface_format_prefers_srgb_for_export_parity() {
+        let format = choose_live_surface_format(&[
+            wgpu::TextureFormat::Bgra8Unorm,
+            wgpu::TextureFormat::Bgra8UnormSrgb,
+        ]);
+
+        assert_eq!(format, wgpu::TextureFormat::Bgra8UnormSrgb);
     }
 }

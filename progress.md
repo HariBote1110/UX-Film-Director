@@ -1,3 +1,24 @@
+## 2026-06-30 — live surface BGRA readbackをRGBAへ正規化
+
+### 実施内容
+- Red として `native-wgpu-renderer/src/lib.rs` に、`Bgra8Unorm` surface copy bytes を RGBA8 へ正規化する単体テストを追加した。
+- Green として `readback_to_rgba8` に texture format を渡し、`Bgra8Unorm` / `Bgra8UnormSrgb` の readback だけ R/B を入れ替えるようにした。
+- live surface format は可能なら `Bgra8UnormSrgb` / `Rgba8UnormSrgb` を優先し、export/offscreen readback と同じ sRGB 量子化に寄せるようにした。
+- live CAMetalLayer readback は surface format を使い、export/offscreen readback は従来の `Rgba8UnormSrgb` として扱うようにした。
+- `package.json` / `package-lock.json` の版を軽微な live readback 正規化修正として `0.1.1-Beta-418b` へ更新した。
+
+### 選定理由・判断の根拠
+- 実機 trace で `liveReadbackExportMaxChannelDelta=248` となり、live surface readback と export readback の差分 gate が不一致を検出した。
+- live surface は macOS で `Bgra8Unorm` を優先選択している一方、readback buffer を RGBA8 としてそのまま解釈していたため、赤青 channel の取り違えが起きる。
+- R/B 正規化後も `liveReadbackExportMaxChannelDelta=73` が残ったため、`Bgra8Unorm` と export 側 `Rgba8UnormSrgb` の format 差も parity 不一致の原因として扱った。
+- Red: `cargo test --manifest-path native-wgpu-renderer/Cargo.toml bgra_surface_copy_bytes_are_normalised_to_rgba8` は `normalise_texture_copy_to_rgba8` 未実装で failed。
+- Green: `cargo test --manifest-path native-wgpu-renderer/Cargo.toml surface_copy_bytes_are` は 2 passed。
+- Green: `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test overlay_surface_parity` は 1 passed。
+- 実機: `UXFD_DECODE_TRACE=1 UXFD_NATIVE_OVERLAY_READBACK_TRACE=1` で画像 clip と動画 clip を配置し、`liveReadbackExportMaxChannelDelta=0` / `livePreparedClipCount=2` / `liveReadbackNonTransparentPixels=357136` を確認した。
+
+### 残課題・次のステップ
+- Phase 3a の動画 ownership 修正へ進む。
+
 ## 2026-06-30 — live overlay readbackとexport readbackの差分診断を追加
 
 ### 実施内容
