@@ -1,3 +1,20 @@
+## 2026-06-30 — Phase 5入力操作確認を完了
+
+### 実施内容
+- Native Overlay 表示中の実機確認で、preview 上のクリック後に WebView 側へ focus が移り、続けて Space ショートカットで再生位置が `0.00s` から `5.17s` へ進むことを確認した。
+- `UXFDNativeOverlayPassthroughView` の `hitTest:` nil 返却により、overlay surface 表示中も下層 WebView が入力を受け取ることを確認した。
+- D&D / スクラブ / ショートカット周辺 / コンテキストメニュー / ripple delete / Native Overlay main bridge の既存 vitest をまとめて再実行した。
+- 確認用の `npm run dev:rust-video` セッションを停止し、Native Overlay attach 成功ログが継続していたことを確認した。
+
+### 選定理由・判断の根拠
+- Phase 5 の完了条件は既存入力操作の Green と overlay クリック透過なので、vitest と実機操作を併用した。
+- `npx vitest run src/hooks/useTimelineDrop.test.ts src/utils/timelineSeek.test.ts src/components/TimelineContextMenu.particle.test.ts src/utils/sharedRendererExternalVideoSource.test.ts src/utils/transformGeometry.test.ts src/store/rippleDelete.test.ts src/utils/nativeOverlayMainBridge.test.ts` は 7 files / 44 tests passed。
+- preview は Native Overlay surface の青表示で覆われた状態だったため、クリック後の focus 移動と Space 再生進行は overlay がイベントを奪っていない根拠になる。
+
+### 残課題・次のステップ
+- Phase 6 に進み、`VITE_UXFD_NATIVE_OVERLAY=1` opt-in の安定化、`npm run dev:native-overlay` 追加、長時間ベンチ harness、既定 ON 切替の Red→Green→Refactor を進める。
+- Phase 6 の既定 ON 切替直前では、ユーザー確認が必要。
+
 ## 2026-06-30 — Native Overlayクリック透過NSViewを追加
 
 ### 実施内容
