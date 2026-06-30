@@ -59,6 +59,21 @@ const filterNativeOverlayBenchEchoText = (text, traceEnabled) => {
     .join('');
 };
 
+const resolveBenchSpawnCommand = () => {
+  const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const npmArgs = ['run', 'dev:native-overlay'];
+  if (process.platform === 'darwin') {
+    return {
+      command: 'caffeinate',
+      args: ['-dimsu', npmCommand, ...npmArgs],
+    };
+  }
+  return {
+    command: npmCommand,
+    args: npmArgs,
+  };
+};
+
 const handleOutput = (chunk, write) => {
   const text = chunk.toString();
   write(filterNativeOverlayBenchEchoText(text, decodeTraceEnabled));
@@ -153,7 +168,8 @@ const runSingleBench = () => new Promise((resolveRun) => {
     // ignore
   }
 
-  child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dev:native-overlay'], {
+  const spawnCommand = resolveBenchSpawnCommand();
+  child = spawn(spawnCommand.command, spawnCommand.args, {
     cwd: process.cwd(),
     env: {
       ...process.env,

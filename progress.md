@@ -1,3 +1,18 @@
+## 2026-06-30 — Native Overlay long benchをcaffeinateでsleep抑止
+
+### 実施内容
+- Red として `src/utils/packageScripts.test.ts` に、Native Overlay long bench runner が macOS で `caffeinate -dimsu` 経由で dev process を起動する契約を追加した。
+- Green として `scripts/run-native-overlay-long-bench.mjs` に `resolveBenchSpawnCommand()` を追加し、macOS では `caffeinate -dimsu npm run dev:native-overlay`、それ以外では従来の npm 起動を使うようにした。
+- 軽微な Phase 3a bench gate 修正として `package.json` / `package-lock.json` の版を `0.1.1-Beta-420c` へ更新した。
+
+### 選定理由・判断の根拠
+- 直前の 60分 bench は `rafP95Ms=18.09` に対し `rafMaxMs=139184.545` の単発巨大 gap で平均だけが悪化した。
+- `caffeinate` により macOS の system sleep / display idle を抑止し、Phase 3a の定常性能測定から外部の idle gap を取り除く。
+- `UXFD_NATIVE_OVERLAY_BENCH_TRACE=1 UXFD_NATIVE_OVERLAY_STEADY_DURATION_MS=10000 UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=10000 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=120000 npm run bench:native-overlay` は `durationMs=10010.68499994278` / `rafMeanMs=16.701` / `rafP95Ms=19.485` / `rafMaxMs=32.055` / `longTaskCount=2` で Green。
+
+### 残課題・次のステップ
+- `caffeinate` 適用後の 60分単一 steady playback bench を再実行し、巨大 rAF gap が消えるか確認する。
+
 ## 2026-06-30 — Phase 3a 60分benchは巨大rAF gapで失敗
 
 ### 実施内容
