@@ -1,3 +1,22 @@
+## 2026-06-30 — Native Overlay shared frame present bridgeを追加
+
+### 実施内容
+- `src/utils/nativeOverlayMainBridge.test.ts` に、decoded shared frame descriptor を native overlay addon へ渡し、present 成功後に `decode.releaseFrame` 用の `gpuUploadFenceSignalled` payload を返す契約を Red として追加した。
+- Red では `bridge.presentSharedFrame` が未実装で失敗することを確認した。
+- `electron/nativeOverlayMainBridge.ts` に `NativeOverlaySharedFramePayload` / `NativeOverlayReleaseFramePayload` と `presentSharedFrame` を追加した。
+- `electron/nativeOverlayMainBridge.ts` で `presentNativeOverlaySharedFrame` addon を検出対象に追加し、attach/detach と同じく `nativeWindowHandle` を main process 内で補完するようにした。
+- `package.json` の版を機能追加として `0.1.1-Beta-386a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 3a では shm descriptor を main/addon 側で扱う必要があるが、renderer IPC に native handle や frame bytes を載せてはいけないため、main bridge が native handle を補完し、release payload だけを返す形にした。
+- `copyOutState` は upload/present 完了後の正常解放を表す `gpuUploadFenceSignalled` に固定し、lease generation と ptsFrame を保持する契約にした。
+- `npx vitest run src/utils/nativeOverlayMainBridge.test.ts` は 8 tests passed。
+- `cargo test --manifest-path native-overlay/Cargo.toml` は 6 tests passed。
+
+### 残課題・次のステップ
+- 次は native-overlay addon 本体に `presentNativeOverlaySharedFrame` N-API を追加し、shm copy と overlay present 成功後に release payload を返す実装を Red→Green で進める。
+- その後、renderer orchestration からこの main bridge 経路へ接続し、実 decode 計測へ進む。
+
 ## 2026-06-30 — Native Overlay shm uploadコピー境界を追加
 
 ### 実施内容

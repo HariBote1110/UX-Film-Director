@@ -24,16 +24,52 @@ export interface NativeOverlayAddonDetachPayload extends NativeOverlayDetachPayl
   nativeWindowHandle: Uint8Array
 }
 
+export interface NativeOverlaySharedFrameDescriptor {
+  memoryId: string
+  slotIndex: number
+  generation: number
+  byteOffset: number
+  byteLen: number
+  width: number
+  height: number
+  strideBytes: number
+  format: string
+}
+
+export interface NativeOverlaySharedFramePayload {
+  windowId: number
+  mediaId: string
+  slotCount: number
+  frame: {
+    descriptor: NativeOverlaySharedFrameDescriptor
+    ptsFrame: number
+  }
+}
+
+export interface NativeOverlayAddonSharedFramePayload extends NativeOverlaySharedFramePayload {
+  nativeWindowHandle: Uint8Array
+}
+
+export interface NativeOverlayReleaseFramePayload {
+  memoryId: string
+  slotIndex: number
+  generation: number
+  ptsFrame: number
+  copyOutState: 'gpuUploadFenceSignalled'
+}
+
 export interface NativeOverlayResponse {
   success: boolean
   attached: boolean
   fallback?: 'webgpuPresenter'
   reason?: string
+  releaseFrame?: NativeOverlayReleaseFramePayload
 }
 
 export interface NativeOverlayAddon {
   attachNativeOverlay?: (payload: NativeOverlayAddonAttachPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   detachNativeOverlay?: (payload: NativeOverlayAddonDetachPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
+  presentNativeOverlaySharedFrame?: (payload: NativeOverlayAddonSharedFramePayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   getNativeOverlayCapabilities?: () => NativeOverlayCapabilities
 }
 
@@ -49,6 +85,7 @@ export interface CreateNativeOverlayMainBridgeInput {
 export interface NativeOverlayMainBridge {
   attach: (payload: NativeOverlayAttachPayload) => Promise<NativeOverlayResponse>
   detach: (payload: NativeOverlayDetachPayload) => Promise<NativeOverlayResponse>
+  presentSharedFrame: (payload: NativeOverlaySharedFramePayload) => Promise<NativeOverlayResponse>
   getCapabilities: () => NativeOverlayCapabilities
 }
 
@@ -105,6 +142,7 @@ export const createNativeOverlayMainBridge = ({
       const addon = requireModule(modulePath)
       loadedAddon = typeof addon.attachNativeOverlay === 'function'
         || typeof addon.detachNativeOverlay === 'function'
+        || typeof addon.presentNativeOverlaySharedFrame === 'function'
         || typeof addon.getNativeOverlayCapabilities === 'function'
         ? addon
         : null
@@ -155,6 +193,29 @@ export const createNativeOverlayMainBridge = ({
 
       try {
         return await addon.detachNativeOverlay({
+          ...payload,
+          nativeWindowHandle,
+        })
+      } catch (error) {
+        return fallbackResponse(getErrorMessage(error))
+      }
+    },
+    async presentSharedFrame(payload) {
+      if (!nativeOverlayEnabled(env)) {
+        return fallbackResponse('Native overlay preview is disabled.')
+      }
+
+      const addon = loadAddon()
+      if (!addon || typeof addon.presentNativeOverlaySharedFrame !== 'function') {
+        return fallbackResponse('Native overlay addon is unavailable.')
+      }
+      const nativeWindowHandle = resolveNativeWindowHandle?.(payload.windowId) ?? null
+      if (!nativeWindowHandle) {
+        return fallbackResponse('Native overlay window handle is unavailable.')
+      }
+
+      try {
+        return await addon.presentNativeOverlaySharedFrame({
           ...payload,
           nativeWindowHandle,
         })
