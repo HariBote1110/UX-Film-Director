@@ -93,6 +93,20 @@ describe('native overlay napi crate boundary', () => {
     expect(lib).not.toContain('sample_upload_clear_colour');
   });
 
+  it('accepts scene snapshots and image media in the live overlay shared-frame payload', () => {
+    const lib = read('native-overlay/src/lib.rs');
+
+    expect(lib).toContain('pub snapshot: Option<NativeOverlaySceneSnapshotPayload>');
+    expect(lib).toContain('pub media: Option<Vec<NativeOverlaySceneMediaPayload>>');
+    expect(lib).toContain('pub struct NativeOverlaySceneSnapshotPayload');
+    expect(lib).toContain('pub struct NativeOverlaySceneMediaPayload');
+    expect(lib).toContain('scene_present_request_from_payload');
+    expect(lib).toContain('load_overlay_image_sources_for_scene');
+    expect(lib).toContain('NativeOverlaySceneSource');
+    expect(lib).toContain('upload_frame_to_scene_sources');
+    expect(lib).not.toContain('upload_frame_to_single_clip_scene');
+  });
+
   it('removes an existing AppKit overlay view before attaching a replacement', () => {
     const macosOverlay = read('native-overlay/src/macos_overlay.rs');
 
