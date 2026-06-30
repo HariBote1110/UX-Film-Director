@@ -135,6 +135,20 @@ describe('Viewport Rust video-only boundary', () => {
     expect(code).toContain('window.nativeOverlay?.detach');
   });
 
+  it('connects the native overlay preview presenter path behind the explicit env flag', () => {
+    const code = viewportSource();
+    const start = code.indexOf('void startSharedRendererViewportPresenter({');
+    const end = code.indexOf('}).then', start);
+    const presenterBlock = code.slice(start, end);
+
+    expect(code).toContain('prepareSharedRendererViewportNativeOverlayPresent');
+    expect(presenterBlock).toContain('nativeOverlayPreviewEnabled');
+    expect(presenterBlock).toContain('presentNativeOverlayDecodedFrame: nativeOverlayPreviewEnabled');
+    expect(presenterBlock).toContain('prepareSharedRendererViewportNativeOverlayPresent({');
+    expect(presenterBlock).toContain('nativeOverlayBridge: window.nativeOverlay');
+    expect(presenterBlock).toContain('rustBackendBridge: window.rustBackend');
+  });
+
   it('reuses the existing external video presenter across playback ticks', () => {
     const code = viewportSource();
     const start = code.indexOf('const nextPresenterKey = buildSharedRendererPresenterSessionKey(session');
