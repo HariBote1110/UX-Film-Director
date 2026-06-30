@@ -307,6 +307,37 @@ interface Window {
       fallback?: 'webgpuPresenter';
       reason?: string;
     }>;
+    presentSharedFrame: (payload: {
+      windowId?: number;
+      mediaId: string;
+      slotCount: number;
+      frame: {
+        descriptor: {
+          memoryId: string;
+          slotIndex: number;
+          generation: number;
+          byteOffset: number;
+          byteLen: number;
+          width: number;
+          height: number;
+          strideBytes: number;
+          format: 'rgba8Srgb';
+        };
+        ptsFrame: number;
+      };
+    }) => Promise<{
+      success: boolean;
+      attached: boolean;
+      fallback?: 'webgpuPresenter';
+      reason?: string;
+      releaseFrame?: {
+        memoryId: string;
+        slotIndex: number;
+        generation: number;
+        ptsFrame: number;
+        copyOutState: 'gpuUploadFenceSignalled';
+      };
+    }>;
   };
 }
 

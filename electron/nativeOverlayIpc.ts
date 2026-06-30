@@ -2,11 +2,13 @@ import type {
   NativeOverlayAttachPayload,
   NativeOverlayDetachPayload,
   NativeOverlayResponse,
+  NativeOverlaySharedFramePayload,
 } from './nativeOverlayMainBridge'
 
 export const nativeOverlayIpcChannels = {
   attach: 'native-overlay-attach',
   detach: 'native-overlay-detach',
+  presentSharedFrame: 'native-overlay-present-shared-frame',
   capabilities: 'native-overlay-capabilities',
 } as const
 
@@ -25,6 +27,7 @@ export interface NativeOverlayIpcMainLike {
 export interface NativeOverlayIpcBridge {
   attach: (payload: NativeOverlayAttachPayload) => Promise<NativeOverlayResponse>
   detach: (payload: NativeOverlayDetachPayload) => Promise<NativeOverlayResponse>
+  presentSharedFrame: (payload: NativeOverlaySharedFramePayload) => Promise<NativeOverlayResponse>
   getCapabilities: () => NativeOverlayCapabilities
 }
 
@@ -45,6 +48,10 @@ export const registerNativeOverlayIpcHandlers = (
   })
   ipcMain.handle(nativeOverlayIpcChannels.detach, async (event, payload) =>
     bridge.detach(withWindowId(payload, event, options.resolveWindowIdFromEvent) as NativeOverlayDetachPayload))
+  ipcMain.handle(nativeOverlayIpcChannels.presentSharedFrame, async (event, payload) =>
+    bridge.presentSharedFrame(
+      withWindowId(payload, event, options.resolveWindowIdFromEvent) as NativeOverlaySharedFramePayload,
+    ))
   ipcMain.handle(nativeOverlayIpcChannels.capabilities, async () =>
     bridge.getCapabilities())
 }

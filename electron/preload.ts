@@ -195,6 +195,9 @@ contextBridge.exposeInMainWorld('nativeOverlay', {
   detach(payload: unknown) {
     return ipcRenderer.invoke(nativeOverlayIpcChannels.detach, payload)
   },
+  presentSharedFrame(payload: unknown) {
+    return ipcRenderer.invoke(nativeOverlayIpcChannels.presentSharedFrame, payload)
+  },
 })
 
 contextBridge.exposeInMainWorld('sharedVideoFrame', {

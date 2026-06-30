@@ -1,3 +1,23 @@
+## 2026-06-30 — Native Overlay shared frame IPC境界を追加
+
+### 実施内容
+- `src/utils/nativeOverlayIpc.test.ts` に `native-overlay-present-shared-frame` channel と bridge handler 登録の Red を追加した。
+- `src/utils/nativeOverlayPreloadBoundary.test.ts` に `window.nativeOverlay.presentSharedFrame` と renderer 型宣言が frame bytes を含まないことを固定する Red を追加した。
+- Red では channel / preload API / `presentSharedFrame` 型宣言が未実装で失敗することを確認した。
+- `electron/nativeOverlayIpc.ts` に `presentSharedFrame` channel と IPC handler を追加した。
+- `electron/preload.ts` に `nativeOverlay.presentSharedFrame` を追加した。
+- `src/vite-env.d.ts` に descriptor-only の `nativeOverlay.presentSharedFrame` 型を追加した。
+- `package.json` の版を機能追加として `0.1.1-Beta-388a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 3a の renderer → main → addon 接続には shared frame descriptor の制御プレーンが必要だが、pixel bytes は引き続き shm に閉じる必要がある。
+- そのため preload と型宣言には `memoryId` / `slotIndex` / `generation` / `byteLen` / `strideBytes` だけを載せ、`pixels` / `frameBytes` / `Uint8Array` を nativeOverlay API に出さない契約にした。
+- `npx vitest run src/utils/nativeOverlayIpc.test.ts src/utils/nativeOverlayPreloadBoundary.test.ts src/utils/nativeOverlayMainBridge.test.ts` は 3 files / 15 tests passed。
+
+### 残課題・次のステップ
+- 次は shared renderer viewport orchestration から `window.nativeOverlay.presentSharedFrame` を呼び、戻った release payload で `window.rustBackend.releaseVideoDecodeFrame` を実行する接続を Red→Green で追加する。
+- その後、実 decode 1080p の presenter 提示時間と lease generation 違反ゼロを測る。
+
 ## 2026-06-30 — Native Overlay shared frame present addonを追加
 
 ### 実施内容
