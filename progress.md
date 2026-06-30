@@ -1,3 +1,21 @@
+## 2026-06-30 — 60分 bench再試行はdecodeMs spikeで停止
+
+### 実施内容
+- `UXFD_NATIVE_OVERLAY_BENCH_TRACE=1 UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=3600000 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=4500000 npm run bench:native-overlay` を再試行した。
+- 1回目の60分 bench は run 9 まで通過後、run 10 の `native_overlay_steady_playback` が `rafP95Ms=20.9` で失敗した。
+- `scripts/run-native-overlay-long-bench.mjs` の trace 再出力抑制後、2回目の60分 bench は最初の run で `Native Overlay bench trace gate failed: decodeMs max 21.9ms > 16ms` により停止した。
+
+### 選定理由・判断の根拠
+- 2回目の該当 run は `native_overlay_steady_playback` 自体は `rafMeanMs=16.746` / `rafP95Ms=18.565` / `rafMaxMs=31.56` で RAF budget を満たした。
+- ただし trace gate が `decodeMs max 21.9ms > 16ms` を検出したため、Phase 3a の `decodeMs<16ms` 定常条件は未達。
+- 同じ run の `raf_playhead_scrub` は `rafMeanMs=27.865` / `rafP95Ms=122.4` / `rafMaxMs=132.35` で大きく跳ねており、Native Overlay 固有ではない renderer/bench 環境 jitter も混入している。
+
+### 残課題・次のステップ
+- 自走停止条件に従い、Phase 3a 長時間 bench はここで一旦停止する。
+- 原因仮説1: 20Mbps 1080p60 の実 decode が、sidecar cache hit後の定常 sequential frame でもまれに 16ms を超える。
+- 原因仮説2: perf agent / Vite watch / Electron 再起動を繰り返す long bench 構造が、renderer と sidecar の CPU scheduling を揺らしている。
+- 原因仮説3: `UXFD_DECODE_TRACE=1` 自体の sidecar stdout 出力が decode thread 近傍に backpressure を作り、稀な decodeMs spike として観測されている。
+
 ## 2026-06-30 — Native Overlay bench traceの親stdout再出力を抑制
 
 ### 実施内容
