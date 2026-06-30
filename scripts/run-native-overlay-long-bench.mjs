@@ -9,10 +9,12 @@ const displayCommand = 'npm run dev:native-overlay';
 const outputDir = resolve(process.cwd(), 'perf', 'native-overlay-long-bench');
 const outputJsonPath = resolve(outputDir, 'perf-agent-output.json');
 const timeoutMs = Number.parseInt(process.env.UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS ?? '', 10) || 3_900_000;
+const benchDurationMs = Number.parseInt(process.env.UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS ?? '', 10) || 3_600_000;
 
 let child = null;
 let finished = false;
 let markerPayload = null;
+let completedRuns = 0;
 
 const parseMarkerLine = (line) => {
   const marker = 'UXFD_PERF_RESULT_JSON:';
@@ -104,44 +106,70 @@ try {
 
 console.log(`[native-overlay-bench] ${displayCommand} を perf agent mode で起動します`);
 console.log(`[native-overlay-bench] timeoutMs=${timeoutMs}`);
+console.log(`[native-overlay-bench] durationMs=${benchDurationMs}`);
 
-child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dev:native-overlay'], {
-  cwd: process.cwd(),
-  env: {
-    ...process.env,
-    VITE_PERF_AGENT_MODE: '1',
-    UXFD_DECODE_TRACE: '1',
-    UXFD_PERF_OUTPUT_DIR: outputDir,
-    UXFD_NATIVE_OVERLAY: '1',
-    VITE_UXFD_NATIVE_OVERLAY: '1',
-  },
-  stdio: ['ignore', 'pipe', 'pipe'],
-});
-
-child.stdout.on('data', (chunk) => handleOutput(chunk, (text) => process.stdout.write(text)));
-child.stderr.on('data', (chunk) => handleOutput(chunk, (text) => process.stderr.write(text)));
-child.on('error', (error) => {
-  console.error('[native-overlay-bench] 起動失敗:', error instanceof Error ? error.message : String(error));
-  finish(1);
-});
-
-const timeout = setTimeout(() => {
-  console.error(`[native-overlay-bench] timeout (${timeoutMs}ms)`);
-  finish(124);
-}, timeoutMs);
-
-child.on('close', (code) => {
-  clearTimeout(timeout);
+const runSingleBench = () => new Promise((resolveRun) => {
+  markerPayload = null;
   try {
-    const payload = readAgentPayload();
-    assertBenchPayload(payload);
-    if (markerPayload?.success === false) {
-      throw new Error(markerPayload.errorMessage || 'perf marker reported failure');
-    }
-    console.log(`[native-overlay-bench] 完了: ${outputJsonPath}`);
-    finish(code ?? 0);
-  } catch (error) {
-    console.error('[native-overlay-bench] gate failed:', error instanceof Error ? error.message : String(error));
-    finish(1);
+    rmSync(outputJsonPath, { force: true });
+  } catch {
+    // ignore
   }
+
+  child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dev:native-overlay'], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      VITE_PERF_AGENT_MODE: '1',
+      UXFD_DECODE_TRACE: '1',
+      UXFD_PERF_OUTPUT_DIR: outputDir,
+      UXFD_NATIVE_OVERLAY: '1',
+      VITE_UXFD_NATIVE_OVERLAY: '1',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  child.stdout.on('data', (chunk) => handleOutput(chunk, (text) => process.stdout.write(text)));
+  child.stderr.on('data', (chunk) => handleOutput(chunk, (text) => process.stderr.write(text)));
+  child.on('error', (error) => {
+    resolveRun({ code: 1, error: new Error(`起動失敗: ${error instanceof Error ? error.message : String(error)}`) });
+  });
+
+  const timeout = setTimeout(() => {
+    resolveRun({ code: 124, error: new Error(`timeout (${timeoutMs}ms)`) });
+    cleanup();
+  }, timeoutMs);
+
+  child.on('close', (code) => {
+    clearTimeout(timeout);
+    try {
+      const payload = readAgentPayload();
+      assertBenchPayload(payload);
+      if (markerPayload?.success === false) {
+        throw new Error(markerPayload.errorMessage || 'perf marker reported failure');
+      }
+      completedRuns += 1;
+      console.log(`[native-overlay-bench] run ${completedRuns} 完了: ${outputJsonPath}`);
+      resolveRun({ code: code ?? 0 });
+    } catch (error) {
+      resolveRun({ code: 1, error });
+    }
+  });
 });
+
+const deadline = Date.now() + benchDurationMs;
+while (completedRuns === 0 || Date.now() < deadline) {
+  const result = await runSingleBench();
+  if (result.error) {
+    console.error('[native-overlay-bench] gate failed:', result.error instanceof Error ? result.error.message : String(result.error));
+    finish(result.code ?? 1);
+    break;
+  }
+  if (result.code && result.code !== 0) {
+    finish(result.code);
+    break;
+  }
+}
+
+console.log(`[native-overlay-bench] 完了: runs=${completedRuns}, output=${outputDir}`);
+finish(0);
