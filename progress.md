@@ -1,3 +1,22 @@
+## 2026-06-30 — Native Overlay viewport decode presentを追加
+
+### 実施内容
+- `src/utils/sharedRendererViewportVideoUpload.test.ts` に、viewport の decode request から Native Overlay present へ進み、WebGPU upload buffer copy を呼ばずに decoded slot を release する契約を Red として追加した。
+- Red では `prepareSharedRendererViewportNativeOverlayPresent` が未実装で失敗することを確認した。
+- `src/utils/sharedRendererViewportVideoUpload.ts` に `prepareSharedRendererViewportNativeOverlayPresent` を追加した。
+- `src/utils/sharedRendererViewportVideoUpload.ts` で既存の decode job start / request / stale release / retry 方針を再利用し、成功時は `presentNativeOverlayRustDecodedVideoFrame` へ shared frame descriptor を渡すようにした。
+- `package.json` の版を機能追加として `0.1.1-Beta-391a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 3a の production 接続では、既存 decode job 管理と back pressure 対応を再利用しつつ、最後の消費先だけを WebGPU upload から Native Overlay present へ差し替えるのが最小変更になる。
+- Native Overlay 経路では `copyIntoUploadBuffer` を呼ばないため、JS heap / writeTexture へ向かう既存 preview data movement を避けられる。
+- `npx vitest run src/utils/sharedRendererViewportVideoUpload.test.ts` は 19 tests passed。
+- `npx vitest run src/utils/sharedRendererRustVideoUploadPipeline.test.ts src/utils/sharedRendererViewportPresenterOrchestration.test.ts` は 2 files / 29 tests passed。
+
+### 残課題・次のステップ
+- 次は `Viewport.tsx` の `startSharedRendererViewportPresenter` 呼び出しに `nativeOverlayPreviewEnabled` と `prepareSharedRendererViewportNativeOverlayPresent` を接続する。
+- その後、`UXFD_DECODE_TRACE=1` で 1080p 実 decode / present 計測へ進む。
+
 ## 2026-06-30 — Native Overlay orchestration gateを追加
 
 ### 実施内容

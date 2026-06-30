@@ -14,7 +14,10 @@ import {
   type RustBackendVideoDecodeFrameRate,
 } from './rustBackendVideoDecodeControl';
 import {
+  presentNativeOverlayRustDecodedVideoFrame,
   prepareSharedRendererRustDecodedVideoUpload,
+  type NativeOverlayDecodedFrameBridge,
+  type PresentNativeOverlayRustDecodedVideoFrameResult,
   type PrepareSharedRendererRustDecodedVideoUploadResult,
 } from './sharedRendererRustVideoUploadPipeline';
 import type { SharedVideoFrameCopyBridge } from './sharedVideoFrameUploadBridge';
@@ -56,6 +59,19 @@ export interface PrepareSharedRendererViewportVideoUploadInput {
   decodeRequestBuilder?: SharedRendererVideoFrameDecodeRequestBuilder;
 }
 
+export interface PrepareSharedRendererViewportNativeOverlayPresentInput {
+  windowId: number;
+  session: SharedRendererPreviewSession;
+  requestId?: number;
+  slotCount?: number;
+  maxDecodeEdge?: number;
+  activeJob?: SharedRendererViewportVideoDecodeJob | null;
+  rustBackendBridge?: RustBackendVideoDecodeBridge;
+  nativeOverlayBridge?: NativeOverlayDecodedFrameBridge;
+  copyBridge?: SharedVideoFrameCopyBridge;
+  decodeRequestBuilder?: SharedRendererVideoFrameDecodeRequestBuilder;
+}
+
 export interface PrepareSharedRendererViewportVideoUploadsInput {
   session: SharedRendererPreviewSession;
   requestId?: number;
@@ -90,6 +106,32 @@ export type PrepareSharedRendererViewportVideoUploadResult =
       detail: string;
       activeJob?: SharedRendererViewportVideoDecodeJob | null;
       uploadFailureReason?: PreparedViewportVideoUploadFailureReason;
+      uploadFailureClipId?: string;
+      uploadFailureMediaId?: string;
+    };
+
+export type PrepareSharedRendererViewportNativeOverlayPresentResult =
+  | {
+      ok: true;
+      activeJob: SharedRendererViewportVideoDecodeJob;
+    }
+  | {
+      ok: false;
+      reason:
+        | 'surfaceGateUnavailable'
+        | 'decodeRequestUnavailable'
+        | 'noVideoDecodeRequest'
+        | 'stopFailed'
+        | 'startFailed'
+        | 'frameDecodeFailed'
+        | 'staleDecodeResponse'
+        | 'staleDecodeReleaseFailed'
+        | 'nativeOverlayPresentFailed';
+      detail: string;
+      activeJob?: SharedRendererViewportVideoDecodeJob | null;
+      uploadFailureReason?: PresentNativeOverlayRustDecodedVideoFrameResult extends infer Result
+        ? Result extends { ok: false; reason: infer Reason } ? Reason : never
+        : never;
       uploadFailureClipId?: string;
       uploadFailureMediaId?: string;
     };
@@ -373,6 +415,167 @@ export const prepareSharedRendererViewportVideoUploads = async ({
     ok: true,
     activeJobs: resolvedActiveJobs,
     uploads,
+  };
+};
+
+export const prepareSharedRendererViewportNativeOverlayPresent = async ({
+  windowId,
+  session,
+  requestId,
+  slotCount = 2,
+  maxDecodeEdge = DEFAULT_VIEWPORT_VIDEO_DECODE_EDGE,
+  activeJob = null,
+  rustBackendBridge = window.rustBackend,
+  nativeOverlayBridge = window.nativeOverlay,
+  decodeRequestBuilder = buildSharedRendererVideoFrameDecodeRequests,
+}: PrepareSharedRendererViewportNativeOverlayPresentInput): Promise<PrepareSharedRendererViewportNativeOverlayPresentResult> => {
+  if (!session.surfaceGate.ok) {
+    return {
+      ok: false,
+      reason: 'surfaceGateUnavailable',
+      detail: session.surfaceGate.detail,
+      activeJob,
+    };
+  }
+  const surfaceGate = session.surfaceGate;
+
+  const decodeRequests = decodeRequestBuilder({
+    snapshot: surfaceGate.snapshot,
+    media: surfaceGate.media,
+  });
+  if (!decodeRequests.ok) {
+    return {
+      ok: false,
+      reason: 'decodeRequestUnavailable',
+      detail: decodeRequests.detail,
+      activeJob,
+    };
+  }
+
+  const request = decodeRequests.requests[0];
+  if (!request) {
+    return {
+      ok: false,
+      reason: 'noVideoDecodeRequest',
+      detail: 'Shared renderer preview session does not contain a visible video frame request.',
+      activeJob,
+    };
+  }
+
+  const nextJob = buildViewportVideoDecodeJob(request, slotCount, surfaceGate.canvas, maxDecodeEdge);
+  const resolvedJob = sameDecodeJob(activeJob, nextJob)
+    ? activeJob
+    : await replaceDecodeJob(activeJob, nextJob, request, rustBackendBridge);
+  if (isDecodeJobStartFailure(resolvedJob)) {
+    return {
+      ok: false,
+      reason: 'startFailed',
+      detail: resolvedJob.detail,
+      activeJob,
+    };
+  }
+
+  const resolvedRequestId = requestId ?? surfaceGate.snapshot.frame_index;
+  const decodeFramePayload = {
+    jobId: resolvedJob.jobId,
+    requestId: resolvedRequestId,
+    frameIndex: request.sourceFrame,
+    mode: 'latestWins',
+  } as const;
+  let decodeResponse = await requestRustBackendVideoDecodeFrame(decodeFramePayload, rustBackendBridge);
+  if (!decodeResponse.success && shouldRecoverDecodeFrameRequestError(
+    decodeResponse.error,
+    sameDecodeJob(activeJob, nextJob)
+  )) {
+    if (isNoFreeDecodeFrameSlotError(decodeResponse.error)) {
+      const stopResponse = await stopRustBackendVideoDecode({
+        jobId: resolvedJob.jobId,
+      }, rustBackendBridge);
+      if (!isDecodeStopSatisfied(stopResponse)) {
+        return {
+          ok: false,
+          reason: 'stopFailed',
+          detail: stopResponse.error ?? 'Rust backend rejected the stuck video decode stop request.',
+          activeJob: resolvedJob,
+        };
+      }
+    }
+    const restartResult = await startDecodeJob(nextJob, request, rustBackendBridge);
+    if (isDecodeJobStartFailure(restartResult)) {
+      return {
+        ok: false,
+        reason: 'startFailed',
+        detail: restartResult.detail,
+        activeJob,
+      };
+    }
+    decodeResponse = await requestRustBackendVideoDecodeFrame(decodeFramePayload, rustBackendBridge);
+  }
+  if (!decodeResponse.success) {
+    return {
+      ok: false,
+      reason: 'frameDecodeFailed',
+      detail: decodeResponse.error ?? 'Rust backend video frame decode request failed.',
+      activeJob: resolvedJob,
+    };
+  }
+  if (
+    isRustBackendDecodedVideoFrameAvailable(decodeResponse)
+    && (
+      decodeResponse.result.requestId !== resolvedRequestId
+      || decodeResponse.result.jobId !== resolvedJob.jobId
+    )
+  ) {
+    const releaseResponse = await releaseRustBackendVideoDecodeFrame({
+      jobId: decodeResponse.result.jobId,
+      slotIndex: decodeResponse.result.frame.descriptor.slotIndex,
+      generation: decodeResponse.result.frame.descriptor.generation,
+      copyOutState: 'rendererUploadAborted',
+    }, rustBackendBridge);
+    if (!releaseResponse.success) {
+      return {
+        ok: false,
+        reason: 'staleDecodeReleaseFailed',
+        detail: releaseResponse.error ?? 'Rust backend stale decoded frame release failed.',
+        activeJob: resolvedJob,
+      };
+    }
+    return {
+      ok: false,
+      reason: 'staleDecodeResponse',
+      detail: buildStaleDecodedFrameDetail(
+        decodeResponse.result,
+        resolvedRequestId,
+        resolvedJob.jobId
+      ),
+      uploadFailureClipId: request.clipId,
+      uploadFailureMediaId: request.mediaId,
+      activeJob: resolvedJob,
+    };
+  }
+
+  const present = await presentNativeOverlayRustDecodedVideoFrame({
+    windowId,
+    decodeResponse,
+    slotCount: resolvedJob.slotCount,
+    nativeOverlayBridge,
+    rustBackendBridge,
+  });
+  if (!present.ok) {
+    return {
+      ok: false,
+      reason: 'nativeOverlayPresentFailed',
+      detail: present.detail,
+      uploadFailureReason: present.reason,
+      uploadFailureClipId: request.clipId,
+      uploadFailureMediaId: request.mediaId,
+      activeJob: resolvedJob,
+    };
+  }
+
+  return {
+    ok: true,
+    activeJob: resolvedJob,
   };
 };
 
