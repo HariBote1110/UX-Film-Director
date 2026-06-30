@@ -1,3 +1,23 @@
+## 2026-06-30 — Native reuse replay timeの追い越しを抑止
+
+### 実施内容
+- Red として `src/utils/sharedRendererNativeReuseCadence.test.ts` に、slow decode 後の pending replay が前回 request から最大 1 preview frame だけ進む契約を追加した。
+- Green として `src/utils/sharedRendererNativeReuseCadence.ts` に `resolveSharedRendererNativeReuseReplayTime` を追加し、`src/components/Viewport.tsx` の native reuse pending replay で適用した。
+- 軽微な Phase 3a 性能修正として `package.json` / `package-lock.json` の版を `0.1.1-Beta-419e` へ更新した。
+
+### 選定理由・判断の根拠
+- Mini explorer と実機 bench の双方で、`sharedRendererNativeReusePreparingRef` 中に最新 tick だけを残す構造が、decode 完了後に数十〜百フレーム先を要求する catch-up を作っていた。
+- Rust backend は sequential reuse 時に `frame_index - decoder.next_frame_index` を読み捨てるため、frontend が大きく追い越すと `skipped` / `forwardGapExceeded` がそのまま `decodeMs` スパイクになる。
+- replay time を 1 preview frame ずつ進めれば、decode sidecar と既存 shared memory ring は維持したまま、forward gap を frontend 側で抑えられる。
+- Red: `npx vitest run src/utils/sharedRendererNativeReuseCadence.test.ts` は未実装 import で失敗した。
+- Green: `npx vitest run src/utils/sharedRendererNativeReuseCadence.test.ts src/utils/sharedRendererPlaybackPreviewSettings.test.ts` と `npx vitest run src/utils/viewportRustVideoOnlyBoundary.test.ts --testNamePattern "native-reuse|preview decode settings"` は成功した。
+- `npx tsc --noEmit` は既存の `three` / `mp4box` 型定義不足や既存 nativeOverlay 型不一致で失敗したが、今回差分由来の `Viewport.tsx` の `snapshot` / `SHARED_RENDERER_PLAYBACK_PREVIEW_FPS` エラーは修正済み。
+- 短時間実機 bench は `Native Overlay bench trace gate failed: presentMs samples 0 < 1; decodeMs max 345ms > 16ms` で未達だった。marker 内に `frame=190 reason=forwardGapExceeded decodeMs=345.0` が残り、pending replay だけでなく通常 publish 入口も currentTime から far-ahead session を作っていると判断した。
+
+### 残課題・次のステップ
+- `publishSharedRendererPreviewSession` の再生中 preview time も、前回 native reuse request から最大 1 preview frame へ制限する契約を Red 化する。
+- overlay の見た目が playback clock に対して遅延しすぎないか、RAF 統計と目視でも確認する。
+
 ## 2026-06-30 — 分割decode traceの集計漏れを修正
 
 ### 実施内容

@@ -43,8 +43,10 @@ import { shouldMountSharedRendererSurfaceCanvas } from '../utils/sharedRendererS
 import {
   SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT,
   SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE,
+  SHARED_RENDERER_PLAYBACK_PREVIEW_FPS,
   quantiseSharedRendererPlaybackPreviewTime,
 } from '../utils/sharedRendererPlaybackPreviewSettings';
+import { resolveSharedRendererNativeReuseReplayTime } from '../utils/sharedRendererNativeReuseCadence';
 import {
   createSharedRendererExternalVideoSource,
   syncSharedRendererExternalVideoPlayback,
@@ -1056,7 +1058,16 @@ const Viewport: React.FC = () => {
             const pending = sharedRendererNativeReusePendingRef.current;
             sharedRendererNativeReusePendingRef.current = null;
             if (pending) {
-              publishSharedRendererPreviewSessionRef.current?.(pending.time, pending.objects);
+              publishSharedRendererPreviewSessionRef.current?.(
+                resolveSharedRendererNativeReuseReplayTime({
+                  requestedTime: session.surfaceGate.ok
+                    ? session.surfaceGate.snapshot.frame_index / projectSettings.fps
+                    : pending.time,
+                  pendingTime: pending.time,
+                  previewFps: SHARED_RENDERER_PLAYBACK_PREVIEW_FPS,
+                }),
+                pending.objects
+              );
             }
           }
         })();
