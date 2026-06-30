@@ -556,6 +556,7 @@ export const prepareSharedRendererViewportNativeOverlayPresent = async ({
 
   const present = await presentNativeOverlayRustDecodedVideoFrame({
     windowId,
+    mediaId: request.mediaId,
     decodeResponse,
     snapshot: surfaceGate.snapshot,
     media: surfaceGate.media,

@@ -77,6 +77,7 @@ export interface NativeOverlayDecodedFrameBridge {
 
 export interface PresentNativeOverlayRustDecodedVideoFrameInput {
   windowId?: number;
+  mediaId?: string;
   decodeResponse: RustBackendResult<unknown>;
   snapshot?: RustSceneSnapshot;
   media?: readonly RustSceneMediaReference[];
@@ -107,6 +108,7 @@ export type PrepareSharedRendererRustDecodedVideoUploadResult =
 
 export const presentNativeOverlayRustDecodedVideoFrame = async ({
   windowId,
+  mediaId,
   decodeResponse,
   snapshot,
   media,
@@ -125,7 +127,7 @@ export const presentNativeOverlayRustDecodedVideoFrame = async ({
   const { frame, jobId } = decodeResponse.result;
   const presentResponse = await nativeOverlayBridge.presentSharedFrame({
     windowId,
-    mediaId: jobId,
+    mediaId: mediaId ?? jobId,
     ...(snapshot ? { snapshot: toNativeOverlaySceneSnapshotPayload(snapshot) } : {}),
     ...(media ? { media: media.map(toNativeOverlaySceneMediaPayload) } : {}),
     slotCount,
