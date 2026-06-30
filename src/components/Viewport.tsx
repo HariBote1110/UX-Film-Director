@@ -566,10 +566,14 @@ const Viewport: React.FC = () => {
       ? new ResizeObserver(attach)
       : null;
     const visualViewport = window.visualViewport;
+    const resolutionMediaQuery = typeof window.matchMedia === 'function'
+      ? window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`)
+      : null;
     observer?.observe(previewElement);
     window.addEventListener('resize', attach);
     visualViewport?.addEventListener('resize', attach);
     visualViewport?.addEventListener('scroll', attach);
+    resolutionMediaQuery?.addEventListener('change', attach);
     document.addEventListener('fullscreenchange', attach);
     document.addEventListener('visibilitychange', attach);
     window.addEventListener('focus', attach);
@@ -581,6 +585,7 @@ const Viewport: React.FC = () => {
       window.removeEventListener('resize', attach);
       visualViewport?.removeEventListener('resize', attach);
       visualViewport?.removeEventListener('scroll', attach);
+      resolutionMediaQuery?.removeEventListener('change', attach);
       document.removeEventListener('fullscreenchange', attach);
       document.removeEventListener('visibilitychange', attach);
       window.removeEventListener('focus', attach);

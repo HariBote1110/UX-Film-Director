@@ -1,3 +1,21 @@
+## 2026-06-30 — Phase 4 DPR変化でNative Overlay attachを再送
+
+### 実施内容
+- Red として `src/utils/viewportRustVideoOnlyBoundary.test.ts` に、Native Overlay attach effect が `window.matchMedia(\`(resolution: ${window.devicePixelRatio}dppx)\`)` の `change` で attach を再送し、cleanup で listener を外す契約を追加した。
+- Green として `src/components/Viewport.tsx` に `resolutionMediaQuery` listener を追加した。
+- 軽微な Phase 4 lifecycle 修正として `package.json` / `package-lock.json` の版を `0.1.1-Beta-420e` へ更新した。
+
+### 選定理由・判断の根拠
+- Mission Control 復帰や外部ディスプレイ移動では window resize だけでは backing scale 変化を拾えない場合がある。
+- renderer からの attach rect は main-process backingScaleFactor で正本化されるが、attach 自体が再送されなければ live overlay の drawable size が古いまま残り得る。
+- resolution media query の `change` は devicePixelRatio 変化を軽量に拾えるため、既存の `resize` / `visualViewport` / `fullscreenchange` / `visibilitychange` / `focus` / `pageshow` と同じ attach 再送経路へ合流させた。
+
+### 残課題・次のステップ
+- `npx vitest run src/utils/viewportRustVideoOnlyBoundary.test.ts --testNamePattern "resends the native overlay attach rectangle"` は Green。
+- `npx vitest run src/utils/nativeOverlayViewportGeometry.test.ts` は Green。
+- `npx vitest run src/utils/nativeOverlayMainBridge.test.ts --testNamePattern "scale factor"` は Green。
+- 次に実機で resize / devtools 開閉 / fullscreen / Mission Control 相当の attach 再送と overlay 表示ズレなしを目視確認する。
+
 ## 2026-06-30 — Phase 4 attach rectのHiDPI入力をbackingScaleFactorへ正本化
 
 ### 実施内容
