@@ -3,7 +3,8 @@ use std::time::Duration;
 
 use uxfd_golden_harness::{compare_rgba_frames, ComparisonThresholds, RgbaFrame};
 use uxfd_native_wgpu_renderer::{
-    measure_native_wgpu_frame_stages, native_wgpu_readback_frame_format,
+    measure_native_wgpu_frame_stages, measure_native_wgpu_present_stages,
+    native_wgpu_readback_frame_format,
     NativeWgpuFrameStageTimings, NativeWgpuRenderError, NativeWgpuRenderer,
 };
 use uxfd_reference_renderer::render_reference_frame;
@@ -110,6 +111,52 @@ fn persistent_renderer_keeps_gpu_setup_out_of_per_frame_timings() {
     assert_duration_recorded(second.timings.source_upload);
     assert_duration_recorded(second.timings.render);
     assert_duration_recorded(second.timings.readback_encode);
+}
+
+#[test]
+fn present_stage_timings_skip_readback_for_overlay_surface_mode() {
+    let width = 64;
+    let height = 64;
+    let snapshot = SceneSnapshot {
+        frame_index: 0,
+        colour: ColourPipeline::rec709_sdr_linear(),
+        clips: vec![EvaluatedClip {
+            clip_id: "clip-1".to_string(),
+            track_id: "track-1".to_string(),
+            media_id: "source-1".to_string(),
+            source_frame: 0,
+            z_index: 0,
+            transform: Transform::identity(),
+            opacity: 1.0,
+            effects: Vec::new(),
+        }],
+    };
+    let sources = HashMap::from([(
+        "source-1".to_string(),
+        gradient_frame(width, height).expect("valid gradient frame"),
+    )]);
+
+    let measured = match pollster::block_on(measure_native_wgpu_present_stages(
+        &snapshot, &sources, width, height,
+    )) {
+        Ok(report) => report,
+        Err(NativeWgpuRenderError::AdapterUnavailable) => {
+            eprintln!("skipping present timing test: no GPU adapter available");
+            return;
+        }
+        Err(error) => panic!("native wgpu present measurement failed: {error:?}"),
+    };
+
+    assert_eq!(measured.width, width);
+    assert_eq!(measured.height, height);
+    assert_duration_recorded(measured.timings.setup);
+    assert_duration_recorded(measured.timings.source_upload);
+    assert_duration_recorded(measured.timings.render);
+    assert_eq!(measured.timings.readback_encode, Duration::ZERO);
+    assert_eq!(
+        measured.timings.steady_state,
+        measured.timings.source_upload + measured.timings.render
+    );
 }
 
 #[test]
