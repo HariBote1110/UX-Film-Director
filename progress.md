@@ -1,3 +1,25 @@
+## 2026-07-01 — Bug A調査の経緯と段階0修正: image source loaderのvalidation撤廃
+
+### 経緯（Bug A 砂嵐は誤検出）
+- ユーザーが `.codex/native-overlay-visual/phase4-normal-image-video.png` で観測した「画像 clip 位置の砂嵐」は、コーディネーターからの追跡確認の結果、**`20000kbps_60fps.mp4`（高ビットレート・ノイズパターン的内容のストレステスト用動画）が Bug B により 1/4 サイズで縮小描画されていた**ものを誤認したことが判明した。画像 clip 自体の異常ではなかった。
+- 当初の Bug A 仮説（段階1: image-only present 経路新設 / 段階2: media_id 衝突防御）は破棄する。image-only project は既存の WebGPU presenter fallback で機能しており、media_id 衝突も実機では起きていない。
+- ただし Bug A 調査の副産物として、**`validate_overlay_image_source_size`（`native-overlay/src/lib.rs:858-867` の検証関数）が `media.width/height` を PNG ネイティブ解像度として要求する一方、TS 側 `mediaDimensionsForObject`（`src/utils/rustSceneSnapshot.ts:1685-1688`）が image clip では `object.width/height`（display size）をそのまま渡す設計**で、双方の前提が矛盾していることを発見した。混在シーンで scene 経由 present が呼ばれると常に size mismatch で Err を返し、`present_overlay_shared_frame_to_live_surface` も Err 化、`nativeOverlayPresentFailed` で fallback 経路に落ちる構造的バグ。これは砂嵐の本体ではなかったが独立した実バグで、段階0 として修正する。
+
+### 実施内容（段階0: validation 撤廃）
+- Red として `native-overlay/src/lib.rs` の既存テスト `overlay_image_source_loader_rejects_declared_size_mismatch` を `overlay_image_source_loader_keeps_native_png_size_when_declared_size_differs` に置換し、「display size と PNG native size の不一致を受け入れ、PNG の native size をそのまま `sources` に登録する」契約を要求した。Red 確認: `Native overlay image source size mismatch for image-1, expected 1x1, got 2x1.` で fail。
+- Green として `load_overlay_image_sources_for_scene` から `validate_overlay_image_source_size` 呼び出しを撤去し、未使用になった `validate_overlay_image_source_size` 関数自体を削除した。コメントで「TS の display size と Rust の source.width/height + transform.scale_x/scale_y の設計の整合性」を明記。
+- `cargo test --manifest-path native-overlay/Cargo.toml --lib` を実行し 11 tests / 0 failed で Green 確認。
+- 軽微（=設計矛盾の解消）な修正として `package.json` / `package-lock.json` の版を `0.1.1-Beta-423b` へ更新。
+
+### 選定理由・判断の根拠
+- 修正方針は (X) validation を撤廃、PNG の native size をそのまま登録する案。却下案 (Y)「TS 側で `media.width/height` を PNG ネイティブ size に変える」は image を TS 側で先に読み込む必要があり、同期 IO の負担と error propagation 経路の再設計を要するため不採用。
+- (X) は rust-core の image clip 経路（`prepare_clip` が `source.width/height` を `RenderParams.source_width/source_height` にそのまま渡し、`transform.scale_x/scale_y` で display サイズへ拡縮）と整合する。export 経路もこの仕組みで動作しており、parity を壊さない。
+- TS 側の `mediaDimensionsForObject` は、video clip では `videoSourceMode === 'exportOriginal'` のみネイティブサイズを返し、その他は `object.width/height`（display size）を返す。image clip にはネイティブサイズを返す分岐自体が無く、設計上 display size しか渡せない。Rust 側の validation がこれに合っていなかったのが矛盾の根。
+
+### 残課題・次のステップ
+- Bug A は誤検出だったため新規スクショは不要。混在シーンでの実機検証は Bug B/C/D 全部修正後にまとめて行う。
+- Bug D（clip 削除後 overlay の表示が残る）へ進む。Red テストの起点は「scene が空集合に遷移したとき overlay が transparent でクリアされる」。Bug C で追加した `notifyNativeOverlaySceneCleared` API を Viewport.tsx 側から実際に呼ぶ実装と、transparent clear present を発行するための native overlay API を組み合わせる。
+
 ## 2026-07-01 — Bug C修正: visual frame cacheのinvalidate条件を3つ正本化
 
 ### 実施内容

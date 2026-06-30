@@ -842,6 +842,13 @@ pub fn upload_frame_to_scene_sources(
 pub fn load_overlay_image_sources_for_scene(
     scene: &NativeOverlaySceneSource,
 ) -> Result<HashMap<String, RgbaFrame>, String> {
+    // `media.width`/`media.height` は TS の `mediaDimensionsForObject` 設計上 image clip の
+    // display size（タイムライン上の表示サイズ）であり、PNG のネイティブ解像度ではない。
+    // 一方 Rust 側の `prepare_clip` は `source.width/height` を `RenderParams.source_width/source_height`
+    // にそのまま渡し、`transform.scale_x/scale_y` で display サイズへ拡縮する設計で動く。
+    // よって display size と PNG native size の不一致を validation で reject する以前の設計は
+    // 鶏が先か卵が先かの矛盾を抱えていた。PNG の native size をそのまま `sources` に登録し、
+    // 後段の transform に resampling を任せるのが正しい。
     let mut sources = HashMap::new();
     for media in &scene.media {
         if media.kind != "Image" {
@@ -849,23 +856,9 @@ pub fn load_overlay_image_sources_for_scene(
         }
         let frame = load_rgba_png(&media.source)
             .map_err(|error| format!("Native overlay image source load failed: {error:?}"))?;
-        validate_overlay_image_source_size(media, &frame)?;
         sources.insert(media.id.clone(), frame);
     }
     Ok(sources)
-}
-
-fn validate_overlay_image_source_size(
-    media: &NativeOverlaySceneMedia,
-    frame: &RgbaFrame,
-) -> Result<(), String> {
-    if frame.width == media.width && frame.height == media.height {
-        return Ok(());
-    }
-    Err(format!(
-        "Native overlay image source size mismatch for {}, expected {}x{}, got {}x{}.",
-        media.id, media.width, media.height, frame.width, frame.height
-    ))
 }
 
 fn scene_snapshot_from_payload(

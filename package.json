@@ -1,7 +1,7 @@
 {
   "name": "ux-film-director",
   "private": true,
-  "version": "0.1.1-Beta-423a",
+  "version": "0.1.1-Beta-423b",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "node scripts/dev-native-overlay.mjs",
