@@ -485,6 +485,7 @@ app.whenReady().then(() => {
     cwd: process.cwd(),
     resourcesPath: process.resourcesPath,
     resolveNativeWindowHandle: (windowId) => BrowserWindow.fromId(windowId)?.getNativeWindowHandle() ?? null,
+    logDiagnostic: (eventName, payload) => console.info('[NativeOverlay]', eventName, payload),
   }), {
     resolveWindowIdFromEvent: (event) => BrowserWindow.fromWebContents(event.sender)?.id ?? null,
     logDiagnostic: (eventName, payload) => console.info('[NativeOverlay]', eventName, payload),

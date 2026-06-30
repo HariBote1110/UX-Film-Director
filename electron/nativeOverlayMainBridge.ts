@@ -80,6 +80,8 @@ export interface CreateNativeOverlayMainBridgeInput {
   existsSync?: (candidate: string) => boolean
   requireModule?: (modulePath: string) => NativeOverlayAddon
   resolveNativeWindowHandle?: (windowId: number) => Uint8Array | null
+  now?: () => number
+  logDiagnostic?: (eventName: string, payload: unknown) => void
 }
 
 export interface NativeOverlayMainBridge {
@@ -107,6 +109,9 @@ const getErrorMessage = (error: unknown): string =>
 const nativeOverlayEnabled = (env: Record<string, string | undefined>): boolean =>
   env.UXFD_NATIVE_OVERLAY === '1' || env.VITE_UXFD_NATIVE_OVERLAY === '1'
 
+const nativeOverlayTraceEnabled = (env: Record<string, string | undefined>): boolean =>
+  env.UXFD_DECODE_TRACE === '1'
+
 export const createNativeOverlayMainBridge = ({
   env = process.env,
   cwd,
@@ -114,6 +119,8 @@ export const createNativeOverlayMainBridge = ({
   existsSync,
   requireModule = defaultRequire as (modulePath: string) => NativeOverlayAddon,
   resolveNativeWindowHandle,
+  now = () => performance.now(),
+  logDiagnostic,
 }: CreateNativeOverlayMainBridgeInput): NativeOverlayMainBridge => {
   let loadedAddon: NativeOverlayAddon | null | undefined
 
@@ -215,10 +222,25 @@ export const createNativeOverlayMainBridge = ({
       }
 
       try {
-        return await addon.presentNativeOverlaySharedFrame({
+        const presentStartedAt = now()
+        const response = await addon.presentNativeOverlaySharedFrame({
           ...payload,
           nativeWindowHandle,
         })
+        if (nativeOverlayTraceEnabled(env)) {
+          logDiagnostic?.('presentSharedFrameTrace', {
+            mediaId: payload.mediaId,
+            presentMs: now() - presentStartedAt,
+            success: response.success,
+            attached: response.attached,
+            slotIndex: payload.frame.descriptor.slotIndex,
+            generation: payload.frame.descriptor.generation,
+            ptsFrame: payload.frame.ptsFrame,
+            releaseGeneration: response.releaseFrame?.generation,
+            releasePtsFrame: response.releaseFrame?.ptsFrame,
+          })
+        }
+        return response
       } catch (error) {
         return fallbackResponse(getErrorMessage(error))
       }

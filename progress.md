@@ -1,3 +1,22 @@
+## 2026-06-30 — Native Overlay present計測ログを追加
+
+### 実施内容
+- `src/utils/nativeOverlayMainBridge.test.ts` に、`UXFD_DECODE_TRACE=1` 時に Native Overlay present の所要時間と release generation / ptsFrame を診断出力する契約を Red として追加した。
+- Red では `presentSharedFrameTrace` が出力されず失敗することを確認した。
+- `electron/nativeOverlayMainBridge.ts` に `nativeOverlayTraceEnabled` と present 時間計測を追加し、addon 呼び出し後に `presentMs` / `generation` / `releaseGeneration` を `logDiagnostic` へ出すようにした。
+- `electron/main.ts` で既存の `[NativeOverlay]` diagnostic logger を main bridge にも渡すようにした。
+- `package.json` の版を機能追加として `0.1.1-Beta-393a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 3a の完了判定には decodeMs だけでなく Native Overlay present 側の <16ms 定常確認が必要なため、main process 内の addon 境界で計測するのが最も実測に近い。
+- `releaseGeneration` と元 frame の `generation` を同じログに出すことで、実機ログでも lease generation 違反ゼロを追跡できる。
+- `npx vitest run src/utils/nativeOverlayMainBridge.test.ts src/utils/nativeOverlayIpc.test.ts src/utils/nativeOverlayPreloadBoundary.test.ts` は 3 files / 16 tests passed。
+- `git diff --check` は問題なし。
+
+### 残課題・次のステップ
+- 次は `VITE_UXFD_NATIVE_OVERLAY=1 UXFD_DECODE_TRACE=1 npm run dev:rust-video` で 1080p preview を実測し、`[decode.trace] decodeMs` と `[NativeOverlay] presentSharedFrameTrace presentMs` を確認する。
+- 実測で fallback 定常化または presentMs >=16ms が続く場合は Phase 3a を停止し、原因切り分けを行う。
+
 ## 2026-06-30 — Viewport Native Overlay present接続を追加
 
 ### 実施内容
