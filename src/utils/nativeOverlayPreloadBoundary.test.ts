@@ -11,6 +11,7 @@ describe('native overlay preload boundary', () => {
     expect(preload).toContain("contextBridge.exposeInMainWorld('nativeOverlay'");
     expect(preload).toContain('nativeOverlayIpcChannels.attach');
     expect(preload).toContain('nativeOverlayIpcChannels.detach');
+    expect(preload).toContain('nativeOverlayIpcChannels.presentSharedFrame');
     expect(preload).toContain('nativeOverlayIpcChannels.capabilities');
     expect(preload).not.toContain('UXFD_NATIVE_OVERLAY_MODULE');
   });
@@ -21,7 +22,10 @@ describe('native overlay preload boundary', () => {
     expect(envTypes).toContain('nativeOverlay: {');
     expect(envTypes).toContain('attach: (payload: {');
     expect(envTypes).toContain('detach: (payload: {');
+    expect(envTypes).toContain('presentSharedFrame: (payload: {');
     expect(envTypes).toContain('getCapabilities: () => Promise<{');
+    expect(envTypes).not.toContain('pixels: Uint8Array');
+    expect(envTypes).not.toContain('frameBytes');
     expect(envTypes).not.toContain('nativeOverlay: ArrayBuffer');
     expect(envTypes).not.toContain('nativeOverlay: string');
   });

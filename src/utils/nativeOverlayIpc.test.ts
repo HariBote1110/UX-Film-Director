@@ -8,10 +8,11 @@ describe('nativeOverlayIpc', () => {
   it('uses stable native overlay IPC channel names', () => {
     expect(nativeOverlayIpcChannels.attach).toBe('native-overlay-attach');
     expect(nativeOverlayIpcChannels.detach).toBe('native-overlay-detach');
+    expect(nativeOverlayIpcChannels.presentSharedFrame).toBe('native-overlay-present-shared-frame');
     expect(nativeOverlayIpcChannels.capabilities).toBe('native-overlay-capabilities');
   });
 
-  it('registers attach, detach, and capabilities handlers against the bridge', async () => {
+  it('registers attach, detach, present, and capabilities handlers against the bridge', async () => {
     const handlers = new Map<string, (_event: unknown, payload: unknown) => Promise<unknown>>();
     const ipcMain = {
       handle: vi.fn((channel: string, handler: (_event: unknown, payload: unknown) => Promise<unknown>) => {
@@ -21,12 +22,13 @@ describe('nativeOverlayIpc', () => {
     const bridge = {
       attach: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
       detach: vi.fn(async (payload: unknown) => ({ success: true, attached: false, payload })),
+      presentSharedFrame: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
       getCapabilities: vi.fn(() => ({ available: true })),
     };
 
     registerNativeOverlayIpcHandlers(ipcMain, bridge);
 
-    expect(ipcMain.handle).toHaveBeenCalledTimes(3);
+    expect(ipcMain.handle).toHaveBeenCalledTimes(4);
     await expect(handlers.get(nativeOverlayIpcChannels.attach)?.({}, { windowId: 3 })).resolves.toEqual({
       success: true,
       attached: true,
@@ -36,6 +38,32 @@ describe('nativeOverlayIpc', () => {
       success: true,
       attached: false,
       payload: { windowId: 3 },
+    });
+    await expect(handlers.get(nativeOverlayIpcChannels.presentSharedFrame)?.({}, {
+      windowId: 3,
+      mediaId: 'clip-video',
+      slotCount: 2,
+      frame: {
+        descriptor: {
+          memoryId: '/uxfd-decode-ring',
+          slotIndex: 0,
+          generation: 5,
+          byteOffset: 0,
+          byteLen: 8,
+          width: 2,
+          height: 1,
+          strideBytes: 8,
+          format: 'rgba8Srgb',
+        },
+        ptsFrame: 12,
+      },
+    })).resolves.toMatchObject({
+      success: true,
+      attached: true,
+      payload: {
+        windowId: 3,
+        mediaId: 'clip-video',
+      },
     });
     await expect(handlers.get(nativeOverlayIpcChannels.capabilities)?.({}, undefined)).resolves.toEqual({
       available: true,
@@ -52,6 +80,7 @@ describe('nativeOverlayIpc', () => {
     const bridge = {
       attach: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
       detach: vi.fn(async (payload: unknown) => ({ success: true, attached: false, payload })),
+      presentSharedFrame: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
       getCapabilities: vi.fn(() => ({ available: true })),
     };
 
@@ -89,6 +118,7 @@ describe('nativeOverlayIpc', () => {
     const bridge = {
       attach: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
       detach: vi.fn(async (payload: unknown) => ({ success: true, attached: false, payload })),
+      presentSharedFrame: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
       getCapabilities: vi.fn(() => ({ available: true })),
     };
 
@@ -121,6 +151,7 @@ describe('nativeOverlayIpc', () => {
         reason: 'Native overlay addon is unavailable.',
       })),
       detach: vi.fn(async (payload: unknown) => ({ success: true, attached: false, payload })),
+      presentSharedFrame: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
       getCapabilities: vi.fn(() => ({ available: false })),
     };
 
