@@ -1,3 +1,21 @@
+## 2026-06-30 — steady bench marker区間でplayheadを明示更新
+
+### 実施内容
+- Red として `src/utils/packageScripts.test.ts` に、Native Overlay steady bench の marker 区間内で RAF ごとに `setTime` を進める契約を追加した。
+- Green として `src/perf/performanceHarness.ts` の `native_overlay_steady_playback` を、warmup 後に手動 60fps playhead 更新へ切り替えた。
+- 軽微な Phase 3a bench gate 修正として `package.json` / `package-lock.json` の版を `0.1.1-Beta-419k` へ更新した。
+
+### 選定理由・判断の根拠
+- compact JSON parser 修正後も短時間 bench は `presentMs samples 0 < 1` で失敗し、steady marker 区間に live present が入っていなかった。
+- `setIsPlaying(true)` 任せでは perf harness の marker 窓内で playhead 更新が止まる場合があり、decode/present の実測窓として不安定だった。
+- RAF ごとに `setTime(steadyStartTime + steadyFrame / 60)` を呼ぶことで、Phase 3a の trace gate が decode と live surface present を同じ窓で測れる。
+
+### 残課題・次のステップ
+- `npx vitest run src/utils/packageScripts.test.ts --testNamePattern "Native Overlay long bench"` で Red→Green を確認する。
+- `npx vitest run src/utils/nativeOverlayBenchTraceParser.test.ts` も Green。
+- 短時間 Native Overlay bench は、marker 区間で decode は動くものの live present trace が marker 外へ出るため、引き続き `presentMs samples 0 < 1` で失敗した。
+- 次に marker 区間を live playback 全体へ広げ、parser 側は `firstFrame` / `backwardSeek` / `skipped > 0` の warmup decode を除外して steady decode だけを gate 対象にする。
+
 ## 2026-06-30 — compact JSON traceをbench parserへ接続
 
 ### 実施内容

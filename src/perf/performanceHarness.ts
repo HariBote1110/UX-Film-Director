@@ -503,7 +503,13 @@ const runScenarioNativeOverlaySteadyPlayback = async (runId: string): Promise<Pe
   resetNativeOverlayVisualFrameCache(undefined, videoId);
   await emitPerfTraceMarker(`UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN mediaId=${videoId}`);
   const startedAt = performance.now();
-  const deltas = await collectRafDeltas(4200, () => {});
+  const steadyStartTime = 0.5;
+  let steadyFrame = 0;
+  const deltas = await collectRafDeltas(4200, () => {
+    const state = useStore.getState();
+    state.setTime(steadyStartTime + (steadyFrame / 60));
+    steadyFrame += 1;
+  });
   const wallMs = performance.now() - startedAt;
   useStore.getState().setIsPlaying(false);
   await emitPerfTraceMarker(`UXFD_NATIVE_OVERLAY_STEADY_TRACE_END mediaId=${videoId}`);
