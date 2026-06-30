@@ -1,3 +1,22 @@
+## 2026-06-30 — Native Overlay長時間ベンチ導線を追加
+
+### 実施内容
+- `src/utils/packageScripts.test.ts` に `bench:native-overlay` が perf agent output と Native Overlay env を gate する契約を Red として追加した。
+- Red では `package.json` に `bench:native-overlay` が存在せず失敗することを確認した。
+- `scripts/run-native-overlay-long-bench.mjs` を追加し、`npm run dev:native-overlay` を `VITE_PERF_AGENT_MODE=1` / `UXFD_DECODE_TRACE=1` / `UXFD_PERF_OUTPUT_DIR` 付きで起動するようにした。
+- perf agent の `perf-agent-output.json` と `UXFD_PERF_RESULT_JSON:` marker を読み、`raf_heavy_video_scrub` が skip されず p95 60fps 予算内であることを gate にした。
+- `package.json` / `package-lock.json` の版を機能追加として `0.1.1-Beta-400a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 6 の長時間ベンチは既存 `src/perf/performanceHarness.ts` と Electron main の `perf-harness-agent-done` IPC を使うのが最小で、制御 IPC に frame bytes を載せない。
+- 既存の `dev:native-overlay` を呼び出すため、addon build / shared frame addon build / Rust backend release build の順序を重複実装せず維持できる。
+- `node --check scripts/run-native-overlay-long-bench.mjs` は成功。
+- `npx vitest run src/utils/packageScripts.test.ts` は 1 file / 8 tests passed。
+
+### 残課題・次のステップ
+- 次は overlay / WebGPU preview / export readback の3経路 pixel diff harness 契約と `04-render-parity.md` 追記を Red→Green で追加する。
+- 実機 60分以上の長時間ベンチは Phase 6 後段で `npm run bench:native-overlay` を使って実施し、結果を記録する。
+
 ## 2026-06-30 — Native Overlay dev起動スクリプトを追加
 
 ### 実施内容
