@@ -91,6 +91,18 @@ describe('native overlay napi crate boundary', () => {
     expect(lib).not.toContain('sample_upload_clear_colour');
   });
 
+  it('skips the per-frame upload fence on the live surface present path', () => {
+    const nativeWgpuRenderer = read('native-wgpu-renderer/src/lib.rs');
+    const livePresentBlock = nativeWgpuRenderer.slice(
+      nativeWgpuRenderer.indexOf('pub async fn present_scene_to_surface_texture'),
+      nativeWgpuRenderer.indexOf('pub async fn present_scene_to_surface_texture_with_readback')
+    );
+
+    expect(nativeWgpuRenderer).toContain('prepare_scene_clips_without_upload_fence');
+    expect(livePresentBlock).toContain('prepare_scene_clips_without_upload_fence');
+    expect(livePresentBlock).not.toContain('wait_for_submitted_work(&self.core.device, &self.core.queue)');
+  });
+
   it('exposes a live surface readback path for end-to-end overlay parity', () => {
     const nativeWgpuRenderer = read('native-wgpu-renderer/src/lib.rs');
     const lib = read('native-overlay/src/lib.rs');
