@@ -1,3 +1,25 @@
+## 2026-06-30 — Native Overlay steady-state bench gateを分離
+
+### 実施内容
+- `src/utils/packageScripts.test.ts` に、Native Overlay 長時間 bench が `native_overlay_steady_playback` を主 gate にし、synthetic scrub より前、shape seed より前に測る契約を Red として追加した。
+- Red では既存 bench が `raf_heavy_video_scrub` を主 gate にし、shape seed 後に測っていたため失敗することを確認した。
+- `src/perf/performanceHarness.ts` に `native_overlay_steady_playback` scenario を追加し、1080p video を通常再生して RAF mean / p95 を測るようにした。
+- `scripts/run-native-overlay-long-bench.mjs` の主 gate を `native_overlay_steady_playback` に切り替え、`UXFD_NATIVE_OVERLAY_BENCH_TRACE=1` の時だけ `UXFD_DECODE_TRACE=1` を渡すようにした。
+- steady-state の予算を平均 60fps (`UXFD_NATIVE_OVERLAY_STEADY_MEAN_BUDGET_MS`, 既定 16.8ms) と p95 jitter (`UXFD_NATIVE_OVERLAY_STEADY_P95_BUDGET_MS`, 既定 20ms) に分離した。
+- `package.json` / `package-lock.json` の版を軽微修正として `0.1.1-Beta-403e` へ更新した。
+
+### 選定理由・判断の根拠
+- 失敗していた `raf_heavy_video_scrub` は毎 frame `setTime` を呼ぶ seek/scrub 負荷であり、通常再生の体感 60fps 判定とは分離する必要がある。
+- shape seed 後に測ると Native Overlay の裏で Pixi の synthetic shape 更新が混ざるため、1080p preview の動画 steady-state gate は seed 前に測る。
+- trace を既定 ON にすると decode/present の大量 console 出力が RAF 計測に混ざるため、長時間 bench では任意化した。
+- `UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=1 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=360000 npm run bench:native-overlay` は 1 run passed。`native_overlay_steady_playback` は `rafMeanMs=16.643` / `rafP95Ms=18.29` / `rafMaxMs=35.635` / `longTaskCount=1`。
+- `npm run test:native-overlay-parity` は 1 passed。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test export_round_trip` は 3 passed。
+
+### 残課題・次のステップ
+- 次は 60分以上の `npm run bench:native-overlay` 実機 bench を実行し、slot leak / GPU resource leak / memory leak がないことを記録する。
+- その後、既定 ON 切替直前でユーザー確認を行う。
+
 ## 2026-06-30 — Native Overlay長時間ベンチsmokeで60fps gate未達
 
 ### 実施内容
