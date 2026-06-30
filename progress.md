@@ -1,3 +1,23 @@
+## 2026-06-30 — live overlay surface readbackを追加
+
+### 実施内容
+- Red として `src/utils/nativeOverlayCrateBoundary.test.ts` に、`NativeWgpuLiveSurfaceRenderer` が live surface texture を present 前に読み戻せる API を持つ契約を追加した。
+- Green として `native-wgpu-renderer/src/lib.rs` に `present_scene_to_surface_texture_with_readback` を追加した。
+- live `wgpu::SurfaceConfiguration` の usage に `wgpu::TextureUsages::COPY_SRC` を追加し、CAMetalLayer 由来の surface texture から readback buffer へコピーできるようにした。
+- `copy_live_surface_texture_to_readback` を追加し、live surface の描画結果を `RgbaFrame` として取得する足場を作った。
+- `package.json` / `package-lock.json` の版を機能追加として `0.1.1-Beta-409a` へ更新した。
+
+### 選定理由・判断の根拠
+- Red: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts` は 1 failed。live surface readback API が未実装だった。
+- Green: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts` は 1 file / 12 tests passed。
+- Green: `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test overlay_surface_parity` は 1 passed。
+- 追加確認: `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test export_round_trip` は 3 passed。既存 export round-trip parity は壊れていない。
+- 既存 offscreen parity だけでは live CAMetalLayer を測れないため、live surface texture そのものから読み戻す API を先に用意した。
+
+### 残課題・次のステップ
+- 次は native-overlay addon から live readback API を使う検証入口を追加し、overlay vs export readback の end-to-end gate に接続する。
+- 実機 `npm run dev` で画像 clip と動画 clip を配置し、overlay 表示スクリーンショットを記録する。
+
 ## 2026-06-30 — overlay画像sourceのサイズ検証を追加
 
 ### 実施内容
