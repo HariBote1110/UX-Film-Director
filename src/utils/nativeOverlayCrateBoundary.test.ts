@@ -59,6 +59,27 @@ describe('native overlay napi crate boundary', () => {
     expect(macosOverlay).toContain('contract.drawable_width');
   });
 
+  it('depends on wgpu, raw-window-handle, and native-wgpu-renderer for live CAMetalLayer presentation', () => {
+    const cargoToml = read('native-overlay/Cargo.toml');
+
+    expect(cargoToml).toContain('wgpu = ');
+    expect(cargoToml).toContain('raw-window-handle = ');
+    expect(cargoToml).toContain('uxfd-native-wgpu-renderer = { path = "../native-wgpu-renderer" }');
+  });
+
+  it('stores a live wgpu surface renderer from attach and presents shared frames through it', () => {
+    const lib = read('native-overlay/src/lib.rs');
+    const macosOverlay = read('native-overlay/src/macos_overlay.rs');
+
+    expect(lib).toContain('NativeOverlayLiveSurfaceRenderer');
+    expect(lib).toContain('LIVE_OVERLAY_RENDERERS');
+    expect(lib).toContain('attach_live_overlay_surface_renderer');
+    expect(lib).toContain('present_overlay_shared_frame_to_live_surface');
+    expect(lib).not.toContain('match present_overlay_shared_frame_for_test(request)');
+    expect(macosOverlay).toContain('overlay_layer_handle');
+    expect(macosOverlay).toContain('create_surface_target_from_ca_metal_layer');
+  });
+
   it('removes an existing AppKit overlay view before attaching a replacement', () => {
     const macosOverlay = read('native-overlay/src/macos_overlay.rs');
 
