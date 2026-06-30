@@ -1,3 +1,19 @@
+## 2026-06-30 — Phase 3a bench trace parserを追加
+
+### 実施内容
+- Red として `src/utils/nativeOverlayBenchTraceParser.test.ts` に、実機 bench trace 文字列から `decodeMs`、`presentMs`、release generation 違反を集計する契約を追加した。
+- Green として `scripts/native-overlay-bench-trace.mjs` を追加し、`[decode.trace]` と `[NativeOverlay] presentSharedFrameTrace` の複数行ログを純粋関数で集計できるようにした。
+- Phase 3a gate 追加の機能変更として `package.json` / `package-lock.json` の版を `0.1.1-Beta-419a` へ更新した。
+
+### 選定理由・判断の根拠
+- 既存 `bench:native-overlay` は RAF 統計だけを gate しており、Phase 3a の完了条件である decodeMs / presentMs / release generation を直接判定していなかった。
+- 実機ログの形式を先に純粋 parser で固定することで、次のステップで `scripts/run-native-overlay-long-bench.mjs` へ組み込む際の影響範囲を小さくできる。
+- Red: `npx vitest run src/utils/nativeOverlayBenchTraceParser.test.ts` は `scripts/native-overlay-bench-trace.mjs` 未存在で 2 failed。
+- Green: `npx vitest run src/utils/nativeOverlayBenchTraceParser.test.ts` は 2 passed。
+
+### 残課題・次のステップ
+- `scripts/run-native-overlay-long-bench.mjs` に trace parser を組み込み、`UXFD_NATIVE_OVERLAY_BENCH_TRACE=1` の実行結果で Phase 3a の timing / lease gate を失敗させられるようにする。
+
 ## 2026-06-30 — live readback parityを専用flagへ分離
 
 ### 実施内容
