@@ -10,6 +10,7 @@ const outputDir = resolve(process.cwd(), 'perf', 'native-overlay-long-bench');
 const outputJsonPath = resolve(outputDir, 'perf-agent-output.json');
 const timeoutMs = Number.parseInt(process.env.UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS ?? '', 10) || 3_900_000;
 const benchDurationMs = Number.parseInt(process.env.UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS ?? '', 10) || 3_600_000;
+const decodeTraceEnabled = process.env.UXFD_NATIVE_OVERLAY_BENCH_TRACE === '1';
 
 let child = null;
 let finished = false;
@@ -121,7 +122,7 @@ const runSingleBench = () => new Promise((resolveRun) => {
     env: {
       ...process.env,
       VITE_PERF_AGENT_MODE: '1',
-      UXFD_DECODE_TRACE: '1',
+      ...(decodeTraceEnabled ? { UXFD_DECODE_TRACE: '1' } : {}),
       UXFD_PERF_OUTPUT_DIR: outputDir,
       UXFD_NATIVE_OVERLAY: '1',
       VITE_UXFD_NATIVE_OVERLAY: '1',
