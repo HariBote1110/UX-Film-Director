@@ -79,15 +79,15 @@ const assertBenchPayload = (payload) => {
     throw new Error(payload?.errorMessage || 'perf harness reported failure');
   }
   const rows = Array.isArray(payload.rows) ? payload.rows : [];
-  const heavyVideo = rows.find((row) => row?.scenario === 'raf_heavy_video_scrub');
+  const heavyVideo = rows.find((row) => row?.scenario === 'native_overlay_steady_playback');
   if (!heavyVideo) {
-    throw new Error('raf_heavy_video_scrub row was not recorded');
+    throw new Error('native_overlay_steady_playback row was not recorded');
   }
   if (typeof heavyVideo.notes === 'string' && heavyVideo.notes.startsWith('skipped_')) {
-    throw new Error(`raf_heavy_video_scrub was skipped: ${heavyVideo.notes}`);
+    throw new Error(`native_overlay_steady_playback was skipped: ${heavyVideo.notes}`);
   }
   if (typeof heavyVideo.rafP95Ms === 'number' && heavyVideo.rafP95Ms > 16.7) {
-    throw new Error(`raf_heavy_video_scrub p95 exceeded 60fps budget: ${heavyVideo.rafP95Ms}ms`);
+    throw new Error(`native_overlay_steady_playback p95 exceeded 60fps budget: ${heavyVideo.rafP95Ms}ms`);
   }
 };
 

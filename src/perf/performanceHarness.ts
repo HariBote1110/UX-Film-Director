@@ -381,6 +381,135 @@ const runScenarioHeavyVideoRafScrub = async (runId: string): Promise<Performance
   };
 };
 
+const runScenarioNativeOverlaySteadyPlayback = async (runId: string): Promise<PerformanceHarnessRow> => {
+  const longTasks = createLongTaskObserver();
+  const before = useStore.getState().objects.length;
+  const ipc = typeof window !== 'undefined' && typeof window.ipcRenderer?.invoke === 'function'
+    ? window.ipcRenderer
+    : null;
+
+  if (!ipc) {
+    longTasks.stop();
+    return {
+      timestampUtc: timestampUtc(),
+      runId,
+      scenario: 'native_overlay_steady_playback',
+      durationMs: 0,
+      objectCountBefore: before,
+      objectCountAfter: useStore.getState().objects.length,
+      rafMeanMs: 0,
+      rafP95Ms: 0,
+      rafMaxMs: 0,
+      longTaskCount: 0,
+      notes: 'skipped_no_electron_ipc',
+    };
+  }
+
+  const resolved = await ipc.invoke('resolve-perf-heavy-video') as ResolveHeavyVideoResponse;
+  if (!resolved?.success || typeof resolved.filePath !== 'string' || resolved.filePath.trim() === '') {
+    longTasks.stop();
+    return {
+      timestampUtc: timestampUtc(),
+      runId,
+      scenario: 'native_overlay_steady_playback',
+      durationMs: 0,
+      objectCountBefore: before,
+      objectCountAfter: useStore.getState().objects.length,
+      rafMeanMs: 0,
+      rafP95Ms: 0,
+      rafMaxMs: 0,
+      longTaskCount: 0,
+      notes: 'skipped_no_heavy_mp4',
+    };
+  }
+
+  const probed = await ipc.invoke('probe-media', { filePath: resolved.filePath }) as ProbeMediaIpcResponse;
+  let clipDuration = 12;
+  let videoWidth = 1920;
+  let videoHeight = 1080;
+  if (probed?.success === true && probed.result) {
+    const result = probed.result;
+    if (typeof result.duration === 'number' && Number.isFinite(result.duration) && result.duration > 0.1) {
+      clipDuration = result.duration;
+    }
+    if (typeof result.width === 'number' && Number.isFinite(result.width) && result.width > 0) {
+      videoWidth = Math.floor(result.width);
+    }
+    if (typeof result.height === 'number' && Number.isFinite(result.height) && result.height > 0) {
+      videoHeight = Math.floor(result.height);
+    }
+  }
+
+  const store = useStore.getState();
+  const settings = store.projectSettings;
+  const centredX = Math.round((settings.width - videoWidth) / 2);
+  const centredY = Math.round((settings.height - videoHeight) / 2);
+  const src = toFileProtocolUrl(resolved.filePath);
+  const videoId = crypto.randomUUID();
+  const videoObject: VideoObject = {
+    id: videoId,
+    type: 'video',
+    name: typeof resolved.fileName === 'string' ? resolved.fileName : 'steady-playback.mp4',
+    layer: 15,
+    startTime: 0,
+    duration: clipDuration,
+    x: Math.max(0, centredX),
+    y: Math.max(0, centredY),
+    width: videoWidth,
+    height: videoHeight,
+    src,
+    filePath: resolved.filePath,
+    volume: 1,
+    muted: true,
+    enableAnimation: false,
+    endX: Math.max(0, centredX),
+    endY: Math.max(0, centredY),
+    easing: 'linear',
+    offset: 0,
+    rotation: 0,
+    scaleX: 1,
+    scaleY: 1,
+    opacity: 1,
+  };
+
+  store.addObject(videoObject);
+  store.setTime(0);
+  await waitForReactPaint();
+  await new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 1800);
+  });
+
+  useStore.getState().setTime(0.5);
+  useStore.getState().setIsPlaying(true);
+  const startedAt = performance.now();
+  const deltas = await collectRafDeltas(4200, () => {});
+  const wallMs = performance.now() - startedAt;
+  useStore.getState().setIsPlaying(false);
+
+  const stats = summariseRafDeltas(deltas);
+  const longTaskCount = longTasks.snapshot();
+  longTasks.stop();
+
+  useStore.getState().deleteObject(videoId);
+  await waitForReactPaint();
+
+  const fileLabel = typeof resolved.fileName === 'string' ? resolved.fileName : pathBasenameOnly(resolved.filePath);
+
+  return {
+    timestampUtc: timestampUtc(),
+    runId,
+    scenario: 'native_overlay_steady_playback',
+    durationMs: wallMs,
+    objectCountBefore: before,
+    objectCountAfter: useStore.getState().objects.length,
+    rafMeanMs: Number(stats.mean.toFixed(3)),
+    rafP95Ms: Number(stats.p95.toFixed(3)),
+    rafMaxMs: Number(stats.max.toFixed(3)),
+    longTaskCount,
+    notes: `steady_playback:${fileLabel};video=${videoWidth}x${videoHeight}`,
+  };
+};
+
 const runScenarioUpdateObjectThrash = (runId: string): PerformanceHarnessRow => {
   const longTasks = createLongTaskObserver();
   const snapshot = useStore.getState().objects;
@@ -466,6 +595,9 @@ export const runPerformanceHarness = async (): Promise<PerfHarnessAgentPayload> 
     await waitForReactPaint();
 
     rows.push(await runScenarioRafPlayhead(runId));
+    await waitForReactPaint();
+
+    rows.push(await runScenarioNativeOverlaySteadyPlayback(runId));
     await waitForReactPaint();
 
     rows.push(await runScenarioHeavyVideoRafScrub(runId));
