@@ -281,4 +281,57 @@ mod tests {
             vec![1, 2, 3, 4, 5, 6, 7, 8],
         );
     }
+
+    #[test]
+    fn overlay_shared_frame_copy_preserves_pixels_and_lease_generation() {
+        let memory_id = unique_shm_name();
+        let pixels = vec![255, 0, 0, 255, 0, 0, 255, 255];
+        let ring = uxfd_shared_memory_spike::PosixSharedRing::create_with_slot_count(
+            &memory_id,
+            2,
+            pixels.len(),
+        )
+        .expect("create overlay source ring");
+        ring.write_frame(7, &pixels)
+            .expect("write overlay source frame");
+
+        let upload = copy_overlay_shared_frame_source_for_upload(
+            &OverlaySharedFrameSource {
+                media_id: "decoded-video".to_string(),
+                slot_count: 2,
+                frame: OverlaySharedFrame {
+                    descriptor: OverlaySharedFrameDescriptor {
+                        memory_id,
+                        slot_index: 0,
+                        generation: 3,
+                        byte_offset: 0,
+                        byte_len: pixels.len() as u32,
+                        width: 2,
+                        height: 1,
+                        stride_bytes: 8,
+                        format: "rgba8Srgb".to_string(),
+                    },
+                    pts_frame: 7,
+                },
+            },
+            std::time::Duration::from_millis(100),
+        )
+        .expect("copy overlay shared frame source");
+
+        assert_eq!(upload.media_id, "decoded-video");
+        assert_eq!(upload.width, 2);
+        assert_eq!(upload.height, 1);
+        assert_eq!(upload.generation, 3);
+        assert_eq!(upload.pts_frame, 7);
+        assert_eq!(upload.pixels, pixels);
+    }
+
+    fn unique_shm_name() -> String {
+        let micros = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system clock should be after unix epoch")
+            .as_micros()
+            % 1_000_000;
+        format!("/uxfd-overlay{}-{micros}", std::process::id())
+    }
 }
