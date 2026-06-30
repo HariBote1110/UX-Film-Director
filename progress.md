@@ -1,3 +1,22 @@
+## 2026-06-30 — live surface readback非透明・画面黒の残存を確認
+
+### 実施内容
+- Native Overlay 有効の Electron を `UXFD_DECODE_TRACE=1` で起動し、画像 clip と動画 clip を 1 つずつ配置した。
+- `presentSharedFrameTrace` で `success=true` / `releaseGeneration=1` / `livePreparedClipCount=2` / `liveReadbackNonTransparentPixels=230400` / `liveReadbackChecksum=70241977` を確認した。
+- macOS `screencapture` で `/Users/yuki/GitHub/UX-Film-Director/.codex/native-overlay-visual/system-electron-live-readback-nonzero-dialog-closed.png` を取得し、固定 clear 削除前は青い overlay が残ることを確認した。
+- 固定 clear 削除後に `/Users/yuki/GitHub/UX-Film-Director/.codex/native-overlay-visual/system-electron-fixed-clear-removed.png` を取得し、青は消えたが preview は黒いままであることを確認した。
+- 同一 attach 抑止後に `/Users/yuki/GitHub/UX-Film-Director/.codex/native-overlay-visual/system-electron-attach-dedup.png` を取得し、present 後の追加 attach は止まったが preview は黒いままであることを確認した。
+
+### 選定理由・判断の根拠
+- `liveReadbackNonTransparentPixels=230400` は 640x360 の decoded video frame 全体に相当し、wgpu pass と COPY_SRC readback は非透明な scene を持っている。
+- 画面側が青から黒に変わったため、attach 時の固定 clear は可視 blue pass の直接原因だった。
+- 同一 attach 抑止後も黒いままなので、present 済み layer の置換だけでは説明できない。
+- 現時点の残原因候補は、CAMetalLayer ownership / wgpu `SurfaceTargetUnsafe::CoreAnimationLayer` の configure 設定 / layer contentsScale・opaque・transaction 設定 / AppKit compositing 順のいずれか。
+
+### 残課題・次のステップ
+- Phase 2 live overlay 表示の Definition of Done は未達。2回の修正後も実スクショ表示に到達していないため、設計変更候補を整理してユーザー確認に回す。
+- 次候補は、AppKit 側で作った CAMetalLayer を wgpu に渡す方式を継続するか、wgpu-hal の `from_view` 相当へ寄せて NSView layer 作成を wgpu 管理へ寄せるかの判断。
+
 ## 2026-06-30 — 同一Native Overlay attachを抑止
 
 ### 実施内容
