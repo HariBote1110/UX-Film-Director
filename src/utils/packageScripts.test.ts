@@ -42,11 +42,15 @@ describe('package scripts', () => {
     expect(script).toContain('UXFD_PERF_OUTPUT_DIR');
     expect(script).toContain('UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS');
     expect(script).toContain('UXFD_PERF_RESULT_JSON:');
-    expect(script).toContain('raf_heavy_video_scrub');
+    expect(script).toContain('native_overlay_steady_playback');
     expect(script).toContain('perf-agent-output.json');
     expect(script).toContain('UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS');
     expect(script).toContain('completedRuns');
     expect(script).toContain('while');
+
+    const harness = readFileSync(new URL('../../src/perf/performanceHarness.ts', import.meta.url), 'utf8');
+    expect(harness).toContain('native_overlay_steady_playback');
+    expect(harness).toContain('steady_playback');
   });
 
   it('records real video export E2E duration separately from Electron startup time', () => {
