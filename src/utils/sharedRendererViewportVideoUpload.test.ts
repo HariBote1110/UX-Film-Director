@@ -438,7 +438,7 @@ describe('sharedRendererViewportVideoUpload', () => {
       }],
       ['presentSharedFrame', {
         windowId: 7,
-        mediaId: expectedJobId,
+        mediaId: 'video-1',
         snapshot: {
           frameIndex: 12,
           colour: {
