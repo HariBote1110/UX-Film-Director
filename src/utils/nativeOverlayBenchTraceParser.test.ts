@@ -228,4 +228,33 @@ UXFD_NATIVE_OVERLAY_STEADY_TRACE_END mediaId=steady-video-1
       minimumPresentSamples: 1,
     })).not.toThrow();
   });
+
+  it('waits for a stable steady decode streak after skip or seek warmup', async () => {
+    const {
+      assertNativeOverlayBenchTraceBudgets,
+      createNativeOverlayBenchTraceSummary,
+      ingestNativeOverlayBenchTraceText,
+    } = await import('../../scripts/native-overlay-bench-trace.mjs');
+
+    const summary = createNativeOverlayBenchTraceSummary();
+    ingestNativeOverlayBenchTraceText(summary, `
+UXFD_NATIVE_OVERLAY_STEADY_TRACE_BEGIN mediaId=steady-video-1
+[RustBackend] [decode.trace] job=shared-renderer-video-steady-video-1-720x405-60over1 frame=30 reason=sequential restarted=false skipped=29 decodeMs=64.5
+[RustBackend] [decode.trace] job=shared-renderer-video-steady-video-1-720x405-60over1 frame=0 reason=backwardSeek restarted=true skipped=0 decodeMs=362.6
+[RustBackend] [decode.trace] job=shared-renderer-video-steady-video-1-720x405-60over1 frame=31 reason=sequential restarted=false skipped=30 decodeMs=88.4
+[RustBackend] [decode.trace] job=shared-renderer-video-steady-video-1-720x405-60over1 frame=32 reason=sequential restarted=false skipped=0 decodeMs=18.3
+[RustBackend] [decode.trace] job=shared-renderer-video-steady-video-1-720x405-60over1 frame=33 reason=sequential restarted=false skipped=0 decodeMs=0.6
+[NativeOverlay] presentSharedFrameTrace {"mediaId":"steady-video-1","presentMs":2.2,"success":true,"attached":true,"slotIndex":0,"generation":66,"ptsFrame":66,"releaseGeneration":66,"releasePtsFrame":66}
+UXFD_NATIVE_OVERLAY_STEADY_TRACE_END mediaId=steady-video-1
+`);
+
+    expect(summary.decode.count).toBe(1);
+    expect(summary.decode.maxMs).toBe(0.6);
+    expect(() => assertNativeOverlayBenchTraceBudgets(summary, {
+      decodeMaxMs: 16,
+      presentMaxMs: 16,
+      minimumDecodeSamples: 1,
+      minimumPresentSamples: 1,
+    })).not.toThrow();
+  });
 });
