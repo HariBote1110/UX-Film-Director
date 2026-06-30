@@ -1,3 +1,25 @@
+## 2026-06-30 — Native Overlay live surface骨格を追加
+
+### 実施内容
+- Phase 6 完了判定を撤回し、Phase 2 から live CAMetalLayer 描画を実質やり直す方針へ切り替えた。
+- Red として `src/utils/nativeOverlayCrateBoundary.test.ts` に、`native-overlay` crate が `wgpu` / `raw-window-handle` / `uxfd-native-wgpu-renderer` に依存し、attach で live surface renderer を保持し、present が test stub 直呼びではない契約を追加した。
+- Green として `native-overlay/Cargo.toml` に `wgpu 0.20`、`raw-window-handle 0.6`、`pollster`、`uxfd-native-wgpu-renderer` を追加した。
+- `native-overlay/src/macos_overlay.rs` で attach 済み CAMetalLayer の handle を返し、`wgpu::SurfaceTargetUnsafe::CoreAnimationLayer` を作れるようにした。
+- `native-overlay/src/lib.rs` に `NativeOverlayLiveSurfaceRenderer` と `LIVE_OVERLAY_RENDERERS` を追加し、window id ごとに live `wgpu::Surface` を保持するようにした。
+- `presentNativeOverlaySharedFrame` は `present_overlay_shared_frame_for_test` の直呼びをやめ、live surface registry 経由で `surface_texture.present()` する経路へ切り替えた。
+- `package.json` / `package-lock.json` の版を機能追加として `0.1.1-Beta-405a` へ更新した。
+
+### 選定理由・判断の根拠
+- Red: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts` は 2 failed。`wgpu` 依存、live renderer state、stub 置換の契約が未実装だった。
+- Green: `npx vitest run src/utils/nativeOverlayCrateBoundary.test.ts` は 1 file / 9 tests passed。
+- Green: `cargo test --manifest-path native-overlay/Cargo.toml` は 8 passed。
+- ただし今回の live present は source 先頭画素を clear colour として surface に present する暫定骨格であり、`native-wgpu-renderer` の scene pipeline で画像/動画 clip を合成する完成形ではない。
+
+### 残課題・次のステップ
+- 次は Red として、live surface present が `native-wgpu-renderer` の shared renderer pipeline を使って scene snapshot と source RGBA を描く契約を追加する。
+- その後、画像 clip も overlay 経路へ流すため、video shared frame 専用の present 入力を scene snapshot ベースへ広げる。
+- live overlay E2E parity gate と実機スクリーンショット記録は、その後に実施する。
+
 ## 2026-06-30 — Native Overlay Phase 6最終監査を完了
 
 ### 実施内容
