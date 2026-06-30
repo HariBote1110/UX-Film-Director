@@ -961,6 +961,30 @@ mod tests {
         assert_eq!(contract.view_height, 360.0);
         assert_eq!(contract.drawable_width, 1280);
         assert_eq!(contract.drawable_height, 720);
+        // HiDPI 環境の CAMetalLayer は `contentsScale` を明示設定しないと既定値 1.0 のままになり、
+        // drawable のうち bounds × 1.0 ピクセル分（=左下 1/4）しか画面に貼り出されない。
+        // `contents_scale` は `scale_factor` をそのまま伝搬し、live attach で layer に反映する正本値である。
+        assert_eq!(contract.contents_scale, 2.0);
+    }
+
+    #[test]
+    fn overlay_layer_contract_contents_scale_matches_payload_scale_factor() {
+        let contract = build_overlay_layer_contract(&NativeOverlayAttachPayload {
+            window_id: 7,
+            native_window_handle: Some(napi::bindgen_prelude::Buffer::from(vec![
+                1, 2, 3, 4, 5, 6, 7, 8,
+            ])),
+            x: 0.0,
+            y: 0.0,
+            width: 1920.0,
+            height: 1080.0,
+            scale_factor: 1.5,
+        })
+        .expect("valid overlay contract");
+
+        assert_eq!(contract.contents_scale, 1.5);
+        assert_eq!(contract.drawable_width, 2880);
+        assert_eq!(contract.drawable_height, 1620);
     }
 
     #[test]
