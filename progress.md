@@ -1,3 +1,21 @@
+## 2026-06-30 — Native Overlay traceをcompact log化
+
+### 実施内容
+- Red として `src/utils/nativeOverlayDiagnosticLog.test.ts` に、`presentSharedFrameTrace` を 1 行 JSON 文字列として出力する契約を追加した。
+- Green として `electron/nativeOverlayDiagnosticLog.ts` を追加し、`electron/main.ts` の Native Overlay diagnostic 出力を `console.info(formatNativeOverlayDiagnosticLog(...))` に差し替えた。
+- 軽微な Phase 3a 計測負荷修正として `package.json` / `package-lock.json` の版を `0.1.1-Beta-419i` へ更新した。
+
+### 選定理由・判断の根拠
+- trace gate 有効時の `presentSharedFrameTrace` は object をそのまま `console.info` に渡しており、Electron stdout では複数行に展開される。
+- 短時間 bench では trace gate 条件自体は満たしつつ、RAF p95 が 20ms 付近で落ちており、計測ログ I/O が playback jitter に干渉している可能性が高い。
+- 1 行 JSON に畳むことで parser は既存の文字列検索を維持しつつ、stdout 出力量と multi-line 分割を減らせる。
+- Red: `npx vitest run src/utils/nativeOverlayDiagnosticLog.test.ts` は未実装 import で失敗した。
+
+### 残課題・次のステップ
+- `UXFD_NATIVE_OVERLAY_BENCH_TRACE=1 UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS=15000 UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS=90000 npm run bench:native-overlay` は、compact JSON 化後の parser が `"success":true` / `"attached":true` / `"presentMs":...` を拾えず、`presentMs samples 0 < 1` で失敗した。
+- 次に compact JSON の trace gate 集計契約を Red として追加し、parser を旧 object 形式と JSON 形式の両対応へ広げる。
+- 通れば短時間 bench を再実行し、60分相当 bench へ進む。
+
 ## 2026-06-30 — detached presentをbench gateから除外
 
 ### 実施内容

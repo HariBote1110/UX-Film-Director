@@ -18,6 +18,7 @@ import {
 import { rustVideoEncodeIpcChannels } from './rustVideoEncodeIpc';
 import { createNativeOverlayMainBridge } from './nativeOverlayMainBridge';
 import { registerNativeOverlayIpcHandlers } from './nativeOverlayIpc';
+import { formatNativeOverlayDiagnosticLog } from './nativeOverlayDiagnosticLog';
 
 // --- GPU Acceleration Flags ---
 // 高画質動画の再生負荷を下げるための重要な設定
@@ -489,10 +490,10 @@ app.whenReady().then(() => {
       const targetWindow = BrowserWindow.fromId(windowId)
       return targetWindow ? screen.getDisplayMatching(targetWindow.getBounds()).scaleFactor : null
     },
-    logDiagnostic: (eventName, payload) => console.info('[NativeOverlay]', eventName, payload),
+    logDiagnostic: (eventName, payload) => console.info(formatNativeOverlayDiagnosticLog(eventName, payload)),
   }), {
     resolveWindowIdFromEvent: (event) => BrowserWindow.fromWebContents(event.sender)?.id ?? null,
-    logDiagnostic: (eventName, payload) => console.info('[NativeOverlay]', eventName, payload),
+    logDiagnostic: (eventName, payload) => console.info(formatNativeOverlayDiagnosticLog(eventName, payload)),
   })
 
   ipcMain.handle('save-project-file', async (_event, payload: { data?: string; defaultName?: string }) => {
