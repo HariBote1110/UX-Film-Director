@@ -38,7 +38,8 @@ describe('package scripts', () => {
     const script = readFileSync(new URL('../../scripts/run-native-overlay-long-bench.mjs', import.meta.url), 'utf8');
     expect(script).toContain('npm run dev:native-overlay');
     expect(script).toContain('VITE_PERF_AGENT_MODE');
-    expect(script).toContain('UXFD_DECODE_TRACE');
+    expect(script).toContain('UXFD_NATIVE_OVERLAY_BENCH_TRACE');
+    expect(script).not.toContain("UXFD_DECODE_TRACE: '1'");
     expect(script).toContain('UXFD_PERF_OUTPUT_DIR');
     expect(script).toContain('UXFD_NATIVE_OVERLAY_BENCH_TIMEOUT_MS');
     expect(script).toContain('UXFD_PERF_RESULT_JSON:');
