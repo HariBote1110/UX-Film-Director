@@ -39,6 +39,8 @@ export interface NativeOverlaySharedFrameDescriptor {
 export interface NativeOverlaySharedFramePayload {
   windowId: number
   mediaId: string
+  snapshot?: unknown
+  media?: readonly unknown[]
   slotCount: number
   frame: {
     descriptor: NativeOverlaySharedFrameDescriptor

@@ -11,6 +11,7 @@ import {
   type PrepareSharedRendererDecodedVideoFrameUploadResult,
   type SharedVideoFrameCopyBridge,
 } from './sharedVideoFrameUploadBridge';
+import type { RustSceneMediaReference, RustSceneSnapshot } from './rustSceneSnapshot';
 
 export interface PrepareSharedRendererRustDecodedVideoUploadInput {
   decodeResponse: RustBackendResult<unknown>;
@@ -23,6 +24,8 @@ export interface NativeOverlayDecodedFrameBridge {
   presentSharedFrame: (payload: {
     windowId?: number;
     mediaId: string;
+    snapshot?: RustSceneSnapshot;
+    media?: readonly RustSceneMediaReference[];
     slotCount: number;
     frame: RustBackendSharedVideoFrame;
   }) => Promise<{
@@ -42,6 +45,8 @@ export interface NativeOverlayDecodedFrameBridge {
 export interface PresentNativeOverlayRustDecodedVideoFrameInput {
   windowId?: number;
   decodeResponse: RustBackendResult<unknown>;
+  snapshot?: RustSceneSnapshot;
+  media?: readonly RustSceneMediaReference[];
   slotCount: number;
   nativeOverlayBridge: NativeOverlayDecodedFrameBridge;
   rustBackendBridge: RustBackendVideoDecodeBridge;
@@ -66,6 +71,8 @@ export type PrepareSharedRendererRustDecodedVideoUploadResult =
 export const presentNativeOverlayRustDecodedVideoFrame = async ({
   windowId,
   decodeResponse,
+  snapshot,
+  media,
   slotCount,
   nativeOverlayBridge,
   rustBackendBridge,
@@ -82,6 +89,8 @@ export const presentNativeOverlayRustDecodedVideoFrame = async ({
   const presentResponse = await nativeOverlayBridge.presentSharedFrame({
     windowId,
     mediaId: jobId,
+    ...(snapshot ? { snapshot } : {}),
+    ...(media ? { media } : {}),
     slotCount,
     frame,
   });

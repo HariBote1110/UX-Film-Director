@@ -310,6 +310,8 @@ interface Window {
     presentSharedFrame: (payload: {
       windowId?: number;
       mediaId: string;
+      snapshot?: unknown;
+      media?: readonly unknown[];
       slotCount: number;
       frame: {
         descriptor: {
