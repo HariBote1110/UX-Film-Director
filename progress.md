@@ -1,3 +1,21 @@
+## 2026-06-30 — Native Overlay長時間ベンチ反復実行を追加
+
+### 実施内容
+- `src/utils/packageScripts.test.ts` に、`run-native-overlay-long-bench.mjs` が `UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS` と `completedRuns` を持ち、複数 run を反復する契約を Red として追加した。
+- Red では既存 runner が perf agent 1回分だけで、duration/repeat 契約を満たさず失敗することを確認した。
+- `scripts/run-native-overlay-long-bench.mjs` を更新し、少なくとも1回、かつ指定 duration まで `npm run dev:native-overlay` を反復するようにした。
+- `package.json` / `package-lock.json` の版を機能追加として `0.1.1-Beta-402a` へ更新した。
+
+### 選定理由・判断の根拠
+- Phase 6 の長時間ベンチは単発 perf agent では足りないため、実機 60分以上や24時間相当 harness へ伸ばせる duration gate が必要。
+- 既存 perf agent payload の `raf_heavy_video_scrub` gate を各 run で検証し、skip / p95 60fps 予算超過を fail にする。
+- `node --check scripts/run-native-overlay-long-bench.mjs` は成功。
+- `npx vitest run src/utils/packageScripts.test.ts` は 1 file / 8 tests passed。
+
+### 残課題・次のステップ
+- 次は `UXFD_NATIVE_OVERLAY_BENCH_DURATION_MS` を短くして smoke 実行し、その後 60分以上の実機 bench を行う。
+- Phase 6 の既定 ON 切替直前ではユーザー確認が必要。
+
 ## 2026-06-30 — Native Overlay 3経路parity gateを追加
 
 ### 実施内容
