@@ -1,3 +1,21 @@
+## 2026-06-30 — Native Overlay release失敗を結果化
+
+### 実施内容
+- Red として `src/utils/sharedRendererRustVideoUploadPipeline.test.ts` に、Native Overlay present 後の decoded frame release が backend に拒否された場合でも例外を投げず `ok: false` を返す契約を追加した。
+- Green として `src/utils/sharedRendererRustVideoUploadPipeline.ts` の `presentNativeOverlayRustDecodedVideoFrame` で release response を明示確認し、`nativeOverlayReleaseFailed` として返すようにした。
+- `package.json` / `package-lock.json` の版を軽微修正として `0.1.1-Beta-411b` へ更新した。
+
+### 選定理由・判断の根拠
+- 実機 `VITE_UXFD_NATIVE_OVERLAY=1` 起動後に画像 clip と動画 clip を投入すると、preview diagnostic が `Failed to release decoded shared memory slot: UnexpectedState { expected: 3, actual: 2 }` を表示した。
+- Red: `npx vitest run src/utils/sharedRendererRustVideoUploadPipeline.test.ts --testNamePattern "returns a Native Overlay release failure"` は 1 failed。release 失敗が例外として presenter start 全体を落としていた。
+- Green: `npx vitest run src/utils/sharedRendererRustVideoUploadPipeline.test.ts` は 1 file / 10 tests passed。
+- Green: `npx vitest run src/utils/sharedRendererViewportVideoUpload.test.ts` は 1 file / 19 tests passed。
+- release mismatch の根本原因は残るが、まず例外で shared renderer 起動全体が落ちる状態を止め、diagnostic と fallback の扱いを安定させた。
+
+### 残課題・次のステップ
+- 次は Native Overlay addon の shm read が backend data plane ring を reading state に進めているかを Rust 側テストで固定する。
+- 修正後、実機で画像 clip と動画 clip を再投入し、`nativeOverlayReleaseFailed` が消えて live overlay present が継続することを確認する。
+
 ## 2026-06-30 — Native Overlayをnative render uploadより優先
 
 ### 実施内容
