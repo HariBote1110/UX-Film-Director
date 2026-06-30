@@ -11,9 +11,27 @@ const attachPayload = {
 };
 
 describe('createNativeOverlayMainBridge', () => {
-  it('keeps the WebGPU presenter fallback when the native overlay flag is disabled', async () => {
+  it('enables the native overlay by default when the addon is available', async () => {
+    const nativeAddon = {
+      attachNativeOverlay: vi.fn(() => ({ success: true, attached: true })),
+    };
     const bridge = createNativeOverlayMainBridge({
       env: {},
+      cwd: '/repo',
+      existsSync: (candidate) => candidate === '/repo/native-overlay/native-overlay.node',
+      requireModule: vi.fn(() => nativeAddon),
+      resolveNativeWindowHandle: vi.fn(() => Buffer.from([1, 2, 3, 4, 5, 6, 7, 8])),
+    });
+
+    await expect(bridge.attach(attachPayload)).resolves.toEqual({
+      success: true,
+      attached: true,
+    });
+  });
+
+  it('keeps the WebGPU presenter fallback when the native overlay flag is explicitly disabled', async () => {
+    const bridge = createNativeOverlayMainBridge({
+      env: { UXFD_NATIVE_OVERLAY: '0' },
       cwd: '/repo',
       existsSync: () => true,
       requireModule: vi.fn(),

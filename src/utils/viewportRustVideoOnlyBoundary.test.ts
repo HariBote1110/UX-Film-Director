@@ -126,11 +126,11 @@ describe('Viewport Rust video-only boundary', () => {
     expect(presenterBlock).toContain('discardNativeRenderOutputForBenchmark: phase0DiscardNativeRenderOutputEnabled');
   });
 
-  it('attaches the native overlay preview only behind the explicit env flag', () => {
+  it('attaches the native overlay preview by default while allowing an explicit env opt-out', () => {
     const code = viewportSource();
 
     expect(code).toContain('buildNativeOverlayAttachRect');
-    expect(code).toContain("const nativeOverlayPreviewEnabled = import.meta.env.VITE_UXFD_NATIVE_OVERLAY === '1';");
+    expect(code).toContain("const nativeOverlayPreviewEnabled = import.meta.env.VITE_UXFD_NATIVE_OVERLAY !== '0';");
     expect(code).toContain('window.nativeOverlay?.attach');
     expect(code).toContain('window.nativeOverlay?.detach');
   });

@@ -17,6 +17,14 @@ describe('package scripts', () => {
       .toBeLessThan(script.indexOf('node_modules/vite/bin/vite.js'));
   });
 
+  it('starts the Native Overlay path by default while preserving env opt-out', () => {
+    expect(packageJson.scripts.dev).toBe('node scripts/dev-native-overlay.mjs');
+
+    const script = readFileSync(new URL('../../scripts/dev-native-overlay.mjs', import.meta.url), 'utf8');
+    expect(script).toContain("VITE_UXFD_NATIVE_OVERLAY: process.env.VITE_UXFD_NATIVE_OVERLAY ?? '1'");
+    expect(script).toContain("UXFD_NATIVE_OVERLAY: process.env.UXFD_NATIVE_OVERLAY ?? process.env.VITE_UXFD_NATIVE_OVERLAY ?? '1'");
+  });
+
   it('provides a Native Overlay opt-in dev command that builds the addon before Vite', () => {
     expect(packageJson.scripts['dev:native-overlay']).toBe('node scripts/dev-native-overlay.mjs');
 
