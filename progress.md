@@ -1,3 +1,31 @@
+## 2026-07-01 — Bug E緊急修正: Native Overlay opaqueがwgpu surface構築で既定値に戻り編集画面previewが黒くなるリグレッション
+
+### 実施内容
+
+- **実機観測**: Bug D（`a85669e8`）完了直後の実機検証で、編集画面に入ると preview 領域全体が真っ黒になるリグレッションを発見。
+- **真因特定**: `native-overlay/src/macos_overlay.rs:171-175` のコメントに「以降 wgpu 側の `create_surface_unsafe` で layer が差し替えられても本値は継承される」と書いていたのは誤り。Bug B のとき、`contentsScale` が wgpu の layer 差し替えで失われることが既に判明しており（`native-overlay/src/lib.rs:399` で `set_overlay_view_contents_scale` を surface 構築後に再度呼んでいる）、`opaque` も同じ CALayer プロパティである以上、同じ理由で失われる。しかし `apply_overlay_layer_opaque(overlay_view, false)` は `attach_overlay_view_to_parent` 内（surface 構築前）でしか呼ばれておらず、wgpu が layer を差し替えた後は既定 `opaque=YES` に戻り、`LoadOp::Clear(TRANSPARENT)` が compositor 上で不透明扱いされていた。
+- **Red**: `native-overlay/src/lib.rs` の tests に 2 契約を追加。
+  - `macos_overlay_exposes_set_overlay_view_opaque_public_api`: `macos_overlay.rs` に `pub fn set_overlay_view_opaque(view_handle: usize, opaque: bool)` が存在することを `include_str!` で検査（Bug D の `macos_overlay_layer_is_configured_as_non_opaque_for_transparent_composition` と同じ source-text 検査パターンを踏襲）。
+  - `attach_native_overlay_inner_reapplies_opaque_immediately_after_contents_scale`: `lib.rs` の attach 経路で `set_overlay_view_contents_scale` 呼び出しの直後に `set_overlay_view_opaque(view_handle, false)` が呼ばれる（＝surface構築後の位置）ことを byte position 比較で検証。`include_str!("lib.rs")` によるテストの自己参照（テスト自身のコメント文字列が検索対象と一致してしまう）を避けるため、検索対象文字列は `concat!` で分割したリテラルとして構築した。
+- **Green**: `macos_overlay.rs` に `set_overlay_view_contents_scale` と対称の `set_overlay_view_opaque` を新設（NSThread::isMainThread チェック付き、同じパターン）。`lib.rs:399` の直下に `macos_overlay::set_overlay_view_opaque(view_handle, false)` を追加。`apply_overlay_layer_opaque` 周辺のコメントから「継承される」という誤りを削除し、「contentsScale と同じく再適用が必要」に書き換え。
+- **副次修正（同じGreenフェーズで発見）**: 回帰確認で `nativeOverlayCrateBoundary.test.ts` の「`macos_overlay.rs` は `CAMetalLayer` という文字列を含んではならない（AppKit view 層は Metal layer の詳細に立ち入らず wgpu に委ねる設計契約）」というテストが失敗した。調査の結果、これは今回の変更が原因ではなく、Bug B（`ade4ac11`）のコメント追加時点から既に壊れていた既存の回帰であることが判明。今回追加したコメントも同じ語を使っていたため、既存分と合わせて `macos_overlay.rs` 内のコメント表記を `CAMetalLayer` → `Metal layer` に統一し、動作コードは変えずに契約テストを再びGreenにした。
+- 版: `0.1.1-Beta-424a` → `0.1.1-Beta-424b`（軽微修正・リグレッション直し）。
+
+### 選定理由・判断の根拠
+
+- Bug B の `set_overlay_view_contents_scale` と完全に対称な形（同じ NSThread チェック、同じ「surface構築後に再度呼ぶ」設計）で `set_overlay_view_opaque` を実装したのは、`contentsScale` と `opaque` がどちらも wgpu が差し替える CALayer 上のプロパティであり、同一の失われ方をするため。対称性を保つことで今後同種のプロパティ（例: `pixelFormat` 等）を追加する際のパターンが一貫する。
+- Red テストで `include_str!` による source-text 検査を採用したのは、既存の Bug D テスト群がこのパターンで統一されていたため。ただし `include_str!("lib.rs")` はテストファイル自身のソースも読み込むため、テストのコメント文中に検索対象と同一の文字列を書くと自己マッチしてしまう罠がある。実際に一度この罠を踏み（`opaque_call_position > contents_scale_call_position` が意図せず true になった）、`concat!` でリテラルを分割することで回避した。この教訓は今後同種の source-text 契約テストを書く際に必ず意識する。
+- `CAMetalLayer` 表記の是正は本来スコープ外だが、ユーザー指定の回帰確認コマンドに含まれる既存テストであり、かつ今回追加したコメントも同じ問題を持っていたため、コード動作を一切変えないコメント表記統一に限定して対応した。Bug D の3経路 clear effect 自体には手を入れていない。
+
+### 反省（Bug D 設計時に活かせなかった教訓）
+
+- Bug B で「wgpu が surface 構築時に layer を差し替え、`contentsScale` のような CALayer プロパティが既定値に戻る」ことを学んだにもかかわらず、Bug D で `opaque` を追加する際にこの教訓を適用し忘れた。「wgpu が触る可能性のある CALayer プロパティは、attach 時点の一度設定だけでなく surface 構築後の再適用が必要」という一般化ができておらず、個別のプロパティ単位でしか学習していなかったのが根本原因。
+- 今後 CALayer 関連のプロパティを追加する際は、必ず「wgpu の `create_surface_unsafe` 後にも再適用が必要か」をチェックリスト化して確認する。
+
+### 残課題・次のステップ
+
+- ユーザーに実機での再検証を依頼する（編集画面 preview が真っ黒にならないことの確認）。
+
 ## 2026-07-01 — Bug D修正: Native Overlay transparent clear API + CAMetalLayer opaque=NO + wgpu alpha_mode正本化
 
 ### 実施内容
