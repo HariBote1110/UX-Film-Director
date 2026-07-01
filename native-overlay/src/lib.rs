@@ -1374,6 +1374,57 @@ mod tests {
         );
     }
 
+    #[test]
+    fn macos_overlay_exposes_set_overlay_view_opaque_public_api() {
+        // Bug E — `opaque` は `contentsScale` と同じく、`wgpu::create_surface_unsafe` が
+        // layer を差し替えると既定値へ戻ってしまう。attach 直後の一度きりの設定だけでは
+        // 不十分で、`set_overlay_view_contents_scale` と対になる公開 API
+        // `set_overlay_view_opaque(view_handle, opaque)` を用意し、surface 構築後にも
+        // 再適用できる契約にする。
+        let source = include_str!("macos_overlay.rs");
+
+        assert!(
+            source.contains("pub fn set_overlay_view_opaque(view_handle: usize, opaque: bool)"),
+            "macos_overlay must expose set_overlay_view_opaque so callers can reapply opaque=NO \
+             after wgpu replaces the CAMetalLayer, mirroring set_overlay_view_contents_scale",
+        );
+    }
+
+    #[test]
+    fn attach_native_overlay_inner_reapplies_opaque_immediately_after_contents_scale() {
+        // Bug E — 実機リグレッション: Bug D で opaque=NO を attach 時に一度設定したが、
+        // wgpu の surface 構築処理が layer を差し替えるため、contentsScale と同様に
+        // opaque も既定値 YES へ戻ってしまい、透明クリアが compositor 上で
+        // 不透明扱いされ画面が黒くなった。contents_scale 再適用呼び出しの直下で
+        // opaque 再適用を呼び、surface 構築後に再適用する契約を source 上で固定する。
+        // （このテスト自身のコメントが対象文字列と一致しないよう、呼び出しの断片は
+        // 変数化して concat! で組み立てる。）
+        let source = include_str!("lib.rs");
+
+        let contents_scale_needle = concat!(
+            "macos_overlay::set_overlay_view_contents_scale(",
+            "view_handle, contract.contents_scale);"
+        );
+        let opaque_needle = concat!(
+            "macos_overlay::set_overlay_view_opaque(",
+            "view_handle, false);"
+        );
+
+        let contents_scale_call_position = source.find(contents_scale_needle).expect(
+            "attach_native_overlay_inner must still reapply contents_scale after surface construction",
+        );
+        let opaque_call_position = source.find(opaque_needle).expect(
+            "attach_native_overlay_inner must reapply opaque=false immediately after \
+             reapplying contents_scale, mirroring the Bug B contents_scale fix",
+        );
+
+        assert!(
+            opaque_call_position > contents_scale_call_position,
+            "set_overlay_view_opaque must be called after set_overlay_view_contents_scale \
+             (i.e. after wgpu surface construction), not before",
+        );
+    }
+
     fn unique_shm_name() -> String {
         let micros = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
