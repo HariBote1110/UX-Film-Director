@@ -55,6 +55,7 @@ import {
 } from '../utils/sharedRendererExternalVideoSource';
 import { toFileProtocolUrl } from '../utils/mediaMetadata';
 import { buildNativeOverlayAttachRect } from '../utils/nativeOverlayViewportGeometry';
+import { notifyNativeOverlaySceneCleared } from '../utils/sharedRendererRustVideoUploadPipeline';
 
 const GROUP_GRADIENT_COMPONENT_PREFIX = 'group-gradient-component-';
 const RESIZE_HANDLE_PREFIX = 'resize-handle-';
@@ -590,9 +591,35 @@ const Viewport: React.FC = () => {
       document.removeEventListener('visibilitychange', attach);
       window.removeEventListener('focus', attach);
       window.removeEventListener('pageshow', attach);
+      // Bug D case (ii) — Viewport unmount 時、detach が AppKit view を破棄
+      // する前に transparent clear を発行して drawable を全 pixel alpha=0 に
+      // する。呼び順は clear -> detach 必須（detach 後だと registry lookup
+      // が失敗し drawable が古いまま残る）。
+      void window.nativeOverlay?.clearSurface({});
       void window.nativeOverlay?.detach({});
     };
   }, [nativeOverlayPreviewEnabled]);
+
+  // Bug D case (i) — timeline objects が空集合に遷移したとき、Bug C で追加した
+  // visual frame cache invalidator と Bug D の transparent clear を同じイベント源
+  // から発火する。cache 消去（Bug C）だけでは drawable に present 済みの
+  // 削除前フレームが残り続けるため、両方が必要。
+  useEffect(() => {
+    if (!nativeOverlayPreviewEnabled) return;
+    if (objects.length !== 0) return;
+    // session.surfaceGate.snapshot.clips.length === 0 を代表する条件として
+    // timeline objects の空を用いる（objects が空なら surfaceGate も clips=[]）。
+    notifyNativeOverlaySceneCleared(0);
+    void window.nativeOverlay?.clearSurface({});
+  }, [nativeOverlayPreviewEnabled, objects.length]);
+
+  // Bug D case (iii) — projectId（activeSceneId）の変化を検出し、切替直後に
+  // 前 project の drawable が一瞬映る競合を潰す。cache 消去も併発する。
+  useEffect(() => {
+    if (!nativeOverlayPreviewEnabled) return;
+    notifyNativeOverlaySceneCleared(0);
+    void window.nativeOverlay?.clearSurface({});
+  }, [nativeOverlayPreviewEnabled, projectId]);
 
   const updateSharedRendererSolidColourObjectIds = useCallback((objectIds: string[]) => {
     const current = sharedRendererSolidColourObjectIdsRef.current;
@@ -665,6 +692,10 @@ const Viewport: React.FC = () => {
     setPreviewDisplayMode: state.setPreviewDisplayMode,
     visionDetectionPreviewEnabled: state.visionDetectionPreviewEnabled,
     visionDetectionOverlay: state.visionDetectionOverlay,
+    // Bug D case (iii) — project 切替を検知して Native Overlay drawable を
+    // transparent clear するため、store の activeSceneId を projectId として
+    // effect の deps に載せる。
+    projectId: state.activeSceneId,
   }), shallow);
 
   useVisionRealtimeDetection();

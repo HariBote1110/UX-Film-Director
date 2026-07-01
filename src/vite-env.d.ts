@@ -340,6 +340,17 @@ interface Window {
         copyOutState: 'gpuUploadFenceSignalled';
       };
     }>;
+    // Bug D — clip 削除後 overlay の drawable に古いフレームが残る症状に
+    // 対する単発 transparent clear。scene 空遷移 / unmount / project 切替の
+    // 3 経路から呼ばれる。
+    clearSurface: (payload: {
+      windowId?: number;
+    }) => Promise<{
+      success: boolean;
+      attached: boolean;
+      fallback?: 'webgpuPresenter';
+      reason?: string;
+    }>;
   };
 }
 

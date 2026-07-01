@@ -10,6 +10,10 @@ export const nativeOverlayIpcChannels = {
   detach: 'native-overlay-detach',
   presentSharedFrame: 'native-overlay-present-shared-frame',
   capabilities: 'native-overlay-capabilities',
+  // Bug D — clip 削除後 overlay の drawable に古いフレームが残る症状を
+  // 潰すための独立 channel。scene 空遷移 / unmount / project 切替の
+  // 3 経路から window 単位で呼ばれる。
+  clearSurface: 'native-overlay-clear-surface',
 } as const
 
 export interface NativeOverlayCapabilities {
@@ -28,6 +32,7 @@ export interface NativeOverlayIpcBridge {
   attach: (payload: NativeOverlayAttachPayload) => Promise<NativeOverlayResponse>
   detach: (payload: NativeOverlayDetachPayload) => Promise<NativeOverlayResponse>
   presentSharedFrame: (payload: NativeOverlaySharedFramePayload) => Promise<NativeOverlayResponse>
+  clearSurface: (payload: NativeOverlayDetachPayload) => Promise<NativeOverlayResponse>
   getCapabilities: () => NativeOverlayCapabilities
 }
 
@@ -54,6 +59,10 @@ export const registerNativeOverlayIpcHandlers = (
     ))
   ipcMain.handle(nativeOverlayIpcChannels.capabilities, async () =>
     bridge.getCapabilities())
+  ipcMain.handle(nativeOverlayIpcChannels.clearSurface, async (event, payload) =>
+    bridge.clearSurface(
+      withWindowId(payload, event, options.resolveWindowIdFromEvent) as NativeOverlayDetachPayload,
+    ))
 }
 
 const withWindowId = (

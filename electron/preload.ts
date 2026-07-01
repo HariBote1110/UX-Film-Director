@@ -198,6 +198,12 @@ contextBridge.exposeInMainWorld('nativeOverlay', {
   presentSharedFrame(payload: unknown) {
     return ipcRenderer.invoke(nativeOverlayIpcChannels.presentSharedFrame, payload)
   },
+  clearSurface(payload: unknown) {
+    // Bug D — scene 空遷移 / unmount / project 切替のいずれかで発火する
+    // 単発 transparent clear。addon 側で drawable を全 pixel alpha=0 に
+    // 塗り替えるため、削除前フレームが CAMetalLayer に残らなくなる。
+    return ipcRenderer.invoke(nativeOverlayIpcChannels.clearSurface, payload)
+  },
 })
 
 contextBridge.exposeInMainWorld('sharedVideoFrame', {

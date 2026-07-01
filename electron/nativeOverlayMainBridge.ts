@@ -76,6 +76,7 @@ export interface NativeOverlayAddon {
   attachNativeOverlay?: (payload: NativeOverlayAddonAttachPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   detachNativeOverlay?: (payload: NativeOverlayAddonDetachPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   presentNativeOverlaySharedFrame?: (payload: NativeOverlayAddonSharedFramePayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
+  clearNativeOverlayLiveSurface?: (payload: NativeOverlayDetachPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   getNativeOverlayCapabilities?: () => NativeOverlayCapabilities
 }
 
@@ -95,6 +96,7 @@ export interface NativeOverlayMainBridge {
   attach: (payload: NativeOverlayAttachPayload) => Promise<NativeOverlayResponse>
   detach: (payload: NativeOverlayDetachPayload) => Promise<NativeOverlayResponse>
   presentSharedFrame: (payload: NativeOverlaySharedFramePayload) => Promise<NativeOverlayResponse>
+  clearSurface: (payload: NativeOverlayDetachPayload) => Promise<NativeOverlayResponse>
   getCapabilities: () => NativeOverlayCapabilities
 }
 
@@ -169,6 +171,7 @@ export const createNativeOverlayMainBridge = ({
       loadedAddon = typeof addon.attachNativeOverlay === 'function'
         || typeof addon.detachNativeOverlay === 'function'
         || typeof addon.presentNativeOverlaySharedFrame === 'function'
+        || typeof addon.clearNativeOverlayLiveSurface === 'function'
         || typeof addon.getNativeOverlayCapabilities === 'function'
         ? addon
         : null
@@ -265,6 +268,27 @@ export const createNativeOverlayMainBridge = ({
           })
         }
         return response
+      } catch (error) {
+        return fallbackResponse(getErrorMessage(error))
+      }
+    },
+    async clearSurface(payload) {
+      // Bug D — clip 削除後 overlay の drawable に古いフレームが残る症状を潰す
+      // ための単発 transparent clear present。attach/detach と同じ環境判定を
+      // 用い、addon が対応していない場合は WebGPU presenter fallback を返す。
+      if (!nativeOverlayEnabled(env)) {
+        return fallbackResponse('Native overlay preview is disabled.')
+      }
+
+      const addon = loadAddon()
+      if (!addon || typeof addon.clearNativeOverlayLiveSurface !== 'function') {
+        return fallbackResponse('Native overlay addon is unavailable.')
+      }
+
+      try {
+        return await addon.clearNativeOverlayLiveSurface({
+          windowId: payload.windowId,
+        })
       } catch (error) {
         return fallbackResponse(getErrorMessage(error))
       }
