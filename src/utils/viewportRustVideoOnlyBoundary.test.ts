@@ -399,4 +399,51 @@ describe('Viewport Rust video-only boundary', () => {
     expect(code).not.toContain('applyVideoSubjectCropMask');
     expect(code).not.toContain("obj.type === 'image' || obj.type === 'video'");
   });
+
+  it('clears the native overlay live surface transparently when the scene clips transition to empty (Bug D case i)', () => {
+    // Bug D — clip 削除で `activeJob=null` になり shared frame present が止まると、
+    // CAMetalLayer drawable に古いフレームが残ったままになる。対処として scene の
+    // clips.length === 0 遷移を検出し、`window.nativeOverlay.clearSurface({ windowId })`
+    // と Bug C で追加した `notifyNativeOverlaySceneCleared(windowId)` を同じイベント源で
+    // 発行する。Cache 消去（Bug C）と drawable clear（Bug D）は独立した効果を持つため、
+    // どちらか片方だけでは overlay が残ってしまう。
+    const code = viewportSource();
+
+    expect(code).toContain('notifyNativeOverlaySceneCleared');
+    expect(code).toContain('window.nativeOverlay?.clearSurface');
+    expect(code).toContain('session.surfaceGate.snapshot.clips.length === 0');
+  });
+
+  it('clears the native overlay live surface transparently on Viewport unmount cleanup (Bug D case ii)', () => {
+    // Bug D — Viewport unmount で detach が呼ばれるが、detach は AppKit view の
+    // 破棄側で drawable の内容をそのまま残す実装。unmount 後に別 project を
+    // attach すると古い drawable が一瞬映る競合を避けるため、detach 前に
+    // clearSurface を発行する。attach effect の cleanup で clearSurface が
+    // detach より先に呼ばれる順序も併せて要求する。
+    const code = viewportSource();
+    const start = code.indexOf('if (!nativeOverlayPreviewEnabled) return;');
+    const end = code.indexOf('}, [nativeOverlayPreviewEnabled]', start);
+    const nativeOverlayEffectBlock = code.slice(start, end);
+
+    expect(nativeOverlayEffectBlock).toContain('window.nativeOverlay?.clearSurface');
+    // detach と clearSurface の呼び順は clear -> detach でなければならない
+    // （detach が view を破棄してしまうと clearSurface の registry lookup が
+    //  失敗して drawable が古いまま残る）。
+    const clearIndex = nativeOverlayEffectBlock.lastIndexOf('window.nativeOverlay?.clearSurface');
+    const detachIndex = nativeOverlayEffectBlock.lastIndexOf('window.nativeOverlay?.detach');
+    expect(clearIndex).toBeGreaterThan(-1);
+    expect(detachIndex).toBeGreaterThan(-1);
+    expect(clearIndex).toBeLessThan(detachIndex);
+  });
+
+  it('clears the native overlay live surface transparently when the loaded project id changes (Bug D case iii)', () => {
+    // Bug D — project 切替時も同じ drawable に別 project のフレームが遺存する
+    // 可能性があるため、project id の変化を effect の deps で検出して
+    // clearSurface と notifyNativeOverlaySceneCleared を発火する。
+    const code = viewportSource();
+
+    // project 切替を検知する effect は projectId を deps に含む
+    expect(code).toMatch(/useEffect\([\s\S]*?window\.nativeOverlay\?\.clearSurface[\s\S]*?projectId/);
+    expect(code).toContain('notifyNativeOverlaySceneCleared');
+  });
 });
