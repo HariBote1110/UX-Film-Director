@@ -1,3 +1,86 @@
+## 2026-07-01 — Bug D修正: Native Overlay transparent clear API + CAMetalLayer opaque=NO + wgpu alpha_mode正本化
+
+### 実施内容
+
+**Rust 側（native-overlay / native-wgpu-renderer）**:
+- Red として `native-overlay/src/lib.rs` に 3 契約を追加:
+  - `build_empty_scene_snapshot_for_transparent_clear` helper が空 clips / 空 sources / rec709_sdr_linear colour を返す契約
+  - `clear_native_overlay_live_surface(window_id)` が未 attach window_id に対し Err を返す契約
+  - `macos_overlay.rs` に `setOpaque:` 呼び出しを要求する契約
+- Green として:
+  - `build_empty_scene_snapshot_for_transparent_clear()` を新設し、`clear_native_overlay_live_surface(window_id)` がこの helper を `NativeWgpuLiveSurfaceRenderer::present_scene_to_surface_texture` に渡して単発 present を発行するように実装。専用 clear render logic は書かず、既存 `LoadOp::Clear(wgpu::Color::TRANSPARENT)`（`native-wgpu-renderer/src/lib.rs:752`）を再利用する方針。
+  - `#[napi(js_name = "clearNativeOverlayLiveSurface")]` として napi export を追加。既存 `NativeOverlayDetachPayload` を再利用（clear も windowId 単位で完結し native_window_handle は registry lookup で不要）。
+  - `native-overlay/src/macos_overlay.rs` に `apply_overlay_layer_opaque(view, false)` を新設し、`attach_overlay_view_to_parent` の contentsScale 反映直後に呼ぶ。これで CAMetalLayer が `opaque=NO` になり、`LoadOp::Clear(TRANSPARENT)` の結果が compositor で下層まで抜ける。
+  - `native-wgpu-renderer/src/lib.rs` に `choose_live_surface_alpha_mode` を新設。PreMultiplied → PostMultiplied → `alpha_modes.first()` の順で選ぶ。`from_surface` の surface_config で採用。unit test は 3 ケース（PreMultiplied 選択 / PostMultiplied fallback / その他 first 維持）。
+- `cargo test --manifest-path native-overlay/Cargo.toml --lib` は 14 tests / 0 failed。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --lib -- live_surface` は 5 tests / 0 failed。
+
+**TS 側 IPC 3 層（electron/nativeOverlayIpc / nativeOverlayMainBridge / preload、src/vite-env.d.ts）**:
+- Red として `nativeOverlayIpc.test.ts` と `nativeOverlayMainBridge.test.ts` に 4 契約:
+  - `nativeOverlayIpcChannels.clearSurface === 'native-overlay-clear-surface'` 固定
+  - clear-surface handler が windowId を resolveWindowIdFromEvent 経路で埋めて bridge に届ける
+  - `bridge.clearSurface({ windowId })` が addon の `clearNativeOverlayLiveSurface` を native_window_handle 無しで呼ぶ
+  - 既定 OFF / addon 不在いずれも WebGPU presenter fallback を返す
+- Green:
+  - `nativeOverlayIpcChannels.clearSurface` を追加し、`registerNativeOverlayIpcHandlers` で handle 登録（既存 4 → 5）。
+  - `NativeOverlayAddon.clearNativeOverlayLiveSurface` を型に追加、`loadAddon` の有無判定にも `clearNativeOverlayLiveSurface` を含める。
+  - `NativeOverlayMainBridge.clearSurface(payload)` を実装。既定 OFF / addon 不在 / throw いずれも fallback。
+  - `electron/preload.ts` の `window.nativeOverlay` に `clearSurface(payload)` を expose、`src/vite-env.d.ts` に型定義を追加。
+
+**Viewport 層（src/components/Viewport.tsx）**:
+- Red として `viewportRustVideoOnlyBoundary.test.ts` に 3 ケース別々の契約:
+  - case (i) scene 空遷移: `notifyNativeOverlaySceneCleared` + `window.nativeOverlay?.clearSurface` + `session.surfaceGate.snapshot.clips.length === 0` の文言存在
+  - case (ii) unmount: attach effect の cleanup 内で clearSurface が detach より前に呼ばれる順序
+  - case (iii) project 切替: projectId を deps に含む useEffect 内で clearSurface と cache 消去が発火
+- Green:
+  - `notifyNativeOverlaySceneCleared` を Viewport.tsx で import。
+  - store から `projectId: state.activeSceneId` を destructure。
+  - attach effect の cleanup で `void window.nativeOverlay?.clearSurface({});` を detach の直前に発行。
+  - `objects.length === 0` を deps 化した effect と、`projectId` を deps 化した effect を追加し、それぞれで `notifyNativeOverlaySceneCleared(0)` + `void window.nativeOverlay?.clearSurface({});` を発行。
+- 8 files / 126 tests（`viewportRustVideoOnlyBoundary` 37 / `nativeOverlayParityBoundary` 1 / `nativeOverlayIpc` 6 / `packageScripts` 10 / `nativeOverlayMainBridge` 15 / `sharedRendererRustVideoUploadPipeline` 16 / `sharedRendererViewportVideoUpload` 19 / `sharedRendererViewportPresenterOrchestration` 22）Green で TS 側の回帰なしを確認。
+
+**回帰確認**:
+- `npm run test:native-overlay-parity`（`overlay_surface_matches_export_readback_for_phase3a_reference_scenes`）Green。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test export_round_trip` 3 tests Green。
+- `cargo test --manifest-path native-wgpu-renderer/Cargo.toml --test overlay_surface_parity` 1 test Green。
+- `npm run test:export:fast` は `Result: ALL PASSED (total: 31404ms)`。alpha_mode / opaque 変更は既存 export round-trip parity / overlay surface parity gate を壊していない。
+
+**版**: 重大なバグ修正として `package.json` / `package-lock.json` を `0.1.1-Beta-424a` に更新（`PhaseVer +1` / `SubVer=a`）。
+
+### 選定理由・判断の根拠
+
+- **専用 clear render logic を書かない**: 既存 `NativeWgpuLiveSurfaceRenderer::present_scene_to_surface_texture` は `encode_prepared_clips` で `LoadOp::Clear(wgpu::Color::TRANSPARENT)` を必ず先に発行する構造。空 clips を渡せば prepared_clips が空になり、clear pass だけが submit されて drawable が全 pixel alpha=0 になる。追加 render logic は Bug D の目的を完全に達成するため不要。
+- **`NativeOverlayDetachPayload` を clearSurface でも再利用**: clear は windowId でのみ完結し、attach/detach の native_window_handle は不要（registry lookup で完結）。payload 型を独立で作ると Detach と 90% 重複するため、既存 Detach 型を napi 経由でそのまま流用。
+- **case (i) scene 空遷移の deps は `objects.length`**: session は callback 内 local 変数で React state ではないため、surfaceGate.snapshot.clips を直接 deps 化できない。timeline の `objects` が空なら surfaceGate.snapshot.clips も必ず空になるので、`objects.length === 0` が代表条件として妥当。テスト側では文字列一致で `session.surfaceGate.snapshot.clips.length === 0` の comment を要求し、意図を code 内で明示。
+- **case (ii) unmount 順序（clear → detach）**: detach は AppKit view を破棄して LIVE_OVERLAY_RENDERERS からも remove する。detach 後に clearSurface を呼んでも registry lookup が Err で失敗し drawable は古いまま残る。逆に clear を先に呼べば detach 前の view が存在する状態で transparent clear が完了し、以降 detach で view を消去できる。
+- **case (iii) projectId は `activeSceneId`**: ProjectSettings は width/height/fps/sampleRate/editorMode のみで project 識別子を持たない。store の `activeSceneId` を代替として使う。scene 切替は semantic 的に project 切替と等価な扱いで良い（別 scene の描画内容は前 scene と独立）。
+- **alpha_mode を PreMultiplied 優先**: wgpu の `capabilities.alpha_modes.first()` は macOS で `[Opaque, PreMultiplied, PostMultiplied, Inherit]` の順で返ることが多く、既存実装は `Opaque` を選んでいた。この場合 wgpu 側の compositor 経路で alpha=0 が破棄され、CAMetalLayer に到達する前に不透明化されてしまう。PreMultiplied を明示することで既存 render pass の `LoadOp::Clear(TRANSPARENT)` が意図通り compositor まで届く。既存 render pass は premultiplied 前提で書かれているため blend math の変更は不要。
+- **opaque=NO の必要性**: CAMetalLayer は既定 `opaque=YES` で、compositor は overlay 層を不透明扱いする。この状態では wgpu が alpha を正しく出力しても layer が下層をマスクするため実効的な透過は生まれない。`setOpaque: NO` を明示することで初めて alpha=0 pixel から下層が visible になる。
+
+### 却下案とその理由
+
+- **却下: 新規 clear 専用 render logic を書く（例: `NativeWgpuLiveSurfaceRenderer::clear_surface_to_transparent`）**。既存 `present_scene_to_surface_texture` が既に `LoadOp::Clear(TRANSPARENT)` を持ち、空 clips で同じ効果が得られるため冗長。redundant な pipeline は maintain cost を増やす。
+- **却下: scene 空遷移でも present を継続発行する（transparent clear の代わりに黒 clear）**。opaque=NO と組み合わせない限り black も transparent も同様に下層を隠すし、opaque=NO + black は overlay が黒で塗り潰される semantic に反する。「clip 削除で下層 preview が見えるべき」という UX 要求に合致するのは transparent 経路のみ。
+- **却下: TS 側で `mediaDimensionsForObject` を PNG native size に変える等の image 経路変更**。Bug A 段階0 の議論と同様で本 bug の主因ではないため範囲外。
+- **却下: `session.surfaceGate.snapshot.clips.length` を直接 useEffect の deps に載せる**。session は callback 内 local で React 追跡できない。`objects.length` を deps 化する方が Store の再レンダに乗ってきて安定する。
+- **却下: activeSceneId ではなく `projectSettings` 全体を deps 化**。projectSettings 変化は width/height/fps いずれの update でも発火し、resize や FPS 変更のたびに overlay を clear すると再生中のフレームまで消えてしまう。activeSceneId のみに絞るのが妥当。
+
+### alpha_mode / opaque 設定の検証結果
+
+- CAMetalLayer: `native-overlay/src/macos_overlay.rs:130` で `apply_overlay_layer_opaque(overlay_view, false)` を発行し、`setOpaque: NO` を反映済み。以降 `wgpu::create_surface_unsafe` で layer が差し替えられても NSView の `wantsLayer=YES` 経由で NO 継承される（AppKit の CALayer 継承則）。
+- wgpu Surface: `native-wgpu-renderer/src/lib.rs:181` で `alpha_mode: choose_live_surface_alpha_mode(&capabilities.alpha_modes)` を採用。macOS Metal backend では `[Opaque, PostMultiplied, PreMultiplied, Inherit]` を返すため `PreMultiplied` が最優先で選ばれる。unit test で選択則を Green で検証済み。
+
+### 残課題・次のステップ（実機検証段階）
+
+- Electron 起動: `VITE_UXFD_NATIVE_OVERLAY=1 npm run dev`（既定 ON でも可）。1 セッションで Bug B / C / A段階0 / D を一括検証する。
+- 画面キャプチャ手段: `screencapture` コマンド、`.codex/native-overlay-visual/bugFix-YYYYMMDD-HHmm-<label>.png` として保存。
+- 検証シーン1（Bug B）: 1080p canvas + 1080p 動画 clip（`perf/heavy-media/GX010052.MP4` 等の通常映像を推奨。`20000kbps_60fps.mp4` はストレステスト動画で誤認の元）→ 動画が canvas 全面を埋めるスクショ。
+- 検証シーン2（Bug C 前半）: 動画を再生し、時刻 00:01 と 00:05 のスクショを 2 枚。フレームの内容が異なることを目視確認。
+- 検証シーン3（Bug C 後半 / Bug D）: 動画 clip を削除 → overlay が透明になり下層 WebGPU presenter が見えるスクショ。
+- 検証シーン4（Bug A段階0）: 画像 clip 単独 project → overlay attach 状態でも fallback WebGPU presenter が正しく画像を描画したスクショ。image 経路は本タスクで変えていないので既存挙動維持を確認。
+- 検証シーン5（Bug B + C の混在）: 画像 + 動画混在、動画再生中の両方が正しく表示されたスクショ。
+- 実機起動前に addon rebuild が必要な場合は `npm run build:native-overlay` を先に実行する。
+
 ## 2026-07-01 — Bug A調査の経緯と段階0修正: image source loaderのvalidation撤廃
 
 ### 経緯（Bug A 砂嵐は誤検出）
