@@ -172,11 +172,13 @@ impl NativeWgpuLiveSurfaceRenderer {
             width: width.max(1),
             height: height.max(1),
             present_mode: choose_live_surface_present_mode(&capabilities.present_modes),
-            alpha_mode: capabilities
-                .alpha_modes
-                .first()
-                .copied()
-                .unwrap_or(wgpu::CompositeAlphaMode::Auto),
+            // Bug D — CAMetalLayer の opaque=NO 設定と合わせ、透明 clear
+            // （`LoadOp::Clear(wgpu::Color::TRANSPARENT)`）の結果を実際に
+            // compositor まで届けるため、premultiplied alpha を明示する。
+            // wgpu が返す `alpha_modes.first()` は macOS で `Opaque` になり得て
+            // 透明 clear を潰すため、`choose_live_surface_alpha_mode` で
+            // PreMultiplied を優先して選ぶ。
+            alpha_mode: choose_live_surface_alpha_mode(&capabilities.alpha_modes),
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
         };
@@ -1282,6 +1284,28 @@ fn choose_live_surface_format(formats: &[wgpu::TextureFormat]) -> wgpu::TextureF
         .unwrap_or_else(|| formats[0])
 }
 
+/// Bug D — live surface の compositor 合成 alpha_mode を選ぶ。
+/// `capabilities.alpha_modes.first()` は macOS で `Opaque` になり得て、その場合
+/// `LoadOp::Clear(TRANSPARENT)` が下層まで届かず overlay 越しに WebGPU
+/// presenter を見せられない。PreMultiplied を最優先、次点 PostMultiplied、
+/// どちらも無ければ既存動作を維持するために `alpha_modes.first()` に落ちる。
+fn choose_live_surface_alpha_mode(
+    alpha_modes: &[wgpu::CompositeAlphaMode],
+) -> wgpu::CompositeAlphaMode {
+    alpha_modes
+        .iter()
+        .copied()
+        .find(|mode| *mode == wgpu::CompositeAlphaMode::PreMultiplied)
+        .or_else(|| {
+            alpha_modes
+                .iter()
+                .copied()
+                .find(|mode| *mode == wgpu::CompositeAlphaMode::PostMultiplied)
+        })
+        .or_else(|| alpha_modes.first().copied())
+        .unwrap_or(wgpu::CompositeAlphaMode::Auto)
+}
+
 fn choose_live_surface_present_mode(present_modes: &[wgpu::PresentMode]) -> wgpu::PresentMode {
     present_modes
         .iter()
@@ -2095,5 +2119,39 @@ mod tests {
         ]);
 
         assert_eq!(present_mode, wgpu::PresentMode::Immediate);
+    }
+
+    #[test]
+    fn live_surface_alpha_mode_prefers_premultiplied_for_transparent_clear() {
+        // Bug D — `capabilities.alpha_modes.first()` は macOS で `Opaque` を返しうる。
+        // その場合 `clear_native_overlay_live_surface` が透明 clear しても
+        // wgpu 側で alpha が破棄されて compositor に届かない。PreMultiplied を
+        // 明示的に優先することで overlay 越しに下層 WebGPU presenter が見える。
+        let alpha_mode = choose_live_surface_alpha_mode(&[
+            wgpu::CompositeAlphaMode::Opaque,
+            wgpu::CompositeAlphaMode::PreMultiplied,
+            wgpu::CompositeAlphaMode::PostMultiplied,
+        ]);
+
+        assert_eq!(alpha_mode, wgpu::CompositeAlphaMode::PreMultiplied);
+    }
+
+    #[test]
+    fn live_surface_alpha_mode_falls_back_to_post_multiplied_when_pre_multiplied_absent() {
+        let alpha_mode = choose_live_surface_alpha_mode(&[
+            wgpu::CompositeAlphaMode::Opaque,
+            wgpu::CompositeAlphaMode::PostMultiplied,
+        ]);
+
+        assert_eq!(alpha_mode, wgpu::CompositeAlphaMode::PostMultiplied);
+    }
+
+    #[test]
+    fn live_surface_alpha_mode_falls_back_to_first_available_when_neither_multiplied_variant_present() {
+        // 実機環境で PreMultiplied / PostMultiplied のどちらも返らないケース
+        // （macOS 以外の platform や wgpu backend）では既存動作を維持する。
+        let alpha_mode = choose_live_surface_alpha_mode(&[wgpu::CompositeAlphaMode::Auto]);
+
+        assert_eq!(alpha_mode, wgpu::CompositeAlphaMode::Auto);
     }
 }

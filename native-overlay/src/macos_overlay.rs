@@ -125,6 +125,12 @@ fn attach_overlay_view_to_parent(
         // drawable のうち `bounds × 1.0` ピクセル分（=左下 1/4）しか画面に貼り出されない。
         // `wgpu` の surface 構築前にも layer を一度初期化しておき、`contentsScale` を contract で正本化する。
         apply_overlay_layer_contents_scale(overlay_view, contract.contents_scale);
+        // Bug D — CAMetalLayer は既定 `opaque = YES` で、これでは
+        // `clear_native_overlay_live_surface` が drawable を全 pixel alpha=0
+        // に塗り替えても compositor が overlay 層を不透明扱いし、下層
+        // WebView / WebGPU presenter は常時不可視になる。opaque=NO を明示して
+        // transparent clear が下層まで抜けるようにする。
+        apply_overlay_layer_opaque(overlay_view, false);
 
         let () = msg_send![parent_view, addSubview: overlay_view];
         Ok(overlay_view_handle(overlay_view))
@@ -160,6 +166,23 @@ unsafe fn apply_overlay_layer_contents_scale(view: *mut Object, contents_scale: 
         return;
     }
     let () = msg_send![layer, setContentsScale: contents_scale];
+}
+
+/// Bug D — CAMetalLayer の `opaque` プロパティを反映する。
+/// `false` を渡すと `setOpaque: NO` が発行され、compositor は overlay 層の
+/// alpha を尊重するようになり、`LoadOp::Clear(TRANSPARENT)` の結果が
+/// 実際に下層まで抜ける。attach 直後に一度だけ呼べば十分で、以降 wgpu 側の
+/// `create_surface_unsafe` で layer が差し替えられても本値は継承される。
+unsafe fn apply_overlay_layer_opaque(view: *mut Object, opaque: bool) {
+    if view.is_null() {
+        return;
+    }
+    let layer: *mut Object = msg_send![view, layer];
+    if layer.is_null() {
+        return;
+    }
+    let objc_bool: BOOL = if opaque { YES } else { NO };
+    let () = msg_send![layer, setOpaque: objc_bool];
 }
 
 pub fn overlay_view_handle(view: *mut Object) -> usize {
