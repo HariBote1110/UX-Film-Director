@@ -341,6 +341,37 @@ pub fn get_native_overlay_capabilities() -> NativeOverlayCapabilities {
     platform_capabilities()
 }
 
+#[napi(js_name = "clearNativeOverlayLiveSurface")]
+pub fn clear_native_overlay_live_surface_napi(
+    payload: NativeOverlayDetachPayload,
+) -> NativeOverlayResponse {
+    match catch_unwind(AssertUnwindSafe(|| {
+        clear_native_overlay_live_surface_inner(payload)
+    })) {
+        Ok(response) => response,
+        Err(_) => failure("Native overlay clear surface panicked."),
+    }
+}
+
+fn clear_native_overlay_live_surface_inner(
+    payload: NativeOverlayDetachPayload,
+) -> NativeOverlayResponse {
+    let window_id = payload.window_id;
+    match clear_native_overlay_live_surface(window_id) {
+        Ok(()) => NativeOverlayResponse {
+            success: true,
+            attached: true,
+            reason: None,
+            release_frame: None,
+            live_prepared_clip_count: Some(0.0),
+            live_readback_non_transparent_pixels: None,
+            live_readback_checksum: None,
+            live_readback_export_max_channel_delta: None,
+        },
+        Err(reason) => failure(&reason),
+    }
+}
+
 fn attach_native_overlay_inner(payload: NativeOverlayAttachPayload) -> NativeOverlayResponse {
     let window_id = payload.window_id;
     let native_window_handle = match native_window_handle_bytes(&payload) {
@@ -707,6 +738,45 @@ pub fn present_overlay_shared_frame_for_test(
             copy_out_state: "gpuUploadFenceSignalled".to_string(),
         }),
     })
+}
+
+/// Bug D — clip 削除で `activeJob` が消え shared frame present が止まると、
+/// CAMetalLayer drawable に削除前フレームが残ったままになる。この症状を
+/// 潰すため、`clear_native_overlay_live_surface` は空 SceneSnapshot と空
+/// sources を live surface に present し、既存 render pass の
+/// `LoadOp::Clear(wgpu::Color::TRANSPARENT)` によって drawable 全 pixel を
+/// alpha=0 で上書きする。専用 clear render logic は追加しない。
+pub fn build_empty_scene_snapshot_for_transparent_clear() -> (SceneSnapshot, HashMap<String, RgbaFrame>) {
+    (
+        SceneSnapshot {
+            frame_index: 0,
+            colour: ColourPipeline::rec709_sdr_linear(),
+            clips: Vec::new(),
+        },
+        HashMap::new(),
+    )
+}
+
+/// Bug D — `activeJob` が空になったとき、または unmount / project 切替の際に
+/// live surface を透明 clear するための単発 present。attach されていない
+/// `window_id` を渡した場合は明示的な Err を返し、上位で fallback 判断できる
+/// ようにする。
+pub fn clear_native_overlay_live_surface(window_id: u32) -> Result<(), String> {
+    let mut renderers = LIVE_OVERLAY_RENDERERS
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .map_err(|_| "Native overlay live renderer registry is poisoned.".to_string())?;
+    let renderer = renderers
+        .get_mut(&window_id)
+        .ok_or_else(|| "Native overlay live surface is not attached.".to_string())?;
+    let (snapshot, sources) = build_empty_scene_snapshot_for_transparent_clear();
+    pollster::block_on(
+        renderer
+            .renderer
+            .present_scene_to_surface_texture(&snapshot, &sources),
+    )
+    .map_err(|error| format!("Native overlay live surface transparent clear failed: {error:?}"))?;
+    Ok(())
 }
 
 pub fn present_overlay_shared_frame_to_live_surface(
