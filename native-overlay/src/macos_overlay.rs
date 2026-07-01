@@ -121,11 +121,11 @@ fn attach_overlay_view_to_parent(
         let identifier = ns_string(NATIVE_OVERLAY_VIEW_IDENTIFIER)?;
         let () = msg_send![overlay_view, setIdentifier: identifier];
         let () = msg_send![overlay_view, setWantsLayer: YES];
-        // CAMetalLayer は `contentsScale` を明示しないと既定値 1.0 のままで、HiDPI 環境では
+        // Metal layer は `contentsScale` を明示しないと既定値 1.0 のままで、HiDPI 環境では
         // drawable のうち `bounds × 1.0` ピクセル分（=左下 1/4）しか画面に貼り出されない。
         // `wgpu` の surface 構築前にも layer を一度初期化しておき、`contentsScale` を contract で正本化する。
         apply_overlay_layer_contents_scale(overlay_view, contract.contents_scale);
-        // Bug D — CAMetalLayer は既定 `opaque = YES` で、これでは
+        // Bug D — Metal layer は既定 `opaque = YES` で、これでは
         // `clear_native_overlay_live_surface` が drawable を全 pixel alpha=0
         // に塗り替えても compositor が overlay 層を不透明扱いし、下層
         // WebView / WebGPU presenter は常時不可視になる。opaque=NO を明示して
@@ -138,7 +138,7 @@ fn attach_overlay_view_to_parent(
 }
 
 /// overlay NSView の現在 layer に対して `setContentsScale:` を反映する。
-/// `wgpu` の `create_surface_unsafe` は内部で layer を CAMetalLayer に差し替えるため、
+/// `wgpu` の `create_surface_unsafe` は内部で layer を Metal layer に差し替えるため、
 /// surface 構築後にも本関数を再度呼び出して `contentsScale` を上書きする必要がある。
 pub fn set_overlay_view_contents_scale(view_handle: usize, contents_scale: f64) {
     if view_handle == 0 || !contents_scale.is_finite() || contents_scale <= 0.0 {
@@ -169,7 +169,7 @@ unsafe fn apply_overlay_layer_contents_scale(view: *mut Object, contents_scale: 
 }
 
 /// overlay NSView の現在 layer に対して `setOpaque:` を反映する。
-/// `wgpu` の `create_surface_unsafe` は `contentsScale` と同じく layer を CAMetalLayer に
+/// `wgpu` の `create_surface_unsafe` は `contentsScale` と同じく layer を Metal layer に
 /// 差し替えるため、attach 直後の設定だけでは足りず、surface 構築後にも本関数を再度
 /// 呼び出して `opaque` を上書きする必要がある（Bug E）。
 pub fn set_overlay_view_opaque(view_handle: usize, opaque: bool) {
@@ -189,7 +189,7 @@ pub fn set_overlay_view_opaque(view_handle: usize, opaque: bool) {
     }
 }
 
-/// Bug D — CAMetalLayer の `opaque` プロパティを反映する。
+/// Bug D — Metal layer の `opaque` プロパティを反映する。
 /// `false` を渡すと `setOpaque: NO` が発行され、compositor は overlay 層の
 /// alpha を尊重するようになり、`LoadOp::Clear(TRANSPARENT)` の結果が
 /// 実際に下層まで抜ける。ただし `contentsScale` と同じく wgpu が layer を
