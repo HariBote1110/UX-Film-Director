@@ -10,6 +10,9 @@ describe('nativeOverlayIpc', () => {
     expect(nativeOverlayIpcChannels.detach).toBe('native-overlay-detach');
     expect(nativeOverlayIpcChannels.presentSharedFrame).toBe('native-overlay-present-shared-frame');
     expect(nativeOverlayIpcChannels.capabilities).toBe('native-overlay-capabilities');
+    // Bug D — clip 削除後 overlay の drawable に古いフレームが残る症状を
+    // 潰すため、`clear-surface` を独立 IPC channel として固定する。
+    expect(nativeOverlayIpcChannels.clearSurface).toBe('native-overlay-clear-surface');
   });
 
   it('registers attach, detach, present, and capabilities handlers against the bridge', async () => {
@@ -174,5 +177,35 @@ describe('nativeOverlayIpc', () => {
       fallback: 'webgpuPresenter',
       reason: 'Native overlay addon is unavailable.',
     });
+  });
+
+  it('registers a clear-surface handler that routes to bridge.clearSurface with the resolved windowId', async () => {
+    // Bug D — `native-overlay-clear-surface` channel は windowId を bridge.clearSurface
+    // に届け、attach/detach と同じ resolveWindowIdFromEvent 経路を再利用する契約。
+    const handlers = new Map<string, (_event: unknown, payload: unknown) => Promise<unknown>>();
+    const ipcMain = {
+      handle: vi.fn((channel: string, handler: (_event: unknown, payload: unknown) => Promise<unknown>) => {
+        handlers.set(channel, handler);
+      }),
+    };
+    const bridge = {
+      attach: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
+      detach: vi.fn(async (payload: unknown) => ({ success: true, attached: false, payload })),
+      presentSharedFrame: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
+      clearSurface: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
+      getCapabilities: vi.fn(() => ({ available: true })),
+    };
+
+    registerNativeOverlayIpcHandlers(ipcMain, bridge, {
+      resolveWindowIdFromEvent: vi.fn(() => 11),
+    });
+
+    expect(ipcMain.handle).toHaveBeenCalledTimes(5);
+    await expect(handlers.get(nativeOverlayIpcChannels.clearSurface)?.({ sender: 'webContents' }, {})).resolves.toEqual({
+      success: true,
+      attached: true,
+      payload: { windowId: 11 },
+    });
+    expect(bridge.clearSurface).toHaveBeenCalledWith({ windowId: 11 });
   });
 });

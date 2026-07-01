@@ -371,4 +371,72 @@ describe('createNativeOverlayMainBridge', () => {
       }),
     ]]);
   });
+
+  it('clears the live surface transparently through the addon clearNativeOverlayLiveSurface entry point', async () => {
+    // Bug D — clip 削除後 overlay の drawable に古いフレームが残る症状に対する
+    // bridge 側の契約。`bridge.clearSurface({ windowId })` が addon の
+    // `clearNativeOverlayLiveSurface` を window_id 経由で呼び、native_window_handle
+    // 無しでも成立する（clear は registry lookup で完結するため）ことを保証する。
+    const nativeAddon = {
+      clearNativeOverlayLiveSurface: vi.fn(() => ({ success: true, attached: true })),
+    };
+    const bridge = createNativeOverlayMainBridge({
+      env: { UXFD_NATIVE_OVERLAY: '1' },
+      cwd: '/repo',
+      existsSync: (candidate) => candidate === '/repo/native-overlay/native-overlay.node',
+      requireModule: vi.fn(() => nativeAddon),
+      resolveNativeWindowHandle: vi.fn(() => null),
+    });
+
+    await expect(bridge.clearSurface({ windowId: 7 })).resolves.toEqual({
+      success: true,
+      attached: true,
+    });
+    expect(nativeAddon.clearNativeOverlayLiveSurface).toHaveBeenCalledWith({
+      windowId: 7,
+    });
+  });
+
+  it('falls back to the WebGPU presenter when clearSurface is invoked with the native overlay flag disabled', async () => {
+    // Bug D — 既定 OFF 経路（`UXFD_NATIVE_OVERLAY=0`）では clearSurface も
+    // WebGPU presenter fallback を返し、addon 側を触らないことを保証する。
+    const nativeAddon = {
+      clearNativeOverlayLiveSurface: vi.fn(),
+    };
+    const bridge = createNativeOverlayMainBridge({
+      env: { UXFD_NATIVE_OVERLAY: '0' },
+      cwd: '/repo',
+      existsSync: (candidate) => candidate === '/repo/native-overlay/native-overlay.node',
+      requireModule: vi.fn(() => nativeAddon),
+    });
+
+    await expect(bridge.clearSurface({ windowId: 7 })).resolves.toEqual({
+      success: false,
+      attached: false,
+      fallback: 'webgpuPresenter',
+      reason: 'Native overlay preview is disabled.',
+    });
+    expect(nativeAddon.clearNativeOverlayLiveSurface).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the WebGPU presenter when the addon lacks a clearNativeOverlayLiveSurface entry point', async () => {
+    // Bug D — 未対応 addon（旧 build）に対しては clearSurface が fallback を返す
+    // ことで attach 経路の存在確認と同じ境界を保つ。
+    const nativeAddon = {
+      attachNativeOverlay: vi.fn(),
+    };
+    const bridge = createNativeOverlayMainBridge({
+      env: { UXFD_NATIVE_OVERLAY: '1' },
+      cwd: '/repo',
+      existsSync: (candidate) => candidate === '/repo/native-overlay/native-overlay.node',
+      requireModule: vi.fn(() => nativeAddon),
+    });
+
+    await expect(bridge.clearSurface({ windowId: 7 })).resolves.toEqual({
+      success: false,
+      attached: false,
+      fallback: 'webgpuPresenter',
+      reason: 'Native overlay addon is unavailable.',
+    });
+  });
 });
