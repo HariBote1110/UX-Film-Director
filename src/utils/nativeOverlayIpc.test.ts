@@ -15,7 +15,7 @@ describe('nativeOverlayIpc', () => {
     expect(nativeOverlayIpcChannels.clearSurface).toBe('native-overlay-clear-surface');
   });
 
-  it('registers attach, detach, present, and capabilities handlers against the bridge', async () => {
+  it('registers attach, detach, present, clear-surface, and capabilities handlers against the bridge', async () => {
     const handlers = new Map<string, (_event: unknown, payload: unknown) => Promise<unknown>>();
     const ipcMain = {
       handle: vi.fn((channel: string, handler: (_event: unknown, payload: unknown) => Promise<unknown>) => {
@@ -26,12 +26,13 @@ describe('nativeOverlayIpc', () => {
       attach: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
       detach: vi.fn(async (payload: unknown) => ({ success: true, attached: false, payload })),
       presentSharedFrame: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
+      clearSurface: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
       getCapabilities: vi.fn(() => ({ available: true })),
     };
 
     registerNativeOverlayIpcHandlers(ipcMain, bridge);
 
-    expect(ipcMain.handle).toHaveBeenCalledTimes(4);
+    expect(ipcMain.handle).toHaveBeenCalledTimes(5);
     await expect(handlers.get(nativeOverlayIpcChannels.attach)?.({}, { windowId: 3 })).resolves.toEqual({
       success: true,
       attached: true,
