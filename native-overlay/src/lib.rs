@@ -1360,6 +1360,20 @@ mod tests {
         assert!(source.contains("sel!(hitTest:)"));
     }
 
+    #[test]
+    fn macos_overlay_layer_is_configured_as_non_opaque_for_transparent_composition() {
+        // Bug D — CAMetalLayer は既定 `opaque = YES` で、この状態では下層 WebView や
+        // WebGPU presenter は常時不可視になる。`clear_native_overlay_live_surface` が
+        // 全 pixel alpha=0 で drawable を上書きしても、compositor が overlay を
+        // 不透明扱いする限り透過効果は生まれない。opaque=NO 設定を要求する契約。
+        let source = include_str!("macos_overlay.rs");
+
+        assert!(
+            source.contains("setOpaque"),
+            "macos_overlay must configure CAMetalLayer setOpaque: to enable transparent clear",
+        );
+    }
+
     fn unique_shm_name() -> String {
         let micros = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
