@@ -168,11 +168,33 @@ unsafe fn apply_overlay_layer_contents_scale(view: *mut Object, contents_scale: 
     let () = msg_send![layer, setContentsScale: contents_scale];
 }
 
+/// overlay NSView の現在 layer に対して `setOpaque:` を反映する。
+/// `wgpu` の `create_surface_unsafe` は `contentsScale` と同じく layer を CAMetalLayer に
+/// 差し替えるため、attach 直後の設定だけでは足りず、surface 構築後にも本関数を再度
+/// 呼び出して `opaque` を上書きする必要がある（Bug E）。
+pub fn set_overlay_view_opaque(view_handle: usize, opaque: bool) {
+    if view_handle == 0 {
+        return;
+    }
+    let view = view_handle as *mut Object;
+    if view.is_null() {
+        return;
+    }
+    unsafe {
+        let is_main_thread: BOOL = msg_send![class!(NSThread), isMainThread];
+        if is_main_thread == NO {
+            return;
+        }
+        apply_overlay_layer_opaque(view, opaque);
+    }
+}
+
 /// Bug D — CAMetalLayer の `opaque` プロパティを反映する。
 /// `false` を渡すと `setOpaque: NO` が発行され、compositor は overlay 層の
 /// alpha を尊重するようになり、`LoadOp::Clear(TRANSPARENT)` の結果が
-/// 実際に下層まで抜ける。attach 直後に一度だけ呼べば十分で、以降 wgpu 側の
-/// `create_surface_unsafe` で layer が差し替えられても本値は継承される。
+/// 実際に下層まで抜ける。ただし `contentsScale` と同じく wgpu が layer を
+/// 差し替えるため、surface 構築後に `set_overlay_view_opaque` で再適用する
+/// 必要がある（Bug E）。attach 直後の一度きりの設定だけでは不十分。
 unsafe fn apply_overlay_layer_opaque(view: *mut Object, opaque: bool) {
     if view.is_null() {
         return;

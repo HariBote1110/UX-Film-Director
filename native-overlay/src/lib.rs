@@ -397,6 +397,10 @@ fn attach_native_overlay_inner(payload: NativeOverlayAttachPayload) -> NativeOve
         // surface 構築前に設定した `contentsScale` は失われている。HiDPI 環境では
         // ここで再度反映しないと drawable の左下 1/4 しか画面に貼り出されない（Bug B）。
         macos_overlay::set_overlay_view_contents_scale(view_handle, contract.contents_scale);
+        // contentsScale と同じ理由で `opaque` も layer 差し替えにより既定値 YES へ戻る。
+        // 再適用しないと `LoadOp::Clear(TRANSPARENT)` が compositor 上で不透明扱いされ、
+        // 編集画面の preview が真っ黒になる（Bug E — Bug D 直後の実機リグレッション）。
+        macos_overlay::set_overlay_view_opaque(view_handle, false);
     }
 
     NativeOverlayResponse {
