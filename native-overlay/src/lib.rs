@@ -1241,6 +1241,47 @@ mod tests {
     }
 
     #[test]
+    fn build_empty_scene_snapshot_for_transparent_clear_yields_no_clips_and_no_sources() {
+        // Bug D — `clear_native_overlay_live_surface` は空 scene を live surface に present し、
+        // `LoadOp::Clear(wgpu::Color::TRANSPARENT)` によって drawable を全 pixel alpha=0 で
+        // 上書きする方針。専用 clear render logic は追加しない（既存の
+        // `present_scene_to_surface_texture` が空 clips でも同じ clear pass を走らせるため）。
+        // よって呼び出し側は「空 SceneSnapshot と空 sources」を必ず用意できる必要がある。
+        let (snapshot, sources) = build_empty_scene_snapshot_for_transparent_clear();
+
+        assert!(
+            snapshot.clips.is_empty(),
+            "empty scene snapshot for transparent clear must carry no clips, got {} clips",
+            snapshot.clips.len(),
+        );
+        assert!(
+            sources.is_empty(),
+            "empty scene snapshot for transparent clear must carry no sources, got {} entries",
+            sources.len(),
+        );
+        assert_eq!(
+            snapshot.colour,
+            ColourPipeline::rec709_sdr_linear(),
+            "transparent clear must reuse the canonical colour pipeline so downstream \
+             validators do not treat this present as an out-of-band colour change",
+        );
+    }
+
+    #[test]
+    fn clear_native_overlay_live_surface_returns_err_when_no_renderer_is_registered() {
+        // Bug D — clip 削除後に overlay の drawable に古いフレームが残る問題への対処として、
+        // `clear_native_overlay_live_surface(window_id)` を新設する。attach されていない
+        // window_id に対しては明示的な Err を返し、上位から fallback 判断できるようにする。
+        let unused_window_id = u32::MAX - 424;
+        let error = clear_native_overlay_live_surface(unused_window_id)
+            .expect_err("clearing an unattached window must not silently succeed");
+        assert!(
+            error.contains("Native overlay live surface"),
+            "error message should point at the live surface registry, got: {error}",
+        );
+    }
+
+    #[test]
     fn macos_overlay_view_is_click_through() {
         let source = include_str!("macos_overlay.rs");
 
