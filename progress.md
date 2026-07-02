@@ -1,3 +1,45 @@
+## 2026-07-02 — 実機検証で確定した2件のバグを修正（macOS shm名31文字超過によるnative render恒久失敗／native render再利用loopでのpresenter診断フリーズ）
+
+### 実施内容
+
+- 親セッションの実機CDP計測により、mp4再生ロジック自体（ring枯渇対策）は解消済みだが、以下2件が残存することが判明。TDDで両方修正した。
+- **問題1（真因確定済み）: macOSのPOSIX shm名31文字制限超過**
+  - 再生16.6秒以降（frame_indexが4桁以上）でnative renderが`shm_open(create): File name too long`（errno 63/ENAMETOOLONG）で毎回失敗していた。
+  - 真因: `src/utils/sharedRendererViewportNativeRenderUpload.ts`の`buildPreviewNativeRenderMemoryId`が`/uxfd-preview-native-render-${requestId}`（prefix 28文字+requestIdの10進桁数）を生成しており、macOSのPSHMNAMLEN=31を4桁以上のrequestIdで超過する。frame 622（ちょうど31文字）でのシーク成功、frame_index 4桁以降の恒久失敗という実機ログと整合。
+  - リポジトリ全体を`grep`で洗い出した結果、動的にshm名を生成している箇所はこの1箇所のみ（他の`/uxfd-`系文字列はテストのモック用固定文字列か、既にハッシュ化済みの`buildNativeRenderMemoryId`/`buildEncodeSourceMemoryId`（export経路、`sharedRendererExportFrameSource.ts`）で最大でも24文字程度に収まっており対象外）。
+  - **Red**（`2709c2eb`）: TS側は`prepareSharedRendererViewportNativeRenderUpload`にrequestId=123,456,789を渡し、生成されたmemoryIdが31文字を超える（37文字）ことを確認。Rust側は`PosixSharedRing::create_with_slot_count`/`attach_with_retry`に31文字超の名前を渡した際、明示的な`PosixShmError::NameTooLong`を返す契約を追加（variant未定義でコンパイル時Red）。
+  - **Green**（`842a591a`）: TS側は`buildPreviewNativeRenderMemoryId`を`/uxfd-pn-${requestId.toString(36)}`へ変更（`Number.MAX_SAFE_INTEGER`まで20文字以内。requestIdは presentごとの単調増加カウンタのため一意性は維持）。Rust側は`shared-memory-spike/src/lib.rs`の`shm_name`に、名前が31バイト（`POSIX_SHM_NAME_MAX_LEN`定数）を超える場合、`shm_open`呼び出し前に`PosixShmError::NameTooLong { limit, actual }`を返すガードを追加。renderId（Rust側診断用ジョブID、shmには渡らない）は変更なし。
+- **問題2（真因特定・修正）: native render再利用loopでpresenter診断が新フレームへ更新されない**
+  - 実機計測で`VideoPresentedFrameIndex`/`VideoPresentedSourceFrame`が再生全期間0のまま、`VideoOwner: pixi`/`VideoCutoverReason: videoFrameUploadUnavailable`に固定されていた。
+  - 調査の結果、rust-only再生時の`canReuseNativeRenderPresenter`パス（`Viewport.tsx`）は、presenter起動後の毎tickで`prepareSharedRendererViewportNativeRenderUpload`→`presentPreparedNativeRenderFrame`のみを呼び出し、`writeSharedRendererPresenterDiagnostics`（診断dataset書き込み）を一切再実行しないことが判明。加えて`startSharedRendererViewportPresenter`の初回起動時は（reuse対象の native render upload をまだ持たないため）`sharedRendererNativeRenderFrameUpload`が渡らず`nativeRenderFrameReady=false`となり、`videoOwnership`は`videoFrameUploadUnavailable`（pixiフォールバック）に落ちる。この初回診断値が、以降の全playback tickにわたって凍結されたまま表示され続けていた——**問題1とは独立した別バグ**であり、問題1の修正だけでは解消しない（native renderが毎回成功するようになっても、diagnostics再publish自体が呼ばれないため）。
+  - **Red**（`003c7c4c`, `a21809a4`）: `sharedRendererPreviewPresenterController.test.ts`に、native render frameを2回（初期フレーム→新フレーム）presentし、2回目の`presentPreparedNativeRenderFrame`後もdiagnostics datasetの`VideoPresentedFrameIndex`が初回フレーム番号のまま更新されないことをRedで確認するテストを追加。
+  - **Green**（本エントリ）: `presentPreparedNativeRenderFrame`が第2引数`{ session? }`を受け取れるよう拡張し、`session`が渡された場合はアップロード成功後に`videoOwnership`をその場で再計算（`nativeRenderFrameReady: true`固定）した上で診断datasetを再publishするようにした。診断構築ロジックは`buildReadyDiagnosticsState`として関数化し、presenter起動時の初回publishと再利用loopの再publishで共通化。`Viewport.tsx`の呼び出し箇所を`presentPreparedNativeRenderFrame(result.upload, { session })`へ変更し、そのtickの最新sessionを渡すようにした。
+- 実行したテストコマンドと結果:
+  - `cargo test --manifest-path shared-memory-spike/Cargo.toml` — 全Green（`NameTooLong`関連2件含む）。
+  - `cargo test --manifest-path shared-video-frame-bridge/Cargo.toml` — 4 tests Green。
+  - `cargo test --manifest-path rust-backend/Cargo.toml` — unittests 52 + decode_control_plane 60 = 112 tests Green（回帰なし）。
+  - `cargo build --release --manifest-path rust-backend/Cargo.toml` — Green。
+  - `node scripts/build-shared-video-frame-node-addon.mjs` — Green。
+  - `npx vitest run src/utils/sharedRendererViewportNativeRenderUpload.test.ts` — 18 tests Green（新規1件含む）。
+  - `npx vitest run src/utils/sharedRendererPreviewPresenterController.test.ts` — 47 tests Green（新規1件含む）。
+  - `npx vitest run src/utils/viewportRustVideoOnlyBoundary.test.ts` — 38 tests Green（既存の文字列一致アサーションを新シグネチャへ更新）。
+  - `npx vitest run src/utils/sharedRendererViewportPresenterOrchestration.test.ts` — 22 tests Green。
+  - `npx vitest run`（全体） — 1067 tests中1062 Green、5件failedはいずれも本セッション変更前から存在する既知の失敗（`productionVideoDependencyBoundary.test.ts`のHTMLVideoElement境界違反、`rustBackendNativeRenderBoundary.test.ts`の2件、`psdParser.perf.test.ts`のパフォーマンス測定2件）であることを`git stash`で変更前状態と突き合わせて確認済み。
+  - `npx tsc --noEmit -p .` — 29件のエラーは全て本セッション変更前から存在（`git stash`比較で確認）。唯一の差分はViewport.tsxの既知エラー（TS2322、コメント追加で行番号のみ1257→1260にシフト）と、Redテストで意図的に発生させたTS2554（Green化により解消）。新規エラーはゼロ。
+- 版: 同一重大バグ修正の継続として`0.1.1-Beta-425b` → `0.1.1-Beta-425c`（SubVer+1）。
+
+### 選定理由・判断の根拠
+
+- **問題1でTS側をハッシュではなく36進数エンコードにした理由**: export経路の`buildNativeRenderMemoryId`/`buildEncodeSourceMemoryId`は既にFNV-1aハッシュ＋36進数のパターンを採用しているが、これは複数の同時進行export sessionを識別する必要があるため。preview native renderの`requestId`はViewport.tsx側で単発presentごとに単調増加するカウンタであり、ハッシュ衝突を心配する必要がなく36進数変換のみで安全に一意性を保てる（`Number.MAX_SAFE_INTEGER`でも20文字、31文字制限に対して余裕が大きい）。ハッシュを追加すると衝突可能性の検討・ハッシュ関数の妥当性検証というスコープ外の複雑性を持ち込むため、シンプルな方を選んだ。
+- **Rust側を`PosixShmError::NameTooLong`という新variantにした理由**: 既存の`InvalidName`はスラッシュ始まりでない・CString化できない（NUL含有）等の構文レベルのエラーを表しており、「長さ超過」は原因が異なる（実機ログでは`Io{operation: "shm_open(create)", source: Os{code: 63,..}}`という誤解を招く形で観測されていた）。呼び出し元が原因を一目で判別できるよう、既存variantを流用せず専用variantを追加した。
+- **問題2の診断再publishをViewport.tsx側の`session`渡しにした理由**: `presentPreparedNativeRenderFrame`はpresenterのクロージャ内にあり、`session`自体は再利用loop中は更新されない（意図的——presenter再起動を避けるのがreuseパスの目的）。呼び出し側（Viewport.tsx）は毎tickで最新の`session`を構築済みであり、それをオプション引数として渡す設計が、presenter側の責務（受け取ったsessionをもとに診断を書く）を変えずに最小の変更で実現できた。`videoOwnership`をtickごとに再計算する際`nativeRenderFrameReady: true`を固定にしたのは、この関数が呼ばれる時点で実際にnative render frameのアップロード・presentが成功していることが保証されているため。
+- **問題1と問題2の因果関係**: 当初「問題1の修正で問題2が自然解消するか」を検証する想定だったが、コード調査の結果、問題2は`writeSharedRendererPresenterDiagnostics`が再利用loop内で一度も呼ばれないという別のギャップであり、問題1（shm名）を直しても診断dataset自体が更新されないままだったため、独立した修正が必要と判断した。
+
+### 残課題・次のステップ
+
+- **観測3（軽微・任意、スコープ外として保留）**: native render失敗が続く間、native overlay（`window.nativeOverlay`）に古いdrawableが残留し、playhead位置に動画クリップが無くても最後のpresentフレームが表示され続ける件。`nativeOverlayPreviewEnabled`分岐は今回修正した`preferNativeRenderUpload`/WebGPU presenterパスとは別のcompositorパスであり、「失敗が続く場合にtransparent clearを呼ぶ」条件をどこに置くかの調査が別途必要。問題1の修正でnative render失敗自体が解消されるため発生条件は大きく減るはずだが、他要因（例: 一時的なGPUエラー）でも再現しうるため、次回実機検証で継続発生する場合に着手する。
+- 実機Electron起動確認は本セッションでは未実施（親セッションに委譲）。
+
 ## 2026-07-02 — 追加修正: mp4再生が依然blockedになる残存要因を解消（未readスロットの解放不能＋lease同一性衝突＋byteOffset不整合）
 
 ### 実施内容
