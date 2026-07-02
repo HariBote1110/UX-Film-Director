@@ -911,7 +911,16 @@ fn probe_video_input_metadata(
         .and_then(Value::as_array)
         .and_then(|streams| streams.first())
         .ok_or_else(|| "ffprobe did not return a video stream".to_string())?;
-    let range = stream_metadata_string(stream, "color_range")?;
+    // `color_range` is frequently absent from real-world mp4s (ffprobe omits
+    // the field entirely rather than reporting "unknown"). H.264's
+    // conventional default when unspecified is limited (tv) range, so a
+    // missing tag must not fail the decode — it falls back to "tv" exactly
+    // like an explicit "unknown" already does below. Only an explicit "pc"
+    // (full range) is honoured as such.
+    let range = stream
+        .get("color_range")
+        .and_then(Value::as_str)
+        .unwrap_or("tv");
     let range = match range {
         "pc" => "pc",
         "tv" => "tv",
@@ -950,11 +959,4 @@ mod tests {
             "VideoToolbox hwaccel must be declared before the input"
         );
     }
-}
-
-fn stream_metadata_string<'a>(stream: &'a Value, key: &str) -> Result<&'a str, String> {
-    stream
-        .get(key)
-        .and_then(Value::as_str)
-        .ok_or_else(|| format!("ffprobe video stream did not include {key}"))
 }

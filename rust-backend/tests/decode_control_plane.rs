@@ -5211,7 +5211,7 @@ fn decode_request_frame_falls_back_to_limited_range_when_source_omits_color_rang
         .as_u64()
         .expect("stride bytes") as usize;
 
-    let expected_tight_rgba = decode_tight_rgba_frame_with_input_range(
+    let expected_tight_rgba = decode_tight_rgba_frame_with_input_range_and_no_matrix_hint(
         &fixture.path,
         1,
         fixture.width,
@@ -5727,6 +5727,50 @@ fn decode_tight_rgba_frame_with_input_range(
         .arg("-vf")
         .arg(format!(
             "select=eq(n\\,{frame_index}),scale=w={width}:h={height}:in_range={input_range}:out_range=pc:in_color_matrix=bt709:out_color_matrix=bt709,format=rgba"
+        ))
+        .arg("-frames:v")
+        .arg("1")
+        .arg("-pix_fmt")
+        .arg("rgba")
+        .arg("-f")
+        .arg("rawvideo")
+        .arg("pipe:1");
+
+    let output = command.output().expect("run ffmpeg decode");
+    assert!(
+        output.status.success(),
+        "decode fixture frame failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(output.stdout.len(), width as usize * height as usize * 4);
+    output.stdout
+}
+
+/// Same idea as `decode_tight_rgba_frame_with_input_range`, but omits the
+/// `in_color_matrix`/`out_color_matrix` filter arguments, matching the
+/// production `scale=...,format=rgba` filter used by
+/// `start_streaming_decode_process` (which does not pin a colour matrix
+/// either). Fixtures with no colour VUI metadata at all (see
+/// `build_no_colour_range_metadata_two_frame_h264_fixture`) must be compared
+/// against this variant — pinning `bt709` explicitly on one side only would
+/// introduce a rounding mismatch unrelated to the range fallback under test.
+fn decode_tight_rgba_frame_with_input_range_and_no_matrix_hint(
+    path: &Path,
+    frame_index: u64,
+    width: u32,
+    height: u32,
+    input_range: &'static str,
+) -> Vec<u8> {
+    let mut command = Command::new("ffmpeg");
+    command
+        .arg("-hide_banner")
+        .arg("-loglevel")
+        .arg("error")
+        .arg("-i")
+        .arg(path)
+        .arg("-vf")
+        .arg(format!(
+            "select=eq(n\\,{frame_index}),scale=w={width}:h={height}:in_range={input_range}:out_range=pc,format=rgba"
         ))
         .arg("-frames:v")
         .arg("1")
