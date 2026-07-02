@@ -1,3 +1,41 @@
+## 2026-07-03 — バグ②修正: color_range欠落mp4のデコード拒否をtvフォールバックで解消（426b）
+
+### 実施内容
+
+- `rust-backend/src/decode.rs` の `probe_video_input_metadata` が、ffprobe の `color_range` フィールドが完全に欠落しているケース（`stream_metadata_string` の `ok_or_else` が即エラー化）で `frameDecodeFailed: ffprobe video stream did not include color_range` を返し、当該 mp4 が一切再生できなくなっていた原因を特定した。
+- Red: `color_range` を含む colour VUI を一切持たない mp4 fixture（`build_no_colour_range_metadata_two_frame_h264_fixture`）を新設し、`decode.requestFrame` が失敗する契約違反を固定した。
+- Green: `color_range` フィールド欠落時は既存の `"unknown"` ケースと同様に `"tv"`（limited range）へフォールバックするよう変更。`stream_metadata_string` ヘルパーはこのユースケース以外の呼び出し元がなかったため削除した。
+- 版を `0.1.1-Beta-426a` → `0.1.1-Beta-426b` へ更新。
+
+### 選定理由・判断の根拠
+
+- H.264 で colour_description（color_range 含む）が未指定のときの慣例的既定値は limited(tv) range であるため、欠落時のフォールバック先として `tv` を選んだ（既存コードの `"unknown"` → `"tv"` フォールバックと同じ扱いに揃えた）。`full`(pc) を明示するファイルは従来どおり尊重するため、既存の期待挙動を壊さない。
+- 期待値検証用のfixtureで `-color_primaries`/`-colorspace` 等のコンテナタグを明示すると、x264 の `-x264-params colorprim=...` と組み合わさって ffmpeg が自動的に `color_range=tv` を書き込んでしまい、「color_range だけ欠落」という状態を再現できないことを実験で確認した。そのため fixture は colour VUI を完全に省略し、期待値計算側も本番の decode フィルタと同じく `in_color_matrix` 指定なしで比較する専用ヘルパー（`decode_tight_rgba_frame_with_input_range_and_no_matrix_hint`）を追加し、range フォールバック以外の要因（colour matrix丸め誤差）を排除した。
+
+### 残課題・次のステップ
+
+- 実機検証は親セッションが実施（`12.mp4` 等の color_range 欠落ファイルで再生できることを確認予定）。
+
+## 2026-07-03 — バグ①修正: 30fpsソースが60fps previewで2倍速再生されるfps変換欠落を解消（426a）
+
+### 実施内容
+
+- 原因を2段構成で特定した。(1) `rust-core/src/timeline.rs::evaluate_frame` と TS 側 `src/utils/rustSceneSnapshot.ts::sourceFrameForObject` は、クリップのソースフレーム番号を**プロジェクトfps（プレビュー tick fps、60fps）基準**で計算しており、`mediaReferenceForObject`（`rustSceneSnapshot.ts:998`）の `source_rate` にもソースの実fpsではなく常にプロジェクトfpsを代入していた。(2) `rust-backend/src/decode.rs::decode_rgba_frame_for_session` の sequential 読み進めロジック（672-717行、`decoder.next_frame_index += 1`）は「`decode.requestFrame` の `frameIndex` が1増える＝ffmpeg出力ストリームの次の1フレームを読む」という前提で実装されているが、`start_streaming_decode_process`（785-824行）がffmpegへ渡す `-vf` フィルタに fps 変換が無く、ffmpeg はソースの native fps（例: 30fps）でフレームを出力していた。この結果、60fpsのプレビュー tick で `frameIndex` を1ずつ進めると、1 tick で 30fps ソースの1フレームをそのまま消費してしまい、実際の再生速度が2倍になり、ソース終端で `forwardGapExceeded`（約1.5秒のデコーダ再起動）ストールが発生していた（実機 CDP + `UXFD_DECODE_TRACE=1` の実測と完全一致）。
+- 修正方針は rust-backend 側のみに限定した。`build_streaming_decode_args` に渡す filter 文字列の先頭に `fps={source_rate.numerator}/{source_rate.denominator}` を追加し、ffmpeg 自身にソースの native fps から `source_rate`（= 要求 frameIndex の時間分解域）への変換（フレーム複製/間引き）を行わせることで、以後の sequential 消費ロジックの前提（1 frameIndex = 1 出力フレーム）を正しくした。TS 側・rust-core 側は変更していない（`source_rate` に project fps を渡す既存の実装が、この修正後は「要求 frameIndex の時間分解域」として正しく機能する）。
+- Red: 30fpsソース（6フレーム）を `sourceRate: 60/1` で `decode.start` し、`frameIndex` 0..11 を連続要求すると各ソースフレームが2回ずつ複製提示され、かつ全リクエストが `streamRestartReason=sequential`（`forwardGapExceeded` なし）で完走する契約を `rust-backend/tests/decode_control_plane.rs` に追加して固定した。
+- テスト用に colour primaries を明示指定する `build_n_frame_h264_fixture_with_colour_metadata` を追加した（既存の `build_n_frame_h264_fixture` は colour metadata 未指定のため、`decode_tight_rgba_frame` の `in_color_matrix=bt709` 前提との checksum 比較が丸め誤差で不一致になっていた）。
+- 版を `0.1.1-Beta-425f` → `0.1.1-Beta-426a` へ更新（重大バグ修正）。
+
+### 選定理由・判断の根拠
+
+- ffmpeg の `fps` フィルタが「入力PTSに基づき指定fpsへ複製/間引きする」ことを、scratchpad での実測（30fpsソース4フレーム→`fps=60/1`適用で8フレームに複製、frame0,1→src0 / frame2,3→src1 / ... の対応を確認）で先に検証してから実装した。
+- 代替案として「TS側で`source_frame`をソースの実fps基準に計算し直し、`source_rate`にソースの実fpsを渡す」方式も検討したが、`VideoObject`型（`src/types.ts`）にソースの実fpsを保持するフィールドが存在せず、メディアインポート時のffprobe fps取得・型定義・プロジェクトファイル保存/読込への影響が大きい大改修になるため見送った。rust-backend側のみでffmpegにfps変換を委ねる方式は、既存の「`source_rate`=要求フレームの時間分解域」という現状の実装をそのまま活かせ、変更範囲を最小化できる。
+- 既存テスト（`decode_streaming_restart_count_stays_low_across_playback_with_repeats_and_backsteps` 等）は全て `sourceRate` にソースの実fpsと同一の値（30fps）を渡していたため、この不整合ケース自体がテストされていなかった。
+
+### 残課題・次のステップ
+
+- 実機検証は親セッションが実施予定。観点: 30fpsソース（217フレーム）が等速再生され `forwardGapExceeded` が発生しないこと、`presentSharedFrameTrace` の `ptsFrame` が最後まで連続すること、24fps→60fps等の不整数比ソースでも破綻しないこと。
+
 ## 2026-07-03 — 実機検証: preview decode 解像度追従（425f）合格＋再生停止バグ2件を新規発見
 
 ### 実施内容
