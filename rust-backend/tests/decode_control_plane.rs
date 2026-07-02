@@ -4873,6 +4873,108 @@ fn decode_release_frame_distinguishes_two_leases_that_reused_the_same_data_plane
         .expect("all data-plane slots return to free after both leases are released");
 }
 
+/// Root cause of the "decodedFrameUnavailable → permanently blocked" failure
+/// observed on 0.1.1-Beta-425a: the renderer-side validator
+/// (isRustBackendDecodedVideoFrameAvailable → isValidSharedFrameDescriptor)
+/// and the native overlay upload path both require
+/// `byteOffset === slotIndex * byteLen`. When descriptor.slotIndex was
+/// re-pointed at the data-plane's real slot, byteOffset stayed derived from
+/// the control-plane slot — so the first time the two slot numbers diverged
+/// (a native render source read frees the data-plane slot early and the next
+/// request reuses it) the response failed renderer validation and the
+/// presenter latched into blocked. The whole descriptor must be
+/// self-consistent against the data-plane slot.
+#[test]
+fn decode_request_frame_descriptor_byte_offset_matches_data_plane_slot_index() {
+    let temp_dir = TestTempDir::new("decode-control-plane-byte-offset");
+    let fixture = build_two_frame_h264_fixture(temp_dir.path());
+    let mut backend = BackendProcess::start();
+
+    let start_response = backend.request(json!({
+        "id": 1,
+        "method": "decode.start",
+        "params": {
+            "jobId": "byte-offset",
+            "source": fixture.path,
+            "slotCount": 2,
+            "width": fixture.width,
+            "height": fixture.height,
+            "sourceRate": {
+                "numerator": 30,
+                "denominator": 1
+            },
+            "format": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(start_response["ok"], true, "{start_response}");
+    let memory_id = start_response["result"]["memoryId"]
+        .as_str()
+        .expect("memory id");
+    let slot_byte_len = start_response["result"]["slotByteLen"]
+        .as_u64()
+        .expect("slot byte length");
+    let consumer_ring = PosixSharedRing::attach_with_retry_for_layout(
+        memory_id,
+        2,
+        slot_byte_len as usize,
+        Duration::from_secs(1),
+    )
+    .expect("attach to decode data-plane ring");
+
+    // Desynchronise the control-plane slot from the data-plane slot: the
+    // native render source read consumes frame 0 and frees its data-plane
+    // slot while the lease stays outstanding on the control-plane, so the
+    // next request pairs control-plane slot 1 with data-plane slot 0.
+    let first_response = backend.request(json!({
+        "id": 2,
+        "method": "decode.requestFrame",
+        "params": {
+            "jobId": "byte-offset",
+            "requestId": 61,
+            "frameIndex": 0,
+            "mode": "latestWins"
+        }
+    }));
+    assert_eq!(first_response["ok"], true, "{first_response}");
+    let first_mapped = consumer_ring
+        .read_frame(0)
+        .expect("native render source reads the first decoded frame");
+    consumer_ring
+        .release_frame_slot(
+            first_mapped.slot_index,
+            uxfd_sidecar_protocol::CopyOutState::GpuUploadFenceSignalled,
+        )
+        .expect("native render source releases the first data-plane slot");
+
+    let second_response = backend.request(json!({
+        "id": 3,
+        "method": "decode.requestFrame",
+        "params": {
+            "jobId": "byte-offset",
+            "requestId": 62,
+            "frameIndex": 1,
+            "mode": "latestWins"
+        }
+    }));
+    assert_eq!(second_response["ok"], true, "{second_response}");
+    let descriptor = &second_response["result"]["frame"]["descriptor"];
+    let slot_index = descriptor["slotIndex"].as_u64().expect("slot index");
+    let byte_len = descriptor["byteLen"].as_u64().expect("byte len");
+    let byte_offset = descriptor["byteOffset"].as_u64().expect("byte offset");
+    assert_eq!(
+        byte_offset,
+        slot_index * byte_len,
+        "descriptor.byteOffset must be consistent with the data-plane slotIndex the renderer \
+         validates and reads against, not with the internal control-plane slot: {descriptor}"
+    );
+}
+
 #[test]
 fn decode_request_frame_uses_limited_range_source_metadata_for_rgba_handoff() {
     let temp_dir = TestTempDir::new("decode-control-plane-limited");
