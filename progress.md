@@ -1,3 +1,25 @@
+## 2026-07-03 — preview decode 解像度を固定720からdrawable長辺追従へ変更（ボケ解消）
+
+### 実施内容
+
+- 実機報告「preview の解像度がすごく低い」への対応。preview decode が `SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE=720` 固定のため、720x405 のフレームを drawable（実測 1564x880、フルスクリーン相当 2588x1456）へ引き伸ばしてボケていた。
+- **解像度決定式**: `resolveSharedRendererPlaybackDecodeMaxEdge(drawable) = clamp(round(max(width, height)), 360, 1920)` を `sharedRendererPlaybackPreviewSettings.ts` に新設。drawable 不明（attach 前・detach 後）は従来値 720 へフォールバック。media 宣言解像度との min は既存の `resolveViewportVideoDecodeSize` が source 寸法との min（`scale=min(1,…)`）で担保するため、decode がソースを超えるアップスケールになることはない。丸めは `Math.round`（既存の decode サイズ丸めと同じ。偶数制約は既存 720x405＝奇数高で実績があるため無し）。
+- **drawable 取得元**: 既存の native overlay attach effect（Viewport.tsx）が計算する attach rect を `nativeOverlayDrawableSizeRef` に保持（CSS pt × dpr、Rust の `build_overlay_layer_contract` と同じ丸め）。新たな DOM 測定は追加していない。unmount 時に null へ戻す。
+- **decode job 再生成の挙動**: jobId に `${width}x${height}` が含まれ `sameDecodeJob` が寸法比較するため、解像度は job 生成時に固定される。pane サイズ不変の間は edge も不変 → 再生/停止の遷移では warm decoder が温存され、28d5ebe8「デコード解像度を再生/停止で固定しデコーダ温存」の意図を維持。pane リサイズ時のみ次の present で job が自然に作り直される（コーディネーターと許容合意済み。edge の量子化は行っていないため、リサイズ確定までの間に数回の再生成が起こり得る点は実機で要観察）。
+- **TDD**: Red で `resolveSharedRendererPlaybackDecodeMaxEdge` の契約（1564x880→1564 / 縦長でも長辺 / 2588x1456→cap 1920 / 極小 pane→floor 360 / 不明・無効→720 / 小数丸め）と Viewport 配線のソース境界を vitest で固定。Rust 側には drawable 一致 decode（1564x880、補正比 1920/1564≈1.228、補正×fit=1.0 の 1:1 present）の契約固定テストを追加（425e の `compensate_upload_decode_downscale` が解像度変更に自動追従することの固定）。
+- 旧定数 `SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE` は `SHARED_RENDERER_PLAYBACK_DECODE_FALLBACK_EDGE` へ改名し、`MIN_EDGE=360` / `EDGE_CAP=1920` を新設。**既存テストの意図変更**: `viewportRustVideoOnlyBoundary.test.ts` の「maxDecodeEdge は固定 720 定数」前提を「drawable 追従ヘルパを渡す」新契約へ更新した（固定 720 に戻すとボケ報告が再発するため）。
+- 全テスト green: native-overlay 20件 / native-wgpu-renderer --lib 7件 / rust-backend 112件（52+60） / parity 1件 / vitest 全体（既存 baseline 失敗 3ファイル5件を除き 1068件 green、新規失敗ゼロ） / tsc baseline 72件のまま / addon build 成功。版 425e→425f。
+
+### 選定理由・判断の根拠
+
+- 下限 360 を設けた: 既存コメントに「320 was visibly blocky」の実績があるため、それを上回る値で品質下限を保証。極小 pane では drawable 長辺そのままだと過度に粗くなる。
+- 上限 1920: 既存の `MAX_VIEWPORT_VIDEO_DECODE_EDGE=1920` と一致させ、decode パイプラインの前提を変えない。フルスクリーン drawable（2588）でも 1080p ソースは source min で 1920 に決まるため無駄がない。
+- **負荷観点**: drawable 1564x880 の decode は 720x405 比で約 4.7 倍のピクセル数。shm slot サイズは decode.start の width/height から自動算出されるため転送路は追従済み。rust-backend の decode は要求寸法へのスケールを既にテスト済み（`decode_request_frame_scales_source_frame_to_requested_decode_dimensions`）。decodeMs の実測増分は親セッションが `UXFD_DECODE_TRACE=1` で確認予定。FPS 低下報告は `UXFD_NATIVE_OVERLAY_READBACK_TRACE=1`（毎フレーム readback）が原因と特定済みのため decode 側の変更はしない。
+
+### 残課題・次のステップ
+
+- 実機（425f）での decodeMs 増分・リサイズ時の job 再生成頻度の確認は親セッションで実施予定。
+
 ## 2026-07-02 — 実機検証: preview 縮小表示修正（425e）をトレース値で数値確認
 
 ### 実施内容
