@@ -1,3 +1,28 @@
+## 2026-07-03 — 実機検証: preview decode 解像度追従（425f）合格＋再生停止バグ2件を新規発見
+
+### 実施内容
+
+- 0.1.1-Beta-425f をクリーン起動（`UXFD_REMOTE_DEBUG_PORT=9222 UXFD_DECODE_TRACE=1`）し CDP のみで実機検証した。
+- **425f 検証結果（合格）**:
+  - decode job 名が `…-1563x879-60over1`（旧: `…-720x405-…`）となり drawable 長辺追従を確認。
+  - decodeMs: 中央値 1.5ms / p90 4.6ms（firstFrame・restart 時のみ 244〜320ms）。720p 比 4.7 倍のピクセル数でも VideoToolbox には余裕。
+  - presentMs: 中央値 7.5ms / 最大 10.5ms（16.7ms 予算内）。present レートはストール区間（後述バグ）を除き 60/s。
+  - 再生中スクリーンショットで、ミニマップの座標文字が判読できるピクセル単位のシャープさを確認（従来は 720→1564 引き伸ばしでボケ）。
+- **新規バグ①（fps 変換欠落による present ストール・要修正）**: 30fps ソースを 60over1 の preview decode job で再生すると、フレーム複製（60fps 化）が行われず 1 tick = 1 ソースフレームで消費される。ソース終端フレームで present が約 1.5 秒停止し、`reason=forwardGapExceeded restarted=true`（約 260ms のデコーダ再起動）で wall-clock 位置へジャンプして復帰する。
+  - 再現性: 217 フレームのソース（30fps 1920x1080）では 3 run 全てで ptsFrame 217→309 の同一ギャップ。ffmpeg で作った 150 フレームの検証クリップでは ptsFrame 149→241 でストール。**停止位置がソース総フレーム数に完全連動**することで決定論を確認。
+  - decode 側は全フレーム sequential・decodeMs 1〜2ms で完走しており、解像度（425f）とは無関係。マッピング（preview tick ドメインとソースフレームドメインの混同）の問題。
+- **新規バグ②（color_range 欠如の mp4 がデコード拒否・要修正）**: `color_range` メタデータを持たない mp4（例: 手元の 12.mp4）で `frameDecodeFailed: ffprobe video stream did not include color_range` となり一切再生できない。未指定時は tv(limited) へのフォールバックが妥当。
+
+### 選定理由・判断の根拠
+
+- バグ①の切り分けに「フレーム数だけを変えた検証クリップ」を用いた: 解像度・コンテンツ・キーフレーム間隔ではなく総フレーム数にストール位置が連動することを直接証明できるため。ウィンドウリサイズによる decode edge 切り分けは Electron の CDP が `Browser.getWindowForTarget` 非対応のため断念。
+- バグ①は 425f 以前から存在した可能性が高い（機構が解像度非依存。425e 検証時の「クリップ終端付近の transient frameDecodeFailed ×18」は同一現象の別の現れと推定）が、当時はギャップ解析をしていないため未確認とする。
+
+### 残課題・次のステップ
+
+- バグ①（fps 変換欠落）とバグ②（color_range フォールバック）の修正。ユーザーの指示を待ってサブエージェントへ委譲予定。
+- Canvas レイヤが UI より上に来る問題（Bug E・child NSWindow 化）はユーザー判断により保留中。
+
 ## 2026-07-03 — preview decode 解像度を固定720からdrawable長辺追従へ変更（ボケ解消）
 
 ### 実施内容
