@@ -66,6 +66,11 @@ pub struct NativeOverlaySceneSnapshotPayload {
     pub frame_index: f64,
     pub colour: NativeOverlayColourPipelinePayload,
     pub clips: Vec<NativeOverlayEvaluatedClipPayload>,
+    /// プロジェクト解像度（シーン canvas サイズ）。`clips[].transform` の座標系の基準。
+    /// native overlay の drawable ピクセルサイズと一致しない場合があるため、
+    /// `upload_frame_to_scene_sources` がこれを使って contain-fit 変換を行う。
+    pub canvas_width: u32,
+    pub canvas_height: u32,
 }
 
 #[napi(object)]
@@ -178,6 +183,12 @@ pub struct OverlaySharedFramePresentRequest {
 pub struct NativeOverlaySceneSource {
     pub snapshot: SceneSnapshot,
     pub media: Vec<NativeOverlaySceneMedia>,
+    /// シーン（プロジェクト）解像度。`snapshot.clips[].transform` の
+    /// `translation_x/y` と `scale_x/y` はこの解像度基準の絶対ピクセル座標である。
+    /// drawable（native overlay の実ピクセルサイズ）がこれと異なるサイズになる場合、
+    /// `upload_frame_to_scene_sources` がこの値を使って contain-fit 変換を行う。
+    pub canvas_width: u32,
+    pub canvas_height: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -602,10 +613,16 @@ fn scene_present_request_from_payload(
     payload: NativeOverlaySharedFramePresentPayload,
 ) -> Result<OverlaySharedFramePresentRequest, String> {
     let scene = match (payload.snapshot, payload.media) {
-        (Some(snapshot), Some(media)) => Some(NativeOverlaySceneSource {
-            snapshot: scene_snapshot_from_payload(snapshot)?,
-            media: media.into_iter().map(scene_media_from_payload).collect(),
-        }),
+        (Some(snapshot), Some(media)) => {
+            let canvas_width = snapshot.canvas_width;
+            let canvas_height = snapshot.canvas_height;
+            Some(NativeOverlaySceneSource {
+                snapshot: scene_snapshot_from_payload(snapshot)?,
+                media: media.into_iter().map(scene_media_from_payload).collect(),
+                canvas_width,
+                canvas_height,
+            })
+        }
         (None, None) => None,
         _ => {
             return Err(
@@ -1303,6 +1320,8 @@ mod tests {
                 width: 1,
                 height: 1,
             }],
+            canvas_width: 1920,
+            canvas_height: 1080,
         })
         .expect("image source must load even when display size differs from PNG native size");
 
@@ -1426,6 +1445,89 @@ mod tests {
             opaque_call_position > contents_scale_call_position,
             "set_overlay_view_opaque must be called after set_overlay_view_contents_scale \
              (i.e. after wgpu surface construction), not before",
+        );
+    }
+
+    #[test]
+    fn upload_frame_to_scene_sources_fits_scene_canvas_into_drawable_pixel_size() {
+        // 実機バグ: preview pane（drawable 1564x880, CSS 782x440 相当 @ dpr2）へ 1920x1080
+        // プロジェクトのシーンを present すると、動画が pane 左上 1/4 に半分スケールで
+        // 表示された。原因は `scene.snapshot` の `transform.translation_x/y` と
+        // `scale_x/y` がプロジェクト解像度（1920x1080）基準の絶対ピクセル座標であるにも
+        // かかわらず、drawable ピクセル座標としてそのままシェーダーへ渡っていたこと。
+        // drawable と canvas のアスペクト比が僅かにでもズレると contain-fit
+        // （min(drawable/canvas) 倍）で drawable 全域に描画されるべきだが、fit 変換が
+        // 一切行われていなかったため、シーン全体が drawable の左上に「実寸」で
+        // 描かれ、はみ出た残りは切り取られていた。
+        //
+        // このテストは `NativeOverlaySceneSource` に canvas サイズ（プロジェクト解像度）
+        // を持たせ、`upload_frame_to_scene_sources` が drawable 1564x880・canvas
+        // 1920x1080 のとき、contain-fit スケール ≈0.8146（= min(1564/1920, 880/1080)）を
+        // clip の transform に適用した snapshot を返すことを要求する。
+        let upload = OverlayUploadFrame {
+            media_id: "video-1".to_string(),
+            width: 4,
+            height: 4,
+            generation: 1,
+            pts_frame: 0,
+            pixels: vec![0_u8; 4 * 4 * 4],
+        };
+
+        let scene = NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: 0,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: vec![EvaluatedClip {
+                    clip_id: "clip-1".to_string(),
+                    track_id: "track-1".to_string(),
+                    media_id: "video-1".to_string(),
+                    source_frame: 0,
+                    z_index: 0,
+                    transform: Transform {
+                        translation_x: 0.0,
+                        translation_y: 0.0,
+                        scale_x: 1920.0,
+                        scale_y: 1080.0,
+                        rotation_degrees: 0.0,
+                        sampling: SamplingMode::Bilinear,
+                    },
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                }],
+            },
+            media: Vec::new(),
+            canvas_width: 1920,
+            canvas_height: 1080,
+        };
+
+        let (snapshot, _sources) =
+            upload_frame_to_scene_sources(&upload, Some(&scene), 1564, 880)
+                .expect("scene upload must fit into the drawable pixel size");
+
+        let expected_fit_scale = (1564.0_f32 / 1920.0).min(880.0_f32 / 1080.0);
+        assert!(
+            (expected_fit_scale - 0.8146).abs() < 0.001,
+            "expected fit scale sanity check to be ~0.8146, got {expected_fit_scale}"
+        );
+
+        let clip = &snapshot.clips[0];
+        assert!(
+            (clip.transform.scale_x - 1920.0 * expected_fit_scale).abs() < 0.01,
+            "expected drawable-fit scale_x ~{}, got {}",
+            1920.0 * expected_fit_scale,
+            clip.transform.scale_x
+        );
+        assert!(
+            (clip.transform.scale_y - 1080.0 * expected_fit_scale).abs() < 0.01,
+            "expected drawable-fit scale_y ~{}, got {}",
+            1080.0 * expected_fit_scale,
+            clip.transform.scale_y
+        );
+
+        assert!(
+            (clip.transform.scale_x - 1564.0).abs() < 1.0,
+            "expected the fitted clip width to span the drawable width (~1564), got {}",
+            clip.transform.scale_x
         );
     }
 
