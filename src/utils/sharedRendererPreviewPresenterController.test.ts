@@ -1840,13 +1840,22 @@ describe('startSharedRendererPreviewPresenter', () => {
     });
 
     events.length = 0;
-    const nextSession = {
-      ...videoSession,
-      surfaceGate: {
-        ...videoSession.surfaceGate,
-        canvas: { width: 4, height: 4 },
-        snapshot: { ...videoSession.surfaceGate.snapshot, frame_index: 999 },
+    const nextSnapshot: RustSceneSnapshot = { ...videoSnapshot, frame_index: 999 };
+    const nextSession: SharedRendererPreviewSession = {
+      plan: {
+        mode: 'parallelCompare',
+        primary: 'pixi',
+        candidate: 'sharedRenderer',
+        snapshot: nextSnapshot,
+        media: videoMedia,
       },
+      surfaceGate: {
+        ok: true,
+        canvas: { width: 4, height: 4 },
+        snapshot: nextSnapshot,
+        media: videoMedia,
+      },
+      presentationContract: videoSession.presentationContract,
     };
     const presentation = await control.presentPreparedNativeRenderFrame!({
       descriptor: nativeRenderDescriptor,
