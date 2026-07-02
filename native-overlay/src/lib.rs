@@ -830,6 +830,66 @@ pub fn present_overlay_shared_frame_to_live_surface(
     })
 }
 
+/// Opt-in trace (`UXFD_OVERLAY_TRACE=1`): scene present ごとに canvas/drawable 寸法、
+/// contain-fit スケール、letterbox offset、decode 縮小補正、先頭 clip の transform
+/// before→after を stderr に 1 ブロック出力する。preview 縮小表示の座標系不一致を
+/// 実機で切り分けるための恒久診断（既定は無効）。
+fn overlay_trace_enabled() -> bool {
+    std::env::var("UXFD_OVERLAY_TRACE")
+        .map(|value| value == "1")
+        .unwrap_or(false)
+}
+
+fn trace_scene_fit(
+    scene: &NativeOverlaySceneSource,
+    upload: &OverlayUploadFrame,
+    fitted_snapshot: &SceneSnapshot,
+    drawable_width: u32,
+    drawable_height: u32,
+) {
+    let fit_scale = if scene.canvas_width == 0 || scene.canvas_height == 0 {
+        1.0
+    } else {
+        (drawable_width as f32 / scene.canvas_width as f32)
+            .min(drawable_height as f32 / scene.canvas_height as f32)
+    };
+    let offset_x = (drawable_width as f32 - scene.canvas_width as f32 * fit_scale) * 0.5;
+    let offset_y = (drawable_height as f32 - scene.canvas_height as f32 * fit_scale) * 0.5;
+    let media_dims = scene
+        .media
+        .iter()
+        .find(|media| media.id == upload.media_id)
+        .map(|media| format!("{}x{} ({})", media.width, media.height, media.kind))
+        .unwrap_or_else(|| "<missing media entry>".to_string());
+    eprintln!(
+        "[uxfd-overlay-trace] canvas={}x{} drawable={}x{} fit_scale={fit_scale} \
+         letterbox_offset=({offset_x}, {offset_y}) upload={}x{} media_declared={media_dims}",
+        scene.canvas_width,
+        scene.canvas_height,
+        drawable_width,
+        drawable_height,
+        upload.width,
+        upload.height,
+    );
+    if let (Some(before), Some(after)) =
+        (scene.snapshot.clips.first(), fitted_snapshot.clips.first())
+    {
+        eprintln!(
+            "[uxfd-overlay-trace] clip[0]={} transform before: t=({}, {}) s=({}, {}) \
+             -> after: t=({}, {}) s=({}, {})",
+            before.clip_id,
+            before.transform.translation_x,
+            before.transform.translation_y,
+            before.transform.scale_x,
+            before.transform.scale_y,
+            after.transform.translation_x,
+            after.transform.translation_y,
+            after.transform.scale_x,
+            after.transform.scale_y,
+        );
+    }
+}
+
 fn live_surface_readback_trace_enabled() -> bool {
     std::env::var("UXFD_NATIVE_OVERLAY_READBACK_TRACE")
         .ok()
@@ -894,13 +954,30 @@ pub fn upload_frame_to_scene_sources(
         .unwrap_or_default();
     sources.insert(upload.media_id.clone(), frame);
     if let Some(scene) = scene {
+        // preview 経路の decode は速度のため media 宣言サイズより小さい proxy 解像度へ
+        // ダウンスケールされ得る（例: maxDecodeEdge=720 で 1920x1080 → 720x405）。
+        // clip.transform.scale は「media 宣言サイズの source を表示サイズへ拡縮する」
+        // 前提の値なので、decode 縮小比（media 宣言サイズ / upload 実寸）を掛け直して
+        // シーン座標系での表示サイズを復元する。rust-backend の CPU fast path
+        // （cpu_simple_video.rs の fit_scale_x = media.width / source.width）と同じ補正。
+        let compensated_snapshot =
+            compensate_upload_decode_downscale(&scene.snapshot, scene, upload);
         let fitted_snapshot = fit_scene_snapshot_to_drawable(
-            &scene.snapshot,
+            &compensated_snapshot,
             scene.canvas_width,
             scene.canvas_height,
             drawable_width,
             drawable_height,
         );
+        if overlay_trace_enabled() {
+            trace_scene_fit(
+                scene,
+                upload,
+                &fitted_snapshot,
+                drawable_width,
+                drawable_height,
+            );
+        }
         return Ok((fitted_snapshot, sources));
     }
 
@@ -935,6 +1012,40 @@ pub fn upload_frame_to_scene_sources(
     };
 
     Ok((snapshot, sources))
+}
+
+/// preview decode がダウンスケールした upload frame（`upload.width/height`）と
+/// media 宣言サイズ（`scene.media` の該当 entry）の比を、その media を参照する
+/// 全 clip の scale に掛け直す。source == media 宣言サイズなら比は 1.0 で無変換。
+/// media entry が見つからない・寸法が 0 の場合も無変換で返す（Fail Safe）。
+fn compensate_upload_decode_downscale(
+    snapshot: &SceneSnapshot,
+    scene: &NativeOverlaySceneSource,
+    upload: &OverlayUploadFrame,
+) -> SceneSnapshot {
+    let Some(media) = scene.media.iter().find(|media| media.id == upload.media_id) else {
+        return snapshot.clone();
+    };
+    if media.kind != "Video"
+        || upload.width == 0
+        || upload.height == 0
+        || media.width == 0
+        || media.height == 0
+    {
+        return snapshot.clone();
+    }
+
+    let decode_scale_x = media.width as f32 / upload.width as f32;
+    let decode_scale_y = media.height as f32 / upload.height as f32;
+    let mut compensated = snapshot.clone();
+    for clip in &mut compensated.clips {
+        if clip.media_id != upload.media_id {
+            continue;
+        }
+        clip.transform.scale_x *= decode_scale_x;
+        clip.transform.scale_y *= decode_scale_y;
+    }
+    compensated
 }
 
 /// `scene.snapshot` の `clips[].transform` はプロジェクト解像度（`canvas_width`/
