@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::process::{Child, ChildStderr, ChildStdin, ChildStdout};
 use uxfd_sidecar_protocol::{ColourMetadata, DecodeStartResponse, FrameFormat, SharedFrameRing};
 
@@ -13,6 +13,19 @@ pub(crate) struct DecodeSession {
     pub(crate) data_plane_ring: Option<DecodeDataPlaneRing>,
     pub(crate) streaming_decoder: Option<StreamingDecodeProcess>,
     pub(crate) decoded_frame_cache: VecDeque<CachedDecodedRgbaFrame>,
+    /// Maps the slotIndex reported to the renderer (the data-plane ring's
+    /// real slot, the single source of truth) back to the control-plane
+    /// `SharedFrameRing`'s own slot_index + lease generation for that frame.
+    /// The renderer only ever sees and echoes back the data-plane slot, so
+    /// `decode.releaseFrame` needs this to release the matching control-plane
+    /// slot rather than assuming the two numbering schemes agree.
+    pub(crate) data_plane_release_bindings: HashMap<u32, ControlPlaneSlotLease>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ControlPlaneSlotLease {
+    pub(crate) control_plane_slot_index: u32,
+    pub(crate) generation: u64,
 }
 
 pub(crate) struct StreamingDecodeProcess {

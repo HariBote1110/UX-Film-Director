@@ -278,7 +278,14 @@ impl PosixSharedRing {
         }
     }
 
-    pub fn write_frame(&self, sequence: u64, bytes: &[u8]) -> Result<(), PosixShmError> {
+    /// Writes `bytes` into the lowest-numbered FREE slot and returns the slot
+    /// index it actually landed in. Callers that need the descriptor they
+    /// hand to a renderer/consumer to describe the real data-plane location
+    /// must use this return value as the single source of truth for
+    /// slot_index — the data-plane ring's own FREE-slot scan is independent
+    /// from any other slot bookkeeping (e.g. a control-plane ring) and can
+    /// diverge from it once slots are freed out of lock-step.
+    pub fn write_frame(&self, sequence: u64, bytes: &[u8]) -> Result<u32, PosixShmError> {
         if bytes.len() != self.frame_len {
             return Err(PosixShmError::FrameLengthMismatch {
                 expected: self.frame_len,
@@ -304,7 +311,7 @@ impl PosixSharedRing {
                     slot.sequence.store(sequence, Ordering::Relaxed);
                     slot.checksum.store(crc32(bytes), Ordering::Relaxed);
                     slot.state.store(READY, Ordering::Release);
-                    return Ok(());
+                    return Ok(slot_index);
                 }
             }
 

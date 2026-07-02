@@ -98,7 +98,13 @@ pub(crate) fn read_native_render_source_frame(
         .read_frame(source.frame.pts_frame)
         .map_err(|error| format!("Failed to read native render source frame: {error:?}"))?;
     let tight_rgba = tight_rgba_from_padded_descriptor(descriptor, &mapped.bytes)?;
-    ring.release_frame(CopyOutState::GpuUploadFenceSignalled)
+    // Release the slot this call actually read (by lease), not "whichever
+    // slot is first found READING". The unqualified release_frame() would
+    // steal a slot leased to a different, still in-flight consumer of the
+    // same ring (e.g. the renderer copy bridge in
+    // shared-video-frame-bridge), leaving this call's own slot stuck in
+    // READING forever.
+    ring.release_frame_slot(mapped.slot_index, CopyOutState::GpuUploadFenceSignalled)
         .map_err(|error| format!("Failed to release native render source frame: {error:?}"))?;
 
     RgbaFrame::from_rgba8(descriptor.width, descriptor.height, tight_rgba)

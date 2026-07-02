@@ -382,6 +382,16 @@ fn format_bridge_error(error: SharedVideoFrameBridgeError) -> String {
         } => {
             format!("SlotLeaseMismatch: expected slot {expected_slot_index}, got slot {actual_slot_index}")
         }
+        SharedVideoFrameBridgeError::SlotLeaseMismatchReleaseFailed {
+            expected_slot_index,
+            actual_slot_index,
+            release_error,
+        } => {
+            format!(
+                "SlotLeaseMismatch: expected slot {expected_slot_index}, got slot {actual_slot_index} \
+                 (also failed to release slot {actual_slot_index} back to FREE: {release_error:?})"
+            )
+        }
         SharedVideoFrameBridgeError::SharedMemory(error) => {
             format!("SharedMemory: {error:?}")
         }

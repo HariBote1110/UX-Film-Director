@@ -5,6 +5,7 @@ use std::{
 };
 
 use uxfd_shared_memory_spike::{crc32, PosixSharedRing, PosixShmError};
+use uxfd_sidecar_protocol::CopyOutState;
 
 static WRITABLE_RINGS: OnceLock<Mutex<HashMap<String, PosixSharedRing>>> = OnceLock::new();
 
@@ -45,6 +46,15 @@ pub enum SharedVideoFrameBridgeError {
     WritableRingNotFound { memory_id: String },
     WritableRingRegistryPoisoned,
     SlotLeaseMismatch { expected_slot_index: u32, actual_slot_index: u32 },
+    /// A SlotLeaseMismatch occurred and, while releasing the slot that was
+    /// actually read (so it does not leak), the release itself failed too.
+    /// The original mismatch is preserved as the primary signal; the release
+    /// failure is reported alongside it rather than swallowed.
+    SlotLeaseMismatchReleaseFailed {
+        expected_slot_index: u32,
+        actual_slot_index: u32,
+        release_error: PosixShmError,
+    },
     SharedMemory(PosixShmError),
 }
 
@@ -146,10 +156,30 @@ pub fn copy_shared_frame_into_upload_buffer(
     )?;
     let frame = ring.read_frame(sequence)?;
     if frame.slot_index != slot_index {
-        return Err(SharedVideoFrameBridgeError::SlotLeaseMismatch {
-            expected_slot_index: slot_index,
-            actual_slot_index: frame.slot_index,
-        });
+        // read_frame() already flipped frame.slot_index from READY to READING
+        // before we could compare it against the leased slot_index. If we
+        // just returned the mismatch error here, that slot would be stuck in
+        // READING forever — nobody else knows to release it, since the
+        // caller only knows about (and will only ever release) the slot_index
+        // it originally leased. Left unreleased, every SlotLeaseMismatch
+        // permanently consumes one data-plane slot until the ring starves
+        // and write_frame() starts timing out (the "Failed to write decoded
+        // frame to shared memory: TimedOut" failure this guards against).
+        // Release the slot we actually read before surfacing the original
+        // error, which callers must keep treating as a hard failure.
+        let release_result =
+            ring.release_frame_slot(frame.slot_index, CopyOutState::RendererUploadAborted);
+        return Err(release_result.err().map_or(
+            SharedVideoFrameBridgeError::SlotLeaseMismatch {
+                expected_slot_index: slot_index,
+                actual_slot_index: frame.slot_index,
+            },
+            |release_error| SharedVideoFrameBridgeError::SlotLeaseMismatchReleaseFailed {
+                expected_slot_index: slot_index,
+                actual_slot_index: frame.slot_index,
+                release_error,
+            },
+        ));
     }
     upload_buffer.copy_from_slice(&frame.bytes);
 

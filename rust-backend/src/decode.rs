@@ -8,7 +8,8 @@ use crate::frames::{
 use crate::params::DecodeStopRequest;
 use crate::rpc::{response_error, RpcResponse};
 use crate::sessions::{
-    CachedDecodedRgbaFrame, DecodeSession, DecodedRgbaFrame, StreamingDecodeProcess,
+    CachedDecodedRgbaFrame, ControlPlaneSlotLease, DecodeSession, DecodedRgbaFrame,
+    StreamingDecodeProcess,
 };
 use crate::state::BackendState;
 #[cfg(unix)]
@@ -123,6 +124,7 @@ pub(crate) fn handle_decode_start(id: u64, params: Value, state: &mut BackendSta
             data_plane_ring,
             streaming_decoder: None,
             decoded_frame_cache: std::collections::VecDeque::new(),
+            data_plane_release_bindings: std::collections::HashMap::new(),
         },
     );
 
@@ -268,20 +270,23 @@ pub(crate) fn handle_decode_request_frame(
         );
     }
 
-    if let Err(error) = write_decode_data_plane(
+    let data_plane_slot_index = match write_decode_data_plane(
         session.data_plane_ring.as_ref(),
         parsed.frame_index,
         &padded_rgba,
     ) {
-        let _ = session
-            .ring
-            .recover_stuck_slot(write_slot_index, SlotRecoveryReason::ProducerTimeout);
-        return response_error(
-            id,
-            -32050,
-            &format!("Failed to write decoded frame to shared memory: {error}"),
-        );
-    }
+        Ok(value) => value,
+        Err(error) => {
+            let _ = session
+                .ring
+                .recover_stuck_slot(write_slot_index, SlotRecoveryReason::ProducerTimeout);
+            return response_error(
+                id,
+                -32050,
+                &format!("Failed to write decoded frame to shared memory: {error}"),
+            );
+        }
+    };
 
     if let Err(error) = session.ring.mark_slot_ready(write_slot, parsed.frame_index) {
         return response_error(
@@ -290,7 +295,7 @@ pub(crate) fn handle_decode_request_frame(
             &format!("Failed to mark decoded frame ready: {error:?}"),
         );
     }
-    let ready_frame = match session.ring.acquire_ready_slot() {
+    let mut ready_frame = match session.ring.acquire_ready_slot() {
         Ok(value) => value,
         Err(error) => {
             return response_error(
@@ -300,6 +305,25 @@ pub(crate) fn handle_decode_request_frame(
             );
         }
     };
+    // The control-plane SharedFrameRing and the data-plane PosixSharedRing
+    // each scan independently for the lowest-numbered FREE slot, so their
+    // slot numbering can desynchronise once a data-plane slot is released
+    // outside the control-plane's view (see progress.md 2026-07-02). Make
+    // the data-plane's real slot the single source of truth for what the
+    // renderer sees: it is what copy_shared_frame_into_upload_buffer() will
+    // actually read, so it must be what descriptor.slotIndex says. The
+    // control-plane slot_index + generation are retained separately so
+    // decode.releaseFrame can still release the correct control-plane slot.
+    let control_plane_slot_index = ready_frame.slot_index;
+    let control_plane_generation = ready_frame.frame.descriptor.generation;
+    ready_frame.frame.descriptor.slot_index = data_plane_slot_index;
+    session.data_plane_release_bindings.insert(
+        data_plane_slot_index,
+        ControlPlaneSlotLease {
+            control_plane_slot_index,
+            generation: control_plane_generation,
+        },
+    );
     let verification = FrameVerificationReport {
         frame_index: parsed.frame_index,
         checksum: checksum_for_bytes(&padded_rgba),
@@ -364,9 +388,39 @@ pub(crate) fn handle_decode_release_frame(
         );
     }
 
+    // The renderer only ever knows the data-plane slot_index (what
+    // decode.requestFrame's descriptor.slotIndex reported), so parsed.slot_index
+    // is a data-plane slot, not necessarily the control-plane SharedFrameRing's
+    // own slot_index for the same frame. Look up the control-plane lease this
+    // data-plane slot was bound to at requestFrame time so both rings are
+    // released using their own correct slot_index.
+    let Some(control_plane_lease) = session
+        .data_plane_release_bindings
+        .remove(&parsed.slot_index)
+    else {
+        return response_error(
+            id,
+            -32602,
+            &format!(
+                "No pending decode frame release binding for slotIndex {}",
+                parsed.slot_index
+            ),
+        );
+    };
+    if control_plane_lease.generation != parsed.generation {
+        return response_error(
+            id,
+            -32602,
+            &format!(
+                "Decode frame release generation mismatch: expected={}, actual={}",
+                control_plane_lease.generation, parsed.generation
+            ),
+        );
+    }
+
     let descriptor = match descriptor_for_release(
         &session.start_response,
-        parsed.slot_index,
+        control_plane_lease.control_plane_slot_index,
         parsed.generation,
     ) {
         Ok(value) => value,
@@ -379,7 +433,7 @@ pub(crate) fn handle_decode_release_frame(
         }
     };
     let ready_frame = ReadyFrame {
-        slot_index: parsed.slot_index,
+        slot_index: control_plane_lease.control_plane_slot_index,
         frame: SharedFrame {
             descriptor,
             pts_frame: 0,
@@ -455,12 +509,19 @@ fn create_decode_data_plane(
     Ok(None)
 }
 
+/// Writes the decoded frame into the data-plane ring and returns the slot
+/// index it actually landed in. This is the single source of truth for the
+/// slotIndex handed back to the renderer — the control-plane `SharedFrameRing`
+/// (`session.ring`) tracks its own, independent slot bookkeeping that can
+/// desynchronise from the data-plane ring once a slot is freed behind its
+/// back (see progress.md 2026-07-02 for how this caused decode ring
+/// exhaustion).
 #[cfg(unix)]
 fn write_decode_data_plane(
     ring: Option<&DecodeDataPlaneRing>,
     frame_index: u64,
     bytes: &[u8],
-) -> Result<(), String> {
+) -> Result<u32, String> {
     let ring = ring.ok_or_else(|| "decode shared memory ring is unavailable".to_string())?;
     ring.write_frame(frame_index, bytes)
         .map_err(|error| format!("{error:?}"))
@@ -471,8 +532,8 @@ fn write_decode_data_plane(
     _ring: Option<&DecodeDataPlaneRing>,
     _frame_index: u64,
     _bytes: &[u8],
-) -> Result<(), String> {
-    Ok(())
+) -> Result<u32, String> {
+    Ok(0)
 }
 
 #[cfg(unix)]
