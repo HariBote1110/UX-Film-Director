@@ -436,6 +436,33 @@ describe('Viewport Rust video-only boundary', () => {
     expect(clearIndex).toBeLessThan(detachIndex);
   });
 
+  it('declares Bug D case (i)/(iii) effects after the useStore destructure to avoid a TDZ ReferenceError on objects/projectId', () => {
+    // Bug E — Bug D で追加した case (i)/(iii) の useEffect は `objects` と
+    // `projectId` を deps に参照するが、これらは useStore destructure で
+    // const 宣言される。effect が destructure より前のソース位置にあると、
+    // 宣言前に deps 配列が評価され temporal dead zone 違反
+    // （Uncaught ReferenceError: Cannot access 'objects' before initialization）
+    // が発生し、error boundary 不在のためアプリ全体が真っ黒になる。
+    // 再発防止のため、ソース上の出現位置（byte position）が
+    // useStore destructure より後ろであることを契約として固定する。
+    const code = viewportSource();
+
+    const destructureIndex = code.indexOf('} = useStore((state) => ({');
+    const caseIEffectIndex = code.indexOf(
+      "// Bug D case (i) — timeline objects が空集合に遷移したとき"
+    );
+    const caseIIIEffectIndex = code.indexOf(
+      '// Bug D case (iii) — projectId（activeSceneId）の変化を検出し'
+    );
+
+    expect(destructureIndex).toBeGreaterThan(-1);
+    expect(caseIEffectIndex).toBeGreaterThan(-1);
+    expect(caseIIIEffectIndex).toBeGreaterThan(-1);
+
+    expect(caseIEffectIndex).toBeGreaterThan(destructureIndex);
+    expect(caseIIIEffectIndex).toBeGreaterThan(destructureIndex);
+  });
+
   it('clears the native overlay live surface transparently when the loaded project id changes (Bug D case iii)', () => {
     // Bug D — project 切替時も同じ drawable に別 project のフレームが遺存する
     // 可能性があるため、project id の変化を effect の deps で検出して
