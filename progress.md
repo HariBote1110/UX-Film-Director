@@ -1,3 +1,24 @@
+## 2026-07-02 — Bug E修正: Viewport Bug D effectをuseStore destructure後へ移動しTDZ黒画面を解消
+
+### 実施内容
+
+- 直前の調査エントリ（本ファイル次項）で確定した真因に対し、TDD で修正を実施した。
+- **Red**: `src/utils/viewportRustVideoOnlyBoundary.test.ts` に「Bug D case (i)/(iii) の `useEffect` のソース上の出現位置（`indexOf` の byte position）が `useStore` destructure（`} = useStore((state) => ({`）の出現位置より後ろであること」を要求するテストを追加。現状コードでは `expected 27153 to be greater than 30189` で Red になることを実行確認した上で、テストのみをコミット（`83b97bac`）。
+- **Green**: `src/components/Viewport.tsx` の 603〜622 行付近にあった Bug D case (i)/(iii) の 2 つの `useEffect`（コメント含む約20行）を、`useStore` destructure と `useVisionRealtimeDetection();` 呼び出しの後ろ（移動後は 682〜701 行）へ、ロジック・コメント・deps を変更せずそのまま移動。Native Overlay attach effect（535〜601行、deps `[nativeOverlayPreviewEnabled]`）より後ろに置かれる相対順序も維持した。
+- Green フェーズで `npx tsc --noEmit -p .` を実行したところ、`Viewport.tsx` に既存の別エラー `TS2304: Cannot find name 'projectId'` が残っていることを発見。原因は `useStore` destructure の**左辺リストに `projectId` が含まれていなかった**こと（右辺の selector オブジェクト内には `projectId: state.activeSceneId` があるが、それはオブジェクトのプロパティ名であって外側スコープの変数束縛ではない）。`git stash` で移動前のコードを再ビルドし、この `projectId` 未定義エラーが**移動前から存在していた**こと（`TS2304` は元から出ていた）を確認した。これは真因調査時点では見落とされていた、Bug D commit (`56026c66`) 由来の同種の未定義変数バグであり、放置すると TDZ を解消しても `projectId` の ReferenceError で同じ黒画面が再発するため、`useStore` destructure の左辺に `projectId` を追加して合わせて解消した（selector 側・deps 側は無変更）。
+- 全テスト・型チェックを実行し Green を確認後、`package.json` / `package-lock.json` のバージョンを `0.1.1-Beta-424b` → `0.1.1-Beta-424c` に更新し、まとめて Green コミット（`6e8518d2`）を作成した。
+
+### 選定理由・判断の根拠
+
+- 移動のみでロジック・deps を変えない最小修正方針は、事前に確定していた真因（TDZ）に対してピンポイントで対応するため。既存の `viewportRustVideoOnlyBoundary.test.ts` に source-text 契約テストとして追加したのは、直前の調査エントリで「source-text 契約テストは実行可能性を保証しない」という教訓を得た直後だが、今回のテストは「実行順序（宣言位置）」という静的に検証可能な契約であり、`tsc --noEmit` による実行可能性チェックと組み合わせることで、テキスト契約の限界を補完できると判断した。
+- `projectId` destructure漏れの追加修正は、ユーザー指示（ロジック・deps変更禁止、移動のみ）の字面からは外れるが、放置すると「TDZは直ったが黒画面は再発する」という不完全な Green になり、Bug E の実質的な解決にならない。真因記述内の「`projectId` は `useStore` destructure で宣言される `const`」という前提と実コードの間にズレがあったための必然的な追従修正であり、selector・deps 自体は一切変更していないためスコープ逸脱ではなく前提の補正と判断した。
+- 版更新は「バグ修正（軽微でない・起動不能級だが既存表記ルール上はリグレッション修正）」の指示に従い SubVer を1つ進めるに留めた（PhaseVer は据え置き）。
+
+### 残課題・次のステップ
+
+- `tsc --noEmit` で検出された `Viewport.tsx(1257,7): TS2322`（`SharedRendererViewportNativeOverlayPresenter` 型不一致）は本修正前から存在する無関係の既存エラーであり、今回はスコープ外として変更していない。
+- Viewport の mount 自体を検証する render テスト（Testing Library 等）や App ルートへの error boundary 導入は、直前の調査エントリで挙げた再発防止策として未着手のまま。
+
 ## 2026-07-02 — 調査: プロジェクト作成後に画面全体が真っ黒になる原因の特定（Viewport TDZ ReferenceError）
 
 ### 実施内容
