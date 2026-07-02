@@ -1100,7 +1100,10 @@ const Viewport: React.FC = () => {
             });
             sharedRendererVideoDecodeJobsRef.current = result.activeJobs;
             if (result.ok) {
-              await presentPreparedNativeRenderFrame(result.upload);
+              // Pass the current tick's session so presenter diagnostics
+              // (VideoPresentedFrameIndex etc.) advance with playback instead
+              // of staying frozen at the frame the presenter first started on.
+              await presentPreparedNativeRenderFrame(result.upload, { session });
             } else {
               // The scene changed under us (e.g. clip swapped); fall back to a full
               // presenter restart so it rebuilds for the new scene.

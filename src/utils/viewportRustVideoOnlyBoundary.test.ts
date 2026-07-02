@@ -180,9 +180,9 @@ describe('Viewport Rust video-only boundary', () => {
     expect(nativeReuseBlock).toContain('prepareSharedRendererViewportNativeOverlayPresent({');
     expect(nativeReuseBlock).toContain('activeJob: sharedRendererVideoDecodeJobsRef.current[0] ?? null');
     expect(nativeReuseBlock).toContain('sharedRendererVideoDecodeJobsRef.current = result.ok ? [result.activeJob] : []');
-    expect(nativeReuseBlock).toContain('presentPreparedNativeRenderFrame(result.upload)');
+    expect(nativeReuseBlock).toContain('presentPreparedNativeRenderFrame(result.upload, { session })');
     expect(nativeReuseBlock.indexOf('if (nativeOverlayPreviewEnabled) {')).toBeLessThan(
-      nativeReuseBlock.indexOf('presentPreparedNativeRenderFrame(result.upload)')
+      nativeReuseBlock.indexOf('presentPreparedNativeRenderFrame(result.upload, { session })')
     );
   });
 

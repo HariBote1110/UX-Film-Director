@@ -70,6 +70,18 @@ export interface SharedRendererExternalVideoFrameRepaintInput {
   sourcesByClipId?: ReadonlyMap<string, unknown>;
 }
 
+export interface SharedRendererPresentPreparedNativeRenderFrameOptions {
+  // The session for the frame being re-presented. The rust-only playback
+  // reuse path keeps a single presenter alive across many playback ticks
+  // (avoiding a full restart per frame), so without this the presenter
+  // diagnostics dataset would stay frozen at whatever session was current
+  // when the presenter started — e.g. VideoPresentedFrameIndex would never
+  // advance past frame 0 even though every subsequent frame renders fine.
+  // Passing the current tick's session lets diagnostics be republished with
+  // the frame that is actually now on screen.
+  session?: SharedRendererPreviewSession;
+}
+
 export type SharedRendererPreviewPresenterControl =
   | {
       ok: true;
@@ -86,7 +98,8 @@ export type SharedRendererPreviewPresenterControl =
         input: SharedRendererExternalVideoFrameRepaintInput
       ) => SharedRendererVideoFrameScenePresentationResult;
       presentPreparedNativeRenderFrame?: (
-        upload: SharedRendererDecodedVideoFrameUpload
+        upload: SharedRendererDecodedVideoFrameUpload,
+        options?: SharedRendererPresentPreparedNativeRenderFrameOptions
       ) => Promise<SharedRendererPreparedNativeRenderFramePresentationResult>;
       dispose: () => void;
     }
@@ -750,31 +763,18 @@ export const startSharedRendererPreviewPresenter = async ({
     }
     : undefined;
 
-  // Re-present a freshly decoded native frame on this already-initialised
-  // presenter, without tearing down and recreating the WebGPU pipeline. Used by
-  // the rust-only playback reuse path so the preview does not flicker (full
-  // presenter restart per frame) and the streaming decoder stays warm.
-  const presentPreparedNativeRenderFrame = async (
-    upload: SharedRendererDecodedVideoFrameUpload
-  ): Promise<SharedRendererPreparedNativeRenderFramePresentationResult> => {
-    const uploadResult = presenter.uploadVideoFrameTexture(upload);
-    if (!uploadResult.ok) {
-      await releaseDecodedVideoUploadAfterAbort(upload.releaseAfterUploadAbort);
-      return { ok: false, reason: uploadResult.reason, detail: uploadResult.detail };
-    }
-    const presentation = presenter.presentNativeRenderFrame({ texture: uploadResult.texture });
-    if (!presentation.ok) {
-      await releaseDecodedVideoUploadAfterAbort(upload.releaseAfterUploadAbort);
-      return presentation;
-    }
-    if (upload.releaseAfterGpuUpload) {
-      await presenter.device.queue?.onSubmittedWorkDone?.();
-      await releaseDecodedVideoUploadAfterGpuUpload(upload.releaseAfterGpuUpload);
-    }
-    return presentation;
-  };
-
-  writeDiagnostics({
+  // Builds the "ready" diagnostics payload for a given (session,
+  // nativeRenderFrameReady, videoOwnership) combination. Factored out so the
+  // rust-only native-render reuse path (below) can republish diagnostics for
+  // each freshly re-presented frame using the same field derivations as the
+  // initial publish, instead of the dataset staying frozen at whatever
+  // session was current when the presenter started.
+  const buildReadyDiagnosticsState = (
+    forSession: SharedRendererPreviewSession,
+    forNativeRenderFrameReady: boolean,
+    forVideoOwnership: SharedRendererVideoOwnership,
+    forVideoPresentedSourceFrame: number | undefined = videoPresentedSourceFrame
+  ): SharedRendererPresenterDiagnosticState => ({
     status: 'ready',
     format: presenter.format,
     geometrySource: solidColourGeometrySource,
@@ -790,9 +790,9 @@ export const startSharedRendererPreviewPresenter = async ({
     videoGeometrySource,
     videoDecodeRequestSource,
     videoDecodeRequestCount,
-    videoPresentedSourceFrame,
-    videoPresentedFrameIndex: hasVideoScene && session.surfaceGate.ok
-      ? session.surfaceGate.snapshot.frame_index
+    videoPresentedSourceFrame: forVideoPresentedSourceFrame,
+    videoPresentedFrameIndex: hasVideoScene && forSession.surfaceGate.ok
+      ? forSession.surfaceGate.snapshot.frame_index
       : undefined,
     videoPresentationSource,
     videoFrameUploadReady: hasVideoScene ? effectiveVideoFrameUploadReady : undefined,
@@ -801,30 +801,75 @@ export const startSharedRendererPreviewPresenter = async ({
     videoUploadFailureClipId: hasVideoScene ? resolvedVideoUploadFailure?.clipId : undefined,
     videoUploadFailureMediaId: hasVideoScene ? resolvedVideoUploadFailure?.mediaId : undefined,
     videoUploadMissingClipIds: hasVideoScene ? resolvedVideoUploadFailure?.missingClipIds : undefined,
-    videoOwner: hasVideoScene ? videoOwnership.owner : undefined,
-    videoCutoverReason: hasVideoScene ? videoOwnership.reason : undefined,
-    sharedVideoObjectCount: hasVideoScene ? videoOwnership.videoObjectIds.length : undefined,
-    nativeRenderFrameReady: nativeRenderFrameReady ? true : undefined,
-    nativeRenderMediaCount: nativeRenderFrameReady ? session.surfaceGate.media.length : undefined,
-    nativeRenderMediaKinds: nativeRenderFrameReady
-      ? session.surfaceGate.media.map((reference) => reference.kind).join(',')
+    videoOwner: hasVideoScene ? forVideoOwnership.owner : undefined,
+    videoCutoverReason: hasVideoScene ? forVideoOwnership.reason : undefined,
+    sharedVideoObjectCount: hasVideoScene ? forVideoOwnership.videoObjectIds.length : undefined,
+    nativeRenderFrameReady: forNativeRenderFrameReady ? true : undefined,
+    nativeRenderMediaCount: forNativeRenderFrameReady && forSession.surfaceGate.ok
+      ? forSession.surfaceGate.media.length
       : undefined,
-    nativeRenderSourceCount: nativeRenderFrameReady
-      ? collectObjectIdsByMediaKind(session, 'Video').length
+    nativeRenderMediaKinds: forNativeRenderFrameReady && forSession.surfaceGate.ok
+      ? forSession.surfaceGate.media.map((reference) => reference.kind).join(',')
       : undefined,
-    nativeRenderSourceMediaIds: nativeRenderFrameReady
-      ? collectObjectIdsByMediaKind(session, 'Video').join(',')
+    nativeRenderSourceCount: forNativeRenderFrameReady
+      ? collectObjectIdsByMediaKind(forSession, 'Video').length
+      : undefined,
+    nativeRenderSourceMediaIds: forNativeRenderFrameReady
+      ? collectObjectIdsByMediaKind(forSession, 'Video').join(',')
       : undefined,
     nativeRenderFailureReason: publishedNativeRenderFailure?.reason,
     nativeRenderFailureDetail: publishedNativeRenderFailure?.detail,
     swatch: hasSolidColourScene
       ? 'solid-colour-scene'
-      : nativeRenderFrameReady
+      : forNativeRenderFrameReady
         ? 'native-render-frame'
         : diagnosticSwatchEnabled
         ? 'solid-srgb'
         : 'pixi-passthrough',
   });
+
+  // Re-present a freshly decoded native frame on this already-initialised
+  // presenter, without tearing down and recreating the WebGPU pipeline. Used by
+  // the rust-only playback reuse path so the preview does not flicker (full
+  // presenter restart per frame) and the streaming decoder stays warm.
+  const presentPreparedNativeRenderFrame = async (
+    upload: SharedRendererDecodedVideoFrameUpload,
+    options?: SharedRendererPresentPreparedNativeRenderFrameOptions
+  ): Promise<SharedRendererPreparedNativeRenderFramePresentationResult> => {
+    const uploadResult = presenter.uploadVideoFrameTexture(upload);
+    if (!uploadResult.ok) {
+      await releaseDecodedVideoUploadAfterAbort(upload.releaseAfterUploadAbort);
+      return { ok: false, reason: uploadResult.reason, detail: uploadResult.detail };
+    }
+    const presentation = presenter.presentNativeRenderFrame({ texture: uploadResult.texture });
+    if (!presentation.ok) {
+      await releaseDecodedVideoUploadAfterAbort(upload.releaseAfterUploadAbort);
+      return presentation;
+    }
+    if (upload.releaseAfterGpuUpload) {
+      await presenter.device.queue?.onSubmittedWorkDone?.();
+      await releaseDecodedVideoUploadAfterGpuUpload(upload.releaseAfterGpuUpload);
+    }
+    if (options?.session) {
+      const reusedVideoOwnership = buildSharedRendererVideoOwnership({
+        cutoverEnabled: sharedRendererVideoCutoverEnabled,
+        hasVideoScene,
+        nativeRenderFrameReady: true,
+        nativeRenderVideoObjectIds: collectObjectIdsByMediaKind(options.session, 'Video'),
+        videoDecodeRequestSource,
+        videoDecodeRequestResult,
+        videoFrameUploadReady: effectiveVideoFrameUploadReady,
+        uploadedVideoObjectIds: effectiveUploadedVideoObjectIds,
+        stackSafeVideoObjectIds: videoCutoverStackSafety
+          ? new Set(videoCutoverStackSafety.safeVideoObjectIds)
+          : undefined,
+      });
+      writeDiagnostics(buildReadyDiagnosticsState(options.session, true, reusedVideoOwnership, upload.ptsFrame));
+    }
+    return presentation;
+  };
+
+  writeDiagnostics(buildReadyDiagnosticsState(session, nativeRenderFrameReady, videoOwnership));
 
   return {
     ok: true,
