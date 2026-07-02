@@ -1,3 +1,30 @@
+## 2026-07-02 — 調査: mp4動画が再生できない原因の特定（decode共有メモリringのスロットリークによる枯渇）
+
+### 実施内容
+
+- ユーザー報告「mp4などの動画を再生できない」を実機で再現・調査した（本セッションはコード変更なし、調査のみ）。
+- **症状の正確な把握**: `perf/heavy-media/10000kbps_60fps.mp4` を timeline に追加→再生すると、playhead は前進するが preview のフレームが静止したまま更新されない。preview 診断は最終的に `status=blocked / reason=requiredVideoOwnershipUnavailable` に遷移し、一次エラーは **`Failed to write decoded frame to shared memory: TimedOut { operation: "write_frame" }`**（video=frameDecodeFailed / native=nativeRenderSourcesUnavailable の両方に同一 detail）。
+- **前段の一次失敗を捕捉**: 診断 DOM dataset に MutationObserver を仕込み、クリップ削除→再追加→再生で遷移履歴を記録した。blocked に至る前に **`video=copyFailed / SlotLeaseMismatch: expected slot 1, got slot 2`** が発生していることを確認。
+- **因果連鎖（コードで裏付け済み）**:
+  1. rust-backend は decode 結果を data-plane 共有メモリ ring（`shared-memory-spike` の `PosixSharedRing`、`write_frame` が FREE スロットを先頭からスキャンして確保）へ書き、renderer へ返す `descriptor.slotIndex` は control-plane（`SharedFrameRing`、`rust-backend/src/sessions.rs`）の別管理スロット番号。**両者の割当は独立で、一致する保証がない**。
+  2. renderer 側 bridge の `copy_shared_frame_into_upload_buffer`（`shared-video-frame-bridge/src/lib.rs:147`）は `read_frame(sequence)` でスロットを READY→READING に遷移させた**後**に slot_index 照合を行い、不一致だと `SlotLeaseMismatch` を返すが、**READING に遷移させたスロットを解放せずに return する**（リーク）。
+  3. renderer の abort 経路は `decode.releaseFrame(descriptor.slotIndex)` を呼ぶが、これは lease 上の（ズレた）番号を対象にするため、実際に READING で刺さったスロットは解放されない（`release_decode_data_plane` は `UnexpectedState{expected:3, actual:0}` のみ黙認するため失敗も表面化しにくい）。
+  4. リークが slot_count 分蓄積すると FREE スロットが尽き、以後 `write_frame` が常に TimedOut → frameDecodeFailed → nativeRenderSourcesUnavailable → requiredVideoOwnershipUnavailable → **恒久 blocked**（フレーム更新が完全停止＝「再生できない」）。
+- **index がズレる構造的背景**: 同一 decode job（`sharedRendererVideoDecodeJobsRef.current` を Viewport.tsx の native render 経路と presenter controller 経路で共有）の同一 data-plane ring を、(a) backend 内 native render source read（`rust-backend/src/native_shared.rs` — `release_frame` は**スロット指定なしで最初の READING を解放**）と (b) renderer copy bridge の**2消費者**が読む。解放順序が入れ替わった時点で control-plane と data-plane のスロット番号は恒久的にズレる。
+
+### 選定理由・判断の根拠
+
+- 診断ステータスバーの最終状態（write_frame TimedOut）だけでは「ring が満杯」という結果しか分からないため、MutationObserver による遷移履歴で「満杯に至る一次失敗」= SlotLeaseMismatch を捕捉する方法を取った。
+- SlotLeaseMismatch 検証は `0f2cef81`（2026-06-19）で導入されたもの。検証自体は正しいが、「read_frame でスロット状態を先に遷移させてから照合する」順序と「エラー時に解放しない」実装が組み合わさり、検出のたびにスロットを1つ潰す挙動になっている。
+- 別件観測: クリップ追加直後の静止フレームが canvas 左上 1/4 相当に縮小表示される（Bug B 類似）。本件の主因とは独立の症状として記録のみ。
+
+### 残課題・次のステップ（修正方針の候補、未着手）
+
+- 修正候補1（リーク止血）: `copy_shared_frame_into_upload_buffer` の SlotLeaseMismatch 経路で、read 済みスロットを FREE に戻してから return する（`release_frame_slot(frame.slot_index, ...)`）。
+- 修正候補2（真因）: descriptor.slotIndex の正本を data-plane の実スロットに一本化する（`write_frame` が書き込んだ slot_index を返し、それを descriptor に載せる）。control-plane と data-plane の二重管理を解消。
+- 修正候補3（設計）: 同一 ring の2消費者（native source read と copy bridge）の排他、または native_shared.rs の `release_frame`（無指定解放）を slot 指定解放に変更。
+- ring 枯渇からの自己回復（stuck READING スロットの回収）も防御として検討。
+
 ## 2026-07-02 — Bug E修正: Viewport Bug D effectをuseStore destructure後へ移動しTDZ黒画面を解消
 
 ### 実施内容
