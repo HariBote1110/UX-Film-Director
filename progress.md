@@ -1,3 +1,33 @@
+## 2026-07-02 — 追加修正: mp4再生が依然blockedになる残存要因を解消（未readスロットの解放不能＋lease同一性衝突＋byteOffset不整合）
+
+### 実施内容
+
+- 0.1.1-Beta-425a（本ファイル次項の修正）の実機検証で、mp4再生が依然として数秒〜十数秒で恒久blockedになることが判明（SlotLeaseMismatchは消滅済み）。2つの失敗モードを親セッションで観測: 試行1は `write_frame TimedOut`（data-plane ring枯渇の残存）、試行2は `decodedFrameUnavailable`（success応答がrenderer検証に落ちる）。本セッションで残存要因3点を特定しTDDで修正した。
+- **残存リークの正確な経路（試行1の真因）**: rendererには「一度もshm readせずに `decode.releaseFrame(copyOutState='rendererUploadAborted')` を呼ぶ」abort経路が複数ある（`sharedRendererViewportNativeRenderSource.ts:246` のstale decode response時、`sharedRendererRustVideoUploadPipeline.ts` のcopy失敗時、およびインラインMVP経路はcopy無しで `gpuUploadFenceSignalled` releaseすら行う）。このときdata-planeスロットは**READYのまま**であり、`release_frame_slot` はREADING→FREEのCASしか行わないため `UnexpectedState{expected:3(READING), actual:2(READY)}` で失敗（黙認対象はactual:0のみ）。結果、(1) スロットは恒久READYでリーク、(2) release RPC自体もエラーになりrenderer側も失敗経路へ。abortがslot_count回蓄積した時点でring枯渇→`write_frame TimedOut`→恒久blocked。統合テスト（2スロットringでrequest→copyせずabort-releaseを6回反復しても枯渇しない契約）でRedを確認後、修正。
+- **lease同一性衝突（前回修正が導入した潜在バグ、Redで実証）**: native render source read（backend内の同一ring消費者）がdata-planeスロットを先行解放した直後に次の `decode.requestFrame` が同一スロットを再利用すると、旧binding（data-plane slot番号キー）が上書きされ、さらに**2つのin-flight leaseのdescriptorが完全同一（slotIndex=0, generation=1）**になりreleaseFrameで区別不能になることを統合テストで実証（1回目のreleaseが他方のcontrol-planeスロットを誤解放し、2回目のreleaseが失敗する）。
+- **byteOffset不整合（試行2 `decodedFrameUnavailable` の真因）**: renderer検証 `isValidSharedFrameDescriptor`（`rustBackendVideoDecodeControl.ts`）とnative overlay upload経路（`native-overlay/src/lib.rs:664`）はいずれも `byteOffset === slotIndex * byteLen` を要求する。前回修正で `descriptor.slot_index` のみdata-plane実値へ上書きし、`byte_offset` をcontrol-planeスロット由来のまま残したため、control/dataのスロット番号が乖離した最初の応答（例: slotIndex=0 / byteOffset=4096）で検証に落ち `decodedFrameUnavailable` → 恒久blocked。呼び出し元は success:false を先に `frameDecodeFailed` として弁別しているため、`decodedFrameUnavailable` は「success:trueだが検証に落ちた」応答を意味することから逆算して特定した。Redテスト（byteOffset == slotIndex * byteLen 契約、left:4096 right:0 で失敗）で実証後、修正。
+- **Green実装**（`5adb03ce`）:
+  - `shared-memory-spike`: `PosixSharedRing::release_frame_slot_for_sequence(slot_index, sequence, copy_out_state)` を新設。leaseの解放を書き込み時のsequenceで検証し、READING（copy済み）はREADING→FREE、READY（未read: abort/インラインupload）はREADY→READING→FREEの正規遷移で解放、スロットが別フレームに再利用済み（native read先行解放後）の場合は新フレームに触れない安全なno-op。FREE/WRITING/READY/READINGの状態機械遷移の意味は不変（READY→READINGは正規のclaim、READING→FREEは正規のrelease）。
+  - `rust-backend/decode.rs`: `release_decode_data_plane` を上記sequence検証付き解放へ切り替え（`UnexpectedState{expected:3, actual:0}` の黙認はsequence検証ベースの冪等性で置き換え）。
+  - `rust-backend`: rendererに見せる `descriptor.generation` をcontrol-planeのslot generationではなく**セッション単調増加の一意なlease id**（`next_renderer_lease_generation`）へ変更。lease表 `decoded_frame_leases: HashMap<u64 /* lease id */, DecodeFrameLease>` はdata-plane slot / sequence / control-plane slot+generationを保持し、releaseFrame時にgeneration（一意）で引いてslotIndex一致を検証のうえ、両ringをそれぞれ正しい対象で解放。
+  - `rust-backend`: descriptor上書き時に `byte_offset = byte_len * data_plane_slot_index` を再計算し、renderer/overlayの検証契約を回復。
+  - `rust-backend`: `mark_slot_ready` / `acquire_ready_slot` の内部失敗経路でも書き込み済みdata-planeスロットをabort解放し、内部エラー時のREADY残骸を防止。
+- 実行したテストコマンドと結果: `cargo test --manifest-path shared-memory-spike/Cargo.toml`（全Green、新規1件含む） / `cargo test --manifest-path shared-video-frame-bridge/Cargo.toml`（4件Green） / `cargo test --manifest-path rust-backend/Cargo.toml`（unittests 52 + decode_control_plane 60 = 112件Green、新規3件含む） / `cargo build --release --manifest-path rust-backend/Cargo.toml` Green / `node scripts/build-shared-video-frame-node-addon.mjs` Green / 回帰: native-overlay --lib 16件・native-wgpu-renderer --lib 7件 Green。TS側は無変更。
+- 版: 同一バグ修正の継続として `0.1.1-Beta-425a` → `0.1.1-Beta-425b`（SubVer+1）。
+
+### 選定理由・判断の根拠
+
+- **sequence検証付き解放を汎用の `release_frame_slot` の変更ではなく新API（`release_frame_slot_for_sequence`）にした理由**: `release_frame_slot` は「実際にreadしたスロットをleaseで返す」現行の正しい用途（copy bridge・native_shared）で使われており、その厳格な検証（READING以外はエラー）は維持する価値がある。「lease返却」という緩い意味論（未read・リサイクル済みも許容）はdecode data-planeのrelease RPCに固有の要件なので、意図が名前に現れる別APIとして分離した。
+- **READY解放をrendererUploadAbortedに限定しなかった理由**: 当初はコーディネータ提案どおりabort限定を検討したが、TS実装を読むとインラインMVP経路（`shouldUseInlineDecodedFrameMvpPath`）はshmを一切readせずbase64でuploadし、成功時に `gpuUploadFenceSignalled` でreleaseする。つまり「READY+fence」も正当なlease返却であり、copyOutStateによるゲートは実態と合わない。sequence一致の検証が「解放してよいのは自分のフレームだけ」という安全性を担保するため、copyOutStateゲートは不要と判断した。
+- **lease idの導入理由**: (data-plane slot, control-plane generation) の組はlease識別子として不十分（異なるcontrol-planeスロットが同じgeneration値を持ち得るため、同一data-planeスロットを再利用した2 leaseのdescriptorが完全一致し得る）。Redテストで実際に衝突を実証した上で、セッション単調増加カウンタを唯一の識別子とした。rendererはgenerationをopaqueな値としてecho backするだけ（copy bridgeはgenerationをreportに載せるのみで検証しない）なので、契約変更はrendererから不可視。
+- **byteOffsetの再計算をdescriptor上書き箇所に置いた理由**: descriptorの自己整合性（slotIndex/byteOffset/generation）は「rendererに見せる値を確定させる」1箇所で完結させるべきで、分散させると今回のような「slot_indexだけ直してbyte_offsetを直し忘れる」不整合が再発しやすい。前回修正の見落としの直接の教訓。
+
+### 残課題・次のステップ
+
+- 2消費者（native render source read と renderer copy bridge）の設計的排他は引き続き未対応（スコープ外のまま）。
+- インラインMVP経路はフォールバック時に `decode.requestFrameInline` で**2つ目のleaseを取得するがrendererはそれをreleaseしない**（`createSingleUseDecodedFrameReleaser` が最初のleaseのみ解放する）ため、インライン経路が実際に使われるとcontrol-planeスロットとlease表エントリがリークする（TS側の設計課題、今回はRust側スコープ外）。
+- 実機Electronでの再生確認は親セッションに委譲。
+
 ## 2026-07-02 — 修正: mp4動画が再生できない不具合を解消（decode共有メモリringのslotリーク＋control/data-plane不一致）
 
 ### 実施内容
