@@ -32,6 +32,12 @@ app.commandLine.appendSwitch('enable-features', 'CanvasOopRasterization');
 // WebGPU presenter / shared renderer のGPU利用を安定させる
 app.commandLine.appendSwitch('disable-gpu-sandbox');
 app.commandLine.appendSwitch('in-process-gpu');
+// 開発時のみ: UXFD_REMOTE_DEBUG_PORT を設定すると CDP (Chrome DevTools Protocol) を
+// 開放し、Terminal から renderer の console 読取・JS 評価による診断ができる。
+// 未設定なら何も起きない（配布ビルドでは設定しないこと）。
+if (!app.isPackaged && process.env.UXFD_REMOTE_DEBUG_PORT) {
+  app.commandLine.appendSwitch('remote-debugging-port', process.env.UXFD_REMOTE_DEBUG_PORT);
+}
 
 process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(__dirname, '../public')
