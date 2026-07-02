@@ -263,6 +263,37 @@ fn posix_shm_slot_can_be_released_after_encoder_writes_frame() {
         .expect("slot returns to free after encoder write");
 }
 
+#[test]
+fn posix_shm_create_rejects_names_longer_than_the_macos_shm_name_limit_before_calling_shm_open() {
+    // macOS caps POSIX shm names (including the leading '/') at 31 bytes
+    // (PSHMNAMLEN). A name over that limit makes shm_open(2) fail with
+    // ENAMETOOLONG (observed in practice as an opaque
+    // `Io { operation: "shm_open(create)", source: Os { code: 63, .. } }`).
+    // Callers should get an explicit, self-describing error before the OS
+    // call rather than have to decode an OS errno to diagnose a naming bug.
+    let too_long_name = format!("/{}", "a".repeat(31));
+    assert_eq!(too_long_name.len(), 32, "fixture name must exceed the 31 byte limit");
+
+    let result = PosixSharedRing::create_with_slot_count(&too_long_name, 1, 16);
+
+    assert!(
+        matches!(result, Err(PosixShmError::NameTooLong { limit: 31, actual: 32 })),
+        "expected an explicit NameTooLong error, got: {result:?}"
+    );
+}
+
+#[test]
+fn posix_shm_attach_rejects_names_longer_than_the_macos_shm_name_limit_before_calling_shm_open() {
+    let too_long_name = format!("/{}", "b".repeat(31));
+
+    let result = PosixSharedRing::attach_with_retry(&too_long_name, 16, Duration::from_millis(10));
+
+    assert!(
+        matches!(result, Err(PosixShmError::NameTooLong { limit: 31, actual: 32 })),
+        "expected an explicit NameTooLong error, got: {result:?}"
+    );
+}
+
 fn unique_shm_name() -> String {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)

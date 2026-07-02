@@ -430,6 +430,66 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
     });
   });
 
+  it('keeps the native render memory id within the POSIX shm name limit even for large request ids', async () => {
+    // macOS caps POSIX shm names (including the leading '/') at 31 bytes
+    // (PSHMNAMLEN). requestId is the surface-gate frame_index, which reaches
+    // four-plus digits well within a normal preview session (~16.6s at 60fps).
+    // A memory id that grows with requestId's decimal digit count eventually
+    // exceeds the limit and shm_open(create) fails with ENAMETOOLONG, breaking
+    // native render for the rest of playback. Pin the contract that the
+    // generated id never exceeds the limit, however large requestId gets.
+    const MACOS_POSIX_SHM_NAME_MAX = 31;
+    let renderedMemoryId: string | undefined;
+
+    const result = await prepareSharedRendererViewportNativeRenderUpload({
+      session: mediaOnlySession,
+      requestId: 123_456_789,
+      activeJobs: [],
+      prepareNativeRenderSources: async () => ({
+        ok: false,
+        reason: 'noVideoDecodeRequest',
+        detail: 'no video',
+        activeJobs: [],
+      }),
+      renderNativeSharedFrame: async (payload) => {
+        renderedMemoryId = payload.memoryId;
+        return {
+          success: true,
+          result: {
+            ...renderResult,
+            memoryId: payload.memoryId,
+            frame: {
+              descriptor: { ...descriptor, memoryId: payload.memoryId },
+              ptsFrame: 24,
+            },
+          },
+        };
+      },
+      releaseNativeSharedFrame: async () => ({ success: true }),
+      copyBridge: {
+        copyIntoUploadBuffer: async (_payload, target) => {
+          target.fill(0x7e);
+          return {
+            success: true,
+            result: {
+              sequence: 24,
+              slotIndex: descriptor.slotIndex,
+              generation: descriptor.generation,
+              byteLen: descriptor.byteLen,
+              expectedChecksum: 0x1234,
+              actualChecksum: 0x1234,
+            },
+          };
+        },
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(renderedMemoryId).toBeDefined();
+    expect(renderedMemoryId!.startsWith('/')).toBe(true);
+    expect(renderedMemoryId!.length).toBeLessThanOrEqual(MACOS_POSIX_SHM_NAME_MAX);
+  });
+
   it('discards native render output for benchmark but releases prepared sources', async () => {
     const calls: string[] = [];
     const nativeRenderJob = {
