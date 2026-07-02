@@ -93,6 +93,7 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
           effects: [],
         }],
       },
+      canvas: { width: 1920, height: 1080 },
       slotCount: 2,
       nativeOverlayBridge: {
         presentSharedFrame: async (payload) => {
@@ -141,6 +142,8 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
             },
             opacity: 1,
           }],
+          canvasWidth: 1920,
+          canvasHeight: 1080,
         },
         slotCount: 2,
         frame: decodedFrameResponse.result!.frame,
@@ -264,6 +267,7 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
           effects: [],
         }],
       },
+      canvas: { width: 1920, height: 1080 },
       slotCount: 2,
       nativeOverlayBridge,
       rustBackendBridge,
@@ -431,6 +435,7 @@ describe('sharedRendererRustVideoUploadPipeline', () => {
       nativeOverlayBridge,
       rustBackendBridge,
       media: [],
+      canvas: { width: 1920, height: 1080 },
     };
 
     const snapshotAt = (frameIndex: number) => ({

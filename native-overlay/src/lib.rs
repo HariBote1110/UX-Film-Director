@@ -894,7 +894,14 @@ pub fn upload_frame_to_scene_sources(
         .unwrap_or_default();
     sources.insert(upload.media_id.clone(), frame);
     if let Some(scene) = scene {
-        return Ok((scene.snapshot.clone(), sources));
+        let fitted_snapshot = fit_scene_snapshot_to_drawable(
+            &scene.snapshot,
+            scene.canvas_width,
+            scene.canvas_height,
+            drawable_width,
+            drawable_height,
+        );
+        return Ok((fitted_snapshot, sources));
     }
 
     let scale_x = if upload.width == 0 {
@@ -928,6 +935,48 @@ pub fn upload_frame_to_scene_sources(
     };
 
     Ok((snapshot, sources))
+}
+
+/// `scene.snapshot` の `clips[].transform` はプロジェクト解像度（`canvas_width`/
+/// `canvas_height`）基準の絶対ピクセル座標である。一方 `solid_composite.wgsl` の
+/// フラグメントシェーダーは `translation_x/y`・`scale_x/y` を drawable の
+/// 出力ピクセル座標としてそのまま解釈する（NDC 正規化を行わない）。
+///
+/// native overlay の drawable サイズ（attach rect 由来。例 1564x880）は
+/// プロジェクト解像度（例 1920x1080）と一致しない場合が常態であり、fit 変換を
+/// 挟まないとシーンが drawable の左上に「実寸」で描かれ、はみ出た分は切り取られる
+/// （実機で観測された「pane 左上 1/4 に半分スケール表示」の真因）。
+///
+/// ここでは export 経路（drawable = プロジェクト解像度）と同じ見た目を保つため、
+/// アスペクト比を維持したまま drawable に収まる最大スケール（contain-fit）を
+/// 計算し、中央寄せ（letterbox/pillarbox）した上で各 clip の transform に適用する。
+/// 等方スケールなので回転角・アスペクト比には影響しない。
+fn fit_scene_snapshot_to_drawable(
+    snapshot: &SceneSnapshot,
+    canvas_width: u32,
+    canvas_height: u32,
+    drawable_width: u32,
+    drawable_height: u32,
+) -> SceneSnapshot {
+    if canvas_width == 0 || canvas_height == 0 {
+        return snapshot.clone();
+    }
+
+    let fit_scale = (drawable_width as f32 / canvas_width as f32)
+        .min(drawable_height as f32 / canvas_height as f32);
+    let fitted_width = canvas_width as f32 * fit_scale;
+    let fitted_height = canvas_height as f32 * fit_scale;
+    let offset_x = (drawable_width as f32 - fitted_width) * 0.5;
+    let offset_y = (drawable_height as f32 - fitted_height) * 0.5;
+
+    let mut fitted = snapshot.clone();
+    for clip in &mut fitted.clips {
+        clip.transform.translation_x = clip.transform.translation_x * fit_scale + offset_x;
+        clip.transform.translation_y = clip.transform.translation_y * fit_scale + offset_y;
+        clip.transform.scale_x *= fit_scale;
+        clip.transform.scale_y *= fit_scale;
+    }
+    fitted
 }
 
 pub fn load_overlay_image_sources_for_scene(

@@ -36,6 +36,11 @@ type NativeOverlaySceneSnapshotPayload = {
     };
     opacity: number;
   }>;
+  // プロジェクト解像度（シーン canvas サイズ）。clips[].transform の座標系の基準。
+  // native overlay の drawable ピクセルサイズと一致しない場合があるため、Rust 側の
+  // upload_frame_to_scene_sources がこれを使って contain-fit 変換を行う。
+  canvasWidth: number;
+  canvasHeight: number;
 };
 
 type NativeOverlaySceneMediaPayload = {
@@ -81,6 +86,8 @@ export interface PresentNativeOverlayRustDecodedVideoFrameInput {
   decodeResponse: RustBackendResult<unknown>;
   snapshot?: RustSceneSnapshot;
   media?: readonly RustSceneMediaReference[];
+  // プロジェクト解像度（シーン canvas サイズ）。snapshot がある場合は必須。
+  canvas?: { width: number; height: number };
   slotCount: number;
   nativeOverlayBridge: NativeOverlayDecodedFrameBridge;
   rustBackendBridge: RustBackendVideoDecodeBridge;
@@ -159,6 +166,7 @@ export const presentNativeOverlayRustDecodedVideoFrame = async ({
   decodeResponse,
   snapshot,
   media,
+  canvas,
   slotCount,
   nativeOverlayBridge,
   rustBackendBridge,
@@ -191,7 +199,7 @@ export const presentNativeOverlayRustDecodedVideoFrame = async ({
   const presentResponse = await nativeOverlayBridge.presentSharedFrame({
     windowId,
     mediaId: mediaId ?? jobId,
-    ...(snapshot ? { snapshot: toNativeOverlaySceneSnapshotPayload(snapshot) } : {}),
+    ...(snapshot ? { snapshot: toNativeOverlaySceneSnapshotPayload(snapshot, canvas) } : {}),
     ...(media ? { media: media.map(toNativeOverlaySceneMediaPayload) } : {}),
     slotCount,
     frame,
@@ -290,31 +298,45 @@ const buildNativeOverlayVisualFrameKey = ({
 });
 
 const toNativeOverlaySceneSnapshotPayload = (
-  snapshot: RustSceneSnapshot
-): NativeOverlaySceneSnapshotPayload => ({
-  frameIndex: snapshot.frame_index,
-  colour: {
-    profile: snapshot.colour.profile,
-    workingSpace: snapshot.colour.working_space,
-    alpha: snapshot.colour.alpha,
-  },
-  clips: snapshot.clips.map((clip) => ({
-    clipId: clip.clip_id,
-    trackId: clip.track_id,
-    mediaId: clip.media_id,
-    sourceFrame: clip.source_frame,
-    zIndex: clip.z_index,
-    transform: {
-      translationX: clip.transform.translation_x,
-      translationY: clip.transform.translation_y,
-      scaleX: clip.transform.scale_x,
-      scaleY: clip.transform.scale_y,
-      rotationDegrees: clip.transform.rotation_degrees,
-      sampling: clip.transform.sampling,
+  snapshot: RustSceneSnapshot,
+  canvas: { width: number; height: number } | undefined
+): NativeOverlaySceneSnapshotPayload => {
+  if (!canvas) {
+    // scene snapshot の transform はプロジェクト解像度（canvas サイズ）基準の絶対
+    // ピクセル座標であり、Rust 側 (upload_frame_to_scene_sources) が drawable ピクセル
+    // サイズへ contain-fit するにはこの値が必須。欠落したまま present すると、シーンが
+    // drawable の左上に実寸で描かれ縮小表示されるバグを再導入することになる。
+    throw new Error(
+      'Native overlay scene snapshot present requires a canvas size for drawable-fit scaling.'
+    );
+  }
+  return {
+    frameIndex: snapshot.frame_index,
+    colour: {
+      profile: snapshot.colour.profile,
+      workingSpace: snapshot.colour.working_space,
+      alpha: snapshot.colour.alpha,
     },
-    opacity: clip.opacity,
-  })),
-});
+    clips: snapshot.clips.map((clip) => ({
+      clipId: clip.clip_id,
+      trackId: clip.track_id,
+      mediaId: clip.media_id,
+      sourceFrame: clip.source_frame,
+      zIndex: clip.z_index,
+      transform: {
+        translationX: clip.transform.translation_x,
+        translationY: clip.transform.translation_y,
+        scaleX: clip.transform.scale_x,
+        scaleY: clip.transform.scale_y,
+        rotationDegrees: clip.transform.rotation_degrees,
+        sampling: clip.transform.sampling,
+      },
+      opacity: clip.opacity,
+    })),
+    canvasWidth: canvas.width,
+    canvasHeight: canvas.height,
+  };
+};
 
 const toNativeOverlaySceneMediaPayload = (
   media: RustSceneMediaReference

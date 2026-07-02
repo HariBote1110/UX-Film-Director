@@ -560,6 +560,7 @@ export const prepareSharedRendererViewportNativeOverlayPresent = async ({
     decodeResponse,
     snapshot: surfaceGate.snapshot,
     media: surfaceGate.media,
+    canvas: surfaceGate.canvas,
     slotCount: resolvedJob.slotCount,
     nativeOverlayBridge,
     rustBackendBridge,

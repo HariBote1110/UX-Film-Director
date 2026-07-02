@@ -480,6 +480,8 @@ describe('sharedRendererViewportVideoUpload', () => {
               opacity: 1,
             },
           ],
+          canvasWidth: 1920,
+          canvasHeight: 1080,
         },
         media: [
           {
