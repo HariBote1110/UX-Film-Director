@@ -612,7 +612,7 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
     expect(calls).toEqual([
       ['renderNativeSharedFrame', {
         renderId: 'preview-native-render-24',
-        memoryId: '/uxfd-preview-native-render-24',
+        memoryId: '/uxfd-pn-o',
         slotCount: 1,
         ptsFrame: 24,
         width: 4,
@@ -1003,7 +1003,7 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
     expect(calls).toEqual([
       ['renderNativeSharedFrame', {
         renderId: 'preview-native-render-24',
-        memoryId: '/uxfd-preview-native-render-24',
+        memoryId: '/uxfd-pn-o',
         slotCount: 1,
         ptsFrame: 24,
         width: 4,

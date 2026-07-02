@@ -747,6 +747,10 @@ pub struct MappedReadFrame {
 pub enum PosixShmError {
     InvalidArgs,
     InvalidName,
+    NameTooLong {
+        limit: usize,
+        actual: usize,
+    },
     Io {
         operation: &'static str,
         source: io::Error,
@@ -873,9 +877,23 @@ fn parse_runner_args(
     Ok((name, frame_len, iterations))
 }
 
+// macOS's POSIX shm implementation caps names (including the leading '/') at
+// PSHMNAMLEN = 31 bytes; shm_open(2) otherwise fails with ENAMETOOLONG. Other
+// unix platforms tolerate much longer names (e.g. Linux's NAME_MAX = 255 for
+// the tmpfs entry under /dev/shm), but this crate's callers only ever run on
+// macOS today, so reject the tightest limit up front on every unix target
+// rather than let a name silently work in CI and fail on a developer's Mac.
+const POSIX_SHM_NAME_MAX_LEN: usize = 31;
+
 fn shm_name(name: &str) -> Result<CString, PosixShmError> {
     if !name.starts_with('/') {
         return Err(PosixShmError::InvalidName);
+    }
+    if name.len() > POSIX_SHM_NAME_MAX_LEN {
+        return Err(PosixShmError::NameTooLong {
+            limit: POSIX_SHM_NAME_MAX_LEN,
+            actual: name.len(),
+        });
     }
     CString::new(name).map_err(|_| PosixShmError::InvalidName)
 }

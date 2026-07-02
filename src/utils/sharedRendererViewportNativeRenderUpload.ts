@@ -525,8 +525,18 @@ const parseAudioReactiveSourceMetadata = (source: string): AudioReactiveSourceMe
 const buildPreviewNativeRenderId = (requestId: number): string =>
   `preview-native-render-${sanitiseNativeRenderPart(String(requestId))}`;
 
+// macOS caps POSIX shm names (including the leading '/') at 31 bytes
+// (PSHMNAMLEN). requestId is a monotonically increasing counter seeded from
+// the surface-gate frame_index, so it keeps growing for the lifetime of a
+// preview session; a decimal-digit encoding eventually overflows the limit
+// (observed in practice past four digits, i.e. ~16.6s of 60fps playback) and
+// shm_open(create) fails with ENAMETOOLONG, breaking native render for the
+// rest of playback. Base36-encode requestId instead: it stays well under the
+// limit for any requestId up to Number.MAX_SAFE_INTEGER, and — since the
+// caller always increments requestId before calling — still gives every
+// in-flight present its own unique memory id.
 const buildPreviewNativeRenderMemoryId = (requestId: number): string =>
-  `/uxfd-${buildPreviewNativeRenderId(requestId)}`;
+  `/uxfd-pn-${Math.max(0, Math.trunc(requestId)).toString(36)}`;
 
 const sanitiseNativeRenderPart = (value: string): string =>
   value
