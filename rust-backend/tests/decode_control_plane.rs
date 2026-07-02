@@ -4507,6 +4507,150 @@ fn decode_request_frame_uses_second_shared_memory_slot_while_first_slot_is_readi
         .expect("both shared memory slots return to free");
 }
 
+/// Reproduces the root cause behind "Failed to write decoded frame to shared
+/// memory: TimedOut" (see progress.md 2026-07-02): the control-plane
+/// `SharedFrameRing` (in-process slot bookkeeping) and the data-plane
+/// `PosixSharedRing` (the actual shared-memory slots) each scan for the
+/// lowest-numbered FREE slot independently. As long as both are freed in
+/// lock-step this happens to line up, but any consumer that frees a
+/// data-plane slot behind the control-plane's back (exactly what
+/// `native_shared.rs`'s unqualified `release_frame` does when a second
+/// consumer reads the same ring) desynchronises the two numbering schemes.
+/// This test injects that desync directly via the data-plane consumer ring
+/// standing in for that second consumer, then asserts the slotIndex returned
+/// to the renderer must still match the slot the bytes actually landed in.
+#[test]
+fn decode_request_frame_descriptor_slot_index_matches_data_plane_slot_holding_the_sequence() {
+    let temp_dir = TestTempDir::new("decode-control-plane-slot-desync");
+    let fixture = build_n_frame_h264_fixture(temp_dir.path(), 4);
+    let mut backend = BackendProcess::start();
+
+    let start_response = backend.request(json!({
+        "id": 1,
+        "method": "decode.start",
+        "params": {
+            "jobId": "slot-desync",
+            "source": fixture.path,
+            "slotCount": 3,
+            "width": fixture.width,
+            "height": fixture.height,
+            "sourceRate": {
+                "numerator": 30,
+                "denominator": 1
+            },
+            "format": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(start_response["ok"], true, "{start_response}");
+    let memory_id = start_response["result"]["memoryId"]
+        .as_str()
+        .expect("memory id");
+    let slot_byte_len = start_response["result"]["slotByteLen"]
+        .as_u64()
+        .expect("slot byte length") as usize;
+    let consumer_ring = PosixSharedRing::attach_with_retry_for_layout(
+        memory_id,
+        3,
+        slot_byte_len,
+        Duration::from_secs(1),
+    )
+    .expect("attach to backend-created shared frame ring");
+
+    // Fill all three slots: frame 0/1/2 each occupy control-plane slot N and
+    // data-plane slot N (they still agree while nothing has freed anything).
+    let mut responses = Vec::new();
+    for frame_index in 0..3u64 {
+        let response = backend.request(json!({
+            "id": 2 + frame_index,
+            "method": "decode.requestFrame",
+            "params": {
+                "jobId": "slot-desync",
+                "requestId": 100 + frame_index,
+                "frameIndex": frame_index,
+                "mode": "latestWins"
+            }
+        }));
+        assert_eq!(response["ok"], true, "{response}");
+        assert_eq!(
+            response["result"]["frame"]["descriptor"]["slotIndex"], frame_index,
+            "slots fill in order while the ring starts empty"
+        );
+        let mapped = consumer_ring
+            .read_frame(frame_index)
+            .expect("consumer keeps every frame in reading state to hold all 3 slots occupied");
+        assert_eq!(
+            mapped.slot_index, frame_index as u32,
+            "data-plane slot must match control-plane slot before any release happens"
+        );
+        responses.push(response);
+    }
+
+    // Simulate a second, independent consumer of the same data-plane ring
+    // (this stands in for native_shared.rs's read_native_render_source_frame,
+    // which historically released "whatever slot it found reading" rather
+    // than the slot it was leased). It frees data-plane slot 0 without the
+    // control-plane ever being told slot 0 is free.
+    consumer_ring
+        .release_frame_slot(0, uxfd_sidecar_protocol::CopyOutState::GpuUploadFenceSignalled)
+        .expect("simulate a second consumer releasing data-plane slot 0 behind the control-plane's back");
+
+    // Now release frame 1 through the normal control-plane RPC path. This
+    // frees control-plane slot 1 (and, because release_decode_data_plane
+    // targets slot_index=1, data-plane slot 1 as well).
+    let release_response = backend.request(json!({
+        "id": 10,
+        "method": "decode.releaseFrame",
+        "params": {
+            "jobId": "slot-desync",
+            "slotIndex": responses[1]["result"]["frame"]["descriptor"]["slotIndex"],
+            "generation": responses[1]["result"]["frame"]["descriptor"]["generation"],
+            "copyOutState": "gpuUploadFenceSignalled"
+        }
+    }));
+    assert_eq!(release_response["ok"], true, "{release_response}");
+
+    // Data-plane view: slots 0 and 1 are now FREE (0 via the simulated second
+    // consumer, 1 via the normal release), slot 2 is still Reading.
+    // Control-plane view: only slot 1 is FREE (it never learned slot 0 was
+    // freed), slot 0 and slot 2 are still Reading.
+    //
+    // Requesting a new frame forces each side to independently scan for the
+    // lowest-numbered FREE slot:
+    //   - control-plane `acquire_write_slot` picks slot 1 (its lowest FREE).
+    //   - data-plane `write_frame` picks slot 0 (its lowest FREE).
+    // The renderer must still be told the slot the bytes actually landed in.
+    let fourth_response = backend.request(json!({
+        "id": 11,
+        "method": "decode.requestFrame",
+        "params": {
+            "jobId": "slot-desync",
+            "requestId": 103,
+            "frameIndex": 3,
+            "mode": "latestWins"
+        }
+    }));
+    assert_eq!(fourth_response["ok"], true, "{fourth_response}");
+    let reported_slot_index = fourth_response["result"]["frame"]["descriptor"]["slotIndex"]
+        .as_u64()
+        .expect("reported slot index") as u32;
+
+    let mapped_fourth = consumer_ring
+        .read_frame(3)
+        .expect("consumer reads the fourth decoded frame from the data-plane ring");
+    assert_eq!(
+        mapped_fourth.slot_index, reported_slot_index,
+        "decode.requestFrame must report the slotIndex the frame's bytes were actually \
+         written to in the data-plane ring, not an independently tracked control-plane slot \
+         number that has desynchronised from it"
+    );
+}
+
 #[test]
 fn decode_request_frame_uses_limited_range_source_metadata_for_rgba_handoff() {
     let temp_dir = TestTempDir::new("decode-control-plane-limited");

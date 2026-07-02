@@ -74,6 +74,49 @@ fn posix_shm_attach_rejects_layout_hash_mismatch() {
 }
 
 #[test]
+fn posix_shm_write_frame_returns_the_slot_index_it_actually_wrote() {
+    let name = unique_shm_name();
+    let producer_ring =
+        PosixSharedRing::create_with_slot_count(&name, 2, 16).expect("create multi-slot ring");
+    let consumer_ring =
+        PosixSharedRing::attach_with_retry_for_layout(&name, 2, 16, Duration::from_secs(1))
+            .expect("attach multi-slot ring");
+    let first = vec![1; 16];
+    let second = vec![2; 16];
+
+    let first_written_slot = producer_ring
+        .write_frame(0, &first)
+        .expect("write first frame returns the slot index it used");
+    assert_eq!(
+        first_written_slot, 0,
+        "first write must land in the first free slot"
+    );
+
+    // Keep the first slot in READING so the second write is forced into slot 1;
+    // the returned slot index must reflect that, not just "the caller's guess".
+    let first_read = consumer_ring
+        .read_frame(0)
+        .expect("consumer holds first frame");
+    assert_eq!(first_read.slot_index, 0);
+
+    let second_written_slot = producer_ring
+        .write_frame(1, &second)
+        .expect("producer uses second slot while first is reading");
+    assert_eq!(
+        second_written_slot, 1,
+        "write_frame must report the real data-plane slot it wrote, not an assumed one"
+    );
+
+    consumer_ring
+        .release_frame_slot(0, uxfd_sidecar_protocol::CopyOutState::GpuUploadFenceSignalled)
+        .expect("release first reading slot");
+    producer_ring
+        .wait_until_free(Duration::from_secs(1))
+        .map(|_| ())
+        .unwrap_or(());
+}
+
+#[test]
 fn posix_shm_multi_slot_allows_next_frame_while_previous_frame_is_reading() {
     let name = unique_shm_name();
     let producer_ring =

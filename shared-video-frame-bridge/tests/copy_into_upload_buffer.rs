@@ -75,6 +75,44 @@ fn rejects_shared_frame_when_resolved_slot_does_not_match_descriptor_slot() {
 }
 
 #[test]
+fn releases_leased_slot_after_slot_lease_mismatch_so_the_ring_does_not_starve() {
+    let name = unique_shm_name();
+    // Single-slot ring: if a SlotLeaseMismatch failed to free the slot it read,
+    // the very next write_frame would starve (TimedOut) because no FREE slot
+    // would ever be available again. This reproduces the decode ring exhaustion
+    // reported as "Failed to write decoded frame to shared memory: TimedOut".
+    let producer_ring =
+        PosixSharedRing::create_with_slot_count(&name, 1, 16).expect("create shared frame ring");
+    let source = vec![0x7d; 16];
+    producer_ring
+        .write_frame(42, &source)
+        .expect("write decoded frame");
+
+    let mut upload_buffer = vec![0; 16];
+    let error = copy_shared_frame_into_upload_buffer(
+        &name,
+        1,
+        16,
+        // Deliberately wrong slot_index (descriptor says 1, but the only real
+        // data-plane slot is 0) to force SlotLeaseMismatch after read_frame has
+        // already flipped the slot to READING.
+        1,
+        1,
+        42,
+        &mut upload_buffer,
+        Duration::from_secs(1),
+    )
+    .expect_err("copy must reject a descriptor slot that does not own the ready frame");
+    assert!(format!("{error:?}").contains("SlotLeaseMismatch"));
+
+    assert!(
+        producer_ring.write_frame(43, &source).is_ok(),
+        "slot leaked by SlotLeaseMismatch must be released back to FREE, otherwise the ring \
+         starves and every subsequent write_frame times out"
+    );
+}
+
+#[test]
 fn releases_corrupted_shared_frame_slot_after_checksum_mismatch() {
     let name = unique_shm_name();
     let producer_ring =
