@@ -600,27 +600,6 @@ const Viewport: React.FC = () => {
     };
   }, [nativeOverlayPreviewEnabled]);
 
-  // Bug D case (i) — timeline objects が空集合に遷移したとき、Bug C で追加した
-  // visual frame cache invalidator と Bug D の transparent clear を同じイベント源
-  // から発火する。cache 消去（Bug C）だけでは drawable に present 済みの
-  // 削除前フレームが残り続けるため、両方が必要。
-  useEffect(() => {
-    if (!nativeOverlayPreviewEnabled) return;
-    if (objects.length !== 0) return;
-    // session.surfaceGate.snapshot.clips.length === 0 を代表する条件として
-    // timeline objects の空を用いる（objects が空なら surfaceGate も clips=[]）。
-    notifyNativeOverlaySceneCleared(0);
-    void window.nativeOverlay?.clearSurface({});
-  }, [nativeOverlayPreviewEnabled, objects.length]);
-
-  // Bug D case (iii) — projectId（activeSceneId）の変化を検出し、切替直後に
-  // 前 project の drawable が一瞬映る競合を潰す。cache 消去も併発する。
-  useEffect(() => {
-    if (!nativeOverlayPreviewEnabled) return;
-    notifyNativeOverlaySceneCleared(0);
-    void window.nativeOverlay?.clearSurface({});
-  }, [nativeOverlayPreviewEnabled, projectId]);
-
   const updateSharedRendererSolidColourObjectIds = useCallback((objectIds: string[]) => {
     const current = sharedRendererSolidColourObjectIdsRef.current;
     const next = new Set(objectIds);
@@ -670,7 +649,8 @@ const Viewport: React.FC = () => {
     previewDisplayMode,
     setPreviewDisplayMode,
     visionDetectionPreviewEnabled,
-    visionDetectionOverlay
+    visionDetectionOverlay,
+    projectId
   } = useStore((state) => ({
     currentTime: state.currentTime,
     objects: state.objects,
@@ -699,6 +679,27 @@ const Viewport: React.FC = () => {
   }), shallow);
 
   useVisionRealtimeDetection();
+
+  // Bug D case (i) — timeline objects が空集合に遷移したとき、Bug C で追加した
+  // visual frame cache invalidator と Bug D の transparent clear を同じイベント源
+  // から発火する。cache 消去（Bug C）だけでは drawable に present 済みの
+  // 削除前フレームが残り続けるため、両方が必要。
+  useEffect(() => {
+    if (!nativeOverlayPreviewEnabled) return;
+    if (objects.length !== 0) return;
+    // session.surfaceGate.snapshot.clips.length === 0 を代表する条件として
+    // timeline objects の空を用いる（objects が空なら surfaceGate も clips=[]）。
+    notifyNativeOverlaySceneCleared(0);
+    void window.nativeOverlay?.clearSurface({});
+  }, [nativeOverlayPreviewEnabled, objects.length]);
+
+  // Bug D case (iii) — projectId（activeSceneId）の変化を検出し、切替直後に
+  // 前 project の drawable が一瞬映る競合を潰す。cache 消去も併発する。
+  useEffect(() => {
+    if (!nativeOverlayPreviewEnabled) return;
+    notifyNativeOverlaySceneCleared(0);
+    void window.nativeOverlay?.clearSurface({});
+  }, [nativeOverlayPreviewEnabled, projectId]);
 
   const editorMode = projectSettings.editorMode ?? '2d';
 
