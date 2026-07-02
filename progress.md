@@ -1,3 +1,28 @@
+## 2026-07-02 — Native Overlay preview の縮小表示バグ（左上1/4表示）をTDDで修正
+
+### 実施内容
+
+- 実機で確定した「Native Overlay（CAMetalLayer live surface）への動画 present が preview pane の左上 1/4 領域に半分スケールで表示される」バグを調査し、真因を特定した。
+  - `native-overlay/src/lib.rs` の `attach` 側 contract（drawable = attach rect × scaleFactor）は実測と完全一致しており正しかった。歴史的な Bug B（contentsScale 喪失）の再発ではない。
+  - `upload_frame_to_scene_sources`（`native-overlay/src/lib.rs`）が scene present 時に `scene.snapshot` を無変換でそのまま返していたことが真因。TS 側 `buildRustSceneSnapshotForTimeline`（`src/utils/rustSceneSnapshot.ts`）が生成する `clip.transform.translation_x/y`・`scale_x/y` は**プロジェクト解像度（例1920x1080）基準の絶対ピクセル座標**であり、export 経路（`render_native_wgpu_frame`、drawable=プロジェクト解像度で固定）ではこの座標系がそのまま正しく機能する。
+  - しかし `shared-renderer/shaders/solid_composite.wgsl` のフラグメントシェーダーは `translation_x/y`・`scale_x/y` を **drawable の出力ピクセル座標としてそのまま解釈**する設計（NDC 正規化を行わない）。native overlay の drawable は attach rect（preview pane の CSS サイズ × dpr、例 1564x880）に追従するため、プロジェクト解像度と一致しない限り必ず座標系の不一致が生じる。fit 変換が一切なかったため、シーンが drawable の左上に「実寸」で描かれ、はみ出た残りが切り取られていた（実測 fit scale 0.407 vs 期待 0.8146 と、シーン全体を drawable 基準でスケールし直した場合の一致から確定）。
+- **Red**: `NativeOverlaySceneSource` に `canvas_width`/`canvas_height` を追加し、drawable 1564x880・canvas 1920x1080 のとき contain-fit スケール ≈0.8146 が clip transform に適用されることを要求するユニットテストを `native-overlay/src/lib.rs` に追加。現状コードでは fit 変換が無いため `scale_x=1920`（期待1564相当）のまま返り Red を確認した。
+- **Green**: `upload_frame_to_scene_sources` 内に `fit_scene_snapshot_to_drawable` を新設し、`canvas_width/height` → `drawable_width/height` の contain-fit スケール（アスペクト比維持・letterbox 中央寄せ）を計算して各 clip の `translation_x/y`・`scale_x/y` に適用するようにした。等方スケールのため回転角・アスペクト比には影響しない。
+  - napi payload（`NativeOverlaySceneSnapshotPayload`）に `canvas_width`/`canvas_height` を追加。
+  - TS側 `presentNativeOverlayRustDecodedVideoFrame`（`src/utils/sharedRendererRustVideoUploadPipeline.ts`）に `canvas`（= `surfaceGate.canvas`、`projectSettings.width/height` 由来）を必須パラメータとして追加し、呼び出し元 `sharedRendererViewportVideoUpload.ts` から `surfaceGate.canvas` を渡すようにした。`snapshot` がある場合に `canvas` が欠落していたら明示的に例外を投げる契約にした（バグの再導入を防ぐガード）。
+- 全テスト green を確認: `cargo test --manifest-path native-overlay/Cargo.toml`（17件）、`cargo test --manifest-path native-wgpu-renderer/Cargo.toml --lib`（7件）、`npm run test:native-overlay-parity`（1件）、`cargo test --manifest-path rust-backend/Cargo.toml`（60件）、`npx vitest run`（既存 baseline 失敗3ファイル5件を除き全 green、新規失敗ゼロ）、`npx tsc --noEmit -p .`（baseline 72件のまま増減なし）、`npm run native-overlay:node:build`（成功）。
+
+### 選定理由・判断の根拠
+
+- fit 変換の実装場所を Rust 側（`upload_frame_to_scene_sources`）に置いた。TS 側でシーン座標をあらかじめ drawable サイズへ変換して送る案も検討したが、export 経路（`render_native_wgpu_frame`）とシーン生成ロジック（`buildRustSceneSnapshotForTimeline`）を完全に共有したまま、native overlay 固有の「drawable が任意サイズになる」制約だけを吸収できる方が影響範囲が小さく、TS/Rust 間の座標系契約（プロジェクト解像度基準）も崩れない。
+- `canvas_width`/`canvas_height` を必須情報として追加する設計にした。Rust 側だけで fit を完結させる（プロジェクト解像度を推測する）案は不可能なため却下。
+- TS 側で `canvas` 欠落時に例外を投げる契約にした。silent に fit をスキップするとバグが再現状態のまま気づかれずに残るため、Fail Fast を優先した。
+- attach rect 計算（`nativeOverlayViewportGeometry.ts`）・contentsScale/opaque 再適用（`attach_native_overlay_inner` 内）は実測で正しいことを確認済みのため一切変更していない。
+
+### 残課題・次のステップ
+
+- 実機 Electron 起動確認は親セッションで実施予定（本セッションでは未実施）。
+
 ## 2026-07-02 — 実機検証: mp4再生の修正3ラウンド完了を確認（再生中のフレーム前進・シーク・全クリップ完走をCDP計測で裏付け）
 
 ### 実施内容
