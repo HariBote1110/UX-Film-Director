@@ -1,3 +1,43 @@
+## 2026-07-02 — 修正: mp4動画が再生できない不具合を解消（decode共有メモリringのslotリーク＋control/data-plane不一致）
+
+### 実施内容
+
+- 直前の調査エントリ（本ファイル次項）で確定した真因3点に対し、TDDで修正を実施した。
+- **Red**（`efcc9558`）:
+  - `shared-memory-spike/tests/posix_shm_two_process.rs` に `posix_shm_write_frame_returns_the_slot_index_it_actually_wrote` を追加。`write_frame` が書き込んだ実slot_indexを返す契約（現状は`Result<(), _>`のためコンパイル時Red）。
+  - `shared-video-frame-bridge/tests/copy_into_upload_buffer.rs` に `releases_leased_slot_after_slot_lease_mismatch_so_the_ring_does_not_starve` を追加。1スロットringでSlotLeaseMismatchを発生させ、直後の`write_frame`が成功する（＝リークしていない）ことを要求。実行時Red（`write_frame`がTimedOutでpanic）を確認。
+  - `rust-backend/tests/decode_control_plane.rs` に `decode_request_frame_descriptor_slot_index_matches_data_plane_slot_holding_the_sequence` を追加。3スロットのdecodeセッションで、テストコードが`consumer_ring`（data-plane直結）経由でslot 0を直接解放し、その後正規の`decode.releaseFrame`でcontrol-planeのslot1を解放するという「2消費者の非同期解放」を模擬。結果、control-planeとdata-planeで異なるスロットが最若FREEになり、次の`decode.requestFrame`応答の`descriptor.slotIndex`（=1, control-plane由来）と実際にバイト列が書かれたdata-planeスロット（=0）が食い違うことを実行時Red（`left: 0, right: 1`）で確認。実機で観測された`SlotLeaseMismatch: expected slot 1, got slot 2`と同型のズレを、decode control-planeテストの範囲内で再現できた。
+  - `rust-backend/src/native_shared.rs` に `#[cfg(all(test, unix))] mod tests` を追加し、`read_native_render_source_frame_releases_only_the_slot_it_read_not_the_first_reading_slot` を追加。2スロットringでslot0を別消費者のREADING状態として残し、対象関数がslot1を読んだ後、実際に解放されたスロット番号を`write_frame`の戻り値から検証。`write_frame`のシグネチャ変更に依存するためコンパイル時Redとして固定。
+- **Green**（`1e607d9f`）:
+  - **修正1（止血）**: `shared-video-frame-bridge::copy_shared_frame_into_upload_buffer` で`SlotLeaseMismatch`検出時、エラーを返す前に`ring.release_frame_slot(frame.slot_index, CopyOutState::RendererUploadAborted)`で読み済みスロットをFREEへ戻すようにした。解放自体が失敗した場合は新設した`SlotLeaseMismatchReleaseFailed`（Debug表記に"SlotLeaseMismatch"を含め既存の文字列一致チェックとの互換性を維持）で報告し、握り潰さない。
+  - **修正2（真因）**: `PosixSharedRing::write_frame`を`Result<u32, PosixShmError>`に変更し、書き込んだ実slot_indexを返すようにした。`rust-backend::decode.rs`では、`DecodeSession`に`data_plane_release_bindings: HashMap<u32 /* data-planeのslot_index */, ControlPlaneSlotLease>`（`control_plane_slot_index`と`generation`を保持）を追加。`handle_decode_request_frame`で、control-planeの`acquire_ready_slot()`が返す`ready_frame.frame.descriptor.slot_index`を、`write_decode_data_plane`が返したdata-plane実スロット番号で上書きしてからrendererへ返す（control-planeのslot_indexとgenerationは`data_plane_release_bindings`に退避）。`handle_decode_release_frame`では、rendererから渡される`parsed.slot_index`（data-plane値）で`data_plane_release_bindings`を引き、得られたcontrol-plane側の`slot_index`+`generation`で`descriptor_for_release`とcontrol-plane解放（`session.ring.release_read_slot`）を行い、data-plane解放は従来通り`parsed.slot_index`（rendererが返す値＝data-plane値）で行う。rendererから見た「requestFrame応答のslotIndexでcopyし、そのslotIndexでreleaseFrameする」という自己整合契約は変えず、内部の二重管理だけを解消した。
+  - **修正3**: `native_shared.rs::read_native_render_source_frame`の`ring.release_frame(CopyOutState::GpuUploadFenceSignalled)`（無指定・最初に見つかったREADINGスロットを解放）を、`ring.release_frame_slot(mapped.slot_index, CopyOutState::GpuUploadFenceSignalled)`（lease指定解放）に変更。
+  - `shared-video-frame-bridge-node/src/lib.rs::format_bridge_error`が`SharedVideoFrameBridgeError`を網羅的にmatchしていたため、新設した`SlotLeaseMismatchReleaseFailed`バリアントのフォーマット分岐を追加（非網羅パターンのコンパイルエラーをGreenフェーズで検出・対応）。
+- 実行したテストコマンドと結果:
+  - `cargo test --manifest-path shared-memory-spike/Cargo.toml` — 全Green（新規1件含む）。
+  - `cargo test --manifest-path shared-video-frame-bridge/Cargo.toml` — 4 tests Green（新規1件含む）。
+  - `cargo test --manifest-path rust-backend/Cargo.toml` — unittests 52 + decode_control_plane 57 = 109 tests Green（新規2件含む）。
+  - `cargo build --release --manifest-path rust-backend/Cargo.toml` — Green。
+  - `node scripts/build-shared-video-frame-node-addon.mjs` — Green（`SlotLeaseMismatchReleaseFailed`追加後）。
+  - 回帰確認: `cargo test --manifest-path native-overlay/Cargo.toml --lib`（16 tests）、`cargo test --manifest-path native-wgpu-renderer/Cargo.toml --lib -- live_surface`（5 tests）、全crateの`cargo build`（rust-core / rust-backend / shared-video-frame-bridge(-node) / golden-harness / shared-memory-spike / sidecar-protocol / reference-renderer / decode-spike / native-wgpu-renderer / native-overlay）— 全Green。TS側は変更していないためvitestは未実行（スコープ通り）。
+  - `decode-spike/Cargo.lock`がビルド時に未使用依存解決で変更されたが、本修正と無関係なためコミット対象から除外（`git checkout --`で復元）。
+- 版: 重大な不具合（動画再生不能）の修正として`package.json`/`package-lock.json`を`0.1.1-Beta-424c` → `0.1.1-Beta-425a`に更新（PhaseVer+1/SubVer=a）。
+
+### 選定理由・判断の根拠
+
+- **修正2のslotIndex正本設計**: renderer（TS側）は「decode.requestFrame応答のdescriptor.slotIndexでcopyし、そのslotIndexでdecode.releaseFrameする」契約しか知らない。この契約を変えずに内部の二重管理を解消する方法として、「renderer に見せるslotIndexをdata-plane実値に統一し、control-plane側の対応関係をセッション内部のHashMapで裏付ける」設計を採った。他の代替案（例: control-planeとdata-planeを単一の状態機械に統合する）はsession.ringの型（`uxfd-sidecar-protocol::SharedFrameRing`）を含む広範な変更になり、指示の「最小の変更」方針に反するため却下した。
+- **`data_plane_release_bindings`をHashMapにした理由**: data-plane slot_indexとcontrol-plane slot_indexの対応は、リクエストごとに動的に変わり得る（本来固定の1:1対応ではなく、解放順序によってどちらの番号が若くなるかが変わるため）。固定長配列ではなくHashMapにすることで、任意の対応関係を安全に表現できる。
+- **generationの二重チェックを追加した理由**: `data_plane_release_bindings`のlookupだけでは、rendererが古い（既に別フレームに再割当された）data-plane slot_indexを誤って渡してきた場合に検出できない可能性がある。保存済みのcontrol-plane generationとrendererが渡す`parsed.generation`を突き合わせることで、二重の整合性チェックとした。
+- **Red 3（decode.rsの契約テスト）の設計**: 「正常なrequestFrame/releaseFrameの往復だけでは、control-planeとdata-planeのFREEスロットスキャンは常に同じ結果になり得る（両方とも先頭から最初のFREEを選ぶため）」という点に気づき、通常操作だけではズレを再現できないと判断した。実機で観測されたズレの実際の原因（native_shared.rsの無指定解放という「decode.rsフロー外からの割り込み」）を、テストコード内で`consumer_ring`（data-plane直結）を使って模擬することで、decode control-planeテストの範囲内でも真因を再現できるようにした。この設計は、単に「今の実装でも通ってしまう回帰テスト」ではなく、実際にバグを検出できる契約になっている。
+- **修正1のCopyOutState選定**: `permits_read_slot_release()`を満たす値のうち、`GpuUploadFenceSignalled`（正常なGPUアップロード完了）ではなく`RendererUploadAborted`を選んだ。SlotLeaseMismatchはアップロードが実行されなかった異常系であり、意味的に「アップロード中断」を表す`RendererUploadAborted`が適切と判断した。
+- **`SlotLeaseMismatchReleaseFailed`のDebug表記に"SlotLeaseMismatch"を含めた理由**: 実機診断で使われている文字列一致ベースのエラー判定（`format!("{error:?}").contains("SlotLeaseMismatch")`）や、shared-video-frame-bridge-nodeの`format_bridge_error`が生成する診断メッセージとの後方互換性を保つため。
+
+### 残課題・次のステップ
+
+- **2消費者（native render source read と renderer copy bridge）の設計的排他は未対応（今回はスコープ外）**。今回の修正3・修正1により「横取り解放によるスロットリーク」と「解放漏れ」は解消したが、同一data-plane ringを2つの独立した消費者が読みに行く構造自体は変えていない。将来的に、native render source read用とrenderer向けを別ringに分離する、あるいは明示的な排他制御を導入することが望ましい。
+- `release_decode_data_plane`内の`UnexpectedState{expected:3, actual:0}`握り潰し（実質「既にFREEなら成功扱い」）は、今回の修正でリークの根本原因が解消されたため重要性は下がったが、依然として「本来はエラーであるべき状態」を黙認する設計のままであり、見直しの余地がある（今回はスコープ外）。
+- `decode.releaseFrame`を同じslotIndexで2回呼んだ場合の冪等性（1回目でbindingsから既にremove済みのため2回目は`No pending decode frame release binding`エラーになる）を検証するテストは未追加。異常系ではあるが、念のためrenderer側の呼び出しパターンを確認する価値がある。
+
 ## 2026-07-02 — 調査: mp4動画が再生できない原因の特定（decode共有メモリringのスロットリークによる枯渇）
 
 ### 実施内容
