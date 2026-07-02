@@ -1,3 +1,27 @@
+## 2026-07-02 — Native Overlay preview 縮小表示の残存係数（×0.375 = decode縮小比）をTDDで修正
+
+### 実施内容
+
+- 425d（contain-fit導入）の実機検証で「動画領域が pane 比 ≈0.38 のまま」と報告された残存バグの真因を特定し修正した。
+  - 実測の解釈: 425d 修正前 pane 比 0.46〜0.50、修正後 0.38。初期仮説は「×0.5（=1/dpr）の残存」だったが、実際の残存係数は **×0.375（= 720/1920、preview decode の縮小比）**。720/1564=0.46（修正前）、720×0.8146/1564=0.375（修正後）と両実測に一致する。
+  - 真因: preview 経路の decode は `SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE=720`（`src/utils/sharedRendererPlaybackPreviewSettings.ts`）により 1920x1080 → 720x405 へダウンスケールした frame を sources に登録する。一方 `clip.transform.scale_x/y` は「media 宣言サイズ（1920x1080）の source を表示サイズへ拡縮する」前提の値（previewProxy モードでは `mediaSourceScaleForObject` が {1,1} を返す）。`solid_composite.wgsl` は source 実寸 × scale で描画幅を決めるため、decode 縮小比の補正が無いと 720×fit(0.8146)=587px しか描かれない。
+  - rust-backend の CPU fast path（`rust-backend/src/cpu_simple_video.rs` の `fit_scale_x = media.width / source.width`、「The preview decode may downscale the video to a proxy resolution for speed」）が全く同じ問題を既に補正しており、native overlay 経路にだけ欠けていた。
+- **Red**: 前回の単体テストは snapshot の `scale_x` の値だけを検証し、sources に登録される frame 実寸との積（= shader 入力直前の実効描画幅）を見ていなかったため、この層の欠陥を素通しした。今回は `(snapshot, sources)` ペアで「`sources[media_id]` 実寸 × `clip.scale` = 最終描画サイズ ≈ drawable 幅」と letterbox（16:9、offset_y≈0.12px）/pillarbox（drawable 2000x880、offset_x≈217.8px）の中央寄せ offset を統合レベルで固定する 2 テストを追加。現状は描画幅 586.5（期待 1564）で Red を確認した。
+- **Green**: `upload_frame_to_scene_sources` に `compensate_upload_decode_downscale` を新設。upload frame 実寸と `scene.media` の該当 Video media 宣言サイズの比を、その media を参照する全 clip の scale に掛けてから contain-fit へ渡す。source==宣言サイズなら比は 1.0 で無変換。media entry 欠落・寸法 0 は Fail Safe で無変換。image は PNG native size 登録の既存設計（transform は native 基準）のため補正対象外。
+- **診断トレース**: `UXFD_OVERLAY_TRACE=1`（opt-in、既定無効）で scene present ごとに canvas/drawable 寸法・fit scale・letterbox offset・upload 実寸・media 宣言サイズ・先頭 clip の transform before→after を stderr へ 1 ブロック出力する恒久トレースを追加した（`UXFD_DECODE_TRACE` と同パターン）。実機では `UXFD_OVERLAY_TRACE=1 npm run dev` で Electron main 経由の dev ログに出る。
+- 「letterbox 中央寄せが効いていない」報告について: 425d の centre 実装は正しく機能している。canvas 1920x1080・drawable 1564x880（どちらも≈16:9）では offset_y ≈ 0.12px しかないため左上 anchored に見えるのが正常であり、実機の見た目は×0.375縮小のみが原因だった。pillarbox の offset もテストで固定済み。
+- 全テスト green: native-overlay 19件 / native-wgpu-renderer --lib 7件 / parity 1件 / rust-backend 60件 / 関連 vitest 5ファイル104件 / tsc baseline 72件のまま増減なし / addon build 成功。TS は今回無変更。版を 425d→425e に更新。
+
+### 選定理由・判断の根拠
+
+- 補正を Rust 側 `upload_frame_to_scene_sources` に置いたのは、decode 実寸（upload frame）と media 宣言サイズの両方が確実に揃うのがこの層であり、rust-backend の CPU fast path と補正設計を一致させられるため。TS 側で snapshot の scale を事前補正する案は、decode 実寸が present 時点でしか確定しない（maxDecodeEdge・ソース解像度・canvas の min で動的に決まる）ため却下。
+- 補正対象を kind=="Video" に限定した。image は「PNG native size を sources に登録し transform に resampling を任せる」既存契約（`load_overlay_image_sources_for_scene` のコメント参照）と衝突するため。
+- parity gate（`compare_live_overlay_readback_with_export`）は補正・fit 適用後の同一 snapshot を export renderer にも渡して比較する構造のため、本修正で緩和されない。
+
+### 残課題・次のステップ
+
+- 実機 Electron 検証（425e）は親セッションで実施予定。`UXFD_OVERLAY_TRACE=1` で fit 計算の実引数を確認可能。
+
 ## 2026-07-02 — Native Overlay preview の縮小表示バグ（左上1/4表示）をTDDで修正
 
 ### 実施内容
