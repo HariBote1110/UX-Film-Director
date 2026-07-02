@@ -5168,6 +5168,87 @@ fn decode_request_frame_uses_limited_range_source_metadata_for_rgba_handoff() {
     assert_no_frame_bytes_recursive(&response["result"]);
 }
 
+/// Regression contract for `frameDecodeFailed: ffprobe video stream did not
+/// include color_range`: real-world mp4s frequently omit the `color_range`
+/// stream tag entirely (ffprobe then reports no such field at all, not even
+/// "unknown" — verified empirically against a fixture encoded without
+/// `-color_range`/`range=`). The previous implementation treated a missing
+/// key as a hard decode error via `stream_metadata_string`'s
+/// `ok_or_else(...)`, so every such file was entirely unplayable. H.264's
+/// conventional default when unspecified is limited (tv) range, so a missing
+/// tag must fall back to "tv" and let decoding proceed, exactly like an
+/// explicit `color_range=unknown` already does.
+#[test]
+fn decode_request_frame_falls_back_to_limited_range_when_source_omits_color_range_metadata() {
+    let temp_dir = TestTempDir::new("decode-control-plane-missing-range");
+    let fixture = build_no_colour_range_metadata_two_frame_h264_fixture(temp_dir.path());
+    let mut backend = BackendProcess::start();
+
+    let start_response = backend.request(json!({
+        "id": 1,
+        "method": "decode.start",
+        "params": {
+            "jobId": "decode-missing-range",
+            "source": fixture.path,
+            "slotCount": 2,
+            "width": fixture.width,
+            "height": fixture.height,
+            "sourceRate": {
+                "numerator": 30,
+                "denominator": 1
+            },
+            "format": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(start_response["ok"], true, "{start_response}");
+    let stride_bytes = start_response["result"]["strideBytes"]
+        .as_u64()
+        .expect("stride bytes") as usize;
+
+    let expected_tight_rgba = decode_tight_rgba_frame_with_input_range(
+        &fixture.path,
+        1,
+        fixture.width,
+        fixture.height,
+        "tv",
+    );
+    let expected_padded_rgba = pad_rgba_rows(
+        &expected_tight_rgba,
+        fixture.width,
+        fixture.height,
+        stride_bytes,
+    );
+
+    let response = backend.request(json!({
+        "id": 2,
+        "method": "decode.requestFrame",
+        "params": {
+            "jobId": "decode-missing-range",
+            "requestId": 22,
+            "frameIndex": 1,
+            "mode": "latestWins"
+        }
+    }));
+
+    assert_eq!(
+        response["ok"], true,
+        "decode.requestFrame must not fail when the source omits color_range \
+         metadata entirely: {response}"
+    );
+    assert_eq!(
+        response["result"]["verification"]["checksum"]["valueHex"],
+        crc32_hex(&expected_padded_rgba),
+        "missing color_range should decode as if it were tv (limited) range"
+    );
+    assert_no_frame_bytes_recursive(&response["result"]);
+}
+
 #[test]
 fn decode_request_frame_accepts_non_srgb_transfer_metadata_for_mvp_video_import() {
     let temp_dir = TestTempDir::new("decode-control-plane-non-srgb-transfer");
@@ -5471,6 +5552,64 @@ fn build_two_frame_h264_fixture_with_colour_metadata(
         .arg("30")
         .arg(&video_path);
     run_ffmpeg_command(&mut command, "encode two-frame fixture");
+
+    TestVideoFixture {
+        path: video_path,
+        width,
+        height,
+    }
+}
+
+/// Build a two-frame H.264 fixture that stamps no colour-range metadata at
+/// all (no `-color_range` on the container, no `range=` in `-x264-params`),
+/// reproducing real-world mp4s that omit `color_range` entirely — as opposed
+/// to `build_limited_range_two_frame_h264_fixture`, which explicitly stamps
+/// `tv`. ffprobe reports no `color_range` field whatsoever for this fixture
+/// (verified empirically: `{"streams":[{}]}`), which is the case the decoder
+/// must tolerate by falling back to the H.264 conventional default (limited
+/// range) instead of failing the whole decode.
+fn build_no_colour_range_metadata_two_frame_h264_fixture(directory: &Path) -> TestVideoFixture {
+    let width = 34;
+    let height = 16;
+    let raw_path = directory.join("two-frame-source-no-range.rgba");
+    let video_path = directory.join("two-frame-source-no-range.mp4");
+    let mut raw_frames = Vec::new();
+    raw_frames.extend(test_frame_pixels(width, height, 0));
+    raw_frames.extend(test_frame_pixels(width, height, 1));
+    fs::write(&raw_path, raw_frames).expect("write raw test frames");
+
+    let mut command = Command::new("ffmpeg");
+    command
+        .arg("-hide_banner")
+        .arg("-loglevel")
+        .arg("error")
+        .arg("-y")
+        .arg("-f")
+        .arg("rawvideo")
+        .arg("-pixel_format")
+        .arg("rgba")
+        .arg("-video_size")
+        .arg(format!("{width}x{height}"))
+        .arg("-framerate")
+        .arg("30")
+        .arg("-i")
+        .arg(&raw_path)
+        .arg("-frames:v")
+        .arg("2")
+        .arg("-pix_fmt")
+        .arg("yuv444p")
+        .arg("-c:v")
+        .arg("libx264")
+        .arg("-preset")
+        .arg("ultrafast")
+        .arg("-crf")
+        .arg("0")
+        .arg("-x264-params")
+        .arg("keyint=1:min-keyint=1:scenecut=0")
+        .arg("-video_track_timescale")
+        .arg("30")
+        .arg(&video_path);
+    run_ffmpeg_command(&mut command, "encode no-colour-range fixture");
 
     TestVideoFixture {
         path: video_path,
