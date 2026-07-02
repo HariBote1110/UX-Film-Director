@@ -1,3 +1,24 @@
+## 2026-07-02 — 調査: プロジェクト作成後に画面全体が真っ黒になる原因の特定（Viewport TDZ ReferenceError）
+
+### 実施内容
+
+- ユーザー報告「起動してプロジェクト作成画面から進むと画面が真っ黒になる」を実機で再現・調査した（本セッションはコード変更なし、調査のみ）。
+- `npm run dev` で起動し「作成」を押した直後、preview 領域だけでなく**ウィンドウ全体（HTML タイトルバー含む）が真っ黒**になることを確認。トラフィックライト（ネイティブ部分）のみ表示される。
+- DevTools コンソールで真因を特定: **`Uncaught ReferenceError: Cannot access 'objects' before initialization`（`Viewport.tsx:614`）**。React が `<Viewport>` の render 中に throw し、error boundary が無いためツリー全体が unmount され、`<body>` の黒背景だけが残る。これが「画面全体が真っ黒」の正体。
+- 真因の構造: Bug D 修正（`56026c66`）で `Viewport.tsx:603-622` に挿入した 2 つの `useEffect` が、deps 配列で `objects.length`（614行）と `projectId`（622行）を参照している。しかし `objects` / `projectId` は **661〜699 行の `useStore` destructure で宣言される `const`** であり、effect 挿入位置（603-622行）より後。初回 render で deps 配列を評価した瞬間に temporal dead zone（TDZ）違反で ReferenceError になる。
+- Native Overlay の opaque / contentsScale（Bug E 緊急修正、`4d4d4288`）は本件と無関係。Rust 側 addon は最新ソースからビルド済みで、attach まで到達する前に renderer 側が crash している。
+
+### 選定理由・判断の根拠
+
+- 「preview だけでなくウィンドウ全体が黒い」という観測が決め手。overlay の CAMetalLayer は preview pane 矩形にしか attach されないため、全面黒は overlay 起因ではあり得ず、renderer（React）側の全体 crash を疑って DevTools を開いた。
+- Bug D の Red テスト（`viewportRustVideoOnlyBoundary.test.ts`）は source-text の文字列一致契約であり、コンポーネントを実際に render しない。そのため TDZ エラーはテストでは検出できず Green のまま commit されていた。**source-text 契約テストは「コードが書かれていること」しか保証せず「コードが実行可能であること」を保証しない**という教訓。
+- 2026-07-01 の Bug E 緊急修正時に観測された「編集画面 preview が真っ黒」も、時系列上 Bug D commit（TDZ 混入）より後なので、実際には本件（全体 unmount）だった可能性が高い。opaque 再適用は理屈として正しい修正だが、実機で黒画面が解消したことは未確認のまま記録されていた。
+
+### 残課題・次のステップ
+
+- 修正方針（未着手・要承認）: `Viewport.tsx:603-622` の 2 effect を `useStore` destructure（661行以降）より後ろへ移動するのが最小修正。移動後も「attach effect（535-601行）→ clear effect」の相対順序は React の effect 実行順（宣言順）に依存しているため、移動位置に注意する。
+- 再発防止: Viewport の mount 自体を検証する render テスト（Testing Library 等）の追加、または App ルートへの error boundary 導入を検討する。
+
 ## 2026-07-01 — Bug E緊急修正: Native Overlay opaqueがwgpu surface構築で既定値に戻り編集画面previewが黒くなるリグレッション
 
 ### 実施内容
