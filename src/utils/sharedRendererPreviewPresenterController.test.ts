@@ -1783,6 +1783,88 @@ describe('startSharedRendererPreviewPresenter', () => {
     expect(events).toEqual(['writeTexture', 'gpuUploadDone', 'release-reused']);
   });
 
+  it('republishes presenter diagnostics with the new frame after re-presenting a native rendered frame', async () => {
+    // Regression: the rust-only playback reuse path (Viewport.tsx) calls
+    // presentPreparedNativeRenderFrame on every tick instead of restarting the
+    // presenter, precisely so the preview does not flicker. But the presenter
+    // only ever wrote diagnostics once, at start-of-playback — so
+    // VideoPresentedFrameIndex/VideoFrameUploadReady/VideoOwner froze at
+    // whatever the very first frame looked like and never advanced, even
+    // though every subsequent frame rendered and presented successfully.
+    const dataset: Record<string, string | undefined> = {};
+    const events: string[] = [];
+    const initialSession = {
+      ...videoSession,
+      surfaceGate: {
+        ...videoSession.surfaceGate,
+        canvas: { width: 4, height: 4 },
+      },
+    };
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: initialSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      sharedRendererVideoCutoverEnabled: true,
+      sharedRendererNativeRenderFrameUpload: {
+        descriptor: nativeRenderDescriptor,
+        ptsFrame: 12,
+        rgbaBytes: new Uint8Array(nativeRenderDescriptor.byteLen),
+        releaseAfterGpuUpload: async () => {
+          events.push('release-initial');
+        },
+      },
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onWriteTexture: () => {
+              events.push('writeTexture');
+            },
+            onSubmittedWorkDone: async () => {
+              events.push('gpuUploadDone');
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+    } as any);
+
+    expect(control.ok).toBe(true);
+    if (!control.ok) throw new Error('expected ok control');
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterVideoPresentedFrameIndex: '12',
+      uxfdSharedRendererPresenterVideoOwner: 'sharedRenderer',
+      uxfdSharedRendererPresenterVideoCutoverReason: 'nativeRenderFrameReady',
+    });
+
+    events.length = 0;
+    const nextSession = {
+      ...videoSession,
+      surfaceGate: {
+        ...videoSession.surfaceGate,
+        canvas: { width: 4, height: 4 },
+        snapshot: { ...videoSession.surfaceGate.snapshot, frame_index: 999 },
+      },
+    };
+    const presentation = await control.presentPreparedNativeRenderFrame!({
+      descriptor: nativeRenderDescriptor,
+      ptsFrame: 999,
+      rgbaBytes: new Uint8Array(nativeRenderDescriptor.byteLen),
+      releaseAfterGpuUpload: async () => {
+        events.push('release-reused');
+      },
+    } as any, { session: nextSession });
+
+    expect(presentation.ok).toBe(true);
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterVideoPresentedFrameIndex: '999',
+      uxfdSharedRendererPresenterVideoOwner: 'sharedRenderer',
+      uxfdSharedRendererPresenterVideoCutoverReason: 'nativeRenderFrameReady',
+    });
+  });
+
   it('publishes native render GPU release failures instead of throwing out of the presenter', async () => {
     const dataset: Record<string, string | undefined> = {};
     const events: string[] = [];
