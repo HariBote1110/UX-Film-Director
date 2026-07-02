@@ -42,9 +42,10 @@ import { buildViewportRustExportFrameSource } from '../utils/viewportRustExportF
 import { shouldMountSharedRendererSurfaceCanvas } from '../utils/sharedRendererSurfaceMount';
 import {
   SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT,
-  SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE,
   SHARED_RENDERER_PLAYBACK_PREVIEW_FPS,
   quantiseSharedRendererPlaybackPreviewTime,
+  resolveSharedRendererPlaybackDecodeMaxEdge,
+  type SharedRendererPlaybackDrawableSize,
 } from '../utils/sharedRendererPlaybackPreviewSettings';
 import { resolveSharedRendererNativeReuseReplayTime } from '../utils/sharedRendererNativeReuseCadence';
 import {
@@ -486,6 +487,10 @@ const Viewport: React.FC = () => {
   const sharedRendererNativeReusePreparingRef = useRef(false);
   const sharedRendererNativeReusePendingRef = useRef<{ time: number; objects: TimelineObject[] } | null>(null);
   const sharedRendererNativeReuseLastPreviewTimeRef = useRef<number | null>(null);
+  // Native overlay attach rect の drawable ピクセルサイズ（CSS pt × dpr）。
+  // preview decode edge を drawable 長辺に追従させるための正本値。attach 毎に更新し、
+  // detach（unmount）で null に戻すと decode edge は 720 フォールバックへ戻る。
+  const nativeOverlayDrawableSizeRef = useRef<SharedRendererPlaybackDrawableSize | null>(null);
   const sharedRendererExternalVideoSourcesRef = useRef<Map<string, SharedRendererExternalVideoSourceEntry>>(new Map());
   const pixiObjectsRef = useRef<Map<string, PIXI.Container>>(new Map());
   const groupContainersRef = useRef<Map<string, PIXI.Container>>(new Map());
@@ -557,6 +562,12 @@ const Viewport: React.FC = () => {
         nextAttachRect.height,
         nextAttachRect.scaleFactor,
       ].join(':');
+      // build_overlay_layer_contract（Rust）と同じ丸めで drawable ピクセルサイズを保持し、
+      // preview decode edge を drawable 長辺に追従させる。
+      nativeOverlayDrawableSizeRef.current = {
+        width: Math.round(nextAttachRect.width * nextAttachRect.scaleFactor),
+        height: Math.round(nextAttachRect.height * nextAttachRect.scaleFactor),
+      };
       if (nextAttachKey === lastNativeOverlayAttachKey) return;
       lastNativeOverlayAttachKey = nextAttachKey;
       void window.nativeOverlay?.attach(nextAttachRect);
@@ -591,6 +602,7 @@ const Viewport: React.FC = () => {
       document.removeEventListener('visibilitychange', attach);
       window.removeEventListener('focus', attach);
       window.removeEventListener('pageshow', attach);
+      nativeOverlayDrawableSizeRef.current = null;
       // Bug D case (ii) — Viewport unmount 時、detach が AppKit view を破棄
       // する前に transparent clear を発行して drawable を全 pixel alpha=0 に
       // する。呼び順は clear -> detach 必須（detach 後だと registry lookup
@@ -1076,7 +1088,7 @@ const Viewport: React.FC = () => {
                 requestId: (sharedRendererVideoDecodeRequestIdRef.current += 1),
                 activeJob: sharedRendererVideoDecodeJobsRef.current[0] ?? null,
                 slotCount: SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT,
-                maxDecodeEdge: SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE,
+                maxDecodeEdge: resolveSharedRendererPlaybackDecodeMaxEdge(nativeOverlayDrawableSizeRef.current),
                 nativeOverlayBridge: window.nativeOverlay,
                 rustBackendBridge: window.rustBackend,
               });
@@ -1096,7 +1108,7 @@ const Viewport: React.FC = () => {
               requestId: (sharedRendererVideoDecodeRequestIdRef.current += 1),
               activeJobs: sharedRendererVideoDecodeJobsRef.current,
               sourceSlotCount: SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT,
-              maxDecodeEdge: SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE,
+              maxDecodeEdge: resolveSharedRendererPlaybackDecodeMaxEdge(nativeOverlayDrawableSizeRef.current),
             });
             sharedRendererVideoDecodeJobsRef.current = result.activeJobs;
             if (result.ok) {
@@ -1274,10 +1286,12 @@ const Viewport: React.FC = () => {
       // the streaming ffmpeg decoder stays warm. Switching to full-res on pause
       // changed the jobId, evicting (decode.stop) the warm preview decoder and
       // forcing a cold restart on every play/pause/seek — the firstFrame bursts
-      // and 1920px churn seen in UXFD_DECODE_TRACE. Preview always decodes at the
-      // playback (preview) resolution; full-res stays the export path's concern.
+      // and 1920px churn seen in UXFD_DECODE_TRACE. Preview decodes at the
+      // drawable-matched edge, which stays constant while the pane size is
+      // unchanged (play/pause keeps reusing the warm decoder; only a pane
+      // resize rebuilds the job); full-res stays the export path's concern.
       videoDecodeSlotCount: SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT,
-      videoDecodeMaxEdge: SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE,
+      videoDecodeMaxEdge: resolveSharedRendererPlaybackDecodeMaxEdge(nativeOverlayDrawableSizeRef.current),
       requestId: (sharedRendererVideoDecodeRequestIdRef.current += 1),
       sharedRendererExternalVideoSourcesByClipId: !rustVideoOnlyEnabled && externalVideoSourcesByClipId.size > 0
         ? externalVideoSourcesByClipId

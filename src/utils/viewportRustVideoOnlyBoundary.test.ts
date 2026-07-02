@@ -218,7 +218,9 @@ describe('Viewport Rust video-only boundary', () => {
     const nativeReuseUploadBlock = code.slice(start, end);
 
     expect(nativeReuseUploadBlock).toContain('sourceSlotCount: SHARED_RENDERER_PLAYBACK_DECODE_SLOT_COUNT');
-    expect(nativeReuseUploadBlock).toContain('maxDecodeEdge: SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE');
+    // decode edge は固定 720 ではなく preview drawable の長辺へ追従する
+    // （固定 720 だと大きな drawable へ引き伸ばされ preview がボケる）。
+    expect(nativeReuseUploadBlock).toContain('maxDecodeEdge: resolveSharedRendererPlaybackDecodeMaxEdge(nativeOverlayDrawableSizeRef.current)');
   });
 
   it('clamps rust-only native reuse playback publish time from the last requested preview frame', () => {
