@@ -1580,6 +1580,180 @@ mod tests {
         );
     }
 
+    #[test]
+    fn upload_frame_to_scene_sources_compensates_preview_decode_downscale_for_final_drawn_width() {
+        // 実機残存バグ（425d）: contain-fit（×0.8146）を適用しても動画が pane 比 ≈0.38 の
+        // 縮小表示のままだった。真因は preview 経路の decode が
+        // SHARED_RENDERER_PLAYBACK_DECODE_MAX_EDGE=720 で 1920x1080 → 720x405 に
+        // ダウンスケールした frame を sources に登録するのに対し、clip.transform.scale_x は
+        // 「media 宣言サイズ（1920）のソースを表示サイズへ拡縮する」前提の値のままで、
+        // decode 縮小比（720/1920=0.375）の補正が無かったこと。solid_composite.wgsl は
+        // source 実寸 × scale で描画幅を決めるため、720×fit(0.8146)=587px → pane 比 0.375 と
+        // 実測 0.38 が一致する。rust-backend の CPU fast path
+        // （cpu_simple_video.rs の fit_scale_x = media.width / source.width）は同じ問題を
+        // 既に補正しており、native overlay 経路にも同じ補正が必要。
+        //
+        // 前回の単体テストは snapshot の scale_x の値だけを検証し、sources に登録される
+        // frame 実寸との積（= shader 入力直前の実効描画幅）を見ていなかったため
+        // この層の欠陥を素通しした。本テストは (snapshot, sources) ペアで
+        // 「sources[media_id] 実寸 × clip.scale = 最終描画サイズ」を固定する。
+        let upload = OverlayUploadFrame {
+            media_id: "video-1".to_string(),
+            // preview decode が 1920x1080 → 720x405 へ縮小した状態を再現する。
+            width: 720,
+            height: 405,
+            generation: 1,
+            pts_frame: 0,
+            pixels: vec![0_u8; 720 * 405 * 4],
+        };
+
+        let scene = NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: 0,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: vec![EvaluatedClip {
+                    clip_id: "clip-1".to_string(),
+                    track_id: "track-1".to_string(),
+                    media_id: "video-1".to_string(),
+                    source_frame: 0,
+                    z_index: 0,
+                    transform: Transform {
+                        translation_x: 0.0,
+                        translation_y: 0.0,
+                        // TS の buildRustSceneSnapshotForTimeline は previewProxy モードで
+                        // transformScale={1,1} を返すため、scale は object.scaleX のまま。
+                        scale_x: 1.0,
+                        scale_y: 1.0,
+                        rotation_degrees: 0.0,
+                        sampling: SamplingMode::Bilinear,
+                    },
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                }],
+            },
+            media: vec![NativeOverlaySceneMedia {
+                id: "video-1".to_string(),
+                kind: "Video".to_string(),
+                source: "/tmp/example.mp4".to_string(),
+                // media 宣言サイズ（プロジェクトのシーン座標系での表示基準サイズ）。
+                width: 1920,
+                height: 1080,
+            }],
+            canvas_width: 1920,
+            canvas_height: 1080,
+        };
+
+        let (snapshot, sources) =
+            upload_frame_to_scene_sources(&upload, Some(&scene), 1564, 880)
+                .expect("scene upload must compensate decode downscale and fit to drawable");
+
+        let source = sources
+            .get("video-1")
+            .expect("decoded video frame must be registered in the sources");
+        let clip = &snapshot.clips[0];
+
+        // shader 入力直前の実効描画サイズ = sources 実寸 × clip.scale。
+        // fit = min(1564/1920, 880/1080) = 0.81458…
+        // 期待描画幅 = 1920 × fit ≈ 1564、期待描画高 = 1080 × fit ≈ 879.75。
+        let drawn_width = source.width as f32 * clip.transform.scale_x;
+        let drawn_height = source.height as f32 * clip.transform.scale_y;
+        assert!(
+            (drawn_width - 1564.0).abs() < 1.0,
+            "expected the final drawn width to span the drawable width (~1564), got {drawn_width} \
+             (source {}x{}, scale {}x{})",
+            source.width,
+            source.height,
+            clip.transform.scale_x,
+            clip.transform.scale_y
+        );
+        assert!(
+            (drawn_height - 879.75).abs() < 1.0,
+            "expected the final drawn height to be canvas_height * fit (~879.75), got {drawn_height}"
+        );
+
+        // letterbox 中央寄せ: offset = ((1564-1564)/2, (880-879.75)/2) ≈ (0, 0.123)。
+        assert!(
+            clip.transform.translation_x.abs() < 0.5,
+            "expected horizontal letterbox offset ~0, got {}",
+            clip.transform.translation_x
+        );
+        let expected_offset_y = (880.0 - 1080.0 * (1564.0_f32 / 1920.0)) * 0.5;
+        assert!(
+            (clip.transform.translation_y - expected_offset_y).abs() < 0.5,
+            "expected vertical letterbox offset ~{expected_offset_y}, got {}",
+            clip.transform.translation_y
+        );
+    }
+
+    #[test]
+    fn upload_frame_to_scene_sources_centres_scene_with_pillarbox_offset_in_wide_drawable() {
+        // 幅方向に余白が出る drawable（pillarbox）で中央寄せ translation が効くことを固定する。
+        // drawable 2000x880・canvas 1920x1080 のとき fit = min(2000/1920, 880/1080) = 0.81481…、
+        // fitted 幅 = 1920 × fit ≈ 1564.4、offset_x = (2000 - 1564.4) / 2 ≈ 217.8。
+        let upload = OverlayUploadFrame {
+            media_id: "video-1".to_string(),
+            width: 720,
+            height: 405,
+            generation: 1,
+            pts_frame: 0,
+            pixels: vec![0_u8; 720 * 405 * 4],
+        };
+
+        let scene = NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: 0,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: vec![EvaluatedClip {
+                    clip_id: "clip-1".to_string(),
+                    track_id: "track-1".to_string(),
+                    media_id: "video-1".to_string(),
+                    source_frame: 0,
+                    z_index: 0,
+                    transform: Transform {
+                        translation_x: 0.0,
+                        translation_y: 0.0,
+                        scale_x: 1.0,
+                        scale_y: 1.0,
+                        rotation_degrees: 0.0,
+                        sampling: SamplingMode::Bilinear,
+                    },
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                }],
+            },
+            media: vec![NativeOverlaySceneMedia {
+                id: "video-1".to_string(),
+                kind: "Video".to_string(),
+                source: "/tmp/example.mp4".to_string(),
+                width: 1920,
+                height: 1080,
+            }],
+            canvas_width: 1920,
+            canvas_height: 1080,
+        };
+
+        let (snapshot, sources) =
+            upload_frame_to_scene_sources(&upload, Some(&scene), 2000, 880)
+                .expect("scene upload must centre the fitted scene in a wide drawable");
+
+        let source = sources.get("video-1").expect("video source must exist");
+        let clip = &snapshot.clips[0];
+        let fit = 880.0_f32 / 1080.0;
+        let expected_offset_x = (2000.0 - 1920.0 * fit) * 0.5;
+
+        assert!(
+            (clip.transform.translation_x - expected_offset_x).abs() < 0.5,
+            "expected horizontal pillarbox offset ~{expected_offset_x}, got {}",
+            clip.transform.translation_x
+        );
+        let drawn_width = source.width as f32 * clip.transform.scale_x;
+        assert!(
+            (drawn_width - 1920.0 * fit).abs() < 1.0,
+            "expected the final drawn width to be canvas_width * fit (~{}), got {drawn_width}",
+            1920.0 * fit
+        );
+    }
+
     fn unique_shm_name() -> String {
         let micros = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
