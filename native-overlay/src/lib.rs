@@ -1797,6 +1797,87 @@ mod tests {
     }
 
     #[test]
+    fn upload_frame_to_scene_sources_compensates_drawable_matched_decode_edge() {
+        // preview decode edge が drawable 長辺に追従するようになった後の代表ケース:
+        // drawable 1564x880 → decode 1564x880（media 1920x1080、補正比 1920/1564 ≈ 1.228）。
+        // 補正 × fit = (1920/1564) × (1564/1920) = 1.0 となり、decode 実寸が drawable と
+        // 一致するときは実質無変換で 1:1 present になる（ボケの原因となる拡大が消える）。
+        let upload = OverlayUploadFrame {
+            media_id: "video-1".to_string(),
+            width: 1564,
+            height: 880,
+            generation: 1,
+            pts_frame: 0,
+            pixels: vec![0_u8; 1564 * 880 * 4],
+        };
+
+        let scene = NativeOverlaySceneSource {
+            snapshot: SceneSnapshot {
+                frame_index: 0,
+                colour: ColourPipeline::rec709_sdr_linear(),
+                clips: vec![EvaluatedClip {
+                    clip_id: "clip-1".to_string(),
+                    track_id: "track-1".to_string(),
+                    media_id: "video-1".to_string(),
+                    source_frame: 0,
+                    z_index: 0,
+                    transform: Transform {
+                        translation_x: 0.0,
+                        translation_y: 0.0,
+                        scale_x: 1.0,
+                        scale_y: 1.0,
+                        rotation_degrees: 0.0,
+                        sampling: SamplingMode::Bilinear,
+                    },
+                    opacity: 1.0,
+                    effects: Vec::new(),
+                }],
+            },
+            media: vec![NativeOverlaySceneMedia {
+                id: "video-1".to_string(),
+                kind: "Video".to_string(),
+                source: "/tmp/example.mp4".to_string(),
+                width: 1920,
+                height: 1080,
+            }],
+            canvas_width: 1920,
+            canvas_height: 1080,
+        };
+
+        let (snapshot, sources) =
+            upload_frame_to_scene_sources(&upload, Some(&scene), 1564, 880)
+                .expect("drawable-matched decode edge must present 1:1");
+
+        let source = sources.get("video-1").expect("video source must exist");
+        let clip = &snapshot.clips[0];
+
+        // decode 縮小補正の単体値も固定する: media 1920 / upload 1564 ≈ 1.2276。
+        // （fit 0.81458 との積で scale ≈ 1.0）
+        let expected_compensation = 1920.0_f32 / 1564.0;
+        assert!(
+            (expected_compensation - 1.2276).abs() < 0.001,
+            "expected compensation ratio sanity check to be ~1.2276, got {expected_compensation}"
+        );
+
+        let drawn_width = source.width as f32 * clip.transform.scale_x;
+        let drawn_height = source.height as f32 * clip.transform.scale_y;
+        assert!(
+            (drawn_width - 1564.0).abs() < 1.0,
+            "expected 1:1 drawn width (~1564), got {drawn_width} (scale {})",
+            clip.transform.scale_x
+        );
+        assert!(
+            (drawn_height - 879.75).abs() < 1.0,
+            "expected drawn height ~879.75 (canvas_height * fit), got {drawn_height}"
+        );
+        assert!(
+            (clip.transform.scale_x - 1.0).abs() < 0.01,
+            "expected near-identity effective scale for drawable-matched decode, got {}",
+            clip.transform.scale_x
+        );
+    }
+
+    #[test]
     fn upload_frame_to_scene_sources_centres_scene_with_pillarbox_offset_in_wide_drawable() {
         // 幅方向に余白が出る drawable（pillarbox）で中央寄せ translation が効くことを固定する。
         // drawable 2000x880・canvas 1920x1080 のとき fit = min(2000/1920, 880/1080) = 0.81481…、
