@@ -167,6 +167,78 @@ fn posix_shm_multi_slot_allows_next_frame_while_previous_frame_is_reading() {
         .expect("all slots return to free");
 }
 
+/// Contract for the sequence-verified lease release used by the decode
+/// data-plane: a leased frame must be releasable whether or not it was ever
+/// read (READY or READING), and releasing a lease whose slot has already
+/// been recycled for a different frame must be a safe no-op instead of
+/// freeing somebody else's frame.
+#[test]
+fn posix_shm_release_frame_slot_for_sequence_frees_leased_frames_and_ignores_recycled_slots() {
+    let name = unique_shm_name();
+    let ring =
+        PosixSharedRing::create_with_slot_count(&name, 1, 16).expect("create single-slot ring");
+    let payload = vec![0x51; 16];
+
+    // Case 1: a written frame that was never read (READY) is aborted by the
+    // renderer before any copy. The release must still free the slot.
+    let written_slot = ring.write_frame(7, &payload).expect("write frame 7");
+    ring.release_frame_slot_for_sequence(
+        written_slot,
+        7,
+        uxfd_sidecar_protocol::CopyOutState::RendererUploadAborted,
+    )
+    .expect("aborting an unread READY frame must free its slot");
+
+    // Case 2: a frame the consumer has read (READING) releases normally.
+    let written_slot = ring
+        .write_frame(8, &payload)
+        .expect("slot freed by case 1 accepts a new frame");
+    ring.read_frame(8).expect("consumer reads frame 8");
+    ring.release_frame_slot_for_sequence(
+        written_slot,
+        8,
+        uxfd_sidecar_protocol::CopyOutState::GpuUploadFenceSignalled,
+    )
+    .expect("releasing a READING frame by sequence must free its slot");
+
+    // Case 3: a READY frame released with gpuUploadFenceSignalled (the
+    // inline MVP upload path never reads the shared memory slot but still
+    // reports a completed upload) must also free the slot.
+    let written_slot = ring
+        .write_frame(9, &payload)
+        .expect("slot freed by case 2 accepts a new frame");
+    ring.release_frame_slot_for_sequence(
+        written_slot,
+        9,
+        uxfd_sidecar_protocol::CopyOutState::GpuUploadFenceSignalled,
+    )
+    .expect("releasing an unread READY frame after an inline upload must free its slot");
+
+    // Case 4: releasing a lease whose slot now holds a DIFFERENT frame
+    // (the slot was freed by another consumer and recycled) must not touch
+    // the newer frame.
+    let written_slot = ring
+        .write_frame(10, &payload)
+        .expect("slot freed by case 3 accepts a new frame");
+    ring.release_frame_slot_for_sequence(
+        written_slot,
+        9, // stale lease: the slot now holds sequence 10
+        uxfd_sidecar_protocol::CopyOutState::RendererUploadAborted,
+    )
+    .expect("releasing a recycled lease must be a safe no-op");
+    ring.read_frame(10)
+        .expect("the newer frame must still be readable after the stale release");
+    ring.release_frame_slot_for_sequence(
+        written_slot,
+        10,
+        uxfd_sidecar_protocol::CopyOutState::GpuUploadFenceSignalled,
+    )
+    .expect("release the newer frame normally");
+
+    ring.wait_until_free(Duration::from_secs(1))
+        .expect("all slots return to free");
+}
+
 #[test]
 fn posix_shm_slot_can_be_released_after_encoder_writes_frame() {
     let name = unique_shm_name();

@@ -4651,6 +4651,228 @@ fn decode_request_frame_descriptor_slot_index_matches_data_plane_slot_holding_th
     );
 }
 
+/// Reproduces the residual data-plane leak observed on 0.1.1-Beta-425a: the
+/// renderer has several abort paths (stale decode response in
+/// sharedRendererViewportNativeRenderSource.ts, copy failure in
+/// sharedRendererRustVideoUploadPipeline.ts) that call
+/// decode.releaseFrame(copyOutState='rendererUploadAborted') WITHOUT ever
+/// copying the frame — so the data-plane slot is still READY, not READING.
+/// release_frame_slot() only performs the READING→FREE transition, so every
+/// such abort left one READY slot stranded forever; after slot_count aborts
+/// the ring starves and every write_frame times out ("Failed to write decoded
+/// frame to shared memory: TimedOut"). Repeating request→abort-release more
+/// times than there are slots must keep working.
+#[test]
+fn decode_release_frame_with_renderer_upload_aborted_frees_unread_slot_so_ring_does_not_starve() {
+    let temp_dir = TestTempDir::new("decode-control-plane-abort-unread");
+    let fixture = build_n_frame_h264_fixture(temp_dir.path(), 6);
+    let mut backend = BackendProcess::start();
+
+    let start_response = backend.request(json!({
+        "id": 1,
+        "method": "decode.start",
+        "params": {
+            "jobId": "abort-unread",
+            "source": fixture.path,
+            "slotCount": 2,
+            "width": fixture.width,
+            "height": fixture.height,
+            "sourceRate": {
+                "numerator": 30,
+                "denominator": 1
+            },
+            "format": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(start_response["ok"], true, "{start_response}");
+
+    // 6 request→abort cycles on a 2-slot ring: if aborting an unread frame
+    // leaked its READY slot, the third request would already fail with a
+    // write_frame timeout.
+    for frame_index in 0..6u64 {
+        let response = backend.request(json!({
+            "id": 2 + frame_index * 2,
+            "method": "decode.requestFrame",
+            "params": {
+                "jobId": "abort-unread",
+                "requestId": 100 + frame_index,
+                "frameIndex": frame_index,
+                "mode": "latestWins"
+            }
+        }));
+        assert_eq!(
+            response["ok"], true,
+            "requestFrame {frame_index} must not starve after earlier aborts: {response}"
+        );
+
+        // The renderer aborts without reading the frame from shared memory
+        // (no bridge copy, no native render read): the data-plane slot is
+        // still READY when this release arrives.
+        let release_response = backend.request(json!({
+            "id": 3 + frame_index * 2,
+            "method": "decode.releaseFrame",
+            "params": {
+                "jobId": "abort-unread",
+                "slotIndex": response["result"]["frame"]["descriptor"]["slotIndex"],
+                "generation": response["result"]["frame"]["descriptor"]["generation"],
+                "copyOutState": "rendererUploadAborted"
+            }
+        }));
+        assert_eq!(
+            release_response["ok"], true,
+            "aborting an unread decoded frame must release its READY data-plane slot: {release_response}"
+        );
+    }
+}
+
+/// Reproduces a lease-identity collision: when a first decoded frame's
+/// data-plane slot is consumed and freed early by the in-backend native
+/// render source read, the next decode.requestFrame reuses that same
+/// data-plane slot while the first lease is still outstanding on the
+/// control-plane. If descriptors are only identified by (slotIndex,
+/// generation) derived from two independent slot bookkeepings, both leases
+/// can end up with IDENTICAL descriptors (slot 0, generation 1), making the
+/// two releases indistinguishable — the first release then frees the wrong
+/// control-plane slot and the second fails. Each decode.requestFrame must
+/// hand out a lease identity that stays unique while both are in flight.
+#[test]
+fn decode_release_frame_distinguishes_two_leases_that_reused_the_same_data_plane_slot() {
+    let temp_dir = TestTempDir::new("decode-control-plane-lease-identity");
+    let fixture = build_two_frame_h264_fixture(temp_dir.path());
+    let mut backend = BackendProcess::start();
+
+    let start_response = backend.request(json!({
+        "id": 1,
+        "method": "decode.start",
+        "params": {
+            "jobId": "lease-identity",
+            "source": fixture.path,
+            "slotCount": 2,
+            "width": fixture.width,
+            "height": fixture.height,
+            "sourceRate": {
+                "numerator": 30,
+                "denominator": 1
+            },
+            "format": "rgba8Srgb",
+            "colour": {
+                "primaries": "bt709",
+                "transfer": "srgb",
+                "matrix": "rgb",
+                "range": "full"
+            }
+        }
+    }));
+    assert_eq!(start_response["ok"], true, "{start_response}");
+    let memory_id = start_response["result"]["memoryId"]
+        .as_str()
+        .expect("memory id");
+    let slot_byte_len = start_response["result"]["slotByteLen"]
+        .as_u64()
+        .expect("slot byte length") as usize;
+    let consumer_ring = PosixSharedRing::attach_with_retry_for_layout(
+        memory_id,
+        2,
+        slot_byte_len,
+        Duration::from_secs(1),
+    )
+    .expect("attach to decode data-plane ring");
+
+    // Lease A: first frame, lands in data-plane slot 0.
+    let first_response = backend.request(json!({
+        "id": 2,
+        "method": "decode.requestFrame",
+        "params": {
+            "jobId": "lease-identity",
+            "requestId": 51,
+            "frameIndex": 0,
+            "mode": "latestWins"
+        }
+    }));
+    assert_eq!(first_response["ok"], true, "{first_response}");
+    let first_descriptor = first_response["result"]["frame"]["descriptor"].clone();
+    assert_eq!(first_descriptor["slotIndex"], 0);
+
+    // The in-backend native render source read consumes frame 0 and frees
+    // its data-plane slot immediately (simulated here by a second consumer
+    // of the same ring), while lease A is still outstanding.
+    let first_mapped = consumer_ring
+        .read_frame(0)
+        .expect("native render source reads the first decoded frame");
+    consumer_ring
+        .release_frame_slot(
+            first_mapped.slot_index,
+            uxfd_sidecar_protocol::CopyOutState::GpuUploadFenceSignalled,
+        )
+        .expect("native render source releases the first data-plane slot");
+
+    // Lease B: second frame reuses the freed data-plane slot 0 while lease A
+    // is still unreleased.
+    let second_response = backend.request(json!({
+        "id": 3,
+        "method": "decode.requestFrame",
+        "params": {
+            "jobId": "lease-identity",
+            "requestId": 52,
+            "frameIndex": 1,
+            "mode": "latestWins"
+        }
+    }));
+    assert_eq!(second_response["ok"], true, "{second_response}");
+    let second_descriptor = second_response["result"]["frame"]["descriptor"].clone();
+    assert_eq!(
+        second_descriptor["slotIndex"], 0,
+        "second lease must reuse the data-plane slot freed by the native read"
+    );
+    assert_ne!(
+        first_descriptor["generation"], second_descriptor["generation"],
+        "two in-flight leases on the same data-plane slot must have distinct lease identities, \
+         otherwise decode.releaseFrame cannot tell them apart"
+    );
+
+    // The renderer copy bridge reads lease B's frame (READY→READING).
+    consumer_ring
+        .read_frame(1)
+        .expect("renderer copy bridge reads the second decoded frame");
+
+    // Releasing lease A (already consumed by the native read) must succeed
+    // and must NOT free lease B's control-plane slot or data-plane slot.
+    let first_release = backend.request(json!({
+        "id": 4,
+        "method": "decode.releaseFrame",
+        "params": {
+            "jobId": "lease-identity",
+            "slotIndex": first_descriptor["slotIndex"],
+            "generation": first_descriptor["generation"],
+            "copyOutState": "gpuUploadFenceSignalled"
+        }
+    }));
+    assert_eq!(first_release["ok"], true, "{first_release}");
+
+    // Releasing lease B afterwards must also succeed.
+    let second_release = backend.request(json!({
+        "id": 5,
+        "method": "decode.releaseFrame",
+        "params": {
+            "jobId": "lease-identity",
+            "slotIndex": second_descriptor["slotIndex"],
+            "generation": second_descriptor["generation"],
+            "copyOutState": "gpuUploadFenceSignalled"
+        }
+    }));
+    assert_eq!(second_release["ok"], true, "{second_release}");
+
+    consumer_ring
+        .wait_until_free(Duration::from_secs(1))
+        .expect("all data-plane slots return to free after both leases are released");
+}
+
 #[test]
 fn decode_request_frame_uses_limited_range_source_metadata_for_rgba_handoff() {
     let temp_dir = TestTempDir::new("decode-control-plane-limited");
