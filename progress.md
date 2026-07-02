@@ -1,3 +1,30 @@
+## 2026-07-02 — 実機検証: mp4再生の修正3ラウンド完了を確認（再生中のフレーム前進・シーク・全クリップ完走をCDP計測で裏付け）
+
+### 実施内容
+
+- 0.1.1-Beta-425c（shm名短縮＋診断フリーズ修正）を実機 Electron で最終検証した。今回から Computer Use ではなく **CDP（`UXFD_REMOTE_DEBUG_PORT=9222`）だけで全操作**を実施:
+  - `Page.setInterceptFileChooserDialog` + `DOM.setFileInputFiles` により、ネイティブファイルダイアログを開かずに `<input type="file">` へ動画パスを注入（`Runtime.evaluate` は `userGesture: true` が必須だった）
+  - `Input.dispatchMouseEvent` によるタイムラインルーラーのシーク（座標校正: 0s=x100, 30px/s）
+  - 診断 DOM dataset の MutationObserver 記録＋`screencapture` によるピクセルハッシュ比較
+- **検証結果（10000kbps_60fps.mp4、20.3秒クリップ）**:
+  - 再生中 t=3.82s と t=9.38s の preview 領域ピクセルが明確に相違（meanAbsDiff 6.11）— **再生中にフレームが前進している**
+  - 診断の `VideoPresentedFrameIndex` が最大 **1206** まで前進（クリップ終端≈1218）— 旧バグ発火点の frame 1000（16.6秒）を超えて present 成功
+  - `status=blocked` は全 10694 遷移中 **0 回**（ring 枯渇の恒久 blocked は根絶）
+  - `UXFD_DECODE_TRACE=1` のトレースで decode が frame 0→1216 を完走、`failed to skip streaming decoded frame` は 0 回、native overlay present も success
+  - シーク（0.2s 等）も正しいフレームを即時表示
+
+### 選定理由・判断の根拠
+
+- 検証を診断値だけに頼らず screencapture のピクセルハッシュ比較を併用したのは、直前ラウンドで「診断が凍結していただけで実描画は別」という診断値と実画面の乖離を経験したため。両方が一致して初めて「再生できる」と判定した。
+- ノイズ模様のストレス動画はフレーム間差分が視覚判定しづらいため、目視ではなく数値（meanAbsDiff）で判定した。
+
+### 残課題・次のステップ
+
+- 一過性の `frameDecodeFailed` ×18 / `noVideoDecodeRequest` ×134（全10694遷移中）を観測。再生完走を妨げておらず、クリップ終端付近の EOF や過渡状態とみられるが、頻度が増えるようなら追調査。
+- 前セッションで一度観測した `failed to skip streaming decoded frame: failed to fill whole buffer` は今回再現せず（トレース0回）。skip/restart 経路の潜在問題として記録のみ。
+- クリップ追加直後の初回フレームが canvas 左上 1/4 に縮小表示される一過性の症状（Bug B 類似）は残存。次回 present で自己回復するが未修正。
+- native render 失敗継続時の native overlay 残留 drawable（transparent clear 未配線）は前エントリの残課題のまま。
+
 ## 2026-07-02 — 実機検証で確定した2件のバグを修正（macOS shm名31文字超過によるnative render恒久失敗／native render再利用loopでのpresenter診断フリーズ）
 
 ### 実施内容
