@@ -13,19 +13,30 @@ pub(crate) struct DecodeSession {
     pub(crate) data_plane_ring: Option<DecodeDataPlaneRing>,
     pub(crate) streaming_decoder: Option<StreamingDecodeProcess>,
     pub(crate) decoded_frame_cache: VecDeque<CachedDecodedRgbaFrame>,
-    /// Maps the slotIndex reported to the renderer (the data-plane ring's
-    /// real slot, the single source of truth) back to the control-plane
-    /// `SharedFrameRing`'s own slot_index + lease generation for that frame.
-    /// The renderer only ever sees and echoes back the data-plane slot, so
-    /// `decode.releaseFrame` needs this to release the matching control-plane
-    /// slot rather than assuming the two numbering schemes agree.
-    pub(crate) data_plane_release_bindings: HashMap<u32, ControlPlaneSlotLease>,
+    /// Outstanding decoded-frame leases, keyed by the renderer-visible
+    /// generation (a session-wide monotonically increasing counter that is
+    /// unique per lease). The renderer echoes descriptor.slotIndex and
+    /// descriptor.generation back in decode.releaseFrame; the generation is
+    /// the lease identity, because the data-plane slot number alone is
+    /// ambiguous — a slot freed early by the in-backend native render source
+    /// read can be reused by the next requestFrame while the first lease is
+    /// still outstanding, leaving two in-flight leases on the same slot.
+    pub(crate) decoded_frame_leases: HashMap<u64, DecodeFrameLease>,
+    /// Next renderer-visible lease generation (starts at 1, +1 per
+    /// requestFrame). Overrides the control-plane descriptor generation in
+    /// the response so every lease a renderer can hold is distinct.
+    pub(crate) next_renderer_lease_generation: u64,
 }
 
+/// Everything needed to release one decoded-frame lease on both rings: the
+/// data-plane slot + sequence the frame was written as, and the
+/// control-plane slot + generation the `SharedFrameRing` tracks it under.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct ControlPlaneSlotLease {
+pub(crate) struct DecodeFrameLease {
+    pub(crate) data_plane_slot_index: u32,
+    pub(crate) sequence: u64,
     pub(crate) control_plane_slot_index: u32,
-    pub(crate) generation: u64,
+    pub(crate) control_plane_generation: u64,
 }
 
 pub(crate) struct StreamingDecodeProcess {

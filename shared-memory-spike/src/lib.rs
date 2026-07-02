@@ -431,6 +431,90 @@ impl PosixSharedRing {
         Ok(())
     }
 
+    /// Releases the frame a lease refers to, verified by the sequence the
+    /// lease was issued for. Unlike `release_frame_slot`, this handles every
+    /// legitimate end-of-lease situation of a decode data-plane frame:
+    ///
+    /// - READING with a matching sequence: the consumer has read the frame;
+    ///   free the slot (the usual READING→FREE transition).
+    /// - READY with a matching sequence: the frame was written but never
+    ///   read from shared memory before the lease was returned (a renderer
+    ///   abort, or the inline upload path which never touches the slot);
+    ///   the frame is dropped and the slot freed. The slot is claimed as
+    ///   READY→READING first so a concurrent consumer cannot start reading
+    ///   a slot that is about to be freed, then released READING→FREE — the
+    ///   FREE/WRITING/READY/READING state machine transitions are unchanged.
+    /// - Any other state, or a different sequence: the slot no longer holds
+    ///   the leased frame (it was already freed by another consumer of the
+    ///   same ring and possibly recycled for a newer frame). The release is
+    ///   a safe no-op; the newer frame is left untouched.
+    pub fn release_frame_slot_for_sequence(
+        &self,
+        slot_index: u32,
+        sequence: u64,
+        copy_out_state: CopyOutState,
+    ) -> Result<(), PosixShmError> {
+        if !copy_out_state.permits_read_slot_release() {
+            return Err(PosixShmError::CopyOutNotComplete);
+        }
+
+        if slot_index >= self.slot_count {
+            return Err(PosixShmError::SlotIndexOutOfBounds {
+                slot_index,
+                slot_count: self.slot_count,
+            });
+        }
+
+        let slot = self.slot(slot_index);
+        for _ in 0..MAX_SPINS {
+            match slot.state.load(Ordering::Acquire) {
+                READING => {
+                    if slot.sequence.load(Ordering::Relaxed) != sequence {
+                        // The slot was recycled for a different frame that
+                        // another consumer is currently reading; the leased
+                        // frame is already gone.
+                        return Ok(());
+                    }
+                    if slot
+                        .state
+                        .compare_exchange(READING, FREE, Ordering::Release, Ordering::Relaxed)
+                        .is_ok()
+                    {
+                        return Ok(());
+                    }
+                    // The state moved underneath us; re-inspect.
+                }
+                READY => {
+                    if slot
+                        .state
+                        .compare_exchange(READY, READING, Ordering::Acquire, Ordering::Relaxed)
+                        .is_ok()
+                    {
+                        if slot.sequence.load(Ordering::Relaxed) != sequence {
+                            // Recycled for a newer, still unread frame: hand
+                            // the slot back untouched.
+                            slot.state.store(READY, Ordering::Release);
+                            return Ok(());
+                        }
+                        slot.state.store(FREE, Ordering::Release);
+                        return Ok(());
+                    }
+                    // Another consumer claimed the slot first; re-inspect.
+                }
+                // FREE: the leased frame was already consumed and released
+                // by another consumer of the same ring (e.g. a native render
+                // source read). WRITING: the producer has already recycled
+                // the slot for a new frame. Either way the leased frame no
+                // longer occupies the slot.
+                _ => return Ok(()),
+            }
+        }
+
+        Err(PosixShmError::TimedOut {
+            operation: "release_frame_slot_for_sequence",
+        })
+    }
+
     pub fn wait_until_free(&self, timeout: Duration) -> Result<(), PosixShmError> {
         let start = Instant::now();
         while start.elapsed() < timeout {

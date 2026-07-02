@@ -8,12 +8,12 @@ use crate::frames::{
 use crate::params::DecodeStopRequest;
 use crate::rpc::{response_error, RpcResponse};
 use crate::sessions::{
-    CachedDecodedRgbaFrame, ControlPlaneSlotLease, DecodeSession, DecodedRgbaFrame,
+    CachedDecodedRgbaFrame, DecodeFrameLease, DecodeSession, DecodedRgbaFrame,
     StreamingDecodeProcess,
 };
 use crate::state::BackendState;
 #[cfg(unix)]
-use uxfd_shared_memory_spike::{PosixSharedRing, PosixShmError};
+use uxfd_shared_memory_spike::PosixSharedRing;
 use uxfd_sidecar_protocol::{
     rgba8_srgb_ring_layout, validate_renderer_handoff_descriptor, CopyOutState, DecodeFrameRequest,
     DecodeReleaseFrameRequest, DecodeStartRequest, DecodeStartResponse, FrameFormat,
@@ -124,7 +124,8 @@ pub(crate) fn handle_decode_start(id: u64, params: Value, state: &mut BackendSta
             data_plane_ring,
             streaming_decoder: None,
             decoded_frame_cache: std::collections::VecDeque::new(),
-            data_plane_release_bindings: std::collections::HashMap::new(),
+            decoded_frame_leases: std::collections::HashMap::new(),
+            next_renderer_lease_generation: 1,
         },
     );
 
@@ -289,6 +290,14 @@ pub(crate) fn handle_decode_request_frame(
     };
 
     if let Err(error) = session.ring.mark_slot_ready(write_slot, parsed.frame_index) {
+        // The data-plane frame was already written; drop it so the internal
+        // failure does not strand a READY slot forever.
+        let _ = release_decode_data_plane(
+            session.data_plane_ring.as_ref(),
+            data_plane_slot_index,
+            parsed.frame_index,
+            CopyOutState::RendererUploadAborted,
+        );
         return response_error(
             id,
             -32046,
@@ -298,6 +307,12 @@ pub(crate) fn handle_decode_request_frame(
     let mut ready_frame = match session.ring.acquire_ready_slot() {
         Ok(value) => value,
         Err(error) => {
+            let _ = release_decode_data_plane(
+                session.data_plane_ring.as_ref(),
+                data_plane_slot_index,
+                parsed.frame_index,
+                CopyOutState::RendererUploadAborted,
+            );
             return response_error(
                 id,
                 -32047,
@@ -311,17 +326,57 @@ pub(crate) fn handle_decode_request_frame(
     // outside the control-plane's view (see progress.md 2026-07-02). Make
     // the data-plane's real slot the single source of truth for what the
     // renderer sees: it is what copy_shared_frame_into_upload_buffer() will
-    // actually read, so it must be what descriptor.slotIndex says. The
-    // control-plane slot_index + generation are retained separately so
-    // decode.releaseFrame can still release the correct control-plane slot.
+    // actually read, so it must be what descriptor.slotIndex says.
+    //
+    // The renderer-visible generation is a session-wide unique lease id, not
+    // the control-plane slot generation: the data-plane slot can be freed
+    // early by the in-backend native render source read and reused by the
+    // next requestFrame while this lease is still outstanding, and two
+    // control-plane slots can carry equal generation values — so (slot,
+    // control generation) does not identify a lease. The unique id does; the
+    // control-plane slot_index + generation needed to release the
+    // control-plane side are retained in the lease table.
+    let renderer_lease_generation = session.next_renderer_lease_generation;
+    session.next_renderer_lease_generation += 1;
     let control_plane_slot_index = ready_frame.slot_index;
     let control_plane_generation = ready_frame.frame.descriptor.generation;
+    let Some(data_plane_byte_offset) = ready_frame
+        .frame
+        .descriptor
+        .byte_len
+        .checked_mul(u64::from(data_plane_slot_index))
+    else {
+        let _ = session
+            .ring
+            .recover_stuck_slot(control_plane_slot_index, SlotRecoveryReason::ProducerTimeout);
+        let _ = release_decode_data_plane(
+            session.data_plane_ring.as_ref(),
+            data_plane_slot_index,
+            parsed.frame_index,
+            CopyOutState::RendererUploadAborted,
+        );
+        return response_error(
+            id,
+            -32045,
+            &format!(
+                "Decoded frame byte offset overflows: slotIndex={data_plane_slot_index}, byteLen={}",
+                ready_frame.frame.descriptor.byte_len
+            ),
+        );
+    };
     ready_frame.frame.descriptor.slot_index = data_plane_slot_index;
-    session.data_plane_release_bindings.insert(
-        data_plane_slot_index,
-        ControlPlaneSlotLease {
+    // Renderer-side validation and the native overlay upload path require
+    // byteOffset === slotIndex * byteLen, so the whole descriptor must be
+    // self-consistent against the data-plane slot, not the control-plane one.
+    ready_frame.frame.descriptor.byte_offset = data_plane_byte_offset;
+    ready_frame.frame.descriptor.generation = renderer_lease_generation;
+    session.decoded_frame_leases.insert(
+        renderer_lease_generation,
+        DecodeFrameLease {
+            data_plane_slot_index,
+            sequence: parsed.frame_index,
             control_plane_slot_index,
-            generation: control_plane_generation,
+            control_plane_generation,
         },
     );
     let verification = FrameVerificationReport {
@@ -388,40 +443,38 @@ pub(crate) fn handle_decode_release_frame(
         );
     }
 
-    // The renderer only ever knows the data-plane slot_index (what
-    // decode.requestFrame's descriptor.slotIndex reported), so parsed.slot_index
-    // is a data-plane slot, not necessarily the control-plane SharedFrameRing's
-    // own slot_index for the same frame. Look up the control-plane lease this
-    // data-plane slot was bound to at requestFrame time so both rings are
-    // released using their own correct slot_index.
-    let Some(control_plane_lease) = session
-        .data_plane_release_bindings
-        .remove(&parsed.slot_index)
-    else {
+    // The renderer identifies the lease it is returning by the
+    // descriptor.generation it received from decode.requestFrame (a
+    // session-wide unique lease id) plus the data-plane slotIndex. The
+    // generation is the lookup key: the data-plane slot number alone is
+    // ambiguous, because a slot freed early by the in-backend native render
+    // source read can be reused by a later requestFrame while the earlier
+    // lease is still outstanding.
+    let Some(lease) = session.decoded_frame_leases.remove(&parsed.generation) else {
         return response_error(
             id,
             -32602,
             &format!(
-                "No pending decode frame release binding for slotIndex {}",
-                parsed.slot_index
+                "No outstanding decoded frame lease for generation {}",
+                parsed.generation
             ),
         );
     };
-    if control_plane_lease.generation != parsed.generation {
+    if lease.data_plane_slot_index != parsed.slot_index {
         return response_error(
             id,
             -32602,
             &format!(
-                "Decode frame release generation mismatch: expected={}, actual={}",
-                control_plane_lease.generation, parsed.generation
+                "Decoded frame lease slot mismatch: expected slotIndex={}, actual={}",
+                lease.data_plane_slot_index, parsed.slot_index
             ),
         );
     }
 
     let descriptor = match descriptor_for_release(
         &session.start_response,
-        control_plane_lease.control_plane_slot_index,
-        parsed.generation,
+        lease.control_plane_slot_index,
+        lease.control_plane_generation,
     ) {
         Ok(value) => value,
         Err(error) => {
@@ -433,7 +486,7 @@ pub(crate) fn handle_decode_release_frame(
         }
     };
     let ready_frame = ReadyFrame {
-        slot_index: control_plane_lease.control_plane_slot_index,
+        slot_index: lease.control_plane_slot_index,
         frame: SharedFrame {
             descriptor,
             pts_frame: 0,
@@ -452,7 +505,8 @@ pub(crate) fn handle_decode_release_frame(
     }
     if let Err(error) = release_decode_data_plane(
         session.data_plane_ring.as_ref(),
-        parsed.slot_index,
+        lease.data_plane_slot_index,
+        lease.sequence,
         parsed.copy_out_state,
     ) {
         return response_error(
@@ -536,27 +590,33 @@ fn write_decode_data_plane(
     Ok(0)
 }
 
+/// Releases one leased frame on the data-plane ring, verified by the
+/// sequence the lease was written as. `release_frame_slot_for_sequence`
+/// covers every legitimate end-of-lease state:
+/// - READING (the renderer copy bridge read it) → freed.
+/// - READY (never read: renderer abort before the copy, or the inline MVP
+///   upload path which never touches shared memory) → the unread frame is
+///   dropped and the slot freed. Leaving such slots stranded was the
+///   residual leak that starved the ring on 0.1.1-Beta-425a.
+/// - FREE / recycled for a different sequence (the in-backend native render
+///   source read already consumed and released it) → safe no-op.
 #[cfg(unix)]
 fn release_decode_data_plane(
     ring: Option<&DecodeDataPlaneRing>,
     slot_index: u32,
+    sequence: u64,
     copy_out_state: CopyOutState,
 ) -> Result<(), String> {
     let ring = ring.ok_or_else(|| "decode shared memory ring is unavailable".to_string())?;
-    match ring.release_frame_slot(slot_index, copy_out_state) {
-        Ok(()) => Ok(()),
-        Err(PosixShmError::UnexpectedState {
-            expected: 3,
-            actual: 0,
-        }) => Ok(()),
-        Err(error) => Err(format!("{error:?}")),
-    }
+    ring.release_frame_slot_for_sequence(slot_index, sequence, copy_out_state)
+        .map_err(|error| format!("{error:?}"))
 }
 
 #[cfg(not(unix))]
 fn release_decode_data_plane(
     _ring: Option<&DecodeDataPlaneRing>,
     _slot_index: u32,
+    _sequence: u64,
     _copy_out_state: CopyOutState,
 ) -> Result<(), String> {
     Ok(())
