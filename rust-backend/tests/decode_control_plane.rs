@@ -4016,6 +4016,124 @@ fn decode_streaming_restart_count_stays_low_across_playback_with_repeats_and_bac
     );
 }
 
+/// Regression contract for the 2x-speed / end-of-source-stall bug: `sourceRate`
+/// in `decode.start` is the frame-rate domain of the `frameIndex` values the
+/// caller will send with `decode.requestFrame` (the preview tick domain, e.g.
+/// 60fps), which is not necessarily the *source* file's native frame rate
+/// (e.g. 30fps). When the two differ, each source frame must be presented for
+/// `sourceRate / nativeSourceRate` consecutive requested frameIndex values
+/// (frame duplication), instead of being consumed 1:1 per requested tick. The
+/// previous implementation fed `frameIndex` straight into ffmpeg's decoded
+/// frame stream with no `fps` conversion filter, so a 60fps request stream
+/// against a 30fps source drained the source at 2x speed and stalled once the
+/// source frames ran out (observed as `forwardGapExceeded` restarts on real
+/// clips).
+#[test]
+fn decode_request_frame_duplicates_slower_source_frames_to_match_requested_source_rate() {
+    let temp_dir = TestTempDir::new("decode-control-plane-fps-mismatch");
+    let source_frame_count = 6u32;
+    let fixture = build_n_frame_h264_fixture(temp_dir.path(), source_frame_count);
+    let mut backend = BackendProcess::start();
+
+    // Source is natively 30fps (see build_n_frame_h264_fixture), but the
+    // caller declares a 60fps request domain — the preview's tick rate.
+    let start_response = backend.request(json!({
+        "id": 1,
+        "method": "decode.start",
+        "params": {
+            "jobId": "decode-fps-mismatch",
+            "source": fixture.path,
+            "slotCount": 1,
+            "width": fixture.width,
+            "height": fixture.height,
+            "sourceRate": { "numerator": 60, "denominator": 1 },
+            "format": "rgba8Srgb",
+            "colour": { "primaries": "bt709", "transfer": "srgb", "matrix": "rgb", "range": "full" }
+        }
+    }));
+    assert_eq!(start_response["ok"], true, "{start_response}");
+    let memory_id = start_response["result"]["memoryId"]
+        .as_str()
+        .expect("memory id");
+    let slot_byte_len = start_response["result"]["slotByteLen"]
+        .as_u64()
+        .expect("slot byte length") as usize;
+    let consumer_ring =
+        PosixSharedRing::attach_with_retry(memory_id, slot_byte_len, Duration::from_secs(1))
+            .expect("attach to streaming decode ring");
+
+    // Every requested (60fps-domain) frameIndex must present source frame
+    // floor(frameIndex / 2), i.e. each of the 6 source frames is shown for 2
+    // consecutive requested ticks, and every request in this fully-forward
+    // sequential sweep must be served without a cold restart (except the very
+    // first request, which necessarily starts the decoder).
+    let requested_tick_count = source_frame_count * 2;
+    let mut next_id = 2u64;
+    for requested_frame_index in 0..requested_tick_count {
+        let expected_source_frame = (requested_frame_index / 2) as u64;
+        let expected_tight_rgba = decode_tight_rgba_frame(
+            &fixture.path,
+            expected_source_frame,
+            fixture.width,
+            fixture.height,
+        );
+
+        let response = backend.request(json!({
+            "id": next_id,
+            "method": "decode.requestFrame",
+            "params": {
+                "jobId": "decode-fps-mismatch",
+                "requestId": next_id,
+                "frameIndex": requested_frame_index,
+                "mode": "latestWins"
+            }
+        }));
+        assert_eq!(response["ok"], true, "{response}");
+        assert_eq!(
+            response["result"]["streamRestartReason"],
+            if requested_frame_index == 0 { "firstFrame" } else { "sequential" },
+            "requestedFrameIndex={requested_frame_index} unexpectedly needed a decoder restart \
+             (reason={:?}); the fps-mismatch conversion must keep the stream sequential",
+            response["result"]["streamRestartReason"]
+        );
+
+        let stride_bytes = response["result"]["frame"]["descriptor"]["strideBytes"]
+            .as_u64()
+            .expect("stride bytes") as usize;
+        let expected_padded_rgba = pad_rgba_rows(
+            &expected_tight_rgba,
+            fixture.width,
+            fixture.height,
+            stride_bytes,
+        );
+        assert_eq!(
+            response["result"]["verification"]["checksum"]["valueHex"],
+            crc32_hex(&expected_padded_rgba),
+            "requestedFrameIndex={requested_frame_index} should present source frame \
+             {expected_source_frame} (60fps request domain duplicating a 30fps source 2x)"
+        );
+
+        consumer_ring
+            .read_frame(requested_frame_index as u64)
+            .expect("consumer reads streaming frame");
+        let release = backend.request(json!({
+            "id": next_id + 10_000,
+            "method": "decode.releaseFrame",
+            "params": {
+                "jobId": "decode-fps-mismatch",
+                "slotIndex": response["result"]["frame"]["descriptor"]["slotIndex"],
+                "generation": response["result"]["frame"]["descriptor"]["generation"],
+                "copyOutState": "gpuUploadFenceSignalled"
+            }
+        }));
+        assert_eq!(release["ok"], true, "{release}");
+        consumer_ring
+            .wait_until_free(Duration::from_secs(1))
+            .expect("slot returns to free");
+        next_id += 1;
+    }
+}
+
 /// Diagnostic contract: every decode.requestFrame response reports why (or why
 /// not) the streaming ffmpeg process was restarted, so the jank caused by
 /// process restarts can be measured on a real playback/scrub session.
