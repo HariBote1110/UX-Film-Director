@@ -4032,7 +4032,8 @@ fn decode_streaming_restart_count_stays_low_across_playback_with_repeats_and_bac
 fn decode_request_frame_duplicates_slower_source_frames_to_match_requested_source_rate() {
     let temp_dir = TestTempDir::new("decode-control-plane-fps-mismatch");
     let source_frame_count = 6u32;
-    let fixture = build_n_frame_h264_fixture(temp_dir.path(), source_frame_count);
+    let fixture =
+        build_n_frame_h264_fixture_with_colour_metadata(temp_dir.path(), source_frame_count, Some(30));
     let mut backend = BackendProcess::start();
 
     // Source is natively 30fps (see build_n_frame_h264_fixture), but the
@@ -5481,8 +5482,22 @@ fn build_two_frame_h264_fixture_with_colour_metadata(
 /// Build an N-frame H.264 fixture (every frame a keyframe) for streaming decode
 /// measurement tests that need to step across a realistic playback range.
 fn build_n_frame_h264_fixture(directory: &Path, frame_count: u32) -> TestVideoFixture {
+    build_n_frame_h264_fixture_with_colour_metadata(directory, frame_count, None)
+}
+
+/// Same as `build_n_frame_h264_fixture`, but stamps explicit bt709 colour
+/// metadata onto the stream so pixel-checksum comparisons against
+/// `decode_tight_rgba_frame` (which decodes with `in_color_matrix=bt709`)
+/// are exact rather than off by rounding — matching the encoding the
+/// `two_frame` fixtures already use for the same reason.
+fn build_n_frame_h264_fixture_with_colour_metadata(
+    directory: &Path,
+    frame_count: u32,
+    source_framerate: Option<u32>,
+) -> TestVideoFixture {
     let width = 34;
     let height = 16;
+    let source_framerate = source_framerate.unwrap_or(30);
     let raw_path = directory.join(format!("n-frame-source-{frame_count}.rgba"));
     let video_path = directory.join(format!("n-frame-source-{frame_count}.mp4"));
     let mut raw_frames = Vec::new();
@@ -5504,7 +5519,7 @@ fn build_n_frame_h264_fixture(directory: &Path, frame_count: u32) -> TestVideoFi
         .arg("-video_size")
         .arg(format!("{width}x{height}"))
         .arg("-framerate")
-        .arg("30")
+        .arg(source_framerate.to_string())
         .arg("-i")
         .arg(&raw_path)
         .arg("-frames:v")
@@ -5517,12 +5532,18 @@ fn build_n_frame_h264_fixture(directory: &Path, frame_count: u32) -> TestVideoFi
         .arg("ultrafast")
         .arg("-crf")
         .arg("0")
+        .arg("-color_primaries")
+        .arg("bt709")
+        .arg("-color_trc")
+        .arg("iec61966-2-1")
+        .arg("-colorspace")
+        .arg("bt709")
         .arg("-x264-params")
-        .arg("keyint=1:min-keyint=1:scenecut=0:range=pc")
+        .arg("keyint=1:min-keyint=1:scenecut=0:range=pc:colorprim=bt709:transfer=iec61966-2-1:colormatrix=bt709")
         .arg("-color_range")
         .arg("pc")
         .arg("-video_track_timescale")
-        .arg("30")
+        .arg(source_framerate.to_string())
         .arg(&video_path);
     run_ffmpeg_command(&mut command, "encode n-frame fixture");
 

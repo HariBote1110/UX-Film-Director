@@ -793,9 +793,23 @@ fn start_streaming_decode_process(
     let seek_seconds = frame_index as f64
         * f64::from(session.start_response.source_rate.denominator)
         / f64::from(session.start_response.source_rate.numerator);
+    // `source_rate` is the frame-rate domain of the caller's `frameIndex`
+    // values (the preview tick rate, e.g. 60fps) — not necessarily the
+    // source file's native frame rate (e.g. 30fps). The sequential-read fast
+    // path below assumes each `frameIndex` step of 1 corresponds to exactly
+    // one frame read from ffmpeg's output stream, so the source must be
+    // resampled to `source_rate` up front: the `fps` filter duplicates (or
+    // drops) frames as needed so ffmpeg's stdout stream is already in the
+    // caller's tick domain. Without this, a slower source (e.g. 30fps) is
+    // drained twice as fast as playback advances, causing 2x-speed playback
+    // and a stall once the source frames run out.
     let filter = format!(
-        "scale=w={}:h={}:in_range={}:out_range=pc,format=rgba",
-        session.start_response.width, session.start_response.height, input_metadata.range
+        "fps={}/{},scale=w={}:h={}:in_range={}:out_range=pc,format=rgba",
+        session.start_response.source_rate.numerator,
+        session.start_response.source_rate.denominator,
+        session.start_response.width,
+        session.start_response.height,
+        input_metadata.range
     );
     let args = build_streaming_decode_args(&session.source, seek_seconds, &filter);
     let mut child = Command::new(&session.ffmpeg_path)
