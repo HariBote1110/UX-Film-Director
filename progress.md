@@ -1,3 +1,15 @@
+## 2026-07-03 — 実機検証: 選択デコレーション座標ずれ修正の合格（版432b）
+
+### 実施内容
+
+- contain-fit 一本化＋canvas=0 Fail Safe 統一の修正を統合し、クリーン起動で検証: preview の右下・左上いずれの位置でも金枠＋白ハンドルがオブジェクトに正確に一致（スクリーンショット採取）。タイムラインへのはみ出しも解消。
+- 原因は `build_selection_decoration_clips` が canvas 寸法 0 のとき fit_scale だけ 1.0 に倒し offset 計算は 0 のままの canvas を使う非対称 Fail Safe（offset = drawable×0.5 の巨大オフセット）。デコレーションのみの present（scene 未確定時）で canvas=0 に到達していた。scene 本体・トレース・デコレーションの3箇所の contain-fit 式を `contain_fit_transform` へ一本化。
+- 版 432a→432b。
+
+### 残課題・次のステップ
+
+- カメラ zoom/回転使用時の枠位置一致は未検証（デフォルトカメラでは SVG/native の変換一致を vitest で固定済み）。
+
 ## 2026-07-03 — 修正: 選択枠native overlayデコレーションのcanvas_width=0時オフセット暴走を解消・contain-fit式を一本化
 
 ### 実施内容
