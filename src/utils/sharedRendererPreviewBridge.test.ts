@@ -73,7 +73,7 @@ describe('buildSharedRendererPreviewPlan', () => {
       enabled: true,
       projectSettings: settings,
       layers: createDefaultLayers(),
-      objects: [image({ groupId: 'group-1' })],
+      objects: [image({ clipping: true })],
       time: 1,
     });
 
