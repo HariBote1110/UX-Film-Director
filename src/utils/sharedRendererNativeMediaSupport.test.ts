@@ -628,4 +628,113 @@ describe('sharedRendererNativeMediaSupport', () => {
       height: 58,
     })).toBe(false);
   });
+
+  it('accepts 93 shape generator sources for non-rectangle shapes as native renderable media', () => {
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'shape-circle-1',
+      kind: 'GeneratedShape',
+      source: JSON.stringify({
+        generator: 'shape-93',
+        shape_type: 'circle',
+        fill_colour: '#ff0000',
+        gradient: null,
+        corner_radius: 0,
+      }),
+      width: 200,
+      height: 200,
+    })).toBe(true);
+
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'shape-rounded-rect-1',
+      kind: 'GeneratedShape',
+      source: JSON.stringify({
+        generator: 'shape-93',
+        shape_type: 'rounded_rect',
+        fill_colour: '#000000',
+        gradient: {
+          type: 'linear',
+          colours: ['#ff0000', '#0000ff'],
+          stops: [0, 1],
+          direction: 90,
+        },
+        corner_radius: 24,
+      }),
+      width: 200,
+      height: 200,
+    })).toBe(true);
+    expect(canRenderSharedRendererNativeMediaOnlyFrame({
+      snapshot: snapshotWithMedia('solid-1', 'shape-rounded-rect-1'),
+      media: [...media, {
+        id: 'shape-rounded-rect-1',
+        kind: 'GeneratedShape',
+        source: JSON.stringify({
+          generator: 'shape-93',
+          shape_type: 'rounded_rect',
+          fill_colour: '#000000',
+          gradient: null,
+          corner_radius: 24,
+        }),
+        width: 200,
+        height: 200,
+      }],
+    })).toBe(true);
+  });
+
+  it('rejects malformed or unsupported shape generator sources', () => {
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'shape-bad-generator-1',
+      kind: 'GeneratedShape',
+      source: JSON.stringify({
+        generator: 'not-shape-93',
+        shape_type: 'circle',
+        fill_colour: '#ff0000',
+        gradient: null,
+        corner_radius: 0,
+      }),
+      width: 200,
+      height: 200,
+    })).toBe(false);
+
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'shape-bad-type-1',
+      kind: 'GeneratedShape',
+      source: JSON.stringify({
+        generator: 'shape-93',
+        shape_type: 'unknown_shape',
+        fill_colour: '#ff0000',
+        gradient: null,
+        corner_radius: 0,
+      }),
+      width: 200,
+      height: 200,
+    })).toBe(false);
+
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'shape-bad-colour-1',
+      kind: 'GeneratedShape',
+      source: JSON.stringify({
+        generator: 'shape-93',
+        shape_type: 'circle',
+        fill_colour: 'red',
+        gradient: null,
+        corner_radius: 0,
+      }),
+      width: 200,
+      height: 200,
+    })).toBe(false);
+
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'shape-bad-corner-radius-1',
+      kind: 'GeneratedShape',
+      source: JSON.stringify({
+        generator: 'shape-93',
+        shape_type: 'rounded_rect',
+        fill_colour: '#ff0000',
+        gradient: null,
+        corner_radius: -1,
+      }),
+      width: 200,
+      height: 200,
+    })).toBe(false);
+  });
 });
