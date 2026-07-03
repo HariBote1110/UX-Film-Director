@@ -1,3 +1,35 @@
+## 2026-07-03 — PSD読み込みクラッシュ（wgpu Validation Error panic → sidecar死亡 → Electron EPIPE crash）を修正
+
+### 実施内容
+
+実機報告バグ「巨大PSD（幅2700px等）読み込みでアプリごとクラッシュ」に対し、TDD（Red→Green）で3点を修正。
+
+- **wgpuデバイス上限**（`native-wgpu-renderer/src/lib.rs` `required_limits_for_frame`）: 出力フレームサイズ（例:1920x1080）を基準に downlevel既定値2048へ丸めていたのが原因。Apple Silicon の Metal は実際は16384まで対応しているのに、adapterの実上限を無視してdeviceを2048に制限していた。修正後は常に `adapter.limits().max_texture_dimension_2d` をそのまま `required_device_limits` へ渡す方針にした（出力フレームサイズでの分岐は撤去）。sourcesの実サイズはdevice生成時点では未知のため。
+- **上限超過時のCPU側縮小フォールバック**（`downscale_rgba_frame_to_fit`）: それでもadapter上限を超える巨大ソースは、`prepare_clip` でGPUテクスチャ生成する前にアスペクト比維持のバイリニア補間で長辺をdevice上限に収める。`RenderParams.source_width/height` もソース取得直後（縮小適用後）から算出するため、シェーダー側のピクセル空間エフェクト計算（clipping・area_expand等）とも整合する。画面上のクリップサイズは `clip.transform.scale_x/scale_y` 由来で決まるため、ソース解像度の縮小は見た目のサイズに影響しない。
+- **sidecar死亡時のEPIPE耐性**（`electron/rustBackendStdinWrite.ts` → `electron/main.ts`）: Node の Writable は write() コールバックへのエラー通知とは別に `'error'` イベントも発火し、listenerが無いと Uncaught Exception 化して Electron main プロセスごと落ちる（実測ログの直接原因）。`writeToRustBackendStdin` で `'error'` listenerを必須登録し、write時の同期throw/非同期callbackエラーの3経路すべてをonErrorへ一元集約。`ensureRustBackendProcess` は既存実装で次回リクエスト時に自動再spawnする挙動を持っていたため、追加の再起動ループは実装せず、`exit`/`error` イベントでの pending reject と `'rust-backend-status'` チャンネルでのrenderer通知のみ追加した（renderer側の購読実装はsrc/hooks配下のため今回のスコープ外）。
+- **付随調査（低コストで実施）**: wgpu-0.20.1 の `default_error_handler` は error scope に捕捉されない Validation Error を無条件で `panic!` する仕様（`wgpu_core.rs:2996`、実測panicと同一箇所）。`Device::on_uncaptured_error` を両device生成箇所（`NativeWgpuRenderer::new` / `NativeWgpuLiveSurfaceRenderer::from_surface`）に設置し、根本修正後も残る未知のValidation Errorに対する防御層としてpanicをログ出力へ切り替えた。
+
+### 選定理由・判断の根拠
+
+- 上限修正は「出力フレームサイズに応じて限界を引き上げる」既存ロジックの拡張ではなく、常にadapterの実上限を要求する方式へ変更した。理由: sourcesのサイズはNativeWgpuRenderer構築時点では未知であり、後から任意サイズのPSD等が来る前提のアーキテクチャのため、事前に正確な必要サイズを予測するアプローチは原理的に破綻する。
+- CPU側縮小はGPU非依存の純粋関数として切り出し、GPU無しでも `cargo test --lib` でユニットテスト可能にした。バイリニア補間を選んだのは、ニアレストネイバーだと大幅縮小時にモアレ・エイリアシングが目立つため（PSDのようなイラスト系素材で特に）。
+- EPIPE対策は `electron/main.ts` に直接catchを書くのではなく `electron/rustVideoEncodeBackendBridge.ts` 等既存パターンに倣い `electron/` 配下の小さい純粋モジュールへ抽出し、`src/utils/*.test.ts` からvitestでテスト可能にした（`vite.config.ts` の `test.include` が `src/**/*.test.ts` のみのため、electron/直下にテストを置いても実行されない制約に対応）。
+- 自動再起動は「既存の `ensureRustBackendProcess` が次回呼び出し時に自動的に再spawnする」挙動をそのまま活用し、新規リトライループは追加しなかった。理由: 独自リトライを足すと二重の複雑さになり、pending requestのreject/timeoutと絡んだ競合状態を新たに生みかねないため、既存の「遅延再生成」パターンを壊さないことを優先した。
+- `on_uncaptured_error` は3点の本修正と独立した「防御層」として位置づけ、根本原因が再発しても即クラッシュしないようにする低コストな保険として追加した（wgpu APIの薄いラッパーのみで済むため）。
+
+### 検証
+
+- `cargo test`（native-wgpu-renderer）: 44 passed / 0 failed（新規テスト8件含む）。
+- `cargo test`（rust-backend）: 65 passed（decode_control_plane以外）、`decode_control_plane` に1件の既存の環境依存失敗あり（ローカル動画fixtureファイル `perf/heavy-media/20000kbps_60fps.mp4` 不在、本修正と無関係）。
+- `npx vitest run`: 167 passed / 4 failed（4ファイル5件）＝修正前のbaselineと完全一致、新規失敗ゼロ。
+- `npx tsc --noEmit`: 30件エラー＝baselineと完全一致（`electron/main.ts` の既存エラーは行番号のみ501→519へ移動、新規エラーではない）。
+- 実機再現テスト（`native_wgpu_renders_source_exceeding_downlevel_texture_limit_without_panicking`）で、修正前ロジックへ意図的に戻すと実測ログと文字列一致する panic（`Dimension X value 2200 exceeds the limit of 2048`）が再現することを確認済み。`install_uncaptured_error_logging_prevents_panic_on_validation_error` も同様にハンドラ未設置でのpanic再現を確認済み。
+
+### 残課題・次のステップ
+
+- `'rust-backend-status'` チャンネルのrenderer側購読・UI通知は未実装（`src/hooks/` 配下が並行エージェントの作業対象のため意図的にスコープ外とした）。別タスクとして実装が必要。
+- 実機での最終確認（2700px幅PSDの読み込みでクラッシュせず表示されること）は本セッションでは未実施（`cargo test`/`vitest`のみでの検証。アプリ起動・ポート使用がこのセッションで禁止されていたため）。
+
 ## 2026-07-03 — 退行復旧(4・完): subjectCrop / PSDビルボード復活、reversed見送り（版431a）
 
 ### 実施内容
