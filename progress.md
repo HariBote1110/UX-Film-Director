@@ -1,3 +1,24 @@
+## 2026-07-03 — Bug E 統合: overlay の child NSWindow 化（E0）・modal検知統一API（E1）・z-order toggle（E2）
+
+### 実施内容
+
+- Bug E 計画（markdown/Native_Overlay_Bug_E_Plan.md）の E0〜E2 をサブエージェントが TDD 実装、親でマージ（ADR-013 を markdown/architecture/01-decision-record.md に確定記録）。
+  - **E0**: `attach_overlay_view_to_parent` を二段化し、borderless・透明・`setIgnoresMouseEvents:YES` の child NSWindow に既存 passthrough view を載せて `addChildWindow:ordered:NSWindowAbove`。geometry は view→window→screen 座標変換で算出し、`NSWindowDidMove/DidResize` 通知の手動再同期も実装。detach は `removeChildWindow:`。
+  - **E1**: zustand に `previewObstructed` 状態と reason 一致解除の action、`previewObstructionDetector.ts`（IPC `ui:preview-obstruction-changed`、preview 交差限定の MutationObserver 補助）。Timeline のコンテキストメニュー2種と ExportProgressModal に明示配線、App.tsx で store→IPC subscribe。
+  - **E2**: `set_native_overlay_obstructed`（child window を `NSWindowBelow`/`NSWindowAbove` に order 切替、orderOut 不使用で GPU present 継続）、main 側 IPC→bridge 配線。
+- 統合後テスト: native-overlay 28 / parity 1 / vitest 1151 green（baseline 5件のみ失敗）/ tsc 72。
+- **実機（部分)**: child NSWindow 構成で動画再生 432 presents・実質ギャップなし、preview 枠内への描画・ウィンドウ位置追従を確認。**コンテキストメニュー操作中も present が 60/s で継続**（obstruction による再生停止なし）。
+
+### 選定理由・判断の根拠
+
+- 計画書 §9 の3判断は推奨案で確定: ADR-013（child NSWindow 化）/ 検知の正本は zustand 明示 action / obstructed は order 下げ（再生継続優先）。
+- ユーザーが実機を使用中のため、目視系 E3 ゲート（メニュー・modal が overlay より上に出る見た目、フルスクリーン、Mission Control、実マウスの hit-through）はユーザー確認に委ねる形で残課題化。
+
+### 残課題・次のステップ
+
+- E3 目視ゲート（ユーザー実機確認）: (1) コンテキストメニュー/tooltip/modal が preview 上で overlay に隠れないこと (2) フルスクリーン・Mission Control 切替で child window が破綻しないこと (3) preview 上の実マウス操作（クリック・ドラッグ・スクラブ）が従来どおり効くこと。
+- E1 の明示配線は代表3箇所のみ。PropertyPanel 等の残り popover/dropdown への展開は別タスク。
+
 ## 2026-07-03 — PixiJS排除 第二波(1/2): インタラクション配線とテキストcutover配線の統合・実機確認
 
 ### 実施内容
