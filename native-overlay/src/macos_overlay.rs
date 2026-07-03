@@ -760,6 +760,67 @@ mod geometry_tests {
     }
 }
 
+#[cfg(test)]
+mod obstruction_order_tests {
+    use super::*;
+
+    #[test]
+    fn obstructed_orders_child_below_relative_to_parent_window_number() {
+        // `orderWindow:NSWindowBelow relativeTo:0` は「parent の背後」ではなく
+        // 「画面上の全ウィンドウの最背面」への移動になる（AppKit 仕様）。
+        // Stage Manager 環境ではこの全域リオーダーが「アプリが退いた」と
+        // 解釈され、他アプリのステージが前面に出てしまう。遮蔽時の order は
+        // 必ず parent window の windowNumber を基準にすること。
+        assert_eq!(
+            resolve_obstruction_order(true, 42),
+            Some((NS_WINDOW_BELOW, 42)),
+        );
+    }
+
+    #[test]
+    fn unobstructed_orders_child_above_relative_to_parent_window_number() {
+        // 復帰側も relativeTo:0（= orderFront 相当、全ウィンドウの最前面）では
+        // なく parent の直上に留める。他アプリより前へ出る必要はない。
+        assert_eq!(
+            resolve_obstruction_order(false, 42),
+            Some((NS_WINDOW_ABOVE, 42)),
+        );
+    }
+
+    #[test]
+    fn missing_parent_window_number_skips_reordering_entirely() {
+        // parent の windowNumber が取れない（0 以下）場合に 0 のまま
+        // orderWindow: を呼ぶと全域リオーダーへ退化する。順序変更を
+        // 行わない（None）ことを Fail Safe として固定する。
+        assert_eq!(resolve_obstruction_order(true, 0), None);
+        assert_eq!(resolve_obstruction_order(false, -3), None);
+    }
+
+    #[test]
+    fn set_overlay_view_obstructed_must_not_hardcode_relative_to_zero() {
+        // ソースレベル固定: set_overlay_view_obstructed の本体が
+        // `relativeTo: 0` を直書きするリグレッションを防ぐ。
+        let source = include_str!("macos_overlay.rs");
+        let fn_start = source
+            .find("pub fn set_overlay_view_obstructed")
+            .expect("set_overlay_view_obstructed must exist");
+        let fn_source = &source[fn_start..];
+        let fn_end = fn_source.find("\n}\n").map(|end| end + 3).unwrap_or(fn_source.len());
+        let fn_body = &fn_source[..fn_end];
+        assert!(
+            !fn_body.contains("relativeTo: 0"),
+            "set_overlay_view_obstructed must order the child window relative to the parent \
+             window's windowNumber (via resolve_obstruction_order), never relative to 0 — \
+             a global reorder makes Stage Manager bring other applications forward",
+        );
+        assert!(
+            fn_body.contains("resolve_obstruction_order("),
+            "set_overlay_view_obstructed must resolve its ordering through \
+             resolve_obstruction_order so the pure-function tests cover the actual behaviour",
+        );
+    }
+}
+
 unsafe fn ns_string(value: &str) -> Result<*mut Object, &'static str> {
     let ns_string_class = appkit_class("NSString")?;
     let string: *mut Object = msg_send![ns_string_class, alloc];
