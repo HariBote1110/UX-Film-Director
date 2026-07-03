@@ -1657,6 +1657,32 @@ mod tests {
     }
 
     #[test]
+    fn macos_overlay_observes_parent_window_geometry_notifications_for_manual_resync() {
+        // Bug E（ADR-plan §4 Phase E0）— `addChildWindow:ordered:` は既定で
+        // child window を parent の移動に追従させるが、リスクとして
+        // Mission Control / Spaces 跨ぎやフルスクリーン切替で外れる場面が
+        // ありうる（計画書 §6）。保険として `NSWindowDidMoveNotification` /
+        // `NSWindowDidResizeNotification` を parent window に対して監視し、
+        // child window の geometry を手動で再同期する契約を固定する。
+        let source = include_str!("macos_overlay.rs");
+
+        assert!(
+            source.contains("NSWindowDidMoveNotification"),
+            "attach must observe NSWindowDidMoveNotification on the parent NSWindow to manually \
+             resync the child window geometry as a fallback to addChildWindow's default tracking",
+        );
+        assert!(
+            source.contains("NSWindowDidResizeNotification"),
+            "attach must observe NSWindowDidResizeNotification on the parent NSWindow to manually \
+             resync the child window geometry as a fallback to addChildWindow's default tracking",
+        );
+        assert!(
+            source.contains("addObserver") && source.contains("selector"),
+            "the geometry resync must be wired via NSNotificationCenter addObserver:selector:name:object:",
+        );
+    }
+
+    #[test]
     fn macos_overlay_detach_removes_child_window_from_parent() {
         // child NSWindow 化に伴い、detach は既存の removeFromSuperview だけでは
         // 不十分になる。addChildWindow の対称操作である removeChildWindow: を

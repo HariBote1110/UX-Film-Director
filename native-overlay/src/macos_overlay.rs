@@ -9,6 +9,17 @@ use crate::OverlayLayerContract;
 
 const NATIVE_OVERLAY_VIEW_IDENTIFIER: &str = "UXFDNativeOverlayView";
 const NATIVE_OVERLAY_PASSTHROUGH_VIEW_CLASS: &str = "UXFDNativeOverlayPassthroughView";
+/// Bug E（ADR-013）— overlay の child NSWindow を識別するための `identifier`。
+/// `NSWindow` にも `NSView` と同様 `identifier` プロパティがあり、detach 時に
+/// parent の `childWindows` を走査して対象を一意に見分けるために使う。
+const NATIVE_OVERLAY_CHILD_WINDOW_IDENTIFIER: &str = "UXFDNativeOverlayChildWindow";
+
+/// `NSWindowStyleMaskBorderless`（AppKit 定数、値 0）。
+const NS_WINDOW_STYLE_MASK_BORDERLESS: usize = 0;
+/// `NSBackingStoreBuffered`（AppKit 定数、値 2）。
+const NS_BACKING_STORE_BUFFERED: usize = 2;
+/// `NSWindowAbove`（`NSWindowOrderingMode`、値 1）。steady state での既定 order。
+const NS_WINDOW_ABOVE: isize = 1;
 
 #[repr(C)]
 struct ObjcPoint {
@@ -42,6 +53,11 @@ pub fn detach_overlay_view(native_window_handle: &[u8]) -> Result<(), &'static s
             return Err("Native overlay AppKit detach must run on the main thread.");
         }
 
+        // Bug E（ADR-013）— child NSWindow 化に伴い、attach で確立した
+        // addChildWindow: の親子関係を対称的に removeChildWindow: で解除する。
+        // removeFromSuperview だけでは parent NSWindow の childWindows に
+        // 残ったままになり、次回 attach まで解放されない。
+        remove_existing_overlay_child_window(parent_view)?;
         remove_existing_overlay_view(parent_view)?;
     }
 
@@ -102,7 +118,11 @@ fn attach_overlay_view_to_parent(
             return Err("Native overlay AppKit attach must run on the main thread.");
         }
 
+        // Bug E（ADR-013）— 既存の detach 経路（parent の subviews / childWindows 走査）を
+        // 呼んでおき、re-attach（サイズ変更・DPI 変更などで attach が再実行されるケース）で
+        // 前回の overlay NSView / child NSWindow が残らないようにする。
         remove_existing_overlay_view(parent_view)?;
+        remove_existing_overlay_child_window(parent_view)?;
 
         let ns_view_class = overlay_passthrough_view_class()?;
         let overlay_view: *mut Object = msg_send![ns_view_class, alloc];
@@ -110,11 +130,14 @@ fn attach_overlay_view_to_parent(
             return Err("Native overlay NSView allocation failed.");
         }
 
-        let overlay_frame = CGRect::new(
-            &CGPoint::new(contract.view_x, contract.view_y),
+        // child NSWindow のコンテンツ座標系は window ローカル（原点 0,0）にする。
+        // スクリーン上の実際の位置・サイズは window 自体の frame で表現するため、
+        // ここでの view frame は `(0, 0, view_width, view_height)` で固定でよい。
+        let local_frame = CGRect::new(
+            &CGPoint::new(0.0, 0.0),
             &CGSize::new(contract.view_width, contract.view_height),
         );
-        let overlay_view: *mut Object = msg_send![overlay_view, initWithFrame: overlay_frame];
+        let overlay_view: *mut Object = msg_send![overlay_view, initWithFrame: local_frame];
         if overlay_view.is_null() {
             return Err("Native overlay NSView initialisation failed.");
         }
@@ -132,9 +155,88 @@ fn attach_overlay_view_to_parent(
         // transparent clear が下層まで抜けるようにする。
         apply_overlay_layer_opaque(overlay_view, false);
 
-        let () = msg_send![parent_view, addSubview: overlay_view];
+        let child_window = create_overlay_child_window(parent_view, contract)?;
+        let () = msg_send![child_window, setContentView: overlay_view];
+
+        let parent_window: *mut Object = msg_send![parent_view, window];
+        if parent_window.is_null() {
+            return Err("Native overlay parent NSWindow is unavailable.");
+        }
+        // Bug E（ADR-013）— overlay を main BrowserWindow の contentView subview では
+        // なく、独立した child NSWindow として parent に addChildWindow する。
+        // macOS の z-order は「同一 NSWindow 内の view 階層」と「複数 NSWindow 間の
+        // window order」が独立軸のため、subview のままでは HTML 駆動 UI
+        // （context menu / popover / tooltip / modal / dropdown）を一律 overlay より
+        // 上に置くことが構造的に不可能だった。child window 化により OS 任せの
+        // z-order 切替（Phase E2 の order 下げ/上げ）が可能になる。
+        // 既定 order は `NSWindowAbove`（steady state。overlay は最前面）。
+        let () = msg_send![parent_window, addChildWindow: child_window ordered: NS_WINDOW_ABOVE];
+
         Ok(overlay_view_handle(overlay_view))
     }
+}
+
+/// overlay 用の borderless / transparent な child NSWindow を new し、geometry を
+/// `contract` の view rect（parent NSView のローカル座標、AppKit の bottom-left
+/// origin）からスクリーン座標へ変換して設定する。
+///
+/// 座標変換式: `parent_view` の bounds 上の矩形 `(view_x, view_y, view_width,
+/// view_height)` を `convertRect:toView:nil` で parent window 座標に変換し、
+/// window の `convertRectToScreen:` でスクリーン座標（グローバル、bottom-left
+/// origin）に変換する。child NSWindow の `frame` はこのスクリーン座標矩形と
+/// 一致させる。
+unsafe fn create_overlay_child_window(
+    parent_view: *mut Object,
+    contract: &OverlayLayerContract,
+) -> Result<*mut Object, &'static str> {
+    let parent_window: *mut Object = msg_send![parent_view, window];
+    if parent_window.is_null() {
+        return Err("Native overlay parent NSWindow is unavailable.");
+    }
+
+    let view_local_rect = CGRect::new(
+        &CGPoint::new(contract.view_x, contract.view_y),
+        &CGSize::new(contract.view_width, contract.view_height),
+    );
+    // parent NSView のローカル座標 → parent NSWindow 座標（bottom-left origin）。
+    let window_rect: CGRect = msg_send![parent_view, convertRect: view_local_rect toView: std::ptr::null_mut::<Object>()];
+    // parent NSWindow 座標 → スクリーン座標（グローバル、bottom-left origin）。
+    let screen_rect: CGRect = msg_send![parent_window, convertRectToScreen: window_rect];
+
+    let window_class = appkit_class("NSWindow")?;
+    let child_window: *mut Object = msg_send![window_class, alloc];
+    if child_window.is_null() {
+        return Err("Native overlay child NSWindow allocation failed.");
+    }
+    let child_window: *mut Object = msg_send![
+        child_window,
+        initWithContentRect: screen_rect
+        styleMask: NS_WINDOW_STYLE_MASK_BORDERLESS
+        backing: NS_BACKING_STORE_BUFFERED
+        defer: NO
+    ];
+    if child_window.is_null() {
+        return Err("Native overlay child NSWindow initialisation failed.");
+    }
+
+    let identifier = ns_string(NATIVE_OVERLAY_CHILD_WINDOW_IDENTIFIER)?;
+    let () = msg_send![child_window, setIdentifier: identifier];
+    // 動画再生中の preview は不透明部分と透明部分が混在するため、window 自体を
+    // 非不透明・背景透明にしないと overlay に覆われていない領域が黒く塗られる。
+    let () = msg_send![child_window, setOpaque: NO];
+    let clear_colour: *mut Object = msg_send![class!(NSColor), clearColor];
+    let () = msg_send![child_window, setBackgroundColor: clear_colour];
+    let () = msg_send![child_window, setHasShadow: NO];
+    // preview の操作（クリック/ドラッグ/スクラブ）は下層 WebView 側 React UI が
+    // 一貫して処理する設計。既存 NSView の hitTest: nil 返しに加え、window
+    // レベルでもマウスイベントを無視させ、child window 自身がイベントを奪う
+    // 経路を完全に断つ。
+    let () = msg_send![child_window, setIgnoresMouseEvents: YES];
+    // Mission Control / Spaces 切替時に parent window に追従させる。
+    let parent_collection_behavior: usize = msg_send![parent_window, collectionBehavior];
+    let () = msg_send![child_window, setCollectionBehavior: parent_collection_behavior];
+
+    Ok(child_window)
 }
 
 /// overlay NSView の現在 layer に対して `setContentsScale:` を反映する。
@@ -249,6 +351,41 @@ unsafe fn remove_existing_overlay_view(parent_view: *mut Object) -> Result<(), &
         let matches: BOOL = msg_send![identifier, isEqualToString: expected_identifier];
         if matches == YES {
             let () = msg_send![subview, removeFromSuperview];
+        }
+    }
+
+    Ok(())
+}
+
+/// Bug E（ADR-013）— parent NSWindow の `childWindows` を走査し、identifier が
+/// 一致する overlay child NSWindow を `removeChildWindow:` で親子関係から外し、
+/// `close` で解放する。attach の re-attach パス、detach の両方から呼ばれる。
+unsafe fn remove_existing_overlay_child_window(parent_view: *mut Object) -> Result<(), &'static str> {
+    let parent_window: *mut Object = msg_send![parent_view, window];
+    if parent_window.is_null() {
+        return Ok(());
+    }
+
+    let child_windows: *mut Object = msg_send![parent_window, childWindows];
+    if child_windows.is_null() {
+        return Ok(());
+    }
+
+    let count: usize = msg_send![child_windows, count];
+    let expected_identifier = ns_string(NATIVE_OVERLAY_CHILD_WINDOW_IDENTIFIER)?;
+    for index in (0..count).rev() {
+        let child_window: *mut Object = msg_send![child_windows, objectAtIndex: index];
+        if child_window.is_null() {
+            continue;
+        }
+        let identifier: *mut Object = msg_send![child_window, identifier];
+        if identifier.is_null() {
+            continue;
+        }
+        let matches: BOOL = msg_send![identifier, isEqualToString: expected_identifier];
+        if matches == YES {
+            let () = msg_send![parent_window, removeChildWindow: child_window];
+            let () = msg_send![child_window, close];
         }
     }
 
