@@ -729,6 +729,22 @@ impl NativeWgpuRenderer {
                     drop_shadow_offset_x: drop_shadow_offset_component(clip, 0),
                     drop_shadow_offset_y: drop_shadow_offset_component(clip, 1),
                     drop_shadow_opacity: drop_shadow_opacity(clip),
+                    gradient_overlay_direction: gradient_overlay_direction(clip),
+                    gradient_overlay_stop_a: gradient_overlay_stop_a(clip),
+                    gradient_overlay_stop_b: gradient_overlay_stop_b(clip),
+                    gradient_overlay_is_radial: gradient_overlay_is_radial(clip),
+                    gradient_overlay_colour_a_r: gradient_overlay_colour_a_component(clip, 0),
+                    gradient_overlay_colour_a_g: gradient_overlay_colour_a_component(clip, 1),
+                    gradient_overlay_colour_a_b: gradient_overlay_colour_a_component(clip, 2),
+                    gradient_overlay_colour_a_a: gradient_overlay_colour_a_component(clip, 3),
+                    gradient_overlay_colour_b_r: gradient_overlay_colour_b_component(clip, 0),
+                    gradient_overlay_colour_b_g: gradient_overlay_colour_b_component(clip, 1),
+                    gradient_overlay_colour_b_b: gradient_overlay_colour_b_component(clip, 2),
+                    gradient_overlay_colour_b_a: gradient_overlay_colour_b_component(clip, 3),
+                    gradient_overlay_bounds_x: gradient_overlay_bounds_x(clip),
+                    gradient_overlay_bounds_y: gradient_overlay_bounds_y(clip),
+                    gradient_overlay_bounds_width: gradient_overlay_bounds_width(clip),
+                    gradient_overlay_bounds_height: gradient_overlay_bounds_height(clip),
                     source_width: source.width as f32,
                     source_height: source.height as f32,
                     translation_x: clip.transform.translation_x,
@@ -739,6 +755,10 @@ impl NativeWgpuRenderer {
                     rotation_cos: rotation_radians.cos(),
                     rotation_sin: rotation_radians.sin(),
                     _padding6: 0.0,
+                    _padding7: 0.0,
+                    _padding8: 0.0,
+                    _padding9: 0.0,
+                    _padding10: 0.0,
                 },
             ));
         }
@@ -1265,6 +1285,22 @@ struct RenderParams {
     drop_shadow_offset_x: f32,
     drop_shadow_offset_y: f32,
     drop_shadow_opacity: f32,
+    gradient_overlay_direction: f32,
+    gradient_overlay_stop_a: f32,
+    gradient_overlay_stop_b: f32,
+    gradient_overlay_is_radial: f32,
+    gradient_overlay_colour_a_r: f32,
+    gradient_overlay_colour_a_g: f32,
+    gradient_overlay_colour_a_b: f32,
+    gradient_overlay_colour_a_a: f32,
+    gradient_overlay_colour_b_r: f32,
+    gradient_overlay_colour_b_g: f32,
+    gradient_overlay_colour_b_b: f32,
+    gradient_overlay_colour_b_a: f32,
+    gradient_overlay_bounds_x: f32,
+    gradient_overlay_bounds_y: f32,
+    gradient_overlay_bounds_width: f32,
+    gradient_overlay_bounds_height: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -1275,6 +1311,10 @@ struct RenderParams {
     rotation_cos: f32,
     rotation_sin: f32,
     _padding6: f32,
+    _padding7: f32,
+    _padding8: f32,
+    _padding9: f32,
+    _padding10: f32,
 }
 
 fn sampling_mode_value(sampling: SamplingMode) -> f32 {
@@ -1661,6 +1701,7 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::ColourCorrection { .. } => 1.0,
         Effect::Blur { .. } => 1.0,
         Effect::DropShadow { .. } => 1.0,
+        Effect::GradientOverlay { .. } => 1.0,
     }
 }
 
@@ -1706,6 +1747,126 @@ fn blur_radius(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
         .iter()
         .filter_map(|effect| match effect {
             Effect::Blur { radius, .. } => Some(*radius),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .max(0.0)
+}
+
+/// 旧 PIXI `GroupGradientFilter` 相当の uniform 抽出。effect が無いときは
+/// bounds_width/height が 0 のため shader 側で無効化される。
+fn gradient_overlay_direction(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::GradientOverlay {
+                direction_degrees, ..
+            } => Some(direction_degrees.to_radians()),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+}
+
+fn gradient_overlay_stop_a(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::GradientOverlay { stop_a, .. } => Some(*stop_a),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .clamp(0.0, 1.0)
+}
+
+fn gradient_overlay_stop_b(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::GradientOverlay { stop_b, .. } => Some(*stop_b),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(1.0)
+        .clamp(0.0, 1.0)
+}
+
+fn gradient_overlay_is_radial(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::GradientOverlay { is_radial, .. } => Some(if *is_radial { 1.0 } else { 0.0 }),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+}
+
+fn gradient_overlay_colour_a_component(clip: &uxfd_rust_core::EvaluatedClip, index: usize) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::GradientOverlay { colour_a, .. } => Some(colour_a[index]),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .clamp(0.0, 1.0)
+}
+
+fn gradient_overlay_colour_b_component(clip: &uxfd_rust_core::EvaluatedClip, index: usize) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::GradientOverlay { colour_b, .. } => Some(colour_b[index]),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .clamp(0.0, 1.0)
+}
+
+fn gradient_overlay_bounds_x(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::GradientOverlay { bounds_x, .. } => Some(*bounds_x),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+}
+
+fn gradient_overlay_bounds_y(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::GradientOverlay { bounds_y, .. } => Some(*bounds_y),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+}
+
+fn gradient_overlay_bounds_width(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::GradientOverlay { bounds_width, .. } => Some(*bounds_width),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .max(0.0)
+}
+
+fn gradient_overlay_bounds_height(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::GradientOverlay { bounds_height, .. } => Some(*bounds_height),
             _ => None,
         })
         .last()
