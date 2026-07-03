@@ -49,6 +49,54 @@ export type SharedRendererViewportNativeOverlayPresentResult =
       activeJobs?: SharedRendererViewportVideoDecodeJob[];
     };
 
+export interface NativeOverlayTransparentClearState {
+  clearedForNoVideo: boolean;
+}
+
+// Bug F — playhead が動画クリップを含まない位置にある間、native overlay の
+// wgpu surface に直前の動画フレームが残留表示される。presenter orchestration
+// は nativeOverlayPresentResult.reason === 'noVideoDecodeRequest' でその
+// 「動画要求が確定して存在しない」状態を報告するが、これを検出して
+// transparent clear を発火する経路が Viewport.tsx 側になかった。
+//
+// この純粋関数は「いつ clear するか／いつ直前フレームを保持するか」の
+// 状態機械を切り出す:
+//   - ok: true（可視フレームを present できた）→ ガードを解除し、次に
+//     noVideoDecodeRequest へ遷移したときまた clear できるようにする。
+//   - ok: false, reason: 'noVideoDecodeRequest'（確定して動画要求が無い）→
+//     直前が「未clear」なら1回だけ clear を要求し、ガードを立てる。
+//     すでに clear 済みなら毎tick繰り返さない（不要な GPU 負荷を避ける）。
+//   - ok: false, その他の reason（frameDecodeFailed 等、再生中の一時的な
+//     デコード失敗）→ ちらつき防止のため直前フレームを保持し、ガードの
+//     状態も変えない（clear もしない、解除もしない）。
+export const NATIVE_OVERLAY_TRANSPARENT_CLEAR_INITIAL_STATE: NativeOverlayTransparentClearState = {
+  clearedForNoVideo: false,
+};
+
+export const resolveNativeOverlayTransparentClearTransition = (
+  previous: NativeOverlayTransparentClearState,
+  nativeOverlayPresentResult: SharedRendererViewportNativeOverlayPresentResult | undefined,
+): {
+  next: NativeOverlayTransparentClearState;
+  shouldClear: boolean;
+} => {
+  if (!nativeOverlayPresentResult) {
+    return { next: previous, shouldClear: false };
+  }
+  if (nativeOverlayPresentResult.ok) {
+    return previous.clearedForNoVideo
+      ? { next: { clearedForNoVideo: false }, shouldClear: false }
+      : { next: previous, shouldClear: false };
+  }
+  if (nativeOverlayPresentResult.reason !== 'noVideoDecodeRequest') {
+    return { next: previous, shouldClear: false };
+  }
+  if (previous.clearedForNoVideo) {
+    return { next: previous, shouldClear: false };
+  }
+  return { next: { clearedForNoVideo: true }, shouldClear: true };
+};
+
 export type SharedRendererViewportNativeOverlayPresenter = (
   input: {
     session: StartSharedRendererPreviewPresenterInput['session'];

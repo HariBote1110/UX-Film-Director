@@ -495,11 +495,12 @@ describe('Viewport Rust video-only boundary', () => {
     // resolveNativeOverlayTransparentClearTransition の戻り値 next で
     // 更新する配線を要求する。
     const code = viewportSource();
-    const start = code.indexOf('resolveNativeOverlayTransparentClearTransition');
+    // 呼び出し箇所（import ではなく実際に呼んでいる箇所）を対象にする。
+    const start = code.lastIndexOf('resolveNativeOverlayTransparentClearTransition(');
     expect(start).toBeGreaterThan(-1);
 
-    const surroundingWindowStart = Math.max(0, start - 2000);
-    const surrounding = code.slice(surroundingWindowStart, start + 2000);
+    const surroundingWindowStart = Math.max(0, start - 400);
+    const surrounding = code.slice(surroundingWindowStart, start + 400);
     expect(surrounding).toContain('Ref');
   });
 });

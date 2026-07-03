@@ -31,6 +31,9 @@ import { writeSharedRendererPresenterDiagnostics } from '../utils/sharedRenderer
 import type { SharedRendererVideoFrameScenePresentationResult } from '../utils/sharedRendererWebGpuPresenter';
 import {
   startSharedRendererViewportPresenter,
+  resolveNativeOverlayTransparentClearTransition,
+  NATIVE_OVERLAY_TRANSPARENT_CLEAR_INITIAL_STATE,
+  type NativeOverlayTransparentClearState,
 } from '../utils/sharedRendererViewportPresenterOrchestration';
 import { prepareSharedRendererViewportNativeRenderUpload } from '../utils/sharedRendererViewportNativeRenderUpload';
 import {
@@ -491,6 +494,13 @@ const Viewport: React.FC = () => {
   // preview decode edge を drawable 長辺に追従させるための正本値。attach 毎に更新し、
   // detach（unmount）で null に戻すと decode edge は 720 フォールバックへ戻る。
   const nativeOverlayDrawableSizeRef = useRef<SharedRendererPlaybackDrawableSize | null>(null);
+  // Bug F — playhead が動画クリップを含まない位置へ遷移したときだけ native
+  // overlay の drawable を transparent clear するための clear-once ガード。
+  // resolveNativeOverlayTransparentClearTransition が返す next 状態を保持し、
+  // 毎tick繰り返しclearしないようにする（動画が再度現れたら再アームされる）。
+  const nativeOverlayTransparentClearStateRef = useRef<NativeOverlayTransparentClearState>(
+    NATIVE_OVERLAY_TRANSPARENT_CLEAR_INITIAL_STATE
+  );
   const sharedRendererExternalVideoSourcesRef = useRef<Map<string, SharedRendererExternalVideoSourceEntry>>(new Map());
   const pixiObjectsRef = useRef<Map<string, PIXI.Container>>(new Map());
   const groupContainersRef = useRef<Map<string, PIXI.Container>>(new Map());
@@ -1185,6 +1195,8 @@ const Viewport: React.FC = () => {
       setSharedRendererPreviewDiagnostic(null);
       updateSharedRendererSolidColourObjectIds([]);
       updateSharedRendererImageObjectIds([]);
+      // presenter 自体が止まるので Bug F の clear-once ガードも初期状態へ戻す。
+      nativeOverlayTransparentClearStateRef.current = NATIVE_OVERLAY_TRANSPARENT_CLEAR_INITIAL_STATE;
       return;
     }
 
@@ -1303,10 +1315,25 @@ const Viewport: React.FC = () => {
         sharedRendererVideoDecodeJobsRef.current = jobs;
       },
       isStartCurrent: () => !cancelled,
-    }).then(({ control, activeVideoDecodeJobs }) => {
+    }).then(({ control, activeVideoDecodeJobs, nativeOverlayPresentResult }) => {
       if (cancelled) {
         control.dispose();
         return;
+      }
+      // Bug F — playhead が動画クリップを含まない位置に確定して遷移した
+      // （noVideoDecodeRequest）ときだけ overlay drawable を transparent
+      // clear する。再生中の一時的な decode 失敗（frameDecodeFailed 等）
+      // では直前フレームを保持してちらつきを避け、毎tickの再clearも避ける。
+      if (nativeOverlayPreviewEnabled) {
+        const { next, shouldClear } = resolveNativeOverlayTransparentClearTransition(
+          nativeOverlayTransparentClearStateRef.current,
+          nativeOverlayPresentResult
+        );
+        nativeOverlayTransparentClearStateRef.current = next;
+        if (shouldClear) {
+          notifyNativeOverlaySceneCleared(0);
+          void window.nativeOverlay?.clearSurface({});
+        }
       }
       if (isPlaying && previousPresenterControl?.ok && !control.ok) {
         control.dispose();
