@@ -2162,6 +2162,265 @@ mod tests {
         );
     }
 
+    // --- 選択デコレーション（選択枠・リサイズハンドル）契約テスト ---
+    //
+    // 実機バグ: SceneSelectionOverlay（HTML/SVG）は child NSWindow 化された
+    // native overlay（CAMetalLayer）より常に下にあるため、オブジェクトが
+    // 現在フレームに描画されている間は選択枠が不透明ピクセルに隠れて見えない。
+    // 修正方針は「選択枠・ハンドルの見た目を native overlay の scene present
+    // 最後に上乗せ描画する」こと。ここでは quad（project 座標系）→ drawable
+    // 座標変換と、デコレーション clip 構築の契約を固定する。
+
+    fn axis_aligned_selection_state(
+        canvas_width: u32,
+        canvas_height: u32,
+    ) -> SelectionDecorationState {
+        SelectionDecorationState {
+            canvas_width,
+            canvas_height,
+            quads: vec![SelectionDecorationQuad {
+                top_left: (100.0, 100.0),
+                top_right: (300.0, 100.0),
+                bottom_right: (300.0, 200.0),
+                bottom_left: (100.0, 200.0),
+            }],
+        }
+    }
+
+    fn assert_approx(actual: f32, expected: f32, label: &str) {
+        assert!(
+            (actual - expected).abs() < 1e-3,
+            "{label}: expected {expected}, got {actual}"
+        );
+    }
+
+    #[test]
+    fn selection_decoration_clips_transform_quad_corners_with_scene_contain_fit() {
+        // canvas 1920x1080 → drawable 960x540 は contain-fit 0.5・offset (0,0)。
+        // fit_scene_snapshot_to_drawable と同じ変換をデコレーションにも通す契約。
+        let state = axis_aligned_selection_state(1920, 1080);
+        let (clips, sources) = build_selection_decoration_clips(&state, 960, 540, 1.0);
+
+        // 4 辺 + 4 ハンドル（金枠）+ 4 ハンドル（白面）= 12 clips / quad。
+        assert_eq!(clips.len(), 12);
+        assert!(sources.contains_key(SELECTION_DECORATION_GOLD_MEDIA_ID));
+        assert!(sources.contains_key(SELECTION_DECORATION_WHITE_MEDIA_ID));
+        let gold = &sources[SELECTION_DECORATION_GOLD_MEDIA_ID];
+        assert_eq!((gold.width, gold.height), (1, 1));
+        assert_eq!(&gold.pixels[..4], &[255, 215, 0, 255]);
+        let white = &sources[SELECTION_DECORATION_WHITE_MEDIA_ID];
+        assert_eq!(&white.pixels[..4], &[255, 255, 255, 255]);
+
+        // 上辺: fitted TL(50,50)→TR(150,50)。線幅 2（contents_scale=1）を線の
+        // 中心に載せ、角の継ぎ目を埋めるため両端を半幅ずつ延長する。
+        let top = &clips[0];
+        assert_eq!(top.media_id, SELECTION_DECORATION_GOLD_MEDIA_ID);
+        assert_approx(top.transform.rotation_degrees, 0.0, "top edge rotation");
+        assert_approx(top.transform.translation_x, 49.0, "top edge translation_x");
+        assert_approx(top.transform.translation_y, 49.0, "top edge translation_y");
+        assert_approx(top.transform.scale_x, 102.0, "top edge scale_x");
+        assert_approx(top.transform.scale_y, 2.0, "top edge scale_y");
+
+        // 右辺: TR(150,50)→BR(150,100)、回転 90 度。
+        let right = &clips[1];
+        assert_approx(right.transform.rotation_degrees, 90.0, "right edge rotation");
+        assert_approx(right.transform.translation_x, 151.0, "right edge translation_x");
+        assert_approx(right.transform.translation_y, 49.0, "right edge translation_y");
+        assert_approx(right.transform.scale_x, 52.0, "right edge scale_x");
+        assert_approx(right.transform.scale_y, 2.0, "right edge scale_y");
+
+        // ハンドル: SVG（rect 10x10・stroke 1.2）の見た目を金枠 11.2 + 白面 8.8
+        // の 2 clip で再現する。TL corner (50,50) 中心。
+        let gold_handle = &clips[4];
+        assert_eq!(gold_handle.media_id, SELECTION_DECORATION_GOLD_MEDIA_ID);
+        assert_approx(gold_handle.transform.translation_x, 50.0 - 5.6, "gold handle tx");
+        assert_approx(gold_handle.transform.translation_y, 50.0 - 5.6, "gold handle ty");
+        assert_approx(gold_handle.transform.scale_x, 11.2, "gold handle scale_x");
+        let white_handle = &clips[8];
+        assert_eq!(white_handle.media_id, SELECTION_DECORATION_WHITE_MEDIA_ID);
+        assert_approx(white_handle.transform.translation_x, 50.0 - 4.4, "white handle tx");
+        assert_approx(white_handle.transform.scale_x, 8.8, "white handle scale_x");
+
+        // z-order: 動画・画像 clip より常に上。辺 < ハンドル金 < ハンドル白。
+        assert!(clips[0].z_index >= u32::MAX - 2);
+        assert!(clips[4].z_index > clips[0].z_index);
+        assert!(clips[8].z_index > clips[4].z_index);
+        for clip in &clips {
+            assert_approx(clip.opacity, 1.0, "decoration opacity");
+        }
+    }
+
+    #[test]
+    fn selection_decoration_clips_scale_line_thickness_with_contents_scale() {
+        // HiDPI（contents_scale=2）では CSS 2pt の枠線が物理 4px になる契約。
+        let state = SelectionDecorationState {
+            canvas_width: 200,
+            canvas_height: 200,
+            quads: vec![SelectionDecorationQuad {
+                top_left: (10.0, 10.0),
+                top_right: (110.0, 10.0),
+                bottom_right: (110.0, 110.0),
+                bottom_left: (10.0, 110.0),
+            }],
+        };
+        let (clips, _sources) = build_selection_decoration_clips(&state, 200, 200, 2.0);
+
+        let top = &clips[0];
+        assert_approx(top.transform.translation_x, 8.0, "top edge translation_x");
+        assert_approx(top.transform.translation_y, 8.0, "top edge translation_y");
+        assert_approx(top.transform.scale_x, 104.0, "top edge scale_x");
+        assert_approx(top.transform.scale_y, 4.0, "top edge scale_y");
+        let gold_handle = &clips[4];
+        assert_approx(gold_handle.transform.scale_x, 22.4, "gold handle scale_x");
+        let white_handle = &clips[8];
+        assert_approx(white_handle.transform.scale_x, 17.6, "white handle scale_x");
+    }
+
+    #[test]
+    fn selection_decoration_clips_rotated_edge_uses_rotation_degrees() {
+        // 回転済み quad（world 座標の四隅が回転を含む）の辺は、辺方向の
+        // atan2 をそのまま rotation_degrees に載せる契約。
+        let state = SelectionDecorationState {
+            canvas_width: 200,
+            canvas_height: 200,
+            quads: vec![SelectionDecorationQuad {
+                top_left: (0.0, 0.0),
+                top_right: (0.0, 100.0),
+                bottom_right: (-100.0, 100.0),
+                bottom_left: (-100.0, 0.0),
+            }],
+        };
+        let (clips, _sources) = build_selection_decoration_clips(&state, 200, 200, 1.0);
+
+        let edge = &clips[0];
+        assert_approx(edge.transform.rotation_degrees, 90.0, "rotated edge rotation");
+        assert_approx(edge.transform.translation_x, 1.0, "rotated edge translation_x");
+        assert_approx(edge.transform.translation_y, -1.0, "rotated edge translation_y");
+        assert_approx(edge.transform.scale_x, 102.0, "rotated edge scale_x");
+        assert_approx(edge.transform.scale_y, 2.0, "rotated edge scale_y");
+    }
+
+    #[test]
+    fn append_selection_decoration_layers_clips_above_existing_scene() {
+        // scene present の最後に上乗せする契約: 既存 clip は変更せず、
+        // デコレーション clip と 1x1 単色 source を追記する。
+        let state = axis_aligned_selection_state(1920, 1080);
+        let (mut snapshot, mut sources) = build_empty_scene_snapshot_for_transparent_clear();
+        snapshot.clips.push(EvaluatedClip {
+            clip_id: "existing".to_string(),
+            track_id: "track".to_string(),
+            media_id: "video".to_string(),
+            source_frame: 0,
+            z_index: 5,
+            transform: Transform::identity(),
+            opacity: 1.0,
+            effects: Vec::new(),
+        });
+
+        append_selection_decoration_to_scene(&mut snapshot, &mut sources, &state, 960, 540, 1.0);
+
+        assert_eq!(snapshot.clips.len(), 1 + 12);
+        assert_eq!(snapshot.clips[0].clip_id, "existing");
+        assert_eq!(snapshot.clips[0].z_index, 5);
+        assert!(snapshot.clips[1..].iter().all(|clip| clip.z_index >= u32::MAX - 2));
+        assert!(sources.contains_key(SELECTION_DECORATION_GOLD_MEDIA_ID));
+        assert!(sources.contains_key(SELECTION_DECORATION_WHITE_MEDIA_ID));
+    }
+
+    #[test]
+    fn selection_decoration_state_is_stored_even_when_no_renderer_is_attached() {
+        // TS 側は attach 完了時に再送するが、addon 側も state を保持して
+        // おき、Err（未 attach）を返して SVG フォールバックを促す契約。
+        let window_id = 990_001;
+        let state = axis_aligned_selection_state(1920, 1080);
+
+        let result = set_native_overlay_selection_decoration(window_id, state.clone());
+
+        assert_eq!(
+            result.expect_err("no renderer attached"),
+            "Native overlay live surface is not attached."
+        );
+        assert_eq!(
+            stored_native_overlay_selection_decoration(window_id),
+            Some(state)
+        );
+    }
+
+    #[test]
+    fn selection_decoration_state_is_cleared_by_empty_quads() {
+        // 空配列 = 選択解除。state を破棄し、以後の present に上乗せしない契約。
+        let window_id = 990_002;
+        let state = axis_aligned_selection_state(1920, 1080);
+        let _ = set_native_overlay_selection_decoration(window_id, state.clone());
+        assert!(stored_native_overlay_selection_decoration(window_id).is_some());
+
+        let _ = set_native_overlay_selection_decoration(
+            window_id,
+            SelectionDecorationState {
+                canvas_width: 1920,
+                canvas_height: 1080,
+                quads: Vec::new(),
+            },
+        );
+
+        assert_eq!(stored_native_overlay_selection_decoration(window_id), None);
+    }
+
+    #[test]
+    fn native_overlay_exports_set_selection_decoration_through_napi() {
+        // preload / main bridge（electron/nativeOverlayMainBridge.ts）の
+        // setSelectionDecoration から呼べる napi export。
+        let source = include_str!("lib.rs");
+        assert!(source.contains("#[napi(js_name = \"setNativeOverlaySelectionDecoration\")]"));
+        assert!(source.contains("pub fn set_native_overlay_selection_decoration"));
+    }
+
+    #[test]
+    fn selection_decoration_clips_render_gold_border_and_white_handles_via_readback() {
+        // readback 契約: デコレーションのみの snapshot（noVideoDecodeRequest の
+        // 透明クリア状態相当）を offscreen render し、枠線に金・角ハンドルに白の
+        // 不透明ピクセルが載り、quad 内部は透明のままであることを固定する。
+        let state = SelectionDecorationState {
+            canvas_width: 200,
+            canvas_height: 200,
+            quads: vec![SelectionDecorationQuad {
+                top_left: (40.0, 40.0),
+                top_right: (160.0, 40.0),
+                bottom_right: (160.0, 160.0),
+                bottom_left: (40.0, 160.0),
+            }],
+        };
+        let (mut snapshot, mut sources) = build_empty_scene_snapshot_for_transparent_clear();
+        append_selection_decoration_to_scene(&mut snapshot, &mut sources, &state, 200, 200, 2.0);
+
+        let frame = pollster::block_on(render_native_wgpu_frame(&snapshot, &sources, 200, 200))
+            .expect("decoration-only offscreen render must succeed");
+
+        let pixel = |x: usize, y: usize| {
+            let offset = (y * 200 + x) * 4;
+            [
+                frame.pixels[offset],
+                frame.pixels[offset + 1],
+                frame.pixels[offset + 2],
+                frame.pixels[offset + 3],
+            ]
+        };
+        // 上辺中点 (100, 40): 金（#ffd700 相当。red 高・blue 低・不透明）。
+        let border = pixel(100, 40);
+        assert!(border[3] > 200, "border must be opaque, got {border:?}");
+        assert!(border[0] > 180 && border[2] < 120, "border must be gold, got {border:?}");
+        // TL corner (40, 40): 白ハンドル面。
+        let handle = pixel(40, 40);
+        assert!(handle[3] > 200, "handle must be opaque, got {handle:?}");
+        assert!(
+            handle[0] > 200 && handle[1] > 200 && handle[2] > 200,
+            "handle must be white, got {handle:?}"
+        );
+        // quad 中央 (100, 100): 透明のまま（枠の内側は塗らない）。
+        let interior = pixel(100, 100);
+        assert_eq!(interior[3], 0, "interior must stay transparent, got {interior:?}");
+    }
+
     fn unique_shm_name() -> String {
         let micros = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
