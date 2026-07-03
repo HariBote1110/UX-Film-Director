@@ -38,6 +38,31 @@ export type VisionDetectionOverlayState = {
   observations: CoreMlAnimalObservation[];
 };
 
+/**
+ * Bug E（Native_Overlay_Bug_E_Plan.md §3）— preview pane との交差矩形。
+ * DOM の CSS pixel 座標系（左上原点）。native overlay の child NSWindow の
+ * geometry とは別軸（AppKit のスクリーン座標変換は main 側で行う）。
+ */
+export interface PreviewObstructionRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * Bug E（Native_Overlay_Bug_E_Plan.md §3・ADR-013）— preview に重なる可能性の
+ * ある HTML 駆動 UI が開いているかどうかの正本状態。`reason` は最後に
+ * `setPreviewObstructed` を呼んだ UI の識別子で、`clearPreviewObstructed` は
+ * 一致する `reason` のときのみ解除する（異なる UI の開閉が競合して誤って
+ * 解除されないようにするため）。
+ */
+export interface PreviewObstructedState {
+  obstructed: boolean;
+  reason: string | null;
+  rect: PreviewObstructionRect | null;
+}
+
 /** 書き出し処理のフェーズ。 */
 export type ExportPhase = 'preparing' | 'transcoding' | 'rendering' | 'saving' | 'cancelling';
 
@@ -90,6 +115,14 @@ export interface AppState {
   visionDetectionPreviewEnabled: boolean;
   visionDetectionRealtimeEnabled: boolean;
   visionDetectionOverlay: VisionDetectionOverlayState | null;
+
+  /**
+   * Bug E（Native_Overlay_Bug_E_Plan.md ADR-013）— preview pane に重なる
+   * HTML 駆動 UI（context menu / popover / tooltip / modal / dropdown）が
+   * 開いているかどうかの正本状態。native overlay の child NSWindow の
+   * z-order 切替（Phase E2）は、この状態を IPC 転送した結果を主 trigger にする。
+   */
+  previewObstructed: PreviewObstructedState;
 
   currentTime: number;
   duration: number;
@@ -148,6 +181,19 @@ export interface AppState {
   setVisionDetectionPreviewEnabled: (enabled: boolean) => void;
   setVisionDetectionRealtimeEnabled: (enabled: boolean) => void;
   setVisionDetectionOverlay: (overlay: VisionDetectionOverlayState | null) => void;
+
+  /**
+   * Bug E（Native_Overlay_Bug_E_Plan.md §3・Phase E1）— preview に重なる
+   * HTML 駆動 UI が開いたことを記録する正本 action。`reason` は呼び出し元
+   * UI の識別子（例: 'context-menu', 'export-modal'）。
+   */
+  setPreviewObstructed: (reason: string, rect: PreviewObstructionRect | null) => void;
+  /**
+   * `reason` が現在の obstruction の reason と一致する場合のみ解除する。
+   * 一致しない場合は no-op（既に別 UI が obstruction を握っている場合に、
+   * 先に閉じた UI の close 処理が誤って新しい obstruction を消さないため）。
+   */
+  clearPreviewObstructed: (reason: string) => void;
 
   pushHistory: () => void;
   undo: () => void;

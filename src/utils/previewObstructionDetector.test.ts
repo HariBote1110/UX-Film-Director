@@ -6,6 +6,10 @@ import {
   sendPreviewObstructionChangedIpc,
   subscribeStoreToPreviewObstructionIpc,
 } from './previewObstructionDetector';
+import type { PreviewObstructedState } from '../store/storeTypes';
+
+type FakeStoreState = { previewObstructed: PreviewObstructedState };
+type FakeStoreListener = (state: FakeStoreState, previousState: FakeStoreState) => void;
 
 // Bug E（Native_Overlay_Bug_E_Plan.md §3・§4 Phase E1）— preview に重なる
 // HTML 駆動 UI（context menu / popover / tooltip / modal / dropdown）が
@@ -52,12 +56,12 @@ describe('sendPreviewObstructionChangedIpc', () => {
 describe('subscribeStoreToPreviewObstructionIpc', () => {
   it('forwards every previewObstructed state change to the IPC channel', () => {
     const invoke = vi.fn().mockResolvedValue(undefined);
-    const listeners: Array<(state: unknown, previous: unknown) => void> = [];
+    const listeners: FakeStoreListener[] = [];
     const store = {
-      getState: () => ({
+      getState: (): FakeStoreState => ({
         previewObstructed: { obstructed: false, reason: null, rect: null },
       }),
-      subscribe: (listener: (state: unknown, previous: unknown) => void) => {
+      subscribe: (listener: FakeStoreListener) => {
         listeners.push(listener);
         return () => {
           const index = listeners.indexOf(listener);
@@ -82,17 +86,17 @@ describe('subscribeStoreToPreviewObstructionIpc', () => {
 
   it('does not re-send when previewObstructed is referentially unchanged', () => {
     const invoke = vi.fn().mockResolvedValue(undefined);
-    const listeners: Array<(state: unknown, previous: unknown) => void> = [];
+    const listeners: FakeStoreListener[] = [];
     const store = {
-      getState: () => ({
+      getState: (): FakeStoreState => ({
         previewObstructed: { obstructed: false, reason: null, rect: null },
       }),
-      subscribe: (listener: (state: unknown, previous: unknown) => void) => {
+      subscribe: (listener: FakeStoreListener) => {
         listeners.push(listener);
         return () => undefined;
       },
     };
-    const sameObstructedState = { obstructed: true, reason: 'popover', rect: null };
+    const sameObstructedState: PreviewObstructedState = { obstructed: true, reason: 'popover', rect: null };
 
     subscribeStoreToPreviewObstructionIpc(store, invoke);
     listeners[0](
