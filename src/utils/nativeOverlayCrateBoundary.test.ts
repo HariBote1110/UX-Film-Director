@@ -50,7 +50,10 @@ describe('native overlay napi crate boundary', () => {
     expect(macosOverlay).toContain('setWantsLayer');
     expect(macosOverlay).not.toContain('setPixelFormat');
     expect(macosOverlay).not.toContain('setDrawableSize');
-    expect(macosOverlay).toContain('addSubview');
+    // Bug E（ADR-013）— overlay はもはや main window の contentView subview
+    // ではなく、専用 child NSWindow の contentView として設置される。
+    // `addSubview` の代わりに `setContentView:` を使う。
+    expect(macosOverlay).toContain('setContentView');
     expect(macosOverlay).not.toContain('present_fixed_colour');
     expect(macosOverlay).not.toContain('set_clear_color');
     expect(macosOverlay).toContain('contract.view_width');
