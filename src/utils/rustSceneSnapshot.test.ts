@@ -4185,10 +4185,10 @@ describe('buildRustSceneSnapshotForTimeline', () => {
 
   it('fails loud for visible Pixi features the shared renderer cannot represent yet', () => {
     const layers = createDefaultLayers();
-    const unsupportedText: TimelineObject = {
-      id: 'text-1',
-      type: 'text',
-      name: 'title',
+    const unsupportedGroupControl: TimelineObject = {
+      id: 'group-control-1',
+      type: 'group_control',
+      name: 'Group Control',
       layer: 0,
       startTime: 0,
       duration: 5,
@@ -4202,10 +4202,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       endX: 0,
       endY: 0,
       easing: 'linear',
-      text: 'hello',
-      fontSize: 24,
-      fontFamily: 'Arial',
-      fill: '#ffffff',
+      targetLayerCount: 1,
     };
     const blurred = baseImage({
       id: 'blurred',
@@ -4222,7 +4219,7 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     const result = buildRustSceneSnapshotForTimeline({
       projectSettings: settings,
       layers,
-      objects: [unsupportedText, blurred],
+      objects: [unsupportedGroupControl, blurred],
       time: 2,
     });
 
