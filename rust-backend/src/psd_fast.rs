@@ -450,6 +450,11 @@ fn decode_layer_rgba(
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /// A parsed PSD layer, including decompressed RGBA pixel data.
+///
+/// Layers are flattened pre-order (group node first, then its children,
+/// siblings bottom-to-top) so that indices and group ids reproduce the
+/// ag-psd walk used by the UI (`src/utils/psdAgPsdWorker.ts`).  The first
+/// entry is therefore the bottom-most element of the layer stack.
 pub struct PsdFastLayer {
     pub stable_id: String,
     pub name: String,
@@ -458,8 +463,8 @@ pub struct PsdFastLayer {
     pub width: u32,
     pub height: u32,
     pub visible: bool,
-    /// Group ID of the *parent* group, if any (matches `PsdGroup::id()` from psd crate).
-    /// This is tracked via the section-divider stack during parsing.
+    /// Group ID of the *parent* group, if any.  Group IDs are assigned
+    /// pre-order during flattening (same numbering as the ag-psd UI walk).
     pub parent_group_id: Option<u32>,
     /// If this layer is a group, its own group ID (assigned sequentially).
     pub is_group: bool,
@@ -521,17 +526,53 @@ fn composite_visible_psd_layers_with_filter(
         .ok_or_else(|| "PSD composite canvas byte length overflows".to_string())?;
     let mut canvas = vec![0u8; canvas_len];
 
-    for layer in psd.layers.iter().rev() {
-        if !layer.visible || layer.is_group {
+    // own_group_id → group layer（祖先の可視性/active 判定に使う）。
+    let groups: std::collections::HashMap<u32, &PsdFastLayer> = psd
+        .layers
+        .iter()
+        .filter_map(|layer| layer.own_group_id.map(|id| (id, layer)))
+        .collect();
+
+    // parent_group_id チェーンを辿り、全ての祖先グループが述語を満たすか。
+    let ancestors_all = |mut parent: Option<u32>, predicate: &dyn Fn(&PsdFastLayer) -> bool| {
+        let mut remaining = psd.layers.len();
+        while let Some(group_id) = parent {
+            let Some(group) = groups.get(&group_id) else {
+                break; // 参照先不明のグループは判定不能なので無視する
+            };
+            if !predicate(group) {
+                return false;
+            }
+            parent = group.parent_group_id;
+            remaining = remaining.saturating_sub(1);
+            if remaining == 0 {
+                break; // 循環防御
+            }
+        }
+        true
+    };
+
+    // psd.layers は pre-order フラット列（先頭が最背面）。前から順に
+    // source-over で塗ることで下→上の重なりを再現する。
+    for layer in psd.layers.iter() {
+        if layer.is_group {
             continue;
         }
-        if let Some(active_layer_ids) = active_layer_ids {
-            if !active_layer_ids
-                .iter()
-                .any(|active_id| active_id == &layer.stable_id)
-            {
-                continue;
+        let included = match active_layer_ids {
+            // activeLayerIds は UI の選択状態そのもの（radio 差分レイヤーは
+            // ファイル上 hidden でも選択され得る）。ファイルの可視フラグでは
+            // なく、リーフ自身と祖先グループの active 状態だけで判定する。
+            Some(active_layer_ids) => {
+                let is_active =
+                    |candidate: &PsdFastLayer| active_layer_ids.contains(&candidate.stable_id);
+                is_active(layer) && ancestors_all(layer.parent_group_id, &is_active)
             }
+            // 無指定時は Photoshop と同様、リーフ自身と祖先グループの
+            // 可視フラグを継承する。
+            None => layer.visible && ancestors_all(layer.parent_group_id, &|g| g.visible),
+        };
+        if !included {
+            continue;
         }
         let Some(rgba) = layer.rgba.as_ref() else {
             continue;
@@ -696,61 +737,7 @@ pub fn parse_psd_fast(bytes: &[u8]) -> Result<PsdFastResult, String> {
     }
 
     // ── Phase 2: decode channel image data ────────────────────────────────────
-    // Assign sequential group IDs as we encounter section-divider layers (type 1/2).
-    // Track the nesting stack to assign parent_group_id.
-    let mut group_id_counter = 0u32;
-    let mut group_stack: Vec<u32> = vec![]; // stack of own_group_id values
-
-    // Build layer descriptors *without* pixels first so we know types and IDs.
-    // We need to resolve parent_group_id before reading pixel data (same pass).
-    struct Descriptor {
-        record_idx: usize,
-        parent_group_id: Option<u32>,
-        own_group_id: Option<u32>,
-    }
-
-    let mut descriptors: Vec<Descriptor> = Vec::with_capacity(layer_count);
-
-    // PSD stores layers from top to bottom visually.  Groups are encoded as:
-    //   [group header (type 1/2)]  ← the visible group entry in the panel
-    //   [child layers …]
-    //   [bounding section divider (type 3)]  ← invisible closer
-    for (i, rec) in records.iter().enumerate() {
-        let parent = group_stack.last().copied();
-
-        match rec.layer_type {
-            1 | 2 => {
-                // Group header: assign a new group ID and push to stack
-                let gid = group_id_counter;
-                group_id_counter += 1;
-                descriptors.push(Descriptor {
-                    record_idx: i,
-                    parent_group_id: parent,
-                    own_group_id: Some(gid),
-                });
-                group_stack.push(gid);
-            }
-            3 => {
-                // Bounding section divider: close the current group
-                group_stack.pop();
-                descriptors.push(Descriptor {
-                    record_idx: i,
-                    parent_group_id: parent,
-                    own_group_id: None,
-                });
-            }
-            _ => {
-                // Regular leaf layer
-                descriptors.push(Descriptor {
-                    record_idx: i,
-                    parent_group_id: parent,
-                    own_group_id: None,
-                });
-            }
-        }
-    }
-
-    // Now decode pixels in the channel image data section (follows layer records).
+    // Channel image data follows the layer records in the same (file) order.
     let mut pixel_data: Vec<Option<Vec<u8>>> = Vec::with_capacity(layer_count);
     for rec in &records {
         match rec.layer_type {
@@ -771,34 +758,131 @@ pub fn parse_psd_fast(bytes: &[u8]) -> Result<PsdFastResult, String> {
         }
     }
 
-    // ── Assemble final layer list ─────────────────────────────────────────────
-    let mut layers: Vec<PsdFastLayer> = Vec::with_capacity(layer_count);
-    for desc in &descriptors {
-        let rec = &records[desc.record_idx];
-        let w = (rec.right - rec.left).max(0) as u32;
-        let h = (rec.bottom - rec.top).max(0) as u32;
-        let is_group = rec.layer_type == 1 || rec.layer_type == 2;
-        let is_section_end = rec.layer_type == 3;
-
-        if is_section_end {
-            // Bounding section dividers are internal bookkeeping; skip them.
-            continue;
-        }
-
-        layers.push(PsdFastLayer {
-            stable_id: stable_layer_id(desc.record_idx, is_group, desc.own_group_id),
-            name: rec.name.clone(),
-            top: rec.top,
-            left: rec.left,
-            width: w,
-            height: h,
-            visible: rec.visible,
-            parent_group_id: desc.parent_group_id,
-            is_group,
-            own_group_id: desc.own_group_id,
-            rgba: pixel_data[desc.record_idx].clone(),
-        });
+    // ── Phase 3: rebuild the group tree from file order ──────────────────────
+    // PSD stores layer records bottom-to-top.  A group is encoded as:
+    //   [bounding section divider (type 3)]  ← below the group's content
+    //   [child layers …]
+    //   [group header (type 1/2)]            ← the visible group entry
+    // So, scanning in file order, a type-3 divider OPENS a group's content and
+    // the header CLOSES it.
+    enum TreeNode {
+        Leaf { record_idx: usize },
+        Group { record_idx: usize, children: Vec<TreeNode> },
     }
+
+    let mut stack: Vec<Vec<TreeNode>> = vec![Vec::new()];
+    for (i, rec) in records.iter().enumerate() {
+        match rec.layer_type {
+            3 => stack.push(Vec::new()),
+            1 | 2 => {
+                // Malformed files may miss the matching divider; degrade to an
+                // empty group instead of corrupting the root level.
+                let children = if stack.len() > 1 {
+                    stack.pop().unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+                stack
+                    .last_mut()
+                    .expect("root accumulator always present")
+                    .push(TreeNode::Group {
+                        record_idx: i,
+                        children,
+                    });
+            }
+            _ => stack
+                .last_mut()
+                .expect("root accumulator always present")
+                .push(TreeNode::Leaf { record_idx: i }),
+        }
+    }
+    // Unmatched dividers: merge orphaned accumulators back into the root.
+    while stack.len() > 1 {
+        let orphan = stack.pop().unwrap_or_default();
+        stack
+            .last_mut()
+            .expect("root accumulator always present")
+            .extend(orphan);
+    }
+    let roots = stack.pop().unwrap_or_default();
+
+    // ── Phase 4: flatten in pre-order, matching the ag-psd UI walk ───────────
+    // The UI (src/utils/psdAgPsdWorker.ts walkLayers) flattens the layer tree
+    // pre-order: group node first, then its children, siblings in file order
+    // (bottom-to-top).  layerIndex is the flattened index (dividers excluded)
+    // and ownGroupId is assigned pre-order.  stable ids MUST reproduce that
+    // numbering, otherwise activeLayerIds from the UI never match.
+    fn flatten(
+        nodes: Vec<TreeNode>,
+        parent_group_id: Option<u32>,
+        records: &[LayerRecord],
+        pixel_data: &mut [Option<Vec<u8>>],
+        group_id_counter: &mut u32,
+        layers: &mut Vec<PsdFastLayer>,
+    ) {
+        for node in nodes {
+            match node {
+                TreeNode::Leaf { record_idx } => {
+                    let rec = &records[record_idx];
+                    let flat_idx = layers.len();
+                    layers.push(PsdFastLayer {
+                        stable_id: stable_layer_id(flat_idx, false, None),
+                        name: rec.name.clone(),
+                        top: rec.top,
+                        left: rec.left,
+                        width: (rec.right - rec.left).max(0) as u32,
+                        height: (rec.bottom - rec.top).max(0) as u32,
+                        visible: rec.visible,
+                        parent_group_id,
+                        is_group: false,
+                        own_group_id: None,
+                        rgba: pixel_data[record_idx].take(),
+                    });
+                }
+                TreeNode::Group {
+                    record_idx,
+                    children,
+                } => {
+                    let rec = &records[record_idx];
+                    let own_group_id = *group_id_counter;
+                    *group_id_counter += 1;
+                    let flat_idx = layers.len();
+                    layers.push(PsdFastLayer {
+                        stable_id: stable_layer_id(flat_idx, true, Some(own_group_id)),
+                        name: rec.name.clone(),
+                        top: rec.top,
+                        left: rec.left,
+                        width: (rec.right - rec.left).max(0) as u32,
+                        height: (rec.bottom - rec.top).max(0) as u32,
+                        visible: rec.visible,
+                        parent_group_id,
+                        is_group: true,
+                        own_group_id: Some(own_group_id),
+                        rgba: None,
+                    });
+                    flatten(
+                        children,
+                        Some(own_group_id),
+                        records,
+                        pixel_data,
+                        group_id_counter,
+                        layers,
+                    );
+                }
+            }
+        }
+    }
+
+    let mut layers: Vec<PsdFastLayer> = Vec::with_capacity(layer_count);
+    let mut group_id_counter = 0u32;
+    flatten(
+        roots,
+        None,
+        &records,
+        &mut pixel_data,
+        &mut group_id_counter,
+        &mut layers,
+    );
 
     Ok(PsdFastResult {
         width: doc_width,
@@ -811,69 +895,97 @@ pub fn parse_psd_fast(bytes: &[u8]) -> Result<PsdFastResult, String> {
 mod tests {
     use super::*;
 
+    // ── 契約メモ ──────────────────────────────────────────────────────────────
+    // `PsdFastResult::layers` は ag-psd worker（src/utils/psdAgPsdWorker.ts の
+    // walkLayers）と同じ「pre-order DFS のフラット列」でなければならない:
+    //   - グループノードが先、その子が後（ファイル上は逆順で格納されている）
+    //   - 兄弟はファイル格納順（＝下→上の重なり順）
+    //   - layerIndex は section divider を除いたフラット index
+    //   - ownGroupId は pre-order で 0 から採番
+    // この採番が UI 側 buildStablePsdLayerNodeId と一致することで、
+    // activeLayerIds（psd-layer-N / psd-group-N）が合成側と噛み合う。
+
+    fn leaf(
+        stable_id: &str,
+        name: &str,
+        parent_group_id: Option<u32>,
+        visible: bool,
+        rgba: Vec<u8>,
+        (left, top, width, height): (i32, i32, u32, u32),
+    ) -> PsdFastLayer {
+        PsdFastLayer {
+            stable_id: stable_id.to_string(),
+            name: name.to_string(),
+            top,
+            left,
+            width,
+            height,
+            visible,
+            parent_group_id,
+            is_group: false,
+            own_group_id: None,
+            rgba: Some(rgba),
+        }
+    }
+
+    fn group(
+        own_group_id: u32,
+        name: &str,
+        parent_group_id: Option<u32>,
+        visible: bool,
+    ) -> PsdFastLayer {
+        PsdFastLayer {
+            stable_id: format!("psd-group-{own_group_id}"),
+            name: name.to_string(),
+            top: 0,
+            left: 0,
+            width: 0,
+            height: 0,
+            visible,
+            parent_group_id,
+            is_group: true,
+            own_group_id: Some(own_group_id),
+            rgba: None,
+        }
+    }
+
+    // ── 合成順序: layers はフラット列で「先頭が最背面」。前から順に塗る ──────
+
     #[test]
     fn composite_visible_psd_layers_draws_leaf_layers_from_bottom_to_top() {
         let psd = PsdFastResult {
             width: 3,
             height: 2,
             layers: vec![
-                PsdFastLayer {
-                    stable_id: "psd-layer-0".to_string(),
-                    name: "front".to_string(),
-                    top: 0,
-                    left: 1,
-                    width: 2,
-                    height: 2,
-                    visible: true,
-                    parent_group_id: None,
-                    is_group: false,
-                    own_group_id: None,
-                    rgba: Some(vec![
-                        255, 0, 0, 128, 255, 0, 0, 128, 255, 0, 0, 128, 255, 0, 0, 128,
-                    ]),
-                },
-                PsdFastLayer {
-                    stable_id: "psd-layer-1".to_string(),
-                    name: "hidden".to_string(),
-                    top: 0,
-                    left: 0,
-                    width: 1,
-                    height: 1,
-                    visible: false,
-                    parent_group_id: None,
-                    is_group: false,
-                    own_group_id: None,
-                    rgba: Some(vec![0, 255, 0, 255]),
-                },
-                PsdFastLayer {
-                    stable_id: "psd-group-1".to_string(),
-                    name: "group".to_string(),
-                    top: 0,
-                    left: 0,
-                    width: 3,
-                    height: 2,
-                    visible: true,
-                    parent_group_id: None,
-                    is_group: true,
-                    own_group_id: Some(1),
-                    rgba: None,
-                },
-                PsdFastLayer {
-                    stable_id: "psd-layer-3".to_string(),
-                    name: "back".to_string(),
-                    top: 0,
-                    left: 0,
-                    width: 3,
-                    height: 2,
-                    visible: true,
-                    parent_group_id: None,
-                    is_group: false,
-                    own_group_id: None,
-                    rgba: Some(vec![
+                // フラット列の先頭 = 最背面（PSD ファイル格納順は下→上）。
+                leaf(
+                    "psd-layer-0",
+                    "back",
+                    None,
+                    true,
+                    vec![
                         0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255,
                         255, 0, 0, 255, 255,
-                    ]),
-                },
+                    ],
+                    (0, 0, 3, 2),
+                ),
+                group(1, "group", None, true),
+                leaf(
+                    "psd-layer-2",
+                    "hidden",
+                    None,
+                    false,
+                    vec![0, 255, 0, 255],
+                    (0, 0, 1, 1),
+                ),
+                leaf(
+                    "psd-layer-3",
+                    "front",
+                    None,
+                    true,
+                    vec![255, 0, 0, 128, 255, 0, 0, 128, 255, 0, 0, 128, 255, 0, 0, 128],
+                    (1, 0, 2, 2),
+                ),
             ],
         };
 
@@ -881,6 +993,7 @@ mod tests {
 
         assert_eq!(frame.width, 3);
         assert_eq!(frame.height, 2);
+        // front(半透明の赤) が back(青) の上に乗る。
         assert_eq!(
             frame.pixels,
             vec![
@@ -891,45 +1004,141 @@ mod tests {
     }
 
     #[test]
+    fn composite_visible_psd_layers_skips_leaves_inside_hidden_groups() {
+        let psd = PsdFastResult {
+            width: 1,
+            height: 1,
+            layers: vec![
+                leaf(
+                    "psd-layer-0",
+                    "base",
+                    None,
+                    true,
+                    vec![0, 0, 255, 255],
+                    (0, 0, 1, 1),
+                ),
+                group(0, "hidden group", None, false),
+                // グループ自体が非表示なら、可視フラグ付きの子リーフも描かない。
+                leaf(
+                    "psd-layer-2",
+                    "child of hidden group",
+                    Some(0),
+                    true,
+                    vec![255, 0, 0, 255],
+                    (0, 0, 1, 1),
+                ),
+            ],
+        };
+
+        let frame = composite_visible_psd_layers(&psd).expect("composited PSD frame");
+
+        assert_eq!(frame.pixels, vec![0, 0, 255, 255]);
+    }
+
+    // ── activeLayerIds 指定時: UI の選択集合が唯一の真実 ─────────────────────
+
+    #[test]
     fn composite_visible_psd_layers_with_active_ids_draws_only_selected_leaf_layers() {
         let psd = PsdFastResult {
             width: 1,
             height: 1,
             layers: vec![
-                PsdFastLayer {
-                    stable_id: "psd-layer-0".to_string(),
-                    name: "front".to_string(),
-                    top: 0,
-                    left: 0,
-                    width: 1,
-                    height: 1,
-                    visible: true,
-                    parent_group_id: None,
-                    is_group: false,
-                    own_group_id: None,
-                    rgba: Some(vec![255, 0, 0, 255]),
-                },
-                PsdFastLayer {
-                    stable_id: "psd-layer-1".to_string(),
-                    name: "back".to_string(),
-                    top: 0,
-                    left: 0,
-                    width: 1,
-                    height: 1,
-                    visible: true,
-                    parent_group_id: None,
-                    is_group: false,
-                    own_group_id: None,
-                    rgba: Some(vec![0, 0, 255, 255]),
-                },
+                leaf(
+                    "psd-layer-0",
+                    "back",
+                    None,
+                    true,
+                    vec![0, 0, 255, 255],
+                    (0, 0, 1, 1),
+                ),
+                leaf(
+                    "psd-layer-1",
+                    "front",
+                    None,
+                    true,
+                    vec![255, 0, 0, 255],
+                    (0, 0, 1, 1),
+                ),
             ],
         };
 
         let frame =
-            composite_visible_psd_layers_with_active_layer_ids(&psd, &["psd-layer-1".to_string()])
+            composite_visible_psd_layers_with_active_layer_ids(&psd, &["psd-layer-0".to_string()])
                 .expect("composited PSD frame");
 
         assert_eq!(frame.pixels, vec![0, 0, 255, 255]);
+    }
+
+    #[test]
+    fn composite_with_active_ids_draws_default_hidden_leaf_when_selected() {
+        // ラジオグループの差分レイヤーはファイル上 hidden で保存されることが
+        // 多い。UI で選択（activeLayerIds に列挙）されたら描画しなければ
+        // ならない — ファイルの hidden フラグで選択を打ち消してはいけない。
+        let psd = PsdFastResult {
+            width: 1,
+            height: 1,
+            layers: vec![leaf(
+                "psd-layer-0",
+                "wink",
+                None,
+                false,
+                vec![255, 0, 0, 255],
+                (0, 0, 1, 1),
+            )],
+        };
+
+        let frame =
+            composite_visible_psd_layers_with_active_layer_ids(&psd, &["psd-layer-0".to_string()])
+                .expect("composited PSD frame");
+
+        assert_eq!(frame.pixels, vec![255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn composite_with_active_ids_skips_leaf_when_ancestor_group_is_inactive() {
+        let psd = PsdFastResult {
+            width: 1,
+            height: 1,
+            layers: vec![
+                leaf(
+                    "psd-layer-0",
+                    "base",
+                    None,
+                    true,
+                    vec![0, 0, 255, 255],
+                    (0, 0, 1, 1),
+                ),
+                group(3, "deactivated group", None, true),
+                leaf(
+                    "psd-layer-2",
+                    "child",
+                    Some(3),
+                    true,
+                    vec![255, 0, 0, 255],
+                    (0, 0, 1, 1),
+                ),
+            ],
+        };
+
+        // 祖先グループ psd-group-3 が activeLayerIds に無い → 子は描かない。
+        let frame = composite_visible_psd_layers_with_active_layer_ids(
+            &psd,
+            &["psd-layer-0".to_string(), "psd-layer-2".to_string()],
+        )
+        .expect("composited PSD frame");
+        assert_eq!(frame.pixels, vec![0, 0, 255, 255]);
+
+        // 祖先グループも active なら子を描く。
+        let frame = composite_visible_psd_layers_with_active_layer_ids(
+            &psd,
+            &[
+                "psd-layer-0".to_string(),
+                "psd-group-3".to_string(),
+                "psd-layer-2".to_string(),
+            ],
+        )
+        .expect("composited PSD frame");
+        assert_eq!(frame.pixels, vec![255, 0, 0, 255]);
     }
 
     fn two_layer_psd_fixture() -> PsdFastResult {
@@ -937,32 +1146,22 @@ mod tests {
             width: 1,
             height: 1,
             layers: vec![
-                PsdFastLayer {
-                    stable_id: "psd-layer-0".to_string(),
-                    name: "front".to_string(),
-                    top: 0,
-                    left: 0,
-                    width: 1,
-                    height: 1,
-                    visible: true,
-                    parent_group_id: None,
-                    is_group: false,
-                    own_group_id: None,
-                    rgba: Some(vec![255, 0, 0, 255]),
-                },
-                PsdFastLayer {
-                    stable_id: "psd-layer-1".to_string(),
-                    name: "back".to_string(),
-                    top: 0,
-                    left: 0,
-                    width: 1,
-                    height: 1,
-                    visible: true,
-                    parent_group_id: None,
-                    is_group: false,
-                    own_group_id: None,
-                    rgba: Some(vec![0, 0, 255, 255]),
-                },
+                leaf(
+                    "psd-layer-0",
+                    "back",
+                    None,
+                    true,
+                    vec![0, 0, 255, 255],
+                    (0, 0, 1, 1),
+                ),
+                leaf(
+                    "psd-layer-1",
+                    "front",
+                    None,
+                    true,
+                    vec![255, 0, 0, 255],
+                    (0, 0, 1, 1),
+                ),
             ],
         }
     }
@@ -990,9 +1189,200 @@ mod tests {
     fn select_psd_composite_frame_composites_only_the_requested_active_layers() {
         let psd = two_layer_psd_fixture();
 
-        let frame = select_psd_composite_frame(&psd, Some(&["psd-layer-1".to_string()]))
+        let frame = select_psd_composite_frame(&psd, Some(&["psd-layer-0".to_string()]))
             .expect("composited PSD frame");
 
         assert_eq!(frame.pixels, vec![0, 0, 255, 255]);
+    }
+
+    // ── パーサ: フラット化順序と stable id の ag-psd 互換性 ──────────────────
+
+    /// テスト用の最小 PSD バイナリを生成する。
+    /// `records` はファイル格納順（下→上）。kind: 0=リーフ, 1=グループヘッダ,
+    /// 3=bounding section divider。リーフはチャネル 0 本（全画素が不透明白に
+    /// フォールバックする）で表現する。
+    fn build_test_psd(
+        doc_width: u32,
+        doc_height: u32,
+        records: &[(u8, &str, (i32, i32, i32, i32), bool)],
+    ) -> Vec<u8> {
+        let mut record_bytes: Vec<u8> = Vec::new();
+        for (kind, name, (top, left, bottom, right), hidden) in records {
+            record_bytes.extend(top.to_be_bytes());
+            record_bytes.extend(left.to_be_bytes());
+            record_bytes.extend(bottom.to_be_bytes());
+            record_bytes.extend(right.to_be_bytes());
+            record_bytes.extend(0u16.to_be_bytes()); // channel count = 0
+            record_bytes.extend(b"8BIM");
+            record_bytes.extend(b"norm");
+            record_bytes.push(255); // opacity
+            record_bytes.push(0); // clipping
+            record_bytes.push(if *hidden { 2 } else { 0 }); // flags
+            record_bytes.push(0); // filler
+
+            let mut extra: Vec<u8> = Vec::new();
+            extra.extend(0u32.to_be_bytes()); // layer mask data
+            extra.extend(0u32.to_be_bytes()); // blending ranges
+            let name_bytes = name.as_bytes();
+            extra.push(u8::try_from(name_bytes.len()).expect("test name fits in pascal string"));
+            extra.extend(name_bytes);
+            let used = name_bytes.len() + 1;
+            extra.extend(std::iter::repeat(0u8).take((4 - (used & 3)) & 3));
+            if *kind != 0 {
+                extra.extend(b"8BIM");
+                extra.extend(b"lsct");
+                extra.extend(4u32.to_be_bytes());
+                extra.extend(u32::from(*kind).to_be_bytes());
+            }
+            record_bytes.extend(u32::try_from(extra.len()).unwrap().to_be_bytes());
+            record_bytes.extend(extra);
+        }
+
+        let layer_info_len = 2 + record_bytes.len(); // i16 count + records
+        let lam_len = 4 + layer_info_len; // u32 layer-info length + layer info
+
+        let mut bytes: Vec<u8> = Vec::new();
+        bytes.extend(b"8BPS");
+        bytes.extend(1u16.to_be_bytes()); // version
+        bytes.extend([0u8; 6]); // reserved
+        bytes.extend(3u16.to_be_bytes()); // channels
+        bytes.extend(doc_height.to_be_bytes());
+        bytes.extend(doc_width.to_be_bytes());
+        bytes.extend(8u16.to_be_bytes()); // depth
+        bytes.extend(3u16.to_be_bytes()); // colour mode = RGB
+        bytes.extend(0u32.to_be_bytes()); // colour mode data
+        bytes.extend(0u32.to_be_bytes()); // image resources
+        bytes.extend(u32::try_from(lam_len).unwrap().to_be_bytes());
+        bytes.extend(u32::try_from(layer_info_len).unwrap().to_be_bytes());
+        bytes.extend(
+            i16::try_from(records.len())
+                .expect("test layer count fits in i16")
+                .to_be_bytes(),
+        );
+        bytes.extend(record_bytes);
+        bytes
+    }
+
+    #[test]
+    fn parse_psd_fast_flattens_groups_in_ag_psd_pre_order() {
+        // ファイル格納順（下→上）: bottom リーフ, divider, グループの子,
+        // グループヘッダ（hidden）。Photoshop パネル表現では
+        // root = [bottom, G[child]]（bottom が最背面）。
+        let bytes = build_test_psd(
+            2,
+            2,
+            &[
+                (0, "bottom", (0, 0, 1, 1), false),
+                (3, "</Layer group>", (0, 0, 0, 0), false),
+                (0, "child", (0, 0, 1, 1), false),
+                (1, "G", (0, 0, 0, 0), true),
+            ],
+        );
+
+        let psd = parse_psd_fast(&bytes).expect("parsed test PSD");
+
+        assert_eq!(psd.layers.len(), 3, "divider はフラット列に含めない");
+
+        // [0] 最背面のリーフ。
+        assert_eq!(psd.layers[0].name, "bottom");
+        assert_eq!(psd.layers[0].stable_id, "psd-layer-0");
+        assert!(!psd.layers[0].is_group);
+        assert_eq!(psd.layers[0].parent_group_id, None);
+        assert!(psd.layers[0].visible);
+
+        // [1] グループが子より先（pre-order）。ownGroupId は pre-order 採番。
+        assert_eq!(psd.layers[1].name, "G");
+        assert_eq!(psd.layers[1].stable_id, "psd-group-0");
+        assert!(psd.layers[1].is_group);
+        assert_eq!(psd.layers[1].own_group_id, Some(0));
+        assert_eq!(psd.layers[1].parent_group_id, None);
+        assert!(!psd.layers[1].visible, "グループヘッダの hidden フラグを反映する");
+
+        // [2] グループの子。layerIndex はフラット index。
+        assert_eq!(psd.layers[2].name, "child");
+        assert_eq!(psd.layers[2].stable_id, "psd-layer-2");
+        assert_eq!(psd.layers[2].parent_group_id, Some(0));
+        assert!(psd.layers[2].visible);
+    }
+
+    #[test]
+    fn parse_psd_fast_nests_sibling_groups_like_ag_psd() {
+        // root = [A[a1], B[B1[b1], b2]]（A が最背面）。ファイル格納順は
+        // 下→上なので divider→子→ヘッダ の並びが 2 系統続く。
+        let bytes = build_test_psd(
+            2,
+            2,
+            &[
+                (3, "</Layer group>", (0, 0, 0, 0), false),
+                (0, "a1", (0, 0, 1, 1), false),
+                (1, "A", (0, 0, 0, 0), false),
+                (3, "</Layer group>", (0, 0, 0, 0), false),
+                (3, "</Layer group>", (0, 0, 0, 0), false),
+                (0, "b1", (0, 0, 1, 1), false),
+                (1, "B1", (0, 0, 0, 0), false),
+                (0, "b2", (0, 0, 1, 1), false),
+                (1, "B", (0, 0, 0, 0), false),
+            ],
+        );
+
+        let psd = parse_psd_fast(&bytes).expect("parsed test PSD");
+
+        let summary: Vec<(String, String, Option<u32>)> = psd
+            .layers
+            .iter()
+            .map(|l| (l.name.clone(), l.stable_id.clone(), l.parent_group_id))
+            .collect();
+
+        assert_eq!(
+            summary,
+            vec![
+                ("A".to_string(), "psd-group-0".to_string(), None),
+                ("a1".to_string(), "psd-layer-1".to_string(), Some(0)),
+                ("B".to_string(), "psd-group-1".to_string(), None),
+                ("B1".to_string(), "psd-group-2".to_string(), Some(1)),
+                ("b1".to_string(), "psd-layer-4".to_string(), Some(2)),
+                ("b2".to_string(), "psd-layer-5".to_string(), Some(1)),
+            ]
+        );
+    }
+
+    /// 実素材による回帰テスト。素材が存在しない環境では skip する。
+    /// 期待値は ag-psd（UI 側パーサ）の pre-order フラット化結果と一致する
+    /// こと（node で実測済みの値をハードコード）。
+    #[test]
+    fn parse_psd_fast_matches_ag_psd_layer_ids_for_real_asset() {
+        let path = "/Users/yuki/GitHub/UX-Film-Director/葵ちゃん.psd";
+        let Ok(bytes) = std::fs::read(path) else {
+            eprintln!("skip: {path} not found");
+            return;
+        };
+
+        let psd = parse_psd_fast(&bytes).expect("parsed real PSD");
+
+        assert_eq!(psd.layers.len(), 171);
+
+        // ag-psd 実測: [0] psd-group-0 "!髪", [1] psd-group-1 "*髪 ショート"
+        // (hidden, parent=0), [2] psd-layer-2 "!髪　色" (parent=1),
+        // [4] psd-group-2 "*髪 ロング" (parent=0), [5] psd-layer-5 "!髪 色"。
+        assert_eq!(psd.layers[0].stable_id, "psd-group-0");
+        assert_eq!(psd.layers[0].name, "!髪");
+        assert!(psd.layers[0].visible);
+
+        assert_eq!(psd.layers[1].stable_id, "psd-group-1");
+        assert_eq!(psd.layers[1].name, "*髪 ショート");
+        assert!(!psd.layers[1].visible);
+        assert_eq!(psd.layers[1].parent_group_id, Some(0));
+
+        assert_eq!(psd.layers[2].stable_id, "psd-layer-2");
+        assert_eq!(psd.layers[2].name, "!髪\u{3000}色");
+        assert_eq!(psd.layers[2].parent_group_id, Some(1));
+
+        assert_eq!(psd.layers[4].stable_id, "psd-group-2");
+        assert_eq!(psd.layers[4].name, "*髪 ロング");
+        assert_eq!(psd.layers[4].parent_group_id, Some(0));
+
+        assert_eq!(psd.layers[5].stable_id, "psd-layer-5");
+        assert_eq!(psd.layers[5].name, "!髪 色");
+        assert_eq!(psd.layers[5].parent_group_id, Some(2));
     }
 }
