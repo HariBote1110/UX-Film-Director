@@ -1609,6 +1609,68 @@ mod tests {
     }
 
     #[test]
+    fn macos_overlay_attaches_via_child_nswindow_not_contentview_subview() {
+        // Bug E（ADR-013）— HTML 駆動 UI（context menu / popover / tooltip / modal /
+        // dropdown）が overlay の CAMetalLayer に隠れて見切れる問題の根本対策として、
+        // overlay を main BrowserWindow の contentView subview から独立した
+        // child NSWindow へ置換する。macOS の z-order は「同一 NSWindow 内の view
+        // 階層」と「複数 NSWindow 間の window order」が独立軸であり、subview の
+        //ままでは HTML 側 UI を一律 overlay より上に置けない構造的制約があるため。
+        //
+        // 契約: parent NSWindow を取得し、borderless / transparent な child
+        // NSWindow を new して addChildWindow:ordered: で attach すること。
+        let source = include_str!("macos_overlay.rs");
+
+        assert!(
+            source.contains("addChildWindow") && source.contains("ordered"),
+            "attach must addChildWindow:ordered: the overlay child NSWindow onto the parent",
+        );
+        assert!(
+            source.contains("NSWindowAbove"),
+            "attach must order the child NSWindow above the parent by default (steady state)",
+        );
+        assert!(
+            source.contains("NSWindowStyleMaskBorderless") || source.contains("styleMask"),
+            "the overlay child NSWindow must be created borderless (no titlebar/chrome)",
+        );
+        assert!(
+            source.contains("setOpaque") && source.contains("clearColor"),
+            "the overlay child NSWindow must be transparent (opaque=NO, background=clearColor) \
+             so it does not paint over the parent window when uncovered by live surface content",
+        );
+    }
+
+    #[test]
+    fn macos_overlay_child_window_ignores_mouse_events_for_hit_through() {
+        // preview の操作（クリック/ドラッグ/スクラブ）はすべて下層 WebView 側の
+        // React UI が処理する設計であるため、child NSWindow 自身がマウスイベントを
+        // 奪ってはならない。既存 NSView の hitTest: nil 返しに加えて、child NSWindow
+        // にも setIgnoresMouseEvents:YES を設定し、window レベルでも hit-through を
+        // 保証する（`window level` が subview 時代には存在しなかった新しい懸念）。
+        let source = include_str!("macos_overlay.rs");
+
+        assert!(
+            source.contains("setIgnoresMouseEvents"),
+            "the overlay child NSWindow must call setIgnoresMouseEvents:YES so pointer events \
+             fall through to the underlying WebView-driven React UI",
+        );
+    }
+
+    #[test]
+    fn macos_overlay_detach_removes_child_window_from_parent() {
+        // child NSWindow 化に伴い、detach は既存の removeFromSuperview だけでは
+        // 不十分になる。addChildWindow の対称操作である removeChildWindow: を
+        // 呼び、parent-child 関係を明示的に解除する契約を固定する。
+        let source = include_str!("macos_overlay.rs");
+
+        assert!(
+            source.contains("removeChildWindow"),
+            "detach must call removeChildWindow: to sever the parent/child NSWindow relationship \
+             that attach established via addChildWindow:ordered:",
+        );
+    }
+
+    #[test]
     fn upload_frame_to_scene_sources_fits_scene_canvas_into_drawable_pixel_size() {
         // 実機バグ: preview pane（drawable 1564x880, CSS 782x440 相当 @ dpr2）へ 1920x1080
         // プロジェクトのシーンを present すると、動画が pane 左上 1/4 に半分スケールで
