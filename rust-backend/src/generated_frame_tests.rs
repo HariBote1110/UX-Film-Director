@@ -1574,3 +1574,166 @@ fn generated_text_source_frame_rejects_non_positive_dimensions() {
     let result = build_generated_text_source_frame(&media);
     assert!(result.is_err());
 }
+
+#[test]
+fn generated_shape_source_frame_renders_filled_circle_with_transparent_corners() {
+    let media = SceneMediaReference {
+        id: "shape-circle-1".to_string(),
+        kind: MediaKind::GeneratedShape,
+        source: r##"{"generator":"shape-93","shape_type":"circle","fill_colour":"#ff0000","gradient":null,"corner_radius":0}"##.to_string(),
+        width: 200,
+        height: 200,
+        source_rate: None,
+        active_layer_ids: Vec::new(),
+    };
+
+    let frame =
+        build_generated_shape_source_frame(&media).expect("generated shape circle should render");
+
+    let centre_offset = ((100 * 200 + 100) * 4) as usize;
+    assert_eq!(
+        &frame.pixels[centre_offset..centre_offset + 4],
+        &[255, 0, 0, 255]
+    );
+
+    let corner_offset = 0usize;
+    assert_eq!(&frame.pixels[corner_offset..corner_offset + 4], &[0, 0, 0, 0]);
+}
+
+#[test]
+fn generated_shape_source_frame_renders_star_with_non_transparent_pixels() {
+    let media = SceneMediaReference {
+        id: "shape-star-1".to_string(),
+        kind: MediaKind::GeneratedShape,
+        source: r##"{"generator":"shape-93","shape_type":"star","fill_colour":"#00ff00","gradient":null,"corner_radius":0}"##.to_string(),
+        width: 200,
+        height: 200,
+        source_rate: None,
+        active_layer_ids: Vec::new(),
+    };
+
+    let frame =
+        build_generated_shape_source_frame(&media).expect("generated shape star should render");
+
+    let has_fill = frame
+        .pixels
+        .chunks_exact(4)
+        .any(|rgba| rgba == [0, 255, 0, 255]);
+    let has_transparent_background = frame
+        .pixels
+        .chunks_exact(4)
+        .any(|rgba| rgba == [0, 0, 0, 0]);
+    assert!(has_fill);
+    assert!(has_transparent_background);
+}
+
+#[test]
+fn generated_shape_source_frame_renders_triangle_with_apex_filled_and_bottom_corners_empty() {
+    let media = SceneMediaReference {
+        id: "shape-triangle-1".to_string(),
+        kind: MediaKind::GeneratedShape,
+        source: r##"{"generator":"shape-93","shape_type":"triangle","fill_colour":"#0000ff","gradient":null,"corner_radius":0}"##.to_string(),
+        width: 200,
+        height: 200,
+        source_rate: None,
+        active_layer_ids: Vec::new(),
+    };
+
+    let frame = build_generated_shape_source_frame(&media)
+        .expect("generated shape triangle should render");
+
+    let apex_offset = ((1 * 200 + 100) * 4) as usize;
+    assert_eq!(
+        &frame.pixels[apex_offset..apex_offset + 4],
+        &[0, 0, 255, 255]
+    );
+
+    let bottom_left_offset = ((199 * 200 + 0) * 4) as usize;
+    assert_eq!(
+        &frame.pixels[bottom_left_offset..bottom_left_offset + 4],
+        &[0, 0, 0, 0]
+    );
+}
+
+#[test]
+fn generated_shape_source_frame_renders_rounded_rect_with_transparent_corner_and_filled_centre() {
+    let media = SceneMediaReference {
+        id: "shape-rounded-rect-1".to_string(),
+        kind: MediaKind::GeneratedShape,
+        source: r##"{"generator":"shape-93","shape_type":"rounded_rect","fill_colour":"#ffff00","gradient":null,"corner_radius":40}"##.to_string(),
+        width: 200,
+        height: 200,
+        source_rate: None,
+        active_layer_ids: Vec::new(),
+    };
+
+    let frame = build_generated_shape_source_frame(&media)
+        .expect("generated shape rounded_rect should render");
+
+    let centre_offset = ((100 * 200 + 100) * 4) as usize;
+    assert_eq!(
+        &frame.pixels[centre_offset..centre_offset + 4],
+        &[255, 255, 0, 255]
+    );
+
+    let corner_offset = 0usize;
+    assert_eq!(&frame.pixels[corner_offset..corner_offset + 4], &[0, 0, 0, 0]);
+}
+
+#[test]
+fn generated_shape_source_frame_applies_linear_gradient_across_width() {
+    let media = SceneMediaReference {
+        id: "shape-gradient-1".to_string(),
+        kind: MediaKind::GeneratedShape,
+        source: r##"{"generator":"shape-93","shape_type":"ellipse","fill_colour":"#000000","gradient":{"type":"linear","colours":["#ff0000","#0000ff"],"stops":[0.0,1.0],"direction":0},"corner_radius":0}"##.to_string(),
+        width: 200,
+        height: 200,
+        source_rate: None,
+        active_layer_ids: Vec::new(),
+    };
+
+    let frame = build_generated_shape_source_frame(&media)
+        .expect("generated shape ellipse with gradient should render");
+
+    let left_offset = ((100 * 200 + 20) * 4) as usize;
+    let right_offset = ((100 * 200 + 180) * 4) as usize;
+    let left_pixel = &frame.pixels[left_offset..left_offset + 4];
+    let right_pixel = &frame.pixels[right_offset..right_offset + 4];
+
+    assert!(left_pixel[3] > 0);
+    assert!(right_pixel[3] > 0);
+    assert!(left_pixel[0] > right_pixel[0], "left should be more red than right");
+    assert!(right_pixel[2] > left_pixel[2], "right should be more blue than left");
+}
+
+#[test]
+fn generated_shape_source_frame_rejects_unknown_shape_type() {
+    let media = SceneMediaReference {
+        id: "shape-invalid-1".to_string(),
+        kind: MediaKind::GeneratedShape,
+        source: r##"{"generator":"shape-93","shape_type":"unknown_shape","fill_colour":"#ffffff","gradient":null,"corner_radius":0}"##.to_string(),
+        width: 200,
+        height: 200,
+        source_rate: None,
+        active_layer_ids: Vec::new(),
+    };
+
+    let result = build_generated_shape_source_frame(&media);
+    assert!(result.is_err());
+}
+
+#[test]
+fn generated_shape_source_frame_rejects_non_positive_dimensions() {
+    let media = SceneMediaReference {
+        id: "shape-invalid-dims-1".to_string(),
+        kind: MediaKind::GeneratedShape,
+        source: r##"{"generator":"shape-93","shape_type":"circle","fill_colour":"#ffffff","gradient":null,"corner_radius":0}"##.to_string(),
+        width: 0,
+        height: 200,
+        source_rate: None,
+        active_layer_ids: Vec::new(),
+    };
+
+    let result = build_generated_shape_source_frame(&media);
+    assert!(result.is_err());
+}
