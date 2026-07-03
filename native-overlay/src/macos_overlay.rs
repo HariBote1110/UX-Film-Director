@@ -618,6 +618,25 @@ pub fn set_overlay_view_opaque(view_handle: usize, opaque: bool) {
 /// `set_overlay_view_contents_scale` / `set_overlay_view_opaque` と同じ
 /// 引数形。実際に order を切り替えるのは overlay NSView の `window`
 /// （= attach が addChildWindow した child NSWindow）である。
+/// 遮蔽状態に応じた `orderWindow:relativeTo:` の引数を解決する純関数。
+///
+/// `relativeTo:` は常に parent window の `windowNumber` を指す。0 を渡すと
+/// AppKit は「全ウィンドウ基準」（Below=最背面 / Above=最前面）として解釈し、
+/// Stage Manager 環境では全域リオーダーが「アプリの後退」と見なされて他アプリの
+/// ステージが前面に出てしまう（TL 右クリックメニュー表示でアプリが背面に落ちる
+/// 実害を確認済み）。parent の windowNumber が取得できない場合（0 以下）は
+/// 順序変更そのものを行わない（`None`）。
+fn resolve_obstruction_order(
+    obstructed: bool,
+    parent_window_number: isize,
+) -> Option<(isize, isize)> {
+    if parent_window_number <= 0 {
+        return None;
+    }
+    let order = if obstructed { NS_WINDOW_BELOW } else { NS_WINDOW_ABOVE };
+    Some((order, parent_window_number))
+}
+
 pub fn set_overlay_view_obstructed(view_handle: usize, obstructed: bool) {
     if view_handle == 0 {
         return;
@@ -635,8 +654,16 @@ pub fn set_overlay_view_obstructed(view_handle: usize, obstructed: bool) {
         if child_window.is_null() {
             return;
         }
-        let order = if obstructed { NS_WINDOW_BELOW } else { NS_WINDOW_ABOVE };
-        let () = msg_send![child_window, orderWindow: order relativeTo: 0isize];
+        let parent_window: *mut Object = msg_send![child_window, parentWindow];
+        if parent_window.is_null() {
+            return;
+        }
+        let parent_window_number: isize = msg_send![parent_window, windowNumber];
+        let Some((order, relative_to)) = resolve_obstruction_order(obstructed, parent_window_number)
+        else {
+            return;
+        };
+        let () = msg_send![child_window, orderWindow: order relativeTo: relative_to];
     }
 }
 
