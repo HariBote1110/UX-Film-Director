@@ -1,3 +1,27 @@
+## 2026-07-03 — 退行復旧(2/2): color_correction / blur / shadow のRust移植（版430a）
+
+### 実施内容
+
+- フィルタ効果3種を Effect として移植（サブエージェント実装・6コミット、各コミットに wasm 再ビルド成果物同梱）:
+  - **Effect::ColourCorrection**: PIXI.ColorMatrixFilter の hue→saturate→contrast→brightness を WGSL で厳密再現（sRGB 符号化空間で行列適用、PIXI の offset 列 /255 正規化 quirk まで再現）。parity anchor 3件。
+  - **Effect::Blur**: FakeDof（focus点シャープ残存）/ AutoBlur（一方向）では一様ぼかしを表現不能と判定し新設。3x3 ガウシアン、旧 Pixi の strength>0.05 可視閾値を serialise 側で再現。
+  - **Effect::DropShadow**: shadow は旧 Pixi でも描画配線が無い UI のみの死機能と判明（退行に非ず）だが user-facing のため最小実装（オフセット位置に source alpha シルエットを背後合成）。
+- **レイヤークリッピングマスク（obj.clipping）は実装見送りを確定**: Pixi 時代から描画実装の無いプレースホルダで、既存 Effect::Clipping（自端切り）とは意味論が別物。unsupportedMask は現状維持。
+- 副次修正: validateEffects に OctTransform / AreaExpand の検証ブロックが欠落し正当 payload を拒否する潜在バグを修正（実行時リスト更新漏れの同型欠陥）。
+- マージ時に wasm バイナリが退行復旧(1/2)と衝突したため、**統合 schema（GeneratedShape + 新 Effect 3種）で wasm を再ビルド**して解消。
+- 統合後: parity 32件 / media_schema 38件 / rust-backend 62+63 / vitest 1168 green（baseline 5件のみ失敗）/ tsc 実エラー30件。版 429a→430a。
+
+### 選定理由・判断の根拠
+
+- ColourCorrection は「PIXI は sRGB 符号化空間で行列演算する」実挙動を優先し、linear パイプライン境界で encode/decode。
+- blur は単一パス 3x3 の決定的検証を優先し、多重パス品質（quality）は非搬送（視覚的問題があれば反復適用を検討）。
+- wasm はブランチごとの再ビルドでは片方の schema しか含まないため、マージ時の main 再ビルドを統合手順として確立。
+
+### 残課題・次のステップ
+
+- 実機確認: 色調補正の hue 回転・ぼかしの見た目（大 radius の 3x3 近似品質）・影のオフセット方向・シェイプ各種。
+- 退行リスト残: グループグラデーション/グループ合成、video 逆再生/subjectCrop、3D ステージ PSD ビルボード。
+
 ## 2026-07-03 — 退行復旧(1/2): 非矩形シェイプ11種とテキスト縁取り/影の復活
 
 ### 実施内容
