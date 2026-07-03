@@ -815,7 +815,7 @@ describe('startSharedRendererPreviewPresenter', () => {
     expect(dataset).toMatchObject({
       uxfdSharedRendererPresenterStatus: 'ready',
       uxfdSharedRendererPresenterFormat: 'bgra8unorm',
-      uxfdSharedRendererPresenterSwatch: 'pixi-passthrough',
+      uxfdSharedRendererPresenterSwatch: 'no-presentation',
     });
   });
 
@@ -852,7 +852,7 @@ describe('startSharedRendererPreviewPresenter', () => {
     expect(dataset).toMatchObject({
       uxfdSharedRendererPresenterStatus: 'blocked',
       uxfdSharedRendererPresenterFailureReason: 'sharedRendererOutputUnavailable',
-      uxfdSharedRendererPresenterSwatch: 'pixi-passthrough',
+      uxfdSharedRendererPresenterSwatch: 'no-presentation',
     });
   });
 
