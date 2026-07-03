@@ -505,4 +505,61 @@ describe('createNativeOverlayMainBridge', () => {
       reason: 'Native overlay addon is unavailable.',
     });
   });
+
+  it('sets the selection decoration through the addon setNativeOverlaySelectionDecoration entry point', async () => {
+    // 選択デコレーション — bridge.setSelectionDecoration が addon の
+    // setNativeOverlaySelectionDecoration を windowId + canvas + quads で呼ぶ。
+    // clearSurface / setObstructed と同じく native_window_handle 不要。
+    const nativeAddon = {
+      setNativeOverlaySelectionDecoration: vi.fn(() => ({ success: true, attached: true })),
+    };
+    const bridge = createNativeOverlayMainBridge({
+      env: { UXFD_NATIVE_OVERLAY: '1' },
+      cwd: '/repo',
+      existsSync: (candidate) => candidate === '/repo/native-overlay/native-overlay.node',
+      requireModule: vi.fn(() => nativeAddon),
+      resolveNativeWindowHandle: vi.fn(() => null),
+    });
+
+    const payload = {
+      windowId: 7,
+      canvasWidth: 1920,
+      canvasHeight: 1080,
+      quads: [{
+        topLeftX: 10, topLeftY: 20,
+        topRightX: 110, topRightY: 20,
+        bottomRightX: 110, bottomRightY: 70,
+        bottomLeftX: 10, bottomLeftY: 70,
+      }],
+    };
+    await expect(bridge.setSelectionDecoration(payload)).resolves.toEqual({
+      success: true,
+      attached: true,
+    });
+    expect(nativeAddon.setNativeOverlaySelectionDecoration).toHaveBeenCalledWith(payload);
+  });
+
+  it('falls back to the WebGPU presenter when the addon lacks a setNativeOverlaySelectionDecoration entry point', async () => {
+    const nativeAddon = {
+      attachNativeOverlay: vi.fn(),
+    };
+    const bridge = createNativeOverlayMainBridge({
+      env: { UXFD_NATIVE_OVERLAY: '1' },
+      cwd: '/repo',
+      existsSync: (candidate) => candidate === '/repo/native-overlay/native-overlay.node',
+      requireModule: vi.fn(() => nativeAddon),
+    });
+
+    await expect(bridge.setSelectionDecoration({
+      windowId: 7,
+      canvasWidth: 1920,
+      canvasHeight: 1080,
+      quads: [],
+    })).resolves.toEqual({
+      success: false,
+      attached: false,
+      fallback: 'webgpuPresenter',
+      reason: 'Native overlay addon is unavailable.',
+    });
+  });
 });

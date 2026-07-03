@@ -16,6 +16,9 @@ describe('nativeOverlayIpc', () => {
     // Bug E（計画書 §3・§4 Phase E2）— renderer の previewObstructionDetector.ts
     // が転送する ui:preview-obstruction-changed を受ける channel。
     expect(nativeOverlayIpcChannels.previewObstructionChanged).toBe('ui:preview-obstruction-changed');
+    // 選択デコレーション — 選択枠・リサイズハンドルの見た目を native overlay
+    // 側で描くための quad 送信 channel。
+    expect(nativeOverlayIpcChannels.setSelectionDecoration).toBe('native-overlay-set-selection-decoration');
   });
 
   it('registers attach, detach, present, clear-surface, and capabilities handlers against the bridge', async () => {
@@ -35,9 +38,8 @@ describe('nativeOverlayIpc', () => {
 
     registerNativeOverlayIpcHandlers(ipcMain, bridge);
 
-    // Bug E（計画書 §4 Phase E2）— ui:preview-obstruction-changed handler が
-    // 追加され、登録される channel は 6 個になった。
-    expect(ipcMain.handle).toHaveBeenCalledTimes(6);
+    // 選択デコレーション channel が追加され、登録される channel は 7 個になった。
+    expect(ipcMain.handle).toHaveBeenCalledTimes(7);
     await expect(handlers.get(nativeOverlayIpcChannels.attach)?.({}, { windowId: 3 })).resolves.toEqual({
       success: true,
       attached: true,
@@ -206,9 +208,8 @@ describe('nativeOverlayIpc', () => {
       resolveWindowIdFromEvent: vi.fn(() => 11),
     });
 
-    // Bug E（計画書 §4 Phase E2）— ui:preview-obstruction-changed handler が
-    // 追加され、登録される channel は 6 個になった。
-    expect(ipcMain.handle).toHaveBeenCalledTimes(6);
+    // 選択デコレーション channel が追加され、登録される channel は 7 個になった。
+    expect(ipcMain.handle).toHaveBeenCalledTimes(7);
     await expect(handlers.get(nativeOverlayIpcChannels.clearSurface)?.({ sender: 'webContents' }, {})).resolves.toEqual({
       success: true,
       attached: true,
@@ -241,7 +242,7 @@ describe('nativeOverlayIpc', () => {
       resolveWindowIdFromEvent: vi.fn(() => 11),
     });
 
-    expect(ipcMain.handle).toHaveBeenCalledTimes(6);
+    expect(ipcMain.handle).toHaveBeenCalledTimes(7);
     await expect(handlers.get(nativeOverlayIpcChannels.previewObstructionChanged)?.(
       { sender: 'webContents' },
       { obstructed: true, reason: 'export-modal' },
@@ -251,5 +252,50 @@ describe('nativeOverlayIpc', () => {
       payload: { windowId: 11, obstructed: true },
     });
     expect(bridge.setObstructed).toHaveBeenCalledWith({ windowId: 11, obstructed: true });
+  });
+
+  it('registers a set-selection-decoration handler that routes quads to bridge.setSelectionDecoration with the resolved windowId', async () => {
+    // 選択デコレーション — renderer（Viewport.tsx）が送る project 座標系の
+    // world quad を、resolveWindowIdFromEvent で解決した windowId とともに
+    // bridge.setSelectionDecoration へ委譲する契約。
+    const handlers = new Map<string, (_event: unknown, payload: unknown) => Promise<unknown>>();
+    const ipcMain = {
+      handle: vi.fn((channel: string, handler: (_event: unknown, payload: unknown) => Promise<unknown>) => {
+        handlers.set(channel, handler);
+      }),
+    };
+    const bridge = {
+      attach: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
+      detach: vi.fn(async (payload: unknown) => ({ success: true, attached: false, payload })),
+      presentSharedFrame: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
+      clearSurface: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
+      setObstructed: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
+      setSelectionDecoration: vi.fn(async (payload: unknown) => ({ success: true, attached: true, payload })),
+      getCapabilities: vi.fn(() => ({ available: true })),
+    };
+
+    registerNativeOverlayIpcHandlers(ipcMain, bridge, {
+      resolveWindowIdFromEvent: vi.fn(() => 11),
+    });
+
+    const decorationPayload = {
+      canvasWidth: 1920,
+      canvasHeight: 1080,
+      quads: [{
+        topLeftX: 10, topLeftY: 20,
+        topRightX: 110, topRightY: 20,
+        bottomRightX: 110, bottomRightY: 70,
+        bottomLeftX: 10, bottomLeftY: 70,
+      }],
+    };
+    await expect(handlers.get(nativeOverlayIpcChannels.setSelectionDecoration)?.(
+      { sender: 'webContents' },
+      decorationPayload,
+    )).resolves.toEqual({
+      success: true,
+      attached: true,
+      payload: { windowId: 11, ...decorationPayload },
+    });
+    expect(bridge.setSelectionDecoration).toHaveBeenCalledWith({ windowId: 11, ...decorationPayload });
   });
 });
