@@ -34,6 +34,16 @@ const NATIVE_OVERLAY_GEOMETRY_RESYNC_OBSERVER_CLASS: &str = "UXFDNativeOverlayGe
 const RESYNC_OBSERVER_IVAR_PARENT_VIEW: &str = "parentView";
 /// resync observer の ivar 名: 再同期する対象の child NSWindow。
 const RESYNC_OBSERVER_IVAR_CHILD_WINDOW: &str = "childWindow";
+/// resync observer の ivar 名: attach 時に確立した contract 由来の view rect
+/// （parent view のローカル座標、オフセット・サイズとも contract のまま）。
+/// resync は `parent_view.bounds` 全体ではなく、必ずこのオフセット付き矩形を
+/// 使って geometry を再計算する（`resolve_view_local_rect_for_parent_bounds`
+/// と同じ関数を通す）。そうしないとウィンドウ移動・リサイズのたびに overlay が
+/// parent window の原点付近へドリフトしてしまう。
+const RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_X: &str = "contractViewX";
+const RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_Y: &str = "contractViewY";
+const RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_WIDTH: &str = "contractViewWidth";
+const RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_HEIGHT: &str = "contractViewHeight";
 
 /// `NSWindowStyleMaskBorderless`（AppKit 定数、値 0）。
 const NS_WINDOW_STYLE_MASK_BORDERLESS: usize = 0;
@@ -58,6 +68,102 @@ unsafe impl Encode for ObjcPoint {
     fn encode() -> Encoding {
         unsafe { Encoding::from_str("{CGPoint=dd}") }
     }
+}
+
+/// TS 側（`buildNativeOverlayAttachRect`）は常に「bottom-left origin」の
+/// bounds 座標系を前提に `contract.view_x` / `view_y` を計算している
+/// （`y = contentHeight - top - height` という式自体が top-left → bottom-left
+/// への変換を internal に含んでいる）。
+///
+/// しかし実際の parent NSView（Electron/Chromium が管理する BrowserWindow の
+/// contentView）は `isFlipped == YES`（top-left origin）で実装されているのが
+/// 通例で、この場合 TS 由来の bottom-left 前提の値をそのまま
+/// `[parent_view convertRect:toView:nil]` に渡すと、AppKit 側が
+/// `isFlipped` を見て「もう一度」flip 変換を行うため、二重反転で結果がずれる
+/// （y が `parent_bounds_height - y - height` 分だけ狂う）。このズレ量は
+/// parent view の bounds height（≒ ウィンドウサイズ）と view_y（≒ ウィンドウ内
+/// での preview 位置）に依存するため、「特定のウィンドウ位置・サイズでは
+/// 偶然ずれが相殺されて正しく見える」ことが起こり得る。
+///
+/// 本関数は `parent_view.isFlipped` を明示的に受け取り、flipped の場合だけ
+/// y を打ち消し変換して、`convertRect:toView:nil` にそのまま渡せる
+/// 「parent view 自身の実座標系での矩形」を返す純粋関数。objc 呼び出しに
+/// 依存しないため、実機無しでユニットテスト可能。
+///
+/// `attach`（[`create_overlay_child_window`]）と `resync`
+/// （[`resync_child_window_geometry`]）は必ず本関数を通して view rect を
+/// 解決すること。片方だけ直接計算し直すと、ウィンドウ移動時にだけ異なる
+/// 式が使われてさらにずれるリグレッションが再発する。
+fn resolve_view_local_rect_for_parent_bounds(
+    contract_view_x: f64,
+    contract_view_y: f64,
+    contract_view_width: f64,
+    contract_view_height: f64,
+    parent_view_bounds_height: f64,
+    parent_view_is_flipped: bool,
+) -> (f64, f64, f64, f64) {
+    let resolved_y = if parent_view_is_flipped {
+        parent_view_bounds_height - contract_view_y - contract_view_height
+    } else {
+        contract_view_y
+    };
+    (contract_view_x, resolved_y, contract_view_width, contract_view_height)
+}
+
+/// `parent_view` の `bounds` 座標系上に置くべき overlay の view local rect
+/// （`convertRect:toView:nil` へそのまま渡せる形）を、`contract` 由来の
+/// オフセット付き矩形と `parent_view.isFlipped` から解決する。
+/// attach・resync の双方から呼ばれる共通経路。
+unsafe fn resolve_overlay_view_local_rect(
+    parent_view: *mut Object,
+    contract_view_x: f64,
+    contract_view_y: f64,
+    contract_view_width: f64,
+    contract_view_height: f64,
+) -> CGRect {
+    let view_bounds: CGRect = msg_send![parent_view, bounds];
+    let is_flipped: BOOL = msg_send![parent_view, isFlipped];
+    let (x, y, width, height) = resolve_view_local_rect_for_parent_bounds(
+        contract_view_x,
+        contract_view_y,
+        contract_view_width,
+        contract_view_height,
+        view_bounds.size.height,
+        is_flipped == YES,
+    );
+    if overlay_geometry_trace_enabled() {
+        eprintln!(
+            "[uxfd-native-overlay] geometry resolve: contract=({contract_view_x}, \
+             {contract_view_y}, {contract_view_width}x{contract_view_height}) \
+             parent_bounds_height={} parent_is_flipped={} -> local_rect=({x}, {y}, \
+             {width}x{height})",
+            view_bounds.size.height,
+            is_flipped == YES,
+        );
+    }
+    CGRect::new(&CGPoint::new(x, y), &CGSize::new(width, height))
+}
+
+/// Bug E 追加診断（`UXFD_OVERLAY_TRACE=1`）— attach / resync が計算した
+/// child window の geometry を stderr へ出力する。実機でウィンドウ位置・
+/// サイズ依存のずれを切り分けるための恒久診断（既定は無効）。
+fn overlay_geometry_trace_enabled() -> bool {
+    std::env::var("UXFD_OVERLAY_TRACE")
+        .map(|value| value == "1")
+        .unwrap_or(false)
+}
+
+unsafe fn trace_child_window_screen_frame(context: &str, screen_rect: CGRect) {
+    if !overlay_geometry_trace_enabled() {
+        return;
+    }
+    eprintln!(
+        "[uxfd-native-overlay] {context}: child window screen frame = origin=({}, {}) size={}x{}",
+        screen_rect.origin.x,
+        screen_rect.origin.y,
+        screen_rect.size.width,
+        screen_rect.size.height,
+    );
 }
 
 pub fn attach_overlay_view(
@@ -133,8 +239,16 @@ unsafe fn overlay_passthrough_view_class() -> Result<&'static Class, &'static st
 }
 
 /// `NSWindowDidMoveNotification` / `NSWindowDidResizeNotification` 受信時に
-/// 呼ばれ、observer の ivar（parentView / childWindow）から geometry を
-/// 再計算して child window の frame に反映する。
+/// 呼ばれ、observer の ivar（parentView / childWindow / contract 由来の view
+/// rect）から geometry を再計算して child window の frame に反映する。
+///
+/// 修正前は `parent_view.bounds` 全体（オフセット無視の `(0,0,w,h)`）を
+/// `convertRect:toView:` に渡していたため、ウィンドウの移動・リサイズの
+/// たびに overlay が parent window の原点（画面の一部にしか preview が無い
+/// レイアウトでは左下寄りの誤った位置）へドリフトしていた。attach 時に
+/// 確立した contract のオフセット付き view rect を ivar に保持し、それを
+/// `resolve_view_local_rect_for_parent_bounds`（attach と共通）で解決してから
+/// 変換することで、attach 直後の位置関係を移動・リサイズ後も維持する。
 extern "C" fn resync_child_window_geometry(this: &Object, _cmd: Sel, _notification: *mut Object) {
     unsafe {
         let parent_view_ivar: usize = *this.get_ivar(RESYNC_OBSERVER_IVAR_PARENT_VIEW);
@@ -150,24 +264,27 @@ extern "C" fn resync_child_window_geometry(this: &Object, _cmd: Sel, _notificati
             return;
         }
 
-        // child NSWindow の現在サイズ（view_width/view_height 相当）はそのまま
-        // 維持し、原点だけを parent の現在位置に合わせて再計算する。サイズ変更
-        // （preview pane 自体のリサイズ）は re-attach 経路（新しい contract を
-        // 渡す attach 呼び出し）が別途処理するため、ここでは扱わない。
-        let current_frame: CGRect = msg_send![child_window, frame];
-        let view_bounds: CGRect = msg_send![parent_view, bounds];
+        let contract_view_x: f64 = *this.get_ivar(RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_X);
+        let contract_view_y: f64 = *this.get_ivar(RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_Y);
+        let contract_view_width: f64 = *this.get_ivar(RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_WIDTH);
+        let contract_view_height: f64 = *this.get_ivar(RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_HEIGHT);
+
+        let view_local_rect = resolve_overlay_view_local_rect(
+            parent_view,
+            contract_view_x,
+            contract_view_y,
+            contract_view_width,
+            contract_view_height,
+        );
         let window_rect: CGRect = msg_send![
             parent_view,
-            convertRect: view_bounds
+            convertRect: view_local_rect
             toView: std::ptr::null_mut::<Object>()
         ];
         let screen_rect: CGRect = msg_send![parent_window, convertRectToScreen: window_rect];
+        trace_child_window_screen_frame("resync", screen_rect);
 
-        let resynced_frame = CGRect::new(
-            &CGPoint::new(screen_rect.origin.x, screen_rect.origin.y),
-            &CGSize::new(current_frame.size.width, current_frame.size.height),
-        );
-        let () = msg_send![child_window, setFrame: resynced_frame display: YES];
+        let () = msg_send![child_window, setFrame: screen_rect display: YES];
     }
 }
 
@@ -181,6 +298,10 @@ unsafe fn geometry_resync_observer_class() -> Result<&'static Class, &'static st
         .ok_or("Native overlay geometry resync observer class registration failed.")?;
     declaration.add_ivar::<usize>(RESYNC_OBSERVER_IVAR_PARENT_VIEW);
     declaration.add_ivar::<usize>(RESYNC_OBSERVER_IVAR_CHILD_WINDOW);
+    declaration.add_ivar::<f64>(RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_X);
+    declaration.add_ivar::<f64>(RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_Y);
+    declaration.add_ivar::<f64>(RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_WIDTH);
+    declaration.add_ivar::<f64>(RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_HEIGHT);
     declaration.add_method(
         sel!(resyncChildWindowGeometry:),
         resync_child_window_geometry as extern "C" fn(&Object, Sel, *mut Object),
@@ -199,6 +320,7 @@ unsafe fn register_geometry_resync_observer(
     parent_view: *mut Object,
     parent_window: *mut Object,
     child_window: *mut Object,
+    contract: &OverlayLayerContract,
 ) -> Result<*mut Object, &'static str> {
     let observer_class = geometry_resync_observer_class()?;
     let observer: *mut Object = msg_send![observer_class, alloc];
@@ -211,6 +333,12 @@ unsafe fn register_geometry_resync_observer(
     }
     (*observer).set_ivar(RESYNC_OBSERVER_IVAR_PARENT_VIEW, parent_view as usize);
     (*observer).set_ivar(RESYNC_OBSERVER_IVAR_CHILD_WINDOW, child_window as usize);
+    // resync は attach と同じ contract 由来のオフセット付き view rect を
+    // 使う必要があるため（parent_view.bounds 全体ではない）、ivar に保持する。
+    (*observer).set_ivar(RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_X, contract.view_x);
+    (*observer).set_ivar(RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_Y, contract.view_y);
+    (*observer).set_ivar(RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_WIDTH, contract.view_width);
+    (*observer).set_ivar(RESYNC_OBSERVER_IVAR_CONTRACT_VIEW_HEIGHT, contract.view_height);
 
     let notification_centre_class = appkit_class("NSNotificationCenter")?;
     let default_centre: *mut Object = msg_send![notification_centre_class, defaultCenter];
@@ -336,7 +464,8 @@ fn attach_overlay_view_to_parent(
         // 過信せず、parent window の移動・リサイズ通知を監視して child window
         // の geometry を手動で再同期するフォールバックを登録する。observer は
         // parent_view ポインタ単位でレジストリに保持し、detach で解放する。
-        let observer = register_geometry_resync_observer(parent_view, parent_window, child_window)?;
+        let observer =
+            register_geometry_resync_observer(parent_view, parent_window, child_window, contract)?;
         geometry_resync_observers()
             .lock()
             .map_err(|_| "Native overlay geometry resync observer registry is poisoned.")?
@@ -347,14 +476,22 @@ fn attach_overlay_view_to_parent(
 }
 
 /// overlay 用の borderless / transparent な child NSWindow を new し、geometry を
-/// `contract` の view rect（parent NSView のローカル座標、AppKit の bottom-left
-/// origin）からスクリーン座標へ変換して設定する。
+/// `contract` の view rect からスクリーン座標へ変換して設定する。
 ///
-/// 座標変換式: `parent_view` の bounds 上の矩形 `(view_x, view_y, view_width,
-/// view_height)` を `convertRect:toView:nil` で parent window 座標に変換し、
-/// window の `convertRectToScreen:` でスクリーン座標（グローバル、bottom-left
-/// origin）に変換する。child NSWindow の `frame` はこのスクリーン座標矩形と
-/// 一致させる。
+/// 座標変換式: `contract` の view rect（TS 側 `buildNativeOverlayAttachRect` が
+/// bottom-left origin 前提で計算した `(view_x, view_y, view_width,
+/// view_height)`）を、まず `resolve_view_local_rect_for_parent_bounds` で
+/// `parent_view` 自身の実際の座標系（`isFlipped` 次第で bottom-left のことも
+/// top-left のこともある）に解決してから、`convertRect:toView:nil` で parent
+/// window 座標に変換し、window の `convertRectToScreen:` でスクリーン座標
+/// （グローバル、bottom-left origin）に変換する。child NSWindow の `frame` は
+/// このスクリーン座標矩形と一致させる。
+///
+/// 過去の不具合: この関数が `parent_view` の `isFlipped` を考慮せず
+/// contract の値をそのまま `convertRect:` に渡していたため、Electron/
+/// Chromium の contentView（通例 `isFlipped == YES`）では二重反転が起き、
+/// overlay 全体（scene・選択枠を含む）がウィンドウの実際の位置に応じた
+/// オフセット分だけ左下寄りにずれて表示されていた。
 unsafe fn create_overlay_child_window(
     parent_view: *mut Object,
     contract: &OverlayLayerContract,
@@ -364,14 +501,23 @@ unsafe fn create_overlay_child_window(
         return Err("Native overlay parent NSWindow is unavailable.");
     }
 
-    let view_local_rect = CGRect::new(
-        &CGPoint::new(contract.view_x, contract.view_y),
-        &CGSize::new(contract.view_width, contract.view_height),
+    // contract の view rect（TS 由来、bottom-left 前提）を、parent_view の実際の
+    // isFlipped 状態に合わせて解決する。parent_view が isFlipped（Electron/
+    // Chromium の contentView で通例）の場合、そのまま渡すと convertRect: 内部で
+    // 二重に flip されてずれるため、ここで打ち消し変換を行う
+    // （resolve_view_local_rect_for_parent_bounds を参照）。
+    let view_local_rect = resolve_overlay_view_local_rect(
+        parent_view,
+        contract.view_x,
+        contract.view_y,
+        contract.view_width,
+        contract.view_height,
     );
     // parent NSView のローカル座標 → parent NSWindow 座標（bottom-left origin）。
     let window_rect: CGRect = msg_send![parent_view, convertRect: view_local_rect toView: std::ptr::null_mut::<Object>()];
     // parent NSWindow 座標 → スクリーン座標（グローバル、bottom-left origin）。
     let screen_rect: CGRect = msg_send![parent_window, convertRectToScreen: window_rect];
+    trace_child_window_screen_frame("attach", screen_rect);
 
     let window_class = appkit_class("NSWindow")?;
     let child_window: *mut Object = msg_send![window_class, alloc];
@@ -514,6 +660,104 @@ unsafe fn apply_overlay_layer_opaque(view: *mut Object, opaque: bool) {
 
 pub fn overlay_view_handle(view: *mut Object) -> usize {
     view as usize
+}
+
+#[cfg(test)]
+mod geometry_tests {
+    use super::*;
+
+    #[test]
+    fn resolve_view_local_rect_keeps_coordinates_unchanged_when_parent_view_is_not_flipped() {
+        // parent view が isFlipped=NO（AppKit 既定、bottom-left origin）の場合、
+        // TS 側（buildNativeOverlayAttachRect）が既に bottom-left 前提で計算した
+        // view_x/view_y はそのまま parent view のローカル座標として使ってよい。
+        let (x, y, width, height) = resolve_view_local_rect_for_parent_bounds(
+            12.0, 34.0, 200.0, 100.0, 600.0, false,
+        );
+        assert_eq!((x, y, width, height), (12.0, 34.0, 200.0, 100.0));
+    }
+
+    #[test]
+    fn resolve_view_local_rect_flips_y_when_parent_view_is_flipped() {
+        // Electron/Chromium の BrowserWindow contentView は isFlipped=YES
+        // （top-left origin）で実装されている。TS 側は bottom-left 前提で
+        // view_y を計算しているため、そのまま parent view のローカル座標として
+        // 使うと二重反転（誤り）になる。isFlipped の場合は
+        // `parent_bounds_height - view_y - view_height` で打ち消す必要がある。
+        let parent_bounds_height = 600.0;
+        let (x, y, width, height) = resolve_view_local_rect_for_parent_bounds(
+            12.0, 34.0, 200.0, 100.0, parent_bounds_height, true,
+        );
+        assert_eq!(x, 12.0);
+        assert_eq!(width, 200.0);
+        assert_eq!(height, 100.0);
+        // 600 - 34 - 100 = 466
+        assert_eq!(y, 466.0);
+    }
+
+    #[test]
+    fn resolve_view_local_rect_flip_is_involution_for_round_trip_bounds() {
+        // flip 変換を二度適用すると元の値へ戻ることを固定する（変換式の対称性の
+        // 健全性チェック）。attach と resync で同じ関数を使う設計の前提となる。
+        let parent_bounds_height = 812.0;
+        let (_, first_y, _, height) =
+            resolve_view_local_rect_for_parent_bounds(0.0, 150.0, 400.0, 300.0, parent_bounds_height, true);
+        let (_, round_trip_y, _, _) = resolve_view_local_rect_for_parent_bounds(
+            0.0,
+            first_y,
+            400.0,
+            height,
+            parent_bounds_height,
+            true,
+        );
+        assert_eq!(round_trip_y, 150.0);
+    }
+
+    #[test]
+    fn attach_and_resync_share_the_same_view_local_rect_resolution_function() {
+        // attach（create_overlay_child_window）と resync
+        // （resync_child_window_geometry）が同じ座標変換式を使っていることを
+        // ソースレベルで固定する。片方だけ resolve_view_local_rect_for_parent_bounds
+        // 経由に修正され、もう片方が独自の（誤った）計算式のまま残るリグレッションを防ぐ。
+        let source = include_str!("macos_overlay.rs");
+        let occurrences = source
+            .matches("resolve_view_local_rect_for_parent_bounds(")
+            .count();
+        assert!(
+            occurrences >= 3,
+            "expected resolve_view_local_rect_for_parent_bounds to be defined once and called from \
+             both create_overlay_child_window (attach) and resync_child_window_geometry (resync); \
+             found {occurrences} occurrences (including the fn definition itself)",
+        );
+    }
+
+    #[test]
+    fn resync_uses_contract_view_rect_offset_not_full_parent_bounds() {
+        // resync_child_window_geometry が `parent_view.bounds` 全体
+        // （オフセットを無視した (0,0,w,h)）を convertRect: の入力にしていると、
+        // ウィンドウ移動・リサイズのたびに overlay が parent window の原点
+        // （画面の一部にしか preview が無い場合は左下寄りの誤った位置）へ
+        // 再配置されてしまう。resync は必ず attach 時と同じ contract 由来の
+        // オフセット付き view rect（ivar に保持した view_x/y/width/height）を
+        // 使うことを固定する。
+        let source = include_str!("macos_overlay.rs");
+        let resync_fn_start = source
+            .find("fn resync_child_window_geometry")
+            .expect("resync_child_window_geometry must exist");
+        let resync_fn_source = &source[resync_fn_start..];
+        let resync_fn_end = resync_fn_source
+            .find("\n}\n")
+            .map(|end| end + 3)
+            .unwrap_or(resync_fn_source.len());
+        let resync_fn_body = &resync_fn_source[..resync_fn_end];
+
+        assert!(
+            !resync_fn_body.contains("parent_view, bounds]"),
+            "resync must not re-derive geometry from the full parent view bounds; it must reuse \
+             the contract's view rect offset (ivar-stored view_x/y/width/height) so the overlay \
+             stays aligned with the original attach rect instead of drifting to the parent's origin",
+        );
+    }
 }
 
 unsafe fn ns_string(value: &str) -> Result<*mut Object, &'static str> {
