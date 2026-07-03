@@ -2378,6 +2378,49 @@ fn area_expand_fill(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
 mod tests {
     use super::*;
 
+    fn request_test_adapter() -> wgpu::Adapter {
+        let instance = wgpu::Instance::default();
+        pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::HighPerformance,
+            compatible_surface: None,
+            force_fallback_adapter: false,
+        }))
+        .expect("test environment must expose a wgpu adapter")
+    }
+
+    #[test]
+    fn required_limits_for_frame_uses_full_adapter_texture_dimension_budget() {
+        // Bug: 出力フレーム（例: 1920x1080）のみを基準に max_texture_dimension_2d を
+        // 決めていたため、adapter が 16384 まで対応していても downlevel既定値の
+        // 2048 に device が制限され、後続の PSD ソーステクスチャ生成（2700px 等）が
+        // wgpu Validation Error で panic していた。adapter の実上限をそのまま
+        // 尊重すべきなので、出力フレームサイズに関わらず adapter 上限を要求する。
+        let adapter = request_test_adapter();
+        let adapter_limits = adapter.limits();
+
+        let limits = required_limits_for_frame(&adapter, 1920, 1080)
+            .expect("1920x1080 output frame must not exceed adapter limits");
+
+        assert_eq!(
+            limits.max_texture_dimension_2d,
+            adapter_limits.max_texture_dimension_2d
+        );
+    }
+
+    #[test]
+    fn required_limits_for_frame_rejects_output_frame_exceeding_adapter_limit() {
+        let adapter = request_test_adapter();
+        let adapter_limits = adapter.limits();
+        let oversized = adapter_limits.max_texture_dimension_2d + 1;
+
+        let result = required_limits_for_frame(&adapter, oversized, 1080);
+
+        assert!(matches!(
+            result,
+            Err(NativeWgpuRenderError::FrameSizeExceedsAdapterLimit { .. })
+        ));
+    }
+
     #[test]
     fn bgra_surface_copy_bytes_are_normalised_to_rgba8() {
         let pixels = normalise_texture_copy_to_rgba8(
