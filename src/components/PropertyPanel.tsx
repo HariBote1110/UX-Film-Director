@@ -2943,18 +2943,112 @@ const PropertyPanel: React.FC = () => {
                 <Row label="Colour">
                      <input type="color" value={selectedObject.fill} onChange={(e) => handleChange('fill', e.target.value)} />
                 </Row>
+                <Row label="Stroke">
+                    <input
+                        type="checkbox"
+                        checked={selectedObject.textStroke != null}
+                        onChange={(e) => handleChange('textStroke', e.target.checked
+                          ? { colour: selectedObject.textStroke?.colour ?? '#000000', width: selectedObject.textStroke?.width ?? 2 }
+                          : undefined)}
+                    />
+                </Row>
+                {selectedObject.textStroke != null && (
+                    <>
+                        <Row label="Stroke Colour">
+                            <input type="color" value={selectedObject.textStroke.colour} onChange={(e) => handleChange('textStroke', { ...selectedObject.textStroke, colour: e.target.value })} />
+                        </Row>
+                        <Row label="Stroke Width">
+                            <input
+                                type="number"
+                                min="0"
+                                value={selectedObject.textStroke.width}
+                                onChange={(e) => {
+                                    const width = parseFloat(e.target.value);
+                                    if (!Number.isFinite(width)) return;
+                                    handleChange('textStroke', { ...selectedObject.textStroke, width: Math.max(0, width) });
+                                }}
+                                style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                            />
+                        </Row>
+                    </>
+                )}
+                <Row label="Shadow">
+                    <input
+                        type="checkbox"
+                        checked={selectedObject.textShadow != null}
+                        onChange={(e) => handleChange('textShadow', e.target.checked
+                          ? {
+                            colour: selectedObject.textShadow?.colour ?? '#000000',
+                            offsetX: selectedObject.textShadow?.offsetX ?? 2,
+                            offsetY: selectedObject.textShadow?.offsetY ?? 2,
+                            blur: selectedObject.textShadow?.blur ?? 0,
+                          }
+                          : undefined)}
+                    />
+                </Row>
+                {selectedObject.textShadow != null && (
+                    <>
+                        <Row label="Shadow Colour">
+                            <input type="color" value={selectedObject.textShadow.colour} onChange={(e) => handleChange('textShadow', { ...selectedObject.textShadow, colour: e.target.value })} />
+                        </Row>
+                        <Row label="Shadow Offset X">
+                            <input
+                                type="number"
+                                value={selectedObject.textShadow.offsetX}
+                                onChange={(e) => {
+                                    const offsetX = parseFloat(e.target.value);
+                                    if (!Number.isFinite(offsetX)) return;
+                                    handleChange('textShadow', { ...selectedObject.textShadow, offsetX });
+                                }}
+                                style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                            />
+                        </Row>
+                        <Row label="Shadow Offset Y">
+                            <input
+                                type="number"
+                                value={selectedObject.textShadow.offsetY}
+                                onChange={(e) => {
+                                    const offsetY = parseFloat(e.target.value);
+                                    if (!Number.isFinite(offsetY)) return;
+                                    handleChange('textShadow', { ...selectedObject.textShadow, offsetY });
+                                }}
+                                style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                            />
+                        </Row>
+                        <Row label="Shadow Blur">
+                            <input
+                                type="number"
+                                min="0"
+                                value={selectedObject.textShadow.blur}
+                                onChange={(e) => {
+                                    const blur = parseFloat(e.target.value);
+                                    if (!Number.isFinite(blur)) return;
+                                    handleChange('textShadow', { ...selectedObject.textShadow, blur: Math.max(0, blur) });
+                                }}
+                                style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}
+                            />
+                        </Row>
+                    </>
+                )}
             </>
         )}
-        
+
         {selectedObject.type === 'shape' && (
             <>
                 <SectionHeader label="Shape Settings" />
                 <Row label="Type">
                     <select value={selectedObject.shapeType} onChange={(e) => handleChange('shapeType', e.target.value)} style={{ width: '100%', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }}>
                         <option value="rect">Rectangle</option>
+                        <option value="rounded_rect">Rounded Rectangle</option>
                         <option value="circle">Circle</option>
+                        <option value="ellipse">Ellipse</option>
                         <option value="triangle">Triangle</option>
                         <option value="star">Star</option>
+                        <option value="pentagon">Pentagon</option>
+                        <option value="diamond">Diamond</option>
+                        <option value="arrow">Arrow</option>
+                        <option value="heart">Heart</option>
+                        <option value="cross">Cross</option>
                     </select>
                 </Row>
                 <Row label="Colour">
@@ -2966,6 +3060,11 @@ const PropertyPanel: React.FC = () => {
                 <Row label="Height">
                     <input type="number" value={selectedObject.height} onChange={(e) => handleNumericChange('height', e.target.value)} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
                 </Row>
+                {selectedObject.shapeType === 'rounded_rect' && (
+                    <Row label="Corner Radius">
+                        <input type="number" min="0" value={selectedObject.cornerRadius ?? 0} onChange={(e) => handleNumericChange('cornerRadius', e.target.value)} style={{ width: '60px', background: '#1e1e1e', border: '1px solid #444', color: '#eee' }} />
+                    </Row>
+                )}
             </>
         )}
 
