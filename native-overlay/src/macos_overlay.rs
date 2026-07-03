@@ -4,8 +4,21 @@ use core_graphics_types::geometry::{CGPoint, CGRect, CGSize};
 use objc::declare::ClassDecl;
 use objc::runtime::{Class, Object, Sel, BOOL, NO, YES};
 use objc::{class, msg_send, sel, sel_impl, Encode, Encoding};
+use std::collections::HashMap;
+use std::sync::Mutex;
 
 use crate::OverlayLayerContract;
+
+/// parent NSView ポインタ（`usize` 化）→ geometry resync observer ポインタ
+/// （`usize` 化）のレジストリ。`NSNotificationCenter` は observer を弱参照で
+/// 保持するのみのため、呼び出し側（このクレート）が生存させ続ける必要がある。
+/// detach 時にここから取り出して `removeObserver:` する。
+static GEOMETRY_RESYNC_OBSERVERS: std::sync::OnceLock<Mutex<HashMap<usize, usize>>> =
+    std::sync::OnceLock::new();
+
+fn geometry_resync_observers() -> &'static Mutex<HashMap<usize, usize>> {
+    GEOMETRY_RESYNC_OBSERVERS.get_or_init(|| Mutex::new(HashMap::new()))
+}
 
 const NATIVE_OVERLAY_VIEW_IDENTIFIER: &str = "UXFDNativeOverlayView";
 const NATIVE_OVERLAY_PASSTHROUGH_VIEW_CLASS: &str = "UXFDNativeOverlayPassthroughView";
@@ -13,6 +26,14 @@ const NATIVE_OVERLAY_PASSTHROUGH_VIEW_CLASS: &str = "UXFDNativeOverlayPassthroug
 /// `NSWindow` にも `NSView` と同様 `identifier` プロパティがあり、detach 時に
 /// parent の `childWindows` を走査して対象を一意に見分けるために使う。
 const NATIVE_OVERLAY_CHILD_WINDOW_IDENTIFIER: &str = "UXFDNativeOverlayChildWindow";
+/// parent window の move/resize 通知を受けて child window の geometry を手動
+/// 再同期する observer オブジェクトのクラス名。`addChildWindow:ordered:` の
+/// 既定追従を過信せず（計画書 §6）、フォールバックとして明示的に再計算する。
+const NATIVE_OVERLAY_GEOMETRY_RESYNC_OBSERVER_CLASS: &str = "UXFDNativeOverlayGeometryResyncObserver";
+/// resync observer の ivar 名: 監視対象の parent NSView（geometry 再計算の入力）。
+const RESYNC_OBSERVER_IVAR_PARENT_VIEW: &str = "parentView";
+/// resync observer の ivar 名: 再同期する対象の child NSWindow。
+const RESYNC_OBSERVER_IVAR_CHILD_WINDOW: &str = "childWindow";
 
 /// `NSWindowStyleMaskBorderless`（AppKit 定数、値 0）。
 const NS_WINDOW_STYLE_MASK_BORDERLESS: usize = 0;
@@ -57,6 +78,7 @@ pub fn detach_overlay_view(native_window_handle: &[u8]) -> Result<(), &'static s
         // addChildWindow: の親子関係を対称的に removeChildWindow: で解除する。
         // removeFromSuperview だけでは parent NSWindow の childWindows に
         // 残ったままになり、次回 attach まで解放されない。
+        unregister_geometry_resync_observer(parent_view)?;
         remove_existing_overlay_child_window(parent_view)?;
         remove_existing_overlay_view(parent_view)?;
     }
@@ -104,6 +126,136 @@ unsafe fn overlay_passthrough_view_class() -> Result<&'static Class, &'static st
     Ok(declaration.register())
 }
 
+/// `NSWindowDidMoveNotification` / `NSWindowDidResizeNotification` 受信時に
+/// 呼ばれ、observer の ivar（parentView / childWindow）から geometry を
+/// 再計算して child window の frame に反映する。
+extern "C" fn resync_child_window_geometry(this: &Object, _cmd: Sel, _notification: *mut Object) {
+    unsafe {
+        let parent_view_ivar: usize = *this.get_ivar(RESYNC_OBSERVER_IVAR_PARENT_VIEW);
+        let child_window_ivar: usize = *this.get_ivar(RESYNC_OBSERVER_IVAR_CHILD_WINDOW);
+        let parent_view = parent_view_ivar as *mut Object;
+        let child_window = child_window_ivar as *mut Object;
+        if parent_view.is_null() || child_window.is_null() {
+            return;
+        }
+
+        let parent_window: *mut Object = msg_send![parent_view, window];
+        if parent_window.is_null() {
+            return;
+        }
+
+        // child NSWindow の現在サイズ（view_width/view_height 相当）はそのまま
+        // 維持し、原点だけを parent の現在位置に合わせて再計算する。サイズ変更
+        // （preview pane 自体のリサイズ）は re-attach 経路（新しい contract を
+        // 渡す attach 呼び出し）が別途処理するため、ここでは扱わない。
+        let current_frame: CGRect = msg_send![child_window, frame];
+        let view_bounds: CGRect = msg_send![parent_view, bounds];
+        let window_rect: CGRect = msg_send![
+            parent_view,
+            convertRect: view_bounds
+            toView: std::ptr::null_mut::<Object>()
+        ];
+        let screen_rect: CGRect = msg_send![parent_window, convertRectToScreen: window_rect];
+
+        let resynced_frame = CGRect::new(
+            &CGPoint::new(screen_rect.origin.x, screen_rect.origin.y),
+            &CGSize::new(current_frame.size.width, current_frame.size.height),
+        );
+        let () = msg_send![child_window, setFrame: resynced_frame display: YES];
+    }
+}
+
+unsafe fn geometry_resync_observer_class() -> Result<&'static Class, &'static str> {
+    if let Some(existing_class) = Class::get(NATIVE_OVERLAY_GEOMETRY_RESYNC_OBSERVER_CLASS) {
+        return Ok(existing_class);
+    }
+
+    let superclass = appkit_class("NSObject")?;
+    let mut declaration = ClassDecl::new(NATIVE_OVERLAY_GEOMETRY_RESYNC_OBSERVER_CLASS, superclass)
+        .ok_or("Native overlay geometry resync observer class registration failed.")?;
+    declaration.add_ivar::<usize>(RESYNC_OBSERVER_IVAR_PARENT_VIEW);
+    declaration.add_ivar::<usize>(RESYNC_OBSERVER_IVAR_CHILD_WINDOW);
+    declaration.add_method(
+        sel!(resyncChildWindowGeometry:),
+        resync_child_window_geometry as extern "C" fn(&Object, Sel, *mut Object),
+    );
+    Ok(declaration.register())
+}
+
+/// `parent_window` の `NSWindowDidMoveNotification` / `NSWindowDidResizeNotification`
+/// を observer に登録し、child window の geometry を手動で再同期できるようにする。
+/// `addChildWindow:ordered:` の既定追従を過信せず（計画書 §6: Mission Control /
+/// Spaces 跨ぎ・フルスクリーン切替での外れリスク）のフォールバック経路。
+///
+/// 戻り値の observer オブジェクトは呼び出し側が保持し続ける必要がある
+/// （NSNotificationCenter は弱参照で保持するのみ）。
+unsafe fn register_geometry_resync_observer(
+    parent_view: *mut Object,
+    parent_window: *mut Object,
+    child_window: *mut Object,
+) -> Result<*mut Object, &'static str> {
+    let observer_class = geometry_resync_observer_class()?;
+    let observer: *mut Object = msg_send![observer_class, alloc];
+    if observer.is_null() {
+        return Err("Native overlay geometry resync observer allocation failed.");
+    }
+    let observer: *mut Object = msg_send![observer, init];
+    if observer.is_null() {
+        return Err("Native overlay geometry resync observer initialisation failed.");
+    }
+    (*observer).set_ivar(RESYNC_OBSERVER_IVAR_PARENT_VIEW, parent_view as usize);
+    (*observer).set_ivar(RESYNC_OBSERVER_IVAR_CHILD_WINDOW, child_window as usize);
+
+    let notification_centre_class = appkit_class("NSNotificationCenter")?;
+    let default_centre: *mut Object = msg_send![notification_centre_class, defaultCenter];
+    let move_notification_name = ns_string("NSWindowDidMoveNotification")?;
+    let resize_notification_name = ns_string("NSWindowDidResizeNotification")?;
+    let selector = sel!(resyncChildWindowGeometry:);
+
+    let () = msg_send![
+        default_centre,
+        addObserver: observer
+        selector: selector
+        name: move_notification_name
+        object: parent_window
+    ];
+    let () = msg_send![
+        default_centre,
+        addObserver: observer
+        selector: selector
+        name: resize_notification_name
+        object: parent_window
+    ];
+
+    Ok(observer)
+}
+
+/// `parent_view` に紐づく geometry resync observer が登録済みなら、
+/// `NSNotificationCenter` から `removeObserver:` して registry から取り除く。
+/// 未登録なら何もしない（Fail Safe）。
+unsafe fn unregister_geometry_resync_observer(parent_view: *mut Object) -> Result<(), &'static str> {
+    let observer_ptr = {
+        let mut observers = geometry_resync_observers()
+            .lock()
+            .map_err(|_| "Native overlay geometry resync observer registry is poisoned.")?;
+        observers.remove(&(parent_view as usize))
+    };
+
+    let Some(observer_ptr) = observer_ptr else {
+        return Ok(());
+    };
+    let observer = observer_ptr as *mut Object;
+    if observer.is_null() {
+        return Ok(());
+    }
+
+    let notification_centre_class = appkit_class("NSNotificationCenter")?;
+    let default_centre: *mut Object = msg_send![notification_centre_class, defaultCenter];
+    let () = msg_send![default_centre, removeObserver: observer];
+
+    Ok(())
+}
+
 fn attach_overlay_view_to_parent(
     parent_view: *mut Object,
     contract: &OverlayLayerContract,
@@ -120,7 +272,9 @@ fn attach_overlay_view_to_parent(
 
         // Bug E（ADR-013）— 既存の detach 経路（parent の subviews / childWindows 走査）を
         // 呼んでおき、re-attach（サイズ変更・DPI 変更などで attach が再実行されるケース）で
-        // 前回の overlay NSView / child NSWindow が残らないようにする。
+        // 前回の overlay NSView / child NSWindow / geometry resync observer が
+        // 残らないようにする。
+        unregister_geometry_resync_observer(parent_view)?;
         remove_existing_overlay_view(parent_view)?;
         remove_existing_overlay_child_window(parent_view)?;
 
@@ -171,6 +325,16 @@ fn attach_overlay_view_to_parent(
         // z-order 切替（Phase E2 の order 下げ/上げ）が可能になる。
         // 既定 order は `NSWindowAbove`（steady state。overlay は最前面）。
         let () = msg_send![parent_window, addChildWindow: child_window ordered: NS_WINDOW_ABOVE];
+
+        // Bug E（ADR-013・計画書 §6 リスク退避）— addChildWindow の既定追従を
+        // 過信せず、parent window の移動・リサイズ通知を監視して child window
+        // の geometry を手動で再同期するフォールバックを登録する。observer は
+        // parent_view ポインタ単位でレジストリに保持し、detach で解放する。
+        let observer = register_geometry_resync_observer(parent_view, parent_window, child_window)?;
+        geometry_resync_observers()
+            .lock()
+            .map_err(|_| "Native overlay geometry resync observer registry is poisoned.")?
+            .insert(parent_view as usize, observer as usize);
 
         Ok(overlay_view_handle(overlay_view))
     }
