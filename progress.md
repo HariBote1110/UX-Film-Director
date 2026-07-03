@@ -1,3 +1,22 @@
+## 2026-07-03 — 退行復旧(3): グループ合成（groupId/groupGradient）のRust移植
+
+### 実施内容
+
+- 旧 Pixi 実装（撤去前 pixiRenderHelper.ts + Viewport.tsx 履歴）から GroupGradientFilter の意味論（グループ bounds 基準の UV グラデーション、`grad.a×src.a` 合成、bounds 交差の連結成分分割、`scope: 'group'|'connected'`）を写し取り、`Effect::GradientOverlay` として移植（サブエージェント実装・6コミット）。
+- 合成層に「グループ」概念は持ち込まず、bounds（ワールド AABB）を TS 側で計算して各メンバーの Effect パラメータへ畳み込む最小設計。`groupId` のみ（グラデーション無し）は拒否条件から外すだけで解決。
+- parity anchor 2件（alpha 合成/色補間）、wasm 再ビルド成果物同梱、ランタイム境界契約テスト追加。
+- マージ後: parity 34件 / vitest 1173 green（baseline 5件のみ失敗）/ tsc 30。
+
+### 選定理由・判断の根拠
+
+- schema への group construct 追加は「正当化する複雑さの利得が無い」ため不採用。既存 Effect パターン（DropShadow 等）へ厳密準拠。
+- 複数色グラデーションは先頭2色のみ使用（旧 Pixi も実質2色までだった仕様制約を踏襲）。
+
+### 残課題・次のステップ
+
+- **調査で判明した別課題**: `getGroupTransforms`（sceneTransforms.ts に移植済みの純関数）が rustSceneSnapshot の clips 計算に未統合で、`group_control` 型オブジェクト自体は `unsupportedObjectType` のまま。グループの積算変形を効かせるには clips 計算への統合が必要（新規バックログ）。
+- 実機確認: グループグラデーションの scope 両モード・回転スケール時の AABB。
+
 ## 2026-07-03 — 退行復旧(2/2): color_correction / blur / shadow のRust移植（版430a）
 
 ### 実施内容
