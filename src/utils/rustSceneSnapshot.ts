@@ -37,6 +37,7 @@ import type {
   SphericalFieldObject,
   SunburstObject,
   TartanCheckObject,
+  TextObject,
   TimelineObject,
   ToneCurveObject,
   TrackBarObject,
@@ -103,7 +104,7 @@ export interface RustSceneSnapshot {
 
 export interface RustSceneMediaReference {
   id: string;
-  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedAudioSphere' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedToneCurve' | 'GeneratedGetColorDots' | 'GeneratedHksyCheckerGrid' | 'GeneratedRegionFrame' | 'GeneratedSimpleTube' | 'GeneratedSphereDots' | 'GeneratedSphericalField' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'GeneratedTriangleBracket' | 'GeneratedTartanCheck' | 'GeneratedHoundstooth' | 'GeneratedYagasuri' | 'GeneratedPaperAirplane' | 'GeneratedAsanohaPattern' | 'GeneratedFocusLinesPlus' | 'GeneratedRandomLineEx' | 'GeneratedContourTrace' | 'GeneratedDisplacementPoly' | 'GeneratedPlainEffectorLine' | 'GeneratedHologram' | 'GeneratedProtractor' | 'GeneratedShakingPolygon' | 'GeneratedShatteredSphere' | 'Psd';
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedAudioSphere' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedToneCurve' | 'GeneratedGetColorDots' | 'GeneratedHksyCheckerGrid' | 'GeneratedRegionFrame' | 'GeneratedSimpleTube' | 'GeneratedSphereDots' | 'GeneratedSphericalField' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'GeneratedTriangleBracket' | 'GeneratedTartanCheck' | 'GeneratedHoundstooth' | 'GeneratedYagasuri' | 'GeneratedPaperAirplane' | 'GeneratedAsanohaPattern' | 'GeneratedFocusLinesPlus' | 'GeneratedRandomLineEx' | 'GeneratedContourTrace' | 'GeneratedDisplacementPoly' | 'GeneratedPlainEffectorLine' | 'GeneratedHologram' | 'GeneratedProtractor' | 'GeneratedShakingPolygon' | 'GeneratedShatteredSphere' | 'Psd' | 'Text';
   source: string;
   width: number;
   height: number;
@@ -176,8 +177,9 @@ export interface RustSceneSnapshotBuildInput {
 export type RustSceneVideoSourceMode = 'previewProxy' | 'exportOriginal';
 
 type SupportedMediaObject = ImageObject | VideoObject | PsdObject;
+type SupportedTextObject = TextObject;
 type SupportedGeneratedObject = AudioVisualizationObject | AudioSphereObject | ParticleObject | BarcodeObject | PuzzlePieceObject | ColourWheelObject | GourdObject | GearObject | TrackBarObject | PieChartObject | HistogramObject | ToneCurveObject | GetColorDotFieldObject | HksyCheckerGridObject | RegionFrameObject | SimpleTubeObject | SphereDotsObject | SphericalFieldObject | SunburstObject | CircularArrowObject | TriangleBracketObject | TartanCheckObject | HoundstoothObject | YagasuriObject | PaperAirplaneObject | AsanohaPatternObject | FocusLinesPlusObject | RandomLineExObject | ContourTraceObject | DisplacementPolyObject | PlainEffectorLineObject | HologramObject | ProtractorObject | ShakingPolygonObject | ShatteredSphereObject;
-type SupportedSceneObject = SupportedMediaObject | ShapeObject | SupportedGeneratedObject;
+type SupportedSceneObject = SupportedMediaObject | ShapeObject | SupportedGeneratedObject | SupportedTextObject;
 
 const rustColourPipeline = (): RustColourPipeline => ({
   profile: 'rec709-sdr',
@@ -558,6 +560,7 @@ const isSupportedMediaObject = (object: TimelineObject): object is SupportedMedi
 const isSupportedSceneObject = (object: TimelineObject): object is SupportedSceneObject =>
   isSupportedMediaObject(object)
   || object.type === 'shape'
+  || object.type === 'text'
   || object.type === 'audio_visualization'
   || object.type === 'audio_sphere'
   || object.type === 'particle'
@@ -635,6 +638,17 @@ const mediaReferenceForObject = (
       source: object.fill,
       width: object.width,
       height: object.height,
+    };
+  }
+
+  if (object.type === 'text') {
+    const box = textMediaBox(object);
+    return {
+      id: object.id,
+      kind: 'Text',
+      source: serialiseTextSource(object),
+      width: box.width,
+      height: box.height,
     };
   }
 
@@ -1008,6 +1022,44 @@ const activeLayerIdsForPsd = (object: PsdObject): string[] =>
     .filter(([, active]) => active)
     .map(([layerId]) => layerId)
     .sort((left, right) => left.localeCompare(right));
+
+const serialiseTextSource = (object: TextObject): string =>
+  JSON.stringify({
+    text: object.text,
+    font_family: object.fontFamily,
+    font_size: object.fontSize,
+    colour: object.fill,
+    alignment: object.textAlignment ?? 'left',
+    letter_spacing: object.letterSpacing ?? 0,
+    stroke: null,
+    shadow: null,
+  });
+
+/**
+ * テキストの描画領域を決める。PixiJS 側で実測済み（measuredWidth /
+ * measuredHeight）ならそれを使い、未測定時はフォントサイズと文字数から
+ * ヒューリスティックに見積もる。cutover が既定 OFF のあいだは実測値が
+ * 無いケースを想定しておく必要があるため、常に正の値を返す。
+ */
+const textMediaBox = (object: TextObject): { width: number; height: number } => {
+  const measuredWidth = object.measuredWidth;
+  const measuredHeight = object.measuredHeight;
+  if (Number.isFinite(measuredWidth) && (measuredWidth as number) > 0
+    && Number.isFinite(measuredHeight) && (measuredHeight as number) > 0) {
+    return { width: measuredWidth as number, height: measuredHeight as number };
+  }
+
+  const fontSize = Number.isFinite(object.fontSize) && object.fontSize > 0 ? object.fontSize : 16;
+  const longestLineLength = Math.max(
+    1,
+    ...object.text.split('\n').map((line) => line.length)
+  );
+  const lineCount = Math.max(1, object.text.split('\n').length);
+  return {
+    width: Math.ceil(longestLineLength * fontSize * 0.6),
+    height: Math.ceil(lineCount * fontSize * 1.25),
+  };
+};
 
 const serialiseGeneratedGradientSource = (gradient: GradientFill): string =>
   JSON.stringify({
@@ -1681,6 +1733,9 @@ const mediaDimensionsForObject = (
       width: positiveNumberOrFallback(object.width, 1),
       height: positiveNumberOrFallback(object.height, 1),
     };
+  }
+  if (object.type === 'text') {
+    return textMediaBox(object);
   }
   return {
     width: object.width,

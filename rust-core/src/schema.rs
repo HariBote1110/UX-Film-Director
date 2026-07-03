@@ -71,6 +71,7 @@ pub enum MediaKind {
     GeneratedShakingPolygon,
     GeneratedShatteredSphere,
     Psd,
+    Text,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -120,6 +121,7 @@ pub enum ClipKind {
     GeneratedProtractorPlane,
     GeneratedShakingPolygonPlane,
     GeneratedShatteredSpherePlane,
+    TextPlane,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

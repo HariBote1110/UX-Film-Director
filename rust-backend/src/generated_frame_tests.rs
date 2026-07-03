@@ -1502,3 +1502,75 @@ fn generated_spherical_field_source_frame_renders_force_ring() {
         [0, 0, 0, 0]
     );
 }
+
+#[test]
+fn generated_text_source_frame_renders_non_transparent_glyphs_for_latin_text() {
+    let media = SceneMediaReference {
+        id: "text-1".to_string(),
+        kind: MediaKind::Text,
+        source: r##"{"text":"Hi","font_family":"Arial","font_size":64,"colour":"#ffffff","alignment":"left","letter_spacing":0,"stroke":null,"shadow":null}"##.to_string(),
+        width: 200,
+        height: 100,
+        source_rate: None,
+        active_layer_ids: Vec::new(),
+    };
+
+    let frame =
+        build_generated_text_source_frame(&media).expect("generated Text frame should render");
+
+    assert_eq!(frame.width, media.width);
+    assert_eq!(frame.height, media.height);
+
+    let has_visible_glyph_pixel = frame.pixels.chunks_exact(4).any(|rgba| rgba[3] > 0);
+    assert!(
+        has_visible_glyph_pixel,
+        "expected at least one non-transparent glyph pixel for Latin text"
+    );
+
+    let has_transparent_background_pixel = frame
+        .pixels
+        .chunks_exact(4)
+        .any(|rgba| rgba == [0, 0, 0, 0]);
+    assert!(
+        has_transparent_background_pixel,
+        "expected the frame background to remain transparent where no glyph is drawn"
+    );
+}
+
+#[test]
+fn generated_text_source_frame_renders_non_empty_output_for_cjk_text() {
+    let media = SceneMediaReference {
+        id: "text-cjk-1".to_string(),
+        kind: MediaKind::Text,
+        source: r##"{"text":"こんにちは","font_family":"Hiragino Sans","font_size":48,"colour":"#ffffff","alignment":"left","letter_spacing":0,"stroke":null,"shadow":null}"##.to_string(),
+        width: 320,
+        height: 100,
+        source_rate: None,
+        active_layer_ids: Vec::new(),
+    };
+
+    let frame = build_generated_text_source_frame(&media)
+        .expect("generated Text frame should render CJK text");
+
+    let has_visible_glyph_pixel = frame.pixels.chunks_exact(4).any(|rgba| rgba[3] > 0);
+    assert!(
+        has_visible_glyph_pixel,
+        "expected at least one non-transparent glyph pixel for CJK text (Hiragino fallback)"
+    );
+}
+
+#[test]
+fn generated_text_source_frame_rejects_non_positive_dimensions() {
+    let media = SceneMediaReference {
+        id: "text-invalid-1".to_string(),
+        kind: MediaKind::Text,
+        source: r##"{"text":"Hi","font_family":"Arial","font_size":32,"colour":"#ffffff","alignment":"left","letter_spacing":0,"stroke":null,"shadow":null}"##.to_string(),
+        width: 0,
+        height: 100,
+        source_rate: None,
+        active_layer_ids: Vec::new(),
+    };
+
+    let result = build_generated_text_source_frame(&media);
+    assert!(result.is_err());
+}
