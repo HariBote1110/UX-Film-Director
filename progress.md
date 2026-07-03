@@ -1,3 +1,16 @@
+## 2026-07-03 — 修正: overlayがウィンドウ位置依存で左下へずれる（resyncオフセット無視・isFlipped保護）（版432c）
+
+### 実施内容
+
+- 実機報告「動画・図形がウィンドウ左下に出る」を修正。overlay 全体（scene＋デコレーション）が一体でずれる＝child NSWindow の frame 配置の問題。
+- 修正2点: (1) `resync_child_window_geometry` が attach 時の contract オフセットを無視して `parent_view.bounds` 全体で再配置しており、起動直後やウィンドウ操作で Move/Resize 通知が飛ぶたびに overlay が原点付近へドリフトしていた（**実機での真因**。通知が起動時に飛ぶかどうかがウィンドウ位置に依存し「attach 直後からずれる／ずれない」の揺れを生んでいた）。contract 矩形を observer に保持させ attach と同一の変換を共有するよう統一。(2) parent NSView の isFlipped を考慮しない座標変換の保護（本機では isFlipped=false で no-op だが、環境により二重反転になる欠陥）。
+- 座標変換を objc 非依存の純粋関数 `resolve_view_local_rect_for_parent_bounds` に切り出しユニットテストで固定。`UXFD_OVERLAY_TRACE=1` に attach/resync の geometry 診断ログを追加。
+- **実機検証**: 前回バグが再現したカスケード位置のウィンドウで、矩形＋選択枠が preview 内の正しい位置に表示されることを確認（トレースで parent_is_flipped=false も記録）。native-overlay 44件 green。版 432b→432c。
+
+### 残課題・次のステップ
+
+- ウィンドウのドラッグ移動・リサイズ・フルスクリーン切替の追従はユーザー実機確認に委ねる（resync は attach と同一関数を共有するためユニットテストでは固定済み）。
+
 ## 2026-07-03 — 実機検証: 選択デコレーション座標ずれ修正の合格（版432b）
 
 ### 実施内容
