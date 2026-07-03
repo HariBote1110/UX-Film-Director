@@ -84,15 +84,15 @@ describe('createStablePointerSubscription', () => {
    * target への再登録は不要になる）。
    */
   const createFakeTarget = () => {
-    const listeners: Record<string, ((e: unknown) => void)[]> = {};
+    const listeners: Record<string, ((e: PointerEvent) => void)[]> = {};
     return {
-      addEventListener: vi.fn((type: string, handler: (e: unknown) => void) => {
+      addEventListener: vi.fn((type: string, handler: (e: PointerEvent) => void) => {
         listeners[type] = [...(listeners[type] ?? []), handler];
       }),
-      removeEventListener: vi.fn((type: string, handler: (e: unknown) => void) => {
+      removeEventListener: vi.fn((type: string, handler: (e: PointerEvent) => void) => {
         listeners[type] = (listeners[type] ?? []).filter((h) => h !== handler);
       }),
-      dispatch: (type: string, event: unknown) => {
+      dispatch: (type: string, event: PointerEvent) => {
         (listeners[type] ?? []).forEach((h) => h(event));
       },
     };
@@ -120,13 +120,13 @@ describe('createStablePointerSubscription', () => {
     createStablePointerSubscription(target, getHandlers);
     expect(target.addEventListener).toHaveBeenCalledTimes(2);
 
-    const firstEvent = { x: 1 };
+    const firstEvent = { x: 1 } as unknown as PointerEvent;
     target.dispatch('pointermove', firstEvent);
     expect(latestOnPointerMove).toHaveBeenCalledWith(firstEvent);
 
     // ドラッグ中に「再レンダーされて新しい関数参照になった」状況を模す。
     latestOnPointerMove = vi.fn();
-    const secondEvent = { x: 2 };
+    const secondEvent = { x: 2 } as unknown as PointerEvent;
     target.dispatch('pointermove', secondEvent);
 
     // target への addEventListener は増えない（re-subscribe しない）。
@@ -143,7 +143,7 @@ describe('createStablePointerSubscription', () => {
     const unsubscribe = createStablePointerSubscription(target, getHandlers);
     unsubscribe();
 
-    target.dispatch('pointerup', {});
+    target.dispatch('pointerup', {} as unknown as PointerEvent);
     expect(onPointerUp).not.toHaveBeenCalled();
   });
 });
