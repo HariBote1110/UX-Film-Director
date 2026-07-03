@@ -514,6 +514,7 @@ const Viewport: React.FC = () => {
   const sharedRendererImageObjectIdsRef = useRef<Set<string>>(new Set());
   const sharedRendererPsdObjectIdsRef = useRef<Set<string>>(new Set());
   const sharedRendererGeneratedEffectObjectIdsRef = useRef<Set<string>>(new Set());
+  const sharedRendererTextObjectIdsRef = useRef<Set<string>>(new Set());
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   
   const audioBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
@@ -661,7 +662,16 @@ const Viewport: React.FC = () => {
     setRenderTick((previous) => previous + 1);
   }, []);
 
-  const { 
+  const updateSharedRendererTextObjectIds = useCallback((objectIds: string[]) => {
+    const current = sharedRendererTextObjectIdsRef.current;
+    const next = new Set(objectIds);
+    const unchanged = current.size === next.size && [...current].every((objectId) => next.has(objectId));
+    if (unchanged) return;
+    sharedRendererTextObjectIdsRef.current = next;
+    setRenderTick((previous) => previous + 1);
+  }, []);
+
+  const {
     currentTime, objects, selectedIds, selectedId, clearSelection,
     projectSettings, isPlaying, isExporting,
     layers,
@@ -1264,6 +1274,7 @@ const Viewport: React.FC = () => {
     updateSharedRendererSolidColourObjectIds([]);
     updateSharedRendererImageObjectIds([]);
     updateSharedRendererPsdObjectIds([]);
+    updateSharedRendererTextObjectIds([]);
 
     let cancelled = false;
     let currentControl: SharedRendererPreviewPresenterControl | null = null;
@@ -1386,6 +1397,7 @@ const Viewport: React.FC = () => {
         updateSharedRendererSolidColourObjectIds(previousPresenterControl.solidColourOwnership.solidColourObjectIds);
         updateSharedRendererImageObjectIds(previousPresenterControl.imageOwnership.imageObjectIds);
         updateSharedRendererPsdObjectIds(previousPresenterControl.psdOwnership.psdObjectIds);
+        updateSharedRendererTextObjectIds(previousPresenterControl.textOwnership.textObjectIds);
         updateSharedRendererGeneratedEffectObjectIds(previousPresenterControl.generatedEffectObjectIds);
         return;
       }
@@ -1404,6 +1416,7 @@ const Viewport: React.FC = () => {
       updateSharedRendererSolidColourObjectIds(control.ok ? control.solidColourOwnership.solidColourObjectIds : []);
       updateSharedRendererImageObjectIds(control.ok ? control.imageOwnership.imageObjectIds : []);
       updateSharedRendererPsdObjectIds(control.ok ? control.psdOwnership.psdObjectIds : []);
+      updateSharedRendererTextObjectIds(control.ok ? control.textOwnership.textObjectIds : []);
       updateSharedRendererGeneratedEffectObjectIds(control.ok ? control.generatedEffectObjectIds : []);
     }).catch((error) => {
       if (cancelled) return;
@@ -1414,6 +1427,7 @@ const Viewport: React.FC = () => {
       updateSharedRendererSolidColourObjectIds([]);
       updateSharedRendererImageObjectIds([]);
       updateSharedRendererPsdObjectIds([]);
+      updateSharedRendererTextObjectIds([]);
       stagedDatasets.forEach((dataset) => {
         writeSharedRendererPresenterDiagnostics(dataset, {
           status: 'fallback',
@@ -1471,7 +1485,7 @@ const Viewport: React.FC = () => {
         sharedRendererPresenterControlRef.current = null;
       }
     };
-  }, [isExporting, isPlaying, objects, requestSharedRendererExternalVideoFrameRepaint, rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererGeneratedEffectObjectIds, updateSharedRendererImageObjectIds, updateSharedRendererPsdObjectIds, updateSharedRendererSolidColourObjectIds]);
+  }, [isExporting, isPlaying, objects, requestSharedRendererExternalVideoFrameRepaint, rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererGeneratedEffectObjectIds, updateSharedRendererImageObjectIds, updateSharedRendererPsdObjectIds, updateSharedRendererSolidColourObjectIds, updateSharedRendererTextObjectIds]);
 
   // --- Main Render Logic ---
   const renderScene = useCallback((time: number, currentObjects: TimelineObject[]) => {
@@ -1584,6 +1598,20 @@ const Viewport: React.FC = () => {
           sharedRendererImageObjectIds: sharedRendererImageObjectIdsRef.current,
           sharedRendererPsdObjectIds: sharedRendererPsdObjectIdsRef.current,
           sharedRendererGeneratedEffectObjectIds: sharedRendererGeneratedEffectObjectIdsRef.current,
+          sharedRendererTextObjectIds: sharedRendererTextObjectIdsRef.current,
+          onTextMeasured: (objectId, size) => {
+            // PixiJS 排除計画 Phase 2/統合の書き戻し: cutoverでPixiがskipされる
+            // 前の実測値のみをobjectへ反映する。text/font/sizeが変わらない限り
+            // 値は安定するため、変化が無ければstore更新をスキップして再レンダー
+            // ループを避ける（cutover後はこのコールバック自体が呼ばれなくなり、
+            // 最後に測定された値がobjectに残り続ける設計）。
+            const target = latestObjectsRef.current.find((candidate) => candidate.id === objectId);
+            if (!target || target.type !== 'text') return;
+            const roundedWidth = Math.round(size.width);
+            const roundedHeight = Math.round(size.height);
+            if (target.measuredWidth === roundedWidth && target.measuredHeight === roundedHeight) return;
+            useStore.getState().updateObject(objectId, { measuredWidth: roundedWidth, measuredHeight: roundedHeight });
+          },
       });
 
       const shadowFilters = getEnabledObjectFiltersInOrder(obj).filter((filter): filter is Extract<ObjectFilter, { type: 'shadow' }> => {
