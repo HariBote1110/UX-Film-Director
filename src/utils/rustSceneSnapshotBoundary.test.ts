@@ -194,7 +194,7 @@ describe('validateRustSceneSnapshotBoundary', () => {
       media: [
         {
           id: 'image-1',
-          kind: 'Text',
+          kind: 'Sprite',
           source: '/tmp/image.png',
           width: 640,
           height: 360,
