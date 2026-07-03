@@ -620,6 +620,17 @@ impl NativeWgpuRenderer {
                     media_id: clip.media_id.clone(),
                 }
             })?;
+            // device の max_texture_dimension_2d を超えるソース（巨大PSD等）を
+            // そのまま create_texture へ渡すと wgpu Validation Error で panic する。
+            // その場合のみアスペクト比維持でCPU側縮小してから使用し、描画継続する。
+            let max_source_dimension = self.device.limits().max_texture_dimension_2d;
+            let downscaled_source;
+            let source = if source.width.max(source.height) > max_source_dimension {
+                downscaled_source = downscale_rgba_frame_to_fit(source, max_source_dimension);
+                &downscaled_source
+            } else {
+                source
+            };
             prepared_clips.push(prepare_clip(
                 &self.device,
                 &self.queue,
@@ -1484,6 +1495,70 @@ fn required_limits_for_frame(
         max_texture_dimension_2d: adapter_limits.max_texture_dimension_2d,
         ..wgpu::Limits::downlevel_defaults()
     })
+}
+
+/// ソースが `max_dimension` を超える場合、アスペクト比を維持したまま
+/// バイリニア補間で縮小する。device の max_texture_dimension_2d を超える
+/// ソース（巨大PSD等）をそのまま `create_texture` へ渡すと wgpu Validation
+/// Error で panic するため、GPU テクスチャ生成前に呼び出して panic を防ぐ。
+/// 上限以内の場合はコピーせずそのまま返す。
+fn downscale_rgba_frame_to_fit(source: &RgbaFrame, max_dimension: u32) -> RgbaFrame {
+    let longer_side = source.width.max(source.height);
+    if longer_side <= max_dimension || max_dimension == 0 {
+        return source.clone();
+    }
+
+    let scale = f64::from(max_dimension) / f64::from(longer_side);
+    let target_width = ((f64::from(source.width) * scale).round() as u32).max(1);
+    let target_height = ((f64::from(source.height) * scale).round() as u32).max(1);
+
+    let mut pixels = vec![0_u8; (target_width as usize) * (target_height as usize) * 4];
+    let source_width = source.width as f64;
+    let source_height = source.height as f64;
+
+    for destination_y in 0..target_height {
+        // ターゲットの各テクセル中心を元画像空間へ逆写像する。
+        let source_y = ((destination_y as f64 + 0.5) / f64::from(target_height)) * source_height - 0.5;
+        let source_y = source_y.clamp(0.0, source_height - 1.0);
+        let y0 = source_y.floor() as u32;
+        let y1 = (y0 + 1).min(source.height - 1);
+        let fy = source_y - f64::from(y0);
+
+        for destination_x in 0..target_width {
+            let source_x = ((destination_x as f64 + 0.5) / f64::from(target_width)) * source_width - 0.5;
+            let source_x = source_x.clamp(0.0, source_width - 1.0);
+            let x0 = source_x.floor() as u32;
+            let x1 = (x0 + 1).min(source.width - 1);
+            let fx = source_x - f64::from(x0);
+
+            let p00 = read_rgba_texel(source, x0, y0);
+            let p10 = read_rgba_texel(source, x1, y0);
+            let p01 = read_rgba_texel(source, x0, y1);
+            let p11 = read_rgba_texel(source, x1, y1);
+
+            let destination_offset =
+                ((destination_y as usize) * (target_width as usize) + destination_x as usize) * 4;
+            for channel in 0..4 {
+                let top = f64::from(p00[channel]) * (1.0 - fx) + f64::from(p10[channel]) * fx;
+                let bottom = f64::from(p01[channel]) * (1.0 - fx) + f64::from(p11[channel]) * fx;
+                let value = (top * (1.0 - fy) + bottom * fy).round().clamp(0.0, 255.0) as u8;
+                pixels[destination_offset + channel] = value;
+            }
+        }
+    }
+
+    RgbaFrame::from_rgba8(target_width, target_height, pixels)
+        .expect("downscaled frame byte length must match computed dimensions")
+}
+
+fn read_rgba_texel(source: &RgbaFrame, x: u32, y: u32) -> [u8; 4] {
+    let offset = ((y as usize) * (source.width as usize) + x as usize) * 4;
+    [
+        source.pixels[offset],
+        source.pixels[offset + 1],
+        source.pixels[offset + 2],
+        source.pixels[offset + 3],
+    ]
 }
 
 fn create_output_texture(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Texture {

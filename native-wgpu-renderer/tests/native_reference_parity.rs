@@ -1321,3 +1321,40 @@ fn transformed_nearest_anchor() -> Vec<u8> {
         255, 255, 255, 255,
     ]
 }
+
+#[test]
+fn native_wgpu_renders_source_exceeding_downlevel_texture_limit_without_panicking() {
+    // 実機バグの再現: PSD等の巨大ソース（downlevel既定値2048を超える2200px幅）を
+    // 小さな出力フレームへ描画すると、以前は device の max_texture_dimension_2d が
+    // 出力フレームサイズ基準で2048に制限され、create_texture が wgpu Validation
+    // Error で panic して sidecar プロセスごと落ちていた。
+    // 修正後は adapter の実上限をそのまま device へ要求するため panic せず、
+    // 万一 adapter 自体の上限より大きい場合も CPU 側で縮小して描画継続する。
+    let oversized_width = 2200_u32;
+    let oversized_height = 1600_u32;
+    let pixel_count = (oversized_width as usize) * (oversized_height as usize);
+    let mut pixels = Vec::with_capacity(pixel_count * 4);
+    for _ in 0..pixel_count {
+        pixels.extend_from_slice(&[200, 100, 50, 255]);
+    }
+    let source = RgbaFrame::from_rgba8(oversized_width, oversized_height, pixels)
+        .expect("valid oversized source frame");
+
+    let snapshot = scene_snapshot(vec![evaluated_clip("oversized", 0, 1.0, Vec::new())]);
+    let sources = HashMap::from([("oversized".to_string(), source)]);
+
+    let native_result = pollster::block_on(render_native_wgpu_frame(&snapshot, &sources, 64, 48));
+    let native = match native_result {
+        Ok(frame) => frame,
+        Err(NativeWgpuRenderError::AdapterUnavailable) => {
+            eprintln!(
+                "skipping oversized source regression test: no GPU adapter available"
+            );
+            return;
+        }
+        Err(error) => panic!("native wgpu render of oversized source failed: {error:?}"),
+    };
+
+    assert_eq!(native.width, 64);
+    assert_eq!(native.height, 48);
+}
