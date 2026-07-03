@@ -579,3 +579,19 @@ fn rust_core_accepts_generated_audio_sphere_media_kind_at_the_json_boundary() {
     assert_eq!(media.width, 480);
     assert_eq!(media.height, 480);
 }
+
+#[test]
+fn rust_core_accepts_text_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "text-1",
+        "kind": "Text",
+        "source": "{\"text\":\"こんにちは World\",\"font_family\":\"Hiragino Sans\",\"font_size\":48,\"colour\":\"#ffffff\",\"alignment\":\"left\",\"letter_spacing\":0,\"stroke\":null,\"shadow\":null}",
+        "width": 400,
+        "height": 120
+    }))
+    .expect("Text media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::Text);
+    assert_eq!(media.width, 400);
+    assert_eq!(media.height, 120);
+}
