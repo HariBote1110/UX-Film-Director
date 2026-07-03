@@ -1,3 +1,21 @@
+## 2026-07-04 — 修正: TL右クリックメニューでStage Managerが他アプリを前面に出す（遮蔽orderの全域リオーダー）（版432d）
+
+### 実施内容
+
+- 実機報告「TL の右クリックメニューを出すと Stage Manager と干渉して他アプリが表に出て UXFD が背面に落ちる」を修正。
+- 真因: `set_overlay_view_obstructed` の `orderWindow: NSWindowBelow relativeTo: 0`。AppKit 仕様では `relativeTo: 0` の Below は「parent の背後」ではなく**画面上の全ウィンドウの最背面**への移動であり、Stage Manager がこの全域リオーダーを「アプリの後退」と解釈して他アプリのステージを前面に出していた。TL メニューが preview 矩形に交差すると MutationObserver 経由で obstructed=true が発火し、そのたびにこの誤った order が実行される構図。
+- 修正: 純関数 `resolve_obstruction_order(obstructed, parent_window_number)` を導入し、Below/Above とも parent window の `windowNumber` 基準（parent の直後/直上）に統一。windowNumber が取得できない場合は順序変更を行わない Fail Safe。復帰側（Above）も従来は relativeTo:0（orderFront 相当）で他アプリより前へ出る過剰動作だったため同時に是正。
+- テスト: 純関数3件＋`relativeTo: 0` 直書き禁止のソースレベル固定1件を Red→Green で追加（native-overlay 48件 green）。addon 再ビルド済み。版 432c→432d。
+
+### 選定理由・判断の根拠
+
+- 遮蔽検出側（MutationObserver）の発火を絞る案は却下: 正当な遮蔽（preview に重なる dropdown 等）でも全域リオーダーが起きる以上、order 呼び出し側の欠陥が本質。parent 基準にすれば発火頻度に関わらず無害になる。
+- windowNumber 不取得時に旧動作（relativeTo:0）へフォールバックせず順序変更をスキップするのは、遮蔽の見た目より「アプリが背面に落ちる」実害の方が重大なため。
+
+### 残課題・次のステップ
+
+- Stage Manager 有効環境での実機確認はユーザーに委ねる（右クリックメニュー表示でアプリが背面に落ちないこと）。
+
 ## 2026-07-03 — 修正: overlayがウィンドウ位置依存で左下へずれる（resyncオフセット無視・isFlipped保護）（版432c）
 
 ### 実施内容
