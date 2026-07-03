@@ -4,7 +4,7 @@ import {
   buildRustSceneSnapshotForTimeline,
   type RustSceneSnapshotBuildIssue,
 } from './rustSceneSnapshot';
-import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, ContourTraceObject, DisplacementPolyObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, PlainEffectorLineObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, RegionFrameObject, ShakingPolygonObject, ShapeObject, ShatteredSphereObject, SimpleTubeObject, SphereDotsObject, SphericalFieldObject, SunburstObject, TartanCheckObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
+import type { AsanohaPatternObject, AudioObject, AudioSphereObject, AudioVisualizationObject, BarcodeObject, CircularArrowObject, ColourWheelObject, ContourTraceObject, DisplacementPolyObject, FocusLinesPlusObject, GearObject, GetColorDotFieldObject, GourdObject, HistogramObject, HologramObject, HoundstoothObject, HksyCheckerGridObject, ImageObject, PaperAirplaneObject, ParticleObject, PieChartObject, PlainEffectorLineObject, ProjectSettings, ProtractorObject, PsdObject, PuzzlePieceObject, RandomLineExObject, RegionFrameObject, ShakingPolygonObject, ShapeObject, ShatteredSphereObject, SimpleTubeObject, SphereDotsObject, SphericalFieldObject, SunburstObject, TartanCheckObject, TextObject, TimelineObject, ToneCurveObject, TrackBarObject, TriangleBracketObject, VideoObject, YagasuriObject } from '../types';
 
 const settings: ProjectSettings = {
   width: 1920,
@@ -85,6 +85,32 @@ const baseShape = (patch: Partial<ShapeObject> = {}): ShapeObject => ({
   width: 200,
   height: 100,
   fill: '#ff0000',
+  ...patch,
+});
+
+const baseText = (patch: Partial<TextObject> = {}): TextObject => ({
+  id: 'text-1',
+  type: 'text',
+  name: 'Text',
+  layer: 0,
+  startTime: 1,
+  duration: 4,
+  x: 50,
+  y: 60,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+  opacity: 1,
+  enableAnimation: false,
+  endX: 50,
+  endY: 60,
+  easing: 'linear',
+  text: 'Hello',
+  fontFamily: 'Arial',
+  fontSize: 48,
+  fill: '#ffffff',
+  measuredWidth: 200,
+  measuredHeight: 60,
   ...patch,
 });
 
@@ -3246,6 +3272,79 @@ describe('buildRustSceneSnapshotForTimeline', () => {
         sampling: 'bilinear',
       },
     });
+  });
+
+  it('builds a Text media plane for active text objects', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseText({
+        id: 'text-1',
+        text: 'こんにちは',
+        fontFamily: 'Hiragino Sans',
+        fontSize: 36,
+        fill: '#00ff00',
+        textAlignment: 'centre',
+        letterSpacing: 2,
+        measuredWidth: 240,
+        measuredHeight: 72,
+      })],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected snapshot build to pass');
+
+    expect(result.media).toEqual([
+      {
+        id: 'text-1',
+        kind: 'Text',
+        source: JSON.stringify({
+          text: 'こんにちは',
+          font_family: 'Hiragino Sans',
+          font_size: 36,
+          colour: '#00ff00',
+          alignment: 'centre',
+          letter_spacing: 2,
+          stroke: null,
+          shadow: null,
+        }),
+        width: 240,
+        height: 72,
+      },
+    ]);
+    expect(result.snapshot.clips[0]).toMatchObject({
+      clip_id: 'text-1',
+      media_id: 'text-1',
+      transform: {
+        sampling: 'bilinear',
+      },
+    });
+  });
+
+  it('falls back to a heuristic box for text objects with no measured size yet', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseText({
+        id: 'text-unmeasured',
+        text: 'Hi',
+        fontSize: 40,
+        measuredWidth: undefined,
+        measuredHeight: undefined,
+      })],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected snapshot build to pass');
+
+    const media = result.media[0];
+    expect(media.kind).toBe('Text');
+    expect(media.width).toBeGreaterThan(0);
+    expect(media.height).toBeGreaterThan(0);
   });
 
   it('builds a rust-core compatible scene snapshot for active image and video planes', () => {

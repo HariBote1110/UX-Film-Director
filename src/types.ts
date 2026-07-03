@@ -423,6 +423,16 @@ export interface TextObject extends BaseObject {
   fontSize: number;
   fontFamily: string;
   fill: string;
+  /**
+   * PixiJS の PIXI.Text がレイアウト計算で測る実測の描画幅・高さ。
+   * Rust 側（rust-backend の cosmic-text ラスタライザ）へテキストを
+   * 橋渡しする際のメディア寸法として使う。未測定時は
+   * rustSceneSnapshot 側でヒューリスティックにフォールバックする。
+   */
+  measuredWidth?: number;
+  measuredHeight?: number;
+  textAlignment?: 'left' | 'centre' | 'right';
+  letterSpacing?: number;
 }
 
 export interface ShapeObject extends BaseObject {
