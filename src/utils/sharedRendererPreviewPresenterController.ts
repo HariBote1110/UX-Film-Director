@@ -43,6 +43,10 @@ import {
   buildSharedRendererPsdOwnership,
   type SharedRendererPsdOwnership,
 } from './sharedRendererPsdOwnership';
+import {
+  buildSharedRendererTextOwnership,
+  type SharedRendererTextOwnership,
+} from './sharedRendererTextOwnership';
 import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
 
 export const SHARED_RENDERER_SOLID_SWATCH: SharedRendererSolidSrgbSwatch = {
@@ -90,6 +94,7 @@ export type SharedRendererPreviewPresenterControl =
       videoOwnership: SharedRendererVideoOwnership;
       imageOwnership: SharedRendererImageOwnership;
       psdOwnership: SharedRendererPsdOwnership;
+      textOwnership: SharedRendererTextOwnership;
       generatedEffectObjectIds: string[];
       takePresentedFrameSharedFrame?: (
         input: SharedRendererPresentedFrameSharedFrameInput
@@ -230,6 +235,7 @@ export const startSharedRendererPreviewPresenter = async ({
   const hasVideoScene = hasVideoClip(session);
   const hasImageScene = hasImageClip(session);
   const hasPsdScene = hasPsdClip(session);
+  const hasTextScene = hasTextClip(session);
   const resolvedRustVideoPlaneVertexSceneBuilder = hasVideoScene
     ? rustVideoPlaneVertexSceneBuilder
       ?? await loadSharedRendererRustVideoPlaneVertexSceneBuilder({
@@ -314,6 +320,9 @@ export const startSharedRendererPreviewPresenter = async ({
     : [];
   const psdObjectIds = hasPsdScene
     ? collectObjectIdsByMediaKind(session, 'Psd')
+    : [];
+  const textObjectIds = hasTextScene
+    ? collectObjectIdsByMediaKind(session, 'Text')
     : [];
 
   const presenter = await createSharedRendererWebGpuPresenter({
@@ -552,6 +561,11 @@ export const startSharedRendererPreviewPresenter = async ({
     nativeRenderFrameReady,
     psdObjectIds,
   });
+  const textOwnership = buildSharedRendererTextOwnership({
+    hasTextScene,
+    nativeRenderFrameReady,
+    textObjectIds,
+  });
 
   if (requireSharedRendererVideo && hasVideoScene && videoOwnership.owner !== 'sharedRenderer') {
     writeDiagnostics({
@@ -787,6 +801,9 @@ export const startSharedRendererPreviewPresenter = async ({
     psdOwner: hasPsdScene ? psdOwnership.owner : undefined,
     psdCutoverReason: hasPsdScene ? psdOwnership.reason : undefined,
     sharedPsdObjectCount: hasPsdScene ? psdOwnership.psdObjectIds.length : undefined,
+    textOwner: hasTextScene ? textOwnership.owner : undefined,
+    textCutoverReason: hasTextScene ? textOwnership.reason : undefined,
+    sharedTextObjectCount: hasTextScene ? textOwnership.textObjectIds.length : undefined,
     videoGeometrySource,
     videoDecodeRequestSource,
     videoDecodeRequestCount,
@@ -878,6 +895,7 @@ export const startSharedRendererPreviewPresenter = async ({
     videoOwnership,
     imageOwnership,
     psdOwnership,
+    textOwnership,
     generatedEffectObjectIds: nativeRenderFrameReady
       ? collectGeneratedEffectObjectIds(session)
       : [],
@@ -942,7 +960,7 @@ const isGeneratedPaintMediaKind = (
 
 const collectObjectIdsByMediaKind = (
   session: SharedRendererPreviewSession,
-  kind: 'Video' | 'SolidColour' | 'Image' | 'Psd' | 'GeneratedAudioWaveform' | 'GeneratedAudioSphere' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedToneCurve' | 'GeneratedGetColorDots' | 'GeneratedHksyCheckerGrid' | 'GeneratedRegionFrame' | 'GeneratedSimpleTube' | 'GeneratedSphereDots' | 'GeneratedSphericalField' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'GeneratedTriangleBracket' | 'GeneratedTartanCheck' | 'GeneratedHoundstooth' | 'GeneratedYagasuri' | 'GeneratedPaperAirplane' | 'GeneratedAsanohaPattern' | 'GeneratedFocusLinesPlus' | 'GeneratedRandomLineEx' | 'GeneratedContourTrace' | 'GeneratedDisplacementPoly' | 'GeneratedPlainEffectorLine' | 'GeneratedHologram' | 'GeneratedProtractor' | 'GeneratedShakingPolygon' | 'GeneratedShatteredSphere'
+  kind: 'Video' | 'SolidColour' | 'Image' | 'Psd' | 'Text' | 'GeneratedAudioWaveform' | 'GeneratedAudioSphere' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedToneCurve' | 'GeneratedGetColorDots' | 'GeneratedHksyCheckerGrid' | 'GeneratedRegionFrame' | 'GeneratedSimpleTube' | 'GeneratedSphereDots' | 'GeneratedSphericalField' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'GeneratedTriangleBracket' | 'GeneratedTartanCheck' | 'GeneratedHoundstooth' | 'GeneratedYagasuri' | 'GeneratedPaperAirplane' | 'GeneratedAsanohaPattern' | 'GeneratedFocusLinesPlus' | 'GeneratedRandomLineEx' | 'GeneratedContourTrace' | 'GeneratedDisplacementPoly' | 'GeneratedPlainEffectorLine' | 'GeneratedHologram' | 'GeneratedProtractor' | 'GeneratedShakingPolygon' | 'GeneratedShatteredSphere'
 ): string[] => {
   if (!session.surfaceGate.ok) return [];
 
@@ -1086,4 +1104,11 @@ const hasPsdClip = (session: SharedRendererPreviewSession): boolean => {
 
   const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
   return session.surfaceGate.snapshot.clips.some((clip) => mediaKindById.get(clip.media_id) === 'Psd');
+};
+
+const hasTextClip = (session: SharedRendererPreviewSession): boolean => {
+  if (!session.surfaceGate.ok) return false;
+
+  const mediaKindById = new Map(session.surfaceGate.media.map((reference) => [reference.id, reference.kind]));
+  return session.surfaceGate.snapshot.clips.some((clip) => mediaKindById.get(clip.media_id) === 'Text');
 };

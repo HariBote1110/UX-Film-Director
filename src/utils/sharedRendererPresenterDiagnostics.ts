@@ -14,6 +14,10 @@ import type {
   SharedRendererPsdCutoverReason,
   SharedRendererPsdOwner,
 } from './sharedRendererPsdOwnership';
+import type {
+  SharedRendererTextCutoverReason,
+  SharedRendererTextOwner,
+} from './sharedRendererTextOwnership';
 
 export type SharedRendererPresenterDiagnosticState =
   | {
@@ -40,6 +44,9 @@ export type SharedRendererPresenterDiagnosticState =
       psdOwner?: SharedRendererPsdOwner;
       psdCutoverReason?: SharedRendererPsdCutoverReason;
       sharedPsdObjectCount?: number;
+      textOwner?: SharedRendererTextOwner;
+      textCutoverReason?: SharedRendererTextCutoverReason;
+      sharedTextObjectCount?: number;
       videoGeometrySource?: 'rust-wasm' | 'typescript';
       videoDecodeRequestSource?: 'rust-wasm' | 'typescript';
       videoDecodeRequestCount?: number;
@@ -73,6 +80,9 @@ export type SharedRendererPresenterDiagnosticState =
       psdOwner?: SharedRendererPsdOwner;
       psdCutoverReason?: SharedRendererPsdCutoverReason;
       sharedPsdObjectCount?: number;
+      textOwner?: SharedRendererTextOwner;
+      textCutoverReason?: SharedRendererTextCutoverReason;
+      sharedTextObjectCount?: number;
       videoOwner?: SharedRendererVideoOwner;
       videoCutoverReason?: SharedRendererVideoCutoverReason;
       sharedVideoObjectCount?: number;
@@ -102,6 +112,9 @@ export const writeSharedRendererPresenterDiagnostics = (
   delete dataset.uxfdSharedRendererPresenterPsdOwner;
   delete dataset.uxfdSharedRendererPresenterPsdCutoverReason;
   delete dataset.uxfdSharedRendererPresenterSharedPsdObjectCount;
+  delete dataset.uxfdSharedRendererPresenterTextOwner;
+  delete dataset.uxfdSharedRendererPresenterTextCutoverReason;
+  delete dataset.uxfdSharedRendererPresenterSharedTextObjectCount;
   delete dataset.uxfdSharedRendererPresenterVideoGeometrySource;
   delete dataset.uxfdSharedRendererPresenterVideoDecodeRequestSource;
   delete dataset.uxfdSharedRendererPresenterVideoDecodeRequestCount;
@@ -161,6 +174,15 @@ export const writeSharedRendererPresenterDiagnostics = (
     }
     if (typeof state.sharedPsdObjectCount === 'number') {
       dataset.uxfdSharedRendererPresenterSharedPsdObjectCount = String(state.sharedPsdObjectCount);
+    }
+    if (state.textOwner) {
+      dataset.uxfdSharedRendererPresenterTextOwner = state.textOwner;
+    }
+    if (state.textCutoverReason) {
+      dataset.uxfdSharedRendererPresenterTextCutoverReason = state.textCutoverReason;
+    }
+    if (typeof state.sharedTextObjectCount === 'number') {
+      dataset.uxfdSharedRendererPresenterSharedTextObjectCount = String(state.sharedTextObjectCount);
     }
     if (state.videoGeometrySource) {
       dataset.uxfdSharedRendererPresenterVideoGeometrySource = state.videoGeometrySource;
@@ -297,6 +319,15 @@ export const writeSharedRendererPresenterDiagnostics = (
     }
     if (typeof state.sharedPsdObjectCount === 'number') {
       dataset.uxfdSharedRendererPresenterSharedPsdObjectCount = String(state.sharedPsdObjectCount);
+    }
+    if (state.textOwner) {
+      dataset.uxfdSharedRendererPresenterTextOwner = state.textOwner;
+    }
+    if (state.textCutoverReason) {
+      dataset.uxfdSharedRendererPresenterTextCutoverReason = state.textCutoverReason;
+    }
+    if (typeof state.sharedTextObjectCount === 'number') {
+      dataset.uxfdSharedRendererPresenterSharedTextObjectCount = String(state.sharedTextObjectCount);
     }
     if (state.videoOwner) {
       dataset.uxfdSharedRendererPresenterVideoOwner = state.videoOwner;
