@@ -422,6 +422,63 @@ describe('validateRustSceneSnapshotBoundary', () => {
     expect(issueCodes(validation.issues)).toEqual(['outOfRange']);
   });
 
+  it('accepts a DropShadow effect at the runtime boundary and rejects out-of-range opacity', () => {
+    const clipWithShadow = (opacity: number) => ({
+      snapshot: {
+        frame_index: 60,
+        colour: {
+          profile: 'rec709-sdr',
+          working_space: 'linear-light',
+          alpha: 'premultiplied',
+        },
+        clips: [
+          {
+            clip_id: 'image-1',
+            track_id: 'layer-1',
+            media_id: 'image-1',
+            source_frame: 0,
+            z_index: 0,
+            transform: {
+              translation_x: 32,
+              translation_y: 48,
+              scale_x: 1,
+              scale_y: 1,
+              rotation_degrees: 0,
+              sampling: 'bilinear',
+            },
+            opacity: 1,
+            effects: [
+              {
+                DropShadow: {
+                  colour: [0, 0, 0],
+                  offset_x: 2,
+                  offset_y: -3,
+                  opacity,
+                },
+              },
+            ],
+          },
+        ],
+      },
+      media: [
+        {
+          id: 'image-1',
+          kind: 'Image',
+          source: '/tmp/image.png',
+          width: 640,
+          height: 360,
+        },
+      ],
+    });
+
+    expect(validateRustSceneSnapshotBoundary(clipWithShadow(0.5))).toEqual({ ok: true });
+
+    const rejected = validateRustSceneSnapshotBoundary(clipWithShadow(1.5));
+    expect(rejected.ok).toBe(false);
+    if (rejected.ok) throw new Error('expected boundary validation to fail');
+    expect(issueCodes(rejected.issues)).toEqual(['outOfRange']);
+  });
+
   it('accepts PSD media references at the Rust boundary before source generation is enabled', () => {
     const payload = {
       snapshot: {

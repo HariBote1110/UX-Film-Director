@@ -4277,6 +4277,41 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     expect(result.snapshot.clips[0].effects).toEqual([]);
   });
 
+  it('serialises 影 shadow filters as Rust scene effects', () => {
+    const layers = createDefaultLayers();
+    const shadowed = baseImage({
+      id: 'shadowed-image',
+      filters: [
+        {
+          id: 'shadow-filter-1',
+          type: 'shadow',
+          enabled: true,
+          params: { colour: '#000000', blur: 4, offsetX: 2, offsetY: -3, opacity: 0.5 },
+        } as any,
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [shadowed],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected shadow snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([
+      {
+        DropShadow: {
+          colour: [0, 0, 0],
+          offset_x: 2,
+          offset_y: -3,
+          opacity: 0.5,
+        },
+      },
+    ]);
+  });
+
   it('fails loud for visible Pixi features the shared renderer cannot represent yet', () => {
     const layers = createDefaultLayers();
     const unsupportedGroupControl: TimelineObject = {
