@@ -204,6 +204,12 @@ contextBridge.exposeInMainWorld('nativeOverlay', {
     // 塗り替えるため、削除前フレームが CAMetalLayer に残らなくなる。
     return ipcRenderer.invoke(nativeOverlayIpcChannels.clearSurface, payload)
   },
+  setSelectionDecoration(payload: unknown) {
+    // 選択デコレーション — SceneSelectionOverlay（SVG）は child NSWindow 化
+    // された native overlay に隠れるため、選択枠・リサイズハンドルの見た目を
+    // addon 側（Rust/wgpu）が scene present の最後に上乗せ描画する。
+    return ipcRenderer.invoke(nativeOverlayIpcChannels.setSelectionDecoration, payload)
+  },
 })
 
 contextBridge.exposeInMainWorld('sharedVideoFrame', {

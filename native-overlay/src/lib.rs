@@ -39,6 +39,31 @@ pub struct NativeOverlaySetObstructedPayload {
     pub obstructed: bool,
 }
 
+/// 選択デコレーション（選択枠・リサイズハンドル）— renderer（Viewport.tsx）が
+/// `getObjectWorldCorners` の world 座標 quad（project 座標系・回転込みの四隅）を
+/// 送る payload。空配列はデコレーション解除。
+#[napi(object)]
+pub struct NativeOverlaySelectionDecorationQuadPayload {
+    pub top_left_x: f64,
+    pub top_left_y: f64,
+    pub top_right_x: f64,
+    pub top_right_y: f64,
+    pub bottom_right_x: f64,
+    pub bottom_right_y: f64,
+    pub bottom_left_x: f64,
+    pub bottom_left_y: f64,
+}
+
+#[napi(object)]
+pub struct NativeOverlaySelectionDecorationPayload {
+    pub window_id: u32,
+    /// project 解像度（quad 座標系の基準）。scene present と同じ contain-fit
+    /// 変換（`fit_scene_snapshot_to_drawable` と同式）を通すために必要。
+    pub canvas_width: u32,
+    pub canvas_height: u32,
+    pub quads: Vec<NativeOverlaySelectionDecorationQuadPayload>,
+}
+
 #[napi(object)]
 pub struct NativeOverlaySharedFrameDescriptorPayload {
     pub memory_id: String,
@@ -255,6 +280,14 @@ pub struct NativeOverlayLiveSurfaceRenderer {
     window_id: u32,
     drawable_width: u32,
     drawable_height: u32,
+    /// HiDPI 倍率（`OverlayLayerContract::contents_scale`）。選択デコレーションの
+    /// 枠線幅・ハンドルサイズを CSS pt から物理ピクセルへ換算するために保持する。
+    contents_scale: f64,
+    /// 直近に present した scene（デコレーション上乗せ前の fitted snapshot と
+    /// sources）。選択変更のみが起きた際（動画 present が来ないポーズ中など）に
+    /// 同じ scene へデコレーションだけ差し替えて再 present するためのキャッシュ。
+    /// 透明クリア（Bug D/F 経路）で None に戻る。
+    last_scene: Option<(SceneSnapshot, HashMap<String, RgbaFrame>)>,
     #[cfg(target_os = "macos")]
     view_handle: usize,
     renderer: NativeWgpuLiveSurfaceRenderer,
@@ -280,6 +313,8 @@ impl NativeOverlayLiveSurfaceRenderer {
             window_id,
             drawable_width: contract.drawable_width,
             drawable_height: contract.drawable_height,
+            contents_scale: contract.contents_scale,
+            last_scene: None,
             view_handle,
             renderer,
         })
@@ -289,16 +324,30 @@ impl NativeOverlayLiveSurfaceRenderer {
         &mut self,
         upload: &OverlayUploadFrame,
         scene: Option<&NativeOverlaySceneSource>,
+        decoration: Option<&SelectionDecorationState>,
     ) -> Result<Option<OverlayLiveSurfaceDiagnostics>, String> {
         let _window_id = self.window_id;
         #[cfg(target_os = "macos")]
         let _view_handle = self.view_handle;
-        let (snapshot, sources) = upload_frame_to_scene_sources(
+        let (mut snapshot, mut sources) = upload_frame_to_scene_sources(
             upload,
             scene,
             self.drawable_width,
             self.drawable_height,
         )?;
+        // デコレーション上乗せ前の scene をキャッシュし、選択変更のみの
+        // 再 present（present_cached_scene_with_decoration）で再利用する。
+        self.last_scene = Some((snapshot.clone(), sources.clone()));
+        if let Some(state) = decoration {
+            append_selection_decoration_to_scene(
+                &mut snapshot,
+                &mut sources,
+                state,
+                self.drawable_width,
+                self.drawable_height,
+                self.contents_scale,
+            );
+        }
         if live_surface_readback_trace_enabled() {
             let report = pollster::block_on(
                 self.renderer
@@ -324,6 +373,37 @@ impl NativeOverlayLiveSurfaceRenderer {
             live_readback_checksum: 0,
             live_readback_export_max_channel_delta: None,
         }))
+    }
+
+    /// キャッシュ済み scene（無ければ透明クリア相当の空 scene）にデコレーション
+    /// を上乗せして再 present する。noVideoDecodeRequest の透明クリア状態でも
+    /// デコレーションのみを present できる（426c の透明クリア機構と両立する）。
+    fn present_cached_scene_with_decoration(
+        &mut self,
+        decoration: Option<&SelectionDecorationState>,
+    ) -> Result<(), String> {
+        let (mut snapshot, mut sources) = self
+            .last_scene
+            .clone()
+            .unwrap_or_else(build_empty_scene_snapshot_for_transparent_clear);
+        if let Some(state) = decoration {
+            append_selection_decoration_to_scene(
+                &mut snapshot,
+                &mut sources,
+                state,
+                self.drawable_width,
+                self.drawable_height,
+                self.contents_scale,
+            );
+        }
+        pollster::block_on(
+            self.renderer
+                .present_scene_to_surface_texture(&snapshot, &sources),
+        )
+        .map_err(|error| {
+            format!("Native overlay selection decoration present failed: {error:?}")
+        })?;
+        Ok(())
     }
 }
 
@@ -412,6 +492,54 @@ fn set_native_overlay_obstructed_inner(
     payload: NativeOverlaySetObstructedPayload,
 ) -> NativeOverlayResponse {
     match set_native_overlay_obstructed(payload.window_id, payload.obstructed) {
+        Ok(()) => NativeOverlayResponse {
+            success: true,
+            attached: true,
+            reason: None,
+            release_frame: None,
+            live_prepared_clip_count: None,
+            live_readback_non_transparent_pixels: None,
+            live_readback_checksum: None,
+            live_readback_export_max_channel_delta: None,
+        },
+        Err(reason) => failure(&reason),
+    }
+}
+
+/// 選択デコレーション — electron/nativeOverlayMainBridge.ts の
+/// `setSelectionDecoration` から呼ばれる napi export。quads は project 座標系の
+/// world 四隅（回転込み）。空配列でデコレーション解除。native_window_handle は
+/// 不要（clearSurface / setObstructed と同じく registry lookup で完結する）。
+#[napi(js_name = "setNativeOverlaySelectionDecoration")]
+pub fn set_native_overlay_selection_decoration_napi(
+    payload: NativeOverlaySelectionDecorationPayload,
+) -> NativeOverlayResponse {
+    match catch_unwind(AssertUnwindSafe(|| {
+        set_native_overlay_selection_decoration_inner(payload)
+    })) {
+        Ok(response) => response,
+        Err(_) => failure("Native overlay set selection decoration panicked."),
+    }
+}
+
+fn set_native_overlay_selection_decoration_inner(
+    payload: NativeOverlaySelectionDecorationPayload,
+) -> NativeOverlayResponse {
+    let state = SelectionDecorationState {
+        canvas_width: payload.canvas_width,
+        canvas_height: payload.canvas_height,
+        quads: payload
+            .quads
+            .into_iter()
+            .map(|quad| SelectionDecorationQuad {
+                top_left: (quad.top_left_x, quad.top_left_y),
+                top_right: (quad.top_right_x, quad.top_right_y),
+                bottom_right: (quad.bottom_right_x, quad.bottom_right_y),
+                bottom_left: (quad.bottom_left_x, quad.bottom_left_y),
+            })
+            .collect(),
+    };
+    match set_native_overlay_selection_decoration(payload.window_id, state) {
         Ok(()) => NativeOverlayResponse {
             success: true,
             attached: true,
@@ -586,6 +714,9 @@ fn detach_live_overlay_surface_renderer(window_id: u32) {
             renderers.remove(&window_id);
         }
     }
+    // 選択デコレーション state も window 単位で破棄する（unmount 後の再 attach
+    // で古い選択枠が蘇らないようにする。TS 側は attach 後に最新 state を再送する）。
+    remove_native_overlay_selection_decoration(window_id);
 }
 
 pub fn build_overlay_layer_contract(
@@ -804,6 +935,271 @@ pub fn present_overlay_shared_frame_for_test(
     })
 }
 
+// --- 選択デコレーション（選択枠・リサイズハンドル）描画 ---
+//
+// SceneSelectionOverlay（HTML/SVG）は child NSWindow 化された native overlay
+// より常に下にあり、オブジェクトが現在フレームへ描画されると不透明ピクセルに
+// 隠れて見えない。そこで枠線（金 #ffd700・2pt 相当）とハンドル（白面 + 金枠）
+// の見た目を scene present の最後に EvaluatedClip として上乗せ描画する。
+// 1x1 単色 RgbaFrame を Transform（translation/scale/rotation）で伸縮・回転
+// させるだけなので、専用の描画パイプラインは追加しない。
+
+pub const SELECTION_DECORATION_GOLD_MEDIA_ID: &str = "uxfd-selection-decoration-gold";
+pub const SELECTION_DECORATION_WHITE_MEDIA_ID: &str = "uxfd-selection-decoration-white";
+/// SVG（SceneSelectionOverlay.tsx）の strokeWidth=2 相当（CSS pt）。
+const SELECTION_DECORATION_LINE_WIDTH_CSS: f64 = 2.0;
+/// SVG の RESIZE_HANDLE_SIZE=10 相当（CSS pt）。
+const SELECTION_DECORATION_HANDLE_SIZE_CSS: f64 = 10.0;
+/// SVG のハンドル strokeWidth=1.2 相当（CSS pt）。stroke は矩形境界を跨ぐため、
+/// 金枠の外形は 10+1.2、白面は 10-1.2 になる。
+const SELECTION_DECORATION_HANDLE_STROKE_CSS: f64 = 1.2;
+const SELECTION_DECORATION_EDGE_Z_INDEX: u32 = u32::MAX - 2;
+const SELECTION_DECORATION_HANDLE_FRAME_Z_INDEX: u32 = u32::MAX - 1;
+const SELECTION_DECORATION_HANDLE_FACE_Z_INDEX: u32 = u32::MAX;
+
+/// project 座標系（canvas 基準）の world 四隅。回転はここに折り込み済み。
+#[derive(Debug, Clone, PartialEq)]
+pub struct SelectionDecorationQuad {
+    pub top_left: (f64, f64),
+    pub top_right: (f64, f64),
+    pub bottom_right: (f64, f64),
+    pub bottom_left: (f64, f64),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SelectionDecorationState {
+    pub canvas_width: u32,
+    pub canvas_height: u32,
+    pub quads: Vec<SelectionDecorationQuad>,
+}
+
+static SELECTION_DECORATIONS: OnceLock<Mutex<HashMap<u32, SelectionDecorationState>>> =
+    OnceLock::new();
+
+fn selection_decorations() -> &'static Mutex<HashMap<u32, SelectionDecorationState>> {
+    SELECTION_DECORATIONS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+pub fn stored_native_overlay_selection_decoration(
+    window_id: u32,
+) -> Option<SelectionDecorationState> {
+    selection_decorations()
+        .lock()
+        .ok()
+        .and_then(|map| map.get(&window_id).cloned())
+}
+
+fn store_native_overlay_selection_decoration(
+    window_id: u32,
+    state: SelectionDecorationState,
+) -> Result<(), String> {
+    let mut map = selection_decorations()
+        .lock()
+        .map_err(|_| "Native overlay selection decoration registry is poisoned.".to_string())?;
+    if state.quads.is_empty() {
+        map.remove(&window_id);
+    } else {
+        map.insert(window_id, state);
+    }
+    Ok(())
+}
+
+fn remove_native_overlay_selection_decoration(window_id: u32) {
+    if let Some(map) = SELECTION_DECORATIONS.get() {
+        if let Ok(mut map) = map.lock() {
+            map.remove(&window_id);
+        }
+    }
+}
+
+/// state を保存した上で、attach 済みならキャッシュ scene（無ければ透明クリア
+/// 相当の空 scene）へデコレーションを上乗せして即時再 present する。未 attach
+/// の場合も state は保持し（attach 後の present が拾う）、Err を返して TS 側の
+/// SVG フォールバック判断に使わせる。
+/// ロック順序: SELECTION_DECORATIONS を解放してから LIVE_OVERLAY_RENDERERS を
+/// 取る（present 経路と同順。両ロックの同時保持はしない）。
+pub fn set_native_overlay_selection_decoration(
+    window_id: u32,
+    state: SelectionDecorationState,
+) -> Result<(), String> {
+    store_native_overlay_selection_decoration(window_id, state)?;
+    let decoration = stored_native_overlay_selection_decoration(window_id);
+    let mut renderers = LIVE_OVERLAY_RENDERERS
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .map_err(|_| "Native overlay live renderer registry is poisoned.".to_string())?;
+    let renderer = renderers
+        .get_mut(&window_id)
+        .ok_or_else(|| "Native overlay live surface is not attached.".to_string())?;
+    renderer.present_cached_scene_with_decoration(decoration.as_ref())
+}
+
+fn solid_rgba_frame(rgba: [u8; 4]) -> RgbaFrame {
+    RgbaFrame::from_rgba8(1, 1, rgba.to_vec()).expect("1x1 solid colour frame is always valid")
+}
+
+fn decoration_clip(
+    clip_id: String,
+    media_id: &str,
+    z_index: u32,
+    translation: (f64, f64),
+    scale: (f64, f64),
+    rotation_degrees: f64,
+) -> EvaluatedClip {
+    EvaluatedClip {
+        clip_id,
+        track_id: "uxfd-selection-decoration".to_string(),
+        media_id: media_id.to_string(),
+        source_frame: 0,
+        z_index,
+        transform: Transform {
+            translation_x: translation.0 as f32,
+            translation_y: translation.1 as f32,
+            scale_x: scale.0 as f32,
+            scale_y: scale.1 as f32,
+            rotation_degrees: rotation_degrees as f32,
+            sampling: SamplingMode::Nearest,
+        },
+        opacity: 1.0,
+        effects: Vec::new(),
+    }
+}
+
+/// 辺 A→B を線幅 `line_width` の回転矩形 clip として構築する。
+/// solid_composite.wgsl の Transform 解釈（translation=ソース原点の出力座標・
+/// 回転は translation 点まわり）に合わせ、線の中心を辺上に載せる法線オフセット
+/// と、角の継ぎ目を埋める両端の半幅延長を translation に折り込む。
+fn selection_edge_clip(
+    quad_index: usize,
+    edge_index: usize,
+    a: (f64, f64),
+    b: (f64, f64),
+    line_width: f64,
+) -> Option<EvaluatedClip> {
+    let dx = b.0 - a.0;
+    let dy = b.1 - a.1;
+    let length = (dx * dx + dy * dy).sqrt();
+    if !length.is_finite() {
+        return None;
+    }
+    let theta = dy.atan2(dx);
+    let (sin, cos) = theta.sin_cos();
+    let half = line_width * 0.5;
+    let start = (a.0 - cos * half, a.1 - sin * half);
+    let translation = (start.0 + sin * half, start.1 - cos * half);
+    Some(decoration_clip(
+        format!("uxfd-selection-decoration-{quad_index}-edge-{edge_index}"),
+        SELECTION_DECORATION_GOLD_MEDIA_ID,
+        SELECTION_DECORATION_EDGE_Z_INDEX,
+        translation,
+        (length + line_width, line_width),
+        theta.to_degrees(),
+    ))
+}
+
+/// quads（project 座標系）を drawable 座標へ contain-fit 変換し、選択枠 4 辺と
+/// 四隅ハンドル（金枠 + 白面）の EvaluatedClip 群と 1x1 単色 sources を返す。
+/// 変換式は `fit_scene_snapshot_to_drawable` と同一（等方 fit + 中央 letterbox）。
+/// 線幅・ハンドルサイズは CSS pt × `contents_scale` の物理ピクセル固定で、
+/// fit の影響を受けない（SVG の見た目と同じ挙動）。
+pub fn build_selection_decoration_clips(
+    state: &SelectionDecorationState,
+    drawable_width: u32,
+    drawable_height: u32,
+    contents_scale: f64,
+) -> (Vec<EvaluatedClip>, HashMap<String, RgbaFrame>) {
+    let mut clips = Vec::new();
+    let mut sources = HashMap::new();
+    if state.quads.is_empty() {
+        return (clips, sources);
+    }
+    sources.insert(
+        SELECTION_DECORATION_GOLD_MEDIA_ID.to_string(),
+        solid_rgba_frame([255, 215, 0, 255]),
+    );
+    sources.insert(
+        SELECTION_DECORATION_WHITE_MEDIA_ID.to_string(),
+        solid_rgba_frame([255, 255, 255, 255]),
+    );
+
+    let fit_scale = if state.canvas_width == 0 || state.canvas_height == 0 {
+        1.0
+    } else {
+        (drawable_width as f64 / state.canvas_width as f64)
+            .min(drawable_height as f64 / state.canvas_height as f64)
+    };
+    let offset_x = (drawable_width as f64 - state.canvas_width as f64 * fit_scale) * 0.5;
+    let offset_y = (drawable_height as f64 - state.canvas_height as f64 * fit_scale) * 0.5;
+    let fit = |point: (f64, f64)| (point.0 * fit_scale + offset_x, point.1 * fit_scale + offset_y);
+
+    let line_width = SELECTION_DECORATION_LINE_WIDTH_CSS * contents_scale;
+    let handle_frame_size =
+        (SELECTION_DECORATION_HANDLE_SIZE_CSS + SELECTION_DECORATION_HANDLE_STROKE_CSS)
+            * contents_scale;
+    let handle_face_size =
+        (SELECTION_DECORATION_HANDLE_SIZE_CSS - SELECTION_DECORATION_HANDLE_STROKE_CSS)
+            * contents_scale;
+
+    for (quad_index, quad) in state.quads.iter().enumerate() {
+        let corners = [
+            fit(quad.top_left),
+            fit(quad.top_right),
+            fit(quad.bottom_right),
+            fit(quad.bottom_left),
+        ];
+        for edge_index in 0..4 {
+            if let Some(clip) = selection_edge_clip(
+                quad_index,
+                edge_index,
+                corners[edge_index],
+                corners[(edge_index + 1) % 4],
+                line_width,
+            ) {
+                clips.push(clip);
+            }
+        }
+        for (corner_index, corner) in corners.iter().enumerate() {
+            let half = handle_frame_size * 0.5;
+            clips.push(decoration_clip(
+                format!("uxfd-selection-decoration-{quad_index}-handle-frame-{corner_index}"),
+                SELECTION_DECORATION_GOLD_MEDIA_ID,
+                SELECTION_DECORATION_HANDLE_FRAME_Z_INDEX,
+                (corner.0 - half, corner.1 - half),
+                (handle_frame_size, handle_frame_size),
+                0.0,
+            ));
+        }
+        for (corner_index, corner) in corners.iter().enumerate() {
+            let half = handle_face_size * 0.5;
+            clips.push(decoration_clip(
+                format!("uxfd-selection-decoration-{quad_index}-handle-face-{corner_index}"),
+                SELECTION_DECORATION_WHITE_MEDIA_ID,
+                SELECTION_DECORATION_HANDLE_FACE_Z_INDEX,
+                (corner.0 - half, corner.1 - half),
+                (handle_face_size, handle_face_size),
+                0.0,
+            ));
+        }
+    }
+    (clips, sources)
+}
+
+/// scene present 直前の snapshot / sources にデコレーションを上乗せする。
+/// 既存 clip は変更しない（z_index が u32::MAX 近傍なので常に最前面）。
+pub fn append_selection_decoration_to_scene(
+    snapshot: &mut SceneSnapshot,
+    sources: &mut HashMap<String, RgbaFrame>,
+    state: &SelectionDecorationState,
+    drawable_width: u32,
+    drawable_height: u32,
+    contents_scale: f64,
+) {
+    let (clips, decoration_sources) =
+        build_selection_decoration_clips(state, drawable_width, drawable_height, contents_scale);
+    snapshot.clips.extend(clips);
+    sources.extend(decoration_sources);
+}
+
 /// Bug D — clip 削除で `activeJob` が消え shared frame present が止まると、
 /// CAMetalLayer drawable に削除前フレームが残ったままになる。この症状を
 /// 潰すため、`clear_native_overlay_live_surface` は空 SceneSnapshot と空
@@ -826,6 +1222,10 @@ pub fn build_empty_scene_snapshot_for_transparent_clear() -> (SceneSnapshot, Has
 /// `window_id` を渡した場合は明示的な Err を返し、上位で fallback 判断できる
 /// ようにする。
 pub fn clear_native_overlay_live_surface(window_id: u32) -> Result<(), String> {
+    // 選択デコレーションは透明クリア後も見えるべき（noVideoDecodeRequest で
+    // 動画が居ない時間帯でも選択枠は残る）。ロック順序: decoration → renderers
+    // の順に取得し、同時保持はしない。
+    let decoration = stored_native_overlay_selection_decoration(window_id);
     let mut renderers = LIVE_OVERLAY_RENDERERS
         .get_or_init(|| Mutex::new(HashMap::new()))
         .lock()
@@ -833,13 +1233,12 @@ pub fn clear_native_overlay_live_surface(window_id: u32) -> Result<(), String> {
     let renderer = renderers
         .get_mut(&window_id)
         .ok_or_else(|| "Native overlay live surface is not attached.".to_string())?;
-    let (snapshot, sources) = build_empty_scene_snapshot_for_transparent_clear();
-    pollster::block_on(
-        renderer
-            .renderer
-            .present_scene_to_surface_texture(&snapshot, &sources),
-    )
-    .map_err(|error| format!("Native overlay live surface transparent clear failed: {error:?}"))?;
+    renderer.last_scene = None;
+    renderer
+        .present_cached_scene_with_decoration(decoration.as_ref())
+        .map_err(|error| {
+            format!("Native overlay live surface transparent clear failed: {error}")
+        })?;
     Ok(())
 }
 
@@ -876,6 +1275,9 @@ pub fn present_overlay_shared_frame_to_live_surface(
     let upload =
         copy_overlay_shared_frame_source_for_upload(&request.source, Duration::from_millis(100))?;
     let descriptor = &request.source.frame.descriptor;
+    // ロック順序: decoration → renderers（set_native_overlay_selection_decoration
+    // と同順。両ロックの同時保持はしない）。
+    let decoration = stored_native_overlay_selection_decoration(window_id);
     let mut renderers = LIVE_OVERLAY_RENDERERS
         .get_or_init(|| Mutex::new(HashMap::new()))
         .lock()
@@ -883,7 +1285,8 @@ pub fn present_overlay_shared_frame_to_live_surface(
     let renderer = renderers
         .get_mut(&window_id)
         .ok_or_else(|| "Native overlay live surface is not attached.".to_string())?;
-    let live_diagnostics = renderer.present_upload_frame(&upload, request.scene.as_ref())?;
+    let live_diagnostics =
+        renderer.present_upload_frame(&upload, request.scene.as_ref(), decoration.as_ref())?;
 
     Ok(OverlaySharedFramePresentResponse {
         success: true,
@@ -2160,6 +2563,265 @@ mod tests {
             "expected the final drawn width to be canvas_width * fit (~{}), got {drawn_width}",
             1920.0 * fit
         );
+    }
+
+    // --- 選択デコレーション（選択枠・リサイズハンドル）契約テスト ---
+    //
+    // 実機バグ: SceneSelectionOverlay（HTML/SVG）は child NSWindow 化された
+    // native overlay（CAMetalLayer）より常に下にあるため、オブジェクトが
+    // 現在フレームに描画されている間は選択枠が不透明ピクセルに隠れて見えない。
+    // 修正方針は「選択枠・ハンドルの見た目を native overlay の scene present
+    // 最後に上乗せ描画する」こと。ここでは quad（project 座標系）→ drawable
+    // 座標変換と、デコレーション clip 構築の契約を固定する。
+
+    fn axis_aligned_selection_state(
+        canvas_width: u32,
+        canvas_height: u32,
+    ) -> SelectionDecorationState {
+        SelectionDecorationState {
+            canvas_width,
+            canvas_height,
+            quads: vec![SelectionDecorationQuad {
+                top_left: (100.0, 100.0),
+                top_right: (300.0, 100.0),
+                bottom_right: (300.0, 200.0),
+                bottom_left: (100.0, 200.0),
+            }],
+        }
+    }
+
+    fn assert_approx(actual: f32, expected: f32, label: &str) {
+        assert!(
+            (actual - expected).abs() < 1e-3,
+            "{label}: expected {expected}, got {actual}"
+        );
+    }
+
+    #[test]
+    fn selection_decoration_clips_transform_quad_corners_with_scene_contain_fit() {
+        // canvas 1920x1080 → drawable 960x540 は contain-fit 0.5・offset (0,0)。
+        // fit_scene_snapshot_to_drawable と同じ変換をデコレーションにも通す契約。
+        let state = axis_aligned_selection_state(1920, 1080);
+        let (clips, sources) = build_selection_decoration_clips(&state, 960, 540, 1.0);
+
+        // 4 辺 + 4 ハンドル（金枠）+ 4 ハンドル（白面）= 12 clips / quad。
+        assert_eq!(clips.len(), 12);
+        assert!(sources.contains_key(SELECTION_DECORATION_GOLD_MEDIA_ID));
+        assert!(sources.contains_key(SELECTION_DECORATION_WHITE_MEDIA_ID));
+        let gold = &sources[SELECTION_DECORATION_GOLD_MEDIA_ID];
+        assert_eq!((gold.width, gold.height), (1, 1));
+        assert_eq!(&gold.pixels[..4], &[255, 215, 0, 255]);
+        let white = &sources[SELECTION_DECORATION_WHITE_MEDIA_ID];
+        assert_eq!(&white.pixels[..4], &[255, 255, 255, 255]);
+
+        // 上辺: fitted TL(50,50)→TR(150,50)。線幅 2（contents_scale=1）を線の
+        // 中心に載せ、角の継ぎ目を埋めるため両端を半幅ずつ延長する。
+        let top = &clips[0];
+        assert_eq!(top.media_id, SELECTION_DECORATION_GOLD_MEDIA_ID);
+        assert_approx(top.transform.rotation_degrees, 0.0, "top edge rotation");
+        assert_approx(top.transform.translation_x, 49.0, "top edge translation_x");
+        assert_approx(top.transform.translation_y, 49.0, "top edge translation_y");
+        assert_approx(top.transform.scale_x, 102.0, "top edge scale_x");
+        assert_approx(top.transform.scale_y, 2.0, "top edge scale_y");
+
+        // 右辺: TR(150,50)→BR(150,100)、回転 90 度。
+        let right = &clips[1];
+        assert_approx(right.transform.rotation_degrees, 90.0, "right edge rotation");
+        assert_approx(right.transform.translation_x, 151.0, "right edge translation_x");
+        assert_approx(right.transform.translation_y, 49.0, "right edge translation_y");
+        assert_approx(right.transform.scale_x, 52.0, "right edge scale_x");
+        assert_approx(right.transform.scale_y, 2.0, "right edge scale_y");
+
+        // ハンドル: SVG（rect 10x10・stroke 1.2）の見た目を金枠 11.2 + 白面 8.8
+        // の 2 clip で再現する。TL corner (50,50) 中心。
+        let gold_handle = &clips[4];
+        assert_eq!(gold_handle.media_id, SELECTION_DECORATION_GOLD_MEDIA_ID);
+        assert_approx(gold_handle.transform.translation_x, 50.0 - 5.6, "gold handle tx");
+        assert_approx(gold_handle.transform.translation_y, 50.0 - 5.6, "gold handle ty");
+        assert_approx(gold_handle.transform.scale_x, 11.2, "gold handle scale_x");
+        let white_handle = &clips[8];
+        assert_eq!(white_handle.media_id, SELECTION_DECORATION_WHITE_MEDIA_ID);
+        assert_approx(white_handle.transform.translation_x, 50.0 - 4.4, "white handle tx");
+        assert_approx(white_handle.transform.scale_x, 8.8, "white handle scale_x");
+
+        // z-order: 動画・画像 clip より常に上。辺 < ハンドル金 < ハンドル白。
+        assert!(clips[0].z_index >= u32::MAX - 2);
+        assert!(clips[4].z_index > clips[0].z_index);
+        assert!(clips[8].z_index > clips[4].z_index);
+        for clip in &clips {
+            assert_approx(clip.opacity, 1.0, "decoration opacity");
+        }
+    }
+
+    #[test]
+    fn selection_decoration_clips_scale_line_thickness_with_contents_scale() {
+        // HiDPI（contents_scale=2）では CSS 2pt の枠線が物理 4px になる契約。
+        let state = SelectionDecorationState {
+            canvas_width: 200,
+            canvas_height: 200,
+            quads: vec![SelectionDecorationQuad {
+                top_left: (10.0, 10.0),
+                top_right: (110.0, 10.0),
+                bottom_right: (110.0, 110.0),
+                bottom_left: (10.0, 110.0),
+            }],
+        };
+        let (clips, _sources) = build_selection_decoration_clips(&state, 200, 200, 2.0);
+
+        let top = &clips[0];
+        assert_approx(top.transform.translation_x, 8.0, "top edge translation_x");
+        assert_approx(top.transform.translation_y, 8.0, "top edge translation_y");
+        assert_approx(top.transform.scale_x, 104.0, "top edge scale_x");
+        assert_approx(top.transform.scale_y, 4.0, "top edge scale_y");
+        let gold_handle = &clips[4];
+        assert_approx(gold_handle.transform.scale_x, 22.4, "gold handle scale_x");
+        let white_handle = &clips[8];
+        assert_approx(white_handle.transform.scale_x, 17.6, "white handle scale_x");
+    }
+
+    #[test]
+    fn selection_decoration_clips_rotated_edge_uses_rotation_degrees() {
+        // 回転済み quad（world 座標の四隅が回転を含む）の辺は、辺方向の
+        // atan2 をそのまま rotation_degrees に載せる契約。
+        let state = SelectionDecorationState {
+            canvas_width: 200,
+            canvas_height: 200,
+            quads: vec![SelectionDecorationQuad {
+                top_left: (0.0, 0.0),
+                top_right: (0.0, 100.0),
+                bottom_right: (-100.0, 100.0),
+                bottom_left: (-100.0, 0.0),
+            }],
+        };
+        let (clips, _sources) = build_selection_decoration_clips(&state, 200, 200, 1.0);
+
+        let edge = &clips[0];
+        assert_approx(edge.transform.rotation_degrees, 90.0, "rotated edge rotation");
+        assert_approx(edge.transform.translation_x, 1.0, "rotated edge translation_x");
+        assert_approx(edge.transform.translation_y, -1.0, "rotated edge translation_y");
+        assert_approx(edge.transform.scale_x, 102.0, "rotated edge scale_x");
+        assert_approx(edge.transform.scale_y, 2.0, "rotated edge scale_y");
+    }
+
+    #[test]
+    fn append_selection_decoration_layers_clips_above_existing_scene() {
+        // scene present の最後に上乗せする契約: 既存 clip は変更せず、
+        // デコレーション clip と 1x1 単色 source を追記する。
+        let state = axis_aligned_selection_state(1920, 1080);
+        let (mut snapshot, mut sources) = build_empty_scene_snapshot_for_transparent_clear();
+        snapshot.clips.push(EvaluatedClip {
+            clip_id: "existing".to_string(),
+            track_id: "track".to_string(),
+            media_id: "video".to_string(),
+            source_frame: 0,
+            z_index: 5,
+            transform: Transform::identity(),
+            opacity: 1.0,
+            effects: Vec::new(),
+        });
+
+        append_selection_decoration_to_scene(&mut snapshot, &mut sources, &state, 960, 540, 1.0);
+
+        assert_eq!(snapshot.clips.len(), 1 + 12);
+        assert_eq!(snapshot.clips[0].clip_id, "existing");
+        assert_eq!(snapshot.clips[0].z_index, 5);
+        assert!(snapshot.clips[1..].iter().all(|clip| clip.z_index >= u32::MAX - 2));
+        assert!(sources.contains_key(SELECTION_DECORATION_GOLD_MEDIA_ID));
+        assert!(sources.contains_key(SELECTION_DECORATION_WHITE_MEDIA_ID));
+    }
+
+    #[test]
+    fn selection_decoration_state_is_stored_even_when_no_renderer_is_attached() {
+        // TS 側は attach 完了時に再送するが、addon 側も state を保持して
+        // おき、Err（未 attach）を返して SVG フォールバックを促す契約。
+        let window_id = 990_001;
+        let state = axis_aligned_selection_state(1920, 1080);
+
+        let result = set_native_overlay_selection_decoration(window_id, state.clone());
+
+        assert_eq!(
+            result.expect_err("no renderer attached"),
+            "Native overlay live surface is not attached."
+        );
+        assert_eq!(
+            stored_native_overlay_selection_decoration(window_id),
+            Some(state)
+        );
+    }
+
+    #[test]
+    fn selection_decoration_state_is_cleared_by_empty_quads() {
+        // 空配列 = 選択解除。state を破棄し、以後の present に上乗せしない契約。
+        let window_id = 990_002;
+        let state = axis_aligned_selection_state(1920, 1080);
+        let _ = set_native_overlay_selection_decoration(window_id, state.clone());
+        assert!(stored_native_overlay_selection_decoration(window_id).is_some());
+
+        let _ = set_native_overlay_selection_decoration(
+            window_id,
+            SelectionDecorationState {
+                canvas_width: 1920,
+                canvas_height: 1080,
+                quads: Vec::new(),
+            },
+        );
+
+        assert_eq!(stored_native_overlay_selection_decoration(window_id), None);
+    }
+
+    #[test]
+    fn native_overlay_exports_set_selection_decoration_through_napi() {
+        // preload / main bridge（electron/nativeOverlayMainBridge.ts）の
+        // setSelectionDecoration から呼べる napi export。
+        let source = include_str!("lib.rs");
+        assert!(source.contains("#[napi(js_name = \"setNativeOverlaySelectionDecoration\")]"));
+        assert!(source.contains("pub fn set_native_overlay_selection_decoration"));
+    }
+
+    #[test]
+    fn selection_decoration_clips_render_gold_border_and_white_handles_via_readback() {
+        // readback 契約: デコレーションのみの snapshot（noVideoDecodeRequest の
+        // 透明クリア状態相当）を offscreen render し、枠線に金・角ハンドルに白の
+        // 不透明ピクセルが載り、quad 内部は透明のままであることを固定する。
+        let state = SelectionDecorationState {
+            canvas_width: 200,
+            canvas_height: 200,
+            quads: vec![SelectionDecorationQuad {
+                top_left: (40.0, 40.0),
+                top_right: (160.0, 40.0),
+                bottom_right: (160.0, 160.0),
+                bottom_left: (40.0, 160.0),
+            }],
+        };
+        let (mut snapshot, mut sources) = build_empty_scene_snapshot_for_transparent_clear();
+        append_selection_decoration_to_scene(&mut snapshot, &mut sources, &state, 200, 200, 2.0);
+
+        let frame = pollster::block_on(render_native_wgpu_frame(&snapshot, &sources, 200, 200))
+            .expect("decoration-only offscreen render must succeed");
+
+        let pixel = |x: usize, y: usize| {
+            let offset = (y * 200 + x) * 4;
+            [
+                frame.pixels[offset],
+                frame.pixels[offset + 1],
+                frame.pixels[offset + 2],
+                frame.pixels[offset + 3],
+            ]
+        };
+        // 上辺中点 (100, 40): 金（#ffd700 相当。red 高・blue 低・不透明）。
+        let border = pixel(100, 40);
+        assert!(border[3] > 200, "border must be opaque, got {border:?}");
+        assert!(border[0] > 180 && border[2] < 120, "border must be gold, got {border:?}");
+        // TL corner (40, 40): 白ハンドル面。
+        let handle = pixel(40, 40);
+        assert!(handle[3] > 200, "handle must be opaque, got {handle:?}");
+        assert!(
+            handle[0] > 200 && handle[1] > 200 && handle[2] > 200,
+            "handle must be white, got {handle:?}"
+        );
+        // quad 中央 (100, 100): 透明のまま（枠の内側は塗らない）。
+        let interior = pixel(100, 100);
+        assert_eq!(interior[3], 0, "interior must stay transparent, got {interior:?}");
     }
 
     fn unique_shm_name() -> String {
