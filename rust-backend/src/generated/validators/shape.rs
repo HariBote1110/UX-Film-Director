@@ -45,6 +45,40 @@ pub(crate) fn validate_generated_gourd_source(source: &GeneratedGourdSource) -> 
     Ok(())
 }
 
+const SUPPORTED_GENERATED_SHAPE_TYPES: [&str; 10] = [
+    "rounded_rect",
+    "circle",
+    "ellipse",
+    "triangle",
+    "star",
+    "pentagon",
+    "diamond",
+    "arrow",
+    "heart",
+    "cross",
+];
+
+pub(crate) fn validate_generated_shape_source(
+    source: &GeneratedShapeSource,
+) -> Result<(), String> {
+    if source.generator != "shape-93" {
+        return Err("generator must be shape-93".to_string());
+    }
+    if !SUPPORTED_GENERATED_SHAPE_TYPES.contains(&source.shape_type.as_str()) {
+        return Err(format!(
+            "shape_type must be one of {SUPPORTED_GENERATED_SHAPE_TYPES:?}"
+        ));
+    }
+    if !source.corner_radius.is_finite() || source.corner_radius < 0.0 {
+        return Err("corner_radius must be a finite non-negative number".to_string());
+    }
+    parse_hex_colour_source(&source.fill_colour)?;
+    if let Some(gradient) = source.gradient.as_ref() {
+        normalise_gradient_stops(gradient)?;
+    }
+    Ok(())
+}
+
 pub(crate) fn validate_generated_gear_source(source: &GeneratedGearSource) -> Result<(), String> {
     if source.generator != "gear-t" {
         return Err("generator must be gear-t".to_string());

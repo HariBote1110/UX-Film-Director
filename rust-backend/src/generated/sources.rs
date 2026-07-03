@@ -471,3 +471,14 @@ pub(crate) fn default_region_frame_shape() -> String {
 pub(crate) fn default_region_frame_corner_cut() -> f32 {
     20.0
 }
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GeneratedShapeSource {
+    pub(crate) generator: String,
+    pub(crate) shape_type: String,
+    pub(crate) fill_colour: String,
+    #[serde(default)]
+    pub(crate) gradient: Option<GeneratedGradientSource>,
+    #[serde(default)]
+    pub(crate) corner_radius: f32,
+}

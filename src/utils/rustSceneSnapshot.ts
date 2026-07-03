@@ -105,7 +105,7 @@ export interface RustSceneSnapshot {
 
 export interface RustSceneMediaReference {
   id: string;
-  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedAudioSphere' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedToneCurve' | 'GeneratedGetColorDots' | 'GeneratedHksyCheckerGrid' | 'GeneratedRegionFrame' | 'GeneratedSimpleTube' | 'GeneratedSphereDots' | 'GeneratedSphericalField' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'GeneratedTriangleBracket' | 'GeneratedTartanCheck' | 'GeneratedHoundstooth' | 'GeneratedYagasuri' | 'GeneratedPaperAirplane' | 'GeneratedAsanohaPattern' | 'GeneratedFocusLinesPlus' | 'GeneratedRandomLineEx' | 'GeneratedContourTrace' | 'GeneratedDisplacementPoly' | 'GeneratedPlainEffectorLine' | 'GeneratedHologram' | 'GeneratedProtractor' | 'GeneratedShakingPolygon' | 'GeneratedShatteredSphere' | 'Psd' | 'Text';
+  kind: 'Image' | 'Video' | 'SolidColour' | 'GeneratedGradient' | 'GeneratedAudioWaveform' | 'GeneratedAudioSphere' | 'GeneratedParticle' | 'GeneratedBarcode' | 'GeneratedPuzzlePiece' | 'GeneratedColourWheel' | 'GeneratedGourd' | 'GeneratedGear' | 'GeneratedTrackBar' | 'GeneratedPieChart' | 'GeneratedHistogram' | 'GeneratedToneCurve' | 'GeneratedGetColorDots' | 'GeneratedHksyCheckerGrid' | 'GeneratedRegionFrame' | 'GeneratedSimpleTube' | 'GeneratedSphereDots' | 'GeneratedSphericalField' | 'GeneratedSunburst' | 'GeneratedCircularArrow' | 'GeneratedTriangleBracket' | 'GeneratedTartanCheck' | 'GeneratedHoundstooth' | 'GeneratedYagasuri' | 'GeneratedPaperAirplane' | 'GeneratedAsanohaPattern' | 'GeneratedFocusLinesPlus' | 'GeneratedRandomLineEx' | 'GeneratedContourTrace' | 'GeneratedDisplacementPoly' | 'GeneratedPlainEffectorLine' | 'GeneratedHologram' | 'GeneratedProtractor' | 'GeneratedShakingPolygon' | 'GeneratedShatteredSphere' | 'GeneratedShape' | 'Psd' | 'Text';
   source: string;
   width: number;
   height: number;
@@ -116,7 +116,6 @@ export interface RustSceneMediaReference {
 export type RustSceneSnapshotBuildIssueCode =
   | 'unsupportedObjectType'
   | 'unsupportedFilter'
-  | 'unsupportedShapeGeometry'
   | 'unsupportedRotation'
   | 'unsupportedTransform'
   | 'unsupportedVideoMode'
@@ -287,14 +286,6 @@ const collectBuildIssues = (
         detail: `Object type '${object.type}' is not representable by the shared renderer yet.`,
       });
       return;
-    }
-
-    if (object.type === 'shape' && !isSupportedRectangleShape(object)) {
-      issues.push({
-        code: 'unsupportedShapeGeometry',
-        objectId: object.id,
-        detail: 'Only solid rectangle shapes are enabled in the first shared renderer shape bridge.',
-      });
     }
 
     if (isSupportedMediaObject(object) && !mediaSourceForObject(object, videoSourceMode)) {
@@ -607,9 +598,6 @@ const isSupportedSceneObject = (object: TimelineObject): object is SupportedScen
 const isVisualSceneObject = (object: TimelineObject): boolean =>
   object.type !== 'audio';
 
-const isSupportedRectangleShape = (object: ShapeObject): boolean =>
-  object.shapeType === 'rect';
-
 const hasUnsupportedSharedRendererTransform = (
   object: SupportedSceneObject,
   position: { x: number; y: number }
@@ -629,6 +617,16 @@ const mediaReferenceForObject = (
   time: number
 ): RustSceneMediaReference => {
   if (object.type === 'shape') {
+    if (object.shapeType !== 'rect') {
+      return {
+        id: object.id,
+        kind: 'GeneratedShape',
+        source: serialiseGeneratedShapeSource(object),
+        width: object.width,
+        height: object.height,
+      };
+    }
+
     if (object.gradient?.enabled === true) {
       return {
         id: object.id,
@@ -1038,8 +1036,17 @@ const serialiseTextSource = (object: TextObject): string =>
     colour: object.fill,
     alignment: object.textAlignment ?? 'left',
     letter_spacing: object.letterSpacing ?? 0,
-    stroke: null,
-    shadow: null,
+    stroke: object.textStroke
+      ? { colour: object.textStroke.colour, width: object.textStroke.width }
+      : null,
+    shadow: object.textShadow
+      ? {
+        colour: object.textShadow.colour,
+        offset_x: object.textShadow.offsetX,
+        offset_y: object.textShadow.offsetY,
+        blur: object.textShadow.blur,
+      }
+      : null,
   });
 
 /**
@@ -1067,6 +1074,26 @@ const textMediaBox = (object: TextObject): { width: number; height: number } => 
     height: Math.ceil(lineCount * fontSize * 1.25),
   };
 };
+
+const serialiseGeneratedShapeSource = (object: ShapeObject): string =>
+  JSON.stringify({
+    generator: 'shape-93',
+    shape_type: object.shapeType,
+    fill_colour: object.fill,
+    gradient: object.gradient?.enabled === true
+      ? {
+        type: object.gradient.type === 'radial' ? 'radial' : 'linear',
+        colours: Array.isArray(object.gradient.colours) && object.gradient.colours.length > 0
+          ? object.gradient.colours
+          : ['#ffffff', '#000000'],
+        stops: Array.isArray(object.gradient.stops) ? object.gradient.stops : [],
+        direction: Number.isFinite(object.gradient.direction) ? object.gradient.direction : 0,
+      }
+      : null,
+    corner_radius: Number.isFinite(object.cornerRadius) && (object.cornerRadius as number) >= 0
+      ? object.cornerRadius
+      : 0,
+  });
 
 const serialiseGeneratedGradientSource = (gradient: GradientFill): string =>
   JSON.stringify({
@@ -2079,7 +2106,7 @@ const validateMediaReferences = (
     }
     validateKnownKeys(reference, path, ['id', 'kind', 'source', 'width', 'height', 'source_rate', 'active_layer_ids'], issues);
     validateString(reference.id, `${path}.id`, issues);
-    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedAudioSphere', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'GeneratedPieChart', 'GeneratedHistogram', 'GeneratedToneCurve', 'GeneratedGetColorDots', 'GeneratedHksyCheckerGrid', 'GeneratedRegionFrame', 'GeneratedSimpleTube', 'GeneratedSphereDots', 'GeneratedSphericalField', 'GeneratedSunburst', 'GeneratedCircularArrow', 'GeneratedTriangleBracket', 'GeneratedTartanCheck', 'GeneratedHoundstooth', 'GeneratedYagasuri', 'GeneratedPaperAirplane', 'GeneratedAsanohaPattern', 'GeneratedFocusLinesPlus', 'GeneratedRandomLineEx', 'GeneratedContourTrace', 'GeneratedDisplacementPoly', 'GeneratedPlainEffectorLine', 'GeneratedHologram', 'GeneratedProtractor', 'GeneratedShakingPolygon', 'GeneratedShatteredSphere', 'Psd', 'Text'], issues);
+    validateEnum(reference.kind, `${path}.kind`, ['Image', 'Video', 'SolidColour', 'GeneratedGradient', 'GeneratedAudioWaveform', 'GeneratedAudioSphere', 'GeneratedParticle', 'GeneratedBarcode', 'GeneratedPuzzlePiece', 'GeneratedColourWheel', 'GeneratedGourd', 'GeneratedGear', 'GeneratedTrackBar', 'GeneratedPieChart', 'GeneratedHistogram', 'GeneratedToneCurve', 'GeneratedGetColorDots', 'GeneratedHksyCheckerGrid', 'GeneratedRegionFrame', 'GeneratedSimpleTube', 'GeneratedSphereDots', 'GeneratedSphericalField', 'GeneratedSunburst', 'GeneratedCircularArrow', 'GeneratedTriangleBracket', 'GeneratedTartanCheck', 'GeneratedHoundstooth', 'GeneratedYagasuri', 'GeneratedPaperAirplane', 'GeneratedAsanohaPattern', 'GeneratedFocusLinesPlus', 'GeneratedRandomLineEx', 'GeneratedContourTrace', 'GeneratedDisplacementPoly', 'GeneratedPlainEffectorLine', 'GeneratedHologram', 'GeneratedProtractor', 'GeneratedShakingPolygon', 'GeneratedShatteredSphere', 'GeneratedShape', 'Psd', 'Text'], issues);
     validateString(reference.source, `${path}.source`, issues);
     validatePositiveInteger(reference.width, `${path}.width`, issues);
     validatePositiveInteger(reference.height, `${path}.height`, issues);

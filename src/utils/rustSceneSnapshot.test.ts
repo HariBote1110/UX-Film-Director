@@ -3323,6 +3323,48 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     });
   });
 
+  it('builds a Text media plane with a stroke and shadow when the text object specifies them', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseText({
+        id: 'text-stroke-shadow-1',
+        text: 'Outlined',
+        fontFamily: 'Arial',
+        fontSize: 48,
+        fill: '#ffffff',
+        measuredWidth: 300,
+        measuredHeight: 80,
+        textStroke: { colour: '#000000', width: 3 },
+        textShadow: { colour: '#333333', offsetX: 2, offsetY: 4, blur: 6 },
+      })],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected snapshot build to pass');
+
+    expect(result.media).toEqual([
+      {
+        id: 'text-stroke-shadow-1',
+        kind: 'Text',
+        source: JSON.stringify({
+          text: 'Outlined',
+          font_family: 'Arial',
+          font_size: 48,
+          colour: '#ffffff',
+          alignment: 'left',
+          letter_spacing: 0,
+          stroke: { colour: '#000000', width: 3 },
+          shadow: { colour: '#333333', offset_x: 2, offset_y: 4, blur: 6 },
+        }),
+        width: 300,
+        height: 80,
+      },
+    ]);
+  });
+
   it('falls back to a heuristic box for text objects with no measured size yet', () => {
     const layers = createDefaultLayers();
     const result = buildRustSceneSnapshotForTimeline({
@@ -4232,11 +4274,12 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
-  it('fails loud for shape geometry outside the first shared renderer rectangle envelope', () => {
+  it('builds a generated shape plane for non-rectangle shapes', () => {
     const layers = createDefaultLayers();
     const circle = baseShape({
       id: 'circle',
       shapeType: 'circle',
+      fill: '#00ff00',
     });
 
     const result = buildRustSceneSnapshotForTimeline({
@@ -4246,10 +4289,72 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       time: 2,
     });
 
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error('expected snapshot build to fail');
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected snapshot build to pass');
 
-    expect(issueCodes(result.issues)).toEqual(['unsupportedShapeGeometry']);
+    expect(result.media).toEqual([
+      {
+        id: 'circle',
+        kind: 'GeneratedShape',
+        source: JSON.stringify({
+          generator: 'shape-93',
+          shape_type: 'circle',
+          fill_colour: '#00ff00',
+          gradient: null,
+          corner_radius: 0,
+        }),
+        width: 200,
+        height: 100,
+      },
+    ]);
+  });
+
+  it('builds a generated shape plane with a gradient and corner radius for non-rectangle shapes', () => {
+    const layers = createDefaultLayers();
+    const roundedRect = baseShape({
+      id: 'rounded-rect-1',
+      shapeType: 'rounded_rect',
+      fill: '#000000',
+      cornerRadius: 24,
+      gradient: {
+        enabled: true,
+        type: 'radial',
+        colours: ['#ff0000', '#0000ff'],
+        stops: [0, 1],
+        direction: 90,
+      },
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [roundedRect],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected snapshot build to pass');
+
+    expect(result.media).toEqual([
+      {
+        id: 'rounded-rect-1',
+        kind: 'GeneratedShape',
+        source: JSON.stringify({
+          generator: 'shape-93',
+          shape_type: 'rounded_rect',
+          fill_colour: '#000000',
+          gradient: {
+            type: 'radial',
+            colours: ['#ff0000', '#0000ff'],
+            stops: [0, 1],
+            direction: 90,
+          },
+          corner_radius: 24,
+        }),
+        width: 200,
+        height: 100,
+      },
+    ]);
   });
 
   it('fails loud for Pixi group composition and mask semantics', () => {

@@ -80,6 +80,7 @@ pub(crate) fn collect_native_render_sources(
                 media,
                 source_frame_for_media(snapshot, &media.id),
             )?,
+            MediaKind::GeneratedShape => build_generated_shape_source_frame(media)?,
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
             MediaKind::Text => build_generated_text_source_frame(media)?,

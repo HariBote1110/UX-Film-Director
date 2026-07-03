@@ -81,6 +81,46 @@ describe('validateRustSceneSnapshotBoundary', () => {
     expect(validation).toEqual({ ok: true });
   });
 
+  it('accepts a GeneratedShape media reference for a non-rectangle shape at the runtime boundary', () => {
+    const built = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers: createDefaultLayers(),
+      objects: [{
+        id: 'shape-1',
+        type: 'shape',
+        name: 'shape',
+        layer: 1,
+        startTime: 0,
+        duration: 5,
+        x: 32,
+        y: 48,
+        rotation: 0,
+        scaleX: 1,
+        scaleY: 1,
+        opacity: 1,
+        enableAnimation: false,
+        endX: 32,
+        endY: 48,
+        easing: 'linear',
+        shapeType: 'circle',
+        width: 200,
+        height: 200,
+        fill: '#00ff00',
+      } as never],
+      time: 1,
+    });
+    expect(built.ok).toBe(true);
+    if (!built.ok) throw new Error('expected shape snapshot build to pass');
+    expect(JSON.stringify(built.media)).toContain('"GeneratedShape"');
+
+    const validation = validateRustSceneSnapshotBoundary({
+      snapshot: built.snapshot,
+      media: built.media,
+    });
+
+    expect(validation).toEqual({ ok: true });
+  });
+
   it('accepts the adapter output as an exact rust-core JSON boundary payload', () => {
     const built = buildRustSceneSnapshotForTimeline({
       projectSettings: settings,
