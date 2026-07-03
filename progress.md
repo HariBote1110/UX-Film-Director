@@ -1,3 +1,22 @@
+## 2026-07-03 — 実機検証: Pixi排除第一波（427a）統合後のサニティ確認
+
+### 実施内容
+
+- Phase 1〜3 マージ後の 0.1.1-Beta-427a をクリーン起動し CDP で確認:
+  - 図形のみのシーン: presenter swatch が `solid-colour-scene`（Rust の solid colour シーン経路）で表示。
+  - 動画のみの再生: 432 presents / ptsFrame 2→433 連続・ギャップゼロ・forwardGapExceeded ゼロ — 426b 検証と完全一致で**再生の退行なし**。
+  - vitest 1120 green（baseline 5件のみ失敗）/ tsc 72件 / cargo（rust-backend 55+62, rust-core, native-wgpu-renderer 27）全 green。
+
+### 選定理由・判断の根拠
+
+- 混在シーン（SolidColour＋Video）では presents が約55%に落ちる（232〜246/432、ギャップ多数、ただし等速完走・decoder 再起動なし）ことを観測。動画のみに戻すと完全復帰するため第一波の退行ではなく、native メディア合成の毎フレームコストと推定。従来この構成の present レートは未計測で比較基準が無い。
+
+### 残課題・次のステップ
+
+- 混在シーン（図形＋動画）の present レート低下の調査・最適化（新規バックログ）。
+- Phase 4（pixi-passthrough / parallelCompare 撤去・PIXI.Application 削除）＋ Phase 3 配線 ＋ Phase 5（依存削除）は Bug E（child NSWindow 化）と同一マイルストーン。着手はユーザー判断待ち。
+- テキスト cutover の ON 化は実機 parity 確認後（Viewport 結線とセット）。
+
 ## 2026-07-03 — PixiJS排除 Phase 3: インタラクション層の脱Pixi（ヒットテスト・フック・SVGオーバーレイ）
 
 ### 実施内容
