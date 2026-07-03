@@ -1,3 +1,22 @@
+## 2026-07-03 — PixiJS排除 Phase 1: 非テキストcutoverの実態確認とImage/Psd parityテスト追加
+
+### 実施内容
+
+- Phase 0 監査が「所在不明」とした Generated 33種の preview 実行時 RGBA 化経路について、rust-backend `source_frames.rs`（`collect_native_render_sources`）→ native-wgpu-renderer の呼び出し連鎖を実コードで追跡し、**rust-backend/src/generated/*.rs に実装があり欠落なく接続済み**であることを確認（Phase 0 エントリの「ラスタライズ実装の所在が見つからなかった」は rust-backend 配下の見落としで、ここに訂正を記録する）。
+- SolidColour / Image / Psd / GeneratedEffect の ownership 判定は既にすべて「capability 依存のみの常時ON」（flag はデフォルト有効、残るのは `nativeRenderFrameReady` の実行時成功判定のみ）であり、動画なしシーンでも `canRenderSharedRendererNativeMediaOnlyFrame` 経由のフォールバックで真になる実装が既存であることを確認。**Phase 1 の完了条件は TS 層ロジックとしてはベース時点で達成済み**。
+- 従来ゼロだった Image / Psd の GPU 合成 parity を `native_reference_parity.rs` に2件追加（半透明α Image 形状 / 非等倍 transform Psd 形状、CPU 参照一致）。マージ後 27/27 green（マージコミット 36422a85）。
+
+### 選定理由・判断の根拠
+
+- 既に満たされている条件へ不要な変更を加えるリグレッションリスクを避け、フラグ類は無変更とした。
+- 合成層は MediaKind 非依存の RgbaFrame 単位で動くため、Image/Psd parity は2ケースで十分な裏付けと判断。
+- Generated 33種のピクセル完全一致 parity は、Pixi 側ゴールデン画像採取の仕組みが無く見送り（構造アサーションは維持、別タスク化）。
+
+### 残課題・次のステップ
+
+- Generated 33種の厳密 parity には Pixi 描画結果のゴールデン採取が前提（別タスク）。
+- 実機確認（図形/画像/PSD/Generated 単独・混在シーンで Pixi 側が空になること）は Phase 2/3 統合後にまとめて実施。
+
 ## 2026-07-03 — 調査: PixiJS 排除計画 Phase 0（所有権実態監査）
 
 ### 実施内容
