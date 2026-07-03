@@ -1,3 +1,23 @@
+## 2026-07-03 — PixiJS排除 Phase 3: インタラクション層の脱Pixi（ヒットテスト・フック・SVGオーバーレイ）
+
+### 実施内容
+
+- `pixiRenderHelper.ts` の `getGroupTransforms` / `getVibrationOffset` を Pixi 非依存の `sceneTransforms.ts` へ移設（re-export 残置、`visionTrackingKeyframes.ts` は新モジュール参照へ）。
+- `sceneHitTest.ts`（新規）: preview 要素基準の CSS 座標＋時刻＋TimelineObject[] から前面優先でヒット ID を返す純粋関数群。world コンテナ変換（pivot/position/zoom/rotation）の逆変換で Pixi シーングラフ非依存に同一結果を再現。
+- `sceneInteractionLogic.ts` / `useSceneInteraction.ts`（新規）: usePixiInteraction の契約（修飾キー選択・ロック・モーションパス記録・ドラッグ差分・`computeResize` 再利用のリサイズ）を純粋関数＋DOM ポインタフックとして再実装。**未配線**（usePixiInteraction は並存、切替は統合フェーズ）。
+- `SceneSelectionOverlay.tsx`（新規）: 選択枠・リサイズハンドルの SVG 描画。未配線。
+- マージコミットで統合。vitest 1120 green（baseline 5件のみ失敗）、tsc 72件（baseline どおり）。
+
+### 選定理由・判断の根拠
+
+- 座標系は「preview 要素 CSS pt（letterbox なし contain-fit）→ displayScale 除算 → world 逆変換」で定義し、Pixi のヒットテストに依存しない。
+- 旧 usePixiInteraction を残したまま新実装を並走させることで、Viewport 配線時に即時ロールバック可能な移行経路を確保。
+
+### 残課題・次のステップ
+
+- Viewport.tsx での配線切替（usePixiInteraction→useSceneInteraction、PIXI.Graphics 選択枠→SceneSelectionOverlay、stage クリック解除の DOM 化）は Phase 4 と同時に実施。
+- 実機検証観点: カメラ zoom/rotation 下のドラッグずれ、回転オブジェクトの選択枠一致、vibration 追従、ロック除外、モーションパス記録。
+
 ## 2026-07-03 — PixiJS排除 Phase 2: テキストのRust化（schema・ラスタライザ・serialise・cutover機構）
 
 ### 実施内容
