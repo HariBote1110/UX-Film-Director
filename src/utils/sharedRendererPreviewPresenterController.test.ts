@@ -315,6 +315,62 @@ const psdSession: SharedRendererPreviewSession = {
   presentationContract: buildSharedRendererPresentationContract(),
 };
 
+const textSnapshot: RustSceneSnapshot = {
+  ...snapshot,
+  clips: [
+    {
+      clip_id: 'text-1',
+      track_id: 'layer-0',
+      media_id: 'text-1',
+      source_frame: 0,
+      z_index: 0,
+      transform: {
+        translation_x: 16,
+        translation_y: 24,
+        scale_x: 1,
+        scale_y: 1,
+        rotation_degrees: 0,
+        sampling: 'nearest',
+      },
+      opacity: 1,
+      effects: [],
+    },
+  ],
+};
+
+const textSession: SharedRendererPreviewSession = {
+  plan: {
+    mode: 'parallelCompare',
+    primary: 'pixi',
+    candidate: 'sharedRenderer',
+    snapshot: textSnapshot,
+    media: [
+      {
+        id: 'text-1',
+        kind: 'Text',
+        source: JSON.stringify({ text: 'こんにちは', font_family: 'Arial', font_size: 24, colour: '#ffffff' }),
+        width: 240,
+        height: 48,
+      },
+    ],
+  },
+  surfaceGate: {
+    ok: true,
+    canvas: { width: 1920, height: 1080 },
+    snapshot: textSnapshot,
+    media: [
+      {
+        id: 'text-1',
+        kind: 'Text',
+        source: JSON.stringify({ text: 'こんにちは', font_family: 'Arial', font_size: 24, colour: '#ffffff' }),
+        width: 240,
+        height: 48,
+      },
+    ],
+  },
+  presentationContract: buildSharedRendererPresentationContract(),
+};
+
 const videoPsdSnapshot: RustSceneSnapshot = {
   ...snapshot,
   clips: [
@@ -2337,6 +2393,43 @@ describe('startSharedRendererPreviewPresenter', () => {
       uxfdSharedRendererPresenterPsdOwner: 'sharedRenderer',
       uxfdSharedRendererPresenterPsdCutoverReason: 'nativeRenderFrameReady',
       uxfdSharedRendererPresenterSharedPsdObjectCount: '1',
+    });
+  });
+
+  it('publishes text ownership when a native rendered preview frame already contains the composited text scene', async () => {
+    const dataset: Record<string, string | undefined> = {};
+    const rgbaBytes = new Uint8Array(nativeRenderDescriptor.byteLen);
+
+    const control = await startSharedRendererPreviewPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      session: textSession,
+      datasets: [dataset],
+      diagnosticSwatchEnabled: false,
+      sharedRendererNativeRenderFrameUpload: {
+        descriptor: nativeRenderDescriptor,
+        ptsFrame: 12,
+        rgbaBytes,
+      },
+      gpu: fakeGpu({
+        format: 'bgra8unorm',
+        onRequestAdapter: () => fakeAdapter(),
+      }),
+      textureUsageRenderAttachment: 16,
+    } as any);
+
+    expect(control).toMatchObject({
+      ok: true,
+      textOwnership: {
+        owner: 'sharedRenderer',
+        reason: 'nativeRenderFrameReady',
+        textObjectIds: ['text-1'],
+      },
+    });
+    expect(dataset).toMatchObject({
+      uxfdSharedRendererPresenterNativeRenderFrameReady: 'true',
+      uxfdSharedRendererPresenterTextOwner: 'sharedRenderer',
+      uxfdSharedRendererPresenterTextCutoverReason: 'nativeRenderFrameReady',
+      uxfdSharedRendererPresenterSharedTextObjectCount: '1',
     });
   });
 

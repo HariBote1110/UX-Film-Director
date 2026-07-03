@@ -7,6 +7,7 @@ import { shouldSkipPixiSolidColourForSharedRenderer } from './pixiSolidColourCut
 import { shouldSkipPixiImageForSharedRenderer } from './pixiImageCutover';
 import { shouldSkipPixiPsdForSharedRenderer } from './pixiPsdCutover';
 import { shouldSkipPixiGeneratedEffectForSharedRenderer } from './pixiGeneratedEffectCutover';
+import { shouldSkipPixiTextForSharedRenderer } from './pixiTextCutover';
 
 // ... (Shader definitions omitted for brevity - same as previous) ...
 const vertexShader = `
@@ -784,9 +785,19 @@ export const updatePixiContent = (
         sharedRendererImageObjectIds?: ReadonlySet<string>;
         sharedRendererPsdObjectIds?: ReadonlySet<string>;
         sharedRendererGeneratedEffectObjectIds?: ReadonlySet<string>;
+        sharedRendererTextObjectIds?: ReadonlySet<string>;
+        /**
+         * PixiJS 排除計画 Phase 2/統合の書き戻し経路。PIXI.Text がまだ描画されて
+         * いる間（cutover skip 前）は毎回 PIXI 自身が実測した width/height を
+         * ここで通知し、呼び出し側（Viewport.tsx）が TextObject.measuredWidth/
+         * measuredHeight へ反映する。cutover skip 後は本関数自体が呼ばれない
+         * （textブロックへ到達しない）ため、この経路は自然に停止し、最後に
+         * 測定された値が object 側に残り続ける（設計は Task 完了報告に記載）。
+         */
+        onTextMeasured?: (objectId: string, size: { width: number; height: number }) => void;
     }
 ) => {
-    const { textureCache, loadingUrls, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, sharedRendererSolidColourObjectIds, sharedRendererImageObjectIds, sharedRendererPsdObjectIds, sharedRendererGeneratedEffectObjectIds } = resources;
+    const { textureCache, loadingUrls, audioBuffers, allObjects, isExporting, isPlaying, setRenderTick, sharedRendererSolidColourObjectIds, sharedRendererImageObjectIds, sharedRendererPsdObjectIds, sharedRendererGeneratedEffectObjectIds, sharedRendererTextObjectIds, onTextMeasured } = resources;
     let content = container.children[0] as (PIXI.Sprite | PIXI.Graphics | PIXI.Text | PIXI.Container | undefined);
     
     // Check for recreation
@@ -843,11 +854,29 @@ export const updatePixiContent = (
         content = graphics;
 
     } else if (obj.type === 'text') {
+        if (shouldSkipPixiTextForSharedRenderer({
+            objectId: obj.id,
+            objectType: obj.type,
+            isExporting,
+            sharedRendererTextObjectIds,
+        })) {
+            hidePixiChildrenForSharedRendererCutover(container.children);
+            container.hitArea = new PIXI.Rectangle(0, 0, (obj as any).width ?? 1, (obj as any).height ?? 1);
+            return undefined;
+        }
+        showPixiChildrenForSharedRendererCutover(container.children);
+        container.hitArea = null;
+
         let textObj = content as PIXI.Text || new PIXI.Text({ text: obj.text });
         if (!content) container.addChild(textObj);
         if (textObj.text !== obj.text) textObj.text = obj.text;
         textObj.style = { fontFamily: obj.fontFamily || 'Arial', fontSize: obj.fontSize, fill: obj.fill };
         content = textObj;
+
+        // PixiJS 排除計画 Phase 2 の書き戻し経路: Rust 側（cosmic-text）の
+        // ラスタライズ寸法をPixiの実測値に一致させるため、cutoverでPixiが
+        // skipされる前の実測値を毎フレーム通知し、呼び出し側でobjectへ反映する。
+        onTextMeasured?.(obj.id, { width: textObj.width, height: textObj.height });
 
     } else if (obj.type === 'image') {
         if (shouldSkipPixiImageForSharedRenderer({

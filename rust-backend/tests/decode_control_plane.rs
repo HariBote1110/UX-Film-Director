@@ -2494,6 +2494,104 @@ fn native_render_shared_frame_builds_png_image_sources_from_media() {
 }
 
 #[test]
+fn native_render_shared_frame_builds_text_sources_from_media() {
+    let mut backend = BackendProcess::start();
+    let output_memory_id = unique_shm_name();
+    let slot_count = 1;
+    let width = 64;
+    let height = 32;
+
+    let text_source = json!({
+        "text": "Hi",
+        "font_family": "Arial",
+        "font_size": 24.0,
+        "colour": "#ffffff",
+        "alignment": "left",
+        "letter_spacing": 0.0,
+        "stroke": null,
+        "shadow": null
+    })
+    .to_string();
+
+    let response = backend.request(json!({
+        "id": 33,
+        "method": "render.nativeSharedFrame",
+        "params": {
+            "renderId": "native-render-text-media",
+            "memoryId": output_memory_id,
+            "slotCount": slot_count,
+            "ptsFrame": 0,
+            "width": width,
+            "height": height,
+            "snapshot": {
+                "frame_index": 0,
+                "colour": {
+                    "profile": "rec709-sdr",
+                    "working_space": "linear-light",
+                    "alpha": "premultiplied"
+                },
+                "clips": [{
+                    "clip_id": "clip-text-media",
+                    "track_id": "track-1",
+                    "media_id": "text-1",
+                    "source_frame": 0,
+                    "z_index": 0,
+                    "transform": {
+                        "translation_x": 0.0,
+                        "translation_y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation_degrees": 0.0,
+                        "sampling": "nearest"
+                    },
+                    "opacity": 1.0,
+                    "effects": []
+                }]
+            },
+            "media": [{
+                "id": "text-1",
+                "kind": "Text",
+                "source": text_source,
+                "width": width,
+                "height": height
+            }],
+            "sources": []
+        }
+    }));
+
+    assert_eq!(response["ok"], true, "{response}");
+    assert_eq!(response["result"]["rendered"], true);
+    assert_no_frame_bytes_recursive(&response["result"]);
+
+    let output_slot_byte_len = response["result"]["frame"]["descriptor"]["byteLen"]
+        .as_u64()
+        .expect("output byte length") as usize;
+    let output_ring = PosixSharedRing::attach_with_retry_for_layout(
+        response["result"]["frame"]["descriptor"]["memoryId"]
+            .as_str()
+            .expect("output memory id"),
+        slot_count,
+        output_slot_byte_len,
+        Duration::from_secs(1),
+    )
+    .expect("attach to native text media output ring");
+    let output_frame = output_ring
+        .read_frame(0)
+        .expect("read native text media output frame");
+
+    // cosmic-text で描いた白文字がキャンバスのどこかに不透明画素として
+    // 出ていること（グリフが実際にラスタライズされたことの契約）を確認する。
+    let has_opaque_glyph_pixel = output_frame
+        .bytes
+        .chunks_exact(4)
+        .any(|pixel| pixel[3] > 0);
+    assert!(
+        has_opaque_glyph_pixel,
+        "expected at least one non-transparent glyph pixel in the rendered Text media output"
+    );
+}
+
+#[test]
 fn native_render_shared_frame_builds_file_url_png_image_sources_from_media() {
     let mut backend = BackendProcess::start();
     let temp_dir = TestTempDir::new("native-render-file-url-image-media");

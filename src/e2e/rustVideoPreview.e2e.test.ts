@@ -172,6 +172,11 @@ const readyControl: SharedRendererPreviewPresenterControl = {
     reason: 'noPsdScene',
     psdObjectIds: [],
   },
+  textOwnership: {
+    owner: 'pixi',
+    reason: 'noTextScene',
+    textObjectIds: [],
+  },
   generatedEffectObjectIds: [],
   dispose: vi.fn(),
 };

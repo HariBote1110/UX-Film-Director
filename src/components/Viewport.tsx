@@ -7,6 +7,9 @@ import { createShadowGraphics } from '../utils/pixiUtils';
 import { shallow } from 'zustand/shallow';
 
 import { usePixiInteraction } from '../hooks/usePixiInteraction';
+import { useSceneInteraction } from '../hooks/useSceneInteraction';
+import { hitTestSceneObjects, type SceneHitTestViewport } from '../utils/sceneHitTest';
+import { SceneSelectionOverlay } from './SceneSelectionOverlay';
 import { useProjectExport } from '../hooks/useProjectExport';
 import { useVisionRealtimeDetection } from '../hooks/useVisionRealtimeDetection';
 import { getGroupTransforms, getLipSyncViseme, updatePixiContent, applyObjectEffects, getVibrationOffset, applyGroupGradientEffect } from '../utils/pixiRenderHelper';
@@ -511,6 +514,7 @@ const Viewport: React.FC = () => {
   const sharedRendererImageObjectIdsRef = useRef<Set<string>>(new Set());
   const sharedRendererPsdObjectIdsRef = useRef<Set<string>>(new Set());
   const sharedRendererGeneratedEffectObjectIdsRef = useRef<Set<string>>(new Set());
+  const sharedRendererTextObjectIdsRef = useRef<Set<string>>(new Set());
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   
   const audioBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
@@ -658,7 +662,16 @@ const Viewport: React.FC = () => {
     setRenderTick((previous) => previous + 1);
   }, []);
 
-  const { 
+  const updateSharedRendererTextObjectIds = useCallback((objectIds: string[]) => {
+    const current = sharedRendererTextObjectIdsRef.current;
+    const next = new Set(objectIds);
+    const unchanged = current.size === next.size && [...current].every((objectId) => next.has(objectId));
+    if (unchanged) return;
+    sharedRendererTextObjectIdsRef.current = next;
+    setRenderTick((previous) => previous + 1);
+  }, []);
+
+  const {
     currentTime, objects, selectedIds, selectedId, clearSelection,
     projectSettings, isPlaying, isExporting,
     layers,
@@ -754,10 +767,46 @@ const Viewport: React.FC = () => {
   const latestObjectsRef = useRef(objects);
   latestObjectsRef.current = objects;
 
+  // usePixiInteraction は即時ロールバック用に残置し、呼び出しは
+  // useSceneInteraction（Pixi 非依存のヒットテスト・ドラッグ・リサイズ）へ
+  // 切替済み（PixiJS 排除計画 Phase 3 の統合、Viewport.tsx 配線）。
+  const sceneInteractionViewportRef = useRef<SceneHitTestViewport>({
+    projectWidth: projectSettings.width,
+    projectHeight: projectSettings.height,
+    displayScale: 1,
+    camera,
+  });
+
   const {
-    onDragStart, onDragMove, onDragEnd, dragRef,
-    onResizeStart, onResizeMove, onResizeEnd, resizeRef,
-  } = usePixiInteraction(latestObjectsRef);
+    onPointerDown: onSceneObjectPointerDown,
+    onPointerMove: onSceneObjectPointerMove,
+    onPointerUp: onSceneObjectPointerUp,
+    onResizeStart: onSceneResizeStart,
+    onResizeMove: onSceneResizeMove,
+    onResizeEnd: onSceneResizeEnd,
+    dragRef: sceneDragRef,
+  } = useSceneInteraction(latestObjectsRef, sceneInteractionViewportRef);
+
+  // ドラッグ／リサイズ中にポインタが preview 要素の外へ出ても追従できるよう、
+  // window レベルで pointermove/pointerup を監視する（旧 usePixiInteraction は
+  // PIXI の globalpointermove でこれを実現していたため、DOM 版でも同等の
+  // 「要素外に出ても継続する」挙動を再現する）。
+  useEffect(() => {
+    const handleWindowPointerMove = (e: PointerEvent) => {
+      onSceneObjectPointerMove(e as unknown as React.PointerEvent);
+      onSceneResizeMove(e as unknown as React.PointerEvent);
+    };
+    const handleWindowPointerUp = () => {
+      onSceneObjectPointerUp();
+      onSceneResizeEnd();
+    };
+    window.addEventListener('pointermove', handleWindowPointerMove);
+    window.addEventListener('pointerup', handleWindowPointerUp);
+    return () => {
+      window.removeEventListener('pointermove', handleWindowPointerMove);
+      window.removeEventListener('pointerup', handleWindowPointerUp);
+    };
+  }, [onSceneObjectPointerMove, onSceneObjectPointerUp, onSceneResizeMove, onSceneResizeEnd]);
 
   useEffect(() => {
     const el = viewportShellRef.current;
@@ -784,6 +833,15 @@ const Viewport: React.FC = () => {
     panelSize.w,
     panelSize.h
   );
+  // useSceneInteraction / SceneSelectionOverlay のヒットテスト・座標変換に
+  // 用いる viewport 情報。projectSettings/camera/displayScale の変化に
+  // 都度追従させる（sceneHitTest.ts の座標系契約どおり）。
+  sceneInteractionViewportRef.current = {
+    projectWidth: projectSettings.width,
+    projectHeight: projectSettings.height,
+    displayScale,
+    camera,
+  };
   // renderScene からリサイズハンドルの見かけサイズ補正に用いるため ref で保持する。
   const displayScaleRef = useRef(displayScale);
   displayScaleRef.current = displayScale;
@@ -866,20 +924,16 @@ const Viewport: React.FC = () => {
           }
         }
         // ───────────────────────────────────────────────────────────
-        app.stage.eventMode = 'static';
-        app.stage.hitArea = app.screen;
+        // PixiJS 排除計画 Phase 3 の統合: クリック外し選択解除は DOM 側
+        // （preview-canvas-container の onPointerDown、下記 JSX）で再現するため、
+        // stage 自体はポインタイベントを処理しない（PIXI コンテナが
+        // eventMode='auto' のため、そもそも stage までヒットが伝播しない）。
         app.stage.sortableChildren = true;
         const world = new PIXI.Container();
         world.label = 'world-root';
         world.sortableChildren = true;
         app.stage.addChildAt(world, 0);
         worldContainerRef.current = world;
-        app.stage.on('pointerdown', (e) => {
-          if (useStore.getState().isExporting) return;
-          const target = e.target as PIXI.Container;
-          const label = typeof target?.label === 'string' ? target.label : '';
-          if (e.target === app.stage || label === 'world-root') clearSelection();
-        });
 
         // 初回描画
         app.render();
@@ -1220,6 +1274,7 @@ const Viewport: React.FC = () => {
     updateSharedRendererSolidColourObjectIds([]);
     updateSharedRendererImageObjectIds([]);
     updateSharedRendererPsdObjectIds([]);
+    updateSharedRendererTextObjectIds([]);
 
     let cancelled = false;
     let currentControl: SharedRendererPreviewPresenterControl | null = null;
@@ -1342,6 +1397,7 @@ const Viewport: React.FC = () => {
         updateSharedRendererSolidColourObjectIds(previousPresenterControl.solidColourOwnership.solidColourObjectIds);
         updateSharedRendererImageObjectIds(previousPresenterControl.imageOwnership.imageObjectIds);
         updateSharedRendererPsdObjectIds(previousPresenterControl.psdOwnership.psdObjectIds);
+        updateSharedRendererTextObjectIds(previousPresenterControl.textOwnership.textObjectIds);
         updateSharedRendererGeneratedEffectObjectIds(previousPresenterControl.generatedEffectObjectIds);
         return;
       }
@@ -1360,6 +1416,7 @@ const Viewport: React.FC = () => {
       updateSharedRendererSolidColourObjectIds(control.ok ? control.solidColourOwnership.solidColourObjectIds : []);
       updateSharedRendererImageObjectIds(control.ok ? control.imageOwnership.imageObjectIds : []);
       updateSharedRendererPsdObjectIds(control.ok ? control.psdOwnership.psdObjectIds : []);
+      updateSharedRendererTextObjectIds(control.ok ? control.textOwnership.textObjectIds : []);
       updateSharedRendererGeneratedEffectObjectIds(control.ok ? control.generatedEffectObjectIds : []);
     }).catch((error) => {
       if (cancelled) return;
@@ -1370,6 +1427,7 @@ const Viewport: React.FC = () => {
       updateSharedRendererSolidColourObjectIds([]);
       updateSharedRendererImageObjectIds([]);
       updateSharedRendererPsdObjectIds([]);
+      updateSharedRendererTextObjectIds([]);
       stagedDatasets.forEach((dataset) => {
         writeSharedRendererPresenterDiagnostics(dataset, {
           status: 'fallback',
@@ -1427,7 +1485,7 @@ const Viewport: React.FC = () => {
         sharedRendererPresenterControlRef.current = null;
       }
     };
-  }, [isExporting, isPlaying, objects, requestSharedRendererExternalVideoFrameRepaint, rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererGeneratedEffectObjectIds, updateSharedRendererImageObjectIds, updateSharedRendererPsdObjectIds, updateSharedRendererSolidColourObjectIds]);
+  }, [isExporting, isPlaying, objects, requestSharedRendererExternalVideoFrameRepaint, rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererGeneratedEffectObjectIds, updateSharedRendererImageObjectIds, updateSharedRendererPsdObjectIds, updateSharedRendererSolidColourObjectIds, updateSharedRendererTextObjectIds]);
 
   // --- Main Render Logic ---
   const renderScene = useCallback((time: number, currentObjects: TimelineObject[]) => {
@@ -1508,13 +1566,13 @@ const Viewport: React.FC = () => {
       let container = currentPixiObjects.get(obj.id);
       if (!container) {
         container = new PIXI.Container();
-        container.label = obj.id; container.eventMode = 'static'; container.cursor = 'pointer';
-        container.on('pointerdown', (e) => onDragStart(e, obj.id));
-        container.on('pointerup', onDragEnd); container.on('pointerupoutside', onDragEnd); container.on('globalpointermove', onDragMove);
-        container.on('pointerup', onResizeEnd); container.on('pointerupoutside', onResizeEnd); container.on('globalpointermove', onResizeMove);
+        // PixiJS 排除計画 Phase 3 の統合: 選択・ドラッグ・リサイズの
+        // ヒットテスト／ポインタ処理は DOM 側（SceneSelectionOverlay の
+        // pointer ハンドラ＋ hitTestSceneObjects）へ移管したため、PIXI
+        // コンテナ自体はポインタイベントを扱わない（eventMode 既定 'auto'）。
+        container.label = obj.id;
         currentPixiObjects.set(obj.id, container);
       }
-      container.cursor = layers[obj.layer]?.locked ? 'not-allowed' : 'pointer';
       if (obj.groupId && currentGroupContainers.has(obj.groupId)) {
         const groupParent = currentGroupContainers.get(obj.groupId)!;
         const isAlreadyInsideGroup = container.parent === groupParent || container.parent?.parent === groupParent;
@@ -1540,6 +1598,20 @@ const Viewport: React.FC = () => {
           sharedRendererImageObjectIds: sharedRendererImageObjectIdsRef.current,
           sharedRendererPsdObjectIds: sharedRendererPsdObjectIdsRef.current,
           sharedRendererGeneratedEffectObjectIds: sharedRendererGeneratedEffectObjectIdsRef.current,
+          sharedRendererTextObjectIds: sharedRendererTextObjectIdsRef.current,
+          onTextMeasured: (objectId, size) => {
+            // PixiJS 排除計画 Phase 2/統合の書き戻し: cutoverでPixiがskipされる
+            // 前の実測値のみをobjectへ反映する。text/font/sizeが変わらない限り
+            // 値は安定するため、変化が無ければstore更新をスキップして再レンダー
+            // ループを避ける（cutover後はこのコールバック自体が呼ばれなくなり、
+            // 最後に測定された値がobjectに残り続ける設計）。
+            const target = latestObjectsRef.current.find((candidate) => candidate.id === objectId);
+            if (!target || target.type !== 'text') return;
+            const roundedWidth = Math.round(size.width);
+            const roundedHeight = Math.round(size.height);
+            if (target.measuredWidth === roundedWidth && target.measuredHeight === roundedHeight) return;
+            useStore.getState().updateObject(objectId, { measuredWidth: roundedWidth, measuredHeight: roundedHeight });
+          },
       });
 
       const shadowFilters = getEnabledObjectFiltersInOrder(obj).filter((filter): filter is Extract<ObjectFilter, { type: 'shadow' }> => {
@@ -1609,91 +1681,22 @@ const Viewport: React.FC = () => {
         });
       }
 
-      // Selection Border
-      let border = container.children.find(c => c.label === 'border') as PIXI.Graphics;
-      if (isSelected && !isExporting && !isSnapshotRequested) { 
-        if (!border) {
-            border = new PIXI.Graphics();
-            border.label = 'border';
-            container.addChild(border);
-        }
-        border.clear();
-        let bx = 0;
-        let by = 0;
-        let bw = (obj as any).width || 100;
-        let bh = (obj as any).height || 100;
-
-        if (content) {
-          const globalBounds = content.getBounds();
-          const topLeft = container.toLocal(new PIXI.Point(globalBounds.x, globalBounds.y));
-          const bottomRight = container.toLocal(new PIXI.Point(globalBounds.x + globalBounds.width, globalBounds.y + globalBounds.height));
-
-          bx = topLeft.x;
-          by = topLeft.y;
-          bw = Math.max(1, bottomRight.x - topLeft.x);
-          bh = Math.max(1, bottomRight.y - topLeft.y);
-        }
-
-        border.rect(bx, by, bw, bh);
-        border.stroke({ width: 2, color: 0xffd700 });
-        container.setChildIndex(border, container.children.length - 1);
-
-        // Resize Handles (四隅)
-        const locked = layers[obj.layer]?.locked === true;
-        const handleCorners: { corner: ResizeCorner; cx: number; cy: number }[] = [
-          { corner: 'top-left', cx: bx, cy: by },
-          { corner: 'top-right', cx: bx + bw, cy: by },
-          { corner: 'bottom-left', cx: bx, cy: by + bh },
-          { corner: 'bottom-right', cx: bx + bw, cy: by + bh },
-        ];
-        // ハンドルがコンテナのスケール・カメラズーム・プレビュー表示倍率に依らず
-        // 一定の見かけサイズ（スクリーン px）になるよう、ローカルサイズを補正する。
-        const zoomForHandle = Math.max(0.05, camera.zoom);
-        const dispScale = Math.max(1e-3, displayScaleRef.current);
-        const handleW = RESIZE_HANDLE_SCREEN_PX / Math.max(1e-3, Math.abs(obj.scaleX ?? 1) * zoomForHandle * dispScale);
-        const handleH = RESIZE_HANDLE_SCREEN_PX / Math.max(1e-3, Math.abs(obj.scaleY ?? 1) * zoomForHandle * dispScale);
-        const currentBounds = { bx, by, bw, bh };
-
-        handleCorners.forEach(({ corner, cx, cy }) => {
-          const label = `${RESIZE_HANDLE_PREFIX}${corner}`;
-          let handle = container.children.find((c) => c.label === label) as PIXI.Graphics | undefined;
-          if (locked) {
-            if (handle) {
-              container.removeChild(handle);
-              handle.destroy();
-            }
-            return;
-          }
-          if (!handle || handle.destroyed) {
-            handle = new PIXI.Graphics();
-            handle.label = label;
-            handle.eventMode = 'static';
-            handle.cursor = RESIZE_CORNER_CURSORS[corner];
-            // 現在の角・境界はレンダーごとに更新し、pointerdown 時に最新値を読む。
-            handle.on('pointerdown', (e) => {
-              const data = (handle as unknown as { __resize?: { corner: ResizeCorner; bounds: typeof currentBounds } }).__resize;
-              if (data) onResizeStart(e, obj.id, data.corner, data.bounds);
-            });
-            container.addChild(handle);
-          }
-          (handle as unknown as { __resize?: unknown }).__resize = { corner, bounds: currentBounds };
-          handle.clear();
-          handle.rect(cx - handleW / 2, cy - handleH / 2, handleW, handleH);
-          handle.fill({ color: 0xffffff });
-          handle.stroke({ width: Math.max(handleW, handleH) * 0.12, color: 0xffd700 });
-          container.setChildIndex(handle, container.children.length - 1);
-        });
-      } else {
-        if (border) {
-            container.removeChild(border);
-            border.destroy();
-        }
-        const handleNodes = container.children.filter((c) => (c.label ?? '').startsWith(RESIZE_HANDLE_PREFIX));
-        handleNodes.forEach((handleNode) => {
-          container.removeChild(handleNode);
-          handleNode.destroy();
-        });
+      // Selection Border / Resize Handles
+      // PixiJS 排除計画 Phase 3 の統合: 選択枠・リサイズハンドルの描画は
+      // PIXI.Graphics から SceneSelectionOverlay（SVG, DOM オーバーレイ）へ
+      // 置き換えたため、ここでは旧描画が残っていれば掃除するだけにする
+      // （ロールバック用に usePixiInteraction 呼び出しへ戻した際、古いノードが
+      // 残らないようにするための後方互換の掃除）。
+      const legacyBorder = container.children.find((c) => c.label === 'border');
+      if (legacyBorder) {
+        container.removeChild(legacyBorder);
+        legacyBorder.destroy();
       }
+      const legacyHandleNodes = container.children.filter((c) => (c.label ?? '').startsWith(RESIZE_HANDLE_PREFIX));
+      legacyHandleNodes.forEach((handleNode) => {
+        container.removeChild(handleNode);
+        handleNode.destroy();
+      });
 
       // Transform
       let currentX = obj.x; let currentY = obj.y;
@@ -1725,7 +1728,7 @@ const Viewport: React.FC = () => {
       container.alpha = (obj.opacity ?? 1) * groupEffects.alpha * getFadeOpacityMultiplier(obj);
       container.zIndex = obj.layer; 
       
-      if (!isExporting && dragRef.current.active && dragRef.current.targetId === obj.id) {
+      if (!isExporting && sceneDragRef.current.active && sceneDragRef.current.targetId === obj.id) {
           container.alpha *= 0.6;
       }
     });
@@ -2139,6 +2142,27 @@ const Viewport: React.FC = () => {
         >
           <div
             ref={containerRef}
+            onPointerDown={(e) => {
+              if (editorMode === '3d_stage') return;
+              if (useStore.getState().isExporting) return;
+              const rect = containerRef.current?.getBoundingClientRect();
+              if (!rect) return;
+              const cssX = e.clientX - rect.left;
+              const cssY = e.clientY - rect.top;
+              const hitId = hitTestSceneObjects({
+                cssX,
+                cssY,
+                time: currentTime,
+                objects: latestObjectsRef.current,
+                viewport: sceneInteractionViewportRef.current,
+                layers,
+              });
+              if (hitId) {
+                onSceneObjectPointerDown(e, hitId);
+              } else {
+                clearSelection();
+              }
+            }}
             style={{
               width: '100%',
               height: '100%',
@@ -2146,6 +2170,36 @@ const Viewport: React.FC = () => {
               pointerEvents: editorMode === '3d_stage' ? 'none' : 'auto',
             }}
           />
+          {editorMode !== '3d_stage' && (
+            <SceneSelectionOverlay
+              selectedIds={selectedIds}
+              objects={objects}
+              time={currentTime}
+              viewport={sceneInteractionViewportRef.current}
+              width={previewW}
+              height={previewH}
+              onHandlePointerDown={(objectId, corner, e) => {
+                const targetObject = objects.find((o) => o.id === objectId);
+                if (!targetObject) return;
+                const size = (targetObject as unknown as { width?: number; height?: number });
+                const bounds = { bx: 0, by: 0, bw: size.width ?? 100, bh: size.height ?? 100 };
+                // 選択枠と同じ「コンテナのワールド変換」（base position + group
+                // transforms + vibration, rotation/scale も group 積算込み）を使う。
+                // sceneHitTest.ts の getObjectWorldCorners と同じ式。
+                const base = evaluateObjectPositionAtTime(targetObject, currentTime);
+                const groupEffects = getGroupTransforms(targetObject, currentTime, objects);
+                const vib = getVibrationOffset(targetObject, currentTime);
+                const rotationRad = ((targetObject.rotation || 0) + groupEffects.rotation) * (Math.PI / 180);
+                onSceneResizeStart(e, objectId, corner, bounds, {
+                  x: base.x + groupEffects.x + vib.x,
+                  y: base.y + groupEffects.y + vib.y,
+                  rotationRad,
+                  scaleX: (targetObject.scaleX ?? 1) * groupEffects.scaleX,
+                  scaleY: (targetObject.scaleY ?? 1) * groupEffects.scaleY,
+                });
+              }}
+            />
+          )}
           {shouldMountSharedRendererSurface && (
             <>
               <canvas
