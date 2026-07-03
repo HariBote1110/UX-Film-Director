@@ -77,7 +77,7 @@ describe('buildSharedRendererPreviewSession', () => {
       fallbackAdapter: false,
     });
 
-    expect(session.plan.mode).toBe('parallelCompare');
+    expect(session.plan.mode).toBe('sharedRenderer');
     expect(session.presentationContract).toEqual(buildSharedRendererPresentationContract());
     expect(session.surfaceGate.ok).toBe(true);
     if (!session.surfaceGate.ok) throw new Error('expected surface gate to pass');
@@ -97,11 +97,11 @@ describe('buildSharedRendererPreviewSession', () => {
       fallbackAdapter: false,
     });
 
-    expect(disabled.plan).toEqual({ mode: 'pixiOnly', reason: 'disabled' });
+    expect(disabled.plan).toEqual({ mode: 'disabled', reason: 'disabled' });
     expect(disabled.surfaceGate).toEqual({
       ok: false,
       reason: 'planNotComparable',
-      detail: 'Shared renderer surface requires a parallelCompare plan.',
+      detail: 'Shared renderer surface requires a sharedRenderer plan.',
     });
 
     const unsupported = buildSharedRendererPreviewSession({
@@ -116,11 +116,11 @@ describe('buildSharedRendererPreviewSession', () => {
       fallbackAdapter: false,
     });
 
-    expect(unsupported.plan.mode).toBe('pixiFallback');
+    expect(unsupported.plan.mode).toBe('blocked');
     expect(unsupported.surfaceGate).toEqual({
       ok: false,
       reason: 'planNotComparable',
-      detail: 'Shared renderer surface requires a parallelCompare plan.',
+      detail: 'Shared renderer surface requires a sharedRenderer plan.',
     });
   });
 

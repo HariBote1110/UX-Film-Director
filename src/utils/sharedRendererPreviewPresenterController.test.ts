@@ -26,9 +26,7 @@ const snapshot: RustSceneSnapshot = {
 
 const okSession: SharedRendererPreviewSession = {
   plan: {
-    mode: 'parallelCompare',
-    primary: 'pixi',
-    candidate: 'sharedRenderer',
+    mode: 'sharedRenderer',
     snapshot,
     media: [],
   },
@@ -66,9 +64,7 @@ const solidShapeSnapshot: RustSceneSnapshot = {
 
 const solidShapeSession: SharedRendererPreviewSession = {
   plan: {
-    mode: 'parallelCompare',
-    primary: 'pixi',
-    candidate: 'sharedRenderer',
+    mode: 'sharedRenderer',
     snapshot: solidShapeSnapshot,
     media: [
       {
@@ -122,9 +118,7 @@ const generatedGradientSnapshot: RustSceneSnapshot = {
 
 const generatedGradientSession: SharedRendererPreviewSession = {
   plan: {
-    mode: 'parallelCompare',
-    primary: 'pixi',
-    candidate: 'sharedRenderer',
+    mode: 'sharedRenderer',
     snapshot: generatedGradientSnapshot,
     media: [
       {
@@ -188,9 +182,7 @@ const videoMedia: RustSceneMediaReference[] = [
 
 const videoSession: SharedRendererPreviewSession = {
   plan: {
-    mode: 'parallelCompare',
-    primary: 'pixi',
-    candidate: 'sharedRenderer',
+    mode: 'sharedRenderer',
     snapshot: videoSnapshot,
     media: videoMedia,
   },
@@ -228,9 +220,7 @@ const imageSnapshot: RustSceneSnapshot = {
 
 const imageSession: SharedRendererPreviewSession = {
   plan: {
-    mode: 'parallelCompare',
-    primary: 'pixi',
-    candidate: 'sharedRenderer',
+    mode: 'sharedRenderer',
     snapshot: imageSnapshot,
     media: [
       {
@@ -284,9 +274,7 @@ const psdSnapshot: RustSceneSnapshot = {
 
 const psdSession: SharedRendererPreviewSession = {
   plan: {
-    mode: 'parallelCompare',
-    primary: 'pixi',
-    candidate: 'sharedRenderer',
+    mode: 'sharedRenderer',
     snapshot: psdSnapshot,
     media: [
       {
@@ -340,9 +328,7 @@ const textSnapshot: RustSceneSnapshot = {
 
 const textSession: SharedRendererPreviewSession = {
   plan: {
-    mode: 'parallelCompare',
-    primary: 'pixi',
-    candidate: 'sharedRenderer',
+    mode: 'sharedRenderer',
     snapshot: textSnapshot,
     media: [
       {
@@ -398,9 +384,7 @@ const videoPsdMedia: RustSceneMediaReference[] = [
 
 const videoPsdSession: SharedRendererPreviewSession = {
   plan: {
-    mode: 'parallelCompare',
-    primary: 'pixi',
-    candidate: 'sharedRenderer',
+    mode: 'sharedRenderer',
     snapshot: videoPsdSnapshot,
     media: videoPsdMedia,
   },
@@ -440,9 +424,7 @@ const videoGeneratedGradientMedia: RustSceneMediaReference[] = [
 
 const videoGeneratedGradientSession: SharedRendererPreviewSession = {
   plan: {
-    mode: 'parallelCompare',
-    primary: 'pixi',
-    candidate: 'sharedRenderer',
+    mode: 'sharedRenderer',
     snapshot: videoGeneratedGradientSnapshot,
     media: videoGeneratedGradientMedia,
   },
@@ -492,9 +474,7 @@ const multiVideoMedia: RustSceneMediaReference[] = [
 
 const multiVideoSession: SharedRendererPreviewSession = {
   plan: {
-    mode: 'parallelCompare',
-    primary: 'pixi',
-    candidate: 'sharedRenderer',
+    mode: 'sharedRenderer',
     snapshot: multiVideoSnapshot,
     media: multiVideoMedia,
   },
@@ -1473,9 +1453,7 @@ describe('startSharedRendererPreviewPresenter', () => {
     const nextVideoSession: SharedRendererPreviewSession = {
       ...videoSession,
       plan: {
-        mode: 'parallelCompare',
-        primary: 'pixi',
-        candidate: 'sharedRenderer',
+        mode: 'sharedRenderer',
         snapshot: nextVideoSnapshot,
         media: videoMedia,
       },
@@ -1899,9 +1877,7 @@ describe('startSharedRendererPreviewPresenter', () => {
     const nextSnapshot: RustSceneSnapshot = { ...videoSnapshot, frame_index: 999 };
     const nextSession: SharedRendererPreviewSession = {
       plan: {
-        mode: 'parallelCompare',
-        primary: 'pixi',
-        candidate: 'sharedRenderer',
+        mode: 'sharedRenderer',
         snapshot: nextSnapshot,
         media: videoMedia,
       },
@@ -3081,7 +3057,7 @@ describe('startSharedRendererPreviewPresenter', () => {
         surfaceGate: {
           ok: false,
           reason: 'planNotComparable',
-          detail: 'Shared renderer surface requires a parallelCompare plan.',
+          detail: 'Shared renderer surface requires a sharedRenderer plan.',
         },
       },
       datasets: [dataset],

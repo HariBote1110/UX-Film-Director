@@ -12,9 +12,7 @@ import type { SharedVideoFrameCopyBridge } from './sharedVideoFrameUploadBridge'
 
 const session: SharedRendererPreviewSession = {
   plan: {
-    mode: 'parallelCompare',
-    primary: 'pixi',
-    candidate: 'sharedRenderer',
+    mode: 'sharedRenderer',
     snapshot: {
       frame_index: 12,
       colour: {
@@ -101,7 +99,7 @@ const session: SharedRendererPreviewSession = {
 const expectedJobId = 'shared-renderer-video-video-1-64x32-60over1';
 const expectedSecondJobId = 'shared-renderer-video-video-2-80x45-30over1';
 
-type ComparablePreviewPlan = Extract<SharedRendererPreviewSession['plan'], { mode: 'parallelCompare' }>;
+type ComparablePreviewPlan = Extract<SharedRendererPreviewSession['plan'], { mode: 'sharedRenderer' }>;
 type ReadyPreviewSurfaceGate = Extract<SharedRendererPreviewSession['surfaceGate'], { ok: true }>;
 
 const basePlan = session.plan as ComparablePreviewPlan;

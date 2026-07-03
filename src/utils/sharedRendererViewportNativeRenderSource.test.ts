@@ -28,9 +28,7 @@ const sharedFrame = (memoryId = '/uxfd-native-source-video-1'): RustBackendShare
 
 const session = (): SharedRendererPreviewSession => ({
   plan: {
-    mode: 'parallelCompare',
-    primary: 'pixi',
-    candidate: 'sharedRenderer',
+    mode: 'sharedRenderer',
     snapshot: {
       frame_index: 2,
       colour: {

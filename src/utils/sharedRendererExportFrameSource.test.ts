@@ -965,9 +965,7 @@ describe('createSharedRendererExportFrameSource', () => {
       bitmapCaptureEnabled: false,
       buildExportSession: () => ({
         plan: {
-          mode: 'parallelCompare',
-          primary: 'pixi',
-          candidate: 'sharedRenderer',
+          mode: 'sharedRenderer',
           snapshot,
           media,
         },
@@ -1203,9 +1201,7 @@ describe('createSharedRendererExportFrameSource', () => {
       bitmapCaptureEnabled: false,
       buildExportSession: () => ({
         plan: {
-          mode: 'parallelCompare',
-          primary: 'pixi',
-          candidate: 'sharedRenderer',
+          mode: 'sharedRenderer',
           snapshot,
           media,
         },
@@ -1402,9 +1398,7 @@ describe('createSharedRendererExportFrameSource', () => {
         bitmapCaptureEnabled: false,
         buildExportSession: () => ({
           plan: {
-            mode: 'parallelCompare',
-            primary: 'pixi',
-            candidate: 'sharedRenderer',
+            mode: 'sharedRenderer',
             snapshot,
             media,
           },
@@ -1576,9 +1570,7 @@ describe('createSharedRendererExportFrameSource', () => {
         bitmapCaptureEnabled: false,
         buildExportSession: () => ({
           plan: {
-            mode: 'parallelCompare',
-            primary: 'pixi',
-            candidate: 'sharedRenderer',
+            mode: 'sharedRenderer',
             snapshot,
             media,
           },
@@ -1765,9 +1757,7 @@ describe('createSharedRendererExportFrameSource', () => {
       bitmapCaptureEnabled: false,
       buildExportSession: () => ({
         plan: {
-          mode: 'parallelCompare',
-          primary: 'pixi',
-          candidate: 'sharedRenderer',
+          mode: 'sharedRenderer',
           snapshot,
           media,
         },
@@ -1941,9 +1931,7 @@ describe('createSharedRendererExportFrameSource', () => {
       bitmapCaptureEnabled: false,
       buildExportSession: () => ({
         plan: {
-          mode: 'parallelCompare',
-          primary: 'pixi',
-          candidate: 'sharedRenderer',
+          mode: 'sharedRenderer',
           snapshot,
           media,
         },
@@ -2247,9 +2235,7 @@ describe('createSharedRendererExportFrameSource', () => {
       bitmapCaptureEnabled: false,
       buildExportSession: () => ({
         plan: {
-          mode: 'parallelCompare',
-          primary: 'pixi',
-          candidate: 'sharedRenderer',
+          mode: 'sharedRenderer',
           snapshot,
           media,
         },
@@ -2460,9 +2446,7 @@ describe('createSharedRendererExportFrameSource', () => {
       bitmapCaptureEnabled: false,
       buildExportSession: () => ({
         plan: {
-          mode: 'parallelCompare',
-          primary: 'pixi',
-          candidate: 'sharedRenderer',
+          mode: 'sharedRenderer',
           snapshot,
           media,
         },
@@ -2650,9 +2634,7 @@ describe('createSharedRendererExportFrameSource', () => {
       bitmapCaptureEnabled: false,
       buildExportSession: () => ({
         plan: {
-          mode: 'parallelCompare',
-          primary: 'pixi',
-          candidate: 'sharedRenderer',
+          mode: 'sharedRenderer',
           snapshot,
           media,
         },
@@ -2839,9 +2821,7 @@ describe('createSharedRendererExportFrameSource', () => {
       bitmapCaptureEnabled: false,
       buildExportSession: () => ({
         plan: {
-          mode: 'parallelCompare',
-          primary: 'pixi',
-          candidate: 'sharedRenderer',
+          mode: 'sharedRenderer',
           snapshot,
           media,
         },
@@ -3039,9 +3019,7 @@ describe('createSharedRendererExportFrameSource', () => {
       bitmapCaptureEnabled: false,
       buildExportSession: () => ({
         plan: {
-          mode: 'parallelCompare',
-          primary: 'pixi',
-          candidate: 'sharedRenderer',
+          mode: 'sharedRenderer',
           snapshot,
           media,
         },
@@ -3265,9 +3243,7 @@ describe('createSharedRendererExportFrameSource', () => {
         bitmapCaptureEnabled: false,
         buildExportSession: () => ({
           plan: {
-            mode: 'parallelCompare',
-            primary: 'pixi',
-            candidate: 'sharedRenderer',
+            mode: 'sharedRenderer',
             snapshot,
             media,
           },
@@ -3462,9 +3438,7 @@ describe('createSharedRendererExportFrameSource', () => {
       bitmapCaptureEnabled: false,
       buildExportSession: () => ({
         plan: {
-          mode: 'parallelCompare',
-          primary: 'pixi',
-          candidate: 'sharedRenderer',
+          mode: 'sharedRenderer',
           snapshot,
           media,
         },
@@ -3636,9 +3610,7 @@ describe('createSharedRendererExportFrameSource', () => {
       bitmapCaptureEnabled: false,
       buildExportSession: () => ({
         plan: {
-          mode: 'parallelCompare',
-          primary: 'pixi',
-          candidate: 'sharedRenderer',
+          mode: 'sharedRenderer',
           snapshot,
           media,
         },
@@ -3808,9 +3780,7 @@ describe('createSharedRendererExportFrameSource', () => {
       nativeRenderRequired: true,
       buildExportSession: () => ({
         plan: {
-          mode: 'parallelCompare',
-          primary: 'pixi',
-          candidate: 'sharedRenderer',
+          mode: 'sharedRenderer',
           snapshot,
           media,
         },
@@ -3958,9 +3928,7 @@ describe('createSharedRendererExportFrameSource', () => {
       bitmapCaptureEnabled: false,
       buildExportSession: () => ({
         plan: {
-          mode: 'parallelCompare',
-          primary: 'pixi',
-          candidate: 'sharedRenderer',
+          mode: 'sharedRenderer',
           snapshot,
           media,
         },

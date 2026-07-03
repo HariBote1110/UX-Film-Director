@@ -63,8 +63,8 @@ describe('buildSharedRendererPreviewSurfaceGate', () => {
         width: 1920,
         height: 1080,
       },
-      snapshot: plan.mode === 'parallelCompare' ? plan.snapshot : undefined,
-      media: plan.mode === 'parallelCompare' ? plan.media : undefined,
+      snapshot: plan.mode === 'sharedRenderer' ? plan.snapshot : undefined,
+      media: plan.mode === 'sharedRenderer' ? plan.media : undefined,
     });
   });
 
@@ -89,7 +89,7 @@ describe('buildSharedRendererPreviewSurfaceGate', () => {
     ).toEqual({
       ok: false,
       reason: 'planNotComparable',
-      detail: 'Shared renderer surface requires a parallelCompare plan.',
+      detail: 'Shared renderer surface requires a sharedRenderer plan.',
     });
 
     const comparePlan = buildSharedRendererPreviewPlan({
@@ -178,9 +178,7 @@ describe('buildSharedRendererPreviewSurfaceGate', () => {
 
   it('blocks invalid Rust boundary payloads instead of mounting a misleading surface', () => {
     const brokenPlan: SharedRendererPreviewPlan = {
-      mode: 'parallelCompare',
-      primary: 'pixi',
-      candidate: 'sharedRenderer',
+      mode: 'sharedRenderer',
       snapshot: {
         frame_index: 60,
         colour: {

@@ -55,10 +55,10 @@ export const buildSharedRendererPreviewSurfaceGate = ({
   webGpuAvailable,
   fallbackAdapter,
 }: SharedRendererPreviewSurfaceGateInput): SharedRendererPreviewSurfaceGate => {
-  if (plan.mode !== 'parallelCompare') {
+  if (plan.mode !== 'sharedRenderer') {
     return blocked(
       'planNotComparable',
-      'Shared renderer surface requires a parallelCompare plan.'
+      'Shared renderer surface requires a sharedRenderer plan.'
     );
   }
 

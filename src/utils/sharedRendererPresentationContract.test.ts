@@ -75,7 +75,7 @@ describe('shared renderer presentation contract', () => {
         surfaceGate: {
           ok: false,
           reason: 'planNotComparable',
-          detail: 'Shared renderer surface requires a parallelCompare plan.',
+          detail: 'Shared renderer surface requires a sharedRenderer plan.',
         },
       },
       {
@@ -94,7 +94,7 @@ describe('shared renderer presentation contract', () => {
         {
           frameIndex: 43,
           reason: 'planNotComparable',
-          detail: 'Shared renderer surface requires a parallelCompare plan.',
+          detail: 'Shared renderer surface requires a sharedRenderer plan.',
         },
         {
           frameIndex: 44,

@@ -7,20 +7,24 @@ import {
   type RustSceneVideoSourceMode,
 } from './rustSceneSnapshot';
 
+/**
+ * PixiJS 排除計画 Phase 4: preview プランは shared renderer（Rust）を唯一の
+ * presenter とする。旧 `parallelCompare`（Pixi 併走比較）と `pixiFallback`
+ * （Pixi への退避）は撤去し、表現不能なシーンは `blocked` として issues を
+ * 保持したまま診断に流す（Pixi へ退避する経路は存在しない）。
+ */
 export type SharedRendererPreviewPlan =
   | {
-      mode: 'pixiOnly';
+      mode: 'disabled';
       reason: 'disabled';
     }
   | {
-      mode: 'parallelCompare';
-      primary: 'pixi';
-      candidate: 'sharedRenderer';
+      mode: 'sharedRenderer';
       snapshot: RustSceneSnapshot;
       media: RustSceneMediaReference[];
     }
   | {
-      mode: 'pixiFallback';
+      mode: 'blocked';
       reason: 'unsupportedScene';
       issues: RustSceneSnapshotBuildIssue[];
     };
@@ -44,7 +48,7 @@ export const buildSharedRendererPreviewPlan = ({
 }: SharedRendererPreviewPlanInput): SharedRendererPreviewPlan => {
   if (!enabled) {
     return {
-      mode: 'pixiOnly',
+      mode: 'disabled',
       reason: 'disabled',
     };
   }
@@ -59,16 +63,14 @@ export const buildSharedRendererPreviewPlan = ({
 
   if (!snapshotResult.ok) {
     return {
-      mode: 'pixiFallback',
+      mode: 'blocked',
       reason: 'unsupportedScene',
       issues: snapshotResult.issues,
     };
   }
 
   return {
-    mode: 'parallelCompare',
-    primary: 'pixi',
-    candidate: 'sharedRenderer',
+    mode: 'sharedRenderer',
     snapshot: snapshotResult.snapshot,
     media: snapshotResult.media,
   };
