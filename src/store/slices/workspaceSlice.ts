@@ -14,6 +14,7 @@ type WorkspaceSlice = Pick<
   | 'visionDetectionPreviewEnabled'
   | 'visionDetectionRealtimeEnabled'
   | 'visionDetectionOverlay'
+  | 'previewObstructed'
   | 'setLanguage'
   | 'requestSnapshot'
   | 'finishSnapshot'
@@ -23,6 +24,8 @@ type WorkspaceSlice = Pick<
   | 'setVisionDetectionPreviewEnabled'
   | 'setVisionDetectionRealtimeEnabled'
   | 'setVisionDetectionOverlay'
+  | 'setPreviewObstructed'
+  | 'clearPreviewObstructed'
 >;
 
 type SetState = StoreApi<AppState>['setState'];
@@ -35,6 +38,7 @@ export const createWorkspaceSlice = (set: SetState): WorkspaceSlice => ({
   visionDetectionPreviewEnabled: false,
   visionDetectionRealtimeEnabled: false,
   visionDetectionOverlay: null,
+  previewObstructed: { obstructed: false, reason: null, rect: null },
 
   setLanguage: (lang) => set({ language: lang }),
 
@@ -65,4 +69,15 @@ export const createWorkspaceSlice = (set: SetState): WorkspaceSlice => ({
   setVisionDetectionRealtimeEnabled: (enabled) => set({ visionDetectionRealtimeEnabled: enabled }),
 
   setVisionDetectionOverlay: (overlay) => set({ visionDetectionOverlay: overlay }),
+
+  // Bug E（Native_Overlay_Bug_E_Plan.md §3・Phase E1）— preview に重なる
+  // HTML 駆動 UI が開いたことを記録する正本 action。
+  setPreviewObstructed: (reason, rect) => set({
+    previewObstructed: { obstructed: true, reason, rect },
+  }),
+  clearPreviewObstructed: (reason) => set((state) => (
+    state.previewObstructed.reason === reason
+      ? { previewObstructed: { obstructed: false, reason: null, rect: null } }
+      : {}
+  )),
 });

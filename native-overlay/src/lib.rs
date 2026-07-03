@@ -31,6 +31,14 @@ pub struct NativeOverlayDetachPayload {
     pub native_window_handle: Option<Buffer>,
 }
 
+/// Bug E（計画書 §4 Phase E2）— `ui:preview-obstruction-changed` を受けた
+/// main が呼ぶ z-order toggle の payload。
+#[napi(object)]
+pub struct NativeOverlaySetObstructedPayload {
+    pub window_id: u32,
+    pub obstructed: bool,
+}
+
 #[napi(object)]
 pub struct NativeOverlaySharedFrameDescriptorPayload {
     pub memory_id: String,
@@ -375,6 +383,41 @@ fn clear_native_overlay_live_surface_inner(
             reason: None,
             release_frame: None,
             live_prepared_clip_count: Some(0.0),
+            live_readback_non_transparent_pixels: None,
+            live_readback_checksum: None,
+            live_readback_export_max_channel_delta: None,
+        },
+        Err(reason) => failure(&reason),
+    }
+}
+
+/// Bug E（計画書 §4 Phase E2）— electron/nativeOverlayMainBridge.ts の
+/// `setObstructed` から呼ばれる napi export。`ui:preview-obstruction-changed`
+/// の debounce・overlay overlap 最終判定は main 側（TypeScript）の責務で、
+/// ここでは受け取った `obstructed` をそのまま child NSWindow の z-order
+/// 切替へ反映するだけにする。
+#[napi(js_name = "setNativeOverlayObstructed")]
+pub fn set_native_overlay_obstructed_napi(
+    payload: NativeOverlaySetObstructedPayload,
+) -> NativeOverlayResponse {
+    match catch_unwind(AssertUnwindSafe(|| {
+        set_native_overlay_obstructed_inner(payload)
+    })) {
+        Ok(response) => response,
+        Err(_) => failure("Native overlay set obstructed panicked."),
+    }
+}
+
+fn set_native_overlay_obstructed_inner(
+    payload: NativeOverlaySetObstructedPayload,
+) -> NativeOverlayResponse {
+    match set_native_overlay_obstructed(payload.window_id, payload.obstructed) {
+        Ok(()) => NativeOverlayResponse {
+            success: true,
+            attached: true,
+            reason: None,
+            release_frame: None,
+            live_prepared_clip_count: None,
             live_readback_non_transparent_pixels: None,
             live_readback_checksum: None,
             live_readback_export_max_channel_delta: None,
@@ -797,6 +840,32 @@ pub fn clear_native_overlay_live_surface(window_id: u32) -> Result<(), String> {
             .present_scene_to_surface_texture(&snapshot, &sources),
     )
     .map_err(|error| format!("Native overlay live surface transparent clear failed: {error:?}"))?;
+    Ok(())
+}
+
+/// Bug E（計画書 §4 Phase E2・ADR-013）— `ui:preview-obstruction-changed` を
+/// main で受けた結果として、attach 済みの overlay child NSWindow の z-order
+/// を切り替える。attach されていない `window_id` は明示的な Err を返す
+/// （`clear_native_overlay_live_surface` と同じ Fail Safe 方針）。
+/// GPU の live surface present はこの呼び出しの影響を受けず、動画再生は
+/// 継続する（§9 設計判断 3: orderOut ではなく order 下げを採用）。
+pub fn set_native_overlay_obstructed(window_id: u32, obstructed: bool) -> Result<(), String> {
+    let renderers = LIVE_OVERLAY_RENDERERS
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .map_err(|_| "Native overlay live renderer registry is poisoned.".to_string())?;
+    let renderer = renderers
+        .get(&window_id)
+        .ok_or_else(|| "Native overlay live surface is not attached.".to_string())?;
+    #[cfg(target_os = "macos")]
+    {
+        macos_overlay::set_overlay_view_obstructed(renderer.view_handle, obstructed);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = renderer;
+        let _ = obstructed;
+    }
     Ok(())
 }
 
@@ -1521,6 +1590,32 @@ mod tests {
     }
 
     #[test]
+    fn set_native_overlay_obstructed_returns_err_when_no_renderer_is_registered() {
+        // Bug E（計画書 §4 Phase E2）— attach されていない window_id に対して
+        // set_native_overlay_obstructed を呼んだ場合、clear_native_overlay_live_surface
+        // と同じ Fail Safe 方針で明示的な Err を返す。
+        let unused_window_id = u32::MAX - 4242;
+        let error = set_native_overlay_obstructed(unused_window_id, true)
+            .expect_err("toggling obstruction on an unattached window must not silently succeed");
+        assert!(
+            error.contains("Native overlay live surface"),
+            "error message should point at the live surface registry, got: {error}",
+        );
+    }
+
+    #[test]
+    fn native_overlay_exports_set_obstructed_through_napi() {
+        // Bug E（計画書 §4 Phase E2）— electron/nativeOverlayMainBridge.ts の
+        // setObstructed から呼べる napi export
+        // `setNativeOverlayObstructed(payload: { windowId, obstructed })` を
+        // 用意する契約を固定する。
+        let source = include_str!("lib.rs");
+
+        assert!(source.contains("#[napi(js_name = \"setNativeOverlayObstructed\")]"));
+        assert!(source.contains("pub fn set_native_overlay_obstructed"));
+    }
+
+    #[test]
     fn clear_native_overlay_live_surface_returns_err_when_no_renderer_is_registered() {
         // Bug D — clip 削除後に overlay の drawable に古いフレームが残る問題への対処として、
         // `clear_native_overlay_live_surface(window_id)` を新設する。attach されていない
@@ -1605,6 +1700,127 @@ mod tests {
             opaque_call_position > contents_scale_call_position,
             "set_overlay_view_opaque must be called after set_overlay_view_contents_scale \
              (i.e. after wgpu surface construction), not before",
+        );
+    }
+
+    #[test]
+    fn macos_overlay_attaches_via_child_nswindow_not_contentview_subview() {
+        // Bug E（ADR-013）— HTML 駆動 UI（context menu / popover / tooltip / modal /
+        // dropdown）が overlay の CAMetalLayer に隠れて見切れる問題の根本対策として、
+        // overlay を main BrowserWindow の contentView subview から独立した
+        // child NSWindow へ置換する。macOS の z-order は「同一 NSWindow 内の view
+        // 階層」と「複数 NSWindow 間の window order」が独立軸であり、subview の
+        //ままでは HTML 側 UI を一律 overlay より上に置けない構造的制約があるため。
+        //
+        // 契約: parent NSWindow を取得し、borderless / transparent な child
+        // NSWindow を new して addChildWindow:ordered: で attach すること。
+        let source = include_str!("macos_overlay.rs");
+
+        assert!(
+            source.contains("addChildWindow") && source.contains("ordered"),
+            "attach must addChildWindow:ordered: the overlay child NSWindow onto the parent",
+        );
+        assert!(
+            source.contains("NSWindowAbove"),
+            "attach must order the child NSWindow above the parent by default (steady state)",
+        );
+        assert!(
+            source.contains("NSWindowStyleMaskBorderless") || source.contains("styleMask"),
+            "the overlay child NSWindow must be created borderless (no titlebar/chrome)",
+        );
+        assert!(
+            source.contains("setOpaque") && source.contains("clearColor"),
+            "the overlay child NSWindow must be transparent (opaque=NO, background=clearColor) \
+             so it does not paint over the parent window when uncovered by live surface content",
+        );
+    }
+
+    #[test]
+    fn macos_overlay_child_window_ignores_mouse_events_for_hit_through() {
+        // preview の操作（クリック/ドラッグ/スクラブ）はすべて下層 WebView 側の
+        // React UI が処理する設計であるため、child NSWindow 自身がマウスイベントを
+        // 奪ってはならない。既存 NSView の hitTest: nil 返しに加えて、child NSWindow
+        // にも setIgnoresMouseEvents:YES を設定し、window レベルでも hit-through を
+        // 保証する（`window level` が subview 時代には存在しなかった新しい懸念）。
+        let source = include_str!("macos_overlay.rs");
+
+        assert!(
+            source.contains("setIgnoresMouseEvents"),
+            "the overlay child NSWindow must call setIgnoresMouseEvents:YES so pointer events \
+             fall through to the underlying WebView-driven React UI",
+        );
+    }
+
+    #[test]
+    fn macos_overlay_observes_parent_window_geometry_notifications_for_manual_resync() {
+        // Bug E（ADR-plan §4 Phase E0）— `addChildWindow:ordered:` は既定で
+        // child window を parent の移動に追従させるが、リスクとして
+        // Mission Control / Spaces 跨ぎやフルスクリーン切替で外れる場面が
+        // ありうる（計画書 §6）。保険として `NSWindowDidMoveNotification` /
+        // `NSWindowDidResizeNotification` を parent window に対して監視し、
+        // child window の geometry を手動で再同期する契約を固定する。
+        let source = include_str!("macos_overlay.rs");
+
+        assert!(
+            source.contains("NSWindowDidMoveNotification"),
+            "attach must observe NSWindowDidMoveNotification on the parent NSWindow to manually \
+             resync the child window geometry as a fallback to addChildWindow's default tracking",
+        );
+        assert!(
+            source.contains("NSWindowDidResizeNotification"),
+            "attach must observe NSWindowDidResizeNotification on the parent NSWindow to manually \
+             resync the child window geometry as a fallback to addChildWindow's default tracking",
+        );
+        assert!(
+            source.contains("addObserver") && source.contains("selector"),
+            "the geometry resync must be wired via NSNotificationCenter addObserver:selector:name:object:",
+        );
+    }
+
+    #[test]
+    fn macos_overlay_detach_removes_child_window_from_parent() {
+        // child NSWindow 化に伴い、detach は既存の removeFromSuperview だけでは
+        // 不十分になる。addChildWindow の対称操作である removeChildWindow: を
+        // 呼び、parent-child 関係を明示的に解除する契約を固定する。
+        let source = include_str!("macos_overlay.rs");
+
+        assert!(
+            source.contains("removeChildWindow"),
+            "detach must call removeChildWindow: to sever the parent/child NSWindow relationship \
+             that attach established via addChildWindow:ordered:",
+        );
+    }
+
+    #[test]
+    fn macos_overlay_exposes_set_overlay_view_obstructed_public_api() {
+        // Bug E（計画書 §4 Phase E2）— HTML 駆動 UI（modal 等）が preview に
+        // 重なって開いたとき、child NSWindow の z-order を下げる（`order`
+        // 下げ）ための公開 API。GPU present は止めず、表示位置（z-order）
+        // だけを切り替える設計（計画書 §9 の設計判断 3: 再生継続性を優先し
+        // orderOut ではなく order 下げを採用）。
+        let source = include_str!("macos_overlay.rs");
+
+        assert!(
+            source.contains("pub fn set_overlay_view_obstructed(view_handle: usize, obstructed: bool)"),
+            "macos_overlay must expose set_overlay_view_obstructed(view_handle, obstructed) so \
+             callers can toggle the child NSWindow z-order when a preview-overlapping HTML UI opens",
+        );
+    }
+
+    #[test]
+    fn macos_overlay_obstructed_toggle_uses_order_below_not_order_out() {
+        // 計画書 §9 設計判断 3 の確定: modal open 時は `orderOut:`（完全隠し）
+        // ではなく `NSWindowBelow` への order 変更を使う。再生継続性を優先し、
+        // GPU present を止めないため。
+        let source = include_str!("macos_overlay.rs");
+
+        assert!(
+            source.contains("NSWindowBelow"),
+            "the obstructed toggle must lower the child window with NSWindowBelow (not orderOut:), \
+             so live surface present keeps running while the child window is simply behind the parent",
+        );
+        assert!(
+            source.contains("fn set_overlay_view_obstructed") ,
         );
     }
 
