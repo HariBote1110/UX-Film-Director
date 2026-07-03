@@ -4225,6 +4225,135 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('serialises 色調補正 color_correction filters as Rust scene effects', () => {
+    const layers = createDefaultLayers();
+    const corrected = baseImage({
+      id: 'colour-corrected',
+      filters: [
+        {
+          id: 'colour-correction-1',
+          type: 'color_correction',
+          enabled: true,
+          params: { brightness: 1.2, contrast: 0.5, saturation: -0.4, hue: 120 },
+        } as any,
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [corrected],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected colour correction snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([
+      {
+        ColourCorrection: {
+          brightness: 1.2,
+          contrast: 0.5,
+          saturation: -0.4,
+          hue_degrees: 120,
+        },
+      },
+    ]);
+  });
+
+  it('serialises ぼかし blur filters as Rust scene effects', () => {
+    const layers = createDefaultLayers();
+    const blurred = baseImage({
+      id: 'blurred-image',
+      filters: [
+        {
+          id: 'blur-filter-1',
+          type: 'blur',
+          enabled: true,
+          params: { strength: 4, quality: 2 },
+        } as any,
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [blurred],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected blur snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([
+      {
+        Blur: {
+          radius: 4,
+          strength: 1,
+        },
+      },
+    ]);
+  });
+
+  it('omits blur filters below the legacy Pixi visibility threshold', () => {
+    const layers = createDefaultLayers();
+    const barelyBlurred = baseImage({
+      id: 'barely-blurred-image',
+      filters: [
+        {
+          id: 'blur-filter-2',
+          type: 'blur',
+          enabled: true,
+          params: { strength: 0.04, quality: 2 },
+        } as any,
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [barelyBlurred],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected sub-threshold blur snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([]);
+  });
+
+  it('serialises 影 shadow filters as Rust scene effects', () => {
+    const layers = createDefaultLayers();
+    const shadowed = baseImage({
+      id: 'shadowed-image',
+      filters: [
+        {
+          id: 'shadow-filter-1',
+          type: 'shadow',
+          enabled: true,
+          params: { colour: '#000000', blur: 4, offsetX: 2, offsetY: -3, opacity: 0.5 },
+        } as any,
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [shadowed],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected shadow snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([
+      {
+        DropShadow: {
+          colour: [0, 0, 0],
+          offset_x: 2,
+          offset_y: -3,
+          opacity: 0.5,
+        },
+      },
+    ]);
+  });
+
   it('fails loud for visible Pixi features the shared renderer cannot represent yet', () => {
     const layers = createDefaultLayers();
     const unsupportedGroupControl: TimelineObject = {
@@ -4246,22 +4375,28 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       easing: 'linear',
       targetLayerCount: 1,
     };
-    const blurred = baseImage({
-      id: 'blurred',
+    // blur は Rust 対応済みになったため、未対応 filter の代表例は
+    // 非 shape オブジェクトへの gradient に差し替え。
+    const gradientOnImage = baseImage({
+      id: 'gradient-on-image',
       filters: [
         {
-          id: 'blur-1',
-          type: 'blur',
+          id: 'gradient-1',
+          type: 'gradient',
           enabled: true,
-          params: { strength: 4, quality: 2 },
-        },
+          params: {
+            colours: ['#ff0000', '#0000ff'],
+            stops: [0, 1],
+            direction: 0,
+          },
+        } as any,
       ],
     });
 
     const result = buildRustSceneSnapshotForTimeline({
       projectSettings: settings,
       layers,
-      objects: [unsupportedGroupControl, blurred],
+      objects: [unsupportedGroupControl, gradientOnImage],
       time: 2,
     });
 

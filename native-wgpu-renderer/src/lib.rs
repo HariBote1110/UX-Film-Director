@@ -717,6 +717,18 @@ impl NativeWgpuRenderer {
                         _ => None,
                     }),
                     area_expand_fill: area_expand_fill(clip),
+                    colour_correction_brightness: colour_correction_brightness(clip),
+                    colour_correction_contrast: colour_correction_contrast(clip),
+                    colour_correction_saturation: colour_correction_saturation(clip),
+                    colour_correction_hue: colour_correction_hue(clip),
+                    blur_radius: blur_radius(clip),
+                    blur_strength: blur_strength(clip),
+                    drop_shadow_colour_r: drop_shadow_colour_component(clip, 0),
+                    drop_shadow_colour_g: drop_shadow_colour_component(clip, 1),
+                    drop_shadow_colour_b: drop_shadow_colour_component(clip, 2),
+                    drop_shadow_offset_x: drop_shadow_offset_component(clip, 0),
+                    drop_shadow_offset_y: drop_shadow_offset_component(clip, 1),
+                    drop_shadow_opacity: drop_shadow_opacity(clip),
                     source_width: source.width as f32,
                     source_height: source.height as f32,
                     translation_x: clip.transform.translation_x,
@@ -1241,6 +1253,18 @@ struct RenderParams {
     area_expand_left: f32,
     area_expand_right: f32,
     area_expand_fill: f32,
+    colour_correction_brightness: f32,
+    colour_correction_contrast: f32,
+    colour_correction_saturation: f32,
+    colour_correction_hue: f32,
+    blur_radius: f32,
+    blur_strength: f32,
+    drop_shadow_colour_r: f32,
+    drop_shadow_colour_g: f32,
+    drop_shadow_colour_b: f32,
+    drop_shadow_offset_x: f32,
+    drop_shadow_offset_y: f32,
+    drop_shadow_opacity: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -1634,7 +1658,119 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::MultiSlicer { .. } => 1.0,
         Effect::OctTransform { .. } => 1.0,
         Effect::AreaExpand { .. } => 1.0,
+        Effect::ColourCorrection { .. } => 1.0,
+        Effect::Blur { .. } => 1.0,
+        Effect::DropShadow { .. } => 1.0,
     }
+}
+
+fn drop_shadow_colour_component(clip: &uxfd_rust_core::EvaluatedClip, index: usize) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::DropShadow { colour, .. } => Some(colour[index]),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .clamp(0.0, 1.0)
+}
+
+fn drop_shadow_offset_component(clip: &uxfd_rust_core::EvaluatedClip, index: usize) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::DropShadow {
+                offset_x, offset_y, ..
+            } => Some(if index == 0 { *offset_x } else { *offset_y }),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+}
+
+fn drop_shadow_opacity(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::DropShadow { opacity, .. } => Some(*opacity),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .clamp(0.0, 1.0)
+}
+
+fn blur_radius(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::Blur { radius, .. } => Some(*radius),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .max(0.0)
+}
+
+fn blur_strength(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::Blur { strength, .. } => Some(*strength),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .clamp(0.0, 1.0)
+}
+
+/// PIXI.ColorMatrixFilter の呼び出し順（hue→saturate→contrast→brightness、
+/// multiply 合成）を再現するための uniform 抽出。effect が無いときは
+/// 恒等変換（brightness 1 / contrast 0 / saturation 0 / hue 0）を返す。
+fn colour_correction_brightness(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::ColourCorrection { brightness, .. } => Some(*brightness),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(1.0)
+        .max(0.0)
+}
+
+fn colour_correction_contrast(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::ColourCorrection { contrast, .. } => Some(*contrast),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+}
+
+fn colour_correction_saturation(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::ColourCorrection { saturation, .. } => Some(*saturation),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+}
+
+fn colour_correction_hue(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::ColourCorrection { hue_degrees, .. } => Some(hue_degrees.to_radians()),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
 }
 
 fn effect_colour_aberration_offset<F>(clip: &uxfd_rust_core::EvaluatedClip, pick: F) -> f32

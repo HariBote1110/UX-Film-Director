@@ -227,7 +227,9 @@ describe('validateRustSceneSnapshotBoundary', () => {
               sampling: 'bicubic',
             },
             opacity: 1.2,
-            effects: [{ Blur: { radius: 4 } }],
+            // Blur は正当な Rust effect になったため、未知 effect の代表例を
+            // 存在しない Sparkle に差し替え（schemaMismatch の期待を維持）。
+            effects: [{ Sparkle: { amount: 4 } }],
           },
         ],
       },
@@ -256,6 +258,265 @@ describe('validateRustSceneSnapshotBoundary', () => {
       'schemaMismatch',
       'unsupportedEnum',
     ]);
+  });
+
+  it('accepts a ColourCorrection effect at the runtime boundary', () => {
+    const payload = {
+      snapshot: {
+        frame_index: 60,
+        colour: {
+          profile: 'rec709-sdr',
+          working_space: 'linear-light',
+          alpha: 'premultiplied',
+        },
+        clips: [
+          {
+            clip_id: 'image-1',
+            track_id: 'layer-1',
+            media_id: 'image-1',
+            source_frame: 0,
+            z_index: 0,
+            transform: {
+              translation_x: 32,
+              translation_y: 48,
+              scale_x: 1,
+              scale_y: 1,
+              rotation_degrees: 0,
+              sampling: 'bilinear',
+            },
+            opacity: 1,
+            effects: [
+              {
+                ColourCorrection: {
+                  brightness: 1.2,
+                  contrast: 0.5,
+                  saturation: -0.4,
+                  hue_degrees: 120,
+                },
+              },
+            ],
+          },
+        ],
+      },
+      media: [
+        {
+          id: 'image-1',
+          kind: 'Image',
+          source: '/tmp/image.png',
+          width: 640,
+          height: 360,
+        },
+      ],
+    };
+
+    const validation = validateRustSceneSnapshotBoundary(payload);
+
+    expect(validation).toEqual({ ok: true });
+  });
+
+  it('rejects a ColourCorrection effect with non-finite fields at the runtime boundary', () => {
+    const payload = {
+      snapshot: {
+        frame_index: 60,
+        colour: {
+          profile: 'rec709-sdr',
+          working_space: 'linear-light',
+          alpha: 'premultiplied',
+        },
+        clips: [
+          {
+            clip_id: 'image-1',
+            track_id: 'layer-1',
+            media_id: 'image-1',
+            source_frame: 0,
+            z_index: 0,
+            transform: {
+              translation_x: 32,
+              translation_y: 48,
+              scale_x: 1,
+              scale_y: 1,
+              rotation_degrees: 0,
+              sampling: 'bilinear',
+            },
+            opacity: 1,
+            effects: [
+              {
+                ColourCorrection: {
+                  brightness: Number.NaN,
+                  contrast: 0,
+                  saturation: 0,
+                  hue_degrees: 0,
+                },
+              },
+            ],
+          },
+        ],
+      },
+      media: [
+        {
+          id: 'image-1',
+          kind: 'Image',
+          source: '/tmp/image.png',
+          width: 640,
+          height: 360,
+        },
+      ],
+    };
+
+    const validation = validateRustSceneSnapshotBoundary(payload);
+
+    expect(validation.ok).toBe(false);
+    if (validation.ok) throw new Error('expected boundary validation to fail');
+    expect(issueCodes(validation.issues)).toEqual(['nonFiniteNumber']);
+  });
+
+  it('accepts a Blur effect at the runtime boundary', () => {
+    const payload = {
+      snapshot: {
+        frame_index: 60,
+        colour: {
+          profile: 'rec709-sdr',
+          working_space: 'linear-light',
+          alpha: 'premultiplied',
+        },
+        clips: [
+          {
+            clip_id: 'image-1',
+            track_id: 'layer-1',
+            media_id: 'image-1',
+            source_frame: 0,
+            z_index: 0,
+            transform: {
+              translation_x: 32,
+              translation_y: 48,
+              scale_x: 1,
+              scale_y: 1,
+              rotation_degrees: 0,
+              sampling: 'bilinear',
+            },
+            opacity: 1,
+            effects: [{ Blur: { radius: 4, strength: 1 } }],
+          },
+        ],
+      },
+      media: [
+        {
+          id: 'image-1',
+          kind: 'Image',
+          source: '/tmp/image.png',
+          width: 640,
+          height: 360,
+        },
+      ],
+    };
+
+    const validation = validateRustSceneSnapshotBoundary(payload);
+
+    expect(validation).toEqual({ ok: true });
+  });
+
+  it('rejects a Blur effect with an out-of-range strength at the runtime boundary', () => {
+    const payload = {
+      snapshot: {
+        frame_index: 60,
+        colour: {
+          profile: 'rec709-sdr',
+          working_space: 'linear-light',
+          alpha: 'premultiplied',
+        },
+        clips: [
+          {
+            clip_id: 'image-1',
+            track_id: 'layer-1',
+            media_id: 'image-1',
+            source_frame: 0,
+            z_index: 0,
+            transform: {
+              translation_x: 32,
+              translation_y: 48,
+              scale_x: 1,
+              scale_y: 1,
+              rotation_degrees: 0,
+              sampling: 'bilinear',
+            },
+            opacity: 1,
+            effects: [{ Blur: { radius: 4, strength: 1.5 } }],
+          },
+        ],
+      },
+      media: [
+        {
+          id: 'image-1',
+          kind: 'Image',
+          source: '/tmp/image.png',
+          width: 640,
+          height: 360,
+        },
+      ],
+    };
+
+    const validation = validateRustSceneSnapshotBoundary(payload);
+
+    expect(validation.ok).toBe(false);
+    if (validation.ok) throw new Error('expected boundary validation to fail');
+    expect(issueCodes(validation.issues)).toEqual(['outOfRange']);
+  });
+
+  it('accepts a DropShadow effect at the runtime boundary and rejects out-of-range opacity', () => {
+    const clipWithShadow = (opacity: number) => ({
+      snapshot: {
+        frame_index: 60,
+        colour: {
+          profile: 'rec709-sdr',
+          working_space: 'linear-light',
+          alpha: 'premultiplied',
+        },
+        clips: [
+          {
+            clip_id: 'image-1',
+            track_id: 'layer-1',
+            media_id: 'image-1',
+            source_frame: 0,
+            z_index: 0,
+            transform: {
+              translation_x: 32,
+              translation_y: 48,
+              scale_x: 1,
+              scale_y: 1,
+              rotation_degrees: 0,
+              sampling: 'bilinear',
+            },
+            opacity: 1,
+            effects: [
+              {
+                DropShadow: {
+                  colour: [0, 0, 0],
+                  offset_x: 2,
+                  offset_y: -3,
+                  opacity,
+                },
+              },
+            ],
+          },
+        ],
+      },
+      media: [
+        {
+          id: 'image-1',
+          kind: 'Image',
+          source: '/tmp/image.png',
+          width: 640,
+          height: 360,
+        },
+      ],
+    });
+
+    expect(validateRustSceneSnapshotBoundary(clipWithShadow(0.5))).toEqual({ ok: true });
+
+    const rejected = validateRustSceneSnapshotBoundary(clipWithShadow(1.5));
+    expect(rejected.ok).toBe(false);
+    if (rejected.ok) throw new Error('expected boundary validation to fail');
+    expect(issueCodes(rejected.issues)).toEqual(['outOfRange']);
   });
 
   it('accepts PSD media references at the Rust boundary before source generation is enabled', () => {

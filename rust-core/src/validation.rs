@@ -269,6 +269,40 @@ fn effect_is_finite(effect: &crate::schema::Effect) -> bool {
                 && *strength >= 0.0
                 && *strength <= 1.0
         }
+        crate::schema::Effect::ColourCorrection {
+            brightness,
+            contrast,
+            saturation,
+            hue_degrees,
+        } => {
+            brightness.is_finite()
+                && *brightness >= 0.0
+                && contrast.is_finite()
+                && saturation.is_finite()
+                && hue_degrees.is_finite()
+        }
+        crate::schema::Effect::Blur { radius, strength } => {
+            radius.is_finite()
+                && *radius >= 0.0
+                && strength.is_finite()
+                && *strength >= 0.0
+                && *strength <= 1.0
+        }
+        crate::schema::Effect::DropShadow {
+            colour,
+            offset_x,
+            offset_y,
+            opacity,
+        } => {
+            colour
+                .iter()
+                .all(|component| component.is_finite() && *component >= 0.0 && *component <= 1.0)
+                && offset_x.is_finite()
+                && offset_y.is_finite()
+                && opacity.is_finite()
+                && *opacity >= 0.0
+                && *opacity <= 1.0
+        }
         crate::schema::Effect::AreaExpand {
             top,
             bottom,

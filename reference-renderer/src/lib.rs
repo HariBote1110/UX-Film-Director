@@ -81,6 +81,9 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::MultiSlicer { .. } => 1.0,
         Effect::OctTransform { .. } => 1.0,
         Effect::AreaExpand { .. } => 1.0,
+        Effect::ColourCorrection { .. } => 1.0,
+        Effect::Blur { .. } => 1.0,
+        Effect::DropShadow { .. } => 1.0,
     }
 }
 

@@ -246,6 +246,29 @@ pub enum Effect {
         right: f32,
         fill: bool,
     },
+    /// PIXI.ColorMatrixFilter 互換の色調補正。hue → saturate → contrast →
+    /// brightness を multiply 合成した行列を sRGB 符号化空間の straight RGB へ
+    /// 適用する（旧 Pixi 全画面フォールバックの見た目を再現する）。
+    ColourCorrection {
+        brightness: f32,
+        contrast: f32,
+        saturation: f32,
+        hue_degrees: f32,
+    },
+    /// 一様ぼかし（旧 PIXI.BlurFilter 相当）。radius は source pixel 単位の
+    /// タップ間隔、strength はブレンド係数（0..=1）。3x3 ガウシアン近似。
+    Blur {
+        radius: f32,
+        strength: f32,
+    },
+    /// ドロップシャドウの最小実装。オフセット位置へ source alpha 形状の
+    /// 単色シルエットを本体の背後に合成する（ぼかしなし）。
+    DropShadow {
+        colour: [f32; 3],
+        offset_x: f32,
+        offset_y: f32,
+        opacity: f32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

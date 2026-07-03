@@ -53,6 +53,18 @@ struct RenderParams {
     area_expand_left: f32,
     area_expand_right: f32,
     area_expand_fill: f32,
+    colour_correction_brightness: f32,
+    colour_correction_contrast: f32,
+    colour_correction_saturation: f32,
+    colour_correction_hue: f32,
+    blur_radius: f32,
+    blur_strength: f32,
+    drop_shadow_colour_r: f32,
+    drop_shadow_colour_g: f32,
+    drop_shadow_colour_b: f32,
+    drop_shadow_offset_x: f32,
+    drop_shadow_offset_y: f32,
+    drop_shadow_opacity: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -91,32 +103,36 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
         -translated.x * params.rotation_sin + translated.y * params.rotation_cos,
     ) / vec2<f32>(params.scale_x, params.scale_y);
 
+    // ドロップシャドウは本体の可視領域外（bounds/wipe/clipping で culling
+    // される画素）にも現れるため、culling 時は透明ではなく shadow を返す。
+    let shadow = drop_shadow_premultiplied(source_position);
+
     if (!passes_area_expand_bounds(source_position)) {
-        return vec4<f32>(0.0);
+        return shadow;
     }
     if (params.area_expand_fill < 0.5 && is_outside_source_bounds(source_position)) {
-        return vec4<f32>(0.0);
+        return shadow;
     }
     let expanded_source_position = clamp_source_position(source_position);
 
     if (!passes_wipe(expanded_source_position)) {
-        return vec4<f32>(0.0);
+        return shadow;
     }
     if (!passes_clipping(expanded_source_position)) {
-        return vec4<f32>(0.0);
+        return shadow;
     }
 
     let transformed_source_position = oct_transformed_position(expanded_source_position);
     let displaced_source_position = displaced_position(stretched_position(multi_sliced_position(transformed_source_position)));
-    let source = sample_source_with_fake_dof(displaced_source_position);
+    let source = sample_source_with_uniform_blur(displaced_source_position);
     let aberration_offset = vec2<f32>(
         params.colour_aberration_offset_x,
         params.colour_aberration_offset_y,
     );
-    let red_source = sample_source_with_fake_dof(clamp_source_position(displaced_source_position + aberration_offset)).r;
-    let blue_source = sample_source_with_fake_dof(clamp_source_position(displaced_source_position - aberration_offset)).b;
+    let red_source = sample_source_with_uniform_blur(clamp_source_position(displaced_source_position + aberration_offset)).r;
+    let blue_source = sample_source_with_uniform_blur(clamp_source_position(displaced_source_position - aberration_offset)).b;
     let alpha = source.a * params.opacity;
-    let linear_rgb = vec3<f32>(red_source, source.g, blue_source);
+    let linear_rgb = colour_corrected_rgb(vec3<f32>(red_source, source.g, blue_source));
     let premultiplied_rgb = linear_rgb * params.gain * alpha;
     let outline_alpha = outline_alpha_at(source_position, source.a) * params.outline_opacity * params.opacity;
     let outline_rgb = vec3<f32>(
@@ -126,7 +142,38 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     ) * outline_alpha;
     let spot_rgb = spot_light_rgb(source_position, alpha);
 
-    return vec4<f32>(premultiplied_rgb + outline_rgb * (1.0 - alpha) + spot_rgb, max(alpha, outline_alpha));
+    let body_alpha = max(alpha, outline_alpha);
+    let body_rgb = premultiplied_rgb + outline_rgb * (1.0 - alpha) + spot_rgb;
+
+    // shadow は本体の背後（source-over の下）に合成する。
+    return vec4<f32>(
+        body_rgb + shadow.rgb * (1.0 - body_alpha),
+        body_alpha + shadow.a * (1.0 - body_alpha),
+    );
+}
+
+// ドロップシャドウの最小実装: オフセット分ずらした位置の source alpha を
+// 形状として単色シルエットを premultiplied で返す（ぼかしなし）。
+fn drop_shadow_premultiplied(source_position: vec2<f32>) -> vec4<f32> {
+    if params.drop_shadow_opacity <= 0.0 {
+        return vec4<f32>(0.0);
+    }
+    let shadow_position = source_position - vec2<f32>(
+        params.drop_shadow_offset_x,
+        params.drop_shadow_offset_y,
+    );
+    if is_outside_source_bounds(shadow_position) {
+        return vec4<f32>(0.0);
+    }
+    let shadow_alpha = sample_source_linear(shadow_position).a
+        * params.drop_shadow_opacity
+        * params.opacity;
+    let shadow_colour = vec3<f32>(
+        params.drop_shadow_colour_r,
+        params.drop_shadow_colour_g,
+        params.drop_shadow_colour_b,
+    );
+    return vec4<f32>(shadow_colour * shadow_alpha, shadow_alpha);
 }
 
 fn displaced_position(source_position: vec2<f32>) -> vec2<f32> {
@@ -219,6 +266,28 @@ fn is_outside_source_bounds(source_position: vec2<f32>) -> bool {
         || source_position.y < 0.0
         || source_position.x >= params.source_width
         || source_position.y >= params.source_height;
+}
+
+// 一様ぼかし（旧 PIXI.BlurFilter 相当）。タップ間隔 blur_radius の
+// 3x3 ガウシアンカーネル（重み 1-2-1 の外積 / 16）で近似し、
+// blur_strength でベースと mix する。
+fn sample_source_with_uniform_blur(source_position: vec2<f32>) -> vec4<f32> {
+    let base = sample_source_with_fake_dof(source_position);
+    if params.blur_strength <= 0.0 || params.blur_radius <= 0.0 {
+        return base;
+    }
+    let r = params.blur_radius;
+    var accumulated = base * 4.0;
+    accumulated += sample_source_with_fake_dof(clamp_source_position(source_position + vec2<f32>(r, 0.0))) * 2.0;
+    accumulated += sample_source_with_fake_dof(clamp_source_position(source_position - vec2<f32>(r, 0.0))) * 2.0;
+    accumulated += sample_source_with_fake_dof(clamp_source_position(source_position + vec2<f32>(0.0, r))) * 2.0;
+    accumulated += sample_source_with_fake_dof(clamp_source_position(source_position - vec2<f32>(0.0, r))) * 2.0;
+    accumulated += sample_source_with_fake_dof(clamp_source_position(source_position + vec2<f32>(r, r)));
+    accumulated += sample_source_with_fake_dof(clamp_source_position(source_position - vec2<f32>(r, r)));
+    accumulated += sample_source_with_fake_dof(clamp_source_position(source_position + vec2<f32>(r, -r)));
+    accumulated += sample_source_with_fake_dof(clamp_source_position(source_position + vec2<f32>(-r, r)));
+    let blurred = accumulated / 16.0;
+    return mix(base, blurred, params.blur_strength);
 }
 
 fn sample_source_with_fake_dof(source_position: vec2<f32>) -> vec4<f32> {
@@ -385,4 +454,73 @@ fn srgb_to_linear(value: f32) -> f32 {
     }
 
     return pow((value + 0.055) / 1.055, 2.4);
+}
+
+fn linear_to_srgb(value: f32) -> f32 {
+    if value <= 0.0031308 {
+        return value * 12.92;
+    }
+
+    return 1.055 * pow(value, 1.0 / 2.4) - 0.055;
+}
+
+// PIXI.ColorMatrixFilter 互換の色調補正。旧実装は
+// hue(h,false)→saturate(s,true)→contrast(c,true)→brightness(b,true) の
+// multiply 合成（M = H*S*C*B）で、ベクトルへは brightness→contrast→
+// saturate→hue の順で作用する。PIXI は sRGB 符号化 straight RGB 空間で
+// 行列演算し、offset 列は _colorMatrix() で 255 除算される（contrast の
+// -0.5*(v-1) は実質 /255 されて極小になる、という PIXI 実挙動も再現）。
+fn colour_corrected_rgb(rgb: vec3<f32>) -> vec3<f32> {
+    let brightness = params.colour_correction_brightness;
+    let contrast = params.colour_correction_contrast;
+    let saturation = params.colour_correction_saturation;
+    let hue = params.colour_correction_hue;
+    if (brightness == 1.0 && contrast == 0.0 && saturation == 0.0 && hue == 0.0) {
+        return rgb;
+    }
+
+    var c = vec3<f32>(
+        linear_to_srgb(rgb.r),
+        linear_to_srgb(rgb.g),
+        linear_to_srgb(rgb.b),
+    );
+
+    // brightness
+    c = c * brightness;
+
+    // contrast（offset は PIXI の /255 正規化を再現）
+    let contrast_scale = contrast + 1.0;
+    let contrast_offset = (-0.5 * contrast) / 255.0;
+    c = c * contrast_scale + vec3<f32>(contrast_offset);
+
+    // saturate
+    let sat_x = saturation * (2.0 / 3.0) + 1.0;
+    let sat_y = (sat_x - 1.0) * -0.5;
+    c = vec3<f32>(
+        sat_x * c.r + sat_y * c.g + sat_y * c.b,
+        sat_y * c.r + sat_x * c.g + sat_y * c.b,
+        sat_y * c.r + sat_y * c.g + sat_x * c.b,
+    );
+
+    // hue（luma 保存の RGB 回転行列）
+    let cos_r = cos(hue);
+    let sin_r = sin(hue);
+    let w = 1.0 / 3.0;
+    let sqr_w = sqrt(w);
+    let diag = cos_r + (1.0 - cos_r) * w;
+    let p = (w * (1.0 - cos_r)) - (sqr_w * sin_r);
+    let q = (w * (1.0 - cos_r)) + (sqr_w * sin_r);
+    c = vec3<f32>(
+        diag * c.r + p * c.g + q * c.b,
+        q * c.r + diag * c.g + p * c.b,
+        p * c.r + q * c.g + diag * c.b,
+    );
+
+    c = clamp(c, vec3<f32>(0.0), vec3<f32>(1.0));
+
+    return vec3<f32>(
+        srgb_to_linear(c.r),
+        srgb_to_linear(c.g),
+        srgb_to_linear(c.b),
+    );
 }

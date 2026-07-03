@@ -265,6 +265,164 @@ fn native_wgpu_applies_fake_dof_blur_outside_focus() {
 }
 
 #[test]
+fn native_wgpu_applies_colour_correction_hue_rotation() {
+    // PIXI.ColorMatrixFilter.hue(120) は sRGB 空間の luma 保存回転で
+    // R→G→B→R とチャネルが循環する。
+    assert_native_matches_direct_hand_anchor(
+        scene_snapshot(vec![evaluated_clip(
+            "foreground",
+            0,
+            1.0,
+            vec![Effect::ColourCorrection {
+                brightness: 1.0,
+                contrast: 0.0,
+                saturation: 0.0,
+                hue_degrees: 120.0,
+            }],
+        )]),
+        HashMap::from([(
+            "foreground".to_string(),
+            RgbaFrame::from_rgba8(
+                3,
+                1,
+                vec![255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255],
+            )
+            .expect("valid foreground"),
+        )]),
+        3,
+        1,
+        vec![
+            0, 255, 0, 255,
+            0, 0, 255, 255,
+            255, 0, 0, 255,
+        ],
+    );
+}
+
+#[test]
+fn native_wgpu_applies_colour_correction_full_desaturation() {
+    // saturate(-1) は係数が全て 1/3 になり sRGB 空間の単純平均へ潰れる。
+    // 赤 (255,0,0) は encoded 1/3 = 85 のグレーになる。
+    assert_native_matches_direct_hand_anchor(
+        scene_snapshot(vec![evaluated_clip(
+            "foreground",
+            0,
+            1.0,
+            vec![Effect::ColourCorrection {
+                brightness: 1.0,
+                contrast: 0.0,
+                saturation: -1.0,
+                hue_degrees: 0.0,
+            }],
+        )]),
+        HashMap::from([(
+            "foreground".to_string(),
+            RgbaFrame::from_rgba8(1, 1, vec![255, 0, 0, 255]).expect("valid foreground"),
+        )]),
+        1,
+        1,
+        vec![85, 85, 85, 255],
+    );
+}
+
+#[test]
+fn native_wgpu_applies_colour_correction_brightness_and_contrast() {
+    // brightness(0.6)→contrast(0.5): encoded 1.0*0.6*1.5 - 0.5*0.5/255
+    // = 0.89902 → 229。offset の /255 正規化（PIXI _colorMatrix の実挙動）
+    // を含めて再現する。
+    assert_native_matches_direct_hand_anchor(
+        scene_snapshot(vec![evaluated_clip(
+            "foreground",
+            0,
+            1.0,
+            vec![Effect::ColourCorrection {
+                brightness: 0.6,
+                contrast: 0.5,
+                saturation: 0.0,
+                hue_degrees: 0.0,
+            }],
+        )]),
+        HashMap::from([(
+            "foreground".to_string(),
+            RgbaFrame::from_rgba8(1, 1, vec![255, 0, 0, 255]).expect("valid foreground"),
+        )]),
+        1,
+        1,
+        vec![229, 0, 0, 255],
+    );
+}
+
+#[test]
+fn native_wgpu_applies_uniform_blur_gaussian_kernel() {
+    // 3x1 の R/G/B ソースへ radius=1, strength=1 の 3x3 ガウシアン
+    // （重み 1-2-1 外積 /16、高さ 1 なので縦タップは同一行へ clamp）。
+    // 中央: (0.25, 0.5, 0.25) linear → (137, 188, 137)。
+    // 端: (0.75, 0.25, 0) linear → (225, 137, 0)（対称に右端も同様）。
+    assert_native_matches_direct_hand_anchor(
+        scene_snapshot(vec![evaluated_clip(
+            "foreground",
+            0,
+            1.0,
+            vec![Effect::Blur {
+                radius: 1.0,
+                strength: 1.0,
+            }],
+        )]),
+        HashMap::from([(
+            "foreground".to_string(),
+            RgbaFrame::from_rgba8(
+                3,
+                1,
+                vec![255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255],
+            )
+            .expect("valid foreground"),
+        )]),
+        3,
+        1,
+        vec![
+            225, 137, 0, 255,
+            137, 188, 137, 255,
+            0, 137, 225, 255,
+        ],
+    );
+}
+
+#[test]
+fn native_wgpu_applies_drop_shadow_silhouette_behind_body() {
+    // 3x1 の [不透明赤, 透明, 透明] へ offset_x=1 の黒シャドウ:
+    // 本体はそのまま、その右隣に alpha 形状のシルエット、さらに右は透明。
+    assert_native_matches_direct_hand_anchor(
+        scene_snapshot(vec![evaluated_clip(
+            "foreground",
+            0,
+            1.0,
+            vec![Effect::DropShadow {
+                colour: [0.0, 0.0, 0.0],
+                offset_x: 1.0,
+                offset_y: 0.0,
+                opacity: 1.0,
+            }],
+        )]),
+        HashMap::from([(
+            "foreground".to_string(),
+            RgbaFrame::from_rgba8(
+                3,
+                1,
+                vec![255, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0],
+            )
+            .expect("valid foreground"),
+        )]),
+        3,
+        1,
+        vec![
+            255, 0, 0, 255,
+            0, 0, 0, 255,
+            0, 0, 0, 0,
+        ],
+    );
+}
+
+#[test]
 fn native_wgpu_applies_auto_blur_plus_along_motion_angle() {
     assert_native_matches_direct_hand_anchor(
         scene_snapshot(vec![evaluated_clip(
