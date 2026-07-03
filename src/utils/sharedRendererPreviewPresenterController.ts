@@ -623,10 +623,10 @@ export const startSharedRendererPreviewPresenter = async ({
     && effectiveUploadedVideoObjectIds
     && effectiveUploadedVideoObjectIds.size > 0
     && videoOwnership.owner === 'sharedRenderer';
-  const shouldPassThroughToPixi = !hasSolidColourScene && !diagnosticSwatchEnabled;
+  const hasNoDirectSurfacePresentation = !hasSolidColourScene && !diagnosticSwatchEnabled;
   if (
     requireSharedRendererOutput
-    && shouldPassThroughToPixi
+    && hasNoDirectSurfacePresentation
     && !nativeRenderFrameReady
     && !shouldPresentUploadedVideoFrame
     && !shouldPresentExternalVideoFrame
@@ -634,7 +634,7 @@ export const startSharedRendererPreviewPresenter = async ({
     writeDiagnostics({
       status: 'blocked',
       reason: 'sharedRendererOutputUnavailable',
-      swatch: 'pixi-passthrough',
+      swatch: 'no-presentation',
       nativeRenderFailureReason: nativeRenderFailure?.reason,
       nativeRenderFailureDetail: nativeRenderFailure?.detail,
     });
@@ -689,7 +689,7 @@ export const startSharedRendererPreviewPresenter = async ({
         dispose: presenter.dispose,
       };
     }
-  } else if (hasSolidColourScene || shouldPassThroughToPixi) {
+  } else if (hasSolidColourScene || hasNoDirectSurfacePresentation) {
     const solidColourObjectIdsForPresentation = solidColourGeometrySource === 'rust-wasm'
       ? new Set(solidColourOwnership.solidColourObjectIds)
       : undefined;
@@ -760,7 +760,7 @@ export const startSharedRendererPreviewPresenter = async ({
       writeDiagnostics({
         status: 'ready',
         format: presenter.format,
-        swatch: 'pixi-passthrough',
+        swatch: 'no-presentation',
         videoGeometrySource,
         videoDecodeRequestSource,
         videoDecodeRequestCount: collectObjectIdsByMediaKind(repaintSession, 'Video').length,
@@ -842,7 +842,7 @@ export const startSharedRendererPreviewPresenter = async ({
         ? 'native-render-frame'
         : diagnosticSwatchEnabled
         ? 'solid-srgb'
-        : 'pixi-passthrough',
+        : 'no-presentation',
   });
 
   // Re-present a freshly decoded native frame on this already-initialised

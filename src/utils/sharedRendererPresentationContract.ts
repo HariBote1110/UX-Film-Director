@@ -1,8 +1,9 @@
-import type {
-  SharedRendererPreviewSurfaceBlockedReason,
-  SharedRendererPreviewSurfaceGate,
-} from './sharedRendererPreviewSurface';
-
+/**
+ * PixiJS 排除計画 Phase 4: shared renderer は唯一の presenter となったため、
+ * Pixi 併走比較（frame lock 検証・frame partition）の API は撤去した。
+ * deviceLost 時の fallback も Pixi へは戻れないため 'none'（次の presenter
+ * 再起動まで presentation なし。native overlay は別プロセスのため影響しない）。
+ */
 export interface SharedRendererPresentationContract {
   canvas: {
     colorSpace: 'srgb';
@@ -16,37 +17,9 @@ export interface SharedRendererPresentationContract {
     source: 'frozenSceneSnapshot';
   };
   deviceLost: {
-    fallback: 'pixi';
+    fallback: 'none';
     staleSharedFrameAllowed: false;
   };
-}
-
-export type SharedRendererFrameLockValidation =
-  | { ok: true }
-  | {
-      ok: false;
-      reason: 'frameIndexSkew';
-      detail: string;
-    };
-
-export interface SharedRendererFrameLockInput {
-  snapshotFrameIndex: number;
-  pixiFrameIndex: number;
-  candidateFrameIndex: number;
-}
-
-export interface SharedRendererPreviewFramePartitionInput {
-  frameIndex: number;
-  surfaceGate: SharedRendererPreviewSurfaceGate;
-}
-
-export interface SharedRendererPreviewFramePartition {
-  comparableFrameIndices: number[];
-  pixiOnlyFrames: {
-    frameIndex: number;
-    reason: SharedRendererPreviewSurfaceBlockedReason;
-    detail: string;
-  }[];
 }
 
 export const buildSharedRendererPresentationContract = (): SharedRendererPresentationContract => ({
@@ -62,48 +35,7 @@ export const buildSharedRendererPresentationContract = (): SharedRendererPresent
     source: 'frozenSceneSnapshot',
   },
   deviceLost: {
-    fallback: 'pixi',
+    fallback: 'none',
     staleSharedFrameAllowed: false,
   },
 });
-
-export const validateSharedRendererFrameLock = ({
-  snapshotFrameIndex,
-  pixiFrameIndex,
-  candidateFrameIndex,
-}: SharedRendererFrameLockInput): SharedRendererFrameLockValidation => {
-  if (snapshotFrameIndex === pixiFrameIndex && snapshotFrameIndex === candidateFrameIndex) {
-    return { ok: true };
-  }
-
-  return {
-    ok: false,
-    reason: 'frameIndexSkew',
-    detail: 'Pixi, shared renderer, and SceneSnapshot must compare the same frozen frame index.',
-  };
-};
-
-export const partitionSharedRendererPreviewFrames = (
-  frames: SharedRendererPreviewFramePartitionInput[]
-): SharedRendererPreviewFramePartition => {
-  const comparableFrameIndices: number[] = [];
-  const pixiOnlyFrames: SharedRendererPreviewFramePartition['pixiOnlyFrames'] = [];
-
-  frames.forEach(({ frameIndex, surfaceGate }) => {
-    if (surfaceGate.ok) {
-      comparableFrameIndices.push(frameIndex);
-      return;
-    }
-
-    pixiOnlyFrames.push({
-      frameIndex,
-      reason: surfaceGate.reason,
-      detail: surfaceGate.detail,
-    });
-  });
-
-  return {
-    comparableFrameIndices,
-    pixiOnlyFrames,
-  };
-};

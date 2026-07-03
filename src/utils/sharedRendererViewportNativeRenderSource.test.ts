@@ -53,7 +53,7 @@ const session = (): SharedRendererPreviewSession => ({
       source: 'frozenSceneSnapshot',
     },
     deviceLost: {
-      fallback: 'pixi',
+      fallback: 'none',
       staleSharedFrameAllowed: false,
     },
   },

@@ -161,7 +161,7 @@ export type SharedRendererWebGpuPresenterResult =
 
 export interface SharedRendererDeviceLostEvent {
   reason: 'deviceLost';
-  fallback: 'pixi';
+  fallback: 'none';
   staleSharedFrameAllowed: false;
   message: string;
 }
