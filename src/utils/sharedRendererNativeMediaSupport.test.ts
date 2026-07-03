@@ -629,6 +629,61 @@ describe('sharedRendererNativeMediaSupport', () => {
     })).toBe(false);
   });
 
+  it('accepts cosmic-text text generator sources with a stroke and shadow', () => {
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'text-stroke-shadow-1',
+      kind: 'Text',
+      source: JSON.stringify({
+        text: 'Outlined',
+        font_family: 'Arial',
+        font_size: 48,
+        colour: '#ffffff',
+        alignment: 'left',
+        letter_spacing: 0,
+        stroke: { colour: '#000000', width: 3 },
+        shadow: { colour: '#333333', offset_x: 2, offset_y: 4, blur: 6 },
+      }),
+      width: 300,
+      height: 80,
+    })).toBe(true);
+  });
+
+  it('rejects text generator sources with a malformed stroke or shadow', () => {
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'text-bad-stroke-1',
+      kind: 'Text',
+      source: JSON.stringify({
+        text: 'Outlined',
+        font_family: 'Arial',
+        font_size: 48,
+        colour: '#ffffff',
+        alignment: 'left',
+        letter_spacing: 0,
+        stroke: { colour: 'red', width: 3 },
+        shadow: null,
+      }),
+      width: 300,
+      height: 80,
+    })).toBe(false);
+
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'text-bad-shadow-1',
+      kind: 'Text',
+      source: JSON.stringify({
+        text: 'Outlined',
+        font_family: 'Arial',
+        font_size: 48,
+        colour: '#ffffff',
+        alignment: 'left',
+        letter_spacing: 0,
+        stroke: null,
+        shadow: { colour: '#333333', offset_x: 2, offset_y: 4, blur: 'big' },
+      }),
+      width: 300,
+      height: 80,
+    })).toBe(false);
+  });
+
   it('accepts 93 shape generator sources for non-rectangle shapes as native renderable media', () => {
     expect(isSharedRendererNativeMediaReferenceSupported({
       id: 'shape-circle-1',
