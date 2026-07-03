@@ -1036,8 +1036,17 @@ const serialiseTextSource = (object: TextObject): string =>
     colour: object.fill,
     alignment: object.textAlignment ?? 'left',
     letter_spacing: object.letterSpacing ?? 0,
-    stroke: null,
-    shadow: null,
+    stroke: object.textStroke
+      ? { colour: object.textStroke.colour, width: object.textStroke.width }
+      : null,
+    shadow: object.textShadow
+      ? {
+        colour: object.textShadow.colour,
+        offset_x: object.textShadow.offsetX,
+        offset_y: object.textShadow.offsetY,
+        blur: object.textShadow.blur,
+      }
+      : null,
   });
 
 /**

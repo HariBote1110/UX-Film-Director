@@ -47,6 +47,36 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   return false;
 };
 
+const isSharedRendererNativeTextStrokeSupported = (stroke: unknown): boolean => {
+  if (stroke === null) return true;
+  if (typeof stroke !== 'object') return false;
+  const parsed = stroke as { colour?: unknown; width?: unknown };
+  return (
+    typeof parsed.colour === 'string'
+    && /^#[0-9a-f]{6}$/i.test(parsed.colour)
+    && typeof parsed.width === 'number'
+    && Number.isFinite(parsed.width)
+    && parsed.width >= 0
+  );
+};
+
+const isSharedRendererNativeTextShadowSupported = (shadow: unknown): boolean => {
+  if (shadow === null) return true;
+  if (typeof shadow !== 'object') return false;
+  const parsed = shadow as { colour?: unknown; offset_x?: unknown; offset_y?: unknown; blur?: unknown };
+  return (
+    typeof parsed.colour === 'string'
+    && /^#[0-9a-f]{6}$/i.test(parsed.colour)
+    && typeof parsed.offset_x === 'number'
+    && Number.isFinite(parsed.offset_x)
+    && typeof parsed.offset_y === 'number'
+    && Number.isFinite(parsed.offset_y)
+    && typeof parsed.blur === 'number'
+    && Number.isFinite(parsed.blur)
+    && parsed.blur >= 0
+  );
+};
+
 const isSharedRendererNativeTextSourceSupported = (source: string): boolean => {
   try {
     const parsed = JSON.parse(source) as {
@@ -56,6 +86,8 @@ const isSharedRendererNativeTextSourceSupported = (source: string): boolean => {
       colour?: unknown;
       alignment?: unknown;
       letter_spacing?: unknown;
+      stroke?: unknown;
+      shadow?: unknown;
     };
     return (
       typeof parsed.text === 'string'
@@ -68,6 +100,8 @@ const isSharedRendererNativeTextSourceSupported = (source: string): boolean => {
       && (parsed.alignment === 'left' || parsed.alignment === 'centre' || parsed.alignment === 'right')
       && typeof parsed.letter_spacing === 'number'
       && Number.isFinite(parsed.letter_spacing)
+      && isSharedRendererNativeTextStrokeSupported(parsed.stroke ?? null)
+      && isSharedRendererNativeTextShadowSupported(parsed.shadow ?? null)
     );
   } catch {
     return false;

@@ -417,6 +417,21 @@ export interface BaseObject {
   vibration?: Vibration;       
 }
 
+/** テキストの縁取り（stroke）。rust-backend の text.rs がオフセット再描画で描く。 */
+export interface TextStroke {
+  colour: string;
+  width: number;
+}
+
+/** テキストの影（shadow）。BaseObject.shadow（フィルタ経由の汎用影）とは別物で、
+ * text.rs のグリフ専用オフセット再描画で描く。 */
+export interface TextShadow {
+  colour: string;
+  offsetX: number;
+  offsetY: number;
+  blur: number;
+}
+
 export interface TextObject extends BaseObject {
   type: 'text';
   text: string;
@@ -433,6 +448,8 @@ export interface TextObject extends BaseObject {
   measuredHeight?: number;
   textAlignment?: 'left' | 'centre' | 'right';
   letterSpacing?: number;
+  textStroke?: TextStroke;
+  textShadow?: TextShadow;
 }
 
 export interface ShapeObject extends BaseObject {
