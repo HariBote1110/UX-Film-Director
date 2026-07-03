@@ -164,6 +164,7 @@ impl NativeWgpuLiveSurfaceRenderer {
             )
             .await
             .map_err(NativeWgpuRenderError::RequestDevice)?;
+        install_uncaptured_error_logging(&device, "UXFD native wgpu live surface device");
         let capabilities = surface.get_capabilities(&adapter);
         let surface_format = choose_live_surface_format(&capabilities.formats);
         let surface_config = wgpu::SurfaceConfiguration {
@@ -367,6 +368,7 @@ impl NativeWgpuRenderer {
             )
             .await
             .map_err(NativeWgpuRenderError::RequestDevice)?;
+        install_uncaptured_error_logging(&device, "UXFD native wgpu device");
 
         let pipeline = create_pipeline(&device);
         let bind_group_layout = pipeline.get_bind_group_layout(0);
@@ -1470,6 +1472,19 @@ fn create_pipeline_for_format(
     })
 }
 
+/// wgpu の既定挙動では、error scope で捕捉されない Validation Error は
+/// `panic!` する（wgpu-0.20.1 の `default_error_handler`）。今回の実機バグは
+/// まさにこの経路（`Device::create_texture` の Dimension 超過）で発生し、
+/// sidecar プロセスごと落ちて Electron main の EPIPE クラッシュへ連鎖した。
+/// device の上限修正・CPU側縮小フォールバックで根本原因は解消済みだが、
+/// 将来の回帰や未知の Validation Error に備え、`on_uncaptured_error` で
+/// panic の代わりにログ出力へ切り替える防御層を追加する。
+fn install_uncaptured_error_logging(device: &wgpu::Device, device_label: &'static str) {
+    device.on_uncaptured_error(Box::new(move |error| {
+        eprintln!("[{device_label}] wgpu uncaptured error (continuing without panic): {error}");
+    }));
+}
+
 fn required_limits_for_frame(
     adapter: &wgpu::Adapter,
     width: u32,
@@ -2499,6 +2514,49 @@ mod tests {
             result,
             Err(NativeWgpuRenderError::FrameSizeExceedsAdapterLimit { .. })
         ));
+    }
+
+    #[test]
+    fn install_uncaptured_error_logging_prevents_panic_on_validation_error() {
+        // wgpu既定では error scope に捕捉されない Validation Error は panic
+        // する（default_error_handler）。install_uncaptured_error_logging を
+        // 呼んだ device では、同種の Validation Error（例: create_texture の
+        // Dimension 超過）が発生してもログ出力のみでpanicしないことを固定する。
+        // これは限界修正・縮小フォールバックが将来回帰した場合の防御層。
+        let adapter = request_test_adapter();
+        let adapter_limits = adapter.limits();
+        let (device, _queue) = pollster::block_on(adapter.request_device(
+            &wgpu::DeviceDescriptor {
+                label: Some("test device for uncaptured error logging"),
+                required_features: wgpu::Features::empty(),
+                required_limits: wgpu::Limits::downlevel_defaults(),
+            },
+            None,
+        ))
+        .expect("device request must succeed");
+        install_uncaptured_error_logging(&device, "test device for uncaptured error logging");
+
+        let oversized_dimension = adapter_limits.max_texture_dimension_2d.max(2048) + 1;
+        // downlevel既定値（2048）を要求したdeviceへ、意図的に上限超過の
+        // テクスチャを作成させる。ここでは downscale フォールバックを経由
+        // しないため、以前は panic していたパスを直接踏む。
+        let _texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("intentionally oversized test texture"),
+            size: wgpu::Extent3d {
+                width: oversized_dimension.min(wgpu::Limits::downlevel_defaults().max_texture_dimension_2d + 4096),
+                height: 4,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+
+        // panic せずここまで到達できれば成功。
+        device.poll(wgpu::Maintain::Wait);
     }
 
     #[test]
