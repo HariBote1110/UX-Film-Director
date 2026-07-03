@@ -592,6 +592,134 @@ fn native_wgpu_applies_axis_aligned_clipping() {
     );
 }
 
+// Image / Psd media are decoded on the rust-backend side (PNG/JPEG via
+// uxfd-golden-harness, PSD via psd_fast) into a plain RgbaFrame before this
+// renderer ever sees them — the same RgbaFrame shape SolidColour and Video
+// sources already use in the parity tests above. This renderer has no
+// MediaKind awareness (uxfd_native_wgpu_renderer::prepare_scene_clips keys
+// purely off clip_id -> RgbaFrame), so these two tests document that an
+// Image-shaped source (opaque bitmap with a partially transparent edge, as a
+// decoded PNG would have) and a Psd-shaped source (pre-composited layer
+// stack placed with a non-identity transform, as a decoded PSD would have)
+// go through the exact same composite path already covered for SolidColour
+// and get identical CPU-reference parity guarantees.
+#[test]
+fn native_wgpu_matches_reference_for_image_media_shaped_source_with_alpha_edge() {
+    let snapshot = scene_snapshot(vec![
+        evaluated_clip("background", 0, 1.0, Vec::new()),
+        evaluated_clip("image-1", 1, 1.0, Vec::new()),
+    ]);
+    let sources = HashMap::from([
+        (
+            "background".to_string(),
+            RgbaFrame::from_rgba8(2, 1, vec![0, 0, 255, 255, 0, 0, 255, 255])
+                .expect("valid background"),
+        ),
+        (
+            "image-1".to_string(),
+            // Decoded PNG-shaped source: fully opaque red pixel next to a
+            // half-transparent red pixel, as a real Image media source with
+            // an alpha channel would decode to.
+            RgbaFrame::from_rgba8(2, 1, vec![255, 0, 0, 255, 255, 0, 0, 128])
+                .expect("valid image media source"),
+        ),
+    ]);
+    let reference =
+        render_reference_frame(&snapshot, &sources, 2, 1).expect("render CPU reference");
+
+    let native_result = pollster::block_on(render_native_wgpu_frame(&snapshot, &sources, 2, 1));
+    let native = match native_result {
+        Ok(frame) => frame,
+        Err(NativeWgpuRenderError::AdapterUnavailable) => {
+            eprintln!("skipping image media parity test: no GPU adapter available");
+            return;
+        }
+        Err(error) => panic!("native wgpu render failed: {error:?}"),
+    };
+
+    let comparison = compare_rgba_frames(
+        &reference,
+        &native,
+        ComparisonThresholds {
+            max_channel_delta: 1,
+            max_mean_absolute_error: 1.0,
+            min_psnr: 48.0,
+            min_ssim: 0.99,
+        },
+    );
+
+    assert!(
+        comparison.passed,
+        "native wgpu frame differed from CPU reference for image-shaped source: {comparison:?}, native={:?}, reference={:?}",
+        native.pixels, reference.pixels
+    );
+}
+
+#[test]
+fn native_wgpu_matches_reference_for_psd_media_shaped_source_with_scale_transform() {
+    let snapshot = scene_snapshot(vec![
+        evaluated_clip("background", 0, 1.0, Vec::new()),
+        evaluated_clip_with_transform(
+            "psd-1",
+            1,
+            1.0,
+            Vec::new(),
+            Transform {
+                translation_x: 0.0,
+                translation_y: 0.0,
+                scale_x: 2.0,
+                scale_y: 1.0,
+                rotation_degrees: 0.0,
+                sampling: SamplingMode::Nearest,
+            },
+        ),
+    ]);
+    let sources = HashMap::from([
+        (
+            "background".to_string(),
+            RgbaFrame::from_rgba8(2, 1, vec![0, 0, 0, 255, 0, 0, 0, 255])
+                .expect("valid background"),
+        ),
+        (
+            "psd-1".to_string(),
+            // Pre-composited PSD-shaped source: psd_fast flattens the
+            // visible layer stack into a single opaque RgbaFrame before
+            // handing it to the renderer, so a single 1x1 opaque pixel
+            // stands in for "already-flattened PSD content".
+            RgbaFrame::from_rgba8(1, 1, vec![0, 255, 0, 255]).expect("valid psd media source"),
+        ),
+    ]);
+    let reference =
+        render_reference_frame(&snapshot, &sources, 2, 1).expect("render CPU reference");
+
+    let native_result = pollster::block_on(render_native_wgpu_frame(&snapshot, &sources, 2, 1));
+    let native = match native_result {
+        Ok(frame) => frame,
+        Err(NativeWgpuRenderError::AdapterUnavailable) => {
+            eprintln!("skipping psd media parity test: no GPU adapter available");
+            return;
+        }
+        Err(error) => panic!("native wgpu render failed: {error:?}"),
+    };
+
+    let comparison = compare_rgba_frames(
+        &reference,
+        &native,
+        ComparisonThresholds {
+            max_channel_delta: 1,
+            max_mean_absolute_error: 1.0,
+            min_psnr: 48.0,
+            min_ssim: 0.99,
+        },
+    );
+
+    assert!(
+        comparison.passed,
+        "native wgpu frame differed from CPU reference for psd-shaped source: {comparison:?}, native={:?}, reference={:?}",
+        native.pixels, reference.pixels
+    );
+}
+
 #[test]
 fn native_wgpu_renders_generated_audio_waveform_frame() {
     let snapshot = scene_snapshot(vec![evaluated_clip("waveform-1", 0, 1.0, Vec::new())]);
