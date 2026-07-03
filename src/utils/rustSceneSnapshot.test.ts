@@ -4232,11 +4232,12 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
-  it('fails loud for shape geometry outside the first shared renderer rectangle envelope', () => {
+  it('builds a generated shape plane for non-rectangle shapes', () => {
     const layers = createDefaultLayers();
     const circle = baseShape({
       id: 'circle',
       shapeType: 'circle',
+      fill: '#00ff00',
     });
 
     const result = buildRustSceneSnapshotForTimeline({
@@ -4246,10 +4247,72 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       time: 2,
     });
 
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error('expected snapshot build to fail');
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected snapshot build to pass');
 
-    expect(issueCodes(result.issues)).toEqual(['unsupportedShapeGeometry']);
+    expect(result.media).toEqual([
+      {
+        id: 'circle',
+        kind: 'GeneratedShape',
+        source: JSON.stringify({
+          generator: 'shape-93',
+          shape_type: 'circle',
+          fill_colour: '#00ff00',
+          gradient: null,
+          corner_radius: 0,
+        }),
+        width: 200,
+        height: 100,
+      },
+    ]);
+  });
+
+  it('builds a generated shape plane with a gradient and corner radius for non-rectangle shapes', () => {
+    const layers = createDefaultLayers();
+    const roundedRect = baseShape({
+      id: 'rounded-rect-1',
+      shapeType: 'rounded_rect',
+      fill: '#000000',
+      cornerRadius: 24,
+      gradient: {
+        enabled: true,
+        type: 'radial',
+        colours: ['#ff0000', '#0000ff'],
+        stops: [0, 1],
+        direction: 90,
+      },
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [roundedRect],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected snapshot build to pass');
+
+    expect(result.media).toEqual([
+      {
+        id: 'rounded-rect-1',
+        kind: 'GeneratedShape',
+        source: JSON.stringify({
+          generator: 'shape-93',
+          shape_type: 'rounded_rect',
+          fill_colour: '#000000',
+          gradient: {
+            type: 'radial',
+            colours: ['#ff0000', '#0000ff'],
+            stops: [0, 1],
+            direction: 90,
+          },
+          corner_radius: 24,
+        }),
+        width: 200,
+        height: 100,
+      },
+    ]);
   });
 
   it('fails loud for Pixi group composition and mask semantics', () => {
