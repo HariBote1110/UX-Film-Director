@@ -1122,14 +1122,21 @@ pub fn build_selection_decoration_clips(
         solid_rgba_frame([255, 255, 255, 255]),
     );
 
-    let fit_scale = if state.canvas_width == 0 || state.canvas_height == 0 {
-        1.0
+    // `fit_scene_snapshot_to_drawable`（scene 本体）は canvas_width/height が 0 の
+    // とき fit 変換自体を丸ごとスキップ（無変換）する Fail Safe になっている。
+    // ここも同じ契約にしないと、fit_scale だけ 1.0 にフォールバックして
+    // offset_x/y の計算で 0 の canvas_width/height を使い続け、
+    // `offset = drawable_size * 0.5` という巨大なオフセットが生まれてしまう
+    // （実機バグ: 選択枠が drawable 中心へ大きくシフトし preview 外に見える）。
+    let (fit_scale, offset_x, offset_y) = if state.canvas_width == 0 || state.canvas_height == 0 {
+        (1.0, 0.0, 0.0)
     } else {
-        (drawable_width as f64 / state.canvas_width as f64)
-            .min(drawable_height as f64 / state.canvas_height as f64)
+        let fit_scale = (drawable_width as f64 / state.canvas_width as f64)
+            .min(drawable_height as f64 / state.canvas_height as f64);
+        let offset_x = (drawable_width as f64 - state.canvas_width as f64 * fit_scale) * 0.5;
+        let offset_y = (drawable_height as f64 - state.canvas_height as f64 * fit_scale) * 0.5;
+        (fit_scale, offset_x, offset_y)
     };
-    let offset_x = (drawable_width as f64 - state.canvas_width as f64 * fit_scale) * 0.5;
-    let offset_y = (drawable_height as f64 - state.canvas_height as f64 * fit_scale) * 0.5;
     let fit = |point: (f64, f64)| (point.0 * fit_scale + offset_x, point.1 * fit_scale + offset_y);
 
     let line_width = SELECTION_DECORATION_LINE_WIDTH_CSS * contents_scale;
