@@ -1,3 +1,26 @@
+## 2026-07-03 — 修正: 選択枠native overlayデコレーションのcanvas_width=0時オフセット暴走を解消・contain-fit式を一本化
+
+### 実施内容
+
+- 実機バグ「選択枠の金枠＋白ハンドルだけがpreview外・タイムライン付近まで大きくずれて描かれる（シーン本体は正しい位置）」を調査。
+- (4) SVG/native切り分け: SVG側`worldPointToCssPoint`（`sceneHitTest.ts`）とnative側`buildSelectionDecorationQuads`＋Rust `build_selection_decoration_clips`のcontain-fit式を、実測相当のpane寸法（1920x1080プロジェクト・CSS782x440・dpr2・デフォルトカメラ）で数値検算・vitestテスト化し、両者が丸め誤差未満で一致することを確認（`src/utils/nativeOverlaySelectionDecoration.test.ts`）。Rust側contain-fit変換自体には数式上の誤りがない。
+- (1) letterbox offsetの符号・適用順の食い違いを行単位で突き合わせ。**確定した契約違反**: `native-overlay/src/lib.rs`の`build_selection_decoration_clips`は`state.canvas_width/height==0`のとき`fit_scale`のみ1.0にフォールバックし、直後の`offset_x/y`計算では0のままの`canvas_width/height`を使い続けるため`offset = drawable_size * 0.5`という巨大なオフセットが発生する非対称実装だった。scene本体側`fit_scene_snapshot_to_drawable`は同条件で早期returnし完全無変換（offset=0）を返す設計であり、両者が食い違っていた。
+- 修正: 両者が共有する`contain_fit_transform`ヘルパーを新設し、`fit_scene_snapshot_to_drawable`・`build_selection_decoration_clips`・診断トレース`trace_scene_fit`の3箇所の重複式を一本化（Fail Safeも(1.0, 0.0, 0.0)に統一）。
+- (5) drawable境界外にはみ出すquadのclip保証をテストで固定: wgpuのフラグメントシェーダーはrender target外のピクセルに対して呼ばれないため、drawableサイズのテクスチャにしか書き込まれずパニックも起きないことを実証（既存実装のまま契約成立、変更不要）。
+- (2)(3) y軸反転混入・contents_scale掛け忘れ／二重掛けは調査の結果、確認されず（`solid_composite.wgsl`のfragment位置はtop-left origin、`contents_scale`は線幅・ハンドルサイズにのみ意図的に乗算、fit変換自体はdrawable_width/heightが既に物理pxのため不要）。
+- テスト: native-overlay 36→39（Red 1件→修正→Green、契約テスト2件追加）/ vitest 新規10件（既存4ファイル失敗は環境依存で変化なし）/ tsc 30件（変化なし）。
+
+### 選定理由・判断の根拠
+
+- `canvas_width=0`は通常フロー（`useStore`初期値は`{width:1920,height:1080}`）では到達しないことを別セッションのサブエージェント調査で確認済みだが、契約として存在する非対称バグであり、将来projectSettings未到達のタイミングが生まれた場合に同じ症状（金枠がdrawable中心へ大きくシフト）を再現しうるため、実機報告の直接原因かは確証が持てないまま「確実な契約違反」として修正するのが最も安全な判断とした。
+- Rust変換式・TS変換式のいずれにも数式上の誤りが見当たらなかったため、重複実装の一本化（`contain_fit_transform`）により「今後同じ式がまた非対称に分岐する」リスクを構造的に減らす方針をとった。個別修正のみで済ませる案は却下（指示にも「重複式が今回の食い違いの温床」と明記されていたため）。
+- Y軸反転・contents_scale二重掛けの仮説は、シェーダー・呼び出し経路を実際に読んでコードレベルで否定できたため、実装変更は行わず調査記録のみ残した。
+
+### 残課題・次のステップ
+
+- 実機再現条件（250px下・80px左のズレ）を静的解析だけでは完全再現できておらず、`canvas_width=0`修正が実機バグの直接原因だったかは未確定。実機での再検証（中央・四隅・ドラッグ中・カメラzoom時の枠位置一致）をユーザーに依頼したい。
+- 再現しない場合は、CDPで`UXFD_REMOTE_DEBUG_PORT`から実際のIPC payload（`canvasWidth`等の実測値）をトレースし、`UXFD_OVERLAY_TRACE=1`の診断ログと突き合わせる調査が次の一手。
+
 ## 2026-07-03 — 修正: 選択枠のocclusion逆転とPSDレイヤー非表示（版432a）
 
 ### 実施内容

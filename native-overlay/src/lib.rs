@@ -1122,14 +1122,14 @@ pub fn build_selection_decoration_clips(
         solid_rgba_frame([255, 255, 255, 255]),
     );
 
-    let fit_scale = if state.canvas_width == 0 || state.canvas_height == 0 {
-        1.0
-    } else {
-        (drawable_width as f64 / state.canvas_width as f64)
-            .min(drawable_height as f64 / state.canvas_height as f64)
-    };
-    let offset_x = (drawable_width as f64 - state.canvas_width as f64 * fit_scale) * 0.5;
-    let offset_y = (drawable_height as f64 - state.canvas_height as f64 * fit_scale) * 0.5;
+    // `fit_scene_snapshot_to_drawable`（scene 本体）と同じ共通ヘルパーを使い、
+    // canvas_width/height が 0 のときの Fail Safe（無変換）も含めて式を一本化する。
+    let (fit_scale, offset_x, offset_y) = contain_fit_transform(
+        state.canvas_width,
+        state.canvas_height,
+        drawable_width,
+        drawable_height,
+    );
     let fit = |point: (f64, f64)| (point.0 * fit_scale + offset_x, point.1 * fit_scale + offset_y);
 
     let line_width = SELECTION_DECORATION_LINE_WIDTH_CSS * contents_scale;
@@ -1319,14 +1319,12 @@ fn trace_scene_fit(
     drawable_width: u32,
     drawable_height: u32,
 ) {
-    let fit_scale = if scene.canvas_width == 0 || scene.canvas_height == 0 {
-        1.0
-    } else {
-        (drawable_width as f32 / scene.canvas_width as f32)
-            .min(drawable_height as f32 / scene.canvas_height as f32)
-    };
-    let offset_x = (drawable_width as f32 - scene.canvas_width as f32 * fit_scale) * 0.5;
-    let offset_y = (drawable_height as f32 - scene.canvas_height as f32 * fit_scale) * 0.5;
+    let (fit_scale, offset_x, offset_y) = contain_fit_transform(
+        scene.canvas_width,
+        scene.canvas_height,
+        drawable_width,
+        drawable_height,
+    );
     let media_dims = scene
         .media
         .iter()
@@ -1520,6 +1518,32 @@ fn compensate_upload_decode_downscale(
     compensated
 }
 
+/// project 座標系（`canvas_width`/`canvas_height` 基準の絶対ピクセル座標）を
+/// drawable 座標系へ contain-fit 変換するための `(fit_scale, offset_x, offset_y)`
+/// を計算する共通ヘルパー。scene 本体（`fit_scene_snapshot_to_drawable`）・
+/// 選択デコレーション（`build_selection_decoration_clips`）・診断トレース
+/// （`trace_scene_fit`）の 3 箇所が個別に同種の式を持っていたことが、
+/// 「fit_scale だけ 1.0 にフォールバックし offset は 0 の canvas サイズで
+/// 計算してしまう」非対称バグの温床になっていた。canvas サイズが 0 のときは
+/// アスペクト比が定義できない Fail Safe ケースとして、fit_scale=1.0 かつ
+/// offset=(0,0) の完全な無変換（呼び出し元が transform を素通しできる値）を
+/// 返す。
+fn contain_fit_transform(
+    canvas_width: u32,
+    canvas_height: u32,
+    drawable_width: u32,
+    drawable_height: u32,
+) -> (f64, f64, f64) {
+    if canvas_width == 0 || canvas_height == 0 {
+        return (1.0, 0.0, 0.0);
+    }
+    let fit_scale = (drawable_width as f64 / canvas_width as f64)
+        .min(drawable_height as f64 / canvas_height as f64);
+    let offset_x = (drawable_width as f64 - canvas_width as f64 * fit_scale) * 0.5;
+    let offset_y = (drawable_height as f64 - canvas_height as f64 * fit_scale) * 0.5;
+    (fit_scale, offset_x, offset_y)
+}
+
 /// `scene.snapshot` の `clips[].transform` はプロジェクト解像度（`canvas_width`/
 /// `canvas_height`）基準の絶対ピクセル座標である。一方 `solid_composite.wgsl` の
 /// フラグメントシェーダーは `translation_x/y`・`scale_x/y` を drawable の
@@ -1533,7 +1557,8 @@ fn compensate_upload_decode_downscale(
 /// ここでは export 経路（drawable = プロジェクト解像度）と同じ見た目を保つため、
 /// アスペクト比を維持したまま drawable に収まる最大スケール（contain-fit）を
 /// 計算し、中央寄せ（letterbox/pillarbox）した上で各 clip の transform に適用する。
-/// 等方スケールなので回転角・アスペクト比には影響しない。
+/// 等方スケールなので回転角・アスペクト比には影響しない。canvas サイズが 0 の
+/// ときは `contain_fit_transform` の Fail Safe（無変換）に従い、そのまま返す。
 fn fit_scene_snapshot_to_drawable(
     snapshot: &SceneSnapshot,
     canvas_width: u32,
@@ -1545,12 +1570,11 @@ fn fit_scene_snapshot_to_drawable(
         return snapshot.clone();
     }
 
-    let fit_scale = (drawable_width as f32 / canvas_width as f32)
-        .min(drawable_height as f32 / canvas_height as f32);
-    let fitted_width = canvas_width as f32 * fit_scale;
-    let fitted_height = canvas_height as f32 * fit_scale;
-    let offset_x = (drawable_width as f32 - fitted_width) * 0.5;
-    let offset_y = (drawable_height as f32 - fitted_height) * 0.5;
+    let (fit_scale, offset_x, offset_y) =
+        contain_fit_transform(canvas_width, canvas_height, drawable_width, drawable_height);
+    let fit_scale = fit_scale as f32;
+    let offset_x = offset_x as f32;
+    let offset_y = offset_y as f32;
 
     let mut fitted = snapshot.clone();
     for clip in &mut fitted.clips {
@@ -2598,6 +2622,30 @@ mod tests {
     }
 
     #[test]
+    fn contain_fit_transform_matches_scene_and_decoration_callers_for_the_same_geometry() {
+        // 契約: scene 本体（fit_scene_snapshot_to_drawable）とデコレーション
+        // （build_selection_decoration_clips）が同じ canvas/drawable ペアに対して
+        // 計算する fit_scale・letterbox offset は、`contain_fit_transform` という
+        // 単一の実装を共有しているため、常に完全一致でなければならない。
+        // pane 実測値相当（canvas 1920x1080・drawable 1564x880 @ dpr2 相当）で固定する。
+        let (fit_scale, offset_x, offset_y) = contain_fit_transform(1920, 1080, 1564, 880);
+        assert_approx(fit_scale as f32, 1564.0 / 1920.0, "fit_scale");
+        // 1564/1920 ≈ 0.8146 と 880/1080 ≈ 0.8148 のうち小さい方（横基準の letterbox）。
+        assert!(fit_scale < 880.0 / 1080.0, "fit_scale must pick the smaller axis ratio");
+        assert_approx(offset_x as f32, 0.0, "offset_x must be ~0 for a near-matching aspect ratio");
+        assert!(offset_y >= 0.0, "offset_y must be non-negative letterbox padding");
+
+        // canvas サイズ 0（projectSettings 未到達などの Fail Safe 経路）は
+        // 無変換（fit_scale=1, offset=0）でなければならない。scene 本体
+        // （fit_scene_snapshot_to_drawable の早期 return）と同じ契約。
+        let (zero_fit_scale, zero_offset_x, zero_offset_y) =
+            contain_fit_transform(0, 0, 1564, 880);
+        assert_approx(zero_fit_scale as f32, 1.0, "zero-canvas fit_scale");
+        assert_approx(zero_offset_x as f32, 0.0, "zero-canvas offset_x");
+        assert_approx(zero_offset_y as f32, 0.0, "zero-canvas offset_y");
+    }
+
+    #[test]
     fn selection_decoration_clips_transform_quad_corners_with_scene_contain_fit() {
         // canvas 1920x1080 → drawable 960x540 は contain-fit 0.5・offset (0,0)。
         // fit_scene_snapshot_to_drawable と同じ変換をデコレーションにも通す契約。
@@ -2822,6 +2870,74 @@ mod tests {
         // quad 中央 (100, 100): 透明のまま（枠の内側は塗らない）。
         let interior = pixel(100, 100);
         assert_eq!(interior[3], 0, "interior must stay transparent, got {interior:?}");
+    }
+
+    #[test]
+    fn selection_decoration_clips_use_identity_transform_when_canvas_size_is_zero() {
+        // 契約: `fit_scene_snapshot_to_drawable`（scene 本体の contain-fit）は
+        // canvas_width/height が 0 のとき「fit 変換を一切適用しない」（早期
+        // return で translation/scale を無改変のまま返す）。デコレーション側の
+        // `build_selection_decoration_clips` も同じ Fail Safe でなければならない。
+        //
+        // 修正前の実装は `fit_scale` こそ 1.0 にフォールバックしていたが、
+        // その後段の `offset_x/y` 計算で分母が 0 になった `canvas_width` を
+        // そのまま使っていたため `offset = drawable_size * 0.5` という巨大な
+        // オフセットが生まれ、金枠・ハンドルが drawable 中心へ大きくシフトして
+        // しまっていた（実機バグ: 選択枠が preview 外・タイムライン付近まで
+        // ずれて見える）。canvas_width=0 は「まだ projectSettings が来ていない」
+        // 起動直後などに起こり得るため、Fail Safe で無変換（offset=0）に
+        // 倒すのが scene 本体との整合が取れる唯一の挙動である。
+        let state = SelectionDecorationState {
+            canvas_width: 0,
+            canvas_height: 0,
+            quads: vec![SelectionDecorationQuad {
+                top_left: (100.0, 100.0),
+                top_right: (300.0, 100.0),
+                bottom_right: (300.0, 200.0),
+                bottom_left: (100.0, 200.0),
+            }],
+        };
+        let (clips, _sources) = build_selection_decoration_clips(&state, 960, 540, 1.0);
+
+        // 無変換（fit_scale=1.0, offset=0）なら上辺は quad 座標そのまま
+        // （TL(100,100)→TR(300,100)）を線幅 2 で載せた位置になるはずで、
+        // offset_x/y はどちらも 0 でなければならない。
+        let top = &clips[0];
+        assert_approx(top.transform.translation_x, 99.0, "top edge translation_x (no offset)");
+        assert_approx(top.transform.translation_y, 99.0, "top edge translation_y (no offset)");
+        assert_approx(top.transform.scale_x, 202.0, "top edge scale_x (no fit scale)");
+        assert_approx(top.transform.scale_y, 2.0, "top edge scale_y (no fit scale)");
+    }
+
+    #[test]
+    fn selection_decoration_clips_outside_drawable_bounds_are_clipped_by_the_render_target() {
+        // 契約 (5) — quad が drawable 境界の外へはみ出す座標を持っていても、
+        // offscreen render は drawable サイズのテクスチャにしか書き込めない
+        // （wgpu のフラグメントシェーダーはレンダーターゲット外のピクセルに
+        // 対して呼ばれない）ため、はみ出した分は自動的に切り捨てられ、
+        // パニックや drawable 外への書き込みは起こらないことを固定する。
+        // quad 全体が drawable（100x100）の右下はるか外側にある。
+        let state = SelectionDecorationState {
+            canvas_width: 100,
+            canvas_height: 100,
+            quads: vec![SelectionDecorationQuad {
+                top_left: (500.0, 500.0),
+                top_right: (700.0, 500.0),
+                bottom_right: (700.0, 700.0),
+                bottom_left: (500.0, 700.0),
+            }],
+        };
+        let (mut snapshot, mut sources) = build_empty_scene_snapshot_for_transparent_clear();
+        append_selection_decoration_to_scene(&mut snapshot, &mut sources, &state, 100, 100, 1.0);
+
+        let frame = pollster::block_on(render_native_wgpu_frame(&snapshot, &sources, 100, 100))
+            .expect("offscreen render of an out-of-bounds decoration must not panic");
+
+        assert_eq!(frame.pixels.len(), 100 * 100 * 4, "frame must stay drawable-sized");
+        assert!(
+            frame.pixels.iter().all(|byte| *byte == 0),
+            "drawable must remain fully transparent when the decoration falls entirely outside it"
+        );
     }
 
     fn unique_shm_name() -> String {

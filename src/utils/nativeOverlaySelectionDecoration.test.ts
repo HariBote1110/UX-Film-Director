@@ -6,6 +6,7 @@ import {
   buildSelectionDecorationQuads,
   createNativeOverlaySelectionDecorationSender,
 } from './nativeOverlaySelectionDecoration';
+import { getObjectWorldCorners, worldPointToCssPoint, type SceneHitTestViewport } from './sceneHitTest';
 
 const root = resolve(__dirname, '../..');
 
@@ -164,5 +165,93 @@ describe('scene selection overlay native decoration boundary', () => {
 
     expect(preload).toContain('nativeOverlayIpcChannels.setSelectionDecoration');
     expect(envTypes).toContain('setSelectionDecoration: (payload: {');
+  });
+});
+
+describe('native decoration quad matches the SVG overlay CSS position (default camera)', () => {
+  // 実機バグ調査で「SVG は inset:0 の container 内に描かれるので通常 preview
+  // 外には出ないはず」という前提を確定させるための橋渡しテスト。
+  // `buildSelectionDecorationQuads` が返す world 座標に対して、Rust 側
+  // `build_selection_decoration_clips`（native-overlay/src/lib.rs の
+  // `contain_fit_transform`）と同じ contain-fit 式を適用した結果が、
+  // SVG 側 `worldPointToCssPoint`（sceneHitTest.ts）の CSS 座標と
+  // （devicePixelRatio 分のスケールを除いて）一致することを固定する。
+  // カメラがデフォルト（zoom=1・centreOffset=0・rotation=0）の間はこの
+  // 一致が成り立つはずで、崩れた場合は SVG と native のどちらかの変換式が
+  // 意図せず変わったことを検知できる。
+  const containFit = (
+    point: { x: number; y: number },
+    canvasWidth: number,
+    canvasHeight: number,
+    drawableWidth: number,
+    drawableHeight: number,
+  ) => {
+    const fitScale = Math.min(drawableWidth / canvasWidth, drawableHeight / canvasHeight);
+    const offsetX = (drawableWidth - canvasWidth * fitScale) * 0.5;
+    const offsetY = (drawableHeight - canvasHeight * fitScale) * 0.5;
+    return { x: point.x * fitScale + offsetX, y: point.y * fitScale + offsetY };
+  };
+
+  it('agrees with worldPointToCssPoint for an axis-aligned object under the default camera', () => {
+    const projectWidth = 1920;
+    const projectHeight = 1080;
+    const object = {
+      id: 'obj-1',
+      type: 'image',
+      name: 'obj-1',
+      src: 'image.png',
+      x: 500,
+      y: 300,
+      width: 200,
+      height: 100,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      opacity: 1,
+      layer: 0,
+      startTime: 0,
+      duration: 10,
+    } as unknown as TimelineObject;
+    const objects = [object];
+
+    // pane 実測値相当: preview CSS 782x440 (~16:9 契約なので letterbox はほぼ 0)、
+    // devicePixelRatio=2 の drawable 1564x880。
+    const displayScale = 782 / projectWidth;
+    const dpr = 2;
+    const drawableWidth = Math.round(782 * dpr);
+    const drawableHeight = Math.round(440 * dpr);
+
+    const viewport: SceneHitTestViewport = {
+      projectWidth,
+      projectHeight,
+      displayScale,
+      camera: { centreOffsetX: 0, centreOffsetY: 0, zoom: 1, rotationDeg: 0 },
+    };
+
+    const quads = buildSelectionDecorationQuads({ selectedIds: ['obj-1'], objects, time: 0 });
+    expect(quads).toHaveLength(1);
+    const quad = quads[0];
+
+    const corners = getObjectWorldCorners(object, 0, objects)!;
+    const svgTopLeftCss = worldPointToCssPoint(corners.topLeft, viewport);
+
+    const nativeTopLeftDrawable = containFit(
+      { x: quad.topLeftX, y: quad.topLeftY },
+      projectWidth,
+      projectHeight,
+      drawableWidth,
+      drawableHeight,
+    );
+    // drawable（物理 px）を CSS px へ戻して SVG 側と比較する。
+    const nativeTopLeftCss = {
+      x: nativeTopLeftDrawable.x / dpr,
+      y: nativeTopLeftDrawable.y / dpr,
+    };
+
+    // drawable の丸め (Math.round) 由来の 1 物理 px 未満（CSS 換算で 0.5px 未満）の
+    // 誤差は許容し、それを超えるズレ（今回の実機バグのような数十〜数百 px 規模）
+    // だけを検出できればよい。
+    expect(Math.abs(nativeTopLeftCss.x - svgTopLeftCss.x)).toBeLessThan(0.5);
+    expect(Math.abs(nativeTopLeftCss.y - svgTopLeftCss.y)).toBeLessThan(0.5);
   });
 });
