@@ -595,3 +595,19 @@ fn rust_core_accepts_text_media_kind_at_the_json_boundary() {
     assert_eq!(media.width, 400);
     assert_eq!(media.height, 120);
 }
+
+#[test]
+fn rust_core_accepts_generated_shape_media_kind_at_the_json_boundary() {
+    let media: SceneMediaReference = serde_json::from_value(serde_json::json!({
+        "id": "shape-1",
+        "kind": "GeneratedShape",
+        "source": "{\"generator\":\"shape-93\",\"shape_type\":\"star\",\"fill_colour\":\"#ffffff\",\"gradient\":null,\"corner_radius\":0}",
+        "width": 200,
+        "height": 200
+    }))
+    .expect("GeneratedShape media kind should deserialize");
+
+    assert_eq!(media.kind, MediaKind::GeneratedShape);
+    assert_eq!(media.width, 200);
+    assert_eq!(media.height, 200);
+}
