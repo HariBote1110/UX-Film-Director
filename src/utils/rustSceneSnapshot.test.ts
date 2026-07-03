@@ -3323,6 +3323,48 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     });
   });
 
+  it('builds a Text media plane with a stroke and shadow when the text object specifies them', () => {
+    const layers = createDefaultLayers();
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [baseText({
+        id: 'text-stroke-shadow-1',
+        text: 'Outlined',
+        fontFamily: 'Arial',
+        fontSize: 48,
+        fill: '#ffffff',
+        measuredWidth: 300,
+        measuredHeight: 80,
+        textStroke: { colour: '#000000', width: 3 },
+        textShadow: { colour: '#333333', offsetX: 2, offsetY: 4, blur: 6 },
+      })],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected snapshot build to pass');
+
+    expect(result.media).toEqual([
+      {
+        id: 'text-stroke-shadow-1',
+        kind: 'Text',
+        source: JSON.stringify({
+          text: 'Outlined',
+          font_family: 'Arial',
+          font_size: 48,
+          colour: '#ffffff',
+          alignment: 'left',
+          letter_spacing: 0,
+          stroke: { colour: '#000000', width: 3 },
+          shadow: { colour: '#333333', offset_x: 2, offset_y: 4, blur: 6 },
+        }),
+        width: 300,
+        height: 80,
+      },
+    ]);
+  });
+
   it('falls back to a heuristic box for text objects with no measured size yet', () => {
     const layers = createDefaultLayers();
     const result = buildRustSceneSnapshotForTimeline({
