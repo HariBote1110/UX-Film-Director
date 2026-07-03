@@ -1,8 +1,8 @@
 import * as PIXI from 'pixi.js';
-import { TimelineObject, GroupControlObject, AudioVisualizationObject, AudioObject, ClippingParams, GradientFill, ObjectFilter, ColourAberrationFilterParams, OutlineFilterParams } from '../types';
+import { TimelineObject, AudioVisualizationObject, AudioObject, ClippingParams, GradientFill, ColourAberrationFilterParams, OutlineFilterParams } from '../types';
 import { createGradientTexture, drawShape, getCurrentViseme, renderPsdTree, cacheTextureFromUrl } from './pixiUtils';
-import { evaluateObjectPositionAtTime } from './keyframes';
 import { getEnabledObjectFiltersInOrder } from './filterStack';
+import { getGroupTransforms, getVibrationOffset } from './sceneTransforms';
 import { shouldSkipPixiSolidColourForSharedRenderer } from './pixiSolidColourCutover';
 import { shouldSkipPixiImageForSharedRenderer } from './pixiImageCutover';
 import { shouldSkipPixiPsdForSharedRenderer } from './pixiPsdCutover';
@@ -639,21 +639,12 @@ export const applyGroupGradientEffect = (container: PIXI.Container, gradient: Gr
     container.filters = [...otherFilters, new GroupGradientFilter(gradient)];
 };
 
-// ... (Helper functions: getGroupTransforms, getLipSyncViseme, getVibrationOffset, drawAudioWaveform are same as previous) ...
-export const getGroupTransforms = (obj: TimelineObject, time: number, allObjects: TimelineObject[]) => {
-    let x = 0, y = 0, rotation = 0, scaleX = 1, scaleY = 1, alpha = 1;
-    const groups = allObjects.filter(o => o.type === 'group_control' && o.layer < obj.layer && time >= o.startTime && time < o.startTime + o.duration) as GroupControlObject[];
-    groups.forEach(group => {
-        if (group.targetLayerCount === 0 || (obj.layer <= group.layer + group.targetLayerCount)) {
-            const position = evaluateObjectPositionAtTime(group, time);
-            const gx = position.x;
-            const gy = position.y;
-            x += gx; y += gy; rotation += group.rotation || 0;
-            scaleX *= (group.scaleX ?? 1); scaleY *= (group.scaleY ?? 1); alpha *= (group.opacity ?? 1);
-        }
-    });
-    return { x, y, rotation, scaleX, scaleY, alpha };
-};
+// ... (Helper functions: getLipSyncViseme, drawAudioWaveform are same as previous) ...
+// getGroupTransforms / getVibrationOffset は Pixi 非依存の純粋関数として
+// sceneTransforms.ts へ移設済み（Pixi_Removal_Plan.md Phase 3）。ここでは
+// 既存の呼び出し元との互換のため re-export する。
+export { getGroupTransforms, getVibrationOffset };
+
 export const getLipSyncViseme = (obj: TimelineObject, time: number, currentObjects: TimelineObject[]) => {
     if (obj.type !== 'psd' || !obj.lipSync?.enabled) return null;
     let audioSource: any = undefined;
@@ -665,26 +656,7 @@ export const getLipSyncViseme = (obj: TimelineObject, time: number, currentObjec
     return audioSource ? getCurrentViseme(audioSource, time) : null;
 };
 
-const isVibrationFilter = (filter: ObjectFilter): filter is Extract<ObjectFilter, { type: 'vibration' }> => {
-    return filter.type === 'vibration';
-};
-
-export const getVibrationOffset = (obj: TimelineObject, time: number) => {
-    const vibrationFilters = getEnabledObjectFiltersInOrder(obj).filter(isVibrationFilter);
-    if (vibrationFilters.length === 0) return { x: 0, y: 0 };
-
-    return vibrationFilters.reduce((acc, filter, index) => {
-        const { strength, speed } = filter.params;
-        if (strength === 0) return acc;
-        const phase = index * 1.618;
-        const t = time * speed + phase;
-        return {
-            x: acc.x + (Math.sin(t * 12.9898) * strength + Math.cos(t * 78.233) * strength * 0.5),
-            y: acc.y + (Math.cos(t * 12.9898) * strength + Math.sin(t * 78.233) * strength * 0.5)
-        };
-    }, { x: 0, y: 0 });
-};
-const drawAudioWaveform = (graphics: PIXI.Graphics, obj: AudioVisualizationObject, time: number, audioBuffers: Map<string, AudioBuffer>, allObjects: TimelineObject[]) => {
+const drawAudioWaveform =(graphics: PIXI.Graphics, obj: AudioVisualizationObject, time: number, audioBuffers: Map<string, AudioBuffer>, allObjects: TimelineObject[]) => {
     graphics.clear();
     let targetAudio: AudioObject | undefined;
     if (obj.targetAudioId) targetAudio = allObjects.find(o => o.id === obj.targetAudioId) as AudioObject;

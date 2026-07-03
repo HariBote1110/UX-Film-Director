@@ -1,6 +1,6 @@
 import type { PositionKeyframe, TimelineObject, VideoObject } from '../types';
 import { evaluateObjectPositionAtTime } from './keyframes';
-import { getGroupTransforms } from './pixiRenderHelper';
+import { getGroupTransforms } from './sceneTransforms';
 import {
   localTopLeftPointToWorld,
   visionNormBoundingBoxCentreToLocalTopLeft,
