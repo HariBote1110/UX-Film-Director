@@ -2909,6 +2909,37 @@ mod tests {
         assert_approx(top.transform.scale_y, 2.0, "top edge scale_y (no fit scale)");
     }
 
+    #[test]
+    fn selection_decoration_clips_outside_drawable_bounds_are_clipped_by_the_render_target() {
+        // 契約 (5) — quad が drawable 境界の外へはみ出す座標を持っていても、
+        // offscreen render は drawable サイズのテクスチャにしか書き込めない
+        // （wgpu のフラグメントシェーダーはレンダーターゲット外のピクセルに
+        // 対して呼ばれない）ため、はみ出した分は自動的に切り捨てられ、
+        // パニックや drawable 外への書き込みは起こらないことを固定する。
+        // quad 全体が drawable（100x100）の右下はるか外側にある。
+        let state = SelectionDecorationState {
+            canvas_width: 100,
+            canvas_height: 100,
+            quads: vec![SelectionDecorationQuad {
+                top_left: (500.0, 500.0),
+                top_right: (700.0, 500.0),
+                bottom_right: (700.0, 700.0),
+                bottom_left: (500.0, 700.0),
+            }],
+        };
+        let (mut snapshot, mut sources) = build_empty_scene_snapshot_for_transparent_clear();
+        append_selection_decoration_to_scene(&mut snapshot, &mut sources, &state, 100, 100, 1.0);
+
+        let frame = pollster::block_on(render_native_wgpu_frame(&snapshot, &sources, 100, 100))
+            .expect("offscreen render of an out-of-bounds decoration must not panic");
+
+        assert_eq!(frame.pixels.len(), 100 * 100 * 4, "frame must stay drawable-sized");
+        assert!(
+            frame.pixels.iter().all(|byte| *byte == 0),
+            "drawable must remain fully transparent when the decoration falls entirely outside it"
+        );
+    }
+
     fn unique_shm_name() -> String {
         let micros = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
