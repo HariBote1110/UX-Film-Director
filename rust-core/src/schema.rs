@@ -253,6 +253,12 @@ pub enum Effect {
         saturation: f32,
         hue_degrees: f32,
     },
+    /// 一様ぼかし（旧 PIXI.BlurFilter 相当）。radius は source pixel 単位の
+    /// タップ間隔、strength はブレンド係数（0..=1）。3x3 ガウシアン近似。
+    Blur {
+        radius: f32,
+        strength: f32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

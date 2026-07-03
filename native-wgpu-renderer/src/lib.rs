@@ -721,6 +721,8 @@ impl NativeWgpuRenderer {
                     colour_correction_contrast: colour_correction_contrast(clip),
                     colour_correction_saturation: colour_correction_saturation(clip),
                     colour_correction_hue: colour_correction_hue(clip),
+                    blur_radius: blur_radius(clip),
+                    blur_strength: blur_strength(clip),
                     source_width: source.width as f32,
                     source_height: source.height as f32,
                     translation_x: clip.transform.translation_x,
@@ -731,6 +733,8 @@ impl NativeWgpuRenderer {
                     rotation_cos: rotation_radians.cos(),
                     rotation_sin: rotation_radians.sin(),
                     _padding6: 0.0,
+                    _padding7: 0.0,
+                    _padding8: 0.0,
                 },
             ));
         }
@@ -1249,6 +1253,8 @@ struct RenderParams {
     colour_correction_contrast: f32,
     colour_correction_saturation: f32,
     colour_correction_hue: f32,
+    blur_radius: f32,
+    blur_strength: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -1259,6 +1265,8 @@ struct RenderParams {
     rotation_cos: f32,
     rotation_sin: f32,
     _padding6: f32,
+    _padding7: f32,
+    _padding8: f32,
 }
 
 fn sampling_mode_value(sampling: SamplingMode) -> f32 {
@@ -1643,7 +1651,32 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::OctTransform { .. } => 1.0,
         Effect::AreaExpand { .. } => 1.0,
         Effect::ColourCorrection { .. } => 1.0,
+        Effect::Blur { .. } => 1.0,
     }
+}
+
+fn blur_radius(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::Blur { radius, .. } => Some(*radius),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .max(0.0)
+}
+
+fn blur_strength(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::Blur { strength, .. } => Some(*strength),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .clamp(0.0, 1.0)
 }
 
 /// PIXI.ColorMatrixFilter の呼び出し順（hue→saturate→contrast→brightness、

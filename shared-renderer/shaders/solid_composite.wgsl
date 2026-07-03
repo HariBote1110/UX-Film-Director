@@ -57,6 +57,8 @@ struct RenderParams {
     colour_correction_contrast: f32,
     colour_correction_saturation: f32,
     colour_correction_hue: f32,
+    blur_radius: f32,
+    blur_strength: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -67,6 +69,8 @@ struct RenderParams {
     rotation_cos: f32,
     rotation_sin: f32,
     _padding6: f32,
+    _padding7: f32,
+    _padding8: f32,
 }
 
 @group(0) @binding(0)
@@ -112,13 +116,13 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
 
     let transformed_source_position = oct_transformed_position(expanded_source_position);
     let displaced_source_position = displaced_position(stretched_position(multi_sliced_position(transformed_source_position)));
-    let source = sample_source_with_fake_dof(displaced_source_position);
+    let source = sample_source_with_uniform_blur(displaced_source_position);
     let aberration_offset = vec2<f32>(
         params.colour_aberration_offset_x,
         params.colour_aberration_offset_y,
     );
-    let red_source = sample_source_with_fake_dof(clamp_source_position(displaced_source_position + aberration_offset)).r;
-    let blue_source = sample_source_with_fake_dof(clamp_source_position(displaced_source_position - aberration_offset)).b;
+    let red_source = sample_source_with_uniform_blur(clamp_source_position(displaced_source_position + aberration_offset)).r;
+    let blue_source = sample_source_with_uniform_blur(clamp_source_position(displaced_source_position - aberration_offset)).b;
     let alpha = source.a * params.opacity;
     let linear_rgb = colour_corrected_rgb(vec3<f32>(red_source, source.g, blue_source));
     let premultiplied_rgb = linear_rgb * params.gain * alpha;
@@ -223,6 +227,28 @@ fn is_outside_source_bounds(source_position: vec2<f32>) -> bool {
         || source_position.y < 0.0
         || source_position.x >= params.source_width
         || source_position.y >= params.source_height;
+}
+
+// 一様ぼかし（旧 PIXI.BlurFilter 相当）。タップ間隔 blur_radius の
+// 3x3 ガウシアンカーネル（重み 1-2-1 の外積 / 16）で近似し、
+// blur_strength でベースと mix する。
+fn sample_source_with_uniform_blur(source_position: vec2<f32>) -> vec4<f32> {
+    let base = sample_source_with_fake_dof(source_position);
+    if params.blur_strength <= 0.0 || params.blur_radius <= 0.0 {
+        return base;
+    }
+    let r = params.blur_radius;
+    var accumulated = base * 4.0;
+    accumulated += sample_source_with_fake_dof(clamp_source_position(source_position + vec2<f32>(r, 0.0))) * 2.0;
+    accumulated += sample_source_with_fake_dof(clamp_source_position(source_position - vec2<f32>(r, 0.0))) * 2.0;
+    accumulated += sample_source_with_fake_dof(clamp_source_position(source_position + vec2<f32>(0.0, r))) * 2.0;
+    accumulated += sample_source_with_fake_dof(clamp_source_position(source_position - vec2<f32>(0.0, r))) * 2.0;
+    accumulated += sample_source_with_fake_dof(clamp_source_position(source_position + vec2<f32>(r, r)));
+    accumulated += sample_source_with_fake_dof(clamp_source_position(source_position - vec2<f32>(r, r)));
+    accumulated += sample_source_with_fake_dof(clamp_source_position(source_position + vec2<f32>(r, -r)));
+    accumulated += sample_source_with_fake_dof(clamp_source_position(source_position + vec2<f32>(-r, r)));
+    let blurred = accumulated / 16.0;
+    return mix(base, blurred, params.blur_strength);
 }
 
 fn sample_source_with_fake_dof(source_position: vec2<f32>) -> vec4<f32> {

@@ -85,7 +85,8 @@ export type RustEffect =
   | { MultiSlicer: { angle_degrees: number; offset: number; slices: number; expansion: number; strength: number } }
   | { OctTransform: { scale: number; rotation_degrees: number; vertex_count: number; warp: number; strength: number } }
   | { AreaExpand: { top: number; bottom: number; left: number; right: number; fill: boolean } }
-  | { ColourCorrection: { brightness: number; contrast: number; saturation: number; hue_degrees: number } };
+  | { ColourCorrection: { brightness: number; contrast: number; saturation: number; hue_degrees: number } }
+  | { Blur: { radius: number; strength: number } };
 
 export interface RustEvaluatedClip {
   clip_id: string;
@@ -342,6 +343,7 @@ const collectBuildIssues = (
     const unsupportedFilter = getEnabledObjectFiltersInOrder(object).find((filter) => (
       filter.type !== 'fade'
       && filter.type !== 'color_correction'
+      && filter.type !== 'blur'
       && filter.type !== 'colour_aberration'
       && filter.type !== 'outline'
       && filter.type !== 'wipe'
@@ -386,6 +388,20 @@ const rustEffectsForObject = (object: TimelineObject, time: number): RustEffect[
           hue_degrees: finiteNumberOr(filter.params.hue, 0),
         },
       });
+    }
+    if (filter.type === 'blur') {
+      // 旧 Pixi 実装は strength <= 0.05 のとき BlurFilter を生成しなかった
+      // （可視閾値）。radius は UI の strength(px) をそのまま使い、quality
+      // （反復回数）は 3x3 ガウシアン近似では意味を持たないため落とす。
+      const strength = Math.max(0, finiteNumberOr(filter.params.strength, 0));
+      if (strength > 0.05) {
+        effects.push({
+          Blur: {
+            radius: strength,
+            strength: 1,
+          },
+        });
+      }
     }
     if (filter.type === 'colour_aberration') {
       effects.push({
@@ -2093,6 +2109,11 @@ const validateEffects = (
       validateFiniteNumber(effect.ColourCorrection.contrast, `${effectPath}.ColourCorrection.contrast`, issues);
       validateFiniteNumber(effect.ColourCorrection.saturation, `${effectPath}.ColourCorrection.saturation`, issues);
       validateFiniteNumber(effect.ColourCorrection.hue_degrees, `${effectPath}.ColourCorrection.hue_degrees`, issues);
+      return;
+    }
+    if (isRecord(effect.Blur)) {
+      validateFiniteNumber(effect.Blur.radius, `${effectPath}.Blur.radius`, issues);
+      validateUnitInterval(effect.Blur.strength, `${effectPath}.Blur.strength`, issues);
       return;
     }
     addIssue(issues, 'schemaMismatch', effectPath, 'Unknown Rust effect.');

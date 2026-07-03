@@ -4298,22 +4298,28 @@ describe('buildRustSceneSnapshotForTimeline', () => {
       easing: 'linear',
       targetLayerCount: 1,
     };
-    const blurred = baseImage({
-      id: 'blurred',
+    // blur は Rust 対応済みになったため、未対応 filter の代表例は
+    // 非 shape オブジェクトへの gradient に差し替え。
+    const gradientOnImage = baseImage({
+      id: 'gradient-on-image',
       filters: [
         {
-          id: 'blur-1',
-          type: 'blur',
+          id: 'gradient-1',
+          type: 'gradient',
           enabled: true,
-          params: { strength: 4, quality: 2 },
-        },
+          params: {
+            colours: ['#ff0000', '#0000ff'],
+            stops: [0, 1],
+            direction: 0,
+          },
+        } as any,
       ],
     });
 
     const result = buildRustSceneSnapshotForTimeline({
       projectSettings: settings,
       layers,
-      objects: [unsupportedGroupControl, blurred],
+      objects: [unsupportedGroupControl, gradientOnImage],
       time: 2,
     });
 

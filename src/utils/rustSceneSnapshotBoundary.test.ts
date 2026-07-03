@@ -187,7 +187,9 @@ describe('validateRustSceneSnapshotBoundary', () => {
               sampling: 'bicubic',
             },
             opacity: 1.2,
-            effects: [{ Blur: { radius: 4 } }],
+            // Blur は正当な Rust effect になったため、未知 effect の代表例を
+            // 存在しない Sparkle に差し替え（schemaMismatch の期待を維持）。
+            effects: [{ Sparkle: { amount: 4 } }],
           },
         ],
       },
