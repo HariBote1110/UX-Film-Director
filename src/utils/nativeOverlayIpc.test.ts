@@ -35,7 +35,9 @@ describe('nativeOverlayIpc', () => {
 
     registerNativeOverlayIpcHandlers(ipcMain, bridge);
 
-    expect(ipcMain.handle).toHaveBeenCalledTimes(5);
+    // Bug E（計画書 §4 Phase E2）— ui:preview-obstruction-changed handler が
+    // 追加され、登録される channel は 6 個になった。
+    expect(ipcMain.handle).toHaveBeenCalledTimes(6);
     await expect(handlers.get(nativeOverlayIpcChannels.attach)?.({}, { windowId: 3 })).resolves.toEqual({
       success: true,
       attached: true,
@@ -204,7 +206,9 @@ describe('nativeOverlayIpc', () => {
       resolveWindowIdFromEvent: vi.fn(() => 11),
     });
 
-    expect(ipcMain.handle).toHaveBeenCalledTimes(5);
+    // Bug E（計画書 §4 Phase E2）— ui:preview-obstruction-changed handler が
+    // 追加され、登録される channel は 6 個になった。
+    expect(ipcMain.handle).toHaveBeenCalledTimes(6);
     await expect(handlers.get(nativeOverlayIpcChannels.clearSurface)?.({ sender: 'webContents' }, {})).resolves.toEqual({
       success: true,
       attached: true,

@@ -20,6 +20,15 @@ export interface NativeOverlayDetachPayload {
   windowId: number
 }
 
+/**
+ * Bug E（Native_Overlay_Bug_E_Plan.md §4 Phase E2）— `ui:preview-obstruction-changed`
+ * を受けた main が child NSWindow の z-order を切り替えるための payload。
+ */
+export interface NativeOverlaySetObstructedPayload {
+  windowId: number
+  obstructed: boolean
+}
+
 export interface NativeOverlayAddonDetachPayload extends NativeOverlayDetachPayload {
   nativeWindowHandle: Uint8Array
 }
@@ -77,6 +86,7 @@ export interface NativeOverlayAddon {
   detachNativeOverlay?: (payload: NativeOverlayAddonDetachPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   presentNativeOverlaySharedFrame?: (payload: NativeOverlayAddonSharedFramePayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   clearNativeOverlayLiveSurface?: (payload: NativeOverlayDetachPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
+  setNativeOverlayObstructed?: (payload: NativeOverlaySetObstructedPayload) => NativeOverlayResponse | Promise<NativeOverlayResponse>
   getNativeOverlayCapabilities?: () => NativeOverlayCapabilities
 }
 
@@ -97,6 +107,7 @@ export interface NativeOverlayMainBridge {
   detach: (payload: NativeOverlayDetachPayload) => Promise<NativeOverlayResponse>
   presentSharedFrame: (payload: NativeOverlaySharedFramePayload) => Promise<NativeOverlayResponse>
   clearSurface: (payload: NativeOverlayDetachPayload) => Promise<NativeOverlayResponse>
+  setObstructed: (payload: NativeOverlaySetObstructedPayload) => Promise<NativeOverlayResponse>
   getCapabilities: () => NativeOverlayCapabilities
 }
 
@@ -172,6 +183,7 @@ export const createNativeOverlayMainBridge = ({
         || typeof addon.detachNativeOverlay === 'function'
         || typeof addon.presentNativeOverlaySharedFrame === 'function'
         || typeof addon.clearNativeOverlayLiveSurface === 'function'
+        || typeof addon.setNativeOverlayObstructed === 'function'
         || typeof addon.getNativeOverlayCapabilities === 'function'
         ? addon
         : null
@@ -288,6 +300,28 @@ export const createNativeOverlayMainBridge = ({
       try {
         return await addon.clearNativeOverlayLiveSurface({
           windowId: payload.windowId,
+        })
+      } catch (error) {
+        return fallbackResponse(getErrorMessage(error))
+      }
+    },
+    async setObstructed(payload) {
+      // Bug E（計画書 §4 Phase E2）— ui:preview-obstruction-changed を受けた
+      // main が child NSWindow の z-order を切り替える。clearSurface と同じく
+      // native_window_handle は不要（addon 側の registry lookup で完結する）。
+      if (!nativeOverlayEnabled(env)) {
+        return fallbackResponse('Native overlay preview is disabled.')
+      }
+
+      const addon = loadAddon()
+      if (!addon || typeof addon.setNativeOverlayObstructed !== 'function') {
+        return fallbackResponse('Native overlay addon is unavailable.')
+      }
+
+      try {
+        return await addon.setNativeOverlayObstructed({
+          windowId: payload.windowId,
+          obstructed: payload.obstructed,
         })
       } catch (error) {
         return fallbackResponse(getErrorMessage(error))
