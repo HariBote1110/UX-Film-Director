@@ -4218,6 +4218,65 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('serialises ぼかし blur filters as Rust scene effects', () => {
+    const layers = createDefaultLayers();
+    const blurred = baseImage({
+      id: 'blurred-image',
+      filters: [
+        {
+          id: 'blur-filter-1',
+          type: 'blur',
+          enabled: true,
+          params: { strength: 4, quality: 2 },
+        } as any,
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [blurred],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected blur snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([
+      {
+        Blur: {
+          radius: 4,
+          strength: 1,
+        },
+      },
+    ]);
+  });
+
+  it('omits blur filters below the legacy Pixi visibility threshold', () => {
+    const layers = createDefaultLayers();
+    const barelyBlurred = baseImage({
+      id: 'barely-blurred-image',
+      filters: [
+        {
+          id: 'blur-filter-2',
+          type: 'blur',
+          enabled: true,
+          params: { strength: 0.04, quality: 2 },
+        } as any,
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [barelyBlurred],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected sub-threshold blur snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([]);
+  });
+
   it('fails loud for visible Pixi features the shared renderer cannot represent yet', () => {
     const layers = createDefaultLayers();
     const unsupportedGroupControl: TimelineObject = {
