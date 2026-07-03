@@ -19,6 +19,7 @@ import { rustVideoEncodeIpcChannels } from './rustVideoEncodeIpc';
 import { createNativeOverlayMainBridge } from './nativeOverlayMainBridge';
 import { registerNativeOverlayIpcHandlers } from './nativeOverlayIpc';
 import { formatNativeOverlayDiagnosticLog } from './nativeOverlayDiagnosticLog';
+import { writeToRustBackendStdin } from './rustBackendStdinWrite';
 
 // --- GPU Acceleration Flags ---
 // 高画質動画の再生負荷を下げるための重要な設定
@@ -287,6 +288,15 @@ const rejectAllRustPending = (reason: string) => {
   });
 };
 
+const RUST_BACKEND_STATUS_CHANNEL = 'rust-backend-status';
+
+// rust-backend sidecar が異常終了/エラーになったことを renderer へ通知する。
+// ensureRustBackendProcess は次回リクエスト時に自動で再spawnするため、ここでは
+// 「今失敗した」ことをユーザーへ気付かせるための最小限の通知に留める。
+const notifyRustBackendCrashed = (reason: string) => {
+  win?.webContents.send(RUST_BACKEND_STATUS_CHANNEL, { status: 'crashed', reason });
+};
+
 const handleRustStdout = (chunk: string) => {
   rustStdoutBuffer += chunk;
   const lines = rustStdoutBuffer.split('\n');
@@ -363,12 +373,17 @@ const ensureRustBackendProcess = () => {
   backend.on('error', (error) => {
     console.error('Rust backend process error:', error);
     rejectAllRustPending(`Rust backend process error: ${error.message}`);
+    notifyRustBackendCrashed(`Rust backend process error: ${error.message}`);
   });
 
   backend.on('exit', (code, signal) => {
     rustBackendProcess = null;
     const reason = `Rust backend exited (code=${code ?? 'null'}, signal=${signal ?? 'null'})`;
     rejectAllRustPending(reason);
+    // ensureRustBackendProcess は次回呼び出し時に rustBackendProcess が
+    // null/killed であれば自動的に再spawnするため、ここでは状態のクリアと
+    // renderer への通知のみ行う（明示的なリトライループは持たない）。
+    notifyRustBackendCrashed(reason);
   });
 
   rustBackendProcess = backend;
@@ -399,8 +414,11 @@ const callRustBackend = (method: string, params: unknown = {}, timeoutMs = 8000)
     });
 
     const payload = JSON.stringify({ id: requestId, method, params }) + '\n';
-    backend.stdin.write(payload, (error) => {
-      if (!error) return;
+    // sidecar が既に落ちている状態（wgpu panic 直後など）で stdin へ書き込むと
+    // EPIPE が発生しうる。write() のコールバックに加えて 'error' イベントも
+    // ハンドルしないと、その EPIPE が Uncaught Exception として Electron main
+    // プロセスごとクラッシュさせる（実機で観測済み）。
+    writeToRustBackendStdin(backend.stdin, payload, (error) => {
       const pending = rustPendingRequests.get(requestId);
       if (!pending) return;
       clearTimeout(pending.timeout);
