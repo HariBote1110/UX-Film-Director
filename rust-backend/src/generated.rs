@@ -17,6 +17,7 @@ mod shattered_sphere;
 mod simple_tube;
 mod sources;
 mod sphere;
+mod text;
 mod tone_curve;
 mod validators;
 
@@ -39,5 +40,6 @@ pub(crate) use shattered_sphere::*;
 pub(crate) use simple_tube::*;
 pub(crate) use sources::*;
 pub(crate) use sphere::*;
+pub(crate) use text::*;
 pub(crate) use tone_curve::*;
 pub(crate) use validators::*;

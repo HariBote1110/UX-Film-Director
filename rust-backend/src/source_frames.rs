@@ -82,6 +82,7 @@ pub(crate) fn collect_native_render_sources(
             )?,
             MediaKind::Image => build_image_source_frame(media)?,
             MediaKind::Psd => build_psd_source_frame(media)?,
+            MediaKind::Text => build_generated_text_source_frame(media)?,
             MediaKind::GeneratedAudioWaveform | MediaKind::GeneratedAudioSphere => continue,
             MediaKind::Video => continue,
         };
