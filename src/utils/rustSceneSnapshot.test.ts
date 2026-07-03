@@ -4549,6 +4549,100 @@ describe('buildRustSceneSnapshotForTimeline', () => {
 
     expect(issueCodes(result.issues)).toEqual(['unsupportedTransform']);
   });
+
+  it('still fails loud for reversed video playback (no shared-renderer seek-free reverse path exists)', () => {
+    const layers = createDefaultLayers();
+    const reversedVideo = baseVideo({ id: 'reversed-video', reversed: true });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [reversedVideo],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected reversed video snapshot build to fail');
+
+    expect(issueCodes(result.issues)).toEqual(['unsupportedVideoMode']);
+  });
+
+  it('serialises an enabled subject crop as a Rust Clipping effect in pixel units', () => {
+    const layers = createDefaultLayers();
+    const cropped = baseVideo({
+      id: 'subject-cropped',
+      width: 1280,
+      height: 720,
+      subjectCropEnabled: true,
+      subjectCropKeyframes: [
+        { id: 'kf-1', time: 0, x: 0.25, y: 0.1, width: 0.5, height: 0.6 },
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [cropped],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected subject crop snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([
+      {
+        Clipping: {
+          top: 72,
+          bottom: 216,
+          left: 320,
+          right: 320,
+          angle_degrees: 0,
+        },
+      },
+    ]);
+  });
+
+  it('omits the Clipping effect once the interpolated subject crop rect collapses to nothing', () => {
+    const layers = createDefaultLayers();
+    const cropped = baseVideo({
+      id: 'subject-cropped-empty',
+      width: 1280,
+      height: 720,
+      subjectCropEnabled: true,
+      subjectCropKeyframes: [
+        { id: 'kf-1', time: 2, x: 0, y: 0, width: 0, height: 0 },
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [cropped],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected empty subject crop snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([]);
+  });
+
+  it('does not fail the build for subject crop enabled without keyframes yet', () => {
+    const layers = createDefaultLayers();
+    const cropped = baseVideo({
+      id: 'subject-cropped-no-keyframes',
+      subjectCropEnabled: true,
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [cropped],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected subject crop snapshot build to pass even without keyframes');
+    expect(result.snapshot.clips[0].effects).toEqual([]);
+  });
 });
 
 const issueCodes = (issues: RustSceneSnapshotBuildIssue[]) =>
