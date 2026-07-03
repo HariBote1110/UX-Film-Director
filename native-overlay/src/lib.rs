@@ -1521,6 +1521,32 @@ mod tests {
     }
 
     #[test]
+    fn set_native_overlay_obstructed_returns_err_when_no_renderer_is_registered() {
+        // Bug E（計画書 §4 Phase E2）— attach されていない window_id に対して
+        // set_native_overlay_obstructed を呼んだ場合、clear_native_overlay_live_surface
+        // と同じ Fail Safe 方針で明示的な Err を返す。
+        let unused_window_id = u32::MAX - 4242;
+        let error = set_native_overlay_obstructed(unused_window_id, true)
+            .expect_err("toggling obstruction on an unattached window must not silently succeed");
+        assert!(
+            error.contains("Native overlay live surface"),
+            "error message should point at the live surface registry, got: {error}",
+        );
+    }
+
+    #[test]
+    fn native_overlay_exports_set_obstructed_through_napi() {
+        // Bug E（計画書 §4 Phase E2）— electron/nativeOverlayMainBridge.ts の
+        // setObstructed から呼べる napi export
+        // `setNativeOverlayObstructed(payload: { windowId, obstructed })` を
+        // 用意する契約を固定する。
+        let source = include_str!("lib.rs");
+
+        assert!(source.contains("#[napi(js_name = \"setNativeOverlayObstructed\")]"));
+        assert!(source.contains("pub fn set_native_overlay_obstructed"));
+    }
+
+    #[test]
     fn clear_native_overlay_live_surface_returns_err_when_no_renderer_is_registered() {
         // Bug D — clip 削除後に overlay の drawable に古いフレームが残る問題への対処として、
         // `clear_native_overlay_live_surface(window_id)` を新設する。attach されていない
@@ -1693,6 +1719,39 @@ mod tests {
             source.contains("removeChildWindow"),
             "detach must call removeChildWindow: to sever the parent/child NSWindow relationship \
              that attach established via addChildWindow:ordered:",
+        );
+    }
+
+    #[test]
+    fn macos_overlay_exposes_set_overlay_view_obstructed_public_api() {
+        // Bug E（計画書 §4 Phase E2）— HTML 駆動 UI（modal 等）が preview に
+        // 重なって開いたとき、child NSWindow の z-order を下げる（`order`
+        // 下げ）ための公開 API。GPU present は止めず、表示位置（z-order）
+        // だけを切り替える設計（計画書 §9 の設計判断 3: 再生継続性を優先し
+        // orderOut ではなく order 下げを採用）。
+        let source = include_str!("macos_overlay.rs");
+
+        assert!(
+            source.contains("pub fn set_overlay_view_obstructed(view_handle: usize, obstructed: bool)"),
+            "macos_overlay must expose set_overlay_view_obstructed(view_handle, obstructed) so \
+             callers can toggle the child NSWindow z-order when a preview-overlapping HTML UI opens",
+        );
+    }
+
+    #[test]
+    fn macos_overlay_obstructed_toggle_uses_order_below_not_order_out() {
+        // 計画書 §9 設計判断 3 の確定: modal open 時は `orderOut:`（完全隠し）
+        // ではなく `NSWindowBelow` への order 変更を使う。再生継続性を優先し、
+        // GPU present を止めないため。
+        let source = include_str!("macos_overlay.rs");
+
+        assert!(
+            source.contains("NSWindowBelow"),
+            "the obstructed toggle must lower the child window with NSWindowBelow (not orderOut:), \
+             so live surface present keeps running while the child window is simply behind the parent",
+        );
+        assert!(
+            source.contains("fn set_overlay_view_obstructed") ,
         );
     }
 
