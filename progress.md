@@ -1,3 +1,21 @@
+## 2026-07-03 — PixiJS排除 Phase 2: テキストのRust化（schema・ラスタライザ・serialise・cutover機構）
+
+### 実施内容
+
+- rust-core schema に `MediaKind::Text` / `ClipKind::TextPlane` を Generated 系と同型で追加。
+- `rust-backend/src/generated/text.rs` を新設し、**cosmic-text**（レイアウト・シェーピング・改行）＋内蔵 swash ラスタライザで RGBA グリフを直接描画。欧文・CJK（「こんにちは」、Hiragino 系フォールバック）で非透明画素が出ることを契約テストで固定。`FontSystem` は `OnceLock<Mutex<..>>` でプロセス内1回構築。
+- `rustSceneSnapshot.ts` に text オブジェクトの serialise（`measuredWidth/measuredHeight` 実測優先、未測定時ヒューリスティック）、`pixiTextCutover.ts`（`shouldSkipPixiTextForSharedRenderer`、**既定OFF**）を新設。`TextObject` へのフィールド追加はオプショナルで非破壊。
+- マージコミット 89573dbf。マージ後 rust-backend 55+62 / rust-core 全 green。
+
+### 選定理由・判断の根拠
+
+- 計画では native-wgpu-renderer への glyphon 統合を想定していたが、Generated 系35種が **rust-backend 側 CPU ラスタライズ→shm テクスチャ**という既存配線であることが判明したため、テキストも同じ配線に乗せた（native-wgpu-renderer への変更ゼロ）。glyphon は wgpu レンダーパス直結の前提が既存設計と噛み合わず不採用、wgpu 不要の cosmic-text 単体を採用。
+- cutover は機構のみ用意し既定 OFF（実機 parity 確認後に ON 化を判断）。
+
+### 残課題・次のステップ
+
+- Viewport/pixiRenderHelper への結線（Pixi 実測サイズの書き戻し、cutover 判定の実配線）、所有権集合スタックの新設、shared frame 経路の Text 契約テスト（統合フェーズで実施）。
+
 ## 2026-07-03 — PixiJS排除 Phase 1: 非テキストcutoverの実態確認とImage/Psd parityテスト追加
 
 ### 実施内容
