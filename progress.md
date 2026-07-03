@@ -1,3 +1,23 @@
+## 2026-07-03 — 調査: PixiJS 排除計画 Phase 0（所有権実態監査）
+
+### 実施内容
+
+- `markdown/Pixi_Removal_Plan.md` の Phase 0 を実施（コードリーディングのみ、実機操作なし）。所有権判定の中枢 `src/utils/sharedRendererPreviewPresenterController.ts` を追跡し、`nativeRenderFrameReady`（rust-wasm がシーンをレンダリングし video frame upload に成功したときに立つ単一の実行時フラグ）が真であれば SolidColour / Image / Psd / GeneratedEffect / Video いずれも無条件で Rust 所有と判定される構造であることを確定。
+- Image / Psd / GeneratedEffect には専用 cutover フラグが存在せず、`nativeRenderFrameReady` のみで決まる二値判定（`sharedRendererImageOwnership.ts` / `sharedRendererPsdOwnership.ts` / `sharedRendererPreviewSession.ts:67-83`）。SolidColour のみ `VITE_UXFD_SHARED_RENDERER_SHAPE_CUTOVER`（デフォルト有効）＋rust-wasm 幾何＋スタック安全性の3条件。Video は `VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER`（デフォルト有効）＋decode/upload 成功。
+- parity テストの棚卸し: `native-wgpu-renderer/tests/native_reference_parity.rs`（wgpu実装 vs `reference-renderer` crate の CPU期待値、`golden-harness::compare_rgba_frames` で画素比較）が実体。SolidColour合成・Effect全12種・Transform系は厚くカバー。**GeneratedAudioWaveform / GeneratedAudioSphere のみ実描画関数とparityテストがあり、他のGenerated 33種は native-wgpu-renderer 自体が `MediaKind` を一切参照せず（合成は常に事前ラスタライズ済み RgbaFrame 入力）、ラスタライズ実装の所在が rust-core / rust-core-wasm にも見つからなかった**。Image/Psd も実画像・PSD合成を入力にした parity テストは未確認。
+- `pixiRenderHelper.ts` の Pixi 固有機能（`applyObjectEffects` / `getLipSyncViseme` / `getVibrationOffset` / `applyGroupGradientEffect`）とRust対応表を作成。`applyObjectEffects` が扱うフィルタのうち clipping/colour_aberration/outline等の12種は `rust-core/src/schema.rs` の `Effect` 列挙に対応ありだが、`color_correction`（hue/saturate/contrast/brightness）は対応なし。リップシンク・vibration・グループグラデーションは全てRust対応なし。
+
+### 選定理由・判断の根拠
+
+- 調査はコードの一次情報（`grep`/`Read`によるRustソース・TSソースの直接確認）で完結させ、サブエージェント委譲は試みたが入れ子待機で応答が得られなかったため自身の追跡結果を正とした（サブエージェントの結果は使用していない）。
+- Phase 1 の着手順を「フラグを常時有効にするだけで済む種別」→「実描画修正が要る種別」の順に並べ、SolidColour/Image/Psd/GeneratedAudioWaveform/GeneratedAudioSphere を先行、Generated 33種を別枠（実装有無の再調査が先）と位置づけた。理由は cutover 判定ロジックがすでに緩い（二値またはほぼ常時真）種別から着手する方が、descoped なリスクで進捗を出せるため。
+
+### 残課題・次のステップ
+
+- Generated 33種の実描画（RGBA化）がどこで行われているか、あるいは未実装なのかを特定する追加調査が Phase 1 着手の前提。特定できない場合は readback parity テスト（Red）を先に書いて実態を固定する。
+- Image/Psd の実画像・PSD合成 parity テストが存在しないため、Phase 1着手前に追加が必要。
+- 詳細は `markdown/Pixi_Removal_Plan.md` の「Phase 0 監査結果（2026-07-03）」節を参照。
+
 ## 2026-07-03 — 調査・計画: PixiJS 依存の棚卸しと排除計画の策定
 
 ### 実施内容
