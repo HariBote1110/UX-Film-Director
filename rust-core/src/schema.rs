@@ -259,6 +259,14 @@ pub enum Effect {
         radius: f32,
         strength: f32,
     },
+    /// ドロップシャドウの最小実装。オフセット位置へ source alpha 形状の
+    /// 単色シルエットを本体の背後に合成する（ぼかしなし）。
+    DropShadow {
+        colour: [f32; 3],
+        offset_x: f32,
+        offset_y: f32,
+        opacity: f32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

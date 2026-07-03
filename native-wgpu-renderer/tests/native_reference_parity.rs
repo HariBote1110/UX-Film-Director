@@ -388,6 +388,41 @@ fn native_wgpu_applies_uniform_blur_gaussian_kernel() {
 }
 
 #[test]
+fn native_wgpu_applies_drop_shadow_silhouette_behind_body() {
+    // 3x1 の [不透明赤, 透明, 透明] へ offset_x=1 の黒シャドウ:
+    // 本体はそのまま、その右隣に alpha 形状のシルエット、さらに右は透明。
+    assert_native_matches_direct_hand_anchor(
+        scene_snapshot(vec![evaluated_clip(
+            "foreground",
+            0,
+            1.0,
+            vec![Effect::DropShadow {
+                colour: [0.0, 0.0, 0.0],
+                offset_x: 1.0,
+                offset_y: 0.0,
+                opacity: 1.0,
+            }],
+        )]),
+        HashMap::from([(
+            "foreground".to_string(),
+            RgbaFrame::from_rgba8(
+                3,
+                1,
+                vec![255, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0],
+            )
+            .expect("valid foreground"),
+        )]),
+        3,
+        1,
+        vec![
+            255, 0, 0, 255,
+            0, 0, 0, 255,
+            0, 0, 0, 0,
+        ],
+    );
+}
+
+#[test]
 fn native_wgpu_applies_auto_blur_plus_along_motion_angle() {
     assert_native_matches_direct_hand_anchor(
         scene_snapshot(vec![evaluated_clip(

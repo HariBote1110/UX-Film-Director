@@ -59,6 +59,12 @@ struct RenderParams {
     colour_correction_hue: f32,
     blur_radius: f32,
     blur_strength: f32,
+    drop_shadow_colour_r: f32,
+    drop_shadow_colour_g: f32,
+    drop_shadow_colour_b: f32,
+    drop_shadow_offset_x: f32,
+    drop_shadow_offset_y: f32,
+    drop_shadow_opacity: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -69,8 +75,6 @@ struct RenderParams {
     rotation_cos: f32,
     rotation_sin: f32,
     _padding6: f32,
-    _padding7: f32,
-    _padding8: f32,
 }
 
 @group(0) @binding(0)
@@ -99,19 +103,23 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
         -translated.x * params.rotation_sin + translated.y * params.rotation_cos,
     ) / vec2<f32>(params.scale_x, params.scale_y);
 
+    // ドロップシャドウは本体の可視領域外（bounds/wipe/clipping で culling
+    // される画素）にも現れるため、culling 時は透明ではなく shadow を返す。
+    let shadow = drop_shadow_premultiplied(source_position);
+
     if (!passes_area_expand_bounds(source_position)) {
-        return vec4<f32>(0.0);
+        return shadow;
     }
     if (params.area_expand_fill < 0.5 && is_outside_source_bounds(source_position)) {
-        return vec4<f32>(0.0);
+        return shadow;
     }
     let expanded_source_position = clamp_source_position(source_position);
 
     if (!passes_wipe(expanded_source_position)) {
-        return vec4<f32>(0.0);
+        return shadow;
     }
     if (!passes_clipping(expanded_source_position)) {
-        return vec4<f32>(0.0);
+        return shadow;
     }
 
     let transformed_source_position = oct_transformed_position(expanded_source_position);
@@ -134,7 +142,38 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     ) * outline_alpha;
     let spot_rgb = spot_light_rgb(source_position, alpha);
 
-    return vec4<f32>(premultiplied_rgb + outline_rgb * (1.0 - alpha) + spot_rgb, max(alpha, outline_alpha));
+    let body_alpha = max(alpha, outline_alpha);
+    let body_rgb = premultiplied_rgb + outline_rgb * (1.0 - alpha) + spot_rgb;
+
+    // shadow は本体の背後（source-over の下）に合成する。
+    return vec4<f32>(
+        body_rgb + shadow.rgb * (1.0 - body_alpha),
+        body_alpha + shadow.a * (1.0 - body_alpha),
+    );
+}
+
+// ドロップシャドウの最小実装: オフセット分ずらした位置の source alpha を
+// 形状として単色シルエットを premultiplied で返す（ぼかしなし）。
+fn drop_shadow_premultiplied(source_position: vec2<f32>) -> vec4<f32> {
+    if params.drop_shadow_opacity <= 0.0 {
+        return vec4<f32>(0.0);
+    }
+    let shadow_position = source_position - vec2<f32>(
+        params.drop_shadow_offset_x,
+        params.drop_shadow_offset_y,
+    );
+    if is_outside_source_bounds(shadow_position) {
+        return vec4<f32>(0.0);
+    }
+    let shadow_alpha = sample_source_linear(shadow_position).a
+        * params.drop_shadow_opacity
+        * params.opacity;
+    let shadow_colour = vec3<f32>(
+        params.drop_shadow_colour_r,
+        params.drop_shadow_colour_g,
+        params.drop_shadow_colour_b,
+    );
+    return vec4<f32>(shadow_colour * shadow_alpha, shadow_alpha);
 }
 
 fn displaced_position(source_position: vec2<f32>) -> vec2<f32> {

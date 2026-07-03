@@ -723,6 +723,12 @@ impl NativeWgpuRenderer {
                     colour_correction_hue: colour_correction_hue(clip),
                     blur_radius: blur_radius(clip),
                     blur_strength: blur_strength(clip),
+                    drop_shadow_colour_r: drop_shadow_colour_component(clip, 0),
+                    drop_shadow_colour_g: drop_shadow_colour_component(clip, 1),
+                    drop_shadow_colour_b: drop_shadow_colour_component(clip, 2),
+                    drop_shadow_offset_x: drop_shadow_offset_component(clip, 0),
+                    drop_shadow_offset_y: drop_shadow_offset_component(clip, 1),
+                    drop_shadow_opacity: drop_shadow_opacity(clip),
                     source_width: source.width as f32,
                     source_height: source.height as f32,
                     translation_x: clip.transform.translation_x,
@@ -733,8 +739,6 @@ impl NativeWgpuRenderer {
                     rotation_cos: rotation_radians.cos(),
                     rotation_sin: rotation_radians.sin(),
                     _padding6: 0.0,
-                    _padding7: 0.0,
-                    _padding8: 0.0,
                 },
             ));
         }
@@ -1255,6 +1259,12 @@ struct RenderParams {
     colour_correction_hue: f32,
     blur_radius: f32,
     blur_strength: f32,
+    drop_shadow_colour_r: f32,
+    drop_shadow_colour_g: f32,
+    drop_shadow_colour_b: f32,
+    drop_shadow_offset_x: f32,
+    drop_shadow_offset_y: f32,
+    drop_shadow_opacity: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -1265,8 +1275,6 @@ struct RenderParams {
     rotation_cos: f32,
     rotation_sin: f32,
     _padding6: f32,
-    _padding7: f32,
-    _padding8: f32,
 }
 
 fn sampling_mode_value(sampling: SamplingMode) -> f32 {
@@ -1652,7 +1660,45 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::AreaExpand { .. } => 1.0,
         Effect::ColourCorrection { .. } => 1.0,
         Effect::Blur { .. } => 1.0,
+        Effect::DropShadow { .. } => 1.0,
     }
+}
+
+fn drop_shadow_colour_component(clip: &uxfd_rust_core::EvaluatedClip, index: usize) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::DropShadow { colour, .. } => Some(colour[index]),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .clamp(0.0, 1.0)
+}
+
+fn drop_shadow_offset_component(clip: &uxfd_rust_core::EvaluatedClip, index: usize) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::DropShadow {
+                offset_x, offset_y, ..
+            } => Some(if index == 0 { *offset_x } else { *offset_y }),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+}
+
+fn drop_shadow_opacity(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::DropShadow { opacity, .. } => Some(*opacity),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+        .clamp(0.0, 1.0)
 }
 
 fn blur_radius(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {

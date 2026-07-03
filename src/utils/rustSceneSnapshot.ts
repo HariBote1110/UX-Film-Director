@@ -86,7 +86,8 @@ export type RustEffect =
   | { OctTransform: { scale: number; rotation_degrees: number; vertex_count: number; warp: number; strength: number } }
   | { AreaExpand: { top: number; bottom: number; left: number; right: number; fill: boolean } }
   | { ColourCorrection: { brightness: number; contrast: number; saturation: number; hue_degrees: number } }
-  | { Blur: { radius: number; strength: number } };
+  | { Blur: { radius: number; strength: number } }
+  | { DropShadow: { colour: [number, number, number]; offset_x: number; offset_y: number; opacity: number } };
 
 export interface RustEvaluatedClip {
   clip_id: string;
@@ -344,6 +345,7 @@ const collectBuildIssues = (
       filter.type !== 'fade'
       && filter.type !== 'color_correction'
       && filter.type !== 'blur'
+      && filter.type !== 'shadow'
       && filter.type !== 'colour_aberration'
       && filter.type !== 'outline'
       && filter.type !== 'wipe'
@@ -402,6 +404,19 @@ const rustEffectsForObject = (object: TimelineObject, time: number): RustEffect[
           },
         });
       }
+    }
+    if (filter.type === 'shadow') {
+      // 旧 Pixi 実装には shadow の描画配線が無かった（UI のみの死機能）ため、
+      // Rust 側 DropShadow が初めての実描画。blur パラメータは最小実装
+      // （単色シルエット）では搬送しない。
+      effects.push({
+        DropShadow: {
+          colour: parseHexColourToLinearTriplet(filter.params.colour),
+          offset_x: finiteNumberOr(filter.params.offsetX, 0),
+          offset_y: finiteNumberOr(filter.params.offsetY, 0),
+          opacity: Math.max(0, Math.min(1, finiteNumberOr(filter.params.opacity, 0.5))),
+        },
+      });
     }
     if (filter.type === 'colour_aberration') {
       effects.push({
@@ -2114,6 +2129,13 @@ const validateEffects = (
     if (isRecord(effect.Blur)) {
       validateFiniteNumber(effect.Blur.radius, `${effectPath}.Blur.radius`, issues);
       validateUnitInterval(effect.Blur.strength, `${effectPath}.Blur.strength`, issues);
+      return;
+    }
+    if (isRecord(effect.DropShadow)) {
+      validateNumberArray(effect.DropShadow.colour, `${effectPath}.DropShadow.colour`, 3, issues);
+      validateFiniteNumber(effect.DropShadow.offset_x, `${effectPath}.DropShadow.offset_x`, issues);
+      validateFiniteNumber(effect.DropShadow.offset_y, `${effectPath}.DropShadow.offset_y`, issues);
+      validateUnitInterval(effect.DropShadow.opacity, `${effectPath}.DropShadow.opacity`, issues);
       return;
     }
     addIssue(issues, 'schemaMismatch', effectPath, 'Unknown Rust effect.');
