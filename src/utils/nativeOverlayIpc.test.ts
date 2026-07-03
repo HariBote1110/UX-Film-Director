@@ -260,8 +260,8 @@ describe('nativeOverlayIpc', () => {
     // bridge.setSelectionDecoration へ委譲する契約。
     const handlers = new Map<string, (_event: unknown, payload: unknown) => Promise<unknown>>();
     const ipcMain = {
-      handle: vi.fn((channel: string, handler: (_event: unknown, payload: unknown) => Promise<unknown>) => {
-        handlers.set(channel, handler);
+      handle: vi.fn((channel: string, handler: (event: unknown, payload: unknown) => Promise<unknown> | unknown) => {
+        handlers.set(channel, handler as (_event: unknown, payload: unknown) => Promise<unknown>);
       }),
     };
     const bridge = {

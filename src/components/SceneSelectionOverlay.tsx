@@ -22,6 +22,14 @@ export interface SceneSelectionOverlayProps {
   height: number;
   /** ハンドルクリック時のコールバック（統合時に useSceneInteraction.onResizeStart 等へ接続する）。 */
   onHandlePointerDown?: (objectId: string, corner: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right', e: React.PointerEvent) => void;
+  /**
+   * native overlay（child NSWindow / CAMetalLayer）が選択枠・ハンドルの見た目を
+   * 描いている間は true。SVG は削除せず stroke/fill を透明化して「不可視だが
+   * 操作可能」なヒット領域（リサイズハンドルの pointerEvents:'auto'）として残す。
+   * native overlay 不可用時（attach 失敗・addon 不在）は false に戻し、従来の
+   * 可視スタイルへフォールバックする。
+   */
+  visualsHidden?: boolean;
 }
 
 const RESIZE_HANDLE_SIZE = 10;
@@ -41,6 +49,7 @@ export const SceneSelectionOverlay: React.FC<SceneSelectionOverlayProps> = ({
   width,
   height,
   onHandlePointerDown,
+  visualsHidden = false,
 }) => {
   const selectedObjects = objects.filter((obj) => selectedIds.includes(obj.id));
 
@@ -82,7 +91,7 @@ export const SceneSelectionOverlay: React.FC<SceneSelectionOverlayProps> = ({
             <polygon
               points={points}
               fill="none"
-              stroke="#ffd700"
+              stroke={visualsHidden ? 'transparent' : '#ffd700'}
               strokeWidth={2}
             />
             {handleCorners.map(({ corner, point }) => (
@@ -92,8 +101,8 @@ export const SceneSelectionOverlay: React.FC<SceneSelectionOverlayProps> = ({
                 y={point.y - RESIZE_HANDLE_SIZE / 2}
                 width={RESIZE_HANDLE_SIZE}
                 height={RESIZE_HANDLE_SIZE}
-                fill="#ffffff"
-                stroke="#ffd700"
+                fill={visualsHidden ? 'transparent' : '#ffffff'}
+                stroke={visualsHidden ? 'transparent' : '#ffd700'}
                 strokeWidth={1.2}
                 style={{ pointerEvents: onHandlePointerDown ? 'auto' : 'none', cursor: RESIZE_CURSORS[corner] }}
                 onPointerDown={(e) => onHandlePointerDown?.(obj.id, corner, e)}

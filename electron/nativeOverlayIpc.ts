@@ -2,6 +2,7 @@ import type {
   NativeOverlayAttachPayload,
   NativeOverlayDetachPayload,
   NativeOverlayResponse,
+  NativeOverlaySelectionDecorationPayload,
   NativeOverlaySetObstructedPayload,
   NativeOverlaySharedFramePayload,
 } from './nativeOverlayMainBridge'
@@ -19,6 +20,10 @@ export const nativeOverlayIpcChannels = {
   // previewObstructionDetector.ts（subscribeStoreToPreviewObstructionIpc）が
   // 転送する channel。payload は { obstructed, reason, rect? }。
   previewObstructionChanged: 'ui:preview-obstruction-changed',
+  // 選択デコレーション — SceneSelectionOverlay（SVG）が child NSWindow 化された
+  // native overlay に隠れるため、選択枠・リサイズハンドルの見た目を addon 側
+  // （Rust/wgpu）で描く。renderer が world 座標 quad を送る channel。
+  setSelectionDecoration: 'native-overlay-set-selection-decoration',
 } as const
 
 export interface NativeOverlayCapabilities {
@@ -39,6 +44,7 @@ export interface NativeOverlayIpcBridge {
   presentSharedFrame: (payload: NativeOverlaySharedFramePayload) => Promise<NativeOverlayResponse>
   clearSurface: (payload: NativeOverlayDetachPayload) => Promise<NativeOverlayResponse>
   setObstructed: (payload: NativeOverlaySetObstructedPayload) => Promise<NativeOverlayResponse>
+  setSelectionDecoration: (payload: NativeOverlaySelectionDecorationPayload) => Promise<NativeOverlayResponse>
   getCapabilities: () => NativeOverlayCapabilities
 }
 
@@ -68,6 +74,10 @@ export const registerNativeOverlayIpcHandlers = (
   ipcMain.handle(nativeOverlayIpcChannels.clearSurface, async (event, payload) =>
     bridge.clearSurface(
       withWindowId(payload, event, options.resolveWindowIdFromEvent) as NativeOverlayDetachPayload,
+    ))
+  ipcMain.handle(nativeOverlayIpcChannels.setSelectionDecoration, async (event, payload) =>
+    bridge.setSelectionDecoration(
+      withWindowId(payload, event, options.resolveWindowIdFromEvent) as unknown as NativeOverlaySelectionDecorationPayload,
     ))
   ipcMain.handle(nativeOverlayIpcChannels.previewObstructionChanged, async (event, payload) => {
     const obstructed = typeof payload === 'object' && payload !== null && 'obstructed' in payload

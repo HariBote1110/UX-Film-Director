@@ -65,6 +65,10 @@ import {
 } from '../utils/sharedRendererExternalVideoSource';
 import { toFileProtocolUrl } from '../utils/mediaMetadata';
 import { buildNativeOverlayAttachRect } from '../utils/nativeOverlayViewportGeometry';
+import {
+  buildSelectionDecorationQuads,
+  createNativeOverlaySelectionDecorationSender,
+} from '../utils/nativeOverlaySelectionDecoration';
 import { notifyNativeOverlaySceneCleared } from '../utils/sharedRendererRustVideoUploadPipeline';
 
 const SHARED_RENDERER_EXTERNAL_VIDEO_PLAYING_SYNC_INTERVAL_MS = 75;
@@ -459,6 +463,18 @@ const Viewport: React.FC = () => {
   const sharedRendererDiagnosticSwatchEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_DIAGNOSTIC_SWATCH === '1';
   const sharedRendererVideoCutoverEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_VIDEO_CUTOVER !== '0';
   const nativeOverlayPreviewEnabled = import.meta.env.VITE_UXFD_NATIVE_OVERLAY !== '0';
+  // 選択デコレーション — SVG（SceneSelectionOverlay）は child NSWindow 化された
+  // native overlay に隠れるため、選択枠・ハンドルの見た目は addon 側で描く。
+  // true の間は SVG を透明化（不可視だが操作可能）し、addon 不可用・attach
+  // 失敗時は false に戻して SVG の可視スタイルへフォールバックする。
+  const [nativeSelectionDecorationActive, setNativeSelectionDecorationActive] = useState(false);
+  // attach は resize 等で作り直され addon 側の decoration state が失われ得る
+  // ため、attach 成功 tick を dedupe 鍵に含めて同値 quad でも再送する。
+  const [nativeOverlayAttachTick, setNativeOverlayAttachTick] = useState(0);
+  const selectionDecorationSenderRef = useRef(
+    createNativeOverlaySelectionDecorationSender((payload) =>
+      window.nativeOverlay!.setSelectionDecoration(payload)),
+  );
   const rustVideoOnlyEnabled = import.meta.env.VITE_UXFD_RUST_VIDEO_ONLY === '1';
   const phase0SkipDecodedUploadEnabled = import.meta.env.VITE_UXFD_PHASE0_SKIP_DECODED_UPLOAD === '1';
   const phase0WriteTextureNoOpEnabled = import.meta.env.VITE_UXFD_PHASE0_WRITE_TEXTURE_NOOP === '1';
@@ -516,7 +532,12 @@ const Viewport: React.FC = () => {
       };
       if (nextAttachKey === lastNativeOverlayAttachKey) return;
       lastNativeOverlayAttachKey = nextAttachKey;
-      void window.nativeOverlay?.attach(nextAttachRect);
+      void window.nativeOverlay?.attach(nextAttachRect).then((response) => {
+        if (disposed || !response?.attached) return;
+        // attach 成功で addon 側の選択デコレーション state が失われている可能性が
+        // あるため、tick を進めて同値 quad でも再送させる。
+        setNativeOverlayAttachTick((tick) => tick + 1);
+      });
     };
 
     attach();
@@ -669,6 +690,57 @@ const Viewport: React.FC = () => {
   }, [nativeOverlayPreviewEnabled, projectId]);
 
   const editorMode = projectSettings.editorMode ?? '2d';
+
+  // 選択デコレーション — 選択変更・ドラッグ中の毎 pointermove（objects 更新で
+  // 再レンダーされる）・時間変化のたびに world quad を送る。値が不変なら
+  // sender が dedupe して IPC を発行しない。応答の success/attached で SVG の
+  // 透明化（native 描画が生きている間のみ）を切り替える。
+  useEffect(() => {
+    if (
+      !nativeOverlayPreviewEnabled
+      || editorMode === '3d_stage'
+      || typeof window.nativeOverlay?.setSelectionDecoration !== 'function'
+    ) {
+      setNativeSelectionDecorationActive(false);
+      return;
+    }
+    const quads = buildSelectionDecorationQuads({
+      selectedIds,
+      objects,
+      time: currentTime,
+    });
+    const pending = selectionDecorationSenderRef.current.update(
+      {
+        canvasWidth: projectSettings.width,
+        canvasHeight: projectSettings.height,
+        quads,
+      },
+      nativeOverlayAttachTick,
+    );
+    if (!pending) return;
+    let cancelled = false;
+    pending
+      .then((response) => {
+        if (cancelled) return;
+        setNativeSelectionDecorationActive(Boolean(response?.success && response?.attached));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setNativeSelectionDecorationActive(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    nativeOverlayPreviewEnabled,
+    editorMode,
+    selectedIds,
+    objects,
+    currentTime,
+    projectSettings.width,
+    projectSettings.height,
+    nativeOverlayAttachTick,
+  ]);
 
   const selectedBillboardPsdId = useMemo(() => {
     if (editorMode !== '3d_stage') return null;
@@ -1695,6 +1767,7 @@ const Viewport: React.FC = () => {
               viewport={sceneInteractionViewportRef.current}
               width={previewW}
               height={previewH}
+              visualsHidden={nativeSelectionDecorationActive}
               onHandlePointerDown={(objectId, corner, e) => {
                 const targetObject = objects.find((o) => o.id === objectId);
                 if (!targetObject) return;

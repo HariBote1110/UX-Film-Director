@@ -351,6 +351,28 @@ interface Window {
       fallback?: 'webgpuPresenter';
       reason?: string;
     }>;
+    // 選択デコレーション — 選択枠・リサイズハンドルの見た目を native overlay
+    // 側（Rust/wgpu）で描くための quad 送信。空配列でデコレーション解除。
+    setSelectionDecoration: (payload: {
+      windowId?: number;
+      canvasWidth: number;
+      canvasHeight: number;
+      quads: readonly {
+        topLeftX: number;
+        topLeftY: number;
+        topRightX: number;
+        topRightY: number;
+        bottomRightX: number;
+        bottomRightY: number;
+        bottomLeftX: number;
+        bottomLeftY: number;
+      }[];
+    }) => Promise<{
+      success: boolean;
+      attached: boolean;
+      fallback?: 'webgpuPresenter';
+      reason?: string;
+    }>;
   };
 }
 
