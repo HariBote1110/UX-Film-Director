@@ -40,6 +40,7 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedProtractor') return isSharedRendererNativeGeneratedProtractorSourceSupported(reference.source);
   if (reference.kind === 'GeneratedShakingPolygon') return isSharedRendererNativeGeneratedShakingPolygonSourceSupported(reference.source);
   if (reference.kind === 'GeneratedShatteredSphere') return isSharedRendererNativeGeneratedShatteredSphereSourceSupported(reference.source);
+  if (reference.kind === 'GeneratedShape') return isSharedRendererNativeGeneratedShapeSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
   if (reference.kind === 'Text') return isSharedRendererNativeTextSourceSupported(reference.source);
@@ -112,6 +113,66 @@ const isSharedRendererNativeGeneratedGradientSourceSupported = (source: string):
         && parsed.stops.every((stop) => typeof stop === 'number' && Number.isFinite(stop))
       ))
       && (parsed.direction === undefined || (typeof parsed.direction === 'number' && Number.isFinite(parsed.direction)))
+    );
+  } catch {
+    return false;
+  }
+};
+
+const SUPPORTED_GENERATED_SHAPE_TYPES = new Set([
+  'rounded_rect',
+  'circle',
+  'ellipse',
+  'triangle',
+  'star',
+  'pentagon',
+  'diamond',
+  'arrow',
+  'heart',
+  'cross',
+]);
+
+const isSharedRendererNativeGeneratedShapeGradientSupported = (gradient: unknown): boolean => {
+  if (gradient === null) return true;
+  if (typeof gradient !== 'object') return false;
+  const parsed = gradient as {
+    type?: unknown;
+    colours?: unknown;
+    stops?: unknown;
+    direction?: unknown;
+  };
+  return (
+    (parsed.type === 'linear' || parsed.type === 'radial')
+    && Array.isArray(parsed.colours)
+    && parsed.colours.length > 0
+    && parsed.colours.every((colour) => typeof colour === 'string' && /^#[0-9a-f]{6}$/i.test(colour))
+    && (parsed.stops === undefined || (
+      Array.isArray(parsed.stops)
+      && parsed.stops.every((stop) => typeof stop === 'number' && Number.isFinite(stop))
+    ))
+    && (parsed.direction === undefined || (typeof parsed.direction === 'number' && Number.isFinite(parsed.direction)))
+  );
+};
+
+const isSharedRendererNativeGeneratedShapeSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      generator?: unknown;
+      shape_type?: unknown;
+      fill_colour?: unknown;
+      gradient?: unknown;
+      corner_radius?: unknown;
+    };
+    return (
+      parsed.generator === 'shape-93'
+      && typeof parsed.shape_type === 'string'
+      && SUPPORTED_GENERATED_SHAPE_TYPES.has(parsed.shape_type)
+      && typeof parsed.fill_colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.fill_colour)
+      && isSharedRendererNativeGeneratedShapeGradientSupported(parsed.gradient ?? null)
+      && typeof parsed.corner_radius === 'number'
+      && Number.isFinite(parsed.corner_radius)
+      && parsed.corner_radius >= 0
     );
   } catch {
     return false;
