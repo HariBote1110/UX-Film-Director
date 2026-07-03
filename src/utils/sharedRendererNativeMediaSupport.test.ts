@@ -599,4 +599,33 @@ describe('sharedRendererNativeMediaSupport', () => {
       height: 480,
     })).toBe(true);
   });
+
+  it('accepts cosmic-text text generator sources as native renderable media', () => {
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'text-1',
+      kind: 'Text',
+      source: JSON.stringify({
+        text: 'こんにちは',
+        font_family: 'Hiragino Sans',
+        font_size: 48,
+        colour: '#ffffff',
+        alignment: 'left',
+        letter_spacing: 0,
+        stroke: null,
+        shadow: null,
+      }),
+      width: 240,
+      height: 58,
+    })).toBe(true);
+  });
+
+  it('rejects malformed text generator sources', () => {
+    expect(isSharedRendererNativeMediaReferenceSupported({
+      id: 'text-bad',
+      kind: 'Text',
+      source: JSON.stringify({ text: 42, font_size: 'big' }),
+      width: 240,
+      height: 58,
+    })).toBe(false);
+  });
 });
