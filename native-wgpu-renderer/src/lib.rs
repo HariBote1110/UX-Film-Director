@@ -717,6 +717,10 @@ impl NativeWgpuRenderer {
                         _ => None,
                     }),
                     area_expand_fill: area_expand_fill(clip),
+                    colour_correction_brightness: colour_correction_brightness(clip),
+                    colour_correction_contrast: colour_correction_contrast(clip),
+                    colour_correction_saturation: colour_correction_saturation(clip),
+                    colour_correction_hue: colour_correction_hue(clip),
                     source_width: source.width as f32,
                     source_height: source.height as f32,
                     translation_x: clip.transform.translation_x,
@@ -1241,6 +1245,10 @@ struct RenderParams {
     area_expand_left: f32,
     area_expand_right: f32,
     area_expand_fill: f32,
+    colour_correction_brightness: f32,
+    colour_correction_contrast: f32,
+    colour_correction_saturation: f32,
+    colour_correction_hue: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -1634,7 +1642,56 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::MultiSlicer { .. } => 1.0,
         Effect::OctTransform { .. } => 1.0,
         Effect::AreaExpand { .. } => 1.0,
+        Effect::ColourCorrection { .. } => 1.0,
     }
+}
+
+/// PIXI.ColorMatrixFilter の呼び出し順（hue→saturate→contrast→brightness、
+/// multiply 合成）を再現するための uniform 抽出。effect が無いときは
+/// 恒等変換（brightness 1 / contrast 0 / saturation 0 / hue 0）を返す。
+fn colour_correction_brightness(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::ColourCorrection { brightness, .. } => Some(*brightness),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(1.0)
+        .max(0.0)
+}
+
+fn colour_correction_contrast(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::ColourCorrection { contrast, .. } => Some(*contrast),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+}
+
+fn colour_correction_saturation(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::ColourCorrection { saturation, .. } => Some(*saturation),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
+}
+
+fn colour_correction_hue(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
+    clip.effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::ColourCorrection { hue_degrees, .. } => Some(hue_degrees.to_radians()),
+            _ => None,
+        })
+        .last()
+        .unwrap_or(0.0)
 }
 
 fn effect_colour_aberration_offset<F>(clip: &uxfd_rust_core::EvaluatedClip, pick: F) -> f32

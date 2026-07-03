@@ -53,6 +53,10 @@ struct RenderParams {
     area_expand_left: f32,
     area_expand_right: f32,
     area_expand_fill: f32,
+    colour_correction_brightness: f32,
+    colour_correction_contrast: f32,
+    colour_correction_saturation: f32,
+    colour_correction_hue: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -116,7 +120,7 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     let red_source = sample_source_with_fake_dof(clamp_source_position(displaced_source_position + aberration_offset)).r;
     let blue_source = sample_source_with_fake_dof(clamp_source_position(displaced_source_position - aberration_offset)).b;
     let alpha = source.a * params.opacity;
-    let linear_rgb = vec3<f32>(red_source, source.g, blue_source);
+    let linear_rgb = colour_corrected_rgb(vec3<f32>(red_source, source.g, blue_source));
     let premultiplied_rgb = linear_rgb * params.gain * alpha;
     let outline_alpha = outline_alpha_at(source_position, source.a) * params.outline_opacity * params.opacity;
     let outline_rgb = vec3<f32>(
@@ -385,4 +389,73 @@ fn srgb_to_linear(value: f32) -> f32 {
     }
 
     return pow((value + 0.055) / 1.055, 2.4);
+}
+
+fn linear_to_srgb(value: f32) -> f32 {
+    if value <= 0.0031308 {
+        return value * 12.92;
+    }
+
+    return 1.055 * pow(value, 1.0 / 2.4) - 0.055;
+}
+
+// PIXI.ColorMatrixFilter 互換の色調補正。旧実装は
+// hue(h,false)→saturate(s,true)→contrast(c,true)→brightness(b,true) の
+// multiply 合成（M = H*S*C*B）で、ベクトルへは brightness→contrast→
+// saturate→hue の順で作用する。PIXI は sRGB 符号化 straight RGB 空間で
+// 行列演算し、offset 列は _colorMatrix() で 255 除算される（contrast の
+// -0.5*(v-1) は実質 /255 されて極小になる、という PIXI 実挙動も再現）。
+fn colour_corrected_rgb(rgb: vec3<f32>) -> vec3<f32> {
+    let brightness = params.colour_correction_brightness;
+    let contrast = params.colour_correction_contrast;
+    let saturation = params.colour_correction_saturation;
+    let hue = params.colour_correction_hue;
+    if (brightness == 1.0 && contrast == 0.0 && saturation == 0.0 && hue == 0.0) {
+        return rgb;
+    }
+
+    var c = vec3<f32>(
+        linear_to_srgb(rgb.r),
+        linear_to_srgb(rgb.g),
+        linear_to_srgb(rgb.b),
+    );
+
+    // brightness
+    c = c * brightness;
+
+    // contrast（offset は PIXI の /255 正規化を再現）
+    let contrast_scale = contrast + 1.0;
+    let contrast_offset = (-0.5 * contrast) / 255.0;
+    c = c * contrast_scale + vec3<f32>(contrast_offset);
+
+    // saturate
+    let sat_x = saturation * (2.0 / 3.0) + 1.0;
+    let sat_y = (sat_x - 1.0) * -0.5;
+    c = vec3<f32>(
+        sat_x * c.r + sat_y * c.g + sat_y * c.b,
+        sat_y * c.r + sat_x * c.g + sat_y * c.b,
+        sat_y * c.r + sat_y * c.g + sat_x * c.b,
+    );
+
+    // hue（luma 保存の RGB 回転行列）
+    let cos_r = cos(hue);
+    let sin_r = sin(hue);
+    let w = 1.0 / 3.0;
+    let sqr_w = sqrt(w);
+    let diag = cos_r + (1.0 - cos_r) * w;
+    let p = (w * (1.0 - cos_r)) - (sqr_w * sin_r);
+    let q = (w * (1.0 - cos_r)) + (sqr_w * sin_r);
+    c = vec3<f32>(
+        diag * c.r + p * c.g + q * c.b,
+        q * c.r + diag * c.g + p * c.b,
+        p * c.r + q * c.g + diag * c.b,
+    );
+
+    c = clamp(c, vec3<f32>(0.0), vec3<f32>(1.0));
+
+    return vec3<f32>(
+        srgb_to_linear(c.r),
+        srgb_to_linear(c.g),
+        srgb_to_linear(c.b),
+    );
 }

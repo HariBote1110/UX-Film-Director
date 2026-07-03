@@ -269,6 +269,18 @@ fn effect_is_finite(effect: &crate::schema::Effect) -> bool {
                 && *strength >= 0.0
                 && *strength <= 1.0
         }
+        crate::schema::Effect::ColourCorrection {
+            brightness,
+            contrast,
+            saturation,
+            hue_degrees,
+        } => {
+            brightness.is_finite()
+                && *brightness >= 0.0
+                && contrast.is_finite()
+                && saturation.is_finite()
+                && hue_degrees.is_finite()
+        }
         crate::schema::Effect::AreaExpand {
             top,
             bottom,

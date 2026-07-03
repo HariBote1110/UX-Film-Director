@@ -244,6 +244,15 @@ pub enum Effect {
         right: f32,
         fill: bool,
     },
+    /// PIXI.ColorMatrixFilter 互換の色調補正。hue → saturate → contrast →
+    /// brightness を multiply 合成した行列を sRGB 符号化空間の straight RGB へ
+    /// 適用する（旧 Pixi 全画面フォールバックの見た目を再現する）。
+    ColourCorrection {
+        brightness: f32,
+        contrast: f32,
+        saturation: f32,
+        hue_degrees: f32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

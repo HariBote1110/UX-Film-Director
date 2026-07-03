@@ -84,7 +84,8 @@ export type RustEffect =
   | { Stretch: { angle_degrees: number; amount: number; strength: number } }
   | { MultiSlicer: { angle_degrees: number; offset: number; slices: number; expansion: number; strength: number } }
   | { OctTransform: { scale: number; rotation_degrees: number; vertex_count: number; warp: number; strength: number } }
-  | { AreaExpand: { top: number; bottom: number; left: number; right: number; fill: boolean } };
+  | { AreaExpand: { top: number; bottom: number; left: number; right: number; fill: boolean } }
+  | { ColourCorrection: { brightness: number; contrast: number; saturation: number; hue_degrees: number } };
 
 export interface RustEvaluatedClip {
   clip_id: string;
@@ -340,6 +341,7 @@ const collectBuildIssues = (
 
     const unsupportedFilter = getEnabledObjectFiltersInOrder(object).find((filter) => (
       filter.type !== 'fade'
+      && filter.type !== 'color_correction'
       && filter.type !== 'colour_aberration'
       && filter.type !== 'outline'
       && filter.type !== 'wipe'
@@ -372,6 +374,19 @@ const collectBuildIssues = (
 const rustEffectsForObject = (object: TimelineObject, time: number): RustEffect[] => {
   const effects: RustEffect[] = [];
   getEnabledObjectFiltersInOrder(object).forEach((filter) => {
+    if (filter.type === 'color_correction') {
+      // 旧 PIXI.ColorMatrixFilter の hue→saturate→contrast→brightness
+      // multiply 合成に対応する Rust 側 Effect。恒等値のフォールバックは
+      // PIXI の no-op 値（brightness 1 / contrast 0 / saturation 0 / hue 0）。
+      effects.push({
+        ColourCorrection: {
+          brightness: Math.max(0, finiteNumberOr(filter.params.brightness, 1)),
+          contrast: finiteNumberOr(filter.params.contrast, 0),
+          saturation: finiteNumberOr(filter.params.saturation, 0),
+          hue_degrees: finiteNumberOr(filter.params.hue, 0),
+        },
+      });
+    }
     if (filter.type === 'colour_aberration') {
       effects.push({
         ColourAberration: {
@@ -2053,6 +2068,31 @@ const validateEffects = (
       validateFiniteNumber(effect.MultiSlicer.slices, `${effectPath}.MultiSlicer.slices`, issues);
       validateFiniteNumber(effect.MultiSlicer.expansion, `${effectPath}.MultiSlicer.expansion`, issues);
       validateUnitInterval(effect.MultiSlicer.strength, `${effectPath}.MultiSlicer.strength`, issues);
+      return;
+    }
+    if (isRecord(effect.OctTransform)) {
+      validateFiniteNumber(effect.OctTransform.scale, `${effectPath}.OctTransform.scale`, issues);
+      validateFiniteNumber(effect.OctTransform.rotation_degrees, `${effectPath}.OctTransform.rotation_degrees`, issues);
+      validateFiniteNumber(effect.OctTransform.vertex_count, `${effectPath}.OctTransform.vertex_count`, issues);
+      validateFiniteNumber(effect.OctTransform.warp, `${effectPath}.OctTransform.warp`, issues);
+      validateUnitInterval(effect.OctTransform.strength, `${effectPath}.OctTransform.strength`, issues);
+      return;
+    }
+    if (isRecord(effect.AreaExpand)) {
+      validateFiniteNumber(effect.AreaExpand.top, `${effectPath}.AreaExpand.top`, issues);
+      validateFiniteNumber(effect.AreaExpand.bottom, `${effectPath}.AreaExpand.bottom`, issues);
+      validateFiniteNumber(effect.AreaExpand.left, `${effectPath}.AreaExpand.left`, issues);
+      validateFiniteNumber(effect.AreaExpand.right, `${effectPath}.AreaExpand.right`, issues);
+      if (typeof effect.AreaExpand.fill !== 'boolean') {
+        addIssue(issues, 'schemaMismatch', `${effectPath}.AreaExpand.fill`, 'fill must be a boolean.');
+      }
+      return;
+    }
+    if (isRecord(effect.ColourCorrection)) {
+      validateFiniteNumber(effect.ColourCorrection.brightness, `${effectPath}.ColourCorrection.brightness`, issues);
+      validateFiniteNumber(effect.ColourCorrection.contrast, `${effectPath}.ColourCorrection.contrast`, issues);
+      validateFiniteNumber(effect.ColourCorrection.saturation, `${effectPath}.ColourCorrection.saturation`, issues);
+      validateFiniteNumber(effect.ColourCorrection.hue_degrees, `${effectPath}.ColourCorrection.hue_degrees`, issues);
       return;
     }
     addIssue(issues, 'schemaMismatch', effectPath, 'Unknown Rust effect.');
