@@ -2824,6 +2824,43 @@ mod tests {
         assert_eq!(interior[3], 0, "interior must stay transparent, got {interior:?}");
     }
 
+    #[test]
+    fn selection_decoration_clips_use_identity_transform_when_canvas_size_is_zero() {
+        // 契約: `fit_scene_snapshot_to_drawable`（scene 本体の contain-fit）は
+        // canvas_width/height が 0 のとき「fit 変換を一切適用しない」（早期
+        // return で translation/scale を無改変のまま返す）。デコレーション側の
+        // `build_selection_decoration_clips` も同じ Fail Safe でなければならない。
+        //
+        // 修正前の実装は `fit_scale` こそ 1.0 にフォールバックしていたが、
+        // その後段の `offset_x/y` 計算で分母が 0 になった `canvas_width` を
+        // そのまま使っていたため `offset = drawable_size * 0.5` という巨大な
+        // オフセットが生まれ、金枠・ハンドルが drawable 中心へ大きくシフトして
+        // しまっていた（実機バグ: 選択枠が preview 外・タイムライン付近まで
+        // ずれて見える）。canvas_width=0 は「まだ projectSettings が来ていない」
+        // 起動直後などに起こり得るため、Fail Safe で無変換（offset=0）に
+        // 倒すのが scene 本体との整合が取れる唯一の挙動である。
+        let state = SelectionDecorationState {
+            canvas_width: 0,
+            canvas_height: 0,
+            quads: vec![SelectionDecorationQuad {
+                top_left: (100.0, 100.0),
+                top_right: (300.0, 100.0),
+                bottom_right: (300.0, 200.0),
+                bottom_left: (100.0, 200.0),
+            }],
+        };
+        let (clips, _sources) = build_selection_decoration_clips(&state, 960, 540, 1.0);
+
+        // 無変換（fit_scale=1.0, offset=0）なら上辺は quad 座標そのまま
+        // （TL(100,100)→TR(300,100)）を線幅 2 で載せた位置になるはずで、
+        // offset_x/y はどちらも 0 でなければならない。
+        let top = &clips[0];
+        assert_approx(top.transform.translation_x, 99.0, "top edge translation_x (no offset)");
+        assert_approx(top.transform.translation_y, 99.0, "top edge translation_y (no offset)");
+        assert_approx(top.transform.scale_x, 202.0, "top edge scale_x (no fit scale)");
+        assert_approx(top.transform.scale_y, 2.0, "top edge scale_y (no fit scale)");
+    }
+
     fn unique_shm_name() -> String {
         let micros = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
