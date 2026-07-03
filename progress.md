@@ -1,3 +1,23 @@
+## 2026-07-03 — 退行復旧(1/2): 非矩形シェイプ11種とテキスト縁取り/影の復活
+
+### 実施内容
+
+- rust-core schema に `MediaKind::GeneratedShape` / `ClipKind::GeneratedShapePlane` を追加し、`rust-backend/src/generated/shape.rs` を新設。circle/ellipse/rounded_rect/triangle/pentagon/diamond/star/cross/arrow/heart を CPU ラスタライズ（凹多角形は crossing-number 判定、ハートは陰関数、グラデーションは既存 helpers を再利用）。
+- `rustSceneSnapshot.ts` で `shapeType !== 'rect'` を新 kind へ振り分け（rect は安定稼働中の SolidColour/GeneratedGradient 経路を維持）。
+- `TextObject` に `textStroke` / `textShadow` を追加し、rust-backend text.rs に実装済みで未使用だった縁取り・影を TS 配線のみで復活。Text ソース検証が stroke/shadow を無検証で通していた欠陥も修正。PropertyPanel に shape 全種セレクト・cornerRadius・stroke/shadow 入力を配線。
+- 種別追加チェックリスト3点（validateEnum / media-only render 対応表 / wasm 再ビルド成果物コミット）を全て実施・契約テスト固定。
+- マージ後: vitest 1159 green（baseline 5件のみ失敗）/ rust-backend 62+63 / rust-core 全 green。
+
+### 選定理由・判断の根拠
+
+- shape は「1機能=1kind」の Generated 慣行から外し、`shape_type` を運ぶ単一 kind に集約（11種の個別 kind 化は過剰）。
+- テキスト装飾は Rust 側機構が既存だったため TS 配線のみで完結させ、変更面積を最小化。
+
+### 残課題・次のステップ
+
+- 実機での各 shapeType・グラデーション・縁取り/影の目視確認（フィルタ移植 A の合流後に一括実施）。
+- グループ合成・video 逆再生/subjectCrop・3D ステージ PSD ビルボードは後続。
+
 ## 2026-07-03 — PixiJS 排除完了: Phase 4+5 統合と統合時バグ2件の修正（429a）
 
 ### 実施内容
