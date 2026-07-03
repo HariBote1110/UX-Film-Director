@@ -475,4 +475,31 @@ describe('Viewport Rust video-only boundary', () => {
     expect(code).toMatch(/useEffect\([\s\S]*?window\.nativeOverlay\?\.clearSurface[\s\S]*?projectId/);
     expect(code).toContain('notifyNativeOverlaySceneCleared');
   });
+
+  it('clears the native overlay live surface transparently when the playhead moves to a position with no visible video clip (Bug F)', () => {
+    // Bug F — Bug D の3ケース（scene全体が空 / unmount / project切替）は
+    // 「timelineにクリップは存在するが playhead が動画を含まない位置にある」
+    // ケースを捕捉しない。presenter orchestration の戻り値
+    // `nativeOverlayPresentResult.reason === 'noVideoDecodeRequest'` への
+    // 遷移を検出し、resolveNativeOverlayTransparentClearTransition の判定に
+    // 従って clearSurface を発火する配線が Viewport.tsx に必要。
+    const code = viewportSource();
+
+    expect(code).toContain('resolveNativeOverlayTransparentClearTransition');
+    expect(code).toContain('nativeOverlayPresentResult');
+  });
+
+  it('does not clear the native overlay on every playback tick while noVideoDecodeRequest persists, only on the transition into it', () => {
+    // 毎tickの透明presentは不要なGPU負荷になるため、clear-onceガードの
+    // 状態（ref）を presenter start の完了ハンドラ内で保持し、
+    // resolveNativeOverlayTransparentClearTransition の戻り値 next で
+    // 更新する配線を要求する。
+    const code = viewportSource();
+    const start = code.indexOf('resolveNativeOverlayTransparentClearTransition');
+    expect(start).toBeGreaterThan(-1);
+
+    const surroundingWindowStart = Math.max(0, start - 2000);
+    const surrounding = code.slice(surroundingWindowStart, start + 2000);
+    expect(surrounding).toContain('Ref');
+  });
 });

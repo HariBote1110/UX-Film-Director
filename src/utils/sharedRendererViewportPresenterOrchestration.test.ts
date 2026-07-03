@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   startSharedRendererViewportPresenter,
+  resolveNativeOverlayTransparentClearTransition,
+  NATIVE_OVERLAY_TRANSPARENT_CLEAR_INITIAL_STATE,
   type SharedRendererViewportNativeRenderUploadPreparer,
   type SharedRendererViewportPresenterStarter,
   type SharedRendererViewportVideoUploadPreparer,
@@ -1030,5 +1032,111 @@ describe('sharedRendererViewportPresenterOrchestration', () => {
       requireSharedRendererVideo: true,
       sharedRendererDecodedVideoFrameUpload: upload,
     });
+  });
+});
+
+describe('resolveNativeOverlayTransparentClearTransition (Bug: playhead gap stale overlay frame)', () => {
+  // シーンにクリップは存在するが playhead が動画を含まない位置にある場合、
+  // presenter orchestration は nativeOverlayPresentResult.ok=false /
+  // reason='noVideoDecodeRequest' を返す。この「動画要求が確定して存在しない」
+  // 状態への遷移を検出したときだけ transparent clear を1度だけ発火し、
+  // 再生中の一時的な frameDecodeFailed 等ではちらつき防止のため直前フレームを
+  // 保持する（clear しない）契約を固定する。
+
+  it('requests a clear on the first transition into noVideoDecodeRequest', () => {
+    const { next, shouldClear } = resolveNativeOverlayTransparentClearTransition(
+      NATIVE_OVERLAY_TRANSPARENT_CLEAR_INITIAL_STATE,
+      {
+        ok: false,
+        reason: 'noVideoDecodeRequest',
+        detail: 'Shared renderer preview session does not contain a visible video frame request.',
+        activeJob: null,
+      },
+    );
+
+    expect(shouldClear).toBe(true);
+    expect(next).toEqual({ clearedForNoVideo: true });
+  });
+
+  it('does not request a repeated clear while noVideoDecodeRequest persists across ticks', () => {
+    const armed = { clearedForNoVideo: true };
+    const { next, shouldClear } = resolveNativeOverlayTransparentClearTransition(
+      armed,
+      {
+        ok: false,
+        reason: 'noVideoDecodeRequest',
+        detail: 'Shared renderer preview session does not contain a visible video frame request.',
+        activeJob: null,
+      },
+    );
+
+    expect(shouldClear).toBe(false);
+    expect(next).toEqual({ clearedForNoVideo: true });
+  });
+
+  it('does not clear for a transient failure reason such as frameDecodeFailed, to avoid flicker', () => {
+    const { next, shouldClear } = resolveNativeOverlayTransparentClearTransition(
+      NATIVE_OVERLAY_TRANSPARENT_CLEAR_INITIAL_STATE,
+      {
+        ok: false,
+        reason: 'frameDecodeFailed',
+        detail: 'transient decode failure',
+        activeJob: null,
+      },
+    );
+
+    expect(shouldClear).toBe(false);
+    expect(next).toEqual(NATIVE_OVERLAY_TRANSPARENT_CLEAR_INITIAL_STATE);
+  });
+
+  it('re-arms the clear-once guard once a visible video frame presents again', () => {
+    const armed = { clearedForNoVideo: true };
+    const { next, shouldClear } = resolveNativeOverlayTransparentClearTransition(
+      armed,
+      {
+        ok: true,
+        activeJob: null,
+      },
+    );
+
+    expect(shouldClear).toBe(false);
+    expect(next).toEqual({ clearedForNoVideo: false });
+  });
+
+  it('leaves the previous state untouched when no presenter attempt was made this tick', () => {
+    const armed = { clearedForNoVideo: true };
+    const { next, shouldClear } = resolveNativeOverlayTransparentClearTransition(armed, undefined);
+
+    expect(shouldClear).toBe(false);
+    expect(next).toEqual(armed);
+  });
+
+  it('clears again after the video reappears and then disappears a second time', () => {
+    let state = NATIVE_OVERLAY_TRANSPARENT_CLEAR_INITIAL_STATE;
+
+    const gapOnce = resolveNativeOverlayTransparentClearTransition(state, {
+      ok: false,
+      reason: 'noVideoDecodeRequest',
+      detail: 'gap',
+      activeJob: null,
+    });
+    state = gapOnce.next;
+    expect(gapOnce.shouldClear).toBe(true);
+
+    const videoReturns = resolveNativeOverlayTransparentClearTransition(state, {
+      ok: true,
+      activeJob: null,
+    });
+    state = videoReturns.next;
+    expect(videoReturns.shouldClear).toBe(false);
+
+    const gapAgain = resolveNativeOverlayTransparentClearTransition(state, {
+      ok: false,
+      reason: 'noVideoDecodeRequest',
+      detail: 'gap again',
+      activeJob: null,
+    });
+    expect(gapAgain.shouldClear).toBe(true);
+    expect(gapAgain.next).toEqual({ clearedForNoVideo: true });
   });
 });
