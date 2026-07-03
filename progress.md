@@ -1,3 +1,22 @@
+## 2026-07-03 — 退行復旧(4・完): subjectCrop / PSDビルボード復活、reversed見送り（版431a）
+
+### 実施内容
+
+- **subjectCrop 復活**: 旧 Pixi の矩形マスク意味論が既存 `Effect::Clipping` と同一のため、正規化矩形→px 変換の TS 写像のみで対応（新 Effect 追加なし）。
+- **3D ステージ PSD ビルボード復活**: rust-backend に `psd.renderComposite` RPC（PSD→合成 RGBA、既存合成関数の再利用）を新設し、`psdBillboardSync.ts` + Viewport の stale-while-revalidate キャッシュで配線。
+- **reversed（逆再生）は根拠つき見送り**: streaming decode で逆順要求は毎フレーム backwardSeek（ffmpeg 再起動 150-400ms）になり実用不可。かつ全履歴調査で UI 露出も描画配線も一度も無かった死機能（export のシーク方式フラグとしてのみ使用）と判明。`unsupportedVideoMode` 拒否を維持。
+- マージ後: vitest 1186 green（baseline 5件のみ失敗）/ rust-backend 65+63 / tsc 30。版 430a→431a。
+- **これで Pixi 撤去の機能退行リストは全消化**（実装 or「元から未実装と確定して除外」）: 振動○ / color_correction○ / blur○ / shadow○(新規実装) / 非矩形シェイプ○ / テキスト縁取り・影○ / グループグラデーション○ / groupId○ / subjectCrop○ / PSDビルボード○ / クリッピングマスク=元から未実装 / リップシンク=元から死コード / reversed=元から死機能。
+
+### 選定理由・判断の根拠
+
+- reversed の代替として「事前レンダリングした逆再生 proxy（ffmpeg reverse、UI から明示トリガ）」が理論上可能だが、UI の無い機能の追加はスコープ外と判断。
+
+### 残課題・次のステップ
+
+- 実機確認（subjectCrop の追従・PSD ビルボードの表示とレイヤー切替・グループグラデーション・各フィルタ・シェイプ11種）。
+- 既存バックログ: getGroupTransforms の clips 計算統合（group_control の変形反映）、混在シーン present レート、E1 明示配線の残り UI、Generated 33種の厳密 parity、blur 多重パス品質。
+
 ## 2026-07-03 — 退行復旧(3): グループ合成（groupId/groupGradient）のRust移植
 
 ### 実施内容
