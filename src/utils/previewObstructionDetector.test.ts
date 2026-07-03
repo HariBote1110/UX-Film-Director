@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   createPreviewObstructionMutationObserver,
   intersectsPreviewPaneRect,
@@ -150,32 +150,42 @@ describe('intersectsPreviewPaneRect', () => {
   });
 });
 
+// projectはvitestをnode環境で運用しており、jsdom/happy-dom依存を追加せずに
+// DOM統合ロジックを検証するため、`document`/`MutationObserver`をfakeで注入する
+// DI方式でテストする（package.jsonへの新規依存追加は本タスクの変更禁止対象）。
+type FakeElement = {
+  getAttribute: (name: string) => string | null;
+  hasAttribute: (name: string) => boolean;
+  tagName?: string;
+  rect: { left: number; top: number; right: number; bottom: number; width: number; height: number };
+  getBoundingClientRect: () => FakeElement['rect'];
+};
+
+const makeFakeElement = (rect: FakeElement['rect'], dataStateOpen = true): FakeElement => ({
+  getAttribute: (name: string) => (dataStateOpen && name === 'data-state' ? 'open' : null),
+  hasAttribute: () => false,
+  tagName: 'DIV',
+  rect,
+  getBoundingClientRect: () => rect,
+});
+
 describe('createPreviewObstructionMutationObserver', () => {
   const previewPaneRectOverlappingEverything = { left: 0, top: 0, right: 1000, bottom: 1000 };
-
-  afterEach(() => {
-    document.body.innerHTML = '';
-  });
 
   it('calls setPreviewObstructed when a data-state="open" element intersecting the preview pane appears', () => {
     const setPreviewObstructed = vi.fn();
     const clearPreviewObstructed = vi.fn();
-    const getBoundingClientRect = () => ({
-      left: 10, top: 10, right: 50, bottom: 50, width: 40, height: 40, x: 10, y: 10, toJSON: () => ({}),
-    });
+    const menu = makeFakeElement({ left: 10, top: 10, right: 50, bottom: 50, width: 40, height: 40 });
+
     const observer = createPreviewObstructionMutationObserver({
       getPreviewPaneRect: () => previewPaneRectOverlappingEverything,
       setPreviewObstructed,
       clearPreviewObstructed,
       reason: 'mutation-observer-fallback',
+      queryObstructingCandidates: () => [menu] as unknown as Element[],
+      createDomObserver: () => ({ observe: () => undefined, disconnect: () => undefined }),
     });
-    observer.observe(document.body);
-
-    const menu = document.createElement('div');
-    menu.setAttribute('data-state', 'open');
-    menu.getBoundingClientRect = getBoundingClientRect;
-    document.body.appendChild(menu);
-
+    observer.observe();
     observer.flushForTest();
 
     expect(setPreviewObstructed).toHaveBeenCalledWith('mutation-observer-fallback', {
@@ -187,14 +197,16 @@ describe('createPreviewObstructionMutationObserver', () => {
   it('calls clearPreviewObstructed when no obstructing element remains', () => {
     const setPreviewObstructed = vi.fn();
     const clearPreviewObstructed = vi.fn();
+
     const observer = createPreviewObstructionMutationObserver({
       getPreviewPaneRect: () => previewPaneRectOverlappingEverything,
       setPreviewObstructed,
       clearPreviewObstructed,
       reason: 'mutation-observer-fallback',
+      queryObstructingCandidates: () => [],
+      createDomObserver: () => ({ observe: () => undefined, disconnect: () => undefined }),
     });
-    observer.observe(document.body);
-
+    observer.observe();
     observer.flushForTest();
 
     expect(clearPreviewObstructed).toHaveBeenCalledWith('mutation-observer-fallback');
@@ -205,24 +217,32 @@ describe('createPreviewObstructionMutationObserver', () => {
   it('ignores data-state="open" elements that do not intersect the preview pane', () => {
     const setPreviewObstructed = vi.fn();
     const clearPreviewObstructed = vi.fn();
+    const menu = makeFakeElement({ left: 10, top: 10, right: 50, bottom: 50, width: 40, height: 40 });
+
     const observer = createPreviewObstructionMutationObserver({
       getPreviewPaneRect: () => ({ left: 900, top: 900, right: 1000, bottom: 1000 }),
       setPreviewObstructed,
       clearPreviewObstructed,
       reason: 'mutation-observer-fallback',
+      queryObstructingCandidates: () => [menu] as unknown as Element[],
+      createDomObserver: () => ({ observe: () => undefined, disconnect: () => undefined }),
     });
-    observer.observe(document.body);
-
-    const menu = document.createElement('div');
-    menu.setAttribute('data-state', 'open');
-    menu.getBoundingClientRect = () => ({
-      left: 10, top: 10, right: 50, bottom: 50, width: 40, height: 40, x: 10, y: 10, toJSON: () => ({}),
-    });
-    document.body.appendChild(menu);
-
+    observer.observe();
     observer.flushForTest();
 
     expect(setPreviewObstructed).not.toHaveBeenCalled();
     observer.disconnect();
+  });
+
+  it('defaults createDomObserver/queryObstructingCandidates to the browser DOM APIs when not overridden', () => {
+    // 実 DOM の無い node 環境（このプロジェクトの vitest 既定環境）では
+    // window.MutationObserver / document が存在しないため、既定経路を
+    // 実行すると失敗する。これは Electron renderer（実 DOM あり）で動く
+    // 前提を明示する契約として、失敗そのものを固定する。
+    expect(() => createPreviewObstructionMutationObserver({
+      getPreviewPaneRect: () => previewPaneRectOverlappingEverything,
+      setPreviewObstructed: vi.fn(),
+      clearPreviewObstructed: vi.fn(),
+    })).toThrow();
   });
 });
