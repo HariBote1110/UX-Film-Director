@@ -1,7 +1,12 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useStore } from '../store/useStore';
 import { TimelineObject, VideoObject } from '../types';
-import { ThreeStageViewport, type ThreeStageViewportHandle } from './ThreeStageViewport';
+import { ThreeStageViewport, type BillboardTextureEntry, type ThreeStageViewportHandle } from './ThreeStageViewport';
+import {
+  fetchPsdCompositeCanvas,
+  psdBillboardCacheKey,
+  selectWorldPlacedPsdBillboards,
+} from '../utils/psdBillboardSync';
 import { shallow } from 'zustand/shallow';
 
 import { useSceneInteraction } from '../hooks/useSceneInteraction';
@@ -404,6 +409,13 @@ const Viewport: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportShellRef = useRef<HTMLDivElement>(null);
   const threeStageRef = useRef<ThreeStageViewportHandle | null>(null);
+  // PSD ビルボードの合成キャッシュ: cacheKey（filePath::activeLayerIds）→
+  // 合成済み canvas。rust-backend への psd.renderComposite は非同期・IO束縛
+  // のため、renderScene 同期呼び出しの中では「今あるキャッシュをそのまま
+  // syncBillboards に渡し、未取得/古いキーだけ裏で取りに行く」stale-while-
+  // revalidate 方式にする（毎フレーム同期待ちしてプレビューを止めない）。
+  const psdBillboardCanvasCacheRef = useRef<Map<string, HTMLCanvasElement>>(new Map());
+  const psdBillboardFetchInFlightRef = useRef<Set<string>>(new Set());
   const sharedRendererSurfaceCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const sharedRendererPresenterControlRef = useRef<SharedRendererPreviewPresenterControl | null>(null);
   const sharedRendererPresenterSessionKeyRef = useRef<string | null>(null);
@@ -1356,10 +1368,52 @@ const Viewport: React.FC = () => {
 
     const workspaceMode = useStore.getState().projectSettings.editorMode ?? '2d';
     if (workspaceMode === '3d_stage' && threeStageRef.current) {
-      // PixiJS 排除計画 Phase 4: PSD ビルボードのラスタライズは PIXI の
-      // extract に依存していたため撤去した（機能退行として完了報告に記載）。
-      // stageCamera3D の同期のため空エントリで同期のみ行う。
-      threeStageRef.current.syncBillboards([], useStore.getState().stageCamera3D);
+      // PixiJS 排除計画 Phase 4 でラスタライズ手段（app.renderer.extract）を
+      // 失っていたビルボードを、rust-backend の psd.renderComposite 経由で
+      // 復活させる。取得は非同期のためキャッシュにある分だけ即時反映し、
+      // 未取得/古いキーは裏で fetchPsdCompositeCanvas を叩いて次tickへ回す。
+      const placedPsdObjects = selectWorldPlacedPsdBillboards(currentObjects);
+      const cache = psdBillboardCanvasCacheRef.current;
+      const inFlight = psdBillboardFetchInFlightRef.current;
+      const liveCacheKeys = new Set<string>();
+
+      const billboardEntries: BillboardTextureEntry[] = [];
+      placedPsdObjects.forEach((psd) => {
+        const cacheKey = psdBillboardCacheKey(psd);
+        liveCacheKeys.add(cacheKey);
+        const cachedCanvas = cache.get(cacheKey);
+        if (cachedCanvas) {
+          billboardEntries.push({
+            id: psd.id,
+            canvas: cachedCanvas,
+            placement: psd.worldPlacement!,
+            widthPx: cachedCanvas.width,
+            heightPx: cachedCanvas.height,
+          });
+        }
+
+        if (!cache.has(cacheKey) && !inFlight.has(cacheKey) && psd.filePath) {
+          inFlight.add(cacheKey);
+          fetchPsdCompositeCanvas(window.ipcRenderer, psd)
+            .then((canvas) => {
+              if (canvas) cache.set(cacheKey, canvas);
+            })
+            .catch(() => {
+              /* ビルボード合成失敗時は次tickの再取得に委ねる */
+            })
+            .finally(() => {
+              inFlight.delete(cacheKey);
+            });
+        }
+      });
+
+      // 使われなくなった cacheKey（PSD 削除・ファイル/レイヤー変更）は
+      // メモリリークを防ぐため破棄する。
+      for (const key of Array.from(cache.keys())) {
+        if (!liveCacheKeys.has(key)) cache.delete(key);
+      }
+
+      threeStageRef.current.syncBillboards(billboardEntries, useStore.getState().stageCamera3D);
     }
   }, [
     isExporting,

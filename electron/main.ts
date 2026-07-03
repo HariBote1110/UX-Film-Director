@@ -1042,6 +1042,62 @@ app.whenReady().then(() => {
     };
   });
 
+  // ── PSD composite RGBA via Rust backend ──────────────────────────────────
+  // 3D ステージの PSD ビルボード用。旧 Pixi 実装は app.renderer.extract で
+  // ラスタライズしていたが撤去済みのため、rust-backend の
+  // psd.renderComposite（visible レイヤー、または activeLayerIds で指定した
+  // レイヤーのみを合成した単一 RGBA ラスタ）を同じ二段プロトコルで呼ぶ。
+  ipcMain.handle(
+    'render-psd-composite',
+    async (_event, payload: { filePath?: string; activeLayerIds?: string[] }) => {
+      const filePath = typeof payload?.filePath === 'string' ? payload.filePath.trim() : '';
+      if (!filePath) {
+        return { success: false, error: 'filePath が必要です。' };
+      }
+      const activeLayerIds = Array.isArray(payload?.activeLayerIds)
+        ? payload.activeLayerIds.filter((id): id is string => typeof id === 'string')
+        : undefined;
+
+      let rustResult: { tmpFile: string; width: number; height: number };
+      try {
+        rustResult = (await callRustBackend(
+          'psd.renderComposite',
+          { filePath, activeLayerIds },
+          60_000
+        )) as typeof rustResult;
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+
+      const blobPath = rustResult.tmpFile;
+      await callRustBackend('psd.await_blob', {}, 30_000);
+
+      try {
+        const buf = await fs.promises.readFile(blobPath);
+        const pixelData: ArrayBuffer = buf.buffer.slice(
+          buf.byteOffset,
+          buf.byteOffset + buf.byteLength
+        );
+        return {
+          success: true,
+          width: rustResult.width,
+          height: rustResult.height,
+          pixelData,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      } finally {
+        fs.unlink(blobPath, () => {});
+      }
+    }
+  );
+
   ipcMain.handle('rust-backend-health', async () => {
     try {
       const result = await callRustBackend('health');
