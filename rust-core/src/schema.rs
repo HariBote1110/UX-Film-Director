@@ -70,6 +70,7 @@ pub enum MediaKind {
     GeneratedProtractor,
     GeneratedShakingPolygon,
     GeneratedShatteredSphere,
+    GeneratedShape,
     Psd,
     Text,
 }
@@ -121,6 +122,7 @@ pub enum ClipKind {
     GeneratedProtractorPlane,
     GeneratedShakingPolygonPlane,
     GeneratedShatteredSpherePlane,
+    GeneratedShapePlane,
     TextPlane,
 }
 
