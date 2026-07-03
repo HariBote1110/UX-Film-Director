@@ -41,6 +41,12 @@ const NS_WINDOW_STYLE_MASK_BORDERLESS: usize = 0;
 const NS_BACKING_STORE_BUFFERED: usize = 2;
 /// `NSWindowAbove`（`NSWindowOrderingMode`、値 1）。steady state での既定 order。
 const NS_WINDOW_ABOVE: isize = 1;
+/// `NSWindowBelow`（`NSWindowOrderingMode`、値 -1）。
+/// Bug E（計画書 §4 Phase E2・§9 設計判断 3）— preview に重なる HTML UI が
+/// 開いている間、child NSWindow をこの order で parent の背後に下げる。
+/// `orderOut:`（完全に非表示化）ではなく order 下げを使うのは、GPU の
+/// live surface present を止めずに再生を継続させるため。
+const NS_WINDOW_BELOW: isize = -1;
 
 #[repr(C)]
 struct ObjcPoint {
@@ -452,6 +458,39 @@ pub fn set_overlay_view_opaque(view_handle: usize, opaque: bool) {
             return;
         }
         apply_overlay_layer_opaque(view, opaque);
+    }
+}
+
+/// Bug E（計画書 §4 Phase E2・§9 設計判断 3）— overlay の child NSWindow の
+/// z-order を切り替える。`obstructed=true` で `NSWindowBelow`（parent の
+/// 背後）、`obstructed=false` で `NSWindowAbove`（steady state、最前面）に
+/// `orderWindow:relativeTo:` する。`orderOut:`（完全非表示化）は使わない —
+/// GPU の live surface present はこの呼び出しの影響を受けず、動画再生は
+/// 継続する（表示位置だけが変わる）。
+///
+/// `view_handle` は attach が返した overlay NSView のハンドルで、
+/// `set_overlay_view_contents_scale` / `set_overlay_view_opaque` と同じ
+/// 引数形。実際に order を切り替えるのは overlay NSView の `window`
+/// （= attach が addChildWindow した child NSWindow）である。
+pub fn set_overlay_view_obstructed(view_handle: usize, obstructed: bool) {
+    if view_handle == 0 {
+        return;
+    }
+    let view = view_handle as *mut Object;
+    if view.is_null() {
+        return;
+    }
+    unsafe {
+        let is_main_thread: BOOL = msg_send![class!(NSThread), isMainThread];
+        if is_main_thread == NO {
+            return;
+        }
+        let child_window: *mut Object = msg_send![view, window];
+        if child_window.is_null() {
+            return;
+        }
+        let order = if obstructed { NS_WINDOW_BELOW } else { NS_WINDOW_ABOVE };
+        let () = msg_send![child_window, orderWindow: order relativeTo: 0isize];
     }
 }
 

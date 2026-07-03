@@ -31,6 +31,14 @@ pub struct NativeOverlayDetachPayload {
     pub native_window_handle: Option<Buffer>,
 }
 
+/// Bug E（計画書 §4 Phase E2）— `ui:preview-obstruction-changed` を受けた
+/// main が呼ぶ z-order toggle の payload。
+#[napi(object)]
+pub struct NativeOverlaySetObstructedPayload {
+    pub window_id: u32,
+    pub obstructed: bool,
+}
+
 #[napi(object)]
 pub struct NativeOverlaySharedFrameDescriptorPayload {
     pub memory_id: String,
@@ -375,6 +383,41 @@ fn clear_native_overlay_live_surface_inner(
             reason: None,
             release_frame: None,
             live_prepared_clip_count: Some(0.0),
+            live_readback_non_transparent_pixels: None,
+            live_readback_checksum: None,
+            live_readback_export_max_channel_delta: None,
+        },
+        Err(reason) => failure(&reason),
+    }
+}
+
+/// Bug E（計画書 §4 Phase E2）— electron/nativeOverlayMainBridge.ts の
+/// `setObstructed` から呼ばれる napi export。`ui:preview-obstruction-changed`
+/// の debounce・overlay overlap 最終判定は main 側（TypeScript）の責務で、
+/// ここでは受け取った `obstructed` をそのまま child NSWindow の z-order
+/// 切替へ反映するだけにする。
+#[napi(js_name = "setNativeOverlayObstructed")]
+pub fn set_native_overlay_obstructed_napi(
+    payload: NativeOverlaySetObstructedPayload,
+) -> NativeOverlayResponse {
+    match catch_unwind(AssertUnwindSafe(|| {
+        set_native_overlay_obstructed_inner(payload)
+    })) {
+        Ok(response) => response,
+        Err(_) => failure("Native overlay set obstructed panicked."),
+    }
+}
+
+fn set_native_overlay_obstructed_inner(
+    payload: NativeOverlaySetObstructedPayload,
+) -> NativeOverlayResponse {
+    match set_native_overlay_obstructed(payload.window_id, payload.obstructed) {
+        Ok(()) => NativeOverlayResponse {
+            success: true,
+            attached: true,
+            reason: None,
+            release_frame: None,
+            live_prepared_clip_count: None,
             live_readback_non_transparent_pixels: None,
             live_readback_checksum: None,
             live_readback_export_max_channel_delta: None,
@@ -797,6 +840,32 @@ pub fn clear_native_overlay_live_surface(window_id: u32) -> Result<(), String> {
             .present_scene_to_surface_texture(&snapshot, &sources),
     )
     .map_err(|error| format!("Native overlay live surface transparent clear failed: {error:?}"))?;
+    Ok(())
+}
+
+/// Bug E（計画書 §4 Phase E2・ADR-013）— `ui:preview-obstruction-changed` を
+/// main で受けた結果として、attach 済みの overlay child NSWindow の z-order
+/// を切り替える。attach されていない `window_id` は明示的な Err を返す
+/// （`clear_native_overlay_live_surface` と同じ Fail Safe 方針）。
+/// GPU の live surface present はこの呼び出しの影響を受けず、動画再生は
+/// 継続する（§9 設計判断 3: orderOut ではなく order 下げを採用）。
+pub fn set_native_overlay_obstructed(window_id: u32, obstructed: bool) -> Result<(), String> {
+    let renderers = LIVE_OVERLAY_RENDERERS
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .map_err(|_| "Native overlay live renderer registry is poisoned.".to_string())?;
+    let renderer = renderers
+        .get(&window_id)
+        .ok_or_else(|| "Native overlay live surface is not attached.".to_string())?;
+    #[cfg(target_os = "macos")]
+    {
+        macos_overlay::set_overlay_view_obstructed(renderer.view_handle, obstructed);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = renderer;
+        let _ = obstructed;
+    }
     Ok(())
 }
 
