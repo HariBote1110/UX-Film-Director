@@ -1,3 +1,29 @@
+## 2026-07-03 — PixiJS 排除完了: Phase 4+5 統合と統合時バグ2件の修正（429a）
+
+### 実施内容
+
+- Phase 4+5（サブエージェント実装・17コミット）をマージし、**pixi.js が依存から完全に消えた**（npm で11パッケージ削減、再侵入防止 boundary テスト2本を新設、版 429a）。
+  - 振動フィルタは rustSceneSnapshot の translation へ畳み込み移植（機能維持）。リップシンク viseme は元から死コード（計算結果未使用）で喪失なし。
+  - preview プランを sharedRenderer/blocked/disabled へ一本化（parallelCompare・pixiFallback 撤去）、swatch を no-presentation 化。vision 検出枠は SVG 化、テキスト実測は Canvas2D 化。
+  - **機能退行リスト（ユーザー承認済み・Rust 移植を後続タスク化）**: color_correction、グループグラデーション/グループ合成、blur/shadow、クリッピングマスク、非矩形シェイプ、video 逆再生/subjectCrop、テキスト縁取り/影、3Dステージ PSD ビルボード。これらは旧「Pixi 全画面フォールバック」でのみ可視だったもので、撤去後は該当シーンが blocked（preview 未描画＋診断表示）になる。
+- 統合実機検証で発見したブロッカー2件を親セッションで TDD 修正:
+  1. **boundary 検証の enum 更新漏れ**: `rustSceneSnapshot.ts` の実行時バリデータの kind リストに `'Text'` が無く、テキストを含むシーン全体が invalidBoundaryPayload で拒否されていた（rust-core wasm のビルド済み成果物も Text 未対応だったため `npm run wasm:build:rust-core` で再生成）。
+  2. **media-only render の Text 未対応**: `sharedRendererNativeMediaSupport.ts` に Text 分岐が無く、テキストのみのシーンで native render が発火しなかった。serialise と同型のソース検証を追加。
+- 修正後の実機確認: テキストのみのシーンで swatch=`native-render-frame`・TextOwner=`sharedRenderer` となり、cosmic-text による白文字グリフが鮮明に描画されることをスクリーンショットで確認。図形ドラッグ・選択枠・動画再生（432 presents ギャップなし）も撤去後に再確認済み。PIXI canvas 消滅により preview の canvas は1枚に。
+- 最終テスト: vitest 1152 green（baseline 3ファイル5件のみ失敗）/ tsc 実エラー30件（baseline どおり）/ cargo 全クレート green。
+
+### 選定理由・判断の根拠
+
+- 機能退行の扱いは AskUserQuestion で確認し「マージ + Rust 移植を続行」の判断を得た。fallback 残置は計画違反であり、退行機能は Rust 側実装で回復する方針。
+- 統合ブロッカー2件はいずれも「型・serialise は Text 対応済みだが実行時判定リストが更新漏れ」という同型の欠陥。boundary テストが型ではなく実行時リストを見る構造のため、種別追加時の checklist として progress.md に明記しておく: (1) validateEnum の kind リスト (2) isSharedRendererNativeMediaReferenceSupported (3) rust-core wasm 再ビルド。
+
+### 残課題・次のステップ
+
+- 機能退行リストの Rust 移植（優先: color_correction / blur / shadow / 非矩形シェイプ → グループ合成）。
+- テキスト描画の parity 微調整（Canvas2D 近似計測の寸法、多行・アラインメント・大フォント）の実機確認。
+- Bug E の E3 目視ゲート（ユーザー確認待ち）: メニュー/modal が overlay より上・フルスクリーン・Mission Control・実マウス hit-through。
+- 混在シーン（図形＋動画）の present レート低下、E1 明示配線の残り UI への展開（既存バックログ）。
+
 ## 2026-07-03 — Bug E 統合: overlay の child NSWindow 化（E0）・modal検知統一API（E1）・z-order toggle（E2）
 
 ### 実施内容
