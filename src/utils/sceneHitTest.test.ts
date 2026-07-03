@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { hitTestSceneObjects, type SceneCamera, type SceneHitTestViewport } from './sceneHitTest';
+import {
+  getObjectWorldCorners,
+  hitTestSceneObjects,
+  worldPointToCssPoint,
+  type SceneCamera,
+  type SceneHitTestViewport,
+} from './sceneHitTest';
 import type { LayerState, ShapeObject, TimelineObject } from '../types';
 
 const identityCamera: SceneCamera = { centreOffsetX: 0, centreOffsetY: 0, zoom: 1, rotationDeg: 0 };
@@ -202,5 +208,44 @@ describe('hitTestSceneObjects: カメラ変換', () => {
       viewport: viewport({ camera: { centreOffsetX: 20, centreOffsetY: 0, zoom: 1, rotationDeg: 0 } }),
     });
     expect(hit).toBe('shape-1');
+  });
+});
+
+describe('worldPointToCssPoint: cssPointToWorldPointの逆変換', () => {
+  it('恒等カメラ・displayScale=1では素通り', () => {
+    const p = worldPointToCssPoint({ x: 123, y: 45 }, viewport());
+    expect(p.x).toBeCloseTo(123);
+    expect(p.y).toBeCloseTo(45);
+  });
+
+  it('zoom/centreOffset/displayScaleを考慮した変換になる', () => {
+    const vp = viewport({
+      displayScale: 2,
+      camera: { centreOffsetX: 0, centreOffsetY: 0, zoom: 2, rotationDeg: 0 },
+    });
+    // hitTestSceneObjectsのケース「displayScale/zoomを考慮」と対になる往復確認。
+    const css = worldPointToCssPoint({ x: 110, y: 110 }, vp);
+    // world原点(200,150)からの相対(-90,-40)をzoom=2倍、さらにdisplayScale=2倍。
+    expect(css.x).toBeCloseTo((200 + (110 - 200) * 2) * 2);
+    expect(css.y).toBeCloseTo((150 + (110 - 150) * 2) * 2);
+  });
+});
+
+describe('getObjectWorldCorners: 変形済み矩形の四隅', () => {
+  it('回転無しの矩形は単純な矩形の四隅を返す', () => {
+    const obj = shape({ x: 100, y: 100, width: 50, height: 40, rotation: 0 });
+    const corners = getObjectWorldCorners(obj, 0, [obj]);
+    expect(corners.topLeft).toEqual({ x: 100, y: 100 });
+    expect(corners.topRight).toEqual({ x: 150, y: 100 });
+    expect(corners.bottomLeft).toEqual({ x: 100, y: 140 });
+    expect(corners.bottomRight).toEqual({ x: 150, y: 140 });
+  });
+
+  it('90度回転した矩形は左上を中心に90度回転した位置になる', () => {
+    const obj = shape({ x: 100, y: 100, width: 50, height: 40, rotation: 90 });
+    const corners = getObjectWorldCorners(obj, 0, [obj]);
+    // ローカル(50,0)を90度回転すると(0,50)、つまりtopRight = (100,150)
+    expect(corners.topRight.x).toBeCloseTo(100);
+    expect(corners.topRight.y).toBeCloseTo(150);
   });
 });
