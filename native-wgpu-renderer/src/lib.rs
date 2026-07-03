@@ -1474,9 +1474,14 @@ fn required_limits_for_frame(
         });
     }
 
+    // 出力フレーム（width/height）はデバイス生成時点で分かっているサイズに過ぎず、
+    // 実際にレンダリングされるソース（PSDレイヤー等）はこれより大きい可能性がある。
+    // downlevel既定値（2048）や出力フレームサイズに丸めてしまうと、Apple Silicon の
+    // Metal（実際は16384まで対応）でも device が2048に制限され、後続の
+    // prepare_clip でのソーステクスチャ生成が wgpu Validation Error で panic する。
+    // そのためadapterが対応する実上限をそのままdeviceへ要求する。
     Ok(wgpu::Limits {
-        max_texture_dimension_2d: required_texture_dimension
-            .max(wgpu::Limits::downlevel_defaults().max_texture_dimension_2d),
+        max_texture_dimension_2d: adapter_limits.max_texture_dimension_2d,
         ..wgpu::Limits::downlevel_defaults()
     })
 }
