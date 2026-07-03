@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Viewport from './components/Viewport';
 import Timeline from './components/Timeline';
 import PropertyPanel from './components/PropertyPanel';
@@ -10,6 +10,7 @@ import { useStore } from './store/useStore';
 import { shallow } from 'zustand/shallow';
 import { buildProjectFileData, openProjectFileWithDialog, restoreProjectObjects, saveProjectFileWithDialog } from './utils/projectFile';
 import { buildExportAudioMixWav } from './utils/audioMixdown';
+import { subscribeStoreToPreviewObstructionIpc } from './utils/previewObstructionDetector';
 import { useTranslation } from './i18n';
 import { FolderOpen, Save, Camera } from 'lucide-react';
 import './index.css';
@@ -40,6 +41,15 @@ const App: React.FC = () => {
   }), shallow);
 
   const t = useTranslation(language);
+
+  // Bug E（Native_Overlay_Bug_E_Plan.md §3・§4 Phase E1）— zustand store の
+  // previewObstructed 状態を ui:preview-obstruction-changed IPC へ転送する。
+  // main（Phase E2）はこれを受けて native overlay の child NSWindow の
+  // z-order を切り替える。
+  useEffect(() => {
+    if (typeof ipcRenderer?.invoke !== 'function') return undefined;
+    return subscribeStoreToPreviewObstructionIpc(useStore, (channel, payload) => ipcRenderer.invoke(channel, payload));
+  }, []);
 
   const handleOpenProject = async () => {
     const isProjectIoBusy = projectIoAction !== 'idle';
