@@ -1,3 +1,21 @@
+## 2026-07-03 — PixiJS排除 第二波(1/2): インタラクション配線とテキストcutover配線の統合・実機確認
+
+### 実施内容
+
+- Viewport.tsx の `usePixiInteraction` を `useSceneInteraction` へ切替。PIXI.Graphics の選択枠・リサイズハンドルを `SceneSelectionOverlay`（SVG）に置換し、ヒットテスト・クリック外し解除・ドラッグ追従（window レベル pointermove/pointerup）をすべて DOM へ移管。`usePixiInteraction` はロールバック用に残置。
+- `sharedRendererTextOwnership.ts` を新設し presenter controller / 診断へ配線。`pixiRenderHelper.ts` の text 分岐に cutover 判定と `onTextMeasured`（PIXI.Text 実測サイズの `TextObject.measuredWidth/measuredHeight` 書き戻し、変化時のみ store 更新）を追加。rust-backend に Text media の shared frame 契約テストを追加（cosmic-text ラスタライザの貫通を確認、即 Green）。テキスト cutover は既定 OFF のまま。
+- 統合後: vitest 1127 green（baseline 5件のみ失敗）/ tsc 72 / rust-backend 55+63。
+- **実機確認（CDP）**: Rectangle 追加→SVG 選択枠表示→ドラッグで CSS 座標ぴったり (+80,+40) 移動・選択枠追従→空白クリックで選択解除→再クリックで再選択、すべて正常。
+
+### 選定理由・判断の根拠
+
+- テキスト実測値は「cutover で Pixi が skip される前の最後の実測値を保持」する設計。cutover ON 後は測定が走らないが、既存の rustSceneSnapshot ヒューリスティックフォールバック（未測定時のみ発火）と自然に整合する。
+
+### 残課題・次のステップ
+
+- Bug E（child NSWindow 化）エージェントの合流待ち。合流後に Phase 4+5（PIXI.Application / pixi.js 依存の完全撤去）を最終エージェントで実施。
+- テキスト cutover の ON 化は実機 parity 確認後。
+
 ## 2026-07-03 — 実機検証: Pixi排除第一波（427a）統合後のサニティ確認
 
 ### 実施内容
