@@ -1,3 +1,21 @@
+## 2026-07-03 — 実機検証: fps変換（426a）とcolor_rangeフォールバック（426b）の完治を確認
+
+### 実施内容
+
+- 0.1.1-Beta-426b をクリーン起動（`UXFD_REMOTE_DEBUG_PORT=9222 UXFD_DECODE_TRACE=1`、Rust サイドカー再ビルド込み）し、CDP のみで実機検証した。
+- **バグ①（30fps 2倍速・終端フリーズ）完治**: 30fps・217フレームの mp4 を頭から完走させ、432 presents / 7.32 秒（ソース実尺 7.23 秒とほぼ一致 = 等速）、present レート 59.0/s、`ptsFrame` は 0→433 まで tick ごとに +1 で連続（起動直後の 2 tick スキップのみ）。`forwardGapExceeded` はゼロ。
+- **バグ②（color_range 欠落拒否）完治**: 従来 `frameDecodeFailed` だった 12.mp4（60fps・728フレーム・color_range 無し）が decode job `…-1280x720-60over1` で正常再生。727 presents が連続、ソース60fps→要求60fpsの 1:1 マッピングも正しい。decode edge が drawable(1563) ではなく media 宣言解像度 1280 で cap される min 挙動も同時に確認できた。
+- セッション全体の `restarted=true` は firstFrame ×2 と backwardSeek ×1 のみで、すべて正当な再起動。
+
+### 選定理由・判断の根拠
+
+- 等速判定は「presents 総数 ÷ 実測 span」と「ptsFrame 連続性」の2軸で行った。旧 425f では同じ操作で 217 present 後に約1.5秒のストールと 92 tick のジャンプが決定論的に再現していたため、差分が明確。
+
+### 残課題・次のステップ
+
+- 24fps 等の非整数比ソースの実機確認は未実施（ffmpeg `fps` フィルタは有理数比を汎用に扱うため理論上は問題なし）。手元に実ファイルが来たタイミングで確認する。
+- Canvas レイヤが UI より上に来る問題（Bug E・child NSWindow 化）はユーザー判断により保留中。
+
 ## 2026-07-03 — バグ②修正: color_range欠落mp4のデコード拒否をtvフォールバックで解消（426b）
 
 ### 実施内容
