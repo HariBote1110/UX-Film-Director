@@ -84,6 +84,7 @@ fn effect_gain(effect: &Effect) -> f32 {
         Effect::ColourCorrection { .. } => 1.0,
         Effect::Blur { .. } => 1.0,
         Effect::DropShadow { .. } => 1.0,
+        Effect::GradientOverlay { .. } => 1.0,
     }
 }
 

@@ -519,6 +519,69 @@ describe('validateRustSceneSnapshotBoundary', () => {
     expect(issueCodes(rejected.issues)).toEqual(['outOfRange']);
   });
 
+  it('accepts a GradientOverlay effect at the runtime boundary and rejects an out-of-range stop', () => {
+    const clipWithGradientOverlay = (stopA: number) => ({
+      snapshot: {
+        frame_index: 60,
+        colour: {
+          profile: 'rec709-sdr',
+          working_space: 'linear-light',
+          alpha: 'premultiplied',
+        },
+        clips: [
+          {
+            clip_id: 'image-1',
+            track_id: 'layer-1',
+            media_id: 'image-1',
+            source_frame: 0,
+            z_index: 0,
+            transform: {
+              translation_x: 32,
+              translation_y: 48,
+              scale_x: 1,
+              scale_y: 1,
+              rotation_degrees: 0,
+              sampling: 'bilinear',
+            },
+            opacity: 1,
+            effects: [
+              {
+                GradientOverlay: {
+                  direction_degrees: 0,
+                  stop_a: stopA,
+                  stop_b: 1,
+                  is_radial: false,
+                  colour_a: [1, 1, 1, 1],
+                  colour_b: [0, 0, 0, 1],
+                  bounds_x: 0,
+                  bounds_y: 0,
+                  bounds_width: 640,
+                  bounds_height: 360,
+                },
+              },
+            ],
+          },
+        ],
+      },
+      media: [
+        {
+          id: 'image-1',
+          kind: 'Image',
+          source: '/tmp/image.png',
+          width: 640,
+          height: 360,
+        },
+      ],
+    });
+
+    expect(validateRustSceneSnapshotBoundary(clipWithGradientOverlay(0))).toEqual({ ok: true });
+
+    const rejected = validateRustSceneSnapshotBoundary(clipWithGradientOverlay(1.5));
+    expect(rejected.ok).toBe(false);
+    if (rejected.ok) throw new Error('expected boundary validation to fail');
+    expect(issueCodes(rejected.issues)).toEqual(['outOfRange']);
+  });
+
   it('accepts PSD media references at the Rust boundary before source generation is enabled', () => {
     const payload = {
       snapshot: {

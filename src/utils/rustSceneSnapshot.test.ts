@@ -4492,18 +4492,52 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
-  it('fails loud for Pixi group composition and mask semantics', () => {
+  it('fails loud for Pixi layer clipping mask semantics', () => {
+    const layers = createDefaultLayers();
+    const clippingMask = baseImage({
+      id: 'clipping-mask',
+      clipping: true,
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [clippingMask],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected snapshot build to fail');
+
+    expect(issueCodes(result.issues)).toEqual(['unsupportedMask']);
+  });
+
+  it('builds a snapshot for grouped objects without a group gradient (groupId alone is supported)', () => {
     const layers = createDefaultLayers();
     const grouped = baseImage({
       id: 'grouped',
       groupId: 'group-a',
     });
-    const clippingMask = baseImage({
-      id: 'clipping-mask',
-      clipping: true,
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [grouped],
+      time: 2,
     });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([]);
+  });
+
+  it('serialises a single-member group gradient as a GradientOverlay effect anchored to the object bounds', () => {
+    const layers = createDefaultLayers();
     const groupedGradient = baseImage({
       id: 'group-gradient',
+      x: 10,
+      y: 20,
+      groupId: 'group-a',
       groupGradient: {
         enabled: true,
         type: 'linear',
@@ -4516,17 +4550,171 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     const result = buildRustSceneSnapshotForTimeline({
       projectSettings: settings,
       layers,
-      objects: [grouped, clippingMask, groupedGradient],
+      objects: [groupedGradient],
       time: 2,
     });
 
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error('expected snapshot build to fail');
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([
+      {
+        GradientOverlay: {
+          direction_degrees: 0,
+          stop_a: 0,
+          stop_b: 1,
+          is_radial: false,
+          colour_a: [1, 1, 1, 1],
+          colour_b: [0, 0, 0, 1],
+          bounds_x: 10,
+          bounds_y: 20,
+          bounds_width: groupedGradient.width,
+          bounds_height: groupedGradient.height,
+        },
+      },
+    ]);
+  });
 
-    expect(issueCodes(result.issues)).toEqual([
-      'unsupportedGroupComposition',
-      'unsupportedMask',
-      'unsupportedGroupComposition',
+  it('splits disjoint group gradient members into separate bounds-anchored GradientOverlay effects (scope: connected)', () => {
+    const layers = createDefaultLayers();
+    const nearMember = baseImage({
+      id: 'near-member',
+      x: 0,
+      y: 0,
+      width: 10,
+      height: 10,
+      groupId: 'group-b',
+      groupGradient: {
+        enabled: true,
+        type: 'linear',
+        scope: 'connected',
+        colours: ['#ff0000', '#0000ff'],
+        stops: [0, 1],
+        direction: 0,
+      },
+    });
+    const farMember = baseImage({
+      id: 'far-member',
+      x: 1000,
+      y: 1000,
+      width: 10,
+      height: 10,
+      groupId: 'group-b',
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [nearMember, farMember],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected snapshot build to pass');
+    const nearClip = result.snapshot.clips.find((clip) => clip.clip_id === 'near-member');
+    const farClip = result.snapshot.clips.find((clip) => clip.clip_id === 'far-member');
+    expect(nearClip?.effects).toEqual([
+      {
+        GradientOverlay: {
+          direction_degrees: 0,
+          stop_a: 0,
+          stop_b: 1,
+          is_radial: false,
+          colour_a: [1, 0, 0, 1],
+          colour_b: [0, 0, 1, 1],
+          bounds_x: 0,
+          bounds_y: 0,
+          bounds_width: 10,
+          bounds_height: 10,
+        },
+      },
+    ]);
+    expect(farClip?.effects).toEqual([
+      {
+        GradientOverlay: {
+          direction_degrees: 0,
+          stop_a: 0,
+          stop_b: 1,
+          is_radial: false,
+          colour_a: [1, 0, 0, 1],
+          colour_b: [0, 0, 1, 1],
+          bounds_x: 1000,
+          bounds_y: 1000,
+          bounds_width: 10,
+          bounds_height: 10,
+        },
+      },
+    ]);
+  });
+
+  it('keeps a single group-wide bounds for group gradient members when scope is "group"', () => {
+    const layers = createDefaultLayers();
+    const nearMember = baseImage({
+      id: 'near-member-2',
+      x: 0,
+      y: 0,
+      width: 10,
+      height: 10,
+      groupId: 'group-c',
+      groupGradient: {
+        enabled: true,
+        type: 'linear',
+        scope: 'group',
+        colours: ['#ff0000', '#0000ff'],
+        stops: [0, 1],
+        direction: 0,
+      },
+    });
+    const farMember = baseImage({
+      id: 'far-member-2',
+      x: 1000,
+      y: 1000,
+      width: 10,
+      height: 10,
+      groupId: 'group-c',
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [nearMember, farMember],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected snapshot build to pass');
+    const nearClip = result.snapshot.clips.find((clip) => clip.clip_id === 'near-member-2');
+    const farClip = result.snapshot.clips.find((clip) => clip.clip_id === 'far-member-2');
+    const expectedBounds = {
+      bounds_x: 0,
+      bounds_y: 0,
+      bounds_width: 1010,
+      bounds_height: 1010,
+    };
+    expect(nearClip?.effects).toEqual([
+      {
+        GradientOverlay: {
+          direction_degrees: 0,
+          stop_a: 0,
+          stop_b: 1,
+          is_radial: false,
+          colour_a: [1, 0, 0, 1],
+          colour_b: [0, 0, 1, 1],
+          ...expectedBounds,
+        },
+      },
+    ]);
+    expect(farClip?.effects).toEqual([
+      {
+        GradientOverlay: {
+          direction_degrees: 0,
+          stop_a: 0,
+          stop_b: 1,
+          is_radial: false,
+          colour_a: [1, 0, 0, 1],
+          colour_b: [0, 0, 1, 1],
+          ...expectedBounds,
+        },
+      },
     ]);
   });
 

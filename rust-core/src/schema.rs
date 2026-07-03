@@ -269,6 +269,24 @@ pub enum Effect {
         offset_y: f32,
         opacity: f32,
     },
+    /// 旧 PIXI `GroupGradientFilter` 相当。グループ（または連結成分）の
+    /// ワールド座標系バウンディングボックスに対する UV 空間で線形/放射
+    /// グラデーションを計算し、RGB を上書きしつつ alpha は本体のシルエット
+    /// （source alpha）に従わせる（`grad.a * src.a` 合成）。
+    /// bounds はクリップ単位ではなく、TS 側で計算したグループ全体（もしくは
+    /// bounds が交差しない連結成分ごと）のワールド座標系 AABB。
+    GradientOverlay {
+        direction_degrees: f32,
+        stop_a: f32,
+        stop_b: f32,
+        is_radial: bool,
+        colour_a: [f32; 4],
+        colour_b: [f32; 4],
+        bounds_x: f32,
+        bounds_y: f32,
+        bounds_width: f32,
+        bounds_height: f32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

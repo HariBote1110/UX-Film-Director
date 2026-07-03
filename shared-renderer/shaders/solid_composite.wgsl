@@ -65,6 +65,22 @@ struct RenderParams {
     drop_shadow_offset_x: f32,
     drop_shadow_offset_y: f32,
     drop_shadow_opacity: f32,
+    gradient_overlay_direction: f32,
+    gradient_overlay_stop_a: f32,
+    gradient_overlay_stop_b: f32,
+    gradient_overlay_is_radial: f32,
+    gradient_overlay_colour_a_r: f32,
+    gradient_overlay_colour_a_g: f32,
+    gradient_overlay_colour_a_b: f32,
+    gradient_overlay_colour_a_a: f32,
+    gradient_overlay_colour_b_r: f32,
+    gradient_overlay_colour_b_g: f32,
+    gradient_overlay_colour_b_b: f32,
+    gradient_overlay_colour_b_a: f32,
+    gradient_overlay_bounds_x: f32,
+    gradient_overlay_bounds_y: f32,
+    gradient_overlay_bounds_width: f32,
+    gradient_overlay_bounds_height: f32,
     source_width: f32,
     source_height: f32,
     translation_x: f32,
@@ -75,6 +91,10 @@ struct RenderParams {
     rotation_cos: f32,
     rotation_sin: f32,
     _padding6: f32,
+    _padding7: f32,
+    _padding8: f32,
+    _padding9: f32,
+    _padding10: f32,
 }
 
 @group(0) @binding(0)
@@ -142,14 +162,66 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     ) * outline_alpha;
     let spot_rgb = spot_light_rgb(source_position, alpha);
 
-    let body_alpha = max(alpha, outline_alpha);
-    let body_rgb = premultiplied_rgb + outline_rgb * (1.0 - alpha) + spot_rgb;
+    let body_alpha_before_gradient = max(alpha, outline_alpha);
+    let body_rgb_before_gradient = premultiplied_rgb + outline_rgb * (1.0 - alpha) + spot_rgb;
+    let gradient = gradient_overlay_premultiplied(output_pixel, body_alpha_before_gradient);
+    let body_alpha = select(body_alpha_before_gradient, gradient.a, gradient_overlay_enabled());
+    let body_rgb = select(body_rgb_before_gradient, gradient.rgb, gradient_overlay_enabled());
 
     // shadow は本体の背後（source-over の下）に合成する。
     return vec4<f32>(
         body_rgb + shadow.rgb * (1.0 - body_alpha),
         body_alpha + shadow.a * (1.0 - body_alpha),
     );
+}
+
+// 旧 PIXI `GroupGradientFilter` 相当。グループ（または bounds が交差しない
+// 連結成分）のワールド座標系バウンディングボックスに対する UV 空間で
+// 線形/放射グラデーションを計算し、RGB を上書きしつつ alpha は本体の
+// シルエット（body_alpha）に乗算する（`grad.a * src.a` 合成の再現）。
+fn gradient_overlay_enabled() -> bool {
+    return params.gradient_overlay_bounds_width > 0.0 && params.gradient_overlay_bounds_height > 0.0;
+}
+
+fn gradient_overlay_premultiplied(output_pixel: vec2<f32>, body_alpha: f32) -> vec4<f32> {
+    if (!gradient_overlay_enabled()) {
+        return vec4<f32>(0.0);
+    }
+
+    let bounds_origin = vec2<f32>(params.gradient_overlay_bounds_x, params.gradient_overlay_bounds_y);
+    let bounds_size = vec2<f32>(params.gradient_overlay_bounds_width, params.gradient_overlay_bounds_height);
+    let uv = (output_pixel - bounds_origin) / bounds_size;
+
+    var t: f32;
+    if (params.gradient_overlay_is_radial > 0.5) {
+        let centred = uv - vec2<f32>(0.5, 0.5);
+        t = length(centred) * 2.0;
+    } else {
+        let direction = vec2<f32>(cos(params.gradient_overlay_direction), sin(params.gradient_overlay_direction));
+        let centred = uv - vec2<f32>(0.5, 0.5);
+        t = dot(centred, direction) + 0.5;
+    }
+
+    let start = min(params.gradient_overlay_stop_a, params.gradient_overlay_stop_b);
+    let end = max(params.gradient_overlay_stop_a, params.gradient_overlay_stop_b);
+    let denom = max(0.0001, end - start);
+    let ratio = clamp((t - start) / denom, 0.0, 1.0);
+
+    let colour_a = vec4<f32>(
+        params.gradient_overlay_colour_a_r,
+        params.gradient_overlay_colour_a_g,
+        params.gradient_overlay_colour_a_b,
+        params.gradient_overlay_colour_a_a,
+    );
+    let colour_b = vec4<f32>(
+        params.gradient_overlay_colour_b_r,
+        params.gradient_overlay_colour_b_g,
+        params.gradient_overlay_colour_b_b,
+        params.gradient_overlay_colour_b_a,
+    );
+    let grad = mix(colour_a, colour_b, ratio);
+    let out_alpha = grad.a * body_alpha;
+    return vec4<f32>(grad.rgb * out_alpha, out_alpha);
 }
 
 // ドロップシャドウの最小実装: オフセット分ずらした位置の source alpha を

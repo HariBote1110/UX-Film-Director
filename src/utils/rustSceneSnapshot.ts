@@ -87,7 +87,21 @@ export type RustEffect =
   | { AreaExpand: { top: number; bottom: number; left: number; right: number; fill: boolean } }
   | { ColourCorrection: { brightness: number; contrast: number; saturation: number; hue_degrees: number } }
   | { Blur: { radius: number; strength: number } }
-  | { DropShadow: { colour: [number, number, number]; offset_x: number; offset_y: number; opacity: number } };
+  | { DropShadow: { colour: [number, number, number]; offset_x: number; offset_y: number; opacity: number } }
+  | {
+      GradientOverlay: {
+        direction_degrees: number;
+        stop_a: number;
+        stop_b: number;
+        is_radial: boolean;
+        colour_a: [number, number, number, number];
+        colour_b: [number, number, number, number];
+        bounds_x: number;
+        bounds_y: number;
+        bounds_width: number;
+        bounds_height: number;
+      };
+    };
 
 export interface RustEvaluatedClip {
   clip_id: string;
@@ -215,6 +229,17 @@ export const buildRustSceneSnapshotForTimeline = ({
     })
     .map(({ object }) => object);
 
+  const worldBoundsByObjectId = new Map<string, ObjectWorldBounds>();
+  supportedObjects.forEach((object) => {
+    const position = evaluateObjectPositionAtTime(object, time);
+    const vibration = getVibrationOffset(object, time);
+    worldBoundsByObjectId.set(
+      object.id,
+      computeObjectWorldBounds(object, position.x + vibration.x, position.y + vibration.y)
+    );
+  });
+  const groupGradientEffectByObjectId = computeGroupGradientEffects(supportedObjects, worldBoundsByObjectId);
+
   const clips = supportedObjects.map((object, zIndex): RustEvaluatedClip => {
     const position = evaluateObjectPositionAtTime(object, time);
     // 振動フィルタは rust-core の Effect に対応物が無いが、純粋な位置
@@ -223,6 +248,9 @@ export const buildRustSceneSnapshotForTimeline = ({
     const vibration = getVibrationOffset(object, time);
     const opacity = clamp01((object.opacity ?? 1) * getFadeOpacityMultiplier(object));
     const transformScale = mediaSourceScaleForObject(object, videoSourceMode);
+    const effects = rustEffectsForObject(object, time);
+    const groupGradientEffect = groupGradientEffectByObjectId.get(object.id);
+    if (groupGradientEffect) effects.push(groupGradientEffect);
     return {
       clip_id: object.id,
       track_id: `layer-${object.layer}`,
@@ -238,7 +266,7 @@ export const buildRustSceneSnapshotForTimeline = ({
         sampling: object.type === 'shape' && object.gradient?.enabled !== true ? 'nearest' : 'bilinear',
       },
       opacity,
-      effects: rustEffectsForObject(object, time),
+      effects,
     };
   });
 
@@ -299,14 +327,6 @@ const collectBuildIssues = (
       });
     }
 
-    if (object.groupId || object.groupGradient?.enabled) {
-      issues.push({
-        code: 'unsupportedGroupComposition',
-        objectId: object.id,
-        detail: 'Group composition and group gradients are not enabled in the shared renderer bridge yet.',
-      });
-    }
-
     if (object.clipping) {
       issues.push({
         code: 'unsupportedMask',
@@ -364,6 +384,216 @@ const collectBuildIssues = (
   });
 
   return issues;
+};
+
+/** オブジェクトのワールド座標系での AABB（回転を考慮した4隅の外接矩形）。 */
+interface ObjectWorldBounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+/**
+ * 旧 Pixi `GroupGradientFilter` 相当のグループグラデーションを rust-core
+ * の `Effect::GradientOverlay` へ畳み込むための、オブジェクトのワールド
+ * 座標系 AABB を計算する。回転軸はオブジェクト原点（左上、pivot 補正
+ * なし）で、`sample_source`（native wgpu shader の座標系）と同じ規約。
+ */
+const computeObjectWorldBounds = (
+  object: SupportedSceneObject,
+  translationX: number,
+  translationY: number
+): ObjectWorldBounds => {
+  const width = (object as { width?: unknown }).width;
+  const height = (object as { height?: unknown }).height;
+  const w = typeof width === 'number' && Number.isFinite(width) ? width : 0;
+  const h = typeof height === 'number' && Number.isFinite(height) ? height : 0;
+  const scaleX = Number.isFinite(object.scaleX) ? object.scaleX : 1;
+  const scaleY = Number.isFinite(object.scaleY) ? object.scaleY : 1;
+  const rotationRad = (Number.isFinite(object.rotation) ? object.rotation : 0) * (Math.PI / 180);
+  const cos = Math.cos(rotationRad);
+  const sin = Math.sin(rotationRad);
+
+  const localCorners: Array<[number, number]> = [
+    [0, 0],
+    [w, 0],
+    [0, h],
+    [w, h],
+  ];
+
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  localCorners.forEach(([localX, localY]) => {
+    const scaledX = localX * scaleX;
+    const scaledY = localY * scaleY;
+    const worldX = translationX + scaledX * cos - scaledY * sin;
+    const worldY = translationY + scaledX * sin + scaledY * cos;
+    minX = Math.min(minX, worldX);
+    minY = Math.min(minY, worldY);
+    maxX = Math.max(maxX, worldX);
+    maxY = Math.max(maxY, worldY);
+  });
+
+  return { minX, minY, maxX, maxY };
+};
+
+const boundsIntersect = (a: ObjectWorldBounds, b: ObjectWorldBounds): boolean => (
+  a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY
+);
+
+const unionBounds = (bounds: ObjectWorldBounds[]): ObjectWorldBounds => bounds.reduce((acc, current) => ({
+  minX: Math.min(acc.minX, current.minX),
+  minY: Math.min(acc.minY, current.minY),
+  maxX: Math.max(acc.maxX, current.maxX),
+  maxY: Math.max(acc.maxY, current.maxY),
+}));
+
+/**
+ * bounds が交差するメンバー同士を連結成分としてまとめる（旧 Pixi
+ * `buildConnectedComponents` の移植）。`groupGradient.scope === 'group'`
+ * のときは呼び出し元でグループ全体を1連結成分として扱うため、この関数は
+ * 使われない。
+ */
+const buildConnectedComponents = (members: string[], boundsById: Map<string, ObjectWorldBounds>): string[][] => {
+  if (members.length <= 1) return members.length === 1 ? [[members[0]]] : [];
+
+  const visited = new Set<string>();
+  const components: string[][] = [];
+
+  members.forEach((startId) => {
+    if (visited.has(startId)) return;
+
+    const queue = [startId];
+    visited.add(startId);
+    const component: string[] = [];
+
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      component.push(currentId);
+      const currentBounds = boundsById.get(currentId)!;
+
+      members.forEach((candidateId) => {
+        if (visited.has(candidateId)) return;
+        const candidateBounds = boundsById.get(candidateId)!;
+        if (!boundsIntersect(currentBounds, candidateBounds)) return;
+        visited.add(candidateId);
+        queue.push(candidateId);
+      });
+    }
+
+    components.push(component);
+  });
+
+  return components;
+};
+
+/** `#rrggbb` を 0..1 の RGB へ変換する（sRGB→リニア変換は行わず、既存の
+ * DropShadow/Outline 等の Rust 側定数色と同じ規約で 0..1 の直接値とする）。 */
+const parseHexColourToUnitRgb = (value: string): [number, number, number] => {
+  const match = /^#?([0-9a-f]{6})$/i.exec(value.trim());
+  if (!match) return [1, 1, 1];
+  const raw = match[1];
+  return [
+    parseInt(raw.slice(0, 2), 16) / 255,
+    parseInt(raw.slice(2, 4), 16) / 255,
+    parseInt(raw.slice(4, 6), 16) / 255,
+  ];
+};
+
+/** 旧 Pixi `normaliseGradientForGroupFilter` の移植。複数色/複数stopは
+ * 先頭2色のみ使用する（Pixi 版も GroupGradientFilter へは2色までしか
+ * 渡していなかった）。 */
+const normaliseGroupGradientColours = (
+  gradient: GradientFill
+): { colourA: [number, number, number, number]; colourB: [number, number, number, number]; stopA: number; stopB: number } => {
+  const rawColours = Array.isArray(gradient.colours)
+    ? gradient.colours.filter((entry): entry is string => typeof entry === 'string' && entry.trim() !== '')
+    : [];
+  let colours = rawColours.length > 0 ? rawColours : ['#ffffff', '#000000'];
+  if (colours.length === 1) colours = [colours[0], colours[0]];
+
+  const rawStops = Array.isArray(gradient.stops)
+    ? gradient.stops.filter((entry): entry is number => typeof entry === 'number' && Number.isFinite(entry))
+    : [];
+  const stops = colours.map((_, index) => {
+    const fallback = colours.length === 1 ? 0 : index / (colours.length - 1);
+    const value = rawStops[index];
+    return Math.max(0, Math.min(1, typeof value === 'number' ? value : fallback));
+  });
+
+  const [rA, gA, bA] = parseHexColourToUnitRgb(colours[0]);
+  const [rB, gB, bB] = parseHexColourToUnitRgb(colours[1]);
+
+  return {
+    colourA: [rA, gA, bA, 1],
+    colourB: [rB, gB, bB, 1],
+    stopA: stops[0] ?? 0,
+    stopB: stops[1] ?? 1,
+  };
+};
+
+/**
+ * `groupId` を持つオブジェクトについて、グループごとに `groupGradient`
+ * （メンバー内で最初に見つかった enabled なもの）を Rust 側
+ * `Effect::GradientOverlay` として畳み込み、オブジェクト ID をキーに
+ * したマップを返す。`scope === 'group'` はグループ全体を1つの bounds、
+ * それ以外（デフォルト `'connected'`）は bounds が交差する連結成分ごとに
+ * 分割する（旧 Pixi `85c298fb` の「分離した図形が矩形化する」修正の移植）。
+ */
+const computeGroupGradientEffects = (
+  supportedObjects: SupportedSceneObject[],
+  worldBoundsByObjectId: Map<string, ObjectWorldBounds>
+): Map<string, RustEffect> => {
+  const result = new Map<string, RustEffect>();
+
+  const membersByGroupId = new Map<string, SupportedSceneObject[]>();
+  supportedObjects.forEach((object) => {
+    const groupId = object.groupId;
+    if (typeof groupId !== 'string' || groupId.trim() === '') return;
+    const members = membersByGroupId.get(groupId) ?? [];
+    members.push(object);
+    membersByGroupId.set(groupId, members);
+  });
+
+  membersByGroupId.forEach((members) => {
+    const gradient = members
+      .map((member) => member.groupGradient)
+      .find((candidate): candidate is GradientFill => candidate?.enabled === true);
+    if (!gradient) return;
+
+    const { colourA, colourB, stopA, stopB } = normaliseGroupGradientColours(gradient);
+    const memberIds = members.map((member) => member.id);
+    const componentIdGroups = gradient.scope === 'group'
+      ? [memberIds]
+      : buildConnectedComponents(memberIds, worldBoundsByObjectId);
+
+    componentIdGroups.forEach((componentIds) => {
+      const componentBounds = unionBounds(componentIds.map((id) => worldBoundsByObjectId.get(id)!));
+      const boundsWidth = Math.max(1e-3, componentBounds.maxX - componentBounds.minX);
+      const boundsHeight = Math.max(1e-3, componentBounds.maxY - componentBounds.minY);
+      const effect: RustEffect = {
+        GradientOverlay: {
+          direction_degrees: Number.isFinite(gradient.direction) ? gradient.direction : 0,
+          stop_a: stopA,
+          stop_b: stopB,
+          is_radial: gradient.type === 'radial',
+          colour_a: colourA,
+          colour_b: colourB,
+          bounds_x: componentBounds.minX,
+          bounds_y: componentBounds.minY,
+          bounds_width: boundsWidth,
+          bounds_height: boundsHeight,
+        },
+      };
+      componentIds.forEach((id) => result.set(id, effect));
+    });
+  });
+
+  return result;
 };
 
 const rustEffectsForObject = (object: TimelineObject, time: number): RustEffect[] => {
@@ -2163,6 +2393,21 @@ const validateEffects = (
       validateFiniteNumber(effect.DropShadow.offset_x, `${effectPath}.DropShadow.offset_x`, issues);
       validateFiniteNumber(effect.DropShadow.offset_y, `${effectPath}.DropShadow.offset_y`, issues);
       validateUnitInterval(effect.DropShadow.opacity, `${effectPath}.DropShadow.opacity`, issues);
+      return;
+    }
+    if (isRecord(effect.GradientOverlay)) {
+      validateFiniteNumber(effect.GradientOverlay.direction_degrees, `${effectPath}.GradientOverlay.direction_degrees`, issues);
+      validateUnitInterval(effect.GradientOverlay.stop_a, `${effectPath}.GradientOverlay.stop_a`, issues);
+      validateUnitInterval(effect.GradientOverlay.stop_b, `${effectPath}.GradientOverlay.stop_b`, issues);
+      if (typeof effect.GradientOverlay.is_radial !== 'boolean') {
+        addIssue(issues, 'schemaMismatch', `${effectPath}.GradientOverlay.is_radial`, 'is_radial must be a boolean.');
+      }
+      validateNumberArray(effect.GradientOverlay.colour_a, `${effectPath}.GradientOverlay.colour_a`, 4, issues);
+      validateNumberArray(effect.GradientOverlay.colour_b, `${effectPath}.GradientOverlay.colour_b`, 4, issues);
+      validateFiniteNumber(effect.GradientOverlay.bounds_x, `${effectPath}.GradientOverlay.bounds_x`, issues);
+      validateFiniteNumber(effect.GradientOverlay.bounds_y, `${effectPath}.GradientOverlay.bounds_y`, issues);
+      validateFiniteNumber(effect.GradientOverlay.bounds_width, `${effectPath}.GradientOverlay.bounds_width`, issues);
+      validateFiniteNumber(effect.GradientOverlay.bounds_height, `${effectPath}.GradientOverlay.bounds_height`, issues);
       return;
     }
     addIssue(issues, 'schemaMismatch', effectPath, 'Unknown Rust effect.');
