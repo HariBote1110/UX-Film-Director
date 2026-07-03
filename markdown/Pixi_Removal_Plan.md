@@ -1,7 +1,8 @@
 # PixiJS 排除計画（Pixi Removal Plan）
 
 作成日: 2026-07-03
-状態: **計画（未着手）**
+状態: **Phase 0〜3 完了・統合済み（2026-07-03、〜版 428a）。Bug E（child NSWindow 化）も統合済み（ADR-013）。Phase 4+5 実施中。**
+進捗の詳細は `progress.md` の 2026-07-03 エントリ群を参照。
 背景: 「Rust オーバーレイと Pixi が混在した preview 構造がスパゲッティ化している」というユーザー判断により、PixiJS（`pixi.js ^8.1.0`）を段階的に排除し、preview 描画を Rust（native overlay + wgpu）へ一本化する。
 
 ## 1. 現状の依存マップ（2026-07-03 調査）
