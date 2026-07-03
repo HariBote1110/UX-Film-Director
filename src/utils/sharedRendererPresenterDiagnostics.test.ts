@@ -46,7 +46,7 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
     writeSharedRendererPresenterDiagnostics(dataset, {
       status: 'ready',
       format: 'bgra8unorm',
-      swatch: 'pixi-passthrough',
+      swatch: 'no-presentation',
       nativeRenderFailureReason: 'nativeRenderFailed',
       nativeRenderFailureDetail: 'Rust backend rejected unsupported PSD media',
     });
@@ -54,7 +54,7 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
     expect(dataset).toMatchObject({
       uxfdSharedRendererPresenterStatus: 'ready',
       uxfdSharedRendererPresenterFormat: 'bgra8unorm',
-      uxfdSharedRendererPresenterSwatch: 'pixi-passthrough',
+      uxfdSharedRendererPresenterSwatch: 'no-presentation',
       uxfdSharedRendererPresenterNativeRenderFailureReason: 'nativeRenderFailed',
       uxfdSharedRendererPresenterNativeRenderFailureLabel: 'native render failed',
       uxfdSharedRendererPresenterNativeRenderFailureDetail: 'Rust backend rejected unsupported PSD media',
@@ -67,7 +67,7 @@ describe('writeSharedRendererPresenterDiagnostics', () => {
     writeSharedRendererPresenterDiagnostics(dataset, {
       status: 'ready',
       format: 'bgra8unorm',
-      swatch: 'pixi-passthrough',
+      swatch: 'no-presentation',
       videoFrameUploadReady: false,
       videoUploadFailureReason: 'copyReportChecksumMismatch',
       videoUploadFailureDetail: 'Shared video frame copy report checksum verification failed.',

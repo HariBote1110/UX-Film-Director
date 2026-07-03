@@ -477,7 +477,7 @@ describe('createSharedRendererWebGpuPresenter', () => {
     expect(configurations).toEqual([]);
   });
 
-  it('reports device loss as a Pixi fallback and rejects stale shared frames', async () => {
+  it('reports device loss with no fallback presenter and rejects stale shared frames', async () => {
     let resolveLost!: (value: unknown) => void;
     const lost = new Promise((resolve) => {
       resolveLost = resolve;
@@ -505,7 +505,7 @@ describe('createSharedRendererWebGpuPresenter', () => {
     expect(fallbackEvents).toEqual([
       {
         reason: 'deviceLost',
-        fallback: 'pixi',
+        fallback: 'none',
         staleSharedFrameAllowed: false,
         message: 'test device lost',
       },

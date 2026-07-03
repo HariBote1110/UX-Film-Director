@@ -63,9 +63,7 @@ const videoUpload: SharedRendererDecodedVideoFrameUpload & {
 
 const videoOnlySession: SharedRendererPreviewSession = {
   plan: {
-    mode: 'parallelCompare',
-    primary: 'pixi',
-    candidate: 'sharedRenderer',
+    mode: 'sharedRenderer',
     snapshot: {
       frame_index: 10,
       colour: {

@@ -274,3 +274,28 @@ describe('getObjectWorldCorners: 変形済み矩形の四隅', () => {
     expect(getObjectWorldCorners(group, 0, [group])).toBeNull();
   });
 });
+
+describe('objectLocalPointToWorldPoint: オブジェクトローカル→ワールド変換', () => {
+  it('恒等変形のオブジェクトではローカル座標+位置がそのままワールド座標になる', async () => {
+    const { objectLocalPointToWorldPoint } = await import('./sceneHitTest');
+    const obj = shape();
+    const world = objectLocalPointToWorldPoint({ x: 10, y: 20 }, obj, 0, [obj]);
+    expect(world.x).toBeCloseTo(110, 6);
+    expect(world.y).toBeCloseTo(120, 6);
+  });
+
+  it('回転・スケールを適用したローカル座標変換が getObjectWorldCorners の四隅と一致する', async () => {
+    const { objectLocalPointToWorldPoint } = await import('./sceneHitTest');
+    const obj = shape({ rotation: 30, scaleX: 2, scaleY: 0.5 });
+    const corners = getObjectWorldCorners(obj, 0, [obj]);
+    expect(corners).not.toBeNull();
+    if (!corners) return;
+
+    const tl = objectLocalPointToWorldPoint({ x: 0, y: 0 }, obj, 0, [obj]);
+    const br = objectLocalPointToWorldPoint({ x: 50, y: 40 }, obj, 0, [obj]);
+    expect(tl.x).toBeCloseTo(corners.topLeft.x, 6);
+    expect(tl.y).toBeCloseTo(corners.topLeft.y, 6);
+    expect(br.x).toBeCloseTo(corners.bottomRight.x, 6);
+    expect(br.y).toBeCloseTo(corners.bottomRight.y, 6);
+  });
+});

@@ -1,24 +1,21 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import * as PIXI from 'pixi.js';
 import { useStore } from '../store/useStore';
-import { TimelineObject, VideoObject, GradientFill, ObjectFilter, PsdObject } from '../types';
-import { ThreeStageViewport, type BillboardTextureEntry, type ThreeStageViewportHandle } from './ThreeStageViewport';
-import { createShadowGraphics } from '../utils/pixiUtils';
+import { TimelineObject, VideoObject } from '../types';
+import { ThreeStageViewport, type ThreeStageViewportHandle } from './ThreeStageViewport';
 import { shallow } from 'zustand/shallow';
 
-import { usePixiInteraction } from '../hooks/usePixiInteraction';
 import { useSceneInteraction } from '../hooks/useSceneInteraction';
 import { hitTestSceneObjects, type SceneHitTestViewport } from '../utils/sceneHitTest';
 import { SceneSelectionOverlay } from './SceneSelectionOverlay';
 import { useProjectExport } from '../hooks/useProjectExport';
 import { useVisionRealtimeDetection } from '../hooks/useVisionRealtimeDetection';
-import { getGroupTransforms, getLipSyncViseme, updatePixiContent, applyObjectEffects, getVibrationOffset, applyGroupGradientEffect } from '../utils/pixiRenderHelper';
+// PixiJS 排除計画 Phase 4: グループ変形・振動は Pixi 非依存の sceneTransforms を直接参照する。
+import { getGroupTransforms, getVibrationOffset } from '../utils/sceneTransforms';
 import { evaluateObjectPositionAtTime } from '../utils/keyframes';
-import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier, getPrimaryWipeFilter } from '../utils/filterStack';
 import { useTranslation } from '../i18n';
 import { computePreviewDisplayScale } from '../utils/previewDisplayScale';
-import { visionNormBoundingBoxToVideoLocalRect } from '../utils/visionTrackingGeometry';
-import type { ResizeCorner } from '../utils/transformGeometry';
+import { buildVisionDetectionOverlayBoxes } from '../utils/visionDetectionOverlayGeometry';
+import { measureTextBoxSize } from '../utils/textBoxMeasurement';
 import {
   buildSharedRendererPreviewSession,
   collectSharedRendererGeneratedEffectObjectIdsFromSession,
@@ -64,23 +61,10 @@ import { toFileProtocolUrl } from '../utils/mediaMetadata';
 import { buildNativeOverlayAttachRect } from '../utils/nativeOverlayViewportGeometry';
 import { notifyNativeOverlaySceneCleared } from '../utils/sharedRendererRustVideoUploadPipeline';
 
-const GROUP_GRADIENT_COMPONENT_PREFIX = 'group-gradient-component-';
-const RESIZE_HANDLE_PREFIX = 'resize-handle-';
 const SHARED_RENDERER_EXTERNAL_VIDEO_PLAYING_SYNC_INTERVAL_MS = 75;
 // 一時停止時にヘッドを表示フレームへスナップする最小デルタ（秒）。これ未満は
 // 体感できないうえ無駄な再レンダーを誘発するため無視する。
 const PAUSE_SNAP_MIN_DELTA_SECONDS = 0.004;
-/** 角ハンドルのスクリーン上の目標サイズ（px）。 */
-const RESIZE_HANDLE_SCREEN_PX = 10;
-
-const RESIZE_CORNER_CURSORS: Record<ResizeCorner, string> = {
-  'top-left': 'nwse-resize',
-  'bottom-right': 'nwse-resize',
-  'top-right': 'nesw-resize',
-  'bottom-left': 'nesw-resize',
-};
-
-type BoundsLike = { x: number; y: number; width: number; height: number };
 
 type SharedRendererPresenterDiagnosticDataset = Record<string, string | undefined>;
 
@@ -416,67 +400,10 @@ export const isTransientExternalVideoPresentationFailure = (
   && presentation.reason === 'videoTextureViewUnavailable',
 );
 
-const boundsIntersect = (a: BoundsLike, b: BoundsLike) => (
-  a.x <= b.x + b.width
-  && a.x + a.width >= b.x
-  && a.y <= b.y + b.height
-  && a.y + a.height >= b.y
-);
-
-const buildConnectedComponents = (containers: PIXI.Container[]): number[][] => {
-  if (containers.length <= 1) return containers.length === 1 ? [[0]] : [];
-
-  const boundsList = containers.map((container) => container.getBounds());
-  const visited = new Array(containers.length).fill(false);
-  const components: number[][] = [];
-
-  for (let startIndex = 0; startIndex < containers.length; startIndex += 1) {
-    if (visited[startIndex]) continue;
-
-    const queue: number[] = [startIndex];
-    visited[startIndex] = true;
-    const component: number[] = [];
-
-    while (queue.length > 0) {
-      const currentIndex = queue.shift()!;
-      component.push(currentIndex);
-
-      for (let nextIndex = 0; nextIndex < containers.length; nextIndex += 1) {
-        if (visited[nextIndex]) continue;
-        if (!boundsIntersect(boundsList[currentIndex], boundsList[nextIndex])) continue;
-        visited[nextIndex] = true;
-        queue.push(nextIndex);
-      }
-    }
-
-    components.push(component);
-  }
-
-  return components;
-};
-
-const flattenGroupGradientComponents = (groupContainer: PIXI.Container) => {
-  const componentContainers = groupContainer.children.filter((child) => (
-    typeof child.label === 'string' && child.label.startsWith(GROUP_GRADIENT_COMPONENT_PREFIX)
-  )) as PIXI.Container[];
-
-  componentContainers.forEach((componentContainer) => {
-    const members = componentContainer.removeChildren() as PIXI.Container[];
-    members.forEach((member) => {
-      groupContainer.addChild(member);
-    });
-    applyGroupGradientEffect(componentContainer, undefined);
-    groupContainer.removeChild(componentContainer);
-    componentContainer.destroy({ children: false });
-  });
-};
-
 const Viewport: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportShellRef = useRef<HTMLDivElement>(null);
   const threeStageRef = useRef<ThreeStageViewportHandle | null>(null);
-  const pixiAppRef = useRef<PIXI.Application | null>(null);
-  const worldContainerRef = useRef<PIXI.Container | null>(null);
   const sharedRendererSurfaceCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const sharedRendererPresenterControlRef = useRef<SharedRendererPreviewPresenterControl | null>(null);
   const sharedRendererPresenterSessionKeyRef = useRef<string | null>(null);
@@ -505,22 +432,14 @@ const Viewport: React.FC = () => {
     NATIVE_OVERLAY_TRANSPARENT_CLEAR_INITIAL_STATE
   );
   const sharedRendererExternalVideoSourcesRef = useRef<Map<string, SharedRendererExternalVideoSourceEntry>>(new Map());
-  const pixiObjectsRef = useRef<Map<string, PIXI.Container>>(new Map());
-  const groupContainersRef = useRef<Map<string, PIXI.Container>>(new Map());
-  
-  const textureCacheRef = useRef<Map<string, PIXI.Texture>>(new Map());
-  const loadingUrlsRef = useRef<Set<string>>(new Set());
   const sharedRendererSolidColourObjectIdsRef = useRef<Set<string>>(new Set());
   const sharedRendererImageObjectIdsRef = useRef<Set<string>>(new Set());
   const sharedRendererPsdObjectIdsRef = useRef<Set<string>>(new Set());
   const sharedRendererGeneratedEffectObjectIdsRef = useRef<Set<string>>(new Set());
   const sharedRendererTextObjectIdsRef = useRef<Set<string>>(new Set());
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
-  
-  const audioBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
 
   const [renderTick, setRenderTick] = useState(0);
-  const [pixiReady, setPixiReady] = useState(false);
   const [panelSize, setPanelSize] = useState({ w: 0, h: 0 });
   const sharedRendererPreviewEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_PREVIEW !== '0';
   const sharedRendererExportEnabled = import.meta.env.VITE_UXFD_SHARED_RENDERER_EXPORT !== '0';
@@ -767,9 +686,8 @@ const Viewport: React.FC = () => {
   const latestObjectsRef = useRef(objects);
   latestObjectsRef.current = objects;
 
-  // usePixiInteraction は即時ロールバック用に残置し、呼び出しは
-  // useSceneInteraction（Pixi 非依存のヒットテスト・ドラッグ・リサイズ）へ
-  // 切替済み（PixiJS 排除計画 Phase 3 の統合、Viewport.tsx 配線）。
+  // インタラクションは useSceneInteraction（Pixi 非依存のヒットテスト・
+  // ドラッグ・リサイズ）が担う（PixiJS 排除計画 Phase 3/4）。
   const sceneInteractionViewportRef = useRef<SceneHitTestViewport>({
     projectWidth: projectSettings.width,
     projectHeight: projectSettings.height,
@@ -784,13 +702,11 @@ const Viewport: React.FC = () => {
     onResizeStart: onSceneResizeStart,
     onResizeMove: onSceneResizeMove,
     onResizeEnd: onSceneResizeEnd,
-    dragRef: sceneDragRef,
   } = useSceneInteraction(latestObjectsRef, sceneInteractionViewportRef);
 
   // ドラッグ／リサイズ中にポインタが preview 要素の外へ出ても追従できるよう、
-  // window レベルで pointermove/pointerup を監視する（旧 usePixiInteraction は
-  // PIXI の globalpointermove でこれを実現していたため、DOM 版でも同等の
-  // 「要素外に出ても継続する」挙動を再現する）。
+  // window レベルで pointermove/pointerup を監視する（要素外に出ても継続する
+  // 挙動を DOM イベントで再現する）。
   useEffect(() => {
     const handleWindowPointerMove = (e: PointerEvent) => {
       onSceneObjectPointerMove(e as unknown as React.PointerEvent);
@@ -842,9 +758,6 @@ const Viewport: React.FC = () => {
     displayScale,
     camera,
   };
-  // renderScene からリサイズハンドルの見かけサイズ補正に用いるため ref で保持する。
-  const displayScaleRef = useRef(displayScale);
-  displayScaleRef.current = displayScale;
   const sharedRendererCssReferenceColour = getSharedRendererSolidSwatchCssColour();
   const shouldMountSharedRendererSurface = shouldMountSharedRendererSurfaceCanvas({
     previewEnabled: sharedRendererPreviewEnabled,
@@ -882,117 +795,29 @@ const Viewport: React.FC = () => {
     };
   }, [sharedRendererExportEnabled, sharedRendererPreviewEnabled]);
 
-  // --- Initialize Pixi App ---
-  useEffect(() => {
-    if (!containerRef.current) return;
-    let cancelled = false;
-    const app = new PIXI.Application();
-    const { width, height } = useStore.getState().projectSettings;
-
-    // 【重要】autoStart: false に設定。
-    // PixiJSの勝手なTickerループを止め、React側の制御下でのみ描画させることで
-    // 二重描画によるCPU負荷を回避する。
-    app.init({
-        width,
-        height,
-        backgroundColor: '#1e1e1e',
-        preference: 'webgpu',
-        autoStart: false, // 自動描画停止
-        sharedTicker: false
-    }).then(() => {
-      if (cancelled || !containerRef.current || containerRef.current.hasChildNodes()) {
-        app.destroy(true, { children: true, texture: true });
-        return;
-      }
-      if (containerRef.current) {
-        containerRef.current.appendChild(app.canvas);
-        pixiAppRef.current = app;
-        setPixiReady(true);
-
-        // ── Phase 0: PixiJS レンダラー種別確認 ────────────────────
-        {
-          // PixiJS 8: renderer.type は RendererType enum (number)。webgpu=2, webgl=1
-          const rendererType = (app.renderer as unknown as { type: number }).type;
-          const rendererName = rendererType === 2 ? 'webgpu' : rendererType === 1 ? 'webgl' : `unknown(${rendererType})`;
-          console.log('[Phase0] PixiJS renderer =', rendererName, '(raw:', rendererType, ')');
-
-          const gpuDevice = (app.renderer as unknown as { gpu?: { device?: GPUDevice } }).gpu?.device;
-          if (gpuDevice) {
-            console.log('[Phase0] importExternalTexture available =', typeof gpuDevice.importExternalTexture === 'function');
-          } else {
-            console.warn('[Phase0] GPUDevice not accessible from PixiJS renderer');
-          }
-        }
-        // ───────────────────────────────────────────────────────────
-        // PixiJS 排除計画 Phase 3 の統合: クリック外し選択解除は DOM 側
-        // （preview-canvas-container の onPointerDown、下記 JSX）で再現するため、
-        // stage 自体はポインタイベントを処理しない（PIXI コンテナが
-        // eventMode='auto' のため、そもそも stage までヒットが伝播しない）。
-        app.stage.sortableChildren = true;
-        const world = new PIXI.Container();
-        world.label = 'world-root';
-        world.sortableChildren = true;
-        app.stage.addChildAt(world, 0);
-        worldContainerRef.current = world;
-
-        // 初回描画
-        app.render();
-      }
-    });
-    return () => {
-      cancelled = true;
-      setPixiReady(false);
-      if (pixiAppRef.current) {
-        pixiAppRef.current.destroy(true, { children: true, texture: true });
-        pixiAppRef.current = null;
-        worldContainerRef.current = null;
-        pixiObjectsRef.current.clear();
-        groupContainersRef.current.clear();
-        textureCacheRef.current.clear();
-        loadingUrlsRef.current.clear();
-        audioElementsRef.current.forEach(audio => { audio.pause(); audio.src = ""; audio.load(); });
-        audioElementsRef.current.clear();
-      }
-    };
+  // PixiJS 排除計画 Phase 4: PIXI Application の生成・破棄は撤去した。
+  // preview の描画は native overlay（＋WebGPU presenter の surface canvas）に
+  // 一本化され、音声要素の後始末のみ unmount 時に行う。
+  useEffect(() => () => {
+    audioElementsRef.current.forEach(audio => { audio.pause(); audio.src = ""; audio.load(); });
+    audioElementsRef.current.clear();
   }, []);
 
+  // PixiJS 排除計画 Phase 4: テキストの実測書き戻し。旧 PIXI Text の実測に
+  // 代わり Canvas 2D の measureText で近似計測し、rustSceneSnapshot の
+  // textMediaBox が参照する measuredWidth/measuredHeight を維持する。
+  // 計測不能な環境では書き戻さず、textMediaBox のヒューリスティックに任せる。
   useEffect(() => {
-    if (!pixiReady) return;
-    const app = pixiAppRef.current;
-    if (!app?.canvas) return;
-
-    app.renderer.resize(projectSettings.width, projectSettings.height);
-    app.stage.hitArea = app.screen;
-
-    const w = projectSettings.width;
-    const h = projectSettings.height;
-    app.canvas.style.width = `${w * displayScale}px`;
-    app.canvas.style.height = `${h * displayScale}px`;
-    app.render();
-  }, [pixiReady, projectSettings.width, projectSettings.height, displayScale]);
-
-  // --- Audio Buffer Loading ---
-  useEffect(() => {
-    const loadBuffers = async () => {
-        const hasViz = objects.some(o => o.type === 'audio_visualization');
-        if (!hasViz) return;
-
-        const audioContext = new AudioContext();
-        for (const obj of objects) {
-            if (obj.type === 'audio' && obj.src && !audioBuffersRef.current.has(obj.id)) {
-                try {
-                    const resp = await fetch(obj.src);
-                    const ab = await resp.arrayBuffer();
-                    const decoded = await audioContext.decodeAudioData(ab);
-                    audioBuffersRef.current.set(obj.id, decoded);
-                } catch (e) {
-                    console.error("Failed to load audio buffer:", e);
-                }
-            }
-        }
-        audioContext.close();
-    };
-    loadBuffers();
+    objects.forEach((object) => {
+      if (object.type !== 'text') return;
+      const size = measureTextBoxSize(object);
+      if (!size) return;
+      if (object.measuredWidth === size.width && object.measuredHeight === size.height) return;
+      useStore.getState().updateObject(object.id, {
+        measuredWidth: size.width,
+        measuredHeight: size.height,
+      });
+    });
   }, [objects]);
 
   const publishSharedRendererPreviewSession = useCallback((time: number, currentObjects: TimelineObject[]) => {
@@ -1488,463 +1313,79 @@ const Viewport: React.FC = () => {
   }, [isExporting, isPlaying, objects, requestSharedRendererExternalVideoFrameRepaint, rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererGeneratedEffectObjectIds, updateSharedRendererImageObjectIds, updateSharedRendererPsdObjectIds, updateSharedRendererSolidColourObjectIds, updateSharedRendererTextObjectIds]);
 
   // --- Main Render Logic ---
+  // PixiJS 排除計画 Phase 4: 旧 Pixi シーングラフ描画は撤去した。ここでは
+  // (1) 音声要素の生成・同期・後始末、(2) shared renderer への scene 発行、
+  // (3) 3D ステージへの同期のみを行う（描画は native overlay / WebGPU
+  // presenter が担う）。
   const renderScene = useCallback((time: number, currentObjects: TimelineObject[]) => {
-    const app = pixiAppRef.current;
-    if (!app) return;
-
-    const currentPixiObjects = pixiObjectsRef.current;
     const currentAudioElements = audioElementsRef.current;
-    const currentGroupContainers = groupContainersRef.current;
     const visibleObjects = currentObjects.filter((obj) => {
       if (layers[obj.layer]?.visible === false) return false;
       return time >= obj.startTime && time < obj.startTime + obj.duration;
     });
-    const visibleGroupIds = new Set(
-      visibleObjects
-        .map((obj) => obj.groupId)
-        .filter((groupId): groupId is string => typeof groupId === 'string' && groupId.trim() !== '')
-    );
 
     // 1. Cleanup
-    currentPixiObjects.forEach((container, id) => {
-      if (!visibleObjects.find(obj => obj.id === id)) {
-        container.parent?.removeChild(container);
-        container.destroy({ children: true });
-        currentPixiObjects.delete(id);
-      }
-    });
-    const worldRoot = worldContainerRef.current;
-    currentGroupContainers.forEach((groupContainer, groupId) => {
-      if (visibleGroupIds.has(groupId)) return;
-      groupContainer.parent?.removeChild(groupContainer);
-      groupContainer.destroy({ children: false });
-      currentGroupContainers.delete(groupId);
-    });
     currentAudioElements.forEach((audio, id) => {
-        if (!visibleObjects.find(obj => obj.id === id && obj.type === 'audio')) {
-            audio.pause(); audio.src = ""; audio.load(); currentAudioElements.delete(id);
-        }
+      if (!visibleObjects.find(obj => obj.id === id && obj.type === 'audio')) {
+        audio.pause(); audio.src = ""; audio.load(); currentAudioElements.delete(id);
+      }
     });
 
-    visibleGroupIds.forEach((groupId) => {
-      if (currentGroupContainers.has(groupId)) return;
-      const groupContainer = new PIXI.Container();
-      groupContainer.label = `group-${groupId}`;
-      groupContainer.sortableChildren = true;
-      if (worldRoot) worldRoot.addChild(groupContainer);
-      currentGroupContainers.set(groupId, groupContainer);
-    });
-
-    // 2. Render visible objects
+    // 2. Audio sync
     visibleObjects.forEach(obj => {
-      // Audio Logic
-      if (obj.type === 'audio') {
-        let audio = currentAudioElements.get(obj.id);
-        if (!audio) {
-            audio = new Audio(); audio.src = obj.src; audio.muted = obj.muted; audio.volume = obj.volume;
-            audio.crossOrigin = 'anonymous'; audio.preload = 'auto'; currentAudioElements.set(obj.id, audio);
-        }
-        audio.volume = obj.volume; audio.muted = obj.muted;
-        const offset = obj.offset || 0; const audioLocalTime = (time - obj.startTime) + offset;
-        if (!isExporting) {
-            if (isPlaying) {
-                if (audio.paused) { const p = audio.play(); if(p) p.catch(()=>{}); }
-                if (Math.abs(audio.currentTime - audioLocalTime) > 0.2) audio.currentTime = audioLocalTime;
-            } else {
-                if (!audio.paused) audio.pause();
-                if (Math.abs(audio.currentTime - audioLocalTime) > 0.05) audio.currentTime = audioLocalTime;
-            }
-        }
-        return; 
+      if (obj.type !== 'audio') return;
+      let audio = currentAudioElements.get(obj.id);
+      if (!audio) {
+        audio = new Audio(); audio.src = obj.src; audio.muted = obj.muted; audio.volume = obj.volume;
+        audio.crossOrigin = 'anonymous'; audio.preload = 'auto'; currentAudioElements.set(obj.id, audio);
       }
-
-      const isSelected = selectedIds.includes(obj.id);
-      if (obj.type === 'group_control' && !isSelected && isPlaying) return;
-
-      const lipSyncViseme = getLipSyncViseme(obj, time, currentObjects);
-
-      let container = currentPixiObjects.get(obj.id);
-      if (!container) {
-        container = new PIXI.Container();
-        // PixiJS 排除計画 Phase 3 の統合: 選択・ドラッグ・リサイズの
-        // ヒットテスト／ポインタ処理は DOM 側（SceneSelectionOverlay の
-        // pointer ハンドラ＋ hitTestSceneObjects）へ移管したため、PIXI
-        // コンテナ自体はポインタイベントを扱わない（eventMode 既定 'auto'）。
-        container.label = obj.id;
-        currentPixiObjects.set(obj.id, container);
-      }
-      if (obj.groupId && currentGroupContainers.has(obj.groupId)) {
-        const groupParent = currentGroupContainers.get(obj.groupId)!;
-        const isAlreadyInsideGroup = container.parent === groupParent || container.parent?.parent === groupParent;
-        if (!isAlreadyInsideGroup) {
-          container.parent?.removeChild(container);
-          groupParent.addChild(container);
-        }
-      } else if (worldRoot && container.parent !== worldRoot) {
-        container.parent?.removeChild(container);
-        worldRoot.addChild(container);
-      }
-
-      // Content Update
-      const content = updatePixiContent(obj, container, time, {
-          textureCache: textureCacheRef.current,
-          loadingUrls: loadingUrlsRef.current,
-          audioBuffers: audioBuffersRef.current,
-          allObjects: currentObjects,
-          isExporting,
-          isPlaying,
-          setRenderTick,
-          sharedRendererSolidColourObjectIds: sharedRendererSolidColourObjectIdsRef.current,
-          sharedRendererImageObjectIds: sharedRendererImageObjectIdsRef.current,
-          sharedRendererPsdObjectIds: sharedRendererPsdObjectIdsRef.current,
-          sharedRendererGeneratedEffectObjectIds: sharedRendererGeneratedEffectObjectIdsRef.current,
-          sharedRendererTextObjectIds: sharedRendererTextObjectIdsRef.current,
-          onTextMeasured: (objectId, size) => {
-            // PixiJS 排除計画 Phase 2/統合の書き戻し: cutoverでPixiがskipされる
-            // 前の実測値のみをobjectへ反映する。text/font/sizeが変わらない限り
-            // 値は安定するため、変化が無ければstore更新をスキップして再レンダー
-            // ループを避ける（cutover後はこのコールバック自体が呼ばれなくなり、
-            // 最後に測定された値がobjectに残り続ける設計）。
-            const target = latestObjectsRef.current.find((candidate) => candidate.id === objectId);
-            if (!target || target.type !== 'text') return;
-            const roundedWidth = Math.round(size.width);
-            const roundedHeight = Math.round(size.height);
-            if (target.measuredWidth === roundedWidth && target.measuredHeight === roundedHeight) return;
-            useStore.getState().updateObject(objectId, { measuredWidth: roundedWidth, measuredHeight: roundedHeight });
-          },
-      });
-
-      const shadowFilters = getEnabledObjectFiltersInOrder(obj).filter((filter): filter is Extract<ObjectFilter, { type: 'shadow' }> => {
-        return filter.type === 'shadow';
-      });
-      const currentShadowNodes = container.children.filter((child) => (child.label ?? '').startsWith('shadow'));
-      currentShadowNodes.forEach((shadowNode) => {
-        container.removeChild(shadowNode);
-        shadowNode.destroy({ children: true });
-      });
-      if (content && shadowFilters.length > 0) {
-        const shadowWidth = (content as any).width || (obj as any).width || 100;
-        const shadowHeight = (content as any).height || (obj as any).height || 100;
-        shadowFilters.forEach((shadowFilter, index) => {
-          const shadow = createShadowGraphics(obj, shadowWidth, shadowHeight, {
-            enabled: true,
-            ...shadowFilter.params
-          });
-          if (!shadow) return;
-          shadow.label = `shadow-${index}`;
-          container.addChildAt(shadow, Math.min(index, container.children.length));
-        });
-      }
-
-      applyObjectEffects(container, obj);
-
-      // Vision detection preview (cat/dog boxes on video — single-frame, no tracking)
-      const visionPreviewOn = useStore.getState().visionDetectionPreviewEnabled;
-      const visionOverlay = useStore.getState().visionDetectionOverlay;
-      const existingDet = container.children.find((c) => c.label === 'vision-detection-overlay');
-      const showVisionDet =
-        !isExporting
-        && !isSnapshotRequested
-        && visionPreviewOn
-        && visionOverlay !== null
-        && obj.type === 'video'
-        && visionOverlay.videoId === obj.id
-        && visionOverlay.observations.length > 0;
-
-      if (!showVisionDet) {
-        if (existingDet) {
-          container.removeChild(existingDet);
-          existingDet.destroy({ children: true });
-        }
-      } else {
-        const video = obj as VideoObject;
-        let detG = existingDet as PIXI.Graphics | undefined;
-        if (!detG || detG.destroyed) {
-          detG = new PIXI.Graphics();
-          detG.label = 'vision-detection-overlay';
-          detG.eventMode = 'none';
-          container.addChild(detG);
-        }
-        detG.clear();
-        const localT = time - video.startTime;
-        const clampedLocal = Math.max(0, Math.min(video.duration, localT));
-        const mediaT = (video.offset ?? 0) + clampedLocal;
-        const stale = Math.abs(mediaT - visionOverlay!.mediaTimeSec) > 0.35;
-        detG.alpha = stale ? 0.42 : 1;
-
-        const strokeWidth = 5;
-        const colours = [0x22c55e, 0x38bdf8, 0xfbbf24, 0xf472b6, 0xa78bfa];
-        visionOverlay!.observations.forEach((obs, i) => {
-          const r = visionNormBoundingBoxToVideoLocalRect(obs.boundingBox, video.width, video.height);
-          detG!.rect(r.x, r.y, r.width, r.height);
-          detG!.stroke({ width: strokeWidth, color: colours[i % colours.length], alignment: 0.5 });
-        });
-      }
-
-      // Selection Border / Resize Handles
-      // PixiJS 排除計画 Phase 3 の統合: 選択枠・リサイズハンドルの描画は
-      // PIXI.Graphics から SceneSelectionOverlay（SVG, DOM オーバーレイ）へ
-      // 置き換えたため、ここでは旧描画が残っていれば掃除するだけにする
-      // （ロールバック用に usePixiInteraction 呼び出しへ戻した際、古いノードが
-      // 残らないようにするための後方互換の掃除）。
-      const legacyBorder = container.children.find((c) => c.label === 'border');
-      if (legacyBorder) {
-        container.removeChild(legacyBorder);
-        legacyBorder.destroy();
-      }
-      const legacyHandleNodes = container.children.filter((c) => (c.label ?? '').startsWith(RESIZE_HANDLE_PREFIX));
-      legacyHandleNodes.forEach((handleNode) => {
-        container.removeChild(handleNode);
-        handleNode.destroy();
-      });
-
-      // Transform
-      let currentX = obj.x; let currentY = obj.y;
-      const rawProgress = (time - obj.startTime) / obj.duration; const progress = Math.max(0, Math.min(1, rawProgress));
-
-      if (obj.keyframes && obj.keyframes.length > 1) {
-          const keyed = evaluateObjectPositionAtTime(obj, time);
-          currentX = keyed.x;
-          currentY = keyed.y;
-      } else if (obj.motionPath && obj.motionPath.length > 1) {
-          const path = obj.motionPath; let idx = 0;
-          while (idx < path.length - 1 && path[idx+1].time < progress) idx++;
-          const p1 = path[idx]; const p2 = path[idx+1] || p1;
-          const range = p2.time - p1.time; const localRatio = range <= 0 ? 0 : (progress - p1.time) / range;
-          currentX = p1.x + (p2.x - p1.x) * localRatio; currentY = p1.y + (p2.y - p1.y) * localRatio;
-      } else if (obj.enableAnimation) {
-          const keyed = evaluateObjectPositionAtTime(obj, time);
-          currentX = keyed.x;
-          currentY = keyed.y;
-      }
-      
-      const groupEffects = getGroupTransforms(obj, time, currentObjects);
-      const vib = getVibrationOffset(obj, time);
-
-      container.x = currentX + groupEffects.x + vib.x; 
-      container.y = currentY + groupEffects.y + vib.y;
-      container.rotation = ((obj.rotation || 0) + groupEffects.rotation) * (Math.PI / 180);
-      container.scale.set((obj.scaleX ?? 1) * groupEffects.scaleX, (obj.scaleY ?? 1) * groupEffects.scaleY);
-      container.alpha = (obj.opacity ?? 1) * groupEffects.alpha * getFadeOpacityMultiplier(obj);
-      container.zIndex = obj.layer; 
-      
-      if (!isExporting && sceneDragRef.current.active && sceneDragRef.current.targetId === obj.id) {
-          container.alpha *= 0.6;
-      }
-    });
-
-    // 3. Clipping / Wipe masks
-    visibleObjects.forEach((obj) => {
-      const container = currentPixiObjects.get(obj.id);
-      if (!container) return;
-
-      const removeWipeMask = () => {
-        const wipeNode = container.children.find((child) => child.label === 'wipe-mask');
-        if (wipeNode) {
-          container.removeChild(wipeNode);
-          wipeNode.destroy();
-        }
-      };
-
-      if (obj.clipping) {
-        removeWipeMask();
-        const targetLayer = obj.layer - 1;
-        const targetObj = [...visibleObjects]
-          .reverse()
-          .find((candidate) => candidate.layer === targetLayer && currentPixiObjects.has(candidate.id));
-        const targetContainer = targetObj ? currentPixiObjects.get(targetObj.id) : null;
-        container.mask = targetContainer || null;
-        return;
-      }
-
-      const wipe = getPrimaryWipeFilter(obj);
-      if (wipe) {
-        const bounds = container.getLocalBounds();
-        const pad = 4;
-        const bx = bounds.x - pad;
-        const by = bounds.y - pad;
-        const bw = Math.max(1, bounds.width + pad * 2);
-        const bh = Math.max(1, bounds.height + pad * 2);
-        let progress = (time - obj.startTime) / obj.duration;
-        progress = Math.max(0, Math.min(1, progress));
-        if (wipe.params.reverse) progress = 1 - progress;
-
-        let maskGraphics = container.children.find((child) => child.label === 'wipe-mask') as PIXI.Graphics | undefined;
-        if (!maskGraphics) {
-          maskGraphics = new PIXI.Graphics();
-          maskGraphics.label = 'wipe-mask';
-          container.addChild(maskGraphics);
-        }
-        maskGraphics.clear();
-        const edge = wipe.params.edge;
-        if (edge === 'left') {
-          maskGraphics.rect(bx, by, bw * progress, bh).fill({ color: 0xffffff });
-        } else if (edge === 'right') {
-          const wv = bw * progress;
-          maskGraphics.rect(bx + bw - wv, by, wv, bh).fill({ color: 0xffffff });
-        } else if (edge === 'top') {
-          maskGraphics.rect(bx, by, bw, bh * progress).fill({ color: 0xffffff });
+      audio.volume = obj.volume; audio.muted = obj.muted;
+      const offset = obj.offset || 0; const audioLocalTime = (time - obj.startTime) + offset;
+      if (!isExporting) {
+        if (isPlaying) {
+          if (audio.paused) { const p = audio.play(); if (p) p.catch(() => {}); }
+          if (Math.abs(audio.currentTime - audioLocalTime) > 0.2) audio.currentTime = audioLocalTime;
         } else {
-          const hv = bh * progress;
-          maskGraphics.rect(bx, by + bh - hv, bw, hv).fill({ color: 0xffffff });
-        }
-        container.mask = maskGraphics;
-        return;
-      }
-
-      removeWipeMask();
-      container.mask = null;
-    });
-
-    // 4. Group Gradient Filter
-    const groupTopLayerMap = new Map<string, number>();
-    const groupGradientMap = new Map<string, GradientFill | undefined>();
-    const groupObjectContainersMap = new Map<string, PIXI.Container[]>();
-    visibleObjects.forEach((obj) => {
-      if (!obj.groupId || !currentGroupContainers.has(obj.groupId)) return;
-      const prevTop = groupTopLayerMap.get(obj.groupId);
-      if (prevTop === undefined || obj.layer > prevTop) {
-        groupTopLayerMap.set(obj.groupId, obj.layer);
-      }
-      if (obj.groupGradient && !groupGradientMap.has(obj.groupId)) {
-        groupGradientMap.set(obj.groupId, obj.groupGradient);
-      }
-      const objectContainer = currentPixiObjects.get(obj.id);
-      if (!objectContainer) return;
-      const members = groupObjectContainersMap.get(obj.groupId) ?? [];
-      members.push(objectContainer);
-      groupObjectContainersMap.set(obj.groupId, members);
-    });
-    currentGroupContainers.forEach((groupContainer, groupId) => {
-      flattenGroupGradientComponents(groupContainer);
-
-      const gradient = groupGradientMap.get(groupId);
-      const members = groupObjectContainersMap.get(groupId) ?? [];
-      const useConnectedScope = gradient?.scope !== 'group';
-      const canSplitComponents = gradient?.enabled === true && useConnectedScope && members.length >= 2;
-
-      if (canSplitComponents) {
-        const components = buildConnectedComponents(members);
-        if (components.length > 1) {
-          applyGroupGradientEffect(groupContainer, undefined);
-          components.forEach((componentMemberIndexes, componentIndex) => {
-            const componentContainer = new PIXI.Container();
-            componentContainer.label = `${GROUP_GRADIENT_COMPONENT_PREFIX}${groupId}-${componentIndex}`;
-            componentContainer.sortableChildren = true;
-
-            let topLayer = Number.NEGATIVE_INFINITY;
-            componentMemberIndexes.forEach((memberIndex) => {
-              const member = members[memberIndex];
-              topLayer = Math.max(topLayer, member.zIndex);
-              member.parent?.removeChild(member);
-              componentContainer.addChild(member);
-            });
-
-            componentContainer.zIndex = Number.isFinite(topLayer) ? topLayer : 0;
-            groupContainer.addChild(componentContainer);
-            applyGroupGradientEffect(componentContainer, gradient);
-          });
-
-          groupContainer.sortChildren();
-          groupContainer.zIndex = groupTopLayerMap.get(groupId) ?? 0;
-          return;
+          if (!audio.paused) audio.pause();
+          if (Math.abs(audio.currentTime - audioLocalTime) > 0.05) audio.currentTime = audioLocalTime;
         }
       }
-
-      groupContainer.zIndex = groupTopLayerMap.get(groupId) ?? 0;
-      applyGroupGradientEffect(groupContainer, gradient);
     });
 
-    const world = worldContainerRef.current;
-    if (world) {
-      const w = projectSettings.width;
-      const h = projectSettings.height;
-      world.pivot.set(w / 2, h / 2);
-      world.position.set(w / 2 + camera.centreOffsetX, h / 2 + camera.centreOffsetY);
-      const zoom = Math.max(0.05, camera.zoom);
-      world.scale.set(zoom, zoom);
-      world.rotation = camera.rotationDeg * (Math.PI / 180);
-      world.sortChildren();
-    } else {
-      app.stage.sortChildren();
-    }
-    
-    // 手動レンダリング実行 (Ticker停止中のため必須)
-    app.render();
     publishSharedRendererPreviewSession(time, currentObjects);
 
     const workspaceMode = useStore.getState().projectSettings.editorMode ?? '2d';
     if (workspaceMode === '3d_stage' && threeStageRef.current) {
-      const billboardEntries: BillboardTextureEntry[] = [];
-      for (const obj of visibleObjects) {
-        if (obj.type !== 'psd') continue;
-        const psd = obj as PsdObject;
-        if (!psd.worldPlacement?.enabled) continue;
-        const wrap = currentPixiObjects.get(obj.id);
-        if (!wrap) continue;
-        const extractRoot = wrap.children.find((ch) => {
-          const label = typeof ch.label === 'string' ? ch.label : '';
-          return label !== 'border' && !label.startsWith('shadow') && !label.startsWith(RESIZE_HANDLE_PREFIX);
-        }) as PIXI.Container | undefined;
-        if (!extractRoot) continue;
-        const bounds = extractRoot.getLocalBounds();
-        const bw = Math.max(1, Math.ceil(bounds.width));
-        const bh = Math.max(1, Math.ceil(bounds.height));
-        const frame = new PIXI.Rectangle(bounds.x, bounds.y, bw, bh);
-        try {
-          const canvas = app.renderer.extract.canvas({
-            target: extractRoot,
-            frame,
-            clearColor: 'rgba(0,0,0,0)',
-          }) as HTMLCanvasElement;
-          billboardEntries.push({
-            id: obj.id,
-            canvas,
-            placement: psd.worldPlacement,
-            widthPx: canvas.width,
-            heightPx: canvas.height,
-          });
-        } catch {
-          /* ignore extract failure */
-        }
-      }
-      threeStageRef.current.syncBillboards(billboardEntries, useStore.getState().stageCamera3D);
+      // PixiJS 排除計画 Phase 4: PSD ビルボードのラスタライズは PIXI の
+      // extract に依存していたため撤去した（機能退行として完了報告に記載）。
+      // stageCamera3D の同期のため空エントリで同期のみ行う。
+      threeStageRef.current.syncBillboards([], useStore.getState().stageCamera3D);
     }
   }, [
-    selectedIds,
     isExporting,
     isPlaying,
-    isSnapshotRequested,
     layers,
-    camera,
-    projectSettings,
-    editorMode,
-    sharedRendererPreviewEnabled,
-    rustVideoOnlyEnabled,
-    sharedRendererGpuStatus.webGpuAvailable,
-    sharedRendererGpuStatus.fallbackAdapter,
     publishSharedRendererPreviewSession,
   ]);
 
-  useEffect(() => { 
-      if (!isExporting && pixiReady) renderScene(currentTime, objects); 
+  useEffect(() => {
+    if (!isExporting) renderScene(currentTime, objects);
   }, [
     currentTime,
     objects,
     renderScene,
     renderTick,
     isExporting,
-    pixiReady,
-    visionDetectionPreviewEnabled,
-    visionDetectionOverlay
   ]);
 
   const getExportCanvas = useCallback((): HTMLCanvasElement | null => {
     if (useStore.getState().projectSettings.editorMode === '3d_stage') {
       return threeStageRef.current?.getCanvas() ?? null;
     }
-    const legacyExportCanvas = pixiAppRef.current?.canvas;
-    return legacyExportCanvas != null ? (legacyExportCanvas as HTMLCanvasElement) : null;
+    // PixiJS 排除計画 Phase 4: 旧 Pixi canvas の legacy export 経路は撤去。
+    // 2D の export フレームは getRustExportFrameSource（Rust 経路）が正で、
+    // canvas ベースの fallback は shared renderer の surface canvas を返す。
+    return sharedRendererSurfaceCanvasRef.current;
   }, []);
 
   const getRustExportFrameSource = useCallback((context: ProjectExportRustFrameSourceContext) => buildViewportRustExportFrameSource({
@@ -1999,10 +1440,12 @@ const Viewport: React.FC = () => {
         }
       }
 
-      if (pixiAppRef.current) {
-          const app = pixiAppRef.current;
-          app.render();
-          const dataUrl = app.canvas.toDataURL('image/png');
+      // PixiJS 排除計画 Phase 4: 2D スナップショットは Pixi canvas ではなく
+      // shared renderer の surface canvas から取得する（native overlay 主体の
+      // シーンでは surface が透明のことがある点は実機検証観点として報告済み）。
+      const surfaceCanvas = sharedRendererSurfaceCanvasRef.current;
+      if (surfaceCanvas) {
+          const dataUrl = surfaceCanvas.toDataURL('image/png');
           const link = document.createElement('a');
           const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
           link.download = `frame_${timestamp}.png`;
@@ -2200,6 +1643,56 @@ const Viewport: React.FC = () => {
               }}
             />
           )}
+          {/*
+            Vision 検出枠（cat/dog 単フレーム検出プレビュー）。
+            PixiJS 排除計画 Phase 4 で PIXI Graphics から SVG オーバーレイへ
+            置き換えた（座標計算は visionDetectionOverlayGeometry.ts）。
+          */}
+          {editorMode !== '3d_stage'
+            && !isExporting
+            && !isSnapshotRequested
+            && visionDetectionPreviewEnabled
+            && visionDetectionOverlay
+            && (() => {
+              const targetVideo = objects.find(
+                (object): object is VideoObject =>
+                  object.type === 'video' && object.id === visionDetectionOverlay.videoId
+              );
+              if (!targetVideo) return null;
+              const detection = buildVisionDetectionOverlayBoxes({
+                video: targetVideo,
+                overlay: visionDetectionOverlay,
+                time: currentTime,
+                objects,
+                viewport: sceneInteractionViewportRef.current,
+              });
+              if (!detection) return null;
+              return (
+                <svg
+                  data-testid="vision-detection-overlay"
+                  width={previewW}
+                  height={previewH}
+                  viewBox={`0 0 ${previewW} ${previewH}`}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    pointerEvents: 'none',
+                    overflow: 'visible',
+                    opacity: detection.stale ? 0.42 : 1,
+                  }}
+                >
+                  {detection.boxes.map((box, index) => (
+                    <polygon
+                      key={index}
+                      points={box.points}
+                      fill="none"
+                      stroke={box.colour}
+                      strokeWidth={5 * displayScale}
+                    />
+                  ))}
+                </svg>
+              );
+            })()}
           {shouldMountSharedRendererSurface && (
             <>
               <canvas

@@ -116,7 +116,7 @@ describe('buildSharedRendererExportSession', () => {
       reason: 'exporting',
       detail: 'Shared renderer preview surface is disabled during export.',
     });
-    expect(exportSession.plan.mode).toBe('parallelCompare');
+    expect(exportSession.plan.mode).toBe('sharedRenderer');
     expect(exportSession.surfaceGate.ok).toBe(true);
     if (!exportSession.surfaceGate.ok) throw new Error('expected export surface gate to pass');
     expect(exportSession.surfaceGate.canvas).toEqual({
@@ -137,7 +137,7 @@ describe('buildSharedRendererExportSession', () => {
       fallbackAdapter: false,
     });
 
-    expect(session.plan.mode).toBe('parallelCompare');
+    expect(session.plan.mode).toBe('sharedRenderer');
     expect(session.surfaceGate.ok).toBe(true);
     if (!session.surfaceGate.ok) throw new Error('expected export surface gate to pass');
     expect(session.surfaceGate.snapshot.clips[0].transform.scale_x).toBe(2);
@@ -155,7 +155,7 @@ describe('buildSharedRendererExportSession', () => {
       fallbackAdapter: false,
     });
 
-    expect(session.plan.mode).toBe('parallelCompare');
+    expect(session.plan.mode).toBe('sharedRenderer');
     expect(session.surfaceGate.ok).toBe(true);
     if (!session.surfaceGate.ok) throw new Error('expected export surface gate to pass');
     expect(session.surfaceGate.snapshot.clips[0].transform.translation_x).toBe(32.5);
@@ -174,9 +174,9 @@ describe('buildSharedRendererExportSession', () => {
       fallbackAdapter: false,
     });
 
-    expect(session.plan.mode).toBe('parallelCompare');
+    expect(session.plan.mode).toBe('sharedRenderer');
     expect(session.surfaceGate.ok).toBe(true);
-    if (session.plan.mode !== 'parallelCompare' || !session.surfaceGate.ok) {
+    if (session.plan.mode !== 'sharedRenderer' || !session.surfaceGate.ok) {
       throw new Error('expected video+PSD export session to pass');
     }
 
@@ -248,8 +248,8 @@ describe('buildSharedRendererExportSession', () => {
       fallbackAdapter: false,
     });
 
-    expect(session.plan.mode).toBe('parallelCompare');
-    if (session.plan.mode !== 'parallelCompare') {
+    expect(session.plan.mode).toBe('sharedRenderer');
+    if (session.plan.mode !== 'sharedRenderer') {
       throw new Error('expected export session to use shared renderer');
     }
     expect(session.plan.media).toEqual([expect.objectContaining({

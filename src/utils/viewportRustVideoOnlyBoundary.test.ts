@@ -4,8 +4,9 @@ import { describe, expect, it } from 'vitest';
 const viewportSource = () =>
   readFileSync(new URL('../components/Viewport.tsx', import.meta.url), 'utf8');
 
-const pixiRenderHelperSource = () =>
-  readFileSync(new URL('./pixiRenderHelper.ts', import.meta.url), 'utf8');
+// pixiRenderHelper.ts は PixiJS 排除計画 Phase 5 で削除済み。
+// 旧 pixiRenderHelper 向けの契約は pixiRemovalBoundary.test.ts の
+// 「ファイル不存在」検査がより強い保証として引き継いでいる。
 
 describe('Viewport Rust video-only boundary', () => {
   it('uses Rust/shared renderer video cutover for readiness diagnostics instead of HTMLVideoElement readiness', () => {
@@ -59,18 +60,6 @@ describe('Viewport Rust video-only boundary', () => {
     expect(code).not.toContain('videoFrameTextures:');
   });
 
-  it('does not route Pixi video cleanup through the stale Pixi video cutover gate', () => {
-    const code = pixiRenderHelperSource();
-    const start = code.indexOf("} else if (obj.type === 'video') {");
-    const end = code.indexOf("} else if (obj.type === 'audio_visualization')", start);
-    const videoBlock = code.slice(start, end);
-
-    expect(code).toContain("obj.type === 'video'");
-    expect(videoBlock).toContain('hidePixiChildrenForSharedRendererCutover(container.children)');
-    expect(videoBlock).not.toContain('removeChildren()');
-    expect(code).not.toContain('pixiVideoCutover');
-    expect(code).not.toContain('resolvePixiVideoRenderPath');
-  });
 
   it('uses Rust/shared renderer video cutover for presenter orchestration instead of the legacy browser video path', () => {
     const code = viewportSource();
@@ -383,24 +372,7 @@ describe('Viewport Rust video-only boundary', () => {
     expect(getExportCanvasBlock).not.toContain('pixiCanvas');
   });
 
-  it('does not let pixiRenderHelper create legacy HTMLVideoElement or Pixi VideoSource fallbacks', () => {
-    const code = pixiRenderHelperSource();
 
-    expect(code).not.toContain("document.createElement('video')");
-    expect(code).not.toContain('new PIXI.VideoSource');
-    expect(code).not.toContain('ensureVideoFrameTextureState');
-    expect(code).not.toContain('drawVideoFrameToTexture');
-    expect(code).not.toContain('shouldReplacePixiVideoElementSource');
-  });
-
-  it('does not keep stale Pixi video sprite crop helpers after video cutover', () => {
-    const code = pixiRenderHelperSource();
-
-    expect(code).not.toContain('VideoObject');
-    expect(code).not.toContain('evaluateSubjectCropNormRectAtTime');
-    expect(code).not.toContain('applyVideoSubjectCropMask');
-    expect(code).not.toContain("obj.type === 'image' || obj.type === 'video'");
-  });
 
   it('clears the native overlay live surface transparently when the scene clips transition to empty (Bug D case i)', () => {
     // Bug D — clip 削除で `activeJob=null` になり shared frame present が止まると、

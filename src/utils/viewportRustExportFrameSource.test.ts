@@ -485,7 +485,7 @@ describe('buildViewportRustExportFrameSource', () => {
       buildExportSession: () => exportSessionWithSurfaceGate({
         ok: false,
         reason: 'planNotComparable',
-        detail: 'Shared renderer surface requires a parallelCompare plan.',
+        detail: 'Shared renderer surface requires a sharedRenderer plan.',
       }),
       createFrameSource: (input) => {
         sourceCalls.push(input);
@@ -502,11 +502,11 @@ describe('buildViewportRustExportFrameSource', () => {
     expect(unavailableCalls).toEqual([{
       ok: false,
       reason: 'exportSessionBlocked',
-      detail: 'Shared renderer surface requires a parallelCompare plan.',
+      detail: 'Shared renderer surface requires a sharedRenderer plan.',
       nativeRenderEnvelope: {
         ok: false,
         reason: 'surfaceGateUnavailable',
-        detail: 'Shared renderer surface requires a parallelCompare plan.',
+        detail: 'Shared renderer surface requires a sharedRenderer plan.',
       },
     }]);
     expect(dataset).toEqual({
@@ -514,7 +514,7 @@ describe('buildViewportRustExportFrameSource', () => {
       uxfdRustExportFrameSourceReason: 'exportSessionBlocked',
       uxfdRustExportFrameSourceNativeRenderEnvelopeStatus: 'blocked',
       uxfdRustExportFrameSourceNativeRenderEnvelopeReason: 'surfaceGateUnavailable',
-      uxfdRustExportFrameSourceNativeRenderEnvelopeDetail: 'Shared renderer surface requires a parallelCompare plan.',
+      uxfdRustExportFrameSourceNativeRenderEnvelopeDetail: 'Shared renderer surface requires a sharedRenderer plan.',
     });
   });
 
@@ -542,7 +542,7 @@ describe('buildViewportRustExportFrameSource', () => {
       buildExportSession: () => exportSessionWithSurfaceGate({
         ok: false,
         reason: 'planNotComparable',
-        detail: 'Shared renderer surface requires a parallelCompare plan.',
+        detail: 'Shared renderer surface requires a sharedRenderer plan.',
       }),
       createFrameSource: () => {
         throw new Error('frame source must not be created after blocked video preflight.');
@@ -557,12 +557,12 @@ describe('buildViewportRustExportFrameSource', () => {
     expect(unavailableCalls).toEqual([{
       ok: false,
       reason: 'exportSessionBlocked',
-      detail: 'Shared renderer surface requires a parallelCompare plan.',
+      detail: 'Shared renderer surface requires a sharedRenderer plan.',
       diagnosticStatus: 'blocked',
       nativeRenderEnvelope: {
         ok: false,
         reason: 'surfaceGateUnavailable',
-        detail: 'Shared renderer surface requires a parallelCompare plan.',
+        detail: 'Shared renderer surface requires a sharedRenderer plan.',
       },
     }]);
     expect(dataset).toMatchObject({
@@ -598,7 +598,7 @@ describe('buildViewportRustExportFrameSource', () => {
       buildExportSession: () => exportSessionWithSurfaceGate({
         ok: false,
         reason: 'planNotComparable',
-        detail: 'Shared renderer surface requires a parallelCompare plan.',
+        detail: 'Shared renderer surface requires a sharedRenderer plan.',
       }),
       createFrameSource: () => {
         throw new Error('frame source must not be created after blocked native-render media preflight.');
@@ -613,12 +613,12 @@ describe('buildViewportRustExportFrameSource', () => {
     expect(unavailableCalls).toEqual([{
       ok: false,
       reason: 'exportSessionBlocked',
-      detail: 'Shared renderer surface requires a parallelCompare plan.',
+      detail: 'Shared renderer surface requires a sharedRenderer plan.',
       diagnosticStatus: 'blocked',
       nativeRenderEnvelope: {
         ok: false,
         reason: 'surfaceGateUnavailable',
-        detail: 'Shared renderer surface requires a parallelCompare plan.',
+        detail: 'Shared renderer surface requires a sharedRenderer plan.',
       },
     }]);
     expect(dataset).toMatchObject({
@@ -720,7 +720,7 @@ describe('resolveViewportRustExportFrameSource', () => {
         return exportSessionWithSurfaceGate({
           ok: false,
           reason: 'planNotComparable',
-          detail: 'Shared renderer surface requires a parallelCompare plan.',
+          detail: 'Shared renderer surface requires a sharedRenderer plan.',
         });
       },
       createFrameSource: (input) => {
@@ -732,11 +732,11 @@ describe('resolveViewportRustExportFrameSource', () => {
     expect(decision).toEqual({
       ok: false,
       reason: 'exportSessionBlocked',
-      detail: 'Shared renderer surface requires a parallelCompare plan.',
+      detail: 'Shared renderer surface requires a sharedRenderer plan.',
       nativeRenderEnvelope: {
         ok: false,
         reason: 'surfaceGateUnavailable',
-        detail: 'Shared renderer surface requires a parallelCompare plan.',
+        detail: 'Shared renderer surface requires a sharedRenderer plan.',
       },
     });
     expect(sessionCalls).toEqual([{
@@ -798,7 +798,7 @@ describe('resolveViewportRustExportFrameSource', () => {
           ? {
             ok: false,
             reason: 'planNotComparable',
-            detail: 'Shared renderer surface requires a parallelCompare plan.',
+            detail: 'Shared renderer surface requires a sharedRenderer plan.',
           }
           : {
             ok: true,
@@ -819,11 +819,11 @@ describe('resolveViewportRustExportFrameSource', () => {
     expect(decision).toEqual({
       ok: false,
       reason: 'exportSessionBlocked',
-      detail: 'Shared renderer surface requires a parallelCompare plan.',
+      detail: 'Shared renderer surface requires a sharedRenderer plan.',
       nativeRenderEnvelope: {
         ok: false,
         reason: 'surfaceGateUnavailable',
-        detail: 'Shared renderer surface requires a parallelCompare plan.',
+        detail: 'Shared renderer surface requires a sharedRenderer plan.',
       },
     });
     expect(sessionCalls.map((input) => input.time)).toEqual([0, 2]);
@@ -944,7 +944,7 @@ describe('writeViewportRustExportFrameSourceDiagnostics', () => {
     writeViewportRustExportFrameSourceDiagnostics(dataset, {
       ok: false,
       reason: 'exportSessionBlocked',
-      detail: 'Shared renderer surface requires a parallelCompare plan.',
+      detail: 'Shared renderer surface requires a sharedRenderer plan.',
     });
     expect(dataset).toEqual({
       uxfdRustExportFrameSourceStatus: 'fallback',

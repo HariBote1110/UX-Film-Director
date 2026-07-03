@@ -25,9 +25,7 @@ const descriptor: RustBackendVideoFrameDescriptor = {
 
 const mediaOnlySession: SharedRendererPreviewSession = {
   plan: {
-    mode: 'parallelCompare',
-    primary: 'pixi',
-    candidate: 'sharedRenderer',
+    mode: 'sharedRenderer',
     snapshot: {
       frame_index: 24,
       colour: {
@@ -101,7 +99,7 @@ const mediaOnlySession: SharedRendererPreviewSession = {
 };
 
 const buildPsdOnlySession = (): SharedRendererPreviewSession => {
-  if (mediaOnlySession.plan.mode !== 'parallelCompare' || !mediaOnlySession.surfaceGate.ok) {
+  if (mediaOnlySession.plan.mode !== 'sharedRenderer' || !mediaOnlySession.surfaceGate.ok) {
     throw new Error('mediaOnlySession fixture must be renderable');
   }
 
@@ -124,9 +122,7 @@ const buildPsdOnlySession = (): SharedRendererPreviewSession => {
   return {
     ...mediaOnlySession,
     plan: {
-      mode: 'parallelCompare',
-      primary: 'pixi',
-      candidate: 'sharedRenderer',
+      mode: 'sharedRenderer',
       snapshot: psdSnapshot,
       media: psdMedia,
     },
@@ -186,9 +182,7 @@ const buildVideoWithRemotePsdSession = (): SharedRendererPreviewSession => {
   return {
     ...mediaOnlySession,
     plan: {
-      mode: 'parallelCompare',
-      primary: 'pixi',
-      candidate: 'sharedRenderer',
+      mode: 'sharedRenderer',
       snapshot,
       media,
     },
@@ -251,9 +245,7 @@ const buildVideoWithGeneratedGradientSession = (): SharedRendererPreviewSession 
   return {
     ...mediaOnlySession,
     plan: {
-      mode: 'parallelCompare',
-      primary: 'pixi',
-      candidate: 'sharedRenderer',
+      mode: 'sharedRenderer',
       snapshot,
       media,
     },
@@ -299,9 +291,7 @@ const buildAudioWaveformSession = (): SharedRendererPreviewSession => {
   return {
     ...mediaOnlySession,
     plan: {
-      mode: 'parallelCompare',
-      primary: 'pixi',
-      candidate: 'sharedRenderer',
+      mode: 'sharedRenderer',
       snapshot,
       media,
     },
@@ -348,9 +338,7 @@ const buildAudioSphereSession = (): SharedRendererPreviewSession => {
   return {
     ...mediaOnlySession,
     plan: {
-      mode: 'parallelCompare',
-      primary: 'pixi',
-      candidate: 'sharedRenderer',
+      mode: 'sharedRenderer',
       snapshot,
       media,
     },
@@ -1024,9 +1012,7 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
     const session: SharedRendererPreviewSession = {
       ...videoOnlySession,
       plan: {
-        mode: 'parallelCompare',
-        primary: 'pixi',
-        candidate: 'sharedRenderer',
+        mode: 'sharedRenderer',
         snapshot: {
           ...videoOnlySession.surfaceGate.snapshot,
           clips: [videoOnlySession.surfaceGate.snapshot.clips[0]],
@@ -1218,9 +1204,7 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
     const session: SharedRendererPreviewSession = {
       ...videoOnlySession,
       plan: {
-        mode: 'parallelCompare',
-        primary: 'pixi',
-        candidate: 'sharedRenderer',
+        mode: 'sharedRenderer',
         snapshot: {
           ...videoOnlySession.surfaceGate.snapshot,
           clips: [videoOnlySession.surfaceGate.snapshot.clips[0]],
@@ -1327,9 +1311,7 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
     const session: SharedRendererPreviewSession = {
       ...videoOnlySession,
       plan: {
-        mode: 'parallelCompare',
-        primary: 'pixi',
-        candidate: 'sharedRenderer',
+        mode: 'sharedRenderer',
         snapshot: {
           ...videoOnlySession.surfaceGate.snapshot,
           clips: [videoOnlySession.surfaceGate.snapshot.clips[0]],
@@ -1433,9 +1415,7 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
     const session: SharedRendererPreviewSession = {
       ...videoOnlySession,
       plan: {
-        mode: 'parallelCompare',
-        primary: 'pixi',
-        candidate: 'sharedRenderer',
+        mode: 'sharedRenderer',
         snapshot: {
           ...videoOnlySession.surfaceGate.snapshot,
           clips: [videoOnlySession.surfaceGate.snapshot.clips[0]],
@@ -1568,9 +1548,7 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
     const session: SharedRendererPreviewSession = {
       ...videoOnlySession,
       plan: {
-        mode: 'parallelCompare',
-        primary: 'pixi',
-        candidate: 'sharedRenderer',
+        mode: 'sharedRenderer',
         snapshot: {
           ...videoOnlySession.surfaceGate.snapshot,
           clips: [videoOnlySession.surfaceGate.snapshot.clips[0]],
@@ -1674,9 +1652,7 @@ describe('prepareSharedRendererViewportNativeRenderUpload', () => {
     const session: SharedRendererPreviewSession = {
       ...videoOnlySession,
       plan: {
-        mode: 'parallelCompare',
-        primary: 'pixi',
-        candidate: 'sharedRenderer',
+        mode: 'sharedRenderer',
         snapshot: {
           ...videoOnlySession.surfaceGate.snapshot,
           clips: [videoOnlySession.surfaceGate.snapshot.clips[0]],

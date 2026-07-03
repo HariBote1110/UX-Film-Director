@@ -16,9 +16,7 @@ const emptySnapshot: RustSceneSnapshot = {
 
 const baseSession = (snapshot: RustSceneSnapshot): SharedRendererPreviewSession => ({
   plan: {
-    mode: 'parallelCompare',
-    primary: 'pixi',
-    candidate: 'sharedRenderer',
+    mode: 'sharedRenderer',
     snapshot,
     media: snapshot.clips.map((clip) => ({
       id: clip.media_id,
@@ -79,7 +77,7 @@ describe('buildSharedRendererPresenterSessionKey', () => {
       surfaceGate: {
         ok: false,
         reason: 'planNotComparable',
-        detail: 'Shared renderer surface requires a parallelCompare plan.',
+        detail: 'Shared renderer surface requires a sharedRenderer plan.',
       },
     };
 

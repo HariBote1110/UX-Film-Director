@@ -194,12 +194,12 @@ describe('formatLastExportDiagnosticsSummary', () => {
     const diagnostics: ExportDiagnostics = {
       exportFrameSourcePlanFailure: {
         reason: 'rustFrameSourceRequired',
-        detail: 'Image/PSD export requires a shared renderer Rust frame source. Shared renderer surface requires a parallelCompare plan.',
+        detail: 'Image/PSD export requires a shared renderer Rust frame source. Shared renderer surface requires a sharedRenderer plan.',
       },
     };
 
     expect(formatLastExportDiagnosticsSummary(diagnostics, 'en')).toEqual([
-      'Rust frame source plan: Rust frame source required: Image/PSD export requires a shared renderer Rust frame source. Shared renderer surface requires a parallelCompare plan.',
+      'Rust frame source plan: Rust frame source required: Image/PSD export requires a shared renderer Rust frame source. Shared renderer surface requires a sharedRenderer plan.',
     ]);
   });
 });

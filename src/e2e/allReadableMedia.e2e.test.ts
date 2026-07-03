@@ -950,7 +950,7 @@ describe('全読込可能メディア E2E', () => {
       webGpuAvailable: true,
       fallbackAdapter: false,
     });
-    expect(previewSession.plan.mode).toBe('parallelCompare');
+    expect(previewSession.plan.mode).toBe('sharedRenderer');
     expect(previewSession.surfaceGate.ok).toBe(true);
     if (!previewSession.surfaceGate.ok) {
       throw new Error(`Shared renderer surface gate failed: ${previewSession.surfaceGate.detail}`);

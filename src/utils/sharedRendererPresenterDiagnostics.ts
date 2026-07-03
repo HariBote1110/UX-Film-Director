@@ -26,7 +26,7 @@ export type SharedRendererPresenterDiagnosticState =
   | {
       status: 'ready';
       format: string;
-      swatch: 'solid-srgb' | 'solid-colour-scene' | 'pixi-passthrough' | 'native-render-frame';
+      swatch: 'solid-srgb' | 'solid-colour-scene' | 'no-presentation' | 'native-render-frame';
       nativeRenderFrameReady?: boolean;
       nativeRenderMediaCount?: number;
       nativeRenderMediaKinds?: string;
@@ -66,7 +66,7 @@ export type SharedRendererPresenterDiagnosticState =
   | {
       status: 'fallback' | 'blocked';
       reason: string;
-      swatch?: 'solid-srgb' | 'solid-colour-scene' | 'pixi-passthrough' | 'native-render-frame';
+      swatch?: 'solid-srgb' | 'solid-colour-scene' | 'no-presentation' | 'native-render-frame';
       nativeRenderFailureReason?: string;
       nativeRenderFailureDetail?: string;
       videoUploadFailureReason?: string;
