@@ -1,3 +1,22 @@
+## 2026-07-03 — 調査・計画: PixiJS 依存の棚卸しと排除計画の策定
+
+### 実施内容
+
+- ユーザー方針「Rust オーバーレイと Pixi の混在構造を解消するため Pixi を排除したい」を受け、依存を調査した。
+- 直接 import は4ファイルのみ（pixiRenderHelper 986行 / Viewport 2211行中28箇所 / usePixiInteraction 262行 / pixiUtils 229行）。export・動画 present・シーンモデル・幾何は既に Pixi 非依存。種別ごとの所有権移転レール（`shouldSkipPixi*ForSharedRenderer` + `sharedRenderer*Ownership`）も敷設済み。
+- Pixi 固有で残るのは (1) テキスト描画（rust schema に Text Kind が無い＝最大ギャップ）、(2) インタラクション（ヒットテスト・ドラッグ）、(3) 一部エフェクトのランタイム適用、(4) pixi-passthrough fallback と parallelCompare。
+- 5フェーズの排除計画を `markdown/Pixi_Removal_Plan.md` として策定（Phase 0 監査 → 1 非テキスト cutover 完遂 → 2 テキスト Rust 化 → 3 インタラクション脱 Pixi → 4 presenter 一本化 → 5 依存削除＋boundary テスト拡大）。
+
+### 選定理由・判断の根拠
+
+- fallback 撤去（Phase 4）を最後に置くのは、移行中の描画不具合時に Pixi へ退避できる安全網を保つため。
+- Phase 4 は「HTML UI の下に描く汎用キャンバス」が消えるため、Bug E（overlay の z-order、child NSWindow 化）と同一マイルストーンとして扱う判断を計画に明記した。
+- テキストは glyphon / cosmic-text の native-wgpu-renderer 統合を本命とし、HTML Canvas ラスタライズ→アップロードは暫定案（2系統残留のため恒久解にしない）と位置づけた。
+
+### 残課題・次のステップ
+
+- Phase 0（所有権実態の監査と parity 棚卸し）から着手可能。ユーザーの指示待ち。
+
 ## 2026-07-03 — 実機検証: playhead動画なし位置のoverlay残留フレーム修正（426c）合格
 
 ### 実施内容
