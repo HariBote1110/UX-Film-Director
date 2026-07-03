@@ -47,6 +47,7 @@ import type {
 } from '../types';
 import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier } from './filterStack';
 import { evaluateObjectPositionAtTime } from './keyframes';
+import { getVibrationOffset } from './sceneTransforms';
 
 export type RustSamplingMode = 'nearest' | 'bilinear';
 
@@ -214,6 +215,10 @@ export const buildRustSceneSnapshotForTimeline = ({
 
   const clips = supportedObjects.map((object, zIndex): RustEvaluatedClip => {
     const position = evaluateObjectPositionAtTime(object, time);
+    // 振動フィルタは rust-core の Effect に対応物が無いが、純粋な位置
+    // オフセットのため TS 側（sceneTransforms.getVibrationOffset）で計算し
+    // translation に畳み込む（PixiJS 排除計画 Phase 4/5 の最小移植）。
+    const vibration = getVibrationOffset(object, time);
     const opacity = clamp01((object.opacity ?? 1) * getFadeOpacityMultiplier(object));
     const transformScale = mediaSourceScaleForObject(object, videoSourceMode);
     return {
@@ -223,8 +228,8 @@ export const buildRustSceneSnapshotForTimeline = ({
       source_frame: sourceFrameForObject(object, time, projectSettings.fps),
       z_index: zIndex,
       transform: {
-        translation_x: position.x,
-        translation_y: position.y,
+        translation_x: position.x + vibration.x,
+        translation_y: position.y + vibration.y,
         scale_x: object.scaleX * transformScale.x,
         scale_y: object.scaleY * transformScale.y,
         rotation_degrees: normaliseRotationDegrees(object.rotation),
@@ -348,6 +353,8 @@ const collectBuildIssues = (
       && filter.type !== 'oct_transform'
       && filter.type !== 'area_expand'
       && filter.type !== 'smart_clipping'
+      // 振動は Effect ではなく transform（translation）への畳み込みで表現する
+      && filter.type !== 'vibration'
       && !(object.type === 'shape' && filter.type === 'gradient')
     ));
     if (unsupportedFilter) {
