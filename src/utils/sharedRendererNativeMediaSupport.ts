@@ -42,7 +42,35 @@ export const isSharedRendererNativeMediaReferenceSupported = (
   if (reference.kind === 'GeneratedShatteredSphere') return isSharedRendererNativeGeneratedShatteredSphereSourceSupported(reference.source);
   if (reference.kind === 'Image') return isSharedRendererNativeImageSourceSupported(reference.source);
   if (reference.kind === 'Psd') return isSharedRendererNativePsdSourceSupported(reference.source);
+  if (reference.kind === 'Text') return isSharedRendererNativeTextSourceSupported(reference.source);
   return false;
+};
+
+const isSharedRendererNativeTextSourceSupported = (source: string): boolean => {
+  try {
+    const parsed = JSON.parse(source) as {
+      text?: unknown;
+      font_family?: unknown;
+      font_size?: unknown;
+      colour?: unknown;
+      alignment?: unknown;
+      letter_spacing?: unknown;
+    };
+    return (
+      typeof parsed.text === 'string'
+      && typeof parsed.font_family === 'string'
+      && typeof parsed.font_size === 'number'
+      && Number.isFinite(parsed.font_size)
+      && parsed.font_size > 0
+      && typeof parsed.colour === 'string'
+      && /^#[0-9a-f]{6}$/i.test(parsed.colour)
+      && (parsed.alignment === 'left' || parsed.alignment === 'centre' || parsed.alignment === 'right')
+      && typeof parsed.letter_spacing === 'number'
+      && Number.isFinite(parsed.letter_spacing)
+    );
+  } catch {
+    return false;
+  }
 };
 
 export const canRenderSharedRendererNativeMediaOnlyFrame = ({
