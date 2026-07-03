@@ -250,3 +250,14 @@ pub(crate) struct AudioWaveformSamplesParams {
 pub(crate) struct PsdParseParams {
     pub(crate) file_path: String,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PsdRenderCompositeParams {
+    pub(crate) file_path: String,
+    /// 指定時はこのレイヤー(stable_id)集合のみを合成する。省略時は
+    /// visible な全リーフレイヤーを合成する（psd_fast::composite_visible_psd_layers
+    /// と同じ既定動作）。
+    #[serde(default)]
+    pub(crate) active_layer_ids: Option<Vec<String>>,
+}

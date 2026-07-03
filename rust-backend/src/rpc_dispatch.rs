@@ -7,6 +7,7 @@ use crate::encode::{
 };
 use crate::media::{
     handle_audio_waveform_samples, handle_media_probe, handle_psd_await_blob, handle_psd_parse,
+    handle_psd_render_composite,
 };
 use crate::native_render::{handle_encode_write_native_frame, handle_native_render_shared_frame};
 use crate::native_shared::handle_release_native_render_shared_frame;
@@ -41,6 +42,9 @@ pub(crate) fn handle_request(request: RpcRequest, state: &mut BackendState) -> R
         "media.probe" => handle_media_probe(request.id, request.params),
         "audio.waveformSamples" => handle_audio_waveform_samples(request.id, request.params),
         "psd.parse" => handle_psd_parse(request.id, request.params, state),
+        "psd.renderComposite" => {
+            handle_psd_render_composite(request.id, request.params, state)
+        }
         "psd.await_blob" => handle_psd_await_blob(request.id, state),
         "decode.start" => handle_decode_start(request.id, request.params, state),
         "decode.stop" => handle_decode_stop(request.id, request.params, state),

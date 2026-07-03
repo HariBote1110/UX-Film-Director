@@ -48,6 +48,7 @@ import type {
 import { getEnabledObjectFiltersInOrder, getFadeOpacityMultiplier } from './filterStack';
 import { evaluateObjectPositionAtTime } from './keyframes';
 import { getVibrationOffset } from './sceneTransforms';
+import { evaluateSubjectCropNormRectAtTime } from './subjectCropKeyframes';
 
 export type RustSamplingMode = 'nearest' | 'bilinear';
 
@@ -344,11 +345,17 @@ const collectBuildIssues = (
       });
     }
 
-    if (object.type === 'video' && (object.reversed || object.subjectCropEnabled)) {
+    if (object.type === 'video' && object.reversed) {
+      // 逆再生は decode.rs のストリーミングデコーダが逐次読み進みのみを
+      // 前提としており、逆順フレーム要求は毎フレーム backwardSeek（ffmpeg
+      // プロセス再起動、150-400ms/フレーム、コメント実測値）を誘発する。
+      // 30-60fpsのプレビュー/再生には桁違いに不足するため、シークなしの
+      // 復路が用意できるまで拒否を維持する（subjectCrop とは異なり、旧
+      // Pixi実装でも実際のフレーム反転描画は一度も存在しなかった死機能）。
       issues.push({
         code: 'unsupportedVideoMode',
         objectId: object.id,
-        detail: 'Reversed playback and subject crop are not enabled in the shared renderer bridge yet.',
+        detail: 'Reversed video playback has no seek-free decode path in the shared renderer bridge yet.',
       });
     }
 
@@ -799,6 +806,27 @@ const rustEffectsForObject = (object: TimelineObject, time: number): RustEffect[
       });
     }
   });
+
+  if (object.type === 'video' && object.subjectCropEnabled) {
+    // 旧 Pixi 実装（applyVideoSubjectCropMask）は subjectCropKeyframes を
+    // 正規化矩形（0..1）として補間し、その矩形の外側をスプライトの矩形
+    // マスクで隠していた。Rust 側には同じ「矩形の外側を隠す」意味論を
+    // 持つ Effect::Clipping（AviUtl互換、px単位の四辺クリッピング）が
+    // 既にあるため、正規化矩形を動画の width/height で px 化して変換する。
+    const crop = evaluateSubjectCropNormRectAtTime(object, time);
+    if (crop && crop.width > 1e-6 && crop.height > 1e-6) {
+      effects.push({
+        Clipping: {
+          top: crop.y * object.height,
+          bottom: (1 - crop.y - crop.height) * object.height,
+          left: crop.x * object.width,
+          right: (1 - crop.x - crop.width) * object.width,
+          angle_degrees: 0,
+        },
+      });
+    }
+  }
+
   return effects;
 };
 

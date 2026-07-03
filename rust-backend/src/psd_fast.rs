@@ -489,6 +489,23 @@ pub fn composite_visible_psd_layers_with_active_layer_ids(
     composite_visible_psd_layers_with_filter(psd, Some(active_layer_ids))
 }
 
+/// `psd.renderComposite` RPC の合成レイヤー選択ロジック。`active_layer_ids`
+/// が `None`（RPCパラメータ省略）または空集合のときは visible な全リーフ
+/// レイヤーを合成し、指定時はそのレイヤー集合のみを合成する。3Dステージの
+/// PSDビルボードは PixiJS extract 撤去により合成手段を失っており、この
+/// 関数はビルボードテクスチャ用の「PSDファイル→合成RGBA」経路の中核選択肢。
+pub fn select_psd_composite_frame(
+    psd: &PsdFastResult,
+    active_layer_ids: Option<&[String]>,
+) -> Result<RgbaFrame, String> {
+    match active_layer_ids {
+        Some(ids) if !ids.is_empty() => {
+            composite_visible_psd_layers_with_active_layer_ids(psd, ids)
+        }
+        _ => composite_visible_psd_layers(psd),
+    }
+}
+
 fn composite_visible_psd_layers_with_filter(
     psd: &PsdFastResult,
     active_layer_ids: Option<&[String]>,
@@ -911,6 +928,70 @@ mod tests {
         let frame =
             composite_visible_psd_layers_with_active_layer_ids(&psd, &["psd-layer-1".to_string()])
                 .expect("composited PSD frame");
+
+        assert_eq!(frame.pixels, vec![0, 0, 255, 255]);
+    }
+
+    fn two_layer_psd_fixture() -> PsdFastResult {
+        PsdFastResult {
+            width: 1,
+            height: 1,
+            layers: vec![
+                PsdFastLayer {
+                    stable_id: "psd-layer-0".to_string(),
+                    name: "front".to_string(),
+                    top: 0,
+                    left: 0,
+                    width: 1,
+                    height: 1,
+                    visible: true,
+                    parent_group_id: None,
+                    is_group: false,
+                    own_group_id: None,
+                    rgba: Some(vec![255, 0, 0, 255]),
+                },
+                PsdFastLayer {
+                    stable_id: "psd-layer-1".to_string(),
+                    name: "back".to_string(),
+                    top: 0,
+                    left: 0,
+                    width: 1,
+                    height: 1,
+                    visible: true,
+                    parent_group_id: None,
+                    is_group: false,
+                    own_group_id: None,
+                    rgba: Some(vec![0, 0, 255, 255]),
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn select_psd_composite_frame_composites_all_visible_layers_when_active_ids_is_none() {
+        let psd = two_layer_psd_fixture();
+
+        let frame = select_psd_composite_frame(&psd, None).expect("composited PSD frame");
+
+        // 上に乗る front(赤, alpha 255) が back(青) を完全に覆う。
+        assert_eq!(frame.pixels, vec![255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn select_psd_composite_frame_composites_all_visible_layers_when_active_ids_is_empty() {
+        let psd = two_layer_psd_fixture();
+
+        let frame = select_psd_composite_frame(&psd, Some(&[])).expect("composited PSD frame");
+
+        assert_eq!(frame.pixels, vec![255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn select_psd_composite_frame_composites_only_the_requested_active_layers() {
+        let psd = two_layer_psd_fixture();
+
+        let frame = select_psd_composite_frame(&psd, Some(&["psd-layer-1".to_string()]))
+            .expect("composited PSD frame");
 
         assert_eq!(frame.pixels, vec![0, 0, 255, 255]);
     }

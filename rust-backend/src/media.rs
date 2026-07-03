@@ -4,7 +4,9 @@ use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::params::{AudioWaveformSamplesParams, MediaProbeParams, PsdParseParams};
+use crate::params::{
+    AudioWaveformSamplesParams, MediaProbeParams, PsdParseParams, PsdRenderCompositeParams,
+};
 use crate::psd_fast;
 use crate::rpc::{response_error, RpcResponse};
 use crate::state::{BackendState, BlobWriteResult};
@@ -337,5 +339,84 @@ pub(crate) fn handle_psd_await_blob(id: u64, state: &mut BackendState) -> RpcRes
             error: None,
         },
         Err(e) => response_error(id, -32031, &format!("Blob write failed: {e}")),
+    }
+}
+
+/// PSDファイルを解析し、visible なレイヤー（または `activeLayerIds` で
+/// 指定したレイヤーのみ）を合成した単一の RGBA ラスタを返す。3Dステージ
+/// モードの PSD ビルボードは PixiJS の `renderer.extract.canvas` に依存
+/// していたが撤去済みのため、同じ「PSDファイル→合成RGBA」を rust-backend
+/// 側で提供する。ピクセルデータは `psd.parse` と同じ非同期一時ファイル
+/// 経由（`psd.await_blob` で待ち受け）で受け渡す。
+pub(crate) fn handle_psd_render_composite(
+    id: u64,
+    params: Value,
+    state: &mut BackendState,
+) -> RpcResponse {
+    let parsed = match serde_json::from_value::<PsdRenderCompositeParams>(params) {
+        Ok(value) => value,
+        Err(error) => {
+            return response_error(
+                id,
+                -32602,
+                &format!("Invalid psd.renderComposite params: {error}"),
+            );
+        }
+    };
+
+    if parsed.file_path.trim().is_empty() {
+        return response_error(id, -32602, "filePath must not be empty");
+    }
+
+    let bytes = match fs::read(&parsed.file_path) {
+        Ok(b) => b,
+        Err(e) => return response_error(id, -32020, &format!("Failed to read PSD file: {e}")),
+    };
+
+    let psd = match psd_fast::parse_psd_fast(&bytes) {
+        Ok(r) => r,
+        Err(e) => return response_error(id, -32021, &format!("Failed to parse PSD: {e}")),
+    };
+
+    let frame = match psd_fast::select_psd_composite_frame(
+        &psd,
+        parsed.active_layer_ids.as_deref(),
+    ) {
+        Ok(f) => f,
+        Err(e) => return response_error(id, -32022, &format!("Failed to composite PSD: {e}")),
+    };
+
+    let tmp_path = {
+        let pid = std::process::id();
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        std::env::temp_dir().join(format!("uxfd-psd-composite-{pid}-{ts}.raw"))
+    };
+    let tmp_path_str = tmp_path.to_string_lossy().into_owned();
+
+    let blob_result: BlobWriteResult = Arc::new(Mutex::new(None));
+    let blob_result_clone = Arc::clone(&blob_result);
+    let write_path = tmp_path.clone();
+    let pixels = frame.pixels;
+    std::thread::spawn(move || {
+        let outcome = fs::write(&write_path, &pixels)
+            .map(|_| write_path.to_string_lossy().into_owned())
+            .map_err(|e| e.to_string());
+        *blob_result_clone.lock().unwrap() = Some(outcome);
+    });
+
+    state.psd_blob_result = Some(blob_result);
+
+    RpcResponse {
+        id,
+        ok: true,
+        result: Some(json!({
+            "tmpFile": tmp_path_str,
+            "width": frame.width,
+            "height": frame.height,
+        })),
+        error: None,
     }
 }
