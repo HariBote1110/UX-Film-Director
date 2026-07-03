@@ -450,6 +450,11 @@ fn decode_layer_rgba(
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /// A parsed PSD layer, including decompressed RGBA pixel data.
+///
+/// Layers are flattened pre-order (group node first, then its children,
+/// siblings bottom-to-top) so that indices and group ids reproduce the
+/// ag-psd walk used by the UI (`src/utils/psdAgPsdWorker.ts`).  The first
+/// entry is therefore the bottom-most element of the layer stack.
 pub struct PsdFastLayer {
     pub stable_id: String,
     pub name: String,
@@ -458,8 +463,8 @@ pub struct PsdFastLayer {
     pub width: u32,
     pub height: u32,
     pub visible: bool,
-    /// Group ID of the *parent* group, if any (matches `PsdGroup::id()` from psd crate).
-    /// This is tracked via the section-divider stack during parsing.
+    /// Group ID of the *parent* group, if any.  Group IDs are assigned
+    /// pre-order during flattening (same numbering as the ag-psd UI walk).
     pub parent_group_id: Option<u32>,
     /// If this layer is a group, its own group ID (assigned sequentially).
     pub is_group: bool,
@@ -521,17 +526,53 @@ fn composite_visible_psd_layers_with_filter(
         .ok_or_else(|| "PSD composite canvas byte length overflows".to_string())?;
     let mut canvas = vec![0u8; canvas_len];
 
-    for layer in psd.layers.iter().rev() {
-        if !layer.visible || layer.is_group {
+    // own_group_id → group layer（祖先の可視性/active 判定に使う）。
+    let groups: std::collections::HashMap<u32, &PsdFastLayer> = psd
+        .layers
+        .iter()
+        .filter_map(|layer| layer.own_group_id.map(|id| (id, layer)))
+        .collect();
+
+    // parent_group_id チェーンを辿り、全ての祖先グループが述語を満たすか。
+    let ancestors_all = |mut parent: Option<u32>, predicate: &dyn Fn(&PsdFastLayer) -> bool| {
+        let mut remaining = psd.layers.len();
+        while let Some(group_id) = parent {
+            let Some(group) = groups.get(&group_id) else {
+                break; // 参照先不明のグループは判定不能なので無視する
+            };
+            if !predicate(group) {
+                return false;
+            }
+            parent = group.parent_group_id;
+            remaining = remaining.saturating_sub(1);
+            if remaining == 0 {
+                break; // 循環防御
+            }
+        }
+        true
+    };
+
+    // psd.layers は pre-order フラット列（先頭が最背面）。前から順に
+    // source-over で塗ることで下→上の重なりを再現する。
+    for layer in psd.layers.iter() {
+        if layer.is_group {
             continue;
         }
-        if let Some(active_layer_ids) = active_layer_ids {
-            if !active_layer_ids
-                .iter()
-                .any(|active_id| active_id == &layer.stable_id)
-            {
-                continue;
+        let included = match active_layer_ids {
+            // activeLayerIds は UI の選択状態そのもの（radio 差分レイヤーは
+            // ファイル上 hidden でも選択され得る）。ファイルの可視フラグでは
+            // なく、リーフ自身と祖先グループの active 状態だけで判定する。
+            Some(active_layer_ids) => {
+                let is_active =
+                    |candidate: &PsdFastLayer| active_layer_ids.contains(&candidate.stable_id);
+                is_active(layer) && ancestors_all(layer.parent_group_id, &is_active)
             }
+            // 無指定時は Photoshop と同様、リーフ自身と祖先グループの
+            // 可視フラグを継承する。
+            None => layer.visible && ancestors_all(layer.parent_group_id, &|g| g.visible),
+        };
+        if !included {
+            continue;
         }
         let Some(rgba) = layer.rgba.as_ref() else {
             continue;
@@ -696,61 +737,7 @@ pub fn parse_psd_fast(bytes: &[u8]) -> Result<PsdFastResult, String> {
     }
 
     // ── Phase 2: decode channel image data ────────────────────────────────────
-    // Assign sequential group IDs as we encounter section-divider layers (type 1/2).
-    // Track the nesting stack to assign parent_group_id.
-    let mut group_id_counter = 0u32;
-    let mut group_stack: Vec<u32> = vec![]; // stack of own_group_id values
-
-    // Build layer descriptors *without* pixels first so we know types and IDs.
-    // We need to resolve parent_group_id before reading pixel data (same pass).
-    struct Descriptor {
-        record_idx: usize,
-        parent_group_id: Option<u32>,
-        own_group_id: Option<u32>,
-    }
-
-    let mut descriptors: Vec<Descriptor> = Vec::with_capacity(layer_count);
-
-    // PSD stores layers from top to bottom visually.  Groups are encoded as:
-    //   [group header (type 1/2)]  ← the visible group entry in the panel
-    //   [child layers …]
-    //   [bounding section divider (type 3)]  ← invisible closer
-    for (i, rec) in records.iter().enumerate() {
-        let parent = group_stack.last().copied();
-
-        match rec.layer_type {
-            1 | 2 => {
-                // Group header: assign a new group ID and push to stack
-                let gid = group_id_counter;
-                group_id_counter += 1;
-                descriptors.push(Descriptor {
-                    record_idx: i,
-                    parent_group_id: parent,
-                    own_group_id: Some(gid),
-                });
-                group_stack.push(gid);
-            }
-            3 => {
-                // Bounding section divider: close the current group
-                group_stack.pop();
-                descriptors.push(Descriptor {
-                    record_idx: i,
-                    parent_group_id: parent,
-                    own_group_id: None,
-                });
-            }
-            _ => {
-                // Regular leaf layer
-                descriptors.push(Descriptor {
-                    record_idx: i,
-                    parent_group_id: parent,
-                    own_group_id: None,
-                });
-            }
-        }
-    }
-
-    // Now decode pixels in the channel image data section (follows layer records).
+    // Channel image data follows the layer records in the same (file) order.
     let mut pixel_data: Vec<Option<Vec<u8>>> = Vec::with_capacity(layer_count);
     for rec in &records {
         match rec.layer_type {
@@ -771,34 +758,131 @@ pub fn parse_psd_fast(bytes: &[u8]) -> Result<PsdFastResult, String> {
         }
     }
 
-    // ── Assemble final layer list ─────────────────────────────────────────────
-    let mut layers: Vec<PsdFastLayer> = Vec::with_capacity(layer_count);
-    for desc in &descriptors {
-        let rec = &records[desc.record_idx];
-        let w = (rec.right - rec.left).max(0) as u32;
-        let h = (rec.bottom - rec.top).max(0) as u32;
-        let is_group = rec.layer_type == 1 || rec.layer_type == 2;
-        let is_section_end = rec.layer_type == 3;
-
-        if is_section_end {
-            // Bounding section dividers are internal bookkeeping; skip them.
-            continue;
-        }
-
-        layers.push(PsdFastLayer {
-            stable_id: stable_layer_id(desc.record_idx, is_group, desc.own_group_id),
-            name: rec.name.clone(),
-            top: rec.top,
-            left: rec.left,
-            width: w,
-            height: h,
-            visible: rec.visible,
-            parent_group_id: desc.parent_group_id,
-            is_group,
-            own_group_id: desc.own_group_id,
-            rgba: pixel_data[desc.record_idx].clone(),
-        });
+    // ── Phase 3: rebuild the group tree from file order ──────────────────────
+    // PSD stores layer records bottom-to-top.  A group is encoded as:
+    //   [bounding section divider (type 3)]  ← below the group's content
+    //   [child layers …]
+    //   [group header (type 1/2)]            ← the visible group entry
+    // So, scanning in file order, a type-3 divider OPENS a group's content and
+    // the header CLOSES it.
+    enum TreeNode {
+        Leaf { record_idx: usize },
+        Group { record_idx: usize, children: Vec<TreeNode> },
     }
+
+    let mut stack: Vec<Vec<TreeNode>> = vec![Vec::new()];
+    for (i, rec) in records.iter().enumerate() {
+        match rec.layer_type {
+            3 => stack.push(Vec::new()),
+            1 | 2 => {
+                // Malformed files may miss the matching divider; degrade to an
+                // empty group instead of corrupting the root level.
+                let children = if stack.len() > 1 {
+                    stack.pop().unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+                stack
+                    .last_mut()
+                    .expect("root accumulator always present")
+                    .push(TreeNode::Group {
+                        record_idx: i,
+                        children,
+                    });
+            }
+            _ => stack
+                .last_mut()
+                .expect("root accumulator always present")
+                .push(TreeNode::Leaf { record_idx: i }),
+        }
+    }
+    // Unmatched dividers: merge orphaned accumulators back into the root.
+    while stack.len() > 1 {
+        let orphan = stack.pop().unwrap_or_default();
+        stack
+            .last_mut()
+            .expect("root accumulator always present")
+            .extend(orphan);
+    }
+    let roots = stack.pop().unwrap_or_default();
+
+    // ── Phase 4: flatten in pre-order, matching the ag-psd UI walk ───────────
+    // The UI (src/utils/psdAgPsdWorker.ts walkLayers) flattens the layer tree
+    // pre-order: group node first, then its children, siblings in file order
+    // (bottom-to-top).  layerIndex is the flattened index (dividers excluded)
+    // and ownGroupId is assigned pre-order.  stable ids MUST reproduce that
+    // numbering, otherwise activeLayerIds from the UI never match.
+    fn flatten(
+        nodes: Vec<TreeNode>,
+        parent_group_id: Option<u32>,
+        records: &[LayerRecord],
+        pixel_data: &mut [Option<Vec<u8>>],
+        group_id_counter: &mut u32,
+        layers: &mut Vec<PsdFastLayer>,
+    ) {
+        for node in nodes {
+            match node {
+                TreeNode::Leaf { record_idx } => {
+                    let rec = &records[record_idx];
+                    let flat_idx = layers.len();
+                    layers.push(PsdFastLayer {
+                        stable_id: stable_layer_id(flat_idx, false, None),
+                        name: rec.name.clone(),
+                        top: rec.top,
+                        left: rec.left,
+                        width: (rec.right - rec.left).max(0) as u32,
+                        height: (rec.bottom - rec.top).max(0) as u32,
+                        visible: rec.visible,
+                        parent_group_id,
+                        is_group: false,
+                        own_group_id: None,
+                        rgba: pixel_data[record_idx].take(),
+                    });
+                }
+                TreeNode::Group {
+                    record_idx,
+                    children,
+                } => {
+                    let rec = &records[record_idx];
+                    let own_group_id = *group_id_counter;
+                    *group_id_counter += 1;
+                    let flat_idx = layers.len();
+                    layers.push(PsdFastLayer {
+                        stable_id: stable_layer_id(flat_idx, true, Some(own_group_id)),
+                        name: rec.name.clone(),
+                        top: rec.top,
+                        left: rec.left,
+                        width: (rec.right - rec.left).max(0) as u32,
+                        height: (rec.bottom - rec.top).max(0) as u32,
+                        visible: rec.visible,
+                        parent_group_id,
+                        is_group: true,
+                        own_group_id: Some(own_group_id),
+                        rgba: None,
+                    });
+                    flatten(
+                        children,
+                        Some(own_group_id),
+                        records,
+                        pixel_data,
+                        group_id_counter,
+                        layers,
+                    );
+                }
+            }
+        }
+    }
+
+    let mut layers: Vec<PsdFastLayer> = Vec::with_capacity(layer_count);
+    let mut group_id_counter = 0u32;
+    flatten(
+        roots,
+        None,
+        &records,
+        &mut pixel_data,
+        &mut group_id_counter,
+        &mut layers,
+    );
 
     Ok(PsdFastResult {
         width: doc_width,
