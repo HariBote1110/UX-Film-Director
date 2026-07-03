@@ -303,6 +303,34 @@ fn effect_is_finite(effect: &crate::schema::Effect) -> bool {
                 && *opacity >= 0.0
                 && *opacity <= 1.0
         }
+        crate::schema::Effect::GradientOverlay {
+            direction_degrees,
+            stop_a,
+            stop_b,
+            colour_a,
+            colour_b,
+            bounds_width,
+            bounds_height,
+            ..
+        } => {
+            direction_degrees.is_finite()
+                && stop_a.is_finite()
+                && *stop_a >= 0.0
+                && *stop_a <= 1.0
+                && stop_b.is_finite()
+                && *stop_b >= 0.0
+                && *stop_b <= 1.0
+                && colour_a
+                    .iter()
+                    .all(|component| component.is_finite() && *component >= 0.0 && *component <= 1.0)
+                && colour_b
+                    .iter()
+                    .all(|component| component.is_finite() && *component >= 0.0 && *component <= 1.0)
+                && bounds_width.is_finite()
+                && *bounds_width > 0.0
+                && bounds_height.is_finite()
+                && *bounds_height > 0.0
+        }
         crate::schema::Effect::AreaExpand {
             top,
             bottom,
