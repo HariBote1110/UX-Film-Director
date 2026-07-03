@@ -178,6 +178,33 @@ export const getObjectWorldCorners = (
   };
 };
 
+/**
+ * 対象オブジェクトのローカル座標（変形前・左上原点）をワールド座標へ変換する。
+ * `getObjectWorldCorners` と同じ変形（位置＋groupTransforms＋vibration、
+ * 回転・スケールは group 積算込み）を任意のローカル点へ適用する。
+ * Pixi 非依存のオーバーレイ描画（vision detection 枠等）から利用する。
+ */
+export const objectLocalPointToWorldPoint = (
+  local: { x: number; y: number },
+  obj: TimelineObject,
+  time: number,
+  allObjects: TimelineObject[]
+): { x: number; y: number } => {
+  const base = evaluateObjectPositionAtTime(obj, time);
+  const groupEffects = getGroupTransforms(obj, time, allObjects);
+  const vib = getVibrationOffset(obj, time);
+
+  const containerX = base.x + groupEffects.x + vib.x;
+  const containerY = base.y + groupEffects.y + vib.y;
+  const rotationRad = ((obj.rotation || 0) + groupEffects.rotation) * (Math.PI / 180);
+  const scaleX = (obj.scaleX ?? 1) * groupEffects.scaleX;
+  const scaleY = (obj.scaleY ?? 1) * groupEffects.scaleY;
+
+  const scaled = { x: local.x * scaleX, y: local.y * scaleY };
+  const rotated = rotateVec(scaled, rotationRad);
+  return { x: containerX + rotated.x, y: containerY + rotated.y };
+};
+
 /** ワールド座標を、対象オブジェクトのローカル座標（変形前・左上原点）へ変換する。 */
 const worldPointToObjectLocalPoint = (
   worldPoint: Vec2,
