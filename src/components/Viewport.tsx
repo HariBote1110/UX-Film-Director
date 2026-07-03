@@ -11,6 +11,7 @@ import { shallow } from 'zustand/shallow';
 
 import { useSceneInteraction } from '../hooks/useSceneInteraction';
 import { hitTestSceneObjects, type SceneHitTestViewport } from '../utils/sceneHitTest';
+import { createStablePointerSubscription } from '../utils/sceneInteractionLogic';
 import { SceneSelectionOverlay } from './SceneSelectionOverlay';
 import { useProjectExport } from '../hooks/useProjectExport';
 import { useVisionRealtimeDetection } from '../hooks/useVisionRealtimeDetection';
@@ -719,22 +720,41 @@ const Viewport: React.FC = () => {
   // ドラッグ／リサイズ中にポインタが preview 要素の外へ出ても追従できるよう、
   // window レベルで pointermove/pointerup を監視する（要素外に出ても継続する
   // 挙動を DOM イベントで再現する）。
-  useEffect(() => {
-    const handleWindowPointerMove = (e: PointerEvent) => {
+  //
+  // 購読自体は createStablePointerSubscription でマウント時に一度だけ行う。
+  // onSceneObjectPointerMove 等は objects の更新（ドラッグ中は毎 pointermove
+  // ごとに発生する）に伴い Viewport が再レンダーされるたびに新しい関数参照に
+  // なるが、これを素朴に useEffect の依存配列へ載せて addEventListener/
+  // removeEventListener すると、毎フレーム再登録が走り、その一瞬の空白で
+  // ネイティブの pointermove イベントを取りこぼす（ドラッグ中に選択枠が消える・
+  // オブジェクトがリアルタイムに追従しないという回帰の原因だった）。
+  // ref 経由で「今呼ぶべきハンドラ」だけを都度更新することで、window への
+  // 登録は不変に保つ。
+  const latestScenePointerHandlersRef = useRef({
+    onPointerMove: (e: PointerEvent) => {
       onSceneObjectPointerMove(e as unknown as React.PointerEvent);
       onSceneResizeMove(e as unknown as React.PointerEvent);
-    };
-    const handleWindowPointerUp = () => {
+    },
+    onPointerUp: () => {
       onSceneObjectPointerUp();
       onSceneResizeEnd();
-    };
-    window.addEventListener('pointermove', handleWindowPointerMove);
-    window.addEventListener('pointerup', handleWindowPointerUp);
-    return () => {
-      window.removeEventListener('pointermove', handleWindowPointerMove);
-      window.removeEventListener('pointerup', handleWindowPointerUp);
-    };
-  }, [onSceneObjectPointerMove, onSceneObjectPointerUp, onSceneResizeMove, onSceneResizeEnd]);
+    },
+  });
+  latestScenePointerHandlersRef.current = {
+    onPointerMove: (e: PointerEvent) => {
+      onSceneObjectPointerMove(e as unknown as React.PointerEvent);
+      onSceneResizeMove(e as unknown as React.PointerEvent);
+    },
+    onPointerUp: () => {
+      onSceneObjectPointerUp();
+      onSceneResizeEnd();
+    },
+  };
+
+  useEffect(() => {
+    const unsubscribe = createStablePointerSubscription(window, () => latestScenePointerHandlersRef.current);
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     const el = viewportShellRef.current;

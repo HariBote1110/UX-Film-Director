@@ -50,6 +50,52 @@ export const computeDragUpdate = (initial: TimelineObject, delta: Vec2): DragUpd
   return result;
 };
 
+export interface ScenePointerHandlers {
+  onPointerMove: (e: PointerEvent) => void;
+  onPointerUp: (e: PointerEvent) => void;
+}
+
+/** `addEventListener`/`removeEventListener` を持つ最小限のイベントターゲット（`window` 等）。 */
+export interface ScenePointerEventTarget {
+  addEventListener: (type: string, listener: (e: PointerEvent) => void) => void;
+  removeEventListener: (type: string, listener: (e: PointerEvent) => void) => void;
+}
+
+/**
+ * `target`（通常は `window`）へ `pointermove`/`pointerup` を「一度だけ」購読する。
+ *
+ * React 側で `useSceneInteraction` の返す `onPointerMove`/`onPointerUp` 等は
+ * store 更新のたびに再生成される（`useCallback` で安定化していても、依存する
+ * store の値が変われば新しい参照になりうる）。これを `useEffect` の依存配列に
+ * 直接載せて `addEventListener`/`removeEventListener` すると、ドラッグ中の
+ * 毎 pointermove ごとに購読が再登録され、その一瞬の空白でネイティブイベントを
+ * 取りこぼす（ドラッグ中に選択枠が消える・オブジェクトがリアルタイムに
+ * 追従しないという回帰の原因）。
+ *
+ * 本関数は `target` への登録を一度きりにし、実行時には常に `getHandlers()` を
+ * 呼んで最新のハンドラを参照する。React 側は「どのハンドラを呼ぶか」だけを
+ * 都度更新すればよく、`target` への再登録は発生しない。
+ */
+export const createStablePointerSubscription = (
+  target: ScenePointerEventTarget,
+  getHandlers: () => ScenePointerHandlers
+): (() => void) => {
+  const handleMove = (e: PointerEvent) => {
+    getHandlers().onPointerMove(e);
+  };
+  const handleUp = (e: PointerEvent) => {
+    getHandlers().onPointerUp(e);
+  };
+
+  target.addEventListener('pointermove', handleMove);
+  target.addEventListener('pointerup', handleUp);
+
+  return () => {
+    target.removeEventListener('pointermove', handleMove);
+    target.removeEventListener('pointerup', handleUp);
+  };
+};
+
 /** モーションパス記録サンプルを time 0..1 に正規化する（2点未満は空配列）。 */
 export const normaliseRecordedMotionPath = (samples: PathPoint[]): PathPoint[] => {
   if (samples.length < 2) return [];
