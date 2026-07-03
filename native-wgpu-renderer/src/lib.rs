@@ -2427,6 +2427,52 @@ mod tests {
     }
 
     #[test]
+    fn downscale_rgba_frame_to_fit_leaves_frame_within_limit_untouched() {
+        let source = RgbaFrame::from_rgba8(2, 3, vec![9; 2 * 3 * 4]).unwrap();
+
+        let result = downscale_rgba_frame_to_fit(&source, 2048);
+
+        assert_eq!(result, source);
+    }
+
+    #[test]
+    fn downscale_rgba_frame_to_fit_shrinks_oversized_frame_preserving_aspect_ratio() {
+        // 巨大PSD（例:2700x1800）が device の max_texture_dimension_2d を超えるとき、
+        // panic ではなく縮小して描画継続する契約。長辺を上限に収め、アスペクト比を
+        // 維持すること。
+        let width = 2700_u32;
+        let height = 1800_u32;
+        let source = RgbaFrame::from_rgba8(
+            width,
+            height,
+            vec![128; (width as usize) * (height as usize) * 4],
+        )
+        .unwrap();
+
+        let result = downscale_rgba_frame_to_fit(&source, 2048);
+
+        assert!(result.width <= 2048);
+        assert!(result.height <= 2048);
+        assert_eq!(result.width.max(result.height), 2048);
+        // アスペクト比 (3:2) を維持していること。
+        let original_ratio = width as f64 / height as f64;
+        let result_ratio = result.width as f64 / result.height as f64;
+        assert!((original_ratio - result_ratio).abs() < 0.01);
+        assert_eq!(result.pixels.len(), (result.width as usize) * (result.height as usize) * 4);
+    }
+
+    #[test]
+    fn downscale_rgba_frame_to_fit_never_produces_zero_sized_dimension() {
+        let source = RgbaFrame::from_rgba8(1, 10_000, vec![0; 10_000 * 4]).unwrap();
+
+        let result = downscale_rgba_frame_to_fit(&source, 2048);
+
+        assert!(result.width >= 1);
+        assert!(result.height >= 1);
+        assert!(result.height <= 2048);
+    }
+
+    #[test]
     fn bgra_surface_copy_bytes_are_normalised_to_rgba8() {
         let pixels = normalise_texture_copy_to_rgba8(
             wgpu::TextureFormat::Bgra8Unorm,
