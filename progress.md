@@ -1,4 +1,33 @@
-## 2026-07-03 — 実機検証: fps変換（426a）とcolor_rangeフォールバック（426b）の完治を確認
+## 2026-07-03 — 修正（426c）: playheadが動画クリップを含まない位置でのnative overlay残留フレームを解消
+
+### 経緯（Bug Dの続き、スコープ外だったケース）
+- 実機（親セッションのCDP検証）で、動画clipが10〜22秒に配置されたタイムラインでplayheadを0秒（動画なし）へ置くと、preview上に直前の動画フレームが残留し続ける現象を確認した。診断は `uxfdSharedRendererPresenterNativeOverlayAttempt=failed`, `FailureReason=noVideoDecodeRequest`, detail「Shared renderer preview session does not contain a visible video frame request.」。
+- 2026-07-01の「Bug D修正」（本ファイル該当エントリ参照）で `notifyNativeOverlaySceneCleared` / `window.nativeOverlay.clearSurface` を配線したが、その発火条件は明示的に3ケースのみ: (i) `objects.length === 0`（timeline全体が空）、(ii) Viewport unmount、(iii) `projectId`（activeSceneId）変化。いずれも「timelineにクリップは存在するがplayheadが動画を含まない位置にある」ケース（`objects.length`も`projectId`も変わらない）を捕捉しない。Bug D設計時点では9828-9833行の記述の通り `noVideoDecodeRequest` を「shape/image中心のRust exportを妨げない non-blocking な状態」として扱っており、overlay clearの対象として意図的にスコープ外にされていた。
+- Rust側の透明クリア機構自体（`native-overlay/src/lib.rs` の `clear_native_overlay_live_surface` / N-API export `clearNativeOverlayLiveSurface`、および main bridge → IPC → preload → `window.nativeOverlay.clearSurface` の配線）はBug D対応時に実装済みで、そのまま再利用可能と判明した。今回のバグは「呼び出し条件（いつ呼ぶか）」がTS側（Viewport.tsx）に欠けているだけの配線不足だった。
+
+### 実施内容
+- Red: `src/utils/sharedRendererViewportPresenterOrchestration.test.ts` に、新規純粋関数 `resolveNativeOverlayTransparentClearTransition` の状態機械契約を6ケース追加した（初回のnoVideoDecodeRequest遷移でclear要求、persist中は再clearしない、frameDecodeFailed等の一時的失敗ではclearしない、video復帰でガード再アーム、presenter未実行tickでは状態不変、復帰後の再度のgapでも正しくclearされる）。同時に `src/utils/viewportRustVideoOnlyBoundary.test.ts` にVieport.tsx側の配線契約（`resolveNativeOverlayTransparentClearTransition`と`nativeOverlayPresentResult`をソースに含むこと、clear-onceガード用のRefを保持すること）を追加した。8テストがRedで失敗することを確認してコミット。
+- Green: `sharedRendererViewportPresenterOrchestration.ts` に `resolveNativeOverlayTransparentClearTransition`（および初期状態定数 `NATIVE_OVERLAY_TRANSPARENT_CLEAR_INITIAL_STATE`）を実装した。`Viewport.tsx` では `nativeOverlayTransparentClearStateRef` でガード状態を保持し、presenter start完了ハンドラ内で `nativeOverlayPresentResult` を渡して判定し、`shouldClear===true` のときだけ `notifyNativeOverlaySceneCleared(0)` と `window.nativeOverlay?.clearSurface({})` を発火するようにした。presenter自体が停止する経路（`sharedRendererPreviewEnabled`がfalseになる等）ではガードを初期状態へ戻す。
+- vitest全体（3ファイル5件の既存baseline失敗のみ、新規失敗ゼロ）、tsc --noEmit（29件、baselineと完全一致、新規ゼロ）、cargo test --manifest-path native-overlay/Cargo.toml --lib（20 passed、Rust側は無変更なので当然無退行）を確認。
+- `package.json` を `0.1.1-Beta-426c` に更新（バグ修正のためSubVerを進めた）。`package-lock.json` は425fのまま数バージョン分同期されておらず、直近の運用に合わせて今回も更新しなかった。
+
+### 状態機械（クリアの発火条件）
+- `ok: true`（可視フレームをpresentできた） → ガード解除（`clearedForNoVideo: false`）。次に`noVideoDecodeRequest`へ遷移したら再度clearできる状態に戻す。
+- `ok: false, reason: 'noVideoDecodeRequest'`（動画要求が確定して存在しない） → ガードが立っていなければ1回だけclearを要求し、ガードを立てる（`clearedForNoVideo: true`）。ガードが既に立っていれば毎tick繰り返さない。
+- `ok: false`, その他のreason（`frameDecodeFailed`, `staleDecodeResponse`等、再生中の一時的なデコード失敗） → clearしない・ガードの状態も変えない。直前フレームを保持し、ちらつきを防ぐ。
+- `nativeOverlayPresentResult`が存在しない（native overlay無効時など） → 何もしない。
+
+### 選定理由・判断の根拠
+- ロジックを`Viewport.tsx`内に直接書かず、`sharedRendererViewportPresenterOrchestration.ts`に純粋関数として切り出した理由: Reactの副作用・ref・DOM mockなしにvitestで状態機械を直接検証できるため。Viewport.tsx側の契約はソースコードテキスト検証（既存の`viewportRustVideoOnlyBoundary.test.ts`のパターンに合わせた）に留め、実際の分岐ロジックの正しさは純粋関数のテストで担保する分離を採った。
+- 「1回だけclearする」ガードをrefで持たせた理由: 課題文の要求どおり「毎tickの透明presentは不要なGPU負荷」を避けるため。`noVideoDecodeRequest`はplayhead停止中は毎tick同じ結果を返し続ける可能性があるため、ガードなしだと再生中の毎フレームpresentループで無駄なclear present（wgpu surfaceへのpresent呼び出し）が走ってしまう。
+- transient failure（`frameDecodeFailed`等）でガードを一切変更しない（clearもしない、解除もしない）設計にした理由: 課題文の要求どおり再生中の一時的なデコード失敗でのちらつきを防ぐため。もし transient failure でガードを解除してしまうと、その直後にまた`noVideoDecodeRequest`が来たときに毎回clearを再実行してしまい、逆にもし transient failure でclearしてしまうと本来表示され続けるべき動画フレームが一瞬透明になるちらつきを生む。「reasonが`noVideoDecodeRequest`かどうか」だけで分岐し、他のreasonは完全に無視するのが唯一妥当な設計と判断した。
+- 却下案: Rust側に新しいN-API（例えば「visible video reasonを渡して自動判定するclear」）を追加する案。調査の結果、Rust側の`clearNativeOverlayLiveSurface`は既にBug D対応で実装済みで、既存の`SceneSnapshot`ベースのtransparent clear present経路（`LoadOp::Clear(wgpu::Color::TRANSPARENT)`）をそのまま呼べば十分だったため、新規Rust APIは不要と判断し追加しなかった。
+- 却下案: `currentTime`を直接deps監視してsurfaceGateのclip存在判定をVieport.tsx側で再実装する案。既にpresenter orchestration層が`noVideoDecodeRequest`という形で「確定して動画要求が無い」ことを判定済み（`sharedRendererViewportNativeRenderSource.ts:110`のdecodeRequests.requests.length===0判定を経由）であり、この判定をVieport.tsx側で重複実装すると、surfaceGate/decodeRequestBuilderのロジック変更時に二重管理になるリスクがある。既存の判定結果（`nativeOverlayPresentResult.reason`）を再利用する設計を採った。
+
+### 残課題・次のステップ
+- 実機検証は親セッションの担当。検証観点: (1) 動画clipが10〜22秒にあるタイムラインでplayheadを0秒へシークし、overlay残留フレームが消え下層のPixi/HTML canvas（図形など）が見えること。(2) 再生中に一時的なデコード失敗（`frameDecodeFailed`）が発生した場合、overlayがちらつかず直前フレームを保持し続けること（`UXFD_DECODE_TRACE=1`で発生頻度を確認しつつ目視）。(3) 動画区間→無音区間→動画区間と往復した際、毎回正しくclear/復帰すること（毎tickの無駄なclear present発行が無いことは実装上ガードで保証されているが、実機でも極端なCPU負荷増が無いことを確認できるとよい）。
+
+
 
 ### 実施内容
 
