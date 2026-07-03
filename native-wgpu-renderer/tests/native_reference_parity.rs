@@ -423,6 +423,81 @@ fn native_wgpu_applies_drop_shadow_silhouette_behind_body() {
 }
 
 #[test]
+fn native_wgpu_applies_gradient_overlay_alpha_across_group_bounds() {
+    // 旧 PIXI GroupGradientFilter 相当。2x1 の不透明白へ、bounds 全域
+    // (0,0)-(2,1) の横方向グラデーション（白 alpha=1 → 白 alpha=0）を適用する。
+    // output_pixel は整数ピクセル座標（0, 1）のため uv.x は 0.0 / 0.5 になり、
+    // alpha は mix(1,0,0.0)=1.0 / mix(1,0,0.5)=0.5 になる。native wgpu の出力
+    // テクスチャは premultiplied RGBA のため、pixel1 は premultiplied_rgb
+    // (0.5,0.5,0.5) がそのまま sRGB エンコードされる（0.5 linear -> 188）。
+    assert_native_matches_direct_hand_anchor(
+        scene_snapshot(vec![evaluated_clip(
+            "foreground",
+            0,
+            1.0,
+            vec![Effect::GradientOverlay {
+                direction_degrees: 0.0,
+                stop_a: 0.0,
+                stop_b: 1.0,
+                is_radial: false,
+                colour_a: [1.0, 1.0, 1.0, 1.0],
+                colour_b: [1.0, 1.0, 1.0, 0.0],
+                bounds_x: 0.0,
+                bounds_y: 0.0,
+                bounds_width: 2.0,
+                bounds_height: 1.0,
+            }],
+        )]),
+        HashMap::from([(
+            "foreground".to_string(),
+            RgbaFrame::from_rgba8(2, 1, vec![255, 255, 255, 255, 255, 255, 255, 255])
+                .expect("valid foreground"),
+        )]),
+        2,
+        1,
+        vec![255, 255, 255, 255, 188, 188, 188, 128],
+    );
+}
+
+#[test]
+fn native_wgpu_applies_gradient_overlay_colour_mix_across_group_bounds() {
+    // 旧 PIXI GroupGradientFilter 相当。2x1 の不透明白へ、bounds 全域
+    // (0,0)-(2,1) の横方向グラデーション（不透明赤 → 不透明青、リニア空間で
+    // 補間）を適用する。RGB は完全に上書きされ、alpha は本体のシルエット
+    // （不透明）のまま。output_pixel は整数ピクセル座標（0, 1）のため
+    // ratio は 0.0 / 0.5 になる（pixel0=赤そのまま、pixel1=mix(赤,青,0.5)
+    // をリニア空間で計算し、出力は Rgba8UnormSrgb のため GPU が sRGB
+    // エンコードする: 0.5 linear -> 188）。
+    assert_native_matches_direct_hand_anchor(
+        scene_snapshot(vec![evaluated_clip(
+            "foreground",
+            0,
+            1.0,
+            vec![Effect::GradientOverlay {
+                direction_degrees: 0.0,
+                stop_a: 0.0,
+                stop_b: 1.0,
+                is_radial: false,
+                colour_a: [1.0, 0.0, 0.0, 1.0],
+                colour_b: [0.0, 0.0, 1.0, 1.0],
+                bounds_x: 0.0,
+                bounds_y: 0.0,
+                bounds_width: 2.0,
+                bounds_height: 1.0,
+            }],
+        )]),
+        HashMap::from([(
+            "foreground".to_string(),
+            RgbaFrame::from_rgba8(2, 1, vec![255, 255, 255, 255, 255, 255, 255, 255])
+                .expect("valid foreground"),
+        )]),
+        2,
+        1,
+        vec![255, 0, 0, 255, 188, 0, 188, 255],
+    );
+}
+
+#[test]
 fn native_wgpu_applies_auto_blur_plus_along_motion_angle() {
     assert_native_matches_direct_hand_anchor(
         scene_snapshot(vec![evaluated_clip(
