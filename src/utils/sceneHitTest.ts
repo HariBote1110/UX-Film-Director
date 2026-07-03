@@ -104,6 +104,80 @@ export const cssPointToWorldPoint = (
   };
 };
 
+/** ワールド座標（カメラ変換前のシーン座標）を、CSS 座標（preview 要素基準）へ変換する。`cssPointToWorldPoint` の逆変換。 */
+export const worldPointToCssPoint = (
+  worldPoint: Vec2,
+  viewport: SceneHitTestViewport
+): Vec2 => {
+  const { projectWidth, projectHeight, camera } = viewport;
+  const pivotX = projectWidth / 2;
+  const pivotY = projectHeight / 2;
+  const positionX = pivotX + camera.centreOffsetX;
+  const positionY = pivotY + camera.centreOffsetY;
+  const zoom = Math.max(0.05, camera.zoom);
+  const rotationRad = (camera.rotationDeg * Math.PI) / 180;
+
+  const unscaled = { x: worldPoint.x - pivotX, y: worldPoint.y - pivotY };
+  const scaled = { x: unscaled.x * zoom, y: unscaled.y * zoom };
+  const rotated = rotateVec(scaled, rotationRad);
+
+  const parentX = positionX + rotated.x;
+  const parentY = positionY + rotated.y;
+
+  const displayScale = Math.max(1e-6, viewport.displayScale);
+  return {
+    x: parentX * displayScale,
+    y: parentY * displayScale,
+  };
+};
+
+export interface ObjectWorldCorners {
+  topLeft: Vec2;
+  topRight: Vec2;
+  bottomLeft: Vec2;
+  bottomRight: Vec2;
+}
+
+/** 対象オブジェクトの変形済み矩形（回転・スケール・groupTransforms・vibration 適用後）の四隅をワールド座標で返す。 */
+export const getObjectWorldCorners = (
+  obj: TimelineObject,
+  time: number,
+  allObjects: TimelineObject[]
+): ObjectWorldCorners | null => {
+  const size = getObjectSize(obj);
+  if (!size) return null;
+
+  const base = evaluateObjectPositionAtTime(obj, time);
+  const groupEffects = getGroupTransforms(obj, time, allObjects);
+  const vib = getVibrationOffset(obj, time);
+
+  const containerX = base.x + groupEffects.x + vib.x;
+  const containerY = base.y + groupEffects.y + vib.y;
+  const rotationRad = ((obj.rotation || 0) + groupEffects.rotation) * (Math.PI / 180);
+  const scaleX = (obj.scaleX ?? 1) * groupEffects.scaleX;
+  const scaleY = (obj.scaleY ?? 1) * groupEffects.scaleY;
+
+  const localCorners: Record<keyof ObjectWorldCorners, Vec2> = {
+    topLeft: { x: 0, y: 0 },
+    topRight: { x: size.width, y: 0 },
+    bottomLeft: { x: 0, y: size.height },
+    bottomRight: { x: size.width, y: size.height },
+  };
+
+  const toWorld = (local: Vec2): Vec2 => {
+    const scaled = { x: local.x * scaleX, y: local.y * scaleY };
+    const rotated = rotateVec(scaled, rotationRad);
+    return { x: containerX + rotated.x, y: containerY + rotated.y };
+  };
+
+  return {
+    topLeft: toWorld(localCorners.topLeft),
+    topRight: toWorld(localCorners.topRight),
+    bottomLeft: toWorld(localCorners.bottomLeft),
+    bottomRight: toWorld(localCorners.bottomRight),
+  };
+};
+
 /** ワールド座標を、対象オブジェクトのローカル座標（変形前・左上原点）へ変換する。 */
 const worldPointToObjectLocalPoint = (
   worldPoint: Vec2,

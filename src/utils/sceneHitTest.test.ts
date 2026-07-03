@@ -235,17 +235,42 @@ describe('getObjectWorldCorners: 変形済み矩形の四隅', () => {
   it('回転無しの矩形は単純な矩形の四隅を返す', () => {
     const obj = shape({ x: 100, y: 100, width: 50, height: 40, rotation: 0 });
     const corners = getObjectWorldCorners(obj, 0, [obj]);
-    expect(corners.topLeft).toEqual({ x: 100, y: 100 });
-    expect(corners.topRight).toEqual({ x: 150, y: 100 });
-    expect(corners.bottomLeft).toEqual({ x: 100, y: 140 });
-    expect(corners.bottomRight).toEqual({ x: 150, y: 140 });
+    expect(corners).not.toBeNull();
+    expect(corners!.topLeft).toEqual({ x: 100, y: 100 });
+    expect(corners!.topRight).toEqual({ x: 150, y: 100 });
+    expect(corners!.bottomLeft).toEqual({ x: 100, y: 140 });
+    expect(corners!.bottomRight).toEqual({ x: 150, y: 140 });
   });
 
   it('90度回転した矩形は左上を中心に90度回転した位置になる', () => {
     const obj = shape({ x: 100, y: 100, width: 50, height: 40, rotation: 90 });
     const corners = getObjectWorldCorners(obj, 0, [obj]);
+    expect(corners).not.toBeNull();
     // ローカル(50,0)を90度回転すると(0,50)、つまりtopRight = (100,150)
-    expect(corners.topRight.x).toBeCloseTo(100);
-    expect(corners.topRight.y).toBeCloseTo(150);
+    expect(corners!.topRight.x).toBeCloseTo(100);
+    expect(corners!.topRight.y).toBeCloseTo(150);
+  });
+
+  it('width/heightを持たないオブジェクトはnullを返す', () => {
+    const group: TimelineObject = {
+      id: 'group-1',
+      type: 'group_control',
+      name: 'Group',
+      layer: 0,
+      startTime: 0,
+      duration: 10,
+      x: 100,
+      y: 100,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      opacity: 1,
+      enableAnimation: false,
+      endX: 0,
+      endY: 0,
+      easing: 'linear',
+      targetLayerCount: 0,
+    } as TimelineObject;
+    expect(getObjectWorldCorners(group, 0, [group])).toBeNull();
   });
 });
