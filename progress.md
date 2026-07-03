@@ -1,3 +1,21 @@
+## 2026-07-03 — 修正: 選択枠のocclusion逆転とPSDレイヤー非表示（版432a）
+
+### 実施内容
+
+- **選択枠**: SVG 選択枠が child NSWindow（native overlay）の不透明ピクセルに隠れ「オブジェクトが現在フレームに居るときだけ枠が見えない」逆転症状を、**見た目=native overlay 描画 / 操作=透明SVGヒット領域**の二層構成で修正。`setNativeOverlaySelectionDecoration`（金枠4辺＋四隅ハンドルを EvaluatedClip として scene present 最後に上乗せ、専用パイプライン追加なし・native-wgpu-renderer 無変更）を新設し、Viewport が world quad を選択変更・ドラッグ毎 move・時間変化で送信（不変時 dedupe）。透明クリア状態でもデコレーションのみ present 可能で、native 不可用時は SVG が可視スタイルへフォールバック。実機: 赤矩形の上に金枠＋白ハンドルの表示を確認。
+- **PSD**: `psd_fast.rs` の三重の欠陥を修正 — (1) レイヤー列挙が UI（ag-psd worker）の pre-order 採番と全面不一致＋グループ階層の解釈方向が逆で activeLayerIds が絶対に一致しない、(2) 合成の塗り順が `.rev()` で逆転し上位レイヤー（線画・表情）が背面ベタに塗り潰される、(3) activeLayerIds 指定時もファイルの hidden フラグで打ち消されラジオ差分レイヤーが選択不能。葵ちゃん.psd（171層）・琴葉茜（89層）で ag-psd と全260エントリ機械照合一致。実機: 葵ちゃん.psd が線画・表情込みで正しく合成表示されることを確認。
+- テスト: native-overlay 36 / rust-backend 71+63 / vitest 1205 green（baseline 5件のみ失敗）/ tsc 30。版 431b→432a。
+
+### 選定理由・判断の根拠
+
+- 選択枠: SVG を overlay より上に出す案は ADR-013（child NSWindow 設計）と本質的に矛盾するため、Rust 側描画が唯一の構造的解。preview 空間の常時 UI は今後も同じ経路を使う。
+- PSD: UI 側の pre-order 採番は保存済みプロジェクトに永続化されているため、rust 側を UI に合わせる方向を選択。blend mode・クリッピングレイヤー・レイヤー不透明度・マスクは「表示されない」報告と独立のため見送り（残課題に列挙）。
+
+### 残課題・次のステップ
+
+- PSD: normal 以外の blend mode（琴葉茜が overlay 使用）・クリッピングレイヤー・レイヤー不透明度・マスクの合成対応。psd-wasm crate の同型コードは未参照のため未修正（復活時に同修正が必要）。
+- 選択枠: カメラ zoom/回転使用時の SVG ヒット領域と native 描画の座標一致の実機確認。
+
 ## 2026-07-03 — 実機検証: PSDクラッシュ修正・ドラッグ追従修正の合格（版431b）
 
 ### 実施内容
