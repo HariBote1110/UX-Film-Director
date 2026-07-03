@@ -169,3 +169,26 @@ preview の合成・提示は、Rust + wgpu の napi-rs addon を Electron main 
 ### 却下した案
 
 renderer も sidecar に置き、IOSurface だけで描画結果を main へ渡す案は初期案から外す。CALayer overlay の ownership と `MTLDrawable` の扱いが複雑で、初期検証としては POSIX shm + main 内 present よりリスクが高い。
+
+## ADR-013: Native Overlay を child NSWindow として実装する
+
+**状態**: 確定（2026-07-03）
+
+### 背景
+
+Bug E — preview pane 上に開く HTML 駆動 UI（context menu / popover / tooltip / modal / dropdown）が CAMetalLayer overlay に隠れて見切れる。
+
+### 決定
+
+Native Overlay を main BrowserWindow の contentView subview ではなく、独立した child NSWindow として実装する。`addChildWindow:ordered:` で main NSWindow に attach し、HTML 駆動 UI が preview に重なって開いたときは child window の z-order を `NSWindowBelow` へ下げる（`orderOut:` ではなく order 下げ、GPU の live surface present は継続する）。
+
+### 理由
+
+- macOS の z-order は「同一 NSWindow 内の view 階層」と「複数 NSWindow 間の window order」が独立した2軸であり、subview のままでは WebView 内の HTML UI を一律 overlay より上に置くことが構造的に不可能。
+- child window 化により OS 任せの z-order 切替が可能になり、modal の種類に依存しない一律の解決になる。
+
+### 却下した代替
+
+- (A) modal open 時に overlay を `setHidden:YES` — 動画再生中の一瞬の黒画面が編集ソフトとして許容しがたい。
+- (B) NSMenu / NSPanel への部分置換 — tooltip / popover / color picker 等に適用できず二重実装になる。
+- (C) HTML 全廃 — ADR-002 で既に却下済み。
