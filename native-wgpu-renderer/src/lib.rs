@@ -164,6 +164,7 @@ impl NativeWgpuLiveSurfaceRenderer {
             )
             .await
             .map_err(NativeWgpuRenderError::RequestDevice)?;
+        install_uncaptured_error_logging(&device, "UXFD native wgpu live surface device");
         let capabilities = surface.get_capabilities(&adapter);
         let surface_format = choose_live_surface_format(&capabilities.formats);
         let surface_config = wgpu::SurfaceConfiguration {
@@ -367,6 +368,7 @@ impl NativeWgpuRenderer {
             )
             .await
             .map_err(NativeWgpuRenderError::RequestDevice)?;
+        install_uncaptured_error_logging(&device, "UXFD native wgpu device");
 
         let pipeline = create_pipeline(&device);
         let bind_group_layout = pipeline.get_bind_group_layout(0);
@@ -620,6 +622,17 @@ impl NativeWgpuRenderer {
                     media_id: clip.media_id.clone(),
                 }
             })?;
+            // device の max_texture_dimension_2d を超えるソース（巨大PSD等）を
+            // そのまま create_texture へ渡すと wgpu Validation Error で panic する。
+            // その場合のみアスペクト比維持でCPU側縮小してから使用し、描画継続する。
+            let max_source_dimension = self.device.limits().max_texture_dimension_2d;
+            let downscaled_source;
+            let source = if source.width.max(source.height) > max_source_dimension {
+                downscaled_source = downscale_rgba_frame_to_fit(source, max_source_dimension);
+                &downscaled_source
+            } else {
+                source
+            };
             prepared_clips.push(prepare_clip(
                 &self.device,
                 &self.queue,
@@ -1459,6 +1472,19 @@ fn create_pipeline_for_format(
     })
 }
 
+/// wgpu の既定挙動では、error scope で捕捉されない Validation Error は
+/// `panic!` する（wgpu-0.20.1 の `default_error_handler`）。今回の実機バグは
+/// まさにこの経路（`Device::create_texture` の Dimension 超過）で発生し、
+/// sidecar プロセスごと落ちて Electron main の EPIPE クラッシュへ連鎖した。
+/// device の上限修正・CPU側縮小フォールバックで根本原因は解消済みだが、
+/// 将来の回帰や未知の Validation Error に備え、`on_uncaptured_error` で
+/// panic の代わりにログ出力へ切り替える防御層を追加する。
+fn install_uncaptured_error_logging(device: &wgpu::Device, device_label: &'static str) {
+    device.on_uncaptured_error(Box::new(move |error| {
+        eprintln!("[{device_label}] wgpu uncaptured error (continuing without panic): {error}");
+    }));
+}
+
 fn required_limits_for_frame(
     adapter: &wgpu::Adapter,
     width: u32,
@@ -1474,11 +1500,80 @@ fn required_limits_for_frame(
         });
     }
 
+    // 出力フレーム（width/height）はデバイス生成時点で分かっているサイズに過ぎず、
+    // 実際にレンダリングされるソース（PSDレイヤー等）はこれより大きい可能性がある。
+    // downlevel既定値（2048）や出力フレームサイズに丸めてしまうと、Apple Silicon の
+    // Metal（実際は16384まで対応）でも device が2048に制限され、後続の
+    // prepare_clip でのソーステクスチャ生成が wgpu Validation Error で panic する。
+    // そのためadapterが対応する実上限をそのままdeviceへ要求する。
     Ok(wgpu::Limits {
-        max_texture_dimension_2d: required_texture_dimension
-            .max(wgpu::Limits::downlevel_defaults().max_texture_dimension_2d),
+        max_texture_dimension_2d: adapter_limits.max_texture_dimension_2d,
         ..wgpu::Limits::downlevel_defaults()
     })
+}
+
+/// ソースが `max_dimension` を超える場合、アスペクト比を維持したまま
+/// バイリニア補間で縮小する。device の max_texture_dimension_2d を超える
+/// ソース（巨大PSD等）をそのまま `create_texture` へ渡すと wgpu Validation
+/// Error で panic するため、GPU テクスチャ生成前に呼び出して panic を防ぐ。
+/// 上限以内の場合はコピーせずそのまま返す。
+fn downscale_rgba_frame_to_fit(source: &RgbaFrame, max_dimension: u32) -> RgbaFrame {
+    let longer_side = source.width.max(source.height);
+    if longer_side <= max_dimension || max_dimension == 0 {
+        return source.clone();
+    }
+
+    let scale = f64::from(max_dimension) / f64::from(longer_side);
+    let target_width = ((f64::from(source.width) * scale).round() as u32).max(1);
+    let target_height = ((f64::from(source.height) * scale).round() as u32).max(1);
+
+    let mut pixels = vec![0_u8; (target_width as usize) * (target_height as usize) * 4];
+    let source_width = source.width as f64;
+    let source_height = source.height as f64;
+
+    for destination_y in 0..target_height {
+        // ターゲットの各テクセル中心を元画像空間へ逆写像する。
+        let source_y = ((destination_y as f64 + 0.5) / f64::from(target_height)) * source_height - 0.5;
+        let source_y = source_y.clamp(0.0, source_height - 1.0);
+        let y0 = source_y.floor() as u32;
+        let y1 = (y0 + 1).min(source.height - 1);
+        let fy = source_y - f64::from(y0);
+
+        for destination_x in 0..target_width {
+            let source_x = ((destination_x as f64 + 0.5) / f64::from(target_width)) * source_width - 0.5;
+            let source_x = source_x.clamp(0.0, source_width - 1.0);
+            let x0 = source_x.floor() as u32;
+            let x1 = (x0 + 1).min(source.width - 1);
+            let fx = source_x - f64::from(x0);
+
+            let p00 = read_rgba_texel(source, x0, y0);
+            let p10 = read_rgba_texel(source, x1, y0);
+            let p01 = read_rgba_texel(source, x0, y1);
+            let p11 = read_rgba_texel(source, x1, y1);
+
+            let destination_offset =
+                ((destination_y as usize) * (target_width as usize) + destination_x as usize) * 4;
+            for channel in 0..4 {
+                let top = f64::from(p00[channel]) * (1.0 - fx) + f64::from(p10[channel]) * fx;
+                let bottom = f64::from(p01[channel]) * (1.0 - fx) + f64::from(p11[channel]) * fx;
+                let value = (top * (1.0 - fy) + bottom * fy).round().clamp(0.0, 255.0) as u8;
+                pixels[destination_offset + channel] = value;
+            }
+        }
+    }
+
+    RgbaFrame::from_rgba8(target_width, target_height, pixels)
+        .expect("downscaled frame byte length must match computed dimensions")
+}
+
+fn read_rgba_texel(source: &RgbaFrame, x: u32, y: u32) -> [u8; 4] {
+    let offset = ((y as usize) * (source.width as usize) + x as usize) * 4;
+    [
+        source.pixels[offset],
+        source.pixels[offset + 1],
+        source.pixels[offset + 2],
+        source.pixels[offset + 3],
+    ]
 }
 
 fn create_output_texture(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Texture {
@@ -2377,6 +2472,138 @@ fn area_expand_fill(clip: &uxfd_rust_core::EvaluatedClip) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn request_test_adapter() -> wgpu::Adapter {
+        let instance = wgpu::Instance::default();
+        pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::HighPerformance,
+            compatible_surface: None,
+            force_fallback_adapter: false,
+        }))
+        .expect("test environment must expose a wgpu adapter")
+    }
+
+    #[test]
+    fn required_limits_for_frame_uses_full_adapter_texture_dimension_budget() {
+        // Bug: 出力フレーム（例: 1920x1080）のみを基準に max_texture_dimension_2d を
+        // 決めていたため、adapter が 16384 まで対応していても downlevel既定値の
+        // 2048 に device が制限され、後続の PSD ソーステクスチャ生成（2700px 等）が
+        // wgpu Validation Error で panic していた。adapter の実上限をそのまま
+        // 尊重すべきなので、出力フレームサイズに関わらず adapter 上限を要求する。
+        let adapter = request_test_adapter();
+        let adapter_limits = adapter.limits();
+
+        let limits = required_limits_for_frame(&adapter, 1920, 1080)
+            .expect("1920x1080 output frame must not exceed adapter limits");
+
+        assert_eq!(
+            limits.max_texture_dimension_2d,
+            adapter_limits.max_texture_dimension_2d
+        );
+    }
+
+    #[test]
+    fn required_limits_for_frame_rejects_output_frame_exceeding_adapter_limit() {
+        let adapter = request_test_adapter();
+        let adapter_limits = adapter.limits();
+        let oversized = adapter_limits.max_texture_dimension_2d + 1;
+
+        let result = required_limits_for_frame(&adapter, oversized, 1080);
+
+        assert!(matches!(
+            result,
+            Err(NativeWgpuRenderError::FrameSizeExceedsAdapterLimit { .. })
+        ));
+    }
+
+    #[test]
+    fn install_uncaptured_error_logging_prevents_panic_on_validation_error() {
+        // wgpu既定では error scope に捕捉されない Validation Error は panic
+        // する（default_error_handler）。install_uncaptured_error_logging を
+        // 呼んだ device では、同種の Validation Error（例: create_texture の
+        // Dimension 超過）が発生してもログ出力のみでpanicしないことを固定する。
+        // これは限界修正・縮小フォールバックが将来回帰した場合の防御層。
+        let adapter = request_test_adapter();
+        let adapter_limits = adapter.limits();
+        let (device, _queue) = pollster::block_on(adapter.request_device(
+            &wgpu::DeviceDescriptor {
+                label: Some("test device for uncaptured error logging"),
+                required_features: wgpu::Features::empty(),
+                required_limits: wgpu::Limits::downlevel_defaults(),
+            },
+            None,
+        ))
+        .expect("device request must succeed");
+        install_uncaptured_error_logging(&device, "test device for uncaptured error logging");
+
+        let oversized_dimension = adapter_limits.max_texture_dimension_2d.max(2048) + 1;
+        // downlevel既定値（2048）を要求したdeviceへ、意図的に上限超過の
+        // テクスチャを作成させる。ここでは downscale フォールバックを経由
+        // しないため、以前は panic していたパスを直接踏む。
+        let _texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("intentionally oversized test texture"),
+            size: wgpu::Extent3d {
+                width: oversized_dimension.min(wgpu::Limits::downlevel_defaults().max_texture_dimension_2d + 4096),
+                height: 4,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+
+        // panic せずここまで到達できれば成功。
+        device.poll(wgpu::Maintain::Wait);
+    }
+
+    #[test]
+    fn downscale_rgba_frame_to_fit_leaves_frame_within_limit_untouched() {
+        let source = RgbaFrame::from_rgba8(2, 3, vec![9; 2 * 3 * 4]).unwrap();
+
+        let result = downscale_rgba_frame_to_fit(&source, 2048);
+
+        assert_eq!(result, source);
+    }
+
+    #[test]
+    fn downscale_rgba_frame_to_fit_shrinks_oversized_frame_preserving_aspect_ratio() {
+        // 巨大PSD（例:2700x1800）が device の max_texture_dimension_2d を超えるとき、
+        // panic ではなく縮小して描画継続する契約。長辺を上限に収め、アスペクト比を
+        // 維持すること。
+        let width = 2700_u32;
+        let height = 1800_u32;
+        let source = RgbaFrame::from_rgba8(
+            width,
+            height,
+            vec![128; (width as usize) * (height as usize) * 4],
+        )
+        .unwrap();
+
+        let result = downscale_rgba_frame_to_fit(&source, 2048);
+
+        assert!(result.width <= 2048);
+        assert!(result.height <= 2048);
+        assert_eq!(result.width.max(result.height), 2048);
+        // アスペクト比 (3:2) を維持していること。
+        let original_ratio = width as f64 / height as f64;
+        let result_ratio = result.width as f64 / result.height as f64;
+        assert!((original_ratio - result_ratio).abs() < 0.01);
+        assert_eq!(result.pixels.len(), (result.width as usize) * (result.height as usize) * 4);
+    }
+
+    #[test]
+    fn downscale_rgba_frame_to_fit_never_produces_zero_sized_dimension() {
+        let source = RgbaFrame::from_rgba8(1, 10_000, vec![0; 10_000 * 4]).unwrap();
+
+        let result = downscale_rgba_frame_to_fit(&source, 2048);
+
+        assert!(result.width >= 1);
+        assert!(result.height >= 1);
+        assert!(result.height <= 2048);
+    }
 
     #[test]
     fn bgra_surface_copy_bytes_are_normalised_to_rgba8() {
