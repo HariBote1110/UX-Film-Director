@@ -1,3 +1,20 @@
+## 2026-07-03 — 修正: ドラッグ中の選択枠消失・リアルタイム追従不能（window購読churn）
+
+### 実施内容
+
+- 実機報告「ドラッグ中に枠が出ない・リアルタイムで動かない」の修正。根本原因は Viewport.tsx の window pointermove/pointerup 購読 useEffect が非メモ化ハンドラを依存配列に載せており、ドラッグ中の毎 pointermove（updateObject→objects 更新→再レンダー）ごとに removeEventListener/addEventListener の再登録が走り、その空白でネイティブイベントを取りこぼしていたこと。
+- `createStablePointerSubscription`（window への登録は一度きり、ref 経由で最新ハンドラを参照）を `sceneInteractionLogic.ts` に追加して置換。更新頻度は旧 Pixi と同じ「毎 move で同期 store 更新」を維持（rAF coalescing 不採用）。setPointerCapture はリサイズハンドルとの捕捉競合の懸念から見送り、window 監視一本に統一。
+- **実機検証（CDP）**: ドラッグ途中3点で選択枠位置を計測し、経路どおり毎ステップ追従・最終位置一致を確認。
+- 検証備考: 親セッションの CDP ドラッグスクリプトが `buttons` ビットマスク未指定＋release 漏れで「ボタン押しっぱなし」状態を残し、以後の mousePressed が pointerdown を生成しなくなる罠を踏んだ。スクリプト側に buttons 指定を追加（アプリ側の問題ではない）。
+
+### 選定理由・判断の根拠
+
+- 旧 usePixiInteraction は PIXI の globalpointermove をコンテナへ一度だけ登録しており React レンダーサイクルと無関係だった。ロジック（毎 move 更新）は新旧等価で、退行は「配線の購読再登録頻度」にあると特定。
+
+### 残課題・次のステップ
+
+- PSD クラッシュ修正（並行エージェント）の合流待ち。
+
 ## 2026-07-03 — 退行復旧(4・完): subjectCrop / PSDビルボード復活、reversed見送り（版431a）
 
 ### 実施内容
