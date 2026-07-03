@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  createPreviewObstructionMutationObserver,
   intersectsPreviewPaneRect,
   isPreviewObstructingCandidateElement,
   previewObstructionIpcChannel,
@@ -146,5 +147,82 @@ describe('intersectsPreviewPaneRect', () => {
 
   it('returns false for a zero-area candidate rect (not yet laid out / hidden)', () => {
     expect(intersectsPreviewPaneRect(previewPaneRect, { left: 200, top: 200, right: 200, bottom: 200 })).toBe(false);
+  });
+});
+
+describe('createPreviewObstructionMutationObserver', () => {
+  const previewPaneRectOverlappingEverything = { left: 0, top: 0, right: 1000, bottom: 1000 };
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('calls setPreviewObstructed when a data-state="open" element intersecting the preview pane appears', () => {
+    const setPreviewObstructed = vi.fn();
+    const clearPreviewObstructed = vi.fn();
+    const getBoundingClientRect = () => ({
+      left: 10, top: 10, right: 50, bottom: 50, width: 40, height: 40, x: 10, y: 10, toJSON: () => ({}),
+    });
+    const observer = createPreviewObstructionMutationObserver({
+      getPreviewPaneRect: () => previewPaneRectOverlappingEverything,
+      setPreviewObstructed,
+      clearPreviewObstructed,
+      reason: 'mutation-observer-fallback',
+    });
+    observer.observe(document.body);
+
+    const menu = document.createElement('div');
+    menu.setAttribute('data-state', 'open');
+    menu.getBoundingClientRect = getBoundingClientRect;
+    document.body.appendChild(menu);
+
+    observer.flushForTest();
+
+    expect(setPreviewObstructed).toHaveBeenCalledWith('mutation-observer-fallback', {
+      x: 10, y: 10, w: 40, h: 40,
+    });
+    observer.disconnect();
+  });
+
+  it('calls clearPreviewObstructed when no obstructing element remains', () => {
+    const setPreviewObstructed = vi.fn();
+    const clearPreviewObstructed = vi.fn();
+    const observer = createPreviewObstructionMutationObserver({
+      getPreviewPaneRect: () => previewPaneRectOverlappingEverything,
+      setPreviewObstructed,
+      clearPreviewObstructed,
+      reason: 'mutation-observer-fallback',
+    });
+    observer.observe(document.body);
+
+    observer.flushForTest();
+
+    expect(clearPreviewObstructed).toHaveBeenCalledWith('mutation-observer-fallback');
+    expect(setPreviewObstructed).not.toHaveBeenCalled();
+    observer.disconnect();
+  });
+
+  it('ignores data-state="open" elements that do not intersect the preview pane', () => {
+    const setPreviewObstructed = vi.fn();
+    const clearPreviewObstructed = vi.fn();
+    const observer = createPreviewObstructionMutationObserver({
+      getPreviewPaneRect: () => ({ left: 900, top: 900, right: 1000, bottom: 1000 }),
+      setPreviewObstructed,
+      clearPreviewObstructed,
+      reason: 'mutation-observer-fallback',
+    });
+    observer.observe(document.body);
+
+    const menu = document.createElement('div');
+    menu.setAttribute('data-state', 'open');
+    menu.getBoundingClientRect = () => ({
+      left: 10, top: 10, right: 50, bottom: 50, width: 40, height: 40, x: 10, y: 10, toJSON: () => ({}),
+    });
+    document.body.appendChild(menu);
+
+    observer.flushForTest();
+
+    expect(setPreviewObstructed).not.toHaveBeenCalled();
+    observer.disconnect();
   });
 });
