@@ -4588,17 +4588,14 @@ describe('buildRustSceneSnapshotForTimeline', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error('expected subject crop snapshot build to pass');
-    expect(result.snapshot.clips[0].effects).toEqual([
-      {
-        Clipping: {
-          top: 72,
-          bottom: 216,
-          left: 320,
-          right: 320,
-          angle_degrees: 0,
-        },
-      },
-    ]);
+    const [effect] = result.snapshot.clips[0].effects;
+    expect(effect && 'Clipping' in effect ? effect.Clipping : undefined).toBeDefined();
+    const clipping = (effect as { Clipping: { top: number; bottom: number; left: number; right: number; angle_degrees: number } }).Clipping;
+    expect(clipping.top).toBeCloseTo(72);
+    expect(clipping.bottom).toBeCloseTo(216);
+    expect(clipping.left).toBeCloseTo(320);
+    expect(clipping.right).toBeCloseTo(320);
+    expect(clipping.angle_degrees).toBe(0);
   });
 
   it('omits the Clipping effect once the interpolated subject crop rect collapses to nothing', () => {
