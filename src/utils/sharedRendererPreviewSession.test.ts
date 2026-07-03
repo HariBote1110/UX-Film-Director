@@ -60,6 +60,10 @@ const unsupportedShape = (patch: Partial<ShapeObject> = {}): ShapeObject => ({
   width: 320,
   height: 320,
   fill: '#ffffff',
+  // グループ合成は shared renderer bridge が未対応のまま。circle 等の
+  // 非矩形 shapeType 自体は GeneratedShape kind で対応済みになったため、
+  // このヘルパーは groupId を付与して「未対応」ケースを表す。
+  groupId: 'group-a',
   ...patch,
 });
 
