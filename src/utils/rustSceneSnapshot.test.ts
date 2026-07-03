@@ -4183,6 +4183,41 @@ describe('buildRustSceneSnapshotForTimeline', () => {
     ]);
   });
 
+  it('serialises 色調補正 color_correction filters as Rust scene effects', () => {
+    const layers = createDefaultLayers();
+    const corrected = baseImage({
+      id: 'colour-corrected',
+      filters: [
+        {
+          id: 'colour-correction-1',
+          type: 'color_correction',
+          enabled: true,
+          params: { brightness: 1.2, contrast: 0.5, saturation: -0.4, hue: 120 },
+        } as any,
+      ],
+    });
+
+    const result = buildRustSceneSnapshotForTimeline({
+      projectSettings: settings,
+      layers,
+      objects: [corrected],
+      time: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected colour correction snapshot build to pass');
+    expect(result.snapshot.clips[0].effects).toEqual([
+      {
+        ColourCorrection: {
+          brightness: 1.2,
+          contrast: 0.5,
+          saturation: -0.4,
+          hue_degrees: 120,
+        },
+      },
+    ]);
+  });
+
   it('fails loud for visible Pixi features the shared renderer cannot represent yet', () => {
     const layers = createDefaultLayers();
     const unsupportedGroupControl: TimelineObject = {
