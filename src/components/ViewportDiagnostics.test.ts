@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildSharedRendererPreviewDiagnostic,
   isTransientExternalVideoPresentationFailure,
+  shouldDeferSharedRendererPreviewSessionPublish,
   shouldReuseExternalVideoPresenterSession,
 } from './Viewport';
 import type { SharedRendererPreviewPresenterControl } from '../utils/sharedRendererPreviewPresenterController';
@@ -97,5 +98,21 @@ describe('shouldReuseExternalVideoPresenterSession', () => {
       isExporting: false,
       rustVideoOnly: true,
     })).toBe(false);
+  });
+});
+
+describe('shouldDeferSharedRendererPreviewSessionPublish', () => {
+  // 症状B: 図形ドラッグ中は毎 pointermove で publish が呼ばれ、presenter 起動中に
+  // 即 setSharedRendererPreviewSession すると起動 useEffect の cleanup が
+  // in-flight の startSharedRendererViewportPresenter を cancel してしまい、
+  // move が続く間は一度も present が完了しない（起動→キャンセルの連鎖）。
+  // 以前は isPlaying（再生中）限定でこの退避を行っていたため、一時停止中の
+  // ドラッグ（= 通常の編集操作）ではこの連鎖が起きたままだった。
+  it('defers publish while the presenter is starting, regardless of playback state', () => {
+    expect(shouldDeferSharedRendererPreviewSessionPublish(true)).toBe(true);
+  });
+
+  it('does not defer publish while the presenter is not starting, regardless of playback state', () => {
+    expect(shouldDeferSharedRendererPreviewSessionPublish(false)).toBe(false);
   });
 });

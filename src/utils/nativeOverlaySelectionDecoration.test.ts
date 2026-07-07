@@ -136,6 +136,77 @@ describe('createNativeOverlaySelectionDecorationSender', () => {
 
     expect(send).toHaveBeenCalledTimes(2);
   });
+
+  it('single-flight: collapses updates that arrive while a send is in-flight into one latest-wins resend', async () => {
+    // native 側 present は同期的で数十ms級のため、drag 中の毎 pointermove で
+    // update が呼ばれても IPC invoke を積み上げない契約（症状A: 選択枠が
+    // 5fps 級でガタつく実機バグの対策）。未解決 Promise を使い、in-flight 中に
+    // 合流した複数 update が1件（最新値）に集約されることを固定する。
+    let resolveFirstSend: ((value: { success: boolean; attached: boolean }) => void) | undefined;
+    const send = vi.fn(() => new Promise<{ success: boolean; attached: boolean }>((resolve) => {
+      resolveFirstSend = resolve;
+    }));
+    const sender = createNativeOverlaySelectionDecorationSender(send);
+
+    const moved1 = {
+      ...payload,
+      quads: [{ ...payload.quads[0], topLeftX: 11, topRightX: 111, bottomRightX: 111, bottomLeftX: 11 }],
+    };
+    const moved2 = {
+      ...payload,
+      quads: [{ ...payload.quads[0], topLeftX: 12, topRightX: 112, bottomRightX: 112, bottomLeftX: 12 }],
+    };
+    const moved3 = {
+      ...payload,
+      quads: [{ ...payload.quads[0], topLeftX: 13, topRightX: 113, bottomRightX: 113, bottomLeftX: 13 }],
+    };
+
+    // 最初の update は即送信され in-flight になる。
+    const first = sender.update(moved1, 0);
+    expect(first).not.toBeNull();
+    expect(send).toHaveBeenCalledTimes(1);
+
+    // in-flight 中に合流した update は send を増やさず、最新の1件だけを保持する。
+    expect(sender.update(moved2, 0)).toBeNull();
+    expect(sender.update(moved3, 0)).toBeNull();
+    expect(send).toHaveBeenCalledTimes(1);
+
+    // 最初の send が解決すると、保持中の最新 payload（moved3）だけが1回送られる。
+    resolveFirstSend?.({ success: true, attached: true });
+    await first;
+    // flushQueued は finally 内の非同期チェーンなので、マイクロタスクを進める。
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send).toHaveBeenLastCalledWith(moved3);
+  });
+
+  it('single-flight: does not re-send when the payload settles back to the last sent value while in-flight', async () => {
+    let resolveFirstSend: ((value: { success: boolean; attached: boolean }) => void) | undefined;
+    const send = vi.fn(() => new Promise<{ success: boolean; attached: boolean }>((resolve) => {
+      resolveFirstSend = resolve;
+    }));
+    const sender = createNativeOverlaySelectionDecorationSender(send);
+
+    const first = sender.update(payload, 0);
+    expect(send).toHaveBeenCalledTimes(1);
+
+    const moved = {
+      ...payload,
+      quads: [{ ...payload.quads[0], topLeftX: 11, topRightX: 111, bottomRightX: 111, bottomLeftX: 11 }],
+    };
+    expect(sender.update(moved, 0)).toBeNull();
+    // ドラッグが元の位置へ戻った: 最後に送った値と同一になったので再送不要。
+    expect(sender.update(payload, 0)).toBeNull();
+
+    resolveFirstSend?.({ success: true, attached: true });
+    await first;
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(send).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('scene selection overlay native decoration boundary', () => {

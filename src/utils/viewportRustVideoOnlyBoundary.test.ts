@@ -165,12 +165,16 @@ describe('Viewport Rust video-only boundary', () => {
     const end = code.indexOf('if (sharedRendererPresenterSessionKeyRef.current !== nextPresenterKey)', start);
     const nativeReuseBlock = code.slice(start, end);
 
-    expect(nativeReuseBlock).toContain('if (nativeOverlayPreviewEnabled) {');
+    // 非 video（図形）セッションは overlay 経路に乗せず DOM canvas 側の
+    // presentPreparedNativeRenderFrame を通すため、overlay 分岐は video-only
+    // セッションに限定される（isSharedRendererNativeRenderOnlySession 追加に伴う
+    // 挙動の絞り込み）。
+    expect(nativeReuseBlock).toContain('if (nativeOverlayPreviewEnabled && isSharedRendererExternalVideoOnlySession(session)) {');
     expect(nativeReuseBlock).toContain('prepareSharedRendererViewportNativeOverlayPresent({');
     expect(nativeReuseBlock).toContain('activeJob: sharedRendererVideoDecodeJobsRef.current[0] ?? null');
     expect(nativeReuseBlock).toContain('sharedRendererVideoDecodeJobsRef.current = result.ok ? [result.activeJob] : []');
     expect(nativeReuseBlock).toContain('presentPreparedNativeRenderFrame(result.upload, { session })');
-    expect(nativeReuseBlock.indexOf('if (nativeOverlayPreviewEnabled) {')).toBeLessThan(
+    expect(nativeReuseBlock.indexOf('if (nativeOverlayPreviewEnabled && isSharedRendererExternalVideoOnlySession(session)) {')).toBeLessThan(
       nativeReuseBlock.indexOf('presentPreparedNativeRenderFrame(result.upload, { session })')
     );
   });
@@ -183,7 +187,7 @@ describe('Viewport Rust video-only boundary', () => {
     const effectKeyStart = code.indexOf('const presenterSessionKey = buildSharedRendererPresenterSessionKey(sharedRendererPreviewSession');
     const effectKeyEnd = code.indexOf('let externalVideoSourcesByClipId =', effectKeyStart);
     const effectKeyBlock = code.slice(effectKeyStart, effectKeyEnd);
-    const pendingStart = code.indexOf('if (isPlaying && sharedRendererPresenterStartingRef.current)');
+    const pendingStart = code.indexOf('if (shouldDeferSharedRendererPreviewSessionPublish(sharedRendererPresenterStartingRef.current))');
     const pendingEnd = code.indexOf('if (sharedRendererPresenterSessionKeyRef.current !== nextPresenterKey)', pendingStart);
     const pendingBlock = code.slice(pendingStart, pendingEnd);
 
@@ -198,6 +202,36 @@ describe('Viewport Rust video-only boundary', () => {
     );
     expect(pendingBlock).toContain('sharedRendererPendingPreviewSessionRef.current = session');
     expect(pendingBlock).not.toContain('if (!sharedRendererPendingPreviewSessionRef.current)');
+  });
+
+  it('keeps timeline objects out of the presenter start effect dependencies (drag restart-cancel chain)', () => {
+    // 症状B: ドラッグ中は毎 pointermove で store の objects 参照が変わる。
+    // presenter 起動 effect の依存配列に objects が含まれていると、publish 側の
+    // pending 退避と無関係に effect 自体が毎 move で cleanup（cancelled=true）→
+    // 再実行され、in-flight の startSharedRendererViewportPresenter が cancel
+    // され続けて一度も present が完了しない。さらにキャンセルされた run の
+    // .finally は早期 return するため startingRef のリセットも pending replay も
+    // 行われない。objects は latestObjectsRef.current 経由で読む契約を固定する。
+    const code = viewportSource();
+    const effectStart = code.indexOf('if (!sharedRendererPreviewEnabled || !sharedRendererPreviewSession) {');
+    const presenterStart = code.indexOf('void startSharedRendererViewportPresenter({', effectStart);
+    const depsStart = code.indexOf('}, [isExporting', presenterStart);
+    const depsEnd = code.indexOf(']);', depsStart);
+    const depsBlock = code.slice(depsStart, depsEnd);
+    const effectBlock = code.slice(effectStart, depsStart);
+    const startPathSyncBlock = code.slice(effectStart, presenterStart);
+    const replaySyncBlock = code.slice(presenterStart, depsStart);
+
+    expect(effectStart).toBeGreaterThan(0);
+    expect(presenterStart).toBeGreaterThan(effectStart);
+    expect(depsStart).toBeGreaterThan(presenterStart);
+    // 依存配列に素の objects を含めない（updateShared...ObjectIds 等は許容）。
+    expect(depsBlock).not.toMatch(/\bobjects\b/);
+    // effect 内の external video sync は起動時点・replay 時点の最新 objects を
+    // ref から読む（起動時クロージャの stale objects を渡さない）。
+    expect(startPathSyncBlock).toContain('objects: latestObjectsRef.current');
+    expect(replaySyncBlock).toContain('objects: latestObjectsRef.current');
+    expect(effectBlock).not.toMatch(/^\s*objects,\s*$/m);
   });
 
   it('threads preview decode settings into rust-only native reuse uploads', () => {
@@ -474,5 +508,86 @@ describe('Viewport Rust video-only boundary', () => {
     const surroundingWindowStart = Math.max(0, start - 400);
     const surrounding = code.slice(surroundingWindowStart, start + 400);
     expect(surrounding).toContain('Ref');
+  });
+
+  // 図形（SolidColour 等の非 Video メディア）ドラッグ中のレイテンシ解消 ——
+  // 選択枠は native overlay（child NSWindow）へ約1ms/回で present され即座に
+  // 追従するが、矩形本体は従来 isSharedRendererExternalVideoOnlySession が
+  // false になるため reuse 経路に乗れず、presenterKey に transform が含まれて
+  // 毎 pointermove でフル再起動（約28ms/回）していた。枠と本体のレート差が
+  // 「ずれ」として見えていたため、動画を含まない（＝Rust native render が
+  // 単独で描ける）セッションも video-only と同様に reuse 対象へ広げる。
+  it('defines a native-render-only session predicate for non-video reuse eligibility', () => {
+    const code = viewportSource();
+
+    expect(code).toContain('isSharedRendererNativeRenderOnlySession');
+    const start = code.indexOf('const isSharedRendererNativeRenderOnlySession = (');
+    const end = code.indexOf('\n};', start);
+    const block = code.slice(start, end);
+
+    expect(start).toBeGreaterThan(-1);
+    // video-only 判定と同様、surfaceGate 不整合・clips 空は reuse 対象外とする。
+    expect(block).toContain('if (!session.surfaceGate.ok || session.surfaceGate.snapshot.clips.length === 0) return false;');
+    // 全 clip の media kind が 'Video' でないことを要求する（混在セッションは対象外）。
+    expect(block).toContain("mediaKindById.get(clip.media_id) !== 'Video'");
+  });
+
+  it('extends native render presenter reuse to non-video (shape/image) sessions alongside video-only sessions', () => {
+    const code = viewportSource();
+    const start = code.indexOf('const canReuseNativeRenderPresenter = rustVideoOnlyEnabled');
+    const end = code.indexOf(';', start);
+    const block = code.slice(start, end);
+
+    expect(start).toBeGreaterThan(-1);
+    expect(block).toContain('isSharedRendererExternalVideoOnlySession(session)');
+    expect(block).toContain('isSharedRendererNativeRenderOnlySession(session)');
+  });
+
+  it('mirrors the non-video reuse extension in the presenter start effect key computation', () => {
+    const code = viewportSource();
+    const start = code.indexOf('const canReuseCurrentNativeRenderPresenter = rustVideoOnlyEnabled');
+    const end = code.indexOf(';', start);
+    const block = code.slice(start, end);
+
+    expect(start).toBeGreaterThan(-1);
+    expect(block).toContain('isSharedRendererExternalVideoOnlySession(sharedRendererPreviewSession)');
+    expect(block).toContain('isSharedRendererNativeRenderOnlySession(sharedRendererPreviewSession)');
+  });
+
+  it('routes the non-video native-render reuse tick through prepareSharedRendererViewportNativeRenderUpload even when the native overlay is enabled', () => {
+    // 動画セッションの reuse tick は nativeOverlayPreviewEnabled 時
+    // prepareSharedRendererViewportNativeOverlayPresent（video decode +
+    // native overlay present）を通るが、図形は DOM 側 canvas に描画される
+    // ため、非 video セッションは overlay の有無に関わらず
+    // prepareSharedRendererViewportNativeRenderUpload →
+    // presentPreparedNativeRenderFrame のサブパスを通す必要がある。
+    const code = viewportSource();
+    const start = code.indexOf('if (canReuseNativeRenderPresenter && sharedRendererPresenterSessionKeyRef.current === nextPresenterKey)');
+    const end = code.indexOf('if (sharedRendererPresenterSessionKeyRef.current !== nextPresenterKey)', start);
+    const block = code.slice(start, end);
+
+    expect(start).toBeGreaterThan(-1);
+    // overlay 分岐に入るのは動画セッションのときだけに限定する。
+    expect(block).toContain('if (nativeOverlayPreviewEnabled && isSharedRendererExternalVideoOnlySession(session)) {');
+    expect(block).toContain('presentPreparedNativeRenderFrame(result.upload, { session })');
+  });
+
+  it('does not reuse the native render presenter for mixed video + non-video sessions', () => {
+    // 混在セッション（video と図形が同時に存在）は今回の対象外。
+    // isSharedRendererExternalVideoOnlySession と
+    // isSharedRendererNativeRenderOnlySession はどちらも「全 clip が同一種別」
+    // を要求するため、混在セッションはどちらの判定にも該当せず reuse に乗らない
+    // （挙動は predicate 自体の実装で保証される。ここでは両判定が
+    //  互いに排他的な条件—video か非video かで分岐する—であることを固定する）。
+    const code = viewportSource();
+    const videoOnlyStart = code.indexOf('const isSharedRendererExternalVideoOnlySession = (');
+    const videoOnlyEnd = code.indexOf('\n};', videoOnlyStart);
+    const videoOnlyBlock = code.slice(videoOnlyStart, videoOnlyEnd);
+    const nativeRenderOnlyStart = code.indexOf('const isSharedRendererNativeRenderOnlySession = (');
+    const nativeRenderOnlyEnd = code.indexOf('\n};', nativeRenderOnlyStart);
+    const nativeRenderOnlyBlock = code.slice(nativeRenderOnlyStart, nativeRenderOnlyEnd);
+
+    expect(videoOnlyBlock).toContain("mediaKindById.get(clip.media_id) === 'Video'");
+    expect(nativeRenderOnlyBlock).toContain("mediaKindById.get(clip.media_id) !== 'Video'");
   });
 });

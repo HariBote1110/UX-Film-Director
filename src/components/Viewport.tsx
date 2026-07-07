@@ -172,6 +172,25 @@ const isSharedRendererExternalVideoOnlySession = (session: SharedRendererPreview
   return session.surfaceGate.snapshot.clips.every((clip) => mediaKindById.get(clip.media_id) === 'Video');
 };
 
+// 図形（SolidColour/GeneratedGradient/Image/Psd/Text 等の非 Video メディア）
+// だけで構成されたセッションかどうかを判定する。選択枠は native overlay
+// （child NSWindow）へ約1ms/回で present され即座に追従するが、矩形などの
+// 図形本体は DOM 側の WebGPU canvas（sharedRendererSurfaceCanvas）に描かれ、
+// 従来は isSharedRendererExternalVideoOnlySession が false になるため
+// reuse 経路に乗れず presenterKey に transform が含まれ、毎 pointermove で
+// presenter がフル再起動（実測約28ms/回）していた。枠（1ms）と本体（28ms+）
+// のレート・レイテンシ差がドラッグ中の「枠と本体のずれ」として見えていた。
+// video-only 判定と対になるこの述語を使い、非 video セッションも
+// canReuseNativeRenderPresenter の reuse 対象へ広げてこのずれを解消する。
+// 混在セッション（video と図形が同居）はどちらの述語にも該当せず、
+// 従来どおりフル再起動のままとなる（今回の対象外）。
+const isSharedRendererNativeRenderOnlySession = (session: SharedRendererPreviewSession): boolean => {
+  if (!session.surfaceGate.ok || session.surfaceGate.snapshot.clips.length === 0) return false;
+
+  const mediaKindById = new Map(session.surfaceGate.media.map((media) => [media.id, media.kind]));
+  return session.surfaceGate.snapshot.clips.every((clip) => mediaKindById.get(clip.media_id) !== 'Video');
+};
+
 export const shouldReuseExternalVideoPresenterSession = ({
   session,
   isExporting,
@@ -190,6 +209,29 @@ export const shouldReuseExternalVideoPresenterSession = ({
   && !rustVideoOnly
   && isSharedRendererExternalVideoOnlySession(session)
 );
+
+/**
+ * presenter 起動中（sharedRendererPresenterStartingRef）に publish された
+ * セッションを即 setSharedRendererPreviewSession せず pending へ退避すべきかを
+ * 判定する。
+ *
+ * 図形ドラッグ中は毎 pointermove で publishSharedRendererPreviewSession が
+ * 呼ばれ、図形を含むセッションは presenterKey に transform が含まれるため
+ * ほぼ毎回 key が変化する。以前は isPlaying（再生中）限定でこの退避を行って
+ * いたため、一時停止中のドラッグでは毎 move が setSharedRendererPreviewSession
+ * を呼び、起動 useEffect の cleanup が前回の startSharedRendererViewportPresenter
+ * を cancel する「起動→キャンセル→起動→キャンセル…」の連鎖に陥り、move が
+ * 続く間は一度も present が完了しなかった（症状B）。
+ *
+ * 再生中限定にしていた理由（proxy 連続再生の presenter 使い回し）は起動中か
+ * どうかにのみ依存し、isPlaying 自体を条件にする必然性はない。起動中は常に
+ * 退避することで、この起動キャンセル連鎖を再生中・一時停止中の両方で解消する。
+ * 退避したセッションは .finally の pending replay 機構
+ * （pendingSessionKey !== presenterSessionKey なら再起動）で順次消化される。
+ */
+export const shouldDeferSharedRendererPreviewSessionPublish = (
+  presenterStarting: boolean,
+): boolean => presenterStarting;
 
 const publishSharedRendererExternalVideoPresentationDiagnostics = (
   session: SharedRendererPreviewSession,
@@ -1002,17 +1044,22 @@ const Viewport: React.FC = () => {
     // In rust-only mode the native render presenter can be reused across playback
     // frames: instead of a full presenter restart per frame (the flicker + decode
     // restart storm), keep the presenter and only push a freshly decoded native
-    // frame onto it. Requires an all-video session the native path can render.
+    // frame onto it. Originally required an all-video session; now also covers
+    // all-non-video (shape/image/etc.) sessions so that dragging a shape does
+    // not restart the presenter on every pointermove (see
+    // isSharedRendererNativeRenderOnlySession comment for the ずれ this fixes).
+    // Mixed video + non-video sessions match neither predicate and keep the
+    // full-restart path.
     const canReuseNativeRenderPresenter = rustVideoOnlyEnabled
       && !isExporting
-      && isSharedRendererExternalVideoOnlySession(session);
+      && (isSharedRendererExternalVideoOnlySession(session) || isSharedRendererNativeRenderOnlySession(session));
     const nextPresenterKey = buildSharedRendererPresenterSessionKey(session, {
       includePlaybackFrame: !(canReuseExternalVideoPresenter || canReuseNativeRenderPresenter),
       // The native reuse path re-presents the full Rust-composited frame each
       // tick, so animated transform/opacity/effects must not churn the key.
       includeAnimatedSceneContent: !canReuseNativeRenderPresenter,
     });
-    if (isPlaying && sharedRendererPresenterStartingRef.current) {
+    if (shouldDeferSharedRendererPreviewSessionPublish(sharedRendererPresenterStartingRef.current)) {
       sharedRendererPendingPreviewSessionRef.current = session;
       sharedRendererPendingPresenterSessionKeyRef.current = nextPresenterKey;
       return;
@@ -1062,7 +1109,14 @@ const Viewport: React.FC = () => {
     }
     if (canReuseNativeRenderPresenter && sharedRendererPresenterSessionKeyRef.current === nextPresenterKey) {
       const control = sharedRendererPresenterControlRef.current;
-      if (control?.ok && (nativeOverlayPreviewEnabled || control.presentPreparedNativeRenderFrame)) {
+      // 図形（非 video）は DOM 側 WebGPU canvas に描画されるため、
+      // nativeOverlayPreviewEnabled でも overlay 経路には乗せず常に
+      // presentPreparedNativeRenderFrame サブパスを使う。overlay 経路は
+      // video-only セッションに限定する。
+      if (control?.ok && (
+        (nativeOverlayPreviewEnabled && isSharedRendererExternalVideoOnlySession(session))
+        || control.presentPreparedNativeRenderFrame
+      )) {
         const presentPreparedNativeRenderFrame = control.presentPreparedNativeRenderFrame;
         if (sharedRendererNativeReusePreparingRef.current) {
           // A decode+present is already in flight; replay only the latest tick.
@@ -1072,7 +1126,7 @@ const Viewport: React.FC = () => {
         sharedRendererNativeReusePreparingRef.current = true;
         void (async () => {
           try {
-            if (nativeOverlayPreviewEnabled) {
+            if (nativeOverlayPreviewEnabled && isSharedRendererExternalVideoOnlySession(session)) {
               if (session.surfaceGate.ok) {
                 sharedRendererNativeReuseLastPreviewTimeRef.current = session.surfaceGate.snapshot.frame_index / projectSettings.fps;
               }
@@ -1221,9 +1275,13 @@ const Viewport: React.FC = () => {
       isExporting,
       rustVideoOnly: rustVideoOnlyEnabled,
     });
+    // Mirrors canReuseNativeRenderPresenter above (video-only OR non-video-only)
+    // so the pending-replay key comparison in .finally matches the key the
+    // publish path stored for both reuse-eligible session shapes.
     const canReuseCurrentNativeRenderPresenter = rustVideoOnlyEnabled
       && !isExporting
-      && isSharedRendererExternalVideoOnlySession(sharedRendererPreviewSession);
+      && (isSharedRendererExternalVideoOnlySession(sharedRendererPreviewSession)
+        || isSharedRendererNativeRenderOnlySession(sharedRendererPreviewSession));
     const presenterSessionKey = buildSharedRendererPresenterSessionKey(sharedRendererPreviewSession, {
       // Mirror publishSharedRendererPreviewSession so the pending-replay key
       // comparison in .finally matches the key the publish path stored.
@@ -1239,7 +1297,11 @@ const Viewport: React.FC = () => {
     } else {
       externalVideoSourcesByClipId = syncSharedRendererExternalVideoSources({
         session: sharedRendererPreviewSession,
-        objects,
+        // objects を依存配列経由で受けると、ドラッグ中の毎 pointermove（store の
+        // objects 参照が変わる）でこの effect 自体が cleanup（cancelled=true）→
+        // 再実行され、起動→キャンセルの連鎖が復活してしまう。起動時点の最新
+        // objects を ref から読むことで、意味を変えずに依存を外す。
+        objects: latestObjectsRef.current,
         entries: sharedRendererExternalVideoSourcesRef.current,
         isPlaying,
         onFrameReady: requestSharedRendererExternalVideoFrameRepaint,
@@ -1381,7 +1443,10 @@ const Viewport: React.FC = () => {
         if (control?.ok && control.presentExternalVideoFrameScene) {
           const sourcesByClipId = syncSharedRendererExternalVideoSources({
             session: pendingSession,
-            objects,
+            // replay 時点の最新 objects を ref から読む（起動時にクロージャへ
+            // 捕捉した古い objects より意味的にも正しい）。依存配列に objects を
+            // 含めない理由は起動側の sync のコメントを参照。
+            objects: latestObjectsRef.current,
             entries: sharedRendererExternalVideoSourcesRef.current,
             isPlaying,
           });
@@ -1414,7 +1479,15 @@ const Viewport: React.FC = () => {
         sharedRendererPresenterControlRef.current = null;
       }
     };
-  }, [isExporting, isPlaying, objects, requestSharedRendererExternalVideoFrameRepaint, rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererGeneratedEffectObjectIds, updateSharedRendererImageObjectIds, updateSharedRendererPsdObjectIds, updateSharedRendererSolidColourObjectIds, updateSharedRendererTextObjectIds]);
+    // 依存配列に objects を含めない（latestObjectsRef.current 経由で読む）:
+    // ドラッグ中は毎 pointermove で store の objects 参照が変わるため、objects を
+    // 依存に含めると presenter 起動中でもこの effect が毎 move で cleanup →
+    // 再実行され、in-flight の startSharedRendererViewportPresenter が cancel
+    // され続けて一度も present が完了しない（症状B の起動キャンセル連鎖）。
+    // objects の変化は publish 側 effect（deps: [currentTime, objects, ...]）が
+    // 受けて session を再構築するので、presenter の再起動が必要な変化は
+    // sharedRendererPreviewSession の変化としてここへ届く。
+  }, [isExporting, isPlaying, requestSharedRendererExternalVideoFrameRepaint, rustVideoOnlyEnabled, sharedRendererDiagnosticSwatchEnabled, sharedRendererPreviewEnabled, sharedRendererPreviewSession, sharedRendererVideoCutoverEnabled, updateSharedRendererGeneratedEffectObjectIds, updateSharedRendererImageObjectIds, updateSharedRendererPsdObjectIds, updateSharedRendererSolidColourObjectIds, updateSharedRendererTextObjectIds]);
 
   // --- Main Render Logic ---
   // PixiJS 排除計画 Phase 4: 旧 Pixi シーングラフ描画は撤去した。ここでは
