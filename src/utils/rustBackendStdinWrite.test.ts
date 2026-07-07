@@ -92,4 +92,41 @@ describe('writeToRustBackendStdin', () => {
 
     expect(onError).toHaveBeenCalledTimes(1);
   });
+
+  /**
+   * writeToRustBackendStdin は呼び出しのたびに 'error' listener を
+   * 追加していたため、プレビュー更新など高頻度の書き込みで同じ stdin に
+   * listener が無制限に積み上がり、Node の
+   * MaxListenersExceededWarning（実測: 11 error listeners on Socket）を
+   * 引き起こしていた。同じ stdin に対しては 'error' listener を1本だけ
+   * 登録し、以降の書き込みは listener の差し替え（最新の onError への
+   * 転送）のみで済ませることを固定する。
+   */
+  it('同じstdinに複数回writeしてもerrorリスナーは1本しか登録されない', () => {
+    const stdin = new FakeStdin(() => true);
+    const onError = vi.fn();
+
+    for (let i = 0; i < 20; i += 1) {
+      writeToRustBackendStdin(stdin, `payload-${i}`, onError);
+    }
+
+    expect(stdin.listenerCount('error')).toBe(1);
+  });
+
+  it("複数回writeした後の'error'イベントは最新のonErrorへ転送される", () => {
+    const stdin = new FakeStdin(() => true);
+    const firstOnError = vi.fn();
+    const latestOnError = vi.fn();
+
+    writeToRustBackendStdin(stdin, 'payload-1', firstOnError);
+    writeToRustBackendStdin(stdin, 'payload-2', latestOnError);
+
+    const epipeError = Object.assign(new Error('write EPIPE'), { code: 'EPIPE' });
+    stdin.emit('error', epipeError);
+
+    expect(latestOnError).toHaveBeenCalledTimes(1);
+    expect(latestOnError.mock.calls[0][0]).toBeInstanceOf(Error);
+    expect(latestOnError.mock.calls[0][0].message).toContain('EPIPE');
+    expect(firstOnError).not.toHaveBeenCalled();
+  });
 });
