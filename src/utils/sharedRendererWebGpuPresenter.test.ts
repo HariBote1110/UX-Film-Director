@@ -4,6 +4,10 @@ import {
   type SharedRendererWebGpuAdapterLike,
   type SharedRendererWebGpuLike,
 } from './sharedRendererWebGpuPresenter';
+import {
+  getSharedVideoFrameUploadPathDiagnostics,
+  resetSharedVideoFrameUploadPathForTest,
+} from './sharedVideoFrameUploadBridge';
 import { buildSharedRendererPresentationContract } from './sharedRendererPresentationContract';
 import type { RustBackendVideoFrameDescriptor } from './rustBackendVideoDecodeControl';
 import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
@@ -935,6 +939,59 @@ describe('createSharedRendererWebGpuPresenter', () => {
     });
     expect(createdTextures).toHaveLength(1);
     expect(writtenTextures).toEqual([]);
+  });
+
+  it('retries writeTexture with a non-shared staging copy when the device rejects SharedArrayBuffer-backed views', async () => {
+    // ChromiumのWebGPU実装がSABバックのviewを受け付けない環境向けのフォール
+    // バック。1回目の失敗でbridge側をstagedモードへ切り替え（以後のフレームは
+    // 例外なしで非共有バッファが届く）、このフレーム自体も非共有コピーで再試行
+    // して取りこぼさない。
+    resetSharedVideoFrameUploadPathForTest();
+    const writtenTextures: Array<{ data: Uint8Array; shared: boolean }> = [];
+    const sharedRgbaBytes = new Uint8Array(new SharedArrayBuffer(decodedVideoDescriptor.byteLen));
+    sharedRgbaBytes.fill(0x6b);
+
+    const result = await createSharedRendererWebGpuPresenter({
+      canvas: fakeCanvas(() => fakeContext()),
+      surfaceGate: okSurfaceGate,
+      presentationContract: buildSharedRendererPresentationContract(),
+      gpu: fakeGpu({
+        onRequestAdapter: () => fakeAdapter({
+          device: fakeDevice({
+            onWriteTexture: (_destination, data) => {
+              const shared = data.buffer instanceof SharedArrayBuffer;
+              writtenTextures.push({ data, shared });
+              if (shared) {
+                throw new TypeError('SharedArrayBuffer is not allowed for GPUQueue.writeTexture.');
+              }
+            },
+          }),
+        }),
+      }),
+      textureUsageRenderAttachment: 16,
+      textureUsageTextureBinding: 4,
+      textureUsageTextureCopyDst: 2,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected presenter creation to pass');
+
+    expect(result.uploadVideoFrameTexture({
+      descriptor: decodedVideoDescriptor,
+      rgbaBytes: sharedRgbaBytes,
+    })).toMatchObject({
+      ok: true,
+      texture: 'video-frame-texture',
+    });
+    expect(writtenTextures).toHaveLength(2);
+    expect(writtenTextures[0].shared).toBe(true);
+    expect(writtenTextures[1].shared).toBe(false);
+    expect(writtenTextures[1].data[0]).toBe(0x6b);
+    expect(writtenTextures[1].data.byteLength).toBe(decodedVideoDescriptor.byteLen);
+    // 以後のprepare呼び出しがstagedモードに切り替わるようbridge側へ通知済み
+    expect(getSharedVideoFrameUploadPathDiagnostics().writeTextureRejectedDetail)
+      .toContain('writeTexture');
+    resetSharedVideoFrameUploadPathForTest();
   });
 
   it('rejects a Rust decoded RGBA upload when byte length does not match the descriptor', async () => {

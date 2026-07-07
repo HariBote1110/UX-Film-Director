@@ -10,6 +10,7 @@ interface ImportMetaEnv {
   readonly VITE_UXFD_PHASE0_WRITE_TEXTURE_NOOP?: string;
   readonly VITE_UXFD_PHASE0_DISCARD_NATIVE_RENDER_OUTPUT?: string;
   readonly VITE_UXFD_NATIVE_OVERLAY?: string;
+  readonly VITE_UXFD_UPLOAD_CRC_VERIFY?: string;
 }
 
 interface ImportMeta {
@@ -278,6 +279,30 @@ interface Window {
         actualChecksum: number;
       };
       copiedBytes?: Uint8Array;
+      error?: string;
+    }>;
+    copyIntoSharedUploadBuffer?: (
+      payload: {
+        memoryId: string;
+        slotCount: number;
+        slotByteLen: number;
+        slotIndex: number;
+        generation: number;
+        ptsFrame: number;
+        sharedUploadBufferId: string;
+      }
+    ) => Promise<{
+      success: boolean;
+      result?: {
+        sequence: number;
+        slotIndex: number;
+        generation: number;
+        byteLen: number;
+        checksumAlgorithm: 'crc32';
+        expectedChecksum: number;
+        actualChecksum: number;
+      };
+      sharedUploadUnavailable?: boolean;
       error?: string;
     }>;
   };

@@ -17,6 +17,7 @@ import type {
   SharedRendererPreviewSurfaceGate,
 } from './sharedRendererPreviewSurface';
 import type { RustBackendVideoEncodeWriteFramePayload } from './rustBackendVideoEncodeControl';
+import { markSharedUploadWriteTextureRejected } from './sharedVideoFrameUploadBridge';
 
 export interface SharedRendererWebGpuLike {
   getPreferredCanvasFormat: () => string;
@@ -677,16 +678,30 @@ export const createSharedRendererWebGpuPresenter = async ({
       usage: textureUsageTextureBinding | textureUsageTextureCopyDst,
     });
     if (!writeTextureNoOpEnabled) {
-      device.queue.writeTexture(
-        { texture },
-        rgbaBytes,
-        {
-          offset: 0,
-          bytesPerRow: descriptor.strideBytes,
-          rowsPerImage: descriptor.height,
-        },
-        size
-      );
+      const dataLayout = {
+        offset: 0,
+        bytesPerRow: descriptor.strideBytes,
+        rowsPerImage: descriptor.height,
+      };
+      try {
+        device.queue.writeTexture({ texture }, rgbaBytes, dataLayout, size);
+      } catch (error) {
+        // SAB zero-copy経路のrgbaBytesはSharedArrayBufferバックのview。仕様上
+        // writeTextureはAllowSharedBufferSource対応だが、実装が拒否する環境への
+        // フォールバックとして、非共有stagingへ1回だけコピーして再試行する。
+        // 同時にbridge側をstagedモードへ切り替え、以後のフレームは例外なしで
+        // 非共有バッファが届くようにする。非SABバッファでの例外は従来どおり
+        // fail-loudで伝播させる。
+        const sharedBacked = typeof SharedArrayBuffer === 'function'
+          && rgbaBytes.buffer instanceof SharedArrayBuffer;
+        if (!sharedBacked) throw error;
+        markSharedUploadWriteTextureRejected(
+          `writeTexture rejected a SharedArrayBuffer-backed view: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        const staged = new Uint8Array(rgbaBytes.byteLength);
+        staged.set(rgbaBytes);
+        device.queue.writeTexture({ texture }, staged, dataLayout, size);
+      }
     }
 
     return {

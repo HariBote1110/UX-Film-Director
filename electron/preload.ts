@@ -58,9 +58,22 @@ type SharedVideoFramePresentedFrameResult = {
   error?: string
 }
 
+type SharedVideoFrameSharedCopyPayload = SharedVideoFrameCopyPayload & {
+  // window.postMessageで登録済みのSharedArrayBufferを指す参照。
+  // contextBridgeはSAB/viewをクローンできないため、copy呼び出しは
+  // この文字列参照のみを渡す。
+  sharedUploadBufferId: string
+}
+
 type SharedVideoFrameNativeBridge = {
   getPresentedFrameHandoffCapabilities?: () => SharedVideoFramePresentedFrameHandoffCapabilities
   copyIntoUploadBuffer?: (
+    payload: SharedVideoFrameCopyPayload,
+    target: Uint8Array
+  ) => Promise<SharedVideoFrameCopyResult> | SharedVideoFrameCopyResult
+  // SAB zero-copy経路（addon未更新なら存在しない）。copy report契約は
+  // copyIntoUploadBufferと同一。
+  copyIntoSharedUploadBuffer?: (
     payload: SharedVideoFrameCopyPayload,
     target: Uint8Array
   ) => Promise<SharedVideoFrameCopyResult> | SharedVideoFrameCopyResult
@@ -251,4 +264,53 @@ contextBridge.exposeInMainWorld('sharedVideoFrame', {
       copiedBytes: target,
     }
   },
+  async copyIntoSharedUploadBuffer(payload: SharedVideoFrameSharedCopyPayload) {
+    // rendererがwindow.postMessageで登録したSABのviewへaddonが直接memcpyする
+    // zero-copy経路。画素はcontextBridgeを一切通らない（copiedBytesのエコー
+    // バックも行わない）。sharedUploadUnavailable: true はrenderer側が既存の
+    // copyIntoUploadBuffer経路へ自動フォールバックしてよい合図。
+    const bridge = loadSharedVideoFrameNativeBridge()
+    if (!bridge || typeof bridge.copyIntoSharedUploadBuffer !== 'function') {
+      return {
+        success: false,
+        sharedUploadUnavailable: true,
+        error: 'Shared video frame native bridge shared-upload entry is unavailable.',
+      }
+    }
+    const target = sharedUploadBufferRegistry.get(payload.sharedUploadBufferId)
+    if (!target) {
+      return {
+        success: false,
+        sharedUploadUnavailable: true,
+        error: `Shared upload buffer is not registered: ${payload.sharedUploadBufferId}`,
+      }
+    }
+    const { sharedUploadBufferId: _sharedUploadBufferId, ...corePayload } = payload
+
+    return bridge.copyIntoSharedUploadBuffer(corePayload, target)
+  },
+})
+
+// SAB zero-copy経路のバッファ登録簿 — ElectronのcontextBridgeはSharedArrayBuffer
+// （バックのview含む）を「An object could not be cloned.」で拒否するため、SAB
+// 本体はwindow.postMessage（本物の構造化クローンが走り、SABのバッキングメモリ
+// は共有される）で一回だけ受け取ってここに保持する。以後のcopy呼び出しは
+// bufferIdの文字列参照だけがcontextBridgeを通る。
+const sharedUploadBufferRegistry = new Map<string, Uint8Array>()
+
+window.addEventListener('message', (event) => {
+  const data = event.data as { type?: unknown; bufferId?: unknown; buffer?: unknown } | null
+  if (!data || typeof data !== 'object' || typeof data.bufferId !== 'string') return
+  if (data.type === 'uxfd:registerSharedUploadBuffer') {
+    if (!(data.buffer instanceof SharedArrayBuffer)) return
+    sharedUploadBufferRegistry.set(data.bufferId, new Uint8Array(data.buffer))
+    // renderer側(src/utils/sharedVideoFrameUploadBridge.ts)が登録完了を
+    // awaitできるようackを返す
+    window.postMessage({ type: 'uxfd:sharedUploadBufferRegistered', bufferId: data.bufferId }, '*')
+    return
+  }
+  if (data.type === 'uxfd:releaseSharedUploadBuffer') {
+    // byteLen変更等でringが作り直された時、旧解像度のSABを保持し続けない
+    sharedUploadBufferRegistry.delete(data.bufferId)
+  }
 })

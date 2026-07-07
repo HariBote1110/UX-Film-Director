@@ -28,8 +28,14 @@ app.commandLine.appendSwitch('enable-zero-copy');
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
 // WebGPU を明示的に有効化
 app.commandLine.appendSwitch('enable-unsafe-webgpu');
-// Canvas の GPU ラスタライズを有効化
-app.commandLine.appendSwitch('enable-features', 'CanvasOopRasterization');
+// Canvas の GPU ラスタライズを有効化 + SharedArrayBuffer をrendererで有効化。
+// SharedArrayBufferはプレビューフレーム受け渡しのzero-copy化
+// (src/utils/sharedVideoFrameUploadBridge.ts) に必要。COOP/COEPヘッダによる
+// cross-origin isolation は dev(vite) / prod(file://) の両方に別々の仕掛けが
+// 要るため、両方で一様に効くChromium featureスイッチを使う。
+// 注意: enable-features スイッチは同名の後勝ち上書きになるため、
+// 必ずこの1回のappendSwitch呼び出しにカンマ区切りでまとめること。
+app.commandLine.appendSwitch('enable-features', 'CanvasOopRasterization,SharedArrayBuffer');
 // WebGPU presenter / shared renderer のGPU利用を安定させる
 app.commandLine.appendSwitch('disable-gpu-sandbox');
 app.commandLine.appendSwitch('in-process-gpu');

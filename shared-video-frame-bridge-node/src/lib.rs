@@ -282,6 +282,21 @@ pub fn copy_into_upload_buffer(
     }
 }
 
+// SAB zero-copy経路のエントリ。renderer側がSharedArrayBufferバックのviewを
+// contextBridge越しに渡してくる（SABは構造化クローンでもバッキングメモリが
+// 共有されるため、ここでのmemcpy 1回で画素がrendererへ届く）。copy report・
+// checksum計算の契約は copyIntoUploadBuffer と完全に同一で、Node-APIの
+// typed array取得はSABバックのviewでもそのままデータポインタを返すため、
+// 実装は既存entryへの委譲のみ。この関数の存在自体がpreload側の
+// feature detection（addon未更新ならlegacy経路へフォールバック）に使われる。
+#[napi(js_name = "copyIntoSharedUploadBuffer")]
+pub fn copy_into_shared_upload_buffer(
+    payload: SharedVideoFrameCopyPayload,
+    target: Uint8Array,
+) -> SharedVideoFrameCopyResponse {
+    copy_into_upload_buffer(payload, target)
+}
+
 #[napi(js_name = "getPresentedFrameHandoffCapabilities")]
 pub fn get_presented_frame_handoff_capabilities() -> PresentedFrameHandoffCapabilities {
     PresentedFrameHandoffCapabilities {

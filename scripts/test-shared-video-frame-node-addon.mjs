@@ -18,6 +18,7 @@ assert.ok(
 const addon = require(addonPath)
 
 assert.equal(typeof addon.copyIntoUploadBuffer, 'function')
+assert.equal(typeof addon.copyIntoSharedUploadBuffer, 'function')
 assert.equal(typeof addon.createWritableSharedFrameRing, 'function')
 assert.equal(typeof addon.writeIntoSharedFrameRing, 'function')
 assert.equal(typeof addon.closeWritableSharedFrameRing, 'function')
@@ -93,6 +94,36 @@ assert.equal(copyFrame.result.generation, 1)
 assert.equal(copyFrame.result.checksumAlgorithm, 'crc32')
 assert.equal(copyFrame.result.expectedChecksum, writeFrame.result.checksum)
 assert.equal(copyFrame.result.actualChecksum, writeFrame.result.checksum)
+
+// SAB zero-copy経路: SharedArrayBufferバックのviewへ直接memcpyされ、
+// copy report契約（sequence/slot/generation/crc32 checksum）はlegacy entryと同一。
+// 上のcopyIntoUploadBufferがslot 0をREADINGのまま消費しているため、
+// このフレームは次のFREE slot(slot 1)に書かれる。
+const sharedSourceFrame = new Uint8Array(slotByteLen)
+sharedSourceFrame.set([15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0])
+const sharedWriteFrame = addon.writeIntoSharedFrameRing({
+  memoryId,
+  ptsFrame: 8,
+}, sharedSourceFrame)
+assert.equal(sharedWriteFrame.success, true, String(sharedWriteFrame.error))
+
+const sharedTarget = new Uint8Array(new SharedArrayBuffer(slotByteLen))
+const sharedCopyFrame = addon.copyIntoSharedUploadBuffer({
+  memoryId,
+  slotCount,
+  slotByteLen,
+  slotIndex: 1,
+  generation: 1,
+  ptsFrame: 8,
+}, sharedTarget)
+assert.equal(sharedCopyFrame.success, true, String(sharedCopyFrame.error))
+assert.deepEqual([...sharedTarget], [...sharedSourceFrame])
+assert.equal(sharedCopyFrame.result.slotIndex, 1)
+assert.equal(sharedCopyFrame.result.generation, 1)
+assert.equal(sharedCopyFrame.result.checksumAlgorithm, 'crc32')
+assert.equal(sharedCopyFrame.result.expectedChecksum, sharedWriteFrame.result.checksum)
+assert.equal(sharedCopyFrame.result.actualChecksum, sharedWriteFrame.result.checksum)
+assert.equal('copiedBytes' in sharedCopyFrame, false)
 
 const closeRing = addon.closeWritableSharedFrameRing({ memoryId })
 assert.equal(closeRing.success, true, String(closeRing.error))
